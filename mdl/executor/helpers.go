@@ -639,39 +639,21 @@ func buildEntityQualifiedNames(ctx *ExecContext) map[string]bool {
 // for all enum-typed attributes on the given entity (e.g. "Status" → "Module.OrderStatus").
 // Returns an empty map if the entity is not found or has no enum attributes.
 func buildEntityEnumAttrMap(ctx *ExecContext, entityQN string) map[string]string {
-	result := make(map[string]string)
 	if !ctx.Connected() || entityQN == "" {
-		return result
+		return map[string]string{}
 	}
-	parts := strings.SplitN(entityQN, ".", 2)
-	if len(parts) != 2 {
-		return result
+	if ctx.Cache != nil && ctx.Cache.entityEnumAttrs != nil {
+		return ctx.Cache.entityEnumAttrs[entityQN]
 	}
-	mod, err := findModule(ctx, parts[0])
-	if err != nil {
-		return result
+	h, err := getHierarchy(ctx)
+	if err != nil || h == nil {
+		return map[string]string{}
 	}
-	dms, err := ctx.Backend.ListDomainModels()
-	if err != nil {
-		return result
+	populateEntityMetadataCache(ctx, h)
+	if ctx.Cache == nil {
+		return map[string]string{}
 	}
-	for _, dm := range dms {
-		if dm.ContainerID != mod.ID {
-			continue
-		}
-		for _, ent := range dm.Entities {
-			if ent.Name != parts[1] {
-				continue
-			}
-			for _, attr := range ent.Attributes {
-				if enumType, ok := attr.Type.(*domainmodel.EnumerationAttributeType); ok {
-					result[attr.Name] = enumType.EnumerationRef
-				}
-			}
-			return result
-		}
-	}
-	return result
+	return ctx.Cache.entityEnumAttrs[entityQN]
 }
 
 // buildAssociationQualifiedNames returns a set of all association qualified names

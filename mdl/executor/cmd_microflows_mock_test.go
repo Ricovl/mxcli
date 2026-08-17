@@ -143,6 +143,45 @@ func TestDescribeMicroflow_UsesDirectQualifiedNameLookup(t *testing.T) {
 	}
 }
 
+func TestBuildEntityEnumAttrMap_CachesLightweightMetadata(t *testing.T) {
+	mod := mkModule("Sales")
+	dm := &domainmodel.DomainModel{
+		ContainerID: mod.ID,
+		Entities: []*domainmodel.Entity{{
+			Name: "Order",
+			Attributes: []*domainmodel.Attribute{{
+				Name: "Status",
+				Type: &domainmodel.EnumerationAttributeType{EnumerationRef: "Sales.OrderStatus"},
+			}},
+		}},
+	}
+	calls := 0
+	mb := &mock.MockBackend{
+		IsConnectedFunc: func() bool { return true },
+		ListDomainModelsFunc: func() ([]*domainmodel.DomainModel, error) {
+			calls++
+			return []*domainmodel.DomainModel{dm}, nil
+		},
+	}
+	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(mkHierarchy(mod)))
+
+	for range 3 {
+		attrs := buildEntityEnumAttrMap(ctx, "Sales.Order")
+		if attrs["Status"] != "Sales.OrderStatus" {
+			t.Fatalf("enum metadata = %#v", attrs)
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("ListDomainModels called %d times, want 1", calls)
+	}
+
+	invalidateDomainModelsCache(ctx)
+	buildEntityEnumAttrMap(ctx, "Sales.Order")
+	if calls != 2 {
+		t.Fatalf("ListDomainModels called %d times after invalidation, want 2", calls)
+	}
+}
+
 // Backend error: cmd_error_mock_test.go (TestShowMicroflows_Mock_BackendError, TestShowNanoflows_Mock_BackendError)
 // JSON: cmd_json_mock_test.go (TestShowMicroflows_Mock_JSON, TestShowNanoflows_Mock_JSON)
 

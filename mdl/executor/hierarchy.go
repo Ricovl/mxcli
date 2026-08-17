@@ -157,5 +157,7 @@ func invalidateHierarchy(ctx *ExecContext) {
 func invalidateDomainModelsCache(ctx *ExecContext) {
 	if ctx.Cache != nil {
 		ctx.Cache.domainModels = nil
+		ctx.Cache.entityNames = nil
+		ctx.Cache.entityEnumAttrs = nil
 	}
 }

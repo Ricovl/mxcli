@@ -1040,15 +1040,8 @@ func preWarmCache(ctx *ExecContext) {
 		return
 	}
 
-	// Build entity name lookup
-	ctx.Cache.entityNames = make(map[model.ID]string)
-	dms, _ := ctx.Backend.ListDomainModels()
-	for _, dm := range dms {
-		modName := h.GetModuleName(dm.ContainerID)
-		for _, ent := range dm.Entities {
-			ctx.Cache.entityNames[ent.ID] = modName + "." + ent.Name
-		}
-	}
+	// Build the entity-name and enum-attribute lookups in one domain-model pass.
+	getEntityNames(ctx, h)
 
 	// Build page name lookup
 	ctx.Cache.pageNames = make(map[model.ID]string)

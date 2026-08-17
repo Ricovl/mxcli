@@ -63,9 +63,12 @@ type executorCache struct {
 	defaultLang       string
 	defaultLangLoaded bool
 
-	// Pre-warmed name lookup maps for parallel describe (goroutine-safe after init)
-	entityNames map[model.ID]string // entity ID -> "Module.EntityName"
-	pageNames   map[model.ID]string // page ID -> "Module.PageName"
+	// Pre-warmed lookup maps for parallel describe (goroutine-safe after init).
+	// entityEnumAttrs stores only the enum metadata needed to enrich XPath;
+	// retaining decoded domain models would consume substantially more memory.
+	entityNames     map[model.ID]string          // entity ID -> "Module.EntityName"
+	entityEnumAttrs map[string]map[string]string // entity name -> attribute -> enum name
+	pageNames       map[model.ID]string          // page ID -> "Module.PageName"
 }
 
 // createdMicroflowInfo tracks a microflow created during this session.
@@ -113,10 +116,17 @@ type droppedUnitInfo struct {
 
 // getEntityNames returns the entity name lookup map, using the pre-warmed cache if available.
 func getEntityNames(ctx *ExecContext, h *ContainerHierarchy) map[model.ID]string {
-	if ctx.Cache != nil && len(ctx.Cache.entityNames) > 0 {
+	if ctx.Cache != nil && ctx.Cache.entityNames != nil {
 		return ctx.Cache.entityNames
 	}
+	return populateEntityMetadataCache(ctx, h)
+}
+
+// populateEntityMetadataCache decodes the domain models once and retains only
+// the small lookup maps needed while describing documents.
+func populateEntityMetadataCache(ctx *ExecContext, h *ContainerHierarchy) map[model.ID]string {
 	entityNames := make(map[model.ID]string)
+	entityEnumAttrs := make(map[string]map[string]string)
 	dms, err := ctx.Backend.ListDomainModels()
 	if err != nil {
 		if ctx.Logger != nil {
@@ -127,11 +137,25 @@ func getEntityNames(ctx *ExecContext, h *ContainerHierarchy) map[model.ID]string
 	for _, dm := range dms {
 		modName := h.GetModuleName(dm.ContainerID)
 		for _, ent := range dm.Entities {
-			entityNames[ent.ID] = modName + "." + ent.Name
+			qualifiedName := modName + "." + ent.Name
+			entityNames[ent.ID] = qualifiedName
+			var enumAttrs map[string]string
+			for _, attr := range ent.Attributes {
+				if enumType, ok := attr.Type.(*domainmodel.EnumerationAttributeType); ok {
+					if enumAttrs == nil {
+						enumAttrs = make(map[string]string)
+					}
+					enumAttrs[attr.Name] = enumType.EnumerationRef
+				}
+			}
+			if len(enumAttrs) > 0 {
+				entityEnumAttrs[qualifiedName] = enumAttrs
+			}
 		}
 	}
 	if ctx.Cache != nil {
 		ctx.Cache.entityNames = entityNames
+		ctx.Cache.entityEnumAttrs = entityEnumAttrs
 	}
 	return entityNames
 }
