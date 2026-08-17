@@ -281,11 +281,9 @@ func loadAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) (*alterFlowContext, e
 	a := &alterFlowContext{stmt: s, entityNames: getEntityNames(ctx, h),
 		declaredByOps: map[string]bool{}, readByOps: map[string][]string{}, removedByOps: map[string]bool{},
 		removedIDs: map[model.ID]bool{}}
-	// A copy: nanoflow names are added below, and the cached map is shared.
+	// Microflow calls carry qualified names, so no project-wide microflow map is
+	// needed; nanoflow names are still added below.
 	a.microflowNames = map[model.ID]string{}
-	for id, n := range getMicroflowNames(ctx, h) {
-		a.microflowNames[id] = n
-	}
 	inModule := func(container model.ID, name string) bool {
 		return h.GetModuleName(h.FindModuleID(container)) == s.Name.Module && name == s.Name.Name
 	}

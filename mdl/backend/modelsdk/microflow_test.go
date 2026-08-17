@@ -55,6 +55,33 @@ func TestReadSlice_Microflows(t *testing.T) {
 	}
 }
 
+func TestGetMicroflowByName_DecodesSelectedUnit(t *testing.T) {
+	b := New()
+	if err := b.Connect(fixture); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	t.Cleanup(func() { _ = b.Disconnect() })
+
+	mf, err := b.GetMicroflowByName("Administration.ChangeMyPassword")
+	if err != nil {
+		t.Fatalf("GetMicroflowByName: %v", err)
+	}
+	if mf == nil {
+		t.Fatal("GetMicroflowByName returned nil")
+	}
+	if mf.Name != "ChangeMyPassword" || len(mf.Parameters) != 1 {
+		t.Fatalf("microflow = %q with %d parameters", mf.Name, len(mf.Parameters))
+	}
+
+	missing, err := b.GetMicroflowByName("Administration.DoesNotExist")
+	if err != nil {
+		t.Fatalf("missing lookup: %v", err)
+	}
+	if missing != nil {
+		t.Fatalf("missing lookup = %#v, want nil", missing)
+	}
+}
+
 // TestReadSlice_Nanoflows confirms nanoflows reuse the microflow conversion
 // helpers (parameter split, flow objects, return type). SHOW NANOFLOWS is
 // cross-checked byte-for-byte against legacy in the plan validation.

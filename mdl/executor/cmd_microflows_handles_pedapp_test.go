@@ -19,6 +19,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/backend/mfmutator"
 	modelsdkbackend "github.com/mendixlabs/mxcli/mdl/backend/modelsdk"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
+	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
@@ -96,7 +97,7 @@ func valFeedbackTargets(t *testing.T, exec *Executor) []mfmutator.Candidate {
 	if err != nil {
 		t.Fatal(err)
 	}
-	microflowNames := getMicroflowNames(ctx, h)
+	microflowNames := map[model.ID]string{}
 	var mf *microflows.Microflow
 	for _, m := range all {
 		microflowNames[m.ID] = h.GetQualifiedName(m.ContainerID, m.Name)
@@ -249,7 +250,7 @@ func TestMicroflowTargets_PedAppEveryFlowRanksAndResolves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	microflowNames := getMicroflowNames(ctx, h)
+	microflowNames := map[model.ID]string{}
 	for _, m := range all {
 		microflowNames[m.ID] = h.GetQualifiedName(m.ContainerID, m.Name)
 	}

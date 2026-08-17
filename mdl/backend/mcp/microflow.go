@@ -378,6 +378,16 @@ func (b *Backend) GetMicroflow(id model.ID) (*microflows.Microflow, error) {
 	return b.reader.GetMicroflow(id)
 }
 
+func (b *Backend) GetMicroflowByName(qualifiedName string) (*microflows.Microflow, error) {
+	for _, m := range b.sessionMicroflows {
+		moduleName, err := b.moduleNameForContainer(m.ContainerID)
+		if err == nil && moduleName+"."+m.Name == qualifiedName {
+			return m, nil
+		}
+	}
+	return b.reader.GetMicroflowByName(qualifiedName)
+}
+
 func mfKey(m *microflows.Microflow) string {
 	return string(m.ContainerID) + "." + m.Name
 }

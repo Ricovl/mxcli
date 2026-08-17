@@ -80,14 +80,12 @@ func flowReturnEntity(ctx *ExecContext, kind, qualifiedName string) string {
 	}
 	switch kind {
 	case "microflow":
-		mfs, err := ctx.Backend.ListMicroflows()
+		mf, err := ctx.Backend.GetMicroflowByName(qualifiedName)
 		if err != nil {
 			return ""
 		}
-		for _, mf := range mfs {
-			if mf != nil && h.GetQualifiedName(mf.ContainerID, mf.Name) == qualifiedName {
-				return dataTypeEntity(mf.ReturnType)
-			}
+		if mf != nil {
+			return dataTypeEntity(mf.ReturnType)
 		}
 	case "nanoflow":
 		nfs, err := ctx.Backend.ListNanoflows()

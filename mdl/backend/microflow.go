@@ -11,6 +11,7 @@ import (
 type MicroflowBackend interface {
 	ListMicroflows() ([]*microflows.Microflow, error)
 	GetMicroflow(id model.ID) (*microflows.Microflow, error)
+	GetMicroflowByName(qualifiedName string) (*microflows.Microflow, error)
 	CreateMicroflow(mf *microflows.Microflow) error
 	UpdateMicroflow(mf *microflows.Microflow) error
 	DeleteMicroflow(id model.ID) error

@@ -90,6 +90,7 @@ type MockBackend struct {
 	// MicroflowBackend
 	ListMicroflowsFunc        func() ([]*microflows.Microflow, error)
 	GetMicroflowFunc          func(id model.ID) (*microflows.Microflow, error)
+	GetMicroflowByNameFunc    func(qualifiedName string) (*microflows.Microflow, error)
 	CreateMicroflowFunc       func(mf *microflows.Microflow) error
 	UpdateMicroflowFunc       func(mf *microflows.Microflow) error
 	ReadBackMicroflowFunc     func(mf *microflows.Microflow) (*microflows.Microflow, error)

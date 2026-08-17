@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/mendixlabs/mxcli/modelsdk/mpr/version"
 
@@ -40,6 +41,13 @@ type Reader struct {
 	unitCache      []cachedUnit
 	unitCacheValid bool
 
+	// Lazily-built lightweight index of "$Type\x00QualifiedName" to unit
+	// metadata. Building it reads each BSON header once but does not decode any
+	// nested document content. The immutable map is shared by direct lookups.
+	nameIndexMu    sync.RWMutex
+	nameIndex      map[string]nameIndexEntry
+	nameIndexBuilt bool
+
 	// contentCache stores raw BSON bytes per unit ID (MPR v2 only).
 	// Populated on first read; survives across requests when the Reader is
 	// held persistently by the per-MPR daemon. Cleared by InvalidateCache.
@@ -58,6 +66,13 @@ type cachedUnit struct {
 	ContainerID     string
 	ContainmentName string
 	Type            string
+	Name            string
+}
+
+type nameIndexEntry struct {
+	ID          string
+	ContainerID string
+	Type        string
 }
 
 // OpenOptions configures how the MPR file is opened.

@@ -569,6 +569,11 @@ func (unsupportedBackend) GetMicroflow(_ model.ID) (r0 *microflows.Microflow, er
 	return
 }
 
+func (unsupportedBackend) GetMicroflowByName(_ string) (r0 *microflows.Microflow, err1 error) {
+	err1 = errUnsupported("GetMicroflowByName")
+	return
+}
+
 func (unsupportedBackend) GetModule(_ model.ID) (r0 *model.Module, err1 error) {
 	err1 = errUnsupported("GetModule")
 	return

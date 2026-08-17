@@ -64,9 +64,8 @@ type executorCache struct {
 	defaultLangLoaded bool
 
 	// Pre-warmed name lookup maps for parallel describe (goroutine-safe after init)
-	entityNames    map[model.ID]string // entity ID -> "Module.EntityName"
-	microflowNames map[model.ID]string // microflow ID -> "Module.MicroflowName"
-	pageNames      map[model.ID]string // page ID -> "Module.PageName"
+	entityNames map[model.ID]string // entity ID -> "Module.EntityName"
+	pageNames   map[model.ID]string // page ID -> "Module.PageName"
 }
 
 // createdMicroflowInfo tracks a microflow created during this session.
@@ -135,28 +134,6 @@ func getEntityNames(ctx *ExecContext, h *ContainerHierarchy) map[model.ID]string
 		ctx.Cache.entityNames = entityNames
 	}
 	return entityNames
-}
-
-// getMicroflowNames returns the microflow name lookup map, using the pre-warmed cache if available.
-func getMicroflowNames(ctx *ExecContext, h *ContainerHierarchy) map[model.ID]string {
-	if ctx.Cache != nil && len(ctx.Cache.microflowNames) > 0 {
-		return ctx.Cache.microflowNames
-	}
-	microflowNames := make(map[model.ID]string)
-	mfs, err := ctx.Backend.ListMicroflows()
-	if err != nil {
-		if ctx.Logger != nil {
-			ctx.Logger.Warn("getMicroflowNames: ListMicroflows failed", "error", err)
-		}
-		return microflowNames
-	}
-	for _, mf := range mfs {
-		microflowNames[mf.ID] = h.GetQualifiedName(mf.ContainerID, mf.Name)
-	}
-	if ctx.Cache != nil {
-		ctx.Cache.microflowNames = microflowNames
-	}
-	return microflowNames
 }
 
 // getPageNames returns the page name lookup map, using the pre-warmed cache if available.

@@ -177,7 +177,9 @@ func (r *Reader) buildUnitCache() error {
 		}
 
 		unitUUID := blobToUUID(unitID)
-		contents, err := r.readMprContents(unitUUID)
+		// Index construction must not populate the optional raw-content cache:
+		// only the unit selected after lookup should be retained there.
+		contents, err := r.readMprContentsUncached(unitUUID)
 		if err != nil {
 			continue
 		}
@@ -188,6 +190,7 @@ func (r *Reader) buildUnitCache() error {
 			ContainerID:     blobToUUID(containerID),
 			ContainmentName: containmentName,
 			Type:            typeName,
+			Name:            getNameFromContents(contents),
 		})
 	}
 
@@ -199,6 +202,10 @@ func (r *Reader) buildUnitCache() error {
 // Should be called after any write operation.
 func (r *Reader) InvalidateCache() {
 	r.unitCacheValid = false
+	r.nameIndexMu.Lock()
+	r.nameIndex = nil
+	r.nameIndexBuilt = false
+	r.nameIndexMu.Unlock()
 	// Clear content cache entries but keep the map non-nil so caching stays active.
 	// If contentCache is nil (per-request mode), remain disabled.
 	if r.contentCache != nil {
@@ -240,14 +247,7 @@ func (r *Reader) readMprContents(unitUUID string) ([]byte, error) {
 		}
 	}
 
-	// Build path: mprcontents/XX/YY/UUID.mxunit
-	path := filepath.Join(
-		r.contentsDir,
-		unitUUID[0:2],
-		unitUUID[2:4],
-		unitUUID+".mxunit",
-	)
-	data, err := os.ReadFile(path)
+	data, err := r.readMprContentsUncached(unitUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -257,6 +257,21 @@ func (r *Reader) readMprContents(unitUUID string) ([]byte, error) {
 		r.contentCache[unitUUID] = data
 	}
 	return data, nil
+}
+
+func (r *Reader) readMprContentsUncached(unitUUID string) ([]byte, error) {
+	if len(unitUUID) < 4 {
+		return nil, fmt.Errorf("invalid unit UUID: %s", unitUUID)
+	}
+
+	// Build path: mprcontents/XX/YY/UUID.mxunit
+	path := filepath.Join(
+		r.contentsDir,
+		unitUUID[0:2],
+		unitUUID[2:4],
+		unitUUID+".mxunit",
+	)
+	return os.ReadFile(path)
 }
 
 // getTypeFromContents extracts the $Type field from BSON contents.
@@ -275,6 +290,128 @@ func getTypeFromContents(contents []byte) string {
 		return ""
 	}
 	return s
+}
+
+func getNameFromContents(contents []byte) string {
+	if len(contents) == 0 {
+		return ""
+	}
+	val, err := bson.Raw(contents).LookupErr("Name")
+	if err != nil {
+		return ""
+	}
+	name, _ := val.StringValueOK()
+	return name
+}
+
+// buildUnitNameIndex builds the qualified-name index from top-level BSON
+// headers. V2 reuses the metadata pass that listUnitsByType already requires;
+// V1 streams rows so full BSON documents are not retained in memory.
+func (r *Reader) buildUnitNameIndex() error {
+	r.nameIndexMu.Lock()
+	defer r.nameIndexMu.Unlock()
+	if r.nameIndexBuilt {
+		return nil
+	}
+
+	headers, err := r.loadUnitHeaders()
+	if err != nil {
+		return err
+	}
+	moduleNames := make(map[string]string)
+	containerParent := make(map[string]string, len(headers))
+	for _, h := range headers {
+		containerParent[h.ID] = h.ContainerID
+		if h.Type == "Projects$ModuleImpl" || h.Type == "Projects$Module" {
+			moduleNames[h.ID] = h.Name
+		}
+	}
+
+	index := make(map[string]nameIndexEntry, len(headers))
+	for _, h := range headers {
+		if h.Name == "" {
+			continue
+		}
+		moduleName := ResolveModuleName(h.ContainerID, moduleNames, containerParent)
+		qualifiedName := h.Name
+		if moduleName != "" {
+			qualifiedName = moduleName + "." + h.Name
+		}
+		index[h.Type+"\x00"+qualifiedName] = nameIndexEntry{
+			ID:          h.ID,
+			ContainerID: h.ContainerID,
+			Type:        h.Type,
+		}
+	}
+	r.nameIndex = index
+	r.nameIndexBuilt = true
+	return nil
+}
+
+func (r *Reader) loadUnitHeaders() ([]cachedUnit, error) {
+	if r.version == MPRVersionV2 {
+		if !r.unitCacheValid {
+			if err := r.buildUnitCache(); err != nil {
+				return nil, err
+			}
+		}
+		return r.unitCache, nil
+	}
+
+	rows, err := r.db.Query(`
+		SELECT UnitID, ContainerID, ContainmentName, Contents
+		FROM Unit
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query unit headers: %w", err)
+	}
+	defer rows.Close()
+
+	var headers []cachedUnit
+	for rows.Next() {
+		var unitID, containerID, contents []byte
+		var containmentName string
+		if err := rows.Scan(&unitID, &containerID, &containmentName, &contents); err != nil {
+			return nil, fmt.Errorf("scan unit header: %w", err)
+		}
+		headers = append(headers, cachedUnit{
+			ID:              blobToUUID(unitID),
+			ContainerID:     blobToUUID(containerID),
+			ContainmentName: containmentName,
+			Type:            getTypeFromContents(contents),
+			Name:            getNameFromContents(contents),
+		})
+	}
+	return headers, rows.Err()
+}
+
+// GetUnitByName resolves a top-level document by qualified name and reads only
+// that unit's full BSON after the lightweight index has been built.
+func (r *Reader) GetUnitByName(objectType, qualifiedName string) (*UnitRef, error) {
+	typeName := rawUnitBSONType(objectType)
+	if typeName == "" {
+		return nil, fmt.Errorf("unsupported object type: %s", objectType)
+	}
+	if err := r.buildUnitNameIndex(); err != nil {
+		return nil, err
+	}
+
+	r.nameIndexMu.RLock()
+	entry, ok := r.nameIndex[typeName+"\x00"+qualifiedName]
+	r.nameIndexMu.RUnlock()
+	if !ok {
+		return nil, nil
+	}
+	contents, err := r.GetRawUnitBytes(entry.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &UnitRef{
+		ID:          entry.ID,
+		ContainerID: entry.ContainerID,
+		Type:        entry.Type,
+		Contents:    contents,
+	}, nil
 }
 
 // RawUnitInfo contains information about a raw unit for BSON debugging.

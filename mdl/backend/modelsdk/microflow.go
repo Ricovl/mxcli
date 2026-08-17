@@ -3,9 +3,11 @@
 package modelsdkbackend
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genDT "github.com/mendixlabs/mxcli/modelsdk/gen/datatypes"
 	genMf "github.com/mendixlabs/mxcli/modelsdk/gen/microflows"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // gen→microflows read adapter. Covers the breadth SHOW MICROFLOWS needs: name,
@@ -45,6 +48,27 @@ func (b *Backend) GetMicroflow(id model.ID) (*microflows.Microflow, error) {
 		}
 	}
 	return nil, nil
+}
+
+// GetMicroflowByName uses the reader's lightweight BSON-header index, then
+// decodes and converts only the selected unit.
+func (b *Backend) GetMicroflowByName(qualifiedName string) (*microflows.Microflow, error) {
+	unit, err := b.reader.GetUnitByName("microflow", qualifiedName)
+	if err != nil {
+		return nil, err
+	}
+	if unit == nil {
+		return nil, nil
+	}
+	elem, err := codec.NewDecoder(codec.DefaultRegistry).Decode(bson.Raw(unit.Contents))
+	if err != nil {
+		return nil, fmt.Errorf("decode microflow %s: %w", qualifiedName, err)
+	}
+	mf, ok := elem.(*genMf.Microflow)
+	if !ok {
+		return nil, fmt.Errorf("unit %s decoded as %T, want *microflows.Microflow", unit.ID, elem)
+	}
+	return microflowFromGen(mf, model.ID(unit.ContainerID)), nil
 }
 
 // IsRule reports whether qualifiedName refers to a rule (Microflows$Rule).

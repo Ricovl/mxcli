@@ -113,6 +113,36 @@ func TestDescribeMicroflow_Mock_NotFound(t *testing.T) {
 	assertError(t, err)
 }
 
+func TestDescribeMicroflow_UsesDirectQualifiedNameLookup(t *testing.T) {
+	mod := mkModule("MyModule")
+	mf := mkMicroflow(mod.ID, "Direct")
+	h := mkHierarchy(mod)
+	withContainer(h, mf.ContainerID, mod.ID)
+
+	directCalls := 0
+	mb := &mock.MockBackend{
+		IsConnectedFunc: func() bool { return true },
+		GetMicroflowByNameFunc: func(name string) (*microflows.Microflow, error) {
+			directCalls++
+			if name != "MyModule.Direct" {
+				t.Fatalf("direct lookup name = %q", name)
+			}
+			return mf, nil
+		},
+		ListMicroflowsFunc: func() ([]*microflows.Microflow, error) {
+			t.Fatal("DESCRIBE must not list every microflow")
+			return nil, nil
+		},
+		ListDomainModelsFunc: func() ([]*domainmodel.DomainModel, error) { return nil, nil },
+	}
+
+	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	assertNoError(t, describeMicroflow(ctx, ast.QualifiedName{Module: "MyModule", Name: "Direct"}))
+	if directCalls != 1 {
+		t.Fatalf("GetMicroflowByName called %d times, want 1", directCalls)
+	}
+}
+
 // Backend error: cmd_error_mock_test.go (TestShowMicroflows_Mock_BackendError, TestShowNanoflows_Mock_BackendError)
 // JSON: cmd_json_mock_test.go (TestShowMicroflows_Mock_JSON, TestShowNanoflows_Mock_JSON)
 

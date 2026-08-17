@@ -1050,13 +1050,6 @@ func preWarmCache(ctx *ExecContext) {
 		}
 	}
 
-	// Build microflow name lookup
-	ctx.Cache.microflowNames = make(map[model.ID]string)
-	mfs, _ := ctx.Backend.ListMicroflows()
-	for _, mf := range mfs {
-		ctx.Cache.microflowNames[mf.ID] = h.GetQualifiedName(mf.ContainerID, mf.Name)
-	}
-
 	// Build page name lookup
 	ctx.Cache.pageNames = make(map[model.ID]string)
 	pgs, _ := ctx.Backend.ListPages()

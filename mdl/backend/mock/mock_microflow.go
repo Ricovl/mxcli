@@ -4,6 +4,7 @@ package mock
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
@@ -20,7 +21,50 @@ func (m *MockBackend) GetMicroflow(id model.ID) (*microflows.Microflow, error) {
 	if m.GetMicroflowFunc != nil {
 		return m.GetMicroflowFunc(id)
 	}
+	// Mirror the real backends: an ID resolves among the listed microflows.
+	if m.ListMicroflowsFunc != nil {
+		mfs, err := m.ListMicroflowsFunc()
+		if err != nil {
+			return nil, err
+		}
+		for _, mf := range mfs {
+			if mf.ID == id {
+				return mf, nil
+			}
+		}
+	}
 	return nil, nil
+}
+
+func (m *MockBackend) GetMicroflowByName(qualifiedName string) (*microflows.Microflow, error) {
+	if m.GetMicroflowByNameFunc != nil {
+		return m.GetMicroflowByNameFunc(qualifiedName)
+	}
+	// Convenient default for existing focused tests: mock microflows do not
+	// carry module names, so match the simple document name.
+	name := qualifiedName
+	if i := strings.LastIndex(qualifiedName, "."); i >= 0 {
+		name = qualifiedName[i+1:]
+	}
+	mfs, err := m.ListMicroflows()
+	if err != nil {
+		return nil, err
+	}
+	// Like the real backends, prefer the live document over an excluded twin
+	// of the same name (#914).
+	var excluded *microflows.Microflow
+	for _, mf := range mfs {
+		if mf.Name != name {
+			continue
+		}
+		if !mf.Excluded {
+			return mf, nil
+		}
+		if excluded == nil {
+			excluded = mf
+		}
+	}
+	return excluded, nil
 }
 
 func (m *MockBackend) CreateMicroflow(mf *microflows.Microflow) error {

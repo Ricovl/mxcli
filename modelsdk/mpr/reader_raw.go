@@ -152,15 +152,6 @@ func rawUnitBSONType(objectType string) string {
 	}
 }
 
-// PERF NOTE (from the misc branch's catalog work — issue #651): this resolves
-// by re-reading and re-bson.Unmarshalling every unit of the type on EVERY call.
-// `refresh catalog source` calls it once per document (thousands of times), so
-// it is O(N²) — it took ~6 hours on a large app. sdk/mpr fixed this by building
-// a one-time index keyed by "$Type\x00QualifiedName" → unit, decoding only the
-// `Name` field (a small struct, not map[string]any). This engine inherits the
-// same O(N²); it should adopt the same name index (the contentCache here helps
-// the constant factor but not the algorithm).
-//
 // GetRawUnitByName returns the raw BSON contents for a unit by qualified
 // name. Supported object types match sdk/mpr.Reader.GetRawUnitByName.
 // Entity and association names dispatch to the domain-model walker.
@@ -172,48 +163,24 @@ func (r *Reader) GetRawUnitByName(objectType, qualifiedName string) (*types.RawU
 		return r.getRawAssociationByName(qualifiedName)
 	}
 
-	typePrefix := rawUnitBSONType(objectType)
-	if typePrefix == "" && objectType != "" {
-		return nil, fmt.Errorf("unsupported object type: %s", objectType)
-	}
-
-	units, err := r.listUnitsByType(typePrefix)
+	unit, err := r.GetUnitByName(objectType, qualifiedName)
 	if err != nil {
 		return nil, err
 	}
-
-	moduleMap, containerParent, err := r.buildModuleResolution()
-	if err != nil {
-		return nil, err
+	if unit == nil {
+		return nil, fmt.Errorf("%s not found: %s", objectType, qualifiedName)
 	}
-
-	for _, u := range units {
-		contents, err := r.resolveContents(u.ID, u.Contents)
-		if err != nil {
-			continue
-		}
-		var raw map[string]any
-		if err := bson.Unmarshal(contents, &raw); err != nil {
-			continue
-		}
-		name, _ := raw["Name"].(string)
-		moduleName := ResolveModuleName(u.ContainerID, moduleMap, containerParent)
-
-		fullName := name
-		if moduleName != "" {
-			fullName = moduleName + "." + name
-		}
-		if fullName == qualifiedName {
-			return &types.RawUnitInfo{
-				ID:            u.ID,
-				QualifiedName: fullName,
-				Type:          u.Type,
-				ModuleName:    moduleName,
-				Contents:      contents,
-			}, nil
-		}
+	moduleName, _, qualified := strings.Cut(qualifiedName, ".")
+	if !qualified {
+		moduleName = ""
 	}
-	return nil, fmt.Errorf("%s not found: %s", objectType, qualifiedName)
+	return &types.RawUnitInfo{
+		ID:            unit.ID,
+		QualifiedName: qualifiedName,
+		Type:          unit.Type,
+		ModuleName:    moduleName,
+		Contents:      unit.Contents,
+	}, nil
 }
 
 // ListRawUnits returns all units of the given object type with metadata.

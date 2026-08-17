@@ -482,6 +482,11 @@ func (unimplemented) GetMicroflow(_ model.ID) (*microflows.Microflow, error) {
 	return r0, errUnimplemented("GetMicroflow")
 }
 
+func (unimplemented) GetMicroflowByName(_ string) (*microflows.Microflow, error) {
+	var r0 *microflows.Microflow
+	return r0, errUnimplemented("GetMicroflowByName")
+}
+
 func (unimplemented) GetModule(_ model.ID) (*model.Module, error) {
 	var r0 *model.Module
 	return r0, errUnimplemented("GetModule")
