@@ -387,10 +387,29 @@ func (r *Reader) loadUnitHeaders() ([]cachedUnit, error) {
 
 // GetUnitByName resolves a top-level document by qualified name and reads only
 // that unit's full BSON after the lightweight index has been built.
+//
+// objectType is a human-friendly alias ("microflow", "page", …) resolved through
+// rawUnitBSONType, which covers only the dozen types that alias table lists.
+// Callers that already know the concrete gen type should prefer
+// mprread.GetUnitByName[T], which derives the storage name from the codec
+// registry and therefore works for every registered type.
 func (r *Reader) GetUnitByName(objectType, qualifiedName string) (*UnitRef, error) {
 	typeName := rawUnitBSONType(objectType)
 	if typeName == "" {
 		return nil, fmt.Errorf("unsupported object type: %s", objectType)
+	}
+	return r.GetUnitByTypeName(typeName, qualifiedName)
+}
+
+// GetUnitByTypeName resolves a top-level document by BSON $Type and qualified
+// name, reading only that unit's full BSON after the lightweight index has been
+// built. Returns (nil, nil) when no such document exists.
+//
+// This is the type-name-keyed core of GetUnitByName: it takes the storage name
+// directly, so it needs no entry in the rawUnitBSONType alias table.
+func (r *Reader) GetUnitByTypeName(typeName, qualifiedName string) (*UnitRef, error) {
+	if typeName == "" {
+		return nil, fmt.Errorf("empty BSON type name")
 	}
 	if err := r.buildUnitNameIndex(); err != nil {
 		return nil, err
