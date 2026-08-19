@@ -514,8 +514,7 @@ func microflowBsonToMDL(ctx *ExecContext, raw map[string]any, qualifiedName stri
 		return fmt.Sprintf("microflow %s\n  -- parse failed --\nend microflow\n", qualifiedName)
 	}
 
-	entityNames, microflowNames := buildNameLookups(ctx)
-	return renderMicroflowMDL(ctx, "microflow", mf, qn, entityNames, microflowNames, nil)
+	return renderMicroflowMDL(ctx, "microflow", mf, qn, buildEntityNameLookup(ctx), nil, nil)
 }
 
 // splitQualifiedName parses "Module.Name" into an ast.QualifiedName.
@@ -527,34 +526,28 @@ func splitQualifiedName(qualifiedName string) ast.QualifiedName {
 	return ast.QualifiedName{Name: qualifiedName}
 }
 
-// buildNameLookups builds ID → qualified-name maps for entities and
-// microflows from the current project. Used by BSON-driven renderers that
-// receive IDs (e.g. entity references) and want to resolve them against
-// the working-tree model. Returns empty maps if the reader is unavailable.
-func buildNameLookups(ctx *ExecContext) (map[model.ID]string, map[model.ID]string) {
-	entityNames := make(map[model.ID]string)
-	microflowNames := make(map[model.ID]string)
+// buildEntityNameLookup returns the entity ID → qualified-name map used by
+// BSON-driven renderers that receive IDs and want to resolve them against the
+// working-tree model. Returns an empty map if the reader is unavailable.
+//
+// This goes through the session-wide cache: a diff renders one microflow per
+// changed unit, and rebuilding the map per microflow re-decoded every domain
+// model in the project each time.
+//
+// It used to build a microflow ID → name map alongside this one, which cost a
+// full decode of every microflow in the project (~554MB on a 10k-microflow app).
+// Nothing ever read that map — renderMicroflowMDL threads it through the
+// activity formatters as a parameter and none of them index it — so it is gone
+// and callers pass nil.
+func buildEntityNameLookup(ctx *ExecContext) map[model.ID]string {
 	if !ctx.Connected() {
-		return entityNames, microflowNames
+		return map[model.ID]string{}
 	}
 	h, err := getHierarchy(ctx)
 	if err != nil {
-		return entityNames, microflowNames
+		return map[model.ID]string{}
 	}
-	if domainModels, err := ctx.Backend.ListDomainModels(); err == nil {
-		for _, dm := range domainModels {
-			modName := h.GetModuleName(dm.ContainerID)
-			for _, entity := range dm.Entities {
-				entityNames[entity.ID] = modName + "." + entity.Name
-			}
-		}
-	}
-	if microflows, err := ctx.Backend.ListMicroflows(); err == nil {
-		for _, mf := range microflows {
-			microflowNames[mf.ID] = h.GetQualifiedName(mf.ContainerID, mf.Name)
-		}
-	}
-	return entityNames, microflowNames
+	return getEntityNames(ctx, h)
 }
 
 // nanoflowBsonToMDL converts a nanoflow BSON to MDL
