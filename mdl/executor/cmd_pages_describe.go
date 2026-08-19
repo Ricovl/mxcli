@@ -508,20 +508,13 @@ func getBsonArrayMaps(v any) []map[string]any {
 
 // resolveLayoutName resolves a layout ID to its qualified name.
 func resolveLayoutName(ctx *ExecContext, layoutID model.ID) string {
-	layouts, err := ctx.Backend.ListLayouts()
-	if err != nil {
-		return string(layoutID)
-	}
-
 	h, err := getHierarchy(ctx)
 	if err != nil {
 		return string(layoutID)
 	}
 
-	for _, l := range layouts {
-		if l.ID == layoutID {
-			return h.GetQualifiedName(l.ContainerID, l.Name)
-		}
+	if name, ok := getLayoutNames(ctx, h)[layoutID]; ok {
+		return name
 	}
 	return string(layoutID)
 }

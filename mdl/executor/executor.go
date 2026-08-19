@@ -69,6 +69,7 @@ type executorCache struct {
 	entityNames     map[model.ID]string          // entity ID -> "Module.EntityName"
 	entityEnumAttrs map[string]map[string]string // entity name -> attribute -> enum name
 	pageNames       map[model.ID]string          // page ID -> "Module.PageName"
+	layoutNames     map[model.ID]string          // layout ID -> "Module.LayoutName"
 }
 
 // createdMicroflowInfo tracks a microflow created during this session.
@@ -180,6 +181,30 @@ func getPageNames(ctx *ExecContext, h *ContainerHierarchy) map[model.ID]string {
 		ctx.Cache.pageNames = pageNames
 	}
 	return pageNames
+}
+
+// getLayoutNames returns the layout ID → qualified-name lookup, building it once
+// per session. DESCRIBE PAGE resolves its layout by ID, so without the cache
+// every page described re-listed and re-converted every layout in the project.
+func getLayoutNames(ctx *ExecContext, h *ContainerHierarchy) map[model.ID]string {
+	if ctx.Cache != nil && ctx.Cache.layoutNames != nil {
+		return ctx.Cache.layoutNames
+	}
+	layoutNames := make(map[model.ID]string)
+	layouts, err := ctx.Backend.ListLayouts()
+	if err != nil {
+		if ctx.Logger != nil {
+			ctx.Logger.Warn("getLayoutNames: ListLayouts failed", "error", err)
+		}
+		return layoutNames
+	}
+	for _, l := range layouts {
+		layoutNames[l.ID] = h.GetQualifiedName(l.ContainerID, l.Name)
+	}
+	if ctx.Cache != nil {
+		ctx.Cache.layoutNames = layoutNames
+	}
+	return layoutNames
 }
 
 const (
