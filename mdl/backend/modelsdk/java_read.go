@@ -32,7 +32,7 @@ func (b *Backend) ReadJavaActionByName(qualifiedName string) (*javaactions.JavaA
 		return nil, fmt.Errorf("java action not found: %s", qualifiedName)
 	}
 	containers := b.containerSetForModule(string(mod.ID)) // module + nested folders
-	units, err := mprread.ListUnitsWithContainer[*genJa.JavaAction](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genJa.JavaAction](b.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (b *Backend) ReadJavaActionByName(qualifiedName string) (*javaactions.JavaA
 // legacy reader appends are not yet modelled in modelsdk/meta, so they're omitted;
 // the catalog simply indexes fewer rows, it does not error.)
 func (b *Backend) ListJavaActionsFull() ([]*javaactions.JavaAction, error) {
-	units, err := mprread.ListUnitsWithContainer[*genJa.JavaAction](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genJa.JavaAction](b.reader)
 	if err != nil {
 		return nil, err
 	}

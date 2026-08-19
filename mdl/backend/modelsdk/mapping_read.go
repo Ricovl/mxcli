@@ -24,7 +24,7 @@ import (
 // catalog only reads the top-level element count, and no other path reaches
 // this method.
 func (b *Backend) ListImportMappings() ([]*model.ImportMapping, error) {
-	units, err := mprread.ListUnitsWithContainer[*genImp.ImportMapping](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genImp.ImportMapping](b.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (b *Backend) ListImportMappings() ([]*model.ImportMapping, error) {
 // MessageDefinition/NullValueOption and the root mapping Elements). Deep
 // mapping-element trees are not surfaced (see ListImportMappings).
 func (b *Backend) ListExportMappings() ([]*model.ExportMapping, error) {
-	units, err := mprread.ListUnitsWithContainer[*genExp.ExportMapping](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genExp.ExportMapping](b.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (b *Backend) ListXmlSchemas() ([]*types.XmlSchema, error) {
 // catalog consumes (Name/Documentation/JsonSnippet/ExportLevel/Excluded and the
 // element tree with children).
 func (b *Backend) ListJsonStructures() ([]*types.JsonStructure, error) {
-	units, err := mprread.ListUnitsWithContainer[*genJson.JsonStructure](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genJson.JsonStructure](b.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func jsonElementFromGen(g *genJson.JsonElement) *types.JsonElement {
 // (ExportLevel→"Source", ProtectedModuleType→"AddOn", Version→"1.0.0") is
 // preserved.
 func (b *Backend) ListModuleSettings() ([]*types.ModuleSettings, error) {
-	units, err := mprread.ListUnitsWithContainer[*genPrj.ModuleSettings](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genPrj.ModuleSettings](b.reader)
 	if err != nil {
 		return nil, err
 	}

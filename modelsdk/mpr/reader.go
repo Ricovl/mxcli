@@ -48,6 +48,15 @@ type Reader struct {
 	nameIndex      map[string]nameIndexEntry
 	nameIndexBuilt bool
 
+	// Memoized decoded units, keyed by BSON $Type. The value is the
+	// []mprread.Unit[T] slice for that type, held as any because this package
+	// cannot name mprread's generic type (mprread imports this one). Populated
+	// and read only through mprread.ListUnitsWithContainerCached, which
+	// documents the two rules governing which call sites may use it.
+	// Dropped by InvalidateCache, so no write can be served a stale decode.
+	decodedMu sync.RWMutex
+	decoded   map[string]any
+
 	// contentCache stores raw BSON bytes per unit ID (MPR v2 only).
 	// Populated on first read; survives across requests when the Reader is
 	// held persistently by the per-MPR daemon. Cleared by InvalidateCache.

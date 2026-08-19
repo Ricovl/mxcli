@@ -16,7 +16,7 @@ import (
 // listing. The rich parsed form (sdk/javaactions.JavaAction, with parameters and
 // return types) is ListJavaActionsFull, deferred to a later phase.
 func (b *Backend) ListJavaActions() ([]*types.JavaAction, error) {
-	units, err := mprread.ListUnitsWithContainer[*genJA.JavaAction](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genJA.JavaAction](b.reader)
 	if err != nil {
 		return nil, err
 	}

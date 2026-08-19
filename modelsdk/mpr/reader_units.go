@@ -206,6 +206,9 @@ func (r *Reader) InvalidateCache() {
 	r.nameIndex = nil
 	r.nameIndexBuilt = false
 	r.nameIndexMu.Unlock()
+	r.decodedMu.Lock()
+	r.decoded = nil
+	r.decodedMu.Unlock()
 	// Clear content cache entries but keep the map non-nil so caching stays active.
 	// If contentCache is nil (per-request mode), remain disabled.
 	if r.contentCache != nil {
@@ -437,3 +440,24 @@ func (r *Reader) GetUnitByTypeName(typeName, qualifiedName string) (*UnitRef, er
 // Aliased to mdl/types.RawUnitInfo so reader_raw.go methods and modelsdk/codec
 // consumers share a single concrete struct.
 type RawUnitInfo = types.RawUnitInfo
+
+// DecodedUnits returns the memoized decoded units for a BSON $Type, if any.
+// The value is an opaque []mprread.Unit[T]; see
+// mprread.ListUnitsWithContainerCached, the only intended caller.
+func (r *Reader) DecodedUnits(typeName string) (any, bool) {
+	r.decodedMu.RLock()
+	defer r.decodedMu.RUnlock()
+	v, ok := r.decoded[typeName]
+	return v, ok
+}
+
+// SetDecodedUnits memoizes decoded units for a BSON $Type until the next
+// InvalidateCache. See DecodedUnits.
+func (r *Reader) SetDecodedUnits(typeName string, v any) {
+	r.decodedMu.Lock()
+	defer r.decodedMu.Unlock()
+	if r.decoded == nil {
+		r.decoded = make(map[string]any)
+	}
+	r.decoded[typeName] = v
+}

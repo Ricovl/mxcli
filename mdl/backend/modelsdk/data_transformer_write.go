@@ -19,7 +19,7 @@ import (
 // plus source type and transform steps). Used by SHOW DATA TRANSFORMERS, the
 // CREATE OR MODIFY existence check, and DROP.
 func (b *Backend) ListDataTransformers() ([]*model.DataTransformer, error) {
-	units, err := mprread.ListUnitsWithContainer[*genDt.DataTransformer](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genDt.DataTransformer](b.reader)
 	if err != nil {
 		return nil, err
 	}

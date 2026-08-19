@@ -15,7 +15,7 @@ import (
 // relies on the gen/texts package being registered (blank-imported in page.go).
 
 func (b *Backend) ListEnumerations() ([]*model.Enumeration, error) {
-	units, err := mprread.ListUnitsWithContainer[*genEnum.Enumeration](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genEnum.Enumeration](b.reader)
 	if err != nil {
 		return nil, err
 	}

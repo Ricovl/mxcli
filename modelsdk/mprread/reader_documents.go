@@ -318,7 +318,7 @@ func ListModuleSettings(r *mmpr.Reader) ([]*genProj.ModuleSettings, error) {
 // module ID. Uses the raw unit ContainerID for matching because the decoded
 // element drops container linkage by default.
 func GetModuleSettings(r *mmpr.Reader, moduleID model.ID) (*genProj.ModuleSettings, error) {
-	units, err := ListUnitsWithContainer[*genProj.ModuleSettings](r)
+	units, err := ListUnitsWithContainerCached[*genProj.ModuleSettings](r)
 	if err != nil {
 		return nil, err
 	}
@@ -720,5 +720,5 @@ func ListModules(r *mmpr.Reader) ([]Unit[*genProj.Module], error) {
 // Folders are container-scoped: ContainerID identifies the parent Module or
 // parent Folder.
 func ListFolders(r *mmpr.Reader) ([]Unit[*genProj.Folder], error) {
-	return ListUnitsWithContainer[*genProj.Folder](r)
+	return ListUnitsWithContainerCached[*genProj.Folder](r)
 }

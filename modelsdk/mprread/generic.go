@@ -4,7 +4,9 @@ package mprread
 
 import (
 	"fmt"
+	"os"
 	"reflect"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -112,4 +114,53 @@ func GetUnitByName[T element.Element](r *mmpr.Reader, qualifiedName string) (*Un
 		return nil, fmt.Errorf("unit %s decoded as %T, want %T", ref.ID, elem, *new(T))
 	}
 	return &Unit[T]{Element: typed, ContainerID: model.ID(ref.ContainerID)}, nil
+}
+
+// ListUnitsWithContainerCached is ListUnitsWithContainer with the decoded result
+// memoized on the Reader until the next InvalidateCache (i.e. until any write).
+// A DESCRIBE sweep over a whole project calls the same List* repeatedly — once
+// per document described — so without this the type is re-decoded N times.
+//
+// Two rules govern which call sites may use it:
+//
+//  1. Read-only callers only. The returned elements are shared with every later
+//     caller, so mutating one in place (as the OQL rewrite in move_view_write.go
+//     does) would poison the memo for readers that follow. Write paths must keep
+//     using ListUnitsWithContainer, which decodes fresh.
+//
+//  2. Not for types whose decoded form is large. Measured on a 10,001-microflow
+//     project: retaining the decoded microflows costs ~554MB, against a ~340MB
+//     floor for the raw unit cache — every other document type measured stayed
+//     at the floor, because its gen→model conversion keeps only header fields.
+//     Flow types (Microflow, Nanoflow, Rule) resolve by name through
+//     GetUnitByName[T] instead, which decodes exactly the one document asked for.
+func ListUnitsWithContainerCached[T element.Element](r *mmpr.Reader) ([]Unit[T], error) {
+	if decodeCacheDisabled() {
+		return ListUnitsWithContainer[T](r)
+	}
+	typeName := bsonTypeName[T]()
+	if v, ok := r.DecodedUnits(typeName); ok {
+		if hit, ok := v.([]Unit[T]); ok {
+			return hit, nil
+		}
+	}
+	out, err := ListUnitsWithContainer[T](r)
+	if err != nil {
+		return nil, err
+	}
+	r.SetDecodedUnits(typeName, out)
+	return out, nil
+}
+
+// decodeCacheDisabled reports whether MXCLI_NO_DECODE_CACHE turns the memo off.
+//
+// The memo trades peak memory for time: on a 10k-microflow, 23k-unit app,
+// DESCRIBE over a whole module went 11.1s → 2.8s while peak RSS rose ~180MB
+// (~16%), because decodes that used to be transient garbage are now retained
+// until the next write. That is the right default, but a memory-constrained
+// machine with a very large project can opt out, and a bisect of a suspected
+// stale-read can rule the memo out in one run.
+func decodeCacheDisabled() bool {
+	v := strings.TrimSpace(os.Getenv("MXCLI_NO_DECODE_CACHE"))
+	return v != "" && v != "0" && !strings.EqualFold(v, "false")
 }

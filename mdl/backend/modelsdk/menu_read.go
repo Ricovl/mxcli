@@ -22,7 +22,7 @@ func (b *Backend) ListMenuDocuments() ([]*types.MenuDocument, error) {
 	if b.reader == nil {
 		return nil, fmt.Errorf("ListMenuDocuments: not connected")
 	}
-	units, err := mprread.ListUnitsWithContainer[*genMenus.MenuDocument](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genMenus.MenuDocument](b.reader)
 	if err != nil {
 		return nil, err
 	}

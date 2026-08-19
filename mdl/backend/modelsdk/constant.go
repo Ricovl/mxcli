@@ -16,7 +16,7 @@ import (
 // constantDataTypeToModel and registers them in the codec.
 
 func (b *Backend) ListConstants() ([]*model.Constant, error) {
-	units, err := mprread.ListUnitsWithContainer[*genConst.Constant](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genConst.Constant](b.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func (b *Backend) ListConstants() ([]*model.Constant, error) {
 }
 
 func (b *Backend) GetConstant(id model.ID) (*model.Constant, error) {
-	units, err := mprread.ListUnitsWithContainer[*genConst.Constant](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genConst.Constant](b.reader)
 	if err != nil {
 		return nil, err
 	}

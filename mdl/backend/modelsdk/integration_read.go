@@ -26,7 +26,7 @@ import (
 // gen element as nested parts/by-name refs and are not surfaced here because
 // no catalog/describe path reads them through this method.
 func (b *Backend) ListConsumedODataServices() ([]*model.ConsumedODataService, error) {
-	units, err := mprread.ListUnitsWithContainer[*genRest.ConsumedODataService](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genRest.ConsumedODataService](b.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (b *Backend) ListConsumedODataServices() ([]*model.ConsumedODataService, er
 // reaching this method walks svc.EntityTypes/EntitySets members, and the gen
 // element stores those as nested parts.
 func (b *Backend) ListPublishedODataServices() ([]*model.PublishedODataService, error) {
-	units, err := mprread.ListUnitsWithContainer[*genOp.PublishedODataService2](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genOp.PublishedODataService2](b.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (b *Backend) ListPublishedODataServices() ([]*model.PublishedODataService, 
 // scheme, Operations with Name/HttpMethod/Path/Timeout/ResponseType/BodyType
 // and parameter counts).
 func (b *Backend) ListConsumedRestServices() ([]*model.ConsumedRestService, error) {
-	units, err := mprread.ListUnitsWithContainer[*genRest.ConsumedRestService](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genRest.ConsumedRestService](b.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -396,7 +396,7 @@ func httpMethodUpper(method string) string {
 // Resources with Name and Operations with HTTPMethod/Path/Summary/Microflow/
 // Deprecated).
 func (b *Backend) ListPublishedRestServices() ([]*model.PublishedRestService, error) {
-	units, err := mprread.ListUnitsWithContainer[*genRest.PublishedRestService](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genRest.PublishedRestService](b.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -461,7 +461,7 @@ func (b *Backend) ListPublishedRestServices() ([]*model.PublishedRestService, er
 // EventNamePrefix, Channels with Messages/Attributes) and the
 // OperationImplementations the catalog/contract builders consume.
 func (b *Backend) ListBusinessEventServices() ([]*model.BusinessEventService, error) {
-	units, err := mprread.ListUnitsWithContainer[*genBe.BusinessEventService](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genBe.BusinessEventService](b.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -587,7 +587,7 @@ func businessEventAttrType(el element.Element) string {
 // and converts it to the semantic model, mirroring the legacy reader for
 // top-level fields and the Queries (Name/SQL/QueryType) the catalog consumes.
 func (b *Backend) ListDatabaseConnections() ([]*model.DatabaseConnection, error) {
-	units, err := mprread.ListUnitsWithContainer[*genDb.DatabaseConnection](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genDb.DatabaseConnection](b.reader)
 	if err != nil {
 		return nil, err
 	}

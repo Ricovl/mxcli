@@ -26,7 +26,7 @@ import (
 // path that reaches this method reads them. Unrecognised activity types decode to
 // a GenericWorkflowActivity carrying their $Type, so no activity is silently dropped.
 func (b *Backend) ListWorkflows() ([]*workflows.Workflow, error) {
-	units, err := mprread.ListUnitsWithContainer[*genWf.Workflow](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genWf.Workflow](b.reader)
 	if err != nil {
 		return nil, err
 	}

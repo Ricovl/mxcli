@@ -101,3 +101,103 @@ func TestGetUnitByName_ResolvesTypesTheAliasTableOmits(t *testing.T) {
 		t.Errorf("enum Name = %q, want %q", enum.Element.Name(), "LogNodes")
 	}
 }
+
+// TestListUnitsWithContainerCached_DecodesOncePerInvalidation is the whole point
+// of the cached variant: a DESCRIBE sweep calls the same List* once per document
+// described, and each uncached call re-decodes the entire type.
+//
+// Element pointer identity is the observable — a fresh decode allocates new
+// elements, so same-pointer means the decode was skipped.
+func TestListUnitsWithContainerCached_DecodesOncePerInvalidation(t *testing.T) {
+	r := openTestReader(t)
+
+	first, err := mprread.ListUnitsWithContainerCached[*genEnum.Enumeration](r)
+	if err != nil {
+		t.Fatalf("first cached list: %v", err)
+	}
+	if len(first) == 0 {
+		t.Fatal("fixture has no enumerations; this test cannot detect a re-decode")
+	}
+
+	second, err := mprread.ListUnitsWithContainerCached[*genEnum.Enumeration](r)
+	if err != nil {
+		t.Fatalf("second cached list: %v", err)
+	}
+	if second[0].Element != first[0].Element {
+		t.Fatal("second cached list re-decoded the type; the memo did not hit")
+	}
+
+	// A write invalidates the reader, and the memo must not outlive it —
+	// otherwise every read after a write is served the pre-write model.
+	r.InvalidateCache()
+	third, err := mprread.ListUnitsWithContainerCached[*genEnum.Enumeration](r)
+	if err != nil {
+		t.Fatalf("post-invalidation list: %v", err)
+	}
+	if len(third) != len(first) {
+		t.Fatalf("post-invalidation list has %d enumerations, want %d", len(third), len(first))
+	}
+	if third[0].Element == first[0].Element {
+		t.Fatal("InvalidateCache did not drop the decoded-unit memo — a read after a write " +
+			"would be served the stale model")
+	}
+}
+
+// TestListUnitsWithContainerCached_MatchesUncached guards the memo against
+// returning a different answer from the function it stands in for.
+func TestListUnitsWithContainerCached_MatchesUncached(t *testing.T) {
+	r := openTestReader(t)
+
+	uncached, err := mprread.ListUnitsWithContainer[*genEnum.Enumeration](r)
+	if err != nil {
+		t.Fatalf("ListUnitsWithContainer: %v", err)
+	}
+	cached, err := mprread.ListUnitsWithContainerCached[*genEnum.Enumeration](r)
+	if err != nil {
+		t.Fatalf("ListUnitsWithContainerCached: %v", err)
+	}
+	if len(cached) != len(uncached) {
+		t.Fatalf("cached list has %d entries, uncached has %d", len(cached), len(uncached))
+	}
+	for i := range uncached {
+		if cached[i].Element.ID() != uncached[i].Element.ID() {
+			t.Errorf("entry %d: cached ID %q, uncached ID %q", i, cached[i].Element.ID(), uncached[i].Element.ID())
+		}
+		if cached[i].ContainerID != uncached[i].ContainerID {
+			t.Errorf("entry %d: cached ContainerID %q, uncached %q", i, cached[i].ContainerID, uncached[i].ContainerID)
+		}
+	}
+}
+
+// TestListUnitsWithContainerCached_EnvOptOut pins the escape hatch: with the
+// memo off the results must still be correct, just re-decoded. Without this the
+// opt-out could silently return stale or empty results and nothing would notice
+// until someone set the variable in anger.
+func TestListUnitsWithContainerCached_EnvOptOut(t *testing.T) {
+	r := openTestReader(t)
+
+	warm, err := mprread.ListUnitsWithContainerCached[*genEnum.Enumeration](r)
+	if err != nil {
+		t.Fatalf("warming the memo: %v", err)
+	}
+	if len(warm) == 0 {
+		t.Fatal("fixture has no enumerations")
+	}
+
+	t.Setenv("MXCLI_NO_DECODE_CACHE", "1")
+	off, err := mprread.ListUnitsWithContainerCached[*genEnum.Enumeration](r)
+	if err != nil {
+		t.Fatalf("opted-out list: %v", err)
+	}
+	if len(off) != len(warm) {
+		t.Fatalf("opted-out list has %d entries, want %d", len(off), len(warm))
+	}
+	if off[0].Element == warm[0].Element {
+		t.Fatal("MXCLI_NO_DECODE_CACHE did not bypass the memo — it was served the cached decode")
+	}
+	for i := range warm {
+		if off[i].Element.ID() != warm[i].Element.ID() {
+			t.Fatalf("entry %d: opted-out ID %q, cached ID %q", i, off[i].Element.ID(), warm[i].Element.ID())
+		}
+	}
+}

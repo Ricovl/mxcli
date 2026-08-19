@@ -14,7 +14,7 @@ import (
 // ListModuleSecurity reads every module's security document (its module roles)
 // through the codec engine. Mirrors the legacy reader.ListModuleSecurity.
 func (b *Backend) ListModuleSecurity() ([]*security.ModuleSecurity, error) {
-	units, err := mprread.ListUnitsWithContainer[*genSec.ModuleSecurity](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genSec.ModuleSecurity](b.reader)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func (b *Backend) ListModuleSecurity() ([]*security.ModuleSecurity, error) {
 // GetModuleSecurity returns the module-security document whose container is
 // moduleID (its module roles).
 func (b *Backend) GetModuleSecurity(moduleID model.ID) (*security.ModuleSecurity, error) {
-	units, err := mprread.ListUnitsWithContainer[*genSec.ModuleSecurity](b.reader)
+	units, err := mprread.ListUnitsWithContainerCached[*genSec.ModuleSecurity](b.reader)
 	if err != nil {
 		return nil, err
 	}
