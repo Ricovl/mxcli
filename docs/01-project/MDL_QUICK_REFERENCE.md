@@ -473,6 +473,7 @@ rather than updating the first.
 | Show nanoflows | `show nanoflows [in module];` | List all or filter by module |
 | Describe microflow | `describe microflow Module.Name;` | Full MDL with activities |
 | Describe microflow (normalized) | `describe microflow Module.Name normalized;` | Folds crossed branches into one condition instead of flattening them. Opt-in: the output re-executes to an equivalent graph with fewer nodes and a different layout |
+| Describe microflow (with handles) | `describe microflow Module.Name with handles;` | Prints `-- handle: <target>` above each activity: its content address for `alter microflow` — output `$Var`, `'Caption'`, or a statement pattern with `*` wildcards (anchored at both ends), plus `@n` when several match. Comments only; cannot be combined with `normalized` |
 | Describe nanoflow | `describe nanoflow Module.Name;` | Full MDL with activities |
 | Rename microflow | `rename microflow Module.Old to New;` | Updates all references |
 | Rename nanoflow | `rename nanoflow Module.Old to New;` | Updates all references |

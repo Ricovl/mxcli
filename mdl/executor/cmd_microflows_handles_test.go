@@ -1,0 +1,211 @@
+// SPDX-License-Identifier: Apache-2.0
+
+package executor
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend/mfmutator"
+	"github.com/mendixlabs/mxcli/mdl/backend/mock"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
+	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/domainmodel"
+	"github.com/mendixlabs/mxcli/sdk/microflows"
+)
+
+// handlesFixture is a flow with a duplicated output variable (so describe
+// prepends a warning above the body) and a statement that occurs twice (so two
+// handles need an ordinal).
+func handlesFixture() *microflows.Microflow {
+	act := func(id string, x int, a microflows.MicroflowAction) *microflows.ActionActivity {
+		return &microflows.ActionActivity{
+			BaseActivity: microflows.BaseActivity{
+				BaseMicroflowObject: microflows.BaseMicroflowObject{
+					BaseElement: model.BaseElement{ID: model.ID(id)},
+					Position:    model.Point{X: x, Y: 100},
+				},
+				AutoGenerateCaption: true,
+			},
+			Action: a,
+		}
+	}
+	split := &microflows.ExclusiveSplit{
+		BaseMicroflowObject: microflows.BaseMicroflowObject{
+			BaseElement: model.BaseElement{ID: "split"},
+			Position:    model.Point{X: 400, Y: 100},
+		},
+		Caption:        "Enough?",
+		SplitCondition: &microflows.ExpressionSplitCondition{Expression: "$N > 1"},
+	}
+	oc := &microflows.MicroflowObjectCollection{
+		Objects: []microflows.MicroflowObject{
+			&microflows.StartEvent{BaseMicroflowObject: microflows.BaseMicroflowObject{
+				BaseElement: model.BaseElement{ID: "start"}, Position: model.Point{X: 0, Y: 100}}},
+			act("item1", 100, &microflows.CreateObjectAction{OutputVariable: "Item", EntityQualifiedName: "Synthetic.Item"}),
+			act("item2", 200, &microflows.CreateObjectAction{OutputVariable: "Item", EntityQualifiedName: "Synthetic.Item"}),
+			act("declare", 250, &microflows.CreateVariableAction{VariableName: "N", DataType: &microflows.IntegerType{}, InitialValue: "0"}),
+			act("set1", 300, &microflows.ChangeVariableAction{VariableName: "N", Value: "$N + 1"}),
+			split,
+			act("set2", 500, &microflows.ChangeVariableAction{VariableName: "N", Value: "$N + 1"}),
+			&microflows.ExclusiveMerge{BaseMicroflowObject: microflows.BaseMicroflowObject{
+				BaseElement: model.BaseElement{ID: "merge"}, Position: model.Point{X: 600, Y: 100}}},
+			&microflows.EndEvent{BaseMicroflowObject: microflows.BaseMicroflowObject{
+				BaseElement: model.BaseElement{ID: "end"}, Position: model.Point{X: 700, Y: 100}}},
+		},
+		Flows: []*microflows.SequenceFlow{
+			{OriginID: "start", DestinationID: "item1"},
+			{OriginID: "item1", DestinationID: "item2"},
+			{OriginID: "item2", DestinationID: "declare"},
+			{OriginID: "declare", DestinationID: "set1"},
+			{OriginID: "set1", DestinationID: "split"},
+			{OriginID: "split", DestinationID: "set2", CaseValue: &microflows.ExpressionCase{Expression: "true"}},
+			{OriginID: "split", DestinationID: "merge", CaseValue: &microflows.ExpressionCase{Expression: "false"}, OriginConnectionIndex: 2},
+			{OriginID: "set2", DestinationID: "merge"},
+			{OriginID: "merge", DestinationID: "end"},
+		},
+	}
+	return &microflows.Microflow{ObjectCollection: oc}
+}
+
+// Each handle line sits directly above the activity it names — the warning
+// describe prepends must not shift the handles off their statements — and
+// resolves back to that activity.
+func TestFormatMicroflowActivitiesWithHandles_AboveEachActivity(t *testing.T) {
+	ctx := &ExecContext{}
+	mf := handlesFixture()
+	lines := formatMicroflowActivitiesWithHandles(ctx, mf, nil, nil)
+	got := strings.Join(lines, "\n")
+	if !strings.Contains(got, "-- WARNING: duplicate output variable $Item") {
+		t.Fatalf("fixture should trigger the duplicate-output warning:\n%s", got)
+	}
+
+	cands, _, _, _ := microflowTargets(ctx, mf, nil, nil)
+	wantAbove := map[string]string{
+		"$Item @1":           "(100, 100)",
+		"$Item @2":           "(200, 100)",
+		"$N":                 "(250, 100)",
+		"set $N = $N + 1 @1": "(300, 100)",
+		"'Enough?'":          "(400, 100)",
+		"set $N = $N + 1 @2": "(500, 100)",
+	}
+	seen := map[string]bool{}
+	for i, line := range lines {
+		h, ok := strings.CutPrefix(strings.TrimSpace(line), "-- handle: ")
+		if !ok {
+			continue
+		}
+		seen[h] = true
+		if i+1 >= len(lines) || !strings.Contains(lines[i+1], "@position"+wantAbove[h]) {
+			t.Errorf("handle %q is not directly above the activity at %s:\n%s", h, wantAbove[h], got)
+		}
+		c, err := mfmutator.ResolveText(cands, h)
+		if err != nil {
+			t.Errorf("handle %q does not resolve: %v", h, err)
+			continue
+		}
+		p := c.Object.GetPosition()
+		if want := wantAbove[h]; want != "" && want != fmt.Sprintf("(%d, %d)", p.X, p.Y) {
+			t.Errorf("handle %q resolves to the activity at (%d, %d), want %s", h, p.X, p.Y, want)
+		}
+	}
+	for h := range wantAbove {
+		if !seen[h] {
+			t.Errorf("missing handle %q:\n%s", h, got)
+		}
+	}
+
+	// Control: take the handle lines away and what remains is exactly the
+	// plain description, so `with handles` adds comments and changes nothing.
+	plain := formatMicroflowActivities(ctx, handlesFixture(), nil, nil)
+	var stripped []string
+	for _, line := range lines {
+		if !strings.HasPrefix(strings.TrimSpace(line), "-- handle: ") {
+			stripped = append(stripped, line)
+		}
+	}
+	if strings.Join(stripped, "\n") != strings.Join(plain, "\n") {
+		t.Errorf("with handles minus the handle lines differs from plain describe:\n--- with handles\n%s\n--- plain\n%s",
+			strings.Join(stripped, "\n"), strings.Join(plain, "\n"))
+	}
+}
+
+// The statement parses end to end: grammar, visitor and executor.
+func TestDescribeMicroflowWithHandles_Statement(t *testing.T) {
+	prog, errs := visitor.Build("describe microflow MyModule.ACT_Count with handles;")
+	if len(errs) > 0 {
+		t.Fatalf("parse: %v", errs[0])
+	}
+	stmt, ok := prog.Statements[0].(*ast.DescribeStmt)
+	if !ok || !stmt.WithHandles || stmt.Normalized {
+		t.Fatalf("want a DescribeStmt with WithHandles, got %#v", prog.Statements[0])
+	}
+
+	mod := mkModule("MyModule")
+	mf := handlesFixture()
+	mf.BaseElement = model.BaseElement{ID: "mf"}
+	mf.ContainerID = mod.ID
+	mf.Name = "ACT_Count"
+	h := mkHierarchy(mod)
+	withContainer(h, mf.ContainerID, mod.ID)
+	mb := &mock.MockBackend{
+		IsConnectedFunc:      func() bool { return true },
+		ListMicroflowsFunc:   func() ([]*microflows.Microflow, error) { return []*microflows.Microflow{mf}, nil },
+		ListDomainModelsFunc: func() ([]*domainmodel.DomainModel, error) { return nil, nil },
+		ListModulesFunc:      func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+	}
+	ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	assertNoError(t, describeMicroflowMode(ctx, stmt.Name, describeMicroflowOptions{Handles: true}))
+	assertContainsStr(t, buf.String(), "  -- handle: 'Enough?'\n")
+
+	// normalized shows a graph other than the stored one; its handles would
+	// address nothing, so the combination is refused.
+	if err := describeMicroflowMode(ctx, stmt.Name, describeMicroflowOptions{Handles: true, Normalized: true}); err == nil {
+		t.Error("normalized with handles: want an error")
+	}
+}
+
+// Describe prints an if whose then-branch is empty with its condition negated
+// and the branches swapped. A target written from that output must still find
+// the split, and so must one written from the stored condition.
+func TestMicroflowTargets_NegatedIfMatchesBothForms(t *testing.T) {
+	mf := handlesFixture()
+	// Swap the branches: true now goes straight to the merge.
+	for _, f := range mf.ObjectCollection.Flows {
+		if f.OriginID == "split" {
+			if f.DestinationID == "set2" {
+				f.DestinationID = "merge"
+			} else {
+				f.DestinationID = "set2"
+			}
+		}
+	}
+	ctx := &ExecContext{}
+	got := strings.Join(formatMicroflowActivities(ctx, mf, nil, nil), "\n")
+	if !strings.Contains(got, "if not($N > 1) then") {
+		t.Fatalf("fixture should describe the split negated:\n%s", got)
+	}
+	cands, _, _, _ := microflowTargets(ctx, mf, nil, nil)
+	for _, target := range []string{"if not($N > 1) then", "if $N > 1 then", "if * then"} {
+		c, err := mfmutator.ResolveText(cands, target)
+		if err != nil {
+			t.Errorf("%s: %v", target, err)
+			continue
+		}
+		if c.ID != "split" {
+			t.Errorf("%s: resolved to %s, want split", target, c.ID)
+		}
+	}
+	// The printed form is the one a handle shows.
+	for i, c := range cands {
+		if c.ID == "split" {
+			c.Caption = ""
+			cands[i] = c
+			if h := mfmutator.Handle(cands, i); h != "if not($N > 1) then" {
+				t.Errorf("handle %q, want the printed form", h)
+			}
+		}
+	}
+}
