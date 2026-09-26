@@ -101,6 +101,7 @@ func (e *Executor) newExecContext(ctx context.Context) *ExecContext {
 		Cache:            e.cache,
 		MprPath:          e.mprPath,
 		ScriptDir:        e.scriptDir,
+		LanguageVersion:  e.langVersion,
 		SqlMgr:           e.sqlMgr,
 		ThemeRegistry:    e.themeRegistry,
 		Settings:         e.settings,

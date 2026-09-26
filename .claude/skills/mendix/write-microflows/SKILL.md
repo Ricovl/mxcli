@@ -20,7 +20,7 @@ beside it, and is worth opening when you hit one of these:
   association and list; XPath navigation.
 - [`reference/integration.md`](reference/integration.md) — `rest call` and
   `send rest request`, legacy SOAP, calling Java actions (including the `empty`
-  argument and microflow-typed parameters), and file downloads.
+  argument and microflow-typed parameters), `execute database query`, file downloads.
 - [`reference/pitfalls.md`](reference/pitfalls.md) — **read this when
   `mxcli check` rejects something you believe is correct.** The anti-patterns, the
   CE0111 duplicate-variable trap, the syntax that looks plausible and does not
@@ -35,6 +35,19 @@ Use this skill when:
 - Understanding microflow control flow and structure
 
 If you're not sure whether the logic belongs in a microflow or a nanoflow, read the next section first. The mirror lives in [write-nanoflows](../write-nanoflows/SKILL.md) — keep both copies in sync.
+
+## Changing an Existing Microflow
+
+Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mode/SKILL.md)):
+
+- **Created by your MDL scripts, and not edited in Studio Pro since:** edit the script
+  (or fresh `describe` output) and re-run `create or modify`.
+- **Authored in Studio Pro:** there is **no `alter microflow` yet**, and re-emitting it
+  with `create or modify` renumbers element IDs, removes merges and resets connector
+  curves even for a one-line change. Keep the change minimal: put new logic in a new
+  sub-microflow and change the existing flow only to call it. Commit first, then
+  `describe` it again after `exec` and diff it against the original output. Anything
+  that differs and that you did not change is a loss.
 
 ## When to Use a Microflow vs a Nanoflow
 
@@ -622,28 +635,6 @@ A note's own canvas geometry is `position: (x, y)` and `size: (w, h)`, e.g.
 and the note goes 100px above the activity at 200×50, stacking 60px per extra
 note; DESCRIBE omits them again whenever they match, so an ordinary note keeps
 the short `@annotation 'text'` form.
-
-### Execute Database Query Pattern
-```mdl
--- Static query (3-part name: Module.Connection.Query)
-$Results = execute database query Module.Conn.QueryName;
-
--- Dynamic SQL override
-$Results = execute database query Module.Conn.QueryName
-  dynamic 'SELECT * FROM table LIMIT 10';
-
--- Parameterized query (names must match query PARAMETER definitions)
-$Results = execute database query Module.Conn.QueryName
-  (paramName = $Variable);
-
--- Runtime connection override
-$Results = execute database query Module.Conn.QueryName
-  connection (DBSource = $url, DBUsername = $user, DBPassword = $Pass);
-
--- Fire-and-forget (no output variable)
-execute database query Module.Conn.QueryName;
-```
-**Note:** Only `on error rollback` is supported (the default). `on error continue` is not available for this action.
 
 ### Page Navigation Pattern
 ```mdl

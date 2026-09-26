@@ -87,6 +87,12 @@ parses the bare major and rejects the project outright with
 `describe settings` always emits the project's own spelling, so its output replays
 cleanly.
 
+**`describe settings` never prints `DatabasePassword`.** Describe output is what gets
+committed and reviewed, so the password is omitted and a comment says it is set.
+Replaying the output leaves the stored password unchanged (`create or modify
+configuration` only touches the keys it names); on a project that lacks the
+configuration, add `DatabasePassword = '…'` yourself.
+
 ### Modify Configuration Settings
 
 ```sql

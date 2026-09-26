@@ -35,7 +35,7 @@ create persistent entity Module.Customer (
   IsActive: boolean default true,
 
   -- Date/Time
-  BirthDate: date,
+  BirthDate: datetime,   -- there is no date-only type; `date` is refused
   -- Use autocreateddate (not datetime) to record when the object was created.
   -- 'CreatedDate' as a plain datetime triggers lint error MDL020.
   CreatedDate: autocreateddate,
@@ -77,7 +77,6 @@ create non-persistent entity Module.CustomerSearchParams (
 | Decimal | `Name: decimal` | `Amount: decimal` |
 | Boolean | `Name: boolean` | `IsActive: boolean` |
 | DateTime | `Name: datetime` | `CreatedAt: datetime` |
-| Date | `Name: date` | `BirthDate: date` |
 | Enumeration | `Name: Module.EnumName` | `status: Module.Status` |
 | AutoNumber | `Name: autonumber default 1` | `Code: autonumber default 1` (seed required) |
 | Binary | `Name: binary` | `FileData: binary` |
@@ -259,14 +258,17 @@ create persistent entity Module.Product (
   Category: string(50),
   Price: decimal
 )
-index idx_product_code (Code)
-index idx_product_category (Category);
+index (Code)
+index (Category);
 /
 ```
 
-> The `on` keyword is optional and reads SQL-like: `index idx_product_code on (Code)`
-> is equivalent to `index idx_product_code (Code)`. Multi-column indexes list the
-> columns in order: `index idx_pos on (Row, Col)`.
+> A Mendix index has **no name** — its columns, in order and direction, are its
+> identity. A name is accepted (`index idx_code on (Code)`) but not stored, so
+> `check` warns (MDL-IDX01), `describe` prints the index back as `index (Code)`,
+> and `drop index idx_code` cannot find it. Write indexes anonymously; drop one
+> by its columns: `alter entity Module.Product drop index (Code)`. Multi-column
+> indexes list the columns in order: `index (Row, Col desc)`.
 
 ## Complete Domain Model Example
 
@@ -336,6 +338,23 @@ from Shop.OrderLine to Shop.Product
 type reference;
 /
 ```
+
+## Changing an Existing Domain Model
+
+Choose the mode by who owns the entity ([choose-edit-mode](../choose-edit-mode/SKILL.md)).
+An entity, association or enumeration authored in Studio Pro is changed with `alter`,
+not by re-running `describe` output:
+
+```mdl
+alter entity Shop.Order add attribute Note: string(200);
+alter association Shop.Order_Customer set delete_behavior DELETE_BUT_KEEP_REFERENCES;
+alter enumeration Shop.OrderStatus add value Cancelled caption 'Cancelled';
+```
+
+Re-running `create or modify` from `describe` on a Studio Pro association has flipped
+its storage from table to column, which is a schema change, with `mxcli diff` reporting
+no changes. Never `drop` and re-create an entity to change it: the new entity has a new
+identity, and the runtime drops the old table and its rows.
 
 ## Quick Reference
 

@@ -426,7 +426,11 @@ drop menu MyModule.Main_Menu;
 ```
 
 `describe menu` emits a re-executable `create or modify` statement, so
-describe → edit → exec is the normal editing loop.
+describe → edit → exec is the normal editing loop for a menu your MDL scripts own.
+Menus and navigation have no patch statement, so for one maintained in Studio Pro
+keep the edit to the items you mean to change, then `describe` it again after
+`exec` and compare with the original; a difference you did not make is a loss (see
+[choose-edit-mode](../choose-edit-mode/SKILL.md)).
 
 **`or modify` replaces the whole item list.** An omitted item is a removed item,
 exactly as with `create or replace navigation`. The document's identity and

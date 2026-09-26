@@ -29,9 +29,27 @@ import
 // TOP-LEVEL RULES
 // =============================================================================
 
-/** Entry point: a program is a sequence of statements */
+/** Entry point: a program is an optional language header and a sequence of statements */
 program
-    : statement* EOF
+    : languageHeader? statement* EOF
+    ;
+
+/**
+ * The MDL language version a script is written in (ADR-0011): `mdl <n>;`.
+ * Only the first statement may be a header; a script without one is mdl 0, the alpha meaning.
+ * It is independent of the Mendix version the project targets.
+ *
+ * @example
+ * ```mdl
+ * mdl 1;
+ * create entity Shop.Customer ( Name: String(200) );
+ * ```
+ */
+languageHeader
+    // The word is an IDENTIFIER, not a keyword, and the visitor requires it to
+    // be `mdl`: reserving it would take the word away from every place that
+    // accepts only an IDENTIFIER, such as `describe contract entity X format mdl`.
+    : IDENTIFIER NUMBER_LITERAL SEMICOLON
     ;
 
 /** A statement can be DDL, DQL, or utility */
