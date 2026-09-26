@@ -25,12 +25,12 @@ Change one or more properties on a widget identified by name:
 ```sql
 -- Single property
 ALTER PAGE Module.EditPage {
-  SET Caption = 'Save & Close' ON btnSave
+  SET (Caption: 'Save & Close') ON btnSave
 };
 
 -- Multiple properties at once
 ALTER PAGE Module.EditPage {
-  SET (Caption = 'Save & Close', ButtonStyle = Success) ON btnSave
+  SET (Caption: 'Save & Close', ButtonStyle: Success) ON btnSave
 };
 ```
 
@@ -38,15 +38,15 @@ ALTER PAGE Module.EditPage {
 
 | Property | Description | Example |
 |----------|-------------|---------|
-| `Caption` | Button/link caption | `SET Caption = 'Submit' ON btnSave` |
-| `Label` | Input field label | `SET Label = 'Full Name' ON txtName` |
-| `ButtonStyle` | Button visual style | `SET ButtonStyle = Danger ON btnDelete` |
-| `Class` | CSS class names | `SET Class = 'card p-3' ON cMain` |
-| `Style` | Inline CSS | `SET Style = 'margin: 8px;' ON cBox` |
-| `DynamicClasses` | Runtime-computed CSS classes | `SET DynamicClasses = if $currentObject/IsActive then 'is-active' else '' ON cMain` |
-| `Editable` | Editability mode | `SET Editable = ReadOnly ON txtEmail` |
-| `Visible` | Visibility expression | `SET Visible = '$showField' ON txtPhone` |
-| `Name` | Widget name | `SET Name = 'txtFullName' ON txtName` |
+| `Caption` | Button/link caption | `SET (Caption: 'Submit') ON btnSave` |
+| `Label` | Input field label | `SET (Label: 'Full Name') ON txtName` |
+| `ButtonStyle` | Button visual style | `SET (ButtonStyle: Danger) ON btnDelete` |
+| `Class` | CSS class names | `SET (Class: 'card p-3') ON cMain` |
+| `Style` | Inline CSS | `SET (Style: 'margin: 8px;') ON cBox` |
+| `DynamicClasses` | Runtime-computed CSS classes | `SET (DynamicClasses: if $currentObject/IsActive then 'is-active' else '') ON cMain` |
+| `Editable` | Editability mode | `SET (Editable: ReadOnly) ON txtEmail` |
+| `Visible` | Visibility expression | `SET (Visible: '$showField') ON txtPhone` |
+| `Name` | Widget name | `SET (Name: 'txtFullName') ON txtName` |
 
 ### SET -- Page-Level Properties
 
@@ -61,9 +61,9 @@ it to `''` clears it.
 
 ```sql
 ALTER PAGE Module.EditPage {
-  SET Title = 'Customer Details';
-  SET Class = 'container-fluid bg-light';  -- page CSS class (Forms$Appearance)
-  SET Style = 'min-height: 100vh'          -- page inline style
+  SET (Title: 'Customer Details');
+  SET (Class: 'container-fluid bg-light');  -- page CSS class (Forms$Appearance)
+  SET (Style: 'min-height: 100vh')          -- page inline style
 };
 ```
 
@@ -73,7 +73,7 @@ Use quoted property names to set properties on pluggable widgets (ComboBox, Data
 
 ```sql
 ALTER PAGE Module.EditPage {
-  SET 'showLabel' = false ON cbStatus
+  SET ('showLabel': false) ON cbStatus
 };
 ```
 
@@ -129,18 +129,18 @@ ALTER PAGE Module.EditPage {
 
 The inserted widgets use the same syntax as in `CREATE PAGE`. Multiple widgets can be inserted in a single block.
 
-### DROP WIDGET -- Remove Widgets
+### DROP -- Remove Widgets
 
 Remove one or more widgets by name:
 
 ```sql
 ALTER PAGE Module.EditPage {
-  DROP WIDGET txtUnused
+  DROP txtUnused
 };
 
 -- Multiple widgets
 ALTER PAGE Module.EditPage {
-  DROP WIDGET txtFax, txtPager, btnObsolete
+  DROP txtFax, txtPager, btnObsolete
 };
 ```
 
@@ -181,10 +181,10 @@ Multiple operations can be combined in a single ALTER statement. They are applie
 ```sql
 ALTER PAGE Module.Customer_Edit {
   -- Change button appearance
-  SET (Caption = 'Save & Close', ButtonStyle = Success) ON btnSave;
+  SET (Caption: 'Save & Close', ButtonStyle: Success) ON btnSave;
 
   -- Remove unused fields
-  DROP WIDGET txtFax;
+  DROP txtFax;
 
   -- Add new fields after email
   INSERT AFTER txtEmail {
@@ -227,8 +227,8 @@ ALTER PAGE MyModule.Customer_Edit {
 
 ```sql
 ALTER PAGE MyModule.Order_Edit {
-  SET (Caption = 'Submit Order', ButtonStyle = Success) ON btnSave;
-  SET Caption = 'Discard' ON btnCancel
+  SET (Caption: 'Submit Order', ButtonStyle: Success) ON btnSave;
+  SET (Caption: 'Discard') ON btnCancel
 };
 ```
 
@@ -246,12 +246,12 @@ ALTER PAGE MyModule.Customer_Overview {
 
 -- Remove a column
 ALTER PAGE MyModule.Customer_Overview {
-  DROP WIDGET dgCustomers.OldColumn
+  DROP dgCustomers.OldColumn
 };
 
 -- Change a column's caption
 ALTER PAGE MyModule.Customer_Overview {
-  SET Caption = 'E-mail Address' ON dgCustomers.Email
+  SET (Caption: 'E-mail Address') ON dgCustomers.Email
 };
 
 -- Replace a column

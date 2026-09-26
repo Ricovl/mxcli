@@ -50,16 +50,34 @@ alter snippet Module.SnippetName {
 };
 ```
 
+This is the **generic ALTER** — the same four verbs for every document type
+(`alter layout` too):
+
+```sql
+alter page Module.PageName {
+  set (Key: value, …) on <target>;      -- no `on`: the page itself
+  insert before|after|into <target> { <widgets as in create page> }
+  replace <target> with { <widgets> }
+  drop <target>, <target>;
+};
+```
+
+A `<target>` on a page is a widget name, `grid.Column`, or a layout region
+`layoutContainer.top`. Properties go in parentheses with `:`, exactly as in
+`create page`. The older spellings `set Key = value on w`, `set Key: value`
+(no parentheses) and `drop widget w` still run, and warn with MDL-DEPR101,
+MDL-DEPR102 and MDL-DEPR103 — write the form above.
+
 Multiple operations can be combined in a single ALTER statement. They are applied sequentially; later operations see the page state produced by earlier ones, so you can `set` on a widget you just `insert`ed.
 
 ```sql
 -- Rename a column, add a sibling, drop an obsolete one — all in one block.
 alter page MyMod.Product_Overview {
-  set caption = 'Product Name' on dgProducts.Name;
+  set (caption: 'Product Name') on dgProducts.Name;
   insert after dgProducts.Lifecycle {
     column NewCol (attribute: Sku, caption: 'SKU')
   };
-  drop widget dgProducts.OldCol
+  drop dgProducts.OldCol
 };
 ```
 
@@ -89,7 +107,7 @@ Naming the list view in the `drop` is required, not optional: one page can hold
 two list views with a template for the same entity.
 
 Most template edits need none of this. The widgets **inside** a template are
-ordinary named widgets, so `set content = '…' on busLabel` and
+ordinary named widgets, so `set (content: '…') on busLabel` and
 `insert after busLabel { … }` already work and land in the right template. To
 replace a whole template, `drop` it and `insert` the new one in the same block —
 operations apply in order.
@@ -111,35 +129,35 @@ Refused, each naming the problem:
 
 ```sql
 -- Single property
-set caption = 'New Caption' on widgetName
+set (caption: 'New Caption') on widgetName
 
 -- Multiple properties
-set (caption = 'Save & Close', buttonstyle = success) on btnSave
+set (caption: 'Save & Close', buttonstyle: success) on btnSave
 
 -- Page-level property (no ON clause). Page-level property names are
 -- case-sensitive and must match the Mendix property exactly.
-set Title = 'New Page Title'
+set (Title: 'New Page Title')
 
 -- Pop-up dimensions (apply when the page is opened in a pop-up)
-set PopupWidth = 800
-set PopupHeight = 480
-set PopupResizable = true
-set Documentation = 'What this page is for.'
+set (PopupWidth: 800)
+set (PopupHeight: 480)
+set (PopupResizable: true)
+set (Documentation: 'What this page is for.')
 
 -- Retarget a button's on-click action. Any form `create page` accepts works
 -- here, including the combined ones.
-set Action = microflow Module.ACT_Other on btnSave
-set Action = SAVE_CHANGES CLOSE_PAGE on btnSave
-set Action = SHOW_PAGE Module.DetailPage on btnEdit
+set (Action: microflow Module.ACT_Other) on btnSave
+set (Action: SAVE_CHANGES CLOSE_PAGE) on btnSave
+set (Action: SHOW_PAGE Module.DetailPage) on btnEdit
 
 -- Retarget ONE named action slot of a pluggable widget, by the widget's own
 -- property key (the same key `create page` takes: `createFileAction: …`).
-set 'createFileAction' = microflow Module.ACT_CreateFile on fileUploader1
-set 'onSelectionChange' = show_page Module.Detail on dgOrders
+set ('createFileAction': microflow Module.ACT_CreateFile) on fileUploader1
+set ('onSelectionChange': show_page Module.Detail) on dgOrders
 
 -- Rebind a data-bound widget
-set DataSource = $OrderParam on dvOrder
-set DataSource = microflow Module.MF_Get on dvOrder
+set (DataSource: $OrderParam) on dvOrder
+set (DataSource: microflow Module.MF_Get) on dvOrder
 ```
 
 **Prefer `set Action` over `replace` when only the action changes.** `replace`
@@ -156,30 +174,30 @@ so a silent write would build cleanly and then fail to open.
 
 | Property | Widget Types | Value Type | Example |
 |----------|-------------|------------|---------|
-| `Action` | Widgets with an on-click action (ACTIONBUTTON, LINKBUTTON, clickable containers) | Any `create page` action expression | `set Action = microflow M.ACT_Go on btnSave` |
-| `'<slotKey>'` | Pluggable widgets — any **action-typed** property (File Uploader `createFileAction`, DataGrid 2 `onSelectionChange`, …) | Any `create page` action expression | `set 'createFileAction' = microflow M.ACT_Create on fileUploader1` — refused, naming the widget's action slots, if the key is not action-typed |
-| `caption` | ACTIONBUTTON, LINKBUTTON | String | `set caption = 'Submit' on btnSave` |
-| `content` | DYNAMICTEXT | String | `set content = 'New Heading' on txtTitle` |
-| `label` | TEXTBOX, TEXTAREA, DATEPICKER, COMBOBOX, CHECKBOX, RADIOBUTTONS | String | `set label = 'full Name' on txtName` |
-| `buttonstyle` | ACTIONBUTTON, LINKBUTTON | Primary, Default, Success, Danger, Warning, Info | `set buttonstyle = danger on btnDelete` |
-| `class` | Any widget | CSS class string | `set class = 'card mx-2' on container1` |
-| `style` | Any widget (see warning below) | Inline CSS string | `set style = 'padding: 16px;' on container1` |
-| `editable` | Input widgets | String | `set editable = 'Never' on txtReadOnly` |
-| `visible` | Any widget | String or Boolean | `set visible = false on txtHidden` |
-| `Name` | Any widget | String | `set Name = 'newName' on oldName` |
-| `Title` | Page-level only (case-sensitive) | String | `set Title = 'Edit Customer'` |
-| `Documentation` | Page-level only (case-sensitive) | String (`''` clears) | `set Documentation = 'Coordinator triage step.'` |
+| `Action` | Widgets with an on-click action (ACTIONBUTTON, LINKBUTTON, clickable containers) | Any `create page` action expression | `set (Action: microflow M.ACT_Go) on btnSave` |
+| `'<slotKey>'` | Pluggable widgets — any **action-typed** property (File Uploader `createFileAction`, DataGrid 2 `onSelectionChange`, …) | Any `create page` action expression | `set ('createFileAction': microflow M.ACT_Create) on fileUploader1` — refused, naming the widget's action slots, if the key is not action-typed |
+| `caption` | ACTIONBUTTON, LINKBUTTON | String | `set (caption: 'Submit') on btnSave` |
+| `content` | DYNAMICTEXT | String | `set (content: 'New Heading') on txtTitle` |
+| `label` | TEXTBOX, TEXTAREA, DATEPICKER, COMBOBOX, CHECKBOX, RADIOBUTTONS | String | `set (label: 'full Name') on txtName` |
+| `buttonstyle` | ACTIONBUTTON, LINKBUTTON | Primary, Default, Success, Danger, Warning, Info | `set (buttonstyle: danger) on btnDelete` |
+| `class` | Any widget | CSS class string | `set (class: 'card mx-2') on container1` |
+| `style` | Any widget (see warning below) | Inline CSS string | `set (style: 'padding: 16px;') on container1` |
+| `editable` | Input widgets | String | `set (editable: 'Never') on txtReadOnly` |
+| `visible` | Any widget | String or Boolean | `set (visible: false) on txtHidden` |
+| `Name` | Any widget | String | `set (Name: 'newName') on oldName` |
+| `Title` | Page-level only (case-sensitive) | String | `set (Title: 'Edit Customer')` |
+| `Documentation` | Page-level only (case-sensitive) | String (`''` clears) | `set (Documentation: 'Coordinator triage step.')` |
 | `layout` | Page-level only | Qualified name | `set layout = Atlas_Core.Atlas_Default` |
-| `PopupWidth` | Page-level only (case-sensitive) | Positive integer (pixels) | `set PopupWidth = 800` |
-| `PopupHeight` | Page-level only (case-sensitive) | Positive integer (pixels) | `set PopupHeight = 480` |
-| `PopupResizable` | Page-level only (case-sensitive) | Boolean | `set PopupResizable = true` |
-| `Class` | Page-level (case-sensitive, no ON) | CSS class string | `set Class = 'container-fluid bg-light'` |
-| `Style` | Page-level (case-sensitive, no ON) | Inline CSS string | `set Style = 'min-height: 100vh'` |
-| `Visible` (conditional) | Any widget | `[expression]` | `set Visible = [Name != ''] on ctnDetails` |
-| `Editable` (conditional) | Input widgets | `[expression]` | `set Editable = [Active] on txtName` |
-| `'quotedProp'` | Pluggable widgets | String, Boolean, Number | `set 'showLabel' = false on cbStatus` |
+| `PopupWidth` | Page-level only (case-sensitive) | Positive integer (pixels) | `set (PopupWidth: 800)` |
+| `PopupHeight` | Page-level only (case-sensitive) | Positive integer (pixels) | `set (PopupHeight: 480)` |
+| `PopupResizable` | Page-level only (case-sensitive) | Boolean | `set (PopupResizable: true)` |
+| `Class` | Page-level (case-sensitive, no ON) | CSS class string | `set (Class: 'container-fluid bg-light')` |
+| `Style` | Page-level (case-sensitive, no ON) | Inline CSS string | `set (Style: 'min-height: 100vh')` |
+| `Visible` (conditional) | Any widget | `[expression]` | `set (Visible: [Name != '']) on ctnDetails` |
+| `Editable` (conditional) | Input widgets | `[expression]` | `set (Editable: [Active]) on txtName` |
+| `'quotedProp'` | Pluggable widgets | String, Boolean, Number | `set ('showLabel': false) on cbStatus` |
 
-> **Conditional visibility/editability** — `set Visible = [expr] on widget` (and
+> **Conditional visibility/editability** — `set (Visible: [expr]) on widget` (and
 > `Editable`) attach a per-object expression. Bare attributes are rooted in the
 > widget data context automatically: `[Name != '']` becomes
 > `$currentObject/Name != ''` (paths you write with `$currentObject/…`/`$Param/…`
@@ -188,12 +206,12 @@ so a silent write would build cleanly and then fail to open.
 
 **Pluggable widget properties** use quoted names to set values in the widget's `Object.Properties[]`. Boolean values are stored as `"yes"`/`"no"` in BSON.
 
-**Column property names are case-insensitive** in MDL — `set caption = …` and `set Caption = …` both work. The internal BSON keys are dictated by the widget schema and stay case-sensitive on the storage side.
+**Column property names are case-insensitive** in MDL — `set (caption: …)` and `set (Caption: …)` both work. The internal BSON keys are dictated by the widget schema and stay case-sensitive on the storage side.
 
 > **Warning: Style on DYNAMICTEXT** — Setting `style` directly on a DYNAMICTEXT widget crashes MxBuild with a NullReferenceException. Wrap the DYNAMICTEXT in a CONTAINER and apply styling to the container instead:
 > ```sql
 > -- Wrong: crashes MxBuild
-> SET Style = 'color: red;' ON txtHeading
+> SET (Style: 'color: red;') ON txtHeading
 >
 > -- Correct: style the container
 > REPLACE txtHeading WITH {
@@ -210,10 +228,10 @@ from a microflow to a page parameter:
 
 ```sql
 ALTER PAGE MyModule.OrderPage {
-  SET DataSource = $Order ON dvOrder;                       -- page/snippet parameter
-  SET DataSource = microflow MyModule.MF_Get ON dvOrder;     -- microflow
-  SET DataSource = nanoflow MyModule.NF_Get ON dvOrder;      -- nanoflow
-  SET DataSource = selection dgOrders ON dvDetail;           -- listen to widget
+  SET (DataSource: $Order) ON dvOrder;                       -- page/snippet parameter
+  SET (DataSource: microflow MyModule.MF_Get) ON dvOrder;     -- microflow
+  SET (DataSource: nanoflow MyModule.NF_Get) ON dvOrder;      -- nanoflow
+  SET (DataSource: selection dgOrders) ON dvDetail;           -- listen to widget
 }
 ```
 
@@ -281,10 +299,10 @@ moves data-bound widgets.
 
 ```sql
 -- Drop a single widget
-drop widget txtUnused
+drop txtUnused
 
 -- Drop multiple widgets
-drop widget txtOldField, lblOldLabel, container2
+drop txtOldField, lblOldLabel, container2
 ```
 
 Removes widgets and their entire subtree from the page.
@@ -309,10 +327,10 @@ DataGrid2 columns are addressable using dotted notation: `gridName.columnName`. 
 
 ```sql
 -- SET a column property
-set caption = 'Product SKU' on dgProducts.Code
+set (caption: 'Product SKU') on dgProducts.Code
 
 -- DROP a column
-drop widget dgProducts.OldColumn
+drop dgProducts.OldColumn
 
 -- INSERT a column after an existing one
 insert after dgProducts.Price {
@@ -337,7 +355,7 @@ If the column name you copied from DESCRIBE still doesn't work, check whether th
 
 **The authored `column colFoo (...)` name is NOT how you address it.** A column carries no stored name in the Mendix model, so the name you wrote in `create page` is dropped on write — always address a column by its *derived* name (the one `describe page` shows). Using the authored name now fails with an error that lists the available column names, rather than a bare "not found".
 
-**Duplicate captions are ambiguous and rejected.** Two dynamic-text (or custom-content) columns with the same caption derive the same name, so `ON "Amount"` can't tell them apart. mxcli now refuses the operation with an ambiguity error instead of silently mutating the first and leaving the second unreachable. Give such columns distinct captions to address them individually. (Non-attribute column handles are the caption, so `set Caption = ...` also *renames* the handle — plan multi-step caption edits accordingly.)
+**Duplicate captions are ambiguous and rejected.** Two dynamic-text (or custom-content) columns with the same caption derive the same name, so `ON "Amount"` can't tell them apart. mxcli now refuses the operation with an ambiguity error instead of silently mutating the first and leaving the second unreachable. Give such columns distinct captions to address them individually. (Non-attribute column handles are the caption, so `set (Caption: ...)` also *renames* the handle — plan multi-step caption edits accordingly.)
 
 ### ADD Variables - Add a Page Variable
 
@@ -375,7 +393,7 @@ When placeholders have the same names in both layouts (e.g., both have `Main`), 
 
 ```sql
 alter page MyModule.Customer_Edit {
-  set (caption = 'Save & Close', buttonstyle = success) on btnSave
+  set (caption: 'Save & Close', buttonstyle: success) on btnSave
 };
 ```
 
@@ -401,9 +419,9 @@ alter page MyModule.ProductOverview {
 
 ```sql
 alter page MyModule.Customer_Edit {
-  set title = 'Edit Customer Details';
-  drop widget txtLegacyField, lblOldNote;
-  set label = 'Email Address' on txtEmail
+  set (title: 'Edit Customer Details');
+  drop txtLegacyField, lblOldNote;
+  set (label: 'Email Address') on txtEmail
 };
 ```
 
@@ -425,7 +443,7 @@ alter page MyModule.Customer_Edit {
 
 ```sql
 alter snippet MyModule.NavigationMenu {
-  set caption = 'Dashboard' on btnHome;
+  set (caption: 'Dashboard') on btnHome;
   insert after btnHome {
     actionbutton btnReports (caption: 'Reports', action: show_page MyModule.Reports_Overview)
   }
@@ -436,8 +454,8 @@ alter snippet MyModule.NavigationMenu {
 
 ```sql
 alter page MyModule.Customer_Edit {
-  set 'showLabel' = false on cbStatus;
-  set 'labelWidth' = 4 on cbCategory
+  set ('showLabel': false) on cbStatus;
+  set ('labelWidth': 4) on cbCategory
 };
 ```
 
@@ -459,8 +477,8 @@ create or replace page Mod.P (...) {
 answers to:
 
 ```mdl
-alter page Mod.P { SET Caption = 'Renamed' ON dg1.colLabel }   -- WRONG: column not found
-alter page Mod.P { SET Caption = 'Renamed' ON dg1.Label }      -- correct
+alter page Mod.P { SET (Caption: 'Renamed') ON dg1.colLabel }   -- WRONG: column not found
+alter page Mod.P { SET (Caption: 'Renamed') ON dg1.Label }      -- correct
 ```
 
 The derived name is, in order: **the bound attribute's short name**, else the
@@ -483,13 +501,13 @@ the quoted class name, and a computed one is the expression itself:
 
 ```mdl
 -- a literal class: the string 'highlight'
-alter page Mod.P { SET DynamicCellClass = 'highlight' ON dg1.Label }
+alter page Mod.P { SET (DynamicCellClass: 'highlight') ON dg1.Label }
 
 -- a computed class
-alter page Mod.P { SET DynamicCellClass = if $currentObject/Price > 100 then 'highlight' else '' ON dg1.Label }
+alter page Mod.P { SET (DynamicCellClass: if $currentObject/Price > 100 then 'highlight' else '') ON dg1.Label }
 
 -- WRONG: a bare name is an identifier, not a string — mxbuild reports CE0117
-alter page Mod.P { SET DynamicCellClass = highlight ON dg1.Label }
+alter page Mod.P { SET (DynamicCellClass: highlight) ON dg1.Label }
 ```
 
 The old spelling — the expression's text in quotes, `'if … then ''a'' else '''''`
@@ -506,7 +524,7 @@ reference.
 
 **Widget property names are matched case-insensitively**, pluggable ones
 included, so a spelling `CREATE PAGE` accepts is a spelling `ALTER PAGE` accepts
-— `set PageSize = 10 on dgProducts` and `set pageSize = 10 on dgProducts` are the
+— `set (PageSize: 10) on dgProducts` and `set (pageSize: 10) on dgProducts` are the
 same statement. This is what makes DESCRIBE output re-executable: `describe page`
 prints the capitalised `PageSize:`, while the widget template stores `pageSize`
 (mendixlabs/mxcli#1069). A property the widget does not declare is still an
@@ -527,7 +545,7 @@ adds. Both still fail at exec if they are genuinely wrong.
 |---------|-----|
 | Missing `on widgetName` for widget SET | Add `on widgetName` (only page-level properties — `Title`, `Documentation`, `PopupWidth`, `PopupHeight`, `PopupResizable`, `Class`, `Style` — omit ON) |
 | `unsupported page-level property: title` | Page-level property names are case-sensitive — use `Title`, `PopupWidth`, `PopupHeight`, `PopupResizable`, `Class`, `Style` |
-| Using unquoted pluggable property names | Quote pluggable props: `set 'showLabel' = false on cb` |
+| Using unquoted pluggable property names | Quote pluggable props: `set ('showLabel': false) on cb` |
 | `pluggable property "X" not found` | The widget does not declare it — casing is not the problem (any casing resolves). The error lists the keys it does declare; `describe widget <type>` or `describe page` shows them in context. Run `mxcli check … --references` to get this before the script runs |
 | Wrong widget name | Use `describe page Module.Name` to see widget names |
 | SET on non-existent widget | Widget names are case-sensitive; check with DESCRIBE |
@@ -552,8 +570,8 @@ page and bind the buttons at creation time instead of rewiring afterwards:
 
 3. **A footer is not addressable by its author-given name.** A `footer myName { … }`
    is a *marker*: its children are hoisted into the data view's footer and the
-   footer itself is serialized as `footer1`, so `drop widget myName` (and even
-   `drop widget footer1`) report "not found". To change footer contents, edit the
+   footer itself is serialized as `footer1`, so `drop myName` (and even
+   `drop footer1`) report "not found". To change footer contents, edit the
    children by their own names, or `create or replace page`.
 
 **Recommended pattern**: put save/reset microflows in a file that runs *before* the
