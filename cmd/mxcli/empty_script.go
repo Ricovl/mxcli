@@ -2,7 +2,11 @@
 
 package main
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/langver"
+)
 
 // unparsableInput reports input that has content but produced no statements.
 //
@@ -28,6 +32,11 @@ func unparsableInput(src string, statements int) (string, bool) {
 		// A file of nothing but comments is a legitimately empty script, and so
 		// is a blank one; neither should be refused.
 		if line == "" || strings.HasPrefix(line, "--") || strings.HasPrefix(line, "//") {
+			continue
+		}
+		// A language header declares the version and contributes no
+		// statement, so a script of only a header is empty too (ADR-0011).
+		if langver.IsHeaderLine(line) {
 			continue
 		}
 		return line, true

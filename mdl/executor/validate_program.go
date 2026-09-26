@@ -290,5 +290,9 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// parsed and did nothing (MDL059, the same rule statements already have).
 	violations = append(violations, ValidateDocumentAnnotations(prog)...)
 
+	// The `mdl <n>;` header: a preview version warns that it may still change,
+	// and every construct kept at an older meaning warns (ADR-0011).
+	violations = append(violations, ValidateLanguageVersion(prog)...)
+
 	return violations
 }
