@@ -264,7 +264,9 @@ func OrderBy(cands []Candidate, rank map[model.ID]int) []Candidate {
 
 // OutputVariable returns the name of the variable an action outputs, without
 // `$`, or "" when it outputs none. A `declare` counts: the variable is what it
-// produces, and `after $ValidFeedback` is how a reader would name it.
+// produces, and `after $ValidFeedback` is how a reader would name it. It reads
+// the variable where describe does, so every action printed as `$X = …` is
+// addressed by `$X`; an action missing here is not found by its variable.
 func OutputVariable(action microflows.MicroflowAction) string {
 	switch a := action.(type) {
 	case *microflows.CreateVariableAction:
@@ -294,7 +296,10 @@ func OutputVariable(action microflows.MicroflowAction) string {
 	case *microflows.ListOperationAction:
 		return a.OutputVariable
 	case *microflows.RestCallAction:
-		return a.OutputVariable
+		if a.OutputVariable != "" {
+			return a.OutputVariable
+		}
+		return restResultVariable(a.ResultHandling)
 	case *microflows.ImportMappingCallAction:
 		return a.OutputVariable
 	case *microflows.ExportMappingCallAction:
@@ -303,6 +308,55 @@ func OutputVariable(action microflows.MicroflowAction) string {
 		if a.UseReturnVariable {
 			return a.ResultVariableName
 		}
+	case *microflows.CreateListAction:
+		return a.OutputVariable
+	case *microflows.CastAction:
+		// Stored with or without the `$`; describe prints one either way.
+		return strings.TrimPrefix(a.OutputVariable, "$")
+	case *microflows.WebServiceCallAction:
+		return a.OutputVariable
+	case *microflows.RestOperationCallAction:
+		if a.OutputVariable != nil {
+			return a.OutputVariable.VariableName
+		}
+	case *microflows.ExecuteDatabaseQueryAction:
+		return a.OutputVariableName
+	case *microflows.ImportXmlAction:
+		if a.ResultHandling != nil {
+			return a.ResultHandling.ResultVariable
+		}
+	case *microflows.ExportXmlAction:
+		return a.OutputVariable
+	case *microflows.TransformJsonAction:
+		return a.OutputVariableName
+	case *microflows.WorkflowCallAction:
+		if a.UseReturnVariable {
+			return a.OutputVariableName
+		}
+	case *microflows.GetWorkflowDataAction:
+		return a.OutputVariableName
+	case *microflows.GetWorkflowsAction:
+		return a.OutputVariableName
+	case *microflows.GetWorkflowActivityRecordsAction:
+		return a.OutputVariableName
+	case *microflows.NotifyWorkflowAction:
+		return a.OutputVariableName
+	}
+	return ""
+}
+
+// restResultVariable is where a REST call keeps its output variable when it is
+// not on the action itself: on its result handling, as describe reads it.
+func restResultVariable(rh microflows.ResultHandling) string {
+	switch h := rh.(type) {
+	case *microflows.ResultHandlingString:
+		return h.VariableName
+	case *microflows.ResultHandlingHttpResponse:
+		return h.VariableName
+	case *microflows.ResultHandlingMapping:
+		return h.ResultVariable
+	case *microflows.ResultHandlingFileDocument:
+		return h.VariableName
 	}
 	return ""
 }

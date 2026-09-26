@@ -266,3 +266,44 @@ func TestCollect_IncludesLoopBodiesAndSkipsStructure(t *testing.T) {
 		t.Errorf("OrderBy: ranked first, unranked after; got %s, %s", ordered[0].ID, ordered[1].ID)
 	}
 }
+
+// Every action describe prints as `$X = …` outputs $X, so `$X` must address
+// it. The list is enumerated per action type (the field is named differently
+// on each), and it had drifted: a REST call whose result is on its result
+// handling, a cast, a create list and a web service call all printed `$X = …`
+// and were not found by `$X`.
+func TestOutputVariable_EveryActionDescribePrintsAnAssignmentFor(t *testing.T) {
+	cases := []struct {
+		name   string
+		action microflows.MicroflowAction
+		want   string
+	}{
+		{"create list", &microflows.CreateListAction{OutputVariable: "Lines"}, "Lines"},
+		{"cast", &microflows.CastAction{ObjectVariable: "Obj", OutputVariable: "Specific"}, "Specific"},
+		{"cast stored with $", &microflows.CastAction{OutputVariable: "$Specific"}, "Specific"},
+		{"rest call on the action", &microflows.RestCallAction{OutputVariable: "Resp"}, "Resp"},
+		{"rest call, mapping result", &microflows.RestCallAction{ResultHandling: &microflows.ResultHandlingMapping{ResultVariable: "Response"}}, "Response"},
+		{"rest call, string result", &microflows.RestCallAction{ResultHandling: &microflows.ResultHandlingString{VariableName: "Body"}}, "Body"},
+		{"rest call, http response", &microflows.RestCallAction{ResultHandling: &microflows.ResultHandlingHttpResponse{VariableName: "Http"}}, "Http"},
+		{"rest call, file document", &microflows.RestCallAction{ResultHandling: &microflows.ResultHandlingFileDocument{VariableName: "File"}}, "File"},
+		{"rest operation call", &microflows.RestOperationCallAction{OutputVariable: &microflows.RestOutputVar{VariableName: "Op"}}, "Op"},
+		{"web service call", &microflows.WebServiceCallAction{OutputVariable: "Ws"}, "Ws"},
+		{"database query", &microflows.ExecuteDatabaseQueryAction{OutputVariableName: "Rows"}, "Rows"},
+		{"import xml", &microflows.ImportXmlAction{ResultHandling: &microflows.ResultHandlingMapping{ResultVariable: "Imported"}}, "Imported"},
+		{"export xml", &microflows.ExportXmlAction{OutputVariable: "Xml"}, "Xml"},
+		{"transform json", &microflows.TransformJsonAction{OutputVariableName: "Json"}, "Json"},
+		{"call workflow", &microflows.WorkflowCallAction{UseReturnVariable: true, OutputVariableName: "Wf"}, "Wf"},
+		{"call workflow, no return", &microflows.WorkflowCallAction{OutputVariableName: "Wf"}, ""},
+		{"get workflow data", &microflows.GetWorkflowDataAction{OutputVariableName: "Ctx"}, "Ctx"},
+		{"get workflows", &microflows.GetWorkflowsAction{OutputVariableName: "Wfs"}, "Wfs"},
+		{"get activity records", &microflows.GetWorkflowActivityRecordsAction{OutputVariableName: "Recs"}, "Recs"},
+		{"notify workflow", &microflows.NotifyWorkflowAction{OutputVariableName: "Ok"}, "Ok"},
+		{"set is not an output", &microflows.ChangeVariableAction{VariableName: "N"}, ""},
+	}
+	for _, tc := range cases {
+		if got := OutputVariable(tc.action); got != tc.want {
+			t.Errorf("%s: OutputVariable = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
