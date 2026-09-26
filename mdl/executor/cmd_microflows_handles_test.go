@@ -209,3 +209,102 @@ func TestMicroflowTargets_NegatedIfMatchesBothForms(t *testing.T) {
 		}
 	}
 }
+
+// errorHandlerFixture is a flow whose custom error handler holds a statement
+// that also occurs after the handled activity. Describe prints the handler's
+// copy first, inside the `on error { … }` block.
+func errorHandlerFixture() *microflows.Microflow {
+	act := func(id string, x, y int, a microflows.MicroflowAction) *microflows.ActionActivity {
+		return &microflows.ActionActivity{
+			BaseActivity: microflows.BaseActivity{
+				BaseMicroflowObject: microflows.BaseMicroflowObject{
+					BaseElement: model.BaseElement{ID: model.ID(id)},
+					Position:    model.Point{X: x, Y: y},
+				},
+				AutoGenerateCaption: true,
+			},
+			Action: a,
+		}
+	}
+	end := func(id string, x, y int) *microflows.EndEvent {
+		return &microflows.EndEvent{BaseMicroflowObject: microflows.BaseMicroflowObject{
+			BaseElement: model.BaseElement{ID: model.ID(id)}, Position: model.Point{X: x, Y: y}}}
+	}
+	oc := &microflows.MicroflowObjectCollection{
+		Objects: []microflows.MicroflowObject{
+			&microflows.StartEvent{BaseMicroflowObject: microflows.BaseMicroflowObject{
+				BaseElement: model.BaseElement{ID: "start"}, Position: model.Point{X: 0, Y: 100}}},
+			act("declare", 100, 100, &microflows.CreateVariableAction{VariableName: "N", DataType: &microflows.IntegerType{}, InitialValue: "0"}),
+			act("create", 200, 100, &microflows.CreateObjectAction{
+				OutputVariable: "Obj", EntityQualifiedName: "Synthetic.Item",
+				ErrorHandlingType: microflows.ErrorHandlingTypeCustomWithoutRollback,
+			}),
+			// Stored before the main-path copy, so storage order agrees with
+			// describe order and cannot mask a ranking that ignores the handler.
+			act("mset", 300, 100, &microflows.ChangeVariableAction{VariableName: "N", Value: "$N + 1"}),
+			act("hset", 200, 250, &microflows.ChangeVariableAction{VariableName: "N", Value: "$N + 1"}),
+			end("hend", 300, 250),
+			end("end", 400, 100),
+		},
+		Flows: []*microflows.SequenceFlow{
+			{OriginID: "start", DestinationID: "declare"},
+			{OriginID: "declare", DestinationID: "create"},
+			{OriginID: "create", DestinationID: "mset"},
+			{OriginID: "create", DestinationID: "hset", IsErrorHandler: true},
+			{OriginID: "hset", DestinationID: "hend"},
+			{OriginID: "mset", DestinationID: "end"},
+		},
+	}
+	return &microflows.Microflow{ObjectCollection: oc}
+}
+
+// An activity inside an `on error { … }` block is printed, so it gets a handle
+// directly above it, and ordinals count it where it is printed: before the
+// main-path copy that follows the block. Ranking handler bodies after
+// everything else would make `@1` pick the activity a reader counts second.
+func TestDescribeWithHandles_ErrorHandlerBody(t *testing.T) {
+	ctx := &ExecContext{}
+	lines := formatMicroflowActivitiesWithHandles(ctx, errorHandlerFixture(), nil, nil)
+	got := strings.Join(lines, "\n")
+
+	var setLines []int
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "set $N = $N + 1;" {
+			setLines = append(setLines, i)
+		}
+	}
+	if len(setLines) != 2 || !strings.Contains(got, "on error without rollback {") {
+		t.Fatalf("fixture should print the handler's set inside the block, then the main one:\n%s", got)
+	}
+
+	cands, _, _, _ := microflowTargets(ctx, errorHandlerFixture(), nil, nil)
+	for i, wantID := range []model.ID{"hset", "mset"} {
+		target := fmt.Sprintf("set $N = $N + 1 @%d", i+1)
+		c, err := mfmutator.ResolveText(cands, target)
+		if err != nil {
+			t.Fatalf("%s: %v", target, err)
+		}
+		if c.ID != wantID {
+			t.Errorf("%s resolves to %s, want %s (the %s one printed)", target, c.ID, wantID, []string{"first", "second"}[i])
+		}
+		// The handle naming it sits directly above the printed statement.
+		above := strings.TrimSpace(lines[setLines[i]-1])
+		for j := setLines[i] - 1; j >= 0 && strings.HasPrefix(strings.TrimSpace(lines[j]), "@"); j-- {
+			above = strings.TrimSpace(lines[j-1])
+		}
+		if above != "-- handle: "+target {
+			t.Errorf("line above the %s set is %q, want the handle %q:\n%s", wantID, above, target, got)
+		}
+	}
+
+	// Control: the handles are the only addition.
+	var stripped []string
+	for _, line := range lines {
+		if !strings.HasPrefix(strings.TrimSpace(line), "-- handle: ") {
+			stripped = append(stripped, line)
+		}
+	}
+	if plain := formatMicroflowActivities(ctx, errorHandlerFixture(), nil, nil); strings.Join(stripped, "\n") != strings.Join(plain, "\n") {
+		t.Errorf("with handles minus the handle lines differs from plain describe:\n%s\n---\n%s", strings.Join(stripped, "\n"), strings.Join(plain, "\n"))
+	}
+}

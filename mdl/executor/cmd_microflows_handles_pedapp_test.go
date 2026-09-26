@@ -233,3 +233,57 @@ func TestDescribeWithHandles_PedAppValFeedback(t *testing.T) {
 		t.Errorf("with handles minus the handle lines differs from plain describe")
 	}
 }
+
+// Across every PedApp microflow — SUB_Feedback_PostToAppInsights has a custom
+// error handler with a body — each activity describe prints is ranked where it
+// is printed, and its handle resolves back to it. A handler body used to be
+// unranked: no handle, and ordinals that counted it after the main flow.
+func TestMicroflowTargets_PedAppEveryFlowRanksAndResolves(t *testing.T) {
+	exec, _ := openPedApp(t)
+	ctx := exec.newExecContext(context.Background())
+	h, err := getHierarchy(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all, err := ctx.Backend.ListMicroflows()
+	if err != nil {
+		t.Fatal(err)
+	}
+	microflowNames := getMicroflowNames(ctx, h)
+	for _, m := range all {
+		microflowNames[m.ID] = h.GetQualifiedName(m.ContainerID, m.Name)
+	}
+	handlerBodies := 0
+	for _, mf := range all {
+		name := microflowNames[mf.ID]
+		cands, _, body, startLine := microflowTargets(ctx, mf, getEntityNames(ctx, h), microflowNames)
+		prev := -1
+		for i, c := range cands {
+			line, ranked := startLine[c.ID]
+			if !ranked {
+				if c.Statement != "" {
+					t.Errorf("%s: %q at %s is printed but not ranked", name, c.Statement, pos(c))
+				}
+				continue
+			}
+			if line < prev {
+				t.Errorf("%s: %q at %s is ranked before the activity printed above it", name, c.Statement, pos(c))
+			}
+			prev = line
+			if strings.HasPrefix(strings.TrimSpace(body[line]), "log error node") && strings.Contains(name, "PostToAppInsights") {
+				handlerBodies++
+			}
+			handle := mfmutator.Handle(cands, i)
+			if handle == "" {
+				continue
+			}
+			got, err := mfmutator.ResolveText(cands, handle)
+			if err != nil || got.ID != c.ID {
+				t.Errorf("%s: handle %q of the activity at %s resolves to %v (%v)", name, handle, pos(c), got.ID, err)
+			}
+		}
+	}
+	if handlerBodies != 1 {
+		t.Errorf("want the log in SUB_Feedback_PostToAppInsights' error handler ranked, found %d", handlerBodies)
+	}
+}

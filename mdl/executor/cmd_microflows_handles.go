@@ -105,9 +105,11 @@ func printedStatement(obj microflows.MicroflowObject, body []string, r elkSource
 // comments, so the output is the plain description plus those lines and
 // executes the same.
 //
-// An activity describe does not print as a live statement (a commented-out
-// error handler, a void end event) gets no handle line; it is still
-// addressable, and an ambiguity error lists it with its ordinal.
+// An activity inside an error handler block — commented-out ones included —
+// gets its handle like any other: the handler bodies are in the source map,
+// so they are ranked where they are printed. An activity describe prints as
+// nothing (a void end event) or only as a comment gets no handle line; it is
+// still listed, with its ordinal, by an ambiguity error.
 func formatMicroflowActivitiesWithHandles(
 	ctx *ExecContext,
 	mf *microflows.Microflow,
