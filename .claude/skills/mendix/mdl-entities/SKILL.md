@@ -337,6 +337,23 @@ type reference;
 /
 ```
 
+## Changing an Existing Domain Model
+
+Choose the mode by who owns the entity ([choose-edit-mode](../choose-edit-mode/SKILL.md)).
+An entity, association or enumeration authored in Studio Pro is changed with `alter`,
+not by re-running `describe` output:
+
+```mdl
+alter entity Shop.Order add attribute Note: string(200);
+alter association Shop.Order_Customer set delete_behavior DELETE_BUT_KEEP_REFERENCES;
+alter enumeration Shop.OrderStatus add value Cancelled caption 'Cancelled';
+```
+
+Re-running `create or modify` from `describe` on a Studio Pro association has flipped
+its storage from table to column, which is a schema change, with `mxcli diff` reporting
+no changes. Never `drop` and re-create an entity to change it: the new entity has a new
+identity, and the runtime drops the old table and its rows.
+
 ## Quick Reference
 
 ### Entity Creation

@@ -1,6 +1,6 @@
 ---
 name: alter-page
-description: "Modify an existing page or snippet's widget tree in place with ALTER PAGE / ALTER SNIPPET — SET, INSERT, DROP, REPLACE and SET Layout. Use when changing a caption, style or property, adding or removing a widget, or reordering a form, instead of rewriting the whole page with CREATE OR REPLACE."
+description: "Modify an existing page or snippet's widget tree in place with ALTER PAGE / ALTER SNIPPET — SET, INSERT, DROP, REPLACE and SET Layout. Use when changing a caption, style or property, adding or removing a widget, or reordering a form, instead of rewriting the whole page with CREATE OR REPLACE. The only safe way to change a page or snippet authored in Studio Pro."
 ---
 
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -19,13 +19,20 @@ ALTER PAGE and ALTER SNIPPET modify an existing page or snippet's widget tree **
 | Replace a footer or section | `alter page` with `replace` |
 | Several related changes on the same page | `alter page` with multiple operations in one block |
 | Same property across many pages (e.g., add `Class` to every Container) | `update widgets` — see `bulk-widget-updates` |
-| Rebuild entire page from scratch | `create or replace page` |
+| Rebuild entire page from scratch (pages your scripts own only) | `create or replace page` |
 | Create a new page | `create page` |
 
 **Rule of thumb:**
 - `alter page` — targeted edits to one page. Combine multiple ops in one block when they belong together.
 - `update widgets` — cross-page bulk updates with `WHERE` filtering and `DRY RUN`.
-- `create or replace page` — redefining the full page structure.
+- `create or replace page` — redefining the full page structure of a page your MDL scripts own.
+
+**Who owns the page decides** ([choose-edit-mode](../choose-edit-mode/SKILL.md)). A page
+or snippet authored or edited in Studio Pro is changed with `alter`, however large the
+change. `describe` → edit → `create or modify`/`create or replace` is only for pages your
+MDL scripts created and nobody has changed in Studio Pro since: on a Studio Pro page that
+round trip has dropped translations and filled an empty English caption from another
+language, and on a snippet it has dropped the snippet's type.
 
 ## Syntax
 
