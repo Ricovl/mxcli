@@ -55,6 +55,11 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		// A navigation menu item with no icon is unreadable once the sidebar is
 		// collapsed to its icon rail (MDL077). Covers both statements that carry
 		// menu items, which share one AST node so they cannot diverge.
+		// Text accepted and not stored: an index name (a Mendix index is
+		// anonymous, MDL-IDX01) and a doc comment on an enumeration value
+		// (MDL-ENUMDOC01). Warnings — the model itself is right (ako/mxcli#706).
+		violations = append(violations, validateIndexNames(stmt)...)
+		violations = append(violations, validateEnumValueDocs(stmt)...)
 		violations = append(violations, validateMenuItemIcons(stmt)...)
 		violations = append(violations, validateGlyphCodes(stmt)...)
 		// A layout must declare exactly one placeholder named `Main`, with unique

@@ -1213,17 +1213,22 @@ func moveDocumentTypeFor(ruleText string) (ast.DocumentType, bool) {
 //
 // It carries exactly the meaning of `alter entity Mod.Cell add index (…)`, so it
 // lowers to that statement rather than growing a second code path. The index
-// name is accepted and discarded, as it is in every other spelling: a Mendix
-// index is anonymous, identified by its column list.
+// name is accepted but not stored, as in every other spelling: a Mendix index
+// is anonymous, identified by its column list. It is carried on the AST only
+// so `check` can say so (MDL-IDX01).
 func (b *Builder) ExitCreateIndexStatement(ctx *parser.CreateIndexStatementContext) {
 	qn := ctx.QualifiedName()
 	if qn == nil {
 		return
 	}
+	idx := &ast.Index{Columns: buildIndexColumns(ctx.IndexAttributeList())}
+	if n := ctx.IDENTIFIER(); n != nil {
+		idx.Name = n.GetText()
+	}
 	b.statements = append(b.statements, &ast.AlterEntityStmt{
 		Name:      buildQualifiedName(qn),
 		Operation: ast.AlterEntityAddIndex,
-		Index:     &ast.Index{Columns: buildIndexColumns(ctx.IndexAttributeList())},
+		Index:     idx,
 	})
 }
 
