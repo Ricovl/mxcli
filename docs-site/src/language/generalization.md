@@ -25,7 +25,7 @@ The most common use of generalization is creating an application-specific user e
 CREATE PERSISTENT ENTITY HR.Employee EXTENDS System.User (
   EmployeeNumber: String(20) NOT NULL UNIQUE,
   Department: String(100),
-  HireDate: Date
+  HireDate: DateTime
 );
 ```
 

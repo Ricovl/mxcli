@@ -201,10 +201,11 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 	if misplacedIndexRe.MatchString(offendingLine) {
 		return fmt.Sprintf("%s\n\n  An INDEX belongs AFTER the attribute parentheses, not inside them:\n"+
 			"    create entity Mod.Cell (Row: Integer, Col: Integer)\n"+
-			"      index \"IdxRowCol\" on (Row, Col);                     (correct)\n"+
+			"      index (Row, Col);                                     (correct)\n"+
 			"    create entity Mod.Cell (Row: Integer, Col: Integer,\n"+
-			"      index \"IdxRowCol\" on (Row, Col));                    (wrong — causes parse error)\n"+
-			"  On an existing entity: alter entity Mod.Cell add index \"IdxRowCol\" on (Row, Col);", msg)
+			"      index (Row, Col));                                    (wrong — causes parse error)\n"+
+			"  On an existing entity: alter entity Mod.Cell add index (Row, Col);\n"+
+			"  A Mendix index has no name; one written here is not stored (MDL-IDX01).", msg)
 	}
 
 	// Check for a misplaced EXTENDS / GENERALIZATION clause. It must precede the

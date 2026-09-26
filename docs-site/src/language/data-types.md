@@ -26,7 +26,7 @@ CREATE PERSISTENT ENTITY Demo.AllTypes (
   Amount: Decimal DEFAULT 0.00,
   IsActive: Boolean DEFAULT TRUE,
   CreatedAt: DateTime,
-  BirthDate: Date,
+  BirthDate: DateTime,
   Attachment: Binary,
   Status: Enumeration(Demo.Status) DEFAULT 'Active'
 );
