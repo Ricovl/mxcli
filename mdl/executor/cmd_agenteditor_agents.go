@@ -94,7 +94,7 @@ func describeAgentEditorAgent(ctx *ExecContext, name ast.QualifiedName) error {
 		lines = append(lines, fmt.Sprintf("  UsageType: %s", a.UsageType))
 	}
 	if a.Description != "" {
-		lines = append(lines, fmt.Sprintf("  Description: '%s'", escapeSQLString(a.Description)))
+		lines = append(lines, "  Description: "+mdlQuoted(a.Description))
 	}
 	if a.Model != nil && a.Model.QualifiedName != "" {
 		lines = append(lines, fmt.Sprintf("  Model: %s", a.Model.QualifiedName))
@@ -176,9 +176,15 @@ func emitToolBlock(ctx *ExecContext, t agenteditor.AgentTool) {
 			return
 		}
 		fmt.Fprintf(ctx.Output, "  mcp service %s {\n", t.Document.QualifiedName)
-		fmt.Fprintf(ctx.Output, "    Enabled: %t\n", t.Enabled)
+		// The comma belongs to Enabled when a Description follows it; without
+		// it the block was a parse error (ako/mxcli#707). Same shape as the
+		// generic tool block below.
+		fmt.Fprintf(ctx.Output, "    Enabled: %t", t.Enabled)
 		if t.Description != "" {
-			fmt.Fprintf(ctx.Output, "    Description: '%s'\n", escapeSQLString(t.Description))
+			fmt.Fprintln(ctx.Output, ",")
+			fmt.Fprintf(ctx.Output, "    Description: %s\n", mdlQuoted(t.Description))
+		} else {
+			fmt.Fprintln(ctx.Output)
 		}
 		fmt.Fprintln(ctx.Output, "  }")
 	default:
@@ -197,7 +203,7 @@ func emitToolBlock(ctx *ExecContext, t agenteditor.AgentTool) {
 		fmt.Fprintf(ctx.Output, "    Enabled: %t", t.Enabled)
 		if t.Description != "" {
 			fmt.Fprintln(ctx.Output, ",")
-			fmt.Fprintf(ctx.Output, "    Description: '%s'\n", escapeSQLString(t.Description))
+			fmt.Fprintf(ctx.Output, "    Description: %s\n", mdlQuoted(t.Description))
 		} else {
 			fmt.Fprintln(ctx.Output)
 		}
@@ -216,13 +222,13 @@ func emitKBBlock(ctx *ExecContext, kb agenteditor.AgentKBTool) {
 		fmt.Fprintf(ctx.Output, "    Source: %s,\n", kb.Document.QualifiedName)
 	}
 	if kb.CollectionIdentifier != "" {
-		fmt.Fprintf(ctx.Output, "    Collection: '%s',\n", escapeSQLString(kb.CollectionIdentifier))
+		fmt.Fprintf(ctx.Output, "    Collection: %s,\n", mdlQuoted(kb.CollectionIdentifier))
 	}
 	if kb.MaxResults != 0 {
 		fmt.Fprintf(ctx.Output, "    MaxResults: %d,\n", kb.MaxResults)
 	}
 	if kb.Description != "" {
-		fmt.Fprintf(ctx.Output, "    Description: '%s',\n", escapeSQLString(kb.Description))
+		fmt.Fprintf(ctx.Output, "    Description: %s,\n", mdlQuoted(kb.Description))
 	}
 	fmt.Fprintf(ctx.Output, "    Enabled: %t\n", kb.Enabled)
 	fmt.Fprintln(ctx.Output, "  }")

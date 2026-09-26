@@ -201,12 +201,15 @@ func describeSettings(ctx *ExecContext, configName string) error {
 				continue
 			}
 			fmt.Fprintf(ctx.Output,
-				"alter settings LANGUAGE add or modify '%s' (\n"+
+				"alter settings LANGUAGE add or modify %s (\n"+
 					"  CheckCompleteness: %t,\n"+
-					"  CustomDateFormat: '%s',\n"+
-					"  CustomTimeFormat: '%s',\n"+
-					"  CustomDateTimeFormat: '%s'\n);\n",
-				l.Code, l.CheckCompleteness, l.CustomDateFormat, l.CustomTimeFormat, l.CustomDateTimeFormat)
+					"  CustomDateFormat: %s,\n"+
+					"  CustomTimeFormat: %s,\n"+
+					"  CustomDateTimeFormat: %s\n);\n",
+				// A date format quotes literal text (`d 'de' MMMM`), so these
+				// need the escape as much as any free text does.
+				mdlQuoted(l.Code), l.CheckCompleteness, mdlQuoted(l.CustomDateFormat),
+				mdlQuoted(l.CustomTimeFormat), mdlQuoted(l.CustomDateTimeFormat))
 		}
 		fmt.Fprintf(ctx.Output, "alter settings LANGUAGE\n  DefaultLanguageCode = '%s';\n", ps.Language.DefaultLanguageCode)
 		fmt.Fprintln(ctx.Output)
@@ -969,22 +972,31 @@ func settingsValueToString(val any) string {
 // writeSettingsConfiguration emits one configuration as re-executable MDL.
 func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration) {
 	var parts []string
-	parts = append(parts, fmt.Sprintf("  DatabaseType = '%s'", cfg.DatabaseType))
-	parts = append(parts, fmt.Sprintf("  DatabaseUrl = '%s'", cfg.DatabaseUrl))
-	parts = append(parts, fmt.Sprintf("  DatabaseName = '%s'", cfg.DatabaseName))
-	parts = append(parts, fmt.Sprintf("  DatabaseUserName = '%s'", cfg.DatabaseUserName))
-	parts = append(parts, fmt.Sprintf("  DatabasePassword = '%s'", cfg.DatabasePassword))
+	parts = append(parts, "  DatabaseType = "+mdlQuoted(cfg.DatabaseType))
+	parts = append(parts, "  DatabaseUrl = "+mdlQuoted(cfg.DatabaseUrl))
+	parts = append(parts, "  DatabaseName = "+mdlQuoted(cfg.DatabaseName))
+	parts = append(parts, "  DatabaseUserName = "+mdlQuoted(cfg.DatabaseUserName))
+	// DatabasePassword is deliberately not printed (ako/mxcli#707): describe
+	// output is what gets committed and reviewed, and printing the stored value
+	// put a database credential into PR diffs. Omitting the key is lossless for
+	// the replay that matters — `create or modify` on an existing configuration
+	// is a patch, so the stored password is left as it is. On a project without
+	// this configuration the password starts empty, which the comment says.
 	parts = append(parts, fmt.Sprintf("  HttpPortNumber = %d", cfg.HttpPortNumber))
 	parts = append(parts, fmt.Sprintf("  ServerPortNumber = %d", cfg.ServerPortNumber))
 	if cfg.ApplicationRootUrl != "" {
-		parts = append(parts, fmt.Sprintf("  ApplicationRootUrl = '%s'", cfg.ApplicationRootUrl))
+		parts = append(parts, "  ApplicationRootUrl = "+mdlQuoted(cfg.ApplicationRootUrl))
+	}
+	if cfg.DatabasePassword != "" {
+		fmt.Fprintf(ctx.Output, "-- DatabasePassword is set in configuration %s and is not printed; "+
+			"add `DatabasePassword = '…'` to set it on a project that lacks it.\n", mdlQuoted(cfg.Name))
 	}
 	// CREATE OR MODIFY, not ALTER: a described project has to replay onto a
 	// target that does not have this configuration yet. ALTER answered
 	// "configuration not found: Acceptance" and stopped the whole file, which is
 	// the same shape as the language list emitting a comment — output that reads
 	// correctly and cannot be run.
-	fmt.Fprintf(ctx.Output, "create or modify configuration '%s'\n%s;\n\n", cfg.Name, strings.Join(parts, ",\n"))
+	fmt.Fprintf(ctx.Output, "create or modify configuration %s\n%s;\n\n", mdlQuoted(cfg.Name), strings.Join(parts, ",\n"))
 
 	// Output constant overrides. A private override has no value in the
 	// model — emitting `value ''` would round-trip into a *shared* empty
@@ -998,8 +1010,8 @@ func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration
 				cv.ConstantId, cfg.Name)
 			continue
 		}
-		fmt.Fprintf(ctx.Output, "alter settings constant '%s' value '%s'\n  in configuration '%s';\n\n",
-			cv.ConstantId, cv.Value, cfg.Name)
+		fmt.Fprintf(ctx.Output, "alter settings constant %s value %s\n  in configuration %s;\n\n",
+			mdlQuoted(cv.ConstantId), mdlQuoted(cv.Value), mdlQuoted(cfg.Name))
 	}
 }
 
