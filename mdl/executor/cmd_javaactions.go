@@ -90,7 +90,7 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	// Build CREATE JAVA ACTION statement
-	sb.WriteString("create java action ")
+	sb.WriteString("create or modify java action ")
 	sb.WriteString(qualifiedName)
 	sb.WriteString(describeFolderClause(ctx, ja.ContainerID))
 	sb.WriteString("(")

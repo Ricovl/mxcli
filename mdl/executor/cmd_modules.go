@@ -1240,7 +1240,7 @@ func describeModuleRoles(ctx *ExecContext, mod *model.Module) {
 
 	for _, r := range roles {
 		// Same shape DESCRIBE MODULE ROLE emits, so the two agree.
-		fmt.Fprintf(ctx.Output, "create module role %s.%s", mod.Name, r.Name)
+		fmt.Fprintf(ctx.Output, "create or modify module role %s.%s", mod.Name, r.Name)
 		if r.Description != "" {
 			// Double embedded quotes; a description containing one would
 			// otherwise terminate the literal and produce unparseable output.

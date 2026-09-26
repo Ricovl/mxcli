@@ -70,11 +70,12 @@ var studioProKnownLossy = map[string]string{
 	"page Administration.Account_Overview|texts":                   "#705: en_US '' texts dropped, nl_NL lost on an ambiguous source",
 	"nanoflow FeedbackModule.ACT_Feedback_UploadImage|header":      "#705: ExportLevel, UseListParameterByReference, ReturnVariableName",
 	"nanoflow FeedbackModule.ACT_Feedback_UploadImage|annotations": "#705: AnnotationFlows are not written",
-	"java action FeedbackModule.XSS_Sanitizer|exec":                "#705: describe emits plain create",
-	"snippet FeedbackModule._ReadMe|document":                      "#705: Type 'Web' -> ''",
-	"snippet FeedbackModule._ReadMe|header":                        "#705: Type 'Web' -> ''",
-	"association Administration.AccountPasswordData_Account|exec":  "#705: describe emits plain create",
-	"module role Administration.Administrator|exec":                "#705: describe emits plain create",
+	"java action FeedbackModule.XSS_Sanitizer|document":            "#705: ExportLevel Hidden -> Public, ActionDefaultReturnName dropped",
+	"java action FeedbackModule.XSS_Sanitizer|header":              "#705: ExportLevel Hidden -> Public, ActionDefaultReturnName dropped",
+	"association Administration.AccountPasswordData_Account|document": "ako/mxcli#704: StorageFormat Table -> Column; the " +
+		"domain-model rewrite also drops empty MemberAccess refs and NoGeneralization flags",
+	"snippet FeedbackModule._ReadMe|document": "#705: Type 'Web' -> ''",
+	"snippet FeedbackModule._ReadMe|header":   "#705: Type 'Web' -> ''",
 }
 
 type studioProCase struct {
