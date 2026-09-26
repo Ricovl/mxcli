@@ -332,25 +332,25 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 
 	var props []string
 	if folderPath != "" {
-		props = append(props, fmt.Sprintf("  Folder: '%s'", folderPath))
+		props = append(props, "  Folder: "+mdlQuoted(folderPath))
 	}
 	if svc.Path != "" {
-		props = append(props, fmt.Sprintf("  Path: '%s'", svc.Path))
+		props = append(props, "  Path: "+mdlQuoted(svc.Path))
 	}
 	if svc.Version != "" {
-		props = append(props, fmt.Sprintf("  Version: '%s'", svc.Version))
+		props = append(props, "  Version: "+mdlQuoted(svc.Version))
 	}
 	if svc.ODataVersion != "" {
 		props = append(props, fmt.Sprintf("  ODataVersion: %s", svc.ODataVersion))
 	}
 	if svc.Namespace != "" {
-		props = append(props, fmt.Sprintf("  Namespace: '%s'", svc.Namespace))
+		props = append(props, "  Namespace: "+mdlQuoted(svc.Namespace))
 	}
 	if svc.ServiceName != "" {
-		props = append(props, fmt.Sprintf("  ServiceName: '%s'", svc.ServiceName))
+		props = append(props, "  ServiceName: "+mdlQuoted(svc.ServiceName))
 	}
 	if svc.Summary != "" {
-		props = append(props, fmt.Sprintf("  Summary: '%s'", svc.Summary))
+		props = append(props, "  Summary: "+mdlQuoted(svc.Summary))
 	}
 	if svc.PublishAssociations {
 		props = append(props, "  PublishAssociations: Yes")
@@ -422,7 +422,7 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 			if es != nil && es.ExposedName != "" {
 				exposedName = es.ExposedName
 			}
-			fmt.Fprintf(ctx.Output, "  publish entity %s as '%s'", et.Entity, exposedName)
+			fmt.Fprintf(ctx.Output, "  publish entity %s as %s", et.Entity, mdlQuoted(exposedName))
 			if es != nil {
 				var modeProps []string
 				if es.ReadMode != "" {
@@ -480,7 +480,7 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 					// (Module.Entity.Member), while `expose (...)` takes a bare
 					// member name — so emitting the stored form produced MDL
 					// that does not parse (mxcli-formula1 findings #10.5).
-					line := fmt.Sprintf("    %s as '%s'", bareMemberName(m.Name), m.ExposedName)
+					line := fmt.Sprintf("    %s as %s", bareMemberName(m.Name), mdlQuoted(m.ExposedName))
 					if len(modifiers) > 0 {
 						line += fmt.Sprintf(" (%s)", strings.Join(modifiers, ", "))
 					}
@@ -763,10 +763,10 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 
 	var props []string
 	if entity.RemoteEntitySet != "" {
-		props = append(props, fmt.Sprintf("  EntitySet: '%s'", entity.RemoteEntitySet))
+		props = append(props, "  EntitySet: "+mdlQuoted(entity.RemoteEntitySet))
 	}
 	if entity.RemoteEntityName != "" {
-		props = append(props, fmt.Sprintf("  RemoteName: '%s'", entity.RemoteEntityName))
+		props = append(props, "  RemoteName: "+mdlQuoted(entity.RemoteEntityName))
 	}
 	boolStr := func(b bool) string {
 		if b {
@@ -2409,7 +2409,7 @@ func odataAuthClause(svc *model.PublishedODataService) string {
 func printPublishedMicroflowMDL(w io.Writer, pm *model.PublishedMicroflow) {
 	head := "  publish microflow " + pm.Microflow
 	if pm.ExposedName != "" {
-		head += fmt.Sprintf(" as '%s'", pm.ExposedName)
+		head += " as " + mdlQuoted(pm.ExposedName)
 	}
 	if len(pm.Parameters) == 0 {
 		fmt.Fprintln(w, head+";")
@@ -2426,7 +2426,7 @@ func printPublishedMicroflowMDL(w io.Writer, pm *model.PublishedMicroflow) {
 		}
 		part := name
 		if p.ExposedName != "" && p.ExposedName != name {
-			part += fmt.Sprintf(" as '%s'", p.ExposedName)
+			part += " as " + mdlQuoted(p.ExposedName)
 		}
 		if p.CanBeEmpty {
 			part += " (CanBeEmpty)"
