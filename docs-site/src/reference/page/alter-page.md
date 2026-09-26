@@ -12,18 +12,31 @@ ALTER SNIPPET module.Name {
 }
 ```
 
+`ALTER LAYOUT module.Name { … }` takes the same operations. This is the
+generic ALTER — `set` / `insert` / `replace` / `drop` against a target — which
+every document type shares; a page's targets are widget names, `grid.Column`,
+or a layout region `container.top`.
+
+The older spellings still run and warn with a deprecation code:
+
+| Old spelling | Write instead | Code |
+|---|---|---|
+| `SET Caption = 'x' ON w`, `SET (A = 1, B = 2) ON w` | `SET (Caption: 'x') ON w`, `SET (A: 1, B: 2) ON w` | MDL-DEPR101 |
+| `SET Caption: 'x' ON w` (no parentheses) | `SET (Caption: 'x') ON w` | MDL-DEPR102 |
+| `DROP WIDGET a, b` | `DROP a, b` | MDL-DEPR103 |
+
 Where each operation is one of:
 
 ```sql
 -- Set a property on a widget
-SET property = value ON widgetName;
-SET ( property1 = value1, property2 = value2 ) ON widgetName;
+SET (property: value) ON widgetName;
+SET ( property1: value1, property2: value2 ) ON widgetName;
 
 -- Set a page-level property (no ON clause)
-SET Title = 'New Title';
+SET (Title: 'New Title');
 
 -- Set a pluggable widget property (quoted name)
-SET 'propertyName' = value ON widgetName;
+SET ('propertyName': value) ON widgetName;
 
 -- Insert widgets before or after a target
 INSERT BEFORE widgetName { widget_definitions };
@@ -33,7 +46,7 @@ INSERT AFTER widgetName { widget_definitions };
 INSERT INTO containerName { widget_definitions };
 
 -- Remove widgets
-DROP WIDGET widgetName1, widgetName2;
+DROP widgetName1, widgetName2;
 
 -- Replace a widget with new widgets
 REPLACE widgetName WITH { widget_definitions };
@@ -77,7 +90,7 @@ Appends new widgets as the **last children** of a named container. This is the o
 
 Supported on simple containers (container/DivContainer, data view, group box, scroll-container region). A layout grid (rows/columns) and tab container have no single child list — insert relative to a widget inside the target column or tab instead.
 
-### DROP WIDGET
+### DROP
 
 Removes one or more widgets by name. The widget and all its children are removed from the tree.
 
@@ -92,8 +105,8 @@ DataGrid2 columns are addressable using dotted notation: `gridName.columnName`. 
 All four operations (SET, INSERT, DROP, REPLACE) support dotted column references:
 
 ```sql
-SET Caption = 'Product SKU' ON dgProducts.Code
-DROP WIDGET dgProducts.OldColumn
+SET (Caption: 'Product SKU') ON dgProducts.Code
+DROP dgProducts.OldColumn
 INSERT AFTER dgProducts.Price { COLUMN Margin (Attribute: Margin) }
 REPLACE dgProducts.Description WITH { COLUMN Notes (Attribute: Notes) }
 ```
@@ -130,7 +143,7 @@ Change button caption and style:
 
 ```sql
 ALTER PAGE Sales.Order_Edit {
-    SET (Caption = 'Save & Close', ButtonStyle = Success) ON btnSave;
+    SET (Caption: 'Save & Close', ButtonStyle: Success) ON btnSave;
 };
 ```
 
@@ -138,7 +151,7 @@ Remove an unused widget and add a new field:
 
 ```sql
 ALTER PAGE Sales.Order_Edit {
-    DROP WIDGET txtUnused;
+    DROP txtUnused;
     INSERT AFTER txtEmail {
         TEXTBOX txtPhone (Label: 'Phone', Attribute: Phone)
     }
@@ -160,7 +173,7 @@ Set a page-level property:
 
 ```sql
 ALTER PAGE Sales.Order_Edit {
-    SET Title = 'Edit Order Details';
+    SET (Title: 'Edit Order Details');
 };
 ```
 
@@ -168,7 +181,7 @@ Set a pluggable widget property:
 
 ```sql
 ALTER PAGE Sales.Order_Edit {
-    SET 'showLabel' = false ON cbStatus;
+    SET ('showLabel': false) ON cbStatus;
 };
 ```
 
@@ -204,7 +217,7 @@ Modify a snippet:
 
 ```sql
 ALTER SNIPPET MyModule.NavMenu {
-    SET Caption = 'Dashboard' ON btnHome;
+    SET (Caption: 'Dashboard') ON btnHome;
     INSERT AFTER btnHome {
         ACTIONBUTTON btnReports (Caption: 'Reports', Action: PAGE MyModule.Reports)
     }
@@ -215,9 +228,9 @@ Combined operations in a single ALTER:
 
 ```sql
 ALTER PAGE MyModule.Customer_Edit {
-    SET Title = 'Customer Details';
-    SET (Caption = 'Update', ButtonStyle = Primary) ON btnSave;
-    DROP WIDGET txtObsolete;
+    SET (Title: 'Customer Details');
+    SET (Caption: 'Update', ButtonStyle: Primary) ON btnSave;
+    DROP txtObsolete;
     INSERT BEFORE txtEmail {
         TEXTBOX txtPhone (Label: 'Phone', Attribute: Phone)
     }

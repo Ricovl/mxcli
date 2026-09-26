@@ -43,16 +43,34 @@ alter snippet Module.SnippetName {
 };
 ```
 
+This is the **generic ALTER** — the same four verbs for every document type
+(`alter layout` too):
+
+```sql
+alter page Module.PageName {
+  set (Key: value, …) on <target>;      -- no `on`: the page itself
+  insert before|after|into <target> { <widgets as in create page> }
+  replace <target> with { <widgets> }
+  drop <target>, <target>;
+};
+```
+
+A `<target>` on a page is a widget name, `grid.Column`, or a layout region
+`layoutContainer.top`. Properties go in parentheses with `:`, exactly as in
+`create page`. The older spellings `set Key = value on w`, `set Key: value`
+(no parentheses) and `drop widget w` still run, and warn with MDL-DEPR101,
+MDL-DEPR102 and MDL-DEPR103 — write the form above.
+
 Multiple operations can be combined in a single ALTER statement. They are applied sequentially; later operations see the page state produced by earlier ones, so you can `set` on a widget you just `insert`ed.
 
 ```sql
 -- Rename a column, add a sibling, drop an obsolete one — all in one block.
 alter page MyMod.Product_Overview {
-  set caption = 'Product Name' on dgProducts.Name;
+  set (caption: 'Product Name') on dgProducts.Name;
   insert after dgProducts.Lifecycle {
     column NewCol (attribute: Sku, caption: 'SKU')
   };
-  drop widget dgProducts.OldCol
+  drop dgProducts.OldCol
 };
 ```
 
@@ -104,35 +122,35 @@ Refused, each naming the problem:
 
 ```sql
 -- Single property
-set caption = 'New Caption' on widgetName
+set (caption: 'New Caption') on widgetName
 
 -- Multiple properties
-set (caption = 'Save & Close', buttonstyle = success) on btnSave
+set (caption: 'Save & Close', buttonstyle: success) on btnSave
 
 -- Page-level property (no ON clause). Page-level property names are
 -- case-sensitive and must match the Mendix property exactly.
-set Title = 'New Page Title'
+set (Title: 'New Page Title')
 
 -- Pop-up dimensions (apply when the page is opened in a pop-up)
-set PopupWidth = 800
-set PopupHeight = 480
-set PopupResizable = true
-set Documentation = 'What this page is for.'
+set (PopupWidth: 800)
+set (PopupHeight: 480)
+set (PopupResizable: true)
+set (Documentation: 'What this page is for.')
 
 -- Retarget a button's on-click action. Any form `create page` accepts works
 -- here, including the combined ones.
-set Action = microflow Module.ACT_Other on btnSave
-set Action = SAVE_CHANGES CLOSE_PAGE on btnSave
-set Action = SHOW_PAGE Module.DetailPage on btnEdit
+set (Action: microflow Module.ACT_Other) on btnSave
+set (Action: SAVE_CHANGES CLOSE_PAGE) on btnSave
+set (Action: SHOW_PAGE Module.DetailPage) on btnEdit
 
 -- Retarget ONE named action slot of a pluggable widget, by the widget's own
 -- property key (the same key `create page` takes: `createFileAction: …`).
-set 'createFileAction' = microflow Module.ACT_CreateFile on fileUploader1
-set 'onSelectionChange' = show_page Module.Detail on dgOrders
+set ('createFileAction': microflow Module.ACT_CreateFile) on fileUploader1
+set ('onSelectionChange': show_page Module.Detail) on dgOrders
 
 -- Rebind a data-bound widget
-set DataSource = $OrderParam on dvOrder
-set DataSource = microflow Module.MF_Get on dvOrder
+set (DataSource: $OrderParam) on dvOrder
+set (DataSource: microflow Module.MF_Get) on dvOrder
 ```
 
 **Prefer `set Action` over `replace` when only the action changes.** `replace`
@@ -203,10 +221,10 @@ from a microflow to a page parameter:
 
 ```sql
 ALTER PAGE MyModule.OrderPage {
-  SET DataSource = $Order ON dvOrder;                       -- page/snippet parameter
-  SET DataSource = microflow MyModule.MF_Get ON dvOrder;     -- microflow
-  SET DataSource = nanoflow MyModule.NF_Get ON dvOrder;      -- nanoflow
-  SET DataSource = selection dgOrders ON dvDetail;           -- listen to widget
+  SET (DataSource: $Order) ON dvOrder;                       -- page/snippet parameter
+  SET (DataSource: microflow MyModule.MF_Get) ON dvOrder;     -- microflow
+  SET (DataSource: nanoflow MyModule.NF_Get) ON dvOrder;      -- nanoflow
+  SET (DataSource: selection dgOrders) ON dvDetail;           -- listen to widget
 }
 ```
 
@@ -274,10 +292,10 @@ moves data-bound widgets.
 
 ```sql
 -- Drop a single widget
-drop widget txtUnused
+drop txtUnused
 
 -- Drop multiple widgets
-drop widget txtOldField, lblOldLabel, container2
+drop txtOldField, lblOldLabel, container2
 ```
 
 Removes widgets and their entire subtree from the page.
@@ -302,10 +320,10 @@ DataGrid2 columns are addressable using dotted notation: `gridName.columnName`. 
 
 ```sql
 -- SET a column property
-set caption = 'Product SKU' on dgProducts.Code
+set (caption: 'Product SKU') on dgProducts.Code
 
 -- DROP a column
-drop widget dgProducts.OldColumn
+drop dgProducts.OldColumn
 
 -- INSERT a column after an existing one
 insert after dgProducts.Price {
@@ -368,7 +386,7 @@ When placeholders have the same names in both layouts (e.g., both have `Main`), 
 
 ```sql
 alter page MyModule.Customer_Edit {
-  set (caption = 'Save & Close', buttonstyle = success) on btnSave
+  set (caption: 'Save & Close', buttonstyle: success) on btnSave
 };
 ```
 
@@ -394,9 +412,9 @@ alter page MyModule.ProductOverview {
 
 ```sql
 alter page MyModule.Customer_Edit {
-  set title = 'Edit Customer Details';
-  drop widget txtLegacyField, lblOldNote;
-  set label = 'Email Address' on txtEmail
+  set (title: 'Edit Customer Details');
+  drop txtLegacyField, lblOldNote;
+  set (label: 'Email Address') on txtEmail
 };
 ```
 
@@ -418,7 +436,7 @@ alter page MyModule.Customer_Edit {
 
 ```sql
 alter snippet MyModule.NavigationMenu {
-  set caption = 'Dashboard' on btnHome;
+  set (caption: 'Dashboard') on btnHome;
   insert after btnHome {
     actionbutton btnReports (caption: 'Reports', action: show_page MyModule.Reports_Overview)
   }
@@ -429,8 +447,8 @@ alter snippet MyModule.NavigationMenu {
 
 ```sql
 alter page MyModule.Customer_Edit {
-  set 'showLabel' = false on cbStatus;
-  set 'labelWidth' = 4 on cbCategory
+  set ('showLabel': false) on cbStatus;
+  set ('labelWidth': 4) on cbCategory
 };
 ```
 
@@ -545,8 +563,8 @@ page and bind the buttons at creation time instead of rewiring afterwards:
 
 3. **A footer is not addressable by its author-given name.** A `footer myName { … }`
    is a *marker*: its children are hoisted into the data view's footer and the
-   footer itself is serialized as `footer1`, so `drop widget myName` (and even
-   `drop widget footer1`) report "not found". To change footer contents, edit the
+   footer itself is serialized as `footer1`, so `drop myName` (and even
+   `drop footer1`) report "not found". To change footer contents, edit the
    children by their own names, or `create or replace page`.
 
 **Recommended pattern**: put save/reset microflows in a file that runs *before* the

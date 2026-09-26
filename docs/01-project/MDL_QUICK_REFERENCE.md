@@ -1474,7 +1474,7 @@ MDL uses explicit property declarations for pages:
 | Drop layout | `drop layout [if exists] Module.Name;` | Pages still bound to it are named in a warning and the drop proceeds; left dropped they fail **CE1613**, which names the *page* |
 | Declare a placeholder | `placeholder Main` | **No body.** Exactly one must be named `Main` — mxbuild enforces it (**CE0848**/**CE0849**), and names must be unique (**CE0495**). `placeholder X { … }` is the page-side form and declares nothing (MDL083) |
 | Alter layout | `alter layout Module.Name { <alter-page operations> };` | Edits the stored document, so widgets MDL cannot spell survive. Refused for a Marketplace target |
-| Set a design property | `alter page Module.Page { set 'Row size' = 'Small' on lvOrders; };` | An Atlas design property of that widget's **type** — quoted, case-sensitive; `show design properties for <type>` lists them. `on`/`off` for a toggle, where `off` removes the entry. Same document `alter styling` writes. A **multi-select** (`Hide on`) or **compound** (`Spacing`) property needs the inline `DesignProperties: [...]` form, since a `set` assignment carries one value |
+| Set a design property | `alter page Module.Page { set ('Row size': 'Small') on lvOrders; };` | An Atlas design property of that widget's **type** — quoted, case-sensitive; `show design properties for <type>` lists them. `on`/`off` for a toggle, where `off` removes the entry. Same document `alter styling` writes. A **multi-select** (`Hide on`) or **compound** (`Spacing`) property needs the inline `DesignProperties: [...]` form, since a `set` assignment carries one value |
 | Repoint one page | `alter page Module.Page { set Layout = Module.Layout [map (Old as New, …)]; };` | Rewrites the layout reference **and** every placeholder binding |
 | Set a design property on every widget of a type | `alter pages [in <module>] set 'Compact' = on, 'Striped' = on where widgettype = datagrid [dry run];` | The house-style sweep. `widgettype` takes the **MDL keyword**, which resolves to exactly one widget id — a `like '%datagrid%'` predicate also matches the data grid's *filter* widgets. Never a widget **name**: a name is unique only within its page. `dry run` previews against a discardable copy. A sweep that matches widgets and writes none of them exits non-zero |
 | Repoint many pages | `alter pages [in <module>] set layout = Module.Layout [map (…)] [where layout = Module.Old];` | The migration form. Marketplace pages are skipped and named. A `where layout` that names no real layout is an error, not a 0-page success |
@@ -1637,24 +1637,26 @@ Keys: `decimalPrecision` (int), `groupDigits` (bool), `dateFormat` (`Date`|`Date
 
 Modify an existing page or snippet's widget tree in-place without full `create or replace`. Works directly on the raw BSON tree, preserving unsupported widget types.
 
+This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <target>; insert before|after|into <target> { … } replace <target> with { … } drop <target>; }` — shared by pages, snippets and layouts. The old spellings `set Key = value`, `set Key: value` (no parentheses) and `drop widget` still run and warn (MDL-DEPR101..103).
+
 | Operation | Syntax | Notes |
 |-----------|--------|-------|
-| Set property | `set caption = 'New' on widgetName` | Single property on a widget |
-| Set multiple | `set (caption = 'Save', buttonstyle = success) on btn` | Multiple properties at once |
-| Page-level set | `set Title = 'New title'` | No ON clause; page-level names are case-sensitive |
-| Documentation | `set Documentation = 'What this page is for.'` | Page-level. Same property the `/** … */` doc comment on `CREATE PAGE` writes, so an existing page can be documented without restating it. `''` clears it |
-| Pop-up dimensions | `set PopupWidth = 800` / `set PopupHeight = 480` / `set PopupResizable = true` | Page-level; apply when the page opens in a pop-up |
-| Page CSS class / style | `set Class = 'css-class'` / `set Style = 'css: rule'` | Page-level (no ON clause); sets the page's Appearance |
-| Widget dynamic classes | `set DynamicClasses = 'expr' on widgetName` | Runtime-computed classes on a widget — the surgical alternative to a bulk `update widgets` |
+| Set property | `set (caption: 'New') on widgetName` | Single property on a widget |
+| Set multiple | `set (caption: 'Save', buttonstyle: success) on btn` | Multiple properties at once |
+| Page-level set | `set (Title: 'New title')` | No ON clause; page-level names are case-sensitive |
+| Documentation | `set (Documentation: 'What this page is for.')` | Page-level. Same property the `/** … */` doc comment on `CREATE PAGE` writes, so an existing page can be documented without restating it. `''` clears it |
+| Pop-up dimensions | `set (PopupWidth: 800, PopupHeight: 480, PopupResizable: true)` | Page-level; apply when the page opens in a pop-up |
+| Page CSS class / style | `set (Class: 'css-class')` / `set (Style: 'css: rule')` | Page-level (no ON clause); sets the page's Appearance |
+| Widget dynamic classes | `set (DynamicClasses: 'expr') on widgetName` | Runtime-computed classes on a widget — the surgical alternative to a bulk `update widgets` |
 | Insert after | `insert after widgetName { widgets }` | Add widgets after target |
 | Insert before | `insert before widgetName { widgets }` | Add widgets before target |
 | Insert into | `insert into containerName { widgets }` | Append as the container's last child (fills an empty container; dataview children take its entity) |
-| Drop widgets | `drop widget name1, name2` | Remove widgets by name |
+| Drop widgets | `drop name1, name2` | Remove widgets by name |
 | Replace widget | `replace widgetName with { widgets }` | Replace widget subtree |
-| Pluggable prop | `set 'showLabel' = false on cbStatus` | Quoted name for pluggable widgets |
-| Named action slot | `set 'createFileAction' = microflow M.ACT_Create on fileUploader1` | A pluggable widget's action-typed property, by its own key; any `create page` action form. Refused on a key that is not action-typed |
-| Set column prop | `set caption = 'New' on dgGrid.colName` | Dotted ref targets DataGrid column |
-| Drop column | `drop widget dgGrid.colName` | Remove a DataGrid column |
+| Pluggable prop | `set ('showLabel': false) on cbStatus` | Quoted name for pluggable widgets |
+| Named action slot | `set ('createFileAction': microflow M.ACT_Create) on fileUploader1` | A pluggable widget's action-typed property, by its own key; any `create page` action form. Refused on a key that is not action-typed |
+| Set column prop | `set (caption: 'New') on dgGrid.colName` | Dotted ref targets DataGrid column |
+| Drop column | `drop dgGrid.colName` | Remove a DataGrid column |
 | Insert column | `insert after dgGrid.colName { column ... }` | Add column to DataGrid |
 | Add variable | `add variables $name: type = 'expr'` | Add a page variable |
 | Drop variable | `drop variables $name` | Remove a page variable |
@@ -1666,15 +1668,15 @@ Modify an existing page or snippet's widget tree in-place without full `create o
 **Example:**
 ```sql
 alter page Module.EditPage {
-  set (caption = 'Save & Close', buttonstyle = success) on btnSave;
-  drop widget txtUnused;
+  set (caption: 'Save & Close', buttonstyle: success) on btnSave;
+  drop txtUnused;
   insert after txtEmail {
     textbox txtPhone (label: 'Phone', attribute: Phone)
   }
 };
 
 alter snippet Module.NavMenu {
-  set caption = 'Dashboard' on btnHome
+  set (caption: 'Dashboard') on btnHome
 };
 ```
 
