@@ -149,6 +149,38 @@ func TestPedAppRoundTrip_EditIsWritten(t *testing.T) {
 	}
 }
 
+// TestPedAppRoundTrip_MoveIsWritten is the control for the other half of a
+// unit: in an MPR v2 project a document's folder lives in the .mpr Unit table
+// (ContainerID), not in its mprcontents file, so a statement that only moves a
+// document rewrites no unit bytes. A snapshot that compared unit contents alone
+// would call the move "nothing written", and a describe that dropped a folder
+// clause would pass GetPut while moving every document it touched.
+func TestPedAppRoundTrip_MoveIsWritten(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	const target = "constant FeedbackModule.ClientIdentifier"
+	described, err := h.describe(target)
+	if err != nil || strings.TrimSpace(described) == "" {
+		t.Fatalf("describe %s: %v (output %q)", target, err, described)
+	}
+	const from, to = "folder 'Private/Resources/Constants'", "folder 'Private'"
+	moved := strings.Replace(described, from, to, 1)
+	if moved == described {
+		t.Fatalf("describe output has no %s clause — its shape changed:\n%s", from, described)
+	}
+
+	before := h.snapshot()
+	if err := h.exec(moved); err != nil {
+		t.Fatalf("exec moved statement: %v\n%s", err, moved)
+	}
+	changed := before.diff(h.snapshot())
+	if len(changed) == 0 {
+		t.Fatalf("moving %s to another folder registered as nothing written — the snapshot cannot see a unit's container, so a describe that drops a folder passes GetPut", target)
+	}
+	t.Logf("move registered as: %s", strings.Join(changed, "; "))
+}
+
 // judge compares one document's outcome with the allowlist.
 func judge(t *testing.T, key string, got outcome) {
 	t.Helper()
@@ -383,6 +415,11 @@ func (h *harness) roundTrip(d document) outcome {
 type snapshot struct {
 	units map[string][]byte // unit ID -> raw BSON
 	label map[string]string // unit ID -> "$Type Name", for messages
+	// place is where each unit sits: its container and containment name. In
+	// MPR v2 that is a row in the .mpr Unit table, not part of the unit's
+	// mprcontents file, so a statement that only moves a document to another
+	// folder rewrites no unit bytes and is visible here alone.
+	place map[string]string
 	// files are the working copy's files outside the model: javasource/,
 	// javascriptsource/, themesource/ and anything else a statement might write
 	// next to the project. The fixture has none, so any file here is a write.
@@ -396,19 +433,20 @@ func (h *harness) snapshot() snapshot {
 		h.t.Fatalf("open working copy: %v", err)
 	}
 	defer r.Close()
-	ids, err := r.ListAllUnitIDs()
+	units, err := r.ListUnits()
 	if err != nil {
 		h.t.Fatalf("list units: %v", err)
 	}
-	s := snapshot{units: map[string][]byte{}, label: map[string]string{}}
-	for _, id := range ids {
-		b, err := r.GetRawUnitBytes(id)
+	s := snapshot{units: map[string][]byte{}, label: map[string]string{}, place: map[string]string{}}
+	for _, u := range units {
+		b, err := r.GetRawUnitBytes(u.ID)
 		if err != nil {
-			h.t.Fatalf("read unit %s: %v", id, err)
+			h.t.Fatalf("read unit %s: %v", u.ID, err)
 		}
-		s.units[id] = b
+		s.units[u.ID] = b
+		s.place[u.ID] = u.ContainerID + "/" + u.ContainmentName
 		typ, name := typeAndName(b)
-		s.label[id] = strings.TrimSpace(typ + " " + name)
+		s.label[u.ID] = strings.TrimSpace(typ + " " + name)
 	}
 	s.files = map[string][]byte{}
 	err = filepath.Walk(h.dir, func(p string, info os.FileInfo, err error) error {
@@ -447,6 +485,11 @@ func (s snapshot) diff(o snapshot) []string {
 		switch {
 		case !ok:
 			out = append(out, fmt.Sprintf("removed %s (%s)", id, s.label[id]))
+		case s.place[id] != o.place[id]:
+			out = append(out, fmt.Sprintf("moved %s (%s): container %s -> %s", id, s.label[id], s.place[id], o.place[id]))
+			if !bytes.Equal(a, b) {
+				out = append(out, fmt.Sprintf("rewrote %s (%s) while moving it", id, s.label[id]))
+			}
 		case !bytes.Equal(a, b):
 			kind := "content changed"
 			if eq, err := canon.Equal(a, b); err == nil && eq {
@@ -814,8 +857,14 @@ func walkDiff(path string, a, b any, out *[]string) {
 			walkDiff(fmt.Sprintf("%s[%d]%s", path, i, elementName(av[i])), av[i], bv[i], out)
 		}
 	default:
-		if _, isBin := a.(bson.Binary); isBin {
-			return // element references; renumbered with the $IDs
+		if ab, isBin := a.(bson.Binary); isBin {
+			// Element references are renumbered with the $IDs, so they are
+			// skipped. A GUID is not a reference: it is the database's identity
+			// for the element, and a new one drops its table or column.
+			if bb, ok := b.(bson.Binary); ok && strings.HasSuffix(path, "/GUID") && !bytes.Equal(ab.Data, bb.Data) {
+				*out = append(*out, fmt.Sprintf("%s: GUID changed (the runtime reads this as a new element and drops its data)", path))
+			}
+			return
 		}
 		if fmt.Sprint(a) != fmt.Sprint(b) {
 			*out = append(*out, fmt.Sprintf("%s: %s -> %s", path, short(a), short(b)))
