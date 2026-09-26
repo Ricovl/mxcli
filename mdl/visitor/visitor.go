@@ -467,6 +467,9 @@ type Builder struct {
 	// documentAnnotations collects every `@name` written before a CREATE, with
 	// the kind of document it was on — see ExitCreateStatement.
 	documentAnnotations []ast.DocumentAnnotation
+	// deprecations collects every use of a deprecated spelling — see
+	// visitor_deprecations.go.
+	deprecations []ast.DeprecatedSpelling
 
 	// inLayout is set while a CREATE LAYOUT body is being built. The page body
 	// builder serves both documents and cannot otherwise tell which it is in,
@@ -537,6 +540,7 @@ func Build(input string) (*ast.Program, []error) {
 	return &ast.Program{
 		Statements:          builder.statements,
 		DocumentAnnotations: builder.documentAnnotations,
+		Deprecations:        builder.deprecations,
 	}, allErrors
 }
 

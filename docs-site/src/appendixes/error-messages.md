@@ -142,6 +142,21 @@ iterator name exists, so mxbuild rejects this with CE0109 "Undefined variable
 
 The rule keys on **scope, not on the name**. `$item` is perfectly valid in a predicate when it is the enclosing loop's iterator, which is how the O(N) lookup idiom is written — inside `loop $item in $L`, `find($Others, Key = $item/Key)` navigates the loop's variable and is not flagged.
 
+### MDL-DEPRnnn: Deprecated spelling
+
+```
+line 1: `create or replace …` (enumeration) is deprecated; write `create or modify …`
+— same meaning. Refused from `mdl 2`. [MDL-DEPR001]
+```
+
+**Cause:** The script uses an alias that MDL is consolidating away (ADR-0010). The alias means exactly what the canonical form means, so the statement runs unchanged. The warning names the canonical form, and the language version whose header (`mdl <n>;`) will refuse the alias (ADR-0011).
+
+**Solution:** Write the canonical form the warning names. The rewrite is a mechanical keyword swap, and the suggestion line says which one.
+
+`check` and `exec` report these as **warnings**. To fail the run on one, for example in CI over documentation and examples, pass `--deprecations=error`.
+
+The registry of deprecated spellings is `mdl/deprecation/deprecation.go`. It holds the code, old form, canonical form, rewrite and removal version of each entry. A spelling is only registered where it means exactly the same as its canonical form. `create or replace view entity`, for example, drops and recreates the view entity, so it is not reported.
+
 ## mxcli Parser Errors
 
 

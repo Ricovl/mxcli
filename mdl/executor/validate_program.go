@@ -290,5 +290,10 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// parsed and did nothing (MDL059, the same rule statements already have).
 	violations = append(violations, ValidateDocumentAnnotations(prog)...)
 
+	// Warn on every deprecated spelling (MDL-DEPRnnn): an alias left over from
+	// consolidating MDL onto one canonical form (ADR-0010/0011). The registry
+	// is mdl/deprecation.
+	violations = append(violations, ValidateDeprecations(prog)...)
+
 	return violations
 }

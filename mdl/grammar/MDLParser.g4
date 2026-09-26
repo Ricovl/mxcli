@@ -89,7 +89,7 @@ updateWidgetsStatement
 
 createStatement
     : docComment? annotation*
-      CREATE (OR (MODIFY | REPLACE))?
+      CREATE (OR (MODIFY | REPLACE /* @alias MDL-DEPR001 */))?
       ( createEntityStatement
       | createAssociationStatement
       | createModuleStatement

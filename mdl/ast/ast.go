@@ -53,6 +53,24 @@ type Program struct {
 	// next to knownActivityAnnotations, instead of being spread across the seven
 	// visitor sites that read them.
 	DocumentAnnotations []DocumentAnnotation
+	// Deprecations records every use of a deprecated spelling registered in
+	// mdl/deprecation, in source order. Both spellings build the same
+	// statements, so this is the only trace of which one the source used; it
+	// drives the MDL-DEPRnnn warnings and nothing else may branch on it.
+	Deprecations []DeprecatedSpelling
+}
+
+// DeprecatedSpelling is one use of a deprecated spelling in the source.
+type DeprecatedSpelling struct {
+	// Code is the registry code, MDL-DEPRnnn.
+	Code string
+	// Line and Column locate the deprecated token (1-based line, 0-based
+	// column, as ANTLR reports them).
+	Line   int
+	Column int
+	// Subject says what the spelling was used on, in MDL's own words ("entity",
+	// "microflow", …); empty when there is nothing more specific to say.
+	Subject string
 }
 
 // DocumentAnnotation is one annotation written before a CREATE statement.

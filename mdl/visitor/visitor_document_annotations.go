@@ -28,6 +28,7 @@ func (b *Builder) ExitCreateStatement(ctx *parser.CreateStatementContext) {
 	if ctx == nil {
 		return
 	}
+	b.recordCreateOrReplace(ctx)
 	anns := ctx.AllAnnotation()
 	if len(anns) == 0 {
 		return
