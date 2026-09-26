@@ -20,7 +20,7 @@ beside it, and is worth opening when you hit one of these:
   association and list; XPath navigation.
 - [`reference/integration.md`](reference/integration.md) — `rest call` and
   `send rest request`, legacy SOAP, calling Java actions (including the `empty`
-  argument and microflow-typed parameters), and file downloads.
+  argument and microflow-typed parameters), `execute database query`, file downloads.
 - [`reference/pitfalls.md`](reference/pitfalls.md) — **read this when
   `mxcli check` rejects something you believe is correct.** The anti-patterns, the
   CE0111 duplicate-variable trap, the syntax that looks plausible and does not
@@ -622,28 +622,6 @@ A note's own canvas geometry is `position: (x, y)` and `size: (w, h)`, e.g.
 and the note goes 100px above the activity at 200×50, stacking 60px per extra
 note; DESCRIBE omits them again whenever they match, so an ordinary note keeps
 the short `@annotation 'text'` form.
-
-### Execute Database Query Pattern
-```mdl
--- Static query (3-part name: Module.Connection.Query)
-$Results = execute database query Module.Conn.QueryName;
-
--- Dynamic SQL override
-$Results = execute database query Module.Conn.QueryName
-  dynamic 'SELECT * FROM table LIMIT 10';
-
--- Parameterized query (names must match query PARAMETER definitions)
-$Results = execute database query Module.Conn.QueryName
-  (paramName = $Variable);
-
--- Runtime connection override
-$Results = execute database query Module.Conn.QueryName
-  connection (DBSource = $url, DBUsername = $user, DBPassword = $Pass);
-
--- Fire-and-forget (no output variable)
-execute database query Module.Conn.QueryName;
-```
-**Note:** Only `on error rollback` is supported (the default). `on error continue` is not available for this action.
 
 ### Page Navigation Pattern
 ```mdl
