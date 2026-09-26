@@ -326,7 +326,7 @@ func convertASTAction(ctx *ExecContext, value any, moduleName string, moduleID m
 	action, ok := value.(*ast.ActionV3)
 	if !ok {
 		return nil, mdlerrors.NewValidation("Action value must be an action expression, " +
-			"for example `set Action = microflow Module.MF on btnSave`")
+			"for example `set (Action: microflow Module.MF) on btnSave`")
 	}
 	pb := &pageBuilder{
 		ctx:           ctx,
