@@ -72,8 +72,6 @@ var studioProKnownLossy = map[string]string{
 	"nanoflow FeedbackModule.ACT_Feedback_UploadImage|annotations": "#705: AnnotationFlows are not written",
 	"association Administration.AccountPasswordData_Account|document": "ako/mxcli#704: StorageFormat Table -> Column; the " +
 		"domain-model rewrite also drops empty MemberAccess refs and NoGeneralization flags",
-	"snippet FeedbackModule._ReadMe|document": "#705: Type 'Web' -> ''",
-	"snippet FeedbackModule._ReadMe|header":   "#705: Type 'Web' -> ''",
 }
 
 type studioProCase struct {
