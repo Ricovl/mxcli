@@ -3,6 +3,8 @@
 package executor
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -128,5 +130,51 @@ func TestJavaScriptActionExportLevel(t *testing.T) {
 				t.Errorf("ActionDefaultReturnName = %q, want %q", captured.ActionDefaultReturnName, tc.wantReturn)
 			}
 		})
+	}
+}
+
+// DESCRIBE read no Java body at all: its markers had been lowercased
+// ("// begin user CODE") by a keyword sweep, so no Studio Pro file matched and
+// the placeholder was always printed. With describe emitting `create or modify`
+// that output now re-executes, so the body must be read — and the placeholder,
+// where it is still printed, must not be written over a real source file.
+func TestJavaActionBody_DescribeReadsStudioProMarkers(t *testing.T) {
+	dir := t.TempDir()
+	mpr := dir + "/App.mpr"
+	src := "public class X {\n\tpublic java.lang.String executeAction() throws Exception\n\t{\n" +
+		"\t\t// BEGIN USER CODE\n\t\treturn sanitize(s);\n\t\t// END USER CODE\n\t}\n}\n"
+	if err := os.MkdirAll(dir+"/javasource/mymodule/actions", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir+"/javasource/mymodule/actions/X.java", []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readJavaActionUserCode(mpr, "MyModule", "X"); !strings.Contains(got, "return sanitize(s);") {
+		t.Errorf("user code = %q, want the body between Studio Pro's uppercase markers", got)
+	}
+}
+
+func TestJavaActionBody_PlaceholderIsNotWritten(t *testing.T) {
+	mod := mkModule("MyModule")
+	stored := storedExposedAction(mod)
+	ctx, _ := exposeRewriteCtx(t, stored, mod)
+	wrote := false
+	ctx.Backend.(*mock.MockBackend).WriteJavaSourceFileFunc = func(string, string, string, []*javaactions.JavaActionParameter,
+		javaactions.CodeActionReturnType, []string, string) error {
+		wrote = true
+		return nil
+	}
+	s := rewriteStmt(false)
+	s.JavaCode = "\n" + javaSourceOmittedBody + "\n"
+	assertNoError(t, execCreateJavaAction(ctx, s))
+	if wrote {
+		t.Error("the DESCRIBE placeholder body was written as the action's Java source")
+	}
+
+	// Control: real code is still written.
+	s.JavaCode = `return "pong";`
+	assertNoError(t, execCreateJavaAction(ctx, s))
+	if !wrote {
+		t.Error("an authored body was not written — the guard is too broad")
 	}
 }

@@ -17,6 +17,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/modelsdk/canon"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
+	"github.com/mendixlabs/mxcli/sdk/javaactions"
 )
 
 // TestStudioProDocumentsRoundTrip is the round trip users perform on a document
@@ -45,6 +46,9 @@ import (
 //   - texts:       every stored translation survives, as a (language, text)
 //     multiset — order is not a loss, dropping one is.
 //   - annotations: every annotation connector survives.
+//   - source:      for a Java action, the parts of its .java file Studio Pro's
+//     regeneration retains — imports, user code, extra code — are unchanged.
+//     No BSON comparison sees these, and losing them breaks the build.
 //
 // A container document (the domain model for an association, the module
 // security for a module role) is compared whole, which is stricter than the
@@ -96,7 +100,7 @@ var studioProCases = []studioProCase{
 	{"module role", "Administration", "Administrator", "Security$ModuleSecurity", ""},
 }
 
-var studioProChecks = []string{"exec", "document", "header", "texts", "annotations"}
+var studioProChecks = []string{"exec", "document", "header", "texts", "annotations", "source"}
 
 func TestStudioProDocumentsRoundTrip(t *testing.T) {
 	env := setupTestEnv(t)
@@ -156,6 +160,7 @@ func checkStudioProRoundTrip(t *testing.T, env *testEnv, c studioProCase) {
 	describeCmd := "describe " + c.kind + " " + c.module + "." + c.name
 
 	unitID, before := studioProUnit(t, env.projectPath, c)
+	sourceBefore := javaSourceSections(env.projectPath, c)
 	described, err := env.describeMDL(describeCmd)
 	if err != nil {
 		t.Fatalf("describe failed: %v", err)
@@ -217,6 +222,44 @@ func checkStudioProRoundTrip(t *testing.T, env *testEnv, c studioProCase) {
 	verdict(t, c, "annotations", nb == na, func() string {
 		return fmt.Sprintf("annotation connectors: %d -> %d", nb, na)
 	})
+
+	sourceAfter := javaSourceSections(env.projectPath, c)
+	verdict(t, c, "source", sourceBefore == sourceAfter, func() string {
+		return fmt.Sprintf("the .java file's retained sections changed:\n--- before ---\n%s\n--- after ---\n%s",
+			sourceBefore, sourceAfter)
+	})
+}
+
+// javaSourceSections renders the parts of a Java action's source file that
+// Studio Pro's regeneration retains, whitespace-normalised per line (a rewrite
+// may re-indent; the build does not care). "" for any other case.
+func javaSourceSections(project string, c studioProCase) string {
+	if c.unitType != "JavaActions$JavaAction" {
+		return ""
+	}
+	raw, err := os.ReadFile(filepath.Join(filepath.Dir(project), "javasource",
+		strings.ToLower(c.module), "actions", c.name+".java"))
+	if err != nil {
+		return "<no source file>"
+	}
+	src := string(raw)
+	imports, extra := javaactions.RetainedSections(src)
+	user := ""
+	if i := strings.Index(src, "// BEGIN USER CODE"); i >= 0 {
+		if j := strings.Index(src[i:], "// END USER CODE"); j >= 0 {
+			user = src[i : i+j]
+		}
+	}
+	norm := func(s string) string {
+		var out []string
+		for l := range strings.SplitSeq(s, "\n") {
+			if l = strings.TrimSpace(l); l != "" {
+				out = append(out, l)
+			}
+		}
+		return strings.Join(out, "\n")
+	}
+	return "imports:\n" + strings.Join(imports, "\n") + "\nuser:\n" + norm(user) + "\nextra:\n" + norm(extra)
 }
 
 // verdict reports one check against the ledger, failing in both directions.
