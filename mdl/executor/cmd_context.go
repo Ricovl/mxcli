@@ -151,7 +151,7 @@ func assembleMicroflowContext(ctx *ExecContext, out *strings.Builder, name strin
 	// Direct callers
 	out.WriteString("### Direct Callers\n\n")
 	result, err = ctx.Catalog.Query(fmt.Sprintf(
-		`select SourceName from refs
+		`select distinct SourceName from refs
 		 where TargetName = '%s' and RefKind = 'call'
 		 ORDER by SourceName limit 10`, name))
 	if err == nil && result.Count > 0 {
@@ -243,15 +243,29 @@ func assembleEntityContext(ctx *ExecContext, out *strings.Builder, name string, 
 	}
 	out.WriteString("\n")
 
-	// Related entities (via associations or generalization)
+	// Related entities: the other end of each association, the entity this one
+	// specializes, and the entities that specialize it.
+	//
+	// This read refs rows whose SOURCE was an entity, but an association edge's
+	// source is the ASSOCIATION, so only generalizations were ever found and an
+	// entity with five associations reported "(none found)". The associations
+	// table has both ends directly, and is there in a fast-mode catalog too.
 	out.WriteString("### Related Entities\n\n")
+	esc := escapeSQLString(name)
 	result, err = ctx.Catalog.Query(fmt.Sprintf(
-		`select distinct TargetName, RefKind from refs
-		 where SourceName = '%s' and TargetType = 'ENTITY'
-		 union
-		 select distinct SourceName, RefKind from refs
-		 where TargetName = '%s' and SourceType = 'ENTITY'
-		 ORDER by RefKind, TargetName limit 10`, name, name))
+		`select Related, Relation from (
+			select ToEntity as Related, 'association ' || QualifiedName || ': ' || FromEntity || ' -> ' || ToEntity as Relation
+			from associations where FromEntity = '%[1]s'
+			union
+			select FromEntity, 'association ' || QualifiedName || ': ' || FromEntity || ' -> ' || ToEntity
+			from associations where ToEntity = '%[1]s'
+			union
+			select Generalization, 'generalization'
+			from entities where QualifiedName = '%[1]s' and Generalization is not null and Generalization != ''
+			union
+			select QualifiedName, 'specialization'
+			from entities where Generalization = '%[1]s'
+		) order by Relation, Related`, esc))
 	if err == nil && result.Count > 0 {
 		for _, row := range result.Rows {
 			out.WriteString(fmt.Sprintf("- %v (%v)\n", row[0], row[1]))
@@ -316,7 +330,7 @@ func assemblePageContext(ctx *ExecContext, out *strings.Builder, name string, de
 	// Microflows that show this page
 	out.WriteString("### Shown By\n\n")
 	result, err = ctx.Catalog.Query(fmt.Sprintf(
-		`select SourceName from refs
+		`select distinct SourceName from refs
 		 where TargetName = '%s' and RefKind = 'show_page'
 		 ORDER by SourceName limit 10`, name))
 	if err == nil && result.Count > 0 {
@@ -341,33 +355,28 @@ func assembleEnumerationContext(ctx *ExecContext, out *strings.Builder, name str
 	}
 	out.WriteString("\n")
 
-	// Entities with attributes of this enumeration type
-	out.WriteString("### Used By Entities\n\n")
-	result, err = ctx.Catalog.Query(fmt.Sprintf(
-		`select distinct SourceName from refs
-		 where TargetName = '%s' and SourceType = 'ENTITY'
-		 ORDER by SourceName limit 15`, name))
-	if err == nil && result.Count > 0 {
-		for _, row := range result.Rows {
-			out.WriteString(fmt.Sprintf("- %v\n", row[0]))
+	// Uses of the enumeration: its type (attributes, parameters, variables)
+	// and its values (expressions, XPath comparisons). refTargetWhere takes
+	// both, the same set `impact` reports.
+	where, _ := refTargetWhere(ctx, name)
+	for _, sec := range []struct{ title, types string }{
+		{"Used By Entities", "'ENTITY'"},
+		{"Used By Microflows", "'MICROFLOW', 'NANOFLOW', 'RULE'"},
+		{"Used By Pages", "'PAGE', 'SNIPPET'"},
+	} {
+		out.WriteString("### " + sec.title + "\n\n")
+		result, err = ctx.Catalog.Query(fmt.Sprintf(
+			`select distinct SourceName from refs
+			 where %s and SourceType in (%s)
+			 ORDER by SourceName limit 15`, where, sec.types))
+		if err == nil && result.Count > 0 {
+			for _, row := range result.Rows {
+				out.WriteString(fmt.Sprintf("- %v\n", row[0]))
+			}
+		} else {
+			out.WriteString("(none found)\n")
 		}
-	} else {
-		out.WriteString("(none found)\n")
-	}
-	out.WriteString("\n")
-
-	// Microflows that use this enumeration
-	out.WriteString("### Used By Microflows\n\n")
-	result, err = ctx.Catalog.Query(fmt.Sprintf(
-		`select distinct SourceName from refs
-		 where TargetName = '%s' and SourceType = 'MICROFLOW'
-		 ORDER by SourceName limit 15`, name))
-	if err == nil && result.Count > 0 {
-		for _, row := range result.Rows {
-			out.WriteString(fmt.Sprintf("- %v\n", row[0]))
-		}
-	} else {
-		out.WriteString("(none found)\n")
+		out.WriteString("\n")
 	}
 }
 
@@ -561,7 +570,7 @@ func assembleWorkflowContext(ctx *ExecContext, out *strings.Builder, name string
 	// Direct callers (what calls this workflow)
 	out.WriteString("### Direct Callers\n\n")
 	result, err = ctx.Catalog.Query(fmt.Sprintf(
-		`select SourceName, SourceType from refs
+		`select distinct SourceName, SourceType from refs
 		 where TargetName = '%s'
 		 ORDER by SourceName limit 15`, name))
 	if err == nil && result.Count > 0 {
