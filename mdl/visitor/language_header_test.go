@@ -71,6 +71,15 @@ func TestLanguageHeader_UnknownVersionIsRefused(t *testing.T) {
 	}
 }
 
+// A version too large for an int is still a whole number: it is unknown, not
+// malformed, and the message must say so.
+func TestLanguageHeader_OverflowingVersionIsUnknown(t *testing.T) {
+	_, errs := Build("mdl 99999999999999999999;\nshow entities;")
+	if len(errs) == 0 || !strings.Contains(errs[0].Error(), "unknown MDL language version 99999999999999999999") {
+		t.Fatalf("want an unknown-version error, got %v", errs)
+	}
+}
+
 func TestLanguageHeader_NonIntegerVersionIsRefused(t *testing.T) {
 	_, errs := Build("mdl 1.5;\nshow entities;")
 	if len(errs) == 0 || !strings.Contains(errs[0].Error(), "whole number") {

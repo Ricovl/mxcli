@@ -88,11 +88,12 @@ func PreviewWarning(v Version) string {
 }
 
 // UnknownVersionError is the message for a header naming a version this mxcli
-// does not know.
-func UnknownVersionError(v Version) string {
-	return fmt.Sprintf("unknown MDL language version %d: this mxcli understands mdl 0 through mdl %d. "+
+// does not know. It takes the version as written, since a whole number too
+// large for a Version is unknown rather than malformed.
+func UnknownVersionError(written string) string {
+	return fmt.Sprintf("unknown MDL language version %s: this mxcli understands mdl 0 through mdl %d. "+
 		"Running a script under rules older than the ones it was written for would change "+
-		"its meaning; upgrade mxcli.", int(v), int(Latest))
+		"its meaning; upgrade mxcli.", written, int(Latest))
 }
 
 // headerLineRe matches a line holding only a language header.

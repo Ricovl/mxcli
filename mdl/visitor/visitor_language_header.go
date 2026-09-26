@@ -3,6 +3,7 @@
 package visitor
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -32,6 +33,11 @@ func (b *Builder) ExitLanguageHeader(ctx *parser.LanguageHeaderContext) {
 		return
 	}
 	n, err := strconv.Atoi(num.GetText())
+	if errors.Is(err, strconv.ErrRange) {
+		// All digits, only too large: a version this mxcli does not know.
+		b.addError(fmt.Errorf("line %d: %s", ctx.GetStart().GetLine(), langver.UnknownVersionError(num.GetText())))
+		return
+	}
 	if err != nil {
 		b.addError(fmt.Errorf("line %d: the language version in `mdl %s;` must be a whole number, e.g. `mdl 1;`",
 			ctx.GetStart().GetLine(), num.GetText()))
@@ -39,7 +45,7 @@ func (b *Builder) ExitLanguageHeader(ctx *parser.LanguageHeaderContext) {
 	}
 	v := langver.Version(n)
 	if !v.Known() {
-		b.addError(fmt.Errorf("line %d: %s", ctx.GetStart().GetLine(), langver.UnknownVersionError(v)))
+		b.addError(fmt.Errorf("line %d: %s", ctx.GetStart().GetLine(), langver.UnknownVersionError(num.GetText())))
 		return
 	}
 	b.langVersion = v
