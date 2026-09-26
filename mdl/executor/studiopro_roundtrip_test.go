@@ -68,8 +68,6 @@ var studioProKnownLossy = map[string]string{
 	"nanoflow FeedbackModule.SUB_Feedback_GetOrCreate|document": "the flow builder regenerates merges " +
 		"(3 ExclusiveMerges -> 1, control flow equivalent), plus activity Size and auto-captions",
 
-	"page FeedbackModule.ShareFeedback|texts":    "#705: en_US '' texts and a textarea placeholder dropped",
-	"page Administration.Account_Overview|texts": "#705: en_US '' texts dropped, nl_NL lost on an ambiguous source",
 	"association Administration.AccountPasswordData_Account|document": "ako/mxcli#704: StorageFormat Table -> Column; the " +
 		"domain-model rewrite also drops empty MemberAccess refs and NoGeneralization flags",
 }

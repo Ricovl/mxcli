@@ -528,6 +528,17 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 		ta.Label = label
 	}
 
+	// Placeholder, as for a textbox (ako/mxcli#705).
+	if ph := w.GetPlaceholder(); ph != "" {
+		ta.Placeholder = &model.Text{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Texts$Text",
+			},
+			Translations: map[string]string{pb.textLang(): ph},
+		}
+	}
+
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &ta.OnChangeAction); err != nil {
 		return nil, err

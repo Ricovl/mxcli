@@ -29,12 +29,20 @@ func TestSelectTranslationText(t *testing.T) {
 	if got := selectTranslationText(items3, "de_DE"); got != "Dashboard" {
 		t.Errorf("missing preferred falls back to en_US = %q, want Dashboard", got)
 	}
-	// Preferred present but empty → skip to en_US.
+	// Preferred present but EMPTY → the empty string, not another language.
+	// This used to fall back to en_US, and re-executing the output then WROTE
+	// that fallback into the preferred language: a caption stored as en_US ""
+	// + nl_NL "Knop" came back as en_US "Knop" (ako/mxcli#705). An empty caption
+	// is a value Studio Pro stores and shows, not a gap to fill.
 	items4 := []any{int32(3), transItem("nl_NL", ""), transItem("en_US", "Dashboard")}
-	if got := selectTranslationText(items4, "nl_NL"); got != "Dashboard" {
-		t.Errorf("empty preferred falls back to en_US = %q, want Dashboard", got)
+	if got := selectTranslationText(items4, "nl_NL"); got != "" {
+		t.Errorf("empty preferred = %q, want \"\" — a fallback here is written back on exec", got)
 	}
-	// No en_US either → first non-empty.
+	knop := []any{int32(3), transItem("en_US", ""), transItem("nl_NL", "Knop")}
+	if got := selectTranslationText(knop, "en_US"); got != "" {
+		t.Errorf("en_US \"\" + nl_NL Knop = %q, want \"\" (#705)", got)
+	}
+	// Preferred ABSENT → the fallbacks still apply: en_US, then first non-empty.
 	items5 := []any{int32(3), transItem("nl_NL", ""), transItem("fr_FR", "Tableau")}
 	if got := selectTranslationText(items5, "de_DE"); got != "Tableau" {
 		t.Errorf("no preferred/en_US → first non-empty = %q, want Tableau", got)
@@ -55,6 +63,10 @@ func TestPickTextTranslation(t *testing.T) {
 	}
 	if got := pickTextTranslation(txt, "de_DE"); got != "Dashboard" {
 		t.Errorf("missing preferred falls back to en_US = %q, want Dashboard", got)
+	}
+	empty := &model.Text{Translations: map[string]string{"en_US": "", "nl_NL": "Knop"}}
+	if got := pickTextTranslation(empty, "en_US"); got != "" {
+		t.Errorf("en_US \"\" + nl_NL Knop = %q, want \"\" — the stored default-language value, even empty (#705)", got)
 	}
 	if got := pickTextTranslation(nil, "en_US"); got != "" {
 		t.Errorf("nil text = %q, want empty", got)

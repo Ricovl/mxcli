@@ -47,6 +47,19 @@ import (
 // positional pairing is abandoned entirely rather than applied where it happens
 // to fit.
 //
+// **By owning element, when that is exact.** A widget's Name is unique within
+// its document, so a text can be addressed as (element $Type, element Name, path
+// from that element) — "Forms$ActionButton actionButton1 /CaptionTemplate/
+// Template". That address survives the whole-document shape changes that rule
+// out positional pairing, and it tells apart texts the source pairing cannot:
+// two captions with the same English, or the many empty ones (Studio Pro stores
+// en_US "" on every empty caption and message, so (en_US, "") is ambiguous on
+// any real page, and a rebuilt empty text has no translation to look up by at
+// all — ako/mxcli#705). It is used only where it is exact: the address must
+// occur once in each document, and the path from the element must contain no
+// list index — a rebuilt pluggable widget reorders its Properties list, and
+// pairing across that would move a translation onto the wrong property.
+//
 // **By source string otherwise.** For each stored text, every (language, text)
 // pair it carries keys that text's full translation set; a rebuilt text is
 // looked up by the one pair it has. No project default language is needed —
@@ -91,8 +104,11 @@ func CarryTranslations(contents, stored []byte) []byte {
 	newByPath := textsByPath(newDoc)
 	byPath := samePathSet(storedByPath, newByPath)
 
+	_, storedByElement := textsByElement(storedDoc)
+	newElementOf, _ := textsByElement(newDoc)
+
 	sets := storedTranslationSets(storedDoc)
-	if len(sets) == 0 && !byPath {
+	if len(sets) == 0 && !byPath && len(storedByElement) == 0 {
 		return contents
 	}
 
@@ -109,6 +125,8 @@ func CarryTranslations(contents, stored []byte) []byte {
 		var want map[string]bson.D
 		if byPath {
 			want = textTranslationElems(storedByPath[path])
+		} else if stored, ok := storedByElement[newElementOf[path]]; ok {
+			want = textTranslationElems(stored)
 		} else {
 			want = matchBySource(textTranslations(text), sets)
 		}
@@ -153,6 +171,51 @@ func textsByPath(doc bson.D) map[string]bson.D {
 	}
 	walk(doc, "")
 	return out
+}
+
+// textsByElement addresses the texts of a document by the named element that
+// owns them. It returns the address of each text by its containment path (as
+// textsByPath spells it), and the text at each address — both restricted to the
+// addresses that are exact: owned by an element with a $Type and a Name, reached
+// from it without passing through a list, and occurring once in the document.
+func textsByElement(doc bson.D) (elementOf map[string]string, byElement map[string]bson.D) {
+	elementOf = map[string]string{}
+	byElement = map[string]bson.D{}
+	count := map[string]int{}
+	var walk func(v any, path, element, rel string, indexed bool)
+	walk = func(v any, path, element, rel string, indexed bool) {
+		switch n := v.(type) {
+		case bson.D:
+			ty, _ := docLookup(n, "$Type").(string)
+			if ty == "Texts$Text" {
+				if element != "" && !indexed {
+					key := element + "\x00" + rel
+					count[key]++
+					elementOf[path] = key
+					byElement[key] = n
+				}
+				return
+			}
+			if name, _ := docLookup(n, "Name").(string); name != "" && ty != "" {
+				element, rel, indexed = ty+"\x00"+name, "", false
+			}
+			for _, e := range n {
+				walk(e.Value, path+"/"+e.Key, element, rel+"/"+e.Key, indexed)
+			}
+		case bson.A:
+			for i, e := range n {
+				walk(e, path+"/"+strconv.Itoa(i), element, rel+"/"+strconv.Itoa(i), true)
+			}
+		}
+	}
+	walk(doc, "", "", "", false)
+	for path, key := range elementOf {
+		if count[key] > 1 {
+			delete(elementOf, path)
+			delete(byElement, key)
+		}
+	}
+	return elementOf, byElement
 }
 
 // samePathSet reports whether the two documents hold texts at exactly the same

@@ -369,6 +369,9 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 	case "Forms$TextArea", "Pages$TextArea":
 		widget.Caption = extractLabelText(ctx, w)
 		widget.Content = extractAttributeRef(ctx, w)
+		// Read like the textbox's; it was not, so describe -> exec deleted a
+		// textarea's placeholder with all its translations (ako/mxcli#705).
+		widget.Placeholder = extractPlaceholderText(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
 		return []rawWidget{widget}

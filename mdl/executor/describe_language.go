@@ -48,6 +48,12 @@ func describeDefaultLanguage(ctx *ExecContext) string {
 // Items array ([marker, Texts$Translation{LanguageCode, Text}, …]): the preferred
 // language, else en_US, else the first non-empty translation. This replaces the
 // old "return the first item" behaviour that surfaced the wrong language (#702).
+//
+// A preferred-language translation that is present but EMPTY is returned as the
+// empty string. DESCRIBE output is re-executed, and whatever it prints is written
+// back into the preferred language — so falling back to another language here
+// turned a caption stored as en_US "" + nl_NL "Knop" into en_US "Knop"
+// (ako/mxcli#705). The fallbacks are for a text with no entry in that language.
 func selectTranslationText(items []any, preferredLang string) string {
 	byLang := make(map[string]string)
 	firstNonEmpty := ""
@@ -66,8 +72,8 @@ func selectTranslationText(items []any, preferredLang string) string {
 			firstNonEmpty = text
 		}
 	}
-	if preferredLang != "" && byLang[preferredLang] != "" {
-		return byLang[preferredLang]
+	if v, ok := byLang[preferredLang]; ok && preferredLang != "" {
+		return v
 	}
 	if byLang[fallbackLanguageCode] != "" {
 		return byLang[fallbackLanguageCode]
@@ -79,12 +85,13 @@ func selectTranslationText(items []any, preferredLang string) string {
 // preferred language, else en_US, else the non-empty one with the lowest
 // language code. Mirrors selectTranslationText for the model-level texts (e.g.
 // page Title, enumeration value Caption).
+// As there, a preferred language that is present but empty wins.
 func pickTextTranslation(t *model.Text, preferredLang string) string {
 	if t == nil || len(t.Translations) == 0 {
 		return ""
 	}
 	if preferredLang != "" {
-		if v := t.Translations[preferredLang]; v != "" {
+		if v, ok := t.Translations[preferredLang]; ok {
 			return v
 		}
 	}

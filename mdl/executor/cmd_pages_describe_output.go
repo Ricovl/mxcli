@@ -595,6 +595,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		if w.Placeholder != "" {
+			props = append(props, fmt.Sprintf("Placeholder: %s", mdlQuote(w.Placeholder)))
+		}
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}

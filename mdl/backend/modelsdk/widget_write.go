@@ -574,6 +574,10 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetReadOnlyStyle("Inherit")
 		g.SetSubmitBehaviour("OnEndEditing")
 		g.SetSubmitOnInputDelay(300)
+		// Studio Pro stores one on every textarea; without the key a rewrite
+		// had nowhere to carry the stored translations and deleted the message
+		// (ako/mxcli#705). Empty, like CounterMessage above.
+		g.SetTextTooLongMessage(captionToGen(nil))
 		g.SetValidation(widgetValidationToGen())
 		return g, nil
 
