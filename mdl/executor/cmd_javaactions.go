@@ -343,6 +343,11 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	var existingJADoc string
 	haveExistingJA := false
 	var existingActionInfo *javaactions.MicroflowActionInfo
+	// Neither has an MDL spelling, so a rewrite carries them. The defaults are
+	// what Studio Pro writes on a new action; "Public" — what this used to
+	// hardcode — is not a member of JavaActionsExportLevel (API | Hidden), and
+	// every rewrite turned a Hidden action into it (ako/mxcli#705).
+	exportLevel, defaultReturnName := "Hidden", "ReturnValueName"
 	if existing, ok := pickLive(jas,
 		func(ja *types.JavaAction) bool {
 			return h.GetModuleName(h.FindModuleID(ja.ContainerID)) == s.Name.Module && ja.Name == s.Name.Name
@@ -361,6 +366,10 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 		// stored one has to be read before the rewrite can carry them.
 		if full, err := ctx.Backend.ReadJavaActionByName(s.Name.Module + "." + s.Name.Name); err == nil && full != nil {
 			existingActionInfo = full.MicroflowActionInfo
+			if full.ExportLevel != "" {
+				exportLevel = full.ExportLevel
+			}
+			defaultReturnName = full.ActionDefaultReturnName
 		}
 	}
 
@@ -381,11 +390,12 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 			ID:       newID,
 			TypeName: "JavaActions$JavaAction",
 		},
-		Excluded:      existingExcluded,
-		ContainerID:   containerID,
-		Name:          s.Name.Name,
-		Documentation: s.Documentation,
-		ExportLevel:   "Public",
+		Excluded:                existingExcluded,
+		ContainerID:             containerID,
+		Name:                    s.Name.Name,
+		Documentation:           s.Documentation,
+		ExportLevel:             exportLevel,
+		ActionDefaultReturnName: defaultReturnName,
 	}
 	// A rewrite that carried no doc comment keeps the stored one (#1018).
 	if haveExistingJA {
