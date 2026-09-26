@@ -55,8 +55,10 @@ func execShowWidgets(ctx *ExecContext, s *ast.ShowWidgetsStmt) error {
 
 	// Output results as table
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "No widgets found matching the criteria")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, "No widgets found matching the criteria")
+	}
+	if ctx.Format == FormatJSON {
+		return writeResult(ctx, &TableResult{Columns: result.Columns, Rows: result.Rows})
 	}
 
 	// Print header

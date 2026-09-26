@@ -64,5 +64,5 @@ func reportResolvedTarget(ctx *ExecContext, typed, resolved string, matchedLoose
 	if !matchedLoosely || ctx == nil || ctx.Output == nil {
 		return
 	}
-	fmt.Fprintf(ctx.Output, "(matched %s)\n", strings.TrimSpace(resolved))
+	fmt.Fprintf(ctx.progress(), "(matched %s)\n", strings.TrimSpace(resolved))
 }

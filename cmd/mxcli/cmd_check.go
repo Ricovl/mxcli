@@ -79,9 +79,10 @@ Examples:
   # Scan the project for legacy native widgets after a Mendix upgrade
   mxcli check script.mdl -p app.mpr --post-migration
 
-  # Output as JSON or SARIF
+  # Output as JSON or SARIF: one document on stdout covering every phase
+  # (progress goes to stderr); the exit code still says whether it passed
   mxcli check script.mdl --format json
-  mxcli check script.mdl --format sarif
+  mxcli check script.mdl -p app.mpr --format sarif > results.sarif
 
   # Read the script from stdin
   cat script.mdl | mxcli check -
@@ -104,6 +105,21 @@ Examples:
 
 		outputFormat := linter.OutputFormat(format)
 		formatter := linter.GetFormatter(outputFormat, !isStructured)
+
+		// In a structured format the payload is ONE document on stdout, emitted
+		// once at the end (or at the first failing phase). Each phase used to
+		// format its own violations to stderr, so `check --format json` put
+		// nothing parseable on stdout — only the executor's "Connected to:"
+		// chatter — and a run reaching several phases wrote several documents.
+		var structured []linter.Violation
+		finish := func(code int) {
+			if isStructured {
+				formatter.Format(structured, os.Stdout)
+			}
+			if code != 0 {
+				os.Exit(code)
+			}
+		}
 
 		// Read the script (a path, or "-" for stdin)
 		content, err := readMDLSource(filePath)
@@ -160,7 +176,8 @@ Examples:
 						Message:  parseErr.Error(),
 					})
 				}
-				formatter.Format(parseViolations, os.Stderr)
+				structured = append(structured, parseViolations...)
+				finish(1)
 			} else {
 				fmt.Fprintf(os.Stderr, "Syntax errors found:\n")
 				for _, err := range errs {
@@ -197,7 +214,7 @@ Examples:
 
 		if isStructured {
 			// Always emit structured output (even when clean)
-			formatter.Format(violations, os.Stderr)
+			structured = append(structured, violations...)
 		} else if len(violations) > 0 {
 			fmt.Fprintln(os.Stderr)
 			formatter.Format(violations, os.Stderr)
@@ -206,7 +223,7 @@ Examples:
 		if len(violations) > 0 {
 			summary := linter.Summarize(violations)
 			if summary.Errors > 0 {
-				os.Exit(1)
+				finish(1)
 			}
 		}
 
@@ -221,7 +238,7 @@ Examples:
 				fmt.Printf("\nValidating references against: %s\n", projectPath)
 				fmt.Printf("(Note: References to objects created within the script are skipped)\n")
 			}
-			exec, logger := newLoggedExecutor("check")
+			exec, logger := newLoggedExecutorTo("check", progressSink(format))
 			defer logger.Close()
 			defer exec.Close()
 
@@ -258,7 +275,7 @@ Examples:
 					fmt.Fprintf(os.Stderr, "  %s\n", w)
 				}
 			} else if len(warnViolations) > 0 && len(validationErrors) == 0 {
-				formatter.Format(warnViolations, os.Stderr)
+				structured = append(structured, warnViolations...)
 			}
 
 			if len(validationErrors) > 0 {
@@ -271,7 +288,7 @@ Examples:
 							Message:  err.Error(),
 						})
 					}
-					formatter.Format(refViolations, os.Stderr)
+					structured = append(structured, refViolations...)
 				} else {
 					fmt.Fprintf(os.Stderr, "Reference errors:\n")
 					for _, err := range validationErrors {
@@ -279,7 +296,7 @@ Examples:
 					}
 					fmt.Fprintf(os.Stderr, "\n✗ %d reference error(s) found\n", len(validationErrors))
 				}
-				os.Exit(1)
+				finish(1)
 			}
 			if !isStructured {
 				fmt.Printf("✓ All references valid\n")
@@ -310,13 +327,13 @@ Examples:
 			projectViolations = append(projectViolations, exec.TypeCheckProgram(prog)...)
 			if len(projectViolations) > 0 {
 				if isStructured {
-					formatter.Format(projectViolations, os.Stderr)
+					structured = append(structured, projectViolations...)
 				} else {
 					fmt.Fprintln(os.Stderr)
 					formatter.Format(projectViolations, os.Stderr)
 				}
 				if linter.Summarize(projectViolations).Errors > 0 {
-					os.Exit(1)
+					finish(1)
 				}
 			} else if !isStructured {
 				fmt.Printf("✓ Expression types OK, no unstated member drops\n")
@@ -340,7 +357,7 @@ Examples:
 				os.Exit(1)
 			}
 			if isStructured {
-				formatter.Format(legacyViolations, os.Stderr)
+				structured = append(structured, legacyViolations...)
 			} else if len(legacyViolations) > 0 {
 				fmt.Fprintln(os.Stderr)
 				formatter.Format(legacyViolations, os.Stderr)
@@ -351,11 +368,12 @@ Examples:
 			if len(legacyViolations) > 0 {
 				summary := linter.Summarize(legacyViolations)
 				if summary.Errors > 0 {
-					os.Exit(1)
+					finish(1)
 				}
 			}
 		}
 
+		finish(0)
 		if !isStructured {
 			fmt.Println("\nCheck passed!")
 			// Qualify the verdict when nothing was resolved against a model. A

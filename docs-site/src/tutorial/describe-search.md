@@ -201,8 +201,9 @@ mxcli search -p app.mpr "validation"
 # Show only element names (no context)
 mxcli search -p app.mpr "validation" --format names
 
-# JSON output for programmatic use
-mxcli search -p app.mpr "validation" --format json
+# JSON output for programmatic use (stdout is only the JSON array;
+# progress goes to stderr, and no matches is [])
+mxcli search -p app.mpr "validation" --json
 ```
 
 The `--format names` option is useful for piping into other commands:

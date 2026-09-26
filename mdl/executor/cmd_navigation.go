@@ -162,7 +162,7 @@ func listNavigation(ctx *ExecContext) error {
 		return mdlerrors.NewBackend("get navigation", err)
 	}
 
-	if len(nav.Profiles) == 0 {
+	if len(nav.Profiles) == 0 && ctx.Format != FormatJSON {
 		fmt.Fprintln(ctx.Output, "No navigation profiles found.")
 		return nil
 	}

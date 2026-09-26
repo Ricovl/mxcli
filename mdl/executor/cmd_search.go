@@ -88,11 +88,11 @@ func execShowCallers(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	targetName := s.Name.String()
-	fmt.Fprintf(ctx.Output, "\nCallers of %s", targetName)
+	fmt.Fprintf(ctx.progress(), "\nCallers of %s", targetName)
 	if s.Transitive {
-		fmt.Fprintln(ctx.Output, " (transitive)")
+		fmt.Fprintln(ctx.progress(), " (transitive)")
 	} else {
-		fmt.Fprintln(ctx.Output, "")
+		fmt.Fprintln(ctx.progress(), "")
 	}
 
 	var query string
@@ -130,11 +130,10 @@ func execShowCallers(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "(no callers found)")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, "(no callers found)")
 	}
 
-	fmt.Fprintf(ctx.Output, "Found %d caller(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d caller(s)\n", result.Count)
 	outputCatalogResults(ctx, result)
 	return nil
 }
@@ -151,11 +150,11 @@ func execShowCallees(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	sourceName := s.Name.String()
-	fmt.Fprintf(ctx.Output, "\nCallees of %s", sourceName)
+	fmt.Fprintf(ctx.progress(), "\nCallees of %s", sourceName)
 	if s.Transitive {
-		fmt.Fprintln(ctx.Output, " (transitive)")
+		fmt.Fprintln(ctx.progress(), " (transitive)")
 	} else {
-		fmt.Fprintln(ctx.Output, "")
+		fmt.Fprintln(ctx.progress(), "")
 	}
 
 	var query string
@@ -193,11 +192,10 @@ func execShowCallees(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "(no callees found)")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, "(no callees found)")
 	}
 
-	fmt.Fprintf(ctx.Output, "Found %d callee(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d callee(s)\n", result.Count)
 	outputCatalogResults(ctx, result)
 	return nil
 }
@@ -214,7 +212,7 @@ func execShowReferences(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	typed := s.Name.String()
-	fmt.Fprintf(ctx.Output, "\nReferences to %s\n", typed)
+	fmt.Fprintf(ctx.progress(), "\nReferences to %s\n", typed)
 
 	// A widget's TargetName is stored SHOUTED (COMBOBOX) while MDL keywords are
 	// written in lower case, so an exact-only match answers the natural spelling
@@ -236,11 +234,10 @@ func execShowReferences(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "(no references found)")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, "(no references found)")
 	}
 
-	fmt.Fprintf(ctx.Output, "Found %d reference(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d reference(s)\n", result.Count)
 	outputCatalogResults(ctx, result)
 	return nil
 }
@@ -258,7 +255,7 @@ func execShowImpact(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	typed := s.Name.String()
-	fmt.Fprintf(ctx.Output, "\nImpact analysis for %s\n", typed)
+	fmt.Fprintf(ctx.progress(), "\nImpact analysis for %s\n", typed)
 
 	targetName, loose := resolveReferenceTarget(ctx, typed)
 	reportResolvedTarget(ctx, typed, targetName, loose)
@@ -277,8 +274,7 @@ func execShowImpact(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "(no impact - element is not referenced)")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, "(no impact - element is not referenced)")
 	}
 
 	// Group by type for summary
@@ -291,13 +287,13 @@ func execShowImpact(ctx *ExecContext, s *ast.ShowStmt) error {
 		}
 	}
 
-	fmt.Fprintf(ctx.Output, "\nSummary:\n")
+	fmt.Fprintf(ctx.progress(), "\nSummary:\n")
 	for t, count := range typeCounts {
-		fmt.Fprintf(ctx.Output, "  %s: %d\n", t, count)
+		fmt.Fprintf(ctx.progress(), "  %s: %d\n", t, count)
 	}
-	fmt.Fprintln(ctx.Output)
+	fmt.Fprintln(ctx.progress())
 
-	fmt.Fprintf(ctx.Output, "Found %d affected element(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d affected element(s)\n", result.Count)
 	outputCatalogResults(ctx, result)
 
 	return nil

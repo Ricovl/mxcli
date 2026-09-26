@@ -57,7 +57,7 @@ func listExportMappings(ctx *ExecContext, inModule string) error {
 		rows = append(rows, row{qualifiedName: qn, name: em.Name, schemaSource: src, elementCount: len(em.Elements)})
 	}
 
-	if len(rows) == 0 {
+	if len(rows) == 0 && ctx.Format != FormatJSON {
 		if inModule != "" {
 			fmt.Fprintf(ctx.Output, "No export mappings found in module %s\n", inModule)
 		} else {

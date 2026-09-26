@@ -41,7 +41,7 @@ func listDataTransformers(ctx *ExecContext, moduleName string) error {
 		rows = append(rows, []any{qn, modName, dt.Name, dt.SourceType, steps})
 	}
 
-	if len(rows) == 0 {
+	if len(rows) == 0 && ctx.Format != FormatJSON {
 		fmt.Fprintln(ctx.Output, "No data transformers found.")
 		return nil
 	}

@@ -36,6 +36,20 @@ func writeResult(ctx *ExecContext, r *TableResult) error {
 	return nil
 }
 
+// writeEmptyResult reports a query that matched nothing. In text mode that is
+// the sentence a person expects ("(no references found)"); in JSON mode it is
+// an empty array, with the sentence moved to the progress stream. An empty
+// answer is exactly the case a caller must be able to parse — a sentence there
+// reads as a corrupt payload rather than as "no".
+func writeEmptyResult(ctx *ExecContext, columns []string, message string) error {
+	if ctx.Format != FormatJSON {
+		fmt.Fprintln(ctx.Output, message)
+		return nil
+	}
+	fmt.Fprintln(ctx.progress(), message)
+	return writeResultJSON(ctx, &TableResult{Columns: columns})
+}
+
 // writeResultTable renders a TableResult as a pipe-delimited markdown table.
 func writeResultTable(ctx *ExecContext, r *TableResult) {
 	if len(r.Columns) == 0 {
