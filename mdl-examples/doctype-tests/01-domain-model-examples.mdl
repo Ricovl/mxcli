@@ -43,15 +43,15 @@ create module DmTest;
  * Basic enumeration with identifier and caption.
  */
 create enumeration DmTest.OrderStatus (
-  /** Order received, awaiting processing */
+  -- Order received, awaiting processing
   PENDING 'Pending',
-  /** Order is being processed */
+  -- Order is being processed
   PROCESSING 'Processing',
-  /** Order has been shipped */
+  -- Order has been shipped
   SHIPPED 'Shipped',
-  /** Order delivered to customer */
+  -- Order delivered to customer
   DELIVERED 'Delivered',
-  /** Order was cancelled */
+  -- Order was cancelled
   CANCELLED 'Cancelled'
 );
 /
@@ -60,13 +60,13 @@ create enumeration DmTest.OrderStatus (
  * Priority levels for tasks.
  */
 create enumeration DmTest.Priority (
-  /** Low priority task */
+  -- Low priority task
   LOW 'Low',
-  /** Medium priority task */
+  -- Medium priority task
   MEDIUM 'Medium',
-  /** High priority task */
+  -- High priority task
   HIGH 'High',
-  /** Critical priority - immediate attention required */
+  -- Critical priority - immediate attention required
   critical 'Critical'
 );
 /
@@ -80,15 +80,15 @@ create enumeration DmTest.Priority (
  * Identifiers use internal codes, captions show user-friendly text.
  */
 create enumeration DmTest.PaymentMethod (
-  /** Credit card payment */
+  -- Credit card payment
   CC 'Credit Card',
-  /** Debit card payment */
+  -- Debit card payment
   DC 'Debit Card',
-  /** PayPal payment */
+  -- PayPal payment
   PP 'PayPal',
-  /** Bank transfer payment */
+  -- Bank transfer payment
   BT 'Bank Transfer',
-  /** Cash on delivery */
+  -- Cash on delivery
   COD 'Cash on Delivery'
 );
 /
@@ -97,19 +97,19 @@ create enumeration DmTest.PaymentMethod (
  * Country codes with full names as captions.
  */
 create enumeration DmTest.Country (
-  /** United States */
+  -- United States
   US 'United States',
-  /** United Kingdom */
+  -- United Kingdom
   UK 'United Kingdom',
-  /** Germany */
+  -- Germany
   DE 'Germany',
-  /** France */
+  -- France
   FR 'France',
-  /** Netherlands */
+  -- Netherlands
   NL 'Netherlands',
-  /** Japan */
+  -- Japan
   JP 'Japan',
-  /** Australia */
+  -- Australia
   AU 'Australia'
 );
 /
@@ -118,9 +118,9 @@ create enumeration DmTest.Country (
  * User roles with descriptive captions.
  */
 create enumeration DmTest.UserRole (
-  /** Full system administrator */
+  -- Full system administrator
   ADMIN 'Administrator',
-  /** Department manager */
+  -- Department manager
   MANAGER 'Manager'
 );
 
@@ -128,15 +128,15 @@ create enumeration DmTest.UserRole (
  * User roles with descriptive captions.
  */
 create or modify enumeration DmTest.UserRole (
-  /** Full system administrator */
+  -- Full system administrator
   ADMIN 'Administrator',
-  /** Department manager */
+  -- Department manager
   MANAGER 'Manager',
-  /** Regular user */
+  -- Regular user
   "user" 'Standard User',
-  /** Guest with limited access */
+  -- Guest with limited access
   guest 'Guest',
-  /** Service account for API access */
+  -- Service account for API access
   service 'API Service Account'
 );
 /
@@ -227,8 +227,8 @@ create persistent entity DmTest.Product (
   TotalUnitsProduced: long default 0,
   /** Whether product is available for sale */
   IsActive: boolean default true,
-  /** Date product was released (Date only, no time) */
-  ReleaseDate: date,
+  /** Date product was released (Mendix has no date-only type; a DateTime) */
+  ReleaseDate: datetime,
   /** Timestamp of creation (DateTime with time) */
   CreatedAt: datetime,
   /** Timestamp of last modification */

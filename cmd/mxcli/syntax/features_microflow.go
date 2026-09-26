@@ -153,7 +153,7 @@ func init() {
 
 	Register(SyntaxFeature{
 		Path:    "microflow.error-handling",
-		Summary: "Error handling with ON ERROR, THROW, CONTINUE, ROLLBACK",
+		Summary: "Error handling with ON ERROR, RAISE ERROR, CONTINUE, ROLLBACK",
 		Keywords: []string{
 			"error", "error handling", "on error", "continue",
 			"rollback", "throw", "exception", "try", "catch",
@@ -164,6 +164,10 @@ func init() {
 			"-- DECLARE, SET, CREATE, CHANGE, COMMIT, DELETE, RETRIEVE, every CALL,\n" +
 			"-- LOG, SHOW PAGE, CLOSE PAGE, SHOW MESSAGE, VALIDATION FEEDBACK,\n" +
 			"-- SYNCHRONIZE, DOWNLOAD FILE and the mapping/REST statements.\n" +
+			"--\n" +
+			"-- RAISE ERROR ends a handler with an error end event, re-raising the error\n" +
+			"-- being handled. There is no THROW <expr>: Mendix has no action that raises\n" +
+			"-- a new error carrying a value, and THROW is refused (it used to be dropped).\n" +
 			"--\n" +
 			"-- Two limits, both enforced rather than silently ignored:\n" +
 			"--\n" +
@@ -180,7 +184,7 @@ func init() {
 			"-- there in EVERY form, and are refused: a nanoflow activity aborts the\n" +
 			"-- flow on error by default and has no transaction to roll back.\n" +
 			"--\n" +
-			"-- A handler that does NOT end in RETURN/THROW merges back into the main\n" +
+			"-- A handler that does NOT end in RETURN/RAISE ERROR merges back into the main\n" +
 			"-- flow, so a variable created after the merge is out of scope on the error\n" +
 			"-- path (CE0108). End the handler, or expect that.\n" +
 			"--\n" +
@@ -285,7 +289,7 @@ func init() {
 			"--               owns its own object collection and a sequence flow cannot\n" +
 			"--               leave it, so there is no graph this could build.\n" +
 			"--\n" +
-			"-- A path that has already ended (RETURN, THROW, JOIN) does NOT fall\n" +
+			"-- A path that has already ended (RETURN, RAISE ERROR, JOIN) does NOT fall\n" +
 			"-- through into a following MERGE — the merge starts a new path.",
 		Example: "CREATE MICROFLOW M.Post (Payload: String) RETURNS String\n" +
 			"BEGIN\n" +

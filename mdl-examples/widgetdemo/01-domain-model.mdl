@@ -48,9 +48,8 @@ create non-persistent entity WidgetDemo.Helper (
   attribute: enumeration(WidgetDemo.ENUM_Category) default WidgetDemo.ENUM_Category.GENERAL
 );
 
-create association WidgetDemo.Helper_DemoItem (
-  from WidgetDemo.Helper to WidgetDemo.DemoItem,
-  type: ReferenceSet
-);
+create association WidgetDemo.Helper_DemoItem
+  from WidgetDemo.Helper to WidgetDemo.DemoItem
+  type ReferenceSet;
 
 grant WidgetDemo.user on WidgetDemo.DemoItem (create, delete, read *, write *);
