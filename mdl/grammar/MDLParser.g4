@@ -146,16 +146,17 @@ alterStatement
     | ALTER ODATA SERVICE qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
     | ALTER STYLING ON (PAGE | SNIPPET) qualifiedName WIDGET IDENTIFIER alterStylingAction+
     | ALTER SETTINGS alterSettingsClause
-    | ALTER PAGE qualifiedName LBRACE alterPageOperation+ RBRACE
+    // The generic ALTER (ADR-0012 decision 2): one patch grammar for every
+    // document type — `alter <type> Module.Name { set / insert / replace / drop }`.
+    // The document type chooses how a target is resolved (a per-type
+    // backend.AlterTargetResolver) and what a fragment is written in (exactly the
+    // `create` syntax of that type). A layout's widget tree is a page's with four
+    // extra element types, so SET/INSERT/DROP/REPLACE mean exactly the same thing
+    // there; a scroll-container region is addressed as `layoutContainer.top`,
+    // because a region has no Name of its own.
+    | ALTER alterDocumentType qualifiedName LBRACE alterOperation+ RBRACE
     | alterPagesLayoutStatement
     | alterPagesStylingStatement
-    // ALTER LAYOUT reuses alterPageOperation wholesale: a layout's widget tree is
-    // a page's widget tree with four extra element types, so SET/INSERT/DROP/
-    // REPLACE mean exactly the same thing. A scroll-container region is addressed
-    // through the dotted widgetRef the grammar already has — `layoutContainer.top`
-    // — because a region has no Name of its own.
-    | ALTER LAYOUT qualifiedName LBRACE alterPageOperation+ RBRACE
-    | ALTER SNIPPET qualifiedName LBRACE alterPageOperation+ RBRACE
     | ALTER WORKFLOW qualifiedName alterWorkflowAction+ SEMICOLON?
     | alterMessageDefinitionCollectionStatement
     | alterMessageDefinitionStatement
@@ -212,55 +213,85 @@ alterStylingAssignment
     ;
 
 /**
- * ALTER PAGE operations for modifying widget trees in-place.
+ * The generic ALTER's operations (ADR-0012 decision 2, ako/mxcli#712).
  *
- * @example Set property on widget
+ * Canonical form, the same for every document type:
+ *
  * ```mdl
- * ALTER PAGE Module.Page {
- *   SET Caption = 'Save' ON btnSave
+ * alter page Module.Page {
+ *   set (Caption: 'Save', ButtonStyle: Success) on btnSave;
+ *   set (Title: 'Edit order');                       -- the document itself
+ *   insert after txtName { textbox txtNew (Label: 'New', Attribute: Attr) }
+ *   insert into ctnMain { … }
+ *   replace footer1 with { footer f1 { … } }
+ *   drop txtOld, dgOrders.Total;
  * }
  * ```
  *
- * @example Insert widget after another
- * ```mdl
- * ALTER PAGE Module.Page {
- *   INSERT AFTER txtName { TEXTBOX txtNew (Label: 'New', Binds: Attr) }
- * }
- * ```
+ * Alternatives marked `alias:` are the old page spellings. They still parse to
+ * the identical operation and warn with the named deprecation code; the table
+ * that maps each code to its rewrite is mdl/executor/alter_aliases.go, and a
+ * test fails when a marker here has no entry there (or the reverse).
  *
- * @example Drop widgets
- * ```mdl
- * ALTER PAGE Module.Page {
- *   DROP WIDGET txtOld, txtUnused
- * }
- * ```
- *
- * @example Replace widget subtree
- * ```mdl
- * ALTER PAGE Module.Page {
- *   REPLACE footer1 WITH { FOOTER f1 { ACTIONBUTTON btn1 (Caption: 'OK', Action: SAVE_CHANGES) } }
- * }
- * ```
+ * Page-family operations that have no generic spelling yet (`set layout = … map`,
+ * `drop template for … in …`, `add variables`, `drop variables`) keep their own
+ * form inside the generic block; they are not aliases.
  */
-alterPageOperation
-    : alterPageSet SEMICOLON?
-    | alterPageInsert SEMICOLON?
-    | alterPageDrop SEMICOLON?
+alterDocumentType
+    : PAGE
+    | SNIPPET
+    | LAYOUT
+    ;
+
+alterOperation
+    : alterSet SEMICOLON?
+    | alterInsert SEMICOLON?
+    | alterReplace SEMICOLON?
+    | alterDrop SEMICOLON?
     | alterPageDropTemplate SEMICOLON?
-    | alterPageReplace SEMICOLON?
     | alterPageAddVariable SEMICOLON?
     | alterPageDropVariable SEMICOLON?
     ;
 
-alterPageSet
+alterSet
     : SET LAYOUT EQUALS qualifiedName (MAP LPAREN alterLayoutMapping (COMMA alterLayoutMapping)* RPAREN)?  // SET Layout = Atlas_Core.TopBar MAP (Main AS Content)
-    | SET alterPageAssignment ON widgetRef                             // SET Caption = 'Save' ON btnSave  |  ON dgProducts.Name
-    | SET LPAREN alterPageAssignment (COMMA alterPageAssignment)* RPAREN ON widgetRef  // SET (Caption = 'Save', ButtonStyle = Success) ON btnSave
-    | SET alterPageAssignment                                                    // SET Title = 'Edit' (page-level)
+    | SET LPAREN alterPageAssignment (COMMA alterPageAssignment)* RPAREN (ON alterTarget)?  // set (Caption: 'Save', ButtonStyle: Success) on btnSave
+    | SET alterPageAssignment (ON alterTarget)?     // alias: MDL-DEPR102 — set Caption: 'Save' on btnSave
     ;
 
 alterLayoutMapping
     : identifierOrKeyword AS identifierOrKeyword                                // OldPlaceholder AS NewPlaceholder
+    ;
+
+alterInsert
+    : INSERT (AFTER | BEFORE | INTO) alterTarget alterFragment   // INTO appends as children of a container
+    ;
+
+alterReplace
+    : REPLACE alterTarget WITH alterFragment
+    ;
+
+alterDrop
+    : DROP alterTarget (COMMA alterTarget)*
+    | DROP WIDGET alterTarget (COMMA alterTarget)*   // alias: MDL-DEPR103 — drop widget a, b
+    ;
+
+// A fragment is written exactly as `create` writes the same content. Only the
+// page family is on the generic path so far; a workflow's body joins here when
+// ALTER WORKFLOW is ported.
+alterFragment
+    : LBRACE pageBodyV3 RBRACE
+    ;
+
+// The one address syntax every document type shares. Which forms a type
+// accepts is its resolver's call, not the grammar's: a page element is
+// addressed by name (`btnSave`, `dgProducts.Name`, `layoutContainer.top`);
+// elements with no name are addressed by content (`'Approve order'`). `@n`
+// picks one of several matches — an ambiguous address is an error that lists
+// them, never a guess.
+alterTarget
+    : identifierOrKeyword (DOT identifierOrKeyword)? (AT NUMBER_LITERAL)?
+    | STRING_LITERAL (AT NUMBER_LITERAL)?
     ;
 
 // ALTER PAGES [IN <module>] SET LAYOUT = Module.Layout [MAP (...)] [WHERE LAYOUT = Module.Old]
@@ -309,11 +340,18 @@ alterPagesStylingAssignment
     | STRING_LITERAL EQUALS OFF                    // 'Striped' = OFF
     ;
 
+// `Key: value` is canonical (R3: `:` binds a property, `=` compares). `=` is
+// the old spelling, still accepted.
+alterAssignOp
+    : COLON
+    | EQUALS   // alias: MDL-DEPR101 — set (Caption = 'Save') / set Caption = 'Save'
+    ;
+
 alterPageAssignment
-    : DATASOURCE EQUALS dataSourceExprV3               // DataSource = SELECTION widgetName
-    | ACTION EQUALS actionExprV3                       // Action = MICROFLOW Module.MF | SHOW_PAGE Module.Page | SAVE_CHANGES CLOSE_PAGE
-    | VISIBLE EQUALS xpathConstraint                   // Visible = [Name != ''] (conditional visibility)
-    | EDITABLE EQUALS xpathConstraint                  // Editable = [Status = 'Open'] (conditional editability)
+    : DATASOURCE alterAssignOp dataSourceExprV3               // DataSource: selection widgetName
+    | ACTION alterAssignOp actionExprV3                       // Action: MICROFLOW Module.MF | SHOW_PAGE Module.Page | SAVE_CHANGES CLOSE_PAGE
+    | VISIBLE alterAssignOp xpathConstraint                   // Visible: [Name != ''] (conditional visibility)
+    | EDITABLE alterAssignOp xpathConstraint                  // Editable: [Status = 'Open'] (conditional editability)
     // A pluggable widget's NAMED action slot, addressed by the widget's own key:
     // `set 'createFileAction' = microflow M.F on fileUploader1`. The ALTER-level
     // twin of widgetPropertyV3's `key: actionExprV3` (#956); without it the value
@@ -324,27 +362,17 @@ alterPageAssignment
     // no datasource overlap to yield to, since DataSource is its own alternative.
     // Whether the key IS an action slot is the stored widget's call, not the
     // grammar's — the mutator refuses one that is not.
-    | STRING_LITERAL EQUALS actionExprV3                // 'createFileAction' = MICROFLOW Module.MF
-    | identifierOrKeyword EQUALS actionExprV3           // createFileAction = MICROFLOW Module.MF
-    | identifierOrKeyword EQUALS propertyValueV3       // Caption = 'Save'
-    | STRING_LITERAL EQUALS propertyValueV3             // 'showLabel' = false
-    | identifierOrKeyword EQUALS expression             // DynamicClasses = if $x/F then 'a' else '' (see widgetPropertyV3)
-    ;
-
-alterPageInsert
-    : INSERT AFTER widgetRef LBRACE pageBodyV3 RBRACE
-    | INSERT BEFORE widgetRef LBRACE pageBodyV3 RBRACE
-    | INSERT INTO widgetRef LBRACE pageBodyV3 RBRACE   // append as children of a container
-    ;
-
-alterPageDrop
-    : DROP WIDGET widgetRef (COMMA widgetRef)*
+    | STRING_LITERAL alterAssignOp actionExprV3                // 'createFileAction': microflow Module.MF
+    | identifierOrKeyword alterAssignOp actionExprV3           // createFileAction: microflow Module.MF
+    | identifierOrKeyword alterAssignOp propertyValueV3       // Caption: 'Save'
+    | STRING_LITERAL alterAssignOp propertyValueV3             // 'showLabel': false
+    | identifierOrKeyword alterAssignOp expression             // DynamicClasses: if $x/F then 'a' else '' (see widgetPropertyV3)
     ;
 
 // DROP TEMPLATE FOR Module.Specialization IN listViewName
 //
 // A List View specialization template has no name — the entity it renders is
-// what identifies it — so it cannot be reached through widgetRef like every
+// what identifies it — so it cannot be reached through alterTarget like every
 // other DROP target. Naming the list view is required, not optional: one page
 // can hold two list views with a template for the same entity.
 //
@@ -352,17 +380,7 @@ alterPageDrop
 // `INSERT INTO <listview> { template for Module.Entity { ... } }`, which reuses
 // the same block as CREATE PAGE, so a template has one spelling everywhere.
 alterPageDropTemplate
-    : DROP TEMPLATE FOR qualifiedName IN widgetRef
-    ;
-
-alterPageReplace
-    : REPLACE widgetRef WITH LBRACE pageBodyV3 RBRACE
-    ;
-
-// Widget reference: plain name (btnSave) or dotted path (dgProducts.Name)
-widgetRef
-    : identifierOrKeyword DOT identifierOrKeyword    // dgProducts.Name (column ref)
-    | identifierOrKeyword                            // btnSave (widget ref)
+    : DROP TEMPLATE FOR qualifiedName IN alterTarget
     ;
 
 alterPageAddVariable

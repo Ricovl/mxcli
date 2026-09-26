@@ -57,6 +57,13 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 	modName := h.GetModuleName(containerID)
 
 	for _, op := range s.Operations {
+		// Every target resolves through the document type's resolver before the
+		// operation runs (ADR-0012): what an address means is answered once,
+		// per document type, and a miss or an ambiguity stops the statement
+		// before anything changes.
+		if err := resolveAlterPageTargets(mutator, op); err != nil {
+			return mdlerrors.NewBackend("resolve "+strings.ToLower(containerType)+" target", err)
+		}
 		switch o := op.(type) {
 		case *ast.SetPropertyOp:
 			if err := applySetPropertyMutator(ctx, mutator, o, modName, containerID); err != nil {
@@ -108,6 +115,53 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 	}
 
 	fmt.Fprintf(ctx.Output, "Altered %s %s\n", strings.ToLower(containerType), s.PageName.String())
+	return nil
+}
+
+// alterTargetOf converts an operation's target, as the visitor recorded it,
+// into the backend's document-independent address.
+func alterTargetOf(r ast.WidgetRef) backend.AlterTarget {
+	t := backend.AlterTarget{Caption: r.Caption, Ordinal: r.Ordinal}
+	if r.Caption == "" {
+		t.Path = []string{r.Widget}
+		if r.Column != "" {
+			t.Path = append(t.Path, r.Column)
+		}
+	}
+	return t
+}
+
+// alterPageOperationTargets lists the targets an operation addresses, in the
+// order it names them. A page-level SET and the variable and layout operations
+// address the document itself and have none.
+func alterPageOperationTargets(op ast.AlterPageOperation) []ast.WidgetRef {
+	switch o := op.(type) {
+	case *ast.SetPropertyOp:
+		if o.Target.Widget == "" && o.Target.Caption == "" {
+			return nil
+		}
+		return []ast.WidgetRef{o.Target}
+	case *ast.InsertWidgetOp:
+		return []ast.WidgetRef{o.Target}
+	case *ast.ReplaceWidgetOp:
+		return []ast.WidgetRef{o.Target}
+	case *ast.DropWidgetOp:
+		return o.Targets
+	case *ast.DropListViewTemplateOp:
+		return []ast.WidgetRef{{Widget: o.ListView}}
+	}
+	return nil
+}
+
+// resolveAlterPageTargets resolves every target of one operation. A drop's
+// targets are resolved together up front: an unresolvable second target then
+// refuses the whole drop instead of leaving the first one dropped.
+func resolveAlterPageTargets(resolver backend.AlterTargetResolver, op ast.AlterPageOperation) error {
+	for _, ref := range alterPageOperationTargets(op) {
+		if _, err := resolver.ResolveAlterTarget(alterTargetOf(ref)); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
