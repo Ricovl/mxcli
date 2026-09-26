@@ -5,7 +5,11 @@
 // associations, enumerations, and view entities.
 package ast
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/langver"
+)
 
 // Statement represents any MDL statement that can be executed.
 type Statement interface {
@@ -53,6 +57,26 @@ type Program struct {
 	// next to knownActivityAnnotations, instead of being spread across the seven
 	// visitor sites that read them.
 	DocumentAnnotations []DocumentAnnotation
+
+	// LanguageVersion is the MDL language version the script is written in:
+	// the number in its `mdl <n>;` header, or mdl 0 when it has none
+	// (ADR-0011). A construct whose meaning differs between versions reads it
+	// through langver.Change; nothing may assume the latest.
+	LanguageVersion langver.Version
+	// LanguageHeaderLine is the 1-based line of the header, 0 when the script
+	// has none.
+	LanguageHeaderLine int
+	// LanguageNotes are the constructs kept at their older meaning because of
+	// LanguageVersion, one per occurrence, for check and exec to warn on.
+	LanguageNotes []LanguageNote
+}
+
+// LanguageNote is one construct whose meaning depends on the language version,
+// kept at the meaning of the version the script is written in.
+type LanguageNote struct {
+	Line    int    // 1-based source line of the construct
+	Code    string // the langver.Change's rule ID
+	Message string
 }
 
 // DocumentAnnotation is one annotation written before a CREATE statement.

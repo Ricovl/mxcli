@@ -12,6 +12,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/catalog"
 	"github.com/mendixlabs/mxcli/mdl/diaglog"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/model"
 	sqllib "github.com/mendixlabs/mxcli/sql"
 )
@@ -133,6 +134,13 @@ type ExecContext struct {
 	// exactly how the toolbox-bitmap example broke the doctype harness, whose
 	// working directory is the package under test.
 	ScriptDir string
+
+	// LanguageVersion is the `mdl <n>;` header of the script being run, mdl 0
+	// when it has none or when the statement is not from a script (ADR-0011).
+	// A handler whose meaning depends on it declares a langver.Change and
+	// branches on Change.Applies(ctx.LanguageVersion); it never assumes the
+	// latest version.
+	LanguageVersion langver.Version
 }
 
 // ResolveScriptRelative turns a path written inside an MDL script into an

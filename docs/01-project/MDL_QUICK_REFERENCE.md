@@ -4,6 +4,15 @@ Complete syntax reference for MDL (Mendix Definition Language). This is the auth
 
 For task-specific guidance, see the skill files listed in [CLAUDE.md](../CLAUDE.md#important-before-writing-mdl-scripts-or-working-with-data).
 
+## Language header — `mdl <n>;`
+
+An optional first statement naming the MDL language version the script is written in. No header is `mdl 0` (alpha meaning; constructs whose meaning differs under `mdl 1` keep the old meaning and warn). `mdl 1;` is a preview until beta: it warns `MDL-LANG01` and `describe`/`fmt` do not emit it. Unknown versions are refused. Independent of the Mendix target version ([ADR-0011](../13-decisions/0011-mdl-language-versioning.md)).
+
+```sql
+mdl 1;
+create persistent entity Sales.Customer ( Name: String(200) );
+```
+
 ## DESCRIBE — type is optional
 
 Every `describe <type> Module.Name` statement also accepts a **bare** form with the type omitted — `describe Module.Name` — and the document type is auto-detected from the project (via the catalog `objects` index, built on demand). Use it anywhere: the REPL, `exec` scripts, and `mxcli describe Module.Name`.

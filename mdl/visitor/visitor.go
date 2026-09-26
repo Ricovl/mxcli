@@ -12,6 +12,7 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/types"
 )
 
@@ -112,6 +113,14 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 	// branch below (and the fall-through) shows the tamer form.
 	msg = simplifyExpecting(msg)
 
+	// A language header anywhere but first. It declares the rules the whole
+	// script is read under, so it cannot switch them part-way (ADR-0011).
+	if langver.IsHeaderLine(offendingLine) {
+		return fmt.Sprintf("%s\n\n  The language header `mdl <n>;` must be the first statement of a script:\n"+
+			"  it declares the language version the whole script is written in.\n"+
+			"    mdl 1;\n"+
+			"    create entity Shop.Customer ( Name: String(200) );   (correct)", msg)
+	}
 	// A bare `not $x` — Mendix requires `not(expr)`. The parse error surfaces
 	// downstream (e.g. "missing THEN at '$x'"), so key off the source line, which
 	// is unambiguous for `not $…`. (sudoku findings #3)
@@ -478,6 +487,13 @@ type Builder struct {
 	// layoutBracedPlaceholders collects the braced placeholder names seen while
 	// inLayout, at any depth, for the checker to report.
 	layoutBracedPlaceholders []string
+
+	// langVersion is the script's `mdl <n>;` header, mdl 0 without one. The
+	// header can only be the first statement, so it is set before any
+	// construct that depends on it is visited. See gate.
+	langVersion    langver.Version
+	langHeaderLine int
+	langNotes      []ast.LanguageNote
 }
 
 // NewBuilder creates a new AST builder.
@@ -512,6 +528,12 @@ func collectLeafTokens(tree antlr.Tree, tokens *[]string) {
 
 // Build parses the input and returns the AST program.
 func Build(input string) (*ast.Program, []error) {
+	return build(input, func(b *Builder) antlr.ParseTreeListener { return b })
+}
+
+// build is Build with the tree walked by listen(builder) instead of the
+// builder itself, so a test can observe the walk through a wrapper.
+func build(input string, listen func(*Builder) antlr.ParseTreeListener) (*ast.Program, []error) {
 	// Create custom error listener to capture syntax errors
 	errListener := newErrorListener()
 	errListener.source = strings.Split(input, "\n")
@@ -531,13 +553,16 @@ func Build(input string) (*ast.Program, []error) {
 	// Create builder and walk the tree
 	builder := NewBuilder()
 	tree := p.Program()
-	antlr.ParseTreeWalkerDefault.Walk(builder, tree)
+	antlr.ParseTreeWalkerDefault.Walk(listen(builder), tree)
 
 	// Combine syntax errors and builder errors
 	allErrors := append(errListener.errors, builder.errors...)
 	return &ast.Program{
 		Statements:          builder.statements,
 		DocumentAnnotations: builder.documentAnnotations,
+		LanguageVersion:     builder.langVersion,
+		LanguageHeaderLine:  builder.langHeaderLine,
+		LanguageNotes:       builder.langNotes,
 	}, allErrors
 }
 

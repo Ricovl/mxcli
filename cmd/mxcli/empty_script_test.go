@@ -36,6 +36,10 @@ func TestGenuinelyEmptyInputIsStillAccepted(t *testing.T) {
 		"whitespace":       "   \n\n\t\n",
 		"comments only":    "-- set up the domain model\n-- (nothing yet)\n",
 		"comments + blank": "\n-- TODO\n\n",
+		// A language header declares a version and nothing else (ADR-0011);
+		// a script of only a header is empty, not unparsable.
+		"header only":       "mdl 1;\n",
+		"header + comments": "-- slice 1\nmdl 1;\n-- nothing yet\n",
 	} {
 		if _, bad := unparsableInput(src, 0); bad {
 			t.Errorf("%s: refused, but it is a legitimately empty script", name)
