@@ -186,7 +186,7 @@ func TestCreateOrReplaceMatchesModifyExceptExemptKinds(t *testing.T) {
 				t.Errorf("exempt, but `or replace` and `or modify` build the same statements: " +
 					"it is an alias after all — remove the exemption")
 			case !exempt && !same:
-				t.Errorf("`or replace` and `or modify` build different statements, so rewriting one " +
+				t.Errorf("`or replace` and `or modify` build different statements, so rewriting one "+
 					"to the other changes the script — exempt this kind or fix the visitor:\n"+
 					" replace: %#v\n modify:  %#v", rep.Statements, mod.Statements)
 			}
@@ -218,7 +218,30 @@ func TestShowRecordsDeprecation(t *testing.T) {
 		{"show entities;", []string{deprecation.Show}},
 		{"SHOW MICROFLOWS IN M;", []string{deprecation.Show}},
 		{"show callers of M.MF transitive;", []string{deprecation.Show}},
-		{"show version;", []string{deprecation.Show}},
+		{"show catalog tables;", []string{deprecation.Show}},
+		{"show access on M.E;", []string{deprecation.Show}},
+		{"show design properties;", []string{deprecation.Show}},
+		{"show widgets;", []string{deprecation.Show}},
+		// Not reported: the decided canonical form of these is NOT `list`
+		// (PROPOSAL_mdl_beta_syntax_freeze.md §3, R6). Single things become
+		// `describe`, session state a REPL command, so `list entity M.E` or
+		// `list version` would name a non-canonical form and make
+		// `fmt --upgrade` rewrite them twice.
+		{"show entity M.E;", nil},
+		{"show association M.A;", nil},
+		{"show page M.P;", nil},
+		{"show navigation;", nil},
+		{"show navigation homes;", nil},
+		{"show navigation menu M.Nav;", nil},
+		{"show structure depth 2 in M;", nil},
+		{"show context of M.MF;", nil},
+		{"show project security;", nil},
+		{"show security matrix in M;", nil},
+		{"show settings;", nil},
+		{"show version;", nil},
+		{"show status;", nil},
+		{"show connections;", nil},
+		{"show catalog status;", nil},
 		{"list entities;", nil},
 		{"describe entity M.E;", nil},
 		// Not the statement keyword: microflow activities spelled `show`.

@@ -61,10 +61,57 @@ func (b *Builder) recordCreateOrReplace(ctx *parser.CreateStatementContext) {
 	b.recordDeprecation(deprecation.CreateOrReplace, ctx.REPLACE().GetSymbol(), kind)
 }
 
-// ExitShowOrList records MDL-DEPR002 for `show`. showOrList is used only by
-// showStatement, where `show` and `list` build the same statement.
+// showNotYetList lists the showStatement forms whose decided canonical form is
+// NOT `list` (PROPOSAL_mdl_beta_syntax_freeze.md §3, R6): a single thing
+// becomes `describe`, session state a REPL command. Keyed on the token after
+// `show` (CATALOG only with STATUS, see showCanonicalIsList). `list` builds the
+// same statement for these today, but it is not their canonical form, so
+// recommending it would name the wrong form and make `fmt --upgrade` rewrite
+// them twice. They get their own registry entries once the canonical forms
+// exist (plan item 3.5). Pinned by TestShowRecordsDeprecation.
+var showNotYetList = map[int]bool{
+	parser.MDLParserENTITY:      true, // show entity X      -> describe entity X
+	parser.MDLParserASSOCIATION: true, // show association X -> describe association X
+	parser.MDLParserPAGE:        true, // show page X        -> describe page X
+	parser.MDLParserNAVIGATION:  true, // show navigation …  -> describe navigation
+	parser.MDLParserSTRUCTURE:   true, // show structure     -> describe structure
+	parser.MDLParserCONTEXT:     true, // show context of X  -> describe context of X
+	parser.MDLParserPROJECT:     true, // show project security -> describe app security
+	parser.MDLParserSECURITY:    true, // show security matrix  -> describe security matrix
+	parser.MDLParserSETTINGS:    true, // show settings      -> describe (one thing)
+	parser.MDLParserVERSION:     true, // session state      -> REPL command (R7)
+	parser.MDLParserSTATUS:      true, // session state      -> REPL command (R7)
+	parser.MDLParserCONNECTIONS: true, // session state      -> REPL command (R7)
+}
+
+// showCanonicalIsList reports whether the showStatement that ctx starts is a
+// form whose canonical spelling is `list` (plurals and relationship queries).
+func showCanonicalIsList(ctx *parser.ShowOrListContext) bool {
+	stmt, ok := ctx.GetParent().(*parser.ShowStatementContext)
+	if !ok || stmt.GetChildCount() < 2 {
+		return true
+	}
+	next := func(i int) int {
+		if i >= stmt.GetChildCount() {
+			return antlr.TokenInvalidType
+		}
+		if tn, ok := stmt.GetChild(i).(antlr.TerminalNode); ok {
+			return tn.GetSymbol().GetTokenType()
+		}
+		return antlr.TokenInvalidType
+	}
+	first := next(1)
+	if first == parser.MDLParserCATALOG {
+		return next(2) != parser.MDLParserSTATUS // catalog status is session state
+	}
+	return !showNotYetList[first]
+}
+
+// ExitShowOrList records MDL-DEPR002 for `show` where its canonical form is
+// `list`. showOrList is used only by showStatement, where `show` and `list`
+// build the same statement.
 func (b *Builder) ExitShowOrList(ctx *parser.ShowOrListContext) {
-	if ctx == nil || ctx.SHOW() == nil {
+	if ctx == nil || ctx.SHOW() == nil || !showCanonicalIsList(ctx) {
 		return
 	}
 	b.recordDeprecation(deprecation.Show, ctx.SHOW().GetSymbol(), "")

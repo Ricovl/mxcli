@@ -100,10 +100,11 @@ var entries = []Entry{
 		Canonical: "list …",
 		Rewrite:   Rewrite{Token: "show", Replacement: "list"},
 		RemovedIn: 2,
-		Note: "`list` is the same statement today. Forms that name a single thing " +
-			"(`show entity X`, `show navigation`, …) are expected to move on to " +
-			"`describe`, and session state (`show version`, `show status`) to REPL " +
-			"commands, in a later consolidation.",
+		Note: "Reported only for plurals and relationship queries, whose canonical " +
+			"form is `list`. Forms that name a single thing (`show entity X`, " +
+			"`show navigation`, `show project security`, …) become `describe`, and " +
+			"session state (`show version`, `show status`) a REPL command; they are " +
+			"not reported until those forms exist.",
 		Example:          "show entities in M;",
 		CanonicalExample: "list entities in M;",
 	},

@@ -155,7 +155,7 @@ line 1: `create or replace …` (enumeration) is deprecated; write `create or mo
 
 `check` and `exec` report these as **warnings**. To fail the run on one, for example in CI over documentation and examples, pass `--deprecations=error`.
 
-The registry of deprecated spellings is `mdl/deprecation/deprecation.go`. It holds the code, old form, canonical form, rewrite and removal version of each entry. A spelling is only registered where it means exactly the same as its canonical form. `create or replace view entity`, for example, drops and recreates the view entity, so it is not reported.
+The registry of deprecated spellings is `mdl/deprecation/deprecation.go`. It holds the code, old form, canonical form, rewrite and removal version of each entry. A spelling is only registered where it means exactly the same as its canonical form. `create or replace view entity`, for example, drops and recreates the view entity, so it is not reported. Likewise `show` is reported only where its canonical form is `list` (plurals and relationship queries); `show entity X` or `show version` is not, because it becomes `describe` or a REPL command, not `list`.
 
 ## mxcli Parser Errors
 
