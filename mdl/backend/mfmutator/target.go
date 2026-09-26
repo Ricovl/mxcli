@@ -363,8 +363,17 @@ func restResultVariable(rh microflows.ResultHandling) string {
 
 // normalizeStatement folds a rendered statement onto one line: describe breaks
 // long expressions across lines, and a handle has to fit in a comment.
+//
+// A rendering that is an MDL line comment — what describe prints for an
+// activity it cannot render — is no statement: it would make a handle the
+// lexer swallows, and a pattern that matches it matches nothing a reader can
+// write. Such an activity is addressed by its variable or caption, or listed
+// in an ambiguity error, never by pattern.
 func normalizeStatement(s string) string {
 	s = strings.Join(strings.Fields(s), " ")
+	if strings.HasPrefix(s, "--") {
+		return ""
+	}
 	return strings.TrimSpace(strings.TrimSuffix(s, ";"))
 }
 

@@ -307,3 +307,26 @@ func TestOutputVariable_EveryActionDescribePrintsAnAssignmentFor(t *testing.T) {
 	}
 }
 
+// Describe prints an activity it cannot render as an MDL line comment. That
+// comment is not a statement: as a handle it would be swallowed by the lexer
+// in the `alter microflow` it is pasted into, and `*` must not match it.
+func TestCandidate_CommentRenderingIsNoStatement(t *testing.T) {
+	a := &microflows.ActionActivity{Action: &microflows.UnknownAction{TypeName: "Foo"}}
+	a.ID = "unknown"
+	a.AutoGenerateCaption = true
+	c, ok := NewCandidate(a, func(microflows.MicroflowObject) string { return "-- Unsupported action type: Foo" })
+	if !ok {
+		t.Fatal("an action activity is addressable")
+	}
+	c.SetPrinted("-- Unsupported action type: Foo")
+	if c.Statement != "" || len(c.Alternates) != 0 {
+		t.Errorf("statement %q, alternates %q: want none", c.Statement, c.Alternates)
+	}
+	cands := []Candidate{c}
+	if h := Handle(cands, 0); h != "" {
+		t.Errorf("handle %q, want none", h)
+	}
+	if _, err := ResolveText(cands, "*"); err == nil {
+		t.Error("* matched a comment")
+	}
+}
