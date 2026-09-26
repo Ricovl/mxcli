@@ -250,6 +250,11 @@ alter page Module.Customer_Edit {
 };
 ```
 
+Use `create or replace page` on an existing page only if your MDL scripts created it
+and nobody has edited it in Studio Pro since. A Studio Pro-authored page is changed
+with `alter page`, even for a large change: re-creating it from `describe` output has
+dropped translations. See [choose-edit-mode](../choose-edit-mode/SKILL.md).
+
 See the dedicated skill file: [ALTER PAGE/SNIPPET](../alter-page/SKILL.md)
 
 ## Conditional Visibility and Editability
