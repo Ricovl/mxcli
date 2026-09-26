@@ -68,3 +68,30 @@ func TestExecuteProgramRunsStatementsUnderTheHeader(t *testing.T) {
 		t.Fatalf("handlers saw %v, want %v (headerless, outside, mdl 1, outside)", seen, want)
 	}
 }
+
+// `exec --continue-on-error` runs through ExecuteProgramContinueOnError, a
+// separate entry point that must enter the header's version too.
+func TestExecuteProgramContinueOnErrorRunsStatementsUnderTheHeader(t *testing.T) {
+	e := New(io.Discard)
+	var seen []langver.Version
+	e.registry.handlers[reflect.TypeOf(&ast.ShowStmt{})] = func(ctx *ExecContext, _ ast.Statement) error {
+		seen = append(seen, ctx.LanguageVersion)
+		return nil
+	}
+	for _, src := range []string{"show modules;", "mdl 1;\nshow modules;"} {
+		prog, errs := visitor.Build(src)
+		if len(errs) > 0 {
+			t.Fatal(errs)
+		}
+		if _, err := e.ExecuteProgramContinueOnError(prog, io.Discard); err != nil {
+			t.Fatal(err)
+		}
+		if err := e.Execute(prog.Statements[0]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []langver.Version{langver.V0, langver.V0, langver.V1, langver.V0}
+	if !reflect.DeepEqual(seen, want) {
+		t.Fatalf("handlers saw %v, want %v (headerless, outside, mdl 1, outside)", seen, want)
+	}
+}
