@@ -128,6 +128,11 @@ func ruleToGen(rule *microflows.Rule, major int) *genMf.Rule {
 		for _, f := range rule.ObjectCollection.Flows {
 			out.AddFlows(sequenceFlowToGen(f, major))
 		}
+		// Omitted like the nanoflow's, and for the same effect: a rewrite
+		// detached every note (ako/mxcli#705).
+		for _, af := range rule.ObjectCollection.AnnotationFlows {
+			out.AddFlows(annotationFlowToGen(af, major))
+		}
 	}
 	return out
 }

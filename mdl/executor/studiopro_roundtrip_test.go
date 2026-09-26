@@ -65,11 +65,11 @@ var studioProKnownLossy = map[string]string{
 	"nanoflow FeedbackModule.ACT_Feedback_UploadImage|document": "activity Size and the " +
 		"auto-caption 'Activity' are not authorable (upstream #884); a CaseValues-less " +
 		"flow gains a NoCase",
+	"nanoflow FeedbackModule.SUB_Feedback_GetOrCreate|document": "the flow builder regenerates merges " +
+		"(3 ExclusiveMerges -> 1, control flow equivalent), plus activity Size and auto-captions",
 
-	"page FeedbackModule.ShareFeedback|texts":                      "#705: en_US '' texts and a textarea placeholder dropped",
-	"page Administration.Account_Overview|texts":                   "#705: en_US '' texts dropped, nl_NL lost on an ambiguous source",
-	"nanoflow FeedbackModule.ACT_Feedback_UploadImage|header":      "#705: ExportLevel, UseListParameterByReference, ReturnVariableName",
-	"nanoflow FeedbackModule.ACT_Feedback_UploadImage|annotations": "#705: AnnotationFlows are not written",
+	"page FeedbackModule.ShareFeedback|texts":    "#705: en_US '' texts and a textarea placeholder dropped",
+	"page Administration.Account_Overview|texts": "#705: en_US '' texts dropped, nl_NL lost on an ambiguous source",
 	"association Administration.AccountPasswordData_Account|document": "ako/mxcli#704: StorageFormat Table -> Column; the " +
 		"domain-model rewrite also drops empty MemberAccess refs and NoGeneralization flags",
 }
@@ -90,6 +90,8 @@ var studioProCases = []studioProCase{
 	{"page", "FeedbackModule", "ShareFeedback", "Forms$Page", "ShareFeedback"},
 	{"page", "Administration", "Account_Overview", "Forms$Page", "Account_Overview"},
 	{"nanoflow", "FeedbackModule", "ACT_Feedback_UploadImage", "Microflows$Nanoflow", "ACT_Feedback_UploadImage"},
+	// Stores ReturnVariableName "Feedback"; the audited one above stores "".
+	{"nanoflow", "FeedbackModule", "SUB_Feedback_GetOrCreate", "Microflows$Nanoflow", "SUB_Feedback_GetOrCreate"},
 	{"java action", "FeedbackModule", "XSS_Sanitizer", "JavaActions$JavaAction", "XSS_Sanitizer"},
 	{"snippet", "FeedbackModule", "_ReadMe", "Forms$Snippet", "_ReadMe"},
 	{"association", "Administration", "AccountPasswordData_Account", "DomainModels$DomainModel", ""},

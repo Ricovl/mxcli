@@ -110,11 +110,13 @@ func (b *Backend) GetNanoflow(id model.ID) (*microflows.Nanoflow, error) {
 // flow-object, and return-type structures, so the same helpers apply.
 func nanoflowFromGen(nf *genMf.Nanoflow, containerID model.ID) *microflows.Nanoflow {
 	out := &microflows.Nanoflow{
-		ContainerID:   containerID,
-		Name:          nf.Name(),
-		Documentation: nf.Documentation(),
-		Excluded:      nf.Excluded(),
-		ReturnType:    dataTypeFromGen(nf.MicroflowReturnType()),
+		ContainerID:        containerID,
+		Name:               nf.Name(),
+		Documentation:      nf.Documentation(),
+		Excluded:           nf.Excluded(),
+		MarkAsUsed:         nf.MarkAsUsed(),
+		ReturnType:         dataTypeFromGen(nf.MicroflowReturnType()),
+		ReturnVariableName: nf.ReturnVariableName(),
 	}
 	out.ID = model.ID(nf.ID())
 	for _, qn := range nf.AllowedModuleRolesQualifiedNames() {
