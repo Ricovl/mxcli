@@ -98,3 +98,37 @@ func TestResolveAlterTarget_RefusesFormsAPageDoesNotUse(t *testing.T) {
 		t.Errorf("refusal should be an AlterTargetError, got %T", err)
 	}
 }
+
+// A real widget whose name is also a derived column name in two grids. `set`
+// on it has always gone to the widget (SetWidgetProperty only raises the
+// column ambiguity when the name resolved to a column), so the resolver must
+// not refuse it: a new rejection is a change of meaning ADR-0011 only allows
+// behind the language header. The operations that did refuse it (drop,
+// replace, insert) still do, on their own. The column case is the control: a
+// bare name that resolves to a column still reports the ambiguity.
+func TestResolveAlterTarget_WidgetNamedLikeAnAmbiguousColumn(t *testing.T) {
+	grid1 := buildGridWithColumns([]map[string]string{{"attr": "M.E.Merchant"}})
+	grid2 := buildGridWithColumns([]map[string]string{{"attr": "M.E.Merchant"}})
+	page := bson.D{{Key: "Widgets", Value: bson.A{int32(2), grid1, grid2}}}
+	txt := bson.D{{Key: "$Type", Value: "Forms$TextBox"}, {Key: "Name", Value: "Merchant"},
+		{Key: "Appearance", Value: bson.D{{Key: "Class", Value: ""}}}}
+	m := &Mutator{rawData: page, widgetFinder: namedFinder(map[string]bson.D{"Merchant": txt})}
+
+	if err := m.SetWidgetProperty("Merchant", "Class", "x"); err != nil {
+		t.Fatalf("control: the operation itself accepts the widget: %v", err)
+	}
+	got, err := m.ResolveAlterTarget(backend.AlterTarget{Path: []string{"Merchant"}})
+	if err != nil {
+		t.Fatalf("resolver refuses a target the operation accepts: %v", err)
+	}
+	if got.Kind != "widget" {
+		t.Errorf("kind: got %q, want widget", got.Kind)
+	}
+
+	col := bson.D{{Key: "$Type", Value: objectListItemType}}
+	m.widgetFinder = namedFinder(map[string]bson.D{"Merchant": col})
+	if _, err := m.ResolveAlterTarget(backend.AlterTarget{Path: []string{"Merchant"}}); err == nil ||
+		!strings.Contains(err.Error(), "Merchant") {
+		t.Errorf("a bare name resolving to one of two columns must stay ambiguous, got %v", err)
+	}
+}

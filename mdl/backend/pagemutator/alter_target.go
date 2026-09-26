@@ -38,14 +38,17 @@ func (m *Mutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTarget
 	if result == nil {
 		return backend.AlterTargetMatch{}, m.widgetNotFoundError(name)
 	}
+	if bsonnav.DGetString(result.widget, "$Type") != objectListItemType && len(result.colPropKeys) == 0 {
+		// A real widget. Whether a same-named column elsewhere on the page makes
+		// the address ambiguous is each operation's call, as it was before the
+		// resolver existed: drop/replace/insert refuse it, set goes to the
+		// widget. Refusing here would be a new rejection (ADR-0011).
+		return backend.AlterTargetMatch{Kind: "widget", Name: name}, nil
+	}
 	if n := m.columnMatchCount(name); n > 1 {
 		return backend.AlterTargetMatch{}, columnAmbiguityError(name, n)
 	}
-	kind := "widget"
-	if bsonnav.DGetString(result.widget, "$Type") == objectListItemType {
-		kind = "column"
-	}
-	return backend.AlterTargetMatch{Kind: kind, Name: name}, nil
+	return backend.AlterTargetMatch{Kind: "column", Name: name}, nil
 }
 
 // resolveScrollRegion answers a `container.slot` address when the container is a
