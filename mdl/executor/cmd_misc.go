@@ -231,8 +231,8 @@ Code Search (requires refresh catalog full):
   show context of Module.Element [depth n];  -- Assemble context for LLM
 
 Security - Roles:
-  create module role Module.Role [description 'text'];
-  drop module role Module.Role;
+  create [or modify] module role Module.Role [description 'text'];
+  drop module role [if exists] Module.Role;
   create user role Name (Module.Role [, ...]) [manage all roles];
   alter user role Name add module roles (Module.Role [, ...]);
   alter user role Name remove module roles (Module.Role [, ...]);
@@ -271,7 +271,7 @@ Navigation:
   show navigation menu [Profile];
   show navigation homes;
   describe navigation Profile;
-  create or replace navigation Profile
+  create or modify navigation Profile
     home page Module.Page
     [home page Module.Page for UserRole]
     [login page Module.Page]

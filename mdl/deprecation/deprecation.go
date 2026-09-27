@@ -100,10 +100,10 @@ var entries = []Entry{
 		Canonical: "create or modify …",
 		Rewrite:   Rewrite{Token: "replace", Replacement: "modify"},
 		RemovedIn: 2,
-		Note: "Not reported where `or replace` means something else today: " +
-			"`create or replace view entity` (drops and recreates), " +
-			"`create or replace translations` (replaces the whole set), and " +
-			"`create or replace user role` / `demo user` (the `replace` is ignored).",
+		Note: "Not reported for `create or replace translations`, which replaces the " +
+			"whole set. Under mdl 0 (no header) it is not reported for a view entity " +
+			"(drops and recreates) or a user role / demo user (a plain create) either: " +
+			"those warn MDL-V1-REPLACE01/02 instead, and are aliases from `mdl 1;` on.",
 		Example:          "create or replace enumeration M.Color (Red 'Red');",
 		CanonicalExample: "create or modify enumeration M.Color (Red 'Red');",
 	},

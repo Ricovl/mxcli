@@ -159,7 +159,7 @@ func TestDescribeUserRole_Mock(t *testing.T) {
 	}
 	ctx, buf := newMockCtx(t, withBackend(mb))
 	assertNoError(t, describeUserRole(ctx, ast.QualifiedName{Name: "Administrator"}))
-	assertContainsStr(t, buf.String(), "create user role")
+	assertContainsStr(t, buf.String(), "create or modify user role")
 	assertTerminated(t, buf.String()) // #744
 }
 

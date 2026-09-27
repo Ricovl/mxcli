@@ -178,8 +178,9 @@ create module role MyModule.Viewer description 'Read-only access';
 -- whole security script stays re-runnable rather than needing a run-once file.
 create or modify module role MyModule.ApiUser description 'API consumer';
 
--- Remove a module role
+-- Remove a module role (`if exists` makes it a no-op when the role is gone)
 drop module role MyModule.Viewer;
+drop module role if exists MyModule.Legacy;
 ```
 
 ### Microflow Access

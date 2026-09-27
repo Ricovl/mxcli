@@ -165,7 +165,7 @@ func outputEntityValidationRules(ctx *ExecContext, entity *domainmodel.Entity, m
 		}
 
 		feedback := pickTextTranslation(vr.ErrorMessage, lang)
-		fmt.Fprintf(ctx.Output, "\ncreate validation rule for %s\n    %s\n    feedback '%s';\n",
+		fmt.Fprintf(ctx.Output, "\ncreate or modify validation rule for %s\n    %s\n    feedback '%s';\n",
 			target, constraint, escapeMDLString(feedback))
 	}
 }

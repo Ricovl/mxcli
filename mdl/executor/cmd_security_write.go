@@ -111,6 +111,10 @@ func execDropModuleRole(ctx *ExecContext, s *ast.DropModuleRoleStmt) error {
 		}
 	}
 	if !found {
+		if s.IfExists {
+			fmt.Fprintf(ctx.Output, "Module role '%s' does not exist, skipping\n", s.Name)
+			return nil
+		}
 		return mdlerrors.NewNotFound("module role", s.Name.Module+"."+s.Name.Name)
 	}
 

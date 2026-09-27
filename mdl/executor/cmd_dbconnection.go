@@ -237,7 +237,7 @@ func describeDatabaseConnection(ctx *ExecContext, name ast.QualifiedName) error 
 
 // outputDatabaseConnectionMDL outputs a database connection definition in MDL format.
 func outputDatabaseConnectionMDL(ctx *ExecContext, conn *model.DatabaseConnection, moduleName string) error {
-	fmt.Fprintf(ctx.Output, "create database connection %s.%s%s\n", moduleName, conn.Name, describeFolderClause(ctx, conn.ContainerID))
+	fmt.Fprintf(ctx.Output, "create or modify database connection %s.%s%s\n", moduleName, conn.Name, describeFolderClause(ctx, conn.ContainerID))
 	fmt.Fprintf(ctx.Output, "type '%s'\n", conn.DatabaseType)
 
 	// Connection string
