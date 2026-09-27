@@ -128,11 +128,15 @@ type alterFlowContext struct {
 	declaredByOps map[string]bool
 	readByOps     map[string][]string
 	removedByOps  map[string]bool
+	// removedIDs are the stored activities earlier operations took out; what
+	// they read no longer counts as a use.
+	removedIDs map[model.ID]bool
 }
 
 // noteRemoved records that target's output is gone, unless the fragment that
 // replaces it declares it again.
 func (a *alterFlowContext) noteRemoved(target mfmutator.Candidate, replacement *backend.MicroflowFragment) {
+	a.removedIDs[target.ID] = true
 	v := target.OutputVariable
 	if v == "" || fragmentDeclares(replacement, v) {
 		return
@@ -174,7 +178,8 @@ func loadAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) (*alterFlowContext, e
 		return nil, mdlerrors.NewBackend("build hierarchy", err)
 	}
 	a := &alterFlowContext{stmt: s, entityNames: getEntityNames(ctx, h),
-		declaredByOps: map[string]bool{}, readByOps: map[string][]string{}, removedByOps: map[string]bool{}}
+		declaredByOps: map[string]bool{}, readByOps: map[string][]string{}, removedByOps: map[string]bool{},
+		removedIDs: map[model.ID]bool{}}
 	// A copy: nanoflow names are added below, and the cached map is shared.
 	a.microflowNames = map[model.ID]string{}
 	for id, n := range getMicroflowNames(ctx, h) {
@@ -500,7 +505,7 @@ func (a *alterFlowContext) checkOutputUnused(target mfmutator.Candidate, replace
 	ref := regexp.MustCompile(`\$` + regexp.QuoteMeta(v) + `\b`)
 	var users []string
 	for _, c := range a.cands {
-		if c.ID == target.ID {
+		if c.ID == target.ID || a.removedIDs[c.ID] {
 			continue
 		}
 		for _, text := range append([]string{c.Statement}, c.Alternates...) {

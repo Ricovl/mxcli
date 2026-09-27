@@ -1,0 +1,394 @@
+// SPDX-License-Identifier: Apache-2.0
+
+//go:build integration
+
+package roundtrip
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+// ako/mxcli#747 (plan item 4.2g): `create or modify microflow` on an existing
+// flow is diff-then-patch on top of the #739 splice. Every flow here is Studio
+// Pro-authored (PedApp), because an mxcli-authored flow is laid out the way the
+// rebuild lays it out and cannot show what the rebuild loses.
+
+const valFeedback = "microflow FeedbackModule.VAL_Feedback"
+
+// An unchanged describe -> create or modify writes nothing: the unit's bytes
+// are identical. The controls below prove the same pipeline does write when
+// the definition changes.
+func TestFlowModify_UnchangedIsByteIdentical(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	described := h.mustDescribe(t, valFeedback)
+	before := h.flowUnit(t, "VAL_Feedback")
+	for _, header := range []string{"", "mdl 1;\n"} {
+		if err := h.exec(header + described); err != nil {
+			t.Fatalf("header %q: exec unchanged describe output: %v", header, err)
+		}
+		if got := h.flowUnit(t, "VAL_Feedback"); !bytes.Equal(got, before) {
+			t.Fatalf("header %q: the unchanged definition rewrote the unit", header)
+		}
+		if changed := h.orig.diff(h.snapshot()); len(changed) != 0 {
+			t.Fatalf("header %q: the unchanged definition wrote: %s", header, strings.Join(changed, "; "))
+		}
+		if !strings.Contains(h.out.String(), "Unchanged microflow: FeedbackModule.VAL_Feedback") {
+			t.Errorf("header %q: want an Unchanged report, got:\n%s", header, h.out.String())
+		}
+	}
+}
+
+// Control: an inserted statement is written, as a splice. Every element the
+// stored unit had keeps its $ID and stays in the unit — including the merges
+// describe cannot show and the rebuild deleted (#721 A) — and only the new
+// activity and one new flow are added.
+func TestFlowModify_InsertIsSpliced(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	described := h.mustDescribe(t, valFeedback)
+	const anchor = "  declare $ValidFeedback Boolean = true;\n"
+	const inserted = "  log info node 'Feedback' 'validating feedback';\n"
+	edited := strings.Replace(described, anchor, anchor+inserted, 1)
+	if edited == described {
+		t.Fatalf("describe output has no %q — the fixture changed:\n%s", anchor, described)
+	}
+	before := h.flowUnit(t, "VAL_Feedback")
+	if err := h.exec(edited); err != nil {
+		t.Fatalf("exec edited definition: %v", err)
+	}
+	if !strings.Contains(h.out.String(), "Modified microflow: FeedbackModule.VAL_Feedback (spliced: 1 inserted)") {
+		t.Errorf("want a splice report, got:\n%s", h.out.String())
+	}
+	after := h.flowUnit(t, "VAL_Feedback")
+	if bytes.Equal(after, before) {
+		t.Fatal("an inserted statement wrote nothing")
+	}
+	requireKept(t, before, after, "")
+	if added := len(elementIDs(t, after)) - len(elementIDs(t, before)); added <= 0 {
+		t.Errorf("the insert added %d elements", added)
+	}
+	if got, want := countType(t, after, "Microflows$ExclusiveMerge"), countType(t, before, "Microflows$ExclusiveMerge"); got != want {
+		t.Errorf("merges: %d after the insert, %d before — the rebuild ran", got, want)
+	}
+	again := h.mustDescribe(t, valFeedback)
+	if !strings.Contains(again, "log info node 'Feedback' 'validating feedback';") {
+		t.Errorf("describe does not show the inserted statement:\n%s", again)
+	}
+
+	// Executing the new description writes nothing more: the splice's own
+	// output is a fixed point too.
+	settled := h.flowUnit(t, "VAL_Feedback")
+	if err := h.exec(again); err != nil {
+		t.Fatalf("exec the description after the insert: %v", err)
+	}
+	if !bytes.Equal(h.flowUnit(t, "VAL_Feedback"), settled) {
+		t.Error("re-executing the description of the spliced flow rewrote it")
+	}
+}
+
+// A replaced statement that carries a shared annotation keeps the one stored
+// note: the splice re-attaches it, and the declared note is not drawn again.
+func TestFlowModify_ReplaceKeepsSharedNote(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	const target = "microflow FeedbackModule.PopulateUserAttributes"
+	described := h.mustDescribe(t, target)
+	const old = "SubmitterDisplayName = $CurrentUser/Name)"
+	edited := strings.Replace(described, old, "SubmitterDisplayName = 'anonymous')", 1)
+	if edited == described {
+		t.Fatalf("describe output has no %q:\n%s", old, described)
+	}
+	before := h.flowUnit(t, "PopulateUserAttributes")
+	if err := h.exec(edited); err != nil {
+		t.Fatalf("exec edited definition: %v", err)
+	}
+	after := h.flowUnit(t, "PopulateUserAttributes")
+	if bytes.Equal(after, before) {
+		t.Fatal("a replaced statement wrote nothing")
+	}
+	if got := countType(t, after, "Microflows$Annotation"); got != 1 {
+		t.Errorf("%d annotation notes after the replace, want the 1 stored", got)
+	}
+	again := h.mustDescribe(t, target)
+	if !strings.Contains(again, "SubmitterDisplayName = 'anonymous'") || strings.Count(again, "@annotation(id: n1") != 2 {
+		t.Errorf("want the new statement with the shared note on both activities:\n%s", again)
+	}
+	// Only the replaced activity (and what it contains) is gone.
+	requireKept(t, before, after, "Microflows$ChangeAction") // ChangeObjectAction's storage name
+}
+
+// Dropping a statement whose output only a statement changed in the same
+// definition read: the scope check sees the flow as the replace left it, so
+// the drop is not refused for a use that is about to go.
+func TestFlowModify_DropAndReplace(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	const target = "microflow FeedbackModule.SUB_Feedback_Sanitize"
+	described := h.mustDescribe(t, target)
+	edited := described
+	for _, cut := range []string{
+		"  @position(368, 200)\n  @curve(from: (30, 0), to: (-30, 0))\n  $SanitizedPageName = call java action FeedbackModule.XSS_Sanitizer(stringToSanitize = $Feedback/PageName);\n",
+		" PageName = $SanitizedPageName,",
+	} {
+		next := strings.Replace(edited, cut, "", 1)
+		if next == edited {
+			t.Fatalf("describe output has no %q:\n%s", cut, described)
+		}
+		edited = next
+	}
+	before := h.flowUnit(t, "SUB_Feedback_Sanitize")
+	if err := h.exec("mdl 1;\n" + edited); err != nil {
+		t.Fatalf("exec edited definition: %v", err)
+	}
+	if !strings.Contains(h.out.String(), "(spliced: 1 replaced, 1 dropped)") {
+		t.Errorf("want a splice report, got:\n%s", h.out.String())
+	}
+	after := h.flowUnit(t, "SUB_Feedback_Sanitize")
+	if got, want := countType(t, after, "Microflows$JavaActionCallAction"), countType(t, before, "Microflows$JavaActionCallAction")-1; got != want {
+		t.Errorf("%d java action calls after, want %d", got, want)
+	}
+	again := h.mustDescribe(t, target)
+	if strings.Contains(again, "SanitizedPageName") {
+		t.Errorf("the dropped statement or its use is still described:\n%s", again)
+	}
+}
+
+// A statement changed inside an `if` branch is spliced too: the branch's
+// activities are nodes of the stored graph like any other.
+func TestFlowModify_BranchEditIsSpliced(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	described := h.mustDescribe(t, valFeedback)
+	const old = "message 'Subject is required';"
+	edited := strings.Replace(described, old, "message 'A subject is required';", 1)
+	if edited == described {
+		t.Fatalf("describe output has no %q:\n%s", old, described)
+	}
+	before := h.flowUnit(t, "VAL_Feedback")
+	for _, header := range []string{"mdl 1;\n", ""} {
+		if err := h.exec(header + edited); err != nil {
+			t.Fatalf("header %q: exec edited definition: %v", header, err)
+		}
+	}
+	after := h.flowUnit(t, "VAL_Feedback")
+	if bytes.Equal(after, before) {
+		t.Fatal("a statement changed in a branch wrote nothing")
+	}
+	// The one replaced activity may go; every other element stays.
+	if got, want := countType(t, after, "Microflows$ValidationFeedbackAction"), countType(t, before, "Microflows$ValidationFeedbackAction"); got != want {
+		t.Errorf("%d validation feedback actions after the replace, %d before", got, want)
+	}
+	requireKeptBut(t, before, after, "Microflows$ValidationFeedbackAction", "Subject is required")
+	if got, want := countType(t, after, "Microflows$ExclusiveMerge"), countType(t, before, "Microflows$ExclusiveMerge"); got != want {
+		t.Errorf("merges: %d after, %d before — the rebuild ran", got, want)
+	}
+	if !strings.Contains(h.mustDescribe(t, valFeedback), "'A subject is required'") {
+		t.Error("describe does not show the change")
+	}
+}
+
+// A change the splice cannot make — here a node moved — is refused under
+// mdl 1 with nothing written, and under mdl 0 still rebuilds, with the
+// MDL-V1-REBUILD warning.
+func TestFlowModify_UnspliceableChange(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	described := h.mustDescribe(t, valFeedback)
+	const old = "@position(-390, 200)"
+	edited := strings.Replace(described, old, "@position(-380, 200)", 1)
+	if edited == described {
+		t.Fatalf("describe output has no %q:\n%s", old, described)
+	}
+
+	err := h.exec("mdl 1;\n" + edited)
+	if err == nil || !strings.Contains(err.Error(), "cannot be spliced") || !strings.Contains(err.Error(), "moved") {
+		t.Fatalf("under mdl 1 want a refusal naming the move, got %v", err)
+	}
+	if changed := h.orig.diff(h.snapshot()); len(changed) != 0 {
+		t.Fatalf("the refused statement wrote: %s", strings.Join(changed, "; "))
+	}
+
+	if err := h.exec(edited); err != nil {
+		t.Fatalf("under mdl 0: %v", err)
+	}
+	if !strings.Contains(h.out.String(), "Warning [MDL-V1-REBUILD]") {
+		t.Errorf("under mdl 0 want the MDL-V1-REBUILD warning, got:\n%s", h.out.String())
+	}
+	if !strings.Contains(h.mustDescribe(t, valFeedback), "@position(-380, 200)") {
+		t.Error("under mdl 0 the rebuild did not write the move")
+	}
+}
+
+func (h *harness) mustDescribe(t *testing.T, target string) string {
+	t.Helper()
+	out, err := h.describe(target)
+	if err != nil || strings.TrimSpace(out) == "" {
+		t.Fatalf("describe %s: %v (output %q)", target, err, out)
+	}
+	return out
+}
+
+// flowUnit returns the raw bytes of the microflow or nanoflow named name.
+func (h *harness) flowUnit(t *testing.T, name string) []byte {
+	t.Helper()
+	for _, b := range h.snapshot().units {
+		typ, n := typeAndName(b)
+		if n == name && (typ == "Microflows$Microflow" || typ == "Microflows$Nanoflow") {
+			return b
+		}
+	}
+	t.Fatalf("flow %s not found", name)
+	return nil
+}
+
+// requireKept fails when an element of before is missing from after, or is
+// no longer the same element type. except names the action $Type of the one
+// activity a replace is expected to take out: that activity and everything
+// in it may go, nothing else.
+func requireKept(t *testing.T, before, after []byte, except string) {
+	t.Helper()
+	a := elementIDs(t, after)
+	b := elementIDsExcept(t, before, except)
+	if except != "" && len(b) == len(elementIDs(t, before)) {
+		t.Fatalf("no activity holds a %s — the fixture changed", except)
+	}
+	for id, typ := range b {
+		got, ok := a[id]
+		switch {
+		case ok && got == typ:
+		case ok:
+			t.Errorf("$ID %s was a %s and is now a %s", uuidOf([]byte(id)), typ, got)
+		default:
+			t.Errorf("the %s with $ID %s is gone", typ, uuidOf([]byte(id)))
+		}
+	}
+}
+
+// elementIDs maps every element $ID in a unit to its $Type.
+func elementIDs(t *testing.T, raw []byte) map[string]string {
+	return elementIDsExcept(t, raw, "")
+}
+
+// elementIDsExcept is elementIDs without the activities whose action is a
+// skipAction, and without anything they contain.
+func elementIDsExcept(t *testing.T, raw []byte, skipAction string) map[string]string {
+	t.Helper()
+	var doc bson.D
+	if err := bson.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("decode unit: %v", err)
+	}
+	out := map[string]string{}
+	var walk func(v any)
+	walk = func(v any) {
+		switch x := v.(type) {
+		case bson.D:
+			if skipAction != "" {
+				for _, e := range x {
+					if act, ok := e.Value.(bson.D); ok && e.Key == "Action" {
+						for _, ae := range act {
+							if ae.Key == "$Type" && ae.Value == skipAction {
+								return
+							}
+						}
+					}
+				}
+			}
+			var id, typ string
+			for _, e := range x {
+				switch e.Key {
+				case "$ID":
+					if b, ok := e.Value.(bson.Binary); ok {
+						id = string(b.Data)
+					}
+				case "$Type":
+					typ, _ = e.Value.(string)
+				default:
+					walk(e.Value)
+				}
+			}
+			if id != "" {
+				out[id] = typ
+			}
+		case bson.A:
+			for _, el := range x {
+				walk(el)
+			}
+		}
+	}
+	walk(doc)
+	return out
+}
+
+// requireKeptBut is requireKept for a replace of the one activity whose
+// action is a skipAction and whose subtree contains text.
+func requireKeptBut(t *testing.T, before, after []byte, skipAction, text string) {
+	t.Helper()
+	var doc bson.D
+	if err := bson.Unmarshal(before, &doc); err != nil {
+		t.Fatalf("decode unit: %v", err)
+	}
+	gone := map[string]bool{}
+	var walk func(v any, inside bool)
+	walk = func(v any, inside bool) {
+		switch x := v.(type) {
+		case bson.D:
+			if !inside {
+				for _, e := range x {
+					if act, ok := e.Value.(bson.D); ok && e.Key == "Action" {
+						raw, _ := bson.Marshal(act)
+						for _, ae := range act {
+							if ae.Key == "$Type" && ae.Value == skipAction && bytes.Contains(raw, []byte(text)) {
+								inside = true
+							}
+						}
+					}
+				}
+			}
+			for _, e := range x {
+				if b, ok := e.Value.(bson.Binary); ok && e.Key == "$ID" && inside {
+					gone[string(b.Data)] = true
+				}
+				walk(e.Value, inside)
+			}
+		case bson.A:
+			for _, el := range x {
+				walk(el, inside)
+			}
+		}
+	}
+	walk(doc, false)
+	if len(gone) == 0 {
+		t.Fatalf("no %s holds %q — the fixture changed", skipAction, text)
+	}
+	a := elementIDs(t, after)
+	for id, typ := range elementIDs(t, before) {
+		if gone[id] {
+			continue
+		}
+		if got, ok := a[id]; !ok || got != typ {
+			t.Errorf("the %s with $ID %s is gone or changed type (now %q)", typ, uuidOf([]byte(id)), got)
+		}
+	}
+}
+
+func countType(t *testing.T, raw []byte, typ string) int {
+	t.Helper()
+	n := 0
+	for _, got := range elementIDs(t, raw) {
+		if got == typ {
+			n++
+		}
+	}
+	return n
+}
