@@ -67,6 +67,7 @@ var createOrReplaceCases = map[string]string{
 	"entity":                      "persistent entity M.Customer (Name: String(200));",
 	"association":                 "association M.Order_Customer from M.Order to M.Customer type Reference;",
 	"module":                      "module M;",
+	"modulerole":                  "module role M.Admin description 'Full access';",
 	"microflow":                   "microflow M.ACT_Recalculate () begin return; end;",
 	"javaaction":                  "java action M.FormatCurrency(Amount: Decimal not null) returns String as $$return \"\";$$;",
 	"javascriptaction":            "javascript action M.IsStrictMode() returns Boolean platform Web as $$return true;$$;",

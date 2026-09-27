@@ -7,15 +7,17 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
-// ExitCreateModuleRoleStatement handles CREATE MODULE ROLE Module.RoleName [DESCRIPTION '...']
+// ExitCreateModuleRoleStatement handles CREATE [OR MODIFY] MODULE ROLE Module.RoleName [DESCRIPTION '...']
 func (b *Builder) ExitCreateModuleRoleStatement(ctx *parser.CreateModuleRoleStatementContext) {
 	qn := ctx.QualifiedName()
 	if qn == nil {
 		return
 	}
 	stmt := &ast.CreateModuleRoleStmt{
-		Name:           buildQualifiedName(qn),
-		CreateOrModify: ctx.MODIFY() != nil,
+		Name: buildQualifiedName(qn),
+	}
+	if createStmt := findParentCreateStatement(ctx); createStmt != nil {
+		stmt.CreateOrModify = createStmt.OR() != nil && (createStmt.MODIFY() != nil || b.replaceMeansModify(createStmt))
 	}
 	if ctx.DESCRIPTION() != nil {
 		if sl := ctx.STRING_LITERAL(); sl != nil {
@@ -25,11 +27,12 @@ func (b *Builder) ExitCreateModuleRoleStatement(ctx *parser.CreateModuleRoleStat
 	b.statements = append(b.statements, stmt)
 }
 
-// ExitDropModuleRoleStatement handles DROP MODULE ROLE Module.RoleName
+// ExitDropModuleRoleStatement handles DROP MODULE ROLE [IF EXISTS] Module.RoleName
 func (b *Builder) ExitDropModuleRoleStatement(ctx *parser.DropModuleRoleStatementContext) {
 	if qn := ctx.QualifiedName(); qn != nil {
 		b.statements = append(b.statements, &ast.DropModuleRoleStmt{
-			Name: buildQualifiedName(qn),
+			IfExists: ctx.IfExists() != nil,
+			Name:     buildQualifiedName(qn),
 		})
 	}
 }

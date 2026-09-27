@@ -988,8 +988,11 @@ Creates a new module role within a module.
 
 **Syntax:**
 ```sql
-create module role <module>.<role> [description '<text>']
+create [or modify] module role <module>.<role> [description '<text>']
 ```
+
+`or modify` updates the description of a role that already exists instead of
+failing.
 
 **Example:**
 ```sql
@@ -1003,8 +1006,10 @@ Removes a module role.
 
 **Syntax:**
 ```sql
-drop module role <module>.<role>
+drop module role [if exists] <module>.<role>
 ```
+
+`if exists` makes dropping a role that is not there a no-op.
 
 ### GRANT EXECUTE ON MICROFLOW
 

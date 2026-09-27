@@ -110,6 +110,9 @@ createStatement
       CREATE (OR (MODIFY | REPLACE /* @alias MDL-DEPR001 */))?
       ( createEntityStatement
       | createAssociationStatement
+      // Before createModuleStatement: `create module role M.R` is a role, and
+      // `create module Role;` (no qualified name follows) is still a module.
+      | createModuleRoleStatement
       | createModuleStatement
       | createMicroflowStatement
       | createJavaActionStatement
@@ -651,8 +654,7 @@ moveDocumentType
 // =============================================================================
 
 securityStatement
-    : createModuleRoleStatement
-    | dropModuleRoleStatement
+    : dropModuleRoleStatement
     | alterUserRoleStatement
     | dropUserRoleStatement
     | grantEntityAccessStatement
