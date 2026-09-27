@@ -35,6 +35,12 @@ type ExecContext struct {
 	// Output is the writer for user-visible output (with line-limit guard).
 	Output io.Writer
 
+	// Diagnostics receives warnings about the answer rather than the answer
+	// itself — "this result is incomplete because…" — so they never land in a
+	// payload a caller parses (search --format json). Nil means os.Stderr; use
+	// diagnostics() rather than reading the field.
+	Diagnostics io.Writer
+
 	// describeQualifyAttrs is set by DESCRIBE PAGE while it reads the widgets
 	// inside a data container whose flow cannot be resolved: no entity is in
 	// scope there, so an attribute binding keeps its stored Module.Entity.Attr
@@ -141,6 +147,15 @@ type ExecContext struct {
 	// branches on Change.Applies(ctx.LanguageVersion); it never assumes the
 	// latest version.
 	LanguageVersion langver.Version
+}
+
+// diagnostics returns the writer for warnings about a result (see the
+// Diagnostics field): the configured one, or os.Stderr.
+func (ctx *ExecContext) diagnostics() io.Writer {
+	if ctx.Diagnostics != nil {
+		return ctx.Diagnostics
+	}
+	return os.Stderr
 }
 
 // ResolveScriptRelative turns a path written inside an MDL script into an
