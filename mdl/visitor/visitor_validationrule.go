@@ -14,7 +14,7 @@ func (b *Builder) ExitCreateValidationRuleStatement(ctx *parser.CreateValidation
 		Attribute: buildQualifiedName(ctx.QualifiedName()),
 	}
 	if s := ctx.STRING_LITERAL(); s != nil {
-		stmt.Feedback = unquoteString(s.GetText())
+		stmt.Feedback = unquoteStringLit(s)
 	}
 
 	constraint, ok := ctx.ValidationRuleConstraint().(*parser.ValidationRuleConstraintContext)

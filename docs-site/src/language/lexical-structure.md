@@ -58,7 +58,9 @@ String literals use single quotes:
 'it''s here'            -- doubled single quote to escape
 ```
 
-The only escape sequence is `''` (two single quotes) to represent a literal single quote. Backslash escaping is **not** supported.
+The only escape sequence is `''` (two single quotes) to represent a literal single quote, as in a Mendix expression. Under `mdl 1;` a backslash is an ordinary character: `'C:\temp'` is that path.
+
+A script without the header (`mdl 0`) still reads a backslash before `n`, `r`, `t`, `\` or `'` as an escape — `'C:\temp'` holds a tab — and `check` warns `MDL-V1-ESCAPE` for each literal whose value changes under `mdl 1`. Write the backslash-free form (`'it''s'`) to mean the same under both.
 
 ### Numeric Literals
 

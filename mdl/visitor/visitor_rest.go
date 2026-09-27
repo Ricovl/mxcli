@@ -30,19 +30,21 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 		if iok == nil {
 			continue
 		}
-		key := strings.ToLower(identifierOrKeywordText(iok.(*parser.IdentifierOrKeywordContext)))
+		rawKey := identifierOrKeywordText(iok.(*parser.IdentifierOrKeywordContext))
+		b.checkProperty(pc, &restClientSchema, rawKey, restClientPropertyShape(pc))
+		key := strings.ToLower(rawKey)
 		switch key {
 		case "baseurl":
 			if sl := pc.STRING_LITERAL(); sl != nil {
-				stmt.BaseUrl = unquoteString(sl.GetText())
+				stmt.BaseUrl = unquoteStringLit(sl)
 			}
 		case "folder":
 			if sl := pc.STRING_LITERAL(); sl != nil {
-				stmt.Folder = unquoteString(sl.GetText())
+				stmt.Folder = unquoteStringLit(sl)
 			}
 		case "openapi":
 			if sl := pc.STRING_LITERAL(); sl != nil {
-				stmt.OpenApiPath = unquoteString(sl.GetText())
+				stmt.OpenApiPath = unquoteStringLit(sl)
 			}
 		case "authentication":
 			if pc.BASIC() != nil {
@@ -52,10 +54,12 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 					if !spOk || sp == nil || sp.IdentifierOrKeyword() == nil {
 						continue
 					}
-					subKey := strings.ToLower(identifierOrKeywordText(sp.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext)))
+					rawSubKey := identifierOrKeywordText(sp.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
+					b.checkProperty(sp, &restClientBasicAuthSchema, rawSubKey, restClientPropertyShape(sp))
+					subKey := strings.ToLower(rawSubKey)
 					var val string
 					if sl := sp.STRING_LITERAL(); sl != nil {
-						val = unquoteString(sl.GetText())
+						val = unquoteStringLit(sl)
 					} else if v := sp.VARIABLE(); v != nil {
 						// $Constant reference (legacy) — keep $ prefix
 						val = v.GetText()
@@ -85,6 +89,12 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 		if !ok || oc == nil {
 			continue
 		}
+		for _, p := range oc.AllRestClientOpProp() {
+			if pc, ok := p.(*parser.RestClientOpPropContext); ok && pc != nil && pc.IdentifierOrKeyword() != nil {
+				key := identifierOrKeywordText(pc.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
+				b.checkProperty(pc, &restClientOperationSchema, key, restClientOpPropShape(pc))
+			}
+		}
 		opDef := parseRestClientOperation(oc)
 		stmt.Operations = append(stmt.Operations, opDef)
 	}
@@ -109,7 +119,7 @@ func parseRestClientOperation(ctx *parser.RestClientOperationContext) *ast.RestO
 	if iok := ctx.IdentifierOrKeyword(); iok != nil {
 		op.Name = identifierOrKeywordText(iok)
 	} else if sl := ctx.STRING_LITERAL(); sl != nil {
-		op.Name = unquoteString(sl.GetText())
+		op.Name = unquoteStringLit(sl)
 	}
 
 	// Documentation
@@ -170,7 +180,7 @@ func parseRestClientOpProp(ctx *parser.RestClientOpPropContext, op *ast.RestOper
 	if ctx.TEMPLATE() != nil {
 		if sl := ctx.STRING_LITERAL(); sl != nil {
 			op.BodyType = "template"
-			op.BodyVariable = unquoteString(sl.GetText())
+			op.BodyVariable = unquoteStringLit(sl)
 		}
 		return
 	}
@@ -243,12 +253,12 @@ func parseRestClientOpProp(ctx *parser.RestClientOpPropContext, op *ast.RestOper
 			header := ast.RestHeaderDef{}
 			allSL := hic.AllSTRING_LITERAL()
 			if len(allSL) >= 1 {
-				header.Name = unquoteString(allSL[0].GetText())
+				header.Name = unquoteStringLit(allSL[0])
 			}
 			if hic.PLUS() != nil {
 				// 'prefix' + $Variable
 				if len(allSL) >= 2 {
-					header.Prefix = unquoteString(allSL[1].GetText())
+					header.Prefix = unquoteStringLit(allSL[1])
 				}
 				if v := hic.VARIABLE(); v != nil {
 					header.Variable = v.GetText()
@@ -256,7 +266,7 @@ func parseRestClientOpProp(ctx *parser.RestClientOpPropContext, op *ast.RestOper
 			} else if hic.VARIABLE() != nil {
 				header.Variable = hic.VARIABLE().GetText()
 			} else if len(allSL) >= 2 {
-				header.Value = unquoteString(allSL[1].GetText())
+				header.Value = unquoteStringLit(allSL[1])
 			}
 			op.Headers = append(op.Headers, header)
 		}
@@ -267,7 +277,7 @@ func parseRestClientOpProp(ctx *parser.RestClientOpPropContext, op *ast.RestOper
 	if sl := ctx.STRING_LITERAL(); sl != nil {
 		switch key {
 		case "path":
-			op.Path = unquoteString(sl.GetText())
+			op.Path = unquoteStringLit(sl)
 		}
 		return
 	}
@@ -357,7 +367,8 @@ func (b *Builder) ExitCreatePublishedRestServiceStatement(ctx *parser.CreatePubl
 	for _, propCtx := range ctx.AllPublishedRestProperty() {
 		pc := propCtx.(*parser.PublishedRestPropertyContext)
 		key := identifierOrKeywordText(pc.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
-		val := unquoteString(pc.STRING_LITERAL().GetText())
+		b.checkProperty(pc, &publishedRestSchema, key, shapeString)
+		val := unquoteStringLit(pc.STRING_LITERAL())
 		switch strings.ToLower(key) {
 		case "path":
 			stmt.Path = val
@@ -389,7 +400,7 @@ func buildPublishedRestResourceDef(rc *parser.PublishedRestResourceContext) *ast
 		return nil
 	}
 	resDef := &ast.PublishedRestResourceDef{
-		Name: unquoteString(rc.STRING_LITERAL().GetText()),
+		Name: unquoteStringLit(rc.STRING_LITERAL()),
 	}
 
 	for _, opCtx := range rc.AllPublishedRestOperation() {
@@ -405,7 +416,7 @@ func buildPublishedRestResourceDef(rc *parser.PublishedRestResourceContext) *ast
 		if pCtx := oc.PublishedRestOpPath(); pCtx != nil {
 			pc := pCtx.(*parser.PublishedRestOpPathContext)
 			if pc.STRING_LITERAL() != nil {
-				opDef.Path = strings.Trim(unquoteString(pc.STRING_LITERAL().GetText()), "/")
+				opDef.Path = strings.Trim(unquoteStringLit(pc.STRING_LITERAL()), "/")
 			}
 		}
 
@@ -468,7 +479,7 @@ func (b *Builder) exitAlterPublishedRestServiceStatement(ctx *parser.AlterStatem
 			for _, asnCtx := range ac.AllPublishedRestAlterAssignment() {
 				asn := asnCtx.(*parser.PublishedRestAlterAssignmentContext)
 				key := identifierOrKeywordText(asn.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
-				val := unquoteString(asn.STRING_LITERAL().GetText())
+				val := unquoteStringLit(asn.STRING_LITERAL())
 				changes[key] = val
 			}
 			stmt.Actions = append(stmt.Actions, &ast.PublishedRestSetAction{Changes: changes})
@@ -487,7 +498,7 @@ func (b *Builder) exitAlterPublishedRestServiceStatement(ctx *parser.AlterStatem
 
 		// DROP RESOURCE 'name'
 		if ac.DROP() != nil && ac.RESOURCE() != nil {
-			name := unquoteString(ac.STRING_LITERAL().GetText())
+			name := unquoteStringLit(ac.STRING_LITERAL())
 			stmt.Actions = append(stmt.Actions, &ast.PublishedRestDropResourceAction{Name: name})
 			continue
 		}

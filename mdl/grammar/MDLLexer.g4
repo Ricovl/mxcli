@@ -8,6 +8,70 @@
  */
 lexer grammar MDLLexer;
 
+// Hand-written lexer helpers. In the Go target `@members` is package-level
+// code, so these are methods on the generated lexer; the predicates below call
+// them through the receiver `p` the generator names.
+@lexer::members {
+// StrictEscapeStream is the character stream of a script written in mdl 1 or
+// later, where `''` is the only escape in a string literal and a backslash is
+// an ordinary character (ADR-0010 R11). The escape rule changes where a
+// literal ENDS — `'C:\'` is complete under mdl 1 and unterminated under mdl
+// 0 — so it has to be decided before lexing, from the `mdl <n>;` header, and
+// travel with the stream: every token keeps its stream, which is how the
+// visitor reads a literal's value under the same rule it was lexed with.
+type StrictEscapeStream struct{ antlr.CharStream }
+
+// HasStrictEscapes reports whether in is lexed under mdl 1's string rules.
+func HasStrictEscapes(in antlr.CharStream) bool {
+	_, ok := in.(*StrictEscapeStream)
+	return ok
+}
+
+// isTrailingComma reports whether the ',' just matched ends a bracketed list:
+// the next significant character closes a (), {} or [] (whitespace and
+// comments skipped), and the one before it neither opens a list nor is another
+// comma, so `()` stays the only spelling of an empty list and `(a,,)` stays an
+// error.
+func (l *MDLLexer) isTrailingComma() bool {
+	in := l.GetInputStream()
+	// The predicate runs with the comma consumed: LA(1) is the character
+	// after it and LA(-1) the comma itself.
+	for i := 1; ; i++ {
+		switch c := in.LA(i); c {
+		case ' ', '\t', '\r', '\n', '\v', '\f':
+		case '-':
+			if in.LA(i+1) != '-' {
+				return false
+			}
+			for i++; in.LA(i+1) != '\n' && in.LA(i+1) != antlr.TokenEOF; i++ {
+			}
+		case '/':
+			if in.LA(i+1) != '*' {
+				return false
+			}
+			for i += 2; !(in.LA(i) == '*' && in.LA(i+1) == '/'); i++ {
+				if in.LA(i) == antlr.TokenEOF {
+					return false
+				}
+			}
+			i++
+		case ')', '}', ']':
+			for j := -2; ; j-- {
+				switch in.LA(j) {
+				case ' ', '\t', '\r', '\n', '\v', '\f':
+					continue
+				case '(', '{', '[', ',', antlr.TokenEOF, 0:
+					return false
+				}
+				return true
+			}
+		default:
+			return false
+		}
+	}
+}
+}
+
 // =============================================================================
 // WHITESPACE AND COMMENTS
 // =============================================================================
@@ -874,6 +938,13 @@ DIV: D I V;
 // =============================================================================
 
 SEMICOLON: ';';
+// A trailing comma is allowed in every bracketed list, under every language
+// version (ADR-0010 R11): `(A: String(200),)`, `{ Method: get, }`. It is
+// dropped here rather than written into each list rule, so it is one rule for
+// every list, and so a list's error messages stay LL(1): with `(COMMA x)*
+// COMMA?` in the parser, an unknown item after a comma is reported as "no
+// viable alternative" instead of naming what the list expects.
+TRAILING_COMMA: ',' {p.isTrailingComma()}? -> skip;
 COMMA: ',';
 DOT: '.';
 LPAREN: '(';
@@ -897,9 +968,14 @@ HASH: '#';
 // Mendix token: [%TokenName%] or [%'literal'%]
 MENDIX_TOKEN: '[%' .*? '%]';
 
-// String literals (single-quoted, with escape support)
+// String literals, single-quoted. `''` is an apostrophe under every language
+// version. Under mdl 0 a backslash also escapes the next character (`\'`,
+// `\n`, `\\`, …); from mdl 1 it is an ordinary character, as in a Mendix
+// expression, so `'C:\temp'` is the path it looks like (ADR-0010 R11). Which
+// rule applies is fixed by the stream the script is lexed from: see
+// StrictEscapeStream.
 STRING_LITERAL
-    : '\'' ( ~['\\] | '\\' . | '\'\'' )* '\''
+    : '\'' ( ~['\\] | '\'\'' | '\\' {!HasStrictEscapes(p.GetInputStream())}? . | '\\' {HasStrictEscapes(p.GetInputStream())}? )* '\''
     ;
 
 // Dollar-quoted string literal (PostgreSQL style) for embedding code blocks

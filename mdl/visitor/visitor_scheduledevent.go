@@ -23,7 +23,7 @@ func (b *Builder) ExitCreateScheduledEventStatement(ctx *parser.CreateScheduledE
 		Documentation: findDocCommentText(ctx),
 	}
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 	if createStmt := findParentCreateStatement(ctx); createStmt != nil {
 		if createStmt.OR() != nil && (createStmt.MODIFY() != nil || createStmt.REPLACE() != nil) {
@@ -102,7 +102,7 @@ func scheduledEventPropertyText(pc *parser.ScheduledEventPropertyContext) string
 		return n.GetText()
 	}
 	if s := pc.STRING_LITERAL(); s != nil {
-		return unquoteString(s.GetText())
+		return unquoteStringLit(s)
 	}
 	if bl := pc.BooleanLiteral(); bl != nil {
 		return bl.GetText()

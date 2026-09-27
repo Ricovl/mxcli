@@ -145,7 +145,7 @@ func buildEnumValues(ctx parser.IEnumerationValueListContext, b *Builder) []ast.
 			enumVal.Documentation = extractDocComment(docCtx.GetText())
 		}
 		if ev.STRING_LITERAL() != nil {
-			enumVal.Caption = unquoteString(ev.STRING_LITERAL().GetText())
+			enumVal.Caption = unquoteStringLit(ev.STRING_LITERAL())
 		}
 		values = append(values, enumVal)
 	}
@@ -192,14 +192,14 @@ func buildAttributes(ctx parser.IAttributeDefinitionListContext, b *Builder) []a
 				attr.NotNull = true
 				// Extract error message if present
 				if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-					attr.NotNullError = unquoteString(c.STRING_LITERAL().GetText())
+					attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 				}
 			}
 			if c.UNIQUE() != nil {
 				attr.Unique = true
 				// Extract error message if present
 				if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-					attr.UniqueError = unquoteString(c.STRING_LITERAL().GetText())
+					attr.UniqueError = unquoteStringLit(c.STRING_LITERAL())
 				}
 			}
 			if c.DEFAULT() != nil {
@@ -215,7 +215,7 @@ func buildAttributes(ctx parser.IAttributeDefinitionListContext, b *Builder) []a
 				attr.NotNull = true
 				// Extract error message if present
 				if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-					attr.NotNullError = unquoteString(c.STRING_LITERAL().GetText())
+					attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 				}
 			}
 			if c.CALCULATED() != nil {
@@ -253,13 +253,13 @@ func buildSingleAttribute(a *parser.AttributeDefinitionContext) *ast.Attribute {
 		if c.NOT() != nil && c.NULL() != nil || c.NOT_NULL() != nil {
 			attr.NotNull = true
 			if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-				attr.NotNullError = unquoteString(c.STRING_LITERAL().GetText())
+				attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 			}
 		}
 		if c.UNIQUE() != nil {
 			attr.Unique = true
 			if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-				attr.UniqueError = unquoteString(c.STRING_LITERAL().GetText())
+				attr.UniqueError = unquoteStringLit(c.STRING_LITERAL())
 			}
 		}
 		if c.DEFAULT() != nil {
@@ -273,7 +273,7 @@ func buildSingleAttribute(a *parser.AttributeDefinitionContext) *ast.Attribute {
 		if c.REQUIRED() != nil {
 			attr.NotNull = true
 			if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-				attr.NotNullError = unquoteString(c.STRING_LITERAL().GetText())
+				attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 			}
 		}
 		if c.CALCULATED() != nil {
@@ -522,7 +522,7 @@ func extractLiteralValue(ctx parser.ILiteralContext) any {
 
 	// Check for different literal types
 	if lit.STRING_LITERAL() != nil {
-		return unquoteString(lit.STRING_LITERAL().GetText())
+		return unquoteStringLit(lit.STRING_LITERAL())
 	}
 	if lit.NUMBER_LITERAL() != nil {
 		text := lit.NUMBER_LITERAL().GetText()
@@ -765,7 +765,7 @@ func buildErrorMessage(ctx parser.IErrorMessageClauseContext) string {
 	if !ok || emc.STRING_LITERAL() == nil {
 		return ""
 	}
-	return unquoteString(emc.STRING_LITERAL().GetText())
+	return unquoteStringLit(emc.STRING_LITERAL())
 }
 
 // expressionSourceText is an expression as the author wrote it — whitespace kept,

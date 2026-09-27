@@ -24,7 +24,7 @@ func (b *Builder) ExitCreateMenuStatement(ctx *parser.CreateMenuStatementContext
 	// the rewrite gap of #1018, found while testing the latter.
 	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 	for _, itemCtx := range ctx.AllNavMenuItemDef() {
 		stmt.Items = append(stmt.Items, buildNavMenuItemDef(itemCtx))

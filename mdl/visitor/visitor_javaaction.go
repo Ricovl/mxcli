@@ -18,7 +18,7 @@ func (b *Builder) ExitCreateJavaActionStatement(ctx *parser.CreateJavaActionStat
 		stmt.Name = buildQualifiedName(qn)
 	}
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
 	// Get parameters
@@ -71,8 +71,8 @@ func (b *Builder) ExitCreateJavaActionStatement(ctx *parser.CreateJavaActionStat
 			// it, so removal has to be said out loud.
 			stmt.NotExposed = true
 		case len(allStrings) >= 2:
-			stmt.ExposedCaption = unquoteString(allStrings[0].GetText())
-			stmt.ExposedCategory = unquoteString(allStrings[1].GetText())
+			stmt.ExposedCaption = unquoteStringLit(allStrings[0])
+			stmt.ExposedCategory = unquoteStringLit(allStrings[1])
 			stmt.ExposedBitmaps = buildExposeBitmaps(exposed.AllExposeBitmapClause())
 		}
 	}
@@ -123,7 +123,7 @@ func (b *Builder) ExitCreateJavaScriptActionStatement(ctx *parser.CreateJavaScri
 		stmt.Name = buildQualifiedName(qn)
 	}
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
 	if paramList := ctx.JavaActionParameterList(); paramList != nil {
@@ -172,8 +172,8 @@ func (b *Builder) ExitCreateJavaScriptActionStatement(ctx *parser.CreateJavaScri
 			// it, so removal has to be said out loud.
 			stmt.NotExposed = true
 		case len(allStrings) >= 2:
-			stmt.ExposedCaption = unquoteString(allStrings[0].GetText())
-			stmt.ExposedCategory = unquoteString(allStrings[1].GetText())
+			stmt.ExposedCaption = unquoteStringLit(allStrings[0])
+			stmt.ExposedCategory = unquoteStringLit(allStrings[1])
 			stmt.ExposedBitmaps = buildExposeBitmaps(exposed.AllExposeBitmapClause())
 		}
 	}
