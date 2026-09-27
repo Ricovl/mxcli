@@ -856,21 +856,30 @@ type SortSpec struct {
 	Ascending bool   // True for ASC, false for DESC
 }
 
-// ListOperationStmt represents list operations like HEAD, TAIL, FIND, etc.
-// $Var = HEAD($List)
-// $Var = FIND($List, condition)
-// $Var = SORT($List, attr ASC)
-// $Var = UNION($List1, $List2)
+// ListOperationStmt is one Studio Pro List operation activity:
+// $Var = head $List
+// $Var = find $List by Member = value | where condition
+// $Var = sort $List by attr asc
+// $Var = union $List1 with $List2
+// The call forms ($Var = HEAD($List), …) build the same node.
 type ListOperationStmt struct {
-	OutputVariable string               // Output variable name
-	Operation      ListOperationType    // Operation type
-	InputVariable  string               // Input list variable (first operand)
-	SecondVariable string               // Second operand for UNION, INTERSECT, SUBTRACT, CONTAINS, EQUALS
-	Condition      Expression           // Condition for FIND/FILTER
-	SortSpecs      []SortSpec           // Sort specifications for SORT
-	OffsetExpr     Expression           // Offset expression for RANGE
-	LimitExpr      Expression           // Limit expression for RANGE
-	Annotations    *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	OutputVariable string            // Output variable name
+	Operation      ListOperationType // Operation type
+	InputVariable  string            // Input list variable (first operand)
+	SecondVariable string            // Second operand for UNION, INTERSECT, SUBTRACT, CONTAINS, EQUALS
+	Condition      Expression        // Condition for FIND/FILTER
+	// ByExpression is set for FIND/FILTER whose condition is an expression over
+	// $currentObject (Studio Pro's "Find by expression" / "Filter by
+	// expression"). When false, a condition of the shape `Member = value` (see
+	// IsMemberEquality) is the "by member" operation, and any other condition
+	// falls back to the expression operation, which is what the function form
+	// has always done. The statement form sets it from the linking word: `where`
+	// sets it, `by` does not.
+	ByExpression bool
+	SortSpecs    []SortSpec           // Sort specifications for SORT
+	OffsetExpr   Expression           // Offset expression for RANGE
+	LimitExpr    Expression           // Limit expression for RANGE
+	Annotations  *ActivityAnnotations // Optional @position, @caption, @color, @annotation
 	// ErrorHandling is recorded only so the clause can be REFUSED. Mendix's
 	// ListOperationsAction has no ErrorHandlingType, so an ON ERROR here has
 	// nowhere to go; parsing it and reporting it beats dropping it silently.
@@ -881,6 +890,24 @@ type ListOperationStmt struct {
 }
 
 func (s *ListOperationStmt) isMicroflowStatement() {}
+
+// IsMemberEquality reports whether a FIND/FILTER condition names a member of
+// the list's entity and a value, `Member = value` — the shape Studio Pro's Find
+// and Filter operations take (an attribute or association, and the value it must
+// have). It is the single test both the visitor (which linking word a function
+// form is a respelling of) and the flow builder (which operation to write) use,
+// so the two cannot disagree.
+func IsMemberEquality(cond Expression) bool {
+	binary, ok := cond.(*BinaryExpr)
+	if !ok || binary.Operator != "=" {
+		return false
+	}
+	switch binary.Left.(type) {
+	case *IdentifierExpr, *QualifiedNameExpr:
+		return true
+	}
+	return false
+}
 
 // UnresolvedOperand is a list operand that the visitor could not reduce to a
 // variable name.
@@ -937,10 +964,11 @@ func (t AggregateListOperationType) String() string {
 	}
 }
 
-// AggregateListStmt represents aggregate operations: COUNT, SUM, AVERAGE, etc.
-// $Count = COUNT($List)
-// $Sum = SUM($List/Attr)
-// $Sum = SUM($List, $currentObject/Price * 2)  // expression form
+// AggregateListStmt is one Studio Pro Aggregate list activity:
+// $Count = count $List
+// $Sum = sum $List by Attr
+// $Sum = sum $List of $currentObject/Price * 2  // expression form
+// The call forms ($Count = COUNT($List), …) build the same node.
 type AggregateListStmt struct {
 	OutputVariable string                     // Output variable name
 	Operation      AggregateListOperationType // Operation type

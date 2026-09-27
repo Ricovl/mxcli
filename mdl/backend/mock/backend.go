@@ -341,6 +341,9 @@ type MockBackend struct {
 	// WorkflowMutationBackend
 	OpenWorkflowForMutationFunc func(unitID model.ID) (backend.WorkflowMutator, error)
 
+	// MicroflowMutationBackend
+	OpenMicroflowForMutationFunc func(unitID model.ID) (backend.MicroflowMutator, error)
+
 	// WidgetSerializationBackend
 
 	// WidgetBuilderBackend

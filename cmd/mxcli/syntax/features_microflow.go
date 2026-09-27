@@ -177,8 +177,8 @@ func init() {
 			"--   FEEDBACK -> MDL076. A custom handler IS accepted on all of them, and\n" +
 			"--   CONTINUE is fine on DECLARE, SET, RETRIEVE, DELETE and CALL MICROFLOW.\n" +
 			"--\n" +
-			"--   The list-operation and aggregate forms of SET ($x = head($l),\n" +
-			"--   $n = count($l)) have no error handling in Mendix at all -> MDL077.\n" +
+			"--   List operations and aggregates ($x = head $l, $n = count $l) have\n" +
+			"--   no error handling in Mendix at all -> MDL077.\n" +
 			"--\n" +
 			"-- IN A NANOFLOW only DECLARE and SET take a clause at all. CHANGE, LOG,\n" +
 			"-- SHOW PAGE, CLOSE PAGE, SHOW MESSAGE and VALIDATION FEEDBACK are CE6035\n" +
@@ -384,9 +384,67 @@ func init() {
 			// A CE number in the cached `syntax --json` index leads an agent
 			// debugging the build error back to the right topic (issue #1002).
 			"$currentObject", "predicate", "CE0117", "CE0109", "MDL-LISTOP01",
+			"contains", "equals", "by", "where", "MDL-DEPR003", "MDL-DEPR004", "MDL-V1-LIST",
 		},
-		Syntax:  "$List = CREATE LIST OF Module.Entity;\nADD $Item TO $List;\nREMOVE $Item FROM $List;\n$Result = HEAD($List);\n$Result = TAIL($List);\n$Result = FIND($List, predicate);\n$Result = FILTER($List, predicate);\n$Result = SORT($List, attr ASC);\n$Result = UNION($L1, $L2);\n$Result = INTERSECT($L1, $L2);\n$Result = SUBTRACT($L1, $L2);\n$Result = RANGE($List, offset, amount);\n$Result = RANGE($List, offset);\n\n-- Aggregates. Mendix has eight; each takes an attribute or an expression\n-- over $currentObject.\n$Count = COUNT($List);\n$Sum = SUM($List.Attr);\n$Sum = SUM($List, expression);\n$Avg = AVERAGE($List.Attr);\n$Min = MINIMUM($List.Attr);\n$Max = MAXIMUM($List.Attr);\n$AllMatch = ALL($List, boolean-expression);\n$AnyMatch = ANY($List, boolean-expression);\n\n-- REDUCE folds the list into one value. $currentResult is the running\n-- total; both INITIAL and RETURNS are required and cannot be inferred.\n$Folded = REDUCE($List, expression, initial: value, returns: Type);\n\n-- RANGE takes OFFSET first, then AMOUNT, and needs at least ONE of them:\n--   RANGE($L, $Offset, $Amount)  page: skip $Offset, take $Amount\n--   RANGE($L, 0, $Amount)        first $Amount\n--   RANGE($L, $Offset)           skip $Offset, take the rest\n-- RANGE($L) with no bound is CE6520 at build time (mxcli check: MDL068).\n\nA FIND/FILTER predicate is evaluated once per item, and Mendix binds the\nitem to $currentObject -- the same variable the aggregate expressions above\nuse, and the only iterator name there is:\n\n  FILTER($Orders, $currentObject/Amount > 0)\n\nA bare attribute name means the same thing; mxcli resolves it against the\nlist's entity and writes $currentObject/Attr. A name that is not a member\nof that entity is refused, and naming any other variable is MDL-LISTOP01.\n\nSORT is not an expression -- it takes attribute names directly, so a bare\nattribute is the only spelling there.\n\nEvery list operation above is a separate ACTIVITY, and an activity stores\nits list as a VARIABLE. They do not nest: COUNT(FILTER($L, ...)) is not a\nshorter spelling of two statements, it is a list argument Mendix cannot\nstore. mxcli refuses it as MDL-LISTOP02; give the inner operation its own\nstatement and pass the variable:\n\n  $Approved = FILTER($Orders, $currentObject/Status = 'Approved');\n  $Count    = COUNT($Approved);",
-		Example: "$AllOrders = CREATE LIST OF MyModule.Order;\nADD $NewOrder TO $AllOrders;\n$First = HEAD($AllOrders);\n\n-- The item under test is $currentObject\n$Pending = FILTER($AllOrders, $currentObject/Status = 'Pending');\n$Large = FILTER($AllOrders, $currentObject/Amount > 1000);\n\n-- A bare attribute name is resolved against the list's entity\n$Open = FILTER($AllOrders, Status != 'Closed');\n\n-- SORT takes attribute names, not an expression\n$Sorted = SORT($Pending, CreateDate DESC);\n$Page = RANGE($Sorted, $Offset, $PageSize);\n$Total = SUM($AllOrders.Amount);\n$AllPaid = ALL($AllOrders, $currentObject/Paid);\n$AnyLate = ANY($AllOrders, $currentObject/DueDate < [%CurrentDateTime%]);\n\n-- List operations do not nest -- one statement each (MDL-LISTOP02)\n-- WRONG: $Count = COUNT(FILTER($AllOrders, $currentObject/Paid));\n$Paid  = FILTER($AllOrders, $currentObject/Paid);\n$Count = COUNT($Paid);\n$Discounted = REDUCE(\n  $AllOrders,\n  $currentResult + $currentObject/Amount * 0.9,\n  initial: 0,\n  returns: Decimal\n);",
+		Syntax: "$List = CREATE LIST OF Module.Entity;\nADD $Item TO $List;\nREMOVE $Item FROM $List;\n\n" +
+			"-- One statement per Studio Pro activity. The keyword is the operation's\n" +
+			"-- name and the operand is always a variable, as in the activity's dialog.\n" +
+			"-- List operation:\n" +
+			"$Result = HEAD $List;\n$Result = TAIL $List;\n" +
+			"$Result = FIND $List BY Member = value;          -- Find (attribute or association)\n" +
+			"$Result = FIND $List WHERE expression;           -- Find by expression\n" +
+			"$Result = FILTER $List BY Member = value;        -- Filter\n" +
+			"$Result = FILTER $List WHERE expression;         -- Filter by expression\n" +
+			"$Result = SORT $List BY Attr DESC, Attr2 ASC;\n" +
+			"$Result = UNION $L1 WITH $L2;\n$Result = INTERSECT $L1 WITH $L2;\n" +
+			"$Result = SUBTRACT $L2 FROM $L1;                 -- $L1 minus $L2\n" +
+			"$Bool   = CONTAINS $Object IN $List;\n$Bool   = EQUALS $L1 AND $L2;\n" +
+			"$Result = RANGE $List OFFSET offset LIMIT amount;\n\n" +
+			"-- Aggregate list: BY an attribute, or OF an expression over $currentObject.\n" +
+			"$Count = COUNT $List;\n$Sum = SUM $List BY Attr;\n$Sum = SUM $List OF expression;\n" +
+			"$Avg = AVERAGE $List BY Attr;\n$Min = MINIMUM $List BY Attr;\n$Max = MAXIMUM $List BY Attr;\n" +
+			"$AllMatch = ALL $List WHERE boolean-expression;\n$AnyMatch = ANY $List WHERE boolean-expression;\n\n" +
+			"-- REDUCE folds the list into one value. $currentResult is the running\n" +
+			"-- total; the initial value and the type are required and cannot be inferred.\n" +
+			"$Folded = REDUCE $List FROM initial AS Type USING expression;\n\n" +
+			"-- RANGE needs at least ONE bound:\n" +
+			"--   RANGE $L OFFSET $Offset LIMIT $Amount   page: skip $Offset, take $Amount\n" +
+			"--   RANGE $L LIMIT $Amount                   first $Amount\n" +
+			"--   RANGE $L OFFSET $Offset                  skip $Offset, take the rest\n" +
+			"-- RANGE with no bound is CE6520 at build time (mxcli check: MDL068).\n\n" +
+			"BY names a member and the value it must have; anything else goes after\n" +
+			"WHERE, which is evaluated once per item with the item bound to\n" +
+			"$currentObject -- the same variable the aggregate expressions use:\n\n" +
+			"  FILTER $Orders WHERE $currentObject/Amount > 0\n\n" +
+			"A bare attribute name after WHERE means the same thing; mxcli resolves it\n" +
+			"against the list's entity and writes $currentObject/Attr. Naming any\n" +
+			"other variable there is MDL-LISTOP01.\n\n" +
+			"Because the operand is a variable, activities cannot nest. Give each\n" +
+			"its own statement:\n\n" +
+			"  $Approved = FILTER $Orders WHERE $currentObject/Status = 'Approved';\n" +
+			"  $Count    = COUNT $Approved;\n\n" +
+			"The call forms ($x = FILTER($L, ...), $n = COUNT($L)) are deprecated\n" +
+			"aliases (MDL-DEPR003, MDL-DEPR004). $x = FIND(...) and CONTAINS(...) are\n" +
+			"also Mendix's string functions: under `mdl 1;` the call form is refused\n" +
+			"and `SET $x = find($Text, 'a')` is always the string function\n" +
+			"(MDL-V1-LIST). Without the header a nested call is refused as\n" +
+			"MDL-LISTOP02.",
+		Example: "$AllOrders = CREATE LIST OF MyModule.Order;\nADD $NewOrder TO $AllOrders;\n$First = HEAD $AllOrders;\n\n" +
+			"-- Filter by member, and by expression over $currentObject\n" +
+			"$Pending = FILTER $AllOrders BY Status = MyModule.OrderStatus.Pending;\n" +
+			"$Large = FILTER $AllOrders WHERE $currentObject/Amount > 1000;\n" +
+			"$Match = FIND $AllOrders BY OrderNumber = $Number;\n\n" +
+			"-- SORT takes attribute names, not an expression\n" +
+			"$Sorted = SORT $Pending BY CreateDate DESC;\n" +
+			"$Page = RANGE $Sorted OFFSET $Offset LIMIT $PageSize;\n" +
+			"$Total = SUM $AllOrders BY Amount;\n" +
+			"$AllPaid = ALL $AllOrders WHERE $currentObject/Paid;\n" +
+			"$AnyLate = ANY $AllOrders WHERE $currentObject/DueDate < [%CurrentDateTime%];\n\n" +
+			"-- One statement per activity\n" +
+			"$Paid  = FILTER $AllOrders WHERE $currentObject/Paid;\n" +
+			"$Count = COUNT $Paid;\n" +
+			"$Discounted = REDUCE $AllOrders FROM 0 AS Decimal\n" +
+			"  USING $currentResult + $currentObject/Amount * 0.9;",
 		SeeAlso: []string{"microflow.retrieve"},
 	})
 
@@ -399,6 +457,41 @@ func init() {
 		},
 		Syntax:  "LOG LEVEL [NODE 'Name'] 'message';\nLOG LEVEL 'template {1}' WITH ({1} = $value);\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL",
 		Example: "LOG INFO NODE 'OrderService' 'Order created successfully';\nLOG WARNING 'Customer not found';\nLOG ERROR 'Failed to process {1}' WITH (\n  {1} = $OrderNumber\n);",
+	})
+
+	Register(SyntaxFeature{
+		Path:    "microflow.alter",
+		Summary: "Patch a stored microflow or nanoflow: insert, replace or drop activities in place",
+		Keywords: []string{
+			"alter microflow", "alter nanoflow", "insert after", "insert before",
+			"replace", "drop activity", "patch microflow", "splice", "handle",
+		},
+		Syntax: "ALTER MICROFLOW|NANOFLOW Module.Name {\n" +
+			"  INSERT AFTER|BEFORE <target> { <statements> }\n" +
+			"  REPLACE <target> WITH { <statements> }\n" +
+			"  DROP <target>;\n" +
+			"};\n\n" +
+			"-- <target> addresses one activity by content, as `describe microflow ... with handles` prints it:\n" +
+			"--   $Var            the activity that outputs $Var\n" +
+			"--   'Caption'       a decision or an activity with a custom caption\n" +
+			"--   <statement>     a statement pattern; * matches any run of tokens\n" +
+			"-- followed by @n when it matches more than one. Targets are resolved against the\n" +
+			"-- stored flow before any operation runs; an ambiguous or unknown target is an error.\n" +
+			"-- Only the new activities, the rewired flows and the objects moved to make room change;\n" +
+			"-- every other element keeps its $ID, position and curve.\n" +
+			"-- Refused: insert after a decision, insert before an activity several flows enter,\n" +
+			"-- drop/replace of a decision or of an activity with an error handler, anything inside\n" +
+			"-- a loop body, a fragment that returns, and a fragment variable that clashes with one\n" +
+			"-- the flow has or reads one not declared on the path. Over --mcp only insert is supported.",
+		Example: "alter microflow FeedbackModule.VAL_Feedback {\n" +
+			"  insert after $IsValidEmail { log info node 'Feedback' 'Email checked'; }\n" +
+			"  replace set $ValidFeedback = false @3 with {\n" +
+			"    set $ValidFeedback = false;\n" +
+			"    log warning node 'Feedback' 'Email rejected';\n" +
+			"  }\n" +
+			"  drop log debug node 'Feedback' *;\n" +
+			"};",
+		SeeAlso: []string{"microflow"},
 	})
 
 	Register(SyntaxFeature{

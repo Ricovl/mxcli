@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
@@ -440,6 +441,9 @@ func formatAction(
 			if len(parts) > 0 {
 				attrName = parts[len(parts)-1]
 			}
+		}
+		if describeLanguage(ctx) >= langver.V1 {
+			return formatAggregateActivity(ctx, a, fn, attrName, outputVar, entityNames)
 		}
 		// REDUCE carries the fold Mendix stores beside the expression. Both parts
 		// are required, so they are rendered even when empty rather than dropped —
@@ -1139,6 +1143,11 @@ func rawUnitName(contents []byte) string {
 func formatListOperation(ctx *ExecContext, op microflows.ListOperation, outputVar string) string {
 	if op == nil {
 		return fmt.Sprintf("$%s = list operation ...;", outputVar)
+	}
+	if describeLanguage(ctx) >= langver.V1 {
+		if stmt, ok := formatListActivity(op, outputVar); ok {
+			return stmt
+		}
 	}
 
 	switch o := op.(type) {

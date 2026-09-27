@@ -828,6 +828,17 @@ func (w *Writer) UpdateRawUnitOwningTranslations(unitID string, contents []byte)
 	return w.updateUnit(unitID, contents, canon.ContentsOwnTranslations())
 }
 
+// UpdateRawUnitPatch is UpdateRawUnit for a write that PATCHED the stored bytes
+// in place rather than rebuilding them — the graph splice of `alter microflow`.
+// Such a write already carries every stored $ID and translation it means to
+// keep, so neither is carried back: re-pairing element $IDs structurally would
+// move identities onto other elements after a drop (canon.ContentsOwnElementIDs),
+// and carrying translations would undo a deliberate removal. Elision and the
+// storage-GUID guard apply as for every write.
+func (w *Writer) UpdateRawUnitPatch(unitID string, contents []byte) error {
+	return w.updateUnit(unitID, contents, canon.ContentsOwnElementIDs(), canon.ContentsOwnTranslations())
+}
+
 // UpdateRawUnitOwningStorageGUIDs is UpdateRawUnit for a write that deliberately
 // transplants storage GUIDs onto elements that keep their $ID — the marketplace
 // module update, which carries a module's existing GUIDs onto the documents

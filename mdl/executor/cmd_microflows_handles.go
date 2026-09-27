@@ -88,8 +88,14 @@ func printedStatement(obj microflows.MicroflowObject, body []string, r elkSource
 				return strings.Join(parts, " ")
 			}
 		default:
-			if strings.HasSuffix(line, ";") || strings.HasSuffix(line, "{") {
+			if strings.HasSuffix(line, ";") {
 				return strings.Join(parts, " ")
+			}
+			if strings.HasSuffix(line, "{") {
+				// The `{` opens the error handler block. It is not part of
+				// the statement: a handle is written as an alter target, and a
+				// target ends where a fragment's `{` begins.
+				return strings.TrimSpace(strings.TrimSuffix(strings.Join(parts, " "), "{"))
 			}
 		}
 		if len(parts) >= 50 {

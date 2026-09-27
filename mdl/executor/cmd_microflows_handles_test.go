@@ -308,3 +308,18 @@ func TestDescribeWithHandles_ErrorHandlerBody(t *testing.T) {
 		t.Errorf("with handles minus the handle lines differs from plain describe:\n%s\n---\n%s", strings.Join(stripped, "\n"), strings.Join(plain, "\n"))
 	}
 }
+
+// A handle has to be writable as an `alter microflow` target, and a target
+// ends at the `{` that opens a fragment. So the `{` describe prints after an
+// activity with a custom error handler is not part of its statement.
+func TestPrintedStatement_ErrorHandlerBlockOpenerIsNotPartOfTheStatement(t *testing.T) {
+	body := []string{"  commit $Order on error {", "    return false;", "  };"}
+	obj := &microflows.ActionActivity{}
+	got := printedStatement(obj, body, elkSourceRange{StartLine: 0, EndLine: 2})
+	if got != "commit $Order on error" {
+		t.Errorf("printed statement %q, want %q", got, "commit $Order on error")
+	}
+	if _, err := mfmutator.ParseTarget(got); err != nil {
+		t.Errorf("the handle does not parse as a target: %v", err)
+	}
+}
