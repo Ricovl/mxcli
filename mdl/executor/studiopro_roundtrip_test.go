@@ -72,8 +72,8 @@ var studioProKnownLossy = map[string]string{
 	"nanoflow FeedbackModule.SUB_Feedback_GetOrCreate|document": "the flow builder regenerates merges " +
 		"(3 ExclusiveMerges -> 1, control flow equivalent), plus activity Size and auto-captions",
 
-	"association Administration.AccountPasswordData_Account|document": "ako/mxcli#704: StorageFormat Table -> Column; the " +
-		"domain-model rewrite also drops empty MemberAccess refs and NoGeneralization flags",
+	"association Administration.AccountPasswordData_Account|document": "the domain-model rewrite drops empty " +
+		"MemberAccess refs and NoGeneralization flags (the storage is carried since #704's flip became reachable)",
 }
 
 type studioProCase struct {

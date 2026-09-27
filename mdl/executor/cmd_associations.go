@@ -109,7 +109,13 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 				if assoc.Name == s.Name.Name {
 					assoc.Type = assocType
 					assoc.Owner = owner
-					assoc.StorageFormat = storageFormat
+					// Unstated storage keeps the stored one: describe omits the
+					// clause for table storage, so the column default would flip
+					// a table association on re-executing unchanged describe
+					// output — a database schema change nobody asked for (#704).
+					if s.Storage != ast.StorageDefault {
+						assoc.StorageFormat = storageFormat
+					}
 					assoc.ChildDeleteBehavior = &domainmodel.DeleteBehavior{Type: deleteBehavior, ErrorMessage: deleteMessage}
 					assoc.Documentation = carriedDocumentation(
 						associationDocumentationStated(s), associationDocumentation(s), assoc.Documentation)
@@ -133,7 +139,9 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 				if ca.Name == s.Name.Name {
 					ca.Type = assocType
 					ca.Owner = owner
-					ca.StorageFormat = storageFormat
+					if s.Storage != ast.StorageDefault { // as above (#704)
+						ca.StorageFormat = storageFormat
+					}
 					ca.ChildDeleteBehavior = &domainmodel.DeleteBehavior{Type: deleteBehavior, ErrorMessage: deleteMessage}
 					ca.ChildRef = childRef
 					ca.Documentation = carriedDocumentation(
