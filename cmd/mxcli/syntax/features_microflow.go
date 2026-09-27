@@ -249,6 +249,37 @@ func init() {
 	})
 
 	Register(SyntaxFeature{
+		Path:    "microflow.describe-handles",
+		Summary: "DESCRIBE MICROFLOW ... WITH HANDLES: print each activity's content address",
+		Keywords: []string{
+			"handles", "handle", "describe", "target", "address", "alter microflow",
+			"ordinal", "content addressing", "wildcard",
+		},
+		Syntax: "DESCRIBE MICROFLOW Module.Name WITH HANDLES;\n\n" +
+			"-- Prints '-- handle: <target>' above each activity: the address that\n" +
+			"-- selects it in an ALTER MICROFLOW target (ADR-0012). Activities have no\n" +
+			"-- names, so a target names one by content, in this order of preference:\n" +
+			"--   $Var                       the activity whose output variable is $Var\n" +
+			"--   'Caption'                  a split, or an activity with a custom caption\n" +
+			"--   commit $Order              a statement pattern; * matches any run of\n" +
+			"--   log * node 'Debug' *       tokens, and the pattern spans the WHOLE\n" +
+			"--                              statement (end with * to match a prefix)\n" +
+			"-- A target matching several activities is an error that lists each with\n" +
+			"-- its ordinal (@1, @2, ... in describe order); it is never a guess.\n" +
+			"-- The handles are comments, so the output still executes unchanged.\n" +
+			"-- Cannot be combined with NORMALIZED, whose graph is not the stored one.",
+		Example: "DESCRIBE MICROFLOW FeedbackModule.VAL_Feedback WITH HANDLES;\n\n" +
+			"-- emits, among others:\n" +
+			"--   -- handle: $IsValidEmail\n" +
+			"--   $IsValidEmail = call java action FeedbackModule.ValidateEmail(...);\n" +
+			"--   -- handle: 'Email is Valid?'\n" +
+			"--   if not($IsValidEmail) then\n" +
+			"--   -- handle: set $ValidFeedback = false @3\n" +
+			"--   set $ValidFeedback = false;",
+		SeeAlso: []string{"microflow.normalized-describe"},
+	})
+
+	Register(SyntaxFeature{
 		Path:    "microflow.merge-join",
 		Summary: "Named join points: MERGE <label> and JOIN <label>",
 		Keywords: []string{
