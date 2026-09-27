@@ -195,6 +195,7 @@ func anchorCoord(text string) (int, bool) {
 
 // ExitAlterAssociationAction handles ALTER ASSOCIATION ... SET ... actions.
 func (b *Builder) ExitAlterAssociationAction(ctx *parser.AlterAssociationActionContext) {
+	b.recordDeleteBehavior(ctx.DELETE_BEHAVIOR(), ctx.DeleteBehavior())
 	// Walk up to the parent AlterStatement to get the association's qualified name
 	parent := ctx.GetParent()
 	for parent != nil {

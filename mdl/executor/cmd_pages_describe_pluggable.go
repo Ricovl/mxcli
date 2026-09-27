@@ -1360,7 +1360,7 @@ func customWidgetActionForSource(ctx *ExecContext, w map[string]any, source stri
 }
 
 // extractCustomWidgetPropertyAction extracts an action description from a CustomWidget property.
-// Returns a formatted string like "CALL_MICROFLOW Module.Flow" or "SHOW_PAGE Module.Page".
+// Returns a formatted string like "call microflow Module.Flow" or "show page Module.Page".
 func extractCustomWidgetPropertyAction(ctx *ExecContext, w map[string]any, propertyKey string) string {
 	obj, ok := w["Object"].(map[string]any)
 	if !ok {
@@ -1393,19 +1393,19 @@ func extractCustomWidgetPropertyAction(ctx *ExecContext, w map[string]any, prope
 		case "Forms$MicroflowAction", "Pages$MicroflowClientAction":
 			if settings, ok := action["MicroflowSettings"].(map[string]any); ok {
 				if mf := extractString(settings["Microflow"]); mf != "" {
-					return "microflow " + mf
+					return "call microflow " + mf
 				}
 			}
 		case "Forms$CallNanoflowClientAction", "Pages$CallNanoflowClientAction":
 			if settings, ok := action["NanoflowSettings"].(map[string]any); ok {
 				if nf := extractString(settings["Nanoflow"]); nf != "" {
-					return "nanoflow " + nf
+					return "call nanoflow " + nf
 				}
 			}
 		case "Forms$FormAction", "Pages$FormAction":
 			if settings, ok := action["PageSettings"].(map[string]any); ok {
 				if page := extractString(settings["Page"]); page != "" {
-					return "show_page " + page
+					return "show page " + page
 				}
 			}
 		case "Forms$NoAction", "Pages$NoAction":

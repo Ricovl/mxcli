@@ -1353,7 +1353,7 @@ func actionMapForKey(w map[string]any, key string) map[string]any {
 }
 
 // renderClientActionMDL renders a client-action map (a Forms$*ClientAction) back
-// to its MDL form (microflow/nanoflow/show_page/save_changes/…). Returns "" for a
+// to its MDL form (call microflow/call nanoflow/show page/save changes/…). Returns "" for a
 // nil action or a NoClientAction.
 func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 	if action == nil {
@@ -1362,27 +1362,27 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 	typeName, _ := action["$Type"].(string)
 	switch typeName {
 	case "Forms$SaveChangesClientAction", "Pages$SaveChangesClientAction":
-		result := "save_changes"
+		result := "save changes"
 		if closePage, ok := action["ClosePage"].(bool); ok && closePage {
-			result += " close_page"
+			result += " close page"
 		}
 		return result
 	case "Forms$CancelChangesClientAction", "Pages$CancelChangesClientAction":
-		result := "cancel_changes"
+		result := "cancel changes"
 		if closePage, ok := action["ClosePage"].(bool); ok && closePage {
-			result += " close_page"
+			result += " close page"
 		}
 		return result
 	case "Forms$ClosePageClientAction", "Pages$ClosePageClientAction":
-		return "close_page"
+		return "close page"
 	case "Forms$DeleteClientAction", "Pages$DeleteClientAction":
-		result := "delete_object"
+		result := "delete"
 		if closePage, ok := action["ClosePage"].(bool); ok && closePage {
-			result += " close_page"
+			result += " close page"
 		}
 		return result
 	case "Forms$CreateObjectClientAction", "Pages$CreateObjectClientAction":
-		result := "create_object"
+		result := "create object"
 		// Extract entity reference
 		if entityRef, ok := action["EntityRef"].(map[string]any); ok {
 			if entityName, ok := entityRef["Entity"].(string); ok && entityName != "" {
@@ -1393,7 +1393,7 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 		if pageSettings, ok := action["PageSettings"].(map[string]any); ok {
 			// The page is stored in "Form" field as a qualified name string (BY_NAME_REFERENCE)
 			if pageName, ok := pageSettings["Form"].(string); ok && pageName != "" {
-				pageAction := "show_page " + pageName
+				pageAction := "show page " + pageName
 				// Extract page parameters
 				params := extractPageParameters(ctx, pageSettings)
 				if params != "" {
@@ -1408,7 +1408,7 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 		// or PageSettings.Form, or Page field (binary ID for legacy)
 		if formSettings, ok := action["FormSettings"].(map[string]any); ok {
 			if pageName, ok := formSettings["Form"].(string); ok && pageName != "" {
-				result := "show_page " + pageName
+				result := "show page " + pageName
 				params := pageActionParameters(ctx, formSettings, pageName)
 				if params != "" {
 					result += "(" + params + ")"
@@ -1418,7 +1418,7 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 		}
 		if pageSettings, ok := action["PageSettings"].(map[string]any); ok {
 			if pageName, ok := pageSettings["Form"].(string); ok && pageName != "" {
-				result := "show_page " + pageName
+				result := "show page " + pageName
 				params := pageActionParameters(ctx, pageSettings, pageName)
 				if params != "" {
 					result += "(" + params + ")"
@@ -1430,15 +1430,15 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 		if pageID := extractBinaryID(action["Page"]); pageID != "" {
 			pageName := getPageQualifiedName(ctx, model.ID(pageID))
 			if pageName != "" {
-				return "show_page " + pageName
+				return "show page " + pageName
 			}
 		}
-		return "show_page"
+		return "show page"
 	case "Forms$MicroflowAction", "Pages$MicroflowClientAction":
 		// Extract microflow reference from MicroflowSettings
 		if settings, ok := action["MicroflowSettings"].(map[string]any); ok {
 			if mfName, ok := settings["Microflow"].(string); ok && mfName != "" {
-				result := "microflow " + mfName
+				result := "call microflow " + mfName
 				// Extract parameter mappings
 				params := extractMicroflowParameters(ctx, settings)
 				if params != "" {
@@ -1447,10 +1447,10 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 				return result
 			}
 		}
-		return "microflow"
+		return "call microflow"
 	case "Forms$CallNanoflowClientAction", "Pages$CallNanoflowClientAction":
 		if nfName, ok := action["Nanoflow"].(string); ok && nfName != "" {
-			result := "nanoflow " + nfName
+			result := "call nanoflow " + nfName
 			// Extract parameter mappings (directly in the action)
 			params := extractNanoflowParameters(ctx, action)
 			if params != "" {
@@ -1458,21 +1458,21 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 			}
 			return result
 		}
-		return "nanoflow"
+		return "call nanoflow"
 	case "Forms$SetTaskOutcomeClientAction", "Pages$SetTaskOutcomeClientAction":
 		outcomeValue, _ := action["OutcomeValue"].(string)
-		return "complete_task '" + strings.ReplaceAll(outcomeValue, "'", "''") + "'"
+		return "complete task '" + strings.ReplaceAll(outcomeValue, "'", "''") + "'"
 	case "Forms$SignOutClientAction", "Pages$SignOutClientAction":
-		return "sign_out"
+		return "sign out"
 	case "Forms$OpenLinkClientAction", "Pages$OpenLinkClientAction":
 		// The address is a nested Forms$StaticOrDynamicString: a literal, or —
 		// DYNAMIC, 6 of the 31 Studio Pro references — an attribute read at
-		// runtime, spelled `open_link $currentObject/Attr`. It used to render
+		// runtime, spelled `open link $currentObject/Attr`. It used to render
 		// as an inline `--` note, which left `Action:` without a value and made
 		// the describe output unparseable.
 		addr := actionMapForKey(action, "Address")
 		if addr == nil {
-			return "open_link ''"
+			return "open link ''"
 		}
 		if isDynamic, _ := addr["IsDynamic"].(bool); isDynamic {
 			attr := ""
@@ -1482,16 +1482,16 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 				overAssociation = actionMapForKey(ref, "EntityRef") != nil
 			}
 			if attr != "" && !overAssociation {
-				return "open_link $currentObject/" + shortAttributeName(attr)
+				return "open link $currentObject/" + shortAttributeName(attr)
 			}
 			// No MDL spelling: a note, which actionProp puts on its own line.
 			// CREATE OR REPLACE PAGE rebuilds the page, so say plainly that
 			// re-running drops the action rather than implying it survives.
-			return "-- NOT re-executable: open_link with a dynamic address over an association (" +
+			return "-- NOT re-executable: open link with a dynamic address over an association (" +
 				attr + ") — re-running this script would drop the button's action"
 		}
 		value, _ := addr["Value"].(string)
-		return "open_link '" + strings.ReplaceAll(value, "'", "''") + "'"
+		return "open link '" + strings.ReplaceAll(value, "'", "''") + "'"
 	case "Forms$NoClientAction", "Pages$NoClientAction":
 		return ""
 	default:

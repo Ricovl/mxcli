@@ -121,7 +121,7 @@ Domain Model - Associations:
     to Module.Child
     type Reference|ReferenceSet
     [owner Default|Both|Parent|Child]
-    [delete_behavior DELETE_BUT_KEEP_REFERENCES|DELETE_AND_REFERENCES|DELETE_IF_NO_REFERENCES];
+    [on delete set null|cascade|restrict [error message '...']];
   /
 
   drop association Module.Name;

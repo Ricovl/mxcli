@@ -652,19 +652,38 @@ associationPathV3
 actionExprV3
     : VARIABLE                                        // $handler — a fragment action parameter (see fragmentParam)
     | NOTHING                                         // NOTHING — an explicitly inert widget (Forms$NoAction)
-    | SAVE_CHANGES (CLOSE_PAGE)?                      // SAVE_CHANGES or SAVE_CHANGES CLOSE_PAGE
-    | CANCEL_CHANGES (CLOSE_PAGE)?                    // CANCEL_CHANGES
-    | CLOSE_PAGE                                      // CLOSE_PAGE
-    | DELETE_OBJECT                                   // DELETE_OBJECT
-    | DELETE (CLOSE_PAGE)?                            // DELETE (legacy)
-    | CREATE_OBJECT qualifiedName (THEN actionExprV3)? // CREATE_OBJECT Entity THEN SHOW_PAGE ...
-    | SHOW_PAGE qualifiedName microflowArgsV3?        // SHOW_PAGE Module.Page (Param: val)
-    | MICROFLOW qualifiedName microflowArgsV3?        // MICROFLOW Module.Flow
-    | NANOFLOW qualifiedName microflowArgsV3?         // NANOFLOW Module.Flow
-    | OPEN_LINK STRING_LITERAL                        // OPEN_LINK 'https://...'
-    | OPEN_LINK VARIABLE SLASH attributePathV3        // OPEN_LINK $currentObject/URL (address read from an attribute)
-    | SIGN_OUT                                        // SIGN_OUT
-    | COMPLETE_TASK STRING_LITERAL                    // COMPLETE_TASK 'OutcomeName'
+    | SAVE_CHANGES closePageV3?                       // save changes [close page]
+    | CANCEL_CHANGES closePageV3?                     // cancel changes [close page]
+    | closePageV3                                     // close page
+    | DELETE closePageV3?                             // delete [close page]
+    | DELETE_OBJECT /* @alias MDL-DEPR020 */ closePageV3?
+    | CREATE OBJECT qualifiedName (THEN actionExprV3)? // create object Entity then show page ...
+    | CREATE_OBJECT /* @alias MDL-DEPR020 */ qualifiedName (THEN actionExprV3)?
+    | SHOW PAGE qualifiedName microflowArgsV3?        // show page Module.Page (Param: val)
+    | SHOW_PAGE /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3?
+    | CALL MICROFLOW qualifiedName microflowArgsV3?   // call microflow Module.Flow
+    | MICROFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3?
+    | CALL NANOFLOW qualifiedName microflowArgsV3?    // call nanoflow Module.Flow
+    | NANOFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3?
+    | openLinkV3 STRING_LITERAL                       // open link 'https://...'
+    | openLinkV3 VARIABLE SLASH attributePathV3       // open link $currentObject/URL (address read from an attribute)
+    | SIGN_OUT                                        // sign out
+    | COMPLETE_TASK STRING_LITERAL                    // complete task 'OutcomeName'
+    ;
+
+// The page actions are the words a microflow uses (R8, ako/mxcli#752):
+// `show page`, `close page`, `create object`, `call microflow`, `open link`.
+// The snake-case tokens are the deprecated second spellings; `save changes`,
+// `cancel changes`, `sign out` and `complete task` are single lexer tokens that
+// admit both (MDLLexer.g4).
+closePageV3
+    : CLOSE PAGE
+    | CLOSE_PAGE /* @alias MDL-DEPR020 */
+    ;
+
+openLinkV3
+    : OPEN LINK
+    | OPEN_LINK /* @alias MDL-DEPR020 */
     ;
 
 // V3 Microflow arguments: (Param: value, ...)
