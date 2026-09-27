@@ -216,7 +216,7 @@ alter entity Module.Customer
 
 -- Add an index
 alter entity Module.Customer
-  add index idx_email (Email asc);
+  add index (Email asc);
 
 -- Reposition entity on domain model canvas
 alter entity Module.Customer

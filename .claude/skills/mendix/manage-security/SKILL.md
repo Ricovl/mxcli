@@ -127,6 +127,12 @@ describe user role Administrator;
 describe demo user 'demo_admin';
 ```
 
+`describe demo user` never prints the password. It emits
+`create or modify demo user 'demo_admin' password '***' …`, where `'***'` means
+*keep the stored password*: replaying the output on the same project leaves the
+password as it is, and on a project without that user the statement is refused
+until you replace `'***'` with a real password.
+
 ### Catalog Queries (SQL)
 
 Security data is available in catalog tables for advanced querying. Use `refresh catalog full` to populate permissions and role mappings.

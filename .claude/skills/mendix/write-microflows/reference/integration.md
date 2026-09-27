@@ -210,6 +210,28 @@ There is **no** equivalent for an HttpResponse specialization: Mendix allows onl
 **Pick `as` vs `as list of` based on the call site, not the mapping shape.** The same import mapping can yield either a single object or a list — Studio Pro stores the cardinality on the microflow's `ImportMappingCall` (`Range.SingleObject` + `ForceSingleOccurrence`). Use `as Module.Entity` when the response is a single object (the mapping may still be list-typed; Studio Pro binds the first item). Use `as list of Module.Entity` when the response should bind a list. Mismatching the cardinality with the surrounding code produces `mx check` `CE0117` at the End event or `CE0013` / `CE0100` on downstream loop / aggregate / list-operation activities.
 
 **REST CALL supports full error handling** (`on error continue`, `on error rollback`, custom error handlers).
+## Execute Database Query
+```mdl
+-- Static query (3-part name: Module.Connection.Query)
+$Results = execute database query Module.Conn.QueryName;
+
+-- Dynamic SQL override
+$Results = execute database query Module.Conn.QueryName
+  dynamic 'SELECT * FROM table LIMIT 10';
+
+-- Parameterized query (names must match query PARAMETER definitions)
+$Results = execute database query Module.Conn.QueryName
+  (paramName = $Variable);
+
+-- Runtime connection override
+$Results = execute database query Module.Conn.QueryName
+  connection (DBSource = $url, DBUsername = $user, DBPassword = $Pass);
+
+-- Fire-and-forget (no output variable)
+execute database query Module.Conn.QueryName;
+```
+**Note:** Only `on error rollback` is supported (the default). `on error continue` is not available for this action.
+
 ## File Downloads
 
 Use `download file` to stream a `System.FileDocument` from a microflow. Add

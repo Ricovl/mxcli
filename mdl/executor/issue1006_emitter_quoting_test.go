@@ -117,13 +117,23 @@ func TestMDLQuoted(t *testing.T) {
 // files is by construction a site that is not using it.
 func TestDescribers_HaveNoHandRolledStringLiterals(t *testing.T) {
 	pattern := regexp.MustCompile(`'%s'`)
-	for _, f := range []string{"cmd_workflows.go"} {
+	// ako/mxcli#707 found the same omission in these describers. Error
+	// messages are prose, not MDL, and are skipped.
+	for _, f := range []string{
+		"cmd_workflows.go",
+		"cmd_entities_describe.go",
+		"cmd_security.go",
+		"cmd_odata.go",
+		"cmd_published_rest.go",
+		"cmd_rest_clients.go",
+		"cmd_agenteditor_agents.go",
+	} {
 		src, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for i, line := range strings.Split(string(src), "\n") {
-			if pattern.MatchString(line) {
+			if pattern.MatchString(line) && !strings.Contains(line, "mdlerrors.") {
 				t.Errorf("%s:%d emits a hand-rolled MDL string literal — use mdlQuoted:\n\t%s",
 					f, i+1, strings.TrimSpace(line))
 			}

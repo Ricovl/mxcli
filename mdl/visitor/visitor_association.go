@@ -16,6 +16,10 @@ func (b *Builder) ExitCreateAssociationStatement(ctx *parser.CreateAssociationSt
 	if len(names) < 3 {
 		return
 	}
+	if ctx.LPAREN() != nil {
+		b.rejectParenthesisedAssociation(ctx)
+		return
+	}
 
 	stmt := &ast.CreateAssociationStmt{
 		// The doc comment, the same spelling every other document type uses. It

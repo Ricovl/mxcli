@@ -911,6 +911,31 @@ func workflowActivityAsClause(name, derived string) string {
 	return " as " + mdlIdent(name)
 }
 
+// workflowCaptionClauses renders the name slot and the caption of an activity
+// whose writer defaults the caption to defaultCaption and the name to the
+// caption (decision, parallel split).
+//
+// A caption the author set is emitted as `comment '…'`, which the grammar reads
+// back into the caption. It used to be emitted only as a trailing `-- caption`
+// comment, so describe → exec replaced it with the default (ako/mxcli#707). The
+// default carries nothing and stays a plain trailing comment, as for call
+// activities. The name clause is computed against the caption the writer will
+// actually store, since that is what an omitted name falls back to.
+func workflowCaptionClauses(name, caption, defaultCaption string) (nameClause, captionClause string) {
+	written := defaultCaption
+	if caption != "" && caption != defaultCaption {
+		written = caption
+		captionClause = " comment " + mdlQuoted(caption)
+	} else {
+		shown := caption
+		if shown == "" {
+			shown = name
+		}
+		captionClause = " -- " + shown
+	}
+	return workflowActivityNameClause(name, written), captionClause
+}
+
 // formatExclusiveSplit formats an exclusive split (decision) for describe output.
 func formatExclusiveSplit(a *workflows.ExclusiveSplitActivity, indent string) []string {
 	var lines []string
@@ -919,16 +944,11 @@ func formatExclusiveSplit(a *workflows.ExclusiveSplitActivity, indent string) []
 		lines = append(lines, formatAnnotation(a.Annotation, indent))
 	}
 
-	caption := a.Caption
-	if caption == "" {
-		caption = a.Name
-	}
-
-	nameClause := workflowActivityNameClause(a.Name, caption)
+	nameClause, captionClause := workflowCaptionClauses(a.Name, a.Caption, "Decision")
 	if a.Expression != "" {
-		lines = append(lines, fmt.Sprintf("%sdecision%s %s -- %s", indent, nameClause, mdlQuoted(a.Expression), caption))
+		lines = append(lines, fmt.Sprintf("%sdecision%s %s%s", indent, nameClause, mdlQuoted(a.Expression), captionClause))
 	} else {
-		lines = append(lines, fmt.Sprintf("%sdecision%s -- %s", indent, nameClause, caption))
+		lines = append(lines, fmt.Sprintf("%sdecision%s%s", indent, nameClause, captionClause))
 	}
 
 	lines = append(lines, formatConditionOutcomes(a.Outcomes, indent)...)
@@ -944,13 +964,8 @@ func formatParallelSplit(a *workflows.ParallelSplitActivity, indent string) []st
 		lines = append(lines, formatAnnotation(a.Annotation, indent))
 	}
 
-	caption := a.Caption
-	if caption == "" {
-		caption = a.Name
-	}
-
-	lines = append(lines, fmt.Sprintf("%sparallel split%s -- %s", indent,
-		workflowActivityNameClause(a.Name, caption), caption))
+	nameClause, captionClause := workflowCaptionClauses(a.Name, a.Caption, "Parallel split")
+	lines = append(lines, fmt.Sprintf("%sparallel split%s%s", indent, nameClause, captionClause))
 	for i, outcome := range a.Outcomes {
 		lines = append(lines, fmt.Sprintf("%s  path %d {", indent, i+1))
 		if outcome.Flow != nil && len(outcome.Flow.Activities) > 0 {

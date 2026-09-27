@@ -25,6 +25,9 @@ applies statements one at a time and cannot roll back, so running a script with
 a known error leaves the model partly updated. Warnings are printed and do not
 stop the run. Use --no-check to apply a script anyway.
 
+A deprecated MDL spelling (MDL-DEPRnnn, e.g. "create or replace" for "create or
+modify") is a warning; --deprecations=error makes it an error.
+
 By default execution stops at the first error. With --continue-on-error, every
 statement is attempted; each failure is reported (prefixed with its statement
 number) and execution continues, exiting non-zero if any statement failed. This
@@ -50,6 +53,7 @@ Example:
 		projectPath, _ := cmd.Flags().GetString("project")
 		continueOnError, _ := cmd.Flags().GetBool("continue-on-error")
 		skipCheck, _ := cmd.Flags().GetBool("no-check")
+		depPolicy := deprecationPolicy(cmd)
 
 		// Read the script (a path, or "-" for stdin)
 		content, err := readMDLSource(filePath)
@@ -103,7 +107,7 @@ Example:
 		// exec is not transactional, so "run it and see" means a half-applied
 		// model. Warnings are printed and do not stop the run.
 		if !skipCheck {
-			violations := executor.ValidateProgram(prog, projectPath)
+			violations := executor.ApplyDeprecationPolicy(executor.ValidateProgram(prog, projectPath), depPolicy)
 			if len(violations) > 0 {
 				formatter := linter.GetFormatter(linter.OutputFormatText, true)
 				formatter.Format(violations, os.Stderr)

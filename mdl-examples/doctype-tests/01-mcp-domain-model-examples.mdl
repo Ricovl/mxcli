@@ -47,15 +47,15 @@ create module McpDm;
  * Order lifecycle states.
  */
 create enumeration McpDm.OrderStatus (
-  /** Order received, awaiting processing */
+  -- Order received, awaiting processing
   PENDING 'Pending',
-  /** Order is being processed */
+  -- Order is being processed
   PROCESSING 'Processing',
-  /** Order has been shipped */
+  -- Order has been shipped
   SHIPPED 'Shipped',
-  /** Order delivered to customer */
+  -- Order delivered to customer
   DELIVERED 'Delivered',
-  /** Order was cancelled */
+  -- Order was cancelled
   CANCELLED 'Cancelled'
 );
 /
@@ -64,13 +64,13 @@ create enumeration McpDm.OrderStatus (
  * Payment methods with user-friendly captions.
  */
 create enumeration McpDm.PaymentMethod (
-  /** Credit card payment */
+  -- Credit card payment
   CC 'Credit Card',
-  /** Debit card payment */
+  -- Debit card payment
   DC 'Debit Card',
-  /** PayPal payment */
+  -- PayPal payment
   PP 'PayPal',
-  /** Bank transfer payment */
+  -- Bank transfer payment
   BT 'Bank Transfer'
 );
 /
@@ -118,8 +118,8 @@ create persistent entity McpDm.Product (
   TotalUnitsProduced: long,
   /** Whether the product is available for sale */
   IsActive: boolean,
-  /** Release date (date only) */
-  ReleaseDate: date,
+  /** Release date (Mendix has no date-only type; a DateTime) */
+  ReleaseDate: datetime,
   /** Creation timestamp */
   CreatedAt: datetime
 );

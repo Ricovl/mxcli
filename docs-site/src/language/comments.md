@@ -57,6 +57,10 @@ Documentation comments can be placed before:
 - Enumeration definitions (becomes enumeration documentation)
 - Association definitions (becomes association documentation)
 
+Not before an **enumeration value** or an **index**: Mendix stores no documentation
+on a value and no name on an index, so `check` warns that the text is not kept
+(`MDL-ENUMDOC01`, `MDL-IDX01`). Use an ordinary `--` comment for a note there.
+
 ### Updating Documentation
 
 You can also set documentation on existing entities with `ALTER ENTITY`:
