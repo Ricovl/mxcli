@@ -385,6 +385,7 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 		}
 		setPointer(af.doc, key, frag.Entry)
 	}
+	m.removeFlows(g.bodyFlows(x.id))
 	return m.removeObject(x)
 }
 
@@ -412,12 +413,34 @@ func (m *Mutator) Drop(target model.ID) error {
 		setInt(in.doc, "DestinationConnectionIndex", destIdx)
 		setVector(in.doc, "DestinationControlVector", destVec)
 	}
-	drop := map[string]bool{out.id: true}
+	drop := g.bodyFlows(x.id)
+	drop[out.id] = true
 	for _, af := range g.annotationFlows(x.id) {
 		drop[af.id] = true
 	}
 	m.removeFlows(drop)
 	return m.removeObject(x)
+}
+
+// bodyFlows returns the flows that run inside loop's body, at any depth. They
+// are stored in the unit's Flows list, not in the loop, so taking the loop out
+// has to take them too; left behind they would point at removed objects.
+func (g *graph) bodyFlows(loop string) map[string]bool {
+	inside := func(id string) bool {
+		for n := g.nodes[id]; n != nil && n.loop != ""; n = g.nodes[n.loop] {
+			if n.loop == loop {
+				return true
+			}
+		}
+		return false
+	}
+	out := map[string]bool{}
+	for _, f := range g.flows {
+		if inside(f.origin) || inside(f.dest) {
+			out[f.id] = true
+		}
+	}
+	return out
 }
 
 // removable checks that x can be taken out of the flow and returns the one

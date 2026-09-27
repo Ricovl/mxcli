@@ -352,3 +352,53 @@ func TestSplice_DropJoinsTheFlows(t *testing.T) {
 		}
 	}
 }
+
+// A loop's body flows are stored in the unit's Flows list, not in the loop.
+// Dropping or replacing the loop takes them with it; left behind, they point at
+// the removed body objects and Save refuses the unit (a Studio Pro-authored
+// loop with two body activities, ACT_ConflictedWorkflowHelper_ApplyJumpTo in
+// TestApp, hit exactly that).
+func TestSplice_DropOrReplaceALoopTakesItsBodyFlows(t *testing.T) {
+	build := func() ([]bson.D, []bson.D) {
+		loop := obj("loop", "Microflows$LoopedActivity", 420, 200)
+		loop = append(loop, bson.E{Key: "ObjectCollection", Value: bson.D{
+			{Key: "$ID", Value: bin("loopoc")},
+			{Key: "$Type", Value: "Microflows$MicroflowObjectCollection"},
+			{Key: "Objects", Value: bson.A{int32(3), obj("inner", "Microflows$ActionActivity", 100, 60), obj("inner2", "Microflows$ActionActivity", 260, 60)}},
+		}})
+		objs := []bson.D{
+			obj("start", "Microflows$StartEvent", 100, 200),
+			obj("a", "Microflows$ActionActivity", 250, 200),
+			loop,
+			obj("end", "Microflows$EndEvent", 700, 200),
+		}
+		flows := []bson.D{
+			flow("f1", "start", "a", 1, 3, false),
+			flow("f2", "a", "loop", 1, 3, false),
+			flow("fi", "inner", "inner2", 1, 3, false),
+			flow("f3", "loop", "end", 1, 3, false),
+		}
+		return objs, flows
+	}
+	ops := map[string]func(m *Mutator) error{
+		"drop":    func(m *Mutator) error { return m.Drop(model.ID(uid("loop"))) },
+		"replace": func(m *Mutator) error { return m.Replace(model.ID(uid("loop")), oneActivity()) },
+	}
+	for name, op := range ops {
+		t.Run(name, func(t *testing.T) {
+			objs, flows := build()
+			m, deps := newMutator(t, unit(objs, flows))
+			if err := op(m); err != nil {
+				t.Fatalf("%s: %v", name, err)
+			}
+			if err := m.Save(); err != nil {
+				t.Fatalf("save: %v", err)
+			}
+			for _, gone := range []string{"loop", "inner", "inner2", "fi"} {
+				if bytes.Contains(deps.saved, types.UUIDToBlob(uid(gone))) {
+					t.Errorf("%s is still in the unit", gone)
+				}
+			}
+		})
+	}
+}
