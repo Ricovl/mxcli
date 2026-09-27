@@ -459,6 +459,41 @@ func init() {
 	})
 
 	Register(SyntaxFeature{
+		Path:    "microflow.alter",
+		Summary: "Patch a stored microflow or nanoflow: insert, replace or drop activities in place",
+		Keywords: []string{
+			"alter microflow", "alter nanoflow", "insert after", "insert before",
+			"replace", "drop activity", "patch microflow", "splice", "handle",
+		},
+		Syntax: "ALTER MICROFLOW|NANOFLOW Module.Name {\n" +
+			"  INSERT AFTER|BEFORE <target> { <statements> }\n" +
+			"  REPLACE <target> WITH { <statements> }\n" +
+			"  DROP <target>;\n" +
+			"};\n\n" +
+			"-- <target> addresses one activity by content, as `describe microflow ... with handles` prints it:\n" +
+			"--   $Var            the activity that outputs $Var\n" +
+			"--   'Caption'       a decision or an activity with a custom caption\n" +
+			"--   <statement>     a statement pattern; * matches any run of tokens\n" +
+			"-- followed by @n when it matches more than one. Targets are resolved against the\n" +
+			"-- stored flow before any operation runs; an ambiguous or unknown target is an error.\n" +
+			"-- Only the new activities, the rewired flows and the objects moved to make room change;\n" +
+			"-- every other element keeps its $ID, position and curve.\n" +
+			"-- Refused: insert after a decision, insert before an activity several flows enter,\n" +
+			"-- drop/replace of a decision or of an activity with an error handler, anything inside\n" +
+			"-- a loop body, a fragment that returns, and a fragment variable that clashes with one\n" +
+			"-- the flow has or reads one not declared on the path. Over --mcp only insert is supported.",
+		Example: "alter microflow FeedbackModule.VAL_Feedback {\n" +
+			"  insert after $IsValidEmail { log info node 'Feedback' 'Email checked'; }\n" +
+			"  replace set $ValidFeedback = false @3 with {\n" +
+			"    set $ValidFeedback = false;\n" +
+			"    log warning node 'Feedback' 'Email rejected';\n" +
+			"  }\n" +
+			"  drop log debug node 'Feedback' *;\n" +
+			"};",
+		SeeAlso: []string{"microflow"},
+	})
+
+	Register(SyntaxFeature{
 		Path:    "microflow.show-page",
 		Summary: "Open and close pages from microflows",
 		Keywords: []string{
