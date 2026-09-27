@@ -1132,7 +1132,13 @@ func createODataClient(ctx *ExecContext, stmt *ast.CreateODataClientStmt) error 
 					}
 					return nil
 				}
-				return mdlerrors.NewAlreadyExistsMsg("OData client", modName+"."+svc.Name, fmt.Sprintf("OData client already exists: %s.%s (use create or modify to update)", modName, svc.Name))
+				// Not "use create or modify": that rewrite does not yet carry what
+				// describe cannot print and would lose Studio Pro-authored
+				// settings (#743).
+				return mdlerrors.NewAlreadyExistsMsg("OData client", modName+"."+svc.Name, fmt.Sprintf(
+					"OData client already exists: %s.%s — use 'alter odata client %s.%s set ...' to change it; "+
+						"'create or modify odata client' rewrites the whole client and does not yet keep everything Studio Pro stores "+
+						"(UseQuerySegment, catalog, proxy and microflow settings, icon)", modName, svc.Name, modName, svc.Name))
 			}
 		}
 	}
