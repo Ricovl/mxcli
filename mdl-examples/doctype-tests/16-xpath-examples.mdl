@@ -553,11 +553,11 @@ create page XpathTest.ActiveCustomerPage (
 -- the domain model as out of date. Needs investigation with Studio Pro.
 --
 -- CREATE MODULE ROLE XpathTest.User;
--- GRANT XpathTest.User ON XpathTest.Customer (READ *, WRITE *);
--- GRANT XpathTest.User ON XpathTest.OrderLine (READ *, WRITE *);
--- GRANT XpathTest.User ON XpathTest.Category (READ *, WRITE *);
--- GRANT XpathTest.User ON XpathTest.Order (READ *, WRITE *)
---   WHERE '[System.owner = ''[%CurrentUser%]'']';
+-- GRANT READ *, WRITE * ON ENTITY XpathTest.Customer TO XpathTest.User;
+-- GRANT READ *, WRITE * ON ENTITY XpathTest.OrderLine TO XpathTest.User;
+-- GRANT READ *, WRITE * ON ENTITY XpathTest.Category TO XpathTest.User;
+-- GRANT READ *, WRITE * ON ENTITY XpathTest.Order TO XpathTest.User
+--   WHERE [System.owner = '[%CurrentUser%]'];
 
 -- ============================================================================
 -- MARK: Cleanup

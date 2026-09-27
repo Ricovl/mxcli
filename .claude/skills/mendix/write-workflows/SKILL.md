@@ -96,7 +96,7 @@ begin
   -- User task: renders a page, offers named outcomes (branches)
   user task Review 'Review the request'
     page Module.ReviewPage
-    targeting users microflow Module.ACT_Reviewers   -- or: targeting users xpath '[Active = true()]'
+    targeting users microflow Module.ACT_Reviewers   -- or: targeting users xpath [Active = true()]
     on created microflow Module.ACT_AssignReviewer   -- optional: runs when the task is created
     description 'Please review'
     outcomes

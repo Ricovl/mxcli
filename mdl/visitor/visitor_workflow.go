@@ -393,7 +393,11 @@ func buildActivitySetPropertyOp(ctx *parser.ActivitySetPropertyContext, ref stri
 		}
 	} else if ctx.TARGETING() != nil && ctx.XPATH() != nil {
 		op.Property = "targeting_xpath"
-		op.Value = unquoteStringLit(ctx.STRING_LITERAL())
+		if groups := ctx.AllXpathConstraint(); len(groups) > 0 {
+			op.Value = bracketedXPathText(groups)
+		} else if lit := ctx.STRING_LITERAL(); lit != nil {
+			op.Value = unquoteStringLit(lit) // MDL-DEPR031, recorded by ExitActivitySetProperty
+		}
 	} else if ctx.DUE() != nil {
 		op.Property = "due_date"
 		op.Value = unquoteStringLit(ctx.STRING_LITERAL())
@@ -600,8 +604,10 @@ func applyWorkflowUserTaskClause(node *ast.WorkflowUserTaskNode, clause parser.I
 		} else {
 			node.Targeting.Kind = "xpath"
 		}
-		if str := c.STRING_LITERAL(); str != nil {
-			node.Targeting.XPath = unquoteStringLit(str)
+		if groups := c.AllXpathConstraint(); len(groups) > 0 {
+			node.Targeting.XPath = bracketedXPathText(groups)
+		} else if str := c.STRING_LITERAL(); str != nil {
+			node.Targeting.XPath = unquoteStringLit(str) // MDL-DEPR031, recorded by ExitWorkflowUserTaskClause
 		}
 	case c.ON() != nil && c.CREATED() != nil:
 		if qn := c.QualifiedName(); qn != nil {

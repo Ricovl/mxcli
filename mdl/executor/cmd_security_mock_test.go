@@ -3,11 +3,13 @@
 package executor
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/mock"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
@@ -395,10 +397,11 @@ func TestGrantEntityAccess_XPathConstraint_PreservesRights(t *testing.T) {
 	assertContainsStr(t, out, "read *")
 }
 
-// TestOutputEntityAccessGrants_XPathConstraint_EscapedQuotes verifies that
-// outputEntityAccessGrants escapes single quotes inside the XPath constraint
-// so the DESCRIBE ENTITY output is valid re-parseable MDL (issue #431).
-func TestOutputEntityAccessGrants_XPathConstraint_EscapedQuotes(t *testing.T) {
+// TestOutputEntityAccessGrants_XPathConstraint_Bracketed verifies that
+// outputEntityAccessGrants writes the canonical grant (R5, ako/mxcli#753):
+// rights first, roles after `to`, and the XPath in [ ] as stored — no quote is
+// doubled — and that the output re-parses with no deprecated spelling (#431).
+func TestOutputEntityAccessGrants_XPathConstraint_Bracketed(t *testing.T) {
 	mod := mkModule("MyModule")
 	h := mkHierarchy(mod)
 
@@ -432,13 +435,51 @@ func TestOutputEntityAccessGrants_XPathConstraint_EscapedQuotes(t *testing.T) {
 
 	outputEntityAccessGrants(ctx, entity, "MyModule", "Order")
 
-	out := buf.String()
-	// Single quotes inside the XPath must be doubled for valid MDL
-	assertContainsStr(t, out, "''Open''")
-	// Should NOT contain unescaped version
-	assertNotContainsStr(t, out, "= 'Open'")
-	// The outer where clause delimiters must still be single quotes
-	assertContainsStr(t, out, "where '")
+	out := strings.TrimSpace(buf.String())
+	want := "grant read *, write * on entity MyModule.Order to MyModule.User where [Status = 'Open'];"
+	if out != want {
+		t.Fatalf("got  %s\nwant %s", out, want)
+	}
+	prog, errs := visitor.Build(out)
+	if len(errs) > 0 || len(prog.Deprecations) != 0 {
+		t.Fatalf("describe output does not re-parse cleanly: errs=%v deprecations=%v", errs, prog.Deprecations)
+	}
+	if g := prog.Statements[0].(*ast.GrantEntityAccessStmt); g.XPathConstraint != "[Status = 'Open']" {
+		t.Errorf("re-parsed XPathConstraint = %q", g.XPathConstraint)
+	}
+}
+
+// A stored constraint that is not bracketed XPath the grammar reads is written
+// in the quoted form, which is deprecated but carries any value: describe must
+// stay re-executable over whatever a project stores.
+func TestOutputEntityAccessGrants_XPathConstraint_UnparseableFallsBackToQuoted(t *testing.T) {
+	mod := mkModule("MyModule")
+	h := mkHierarchy(mod)
+	entity := &domainmodel.Entity{
+		BaseElement: model.BaseElement{ID: nextID("ent")},
+		ContainerID: mod.ID,
+		Name:        "Order",
+		Persistable: true,
+		AccessRules: []*domainmodel.AccessRule{{
+			ModuleRoleNames:           []string{"MyModule.User"},
+			DefaultMemberAccessRights: domainmodel.MemberAccessRightsReadOnly,
+			XPathConstraint:           "Status = 'Open'",
+		}},
+	}
+	ctx, buf := newMockCtx(t, withBackend(&mock.MockBackend{IsConnectedFunc: func() bool { return true }}), withHierarchy(h))
+	outputEntityAccessGrants(ctx, entity, "MyModule", "Order")
+	out := strings.TrimSpace(buf.String())
+	want := "grant MyModule.User on MyModule.Order (read *) where 'Status = ''Open''';"
+	if out != want {
+		t.Fatalf("got  %s\nwant %s", out, want)
+	}
+	prog, errs := visitor.Build(out)
+	if len(errs) > 0 {
+		t.Fatalf("does not re-parse: %v", errs)
+	}
+	if g := prog.Statements[0].(*ast.GrantEntityAccessStmt); g.XPathConstraint != "Status = 'Open'" {
+		t.Errorf("re-parsed XPathConstraint = %q", g.XPathConstraint)
+	}
 }
 
 // TestGrantEntityAccess_FakeRole_Issue399 verifies that GRANT ON ENTITY rejects

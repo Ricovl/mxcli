@@ -33,10 +33,14 @@ func init() {
 			"entity access", "grant", "revoke", "read", "write",
 			"create", "delete", "xpath", "row-level security",
 		},
-		Syntax: "GRANT <module>.<role> ON <module>.<entity> (<rights>) [WHERE '<xpath>'];\n" +
+		Syntax: "GRANT <rights> ON ENTITY <module>.<entity> TO <module>.<role> [, ...] [WHERE [<xpath>]];\n" +
 			"REVOKE <module>.<role> ON <module>.<entity>;\n" +
 			"REVOKE <module>.<role> ON <module>.<entity> (<rights>);\n\n" +
 			"Rights: CREATE, DELETE, READ *, READ (<attr>,...), WRITE *, WRITE (<attr>,...)\n\n" +
+			"The XPath is written in [ ], as everywhere else, so quotes inside it are\n" +
+			"not doubled; sibling groups ([a][b]) are one constraint. The old order,\n" +
+			"GRANT <role> ON <entity> (<rights>) WHERE '<xpath>', still parses and\n" +
+			"warns MDL-DEPR030; `mxcli fmt --upgrade` rewrites it.\n\n" +
 			"A module role is always Module.Role. A bare role name parses but is\n" +
 			"refused (MDL-GRANT02) — mxcli cannot tell which module it belongs to.\n\n" +
 			"Members added later:\n" +
@@ -56,12 +60,13 @@ func init() {
 			"  Exception: entities extending System.User are user entities, whose\n" +
 			"  platform members (Name, Password, Blocked, ...) Mendix manages. Do not\n" +
 			"  grant those; mxcli leaves them out of the rule automatically.",
-		Example: "GRANT Shop.Admin ON Shop.Customer (CREATE, DELETE, READ *, WRITE *);\n" +
-			"GRANT Shop.User ON Shop.Customer (READ *) WHERE '[Active = true()]';\n\n" +
+		Example: "GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Customer TO Shop.Admin;\n" +
+			"GRANT READ * ON ENTITY Shop.Customer TO Shop.User WHERE [Active = true()];\n" +
+			"GRANT READ *, WRITE * ON ENTITY Shop.Order TO Shop.User WHERE [Status = 'Open'];\n\n" +
 			"-- Contract extends DocumentBase: DocName is inherited, ContractNumber is own\n" +
-			"GRANT Docs.Viewer ON Docs.Contract (READ (DocName, ContractNumber));\n\n" +
+			"GRANT READ (DocName, ContractNumber) ON ENTITY Docs.Contract TO Docs.Viewer;\n\n" +
 			"-- Attachment extends System.FileDocument: Name and Size are inherited\n" +
-			"GRANT Docs.Viewer ON Docs.Attachment (READ (Category, \"Name\", Size));",
+			"GRANT READ (Category, \"Name\", Size) ON ENTITY Docs.Attachment TO Docs.Viewer;",
 		SeeAlso: []string{"security.module-role", "security.microflow-access"},
 	})
 
@@ -163,7 +168,7 @@ func init() {
 			"-- would build cleanly and leave visitors with nothing.",
 		Example: "CREATE USER ROLE Anonymous (Shop.Viewer, System.User);\n" +
 			"ALTER PROJECT SECURITY GUEST ACCESS ON ROLE Anonymous;\n" +
-			"GRANT Anonymous ON Shop.Product (read *);",
+			"GRANT READ * ON ENTITY Shop.Product TO Shop.Viewer;",
 		SeeAlso: []string{"security.user-role", "security.project-security"},
 	})
 

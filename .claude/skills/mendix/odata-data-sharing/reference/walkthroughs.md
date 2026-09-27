@@ -43,8 +43,7 @@ create view entity ProductApi.ProductWithPriceVE (
   where  p.IsActive
 );
 
-grant ProductApi.ApiUser on ProductApi.ProductWithPriceVE
-  (read *, write *);
+grant read *, write * on entity ProductApi.ProductWithPriceVE to ProductApi.ApiUser;
 ```
 
 For aggregated data:
@@ -67,8 +66,7 @@ create view entity ProductApi.CheapProductSalesVE (
   limit 1000
 );
 
-grant ProductApi.ApiUser on ProductApi.CheapProductSalesVE
-  (read *, write *);
+grant read *, write * on entity ProductApi.CheapProductSalesVE to ProductApi.ApiUser;
 ```
 
 For flattening across associations:
@@ -103,8 +101,7 @@ create view entity ProductApi.CustomerAddressVE (
     left outer join c/Shop.DeliveryAddress_Customer/Shop.Address as da
 );
 
-grant ProductApi.ApiUser on ProductApi.CustomerAddressVE
-  (read *, write *);
+grant read *, write * on entity ProductApi.CustomerAddressVE to ProductApi.ApiUser;
 ```
 
 ### Step 3: Publish the OData Service
@@ -242,7 +239,7 @@ from odata client ProductClient.ProductDataApiClient
   PriceInEuro: decimal
 );
 
-grant ProductClient.User on ProductClient.ProductsEE (read *);
+grant read * on entity ProductClient.ProductsEE to ProductClient.User;
 
 create external entity ProductClient.CustomerAddressesEE
 from odata client ProductClient.ProductDataApiClient
@@ -263,7 +260,7 @@ from odata client ProductClient.ProductDataApiClient
   DeliveryCountry: string
 );
 
-grant ProductClient.User on ProductClient.CustomerAddressesEE (read *);
+grant read * on entity ProductClient.CustomerAddressesEE to ProductClient.User;
 ```
 
 **Bulk alternative:** Instead of creating external entities one by one, import all (or a subset) from the contract:
@@ -815,8 +812,7 @@ Set `InsertMode`, `UpdateMode`, `DeleteMode` to `CallMicroflow`:
 On the consumer side, grant CREATE, WRITE, and DELETE rights:
 
 ```sql
-grant ProductClient.User on ProductClient.ProductsEE
-  (create, delete, read *, write *);
+grant create, delete, read *, write * on entity ProductClient.ProductsEE to ProductClient.User;
 ```
 
 The consumer can now create, update, and delete products through the OData API, and the producer's microflows handle the mapping to persistent entities.

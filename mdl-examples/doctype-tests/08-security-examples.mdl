@@ -359,7 +359,7 @@ show access on page SecTest.Order_Overview;
 /**
  * Grant full access to an entity for administrators.
  */
-grant SecTest.Administrator on SecTest.Customer (create, delete, read *, write *);
+grant create, delete, read *, write * on entity SecTest.Customer to SecTest.Administrator;
 /
 
 -- ============================================================================
@@ -369,7 +369,7 @@ grant SecTest.Administrator on SecTest.Customer (create, delete, read *, write *
 /**
  * Grant read-only access to all members for the Viewer role.
  */
-grant SecTest.Viewer on SecTest.Customer (read *);
+grant read * on entity SecTest.Customer to SecTest.Viewer;
 /
 
 -- ============================================================================
@@ -379,7 +379,7 @@ grant SecTest.Viewer on SecTest.Customer (read *);
 /**
  * Grant read access to specific attributes, write to a subset.
  */
-grant SecTest.User on SecTest.Customer (read (Name, Email), write (Email));
+grant read (Name, Email), write (Email) on entity SecTest.Customer to SecTest.User;
 /
 
 -- ============================================================================
@@ -389,7 +389,7 @@ grant SecTest.User on SecTest.Customer (read (Name, Email), write (Email));
 /**
  * Grant access only to active customers using an XPath constraint.
  */
-grant SecTest.User on SecTest.Order (read *, write *) where '[Status = ''Open'']';
+grant read *, write * on entity SecTest.Order to SecTest.User where [Status = 'Open'];
 /
 
 -- Verify entity access
@@ -403,7 +403,7 @@ show access on SecTest.Customer;
 /**
  * GRANT is additive: adding Notes access preserves existing Name and Email.
  */
-grant SecTest.User on SecTest.Customer (read (Notes));
+grant read (Notes) on entity SecTest.Customer to SecTest.User;
 /
 
 -- ============================================================================

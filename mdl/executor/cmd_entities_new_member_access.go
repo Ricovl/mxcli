@@ -97,7 +97,7 @@ func newMemberAccessWarning(entityQName, memberName string, blindRoles []string)
 	fmt.Fprintf(&b, "  with no access — the model is valid and builds clean, but the attribute renders\n")
 	fmt.Fprintf(&b, "  blank for those roles. Widen a rule with:\n")
 	for _, role := range blindRoles {
-		fmt.Fprintf(&b, "    grant %s on %s (read (%s));\n", role, entityQName, memberName)
+		fmt.Fprintf(&b, "    grant read (%s) on entity %s to %s;\n", memberName, entityQName, role)
 	}
 	return b.String()
 }

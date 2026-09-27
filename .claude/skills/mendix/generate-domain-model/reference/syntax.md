@@ -294,7 +294,7 @@ create persistent entity Module.Manager extends Person (Reports: integer);
 **Security follows inheritance.** Mendix inheritance is multi-table: all of the
 parent's attributes are members of the child, so a specialized entity's access rule
 must cover them. Grant an inherited member exactly like one of the entity's own —
-`grant Module.Viewer on Module.Attachment (read (AttachmentDescription, "Name", Size));`
+`grant read (AttachmentDescription, "Name", Size) on entity Module.Attachment to Module.Viewer;`
 — and `read *` / `write *` cover them too. Skipping them is Mendix CE0066 "Entity
 access is out of date". The one exception is entities extending `System.User`, whose
 inherited platform members Mendix manages and which must not be granted. See

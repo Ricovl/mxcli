@@ -140,3 +140,37 @@ func TestDescribers_HaveNoHandRolledStringLiterals(t *testing.T) {
 		}
 	}
 }
+
+// R5 (ako/mxcli#753): the targeting XPath is written in [ ], as stored, and the
+// output re-parses to the same XPath with no deprecated spelling. A stored
+// value the bracketed grammar does not read keeps the quoted form.
+func TestDescribeWorkflow_TargetingXPathIsBracketed(t *testing.T) {
+	for _, tc := range []struct {
+		src     workflows.UserSource
+		want    string
+		deprecd bool
+	}{
+		{&workflows.XPathBasedUserSource{XPath: `[System.UserRoles = '[%UserRole_Banker%]']`},
+			`targeting users xpath [System.UserRoles = '[%UserRole_Banker%]']`, false},
+		{&workflows.XPathGroupSource{XPath: `[Name = 'Admin']`},
+			`targeting groups xpath [Name = 'Admin']`, false},
+		{&workflows.XPathBasedUserSource{XPath: `Name = 'x'`},
+			`targeting users xpath 'Name = ''x'''`, true},
+	} {
+		task := &workflows.UserTask{}
+		task.Name = "Review"
+		task.Caption = "Review"
+		task.UserSource = tc.src
+		out := strings.Join(formatWorkflowActivities(&workflows.Flow{Activities: []workflows.WorkflowActivity{task}}, "  "), "\n")
+		if !strings.Contains(out, tc.want) {
+			t.Errorf("describe wrote:\n%s\nwant a line %q", out, tc.want)
+		}
+		prog, errs := visitor.Build("create workflow M.WF\n  parameter $WorkflowContext: M.E\nbegin\n" + out + "\nend workflow;")
+		if len(errs) > 0 {
+			t.Fatalf("does not re-parse: %v\n%s", errs, out)
+		}
+		if got := len(prog.Deprecations) > 0; got != tc.deprecd {
+			t.Errorf("%s: deprecations = %v", tc.want, prog.Deprecations)
+		}
+	}
+}

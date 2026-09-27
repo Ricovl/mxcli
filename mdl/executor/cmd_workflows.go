@@ -10,6 +10,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
 
@@ -579,7 +580,7 @@ func formatUserTask(a *workflows.UserTask, indent string) []string {
 			}
 		case *workflows.XPathBasedUserSource:
 			if us.XPath != "" {
-				lines = append(lines, fmt.Sprintf("%s  targeting users xpath %s", indent, mdlQuoted(us.XPath)))
+				lines = append(lines, fmt.Sprintf("%s  targeting users xpath %s", indent, targetingXPathMDL(us.XPath)))
 			}
 		case *workflows.MicroflowGroupSource:
 			if us.Microflow != "" {
@@ -587,7 +588,7 @@ func formatUserTask(a *workflows.UserTask, indent string) []string {
 			}
 		case *workflows.XPathGroupSource:
 			if us.XPath != "" {
-				lines = append(lines, fmt.Sprintf("%s  targeting groups xpath %s", indent, mdlQuoted(us.XPath)))
+				lines = append(lines, fmt.Sprintf("%s  targeting groups xpath %s", indent, targetingXPathMDL(us.XPath)))
 			}
 		}
 	}
@@ -1004,4 +1005,16 @@ func formatConditionOutcomes(outcomes []workflows.ConditionOutcome, indent strin
 	}
 
 	return lines
+}
+
+// targetingXPathMDL is a user task's targeting XPath as written after `xpath`:
+// in [ ] exactly as stored (R5, ako/mxcli#753), so no quote inside it is
+// doubled. A stored value the bracketed grammar does not read is written in the
+// deprecated quoted form, which carries any string, so the output stays
+// re-executable.
+func targetingXPathMDL(xpath string) string {
+	if visitor.IsBracketedXPath(xpath) {
+		return xpath
+	}
+	return mdlQuoted(xpath)
 }

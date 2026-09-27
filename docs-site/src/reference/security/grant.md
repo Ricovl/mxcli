@@ -4,7 +4,7 @@
 
 ```sql
 -- Entity access
-GRANT module.Role ON module.Entity ( rights ) [ WHERE 'xpath' ]
+GRANT  rights  ON ENTITY module.Entity TO module.Role [, ...] [ WHERE [xpath] ]
 
 -- Microflow access
 GRANT EXECUTE ON MICROFLOW module.Name TO module.Role [, ...]
@@ -34,7 +34,9 @@ Entity access rules control:
 
 For READ and WRITE, use `*` to include all members (attributes and associations), or specify a parenthesized list of specific attribute names.
 
-The optional `WHERE` clause accepts an XPath expression that restricts which objects the role can access. The XPath is enclosed in single quotes. Use doubled single quotes to escape single quotes inside the expression.
+The optional `WHERE` clause accepts an XPath constraint that restricts which objects the role can access. It is written in brackets, as everywhere else in MDL, so quotes inside it are not doubled: `WHERE [Status = 'Open']`. Sibling groups (`WHERE [a][b]`) are one constraint.
+
+The older form `GRANT module.Role ON module.Entity (rights) WHERE '[xpath]'` — role first, XPath in a string — still parses, warns `MDL-DEPR030`, and `mxcli fmt --upgrade` rewrites it.
 
 ### Microflow Access
 
@@ -65,8 +67,8 @@ The nanoflow access form grants execute permission on a nanoflow to one or more 
     - `WRITE *` -- write all members
     - `WRITE (Attr1, Attr2, ...)` -- write specific attributes
 
-`WHERE 'xpath'`
-:   Optional XPath constraint for entity access. Restricts which objects the rule applies to.
+`WHERE [xpath]`
+:   Optional XPath constraint for entity access, in brackets. Restricts which objects the rule applies to.
 
 `module.Name`
 :   The target microflow, nanoflow, or page.
@@ -79,26 +81,26 @@ The nanoflow access form grants execute permission on a nanoflow to one or more 
 Grant full entity access:
 
 ```sql
-GRANT Shop.Admin ON Shop.Customer (CREATE, DELETE, READ *, WRITE *);
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Customer TO Shop.Admin;
 ```
 
 Grant read-only access:
 
 ```sql
-GRANT Shop.Viewer ON Shop.Customer (READ *);
+GRANT READ * ON ENTITY Shop.Customer TO Shop.Viewer;
 ```
 
 Grant selective attribute access:
 
 ```sql
-GRANT Shop.User ON Shop.Customer (READ (Name, Email), WRITE (Email));
+GRANT READ (Name, Email), WRITE (Email) ON ENTITY Shop.Customer TO Shop.User;
 ```
 
 Grant entity access with an XPath constraint:
 
 ```sql
-GRANT Shop.User ON Shop.Order (READ *, WRITE *)
-    WHERE '[Status = ''Open'']';
+GRANT READ *, WRITE * ON ENTITY Shop.Order TO Shop.User
+    WHERE [Status = 'Open'];
 ```
 
 Grant microflow execution to multiple roles:
@@ -123,7 +125,7 @@ Additive grant -- add new attribute access without removing existing:
 
 ```sql
 -- Viewer already has READ (Name, Email)
-GRANT Shop.Viewer ON Shop.Customer (READ (Phone));
+GRANT READ (Phone) ON ENTITY Shop.Customer TO Shop.Viewer;
 -- Result: READ (Name, Email, Phone)
 ```
 
@@ -138,7 +140,7 @@ CREATE PERSISTENT ENTITY Docs.DocumentBase (DocName: String(200));
 CREATE PERSISTENT ENTITY Docs.Contract EXTENDS Docs.DocumentBase (ContractNumber: String(50));
 
 -- DocName inherited, ContractNumber own — no distinction at the call site
-GRANT Docs.Viewer ON Docs.Contract (READ (DocName, ContractNumber));
+GRANT READ (DocName, ContractNumber) ON ENTITY Docs.Contract TO Docs.Viewer;
 ```
 
 An access rule must carry an entry for **every** member, own and inherited. mxcli
@@ -163,7 +165,7 @@ members; mxcli excludes the platform ones automatically.
 
 ```sql
 CREATE PERSISTENT ENTITY Docs.Employee EXTENDS System.User (EmployeeNo: String(20));
-GRANT Docs.Viewer ON Docs.Employee (READ (EmployeeNo));
+GRANT READ (EmployeeNo) ON ENTITY Docs.Employee TO Docs.Viewer;
 ```
 
 ## See Also

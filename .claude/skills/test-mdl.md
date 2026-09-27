@@ -92,7 +92,7 @@ create or modify persistent entity MyFirstModule.Order (
     Code: string(50),
     Total: decimal
 );
-grant MyFirstModule.Admin on MyFirstModule.Order (create, delete, read *, write *);
+grant create, delete, read *, write * on entity MyFirstModule.Order to MyFirstModule.Admin;
 alter entity MyFirstModule.Order add attribute status string(50);
 EOF
 
