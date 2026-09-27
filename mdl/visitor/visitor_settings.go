@@ -4,7 +4,6 @@ package visitor
 
 import (
 	"strconv"
-	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
