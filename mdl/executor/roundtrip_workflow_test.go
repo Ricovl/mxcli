@@ -189,7 +189,7 @@ end workflow;`
 		{"boundary interrupting", "boundary event interrupting timer '${PT24H}'"},
 		{"boundary non interrupting", "boundary event non interrupting timer '${PT1H}'"},
 		{"multi user task", "multi user task MultiReviewTask"},
-		{"call microflow with", "call microflow " + mod + ".ScoreCalc with (Score ="},
+		{"call microflow args", "call microflow " + mod + ".ScoreCalc(Score = $WorkflowContext/Score)"},
 		{"outcomes true", "true ->"},
 		{"outcomes false", "false ->"},
 		{"decision", "decision '$WorkflowContext/IsApproved'"},
@@ -420,7 +420,7 @@ end workflow;`
 		t.Fatalf("Failed to describe workflow: %v", err)
 	}
 
-	if !strings.Contains(output, "with (") {
-		t.Errorf("Expected describe output to contain 'with (', got:\n%s", output)
+	if !strings.Contains(output, "SomeMicroflow(Amount = $WorkflowContext/Amount)") {
+		t.Errorf("Expected describe output to bind the argument in R4's form, got:\n%s", output)
 	}
 }
