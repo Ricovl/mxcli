@@ -344,7 +344,7 @@ func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, opts descri
 		// Canonical: layout the engine derives on its own is left out (#748).
 		// Not with handles, which address the stored flow as it is drawn, and
 		// not normalized, whose graph is not the stored one to compare with.
-		if !opts.Handles && !normalized {
+		if !opts.Handles && !normalized && !ctx.describeFullLayout {
 			defer useDerivedFlowLayout(ctx, "microflow", targetMf, name, entityNames, microflowNames)()
 		}
 		var activityLines []string
@@ -497,13 +497,15 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 
 	if targetNf.ObjectCollection != nil && len(targetNf.ObjectCollection.Objects) > 0 {
 		// Canonical: layout the engine derives on its own is left out (#748).
-		// The check rebuilds the whole nanoflow, so it needs the header too.
-		defer useDerivedFlowLayout(ctx, "nanoflow", &microflows.Microflow{
-			Parameters:         targetNf.Parameters,
-			ReturnType:         targetNf.ReturnType,
-			ReturnVariableName: targetNf.ReturnVariableName,
-			ObjectCollection:   targetNf.ObjectCollection,
-		}, name, entityNames, microflowNames)()
+		if !ctx.describeFullLayout {
+			// The check rebuilds the whole nanoflow, so it needs the header too.
+			defer useDerivedFlowLayout(ctx, "nanoflow", &microflows.Microflow{
+				Parameters:         targetNf.Parameters,
+				ReturnType:         targetNf.ReturnType,
+				ReturnVariableName: targetNf.ReturnVariableName,
+				ObjectCollection:   targetNf.ObjectCollection,
+			}, name, entityNames, microflowNames)()
+		}
 		activityLines := formatMicroflowActivities(ctx, wrapperMf, entityNames, microflowNames)
 		for _, line := range activityLines {
 			lines = append(lines, "  "+line)

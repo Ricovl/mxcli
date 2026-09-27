@@ -202,15 +202,17 @@ func reportUnchanged(ctx *ExecContext, what string) {
 // state at all.
 func describedFlowStmt(ctx *ExecContext, d *flowDecl, a *alterFlowContext) (ast.Statement, error) {
 	var buf bytes.Buffer
-	prevOut, prevVer := ctx.Output, ctx.LanguageVersion
-	ctx.Output, ctx.LanguageVersion = &buf, langver.V0
+	// Full layout: stored activities are located by the @position printed above
+	// them, which the canonical describe leaves out when the engine derives it (#748).
+	prevOut, prevVer, prevFull := ctx.Output, ctx.LanguageVersion, ctx.describeFullLayout
+	ctx.Output, ctx.LanguageVersion, ctx.describeFullLayout = &buf, langver.V0, true
 	var err error
 	if d.nanoflow {
 		err = describeNanoflow(ctx, d.name)
 	} else {
 		err = describeMicroflow(ctx, d.name)
 	}
-	ctx.Output, ctx.LanguageVersion = prevOut, prevVer
+	ctx.Output, ctx.LanguageVersion, ctx.describeFullLayout = prevOut, prevVer, prevFull
 	if err != nil {
 		return nil, err
 	}

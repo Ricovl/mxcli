@@ -114,6 +114,13 @@ type ExecContext struct {
 	// all.
 	describeLayout *flowLayoutKeep
 
+	// describeFullLayout makes DESCRIBE of a flow keep every stored layout
+	// annotation instead of the canonical subset (#748). Set by callers that
+	// read the description back as an address map of the stored flow, such as
+	// create or modify's diff (describedFlowStmt), which locates stored
+	// activities by the @position printed above them.
+	describeFullLayout bool
+
 	// describeID pins a describe to one stored document. A name is not a unique
 	// key — a module may hold an excluded twin (#914) — so the catalog's source
 	// build, which enumerates documents rather than names, sets it to describe
