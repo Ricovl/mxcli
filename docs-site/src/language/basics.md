@@ -52,6 +52,18 @@ create persistent entity Sales.Customer (
 - The header must be the **first** statement. A version this mxcli does not know is refused.
 - It is independent of the Mendix version your project targets.
 
+### Upgrading a script: `mxcli fmt --upgrade`
+
+`mxcli fmt --upgrade` rewrites every deprecated spelling (the `MDL-DEPRnnn` warnings) to its canonical form — `create or replace` becomes `create or modify`, `show entities` becomes `list entities` — and changes nothing else: comments, layout and keyword case are kept. A deprecated use with no mechanical rewrite is reported and left in place.
+
+```bash
+mxcli fmt --upgrade script.mdl            # print the upgraded script
+mxcli fmt --upgrade -w script.mdl         # upgrade in place
+mxcli fmt --upgrade --header -w script.mdl  # also add `mdl 1;`
+```
+
+`--header` adds `mdl 1;` after rewriting every construct whose meaning the header would change, so the script keeps doing what it did. If such a construct has no rewrite yet, `fmt` refuses to add the header rather than change the script's meaning. While `mdl 1` is a preview, the header is added only when asked. Running `fmt --upgrade` on its own output changes nothing.
+
 The design is in [ADR-0011](https://github.com/mendixlabs/mxcli/blob/main/docs/13-decisions/0011-mdl-language-versioning.md); `mxcli syntax language-header` has the details.
 
 ## Case Insensitivity

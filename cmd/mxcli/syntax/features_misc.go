@@ -12,7 +12,7 @@ func init() {
 		Summary: "mdl <n>; — the MDL language version a script is written in",
 		Keywords: []string{
 			"mdl 1", "mdl 0", "language version", "header", "edition",
-			"preview", "beta", "version-gated", "meaning",
+			"preview", "beta", "version-gated", "meaning", "fmt --upgrade", "upgrade",
 		},
 		Syntax: "mdl <n>;\n\n" +
 			"-- Optional, and only as the FIRST statement of a script. It declares the\n" +
@@ -27,7 +27,11 @@ func init() {
 			"--\n" +
 			"-- A script's meaning never depends on which mxcli release runs it: a\n" +
 			"-- change of meaning applies only under the version that introduces it.\n" +
-			"-- The header is independent of the Mendix version the project targets.",
+			"-- The header is independent of the Mendix version the project targets.\n" +
+			"--\n" +
+			"-- `mxcli fmt --upgrade --header` adds it, after rewriting every construct\n" +
+			"-- whose meaning it would change; it refuses when one has no rewrite.\n" +
+			"-- `mxcli fmt --upgrade` alone rewrites deprecated spellings (MDL-DEPRnnn).",
 		Example: "mdl 1;\n\ncreate persistent entity MyModule.Customer (\n  Name: String(200)\n);",
 		SeeAlso: []string{"create-modifiers"},
 	})
