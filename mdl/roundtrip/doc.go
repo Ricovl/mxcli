@@ -9,6 +9,10 @@
 //     nothing.
 //   - PutGet: describing the document again returns what was described before.
 //
+// It also holds the execute-both property test of `mxcli fmt --upgrade`
+// (upgrade_property_test.go): every mdl-examples script and its upgrade run on
+// two copies of the fixture and must write the same model.
+//
 // Every other round-trip test in the repo runs on mxcli-authored content, where
 // an element's GUID equals its $ID, so identity loss cannot show up there. This
 // fixture was authored by Studio Pro and the marketplace, so it can.
