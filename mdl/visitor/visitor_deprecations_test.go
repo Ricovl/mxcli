@@ -193,8 +193,8 @@ func TestCreateOrReplaceMatchesModifyExceptExemptKinds(t *testing.T) {
 	}{{"mdl 0", "", false}, {"mdl 1", "mdl 1;\n", true}} {
 		for name, body := range cases {
 			t.Run(version.name+"/"+name, func(t *testing.T) {
-				rep := mustBuild(t, version.header+"create or replace "+body)
-				mod := mustBuild(t, version.header+"create or modify "+body)
+				rep := mustBuild(t, version.header+"create or replace "+strings.TrimSuffix(body, ";")+";") // every statement ends with ; (valid under mdl 0 and mdl 1)
+				mod := mustBuild(t, version.header+"create or modify "+strings.TrimSuffix(body, ";")+";")
 				if len(rep.Statements) != 1 || len(mod.Statements) != 1 {
 					t.Fatalf("want one statement each, got %d and %d — the case does not exercise the visitor",
 						len(rep.Statements), len(mod.Statements))
