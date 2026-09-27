@@ -31,37 +31,48 @@ var slashIsNotATerminator = langver.Change{
 }
 
 // ExitStatement applies R11's terminator rules to one top-level statement.
+//
+// The terminators are read off the statement's last tokens rather than its
+// own SEMICOLON and SLASH: the microflow, nanoflow and workflow rules end in
+// `SEMICOLON? SLASH?` themselves, and `create java action … as $$…$$;` in
+// `SEMICOLON?`, so either can belong to the inner rule.
 func (b *Builder) ExitStatement(ctx *parser.StatementContext) {
-	if !endsWithSemicolon(ctx) {
-		if at := ctx.GetStop(); at != nil && b.gate(semicolonRequired, ctx) {
-			b.addError(fmt.Errorf("line %d: the statement ending at %q has no terminating `;`: "+
-				"under %s every statement ends with `;`", at.GetLine(), at.GetText(), b.langVersion))
-		}
+	last := lastTerminals(ctx, 2)
+	if len(last) == 0 {
+		return
 	}
-	if s := ctx.SLASH(); s != nil && b.gate(slashIsNotATerminator, ctx) {
+	var slash antlr.Token
+	if last[0].GetTokenType() == parser.MDLParserSLASH {
+		slash, last = last[0], last[1:]
+	}
+	if len(last) > 0 && last[0].GetTokenType() != parser.MDLParserSEMICOLON && b.gate(semicolonRequired, ctx) {
+		b.addError(fmt.Errorf("line %d: the statement ending at %q has no terminating `;`: "+
+			"under %s every statement ends with `;`", last[0].GetLine(), last[0].GetText(), b.langVersion))
+	}
+	if slash != nil && b.gate(slashIsNotATerminator, ctx) {
 		b.addError(fmt.Errorf("line %d: `/` is not a statement terminator under %s; end the statement "+
-			"with `;` and delete the `/` line", s.GetSymbol().GetLine(), b.langVersion))
+			"with `;` and delete the `/` line", slash.GetLine(), b.langVersion))
 	}
 }
 
-// endsWithSemicolon reports whether the statement is terminated by `;`: its own
-// SEMICOLON, or one a statement rule consumed itself (`create java action …
-// as $$…$$;` ends in `SEMICOLON?` inside its rule, before the statement's).
-func endsWithSemicolon(ctx *parser.StatementContext) bool {
-	if ctx.SEMICOLON() != nil {
-		return true
-	}
-	for i := ctx.GetChildCount() - 1; i >= 0; i-- {
-		switch c := ctx.GetChild(i).(type) {
-		case antlr.TerminalNode:
-			if c.GetSymbol().GetTokenType() == parser.MDLParserSLASH {
-				continue
+// lastTerminals returns up to n of the tree's last tokens, the last first.
+func lastTerminals(tree antlr.Tree, n int) []antlr.Token {
+	var out []antlr.Token
+	var walk func(antlr.Tree)
+	walk = func(t antlr.Tree) {
+		if len(out) == n {
+			return
+		}
+		if tn, ok := t.(antlr.TerminalNode); ok {
+			if tok := tn.GetSymbol(); tok != nil && tok.GetTokenType() != antlr.TokenEOF {
+				out = append(out, tok)
 			}
-			return c.GetSymbol().GetTokenType() == parser.MDLParserSEMICOLON
-		case antlr.ParserRuleContext:
-			stop := c.GetStop()
-			return stop != nil && stop.GetTokenType() == parser.MDLParserSEMICOLON
+			return
+		}
+		for i := t.GetChildCount() - 1; i >= 0 && len(out) < n; i-- {
+			walk(t.GetChild(i))
 		}
 	}
-	return false
+	walk(tree)
+	return out
 }

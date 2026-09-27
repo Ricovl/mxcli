@@ -73,3 +73,24 @@ func TestSlashTerminatorRejectedUnderMdl1(t *testing.T) {
 		t.Fatalf("mdl 1: want one `/` error, got %v", errs)
 	}
 }
+
+// The microflow, nanoflow and workflow rules end in `SEMICOLON? SLASH?`
+// themselves, so their terminators are the inner rule's: `end;` followed by
+// `/` is the `/` form, and `end;` alone is terminated.
+func TestTerminatorsOfRulesThatEndInTheirOwn(t *testing.T) {
+	mf := "create microflow M.F () begin end;"
+	if got := notesWithCode(t, mf+"\n/\nshow modules;", "MDL-V1-SLASH"); len(got) != 1 {
+		t.Fatalf("mdl 0: want one MDL-V1-SLASH for a microflow's `/`, got %v", got)
+	}
+	_, errs := Build("mdl 1;\n" + mf + "\n/\nshow modules;")
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "`/` is not a statement terminator") {
+		t.Fatalf("mdl 1: want only the `/` error for a microflow's `/`, got %v", errs)
+	}
+	if _, errs := Build("mdl 1;\n" + mf + "\nshow modules;"); len(errs) != 0 {
+		t.Fatalf("mdl 1: a microflow ending `end;` was refused: %v", errs)
+	}
+	_, errs = Build("mdl 1;\ncreate microflow M.F () begin end\nshow modules;")
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), `ending at "end"`) {
+		t.Fatalf("mdl 1: want a missing-`;` error naming `end`, got %v", errs)
+	}
+}
