@@ -641,6 +641,7 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 		declaredVars: fb.declaredVars, // Share declared vars (fixes nil map panic)
 		measurer:     fb.measurer,     // Share measurer
 		backend:      fb.backend,      // Share backend
+		quiet:        fb.quiet,
 		hierarchy:    fb.hierarchy,    // Share hierarchy
 		restServices: fb.restServices, // Share REST services for parameter classification
 		isNanoflow:   fb.isNanoflow,
@@ -997,6 +998,7 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 		declaredVars: fb.declaredVars,
 		measurer:     fb.measurer,
 		backend:      fb.backend,
+		quiet:        fb.quiet,
 		hierarchy:    fb.hierarchy,
 		restServices: fb.restServices,
 		isNanoflow:   fb.isNanoflow,

@@ -195,9 +195,13 @@ func firstMergeFrom(
 // happens to be, and the SECOND description reports a different coordinate —
 // a diff on every re-describe of an unchanged microflow, which is exactly what
 // ADR-0008's idempotence is for.
-func mergeDeclarationLines(indent int, label string, obj microflows.MicroflowObject) []string {
+//
+// A canonical DESCRIBE leaves the position out when the layout engine would put
+// the merge there anyway (layout, see derivedFlowLayout): the rebuild then lands
+// it on the same spot without being told.
+func mergeDeclarationLines(indent int, label string, obj microflows.MicroflowObject, layout *flowLayoutKeep) []string {
 	pad := strings.Repeat("  ", indent)
-	if obj == nil {
+	if obj == nil || !layout.keepsPosition(obj.GetID()) {
 		return []string{pad + "merge " + label + ";"}
 	}
 	p := obj.GetPosition()

@@ -46,6 +46,12 @@ type annotationEmitter struct {
 	// collection and referenced from inside a loop body.
 	labels    map[model.ID]string
 	nextLabel *int
+
+	// layout selects the layout annotations a canonical DESCRIBE keeps: the
+	// authored ones, never the ones the layout engine would derive anyway (see
+	// derivedFlowLayout). nil keeps every one, which is what the tools that
+	// read geometry back — `layout flows`, the ELK view, diff — rely on.
+	layout *flowLayoutKeep
 }
 
 // buildAnnotationsByTarget joins AnnotationFlows (destination → activity) with
@@ -116,7 +122,7 @@ func (e *annotationEmitter) withOverlay(overlay *annotationEmitter) *annotationE
 	if overlay == nil || len(overlay.byTarget) == 0 {
 		return e
 	}
-	out := &annotationEmitter{labels: e.labels, nextLabel: e.nextLabel}
+	out := &annotationEmitter{labels: e.labels, nextLabel: e.nextLabel, layout: e.layout}
 	if len(e.byTarget) == 0 {
 		out.byTarget = overlay.byTarget
 		return out
@@ -398,6 +404,7 @@ func emitMergeAnnotation(
 	obj microflows.MicroflowObject,
 	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
 	activityMap map[model.ID]microflows.MicroflowObject,
+	layout *flowLayoutKeep,
 	lines *[]string,
 	indentStr string,
 ) {
@@ -410,7 +417,7 @@ func emitMergeAnnotation(
 		return
 	}
 	merge := commonMergeAfter(obj.GetID(), flowsByOrigin, activityMap)
-	if merge == nil {
+	if merge == nil || !layout.keepsPosition(merge.GetID()) {
 		return
 	}
 	p := merge.GetPosition()
@@ -768,15 +775,22 @@ func emitObjectAnnotations(
 	currentID := obj.GetID()
 
 	pos := obj.GetPosition()
-	*lines = append(*lines, indentStr+fmt.Sprintf("@position(%d, %d)", pos.X, pos.Y))
+	layout := annotationsByTarget.layoutKeep()
+	if layout.keepsPosition(currentID) {
+		*lines = append(*lines, indentStr+fmt.Sprintf("@position(%d, %d)", pos.X, pos.Y))
+	}
 
 	if flowsByOrigin != nil && flowsByDest != nil {
 		// @anchor — emit whenever attached flows exist, for roundtrip fidelity.
 		// The emitter sorts out the right form (simple / split / loop) based on
 		// the object type.
-		emitAnchorAnnotationWithActivityMap(obj, flowsByOrigin, flowsByDest, activityMap, lines, indentStr)
-		emitCurveAnnotation(obj, flowsByOrigin, activityMap, lines, indentStr)
-		emitMergeAnnotation(obj, flowsByOrigin, activityMap, lines, indentStr)
+		if layout.keepsAnchor(currentID) {
+			emitAnchorAnnotationWithActivityMap(obj, flowsByOrigin, flowsByDest, activityMap, lines, indentStr)
+		}
+		if layout.keepsCurve(currentID) {
+			emitCurveAnnotation(obj, flowsByOrigin, activityMap, lines, indentStr)
+		}
+		emitMergeAnnotation(obj, flowsByOrigin, activityMap, layout, lines, indentStr)
 	}
 
 	if activity, ok := obj.(*microflows.ActionActivity); ok {
@@ -1031,7 +1045,7 @@ func traverseFlow(
 		// declaration lands whichever way the merge is reached.
 		if label, ok := labels.of(currentID); ok && !visited[currentID] {
 			visited[currentID] = true
-			*lines = append(*lines, mergeDeclarationLines(indent, label, obj)...)
+			*lines = append(*lines, mergeDeclarationLines(indent, label, obj, annotationsByTarget.layoutKeep())...)
 			for _, flow := range findNormalFlows(flowsByOrigin[currentID]) {
 				traverseFlow(ctx, flow.DestinationID, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels)
 			}
@@ -1234,7 +1248,7 @@ func traverseFlowUntilMerge(
 		}
 		if label, ok := labels.of(currentID); ok && !visited[currentID] {
 			visited[currentID] = true
-			*lines = append(*lines, mergeDeclarationLines(indent, label, obj)...)
+			*lines = append(*lines, mergeDeclarationLines(indent, label, obj, annotationsByTarget.layoutKeep())...)
 		}
 		flows := flowsByOrigin[currentID]
 		for _, flow := range flows {
@@ -1409,7 +1423,7 @@ func continueAfterSplitJoin(
 			}
 		}
 		if label, ok := labels.of(joinID); ok && !visited[joinID] {
-			*lines = append(*lines, mergeDeclarationLines(indent, label, activityMap[joinID])...)
+			*lines = append(*lines, mergeDeclarationLines(indent, label, activityMap[joinID], annotationsByTarget.layoutKeep())...)
 		}
 		visited[joinID] = true
 		for _, flow := range flowsByOrigin[joinID] {
