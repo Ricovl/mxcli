@@ -292,7 +292,7 @@ func (fb *flowBuilder) addCallJavaActionAction(s *ast.CallJavaActionStmt) model.
 	if fb.backend != nil {
 		var err error
 		jaDef, err = fb.backend.ReadJavaActionByName(actionQN)
-		if err != nil {
+		if err != nil && !fb.quiet {
 			log.Printf("warning: could not look up Java action %s: %v (entity type params will be empty)", actionQN, err)
 		}
 	}
@@ -504,7 +504,9 @@ func (fb *flowBuilder) addCallJavaScriptActionAction(s *ast.CallJavaScriptAction
 	if fb.backend != nil {
 		jsaDef, err := fb.backend.ReadJavaScriptActionByName(actionQN)
 		if err != nil {
-			log.Printf("warning: could not look up JavaScript action %s: %v (entity type params will be empty)", actionQN, err)
+			if !fb.quiet {
+				log.Printf("warning: could not look up JavaScript action %s: %v (entity type params will be empty)", actionQN, err)
+			}
 		} else if jsaDef != nil {
 			for _, p := range jsaDef.Parameters {
 				if _, ok := p.ParameterType.(*types.EntityTypeParameterType); ok {

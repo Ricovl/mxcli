@@ -86,11 +86,11 @@ create page Module.Entity_Overview
 )
 {
   layoutgrid mainGrid {
-    row row1 {
-      column colNav (desktopwidth: 2) {
+    row {
+      column (desktopwidth: 2) {
         snippetcall navMenu (snippet: Module.Entity_Menu)
       }
-      column colContent (desktopwidth: 10) {
+      column (desktopwidth: 10) {
         dynamictext heading (content: 'Entities', rendermode: H2)
         datagrid EntityGrid (
           datasource: database Module.Entity,
@@ -98,13 +98,13 @@ create page Module.Entity_Overview
           PagingPosition: both,
           designproperties: ['Compact': on, 'Hover': on, 'Striped': on]
         ) {
-          column colName (attribute: Name, caption: 'Name') {
+          column (attribute: Name, caption: 'Name') {
             textfilter textFilter1
           }
-          column colDescription (attribute: Description, caption: 'Description') {
+          column (attribute: Description, caption: 'Description') {
             textfilter textFilter2
           }
-          column colActions (caption: 'Actions') {
+          column (caption: 'Actions') {
             actionbutton btnEdit (caption: 'Edit', action: show_page Module.Entity_NewEdit("entity": $currentObject))
             actionbutton btnDelete (caption: 'Delete', action: delete, buttonstyle: danger)
           }
@@ -143,10 +143,10 @@ datagrid GridName (
   PagingPosition: both,
   designproperties: ['Compact': on, 'Hover': on, 'Striped': on]
 ) {
-  column colName (attribute: Name, caption: 'Name') {
+  column (attribute: Name, caption: 'Name') {
     textfilter textFilter1
   }
-  column colActions (caption: 'Actions') {
+  column (caption: 'Actions') {
     actionbutton btnEdit (caption: 'Edit', action: show_page Module.Entity_NewEdit("entity": $currentObject))
   }
 }
@@ -166,9 +166,9 @@ datagrid GridName (
 - `designproperties: ['Compact': on, 'Hover': on, 'Striped': on]` - Atlas design tokens
 
 **Column Types:**
-- `column colName (attribute: attribute, caption: 'label')` - Attribute column (own-entity attribute)
-- `column colName (attribute: Assoc/Attr, caption: 'label')` - Associated-attribute column (attribute over a reference; bare association name, e.g. `attribute: Order_Customer/Name`; multi-hop `A/B/Attr` supported)
-- `column colName (caption: 'label') { ... }` - Custom content column (nested widgets)
+- `column (attribute: attribute, caption: 'label')` - Attribute column (own-entity attribute)
+- `column (attribute: Assoc/Attr, caption: 'label')` - Associated-attribute column (attribute over a reference; bare association name, e.g. `attribute: Order_Customer/Name`; multi-hop `A/B/Attr` supported)
+- `column (caption: 'label') { ... }` - Custom content column (nested widgets)
 
 > **Custom-content columns build correctly** on the default engine (a nested
 > `actionbutton`/`dynamictext` in `column (caption: …) { … }` — mxbuild-verified,
@@ -176,12 +176,11 @@ datagrid GridName (
 > `onclick` (open the NewEdit page on row click) is still a fine alternative for a
 > row-open affordance.
 
-> **Reserved keyword column names:** If the attribute name is a reserved MDL keyword (e.g. `Status`, `Type`), you must quote it and use a distinct column widget name:
+> **Reserved keyword attribute names:** If the attribute name is a reserved MDL keyword (e.g. `Status`, `Type`), quote it. A column takes no name (Mendix stores none), so there is no widget name to choose:
 > ```sql
-> column colStatus (attribute: "Status", caption: 'Status')
-> column colType   (attribute: "Type",   caption: 'Type')
+> column (attribute: "Status", caption: 'Status')
+> column (attribute: "Type", caption: 'Type')
 > ```
-> Using `COLUMN Status (attribute: Status)` fails silently — the column won't sort or filter correctly because `Status` is parsed as a keyword. Always prefix the widget name (`colStatus`) when the attribute name is reserved.
 
 **Column Properties (non-default only in DESCRIBE output):**
 
@@ -212,10 +211,10 @@ A filter widget must match the column attribute's type, or MxBuild fails with
 | Boolean | *(no filter — every filter widget errors on Boolean)* |
 
 ```sql
-column colName   (attribute: Name)      { textfilter f1 }      -- String
-column colQty    (attribute: Quantity)  { numberfilter f2 }    -- Integer/Decimal
-column colDate   (attribute: OrderDate) { datefilter f3 }      -- Date and time
-column colStatus (attribute: "Status")  { dropdownfilter f4 }  -- Enumeration
+column (attribute: Name)      { textfilter f1 }      -- String
+column (attribute: Quantity)  { numberfilter f2 }    -- Integer/Decimal
+column (attribute: OrderDate) { datefilter f3 }      -- Date and time
+column (attribute: "Status")  { dropdownfilter f4 }  -- Enumeration
 -- Boolean columns: omit the filter entirely
 ```
 
@@ -244,8 +243,8 @@ create page Module.Entity_NewEdit
 )
 {
   layoutgrid mainGrid {
-    row row1 {
-      column col1 (desktopwidth: autofill) {
+    row {
+      column (desktopwidth: autofill) {
         dataview dataView1 (datasource: $entity) {
           -- Input fields for each attribute
           textbox txtName (label: 'Name', attribute: Name)
@@ -298,8 +297,8 @@ First, create a navigation menu snippet that will be shared across all overview 
 create snippet MdlTemplates.NavigationMenu
 {
   layoutgrid navGrid {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         actionbutton btnStores (caption: 'Stores', action: show_page MdlTemplates.Store_Overview)
         actionbutton btnCars (caption: 'Cars', action: show_page MdlTemplates.Car_Overview)
       }
@@ -328,21 +327,21 @@ create page MdlTemplates.Store_Overview
 )
 {
   layoutgrid mainGrid {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         snippetcall navMenu (snippet: MdlTemplates.NavigationMenu)
       }
     }
-    row row2 {
-      column col2 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading (content: 'Stores', rendermode: H2)
       }
     }
-    row row3 {
-      column col3 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         datagrid StoreGrid (datasource: database MdlTemplates.Store) {
-          column colName (attribute: Name, caption: 'Name')
-          column colLocation (attribute: Location, caption: 'Location')
+          column (attribute: Name, caption: 'Name')
+          column (attribute: Location, caption: 'Location')
         }
       }
     }
@@ -362,8 +361,8 @@ create page MdlTemplates.Store_NewEdit
 )
 {
   layoutgrid mainGrid {
-    row row1 {
-      column col1 (desktopwidth: autofill) {
+    row {
+      column (desktopwidth: autofill) {
         dataview dataView1 (datasource: $store) {
           textbox txtName (label: 'Name', attribute: Name)
           textbox txtLocation (label: 'Location', attribute: Location)
@@ -415,8 +414,8 @@ create page MdlTemplates.Car_NewEdit
 )
 {
   layoutgrid mainGrid {
-    row row1 {
-      column col1 (desktopwidth: autofill) {
+    row {
+      column (desktopwidth: autofill) {
         dataview dataView1 (datasource: $Car) {
           textbox txtBrand (label: 'Brand', attribute: Brand)
           textbox txtModel (label: 'Model', attribute: model)
@@ -513,8 +512,8 @@ create snippet Module.CustomerDetails
 )
 {
   layoutgrid detailsGrid {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading (content: 'Customer Details', rendermode: H3)
       }
     }
@@ -593,8 +592,8 @@ When a navigation snippet references pages (via `show_page`) and those pages ref
 create snippet Module.NavigationMenu
 {
   layoutgrid navGrid {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext loading (content: 'Loading...')
       }
     }
@@ -630,8 +629,8 @@ create page Module.Customer_Overview
 create or modify snippet Module.NavigationMenu
 {
   layoutgrid navGrid {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         actionbutton btnCustomers (caption: 'Customers', action: show_page Module.Customer_Overview)
       }
     }

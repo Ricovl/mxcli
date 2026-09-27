@@ -1592,9 +1592,13 @@ func buildIfStatement(ctx parser.IIfStatementContext) *ast.IfStmt {
 	// nested IfStmt in the ELSE branch of the arm before it (built innermost
 	// first). Previously only exprs[0]/bodies[0] and the trailing ELSE were
 	// read, silently dropping every ELSIF arm from the written model.
+	armAnnotations := elsifArmAnnotations(ifCtx)
 	var stmt *ast.IfStmt
 	for i := len(exprs) - 1; i >= 0; i-- {
 		s := &ast.IfStmt{}
+		if i > 0 && i-1 < len(armAnnotations) && armAnnotations[i-1] != nil {
+			s.Annotations = armAnnotations[i-1]
+		}
 		s.Condition = buildSourceExpression(exprs[i])
 		if i < len(bodies) {
 			s.ThenBody = buildMicroflowBody(bodies[i])
@@ -1610,6 +1614,27 @@ func buildIfStatement(ctx parser.IIfStatementContext) *ast.IfStmt {
 	}
 
 	return stmt
+}
+
+// elsifArmAnnotations returns, per ELSIF arm in source order, the annotations
+// written directly before its keyword (nil when there are none). They are
+// direct children of the ifStatement, so each run is closed by the ELSIF token
+// that follows it.
+func elsifArmAnnotations(ifCtx *parser.IfStatementContext) []*ast.ActivityAnnotations {
+	var out []*ast.ActivityAnnotations
+	var pending []parser.IAnnotationContext
+	for _, child := range ifCtx.GetChildren() {
+		switch c := child.(type) {
+		case parser.IAnnotationContext:
+			pending = append(pending, c)
+		case antlr.TerminalNode:
+			if c.GetSymbol().GetTokenType() == parser.MDLParserELSIF {
+				out = append(out, extractMicroflowAnnotations(pending))
+				pending = nil
+			}
+		}
+	}
+	return out
 }
 
 // buildLoopStatement converts LOOP statement context to LoopStmt.

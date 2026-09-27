@@ -157,6 +157,10 @@ func publishedMemberFromRaw(raw map[string]any) *model.PublishedMember {
 		Sortable:    jsExtractBool(raw["Sortable"]),
 		IsPartOfKey: jsExtractBool(raw["IsPartOfKey"]),
 	}
+	if _, ok := raw["CanBeEmpty"]; ok {
+		v := jsExtractBool(raw["CanBeEmpty"])
+		m.CanBeEmpty = &v
+	}
 	switch m.TypeName {
 	case "ODataPublish$PublishedAttribute":
 		m.Kind = "attribute"

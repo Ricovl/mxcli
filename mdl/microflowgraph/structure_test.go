@@ -305,3 +305,25 @@ func TestAnalyze_IsDeterministic(t *testing.T) {
 		}
 	}
 }
+
+// `case $C when A, B then … end case` stores one flow per case value, so two
+// flows leave the split for the SAME first activity. They are one branch with
+// two labels, not two branches sharing a body: counting them as two made every
+// grouped case report "branches do not nest" and tell the reader the
+// description was not equivalent — for MDL that re-executes exactly (#750).
+func TestAnalyze_GroupedCaseValuesAreOneBranch(t *testing.T) {
+	objects := []microflows.MicroflowObject{
+		&microflows.StartEvent{BaseMicroflowObject: obj("start")},
+		split("case"), act("ab"), act("c"), merge("join"),
+		&microflows.EndEvent{BaseMicroflowObject: obj("end")},
+	}
+	flows := []*microflows.SequenceFlow{
+		flow("start", "case"),
+		flow("case", "ab"), flow("case", "ab"), flow("case", "c"),
+		flow("ab", "join"), flow("c", "join"), flow("join", "end"),
+	}
+
+	if found := Analyze(objects, flows); len(found) != 0 {
+		t.Errorf("grouped case values reported as overlapping branches: %+v", found)
+	}
+}

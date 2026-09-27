@@ -1611,6 +1611,9 @@ func findBsonColumn(rawData bson.D, gridName, columnName string, find widgetFind
 		colPropKeyMap, colPropKindMap := buildColumnPropKeyMap(gridResult.widget, typePointerID)
 
 		columns := bsonnav.DGetArrayElements(bsonnav.DGet(valDoc, "Objects"))
+		if selector, ok := backend.ParseColumnSelector(columnName); ok {
+			return selectBsonColumn(gridName, selector, columns, valDoc, colPropKeyMap, colPropKindMap)
+		}
 		var matches []*bsonWidgetResult
 		available := make([]string, 0, len(columns))
 		for i, colItem := range columns {
@@ -1651,6 +1654,159 @@ func findBsonColumn(rawData bson.D, gridName, columnName string, find widgetFind
 		}
 	}
 	return nil, fmt.Errorf("widget %q has no columns (not a DataGrid2)", gridName)
+}
+
+// selectBsonColumn resolves an explicit `grid column(Attr)` / `grid
+// column('Caption')` address (backend.ColumnSelector, ako/mxcli#749) among a
+// grid's columns. A column matches on what describe prints in it — its
+// `Attribute:` value or its `Caption:` text, both exactly — so the address an
+// author reads off describe output is the one that works. More than one match
+// is refused unless @n picks one: two columns over the same attribute are the
+// case the issue reports, and mutating the first silently is the hazard
+// ledger #78 closed for the derived-name form.
+func selectBsonColumn(gridName string, selector backend.ColumnSelector, columns []any, valDoc bson.D,
+	colPropKeyMap, colPropKindMap map[string]string) (*bsonWidgetResult, error) {
+	var matches []*bsonWidgetResult
+	var available []string
+	for i, colItem := range columns {
+		colDoc, ok := colItem.(bson.D)
+		if !ok {
+			continue
+		}
+		attribute, caption := columnAddressFieldsBson(colDoc, colPropKeyMap)
+		addr := backend.ColumnSelector{Attribute: attribute}
+		if attribute == "" {
+			addr = backend.ColumnSelector{Caption: caption}
+		}
+		if addr.Attribute != "" || addr.Caption != "" {
+			available = append(available, addr.String())
+		}
+		hit := selector.Caption != "" && selector.Caption == caption ||
+			selector.Caption == "" && selector.Attribute != "" && selector.Attribute == attribute
+		if hit {
+			matches = append(matches, &bsonWidgetResult{
+				widget:       colDoc,
+				parentArr:    columns,
+				parentKey:    "Objects",
+				parentDoc:    valDoc,
+				index:        i,
+				colPropKeys:  colPropKeyMap,
+				colPropKinds: colPropKindMap,
+			})
+		}
+	}
+	unpicked := selector
+	unpicked.Ordinal = 0
+	address := gridName + " " + unpicked.String()
+	switch {
+	case len(matches) == 0:
+		return nil, fmt.Errorf("column %s not found — a column is addressed by the attribute or the caption "+
+			"describe prints in it; available: %s", address, formatColumnAddressList(gridName, available))
+	case selector.Ordinal > len(matches):
+		return nil, fmt.Errorf("column %s@%d: there are only %d matches", address, selector.Ordinal, len(matches))
+	case selector.Ordinal > 0:
+		return matches[selector.Ordinal-1], nil
+	case len(matches) == 1:
+		return matches[0], nil
+	}
+	picks := make([]string, len(matches))
+	for i, m := range matches {
+		picks[i] = fmt.Sprintf("%s@%d (column %d of the grid)", address, i+1, m.index+1)
+	}
+	return nil, fmt.Errorf("column %s is ambiguous: %d columns match — Mendix stores no column name, "+
+		"so add @n to choose one: %s", address, len(matches), strings.Join(picks, ", "))
+}
+
+// formatColumnAddressList renders a grid's column(…) addresses for a message,
+// each once, in column order, as they are written: `dg column(Name)`.
+func formatColumnAddressList(gridName string, addrs []string) string {
+	seen := make(map[string]bool, len(addrs))
+	parts := make([]string, 0, len(addrs))
+	for _, a := range addrs {
+		if !seen[a] {
+			seen[a] = true
+			parts = append(parts, gridName+" "+a)
+		}
+	}
+	if len(parts) == 0 {
+		return "(none — a column with neither an attribute nor a caption has no column(…) address)"
+	}
+	return strings.Join(parts, ", ")
+}
+
+// columnAddressFieldsBson returns what describe prints in a DataGrid 2 column's
+// `Attribute:` and `Caption:` — the two things a column(…) address matches on.
+// The attribute is the short name, or `Assoc/…/Attr` when the AttributeRef
+// navigates associations (the same reconstruction as describe's
+// columnAttributeFromRef); the caption is the header's first non-empty text.
+func columnAddressFieldsBson(colDoc bson.D, propKeyMap map[string]string) (attribute, caption string) {
+	for _, prop := range bsonnav.DGetArrayElements(bsonnav.DGet(colDoc, "Properties")) {
+		propDoc, ok := prop.(bson.D)
+		if !ok {
+			continue
+		}
+		valDoc := bsonnav.DGetDoc(propDoc, "Value")
+		if valDoc == nil {
+			continue
+		}
+		switch propKeyMap[bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(propDoc, "TypePointer"))] {
+		case "attribute":
+			if ref := bsonnav.DGetString(valDoc, "AttributeRef"); ref != "" {
+				attribute = shortMemberName(ref)
+			} else if refDoc := bsonnav.DGetDoc(valDoc, "AttributeRef"); refDoc != nil {
+				attribute = attributePathFromRef(refDoc)
+			}
+		case "header":
+			if caption != "" {
+				continue
+			}
+			tmpl := bsonnav.DGetDoc(bsonnav.DGetDoc(valDoc, "TextTemplate"), "Template")
+			for _, item := range bsonnav.DGetArrayElements(bsonnav.DGet(tmpl, "Items")) {
+				if itemDoc, ok := item.(bson.D); ok {
+					if text := bsonnav.DGetString(itemDoc, "Text"); text != "" {
+						caption = text
+						break
+					}
+				}
+			}
+		}
+	}
+	return attribute, caption
+}
+
+// attributePathFromRef spells a DomainModels$AttributeRef document the way
+// describe does: `Attr`, or `Assoc/…/Attr` with short association names when
+// its EntityRef is an IndirectEntityRef of steps.
+func attributePathFromRef(refDoc bson.D) string {
+	attr := shortMemberName(bsonnav.DGetString(refDoc, "Attribute"))
+	entityRef := bsonnav.DGetDoc(refDoc, "EntityRef")
+	if entityRef == nil || bsonnav.DGetString(entityRef, "$Type") != "DomainModels$IndirectEntityRef" || attr == "" {
+		return attr
+	}
+	var assocs []string
+	for _, step := range bsonnav.DGetArrayElements(bsonnav.DGet(entityRef, "Steps")) {
+		stepDoc, ok := step.(bson.D)
+		if !ok {
+			return attr
+		}
+		a := bsonnav.DGetString(stepDoc, "Association")
+		if a == "" {
+			return attr
+		}
+		assocs = append(assocs, shortMemberName(a))
+	}
+	if len(assocs) == 0 {
+		return attr
+	}
+	return strings.Join(assocs, "/") + "/" + attr
+}
+
+// shortMemberName drops the module and entity prefix of a qualified member name.
+func shortMemberName(qn string) string {
+	if i := strings.LastIndex(qn, "."); i >= 0 {
+		return qn[i+1:]
+	}
+	return qn
 }
 
 // columnAmbiguityError builds the error for a bare `ON <name>` that resolves to

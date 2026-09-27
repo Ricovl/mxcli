@@ -2,7 +2,10 @@
 
 package ast
 
-import "strconv"
+import (
+	"strconv"
+	"strings"
+)
 
 // ============================================================================
 // ALTER PAGE / ALTER SNIPPET — in-place widget tree modification
@@ -30,7 +33,9 @@ type AlterPageOperation interface {
 // resolver (backend.AlterTargetResolver) decides which forms it accepts:
 //
 //	btnSave            Widget="btnSave"
-//	dgProducts.Name    Widget="dgProducts", Column="Name" (a grid column, a scroll-container region)
+//	dgProducts.Name    Widget="dgProducts", Column="Name" (a grid column by derived name, a scroll-container region)
+//	dg column(Name)    Widget="dg", ColumnAttribute="Name" (a DataGrid 2 column by its attribute, #749)
+//	dg column('Total') Widget="dg", ColumnCaption="Total" (… by its caption)
 //	'Approve order'    Caption="Approve order" (content addressing, for elements with no name)
 //	hdr@2 / 'x'@2      Ordinal=2 — picks one of several matches; never a guess
 //
@@ -41,6 +46,18 @@ type WidgetRef struct {
 	Column  string // sub-element name within Widget (empty for a plain name)
 	Caption string // quoted content address; empty when addressed by name
 	Ordinal int    // @n, 1-based; 0 when absent
+	// ColumnAttribute and ColumnCaption are the explicit column address
+	// `Widget column(…)`: the column's Attribute as describe writes it, or its
+	// Caption. At most one is set, and never together with Column. Ordinal
+	// then chooses among the grid's columns that match.
+	ColumnAttribute string
+	ColumnCaption   string
+}
+
+// IsColumnAddress reports whether the target is the explicit `grid column(…)`
+// form.
+func (r WidgetRef) IsColumnAddress() bool {
+	return r.ColumnAttribute != "" || r.ColumnCaption != ""
 }
 
 // Name returns the full reference string for error messages, as it was written.
@@ -49,6 +66,10 @@ func (r WidgetRef) Name() string {
 	switch {
 	case r.Caption != "":
 		s = "'" + r.Caption + "'"
+	case r.ColumnCaption != "":
+		s = r.Widget + " column('" + strings.ReplaceAll(r.ColumnCaption, "'", "''") + "')"
+	case r.ColumnAttribute != "":
+		s = r.Widget + " column(" + r.ColumnAttribute + ")"
 	case r.Column != "":
 		s = r.Widget + "." + r.Column
 	default:
@@ -75,9 +96,10 @@ const (
 	AlterAliasDropWidget = "drop-widget"
 )
 
-// IsColumn returns true if this is a column reference (dotted path).
+// IsColumn returns true if this addresses a member of a widget: a grid column
+// (`dg.Name` or `dg column(Name)`) or a scroll-container region.
 func (r WidgetRef) IsColumn() bool {
-	return r.Column != ""
+	return r.Column != "" || r.IsColumnAddress()
 }
 
 // SetPropertyOp represents: SET prop = value ON widgetRef

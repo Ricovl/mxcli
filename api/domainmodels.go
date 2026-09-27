@@ -305,6 +305,7 @@ func (b *EntityBuilder) WithDateTimeAttribute(name string) *EntityBuilder {
 				ID:       generateID(),
 				TypeName: "DomainModels$DateTimeAttributeType",
 			},
+			LocalizeDate: true, // Mendix's default; written explicitly since #743
 		},
 	}
 	b.attributes = append(b.attributes, attr)
@@ -674,6 +675,7 @@ func (b *AttributeBuilder) DateTime() *AttributeBuilder {
 			ID:       generateID(),
 			TypeName: "DomainModels$DateTimeAttributeType",
 		},
+		LocalizeDate: true, // Mendix's default; written explicitly since #743
 	}
 	return b
 }

@@ -193,16 +193,16 @@ create page MyModule.CustomerPage
 )
 {
   layoutgrid mainGrid {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading (content: 'Customer Information', rendermode: H2)
       }
     }
-    row row2 {
-      column col2a (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
       }
-      column col2b (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
       }
     }

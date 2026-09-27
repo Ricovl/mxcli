@@ -28,9 +28,14 @@ import (
 // ResetLayout is for `mxcli layout flows`, which rebuilds a stored flow only for
 // its geometry: nothing is carried over from the flow being replaced, not even a
 // hand-placed StartEvent, so every position is the layout engine's own.
+//
+// Quiet is for DESCRIBE's layout check (derivedFlowLayout), which rebuilds the
+// flow it is describing to learn which positions the engine derives: nothing is
+// written and nothing the build would warn about is printed.
 type buildFlowOpts struct {
 	AllowCreate bool
 	ResetLayout bool
+	Quiet       bool
 }
 
 // builtFlow is a Microflow assembled from a statement, plus what the write
@@ -414,6 +419,7 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 		measurer:      &layoutMeasurer{varTypes: varTypes},
 		allowWrap:     true,
 		backend:       ctx.Backend,
+		quiet:         opts.Quiet,
 		hierarchy:     hierarchy,
 		restServices:  restServices,
 	}
@@ -711,6 +717,7 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		hierarchy:    hierarchy,
 		restServices: restServices,
 		isNanoflow:   true,
+		quiet:        opts.Quiet,
 	}
 
 	nf.ObjectCollection = builder.buildFlowGraph(s.Body, s.ReturnType)

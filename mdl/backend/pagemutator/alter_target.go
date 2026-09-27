@@ -22,7 +22,7 @@ func (m *Mutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTarget
 	if err := backend.CheckPageAlterTarget(t); err != nil {
 		return backend.AlterTargetMatch{}, err
 	}
-	name := strings.Join(t.Path, ".")
+	name := t.String()
 	if len(t.Path) == 2 {
 		container, member := t.Path[0], t.Path[1]
 		if kind, ok, err := m.resolveScrollRegion(container, member); ok {

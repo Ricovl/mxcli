@@ -9,7 +9,7 @@ Pages define the user interface of a Mendix application. Each page consists of a
 | **Layout** | A reusable page template that defines content regions (e.g., header, sidebar, main content) |
 | **Widget tree** | A hierarchical structure of widgets that defines the page's visual content |
 | **Data source** | Determines how a widget obtains its data (page parameter, database query, microflow, etc.) |
-| **Widget name** | Every widget has a unique name within the page, used for ALTER PAGE operations |
+| **Widget name** | Every widget has a unique name within the page, used for ALTER PAGE operations. Layout-grid rows and columns, data-grid columns, and slot blocks such as a gallery's `template` have none (Mendix stores none); a data-grid column is addressed as `grid column(Attr)` |
 
 ## CREATE PAGE
 

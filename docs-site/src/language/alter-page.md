@@ -234,33 +234,43 @@ ALTER PAGE MyModule.Order_Edit {
 
 ### DataGrid Column Operations
 
-DataGrid2 columns are addressable using dotted notation: `gridName.columnName`. Use `DESCRIBE PAGE` to discover column names (derived from the attribute short name or caption).
+Mendix stores no name on a DataGrid 2 column, so `DESCRIBE PAGE` prints none and a
+column is addressed by what it shows: `grid column(Attr)` for the column bound to
+`Attr` (written as describe writes it, `Owner/Name` over an association), or
+`grid column('Caption')` for the column with that caption.
 
 ```sql
 -- Add a column after an existing one
 ALTER PAGE MyModule.Customer_Overview {
-  INSERT AFTER dgCustomers.Email {
-    COLUMN Phone (Attribute: Phone, Caption: 'Phone')
+  INSERT AFTER dgCustomers column(Email) {
+    COLUMN (Attribute: Phone, Caption: 'Phone')
   }
 };
 
 -- Remove a column
 ALTER PAGE MyModule.Customer_Overview {
-  DROP dgCustomers.OldColumn
+  DROP dgCustomers column('Old column')
 };
 
 -- Change a column's caption
 ALTER PAGE MyModule.Customer_Overview {
-  SET (Caption: 'E-mail Address') ON dgCustomers.Email
+  SET (Caption: 'E-mail Address') ON dgCustomers column(Email)
 };
 
 -- Replace a column
 ALTER PAGE MyModule.Customer_Overview {
-  REPLACE dgCustomers.Notes WITH {
-    COLUMN Description (Attribute: Description, Caption: 'Description')
+  REPLACE dgCustomers column(Notes) WITH {
+    COLUMN (Attribute: Description, Caption: 'Description')
   }
 };
 ```
+
+Two columns over the same attribute, or with the same caption, share the address.
+ALTER refuses it and lists the matches; `@n` picks one: `DROP dgCustomers column(Email)@2`.
+
+The older dotted form `dgCustomers.Email` still works. It matches a name mxcli
+derives — the attribute's short name, else the sanitized caption, else `colN` by
+position — which describe no longer prints.
 
 ## See Also
 

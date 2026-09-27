@@ -525,6 +525,9 @@ type PublishedODataService struct {
 	Microflows         []*PublishedMicroflow `json:"microflows,omitempty"`
 	AllowedModuleRoles []string              `json:"allowedModuleRoles,omitempty"`
 	Excluded           bool                  `json:"excluded,omitempty"`
+	// ExportLevel has no MDL spelling; it is carried from what is stored so a
+	// rewrite does not delete it (#743). Empty on a service mxcli creates.
+	ExportLevel string `json:"exportLevel,omitempty"`
 }
 
 // PublishedMicroflow is a microflow exposed as an OData action.
@@ -605,6 +608,11 @@ type PublishedMember struct {
 	Filterable  bool   `json:"filterable,omitempty"`
 	Sortable    bool   `json:"sortable,omitempty"`
 	IsPartOfKey bool   `json:"isPartOfKey,omitempty"`
+
+	// CanBeEmpty is the stored value, carried by a rewrite since MDL has no
+	// spelling for it (#743). nil means not stored: the writer derives it as
+	// !IsPartOfKey, as it always did.
+	CanBeEmpty *bool `json:"canBeEmpty,omitempty"`
 
 	// EdmType is the OData EDM type the attribute is published as (e.g.
 	// "Edm.String"). Studio Pro stores this on every ODataPublish$PublishedAttribute;

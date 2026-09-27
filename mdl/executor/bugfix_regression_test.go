@@ -493,58 +493,6 @@ func TestExpressionToString_NestedIfThenElse(t *testing.T) {
 }
 
 // =============================================================================
-// Issue #23: DataGrid2 column names derived from attribute or caption
-// =============================================================================
-
-// TestDeriveColumnName_FromAttribute verifies column name from attribute.
-func TestDeriveColumnName_FromAttribute(t *testing.T) {
-	col := rawDataGridColumn{Attribute: "MyModule.Order.OrderDate"}
-	got := deriveColumnName(col, 0)
-	if got != "OrderDate" {
-		t.Errorf("deriveColumnName(attribute) = %q, want %q", got, "OrderDate")
-	}
-}
-
-// TestDeriveColumnName_FromCaption verifies column name from caption.
-func TestDeriveColumnName_FromCaption(t *testing.T) {
-	col := rawDataGridColumn{Caption: "Order Date"}
-	got := deriveColumnName(col, 0)
-	if got != "Order_Date" {
-		t.Errorf("deriveColumnName(caption) = %q, want %q", got, "Order_Date")
-	}
-}
-
-// TestDeriveColumnName_Fallback verifies fallback to col%d.
-func TestDeriveColumnName_Fallback(t *testing.T) {
-	col := rawDataGridColumn{}
-	got := deriveColumnName(col, 2)
-	if got != "col3" {
-		t.Errorf("deriveColumnName(empty) = %q, want %q", got, "col3")
-	}
-}
-
-// TestDeriveColumnName_AttributePrecedence verifies attribute takes precedence over caption.
-func TestDeriveColumnName_AttributePrecedence(t *testing.T) {
-	col := rawDataGridColumn{
-		Attribute: "MyModule.Order.Status",
-		Caption:   "Order Status",
-	}
-	got := deriveColumnName(col, 0)
-	if got != "Status" {
-		t.Errorf("deriveColumnName(both) = %q, want %q", got, "Status")
-	}
-}
-
-// TestDeriveColumnName_CaptionSpecialChars verifies caption sanitization.
-func TestDeriveColumnName_CaptionSpecialChars(t *testing.T) {
-	col := rawDataGridColumn{Caption: "Order #ID (main)"}
-	got := deriveColumnName(col, 0)
-	if got != "Order__ID__main" {
-		t.Errorf("deriveColumnName(special chars) = %q, want %q", got, "Order__ID__main")
-	}
-}
-
-// =============================================================================
 // Issue #50: Association misidentified as Attribute (fallback without reader)
 // =============================================================================
 

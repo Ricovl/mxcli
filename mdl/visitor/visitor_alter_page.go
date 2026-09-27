@@ -274,6 +274,16 @@ func (b *Builder) buildAlterTarget(ctx parser.IAlterTargetContext) ast.WidgetRef
 				tc.GetText(), n.GetText()))
 		}
 	}
+	if tc.COLUMN() != nil {
+		// `grid column(Attr)` / `grid column('Caption')` (#749).
+		ref.Widget = identifierOrKeywordText(tc.IdentifierOrKeyword(0))
+		if sl := tc.STRING_LITERAL(); sl != nil {
+			ref.ColumnCaption = unquoteStringLit(sl)
+		} else if ap := tc.AttributePathV3(); ap != nil {
+			ref.ColumnAttribute = buildAttributePathV3(ap)
+		}
+		return ref
+	}
 	if sl := tc.STRING_LITERAL(); sl != nil {
 		ref.Caption = unquoteStringLit(sl)
 		return ref

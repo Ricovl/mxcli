@@ -224,11 +224,11 @@ define fragment ActionButtons as {
 
 create page Module.DualPanel (...) {
   layoutgrid lg {
-    row row1 {
-      column col1 (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         use fragment ActionButtons as left_
       }
-      column col2 (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         use fragment ActionButtons as right_
       }
     }

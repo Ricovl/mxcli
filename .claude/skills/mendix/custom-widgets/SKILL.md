@@ -141,11 +141,11 @@ gallery galleryName (
   TabletColumns: 2,
   PhoneColumns: 1
 ) {
-  template template1 {
+  template {
     dynamictext title (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
     dynamictext info  (content: '{1}', contentparams: [{1} = Email])
   }
-  filter filter1 {
+  filter {
     textfilter   searchName  (attribute: Name)
     numberfilter searchScore (attribute: Score)
     dropdownfilter searchStatus (attribute: status)
