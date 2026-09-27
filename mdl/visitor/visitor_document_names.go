@@ -77,12 +77,10 @@ func (b *Builder) ExitSettingsSection(ctx *parser.SettingsSectionContext) {
 // the tab that holds Settings$ModelSettings, is the section mxcli has always
 // called `model`; both build the same statement.
 func settingsSectionName(ctx parser.ISettingsSectionContext) string {
-	text := ctx.GetText()
+	// Lowercase, like every settings section in the AST (R8): the executor
+	// matches the section on its lowercase name.
 	if sc, ok := ctx.(*parser.SettingsSectionContext); ok && sc.RUNTIME() != nil {
-		if text == strings.ToUpper(text) {
-			return "MODEL"
-		}
 		return "model"
 	}
-	return text
+	return strings.ToLower(ctx.GetText())
 }
