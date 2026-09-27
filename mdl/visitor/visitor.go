@@ -121,6 +121,16 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 			"    mdl 1;\n"+
 			"    create entity Shop.Customer ( Name: String(200) );   (correct)", msg)
 	}
+	// A `\'` in a string literal under mdl 1, where a backslash no longer
+	// escapes: the literal ends at the quote, and the rest of the line is read
+	// as MDL. Under mdl 0 the same text parses, so the hint only fires on an
+	// error. (#732)
+	if strings.Contains(offendingLine, `\'`) {
+		return fmt.Sprintf("%s\n\n  Under mdl 1 a backslash is an ordinary character, so `\\'` ends the string\n"+
+			"  literal. Double the apostrophe instead, as in a Mendix expression:\n"+
+			"    default 'it''s'    (correct)\n"+
+			"    default 'it\\'s'    (mdl 0 only)", msg)
+	}
 	// A bare `not $x` — Mendix requires `not(expr)`. The parse error surfaces
 	// downstream (e.g. "missing THEN at '$x'"), so key off the source line, which
 	// is unambiguous for `not $…`. (sudoku findings #3)

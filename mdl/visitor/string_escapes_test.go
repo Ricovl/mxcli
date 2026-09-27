@@ -136,3 +136,12 @@ func TestStringLiteralsAreReadUnderTheirEscapeRule(t *testing.T) {
 		}
 	}
 }
+
+// Under mdl 1 `\'` ends the literal and the parse error that follows is far
+// from the cause; the hint names it.
+func TestBackslashQuoteHintUnderMdl1(t *testing.T) {
+	_, _, errs := defaultOf(t, "mdl 1;\n", `'it\'s'`)
+	if len(errs) == 0 || !strings.Contains(errsText(errs), "Double the apostrophe") {
+		t.Fatalf("want the doubled-apostrophe hint, got %v", errs)
+	}
+}
