@@ -162,10 +162,10 @@ COMMIT $Product ON ERROR CONTINUE;
 Options are `CONTINUE` (ignore the error and proceed), `ROLLBACK` (roll back the transaction and continue), or an inline error handler block:
 
 ```sql
-COMMIT $Product ON ERROR {
+COMMIT $Product ON ERROR BEGIN
     LOG ERROR 'Failed to commit product';
     RETURN false;
-};
+END ERROR;
 ```
 
 ## Organizing with folders

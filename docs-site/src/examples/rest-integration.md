@@ -130,10 +130,10 @@ BEGIN
     HEADER Accept = 'application/json'
     TIMEOUT 30
     RETURNS String
-    ON ERROR WITHOUT ROLLBACK {
+    ON ERROR WITHOUT ROLLBACK BEGIN
       LOG ERROR NODE 'Integration' 'API call failed: ' + $Url;
       RETURN false;
-    };
+    END ERROR;
 
   SET $Success = true;
   RETURN $Success;

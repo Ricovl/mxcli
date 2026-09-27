@@ -42,8 +42,16 @@ dropUserRoleStatement
     : DROP USER ROLE ifExists? (identifierOrKeyword | STRING_LITERAL)
     ;
 
+// The canonical form names the rights first and the roles after TO, like every
+// other grant, and takes the XPath in [ ] as every other XPath is written (R5,
+// ako/mxcli#753): Mendix stores sibling predicate groups concatenated, so a
+// constraint is one or more groups. The reversed form, with the XPath in a
+// string, is the deprecated alias. The two start differently after GRANT (a
+// right keyword and `*`/`(`, or a role name and ON), so both parse.
 grantEntityAccessStatement
-    : GRANT moduleRoleList ON qualifiedName
+    : GRANT entityAccessRightList ON ENTITY qualifiedName TO moduleRoleList
+      (WHERE xpathConstraint+)?
+    | GRANT moduleRoleList ON qualifiedName /* @alias MDL-DEPR030 */
       LPAREN entityAccessRightList RPAREN
       (WHERE STRING_LITERAL)?
     ;

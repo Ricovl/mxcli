@@ -122,7 +122,7 @@ func TestDescribeFold_FallThroughHandlerHasNoLabels(t *testing.T) {
 	if strings.Contains(out, "join ") || strings.Contains(out, "merge ") {
 		t.Errorf("a fall-through handler came back as join/merge labels:\n%s", out)
 	}
-	if !regexp.MustCompile(`log error node 'X' 'failed';\n\s*};`).MatchString(out) {
+	if !regexp.MustCompile(`log error node 'X' 'failed';\n\s*end error;`).MatchString(out) {
 		t.Errorf("the handler body is not closed right after its statement:\n%s", out)
 	}
 	assertFoldRoundTrips(t, out, oc)

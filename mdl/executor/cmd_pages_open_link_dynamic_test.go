@@ -73,7 +73,7 @@ func TestRenderClientActionMDL_OpenLinkDynamicAddress(t *testing.T) {
 		},
 		"LinkType": "Web",
 	}
-	if got, want := renderClientActionMDL(ctx, action), "open_link $currentObject/URL"; got != want {
+	if got, want := renderClientActionMDL(ctx, action), "open link $currentObject/URL"; got != want {
 		t.Errorf("renderClientActionMDL = %q, want %q", got, want)
 	}
 

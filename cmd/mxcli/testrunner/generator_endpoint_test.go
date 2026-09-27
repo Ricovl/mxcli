@@ -94,7 +94,7 @@ func TestGenerateTestFlowsWrapsCallsWithErrorHandling(t *testing.T) {
 	}}}
 	mdl := GenerateTestFlows(suite)
 
-	if !strings.Contains(mdl, "ON ERROR {") {
+	if !strings.Contains(mdl, "ON ERROR BEGIN") {
 		t.Errorf("the CALL was not wrapped in ON ERROR:\n%s", mdl)
 	}
 	if !strings.Contains(mdl, verdictFailPrefix+"exception during execution") {
@@ -113,7 +113,7 @@ func TestGenerateTestFlowsThrowsTestStartsFailed(t *testing.T) {
 	mdl := GenerateTestFlows(suite)
 
 	failIdx := strings.Index(mdl, verdictFailPrefix+"expected an exception")
-	handlerIdx := strings.Index(mdl, "ON ERROR {")
+	handlerIdx := strings.Index(mdl, "ON ERROR BEGIN")
 	if failIdx < 0 {
 		t.Fatalf("no pre-set failure verdict:\n%s", mdl)
 	}
@@ -135,10 +135,10 @@ func TestGenerateTestFlowsMultiLineCall(t *testing.T) {
 	}}}
 	mdl := GenerateTestFlows(suite)
 
-	if !strings.Contains(mdl, ") ON ERROR {") {
+	if !strings.Contains(mdl, ") ON ERROR BEGIN") {
 		t.Errorf("a statement spanning lines was not joined before ON ERROR was attached:\n%s", mdl)
 	}
-	if strings.Count(mdl, "ON ERROR {") != 1 {
+	if strings.Count(mdl, "ON ERROR BEGIN") != 1 {
 		t.Errorf("expected exactly one handler for one call:\n%s", mdl)
 	}
 }

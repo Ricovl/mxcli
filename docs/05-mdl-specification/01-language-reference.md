@@ -1076,7 +1076,7 @@ Creates or updates an access rule on an entity for one or more module roles with
 
 **Syntax:**
 ```sql
-grant <module>.<role> on <module>.<entity> (<rights>) [where '<xpath>']
+grant <rights> on entity <module>.<entity> to <module>.<role> [, ...] [where [<xpath>]]
 ```
 
 Where `<rights>` is a comma-separated list of:
@@ -1088,19 +1088,19 @@ Where `<rights>` is a comma-separated list of:
 **Examples:**
 ```sql
 -- Full access
-grant Shop.Admin on Shop.Customer (create, delete, read *, write *);
+grant create, delete, read *, write * on entity Shop.Customer to Shop.Admin;
 
 -- Read-only
-grant Shop.Viewer on Shop.Customer (read *);
+grant read * on entity Shop.Customer to Shop.Viewer;
 
 -- Selective member access
-grant Shop.User on Shop.Customer (read (Name, Email), write (Email));
+grant read (Name, Email), write (Email) on entity Shop.Customer to Shop.User;
 
 -- With XPath constraint
-grant Shop.User on Shop.Order (read *, write *) where '[Status = ''Open'']';
+grant read *, write * on entity Shop.Order to Shop.User where [Status = 'Open'];
 
 -- Additive: adds Phone to existing read access (Name, Email preserved)
-grant Shop.User on Shop.Customer (read (Phone));
+grant read (Phone) on entity Shop.Customer to Shop.User;
 ```
 
 ### REVOKE (Entity Access)

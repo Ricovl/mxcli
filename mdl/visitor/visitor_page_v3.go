@@ -1089,9 +1089,13 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 	actCtx := ctx.(*parser.ActionExprV3Context)
 	action := &ast.ActionV3{}
 
-	if v := actCtx.VARIABLE(); v != nil && actCtx.OPEN_LINK() == nil {
+	// Each page action has a canonical spelling in words and a deprecated
+	// snake-case one (R8, ako/mxcli#752); both build the same action, and
+	// ExitActionExprV3 reports the old one.
+	closePage := actCtx.ClosePageV3() != nil
+	if v := actCtx.VARIABLE(); v != nil && actCtx.OpenLinkV3() == nil {
 		// $handler — a fragment action parameter; resolved at expansion.
-		// (OPEN_LINK $currentObject/Attr also carries a VARIABLE.)
+		// (open link $currentObject/Attr also carries a VARIABLE.)
 		action.Type = "param"
 		action.Target = strings.TrimPrefix(v.GetText(), "$")
 	} else if actCtx.NOTHING() != nil {
@@ -1103,18 +1107,16 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 		action.Type = "none"
 	} else if actCtx.SAVE_CHANGES() != nil {
 		action.Type = "save"
-		action.ClosePage = actCtx.CLOSE_PAGE() != nil
+		action.ClosePage = closePage
 	} else if actCtx.CANCEL_CHANGES() != nil {
 		action.Type = "cancel"
-		action.ClosePage = actCtx.CLOSE_PAGE() != nil
-	} else if actCtx.CLOSE_PAGE() != nil && actCtx.SAVE_CHANGES() == nil && actCtx.CANCEL_CHANGES() == nil {
+		action.ClosePage = closePage
+	} else if actCtx.DELETE_OBJECT() != nil || actCtx.DELETE() != nil {
+		action.Type = "delete"
+		action.ClosePage = closePage
+	} else if closePage {
 		action.Type = "close"
-	} else if actCtx.DELETE_OBJECT() != nil {
-		action.Type = "delete"
-	} else if actCtx.DELETE() != nil {
-		action.Type = "delete"
-		action.ClosePage = actCtx.CLOSE_PAGE() != nil
-	} else if actCtx.CREATE_OBJECT() != nil {
+	} else if actCtx.CREATE_OBJECT() != nil || actCtx.CREATE() != nil {
 		action.Type = "create"
 		if qn := actCtx.QualifiedName(); qn != nil {
 			action.Target = getQualifiedNameText(qn)
@@ -1123,7 +1125,7 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 		if thenCtx := actCtx.ActionExprV3(); thenCtx != nil {
 			action.ThenAction = buildActionV3(thenCtx)
 		}
-	} else if actCtx.SHOW_PAGE() != nil {
+	} else if actCtx.SHOW_PAGE() != nil || actCtx.SHOW() != nil {
 		action.Type = "showPage"
 		if qn := actCtx.QualifiedName(); qn != nil {
 			action.Target = getQualifiedNameText(qn)
@@ -1147,12 +1149,12 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 		if argsCtx := actCtx.MicroflowArgsV3(); argsCtx != nil {
 			action.Args = buildMicroflowArgsV3(argsCtx)
 		}
-	} else if actCtx.OPEN_LINK() != nil {
+	} else if actCtx.OpenLinkV3() != nil {
 		action.Type = "openLink"
 		if str := actCtx.STRING_LITERAL(); str != nil {
 			action.LinkURL = unquoteStringLit(str)
 		}
-		// A dynamic address: `open_link $currentObject/URL`.
+		// A dynamic address: `open link $currentObject/URL`.
 		if v := actCtx.VARIABLE(); v != nil {
 			action.LinkVariable = v.GetText()
 			if pathCtx := actCtx.AttributePathV3(); pathCtx != nil {
@@ -1192,11 +1194,14 @@ func buildMicroflowArgV3(ctx parser.IMicroflowArgV3Context) ast.FlowArgV3 {
 	argCtx := ctx.(*parser.MicroflowArgV3Context)
 	arg := ast.FlowArgV3{}
 
-	if v := argCtx.VARIABLE(); v != nil {
-		// Microflow-style: $Param = $value
+	if pn := argCtx.ParameterName(); pn != nil {
+		// Canonical (R4): Param = $value
+		arg.Name = parameterNameText(pn)
+	} else if v := argCtx.VARIABLE(); v != nil {
+		// Deprecated (MDL-DEPR006): $Param = $value
 		arg.Name = strings.TrimPrefix(v.GetText(), "$")
 	} else if iok := argCtx.IdentifierOrKeyword(); iok != nil {
-		// Widget-style: Param: $value. identifierOrKeyword accepts a bare
+		// Deprecated (MDL-DEPR007): Param: $value. identifierOrKeyword accepts a bare
 		// keyword (View/Source/Item/Page/Entity) or a "quoted" name;
 		// identifierOrKeywordText unquotes as needed.
 		arg.Name = identifierOrKeywordText(iok)

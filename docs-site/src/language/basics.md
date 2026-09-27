@@ -36,6 +36,22 @@ Under `mdl 1;` a missing `;` is an error, and so is the Oracle SQL*Plus-style `/
 
 A trailing comma is allowed in every bracketed list — attributes, enumeration values, parameters, property lists, `{ … }` blocks — under every language version. `()` is the only way to write an empty list: `(,)` and `(a,,)` are errors.
 
+## Keyword Case
+
+Keywords are case-insensitive, and lowercase is canonical: `describe` writes them in lowercase and `mxcli fmt` normalizes them to it. Names are not keywords, even when they are spelled like one — a module member `User`, an attribute `Title` or a property key `Folder:` keeps its case, and so does a CamelCase value such as `ButtonStyle: Success` or a type name such as `String(200)`. Expressions, XPath, OQL and SQL are stored as written, so `fmt` leaves their text alone.
+
+## One Spelling per Keyword
+
+Each keyword has one spelling, and a page action uses the words a microflow uses. The older spellings still parse with the same meaning, warn with the code shown, and are rewritten by `mxcli fmt --upgrade`:
+
+| Canonical | Deprecated | Code |
+|---|---|---|
+| `show page`, `save changes`, `cancel changes`, `close page`, `create object`, `delete`, `open link`, `sign out`, `complete task`, `call microflow M.F`, `call nanoflow M.F` | `show_page`, `save_changes`, `cancel_changes`, `close_page`, `create_object`, `delete_object`, `open_link`, `sign_out`, `complete_task`, `microflow M.F`, `nanoflow M.F` | `MDL-DEPR020` |
+| `not null error message '…'` (also after `unique`, `required`), validation rule `error message '…'`, `on delete restrict error message '…'` | `not null error '…'`, `feedback '…'`, `error_message '…'`, `errormessage '…'` | `MDL-DEPR021` |
+| `on delete cascade` / `restrict` / `set null` | `delete_behavior cascade` / `prevent` / `delete_and_references` / `delete_if_no_references` / `delete_but_keep_references` | `MDL-DEPR022` |
+| `type ReferenceSet` | `type reference_set` | `MDL-DEPR023` |
+| `returns nothing` (REST call) | `returns none` | `MDL-DEPR024` |
+
 ## Language Version Header
 
 A script may start with a header that names the MDL language version it is written in:
@@ -61,10 +77,11 @@ What `mdl 1` makes strict (each is a warning without the header, with the code s
 | A `/` terminator line is an error. | Accepted; `MDL-V1-SLASH`. |
 | `''` is the only string escape; a backslash is an ordinary character, so `'C:\temp'` is that path. | `\n`, `\r`, `\t`, `\\` and `\'` are escapes; `MDL-V1-ESCAPE` for each literal whose value would change. |
 | In a REST client, published REST service, business event service, model, knowledge base, consumed MCP service or agent, an unknown property key is an error that names the key it most likely meant, and so is a value its key does not take (`Response: json from $X`). | The property is ignored, or read by its shape as before; `MDL-V1-PROP` / `MDL-V1-PROPVALUE`. |
+| A `while` loop is `while <condition> begin … end while;`; leaving out `begin`, or the `while` after `end`, is an error. | Accepted; `MDL-V1-WHILE`. |
 
 ### Upgrading a script: `mxcli fmt --upgrade`
 
-`mxcli fmt --upgrade` rewrites every deprecated spelling (the `MDL-DEPRnnn` warnings) to its canonical form — `create or replace` becomes `create or modify`, `show entities` becomes `list entities` — and changes nothing else: comments, layout and keyword case are kept. A deprecated use with no mechanical rewrite is reported and left in place.
+`mxcli fmt --upgrade` rewrites every deprecated spelling (the `MDL-DEPRnnn` warnings) to its canonical form — `create or replace` becomes `create or modify`, `show entities` becomes `list entities`, `on error { … }` becomes `on error begin … end error` — and changes nothing else: comments, layout and keyword case are kept. A deprecated use with no mechanical rewrite is reported and left in place.
 
 ```bash
 mxcli fmt --upgrade script.mdl            # print the upgraded script
@@ -83,6 +100,7 @@ mxcli fmt --upgrade --header -w script.mdl  # also add `mdl 1;`
 | `MDL-V1-SET` | `$x = …` becomes `set $x = …` |
 | `MDL-V1-LIST`, `MDL-DEPR003`, `MDL-DEPR004` | a list operation or aggregate call becomes its statement form (`$x = filter($L, …)` → `$x = filter $L where …`); `find`/`contains` on a declared String keeps the call and gains `set` |
 | `MDL-V1-REPLACE02` | `create or replace user role` / `demo user` becomes a plain `create` |
+| `MDL-V1-WHILE` | inserts the missing `begin` after a `while` condition and `while` after its `end` |
 
 A construct with no mechanical rewrite is reported with the reason, and `fmt` refuses to add the header rather than change the script's meaning: an unknown or mis-shaped property (`MDL-V1-PROP`, `MDL-V1-PROPVALUE`), `create or replace view entity` (`MDL-V1-REPLACE01`), a nested list operation such as `count(filter(…))`, `find`/`contains` on a variable whose type the script does not state, and an escaped line break (`\n`) inside an expression. While `mdl 1` is a preview, the header is added only when asked. Running `fmt --upgrade` on its own output changes nothing.
 

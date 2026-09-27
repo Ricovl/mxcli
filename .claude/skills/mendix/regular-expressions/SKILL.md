@@ -73,7 +73,7 @@ create regular expression Val.EmailAddress (
 
 create validation rule for Val.Person.Email
   regex Val.EmailAddress
-  feedback 'Enter a valid email address';
+  error message 'Enter a valid email address';
 ```
 
 Create the pattern first. The rule stores a **reference by qualified name**, so
@@ -84,9 +84,9 @@ Ranges use the same statement. Bounds are inclusive and either may be omitted;
 Mendix has no strict `<` or `>`, so there is no exclusive form:
 
 ```sql
-create validation rule for Val.Booking.Guests range from 1 to 100 feedback '…';
-create validation rule for Val.Product.Price  range from 0        feedback '…';
-create validation rule for Val.Order.Discount range to 100        feedback '…';
+create validation rule for Val.Booking.Guests range from 1 to 100 error message '…';
+create validation rule for Val.Product.Price  range from 0        error message '…';
+create validation rule for Val.Order.Discount range to 100        error message '…';
 ```
 
 Re-running a rule replaces the one of the **same type** on that attribute and
@@ -98,12 +98,12 @@ constraints:
 
 ```sql
 create entity Val.Person (
-  Email: String(200) not null error 'Email is required',
-  Code:  String(20)  unique error 'Code must be unique'
+  Email: String(200) not null error message 'Email is required',
+  Code:  String(20)  unique error message 'Code must be unique'
 );
 
 alter entity Val.Person modify attribute Email String(200)
-  not null error 'Email is required';
+  not null error message 'Email is required';
 ```
 
 ### What still cannot be authored

@@ -7,7 +7,7 @@ The `GRANT` and `REVOKE` statements control all permissions in a Mendix project.
 ### GRANT
 
 ```sql
-GRANT <Module>.<Role> ON <Module>.<Entity> (<rights>) [WHERE '<xpath>'];
+GRANT <rights> ON ENTITY <Module>.<Entity> TO <Module>.<Role> [, ...] [WHERE [<xpath>]];
 ```
 
 Where `<rights>` is a comma-separated list of:
@@ -27,20 +27,20 @@ Examples:
 
 ```sql
 -- Full access
-GRANT Shop.Admin ON Shop.Customer (CREATE, DELETE, READ *, WRITE *);
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Customer TO Shop.Admin;
 
 -- Read-only
-GRANT Shop.Viewer ON Shop.Customer (READ *);
+GRANT READ * ON ENTITY Shop.Customer TO Shop.Viewer;
 
 -- Selective members
-GRANT Shop.User ON Shop.Customer (READ (Name, Email), WRITE (Email));
+GRANT READ (Name, Email), WRITE (Email) ON ENTITY Shop.Customer TO Shop.User;
 
 -- With XPath constraint (doubled single quotes for string literals)
-GRANT Shop.User ON Shop.Order (READ *, WRITE *)
-  WHERE '[Status = ''Open'']';
+GRANT READ *, WRITE * ON ENTITY Shop.Order TO Shop.User
+  WHERE [Status = 'Open'];
 
 -- Additive: adds Notes to existing read access without removing Name, Email
-GRANT Shop.User ON Shop.Customer (READ (Notes));
+GRANT READ (Notes) ON ENTITY Shop.Customer TO Shop.User;
 ```
 
 ### REVOKE
@@ -159,14 +159,14 @@ CREATE USER ROLE Employee (Shop.User);
 CREATE USER ROLE Guest (Shop.Viewer);
 
 -- Entity access
-GRANT Shop.Admin ON Shop.Customer (CREATE, DELETE, READ *, WRITE *);
-GRANT Shop.User ON Shop.Customer (READ *, WRITE (Email, Phone));
-GRANT Shop.Viewer ON Shop.Customer (READ *);
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Customer TO Shop.Admin;
+GRANT READ *, WRITE (Email, Phone) ON ENTITY Shop.Customer TO Shop.User;
+GRANT READ * ON ENTITY Shop.Customer TO Shop.Viewer;
 
-GRANT Shop.Admin ON Shop.Order (CREATE, DELETE, READ *, WRITE *);
-GRANT Shop.User ON Shop.Order (CREATE, READ *, WRITE *)
-  WHERE '[Status = ''Open'']';
-GRANT Shop.Viewer ON Shop.Order (READ *);
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Order TO Shop.Admin;
+GRANT CREATE, READ *, WRITE * ON ENTITY Shop.Order TO Shop.User
+  WHERE [Status = 'Open'];
+GRANT READ * ON ENTITY Shop.Order TO Shop.Viewer;
 
 -- Microflow access
 GRANT EXECUTE ON MICROFLOW Shop.ACT_ProcessOrder TO Shop.Admin;

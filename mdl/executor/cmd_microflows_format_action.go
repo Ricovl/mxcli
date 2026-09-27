@@ -777,7 +777,7 @@ func formatAction(
 			// Extract just the parameter name from the qualified name
 			parts := strings.Split(pm.Parameter, ".")
 			paramName := parts[len(parts)-1]
-			params = append(params, fmt.Sprintf("$%s = %s", paramName, describeExpr(pm.Argument)))
+			params = append(params, fmt.Sprintf("%s = %s", paramName, describeExpr(pm.Argument)))
 		}
 
 		// Build the statement
@@ -807,11 +807,7 @@ func formatAction(
 		}
 		result := fmt.Sprintf("show message %s type %s", message, msgType)
 		if len(a.TemplateParameters) > 0 {
-			objs := make([]string, len(a.TemplateParameters))
-			for i, p := range a.TemplateParameters {
-				objs[i] = describeExpr(p)
-			}
-			result += " objects [" + strings.Join(objs, ", ") + "]"
+			result += templateArgsClause(a.TemplateParameters)
 		}
 		// Without this, a describe -> exec round trip turned a BLOCKING message
 		// box into a non-blocking one. The model carried Blocking on both
@@ -856,7 +852,7 @@ func formatAction(
 		} else if a.AssociationName != "" {
 			attrPath = varName + "/" + a.AssociationName
 		}
-		return fmt.Sprintf("validation feedback %s message %s;", attrPath, msgText)
+		return fmt.Sprintf("validation feedback %s message %s%s;", attrPath, msgText, templateArgsClause(a.TemplateParameters))
 
 	case *microflows.RestCallAction:
 		return formatRestCallAction(ctx, a)
@@ -1412,7 +1408,7 @@ func formatRestCallAction(ctx *ExecContext, a *microflows.RestCallAction) string
 			// reported nothing.
 			sb.WriteString(rh.EntityRef)
 		case *microflows.ResultHandlingNone:
-			sb.WriteString("Nothing")
+			sb.WriteString("nothing")
 		default:
 			// Refuse rather than guess. The previous "String" fallback here and
 			// below is what turned an unread result handling into a silent
@@ -1466,7 +1462,6 @@ func formatRestOperationCallAction(ctx *ExecContext, a *microflows.RestOperation
 			if i > 0 {
 				sb.WriteString(", ")
 			}
-			sb.WriteString("$")
 			sb.WriteString(p.name)
 			sb.WriteString(" = ")
 			sb.WriteString(p.value)
@@ -2060,4 +2055,18 @@ func mdlAggregateKeyword(fn microflows.AggregateFunction) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// templateArgsClause renders a text template's arguments as ` with ({1} = a,
+// {2} = b)` — R4's one text-template form (ako/mxcli#751) — or "" when there
+// are none.
+func templateArgsClause(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	parts := make([]string, len(args))
+	for i, a := range args {
+		parts[i] = fmt.Sprintf("{%d} = %s", i+1, describeExpr(a))
+	}
+	return " with (" + strings.Join(parts, ", ") + ")"
 }

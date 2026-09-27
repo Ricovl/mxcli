@@ -249,14 +249,14 @@ Before writing any MDL, verify these requirements:
 - `retrieve $Var from Module.Entity [where condition];`
 - `$Result = call microflow Module.Name (Param = $value);` (NOT `set $Result = ...`)
 - `$Result = call nanoflow Module.Name (Param = $value);`
-- `show page Module.PageName ($Param = $value);`
+- `show page Module.PageName (Param = $value);`
 - `close page;`
 - `validation feedback $entity/attribute message 'message';`
 - `log info|warning|error [node 'name'] 'message';`
 - `if condition then ... [else ...] end if;`
 - `loop $item in $list begin ... end loop;`
 - `return $value;`
-- `on error continue|rollback|{ handler };`
+- `on error continue|rollback|[without rollback] begin handler end error;`
 
 **Now Supported (previously not):**
 - `rollback $entity [refresh];` - Reverts uncommitted changes

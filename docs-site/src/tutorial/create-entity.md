@@ -76,7 +76,7 @@ You can specify what happens when the "to" entity is deleted:
 CREATE ASSOCIATION MyModule.Order_Product
     FROM MyModule.Order TO MyModule.Product
     TYPE Reference
-    DELETE_BEHAVIOR PREVENT;
+    ON DELETE RESTRICT;
 ```
 
 Options: `PREVENT` (block deletion if referenced), `CASCADE` (delete the associated objects too), or leave it out for the default behavior — delete the object and null out the references.

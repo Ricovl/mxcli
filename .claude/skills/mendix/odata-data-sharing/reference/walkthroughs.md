@@ -43,8 +43,7 @@ create view entity ProductApi.ProductWithPriceVE (
   where  p.IsActive
 );
 
-grant ProductApi.ApiUser on ProductApi.ProductWithPriceVE
-  (read *, write *);
+grant read *, write * on entity ProductApi.ProductWithPriceVE to ProductApi.ApiUser;
 ```
 
 For aggregated data:
@@ -67,8 +66,7 @@ create view entity ProductApi.CheapProductSalesVE (
   limit 1000
 );
 
-grant ProductApi.ApiUser on ProductApi.CheapProductSalesVE
-  (read *, write *);
+grant read *, write * on entity ProductApi.CheapProductSalesVE to ProductApi.ApiUser;
 ```
 
 For flattening across associations:
@@ -103,8 +101,7 @@ create view entity ProductApi.CustomerAddressVE (
     left outer join c/Shop.DeliveryAddress_Customer/Shop.Address as da
 );
 
-grant ProductApi.ApiUser on ProductApi.CustomerAddressVE
-  (read *, write *);
+grant read *, write * on entity ProductApi.CustomerAddressVE to ProductApi.ApiUser;
 ```
 
 ### Step 3: Publish the OData Service
@@ -242,7 +239,7 @@ from consumed odata service ProductClient.ProductDataApiClient
   PriceInEuro: decimal
 );
 
-grant ProductClient.User on ProductClient.ProductsEE (read *);
+grant read * on entity ProductClient.ProductsEE to ProductClient.User;
 
 create external entity ProductClient.CustomerAddressesEE
 from consumed odata service ProductClient.ProductDataApiClient
@@ -263,7 +260,7 @@ from consumed odata service ProductClient.ProductDataApiClient
   DeliveryCountry: string
 );
 
-grant ProductClient.User on ProductClient.CustomerAddressesEE (read *);
+grant read * on entity ProductClient.CustomerAddressesEE to ProductClient.User;
 ```
 
 **Bulk alternative:** Instead of creating external entities one by one, import all (or a subset) from the contract:
@@ -406,7 +403,7 @@ an invoice number, an ISIN, an employee number. Mendix requires a key to be
 unique, required and stable (the last is the point here), and the unique
 validation rule it makes you add is checking exactly that.
 
-That is also why the key needs `unique error '…'` on the attribute — see the
+That is also why the key needs `unique error message '…'` on the attribute — see the
 CE6624 note below. Both halves of the same idea: the value identifies one row,
 and keeps identifying it.
 
@@ -526,7 +523,7 @@ Measured on Mendix 11.13, each row a separate build:
 | shape | result |
 |---|---|
 | single key attribute, persistable, no `unique` rule | **CE6624** — add one |
-| single key attribute, persistable, `unique error '…'` | 0 errors |
+| single key attribute, persistable, `unique error message '…'` | 0 errors |
 | **single key attribute, VIEW entity, no `unique` rule** | **0 errors** |
 | **composite key, `OData3`** | **CE7238** "You can only have more than one key attribute when the OData version is 4" |
 | composite key, `OData4`, persistable, no `unique` rules | 0 errors |
@@ -815,8 +812,7 @@ Set `InsertMode`, `UpdateMode`, `DeleteMode` to `CallMicroflow`:
 On the consumer side, grant CREATE, WRITE, and DELETE rights:
 
 ```sql
-grant ProductClient.User on ProductClient.ProductsEE
-  (create, delete, read *, write *);
+grant create, delete, read *, write * on entity ProductClient.ProductsEE to ProductClient.User;
 ```
 
 The consumer can now create, update, and delete products through the OData API, and the producer's microflows handle the mapping to persistent entities.

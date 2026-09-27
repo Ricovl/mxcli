@@ -69,7 +69,7 @@ func init() {
 			"generalization", "extends", "event handler", "attribute",
 		},
 		Syntax:  "CREATE PERSISTENT ENTITY Module.Name (\n  Attr: Type [constraints],\n  ...\n) [INDEX (attr1)];\n\n-- Documentation is the /** … */ doc comment before the statement.\n-- (A `COMMENT 'text'` option existed, set nothing, and has been removed.)\n\nCREATE NON-PERSISTENT ENTITY Module.Name (...);\n\nCREATE PERSISTENT ENTITY Module.Name EXTENDS Module.Parent (...);",
-		Example: "/** Stores customer information. */\nCREATE PERSISTENT ENTITY MyModule.Customer (\n  Name: String(100) NOT NULL ERROR 'Name is required',\n  Email: String(200) UNIQUE,\n  Balance: Decimal DEFAULT 0,\n  IsActive: Boolean DEFAULT true,\n  Status: Enumeration(MyModule.CustomerType)\n)\nINDEX (Email);",
+		Example: "/** Stores customer information. */\nCREATE PERSISTENT ENTITY MyModule.Customer (\n  Name: String(100) NOT NULL ERROR MESSAGE 'Name is required',\n  Email: String(200) UNIQUE,\n  Balance: Decimal DEFAULT 0,\n  IsActive: Boolean DEFAULT true,\n  Status: Enumeration(MyModule.CustomerType)\n)\nINDEX (Email);",
 		SeeAlso: []string{"domain-model.entity.create", "domain-model.entity.alter", "domain-model.entity.attributes"},
 	})
 
@@ -287,8 +287,8 @@ func init() {
 			"many-to-one", "many-to-many", "foreign key",
 			"owner", "delete behavior",
 		},
-		Syntax:  "[@anchor(from: (x, y), to: (x, y))]\nCREATE [OR MODIFY] ASSOCIATION Module.Name\n  FROM Module.FromEntity TO Module.ToEntity\n  TYPE Reference|ReferenceSet\n  [OWNER Default|Both]\n  [DELETE_BEHAVIOR behavior]\n  [COMMENT 'text'];\nALTER ASSOCIATION Module.Name SET ANCHOR FROM (x, y) TO (x, y);\nDROP ASSOCIATION Module.Name;\n\nOR MODIFY: updates type/owner/delete behavior in-place, preserves UUID.\n\n@anchor sets the LINE ANCHORS — where the connector attaches to each entity box\nin the domain model editor — as a PERCENTAGE of the box (0..100, whole numbers).\n`from` is the FROM entity's box, `to` the TO entity's: (0, 50) is the middle of\nthe left edge, (100, 50) the right, (50, 100) the bottom centre. Omitting an end\nPRESERVES what is stored, so a CREATE OR MODIFY about something else never\nflattens a hand-tuned line. Cross-module associations have no anchors.\n\nDROP reconciles the entity access rules that named the association, and is\nREFUSED while a message definition still exposes it (that one cannot be\nreconciled -- removing the member would change a published contract). The\nrefusal prints the `alter message definition ... drop member` statement for\neach definition, ready to run.",
-		Example: "-- Many-to-one\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  DELETE_BEHAVIOR DELETE_BUT_KEEP_REFERENCES;\n\n-- Many-to-many\nCREATE ASSOCIATION Shop.Product_Tag\n  FROM Shop.Product TO Shop.Tag\n  TYPE ReferenceSet\n  OWNER Both;\n\n-- Line leaving the bottom of Order and entering the top of Customer\n@anchor(from: (50, 100), to: (50, 0))\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer;\n\n-- Retune the line without restating the association\nALTER ASSOCIATION Shop.Order_Customer SET ANCHOR FROM (0, 54) TO (100, 54);",
+		Syntax:  "[@anchor(from: (x, y), to: (x, y))]\nCREATE [OR MODIFY] ASSOCIATION Module.Name\n  FROM Module.FromEntity TO Module.ToEntity\n  TYPE Reference|ReferenceSet\n  [OWNER Default|Both]\n  [ON DELETE CASCADE|RESTRICT|SET NULL [ERROR MESSAGE 'text']]\n  [COMMENT 'text'];\nALTER ASSOCIATION Module.Name SET ANCHOR FROM (x, y) TO (x, y);\nDROP ASSOCIATION Module.Name;\n\nOR MODIFY: updates type/owner/delete behavior in-place, preserves UUID.\n\n@anchor sets the LINE ANCHORS — where the connector attaches to each entity box\nin the domain model editor — as a PERCENTAGE of the box (0..100, whole numbers).\n`from` is the FROM entity's box, `to` the TO entity's: (0, 50) is the middle of\nthe left edge, (100, 50) the right, (50, 100) the bottom centre. Omitting an end\nPRESERVES what is stored, so a CREATE OR MODIFY about something else never\nflattens a hand-tuned line. Cross-module associations have no anchors.\n\nDROP reconciles the entity access rules that named the association, and is\nREFUSED while a message definition still exposes it (that one cannot be\nreconciled -- removing the member would change a published contract). The\nrefusal prints the `alter message definition ... drop member` statement for\neach definition, ready to run.",
+		Example: "-- Many-to-one\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE SET NULL;\n\n-- Many-to-many\nCREATE ASSOCIATION Shop.Product_Tag\n  FROM Shop.Product TO Shop.Tag\n  TYPE ReferenceSet\n  OWNER Both;\n\n-- Line leaving the bottom of Order and entering the top of Customer\n@anchor(from: (50, 100), to: (50, 0))\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer;\n\n-- Retune the line without restating the association\nALTER ASSOCIATION Shop.Order_Customer SET ANCHOR FROM (0, 54) TO (100, 54);",
 		SeeAlso: []string{"domain-model.association.create", "domain-model.association.anchor", "domain-model.association.delete-behavior"},
 	})
 
@@ -300,8 +300,8 @@ func init() {
 			"reference set", "junction table", "foreign key",
 			"owner default", "owner both", "storage column", "storage table",
 		},
-		Syntax:  "CREATE [OR MODIFY] ASSOCIATION Module.AssociationName\n  FROM Module.FromEntity TO Module.ToEntity\n  TYPE Reference|ReferenceSet\n  [OWNER Default|Both]\n  [STORAGE COLUMN|TABLE]\n  [DELETE_BEHAVIOR behavior]\n  [COMMENT 'text'];\n\nDirection:\n  FROM = entity holding the FK (the \"many\" side)\n  TO   = entity being referenced (the \"one\" side)\n\nTypes:\n  Reference    = Many-to-one (FK column on FROM table)\n  ReferenceSet = Many-to-many (junction table)\n\nOR MODIFY: updates in-place, preserves UUID. Safe to re-run.",
-		Example: "-- Many-to-one with delete behavior\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  DELETE_BEHAVIOR PREVENT;\n\n-- Many-to-many\nCREATE ASSOCIATION Shop.Product_Tag\n  FROM Shop.Product TO Shop.Tag\n  TYPE ReferenceSet\n  OWNER Both;\n\n-- Idempotent update\nCREATE OR MODIFY ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  DELETE_BEHAVIOR CASCADE;",
+		Syntax:  "CREATE [OR MODIFY] ASSOCIATION Module.AssociationName\n  FROM Module.FromEntity TO Module.ToEntity\n  TYPE Reference|ReferenceSet\n  [OWNER Default|Both]\n  [STORAGE COLUMN|TABLE]\n  [ON DELETE CASCADE|RESTRICT|SET NULL [ERROR MESSAGE 'text']]\n  [COMMENT 'text'];\n\nDirection:\n  FROM = entity holding the FK (the \"many\" side)\n  TO   = entity being referenced (the \"one\" side)\n\nTypes:\n  Reference    = Many-to-one (FK column on FROM table)\n  ReferenceSet = Many-to-many (junction table)\n\nOR MODIFY: updates in-place, preserves UUID. Safe to re-run.",
+		Example: "-- Many-to-one with delete behavior\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE RESTRICT;\n\n-- Many-to-many\nCREATE ASSOCIATION Shop.Product_Tag\n  FROM Shop.Product TO Shop.Tag\n  TYPE ReferenceSet\n  OWNER Both;\n\n-- Idempotent update\nCREATE OR MODIFY ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE CASCADE;",
 		SeeAlso: []string{"domain-model.association.delete-behavior", "domain-model.entity.create"},
 	})
 
@@ -327,7 +327,7 @@ func init() {
 			"A fractional coordinate is refused: Mendix stores two integers and its\n" +
 			"loader will not OPEN a project whose anchor is fractional.\n" +
 			"Cross-module associations have no anchors — Mendix stores none for them.",
-		Example: "-- Line leaving the bottom of Order, entering the top of Customer\n@anchor(from: (50, 100), to: (50, 0))\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference;\n\n-- Retune the line without restating the association\nALTER ASSOCIATION Shop.Order_Customer SET ANCHOR FROM (0, 54) TO (100, 54);\n\n-- Says nothing about anchors: whatever the line was dragged to survives\nCREATE OR MODIFY ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  DELETE_BEHAVIOR CASCADE;",
+		Example: "-- Line leaving the bottom of Order, entering the top of Customer\n@anchor(from: (50, 100), to: (50, 0))\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference;\n\n-- Retune the line without restating the association\nALTER ASSOCIATION Shop.Order_Customer SET ANCHOR FROM (0, 54) TO (100, 54);\n\n-- Says nothing about anchors: whatever the line was dragged to survives\nCREATE OR MODIFY ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  ON DELETE CASCADE;",
 		SeeAlso: []string{"domain-model.association.create", "domain-model.entity"},
 	})
 
@@ -340,7 +340,7 @@ func init() {
 			"delete and references", "delete but keep references",
 			"delete if no references", "referential integrity",
 		},
-		Syntax: "ON DELETE <action> [ERROR_MESSAGE '<text>']\n" +
+		Syntax: "ON DELETE <action> [ERROR MESSAGE '<text>']\n" +
 			"  ON DELETE SET NULL   Keep the referencing objects, clear the reference (default)\n" +
 			"  ON DELETE CASCADE    Delete the referencing objects too\n" +
 			"  ON DELETE RESTRICT   Refuse the delete while references exist\n\n" +
@@ -349,19 +349,18 @@ func init() {
 			"key, TO is referenced -- so `FROM Order TO Customer ON DELETE RESTRICT` means\n" +
 			"deleting a CUSTOMER is refused while Orders reference it, the same way it would\n" +
 			"in CREATE TABLE.\n\n" +
-			"ERROR_MESSAGE is what the user sees when a RESTRICT delete is refused (Studio\n" +
+			"ERROR MESSAGE is what the user sees when a RESTRICT delete is refused (Studio\n" +
 			"Pro's \"Error message if 'X' object cannot be deleted\"). SQL has no equivalent;\n" +
 			"this is a Mendix extension. Omitting it stores an empty message.\n\n" +
-			"The older spelling still works and means the same thing:\n" +
-			"  DELETE_BEHAVIOR DELETE_BUT_KEEP_REFERENCES | DELETE_AND_REFERENCES\n" +
-			"                | DELETE_IF_NO_REFERENCES | CASCADE | PREVENT\n" +
-			"                [ERROR_MESSAGE '<text>']\n" +
-			"DESCRIBE emits the ON DELETE form, because it says which side is governed.",
+			"The older DELETE_BEHAVIOR clause (DELETE_AND_REFERENCES | CASCADE,\n" +
+			"DELETE_IF_NO_REFERENCES | PREVENT, DELETE_BUT_KEEP_REFERENCES) still parses and\n" +
+			"means the same thing, but is deprecated (MDL-DEPR022); `mxcli fmt --upgrade`\n" +
+			"rewrites it. DESCRIBE emits the ON DELETE form, because it says which side is governed.",
 		Example: "CREATE ASSOCIATION Shop.Order_Customer\n" +
 			"  FROM Shop.Order TO Shop.Customer\n" +
 			"  TYPE Reference\n" +
 			"  ON DELETE RESTRICT\n" +
-			"    ERROR_MESSAGE 'A customer with orders cannot be deleted';\n\n" +
+			"    ERROR MESSAGE 'A customer with orders cannot be deleted';\n\n" +
 			"CREATE ASSOCIATION Shop.Order_Lines\n" +
 			"  FROM Shop.OrderLine TO Shop.Order\n" +
 			"  TYPE Reference\n" +

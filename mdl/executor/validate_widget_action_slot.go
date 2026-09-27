@@ -55,12 +55,13 @@ var actionSlotKeys = []string{"Action", "OnClick", "OnChange"}
 // can name the one token the author left out rather than printing the whole
 // grammar. Keyed lowercase; looked up case-insensitively.
 var underSpecified = map[string]string{
-	"open_link":     "a URL — `Action: OPEN_LINK 'https://example.com'`, or an attribute holding one — `Action: OPEN_LINK $currentObject/URL`",
-	"complete_task": "an outcome name — `Action: COMPLETE_TASK 'Approved'`",
-	"show_page":     "a page — `Action: SHOW_PAGE Module.Page`",
-	"create_object": "an entity — `Action: CREATE_OBJECT Module.Entity`",
-	"microflow":     "a microflow — `Action: MICROFLOW Module.Flow`",
-	"nanoflow":      "a nanoflow — `Action: NANOFLOW Module.Flow`",
+	"open_link":     "a URL — `Action: open link 'https://example.com'`, or an attribute holding one — `Action: open link $currentObject/URL`",
+	"complete_task": "an outcome name — `Action: complete task 'Approved'`",
+	"complete task": "an outcome name — `Action: complete task 'Approved'`",
+	"show_page":     "a page — `Action: show page Module.Page`",
+	"create_object": "an entity — `Action: create object Module.Entity`",
+	"microflow":     "a microflow — `Action: call microflow Module.Flow`",
+	"nanoflow":      "a nanoflow — `Action: call nanoflow Module.Flow`",
 }
 
 // validateWidgetActionSlot reports (MDL-WIDGET28) an action slot whose value is
@@ -120,12 +121,12 @@ func renderActionSlotValue(raw any) string {
 // page.action`" buries the answer they were one token away from.
 func actionSlotSuggestion(raw any) string {
 	if s, ok := raw.(string); ok {
-		if missing, known := underSpecified[strings.ToLower(strings.TrimSpace(s))]; known {
+		if missing, known := underSpecified[strings.ToLower(strings.Join(strings.Fields(s), " "))]; known {
 			return fmt.Sprintf("`%s` is a real action but takes %s.", s, missing)
 		}
 	}
-	return "Use an action expression — SAVE_CHANGES, CANCEL_CHANGES, CLOSE_PAGE, DELETE_OBJECT, " +
-		"SIGN_OUT, SHOW_PAGE Module.Page, MICROFLOW Module.Flow, NANOFLOW Module.Flow, " +
-		"OPEN_LINK 'url', COMPLETE_TASK 'Outcome', CREATE_OBJECT Module.Entity — " +
+	return "Use an action expression — save changes, cancel changes, close page, delete, " +
+		"sign out, show page Module.Page, call microflow Module.Flow, call nanoflow Module.Flow, " +
+		"open link 'url', complete task 'Outcome', create object Module.Entity — " +
 		"or `NOTHING` if the widget is meant to do nothing. See `mxcli syntax page.action`."
 }

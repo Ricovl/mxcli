@@ -85,8 +85,8 @@ CREATE PAGE MyModule.Product_Edit
         CHECKBOX cbActive (Label: 'Active', Attribute: IsActive)
 
         FOOTER footer1 {
-            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
         }
     }
 };
@@ -101,8 +101,8 @@ Key differences from the overview page:
 | `DATAVIEW dvProduct (DataSource: $Product)` | Binds to the page parameter |
 | `TEXTBOX`, `CHECKBOX` | Input widgets bound to entity attributes |
 | `FOOTER` | A section at the bottom of the DataView for action buttons |
-| `Action: SAVE_CHANGES` | Built-in action that commits the object and closes the page |
-| `Action: CANCEL_CHANGES` | Built-in action that rolls back changes and closes the page |
+| `Action: SAVE CHANGES` | Built-in action that commits the object and closes the page |
+| `Action: CANCEL CHANGES` | Built-in action that rolls back changes and closes the page |
 
 Notice the two different page syntaxes: the overview page uses the **compact syntax** (`LAYOUT` and `TITLE` as keywords before parentheses), while the edit page uses the **property syntax** (properties inside a `(Key: value)` block followed by a `{ widget tree }` block). Both are valid -- use whichever fits better.
 
@@ -130,10 +130,10 @@ DYNAMICTEXT dynName (Attribute: Name)
 ### Action buttons
 
 ```sql
-ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
 ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
-ACTIONBUTTON btnProcess (Caption: 'Process', Action: MICROFLOW MyModule.ACT_ProcessProduct(Product: $Product))
+ACTIONBUTTON btnProcess (Caption: 'Process', Action: MICROFLOW MyModule.ACT_ProcessProduct(Product = $Product))
 ```
 
 ### Layout widgets

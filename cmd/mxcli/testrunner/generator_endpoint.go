@@ -82,11 +82,11 @@ func writeTestFlow(b *strings.Builder, tc TestCase) {
 // produces an assertion failure that says nothing about the code under test.
 func writeSetupCalls(b *strings.Builder, tc TestCase) {
 	for _, flow := range tc.Setups {
-		fmt.Fprintf(b, "  CALL MICROFLOW %s() ON ERROR {\n", flow)
+		fmt.Fprintf(b, "  CALL MICROFLOW %s() ON ERROR BEGIN\n", flow)
 		fmt.Fprintf(b, "    SET $Verdict = '%s';\n",
 			escapeMDLString(verdictSetupPrefix+flow))
 		b.WriteString("    RETURN $Verdict;\n")
-		b.WriteString("  };\n")
+		b.WriteString("  END ERROR;\n")
 	}
 }
 
@@ -228,7 +228,7 @@ func quoteForMessage(s string) string {
 	return "'" + s + "'"
 }
 
-// attachOnError appends `ON ERROR { ... }` to each CALL statement in the body,
+// attachOnError appends `ON ERROR BEGIN ... END ERROR` to each CALL statement in the body,
 // joining a statement that spans several lines first.
 func attachOnError(lines, handler []string) []string {
 	var out []string
@@ -246,9 +246,9 @@ func attachOnError(lines, handler []string) []string {
 		}
 		stmt = strings.TrimSuffix(strings.TrimSpace(stmt), ";")
 
-		out = append(out, stmt+" ON ERROR {")
+		out = append(out, stmt+" ON ERROR BEGIN")
 		out = append(out, handler...)
-		out = append(out, "};")
+		out = append(out, "END ERROR;")
 	}
 	return out
 }

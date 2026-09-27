@@ -148,7 +148,7 @@ func init() {
 			"-- Take a $Request: System.HttpRequest parameter to see the query string.\n" +
 			"-- MDL-ODATA02 and MDL-ODATA03 flag a read microflow that takes none.",
 		Example: "create persistent entity Shop.Customer (\n" +
-			"  Email: string(200) unique error 'unique' required error 'required',\n" +
+			"  Email: string(200) unique error message 'unique' required error message 'required',\n" +
 			"  Name:  string(200)\n" +
 			");\n" +
 			"\n" +
@@ -218,7 +218,7 @@ func init() {
 			"RETURNS Module.MyFile                   -- store the body in a file document\n" +
 			"RETURNS MAPPING Module.IMM AS Module.E  -- apply an import mapping (single object)\n" +
 			"RETURNS MAPPING Module.IMM AS LIST OF Module.E\n" +
-			"RETURNS NONE | NOTHING                  -- ignore the response\n\n" +
+			"RETURNS NOTHING                         -- ignore the response\n\n" +
 			"-- The file document form takes a SPECIALIZATION of System.FileDocument.\n" +
 			"-- Mendix rejects the base type as a return type (CE0362), and MDL064\n" +
 			"-- reports that before the write. There is no matching form for an\n" +

@@ -113,7 +113,7 @@ ALTER PAGE Module.EditPage {
 -- Insert before a widget
 ALTER PAGE Module.EditPage {
   INSERT BEFORE btnSave {
-    ACTIONBUTTON btnPreview (Caption: 'Preview', Action: MICROFLOW Module.ACT_Preview)
+    ACTIONBUTTON btnPreview (Caption: 'Preview', Action: CALL MICROFLOW Module.ACT_Preview)
   }
 };
 

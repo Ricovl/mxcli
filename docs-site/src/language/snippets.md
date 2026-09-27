@@ -47,7 +47,7 @@ CREATE SNIPPET MyModule.CustomerCard
       DYNAMICTEXT txtEmail (Content: '{1}', Attribute: Email)
       ACTIONBUTTON btnEdit (
         Caption: 'Edit',
-        Action: SHOW_PAGE MyModule.Customer_Edit,
+        Action: SHOW PAGE MyModule.Customer_Edit,
         ButtonStyle: Primary
       )
     }

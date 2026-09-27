@@ -32,7 +32,7 @@ CREATE ASSOCIATION Sales.Order_Customer
   TO Sales.Order
   TYPE Reference
   OWNER Default
-  DELETE_BEHAVIOR DELETE_BUT_KEEP_REFERENCES;
+  ON DELETE SET NULL;
 ```
 
 Describe a many-to-many association:

@@ -46,9 +46,9 @@ ALTER PAGE CRM.Customer_Edit {
 ALTER PAGE CRM.Customer_Edit {
   REPLACE footer1 WITH {
     FOOTER newFooter {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Success)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Success)
       ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 };
@@ -127,7 +127,7 @@ ALTER SNIPPET CRM.NavigationMenu {
   INSERT AFTER btnHome {
     ACTIONBUTTON btnReports (
       Caption: 'Reports',
-      Action: SHOW_PAGE CRM.Reports_Overview
+      Action: SHOW PAGE CRM.Reports_Overview
     )
   }
 };

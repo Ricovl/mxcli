@@ -105,7 +105,8 @@ func (b *Builder) ExitDropUserRoleStatement(ctx *parser.DropUserRoleStatementCon
 	}
 }
 
-// ExitGrantEntityAccessStatement handles GRANT role1, role2 ON Module.Entity (rights) [WHERE '...']
+// ExitGrantEntityAccessStatement handles GRANT rights ON ENTITY Module.Entity TO role1, role2 [WHERE [xpath]],
+// and its deprecated alias GRANT role1, role2 ON Module.Entity (rights) [WHERE '...'].
 func (b *Builder) ExitGrantEntityAccessStatement(ctx *parser.GrantEntityAccessStatementContext) {
 	qn := ctx.QualifiedName()
 	if qn == nil {
@@ -130,11 +131,17 @@ func (b *Builder) ExitGrantEntityAccessStatement(ctx *parser.GrantEntityAccessSt
 		}
 	}
 
-	// Parse WHERE clause
+	// Parse WHERE clause: bracketed groups, verbatim (canonical), or the
+	// deprecated quoted string.
 	if ctx.WHERE() != nil {
-		if sl := ctx.STRING_LITERAL(); sl != nil {
+		if groups := ctx.AllXpathConstraint(); len(groups) > 0 {
+			stmt.XPathConstraint = bracketedXPathText(groups)
+		} else if sl := ctx.STRING_LITERAL(); sl != nil {
 			stmt.XPathConstraint = unquoteStringLit(sl)
 		}
+	}
+	if ctx.ENTITY() == nil {
+		b.recordReversedEntityGrant(ctx)
 	}
 
 	b.statements = append(b.statements, stmt)

@@ -227,8 +227,8 @@ as `.Admin` and refused by MxBuild with **CE1613**. `mxcli check` reports it as
 **MDL-GRANT02** without needing a project.
 
 ```sql
-grant Admin on MyModule.Customer (read *);            -- ✗ MDL-GRANT02
-grant MyModule.Admin on MyModule.Customer (read *);   -- ✓
+grant read * on entity MyModule.Customer to Admin;            -- ✗ MDL-GRANT02
+grant read * on entity MyModule.Customer to MyModule.Admin;   -- ✓
 ```
 
 ### Entity Access (CRUD)
@@ -245,19 +245,21 @@ does not narrow the first.
 
 ```sql
 -- Full access (all CRUD + all members)
-grant MyModule.Admin on MyModule.Customer (create, delete, read *, write *);
+grant create, delete, read *, write * on entity MyModule.Customer to MyModule.Admin;
 
 -- Read-only (all members)
-grant MyModule.Viewer on MyModule.Customer (read *);
+grant read * on entity MyModule.Customer to MyModule.Viewer;
 
 -- Selective member access
-grant MyModule.User on MyModule.Customer (read (Name, Email), write (Email));
+grant read (Name, Email), write (Email) on entity MyModule.Customer to MyModule.User;
 
 -- Additive: adds Phone to existing read access (Name, Email preserved)
-grant MyModule.User on MyModule.Customer (read (Phone));
+grant read (Phone) on entity MyModule.Customer to MyModule.User;
 
--- With XPath constraint
-grant MyModule.User on MyModule.Order (read *, write *) where '[Status = ''Open'']';
+-- With XPath constraint: in [ ] like every XPath, quotes written once.
+-- The old `grant MyModule.User on MyModule.Order (…) where '[…]'` still parses
+-- but warns MDL-DEPR030; `mxcli fmt --upgrade` rewrites it.
+grant read *, write * on entity MyModule.Order to MyModule.User where [Status = 'Open'];
 
 -- Revoke entity access entirely
 revoke MyModule.Viewer on MyModule.Customer;
@@ -305,13 +307,13 @@ create persistent entity Docs.Contract extends Docs.DocumentBase (
 );
 
 -- DocName is inherited, ContractNumber is Contract's own — name both the same way
-grant Docs.Viewer on Docs.Contract (read (DocName, ContractNumber));
+grant read (DocName, ContractNumber) on entity Docs.Contract to Docs.Viewer;
 
 -- Attachment inherits the file members from System.FileDocument
 create persistent entity Docs.Attachment extends System.FileDocument (
   Category: String(50)
 );
-grant Docs.Viewer on Docs.Attachment (read (Category, "Name", Size));
+grant read (Category, "Name", Size) on entity Docs.Attachment to Docs.Viewer;
 ```
 
 An access rule must carry an entry for **every** member, own and inherited —
@@ -376,7 +378,7 @@ automatically:
 create persistent entity Docs.Employee extends System.User (
   EmployeeNo: String(20)
 );
-grant Docs.Viewer on Docs.Employee (read (EmployeeNo));   -- not Name/Blocked
+grant read (EmployeeNo) on entity Docs.Employee to Docs.Viewer;   -- not Name/Blocked
 ```
 
 ### User Roles
@@ -423,7 +425,7 @@ create user role Anonymous (Shop.Viewer, System.User);
 alter app security guest access on role Anonymous;
 
 -- Now grant exactly what should be public — and nothing else.
-grant Anonymous on Shop.Product (read *);
+grant read * on entity Shop.Product to Anonymous;
 
 -- Re-enabling later does not need the role retyped; the stored one is used.
 alter app security guest access off;
@@ -487,9 +489,9 @@ create module role Shop.Admin description 'Administrative access';
 create module role Shop.Viewer description 'Read-only access';
 
 -- 2. Grant entity access
-grant Shop.Admin on Shop.Customer (create, delete, read *, write *);
-grant Shop.User on Shop.Customer (read (Name, Email), write (Email));
-grant Shop.Viewer on Shop.Customer (read *);
+grant create, delete, read *, write * on entity Shop.Customer to Shop.Admin;
+grant read (Name, Email), write (Email) on entity Shop.Customer to Shop.User;
+grant read * on entity Shop.Customer to Shop.Viewer;
 
 -- 3. Grant microflow access
 grant execute on microflow Shop.ACT_Customer_Create to Shop.User, Shop.Admin;
@@ -524,7 +526,7 @@ ones that are easy to overlook:
 | `owner` / `changedBy` | — | emitted automatically as `System.owner` / `System.changedBy` |
 
 Audit members are the one case where naming a member cannot change its rights:
-`grant R on M.E (write *, read (createdDate))` is refused, because Mendix has no
+`grant write *, read (createdDate) on entity M.E to R` is refused, because Mendix has no
 member access to write for it and a rule that carries one fails CE0066. Let the
 rule's default cover it, or change the default.
 

@@ -863,7 +863,7 @@ func emitActivityStatement(
 		// The early return above used to end the function, which also skipped the
 		// error-handler traversal further down — so an activity the describer
 		// could not render lost its entire error branch without a word (#863).
-		// The branch cannot be emitted as live MDL (an `on error { … }` block has
+		// The branch cannot be emitted as live MDL (an `on error begin … end error` block has
 		// no statement to attach to here), but it must not disappear either:
 		// render it commented-out, so the artifact still shows what the model
 		// holds. Guard-don't-drop, in a path that cannot round-trip.
@@ -903,14 +903,14 @@ func emitActivityStatement(
 		}
 
 		if len(errStmts) == 0 {
-			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" { };")
+			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" begin end error;")
 		} else {
-			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" {")
+			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" begin")
 			recordErrorHandlerSpans(sourceMap, errSpans, len(*lines)+headerLineCount)
 			for _, errStmt := range errStmts {
 				*lines = append(*lines, indentStr+"  "+errStmt)
 			}
-			*lines = append(*lines, indentStr+"};")
+			*lines = append(*lines, indentStr+"end error;")
 		}
 	} else if suffix != "" {
 		stmtWithoutSemi := strings.TrimSuffix(strings.TrimSpace(stmt), ";")
@@ -922,7 +922,7 @@ func emitActivityStatement(
 
 // emitCommentedErrorHandler renders an activity's error branch as MDL line
 // comments. It is the fallback for activities the describer can only emit as a
-// comment: the branch has no live statement to hang an `on error { … }` block
+// comment: the branch has no live statement to hang an `on error begin … end error` block
 // off, so the choice is between showing it commented-out and losing it.
 //
 // Commenting is load-bearing, not cosmetic. Emitting these statements as live
@@ -960,15 +960,15 @@ func emitCommentedErrorHandler(
 	errStmts, errSpans := collectErrorHandlerStatementSpans(
 		ctx, errorHandlerFlow.DestinationID, activityMap, flowsByOrigin, entityNames, microflowNames, annotationsByTarget, labels)
 	if len(errStmts) == 0 {
-		*lines = append(*lines, indentStr+"-- "+suffix+" { };")
+		*lines = append(*lines, indentStr+"-- "+suffix+" begin end error;")
 		return
 	}
-	*lines = append(*lines, indentStr+"-- "+suffix+" {")
+	*lines = append(*lines, indentStr+"-- "+suffix+" begin")
 	recordErrorHandlerSpans(sourceMap, errSpans, len(*lines)+headerLineCount)
 	for _, errStmt := range errStmts {
 		*lines = append(*lines, indentStr+"--   "+strings.TrimSpace(errStmt))
 	}
-	*lines = append(*lines, indentStr+"-- };")
+	*lines = append(*lines, indentStr+"-- end error;")
 }
 
 // activity narrows a MicroflowObject to *ActionActivity, or nil.
@@ -2302,7 +2302,7 @@ func hasCustomErrorHandler(errType microflows.ErrorHandlingType) bool {
 //
 // This gates far more than a suffix. emitActivityStatement only walks an
 // activity's error branch when hasCustomErrorHandler() agrees, so an action whose
-// type is not reported here loses its ENTIRE `on error { … }` block from DESCRIBE
+// type is not reported here loses its ENTIRE `on error begin … end error` block from DESCRIBE
 // — silently, and in valid-looking MDL, so a describe→edit→exec round-trip
 // deletes the handler from the model (mendixlabs/mxcli#1078).
 func getActionErrorHandlingType(activity *microflows.ActionActivity) microflows.ErrorHandlingType {
@@ -2407,7 +2407,7 @@ func collectErrorHandlerStatementSpans(
 
 	// A note on a handler-body activity is emitted here or nowhere: this
 	// traversal is a second, smaller describer and the main one never reaches
-	// inside an `on error { … }` block. Without it the write path attaches the
+	// inside an `on error begin … end error` block. Without it the write path attaches the
 	// note and the read path drops it, which is the same round-trip loss #1077
 	// is about, one nesting level down.
 	notes := func(obj microflows.MicroflowObject, indentStr string) {

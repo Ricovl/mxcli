@@ -8,9 +8,9 @@
 -- read back with a nil Action:
 --
 --   -- Unsupported action: DatabaseConnector$ExecuteDatabaseQueryAction
---   -- on error without rollback {
+--   -- on error without rollback begin
 --   --   log error node 'Application' 'query failed';
---   -- };
+--   -- end error;
 --
 -- (That output is itself the #863 fix working — before it, the same activity
 -- said "-- Empty action" and the error handler was gone entirely.)
@@ -56,7 +56,7 @@ end;
 
 create microflow DbQ863.MF_Query ($Status: String)
 begin
-  $Rows = execute database query DbQ863.Conn.GetRows (Status = $Status) on error without rollback {
+  $Rows = execute database query DbQ863.Conn.GetRows (Status = $Status) on error without rollback begin
     log error 'query failed';
-  };
+  end error;
 end;

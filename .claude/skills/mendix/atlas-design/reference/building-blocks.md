@@ -137,7 +137,7 @@ rebind overrides that rewrite the block's outermost datasource / first button:
 
 ```mdl
 use building block Atlas_Web_Content.List_Cards
-  (datasource: database Sales.Order, action: microflow Sales.Open) as orders_;
+  (datasource: database Sales.Order, action: call microflow Sales.Open) as orders_;
 ```
 
 For a binding the override rule can't reach, copy the block in (`as prefix_`) and

@@ -213,7 +213,7 @@ create page MyModule.Customer_Overview (
   layout: Atlas_Core.Atlas_Default
 ) {
   dynamictext heading (content: 'Customers', rendermode: H2)
-  actionbutton btnRefresh (caption: 'Refresh', action: microflow MyModule.ACT_RefreshCustomers, buttonstyle: primary)
+  actionbutton btnRefresh (caption: 'Refresh', action: call microflow MyModule.ACT_RefreshCustomers, buttonstyle: primary)
   datagrid gridCustomers (datasource: database MyModule.Customer sort by CustomerId asc) {
     column   (attribute: CustomerId,   caption: 'ID')
     column (attribute: CustomerName, caption: 'Name')

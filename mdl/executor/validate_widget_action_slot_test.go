@@ -129,12 +129,15 @@ func TestActionSlot_RealActionsStayClean(t *testing.T) {
 // table because the map behind it is the kind of list that rots silently.
 func TestActionSlot_EachKeywordNamesWhatItIsMissing(t *testing.T) {
 	for _, tt := range []struct{ value, want string }{
-		{"OPEN_LINK", "https://example.com"},
-		{"COMPLETE_TASK", "COMPLETE_TASK 'Approved'"},
-		{"SHOW_PAGE", "SHOW_PAGE Module.Page"},
-		{"CREATE_OBJECT", "CREATE_OBJECT Module.Entity"},
-		{"microflow", "MICROFLOW Module.Flow"},
-		{"nanoflow", "NANOFLOW Module.Flow"},
+		// The suggestion teaches the canonical words (R8, ako/mxcli#752), not
+		// the deprecated snake-case spelling the author happened to write.
+		{"OPEN_LINK", "open link 'https://example.com'"},
+		{"COMPLETE_TASK", "complete task 'Approved'"},
+		{"complete task", "complete task 'Approved'"},
+		{"SHOW_PAGE", "show page Module.Page"},
+		{"CREATE_OBJECT", "create object Module.Entity"},
+		{"microflow", "call microflow Module.Flow"},
+		{"nanoflow", "call nanoflow Module.Flow"},
 	} {
 		got := widget28(t, page28(fmt.Sprintf(`actionbutton b (Caption: 'x', Action: %s)`, tt.value)))
 		if len(got) != 1 {
@@ -226,5 +229,24 @@ func TestActionSlot_NoActionPropertyIsSilent(t *testing.T) {
 	w := &ast.WidgetV3{Name: "t", Type: "dynamictext", Properties: map[string]any{"Content": "x"}}
 	if got := validateWidgetActionSlot(w, "page M.P"); len(got) != 0 {
 		t.Errorf("got %d violations on a widget with no action slot: %+v", len(got), got)
+	}
+}
+
+// The vocabulary an invented value is pointed at is the canonical one: no
+// deprecated snake-case spelling (R8, ako/mxcli#752).
+func TestActionSlot_VocabularyUsesCanonicalWords(t *testing.T) {
+	got := widget28(t, page28(`actionbutton b (Caption: 'x', Action: TOTALLY_MADE_UP)`))
+	if len(got) != 1 {
+		t.Fatalf("got %d violations, want 1: %+v", len(got), got)
+	}
+	for _, old := range []string{"SAVE_CHANGES", "SHOW_PAGE", "OPEN_LINK", "SIGN_OUT", "CREATE_OBJECT", "DELETE_OBJECT", "COMPLETE_TASK", "CLOSE_PAGE"} {
+		if strings.Contains(strings.ToUpper(got[0].Suggestion), old) {
+			t.Errorf("suggestion teaches the deprecated %s:\n%s", old, got[0].Suggestion)
+		}
+	}
+	for _, want := range []string{"save changes", "show page Module.Page", "call microflow Module.Flow"} {
+		if !strings.Contains(got[0].Suggestion, want) {
+			t.Errorf("suggestion must contain %q:\n%s", want, got[0].Suggestion)
+		}
 	}
 }

@@ -119,11 +119,11 @@ end;
 -- and a custom handler is the fix MDL076 suggests.
 create or modify microflow ErrH.ACT_CustomHandler ()
 begin
-  $T = CREATE ErrH.Thing ( Code = 'a' ) ON ERROR {
+  $T = CREATE ErrH.Thing ( Code = 'a' ) ON ERROR BEGIN
     LOG ERROR 'create failed';
-  };
-  COMMIT $T ON ERROR {
+  END ERROR;
+  COMMIT $T ON ERROR BEGIN
     LOG ERROR 'commit failed';
-  };
+  END ERROR;
 end;
 /

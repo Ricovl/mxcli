@@ -43,8 +43,8 @@ CREATE ENUMERATION Sales.OrderStatus (
 @Position(100, 100)
 CREATE PERSISTENT ENTITY Sales.Customer (
   CustomerId: AutoNumber NOT NULL UNIQUE DEFAULT 1,
-  Name: String(200) NOT NULL ERROR 'Customer name is required',
-  Email: String(200) UNIQUE ERROR 'Email already registered',
+  Name: String(200) NOT NULL ERROR MESSAGE 'Customer name is required',
+  Email: String(200) UNIQUE ERROR MESSAGE 'Email already registered',
   Phone: String(50),
   IsActive: Boolean DEFAULT TRUE,
   CreatedAt: DateTime
@@ -72,7 +72,7 @@ CREATE ASSOCIATION Sales.Order_Customer
   TO Sales.Order
   TYPE Reference
   OWNER Default
-  DELETE_BEHAVIOR DELETE_BUT_KEEP_REFERENCES;
+  ON DELETE SET NULL;
 ```
 
 ## Further Reading

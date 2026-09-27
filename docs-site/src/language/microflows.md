@@ -171,7 +171,7 @@ BEGIN
     Status = 'Draft'
   );
   COMMIT $Order;
-  SHOW PAGE Sales.Order_Edit ($Order = $Order);
+  SHOW PAGE Sales.Order_Edit (Order = $Order);
   RETURN $Order;
 END;
 ```

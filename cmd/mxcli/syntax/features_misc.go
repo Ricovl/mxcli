@@ -695,11 +695,11 @@ SHOW REFERENCES TO Val.EmailAddress;`,
 		},
 		Syntax: `CREATE VALIDATION RULE FOR Module.Entity.Attribute
   REGEX Module.PatternName
-  FEEDBACK '<message>';
+  ERROR MESSAGE '<message>';
 
 CREATE VALIDATION RULE FOR Module.Entity.Attribute
   RANGE FROM <literal> TO <literal>
-  FEEDBACK '<message>';
+  ERROR MESSAGE '<message>';
 
 The bounds are inclusive and either may be omitted:
   RANGE FROM 1 TO 100   between 1 and 100
@@ -720,24 +720,24 @@ CE0135 "No regular expression specified" at build time.
 REQUIRED and UNIQUE rules are written as attribute constraints instead, on
 CREATE ENTITY or ALTER ENTITY:
   ALTER ENTITY Shop.Product MODIFY ATTRIBUTE Email string(200)
-    NOT NULL ERROR 'Email is required';
+    NOT NULL ERROR MESSAGE 'Email is required';
   ALTER ENTITY Shop.Product MODIFY ATTRIBUTE Code string(20)
-    UNIQUE ERROR 'Code must be unique';`,
+    UNIQUE ERROR MESSAGE 'Code must be unique';`,
 		Example: `CREATE REGULAR EXPRESSION Shop.EmailPattern (
   Expression: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
 );
 
 CREATE VALIDATION RULE FOR Shop.Customer.Email
   REGEX Shop.EmailPattern
-  FEEDBACK 'Enter a valid email address';
+  ERROR MESSAGE 'Enter a valid email address';
 
 CREATE VALIDATION RULE FOR Shop.Booking.Guests
   RANGE FROM 1 TO 100
-  FEEDBACK 'Between 1 and 100 guests are allowed';
+  ERROR MESSAGE 'Between 1 and 100 guests are allowed';
 
 CREATE VALIDATION RULE FOR Shop.Product.Price
   RANGE FROM 0
-  FEEDBACK 'Price cannot be negative';`,
+  ERROR MESSAGE 'Price cannot be negative';`,
 	})
 
 	// ── Scheduled events ────────────────────────────────────────────────

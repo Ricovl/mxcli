@@ -79,13 +79,20 @@ attributeName
     ;
 
 attributeConstraint
-    : NOT_NULL (ERROR STRING_LITERAL)?
-    | NOT NULL (ERROR STRING_LITERAL)?
+    : NOT_NULL (constraintErrorKeyword STRING_LITERAL)?
+    | NOT NULL (constraintErrorKeyword STRING_LITERAL)?
     | NULLABLE                              // explicit: clear NOT NULL (MODIFY ATTRIBUTE, Bug 12a)
-    | UNIQUE (ERROR STRING_LITERAL)?
+    | UNIQUE (constraintErrorKeyword STRING_LITERAL)?
     | DEFAULT (literal | expression)
-    | REQUIRED (ERROR STRING_LITERAL)?
+    | REQUIRED (constraintErrorKeyword STRING_LITERAL)?
     | CALCULATED (BY? qualifiedName)?
+    ;
+
+// `error message '…'` is the one spelling of a rule's user-facing message
+// (R8, ako/mxcli#752); a bare `error` is the old one.
+constraintErrorKeyword
+    : ERROR_MESSAGE
+    | ERROR /* @alias MDL-DEPR021 */
     ;
 
 /**
@@ -185,7 +192,7 @@ associationOption
     : TYPE COLON? (REFERENCE | REFERENCE_SET)
     | OWNER COLON? (DEFAULT | BOTH)
     | STORAGE COLON? (COLUMN | TABLE)
-    | DELETE_BEHAVIOR deleteBehavior errorMessageClause?
+    | DELETE_BEHAVIOR /* @alias MDL-DEPR022 */ deleteBehavior errorMessageClause?
     | onDeleteClause
     | COMMENT STRING_LITERAL
     ;
@@ -297,7 +304,7 @@ ifExists
     ;
 
 alterAssociationAction
-    : SET DELETE_BEHAVIOR deleteBehavior errorMessageClause?
+    : SET DELETE_BEHAVIOR /* @alias MDL-DEPR022 */ deleteBehavior errorMessageClause?
     | SET onDeleteClause
     | SET OWNER (DEFAULT | BOTH)
     | SET STORAGE (COLUMN | TABLE)
@@ -908,7 +915,7 @@ exportMappingChild
 createValidationRuleStatement
     : VALIDATION RULE FOR qualifiedName
       validationRuleConstraint
-      FEEDBACK STRING_LITERAL
+      (ERROR_MESSAGE | FEEDBACK /* @alias MDL-DEPR021 */) STRING_LITERAL
     ;
 
 validationRuleConstraint

@@ -185,7 +185,7 @@ func TestDescribeEntity_ValidationMessageFollowsProjectLanguage_Issue1113(t *tes
 	assertNoError(t, describeEntity(ctx, ast.QualifiedName{Module: "Sales", Name: "Order"}))
 
 	out := buf.String()
-	if !strings.Contains(out, "not null error 'Referentie is verplicht'") {
+	if !strings.Contains(out, "not null error message 'Referentie is verplicht'") {
 		t.Errorf("validation feedback lost to the en_US lookup (issue #1113):\n%s", out)
 	}
 }

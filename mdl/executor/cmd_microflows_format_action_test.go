@@ -525,7 +525,7 @@ func TestFormatAction_ShowPage_WithParams(t *testing.T) {
 		},
 	}
 	got := e.formatAction(action, nil, nil)
-	want := "show page MyModule.OrderDetail($Order = $Order);"
+	want := "show page MyModule.OrderDetail(Order = $Order);"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}

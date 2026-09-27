@@ -804,7 +804,7 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 	// Append error handler objects and flows to the main builder.
 	//
 	// annotationFlows and errors are part of that: without them a note written
-	// inside `on error { … }` arrived as an Annotation with no edge — a
+	// inside `on error begin … end error` arrived as an Annotation with no edge — a
 	// free-floating sticky note instead of one attached to the activity — and a
 	// refusal raised in the handler body never reached the caller (#1077).
 	fb.objects = append(fb.objects, errBuilder.objects...)
@@ -1087,11 +1087,11 @@ func containsTerminalStmt(stmts []ast.MicroflowStatement) bool {
 // still opens, which is how this survived a describe → exec round trip of a
 // whole project with everything else green.
 //
-// The shape that produced it is an empty `on error … { }` handler inside a
+// The shape that produced it is an empty `on error … begin end error` handler inside a
 // branch whose sibling also returns:
 //
 //	if … then
-//	  $r = call microflow M.Sub() on error without rollback { };
+//	  $r = call microflow M.Sub() on error without rollback begin end error;
 //	  return $r;          -- the normal path reaches the end event
 //	else
 //	  return 'no';        -- and so does this one

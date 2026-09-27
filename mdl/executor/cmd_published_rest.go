@@ -135,7 +135,7 @@ func describePublishedRestService(ctx *ExecContext, name ast.QualifiedName) erro
 						opPath = " " + mdlQuoted(op.Path)
 					}
 					fmt.Fprintf(ctx.Output, "    %s%s%s%s;%s\n",
-						strings.ToUpper(op.HTTPMethod), opPath, mf, deprecated, summary)
+						strings.ToLower(op.HTTPMethod), opPath, mf, deprecated, summary)
 				}
 				fmt.Fprintln(ctx.Output, "  }")
 			}

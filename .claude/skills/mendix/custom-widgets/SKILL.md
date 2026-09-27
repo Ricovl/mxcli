@@ -368,8 +368,8 @@ object-list item mappings use:
 overlap with `dataSourceExprV3` and the datasource alternative has to win, or a
 chart series' `staticDataSource: microflow M.X` would become an action. The
 executor converts them, because the widget definition is the only layer that
-knows the slot is action-typed. Every other action form (`show_page`,
-`save_changes`, …) reaches the AST as an action directly.
+knows the slot is action-typed. Every other action form (`show page`,
+`save changes`, …) reaches the AST as an action directly.
 
 **A slot may be conditional, and writing into a pruned one is CE0463.** DataGrid 2's
 `onSelectionChange` is *hidden when `itemSelection` = None*, so it needs
@@ -477,7 +477,7 @@ widgets take a different, simpler path than the MPR writer:
   selection, datasource, widgets (child slots), object lists, expression,
   texttemplate (including `{AttrName}` placeholders and `<Name>Params` /
   `contentparams` bindings -> template parameters),
-  and action (`microflow Module.Flow`, `show_page Module.Page`, or none).
+  and action (`microflow Module.Flow`, `show page Module.Page`, or none).
 - **Rejected loudly** (widget refused, nothing sent): actions *with argument
   mappings*, other action kinds (save/cancel/close/delete/create/open-link/
   nanoflow), and any operation the MCP builder does not translate. The error

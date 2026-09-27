@@ -123,7 +123,7 @@ func init() {
 		// parameter PLUS others builds clean, so the help must not say "exactly".
 		Syntax: "[MULTI] USER TASK <name> '<caption>'\n" +
 			"  PAGE Module.TaskPage\n" +
-			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH '<xpath>']\n" +
+			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH [<xpath>]]\n" +
 			"  [ON CREATED MICROFLOW Module.MF]  -- (System.WorkflowUserTask, <context entity>), returns nothing\n" +
 			"  [ENTITY Module.Entity]\n" +
 			"  [DUE DATE '<expression>']\n" +
@@ -140,7 +140,7 @@ func init() {
 			"-- Other parameters may sit alongside it.",
 		Example: "-- The task page takes the task:\n" +
 			"CREATE PAGE HR.ReviewPage (\n  title: 'Review',\n  layout: Atlas_Core.Atlas_Default,\n  params: { $WorkflowUserTask: System.WorkflowUserTask }\n) { };\n\n" +
-			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING XPATH '[Module.Employee/Active = true()]'\n  OUTCOMES 'Approve' { } 'Reject' { };",
+			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING USERS XPATH [Module.Employee/Active = true()]\n  OUTCOMES 'Approve' { } 'Reject' { };",
 		SeeAlso: []string{"workflow.user-task.targeting", "workflow.multi-user-task", "workflow.create"},
 	})
 
@@ -160,13 +160,16 @@ func init() {
 		// context entity but not a specialization. Users and groups share it.
 		Syntax: "TARGETING [USERS] MICROFLOW Module.MF    -- returns a List of System.User\n" +
 			"TARGETING GROUPS MICROFLOW Module.MF     -- returns a List of System.WorkflowGroup\n" +
-			"TARGETING [USERS | GROUPS] XPATH '<xpath-expression>'\n\n" +
+			"TARGETING [USERS | GROUPS] XPATH [<xpath-expression>]\n\n" +
+			"-- The XPath is written in brackets, as everywhere else, so quotes inside\n" +
+			"-- it are written once. The quoted form XPATH '[...]' still parses and\n" +
+			"-- warns MDL-DEPR031; `mxcli fmt --upgrade` rewrites it.\n\n" +
 			"-- A targeting microflow takes EXACTLY two parameters, in either order:\n" +
 			"--   System.Workflow\n" +
 			"--   the workflow's context entity, or a generalization of it\n" +
 			"-- One parameter, none, a third, or a specialization of the context\n" +
 			"-- entity is CE6677.",
-		Example: "-- XPath targeting: only active managers\nUSER TASK Approve 'Approve request'\n  TARGETING XPATH '[HR.Employee/Role = \"Manager\" and Active = true()]'\n  OUTCOMES 'Done' { };\n\n" +
+		Example: "-- XPath targeting: only active managers\nUSER TASK Approve 'Approve request'\n  TARGETING USERS XPATH [HR.Employee/Role = 'Manager' and Active = true()]\n  OUTCOMES 'Done' { };\n\n" +
 			"-- Microflow targeting: the microflow takes the workflow AND its context object\n" +
 			"CREATE MICROFLOW HR.GetApprovers ($Workflow: System.Workflow, $Request: HR.Request)\nRETURNS List of System.User AS $Approvers\nBEGIN\n  RETRIEVE $Approvers FROM System.User;\n  RETURN $Approvers;\nEND;\n\n" +
 			"USER TASK Approve 'Approve request'\n  TARGETING MICROFLOW HR.GetApprovers\n  OUTCOMES 'Done' { };",
@@ -190,7 +193,7 @@ func init() {
 		// task too) and the same targeting rule.
 		Syntax: "MULTI USER TASK <name> '<caption>'\n" +
 			"  PAGE Module.TaskPage\n" +
-			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH '<xpath>']\n" +
+			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH [<xpath>]]\n" +
 			"  [ON CREATED MICROFLOW Module.MF]  -- (System.WorkflowUserTask, <context entity>), returns nothing\n" +
 			"  [ENTITY Module.Entity]\n" +
 			"  [DUE DATE '<expression>']\n" +
@@ -262,11 +265,14 @@ func init() {
 			"call microflow", "microflow task", "automated step",
 			"system task",
 		},
-		// The WITH values are QUOTED — the grammar takes a string literal there,
-		// not a bare variable. Omitting the clause from this entry is how an
-		// author ends up writing the unquoted form (ako/mxcli#1023).
-		Syntax:  "CALL MICROFLOW Module.MF [AS <name>] [COMMENT '<text>']\n  [WITH (<Param> = '<expression>', ...)]\n  [OUTCOMES '<outcome>' -> { <activities> } ...];",
-		Example: "CALL MICROFLOW HR.SendNotification\n  COMMENT 'Notify manager';\n\n-- Parameter values are quoted, and named by their BARE parameter name:\nCALL MICROFLOW HR.Escalate AS callMicroflow1\n  WITH (Request = '$WorkflowContext');",
+		// R4 (ako/mxcli#751): arguments are bound as at every call site, right
+		// after the callee, the expression bare. The older `WITH (P = '<expr>')`
+		// after the comment is the deprecated alias MDL-DEPR008.
+		Syntax: "CALL MICROFLOW Module.MF[(<Param> = <expression>, ...)] [AS <name>] [COMMENT '<text>']\n" +
+			"  [OUTCOMES '<outcome>' -> { <activities> } ...];\n\n" +
+			"-- WITH (<Param> = '<expression>'), the expression in a string, is the\n" +
+			"-- deprecated spelling of the argument list (MDL-DEPR008).",
+		Example: "CALL MICROFLOW HR.SendNotification\n  COMMENT 'Notify manager';\n\n-- Arguments are named by their BARE parameter name:\nCALL MICROFLOW HR.Escalate(Request = $WorkflowContext) AS callMicroflow1;",
 		SeeAlso: []string{"workflow.create", "workflow.call-workflow", "workflow.ai-agent-task"},
 	})
 
@@ -280,8 +286,7 @@ func init() {
 		// Measured on mxbuild 11.13.0 against the same activity written as a call
 		// microflow: the only difference in what builds is CE1590 for a microflow
 		// with no parameters.
-		Syntax: "CALL AGENT MICROFLOW Module.MF [AS <name>] [COMMENT '<text>']\n" +
-			"  [WITH (<Param> = '<expression>', ...)]\n" +
+		Syntax: "CALL AGENT MICROFLOW Module.MF[(<Param> = <expression>, ...)] [AS <name>] [COMMENT '<text>']\n" +
 			"  [OUTCOMES <true|false|'Module.Enum.Value'|''> -> { <activities> } ...]\n" +
 			"  [BOUNDARY EVENT ...];\n\n" +
 			"-- The same statement as CALL MICROFLOW, stored as an AI agent task. The microflow\n" +
@@ -290,8 +295,8 @@ func init() {
 			"-- branch on the agent's answer with OUTCOMES. Needs Mendix 11.9+.",
 		Example: "CREATE MICROFLOW HR.ACT_ClassifyRequest ($Request: HR.LeaveRequest)\n" +
 			"RETURNS Boolean AS $Urgent\nBEGIN\n  -- call the agent here\n  RETURN false;\nEND;\n\n" +
-			"CALL AGENT MICROFLOW HR.ACT_ClassifyRequest AS aiAgentTask1 COMMENT 'Classify the request'\n" +
-			"  WITH (Request = '$WorkflowContext')\n" +
+			"CALL AGENT MICROFLOW HR.ACT_ClassifyRequest(Request = $WorkflowContext) AS aiAgentTask1\n" +
+			"  COMMENT 'Classify the request'\n" +
 			"  OUTCOMES true -> { USER TASK Expedite 'Expedite' PAGE HR.TaskPage OUTCOMES 'Done' { }; }\n" +
 			"           false -> { };",
 		SeeAlso: []string{"workflow.call-microflow", "agents"},
@@ -303,8 +308,8 @@ func init() {
 		Keywords: []string{
 			"call workflow", "sub-workflow", "nested workflow",
 		},
-		Syntax:  "CALL WORKFLOW Module.WF [AS <name>] [COMMENT '<text>']\n  [WITH (<Param> = '<expression>', ...)];",
-		Example: "CALL WORKFLOW HR.SubApproval COMMENT 'Delegate to sub-process';\n\n-- Parameter values are quoted:\nCALL WORKFLOW HR.SubApproval AS callWf1\n  WITH (Request = '$WorkflowContext');",
+		Syntax:  "CALL WORKFLOW Module.WF[(<Param> = <expression>, ...)] [AS <name>] [COMMENT '<text>'];",
+		Example: "CALL WORKFLOW HR.SubApproval COMMENT 'Delegate to sub-process';\n\nCALL WORKFLOW HR.SubApproval(Request = $WorkflowContext) AS callWf1;",
 		SeeAlso: []string{"workflow.create", "workflow.call-microflow"},
 	})
 

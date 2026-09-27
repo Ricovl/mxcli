@@ -79,7 +79,7 @@ var createOrReplaceCases = map[string]string{
 	"layout":                      "layout M.App_Default (layouttype: 'Responsive') { placeholder Main }",
 	"snippet":                     "snippet M.CustomerInfo { dynamictext t (Content: 'x') }",
 	"enumeration":                 "enumeration M.Color (Red 'Red');",
-	"validationrule":              "validation rule for M.Customer.Email regex M.EmailPattern feedback 'Invalid';",
+	"validationrule":              "validation rule for M.Customer.Email regex M.EmailPattern error message 'Invalid';",
 	"databaseconnection":          "database connection M.Erp type 'PostgreSQL' connection string @M.DbUrl username @M.DbUser password @M.DbPass;",
 	"constant":                    "constant M.ApiBaseUrl type String default 'https://api.example.com';",
 	"restclient":                  "consumed rest service M.PetStore (BaseUrl: 'https://petstore.example.com', Authentication: NONE) { };",

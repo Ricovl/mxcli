@@ -125,7 +125,7 @@ func TestNewMemberAccessWarning_IsActionable(t *testing.T) {
 		"Priority",
 		"Sales.Narrow",
 		"Sales.Other",
-		"grant Sales.Narrow on Sales.Order (read (Priority))",
+		"grant read (Priority) on entity Sales.Order to Sales.Narrow;",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("warning must contain %q, got:\n%s", want, got)

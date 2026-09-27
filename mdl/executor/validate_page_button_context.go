@@ -94,7 +94,7 @@ func controlBarSuggestion(controlBarOf string) string {
 		return "Move the button into a grid column (row-scoped) so it has a current row, or pass a page parameter instead of $currentObject."
 	}
 	return fmt.Sprintf(
-		"Pass the selection of `%s` instead — `Action: microflow M.F($Param = $%s)`, with `Selection:` set on the widget. "+
+		"Pass the selection of `%s` instead — `Action: microflow M.F(Param = $%s)`, with `Selection:` set on the widget. "+
 			"Or move the button into a grid column (row-scoped) so it has a current row, or pass a page parameter.",
 		controlBarOf, controlBarOf)
 }

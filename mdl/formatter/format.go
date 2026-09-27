@@ -1,69 +1,55 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Package formatter provides heuristic MDL code formatting.
+// Package formatter provides MDL code formatting.
 package formatter
 
 import (
+	"sort"
 	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
-// mdlKeywords are MDL/SQL keywords that should be uppercased.
-var mdlKeywords = []string{
-	"CREATE", "OR", "MODIFY", "REPLACE", "DROP", "ALTER", "SHOW", "DESCRIBE",
-	"ENTITY", "ASSOCIATION", "ENUMERATION", "CONSTANT", "MODULE", "MICROFLOW",
-	"NANOFLOW", "PAGE", "SNIPPET", "LAYOUT", "WORKFLOW", "INDEX",
-	"ATTRIBUTE", "FROM", "TO", "TYPE", "DEFAULT", "OWNER",
-	"PERSISTENT", "NON_PERSISTENT", "SYSTEM_MEMBER", "STORED_VALUE", "CALCULATED",
-	"REQUIRED", "UNIQUE", "INDEXED",
-	"BEGIN", "END", "IF", "THEN", "ELSE", "LOOP", "IN", "RETURN",
-	"RETRIEVE", "WHERE", "LIMIT", "FIRST", "LIST", "OF",
-	"CHANGE", "DELETE", "COMMIT", "ROLLBACK", "DOWNLOAD", "BROWSER",
-	"SHOW_PAGE", "CLOSE_PAGE", "SHOW_MESSAGE",
-	"PARAMETER", "PARAMETERS", "VARIABLE", "DECLARE",
-	"JAVA_ACTION", "CALL", "CALL_MICROFLOW", "CALL_NANOFLOW",
-	"LOG_MESSAGE", "LEVEL", "MESSAGE", "NODE",
-	"ONE_TO_MANY", "MANY_TO_MANY", "ONE_TO_ONE", "REFERENCE", "REFERENCE_SET",
-	"EXPOSED", "CLIENT", "COMMENT", "FOLDER",
-	"ON_DELETE", "PREVENT", "CASCADE",
-	"GRANT", "REVOKE", "ACCESS", "ALLOW", "DENY",
-	"NOT", "AND", "NULL", "EMPTY", "TRUE", "FALSE",
-	"SET", "INSERT", "BEFORE", "AFTER", "REPLACE",
-	"BOOLEAN", "INTEGER", "LONG", "DECIMAL", "STRING", "DATETIME", "BINARY",
-	"AUTO_NUMBER", "HASHED_STRING",
-	"WIDGET", "COLUMN", "ROW", "CONTAINER", "DATAVIEW", "LISTVIEW",
-	"BUTTON", "TEXT", "LABEL", "TITLE", "INPUT", "DROPDOWN", "CHECKBOX",
-	"ENUMERATION_SELECTOR", "REFERENCE_SELECTOR", "DATE_PICKER",
-	"DATA_SOURCE", "DIRECT", "XPATH",
-	"NAVIGATION", "HOME", "MENU", "ITEM",
-	"ROLE", "ROLES", "USER", "SECURITY", "PASSWORD",
-	"REFRESH", "CATALOG",
-	"SELECT", "AS", "TABLE", "TABLES",
-	"SQL", "CONNECT", "QUERY", "IMPORT", "INTO", "MAP",
-	"MOVE", "IMAGE", "COLLECTION",
-}
-
-// keywordSet for O(1) lookup.
-var keywordSet map[string]string
-
-func init() {
-	keywordSet = make(map[string]string, len(mdlKeywords))
-	for _, kw := range mdlKeywords {
-		keywordSet[strings.ToUpper(kw)] = kw
-	}
-}
-
-// Format applies heuristic formatting to MDL source code:
-// - Uppercase MDL keywords
-// - Normalize indentation to 2 spaces
-// - Remove trailing whitespace
-// - Normalize blank lines (max 1 consecutive)
+// Format formats MDL source code:
+//   - Lowercase MDL keywords, the canonical case (R8, ako/mxcli#752). Only the
+//     words the parse tree shows are keywords change: a name spelled like a
+//     keyword (`Issue64.User`, an attribute `Title`), a property key
+//     (`Folder:`) and a CamelCase value (`ButtonStyle: Success`) keep the
+//     author's case.
+//   - Normalize indentation to 2 spaces.
+//   - Remove trailing whitespace.
+//   - Normalize blank lines (max 1 consecutive).
+//
+// Text the model stores as written — expressions, XPath, OQL, queries, and
+// string literals or code blocks that span lines — keeps its case and layout,
+// so formatting never changes what a script builds. A script that does not
+// parse keeps its case and is only re-indented.
 func Format(input string) string {
+	spans, ok := visitor.FormatSpans(input)
+	if ok {
+		input = visitor.LowercaseKeywords(input, spans.Keywords)
+	}
+	inside := verbatimIndex(spans.Verbatim)
+
 	lines := strings.Split(input, "\n")
 	var result []string
 	prevBlank := false
+	offset := 0 // rune offset of the current line's start
 
 	for _, line := range lines {
-		trimmed := strings.TrimRight(line, " \t\r")
+		start, end := offset, offset+len([]rune(line)) // end: the '\n' after the line
+		offset = end + 1
+
+		// A line that starts inside verbatim text is part of that text.
+		if inside(start) {
+			result = append(result, line)
+			prevBlank = false
+			continue
+		}
+		trimmed := line
+		if !inside(end) {
+			trimmed = strings.TrimRight(line, " \t\r")
+		}
 
 		// Collapse multiple blank lines
 		if trimmed == "" {
@@ -80,23 +66,17 @@ func Format(input string) string {
 		// Count effective indent (tabs = 2 spaces)
 		indent := 0
 		for _, ch := range trimmed {
-			switch ch {
-			case ' ':
+			if ch == ' ' {
 				indent++
-			case '\t':
+			} else if ch == '\t' {
 				indent += 2
-			default:
-				goto indentDone
+			} else {
+				break
 			}
 		}
-	indentDone:
 		// Round to nearest 2-space unit
-		indentLevel := indent / 2
-		normalizedIndent := strings.Repeat("  ", indentLevel)
-
-		// Uppercase keywords (but not inside quoted strings)
-		formatted := uppercaseKeywords(stripped)
-		result = append(result, normalizedIndent+formatted)
+		normalizedIndent := strings.Repeat("  ", indent/2)
+		result = append(result, normalizedIndent+stripped)
 	}
 
 	// Remove trailing blank line
@@ -107,77 +87,20 @@ func Format(input string) string {
 	return strings.Join(result, "\n") + "\n"
 }
 
-// uppercaseKeywords uppercases MDL keywords while preserving quoted strings.
-func uppercaseKeywords(line string) string {
-	// Track whether we're inside a string literal
-	var result strings.Builder
-	inString := false
-	i := 0
-	runes := []rune(line)
-
-	for i < len(runes) {
-		ch := runes[i]
-
-		if ch == '\'' {
-			// Toggle string mode, handle escaped quotes ('')
-			result.WriteRune(ch)
-			i++
-			inString = !inString
-			continue
-		}
-
-		if inString {
-			result.WriteRune(ch)
-			i++
-			continue
-		}
-
-		// Check for line comment (--)
-		if ch == '-' && i+1 < len(runes) && runes[i+1] == '-' {
-			// Rest of line is comment, write as-is
-			for i < len(runes) {
-				result.WriteRune(runes[i])
-				i++
+// verbatimIndex returns whether a rune offset lies strictly inside one of the
+// spans: after its first rune and before its end.
+func verbatimIndex(spans [][2]int) func(int) bool {
+	sorted := append([][2]int(nil), spans...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i][0] < sorted[j][0] })
+	return func(off int) bool {
+		for _, s := range sorted {
+			if s[0] >= off {
+				return false
 			}
-			continue
-		}
-
-		// Check for block comment start
-		if ch == '/' && i+1 < len(runes) && runes[i+1] == '*' {
-			// Write rest as-is (simplification: assume comment ends on same line or later)
-			for i < len(runes) {
-				result.WriteRune(runes[i])
-				i++
+			if off < s[1] {
+				return true
 			}
-			continue
 		}
-
-		// Try to match a word
-		if isWordStart(ch) {
-			wordStart := i
-			for i < len(runes) && isWordChar(runes[i]) {
-				i++
-			}
-			word := string(runes[wordStart:i])
-			if _, ok := keywordSet[strings.ToUpper(word)]; ok {
-				result.WriteString(strings.ToUpper(word))
-			} else {
-				result.WriteString(word)
-			}
-			continue
-		}
-
-		result.WriteRune(ch)
-		i++
+		return false
 	}
-
-	return result.String()
-}
-
-func isWordStart(ch rune) bool {
-	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_'
-}
-
-func isWordChar(ch rune) bool {
-	return isWordStart(ch) || (ch >= '0' && ch <= '9')
 }

@@ -55,9 +55,9 @@ create microflow BugTest349.MF_Caller (
 )
 begin
   call microflow BugTest349.MF_RefreshData (Token = $Token)
-  on error without rollback {
+  on error without rollback begin
     log error node 'BugTest349' 'refresh failed';
-  };
+  end error;
 
   call microflow BugTest349.MF_NextBatch ();
 end;

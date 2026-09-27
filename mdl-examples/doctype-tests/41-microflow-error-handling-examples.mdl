@@ -9,10 +9,10 @@
 --
 -- Covered:
 --   on error continue          — no error path at all
---   on error [without rollback] { <body> }   — handler with its own path
---   on error [without rollback] { }          — EMPTY: joins the enclosing
---                                              branch's continuation
---   on error [without rollback] { join L; }  — rejoins a NAMED merge
+--   on error [without rollback] begin <body> end error    — handler with its own path
+--   on error [without rollback] begin end error           — EMPTY: joins the enclosing
+--                                                           branch's continuation
+--   on error [without rollback] begin join L; end error   — rejoins a NAMED merge
 --
 -- The last one is the reason `merge` / `join` exist. Without them an error path
 -- can only terminate on its own or fall through to whatever the enclosing branch
@@ -61,10 +61,10 @@ end;
 
 create or replace microflow EhDoc.Form2_OwnPath (Payload: String) returns String
 begin
-  $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback {
+  $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback begin
     log error node 'EhDoc' 'post failed';
     return 'failed';
-  };
+  end error;
   return $r;
 end;
 /
@@ -93,7 +93,7 @@ end;
 create or replace microflow EhDoc.Form3_EmptyHandler (Payload: String) returns String
 begin
   if $Payload != '' then
-    $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback { };
+    $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback begin end error;
     return $r;
   else
     return 'empty';
@@ -117,11 +117,11 @@ end;
 create or replace microflow EhDoc.Form4_JoinNamedMerge (Payload: String) returns String
 begin
   declare $Status String = 'sent';
-  $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback {
+  $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback begin
     log warning node 'EhDoc' 'post failed, degrading';
     set $Status = 'degraded';
     join recovered;
-  };
+  end error;
   join recovered;
 
   merge recovered;
@@ -170,10 +170,10 @@ end;
 create or replace microflow EhDoc.Backward_Retry (Payload: String) returns String
 begin
   merge attempt;
-  $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback {
+  $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback begin
     log warning node 'EhDoc' 'retrying';
     join attempt;
-  };
+  end error;
   return $r;
 end;
 /
