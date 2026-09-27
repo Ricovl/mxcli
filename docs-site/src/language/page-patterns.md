@@ -41,7 +41,7 @@ BEGIN
   $Customer = CREATE MyModule.Customer (
     IsActive = true
   );
-  SHOW PAGE MyModule.Customer_Edit ($Customer = $Customer);
+  SHOW PAGE MyModule.Customer_Edit (Customer = $Customer);
   RETURN $Customer;
 END;
 ```
@@ -273,7 +273,7 @@ BEGIN
   $Employee = CREATE HR.Employee (
     HireDate = [%CurrentDateTime%]
   );
-  SHOW PAGE HR.Employee_Edit ($Employee = $Employee);
+  SHOW PAGE HR.Employee_Edit (Employee = $Employee);
   RETURN $Employee;
 END;
 ```

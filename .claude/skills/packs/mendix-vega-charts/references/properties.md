@@ -61,7 +61,7 @@ To let a click select something:
 
 ```
 selection: SelectedPoint,
-onClick: microflow MyModule.ACT_SelectPoint(Context: $currentObject)
+onClick: microflow MyModule.ACT_SelectPoint(Context = $currentObject)
 ```
 
 `selection` receives the clicked datum as JSON, reduced to its own scalar fields — Vega's

@@ -677,7 +677,10 @@ func buildWorkflowCallMicroflow(ctx parser.IWorkflowCallMicroflowStmtContext) *a
 	}
 
 	// Parameter mappings (Issue #10)
-	node.ParameterMappings = buildWorkflowParameterMappings(cmCtx.AllWorkflowParameterMapping())
+	node.ParameterMappings = buildWorkflowCallArguments(cmCtx.WorkflowCallArguments())
+	if len(node.ParameterMappings) == 0 {
+		node.ParameterMappings = buildWorkflowParameterMappings(cmCtx.AllWorkflowParameterMapping())
+	}
 
 	// BoundaryEvents (Issue #7)
 	for _, beCtx := range cmCtx.AllWorkflowBoundaryEventClause() {
@@ -743,7 +746,10 @@ func buildWorkflowCallWorkflow(ctx parser.IWorkflowCallWorkflowStmtContext) *ast
 	}
 
 	// Parameter mappings
-	node.ParameterMappings = buildWorkflowParameterMappings(cwCtx.AllWorkflowParameterMapping())
+	node.ParameterMappings = buildWorkflowCallArguments(cwCtx.WorkflowCallArguments())
+	if len(node.ParameterMappings) == 0 {
+		node.ParameterMappings = buildWorkflowParameterMappings(cwCtx.AllWorkflowParameterMapping())
+	}
 
 	return node
 }

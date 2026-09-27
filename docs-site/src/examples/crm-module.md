@@ -96,7 +96,7 @@ END;
 CREATE MICROFLOW CRM.ACT_Customer_Save ($Customer: CRM.Customer)
 RETURNS Boolean AS $IsValid
 BEGIN
-  $IsValid = CALL MICROFLOW CRM.VAL_Customer($param = $Customer);
+  $IsValid = CALL MICROFLOW CRM.VAL_Customer(param = $Customer);
 
   IF $IsValid THEN
     COMMIT $Customer;

@@ -133,7 +133,7 @@ DYNAMICTEXT dynName (Attribute: Name)
 ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
 ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
 ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
-ACTIONBUTTON btnProcess (Caption: 'Process', Action: MICROFLOW MyModule.ACT_ProcessProduct(Product: $Product))
+ACTIONBUTTON btnProcess (Caption: 'Process', Action: MICROFLOW MyModule.ACT_ProcessProduct(Product = $Product))
 ```
 
 ### Layout widgets

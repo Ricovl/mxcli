@@ -534,7 +534,7 @@ logLevel
 // Template parameters: WITH ({1} = expr, {2} = expr) or PARAMETERS [expr, expr]
 templateParams
     : WITH LPAREN templateParam (COMMA templateParam)* RPAREN    // WITH ({1} = $var)
-    | PARAMETERS arrayLiteral                                     // PARAMETERS ['val'] (deprecated)
+    | PARAMETERS /* @alias MDL-DEPR009 */ arrayLiteral            // PARAMETERS ['val'] (deprecated)
     ;
 
 templateParam
@@ -694,9 +694,11 @@ callArgumentList
     : callArgument (COMMA callArgument)*
     ;
 
-// Named arguments: $FirstName = 'Hello' or Level = 'INFO' or OqlStatement = '...'
+// Named arguments: FirstName = 'Hello' or Level = 'INFO' or OqlStatement = '...'
+// (R4: `Param = expression`, no `$` on the parameter name). `$FirstName = …` is
+// the deprecated spelling of the same argument.
 callArgument
-    : (VARIABLE | parameterName) EQUALS expression
+    : (VARIABLE /* @alias MDL-DEPR006 */ | parameterName) EQUALS expression
     ;
 
 showPageStatement
@@ -707,9 +709,12 @@ showPageArgList
     : showPageArg (COMMA showPageArg)*
     ;
 
+// R4: `Param = expression`, the argument form of every call site. `$Param = …`
+// and `Param: …` are deprecated spellings of the same argument.
 showPageArg
-    : VARIABLE EQUALS (VARIABLE | expression)       // $Param = $value (canonical)
-    | identifierOrKeyword COLON expression           // Param: $value (widget-style, also accepted)
+    : parameterName EQUALS expression                                  // Param = $value (canonical)
+    | VARIABLE /* @alias MDL-DEPR006 */ EQUALS (VARIABLE | expression) // $Param = $value
+    | identifierOrKeyword COLON /* @alias MDL-DEPR007 */ expression    // Param: $value
     ;
 
 closePageStatement
@@ -720,9 +725,12 @@ showHomePageStatement
     : SHOW HOME PAGE
     ;
 
-// SHOW MESSAGE 'Hello {1}' TYPE Information OBJECTS [$Name];
+// SHOW MESSAGE 'Hello {1}' TYPE Information WITH ({1} = $Name);
+// `OBJECTS [$Name]` is the deprecated positional spelling of the same list.
 showMessageStatement
-    : SHOW MESSAGE expression (TYPE identifierOrKeyword)? (OBJECTS LBRACKET expressionList RBRACKET)? BLOCKING? onErrorClause?
+    : SHOW MESSAGE expression (TYPE identifierOrKeyword)?
+      (OBJECTS /* @alias MDL-DEPR009 */ LBRACKET expressionList RBRACKET | templateParams)?
+      BLOCKING? onErrorClause?
     ;
 
 // SYNCHRONIZE ALL;
@@ -748,7 +756,8 @@ throwStatement
 
 // VALIDATION FEEDBACK $Product/Code MESSAGE 'Product code cannot be empty';
 validationFeedbackStatement
-    : VALIDATION FEEDBACK (attributePath | VARIABLE) MESSAGE expression (OBJECTS LBRACKET expressionList RBRACKET)? onErrorClause?
+    : VALIDATION FEEDBACK (attributePath | VARIABLE) MESSAGE expression
+      (OBJECTS /* @alias MDL-DEPR009 */ LBRACKET expressionList RBRACKET | templateParams)? onErrorClause?
     ;
 
 // =============================================================================
@@ -836,7 +845,7 @@ sendRestRequestWithClause
     ;
 
 sendRestRequestParam
-    : VARIABLE EQUALS expression
+    : (VARIABLE /* @alias MDL-DEPR006 */ | parameterName) EQUALS expression
     ;
 
 sendRestRequestBodyClause

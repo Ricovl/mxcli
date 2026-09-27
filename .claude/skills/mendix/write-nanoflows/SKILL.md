@@ -121,7 +121,7 @@ $JsResult = CALL JAVASCRIPT ACTION NanoflowCommons.SignIn (userName = $Name, pas
 
 ### UI Activities
 ```mdl
-SHOW PAGE Sales.CartDetail ($Cart = $Cart);
+SHOW PAGE Sales.CartDetail (Cart = $Cart);
 CLOSE PAGE;
 SHOW MESSAGE WARNING 'Connection unavailable. Working offline.';
 VALIDATION FEEDBACK $Item/Quantity MESSAGE 'Quantity must be at least 1';
@@ -156,7 +156,7 @@ IF $Cart/ItemCount = 0 THEN
   VALIDATION FEEDBACK $Cart/ItemCount MESSAGE 'Cart is empty';
   RETURN false;
 ELSE
-  SHOW PAGE Sales.Checkout ($Cart = $Cart);
+  SHOW PAGE Sales.Checkout (Cart = $Cart);
   RETURN true;
 END IF;
 ```
@@ -217,11 +217,11 @@ CREATE OR MODIFY NANOFLOW Inventory.NAV_OpenProductDetail (
 )
 FOLDER 'Navigation'
 BEGIN
-  $IsValid = CALL NANOFLOW Inventory.NAV_ValidateProduct ($Product = $Product);
+  $IsValid = CALL NANOFLOW Inventory.NAV_ValidateProduct (Product = $Product);
   IF NOT ($IsValid) THEN
     RETURN;
   END IF;
-  SHOW PAGE Inventory.ProductDetail ($Product = $Product);
+  SHOW PAGE Inventory.ProductDetail (Product = $Product);
 END;
 ```
 

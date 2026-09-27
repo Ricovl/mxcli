@@ -42,7 +42,7 @@ validation feedback $VariableName/attributename message 'Error message';
 
 With template arguments (for dynamic messages):
 ```mdl
-validation feedback $VariableName/attributename message '{1}' objects [$MessageVariable];
+validation feedback $VariableName/attributename message '{1}' with ({1} = $MessageVariable);
 ```
 
 ### CLOSE PAGE Statement
@@ -131,7 +131,7 @@ returns boolean as $IsValid
 folder 'OverviewPages'
 begin
   -- Call validation microflow
-  $IsValid = call microflow MdlTemplates.VAL_Car_NewEdit($param = $Car);
+  $IsValid = call microflow MdlTemplates.VAL_Car_NewEdit(param = $Car);
 
   -- Only save if validation passed
   if $IsValid then
@@ -240,7 +240,7 @@ end if;
 
 if trim($ValidationMessage) != '' then
   set $IsValid = false;
-  validation feedback $entity/value message '{1}' objects [$ValidationMessage];
+  validation feedback $entity/value message '{1}' with ({1} = $ValidationMessage);
 end if;
 ```
 

@@ -83,7 +83,7 @@ CREATE ASSOCIATION Sales.Order_Customer
 Status: Enumeration(Sales.OrderStatus) DEFAULT 'Active'
 
 -- Microflow call
-$Result = CALL MICROFLOW Sales.ACT_ProcessOrder ($Order = $Order);
+$Result = CALL MICROFLOW Sales.ACT_ProcessOrder (Order = $Order);
 ```
 
 ## See Also

@@ -101,7 +101,7 @@ CREATE NANOFLOW Sales.NAV_SubmitOrder
 BEGIN
     CHANGE $Order (Status = 'Submitted');
     $Result = CALL MICROFLOW Sales.ACT_ProcessOrder (Order = $Order);
-    SHOW PAGE Sales.Order_Confirmation ($Order = $Order);
+    SHOW PAGE Sales.Order_Confirmation (Order = $Order);
 END;
 ```
 
