@@ -331,8 +331,11 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 		outputJavadoc(ctx.Output, svc.Description)
 	}
 
-	// Plain `create` on purpose; see describeODataClient.
-	fmt.Fprintf(ctx.Output, "create odata service %s.%s (\n", moduleName, svc.Name)
+	// `create or modify`: the rewrite carries what this output cannot print
+	// (ExportLevel, PageSize without paging, entity-set order, CanBeEmpty), and
+	// TestTestAppRoundTrip holds it to both round-trip laws on the Studio
+	// Pro-authored services of ako/TestApp (#743).
+	fmt.Fprintf(ctx.Output, "create or modify odata service %s.%s (\n", moduleName, svc.Name)
 
 	var props []string
 	if folderPath != "" {
@@ -806,9 +809,11 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 	fmt.Fprintln(ctx.Output, ")")
 	fmt.Fprintln(ctx.Output, "(")
 	for i, attr := range entity.Attributes {
+		// formatAttributeType, not GetTypeName: the bare `String` executes as
+		// unlimited and rewrote a stored String(36) (#743).
 		typeName := "Unknown"
 		if attr.Type != nil {
-			typeName = attr.Type.GetTypeName()
+			typeName = formatAttributeType(attr.Type)
 		}
 		comma := ","
 		if i == len(entity.Attributes)-1 {
@@ -909,6 +914,19 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 			existingEntity.CreateChangeLocally = *s.AllowCreateChangeLocally
 		}
 		if len(attrs) > 0 {
+			// The rebuilt attributes keep each stored attribute's identity and
+			// what the statement cannot spell (the OData mapping, LocalizeDate),
+			// by name; a fresh $ID and a plain StoredValue made the rewrite an
+			// unmapped attribute (#743).
+			for _, a := range attrs {
+				for _, old := range existingEntity.Attributes {
+					if old.Name == a.Name {
+						a.ID = old.ID
+						break
+					}
+				}
+			}
+			carryStoredAttributeState(existingEntity, attrs)
 			existingEntity.Attributes = attrs
 		}
 		// A rewrite that carried no doc comment keeps the stored one; an
@@ -1114,7 +1132,13 @@ func createODataClient(ctx *ExecContext, stmt *ast.CreateODataClientStmt) error 
 					}
 					return nil
 				}
-				return mdlerrors.NewAlreadyExistsMsg("OData client", modName+"."+svc.Name, fmt.Sprintf("OData client already exists: %s.%s (use create or modify to update)", modName, svc.Name))
+				// Not "use create or modify": that rewrite does not yet carry what
+				// describe cannot print and would lose Studio Pro-authored
+				// settings (#743).
+				return mdlerrors.NewAlreadyExistsMsg("OData client", modName+"."+svc.Name, fmt.Sprintf(
+					"OData client already exists: %s.%s — use 'alter odata client %s.%s set ...' to change it; "+
+						"'create or modify odata client' rewrites the whole client and does not yet keep everything Studio Pro stores "+
+						"(UseQuerySegment, catalog, proxy and microflow settings, icon)", modName, svc.Name, modName, svc.Name))
 			}
 		}
 	}
@@ -1549,6 +1573,7 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 					// service — a member removed from the script is removed from
 					// the service, which merging could never express.
 					if len(stmt.Entities) > 0 {
+						storedTypes, storedSets := svc.EntityTypes, svc.EntitySets
 						svc.EntityTypes = nil
 						svc.EntitySets = nil
 						for _, entityDef := range stmt.Entities {
@@ -1556,6 +1581,7 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 							svc.EntityTypes = append(svc.EntityTypes, entityType)
 							svc.EntitySets = append(svc.EntitySets, entitySet)
 						}
+						carryPublishedEntityState(storedTypes, storedSets, svc)
 					}
 					// AllowedModuleRoles is granted by a separate statement
 					// (`grant access on odata service …`) and cannot be expressed
@@ -1667,6 +1693,53 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 	invalidateHierarchy(ctx)
 	fmt.Fprintf(ctx.Output, "Created OData service: %s.%s\n", stmt.Name.Module, stmt.Name.Name)
 	return nil
+}
+
+// carryPublishedEntityState carries onto a service's rebuilt entity types and
+// sets what the `publish entity` block has no spelling for, from the stored
+// ones (#743):
+//   - an entity set's PageSize when the statement does not page (describe prints
+//     PageSize only with UsePaging, and Studio Pro stores 10000 either way);
+//   - the stored order of the entity sets, which describe prints in entity-type
+//     order; sets the stored service did not have follow, in statement order;
+//   - each member's CanBeEmpty, matched by entity and member name.
+func carryPublishedEntityState(storedTypes []*model.PublishedEntityType, storedSets []*model.PublishedEntitySet, svc *model.PublishedODataService) {
+	setIndex := make(map[string]int, len(storedSets))
+	setByEntity := make(map[string]*model.PublishedEntitySet, len(storedSets))
+	for i, es := range storedSets {
+		setIndex[es.EntityTypeName] = i
+		setByEntity[es.EntityTypeName] = es
+	}
+	for _, es := range svc.EntitySets {
+		if old, ok := setByEntity[es.EntityTypeName]; ok && !es.UsePaging && es.PageSize == 0 {
+			es.PageSize = old.PageSize
+		}
+	}
+	sort.SliceStable(svc.EntitySets, func(i, j int) bool {
+		a, aok := setIndex[svc.EntitySets[i].EntityTypeName]
+		b, bok := setIndex[svc.EntitySets[j].EntityTypeName]
+		switch {
+		case aok && bok:
+			return a < b
+		default:
+			return aok && !bok
+		}
+	})
+
+	members := map[string]*model.PublishedMember{} // entity + "/" + bare member name
+	for _, et := range storedTypes {
+		for _, m := range et.Members {
+			members[et.Entity+"/"+bareMemberName(m.Name)] = m
+		}
+	}
+	for _, et := range svc.EntityTypes {
+		for _, m := range et.Members {
+			if old, ok := members[et.Entity+"/"+bareMemberName(m.Name)]; ok && old.CanBeEmpty != nil {
+				v := *old.CanBeEmpty
+				m.CanBeEmpty = &v
+			}
+		}
+	}
 }
 
 // alterODataService handles ALTER ODATA SERVICE command.

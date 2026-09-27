@@ -1466,7 +1466,10 @@ func edmToDomainModelAttrType(p *types.EdmProperty, isKey bool) domainmodel.Attr
 	case "Edm.Boolean":
 		return &domainmodel.BooleanAttributeType{}
 	case "Edm.DateTime", "Edm.DateTimeOffset", "Edm.Date":
-		return &domainmodel.DateTimeAttributeType{}
+		// LocalizeDate true is what the writer emitted before it wrote the
+		// property at all (#743), and what Studio Pro stores for an imported
+		// Edm.DateTimeOffset.
+		return &domainmodel.DateTimeAttributeType{LocalizeDate: true}
 	case "Edm.Guid":
 		return &domainmodel.StringAttributeType{Length: 36}
 	case "Edm.Binary":
