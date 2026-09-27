@@ -878,10 +878,46 @@ transformJsonStatement
 // =============================================================================
 
 /**
- * List operations that return a single item or a modified list.
+ * List operations that return a single item or a modified list: one statement
+ * per Studio Pro "List operation" activity (PROPOSAL_mdl_beta_syntax_freeze.md
+ * §4, #733). The operand is always a variable, as it is in the activity's
+ * dialog, so one activity cannot be nested inside another.
  */
 listOperationStatement
-    : VARIABLE EQUALS listOperation
+    : VARIABLE EQUALS listOperationActivity
+    // The call form. A respelling for every operation but find and contains,
+    // whose call form is also the string function: the visitor version-gates
+    // those instead (MDL-V1-LIST), since no rewrite can know which was meant.
+    | VARIABLE EQUALS listOperation /* @alias MDL-DEPR003 */
+    ;
+
+listOperationActivity
+    : HEAD VARIABLE                                                    // $x = head $L
+    | TAIL VARIABLE                                                    // $x = tail $L
+    | FIND VARIABLE listOperationCondition                             // $x = find $L by Number = 3
+    | FILTER VARIABLE listOperationCondition                           // $x = filter $L where $currentObject/Paid
+    | SORT VARIABLE BY listSortItem (COMMA listSortItem)*              // $x = sort $L by Date desc, Number
+    | UNION VARIABLE WITH VARIABLE                                     // $x = union $A with $B
+    | INTERSECT VARIABLE WITH VARIABLE                                 // $x = intersect $A with $B
+    | SUBTRACT VARIABLE FROM VARIABLE                                  // $x = subtract $B from $A  (A minus B)
+    | CONTAINS VARIABLE IN VARIABLE                                    // $b = contains $Object in $L
+    | EQUALS_OP VARIABLE AND VARIABLE                                  // $b = equals $A and $B
+    | RANGE VARIABLE (OFFSET expression)? (LIMIT expression)?          // $x = range $L offset 20 limit 10
+    ;
+
+// `by` picks a member (Studio Pro's Find / Filter: an attribute or association
+// and the value it must have), written `Member = value`; the visitor refuses
+// any other shape. `where` takes an expression over $currentObject (Find by
+// expression / Filter by expression).
+listOperationCondition
+    : BY expression
+    | WHERE expression
+    ;
+
+// A sort attribute may be any word, so an attribute called Count or Date needs
+// no quotes here.
+listSortItem
+    : identifierOrKeyword (ASC | DESC)?
     ;
 
 listOperation
@@ -910,7 +946,19 @@ sortSpec
  * Aggregate operations on lists.
  */
 aggregateListStatement
-    : VARIABLE EQUALS listAggregateOperation
+    : VARIABLE EQUALS aggregateListActivity
+    | VARIABLE EQUALS listAggregateOperation /* @alias MDL-DEPR004 */
+    ;
+
+/**
+ * One Studio Pro "Aggregate list" activity. `by` aggregates an attribute and
+ * `of` an expression (the dialog's "Aggregate with: Attribute / Expression").
+ */
+aggregateListActivity
+    : COUNT VARIABLE                                                           // $n = count $L
+    | (SUM | AVERAGE | MINIMUM | MAXIMUM) VARIABLE (BY identifierOrKeyword | OF expression) // $t = sum $L by Amount
+    | (ALL | ANY) VARIABLE WHERE expression                                    // $b = all $L where $currentObject/Paid
+    | REDUCE VARIABLE FROM expression AS dataType USING expression             // $s = reduce $L from '' as String using …
     ;
 
 listAggregateOperation

@@ -1803,10 +1803,12 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 }
 
 func (fb *flowBuilder) listAttributeOperation(s *ast.ListOperationStmt, filter bool) microflows.ListOperation {
-	binary, ok := s.Condition.(*ast.BinaryExpr)
-	if !ok || binary.Operator != "=" {
+	// `find $L where …` / `filter $L where …` is always the by-expression
+	// operation, even when the expression happens to read `Member = value`.
+	if s.ByExpression || !ast.IsMemberEquality(s.Condition) {
 		return nil
 	}
+	binary := s.Condition.(*ast.BinaryExpr)
 	fieldName, ok := listOperationFieldName(binary.Left)
 	if !ok || fieldName == "" {
 		return nil

@@ -803,7 +803,20 @@ func buildListOperationStatement(ctx parser.IListOperationStatementContext) *ast
 		stmt.OutputVariable = strings.TrimPrefix(v.GetText(), "$")
 	}
 
-	// Get the list operation
+	// The statement form: one Studio Pro activity (#733).
+	if act, ok := listOpCtx.ListOperationActivity().(*parser.ListOperationActivityContext); ok && act != nil {
+		buildListOperationActivity(act, stmt)
+		return stmt
+	}
+
+	// The call form. For find/filter it is a respelling of `by` when the
+	// condition reads `Member = value` and of `where` otherwise, so it records
+	// which, exactly as the flow builder has always decided (ast.IsMemberEquality).
+	defer func() {
+		if stmt.Operation == ast.ListOpFind || stmt.Operation == ast.ListOpFilter {
+			stmt.ByExpression = !ast.IsMemberEquality(stmt.Condition)
+		}
+	}()
 	if opCtx := listOpCtx.ListOperation(); opCtx != nil {
 		op := opCtx.(*parser.ListOperationContext)
 
@@ -947,7 +960,13 @@ func buildAggregateListStatement(ctx parser.IAggregateListStatementContext) *ast
 		stmt.OutputVariable = strings.TrimPrefix(v.GetText(), "$")
 	}
 
-	// Get the aggregate operation
+	// The statement form: one Studio Pro Aggregate list activity (#733).
+	if act, ok := aggrCtx.AggregateListActivity().(*parser.AggregateListActivityContext); ok && act != nil {
+		buildAggregateListActivity(act, stmt)
+		return stmt
+	}
+
+	// The call form, a deprecated alias of the above.
 	if opCtx := aggrCtx.ListAggregateOperation(); opCtx != nil {
 		op := opCtx.(*parser.ListAggregateOperationContext)
 

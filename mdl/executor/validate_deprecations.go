@@ -33,7 +33,7 @@ func ValidateDeprecations(prog *ast.Program) []linter.Violation {
 			Severity: linter.SeverityWarning,
 			Message: fmt.Sprintf("line %d: `%s`%s is deprecated; write `%s` — same meaning. "+
 				"Refused from `mdl %d`.", d.Line, e.Old, on, e.Canonical, e.RemovedIn),
-			Suggestion: fmt.Sprintf("Replace `%s` with `%s`. %s", e.Rewrite.Token, e.Rewrite.Replacement, e.Note),
+			Suggestion: deprecationSuggestion(e),
 		})
 	}
 	return out
@@ -53,4 +53,13 @@ func ApplyDeprecationPolicy(violations []linter.Violation, policy deprecation.Po
 		out[i] = v
 	}
 	return out
+}
+
+// deprecationSuggestion says how to rewrite a deprecated spelling: the keyword
+// to swap, or for a structural rewrite, the rewrite itself.
+func deprecationSuggestion(e deprecation.Entry) string {
+	if e.Rewrite.Structural != "" {
+		return fmt.Sprintf("Rewrite the %s. %s", e.Rewrite.Structural, e.Note)
+	}
+	return fmt.Sprintf("Replace `%s` with `%s`. %s", e.Rewrite.Token, e.Rewrite.Replacement, e.Note)
 }
