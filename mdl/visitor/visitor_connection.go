@@ -17,7 +17,7 @@ func (b *Builder) ExitConnectStatement(ctx *parser.ConnectStatementContext) {
 		// CONNECT LOCAL 'path'
 		strings := ctx.AllSTRING_LITERAL()
 		if len(strings) > 0 {
-			path := unquoteString(strings[0].GetText())
+			path := unquoteStringLit(strings[0])
 			b.statements = append(b.statements, &ast.ConnectStmt{Path: path})
 		}
 	}

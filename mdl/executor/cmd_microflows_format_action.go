@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
@@ -441,6 +442,9 @@ func formatAction(
 				attrName = parts[len(parts)-1]
 			}
 		}
+		if describeLanguage(ctx) >= langver.V1 {
+			return formatAggregateActivity(ctx, a, fn, attrName, outputVar, entityNames)
+		}
 		// REDUCE carries the fold Mendix stores beside the expression. Both parts
 		// are required, so they are rendered even when empty rather than dropped —
 		// a reduce that describes without them cannot be executed back (#1004).
@@ -543,7 +547,11 @@ func formatAction(
 			if dbSource.Range != nil {
 				switch dbSource.Range.RangeType {
 				case microflows.RangeTypeFirst:
-					stmt += "\n    limit 1"
+					// `first`, not `limit 1`: under mdl 1 `limit 1` is a list of
+					// one, and `first` means the object in every version, so the
+					// output reads back to this range whatever the reader's
+					// header (ako/mxcli#734).
+					stmt += "\n    first"
 				case microflows.RangeTypeCustom:
 					if dbSource.Range.Limit != "" {
 						stmt += fmt.Sprintf("\n    limit %s", dbSource.Range.Limit)
@@ -1135,6 +1143,11 @@ func rawUnitName(contents []byte) string {
 func formatListOperation(ctx *ExecContext, op microflows.ListOperation, outputVar string) string {
 	if op == nil {
 		return fmt.Sprintf("$%s = list operation ...;", outputVar)
+	}
+	if describeLanguage(ctx) >= langver.V1 {
+		if stmt, ok := formatListActivity(op, outputVar); ok {
+			return stmt
+		}
 	}
 
 	switch o := op.(type) {

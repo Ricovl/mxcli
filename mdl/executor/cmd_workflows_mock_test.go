@@ -48,7 +48,9 @@ func TestDescribeWorkflow_Mock(t *testing.T) {
 	assertNoError(t, describeWorkflow(ctx, ast.QualifiedName{Module: "Sales", Name: "ApproveOrder"}))
 
 	out := buf.String()
+	assertTerminated(t, out) // #744
 	assertContainsStr(t, out, "create workflow")
+	assertNotContainsStr(t, out, "create or modify workflow") // safe refusal until its carry is proven (ADR-0012)
 	assertContainsStr(t, out, "Sales.ApproveOrder")
 
 	// Roundtrip: DESCRIBE output must be parseable as valid MDL (issue #478)

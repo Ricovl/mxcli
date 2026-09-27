@@ -143,6 +143,7 @@ func TestDescribeModuleRole_Mock(t *testing.T) {
 	ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
 	assertNoError(t, describeModuleRole(ctx, ast.QualifiedName{Module: "MyModule", Name: "Admin"}))
 	assertContainsStr(t, buf.String(), "create or modify module role")
+	assertTerminated(t, buf.String()) // #744
 }
 
 func TestDescribeUserRole_Mock(t *testing.T) {
@@ -158,7 +159,8 @@ func TestDescribeUserRole_Mock(t *testing.T) {
 	}
 	ctx, buf := newMockCtx(t, withBackend(mb))
 	assertNoError(t, describeUserRole(ctx, ast.QualifiedName{Name: "Administrator"}))
-	assertContainsStr(t, buf.String(), "create user role")
+	assertContainsStr(t, buf.String(), "create or modify user role")
+	assertTerminated(t, buf.String()) // #744
 }
 
 func TestDescribeDemoUser_Mock(t *testing.T) {
@@ -178,6 +180,7 @@ func TestDescribeDemoUser_Mock(t *testing.T) {
 	// `create or modify` so the output replays onto a project that has the
 	// user (ako/mxcli#707).
 	assertContainsStr(t, buf.String(), "create or modify demo user")
+	assertTerminated(t, buf.String()) // #744
 }
 
 func TestShowModuleRoles_Mock_FilterByModule(t *testing.T) {

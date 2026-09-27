@@ -594,7 +594,6 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 			fmt.Fprintf(ctx.Output, "create or modify association %s.%s\n", module.Name, assoc.Name)
 			fmt.Fprintf(ctx.Output, "from %s to %s\n", fromEntity, toEntity)
 			formatAssocDetails(assoc.Type, assoc.Owner, assoc.StorageFormat, assoc.ChildDeleteBehavior)
-			fmt.Fprintln(ctx.Output, "/")
 			return nil
 		}
 	}
@@ -612,7 +611,6 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 			fmt.Fprintf(ctx.Output, "create or modify association %s.%s\n", module.Name, ca.Name)
 			fmt.Fprintf(ctx.Output, "from %s to %s\n", fromEntity, ca.ChildRef)
 			formatAssocDetails(ca.Type, ca.Owner, ca.StorageFormat, ca.ChildDeleteBehavior)
-			fmt.Fprintln(ctx.Output, "/")
 			return nil
 		}
 	}

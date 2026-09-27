@@ -17,7 +17,7 @@ func (b *Builder) ExitCreateDatabaseConnectionStatement(ctx *parser.CreateDataba
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
 	// Parse options
@@ -25,7 +25,7 @@ func (b *Builder) ExitCreateDatabaseConnectionStatement(ctx *parser.CreateDataba
 		opt := optCtx.(*parser.DatabaseConnectionOptionContext)
 
 		if opt.TYPE() != nil && opt.STRING_LITERAL() != nil {
-			stmt.DatabaseType = unquoteString(opt.STRING_LITERAL().GetText())
+			stmt.DatabaseType = unquoteStringLit(opt.STRING_LITERAL())
 		}
 		if opt.CONNECTION() != nil && opt.STRING_TYPE() != nil {
 			// CONNECTION STRING <value>
@@ -35,17 +35,17 @@ func (b *Builder) ExitCreateDatabaseConnectionStatement(ctx *parser.CreateDataba
 				stmt.ConnectionString = qn.String()
 				stmt.ConnectionStringIsRef = true
 			} else if opt.STRING_LITERAL() != nil {
-				stmt.ConnectionString = unquoteString(opt.STRING_LITERAL().GetText())
+				stmt.ConnectionString = unquoteStringLit(opt.STRING_LITERAL())
 			}
 		}
 		if opt.HOST() != nil && opt.STRING_LITERAL() != nil {
-			stmt.Host = unquoteString(opt.STRING_LITERAL().GetText())
+			stmt.Host = unquoteStringLit(opt.STRING_LITERAL())
 		}
 		if opt.PORT() != nil && opt.NUMBER_LITERAL() != nil {
 			stmt.Port, _ = strconv.Atoi(opt.NUMBER_LITERAL().GetText())
 		}
 		if opt.DATABASE() != nil && opt.STRING_LITERAL() != nil {
-			stmt.Database = unquoteString(opt.STRING_LITERAL().GetText())
+			stmt.Database = unquoteStringLit(opt.STRING_LITERAL())
 		}
 		if opt.USERNAME() != nil {
 			if opt.AT() != nil && opt.QualifiedName() != nil {
@@ -53,7 +53,7 @@ func (b *Builder) ExitCreateDatabaseConnectionStatement(ctx *parser.CreateDataba
 				stmt.UserName = qn.String()
 				stmt.UserNameIsRef = true
 			} else if opt.STRING_LITERAL() != nil {
-				stmt.UserName = unquoteString(opt.STRING_LITERAL().GetText())
+				stmt.UserName = unquoteStringLit(opt.STRING_LITERAL())
 			}
 		}
 		if opt.PASSWORD() != nil {
@@ -62,7 +62,7 @@ func (b *Builder) ExitCreateDatabaseConnectionStatement(ctx *parser.CreateDataba
 				stmt.Password = qn.String()
 				stmt.PasswordIsRef = true
 			} else if opt.STRING_LITERAL() != nil {
-				stmt.Password = unquoteString(opt.STRING_LITERAL().GetText())
+				stmt.Password = unquoteStringLit(opt.STRING_LITERAL())
 			}
 		}
 	}
@@ -86,7 +86,7 @@ func (b *Builder) ExitCreateDatabaseConnectionStatement(ctx *parser.CreateDataba
 		if ds := qc.DOLLAR_STRING(); ds != nil {
 			q.SQL = unquoteDollarString(ds.GetText())
 		} else if sl := qc.STRING_LITERAL(0); sl != nil {
-			q.SQL = unquoteString(sl.GetText())
+			q.SQL = unquoteStringLit(sl)
 		}
 
 		// RETURNS entity
@@ -122,7 +122,7 @@ func (b *Builder) ExitCreateDatabaseConnectionStatement(ctx *parser.CreateDataba
 					slIdx = defaultIdx // SQL used DOLLAR_STRING
 				}
 				if sl := qc.STRING_LITERAL(slIdx); sl != nil {
-					paramDef.DefaultValue = unquoteString(sl.GetText())
+					paramDef.DefaultValue = unquoteStringLit(sl)
 				}
 				defaultIdx++
 			} else if hasNull {

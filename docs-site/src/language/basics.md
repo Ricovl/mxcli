@@ -18,22 +18,23 @@ INDEX (Name);
 
 ## Statement Termination
 
-Statements are terminated with a semicolon (`;`) or a forward slash (`/`) on its own line (Oracle-style, useful for multi-line statements):
+Every statement ends with a semicolon (`;`):
 
 ```sql
--- Semicolon terminator
 CREATE MODULE OrderManagement;
 
--- Forward-slash terminator (useful for long statements)
 CREATE PERSISTENT ENTITY Sales.Order (
   OrderId: AutoNumber NOT NULL UNIQUE,
-  OrderDate: DateTime NOT NULL
+  OrderDate: DateTime NOT NULL,
 )
 INDEX (OrderDate DESC);
-/
 ```
 
-Simple commands such as `HELP`, `EXIT`, `STATUS`, `SHOW`, and `DESCRIBE` do not require a terminator.
+Under `mdl 1;` a missing `;` is an error, and so is the Oracle SQL*Plus-style `/` on its own line. A script without the header still accepts both, and `check` warns `MDL-V1-SEMI` / `MDL-V1-SLASH` for each one. At the REPL, where there is no header, a single command such as `SHOW ENTITIES` still needs no terminator.
+
+## Trailing Commas
+
+A trailing comma is allowed in every bracketed list — attributes, enumeration values, parameters, property lists, `{ … }` blocks — under every language version. `()` is the only way to write an empty list: `(,)` and `(a,,)` are errors.
 
 ## Language Version Header
 
@@ -51,6 +52,15 @@ create persistent entity Sales.Customer (
 - **`mdl 1;`** selects the beta language. Until beta it is a **preview**: it parses, but warns `preview: may still change` (`MDL-LANG01`), and `describe` and `fmt` do not emit it.
 - The header must be the **first** statement. A version this mxcli does not know is refused.
 - It is independent of the Mendix version your project targets.
+
+What `mdl 1` makes strict (each is a warning without the header, with the code shown):
+
+| Under `mdl 1;` | Without the header |
+|---|---|
+| A statement without `;` is an error. | Accepted; `MDL-V1-SEMI`. |
+| A `/` terminator line is an error. | Accepted; `MDL-V1-SLASH`. |
+| `''` is the only string escape; a backslash is an ordinary character, so `'C:\temp'` is that path. | `\n`, `\r`, `\t`, `\\` and `\'` are escapes; `MDL-V1-ESCAPE` for each literal whose value would change. |
+| In a REST client, published REST service, business event service, model, knowledge base, consumed MCP service or agent, an unknown property key is an error that names the key it most likely meant, and so is a value its key does not take (`Response: json from $X`). | The property is ignored, or read by its shape as before; `MDL-V1-PROP` / `MDL-V1-PROPVALUE`. |
 
 ### Upgrading a script: `mxcli fmt --upgrade`
 

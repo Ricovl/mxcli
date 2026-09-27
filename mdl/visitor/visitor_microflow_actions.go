@@ -543,7 +543,7 @@ func buildCallWebServiceStatement(ctx parser.ICallWebServiceStatementContext) *a
 
 	if callCtx.RAW() != nil {
 		if lit := callCtx.STRING_LITERAL(); lit != nil {
-			stmt.RawBSONBase64 = unquoteString(lit.GetText())
+			stmt.RawBSONBase64 = unquoteStringLit(lit)
 		}
 		if errClause := callCtx.OnErrorClause(); errClause != nil {
 			stmt.ErrorHandling = buildOnErrorClause(errClause)
@@ -593,7 +593,7 @@ func webServiceReferenceText(ctx parser.IWebServiceReferenceContext) string {
 	}
 	refCtx := ctx.(*parser.WebServiceReferenceContext)
 	if lit := refCtx.STRING_LITERAL(); lit != nil {
-		return unquoteString(lit.GetText())
+		return unquoteStringLit(lit)
 	}
 	return getQualifiedNameText(refCtx.QualifiedName())
 }
@@ -620,7 +620,7 @@ func buildExecuteDatabaseQueryStatement(ctx parser.IExecuteDatabaseQueryStatemen
 	// Get dynamic query if present
 	if execCtx.DYNAMIC() != nil {
 		if sl := execCtx.STRING_LITERAL(); sl != nil {
-			stmt.DynamicQuery = unquoteString(sl.GetText())
+			stmt.DynamicQuery = unquoteStringLit(sl)
 		} else if ds := execCtx.DOLLAR_STRING(); ds != nil {
 			stmt.DynamicQuery = unquoteDollarString(ds.GetText())
 		} else if expr := execCtx.Expression(); expr != nil {
@@ -803,7 +803,20 @@ func buildListOperationStatement(ctx parser.IListOperationStatementContext) *ast
 		stmt.OutputVariable = strings.TrimPrefix(v.GetText(), "$")
 	}
 
-	// Get the list operation
+	// The statement form: one Studio Pro activity (#733).
+	if act, ok := listOpCtx.ListOperationActivity().(*parser.ListOperationActivityContext); ok && act != nil {
+		buildListOperationActivity(act, stmt)
+		return stmt
+	}
+
+	// The call form. For find/filter it is a respelling of `by` when the
+	// condition reads `Member = value` and of `where` otherwise, so it records
+	// which, exactly as the flow builder has always decided (ast.IsMemberEquality).
+	defer func() {
+		if stmt.Operation == ast.ListOpFind || stmt.Operation == ast.ListOpFilter {
+			stmt.ByExpression = !ast.IsMemberEquality(stmt.Condition)
+		}
+	}()
 	if opCtx := listOpCtx.ListOperation(); opCtx != nil {
 		op := opCtx.(*parser.ListOperationContext)
 
@@ -947,7 +960,13 @@ func buildAggregateListStatement(ctx parser.IAggregateListStatementContext) *ast
 		stmt.OutputVariable = strings.TrimPrefix(v.GetText(), "$")
 	}
 
-	// Get the aggregate operation
+	// The statement form: one Studio Pro Aggregate list activity (#733).
+	if act, ok := aggrCtx.AggregateListActivity().(*parser.AggregateListActivityContext); ok && act != nil {
+		buildAggregateListActivity(act, stmt)
+		return stmt
+	}
+
+	// The call form, a deprecated alias of the above.
 	if opCtx := aggrCtx.ListAggregateOperation(); opCtx != nil {
 		op := opCtx.(*parser.ListAggregateOperationContext)
 
@@ -1493,7 +1512,7 @@ func buildRestCallStatement(ctx parser.IRestCallStatementContext) *ast.RestCallS
 		if strLit := urlC.STRING_LITERAL(); strLit != nil {
 			stmt.URL = &ast.LiteralExpr{
 				Kind:  ast.LiteralString,
-				Value: unquoteString(strLit.GetText()),
+				Value: unquoteStringLit(strLit),
 			}
 		} else if expr := urlC.Expression(); expr != nil {
 			stmt.URL = buildSourceExpression(expr)
@@ -1516,7 +1535,7 @@ func buildRestCallStatement(ctx parser.IRestCallStatementContext) *ast.RestCallS
 			header.Name = id.GetText()
 		} else if strLit := hdrCtx.STRING_LITERAL(); strLit != nil {
 			// Handle quoted header names like 'Content-Type'
-			header.Name = unquoteString(strLit.GetText())
+			header.Name = unquoteStringLit(strLit)
 		}
 		if expr := hdrCtx.Expression(); expr != nil {
 			header.Value = buildSourceExpression(expr)
@@ -1564,7 +1583,7 @@ func buildRestCallStatement(ctx parser.IRestCallStatementContext) *ast.RestCallS
 			if strLit := bodyCtx.STRING_LITERAL(); strLit != nil {
 				body.Template = &ast.LiteralExpr{
 					Kind:  ast.LiteralString,
-					Value: unquoteString(strLit.GetText()),
+					Value: unquoteStringLit(strLit),
 				}
 			} else if expr := bodyCtx.Expression(); expr != nil {
 				body.Template = buildSourceExpression(expr)

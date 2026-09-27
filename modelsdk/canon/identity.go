@@ -36,6 +36,23 @@ type Option func(*reconcileOpts)
 type reconcileOpts struct {
 	contentsOwnTranslations bool
 	contentsOwnStorageGUIDs bool
+	contentsOwnElementIDs   bool
+}
+
+// ContentsOwnElementIDs tells Reconcile that the write is a PATCH of the stored
+// document, not a rebuild: every element that survived kept its stored $ID, and
+// every new element carries a fresh one on purpose. So the structural transplant
+// must not run.
+//
+// The transplant exists for rebuilds, whose elements all arrive with random
+// $IDs and are paired back by type and position. On a patch that pairing is not
+// a no-op but a hazard: drop one sequence flow and every flow after it pairs with
+// its predecessor, taking that flow's $ID — identities move onto other nodes,
+// which is what ADR-0012 measured the microflow rebuild doing (51 of 161). The
+// graph splice of `alter microflow` (mfmutator) is the caller; it has its own
+// guard that no reference is left dangling. Elision still applies.
+func ContentsOwnElementIDs() Option {
+	return func(o *reconcileOpts) { o.contentsOwnElementIDs = true }
 }
 
 // ContentsOwnTranslations tells Reconcile that the write already accounts for
@@ -114,7 +131,9 @@ func Reconcile(contents, stored []byte, opts ...Option) (out []byte, unchanged b
 	// version control as a whole-document replacement. TransplantIDs puts the
 	// stored ids back on the elements that still correspond, rewriting every
 	// reference with them.
-	contents = TransplantIDs(contents, stored)
+	if !o.contentsOwnElementIDs {
+		contents = TransplantIDs(contents, stored)
+	}
 
 	// And the nested identity property the transplant does not cover: every
 	// Workflows$* element carries a PersistentId that both engines re-mint on

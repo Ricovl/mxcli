@@ -83,7 +83,7 @@ func describeAgentEditorKnowledgeBase(ctx *ExecContext, name ast.QualifiedName) 
 		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", k.Documentation)
 	}
 
-	fmt.Fprintf(ctx.Output, "create knowledge base %s%s (\n", qualifiedName, describeFolderClause(ctx, k.ContainerID))
+	fmt.Fprintf(ctx.Output, "create or modify knowledge base %s%s (\n", qualifiedName, describeFolderClause(ctx, k.ContainerID))
 
 	var lines []string
 	if k.Provider != "" {
@@ -120,7 +120,6 @@ func describeAgentEditorKnowledgeBase(ctx *ExecContext, name ast.QualifiedName) 
 	}
 
 	fmt.Fprintln(ctx.Output, ");")
-	fmt.Fprintln(ctx.Output, "/")
 	return nil
 }
 

@@ -239,7 +239,7 @@ Before writing any MDL, verify these requirements:
 
 **Supported in Microflows:**
 - `declare $Var type = value;` (primitives only: String/Integer/Long/Decimal/Boolean/DateTime/Enumeration)
-- `$entity = create Module.Entity (...);` / `retrieve $entity from ... limit 1;` (objects — **never** `declare` an object; that fails CE0053/CE0038 and is flagged MDL043)
+- `$entity = create Module.Entity (...);` / `retrieve $entity from ... first;` (objects — **never** `declare` an object; that fails CE0053/CE0038 and is flagged MDL043)
 - `$list = create list of Module.Entity;` (lists — **never** `declare` a list; that fails CE0053/CE0038 and is flagged MDL040)
 - `set $Var = expression;`
 - `$Var = create Module.Entity (attr = value);`
@@ -260,7 +260,7 @@ Before writing any MDL, verify these requirements:
 
 **Now Supported (previously not):**
 - `rollback $entity [refresh];` - Reverts uncommitted changes
-- `retrieve ... limit n` - Returns single entity when `limit 1`
+- `retrieve ... first` - Returns a single entity; `limit n [offset n]` returns a list (a bare `limit 1` is the object only without the `mdl 1;` header, and warns MDL-V1-LIMIT1)
 - `boolean` without `default` - Auto-defaults to `false`
 - `buttonstyle: warning` and `buttonstyle: info` - Now parse correctly
 - Keywords as attribute names - `caption`, `label`, `title`, `text`, `content`, `format`, `range`, `source`, `check`, etc. all work unquoted

@@ -121,7 +121,7 @@ func outputConsumedRestServiceMDL(ctx *ExecContext, svc *model.ConsumedRestServi
 		outputJavadoc(w, svc.Documentation)
 	}
 
-	fmt.Fprintf(w, "create rest client %s.%s (\n", moduleName, svc.Name)
+	fmt.Fprintf(w, "create or modify rest client %s.%s (\n", moduleName, svc.Name)
 	fmt.Fprintf(w, "  BaseUrl: %s,\n", mdlQuoted(svc.BaseUrl))
 	if svc.Authentication == nil {
 		fmt.Fprintln(w, "  Authentication: none")

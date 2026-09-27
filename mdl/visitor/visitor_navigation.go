@@ -148,7 +148,7 @@ func buildNavSyncDef(ctx parser.INavSyncDefContext) ast.NavSyncDef {
 			}
 		} else if lit := mc.STRING_LITERAL(); lit != nil {
 			// Legacy quoted form: the '' pairs are MDL escaping and come off here.
-			def.Constraint = unquoteString(lit.GetText())
+			def.Constraint = unquoteStringLit(lit)
 		}
 	}
 	return def
@@ -160,7 +160,7 @@ func buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.NavMenuItemDef {
 
 	caption := ""
 	if sl := c.STRING_LITERAL(); sl != nil {
-		caption = unquoteString(sl.GetText())
+		caption = unquoteStringLit(sl)
 	}
 
 	item := ast.NavMenuItemDef{Caption: caption}

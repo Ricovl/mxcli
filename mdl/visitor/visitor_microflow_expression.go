@@ -706,7 +706,7 @@ func buildLiteralExpression(ctx parser.ILiteralContext) *ast.LiteralExpr {
 	// String literal
 	if str := litCtx.STRING_LITERAL(); str != nil {
 		return &ast.LiteralExpr{
-			Value: unquoteString(str.GetText()),
+			Value: unquoteStringLit(str),
 			Kind:  ast.LiteralString,
 		}
 	}

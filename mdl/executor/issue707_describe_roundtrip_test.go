@@ -35,6 +35,7 @@ func reparse(t *testing.T, out string) *ast.Program {
 	if len(errs) > 0 {
 		t.Fatalf("describe output does not re-parse: %v\n--- output ---\n%s", errs, out)
 	}
+	assertTerminated(t, out) // #744
 	return prog
 }
 

@@ -598,14 +598,14 @@ func extractAnnotationValueString(ctx parser.IAnnotationValueContext) string {
 	if lit := valCtx.Literal(); lit != nil {
 		litCtx := lit.(*parser.LiteralContext)
 		if litCtx.STRING_LITERAL() != nil {
-			return unquoteString(litCtx.STRING_LITERAL().GetText())
+			return unquoteStringLit(litCtx.STRING_LITERAL())
 		}
 	}
 	// Also try expression — it might be a string literal parsed as expression
 	if expr := valCtx.Expression(); expr != nil {
 		text := expr.GetText()
 		if len(text) >= 2 && text[0] == '\'' && text[len(text)-1] == '\'' {
-			return unquoteString(text)
+			return unquoteStringLit(expr)
 		}
 	}
 	return ""
@@ -802,8 +802,10 @@ func buildSetStatementNode(ctx parser.ISetStatementContext) ast.MicroflowStateme
 		valueExpr = buildExpression(expr)
 	}
 
-	// Check if the expression is a list operation or aggregate function.
-	if funcCall, ok := valueExpr.(*ast.FunctionCallExpr); ok {
+	// Check if the expression is a list operation or aggregate function. Under
+	// mdl 1 `set` always assigns an expression: a list-operation call there is
+	// refused (ExitSetStatement), and find/contains are the string functions.
+	if funcCall, ok := valueExpr.(*ast.FunctionCallExpr); ok && !listCallForm.Applies(scriptLanguageVersion(setCtx)) {
 		if stmt := buildListOrAggregateStatement(targetVar, funcCall); stmt != nil {
 			return recordUnresolvedOperands(stmt, funcCall.Arguments)
 		}
@@ -857,20 +859,24 @@ func buildListOrAggregateStatement(targetVar string, funcCall *ast.FunctionCallE
 		// (CE0111). Ledger #63. When both arguments are plain variables the kind
 		// is ambiguous here; the flow builder disambiguates String-typed inputs.
 		if !isStringLiteralArg(funcCall.Arguments, 1) {
+			cond := getArgumentExpression(funcCall.Arguments, 1)
 			return &ast.ListOperationStmt{
 				OutputVariable: targetVar,
 				Operation:      ast.ListOpFind,
 				InputVariable:  extractVariableName(funcCall.Arguments, 0),
-				Condition:      getArgumentExpression(funcCall.Arguments, 1),
+				Condition:      cond,
+				ByExpression:   !ast.IsMemberEquality(cond),
 			}
 		}
 		// Falls through to the default MfSetStmt (string find expression).
 	case "FILTER":
+		cond := getArgumentExpression(funcCall.Arguments, 1)
 		return &ast.ListOperationStmt{
 			OutputVariable: targetVar,
 			Operation:      ast.ListOpFilter,
 			InputVariable:  extractVariableName(funcCall.Arguments, 0),
-			Condition:      getArgumentExpression(funcCall.Arguments, 1),
+			Condition:      cond,
+			ByExpression:   !ast.IsMemberEquality(cond),
 		}
 	case "SORT":
 		stmt := &ast.ListOperationStmt{
@@ -1392,8 +1398,12 @@ func buildRetrieveStatement(ctx parser.IRetrieveStatementContext) *ast.RetrieveS
 		}
 	}
 
-	// Get LIMIT and OFFSET expressions
-	if limitExpr := retrCtx.GetLimitExpr(); limitExpr != nil {
+	// The range. `first` is the object range in every version; a bare
+	// `limit 1` is too in an mdl 0 script, and a list of one under mdl 1
+	// (limitOneIsAList). Resolved here so nothing downstream reads limit text.
+	if retrCtx.FIRST() != nil || retrieveLimitOneIsObject(retrCtx) {
+		stmt.First = true
+	} else if limitExpr := retrCtx.GetLimitExpr(); limitExpr != nil {
 		stmt.Limit = retrieveRangeExpressionSource(limitExpr) + retrieveLimitTrailingWhitespace(retrCtx, limitExpr)
 	}
 	if offsetExpr := retrCtx.GetOffsetExpr(); offsetExpr != nil {

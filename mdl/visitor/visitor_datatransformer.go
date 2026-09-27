@@ -29,10 +29,10 @@ func (b *Builder) ExitCreateDataTransformerStatement(ctx *parser.CreateDataTrans
 	// direct STRING_LITERALs, so an index would depend on whether a folder was
 	// given.
 	if tok := ctx.GetSource(); tok != nil {
-		stmt.SourceJSON = unquoteString(tok.GetText())
+		stmt.SourceJSON = unquoteStringLit(tok)
 	}
 	if tok := ctx.GetFolder(); tok != nil {
-		stmt.Folder = unquoteString(tok.GetText())
+		stmt.Folder = unquoteStringLit(tok)
 	}
 
 	// Steps
@@ -48,7 +48,7 @@ func (b *Builder) ExitCreateDataTransformerStatement(ctx *parser.CreateDataTrans
 			step.Technology = "XSLT"
 		}
 		if sl := sc.STRING_LITERAL(); sl != nil {
-			step.Expression = unquoteString(sl.GetText())
+			step.Expression = unquoteStringLit(sl)
 		} else if ds := sc.DOLLAR_STRING(); ds != nil {
 			step.Expression = unquoteDollarString(ds.GetText())
 		}

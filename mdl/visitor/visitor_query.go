@@ -597,7 +597,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 		// document, so there is no IN clause.
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowGlyphs}
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			stmt.Like = unquoteString(sl.GetText())
+			stmt.Like = unquoteStringLit(sl)
 		}
 		b.statements = append(b.statements, stmt)
 	} else if ctx.ICON() != nil && ctx.COLLECTION() != nil {
@@ -825,7 +825,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		if n := ctx.NUMBER_LITERAL(); n != nil {
 			stmt.Qualifier = n.GetText()
 		} else if sl := ctx.STRING_LITERAL(); sl != nil {
-			stmt.Qualifier = unquoteString(sl.GetText())
+			stmt.Qualifier = unquoteStringLit(sl)
 		}
 		if stmt.Qualifier != "" {
 			b.statements = append(b.statements, stmt)
@@ -872,7 +872,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	// Handle DESCRIBE DEMO USER 'name' (uses STRING_LITERAL)
 	if ctx.DEMO() != nil && ctx.USER() != nil {
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			userName := unquoteString(sl.GetText())
+			userName := unquoteStringLit(sl)
 			b.statements = append(b.statements, &ast.DescribeStmt{
 				ObjectType: ast.DescribeDemoUser,
 				Name:       ast.QualifiedName{Name: userName},
@@ -886,7 +886,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	if ctx.USER() != nil && ctx.ROLE() != nil {
 		roleName := ""
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			roleName = unquoteString(sl.GetText())
+			roleName = unquoteStringLit(sl)
 		} else if iok := ctx.IdentifierOrKeyword(0); iok != nil {
 			roleName = identifierOrKeywordText(iok)
 		}
@@ -981,7 +981,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		// parse error is the wrong lesson (mxcli-formula1 findings #8).
 		if ctx.CONFIGURATION() != nil {
 			if sl := ctx.STRING_LITERAL(); sl != nil {
-				stmt.Qualifier = unquoteString(sl.GetText())
+				stmt.Qualifier = unquoteStringLit(sl)
 			}
 		}
 		b.statements = append(b.statements, stmt)
@@ -1045,7 +1045,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	if ctx.WIDGET() != nil && ctx.STYLING() == nil {
 		name := ""
 		if lit := ctx.STRING_LITERAL(); lit != nil {
-			name = unquoteString(lit.GetText())
+			name = unquoteStringLit(lit)
 		} else if id := ctx.IdentifierOrKeyword(0); id != nil {
 			name = id.GetText()
 		}
@@ -1095,7 +1095,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		}
 		coordinate := ""
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			coordinate = unquoteString(sl.GetText())
+			coordinate = unquoteStringLit(sl)
 		}
 		b.statements = append(b.statements, &ast.DescribeStmt{
 			ObjectType: ast.DescribeJarDependency,
@@ -1110,7 +1110,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	if ctx.CONTRACT() != nil && ctx.OPERATION() != nil && ctx.FROM() != nil && ctx.OPENAPI() != nil {
 		if sl := ctx.STRING_LITERAL(); sl != nil {
 			b.statements = append(b.statements, &ast.DescribeContractFromOpenAPIStmt{
-				SpecPath: unquoteString(sl.GetText()),
+				SpecPath: unquoteStringLit(sl),
 			})
 		}
 		return
@@ -1306,7 +1306,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 func (b *Builder) ExitSearchStatement(ctx *parser.SearchStatementContext) {
 	if ctx.STRING_LITERAL() != nil {
 		b.statements = append(b.statements, &ast.SearchStmt{
-			Query: unquoteString(ctx.STRING_LITERAL().GetText()),
+			Query: unquoteStringLit(ctx.STRING_LITERAL()),
 		})
 	}
 }
@@ -1319,7 +1319,7 @@ func (b *Builder) ExitSearchStatement(ctx *parser.SearchStatementContext) {
 func (b *Builder) ExitExecuteScriptStatement(ctx *parser.ExecuteScriptStatementContext) {
 	if ctx.STRING_LITERAL() != nil {
 		b.statements = append(b.statements, &ast.ExecuteScriptStmt{
-			Path: unquoteString(ctx.STRING_LITERAL().GetText()),
+			Path: unquoteStringLit(ctx.STRING_LITERAL()),
 		})
 	}
 }
@@ -1346,7 +1346,7 @@ func (b *Builder) ExitSessionSetStatement(ctx *parser.SessionSetStatementContext
 			value = valCtx.NUMBER_LITERAL().GetText()
 		}
 	case valCtx.STRING_LITERAL() != nil:
-		value = unquoteString(valCtx.STRING_LITERAL().GetText())
+		value = unquoteStringLit(valCtx.STRING_LITERAL())
 	case valCtx.IdentifierOrKeyword() != nil:
 		value = valCtx.IdentifierOrKeyword().GetText()
 	}

@@ -314,7 +314,7 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 		fmt.Fprintf(ctx.Output, "--   Native: Yes\n")
 	}
 
-	fmt.Fprintf(ctx.Output, "create or replace navigation %s\n", p.Name)
+	fmt.Fprintf(ctx.Output, "create or modify navigation %s\n", p.Name)
 
 	// Home page
 	if p.HomePage != nil {

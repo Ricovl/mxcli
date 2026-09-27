@@ -103,7 +103,7 @@ func TestDescribeDataTransformer_Mock(t *testing.T) {
 	assertNoError(t, describeDataTransformer(ctx, ast.QualifiedName{Module: "ETL", Name: "TransformOrders"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create data transformer")
+	assertContainsStr(t, out, "create or modify data transformer")
 }
 
 func TestCreateDataTransformer_OrModify_PreservesID(t *testing.T) {

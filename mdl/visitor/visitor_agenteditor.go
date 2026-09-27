@@ -20,9 +20,10 @@ func (b *Builder) ExitCreateModelStatement(ctx *parser.CreateModelStatementConte
 	}
 	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
+	b.checkModelProperties(ctx.AllModelProperty(), &modelSchema)
 	for _, p := range ctx.AllModelProperty() {
 		propCtx := p.(*parser.ModelPropertyContext)
 		// The first identifierOrKeyword is the property name; the second
@@ -44,27 +45,27 @@ func (b *Builder) ExitCreateModelStatement(ctx *parser.CreateModelStatementConte
 			}
 		case "displayname":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.DisplayName = unquoteString(lit.GetText())
+				stmt.DisplayName = unquoteStringLit(lit)
 			}
 		case "keyname":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.KeyName = unquoteString(lit.GetText())
+				stmt.KeyName = unquoteStringLit(lit)
 			}
 		case "keyid":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.KeyID = unquoteString(lit.GetText())
+				stmt.KeyID = unquoteStringLit(lit)
 			}
 		case "environment":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.Environment = unquoteString(lit.GetText())
+				stmt.Environment = unquoteStringLit(lit)
 			}
 		case "resourcename":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.ResourceName = unquoteString(lit.GetText())
+				stmt.ResourceName = unquoteStringLit(lit)
 			}
 		case "deeplinkurl":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.DeepLinkURL = unquoteString(lit.GetText())
+				stmt.DeepLinkURL = unquoteStringLit(lit)
 			}
 		}
 	}
@@ -93,7 +94,7 @@ func parseModelProps(props []parser.IModelPropertyContext) map[string]string {
 		if qn := pc.QualifiedName(); qn != nil {
 			m[key] = getQualifiedNameText(qn)
 		} else if lit := pc.STRING_LITERAL(); lit != nil {
-			m[key] = unquoteString(lit.GetText())
+			m[key] = unquoteStringLit(lit)
 		} else if num := pc.NUMBER_LITERAL(); num != nil {
 			m[key] = num.GetText()
 		} else if bl := pc.BooleanLiteral(); bl != nil {
@@ -131,7 +132,7 @@ func parseVariableDefsFromProps(props []parser.IModelPropertyContext) []ast.Agen
 			// Key is STRING_LITERAL or QUOTED_IDENTIFIER
 			var key string
 			if sl := vdc.STRING_LITERAL(); sl != nil {
-				key = unquoteString(sl.GetText())
+				key = unquoteStringLit(sl)
 			} else if qi := vdc.QUOTED_IDENTIFIER(); qi != nil {
 				key = unquoteIdentifier(qi.GetText())
 			}
@@ -160,9 +161,10 @@ func (b *Builder) ExitCreateConsumedMCPServiceStatement(ctx *parser.CreateConsum
 	}
 	stmt.OuterDocumentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
+	b.checkModelProperties(ctx.AllModelProperty(), &consumedMCPServiceSchema)
 	props := parseModelProps(ctx.AllModelProperty())
 	stmt.ProtocolVersion = props["protocolversion"]
 	stmt.Version = props["version"]
@@ -186,9 +188,10 @@ func (b *Builder) ExitCreateKnowledgeBaseStatement(ctx *parser.CreateKnowledgeBa
 	}
 	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
+	b.checkModelProperties(ctx.AllModelProperty(), &knowledgeBaseSchema)
 	props := parseModelProps(ctx.AllModelProperty())
 	stmt.Provider = props["provider"]
 	if k, ok := props["key"]; ok {
@@ -217,9 +220,10 @@ func (b *Builder) ExitCreateAgentStatement(ctx *parser.CreateAgentStatementConte
 	}
 	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
+	b.checkModelProperties(ctx.AllModelProperty(), &agentSchema)
 	props := parseModelProps(ctx.AllModelProperty())
 	stmt.UsageType = props["usagetype"]
 	stmt.Description = props["description"]
@@ -259,6 +263,7 @@ func (b *Builder) ExitCreateAgentStatement(ctx *parser.CreateAgentStatementConte
 		bodyCtx := body.(*parser.AgentBodyContext)
 		for _, block := range bodyCtx.AllAgentBodyBlock() {
 			blk := block.(*parser.AgentBodyBlockContext)
+			b.checkAgentBodyBlock(blk)
 			blockProps := parseModelProps(blk.AllModelProperty())
 
 			if blk.MCP() != nil && blk.SERVICE() != nil {

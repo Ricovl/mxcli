@@ -27,7 +27,7 @@ func (b *Builder) ExitCreateAnnotationStatement(ctx *parser.CreateAnnotationStat
 			// single-quoted and single-line, so a dollar-quoted block is accepted
 			// for the caption as it is for Java and JavaScript source.
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.Caption = unquoteString(lit.GetText())
+				stmt.Caption = unquoteStringLit(lit)
 			} else if dollar := propCtx.DOLLAR_STRING(); dollar != nil {
 				stmt.Caption = unquoteDollarString(dollar.GetText())
 			}

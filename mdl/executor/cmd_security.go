@@ -787,7 +787,6 @@ func describeModuleRole(ctx *ExecContext, name ast.QualifiedName) error {
 					fmt.Fprintf(ctx.Output, " description %s", mdlQuoted(mr.Description))
 				}
 				fmt.Fprintln(ctx.Output, ";")
-				fmt.Fprintln(ctx.Output, "/")
 
 				// Show which user roles include this module role
 				qualifiedRole := modName + "." + mr.Name
@@ -837,7 +836,6 @@ func describeDemoUser(ctx *ExecContext, userName string) error {
 				fmt.Fprintf(ctx.Output, " (%s)", strings.Join(du.UserRoles, ", "))
 			}
 			fmt.Fprintln(ctx.Output, ";")
-			fmt.Fprintln(ctx.Output, "/")
 			return nil
 		}
 	}
@@ -854,7 +852,7 @@ func describeUserRole(ctx *ExecContext, name ast.QualifiedName) error {
 
 	for _, ur := range ps.UserRoles {
 		if ur.Name == name.Name {
-			fmt.Fprintf(ctx.Output, "create user role %s", ur.Name)
+			fmt.Fprintf(ctx.Output, "create or modify user role %s", ur.Name)
 
 			// Module roles
 			if len(ur.ModuleRoles) > 0 {
@@ -866,7 +864,6 @@ func describeUserRole(ctx *ExecContext, name ast.QualifiedName) error {
 			}
 
 			fmt.Fprintln(ctx.Output, ";")
-			fmt.Fprintln(ctx.Output, "/")
 
 			// Show description if present
 			if ur.Description != "" {

@@ -150,11 +150,12 @@ func (b *Builder) buildViewEntity(ctx *parser.CreateEntityStatementContext) {
 	createStmt := findParentCreateStatement(ctx)
 	if createStmt != nil {
 		// Check for CREATE OR MODIFY / CREATE OR REPLACE
+		// `or replace` means `or modify` from mdl 1 on; under mdl 0 it keeps
+		// its delete-and-recreate meaning (viewEntityReplaceIsModify).
 		if createStmt.OR() != nil {
-			if createStmt.MODIFY() != nil {
+			if createStmt.MODIFY() != nil || b.replaceMeansModify(createStmt) {
 				stmt.CreateOrModify = true
-			}
-			if createStmt.REPLACE() != nil {
+			} else if createStmt.REPLACE() != nil {
 				stmt.CreateOrReplace = true
 			}
 		}
@@ -675,12 +676,12 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 					case c.NOT_NULL() != nil || (c.NOT() != nil && c.NULL() != nil) || c.REQUIRED() != nil:
 						stmt.ModifyNotNull = &true_
 						if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-							stmt.ModifyNotNullError = unquoteString(c.STRING_LITERAL().GetText())
+							stmt.ModifyNotNullError = unquoteStringLit(c.STRING_LITERAL())
 						}
 					case c.UNIQUE() != nil:
 						stmt.ModifyUnique = &true_
 						if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-							stmt.ModifyUniqueError = unquoteString(c.STRING_LITERAL().GetText())
+							stmt.ModifyUniqueError = unquoteStringLit(c.STRING_LITERAL())
 						}
 					case c.DEFAULT() != nil:
 						stmt.ModifyHasDefault = true
@@ -728,7 +729,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 				b.statements = append(b.statements, &ast.AlterEntityStmt{
 					Name:          name,
 					Operation:     ast.AlterEntitySetDocumentation,
-					Documentation: unquoteString(ctx.STRING_LITERAL().GetText()),
+					Documentation: unquoteStringLit(ctx.STRING_LITERAL()),
 				})
 				return
 			}
@@ -738,7 +739,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 				b.statements = append(b.statements, &ast.AlterEntityStmt{
 					Name:      name,
 					Operation: ast.AlterEntitySetComment,
-					Comment:   unquoteString(ctx.STRING_LITERAL().GetText()),
+					Comment:   unquoteStringLit(ctx.STRING_LITERAL()),
 				})
 				return
 			}
@@ -876,7 +877,7 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 	if ctx.CONFIGURATION() != nil {
 		if sl := ctx.STRING_LITERAL(); sl != nil {
 			b.statements = append(b.statements, &ast.DropConfigurationStmt{
-				Name: unquoteString(sl.GetText()),
+				Name: unquoteStringLit(sl),
 			})
 		}
 		return
@@ -898,7 +899,7 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 				stmt.Position = &ast.Position{X: x, Y: y}
 			}
 		} else if lit := ctx.STRING_LITERAL(); lit != nil {
-			stmt.Title = unquoteString(lit.GetText())
+			stmt.Title = unquoteStringLit(lit)
 		}
 		b.statements = append(b.statements, stmt)
 		return
@@ -1044,7 +1045,7 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 			Name: buildQualifiedName(names[0]),
 		})
 	} else if ctx.FOLDER() != nil {
-		folderPath := unquoteString(ctx.STRING_LITERAL().GetText())
+		folderPath := unquoteStringLit(ctx.STRING_LITERAL())
 		// Module can be a qualifiedName or IDENTIFIER
 		var moduleName string
 		if len(names) > 0 {
@@ -1141,7 +1142,7 @@ func (b *Builder) ExitMoveStatement(ctx *parser.MoveStatementContext) {
 
 	// Parse folder path if specified
 	if len(ctx.AllFOLDER()) > 0 && ctx.STRING_LITERAL() != nil {
-		stmt.Folder = unquoteString(ctx.STRING_LITERAL().GetText())
+		stmt.Folder = unquoteStringLit(ctx.STRING_LITERAL())
 	}
 
 	// Parse target module if specified (IN Module or just Module)
@@ -1168,7 +1169,7 @@ func (b *Builder) exitMoveFolderStatement(ctx *parser.MoveStatementContext, name
 	// Parse target: either FOLDER 'path' [IN Module] or just Module
 	if ctx.STRING_LITERAL() != nil {
 		// MOVE FOLDER ... TO FOLDER 'path' [IN Module]
-		stmt.TargetFolder = unquoteString(ctx.STRING_LITERAL().GetText())
+		stmt.TargetFolder = unquoteStringLit(ctx.STRING_LITERAL())
 		if len(names) > 1 {
 			stmt.TargetModule = getQualifiedNameText(names[1])
 		} else if ctx.IDENTIFIER() != nil {

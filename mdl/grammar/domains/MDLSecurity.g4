@@ -10,15 +10,16 @@ options { tokenVocab = MDLLexer; }
 // SECURITY STATEMENTS
 // =============================================================================
 
-// OR MODIFY makes a security script re-runnable. Without it, re-executing the
-// script that sets up roles fails on the first role that already exists, so
-// role creation had to live in its own run-once file.
+// A createStatement kind (MDLParser.g4), so it takes the same prefixes as every
+// other document type: OR MODIFY makes a security script re-runnable (without
+// it, re-executing the script that sets up roles fails on the first role that
+// already exists), and a doc comment attaches to it (#731).
 createModuleRoleStatement
-    : CREATE (OR MODIFY)? MODULE ROLE qualifiedName (DESCRIPTION STRING_LITERAL)?
+    : MODULE ROLE qualifiedName (DESCRIPTION STRING_LITERAL)?
     ;
 
 dropModuleRoleStatement
-    : DROP MODULE ROLE qualifiedName
+    : DROP MODULE ROLE ifExists? qualifiedName
     ;
 
 createUserRoleStatement

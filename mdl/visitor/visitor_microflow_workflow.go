@@ -159,7 +159,7 @@ func buildSetTaskOutcomeStatement(ctx parser.ISetTaskOutcomeStatementContext) *a
 		stmt.WorkflowTaskVariable = strings.TrimPrefix(v.GetText(), "$")
 	}
 	if str := c.STRING_LITERAL(); str != nil {
-		stmt.OutcomeValue = unquoteString(str.GetText())
+		stmt.OutcomeValue = unquoteStringLit(str)
 	}
 	if errClause := c.OnErrorClause(); errClause != nil {
 		stmt.ErrorHandling = buildOnErrorClause(errClause)

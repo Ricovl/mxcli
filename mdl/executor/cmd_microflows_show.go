@@ -368,8 +368,6 @@ func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, opts descri
 			name.Module, name.Name, strings.Join(roles, ", ")))
 	}
 
-	lines = append(lines, "/")
-
 	// Output
 	fmt.Fprintln(ctx.Output, strings.Join(lines, "\n"))
 	return nil
@@ -501,7 +499,6 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	lines = append(lines, "end;")
-	lines = append(lines, "/")
 
 	fmt.Fprintln(ctx.Output, strings.Join(lines, "\n"))
 	return nil
@@ -716,8 +713,6 @@ func renderMicroflowMDL(
 		lines = append(lines, fmt.Sprintf("grant execute on %s %s.%s to %s;",
 			flowType, name.Module, name.Name, strings.Join(roles, ", ")))
 	}
-
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -1682,7 +1677,6 @@ func describeRule(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	lines = append(lines, "end;")
-	lines = append(lines, "/")
 
 	fmt.Fprintln(ctx.Output, strings.Join(lines, "\n"))
 	return nil

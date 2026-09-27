@@ -85,7 +85,7 @@ func describeAgentEditorAgent(ctx *ExecContext, name ast.QualifiedName) error {
 		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", a.Documentation)
 	}
 
-	fmt.Fprintf(ctx.Output, "create agent %s%s (\n", qualifiedName, describeFolderClause(ctx, a.ContainerID))
+	fmt.Fprintf(ctx.Output, "create or modify agent %s%s (\n", qualifiedName, describeFolderClause(ctx, a.ContainerID))
 
 	// Build property lines. User-set properties are emitted in a stable
 	// order; empty values are omitted.
@@ -163,7 +163,6 @@ func describeAgentEditorAgent(ctx *ExecContext, name ast.QualifiedName) error {
 	} else {
 		fmt.Fprintln(ctx.Output, ");")
 	}
-	fmt.Fprintln(ctx.Output, "/")
 	return nil
 }
 

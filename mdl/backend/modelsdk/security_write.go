@@ -12,6 +12,17 @@ import (
 	genSec "github.com/mendixlabs/mxcli/modelsdk/gen/security"
 )
 
+// Studio Pro writes Security$ProjectSecurity's UserRoles and DemoUsers lists
+// with typed-array marker 2, not the encoder's default 3 (measured on PedApp
+// 11.13.0, TestApp 11.14.0 and the expr-checker fixture: every document
+// agrees). Without these, rewriting a user role or demo user with an unchanged
+// definition changed the marker, so running `describe user role` output wrote
+// the unit (#731).
+func init() {
+	codec.RegisterPropertyListMarker("Security$ProjectSecurity", "UserRoles", 2)
+	codec.RegisterPropertyListMarker("Security$ProjectSecurity", "DemoUsers", 2)
+}
+
 // loadModuleSecurityGen decodes a Security$ModuleSecurity unit by ID.
 func (b *Backend) loadModuleSecurityGen(unitID model.ID) (*genSec.ModuleSecurity, error) {
 	raw, err := b.reader.GetRawUnitBytes(string(unitID))

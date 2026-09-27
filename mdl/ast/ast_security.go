@@ -18,9 +18,11 @@ type CreateModuleRoleStmt struct {
 
 func (s *CreateModuleRoleStmt) isStatement() {}
 
-// DropModuleRoleStmt represents: DROP MODULE ROLE Module.RoleName
+// DropModuleRoleStmt represents: DROP MODULE ROLE [IF EXISTS] Module.RoleName
 type DropModuleRoleStmt struct {
-	Name QualifiedName
+	// IfExists downgrades "not found" to a no-op; see DropUserRoleStmt.
+	IfExists bool
+	Name     QualifiedName
 }
 
 func (s *DropModuleRoleStmt) isStatement() {}

@@ -279,7 +279,7 @@ func (b *Builder) ExitCreateExternalEntitiesStatement(ctx *parser.CreateExternal
 // odataValueText extracts the string value from an OData property value context.
 func odataValueText(val *parser.OdataPropertyValueContext) string {
 	if sl := val.STRING_LITERAL(); sl != nil {
-		return unquoteString(sl.GetText())
+		return unquoteStringLit(sl)
 	}
 	if nl := val.NUMBER_LITERAL(); nl != nil {
 		return nl.GetText()
@@ -357,7 +357,7 @@ func parsePublishEntityBlock(ctx parser.IPublishEntityBlockContext) *ast.Publish
 
 	// Optional AS 'ExposedName'
 	if sl := block.STRING_LITERAL(); sl != nil {
-		entity.ExposedName = unquoteString(sl.GetText())
+		entity.ExposedName = unquoteStringLit(sl)
 	}
 
 	// Parse entity-level properties (ReadMode, InsertMode, etc.)
@@ -407,7 +407,7 @@ func parseODataHeaders(ctx parser.IOdataHeadersClauseContext) []ast.HeaderDef {
 
 	for _, entryCtx := range clause.AllOdataHeaderEntry() {
 		entry := entryCtx.(*parser.OdataHeaderEntryContext)
-		key := unquoteString(entry.STRING_LITERAL().GetText())
+		key := unquoteStringLit(entry.STRING_LITERAL())
 		// A header value is a Mendix expression, kept as written.
 		value, isLiteral := odataExpressionValue(entry.OdataPropertyValue(), entry.Expression())
 		headers = append(headers, ast.HeaderDef{Key: key, Value: value, ValueIsLiteral: isLiteral})
@@ -428,7 +428,7 @@ func parsePublishMicroflowBlock(ctx parser.IPublishMicroflowBlockContext) *ast.P
 		Microflow: buildQualifiedName(block.QualifiedName()),
 	}
 	if sl := block.STRING_LITERAL(); sl != nil {
-		def.ExposedName = unquoteString(sl.GetText())
+		def.ExposedName = unquoteStringLit(sl)
 	}
 	if exposeCtx := block.ExposeClause(); exposeCtx != nil {
 		expose := exposeCtx.(*parser.ExposeClauseContext)
@@ -442,7 +442,7 @@ func parsePublishMicroflowBlock(ctx parser.IPublishMicroflowBlockContext) *ast.P
 			}
 			p := &ast.PublishedParamDef{Name: member.IdentifierOrKeyword().GetText()}
 			if sl := member.STRING_LITERAL(); sl != nil {
-				p.ExposedName = unquoteString(sl.GetText())
+				p.ExposedName = unquoteStringLit(sl)
 			}
 			if opts := member.ExposeMemberOptions(); opts != nil {
 				optsCtx := opts.(*parser.ExposeMemberOptionsContext)
@@ -486,7 +486,7 @@ func parseExposeMembers(ctx parser.IExposeClauseContext) []*ast.PublishedMemberD
 
 		// Optional AS 'ExposedName'
 		if sl := member.STRING_LITERAL(); sl != nil {
-			m.ExposedName = unquoteString(sl.GetText())
+			m.ExposedName = unquoteStringLit(sl)
 		}
 
 		// Optional options (Filterable, Sortable, IsPartOfKey)

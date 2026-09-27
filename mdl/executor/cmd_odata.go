@@ -134,6 +134,11 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 		outputJavadoc(ctx.Output, svc.Description)
 	}
 
+	// describe keeps a plain `create` here, not `create or modify` (ADR-0012: carry or refuse,
+	// never silently drop). A `create or modify` rewrite of this type does not yet carry what
+	// describe cannot print, so re-running this output on an existing document would silently
+	// lose Studio Pro-authored content; a plain `create` refuses instead. Switch the verb only
+	// once the rewrite's carry is proven by the round-trip harness (see #743).
 	fmt.Fprintf(ctx.Output, "create odata client %s.%s (\n", moduleName, svc.Name)
 
 	var props []string
@@ -229,8 +234,6 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 	} else {
 		fmt.Fprintln(ctx.Output, ");")
 	}
-
-	fmt.Fprintln(ctx.Output, "/")
 
 	return nil
 }
@@ -328,6 +331,7 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 		outputJavadoc(ctx.Output, svc.Description)
 	}
 
+	// Plain `create` on purpose; see describeODataClient.
 	fmt.Fprintf(ctx.Output, "create odata service %s.%s (\n", moduleName, svc.Name)
 
 	var props []string
@@ -362,21 +366,34 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 	}
 	fmt.Fprintln(ctx.Output, strings.Join(props, ",\n"))
 
-	fmt.Fprintln(ctx.Output, ")")
+	// The statement ends with `;` after whichever clause comes last: the
+	// property list, the authentication clause or the entity block (ADR-0010
+	// R11).
+	hasBlock := len(svc.EntityTypes) > 0 || len(svc.EntitySets) > 0 || len(svc.Microflows) > 0
+	hasAuth := len(svc.AuthenticationTypes) > 0 || svc.AuthMicroflow != ""
+	if hasBlock || hasAuth {
+		fmt.Fprintln(ctx.Output, ")")
+	} else {
+		fmt.Fprintln(ctx.Output, ");")
+	}
 
 	// Authentication types. The custom-authentication microflow is part of the
 	// clause, not a comment beside it: emitted as a comment the output looked
 	// complete but replayed into a service Mendix rejects with CE0333
 	// (mxcli-formula1 §40).
+	authEnd := "\n"
+	if !hasBlock {
+		authEnd = ";\n"
+	}
 	if len(svc.AuthenticationTypes) > 0 {
-		fmt.Fprintf(ctx.Output, "authentication %s\n", odataAuthClause(svc))
+		fmt.Fprintf(ctx.Output, "authentication %s%s", odataAuthClause(svc), authEnd)
 	} else if svc.AuthMicroflow != "" {
 		// A microflow with no type recorded still has to survive the round trip.
-		fmt.Fprintf(ctx.Output, "authentication microflow %s\n", svc.AuthMicroflow)
+		fmt.Fprintf(ctx.Output, "authentication microflow %s%s", svc.AuthMicroflow, authEnd)
 	}
 
 	// Published entities block
-	if len(svc.EntityTypes) > 0 || len(svc.EntitySets) > 0 || len(svc.Microflows) > 0 {
+	if hasBlock {
 		fmt.Fprintln(ctx.Output, "{")
 
 		// Build entity set lookup by exposed name and entity type name for merging
@@ -501,7 +518,7 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 			printPublishedMicroflowMDL(ctx.Output, pm)
 		}
 
-		fmt.Fprintln(ctx.Output, "}")
+		fmt.Fprintln(ctx.Output, "};")
 	}
 
 	// Output GRANT statements for allowed module roles
@@ -510,8 +527,6 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 		fmt.Fprintf(ctx.Output, "grant access on odata service %s.%s to %s;\n",
 			moduleName, svc.Name, strings.Join(svc.AllowedModuleRoles, ", "))
 	}
-
-	fmt.Fprintln(ctx.Output, "/")
 
 	return nil
 }
@@ -757,6 +772,7 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 		outputJavadoc(ctx.Output, entity.Documentation)
 	}
 
+	// Plain `create` on purpose; see describeODataClient.
 	fmt.Fprintf(ctx.Output, "create external entity %s.%s\n", moduleName, entity.Name)
 	fmt.Fprintf(ctx.Output, "from odata client %s\n", entity.RemoteServiceName)
 	fmt.Fprintln(ctx.Output, "(")
@@ -781,27 +797,26 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 	props = append(props, fmt.Sprintf("  AllowCreateChangeLocally: %s", boolStr(entity.CreateChangeLocally)))
 	fmt.Fprintln(ctx.Output, strings.Join(props, ",\n"))
 
-	fmt.Fprintln(ctx.Output, ")")
-
-	// Output attributes
-	if len(entity.Attributes) > 0 {
-		fmt.Fprintln(ctx.Output, "(")
-		for i, attr := range entity.Attributes {
-			typeName := "Unknown"
-			if attr.Type != nil {
-				typeName = attr.Type.GetTypeName()
-			}
-			comma := ","
-			if i == len(entity.Attributes)-1 {
-				comma = ""
-			}
-			fmt.Fprintf(ctx.Output, "  %s: %s%s\n", attr.Name, typeName, comma)
-		}
+	// Output attributes. Without them the statement ends at the property list,
+	// and still ends with `;` (ADR-0010 R11).
+	if len(entity.Attributes) == 0 {
 		fmt.Fprintln(ctx.Output, ");")
+		return nil
 	}
-
-	fmt.Fprintln(ctx.Output, "/")
-
+	fmt.Fprintln(ctx.Output, ")")
+	fmt.Fprintln(ctx.Output, "(")
+	for i, attr := range entity.Attributes {
+		typeName := "Unknown"
+		if attr.Type != nil {
+			typeName = attr.Type.GetTypeName()
+		}
+		comma := ","
+		if i == len(entity.Attributes)-1 {
+			comma = ""
+		}
+		fmt.Fprintf(ctx.Output, "  %s: %s%s\n", attr.Name, typeName, comma)
+	}
+	fmt.Fprintln(ctx.Output, ");")
 	return nil
 }
 

@@ -50,6 +50,10 @@ func TestRegistryExamplesRecordTheirCode(t *testing.T) {
 				t.Errorf("Example and CanonicalExample build different statements:\n old:   %#v\n canon: %#v",
 					old.Statements, canon.Statements)
 			}
+			// A structural rewrite is proven by the AST comparison above alone.
+			if e.Rewrite.Structural != "" {
+				return
+			}
 			// The rewrite is a token swap; the canonical example must be exactly it.
 			re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(e.Rewrite.Token) + `\b`)
 			if got := re.ReplaceAllString(e.Example, e.Rewrite.Replacement); got != e.CanonicalExample {
@@ -67,6 +71,7 @@ var createOrReplaceCases = map[string]string{
 	"entity":                      "persistent entity M.Customer (Name: String(200));",
 	"association":                 "association M.Order_Customer from M.Order to M.Customer type Reference;",
 	"module":                      "module M;",
+	"modulerole":                  "module role M.Admin description 'Full access';",
 	"microflow":                   "microflow M.ACT_Recalculate () begin return; end;",
 	"javaaction":                  "java action M.FormatCurrency(Amount: Decimal not null) returns String as $$return \"\";$$;",
 	"javascriptaction":            "javascript action M.IsStrictMode() returns Boolean platform Web as $$return true;$$;",
@@ -154,6 +159,12 @@ func createStatementKinds(t *testing.T) []string {
 // it is not an alias, and reporting it would tell the user to make a change
 // that alters their script. Both directions are asserted, so the exemption list
 // in the visitor cannot drift from what the visitors actually do.
+//
+// Which kinds are exempt depends on the language version (#731, ADR-0011):
+// under mdl 1, `or replace` on a view entity, user role or demo user means
+// `or modify` like everywhere else, so only translations stay exempt. Under
+// mdl 0 those three keep their alpha meaning and report the language change
+// that would alter it instead of the alias.
 func TestCreateOrReplaceMatchesModifyExceptExemptKinds(t *testing.T) {
 	for _, kind := range createStatementKinds(t) {
 		if _, ok := createOrReplaceCases[kind]; !ok {
@@ -165,48 +176,74 @@ func TestCreateOrReplaceMatchesModifyExceptExemptKinds(t *testing.T) {
 	for k, v := range createOrReplaceCases {
 		cases[k] = v
 	}
-	// A view entity is kind "entity" too, and its `or replace` drops and recreates.
+	// A view entity is kind "entity" too.
 	cases["entity (view)"] = "view entity M.V (Name: String(100)) as (select c.Name as Name from M.Customer as c);"
 
-	for name, body := range cases {
-		t.Run(name, func(t *testing.T) {
-			rep := mustBuild(t, "create or replace "+body)
-			mod := mustBuild(t, "create or modify "+body)
-			if len(rep.Statements) != 1 || len(mod.Statements) != 1 {
-				t.Fatalf("want one statement each, got %d and %d — the case does not exercise the visitor",
-					len(rep.Statements), len(mod.Statements))
-			}
-			foldPageModeFlags(rep.Statements)
-			foldPageModeFlags(mod.Statements)
-			same := reflect.DeepEqual(rep.Statements, mod.Statements)
-			exempt := createOrReplaceIsNotAnAlias[name] || name == "entity (view)"
+	// gatedChange names the language change a kind's `or replace` goes through;
+	// a kind absent here means the same thing under every version.
+	gatedChange := map[string]string{
+		"entity (view)": viewEntityReplaceIsModify.Code,
+		"userrole":      roleReplaceIsModify.Code,
+		"demouser":      roleReplaceIsModify.Code,
+	}
 
-			switch {
-			case exempt && same:
-				t.Errorf("exempt, but `or replace` and `or modify` build the same statements: " +
-					"it is an alias after all — remove the exemption")
-			case !exempt && !same:
-				t.Errorf("`or replace` and `or modify` build different statements, so rewriting one "+
-					"to the other changes the script — exempt this kind or fix the visitor:\n"+
-					" replace: %#v\n modify:  %#v", rep.Statements, mod.Statements)
-			}
-
-			got := deprecationCodes(rep)
-			if exempt {
-				if len(got) != 0 {
-					t.Errorf("exempt kind recorded %v", got)
+	for _, version := range []struct {
+		name, header string
+		v1           bool
+	}{{"mdl 0", "", false}, {"mdl 1", "mdl 1;\n", true}} {
+		for name, body := range cases {
+			t.Run(version.name+"/"+name, func(t *testing.T) {
+				rep := mustBuild(t, version.header+"create or replace "+strings.TrimSuffix(body, ";")+";") // every statement ends with ; (valid under mdl 0 and mdl 1)
+				mod := mustBuild(t, version.header+"create or modify "+strings.TrimSuffix(body, ";")+";")
+				if len(rep.Statements) != 1 || len(mod.Statements) != 1 {
+					t.Fatalf("want one statement each, got %d and %d — the case does not exercise the visitor",
+						len(rep.Statements), len(mod.Statements))
 				}
-				return
-			}
-			if !reflect.DeepEqual(got, []string{deprecation.CreateOrReplace}) {
-				t.Errorf("recorded %v, want [%s]", got, deprecation.CreateOrReplace)
-			} else if rep.Deprecations[0].Subject != name {
-				t.Errorf("subject = %q, want %q", rep.Deprecations[0].Subject, name)
-			}
-			if got := deprecationCodes(mod); len(got) != 0 {
-				t.Errorf("`create or modify` recorded %v", got)
-			}
-		})
+				foldPageModeFlags(rep.Statements)
+				foldPageModeFlags(mod.Statements)
+				same := reflect.DeepEqual(rep.Statements, mod.Statements)
+				gate, gated := gatedChange[name]
+				exempt := createOrReplaceIsNotAnAlias[name] || (gated && !version.v1)
+
+				switch {
+				case exempt && same:
+					t.Errorf("exempt, but `or replace` and `or modify` build the same statements: " +
+						"it is an alias after all — remove the exemption")
+				case !exempt && !same:
+					t.Errorf("`or replace` and `or modify` build different statements, so rewriting one "+
+						"to the other changes the script — exempt this kind or fix the visitor:\n"+
+						" replace: %#v\n modify:  %#v", rep.Statements, mod.Statements)
+				}
+
+				var notes []string
+				for _, n := range rep.LanguageNotes {
+					notes = append(notes, n.Code)
+				}
+				wantNotes := []string(nil)
+				if gated && !version.v1 {
+					wantNotes = []string{gate}
+				}
+				if !reflect.DeepEqual(notes, wantNotes) {
+					t.Errorf("language notes %v, want %v", notes, wantNotes)
+				}
+
+				got := deprecationCodes(rep)
+				if exempt {
+					if len(got) != 0 {
+						t.Errorf("exempt kind recorded %v", got)
+					}
+					return
+				}
+				if !reflect.DeepEqual(got, []string{deprecation.CreateOrReplace}) {
+					t.Errorf("recorded %v, want [%s]", got, deprecation.CreateOrReplace)
+				} else if want := strings.TrimSuffix(name, " (view)"); rep.Deprecations[0].Subject != want {
+					t.Errorf("subject = %q, want %q", rep.Deprecations[0].Subject, want)
+				}
+				if got := deprecationCodes(mod); len(got) != 0 {
+					t.Errorf("`create or modify` recorded %v", got)
+				}
+			})
+		}
 	}
 }
 

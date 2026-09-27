@@ -32,7 +32,7 @@ func (b *Builder) ExitCreateMicroflowStatement(ctx *parser.CreateMicroflowStatem
 		for _, opt := range optsCtx.AllMicroflowOption() {
 			optCtx := opt.(*parser.MicroflowOptionContext)
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Folder = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
 			}
 			if exposed := optCtx.MicroflowExposedClause(); exposed != nil {
 				stmt.Expose = append(stmt.Expose, buildExposeActionClause(exposed))
@@ -86,7 +86,7 @@ func (b *Builder) ExitCreateNanoflowStatement(ctx *parser.CreateNanoflowStatemen
 		for _, opt := range optsCtx.AllMicroflowOption() {
 			optCtx := opt.(*parser.MicroflowOptionContext)
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Folder = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
 			}
 			if exposed := optCtx.MicroflowExposedClause(); exposed != nil {
 				stmt.Expose = append(stmt.Expose, buildExposeActionClause(exposed))
@@ -138,7 +138,7 @@ func (b *Builder) ExitCreateRuleStatement(ctx *parser.CreateRuleStatementContext
 		for _, opt := range optsCtx.AllMicroflowOption() {
 			optCtx := opt.(*parser.MicroflowOptionContext)
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Folder = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
 			}
 			if exposed := optCtx.MicroflowExposedClause(); exposed != nil {
 				stmt.Expose = append(stmt.Expose, buildExposeActionClause(exposed))
@@ -392,8 +392,8 @@ func buildExposeActionClause(ctx parser.IMicroflowExposedClauseContext) ast.Expo
 		return out
 	}
 	if strs := ctx.AllSTRING_LITERAL(); len(strs) >= 2 {
-		out.Caption = unquoteString(strs[0].GetText())
-		out.Category = unquoteString(strs[1].GetText())
+		out.Caption = unquoteStringLit(strs[0])
+		out.Category = unquoteStringLit(strs[1])
 	}
 	out.Bitmaps = buildExposeBitmaps(ctx.AllExposeBitmapClause())
 	return out
@@ -412,7 +412,7 @@ func buildExposeBitmaps(clauses []parser.IExposeBitmapClauseContext) []ast.Expos
 			Clear: c.DROP() != nil,
 		}
 		if lit := c.STRING_LITERAL(); lit != nil {
-			b.Path = unquoteString(lit.GetText())
+			b.Path = unquoteStringLit(lit)
 		}
 		out = append(out, b)
 	}
@@ -476,7 +476,7 @@ func applyMicroflowDocumentProperty(stmt *ast.CreateMicroflowStmt, optCtx *parse
 			}
 			stmt.URLSearchParameters = &names
 		case uc.STRING_LITERAL() != nil:
-			url := unquoteString(uc.STRING_LITERAL().GetText())
+			url := unquoteStringLit(uc.STRING_LITERAL())
 			stmt.URL = &url
 		}
 	}
@@ -498,7 +498,7 @@ func applyMicroflowDocumentProperty(stmt *ast.CreateMicroflowStmt, optCtx *parse
 		if e := cCtx.MicroflowConcurrencyError(); e != nil {
 			eCtx := e.(*parser.MicroflowConcurrencyErrorContext)
 			if eCtx.ERROR_MESSAGE() != nil && eCtx.STRING_LITERAL() != nil {
-				clause.ErrorMessage = unquoteString(eCtx.STRING_LITERAL().GetText())
+				clause.ErrorMessage = unquoteStringLit(eCtx.STRING_LITERAL())
 				clause.ErrorMessageSet = true
 			}
 			if qn := eCtx.QualifiedName(); qn != nil {

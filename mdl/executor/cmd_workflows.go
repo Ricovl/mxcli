@@ -185,6 +185,11 @@ func describeWorkflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	}
 	lines = append(lines, "")
 
+	// describe keeps a plain `create` here, not `create or modify` (ADR-0012: carry or refuse,
+	// never silently drop). A `create or modify` rewrite of this type does not yet carry what
+	// describe cannot print, so re-running this output on an existing document would silently
+	// lose Studio Pro-authored content; a plain `create` refuses instead. Switch the verb only
+	// once the rewrite's carry is proven by the round-trip harness (see #743).
 	lines = append(lines, fmt.Sprintf("create workflow %s", qualifiedName))
 	if clause := describeFolderClause(ctx, targetWf.ContainerID); clause != "" {
 		lines = append(lines, "  "+strings.TrimSpace(clause))
@@ -232,8 +237,7 @@ func describeWorkflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	}
 	lines = append(lines, formatEventSubProcesses(targetWf.EventSubProcesses, "  ")...)
 
-	lines = append(lines, "end workflow")
-	lines = append(lines, "/")
+	lines = append(lines, "end workflow;")
 
 	return strings.Join(lines, "\n"), nil, nil
 }

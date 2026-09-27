@@ -103,34 +103,34 @@ func (b *Builder) parsePageHeaderV3(ctx parser.IPageHeaderV3Context, stmt *ast.C
 		} else if prop.TITLE() != nil {
 			// Title: 'My Page'
 			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Title = unquoteString(str.GetText())
+				stmt.Title = unquoteStringLit(str)
 			}
 		} else if prop.LAYOUT() != nil {
 			// Layout: Atlas_Core.Atlas_Default or 'Layout Name'
 			if qn := prop.QualifiedName(); qn != nil {
 				stmt.Layout = getQualifiedNameText(qn)
 			} else if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Layout = unquoteString(str.GetText())
+				stmt.Layout = unquoteStringLit(str)
 			}
 		} else if prop.URL() != nil {
 			// Url: 'my-page'
 			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.URL = unquoteString(str.GetText())
+				stmt.URL = unquoteStringLit(str)
 			}
 		} else if prop.FOLDER() != nil {
 			// Folder: 'Pages/Admin'
 			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Folder = unquoteString(str.GetText())
+				stmt.Folder = unquoteStringLit(str)
 			}
 		} else if prop.CLASS() != nil {
 			// Class: 'my-page' — page-level CSS class (issue #714)
 			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Class = unquoteString(str.GetText())
+				stmt.Class = unquoteStringLit(str)
 			}
 		} else if prop.STYLE() != nil {
 			// Style: 'padding: 10px' — page-level inline CSS (issue #714)
 			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Style = unquoteString(str.GetText())
+				stmt.Style = unquoteStringLit(str)
 			}
 		} else if id := prop.IDENTIFIER(); id != nil {
 			// Generic page header property (e.g. PopupWidth: 800). Only the
@@ -227,7 +227,7 @@ func (b *Builder) buildSnippetV3(ctx *parser.CreateSnippetStatementContext) *ast
 		for _, opt := range optsCtx.AllSnippetOption() {
 			optCtx := opt.(*parser.SnippetOptionContext)
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Folder = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
 			}
 		}
 	}
@@ -263,7 +263,7 @@ func (b *Builder) parseSnippetHeaderV3(ctx parser.ISnippetHeaderV3Context, stmt 
 		} else if prop.FOLDER() != nil {
 			// Folder: 'Snippets/Common'
 			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Folder = unquoteString(str.GetText())
+				stmt.Folder = unquoteStringLit(str)
 			}
 		}
 	}
@@ -305,7 +305,7 @@ func buildSingleVariableDeclaration(vdCtx *parser.VariableDeclarationContext) as
 	}
 
 	if str := vdCtx.STRING_LITERAL(); str != nil {
-		v.DefaultValue = unquoteString(str.GetText())
+		v.DefaultValue = unquoteStringLit(str)
 	}
 
 	return v
@@ -536,10 +536,10 @@ func buildWidgetV3(ctx parser.IWidgetV3Context, b *Builder) *ast.WidgetV3 {
 	// Get widget type
 	if wCtx.PLUGGABLEWIDGET() != nil {
 		widget.Type = "pluggablewidget"
-		widget.Properties["WidgetType"] = unquoteString(wCtx.STRING_LITERAL().GetText())
+		widget.Properties["WidgetType"] = unquoteStringLit(wCtx.STRING_LITERAL())
 	} else if wCtx.CUSTOMWIDGET() != nil {
 		widget.Type = "customwidget"
-		widget.Properties["WidgetType"] = unquoteString(wCtx.STRING_LITERAL().GetText())
+		widget.Properties["WidgetType"] = unquoteStringLit(wCtx.STRING_LITERAL())
 	} else if typeCtx := wCtx.WidgetTypeV3(); typeCtx != nil {
 		widget.Type = strings.ToLower(typeCtx.GetText())
 		// Which alternative matched, taken from the parse tree rather than by
@@ -643,7 +643,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	// Placeholder: 'text' (input widgets)
 	if propCtx.PLACEHOLDER() != nil {
 		if str := propCtx.STRING_LITERAL(); str != nil {
-			widget.Properties["Placeholder"] = unquoteString(str.GetText())
+			widget.Properties["Placeholder"] = unquoteStringLit(str)
 		}
 		return
 	}
@@ -659,7 +659,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	// Label: ...
 	if propCtx.LABEL() != nil {
 		if str := propCtx.STRING_LITERAL(); str != nil {
-			widget.Properties["Label"] = unquoteString(str.GetText())
+			widget.Properties["Label"] = unquoteStringLit(str)
 		}
 		return
 	}
@@ -722,7 +722,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	// Class: ...
 	if propCtx.CLASS() != nil {
 		if str := propCtx.STRING_LITERAL(); str != nil {
-			widget.Properties["Class"] = unquoteString(str.GetText())
+			widget.Properties["Class"] = unquoteStringLit(str)
 		}
 		return
 	}
@@ -730,7 +730,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	// Style: ...
 	if propCtx.STYLE() != nil {
 		if str := propCtx.STRING_LITERAL(); str != nil {
-			widget.Properties["Style"] = unquoteString(str.GetText())
+			widget.Properties["Style"] = unquoteStringLit(str)
 		}
 		return
 	}
@@ -1146,7 +1146,7 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 	} else if actCtx.OPEN_LINK() != nil {
 		action.Type = "openLink"
 		if str := actCtx.STRING_LITERAL(); str != nil {
-			action.LinkURL = unquoteString(str.GetText())
+			action.LinkURL = unquoteStringLit(str)
 		}
 		// A dynamic address: `open_link $currentObject/URL`.
 		if v := actCtx.VARIABLE(); v != nil {
@@ -1160,7 +1160,7 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 	} else if actCtx.COMPLETE_TASK() != nil {
 		action.Type = "completeTask"
 		if str := actCtx.STRING_LITERAL(); str != nil {
-			action.OutcomeValue = unquoteString(str.GetText())
+			action.OutcomeValue = unquoteStringLit(str)
 		}
 	}
 
@@ -1261,7 +1261,7 @@ func buildStringExprV3(ctx parser.IStringExprV3Context) string {
 
 	// String literal: 'Hello {1}'
 	if str := strCtx.STRING_LITERAL(); str != nil {
-		return unquoteString(str.GetText())
+		return unquoteStringLit(str)
 	}
 
 	// Attribute path: Name or Entity/Attr
@@ -1592,7 +1592,7 @@ func buildPropertyValueV3(ctx parser.IPropertyValueV3Context) any {
 	pvCtx := ctx.(*parser.PropertyValueV3Context)
 
 	if str := pvCtx.STRING_LITERAL(); str != nil {
-		return unquoteString(str.GetText())
+		return unquoteStringLit(str)
 	}
 	// "AttrName" — a double-quoted value, used for pluggable-widget attribute
 	// sub-properties like chart series `staticXAttribute: "StatusValue"`. Strip
@@ -1679,7 +1679,7 @@ func buildDesignPropertyEntryV3(ctx parser.IDesignPropertyEntryV3Context) *ast.D
 		return nil
 	}
 
-	key := unquoteString(allStrings[0].GetText())
+	key := unquoteStringLit(allStrings[0])
 
 	// Compound (nested): 'Spacing': ['margin-top': 'Large', 'margin-bottom': 'Medium']
 	if listCtx := entryCtx.DesignPropertyListV3(); listCtx != nil {
@@ -1694,7 +1694,7 @@ func buildDesignPropertyEntryV3(ctx parser.IDesignPropertyEntryV3Context) *ast.D
 		return &ast.DesignPropertyEntryV3{Key: key, Value: "off"}
 	}
 	if len(allStrings) >= 2 {
-		return &ast.DesignPropertyEntryV3{Key: key, Value: unquoteString(allStrings[1].GetText())}
+		return &ast.DesignPropertyEntryV3{Key: key, Value: unquoteStringLit(allStrings[1])}
 	}
 
 	return nil
@@ -2024,7 +2024,7 @@ func widgetIconName(c *parser.WidgetIconV3Context) string {
 		return buildQualifiedName(qn).String()
 	}
 	if str := c.STRING_LITERAL(); str != nil {
-		return unquoteString(str.GetText())
+		return unquoteStringLit(str)
 	}
 	return ""
 }

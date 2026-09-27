@@ -17,7 +17,7 @@ func (b *Builder) ExitCreateRegularExpressionStatement(ctx *parser.CreateRegular
 		Documentation: findDocCommentText(ctx),
 	}
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 	if createStmt := findParentCreateStatement(ctx); createStmt != nil {
 		if createStmt.OR() != nil && (createStmt.MODIFY() != nil || createStmt.REPLACE() != nil) {
@@ -56,7 +56,7 @@ func (b *Builder) ExitCreateRegularExpressionStatement(ctx *parser.CreateRegular
 // reading index 0 would echo the key back as the value.
 func regularExpressionPropertyText(pc *parser.RegularExpressionPropertyContext) string {
 	if s := pc.STRING_LITERAL(); s != nil {
-		return unquoteString(s.GetText())
+		return unquoteStringLit(s)
 	}
 	if bl := pc.BooleanLiteral(); bl != nil {
 		return bl.GetText()

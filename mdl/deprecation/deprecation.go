@@ -62,14 +62,20 @@ type Entry struct {
 	CanonicalExample string
 }
 
-// Rewrite replaces one keyword token of the deprecated form with another. It is
-// the only shape the seeded entries need; a richer one is added with the first
-// entry that needs it.
+// Rewrite is the mechanical rewrite from the deprecated form to the canonical
+// one. It is either a keyword swap (Token and Replacement) or, where the two
+// forms differ in shape rather than in one word, a structural rewrite that
+// Structural names. A structural rewrite is implemented against the parse tree,
+// never as text substitution, and its correctness rests on the same test as a
+// swap: Example and CanonicalExample must build the same statements.
 type Rewrite struct {
 	// Token is the keyword to replace, lower-case.
 	Token string
 	// Replacement is the keyword written in its place, lower-case.
 	Replacement string
+	// Structural describes a rewrite that is not a keyword swap, e.g.
+	// "call form to statement form". Empty for a keyword swap.
+	Structural string
 }
 
 // IsZero reports whether r is empty: the entry has no mechanical rewrite, and
@@ -80,6 +86,13 @@ func (r Rewrite) IsZero() bool { return r.Token == "" && r.Replacement == "" }
 const (
 	CreateOrReplace = "MDL-DEPR001"
 	Show            = "MDL-DEPR002"
+	// ListOperationFunctionForm is `$x = head($L)` and the other list
+	// operations written as calls; find and contains are excluded, because the
+	// call form clashes with the string functions (see mdl/visitor, MDL-V1-LIST).
+	ListOperationFunctionForm = "MDL-DEPR003"
+	// AggregateFunctionForm is `$n = count($L)` and the other aggregates
+	// written as calls.
+	AggregateFunctionForm = "MDL-DEPR004"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -91,10 +104,10 @@ var entries = []Entry{
 		Canonical: "create or modify …",
 		Rewrite:   Rewrite{Token: "replace", Replacement: "modify"},
 		RemovedIn: 2,
-		Note: "Not reported where `or replace` means something else today: " +
-			"`create or replace view entity` (drops and recreates), " +
-			"`create or replace translations` (replaces the whole set), and " +
-			"`create or replace user role` / `demo user` (the `replace` is ignored).",
+		Note: "Not reported for `create or replace translations`, which replaces the " +
+			"whole set. Under mdl 0 (no header) it is not reported for a view entity " +
+			"(drops and recreates) or a user role / demo user (a plain create) either: " +
+			"those warn MDL-V1-REPLACE01/02 instead, and are aliases from `mdl 1;` on.",
 		Example:          "create or replace enumeration M.Color (Red 'Red');",
 		CanonicalExample: "create or modify enumeration M.Color (Red 'Red');",
 	},
@@ -111,6 +124,31 @@ var entries = []Entry{
 			"not reported until those forms exist.",
 		Example:          "show entities in M;",
 		CanonicalExample: "list entities in M;",
+	},
+	{
+		Code:      ListOperationFunctionForm,
+		Old:       "$x = <operation>($List, …)",
+		Canonical: "$x = <operation> $List …",
+		Rewrite: Rewrite{Structural: "call form to statement form: head/tail $L; filter/find $L by Member = v " +
+			"(when the condition has that shape) or where <expr>; sort $L by …; union/intersect $A with $B; " +
+			"subtract($A, $B) -> subtract $B from $A; equals $A and $B; range($L, o, n) -> range $L offset o limit n"},
+		RemovedIn: 2,
+		Note: "A list operation is one Studio Pro activity whose operand is a variable, so the statement form " +
+			"cannot nest. find(…) and contains(…) are not reported here: the call form is also the string " +
+			"function, so they are version-gated instead (MDL-V1-LIST).",
+		Example:          "create microflow M.F ($L: List of M.E) begin $H = head($L); end;",
+		CanonicalExample: "create microflow M.F ($L: List of M.E) begin $H = head $L; end;",
+	},
+	{
+		Code:      AggregateFunctionForm,
+		Old:       "$n = <function>($List, …)",
+		Canonical: "$n = <function> $List …",
+		Rewrite: Rewrite{Structural: "call form to statement form: count $L; sum|average|minimum|maximum " +
+			"$L by Attr (for $L.Attr) or of <expr>; all|any $L where <expr>; reduce $L from <initial> as <type> using <expr>"},
+		RemovedIn:        2,
+		Note:             "An aggregate is one Studio Pro Aggregate list activity whose operand is a variable.",
+		Example:          "create microflow M.F ($L: List of M.E) begin $N = count($L); end;",
+		CanonicalExample: "create microflow M.F ($L: List of M.E) begin $N = count $L; end;",
 	},
 }
 

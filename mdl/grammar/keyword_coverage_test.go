@@ -27,7 +27,7 @@ func TestKeywordRuleCoverage(t *testing.T) {
 		// Literals
 		"STRING_LITERAL": true, "DOLLAR_STRING": true, "NUMBER_LITERAL": true, "MENDIX_TOKEN": true,
 		// Punctuation
-		"SEMICOLON": true, "COMMA": true, "DOT": true,
+		"SEMICOLON": true, "COMMA": true, "TRAILING_COMMA": true, "DOT": true,
 		"LPAREN": true, "RPAREN": true,
 		"LBRACE": true, "RBRACE": true,
 		"LBRACKET": true, "RBRACKET": true,

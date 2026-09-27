@@ -54,7 +54,7 @@ func parseJarDepAction(ctx *parser.AlterModuleJarDepActionContext) ast.JarDepAct
 			var boolVal bool
 			isBool := false
 			if sl := propCtx.STRING_LITERAL(); sl != nil {
-				val = unquoteString(sl.GetText())
+				val = unquoteStringLit(sl)
 			} else if bl := propCtx.BooleanLiteral(); bl != nil {
 				boolVal = strings.EqualFold(bl.GetText(), "true")
 				isBool = true
@@ -81,13 +81,13 @@ func parseJarDepAction(ctx *parser.AlterModuleJarDepActionContext) ast.JarDepAct
 		if len(strs) == 0 {
 			return nil
 		}
-		coordinate := unquoteString(strs[0].GetText())
+		coordinate := unquoteStringLit(strs[0])
 
 		if ctx.VERSION() != nil && len(strs) >= 2 {
 			// SET JAR DEPENDENCY 'coord' VERSION 'version'
 			return &ast.SetJarDepVersionAction{
 				Coordinate: coordinate,
-				Version:    unquoteString(strs[1].GetText()),
+				Version:    unquoteStringLit(strs[1]),
 			}
 		}
 
@@ -104,7 +104,7 @@ func parseJarDepAction(ctx *parser.AlterModuleJarDepActionContext) ast.JarDepAct
 			// SET JAR DEPENDENCY 'coord' ADD EXCLUSION 'excl'
 			return &ast.AddJarDepExclusionAction{
 				Coordinate: coordinate,
-				Exclusion:  unquoteString(strs[1].GetText()),
+				Exclusion:  unquoteStringLit(strs[1]),
 			}
 		}
 
@@ -112,7 +112,7 @@ func parseJarDepAction(ctx *parser.AlterModuleJarDepActionContext) ast.JarDepAct
 			// SET JAR DEPENDENCY 'coord' DROP EXCLUSION 'excl'
 			return &ast.DropJarDepExclusionAction{
 				Coordinate: coordinate,
-				Exclusion:  unquoteString(strs[1].GetText()),
+				Exclusion:  unquoteStringLit(strs[1]),
 			}
 		}
 
@@ -125,7 +125,7 @@ func parseJarDepAction(ctx *parser.AlterModuleJarDepActionContext) ast.JarDepAct
 		if len(strs) == 0 {
 			return nil
 		}
-		return &ast.DropJarDepAction{Coordinate: unquoteString(strs[0].GetText())}
+		return &ast.DropJarDepAction{Coordinate: unquoteStringLit(strs[0])}
 	}
 
 	return nil

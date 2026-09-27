@@ -86,7 +86,7 @@ func (b *Builder) ExitCreateAssociationStatement(ctx *parser.CreateAssociationSt
 
 			// COMMENT
 			if optCtx.COMMENT() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Comment = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.Comment = unquoteStringLit(optCtx.STRING_LITERAL())
 			}
 		}
 	}
@@ -283,7 +283,7 @@ func (b *Builder) ExitAlterAssociationAction(ctx *parser.AlterAssociationActionC
 				b.statements = append(b.statements, &ast.AlterAssociationStmt{
 					Name:      name,
 					Operation: ast.AlterAssociationSetComment,
-					Comment:   unquoteString(ctx.STRING_LITERAL().GetText()),
+					Comment:   unquoteStringLit(ctx.STRING_LITERAL()),
 				})
 				return
 			}

@@ -17,7 +17,7 @@ func (b *Builder) ExitCreateImportMappingStatement(ctx *parser.CreateImportMappi
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
 	// Parse WITH clause
@@ -157,7 +157,7 @@ func (b *Builder) ExitCreateExportMappingStatement(ctx *parser.CreateExportMappi
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
 	// Parse WITH clause

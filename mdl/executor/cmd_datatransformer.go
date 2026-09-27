@@ -76,7 +76,7 @@ func describeDataTransformer(ctx *ExecContext, name ast.QualifiedName) error {
 		w := ctx.Output
 
 		// Emit re-executable MDL
-		fmt.Fprintf(w, "create data transformer %s.%s%s\n", modName, dt.Name, describeFolderClause(ctx, dt.ContainerID))
+		fmt.Fprintf(w, "create or modify data transformer %s.%s%s\n", modName, dt.Name, describeFolderClause(ctx, dt.ContainerID))
 
 		// Source — collapse newlines into spaces for single-line string
 		sourceContent := strings.ReplaceAll(dt.SourceJSON, "\n", " ")

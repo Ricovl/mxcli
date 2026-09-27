@@ -56,7 +56,7 @@ func TestDescribeJavaScriptAction_Mock(t *testing.T) {
 	assertNoError(t, describeJavaScriptAction(ctx, ast.QualifiedName{Module: "WebMod", Name: "ShowAlert"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create javascript action")
+	assertContainsStr(t, out, "create or modify javascript action")
 }
 
 func TestDescribeJavaScriptAction_NotFound(t *testing.T) {
@@ -169,4 +169,103 @@ func TestCreateJavaScriptAction_DuplicateRejected(t *testing.T) {
 	})
 	assertError(t, err)
 	assertContainsStr(t, err.Error(), "already exists")
+}
+
+// With describe emitting `create or modify javascript action`, its output now
+// re-executes (#731). Where describe could not read the .js source it prints a
+// placeholder body; that is not code, and writing it would replace the real
+// source (or add a stub file to a project that ships none). The Java twin is
+// TestJavaActionBody_PlaceholderIsNotWritten.
+func TestJavaScriptActionBody_PlaceholderIsNotWritten(t *testing.T) {
+	mod := mkModule("WebMod")
+	h := mkHierarchy(mod)
+	wrote := false
+	mb := &mock.MockBackend{
+		IsConnectedFunc:            func() bool { return true },
+		ListModulesFunc:            func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+		ListJavaScriptActionsFunc:  func() ([]*types.JavaScriptAction, error) { return nil, nil },
+		CreateJavaScriptActionFunc: func(*types.JavaScriptAction) error { return nil },
+		WriteJavaScriptSourceFileFunc: func(string, string, string, []*types.JavaActionParameter, types.CodeActionReturnType) error {
+			wrote = true
+			return nil
+		},
+	}
+	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	stmt := func(code string) *ast.CreateJavaScriptActionStmt {
+		return &ast.CreateJavaScriptActionStmt{
+			Name:           ast.QualifiedName{Module: "WebMod", Name: "DoThing"},
+			ReturnType:     ast.DataType{Kind: ast.TypeBoolean},
+			JavaScriptCode: code,
+		}
+	}
+
+	assertNoError(t, execCreateJavaScriptAction(ctx, stmt("\n"+jsSourceOmittedBody+"\n")))
+	if wrote {
+		t.Error("the DESCRIBE placeholder body was written as the action's JavaScript source")
+	}
+
+	// Control: an authored body is still written.
+	assertNoError(t, execCreateJavaScriptAction(ctx, stmt("return Promise.resolve(true);")))
+	if !wrote {
+		t.Error("an authored body was not written — the guard is too broad")
+	}
+}
+
+// A parameter's Description and Category have no MDL spelling — describe
+// prints the description as a `--` comment — so `create or modify` carries them
+// from the stored parameter of the same name, as the Java twin does. Dropping
+// them made running unchanged describe output rewrite the action (#731).
+func TestJavaScriptActionRewrite_CarriesParameterDescription(t *testing.T) {
+	mod := mkModule("WebMod")
+	h := mkHierarchy(mod)
+	stored := &types.JavaScriptAction{
+		BaseElement: model.BaseElement{ID: nextID("jsa")},
+		ContainerID: mod.ID,
+		Name:        "Wait",
+		Parameters: []*types.JavaActionParameter{{
+			Name:          "Delay",
+			Description:   "The number of milliseconds to wait.",
+			Category:      "Timing",
+			IsRequired:    true,
+			ParameterType: &types.IntegerType{},
+		}},
+	}
+	withContainer(h, stored.ContainerID, mod.ID)
+	var captured *types.JavaScriptAction
+	mb := &mock.MockBackend{
+		IsConnectedFunc:           func() bool { return true },
+		ListModulesFunc:           func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+		ListJavaScriptActionsFunc: func() ([]*types.JavaScriptAction, error) { return []*types.JavaScriptAction{stored}, nil },
+		ReadJavaScriptActionByNameFunc: func(string) (*types.JavaScriptAction, error) {
+			return stored, nil
+		},
+		UpdateJavaScriptActionFunc: func(jsa *types.JavaScriptAction) error {
+			captured = jsa
+			return nil
+		},
+		WriteJavaScriptSourceFileFunc: func(string, string, string, []*types.JavaActionParameter, types.CodeActionReturnType) error {
+			return nil
+		},
+	}
+	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	assertNoError(t, execCreateJavaScriptAction(ctx, &ast.CreateJavaScriptActionStmt{
+		Name:           ast.QualifiedName{Module: "WebMod", Name: "Wait"},
+		CreateOrModify: true,
+		Parameters: []ast.JavaActionParam{
+			{Name: "Delay", Type: ast.DataType{Kind: ast.TypeInteger}, IsRequired: true},
+			{Name: "Fresh", Type: ast.DataType{Kind: ast.TypeString}},
+		},
+		ReturnType:     ast.DataType{Kind: ast.TypeVoid},
+		JavaScriptCode: "\n" + jsSourceOmittedBody + "\n",
+	}))
+	if captured == nil || len(captured.Parameters) != 2 {
+		t.Fatalf("UpdateJavaScriptAction not called with two parameters: %+v", captured)
+	}
+	if p := captured.Parameters[0]; p.Description != "The number of milliseconds to wait." || p.Category != "Timing" {
+		t.Errorf("Delay: description %q, category %q — not carried from the stored parameter", p.Description, p.Category)
+	}
+	// Control: a parameter with no stored twin gets none.
+	if p := captured.Parameters[1]; p.Description != "" || p.Category != "" {
+		t.Errorf("Fresh: description %q, category %q — a new parameter inherited a description", p.Description, p.Category)
+	}
 }
