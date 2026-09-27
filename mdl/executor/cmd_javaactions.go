@@ -372,6 +372,10 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	var existingJADoc string
 	haveExistingJA := false
 	var existingActionInfo *javaactions.MicroflowActionInfo
+	// A parameter's Description and Category have no MDL spelling either —
+	// DESCRIBE prints the description as a comment — so a rewrite carries them
+	// from the stored parameter of the same name.
+	storedParams := map[string]*javaactions.JavaActionParameter{}
 	// Neither has an MDL spelling, so a rewrite carries them. The defaults are
 	// what Studio Pro writes on a new action; "Public" — what this used to
 	// hardcode — is not a member of JavaActionsExportLevel (API | Hidden), and
@@ -399,6 +403,11 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 				exportLevel = full.ExportLevel
 			}
 			defaultReturnName = full.ActionDefaultReturnName
+			for _, p := range full.Parameters {
+				if p != nil {
+					storedParams[p.Name] = p
+				}
+			}
 		}
 	}
 
@@ -483,6 +492,10 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 			jaParam.ParameterType = l
 		} else {
 			jaParam.ParameterType = astDataTypeToJavaActionParamType(param.Type)
+		}
+		if sp := storedParams[param.Name]; sp != nil {
+			jaParam.Description = sp.Description
+			jaParam.Category = sp.Category
 		}
 		ja.Parameters = append(ja.Parameters, jaParam)
 	}
