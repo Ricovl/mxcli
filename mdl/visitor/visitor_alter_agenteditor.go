@@ -76,6 +76,7 @@ func (b *Builder) applyAlterAgentAction(stmt *ast.AlterAgentStmt, ctx *parser.Al
 // KNOWLEDGE BASE block to the matching field on the ALTER AGENT stmt.
 // Mirrors the CREATE AGENT body-block parsing in ExitCreateAgentStatement.
 func (b *Builder) appendAgentBodyBlock(stmt *ast.AlterAgentStmt, blk *parser.AgentBodyBlockContext) {
+	b.checkAgentBodyBlock(blk)
 	blockProps := parseModelProps(blk.AllModelProperty())
 
 	switch {

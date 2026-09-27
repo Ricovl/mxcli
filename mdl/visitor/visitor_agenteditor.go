@@ -23,6 +23,7 @@ func (b *Builder) ExitCreateModelStatement(ctx *parser.CreateModelStatementConte
 		stmt.Folder = unquoteStringLit(lit)
 	}
 
+	b.checkModelProperties(ctx.AllModelProperty(), &modelSchema)
 	for _, p := range ctx.AllModelProperty() {
 		propCtx := p.(*parser.ModelPropertyContext)
 		// The first identifierOrKeyword is the property name; the second
@@ -163,6 +164,7 @@ func (b *Builder) ExitCreateConsumedMCPServiceStatement(ctx *parser.CreateConsum
 		stmt.Folder = unquoteStringLit(lit)
 	}
 
+	b.checkModelProperties(ctx.AllModelProperty(), &consumedMCPServiceSchema)
 	props := parseModelProps(ctx.AllModelProperty())
 	stmt.ProtocolVersion = props["protocolversion"]
 	stmt.Version = props["version"]
@@ -189,6 +191,7 @@ func (b *Builder) ExitCreateKnowledgeBaseStatement(ctx *parser.CreateKnowledgeBa
 		stmt.Folder = unquoteStringLit(lit)
 	}
 
+	b.checkModelProperties(ctx.AllModelProperty(), &knowledgeBaseSchema)
 	props := parseModelProps(ctx.AllModelProperty())
 	stmt.Provider = props["provider"]
 	if k, ok := props["key"]; ok {
@@ -220,6 +223,7 @@ func (b *Builder) ExitCreateAgentStatement(ctx *parser.CreateAgentStatementConte
 		stmt.Folder = unquoteStringLit(lit)
 	}
 
+	b.checkModelProperties(ctx.AllModelProperty(), &agentSchema)
 	props := parseModelProps(ctx.AllModelProperty())
 	stmt.UsageType = props["usagetype"]
 	stmt.Description = props["description"]
@@ -259,6 +263,7 @@ func (b *Builder) ExitCreateAgentStatement(ctx *parser.CreateAgentStatementConte
 		bodyCtx := body.(*parser.AgentBodyContext)
 		for _, block := range bodyCtx.AllAgentBodyBlock() {
 			blk := block.(*parser.AgentBodyBlockContext)
+			b.checkAgentBodyBlock(blk)
 			blockProps := parseModelProps(blk.AllModelProperty())
 
 			if blk.MCP() != nil && blk.SERVICE() != nil {

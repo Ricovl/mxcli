@@ -30,7 +30,9 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 		if iok == nil {
 			continue
 		}
-		key := strings.ToLower(identifierOrKeywordText(iok.(*parser.IdentifierOrKeywordContext)))
+		rawKey := identifierOrKeywordText(iok.(*parser.IdentifierOrKeywordContext))
+		b.checkProperty(pc, &restClientSchema, rawKey, restClientPropertyShape(pc))
+		key := strings.ToLower(rawKey)
 		switch key {
 		case "baseurl":
 			if sl := pc.STRING_LITERAL(); sl != nil {
@@ -52,7 +54,9 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 					if !spOk || sp == nil || sp.IdentifierOrKeyword() == nil {
 						continue
 					}
-					subKey := strings.ToLower(identifierOrKeywordText(sp.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext)))
+					rawSubKey := identifierOrKeywordText(sp.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
+					b.checkProperty(sp, &restClientBasicAuthSchema, rawSubKey, restClientPropertyShape(sp))
+					subKey := strings.ToLower(rawSubKey)
 					var val string
 					if sl := sp.STRING_LITERAL(); sl != nil {
 						val = unquoteStringLit(sl)
@@ -84,6 +88,12 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 		oc, ok := opCtx.(*parser.RestClientOperationContext)
 		if !ok || oc == nil {
 			continue
+		}
+		for _, p := range oc.AllRestClientOpProp() {
+			if pc, ok := p.(*parser.RestClientOpPropContext); ok && pc != nil && pc.IdentifierOrKeyword() != nil {
+				key := identifierOrKeywordText(pc.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
+				b.checkProperty(pc, &restClientOperationSchema, key, restClientOpPropShape(pc))
+			}
 		}
 		opDef := parseRestClientOperation(oc)
 		stmt.Operations = append(stmt.Operations, opDef)
@@ -357,6 +367,7 @@ func (b *Builder) ExitCreatePublishedRestServiceStatement(ctx *parser.CreatePubl
 	for _, propCtx := range ctx.AllPublishedRestProperty() {
 		pc := propCtx.(*parser.PublishedRestPropertyContext)
 		key := identifierOrKeywordText(pc.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
+		b.checkProperty(pc, &publishedRestSchema, key, shapeString)
 		val := unquoteStringLit(pc.STRING_LITERAL())
 		switch strings.ToLower(key) {
 		case "path":
