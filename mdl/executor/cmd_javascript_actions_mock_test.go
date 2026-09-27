@@ -56,7 +56,7 @@ func TestDescribeJavaScriptAction_Mock(t *testing.T) {
 	assertNoError(t, describeJavaScriptAction(ctx, ast.QualifiedName{Module: "WebMod", Name: "ShowAlert"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create javascript action")
+	assertContainsStr(t, out, "create or modify javascript action")
 }
 
 func TestDescribeJavaScriptAction_NotFound(t *testing.T) {

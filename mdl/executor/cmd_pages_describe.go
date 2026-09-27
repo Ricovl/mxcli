@@ -366,7 +366,7 @@ func describeLayout(ctx *ExecContext, name ast.QualifiedName) error {
 	if foundLayout.Class != "" {
 		header += fmt.Sprintf(",\n  class: %s", mdlQuote(foundLayout.Class))
 	}
-	fmt.Fprintf(ctx.Output, "create layout %s.%s (\n%s\n) {\n",
+	fmt.Fprintf(ctx.Output, "create or modify layout %s.%s (\n%s\n) {\n",
 		modName, mdlIdent(foundLayout.Name), header)
 
 	for _, w := range getLayoutWidgetsFromRaw(ctx, foundLayout.ID) {

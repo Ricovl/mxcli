@@ -854,7 +854,7 @@ func describeUserRole(ctx *ExecContext, name ast.QualifiedName) error {
 
 	for _, ur := range ps.UserRoles {
 		if ur.Name == name.Name {
-			fmt.Fprintf(ctx.Output, "create user role %s", ur.Name)
+			fmt.Fprintf(ctx.Output, "create or modify user role %s", ur.Name)
 
 			// Module roles
 			if len(ur.ModuleRoles) > 0 {

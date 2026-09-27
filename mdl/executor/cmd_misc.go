@@ -271,7 +271,7 @@ Navigation:
   show navigation menu [Profile];
   show navigation homes;
   describe navigation Profile;
-  create or replace navigation Profile
+  create or modify navigation Profile
     home page Module.Page
     [home page Module.Page for UserRole]
     [login page Module.Page]

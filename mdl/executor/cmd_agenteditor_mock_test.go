@@ -344,7 +344,7 @@ func TestDescribeAgentEditorModel_Mock(t *testing.T) {
 	assertNoError(t, describeAgentEditorModel(ctx, ast.QualifiedName{Module: "M", Name: "GPT4"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create model")
+	assertContainsStr(t, out, "create or modify model")
 	assertContainsStr(t, out, "Provider")
 	assertContainsStr(t, out, "Key")
 }
@@ -405,7 +405,7 @@ func TestDescribeAgentEditorAgent_Mock(t *testing.T) {
 	assertNoError(t, describeAgentEditorAgent(ctx, ast.QualifiedName{Module: "M", Name: "MyAgent"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create agent")
+	assertContainsStr(t, out, "create or modify agent")
 	assertContainsStr(t, out, "UsageType")
 	assertContainsStr(t, out, "Model")
 }
@@ -465,7 +465,7 @@ func TestDescribeAgentEditorKnowledgeBase_Mock(t *testing.T) {
 	assertNoError(t, describeAgentEditorKnowledgeBase(ctx, ast.QualifiedName{Module: "M", Name: "MyKB"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create knowledge base")
+	assertContainsStr(t, out, "create or modify knowledge base")
 	assertContainsStr(t, out, "Provider")
 }
 
@@ -524,7 +524,7 @@ func TestDescribeAgentEditorConsumedMCPService_Mock(t *testing.T) {
 	assertNoError(t, describeAgentEditorConsumedMCPService(ctx, ast.QualifiedName{Module: "M", Name: "MySvc"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create consumed mcp service")
+	assertContainsStr(t, out, "create or modify consumed mcp service")
 	// ProtocolVersion with a date value must be quoted so the output is re-parseable (issue #435)
 	assertContainsStr(t, out, "ProtocolVersion: '2025-03-26'")
 

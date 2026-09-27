@@ -134,7 +134,7 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 		outputJavadoc(ctx.Output, svc.Description)
 	}
 
-	fmt.Fprintf(ctx.Output, "create odata client %s.%s (\n", moduleName, svc.Name)
+	fmt.Fprintf(ctx.Output, "create or modify odata client %s.%s (\n", moduleName, svc.Name)
 
 	var props []string
 	if folderPath != "" {
@@ -328,7 +328,7 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 		outputJavadoc(ctx.Output, svc.Description)
 	}
 
-	fmt.Fprintf(ctx.Output, "create odata service %s.%s (\n", moduleName, svc.Name)
+	fmt.Fprintf(ctx.Output, "create or modify odata service %s.%s (\n", moduleName, svc.Name)
 
 	var props []string
 	if folderPath != "" {
@@ -757,7 +757,7 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 		outputJavadoc(ctx.Output, entity.Documentation)
 	}
 
-	fmt.Fprintf(ctx.Output, "create external entity %s.%s\n", moduleName, entity.Name)
+	fmt.Fprintf(ctx.Output, "create or modify external entity %s.%s\n", moduleName, entity.Name)
 	fmt.Fprintf(ctx.Output, "from odata client %s\n", entity.RemoteServiceName)
 	fmt.Fprintln(ctx.Output, "(")
 

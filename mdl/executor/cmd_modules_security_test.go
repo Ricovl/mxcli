@@ -81,5 +81,5 @@ func TestDescribeModule_SurvivesUnreadableSecurity(t *testing.T) {
 
 	ctx, buf := newMockCtx(t, withBackend(mb))
 	assertNoError(t, describeModule(ctx, "Administration", false))
-	assertContainsStr(t, buf.String(), "create module Administration;")
+	assertContainsStr(t, buf.String(), "create or modify module Administration;")
 }

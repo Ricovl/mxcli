@@ -93,7 +93,7 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	// Type parameters
-	sb.WriteString("create javascript action ")
+	sb.WriteString("create or modify javascript action ")
 	sb.WriteString(qualifiedName)
 	if len(jsa.TypeParameters) > 0 {
 		sb.WriteString("<")
