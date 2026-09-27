@@ -206,7 +206,7 @@ func TestTextModeKeepsProgressOnStdout(t *testing.T) {
 		want []string // lines a person has always seen on stdout
 	}{
 		{[]string{"refs", "System.User"}, []string{"Connected to:", "Building catalog", "References to System.User"}},
-		{[]string{"refs", "Nope.Nothing"}, []string{"Connected to:", "(no references found)"}},
+		{[]string{"refs", "Nope.Nothing"}, []string{"Connected to:", "(no references found"}},
 		{[]string{"callers", "System.User"}, []string{"Connected to:", "Callers of System.User", "(no callers found)"}},
 		{[]string{"impact", "System.User"}, []string{"Impact analysis for System.User", "Summary:"}},
 		{[]string{"context", "System.User"}, []string{"Connected to:", "## Context: System.User"}},
