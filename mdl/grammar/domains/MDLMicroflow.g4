@@ -453,9 +453,14 @@ onErrorClause
     ;
 
 // IF ... THEN ... END IF;
+//
+// An ELSIF arm is a decision of its own on the canvas (the visitor lowers it into
+// a nested IF in the ELSE branch), so it takes the annotations that nested IF
+// would carry — @position, @caption, @merge, @anchor — written before the
+// keyword, as every statement's are (#750).
 ifStatement
     : IF expression THEN microflowBody
-      (ELSIF expression THEN microflowBody)*
+      (annotation* ELSIF expression THEN microflowBody)*
       (ELSE microflowBody)?
       END IF
     ;
