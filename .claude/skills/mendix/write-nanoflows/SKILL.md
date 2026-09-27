@@ -23,12 +23,16 @@ Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode
 
 - **Created by your MDL scripts, and not edited in Studio Pro since:** edit the script
   (or fresh `describe` output) and re-run `create or modify`.
-- **Authored in Studio Pro:** there is **no `alter nanoflow` yet**, and re-emitting it
-  with `create or modify` has dropped annotation links and changed the export level on
-  Studio Pro nanoflows, even with no edit at all. Keep the change minimal: put new logic
-  in a new nanoflow and change the existing one only to call it. Commit first, then
-  `describe` it again after `exec` and diff it against the original output. Anything
-  that differs and that you did not change is a loss.
+- **Authored in Studio Pro:** prefer `alter nanoflow X { insert/replace/drop … }`
+  (targets by output variable, caption or statement pattern). `create or modify` of `describe`
+  output also works as a patch: an unchanged definition writes nothing, and an inserted,
+  replaced or dropped statement (at the top level or in an `if` branch) is spliced in,
+  leaving every other node, merge and curve as stored. A change it cannot splice — the
+  header, anything inside a loop body or error handler, a moved node — rebuilds the
+  whole nanoflow under mdl 0
+  (warning `MDL-V1-REBUILD`: element IDs renumbered, merges removed, curves reset) and
+  is refused under `mdl 1;` (header and loop-body changes have no splice yet; move
+  nodes in Studio Pro).
 
 ## When to Use a Nanoflow vs a Microflow
 
