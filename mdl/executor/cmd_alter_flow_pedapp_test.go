@@ -569,3 +569,77 @@ func TestAlterNanoflow_PedApp_InsertBefore(t *testing.T) {
 		t.Errorf("describe does not show the declare between the change and the call:\n%s", body)
 	}
 }
+
+// The scope check covers the whole statement, not each operation against the
+// stored flow alone. Measured with mx check 11.14 on TestApp before the fix:
+// two inserts declaring the same variable gave CE0111 "Duplicate variable
+// name", and an insert reading a variable a drop in the same statement took
+// away gave CE0109 "Undefined variable" — both after "Altered microflow".
+func TestAlterMicroflow_PedApp_ScopeSpansTheStatement(t *testing.T) {
+	t.Run("two fragments declare the same variable", func(t *testing.T) {
+		exec, _ := openPedAppFixture(t)
+		_, raw := valFeedbackUnit(t, exec)
+		err := afRun(t, exec, `alter microflow FeedbackModule.VAL_Feedback {
+			insert after $IsValidEmail { declare $Dup Boolean = true; }
+			insert after $ValidFeedback { declare $Dup Boolean = false; }
+		};`)
+		if err == nil || !strings.Contains(err.Error(), "$Dup") {
+			t.Fatalf("want the clash on $Dup refused, got %v", err)
+		}
+		if _, after := valFeedbackUnit(t, exec); !bytes.Equal(raw, after) {
+			t.Error("a refused alter changed the stored unit")
+		}
+	})
+
+	// SUB_Feedback_Sanitize reads its nine $Sanitized* outputs in one change;
+	// replacing that change first leaves $SanitizedPageName unread, so only a
+	// fragment of the second statement reads it.
+	const unread = `alter microflow FeedbackModule.SUB_Feedback_Sanitize {
+		replace change $Feedback (Subject = $SanitizedSubject, Description = $SanitizedDescription, SubmitterUUID = $SanitizedSubmitterUUID, SubmitterEmail = $SanitizedSubmitterEmail, SubmitterDisplayName = $SanitizedSubmitterDisplayName, ActiveUserRoles = $SanitizedActiveUserRoles, PageName = $SanitizedPageName, Browser = $SanitizedBrowser, EnvironmentURL = $SanitizedEnvironmentURL) with { log info 'sanitized'; }
+	};`
+	const use = `insert after $SanitizedSubmitterUUID { log info 'page {1}' with ({1} = $SanitizedPageName); }`
+	const drop = `drop $SanitizedPageName;`
+	for name, ops := range map[string]string{
+		"insert a reader, then drop the producer": use + "\n" + drop,
+		"drop the producer, then insert a reader": drop + "\n" + use,
+	} {
+		t.Run(name, func(t *testing.T) {
+			exec, _ := openPedAppFixture(t)
+			if err := afRun(t, exec, unread); err != nil {
+				t.Fatalf("setup: %v", err)
+			}
+			err := afRun(t, exec, "alter microflow FeedbackModule.SUB_Feedback_Sanitize {\n"+ops+"\n};")
+			if err == nil || !strings.Contains(err.Error(), "$SanitizedPageName") {
+				t.Fatalf("want the read of a dropped $SanitizedPageName refused, got %v", err)
+			}
+		})
+	}
+	// Control: each operation on its own is accepted.
+	t.Run("control", func(t *testing.T) {
+		for _, op := range []string{use, drop} {
+			exec, _ := openPedAppFixture(t)
+			if err := afRun(t, exec, unread); err != nil {
+				t.Fatalf("setup: %v", err)
+			}
+			if err := afRun(t, exec, "alter microflow FeedbackModule.SUB_Feedback_Sanitize {\n"+op+"\n};"); err != nil {
+				t.Errorf("%s: %v", op, err)
+			}
+		}
+	})
+}
+
+// A loop in the fragment declares its iterator; the scope check must count it
+// as the fragment's own, or every loop fragment is refused as reading an
+// undeclared variable.
+func TestAlterMicroflow_PedApp_LoopFragmentDeclaresItsIterator(t *testing.T) {
+	exec, _ := openPedAppFixture(t)
+	err := afRun(t, exec, `alter microflow FeedbackModule.VAL_Feedback {
+		insert after $IsValidEmail {
+			$Items = create list of FeedbackModule.Feedback;
+			loop $Item in $Items begin log info 'item'; end loop;
+		}
+	};`)
+	if err != nil {
+		t.Fatalf("alter: %v", err)
+	}
+}

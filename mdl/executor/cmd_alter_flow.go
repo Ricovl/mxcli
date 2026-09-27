@@ -61,6 +61,7 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 			if err := mut.Drop(target.ID); err != nil {
 				return fail(err)
 			}
+			a.noteRemoved(target, nil)
 			continue
 		}
 		frag, err := a.buildFragment(ctx, op.Body)
@@ -85,6 +86,10 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 		if err != nil {
 			return fail(err)
 		}
+		if op.Op == ast.AlterFlowReplace {
+			a.noteRemoved(target, frag)
+		}
+		a.noteFragment(ctx, frag)
 	}
 	if err := mut.Save(); err != nil {
 		return mdlerrors.NewBackend("save altered "+s.Kind(), err)
@@ -102,6 +107,52 @@ type alterFlowContext struct {
 	cands          []mfmutator.Candidate
 	entityNames    map[model.ID]string
 	microflowNames map[model.ID]string
+
+	// What the statement's earlier operations did to the variables, so a later
+	// one is checked against the flow as it will be written, not as stored:
+	// the variables their fragments declare, the ones their fragments read
+	// (with who reads them), and the stored outputs they took away.
+	declaredByOps map[string]bool
+	readByOps     map[string][]string
+	removedByOps  map[string]bool
+}
+
+// noteRemoved records that target's output is gone, unless the fragment that
+// replaces it declares it again.
+func (a *alterFlowContext) noteRemoved(target mfmutator.Candidate, replacement *backend.MicroflowFragment) {
+	v := target.OutputVariable
+	if v == "" || fragmentDeclares(replacement, v) {
+		return
+	}
+	a.removedByOps[v] = true
+}
+
+// noteFragment records what an inserted or replacing fragment declares and
+// reads.
+func (a *alterFlowContext) noteFragment(ctx *ExecContext, frag *backend.MicroflowFragment) {
+	for _, obj := range frag.Objects {
+		if act, ok := obj.(*microflows.ActionActivity); ok {
+			if v := mfmutator.OutputVariable(act.Action); v != "" {
+				a.declaredByOps[v] = true
+			}
+		}
+		text := formatActivity(ctx, obj, a.entityNames, a.microflowNames)
+		for _, m := range variableRef.FindAllStringSubmatch(text, -1) {
+			a.readByOps[m[1]] = append(a.readByOps[m[1]], text)
+		}
+	}
+}
+
+func fragmentDeclares(frag *backend.MicroflowFragment, v string) bool {
+	if frag == nil {
+		return false
+	}
+	for _, obj := range frag.Objects {
+		if act, ok := obj.(*microflows.ActionActivity); ok && mfmutator.OutputVariable(act.Action) == v {
+			return true
+		}
+	}
+	return false
 }
 
 func loadAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) (*alterFlowContext, error) {
@@ -109,7 +160,8 @@ func loadAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) (*alterFlowContext, e
 	if err != nil {
 		return nil, mdlerrors.NewBackend("build hierarchy", err)
 	}
-	a := &alterFlowContext{stmt: s, entityNames: getEntityNames(ctx, h)}
+	a := &alterFlowContext{stmt: s, entityNames: getEntityNames(ctx, h),
+		declaredByOps: map[string]bool{}, readByOps: map[string][]string{}, removedByOps: map[string]bool{}}
 	// A copy: nanoflow names are added below, and the cached map is shared.
 	a.microflowNames = map[model.ID]string{}
 	for id, n := range getMicroflowNames(ctx, h) {
@@ -336,6 +388,14 @@ func (a *alterFlowContext) checkFragmentScope(ctx *ExecContext, op *ast.AlterFlo
 	}
 	own := map[string]bool{}
 	for _, obj := range frag.Objects {
+		// A loop's iterator exists only inside the loop, which the fragment
+		// brings along; it reads it there, so it is the fragment's own.
+		if loop, ok := obj.(*microflows.LoopedActivity); ok {
+			if src, ok := loop.LoopSource.(*microflows.IterableList); ok && src.VariableName != "" {
+				own[src.VariableName] = true
+			}
+			continue
+		}
 		act, ok := obj.(*microflows.ActionActivity)
 		if !ok {
 			continue
@@ -347,6 +407,9 @@ func (a *alterFlowContext) checkFragmentScope(ctx *ExecContext, op *ast.AlterFlo
 		replacingSame := op.Op == ast.AlterFlowReplace && v == target.OutputVariable
 		if existing[v] && !replacingSame {
 			return fmt.Errorf("the fragment declares $%s, which the %s already has; choose another name", v, a.stmt.Kind())
+		}
+		if a.declaredByOps[v] {
+			return fmt.Errorf("the fragment declares $%s, which an earlier operation of this alter already declares; choose another name", v)
 		}
 		own[v] = true
 	}
@@ -367,7 +430,7 @@ func (a *alterFlowContext) checkFragmentScope(ctx *ExecContext, op *ast.AlterFlo
 	for _, obj := range frag.Objects {
 		for _, m := range variableRef.FindAllStringSubmatch(formatActivity(ctx, obj, a.entityNames, a.microflowNames), -1) {
 			v := m[1]
-			if seen[v] || systemVariables[v] || inScope[v] || own[v] {
+			if seen[v] || systemVariables[v] || own[v] || (inScope[v] && !a.removedByOps[v]) {
 				continue
 			}
 			seen[v] = true
@@ -415,15 +478,11 @@ func (a *alterFlowContext) upstreamOf(id model.ID, including bool) map[model.ID]
 // another activity still reads — unless the replacement declares it again.
 func (a *alterFlowContext) checkOutputUnused(target mfmutator.Candidate, replacement *backend.MicroflowFragment) error {
 	v := target.OutputVariable
-	if v == "" {
+	if v == "" || fragmentDeclares(replacement, v) {
 		return nil
 	}
-	if replacement != nil {
-		for _, obj := range replacement.Objects {
-			if act, ok := obj.(*microflows.ActionActivity); ok && mfmutator.OutputVariable(act.Action) == v {
-				return nil
-			}
-		}
+	if readers := a.readByOps[v]; len(readers) > 0 {
+		return fmt.Errorf("$%s is read by what an earlier operation of this alter adds: %s", v, strings.Join(readers, "; "))
 	}
 	ref := regexp.MustCompile(`\$` + regexp.QuoteMeta(v) + `\b`)
 	var users []string
