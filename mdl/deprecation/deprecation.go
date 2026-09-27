@@ -95,6 +95,10 @@ const (
 	// AggregateFunctionForm is `$n = count($L)` and the other aggregates
 	// written as calls.
 	AggregateFunctionForm = "MDL-DEPR004"
+	// UnstoredWidgetName is a name written on a page element Mendix stores no
+	// name for: a layout grid's rows and columns, a data grid's columns and
+	// control bar, a gallery's template and filter (R12, ako/mxcli#749).
+	UnstoredWidgetName = "MDL-DEPR005"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -151,6 +155,18 @@ var entries = []Entry{
 		Note:             "An aggregate is one Studio Pro Aggregate list activity whose operand is a variable.",
 		Example:          "create microflow M.F ($L: List of M.E) begin $N = count($L); end;",
 		CanonicalExample: "create microflow M.F ($L: List of M.E) begin $N = count $L; end;",
+	},
+	{
+		Code:      UnstoredWidgetName,
+		Old:       "row row1 { … } / column Name (…) — a name on an element Mendix stores none for",
+		Canonical: "row { … } / column (…)",
+		Rewrite:   Rewrite{Structural: "name out of the element: `row row1 {` becomes `row {`"},
+		RemovedIn: 2,
+		Note: "Mendix stores no name on a layout grid's row, a row's column, a data grid's column or control bar, " +
+			"or a gallery's template or filter, so the name was never written and describe no longer invents one. " +
+			"A data grid column is addressed as `grid column(Attr)` or `grid column('Caption')`.",
+		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column Name (Attribute: Name) } };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column (Attribute: Name) } };",
 	},
 }
 

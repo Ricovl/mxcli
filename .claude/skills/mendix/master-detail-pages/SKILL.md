@@ -23,18 +23,18 @@ create page Module.Entity_MasterDetail
 )
 {
   layoutgrid mainGrid {
-    row row1 {
+    row {
       -- Master list (4 columns)
-      column colMaster (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         gallery entityList (datasource: database Module.Entity, selection: single) {
-          template template1 {
+          template {
             dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
           }
         }
       }
 
       -- Detail form (8 columns)
-      column colDetail (desktopwidth: 8) {
+      column (desktopwidth: 8) {
         dataview entityDetail (datasource: selection entityList) {
           textbox txtName (label: 'Name', attribute: Name)
 
@@ -105,18 +105,18 @@ create page CRM.Customer_MasterDetail
 )
 {
   layoutgrid mainGrid {
-    row row1 {
-      column colMaster (desktopwidth: 4) {
+    row {
+      column (desktopwidth: 4) {
         dynamictext heading (content: 'Customers', rendermode: H3)
         gallery customerList (datasource: database from CRM.Customer sort by Name asc, selection: single) {
-          template template1 {
+          template {
             dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
             dynamictext email (content: '{1}', contentparams: [{1} = Email])
           }
         }
       }
 
-      column colDetail (desktopwidth: 8) {
+      column (desktopwidth: 8) {
         dataview customerDetail (datasource: selection customerList) {
           dynamictext detailHeading (content: 'Customer Details', rendermode: H3)
           textbox txtName (label: 'Name', attribute: Name)

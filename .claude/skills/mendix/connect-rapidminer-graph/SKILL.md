@@ -215,9 +215,9 @@ create page MyModule.Customer_Overview (
   dynamictext heading (content: 'Customers', rendermode: H2)
   actionbutton btnRefresh (caption: 'Refresh', action: microflow MyModule.ACT_RefreshCustomers, buttonstyle: primary)
   datagrid gridCustomers (datasource: database MyModule.Customer sort by CustomerId asc) {
-    column colId   (attribute: CustomerId,   caption: 'ID')
-    column colName (attribute: CustomerName, caption: 'Name')
-    column colUri  (attribute: CustomerUri,  caption: 'URI')
+    column   (attribute: CustomerId,   caption: 'ID')
+    column (attribute: CustomerName, caption: 'Name')
+    column  (attribute: CustomerUri,  caption: 'URI')
   }
 }
 /

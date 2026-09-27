@@ -110,7 +110,8 @@ func extractChildSlots(ctx *ExecContext, w map[string]any, entityContext string)
 // than renumbering on every run.
 func outputChildSlots(ctx *ExecContext, slots []rawChildSlot, prefix string, indent int) {
 	for _, s := range slots {
-		fmt.Fprintf(ctx.Output, "%s%s %s {\n", prefix, s.Keyword, s.Keyword+"1")
+		// A slot block stores no name — applyChildSlots discards it (#749).
+		fmt.Fprintf(ctx.Output, "%s%s {\n", prefix, s.Keyword)
 		for _, child := range s.Widgets {
 			outputWidgetMDLV3(ctx, child, indent+1)
 		}

@@ -105,7 +105,7 @@ func validateAlterSetProperties(ctx *ExecContext, prog *ast.Program, sc *scriptC
 			// so `column colTitle` is inserted under one name and set under
 			// another. Its properties are checked where it is written, by
 			// ValidateWidgetProperties.
-			if grows[s.PageName.String()] && !probe.ResolvesTarget(set.Target.Widget, set.Target.Column) {
+			if grows[s.PageName.String()] && !probe.ResolvesTarget(set.Target.Widget, columnRefOf(set.Target)) {
 				continue
 			}
 			errs = append(errs, checkSetOp(ctx, probe, label, set, modName, containerID)...)
@@ -169,7 +169,7 @@ func declaredPropertyHint(p pageProbe, target ast.WidgetRef, prop string) string
 	if target.Widget == "" {
 		return "" // page-level SET: the setter's own error lists what it takes
 	}
-	keys := p.WidgetPropertyKeys(target.Widget, target.Column)
+	keys := p.WidgetPropertyKeys(target.Widget, columnRefOf(target))
 	if len(keys) == 0 {
 		return ""
 	}

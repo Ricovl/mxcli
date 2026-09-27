@@ -44,6 +44,8 @@ func TestWidgetExpressionProps_StoreTheExpressionAsWritten(t *testing.T) {
     column col1 (attribute: Name, caption: 'N', DynamicCellClass: if $currentObject/Price > 100 then 'highlight' else '')
   }
 }`)
+	// A DataGrid 2 column has no name (#749); key it for the lookup below.
+	ws["col1"] = ws["dg"].Children[0]
 	for name, want := range map[string]string{
 		"c1":   "if $currentObject/Featured then 'is-featured' else ''",
 		"c2":   "'is-featured'",
@@ -164,7 +166,7 @@ func TestDescribeWidgetExpressionProps_RoundTrip(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	outputDataGrid2ColumnV3(&ExecContext{Output: &out}, "", "col1", rawDataGridColumn{DynamicCellClass: expr})
+	outputDataGrid2ColumnV3(&ExecContext{Output: &out}, "", rawDataGridColumn{DynamicCellClass: expr})
 	if !strings.Contains(out.String(), "DynamicCellClass: "+expr) {
 		t.Errorf("column describe should print the expression unquoted, got:\n%s", out.String())
 	}

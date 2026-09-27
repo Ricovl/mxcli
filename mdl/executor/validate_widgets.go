@@ -141,7 +141,18 @@ func ValidateWidgetPropertiesForStatement(stmt ast.Statement, registry *WidgetRe
 // $currentObject is unbound there. That is a fact this pass can state, unlike
 // validateWidgetSubtree below, and MDL-PAGEARG01 needs it (#1029).
 func validateWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string) []linter.Violation {
-	return validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot())
+	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot())
+	// Only a whole document: an ALTER fragment's parent is out of sight, and
+	// whether a row or column stores a name depends on it (#749).
+	for _, msg := range checkMissingWidgetNames(widgets) {
+		out = append(out, linter.Violation{
+			RuleID:     "MDL-WIDGET35",
+			Severity:   linter.SeverityError,
+			Message:    locationPrefix + ": " + msg,
+			Suggestion: "Give the widget a name, unique on the page.",
+		})
+	}
+	return out
 }
 
 // validateWidgetSubtree is validateWidgetTree for widgets that will be grafted
@@ -248,8 +259,6 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			// default; a non-default value there is CE0463.
 			out = append(out, validateWidgetItemVisibility(parent, w, mapping, registry, locationPrefix)...)
 		}
-		// Reported once per grid, not once per column — see the rule's comment.
-		out = append(out, validateDataGrid2ColumnNames(w, locationPrefix)...)
 		if len(w.Children) > 0 {
 			out = append(out, validateWidgetTreeIn(w.Children, registry, locationPrefix, objectListMappingSet(def), w, argContextForChildren(w, argCtx))...)
 		}
@@ -620,8 +629,8 @@ func validateObjectListItemEnums(w *ast.WidgetV3, mapping *ObjectListMapping, lo
 			RuleID:   "MDL-WIDGET08",
 			Severity: linter.SeverityError,
 			Message: fmt.Sprintf(
-				"%s: widget `%s` (%s) property `%s` has invalid value `%s` — valid values are %s",
-				locationPrefix, w.Name, w.Type, ip.PropertyKey, val, strings.Join(ip.EnumValues, ", "),
+				"%s: %s property `%s` has invalid value `%s` — valid values are %s",
+				locationPrefix, widgetLabel(w.Name, w.Type), ip.PropertyKey, val, strings.Join(ip.EnumValues, ", "),
 			),
 		})
 	}
@@ -776,8 +785,8 @@ func validateStaticWidgetUnknownProps(w *ast.WidgetV3, locationPrefix string) []
 			RuleID:   "MDL-WIDGET07",
 			Severity: linter.SeverityWarning,
 			Message: fmt.Sprintf(
-				"%s: widget `%s` (%s) property `%s` is not recognized and will be silently dropped on write%s",
-				locationPrefix, w.Name, w.Type, key, hint,
+				"%s: %s property `%s` is not recognized and will be silently dropped on write%s",
+				locationPrefix, widgetLabel(w.Name, w.Type), key, hint,
 			),
 		})
 	}
@@ -921,10 +930,10 @@ func validateConsumableConditional(w *ast.WidgetV3, locationPrefix string) []lin
 			RuleID:   "MDL-WIDGET19",
 			Severity: linter.SeverityError,
 			Message: fmt.Sprintf(
-				"%s: widget `%s` (%s) has a `%s` value that could not be parsed as a conditional expression "+
+				"%s: %s has a `%s` value that could not be parsed as a conditional expression "+
 					"and would be dropped on write (leaving the widget unconditionally %s) — "+
 					"check the expression inside `%s: [ ... ]`",
-				locationPrefix, w.Name, w.Type, strings.ToLower(p.plain),
+				locationPrefix, widgetLabel(w.Name, w.Type), strings.ToLower(p.plain),
 				map[string]string{"Visible": "visible", "Editable": "editable"}[p.plain],
 				strings.ToLower(p.plain),
 			),
@@ -1167,8 +1176,8 @@ func validateButtonCaptionPlaceholders(w *ast.WidgetV3, locationPrefix string) *
 		RuleID:   "MDL-WIDGET04",
 		Severity: linter.SeverityError,
 		Message: fmt.Sprintf(
-			"%s: widget `%s` (%s) caption references template placeholder {%d} but only %d parameter(s) are bound — bind it with `CaptionParams: [{%d} = <attr>]`. An orphaned placeholder fails the build (CE0720).",
-			locationPrefix, w.Name, strings.ToLower(w.Type), maxIdx, params, maxIdx,
+			"%s: %s caption references template placeholder {%d} but only %d parameter(s) are bound — bind it with `CaptionParams: [{%d} = <attr>]`. An orphaned placeholder fails the build (CE0720).",
+			locationPrefix, widgetLabel(w.Name, strings.ToLower(w.Type)), maxIdx, params, maxIdx,
 		),
 	}
 }
@@ -1212,9 +1221,9 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 				RuleID:   "MDL-WIDGET17",
 				Severity: linter.SeverityError,
 				Message: fmt.Sprintf(
-					"%s: widget `%s` (%s) has no `%s` property — the value is dropped on write and "+
+					"%s: %s has no `%s` property — the value is dropped on write and "+
 						"MxBuild then reports the property as missing. Use `%s:` instead",
-					locationPrefix, w.Name, def.MDLName, key, right),
+					locationPrefix, widgetLabel(w.Name, def.MDLName), key, right),
 			})
 			continue
 		}
@@ -1243,8 +1252,8 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 				RuleID:   "MDL-WIDGET05",
 				Severity: linter.SeverityError,
 				Message: fmt.Sprintf(
-					"%s: widget `%s` (%s) property `%s` is datasource-typed — give it a datasource (e.g. `%s: database from Module.Entity`) or use the widget `datasource:` clause; the value written here names an entity but is not a datasource, and is not persisted",
-					locationPrefix, w.Name, def.MDLName, key, key,
+					"%s: %s property `%s` is datasource-typed — give it a datasource (e.g. `%s: database from Module.Entity`) or use the widget `datasource:` clause; the value written here names an entity but is not a datasource, and is not persisted",
+					locationPrefix, widgetLabel(w.Name, def.MDLName), key, key,
 				),
 			})
 			continue
@@ -1257,8 +1266,8 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 				RuleID:   "MDL-WIDGET01",
 				Severity: linter.SeverityError,
 				Message: fmt.Sprintf(
-					"%s: widget `%s` (%s) property `%s` is the widget's internal storage name and is not written from MDL — use `%s:` instead",
-					locationPrefix, w.Name, def.MDLName, key, src,
+					"%s: %s property `%s` is the widget's internal storage name and is not written from MDL — use `%s:` instead",
+					locationPrefix, widgetLabel(w.Name, def.MDLName), key, src,
 				),
 			})
 			continue
@@ -1279,8 +1288,8 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 				RuleID:   "MDL-WIDGET06",
 				Severity: linter.SeverityWarning,
 				Message: fmt.Sprintf(
-					"%s: widget `%s` (%s) property `%s` is recognized but not yet persisted by mxcli — a non-default value will be dropped; set it in Studio Pro if needed",
-					locationPrefix, w.Name, def.MDLName, key,
+					"%s: %s property `%s` is recognized but not yet persisted by mxcli — a non-default value will be dropped; set it in Studio Pro if needed",
+					locationPrefix, widgetLabel(w.Name, def.MDLName), key,
 				),
 			})
 			continue
@@ -1295,8 +1304,8 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 			RuleID:   "MDL-WIDGET01",
 			Severity: linter.SeverityError,
 			Message: fmt.Sprintf(
-				"%s: widget `%s` (%s) has no property `%s`%s",
-				locationPrefix, w.Name, def.MDLName, key, hint,
+				"%s: %s has no property `%s`%s",
+				locationPrefix, widgetLabel(w.Name, def.MDLName), key, hint,
 			),
 		})
 	}
@@ -1588,83 +1597,6 @@ func min3(a, b, c int) int {
 		return b
 	}
 	return c
-}
-
-// validateDataGrid2ColumnNames warns (MDL-WIDGET16) that the names written on a
-// pluggable DataGrid 2's columns are discarded, and says what each column will
-// actually be addressable as.
-//
-// Mendix stores no name on a DataGrid 2 column. Its schema has no name or
-// identifier key at column level — the only human-facing label is `header`, the
-// caption — so the name in `column colLabel (attribute: Label, …)` reaches
-// DataGridColumnSpec, which has no field for it, and is dropped. Everything
-// downstream then addresses the column by a *derived* name: the bound attribute
-// for an attribute column, the sanitized caption otherwise, `colN` as a last
-// resort.
-//
-// The consequence is not obvious from the MDL. An author who wrote `colLabel`
-// reaches for `ALTER PAGE … ON dg1.colLabel` and gets "column not found" for a
-// column they just named, while `describe page` shows a name they never wrote.
-//
-// **One violation per grid, listing its columns.** The first version emitted one
-// per column, which a real project (mxcli-dbreplication, finding F6) reported as
-// 44 infos saying the same thing. It is one fact about the grid; repeating it
-// per column buries the rest of the report without adding information.
-//
-// It warns rather than rejects: the name is harmless, it reads as documentation
-// in the source, and rejecting it would break every existing script — mxcli's
-// own doctype tests name every column. What the author needs is to know which
-// name addresses it.
-func validateDataGrid2ColumnNames(grid *ast.WidgetV3, locationPrefix string) []linter.Violation {
-	if grid == nil || !strings.EqualFold(grid.Type, "DATAGRID") {
-		return nil
-	}
-	var renamed []string
-	for _, child := range grid.Children {
-		if child == nil || !strings.EqualFold(child.Type, "COLUMN") || child.Name == "" {
-			continue
-		}
-		addressable := derivedDataGrid2ColumnName(child)
-		if addressable == "" || strings.EqualFold(addressable, child.Name) {
-			continue
-		}
-		renamed = append(renamed, fmt.Sprintf("%s → %s", child.Name, addressable))
-	}
-	if len(renamed) == 0 {
-		return nil
-	}
-	return []linter.Violation{{
-		RuleID:   "MDL-WIDGET16",
-		Severity: linter.SeverityInfo,
-		Message: fmt.Sprintf(
-			"%s: DataGrid 2 stores no column names, so the names on %s are dropped on write. "+
-				"Address these columns by their derived name in ALTER PAGE (attribute columns "+
-				"key on the bound attribute, others on the caption), and expect DESCRIBE to "+
-				"show it: %s.",
-			locationPrefix, grid.Name, strings.Join(renamed, ", ")),
-	}}
-}
-
-// derivedDataGrid2ColumnName mirrors the name derivation the writer and the page
-// mutator apply, so the warning names the same string ALTER will accept.
-// Deliberately conservative: when it cannot tell (no attribute, no caption — the
-// colN case, which depends on position) it returns "" and nothing is reported,
-// because a wrong name in the message would be worse than none.
-func derivedDataGrid2ColumnName(w *ast.WidgetV3) string {
-	if attr := w.GetAttribute(); attr != "" {
-		parts := strings.Split(attr, ".")
-		return parts[len(parts)-1]
-	}
-	if caption := w.GetCaption(); caption != "" {
-		sanitized := strings.Map(func(r rune) rune {
-			if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' {
-				return r
-			}
-			return '_'
-		}, caption)
-		return strings.Trim(sanitized, "_")
-	}
-	return ""
 }
 
 // builtinPropertyMisuse names builtin MDL properties that are wrong on a

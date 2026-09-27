@@ -41,6 +41,8 @@ func (t AlterTarget) String() string {
 	var s string
 	if t.Caption != "" {
 		s = "'" + strings.ReplaceAll(t.Caption, "'", "''") + "'"
+	} else if len(t.Path) == 2 {
+		s = joinColumnAddress(t.Path[0], t.Path[1])
 	} else {
 		s = strings.Join(t.Path, ".")
 	}
@@ -129,12 +131,14 @@ func CheckPageAlterTarget(t AlterTarget) error {
 	case t.Caption != "":
 		return &AlterTargetError{Target: t, Detail: fmt.Sprintf(
 			"alter target %s: a page, snippet or layout element is addressed by name "+
-				"(`btnSave`, `grid.Column`, `layoutContainer.top`), not by caption — "+
+				"(`btnSave`, `layoutContainer.top`), and a grid column by what it shows "+
+				"(`grid column(Attr)`, `grid column('Caption')`), not by a bare caption — "+
 				"`describe` prints every widget's name", t)}
 	case t.Ordinal > 0:
 		return &AlterTargetError{Target: t, Detail: fmt.Sprintf(
 			"alter target %s: @%d chooses among several matches, and a widget name is unique "+
-				"within its page — drop the @%d; for a column that two grids share, qualify it as `grid.Column`",
+				"within its page — drop the @%d; to choose among grid columns that share an address, "+
+				"put it on the column: `grid column(Attr)@n`",
 			t, t.Ordinal, t.Ordinal)}
 	case len(t.Path) == 0 || len(t.Path) > 2:
 		return &AlterTargetError{Target: t, Detail: fmt.Sprintf(

@@ -490,6 +490,10 @@ type Builder struct {
 	// deprecations collects every use of a deprecated spelling — see
 	// visitor_deprecations.go.
 	deprecations []ast.DeprecatedSpelling
+	// widgetNameSpans remembers where each widget's name was written, until its
+	// parent decides whether the model stores it — see
+	// visitor_unstored_widget_name.go.
+	widgetNameSpans map[*ast.WidgetV3]widgetNameSpan
 
 	// inLayout is set while a CREATE LAYOUT body is being built. The page body
 	// builder serves both documents and cannot otherwise tell which it is in,

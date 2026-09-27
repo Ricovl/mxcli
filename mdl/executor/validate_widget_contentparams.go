@@ -37,9 +37,9 @@ func validatePluggableContentParams(w *ast.WidgetV3, locationPrefix string) []li
 		RuleID:   "MDL-WIDGET21",
 		Severity: linter.SeverityWarning,
 		Message: fmt.Sprintf(
-			"%s: widget `%s` (%s) has `contentparams` but no property text contains a `{1}`-style "+
+			"%s: %s has `contentparams` but no property text contains a `{1}`-style "+
 				"placeholder to use them, so they are dropped on write",
-			locationPrefix, w.Name, w.Type,
+			locationPrefix, widgetLabel(w.Name, w.Type),
 		),
 		Suggestion: "Put a numbered placeholder in the text property (e.g. `imageUrl: '{1}'`), or drop " +
 			"the contentparams — a single attribute can also be written inline as `'{AttrName}'`",
@@ -86,9 +86,9 @@ func validatePluggableTemplateParams(w *ast.WidgetV3, locationPrefix string) []l
 			RuleID:   "MDL-WIDGET21",
 			Severity: linter.SeverityWarning,
 			Message: fmt.Sprintf(
-				"%s: widget `%s` (%s) has `%s` but `%s` contains no `{1}`-style placeholder to use "+
+				"%s: %s has `%s` but `%s` contains no `{1}`-style placeholder to use "+
 					"it, so the binding is dropped on write and the text renders literally",
-				locationPrefix, w.Name, w.Type, key, base,
+				locationPrefix, widgetLabel(w.Name, w.Type), key, base,
 			),
 			Suggestion: fmt.Sprintf(
 				"Write the text as a template, e.g. `%s: '{1}', %s: [{1} = <attr>]`", base, key),
