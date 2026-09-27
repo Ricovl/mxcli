@@ -4,6 +4,7 @@ package visitor
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -138,6 +139,58 @@ func TestAlterWorkflowTargeting_BracketedXPath(t *testing.T) {
 		}
 		if got := deprecationCodes(prog); !reflect.DeepEqual(got, tc.codes) {
 			t.Errorf("%q: recorded %v, want %v", tc.src, got, tc.codes)
+		}
+	}
+}
+
+// The bracketed XPath is lifted from the source text, which carries whatever
+// the lexer sent to a hidden channel. An MDL comment is not XPath: stored, it
+// fails the build with CE0161 "Error(s) in XPath constraint" (measured with
+// mx check on 11.13 under production security). Every other bracketed XPath
+// (retrieve, navigation) strips them.
+func TestGrantEntity_CommentsAreNotStored(t *testing.T) {
+	for _, src := range []string{
+		"grant read * on entity M.E to M.R where [A = 1] /* why */ [B = 2];",
+		"grant read * on entity M.E to M.R where [A = 1 -- why\n][B = 2];",
+	} {
+		g, _ := grantStmt(t, src)
+		if strings.Contains(g.XPathConstraint, "why") || !strings.HasPrefix(g.XPathConstraint, "[A = 1") ||
+			!strings.HasSuffix(g.XPathConstraint, "[B = 2]") {
+			t.Errorf("%q: XPathConstraint = %q, want both groups and no comment", src, g.XPathConstraint)
+		}
+	}
+	got, _ := userTaskTargeting(t, "targeting xpath [Name = 'x'] /* why */")
+	if got.XPath != "[Name = 'x']" {
+		t.Errorf("targeting XPath = %q, want the comment dropped", got.XPath)
+	}
+}
+
+// A bare [%Token%] used as a value must be quoted or Studio Pro rejects the
+// constraint with CE0161 (#641; measured on an entity access rule, 11.13,
+// production security). Every other bracketed XPath quotes it on the way in.
+func TestBracketedXPath_BareTokenIsQuoted(t *testing.T) {
+	g, _ := grantStmt(t, "grant read * on entity M.E to M.R where [D < [%CurrentDateTime%]];")
+	if g.XPathConstraint != "[D < '[%CurrentDateTime%]']" {
+		t.Errorf("grant XPathConstraint = %q", g.XPathConstraint)
+	}
+	got, _ := userTaskTargeting(t, "targeting xpath [System.UserRoles = [%UserRole_Banker%]]")
+	if got.XPath != "[System.UserRoles = '[%UserRole_Banker%]']" {
+		t.Errorf("targeting XPath = %q", got.XPath)
+	}
+}
+
+// IsBracketedXPath answers "would `where <s>` store s": a value the bracketed
+// form would change on the way in (a comment, a bare token) is not one, so
+// describe falls back to the quoted form and fmt --upgrade reports it.
+func TestIsBracketedXPath_OnlyWhatStoresVerbatim(t *testing.T) {
+	for s, want := range map[string]bool{
+		"[a = 1][b = '[%CurrentUser%]']": true,
+		"[a = 1] /* c */ [b = 2]":        false,
+		"[D < [%CurrentDateTime%]]":      false,
+		"[Name = 'a -- b']":              true,
+	} {
+		if got := IsBracketedXPath(s); got != want {
+			t.Errorf("IsBracketedXPath(%q) = %v, want %v", s, got, want)
 		}
 	}
 }

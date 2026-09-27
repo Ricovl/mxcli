@@ -64,3 +64,17 @@ func TestUpgrade_XPathNotBracketedIsReported(t *testing.T) {
 		}
 	}
 }
+
+// A quoted value the bracketed form would store differently (a bare token is
+// quoted on the way in) is reported, not rewritten: the rewrite must not
+// change what is stored.
+func TestUpgrade_XPathThatWouldChangeIsReported(t *testing.T) {
+	src := "grant M.R on M.E (read *) where '[D < [%CurrentDateTime%]]';"
+	res := mustUpgrade(t, src, Options{})
+	if res.Source != src {
+		t.Errorf("rewritten to %q", res.Source)
+	}
+	if len(res.Unrewritten) != 1 || res.Unrewritten[0].Code != deprecation.ReversedEntityGrant {
+		t.Errorf("Unrewritten = %+v, want one %s", res.Unrewritten, deprecation.ReversedEntityGrant)
+	}
+}

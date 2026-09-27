@@ -20,9 +20,19 @@ import (
 // MDL-DEPR031) whose rewrite takes the XPath out of its string.
 
 // bracketedXPathText is the source text of a run of xpathConstraint groups,
-// from the first `[` to the last `]`, exactly as written. Mendix stores sibling
-// groups concatenated (`[a][b]`), so the run is one constraint.
+// from the first `[` to the last `]`, as written. Mendix stores sibling groups
+// concatenated (`[a][b]`), so the run is one constraint. Two things are not
+// XPath and come off on the way in, as they do for every other bracketed XPath
+// (retrieve, navigation): an MDL comment, which the source span drags along
+// from the hidden channel, and the missing quotes around a bare [%Token%]
+// value (#641). Stored, either fails the build with CE0161.
 func bracketedXPathText(groups []parser.IXpathConstraintContext) string {
+	return normalizeXPathTokens(stripMDLComments(bracketedXPathSource(groups)))
+}
+
+// bracketedXPathSource is the raw source span of a run of xpathConstraint
+// groups, from the first `[` to the last `]`.
+func bracketedXPathSource(groups []parser.IXpathConstraintContext) string {
 	if len(groups) == 0 {
 		return ""
 	}
@@ -39,12 +49,17 @@ func bracketedXPathText(groups []parser.IXpathConstraintContext) string {
 
 // IsBracketedXPath reports whether s, written after `where` or `xpath`, parses
 // as one or more bracketed XPath predicate groups and nothing else — not even
-// surrounding whitespace, which the bracketed form could not carry. Describe
+// surrounding whitespace, which the bracketed form could not carry — and would
+// be stored exactly as written: a value holding what the bracketed form strips
+// or quotes on the way in (a comment, a bare [%Token%]) is not one. Describe
 // asks it before writing a stored constraint in [ ]; a stored value that does
 // not parse is written in the deprecated quoted form instead, which keeps the
 // output re-executable. The rewrite of the quoted form asks it too.
 func IsBracketedXPath(s string) bool {
 	if !strings.HasPrefix(s, "[") || !strings.HasSuffix(s, "]") {
+		return false
+	}
+	if normalizeXPathTokens(stripMDLComments(s)) != s {
 		return false
 	}
 	lexer := parser.NewMDLLexer(antlr.NewInputStream(s))
@@ -77,8 +92,9 @@ func (l *countingErrorListener) SyntaxError(antlr.Recognizer, any, int, int, str
 
 // quotedXPathFix is the rewrite of a quoted XPath to the bracketed form: the
 // string literal is replaced by its value. It has none when the value is not
-// a bracketed XPath (the brackets are the syntax now, so a value without them
-// would change what is stored), or when the literal holds an mdl 0 escape,
+// a bracketed XPath stored as written (the brackets are the syntax now, so a
+// value without them, or one the bracketed form would quote or strip, would
+// change what is stored), or when the literal holds an mdl 0 escape,
 // which the string-escape rewrite edits in place.
 func quotedXPathFix(lit antlr.TerminalNode) ([]ast.TextEdit, string) {
 	if holdsInterpretedEscape(lit) {
@@ -86,7 +102,7 @@ func quotedXPathFix(lit antlr.TerminalNode) ([]ast.TextEdit, string) {
 	}
 	value := unquoteStringLit(lit)
 	if !IsBracketedXPath(value) {
-		return nil, "the XPath string's value " + lit.GetText() + " is not one or more [ ] predicate groups; " +
+		return nil, "the XPath string's value " + lit.GetText() + " is not one or more [ ] predicate groups that store as written; " +
 			"write it in [ ] by hand"
 	}
 	t := lit.GetSymbol()
