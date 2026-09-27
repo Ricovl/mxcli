@@ -419,13 +419,21 @@ rollbackStatement
     : ROLLBACK VARIABLE REFRESH?
     ;
 
-// RETRIEVE $ProductList FROM MfTest.Product WHERE Code = $SearchCode SORT BY Name ASC LIMIT 1;
+// RETRIEVE $Product FROM MfTest.Product WHERE Code = $SearchCode SORT BY Name ASC FIRST;
+// RETRIEVE $Top FROM MfTest.Product SORT BY Price DESC LIMIT 10 OFFSET 20;
+//
+// FIRST is Mendix's "First object" range: it binds ONE object, and Mendix gives
+// it no offset. LIMIT/OFFSET is the Custom range and always binds a list.
+// `LIMIT 1` without OFFSET is version-gated (ako/mxcli#734): under `mdl 1;` it is
+// a list of one, without the header it keeps its alpha meaning, the object, and
+// warns MDL-V1-LIMIT1. The same split as `import from mapping … first | limit n`.
 retrieveStatement
     : RETRIEVE VARIABLE FROM retrieveSource
       (WHERE (xpathConstraint (andOrXpath? xpathConstraint)* | expression))?
       (SORT_BY sortColumn (COMMA sortColumn)*)?
-      (LIMIT limitExpr=expression)?
-      (OFFSET offsetExpr=expression)?
+      ( FIRST
+      | (LIMIT limitExpr=expression)? (OFFSET offsetExpr=expression)?
+      )
       onErrorClause?
     ;
 

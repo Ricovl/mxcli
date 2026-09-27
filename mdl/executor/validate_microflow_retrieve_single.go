@@ -9,45 +9,47 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/linter"
 )
 
-// retrieveSingleRule is the rule ID for "a LIMIT 1 retrieve used as a list".
+// retrieveSingleRule is the rule ID for "an object-range retrieve used as a list".
 const retrieveSingleRule = "MDL-RETRIEVE01"
 
-// checkRetrieveLimitOneAsList flags a variable that `RETRIEVE … LIMIT 1` bound to
-// a single OBJECT and a later statement uses as a LIST.
+// checkRetrieveLimitOneAsList flags a variable that a retrieve bound to a single
+// OBJECT and a later statement uses as a LIST.
 //
-// `limit 1` is not a one-element list here. The executor maps it to Mendix's
-// "First object" range (RangeTypeFirst, cmd_microflows_builder_actions.go), which
-// makes the output variable an object — and that is deliberate and documented
-// (MDL_QUICK_REFERENCE.md), not something to change under anyone's feet.
+// The object range is Mendix's "First object" range, written `retrieve … first`
+// in every language version, and `retrieve … limit 1` in a script without the
+// `mdl 1;` header, where `limit 1` keeps its alpha meaning (ako/mxcli#734). The
+// visitor resolves both to RetrieveStmt.First, which is what the writer stores
+// too, so the rule keys on it and never on limit text: a check that disagrees
+// with the writer it describes is worse than no check.
 //
-// What was missing is any sign of it before the build. Nothing in the MDL says
-// the variable changed shape: `mxcli check --references` passed, and DESCRIBE
-// re-emits `limit 1`, so the source of an object retrieve and a list retrieve are
-// identical text. The first thing the author saw was CE0097 "The selected 'x'
-// variable must be of type List" from mxbuild — and inside a .test.mdl file, not
-// even that: the injected test simply failed to build (mendixlabs/mxcli#1103).
-//
-// The clause is also spelled the other way round elsewhere in the same language —
-// `import from mapping … first` binds an object and `… limit 1` a one-element
-// list — so reading it as a list is a reasonable mistake rather than a careless
-// one. The message therefore names the working spelling instead of only refusing.
-//
-// Keyed on exactly the condition the writer uses (limit "1", no offset), because
-// a check that disagrees with the writer it describes is worse than no check.
+// Before #734 this rule was the only sign of the object: describe re-emitted
+// `limit 1` for it, so an object retrieve and a list retrieve were identical text,
+// and the first thing the author saw was CE0097 from mxbuild — inside a
+// .test.mdl, not even that (mendixlabs/mxcli#1103). describe now prints `first`
+// and an mdl 0 `limit 1` warns MDL-V1-LIMIT1, so the spelling says it; the rule
+// stays for the mistake that is left, treating an object as a list, which
+// check --references does not otherwise catch before the build.
 func (v *microflowValidator) checkRetrieveLimitOneAsList(body []ast.MicroflowStatement) {
-	// single holds the variables currently bound to one object by a LIMIT 1
-	// retrieve. Maintained in statement order so a rebinding clears it: a name
-	// reused for a real list further down is not this rule's business.
+	// single holds the variables currently bound to one object by an
+	// object-range retrieve. Maintained in statement order so a rebinding
+	// clears it: a name reused for a real list further down is not this rule's
+	// business.
 	single := map[string]bool{}
 
 	forEachMicroflowStatement(body, func(s ast.MicroflowStatement) {
 		if name, op := listUseOf(s); name != "" && single[name] {
+			// Measured on 11.13: a loop reports CE0100, a list activity CE0097.
+			rejection := fmt.Sprintf("CE0097 \"The selected '%s' variable must be of type List\"", name)
+			if op == "a loop" {
+				rejection = fmt.Sprintf("CE0100 \"'%s' is of type …, but should be of type List\"", name)
+			}
 			v.addViolation(retrieveSingleRule, linter.SeverityError,
-				fmt.Sprintf("$%s was retrieved with LIMIT 1, which binds a single object rather than a "+
-					"one-element list, so %s cannot take it — mxbuild rejects this with CE0097 "+
-					"\"The selected '%s' variable must be of type List\".", name, op, name),
-				fmt.Sprintf("Drop the LIMIT to retrieve a list and keep %s, or keep LIMIT 1 and use "+
-					"$%s as the object it already is.", op, name))
+				fmt.Sprintf("$%s was retrieved as a single object (`first`, which is also what `limit 1` "+
+					"means in a script without the `mdl 1;` header), not a list, so %s cannot take it — "+
+					"mxbuild rejects this with %s.", name, op, rejection),
+				fmt.Sprintf("Retrieve a list instead (no range, or under `mdl 1;` `limit 1` for a list of "+
+					"one) and keep %s, or keep the object range and use $%s as the object it already is.",
+					op, name))
 		}
 
 		// Rebinding first, so a statement that both consumes and produces the
@@ -55,7 +57,7 @@ func (v *microflowValidator) checkRetrieveLimitOneAsList(body []ast.MicroflowSta
 		for _, p := range statementProducedVars(s) {
 			delete(single, p.name)
 		}
-		if r, ok := s.(*ast.RetrieveStmt); ok && r.Limit == "1" && r.Offset == "" && r.Variable != "" {
+		if r, ok := s.(*ast.RetrieveStmt); ok && r.First && r.StartVariable == "" && r.Variable != "" {
 			single[r.Variable] = true
 		}
 	})

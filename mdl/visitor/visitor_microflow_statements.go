@@ -1392,8 +1392,12 @@ func buildRetrieveStatement(ctx parser.IRetrieveStatementContext) *ast.RetrieveS
 		}
 	}
 
-	// Get LIMIT and OFFSET expressions
-	if limitExpr := retrCtx.GetLimitExpr(); limitExpr != nil {
+	// The range. `first` is the object range in every version; a bare
+	// `limit 1` is too in an mdl 0 script, and a list of one under mdl 1
+	// (limitOneIsAList). Resolved here so nothing downstream reads limit text.
+	if retrCtx.FIRST() != nil || retrieveLimitOneIsObject(retrCtx) {
+		stmt.First = true
+	} else if limitExpr := retrCtx.GetLimitExpr(); limitExpr != nil {
 		stmt.Limit = retrieveRangeExpressionSource(limitExpr) + retrieveLimitTrailingWhitespace(retrCtx, limitExpr)
 	}
 	if offsetExpr := retrCtx.GetOffsetExpr(); offsetExpr != nil {

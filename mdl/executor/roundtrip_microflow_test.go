@@ -369,7 +369,9 @@ begin
 end;`
 
 	assertMicroflowContains(t, env, mfName, createMDL,
-		[]string{"retrieve", "RoundtripTest.MfTestItem", "limit 1", "return"},
+		// No header, so `limit 1` is the object range, which describe
+		// prints as `first` (ako/mxcli#734).
+		[]string{"retrieve", "RoundtripTest.MfTestItem", "first", "return"},
 		nil,
 	)
 }

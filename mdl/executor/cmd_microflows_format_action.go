@@ -543,7 +543,11 @@ func formatAction(
 			if dbSource.Range != nil {
 				switch dbSource.Range.RangeType {
 				case microflows.RangeTypeFirst:
-					stmt += "\n    limit 1"
+					// `first`, not `limit 1`: under mdl 1 `limit 1` is a list of
+					// one, and `first` means the object in every version, so the
+					// output reads back to this range whatever the reader's
+					// header (ako/mxcli#734).
+					stmt += "\n    first"
 				case microflows.RangeTypeCustom:
 					if dbSource.Range.Limit != "" {
 						stmt += fmt.Sprintf("\n    limit %s", dbSource.Range.Limit)
