@@ -598,14 +598,14 @@ func extractAnnotationValueString(ctx parser.IAnnotationValueContext) string {
 	if lit := valCtx.Literal(); lit != nil {
 		litCtx := lit.(*parser.LiteralContext)
 		if litCtx.STRING_LITERAL() != nil {
-			return unquoteString(litCtx.STRING_LITERAL().GetText())
+			return unquoteStringLit(litCtx.STRING_LITERAL())
 		}
 	}
 	// Also try expression — it might be a string literal parsed as expression
 	if expr := valCtx.Expression(); expr != nil {
 		text := expr.GetText()
 		if len(text) >= 2 && text[0] == '\'' && text[len(text)-1] == '\'' {
-			return unquoteString(text)
+			return unquoteStringLit(expr)
 		}
 	}
 	return ""

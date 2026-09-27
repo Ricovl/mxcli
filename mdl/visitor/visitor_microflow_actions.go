@@ -543,7 +543,7 @@ func buildCallWebServiceStatement(ctx parser.ICallWebServiceStatementContext) *a
 
 	if callCtx.RAW() != nil {
 		if lit := callCtx.STRING_LITERAL(); lit != nil {
-			stmt.RawBSONBase64 = unquoteString(lit.GetText())
+			stmt.RawBSONBase64 = unquoteStringLit(lit)
 		}
 		if errClause := callCtx.OnErrorClause(); errClause != nil {
 			stmt.ErrorHandling = buildOnErrorClause(errClause)
@@ -593,7 +593,7 @@ func webServiceReferenceText(ctx parser.IWebServiceReferenceContext) string {
 	}
 	refCtx := ctx.(*parser.WebServiceReferenceContext)
 	if lit := refCtx.STRING_LITERAL(); lit != nil {
-		return unquoteString(lit.GetText())
+		return unquoteStringLit(lit)
 	}
 	return getQualifiedNameText(refCtx.QualifiedName())
 }
@@ -620,7 +620,7 @@ func buildExecuteDatabaseQueryStatement(ctx parser.IExecuteDatabaseQueryStatemen
 	// Get dynamic query if present
 	if execCtx.DYNAMIC() != nil {
 		if sl := execCtx.STRING_LITERAL(); sl != nil {
-			stmt.DynamicQuery = unquoteString(sl.GetText())
+			stmt.DynamicQuery = unquoteStringLit(sl)
 		} else if ds := execCtx.DOLLAR_STRING(); ds != nil {
 			stmt.DynamicQuery = unquoteDollarString(ds.GetText())
 		} else if expr := execCtx.Expression(); expr != nil {
@@ -1493,7 +1493,7 @@ func buildRestCallStatement(ctx parser.IRestCallStatementContext) *ast.RestCallS
 		if strLit := urlC.STRING_LITERAL(); strLit != nil {
 			stmt.URL = &ast.LiteralExpr{
 				Kind:  ast.LiteralString,
-				Value: unquoteString(strLit.GetText()),
+				Value: unquoteStringLit(strLit),
 			}
 		} else if expr := urlC.Expression(); expr != nil {
 			stmt.URL = buildSourceExpression(expr)
@@ -1516,7 +1516,7 @@ func buildRestCallStatement(ctx parser.IRestCallStatementContext) *ast.RestCallS
 			header.Name = id.GetText()
 		} else if strLit := hdrCtx.STRING_LITERAL(); strLit != nil {
 			// Handle quoted header names like 'Content-Type'
-			header.Name = unquoteString(strLit.GetText())
+			header.Name = unquoteStringLit(strLit)
 		}
 		if expr := hdrCtx.Expression(); expr != nil {
 			header.Value = buildSourceExpression(expr)
@@ -1564,7 +1564,7 @@ func buildRestCallStatement(ctx parser.IRestCallStatementContext) *ast.RestCallS
 			if strLit := bodyCtx.STRING_LITERAL(); strLit != nil {
 				body.Template = &ast.LiteralExpr{
 					Kind:  ast.LiteralString,
-					Value: unquoteString(strLit.GetText()),
+					Value: unquoteStringLit(strLit),
 				}
 			} else if expr := bodyCtx.Expression(); expr != nil {
 				body.Template = buildSourceExpression(expr)

@@ -23,6 +23,21 @@ var strictParsingCases = []struct {
 }{
 	{"missing semicolon", "show modules\nshow entities;", "MDL-V1-SEMI", "no terminating `;`"},
 	{"slash terminator", "show modules;\n/\nshow entities;", "MDL-V1-SLASH", "`/` is not a statement terminator"},
+	// A change of meaning, not a rejection: see TestStringEscapeUnderEachVersion.
+	{"backslash escape", "show modules;\ncreate persistent entity M.N (T: String(20) default 'C:\\temp');", "MDL-V1-ESCAPE", ""},
+}
+
+// countStatements registers handlers that count what exec runs.
+func countStatements(e *Executor, ran *int, defaults *[]any) {
+	e.registry.handlers[reflect.TypeOf(&ast.ShowStmt{})] = func(*ExecContext, ast.Statement) error {
+		*ran++
+		return nil
+	}
+	e.registry.handlers[reflect.TypeOf(&ast.CreateEntityStmt{})] = func(_ *ExecContext, s ast.Statement) error {
+		*ran++
+		*defaults = append(*defaults, s.(*ast.CreateEntityStmt).Attributes[0].DefaultValue)
+		return nil
+	}
 }
 
 func TestStrictParsingWarnsUnderMdl0AndRunsTheScript(t *testing.T) {
@@ -47,10 +62,8 @@ func TestStrictParsingWarnsUnderMdl0AndRunsTheScript(t *testing.T) {
 
 			e := New(io.Discard)
 			var ran int
-			e.registry.handlers[reflect.TypeOf(&ast.ShowStmt{})] = func(*ExecContext, ast.Statement) error {
-				ran++
-				return nil
-			}
+			var defaults []any
+			countStatements(e, &ran, &defaults)
 			if err := e.ExecuteProgram(prog); err != nil {
 				t.Fatal(err)
 			}
@@ -63,6 +76,9 @@ func TestStrictParsingWarnsUnderMdl0AndRunsTheScript(t *testing.T) {
 
 func TestStrictParsingRefusedUnderMdl1(t *testing.T) {
 	for _, tc := range strictParsingCases {
+		if tc.refusal == "" {
+			continue
+		}
 		t.Run(tc.name, func(t *testing.T) {
 			_, errs := visitor.Build("mdl 1;\n" + tc.src)
 			var refused bool
@@ -73,5 +89,26 @@ func TestStrictParsingRefusedUnderMdl1(t *testing.T) {
 				t.Fatalf("mdl 1 must refuse it with %q, got %v\n%s", tc.refusal, errs, tc.src)
 			}
 		})
+	}
+}
+
+// Under mdl 0 exec stores the backslash escape's old value (a tab); under
+// mdl 1 the backslash is the character written.
+func TestStringEscapeUnderEachVersion(t *testing.T) {
+	for header, want := range map[string]string{"": "C:\temp", "mdl 1;\n": `C:\temp`} {
+		prog, errs := visitor.Build(header + "create persistent entity M.N (T: String(20) default 'C:\\temp');")
+		if len(errs) > 0 {
+			t.Fatal(errs)
+		}
+		e := New(io.Discard)
+		var ran int
+		var defaults []any
+		countStatements(e, &ran, &defaults)
+		if err := e.ExecuteProgram(prog); err != nil {
+			t.Fatal(err)
+		}
+		if len(defaults) != 1 || defaults[0] != want {
+			t.Errorf("%q: exec saw default %q, want %q", header, defaults, want)
+		}
 	}
 }

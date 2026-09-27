@@ -12,6 +12,21 @@ lexer grammar MDLLexer;
 // code, so these are methods on the generated lexer; the predicates below call
 // them through the receiver `p` the generator names.
 @lexer::members {
+// StrictEscapeStream is the character stream of a script written in mdl 1 or
+// later, where `''` is the only escape in a string literal and a backslash is
+// an ordinary character (ADR-0010 R11). The escape rule changes where a
+// literal ENDS — `'C:\'` is complete under mdl 1 and unterminated under mdl
+// 0 — so it has to be decided before lexing, from the `mdl <n>;` header, and
+// travel with the stream: every token keeps its stream, which is how the
+// visitor reads a literal's value under the same rule it was lexed with.
+type StrictEscapeStream struct{ antlr.CharStream }
+
+// HasStrictEscapes reports whether in is lexed under mdl 1's string rules.
+func HasStrictEscapes(in antlr.CharStream) bool {
+	_, ok := in.(*StrictEscapeStream)
+	return ok
+}
+
 // isTrailingComma reports whether the ',' just matched ends a bracketed list:
 // the next significant character closes a (), {} or [] (whitespace and
 // comments skipped), and the one before it neither opens a list nor is another
@@ -951,9 +966,14 @@ HASH: '#';
 // Mendix token: [%TokenName%] or [%'literal'%]
 MENDIX_TOKEN: '[%' .*? '%]';
 
-// String literals (single-quoted, with escape support)
+// String literals, single-quoted. `''` is an apostrophe under every language
+// version. Under mdl 0 a backslash also escapes the next character (`\'`,
+// `\n`, `\\`, …); from mdl 1 it is an ordinary character, as in a Mendix
+// expression, so `'C:\temp'` is the path it looks like (ADR-0010 R11). Which
+// rule applies is fixed by the stream the script is lexed from: see
+// StrictEscapeStream.
 STRING_LITERAL
-    : '\'' ( ~['\\] | '\\' . | '\'\'' )* '\''
+    : '\'' ( ~['\\] | '\'\'' | '\\' {!HasStrictEscapes(p.GetInputStream())}? . | '\\' {HasStrictEscapes(p.GetInputStream())}? )* '\''
     ;
 
 // Dollar-quoted string literal (PostgreSQL style) for embedding code blocks

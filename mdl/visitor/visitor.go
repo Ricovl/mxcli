@@ -542,8 +542,7 @@ func build(input string, listen func(*Builder) antlr.ParseTreeListener) (*ast.Pr
 	errListener.source = strings.Split(input, "\n")
 
 	// Create lexer with custom error listener
-	is := antlr.NewInputStream(input)
-	lexer := parser.NewMDLLexer(is)
+	lexer := parser.NewMDLLexer(newScriptStream(input))
 	lexer.RemoveErrorListeners()
 	lexer.AddErrorListener(errListener)
 
@@ -557,6 +556,7 @@ func build(input string, listen func(*Builder) antlr.ParseTreeListener) (*ast.Pr
 	builder := NewBuilder()
 	tree := p.Program()
 	antlr.ParseTreeWalkerDefault.Walk(listen(builder), tree)
+	builder.noteBackslashEscapes(stream.GetAllTokens())
 
 	// Combine syntax errors and builder errors
 	allErrors := append(errListener.errors, builder.errors...)

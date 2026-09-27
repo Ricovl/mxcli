@@ -22,6 +22,8 @@ package langver
 import (
 	"fmt"
 	"regexp"
+	"strconv"
+	"strings"
 )
 
 // Version is an MDL language version, the number in `mdl <n>;`.
@@ -131,4 +133,74 @@ func (c Change) Warning(v Version) string {
 	return fmt.Sprintf("%s under %s; under %s it means %s. "+
 		"Start the script with `%s;` to opt in, or keep this meaning explicitly.",
 		c.Old, v, c.Since, c.New, c.Since)
+}
+
+// ScanHeader reads the language version from the `mdl <n>;` header src starts
+// with, before it is parsed. It is for the one decision that has to be made
+// before lexing: under mdl 1 a backslash in a string literal is an ordinary
+// character, which changes where the literal ends (ADR-0010 R11).
+//
+// It reads the header exactly as the grammar does — the first statement,
+// after any whitespace, `--` and `/* */` comments, with the same between its
+// tokens — and returns V0 when there is none. A header naming a version this
+// mxcli does not know also returns V0: the parser refuses the script anyway.
+func ScanHeader(src string) Version {
+	i := skipTrivia(src, 0)
+	j := i
+	for j < len(src) && isIdentByte(src[j]) {
+		j++
+	}
+	if !strings.EqualFold(src[i:j], "mdl") {
+		return V0
+	}
+	i = skipTrivia(src, j)
+	j = i
+	for j < len(src) && src[j] >= '0' && src[j] <= '9' {
+		j++
+	}
+	if j == i || (j < len(src) && (isIdentByte(src[j]) || src[j] == '.')) {
+		return V0
+	}
+	n, err := strconv.Atoi(src[i:j])
+	if err != nil {
+		return V0
+	}
+	if k := skipTrivia(src, j); k >= len(src) || src[k] != ';' {
+		return V0
+	}
+	if v := Version(n); v.Known() {
+		return v
+	}
+	return V0
+}
+
+// skipTrivia returns the index of the first byte at or after i that is not
+// whitespace or inside a `--` or `/* */` comment. A `/** */` doc comment is a
+// token, not trivia, so it stops the scan.
+func skipTrivia(src string, i int) int {
+	for i < len(src) {
+		switch {
+		case src[i] == ' ' || src[i] == '\t' || src[i] == '\r' || src[i] == '\n' || src[i] == '\v' || src[i] == '\f':
+			i++
+		case strings.HasPrefix(src[i:], "--"):
+			if nl := strings.IndexByte(src[i:], '\n'); nl >= 0 {
+				i += nl + 1
+			} else {
+				return len(src)
+			}
+		case strings.HasPrefix(src[i:], "/*") && !strings.HasPrefix(src[i:], "/**"):
+			end := strings.Index(src[i+2:], "*/")
+			if end < 0 {
+				return len(src)
+			}
+			i += 2 + end + 2
+		default:
+			return i
+		}
+	}
+	return i
+}
+
+func isIdentByte(c byte) bool {
+	return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c >= 0x80
 }

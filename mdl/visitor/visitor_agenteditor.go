@@ -20,7 +20,7 @@ func (b *Builder) ExitCreateModelStatement(ctx *parser.CreateModelStatementConte
 	}
 	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
 	for _, p := range ctx.AllModelProperty() {
@@ -44,27 +44,27 @@ func (b *Builder) ExitCreateModelStatement(ctx *parser.CreateModelStatementConte
 			}
 		case "displayname":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.DisplayName = unquoteString(lit.GetText())
+				stmt.DisplayName = unquoteStringLit(lit)
 			}
 		case "keyname":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.KeyName = unquoteString(lit.GetText())
+				stmt.KeyName = unquoteStringLit(lit)
 			}
 		case "keyid":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.KeyID = unquoteString(lit.GetText())
+				stmt.KeyID = unquoteStringLit(lit)
 			}
 		case "environment":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.Environment = unquoteString(lit.GetText())
+				stmt.Environment = unquoteStringLit(lit)
 			}
 		case "resourcename":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.ResourceName = unquoteString(lit.GetText())
+				stmt.ResourceName = unquoteStringLit(lit)
 			}
 		case "deeplinkurl":
 			if lit := propCtx.STRING_LITERAL(); lit != nil {
-				stmt.DeepLinkURL = unquoteString(lit.GetText())
+				stmt.DeepLinkURL = unquoteStringLit(lit)
 			}
 		}
 	}
@@ -93,7 +93,7 @@ func parseModelProps(props []parser.IModelPropertyContext) map[string]string {
 		if qn := pc.QualifiedName(); qn != nil {
 			m[key] = getQualifiedNameText(qn)
 		} else if lit := pc.STRING_LITERAL(); lit != nil {
-			m[key] = unquoteString(lit.GetText())
+			m[key] = unquoteStringLit(lit)
 		} else if num := pc.NUMBER_LITERAL(); num != nil {
 			m[key] = num.GetText()
 		} else if bl := pc.BooleanLiteral(); bl != nil {
@@ -131,7 +131,7 @@ func parseVariableDefsFromProps(props []parser.IModelPropertyContext) []ast.Agen
 			// Key is STRING_LITERAL or QUOTED_IDENTIFIER
 			var key string
 			if sl := vdc.STRING_LITERAL(); sl != nil {
-				key = unquoteString(sl.GetText())
+				key = unquoteStringLit(sl)
 			} else if qi := vdc.QUOTED_IDENTIFIER(); qi != nil {
 				key = unquoteIdentifier(qi.GetText())
 			}
@@ -160,7 +160,7 @@ func (b *Builder) ExitCreateConsumedMCPServiceStatement(ctx *parser.CreateConsum
 	}
 	stmt.OuterDocumentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
 	props := parseModelProps(ctx.AllModelProperty())
@@ -186,7 +186,7 @@ func (b *Builder) ExitCreateKnowledgeBaseStatement(ctx *parser.CreateKnowledgeBa
 	}
 	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
 	props := parseModelProps(ctx.AllModelProperty())
@@ -217,7 +217,7 @@ func (b *Builder) ExitCreateAgentStatement(ctx *parser.CreateAgentStatementConte
 	}
 	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
 	props := parseModelProps(ctx.AllModelProperty())

@@ -149,7 +149,7 @@ func parseAgentEditorAlterAssignments(props []parser.IAgentEditorAlterAssignment
 
 func agentEditorAlterValueText(ctx *parser.AgentEditorAlterValueContext) string {
 	if sl := ctx.STRING_LITERAL(); sl != nil {
-		return unquoteString(sl.GetText())
+		return unquoteStringLit(sl)
 	}
 	if num := ctx.NUMBER_LITERAL(); num != nil {
 		return num.GetText()
