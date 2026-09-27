@@ -47,8 +47,9 @@ func (b *Builder) ExitCreateUserRoleStatement(ctx *parser.CreateUserRoleStatemen
 	}
 
 	// Check parent createStatement for OR MODIFY
+	// `or replace` means `or modify` from mdl 1 on (roleReplaceIsModify).
 	if createStmt := findParentCreateStatement(ctx); createStmt != nil {
-		if createStmt.OR() != nil && createStmt.MODIFY() != nil {
+		if createStmt.OR() != nil && (createStmt.MODIFY() != nil || b.replaceMeansModify(createStmt)) {
 			stmt.CreateOrModify = true
 		}
 	}
@@ -446,8 +447,9 @@ func (b *Builder) ExitCreateDemoUserStatement(ctx *parser.CreateDemoUserStatemen
 	}
 
 	// Check parent createStatement for OR MODIFY
+	// `or replace` means `or modify` from mdl 1 on (roleReplaceIsModify).
 	if createStmt := findParentCreateStatement(ctx); createStmt != nil {
-		if createStmt.OR() != nil && createStmt.MODIFY() != nil {
+		if createStmt.OR() != nil && (createStmt.MODIFY() != nil || b.replaceMeansModify(createStmt)) {
 			stmt.CreateOrModify = true
 		}
 	}

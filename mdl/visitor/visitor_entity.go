@@ -150,11 +150,12 @@ func (b *Builder) buildViewEntity(ctx *parser.CreateEntityStatementContext) {
 	createStmt := findParentCreateStatement(ctx)
 	if createStmt != nil {
 		// Check for CREATE OR MODIFY / CREATE OR REPLACE
+		// `or replace` means `or modify` from mdl 1 on; under mdl 0 it keeps
+		// its delete-and-recreate meaning (viewEntityReplaceIsModify).
 		if createStmt.OR() != nil {
-			if createStmt.MODIFY() != nil {
+			if createStmt.MODIFY() != nil || b.replaceMeansModify(createStmt) {
 				stmt.CreateOrModify = true
-			}
-			if createStmt.REPLACE() != nil {
+			} else if createStmt.REPLACE() != nil {
 				stmt.CreateOrReplace = true
 			}
 		}

@@ -6,6 +6,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 
 	"github.com/antlr4-go/antlr/v4"
 )
@@ -29,24 +30,70 @@ func (b *Builder) recordDeprecation(code string, tok antlr.Token, subject string
 }
 
 // createOrReplaceIsNotAnAlias lists the create kinds (createStatementKind's
-// words) where `or replace` does NOT mean `or modify`, so rewriting it would
-// change the script. Measured against the visitors, and pinned by
-// TestCreateOrReplaceMatchesModifyExceptExemptKinds:
+// words) where `or replace` does NOT mean `or modify` under any language
+// version, so rewriting it would change the script. Measured against the
+// visitors, and pinned by TestCreateOrReplaceMatchesModifyExceptExemptKinds:
 //
 //   - translations: `or replace` replaces the whole set, `or modify` merges.
-//   - userrole, demouser: the visitor reads only `or modify`; `or replace` is
-//     a plain create, which fails on an existing role or user.
 //
-// `create or replace view entity` (kind "entity") drops and recreates the view
-// entity, and is exempted in recordCreateOrReplace.
+// Three more kinds differ only under mdl 0 and are gated below: a view entity,
+// a user role and a demo user.
 var createOrReplaceIsNotAnAlias = map[string]bool{
 	"translations": true,
-	"userrole":     true,
-	"demouser":     true,
+}
+
+// viewEntityReplaceIsModify is R1 for view entities (ADR-0010; #731). Under
+// mdl 0, `create or replace view entity` deletes the entity and creates a new
+// one: a new $ID and GUID, and the access rules and associations that pointed
+// at the old one are gone with it. From mdl 1 it is `create or modify`, the
+// identity-carrying rewrite, like `or replace` on every other document type.
+var viewEntityReplaceIsModify = langver.Change{
+	Code:  "MDL-V1-REPLACE01",
+	Since: langver.V1,
+	Old:   "`create or replace view entity` deletes the view entity and creates a new one (a new identity; its access rules and associations are lost)",
+	New:   "`create or modify view entity`, which rewrites it in place and keeps its identity",
+}
+
+// roleReplaceIsModify is R1 for user roles and demo users (#731). Under mdl 0
+// their visitors read only `or modify`, so `or replace` is a plain create that
+// fails on an existing role or user. From mdl 1 it is `create or modify`.
+var roleReplaceIsModify = langver.Change{
+	Code:  "MDL-V1-REPLACE02",
+	Since: langver.V1,
+	Old:   "`create or replace` on a user role or demo user is a plain create, which fails when it already exists",
+	New:   "`create or modify`",
+}
+
+// replaceGate returns the language change `or replace` goes through for this
+// create statement, and false when its meaning does not depend on the version.
+func replaceGate(ctx *parser.CreateStatementContext) (langver.Change, bool) {
+	switch createStatementKind(ctx) {
+	case "userrole", "demouser":
+		return roleReplaceIsModify, true
+	case "entity":
+		if ent, ok := ctx.CreateEntityStatement().(*parser.CreateEntityStatementContext); ok && ent.VIEW() != nil {
+			return viewEntityReplaceIsModify, true
+		}
+	}
+	return langver.Change{}, false
+}
+
+// replaceMeansModify reports whether `create or replace` on createStmt builds
+// `create or modify` under the script's language version. The document
+// builders ask it; recordCreateOrReplace reports what it decided.
+func (b *Builder) replaceMeansModify(createStmt *parser.CreateStatementContext) bool {
+	if createStmt == nil || createStmt.OR() == nil || createStmt.REPLACE() == nil {
+		return false
+	}
+	if c, gated := replaceGate(createStmt); gated {
+		return c.Applies(b.langVersion)
+	}
+	return true
 }
 
 // recordCreateOrReplace records MDL-DEPR001 for a `create or replace` whose
-// meaning is exactly `create or modify`.
+// meaning is exactly `create or modify`, and the language change for one whose
+// meaning is kept at mdl 0.
 func (b *Builder) recordCreateOrReplace(ctx *parser.CreateStatementContext) {
 	if ctx.OR() == nil || ctx.REPLACE() == nil {
 		return
@@ -55,7 +102,7 @@ func (b *Builder) recordCreateOrReplace(ctx *parser.CreateStatementContext) {
 	if kind == "" || createOrReplaceIsNotAnAlias[kind] {
 		return
 	}
-	if ent, ok := ctx.CreateEntityStatement().(*parser.CreateEntityStatementContext); ok && ent.VIEW() != nil {
+	if c, gated := replaceGate(ctx); gated && !b.gate(c, ctx) {
 		return
 	}
 	b.recordDeprecation(deprecation.CreateOrReplace, ctx.REPLACE().GetSymbol(), kind)
