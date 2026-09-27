@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -44,4 +45,18 @@ func progressSink(format string) io.Writer {
 		return os.Stderr
 	}
 	return os.Stdout
+}
+
+// refuseJSONFlag exits with an error when the global --json flag was given to a
+// command that has no JSON output. --json is a root persistent flag, so every
+// subcommand accepts it; one that ignores it prints text to a caller that is
+// about to hand stdout to a JSON parser, which is worse than saying no. Fails
+// the way every --json error must: message on stderr, non-zero exit, nothing on
+// stdout.
+func refuseJSONFlag(command, alternatives string) {
+	if !globalJSONFlag {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "Error: %s has no JSON output (--json is not supported); use %s\n", command, alternatives)
+	os.Exit(2)
 }

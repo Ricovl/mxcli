@@ -88,11 +88,11 @@ func execShowCallers(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	targetName := s.Name.String()
-	fmt.Fprintf(ctx.Output, "\nCallers of %s", targetName)
+	fmt.Fprintf(ctx.progress(), "\nCallers of %s", targetName)
 	if s.Transitive {
-		fmt.Fprintln(ctx.Output, " (transitive)")
+		fmt.Fprintln(ctx.progress(), " (transitive)")
 	} else {
-		fmt.Fprintln(ctx.Output, "")
+		fmt.Fprintln(ctx.progress(), "")
 	}
 
 	var query string
@@ -130,11 +130,10 @@ func execShowCallers(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "(no callers found)")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, "(no callers found)")
 	}
 
-	fmt.Fprintf(ctx.Output, "Found %d caller(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d caller(s)\n", result.Count)
 	outputCatalogResults(ctx, result)
 	return nil
 }
@@ -151,11 +150,11 @@ func execShowCallees(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	sourceName := s.Name.String()
-	fmt.Fprintf(ctx.Output, "\nCallees of %s", sourceName)
+	fmt.Fprintf(ctx.progress(), "\nCallees of %s", sourceName)
 	if s.Transitive {
-		fmt.Fprintln(ctx.Output, " (transitive)")
+		fmt.Fprintln(ctx.progress(), " (transitive)")
 	} else {
-		fmt.Fprintln(ctx.Output, "")
+		fmt.Fprintln(ctx.progress(), "")
 	}
 
 	var query string
@@ -193,11 +192,10 @@ func execShowCallees(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "(no callees found)")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, "(no callees found)")
 	}
 
-	fmt.Fprintf(ctx.Output, "Found %d callee(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d callee(s)\n", result.Count)
 	outputCatalogResults(ctx, result)
 	return nil
 }
@@ -213,8 +211,16 @@ func execShowReferences(ctx *ExecContext, s *ast.ShowStmt) error {
 		return err
 	}
 
-	typed := s.Name.String()
-	fmt.Fprintf(ctx.Output, "\nReferences to %s\n", typed)
+	return showReferences(ctx, s.Name.String())
+}
+
+// showReferences prints the references to typed from the loaded catalog.
+//
+// One row per distinct (source, kind): a microflow with two retrieve
+// activities over the same entity is one retrieve reference, not two rows
+// that read as two callers.
+func showReferences(ctx *ExecContext, typed string) error {
+	fmt.Fprintf(ctx.progress(), "\nReferences to %s\n", typed)
 
 	// A widget's TargetName is stored SHOUTED (COMBOBOX) while MDL keywords are
 	// written in lower case, so an exact-only match answers the natural spelling
@@ -222,25 +228,23 @@ func execShowReferences(ctx *ExecContext, s *ast.ShowStmt) error {
 	targetName, loose := resolveReferenceTarget(ctx, typed)
 	reportResolvedTarget(ctx, typed, targetName, loose)
 
-	// Find all references to this target
-	query := `
-		select SourceType, SourceName, RefKind
-		from refs
-		where TargetName = ?
-		ORDER by RefKind, SourceType, SourceName
-	`
+	where, viaValues := refTargetWhere(ctx, targetName)
+	cols, order := "SourceType, SourceName, RefKind", "RefKind, SourceType, SourceName"
+	if viaValues {
+		cols, order = cols+", TargetName as Target", order+", Target"
+	}
+	query := `select distinct ` + cols + ` from refs where ` + where + ` order by ` + order
 
-	result, err := ctx.Catalog.Query(strings.Replace(query, "?", "'"+escapeSQLString(targetName)+"'", 1))
+	result, err := ctx.Catalog.Query(query)
 	if err != nil {
 		return mdlerrors.NewBackend("query references", err)
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "(no references found)")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, noReferencesMessage(ctx, targetName))
 	}
 
-	fmt.Fprintf(ctx.Output, "Found %d reference(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d reference(s)\n", result.Count)
 	outputCatalogResults(ctx, result)
 	return nil
 }
@@ -257,47 +261,63 @@ func execShowImpact(ctx *ExecContext, s *ast.ShowStmt) error {
 		return err
 	}
 
-	typed := s.Name.String()
-	fmt.Fprintf(ctx.Output, "\nImpact analysis for %s\n", typed)
+	return showImpact(ctx, s.Name.String())
+}
+
+// showImpact prints the elements that reference typed, from the loaded catalog.
+//
+// The summary counts ELEMENTS: it used to count rows, so a microflow that both
+// retrieves and deletes an entity was two "affected" microflows, and the types
+// came out in map order, different from run to run.
+func showImpact(ctx *ExecContext, typed string) error {
+	fmt.Fprintf(ctx.progress(), "\nImpact analysis for %s\n", typed)
 
 	targetName, loose := resolveReferenceTarget(ctx, typed)
 	reportResolvedTarget(ctx, typed, targetName, loose)
 
-	// Find all direct references to this target
-	directQuery := `
-		select SourceType, SourceName, RefKind
-		from refs
-		where TargetName = ?
-		ORDER by SourceType, SourceName
-	`
+	where, viaValues := refTargetWhere(ctx, targetName)
+	cols, order := "SourceType, SourceName, RefKind", "SourceType, SourceName, RefKind"
+	if viaValues {
+		cols, order = cols+", TargetName as Target", order+", Target"
+	}
+	directQuery := `select distinct ` + cols + ` from refs where ` + where + ` order by ` + order
 
-	result, err := ctx.Catalog.Query(strings.Replace(directQuery, "?", "'"+escapeSQLString(targetName)+"'", 1))
+	result, err := ctx.Catalog.Query(directQuery)
 	if err != nil {
 		return mdlerrors.NewBackend("query impact", err)
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "(no impact - element is not referenced)")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, noReferencesMessage(ctx, targetName))
 	}
 
-	// Group by type for summary
-	typeCounts := make(map[string]int)
+	// Distinct elements per type. Rows are ordered by SourceType, so the types
+	// come out sorted.
+	var types []string
+	perType := map[string]map[string]bool{}
+	elements := 0
 	for _, row := range result.Rows {
-		if len(row) > 0 {
-			if t, ok := row[0].(string); ok {
-				typeCounts[t]++
-			}
+		if len(row) < 2 {
+			continue
+		}
+		t, name := fmt.Sprint(row[0]), fmt.Sprint(row[1])
+		if perType[t] == nil {
+			perType[t] = map[string]bool{}
+			types = append(types, t)
+		}
+		if !perType[t][name] {
+			perType[t][name] = true
+			elements++
 		}
 	}
 
-	fmt.Fprintf(ctx.Output, "\nSummary:\n")
-	for t, count := range typeCounts {
-		fmt.Fprintf(ctx.Output, "  %s: %d\n", t, count)
+	fmt.Fprintf(ctx.progress(), "\nSummary:\n")
+	for _, t := range types {
+		fmt.Fprintf(ctx.progress(), "  %s: %d\n", t, len(perType[t]))
 	}
-	fmt.Fprintln(ctx.Output)
+	fmt.Fprintln(ctx.progress())
 
-	fmt.Fprintf(ctx.Output, "Found %d affected element(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d affected element(s) (%d reference(s))\n", elements, result.Count)
 	outputCatalogResults(ctx, result)
 
 	return nil

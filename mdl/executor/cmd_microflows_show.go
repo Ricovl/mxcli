@@ -197,12 +197,26 @@ func calculateNanoflowComplexity(nf *microflows.Nanoflow) int {
 // describeMicroflow renders a microflow as MDL (Mode 1 / Mode 2). It keeps this
 // exact signature because the catalog dispatches on it by name.
 func describeMicroflow(ctx *ExecContext, name ast.QualifiedName) error {
-	return describeMicroflowMode(ctx, name, false)
+	return describeMicroflowMode(ctx, name, describeMicroflowOptions{})
 }
 
-// describeMicroflowMode adds Mode 3: with normalized set, a recombinable
-// irreducible split is folded into a single condition rather than flattened.
-func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, normalized bool) error {
+// describeMicroflowOptions selects the optional renderings of DESCRIBE MICROFLOW.
+type describeMicroflowOptions struct {
+	// Normalized is Mode 3: a recombinable irreducible split is folded into a
+	// single condition rather than flattened.
+	Normalized bool
+	// Handles prints each activity's `alter microflow` target above it.
+	Handles bool
+}
+
+// describeMicroflowMode renders DESCRIBE MICROFLOW with the given options.
+func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, opts describeMicroflowOptions) error {
+	normalized := opts.Normalized
+	if opts.Normalized && opts.Handles {
+		// A handle addresses an activity of the STORED flow; a normalized
+		// description shows a different graph, with guards that exist nowhere.
+		return mdlerrors.NewValidation("describe microflow: 'normalized' and 'with handles' cannot be combined; handles address the stored flow, which 'normalized' does not show")
+	}
 	// Get hierarchy for module/folder resolution
 	h, err := getHierarchy(ctx)
 	if err != nil {
@@ -327,7 +341,12 @@ func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, normalized 
 
 	// Generate activities
 	if targetMf.ObjectCollection != nil && len(targetMf.ObjectCollection.Objects) > 0 {
-		activityLines := formatMicroflowActivities(ctx, targetMf, entityNames, microflowNames)
+		var activityLines []string
+		if opts.Handles {
+			activityLines = formatMicroflowActivitiesWithHandles(ctx, targetMf, entityNames, microflowNames)
+		} else {
+			activityLines = formatMicroflowActivities(ctx, targetMf, entityNames, microflowNames)
+		}
 		activityLines = prependFreeAnnotationLines(targetMf.ObjectCollection, activityLines)
 		for _, line := range activityLines {
 			lines = append(lines, "  "+line)
@@ -1016,8 +1035,25 @@ func formatMicroflowActivitiesWithSourceMap(
 	sourceMap map[string]elkSourceRange,
 	headerLineCount int,
 ) []string {
+	warnings, body := formatMicroflowBodyWithSourceMap(ctx, mf, entityNames, microflowNames, sourceMap, headerLineCount)
+	return append(warnings, body...)
+}
+
+// formatMicroflowBodyWithSourceMap is formatMicroflowActivitiesWithSourceMap
+// with the warnings kept apart from the body. The source map is recorded while
+// the body is emitted, before the warnings are prepended, so its line numbers
+// index the body alone; a caller that needs them exact (describe … with
+// handles) takes the two separately.
+func formatMicroflowBodyWithSourceMap(
+	ctx *ExecContext,
+	mf *microflows.Microflow,
+	entityNames map[model.ID]string,
+	microflowNames map[model.ID]string,
+	sourceMap map[string]elkSourceRange,
+	headerLineCount int,
+) (warnings, body []string) {
 	if mf.ObjectCollection == nil {
-		return []string{"-- debug: ObjectCollection is nil"}
+		return nil, []string{"-- debug: ObjectCollection is nil"}
 	}
 
 	activityMap := make(map[model.ID]microflows.MicroflowObject)
@@ -1065,9 +1101,8 @@ func formatMicroflowActivitiesWithSourceMap(
 
 	traverseFlow(ctx, startID, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, &lines, 0, sourceMap, headerLineCount, annotationsByTarget, labels)
 	declaredCrossed := emitCrossedMergeSections(ctx, mf.ObjectCollection, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, &lines, sourceMap, headerLineCount, annotationsByTarget, labels)
-	lines = append(microflowBodyWarnings(ctx, mf, labels, declaredCrossed), lines...)
 
-	return lines
+	return microflowBodyWarnings(ctx, mf, labels, declaredCrossed), lines
 }
 
 // findSplitMergePoints finds the corresponding merge point for each exclusive split.

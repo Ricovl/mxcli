@@ -37,7 +37,7 @@ func execConnect(ctx *ExecContext, s *ast.ConnectStmt) error {
 	// Display connection info with version
 	pv := ctx.Backend.ProjectVersion()
 	if !ctx.Quiet {
-		fmt.Fprintf(ctx.Output, "Connected to: %s (Mendix %s)\n", s.Path, pv.ProductVersion)
+		fmt.Fprintf(ctx.progress(), "Connected to: %s (Mendix %s)\n", s.Path, pv.ProductVersion)
 	}
 	if ctx.Logger != nil {
 		ctx.Logger.Connect(s.Path, pv.ProductVersion, pv.FormatVersion)

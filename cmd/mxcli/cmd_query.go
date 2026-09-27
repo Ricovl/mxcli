@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/mdl/executor"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/spf13/cobra"
 )
@@ -74,11 +75,14 @@ Examples:
 var refsCmd = &cobra.Command{
 	Use:   "refs <qualified-name>",
 	Short: "Find references to an element",
-	Long: `Find all references to the specified element (entity, microflow, page, etc.).
+	Long: `Find all references to the specified element (entity, microflow, page, etc.,
+or an attribute Module.Entity.Attribute, an enumeration, or an enumeration
+value Module.Enum.Value). Each (source, kind) is listed once.
 
 Examples:
   mxcli refs -p app.mpr Module.Customer
   mxcli refs -p app.mpr Module.OrderPage
+  mxcli refs -p app.mpr Module.Customer.Email
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -98,10 +102,15 @@ var impactCmd = &cobra.Command{
 	Use:   "impact <qualified-name>",
 	Short: "Show impact of changing an element",
 	Long: `Analyze the impact of changing an element by showing all elements that reference it.
+The summary counts distinct elements. For an enumeration, the uses of its values are
+included. When nothing is found for an attribute or an enumeration value, the message
+says which usage sites were checked: one named only through a variable in a free-text
+expression ($Order/Total) is not resolved, so run 'mxcli search' before deleting.
 
 Examples:
   mxcli impact -p app.mpr Module.Customer
   mxcli impact -p app.mpr Module.OrderStatus
+  mxcli impact -p app.mpr Module.Customer.Email
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -181,11 +190,16 @@ Supported element types:
 
 Use --depth to control how deep to traverse call chains (default: 2).
 
+With --json the assembled context is wrapped in one JSON object,
+{"name", "type", "depth", "context"}, where "context" is the markdown text
+above; progress goes to stderr.
+
 Examples:
   mxcli context -p app.mpr Module.ProcessOrder
   mxcli context -p app.mpr Module.Customer --depth 3
   mxcli context -p app.mpr Module.OrderPage
   mxcli context -p app.mpr Module.ImportCsvData
+  mxcli context -p app.mpr Module.Customer --json | jq -r .context
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -212,14 +226,20 @@ var searchCmd = &cobra.Command{
 
 Searches across string literals (captions, labels, messages) and MDL source
 definitions. Requires at least a FULL catalog build (done automatically).
+MDL source is searched only once the source index exists — build it with
+  mxcli -p app.mpr -c "refresh catalog full source"
+Until then a warning on stderr says only string literals were searched.
 
 Output Formats:
   table   - Human-readable table (default)
   names   - Just qualified names, one per line (for piping)
-  json    - JSON output
+  --json  - JSON array on stdout, progress on stderr (the same flag every
+            query command takes). "--format json" is still accepted as a
+            deprecated spelling of it.
 
 Examples:
   mxcli search -p app.mpr "validation"
+  mxcli search -p app.mpr "Customer" --json | jq '.[].qualifiedName'
   mxcli search -p app.mpr "Customer" --format names
   mxcli search -p app.mpr "error" -q --format names | xargs -I {} mxcli describe -p app.mpr microflow {}
 `,
@@ -234,8 +254,15 @@ Examples:
 			os.Exit(1)
 		}
 
+		// A JSON-format executor sends "Connected to:" and catalog progress to
+		// stderr (ExecContext.progress). Set from the resolved format, not
+		// from --json alone: `--format json` is the older spelling of the same
+		// request and must be exactly as clean.
 		exec, logger := newLoggedExecutor("subcommand")
 		defer logger.Close()
+		if isMachineReadableFormat(format) {
+			exec.SetFormat(executor.FormatJSON)
+		}
 		if quiet {
 			exec.SetQuiet(true)
 		}

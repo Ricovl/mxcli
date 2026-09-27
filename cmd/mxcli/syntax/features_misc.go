@@ -3,6 +3,35 @@
 package syntax
 
 func init() {
+	// ── Language header ─────────────────────────────────────────────────
+
+	// The `mdl <n>;` header (ADR-0011, ako/mxcli#710). Documented as its own
+	// topic because it is a property of the whole script, not of a statement.
+	Register(SyntaxFeature{
+		Path:    "language-header",
+		Summary: "mdl <n>; — the MDL language version a script is written in",
+		Keywords: []string{
+			"mdl 1", "mdl 0", "language version", "header", "edition",
+			"preview", "beta", "version-gated", "meaning",
+		},
+		Syntax: "mdl <n>;\n\n" +
+			"-- Optional, and only as the FIRST statement of a script. It declares the\n" +
+			"-- language version the whole script is read under.\n" +
+			"--\n" +
+			"--   no header   mdl 0, the alpha meaning. A construct whose meaning is\n" +
+			"--               different under mdl 1 keeps its old meaning and warns.\n" +
+			"--   mdl 1;      the beta meaning. Until beta it is a PREVIEW: it parses\n" +
+			"--               but warns 'preview: may still change' (MDL-LANG01), and\n" +
+			"--               describe and fmt do not emit it.\n" +
+			"--   mdl 2;      refused: this mxcli does not know that version.\n" +
+			"--\n" +
+			"-- A script's meaning never depends on which mxcli release runs it: a\n" +
+			"-- change of meaning applies only under the version that introduces it.\n" +
+			"-- The header is independent of the Mendix version the project targets.",
+		Example: "mdl 1;\n\ncreate persistent entity MyModule.Customer (\n  Name: String(200)\n);",
+		SeeAlso: []string{"create-modifiers"},
+	})
+
 	// ── CREATE modifiers ────────────────────────────────────────────────
 
 	// OR MODIFY / OR REPLACE sit on the top-level createStatement rule, so they

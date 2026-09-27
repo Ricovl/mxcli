@@ -7,6 +7,12 @@ package catalog
 //
 // History:
 //
+//	15 — refs gains ATTRIBUTE, ENUMERATION and ENUMERATION_VALUE targets (kinds
+//	    member / xpath / type / value), IMPORT_MAPPING / EXPORT_MAPPING sources
+//	    (kind mapping), and the microflow -> workflow `call` edge; graph_god_nodes
+//	    keeps members off the asset side. Same reason as 11 and 13: refs are only
+//	    written by REFRESH CATALOG FULL, so a cached catalog would keep answering
+//	    `impact Mod.Entity.Attr` with "not referenced" for a used attribute.
 //	14 — import_mappings_data / export_mappings_data: Id is the document's ID
 //	    (was an AUTOINCREMENT integer) and Excluded is recorded; source gains
 //	    ElementId. Two mappings may share a name when one is excluded, and the
@@ -46,7 +52,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "14"
+const CatalogSchemaVersion = "15"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
@@ -1400,8 +1406,13 @@ func (c *Catalog) createTables() error {
 				-- ModuleName is its own name (the ELSE d.Asset fallback below) and
 				-- whose ObjectType is NULL. A page's OUT-degree still counts the
 				-- widgets it uses, which is a real dependency.
+				--
+				-- ATTRIBUTE and ENUMERATION_VALUE targets are excluded for the
+				-- same reason: they are members of a document, not documents, and
+				-- listing them as assets would bury the entity or enumeration
+				-- they belong to under its own attributes.
 				SELECT TargetName AS Asset, COUNT(*) AS InDeg, 0 AS OutDeg
-				FROM refs WHERE TargetName != '' AND TargetType != 'WIDGET' GROUP BY TargetName
+				FROM refs WHERE TargetName != '' AND TargetType NOT IN ('WIDGET', 'ATTRIBUTE', 'ENUMERATION_VALUE') GROUP BY TargetName
 				UNION ALL
 				SELECT SourceName AS Asset, 0 AS InDeg, COUNT(*) AS OutDeg
 				FROM refs WHERE SourceName != '' GROUP BY SourceName

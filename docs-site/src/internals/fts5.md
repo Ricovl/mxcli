@@ -90,7 +90,7 @@ mxcli search -p app.mpr "validation"
 mxcli search -p app.mpr "error" -q --format names
 
 # JSON output
-mxcli search -p app.mpr "Customer" -q --format json
+mxcli search -p app.mpr "Customer" --json
 ```
 
 The search results include:

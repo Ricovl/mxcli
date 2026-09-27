@@ -296,7 +296,7 @@ func listAccessOnEntity(ctx *ExecContext, name *ast.QualifiedName) error {
 		}
 
 		if rule.XPathConstraint != "" {
-			fmt.Fprintf(ctx.Output, "  where '%s'\n", rule.XPathConstraint)
+			fmt.Fprintf(ctx.Output, "  where %s\n", mdlQuoted(rule.XPathConstraint))
 		}
 		fmt.Fprintln(ctx.Output)
 	}
@@ -784,7 +784,7 @@ func describeModuleRole(ctx *ExecContext, name ast.QualifiedName) error {
 			if mr.Name == name.Name {
 				fmt.Fprintf(ctx.Output, "create or modify module role %s.%s", modName, mr.Name)
 				if mr.Description != "" {
-					fmt.Fprintf(ctx.Output, " description '%s'", mr.Description)
+					fmt.Fprintf(ctx.Output, " description %s", mdlQuoted(mr.Description))
 				}
 				fmt.Fprintln(ctx.Output, ";")
 				fmt.Fprintln(ctx.Output, "/")
@@ -823,7 +823,13 @@ func describeDemoUser(ctx *ExecContext, userName string) error {
 
 	for _, du := range ps.DemoUsers {
 		if du.UserName == userName {
-			fmt.Fprintf(ctx.Output, "create demo user '%s' password '***'", du.UserName)
+			// The password is never printed (ako/mxcli#707). It used to be
+			// printed as '***', and replaying that set the password to three
+			// asterisks. The placeholder now stands for "the stored password":
+			// `create or modify` keeps it on a project that has this user, and
+			// refuses it on one that does not. See demoUserPasswordPlaceholder.
+			fmt.Fprintf(ctx.Output, "create or modify demo user %s password %s",
+				mdlQuoted(du.UserName), mdlQuoted(demoUserPasswordPlaceholder))
 			if du.Entity != "" {
 				fmt.Fprintf(ctx.Output, " entity %s", du.Entity)
 			}
