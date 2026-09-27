@@ -59,6 +59,8 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	// prints the description as a comment — so a rewrite carries them from the
 	// stored parameter of the same name, as the Java twin does (#731).
 	storedParams := map[string]*types.JavaActionParameter{}
+	// The stored parameter names in order, for sourceUnchanged below.
+	var storedParamNames []string
 	// No MDL spelling for either, so a rewrite carries them; the defaults are
 	// Studio Pro's. "Public", which this hardcoded, is not a member of
 	// JavaScriptActionsExportLevel (API | Hidden) — see the Java twin.
@@ -92,6 +94,7 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		for _, p := range full.Parameters {
 			if p != nil {
 				storedParams[p.Name] = p
+				storedParamNames = append(storedParamNames, p.Name)
 			}
 		}
 	}
@@ -203,7 +206,15 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	// code: writing it would overwrite the real implementation, or add a stub
 	// file to a project that ships none. The statement says nothing about the
 	// code, so the file is left alone (#731; the Java twin is #637).
-	if strings.TrimSpace(s.JavaScriptCode) != jsSourceOmittedBody {
+	//
+	// Likewise when the statement restates the stored user code with the stored
+	// parameters, as unchanged describe output does: regenerating the file from
+	// it drops the import list, the EXTRA CODE section and Studio Pro's
+	// signature, none of which MDL can print, so user code that calls an EXTRA
+	// CODE helper stops working (#731).
+	keep := strings.TrimSpace(s.JavaScriptCode) == jsSourceOmittedBody ||
+		(existingID != "" && jsSourceUnchanged(ctx, s, storedParamNames))
+	if !keep {
 		if err := ctx.Backend.WriteJavaScriptSourceFile(moduleName, s.Name.Name, s.JavaScriptCode, jsa.Parameters, jsa.ReturnType); err != nil {
 			return mdlerrors.NewBackend("write javascript source file", err)
 		}
@@ -256,4 +267,20 @@ func platformOrDefault(p string) string {
 		return "Web"
 	}
 	return p
+}
+
+// jsSourceUnchanged reports whether s restates the existing action's .js source:
+// the same user code (as DESCRIBE reads it) and the same parameter names in
+// order, so a regenerated file would differ only in what MDL cannot carry.
+func jsSourceUnchanged(ctx *ExecContext, s *ast.CreateJavaScriptActionStmt, storedParamNames []string) bool {
+	if len(s.Parameters) != len(storedParamNames) {
+		return false
+	}
+	for i, p := range s.Parameters {
+		if p.Name != storedParamNames[i] {
+			return false
+		}
+	}
+	stored, _ := readJavaScriptActionSource(ctx.MprPath, s.Name.Module, s.Name.Name)
+	return stored != "" && strings.TrimSpace(stored) == strings.TrimSpace(s.JavaScriptCode)
 }
