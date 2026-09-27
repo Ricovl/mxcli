@@ -806,9 +806,11 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 	fmt.Fprintln(ctx.Output, ")")
 	fmt.Fprintln(ctx.Output, "(")
 	for i, attr := range entity.Attributes {
+		// formatAttributeType, not GetTypeName: the bare `String` executes as
+		// unlimited and rewrote a stored String(36) (#743).
 		typeName := "Unknown"
 		if attr.Type != nil {
-			typeName = attr.Type.GetTypeName()
+			typeName = formatAttributeType(attr.Type)
 		}
 		comma := ","
 		if i == len(entity.Attributes)-1 {
@@ -909,6 +911,19 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 			existingEntity.CreateChangeLocally = *s.AllowCreateChangeLocally
 		}
 		if len(attrs) > 0 {
+			// The rebuilt attributes keep each stored attribute's identity and
+			// what the statement cannot spell (the OData mapping, LocalizeDate),
+			// by name; a fresh $ID and a plain StoredValue made the rewrite an
+			// unmapped attribute (#743).
+			for _, a := range attrs {
+				for _, old := range existingEntity.Attributes {
+					if old.Name == a.Name {
+						a.ID = old.ID
+						break
+					}
+				}
+			}
+			carryStoredAttributeState(existingEntity, attrs)
 			existingEntity.Attributes = attrs
 		}
 		// A rewrite that carried no doc comment keeps the stored one; an
