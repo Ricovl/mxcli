@@ -99,6 +99,20 @@ const (
 	// name for: a layout grid's rows and columns, a data grid's columns and
 	// control bar, a gallery's template and filter (R12, ako/mxcli#749).
 	UnstoredWidgetName = "MDL-DEPR005"
+	// DollarArgumentName is `$Param = expr` at a call site: the parameter
+	// named with the `$` of a variable (R4, ako/mxcli#751).
+	DollarArgumentName = "MDL-DEPR006"
+	// ColonArgument is `Param: expr` at a call site (`show page`, a page
+	// action or data source): `:` sets a model property, `=` binds a value
+	// (R3/R4, ako/mxcli#751).
+	ColonArgument = "MDL-DEPR007"
+	// WorkflowStringArgument is a workflow call's `with (Param = '<expr>')`:
+	// the argument expression written inside a string (R4, ako/mxcli#751).
+	WorkflowStringArgument = "MDL-DEPR008"
+	// PositionalTemplateArguments is `objects [a, b]` / `parameters [a, b]`
+	// on a text template: the placeholders bound by position (R4,
+	// ako/mxcli#751).
+	PositionalTemplateArguments = "MDL-DEPR009"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -167,6 +181,55 @@ var entries = []Entry{
 			"A data grid column is addressed as `grid column(Attr)` or `grid column('Caption')`.",
 		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column Name (Attribute: Name) } };",
 		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column (Attribute: Name) } };",
+	},
+	{
+		Code:      DollarArgumentName,
+		Old:       "call microflow M.F($Param = expr)",
+		Canonical: "call microflow M.F(Param = expr)",
+		Rewrite:   Rewrite{Structural: "drop the `$` from the parameter name (quoted when the bare name is a keyword)"},
+		RemovedIn: 2,
+		Note: "Every call site binds an argument as `Param = expression` (R4): call microflow, nanoflow, java " +
+			"action, javascript action, external action, web service operation, execute database query, " +
+			"send rest request, show page, and page/button actions and data sources.",
+		Example:          "create microflow M.F ($O: M.E) begin call microflow M.G($Order = $O); end;",
+		CanonicalExample: "create microflow M.F ($O: M.E) begin call microflow M.G(Order = $O); end;",
+	},
+	{
+		Code:      ColonArgument,
+		Old:       "show page M.P(Param: expr)",
+		Canonical: "show page M.P(Param = expr)",
+		Rewrite:   Rewrite{Structural: "`Param: expr` -> `Param = expr`"},
+		RemovedIn: 2,
+		Note: "`:` sets a model property and `=` binds a runtime value (R3). An argument binds a value, so " +
+			"it takes `=` wherever the call appears: show page, and page/button actions and data sources " +
+			"(`Action: microflow M.F(Param = expr)`).",
+		Example:          "create microflow M.F ($O: M.E) begin show page M.P(Order: $O); end;",
+		CanonicalExample: "create microflow M.F ($O: M.E) begin show page M.P(Order = $O); end;",
+	},
+	{
+		Code:      WorkflowStringArgument,
+		Old:       "call microflow M.F with (Param = '<expression>')",
+		Canonical: "call microflow M.F(Param = <expression>)",
+		Rewrite:   Rewrite{Structural: "move the list after the callee and write each string's content as the bare expression"},
+		RemovedIn: 2,
+		Note: "In a workflow. The string form keeps its meaning — its content is the expression — so it is an alias, not a " +
+			"change of meaning. A string whose content does not parse as an MDL expression is left in place " +
+			"and reported by fmt --upgrade.",
+		Example: "create workflow M.W parameter $WorkflowContext: M.E begin " +
+			"call microflow M.F with (Order = '$WorkflowContext'); end workflow;",
+		CanonicalExample: "create workflow M.W parameter $WorkflowContext: M.E begin " +
+			"call microflow M.F(Order = $WorkflowContext); end workflow;",
+	},
+	{
+		Code:      PositionalTemplateArguments,
+		Old:       "objects [$a, $b] / parameters ['a', 'b']",
+		Canonical: "with ({1} = $a, {2} = $b)",
+		Rewrite:   Rewrite{Structural: "number the list: `objects [a, b]` -> `with ({1} = a, {2} = b)`"},
+		RemovedIn: 2,
+		Note: "One text-template form everywhere: show message, validation feedback, log, and REST " +
+			"url and body templates.",
+		Example:          "create microflow M.F ($N: String) begin show message 'Hi {1}' type Information objects [$N]; end;",
+		CanonicalExample: "create microflow M.F ($N: String) begin show message 'Hi {1}' type Information with ({1} = $N); end;",
 	},
 }
 

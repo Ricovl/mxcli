@@ -119,7 +119,7 @@ func TestRenderShowPageAction_ExplicitMappingWins(t *testing.T) {
 		},
 	}
 	got := renderClientActionMDL(ctx, showPageAction("Formula1Frontend.Race_Weekend", mappings))
-	want := "show_page Formula1Frontend.Race_Weekend(Race: $SelectedRace)"
+	want := "show_page Formula1Frontend.Race_Weekend(Race = $SelectedRace)"
 	if got != want {
 		t.Errorf("an explicit mapping was overwritten:\n got: %s\nwant: %s", got, want)
 	}

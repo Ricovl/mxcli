@@ -54,7 +54,7 @@ The action microflow calls validation, and only saves if it passes:
 CREATE MICROFLOW Sales.ACT_Order_Save ($Order: Sales.Order)
 RETURNS Boolean AS $IsValid
 BEGIN
-  $IsValid = CALL MICROFLOW Sales.VAL_Order($param = $Order);
+  $IsValid = CALL MICROFLOW Sales.VAL_Order(param = $Order);
 
   IF $IsValid THEN
     COMMIT $Order;

@@ -5,6 +5,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"io"
 	"regexp"
 	"strconv"
@@ -1546,7 +1547,7 @@ func pageActionParameters(ctx *ExecContext, settings map[string]any, pageName st
 	// bound to the row object the enclosing widget supplies.
 	var params []string
 	for _, name := range targetPageParameterNames(ctx, pageName) {
-		params = append(params, mdlIdent(name)+": $currentObject")
+		params = append(params, visitor.ParameterNameSpelling(name)+" = $currentObject")
 	}
 	return strings.Join(params, ", ")
 }
@@ -1586,7 +1587,7 @@ func targetPageParameterNames(ctx *ExecContext, qualifiedName string) []string {
 }
 
 // extractPageParameters extracts page parameter mappings from a FormSettings/PageSettings object.
-// Returns formatted string like "Product: $currentObject" or empty string if no params.
+// Returns formatted string like "Product = $currentObject" or empty string if no params.
 func extractPageParameters(ctx *ExecContext, settings map[string]any) string {
 	mappings := getBsonArrayElements(settings["ParameterMappings"])
 	if len(mappings) == 0 {
@@ -1636,7 +1637,7 @@ func extractPageParameters(ctx *ExecContext, settings map[string]any) string {
 		}
 
 		if value != "" {
-			params = append(params, mdlIdent(paramName)+": "+value)
+			params = append(params, visitor.ParameterNameSpelling(paramName)+" = "+value)
 		}
 	}
 
@@ -1695,7 +1696,7 @@ func extractMicroflowParameters(ctx *ExecContext, settings map[string]any) strin
 		if value != "" {
 			// Canonical microflowArgV3 form is `Param: $value` (IDENTIFIER COLON expr);
 			// emitting `Param = $value` is IDENTIFIER EQUALS, which doesn't re-parse (#640).
-			params = append(params, mdlIdent(paramName)+": "+value)
+			params = append(params, visitor.ParameterNameSpelling(paramName)+" = "+value)
 		}
 	}
 
@@ -1754,7 +1755,7 @@ func extractNanoflowParameters(ctx *ExecContext, action map[string]any) string {
 		if value != "" {
 			// Canonical microflowArgV3 form is `Param: $value` (IDENTIFIER COLON expr);
 			// emitting `Param = $value` is IDENTIFIER EQUALS, which doesn't re-parse (#640).
-			params = append(params, mdlIdent(paramName)+": "+value)
+			params = append(params, visitor.ParameterNameSpelling(paramName)+" = "+value)
 		}
 	}
 

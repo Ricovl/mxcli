@@ -65,7 +65,7 @@ $Line = CREATE Sales.OrderLine (Price = 10.00, Quantity = 3);
 CHANGE $Line (Sales.OrderLine_Order = $Order);
 COMMIT $Line;
 
-CALL MICROFLOW Sales.ACT_Order_CalculateTotal ($Order = $Order);
+CALL MICROFLOW Sales.ACT_Order_CalculateTotal (Order = $Order);
 
 -- @assert: $Order/TotalAmount = 30.00
 ```
