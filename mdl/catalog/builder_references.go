@@ -39,6 +39,11 @@ const (
 	RefKindSync       = "sync"       // An offline navigation profile synchronizes an entity
 	RefKindPublish    = "publish"    // A published REST operation runs a microflow
 	RefKindEvent      = "event"      // An entity event handler runs a microflow
+	RefKindMember     = "member"     // A document binds, reads or writes an attribute, or navigates an association
+	RefKindXPath      = "xpath"      // An XPath constraint names an attribute, association or enumeration value
+	RefKindType       = "type"       // An attribute, parameter or variable is typed as an enumeration
+	RefKindValue      = "value"      // An expression names an enumeration value
+	RefKindMapping    = "mapping"    // An import or export mapping maps an entity
 )
 
 // Object types recorded in refs.SourceType and refs.TargetType — the catalog's
@@ -68,6 +73,11 @@ const (
 	RefObjectRegularExpression      = "REGULAR_EXPRESSION"
 	RefObjectScheduledEvent         = "SCHEDULED_EVENT"
 	RefObjectProjectSettings        = "PROJECT_SETTINGS"
+	RefObjectAttribute              = "ATTRIBUTE"
+	RefObjectEnumeration            = "ENUMERATION"
+	RefObjectEnumerationValue       = "ENUMERATION_VALUE"
+	RefObjectImportMapping          = "IMPORT_MAPPING"
+	RefObjectExportMapping          = "EXPORT_MAPPING"
 )
 
 // RefSourceObjectTypes is every value that reaches refs.SourceType, and
@@ -89,6 +99,8 @@ var (
 		RefObjectScheduledEvent,
 		RefObjectPublishedRestOperation,
 		RefObjectProjectSettings,
+		RefObjectImportMapping,
+		RefObjectExportMapping,
 	}
 
 	RefTargetObjectTypes = []string{
@@ -104,6 +116,9 @@ var (
 		RefObjectJavaAction,
 		RefObjectRestOperation,
 		RefObjectRegularExpression,
+		RefObjectAttribute,
+		RefObjectEnumeration,
+		RefObjectEnumerationValue,
 	}
 )
 
@@ -182,6 +197,14 @@ func microflowActionRef(action microflows.MicroflowAction) (targetType, targetNa
 		// REST service operation.
 		if a.Operation != "" {
 			return RefObjectRestOperation, a.Operation, RefKindCall, true
+		}
+	case *microflows.WorkflowCallAction:
+		// A microflow that starts a workflow is that workflow's caller. Without
+		// this edge a workflow started only from a microflow had no inbound
+		// reference: `show callers` said "(no callers found)" and `impact` "not
+		// referenced" (Evora: AltairIntegration.WF_ScheduleTechnicianAppointment).
+		if a.Workflow != "" {
+			return RefObjectWorkflow, a.Workflow, RefKindCall, true
 		}
 	case *microflows.CreateObjectAction:
 		if a.EntityQualifiedName != "" {
@@ -656,6 +679,15 @@ func (b *Builder) buildReferences() error {
 	// reported model, 92 of 93 operations name a microflow and all 92 were listed
 	// by GRAPH_DEAD_ASSETS, whose advice is to delete them (#1126).
 	refCount += b.extractPublishedRestRefs(stmt, projectID, snapshotID)
+
+	// Members, enumerations and mapped entities. Without these the graph ended
+	// at documents, so `impact` on an attribute, an enumeration or a value said
+	// "not referenced" however much it was used — the answer an agent reads as
+	// "safe to delete". See builder_member_refs.go.
+	idx := b.loadMemberRefIndex()
+	refCount += b.extractMemberRefs(stmt, idx, projectID, snapshotID)
+	refCount += b.extractXPathRefs(stmt, idx, projectID, snapshotID)
+	refCount += b.extractEnumerationTypeRefs(projectID, snapshotID)
 
 	b.report("References", refCount)
 	return nil

@@ -21,6 +21,10 @@ type CatalogTx interface {
 	Prepare(query string) (*sql.Stmt, error)
 	Exec(query string, args ...any) (sql.Result, error)
 	QueryRow(query string, args ...any) *sql.Row
+	// Query reads a multi-row result inside the transaction — the member-ref
+	// pass needs the name sets earlier passes wrote (attributes, associations,
+	// enumerations) and the XPath constraints buildXPathExpressions recorded.
+	Query(query string, args ...any) (*sql.Rows, error)
 	Commit() error
 	Rollback() error
 }

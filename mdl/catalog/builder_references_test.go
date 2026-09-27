@@ -222,6 +222,13 @@ func TestMicroflowActionRef(t *testing.T) {
 			wantOK:     true,
 			targetType: "ASSOCIATION", targetName: "M.Order_Customer", refKind: RefKindRetrieve,
 		},
+		{
+			name:       "WorkflowCallAction (previously dropped)",
+			action:     &microflows.WorkflowCallAction{Workflow: "M.WF_Approve"},
+			wantOK:     true,
+			targetType: "WORKFLOW", targetName: "M.WF_Approve", refKind: RefKindCall,
+		},
+		{name: "empty WorkflowCallAction", action: &microflows.WorkflowCallAction{}, wantOK: false},
 		// Actions whose target is a local variable (no resolvable document QN) must
 		// not emit a ref.
 		{name: "ChangeObjectAction has no document ref", action: &microflows.ChangeObjectAction{ChangeVariable: "$Order"}, wantOK: false},

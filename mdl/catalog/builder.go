@@ -580,6 +580,12 @@ func (b *Builder) Build(progress ProgressFunc) error {
 		return fmt.Errorf("failed to build export mappings: %w", err)
 	}
 
+	// Build XPath expressions table (full mode only). Before buildReferences,
+	// which resolves the attributes and associations each constraint names.
+	if err := b.buildXPathExpressions(); err != nil {
+		return fmt.Errorf("failed to build xpath expressions: %w", err)
+	}
+
 	// Build cross-references (only in full mode)
 	if err := b.buildReferences(); err != nil {
 		return fmt.Errorf("failed to build references: %w", err)
@@ -588,11 +594,6 @@ func (b *Builder) Build(progress ProgressFunc) error {
 	// Build permissions (only in full mode)
 	if err := b.buildPermissions(); err != nil {
 		return fmt.Errorf("failed to build permissions: %w", err)
-	}
-
-	// Build XPath expressions table (full mode only)
-	if err := b.buildXPathExpressions(); err != nil {
-		return fmt.Errorf("failed to build xpath expressions: %w", err)
 	}
 
 	// Build strings FTS table (full mode only)

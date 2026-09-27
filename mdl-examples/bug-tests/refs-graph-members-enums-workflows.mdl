@@ -1,0 +1,117 @@
+-- ============================================================================
+-- refs / impact / context: gaps in the cross-reference graph
+-- ============================================================================
+--
+-- Found by an agent-orientation audit on Evora Factory Management. Before:
+--
+--   impact DigitalTwin.Machine.NumberOfIncidents
+--       -> (no impact - element is not referenced)
+--          but a change activity sets it and a page displays it
+--   impact DigitalTwin.ENUM_MachineStatus        -> not referenced
+--   callers AltairIntegration.WF_ScheduleTechnicianAppointment
+--       -> (no callers found), though a microflow calls it
+--   impact DigitalTwin.Machine
+--       -> ProductionLine_Reset | retrieve printed twice; "MICROFLOW: 9"
+--          over six microflows; summary order changed between runs
+--   context DigitalTwin.Machine -> "Related Entities: (none found)",
+--          with five associations
+--
+-- The graph had no ATTRIBUTE / ENUMERATION / ENUMERATION_VALUE targets, no
+-- microflow -> workflow edge, no page -> association edge and no mapping ->
+-- entity edge; refs/impact printed a row per edge; context read association
+-- edges from the wrong end.
+--
+-- ----------------------------------------------------------------------------
+-- Running this example
+--
+--   mxcli exec refs-graph-members-enums-workflows.mdl -p app.mpr
+--   mxcli -p app.mpr -c "refresh catalog full"
+--   mxcli impact -p app.mpr RefsGraph.Machine.Incidents
+--       # MICROFLOW RefsGraph.ACT_Machine_Reset (member)
+--       # PAGE RefsGraph.Machine_Details (member)
+--   mxcli impact -p app.mpr RefsGraph.Machine.Status
+--       # MICROFLOW RefsGraph.ACT_Machine_Reset (xpath) — the retrieve's constraint
+--   mxcli impact -p app.mpr RefsGraph.MachineStatus
+--       # ENTITY RefsGraph.Machine (type), MICROFLOW RefsGraph.ACT_Machine_Reset
+--       # (value / xpath) — uses of the values are included
+--   mxcli callers -p app.mpr RefsGraph.WF_Repair
+--       # RefsGraph.ACT_Machine_Repair
+--   mxcli impact -p app.mpr RefsGraph.Machine
+--       # ACT_Machine_Reset listed once per kind; summary counts elements
+--   mxcli context -p app.mpr RefsGraph.Machine
+--       # Related Entities: RefsGraph.Line and RefsGraph.Incident, with the
+--       # association and its direction
+--   mxcli impact -p app.mpr RefsGraph.Machine.Unused
+--       # "no references found to attribute ..." plus what was and was not
+--       # checked — never "not referenced"
+-- ============================================================================
+
+create module RefsGraph;
+
+create enumeration RefsGraph.MachineStatus (
+  Active 'Active',
+  Critical 'Critical'
+);
+
+create persistent entity RefsGraph.Line (
+  Name: String(100)
+);
+/
+
+create persistent entity RefsGraph.Machine (
+  Name: String(100),
+  Status: Enumeration(RefsGraph.MachineStatus),
+  Incidents: Integer,
+  Unused: String(20)
+);
+/
+
+create persistent entity RefsGraph.Incident (
+  Title: String(200)
+);
+/
+
+create association RefsGraph.Machine_Line from RefsGraph.Machine to RefsGraph.Line;
+create association RefsGraph.Incident_Machine from RefsGraph.Incident to RefsGraph.Machine;
+
+-- Two retrieves of the same entity: one `retrieve` reference, not two rows.
+create microflow RefsGraph.ACT_Machine_Reset ($Line: RefsGraph.Line)
+begin
+  retrieve $Critical from RefsGraph.Machine where [Status = 'Critical'];
+  retrieve $All from RefsGraph.Machine where [RefsGraph.Machine_Line = $Line];
+  loop $M in $All
+  begin
+    if $M/Status = RefsGraph.MachineStatus.Critical then
+      change $M (Incidents = 0);
+    end if;
+  end loop;
+end;
+/
+
+create page RefsGraph.Machine_Details
+(
+  params: { $Machine: RefsGraph.Machine },
+  title: 'Machine',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvMachine (DataSource: $Machine) {
+    textbox tbName (Label: 'Name', Attribute: Name)
+    textbox tbIncidents (Label: 'Incidents', Attribute: Incidents)
+  }
+}
+
+create workflow RefsGraph.WF_Repair
+  parameter $Context: RefsGraph.Machine
+begin
+  user task Inspect 'Inspect the machine'
+    page RefsGraph.Machine_Details
+    outcomes
+      'Done' { };
+end workflow;
+
+create microflow RefsGraph.ACT_Machine_Repair ($Machine: RefsGraph.Machine)
+begin
+  $Wf = call workflow RefsGraph.WF_Repair ($Machine);
+end;
+/
