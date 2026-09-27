@@ -244,14 +244,19 @@ func readJavaScriptActionSource(mprPath, moduleName, actionName string) (userCod
 
 // sliceBetweenFold returns the substring of s between the first case-insensitive
 // occurrence of begin and the following case-insensitive occurrence of end.
+//
+// Only ASCII letters are folded. strings.ToLower changes the byte length of some
+// characters ("İ" 2 -> 3 bytes, the Kelvin sign 3 -> 1), so an index into its
+// result is not an index into s, and one such character above the markers cut
+// the section a byte off — the markers are ASCII, so nothing else needs folding.
 func sliceBetweenFold(s, begin, end string) (string, bool) {
-	lower := strings.ToLower(s)
-	bi := strings.Index(lower, strings.ToLower(begin))
+	lower := asciiLower(s)
+	bi := strings.Index(lower, asciiLower(begin))
 	if bi == -1 {
 		return "", false
 	}
 	rest := bi + len(begin)
-	ei := strings.Index(lower[rest:], strings.ToLower(end))
+	ei := strings.Index(lower[rest:], asciiLower(end))
 	if ei == -1 {
 		return "", false
 	}
@@ -267,4 +272,15 @@ func formatJavaScriptActionType(t javaactions.CodeActionParameterType) string {
 		return s
 	}
 	return t.TypeString()
+}
+
+// asciiLower lower-cases ASCII letters only, so the result has s's byte offsets.
+func asciiLower(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			b[i] = c + ('a' - 'A')
+		}
+	}
+	return string(b)
 }
