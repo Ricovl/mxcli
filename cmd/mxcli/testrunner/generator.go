@@ -103,13 +103,13 @@ func writeTestBlock(b *strings.Builder, tc TestCase, index int) {
 // the reasons the endpoint runner exists.
 func writeSetupBlock(b *strings.Builder, tc TestCase) {
 	for _, flow := range tc.Setups {
-		fmt.Fprintf(b, "  CALL MICROFLOW %s() ON ERROR {\n", flow)
+		fmt.Fprintf(b, "  CALL MICROFLOW %s() ON ERROR BEGIN\n", flow)
 		fmt.Fprintf(b, "    LOG ERROR NODE 'MXTEST' 'MXTEST:ERROR:%s:Setup failed: %s';\n",
 			escapeMDLString(tc.ID), escapeMDLString(flow))
 		b.WriteString("    SET $TestFailed = true;\n")
 		b.WriteString("    SET $AllPassed = false;\n")
 		b.WriteString("    RETURN $AllPassed;\n")
-		b.WriteString("  };\n")
+		b.WriteString("  END ERROR;\n")
 	}
 }
 
@@ -262,14 +262,14 @@ func rewriteWithErrorHandling(lines []string, testID string) []string {
 
 		if containsCallMicroflow(trimmed) && strings.HasSuffix(trimmed, ";") {
 			withoutSemicolon := strings.TrimSuffix(trimmed, ";")
-			result = append(result, withoutSemicolon+" ON ERROR {")
+			result = append(result, withoutSemicolon+" ON ERROR BEGIN")
 			result = append(result, fmt.Sprintf(
 				"  LOG ERROR NODE 'MXTEST' 'MXTEST:FAIL:%s:Exception during execution';",
 				escapeMDLString(testID)))
 			result = append(result, "  SET $TestFailed = true;")
 			result = append(result, "  SET $AllPassed = false;")
 			result = append(result, "  RETURN $AllPassed;")
-			result = append(result, "};")
+			result = append(result, "END ERROR;")
 		} else if containsCallMicroflow(trimmed) && !strings.HasSuffix(trimmed, ";") {
 			var callLines []string
 			callLines = append(callLines, line)
@@ -284,14 +284,14 @@ func rewriteWithErrorHandling(lines []string, testID string) []string {
 			joined := strings.Join(callLines, "\n")
 			joined = strings.TrimSpace(joined)
 			joined = strings.TrimSuffix(joined, ";")
-			result = append(result, joined+" ON ERROR {")
+			result = append(result, joined+" ON ERROR BEGIN")
 			result = append(result, fmt.Sprintf(
 				"  LOG ERROR NODE 'MXTEST' 'MXTEST:FAIL:%s:Exception during execution';",
 				escapeMDLString(testID)))
 			result = append(result, "  SET $TestFailed = true;")
 			result = append(result, "  SET $AllPassed = false;")
 			result = append(result, "  RETURN $AllPassed;")
-			result = append(result, "};")
+			result = append(result, "END ERROR;")
 		} else {
 			result = append(result, line)
 		}
@@ -315,9 +315,9 @@ func rewriteForThrowsTest(lines []string, didThrowVar string, want string) []str
 
 		if containsCallMicroflow(trimmed) && strings.HasSuffix(trimmed, ";") {
 			withoutSemicolon := strings.TrimSuffix(trimmed, ";")
-			result = append(result, withoutSemicolon+" ON ERROR {")
+			result = append(result, withoutSemicolon+" ON ERROR BEGIN")
 			result = append(result, throwsFlagHandler(didThrowVar, want)...)
-			result = append(result, "};")
+			result = append(result, "END ERROR;")
 		} else if containsCallMicroflow(trimmed) && !strings.HasSuffix(trimmed, ";") {
 			var callLines []string
 			callLines = append(callLines, line)
@@ -332,9 +332,9 @@ func rewriteForThrowsTest(lines []string, didThrowVar string, want string) []str
 			joined := strings.Join(callLines, "\n")
 			joined = strings.TrimSpace(joined)
 			joined = strings.TrimSuffix(joined, ";")
-			result = append(result, joined+" ON ERROR {")
+			result = append(result, joined+" ON ERROR BEGIN")
 			result = append(result, throwsFlagHandler(didThrowVar, want)...)
-			result = append(result, "};")
+			result = append(result, "END ERROR;")
 		} else {
 			result = append(result, line)
 		}

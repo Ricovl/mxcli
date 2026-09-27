@@ -444,12 +444,16 @@ retrieveSource
     | DATABASE STRING_LITERAL                // External DB
     ;
 
-// ON ERROR clause for microflow error handling
+// ON ERROR clause for microflow error handling.
+//
+// A custom handler is imperative flow, so it is `begin … end error` like every
+// other flow block (R2, ako/mxcli#754). The brace form is its deprecated
+// spelling: braces hold declarative children.
 onErrorClause
     : ON ERROR CONTINUE                                    // Ignore error, continue
     | ON ERROR ROLLBACK                                    // Rollback and abort (default)
-    | ON ERROR LBRACE microflowBody RBRACE                 // Custom error handler with rollback
-    | ON ERROR WITHOUT ROLLBACK LBRACE microflowBody RBRACE // Custom error handler without rollback
+    | ON ERROR (WITHOUT ROLLBACK)? BEGIN microflowBody END ERROR // Custom error handler
+    | ON ERROR (WITHOUT ROLLBACK)? LBRACE microflowBody RBRACE /* @alias MDL-DEPR540 */
     ;
 
 // IF ... THEN ... END IF;
@@ -471,6 +475,10 @@ loopStatement
       BEGIN microflowBody END LOOP
     ;
 
+// WHILE condition BEGIN ... END WHILE;
+//
+// `begin` and the `while` after `end` stay optional here so a headerless script
+// parses as before; under `mdl 1` the visitor requires both (MDL-V1-WHILE).
 whileStatement
     : WHILE expression
       BEGIN? microflowBody END WHILE?

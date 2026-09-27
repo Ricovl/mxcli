@@ -25,7 +25,7 @@
 --    hand-maintained switch that had drifted to 17 of the 38 action types that
 --    store ErrorHandlingType. emitActivityStatement walks an activity's error
 --    branch only when hasCustomErrorHandler() agrees, so each of the 21 missing
---    types lost its ENTIRE `on error { … }` block — not just the suffix.
+--    types lost its ENTIRE `on error begin … end error` block — not just the suffix.
 --    Create-object and change-object were among them, i.e. most of what a real
 --    microflow is made of. Replaced with a reflection lookup, so a new action
 --    type is covered the moment it exists.
@@ -41,7 +41,7 @@
 -- Eight statement forms had no `onErrorClause` in the grammar — including
 -- `declare`, the reporter's own activity. With only fix #1, DESCRIBE emitted
 --
---   declare $name String = 'NameValue' on error { … };
+--   declare $name String = 'NameValue' on error begin … end error;
 --
 -- which does not parse:
 --   line 3:37 mismatched input 'on' expecting ';'
@@ -105,9 +105,9 @@
 -- with the `on error` block and the `return` inside it both gone.
 create or modify microflow MyFirstModule.ACT_1078_Declare () returns String
 begin
-  declare $name String = 'NameValue' on error {
+  declare $name String = 'NameValue' on error begin
     return 'declare failed';
-  };
+  end error;
   return $name;
 end;
 
@@ -115,30 +115,30 @@ end;
 -- so the whole microflow builds at 0 errors.
 create or modify microflow MyFirstModule.ACT_1078_All () returns String
 begin
-  declare $name String = 'NameValue' on error {
+  declare $name String = 'NameValue' on error begin
     return 'declare failed';
-  };
-  $name = 'changed' on error {
+  end error;
+  $name = 'changed' on error begin
     return 'set failed';
-  };
-  $Car = create MyFirstModule.Car (Brand = 'Ford') on error {
+  end error;
+  $Car = create MyFirstModule.Car (Brand = 'Ford') on error begin
     return 'create failed';
-  };
-  change $Car (Brand = 'Opel') on error {
+  end error;
+  change $Car (Brand = 'Opel') on error begin
     return 'change failed';
-  };
-  log info node 'Bug1078' 'hello' on error {
+  end error;
+  log info node 'Bug1078' 'hello' on error begin
     return 'log failed';
-  };
-  validation feedback $Car/Brand message 'bad brand' on error {
+  end error;
+  validation feedback $Car/Brand message 'bad brand' on error begin
     return 'validation failed';
-  };
-  show message 'hi' on error {
+  end error;
+  show message 'hi' on error begin
     return 'message failed';
-  };
-  close page on error {
+  end error;
+  close page on error begin
     return 'close failed';
-  };
+  end error;
   return $name;
 end;
 
@@ -146,9 +146,9 @@ end;
 -- the plain custom handler — the two differ at runtime.
 create or modify microflow MyFirstModule.ACT_1078_WithoutRollback () returns String
 begin
-  declare $name String = 'NameValue' on error without rollback {
+  declare $name String = 'NameValue' on error without rollback begin
     return 'declare failed';
-  };
+  end error;
   return $name;
 end;
 

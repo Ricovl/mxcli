@@ -99,6 +99,10 @@ const (
 	// name for: a layout grid's rows and columns, a data grid's columns and
 	// control bar, a gallery's template and filter (R12, ako/mxcli#749).
 	UnstoredWidgetName = "MDL-DEPR005"
+	// OnErrorBraces is a custom error handler written `on error { … }`: the
+	// only brace block inside a microflow, where flow is `begin … end <keyword>`
+	// (R2, ako/mxcli#754).
+	OnErrorBraces = "MDL-DEPR540"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -167,6 +171,17 @@ var entries = []Entry{
 			"A data grid column is addressed as `grid column(Attr)` or `grid column('Caption')`.",
 		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column Name (Attribute: Name) } };",
 		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column (Attribute: Name) } };",
+	},
+	{
+		Code:      OnErrorBraces,
+		Old:       "on error [without rollback] { … }",
+		Canonical: "on error [without rollback] begin … end error",
+		Rewrite:   Rewrite{Structural: "`{` becomes `begin` and the closing `}` becomes `end error`"},
+		RemovedIn: 2,
+		Note: "Braces hold declarative children (widgets, operations, menu items); imperative flow is " +
+			"`begin … end <keyword>`, as for `if`, `loop` and `while` (R2).",
+		Example:          "create microflow M.F ($O: M.E) begin commit $O on error without rollback { log warning 'x'; }; end;",
+		CanonicalExample: "create microflow M.F ($O: M.E) begin commit $O on error without rollback begin log warning 'x'; end error; end;",
 	},
 }
 

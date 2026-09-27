@@ -62,7 +62,7 @@ func microflowTargets(
 // the statement itself: the annotation and comment lines before it are
 // skipped, and the statement runs to the line that ends it, continuation
 // lines included — describe breaks a long condition without indenting the
-// rest. An `if` ends at `then`; an action at `;` (or the `{` of an error
+// rest. An `if` ends at `then`; an action at `;` (or the `begin` of an error
 // handler block); a loop, an enumeration `case` and a `split type` open a
 // block on the next line, so they are their first line.
 //
@@ -88,14 +88,18 @@ func printedStatement(obj microflows.MicroflowObject, body []string, r elkSource
 				return strings.Join(parts, " ")
 			}
 		default:
+			// The `begin` that opens an error handler block, and an empty
+			// handler's whole `begin end error`, are not part of the statement:
+			// a handle is written as an alter target, which names the activity
+			// and ends before any fragment.
+			if strings.HasSuffix(line, " begin end error;") {
+				return strings.TrimSpace(strings.TrimSuffix(strings.Join(parts, " "), " begin end error;"))
+			}
 			if strings.HasSuffix(line, ";") {
 				return strings.Join(parts, " ")
 			}
-			if strings.HasSuffix(line, "{") {
-				// The `{` opens the error handler block. It is not part of
-				// the statement: a handle is written as an alter target, and a
-				// target ends where a fragment's `{` begins.
-				return strings.TrimSpace(strings.TrimSuffix(strings.Join(parts, " "), "{"))
+			if strings.HasSuffix(line, " begin") {
+				return strings.TrimSpace(strings.TrimSuffix(strings.Join(parts, " "), " begin"))
 			}
 		}
 		if len(parts) >= 50 {

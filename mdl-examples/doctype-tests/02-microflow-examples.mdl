@@ -1951,10 +1951,10 @@ begin
     $Result = call microflow MfTest.M012_CreateEntity(
       Name = $Product/Name,
       Code = $ProductCode
-    ) on error without rollback {
+    ) on error without rollback begin
       log error node 'ErrorHandling' 'Failed to create entity for: ' + $ProductCode;
       return empty;
-    };
+    end error;
     return $Result;
   else
     return $Product;
@@ -2006,12 +2006,12 @@ begin
 
   -- Step 2: Update status with custom error handler
   change $Order (status = 'VALIDATED');
-  commit $Order on error without rollback {
+  commit $Order on error without rollback begin
     log error node 'OrderService' 'Failed to update order status';
     change $Order (status = 'ERROR');
     commit $Order;
     raise error;
-  };
+  end error;
 
   set $success = true;
   return $success;
@@ -2032,10 +2032,10 @@ begin
   declare $success boolean = false;
 
   -- Commit with error handler that raises an error
-  commit $Order on error without rollback {
+  commit $Order on error without rollback begin
     log error node 'OrderService' 'Failed to commit order - raising error';
     raise error;  -- Terminates with ErrorEvent
-  };
+  end error;
 
   -- This only executes if commit succeeds
   set $success = true;
@@ -2195,10 +2195,10 @@ begin
     header Accept = 'application/json'
     timeout 30
     returns string
-    on error without rollback {
+    on error without rollback begin
       log error node 'RestService' 'Failed to fetch: ' + $url;
       return false;
-    };
+    end error;
 
   set $success = true;
   return $success;

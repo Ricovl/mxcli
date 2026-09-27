@@ -81,7 +81,7 @@ func (v *microflowValidator) checkMergeJoinLabels(body []ast.MicroflowStatement)
 			case *ast.WhileStmt:
 				walkInLoop(n.Body)
 			}
-			// An `on error { … }` block is an ordinary body for labels: joining
+			// An `on error begin … end error` block is an ordinary body for labels: joining
 			// out of it into the main path is the case merge/join exists for.
 			if eh := getErrorHandlerBody(s); len(eh) > 0 {
 				walkTop(eh)

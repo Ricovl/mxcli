@@ -648,10 +648,13 @@ func buildOnErrorClause(ctx parser.IOnErrorClauseContext) *ast.ErrorHandlingClau
 	if errCtx.CONTINUE() != nil {
 		return &ast.ErrorHandlingClause{Type: ast.ErrorHandlingContinue}
 	}
-	if errCtx.ROLLBACK() != nil && errCtx.LBRACE() == nil {
+	custom := errCtx.BEGIN() != nil || errCtx.LBRACE() != nil
+	if errCtx.ROLLBACK() != nil && !custom {
 		return &ast.ErrorHandlingClause{Type: ast.ErrorHandlingRollback}
 	}
-	if errCtx.LBRACE() != nil {
+	// `begin … end error` and its deprecated brace spelling (MDL-DEPR540,
+	// recorded by ExitOnErrorClause) build the same handler.
+	if custom {
 		body := buildMicroflowBody(errCtx.MicroflowBody())
 		if errCtx.WITHOUT() != nil {
 			return &ast.ErrorHandlingClause{Type: ast.ErrorHandlingCustomWithoutRollback, Body: body}
