@@ -406,6 +406,15 @@ func emitMergeAnnotation(
 	}
 	switch obj.(type) {
 	case *microflows.ExclusiveSplit, *microflows.InheritanceSplit:
+	case *microflows.ActionActivity:
+		// An activity has a merge of its own only when its error handler falls
+		// through: the description drops the merge's label, so its position
+		// rides on the activity (#750).
+		if m := fallThroughRejoinMerge(obj.GetID(), flowsByOrigin, activityMap); m != "" {
+			p := activityMap[m].GetPosition()
+			*lines = append(*lines, indentStr+fmt.Sprintf("@merge(%d, %d)", p.X, p.Y))
+		}
+		return
 	default:
 		return
 	}
@@ -1145,6 +1154,8 @@ func traverseFlow(
 				// only falseFlow.DestinationID != mergeID is not enough.
 				if len(*lines) == elseLineIdx+1 {
 					*lines = (*lines)[:elseLineIdx]
+				} else {
+					foldElseIntoElsif(lines, elseLineIdx, indent, sourceMap, headerLineCount)
 				}
 			}
 
@@ -1333,6 +1344,8 @@ func traverseFlowUntilMerge(
 				// Remove empty else block
 				if len(*lines) == elseLineIdx+1 {
 					*lines = (*lines)[:elseLineIdx]
+				} else {
+					foldElseIntoElsif(lines, elseLineIdx, indent, sourceMap, headerLineCount)
 				}
 			}
 
@@ -2434,9 +2447,17 @@ func collectErrorHandlerStatementSpans(
 				traverse(trueFlow.DestinationID, nestedMergeID, indent+1)
 			}
 			if falseFlow != nil {
+				elseIdx := len(statements)
 				statements = append(statements, indentStr+"else")
 				if falseFlow.DestinationID != nestedMergeID {
 					traverse(falseFlow.DestinationID, nestedMergeID, indent+1)
+				}
+				if remap := foldElseIntoElsifLines(&statements, elseIdx, indent); remap != nil {
+					for i := range spans {
+						if spans[i].end >= elseIdx {
+							spans[i].start, spans[i].end = remap(spans[i].start), remap(spans[i].end)
+						}
+					}
 				}
 			}
 			if stmt != "" {
