@@ -8,6 +8,55 @@
  */
 lexer grammar MDLLexer;
 
+// Hand-written lexer helpers. In the Go target `@members` is package-level
+// code, so these are methods on the generated lexer; the predicates below call
+// them through the receiver `p` the generator names.
+@lexer::members {
+// isTrailingComma reports whether the ',' just matched ends a bracketed list:
+// the next significant character closes a (), {} or [] (whitespace and
+// comments skipped), and the one before it neither opens a list nor is another
+// comma, so `()` stays the only spelling of an empty list and `(a,,)` stays an
+// error.
+func (l *MDLLexer) isTrailingComma() bool {
+	in := l.GetInputStream()
+	// The predicate runs with the comma consumed: LA(1) is the character
+	// after it and LA(-1) the comma itself.
+	for i := 1; ; i++ {
+		switch c := in.LA(i); c {
+		case ' ', '\t', '\r', '\n', '\v', '\f':
+		case '-':
+			if in.LA(i+1) != '-' {
+				return false
+			}
+			for i++; in.LA(i+1) != '\n' && in.LA(i+1) != antlr.TokenEOF; i++ {
+			}
+		case '/':
+			if in.LA(i+1) != '*' {
+				return false
+			}
+			for i += 2; !(in.LA(i) == '*' && in.LA(i+1) == '/'); i++ {
+				if in.LA(i) == antlr.TokenEOF {
+					return false
+				}
+			}
+			i++
+		case ')', '}', ']':
+			for j := -2; ; j-- {
+				switch in.LA(j) {
+				case ' ', '\t', '\r', '\n', '\v', '\f':
+					continue
+				case '(', '{', '[', ',', antlr.TokenEOF, 0:
+					return false
+				}
+				return true
+			}
+		default:
+			return false
+		}
+	}
+}
+}
+
 // =============================================================================
 // WHITESPACE AND COMMENTS
 // =============================================================================
@@ -872,6 +921,13 @@ DIV: D I V;
 // =============================================================================
 
 SEMICOLON: ';';
+// A trailing comma is allowed in every bracketed list, under every language
+// version (ADR-0010 R11): `(A: String(200),)`, `{ Method: get, }`. It is
+// dropped here rather than written into each list rule, so it is one rule for
+// every list, and so a list's error messages stay LL(1): with `(COMMA x)*
+// COMMA?` in the parser, an unknown item after a comma is reported as "no
+// viable alternative" instead of naming what the list expects.
+TRAILING_COMMA: ',' {p.isTrailingComma()}? -> skip;
 COMMA: ',';
 DOT: '.';
 LPAREN: '(';
