@@ -64,6 +64,11 @@ func listJavaScriptActions(ctx *ExecContext, moduleName string) error {
 	return writeResult(ctx, result)
 }
 
+// jsSourceOmittedBody is the body DESCRIBE prints for an action whose .js source
+// it cannot read. exec recognises it and writes no source file (#731), as it
+// does for the Java twin, javaSourceOmittedBody.
+const jsSourceOmittedBody = "// JavaScript source not available from this project; body omitted by DESCRIBE."
+
 // describeJavaScriptAction handles DESCRIBE JAVASCRIPT ACTION command.
 func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 	qualifiedName := name.Module + "." + name.Name
@@ -176,7 +181,7 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 	if userCode != "" {
 		sb.WriteString(userCode)
 	} else {
-		sb.WriteString("// JavaScript source not available from this project; body omitted by DESCRIBE.")
+		sb.WriteString(jsSourceOmittedBody)
 	}
 	sb.WriteString("\n$$;")
 
