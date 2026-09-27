@@ -17,6 +17,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/upgrade"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/modelsdk/canon"
@@ -46,13 +47,22 @@ import (
 // a failing script gets is caught too.
 //
 // MXCLI_UPGRADE_EXAMPLES=<regexp> limits the run to matching script paths.
+//
+// By default only scripts the upgrade rewrites beyond adding the header are
+// executed: with the header as the only edit, the two runs execute the same
+// statements, and what they compare is langver's gating rather than a rewrite.
+// Executing the whole corpus takes about 15 minutes, which on its own exceeds
+// what the CI integration step has left (ako/mxcli#742 timed out there).
+// MXCLI_UPGRADE_ALL=1 executes every script, header-only ones included; run it
+// when a langver.Change or a gated rewrite lands.
 func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 	a, b := newHarness(t), newHarness(t)
 	defer a.close()
 	defer b.close()
 
 	scripts := upgradeExampleScripts(t)
-	var same, outOfScope, unparsed []string
+	all := os.Getenv("MXCLI_UPGRADE_ALL") != ""
+	var same, outOfScope, unparsed, headerOnly []string
 	for _, path := range scripts {
 		src, err := os.ReadFile(path)
 		if err != nil {
@@ -76,6 +86,10 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 				t.Fatalf("upgraded script still has %d deprecated spelling(s), first %s at line %d",
 					n, prog.Deprecations[0].Code, prog.Deprecations[0].Line)
 			}
+			if !all && onlyHeaderAdded(string(src), res) {
+				headerOnly = append(headerOnly, rel)
+				return
+			}
 
 			errA, errB, diff := executeBoth(t, a, b, string(src), res.Source)
 			if len(diff) > 0 {
@@ -98,6 +112,9 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 	t.Logf("%d scripts execute on PedApp and upgrade to the same model", len(same))
 	t.Logf("%d scripts are out of scope: their original does not execute cleanly on PedApp:\n  %s",
 		len(outOfScope), strings.Join(outOfScope, "\n  "))
+	if !all {
+		t.Logf("%d scripts only gain the header and were not executed (MXCLI_UPGRADE_ALL=1 executes them)", len(headerOnly))
+	}
 	t.Logf("%d scripts do not parse (negative tests) and cannot be upgraded:\n  %s",
 		len(unparsed), strings.Join(unparsed, "\n  "))
 	if os.Getenv("MXCLI_UPGRADE_EXAMPLES") == "" && len(same) < 50 {
@@ -105,6 +122,12 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 		// property checked on nothing passes.
 		t.Errorf("only %d scripts executed cleanly — the harness is not exercising the property", len(same))
 	}
+}
+
+// onlyHeaderAdded reports whether the upgrade's single edit was the header.
+func onlyHeaderAdded(src string, res upgrade.Result) bool {
+	return len(res.Rewritten) == 0 && len(res.GatedRewritten) == 0 &&
+		strings.TrimPrefix(res.Source, langver.Latest.String()+";\n") == src
 }
 
 // TestUpgradeExecuteBoth_Controls are the controls CLAUDE.md requires of a

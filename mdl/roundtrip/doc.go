@@ -11,7 +11,8 @@
 //
 // It also holds the execute-both property test of `mxcli fmt --upgrade`
 // (upgrade_property_test.go): every mdl-examples script and its upgrade run on
-// two copies of the fixture and must write the same model.
+// two copies of the fixture and must write the same model (by default only the
+// scripts it rewrites beyond the header; MXCLI_UPGRADE_ALL=1 runs all of them).
 //
 // Every other round-trip test in the repo runs on mxcli-authored content, where
 // an element's GUID equals its $ID, so identity loss cannot show up there. This
