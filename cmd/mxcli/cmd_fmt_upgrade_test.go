@@ -71,3 +71,20 @@ func TestFmtUpgrade_HeaderNeedsUpgrade(t *testing.T) {
 		t.Fatalf("--header without --upgrade: %v", err)
 	}
 }
+
+// A construct with no mechanical rewrite is reported with its reason, the
+// header is refused, and the file is left as it was.
+func TestFmtUpgrade_ReportsWhatItCannotRewrite(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.mdl")
+	src := "create microflow M.F ($L: List of M.E) begin\n  $n = count(filter($L, Name = 'x'));\nend\n/\n"
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := runFmt(t, "--upgrade", "--header", "-w", path)
+	if err == nil || !strings.Contains(err.Error(), "MDL-V1-LIST") || !strings.Contains(err.Error(), "nested call") {
+		t.Fatalf("want the nested list operation reported with its reason, got %v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != src {
+		t.Fatalf("the file was changed although the header was refused:\n%s", got)
+	}
+}

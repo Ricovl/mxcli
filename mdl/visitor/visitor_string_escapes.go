@@ -77,6 +77,7 @@ func (b *Builder) noteBackslashEscapes(tokens []antlr.Token) {
 			Code:    backslashIsLiteral.Code,
 			Message: "the string " + t.GetText() + ": " + backslashIsLiteral.Warning(b.langVersion),
 		})
+		b.langNotes[len(b.langNotes)-1].Fix, b.langNotes[len(b.langNotes)-1].NoFix = b.escapeFix(t)
 		added = true
 	}
 	if added {
@@ -97,4 +98,64 @@ func hasInterpretedEscape(lit string) bool {
 		}
 	}
 	return false
+}
+
+// VisitTerminal collects the string literals of the tree for escapeFix.
+func (b *Builder) VisitTerminal(node antlr.TerminalNode) {
+	if t := node.GetSymbol(); t != nil && t.GetTokenType() == parser.MDLLexerSTRING_LITERAL {
+		if b.stringLits == nil {
+			b.stringLits = map[int]antlr.TerminalNode{}
+		}
+		b.stringLits[t.GetTokenIndex()] = node
+	}
+}
+
+// escapeFix is the rewrite that keeps an mdl 0 string literal's meaning under
+// mdl 1, where a backslash is an ordinary character.
+//
+// What the literal means under mdl 0 depends on where it is. On its own (a
+// name, a caption) and in an expression the builder re-renders, it is its
+// unescaped value, so the rewrite writes that value with a doubled apostrophe as the only
+// escape. In an expression the builder stores as written — one that spans
+// lines (shouldPreserveExpressionSource) — mdl 0 already passes the backslash
+// through to Mendix, exactly as mdl 1 does, so nothing changes.
+//
+// An escaped line break in a re-rendered expression has no rewrite: writing the
+// break into the source makes the builder store the expression as written,
+// which is not always what it wrote before. A log message is the measured case
+// (mdl-examples/bug-tests/264-log-node-expression-roundtrip.mdl): a lone
+// literal is the message template, the stored expression a `{1}` parameter.
+func (b *Builder) escapeFix(t antlr.Token) (*ast.Fix, string) {
+	requoted := requoteForV1(t.GetText())
+	rewrite := &ast.Fix{Edits: []ast.TextEdit{replaceSpan(t, t, requoted)}}
+	node := b.stringLits[t.GetTokenIndex()]
+	if node == nil {
+		return rewrite, ""
+	}
+	var top antlr.ParserRuleContext
+	for p := node.GetParent(); p != nil; p = p.GetParent() {
+		if e, ok := p.(*parser.ExpressionContext); ok {
+			top = e
+		}
+	}
+	if top == nil {
+		return rewrite, ""
+	}
+	source := strings.TrimSpace(extractExpressionText(top))
+	if shouldPreserveExpressionSource(source) {
+		return &ast.Fix{}, ""
+	}
+	if strings.ContainsAny(requoted, "\r\n") {
+		return nil, "under mdl 1 the line break is written into the string itself, which makes the expression " +
+			"one that is stored as written rather than re-rendered, and that can change what it builds " +
+			"(a log message becomes a `{1}` parameter); rewrite it by hand"
+	}
+	return rewrite, ""
+}
+
+// requoteForV1 writes an mdl 0 string literal so that it has the same value
+// under mdl 1, where a backslash is an ordinary character and a doubled apostrophe the only
+// escape.
+func requoteForV1(lit string) string {
+	return "'" + strings.ReplaceAll(unquoteString(lit), "'", "''") + "'"
 }

@@ -7,6 +7,7 @@ package roundtrip
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,7 +18,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
-	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/upgrade"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/modelsdk/canon"
@@ -33,7 +33,8 @@ import (
 // For every mdl-examples script:
 //
 //  1. upgrade it, with the language header, which is the strongest form: every
-//     alias rewritten and the script run under mdl 1;
+//     alias rewritten and the script run under mdl 1 (a script the header is
+//     refused for, HeaderBlockedError, is upgraded without it);
 //  2. require zero deprecated spellings in the result;
 //  3. execute the original on one copy of the PedApp fixture and the upgrade on
 //     another;
@@ -48,9 +49,10 @@ import (
 //
 // MXCLI_UPGRADE_EXAMPLES=<regexp> limits the run to matching script paths.
 //
-// By default only scripts the upgrade rewrites beyond adding the header are
-// executed: with the header as the only edit, the two runs execute the same
-// statements, and what they compare is langver's gating rather than a rewrite.
+// By default only scripts the upgrade rewrites beyond adding the header and
+// statement terminators are executed: with those as the only edits, the two
+// runs execute the same statements (mdl/upgrade's examples test proves it),
+// and what they compare is langver's gating rather than a rewrite.
 // Executing the whole corpus takes about 15 minutes, which on its own exceeds
 // what the CI integration step has left (ako/mxcli#742 timed out there).
 // MXCLI_UPGRADE_ALL=1 executes every script, header-only ones included; run it
@@ -62,7 +64,7 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 
 	scripts := upgradeExampleScripts(t)
 	all := os.Getenv("MXCLI_UPGRADE_ALL") != ""
-	var same, outOfScope, unparsed, headerOnly []string
+	var same, outOfScope, unparsed, headerOnly, keptVersion []string
 	for _, path := range scripts {
 		src, err := os.ReadFile(path)
 		if err != nil {
@@ -75,6 +77,14 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 		}
 		t.Run(rel, func(t *testing.T) {
 			res, err := upgrade.Upgrade(string(src), upgrade.Options{AddHeader: true})
+			var hb *upgrade.HeaderBlockedError
+			if errors.As(err, &hb) {
+				// A construct with no mechanical rewrite keeps the script at
+				// mdl 0 (mdl/upgrade's keepsItsVersion lists which); its alias
+				// rewrites are still proven here.
+				keptVersion = append(keptVersion, rel)
+				res, err = upgrade.Upgrade(string(src), upgrade.Options{})
+			}
 			if err != nil {
 				t.Fatalf("upgrade: %v", err)
 			}
@@ -86,7 +96,7 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 				t.Fatalf("upgraded script still has %d deprecated spelling(s), first %s at line %d",
 					n, prog.Deprecations[0].Code, prog.Deprecations[0].Line)
 			}
-			if !all && onlyHeaderAdded(string(src), res) {
+			if !all && onlyTerminatorsAndHeader(res) {
 				headerOnly = append(headerOnly, rel)
 				return
 			}
@@ -113,8 +123,11 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 	t.Logf("%d scripts are out of scope: their original does not execute cleanly on PedApp:\n  %s",
 		len(outOfScope), strings.Join(outOfScope, "\n  "))
 	if !all {
-		t.Logf("%d scripts only gain the header and were not executed (MXCLI_UPGRADE_ALL=1 executes them)", len(headerOnly))
+		t.Logf("%d scripts only gain the header and statement terminators and were not executed "+
+			"(MXCLI_UPGRADE_ALL=1 executes them)", len(headerOnly))
 	}
+	t.Logf("%d scripts keep mdl 0 (a construct with no rewrite) and were upgraded without the header:\n  %s",
+		len(keptVersion), strings.Join(keptVersion, "\n  "))
 	t.Logf("%d scripts do not parse (negative tests) and cannot be upgraded:\n  %s",
 		len(unparsed), strings.Join(unparsed, "\n  "))
 	if os.Getenv("MXCLI_UPGRADE_EXAMPLES") == "" && len(same) < 50 {
@@ -124,10 +137,24 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 	}
 }
 
-// onlyHeaderAdded reports whether the upgrade's single edit was the header.
-func onlyHeaderAdded(src string, res upgrade.Result) bool {
-	return len(res.Rewritten) == 0 && len(res.GatedRewritten) == 0 &&
-		strings.TrimPrefix(res.Source, langver.Latest.String()+";\n") == src
+// terminatorCodes are the gated rewrites that only add a `;` or delete a `/`
+// line. They never reach the AST — mdl/upgrade's examples test proves every
+// script builds the same statements with and without them — so executing a
+// script whose only edits they are compares langver's gating, not a rewrite.
+var terminatorCodes = map[string]bool{"MDL-V1-SEMI": true, "MDL-V1-SLASH": true}
+
+// onlyTerminatorsAndHeader reports whether the upgrade's edits were the
+// header and statement terminators alone.
+func onlyTerminatorsAndHeader(res upgrade.Result) bool {
+	if len(res.Rewritten) > 0 {
+		return false
+	}
+	for code := range res.GatedRewritten {
+		if !terminatorCodes[code] {
+			return false
+		}
+	}
+	return true
 }
 
 // TestUpgradeExecuteBoth_Controls are the controls CLAUDE.md requires of a

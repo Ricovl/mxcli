@@ -174,6 +174,9 @@ func reportUpgrade(w io.Writer, label string, res upgrade.Result) {
 		if e, ok := deprecation.Lookup(d.Code); ok {
 			msg = fmt.Sprintf("%s (%s -> %s)", d.Code, e.Old, e.Canonical)
 		}
+		if d.NoFix != "" {
+			msg += ": " + d.NoFix
+		}
 		fmt.Fprintf(w, "%s:%d:%d: not upgraded, no mechanical rewrite: %s\n", label, d.Line, d.Column+1, msg)
 	}
 }

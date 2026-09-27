@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/antlr4-go/antlr/v4"
+	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 	"github.com/mendixlabs/mxcli/mdl/langver"
 )
@@ -45,13 +46,21 @@ func (b *Builder) ExitStatement(ctx *parser.StatementContext) {
 	if last[0].GetTokenType() == parser.MDLParserSLASH {
 		slash, last = last[0], last[1:]
 	}
-	if len(last) > 0 && last[0].GetTokenType() != parser.MDLParserSEMICOLON && b.gate(semicolonRequired, ctx) {
-		b.addError(fmt.Errorf("line %d: the statement ending at %q has no terminating `;`: "+
-			"under %s every statement ends with `;`", last[0].GetLine(), last[0].GetText(), b.langVersion))
+	if len(last) > 0 && last[0].GetTokenType() != parser.MDLParserSEMICOLON {
+		if b.gate(semicolonRequired, ctx) {
+			b.addError(fmt.Errorf("line %d: the statement ending at %q has no terminating `;`: "+
+				"under %s every statement ends with `;`", last[0].GetLine(), last[0].GetText(), b.langVersion))
+		} else {
+			b.fixLastNote(semicolonRequired.Code, &ast.Fix{Edits: []ast.TextEdit{insertAt(last[0].GetStop()+1, ";")}}, "")
+		}
 	}
-	if slash != nil && b.gate(slashIsNotATerminator, ctx) {
-		b.addError(fmt.Errorf("line %d: `/` is not a statement terminator under %s; end the statement "+
-			"with `;` and delete the `/` line", slash.GetLine(), b.langVersion))
+	if slash != nil {
+		if b.gate(slashIsNotATerminator, ctx) {
+			b.addError(fmt.Errorf("line %d: `/` is not a statement terminator under %s; end the statement "+
+				"with `;` and delete the `/` line", slash.GetLine(), b.langVersion))
+		} else {
+			b.fixLastNote(slashIsNotATerminator.Code, &ast.Fix{Edits: []ast.TextEdit{slashLineFix(slash)}}, "")
+		}
 	}
 }
 

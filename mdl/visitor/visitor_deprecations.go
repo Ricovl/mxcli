@@ -78,6 +78,27 @@ func replaceGate(ctx *parser.CreateStatementContext) (langver.Change, bool) {
 	return langver.Change{}, false
 }
 
+// replaceGateFix is the rewrite that keeps an mdl 0 `create or replace` on a
+// gated kind meaning what it means there.
+//
+// For a user role or demo user that is a plain create, so `or replace` is
+// dropped. A view entity's drop-and-recreate has no mdl 1 spelling: `create or
+// modify` keeps the identity the old meaning discards, and a `drop` in front
+// would fail where the old statement created the entity.
+func replaceGateFix(ctx *parser.CreateStatementContext, c langver.Change) (*ast.Fix, string) {
+	if c.Code != roleReplaceIsModify.Code {
+		return nil, "`create or replace view entity` drops and recreates the view entity under mdl 0, which no " +
+			"mdl 1 statement does: write `create or modify view entity` to keep its identity, or `drop entity` " +
+			"then `create view entity` to discard it"
+	}
+	or, next := ctx.OR().GetSymbol(), ctx.REPLACE().GetSymbol()
+	stop := next.GetStop() + 1
+	if is := next.GetInputStream(); stop < is.Size() && is.GetText(stop, stop) == " " {
+		stop++
+	}
+	return &ast.Fix{Edits: []ast.TextEdit{{Start: or.GetStart(), Stop: stop}}}, ""
+}
+
 // replaceMeansModify reports whether `create or replace` on createStmt builds
 // `create or modify` under the script's language version. The document
 // builders ask it; recordCreateOrReplace reports what it decided.
@@ -103,6 +124,8 @@ func (b *Builder) recordCreateOrReplace(ctx *parser.CreateStatementContext) {
 		return
 	}
 	if c, gated := replaceGate(ctx); gated && !b.gate(c, ctx) {
+		fix, why := replaceGateFix(ctx, c)
+		b.fixLastNote(c.Code, fix, why)
 		return
 	}
 	b.recordDeprecation(deprecation.CreateOrReplace, ctx.REPLACE().GetSymbol(), kind)

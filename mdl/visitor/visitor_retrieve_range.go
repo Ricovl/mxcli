@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
+	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 	"github.com/mendixlabs/mxcli/mdl/langver"
 )
@@ -43,8 +44,13 @@ func (b *Builder) ExitRetrieveStatement(ctx *parser.RetrieveStatementContext) {
 			ctx.GetStart().GetLine()))
 		return
 	}
-	if isBareLimitOne(ctx) {
-		b.gate(limitOneIsAList, ctx)
+	if isBareLimitOne(ctx) && !b.gate(limitOneIsAList, ctx) {
+		// `limit 1` -> `first`: the object range, spelled the way that means
+		// it under every version.
+		limit := ctx.LIMIT().GetSymbol()
+		b.fixLastNote(limitOneIsAList.Code, &ast.Fix{Edits: []ast.TextEdit{
+			replaceSpan(limit, ctx.GetLimitExpr().GetStop(), keywordLike(limit.GetText(), "first")),
+		}}, "")
 	}
 }
 

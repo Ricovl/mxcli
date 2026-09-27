@@ -87,6 +87,11 @@ type DeprecatedSpelling struct {
 	// Subject says what the spelling was used on, in MDL's own words ("entity",
 	// "microflow", …); empty when there is nothing more specific to say.
 	Subject string
+	// Fix is the structural rewrite of this use to the canonical form, for an
+	// entry whose rewrite is not a keyword swap (deprecation.Rewrite.Structural).
+	// Nil when this use has none; NoFix then says why.
+	Fix   *Fix
+	NoFix string
 }
 
 // LanguageNote is one construct whose meaning depends on the language version,
@@ -95,6 +100,28 @@ type LanguageNote struct {
 	Line    int    // 1-based source line of the construct
 	Code    string // the langver.Change's rule ID
 	Message string
+	// Fix rewrites the construct so that under the new version it still means
+	// what it means here — what `fmt --upgrade --header` applies before adding
+	// the header. Nil when there is no mechanical rewrite; NoFix then says why.
+	// A Fix with no edits is a construct already spelled so that it keeps its
+	// meaning under the new version.
+	Fix   *Fix
+	NoFix string
+}
+
+// Fix is a mechanical source rewrite: edits in the coordinates the parser read
+// the script in, computed from the parse tree by the visitor that recorded the
+// construct. Edits may not overlap.
+type Fix struct {
+	Edits []TextEdit
+}
+
+// TextEdit replaces the runes [Start, Stop) of the script with Text. Offsets
+// count runes (code points) from the start of the script, as ANTLR's character
+// stream does; Start == Stop is an insertion.
+type TextEdit struct {
+	Start, Stop int
+	Text        string
 }
 
 // DocumentAnnotation is one annotation written before a CREATE statement.

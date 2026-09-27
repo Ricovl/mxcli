@@ -3,6 +3,7 @@
 package upgrade
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -97,13 +98,77 @@ func foldModeFlags(stmts []ast.Statement) {
 	}
 }
 
+// keepsItsVersion lists the example scripts `fmt --upgrade --header` refuses,
+// with the codes of the constructs that block it: each has no mechanical
+// rewrite (HeaderBlockedError says why), so the script keeps mdl 0. The list
+// may only shrink — a script that starts upgrading must be removed, and one
+// that stops upgrading is a regression.
+var keepsItsVersion = map[string][]string{
+	// Nested list operations (`count(filter(…))`) and a non-variable operand:
+	// one activity takes a variable, so the inner call must become a statement
+	// of its own, which needs a variable name nobody chose.
+	"bug-tests/1101-nested-list-operand-dropped.fail.mdl": {"MDL-V1-LIST"},
+	// `log … 'line 1\nline 2'`: under mdl 1 the line break is written into the
+	// literal, which makes the message a stored expression (a `{1}` template
+	// parameter) instead of the template text. Measured by the execute-both
+	// test before this entry was made.
+	"bug-tests/264-log-node-expression-roundtrip.mdl": {"MDL-V1-ESCAPE"},
+}
+
+// buildsTheSameModelNotTheSameAST lists the example scripts whose upgrade
+// builds a different AST that the executor writes identically, so the AST
+// comparison is skipped for them; the execute-both test in mdl/roundtrip is
+// the proof. May only shrink.
+var buildsTheSameModelNotTheSameAST = map[string]string{
+	// `set $x = contains($Hay, $Needle)` / `find(…)` on a String: mdl 0 builds
+	// a List operation statement, which the flow builder turns into a Change
+	// variable with the string function because $Hay is declared String; under
+	// mdl 1 it is that Change variable directly.
+	"bug-tests/ledger-53-string-contains.mdl": "string contains: a List operation turned into the string function",
+	"bug-tests/ledger-63-string-find.mdl":     "string find: a List operation turned into the string function",
+}
+
+// foldSourceText erases the one part of an ast.SourceExpr the executor never
+// writes: the parsed expression kept beside the source text for checks
+// (expressionToString writes Source whenever it is set). A string escape in a
+// multi-line expression changes that parsed value and nothing it writes.
+func foldSourceText(v reflect.Value) {
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Interface:
+		if v.IsNil() {
+			return
+		}
+		if se, ok := v.Interface().(*ast.SourceExpr); ok && se.Source != "" {
+			se.Expression = nil
+			return
+		}
+		foldSourceText(v.Elem())
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			if v.Type().Field(i).IsExported() {
+				foldSourceText(v.Field(i))
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			foldSourceText(v.Index(i))
+		}
+	case reflect.Map:
+		for _, k := range v.MapKeys() {
+			foldSourceText(v.MapIndex(k))
+		}
+	}
+}
+
 func TestUpgrade_ExamplesKeepTheirStatements(t *testing.T) {
 	var parsed, upgraded, skipped int
+	blocked := map[string]bool{}
 	for _, path := range exampleScripts(t) {
 		b, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
+		rel := filepath.ToSlash(strings.TrimPrefix(path, examplesDir+"/"))
 		src := string(b)
 		if _, errs := visitor.Build(src); len(errs) > 0 {
 			skipped++ // a negative test, or a script that no longer parses: not upgradable
@@ -112,6 +177,21 @@ func TestUpgrade_ExamplesKeepTheirStatements(t *testing.T) {
 		parsed++
 		for _, opts := range []Options{{}, {AddHeader: true}} {
 			out, res, err := fmtUpgrade(src, opts)
+			var hb *HeaderBlockedError
+			if opts.AddHeader && errors.As(err, &hb) {
+				blocked[rel] = true
+				allowed := map[string]bool{}
+				for _, c := range keepsItsVersion[rel] {
+					allowed[c] = true
+				}
+				for _, c := range hb.Constructs {
+					if !allowed[c.Code] {
+						t.Errorf("%s: the header is refused over %s at line %d (%s), which is not listed in keepsItsVersion",
+							path, c.Code, c.Line, c.Reason)
+					}
+				}
+				continue
+			}
 			if err != nil {
 				t.Errorf("%s (%+v): %v", path, opts, err)
 				continue
@@ -131,16 +211,25 @@ func TestUpgrade_ExamplesKeepTheirStatements(t *testing.T) {
 			want, _ := visitor.Build(src)
 			foldModeFlags(want.Statements)
 			foldModeFlags(got.Statements)
+			foldSourceText(reflect.ValueOf(want.Statements))
+			foldSourceText(reflect.ValueOf(got.Statements))
 			if len(want.Statements) != len(got.Statements) {
 				t.Errorf("%s (%+v): %d statements became %d", path, opts, len(want.Statements), len(got.Statements))
 				continue
 			}
+			differs := false
 			for i := range want.Statements {
 				if !reflect.DeepEqual(want.Statements[i], got.Statements[i]) {
-					t.Errorf("%s (%+v): statement %d builds differently after the upgrade:\n before: %#v\n after:  %#v",
-						path, opts, i+1, want.Statements[i], got.Statements[i])
+					differs = true
+					if _, known := buildsTheSameModelNotTheSameAST[rel]; !known {
+						t.Errorf("%s (%+v): statement %d builds differently after the upgrade:\n before: %#v\n after:  %#v",
+							path, opts, i+1, want.Statements[i], got.Statements[i])
+					}
 					break
 				}
+			}
+			if _, known := buildsTheSameModelNotTheSameAST[rel]; known && opts.AddHeader && !differs {
+				t.Errorf("%s now builds the same AST after the upgrade: remove it from buildsTheSameModelNotTheSameAST", rel)
 			}
 			// Idempotent: fmt --upgrade over its own output changes nothing.
 			again, res2, err := fmtUpgrade(out, opts)
@@ -149,7 +238,13 @@ func TestUpgrade_ExamplesKeepTheirStatements(t *testing.T) {
 			}
 		}
 	}
-	t.Logf("%d scripts parse, %d of them upgraded, %d do not parse and are out of scope", parsed, upgraded, skipped)
+	for rel := range keepsItsVersion {
+		if !blocked[rel] {
+			t.Errorf("%s now takes the header: remove it from keepsItsVersion", rel)
+		}
+	}
+	t.Logf("%d scripts parse, %d of them upgraded, %d do not parse and are out of scope, %d keep mdl 0",
+		parsed, upgraded, skipped, len(blocked))
 	if upgraded == 0 {
 		t.Error("no example needed an upgrade — the corpus no longer exercises the rewrites")
 	}

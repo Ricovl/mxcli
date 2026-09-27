@@ -72,7 +72,19 @@ mxcli fmt --upgrade -w script.mdl         # upgrade in place
 mxcli fmt --upgrade --header -w script.mdl  # also add `mdl 1;`
 ```
 
-`--header` adds `mdl 1;` after rewriting every construct whose meaning the header would change, so the script keeps doing what it did. If such a construct has no rewrite yet, `fmt` refuses to add the header rather than change the script's meaning. While `mdl 1` is a preview, the header is added only when asked. Running `fmt --upgrade` on its own output changes nothing.
+`--header` adds `mdl 1;` after rewriting every construct whose meaning the header would change, so the script keeps doing what it did:
+
+| Code | Rewrite |
+|---|---|
+| `MDL-V1-SEMI` | adds the missing `;` |
+| `MDL-V1-SLASH` | deletes the `/` line |
+| `MDL-V1-ESCAPE` | writes the string's value with `''` as the only escape (`'it\'s\t'` becomes `'it''s` + a tab + `'`) |
+| `MDL-V1-LIMIT1` | `retrieve … limit 1` (one object) becomes `retrieve … first` |
+| `MDL-V1-SET` | `$x = …` becomes `set $x = …` |
+| `MDL-V1-LIST`, `MDL-DEPR003`, `MDL-DEPR004` | a list operation or aggregate call becomes its statement form (`$x = filter($L, …)` → `$x = filter $L where …`); `find`/`contains` on a declared String keeps the call and gains `set` |
+| `MDL-V1-REPLACE02` | `create or replace user role` / `demo user` becomes a plain `create` |
+
+A construct with no mechanical rewrite is reported with the reason, and `fmt` refuses to add the header rather than change the script's meaning: an unknown or mis-shaped property (`MDL-V1-PROP`, `MDL-V1-PROPVALUE`), `create or replace view entity` (`MDL-V1-REPLACE01`), a nested list operation such as `count(filter(…))`, `find`/`contains` on a variable whose type the script does not state, and an escaped line break (`\n`) inside an expression. While `mdl 1` is a preview, the header is added only when asked. Running `fmt --upgrade` on its own output changes nothing.
 
 The design is in [ADR-0011](https://github.com/mendixlabs/mxcli/blob/main/docs/13-decisions/0011-mdl-language-versioning.md); `mxcli syntax language-header` has the details.
 

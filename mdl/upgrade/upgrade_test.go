@@ -215,7 +215,8 @@ func TestUpgrade_GatedConstructs(t *testing.T) {
 		if got != "modules" {
 			t.Errorf("note does not point at the construct: %q", got)
 		}
-		return []Edit{{Line: n.Line, Column: 5, Len: 7, Text: "microflows"}}, nil
+		off, _ := s.Offset(n.Line, 5)
+		return []Edit{{Start: off, Stop: off + 7, Text: "microflows"}}, nil
 	}}
 	res, err = u.upgradeProg(src, Options{AddHeader: true}, withNote)
 	if err != nil {

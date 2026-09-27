@@ -14,12 +14,18 @@
 //     meaning differs under the new version (ast.Program.LanguageNotes, one per
 //     langver.Change) is rewritten to the spelling that keeps its OLD meaning
 //     under the new header, and `mdl <n>;` is added. The rewrites live in
-//     gatedRewriters (gated.go).
+//     gatedRewriters (gated.go); the changes with none, in unrewritable.
+//
+// A rewrite that is more than a keyword swap — a structural deprecation such as
+// a list operation's call form, or a header-gated construct — is computed from
+// the parse tree by the visitor that records the construct, as an ast.Fix of
+// rune-offset edits (mdl/visitor/visitor_upgrade_fixes.go). An occurrence the
+// visitor cannot rewrite carries the reason instead.
 //
 // Anything it cannot rewrite is reported, never guessed at: a deprecated use
-// whose entry has no rewrite is left in place and listed in Result.Unrewritten,
-// and a header-gated construct without a rewrite blocks the header, because
-// adding the header over it would silently change the script's meaning.
+// with no rewrite is left in place and listed in Result.Unrewritten, and a
+// header-gated construct without one blocks the header (HeaderBlockedError),
+// because adding the header over it would silently change the script's meaning.
 //
 // The rewrite works on the source text, not on the AST, so comments, layout
 // and every spelling it does not own survive byte for byte. The output is
@@ -117,38 +123,47 @@ func (u upgrader) upgradeProg(src string, opts Options, parse func(string) (*ast
 		if !ok {
 			return res, fmt.Errorf("line %d: the visitor recorded %s, which is not in the deprecation registry", d.Line, d.Code)
 		}
-		if e.Rewrite.IsZero() {
+		switch {
+		case e.Rewrite.Token != "":
+			ed, err := tokenSwap(text, d, e.Rewrite)
+			if err != nil {
+				return res, err
+			}
+			edits = append(edits, ed)
+		case e.Rewrite.Structural != "" && d.Fix != nil:
+			// A structural rewrite is computed from the parse tree by the
+			// visitor that recorded the use (mdl/visitor/visitor_upgrade_fixes.go).
+			edits = append(edits, d.Fix.Edits...)
+		default:
 			res.Unrewritten = append(res.Unrewritten, d)
 			continue
 		}
-		ed, err := tokenSwap(text, d, e.Rewrite)
-		if err != nil {
-			return res, err
-		}
-		edits = append(edits, ed)
 		res.Rewritten[d.Code]++
 	}
 
 	addHeader := opts.AddHeader && prog.LanguageHeaderLine == 0
 	if addHeader {
-		var missing []string
+		var blocked []Blocked
 		for _, n := range prog.LanguageNotes {
 			rw, ok := u.gated[n.Code]
 			if !ok {
-				missing = append(missing, fmt.Sprintf("line %d: %s", n.Line, n.Code))
+				reason := unrewritable[n.Code]
+				if reason == "" {
+					reason = "no rewrite is registered for it"
+				}
+				blocked = append(blocked, Blocked{Line: n.Line, Code: n.Code, Reason: reason})
 				continue
 			}
 			ed, err := rw(text, prog, n)
 			if err != nil {
-				return res, fmt.Errorf("line %d: rewriting %s: %w", n.Line, n.Code, err)
+				blocked = append(blocked, Blocked{Line: n.Line, Code: n.Code, Reason: err.Error()})
+				continue
 			}
 			edits = append(edits, ed...)
 			res.GatedRewritten[n.Code]++
 		}
-		if len(missing) > 0 {
-			return res, fmt.Errorf("cannot add the `%s;` header: %d construct(s) would change meaning under it "+
-				"and have no rewrite yet, so the script is left at %s:\n  %s",
-				langver.Latest, len(missing), prog.LanguageVersion, strings.Join(missing, "\n  "))
+		if len(blocked) > 0 {
+			return res, &HeaderBlockedError{From: prog.LanguageVersion, Constructs: blocked}
 		}
 	}
 
@@ -165,6 +180,32 @@ func (u upgrader) upgradeProg(src string, opts Options, parse func(string) (*ast
 	}
 	res.Source = out
 	return res, nil
+}
+
+// Blocked is one construct that keeps a script from taking the header: its
+// meaning would change under it, and it has no mechanical rewrite.
+type Blocked struct {
+	Line   int
+	Code   string // the langver.Change's rule ID
+	Reason string // why there is no rewrite, and what to write instead
+}
+
+// HeaderBlockedError is Upgrade's refusal to add the language header over
+// constructs whose meaning it would change and that it cannot rewrite. The
+// script is left at its version; nothing is written.
+type HeaderBlockedError struct {
+	From       langver.Version
+	Constructs []Blocked
+}
+
+func (e *HeaderBlockedError) Error() string {
+	lines := make([]string, len(e.Constructs))
+	for i, c := range e.Constructs {
+		lines[i] = fmt.Sprintf("line %d: %s: %s", c.Line, c.Code, c.Reason)
+	}
+	return fmt.Sprintf("cannot add the `%s;` header: %d construct(s) would change meaning under it "+
+		"and have no mechanical rewrite, so the script is left at %s:\n  %s",
+		langver.Latest, len(e.Constructs), e.From, strings.Join(lines, "\n  "))
 }
 
 // verify re-parses the upgraded script. It must parse, keep every statement,
@@ -186,7 +227,7 @@ func (u upgrader) verify(orig *ast.Program, out string, parse func(string) (*ast
 			len(prog.Statements), len(orig.Statements))
 	}
 	for _, d := range prog.Deprecations {
-		if e, ok := u.lookup(d.Code); ok && !e.Rewrite.IsZero() {
+		if e, ok := u.lookup(d.Code); ok && (e.Rewrite.Token != "" || d.Fix != nil) {
 			return fmt.Errorf("line %d: the upgraded script still uses a deprecated spelling (%s); its rewrite did not produce %q",
 				d.Line, d.Code, e.Canonical)
 		}
@@ -194,74 +235,92 @@ func (u upgrader) verify(orig *ast.Program, out string, parse func(string) (*ast
 	return nil
 }
 
-// Edit replaces Len runes at (Line, Column) of the source with Text. Line is
-// 1-based and Column 0-based, in runes, as ANTLR reports token positions.
-type Edit struct {
-	Line   int
-	Column int
-	Len    int
-	Text   string
-}
+// Edit replaces the runes [Start, Stop) of the source with Text; Start ==
+// Stop inserts. Offsets count runes from the start of the script, the
+// coordinates ANTLR's character stream reports.
+type Edit = ast.TextEdit
 
-// Source is a script split into lines of runes, the coordinates the parser
-// reports positions in.
+// Source is a script as runes, the coordinates the parser reports positions
+// in, with the offset each line starts at.
 type Source struct {
-	lines [][]rune
+	runes      []rune
+	lineStarts []int
 }
 
 func newSource(src string) *Source {
-	parts := strings.Split(src, "\n")
-	s := &Source{lines: make([][]rune, len(parts))}
-	for i, p := range parts {
-		s.lines[i] = []rune(p)
+	s := &Source{runes: []rune(src), lineStarts: []int{0}}
+	for i, r := range s.runes {
+		if r == '\n' {
+			s.lineStarts = append(s.lineStarts, i+1)
+		}
 	}
 	return s
 }
 
-// At returns the n runes at (line, col), or false when they are out of range.
-func (s *Source) At(line, col, n int) (string, bool) {
-	if line < 1 || line > len(s.lines) || col < 0 || n < 0 || col+n > len(s.lines[line-1]) {
-		return "", false
+// Offset returns the rune offset of (line, col): line 1-based, col 0-based in
+// runes, as ANTLR reports token positions. False when out of range.
+func (s *Source) Offset(line, col int) (int, bool) {
+	if line < 1 || line > len(s.lineStarts) || col < 0 {
+		return 0, false
 	}
-	return string(s.lines[line-1][col : col+n]), true
+	end := len(s.runes)
+	if line < len(s.lineStarts) {
+		end = s.lineStarts[line] - 1
+	}
+	off := s.lineStarts[line-1] + col
+	if off > end {
+		return 0, false
+	}
+	return off, true
 }
 
-// apply returns the source with edits applied. Edits may not overlap.
+// At returns the n runes at (line, col), or false when they are out of range
+// or cross a line end.
+func (s *Source) At(line, col, n int) (string, bool) {
+	off, ok := s.Offset(line, col)
+	if !ok || n < 0 {
+		return "", false
+	}
+	if end, ok := s.Offset(line, col+n); !ok || end != off+n {
+		return "", false
+	}
+	return string(s.runes[off : off+n]), true
+}
+
+// apply returns the source with edits applied. Edits may not overlap; two at
+// the same offset apply in the order given, an insertion before a replacement.
 func (s *Source) apply(edits []Edit) (string, error) {
 	sorted := append([]Edit(nil), edits...)
-	sort.Slice(sorted, func(i, j int) bool {
-		if sorted[i].Line != sorted[j].Line {
-			return sorted[i].Line < sorted[j].Line
+	sort.SliceStable(sorted, func(i, j int) bool {
+		if sorted[i].Start != sorted[j].Start {
+			return sorted[i].Start < sorted[j].Start
 		}
-		return sorted[i].Column < sorted[j].Column
+		return sorted[i].Stop-sorted[i].Start < sorted[j].Stop-sorted[j].Start
 	})
-	for i := 1; i < len(sorted); i++ {
-		a, b := sorted[i-1], sorted[i]
-		if a.Line == b.Line && a.Column+a.Len > b.Column {
-			return "", fmt.Errorf("line %d: two upgrade rewrites overlap at columns %d and %d", a.Line, a.Column, b.Column)
+	var b strings.Builder
+	at := 0
+	for _, e := range sorted {
+		if e.Start < 0 || e.Stop < e.Start || e.Stop > len(s.runes) {
+			return "", fmt.Errorf("%s: upgrade rewrite is outside the source", s.where(e.Start))
 		}
-	}
-	lines := make([][]rune, len(s.lines))
-	copy(lines, s.lines)
-	// Right to left, so an earlier edit's column is still valid after a later
-	// one on the same line changed its length.
-	for i := len(sorted) - 1; i >= 0; i-- {
-		e := sorted[i]
-		if _, ok := s.At(e.Line, e.Column, e.Len); !ok {
-			return "", fmt.Errorf("line %d column %d: upgrade rewrite is outside the source", e.Line, e.Column)
+		if e.Start < at {
+			return "", fmt.Errorf("%s: two upgrade rewrites overlap", s.where(e.Start))
 		}
-		l := lines[e.Line-1]
-		nl := make([]rune, 0, len(l)-e.Len+len(e.Text))
-		nl = append(nl, l[:e.Column]...)
-		nl = append(nl, []rune(e.Text)...)
-		nl = append(nl, l[e.Column+e.Len:]...)
-		lines[e.Line-1] = nl
+		b.WriteString(string(s.runes[at:e.Start]))
+		b.WriteString(e.Text)
+		at = e.Stop
 	}
-	out := make([]string, len(lines))
-	for i, l := range lines {
-		out[i] = string(l)
+	b.WriteString(string(s.runes[at:]))
+	return b.String(), nil
+}
+
+// where names a rune offset as "line L column C" (column 1-based).
+func (s *Source) where(off int) string {
+	line := sort.Search(len(s.lineStarts), func(i int) bool { return s.lineStarts[i] > off })
+	if line == 0 {
+		return fmt.Sprintf("offset %d", off)
 	}
-	return strings.Join(out, "\n"), nil
+	return fmt.Sprintf("line %d column %d", line, off-s.lineStarts[line-1]+1)
 }
 
 // tokenSwap is the edit for a deprecation.Rewrite: the recorded token, which
@@ -273,7 +332,8 @@ func tokenSwap(s *Source, d ast.DeprecatedSpelling, rw deprecation.Rewrite) (Edi
 		return Edit{}, fmt.Errorf("line %d column %d: %s is recorded here, but the source has %q where %q was expected",
 			d.Line, d.Column, d.Code, got, rw.Token)
 	}
-	return Edit{Line: d.Line, Column: d.Column, Len: n, Text: matchCase(got, rw.Replacement)}, nil
+	off, _ := s.Offset(d.Line, d.Column)
+	return Edit{Start: off, Stop: off + n, Text: matchCase(got, rw.Replacement)}, nil
 }
 
 // matchCase spells word in the letter case of like: all upper, capitalised, or
