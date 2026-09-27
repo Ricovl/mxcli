@@ -489,7 +489,7 @@ func flowSourceArgs(ds map[string]any, settingsKey, flowName string) []rawDataSo
 		if name == "" {
 			continue
 		}
-		value := extractString(mapping["Expression"])
+		value := describeExpr(extractString(mapping["Expression"]))
 		if value == "" {
 			value = pageVariableArgValue(mapping["Variable"])
 		}

@@ -178,7 +178,7 @@ var knownFailures = map[string]knownFailure{
 	"microflow FeedbackModule.ConvertBase64String":            {laws: []law{lawGetPut, lawPutGet}, issue: "#721", why: "whole-document rebuild: curves, merges, case values (#721 A)"},
 	"microflow FeedbackModule.ConvertUUIDToURL":               {laws: []law{lawGetPut}, issue: "#721", why: "whole-document rebuild: curves, merges, case values (#721 A)"},
 	"microflow FeedbackModule.PopulateUserAttributes":         {laws: []law{lawGetPut}, issue: "#721", why: "whole-document rebuild: curves, merges, case values (#721 A)"},
-	"microflow FeedbackModule.SUB_Feedback_PostToAppInsights": {laws: []law{lawGetPut, lawPutGet}, issue: "#721", why: "whole-document rebuild: curves, merges, case values (#721 A)"},
+	"microflow FeedbackModule.SUB_Feedback_PostToAppInsights": {laws: []law{lawGetPut}, issue: "#721", why: "whole-document rebuild: curves, merges, case values (#721 A); putget fixed by #718 (expression whitespace)"},
 	"microflow FeedbackModule.SUB_Feedback_Sanitize":          {laws: []law{lawGetPut}, issue: "#721", why: "whole-document rebuild: curves, merges, case values (#721 A)"},
 	"microflow FeedbackModule.SUB_Feedback_SendToServer":      {laws: []law{lawGetPut, lawPutGet}, issue: "#721", why: "whole-document rebuild: curves, merges, case values (#721 A)"},
 	"microflow FeedbackModule.VAL_Feedback":                   {laws: []law{lawGetPut, lawPutGet}, issue: "#721", why: "whole-document rebuild: curves, merges, case values (#721 A)"},
