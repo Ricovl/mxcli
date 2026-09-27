@@ -24,13 +24,43 @@ import (
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
 )
 
-// fixtureDir is PedApp (Mendix 11.13), authored in Studio Pro from marketplace
+// fixture is one Studio Pro-authored project the harness round-trips, with its
+// own allowlist. Each allowlist may only shrink.
+type fixture struct {
+	name string // for messages
+	dir  string // the project directory, relative to this package
+	mpr  string // the .mpr file name inside dir
+	// minDocs is the fewest documents the enumeration may find; far fewer means
+	// the enumeration broke, and a harness that looks at nothing passes.
+	minDocs       int
+	knownFailures map[string]knownFailure
+	// optional fixtures (a git submodule) skip with this message when absent
+	// instead of failing.
+	skipIfMissing string
+}
+
+// pedApp is PedApp (Mendix 11.13), authored in Studio Pro from marketplace
 // modules. See testdata/pedapp/README.md for what it contains and why it must
-// stay pristine.
-const (
-	fixtureDir = "../../testdata/pedapp"
-	fixtureMPR = "PedApp.mpr"
-)
+// stay pristine. It is committed, so it is never skipped.
+var pedApp = fixture{
+	name:          "PedApp",
+	dir:           "../../testdata/pedapp",
+	mpr:           "PedApp.mpr",
+	minDocs:       100,
+	knownFailures: knownFailures,
+}
+
+// testApp is ako/TestApp, a Studio Pro-authored project pinned as the git
+// submodule testdata/testapp. It has what PedApp lacks: workflows, OData
+// clients and services, and external entities (#743).
+var testApp = fixture{
+	name:          "TestApp",
+	dir:           "../../testdata/testapp/TestApp",
+	mpr:           "TestApp.mpr",
+	minDocs:       100,
+	knownFailures: testAppKnownFailures,
+	skipIfMissing: "the TestApp fixture is a git submodule that is not initialised; run `git submodule update --init testdata/testapp` to round-trip it",
+}
 
 // law names one way a document can fail the round trip. A document's outcome is
 // the set of laws it breaks; an empty set is a pass.
@@ -65,15 +95,19 @@ type knownFailure struct {
 // The test
 // ---------------------------------------------------------------------------
 
-func TestPedAppRoundTrip(t *testing.T) {
-	h := newHarness(t)
+func TestPedAppRoundTrip(t *testing.T) { runRoundTrip(t, pedApp) }
+
+// TestTestAppRoundTrip round-trips ako/TestApp (the testdata/testapp
+// submodule). It skips, saying so, when the submodule is not initialised.
+func TestTestAppRoundTrip(t *testing.T) { runRoundTrip(t, testApp) }
+
+func runRoundTrip(t *testing.T, fx fixture) {
+	h := newFixtureHarness(t, fx)
 	defer h.close()
 
 	docs := h.documents()
-	if len(docs) < 100 {
-		// The fixture has ~200 describable documents; far fewer means the
-		// enumeration broke, and a harness that looks at nothing passes.
-		t.Fatalf("enumerated only %d documents from the fixture — the enumeration is broken", len(docs))
+	if len(docs) < fx.minDocs {
+		t.Fatalf("enumerated only %d documents from %s — the enumeration is broken", len(docs), fx.name)
 	}
 
 	seen := map[string]bool{}
@@ -87,7 +121,7 @@ func TestPedAppRoundTrip(t *testing.T) {
 			if len(got.broken) == 0 {
 				passed++
 			}
-			judge(t, key, got)
+			judge(t, fx.knownFailures, key, got)
 		})
 	}
 
@@ -98,9 +132,9 @@ func TestPedAppRoundTrip(t *testing.T) {
 	}
 	t.Logf("%d of %d documents round-trip", passed, ran)
 
-	for key := range knownFailures {
+	for key := range fx.knownFailures {
 		if !seen[key] {
-			t.Errorf("knownFailures lists %q, which the fixture does not contain — stale entry, remove it", key)
+			t.Errorf("the %s allowlist lists %q, which the fixture does not contain — stale entry, remove it", fx.name, key)
 		}
 	}
 }
@@ -182,9 +216,9 @@ func TestPedAppRoundTrip_MoveIsWritten(t *testing.T) {
 }
 
 // judge compares one document's outcome with the allowlist.
-func judge(t *testing.T, key string, got outcome) {
+func judge(t *testing.T, allow map[string]knownFailure, key string, got outcome) {
 	t.Helper()
-	want, listed := knownFailures[key]
+	want, listed := allow[key]
 	wantSet := map[law]bool{}
 	for _, l := range want.laws {
 		wantSet[l] = true
@@ -222,7 +256,7 @@ func judge(t *testing.T, key string, got outcome) {
 	if got.refused != "" {
 		t.Logf("refused, nothing written: %s", got.refused)
 	}
-	t.Logf("outcome %v", got.broken)
+	t.Logf("outcome %s %v", key, got.broken)
 }
 
 // ---------------------------------------------------------------------------
@@ -231,6 +265,7 @@ func judge(t *testing.T, key string, got outcome) {
 
 type harness struct {
 	t       *testing.T
+	fx      fixture
 	fixture map[string][]byte // the committed fixture, by path relative to its root
 	dir     string            // the working copy
 	mpr     string
@@ -264,20 +299,26 @@ func isRefusal(err error) bool {
 	return false
 }
 
-func newHarness(t *testing.T) *harness {
+// newHarness is a harness on PedApp, the committed fixture.
+func newHarness(t *testing.T) *harness { return newFixtureHarness(t, pedApp) }
+
+func newFixtureHarness(t *testing.T, fx fixture) *harness {
 	t.Helper()
-	src, err := filepath.Abs(fixtureDir)
+	src, err := filepath.Abs(fx.dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(src, fixtureMPR)); err != nil {
+	if _, err := os.Stat(filepath.Join(src, fx.mpr)); err != nil {
+		if fx.skipIfMissing != "" {
+			t.Skipf("%s: %s (%v)", fx.name, fx.skipIfMissing, err)
+		}
 		t.Fatalf("fixture missing: %v", err)
 	}
-	h := &harness{t: t, dir: t.TempDir(), fixture: readFixture(t, src)}
-	h.mpr = filepath.Join(h.dir, fixtureMPR)
-	// Widget packages are stripped to their XML definitions (see the fixture
-	// README); they are all a page build needs, and are copied once since no
-	// round trip writes them.
+	h := &harness{t: t, fx: fx, dir: t.TempDir(), fixture: readFixture(t, src, fx.mpr)}
+	h.mpr = filepath.Join(h.dir, fx.mpr)
+	// Widget packages (in PedApp stripped to their XML definitions, see its
+	// README) are all a page build needs, and are copied once since no round
+	// trip writes them.
 	if err := copyDir(filepath.Join(src, "widgets"), filepath.Join(h.dir, "widgets")); err != nil {
 		t.Fatalf("copy widgets: %v", err)
 	}
@@ -289,7 +330,7 @@ func newHarness(t *testing.T) *harness {
 	// Precondition: connecting must not itself write, or every comparison
 	// below would be against a copy that is no longer the fixture.
 	for rel, want := range h.fixture {
-		if rel == fixtureMPR {
+		if rel == fx.mpr {
 			continue // SQLite metadata; units are compared through the reader
 		}
 		if got, err := os.ReadFile(filepath.Join(h.dir, rel)); err != nil || !bytes.Equal(got, want) {
@@ -352,7 +393,12 @@ func (h *harness) exec(script string) error {
 // roundTrip runs describe -> exec -> describe for one document and reports the
 // laws it breaks. The working copy is restored afterwards if anything was
 // written.
-func (h *harness) roundTrip(d document) outcome {
+func (h *harness) roundTrip(d document) outcome { return h.roundTripWith(d, nil) }
+
+// roundTripWith is roundTrip with the describe output passed through rewrite
+// before it is executed; PutGet still compares against the unrewritten first
+// describe. A nil rewrite executes the output unchanged.
+func (h *harness) roundTripWith(d document, rewrite func(string) string) outcome {
 	var o outcome
 	fail := func(l law, format string, args ...any) {
 		o.broken = append(o.broken, l)
@@ -365,9 +411,13 @@ func (h *harness) roundTrip(d document) outcome {
 		return o
 	}
 
-	prog, errs := visitor.Build(first)
+	script := first
+	if rewrite != nil {
+		script = rewrite(first)
+	}
+	prog, errs := visitor.Build(script)
 	if len(errs) > 0 {
-		fail(lawParse, "%v\n--- describe output ---\n%s", errs[0], first)
+		fail(lawParse, "%v\n--- executed script ---\n%s", errs[0], script)
 		return o
 	}
 	if len(prog.Statements) == 0 {
@@ -385,12 +435,12 @@ func (h *harness) roundTrip(d document) outcome {
 		// A refusal that wrote nothing keeps both laws.
 		o.refused = execErr.Error()
 	default:
-		fail(lawExec, "%v\n--- describe output ---\n%s", execErr, first)
+		fail(lawExec, "%v\n--- executed script ---\n%s", execErr, script)
 	}
 
 	if len(changed) > 0 {
-		fail(lawGetPut, "executing the unchanged describe output wrote %d unit(s):\n  %s\n--- describe output ---\n%s",
-			len(changed), strings.Join(changed, "\n  "), first)
+		fail(lawGetPut, "executing the describe output wrote %d unit(s):\n  %s\n--- executed script ---\n%s",
+			len(changed), strings.Join(changed, "\n  "), script)
 	}
 
 	// PutGet. With no write this also catches a describe that is not
@@ -456,7 +506,7 @@ func (h *harness) snapshot() snapshot {
 		rel, _ := filepath.Rel(h.dir, p)
 		top := strings.SplitN(rel, string(filepath.Separator), 2)[0]
 		switch {
-		case top == "mprcontents" || top == "widgets" || top == ".mxcli" || strings.HasPrefix(top, fixtureMPR):
+		case top == "mprcontents" || top == "widgets" || top == ".mxcli" || strings.HasPrefix(top, h.fx.mpr):
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
@@ -549,6 +599,8 @@ var unitKeywords = map[string]string{
 	"JavaActions$JavaAction":               "java action",
 	"JavaScriptActions$JavaScriptAction":   "javascript action",
 	"Workflows$Workflow":                   "workflow",
+	"Rest$ConsumedODataService":            "odata client",
+	"ODataPublish$PublishedODataService2":  "odata service",
 	"Menus$MenuDocument":                   "menu",
 	"Images$ImageCollection":               "image collection",
 	"JsonStructures$JsonStructure":         "json structure",
@@ -615,6 +667,11 @@ func (h *harness) documents() []document {
 			for _, n := range childNames(doc, "Entities") {
 				docs = append(docs, document{"entity", mod + "." + n})
 			}
+			// An external entity is also described on its own, by `describe
+			// external entity`, which prints the `from odata client` form.
+			for _, n := range externalEntityNames(doc) {
+				docs = append(docs, document{"external entity", mod + "." + n})
+			}
 			for _, n := range childNames(doc, "Associations") {
 				docs = append(docs, document{"association", mod + "." + n})
 			}
@@ -663,6 +720,44 @@ func typeAndName(b []byte) (string, string) {
 		}
 	}
 	return typ, name
+}
+
+// externalEntityNames returns the Name of every entity in a domain model whose
+// Source is an OData remote entity source.
+func externalEntityNames(doc bson.D) []string {
+	var out []string
+	for _, e := range doc {
+		if e.Key != "Entities" {
+			continue
+		}
+		arr, _ := e.Value.(bson.A)
+		for _, item := range arr {
+			ent, ok := item.(bson.D)
+			if !ok {
+				continue
+			}
+			var name string
+			external := false
+			for _, f := range ent {
+				switch f.Key {
+				case "Name":
+					name, _ = f.Value.(string)
+				case "Source":
+					if src, ok := f.Value.(bson.D); ok {
+						for _, sf := range src {
+							if sf.Key == "$Type" && sf.Value == "Rest$ODataRemoteEntitySource" {
+								external = true
+							}
+						}
+					}
+				}
+			}
+			if external && name != "" {
+				out = append(out, name)
+			}
+		}
+	}
+	return out
 }
 
 // childNames returns the Name of every element in a BSON array property. Mendix
@@ -729,7 +824,7 @@ func lineDiff(a, b string) string {
 
 // readFixture loads the .mpr and mprcontents/ into memory once, so restoring
 // the working copy never reads the (possibly slow) checkout again.
-func readFixture(t *testing.T, src string) map[string][]byte {
+func readFixture(t *testing.T, src, mprName string) map[string][]byte {
 	t.Helper()
 	out := map[string][]byte{}
 	err := filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
@@ -737,7 +832,7 @@ func readFixture(t *testing.T, src string) map[string][]byte {
 			return err
 		}
 		rel, _ := filepath.Rel(src, p)
-		if rel != fixtureMPR && !strings.HasPrefix(rel, "mprcontents"+string(filepath.Separator)) {
+		if rel != mprName && !strings.HasPrefix(rel, "mprcontents"+string(filepath.Separator)) {
 			return nil
 		}
 		b, err := os.ReadFile(p)

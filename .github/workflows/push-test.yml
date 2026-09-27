@@ -116,6 +116,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # testdata/testapp (ako/TestApp) is the round-trip harness's second
+          # Studio Pro-authored fixture (#743); without it that test skips.
+          submodules: true
       - uses: actions/setup-go@v7
         with:
           go-version: '1.26.6'
