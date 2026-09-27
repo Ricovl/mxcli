@@ -72,6 +72,10 @@ type Rewrite struct {
 	Replacement string
 }
 
+// IsZero reports whether r is empty: the entry has no mechanical rewrite, and
+// `fmt --upgrade` reports its uses instead of guessing at one.
+func (r Rewrite) IsZero() bool { return r.Token == "" && r.Replacement == "" }
+
 // Codes of the registered entries, for the visitor to record.
 const (
 	CreateOrReplace = "MDL-DEPR001"
