@@ -521,6 +521,14 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 			}
 			return pd.statements(d.ElseBody, s.ElseBody)
 		}
+		if sameLoopShell(ins[0], del[0]) {
+			// The splice does not edit inside a loop, and the engine would
+			// take this as a replace of the whole loop: every node in it
+			// rebuilt, renumbered and redrawn — the rebuild's loss, confined
+			// to the loop but no less silent.
+			return cannotSplice("the %s changes inside its body; the splice does not edit inside a loop, "+
+				"and replacing the whole loop would rebuild every node it holds", describeAt(del[0]))
+		}
 		if sameIgnoringLayout(ins[0], del[0]) {
 			return cannotSplice("the %s is moved or its connectors are redrawn; the splice places new nodes only and does not move stored ones",
 				describeAt(del[0]))
@@ -567,6 +575,31 @@ func sameIfShell(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfS
 		return nil, nil, false
 	}
 	return d, s, true
+}
+
+// sameLoopShell reports whether two statements are the same loop — the same
+// kind and iteration — differing at most in its body and its geometry. (A loop
+// moved as well as edited inside is still a change inside the loop.)
+func sameLoopShell(declared, stored ast.MicroflowStatement) bool {
+	switch d := declared.(type) {
+	case *ast.LoopStmt:
+		s, ok := stored.(*ast.LoopStmt)
+		if !ok {
+			return false
+		}
+		dShell, sShell := *d, *s
+		dShell.Body, sShell.Body = nil, nil
+		return sameIgnoringLayout(&dShell, &sShell)
+	case *ast.WhileStmt:
+		s, ok := stored.(*ast.WhileStmt)
+		if !ok {
+			return false
+		}
+		dShell, sShell := *d, *s
+		dShell.Body, sShell.Body = nil, nil
+		return sameIgnoringLayout(&dShell, &sShell)
+	}
+	return false
 }
 
 // describeAt names a stored statement and where it is drawn, for a message.

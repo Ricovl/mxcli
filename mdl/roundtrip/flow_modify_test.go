@@ -292,6 +292,72 @@ func TestFlowModify_UnspliceableChange(t *testing.T) {
 	}
 }
 
+// A change inside a loop body is not a splice: the engine does not edit
+// inside a loop, and replacing the whole loop would renumber and redraw every
+// node it holds — the rebuild's loss, confined to the loop but just as silent.
+// So under mdl 1 it is refused, and under mdl 0 it takes the warned rebuild.
+// Control: a change after the loop in the same flow is spliced.
+func TestFlowModify_LoopBodyChangeIsNotSpliced(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	// PedApp has no loop, so this flow is mxcli-authored; the test is about
+	// what is refused, not about identity.
+	const create = `create microflow MyFirstModule.LoopFlow (
+  $Items: List of FeedbackModule.Feedback
+)
+returns Integer
+begin
+  declare $N Integer = 0;
+  loop $It in $Items begin
+    if $It/Subject != empty then
+      set $N = $N + 1;
+    end if;
+    log info node 'X' 'in loop';
+  end loop;
+  log info node 'X' 'after loop';
+  return $N;
+end;`
+	if err := h.exec(create); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	const target = "microflow MyFirstModule.LoopFlow"
+	described := h.mustDescribe(t, target)
+	inLoop := strings.Replace(described, "'in loop'", "'in the loop'", 1)
+	if inLoop == described {
+		t.Fatalf("describe output has no 'in loop':\n%s", described)
+	}
+	before := h.flowUnit(t, "LoopFlow")
+
+	err := h.exec("mdl 1;\n" + inLoop)
+	if err == nil || !strings.Contains(err.Error(), "cannot be spliced") || !strings.Contains(err.Error(), "loop") {
+		t.Fatalf("under mdl 1 want a refusal naming the loop, got %v", err)
+	}
+	if !bytes.Equal(h.flowUnit(t, "LoopFlow"), before) {
+		t.Fatal("the refused statement wrote")
+	}
+
+	if err := h.exec(inLoop); err != nil {
+		t.Fatalf("under mdl 0: %v", err)
+	}
+	if !strings.Contains(h.out.String(), "Warning [MDL-V1-REBUILD]") {
+		t.Errorf("under mdl 0 want the MDL-V1-REBUILD warning, got:\n%s", h.out.String())
+	}
+	if !strings.Contains(h.mustDescribe(t, target), "'in the loop'") {
+		t.Error("under mdl 0 the rebuild did not write the change")
+	}
+
+	// Control: after the loop, the same kind of change is spliced.
+	described = h.mustDescribe(t, target)
+	after := strings.Replace(described, "'after loop'", "'after the loop'", 1)
+	if err := h.exec("mdl 1;\n" + after); err != nil {
+		t.Fatalf("control under mdl 1: %v", err)
+	}
+	if !strings.Contains(h.out.String(), "(spliced: 1 replaced)") {
+		t.Errorf("control: want a splice, got:\n%s", h.out.String())
+	}
+}
+
 func (h *harness) mustDescribe(t *testing.T, target string) string {
 	t.Helper()
 	out, err := h.describe(target)
