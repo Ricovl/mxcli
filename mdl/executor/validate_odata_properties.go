@@ -18,6 +18,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
+	"github.com/mendixlabs/mxcli/mdl/suggest"
 )
 
 // Known property names, in the spelling the syntax help uses. These are for the
@@ -119,54 +120,8 @@ func unknownODataProps(location string, unknown, known []string) []linter.Violat
 }
 
 // closestProperty returns the known property a misspelling most likely meant,
-// or "" when nothing is close enough to be worth guessing. Case-insensitive
-// prefix/substring first, then a single edit.
-func closestProperty(name string, known []string) string {
-	lower := strings.ToLower(name)
-	for _, k := range known {
-		lk := strings.ToLower(k)
-		if strings.HasPrefix(lk, lower) || strings.HasPrefix(lower, lk) || strings.Contains(lk, lower) {
-			return k
-		}
-	}
-	for _, k := range known {
-		if withinOneEdit(lower, strings.ToLower(k)) {
-			return k
-		}
-	}
-	return ""
-}
-
-// withinOneEdit reports whether a and b differ by at most one insertion,
-// deletion or substitution.
-func withinOneEdit(a, b string) bool {
-	if a == b {
-		return true
-	}
-	if len(a) > len(b) {
-		a, b = b, a
-	}
-	if len(b)-len(a) > 1 {
-		return false
-	}
-	i, j, edits := 0, 0, 0
-	for i < len(a) && j < len(b) {
-		if a[i] == b[j] {
-			i++
-			j++
-			continue
-		}
-		edits++
-		if edits > 1 {
-			return false
-		}
-		if len(a) == len(b) {
-			i++
-		}
-		j++
-	}
-	return true
-}
+// or "" when nothing is close enough to be worth guessing.
+func closestProperty(name string, known []string) string { return suggest.Closest(name, known) }
 
 // quotedConstantRef matches the text of a string literal that is really a
 // constant reference: `@Module.Name`.

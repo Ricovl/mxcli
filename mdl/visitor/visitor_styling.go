@@ -58,21 +58,21 @@ func parseStylingAssignment(ctx *parser.AlterStylingAssignmentContext) ast.Styli
 		assignment.Property = "Class"
 		assignment.IsCSS = true
 		if sl := ctx.STRING_LITERAL(0); sl != nil {
-			assignment.Value = unquoteString(sl.GetText())
+			assignment.Value = unquoteStringLit(sl)
 		}
 	} else if ctx.STYLE() != nil {
 		// STYLE = 'value' (CSS appearance, not a design property)
 		assignment.Property = "Style"
 		assignment.IsCSS = true
 		if sl := ctx.STRING_LITERAL(0); sl != nil {
-			assignment.Value = unquoteString(sl.GetText())
+			assignment.Value = unquoteStringLit(sl)
 		}
 	} else {
 		// STRING_LITERAL = STRING_LITERAL | ON | OFF (design property; the key
 		// may itself be 'Class' or 'Style' — that is a design property, not CSS)
 		literals := ctx.AllSTRING_LITERAL()
 		if len(literals) > 0 {
-			assignment.Property = unquoteString(literals[0].GetText())
+			assignment.Property = unquoteStringLit(literals[0])
 		}
 		if ctx.ON() != nil {
 			assignment.IsToggle = true
@@ -81,7 +81,7 @@ func parseStylingAssignment(ctx *parser.AlterStylingAssignmentContext) ast.Styli
 			assignment.IsToggle = true
 			assignment.ToggleOn = false
 		} else if len(literals) > 1 {
-			assignment.Value = unquoteString(literals[1].GetText())
+			assignment.Value = unquoteStringLit(literals[1])
 		}
 	}
 

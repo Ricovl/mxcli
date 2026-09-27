@@ -14,7 +14,7 @@ func (b *Builder) ExitCreateImageCollectionStatement(ctx *parser.CreateImageColl
 		ExportLevel: "Hidden",
 	}
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 
 	// Extract /** ... */ doc comment (same as other create statements)
@@ -25,10 +25,10 @@ func (b *Builder) ExitCreateImageCollectionStatement(ctx *parser.CreateImageColl
 		for _, opt := range optsCtx.AllImageCollectionOption() {
 			optCtx := opt.(*parser.ImageCollectionOptionContext)
 			if optCtx.EXPORT() != nil && optCtx.LEVEL() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.ExportLevel = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.ExportLevel = unquoteStringLit(optCtx.STRING_LITERAL())
 			}
 			if optCtx.COMMENT() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Comment = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.Comment = unquoteStringLit(optCtx.STRING_LITERAL())
 			}
 		}
 	}
@@ -44,7 +44,7 @@ func (b *Builder) ExitCreateImageCollectionStatement(ctx *parser.CreateImageColl
 			}
 			stmt.Images = append(stmt.Images, ast.ImageItem{
 				Name:     name,
-				FilePath: unquoteString(itemCtx.GetPath().GetText()),
+				FilePath: unquoteStringLit(itemCtx.GetPath()),
 			})
 		}
 	}

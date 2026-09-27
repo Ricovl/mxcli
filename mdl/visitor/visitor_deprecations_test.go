@@ -50,6 +50,10 @@ func TestRegistryExamplesRecordTheirCode(t *testing.T) {
 				t.Errorf("Example and CanonicalExample build different statements:\n old:   %#v\n canon: %#v",
 					old.Statements, canon.Statements)
 			}
+			// A structural rewrite is proven by the AST comparison above alone.
+			if e.Rewrite.Structural != "" {
+				return
+			}
 			// The rewrite is a token swap; the canonical example must be exactly it.
 			re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(e.Rewrite.Token) + `\b`)
 			if got := re.ReplaceAllString(e.Example, e.Rewrite.Replacement); got != e.CanonicalExample {

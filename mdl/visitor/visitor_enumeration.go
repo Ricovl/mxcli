@@ -19,7 +19,7 @@ func (b *Builder) ExitCreateEnumerationStatement(ctx *parser.CreateEnumerationSt
 		for _, opt := range optsCtx.AllEnumerationOption() {
 			optCtx := opt.(*parser.EnumerationOptionContext)
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Folder = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
 			}
 		}
 	}
@@ -54,7 +54,7 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 				if ctx.ADD() != nil && len(ids) >= 1 {
 					caption := ""
 					if ctx.STRING_LITERAL() != nil {
-						caption = unquoteString(ctx.STRING_LITERAL().GetText())
+						caption = unquoteStringLit(ctx.STRING_LITERAL())
 					}
 					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
 						Name:        name,
@@ -82,7 +82,7 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 						Name:      name,
 						Operation: ast.AlterEnumModifyCaption,
 						ValueName: ids[0].GetText(),
-						Caption:   unquoteString(ctx.STRING_LITERAL().GetText()),
+						Caption:   unquoteStringLit(ctx.STRING_LITERAL()),
 					})
 				}
 			}
@@ -114,12 +114,12 @@ func (b *Builder) ExitCreateConstantStatement(ctx *parser.CreateConstantStatemen
 		for _, opt := range optsCtx.AllConstantOption() {
 			optCtx := opt.(*parser.ConstantOptionContext)
 			if optCtx.COMMENT() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Comment = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.Comment = unquoteStringLit(optCtx.STRING_LITERAL())
 			}
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Folder = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
 			} else if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Folder = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
 			} else if optCtx.EXPOSED() != nil {
 				stmt.ExposedToClient = true
 			}

@@ -20,7 +20,7 @@ func (b *Builder) ExitCreateMessageDefinitionCollectionStatement(ctx *parser.Cre
 	}
 	if ctx.FOLDER() != nil {
 		if lit := ctx.STRING_LITERAL(); lit != nil {
-			stmt.Folder = unquoteString(lit.GetText())
+			stmt.Folder = unquoteStringLit(lit)
 		}
 	}
 	for _, d := range ctx.AllMessageDefinitionDef() {
@@ -84,7 +84,7 @@ func (b *Builder) buildMessageMember(c parser.IMessageMemberContext) *ast.Messag
 	mem.Attribute = identifierOrKeywordText(ctx.IdentifierOrKeyword())
 	if ex, ok := ctx.MessageExample().(*parser.MessageExampleContext); ok && ex != nil {
 		if lit := ex.STRING_LITERAL(); lit != nil {
-			mem.Example = unquoteString(lit.GetText())
+			mem.Example = unquoteStringLit(lit)
 		}
 	}
 	return mem
@@ -97,7 +97,7 @@ func exposedNameOf(c parser.IMessageExposedNameContext) string {
 		return ""
 	}
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		return unquoteString(lit.GetText())
+		return unquoteStringLit(lit)
 	}
 	return ""
 }

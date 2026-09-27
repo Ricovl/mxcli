@@ -1041,8 +1041,11 @@ END;`
 		t.Fatal("Expected to find RETRIEVE statement")
 	}
 
-	if retrieveStmt.Limit != "1" {
-		t.Errorf("Expected Limit '1', got %q", retrieveStmt.Limit)
+	// Without the `mdl 1;` header `limit 1` keeps its alpha meaning, the object
+	// range (ako/mxcli#734); retrieve_first_test.go covers both versions.
+	if !retrieveStmt.First || retrieveStmt.Limit != "" {
+		t.Errorf("Expected the object range (First) for an mdl 0 `limit 1`, got First=%v Limit=%q",
+			retrieveStmt.First, retrieveStmt.Limit)
 	}
 
 	t.Log("RETRIEVE with LIMIT parsed correctly")

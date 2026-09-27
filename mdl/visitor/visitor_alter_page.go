@@ -171,7 +171,7 @@ func (b *Builder) buildAlterPageAssignment(ctx *parser.AlterPageAssignmentContex
 			return identifierOrKeywordText(id), buildActionV3(acCtx)
 		}
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			return unquoteString(sl.GetText()), buildActionV3(acCtx)
+			return unquoteStringLit(sl), buildActionV3(acCtx)
 		}
 		return "Action", buildActionV3(acCtx)
 	}
@@ -194,7 +194,7 @@ func (b *Builder) buildAlterPageAssignment(ctx *parser.AlterPageAssignmentContex
 	if id := ctx.IdentifierOrKeyword(); id != nil {
 		name = identifierOrKeywordText(id)
 	} else if sl := ctx.STRING_LITERAL(); sl != nil {
-		name = unquoteString(sl.GetText())
+		name = unquoteStringLit(sl)
 	}
 
 	value := buildPropertyValueV3(ctx.PropertyValueV3())
@@ -275,7 +275,7 @@ func (b *Builder) buildAlterTarget(ctx parser.IAlterTargetContext) ast.WidgetRef
 		}
 	}
 	if sl := tc.STRING_LITERAL(); sl != nil {
-		ref.Caption = unquoteString(sl.GetText())
+		ref.Caption = unquoteStringLit(sl)
 		return ref
 	}
 	ids := tc.AllIdentifierOrKeyword()
@@ -357,7 +357,7 @@ func (b *Builder) exitAlterPagesStylingStatement(ctx *parser.AlterPagesStylingSt
 	}
 	if lit := ctx.STRING_LITERAL(); lit != nil {
 		// The WHERE value as a quoted string — a full widget id.
-		stmt.WidgetType = unquoteString(lit.GetText())
+		stmt.WidgetType = unquoteStringLit(lit)
 	} else if len(ids) > 0 {
 		stmt.WidgetType = identifierOrKeywordText(ids[0])
 	}
@@ -368,14 +368,14 @@ func (b *Builder) exitAlterPagesStylingStatement(ctx *parser.AlterPagesStylingSt
 		if len(lits) == 0 {
 			continue
 		}
-		assignment := ast.StylingAssignment{Property: unquoteString(lits[0].GetText())}
+		assignment := ast.StylingAssignment{Property: unquoteStringLit(lits[0])}
 		switch {
 		case ac.ON() != nil:
 			assignment.IsToggle, assignment.ToggleOn = true, true
 		case ac.OFF() != nil:
 			assignment.IsToggle, assignment.ToggleOn = true, false
 		case len(lits) > 1:
-			assignment.Value = unquoteString(lits[1].GetText())
+			assignment.Value = unquoteStringLit(lits[1])
 		}
 		stmt.Assignments = append(stmt.Assignments, assignment)
 	}

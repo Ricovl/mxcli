@@ -47,8 +47,8 @@ func (b *Builder) ExitCreateTranslationsStatement(ctx *parser.CreateTranslations
 			continue
 		}
 		stmt.Entries = append(stmt.Entries, ast.TranslationEntry{
-			Source: unquoteString(lits[0].GetText()),
-			Target: unquoteString(lits[1].GetText()),
+			Source: unquoteStringLit(lits[0]),
+			Target: unquoteStringLit(lits[1]),
 		})
 	}
 

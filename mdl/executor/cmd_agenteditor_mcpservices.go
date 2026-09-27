@@ -104,7 +104,6 @@ func describeAgentEditorConsumedMCPService(ctx *ExecContext, name ast.QualifiedN
 	}
 
 	fmt.Fprintln(ctx.Output, ");")
-	fmt.Fprintln(ctx.Output, "/")
 	return nil
 }
 

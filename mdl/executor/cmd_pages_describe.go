@@ -190,7 +190,7 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 			fmt.Fprint(ctx.Output, "  }\n")
 		}
 	}
-	fmt.Fprint(ctx.Output, "}")
+	fmt.Fprint(ctx.Output, "};")
 
 	// Add GRANT VIEW if roles are assigned
 	if len(foundPage.AllowedRoles) > 0 {
@@ -295,10 +295,10 @@ func describeSnippet(ctx *ExecContext, name ast.QualifiedName) error {
 		for _, w := range rawWidgets {
 			outputWidgetMDLV3(ctx, w, 1)
 		}
-		fmt.Fprint(ctx.Output, "}")
+		fmt.Fprint(ctx.Output, "};")
 	} else {
 		// A widget-less snippet still needs an (empty) body block to re-parse (#626).
-		fmt.Fprint(ctx.Output, " {\n}")
+		fmt.Fprint(ctx.Output, " {\n};")
 	}
 
 	fmt.Fprint(ctx.Output, "\n")
@@ -373,7 +373,7 @@ func describeLayout(ctx *ExecContext, name ast.QualifiedName) error {
 		outputWidgetMDLV3(ctx, w, 1)
 	}
 
-	fmt.Fprint(ctx.Output, "}\n\n")
+	fmt.Fprint(ctx.Output, "};\n\n")
 	return nil
 }
 

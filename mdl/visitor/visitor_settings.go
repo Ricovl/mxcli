@@ -21,17 +21,17 @@ func (b *Builder) ExitAlterSettingsClause(ctx *parser.AlterSettingsClauseContext
 		stmt.DropConstant = true
 		allStrings := ctx.AllSTRING_LITERAL()
 		if len(allStrings) > 0 {
-			stmt.ConstantId = unquoteString(allStrings[0].GetText())
+			stmt.ConstantId = unquoteStringLit(allStrings[0])
 		}
 		if ctx.IN() != nil && ctx.CONFIGURATION() != nil && len(allStrings) > 1 {
-			stmt.ConfigName = unquoteString(allStrings[1].GetText())
+			stmt.ConfigName = unquoteStringLit(allStrings[1])
 		}
 	} else if ctx.CONSTANT() != nil {
 		// ALTER SETTINGS CONSTANT 'name' (VALUE 'value' | DROP) [IN CONFIGURATION 'cfg']
 		stmt.Section = "constant"
 		allStrings := ctx.AllSTRING_LITERAL()
 		if len(allStrings) > 0 {
-			stmt.ConstantId = unquoteString(allStrings[0].GetText())
+			stmt.ConstantId = unquoteStringLit(allStrings[0])
 		}
 		if ctx.DROP() != nil {
 			stmt.DropConstant = true
@@ -40,14 +40,14 @@ func (b *Builder) ExitAlterSettingsClause(ctx *parser.AlterSettingsClauseContext
 		}
 		// Check for IN CONFIGURATION 'name'
 		if ctx.IN() != nil && ctx.CONFIGURATION() != nil && len(allStrings) > 1 {
-			stmt.ConfigName = unquoteString(allStrings[1].GetText())
+			stmt.ConfigName = unquoteStringLit(allStrings[1])
 		}
 	} else if ctx.CONFIGURATION() != nil {
 		// ALTER SETTINGS CONFIGURATION 'name' Key = Value, ...
 		stmt.Section = "configuration"
 		allStrings := ctx.AllSTRING_LITERAL()
 		if len(allStrings) > 0 {
-			stmt.ConfigName = unquoteString(allStrings[0].GetText())
+			stmt.ConfigName = unquoteStringLit(allStrings[0])
 		}
 		for _, assignCtx := range ctx.AllSettingsAssignment() {
 			assign, ok := assignCtx.(*parser.SettingsAssignmentContext)
@@ -75,7 +75,7 @@ func (b *Builder) ExitAlterSettingsClause(ctx *parser.AlterSettingsClauseContext
 		stmt.ModifyGroup = ctx.MODIFY() != nil && !stmt.UpsertGroup
 		stmt.RemoveGroup = ctx.REMOVE() != nil
 		if all := ctx.AllSTRING_LITERAL(); len(all) > 0 {
-			stmt.GroupName = unquoteString(all[0].GetText())
+			stmt.GroupName = unquoteStringLit(all[0])
 		}
 		collectSettingsItemOptions(ctx.SettingsItemOptions(), stmt.Properties)
 	} else if ctx.SettingsSection() != nil && (ctx.ADD() != nil || ctx.MODIFY() != nil || ctx.REMOVE() != nil) {
@@ -88,7 +88,7 @@ func (b *Builder) ExitAlterSettingsClause(ctx *parser.AlterSettingsClauseContext
 		stmt.ModifyLanguage = ctx.MODIFY() != nil && !stmt.UpsertLanguage
 		stmt.RemoveLanguage = ctx.REMOVE() != nil
 		if all := ctx.AllSTRING_LITERAL(); len(all) > 0 {
-			stmt.LanguageCode = unquoteString(all[0].GetText())
+			stmt.LanguageCode = unquoteStringLit(all[0])
 		}
 		collectSettingsItemOptions(ctx.SettingsItemOptions(), stmt.Properties)
 	} else if ctx.SettingsSection() != nil {
@@ -122,7 +122,7 @@ func (b *Builder) ExitCreateConfigurationStatement(ctx *parser.CreateConfigurati
 	}
 
 	if sl := ctx.STRING_LITERAL(); sl != nil {
-		stmt.Name = unquoteString(sl.GetText())
+		stmt.Name = unquoteStringLit(sl)
 	}
 
 	// CREATE OR MODIFY / OR REPLACE, read off the shared create wrapper.
@@ -178,7 +178,7 @@ func collectSettingsItemOptions(opts parser.ISettingsItemOptionsContext, into ma
 // settingsValueText extracts the string value from a SettingsValue context.
 func settingsValueText(ctx *parser.SettingsValueContext) string {
 	if sl := ctx.STRING_LITERAL(); sl != nil {
-		return unquoteString(sl.GetText())
+		return unquoteStringLit(sl)
 	}
 	if nl := ctx.NUMBER_LITERAL(); nl != nil {
 		return nl.GetText()
@@ -195,7 +195,7 @@ func settingsValueText(ctx *parser.SettingsValueContext) string {
 // settingsValueToInterface extracts a typed value from a SettingsValue context.
 func settingsValueToInterface(ctx *parser.SettingsValueContext) any {
 	if sl := ctx.STRING_LITERAL(); sl != nil {
-		return unquoteString(sl.GetText())
+		return unquoteStringLit(sl)
 	}
 	if nl := ctx.NUMBER_LITERAL(); nl != nil {
 		if v, err := strconv.ParseInt(nl.GetText(), 10, 64); err == nil {

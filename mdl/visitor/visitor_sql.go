@@ -42,7 +42,7 @@ func (b *Builder) ExitSqlConnect(ctx *parser.SqlConnectContext) {
 	}
 	b.statements = append(b.statements, &ast.SQLConnectStmt{
 		Driver: words[0],
-		DSN:    unquoteString(ctx.STRING_LITERAL().GetText()),
+		DSN:    unquoteStringLit(ctx.STRING_LITERAL()),
 		Alias:  words[1],
 	})
 }
@@ -105,7 +105,7 @@ func (b *Builder) ExitImportFromQuery(ctx *parser.ImportFromQueryContext) {
 	}
 	var query string
 	if sl := ctx.STRING_LITERAL(); sl != nil {
-		query = unquoteString(sl.GetText())
+		query = unquoteStringLit(sl)
 	} else if ds := ctx.DOLLAR_STRING(); ds != nil {
 		s := ds.GetText()
 		if len(s) >= 4 && strings.HasPrefix(s, "$$") && strings.HasSuffix(s, "$$") {

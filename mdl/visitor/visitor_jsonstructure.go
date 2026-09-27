@@ -20,11 +20,11 @@ func (b *Builder) ExitCreateJsonStructureStatement(ctx *parser.CreateJsonStructu
 	allStrings := ctx.AllSTRING_LITERAL()
 	strIdx := 0
 	if ctx.FOLDER() != nil && strIdx < len(allStrings) {
-		stmt.Folder = unquoteString(allStrings[strIdx].GetText())
+		stmt.Folder = unquoteStringLit(allStrings[strIdx])
 		strIdx++
 	}
 	if ctx.COMMENT() != nil && strIdx < len(allStrings) {
-		stmt.Documentation = unquoteString(allStrings[strIdx].GetText())
+		stmt.Documentation = unquoteStringLit(allStrings[strIdx])
 	}
 
 	// Parse SNIPPET value — can be STRING_LITERAL or DOLLAR_STRING.
@@ -34,7 +34,7 @@ func (b *Builder) ExitCreateJsonStructureStatement(ctx *parser.CreateJsonStructu
 		// SNIPPET is a STRING_LITERAL; it's the last one (after COMMENT if present)
 		idx := len(allStrings) - 1
 		if idx >= 0 {
-			stmt.JsonSnippet = unquoteString(allStrings[idx].GetText())
+			stmt.JsonSnippet = unquoteStringLit(allStrings[idx])
 		}
 	}
 
@@ -48,8 +48,8 @@ func (b *Builder) ExitCreateJsonStructureStatement(ctx *parser.CreateJsonStructu
 			if len(strings) != 2 {
 				continue
 			}
-			jsonKey := unquoteString(strings[0].GetText())
-			customName := unquoteString(strings[1].GetText())
+			jsonKey := unquoteStringLit(strings[0])
+			customName := unquoteStringLit(strings[1])
 			// `item of 'key' as 'Name'` names the array's ITEM element; the bare
 			// form names the element the key itself reaches.
 			if mappingCtx.ITEM() != nil {

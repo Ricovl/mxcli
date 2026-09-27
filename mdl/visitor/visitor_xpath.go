@@ -205,7 +205,7 @@ func buildXPathStepValue(ctx parser.IXpathStepValueContext) ast.Expression {
 		return &ast.VariableExpr{Name: strings.TrimPrefix(v.GetText(), "$")}
 	}
 	if sl := svCtx.STRING_LITERAL(); sl != nil {
-		return &ast.LiteralExpr{Value: unquoteString(sl.GetText()), Kind: ast.LiteralString}
+		return &ast.LiteralExpr{Value: unquoteStringLit(sl), Kind: ast.LiteralString}
 	}
 	if nl := svCtx.NUMBER_LITERAL(); nl != nil {
 		text := nl.GetText()

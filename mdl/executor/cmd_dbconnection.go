@@ -303,7 +303,6 @@ func outputDatabaseConnectionMDL(ctx *ExecContext, conn *model.DatabaseConnectio
 	}
 
 	fmt.Fprintln(ctx.Output, ";")
-	fmt.Fprintln(ctx.Output, "/")
 
 	return nil
 }

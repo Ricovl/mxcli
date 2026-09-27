@@ -198,6 +198,9 @@ func stmtSummary(stmt ast.Statement) string {
 	case *ast.AlterStylingStmt:
 		return fmt.Sprintf("alter styling on %s %s widget %s", s.ContainerType, s.ContainerName, s.WidgetName)
 
+	case *ast.AlterFlowStmt:
+		return fmt.Sprintf("alter %s %s", s.Kind(), s.Name)
+
 	// ALTER PAGE / ALTER SNIPPET
 	case *ast.AlterPageStmt:
 		ct := s.ContainerType

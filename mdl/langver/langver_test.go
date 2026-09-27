@@ -64,3 +64,25 @@ func TestIsHeaderLine(t *testing.T) {
 		}
 	}
 }
+
+func TestScanHeader(t *testing.T) {
+	for src, want := range map[string]Version{
+		"mdl 1;\nshow entities;":              V1,
+		"MDL 1 ;":                             V1,
+		"  -- a note\n/* block */\nmdl\n1\n;": V1,
+		"mdl /* between */ 1 -- and here\n;":  V1,
+		"show entities;":                      V0,
+		"":                                    V0,
+		"mdl 1":                               V0, // no `;`: not a header
+		"mdl 1.5;":                            V0,
+		"mdl 99;":                             V0, // unknown: the parser refuses it
+		"mdlx 1;":                             V0,
+		"/** doc */ mdl 1;":                   V0, // a doc comment is a token
+		"create entity mdl.X ( A: String );\nmdl 1;": V0, // only the first statement
+		"mdl 0;": V0,
+	} {
+		if got := ScanHeader(src); got != want {
+			t.Errorf("ScanHeader(%q) = %v, want %v", src, got, want)
+		}
+	}
+}

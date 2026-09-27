@@ -33,6 +33,17 @@ func (m *MockBackend) OpenWorkflowForMutation(unitID model.ID) (backend.Workflow
 }
 
 // ---------------------------------------------------------------------------
+// MicroflowMutationBackend
+// ---------------------------------------------------------------------------
+
+func (m *MockBackend) OpenMicroflowForMutation(unitID model.ID) (backend.MicroflowMutator, error) {
+	if m.OpenMicroflowForMutationFunc != nil {
+		return m.OpenMicroflowForMutationFunc(unitID)
+	}
+	return nil, fmt.Errorf("MockBackend.OpenMicroflowForMutation not configured")
+}
+
+// ---------------------------------------------------------------------------
 // WidgetSerializationBackend
 // ---------------------------------------------------------------------------
 

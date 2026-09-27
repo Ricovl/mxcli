@@ -132,7 +132,6 @@ func outputConstantMDL(ctx *ExecContext, c *model.Constant, moduleName string) e
 	}
 
 	fmt.Fprintln(ctx.Output, ";")
-	fmt.Fprintln(ctx.Output, "/")
 
 	return nil
 }

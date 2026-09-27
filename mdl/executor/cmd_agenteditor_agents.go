@@ -163,7 +163,6 @@ func describeAgentEditorAgent(ctx *ExecContext, name ast.QualifiedName) error {
 	} else {
 		fmt.Fprintln(ctx.Output, ");")
 	}
-	fmt.Fprintln(ctx.Output, "/")
 	return nil
 }
 

@@ -21,7 +21,7 @@ func (b *Builder) ExitCreateModuleRoleStatement(ctx *parser.CreateModuleRoleStat
 	}
 	if ctx.DESCRIPTION() != nil {
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			stmt.Description = unquoteString(sl.GetText())
+			stmt.Description = unquoteStringLit(sl)
 		}
 	}
 	b.statements = append(b.statements, stmt)
@@ -95,7 +95,7 @@ func (b *Builder) ExitDropUserRoleStatement(ctx *parser.DropUserRoleStatementCon
 	} else if sl := ctx.STRING_LITERAL(); sl != nil {
 		// Quoted form (FINDINGS #5): DROP USER ROLE 'User' — matches DESCRIBE, which
 		// also accepts quotes. Bare and quoted are now consistent across both.
-		name = unquoteString(sl.GetText())
+		name = unquoteStringLit(sl)
 	}
 	if name != "" {
 		b.statements = append(b.statements, &ast.DropUserRoleStmt{
@@ -133,7 +133,7 @@ func (b *Builder) ExitGrantEntityAccessStatement(ctx *parser.GrantEntityAccessSt
 	// Parse WHERE clause
 	if ctx.WHERE() != nil {
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			stmt.XPathConstraint = unquoteString(sl.GetText())
+			stmt.XPathConstraint = unquoteStringLit(sl)
 		}
 	}
 
@@ -445,8 +445,8 @@ func (b *Builder) ExitCreateDemoUserStatement(ctx *parser.CreateDemoUserStatemen
 	}
 
 	stmt := &ast.CreateDemoUserStmt{
-		UserName: unquoteString(sls[0].GetText()),
-		Password: unquoteString(sls[1].GetText()),
+		UserName: unquoteStringLit(sls[0]),
+		Password: unquoteStringLit(sls[1]),
 	}
 
 	// Check parent createStatement for OR MODIFY
@@ -474,7 +474,7 @@ func (b *Builder) ExitCreateDemoUserStatement(ctx *parser.CreateDemoUserStatemen
 func (b *Builder) ExitDropDemoUserStatement(ctx *parser.DropDemoUserStatementContext) {
 	if sl := ctx.STRING_LITERAL(); sl != nil {
 		b.statements = append(b.statements, &ast.DropDemoUserStmt{
-			UserName: unquoteString(sl.GetText()),
+			UserName: unquoteStringLit(sl),
 			IfExists: ctx.IfExists() != nil,
 		})
 	}

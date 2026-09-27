@@ -992,6 +992,11 @@ func (unsupportedBackend) MoveViewEntitySourceDocument(_ string, _ model.ID, _ s
 	return
 }
 
+func (unsupportedBackend) OpenMicroflowForMutation(_ model.ID) (r0 backend.MicroflowMutator, err1 error) {
+	err1 = errUnsupported("OpenMicroflowForMutation")
+	return
+}
+
 func (unsupportedBackend) OpenPageForMutation(_ model.ID) (r0 backend.PageMutator, err1 error) {
 	err1 = errUnsupported("OpenPageForMutation")
 	return

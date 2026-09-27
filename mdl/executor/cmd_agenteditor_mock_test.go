@@ -345,6 +345,7 @@ func TestDescribeAgentEditorModel_Mock(t *testing.T) {
 
 	out := buf.String()
 	assertContainsStr(t, out, "create or modify model")
+	assertTerminated(t, out) // #744
 	assertContainsStr(t, out, "Provider")
 	assertContainsStr(t, out, "Key")
 }
@@ -406,6 +407,7 @@ func TestDescribeAgentEditorAgent_Mock(t *testing.T) {
 
 	out := buf.String()
 	assertContainsStr(t, out, "create or modify agent")
+	assertTerminated(t, out) // #744
 	assertContainsStr(t, out, "UsageType")
 	assertContainsStr(t, out, "Model")
 }
@@ -466,6 +468,7 @@ func TestDescribeAgentEditorKnowledgeBase_Mock(t *testing.T) {
 
 	out := buf.String()
 	assertContainsStr(t, out, "create or modify knowledge base")
+	assertTerminated(t, out) // #744
 	assertContainsStr(t, out, "Provider")
 }
 
@@ -525,6 +528,7 @@ func TestDescribeAgentEditorConsumedMCPService_Mock(t *testing.T) {
 
 	out := buf.String()
 	assertContainsStr(t, out, "create or modify consumed mcp service")
+	assertTerminated(t, out) // #744
 	// ProtocolVersion with a date value must be quoted so the output is re-parseable (issue #435)
 	assertContainsStr(t, out, "ProtocolVersion: '2025-03-26'")
 

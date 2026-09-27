@@ -27,8 +27,11 @@ func TestRegistryEntriesAreWellFormed(t *testing.T) {
 		if got, ok := Lookup(e.Code); !ok || got.Code != e.Code {
 			t.Errorf("Lookup(%q) = %v, %v", e.Code, got.Code, ok)
 		}
-		if e.Old == "" || e.Canonical == "" || e.Rewrite.Token == "" || e.Rewrite.Replacement == "" ||
-			e.Example == "" || e.CanonicalExample == "" {
+		swap := e.Rewrite.Token != "" && e.Rewrite.Replacement != ""
+		if swap == (e.Rewrite.Structural != "") {
+			t.Errorf("%s: a rewrite is either a keyword swap or structural, exactly one: %+v", e.Code, e.Rewrite)
+		}
+		if e.Old == "" || e.Canonical == "" || e.Example == "" || e.CanonicalExample == "" {
 			t.Errorf("%s is incomplete: %+v", e.Code, e)
 		}
 		// ADR-0011: an alias warns under the version that deprecates it (1)

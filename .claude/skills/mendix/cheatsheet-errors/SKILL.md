@@ -51,7 +51,7 @@ declare $Products list of Module.Product = empty;
 
 ```mdl
 -- object: a microflow parameter, a retrieve, a create, or a loop iterator
-retrieve $Product from Module.Product where Code = $Code limit 1;  -- retrieve
+retrieve $Product from Module.Product where Code = $Code first;  -- retrieve
 $Product = create Module.Product (Name = $Name);                   -- create
 -- or: create microflow M.Save ($Product: Module.Product) ... / loop $Product in $Products ...
 
