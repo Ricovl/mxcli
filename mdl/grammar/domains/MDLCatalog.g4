@@ -9,7 +9,7 @@ options { tokenVocab = MDLLexer; }
 // DQL STATEMENTS (Data Query Language)
 // =============================================================================
 
-showOrList: SHOW | LIST_KW ;
+showOrList: SHOW /* @alias MDL-DEPR002 */ | LIST_KW ;
 
 showStatement
     : showOrList MODULES
