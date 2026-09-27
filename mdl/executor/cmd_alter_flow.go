@@ -45,31 +45,48 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 		targets[i] = c
 	}
 
+	mut, err := a.apply(ctx, s.Operations, targets)
+	if err != nil {
+		return err
+	}
+	if err := mut.Save(); err != nil {
+		return mdlerrors.NewBackend("save altered "+s.Kind(), err)
+	}
+	fmt.Fprintf(ctx.Output, "Altered %s %s\n", s.Kind(), s.Name)
+	return nil
+}
+
+// apply opens the stored flow for splicing and applies ops, each aimed at the
+// candidate at the same index of targets (resolved against the flow as stored).
+// It returns the mutator unsaved: the caller saves, or discards it on error so
+// nothing is written.
+func (a *alterFlowContext) apply(ctx *ExecContext, ops []*ast.AlterFlowOperation, targets []mfmutator.Candidate) (backend.MicroflowMutator, error) {
+	s := a.stmt
 	mut, err := ctx.Backend.OpenMicroflowForMutation(a.mf.ID)
 	if err != nil {
-		return mdlerrors.NewBackend("open "+s.Kind()+" for alter", err)
+		return nil, mdlerrors.NewBackend("open "+s.Kind()+" for alter", err)
 	}
-	for i, op := range s.Operations {
+	for i, op := range ops {
 		target := targets[i]
 		fail := func(err error) error {
 			return mdlerrors.NewValidation(fmt.Sprintf("alter %s %s: %s %s: %v", s.Kind(), s.Name, op.Op, op.Target, err))
 		}
 		if op.Op == ast.AlterFlowDrop {
 			if err := a.checkOutputUnused(target, nil); err != nil {
-				return fail(err)
+				return nil, fail(err)
 			}
 			if err := mut.Drop(target.ID); err != nil {
-				return fail(err)
+				return nil, fail(err)
 			}
 			a.noteRemoved(target, nil)
 			continue
 		}
 		frag, err := a.buildFragment(ctx, op.Body)
 		if err != nil {
-			return fail(err)
+			return nil, fail(err)
 		}
 		if err := a.checkFragmentScope(ctx, op, target, frag); err != nil {
-			return fail(err)
+			return nil, fail(err)
 		}
 		switch op.Op {
 		case ast.AlterFlowInsertAfter:
@@ -84,18 +101,14 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 			err = fmt.Errorf("unknown operation")
 		}
 		if err != nil {
-			return fail(err)
+			return nil, fail(err)
 		}
 		if op.Op == ast.AlterFlowReplace {
 			a.noteRemoved(target, frag)
 		}
 		a.noteFragment(ctx, frag)
 	}
-	if err := mut.Save(); err != nil {
-		return mdlerrors.NewBackend("save altered "+s.Kind(), err)
-	}
-	fmt.Fprintf(ctx.Output, "Altered %s %s\n", s.Kind(), s.Name)
-	return nil
+	return mut, nil
 }
 
 // alterFlowContext is what the operations of one statement share: the stored
