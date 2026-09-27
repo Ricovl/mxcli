@@ -11,9 +11,10 @@ import (
 // Sub-types (PAGE, SNIPPET, STYLING, WORKFLOW) are handled by dedicated visitor files;
 // OData ALTER is handled inline below.
 func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
-	// Handle ALTER PAGE / ALTER SNIPPET
-	if (ctx.PAGE() != nil || ctx.SNIPPET() != nil || ctx.LAYOUT() != nil) && len(ctx.AllAlterPageOperation()) > 0 {
-		b.exitAlterPageStatement(ctx)
+	// The generic ALTER <type> Module.Name { … } (ADR-0012). Only the page
+	// family is on it so far.
+	if ctx.AlterDocumentType() != nil {
+		b.exitAlterDocumentStatement(ctx)
 		return
 	}
 

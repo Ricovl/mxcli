@@ -5,7 +5,11 @@
 // associations, enumerations, and view entities.
 package ast
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/langver"
+)
 
 // Statement represents any MDL statement that can be executed.
 type Statement interface {
@@ -53,6 +57,44 @@ type Program struct {
 	// next to knownActivityAnnotations, instead of being spread across the seven
 	// visitor sites that read them.
 	DocumentAnnotations []DocumentAnnotation
+	// Deprecations records every use of a deprecated spelling registered in
+	// mdl/deprecation, in source order. Both spellings build the same
+	// statements, so this is the only trace of which one the source used; it
+	// drives the MDL-DEPRnnn warnings and nothing else may branch on it.
+	Deprecations []DeprecatedSpelling
+
+	// LanguageVersion is the MDL language version the script is written in:
+	// the number in its `mdl <n>;` header, or mdl 0 when it has none
+	// (ADR-0011). A construct whose meaning differs between versions reads it
+	// through langver.Change; nothing may assume the latest.
+	LanguageVersion langver.Version
+	// LanguageHeaderLine is the 1-based line of the header, 0 when the script
+	// has none.
+	LanguageHeaderLine int
+	// LanguageNotes are the constructs kept at their older meaning because of
+	// LanguageVersion, one per occurrence, for check and exec to warn on.
+	LanguageNotes []LanguageNote
+}
+
+// DeprecatedSpelling is one use of a deprecated spelling in the source.
+type DeprecatedSpelling struct {
+	// Code is the registry code, MDL-DEPRnnn.
+	Code string
+	// Line and Column locate the deprecated token (1-based line, 0-based
+	// column, as ANTLR reports them).
+	Line   int
+	Column int
+	// Subject says what the spelling was used on, in MDL's own words ("entity",
+	// "microflow", …); empty when there is nothing more specific to say.
+	Subject string
+}
+
+// LanguageNote is one construct whose meaning depends on the language version,
+// kept at the meaning of the version the script is written in.
+type LanguageNote struct {
+	Line    int    // 1-based source line of the construct
+	Code    string // the langver.Change's rule ID
+	Message string
 }
 
 // DocumentAnnotation is one annotation written before a CREATE statement.

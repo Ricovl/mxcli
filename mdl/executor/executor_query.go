@@ -211,7 +211,7 @@ func execDescribe(ctx *ExecContext, s *ast.DescribeStmt) error {
 		case ast.DescribeAssociation:
 			return describeAssociation(ctx, s.Name)
 		case ast.DescribeMicroflow:
-			return describeMicroflowMode(ctx, s.Name, s.Normalized)
+			return describeMicroflowMode(ctx, s.Name, describeMicroflowOptions{Normalized: s.Normalized, Handles: s.WithHandles})
 		case ast.DescribeNanoflow:
 			return describeNanoflow(ctx, s.Name)
 		case ast.DescribeRule:

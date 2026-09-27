@@ -12,6 +12,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/catalog"
 	"github.com/mendixlabs/mxcli/mdl/diaglog"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/model"
 	sqllib "github.com/mendixlabs/mxcli/sql"
 )
@@ -33,6 +34,12 @@ type ExecContext struct {
 
 	// Output is the writer for user-visible output (with line-limit guard).
 	Output io.Writer
+
+	// Diagnostics receives warnings about the answer rather than the answer
+	// itself — "this result is incomplete because…" — so they never land in a
+	// payload a caller parses (search --format json). Nil means os.Stderr; use
+	// diagnostics() rather than reading the field.
+	Diagnostics io.Writer
 
 	// describeQualifyAttrs is set by DESCRIBE PAGE while it reads the widgets
 	// inside a data container whose flow cannot be resolved: no entity is in
@@ -133,6 +140,22 @@ type ExecContext struct {
 	// exactly how the toolbox-bitmap example broke the doctype harness, whose
 	// working directory is the package under test.
 	ScriptDir string
+
+	// LanguageVersion is the `mdl <n>;` header of the script being run, mdl 0
+	// when it has none or when the statement is not from a script (ADR-0011).
+	// A handler whose meaning depends on it declares a langver.Change and
+	// branches on Change.Applies(ctx.LanguageVersion); it never assumes the
+	// latest version.
+	LanguageVersion langver.Version
+}
+
+// diagnostics returns the writer for warnings about a result (see the
+// Diagnostics field): the configured one, or os.Stderr.
+func (ctx *ExecContext) diagnostics() io.Writer {
+	if ctx.Diagnostics != nil {
+		return ctx.Diagnostics
+	}
+	return os.Stderr
 }
 
 // ResolveScriptRelative turns a path written inside an MDL script into an

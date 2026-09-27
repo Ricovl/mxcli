@@ -9,7 +9,7 @@ options { tokenVocab = MDLLexer; }
 // DQL STATEMENTS (Data Query Language)
 // =============================================================================
 
-showOrList: SHOW | LIST_KW ;
+showOrList: SHOW /* @alias MDL-DEPR002 */ | LIST_KW ;
 
 showStatement
     : showOrList MODULES
@@ -159,7 +159,7 @@ describeStatement
     | DESCRIBE CONTRACT MESSAGE qualifiedName    // DESCRIBE CONTRACT MESSAGE Module.Service.MessageName
     | DESCRIBE ENTITY qualifiedName
     | DESCRIBE ASSOCIATION qualifiedName
-    | DESCRIBE MICROFLOW qualifiedName NORMALIZED?   // NORMALIZED folds a recombinable irreducible graph into nested ifs (Mode 3)
+    | DESCRIBE MICROFLOW qualifiedName NORMALIZED? (WITH HANDLES)?   // NORMALIZED folds a recombinable irreducible graph into nested ifs (Mode 3); WITH HANDLES prints each activity's alter target
     | DESCRIBE NANOFLOW qualifiedName
     | DESCRIBE RULE qualifiedName
     | DESCRIBE WORKFLOW qualifiedName

@@ -70,6 +70,10 @@ MERGE: M E R G E;
 // entity or variable called "normalized" still parses.
 NORMALIZED: N O R M A L I Z E D;
 
+// `describe microflow X with handles` prints the content address of each
+// activity (ADR-0012). In `keyword` too, so "handles" still parses as a name.
+HANDLES: H A N D L E S;
+
 ENTITY: E N T I T Y;
 PERSISTENT: P E R S I S T E N T;
 VIEW: V I E W;

@@ -70,6 +70,13 @@ type PageMutator interface {
 	// ContainerType returns the kind of container (page, layout, or snippet).
 	ContainerType() ContainerKind
 
+	// AlterTargetResolver resolves a generic ALTER target against this widget
+	// tree: the page family's half of `alter <type> X { … }` (ADR-0012). The
+	// executor resolves every operation's target through it before applying
+	// the operation, so each document type answers "what does this address
+	// mean" in one place.
+	AlterTargetResolver
+
 	// --- Widget property operations ---
 
 	// SetWidgetProperty sets a simple property on the named widget.

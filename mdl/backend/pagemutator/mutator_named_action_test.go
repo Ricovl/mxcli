@@ -147,12 +147,12 @@ func TestSetWidgetNamedAction_UnknownKeyAndWidget(t *testing.T) {
 }
 
 // TestSetWidgetNamedAction_RefusesBuiltInWidget: a Forms$ActionButton has no
-// pluggable slots; its click action is `set Action = …`.
+// pluggable slots; its click action is `set (Action: …)`.
 func TestSetWidgetNamedAction_RefusesBuiltInWidget(t *testing.T) {
 	btn := bson.D{{Key: "$Type", Value: "Forms$ActionButton"}, {Key: "Name", Value: "btnGo"}, {Key: "Action", Value: noAction()}}
 	m := New(makeRawPage(btn), model.ID("u"), &stubActionDeps{serialized: microflowMarker})
 	err := m.SetWidgetNamedAction("btnGo", "onClick", &pages.MicroflowClientAction{MicroflowName: "M.F"})
-	if err == nil || !strings.Contains(err.Error(), "set Action") {
-		t.Errorf("got %v, want a refusal pointing at `set Action`", err)
+	if err == nil || !strings.Contains(err.Error(), "set (Action:") {
+		t.Errorf("got %v, want a refusal pointing at `set (Action: …)`", err)
 	}
 }

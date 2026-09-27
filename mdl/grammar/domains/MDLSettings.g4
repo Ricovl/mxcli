@@ -634,6 +634,7 @@ keyword
     | NOTHING | EXPRESSION | JAVASCRIPT
     | MERGE
     | NORMALIZED
+    | HANDLES
 
     // Query / SQL
     | SELECT | FROM | WHERE | JOIN | LEFT | RIGHT | INNER | OUTER | FULL | CROSS

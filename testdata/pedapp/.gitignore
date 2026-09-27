@@ -1,0 +1,8 @@
+# A working copy of this fixture must never be committed back here.
+/.mendix-cache/
+/.mxcli/
+/deployment/
+/theme-cache/
+*.mpr.lock
+*.mpr.bak
+/mprcontents/mprjournal*

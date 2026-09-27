@@ -4,6 +4,15 @@ Complete syntax reference for MDL (Mendix Definition Language). This is the auth
 
 For task-specific guidance, see the skill files listed in [CLAUDE.md](../CLAUDE.md#important-before-writing-mdl-scripts-or-working-with-data).
 
+## Language header — `mdl <n>;`
+
+An optional first statement naming the MDL language version the script is written in. No header is `mdl 0` (alpha meaning; constructs whose meaning differs under `mdl 1` keep the old meaning and warn). `mdl 1;` is a preview until beta: it warns `MDL-LANG01` and `describe`/`fmt` do not emit it. Unknown versions are refused. Independent of the Mendix target version ([ADR-0011](../13-decisions/0011-mdl-language-versioning.md)).
+
+```sql
+mdl 1;
+create persistent entity Sales.Customer ( Name: String(200) );
+```
+
 ## DESCRIBE — type is optional
 
 Every `describe <type> Module.Name` statement also accepts a **bare** form with the type omitted — `describe Module.Name` — and the document type is auto-detected from the project (via the catalog `objects` index, built on demand). Use it anywhere: the REPL, `exec` scripts, and `mxcli describe Module.Name`.
@@ -98,7 +107,7 @@ Modifies an existing entity without full replacement.
 | Add index | `alter entity Module.Name add index [if not exists] [name] [on] (Col1 [asc\|desc], ...);` | `on` is optional (SQL-like). **Without `if not exists`, re-running is an error** — a second identical index fails the build with CE0072 |
 | Document an association | `/** What it links. */`<br>`create association Mod.C_P from Mod.C to Mod.P;`<br>or `... to Mod.P comment 'What it links.';` | Both spellings work on create; the doc comment wins when both are present. `comment` survives here — and only here among the CREATE statements — because it is an association's **only inline** spelling |
 | Create if absent | `create entity if not exists Module.Name (...);`<br>`create association if not exists Module.Assoc from ... to ...;` | Skips when it already exists, leaving the stored definition untouched. Unlike `create or modify`, which rebuilds the element from the statement and drops any attribute the statement omits — `mxcli check … -p app.mpr --references` warns about that as **MDL087**, naming the members the script removes without restating them |
-| Add index (SQL form) | `create index IdxName on Module.Name (Col1 [asc\|desc], ...);` | Same effect as `alter entity … add index`. The index name is accepted and discarded — a Mendix index is identified by its columns |
+| Add index (SQL form) | `create index IdxName on Module.Name (Col1 [asc\|desc], ...);` | Same effect as `alter entity … add index`. The index name is accepted and not stored — a Mendix index is identified by its columns — so `check` warns (MDL-IDX01); prefer `alter entity … add index (…)` |
 | Drop index | `alter entity Module.Name drop index [if exists] (Col1 [asc\|desc], ...);` | Selected by its columns — a Mendix index stores no name, so the columns are its identity, and they are what `describe entity` prints. The legacy positional form `drop index idx1` still works but shifts when an earlier index is dropped |
 | Add event handler | `alter entity Module.Name add event handler on before commit call Mod.MF($currentObject) [raise error];` | `($currentObject)` or `()`, RAISE ERROR only on BEFORE |
 | Drop event handler | `alter entity Module.Name drop event handler on before commit;` | |
@@ -473,6 +482,7 @@ rather than updating the first.
 | Show nanoflows | `show nanoflows [in module];` | List all or filter by module |
 | Describe microflow | `describe microflow Module.Name;` | Full MDL with activities |
 | Describe microflow (normalized) | `describe microflow Module.Name normalized;` | Folds crossed branches into one condition instead of flattening them. Opt-in: the output re-executes to an equivalent graph with fewer nodes and a different layout |
+| Describe microflow (with handles) | `describe microflow Module.Name with handles;` | Prints `-- handle: <target>` above each activity: its content address for `alter microflow` — output `$Var`, `'Caption'`, or a statement pattern with `*` wildcards (anchored at both ends), plus `@n` when several match. Comments only; cannot be combined with `normalized` |
 | Describe nanoflow | `describe nanoflow Module.Name;` | Full MDL with activities |
 | Rename microflow | `rename microflow Module.Old to New;` | Updates all references |
 | Rename nanoflow | `rename nanoflow Module.Old to New;` | Updates all references |
@@ -577,7 +587,7 @@ it is for pages.
 | Execute DB query | `$Result = execute database query Module.Conn.Query;` | 3-part name; supports DYNAMIC, params, CONNECTION override |
 | Import mapping | `[$Var =] import from mapping Module.IMM($SourceVar) [all\|first\|limit <e> [offset <e>]];` | Apply import mapping to string variable. Trailing clause is Studio Pro's Range; omitted = infer from the mapping's root. `first` binds one OBJECT (`limit 1` is a one-element LIST). Mendix rejects `offset` on a non-list mapping (CE6100) |
 | Export mapping | `$Var = export to mapping Module.EMM($EntityVar);` | Apply export mapping to entity, returns string |
-| Error handling | `... on error continue\|rollback\|{ handler }\|without rollback { handler };` | Goes on the activity that may fail — including `declare`, `set`, `change`, `log`, `show page`, `close page`, `show message` and `validation feedback`, which gained it in mendixlabs/mxcli#1078 so a Studio Pro handler survives DESCRIBE. `on error continue` is refused (MDL076) where Mendix raises CE6035: create, change, commit, log, show page, close page, show message, validation feedback — a custom `{ handler }` is accepted on all of them. The list-operation and aggregate forms of `set` have no error handling at all (MDL077). Not supported on EXECUTE DATABASE QUERY. **In a nanoflow** only `declare` and `set` take a clause at all — `change`, `log`, `show page`, `close page`, `show message` and `validation feedback` are CE6035 there in every form, and are refused. A handler that does not end in `return`/`throw` merges back into the main flow, so a later variable is out of scope on the error path (CE0108) |
+| Error handling | `... on error continue\|rollback\|{ handler }\|without rollback { handler };` | Goes on the activity that may fail — including `declare`, `set`, `change`, `log`, `show page`, `close page`, `show message` and `validation feedback`, which gained it in mendixlabs/mxcli#1078 so a Studio Pro handler survives DESCRIBE. `on error continue` is refused (MDL076) where Mendix raises CE6035: create, change, commit, log, show page, close page, show message, validation feedback — a custom `{ handler }` is accepted on all of them. The list-operation and aggregate forms of `set` have no error handling at all (MDL077). Not supported on EXECUTE DATABASE QUERY. **In a nanoflow** only `declare` and `set` take a clause at all — `change`, `log`, `show page`, `close page`, `show message` and `validation feedback` are CE6035 there in every form, and are refused. A handler that does not end in `return`/`raise error` merges back into the main flow, so a later variable is out of scope on the error path (CE0108) |
 | Re-raise the error | `raise error;` | **Inside an `on error { … }` handler only.** The error event re-raises the error being handled, so Mendix needs one in scope; Studio Pro will not draw the shape and mxbuild rejects it with **CE0710** "The main flow cannot join an error flow or end in an error event". On the main flow — at any nesting depth, and in a rule too — it is **MDL084**. Mendix has no main-flow "throw": call a Java action that throws |
 | Named join point | `merge <label>;` / `join <label>;` | Declares an ExclusiveMerge and sends a path to it. The label is MDL-only — a Mendix merge stores no name, so it is resolved at build and at describe time and never written to the model. Forward and backward references both resolve, so `merge attempt; … on error { join attempt; }` is a retry loop. This is how an **error path that rejoins the normal one** is written: without it the only spellings are "terminate" and "fall through to the enclosing branch's continuation", and DESCRIBE emitted an empty `{ }` for anything else — MDL that re-executes to a different graph with nothing reporting it. Also covers **crossed branches**, where an inner split's branch lands where an outer split's branch lands. Refused inside a `loop`/`while` body (MDL-FLOW04): a LoopedActivity owns its own object collection and a sequence flow cannot leave it. An unresolved or unjoined label is MDL-FLOW02; a duplicate declaration MDL-FLOW03. A path that already ended does not fall through into a following `merge` |
 
@@ -1474,7 +1484,7 @@ MDL uses explicit property declarations for pages:
 | Drop layout | `drop layout [if exists] Module.Name;` | Pages still bound to it are named in a warning and the drop proceeds; left dropped they fail **CE1613**, which names the *page* |
 | Declare a placeholder | `placeholder Main` | **No body.** Exactly one must be named `Main` — mxbuild enforces it (**CE0848**/**CE0849**), and names must be unique (**CE0495**). `placeholder X { … }` is the page-side form and declares nothing (MDL083) |
 | Alter layout | `alter layout Module.Name { <alter-page operations> };` | Edits the stored document, so widgets MDL cannot spell survive. Refused for a Marketplace target |
-| Set a design property | `alter page Module.Page { set 'Row size' = 'Small' on lvOrders; };` | An Atlas design property of that widget's **type** — quoted, case-sensitive; `show design properties for <type>` lists them. `on`/`off` for a toggle, where `off` removes the entry. Same document `alter styling` writes. A **multi-select** (`Hide on`) or **compound** (`Spacing`) property needs the inline `DesignProperties: [...]` form, since a `set` assignment carries one value |
+| Set a design property | `alter page Module.Page { set ('Row size': 'Small') on lvOrders; };` | An Atlas design property of that widget's **type** — quoted, case-sensitive; `show design properties for <type>` lists them. `on`/`off` for a toggle, where `off` removes the entry. Same document `alter styling` writes. A **multi-select** (`Hide on`) or **compound** (`Spacing`) property needs the inline `DesignProperties: [...]` form, since a `set` assignment carries one value |
 | Repoint one page | `alter page Module.Page { set Layout = Module.Layout [map (Old as New, …)]; };` | Rewrites the layout reference **and** every placeholder binding |
 | Set a design property on every widget of a type | `alter pages [in <module>] set 'Compact' = on, 'Striped' = on where widgettype = datagrid [dry run];` | The house-style sweep. `widgettype` takes the **MDL keyword**, which resolves to exactly one widget id — a `like '%datagrid%'` predicate also matches the data grid's *filter* widgets. Never a widget **name**: a name is unique only within its page. `dry run` previews against a discardable copy. A sweep that matches widgets and writes none of them exits non-zero |
 | Repoint many pages | `alter pages [in <module>] set layout = Module.Layout [map (…)] [where layout = Module.Old];` | The migration form. Marketplace pages are skipped and named. A `where layout` that names no real layout is an error, not a 0-page success |
@@ -1637,24 +1647,26 @@ Keys: `decimalPrecision` (int), `groupDigits` (bool), `dateFormat` (`Date`|`Date
 
 Modify an existing page or snippet's widget tree in-place without full `create or replace`. Works directly on the raw BSON tree, preserving unsupported widget types.
 
+This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <target>; insert before|after|into <target> { … } replace <target> with { … } drop <target>; }` — shared by pages, snippets and layouts. The old spellings `set Key = value`, `set Key: value` (no parentheses) and `drop widget` still run and warn (MDL-DEPR101..103).
+
 | Operation | Syntax | Notes |
 |-----------|--------|-------|
-| Set property | `set caption = 'New' on widgetName` | Single property on a widget |
-| Set multiple | `set (caption = 'Save', buttonstyle = success) on btn` | Multiple properties at once |
-| Page-level set | `set Title = 'New title'` | No ON clause; page-level names are case-sensitive |
-| Documentation | `set Documentation = 'What this page is for.'` | Page-level. Same property the `/** … */` doc comment on `CREATE PAGE` writes, so an existing page can be documented without restating it. `''` clears it |
-| Pop-up dimensions | `set PopupWidth = 800` / `set PopupHeight = 480` / `set PopupResizable = true` | Page-level; apply when the page opens in a pop-up |
-| Page CSS class / style | `set Class = 'css-class'` / `set Style = 'css: rule'` | Page-level (no ON clause); sets the page's Appearance |
-| Widget dynamic classes | `set DynamicClasses = 'expr' on widgetName` | Runtime-computed classes on a widget — the surgical alternative to a bulk `update widgets` |
+| Set property | `set (caption: 'New') on widgetName` | Single property on a widget |
+| Set multiple | `set (caption: 'Save', buttonstyle: success) on btn` | Multiple properties at once |
+| Page-level set | `set (Title: 'New title')` | No ON clause; page-level names are case-sensitive |
+| Documentation | `set (Documentation: 'What this page is for.')` | Page-level. Same property the `/** … */` doc comment on `CREATE PAGE` writes, so an existing page can be documented without restating it. `''` clears it |
+| Pop-up dimensions | `set (PopupWidth: 800, PopupHeight: 480, PopupResizable: true)` | Page-level; apply when the page opens in a pop-up |
+| Page CSS class / style | `set (Class: 'css-class')` / `set (Style: 'css: rule')` | Page-level (no ON clause); sets the page's Appearance |
+| Widget dynamic classes | `set (DynamicClasses: 'expr') on widgetName` | Runtime-computed classes on a widget — the surgical alternative to a bulk `update widgets` |
 | Insert after | `insert after widgetName { widgets }` | Add widgets after target |
 | Insert before | `insert before widgetName { widgets }` | Add widgets before target |
 | Insert into | `insert into containerName { widgets }` | Append as the container's last child (fills an empty container; dataview children take its entity) |
-| Drop widgets | `drop widget name1, name2` | Remove widgets by name |
+| Drop widgets | `drop name1, name2` | Remove widgets by name |
 | Replace widget | `replace widgetName with { widgets }` | Replace widget subtree |
-| Pluggable prop | `set 'showLabel' = false on cbStatus` | Quoted name for pluggable widgets |
-| Named action slot | `set 'createFileAction' = microflow M.ACT_Create on fileUploader1` | A pluggable widget's action-typed property, by its own key; any `create page` action form. Refused on a key that is not action-typed |
-| Set column prop | `set caption = 'New' on dgGrid.colName` | Dotted ref targets DataGrid column |
-| Drop column | `drop widget dgGrid.colName` | Remove a DataGrid column |
+| Pluggable prop | `set ('showLabel': false) on cbStatus` | Quoted name for pluggable widgets |
+| Named action slot | `set ('createFileAction': microflow M.ACT_Create) on fileUploader1` | A pluggable widget's action-typed property, by its own key; any `create page` action form. Refused on a key that is not action-typed |
+| Set column prop | `set (caption: 'New') on dgGrid.colName` | Dotted ref targets DataGrid column |
+| Drop column | `drop dgGrid.colName` | Remove a DataGrid column |
 | Insert column | `insert after dgGrid.colName { column ... }` | Add column to DataGrid |
 | Add variable | `add variables $name: type = 'expr'` | Add a page variable |
 | Drop variable | `drop variables $name` | Remove a page variable |
@@ -1666,15 +1678,15 @@ Modify an existing page or snippet's widget tree in-place without full `create o
 **Example:**
 ```sql
 alter page Module.EditPage {
-  set (caption = 'Save & Close', buttonstyle = success) on btnSave;
-  drop widget txtUnused;
+  set (caption: 'Save & Close', buttonstyle: success) on btnSave;
+  drop txtUnused;
   insert after txtEmail {
     textbox txtPhone (label: 'Phone', attribute: Phone)
   }
 };
 
 alter snippet Module.NavMenu {
-  set caption = 'Dashboard' on btnHome
+  set (caption: 'Dashboard') on btnHome
 };
 ```
 
