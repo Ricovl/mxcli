@@ -1,0 +1,33 @@
+-- Bug: `describe association` omitted the storage clause for a TABLE-stored
+-- association, and `create or modify` defaulted an unstated storage to COLUMN —
+-- so replaying unchanged describe output flipped Table → Column (a database
+-- schema migration). `mxcli diff` reported "(no changes)" because neither side
+-- of the script differ rendered storage.
+--
+-- Reproduce against a project, then compare before/after:
+--   mxcli exec association-storage-table-roundtrip.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe association BugTest.Order_Customer"
+-- Expected after the fix: `storage table` in both describes, and the
+-- create-or-modify without a storage clause leaves it Table.
+
+create persistent entity BugTest.Customer (
+  "Name": String(100)
+);
+
+create persistent entity BugTest.Order (
+  "Number": Integer
+);
+
+create association BugTest.Order_Customer
+from BugTest.Order to BugTest.Customer
+type Reference
+storage table;
+
+-- No storage clause: must carry the stored Table, not reset to Column.
+create or modify association BugTest.Order_Customer
+from BugTest.Order to BugTest.Customer
+type Reference
+owner Default
+delete_behavior DELETE_BUT_KEEP_REFERENCES;
+
+describe association BugTest.Order_Customer;

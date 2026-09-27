@@ -157,7 +157,11 @@ func enumerationStmtToMDL(ctx *ExecContext, s *ast.CreateEnumerationStmt) string
 }
 
 // associationStmtToMDL converts a CreateAssociationStmt to MDL text
-func associationStmtToMDL(ctx *ExecContext, s *ast.CreateAssociationStmt) string {
+//
+// stored is the existing association's storage format ("" when there is none),
+// so an unstated storage renders as what exec would leave in place rather than
+// as a change.
+func associationStmtToMDL(ctx *ExecContext, s *ast.CreateAssociationStmt, stored domainmodel.AssociationStorageFormat) string {
 	var lines []string
 
 	if s.Documentation != "" {
@@ -180,6 +184,17 @@ func associationStmtToMDL(ctx *ExecContext, s *ast.CreateAssociationStmt) string
 		owner = "Both"
 	}
 	lines = append(lines, fmt.Sprintf("owner %s", owner))
+
+	storage, stated := statedStorageFormat(s.Storage)
+	if !stated {
+		storage = stored
+		if storage == "" {
+			storage = domainmodel.StorageFormatColumn
+		}
+	}
+	if line := storageClause(storage); line != "" {
+		lines = append(lines, line)
+	}
 
 	deleteBehavior := "DELETE_BUT_KEEP_REFERENCES"
 	switch s.DeleteBehavior {
@@ -404,6 +419,10 @@ func associationToMDL(ctx *ExecContext, moduleName string, assoc *domainmodel.As
 		owner = "Both"
 	}
 	lines = append(lines, fmt.Sprintf("owner %s", owner))
+
+	if line := storageClause(assoc.StorageFormat); line != "" {
+		lines = append(lines, line)
+	}
 
 	deleteBehavior := "DELETE_BUT_KEEP_REFERENCES"
 	if assoc.ChildDeleteBehavior != nil {

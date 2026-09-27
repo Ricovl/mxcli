@@ -324,29 +324,32 @@ func diffAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) (*DiffResul
 	result := &DiffResult{
 		ObjectType: "Association",
 		ObjectName: s.Name,
-		Proposed:   associationStmtToMDL(ctx, s),
 	}
 
 	module, err := findModule(ctx, s.Name.Module)
 	if err != nil {
 		result.IsNew = true
+		result.Proposed = associationStmtToMDL(ctx, s, "")
 		return result, nil
 	}
 
 	dm, err := ctx.Backend.GetDomainModel(module.ID)
 	if err != nil {
 		result.IsNew = true
+		result.Proposed = associationStmtToMDL(ctx, s, "")
 		return result, nil
 	}
 
 	for _, assoc := range dm.Associations {
 		if assoc.Name == s.Name.Name {
 			result.Current = associationToMDL(ctx, module.Name, assoc, dm)
+			result.Proposed = associationStmtToMDL(ctx, s, assoc.StorageFormat)
 			return result, nil
 		}
 	}
 
 	result.IsNew = true
+	result.Proposed = associationStmtToMDL(ctx, s, "")
 	return result, nil
 }
 
