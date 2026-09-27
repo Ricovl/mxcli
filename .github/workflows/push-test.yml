@@ -221,9 +221,12 @@ jobs:
           - suite: other
             mxbuild: true
     steps:
-      # #743 adds TestApp as a git submodule to the round trip; its checkout
-      # will need `submodules: true` here for the roundtrip suite.
       - uses: actions/checkout@v7
+        with:
+          # testdata/testapp (ako/TestApp), the round trip's second Studio
+          # Pro-authored fixture (#743); only the roundtrip suite reads it, and
+          # without it that test skips.
+          submodules: ${{ matrix.suite == 'roundtrip' }}
       - uses: actions/setup-go@v7
         with:
           go-version: '1.26.6'
