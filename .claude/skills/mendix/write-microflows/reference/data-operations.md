@@ -254,9 +254,10 @@ retrieve $Product from Test.Product
 
 **Important**:
 - Use `from Module.Entity` (fully qualified)
-- RETRIEVE with `limit 1` returns a **single entity**
-- RETRIEVE without `limit 1` returns a **list** (`list of Module.Entity`)
-- Use `limit 1` when you expect exactly one result (e.g., lookup by unique key)
+- RETRIEVE with `first` returns a **single entity**
+- RETRIEVE without a range, or with `limit n [offset n]`, returns a **list** (`list of Module.Entity`)
+- Use `first` when you expect exactly one result (e.g., lookup by unique key). `limit 1`
+  is a list of one under `mdl 1;` and the object without the header (warning `MDL-V1-LIMIT1`)
 
 **Sorting and paging** — use `sort by`, **not** `order by`:
 

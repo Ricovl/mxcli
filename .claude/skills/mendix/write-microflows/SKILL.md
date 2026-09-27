@@ -257,7 +257,7 @@ declare $status Enumeration(Module.OrderStatus) = Module.OrderStatus.Open;
 > not you give it an initializer. `mxcli check` now flags it as **MDL043**. There
 > is **no** "empty object variable" activity. Get objects from one of these:
 > - a microflow **parameter**: `create microflow M.Save ($Product: Test.Product) ...`
-> - a **retrieve**: `retrieve $Product from Test.Product where Code = $c limit 1;`
+> - a **retrieve**: `retrieve $Product from Test.Product where Code = $c first;`
 > - a **create object**: `$Product = create Test.Product (Name = $n);`
 > - a **loop iterator**: `loop $Product in $Products ...`
 
@@ -579,7 +579,7 @@ Before executing a microflow script, verify:
 ```mdl
 declare $primitive type = value;              -- Primitives (String/Integer/Decimal/Boolean/DateTime)
 declare $status Enumeration(Module.Enum) = …; -- Enumerations are primitives too
--- Objects: never declare. Use a parameter, retrieve (limit 1), `$obj = create Module.Entity(...)`, or a loop iterator.
+-- Objects: never declare. Use a parameter, retrieve (… first), `$obj = create Module.Entity(...)`, or a loop iterator.
 -- Lists:   never declare. Use a parameter, retrieve, or `$list = create list of Module.Entity;`
 ```
 

@@ -78,7 +78,7 @@ Retrieves objects from the database using an optional XPath-style WHERE clause:
 -- Retrieve a single object
 RETRIEVE $Customer FROM Sales.Customer
   WHERE Email = $InputEmail
-  LIMIT 1;
+  FIRST;
 
 -- Retrieve a list of objects
 RETRIEVE $ActiveOrders FROM Sales.Order
@@ -94,7 +94,7 @@ RETRIEVE $RecentOrders FROM Sales.Order
   LIMIT 50;
 ```
 
-When `LIMIT 1` is specified, the result is a single entity object. Otherwise, the result is a list.
+With `FIRST` the result is a single entity object (Mendix's "First object" range). Otherwise the result is a list, including with `LIMIT`/`OFFSET`. A bare `LIMIT 1` depends on the language version: a list of one under `mdl 1;`, and without the header the object, with warning `MDL-V1-LIMIT1`. `describe` prints the object range as `FIRST`.
 
 ### RETRIEVE by Association
 
