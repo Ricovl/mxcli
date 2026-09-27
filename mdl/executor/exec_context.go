@@ -158,15 +158,6 @@ func (ctx *ExecContext) diagnostics() io.Writer {
 	return os.Stderr
 }
 
-// diagnostics returns the writer for warnings about a result (see the
-// Diagnostics field): the configured one, or os.Stderr.
-func (ctx *ExecContext) diagnostics() io.Writer {
-	if ctx.Diagnostics != nil {
-		return ctx.Diagnostics
-	}
-	return os.Stderr
-}
-
 // progress returns the writer for commentary about a run rather than its
 // answer: "Connected to:", catalog load/build progress, a result header or
 // count, "(no references found)". For a person that commentary is part of the
