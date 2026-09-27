@@ -92,7 +92,6 @@ func entityStmtToMDL(ctx *ExecContext, s *ast.CreateEntityStmt) string {
 	}
 
 	lines = append(lines, ";")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -128,7 +127,6 @@ func viewEntityStmtToMDL(ctx *ExecContext, s *ast.CreateViewEntityStmt) string {
 		lines = append(lines, "  "+line)
 	}
 	lines = append(lines, ");")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -154,7 +152,6 @@ func enumerationStmtToMDL(ctx *ExecContext, s *ast.CreateEnumerationStmt) string
 	}
 
 	lines = append(lines, ");")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -192,7 +189,6 @@ func associationStmtToMDL(ctx *ExecContext, s *ast.CreateAssociationStmt) string
 		deleteBehavior = "DELETE_IF_NO_REFERENCES"
 	}
 	lines = append(lines, fmt.Sprintf("delete_behavior %s;", deleteBehavior))
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -307,7 +303,6 @@ func entityToMDL(ctx *ExecContext, moduleName string, entity *domainmodel.Entity
 	}
 
 	lines = append(lines, ";")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -341,7 +336,6 @@ func viewEntityFromProjectToMDL(ctx *ExecContext, moduleName string, entity *dom
 		}
 	}
 	lines = append(lines, ");")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -373,7 +367,6 @@ func enumerationToMDL(ctx *ExecContext, moduleName string, enum *model.Enumerati
 	}
 
 	lines = append(lines, ");")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -422,7 +415,6 @@ func associationToMDL(ctx *ExecContext, moduleName string, assoc *domainmodel.As
 		}
 	}
 	lines = append(lines, fmt.Sprintf("delete_behavior %s;", deleteBehavior))
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }

@@ -257,7 +257,7 @@ declare $status Enumeration(Module.OrderStatus) = Module.OrderStatus.Open;
 > not you give it an initializer. `mxcli check` now flags it as **MDL043**. There
 > is **no** "empty object variable" activity. Get objects from one of these:
 > - a microflow **parameter**: `create microflow M.Save ($Product: Test.Product) ...`
-> - a **retrieve**: `retrieve $Product from Test.Product where Code = $c limit 1;`
+> - a **retrieve**: `retrieve $Product from Test.Product where Code = $c first;`
 > - a **create object**: `$Product = create Test.Product (Name = $n);`
 > - a **loop iterator**: `loop $Product in $Products ...`
 
@@ -282,6 +282,14 @@ declare $status Enumeration(Module.OrderStatus) = Module.OrderStatus.Open;
 > ```
 > The `calendar*Between` functions (`calendarMonthsBetween`, `calendarYearsBetween`)
 > return whole units (Integer) and are fine to assign directly.
+
+### Changing a variable: always `set`
+
+`set $Counter = $Counter + 1;` changes a variable. `$x = …` without `set` is an
+activity that creates `$x` — required under `mdl 1;` (`MDL-V1-SET` otherwise).
+List operations and aggregates are one statement per activity and never nest:
+`$Open = filter $Orders by Status = M.Status.Open;` then `$N = count $Open;` —
+see [`reference/data-operations.md`](reference/data-operations.md#one-statement-per-activity).
 
 ### ❌ INCORRECT Syntax
 
@@ -579,7 +587,7 @@ Before executing a microflow script, verify:
 ```mdl
 declare $primitive type = value;              -- Primitives (String/Integer/Decimal/Boolean/DateTime)
 declare $status Enumeration(Module.Enum) = …; -- Enumerations are primitives too
--- Objects: never declare. Use a parameter, retrieve (limit 1), `$obj = create Module.Entity(...)`, or a loop iterator.
+-- Objects: never declare. Use a parameter, retrieve (… first), `$obj = create Module.Entity(...)`, or a loop iterator.
 -- Lists:   never declare. Use a parameter, retrieve, or `$list = create list of Module.Entity;`
 ```
 
@@ -676,8 +684,8 @@ close page on error { return; };
   of them; `continue` is fine on `declare`, `set`, `retrieve`, `delete` and
   `call microflow`. Measured on 11.14.0 — note that create-*variable* and
   change-*variable* accept `continue` while change-*object* does not.
-- **The list-operation and aggregate forms of `set`** (`$x = head($l)`,
-  `$n = count($l)`) have no error handling in Mendix at all — **MDL077**.
+- **List operations and aggregates** (`$x = head $l;`, `$n = count $l;`)
+  have no error handling in Mendix at all — **MDL077**.
 
 **In a nanoflow, almost none of them take a clause at all.** `change`, `log`,
 `show page`, `close page`, `show message` and `validation feedback` are CE6035

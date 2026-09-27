@@ -405,9 +405,10 @@ with nothing but "the project cannot be deployed". An `@expect` or `@verify` tha
 cannot be evaluated is reported here too, as `MDL-TEST01`.
 
 One rule to know about, because its symptom is confusing and its shape is common
-in tests: `retrieve $x … limit 1` binds a **single object**, not a one-element
-list, so `head($x)` is `CE0097` at build time and `MDL-RETRIEVE01` at check time.
-Drop the `limit` to get a list, or use the variable as the object it is.
+in tests: `retrieve $x … first` — and `retrieve $x … limit 1` in a script without
+the `mdl 1;` header — binds a **single object**, not a one-element list, so
+`head($x)` is `CE0097` at build time and `MDL-RETRIEVE01` at check time. Drop the
+range to get a list, or use the variable as the object it is.
 
 ---
 

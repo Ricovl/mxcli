@@ -321,6 +321,8 @@ MAXIMUM: M A X I M U M;
 REDUCE: R E D U C E;
 ANY: A N Y;
 INITIAL: I N I T I A L;
+// reduce $L from <initial> as <type> using <expression> (#733).
+USING: U S I N G;
 LIST: L I S T;
 REMOVE: R E M O V E;
 EQUALS_OP: E Q U A L S;

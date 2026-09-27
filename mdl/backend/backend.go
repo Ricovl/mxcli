@@ -37,5 +37,6 @@ type FullBackend interface {
 	AgentEditorBackend
 	PageMutationBackend
 	WorkflowMutationBackend
+	MicroflowMutationBackend
 	WidgetBuilderBackend
 }

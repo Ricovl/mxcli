@@ -454,7 +454,6 @@ func describeEnumeration(ctx *ExecContext, name ast.QualifiedName) error {
 				folderClause = fmt.Sprintf(" FOLDER '%s'", fp)
 			}
 			fmt.Fprintf(ctx.Output, ")%s;\n", folderClause)
-			fmt.Fprintln(ctx.Output, "/")
 			return nil
 		}
 	}

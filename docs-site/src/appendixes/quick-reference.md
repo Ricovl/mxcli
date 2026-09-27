@@ -180,7 +180,7 @@ AUTHENTICATION Basic, Session
 | `TRY ... CATCH ... END TRY` | `ON ERROR { ... }` blocks | Use error handlers on specific activities |
 
 **Notes:**
-- `RETRIEVE ... LIMIT n` IS supported. `LIMIT 1` returns a single entity, otherwise returns a list.
+- `RETRIEVE ... FIRST` returns a single entity; `RETRIEVE ... LIMIT n [OFFSET n]` returns a list. A bare `LIMIT 1` is a list of one under `mdl 1;`, and without the header the single entity, with warning `MDL-V1-LIMIT1`.
 - `ROLLBACK $Entity [REFRESH];` IS supported. Rolls back uncommitted changes to an object.
 
 ## Project Organization

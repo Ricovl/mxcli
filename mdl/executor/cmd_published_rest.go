@@ -141,9 +141,10 @@ func describePublishedRestService(ctx *ExecContext, name ast.QualifiedName) erro
 			}
 			fmt.Fprintln(ctx.Output, "};")
 		} else {
-			fmt.Fprintln(ctx.Output, ";")
+			// The resource block is not optional in the grammar: a service
+			// with no resources still needs an empty one to re-parse (#744).
+			fmt.Fprintln(ctx.Output, "{\n};")
 		}
-		fmt.Fprintln(ctx.Output, "/")
 
 		// Emit GRANT statements for any module roles with access.
 		if len(svc.AllowedRoles) > 0 {

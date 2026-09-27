@@ -120,7 +120,6 @@ func describeAgentEditorKnowledgeBase(ctx *ExecContext, name ast.QualifiedName) 
 	}
 
 	fmt.Fprintln(ctx.Output, ");")
-	fmt.Fprintln(ctx.Output, "/")
 	return nil
 }
 

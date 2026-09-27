@@ -17,6 +17,10 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 		b.exitAlterDocumentStatement(ctx)
 		return
 	}
+	if ctx.MICROFLOW() != nil || ctx.NANOFLOW() != nil {
+		b.exitAlterFlowStatement(ctx)
+		return
+	}
 
 	// Handle ALTER PAGES … SET LAYOUT (the bulk repoint)
 	if sub := ctx.AlterPagesStylingStatement(); sub != nil {

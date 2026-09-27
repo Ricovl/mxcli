@@ -1182,16 +1182,18 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 			EntityQualifiedName: entityQN,
 		}
 
-		// Set range if LIMIT is specified
-		if s.Limit != "" {
-			rangeType := microflows.RangeTypeCustom
-			// LIMIT 1 with no offset uses RangeTypeFirst for single object retrieval
-			if s.Limit == "1" && s.Offset == "" {
-				rangeType = microflows.RangeTypeFirst
-			}
+		// The range. The visitor has already resolved what `limit 1` means in
+		// the script's language version (ako/mxcli#734): First is the object
+		// range, a limit or offset the Custom range, which is always a list.
+		if s.First {
 			dbSource.Range = &microflows.Range{
 				BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-				RangeType:   rangeType,
+				RangeType:   microflows.RangeTypeFirst,
+			}
+		} else if s.Limit != "" {
+			dbSource.Range = &microflows.Range{
+				BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
+				RangeType:   microflows.RangeTypeCustom,
 				Limit:       s.Limit,
 				Offset:      s.Offset,
 			}
@@ -1306,14 +1308,12 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 
 		source = dbSource
 
-		// Register variable type for CHANGE statements
-		// RETRIEVE with LIMIT 1 returns a single entity, otherwise returns a List
+		// Register variable type for CHANGE statements: the object range binds
+		// one object, every other range a list.
 		if fb.varTypes != nil {
-			if s.Limit == "1" {
-				// LIMIT 1 returns a single entity
+			if s.First {
 				fb.varTypes[s.Variable] = entityQN
 			} else {
-				// No LIMIT or LIMIT > 1 returns a list
 				fb.varTypes[s.Variable] = "List of " + entityQN
 			}
 		}
@@ -1803,10 +1803,12 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 }
 
 func (fb *flowBuilder) listAttributeOperation(s *ast.ListOperationStmt, filter bool) microflows.ListOperation {
-	binary, ok := s.Condition.(*ast.BinaryExpr)
-	if !ok || binary.Operator != "=" {
+	// `find $L where …` / `filter $L where …` is always the by-expression
+	// operation, even when the expression happens to read `Member = value`.
+	if s.ByExpression || !ast.IsMemberEquality(s.Condition) {
 		return nil
 	}
+	binary := s.Condition.(*ast.BinaryExpr)
 	fieldName, ok := listOperationFieldName(binary.Left)
 	if !ok || fieldName == "" {
 		return nil
