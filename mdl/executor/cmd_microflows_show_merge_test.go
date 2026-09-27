@@ -77,9 +77,37 @@ func randomTestID() string {
 		string(rune('0'+testIDCounter%10))
 }
 
-// call →(error) handler → merge; call →(normal) merge; merge → end.
-// The merge is shared, so the handler cannot be described without naming it.
+// call →(error) handler → merge; call →(normal) next → merge; merge → end.
+// The merge is shared and is NOT the call's own successor, so the handler
+// cannot be described without naming it.
 func TestLabelRejoinMerges_SharedMergeIsLabelled(t *testing.T) {
+	f := newRejoinFixture()
+	f.add("start", &microflows.StartEvent{BaseMicroflowObject: f.base(0)})
+	f.add("call", &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: f.base(100)}})
+	f.add("next", &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: f.base(150)}})
+	f.add("handler", &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: f.base(100)}})
+	f.add("merge", &microflows.ExclusiveMerge{BaseMicroflowObject: f.base(200)})
+	f.add("end", &microflows.EndEvent{BaseMicroflowObject: f.base(300)})
+	f.edge("start", "call", false)
+	f.edge("call", "next", false)
+	f.edge("next", "merge", false)
+	f.edge("call", "handler", true)
+	f.edge("handler", "merge", false)
+	f.edge("merge", "end", false)
+
+	labels := labelRejoinMerges(f.col)
+	if _, ok := labels.of(f.ids["merge"]); !ok {
+		t.Fatal("the shared merge was not labelled; DESCRIBE has no way to name the rejoin")
+	}
+	if labels.len() != 1 {
+		t.Errorf("labelled %d merges, want exactly 1", labels.len())
+	}
+}
+
+// A handler that FALLS THROUGH — its merge is the call's own successor — is
+// written `on error { … };` with no label, and describe says it that way (#750).
+// The labels are for a rejoin further down, which the fall-through cannot spell.
+func TestLabelRejoinMerges_FallThroughIsNotLabelled(t *testing.T) {
 	f := newRejoinFixture()
 	f.add("start", &microflows.StartEvent{BaseMicroflowObject: f.base(0)})
 	f.add("call", &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: f.base(100)}})
@@ -93,11 +121,12 @@ func TestLabelRejoinMerges_SharedMergeIsLabelled(t *testing.T) {
 	f.edge("merge", "end", false)
 
 	labels := labelRejoinMerges(f.col)
-	if _, ok := labels.of(f.ids["merge"]); !ok {
-		t.Fatal("the shared merge was not labelled; DESCRIBE has no way to name the rejoin")
+	if got := labels.len(); got != 0 {
+		t.Errorf("labelled %d merges for a fall-through handler, want 0", got)
 	}
-	if labels.len() != 1 {
-		t.Errorf("labelled %d merges, want exactly 1", labels.len())
+	// Unlabelled, it is still represented — by the fall-through itself.
+	if got := droppedMergeWarnings(nil, f.col, labels); len(got) != 0 {
+		t.Errorf("flagged the rejoin merge of a fall-through handler as dropped: %v", got)
 	}
 }
 
@@ -145,15 +174,21 @@ func TestLabelRejoinMerges_LabelsAreStableAcrossRuns(t *testing.T) {
 		f := newRejoinFixture()
 		f.add("start", &microflows.StartEvent{BaseMicroflowObject: f.base(0)})
 		f.add("call1", &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: f.base(100)}})
+		f.add("n1", &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: f.base(125)}})
 		f.add("m1", &microflows.ExclusiveMerge{BaseMicroflowObject: f.base(150)})
 		f.add("call2", &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: f.base(200)}})
+		f.add("n2", &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: f.base(225)}})
 		f.add("m2", &microflows.ExclusiveMerge{BaseMicroflowObject: f.base(250)})
 		f.add("end", &microflows.EndEvent{BaseMicroflowObject: f.base(300)})
+		// Each error edge skips the activity after its call, so neither rejoin
+		// is a fall-through and both need a label.
 		f.edge("start", "call1", false)
-		f.edge("call1", "m1", false)
+		f.edge("call1", "n1", false)
+		f.edge("n1", "m1", false)
 		f.edge("call1", "m1", true)
 		f.edge("m1", "call2", false)
-		f.edge("call2", "m2", false)
+		f.edge("call2", "n2", false)
+		f.edge("n2", "m2", false)
 		f.edge("call2", "m2", true)
 		f.edge("m2", "end", false)
 		return f, labelRejoinMerges(f.col)

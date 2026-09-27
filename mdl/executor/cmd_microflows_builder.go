@@ -109,6 +109,11 @@ type flowBuilder struct {
 	errorHandlerTailIsSource bool
 	errorHandlerReturnValue  string
 	pendingErrorHandlers     []pendingErrorHandlerState
+	// rejoinMergeAt holds the @merge(x, y) written on an activity whose custom
+	// error handler falls through: the position of the merge where the handler
+	// rejoins the normal path, keyed by the activity. describe folds that merge
+	// away into the fall-through form and carries its position here (#750).
+	rejoinMergeAt map[model.ID]*ast.Position
 	// labelReg holds the `merge <label>` table and the pending `join` edges.
 	// Shared with the error-handler sub-builder (same object collection) and
 	// deliberately NOT with a loop's sub-builder, whose LoopedActivity owns a
