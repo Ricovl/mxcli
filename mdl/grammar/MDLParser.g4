@@ -173,6 +173,11 @@ alterStatement
     // there; a scroll-container region is addressed as `layoutContainer.top`,
     // because a region has no Name of its own.
     | ALTER alterDocumentType qualifiedName LBRACE alterOperation+ RBRACE
+    // The generic ALTER on a microflow or nanoflow (ADR-0012 decision 3): a
+    // graph splice into the stored flow. Its targets are content addresses
+    // (`$Var`, `'Caption'`, a statement pattern) and its fragments are
+    // microflow statements, so it has its own operation rule.
+    | ALTER (MICROFLOW | NANOFLOW) qualifiedName LBRACE alterFlowOperation* RBRACE
     | alterPagesLayoutStatement
     | alterPagesStylingStatement
     | ALTER WORKFLOW qualifiedName alterWorkflowAction+ SEMICOLON?
@@ -310,6 +315,36 @@ alterFragment
 alterTarget
     : identifierOrKeyword (DOT identifierOrKeyword)? (AT NUMBER_LITERAL)?
     | STRING_LITERAL (AT NUMBER_LITERAL)?
+    ;
+
+/**
+ * `alter microflow` / `alter nanoflow` operations (ADR-0012 decision 3,
+ * ako/mxcli#736):
+ *
+ * ```mdl
+ * alter microflow FeedbackModule.VAL_Feedback {
+ *   insert after $IsValidEmail { log info node 'Feedback' 'Email checked'; }
+ *   insert before 'Email is Valid?' { … }
+ *   replace commit $Order with { commit $Order with events; }
+ *   drop log * node 'Debug' *;
+ * }
+ * ```
+ *
+ * A fragment is written exactly as the same statements are in `create
+ * microflow`. A target is a content address, resolved by mfmutator: `$Var`
+ * (the activity that outputs it), `'Caption'`, or a statement pattern with `*`
+ * wildcards, each optionally followed by `@n`. A pattern is any run of tokens,
+ * so the target is taken as raw text up to the `{`, `with` or `;` that ends it;
+ * that is why `drop` needs its semicolon.
+ */
+alterFlowOperation
+    : INSERT (AFTER | BEFORE) alterFlowTarget LBRACE microflowBody RBRACE SEMICOLON?
+    | REPLACE alterFlowTarget WITH LBRACE microflowBody RBRACE SEMICOLON?
+    | DROP alterFlowTarget SEMICOLON
+    ;
+
+alterFlowTarget
+    : ~(LBRACE | RBRACE | SEMICOLON | WITH)+
     ;
 
 // ALTER PAGES [IN <module>] SET LAYOUT = Module.Layout [MAP (...)] [WHERE LAYOUT = Module.Old]
