@@ -134,7 +134,12 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 		outputJavadoc(ctx.Output, svc.Description)
 	}
 
-	fmt.Fprintf(ctx.Output, "create or modify odata client %s.%s (\n", moduleName, svc.Name)
+	// describe keeps a plain `create` here, not `create or modify` (ADR-0012: carry or refuse,
+	// never silently drop). A `create or modify` rewrite of this type does not yet carry what
+	// describe cannot print, so re-running this output on an existing document would silently
+	// lose Studio Pro-authored content; a plain `create` refuses instead. Switch the verb only
+	// once the rewrite's carry is proven by the round-trip harness (see #743).
+	fmt.Fprintf(ctx.Output, "create odata client %s.%s (\n", moduleName, svc.Name)
 
 	var props []string
 	if folderPath != "" {
@@ -328,7 +333,8 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 		outputJavadoc(ctx.Output, svc.Description)
 	}
 
-	fmt.Fprintf(ctx.Output, "create or modify odata service %s.%s (\n", moduleName, svc.Name)
+	// Plain `create` on purpose; see describeODataClient.
+	fmt.Fprintf(ctx.Output, "create odata service %s.%s (\n", moduleName, svc.Name)
 
 	var props []string
 	if folderPath != "" {
@@ -757,7 +763,8 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 		outputJavadoc(ctx.Output, entity.Documentation)
 	}
 
-	fmt.Fprintf(ctx.Output, "create or modify external entity %s.%s\n", moduleName, entity.Name)
+	// Plain `create` on purpose; see describeODataClient.
+	fmt.Fprintf(ctx.Output, "create external entity %s.%s\n", moduleName, entity.Name)
 	fmt.Fprintf(ctx.Output, "from odata client %s\n", entity.RemoteServiceName)
 	fmt.Fprintln(ctx.Output, "(")
 
