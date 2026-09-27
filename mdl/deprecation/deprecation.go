@@ -186,7 +186,7 @@ var entries = []Entry{
 		Code:      DollarArgumentName,
 		Old:       "call microflow M.F($Param = expr)",
 		Canonical: "call microflow M.F(Param = expr)",
-		Rewrite:   Rewrite{Structural: "drop the `$` from the parameter name (quoted when the bare name is a keyword)"},
+		Rewrite:   Rewrite{Structural: "parameter name without its `$` (quoted when it is not an identifier or keyword)"},
 		RemovedIn: 2,
 		Note: "Every call site binds an argument as `Param = expression` (R4): call microflow, nanoflow, java " +
 			"action, javascript action, external action, web service operation, execute database query, " +
@@ -198,7 +198,7 @@ var entries = []Entry{
 		Code:      ColonArgument,
 		Old:       "show page M.P(Param: expr)",
 		Canonical: "show page M.P(Param = expr)",
-		Rewrite:   Rewrite{Structural: "`Param: expr` -> `Param = expr`"},
+		Rewrite:   Rewrite{Structural: "colon as `=`: `Param: expr` -> `Param = expr`"},
 		RemovedIn: 2,
 		Note: "`:` sets a model property and `=` binds a runtime value (R3). An argument binds a value, so " +
 			"it takes `=` wherever the call appears: show page, and page/button actions and data sources " +
@@ -210,7 +210,7 @@ var entries = []Entry{
 		Code:      WorkflowStringArgument,
 		Old:       "call microflow M.F with (Param = '<expression>')",
 		Canonical: "call microflow M.F(Param = <expression>)",
-		Rewrite:   Rewrite{Structural: "move the list after the callee and write each string's content as the bare expression"},
+		Rewrite:   Rewrite{Structural: "string list as a list after the callee, each string's content written as the bare expression"},
 		RemovedIn: 2,
 		Note: "In a workflow. The string form keeps its meaning — its content is the expression — so it is an alias, not a " +
 			"change of meaning. A string whose content does not parse as an MDL expression is left in place " +
@@ -224,7 +224,7 @@ var entries = []Entry{
 		Code:      PositionalTemplateArguments,
 		Old:       "objects [$a, $b] / parameters ['a', 'b']",
 		Canonical: "with ({1} = $a, {2} = $b)",
-		Rewrite:   Rewrite{Structural: "number the list: `objects [a, b]` -> `with ({1} = a, {2} = b)`"},
+		Rewrite:   Rewrite{Structural: "positional list as numbered placeholders: `objects [a, b]` -> `with ({1} = a, {2} = b)`"},
 		RemovedIn: 2,
 		Note: "One text-template form everywhere: show message, validation feedback, log, and REST " +
 			"url and body templates.",
