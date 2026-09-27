@@ -56,7 +56,12 @@ import (
 // Executing the whole corpus takes about 15 minutes, which on its own exceeds
 // what the CI integration step has left (ako/mxcli#742 timed out there).
 // MXCLI_UPGRADE_ALL=1 executes every script, header-only ones included; run it
-// when a langver.Change or a gated rewrite lands.
+// when a langver.Change or a gated rewrite lands. The nightly workflow runs it.
+//
+// MXCLI_UPGRADE_SHARD=i/n executes only every n-th executable script, starting
+// at the i-th, so per-PR CI can split the executions across parallel jobs
+// (ako/mxcli#757); the shards together execute each script exactly once
+// (TestShardsPartition). Unset is the whole set.
 func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 	a, b := newHarness(t), newHarness(t)
 	defer a.close()
@@ -64,7 +69,12 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 
 	scripts := upgradeExampleScripts(t)
 	all := os.Getenv("MXCLI_UPGRADE_ALL") != ""
-	var same, outOfScope, unparsed, headerOnly, keptVersion []string
+	sh, err := parseShard(os.Getenv("MXCLI_UPGRADE_SHARD"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	executable := 0 // scripts that reached execution, in every shard
+	var same, outOfScope, unparsed, headerOnly, keptVersion, otherShard []string
 	for _, path := range scripts {
 		src, err := os.ReadFile(path)
 		if err != nil {
@@ -100,6 +110,14 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 				headerOnly = append(headerOnly, rel)
 				return
 			}
+			// Every shard upgrades and checks every script above, which is
+			// cheap; only the execution below, which is not, is split.
+			k := executable
+			executable++
+			if !sh.has(k) {
+				otherShard = append(otherShard, rel)
+				return
+			}
 
 			errA, errB, diff := executeBoth(t, a, b, string(src), res.Source)
 			if len(diff) > 0 {
@@ -120,6 +138,10 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 	}
 
 	t.Logf("%d scripts execute on PedApp and upgrade to the same model", len(same))
+	if sh.count > 1 {
+		t.Logf("shard %s: %d of %d executable scripts belong to other shards and were not executed here",
+			sh, len(otherShard), executable)
+	}
 	t.Logf("%d scripts are out of scope: their original does not execute cleanly on PedApp:\n  %s",
 		len(outOfScope), strings.Join(outOfScope, "\n  "))
 	if !all {
@@ -130,10 +152,11 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 		len(keptVersion), strings.Join(keptVersion, "\n  "))
 	t.Logf("%d scripts do not parse (negative tests) and cannot be upgraded:\n  %s",
 		len(unparsed), strings.Join(unparsed, "\n  "))
-	if os.Getenv("MXCLI_UPGRADE_EXAMPLES") == "" && len(same) < 50 {
+	if floor := 50 / sh.count; os.Getenv("MXCLI_UPGRADE_EXAMPLES") == "" && len(same) < floor {
 		// Hundreds execute today; a handful means the harness broke, and a
-		// property checked on nothing passes.
-		t.Errorf("only %d scripts executed cleanly — the harness is not exercising the property", len(same))
+		// property checked on nothing passes. A shard sees 1/n of them.
+		t.Errorf("only %d scripts executed cleanly (shard %s) — the harness is not exercising the property",
+			len(same), sh)
 	}
 }
 
