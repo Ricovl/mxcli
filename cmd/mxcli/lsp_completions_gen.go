@@ -166,6 +166,7 @@ var mdlGeneratedKeywords = []protocol.CompletionItem{
 	{Label: "REDUCE", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
 	{Label: "ANY", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
 	{Label: "INITIAL", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
+	{Label: "USING", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
 	{Label: "LIST", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
 	{Label: "REMOVE", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
 	{Label: "EQUALS", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
