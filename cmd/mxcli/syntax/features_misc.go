@@ -25,6 +25,13 @@ func init() {
 			"--               describe and fmt do not emit it.\n" +
 			"--   mdl 2;      refused: this mxcli does not know that version.\n" +
 			"--\n" +
+			"-- Under mdl 1 parsing is strict (each is a warning without the header):\n" +
+			"-- every statement ends with ';' and '/' is not a terminator; '' is the\n" +
+			"-- only string escape, so a backslash is an ordinary character; and an\n" +
+			"-- unknown or mis-shaped property key in a REST, business event or agent\n" +
+			"-- property list is an error. A trailing comma is allowed in every\n" +
+			"-- bracketed list, with or without the header.\n" +
+			"--\n" +
 			"-- A script's meaning never depends on which mxcli release runs it: a\n" +
 			"-- change of meaning applies only under the version that introduces it.\n" +
 			"-- The header is independent of the Mendix version the project targets.",
