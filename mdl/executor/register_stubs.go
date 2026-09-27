@@ -519,6 +519,9 @@ func registerLintHandlers(r *Registry) {
 }
 
 func registerAlterPageHandlers(r *Registry) {
+	r.Register(&ast.AlterFlowStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
+		return execAlterFlow(ctx, stmt.(*ast.AlterFlowStmt))
+	})
 	r.Register(&ast.AlterPageStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return execAlterPage(ctx, stmt.(*ast.AlterPageStmt))
 	})
