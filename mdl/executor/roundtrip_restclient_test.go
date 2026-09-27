@@ -30,7 +30,7 @@ func TestRoundtripRestClient_SimpleGet(t *testing.T) {
 };`
 
 	env.assertContains(createMDL, []string{
-		"rest client",
+		"consumed rest service",
 		"SimpleAPI",
 		"BaseUrl: 'https://api.example.com'",
 		"Authentication: none",
@@ -59,7 +59,7 @@ func TestRoundtripRestClient_WithJsonResponse(t *testing.T) {
 };`
 
 	env.assertContains(createMDL, []string{
-		"rest client",
+		"consumed rest service",
 		"JsonAPI",
 		"BaseUrl: 'https://jsonplaceholder.typicode.com'",
 		"operation GetPosts",
@@ -164,7 +164,7 @@ func TestRoundtripRestClient_BasicAuth(t *testing.T) {
 };`
 
 	env.assertContains(createMDL, []string{
-		"rest client",
+		"consumed rest service",
 		"AuthAPI",
 		"Authentication: basic",
 		"Username: 'admin'",
@@ -239,7 +239,7 @@ func TestRoundtripRestClient_MultipleOperations(t *testing.T) {
 };`
 
 	env.assertContains(createMDL, []string{
-		"rest client",
+		"consumed rest service",
 		"PetStoreAPI",
 		"operation ListPets",
 		"$status: String",
