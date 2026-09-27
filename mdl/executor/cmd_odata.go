@@ -1000,7 +1000,7 @@ func createODataClient(ctx *ExecContext, stmt *ast.CreateODataClientStmt) error 
 	}
 
 	if stmt.Name.Module == "" {
-		return mdlerrors.NewValidation("module name required: use create odata client Module.Name (...)")
+		return mdlerrors.NewValidation("module name required: use create consumed odata service Module.Name (...)")
 	}
 
 	if err := validateMetadataURL(stmt.MetadataUrl); err != nil {
@@ -1468,7 +1468,7 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 	}
 
 	if stmt.Name.Module == "" {
-		return mdlerrors.NewValidation("module name required: use create odata service Module.Name (...)")
+		return mdlerrors.NewValidation("module name required: use create published odata service Module.Name (...)")
 	}
 
 	// Gate before the write, not after: a property the project's Mendix version

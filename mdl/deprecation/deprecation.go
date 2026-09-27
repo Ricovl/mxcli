@@ -221,7 +221,7 @@ var entries = []Entry{
 		Code:             AppSecurity,
 		Old:              "alter project security …",
 		Canonical:        "alter app security …",
-		Rewrite:          Rewrite{Structural: "`project security` becomes `app security`"},
+		Rewrite:          Rewrite{Structural: "security name: `project security` becomes `app security`"},
 		RemovedIn:        2,
 		Note:             "Studio Pro calls it App Security (R10). `show project security` becomes `describe app security` with the rest of R6, and is not reported here yet.",
 		Example:          "alter project security demo users off;",
