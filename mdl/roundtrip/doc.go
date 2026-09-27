@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
-// Package roundtrip holds the round-trip harness over the committed Studio
-// Pro-authored fixture (testdata/pedapp). It has no non-test code: the harness
+// Package roundtrip holds the round-trip harness over the Studio Pro-authored
+// fixtures: PedApp (testdata/pedapp, committed) and ako/TestApp
+// (testdata/testapp, a git submodule with workflows, OData clients and services
+// and external entities; its tests skip when the submodule is not initialised).
+// Each fixture has its own allowlist. It has no non-test code: the harness
 // is an integration test (`-tags integration`) that enforces the two
 // round-trip laws of ADR-0012 on every document the fixture contains.
 //

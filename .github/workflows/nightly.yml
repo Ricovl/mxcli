@@ -54,9 +54,51 @@ jobs:
       - name: Setup mxbuild ${{ matrix.mendix-version }}
         run: ./bin/mxcli setup mxbuild --version ${{ matrix.mendix-version }}
 
+      # One step, every package: go test runs the packages in parallel, so the
+      # wall time is the slowest one's (mdl/roundtrip, ~21 min on this runner in
+      # ako/mxcli#757's measurement) and grows as the round trip gains fixtures.
+      # Per-PR CI splits this into parallel jobs instead (push-test.yml).
       - name: "Integration tests (Mendix ${{ matrix.mendix-version }})"
         run: make test-integration
-        timeout-minutes: 30
+        timeout-minutes: 60
+
+  # The upgrade property test over the WHOLE mdl-examples corpus, header-only
+  # scripts included (MXCLI_UPGRADE_ALL). Per-PR CI executes only the scripts
+  # the upgrade rewrites beyond the header and terminators; this is the run that
+  # proves langver's gating on the rest (ako/mxcli#757). Independent of the
+  # Mendix version — it runs on the committed PedApp fixture and never calls
+  # mx — so it runs once, not per matrix entry. It does not gate the release.
+  upgrade-full-corpus:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/3', '2/3', '3/3']
+    name: upgrade full corpus (${{ matrix.shard }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.6'
+      - name: Cache ANTLR4 JAR
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository/org/antlr/antlr4
+          key: antlr4-4.13.2
+      - name: Install ANTLR4
+        run: pip install 'antlr4-tools==0.2.2'
+      - name: Generate parser
+        run: make grammar
+        env:
+          ANTLR4_TOOLS_ANTLR_VERSION: '4.13.2'
+      - name: Build
+        run: make build
+      - name: Upgrade property test, full corpus (${{ matrix.shard }})
+        run: make test-integration-upgrade
+        env:
+          MXCLI_UPGRADE_ALL: '1'
+          MXCLI_UPGRADE_SHARD: ${{ matrix.shard }}
+        timeout-minutes: 45
 
   nightly:
     needs: test

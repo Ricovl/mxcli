@@ -484,6 +484,7 @@ func mergeDeclaredOntoStoredEntity(stored, declared *domainmodel.Entity, s *ast.
 	merged.Persistable = declared.Persistable
 	merged.Location = declared.Location
 	merged.Attributes = declared.Attributes
+	carryStoredAttributeState(stored, merged.Attributes)
 	merged.ValidationRules = mergeValidationRules(stored, declared)
 	merged.Indexes = declared.Indexes
 	merged.EventHandlers = declared.EventHandlers
@@ -510,6 +511,50 @@ func mergeDeclaredOntoStoredEntity(stored, declared *domainmodel.Entity, s *ast.
 		merged.Documentation = declared.Documentation
 	}
 	return &merged
+}
+
+// carryStoredAttributeState carries, by attribute name, what the entity body
+// has no spelling for onto the attributes the statement rebuilt: an external
+// entity attribute's OData mapping (without it the writer emits a plain
+// StoredValue and the attribute is no longer mapped to the remote property), and
+// a DateTime's LocalizeDate. The attribute set and each declared type stay the
+// statement's; LocalizeDate carries only onto a DateTime that stays one (#743).
+func carryStoredAttributeState(stored *domainmodel.Entity, declared []*domainmodel.Attribute) {
+	byName := make(map[string]*domainmodel.Attribute, len(stored.Attributes))
+	for _, a := range stored.Attributes {
+		if a != nil {
+			byName[a.Name] = a
+		}
+	}
+	for _, a := range declared {
+		if a == nil {
+			continue
+		}
+		old, ok := byName[a.Name]
+		if !ok {
+			continue
+		}
+		if old.RemoteName != "" || old.IsPrimitiveCollection {
+			a.RemoteName = old.RemoteName
+			a.RemoteType = old.RemoteType
+			a.Filterable = old.Filterable
+			a.Sortable = old.Sortable
+			a.Creatable = old.Creatable
+			a.Updatable = old.Updatable
+			a.IsPrimitiveCollection = old.IsPrimitiveCollection
+			// A mapped attribute's design-time default has no spelling in the
+			// `from odata client` form, so an undeclared one keeps the stored.
+			if a.Value == nil && old.Value != nil {
+				v := *old.Value
+				a.Value = &v
+			}
+		}
+		if dt, ok := a.Type.(*domainmodel.DateTimeAttributeType); ok {
+			if odt, ok := old.Type.(*domainmodel.DateTimeAttributeType); ok {
+				dt.LocalizeDate = odt.LocalizeDate
+			}
+		}
+	}
 }
 
 // entityFieldsDeclaredByStatement names the domainmodel.Entity fields that

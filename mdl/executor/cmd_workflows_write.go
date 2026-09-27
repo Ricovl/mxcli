@@ -127,7 +127,11 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 		func(w *workflows.Workflow) bool { return w.Excluded },
 	); ok {
 		if !s.CreateOrModify {
-			return mdlerrors.NewAlreadyExistsMsg("workflow", s.Name.Module+"."+s.Name.Name, "workflow '"+s.Name.Module+"."+s.Name.Name+"' already exists (use create or modify to overwrite)")
+			// Not "use create or modify": that rewrite does not yet carry what
+			// describe cannot print (event sub-processes, outcome flows, activity
+			// names) and would lose Studio Pro-authored content (#743).
+			return mdlerrors.NewAlreadyExistsMsg("workflow", s.Name.Module+"."+s.Name.Name, "workflow '"+s.Name.Module+"."+s.Name.Name+"' already exists — use 'alter workflow "+s.Name.Module+"."+s.Name.Name+" ...' to change it; "+
+				"'create or modify workflow' rewrites the whole workflow and does not yet keep everything Studio Pro stores (event sub-processes, outcome flows)")
 		}
 		existingID = existing.ID
 		existingExcluded = existing.Excluded
