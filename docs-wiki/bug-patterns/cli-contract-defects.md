@@ -39,7 +39,11 @@ promise, and the cheapest guard is that its effect has exactly one call site.
 
 **stdout is a data channel.** `--format json | jq` failed because progress lines
 shared the stream. Anything with a machine-readable format has to keep
-diagnostics on stderr.
+diagnostics on stderr. It came back across the whole query family because
+choosing the executor's writer only works when the *command* prints the
+payload; where the executor prints it, the split has to be made per line inside
+the executor (answer vs. commentary) — and the empty result, the error, and a
+command that silently ignores the root `--json` flag are where it breaks.
 
 **Path handling is where portability bugs live.** Windows backslashes mangled by
 escape processing, a relative `-p` rejected by a downstream tool with its own

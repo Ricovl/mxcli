@@ -45,7 +45,7 @@ func execShowCatalogTables(ctx *ExecContext) error {
 	}
 
 	tables := ctx.Catalog.Tables()
-	fmt.Fprintf(ctx.Output, "\nFound %d catalog table(s)\n", len(tables))
+	fmt.Fprintf(ctx.progress(), "\nFound %d catalog table(s)\n", len(tables))
 
 	// Get row counts for each table
 	type tableInfo struct {
@@ -157,13 +157,13 @@ func warnIfCatalogModeInsufficient(ctx *ExecContext, query string) {
 	currentRank := modeRank[buildMode]
 
 	if communitiesOnlyTables[table] && !graphAnalysis {
-		fmt.Fprintf(ctx.Output, "Warning: CATALOG.%s requires refresh catalog communities (not run for this catalog)\n", strings.ToUpper(table))
+		fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog communities (not run for this catalog)\n", strings.ToUpper(table))
 		return
 	}
 	if sourceOnlyTables[table] && currentRank < modeRank["source"] {
-		fmt.Fprintf(ctx.Output, "Warning: CATALOG.%s requires refresh catalog full source (current mode: %s)\n", strings.ToUpper(table), buildMode)
+		fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog full source (current mode: %s)\n", strings.ToUpper(table), buildMode)
 	} else if fullOnlyTables[table] && currentRank < modeRank["full"] {
-		fmt.Fprintf(ctx.Output, "Warning: CATALOG.%s requires refresh catalog full (current mode: %s)\n", strings.ToUpper(table), buildMode)
+		fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog full (current mode: %s)\n", strings.ToUpper(table), buildMode)
 	}
 }
 
@@ -189,10 +189,9 @@ func execCatalogQuery(ctx *ExecContext, query string) error {
 	}
 
 	// Output results
-	fmt.Fprintf(ctx.Output, "Found %d result(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d result(s)\n", result.Count)
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "(no results)")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, "(no results)")
 	}
 
 	outputCatalogResults(ctx, result)
@@ -425,9 +424,9 @@ func loadCachedCatalog(ctx *ExecContext, cachePath string) error {
 	ctx.Catalog = cat
 	if !ctx.Quiet {
 		age := time.Since(info.BuildTime)
-		fmt.Fprintf(ctx.Output, "Loading cached catalog (built %s ago, %s mode)...\n",
+		fmt.Fprintf(ctx.progress(), "Loading cached catalog (built %s ago, %s mode)...\n",
 			formatDuration(age), info.BuildMode)
-		fmt.Fprintf(ctx.Output, "✓ Catalog ready (from cache)\n")
+		fmt.Fprintf(ctx.progress(), "✓ Catalog ready (from cache)\n")
 	}
 	return nil
 }
@@ -476,17 +475,17 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	if carry, res := carryGraphAnalysis(cachedCatalogInfo(ctx), full, communities); carry {
 		communities, resolution = true, res
 		if !ctx.Quiet {
-			fmt.Fprintln(ctx.Output, "Carrying over graph analysis (this catalog has it)...")
+			fmt.Fprintln(ctx.progress(), "Carrying over graph analysis (this catalog has it)...")
 		}
 	}
 
 	if !ctx.Quiet {
 		if isSource {
-			fmt.Fprintln(ctx.Output, "Building catalog (source mode - includes MDL source)...")
+			fmt.Fprintln(ctx.progress(), "Building catalog (source mode - includes MDL source)...")
 		} else if full {
-			fmt.Fprintln(ctx.Output, "Building catalog (full mode - includes activities/widgets)...")
+			fmt.Fprintln(ctx.progress(), "Building catalog (full mode - includes activities/widgets)...")
 		} else {
-			fmt.Fprintln(ctx.Output, "Building catalog (fast mode)...")
+			fmt.Fprintln(ctx.progress(), "Building catalog (fast mode)...")
 		}
 	}
 	start := time.Now()
@@ -519,8 +518,17 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	// Project-level widgets (widgets/*.mpk) are added by the catalog builder
 	// itself by reading the filesystem.
 	builder.SetBuiltinWidgetMetas(builtinWidgetMetas())
+	// Per-table lines are the only sign of life during a build that takes
+	// minutes on a large app (18 on a 140MB one), so quiet mode moves them off
+	// stdout rather than dropping them: `search -q --format names` promises one
+	// name per line, and forty "✓ Table: N" lines ahead of the names on a cold
+	// cache broke that promise.
+	buildProgress := ctx.progress()
+	if ctx.Quiet {
+		buildProgress = ctx.diagnostics()
+	}
 	err = builder.Build(func(table string, count int) {
-		fmt.Fprintf(ctx.Output, "✓ %s: %d\n", table, count)
+		fmt.Fprintf(buildProgress, "✓ %s: %d\n", table, count)
 	})
 	if err != nil {
 		cat.Close()
@@ -542,7 +550,7 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	ctx.Catalog = cat
 
 	if !ctx.Quiet {
-		fmt.Fprintf(ctx.Output, "✓ Catalog ready (%.1fs)\n", elapsed.Seconds())
+		fmt.Fprintf(ctx.progress(), "✓ Catalog ready (%.1fs)\n", elapsed.Seconds())
 	}
 
 	// Save to cache file — unless doing so would narrow it.
@@ -563,7 +571,7 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	if cachePath != "" {
 		if existing := cachedCatalogMode(ctx); catalogModeRank(existing) > catalogModeRank(buildMode) {
 			if !ctx.Quiet {
-				fmt.Fprintf(ctx.Output, "Keeping the existing %s-mode catalog cache (this build was %s mode)\n", existing, buildMode)
+				fmt.Fprintf(ctx.progress(), "Keeping the existing %s-mode catalog cache (this build was %s mode)\n", existing, buildMode)
 			}
 			return nil
 		}
@@ -572,9 +580,9 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 			// Remove existing cache file first
 			os.Remove(cachePath)
 			if err := cat.SaveToFile(cachePath); err != nil {
-				fmt.Fprintf(ctx.Output, "Warning: failed to save catalog cache: %v\n", err)
+				fmt.Fprintf(ctx.progress(), "Warning: failed to save catalog cache: %v\n", err)
 			} else {
-				fmt.Fprintf(ctx.Output, "✓ Catalog cached to %s\n", cachePath)
+				fmt.Fprintf(buildProgress, "✓ Catalog cached to %s\n", cachePath)
 			}
 		}
 	}
@@ -738,6 +746,9 @@ func execRefreshCatalog(ctx *ExecContext, full bool) error {
 
 // execShowCatalogStatus handles SHOW CATALOG STATUS command.
 func execShowCatalogStatus(ctx *ExecContext) error {
+	if ctx.Format == FormatJSON {
+		return writeCatalogStatusJSON(ctx)
+	}
 	cachePath := getCachePath(ctx)
 	if cachePath == "" {
 		fmt.Fprintln(ctx.Output, "No project connected")
@@ -804,6 +815,47 @@ func execShowCatalogStatus(ctx *ExecContext) error {
 	}
 
 	return nil
+}
+
+// writeCatalogStatusJSON is SHOW CATALOG STATUS for --json: the same facts as
+// the text report, as one object. The report is prose ("Status: ✓ Valid"), so
+// under --json it used to be the only thing on stdout and did not parse.
+func writeCatalogStatusJSON(ctx *ExecContext) error {
+	cachePath := getCachePath(ctx)
+	if cachePath == "" {
+		return mdlerrors.NewNotConnected()
+	}
+	status := map[string]any{"cachePath": cachePath, "exists": false}
+	if _, err := os.Stat(cachePath); err == nil {
+		status["exists"] = true
+		cat, err := catalog.NewFromFile(cachePath)
+		if err != nil {
+			return mdlerrors.NewBackend("open catalog cache", err)
+		}
+		defer cat.Close()
+		info, err := cat.GetCacheInfo()
+		if err != nil {
+			return mdlerrors.NewBackend("read catalog cache info", err)
+		}
+		valid, reason := isCacheValid(ctx, cachePath, "fast")
+		status["buildMode"] = info.BuildMode
+		status["buildTime"] = info.BuildTime
+		status["buildDuration"] = info.BuildDuration.String()
+		status["mendixVersion"] = info.MendixVersion
+		status["valid"] = valid
+		if !valid {
+			status["invalidReason"] = reason
+		}
+		status["fullMode"] = info.BuildMode == "full" || info.BuildMode == "source"
+		status["sourceMode"] = info.BuildMode == "source"
+		status["graphAnalysis"] = info.GraphAnalysis
+		if info.GraphAnalysis {
+			status["graphResolution"] = info.GraphResolution
+		}
+	}
+	enc := json.NewEncoder(ctx.Output)
+	enc.SetIndent("", "  ")
+	return enc.Encode(status)
 }
 
 // catalogTableRefRe matches a `CATALOG.<name>` table reference (case-insensitive).

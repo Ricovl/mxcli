@@ -3,6 +3,7 @@
 package executor
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -59,6 +60,22 @@ func execShowContext(ctx *ExecContext, s *ast.ShowStmt) error {
 		assembleODataServiceContext(ctx, &output, name)
 	default:
 		output.WriteString(fmt.Sprintf("Unknown element type for: %s\n", name))
+	}
+
+	if ctx.Format == FormatJSON {
+		// The context is assembled as markdown for a model to read, so JSON
+		// wraps it rather than re-deriving it: the same envelope shape as
+		// `describe --json` ({name, type, mdl}), with the text under "context".
+		// It used to ignore --json and print the markdown bare, which a caller
+		// that asked for JSON cannot parse.
+		enc := json.NewEncoder(ctx.Output)
+		enc.SetIndent("", "  ")
+		return enc.Encode(map[string]any{
+			"name":    name,
+			"type":    targetType,
+			"depth":   depth,
+			"context": output.String(),
+		})
 	}
 
 	fmt.Fprint(ctx.Output, output.String())

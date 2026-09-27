@@ -88,11 +88,11 @@ func execShowCallers(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	targetName := s.Name.String()
-	fmt.Fprintf(ctx.Output, "\nCallers of %s", targetName)
+	fmt.Fprintf(ctx.progress(), "\nCallers of %s", targetName)
 	if s.Transitive {
-		fmt.Fprintln(ctx.Output, " (transitive)")
+		fmt.Fprintln(ctx.progress(), " (transitive)")
 	} else {
-		fmt.Fprintln(ctx.Output, "")
+		fmt.Fprintln(ctx.progress(), "")
 	}
 
 	var query string
@@ -130,11 +130,10 @@ func execShowCallers(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "(no callers found)")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, "(no callers found)")
 	}
 
-	fmt.Fprintf(ctx.Output, "Found %d caller(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d caller(s)\n", result.Count)
 	outputCatalogResults(ctx, result)
 	return nil
 }
@@ -151,11 +150,11 @@ func execShowCallees(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	sourceName := s.Name.String()
-	fmt.Fprintf(ctx.Output, "\nCallees of %s", sourceName)
+	fmt.Fprintf(ctx.progress(), "\nCallees of %s", sourceName)
 	if s.Transitive {
-		fmt.Fprintln(ctx.Output, " (transitive)")
+		fmt.Fprintln(ctx.progress(), " (transitive)")
 	} else {
-		fmt.Fprintln(ctx.Output, "")
+		fmt.Fprintln(ctx.progress(), "")
 	}
 
 	var query string
@@ -193,11 +192,10 @@ func execShowCallees(ctx *ExecContext, s *ast.ShowStmt) error {
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, "(no callees found)")
-		return nil
+		return writeEmptyResult(ctx, result.Columns, "(no callees found)")
 	}
 
-	fmt.Fprintf(ctx.Output, "Found %d callee(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d callee(s)\n", result.Count)
 	outputCatalogResults(ctx, result)
 	return nil
 }
@@ -222,7 +220,7 @@ func execShowReferences(ctx *ExecContext, s *ast.ShowStmt) error {
 // activities over the same entity is one retrieve reference, not two rows
 // that read as two callers.
 func showReferences(ctx *ExecContext, typed string) error {
-	fmt.Fprintf(ctx.Output, "\nReferences to %s\n", typed)
+	fmt.Fprintf(ctx.progress(), "\nReferences to %s\n", typed)
 
 	// A widget's TargetName is stored SHOUTED (COMBOBOX) while MDL keywords are
 	// written in lower case, so an exact-only match answers the natural spelling
@@ -243,11 +241,10 @@ func showReferences(ctx *ExecContext, typed string) error {
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, noReferencesMessage(ctx, targetName))
-		return nil
+		return writeEmptyResult(ctx, result.Columns, noReferencesMessage(ctx, targetName))
 	}
 
-	fmt.Fprintf(ctx.Output, "Found %d reference(s)\n", result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d reference(s)\n", result.Count)
 	outputCatalogResults(ctx, result)
 	return nil
 }
@@ -273,7 +270,7 @@ func execShowImpact(ctx *ExecContext, s *ast.ShowStmt) error {
 // retrieves and deletes an entity was two "affected" microflows, and the types
 // came out in map order, different from run to run.
 func showImpact(ctx *ExecContext, typed string) error {
-	fmt.Fprintf(ctx.Output, "\nImpact analysis for %s\n", typed)
+	fmt.Fprintf(ctx.progress(), "\nImpact analysis for %s\n", typed)
 
 	targetName, loose := resolveReferenceTarget(ctx, typed)
 	reportResolvedTarget(ctx, typed, targetName, loose)
@@ -291,8 +288,7 @@ func showImpact(ctx *ExecContext, typed string) error {
 	}
 
 	if result.Count == 0 {
-		fmt.Fprintln(ctx.Output, noReferencesMessage(ctx, targetName))
-		return nil
+		return writeEmptyResult(ctx, result.Columns, noReferencesMessage(ctx, targetName))
 	}
 
 	// Distinct elements per type. Rows are ordered by SourceType, so the types
@@ -315,13 +311,13 @@ func showImpact(ctx *ExecContext, typed string) error {
 		}
 	}
 
-	fmt.Fprintf(ctx.Output, "\nSummary:\n")
+	fmt.Fprintf(ctx.progress(), "\nSummary:\n")
 	for _, t := range types {
-		fmt.Fprintf(ctx.Output, "  %s: %d\n", t, len(perType[t]))
+		fmt.Fprintf(ctx.progress(), "  %s: %d\n", t, len(perType[t]))
 	}
-	fmt.Fprintln(ctx.Output)
+	fmt.Fprintln(ctx.progress())
 
-	fmt.Fprintf(ctx.Output, "Found %d affected element(s) (%d reference(s))\n", elements, result.Count)
+	fmt.Fprintf(ctx.progress(), "Found %d affected element(s) (%d reference(s))\n", elements, result.Count)
 	outputCatalogResults(ctx, result)
 
 	return nil

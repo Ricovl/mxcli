@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/mdl/executor"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/spf13/cobra"
 )
@@ -189,11 +190,16 @@ Supported element types:
 
 Use --depth to control how deep to traverse call chains (default: 2).
 
+With --json the assembled context is wrapped in one JSON object,
+{"name", "type", "depth", "context"}, where "context" is the markdown text
+above; progress goes to stderr.
+
 Examples:
   mxcli context -p app.mpr Module.ProcessOrder
   mxcli context -p app.mpr Module.Customer --depth 3
   mxcli context -p app.mpr Module.OrderPage
   mxcli context -p app.mpr Module.ImportCsvData
+  mxcli context -p app.mpr Module.Customer --json | jq -r .context
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -227,10 +233,13 @@ Until then a warning on stderr says only string literals were searched.
 Output Formats:
   table   - Human-readable table (default)
   names   - Just qualified names, one per line (for piping)
-  json    - JSON output
+  --json  - JSON array on stdout, progress on stderr (the same flag every
+            query command takes). "--format json" is still accepted as a
+            deprecated spelling of it.
 
 Examples:
   mxcli search -p app.mpr "validation"
+  mxcli search -p app.mpr "Customer" --json | jq '.[].qualifiedName'
   mxcli search -p app.mpr "Customer" --format names
   mxcli search -p app.mpr "error" -q --format names | xargs -I {} mxcli describe -p app.mpr microflow {}
 `,
@@ -245,8 +254,15 @@ Examples:
 			os.Exit(1)
 		}
 
+		// A JSON-format executor sends "Connected to:" and catalog progress to
+		// stderr (ExecContext.progress). Set from the resolved format, not
+		// from --json alone: `--format json` is the older spelling of the same
+		// request and must be exactly as clean.
 		exec, logger := newLoggedExecutor("subcommand")
 		defer logger.Close()
+		if isMachineReadableFormat(format) {
+			exec.SetFormat(executor.FormatJSON)
+		}
 		if quiet {
 			exec.SetQuiet(true)
 		}

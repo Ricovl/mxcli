@@ -158,6 +158,22 @@ func (ctx *ExecContext) diagnostics() io.Writer {
 	return os.Stderr
 }
 
+// progress returns the writer for commentary about a run rather than its
+// answer: "Connected to:", catalog load/build progress, a result header or
+// count, "(no references found)". For a person that commentary is part of the
+// reading, so in text mode it stays on Output exactly as before. When Output
+// carries a JSON payload it goes to diagnostics() instead — every byte on
+// Output is then handed to a parser, and one "Connected to:" line ahead of the
+// array is enough to make `mxcli refs --json | jq .` fail.
+//
+// Route progress here, not to Output, in any code a JSON-mode command reaches.
+func (ctx *ExecContext) progress() io.Writer {
+	if ctx.Format == FormatJSON {
+		return ctx.diagnostics()
+	}
+	return ctx.Output
+}
+
 // ResolveScriptRelative turns a path written inside an MDL script into an
 // absolute one: relative to the script's own directory when that is known, and
 // to the working directory otherwise.
