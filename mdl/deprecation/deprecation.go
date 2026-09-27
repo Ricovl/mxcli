@@ -78,6 +78,12 @@ type Rewrite struct {
 	Structural string
 }
 
+// IsZero reports whether r is empty: the entry has no mechanical rewrite, and
+// `fmt --upgrade` reports its uses instead of guessing at one. A structural
+// rewrite is computed per use by the visitor that records it (ast.Fix), and a
+// use it cannot rewrite is reported the same way.
+func (r Rewrite) IsZero() bool { return r.Token == "" && r.Replacement == "" && r.Structural == "" }
+
 // Codes of the registered entries, for the visitor to record.
 const (
 	CreateOrReplace = "MDL-DEPR001"

@@ -12,7 +12,7 @@ func init() {
 		Summary: "mdl <n>; — the MDL language version a script is written in",
 		Keywords: []string{
 			"mdl 1", "mdl 0", "language version", "header", "edition",
-			"preview", "beta", "version-gated", "meaning",
+			"preview", "beta", "version-gated", "meaning", "fmt --upgrade", "upgrade",
 		},
 		Syntax: "mdl <n>;\n\n" +
 			"-- Optional, and only as the FIRST statement of a script. It declares the\n" +
@@ -34,7 +34,19 @@ func init() {
 			"--\n" +
 			"-- A script's meaning never depends on which mxcli release runs it: a\n" +
 			"-- change of meaning applies only under the version that introduces it.\n" +
-			"-- The header is independent of the Mendix version the project targets.",
+			"-- The header is independent of the Mendix version the project targets.\n" +
+			"--\n" +
+			"-- `mxcli fmt --upgrade --header` adds it, after rewriting every construct\n" +
+			"-- whose meaning it would change: it adds each missing `;`, deletes `/`\n" +
+			"-- lines, writes backslash escapes as the characters they stood for,\n" +
+			"-- turns `retrieve … limit 1` into `first`, adds `set` to reassignments,\n" +
+			"-- and writes list operations one statement per activity. It refuses, and\n" +
+			"-- says why, when a construct has no rewrite: an unknown or mis-shaped\n" +
+			"-- property (MDL-V1-PROP/PROPVALUE), `create or replace view entity`\n" +
+			"-- (MDL-V1-REPLACE01), a nested list operation, find/contains on a variable\n" +
+			"-- whose type the script does not state, and an escaped line break inside\n" +
+			"-- an expression.\n" +
+			"-- `mxcli fmt --upgrade` alone rewrites deprecated spellings (MDL-DEPRnnn).",
 		Example: "mdl 1;\n\ncreate persistent entity MyModule.Customer (\n  Name: String(200)\n);",
 		SeeAlso: []string{"create-modifiers"},
 	})

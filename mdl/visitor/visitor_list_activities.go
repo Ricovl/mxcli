@@ -232,13 +232,30 @@ func (b *Builder) ExitListOperationStatement(ctx *parser.ListOperationStatementC
 		target = v.GetText()
 	}
 	if op, ok := ctx.ListOperation().(*parser.ListOperationContext); ok && op != nil {
+		byExpression := buildListOperationStatement(ctx).ByExpression
 		if op.FIND() != nil || op.CONTAINS() != nil {
 			if b.gate(listCallForm, ctx) {
 				b.addError(findContainsCallError(ctx.GetStart().GetLine(), target, op.FIND() != nil))
+				return
+			}
+			// Under mdl 0 the flow builder turns a String operand into the
+			// string function: `set` says so under mdl 1. Any other operand
+			// is the List operation, the statement form.
+			fn := strings.ToLower(op.GetStart().GetText())
+			switch isString, known := operandKind(ctx, op.VARIABLE(0).GetText()); {
+			case !known:
+				b.fixLastNote(listCallForm.Code, nil, operandKindUnknown(op.VARIABLE(0).GetText(), fn))
+			case isString:
+				b.fixLastNote(listCallForm.Code, &ast.Fix{Edits: []ast.TextEdit{insertAt(ctx.GetStart().GetStart(), "set ")}}, "")
+			default:
+				fix, why := fixOrReason(callFormFix(op, byExpression))
+				b.fixLastNote(listCallForm.Code, fix, why)
 			}
 			return
 		}
 		b.recordDeprecation(deprecation.ListOperationFunctionForm, op.GetStart(), strings.ToLower(op.GetStart().GetText()))
+		fix, why := fixOrReason(callFormFix(op, byExpression))
+		b.fixLastDeprecation(deprecation.ListOperationFunctionForm, fix, why)
 		return
 	}
 	act, ok := ctx.ListOperationActivity().(*parser.ListOperationActivityContext)
@@ -275,6 +292,8 @@ func findContainsCallError(line int, target string, find bool) error {
 func (b *Builder) ExitAggregateListStatement(ctx *parser.AggregateListStatementContext) {
 	if op, ok := ctx.ListAggregateOperation().(*parser.ListAggregateOperationContext); ok && op != nil {
 		b.recordDeprecation(deprecation.AggregateFunctionForm, op.GetStart(), strings.ToLower(op.GetStart().GetText()))
+		fix, why := fixOrReason(callFormFix(op, false))
+		b.fixLastDeprecation(deprecation.AggregateFunctionForm, fix, why)
 	}
 }
 
@@ -311,20 +330,73 @@ func (b *Builder) ExitSetStatement(ctx *parser.SetStatementContext) {
 				"expression. Write `%s = %s $List …;`, with each inner call as a statement of its own "+
 				"(e.g. `$Open = filter $Orders where …;` then `$N = count $Open;`)",
 				line, target, valueText, target, strings.ToLower(name)))
+			return
 		}
+		fix, why := setCallFix(ctx, value, isStringOverload(name))
+		b.fixLastNote(listCallForm.Code, fix, why)
 		return
 	case name != "" && ctx.SET() != nil:
 		// `set $x = find(…)` / `contains(…)`: under mdl 1 always the string
 		// function; under mdl 0 an activity when the arguments look like one.
 		if call, ok := unwrapSource(value).(*ast.FunctionCallExpr); ok &&
-			buildListOrAggregateStatement(strings.TrimPrefix(target, "$"), call) != nil {
-			b.gate(listCallForm, ctx)
+			buildListOrAggregateStatement(strings.TrimPrefix(target, "$"), call) != nil && !b.gate(listCallForm, ctx) {
+			fix, why := setCallFix(ctx, value, true)
+			b.fixLastNote(listCallForm.Code, fix, why)
 		}
 		return
 	}
-	if ctx.SET() == nil && b.gate(setIsMandatory, ctx) {
-		b.addError(fmt.Errorf("line %d: a reassignment says `set` under mdl 1: write `set %s = %s;`. "+
-			"A List operation or Aggregate list activity is written without it, as its own statement "+
-			"(`%s = filter $List where …;`)", line, target, valueText, target))
+	if ctx.SET() == nil {
+		if b.gate(setIsMandatory, ctx) {
+			b.addError(fmt.Errorf("line %d: a reassignment says `set` under mdl 1: write `set %s = %s;`. "+
+				"A List operation or Aggregate list activity is written without it, as its own statement "+
+				"(`%s = filter $List where …;`)", line, target, valueText, target))
+			return
+		}
+		b.fixLastNote(setIsMandatory.Code, &ast.Fix{Edits: []ast.TextEdit{insertAt(ctx.GetStart().GetStart(), "set ")}}, "")
 	}
+}
+
+// setCallFix is the rewrite of an assignment whose value is a list-operation or
+// aggregate call that mdl 0 turns into an activity (MDL-V1-LIST): the statement
+// form, without `set`. For find and contains the activity is what mdl 0 builds
+// only when the operand is not a String; for a String it is the string
+// function, which is what `set $x = find(…)` means under mdl 1, so a script
+// already written that way needs no edit.
+func setCallFix(ctx *parser.SetStatementContext, value ast.Expression, overloaded bool) (*ast.Fix, string) {
+	op := singleListCall(ctx.Expression())
+	if op == nil {
+		return nil, "the operand is not a variable (a nested call or an expression), and one activity takes a " +
+			"variable: write each inner call as a statement of its own"
+	}
+	if overloaded {
+		lo, ok := op.(*parser.ListOperationContext)
+		if !ok || lo.VARIABLE(0) == nil {
+			return nil, "the call has no list operand"
+		}
+		v, fn := lo.VARIABLE(0), strings.ToLower(op.GetStart().GetText())
+		isString, known := operandKind(ctx, v.GetText())
+		if !known {
+			return nil, operandKindUnknown(v.GetText(), fn)
+		}
+		if isString {
+			if ctx.SET() == nil {
+				return &ast.Fix{Edits: []ast.TextEdit{insertAt(ctx.GetStart().GetStart(), "set ")}}, ""
+			}
+			return &ast.Fix{}, ""
+		}
+	}
+	byExpression := false
+	if call, ok := unwrapSource(value).(*ast.FunctionCallExpr); ok {
+		if lo, ok := buildListOrAggregateStatement(strings.TrimPrefix(ctx.VARIABLE().GetText(), "$"), call).(*ast.ListOperationStmt); ok {
+			byExpression = lo.ByExpression
+		}
+	}
+	edits, why := callFormFix(op, byExpression)
+	if why != "" {
+		return nil, why
+	}
+	if set := ctx.SET(); set != nil {
+		edits = append(edits, ast.TextEdit{Start: set.GetSymbol().GetStart(), Stop: ctx.VARIABLE().GetSymbol().GetStart()})
+	}
+	return &ast.Fix{Edits: edits}, ""
 }
