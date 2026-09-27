@@ -13,7 +13,7 @@ The project security level determines how strictly the runtime enforces access r
 | Production | `PRODUCTION` | Full enforcement, all access rules must be complete |
 
 ```sql
-ALTER PROJECT SECURITY LEVEL PRODUCTION;
+ALTER APP SECURITY LEVEL PRODUCTION;
 ```
 
 ## Security Architecture
@@ -58,9 +58,9 @@ SHOW DEMO USERS;
 Toggle the security level and demo user visibility:
 
 ```sql
-ALTER PROJECT SECURITY LEVEL PRODUCTION;
-ALTER PROJECT SECURITY DEMO USERS ON;
-ALTER PROJECT SECURITY DEMO USERS OFF;
+ALTER APP SECURITY LEVEL PRODUCTION;
+ALTER APP SECURITY DEMO USERS ON;
+ALTER APP SECURITY DEMO USERS OFF;
 ```
 
 ## Guest (Anonymous) Access
@@ -74,7 +74,7 @@ the weight -- **whatever it can read is public**.
 -- unauthenticated session exist at all.
 CREATE USER ROLE Anonymous (Shop.Viewer, System.User);
 
-ALTER PROJECT SECURITY GUEST ACCESS ON ROLE Anonymous;
+ALTER APP SECURITY GUEST ACCESS ON ROLE Anonymous;
 
 -- Grant exactly what should be public, and nothing else.
 GRANT Anonymous ON Shop.Product (read *);
@@ -84,8 +84,8 @@ Turning it off keeps the stored role, so switching it back on needs no `ROLE`
 clause:
 
 ```sql
-ALTER PROJECT SECURITY GUEST ACCESS OFF;
-ALTER PROJECT SECURITY GUEST ACCESS ON;
+ALTER APP SECURITY GUEST ACCESS OFF;
+ALTER APP SECURITY GUEST ACCESS ON;
 ```
 
 ### The role is mandatory

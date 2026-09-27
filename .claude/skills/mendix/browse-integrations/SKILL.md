@@ -21,13 +21,13 @@ This skill covers discovering external services, browsing cached contracts, and 
 
 ```sql
 -- All OData clients (consumed services)
-show odata clients;
+show consumed odata services;
 
 -- All published OData services
-show odata services;
+show published odata services;
 
 -- All consumed REST services
-show rest clients;
+show consumed rest services;
 
 -- All published REST services
 show published rest services;
@@ -47,7 +47,7 @@ show external actions;
 
 ## Contract Browsing: OData $metadata
 
-`create odata client` auto-fetches and caches the `$metadata` XML from HTTP(S) URLs or reads it from local files. Browse it without network access:
+`create consumed odata service` auto-fetches and caches the `$metadata` XML from HTTP(S) URLs or reads it from local files. Browse it without network access:
 
 **Note:** `MetadataUrl` supports:
 - `https://...` or `http://...` — fetches from HTTP endpoint
@@ -55,7 +55,7 @@ show external actions;
 - `./path` or `path/file.xml` — reads from local relative path (resolved against `.mpr` directory)
 
 Local metadata files enable offline development, reproducible testing, and version-pinned contracts.
-`create odata client` auto-fetches and caches the `$metadata` XML. Browse it without network access:
+`create consumed odata service` auto-fetches and caches the `$metadata` XML. Browse it without network access:
 
 ```sql
 -- List all entity types from the contract
@@ -164,7 +164,7 @@ create or modify external entities from MyModule.SalesforceAPI;
 4. Copy, customize (remove unwanted attributes), and execute:
    ```sql
    create external entity MyModule.PurchaseOrder
-   from odata client MyModule.SalesforceAPI (
+   from consumed odata service MyModule.SalesforceAPI (
        EntitySet: 'PurchaseOrders',
        RemoteName: 'PurchaseOrder',
        Countable: Yes

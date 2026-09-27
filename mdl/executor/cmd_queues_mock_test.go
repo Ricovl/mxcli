@@ -227,7 +227,7 @@ func TestDescribeQueue_Mock_RoundTrips(t *testing.T) {
 	assertNoError(t, execDescribeQueue(ctx, stmt))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create or modify queue Ops.OrderProcessing (")
+	assertContainsStr(t, out, "create or modify task queue Ops.OrderProcessing (")
 	assertContainsStr(t, out, "Parallelism: '$Config/Workers',")
 	assertContainsStr(t, out, "ClusterWide: true,")
 }

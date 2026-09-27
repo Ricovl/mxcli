@@ -148,7 +148,7 @@ func listDemoUsers(ctx *ExecContext) error {
 	if !ps.EnableDemoUsers {
 		if ctx.Format != FormatJSON {
 			fmt.Fprintln(ctx.Output, "Demo users are disabled.")
-			fmt.Fprintln(ctx.Output, "Enable with: alter project security demo users on;")
+			fmt.Fprintln(ctx.Output, "Enable with: alter app security demo users on;")
 			return nil
 		}
 		return writeResult(ctx, &TableResult{Columns: []string{"User Name", "User Roles"}})

@@ -373,7 +373,7 @@ cleanly, and `mx check` then reported them:
 does. Measured on Mendix 11.13: the same role is **CE0156 at security level
 Prototype and no error at all at level Off**, where roles are stored but not
 validated. A blank project ships `Off`. So the rule warns by default and is an
-error only when the script itself contains `ALTER PROJECT SECURITY LEVEL` set to
+error only when the script itself contains `ALTER APP SECURITY LEVEL` set to
 something other than `Off` — at which point the author has said which world they
 are in.
 

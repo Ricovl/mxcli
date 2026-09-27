@@ -168,7 +168,7 @@ func describeSettings(ctx *ExecContext, configName string) error {
 		addIfSet("SslCertificateAlgorithm", "SslCertificateAlgorithm = '%s'", ms.SslCertificateAlgorithm)
 		addIfSet("ScheduledEventTimeZoneCode", "ScheduledEventTimeZoneCode = '%s'", ms.ScheduledEventTimeZoneCode)
 		addIfSet("DefaultTimeZoneCode", "DefaultTimeZoneCode = '%s'", ms.DefaultTimeZoneCode)
-		fmt.Fprintf(ctx.Output, "alter settings model\n%s;\n\n", strings.Join(parts, ",\n"))
+		fmt.Fprintf(ctx.Output, "alter settings runtime\n%s;\n\n", strings.Join(parts, ",\n"))
 	}
 
 	// Configuration settings

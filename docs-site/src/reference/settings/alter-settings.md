@@ -2,7 +2,7 @@
 
 ## Synopsis
 
-    ALTER SETTINGS MODEL key = value
+    ALTER SETTINGS RUNTIME key = value
 
     ALTER SETTINGS CONFIGURATION 'name' key = value
 
@@ -61,7 +61,7 @@ task's group targeting selects from. Groups need Mendix **11.2** or later.
 ### Set the after-startup microflow
 
 ```sql
-ALTER SETTINGS MODEL AfterStartupMicroflow = 'MyModule.ACT_Startup';
+ALTER SETTINGS RUNTIME AfterStartupMicroflow = 'MyModule.ACT_Startup';
 ```
 
 > **The after-startup microflow must return `Boolean`.** Mendix build fails with **CE0142**
@@ -170,7 +170,7 @@ List the groups with [`SHOW WORKFLOW GROUPS`](show-settings.md).
 ### Set Java version
 
 ```sql
-ALTER SETTINGS MODEL JavaVersion = '17';
+ALTER SETTINGS RUNTIME JavaVersion = '17';
 ```
 
 ### Remove a constant override from a configuration

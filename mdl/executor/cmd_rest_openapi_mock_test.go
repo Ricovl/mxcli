@@ -289,7 +289,7 @@ func TestDescribeContractFromOpenAPI_Mock(t *testing.T) {
 	assertNoError(t, describeContractFromOpenAPI(ctx, stmt))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create or modify rest client")
+	assertContainsStr(t, out, "create or modify consumed rest service")
 	assertContainsStr(t, out, "https://api.example.com/v1")
 	assertContainsStr(t, out, "listPets")
 }

@@ -86,11 +86,11 @@ revokeWorkflowAccessStatement
     ;
 
 grantODataServiceAccessStatement
-    : GRANT ACCESS ON ODATA SERVICE qualifiedName TO moduleRoleList
+    : GRANT ACCESS ON publishedODataServiceKw qualifiedName TO moduleRoleList
     ;
 
 revokeODataServiceAccessStatement
-    : REVOKE ACCESS ON ODATA SERVICE qualifiedName FROM moduleRoleList
+    : REVOKE ACCESS ON publishedODataServiceKw qualifiedName FROM moduleRoleList
     ;
 
 grantPublishedRestServiceAccessStatement
@@ -102,21 +102,27 @@ revokePublishedRestServiceAccessStatement
     ;
 
 alterProjectSecurityStatement
-    : ALTER PROJECT SECURITY LEVEL (PRODUCTION | PROTOTYPE | OFF)
-    | ALTER PROJECT SECURITY DEMO USERS (ON | OFF)
+    : ALTER appSecurityKw LEVEL (PRODUCTION | PROTOTYPE | OFF)
+    | ALTER appSecurityKw DEMO USERS (ON | OFF)
     // ROLE is optional here but effectively required by Mendix: mxbuild raises
     // CE0133 when guest access is on with no role. It is optional so that
     // re-enabling a project that already stores one does not force a retype;
     // the executor refuses ON when neither source supplies a role.
-    | ALTER PROJECT SECURITY GUEST ACCESS ON (ROLE identifierOrKeyword)?
-    | ALTER PROJECT SECURITY GUEST ACCESS OFF
+    | ALTER appSecurityKw GUEST ACCESS ON (ROLE identifierOrKeyword)?
+    | ALTER appSecurityKw GUEST ACCESS OFF
     // Strict mode is a plain bool on Security$ProjectSecurity, declared by BOTH
     // generated sources and already read back from real projects — so this
     // writes a property Studio Pro knows, not one gen merely offers.
     //
     // mxcli LINTED for it (SEC005) and offered no way to clear it, which is a
     // rule with no remedy (ako/mxcli#526).
-    | ALTER PROJECT SECURITY STRICT MODE (ON | OFF)
+    | ALTER appSecurityKw STRICT MODE (ON | OFF)
+    ;
+
+// R10: Studio Pro calls it App Security; `project security` is the old name.
+appSecurityKw
+    : APP SECURITY
+    | PROJECT SECURITY /* @alias MDL-DEPR554 */
     ;
 
 createDemoUserStatement

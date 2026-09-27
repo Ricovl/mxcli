@@ -828,6 +828,7 @@ PROTOTYPE: P R O T O T Y P E;
 MANAGE: M A N A G E;
 DEMO: D E M O;
 MATRIX: M A T R I X;
+APP: A P P;  // `alter app security` (R10: Studio Pro's name for project security)
 APPLY: A P P L Y;
 ACCESS: A C C E S S;
 LEVEL: L E V E L;

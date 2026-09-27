@@ -11,7 +11,7 @@ options { tokenVocab = MDLLexer; }
 // =============================================================================
 
 /**
- * ALTER SETTINGS MODEL Key = Value, ...;
+ * ALTER SETTINGS RUNTIME Key = Value, ...;   (MODEL is a deprecated alias)
  * ALTER SETTINGS CONFIGURATION 'name' Key = Value, ...;
  * ALTER SETTINGS CONSTANT 'name' VALUE 'value' [IN CONFIGURATION 'name'];
  * ALTER SETTINGS LANGUAGE Key = Value, ...;
@@ -51,9 +51,12 @@ alterSettingsClause
     | CONFIGURATION STRING_LITERAL settingsAssignment (COMMA settingsAssignment)*
     ;
 
+// RUNTIME is Studio Pro's tab for Settings$ModelSettings (R10); MODEL, the
+// old name, is an alias. The visitor stores both as the "model" section.
 settingsSection
     : IDENTIFIER   // LANGUAGE, etc.
-    | MODEL
+    | RUNTIME
+    | MODEL /* @alias MDL-DEPR555 */
     | WORKFLOWS
     ;
 
@@ -709,7 +712,7 @@ keyword
     | H1 | H2 | H3 | H4 | H5 | H6 | PARAGRAPH | ROW
 
     // Security
-    | ACCESS | APPLY | AUTH | AUTHENTICATION | BASIC | DEMO
+    | ACCESS | APP | APPLY | AUTH | AUTHENTICATION | BASIC | DEMO
     | DESCRIPTION | GRANT | GUEST | LEVEL | MANAGE | MATRIX
     | OFF | OWNER | PASSWORD | PRODUCTION | PROTOTYPE
     | REVOKE | ROLE | ROLES | SECURITY | SESSION | STRICT | USER | USERNAME | USERS

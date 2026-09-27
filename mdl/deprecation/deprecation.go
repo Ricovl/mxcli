@@ -99,6 +99,15 @@ const (
 	// name for: a layout grid's rows and columns, a data grid's columns and
 	// control bar, a gallery's template and filter (R12, ako/mxcli#749).
 	UnstoredWidgetName = "MDL-DEPR005"
+
+	// R10: document types named as Studio Pro names them (ako/mxcli#755). The
+	// codes are a block of their own so parallel work does not collide.
+	ConsumedRestService   = "MDL-DEPR550" // rest client -> consumed rest service
+	ConsumedODataService  = "MDL-DEPR551" // odata client -> consumed odata service
+	PublishedODataService = "MDL-DEPR552" // odata service -> published odata service
+	TaskQueue             = "MDL-DEPR553" // queue -> task queue
+	AppSecurity           = "MDL-DEPR554" // project security -> app security
+	SettingsRuntime       = "MDL-DEPR555" // alter settings model -> alter settings runtime
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -167,6 +176,66 @@ var entries = []Entry{
 			"A data grid column is addressed as `grid column(Attr)` or `grid column('Caption')`.",
 		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column Name (Attribute: Name) } };",
 		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column (Attribute: Name) } };",
+	},
+	{
+		Code:             ConsumedRestService,
+		Old:              "rest client / rest clients",
+		Canonical:        "consumed rest service / consumed rest services",
+		Rewrite:          Rewrite{Structural: "document type name: `rest client` becomes `consumed rest service`, `rest clients` `consumed rest services`"},
+		RemovedIn:        2,
+		Note:             "Studio Pro calls the document a consumed REST service (R10). Every statement that names the type takes both spellings: create, alter, drop, describe, list, move.",
+		Example:          "drop rest client M.Api;",
+		CanonicalExample: "drop consumed rest service M.Api;",
+	},
+	{
+		Code:             ConsumedODataService,
+		Old:              "odata client / odata clients",
+		Canonical:        "consumed odata service / consumed odata services",
+		Rewrite:          Rewrite{Structural: "document type name: `odata client` becomes `consumed odata service`, `odata clients` `consumed odata services`"},
+		RemovedIn:        2,
+		Note:             "Studio Pro calls the document a consumed OData service (R10), including where an external entity names its source (`from consumed odata service M.Crm`).",
+		Example:          "drop odata client M.Crm;",
+		CanonicalExample: "drop consumed odata service M.Crm;",
+	},
+	{
+		Code:             PublishedODataService,
+		Old:              "odata service / odata services",
+		Canonical:        "published odata service / published odata services",
+		Rewrite:          Rewrite{Structural: "document type name: `odata service` becomes `published odata service`"},
+		RemovedIn:        2,
+		Note:             "Studio Pro calls the document a published OData service (R10), including in `grant|revoke access on published odata service`.",
+		Example:          "drop odata service M.Api;",
+		CanonicalExample: "drop published odata service M.Api;",
+	},
+	{
+		Code:             TaskQueue,
+		Old:              "queue / queues",
+		Canonical:        "task queue / task queues",
+		Rewrite:          Rewrite{Structural: "document type name: `queue` becomes `task queue`, `queues` `task queues`"},
+		RemovedIn:        2,
+		Note:             "Studio Pro calls the document a task queue (R10). `call microflow … in queue M.Q` is an option of the call, not a document type name, and is unchanged.",
+		Example:          "drop queue M.Jobs;",
+		CanonicalExample: "drop task queue M.Jobs;",
+	},
+	{
+		Code:             AppSecurity,
+		Old:              "alter project security …",
+		Canonical:        "alter app security …",
+		Rewrite:          Rewrite{Structural: "`project security` becomes `app security`"},
+		RemovedIn:        2,
+		Note:             "Studio Pro calls it App Security (R10). `show project security` becomes `describe app security` with the rest of R6, and is not reported here yet.",
+		Example:          "alter project security demo users off;",
+		CanonicalExample: "alter app security demo users off;",
+	},
+	{
+		Code:             SettingsRuntime,
+		Old:              "alter settings model …",
+		Canonical:        "alter settings runtime …",
+		Rewrite:          Rewrite{Structural: "section name: `model` becomes `runtime`"},
+		RemovedIn:        2,
+		Note:             "`runtime` is the App Settings tab that holds these values in Studio Pro (R10); `model` also collided with the agent-editor document type.",
+		Example:          "alter settings model AfterStartupMicroflow = 'M.Startup';",
+		CanonicalExample: "alter settings runtime AfterStartupMicroflow = 'M.Startup';",
 	},
 }
 

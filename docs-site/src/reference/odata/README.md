@@ -8,17 +8,17 @@ Mendix supports consuming and publishing OData services. Consumed services (ODat
 
 | Statement | Description |
 |-----------|-------------|
-| [CREATE ODATA CLIENT](create-odata-client.md) | Create a consumed OData service (auto-fetches $metadata) |
-| [ALTER ODATA CLIENT](alter-odata-client.md) | Modify OData client properties |
-| [DROP ODATA CLIENT](drop-odata-client.md) | Remove a consumed OData service |
+| [CREATE CONSUMED ODATA SERVICE](create-odata-client.md) | Create a consumed OData service (auto-fetches $metadata) |
+| [ALTER CONSUMED ODATA SERVICE](alter-odata-client.md) | Modify OData client properties |
+| [DROP CONSUMED ODATA SERVICE](drop-odata-client.md) | Remove a consumed OData service |
 
 ## OData Service Statements (Published)
 
 | Statement | Description |
 |-----------|-------------|
-| [CREATE ODATA SERVICE](create-odata-service.md) | Publish entities as an OData endpoint |
-| [ALTER ODATA SERVICE](alter-odata-service.md) | Modify published service properties |
-| [DROP ODATA SERVICE](drop-odata-service.md) | Remove a published OData service |
+| [CREATE PUBLISHED ODATA SERVICE](create-odata-service.md) | Publish entities as an OData endpoint |
+| [ALTER PUBLISHED ODATA SERVICE](alter-odata-service.md) | Modify published service properties |
+| [DROP PUBLISHED ODATA SERVICE](drop-odata-service.md) | Remove a published OData service |
 
 ## External Entity Statements
 
@@ -98,12 +98,12 @@ Browse available assets from cached service contracts without network access.
 
 | Statement | Syntax |
 |-----------|--------|
-| Show OData clients | `SHOW ODATA CLIENTS [IN module]` |
-| Show OData services | `SHOW ODATA SERVICES [IN module]` |
+| Show consumed odata services | `SHOW CONSUMED ODATA SERVICES [IN module]` |
+| Show published odata services | `SHOW PUBLISHED ODATA SERVICES [IN module]` |
 | Show external entities | `SHOW EXTERNAL ENTITIES [IN module]` |
 | Show external actions | `SHOW EXTERNAL ACTIONS [IN module]` |
-| Describe OData client | `DESCRIBE ODATA CLIENT Module.Name` |
-| Describe OData service | `DESCRIBE ODATA SERVICE Module.Name` |
+| Describe consumed odata service | `DESCRIBE CONSUMED ODATA SERVICE Module.Name` |
+| Describe published odata service | `DESCRIBE PUBLISHED ODATA SERVICE Module.Name` |
 | Describe external entity | `DESCRIBE EXTERNAL ENTITY Module.Name` |
 
 ## Catalog Tables

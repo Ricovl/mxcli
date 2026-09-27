@@ -228,6 +228,11 @@ var MoveDocumentTypeByKeyword = map[string]DocumentType{
 	"AGENT":                DocumentTypeAgent,
 	"KNOWLEDGEBASE":        DocumentTypeKnowledgeBase,
 	"CONSUMEDMCPSERVICE":   DocumentTypeConsumedMCPService,
+	// The Studio Pro names (R10); the old spellings above stay as aliases.
+	"TASKQUEUE":             DocumentTypeQueue,
+	"CONSUMEDRESTSERVICE":   DocumentTypeRestClient,
+	"CONSUMEDODATASERVICE":  DocumentTypeODataClient,
+	"PUBLISHEDODATASERVICE": DocumentTypeODataService,
 }
 
 // IsMoveDocumentType reports whether spelling (lower-cased, spaced, e.g.

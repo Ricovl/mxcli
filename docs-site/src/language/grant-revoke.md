@@ -139,8 +139,8 @@ REVOKE EXECUTE ON NANOFLOW <Module>.<Name> FROM <Module>.<Role> [, ...];
 ## OData Service Access
 
 ```sql
-GRANT ACCESS ON ODATA SERVICE <Module>.<Name> TO <Module>.<Role> [, ...];
-REVOKE ACCESS ON ODATA SERVICE <Module>.<Name> FROM <Module>.<Role> [, ...];
+GRANT ACCESS ON PUBLISHED ODATA SERVICE <Module>.<Name> TO <Module>.<Role> [, ...];
+REVOKE ACCESS ON PUBLISHED ODATA SERVICE <Module>.<Name> FROM <Module>.<Role> [, ...];
 ```
 
 ## Complete Example
@@ -183,8 +183,8 @@ CREATE DEMO USER 'demo_admin' PASSWORD 'Admin123!' (Administrator);
 CREATE DEMO USER 'demo_user' PASSWORD 'User123!' (Employee);
 
 -- Enable demo users
-ALTER PROJECT SECURITY DEMO USERS ON;
-ALTER PROJECT SECURITY LEVEL PROTOTYPE;
+ALTER APP SECURITY DEMO USERS ON;
+ALTER APP SECURITY LEVEL PROTOTYPE;
 ```
 
 ## See Also

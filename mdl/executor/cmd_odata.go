@@ -139,7 +139,7 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 	// describe cannot print, so re-running this output on an existing document would silently
 	// lose Studio Pro-authored content; a plain `create` refuses instead. Switch the verb only
 	// once the rewrite's carry is proven by the round-trip harness (see #743).
-	fmt.Fprintf(ctx.Output, "create odata client %s.%s (\n", moduleName, svc.Name)
+	fmt.Fprintf(ctx.Output, "create consumed odata service %s.%s (\n", moduleName, svc.Name)
 
 	var props []string
 	if folderPath != "" {
@@ -335,7 +335,7 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 	// (ExportLevel, PageSize without paging, entity-set order, CanBeEmpty), and
 	// TestTestAppRoundTrip holds it to both round-trip laws on the Studio
 	// Pro-authored services of ako/TestApp (#743).
-	fmt.Fprintf(ctx.Output, "create or modify odata service %s.%s (\n", moduleName, svc.Name)
+	fmt.Fprintf(ctx.Output, "create or modify published odata service %s.%s (\n", moduleName, svc.Name)
 
 	var props []string
 	if folderPath != "" {
@@ -527,7 +527,7 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 	// Output GRANT statements for allowed module roles
 	if len(svc.AllowedModuleRoles) > 0 {
 		fmt.Fprintln(ctx.Output)
-		fmt.Fprintf(ctx.Output, "grant access on odata service %s.%s to %s;\n",
+		fmt.Fprintf(ctx.Output, "grant access on published odata service %s.%s to %s;\n",
 			moduleName, svc.Name, strings.Join(svc.AllowedModuleRoles, ", "))
 	}
 
@@ -777,7 +777,7 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 
 	// Plain `create` on purpose; see describeODataClient.
 	fmt.Fprintf(ctx.Output, "create external entity %s.%s\n", moduleName, entity.Name)
-	fmt.Fprintf(ctx.Output, "from odata client %s\n", entity.RemoteServiceName)
+	fmt.Fprintf(ctx.Output, "from consumed odata service %s\n", entity.RemoteServiceName)
 	fmt.Fprintln(ctx.Output, "(")
 
 	var props []string
@@ -837,7 +837,7 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 	}
 
 	if s.Name.Module == "" {
-		return mdlerrors.NewValidation("module name required: use create external entity Module.Name from odata client ...")
+		return mdlerrors.NewValidation("module name required: use create external entity Module.Name from consumed odata service ...")
 	}
 
 	// Find module
@@ -1136,8 +1136,8 @@ func createODataClient(ctx *ExecContext, stmt *ast.CreateODataClientStmt) error 
 				// describe cannot print and would lose Studio Pro-authored
 				// settings (#743).
 				return mdlerrors.NewAlreadyExistsMsg("OData client", modName+"."+svc.Name, fmt.Sprintf(
-					"OData client already exists: %s.%s — use 'alter odata client %s.%s set ...' to change it; "+
-						"'create or modify odata client' rewrites the whole client and does not yet keep everything Studio Pro stores "+
+					"OData client already exists: %s.%s — use 'alter consumed odata service %s.%s set ...' to change it; "+
+						"'create or modify consumed odata service' rewrites the whole client and does not yet keep everything Studio Pro stores "+
 						"(UseQuerySegment, catalog, proxy and microflow settings, icon)", modName, svc.Name, modName, svc.Name))
 			}
 		}

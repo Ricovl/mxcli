@@ -58,7 +58,7 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 		return
 	}
 
-	if ctx.ODATA() == nil {
+	if ctx.ConsumedODataServiceKw() == nil && ctx.PublishedODataServiceKw() == nil {
 		return // Not an OData alter - handled elsewhere
 	}
 
@@ -71,7 +71,7 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 	for _, propCtx := range ctx.AllOdataAlterAssignment() {
 		prop := propCtx.(*parser.OdataAlterAssignmentContext)
 		name := identifierOrKeywordText(prop.IdentifierOrKeyword())
-		if ctx.CLIENT() != nil && isODataClientExpressionProp(name) {
+		if ctx.ConsumedODataServiceKw() != nil && isODataClientExpressionProp(name) {
 			// Expression-typed: the expression as written (see visitor_odata_expression.go).
 			changes[name], _ = odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
 			continue
@@ -82,12 +82,12 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 		}
 	}
 
-	if ctx.CLIENT() != nil {
+	if ctx.ConsumedODataServiceKw() != nil {
 		b.statements = append(b.statements, &ast.AlterODataClientStmt{
 			Name:    buildQualifiedName(qn),
 			Changes: changes,
 		})
-	} else if ctx.SERVICE() != nil {
+	} else if ctx.PublishedODataServiceKw() != nil {
 		b.statements = append(b.statements, &ast.AlterODataServiceStmt{
 			Name:    buildQualifiedName(qn),
 			Changes: changes,

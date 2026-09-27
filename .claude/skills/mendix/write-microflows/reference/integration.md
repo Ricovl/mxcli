@@ -86,7 +86,7 @@ MDL supports two patterns for calling REST APIs from microflows:
 
 ### SEND REST REQUEST — Consumed REST Service Operations
 
-Calls an operation defined in a consumed REST service (created via `create rest client`). The URL, headers, authentication, and response mapping are configured in the REST client document — the microflow only references the operation.
+Calls an operation defined in a consumed REST service (created via `create consumed rest service`). The URL, headers, authentication, and response mapping are configured in the REST client document — the microflow only references the operation.
 
 ```mdl
 -- Fire and forget (RESPONSE NONE operation)
@@ -121,7 +121,7 @@ if $RootResult != empty then  -- ERROR!
 
 **Restrictions:**
 - `send rest request` does **NOT** support custom error handling (`on error continue/rollback` causes CE6035). Errors are always handled by aborting.
-- The operation must be defined via `create rest client` with a three-part qualified name: `Module.ServiceDocument.OperationName`.
+- The operation must be defined via `create consumed rest service` with a three-part qualified name: `Module.ServiceDocument.OperationName`.
 
 ### REST CALL — Inline HTTP Calls
 

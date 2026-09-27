@@ -153,7 +153,7 @@ func init() {
 			"-- into the same folder.\n" +
 			"--\n" +
 			"-- To move a document without rewriting it, use MOVE.",
-		Example: "CREATE QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );\n\n" +
+		Example: "CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );\n\n" +
 			"CREATE IMPORT MAPPING MyModule.IMM_Order FOLDER 'Private/Import mappings'\n" +
 			"  WITH JSON STRUCTURE MyModule.JSON_Order {\n" +
 			"    CREATE MyModule.Order { Id = id }\n" +
@@ -460,7 +460,7 @@ create or modify translations in Administration for nl_NL (
 			"optimistic locking", "concurrency", "lost update",
 			"workflow group", "workflow groups", "add group", "task assignment",
 		},
-		Syntax: `ALTER SETTINGS MODEL <key> = <value>;
+		Syntax: `ALTER SETTINGS RUNTIME <key> = <value>;
 ALTER SETTINGS CONFIGURATION '<name>' <key> = <value>, ...;
 ALTER SETTINGS CONSTANT '<qualifiedName>' VALUE '<value>' IN CONFIGURATION '<name>';
 ALTER SETTINGS DROP CONSTANT '<qualifiedName>' IN CONFIGURATION '<name>';
@@ -475,9 +475,9 @@ ALTER SETTINGS WORKFLOWS MODIFY GROUP '<name>' (Description: '<text>');
 ALTER SETTINGS WORKFLOWS REMOVE GROUP '<name>';
 CREATE [OR MODIFY] CONFIGURATION '<name>' [<key> = <value>, ...];
 DROP CONFIGURATION '<name>';`,
-		Example: `ALTER SETTINGS MODEL AfterStartupMicroflow = 'Module.MF_Startup';
-ALTER SETTINGS MODEL HashAlgorithm = 'BCrypt';
-ALTER SETTINGS MODEL EnableDataStorageOptimisticLocking = true;
+		Example: `ALTER SETTINGS RUNTIME AfterStartupMicroflow = 'Module.MF_Startup';
+ALTER SETTINGS RUNTIME HashAlgorithm = 'BCrypt';
+ALTER SETTINGS RUNTIME EnableDataStorageOptimisticLocking = true;
 ALTER SETTINGS CONFIGURATION 'Default'
   DatabaseType = 'PostgreSql',
   DatabaseUrl = 'localhost:5432',
@@ -577,15 +577,15 @@ SHOW WORKFLOW GROUPS;
 		Path:    "queue",
 		Summary: "Task queues — bound concurrency for queued microflow calls",
 		Keywords: []string{
-			"queue", "queues", "task queue", "create queue", "drop queue",
-			"describe queue", "show queues", "parallelism", "cluster wide",
+			"queue", "queues", "task queue", "create task queue", "create queue", "drop task queue",
+			"describe task queue", "show task queues", "parallelism", "cluster wide",
 			"background", "async microflow",
 		},
-		Syntax: `CREATE [OR MODIFY] QUEUE Module.Name [FOLDER 'path'] [( <property>: <value>, ... )];
-SHOW QUEUES [IN <module>];
-LIST QUEUES [IN <module>];
-DESCRIBE QUEUE Module.Name;
-DROP QUEUE Module.Name;
+		Syntax: `CREATE [OR MODIFY] TASK QUEUE Module.Name [FOLDER 'path'] [( <property>: <value>, ... )];
+SHOW TASK QUEUES [IN <module>];
+LIST TASK QUEUES [IN <module>];
+DESCRIBE TASK QUEUE Module.Name;
+DROP TASK QUEUE Module.Name;
 
 Properties:
   Parallelism   how many tasks run at once. This is an EXPRESSION, not a
@@ -603,16 +603,16 @@ CALL JAVA ACTION (see: mxcli syntax microflow.call):
 A rewrite that does NOT restate a stored binding is refused, because it would
 drop it silently. A retry policy on a queued call has no MDL spelling and is
 also refused rather than reset — change those in Studio Pro.`,
-		Example: `CREATE QUEUE Ops.OrderProcessing (
+		Example: `CREATE TASK QUEUE Ops.OrderProcessing (
   Parallelism: 3,
   ClusterWide: true
 );
 
 -- Defaults: parallelism 1, per-instance.
-CREATE QUEUE Ops.Mail;
+CREATE TASK QUEUE Ops.Mail;
 
 -- An expression is legal wherever a number is.
-CREATE OR MODIFY QUEUE Ops.OrderProcessing (
+CREATE OR MODIFY TASK QUEUE Ops.OrderProcessing (
   Parallelism: '$MyModule.Workers',
   ClusterWide: true
 );
@@ -623,9 +623,9 @@ BEGIN
   CALL MICROFLOW Ops.ACT_Process(Order = $Order) IN QUEUE Ops.OrderProcessing;
 END;
 
-SHOW QUEUES IN Ops;
-DESCRIBE QUEUE Ops.OrderProcessing;
-DROP QUEUE Ops.Mail;`,
+SHOW TASK QUEUES IN Ops;
+DESCRIBE TASK QUEUE Ops.OrderProcessing;
+DROP TASK QUEUE Ops.Mail;`,
 	})
 
 	// ── Regular expressions ─────────────────────────────────────────────
@@ -859,7 +859,7 @@ SHOW STRUCTURE DEPTH 1 ALL;`,
 			"move page", "move microflow", "move entity",
 			"move folder", "drop folder",
 			"move import mapping", "move export mapping", "move json structure",
-			"move queue", "move workflow", "move menu", "move layout",
+			"move task queue", "move workflow", "move menu", "move layout",
 		},
 		Syntax: `MOVE <doctype> Module.Name TO FOLDER 'Path';
 -- doctype: every top-level document, spelled as DESCRIBE spells it —
@@ -889,7 +889,7 @@ MOVE ENTITY OldModule.Customer TO NewModule;
 -- Many doctypes have no folder clause on CREATE, so MOVE is the only way to
 -- place them
 MOVE JAVA ACTION MyModule.ODataQuery TO FOLDER 'Support';
-MOVE ODATA SERVICE MyModule.PublicApi TO FOLDER 'Api/Published';
+MOVE PUBLISHED ODATA SERVICE MyModule.PublicApi TO FOLDER 'Api/Published';
 MOVE IMPORT MAPPING MyModule.IMM_Order TO FOLDER 'Private/Import mappings';
 MOVE JSON STRUCTURE MyModule.JSON_Order TO FOLDER 'Private/JSON structures';
 
@@ -899,7 +899,7 @@ MOVE JSON STRUCTURE MyModule.JSON_Order TO FOLDER 'Private/JSON structures';
 CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Order
   FOLDER 'Private/JSON structures'
   SNIPPET '{"id": 1}';
-CREATE QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
+CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
 CREATE IMPORT MAPPING MyModule.IMM_Order FOLDER 'Private/Import mappings'
   WITH JSON STRUCTURE MyModule.JSON_Order { CREATE MyModule.Order { Id = id } };
 

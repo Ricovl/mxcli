@@ -400,13 +400,13 @@ drop user role RegularUser;
 
 ```sql
 -- Set security level
-alter project security level off;
-alter project security level prototype;
-alter project security level production;
+alter app security level off;
+alter app security level prototype;
+alter app security level production;
 
 -- Enable/disable demo users
-alter project security demo users on;
-alter project security demo users off;
+alter app security demo users on;
+alter app security demo users off;
 ```
 
 ### Guest (Anonymous) Access
@@ -420,14 +420,14 @@ the important half: **whatever that role can read is the app's public surface.**
 -- unauthenticated session exist at all.
 create user role Anonymous (Shop.Viewer, System.User);
 
-alter project security guest access on role Anonymous;
+alter app security guest access on role Anonymous;
 
 -- Now grant exactly what should be public — and nothing else.
 grant Anonymous on Shop.Product (read *);
 
 -- Re-enabling later does not need the role retyped; the stored one is used.
-alter project security guest access off;
-alter project security guest access on;
+alter app security guest access off;
+alter app security guest access on;
 ```
 
 Three things worth knowing:

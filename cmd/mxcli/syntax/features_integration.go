@@ -12,8 +12,8 @@ func init() {
 			"integration", "services", "external", "contract",
 			"odata", "rest", "business events", "database",
 		},
-		Syntax:  "SHOW ODATA CLIENTS [IN Module];\nSHOW REST CLIENTS [IN Module];\nSHOW PUBLISHED REST SERVICES [IN Module];\nSHOW BUSINESS EVENT SERVICES [IN Module];\nSHOW DATABASE CONNECTIONS [IN Module];\nSHOW EXTERNAL ENTITIES [IN Module];\nSHOW EXTERNAL ACTIONS [IN Module];",
-		Example: "SHOW ODATA CLIENTS;\nSHOW REST CLIENTS IN MyModule;\nSHOW EXTERNAL ENTITIES;\nSELECT * FROM CATALOG.REST_CLIENTS;",
+		Syntax:  "SHOW CONSUMED ODATA SERVICES [IN Module];\nSHOW CONSUMED REST SERVICES [IN Module];\nSHOW PUBLISHED REST SERVICES [IN Module];\nSHOW BUSINESS EVENT SERVICES [IN Module];\nSHOW DATABASE CONNECTIONS [IN Module];\nSHOW EXTERNAL ENTITIES [IN Module];\nSHOW EXTERNAL ACTIONS [IN Module];",
+		Example: "SHOW CONSUMED ODATA SERVICES;\nSHOW CONSUMED REST SERVICES IN MyModule;\nSHOW EXTERNAL ENTITIES;\nSELECT * FROM CATALOG.REST_CLIENTS;",
 		SeeAlso: []string{"odata", "rest", "sql", "business-events"},
 	})
 
@@ -26,8 +26,8 @@ func init() {
 			"odata", "consumed odata", "published odata",
 			"external entity", "external entities", "metadata",
 		},
-		Syntax:  "SHOW ODATA CLIENTS [IN Module];\nSHOW ODATA SERVICES [IN Module];\nSHOW EXTERNAL ENTITIES [IN Module];\nSHOW EXTERNAL ACTIONS [IN Module];\nDESCRIBE ODATA CLIENT Module.Name;\nDESCRIBE ODATA SERVICE Module.Name;",
-		Example: "SHOW ODATA CLIENTS;\nDESCRIBE ODATA CLIENT MyModule.ExternalAPI;\nSHOW EXTERNAL ENTITIES IN MyModule;",
+		Syntax:  "SHOW CONSUMED ODATA SERVICES [IN Module];\nSHOW PUBLISHED ODATA SERVICES [IN Module];\nSHOW EXTERNAL ENTITIES [IN Module];\nSHOW EXTERNAL ACTIONS [IN Module];\nDESCRIBE CONSUMED ODATA SERVICE Module.Name;\nDESCRIBE PUBLISHED ODATA SERVICE Module.Name;",
+		Example: "SHOW CONSUMED ODATA SERVICES;\nDESCRIBE CONSUMED ODATA SERVICE MyModule.ExternalAPI;\nSHOW EXTERNAL ENTITIES IN MyModule;",
 		SeeAlso: []string{"odata.consume", "odata.show", "integration"},
 	})
 
@@ -35,11 +35,11 @@ func init() {
 		Path:    "odata.consume",
 		Summary: "Create consumed OData services and external entities",
 		Keywords: []string{
-			"create odata client", "consume odata", "external entity",
+			"create consumed odata service", "create odata client", "odata client", "consume odata", "external entity",
 			"metadata url", "odata4", "headers", "proxy",
 			"configurationmicroflow", "headersmicroflow", "service url",
 		},
-		Syntax: "CREATE ODATA CLIENT Module.Name (\n" +
+		Syntax: "CREATE CONSUMED ODATA SERVICE Module.Name (\n" +
 			"  Version: '1.0',\n" +
 			"  ODataVersion: OData4,\n" +
 			"  MetadataUrl: 'https://.../$metadata',\n" +
@@ -56,12 +56,12 @@ func init() {
 			")\n" +
 			"[HEADERS ('Key': 'Value')];\n\n" +
 			"CREATE EXTERNAL ENTITY Module.Name\n" +
-			"  FROM ODATA CLIENT Module.Client\n" +
+			"  FROM CONSUMED ODATA SERVICE Module.Client\n" +
 			"  (EntitySet: 'Name', RemoteName: 'Name')\n" +
 			"  (Attr: Type, ...);\n\n" +
 			"CREATE EXTERNAL ENTITIES FROM Module.Client\n" +
 			"  [INTO Module] [ENTITIES (Name1, Name2)];",
-		Example: "CREATE CONSTANT MyModule.SvcUrl TYPE String DEFAULT 'https://api.example.com/odata/v4/';\n\nCREATE ODATA CLIENT MyModule.SalesforceAPI (\n  Version: '1.0',\n  ODataVersion: OData4,\n  MetadataUrl: 'https://api.example.com/odata/$metadata',\n  Timeout: 300,\n  ServiceUrl: MyModule.SvcUrl\n);\n\nCREATE EXTERNAL ENTITIES FROM MyModule.SalesforceAPI INTO Integration;",
+		Example: "CREATE CONSTANT MyModule.SvcUrl TYPE String DEFAULT 'https://api.example.com/odata/v4/';\n\nCREATE CONSUMED ODATA SERVICE MyModule.SalesforceAPI (\n  Version: '1.0',\n  ODataVersion: OData4,\n  MetadataUrl: 'https://api.example.com/odata/$metadata',\n  Timeout: 300,\n  ServiceUrl: MyModule.SvcUrl\n);\n\nCREATE EXTERNAL ENTITIES FROM MyModule.SalesforceAPI INTO Integration;",
 		SeeAlso: []string{"odata", "odata.publish", "odata.show"},
 	})
 
@@ -69,7 +69,7 @@ func init() {
 		Path:    "odata.publish",
 		Summary: "Publish entities as OData services with KEY, options, and navigation properties",
 		Keywords: []string{
-			"create odata service", "publish entity", "publish odata",
+			"create published odata service", "create odata service", "publish entity", "publish odata",
 			"expose", "key", "navigation property", "association exposure",
 			"authentication", "page size", "servicename", "publishassociations",
 			"readmode microflow", "non-persistable", "countable", "skipsupported",
@@ -77,7 +77,7 @@ func init() {
 			"graphql",
 			"supportsgraphql",
 		},
-		Syntax: "CREATE [OR MODIFY] ODATA SERVICE Module.Name (\n" +
+		Syntax: "CREATE [OR MODIFY] PUBLISHED ODATA SERVICE Module.Name (\n" +
 			"  path: 'odata/customers/',           -- no leading slash; trailing slash required\n" +
 			"  version: '1.0.0',\n" +
 			"  ODataVersion: OData4,\n" +
@@ -121,7 +121,7 @@ func init() {
 			"    expose ( Note as 'note', Amount as 'amount' (CanBeEmpty) );\n" +
 			"};\n" +
 			"\n" +
-			"GRANT ACCESS ON ODATA SERVICE Module.Name TO Module.Role;\n" +
+			"GRANT ACCESS ON PUBLISHED ODATA SERVICE Module.Name TO Module.Role;\n" +
 			"\n" +
 			"-- A NON-PERSISTABLE entity can be published: back it with a read\n" +
 			"-- microflow returning a list of that entity. Nothing is stored, so\n" +
@@ -152,7 +152,7 @@ func init() {
 			"  Name:  string(200)\n" +
 			");\n" +
 			"\n" +
-			"create odata service Shop.CustomerAPI (\n" +
+			"create published odata service Shop.CustomerAPI (\n" +
 			"  path: 'odata/customers/',\n" +
 			"  version: '1.0.0',\n" +
 			"  ODataVersion: OData4,\n" +
@@ -192,8 +192,8 @@ func init() {
 			"rest", "rest client", "rest service",
 			"published rest", "api", "http",
 		},
-		Syntax:  "SHOW REST CLIENTS [IN Module];\nSHOW PUBLISHED REST SERVICES [IN Module];\nDESCRIBE REST CLIENT Module.Name;\nDESCRIBE PUBLISHED REST SERVICE Module.Name;",
-		Example: "SHOW REST CLIENTS;\nDESCRIBE REST CLIENT MyModule.PetStoreAPI;\nSHOW PUBLISHED REST SERVICES IN MyModule;",
+		Syntax:  "SHOW CONSUMED REST SERVICES [IN Module];\nSHOW PUBLISHED REST SERVICES [IN Module];\nDESCRIBE CONSUMED REST SERVICE Module.Name;\nDESCRIBE PUBLISHED REST SERVICE Module.Name;",
+		Example: "SHOW CONSUMED REST SERVICES;\nDESCRIBE CONSUMED REST SERVICE MyModule.PetStoreAPI;\nSHOW PUBLISHED REST SERVICES IN MyModule;",
 		SeeAlso: []string{"rest.call", "rest.consumed", "rest.published", "integration"},
 	})
 
@@ -294,13 +294,13 @@ func init() {
 		Path:    "rest.consumed",
 		Summary: "Create consumed REST clients with operations, mappings, and authentication",
 		Keywords: []string{
-			"create rest client", "consume rest", "rest operation",
+			"create consumed rest service", "create rest client", "rest client", "consume rest", "rest operation",
 			"get", "post", "put", "delete", "patch",
 			"body", "response", "mapping", "authentication",
 			"json structure", "import mapping", "export mapping",
 		},
-		Syntax:  "CREATE [OR MODIFY] REST CLIENT Module.Name (\n  BaseUrl: 'https://...',\n  Authentication: NONE | BASIC (...)\n)\n{\n  OPERATION Name {\n    Method: GET|POST|PUT|DELETE|PATCH,\n    Path: '/path/{param}',\n    Parameters: ($param: Type),\n    Query: ($param: Type),\n    Headers: ('Key' = 'Value'),\n    Timeout: 30,\n    Body: JSON FROM $var | MAPPING Entity { jsonField = Attribute, ... },\n    Response: JSON AS $var | MAPPING Entity { Attribute = jsonField, ... }\n  }\n};\n\n-- MAPPING takes a target ENTITY plus a body listing the JSON fields; Mendix\n-- stores it inline on the operation. An existing import/export mapping\n-- document cannot be referenced here (rejected as MDL-REST01).\n-- There is no FILE request body: Mendix's consumed operation stores one of\n-- Rest$JsonBody, Rest$StringBody or Rest$ImplicitMappingBody, so a file\n-- document has nowhere to go. `Body: FILE FROM $Doc` is rejected as\n-- MDL-REST02 rather than sent as the literal text \"$Doc\" (it used to be,\n-- returning 200 with a 4-byte payload). Binary POST lives on the\n-- microflow activity: `rest call post '<url>' body binary $Doc/Contents`.\n-- `Response: FILE AS $Doc` is unaffected — downloads work.",
-		Example: "CREATE REST CLIENT Module.PetStore (\n  BaseUrl: 'https://petstore.example.com/api',\n  Authentication: NONE\n)\n{\n  OPERATION GetPet {\n    Method: GET,\n    Path: '/pets/{id}',\n    Parameters: ($id: String),\n    Query: ($verbose: String),\n    Response: MAPPING Module.Pet {\n      Name = name,\n      Status = status\n    }\n  }\n};",
+		Syntax:  "CREATE [OR MODIFY] CONSUMED REST SERVICE Module.Name (\n  BaseUrl: 'https://...',\n  Authentication: NONE | BASIC (...)\n)\n{\n  OPERATION Name {\n    Method: GET|POST|PUT|DELETE|PATCH,\n    Path: '/path/{param}',\n    Parameters: ($param: Type),\n    Query: ($param: Type),\n    Headers: ('Key' = 'Value'),\n    Timeout: 30,\n    Body: JSON FROM $var | MAPPING Entity { jsonField = Attribute, ... },\n    Response: JSON AS $var | MAPPING Entity { Attribute = jsonField, ... }\n  }\n};\n\n-- MAPPING takes a target ENTITY plus a body listing the JSON fields; Mendix\n-- stores it inline on the operation. An existing import/export mapping\n-- document cannot be referenced here (rejected as MDL-REST01).\n-- There is no FILE request body: Mendix's consumed operation stores one of\n-- Rest$JsonBody, Rest$StringBody or Rest$ImplicitMappingBody, so a file\n-- document has nowhere to go. `Body: FILE FROM $Doc` is rejected as\n-- MDL-REST02 rather than sent as the literal text \"$Doc\" (it used to be,\n-- returning 200 with a 4-byte payload). Binary POST lives on the\n-- microflow activity: `rest call post '<url>' body binary $Doc/Contents`.\n-- `Response: FILE AS $Doc` is unaffected — downloads work.",
+		Example: "CREATE CONSUMED REST SERVICE Module.PetStore (\n  BaseUrl: 'https://petstore.example.com/api',\n  Authentication: NONE\n)\n{\n  OPERATION GetPet {\n    Method: GET,\n    Path: '/pets/{id}',\n    Parameters: ($id: String),\n    Query: ($verbose: String),\n    Response: MAPPING Module.Pet {\n      Name = name,\n      Status = status\n    }\n  }\n};",
 		SeeAlso: []string{"rest", "rest.published"},
 	})
 

@@ -163,8 +163,8 @@ alterStatement
     | alterEntitiesStatement
     | ALTER ASSOCIATION qualifiedName alterAssociationAction+
     | ALTER ENUMERATION qualifiedName alterEnumerationAction+
-    | ALTER ODATA CLIENT qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
-    | ALTER ODATA SERVICE qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
+    | ALTER consumedODataServiceKw qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
+    | ALTER publishedODataServiceKw qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
     | ALTER STYLING ON (PAGE | SNIPPET) qualifiedName WIDGET IDENTIFIER alterStylingAction+
     | ALTER SETTINGS alterSettingsClause
     // The generic ALTER (ADR-0012 decision 2): one patch grammar for every
@@ -563,14 +563,14 @@ dropStatement
     | DROP SNIPPET ifExists? qualifiedName
     | DROP MENU_KW ifExists? qualifiedName
     | DROP MODULE ifExists? qualifiedName
-    | DROP QUEUE ifExists? qualifiedName
+    | DROP taskQueueKw ifExists? qualifiedName
     | DROP SCHEDULED EVENT ifExists? qualifiedName
     | DROP REGULAR EXPRESSION ifExists? qualifiedName
     | DROP JAVA ACTION ifExists? qualifiedName
     | DROP JAVASCRIPT ACTION ifExists? qualifiedName
     | DROP INDEX qualifiedName ON qualifiedName
-    | DROP ODATA CLIENT ifExists? qualifiedName
-    | DROP ODATA SERVICE ifExists? qualifiedName
+    | DROP consumedODataServiceKw ifExists? qualifiedName
+    | DROP publishedODataServiceKw ifExists? qualifiedName
     | DROP BUSINESS EVENT SERVICE ifExists? qualifiedName
     | DROP WORKFLOW ifExists? qualifiedName
     | DROP IMAGE COLLECTION ifExists? qualifiedName
@@ -580,7 +580,7 @@ dropStatement
     | DROP MESSAGE DEFINITION COLLECTION ifExists? qualifiedName
     | DROP IMPORT MAPPING ifExists? qualifiedName
     | DROP EXPORT MAPPING ifExists? qualifiedName
-    | DROP REST CLIENT ifExists? qualifiedName
+    | DROP consumedRestServiceKw ifExists? qualifiedName
     | DROP PUBLISHED REST SERVICE ifExists? qualifiedName
     | DROP DATA TRANSFORMER ifExists? qualifiedName
     | DROP MODEL ifExists? qualifiedName                               // DROP MODEL Module.Name (agent-editor)
@@ -669,7 +669,7 @@ moveDocumentType
     | ENUMERATION
     | CONSTANT
     | WORKFLOW
-    | QUEUE
+    | taskQueueKw
     | SCHEDULED EVENT
     | REGULAR EXPRESSION
     | JSON STRUCTURE
@@ -681,10 +681,10 @@ moveDocumentType
     | DATA TRANSFORMER
     | IMAGE COLLECTION
     | ICON COLLECTION
-    | REST CLIENT
+    | consumedRestServiceKw
     | PUBLISHED REST SERVICE
-    | ODATA CLIENT
-    | ODATA SERVICE
+    | consumedODataServiceKw
+    | publishedODataServiceKw
     | BUSINESS EVENT SERVICE
     | MODEL
     | AGENT

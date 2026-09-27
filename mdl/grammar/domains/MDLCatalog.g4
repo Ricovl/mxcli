@@ -39,7 +39,7 @@ showStatement
     | showOrList CONSTANTS (IN (qualifiedName | IDENTIFIER))?
     | showOrList CONSTANT VALUES (IN (qualifiedName | IDENTIFIER))?
     | showOrList LAYOUTS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList QUEUES (IN (qualifiedName | IDENTIFIER))?
+    | showOrList taskQueuesKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList SCHEDULED EVENTS (IN (qualifiedName | IDENTIFIER))?
     | showOrList REGULAR EXPRESSIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList JAVA ACTIONS (IN (qualifiedName | IDENTIFIER))?
@@ -92,8 +92,8 @@ showStatement
     | showOrList ACCESS ON WORKFLOW qualifiedName
     | showOrList ACCESS ON NANOFLOW qualifiedName
     | showOrList SECURITY MATRIX (IN (qualifiedName | IDENTIFIER))?
-    | showOrList ODATA CLIENTS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList ODATA SERVICES (IN (qualifiedName | IDENTIFIER))?
+    | showOrList consumedODataServicesKw (IN (qualifiedName | IDENTIFIER))?
+    | showOrList publishedODataServicesKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXTERNAL ENTITIES (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXTERNAL ACTIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList NAVIGATION
@@ -107,7 +107,7 @@ showStatement
     | showOrList SETTINGS
     | showOrList FRAGMENTS
     | showOrList DATABASE CONNECTIONS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList REST CLIENTS (IN (qualifiedName | IDENTIFIER))?
+    | showOrList consumedRestServicesKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList PUBLISHED REST SERVICES (IN (qualifiedName | IDENTIFIER))?
     | showOrList DATA TRANSFORMERS (IN (qualifiedName | IDENTIFIER))?
     | showOrList LANGUAGES
@@ -176,8 +176,8 @@ describeStatement
     | DESCRIBE MODULE ROLE qualifiedName        // DESCRIBE MODULE ROLE Module.RoleName
     | DESCRIBE USER ROLE (STRING_LITERAL | identifierOrKeyword)  // DESCRIBE USER ROLE 'Administrator' | Administrator
     | DESCRIBE DEMO USER STRING_LITERAL          // DESCRIBE DEMO USER 'demo_admin'
-    | DESCRIBE ODATA CLIENT qualifiedName       // DESCRIBE ODATA CLIENT Module.ServiceName
-    | DESCRIBE ODATA SERVICE qualifiedName      // DESCRIBE ODATA SERVICE Module.ServiceName
+    | DESCRIBE consumedODataServiceKw qualifiedName   // DESCRIBE CONSUMED ODATA SERVICE Module.ServiceName
+    | DESCRIBE publishedODataServiceKw qualifiedName  // DESCRIBE PUBLISHED ODATA SERVICE Module.ServiceName
     | DESCRIBE EXTERNAL ENTITY qualifiedName    // DESCRIBE EXTERNAL ENTITY Module.EntityName
     | DESCRIBE NAVIGATION (qualifiedName | IDENTIFIER)?  // DESCRIBE NAVIGATION [profile]
     | DESCRIBE WIDGET identifierOrKeyword                                      // DESCRIBE WIDGET combobox | DESCRIBE WIDGET 'com.mendix…'
@@ -185,7 +185,7 @@ describeStatement
     | DESCRIBE STYLING ON (PAGE | SNIPPET) qualifiedName (WIDGET IDENTIFIER)?  // DESCRIBE STYLING ON PAGE Module.Page [WIDGET name]
     | DESCRIBE CATALOG DOT (catalogTableName)  // DESCRIBE CATALOG.ENTITIES
     | DESCRIBE BUSINESS EVENT SERVICE qualifiedName  // DESCRIBE BUSINESS EVENT SERVICE Module.Name
-    | DESCRIBE QUEUE qualifiedName                     // DESCRIBE QUEUE Module.Name
+    | DESCRIBE taskQueueKw qualifiedName               // DESCRIBE TASK QUEUE Module.Name
     | DESCRIBE SCHEDULED EVENT qualifiedName           // DESCRIBE SCHEDULED EVENT Module.Name
     | DESCRIBE REGULAR EXPRESSION qualifiedName        // DESCRIBE REGULAR EXPRESSION Module.Name
     | DESCRIBE DATABASE CONNECTION qualifiedName       // DESCRIBE DATABASE CONNECTION Module.Name
@@ -203,7 +203,7 @@ describeStatement
     | DESCRIBE MESSAGE DEFINITION COLLECTION qualifiedName
     | DESCRIBE IMPORT MAPPING qualifiedName             // DESCRIBE IMPORT MAPPING Module.Name
     | DESCRIBE EXPORT MAPPING qualifiedName             // DESCRIBE EXPORT MAPPING Module.Name
-    | DESCRIBE REST CLIENT qualifiedName                // DESCRIBE REST CLIENT Module.Name
+    | DESCRIBE consumedRestServiceKw qualifiedName      // DESCRIBE CONSUMED REST SERVICE Module.Name
     | DESCRIBE CONTRACT OPERATION FROM OPENAPI STRING_LITERAL   // DESCRIBE CONTRACT OPERATION FROM OPENAPI '/path/to/spec.json'
     | DESCRIBE PUBLISHED REST SERVICE qualifiedName    // DESCRIBE PUBLISHED REST SERVICE Module.Name
     | DESCRIBE DATA TRANSFORMER qualifiedName          // DESCRIBE DATA TRANSFORMER Module.Name

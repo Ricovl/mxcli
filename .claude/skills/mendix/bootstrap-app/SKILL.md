@@ -273,11 +273,11 @@ with these deltas:
   appear grouped in the hub overview instead of as unrelated previews.
 
 **Wire the integration in dependency order — the producer must be running first.**
-`CREATE ODATA CLIENT` fetches the `$metadata` at the moment you create it and caches
+`CREATE CONSUMED ODATA SERVICE` fetches the `$metadata` at the moment you create it and caches
 it in the model; if the URL is unreachable it warns and leaves the client unvalidated,
 with no external entities to import. So: publish on the producer
-(`CREATE ODATA SERVICE … publish entity …`), boot it (`run --local`), and only then,
-on the consumer, `CREATE ODATA CLIENT … MetadataUrl: 'http://backend.local:8080/odata/…/$metadata'`
+(`CREATE PUBLISHED ODATA SERVICE … publish entity …`), boot it (`run --local`), and only then,
+on the consumer, `CREATE CONSUMED ODATA SERVICE … MetadataUrl: 'http://backend.local:8080/odata/…/$metadata'`
 followed by `CREATE EXTERNAL ENTITIES FROM …`. Use the hostname here too, so the
 cached contract and the constant below agree with what the browser sees. Point
 `ServiceUrl` at a **constant** (`ServiceUrl: @Module.SvcUrl`) so the address can be

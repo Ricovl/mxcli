@@ -43,7 +43,7 @@ Not sure who owns it? Treat it as Studio Pro-owned.
 | Enumeration | `alter enumeration` (add / rename / modify / drop value) |
 | Page, snippet, layout | `alter page` / `alter snippet` / `alter layout` { set / insert / drop / replace } |
 | Workflow | `alter workflow` (set, insert after, drop / replace activity, outcomes, paths) |
-| Settings, security | `alter settings`, `alter project security`, `grant` / `revoke` |
+| Settings, security | `alter settings`, `alter app security`, `grant` / `revoke` |
 | Many pages at once | `update widgets … where …` (see `bulk-widget-updates`) |
 | **Microflow, nanoflow** | **none yet** |
 | Menu, navigation profile, Java action | none (`alter navigation` replaces the whole profile) |

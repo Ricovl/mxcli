@@ -24,12 +24,12 @@ it.
 | Group | Types |
 |-------|-------|
 | Pages | `PAGE`, `SNIPPET`, `BUILDING BLOCK`, `LAYOUT`, `MENU` |
-| Logic | `MICROFLOW`, `NANOFLOW`, `WORKFLOW`, `QUEUE`, `SCHEDULED EVENT` |
+| Logic | `MICROFLOW`, `NANOFLOW`, `WORKFLOW`, `TASK QUEUE`, `SCHEDULED EVENT` |
 | Domain | `ENUMERATION`, `CONSTANT`, `REGULAR EXPRESSION`, `ENTITY` |
 | Mappings | `JSON STRUCTURE`, `IMPORT MAPPING`, `EXPORT MAPPING` |
 | Code | `JAVA ACTION`, `JAVASCRIPT ACTION`, `DATABASE CONNECTION`, `DATA TRANSFORMER` |
 | Resources | `IMAGE COLLECTION`, `ICON COLLECTION` |
-| Integration | `REST CLIENT`, `PUBLISHED REST SERVICE`, `ODATA CLIENT`, `ODATA SERVICE`, `BUSINESS EVENT SERVICE` |
+| Integration | `CONSUMED REST SERVICE`, `PUBLISHED REST SERVICE`, `CONSUMED ODATA SERVICE`, `PUBLISHED ODATA SERVICE`, `BUSINESS EVENT SERVICE` |
 | AI | `MODEL`, `AGENT`, `KNOWLEDGE BASE`, `CONSUMED MCP SERVICE` |
 
 `FOLDER` moves a folder rather than a document — see the example below.
@@ -98,7 +98,7 @@ CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Order
   FOLDER 'Private/JSON structures'
   SNIPPET '{"id": 1}';
 
-CREATE QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
+CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
 
 CREATE JAVA ACTION MyModule.JA_Sync FOLDER 'Private/Java' ()
   RETURNS String AS $$return null;$$;

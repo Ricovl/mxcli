@@ -213,19 +213,19 @@ spells it:
 | Group | Types |
 |-------|-------|
 | Pages | `page`, `snippet`, `building block`, `layout`, `menu` |
-| Logic | `microflow`, `nanoflow`, `workflow`, `queue`, `scheduled event` |
+| Logic | `microflow`, `nanoflow`, `workflow`, `task queue`, `scheduled event` |
 | Domain | `enumeration`, `constant`, `regular expression` |
 | Mappings | `json structure`, `import mapping`, `export mapping` |
 | Code | `java action`, `javascript action`, `database connection`, `data transformer` |
 | Resources | `image collection`, `icon collection` |
-| Integration | `rest client`, `published rest service`, `odata client`, `odata service`, `business event service` |
+| Integration | `consumed rest service`, `published rest service`, `consumed odata service`, `published odata service`, `business event service` |
 | AI | `model`, `agent`, `knowledge base`, `consumed mcp service` |
 
 `move entity` is the exception: an entity lives inside a domain model, so it
 moves between **modules** only, never into a folder.
 
 If the named document turns out to be a different type, the statement is refused
-and the error names what it really is — `move queue Mod.JSON_Order` reports that
+and the error names what it really is — `move task queue Mod.JSON_Order` reports that
 `Mod.JSON_Order` is a json structure.
 
 ### FOLDER on Create
@@ -245,7 +245,7 @@ the clause goes depends on the statement's shape:
 create import mapping CRM.IMM_Order folder 'Private/Import mappings'
   with json structure CRM.JSON_Order { create CRM.Order { Id = id } };
 
-create queue CRM.Q_Orders folder 'Private/Queues' ( Parallelism: 3 );
+create task queue CRM.Q_Orders folder 'Private/Queues' ( Parallelism: 3 );
 
 create java action CRM.JA_Sync folder 'Private/Java' () returns string
   as $$return null;$$;

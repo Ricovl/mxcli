@@ -599,7 +599,7 @@ def check():
         return [violation(
             message="password minimum length is {} (recommended: 8+)".format(sec.password_policy.min_length),
             location=location(module="", document_type="security", document_name="ProjectSecurity"),
-            suggestion="alter project security password POLICY minimum length 8",
+            suggestion="alter app security password POLICY minimum length 8",
         )]
     return []
 ```

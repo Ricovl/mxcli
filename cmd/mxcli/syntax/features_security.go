@@ -136,12 +136,12 @@ func init() {
 			"project security", "security level", "prototype",
 			"production", "off", "strict mode", "SEC005",
 		},
-		Syntax: "ALTER PROJECT SECURITY LEVEL OFF|PROTOTYPE|PRODUCTION;\n" +
-			"ALTER PROJECT SECURITY DEMO USERS ON|OFF;\n" +
-			"ALTER PROJECT SECURITY STRICT MODE ON|OFF;   -- clears lint rule SEC005",
-		Example: "ALTER PROJECT SECURITY LEVEL PRODUCTION;\n" +
-			"ALTER PROJECT SECURITY DEMO USERS OFF;\n" +
-			"ALTER PROJECT SECURITY STRICT MODE ON;",
+		Syntax: "ALTER APP SECURITY LEVEL OFF|PROTOTYPE|PRODUCTION;\n" +
+			"ALTER APP SECURITY DEMO USERS ON|OFF;\n" +
+			"ALTER APP SECURITY STRICT MODE ON|OFF;   -- clears lint rule SEC005",
+		Example: "ALTER APP SECURITY LEVEL PRODUCTION;\n" +
+			"ALTER APP SECURITY DEMO USERS OFF;\n" +
+			"ALTER APP SECURITY STRICT MODE ON;",
 		SeeAlso: []string{"security.demo-user", "security.guest-access"},
 	})
 
@@ -152,9 +152,9 @@ func init() {
 			"guest access", "anonymous", "anonymous users", "public",
 			"unauthenticated", "guest user role", "CE0133",
 		},
-		Syntax: "ALTER PROJECT SECURITY GUEST ACCESS ON ROLE <UserRole>;\n" +
-			"ALTER PROJECT SECURITY GUEST ACCESS ON;   -- only when a role is already configured\n" +
-			"ALTER PROJECT SECURITY GUEST ACCESS OFF;  -- keeps the stored role\n" +
+		Syntax: "ALTER APP SECURITY GUEST ACCESS ON ROLE <UserRole>;\n" +
+			"ALTER APP SECURITY GUEST ACCESS ON;   -- only when a role is already configured\n" +
+			"ALTER APP SECURITY GUEST ACCESS OFF;  -- keeps the stored role\n" +
 			"\n" +
 			"-- The role is what anonymous visitors get, so its entity access IS the app's\n" +
 			"-- public surface. Mendix requires one: guest access with no role fails the\n" +
@@ -162,7 +162,7 @@ func init() {
 			"-- Mendix does not check the role exists, so mxcli does — an unknown role\n" +
 			"-- would build cleanly and leave visitors with nothing.",
 		Example: "CREATE USER ROLE Anonymous (Shop.Viewer, System.User);\n" +
-			"ALTER PROJECT SECURITY GUEST ACCESS ON ROLE Anonymous;\n" +
+			"ALTER APP SECURITY GUEST ACCESS ON ROLE Anonymous;\n" +
 			"GRANT Anonymous ON Shop.Product (read *);",
 		SeeAlso: []string{"security.user-role", "security.project-security"},
 	})

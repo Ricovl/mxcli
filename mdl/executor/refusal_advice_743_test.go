@@ -50,8 +50,8 @@ func TestCreateODataClient_ExistsAdvisesAlter(t *testing.T) {
 		},
 	}
 	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(h))
-	prog := parseMDL(t, "create odata client MyModule.Api (\n  ODataVersion: OData4,\n  MetadataUrl: 'https://example.com/odata/$metadata'\n);")
-	assertSafeAdvice(t, createODataClient(ctx, prog.Statements[0].(*ast.CreateODataClientStmt)), "alter odata client")
+	prog := parseMDL(t, "create consumed odata service MyModule.Api (\n  ODataVersion: OData4,\n  MetadataUrl: 'https://example.com/odata/$metadata'\n);")
+	assertSafeAdvice(t, createODataClient(ctx, prog.Statements[0].(*ast.CreateODataClientStmt)), "alter consumed odata service")
 }
 
 func TestCreateWorkflow_ExistsAdvisesAlter(t *testing.T) {
