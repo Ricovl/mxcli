@@ -22,7 +22,7 @@ var trailingCommaCases = map[string]string{
 	"microflow parameters":   "create microflow M.F ($A: String, $B: Integer,@) begin end;",
 	"java action parameters": "create java action M.J (A: String,@) returns Boolean as $$return true;$$;",
 	"call arguments":         "create microflow M.F () begin call microflow M.G(A = 1, B = 2,@); end;",
-	"page parameters":        "create page M.P (Params: { $A: M.E,@ }, Title: 'P', Layout: Atlas_Core.Atlas_Default) {}",
+	"page parameters":        "create page M.P (Params: { $A: M.E,@ }, Title: 'P', Layout: Atlas_Core.Atlas_Default) {};",
 	"rest client properties": "create rest client M.Api (BaseUrl: 'https://x', Authentication: none,@) { operation Get { Method: get, Path: '/x', Response: none,@ } };",
 	"rest client headers":    "create rest client M.Api (BaseUrl: 'https://x', Authentication: none) { operation Get { Method: get, Path: '/x', Headers: ('A' = 'b',@), Response: none } };",
 	"published rest":         "create published rest service M.S (Path: 'rest/s', Version: '1.0',@) { };",
