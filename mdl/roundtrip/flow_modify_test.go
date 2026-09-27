@@ -17,7 +17,10 @@ import (
 // Pro-authored (PedApp), because an mxcli-authored flow is laid out the way the
 // rebuild lays it out and cannot show what the rebuild loses.
 
-const valFeedback = "microflow FeedbackModule.VAL_Feedback"
+const (
+	valFeedback  = "microflow FeedbackModule.VAL_Feedback"
+	sendToServer = "microflow FeedbackModule.SUB_Feedback_SendToServer"
+)
 
 // An unchanged describe -> create or modify writes nothing: the unit's bytes
 // are identical. The controls below prove the same pipeline does write when
@@ -26,21 +29,67 @@ func TestFlowModify_UnchangedIsByteIdentical(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
 
-	described := h.mustDescribe(t, valFeedback)
-	before := h.flowUnit(t, "VAL_Feedback")
-	for _, header := range []string{"", "mdl 1;\n"} {
-		if err := h.exec(header + described); err != nil {
-			t.Fatalf("header %q: exec unchanged describe output: %v", header, err)
+	// VAL_Feedback stores a line break in a message, which mdl 1 has no
+	// spelling for (its description's `\n` is a backslash and an n there; see
+	// MDL1ReadsStoredStringsAsStored), so its mdl 1 leg uses a flow without
+	// one: SUB_Feedback_SendToServer, with merges and an error handler.
+	for _, c := range []struct{ header, target, name string }{
+		{"", valFeedback, "VAL_Feedback"},
+		{"", sendToServer, "SUB_Feedback_SendToServer"},
+		{"mdl 1;\n", sendToServer, "SUB_Feedback_SendToServer"},
+	} {
+		described := h.mustDescribe(t, c.target)
+		before := h.flowUnit(t, c.name)
+		if err := h.exec(c.header + described); err != nil {
+			t.Fatalf("%s, header %q: exec unchanged describe output: %v", c.name, c.header, err)
 		}
-		if got := h.flowUnit(t, "VAL_Feedback"); !bytes.Equal(got, before) {
-			t.Fatalf("header %q: the unchanged definition rewrote the unit", header)
+		if got := h.flowUnit(t, c.name); !bytes.Equal(got, before) {
+			t.Fatalf("%s, header %q: the unchanged definition rewrote the unit", c.name, c.header)
 		}
 		if changed := h.orig.diff(h.snapshot()); len(changed) != 0 {
-			t.Fatalf("header %q: the unchanged definition wrote: %s", header, strings.Join(changed, "; "))
+			t.Fatalf("%s, header %q: the unchanged definition wrote: %s", c.name, c.header, strings.Join(changed, "; "))
 		}
-		if !strings.Contains(h.out.String(), "Unchanged microflow: FeedbackModule.VAL_Feedback") {
-			t.Errorf("header %q: want an Unchanged report, got:\n%s", header, h.out.String())
+		if want := "Unchanged microflow: FeedbackModule." + c.name; !strings.Contains(h.out.String(), want) {
+			t.Errorf("%s, header %q: want an Unchanged report, got:\n%s", c.name, c.header, h.out.String())
 		}
+	}
+}
+
+// Under mdl 1 a backslash in a string is an ordinary character, so the
+// description's `'…characters\n'` (mdl 0 for a line break, which is what
+// VAL_Feedback stores) states a backslash and an n. The stored side must be
+// read as stored — not by re-parsing its mdl 0 description under the script's
+// header — or the two misreadings agree, the statement reports Unchanged and
+// the value the script states is silently not written.
+func TestFlowModify_MDL1ReadsStoredStringsAsStored(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	described := h.mustDescribe(t, valFeedback)
+	const mdl0 = "characters\\n';"
+	if !strings.Contains(described, mdl0) {
+		t.Fatalf("describe output has no %q — the fixture changed:\n%s", mdl0, described)
+	}
+	// Control: under mdl 0 the same text is the stored value.
+	if err := h.exec(described); err != nil {
+		t.Fatalf("mdl 0: %v", err)
+	}
+	if changed := h.orig.diff(h.snapshot()); len(changed) != 0 {
+		t.Fatalf("mdl 0: the unchanged definition wrote: %s", strings.Join(changed, "; "))
+	}
+
+	before := h.flowUnit(t, "VAL_Feedback")
+	if err := h.exec("mdl 1;\n" + described); err != nil {
+		t.Fatalf("mdl 1: %v", err)
+	}
+	if bytes.Equal(h.flowUnit(t, "VAL_Feedback"), before) {
+		t.Fatal("mdl 1: a string that states another value than the stored one wrote nothing")
+	}
+	if !strings.Contains(h.out.String(), "(spliced: 1 replaced)") {
+		t.Errorf("mdl 1: want the one statement replaced by a splice, got:\n%s", h.out.String())
+	}
+	if again := h.mustDescribe(t, valFeedback); !strings.Contains(again, "characters\\\\n';") {
+		t.Errorf("mdl 1: want the backslash stored as written:\n%s", again)
 	}
 }
 
@@ -174,11 +223,15 @@ func TestFlowModify_BranchEditIsSpliced(t *testing.T) {
 	if edited == described {
 		t.Fatalf("describe output has no %q:\n%s", old, described)
 	}
+	// mdl 0 only: under mdl 1 this flow's description also restates its
+	// stored line break as a backslash and an n (MDL1ReadsStoredStringsAsStored
+	// covers a branch splice under mdl 1).
 	before := h.flowUnit(t, "VAL_Feedback")
-	for _, header := range []string{"mdl 1;\n", ""} {
-		if err := h.exec(header + edited); err != nil {
-			t.Fatalf("header %q: exec edited definition: %v", header, err)
-		}
+	if err := h.exec(edited); err != nil {
+		t.Fatalf("exec edited definition: %v", err)
+	}
+	if !strings.Contains(h.out.String(), "(spliced: 1 replaced)") {
+		t.Errorf("want a splice report, got:\n%s", h.out.String())
 	}
 	after := h.flowUnit(t, "VAL_Feedback")
 	if bytes.Equal(after, before) {
@@ -204,13 +257,15 @@ func TestFlowModify_UnspliceableChange(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
 
-	described := h.mustDescribe(t, valFeedback)
-	const old = "@position(-390, 200)"
-	edited := strings.Replace(described, old, "@position(-380, 200)", 1)
+	// mdl 1: refused, nothing written. (On SUB_Feedback_SendToServer, whose
+	// description means under mdl 1 what it means under mdl 0; see
+	// UnchangedIsByteIdentical.)
+	described := h.mustDescribe(t, sendToServer)
+	const oldV1 = "@position(-730, -50)"
+	edited := strings.Replace(described, oldV1, "@position(-720, -50)", 1)
 	if edited == described {
-		t.Fatalf("describe output has no %q:\n%s", old, described)
+		t.Fatalf("describe output has no %q:\n%s", oldV1, described)
 	}
-
 	err := h.exec("mdl 1;\n" + edited)
 	if err == nil || !strings.Contains(err.Error(), "cannot be spliced") || !strings.Contains(err.Error(), "moved") {
 		t.Fatalf("under mdl 1 want a refusal naming the move, got %v", err)
@@ -219,6 +274,13 @@ func TestFlowModify_UnspliceableChange(t *testing.T) {
 		t.Fatalf("the refused statement wrote: %s", strings.Join(changed, "; "))
 	}
 
+	// mdl 0: rebuilt, with the warning.
+	described = h.mustDescribe(t, valFeedback)
+	const old = "@position(-390, 200)"
+	edited = strings.Replace(described, old, "@position(-380, 200)", 1)
+	if edited == described {
+		t.Fatalf("describe output has no %q:\n%s", old, described)
+	}
 	if err := h.exec(edited); err != nil {
 		t.Fatalf("under mdl 0: %v", err)
 	}

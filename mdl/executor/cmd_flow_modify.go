@@ -190,29 +190,31 @@ func reportUnchanged(ctx *ExecContext, what string) {
 	fmt.Fprint(ctx.Output, line)
 }
 
-// describedFlowStmt describes the stored flow and parses the description
-// under the language version of the script being run, so both sides are read
-// by the same rules. See correctAmbiguousRanges for the one stored state the
-// description cannot state under mdl 0.
+// describedFlowStmt describes the stored flow and parses the description as
+// mdl 0, the language describe writes, whatever the script's own header: the
+// AST holds values (a string literal's text, not its spelling), so the stored
+// side read by the rules it was written in compares with a declared side read
+// by the script's. Re-parsing the description under the script's header
+// instead misreads it wherever the two versions spell a value differently — a
+// stored line break described as `\n` would read as a backslash and an n under
+// mdl 1, agree with a script stating exactly that, and let the change pass as
+// Unchanged. See correctAmbiguousRanges for the one stored state mdl 0 cannot
+// state at all.
 func describedFlowStmt(ctx *ExecContext, d *flowDecl, a *alterFlowContext) (ast.Statement, error) {
 	var buf bytes.Buffer
-	prev := ctx.Output
-	ctx.Output = &buf
+	prevOut, prevVer := ctx.Output, ctx.LanguageVersion
+	ctx.Output, ctx.LanguageVersion = &buf, langver.V0
 	var err error
 	if d.nanoflow {
 		err = describeNanoflow(ctx, d.name)
 	} else {
 		err = describeMicroflow(ctx, d.name)
 	}
-	ctx.Output = prev
+	ctx.Output, ctx.LanguageVersion = prevOut, prevVer
 	if err != nil {
 		return nil, err
 	}
-	src := buf.String()
-	if v := ctx.LanguageVersion; v > langver.V0 {
-		src = v.String() + ";\n" + src
-	}
-	prog, errs := visitor.Build(src)
+	prog, errs := visitor.Build(buf.String())
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("the description does not parse: %v", errs[0])
 	}
@@ -229,17 +231,11 @@ func describedFlowStmt(ctx *ExecContext, d *flowDecl, a *alterFlowContext) (ast.
 		default:
 			continue
 		}
-		if !limitOneIsListUnder(ctx.LanguageVersion) {
-			correctAmbiguousRanges(st, a.mf.ObjectCollection)
-		}
+		correctAmbiguousRanges(st, a.mf.ObjectCollection)
 		return st, nil
 	}
 	return nil, fmt.Errorf("the description has no create statement")
 }
-
-// limitOneIsListUnder reports whether `limit 1` reads as a list of one under v
-// (the visitor's MDL-V1-LIMIT1 change).
-func limitOneIsListUnder(v langver.Version) bool { return v >= langver.V1 }
 
 // correctAmbiguousRanges fixes the stored side where its mdl 0 description
 // says something other than what is stored.
@@ -526,13 +522,8 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 			return pd.statements(d.ElseBody, s.ElseBody)
 		}
 		if sameIgnoringLayout(ins[0], del[0]) {
-			p := statementAnnotations(del[0])
-			where := ""
-			if p != nil && p.Position != nil {
-				where = fmt.Sprintf(" at (%d, %d)", p.Position.X, p.Position.Y)
-			}
-			return cannotSplice("the %s%s is moved or its connectors are redrawn; the splice places new nodes only and does not move stored ones",
-				statementKind(del[0]), where)
+			return cannotSplice("the %s is moved or its connectors are redrawn; the splice places new nodes only and does not move stored ones",
+				describeAt(del[0]))
 		}
 	}
 	cands := make([]mfmutator.Candidate, len(del))
@@ -576,6 +567,14 @@ func sameIfShell(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfS
 		return nil, nil, false
 	}
 	return d, s, true
+}
+
+// describeAt names a stored statement and where it is drawn, for a message.
+func describeAt(st ast.MicroflowStatement) string {
+	if p := statementAnnotations(st); p != nil && p.Position != nil {
+		return fmt.Sprintf("%s at (%d, %d)", statementKind(st), p.Position.X, p.Position.Y)
+	}
+	return statementKind(st)
 }
 
 // keepStoredNotes prepares the declared statements that replace a stored one.

@@ -73,6 +73,9 @@ func TestPedAppListActivitiesUnderMdl1(t *testing.T) {
 	if err := h.exec("mdl 1;\n" + first); err != nil {
 		t.Fatalf("exec the mdl 1 description: %v\n%s", err, first)
 	}
+	if !strings.Contains(h.out.String(), "Unchanged microflow: MyFirstModule.ListActivities") {
+		t.Errorf("GetPut: the mdl 1 description of an unchanged flow must write nothing, got:\n%s", h.out.String())
+	}
 	if again := h.describeUnder("mdl 1;", listActivityTarget); again != first {
 		t.Errorf("describe -> exec -> describe changed the microflow:\n%s", lineDiff(first, again))
 	}
