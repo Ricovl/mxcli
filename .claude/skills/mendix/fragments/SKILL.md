@@ -29,8 +29,8 @@ Fragments are **script-scoped, transient** widget groups:
 ```mdl
 define fragment SaveCancelFooter as {
   footer footer1 {
-    actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
 };
 ```
@@ -135,7 +135,7 @@ create page Module.Orders (title: 'Orders', layout: Atlas_Core.Atlas_Default) {
 ```
 
 Rules:
-- Param kinds are `datasource` (`$var` / `database E` / `$currentObject/Assoc` / `microflow M`) and `action` (a microflow / nanoflow / `save_changes` / `show_page` / …).
+- Param kinds are `datasource` (`$var` / `database E` / `$currentObject/Assoc` / `microflow M`) and `action` (a microflow / nanoflow / `save changes` / `show page` / …).
 - Every declared parameter must be supplied; unknown args and type mismatches are errors.
 - Values substitute at expansion — `describe page` shows the concrete datasource/action, no `$param`.
 
@@ -145,7 +145,7 @@ outermost datasource and/or its first button after the copy:
 
 ```mdl
 use building block Atlas_Web_Content.List_Cards
-  (datasource: database Module.Order, action: microflow Module.OpenOrder) as orders_;
+  (datasource: database Module.Order, action: call microflow Module.OpenOrder) as orders_;
 ```
 
 Binding-point rule (prototype): datasource → the first widget carrying a
@@ -173,8 +173,8 @@ describe fragment SaveCancelFooter;
 ```mdl
 define fragment CrudFooter as {
   footer footer1 {
-    actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
 };
 
@@ -218,8 +218,8 @@ create page Module.Customer_Edit (...) {
 
 ```mdl
 define fragment ActionButtons as {
-  actionbutton btnApprove (caption: 'Approve', action: save_changes, buttonstyle: success)
-  actionbutton btnReject (caption: 'Reject', action: cancel_changes, buttonstyle: danger)
+  actionbutton btnApprove (caption: 'Approve', action: save changes, buttonstyle: success)
+  actionbutton btnReject (caption: 'Reject', action: cancel changes, buttonstyle: danger)
 };
 
 create page Module.DualPanel (...) {

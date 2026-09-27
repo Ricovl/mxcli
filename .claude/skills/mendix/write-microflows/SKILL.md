@@ -531,7 +531,7 @@ show page Module.EditPage($Product = $Product);
 show page Module.EditPage(Product: $Product);
 ```
 
-Both `($Param = $value)` and `(Param: $value)` syntaxes are accepted in microflow SHOW PAGE statements. Similarly, widget Action: properties accept both `show_page Module.Page(Param: $value)` and `show_page Module.Page($Param = $value)`.
+Both `($Param = $value)` and `(Param: $value)` syntaxes are accepted in microflow SHOW PAGE statements. Similarly, widget Action: properties accept both `show page Module.Page(Param: $value)` and `show page Module.Page($Param = $value)`.
 
 ### CLOSE PAGE
 

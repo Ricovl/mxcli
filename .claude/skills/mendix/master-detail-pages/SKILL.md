@@ -39,7 +39,7 @@ create page Module.Entity_MasterDetail
           textbox txtName (label: 'Name', attribute: Name)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: success)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
           }
         }
       }
@@ -124,8 +124,8 @@ create page CRM.Customer_MasterDetail
           textbox txtPhone (label: 'Phone', attribute: Phone)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: success)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
         }
       }
@@ -172,7 +172,7 @@ template template1 {
 | Where filter | `datasource: database from entity where [IsActive = true]` |
 | Selection mode | `selection: single` |
 | Attribute binding | `attribute: attributename` |
-| Action binding | `action: save_changes` |
+| Action binding | `action: save changes` |
 | Button style | `buttonstyle: success` |
 | Text content | `content: 'text'` with `contentparams: [{1} = attr]` |
 | Render mode | `rendermode: H4` |

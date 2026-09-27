@@ -181,7 +181,7 @@ rest call delete 'https://api.example.com/items/{1}' with (
 
 **REST CALL response types:**
 - `returns string` — response body as string variable
-- `returns nothing` / `returns none` — ignore response
+- `returns nothing` — ignore response (`returns none` is the deprecated second spelling, MDL-DEPR024)
 - `returns response` — returns `System.HttpResponse` object
 - `returns mapping Module.ImportMapping as Module.Entity` — single object result
 - `returns mapping Module.ImportMapping as list of Module.Entity` — list result

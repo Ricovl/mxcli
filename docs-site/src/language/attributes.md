@@ -37,9 +37,9 @@ Validation rules are expressed as attribute constraints. When validation fails, 
 | Validation | MDL Syntax | Description |
 |------------|------------|-------------|
 | Required | `NOT NULL` | Attribute must have a value |
-| Required with message | `NOT NULL ERROR 'message'` | Custom error message on empty |
+| Required with message | `NOT NULL ERROR MESSAGE 'message'` | Custom error message on empty |
 | Unique | `UNIQUE` | Value must be unique across all objects |
-| Unique with message | `UNIQUE ERROR 'message'` | Custom error message on duplicate |
+| Unique with message | `UNIQUE ERROR MESSAGE 'message'` | Custom error message on duplicate |
 
 ### Example with Validation
 
@@ -49,14 +49,14 @@ CREATE PERSISTENT ENTITY Sales.Product (
   Name: String(200) NOT NULL,
 
   -- Required with custom error
-  SKU: String(50) NOT NULL ERROR 'SKU is required for all products',
+  SKU: String(50) NOT NULL ERROR MESSAGE 'SKU is required for all products',
 
   -- Unique only
   Barcode: String(50) UNIQUE,
 
   -- Required and unique with custom errors
-  ProductCode: String(20) NOT NULL ERROR 'Product code required'
-                          UNIQUE ERROR 'Product code must be unique',
+  ProductCode: String(20) NOT NULL ERROR MESSAGE 'Product code required'
+                          UNIQUE ERROR MESSAGE 'Product code must be unique',
 
   -- Optional field (no validation)
   Description: String(unlimited)

@@ -144,7 +144,7 @@ Action buttons can pass the current data context to microflows and pages:
 DATAVIEW dvOrder (DataSource: $Order) {
   ACTIONBUTTON btnProcess (
     Caption: 'Process Order',
-    Action: MICROFLOW Sales.ACT_ProcessOrder(Order: $Order),
+    Action: CALL MICROFLOW Sales.ACT_ProcessOrder(Order: $Order),
     ButtonStyle: Primary
   )
 

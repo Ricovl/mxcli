@@ -38,10 +38,10 @@ CREATE PAGE CRM.Customer_MasterDetail (
           FOOTER footer1 {
             ACTIONBUTTON btnSave (
               Caption: 'Save',
-              Action: SAVE_CHANGES,
+              Action: SAVE CHANGES,
               ButtonStyle: Success
             )
-            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
           }
         }
       }

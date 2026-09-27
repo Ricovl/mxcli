@@ -22,7 +22,7 @@ This applies to the following reference types:
 | Reference | In | Fails when |
 |---|---|---|
 | `snippetcall` | page / snippet | snippet created after the page |
-| `show_page` in action | page / snippet | page created after the page that references it |
+| `show page` in action | page / snippet | page created after the page that references it |
 | `SHOW PAGE` | microflow | page created after the microflow |
 | `call microflow` | microflow | callee microflow created after the caller (in the same script, `exec` resolves the call against the project/backend, not later same-script definitions — so order the callee first) |
 
@@ -49,7 +49,7 @@ The standard workaround is a three-step sequence:
 
 ## Pattern 1 — Shared Navigation Snippet (most common)
 
-A navigation snippet contains `show_page` buttons (references pages) and pages include
+A navigation snippet contains `show page` buttons (references pages) and pages include
 the snippet via `snippetcall` (references the snippet). Both sides reference each other.
 
 ```sql
@@ -100,7 +100,7 @@ create page MyModule.Order_Overview
 }
 /
 
--- Step 3: fill in the snippet with real content (pages now exist → show_page resolves OK)
+-- Step 3: fill in the snippet with real content (pages now exist → show page resolves OK)
 -- Use CREATE OR MODIFY (preserves ID) or ALTER SNIPPET (in-place)
 create or modify snippet MyModule.NavMenu
 (
@@ -110,11 +110,11 @@ create or modify snippet MyModule.NavMenu
   layoutgrid g { row r { column c (desktopwidth: 12) {
     actionbutton btnCustomers (
       caption: 'Customers',
-      action: show_page MyModule.Customer_Overview
+      action: show page MyModule.Customer_Overview
     )
     actionbutton btnOrders (
       caption: 'Orders',
-      action: show_page MyModule.Order_Overview
+      action: show page MyModule.Order_Overview
     )
   }}}
 }
@@ -125,7 +125,7 @@ create or modify snippet MyModule.NavMenu
 
 ## Pattern 2 — Page References Another Page (new/edit from overview)
 
-An overview page has a New button that opens a NewEdit page via `show_page`. The NewEdit
+An overview page has a New button that opens a NewEdit page via `show page`. The NewEdit
 page must exist before the overview can reference it.
 
 ```sql
@@ -142,8 +142,8 @@ create page MyModule.Customer_NewEdit
     dataview dv (datasource: $Customer) {
       textbox txtName (label: 'Name', attribute: Name)
     }
-    actionbutton btnSave (caption: 'Save', action: save_changes)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+    actionbutton btnSave (caption: 'Save', action: save changes)
+    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }}}
 }
 /
@@ -158,7 +158,7 @@ create page MyModule.Customer_Overview
   layoutgrid g { row { column (desktopwidth: 12) {
     actionbutton btnNew (
       caption: 'New',
-      action: microflow MyModule.ACT_Customer_New
+      action: call microflow MyModule.ACT_Customer_New
     )
     datagrid dg (datasource: database MyModule.Customer) {
       column (caption: 'Name', attribute: Name)
@@ -240,7 +240,7 @@ alter snippet MyModule.NavMenu
   replace activity loading
   with actionbutton btnCustomers (
     caption: 'Customers',
-    action: show_page MyModule.Customer_Overview
+    action: show page MyModule.Customer_Overview
   );
 ```
 
@@ -301,7 +301,7 @@ create or modify snippet MyModule.AppNav
   layoutgrid g { row r { column c (desktopwidth: 12) {
     actionbutton btnCustomers (
       caption: 'Customers',
-      action: show_page MyModule.Customer_Overview
+      action: show page MyModule.Customer_Overview
     )
   }}}
 }
@@ -321,7 +321,7 @@ end;
 -- 6. Navigation (pages already exist)
 alter navigation Responsive
   insert menu item 'Customers'
-    action show_page MyModule.Customer_Overview;
+    action show page MyModule.Customer_Overview;
 ```
 
 ---
