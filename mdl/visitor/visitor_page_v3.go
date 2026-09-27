@@ -563,10 +563,13 @@ func buildWidgetV3(ctx parser.IWidgetV3Context, b *Builder) *ast.WidgetV3 {
 	// (traceops #12).
 	if id := wCtx.IDENTIFIER(); id != nil {
 		widget.Name = id.GetText()
+		b.rememberWidgetName(widget, wCtx, id.GetSymbol())
 	} else if qid := wCtx.QUOTED_IDENTIFIER(); qid != nil {
 		widget.Name = unquoteIdentifier(qid.GetText())
+		b.rememberWidgetName(widget, wCtx, qid.GetSymbol())
 	} else if kw := wCtx.Keyword(); kw != nil {
 		widget.Name = kw.GetText()
+		b.rememberWidgetName(widget, wCtx, kw.GetStop())
 	}
 
 	// Parse properties
@@ -578,6 +581,7 @@ func buildWidgetV3(ctx parser.IWidgetV3Context, b *Builder) *ast.WidgetV3 {
 	if bodyCtx := wCtx.WidgetBodyV3(); bodyCtx != nil {
 		widget.Children = buildWidgetBodyV3(bodyCtx, b)
 	}
+	b.dropUnstoredChildNames(widget)
 
 	return widget
 }

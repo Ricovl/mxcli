@@ -364,9 +364,20 @@ widgetV3
     // (`template "for" { }`), the same escape hatch reserved names already use
     // (issue #619).
     : TEMPLATE FOR qualifiedName widgetBodyV3
-    | widgetTypeV3 (IDENTIFIER | QUOTED_IDENTIFIER | keyword) widgetPropertiesV3? widgetBodyV3?
-    | PLUGGABLEWIDGET STRING_LITERAL (IDENTIFIER | QUOTED_IDENTIFIER | keyword) widgetPropertiesV3? widgetBodyV3?  // PLUGGABLEWIDGET 'widget.id' name
-    | CUSTOMWIDGET STRING_LITERAL (IDENTIFIER | QUOTED_IDENTIFIER | keyword) widgetPropertiesV3? widgetBodyV3?     // CUSTOMWIDGET 'widget.id' name (legacy)
+    //
+    // The NAME is optional (R12, ako/mxcli#749). Mendix stores no name on a
+    // layout-grid row or column, a DataGrid 2 column, or a slot block such as a
+    // gallery's `template`, so describe no longer invents one (`row1`, `col3`)
+    // and the author need not either: `row { column (DesktopWidth: 6) { … } }`.
+    // Where Mendix DOES store a name, a missing one is refused when the widget
+    // is built (pageBuilder.buildWidgetV3), not here: whether the model keeps a
+    // name depends on the element's parent, which the grammar cannot see.
+    // A name written where the parent shows it is not stored is the old
+    // spelling (the visitor drops it and reports it):
+    //   /* @alias MDL-DEPR005 */
+    | widgetTypeV3 (IDENTIFIER | QUOTED_IDENTIFIER | keyword)? widgetPropertiesV3? widgetBodyV3?
+    | PLUGGABLEWIDGET STRING_LITERAL (IDENTIFIER | QUOTED_IDENTIFIER | keyword)? widgetPropertiesV3? widgetBodyV3?  // PLUGGABLEWIDGET 'widget.id' [name]
+    | CUSTOMWIDGET STRING_LITERAL (IDENTIFIER | QUOTED_IDENTIFIER | keyword)? widgetPropertiesV3? widgetBodyV3?     // CUSTOMWIDGET 'widget.id' [name] (legacy)
     ;
 
 // V3 Widget types (same as V2)

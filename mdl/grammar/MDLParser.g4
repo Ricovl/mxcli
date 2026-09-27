@@ -311,12 +311,20 @@ alterFragment
 
 // The one address syntax every document type shares. Which forms a type
 // accepts is its resolver's call, not the grammar's: a page element is
-// addressed by name (`btnSave`, `dgProducts.Name`, `layoutContainer.top`);
-// elements with no name are addressed by content (`'Approve order'`). `@n`
-// picks one of several matches — an ambiguous address is an error that lists
-// them, never a guess.
+// addressed by name (`btnSave`, `layoutContainer.top`); elements with no name
+// are addressed by content (`'Approve order'`). `@n` picks one of several
+// matches — an ambiguous address is an error that lists them, never a guess.
+//
+// A DataGrid 2 column has no name in the model, so it is addressed by what
+// describe prints in it (R12, ako/mxcli#749): `dg column(Name)` for the column
+// whose Attribute is Name — written as describe writes it, `Owner/Name` over an
+// association — or `dg column('Total')` for the one captioned Total. Two
+// columns over one attribute share the address and need `@n`. FIRST, so the
+// COLUMN keyword after the grid name is not left to the plain-name form.
+// `dg.Name`, the older address by a name mxcli derived, keeps working.
 alterTarget
-    : identifierOrKeyword (DOT identifierOrKeyword)? (AT NUMBER_LITERAL)?
+    : identifierOrKeyword COLUMN LPAREN (attributePathV3 | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)?
+    | identifierOrKeyword (DOT identifierOrKeyword)? (AT NUMBER_LITERAL)?
     | STRING_LITERAL (AT NUMBER_LITERAL)?
     ;
 

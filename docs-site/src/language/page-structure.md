@@ -164,16 +164,16 @@ DATAVIEW dvDetail (DataSource: SELECTION dgProducts) {
 
 ## Widget Tree Structure
 
-The widget tree is a nested hierarchy. Container widgets hold child widgets within `{ }` braces. Every widget requires a unique name:
+The widget tree is a nested hierarchy. Container widgets hold child widgets within `{ }` braces. Every widget requires a unique name — except the elements Mendix stores no name for, which take none: a layout grid's rows and columns, a data grid's columns and control bar, and a gallery's template and filter. A name written there anyway is ignored and reported as MDL-DEPR005.
 
 ```sql
 {
   LAYOUTGRID grid1 {
-    ROW row1 {
-      COLUMN col1 {
+    ROW {
+      COLUMN {
         TEXTBOX txtName (Label: 'Name', Attribute: Name)
       }
-      COLUMN col2 {
+      COLUMN {
         TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
       }
     }

@@ -447,9 +447,12 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		}
 		props := appendAppearanceProps(nil, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
-		for rowIdx, row := range w.Rows {
-			fmt.Fprintf(ctx.Output, "%s  row row%d {\n", prefix, rowIdx+1)
-			for colIdx, col := range row.Columns {
+		for _, row := range w.Rows {
+			// Mendix stores no name on a row or a column (R12, #749), so
+			// describe writes none: an invented `row1` / `col3` churned when a
+			// row or column was inserted, and meant nothing on re-execution.
+			fmt.Fprintf(ctx.Output, "%s  row {\n", prefix)
+			for _, col := range row.Columns {
 				var colProps []string
 				widthStr := "AutoFill"
 				if col.Width > 0 && col.Width <= 12 {
@@ -462,7 +465,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 				if col.PhoneWidth > 0 && col.PhoneWidth <= 12 {
 					colProps = append(colProps, fmt.Sprintf("PhoneWidth: %d", col.PhoneWidth))
 				}
-				fmt.Fprintf(ctx.Output, "%s    column col%d (%s) {\n", prefix, colIdx+1, strings.Join(colProps, ", "))
+				fmt.Fprintf(ctx.Output, "%s    column (%s) {\n", prefix, strings.Join(colProps, ", "))
 				for _, cw := range col.Widgets {
 					outputWidgetMDLV3(ctx, cw, indent+3)
 				}
@@ -686,16 +689,18 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 				outputDataContainerContext(ctx.Output, prefix+"  ", w.Name, w.EntityContext, true)
 				// Output CONTROLBAR section if control bar widgets present
 				if len(w.ControlBar) > 0 {
-					fmt.Fprintf(ctx.Output, "%s  controlbar controlBar1 {\n", prefix)
+					fmt.Fprintf(ctx.Output, "%s  controlbar {\n", prefix)
 					for _, cb := range w.ControlBar {
 						outputWidgetMDLV3(ctx, cb, indent+2)
 					}
 					fmt.Fprintf(ctx.Output, "%s  }\n", prefix)
 				}
-				// Output columns — derive name from attribute or caption, fall back to col%d
-				for i, col := range w.DataGridColumns {
-					colName := deriveColumnName(col, i)
-					outputDataGrid2ColumnV3(ctx, prefix+"  ", colName, col)
+				// Output columns. A DataGrid 2 column has no name in the model,
+				// so none is written: the one derived from its attribute gave two
+				// columns over one attribute the same name (#749). ALTER PAGE
+				// addresses a column by what it shows: `grid column(Attr)`.
+				for _, col := range w.DataGridColumns {
+					outputDataGrid2ColumnV3(ctx, prefix+"  ", col)
 				}
 				fmt.Fprintf(ctx.Output, "%s}\n", prefix)
 			} else {
@@ -728,7 +733,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 				outputDataContainerContext(ctx.Output, prefix+"  ", w.Name, w.EntityContext, true)
 				// Output FILTER section if filter widgets present
 				if len(w.FilterWidgets) > 0 {
-					fmt.Fprintf(ctx.Output, "%s  filter filter1 {\n", prefix)
+					fmt.Fprintf(ctx.Output, "%s  filter {\n", prefix)
 					for _, filter := range w.FilterWidgets {
 						outputWidgetMDLV3(ctx, filter, indent+2)
 					}
@@ -736,7 +741,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 				}
 				// Output TEMPLATE section if content widgets present
 				if len(w.Children) > 0 {
-					fmt.Fprintf(ctx.Output, "%s  template template1 {\n", prefix)
+					fmt.Fprintf(ctx.Output, "%s  template {\n", prefix)
 					for _, child := range w.Children {
 						outputWidgetMDLV3(ctx, child, indent+2)
 					}
@@ -813,8 +818,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 				formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 				childPrefix := prefix + "  "
 				for _, ol := range w.ObjectLists {
-					for i, item := range ol.Items {
-						itemHeader := fmt.Sprintf("%s %s", ol.Keyword, mdlIdent(fmt.Sprintf("%s%d", ol.Keyword, i+1)))
+					for _, item := range ol.Items {
+						// An object-list item is a WidgetObject with no name (#749).
+						itemHeader := ol.Keyword
 						itemProps := []string{}
 						// An object-list item's datasource goes through the same
 						// renderer as a widget's. This site used to have no type
@@ -839,7 +845,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 							fmt.Fprintf(ctx.Output, "%s}\n", childPrefix)
 							continue
 						}
-						formatWidgetProps(ctx.Output, childPrefix, itemHeader, itemProps, "\n")
+						formatNamelessProps(ctx.Output, childPrefix, itemHeader, itemProps)
 					}
 				}
 				// A widget can carry both kinds of container — HTML Element has
@@ -1091,33 +1097,8 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 	}
 }
 
-// deriveColumnName produces a semantic column name from the column's attribute
-// or caption. Falls back to "col%d" when neither is available.
-func deriveColumnName(col rawDataGridColumn, index int) string {
-	if col.Attribute != "" {
-		// Use the short attribute name (last segment after dot)
-		parts := strings.Split(col.Attribute, ".")
-		return parts[len(parts)-1]
-	}
-	if col.Caption != "" {
-		// Sanitize caption to a valid identifier: keep alphanumeric, replace rest with underscore
-		sanitized := strings.Map(func(r rune) rune {
-			if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' {
-				return r
-			}
-			return '_'
-		}, col.Caption)
-		// Trim leading/trailing underscores and collapse multiples
-		result := strings.TrimFunc(sanitized, func(r rune) bool { return r == '_' })
-		if result != "" {
-			return result
-		}
-	}
-	return fmt.Sprintf("col%d", index+1)
-}
-
 // outputDataGrid2ColumnV3 outputs a single DataGrid2 column in V3 MDL syntax.
-func outputDataGrid2ColumnV3(ctx *ExecContext, prefix, colName string, col rawDataGridColumn) {
+func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridColumn) {
 	// Build the main column properties
 	var props []string
 	if col.Attribute != "" {
@@ -1182,11 +1163,8 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix, colName string, col rawDa
 		props = append(props, fmt.Sprintf("Tooltip: %s", mdlQuote(col.Tooltip)))
 	}
 
-	// Check if we have content widgets to display
-	// Quote the column name when it collides with a reserved keyword (e.g. a column
-	// named Title/Description), mirroring the general widget-name path so DESCRIBE
-	// output re-parses. #619 added mdlIdent for widgets but missed columns (#638).
-	header := fmt.Sprintf("column %s", mdlIdent(colName))
+	// No name: Mendix stores none on a DataGrid 2 column (#749).
+	header := "column"
 	// A column body carries the `content` slot's widgets AND the `filter` slot's;
 	// the builder routes a filter back to its own slot by widget type. Emitting
 	// only the content widgets deleted the filter of every custom-content column
@@ -1205,8 +1183,21 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix, colName string, col rawDa
 		fmt.Fprintf(ctx.Output, "%s}\n", prefix)
 	} else {
 		// Output simple column line
-		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
+		formatNamelessProps(ctx.Output, prefix, header, props)
 	}
+}
+
+// formatNamelessProps writes a body-less element that has no name, such as a
+// DataGrid 2 column or a chart series. With no properties it writes `()`: a
+// bare keyword would read the NEXT element's keyword as its name, since the
+// name is optional and element keywords are also valid names
+// (`column\ncolumn (…)` is one column named "column").
+func formatNamelessProps(w io.Writer, prefix, header string, props []string) {
+	if len(props) == 0 {
+		fmt.Fprintf(w, "%s%s ()\n", prefix, header)
+		return
+	}
+	formatWidgetProps(w, prefix, header, props, "\n")
 }
 
 func extractTextContent(ctx *ExecContext, w map[string]any, field string) string {

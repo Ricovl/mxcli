@@ -352,6 +352,9 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 	if err := checkSearchByIsOnAListView(w); err != nil {
 		return nil, err
 	}
+	if err := checkWidgetHasName(w); err != nil {
+		return nil, err
+	}
 
 	switch strings.ToLower(w.Type) {
 	case "dataview":
@@ -2967,4 +2970,31 @@ func missingWidgetMessage(projectDir, widgetID string) string {
 		" 'mxcli widget init' cannot help: it scans widgets/, and the package is not there." +
 		" Install the widget or its module from the Marketplace; that puts the .mpk in widgets/," +
 		" after which mxcli picks it up automatically."
+}
+
+// kindsWithOwnNameRule are the widget kinds buildWidgetV3 refuses or routes
+// with a message of their own, so a missing name is left to that message.
+var kindsWithOwnNameRule = map[string]bool{
+	"slot": true, "region": true, "placeholder": true, "item": true, "tabpage": true,
+}
+
+// checkWidgetHasName refuses a widget written without a name where Mendix
+// stores one (ako/mxcli#749).
+//
+// The name is optional in the grammar because Mendix stores none on a
+// layout-grid row or column, a DataGrid 2 column or a slot block such as a
+// gallery's `template` — and none of those reach this function: their parent's
+// builder builds them. Everything that does reach it is written as a widget
+// with a Name, so an empty one would be stored as-is and turn up in Studio Pro
+// as a nameless widget. A standalone `row` or `column` is such a widget too: it
+// is built as a container.
+func checkWidgetHasName(w *ast.WidgetV3) error {
+	kind := strings.ToLower(w.Type)
+	if w.Name != "" || w.Specialization != "" || kindsWithOwnNameRule[kind] {
+		return nil
+	}
+	return mdlerrors.NewValidation(fmt.Sprintf(
+		"%s needs a name: Mendix stores one for it (`%s %sName …`). Only a layout grid's rows and "+
+			"columns, a data grid's columns and control bar, and a gallery's template and filter are "+
+			"written without one", kind, kind, kind))
 }

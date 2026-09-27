@@ -161,12 +161,21 @@ func droppedSlotDesignProps(parent, w *ast.WidgetV3, locationPrefix string) []li
 	return []linter.Violation{{
 		RuleID:   "MDL-WIDGET07",
 		Severity: linter.SeverityWarning,
-		Message: fmt.Sprintf("%s: %s %q inside %s %q sets DesignProperties, but it is part of its parent, "+
+		Message: fmt.Sprintf("%s: %s inside %s sets DesignProperties, but it is part of its parent, "+
 			"not a widget — mxcli does not write design properties there, so they are silently dropped",
-			locationPrefix, strings.ToLower(w.Type), w.Name, strings.ToLower(parent.Type), parent.Name),
+			locationPrefix, elementLabel(w), elementLabel(parent)),
 		Location:   linter.Location{DocumentType: "page", DocumentName: locationPrefix},
 		Suggestion: fmt.Sprintf("Put them on a container inside the %s instead.", strings.ToLower(w.Type)),
 	}}
+}
+
+// elementLabel names a page element in a message: its kind, and its name when
+// it has one — a layout grid's row or column has none (#749).
+func elementLabel(w *ast.WidgetV3) string {
+	if w.Name == "" {
+		return strings.ToLower(w.Type)
+	}
+	return fmt.Sprintf("%s %q", strings.ToLower(w.Type), w.Name)
 }
 
 func validateWidgetDesignProps(w *ast.WidgetV3, reg *ThemeRegistry, locationPrefix string) []linter.Violation {

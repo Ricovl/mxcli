@@ -138,7 +138,7 @@ create page MyModule.Customer_NewEdit
   layout: Atlas_Core.PopupLayout
 )
 {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     dataview dv (datasource: $Customer) {
       textbox txtName (label: 'Name', attribute: Name)
     }
@@ -155,13 +155,13 @@ create page MyModule.Customer_Overview
   layout: Atlas_Core.Atlas_Default
 )
 {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     actionbutton btnNew (
       caption: 'New',
       action: microflow MyModule.ACT_Customer_New
     )
     datagrid dg (datasource: database MyModule.Customer) {
-      column colName (caption: 'Name', attribute: Name)
+      column (caption: 'Name', attribute: Name)
     }
   }}}
 }
@@ -186,7 +186,7 @@ create page MyModule.Order_Detail
   layout: Atlas_Core.Atlas_Default
 )
 {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     dataview dv (datasource: $Order) {
       textbox txtID (label: 'Order ID', attribute: OrderID)
     }

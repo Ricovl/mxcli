@@ -14,8 +14,9 @@ ALTER SNIPPET module.Name {
 
 `ALTER LAYOUT module.Name { … }` takes the same operations. This is the
 generic ALTER — `set` / `insert` / `replace` / `drop` against a target — which
-every document type shares; a page's targets are widget names, `grid.Column`,
-or a layout region `container.top`.
+every document type shares; a page's targets are widget names, DataGrid 2
+columns `grid column(Attr)` / `grid column('Caption')`, or a layout region
+`container.top`.
 
 The older spellings still run and warn with a deprecation code:
 
@@ -100,16 +101,20 @@ Replaces a widget (and its entire subtree) with one or more new widgets.
 
 ### DataGrid Column Operations
 
-DataGrid2 columns are addressable using dotted notation: `gridName.columnName`. The column name matches the name shown by `DESCRIBE PAGE` (derived from the attribute short name or caption).
-
-All four operations (SET, INSERT, DROP, REPLACE) support dotted column references:
+A DataGrid 2 column has no stored name. It is addressed by the attribute or the
+caption `DESCRIBE PAGE` prints in it: `grid column(Attr)`, `grid column('Caption')`.
+An address two columns share is refused unless `@n` picks one.
 
 ```sql
-SET (Caption: 'Product SKU') ON dgProducts.Code
-DROP dgProducts.OldColumn
-INSERT AFTER dgProducts.Price { COLUMN Margin (Attribute: Margin) }
-REPLACE dgProducts.Description WITH { COLUMN Notes (Attribute: Notes) }
+SET (Caption: 'Product SKU') ON dgProducts column(Code)
+DROP dgProducts column('Old column')
+INSERT AFTER dgProducts column(Price) { COLUMN (Attribute: Margin) }
+REPLACE dgProducts column(Description) WITH { COLUMN (Attribute: Notes) }
+DROP dgProducts column(Name)@2
 ```
+
+The older dotted form `gridName.columnName` still works, matching a name mxcli
+derives from the attribute or caption.
 
 ### SET Layout
 

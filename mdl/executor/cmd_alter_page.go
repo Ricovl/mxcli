@@ -121,6 +121,11 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 // alterTargetOf converts an operation's target, as the visitor recorded it,
 // into the backend's document-independent address.
 func alterTargetOf(r ast.WidgetRef) backend.AlterTarget {
+	if r.IsColumnAddress() {
+		// The @n belongs to the column address, which carries it to the
+		// mutator; on the target itself it would mean a choice among widgets.
+		return backend.AlterTarget{Path: []string{r.Widget, columnRefOf(r)}}
+	}
 	t := backend.AlterTarget{Caption: r.Caption, Ordinal: r.Ordinal}
 	if r.Caption == "" {
 		t.Path = []string{r.Widget}
@@ -129,6 +134,17 @@ func alterTargetOf(r ast.WidgetRef) backend.AlterTarget {
 		}
 	}
 	return t
+}
+
+// columnRefOf is the columnRef the PageMutator takes for a target's member: the
+// derived column name or region of `grid.Member`, or the explicit column
+// address `grid column(…)[@n]` spelled as backend.ColumnSelector (#749). Empty
+// for a plain widget target.
+func columnRefOf(r ast.WidgetRef) string {
+	if r.IsColumnAddress() {
+		return backend.ColumnSelector{Attribute: r.ColumnAttribute, Caption: r.ColumnCaption, Ordinal: r.Ordinal}.String()
+	}
+	return r.Column
 }
 
 // alterPageOperationTargets lists the targets an operation addresses, in the
@@ -223,7 +239,7 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 				propName, propName)
 		}
 		if op.Target.IsColumn() {
-			if err := mutator.SetColumnProperty(op.Target.Widget, op.Target.Column, propName, value); err != nil {
+			if err := mutator.SetColumnProperty(op.Target.Widget, columnRefOf(op.Target), propName, value); err != nil {
 				return mdlerrors.NewBackend("set "+propName+" on "+op.Target.Name(), err)
 			}
 		} else if propName == "DataSource" {
@@ -371,7 +387,7 @@ func applyInsertWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op 
 		if err != nil {
 			return mdlerrors.NewBackend("build column specs", err)
 		}
-		return mutator.InsertColumns(op.Target.Widget, op.Target.Column, backend.InsertPosition(op.Position), specs)
+		return mutator.InsertColumns(op.Target.Widget, columnRefOf(op.Target), backend.InsertPosition(op.Position), specs)
 	}
 
 	// Special path: inserting specialization templates into a List View. A
@@ -411,7 +427,7 @@ func applyInsertWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op 
 		return mdlerrors.NewBackend("build widgets", err)
 	}
 
-	return mutator.InsertWidget(op.Target.Widget, op.Target.Column, backend.InsertPosition(op.Position), widgets)
+	return mutator.InsertWidget(op.Target.Widget, columnRefOf(op.Target), backend.InsertPosition(op.Position), widgets)
 }
 
 // expandAlterFragments expands `use fragment` / `use building block` sentinels
@@ -439,7 +455,7 @@ func expandAlterFragments(ctx *ExecContext, widgets []*ast.WidgetV3, moduleName 
 func applyDropWidgetMutator(mutator backend.PageMutator, op *ast.DropWidgetOp) error {
 	refs := make([]backend.WidgetRef, len(op.Targets))
 	for i, t := range op.Targets {
-		refs[i] = backend.WidgetRef{Widget: t.Widget, Column: t.Column}
+		refs[i] = backend.WidgetRef{Widget: t.Widget, Column: columnRefOf(t)}
 	}
 	return mutator.DropWidget(refs)
 }
@@ -459,7 +475,7 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 
 	// Check for duplicate widget names (skip the widget being replaced)
 	for _, w := range op.NewWidgets {
-		if w.Name != "" && w.Name != op.Target.Widget && w.Name != op.Target.Column && mutator.FindWidget(w.Name) {
+		if w.Name != "" && w.Name != op.Target.Widget && w.Name != columnRefOf(op.Target) && mutator.FindWidget(w.Name) {
 			return mdlerrors.NewAlreadyExistsMsg("widget", w.Name, fmt.Sprintf("duplicate widget name '%s': a widget with this name already exists on the page", w.Name))
 		}
 	}
@@ -469,11 +485,11 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 	// the grid's data source entity as their entity context.
 	if op.Target.IsColumn() && allColumns(op.NewWidgets) {
 		entityCtx := mutator.EnclosingEntityForChildren(op.Target.Widget)
-		specs, err := buildColumnSpecsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, op.Target.Column)
+		specs, err := buildColumnSpecsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, columnRefOf(op.Target))
 		if err != nil {
 			return mdlerrors.NewBackend("build replacement column specs", err)
 		}
-		return mutator.ReplaceColumn(op.Target.Widget, op.Target.Column, specs)
+		return mutator.ReplaceColumn(op.Target.Widget, columnRefOf(op.Target), specs)
 	}
 
 	// Find entity context from enclosing DataView/DataGrid/ListView for regular widget replace.
@@ -481,12 +497,12 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 
 	// Build new widgets from AST, excluding the target widget/column from the
 	// duplicate-name scope so a same-name replacement is allowed.
-	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, op.Target.Column)
+	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, columnRefOf(op.Target))
 	if err != nil {
 		return mdlerrors.NewBackend("build replacement widgets", err)
 	}
 
-	return mutator.ReplaceWidget(op.Target.Widget, op.Target.Column, widgets)
+	return mutator.ReplaceWidget(op.Target.Widget, columnRefOf(op.Target), widgets)
 }
 
 // allColumns returns true if all widgets in the slice have type "column".

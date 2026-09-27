@@ -267,7 +267,7 @@ The expression inside `[...]` is parsed as XPath and stored in BSON as the `Xpat
 datagrid dg (
   datasource: database from Module.Entity where [State != 'Cancelled'] sort by Name asc
 ) {
-  column col1 (attribute: Name, caption: 'Name')
+  column (attribute: Name, caption: 'Name')
 }
 ```
 

@@ -239,11 +239,11 @@ Create responsive grid layout:
 
 ```sql
 layoutgrid gridName {
-  row rowName {
-    column colName (desktopwidth: 8) {
+  row {
+    column (desktopwidth: 8) {
       -- Nested widgets
     }
-    column col2 (desktopwidth: 4) {
+    column (desktopwidth: 4) {
       -- Nested widgets
     }
   }
@@ -259,17 +259,17 @@ layoutgrid gridName {
 | `phonewidth` | 1-12 or `autofill` | auto | Phone column width |
 
 ```sql
-column col1 (desktopwidth: 8, tabletwidth: 6, phonewidth: 12) { ... }
+column (desktopwidth: 8, tabletwidth: 6, phonewidth: 12) { ... }
 ```
 
 Example:
 ```sql
 layoutgrid mainGrid {
-  row row1 {
-    column colMain (desktopwidth: 8) {
+  row {
+    column (desktopwidth: 8) {
       dynamictext heading (content: 'Main Content', rendermode: H3)
     }
-    column colSide (desktopwidth: 4) {
+    column (desktopwidth: 4) {
       dynamictext sideHeading (content: 'Sidebar', rendermode: H3)
     }
   }
@@ -285,16 +285,15 @@ datagrid gridName (
   datasource: database from Module.Entity where [condition] sort by attributename asc|desc,
   selection: Multi
 ) {
-  column colName (attribute: attributename, caption: 'Label')
+  column (attribute: attributename, caption: 'Label')
 }
 ```
 
-> **Reserved keyword column names:** If the attribute name is an MDL reserved keyword (e.g. `Status`, `Type`), you must quote the attribute value and use a distinct widget name for the column:
+> **Reserved keyword attribute names:** If the attribute name is a reserved MDL keyword (e.g. `Status`, `Type`), quote it. A column takes no name (Mendix stores none), so there is no widget name to choose:
 > ```sql
-> column colStatus (attribute: "Status", caption: 'Status')
-> column colType   (attribute: "Type",   caption: 'Type')
+> column (attribute: "Status", caption: 'Status')
+> column (attribute: "Type", caption: 'Type')
 > ```
-> Writing `COLUMN Status (attribute: Status)` fails silently — `Status` and `Type` are parsed as keywords. Always use a `col`-prefixed widget name when the attribute name is reserved.
 
 **Column Properties:**
 
@@ -334,7 +333,7 @@ datagrid gridName (datasource: database from Module.Entity) {
 The `format (...)` block accepts `decimalPrecision`, `groupDigits`, `dateFormat` (`Date` / `DateTime` / `Time` / `Custom`), `customDateFormat`, and `enumFormat` (`Text` / `Image`). Formatting is applied by Mendix only to **attribute-bound** parameters — bind the bare attribute (`Amount`), not `toString(...)`.
 
 ```sql
-column colPrice (
+column (
   attribute: Price, caption: 'Unit Price',
   Alignment: right, WrapText: true,
   Sortable: false, Resizable: false,
@@ -352,8 +351,8 @@ attribute — use a bare association path `Assoc/Attr`:
 
 ```sql
 datagrid dgOrders (datasource: database from Sales.Order) {
-  column colNumber   (attribute: Number, caption: 'Order #')
-  column colCustomer (attribute: Order_Customer/Name, caption: 'Customer')  -- associated attr
+  column (attribute: Number, caption: 'Order #')
+  column (attribute: Order_Customer/Name, caption: 'Customer')  -- associated attr
 }
 ```
 
@@ -368,7 +367,7 @@ correctly on the default engine (mxbuild-verified, 0 errors) — an earlier CE04
 (column property ordering) was fixed:
 
 ```sql
-column colActions (caption: 'Actions') {
+column (caption: 'Actions') {
   actionbutton btnView (caption: 'View', action: close_page)
 }
 ```
@@ -391,8 +390,8 @@ column colActions (caption: 'Actions') {
 datagrid dgActive (
   datasource: database from Module.Product where [IsActive = true] sort by Name asc
 ) {
-  column colName (attribute: Name, caption: 'Name')
-  column colPrice (attribute: Price, caption: 'Price')
+  column (attribute: Name, caption: 'Name')
+  column (attribute: Price, caption: 'Price')
 }
 ```
 
@@ -403,7 +402,7 @@ datagrid dgFiltered (
     where [IsActive = true and contains(Code, 'a') and Price > 10] or [Stock < 2]
     sort by Name asc, Price desc
 ) {
-  column colName (attribute: Name, caption: 'Name')
+  column (attribute: Name, caption: 'Name')
 }
 ```
 
@@ -423,7 +422,7 @@ datagrid dgProducts (
   PageSize: 25,
   PagingPosition: both
 ) {
-  column colName (attribute: Name, caption: 'Name')
+  column (attribute: Name, caption: 'Name')
 }
 
 -- Virtual scrolling (no paging buttons)
@@ -432,7 +431,7 @@ datagrid dgLargeList (
   PageSize: 50,
   Pagination: virtualScrolling
 ) {
-  column colName (attribute: Name, caption: 'Name')
+  column (attribute: Name, caption: 'Name')
 }
 ```
 
@@ -551,7 +550,7 @@ gallery galleryName (
   TabletColumns: 2,
   PhoneColumns: 1
 ) {
-  template template1 {
+  template {
     dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
     dynamictext email (content: '{1}', contentparams: [{1} = Email])
   }
@@ -561,10 +560,10 @@ gallery galleryName (
 **With Filter:**
 ```sql
 gallery productGallery (datasource: database Module.Product, selection: single) {
-  filter filter1 {
+  filter {
     textfilter searchName (attribute: Name)
   }
-  template template1 {
+  template {
     dynamictext prodName (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
     dynamictext prodCode (content: 'SKU: {1}', contentparams: [{1} = Code])
   }
@@ -579,7 +578,7 @@ the whole list. The widgets below are the same either way:
 
 ```sql
 datagrid dg (datasource: database Module.Entity) {
-  column colName (attribute: Name) { textfilter f1 }   -- the grid form
+  column (attribute: Name) { textfilter f1 }   -- the grid form
 }
 
 gallery g (datasource: database Module.Entity) {
@@ -625,7 +624,7 @@ associated objects. Giving the filter a `datasource:` (the OPTION list) selects
 this mode; all three parts are required:
 
 ```sql
-column colCustomer (attribute: Order_Customer/Name, caption: 'Customer') {
+column (attribute: Order_Customer/Name, caption: 'Customer') {
   dropdownfilter ddfCustomer (
     Association: Sales.Order_Customer,          -- the reference on the GRID entity
     datasource: database Sales.Customer,        -- the option list (associated entity)
@@ -985,7 +984,7 @@ header headerName {
 Control bar for data widgets:
 
 ```sql
-controlbar controlBar1 {
+controlbar {
   actionbutton btnNew (caption: 'New', action: create_object Module.Entity then show_page Module.EditPage, buttonstyle: primary)
 }
 ```
@@ -1001,16 +1000,16 @@ datagrid dgMaterials (
   datasource: database from Module.Material,
   selection: single
 ) {
-  column colName (attribute: Name, caption: 'Name')
+  column (attribute: Name, caption: 'Name')
 
   -- Row-scoped: the grid's row supplies the parameter, no argument needed.
-  column colRow (caption: 'Row') {
+  column (caption: 'Row') {
     container cRowUnlink (action: nanoflow Module.ACT_UnLink, class: 'command') {
       actionbutton btnRowUnlink (caption: 'Unlink')
     }
   }
 
-  controlbar controlBar1 {
+  controlbar {
     -- Not row-scoped: pass the selection explicitly.
     container cUnlink (
       class: 'command',

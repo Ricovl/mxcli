@@ -62,8 +62,8 @@ alter page Module.PageName {
 };
 ```
 
-A `<target>` on a page is a widget name, `grid.Column`, or a layout region
-`layoutContainer.top`. Properties go in parentheses with `:`, exactly as in
+A `<target>` on a page is a widget name, a DataGrid 2 column `grid column(Attr)`
+(or `grid column('Caption')`), or a layout region `layoutContainer.top`. Properties go in parentheses with `:`, exactly as in
 `create page`. The older spellings `set Key = value on w`, `set Key: value`
 (no parentheses) and `drop widget w` still run, and warn with MDL-DEPR101,
 MDL-DEPR102 and MDL-DEPR103 — write the form above.
@@ -73,11 +73,11 @@ Multiple operations can be combined in a single ALTER statement. They are applie
 ```sql
 -- Rename a column, add a sibling, drop an obsolete one — all in one block.
 alter page MyMod.Product_Overview {
-  set (caption: 'Product Name') on dgProducts.Name;
-  insert after dgProducts.Lifecycle {
-    column NewCol (attribute: Sku, caption: 'SKU')
+  set (caption: 'Product Name') on dgProducts column(Name);
+  insert after dgProducts column(Lifecycle) {
+    column (attribute: Sku, caption: 'SKU')
   };
-  drop dgProducts.OldCol
+  drop dgProducts column('Old')
 };
 ```
 
@@ -323,39 +323,30 @@ Replaces the target widget with one or more new widgets. The new widgets use the
 
 ### DataGrid Column Operations
 
-DataGrid2 columns are addressable using dotted notation: `gridName.columnName`. The column name is derived from the attribute short name or caption (same as shown by `describe page`).
+A DataGrid 2 column is addressed by what `describe page` prints in it: `grid column(Attr)` for its `attribute:`, `grid column('Caption')` for its `caption:`. See "DataGrid 2 columns: how to address them" below.
 
 ```sql
 -- SET a column property
-set (caption: 'Product SKU') on dgProducts.Code
+set (caption: 'Product SKU') on dgProducts column(Code)
 
 -- DROP a column
-drop dgProducts.OldColumn
+drop dgProducts column('Old column')
 
 -- INSERT a column after an existing one
-insert after dgProducts.Price {
-  column Margin (attribute: Margin, caption: 'Margin')
+insert after dgProducts column(Price) {
+  column (attribute: Margin, caption: 'Margin')
 }
 
 -- REPLACE a column
-replace dgProducts.Description with {
-  column Notes (attribute: Notes, caption: 'Notes')
+replace dgProducts column(Description) with {
+  column (attribute: Notes, caption: 'Notes')
 }
+
+-- Two columns over one attribute: pick one with @n
+drop dgProducts column(Name)@2
 ```
 
-To discover column names, run `describe page Module.PageName` and look at the COLUMN names inside the DATAGRID.
-
-**Troubleshooting: column operation succeeds but does nothing**
-If an ALTER targeting a DataGrid column completes without error but makes no change, the column name used in the statement didn't match any column. The most common cause is a mismatch between what DESCRIBE shows and what ALTER resolves internally. Derivation rules:
-- Attribute-bound column → short attribute name (last segment after `.`): `Module.Entity.Description` → `Description`
-- Caption-only column → sanitized caption (non-alphanumeric replaced with `_`, leading/trailing `_` trimmed): `"Order Status"` → `Order_Status`
-- Caption with only special chars (e.g. `"---"`) → falls back to `col1`, `col2`, … (1-based index)
-
-If the column name you copied from DESCRIBE still doesn't work, check whether the column has an attribute binding — attribute names take priority over captions.
-
-**The authored `column colFoo (...)` name is NOT how you address it.** A column carries no stored name in the Mendix model, so the name you wrote in `create page` is dropped on write — always address a column by its *derived* name (the one `describe page` shows). Using the authored name now fails with an error that lists the available column names, rather than a bare "not found".
-
-**Duplicate captions are ambiguous and rejected.** Two dynamic-text (or custom-content) columns with the same caption derive the same name, so `ON "Amount"` can't tell them apart. mxcli now refuses the operation with an ambiguity error instead of silently mutating the first and leaving the second unreachable. Give such columns distinct captions to address them individually. (Non-attribute column handles are the caption, so `set (Caption: ...)` also *renames* the handle — plan multi-step caption edits accordingly.)
+The older dotted form `gridName.columnName` still works; it matches a name mxcli derives (the short attribute name, else the sanitized caption, else `colN`).
 
 ### ADD Variables - Add a Page Variable
 
@@ -462,32 +453,37 @@ alter page MyModule.Customer_Edit {
 ## DataGrid 2 columns: how to address them, and what you can set
 
 **Mendix stores no column name.** A DataGrid 2 column's schema has no name or
-identifier key — the only human-facing label is its caption — so the name you
-write in MDL is dropped:
+identifier key — the only human-facing label is its caption — so a column is
+written without one, and `describe page` prints none:
 
 ```mdl
-create or replace page Mod.P (...) {
+create or modify page Mod.P (...) {
   datagrid dg1 (datasource: database Mod.Item) {
-    column colLabel (attribute: Label, caption: 'The Label')   -- "colLabel" is not stored
+    column (attribute: Label, caption: 'The Label')
+    column (caption: 'Actions', ShowContentAs: customContent) { … }
   }
 };
 ```
 
-`describe page` shows that column as `Label`, and that is the name `ALTER PAGE`
-answers to:
+A name written there anyway (`column colLabel (…)`, the old describe output) is
+dropped and reported as **MDL-DEPR005**; `mxcli fmt --upgrade` removes it.
+
+`ALTER PAGE` addresses a column by **what describe prints in it** — its
+`attribute:` value, or its `caption:`:
 
 ```mdl
-alter page Mod.P { SET (Caption: 'Renamed') ON dg1.colLabel }   -- WRONG: column not found
-alter page Mod.P { SET (Caption: 'Renamed') ON dg1.Label }      -- correct
+alter page Mod.P { set (Caption: 'Renamed') on dg1 column(Label) }       -- the column bound to Label
+alter page Mod.P { drop dg1 column('Actions') }                           -- the column captioned Actions
+alter page Mod.P { set (Sortable: false) on dg1 column(Owner/Name) }      -- over an association, as describe writes it
 ```
 
-The derived name is, in order: **the bound attribute's short name**, else the
-**sanitized caption**, else **`colN`** by position. `mxcli check` reports
-**MDL-WIDGET16** when the name you wrote differs from the one that will address
-the column, so you find out at authoring time rather than from a failed ALTER.
+Two columns over the same attribute (or with the same caption) share the
+address. ALTER refuses it rather than picking one, and the error lists the
+matches — add `@n` to choose: `drop dg1 column(FullName)@2`.
 
-Two columns that derive the same name are ambiguous and ALTER refuses rather than
-picking one — give them distinct captions.
+The older `dg1.Label` form still works: it addresses a column by a name mxcli
+derives (the attribute's short name, else the sanitized caption, else `colN` by
+position). Prefer `column(…)`, which says what it matches.
 
 ### Setting column properties
 
@@ -501,13 +497,13 @@ the quoted class name, and a computed one is the expression itself:
 
 ```mdl
 -- a literal class: the string 'highlight'
-alter page Mod.P { SET (DynamicCellClass: 'highlight') ON dg1.Label }
+alter page Mod.P { SET (DynamicCellClass: 'highlight') ON dg1 column(Label) }
 
 -- a computed class
-alter page Mod.P { SET (DynamicCellClass: if $currentObject/Price > 100 then 'highlight' else '') ON dg1.Label }
+alter page Mod.P { SET (DynamicCellClass: if $currentObject/Price > 100 then 'highlight' else '') ON dg1 column(Label) }
 
 -- WRONG: a bare name is an identifier, not a string — mxbuild reports CE0117
-alter page Mod.P { SET (DynamicCellClass: highlight) ON dg1.Label }
+alter page Mod.P { SET (DynamicCellClass: highlight) ON dg1 column(Label) }
 ```
 
 The old spelling — the expression's text in quotes, `'if … then ''a'' else '''''`

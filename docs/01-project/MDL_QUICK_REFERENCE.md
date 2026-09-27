@@ -1444,7 +1444,7 @@ MDL uses explicit property declarations for pages:
 | Page CSS class / style | `Class: 'css-class', Style: 'css: rule'` | `(Title: 'Home', Class: 'container-fluid bg-light', Style: 'min-height: 100vh')` — the page's Appearance |
 | Page variables | `variables: { $name: type = 'expr' }` | `variables: { $show: boolean = 'true' }` |
 | Repeated widget entries | `<container> <name> ( … )` **in the widget body** | A repeatable property (FileUploader `allowedFileFormats`, HTML Element `attributes`, a chart's `series`) is a block, never a property value. `attributes: [(attributeName: 'x')]` is **MDL-WIDGET27** — it used to check clean, exec, and vanish from storage. `describe widget <name> -p app.mpr` lists the container keywords |
-| Data grid 2 column filter | `column c (attribute: A) { textfilter f }` | **Inside the column's braces.** `column c (…) filter f { … }` is the GALLERY form — the grammar reads it as a column with no body plus a sibling `filter` widget, which the grid has nowhere to put; it used to be dropped on write and is now **MDL-WIDGET30**. A grid-wide filter bar is `controlbar`; a gallery spells that same slot `filter`. Match the filter to the column's type (String → `textfilter`, number → `numberfilter`, DateTime → `datefilter`, Enumeration **and Boolean** → `dropdownfilter` — the drop-down filter's own attribute types are Enum and Boolean, and a Boolean column filters Yes/No). A column may carry a **custom-content widget AND a filter**: `content` and `filter` are separate slots, so `column Active (attribute: IsActive) { checkbox cb (Editable: Never, ReadOnlyStyle: Control) dropdownfilter ddf }` renders checkbox cells and still filters |
+| Data grid 2 column filter | `column (attribute: A) { textfilter f }` | **Inside the column's braces.** `column (…) filter { … }` is the GALLERY form — the grammar reads it as a column with no body plus a sibling `filter` widget, which the grid has nowhere to put; it used to be dropped on write and is now **MDL-WIDGET30**. A grid-wide filter bar is `controlbar`; a gallery spells that same slot `filter`. Match the filter to the column's type (String → `textfilter`, number → `numberfilter`, DateTime → `datefilter`, Enumeration **and Boolean** → `dropdownfilter` — the drop-down filter's own attribute types are Enum and Boolean, and a Boolean column filters Yes/No). A column may carry a **custom-content widget AND a filter**: `content` and `filter` are separate slots, so `column (attribute: IsActive) { checkbox cb (Editable: Never, ReadOnlyStyle: Control) dropdownfilter ddf }` renders checkbox cells and still filters |
 | Widget with nowhere to go | any widget in a pluggable widget's body | A child matching no container, slot or `template` catch-all is **MDL-WIDGET30** at check time and refused by `exec`. `describe widget <name> -p app.mpr` lists what the parent declares. Needs the parent's definition, so it is silent without `-p` |
 | Inspect a widget | `describe widget <keyword\|'widget id'>;` | `describe widget combobox;` — properties, enum values, defaults and the editor rules that HIDE properties under some configurations. **Body containers** names what the widget's body takes, and for an object list the widgets-typed slots *inside one item* plus the widget types that route into each — that is where `column … { textfilter }` is spelled out. Works with no project open; with one, reads the installed `.mpk` (version-accurate, and the only place a Marketplace widget appears). Same output as `mxcli widget describe` |
 | Widget name | Required after type | `textbox txtName (...)` |
@@ -1563,9 +1563,9 @@ create page MyModule.Customer_Edit
 
 | Property | Syntax | Notes |
 |----------|--------|-------|
-| DesktopWidth | `column col (desktopwidth: 8)` | 1-12 or AutoFill |
-| TabletWidth | `column col (tabletwidth: 6)` | 1-12 or AutoFill (default: auto) |
-| PhoneWidth | `column col (phonewidth: 12)` | 1-12 or AutoFill (default: auto) |
+| DesktopWidth | `column (desktopwidth: 8)` | 1-12 or AutoFill |
+| TabletWidth | `column (tabletwidth: 6)` | 1-12 or AutoFill (default: auto) |
+| PhoneWidth | `column (phonewidth: 12)` | 1-12 or AutoFill (default: auto) |
 | Visible | `textbox txt (visible: [IsActive])` | Conditional visibility (XPath expression) |
 | Editable | `textbox txt (editable: [status != 'Closed'])` | Conditional editability (XPath expression) |
 | Image | `staticimage img (Image: 'Mod.Images.logo')` | Image-collection entry, `Module.Collection.Image`. Omitted → CE0436 "No image selected." |
@@ -1629,7 +1629,7 @@ widgets, so `set … on busLabel` and `insert after busLabel { … }` need nothi
 
 **Drop-down filter, association mode** — filter a datagrid by a reference instead of an attribute. Giving the filter a `datasource:` (the OPTION list) selects the mode; all three parts are required:
 ```sql
-column colCustomer (attribute: Order_Customer/Name, caption: 'Customer') {
+column (attribute: Order_Customer/Name, caption: 'Customer') {
   dropdownfilter ddfCustomer (
     Association: Sales.Order_Customer,     -- the reference on the GRID entity
     datasource: database Sales.Customer,   -- the option list (associated entity)
@@ -1668,9 +1668,9 @@ This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <t
 | Replace widget | `replace widgetName with { widgets }` | Replace widget subtree |
 | Pluggable prop | `set ('showLabel': false) on cbStatus` | Quoted name for pluggable widgets |
 | Named action slot | `set ('createFileAction': microflow M.ACT_Create) on fileUploader1` | A pluggable widget's action-typed property, by its own key; any `create page` action form. Refused on a key that is not action-typed |
-| Set column prop | `set (caption: 'New') on dgGrid.colName` | Dotted ref targets DataGrid column |
-| Drop column | `drop dgGrid.colName` | Remove a DataGrid column |
-| Insert column | `insert after dgGrid.colName { column ... }` | Add column to DataGrid |
+| Set column prop | `set (caption: 'New') on dgGrid column(Attr)` | A DataGrid 2 column by its attribute, or `column('Caption')`; `@n` when two columns match. The older `dgGrid.colName` (a derived name) still works |
+| Drop column | `drop dgGrid column(Attr)` | Remove a DataGrid column |
+| Insert column | `insert after dgGrid column(Attr) { column (…) }` | Add column to DataGrid; a column takes no name |
 | Add variable | `add variables $name: type = 'expr'` | Add a page variable |
 | Drop variable | `drop variables $name` | Remove a page variable |
 | Set layout | `set layout = Module.LayoutName` | Change page layout, auto-maps placeholders |

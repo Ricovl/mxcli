@@ -107,10 +107,10 @@ func validateWidgetEditability(w *ast.WidgetV3, locationPrefix string) []linter.
 		RuleID:   "MDL-WIDGET20",
 		Severity: linter.SeverityWarning,
 		Message: fmt.Sprintf(
-			"%s: widget `%s` (%s) has an `%s` property, but Mendix models editability on input "+
+			"%s: %s has an `%s` property, but Mendix models editability on input "+
 				"widgets only — %s has no Editability, so this is silently dropped on write and the "+
 				"widget stays enabled",
-			locationPrefix, w.Name, w.Type, key, w.Type,
+			locationPrefix, widgetLabel(w.Name, w.Type), key, w.Type,
 		),
 		Suggestion: "Use `visible: [ ... ]` to hide it conditionally (buttons do support conditional " +
 			"visibility), or move the condition into the microflow the button calls",
@@ -176,9 +176,9 @@ func validatePluggableEditability(w *ast.WidgetV3, locationPrefix string) []lint
 		RuleID:   "MDL-WIDGET21",
 		Severity: linter.SeverityWarning,
 		Message: fmt.Sprintf(
-			"%s: widget `%s` (%s) is a pluggable widget and its `%s` property is not written — "+
+			"%s: %s is a pluggable widget and its `%s` property is not written — "+
 				"the value is accepted here and reaches no stored property, so the widget stays editable",
-			locationPrefix, w.Name, w.Type, key,
+			locationPrefix, widgetLabel(w.Name, w.Type), key,
 		),
 		Suggestion: "Set the widget's own read-only property if it has one (`mxcli widget describe " +
 			"<id>` lists them), bind the attribute through a data view that is itself not editable, " +

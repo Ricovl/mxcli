@@ -104,8 +104,10 @@ create page P.G (Title: 'G') {
 		t.Fatalf("expected a gallery, got %q", gallery.Type)
 	}
 	tmpl := gallery.Children[0]
-	if tmpl.Name != "tmpl1" {
-		t.Errorf("gallery template Name = %q, want tmpl1", tmpl.Name)
+	// The name parses, and is dropped: a gallery's template stores no name
+	// (MDL-DEPR005, ako/mxcli#749).
+	if tmpl.Type != "template" || tmpl.Name != "" {
+		t.Errorf("gallery template = %q %q, want a nameless template", tmpl.Type, tmpl.Name)
 	}
 	if tmpl.Specialization != "" {
 		t.Errorf("gallery template Specialization = %q, want empty — a named slot is "+

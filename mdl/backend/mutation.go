@@ -53,7 +53,7 @@ func (r WidgetRef) IsColumn() bool { return r.Column != "" }
 // Name returns the full reference string for error messages.
 func (r WidgetRef) Name() string {
 	if r.IsColumn() {
-		return r.Widget + "." + r.Column
+		return joinColumnAddress(r.Widget, r.Column)
 	}
 	return r.Widget
 }
