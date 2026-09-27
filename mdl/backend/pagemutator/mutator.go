@@ -239,7 +239,7 @@ func (m *Mutator) SetWidgetNamedAction(widgetRef, propertyKey string, action pag
 	obj := bsonnav.DGetDoc(result.widget, "Object")
 	if obj == nil {
 		return fmt.Errorf("widget %q (%s) is not a pluggable widget and has no named action slots — "+
-			"a built-in widget's click action is set with `set Action = … on %s`",
+			"a built-in widget's click action is set with `set (Action: …) on %s`",
 			widgetRef, widgetTypeName(result.widget), widgetRef)
 	}
 

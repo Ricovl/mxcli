@@ -18,6 +18,7 @@ var _ backend.PageMutator = (*MockPageMutator)(nil)
 // all other methods return zero values.
 type MockPageMutator struct {
 	ContainerTypeFunc              func() backend.ContainerKind
+	ResolveAlterTargetFunc         func(t backend.AlterTarget) (backend.AlterTargetMatch, error)
 	SetWidgetPropertyFunc          func(widgetRef string, prop string, value any) error
 	SetWidgetDataSourceFunc        func(widgetRef string, ds pages.DataSource) error
 	SetWidgetActionFunc            func(widgetRef string, action pages.ClientAction) error
@@ -244,4 +245,14 @@ func (m *MockPageMutator) BoundPlaceholders() []string {
 		return m.BoundPlaceholdersFunc()
 	}
 	return nil
+}
+
+// ResolveAlterTarget resolves every target unless ResolveAlterTargetFunc says
+// otherwise, so a test that does not care about resolution exercises the
+// operation behind it.
+func (m *MockPageMutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTargetMatch, error) {
+	if m.ResolveAlterTargetFunc != nil {
+		return m.ResolveAlterTargetFunc(t)
+	}
+	return backend.AlterTargetMatch{Kind: "widget", Name: t.String()}, nil
 }

@@ -175,7 +175,9 @@ func TestDescribeDemoUser_Mock(t *testing.T) {
 	}
 	ctx, buf := newMockCtx(t, withBackend(mb))
 	assertNoError(t, describeDemoUser(ctx, "demo_admin"))
-	assertContainsStr(t, buf.String(), "create demo user")
+	// `create or modify` so the output replays onto a project that has the
+	// user (ako/mxcli#707).
+	assertContainsStr(t, buf.String(), "create or modify demo user")
 }
 
 func TestShowModuleRoles_Mock_FilterByModule(t *testing.T) {

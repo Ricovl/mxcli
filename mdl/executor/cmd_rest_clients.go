@@ -122,7 +122,7 @@ func outputConsumedRestServiceMDL(ctx *ExecContext, svc *model.ConsumedRestServi
 	}
 
 	fmt.Fprintf(w, "create rest client %s.%s (\n", moduleName, svc.Name)
-	fmt.Fprintf(w, "  BaseUrl: '%s',\n", svc.BaseUrl)
+	fmt.Fprintf(w, "  BaseUrl: %s,\n", mdlQuoted(svc.BaseUrl))
 	if svc.Authentication == nil {
 		fmt.Fprintln(w, "  Authentication: none")
 	} else {
@@ -153,7 +153,7 @@ func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 
 	fmt.Fprintf(w, "  operation %s {\n", op.Name)
 	fmt.Fprintf(w, "    Method: %s,\n", strings.ToLower(op.HttpMethod))
-	fmt.Fprintf(w, "    Path: '%s',\n", op.Path)
+	fmt.Fprintf(w, "    Path: %s,\n", mdlQuoted(op.Path))
 
 	// Parameters: ($var: Type, ...)
 	if len(op.Parameters) > 0 {
@@ -177,7 +177,7 @@ func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 	if len(op.Headers) > 0 {
 		var hdrs []string
 		for _, h := range op.Headers {
-			hdrs = append(hdrs, fmt.Sprintf("'%s' = '%s'", h.Name, h.Value))
+			hdrs = append(hdrs, mdlQuoted(h.Name)+" = "+mdlQuoted(h.Value))
 		}
 		fmt.Fprintf(w, "    Headers: (%s),\n", strings.Join(hdrs, ", "))
 	}
@@ -186,7 +186,7 @@ func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 	if op.BodyType != "" {
 		switch strings.ToLower(op.BodyType) {
 		case "template":
-			fmt.Fprintf(w, "    Body: template '%s',\n", strings.ReplaceAll(op.BodyVariable, "'", "''"))
+			fmt.Fprintf(w, "    Body: template %s,\n", mdlQuoted(op.BodyVariable))
 		case "export_mapping":
 			if op.BodyVariable != "" && len(op.BodyMappings) > 0 {
 				fmt.Fprintf(w, "    Body: mapping %s {\n", op.BodyVariable)

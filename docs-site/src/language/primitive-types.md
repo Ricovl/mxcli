@@ -101,20 +101,15 @@ ModifiedAt: DateTime
 ScheduledFor: DateTime
 ```
 
-DateTime values include both date and time components. For date-only display, use `Date` instead.
+DateTime values include both date and time components. To show only the date, format it on the widget; there is no `Date` type.
 
-## Date
+## No `Date`, `Float` or `Currency`
 
-Date only (no time component). Internally stored as DateTime in Mendix, but the UI only shows the date portion.
-
-```sql
-Date
-```
-
-```sql
-BirthDate: Date
-ExpiryDate: Date
-```
+Mendix has no date-only attribute type: a date is a `DateTime`, and showing only
+its date part is a formatting choice on the widget. `Float` and `Currency` were
+removed in Mendix 7 in favour of `Decimal`. MDL refuses all three with the type to
+write instead — earlier versions accepted them and silently stored a `DateTime`
+(for `date`) or a `String` (for `float` and `currency`).
 
 ## AutoNumber
 

@@ -138,7 +138,9 @@ func buildEnumValues(ctx parser.IEnumerationValueListContext, b *Builder) []ast.
 		enumVal := ast.EnumValue{
 			Name: unquoteIdentifier(ev.EnumValueName().GetText()),
 		}
-		// Extract documentation if present
+		// A doc comment on a value is not stored — Enumerations$EnumerationValue
+		// has no documentation property. It is carried on the AST only so
+		// `check` can say so (MDL-ENUMDOC01, ako/mxcli#706).
 		if docCtx := ev.DocComment(); docCtx != nil {
 			enumVal.Documentation = extractDocComment(docCtx.GetText())
 		}
@@ -291,7 +293,15 @@ func buildIndex(ctx parser.IIndexDefinitionContext) ast.Index {
 		return ast.Index{}
 	}
 	idxDef := ctx.(*parser.IndexDefinitionContext)
-	return ast.Index{Columns: buildIndexColumns(idxDef.IndexAttributeList())}
+	idx := ast.Index{Columns: buildIndexColumns(idxDef.IndexAttributeList())}
+	// The name is not stored (a Mendix index is anonymous); it is carried only
+	// for the MDL-IDX01 warning.
+	if n := idxDef.IDENTIFIER(); n != nil {
+		idx.Name = n.GetText()
+	} else if n := idxDef.QUOTED_IDENTIFIER(); n != nil {
+		idx.Name = unquoteIdentifier(n.GetText())
+	}
+	return idx
 }
 
 // buildIndexColumns reads an index's column list. It is shared by the two

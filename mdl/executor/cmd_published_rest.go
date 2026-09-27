@@ -100,23 +100,23 @@ func describePublishedRestService(ctx *ExecContext, name ast.QualifiedName) erro
 
 		// Output as re-executable MDL
 		fmt.Fprintf(ctx.Output, "create or modify published rest service %s (\n", qualifiedName)
-		fmt.Fprintf(ctx.Output, "  Path: '%s'", svc.Path)
+		fmt.Fprintf(ctx.Output, "  Path: %s", mdlQuoted(svc.Path))
 		if svc.Version != "" {
-			fmt.Fprintf(ctx.Output, ",\n  Version: '%s'", svc.Version)
+			fmt.Fprintf(ctx.Output, ",\n  Version: %s", mdlQuoted(svc.Version))
 		}
 		if svc.ServiceName != "" {
-			fmt.Fprintf(ctx.Output, ",\n  ServiceName: '%s'", svc.ServiceName)
+			fmt.Fprintf(ctx.Output, ",\n  ServiceName: %s", mdlQuoted(svc.ServiceName))
 		}
 		folderPath := h.BuildFolderPath(svc.ContainerID)
 		if folderPath != "" {
-			fmt.Fprintf(ctx.Output, ",\n  Folder: '%s'", folderPath)
+			fmt.Fprintf(ctx.Output, ",\n  Folder: %s", mdlQuoted(folderPath))
 		}
 		fmt.Fprintln(ctx.Output, "\n)")
 
 		if len(svc.Resources) > 0 {
 			fmt.Fprintln(ctx.Output, "{")
 			for _, res := range svc.Resources {
-				fmt.Fprintf(ctx.Output, "  resource '%s' {\n", res.Name)
+				fmt.Fprintf(ctx.Output, "  resource %s {\n", mdlQuoted(res.Name))
 				for _, op := range res.Operations {
 					deprecated := ""
 					if op.Deprecated {
@@ -132,7 +132,7 @@ func describePublishedRestService(ctx *ExecContext, name ast.QualifiedName) erro
 					}
 					opPath := ""
 					if op.Path != "" {
-						opPath = fmt.Sprintf(" '%s'", op.Path)
+						opPath = " " + mdlQuoted(op.Path)
 					}
 					fmt.Fprintf(ctx.Output, "    %s%s%s%s;%s\n",
 						strings.ToUpper(op.HTTPMethod), opPath, mf, deprecated, summary)

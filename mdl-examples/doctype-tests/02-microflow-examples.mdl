@@ -23,19 +23,19 @@ create module MfTest;
  * Country codes with full names as captions.
  */
 create enumeration MfTest.Country (
-  /** United States */
+  -- United States
   US 'United States',
-  /** United Kingdom */
+  -- United Kingdom
   UK 'United Kingdom',
-  /** Germany */
+  -- Germany
   DE 'Germany',
-  /** France */
+  -- France
   FR 'France',
-  /** Netherlands */
+  -- Netherlands
   NL 'Netherlands',
-  /** Japan */
+  -- Japan
   JP 'Japan',
-  /** Australia */
+  -- Australia
   AU 'Australia'
 );
 /
