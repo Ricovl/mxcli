@@ -992,6 +992,9 @@ func formatConditionOutcomes(outcomes []workflows.ConditionOutcome, indent strin
 	lines = append(lines, fmt.Sprintf("%s  outcomes", indent))
 	for _, outcome := range outcomes {
 		name := outcome.GetName()
+		if _, ok := outcome.(*workflows.VoidConditionOutcome); ok {
+			name = "default" // a keyword: lowercase is canonical (R8)
+		}
 		flow := outcome.GetFlow()
 		if flow != nil && len(flow.Activities) > 0 {
 			lines = append(lines, fmt.Sprintf("%s    %s -> {", indent, name))

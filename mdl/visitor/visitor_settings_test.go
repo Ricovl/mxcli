@@ -38,7 +38,7 @@ func TestAlterSettings_Model(t *testing.T) {
 	if !ok {
 		t.Fatalf("Expected AlterSettingsStmt, got %T", prog.Statements[0])
 	}
-	if stmt.Section != "MODEL" {
+	if stmt.Section != "model" {
 		t.Errorf("Got Section %q", stmt.Section)
 	}
 	if stmt.Properties["DefaultLanguage"] != "en_US" {

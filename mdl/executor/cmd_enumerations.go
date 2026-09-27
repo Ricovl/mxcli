@@ -451,7 +451,7 @@ func describeEnumeration(ctx *ExecContext, name ast.QualifiedName) error {
 			// folder path when the enum lives in a folder.
 			folderClause := ""
 			if fp := h.BuildFolderPath(enum.ContainerID); fp != "" && fp != modName {
-				folderClause = fmt.Sprintf(" FOLDER '%s'", fp)
+				folderClause = fmt.Sprintf(" folder '%s'", fp)
 			}
 			fmt.Fprintf(ctx.Output, ")%s;\n", folderClause)
 			return nil
