@@ -2,6 +2,8 @@
 
 package ast
 
+import "strconv"
+
 // ============================================================================
 // ALTER PAGE / ALTER SNIPPET — in-place widget tree modification
 // ============================================================================
@@ -20,21 +22,58 @@ type AlterPageOperation interface {
 	isAlterPageOperation()
 }
 
-// WidgetRef represents a widget reference, optionally with a sub-element path.
-// Plain: "btnSave" (Widget="btnSave", Column="")
-// Dotted: "dgProducts.Name" (Widget="dgProducts", Column="Name")
+// WidgetRef is the <target> of a generic ALTER operation as written: the
+// element `set … on`, `insert before|after|into`, `replace … with` and `drop`
+// address (ADR-0012 decision 2).
+//
+// One address syntax serves every document type, and the document type's
+// resolver (backend.AlterTargetResolver) decides which forms it accepts:
+//
+//	btnSave            Widget="btnSave"
+//	dgProducts.Name    Widget="dgProducts", Column="Name" (a grid column, a scroll-container region)
+//	'Approve order'    Caption="Approve order" (content addressing, for elements with no name)
+//	hdr@2 / 'x'@2      Ordinal=2 — picks one of several matches; never a guess
+//
+// The name stays WidgetRef because the page family is the first document type
+// on the generic path and every page operation already speaks it.
 type WidgetRef struct {
-	Widget string // widget name (always set)
-	Column string // column name within widget (empty for plain widget refs)
+	Widget  string // name (empty when the target is addressed by caption)
+	Column  string // sub-element name within Widget (empty for a plain name)
+	Caption string // quoted content address; empty when addressed by name
+	Ordinal int    // @n, 1-based; 0 when absent
 }
 
-// Name returns the full reference string for error messages.
+// Name returns the full reference string for error messages, as it was written.
 func (r WidgetRef) Name() string {
-	if r.Column != "" {
-		return r.Widget + "." + r.Column
+	var s string
+	switch {
+	case r.Caption != "":
+		s = "'" + r.Caption + "'"
+	case r.Column != "":
+		s = r.Widget + "." + r.Column
+	default:
+		s = r.Widget
 	}
-	return r.Widget
+	if r.Ordinal > 0 {
+		s += "@" + strconv.Itoa(r.Ordinal)
+	}
+	return s
 }
+
+// Spellings of the generic ALTER that are aliases of its canonical form
+// (ADR-0011: an old form warns, and is rewritten mechanically). The visitor
+// records which one a statement used; the executor maps it to a deprecation
+// code. Nothing downstream of the validator may branch on these: both spellings
+// build the identical operation.
+const (
+	// `set Key = value …` / `set (Key = value, …) …` — R3 puts `:` between a
+	// property and its value; `=` is comparison.
+	AlterAliasSetEquals = "set-equals"
+	// `set Key: value …` — properties are a parenthesised list (R2), even one.
+	AlterAliasSetUnparenthesised = "set-unparenthesised"
+	// `drop widget a, b` — the target names the element; the kind is its own.
+	AlterAliasDropWidget = "drop-widget"
+)
 
 // IsColumn returns true if this is a column reference (dotted path).
 func (r WidgetRef) IsColumn() bool {
@@ -46,6 +85,7 @@ func (r WidgetRef) IsColumn() bool {
 type SetPropertyOp struct {
 	Target     WidgetRef              // empty Widget for page-level SET
 	Properties map[string]interface{} // property name -> value
+	Legacy     string                 // AlterAlias* when an old spelling was used, else ""
 }
 
 func (s *SetPropertyOp) isAlterPageOperation() {}
@@ -62,6 +102,7 @@ func (s *InsertWidgetOp) isAlterPageOperation() {}
 // DropWidgetOp represents: DROP WIDGET ref1, ref2, ...
 type DropWidgetOp struct {
 	Targets []WidgetRef
+	Legacy  string // AlterAliasDropWidget when written `drop widget …`, else ""
 }
 
 func (s *DropWidgetOp) isAlterPageOperation() {}

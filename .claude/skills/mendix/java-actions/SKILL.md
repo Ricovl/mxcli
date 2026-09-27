@@ -189,6 +189,11 @@ omitted bitmap is preserved.
 stores a toolbox entry, and the clause is refused on the other two with a
 message saying so.
 
+**Studio Pro-authored Java actions:** there is no `alter java action`. Before
+re-executing `describe` output for one, note its export level; a `create or modify`
+from describe output has changed an action's export level to Public. Check it again after
+`exec` (see [choose-edit-mode](../choose-edit-mode/SKILL.md)).
+
 ### Supported Parameter Types
 
 | MDL Type | Description |

@@ -119,13 +119,13 @@ func appendDataGridPagingProps(props []string, w rawWidget) []string {
 // appendConditionalProps appends VISIBLE IF and EDITABLE IF if present.
 func appendConditionalProps(props []string, w rawWidget) []string {
 	if w.VisibleIf != "" {
-		props = append(props, fmt.Sprintf("Visible: [%s]", w.VisibleIf))
+		props = append(props, fmt.Sprintf("Visible: [%s]", describeExpr(w.VisibleIf)))
 	}
 	if prop := visibleWhenProp(w); prop != "" {
 		props = append(props, prop)
 	}
 	if w.EditableIf != "" {
-		props = append(props, fmt.Sprintf("Editable: [%s]", w.EditableIf))
+		props = append(props, fmt.Sprintf("Editable: [%s]", describeExpr(w.EditableIf)))
 	}
 	return props
 }
@@ -187,13 +187,13 @@ func appendAppearanceProps(props []string, w rawWidget) []string {
 		props = append(props, formatDesignPropertiesMDL(w.DesignProperties))
 	}
 	if w.VisibleIf != "" {
-		props = append(props, fmt.Sprintf("Visible: [%s]", w.VisibleIf))
+		props = append(props, fmt.Sprintf("Visible: [%s]", describeExpr(w.VisibleIf)))
 	}
 	if prop := visibleWhenProp(w); prop != "" {
 		props = append(props, prop)
 	}
 	if w.EditableIf != "" {
-		props = append(props, fmt.Sprintf("Editable: [%s]", w.EditableIf))
+		props = append(props, fmt.Sprintf("Editable: [%s]", describeExpr(w.EditableIf)))
 	}
 	return props
 }
@@ -1632,7 +1632,7 @@ func extractPageParameters(ctx *ExecContext, settings map[string]any) string {
 		// Check for Argument (variable reference or expression stored as string)
 		if value == "" {
 			if arg := extractString(mappingMap["Argument"]); arg != "" {
-				value = arg // e.g., "$Product" or an expression
+				value = describeExpr(arg) // e.g., "$Product" or an expression
 			}
 		}
 
@@ -1689,7 +1689,7 @@ func extractMicroflowParameters(ctx *ExecContext, settings map[string]any) strin
 		// Check for Expression (used in Pages$MicroflowParameterMapping)
 		if value == "" {
 			if expr := extractString(mappingMap["Expression"]); expr != "" {
-				value = expr // e.g., "$Product" or an expression
+				value = describeExpr(expr) // e.g., "$Product" or an expression
 			}
 		}
 
@@ -1748,7 +1748,7 @@ func extractNanoflowParameters(ctx *ExecContext, action map[string]any) string {
 		// Check for Expression (used in Pages$NanoflowParameterMapping)
 		if value == "" {
 			if expr := extractString(mappingMap["Expression"]); expr != "" {
-				value = expr // e.g., "$Product" or an expression
+				value = describeExpr(expr) // e.g., "$Product" or an expression
 			}
 		}
 
@@ -1823,6 +1823,7 @@ func extractClientTemplateParameters(ctx *ExecContext, w map[string]any, fieldNa
 		suffixes = append(suffixes, formatParamFormatSuffix(pMap))
 		// Check for Expression first (literal value)
 		if expr, ok := pMap["Expression"].(string); ok && expr != "" {
+			expr = describeExpr(expr)
 			// A non-String attribute binding (Integer/DateTime/…) is written as
 			// `toString($currentObject/Attr)` / `toString($param/Attr)` — see
 			// resolveTemplateAttributePathFull. Emit it back as the bare attribute

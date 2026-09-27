@@ -75,11 +75,14 @@ Examples:
 var refsCmd = &cobra.Command{
 	Use:   "refs <qualified-name>",
 	Short: "Find references to an element",
-	Long: `Find all references to the specified element (entity, microflow, page, etc.).
+	Long: `Find all references to the specified element (entity, microflow, page, etc.,
+or an attribute Module.Entity.Attribute, an enumeration, or an enumeration
+value Module.Enum.Value). Each (source, kind) is listed once.
 
 Examples:
   mxcli refs -p app.mpr Module.Customer
   mxcli refs -p app.mpr Module.OrderPage
+  mxcli refs -p app.mpr Module.Customer.Email
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -99,10 +102,15 @@ var impactCmd = &cobra.Command{
 	Use:   "impact <qualified-name>",
 	Short: "Show impact of changing an element",
 	Long: `Analyze the impact of changing an element by showing all elements that reference it.
+The summary counts distinct elements. For an enumeration, the uses of its values are
+included. When nothing is found for an attribute or an enumeration value, the message
+says which usage sites were checked: one named only through a variable in a free-text
+expression ($Order/Total) is not resolved, so run 'mxcli search' before deleting.
 
 Examples:
   mxcli impact -p app.mpr Module.Customer
   mxcli impact -p app.mpr Module.OrderStatus
+  mxcli impact -p app.mpr Module.Customer.Email
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -218,6 +226,9 @@ var searchCmd = &cobra.Command{
 
 Searches across string literals (captions, labels, messages) and MDL source
 definitions. Requires at least a FULL catalog build (done automatically).
+MDL source is searched only once the source index exists — build it with
+  mxcli -p app.mpr -c "refresh catalog full source"
+Until then a warning on stderr says only string literals were searched.
 
 Output Formats:
   table   - Human-readable table (default)

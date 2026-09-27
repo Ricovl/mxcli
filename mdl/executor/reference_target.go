@@ -66,3 +66,65 @@ func reportResolvedTarget(ctx *ExecContext, typed, resolved string, matchedLoose
 	}
 	fmt.Fprintf(ctx.progress(), "(matched %s)\n", strings.TrimSpace(resolved))
 }
+
+// refTargetWhere returns the refs WHERE clause for a target. An enumeration is
+// used through its values as well as its type — a page comparing against
+// Mod.Enum.Value breaks when the value is removed — so for an enumeration the
+// clause also takes the edges to each of its values, and viaValues reports that
+// the caller should show which target each row reached.
+func refTargetWhere(ctx *ExecContext, target string) (where string, viaValues bool) {
+	esc := escapeSQLString(target)
+	where = fmt.Sprintf("TargetName = '%s'", esc)
+	if catalogHas(ctx, fmt.Sprintf(`select 1 from enumerations where QualifiedName = '%s' limit 1`, esc)) {
+		// The name is a LIKE prefix, so its underscores (ENUM_Status) must not
+		// act as wildcards.
+		where = fmt.Sprintf(`(TargetName = '%s' or (TargetType = 'ENUMERATION_VALUE' and TargetName like '%s.%%' escape '\'))`,
+			esc, escapeSQLString(escapeSQLLike(target)))
+		return where, true
+	}
+	return where, false
+}
+
+// escapeSQLLike escapes LIKE wildcards; paired with `escape '\'`.
+func escapeSQLLike(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
+}
+
+func catalogHas(ctx *ExecContext, query string) bool {
+	if ctx == nil || ctx.Catalog == nil {
+		return false
+	}
+	res, err := ctx.Catalog.Query(query)
+	return err == nil && res.Count > 0
+}
+
+// noReferencesMessage is what refs/impact print when no edge reaches target.
+//
+// It says what was searched rather than "element is not referenced": the
+// reference graph is built from the sites the catalog resolves, and for an
+// attribute or an enumeration value some sites are free text it does not
+// resolve. "Not referenced" was read — by an agent, reasonably — as "safe to
+// delete", on attributes that were in use.
+func noReferencesMessage(ctx *ExecContext, target string) string {
+	esc := escapeSQLString(target)
+	member := target
+	if i := strings.LastIndex(target, "."); i >= 0 {
+		member = target[i+1:]
+	}
+	switch {
+	case catalogHas(ctx, fmt.Sprintf(`select 1 from attributes where EntityQualifiedName || '.' || Name = '%s' limit 1`, esc)):
+		return fmt.Sprintf("(no references found to attribute %s)\n"+
+			"Checked: attribute bindings and member changes in microflows, nanoflows, rules, pages,\n"+
+			"snippets, workflows and import/export mappings, and XPath constraints.\n"+
+			"Not checked: the attribute named through a variable in an expression ($Object/%s).\n"+
+			"Run `search '%s'` before treating it as unused.", target, member, member)
+	case catalogHas(ctx, fmt.Sprintf(`select 1 from enumeration_values where EnumerationQualifiedName || '.' || Name = '%s' limit 1`, esc)):
+		return fmt.Sprintf("(no references found to enumeration value %s)\n"+
+			"Checked: qualified uses in expressions (%s) and XPath comparisons of an enumeration\n"+
+			"attribute with '%s'.\n"+
+			"Not checked: decision branches on an enumeration, which store the bare value name.\n"+
+			"Run `search '%s'` before treating it as unused.", target, target, member, member)
+	}
+	return fmt.Sprintf("(no references found: nothing in the catalog's reference graph points at %s)", target)
+}
