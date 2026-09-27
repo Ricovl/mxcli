@@ -821,6 +821,8 @@ func emitActivityStatement(
 	indentStr string,
 	annotationsByTarget *annotationEmitter,
 	labels mergeLabels,
+	sourceMap map[string]elkSourceRange,
+	headerLineCount int,
 ) {
 	if stmt == "" {
 		return
@@ -843,7 +845,7 @@ func emitActivityStatement(
 		// render it commented-out, so the artifact still shows what the model
 		// holds. Guard-don't-drop, in a path that cannot round-trip.
 		emitCommentedErrorHandler(
-			ctx, obj, flowsByOrigin, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels)
+			ctx, obj, flowsByOrigin, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels, sourceMap, headerLineCount)
 		return
 	}
 
@@ -864,7 +866,7 @@ func emitActivityStatement(
 	suffix := formatErrorHandlingSuffix(errType)
 
 	if errorHandlerFlow != nil && hasCustomErrorHandler(errType) {
-		errStmts := collectErrorHandlerStatements(
+		errStmts, errSpans := collectErrorHandlerStatementSpans(
 			ctx,
 			errorHandlerFlow.DestinationID,
 			activityMap, flowsByOrigin, entityNames, microflowNames, annotationsByTarget, labels,
@@ -881,6 +883,7 @@ func emitActivityStatement(
 			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" { };")
 		} else {
 			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" {")
+			recordErrorHandlerSpans(sourceMap, errSpans, len(*lines)+headerLineCount)
 			for _, errStmt := range errStmts {
 				*lines = append(*lines, indentStr+"  "+errStmt)
 			}
@@ -914,6 +917,8 @@ func emitCommentedErrorHandler(
 	indentStr string,
 	annotationsByTarget *annotationEmitter,
 	labels mergeLabels,
+	sourceMap map[string]elkSourceRange,
+	headerLineCount int,
 ) {
 	errorHandlerFlow := findErrorHandlerFlow(flowsByOrigin[obj.GetID()])
 	if errorHandlerFlow == nil {
@@ -929,13 +934,14 @@ func emitCommentedErrorHandler(
 		suffix = "on error without rollback"
 	}
 
-	errStmts := collectErrorHandlerStatements(
+	errStmts, errSpans := collectErrorHandlerStatementSpans(
 		ctx, errorHandlerFlow.DestinationID, activityMap, flowsByOrigin, entityNames, microflowNames, annotationsByTarget, labels)
 	if len(errStmts) == 0 {
 		*lines = append(*lines, indentStr+"-- "+suffix+" { };")
 		return
 	}
 	*lines = append(*lines, indentStr+"-- "+suffix+" {")
+	recordErrorHandlerSpans(sourceMap, errSpans, len(*lines)+headerLineCount)
 	for _, errStmt := range errStmts {
 		*lines = append(*lines, indentStr+"--   "+strings.TrimSpace(errStmt))
 	}
@@ -1175,7 +1181,7 @@ func traverseFlow(
 	// Regular activity
 	startLine := len(*lines) + headerLineCount
 	normalFlows := findNormalFlows(flowsByOrigin[currentID])
-	emitActivityStatement(ctx, obj, stmt, flowsByOrigin, flowsByDest, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels)
+	emitActivityStatement(ctx, obj, stmt, flowsByOrigin, flowsByDest, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels, sourceMap, headerLineCount)
 	recordSourceMap(sourceMap, currentID, startLine, len(*lines)+headerLineCount-1)
 
 	// Follow normal (non-error-handler) outgoing flows
@@ -1363,7 +1369,7 @@ func traverseFlowUntilMerge(
 	// Regular activity
 	startLine := len(*lines) + headerLineCount
 	normalFlows := findNormalFlows(flowsByOrigin[currentID])
-	emitActivityStatement(ctx, obj, stmt, flowsByOrigin, flowsByDest, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels)
+	emitActivityStatement(ctx, obj, stmt, flowsByOrigin, flowsByDest, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels, sourceMap, headerLineCount)
 	recordSourceMap(sourceMap, currentID, startLine, len(*lines)+headerLineCount-1)
 
 	// Follow normal (non-error-handler) outgoing flows until merge
@@ -2333,7 +2339,42 @@ func collectErrorHandlerStatements(
 	annotationsByTarget *annotationEmitter,
 	labels mergeLabels,
 ) []string {
+	statements, _ := collectErrorHandlerStatementSpans(ctx, startID, activityMap, flowsByOrigin, entityNames, microflowNames, annotationsByTarget, labels)
+	return statements
+}
+
+// errorHandlerSpan is where, among the statements of an error handler block,
+// one handler-body object is printed: its notes and its statement.
+type errorHandlerSpan struct {
+	id         model.ID
+	start, end int
+}
+
+// recordErrorHandlerSpans enters the handler-body objects into the source map,
+// base being the absolute line of the block's first statement. Without them a
+// handler-body activity has no line at all, so `describe … with handles`
+// printed no handle for it and ranked it after every other activity — making
+// an `@n` ordinal count differently from the order describe prints in.
+func recordErrorHandlerSpans(sourceMap map[string]elkSourceRange, spans []errorHandlerSpan, base int) {
+	for _, sp := range spans {
+		recordSourceMap(sourceMap, sp.id, base+sp.start, base+sp.end)
+	}
+}
+
+// collectErrorHandlerStatementSpans is collectErrorHandlerStatements that also
+// reports, per object printed, which statements it occupies.
+func collectErrorHandlerStatementSpans(
+	ctx *ExecContext,
+	startID model.ID,
+	activityMap map[model.ID]microflows.MicroflowObject,
+	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
+	entityNames map[model.ID]string,
+	microflowNames map[model.ID]string,
+	annotationsByTarget *annotationEmitter,
+	labels mergeLabels,
+) ([]string, []errorHandlerSpan) {
 	var statements []string
+	var spans []errorHandlerSpan
 	visited := make(map[model.ID]bool)
 	stopID := firstReachableErrorHandlerMerge(startID, activityMap, flowsByOrigin)
 
@@ -2382,8 +2423,10 @@ func collectErrorHandlerStatements(
 		if _, isSplit := obj.(*microflows.ExclusiveSplit); isSplit {
 			stmt := formatActivity(ctx, obj, entityNames, microflowNames)
 			if stmt != "" {
+				start := len(statements)
 				notes(obj, indentStr)
 				statements = append(statements, indentStr+stmt)
+				spans = append(spans, errorHandlerSpan{id: id, start: start, end: len(statements) - 1})
 			}
 			nestedMergeID := splitMergeMap[id]
 			trueFlow, falseFlow := findBranchFlows(flowsByOrigin[id])
@@ -2409,8 +2452,10 @@ func collectErrorHandlerStatements(
 		}
 
 		if stmt := formatActivity(ctx, obj, entityNames, microflowNames); stmt != "" {
+			start := len(statements)
 			notes(obj, indentStr)
 			statements = append(statements, indentStr+stmt)
+			spans = append(spans, errorHandlerSpan{id: id, start: start, end: len(statements) - 1})
 		}
 		for _, flow := range findNormalFlows(flowsByOrigin[id]) {
 			traverse(flow.DestinationID, boundary, indent)
@@ -2418,7 +2463,7 @@ func collectErrorHandlerStatements(
 	}
 
 	traverse(startID, stopID, 0)
-	return statements
+	return statements, spans
 }
 
 func findErrorHandlerSplitMergePoints(

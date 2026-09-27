@@ -30,6 +30,7 @@ var mdlGeneratedKeywords = []protocol.CompletionItem{
 	{Label: "MODIFY", Kind: protocol.CompletionItemKindKeyword, Detail: "DDL keyword"},
 	{Label: "MERGE", Kind: protocol.CompletionItemKindKeyword, Detail: "DDL keyword"},
 	{Label: "NORMALIZED", Kind: protocol.CompletionItemKindKeyword, Detail: "DDL keyword"},
+	{Label: "HANDLES", Kind: protocol.CompletionItemKindKeyword, Detail: "DDL keyword"},
 	{Label: "ENTITY", Kind: protocol.CompletionItemKindKeyword, Detail: "DDL keyword"},
 	{Label: "PERSISTENT", Kind: protocol.CompletionItemKindKeyword, Detail: "DDL keyword"},
 	{Label: "VIEW", Kind: protocol.CompletionItemKindKeyword, Detail: "DDL keyword"},

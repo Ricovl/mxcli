@@ -426,6 +426,35 @@ alter snippet AlterPg.Product_Card_Snippet {
   drop widget btnViewDetails
 };
 
+-- MARK: AP14 — The canonical generic ALTER form
+
+-- ============================================================================
+-- AP14: `alter page|snippet|layout` share one patch grammar (ADR-0012):
+-- properties are a parenthesised `(Key: value, ...)` list, and `drop` names its
+-- targets without a `widget` keyword. The older spellings used above
+-- (`set Key = value`, `drop widget a`) still run, and warn MDL-DEPR101/103.
+-- ============================================================================
+
+alter page AlterPg.Product_Overview {
+  set (Title: 'Product catalog');
+  set (Class: 'product-overview-heading') on heading;
+  insert after heading {
+    dynamictext canonicalNote (Content: 'Edited with the generic alter form', RenderMode: paragraph)
+  }
+  drop canonicalNote;
+};
+
+alter snippet AlterPg.Product_Card_Snippet {
+  set (Class: 'mx-card-body', Style: 'padding: 4px') on cardBody;
+  insert after cardBody {
+    dynamictext cardFooter (Content: 'More details inside')
+  }
+  replace cardFooter with {
+    dynamictext cardFooter2 (Content: 'See details')
+  }
+  drop cardFooter2;
+};
+
 -- ============================================================================
 -- End of file. The Product_Overview page is now a fully functional CRUD
 -- overview with a heading, a DataGrid2 showing Name, Lifecycle, Price (renamed

@@ -292,6 +292,11 @@ describing a Studio-Pro-authored workflow, and `describe → drop → exec`
 reproduces a workflow that builds. (The implicit start/end activities are
 omitted, as they are re-synthesised on create.)
 
+That is for learning the syntax and for workflows your scripts own. **To change an
+existing Studio Pro workflow, use `alter workflow`**, never drop → exec: that
+re-creates the document with new identities and loses anything MDL cannot express
+(see [choose-edit-mode](../choose-edit-mode/SKILL.md)).
+
 Event sub-processes come back as `event subprocess … on …` blocks after the main
 body, and notification activities and notification boundary events as statements.
 

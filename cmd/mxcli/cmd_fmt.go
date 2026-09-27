@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/formatter"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/spf13/cobra"
 )
@@ -108,7 +109,7 @@ func init() {
 func hasSubstantiveContent(s string) bool {
 	for _, line := range strings.Split(s, "\n") {
 		t := strings.TrimSpace(line)
-		if t != "" && !strings.HasPrefix(t, "--") {
+		if t != "" && !strings.HasPrefix(t, "--") && !langver.IsHeaderLine(t) {
 			return true
 		}
 	}

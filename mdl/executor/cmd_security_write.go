@@ -1239,6 +1239,13 @@ func applyGuestAccess(ctx *ExecContext, ps *security.ProjectSecurity, s *ast.Alt
 	return nil
 }
 
+// demoUserPasswordPlaceholder is what DESCRIBE DEMO USER prints in place of the
+// password. Executing it keeps the stored password of an existing user and is
+// refused for a new one, so a described script can neither leak a password nor
+// silently set one (ako/mxcli#707). It is the string describe always printed,
+// so scripts described before the fix get the safe meaning too.
+const demoUserPasswordPlaceholder = "***"
+
 // execCreateDemoUser handles CREATE [OR MODIFY] DEMO USER 'name' PASSWORD 'pw' [ENTITY Module.Entity] (Roles).
 func execCreateDemoUser(ctx *ExecContext, s *ast.CreateDemoUserStmt) error {
 	if !ctx.ConnectedForWrite() {
@@ -1250,8 +1257,29 @@ func execCreateDemoUser(ctx *ExecContext, s *ast.CreateDemoUserStmt) error {
 		return mdlerrors.NewBackend("read project security", err)
 	}
 
-	// Validate password against project password policy
-	if err := ps.PasswordPolicy.ValidatePassword(s.Password); err != nil {
+	// The placeholder DESCRIBE prints instead of the password. It means "keep
+	// the stored password", which exists only for a user that already exists.
+	password := s.Password
+	keepPassword := password == demoUserPasswordPlaceholder
+	if keepPassword {
+		var existing *security.DemoUser
+		for _, du := range ps.DemoUsers {
+			if du.UserName == s.UserName {
+				existing = du
+			}
+		}
+		if existing == nil {
+			return mdlerrors.NewValidationf("demo user '%s': password %s is the placeholder describe prints "+
+				"in place of the stored password, and there is no stored password to keep here\n"+
+				"hint: replace it with the real password", s.UserName, mdlQuoted(demoUserPasswordPlaceholder))
+		}
+		password = existing.Password
+	}
+
+	// Validate password against project password policy. A kept password was
+	// accepted when it was set; re-checking it against today's policy would make
+	// replaying a describe fail for a reason the script does not mention.
+	if err := ps.PasswordPolicy.ValidatePassword(password); err != nil && !keepPassword {
 		return mdlerrors.NewValidationf("password policy violation for demo user '%s': %v\nhint: check your project's password policy with show project security", s.UserName, err)
 	}
 
@@ -1279,7 +1307,7 @@ func execCreateDemoUser(ctx *ExecContext, s *ast.CreateDemoUserStmt) error {
 			if err := ctx.Backend.RemoveDemoUser(ps.ID, s.UserName); err != nil {
 				return mdlerrors.NewBackend("update demo user", err)
 			}
-			if err := ctx.Backend.AddDemoUser(ps.ID, s.UserName, s.Password, entity, mergedRoles); err != nil {
+			if err := ctx.Backend.AddDemoUser(ps.ID, s.UserName, password, entity, mergedRoles); err != nil {
 				return mdlerrors.NewBackend("update demo user", err)
 			}
 			ctx.ReportMutation("Modified", "demo user: %s", s.UserName)
@@ -1297,7 +1325,7 @@ func execCreateDemoUser(ctx *ExecContext, s *ast.CreateDemoUserStmt) error {
 		entity = detected
 	}
 
-	if err := ctx.Backend.AddDemoUser(ps.ID, s.UserName, s.Password, entity, s.UserRoles); err != nil {
+	if err := ctx.Backend.AddDemoUser(ps.ID, s.UserName, password, entity, s.UserRoles); err != nil {
 		return mdlerrors.NewBackend("create demo user", err)
 	}
 

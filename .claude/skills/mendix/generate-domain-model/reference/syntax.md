@@ -185,8 +185,8 @@ create persistent entity Module.EntityName (
   attributename: string(200) not null error 'Attribute name is required',
   /** Numeric value */
   Amount: decimal,
-  /** Date field */
-  CreationDate: date,
+  /** Date field (there is no date-only type) */
+  CreationDate: datetime,
   /** Boolean flag */
   IsActive: boolean not null error 'IsActive flag is required' default true,
   /** Enumeration field */

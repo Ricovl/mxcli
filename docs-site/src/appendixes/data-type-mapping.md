@@ -122,8 +122,8 @@ CREATE PERSISTENT ENTITY Demo.AllTypes (
   /** Timestamp */
   CreatedAt: DateTime,
 
-  /** Date only */
-  BirthDate: Date,
+  /** Date of birth (Mendix has no date-only type) */
+  BirthDate: DateTime,
 
   /** File attachment */
   Attachment: Binary,
