@@ -791,7 +791,7 @@ func TestFormatAction_Retrieve_WithLimit(t *testing.T) {
 		},
 	}
 	got := e.formatAction(action, nil, nil)
-	want := "retrieve $First from MyModule.Customer\n    limit 1;"
+	want := "retrieve $First from MyModule.Customer\n    first;" // the object range (#734)
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -868,7 +868,7 @@ func TestFormatAction_Retrieve_ReverseAssociationRequiresSimpleAllRange(t *testi
 	}
 
 	got := e.formatAction(action, nil, nil)
-	want := "retrieve $Domains from SampleRuntime.Domain\n    where SampleRuntime.Domain_Runtime = $Runtime\n    limit 1;"
+	want := "retrieve $Domains from SampleRuntime.Domain\n    where SampleRuntime.Domain_Runtime = $Runtime\n    first;"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}

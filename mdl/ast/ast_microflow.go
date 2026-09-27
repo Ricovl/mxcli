@@ -551,16 +551,21 @@ type RollbackStmt struct {
 
 func (s *RollbackStmt) isMicroflowStatement() {}
 
-// RetrieveStmt represents: RETRIEVE $Var FROM Entity [WHERE condition] [SORT BY ...] [LIMIT n] [OFFSET n] [ON ERROR ...]
+// RetrieveStmt represents: RETRIEVE $Var FROM Entity [WHERE condition] [SORT BY ...] [FIRST | [LIMIT n] [OFFSET n]] [ON ERROR ...]
 // or: RETRIEVE $Var FROM $Parent/Module.Association (association retrieve)
 type RetrieveStmt struct {
-	Variable      string               // Output variable
-	Source        QualifiedName        // Entity (database) or Association (association retrieve)
-	StartVariable string               // Non-empty for association retrieve: the starting variable name
-	Where         Expression           // Optional WHERE condition
-	SortColumns   []SortColumnDef      // Optional SORT BY columns
-	Limit         string               // Optional LIMIT expression (empty = no limit)
-	Offset        string               // Optional OFFSET expression (empty = no offset)
+	Variable      string          // Output variable
+	Source        QualifiedName   // Entity (database) or Association (association retrieve)
+	StartVariable string          // Non-empty for association retrieve: the starting variable name
+	Where         Expression      // Optional WHERE condition
+	SortColumns   []SortColumnDef // Optional SORT BY columns
+	// First is Mendix's "First object" range: the output is ONE object, not a
+	// list. It is set by `first`, and by `limit 1` without offset in an mdl 0
+	// script (the alpha meaning, ako/mxcli#734); Limit and Offset are then empty.
+	// Everything downstream reads this, never the limit text.
+	First         bool
+	Limit         string               // Optional LIMIT expression of the Custom range (empty = no limit)
+	Offset        string               // Optional OFFSET expression of the Custom range (empty = no offset)
 	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause
 	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
 }

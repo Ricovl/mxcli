@@ -526,7 +526,7 @@ it is for pages.
 | Commit | `commit $entity [without events] [refresh];` | **Omitted = with events**, matching Studio Pro's default. `without events` is the deviation and the only form that changes the stored value; `with events` still parses and means the default |
 | Delete | `delete $entity [refresh];` | |
 | Rollback | `rollback $entity [refresh];` | Reverts uncommitted changes |
-| Retrieve (DB) | `retrieve $Var from Module.Entity [where condition] [sort by Attr asc\|desc, ...] [limit n [offset n]];` | Database XPath retrieve. `limit 1` with no `offset` binds a single **object**, not a one-element list (MDL-RETRIEVE01) |
+| Retrieve (DB) | `retrieve $Var from Module.Entity [where condition] [sort by Attr asc\|desc, ...] [first \| [limit n] [offset n]];` | Database XPath retrieve. `first` binds a single **object** (Mendix's "First object" range); `limit`/`offset` bind a list. `limit 1` without `offset` is a list of one under `mdl 1;`, and without the header keeps its old meaning, the object, with warning MDL-V1-LIMIT1 |
 | Retrieve (DB), sorted | `sort by Attr asc` / `sort by Module.Other.Attr asc` / `sort by Module.Assoc/Module.Other.Attr asc` | A bare name is qualified with the entity **declaring** it, which may be an ancestor. A sort may also navigate associations — one `/` per hop, the last segment is the attribute — and mxcli stores the hops as the `EntityRef` Mendix needs; without them the build is **CE7247**. **Name the hop when more than one association reaches the same entity**: a bare `Module.Other.Attr` is resolved by inference, which walks the generalization chain across modules (`Administration.Account` reaches `System.Language.Code` through `System.User_Language`) but cannot tell `Order_ShipTo` from `Order_BillTo` — measured, a sort on the billing address round-tripped into one on the shipping address at 0 errors both sides (mendixlabs/mxcli#1152). The same spelling works in a page datasource's `sort by` |
 | Retrieve (Assoc) | `retrieve $list from $Parent/Module.AssocName;` | Retrieve by association |
 | Add to list | `add expression to $list;` | Also accepts existing `add $item to $list;` form |
@@ -619,12 +619,13 @@ and `mxbuild` were all clean. Only the running app showed it.
 | `TRY ... CATCH ... end TRY` | `on error { ... }` blocks | Use error handlers on specific activities |
 
 **Notes:**
-- `retrieve ... limit n` IS supported. **`limit 1` with no `offset` binds a single OBJECT**, not a
-  one-element list: it is Mendix's "First object" range. Every other `limit` (including
-  `limit 1 offset n`) is a bounded range, which is a list. Using a `limit 1` variable as a list —
-  `head()`, `count()`, a `loop` — is **CE0097** at build time and **MDL-RETRIEVE01** at check time.
-  Note this is the opposite of the import-mapping clause above, where `first` binds an object and
-  `limit 1` a one-element list.
+- `retrieve ... first` binds a single OBJECT: Mendix's "First object" range. `retrieve ... limit n
+  [offset n]` is a bounded range, which is a list — the same split as the import-mapping clause above.
+  **`limit 1` without `offset` depends on the language version** (ako/mxcli#734): under `mdl 1;`
+  it is a list of one; without the header it keeps its old meaning, the object, and warns
+  `MDL-V1-LIMIT1`. Write `first` for an object. Using an object as a list — `head()`, `count()`
+  (**CE0097**) or a `loop` (**CE0100**) — is **MDL-RETRIEVE01** at check time. `describe` prints
+  the object range as `first`.
 - `rollback $entity [refresh];` IS supported. Rolls back uncommitted changes to an object.
 
 ## Project Organization
