@@ -42,7 +42,7 @@ CREATE ASSOCIATION MyFirstModule.Order_Customer
   FROM MyFirstModule.Order TO MyFirstModule.Customer
   TYPE Reference
   OWNER Default
-  DELETE_BEHAVIOR DELETE_BUT_KEEP_REFERENCES;
+  ON DELETE SET NULL;
 ```
 
 ## DESCRIBE MICROFLOW
@@ -96,8 +96,8 @@ CREATE PAGE MyFirstModule.Customer_Edit
     TEXTBOX txtPhone (Label: 'Phone', Attribute: Phone)
 
     FOOTER footer1 {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 };
@@ -132,7 +132,7 @@ CREATE ASSOCIATION MyFirstModule.Order_Customer
   FROM MyFirstModule.Order TO MyFirstModule.Customer
   TYPE Reference
   OWNER Default
-  DELETE_BEHAVIOR DELETE_BUT_KEEP_REFERENCES;
+  ON DELETE SET NULL;
 ```
 
 ## DESCRIBE MODULE

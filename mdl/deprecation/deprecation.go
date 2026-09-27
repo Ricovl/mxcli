@@ -106,6 +106,48 @@ const (
 	// QuotedTargetingXPath is a workflow user task's `targeting xpath '…'`,
 	// the XPath in a string instead of in [ ] (R5, ako/mxcli#753).
 	QuotedTargetingXPath = "MDL-DEPR031"
+
+	// Codes 020–029 are R8's (ako/mxcli#752, PROPOSAL_mdl_beta_syntax_freeze.md
+	// §3 R8): words, not SCREAMING_SNAKE, and one spelling per keyword. They
+	// start at 020 rather than 006 because the other phase-3 issues add entries
+	// in parallel; a gap in the numbering means nothing.
+
+	// PageActionWord is a page action written as one snake-case token —
+	// `show_page`, `save_changes`, `close_page`, `create_object`,
+	// `delete_object`, `open_link`, `sign_out`, `complete_task`,
+	// `cancel_changes` — or a flow call without `call` (`microflow M.F`).
+	PageActionWord = "MDL-DEPR020"
+	// ErrorMessageKeyword is the user-facing message of a validation, spelled
+	// anything but `error message`: `not null error '…'` (also after unique
+	// and required), a validation rule's `feedback '…'`, and `error_message` /
+	// `errormessage`.
+	ErrorMessageKeyword = "MDL-DEPR021"
+	// DeleteBehaviorClause is an association's `delete_behavior <behaviour>`
+	// clause, in any of its spellings; `on delete …` says the same thing.
+	DeleteBehaviorClause = "MDL-DEPR022"
+	// ReferenceSetUnderscore is `reference_set` for the `ReferenceSet` type.
+	ReferenceSetUnderscore = "MDL-DEPR023"
+	// ReturnsNone is a REST call's `returns none`, the second spelling of
+	// `returns nothing`.
+	ReturnsNone = "MDL-DEPR024"
+	// OnErrorBraces is a custom error handler written `on error { … }`: the
+	// only brace block inside a microflow, where flow is `begin … end <keyword>`
+	// (R2, ako/mxcli#754).
+	OnErrorBraces = "MDL-DEPR540"
+	// DollarArgumentName is `$Param = expr` at a call site: the parameter
+	// named with the `$` of a variable (R4, ako/mxcli#751).
+	DollarArgumentName = "MDL-DEPR006"
+	// ColonArgument is `Param: expr` at a call site (`show page`, a page
+	// action or data source): `:` sets a model property, `=` binds a value
+	// (R3/R4, ako/mxcli#751).
+	ColonArgument = "MDL-DEPR007"
+	// WorkflowStringArgument is a workflow call's `with (Param = '<expr>')`:
+	// the argument expression written inside a string (R4, ako/mxcli#751).
+	WorkflowStringArgument = "MDL-DEPR008"
+	// PositionalTemplateArguments is `objects [a, b]` / `parameters [a, b]`
+	// on a text template: the placeholders bound by position (R4,
+	// ako/mxcli#751).
+	PositionalTemplateArguments = "MDL-DEPR009"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -198,6 +240,132 @@ var entries = []Entry{
 			"A string whose value is not a bracketed XPath is left in place and reported by `fmt --upgrade`.",
 		Example:          "alter workflow M.WF set activity 'Review' targeting xpath '[Role = ''Manager'']';",
 		CanonicalExample: "alter workflow M.WF set activity 'Review' targeting xpath [Role = 'Manager'];",
+	},
+	{
+		Code:      OnErrorBraces,
+		Old:       "on error [without rollback] { … }",
+		Canonical: "on error [without rollback] begin … end error",
+		Rewrite:   Rewrite{Structural: "`{` becomes `begin` and the closing `}` becomes `end error`"},
+		RemovedIn: 2,
+		Note: "Braces hold declarative children (widgets, operations, menu items); imperative flow is " +
+			"`begin … end <keyword>`, as for `if`, `loop` and `while` (R2).",
+		Example:          "create microflow M.F ($O: M.E) begin commit $O on error without rollback { log warning 'x'; }; end;",
+		CanonicalExample: "create microflow M.F ($O: M.E) begin commit $O on error without rollback begin log warning 'x'; end error; end;",
+	},
+	{
+		Code:      DollarArgumentName,
+		Old:       "call microflow M.F($Param = expr)",
+		Canonical: "call microflow M.F(Param = expr)",
+		Rewrite:   Rewrite{Structural: "parameter name without its `$` (quoted when it is not an identifier or keyword)"},
+		RemovedIn: 2,
+		Note: "Every call site binds an argument as `Param = expression` (R4): call microflow, nanoflow, java " +
+			"action, javascript action, external action, web service operation, execute database query, " +
+			"send rest request, show page, and page/button actions and data sources.",
+		Example:          "create microflow M.F ($O: M.E) begin call microflow M.G($Order = $O); end;",
+		CanonicalExample: "create microflow M.F ($O: M.E) begin call microflow M.G(Order = $O); end;",
+	},
+	{
+		Code:      ColonArgument,
+		Old:       "show page M.P(Param: expr)",
+		Canonical: "show page M.P(Param = expr)",
+		Rewrite:   Rewrite{Structural: "colon as `=`: `Param: expr` -> `Param = expr`"},
+		RemovedIn: 2,
+		Note: "`:` sets a model property and `=` binds a runtime value (R3). An argument binds a value, so " +
+			"it takes `=` wherever the call appears: show page, and page/button actions and data sources " +
+			"(`Action: microflow M.F(Param = expr)`).",
+		Example:          "create microflow M.F ($O: M.E) begin show page M.P(Order: $O); end;",
+		CanonicalExample: "create microflow M.F ($O: M.E) begin show page M.P(Order = $O); end;",
+	},
+	{
+		Code:      WorkflowStringArgument,
+		Old:       "call microflow M.F with (Param = '<expression>')",
+		Canonical: "call microflow M.F(Param = <expression>)",
+		Rewrite:   Rewrite{Structural: "string list as a list after the callee, each string's content written as the bare expression"},
+		RemovedIn: 2,
+		Note: "In a workflow. The string form keeps its meaning — its content is the expression — so it is an alias, not a " +
+			"change of meaning. A string whose content does not parse as an MDL expression is left in place " +
+			"and reported by fmt --upgrade.",
+		Example: "create workflow M.W parameter $WorkflowContext: M.E begin " +
+			"call microflow M.F with (Order = '$WorkflowContext'); end workflow;",
+		CanonicalExample: "create workflow M.W parameter $WorkflowContext: M.E begin " +
+			"call microflow M.F(Order = $WorkflowContext); end workflow;",
+	},
+	{
+		Code:      PositionalTemplateArguments,
+		Old:       "objects [$a, $b] / parameters ['a', 'b']",
+		Canonical: "with ({1} = $a, {2} = $b)",
+		Rewrite:   Rewrite{Structural: "positional list as numbered placeholders: `objects [a, b]` -> `with ({1} = a, {2} = b)`"},
+		RemovedIn: 2,
+		Note: "One text-template form everywhere: show message, validation feedback, log, and REST " +
+			"url and body templates.",
+		Example:          "create microflow M.F ($N: String) begin show message 'Hi {1}' type Information objects [$N]; end;",
+		CanonicalExample: "create microflow M.F ($N: String) begin show message 'Hi {1}' type Information with ({1} = $N); end;",
+	},
+}
+
+func init() {
+	entries = append(entries, r8Entries...)
+}
+
+// r8Entries are R8's spellings (ako/mxcli#752). Kept apart from the list above
+// only so the parallel phase-3 changes do not all edit its last lines.
+var r8Entries = []Entry{
+	{
+		Code:      PageActionWord,
+		Old:       "show_page, save_changes, close_page, microflow M.F, …",
+		Canonical: "show page, save changes, close page, call microflow M.F, …",
+		Rewrite: Rewrite{Structural: "page action as words: the underscore becomes a space (`show_page` -> " +
+			"`show page`, also `save_changes`, `cancel_changes`, `close_page`, `create_object`, `open_link`, " +
+			"`sign_out`, `complete_task`); `delete_object` -> `delete`; `microflow M.F` / `nanoflow M.F` -> " +
+			"`call microflow M.F` / `call nanoflow M.F`"},
+		RemovedIn: 2,
+		Note: "The words are the ones a microflow uses for the same activity. A navigation menu's " +
+			"`sign_out` is the same keyword. Arguments are unchanged.",
+		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { actionbutton b (Caption: 'Save', Action: sign_out) };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { actionbutton b (Caption: 'Save', Action: sign out) };",
+	},
+	{
+		Code:      ErrorMessageKeyword,
+		Old:       "error '…' / feedback '…' / error_message '…'",
+		Canonical: "error message '…'",
+		Rewrite: Rewrite{Structural: "message keyword as `error message`: `not null error '…'` (and after " +
+			"`unique` or `required`), a validation rule's `feedback '…'`, and `error_message` / `errormessage`"},
+		RemovedIn:        2,
+		Note:             "One keyword for the text a user sees when a rule refuses a change.",
+		Example:          "create entity M.E (Name: String(100) not null error 'Name is required');",
+		CanonicalExample: "create entity M.E (Name: String(100) not null error message 'Name is required');",
+	},
+	{
+		Code:      DeleteBehaviorClause,
+		Old:       "delete_behavior …",
+		Canonical: "on delete cascade|restrict|set null",
+		Rewrite: Rewrite{Structural: "delete behaviour as the SQL referential action: " +
+			"`delete_behavior cascade` / `delete_and_references` -> `on delete cascade`; " +
+			"`prevent` / `delete_if_no_references` -> `on delete restrict`; " +
+			"`delete_but_keep_references` -> `on delete set null`"},
+		RemovedIn: 2,
+		Note: "Also in `alter association … set delete_behavior …`. The three compound behaviour keywords " +
+			"had three spellings each; the SQL referential actions have one.",
+		Example:          "create association M.Order_Customer from M.Order to M.Customer type Reference delete_behavior prevent;",
+		CanonicalExample: "create association M.Order_Customer from M.Order to M.Customer type Reference on delete restrict;",
+	},
+	{
+		Code:             ReferenceSetUnderscore,
+		Old:              "type reference_set",
+		Canonical:        "type ReferenceSet",
+		Rewrite:          Rewrite{Structural: "type name as Mendix writes it: `reference_set` -> `ReferenceSet`"},
+		RemovedIn:        2,
+		Example:          "create association M.Order_Tag from M.Order to M.Tag type reference_set;",
+		CanonicalExample: "create association M.Order_Tag from M.Order to M.Tag type ReferenceSet;",
+	},
+	{
+		Code:             ReturnsNone,
+		Old:              "rest call … returns none",
+		Canonical:        "rest call … returns nothing",
+		Rewrite:          Rewrite{Token: "none", Replacement: "nothing"},
+		RemovedIn:        2,
+		Example:          "create microflow M.F () begin rest call get 'https://example.com' returns none; end;",
+		CanonicalExample: "create microflow M.F () begin rest call get 'https://example.com' returns nothing; end;",
 	},
 }
 

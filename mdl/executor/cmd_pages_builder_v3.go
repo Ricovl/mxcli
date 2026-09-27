@@ -1665,17 +1665,17 @@ func (pb *pageBuilder) buildClientActionV3(action *ast.ActionV3) (pages.ClientAc
 			// the only variable Studio Pro's "Address: attribute" choice binds.
 			if !strings.EqualFold(action.LinkVariable, "$currentObject") {
 				return nil, mdlerrors.NewValidationf(
-					"open_link %s/%s: a dynamic link address is read from $currentObject — write `open_link $currentObject/%s` inside the data container that holds it",
+					"open link %s/%s: a dynamic link address is read from $currentObject — write `open link $currentObject/%s` inside the data container that holds it",
 					action.LinkVariable, action.LinkAttribute, action.LinkAttribute)
 			}
 			if strings.Contains(action.LinkAttribute, "/") {
 				return nil, mdlerrors.NewValidationf(
-					"open_link $currentObject/%s: an address over an association path is not supported yet — bind an attribute of the data container's own entity",
+					"open link $currentObject/%s: an address over an association path is not supported yet — bind an attribute of the data container's own entity",
 					action.LinkAttribute)
 			}
 			if pb.entityContext == "" {
 				return nil, mdlerrors.NewValidationf(
-					"open_link $currentObject/%s: a dynamic link address needs an object to read it from — place the button inside a data container",
+					"open link $currentObject/%s: a dynamic link address needs an object to read it from — place the button inside a data container",
 					action.LinkAttribute)
 			}
 			addressAttr = pb.resolveAttributePath(action.LinkAttribute)
@@ -2511,7 +2511,7 @@ func substituteFragmentParams(fragName string, params []ast.FragmentParam, rawAr
 			}
 			if act == nil {
 				return mdlerrors.NewValidation(fmt.Sprintf(
-					"fragment %q: parameter $%s expects an action (e.g. a microflow, show_page, save)", fragName, p.Name))
+					"fragment %q: parameter $%s expects an action (e.g. call microflow, show page, save changes)", fragName, p.Name))
 			}
 			actSubst[p.Name] = act
 		}

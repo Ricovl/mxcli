@@ -238,10 +238,22 @@ workflowUserTaskOutcome
  * invoked.
  */
 workflowCallMicroflowStmt
-    : CALL AGENT? MICROFLOW qualifiedName (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
-      (WITH LPAREN workflowParameterMapping (COMMA workflowParameterMapping)* RPAREN)?
+    : CALL AGENT? MICROFLOW qualifiedName workflowCallArguments? (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
+      (WITH /* @alias MDL-DEPR008 */ LPAREN workflowParameterMapping (COMMA workflowParameterMapping)* RPAREN)?
       (OUTCOMES workflowConditionOutcome+)?
       (BOUNDARY EVENT workflowBoundaryEventClause ((BOUNDARY EVENT)? workflowBoundaryEventClause)*)?
+    ;
+
+// R4: a workflow call binds its arguments like every other call site,
+// `(Param = expression)` right after the callee, the expression bare.
+// `with (Param = '<expression>')`, the expression in a string, is the
+// deprecated spelling of the same mapping.
+workflowCallArguments
+    : LPAREN (workflowCallArgument (COMMA workflowCallArgument)*)? RPAREN
+    ;
+
+workflowCallArgument
+    : parameterName EQUALS expression
     ;
 
 workflowParameterMapping
@@ -249,8 +261,8 @@ workflowParameterMapping
     ;
 
 workflowCallWorkflowStmt
-    : CALL WORKFLOW qualifiedName (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
-      (WITH LPAREN workflowParameterMapping (COMMA workflowParameterMapping)* RPAREN)?
+    : CALL WORKFLOW qualifiedName workflowCallArguments? (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
+      (WITH /* @alias MDL-DEPR008 */ LPAREN workflowParameterMapping (COMMA workflowParameterMapping)* RPAREN)?
     ;
 
 workflowDecisionStmt

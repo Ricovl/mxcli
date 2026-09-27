@@ -1,4 +1,4 @@
--- An empty `on error … { }` gave an end event two incoming flows (CE0709).
+-- An empty `on error … begin end error` gave an end event two incoming flows (CE0709).
 --
 -- In Mendix an end event accepts exactly ONE incoming sequence flow — joining
 -- two paths is what a merge is for. The shape below produced two: the THEN
@@ -37,7 +37,7 @@ end;
 create or replace microflow EhProbe.EmptyHandler () returns String
 begin
   if 1 = 1 then
-    $r = call microflow EhProbe.Helper() on error without rollback { };
+    $r = call microflow EhProbe.Helper() on error without rollback begin end error;
     return $r;
   else
     return 'no';
@@ -52,7 +52,7 @@ end;
 create or replace microflow EhProbe.FilledHandler () returns String
 begin
   if 1 = 1 then
-    $r = call microflow EhProbe.Helper() on error without rollback { return 'err'; };
+    $r = call microflow EhProbe.Helper() on error without rollback begin return 'err'; end error;
     return $r;
   else
     return 'no';

@@ -675,12 +675,12 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 						stmt.ModifyNotNull = &false_
 					case c.NOT_NULL() != nil || (c.NOT() != nil && c.NULL() != nil) || c.REQUIRED() != nil:
 						stmt.ModifyNotNull = &true_
-						if c.ERROR() != nil && c.STRING_LITERAL() != nil {
+						if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
 							stmt.ModifyNotNullError = unquoteStringLit(c.STRING_LITERAL())
 						}
 					case c.UNIQUE() != nil:
 						stmt.ModifyUnique = &true_
-						if c.ERROR() != nil && c.STRING_LITERAL() != nil {
+						if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
 							stmt.ModifyUniqueError = unquoteStringLit(c.STRING_LITERAL())
 						}
 					case c.DEFAULT() != nil:

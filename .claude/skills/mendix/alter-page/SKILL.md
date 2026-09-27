@@ -146,14 +146,14 @@ set (Documentation: 'What this page is for.')
 
 -- Retarget a button's on-click action. Any form `create page` accepts works
 -- here, including the combined ones.
-set (Action: microflow Module.ACT_Other) on btnSave
-set (Action: SAVE_CHANGES CLOSE_PAGE) on btnSave
-set (Action: SHOW_PAGE Module.DetailPage) on btnEdit
+set (Action: call microflow Module.ACT_Other) on btnSave
+set (Action: SAVE CHANGES CLOSE PAGE) on btnSave
+set (Action: SHOW PAGE Module.DetailPage) on btnEdit
 
 -- Retarget ONE named action slot of a pluggable widget, by the widget's own
 -- property key (the same key `create page` takes: `createFileAction: …`).
-set ('createFileAction': microflow Module.ACT_CreateFile) on fileUploader1
-set ('onSelectionChange': show_page Module.Detail) on dgOrders
+set ('createFileAction': call microflow Module.ACT_CreateFile) on fileUploader1
+set ('onSelectionChange': show page Module.Detail) on dgOrders
 
 -- Rebind a data-bound widget
 set (DataSource: $OrderParam) on dvOrder
@@ -174,8 +174,8 @@ so a silent write would build cleanly and then fail to open.
 
 | Property | Widget Types | Value Type | Example |
 |----------|-------------|------------|---------|
-| `Action` | Widgets with an on-click action (ACTIONBUTTON, LINKBUTTON, clickable containers) | Any `create page` action expression | `set (Action: microflow M.ACT_Go) on btnSave` |
-| `'<slotKey>'` | Pluggable widgets — any **action-typed** property (File Uploader `createFileAction`, DataGrid 2 `onSelectionChange`, …) | Any `create page` action expression | `set ('createFileAction': microflow M.ACT_Create) on fileUploader1` — refused, naming the widget's action slots, if the key is not action-typed |
+| `Action` | Widgets with an on-click action (ACTIONBUTTON, LINKBUTTON, clickable containers) | Any `create page` action expression | `set (Action: call microflow M.ACT_Go) on btnSave` |
+| `'<slotKey>'` | Pluggable widgets — any **action-typed** property (File Uploader `createFileAction`, DataGrid 2 `onSelectionChange`, …) | Any `create page` action expression | `set ('createFileAction': call microflow M.ACT_Create) on fileUploader1` — refused, naming the widget's action slots, if the key is not action-typed |
 | `caption` | ACTIONBUTTON, LINKBUTTON | String | `set (caption: 'Submit') on btnSave` |
 | `content` | DYNAMICTEXT | String | `set (content: 'New Heading') on txtTitle` |
 | `label` | TEXTBOX, TEXTAREA, DATEPICKER, COMBOBOX, CHECKBOX, RADIOBUTTONS | String | `set (label: 'full Name') on txtName` |
@@ -267,7 +267,7 @@ insert after txtName {
 
 -- Insert before a widget
 insert before btnSave {
-  actionbutton btnPreview (caption: 'Preview', action: microflow Module.ACT_Preview)
+  actionbutton btnPreview (caption: 'Preview', action: call microflow Module.ACT_Preview)
 }
 
 -- Insert INTO a container — append as its last child (works on an EMPTY container)
@@ -313,8 +313,8 @@ Removes widgets and their entire subtree from the page.
 -- Replace a single widget with new content
 replace footer1 with {
   footer newFooter {
-    actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
 }
 ```
@@ -422,9 +422,9 @@ alter page MyModule.Customer_Edit {
 alter page MyModule.Customer_Edit {
   replace footer1 with {
     footer newFooter {
-      actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: success)
+      actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
       actionbutton btnDelete (caption: 'Delete', action: delete, buttonstyle: danger)
-      actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+      actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
 };
@@ -436,7 +436,7 @@ alter page MyModule.Customer_Edit {
 alter snippet MyModule.NavigationMenu {
   set (caption: 'Dashboard') on btnHome;
   insert after btnHome {
-    actionbutton btnReports (caption: 'Reports', action: show_page MyModule.Reports_Overview)
+    actionbutton btnReports (caption: 'Reports', action: show page MyModule.Reports_Overview)
   }
 };
 ```
@@ -555,7 +555,7 @@ page and bind the buttons at creation time instead of rewiring afterwards:
 
 1. **`SET` cannot rewire a button's action.** `set` accepts a fixed property list
    (`caption`, `class`, `visible`, …) — `action` is not on it, so
-   `set Action = microflow … on btnSave` is a parse error. Set the button's action
+   `set Action = call microflow … on btnSave` is a parse error. Set the button's action
    when the button is created (or `REPLACE` the button subtree).
 
 2. **`REPLACE` cannot reuse a widget name that lives inside the subtree being

@@ -768,7 +768,7 @@ func describeDeleteClause(db *domainmodel.DeleteBehavior) string {
 		}
 	}
 	if db != nil && db.ErrorMessage != "" {
-		return action + " error_message " + mdlQuote(db.ErrorMessage)
+		return action + " error message " + mdlQuote(db.ErrorMessage)
 	}
 	return action
 }

@@ -28,8 +28,8 @@ create or replace page CRM.CustomerEdit
           checkbox cbActive (label: 'Active', attribute: IsActive)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
         }
       }
@@ -97,8 +97,8 @@ create page CRM.Customer_MasterDetail
           textbox txtPhone (label: 'Phone', attribute: Phone)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
         }
       }

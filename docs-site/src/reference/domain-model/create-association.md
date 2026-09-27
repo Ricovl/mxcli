@@ -7,7 +7,7 @@
         TO to_module.to_entity
         TYPE { Reference | ReferenceSet }
         [ OWNER { Default | Both | Parent | Child } ]
-        [ DELETE_BEHAVIOR { DELETE_BUT_KEEP_REFERENCES | DELETE_AND_REFERENCES | DELETE_IF_NO_REFERENCES | CASCADE | PREVENT } ]
+        [ ON DELETE { SET NULL | CASCADE | RESTRICT } [ ERROR MESSAGE 'text' ] ]
 
 ## Description
 
@@ -29,15 +29,15 @@ The `OWNER` clause controls which side of the association can modify the relatio
 | `Parent` | Only the FROM side can modify the association |
 | `Child` | Only the TO side can modify the association |
 
-The `DELETE_BEHAVIOR` clause controls what happens when an object on the FROM side is deleted:
+The `ON DELETE` clause controls what happens when an object on the FROM side is deleted:
 
-| Behavior | Description |
+| Action | Description |
 |----------|-------------|
-| `DELETE_BUT_KEEP_REFERENCES` | Delete the object and set references to null (the default) |
-| `DELETE_AND_REFERENCES` | Delete the object and all associated objects on the TO side |
-| `CASCADE` | Alias for `DELETE_AND_REFERENCES` |
-| `DELETE_IF_NO_REFERENCES` | Refuse the delete while anything still references the object |
-| `PREVENT` | Alias for `DELETE_IF_NO_REFERENCES` |
+| `SET NULL` | Delete the object and set references to null (the default) |
+| `CASCADE` | Delete the object and all associated objects on the TO side |
+| `RESTRICT` | Refuse the delete while anything still references the object; `ERROR MESSAGE '…'` is the text the user sees |
+
+The older `DELETE_BEHAVIOR` clause (`DELETE_BUT_KEEP_REFERENCES`, `DELETE_AND_REFERENCES` / `CASCADE`, `DELETE_IF_NO_REFERENCES` / `PREVENT`) still parses with the same meaning, but is deprecated (MDL-DEPR022); `mxcli fmt --upgrade` rewrites it.
 
 If `OR MODIFY` is specified, the statement is idempotent: if the association already exists, it is updated to match the new definition.
 
@@ -63,7 +63,7 @@ A documentation comment (`/** ... */`) placed before the statement is preserved 
 **OWNER**
 : Which side can modify the association. Defaults to `Default` if omitted.
 
-**DELETE_BEHAVIOR**
+**ON DELETE**
 : What happens to associated objects when a FROM-side object is deleted. If omitted, references are kept (the default Mendix behavior).
 
 ## Examples
@@ -76,7 +76,7 @@ CREATE ASSOCIATION Sales.Order_Customer
     TO Sales.Order
     TYPE Reference
     OWNER Default
-    DELETE_BEHAVIOR DELETE_BUT_KEEP_REFERENCES;
+    ON DELETE SET NULL;
 ```
 
 ### Many-to-many: Order has Products
@@ -97,7 +97,7 @@ CREATE ASSOCIATION Sales.Order_Invoice
     FROM Sales.Order
     TO Sales.Invoice
     TYPE Reference
-    DELETE_BEHAVIOR DELETE_AND_REFERENCES;
+    ON DELETE CASCADE;
 ```
 
 ### Idempotent with OR MODIFY

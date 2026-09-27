@@ -70,7 +70,7 @@ Both are optional and can be changed later with `alter page … { set Class = '�
 | Password field | `Password: true` | `textbox tbPw (attribute: Secret, Password: true)` |
 | Widget validation | `Validation: '<expr>'` + `ValidationMessage: '<text>'` | `Validation: 'length(toString($value)) > 0'` — quoted, not `[bracketed]` |
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |
-| Action binding | `action: type` | `actionbutton btn (caption: 'Save', action: save_changes)` |
+| Action binding | `action: type` | `actionbutton btn (caption: 'Save', action: save changes)` |
 | Database source | `datasource: database entity` | `datagrid dg (datasource: database Module.Entity)` |
 | Selection binding | `datasource: selection widget` | `dataview dv (datasource: selection galleryList)` |
 | CSS class | `class: 'classes'` | `container c (class: 'card mx-spacing-top-large')` |
@@ -200,10 +200,10 @@ create page MyModule.CustomerPage
     }
     row {
       column (desktopwidth: 6) {
-        actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
+        actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
       }
       column (desktopwidth: 6) {
-        actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+        actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
       }
     }
   }

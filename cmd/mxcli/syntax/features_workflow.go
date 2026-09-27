@@ -265,11 +265,14 @@ func init() {
 			"call microflow", "microflow task", "automated step",
 			"system task",
 		},
-		// The WITH values are QUOTED — the grammar takes a string literal there,
-		// not a bare variable. Omitting the clause from this entry is how an
-		// author ends up writing the unquoted form (ako/mxcli#1023).
-		Syntax:  "CALL MICROFLOW Module.MF [AS <name>] [COMMENT '<text>']\n  [WITH (<Param> = '<expression>', ...)]\n  [OUTCOMES '<outcome>' -> { <activities> } ...];",
-		Example: "CALL MICROFLOW HR.SendNotification\n  COMMENT 'Notify manager';\n\n-- Parameter values are quoted, and named by their BARE parameter name:\nCALL MICROFLOW HR.Escalate AS callMicroflow1\n  WITH (Request = '$WorkflowContext');",
+		// R4 (ako/mxcli#751): arguments are bound as at every call site, right
+		// after the callee, the expression bare. The older `WITH (P = '<expr>')`
+		// after the comment is the deprecated alias MDL-DEPR008.
+		Syntax: "CALL MICROFLOW Module.MF[(<Param> = <expression>, ...)] [AS <name>] [COMMENT '<text>']\n" +
+			"  [OUTCOMES '<outcome>' -> { <activities> } ...];\n\n" +
+			"-- WITH (<Param> = '<expression>'), the expression in a string, is the\n" +
+			"-- deprecated spelling of the argument list (MDL-DEPR008).",
+		Example: "CALL MICROFLOW HR.SendNotification\n  COMMENT 'Notify manager';\n\n-- Arguments are named by their BARE parameter name:\nCALL MICROFLOW HR.Escalate(Request = $WorkflowContext) AS callMicroflow1;",
 		SeeAlso: []string{"workflow.create", "workflow.call-workflow", "workflow.ai-agent-task"},
 	})
 
@@ -283,8 +286,7 @@ func init() {
 		// Measured on mxbuild 11.13.0 against the same activity written as a call
 		// microflow: the only difference in what builds is CE1590 for a microflow
 		// with no parameters.
-		Syntax: "CALL AGENT MICROFLOW Module.MF [AS <name>] [COMMENT '<text>']\n" +
-			"  [WITH (<Param> = '<expression>', ...)]\n" +
+		Syntax: "CALL AGENT MICROFLOW Module.MF[(<Param> = <expression>, ...)] [AS <name>] [COMMENT '<text>']\n" +
 			"  [OUTCOMES <true|false|'Module.Enum.Value'|''> -> { <activities> } ...]\n" +
 			"  [BOUNDARY EVENT ...];\n\n" +
 			"-- The same statement as CALL MICROFLOW, stored as an AI agent task. The microflow\n" +
@@ -293,8 +295,8 @@ func init() {
 			"-- branch on the agent's answer with OUTCOMES. Needs Mendix 11.9+.",
 		Example: "CREATE MICROFLOW HR.ACT_ClassifyRequest ($Request: HR.LeaveRequest)\n" +
 			"RETURNS Boolean AS $Urgent\nBEGIN\n  -- call the agent here\n  RETURN false;\nEND;\n\n" +
-			"CALL AGENT MICROFLOW HR.ACT_ClassifyRequest AS aiAgentTask1 COMMENT 'Classify the request'\n" +
-			"  WITH (Request = '$WorkflowContext')\n" +
+			"CALL AGENT MICROFLOW HR.ACT_ClassifyRequest(Request = $WorkflowContext) AS aiAgentTask1\n" +
+			"  COMMENT 'Classify the request'\n" +
 			"  OUTCOMES true -> { USER TASK Expedite 'Expedite' PAGE HR.TaskPage OUTCOMES 'Done' { }; }\n" +
 			"           false -> { };",
 		SeeAlso: []string{"workflow.call-microflow", "agents"},
@@ -306,8 +308,8 @@ func init() {
 		Keywords: []string{
 			"call workflow", "sub-workflow", "nested workflow",
 		},
-		Syntax:  "CALL WORKFLOW Module.WF [AS <name>] [COMMENT '<text>']\n  [WITH (<Param> = '<expression>', ...)];",
-		Example: "CALL WORKFLOW HR.SubApproval COMMENT 'Delegate to sub-process';\n\n-- Parameter values are quoted:\nCALL WORKFLOW HR.SubApproval AS callWf1\n  WITH (Request = '$WorkflowContext');",
+		Syntax:  "CALL WORKFLOW Module.WF[(<Param> = <expression>, ...)] [AS <name>] [COMMENT '<text>'];",
+		Example: "CALL WORKFLOW HR.SubApproval COMMENT 'Delegate to sub-process';\n\nCALL WORKFLOW HR.SubApproval(Request = $WorkflowContext) AS callWf1;",
 		SeeAlso: []string{"workflow.create", "workflow.call-microflow"},
 	})
 

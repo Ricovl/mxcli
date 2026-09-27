@@ -87,7 +87,7 @@ the set that is actually installed — so a cycle button can never offer a theme
 whose CSS is not in the page.
 
 ```sql
-actionbutton btnSkin (caption: 'Theme', action: nanoflow MyFirstModule.ACT_CycleSkin)
+actionbutton btnSkin (caption: 'Theme', action: call nanoflow MyFirstModule.ACT_CycleSkin)
 ```
 
 The same reload caveat as the light/dark toggle applies: the choice is remembered
@@ -149,7 +149,7 @@ to run script before first paint. It creates three JavaScript actions
 wire a button:
 
 ```sql
-actionbutton btnTheme (caption: 'Theme', action: nanoflow MyFirstModule.ACT_ToggleTheme)
+actionbutton btnTheme (caption: 'Theme', action: call nanoflow MyFirstModule.ACT_ToggleTheme)
 ```
 
 A click flips the palette and remembers the choice in `localStorage`. The class

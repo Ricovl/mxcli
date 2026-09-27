@@ -35,9 +35,9 @@ CREATE PERSISTENT ENTITY Sales.Customer (
   /** Auto-incrementing unique identifier */
   CustomerId: AutoNumber NOT NULL UNIQUE DEFAULT 1,
   /** Full legal name of the customer */
-  Name: String(200) NOT NULL ERROR 'Name is required',
+  Name: String(200) NOT NULL ERROR MESSAGE 'Name is required',
   /** Primary contact email address */
-  Email: String(200) UNIQUE ERROR 'Email must be unique',
+  Email: String(200) UNIQUE ERROR MESSAGE 'Email must be unique',
   /** Current account balance */
   Balance: Decimal DEFAULT 0,
   /** Whether the account is active */
@@ -170,10 +170,10 @@ CREATE PERSISTENT ENTITY Sales.Customer (
   CustomerId: AutoNumber NOT NULL UNIQUE DEFAULT 1,
 
   /** Full legal name of the customer */
-  Name: String(200) NOT NULL ERROR 'Name is required',
+  Name: String(200) NOT NULL ERROR MESSAGE 'Name is required',
 
   /** Primary contact email address */
-  Email: String(200) UNIQUE ERROR 'Email must be unique',
+  Email: String(200) UNIQUE ERROR MESSAGE 'Email must be unique',
 
   /** Current account balance in the base currency */
   Balance: Decimal DEFAULT 0,

@@ -10,7 +10,7 @@ During a full catalog refresh, every document is analyzed for outgoing reference
 |--------------|-------------------|
 | **Microflows** | CALL MICROFLOW actions, RETRIEVE data sources, entity parameters, SHOW PAGE actions, association traversals |
 | **Nanoflows** | Same as microflows (client-side) |
-| **Pages** | Data source entities, microflow data sources, SHOW_PAGE actions, association paths, snippet calls |
+| **Pages** | Data source entities, microflow data sources, SHOW PAGE actions, association paths, snippet calls |
 | **Snippets** | Same as pages |
 | **Domain Models** | Generalization references, association endpoints |
 

@@ -333,17 +333,17 @@ call microflow Module.RiskyOperation() on error continue;
 -- ON ERROR ROLLBACK: Rollback transaction and propagate error
 commit $Order on error rollback;
 
--- ON ERROR { ... }: Custom error handler with rollback
-$Result = call microflow Module.ExternalService(data = $data) on error {
+-- ON ERROR BEGIN ... END ERROR: Custom error handler with rollback
+$Result = call microflow Module.ExternalService(data = $data) on error begin
   log error node 'ServiceError' 'External service failed';
   return $DefaultResult;
-};
+end error;
 
--- ON ERROR WITHOUT ROLLBACK { ... }: Custom handler, keep changes
-commit $Order on error without rollback {
+-- ON ERROR WITHOUT ROLLBACK BEGIN ... END ERROR: Custom handler, keep changes
+commit $Order on error without rollback begin
   log warning node 'CommitError' 'Commit failed, using fallback';
   change $Order (status = 'PENDING');
-};
+end error;
 ```
 
 ### Error Handling Semantics
@@ -352,23 +352,23 @@ commit $Order on error without rollback {
 |--------|----------|
 | `on error continue` | Catch error silently, continue normal flow |
 | `on error rollback` | Rollback database changes, propagate error |
-| `on error { ... }` | Execute handler block, then continue (with rollback) |
-| `on error without rollback { ... }` | Execute handler block, keep database changes |
+| `on error begin ... end error` | Execute handler block, then continue (with rollback) |
+| `on error without rollback begin ... end error` | Execute handler block, keep database changes |
 
 ### RAISE ERROR is handler-only
 
 `raise error;` builds Mendix's **error event**, which *re-raises the error
 currently being handled*. Mendix therefore allows one only where an error is in
-scope — that is, inside an `on error { ... }` block. Studio Pro will not even
+scope — that is, inside an `on error begin ... end error` block. Studio Pro will not even
 let you draw the connection from the normal flow to an error event.
 
 ```mdl
 -- ✅ inside a handler: an error IS in scope
 call microflow Module.RiskyOperation()
-on error {
+on error begin
   log error node 'Module' 'failed, re-raising';
   raise error;
-};
+end error;
 
 -- ❌ on the main flow: MDL084, and mxbuild rejects it with
 --    CE0710 "The main flow cannot join an error flow or end in an error event."
@@ -409,13 +409,13 @@ returns Module.Response as $response
 begin
   -- The call output establishes $response — objects are never declared
   $response = call microflow Module.CallExternalAPI(data = $RequestData)
-    on error without rollback {
+    on error without rollback begin
       log error node 'ExternalAPI' 'API call failed for: ' + $RequestData;
       -- Create error response
       $response = create Module.Response (
         success = false,
         message = 'External service unavailable');
-    };
+    end error;
 
   return $response;
 end;
@@ -431,9 +431,9 @@ knowing which one you are writing.
 | Form | Error path |
 |------|-----------|
 | `on error continue` | No error path at all |
-| `on error [without rollback] { … return/throw }` | Its own path, its own terminator |
-| `on error [without rollback] { }` | **Not a no-op** — falls through to whatever the *enclosing branch* does next |
-| `on error [without rollback] { … join L; }` | Rejoins the normal path at the merge labelled `L` |
+| `on error [without rollback] begin … return/throw end error` | Its own path, its own terminator |
+| `on error [without rollback] begin end error` | **Not a no-op** — falls through to whatever the *enclosing branch* does next |
+| `on error [without rollback] begin … join L; end error` | Rejoins the normal path at the merge labelled `L` |
 
 The empty form is the one that surprises people. It means "on error, do whatever
 the enclosing branch's continuation does" — which in a branch that returns
@@ -443,11 +443,11 @@ something else is a value nowhere in the text. Prefer `join` when you mean it.
 create microflow Module.Post (Payload: String) returns String
 begin
   declare $Status String = 'sent';
-  $r = call microflow Module.Send(Payload = $Payload) on error without rollback {
+  $r = call microflow Module.Send(Payload = $Payload) on error without rollback begin
     log warning node 'Module' 'send failed, degrading';
     set $Status = 'degraded';
     join recovered;
-  };
+  end error;
   join recovered;
 
   merge recovered;
@@ -465,10 +465,10 @@ activity:
 
 ```mdl
 merge attempt;
-$r = call microflow Module.Send(Payload = $Payload) on error without rollback {
+$r = call microflow Module.Send(Payload = $Payload) on error without rollback begin
   log warning node 'Module' 'retrying';
   join attempt;
-};
+end error;
 return $r;
 ```
 

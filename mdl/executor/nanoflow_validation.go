@@ -119,7 +119,7 @@ func getErrorHandling(stmt ast.MicroflowStatement) *ast.ErrorHandlingClause {
 	// The eight statements mendixlabs/mxcli#1078 gave an onErrorClause. None is
 	// on the denylist above, so all eight are reachable in a nanoflow — and
 	// without them here their handler BODIES are never walked, so a Java action
-	// or REST call nested inside `declare … on error { … }` would go unreported.
+	// or REST call nested inside `declare … on error begin … end error` would go unreported.
 	case *ast.DeclareStmt:
 		return s.ErrorHandling
 	case *ast.MfSetStmt:

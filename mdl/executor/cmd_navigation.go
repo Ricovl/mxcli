@@ -435,7 +435,7 @@ func printMenuMDL(w io.Writer, items []*types.NavMenuItem, depth int, reproducer
 		} else if item.Microflow != "" {
 			fmt.Fprintf(w, "%smenu item '%s' microflow %s%s;\n", indent, item.Caption, item.Microflow, icon)
 		} else if item.ActionType == "SignOutAction" {
-			fmt.Fprintf(w, "%smenu item '%s' sign_out%s;\n", indent, item.Caption, icon)
+			fmt.Fprintf(w, "%smenu item '%s' sign out%s;\n", indent, item.Caption, icon)
 		} else {
 			fmt.Fprintf(w, "%smenu item '%s'%s;\n", indent, item.Caption, icon)
 		}

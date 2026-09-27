@@ -61,7 +61,7 @@ func TestFormatRestCallAction_POST_CustomBody(t *testing.T) {
 	got := e.formatRestCallAction(action)
 	assertContains(t, got, "rest call post")
 	assertContains(t, got, "body '{\"name\": \"test\"}'")
-	assertContains(t, got, "returns Nothing")
+	assertContains(t, got, "returns nothing")
 }
 
 func TestFormatRestCallAction_WithHeaders(t *testing.T) {

@@ -21,7 +21,12 @@ var fmtCmd = &cobra.Command{
 	Use:   "fmt [file.mdl | -]",
 	Short: "Format an MDL file",
 	Long: `Format an MDL script file with consistent styling:
-  - Uppercase MDL keywords
+  - Lowercase MDL keywords, the canonical case. Only words the parse tree shows
+    are keywords change: a name spelled like a keyword (Issue64.User, an
+    attribute Title), a property key (Folder:) and a CamelCase value
+    (ButtonStyle: Success) keep their case, and so do expressions, XPath, OQL
+    and SQL, which are stored as written. Formatting never changes what a
+    script builds.
   - Normalize indentation (2-space units)
   - Remove trailing whitespace
   - Normalize blank lines

@@ -116,9 +116,9 @@ CREATE PERSISTENT ENTITY Sales.Customer (
     CustomerId: AutoNumber NOT NULL UNIQUE DEFAULT 1,
 
     /** Customer full name */
-    Name: String(200) NOT NULL ERROR 'Name is required',
+    Name: String(200) NOT NULL ERROR MESSAGE 'Name is required',
 
-    Email: String(200) UNIQUE ERROR 'Email must be unique',
+    Email: String(200) UNIQUE ERROR MESSAGE 'Email must be unique',
 
     Balance: Decimal DEFAULT 0,
 

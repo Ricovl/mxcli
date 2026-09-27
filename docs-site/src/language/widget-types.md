@@ -88,8 +88,8 @@ DATAVIEW dvCustomer (DataSource: $Customer) {
   TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
   COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
   FOOTER footer1 {
-    ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-    ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+    ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+    ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
   }
 }
 ```
@@ -112,7 +112,7 @@ DATAGRID dgOrders (DataSource: DATABASE Sales.Order, PageSize: 20) {
   COLUMN colAmount (Attribute: Amount, Caption: 'Amount', Alignment: right)
   COLUMN colStatus (Attribute: Status, Caption: 'Status')
   CONTROLBAR bar1 {
-    ACTIONBUTTON btnNew (Caption: 'New', Action: MICROFLOW Sales.ACT_CreateOrder, ButtonStyle: Primary)
+    ACTIONBUTTON btnNew (Caption: 'New', Action: CALL MICROFLOW Sales.ACT_CreateOrder, ButtonStyle: Primary)
   }
 }
 ```
@@ -331,8 +331,8 @@ IMAGE imgBanner (Width: 800, Height: 200)
 A button that triggers an action. The primary interactive element:
 
 ```sql
-ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
 ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
 ```
 
@@ -340,13 +340,19 @@ ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
 
 | Action | Description |
 |--------|-------------|
-| `SAVE_CHANGES` | Commit and close the page |
-| `CANCEL_CHANGES` | Roll back and close the page |
+| `SAVE CHANGES` | Commit and close the page |
+| `CANCEL CHANGES` | Roll back and close the page |
 | `DELETE` | Delete the current object |
-| `CLOSE_PAGE` | Close the page without saving |
-| `MICROFLOW Module.MF_Name` | Call a microflow |
-| `NANOFLOW Module.NF_Name` | Call a nanoflow |
-| `PAGE Module.PageName` | Open a page |
+| `CLOSE PAGE` | Close the page without saving |
+| `CALL MICROFLOW Module.MF_Name` | Call a microflow |
+| `CALL NANOFLOW Module.NF_Name` | Call a nanoflow |
+| `SHOW PAGE Module.PageName` | Open a page |
+| `CREATE OBJECT Module.Entity THEN SHOW PAGE Module.PageName` | Create an object and open a page for it |
+| `OPEN LINK 'https://…'` | Open a web address |
+| `SIGN OUT` | Sign the user out |
+| `COMPLETE TASK 'Outcome'` | Complete a workflow user task |
+
+The snake-case spellings (`SAVE_CHANGES`, `SHOW_PAGE`, …) and `MICROFLOW …` without `CALL` are deprecated aliases (MDL-DEPR020).
 
 **Button styles:**
 
@@ -364,7 +370,7 @@ ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
 ```sql
 ACTIONBUTTON btnProcess (
   Caption: 'Process',
-  Action: MICROFLOW Sales.ACT_ProcessOrder(Order: $Order),
+  Action: MICROFLOW Sales.ACT_ProcessOrder(Order = $Order),
   ButtonStyle: Primary
 )
 ```
@@ -410,8 +416,8 @@ Footer section of a DataView. Typically contains save/cancel buttons:
 
 ```sql
 FOOTER footer1 {
-  ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-  ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+  ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+  ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
 }
 ```
 
@@ -421,7 +427,7 @@ Control bar for DataGrid widgets. Contains action buttons for the grid:
 
 ```sql
 CONTROLBAR bar1 {
-  ACTIONBUTTON btnNew (Caption: 'New', Action: MICROFLOW Module.ACT_Create, ButtonStyle: Primary)
+  ACTIONBUTTON btnNew (Caption: 'New', Action: CALL MICROFLOW Module.ACT_Create, ButtonStyle: Primary)
   ACTIONBUTTON btnEdit (Caption: 'Edit', Action: PAGE Module.Entity_Edit)
   ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
 }

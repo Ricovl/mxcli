@@ -34,7 +34,7 @@ func ctxPos(ctx antlr.ParserRuleContext) string {
 func (b *Builder) ExitThrowStatement(ctx *parser.ThrowStatementContext) {
 	b.addError(fmt.Errorf("%s: `throw` is not a Mendix action and was never written to the microflow — "+
 		"it was parsed and dropped.\n"+
-		"  Inside an `on error { … }` handler, re-raise the error being handled:\n"+
+		"  Inside an `on error begin … end error` handler, re-raise the error being handled:\n"+
 		"    raise error;\n"+
 		"  On the main flow Mendix has no throw: call a Java action that throws, or\n"+
 		"  report the problem with `validation feedback` / `log error` and return.", ctxPos(ctx)))
