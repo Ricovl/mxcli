@@ -66,11 +66,6 @@ var studioProKnownLossy = map[string]string{
 	"page Administration.Account_Overview|document": "DataGrid2 object rebuilt from the " +
 		"widget template (property order, column texts, filter captions), layout-grid " +
 		"column weights 12 -> -1, tab-container nulls",
-	"nanoflow FeedbackModule.ACT_Feedback_UploadImage|document": "activity Size and the " +
-		"auto-caption 'Activity' are not authorable (upstream #884); a CaseValues-less " +
-		"flow gains a NoCase",
-	"nanoflow FeedbackModule.SUB_Feedback_GetOrCreate|document": "the flow builder regenerates merges " +
-		"(3 ExclusiveMerges -> 1, control flow equivalent), plus activity Size and auto-captions",
 
 	"association Administration.AccountPasswordData_Account|document": "the domain-model rewrite drops empty " +
 		"MemberAccess refs and NoGeneralization flags (the storage is carried since #704's flip became reachable)",

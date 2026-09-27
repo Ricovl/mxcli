@@ -5,6 +5,7 @@ package executor
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
@@ -14,6 +15,20 @@ import (
 func execCreateNanoflow(ctx *ExecContext, s *ast.CreateNanoflowStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
+	}
+
+	// An existing flow is modified as a patch of what is stored, not rebuilt
+	// (ADR-0012 decision 3); see cmd_flow_modify.go.
+	if s.CreateOrModify && strings.TrimSpace(s.Name.Name) != "" {
+		if err := refuseExposeOnFlavour(s.Expose, "nanoflow", s.Name.Module+"."+s.Name.Name); err != nil {
+			return err
+		}
+		if err := validateNanoflowRules(s); err != nil {
+			return err
+		}
+		if handled, err := modifyFlowInPlace(ctx, nanoflowDecl(s)); handled || err != nil {
+			return err
+		}
 	}
 
 	built, err := buildNanoflowFromStmt(ctx, s, buildFlowOpts{AllowCreate: true})

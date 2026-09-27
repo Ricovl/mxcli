@@ -108,6 +108,12 @@ type ExecContext struct {
 	// empty EndEvent in a value-returning microflow, where bare `return;` is invalid.
 	DescribingMicroflowHasReturnValue bool
 
+	// describeLayout is set while a canonical DESCRIBE renders a flow body: the
+	// layout annotations to keep, the rest being what the layout engine derives
+	// on its own (derivedFlowLayout). nil — every other renderer — keeps them
+	// all.
+	describeLayout *flowLayoutKeep
+
 	// describeID pins a describe to one stored document. A name is not a unique
 	// key — a module may hold an excluded twin (#914) — so the catalog's source
 	// build, which enumerates documents rather than names, sets it to describe

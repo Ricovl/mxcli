@@ -73,8 +73,12 @@ type flowBuilder struct {
 	// without this a describe→exec round-trip silently moved it (a Studio Pro
 	// flow's 145;200 became 100;200). Nil on a fresh CREATE, where the position
 	// is derived from the first annotated activity as before.
-	startPosition        *model.Point
-	backend              backend.FullBackend          // For looking up page/microflow references
+	startPosition *model.Point
+	backend       backend.FullBackend // For looking up page/microflow references
+	// quiet silences the builder's own stderr warnings. Set for describe's
+	// layout check (derivedFlowLayout), which rebuilds a flow it only reads and
+	// must not repeat, once per round, a warning nobody asked for.
+	quiet                bool
 	hierarchy            *ContainerHierarchy          // For resolving container IDs to module names
 	pendingAnnotations   *ast.ActivityAnnotations     // Pending annotations to attach to next activity
 	restServices         []*model.ConsumedRestService // Cached REST services for parameter classification

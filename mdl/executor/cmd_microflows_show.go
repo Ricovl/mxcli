@@ -341,6 +341,12 @@ func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, opts descri
 
 	// Generate activities
 	if targetMf.ObjectCollection != nil && len(targetMf.ObjectCollection.Objects) > 0 {
+		// Canonical: layout the engine derives on its own is left out (#748).
+		// Not with handles, which address the stored flow as it is drawn, and
+		// not normalized, whose graph is not the stored one to compare with.
+		if !opts.Handles && !normalized {
+			defer useDerivedFlowLayout(ctx, "microflow", targetMf, name, entityNames, microflowNames)()
+		}
 		var activityLines []string
 		if opts.Handles {
 			activityLines = formatMicroflowActivitiesWithHandles(ctx, targetMf, entityNames, microflowNames)
@@ -490,6 +496,14 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 	}()
 
 	if targetNf.ObjectCollection != nil && len(targetNf.ObjectCollection.Objects) > 0 {
+		// Canonical: layout the engine derives on its own is left out (#748).
+		// The check rebuilds the whole nanoflow, so it needs the header too.
+		defer useDerivedFlowLayout(ctx, "nanoflow", &microflows.Microflow{
+			Parameters:         targetNf.Parameters,
+			ReturnType:         targetNf.ReturnType,
+			ReturnVariableName: targetNf.ReturnVariableName,
+			ObjectCollection:   targetNf.ObjectCollection,
+		}, name, entityNames, microflowNames)()
 		activityLines := formatMicroflowActivities(ctx, wrapperMf, entityNames, microflowNames)
 		for _, line := range activityLines {
 			lines = append(lines, "  "+line)
@@ -837,8 +851,9 @@ func formatMicroflowActivities(
 
 	// Build annotation map for @annotation emission
 	annotationsByTarget := buildAnnotationsByTarget(mf.ObjectCollection)
+	annotationsByTarget.layout = describeLayoutOf(ctx)
 
-	lines = append(lines, startAnnotationLines(mf.ObjectCollection)...)
+	lines = append(lines, annotationsByTarget.layout.startLines(mf.ObjectCollection)...)
 
 	// flowsByOrigin / flowsByDest are threaded into traverseFlow so @anchor
 	// emission is per-call — no package-level globals, safe under concurrent
@@ -1091,8 +1106,9 @@ func formatMicroflowBodyWithSourceMap(
 
 	// Build annotation map for @annotation emission
 	annotationsByTarget := buildAnnotationsByTarget(mf.ObjectCollection)
+	annotationsByTarget.layout = describeLayoutOf(ctx)
 
-	lines = append(lines, startAnnotationLines(mf.ObjectCollection)...)
+	lines = append(lines, annotationsByTarget.layout.startLines(mf.ObjectCollection)...)
 
 	traverseFlow(ctx, startID, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, &lines, 0, sourceMap, headerLineCount, annotationsByTarget, labels)
 	declaredCrossed := emitCrossedMergeSections(ctx, mf.ObjectCollection, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, &lines, sourceMap, headerLineCount, annotationsByTarget, labels)

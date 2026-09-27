@@ -1,0 +1,3 @@
+[submodule "testdata/testapp"]
+	path = testdata/testapp
+	url = https://github.com/ako/TestApp.git

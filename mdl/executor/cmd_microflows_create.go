@@ -5,6 +5,7 @@ package executor
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
@@ -32,6 +33,17 @@ func loadRestServices(ctx *ExecContext) ([]*model.ConsumedRestService, error) {
 func execCreateMicroflow(ctx *ExecContext, s *ast.CreateMicroflowStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
+	}
+
+	// An existing flow is modified as a patch of what is stored, not rebuilt
+	// (ADR-0012 decision 3); see cmd_flow_modify.go.
+	if s.CreateOrModify && strings.TrimSpace(s.Name.Name) != "" {
+		if err := validateMicroflowRules(s); err != nil {
+			return err
+		}
+		if handled, err := modifyFlowInPlace(ctx, microflowDecl(s)); handled || err != nil {
+			return err
+		}
 	}
 
 	built, err := buildMicroflowFromStmt(ctx, s, buildFlowOpts{AllowCreate: true})

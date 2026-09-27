@@ -739,6 +739,7 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 		declaredVars: fb.declaredVars,
 		measurer:     fb.measurer,
 		backend:      fb.backend,
+		quiet:        fb.quiet,
 		hierarchy:    fb.hierarchy,
 		restServices: fb.restServices,
 		isNanoflow:   fb.isNanoflow,
