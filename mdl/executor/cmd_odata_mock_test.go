@@ -192,8 +192,8 @@ func TestDescribeODataService_Mock(t *testing.T) {
 	assertNoError(t, describeODataService(ctx, ast.QualifiedName{Module: "MyModule", Name: "CatalogService"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create odata service")
-	assertNotContainsStr(t, out, "create or modify odata service") // safe refusal until its carry is proven (ADR-0012)
+	// The carry is proven by TestTestAppRoundTrip on ako/TestApp's services (#743).
+	assertContainsStr(t, out, "create or modify odata service")
 	assertContainsStr(t, out, "MyModule.CatalogService")
 }
 
