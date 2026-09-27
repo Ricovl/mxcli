@@ -17,6 +17,19 @@ Use this skill when:
 
 If you're not sure whether the logic belongs in a nanoflow or a microflow, read the next section first. The mirror lives in [write-microflows](../write-microflows/SKILL.md) — keep both copies in sync.
 
+## Changing an Existing Nanoflow
+
+Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode/SKILL.md)):
+
+- **Created by your MDL scripts, and not edited in Studio Pro since:** edit the script
+  (or fresh `describe` output) and re-run `create or modify`.
+- **Authored in Studio Pro:** there is **no `alter nanoflow` yet**, and re-emitting it
+  with `create or modify` has dropped annotation links and changed the export level on
+  Studio Pro nanoflows, even with no edit at all. Keep the change minimal: put new logic
+  in a new nanoflow and change the existing one only to call it. Commit first, then
+  `describe` it again after `exec` and diff it against the original output. Anything
+  that differs and that you did not change is a loss.
+
 ## When to Use a Nanoflow vs a Microflow
 
 | Scenario | Use |

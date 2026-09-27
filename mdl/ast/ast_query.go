@@ -312,6 +312,11 @@ type DescribeStmt struct {
 	// and silently reshaping someone's diagram because they asked to read it
 	// is its own guard-don't-drop violation.
 	Normalized bool
+	// WithHandles makes DESCRIBE MICROFLOW print, above each activity, the
+	// content address an `alter microflow` target would use for it (output
+	// variable, caption or statement, with an ordinal when needed). The
+	// handles are comments, so the output still executes unchanged.
+	WithHandles bool
 }
 
 func (s *DescribeStmt) isStatement() {}

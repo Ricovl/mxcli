@@ -65,6 +65,11 @@ run.
 Output includes structured rule IDs (MDL prefix for reference and script rules,
 E0xx for expression type rules) for each validation issue.
 
+A deprecated MDL spelling — an alias left over from consolidating MDL onto one
+canonical form, such as "create or replace" for "create or modify" or "show" for
+"list" — is reported as an MDL-DEPRnnn warning naming the canonical form. Pass
+--deprecations=error to fail the run on one instead, e.g. in CI over docs.
+
 Use --post-migration to scan an existing project (independent of the script)
 for legacy native widgets that have pluggable replacements — Studio Pro does
 not auto-migrate these on a Mendix major-version upgrade.
@@ -99,6 +104,7 @@ Examples:
 		checkRefs, _ := cmd.Flags().GetBool("references")
 		checkRefs = checkRefs || projectPath != ""
 		postMigration, _ := cmd.Flags().GetBool("post-migration")
+		depPolicy := deprecationPolicy(cmd)
 		format := resolveFormat(cmd, "text")
 		isStructured := format != "" && format != "text"
 
@@ -194,6 +200,7 @@ Examples:
 		// refuses exactly what `mxcli check` reports. Adding a check there gives
 		// both commands it at once.
 		violations := append(testProblems, executor.ValidateProgram(prog, projectPath)...)
+		violations = executor.ApplyDeprecationPolicy(violations, depPolicy)
 
 		if isStructured {
 			// Always emit structured output (even when clean)
