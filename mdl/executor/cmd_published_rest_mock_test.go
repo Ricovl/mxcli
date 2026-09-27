@@ -65,6 +65,7 @@ func TestDescribePublishedRestService_Mock(t *testing.T) {
 	assertNoError(t, describePublishedRestService(ctx, ast.QualifiedName{Module: "MyModule", Name: "OrderAPI"}))
 
 	out := buf.String()
+	assertTerminated(t, out) // #744
 	assertContainsStr(t, out, "create or modify published rest service")
 	assertContainsStr(t, out, "MyModule.OrderAPI")
 }

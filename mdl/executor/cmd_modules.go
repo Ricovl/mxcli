@@ -621,7 +621,6 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 	describeModuleRoles(ctx, targetModule)
 
 	if !withAll {
-		fmt.Fprintln(ctx.Output, "/")
 		return nil
 	}
 
@@ -832,7 +831,6 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 		}
 	}
 
-	fmt.Fprintln(ctx.Output, "/")
 	return nil
 }
 
