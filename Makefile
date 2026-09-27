@@ -35,7 +35,7 @@ GO_BUILD_FLAGS = -trimpath
 # Clean version for VS Code extension (must be valid semver: major.minor.patch)
 VSCE_VERSION = $(shell echo "$(VERSION)" | sed 's/^v//; s/-.*//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$$' || echo "0.0.0")
 
-.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-widget-versions grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
+.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
 
 # Helper: copy file only if content differs (avoids mtime updates that invalidate go build cache)
 # Usage: $(call copy-if-changed,src,dst)
@@ -313,7 +313,47 @@ check-tunnel-deps:
 # therefore left unset everywhere; it survives only so that a stale
 # `MXCLI_TEST_ENGINES=legacy` is fatal rather than silently selecting nothing.
 test-integration:
-	CGO_ENABLED=0 go test -tags integration -count=1 -timeout 30m ./...
+	CGO_ENABLED=0 go test -tags integration -count=1 -timeout 60m ./...
+
+# The same integration tests split into suites that CI runs as parallel jobs
+# (ako/mxcli#757): one step running them all spent ~22 of its 30 minutes once
+# the upgrade property test landed, with mdl/roundtrip alone the critical path.
+#
+# Unlike test-integration, the suites run only the packages that HAVE
+# integration-tagged tests. Every other package's tests are identical with and
+# without the tag, and `make test` already runs them.
+#
+#   test-integration-executor   mdl/executor: doctype scripts through exec + mx check
+#   test-integration-roundtrip  mdl/roundtrip: the round-trip laws, the upgrade controls
+#   test-integration-upgrade    mdl/roundtrip: the upgrade property test alone;
+#                               MXCLI_UPGRADE_SHARD=i/n runs one of n shards,
+#                               MXCLI_UPGRADE_ALL=1 the full corpus (nightly)
+#   test-integration-other      every other package with integration tests,
+#                               found by build tag so a new one cannot be missed
+#                               (hidden dirs are skipped: nested worktrees live there)
+#
+# `-skip` / `-run` split mdl/roundtrip by test name, so a new round-trip test
+# lands in the roundtrip suite without editing this file.
+INTEGRATION_PKGS = $(shell grep -rl --include='*_test.go' --exclude-dir='.?*' --exclude-dir=reference --exclude-dir=mx-test-projects \
+	'^//go:build.*integration' . | xargs -n1 dirname | sed 's|^\./||; s|^|./|' | sort -u)
+INTEGRATION_SPLIT = ./mdl/executor ./mdl/roundtrip
+UPGRADE_PROPERTY = ^TestUpgradeExecutesToTheSameModel$$
+INTEGRATION_GO_TEST = CGO_ENABLED=0 go test -tags integration -count=1
+
+test-integration-executor:
+	$(INTEGRATION_GO_TEST) -timeout 40m ./mdl/executor/
+
+test-integration-roundtrip:
+	$(INTEGRATION_GO_TEST) -timeout 40m -skip '$(UPGRADE_PROPERTY)' ./mdl/roundtrip/
+
+test-integration-upgrade:
+	$(INTEGRATION_GO_TEST) -timeout 40m -run '$(UPGRADE_PROPERTY)' ./mdl/roundtrip/
+
+test-integration-other:
+	@pkgs="$(filter-out $(INTEGRATION_SPLIT),$(INTEGRATION_PKGS))"; \
+	if [ -z "$$pkgs" ]; then echo "no integration packages outside the split suites"; exit 1; fi; \
+	echo "integration packages: $$pkgs"; \
+	$(INTEGRATION_GO_TEST) -timeout 40m $$pkgs
 
 # Run MDL integration tests (requires Docker and a Mendix project)
 # Usage: make test-mdl MPR=path/to/app.mpr

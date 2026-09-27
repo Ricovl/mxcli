@@ -78,11 +78,15 @@ func TestDroppedMergeWarnings_LabelledRejoinIsNotFlagged(t *testing.T) {
 	f := newRejoinFixture()
 	f.add("start", &microflows.StartEvent{BaseMicroflowObject: f.base(0)})
 	f.add("call", &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: f.base(100)}})
+	f.add("next", &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: f.base(150)}})
 	f.add("handler", &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: f.base(100)}})
 	f.add("merge", &microflows.ExclusiveMerge{BaseMicroflowObject: f.base(200)})
 	f.add("end", &microflows.EndEvent{BaseMicroflowObject: f.base(300)})
+	// The handler rejoins past `next`, so this is a labelled rejoin, not a
+	// fall-through (#750).
 	f.edge("start", "call", false)
-	f.edge("call", "merge", false)
+	f.edge("call", "next", false)
+	f.edge("next", "merge", false)
 	f.edge("call", "handler", true)
 	f.edge("handler", "merge", false)
 	f.edge("merge", "end", false)

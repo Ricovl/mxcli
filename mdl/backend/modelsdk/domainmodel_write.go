@@ -699,7 +699,15 @@ func attributeTypeToGen(t domainmodel.AttributeType) element.Element {
 		return genDm.NewDecimalAttributeType()
 	case *domainmodel.BooleanAttributeType:
 		return genDm.NewBooleanAttributeType()
-	case *domainmodel.DateTimeAttributeType, *domainmodel.DateAttributeType:
+	case *domainmodel.DateTimeAttributeType:
+		// Always written: a domain-model write re-serializes every entity in the
+		// unit, so leaving it out dropped a Studio Pro-authored LocalizeDate on
+		// every rewrite (#743). Producers that do not know it set true, Mendix's
+		// default and what an absent property meant before.
+		g := genDm.NewDateTimeAttributeType()
+		g.SetLocalizeDate(at.LocalizeDate)
+		return g
+	case *domainmodel.DateAttributeType:
 		return genDm.NewDateTimeAttributeType()
 	case *domainmodel.AutoNumberAttributeType:
 		return genDm.NewAutoNumberAttributeType()
@@ -755,6 +763,13 @@ func externalEntitySourceToGen(e *domainmodel.Entity) element.Element {
 		return src
 	}
 	return nil
+}
+
+func init() {
+	// An external entity's Rest$ODataKey Parts list is marker 2 in Studio Pro's
+	// BSON (measured on ako/TestApp, Clients.Orders); the default 3 rewrote the
+	// key on every domain-model write (#743).
+	codec.RegisterListMarker("Rest$ODataKeyPart", 2)
 }
 
 // odataKeyToGen builds a Rest$ODataKey from the entity's remote key parts, or nil

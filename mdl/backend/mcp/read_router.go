@@ -253,7 +253,8 @@ func attributeTypeFromPED(raw json.RawMessage) domainmodel.AttributeType {
 	case "DomainModels$BooleanAttributeType":
 		return &domainmodel.BooleanAttributeType{}
 	case "DomainModels$DateTimeAttributeType":
-		return &domainmodel.DateTimeAttributeType{}
+		// Mendix's default; the payload does not carry LocalizeDate (#743).
+		return &domainmodel.DateTimeAttributeType{LocalizeDate: true}
 	case "DomainModels$AutoNumberAttributeType":
 		return &domainmodel.AutoNumberAttributeType{}
 	case "DomainModels$BinaryAttributeType":

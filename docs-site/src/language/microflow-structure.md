@@ -170,6 +170,22 @@ was placed on purpose — in Studio Pro or with `@start` — so it survives a re
 that does not mention it, and `DESCRIBE` emits an `@start` line for it. An
 explicit `@start` overrides both.
 
+### Layout in `DESCRIBE` output
+
+`DESCRIBE MICROFLOW` and `DESCRIBE NANOFLOW` print a layout annotation —
+`@position`, `@merge`, `@anchor`, `@curve`, `@start` — only where the layout
+would not produce it on its own. A flow written without annotations describes
+without them. A statement placed by hand keeps its `@position`, and the
+statements the layout places after it follow from it without one.
+
+Whether an annotation is needed is not guessed from the coordinates. `DESCRIBE`
+builds the flow again from its own output, exactly as `CREATE OR MODIFY` would
+(nothing is written), and every node that lands elsewhere keeps its annotation.
+So re-executing a description never moves a node: a flow drawn in Studio Pro
+comes back with its layout, because Studio Pro positions are not ones the layout
+produces. `DESCRIBE … WITH HANDLES` and `DESCRIBE … NORMALIZED` still print every
+annotation.
+
 ### Caption
 
 Set a custom caption displayed on the activity in the canvas:

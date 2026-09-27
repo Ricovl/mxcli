@@ -117,12 +117,25 @@ func labelRejoinMerges(col *microflows.MicroflowObjectCollection) mergeLabels {
 
 	// The merge each handler settles on: the first one reachable from where the
 	// error edge lands, following the handler's own path.
+	flowsByOrigin := map[model.ID][]*microflows.SequenceFlow{}
+	for _, f := range col.Flows {
+		if f != nil {
+			flowsByOrigin[f.OriginID] = append(flowsByOrigin[f.OriginID], f)
+		}
+	}
+
 	needsLabel := map[model.ID]bool{}
 	for _, ef := range errorFlows {
 		m := firstMergeFrom(ef.DestinationID, objects, normalSucc)
-		if m != "" && reachable[m] {
-			needsLabel[m] = true
+		if m == "" || !reachable[m] {
+			continue
 		}
+		// A handler that falls through is written without a label, as it was
+		// authored (#750): the merge is the guarded activity's own successor.
+		if fallThroughRejoinMerge(ef.OriginID, flowsByOrigin, objects) == m {
+			continue
+		}
+		needsLabel[m] = true
 	}
 	if len(needsLabel) == 0 {
 		return mergeLabels{}
@@ -195,9 +208,13 @@ func firstMergeFrom(
 // happens to be, and the SECOND description reports a different coordinate —
 // a diff on every re-describe of an unchanged microflow, which is exactly what
 // ADR-0008's idempotence is for.
-func mergeDeclarationLines(indent int, label string, obj microflows.MicroflowObject) []string {
+//
+// A canonical DESCRIBE leaves the position out when the layout engine would put
+// the merge there anyway (layout, see derivedFlowLayout): the rebuild then lands
+// it on the same spot without being told.
+func mergeDeclarationLines(indent int, label string, obj microflows.MicroflowObject, layout *flowLayoutKeep) []string {
 	pad := strings.Repeat("  ", indent)
-	if obj == nil {
+	if obj == nil || !layout.keepsPosition(obj.GetID()) {
 		return []string{pad + "merge " + label + ";"}
 	}
 	p := obj.GetPosition()
@@ -305,4 +322,67 @@ func droppedMergeWarnings(ctx *ExecContext, oc *microflows.MicroflowObjectCollec
 		}
 	}
 	return out
+}
+
+// fallThroughRejoinMerge returns the merge where the custom error handler of
+// source rejoins the normal path when that rejoin is a FALL-THROUGH — the shape
+// `on error { … };` with no `join` builds — and "" otherwise.
+//
+// A fall-through is exactly this, and anything looser is a goto the labels must
+// keep spelling:
+//
+//   - the source's only normal flow goes straight to the merge;
+//   - the merge has two incoming flows, that one and the handler's;
+//   - the handler's own path settles on that merge (firstMergeFrom), so its
+//     body is what the description prints inside the braces.
+//
+// Before #750 this shape came back as `join rejoin1;` in the handler and a
+// `merge rejoin1;` after the activity — correct, but not what anyone wrote.
+func fallThroughRejoinMerge(
+	source model.ID,
+	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
+	objects map[model.ID]microflows.MicroflowObject,
+) model.ID {
+	var errFlow *microflows.SequenceFlow
+	var normal []*microflows.SequenceFlow
+	for _, f := range flowsByOrigin[source] {
+		if f == nil {
+			continue
+		}
+		if f.IsErrorHandler {
+			errFlow = f
+			continue
+		}
+		normal = append(normal, f)
+	}
+	if errFlow == nil || len(normal) != 1 {
+		return ""
+	}
+	m := normal[0].DestinationID
+	if _, ok := objects[m].(*microflows.ExclusiveMerge); !ok {
+		return ""
+	}
+	incoming := 0
+	for _, flows := range flowsByOrigin {
+		for _, f := range flows {
+			if f != nil && f.DestinationID == m {
+				incoming++
+			}
+		}
+	}
+	if incoming != 2 {
+		return ""
+	}
+	succ := map[model.ID][]model.ID{}
+	for origin, flows := range flowsByOrigin {
+		for _, f := range flows {
+			if f != nil && !f.IsErrorHandler {
+				succ[origin] = append(succ[origin], f.DestinationID)
+			}
+		}
+	}
+	if firstMergeFrom(errFlow.DestinationID, objects, succ) != m {
+		return ""
+	}
+	return m
 }

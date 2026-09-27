@@ -24,25 +24,39 @@ ELSE
 END IF;
 ```
 
-### Nested IF
+### ELSIF
 
-For multi-way branching on anything other than an enumeration, use nested `IF...ELSE`
-blocks. (To branch on an **enumeration**, use [CASE (Enum Split)](#case-enum-split)
+For multi-way branching on anything other than an enumeration, chain the conditions
+with `ELSIF`. (To branch on an **enumeration**, use [CASE (Enum Split)](#case-enum-split)
 instead — it maps to a Mendix enum split rather than a chain of decisions.)
 
 ```sql
 IF $Order/TotalAmount > 10000 THEN
   CHANGE $Order (DiscountPercentage = 15);
+ELSIF $Order/TotalAmount > 5000 THEN
+  CHANGE $Order (DiscountPercentage = 10);
+ELSIF $Order/TotalAmount > 1000 THEN
+  CHANGE $Order (DiscountPercentage = 5);
 ELSE
-  IF $Order/TotalAmount > 5000 THEN
-    CHANGE $Order (DiscountPercentage = 10);
-  ELSE
-    IF $Order/TotalAmount > 1000 THEN
-      CHANGE $Order (DiscountPercentage = 5);
-    ELSE
-      CHANGE $Order (DiscountPercentage = 0);
-    END IF;
-  END IF;
+  CHANGE $Order (DiscountPercentage = 0);
+END IF;
+```
+
+Mendix has no `elsif` of its own: each `ELSIF` arm is a decision in the previous
+arm's false branch, exactly as if you had written a nested `IF` there. `DESCRIBE`
+prints an else branch that holds nothing but one `IF` as an `ELSIF` arm.
+
+Because each arm is a decision on the canvas, it takes the layout annotations a
+decision takes (`@position`, `@caption`, `@merge`, `@anchor`, `@curve`), written
+before the `ELSIF` keyword:
+
+```sql
+@caption 'Big order?'
+IF $Order/TotalAmount > 10000 THEN
+  CHANGE $Order (DiscountPercentage = 15);
+@caption 'Medium order?'
+ELSIF $Order/TotalAmount > 5000 THEN
+  CHANGE $Order (DiscountPercentage = 10);
 END IF;
 ```
 
@@ -190,6 +204,13 @@ COMMIT $Order ON ERROR {
 ```
 
 The handler block can contain any activities -- logging, rollback, showing validation messages, etc.
+
+A handler that does not end in `RETURN` or `RAISE ERROR` falls through: after it
+runs, the microflow continues with the statement after the activity, through a
+merge placed where the two paths meet. `DESCRIBE` writes the merge's position as
+`@merge(x, y)` on the activity, the same annotation a decision uses for the merge
+that closes it. A handler that rejoins somewhere else names that point with
+`JOIN <label>` and `MERGE <label>`.
 
 ### Error Handling Examples
 

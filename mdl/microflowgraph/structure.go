@@ -80,7 +80,8 @@ type Finding struct {
 	// Entries holds the Overlap nodes entered from outside the overlap. One
 	// entry means a shared suffix (Recombinable); more means Interleaved.
 	Entries []model.ID
-	// BranchCount is the number of normal (non-error-handler) outgoing flows.
+	// BranchCount is the number of distinct branch targets; case values sharing
+	// a first node (`when A, B then`) count once.
 	BranchCount int
 }
 
@@ -333,10 +334,15 @@ func hasPredecessorOutside(id model.ID, region map[model.ID]bool, succ map[model
 	return false
 }
 
+// branchTargets returns the distinct first nodes of a split's branches. Two
+// flows to the same node are one branch with two case values — how
+// `when A, B then` is stored — not two branches that overlap (#750).
 func branchTargets(succ map[model.ID][]model.ID, id model.ID) []model.ID {
 	var out []model.ID
+	seen := map[model.ID]bool{}
 	for _, t := range succ[id] {
-		if t != exitID {
+		if t != exitID && !seen[t] {
+			seen[t] = true
 			out = append(out, t)
 		}
 	}

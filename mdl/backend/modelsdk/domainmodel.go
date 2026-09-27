@@ -326,6 +326,11 @@ func attributeFromGen(a *genDm.Attribute) *domainmodel.Attribute {
 		// "Attribute 'year' of external entity 'Stg_Season' is not supported."
 		attr.RemoteName = v.RemoteName()
 		attr.RemoteType = v.RemoteType()
+		// The design-time default is the mapped value's own; without it a
+		// rewrite writes it empty (Studio Pro stores "false" on a Boolean, #743).
+		if d := v.DefaultValueDesignTime(); d != "" {
+			attr.Value = &domainmodel.AttributeValue{DefaultValue: d}
+		}
 		attr.Filterable = v.Filterable()
 		attr.Sortable = v.Sortable()
 		attr.Creatable = v.Creatable()
@@ -526,6 +531,19 @@ func odataKeyFromGen(key element.Element) []*domainmodel.RemoteKeyPart {
 	return parts
 }
 
+// storedLocalizeDate reads DateTimeAttributeType.LocalizeDate. An absent property
+// is Mendix's default, true: mxcli wrote DateTime attributes without it until
+// #743, and reading those as false would unlocalize them on the next write of
+// their domain model.
+func storedLocalizeDate(at *genDm.DateTimeAttributeType) bool {
+	if raw := at.Raw(); raw != nil {
+		if _, err := raw.LookupErr("LocalizeDate"); err != nil {
+			return true
+		}
+	}
+	return at.LocalizeDate()
+}
+
 func attributeTypeFromGen(t element.Element) domainmodel.AttributeType {
 	switch at := t.(type) {
 	case *genDm.StringAttributeType:
@@ -539,7 +557,7 @@ func attributeTypeFromGen(t element.Element) domainmodel.AttributeType {
 	case *genDm.BooleanAttributeType:
 		return &domainmodel.BooleanAttributeType{}
 	case *genDm.DateTimeAttributeType:
-		return &domainmodel.DateTimeAttributeType{}
+		return &domainmodel.DateTimeAttributeType{LocalizeDate: storedLocalizeDate(at)}
 	case *genDm.AutoNumberAttributeType:
 		return &domainmodel.AutoNumberAttributeType{}
 	case *genDm.BinaryAttributeType:

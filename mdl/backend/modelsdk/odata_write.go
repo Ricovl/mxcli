@@ -10,7 +10,6 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
-	"github.com/mendixlabs/mxcli/modelsdk/property"
 )
 
 func init() {
@@ -255,8 +254,14 @@ func publishedODataServiceToGen(svc *model.PublishedODataService) element.Elemen
 	// suite (mxcli-formula1 §41).
 	addByNameRefList(g, "AllowedModuleRoles", "", svc.AllowedModuleRoles)
 	if len(svc.AuthenticationTypes) > 0 {
-		addByNameRefListV3(g, "AuthenticationTypes", svc.AuthenticationTypes)
+		// Marker 1: what Studio Pro writes on all three published services of
+		// ako/TestApp. The 3 this used matched the legacy writer, not Studio Pro,
+		// and churned every rewrite (#743).
+		addByNameRefList(g, "AuthenticationTypes", "", svc.AuthenticationTypes)
 	}
+	// Carried when stored, so a rewrite does not delete it; a service mxcli
+	// creates is written as before (#743).
+	addStrIf(g, "ExportLevel", svc.ExportLevel)
 
 	// Pre-assign entity-type IDs so entity sets can point at them by ID.
 	entityTypeIDByName := make(map[string]string, len(svc.EntityTypes))
@@ -419,7 +424,7 @@ func publishedMemberToGen(m *model.PublishedMember, ownerQN string) element.Elem
 	case "association":
 		g := newElem("ODataPublish$PublishedAssociationEnd", memberID)
 		addStr(g, "ExposedName", m.ExposedName)
-		addBool(g, "CanBeEmpty", !m.IsPartOfKey)
+		addBool(g, "CanBeEmpty", memberCanBeEmpty(m))
 		addStr(g, "Description", "")
 		addStr(g, "Summary", "")
 		addStr(g, "Association", qualifyAssociationName(m.Name, ownerQN))
@@ -432,7 +437,7 @@ func publishedMemberToGen(m *model.PublishedMember, ownerQN string) element.Elem
 	case "id":
 		g := newElem("ODataPublish$PublishedId", memberID)
 		addStr(g, "ExposedName", m.ExposedName)
-		addBool(g, "CanBeEmpty", !m.IsPartOfKey)
+		addBool(g, "CanBeEmpty", memberCanBeEmpty(m))
 		addStr(g, "Description", "")
 		addStr(g, "Summary", "")
 		addStr(g, "Attribute", qualifyMemberName(m.Name, ownerQN))
@@ -443,7 +448,7 @@ func publishedMemberToGen(m *model.PublishedMember, ownerQN string) element.Elem
 	default: // attribute
 		g := newElem("ODataPublish$PublishedAttribute", memberID)
 		addStr(g, "ExposedName", m.ExposedName)
-		addBool(g, "CanBeEmpty", !m.IsPartOfKey)
+		addBool(g, "CanBeEmpty", memberCanBeEmpty(m))
 		addStr(g, "Description", "")
 		addStr(g, "Summary", "")
 		addStr(g, "Attribute", qualifyMemberName(m.Name, ownerQN))
@@ -519,20 +524,19 @@ func addStrIf(b *element.Base, name, val string) {
 	}
 }
 
-// addByNameRefListV3 adds a marker-3 reference-string list (qualified names),
-// the form Mendix uses for a published OData service's AuthenticationTypes.
-func addByNameRefListV3(b *element.Base, name string, qnames []string) {
-	p := property.NewByNameRefListV3[element.Element](name, "")
-	b.AddProperty(p, uint(len(b.Properties())))
-	for _, qn := range qnames {
-		p.Append(qn)
-	}
-}
-
 // boolOrDefault resolves an optional bool: nil means "not specified".
 func boolOrDefault(v *bool, def bool) bool {
 	if v == nil {
 		return def
 	}
 	return *v
+}
+
+// memberCanBeEmpty is the stored CanBeEmpty when there is one (#743), else the
+// value derived from the key: a key member cannot be empty.
+func memberCanBeEmpty(m *model.PublishedMember) bool {
+	if m.CanBeEmpty != nil {
+		return *m.CanBeEmpty
+	}
+	return !m.IsPartOfKey
 }
