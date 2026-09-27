@@ -123,10 +123,9 @@ describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference
 - `action: close page` - Close the page
 - `action: delete` - Delete object
 - `action: call microflow Module.MicroflowName` - Call microflow
-- `action: call microflow Module.MicroflowName(Param: $value)` - Call microflow with parameters
+- `action: call microflow Module.MicroflowName(Param = $value)` - Call microflow with parameters
 - `action: call nanoflow Module.NanoflowName` - Call nanoflow (client-side)
-- `action: call nanoflow Module.NanoflowName(Param: $value)` - Call nanoflow with parameters
-- `action: call nanoflow Module.NanoflowName($Param = $value)` - Also accepted (microflow-style)
+- `action: call nanoflow Module.NanoflowName(Param = $value)` - Call nanoflow with parameters
 - `action: open link 'https://example.com'` - Open a fixed web address
 - `action: open link $currentObject/URL` - Open the address held in an attribute of the enclosing data container's object (inside a data container only; not over an association)
 - **Every parameter needs an argument, or an enclosing data container of its
@@ -134,13 +133,12 @@ describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference
   check -p` reports it. This is the same on every widget that takes an action,
   a clickable `container` included.
 - `action: show page Module.PageName` - Navigate to page
-- `action: show page Module.PageName(Param: $value)` - Navigate with parameters
-- `action: show page Module.PageName($Param = $value)` - Also accepted (microflow-style)
+- `action: show page Module.PageName(Param = $value)` - Navigate with parameters
 - `action: create object Module.Entity then show page Module.PageName` - Create and navigate
 - **A `show page` argument must be the context object, and there has to BE one.**
   Mendix takes the page argument from the enclosing data widget, so the only
   spellings that mean anything are `$currentObject` or the name of the variable
-  that widget is bound to (`datasource: $Customer` → `(Customer: $Customer)` is
+  that widget is bound to (`datasource: $Customer` → `(Customer = $Customer)` is
   fine). Naming any other variable is refused as **MDL-PAGEARG01** — it used to be
   accepted and silently opened the page with the context object anyway.
 - **Outside a data widget the same rule leaves nothing at all**, so a button sitting
@@ -150,7 +148,7 @@ describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference
   mxbuild reports **CE1571** per parameter of the target page, and a page whose
   parameters are optional would simply show the wrong data. MDL-PAGEARG01 refuses
   that too (mendixlabs/mxcli#1029). To open a parameterised page from such a
-  button, call a microflow that does `show page Module.Page(Param: $value)` —
+  button, call a microflow that does `show page Module.Page(Param = $value)` —
   that path wires the arguments properly.
 - **The list above is the whole vocabulary, and a keyword without its argument is
   not in it.** `action: open link` with no URL, `action: show page` with no page,
@@ -173,16 +171,16 @@ describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference
 actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
 
 -- Navigate with parameter (inside DATAVIEW)
-actionbutton btnEdit (caption: 'Edit', action: show page Module.EditPage(Product: $Product))
+actionbutton btnEdit (caption: 'Edit', action: show page Module.EditPage(Product = $Product))
 
 -- Navigate with $currentObject (inside DATAGRID column)
-actionbutton btnEdit (caption: 'Edit', action: show page Module.EditPage(Product: $currentObject))
+actionbutton btnEdit (caption: 'Edit', action: show page Module.EditPage(Product = $currentObject))
 
 -- Call microflow with page/dataview parameter
-actionbutton btnProcess (caption: 'Process', action: call microflow Module.ACT_Process(Order: $Order), buttonstyle: success)
+actionbutton btnProcess (caption: 'Process', action: call microflow Module.ACT_Process(Order = $Order), buttonstyle: success)
 
 -- Call microflow with $currentObject (inside DATAGRID/LISTVIEW column)
-actionbutton btnDelete (caption: 'Delete', action: call microflow Module.ACT_Delete(Target: $currentObject), buttonstyle: danger)
+actionbutton btnDelete (caption: 'Delete', action: call microflow Module.ACT_Delete(Target = $currentObject), buttonstyle: danger)
 
 -- Create object and show page
 actionbutton btnNew (caption: 'New', action: create object Module.Product then show page Module.Product_Edit, buttonstyle: primary)
@@ -645,7 +643,7 @@ Create a menu with action items:
 
 ```sql
 navigationlist navName {
-  item itemEdit (caption: 'Edit', action: show page Module.EditPage(entity: $EntityParameter))
+  item itemEdit (caption: 'Edit', action: show page Module.EditPage(entity = $EntityParameter))
   item itemDelete (caption: 'Delete', action: delete)
   item itemBack (caption: 'Back', action: close page)
 }
@@ -947,7 +945,7 @@ as an `actionbutton`'s `action:`:
 
 ```sql
 -- Rich, parameterised trigger: a card that opens the object it represents
-container tileCard (OnClick: call microflow MyModule.ACT_Open(Item: $currentObject), class: 'tile') {
+container tileCard (OnClick: call microflow MyModule.ACT_Open(Item = $currentObject), class: 'tile') {
   dynamictext tileValue (content: '4')
   dynamictext tileLabel (content: '4 LEFT', class: 'tile-label')
 }
@@ -1013,7 +1011,7 @@ datagrid dgMaterials (
     -- Not row-scoped: pass the selection explicitly.
     container cUnlink (
       class: 'command',
-      action: call nanoflow Module.ACT_UnLink ($Material = $dgMaterials)
+      action: call nanoflow Module.ACT_UnLink (Material = $dgMaterials)
     ) {
       actionbutton btnUnlink (caption: 'Unlink')
     }

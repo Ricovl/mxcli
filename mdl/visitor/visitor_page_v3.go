@@ -1194,11 +1194,14 @@ func buildMicroflowArgV3(ctx parser.IMicroflowArgV3Context) ast.FlowArgV3 {
 	argCtx := ctx.(*parser.MicroflowArgV3Context)
 	arg := ast.FlowArgV3{}
 
-	if v := argCtx.VARIABLE(); v != nil {
-		// Microflow-style: $Param = $value
+	if pn := argCtx.ParameterName(); pn != nil {
+		// Canonical (R4): Param = $value
+		arg.Name = parameterNameText(pn)
+	} else if v := argCtx.VARIABLE(); v != nil {
+		// Deprecated (MDL-DEPR006): $Param = $value
 		arg.Name = strings.TrimPrefix(v.GetText(), "$")
 	} else if iok := argCtx.IdentifierOrKeyword(); iok != nil {
-		// Widget-style: Param: $value. identifierOrKeyword accepts a bare
+		// Deprecated (MDL-DEPR007): Param: $value. identifierOrKeyword accepts a bare
 		// keyword (View/Source/Item/Page/Entity) or a "quoted" name;
 		// identifierOrKeywordText unquotes as needed.
 		arg.Name = identifierOrKeywordText(iok)

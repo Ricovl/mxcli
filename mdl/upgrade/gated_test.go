@@ -77,6 +77,12 @@ func TestUpgrade_GatedRewrites(t *testing.T) {
 			mf + "  declare $b Boolean = false;\n  set $b = contains($S, $S);\nend;\n", false},
 		{"create or replace user role is a plain create", "create or replace user role R (M.Admin);\n",
 			"create user role R (M.Admin);\n", true},
+		{"while without begin", mf + "  while $S = 'a'\n    log info 'x';\n  end while;\nend;\n",
+			mf + "  while $S = 'a' begin\n    log info 'x';\n  end while;\nend;\n", true},
+		{"while ending in a bare end", mf + "  while $S = 'a' begin\n    log info 'x';\n  end; -- note\nend;\n",
+			mf + "  while $S = 'a' begin\n    log info 'x';\n  end while; -- note\nend;\n", true},
+		{"WHILE without either, upper case", mf + "  WHILE true\n    LOG INFO 'x';\n  END;\nend;\n",
+			mf + "  WHILE true BEGIN\n    LOG INFO 'x';\n  END WHILE;\nend;\n", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			res, err := Upgrade(c.src, Options{AddHeader: true})

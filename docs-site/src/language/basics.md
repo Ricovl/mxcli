@@ -77,10 +77,11 @@ What `mdl 1` makes strict (each is a warning without the header, with the code s
 | A `/` terminator line is an error. | Accepted; `MDL-V1-SLASH`. |
 | `''` is the only string escape; a backslash is an ordinary character, so `'C:\temp'` is that path. | `\n`, `\r`, `\t`, `\\` and `\'` are escapes; `MDL-V1-ESCAPE` for each literal whose value would change. |
 | In a REST client, published REST service, business event service, model, knowledge base, consumed MCP service or agent, an unknown property key is an error that names the key it most likely meant, and so is a value its key does not take (`Response: json from $X`). | The property is ignored, or read by its shape as before; `MDL-V1-PROP` / `MDL-V1-PROPVALUE`. |
+| A `while` loop is `while <condition> begin … end while;`; leaving out `begin`, or the `while` after `end`, is an error. | Accepted; `MDL-V1-WHILE`. |
 
 ### Upgrading a script: `mxcli fmt --upgrade`
 
-`mxcli fmt --upgrade` rewrites every deprecated spelling (the `MDL-DEPRnnn` warnings) to its canonical form — `create or replace` becomes `create or modify`, `show entities` becomes `list entities` — and changes nothing else: comments, layout and keyword case are kept. A deprecated use with no mechanical rewrite is reported and left in place.
+`mxcli fmt --upgrade` rewrites every deprecated spelling (the `MDL-DEPRnnn` warnings) to its canonical form — `create or replace` becomes `create or modify`, `show entities` becomes `list entities`, `on error { … }` becomes `on error begin … end error` — and changes nothing else: comments, layout and keyword case are kept. A deprecated use with no mechanical rewrite is reported and left in place.
 
 ```bash
 mxcli fmt --upgrade script.mdl            # print the upgraded script
@@ -99,6 +100,7 @@ mxcli fmt --upgrade --header -w script.mdl  # also add `mdl 1;`
 | `MDL-V1-SET` | `$x = …` becomes `set $x = …` |
 | `MDL-V1-LIST`, `MDL-DEPR003`, `MDL-DEPR004` | a list operation or aggregate call becomes its statement form (`$x = filter($L, …)` → `$x = filter $L where …`); `find`/`contains` on a declared String keeps the call and gains `set` |
 | `MDL-V1-REPLACE02` | `create or replace user role` / `demo user` becomes a plain `create` |
+| `MDL-V1-WHILE` | inserts the missing `begin` after a `while` condition and `while` after its `end` |
 
 A construct with no mechanical rewrite is reported with the reason, and `fmt` refuses to add the header rather than change the script's meaning: an unknown or mis-shaped property (`MDL-V1-PROP`, `MDL-V1-PROPVALUE`), `create or replace view entity` (`MDL-V1-REPLACE01`), a nested list operation such as `count(filter(…))`, `find`/`contains` on a variable whose type the script does not state, and an escaped line break (`\n`) inside an expression. While `mdl 1` is a preview, the header is added only when asked. Running `fmt --upgrade` on its own output changes nothing.
 

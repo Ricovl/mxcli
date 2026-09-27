@@ -77,7 +77,7 @@ func TestWorkflowAgentTask_DescribeRoundTrips(t *testing.T) {
 	out := strings.Join(formatSingleActivity(task, "  "), "\n")
 	// The caption is authored (not the microflow's name), so it is described as a
 	// comment clause, which re-executes into the caption.
-	if !strings.Contains(out, "call agent microflow workflow.InvokeAgent as aiAgentTask1 comment 'AI Agent Task' with (workfow1context = '$WorkflowContext')") {
+	if !strings.Contains(out, "call agent microflow workflow.InvokeAgent(workfow1context = $WorkflowContext) as aiAgentTask1 comment 'AI Agent Task'") {
 		t.Fatalf("describe = %q", out)
 	}
 	stmt := parseWorkflowStmt(t, "create workflow M.W\nbegin\n"+out+"\nend workflow;")

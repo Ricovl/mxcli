@@ -10,6 +10,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
 
@@ -789,20 +790,8 @@ func formatCallMicroflowTask(a *workflows.CallMicroflowTask, indent string) []st
 		asAndComment += " comment " + mdlQuoted(a.Caption)
 		trailing = ""
 	}
-	if len(a.ParameterMappings) > 0 {
-		var params []string
-		for _, pm := range a.ParameterMappings {
-			paramName := pm.Parameter
-			if idx := strings.LastIndex(paramName, "."); idx >= 0 {
-				paramName = paramName[idx+1:]
-			}
-			params = append(params, fmt.Sprintf("%s = %s", paramName, mdlQuoted(pm.Expression)))
-		}
-		lines = append(lines, fmt.Sprintf("%s%s %s%s with (%s)%s", indent, verb, mf,
-			asAndComment, strings.Join(params, ", "), trailing))
-	} else {
-		lines = append(lines, fmt.Sprintf("%s%s %s%s%s", indent, verb, mf, asAndComment, trailing))
-	}
+	args, legacy := workflowCallArguments(a.ParameterMappings)
+	lines = append(lines, fmt.Sprintf("%s%s %s%s%s%s%s", indent, verb, mf, args, asAndComment, legacy, trailing))
 
 	// Outcomes, then boundary events — the order the grammar requires
 	// (workflowCallMicroflowStmt: … OUTCOMES? BOUNDARY EVENT?). Emitting them
@@ -860,21 +849,9 @@ func formatCallWorkflowActivity(a *workflows.CallWorkflowActivity, indent string
 		wf = "?"
 	}
 
-	if len(a.ParameterMappings) > 0 {
-		var params []string
-		for _, pm := range a.ParameterMappings {
-			paramName := pm.Parameter
-			if idx := strings.LastIndex(paramName, "."); idx >= 0 {
-				paramName = paramName[idx+1:]
-			}
-			params = append(params, fmt.Sprintf("%s = %s", paramName, mdlQuoted(pm.Expression)))
-		}
-		lines = append(lines, fmt.Sprintf("%scall workflow %s%s comment %s with (%s)", indent, wf,
-			workflowActivityAsClause(a.Name, shortDocName(wf)), mdlQuoted(caption), strings.Join(params, ", ")))
-	} else {
-		lines = append(lines, fmt.Sprintf("%scall workflow %s%s comment %s", indent, wf,
-			workflowActivityAsClause(a.Name, shortDocName(wf)), mdlQuoted(caption)))
-	}
+	args, legacy := workflowCallArguments(a.ParameterMappings)
+	lines = append(lines, fmt.Sprintf("%scall workflow %s%s%s comment %s%s", indent, wf, args,
+		workflowActivityAsClause(a.Name, shortDocName(wf)), mdlQuoted(caption), legacy))
 
 	// BoundaryEvents
 	lines = append(lines, formatBoundaryEvents(a.BoundaryEvents, indent+"  ")...)
@@ -1007,4 +984,43 @@ func formatConditionOutcomes(outcomes []workflows.ConditionOutcome, indent strin
 	}
 
 	return lines
+}
+
+// workflowCallArguments renders a workflow call's parameter mappings in R4's
+// argument form, `(Param = expression)` right after the callee
+// (ako/mxcli#751).
+//
+// A stored expression that does not read back as itself when written bare —
+// one with surrounding whitespace, or text the MDL expression grammar cannot
+// parse — is rendered in the deprecated string form instead, returned as
+// legacy (` with (Param = '<expression>')`, written after the comment): the
+// string carries it byte for byte, and describe must never alter a stored
+// expression. All mappings take the same form, since a call has one list.
+func workflowCallArguments(mappings []*workflows.ParameterMapping) (args, legacy string) {
+	if len(mappings) == 0 {
+		return "", ""
+	}
+	bare := true
+	for _, pm := range mappings {
+		if !visitor.BareExpression(pm.Expression) {
+			bare = false
+			break
+		}
+	}
+	parts := make([]string, 0, len(mappings))
+	for _, pm := range mappings {
+		name := pm.Parameter
+		if idx := strings.LastIndex(name, "."); idx >= 0 {
+			name = name[idx+1:]
+		}
+		if bare {
+			parts = append(parts, visitor.ParameterNameSpelling(name)+" = "+pm.Expression)
+		} else {
+			parts = append(parts, name+" = "+mdlQuoted(pm.Expression))
+		}
+	}
+	if bare {
+		return "(" + strings.Join(parts, ", ") + ")", ""
+	}
+	return "", " with (" + strings.Join(parts, ", ") + ")"
 }

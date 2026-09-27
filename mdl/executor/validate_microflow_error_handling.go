@@ -89,7 +89,7 @@ func (v *microflowValidator) checkErrorHandlingContinueSupported(stmt ast.Microf
 		fmt.Sprintf("`%s ... on error continue` is not supported — Mendix rejects Continue error handling "+
 			"on a %s with CE6035 \"Error handling type is not supported\"", keyword, activity),
 		fmt.Sprintf("Drop the clause to keep Mendix's default (rollback and abort), or wrap the statement in a "+
-			"custom handler, which %s does accept: `%s ... on error { ... }`. Continue IS supported on "+
+			"custom handler, which %s does accept: `%s ... on error begin ... end error`. Continue IS supported on "+
 			"`retrieve`, `delete` and `call microflow` — measured on 11.14.0.", activity, keyword))
 }
 

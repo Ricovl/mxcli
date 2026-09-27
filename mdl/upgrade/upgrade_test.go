@@ -226,3 +226,28 @@ func TestUpgrade_GatedConstructs(t *testing.T) {
 		t.Fatalf("got %q (%v), want %q", res.Source, res.GatedRewritten, want)
 	}
 }
+
+// A brace error handler (MDL-DEPR540) becomes `begin … end error`, nested ones
+// included, keeping the body, comments and layout; it needs no header.
+func TestUpgrade_OnErrorBracesToBeginEndError(t *testing.T) {
+	for _, c := range [][2]string{
+		{mf + "  commit $o on error {\n    log warning 'x'; -- keep\n  };\nend;\n",
+			mf + "  commit $o on error begin\n    log warning 'x'; -- keep\n  end error;\nend;\n"},
+		{mf + "  commit $o on error without rollback { };\nend;\n",
+			mf + "  commit $o on error without rollback begin end error;\nend;\n"},
+		{mf + "  COMMIT $o ON ERROR WITHOUT ROLLBACK {\n    COMMIT $o ON ERROR { LOG INFO 'inner'; };\n  };\nend;\n",
+			mf + "  COMMIT $o ON ERROR WITHOUT ROLLBACK BEGIN\n    COMMIT $o ON ERROR BEGIN LOG INFO 'inner'; END ERROR;\n  END ERROR;\nend;\n"},
+	} {
+		res, err := Upgrade(c[0], Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Source != c[1] {
+			t.Errorf("got:\n%s\nwant:\n%s", res.Source, c[1])
+		}
+		if res.Rewritten["MDL-DEPR540"] == 0 {
+			t.Errorf("no MDL-DEPR540 rewrite recorded: %+v", res.Rewritten)
+		}
+		sameStatements(t, c[0], res.Source)
+	}
+}

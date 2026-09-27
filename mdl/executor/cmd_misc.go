@@ -146,8 +146,8 @@ Microflows:
     change $Object (attr = value);
     commit $Object [with events] [refresh];
     retrieve $List from Module.Entity where condition;
-    $Var = call microflow Module.Name($param = value);
-    $Var = call java action Module.Name($param = value);
+    $Var = call microflow Module.Name(param = value);
+    $Var = call java action Module.Name(param = value);
     validation feedback $Var/Attr message 'Error';  -- Show validation error
     close page [n];                      -- Close page(s)
     log info|warning|error [node 'name'] 'message';

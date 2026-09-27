@@ -156,7 +156,7 @@ AUTHENTICATION Basic, Session
 | Retrieve (Assoc) | `RETRIEVE $List FROM $Parent/Module.AssocName;` | Retrieve by association |
 | Call microflow | `$Result = CALL MICROFLOW Module.Name (Param = $value);` | |
 | Call nanoflow | `$Result = CALL NANOFLOW Module.Name (Param = $value);` | |
-| Show page | `LIST PAGE Module.PageName ($Param = $value);` | Also accepts `(Param: $value)` |
+| Show page | `SHOW PAGE Module.PageName (Param = $value);` | `($Param = …)` and `(Param: …)` are deprecated |
 | Close page | `CLOSE PAGE;` | |
 | Validation | `VALIDATION FEEDBACK $Entity/Attribute MESSAGE 'message';` | Requires attribute path + MESSAGE |
 | Log | `LOG INFO\|WARNING\|ERROR [NODE 'name'] 'message';` | |
@@ -170,14 +170,14 @@ AUTHENTICATION Basic, Session
 | WHILE | `WHILE condition BEGIN ... END WHILE;` | Condition-based loop |
 | Return | `RETURN $value;` | Required at end of every flow path |
 | Execute DB query | `$Result = EXECUTE DATABASE QUERY Module.Conn.Query;` | 3-part name; supports DYNAMIC, params, CONNECTION override |
-| Error handling | `... ON ERROR CONTINUE\|ROLLBACK\|{ handler };` | Not supported on EXECUTE DATABASE QUERY |
+| Error handling | `... ON ERROR CONTINUE\|ROLLBACK\|[WITHOUT ROLLBACK] BEGIN handler END ERROR;` | Not supported on EXECUTE DATABASE QUERY |
 
 ## Microflows - NOT Supported (Will Cause Parse Errors)
 
 | Unsupported | Use Instead | Notes |
 |-------------|-------------|-------|
 | `CASE ... WHEN 'String' ... ELSE ...` | Bare enum values, one branch per value | `CASE` itself IS supported for **enum splits**; what fails is quoted/qualified values, an `ELSE` branch (MDL008), and an `AS` alias |
-| `TRY ... CATCH ... END TRY` | `ON ERROR { ... }` blocks | Use error handlers on specific activities |
+| `TRY ... CATCH ... END TRY` | `ON ERROR BEGIN ... END ERROR` blocks | Use error handlers on specific activities |
 
 **Notes:**
 - `RETRIEVE ... FIRST` returns a single entity; `RETRIEVE ... LIMIT n [OFFSET n]` returns a list. A bare `LIMIT 1` is a list of one under `mdl 1;`, and without the header the single entity, with warning `MDL-V1-LIMIT1`.
@@ -353,8 +353,8 @@ MDL uses explicit property declarations for pages:
 | Widget name | Required after type | `TEXTBOX txtName (...)` |
 | Attribute binding | `Attribute: AttrName` | `TEXTBOX txt (Label: 'Name', Attribute: Name)` |
 | Variable binding | `DataSource: $Var` | `DATAVIEW dv (DataSource: $Product) { ... }` |
-| Action binding | `Action: TYPE` | `ACTIONBUTTON btn (Caption: 'Save', Action: SAVE CHANGES)` |
-| Microflow action | `Action: CALL MICROFLOW Name(Param: val)` | `Action: CALL MICROFLOW Mod.ACT_Process(Order: $Order)` |
+| Action binding | `Action: TYPE` | `ACTIONBUTTON btn (Caption: 'Save', Action: save changes)` |
+| Microflow action | `Action: MICROFLOW Name(Param = val)` | `Action: MICROFLOW Mod.ACT_Process(Order = $Order)` |
 | Database source | `DataSource: DATABASE Entity` | `DATAGRID dg (DataSource: DATABASE Module.Entity)` |
 | Selection binding | `DataSource: SELECTION widget` | `DATAVIEW dv (DataSource: SELECTION galleryList)` |
 | CSS class | `Class: 'classes'` | `CONTAINER c (Class: 'card mx-spacing-top-large')` |

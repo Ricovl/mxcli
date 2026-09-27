@@ -95,6 +95,10 @@ send rest request Module.ServiceName.OperationName;
 -- With output variable (RESPONSE JSON operation — maps to entity)
 $Result = send rest request Module.ServiceName.OperationName;
 
+-- With path/query parameters, bound as at every call site: `Param = expression`
+$Result = send rest request Module.ServiceName.GetItem
+    with (id = $ItemId, lang = 'en');
+
 -- With request body (POST/PUT operations)
 $Result = send rest request Module.ServiceName.CreateItem
     body $NewItem;

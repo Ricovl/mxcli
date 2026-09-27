@@ -686,16 +686,18 @@ openLinkV3
     | OPEN_LINK /* @alias MDL-DEPR020 */
     ;
 
-// V3 Microflow arguments: (Param: value, ...)
+// V3 Microflow arguments: (Param = value, ...) — R4, the argument form of every
+// call site. `Param: value` and `$Param = value` are deprecated spellings.
 microflowArgsV3
     : LPAREN microflowArgV3 (COMMA microflowArgV3)* RPAREN
     ;
 
 microflowArgV3
-    : identifierOrKeyword COLON expression            // Param: $value (identifierOrKeyword so a param
-                                                      // named after a keyword — View/Source/Item/Page/
-                                                      // Entity — works unquoted, matching callArgument)
-    | VARIABLE EQUALS expression                     // $Param = $value (microflow-style, also accepted)
+    : parameterName EQUALS expression                 // Param = $value (parameterName so a param named
+                                                      // after a keyword — View/Source/Item/Page/Entity —
+                                                      // works unquoted, matching callArgument)
+    | identifierOrKeyword COLON /* @alias MDL-DEPR007 */ expression // Param: $value
+    | VARIABLE /* @alias MDL-DEPR006 */ EQUALS expression           // $Param = $value
     ;
 
 // A value in `Visible: Attr in (…)`: an enumeration value name, true/false,

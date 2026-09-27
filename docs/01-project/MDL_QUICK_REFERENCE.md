@@ -556,13 +556,13 @@ it is for pages.
 | REST call (mapping single) | `$Var = rest call get '<url>' returns mapping Module.IMM as Module.Entity;` | Single object — Studio Pro emits `ForceSingleOccurrence=true` |
 | REST call (mapping list) | `$Var = rest call get '<url>' returns mapping Module.IMM as list of Module.Entity;` | List result |
 | REST call (none) | `rest call get '<url>' returns nothing;` | Discard response |
-| Show page | `show page Module.PageName ($Param = $value);` | Also accepts `(Param: $value)` |
+| Show page | `show page Module.PageName (Param = $value);` | `Param = expression`, as at every call site. `($Param = …)` and `(Param: …)` are deprecated (MDL-DEPR006/007) |
 | Close page | `close page;` | |
 | Download file | `download file $FileDocument [show in browser];` | Streams a `System.FileDocument` |
-| Show message | `show message 'text' [type Information\|Warning\|Error] [objects [$a, $b]] [blocking];` | `blocking` halts the client until the user dismisses it — Studio Pro's checkbox. It goes after `objects` and before `on error`. Without it, a describe → exec round trip turned a blocking message into a non-blocking one (16 microflows measured) |
+| Show message | `show message 'text' [type Information\|Warning\|Error] [with ({1} = $a, {2} = $b)] [blocking];` | `blocking` halts the client until the user dismisses it — Studio Pro's checkbox. It goes after the `with` list and before `on error`. `with ({1} = $a, {2} = $b)` is the deprecated spelling of the list (MDL-DEPR009). Without it, a describe → exec round trip turned a blocking message into a non-blocking one (16 microflows measured) |
 | Database connection credentials | `connection string @Mod.Const`, `username @Mod.Const`, `password @Mod.Const` | Constant **references** only. A literal writes an unopenable project — MDL058 |
 | Synchronize (nanoflow only) | `synchronize all;` / `synchronize unsynchronized;` / `synchronize $Obj, $List;` | Offline sync. `unsynchronized` needs Mendix 9.4+. In a microflow this is MDL057 / CE0009 |
-| Validation | `validation feedback $entity/attribute message 'message';` | Requires attribute path + MESSAGE |
+| Validation | `validation feedback $entity/attribute message 'message {1}' [with ({1} = $a)];` | Requires attribute path + MESSAGE |
 | Log | `log info\|warning\|error [node 'name'] 'message';` | |
 | Apply entity access | `@applyentityaccess` / `@applyentityaccess(false)` before `create microflow` or `create rule` | Runs the flow under the **current user's** entity access rules instead of with full access. A **security** setting and only ever narrowing, so an ABSENT annotation **preserves** what is stored rather than clearing it — the same rule as `@excluded`. Not available on a nanoflow: it runs in the client and Mendix stores no such property |
 | Position | `@position(x, y)` | Canvas position (before activity) |
@@ -589,9 +589,9 @@ it is for pages.
 | Execute DB query | `$Result = execute database query Module.Conn.Query;` | 3-part name; supports DYNAMIC, params, CONNECTION override |
 | Import mapping | `[$Var =] import from mapping Module.IMM($SourceVar) [all\|first\|limit <e> [offset <e>]];` | Apply import mapping to string variable. Trailing clause is Studio Pro's Range; omitted = infer from the mapping's root. `first` binds one OBJECT (`limit 1` is a one-element LIST). Mendix rejects `offset` on a non-list mapping (CE6100) |
 | Export mapping | `$Var = export to mapping Module.EMM($EntityVar);` | Apply export mapping to entity, returns string |
-| Error handling | `... on error continue\|rollback\|{ handler }\|without rollback { handler };` | Goes on the activity that may fail — including `declare`, `set`, `change`, `log`, `show page`, `close page`, `show message` and `validation feedback`, which gained it in mendixlabs/mxcli#1078 so a Studio Pro handler survives DESCRIBE. `on error continue` is refused (MDL076) where Mendix raises CE6035: create, change, commit, log, show page, close page, show message, validation feedback — a custom `{ handler }` is accepted on all of them. The list-operation and aggregate forms of `set` have no error handling at all (MDL077). Not supported on EXECUTE DATABASE QUERY. **In a nanoflow** only `declare` and `set` take a clause at all — `change`, `log`, `show page`, `close page`, `show message` and `validation feedback` are CE6035 there in every form, and are refused. A handler that does not end in `return`/`raise error` merges back into the main flow, so a later variable is out of scope on the error path (CE0108) |
-| Re-raise the error | `raise error;` | **Inside an `on error { … }` handler only.** The error event re-raises the error being handled, so Mendix needs one in scope; Studio Pro will not draw the shape and mxbuild rejects it with **CE0710** "The main flow cannot join an error flow or end in an error event". On the main flow — at any nesting depth, and in a rule too — it is **MDL084**. Mendix has no main-flow "throw": call a Java action that throws |
-| Named join point | `merge <label>;` / `join <label>;` | Declares an ExclusiveMerge and sends a path to it. The label is MDL-only — a Mendix merge stores no name, so it is resolved at build and at describe time and never written to the model. Forward and backward references both resolve, so `merge attempt; … on error { join attempt; }` is a retry loop. This is how an **error path that rejoins the normal one** is written: without it the only spellings are "terminate" and "fall through to the enclosing branch's continuation", and DESCRIBE emitted an empty `{ }` for anything else — MDL that re-executes to a different graph with nothing reporting it. Also covers **crossed branches**, where an inner split's branch lands where an outer split's branch lands. Refused inside a `loop`/`while` body (MDL-FLOW04): a LoopedActivity owns its own object collection and a sequence flow cannot leave it. An unresolved or unjoined label is MDL-FLOW02; a duplicate declaration MDL-FLOW03. A path that already ended does not fall through into a following `merge` |
+| Error handling | `... on error continue\|rollback\|[without rollback] begin handler end error;` | Goes on the activity that may fail — including `declare`, `set`, `change`, `log`, `show page`, `close page`, `show message` and `validation feedback`, which gained it in mendixlabs/mxcli#1078 so a Studio Pro handler survives DESCRIBE. `on error continue` is refused (MDL076) where Mendix raises CE6035: create, change, commit, log, show page, close page, show message, validation feedback — a custom `begin handler end error` is accepted on all of them. The list-operation and aggregate forms of `set` have no error handling at all (MDL077). Not supported on EXECUTE DATABASE QUERY. **In a nanoflow** only `declare` and `set` take a clause at all — `change`, `log`, `show page`, `close page`, `show message` and `validation feedback` are CE6035 there in every form, and are refused. A handler that does not end in `return`/`raise error` merges back into the main flow, so a later variable is out of scope on the error path (CE0108) |
+| Re-raise the error | `raise error;` | **Inside an `on error begin … end error` handler only.** The error event re-raises the error being handled, so Mendix needs one in scope; Studio Pro will not draw the shape and mxbuild rejects it with **CE0710** "The main flow cannot join an error flow or end in an error event". On the main flow — at any nesting depth, and in a rule too — it is **MDL084**. Mendix has no main-flow "throw": call a Java action that throws |
+| Named join point | `merge <label>;` / `join <label>;` | Declares an ExclusiveMerge and sends a path to it. The label is MDL-only — a Mendix merge stores no name, so it is resolved at build and at describe time and never written to the model. Forward and backward references both resolve, so `merge attempt; … on error begin join attempt; end error` is a retry loop. This is how an **error path that rejoins the normal one** is written: without it the only spellings are "terminate" and "fall through to the enclosing branch's continuation", and DESCRIBE emitted an empty handler for anything else — MDL that re-executes to a different graph with nothing reporting it. Also covers **crossed branches**, where an inner split's branch lands where an outer split's branch lands. Refused inside a `loop`/`while` body (MDL-FLOW04): a LoopedActivity owns its own object collection and a sequence flow cannot leave it. An unresolved or unjoined label is MDL-FLOW02; a duplicate declaration MDL-FLOW03. A path that already ended does not fall through into a following `merge` |
 
 **Activity defaults.** An omitted modifier always means Mendix's own default, so a
 bare MDL statement produces the same activity as dragging a fresh one onto the
@@ -616,7 +616,7 @@ and `mxbuild` were all clean. Only the running app showed it.
 | Unsupported | Use Instead | Notes |
 |-------------|-------------|-------|
 | `case ... when 'String' ... else ...` | Bare enum values, one branch per value | `case` itself IS supported for **enum splits** (see above); what fails is quoted/qualified values, an `else` branch, and an `AS` alias |
-| `TRY ... CATCH ... end TRY` | `on error { ... }` blocks | Use error handlers on specific activities |
+| `TRY ... CATCH ... end TRY` | `on error begin ... end error` blocks | Use error handlers on specific activities |
 
 **Notes:**
 - `retrieve ... first` binds a single OBJECT: Mendix's "First object" range. `retrieve ... limit n
@@ -714,9 +714,9 @@ mandatory and a misplaced clause failed with a token error
   - A **targeting microflow** takes exactly `System.Workflow` + the context entity (or a generalization of it), in either order — anything else is CE6677. Users targeting returns a list of `System.User`, groups a list of `System.WorkflowGroup`.
   - An **on-created microflow** takes exactly `System.WorkflowUserTask` + the context entity, in either order (CE6683), and returns nothing (CE5012).
   - `check --references` reports these before anything is written; `exec` refuses the workflow statement itself (Mendix 11+).
-- `call microflow Mod.MF [as <name>] [comment '<text>'] [with (<Param> = '<expr>', ...)] [outcomes '<out>' -> { } ...];`
+- `call microflow Mod.MF[(<Param> = <expr>, ...)] [as <name>] [comment '<text>'] [outcomes '<out>' -> { } ...];`
 - `call agent microflow Mod.MF [as <name>] [comment '<text>'] [with (<Param> = '<expr>', ...)] [outcomes … -> { } ...];` — an **AI agent task** (Mendix 11.9+): the call-microflow statement stored as `Workflows$AIAgentTaskActivity`. Its microflow must take at least one parameter (CE1590).
-- `call workflow Mod.WF [as <name>] [comment '<text>'] [with (<Param> = '<expr>', ...)];`
+- `call workflow Mod.WF[(<Param> = <expr>, ...)] [as <name>] [comment '<text>'];`
 - `decision [<name>] ['<expression>'] outcomes <true|false|'Module.Enum.Value'> -> { } ...;`
 - `parallel split [<name>] path 1 { } path 2 { };`
 - `jump to <activity-name>;`
@@ -766,8 +766,10 @@ the build fails `CE6686`). Anything shorter is refused as `MDL-WF03`, and by
 module — is not a build error but a `StorageLoadException` that leaves the
 project unopenable in Studio Pro and mxbuild.
 
-**Parameter values in `with (...)` are quoted strings**, not bare variables:
-`call microflow Mod.MF with (Request = '$WorkflowContext')`.
+**Arguments go right after the callee**, bound as at every call site with a bare
+expression: `call microflow Mod.MF(Request = $WorkflowContext)`. The older
+`with (Request = '$WorkflowContext')`, the expression in a string, is a deprecated
+alias with the same meaning (MDL-DEPR008).
 
 **An enumeration decision also needs an empty outcome.** Mendix generates one
 outcome per enumeration value **plus one for the empty value**, and MxBuild
@@ -1455,11 +1457,11 @@ MDL uses explicit property declarations for pages:
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |
 | Action binding | `action: type` | `actionbutton btn (caption: 'Save', action: save changes)` — the forms are a closed set (`mxcli syntax page.action`); anything else is **MDL-WIDGET28** |
 | No action | `action: nothing` | `actionbutton btn (caption: 'Decorative', action: nothing)` — an explicitly inert control. Write it deliberately: an action keyword **short its argument** (`action: open link` with no URL) is now an error rather than a widget silently written with no action at all |
-| Microflow action | `action: call microflow Name(Param: val)` | `action: call microflow Mod.ACT_Process(Order: $Order)` |
+| Microflow action | `action: call microflow Name(Param = val)` | `action: call microflow Mod.ACT_Process(Order = $Order)` |
 | Button icon | `icon: 'Module.IconCollection.IconName'` | `linkbutton btn (caption: 'Edit', action: nothing, icon: 'Atlas_Core.Atlas_Filled.pencil')` — the **icon-collection** icon; MxBuild rejects an unknown name (CE1613) |
 | Image icon | `icon: image Module.ImageCollection.Name` | `actionbutton btn (caption: 'Logo', action: nothing, icon: image MyMod.Images.logo)` — an **image** collection is a different document from an icon collection, and the names are spelled the same, so the keyword is what separates them. Written without `image` it is stored as a custom-icon reference and the build fails **CE1613** |
 | Glyph icon | `icon: glyph <code>` | `actionbutton btn (caption: 'Home', action: nothing, icon: glyph 57377)` — a font code point with no name. Codes are sparse; an undefined one fails only at `mxbuild --target=deploy`, naming the **page**, so **MDL078** checks it. Browse with `show glyphs` |
-| Clickable container | `onclick: action` (alias of `action:`) | `container card (onclick: call microflow Mod.ACT_Open) { ... }` — takes an argument list like a button: `action: call nanoflow Mod.ACT_Ship($Order = $dgOrders)` |
+| Clickable container | `onclick: action` (alias of `action:`) | `container card (onclick: call microflow Mod.ACT_Open) { ... }` — takes an argument list like a button: `action: call nanoflow Mod.ACT_Ship(Order = $dgOrders)` |
 | Action arguments | every parameter needs one | A flow action with an unfilled parameter is **CE1571**. An enclosing data container of its type supplies it; a data grid's **control bar** does not (not row-scoped) — pass the grid's selection, `$dgOrders` |
 | Database source | `datasource: database entity` | `datagrid dg (datasource: database Module.Entity)` |
 | Database source, constrained and sorted | `datasource: database entity where [...] sort by Attr asc` | `listview lv (datasource: database from Mod.Vehicle where [Brand != ''] sort by Brand asc)` |

@@ -241,7 +241,7 @@ begin
   commit $Order;
 
   -- Show page for review (like K2 "Task" with form)
-  show page CRM.Order_Review ($Order = $Order);
+  show page CRM.Order_Review (Order = $Order);
 end;
 
 -- K2 Decision "Order > $5000?" → Mendix microflow with decision
@@ -252,7 +252,7 @@ begin
 
   if $Order/TotalAmount > 5000 then
     -- Route to manager (K2 Destination Rule equivalent)
-    call microflow CRM.ACT_Order_SubmitForManagerReview ($Order = $Order);
+    call microflow CRM.ACT_Order_SubmitForManagerReview (Order = $Order);
   else
     -- Auto-approve (K2 "Go To" equivalent)
     change $Order (status = CRM.OrderStatus.Approved);

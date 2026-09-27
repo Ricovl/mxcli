@@ -37,13 +37,19 @@ func TestPedAppDescribeIsValidMdl1(t *testing.T) {
 			if err != nil || strings.TrimSpace(out) == "" {
 				t.Skipf("describe %s: err=%v (judged by TestPedAppRoundTrip)", target, err)
 			}
-			if _, errs := visitor.Build(out); len(errs) > 0 {
+			prog, errs := visitor.Build(out)
+			if len(errs) > 0 {
 				if hasKnownLaw(target, lawParse) {
 					t.Skipf("does not parse under mdl 0 either (allowlisted): %v", errs[0])
 				}
 				t.Fatalf("describe output does not parse: %v\n%s", errs[0], out)
 			}
 			checked++
+			// describe never emits a deprecated spelling (proposal §6.1).
+			for _, d := range prog.Deprecations {
+				t.Errorf("describe output uses a deprecated spelling, %s at line %d\n--- describe output ---\n%s",
+					d.Code, d.Line, out)
+			}
 			for _, problem := range terminatorProblems(out) {
 				t.Errorf("%s\n--- describe output ---\n%s", problem, out)
 			}

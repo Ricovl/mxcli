@@ -22,10 +22,10 @@ end;
 create or replace microflow RaiseProbe.MF_Handled ()
 begin
   call microflow RaiseProbe.MF_Inner ()
-  on error {
+  on error begin
     log error node 'RaiseProbe' 'failed';
     raise error;
-  };
+  end error;
 end;
 /
 
@@ -33,12 +33,12 @@ end;
 create or replace microflow RaiseProbe.MF_HandledIf ($Retry: Boolean)
 begin
   call microflow RaiseProbe.MF_Inner ()
-  on error {
+  on error begin
     if $Retry then
       log warning node 'RaiseProbe' 'retrying';
     else
       raise error;
     end if;
-  };
+  end error;
 end;
 /

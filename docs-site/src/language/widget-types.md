@@ -370,7 +370,7 @@ The snake-case spellings (`SAVE_CHANGES`, `SHOW_PAGE`, …) and `MICROFLOW …` 
 ```sql
 ACTIONBUTTON btnProcess (
   Caption: 'Process',
-  Action: CALL MICROFLOW Sales.ACT_ProcessOrder(Order: $Order),
+  Action: MICROFLOW Sales.ACT_ProcessOrder(Order = $Order),
   ButtonStyle: Primary
 )
 ```

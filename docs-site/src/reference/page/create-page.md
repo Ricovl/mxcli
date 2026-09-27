@@ -119,10 +119,10 @@ values, including the argument list.
 
 | Action | Syntax | Description |
 |--------|--------|-------------|
-| Save | `Action: SAVE CHANGES` | Commits and closes |
-| Cancel | `Action: CANCEL CHANGES` | Rolls back and closes |
-| Microflow | `Action: CALL MICROFLOW Module.Name(Param: val)` | Calls a microflow |
-| Nanoflow | `Action: CALL NANOFLOW Module.Name(Param: val)` | Calls a nanoflow |
+| Save | `Action: save changes` | Commits and closes |
+| Cancel | `Action: cancel changes` | Rolls back and closes |
+| Microflow | `Action: MICROFLOW Module.Name(Param = val)` | Calls a microflow |
+| Nanoflow | `Action: NANOFLOW Module.Name(Param = val)` | Calls a nanoflow |
 | Page | `Action: PAGE Module.PageName` | Opens a page |
 | Close | `Action: CLOSE PAGE` | Closes the current page |
 | Delete | `Action: DELETE` | Deletes the context object |
@@ -150,7 +150,7 @@ DATAGRID dgOrders (DataSource: DATABASE FROM Sales.Order, Selection: Single) {
   COLUMN colNr (Attribute: Number, Caption: 'Order #')
   CONTROLBAR cb {
     CONTAINER cShip (Class: 'command',
-      Action: CALL NANOFLOW Sales.ACT_Ship($Order = $dgOrders)) {
+      Action: NANOFLOW Sales.ACT_Ship(Order = $dgOrders)) {
       ACTIONBUTTON btnShip (Caption: 'Ship')
     }
   }

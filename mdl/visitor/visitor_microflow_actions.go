@@ -1241,14 +1241,20 @@ func buildShowPageArgList(ctx parser.IShowPageArgListContext) []ast.ShowPageArg 
 		arg := argCtx.(*parser.ShowPageArgContext)
 		spa := ast.ShowPageArg{}
 
-		if iok := arg.IdentifierOrKeyword(); iok != nil {
-			// Widget-style: Param: $value
+		if pn := arg.ParameterName(); pn != nil {
+			// Canonical (R4): Param = $value
+			spa.ParamName = parameterNameText(pn)
+			if expr := arg.Expression(); expr != nil {
+				spa.Value = buildSourceExpression(expr)
+			}
+		} else if iok := arg.IdentifierOrKeyword(); iok != nil {
+			// Deprecated (MDL-DEPR007): Param: $value
 			spa.ParamName = identifierOrKeywordText(iok)
 			if expr := arg.Expression(); expr != nil {
 				spa.Value = buildSourceExpression(expr)
 			}
 		} else {
-			// Canonical: $Param = $value
+			// Deprecated (MDL-DEPR006): $Param = $value
 			vars := arg.AllVARIABLE()
 			if len(vars) >= 1 {
 				spa.ParamName = strings.TrimPrefix(vars[0].GetText(), "$")
@@ -1286,7 +1292,11 @@ func buildShowMessageStatement(ctx parser.IShowMessageStatementContext) *ast.Sho
 		stmt.Type = id.GetText()
 	}
 
-	// Build template arguments (optional)
+	// Build template arguments (optional): `with ({1} = e)`, or the deprecated
+	// positional `objects [e]` (MDL-DEPR009).
+	if tp := smCtx.TemplateParams(); tp != nil {
+		stmt.TemplateArgs = templateArgsByNumber(buildTemplateParams(tp))
+	}
 	if exprList := smCtx.ExpressionList(); exprList != nil {
 		listCtx := exprList.(*parser.ExpressionListContext)
 		allExprs := listCtx.AllExpression()
@@ -1380,7 +1390,11 @@ func buildValidationFeedbackStatement(ctx parser.IValidationFeedbackStatementCon
 		stmt.Message = buildSourceExpression(msgExpr)
 	}
 
-	// Build template arguments (optional)
+	// Build template arguments (optional): `with ({1} = e)`, or the deprecated
+	// positional `objects [e]` (MDL-DEPR009).
+	if tp := vfCtx.TemplateParams(); tp != nil {
+		stmt.TemplateArgs = templateArgsByNumber(buildTemplateParams(tp))
+	}
 	if exprList := vfCtx.ExpressionList(); exprList != nil {
 		listCtx := exprList.(*parser.ExpressionListContext)
 		allExprs := listCtx.AllExpression()
@@ -1678,6 +1692,8 @@ func buildSendRestRequestStatement(ctx parser.ISendRestRequestStatementContext) 
 			param := ast.SendRestParamDef{}
 			if v := pc.VARIABLE(); v != nil {
 				param.Name = strings.TrimPrefix(v.GetText(), "$")
+			} else if pn := pc.ParameterName(); pn != nil {
+				param.Name = parameterNameText(pn)
 			}
 			if expr := pc.Expression(); expr != nil {
 				param.Expression = expressionSourceText(expr)

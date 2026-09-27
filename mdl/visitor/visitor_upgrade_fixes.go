@@ -30,7 +30,7 @@ import (
 func LanguageChanges() []langver.Change {
 	return []langver.Change{
 		semicolonRequired, slashIsNotATerminator, backslashIsLiteral, limitOneIsAList,
-		listCallForm, setIsMandatory, viewEntityReplaceIsModify, roleReplaceIsModify,
+		listCallForm, setIsMandatory, viewEntityReplaceIsModify, roleReplaceIsModify, whileBlockRequired,
 		unknownPropertyKey, misshapedPropertyValue,
 	}
 }

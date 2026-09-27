@@ -33,6 +33,7 @@ var gatedRewriters = map[string]GatedRewriter{
 	"MDL-V1-SET":       visitorFix, // `$x = e` -> `set $x = e`
 	"MDL-V1-LIST":      visitorFix, // call form -> statement form, or `set` for the string function
 	"MDL-V1-REPLACE02": visitorFix, // `create or replace user role` (a plain create) -> `create user role`
+	"MDL-V1-WHILE":     visitorFix, // insert the missing `begin` and `while` after `end`
 }
 
 // unrewritable lists the changes with no mechanical rewrite at all, and why.

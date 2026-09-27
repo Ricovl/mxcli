@@ -198,7 +198,7 @@ create page MyModule.Order_Detail
 create microflow MyModule.ACT_OpenOrder ($Order: MyModule.Order)
 begin
   @position(200,200)
-  show page MyModule.Order_Detail ($Order = $Order);
+  show page MyModule.Order_Detail (Order = $Order);
   @position(400,200) return;
 end;
 /
@@ -313,7 +313,7 @@ begin
   @position(200,200)
   $c = create MyModule.Customer;
   @position(400,200)
-  show page MyModule.Customer_NewEdit ($Customer = $c);
+  show page MyModule.Customer_NewEdit (Customer = $c);
   @position(600,200) return;
 end;
 /
