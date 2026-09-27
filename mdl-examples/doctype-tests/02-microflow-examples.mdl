@@ -1875,8 +1875,8 @@ end;
 -- Options:
 --   - ON ERROR CONTINUE - Ignore error and continue execution
 --   - ON ERROR ROLLBACK - Rollback transaction and abort
---   - ON ERROR { ... } - Execute custom error handler statements
---   - ON ERROR WITHOUT ROLLBACK { ... } - Custom handler without rollback
+--   - ON ERROR BEGIN ... END ERROR - Execute custom error handler statements
+--   - ON ERROR WITHOUT ROLLBACK BEGIN ... END ERROR - Custom handler without rollback
 
 /**
  * Example 13.1: Continue on error

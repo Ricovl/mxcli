@@ -728,7 +728,7 @@ showMessageStatement
 // SYNCHRONIZE ALL;
 // SYNCHRONIZE UNSYNCHRONIZED;
 // SYNCHRONIZE $Order, $Lines;              -- Specific mode
-// SYNCHRONIZE ALL ON ERROR WITHOUT ROLLBACK { ... };
+// SYNCHRONIZE ALL ON ERROR WITHOUT ROLLBACK BEGIN ... END ERROR;
 //
 // Nanoflow-only: Mendix rejects a synchronize in a microflow, which is
 // server-side. The bare `SYNCHRONIZE;` form is deliberately absent — the mode is
