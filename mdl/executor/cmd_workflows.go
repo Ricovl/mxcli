@@ -232,8 +232,7 @@ func describeWorkflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	}
 	lines = append(lines, formatEventSubProcesses(targetWf.EventSubProcesses, "  ")...)
 
-	lines = append(lines, "end workflow")
-	lines = append(lines, "/")
+	lines = append(lines, "end workflow;")
 
 	return strings.Join(lines, "\n"), nil, nil
 }

@@ -422,7 +422,6 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 			// Output access rule GRANT statements
 			outputEntityAccessGrants(ctx, entity, name.Module, name.Name)
 
-			fmt.Fprintln(ctx.Output, "/")
 			return nil
 		}
 	}

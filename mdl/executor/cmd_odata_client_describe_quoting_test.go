@@ -35,6 +35,7 @@ func describeAndReparse(t *testing.T, stored *model.ConsumedODataService, folder
 		t.Fatalf("describe: %v", err)
 	}
 	prog := parseMDL(t, out.String())
+	assertTerminated(t, out.String()) // #744
 	for _, s := range prog.Statements {
 		if c, ok := s.(*ast.CreateODataClientStmt); ok {
 			return c, out.String()

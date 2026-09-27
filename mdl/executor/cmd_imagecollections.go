@@ -151,7 +151,6 @@ func describeImageCollection(ctx *ExecContext, name ast.QualifiedName) error {
 			fmt.Fprintf(ctx.Output, " export level '%s'", exportLevel)
 		}
 		fmt.Fprintln(ctx.Output, ";")
-		fmt.Fprintln(ctx.Output, "/")
 		return nil
 	}
 
@@ -184,7 +183,6 @@ func describeImageCollection(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	fmt.Fprintln(ctx.Output, ");")
-	fmt.Fprintln(ctx.Output, "/")
 	return nil
 }
 
