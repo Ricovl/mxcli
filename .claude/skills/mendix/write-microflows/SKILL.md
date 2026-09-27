@@ -44,14 +44,10 @@ Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mod
   (or fresh `describe` output) and re-run `create or modify`.
 - **Authored in Studio Pro:** prefer `alter microflow X { insert/replace/drop … }`
   (targets from `describe microflow X with handles`). `create or modify` of `describe`
-  output also works as a patch: an unchanged definition writes nothing, and an inserted,
-  replaced or dropped statement (at the top level or in an `if` branch) is spliced in,
-  leaving every other node, merge and curve as stored. A change it cannot splice — the
-  header, anything inside a loop body or error handler, a moved node — rebuilds the
-  whole microflow under mdl 0
-  (warning `MDL-V1-REBUILD`: element IDs renumbered, merges removed, curves reset) and
-  is refused under `mdl 1;` (header and loop-body changes have no splice yet; move
-  nodes in Studio Pro).
+  output patches too: unchanged writes nothing; a top-level or `if`-branch statement
+  change is spliced in. Other changes (header, loop body, error handler, moved node)
+  rebuild the flow under mdl 0 (`MDL-V1-REBUILD`: IDs renumbered, merges and curves
+  lost) and are refused under `mdl 1;`.
 
 ## When to Use a Microflow vs a Nanoflow
 
