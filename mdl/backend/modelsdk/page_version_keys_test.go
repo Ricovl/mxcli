@@ -101,7 +101,7 @@ func TestSnippetOmitsVariablesBelow10_17(t *testing.T) {
 	encode := func(pv *types.ProjectVersion) bson.Raw {
 		sn := &pages.Snippet{Name: "S"}
 		sn.ID = "1"
-		b, err := encodeSnippet(sn, pv)
+		b, err := encodeSnippet(sn, pv, nil)
 		if err != nil {
 			t.Fatalf("encodeSnippet: %v", err)
 		}

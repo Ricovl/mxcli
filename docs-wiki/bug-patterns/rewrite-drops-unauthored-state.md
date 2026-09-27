@@ -245,6 +245,29 @@ properties that are neither checked nor interesting are not this class's
 low-severity tail; they are the part of it that reaches users, and they are
 exactly what an audit ordered by "what could go badly wrong?" leaves for last.
 
+**The hardcoded constant is usually wrong on create as well.** A rewrite that
+loses a property typically loses it to a literal, and the literal is often not
+even a legal value: a Java action's `"Public"` and a snippet's `""` are not
+members of their metamodel enums, so every document mxcli *created* carried them
+too. Check the literal against `generated/metamodel/enums.go` and measure what
+Studio Pro writes before deciding what to carry. Where a key's version floor is
+unknown, carry only the keys the stored document has — never write one it lacks.
+
+**A fallback in DESCRIBE is a write.** Whatever describe prints is written back
+in the language (or shape) the statement authors, so a readability fallback —
+showing another language when the default one is empty — becomes a silent edit
+on the round trip. Present-but-empty is a stored value, not a gap.
+
+**A describe that cannot re-execute hides everything behind it.** A plain
+`create` on an existing document fails loudly and nothing after it runs; fixing
+the verb is what exposes the losses — including ones outside the unit, where no
+BSON comparison looks: once a Java action's describe output re-executed, it
+overwrote the `.java` file's code and dropped its extra-code section. Studio
+Pro's own file banner states what a regeneration must retain. The same goes for
+measuring: a multiset of
+lost values says nothing about *which* property went — address each value by the
+element that owns it before diagnosing.
+
 **Partial statements are the honest hazard.** `create or modify entity` with a
 subset of attributes drops the rest, which is arguably what "modify to this shape"
 means. The remedy there was not refusal but telling the truth loudly: diff the

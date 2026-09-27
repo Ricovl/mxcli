@@ -782,7 +782,7 @@ func describeModuleRole(ctx *ExecContext, name ast.QualifiedName) error {
 		}
 		for _, mr := range ms.ModuleRoles {
 			if mr.Name == name.Name {
-				fmt.Fprintf(ctx.Output, "create module role %s.%s", modName, mr.Name)
+				fmt.Fprintf(ctx.Output, "create or modify module role %s.%s", modName, mr.Name)
 				if mr.Description != "" {
 					fmt.Fprintf(ctx.Output, " description %s", mdlQuoted(mr.Description))
 				}

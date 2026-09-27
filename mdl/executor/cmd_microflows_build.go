@@ -501,6 +501,9 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 	existingExcluded := false
 	var existingDocumentation string
 	preserveDocumentation := false
+	// "Mark as used" has no MDL spelling; the rebuild hardcoded false, so a
+	// rewrite cleared it. A new nanoflow still starts unmarked.
+	existingMarkAsUsed := false
 	existingNanoflows, err := ctx.Backend.ListNanoflows()
 	if err != nil {
 		return nil, mdlerrors.NewBackend("check existing nanoflows", err)
@@ -521,6 +524,7 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		existingAllowedRoles = cloneRoleIDs(existing.AllowedModuleRoles)
 		preserveAllowedRoles = true
 		existingExcluded = existing.Excluded
+		existingMarkAsUsed = existing.MarkAsUsed
 		// A rewrite that carried no doc comment keeps the stored one (#1018).
 		existingDocumentation = existing.Documentation
 		preserveDocumentation = true
@@ -553,7 +557,7 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		ContainerID:   containerID,
 		Name:          s.Name.Name,
 		Documentation: s.Documentation,
-		MarkAsUsed:    false,
+		MarkAsUsed:    existingMarkAsUsed,
 		Excluded:      s.Excluded || existingExcluded,
 	}
 	if preserveDocumentation {
@@ -649,6 +653,9 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 			}
 		}
 		nf.ReturnType = convertASTToMicroflowDataType(s.ReturnType.Type, entityResolver)
+		// `returns T as $Var`. Left empty when not authored, and the backend
+		// then carries the stored one (ako/mxcli#705).
+		nf.ReturnVariableName = s.ReturnType.Variable
 	} else {
 		nf.ReturnType = &microflows.VoidType{}
 	}

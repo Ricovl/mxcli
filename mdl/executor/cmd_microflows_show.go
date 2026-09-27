@@ -462,7 +462,13 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 	if targetNf.ReturnType != nil {
 		returnType := formatMicroflowDataType(ctx, targetNf.ReturnType, entityNames)
 		if returnType != "Void" && returnType != "" {
-			lines = append(lines, fmt.Sprintf("returns %s", returnType))
+			returnLine := fmt.Sprintf("returns %s", returnType)
+			// Same rule as a microflow's: without it the variable is lost on a
+			// describe -> exec round trip (ako/mxcli#705).
+			if targetNf.ReturnVariableName != "" && targetNf.ReturnVariableName != "Variable" {
+				returnLine += fmt.Sprintf(" as $%s", targetNf.ReturnVariableName)
+			}
+			lines = append(lines, returnLine)
 		}
 	}
 
@@ -600,6 +606,7 @@ func describeNanoflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 		Excluded:           targetNf.Excluded,
 		Parameters:         targetNf.Parameters,
 		ReturnType:         targetNf.ReturnType,
+		ReturnVariableName: targetNf.ReturnVariableName,
 		ObjectCollection:   targetNf.ObjectCollection,
 		AllowedModuleRoles: targetNf.AllowedModuleRoles,
 	}

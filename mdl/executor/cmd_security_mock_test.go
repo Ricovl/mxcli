@@ -142,7 +142,7 @@ func TestDescribeModuleRole_Mock(t *testing.T) {
 	}
 	ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
 	assertNoError(t, describeModuleRole(ctx, ast.QualifiedName{Module: "MyModule", Name: "Admin"}))
-	assertContainsStr(t, buf.String(), "create module role")
+	assertContainsStr(t, buf.String(), "create or modify module role")
 }
 
 func TestDescribeUserRole_Mock(t *testing.T) {

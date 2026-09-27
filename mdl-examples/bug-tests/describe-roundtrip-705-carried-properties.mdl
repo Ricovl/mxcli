@@ -1,0 +1,63 @@
+-- ============================================================================
+-- ako/mxcli#705 — describe -> exec must not lose what Studio Pro stored
+-- ============================================================================
+--
+-- The Go suite (mdl/executor/studiopro_roundtrip_test.go, -tags integration)
+-- is the real test: it describes Studio Pro-authored documents from the Blank
+-- template and re-executes that output unchanged. This script covers the
+-- CREATE half of the same fixes, so the result can be opened in Studio Pro:
+--
+--   * a Java action is written with ExportLevel Hidden and ActionDefaultReturnName
+--     ReturnValueName (was "Public" — not a JavaActionsExportLevel — and "")
+--   * a snippet is written with Type Web (was "", not a PagesType)
+--   * a nanoflow keeps its annotation connector and `as $Result`
+--   * a textarea keeps its placeholder
+--
+-- Then execute the output of the `describe` statements at the end: every
+-- document must report unchanged (measured on 11.13.0: "4 documents already in
+-- sync", mx check 0 errors). Verify in Studio Pro that the note in
+-- NF_Annotated is attached to its activity and that the textarea on Note_Edit
+-- shows its placeholder.
+-- ============================================================================
+
+CREATE MODULE Bug705;
+
+CREATE OR MODIFY PERSISTENT ENTITY Bug705.Note ( Body: String(2000) );
+
+CREATE OR MODIFY JAVA ACTION Bug705.JA_Echo (Input: String not null) RETURNS String
+AS $$
+return Input;
+$$;
+
+CREATE OR MODIFY NANOFLOW Bug705.NF_Annotated ()
+RETURNS String AS $Result
+BEGIN
+  @annotation 'Explains the declaration'
+  declare $Text String = 'x';
+  return $Text;
+END;
+
+CREATE OR REPLACE SNIPPET Bug705.SN_Header {
+  dynamictext txtHeader (Content: 'Notes', RenderMode: H2)
+}
+
+CREATE OR REPLACE PAGE Bug705.Note_Edit (
+  Title: 'Edit note',
+  Layout: Atlas_Core.PopupLayout,
+  Params: { $Note: Bug705.Note }
+) {
+  layoutgrid lgBody {
+    row r1 {
+      column c1 (DesktopWidth: autofill) {
+        dataview dvNote (DataSource: $Note) {
+          textarea taBody (Label: 'Body', Attribute: Body, Placeholder: 'Describe the problem')
+        }
+      }
+    }
+  }
+}
+
+DESCRIBE JAVA ACTION Bug705.JA_Echo;
+DESCRIBE NANOFLOW Bug705.NF_Annotated;
+DESCRIBE SNIPPET Bug705.SN_Header;
+DESCRIBE PAGE Bug705.Note_Edit;

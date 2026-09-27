@@ -54,6 +54,10 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	var existingActionInfo *types.MicroflowActionInfo
 	var existingJSDoc string
 	haveExistingJS := false
+	// No MDL spelling for either, so a rewrite carries them; the defaults are
+	// Studio Pro's. "Public", which this hardcoded, is not a member of
+	// JavaScriptActionsExportLevel (API | Hidden) — see the Java twin.
+	exportLevel, defaultReturnName := "Hidden", "ReturnValueName"
 	if ex, ok := pickLive(existing,
 		func(a *types.JavaScriptAction) bool {
 			return h.GetModuleName(h.FindModuleID(a.ContainerID)) == s.Name.Module && a.Name == s.Name.Name
@@ -71,6 +75,10 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		existingActionInfo = ex.MicroflowActionInfo
 		existingJSDoc = ex.Documentation
 		haveExistingJS = true
+		if ex.ExportLevel != "" {
+			exportLevel = ex.ExportLevel
+		}
+		defaultReturnName = ex.ActionDefaultReturnName
 	}
 
 	moduleID := containerID
@@ -90,8 +98,8 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		Name:                    s.Name.Name,
 		Documentation:           s.Documentation,
 		Excluded:                existingExcluded,
-		ExportLevel:             "Public",
-		ActionDefaultReturnName: "ReturnValueName",
+		ExportLevel:             exportLevel,
+		ActionDefaultReturnName: defaultReturnName,
 		Platform:                platformOrDefault(s.Platform),
 	}
 	// A rewrite that carried no doc comment keeps the stored one (#1018).

@@ -25,20 +25,7 @@ package roundtrip
 // so that whoever merges second strikes them.
 var knownFailures = map[string]knownFailure{
 	// Plain `create` where `create or modify` is needed (#705 item 5).
-	"association Administration.AccountPasswordData_Account": {laws: []law{lawExec}, issue: "#705 #704", why: "describe prints a plain create (#705 item 5); the table-storage flip (#704) is masked behind it"},
-	"java action FeedbackModule.ValidateEmail":               {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"java action FeedbackModule.XSS_Sanitizer":               {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"module role Administration.Administrator":               {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"module role Administration.User":                        {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"module role Atlas_Core.Administrator":                   {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"module role Atlas_Core.User":                            {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"module role Atlas_Web_Content.Administrator":            {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"module role Atlas_Web_Content.Anonymous":                {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"module role Atlas_Web_Content.User":                     {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"module role DataWidgets.User":                           {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"module role FeedbackModule.User":                        {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"module role MyFirstModule.User":                         {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
-	"module role NanoflowCommons.User":                       {laws: []law{lawExec}, issue: "#705", why: "describe prints a plain create (#705 item 5)"},
+	"association Administration.AccountPasswordData_Account": {laws: []law{lawGetPut}, issue: "#721", why: "domain-model rewrite drops empty MemberAccess keys and default-false HasChanged* flags (#721 B); storage now carried (#704/#705)"},
 
 	// #721 G: describe output that does not parse.
 	"building block Atlas_Web_Content.Alert":                              {laws: []law{lawParse}, issue: "#721", why: "read-only, but describe prints a widget body that does not parse (#721 G)"},
@@ -197,7 +184,7 @@ var knownFailures = map[string]knownFailure{
 	"nanoflow FeedbackModule.Get_And_Set_Feedback_NPE":           {laws: []law{lawGetPut, lawPutGet}, issue: "#705 #721", why: "export level and annotations (#705 item 2); whole-document rebuild (#721 A)"},
 	"nanoflow FeedbackModule.OCH_Feedback_SaveToLocalStorage":    {laws: []law{lawGetPut}, issue: "#705 #721", why: "export level and annotations (#705 item 2); whole-document rebuild (#721 A)"},
 	"nanoflow FeedbackModule.SUB_Feedback_GetOrCreate":           {laws: []law{lawGetPut, lawPutGet}, issue: "#705 #721", why: "export level and annotations (#705 item 2); whole-document rebuild (#721 A)"},
-	"nanoflow FeedbackModule.SUB_Feedback_ResetLocalStorage":     {laws: []law{lawGetPut, lawPutGet}, issue: "#705 #721", why: "export level and annotations (#705 item 2); whole-document rebuild (#721 A)"},
+	"nanoflow FeedbackModule.SUB_Feedback_ResetLocalStorage":     {laws: []law{lawGetPut}, issue: "#721", why: "whole-document rebuild (#721 A); export level and annotations fixed by #705"},
 
 	// Pages: #705 item 1 plus #721 C.
 	"page Administration.Account_Edit":         {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
@@ -221,5 +208,4 @@ var knownFailures = map[string]knownFailure{
 	"snippet Administration.ReadMe":             {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
 	"snippet Atlas_Core.FeedbackWidget":         {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
 	"snippet Atlas_Core.LanguageSelectorWidget": {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
-	"snippet FeedbackModule._ReadMe":            {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
 }
