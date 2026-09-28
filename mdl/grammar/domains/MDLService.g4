@@ -11,7 +11,7 @@ options { tokenVocab = MDLLexer; }
 // =============================================================================
 
 createDatabaseConnectionStatement
-    : DATABASE CONNECTION qualifiedName
+    : DATABASE CONNECTION ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       databaseConnectionOption+
       (BEGIN databaseQuery* END)?
@@ -42,8 +42,8 @@ databaseQueryMapping
     ;
 
 createConfigurationStatement
-    : CONFIGURATION STRING_LITERAL settingsItemOptions?          // configuration 'X' ( Key: value, … )
-    | CONFIGURATION STRING_LITERAL
+    : CONFIGURATION ifNotExists? STRING_LITERAL settingsItemOptions?          // configuration 'X' ( Key: value, … )
+    | CONFIGURATION ifNotExists? STRING_LITERAL
       settingsAssignment (COMMA settingsAssignment)*             // old spelling: Key = value, … (MDL-DEPR060)
     ;
 
@@ -54,7 +54,7 @@ createConfigurationStatement
 // list is a registered alias /* @alias MDL-DEPR105 */, here and in the
 // published REST and OData property lists; the visitor reports it by key.
 createRestClientStatement
-    : consumedRestServiceKw qualifiedName
+    : consumedRestServiceKw ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN restClientProperty (COMMA restClientProperty)* RPAREN
       (LBRACE restClientOperation* RBRACE)?
@@ -113,7 +113,7 @@ restHttpMethod
 // =============================================================================
 
 createPublishedRestServiceStatement
-    : PUBLISHED REST SERVICE qualifiedName
+    : PUBLISHED REST SERVICE ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN publishedRestProperty (COMMA publishedRestProperty)* RPAREN
       LBRACE publishedRestResource* RBRACE
@@ -191,14 +191,14 @@ taskQueuesKw
     ;
 
 createODataClientStatement
-    : consumedODataServiceKw qualifiedName
+    : consumedODataServiceKw ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       odataHeadersClause?
     ;
 
 createODataServiceStatement
-    : publishedODataServiceKw qualifiedName
+    : publishedODataServiceKw ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       odataAuthenticationClause?
@@ -283,7 +283,7 @@ exposeMemberOptions
     ;
 
 createExternalEntityStatement
-    : EXTERNAL ENTITY qualifiedName
+    : EXTERNAL ENTITY ifNotExists? qualifiedName
       FROM consumedODataServiceKw qualifiedName
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       (LPAREN attributeDefinitionList? RPAREN)?
@@ -313,7 +313,7 @@ odataHeaderEntry
 // =============================================================================
 
 createBusinessEventServiceStatement
-    : BUSINESS EVENT SERVICE qualifiedName
+    : BUSINESS EVENT SERVICE ifNotExists? qualifiedName
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       LBRACE businessEventMessageDef+ RBRACE
     ;

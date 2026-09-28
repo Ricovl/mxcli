@@ -8,6 +8,7 @@ package ast
 
 // CreateModuleRoleStmt represents: CREATE MODULE ROLE Module.RoleName [DESCRIPTION '...']
 type CreateModuleRoleStmt struct {
+	CreateGuard // `create … if not exists` (ako/mxcli#731)
 	Name        QualifiedName
 	Description string
 	// CreateOrModify makes the statement idempotent: an existing role has its
@@ -29,6 +30,7 @@ func (s *DropModuleRoleStmt) isStatement() {}
 
 // CreateUserRoleStmt represents: CREATE [OR MODIFY] USER ROLE Name (ModuleRole, ...) [MANAGE ALL ROLES]
 type CreateUserRoleStmt struct {
+	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	Name           string
 	ModuleRoles    []QualifiedName
 	ManageAllRoles bool
@@ -213,6 +215,7 @@ func (s *AlterProjectSecurityStmt) isStatement() {}
 
 // CreateDemoUserStmt represents: CREATE [OR MODIFY] DEMO USER 'name' PASSWORD 'pw' [ENTITY Module.Entity] (Role1, Role2)
 type CreateDemoUserStmt struct {
+	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	UserName       string
 	Password       string
 	Entity         string // qualified name of user entity, e.g. "Administration.Account"

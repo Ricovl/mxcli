@@ -6,6 +6,7 @@ package ast
 //
 //	CREATE [OR REPLACE] JSON STRUCTURE Module.Name [COMMENT 'doc'] SNIPPET '...json...' [CUSTOM NAME MAP (...)];
 type CreateJsonStructureStmt struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	JsonSnippet      string            // Raw JSON snippet
 	Documentation    string            // Optional documentation comment

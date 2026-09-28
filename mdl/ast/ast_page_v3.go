@@ -25,13 +25,14 @@ import (
 // CreatePageStmtV3 represents a V3 page creation statement.
 // V3 syntax: CREATE PAGE Module.Page (Title: '...', Layout: ...) { widgets }
 type CreatePageStmtV3 struct {
-	Name       QualifiedName
-	Parameters []PageParameter // From Params: { } block
-	Variables  []PageVariable  // From Variables: { } block
-	Title      string
-	Layout     string
-	URL        string
-	Folder     string
+	CreateGuard // `create … if not exists` (ako/mxcli#731)
+	Name        QualifiedName
+	Parameters  []PageParameter // From Params: { } block
+	Variables   []PageVariable  // From Variables: { } block
+	Title       string
+	Layout      string
+	URL         string
+	Folder      string
 	// Class / Style set the page's Forms$Appearance CSS class and inline style
 	// (issue #714). Empty means "not specified".
 	Class   string
@@ -71,6 +72,7 @@ type PagePlaceholderV3 struct {
 
 // CreateSnippetStmtV3 represents a V3 snippet creation statement.
 type CreateSnippetStmtV3 struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	Parameters       []PageParameter // From Params: { } block
 	Variables        []PageVariable  // From Variables: { } block
@@ -90,6 +92,7 @@ func (s *CreateSnippetStmtV3) isStatement() {}
 // on the content wrapper rather than on the layout element — and which
 // placeholder a page's content goes into.
 type CreateLayoutStmt struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	Properties       map[string]any
 	Widgets          []*WidgetV3

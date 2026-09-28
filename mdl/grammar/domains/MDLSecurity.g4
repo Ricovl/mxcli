@@ -15,7 +15,7 @@ options { tokenVocab = MDLLexer; }
 // it, re-executing the script that sets up roles fails on the first role that
 // already exists), and a doc comment attaches to it (#731).
 createModuleRoleStatement
-    : MODULE ROLE qualifiedName (DESCRIPTION STRING_LITERAL)?
+    : MODULE ROLE ifNotExists? qualifiedName (DESCRIPTION STRING_LITERAL)?
     ;
 
 dropModuleRoleStatement
@@ -23,7 +23,7 @@ dropModuleRoleStatement
     ;
 
 createUserRoleStatement
-    : USER ROLE identifierOrKeyword
+    : USER ROLE ifNotExists? identifierOrKeyword
       LPAREN moduleRoleList RPAREN
       (MANAGE ALL ROLES)?
     ;
@@ -139,7 +139,7 @@ appSecurityKw
     ;
 
 createDemoUserStatement
-    : DEMO USER STRING_LITERAL PASSWORD STRING_LITERAL (ENTITY qualifiedName)?
+    : DEMO USER ifNotExists? STRING_LITERAL PASSWORD STRING_LITERAL (ENTITY qualifiedName)?
       LPAREN identifierOrKeyword (COMMA identifierOrKeyword)* RPAREN
     ;
 

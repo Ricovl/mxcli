@@ -4,6 +4,7 @@ package ast
 
 // CreateWorkflowStmt represents: CREATE WORKFLOW Module.Name ...
 type CreateWorkflowStmt struct {
+	CreateGuard             // `create … if not exists` (ako/mxcli#731)
 	Folder           string // Folder path within module (empty = leave placement alone)
 	Name             QualifiedName
 	CreateOrModify   bool

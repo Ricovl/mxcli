@@ -15,7 +15,7 @@ options { tokenVocab = MDLLexer; }
 //   [, DisplayName: '...', KeyName: '...', etc. — Portal-populated metadata]
 // );
 createModelStatement
-    : MODEL qualifiedName
+    : MODEL ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
     ;
@@ -51,7 +51,7 @@ variableDef
 //   Documentation: '...'
 // );
 createConsumedMCPServiceStatement
-    : CONSUMED MCP SERVICE qualifiedName
+    : CONSUMED MCP SERVICE ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
     ;
@@ -64,7 +64,7 @@ createConsumedMCPServiceStatement
 //   Key: @Module.SomeConstant
 // );
 createKnowledgeBaseStatement
-    : KNOWLEDGE BASE qualifiedName
+    : KNOWLEDGE BASE ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
     ;
@@ -81,7 +81,7 @@ createKnowledgeBaseStatement
 // [ { tool X ( ... ) | mcp service M.X ( ... ) | knowledge base KB ( ... ) } ]
 // ;
 createAgentStatement
-    : AGENT qualifiedName
+    : AGENT ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
       agentBody?
