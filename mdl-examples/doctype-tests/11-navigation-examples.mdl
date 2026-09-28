@@ -84,12 +84,12 @@ create or replace navigation Responsive
 create or replace navigation Responsive
   home page NavTest.NavTest_Home
   login page Administration.login
-  menu (
-    menu item 'Home' page NavTest.NavTest_Home;
-    menu 'Admin' (
-      menu item 'Users' page Administration.Account_Overview;
-    );
-  );
+  {
+    menu item 'Home' ( OnClick: show page NavTest.NavTest_Home )
+    menu 'Admin' {
+      menu item 'Users' ( OnClick: show page Administration.Account_Overview )
+    }
+  };
 
 -- ============================================================================
 -- ICON — a menu item's icon, as a qualified name into an icon collection
@@ -101,21 +101,21 @@ create or replace navigation Responsive
 create or replace navigation Responsive
   home page NavTest.NavTest_Home
   login page Administration.login
-  menu (
-    menu item 'Home' page NavTest.NavTest_Home icon Atlas_Core.Atlas.home;
-    menu 'Admin' icon Atlas_Core.Atlas.user (
-      menu item 'Users' page Administration.Account_Overview
-        icon Atlas_Core.Atlas."list-bullets";
-    );
-  );
+  {
+    menu item 'Home' ( OnClick: show page NavTest.NavTest_Home, Icon: Atlas_Core.Atlas.home )
+    menu 'Admin' ( Icon: Atlas_Core.Atlas.user ) {
+      menu item 'Users' ( OnClick: show page Administration.Account_Overview,
+        Icon: Atlas_Core.Atlas."list-bullets" )
+    }
+  };
 
--- DESCRIBE round-trips the ICON clause, so this output is re-executable
+-- DESCRIBE round-trips the Icon: property, so this output is re-executable
 describe navigation Responsive;
 
--- Clear the menu (empty MENU block removes all items)
+-- Clear the menu (an empty { } block removes all items)
 create or replace navigation Responsive
   home page NavTest.NavTest_Home
-  menu ();
+  {};
 
 -- Verify the changes
 describe navigation Responsive;
@@ -148,7 +148,7 @@ describe context of NavTest.NavTest_Home;
  */
 create or replace navigation Responsive
   home page MyFirstModule.Home_Web
-  menu (
-    menu item 'Home' page MyFirstModule.Home_Web;
-  )
+  {
+    menu item 'Home' ( OnClick: show page MyFirstModule.Home_Web )
+  }
 ;

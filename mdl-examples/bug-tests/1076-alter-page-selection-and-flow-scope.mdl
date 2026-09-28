@@ -64,14 +64,14 @@ end;
 -- ---------------------------------------------------------------------------
 create or replace page BugTest1076.Dashboard_View
 ( Title: 'Dashboard', Layout: Atlas_Core.Atlas_Default,
-  Params: { $Dashboard: BugTest1076.Dashboard } )
+  Params: ( $Dashboard: BugTest1076.Dashboard ) )
 {
   dataview dvDashboard (datasource: $Dashboard) {
     listview lvVersions (datasource: association BugTest1076.DashboardVersion_Dashboard) {
-      dynamictext txtRow (content: '{1}', ContentParams: [{1} = PeriodLabel])
+      dynamictext txtRow (content: '{1}', ContentParams: ({1} = PeriodLabel))
     }
     dataview dvSelected (datasource: selection lvVersions) {
-      dynamictext txtPreviewPeriod (content: 'Period: {1}', ContentParams: [{1} = PeriodLabel])
+      dynamictext txtPreviewPeriod (content: 'Period: {1}', ContentParams: ({1} = PeriodLabel))
     }
   }
 }
@@ -79,7 +79,7 @@ create or replace page BugTest1076.Dashboard_View
 
 alter page BugTest1076.Dashboard_View {
   replace txtPreviewPeriod with {
-    dynamictext txtPreviewPeriod (content: 'Preview {1}', ContentParams: [{1} = PeriodLabel])
+    dynamictext txtPreviewPeriod (content: 'Preview {1}', ContentParams: ({1} = PeriodLabel))
   }
 }
 /
@@ -87,7 +87,7 @@ alter page BugTest1076.Dashboard_View {
 -- INSERT INTO the selection data view takes the same scope as REPLACE.
 alter page BugTest1076.Dashboard_View {
   insert into dvSelected {
-    dynamictext txtPreviewProbe (content: 'P {1}', ContentParams: [{1} = PeriodLabel])
+    dynamictext txtPreviewProbe (content: 'P {1}', ContentParams: ({1} = PeriodLabel))
   }
 }
 /
@@ -102,7 +102,7 @@ create or replace page BugTest1076.Page_MfGallery
   gallery galMf (datasource: microflow BugTest1076.DS_Items) {
     template t1 {
       container ctnCard {
-        dynamictext txtName (content: '{1}', ContentParams: [{1} = Name])
+        dynamictext txtName (content: '{1}', ContentParams: ({1} = Name))
       }
     }
   }
@@ -112,7 +112,7 @@ create or replace page BugTest1076.Page_MfGallery
 alter page BugTest1076.Page_MfGallery {
   replace txtName with {
     container ctnWrap {
-      dynamictext txtName2 (content: '{1}', ContentParams: [{1} = Name])
+      dynamictext txtName2 (content: '{1}', ContentParams: ({1} = Name))
     }
   }
 }
@@ -120,7 +120,7 @@ alter page BugTest1076.Page_MfGallery {
 
 alter page BugTest1076.Page_MfGallery {
   insert after txtName2 {
-    dynamictext txtNameProbe (content: 'Q {1}', ContentParams: [{1} = Name])
+    dynamictext txtNameProbe (content: 'Q {1}', ContentParams: ({1} = Name))
   }
 }
 /
@@ -134,18 +134,18 @@ create or replace page BugTest1076.Page_SelGallery
 {
   gallery galItems (datasource: database BugTest1076.Item) {
     template t1 {
-      dynamictext txtCard (content: '{1}', ContentParams: [{1} = Name])
+      dynamictext txtCard (content: '{1}', ContentParams: ({1} = Name))
     }
   }
   dataview dvSel (datasource: selection galItems) {
-    dynamictext txtSel (content: 'S {1}', ContentParams: [{1} = Name])
+    dynamictext txtSel (content: 'S {1}', ContentParams: ({1} = Name))
   }
 }
 /
 
 alter page BugTest1076.Page_SelGallery {
   replace txtSel with {
-    dynamictext txtSel (content: 'S2 {1}', ContentParams: [{1} = Name])
+    dynamictext txtSel (content: 'S2 {1}', ContentParams: ({1} = Name))
   }
 }
 /

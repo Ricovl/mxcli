@@ -53,7 +53,7 @@ create entity BugTest619b.OrderContext;
 create page BugTest619b.TaskPage (
   title: 'Task Page',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) { };
 
 create workflow BugTest619b.ReservedWF

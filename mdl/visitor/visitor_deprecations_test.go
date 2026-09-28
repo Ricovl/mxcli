@@ -80,7 +80,7 @@ var createOrReplaceCases = map[string]string{
 	"snippet":                     "snippet M.CustomerInfo { dynamictext t (Content: 'x') }",
 	"enumeration":                 "enumeration M.Color (Red 'Red');",
 	"validationrule":              "validation rule for M.Customer.Email regex M.EmailPattern error message 'Invalid';",
-	"databaseconnection":          "database connection M.Erp type 'PostgreSQL' connection string @M.DbUrl username @M.DbUser password @M.DbPass;",
+	"databaseconnection":          "database connection M.Erp (Type: 'PostgreSQL', ConnectionString: @M.DbUrl, Username: @M.DbUser, Password: @M.DbPass);",
 	"constant":                    "constant M.ApiBaseUrl type String default 'https://api.example.com';",
 	"restclient":                  "consumed rest service M.PetStore (BaseUrl: 'https://petstore.example.com', Authentication: NONE) { };",
 	"index":                       "index idx_name on M.Customer (Name);",
@@ -111,7 +111,7 @@ var createOrReplaceCases = map[string]string{
 	"agent":                       "agent M.Summarizer (UsageType: Task, Model: M.GPT4, SystemPrompt: 'Summarize.', UserPrompt: 'Text.');",
 	"nanoflow":                    "nanoflow M.NF_Validate () begin return; end;",
 	"rule":                        "rule M.Rule_IsSolvent ($c: M.Customer) returns Boolean begin return true; end;",
-	"menu":                        "menu M.Main_Menu (menu item 'Plain';);",
+	"menu":                        "menu M.Main_Menu { menu item 'Plain' };",
 	"translations":                "translations in Administration for nl_NL ('Save' as 'Opslaan');",
 }
 

@@ -20,22 +20,22 @@
 
 create or replace navigation Phone
   home page MyFirstModule.Home_Web
-  menu (
-    menu item 'Home' page MyFirstModule.Home_Web;
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyFirstModule.Home_Web )
+  };
 
 create or replace navigation Tablet
   home page MyFirstModule.Home_Web
-  menu (
-    menu item 'Home' page MyFirstModule.Home_Web;
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyFirstModule.Home_Web )
+  };
 
 -- Re-running is an update, not a duplicate: the second run reports 'updated'.
 create or replace navigation Phone
   home page MyFirstModule.Home_Web
-  menu (
-    menu item 'Home' page MyFirstModule.Home_Web;
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyFirstModule.Home_Web )
+  };
 
 -- Each device kind has an offline twin. An offline profile is not a different
 -- document -- measured over PED, a freshly created PhoneOffline stores exactly
@@ -49,14 +49,14 @@ create or replace navigation Phone
 -- to it.
 create or replace navigation TabletOffline
   home page MyFirstModule.Home_Web
-  menu (
-    menu item 'Home' page MyFirstModule.Home_Web;
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyFirstModule.Home_Web )
+  };
 
 create or replace navigation PhoneOffline
   home page MyFirstModule.Home_Web
-  menu (
-    menu item 'Home' page MyFirstModule.Home_Web;
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyFirstModule.Home_Web )
+  };
 
 describe navigation;

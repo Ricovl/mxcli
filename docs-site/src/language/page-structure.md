@@ -7,10 +7,10 @@ Every MDL page has three main parts: page properties (title, layout, parameters)
 ```sql
 CREATE [OR REPLACE] PAGE <Module>.<Name> [FOLDER '<path>']
 (
-  [Params: { $Param: Module.Entity | Type [, ...] },]
+  [Params: ( $Param: Module.Entity | Type [, ...] ),]
   Title: '<title>',
   Layout: <Module.LayoutName>
-  [, Variables: { $name: Type = 'expression' [, ...] }]
+  [, Variables: ( $name: Type = 'expression' [, ...] )]
 )
 {
   <widget-tree>
@@ -41,7 +41,7 @@ Popup layouts are typically used for edit and detail pages:
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )
@@ -62,7 +62,7 @@ Page parameters define values that must be passed when the page is opened. Param
 
 ```sql
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   ...
 )
 ```
@@ -71,7 +71,7 @@ Multiple parameters are comma-separated, and can mix entity and primitive types:
 
 ```sql
 (
-  Params: { $Order: Sales.Order, $Quantity: Integer, $IsNew: Boolean },
+  Params: ( $Order: Sales.Order, $Quantity: Integer, $IsNew: Boolean ),
   ...
 )
 ```
@@ -86,7 +86,7 @@ Page variables store local state (booleans, strings, etc.) that can control widg
 (
   Title: 'Product Detail',
   Layout: Atlas_Core.Atlas_Default,
-  Variables: { $showDetails: Boolean = 'true' }
+  Variables: ( $showDetails: Boolean = 'true' )
 )
 ```
 
@@ -187,7 +187,7 @@ Use the `FOLDER` clause after the name to organize pages into folders within a m
 ```sql
 CREATE PAGE MyModule.Customer_Edit FOLDER 'Customers'
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )

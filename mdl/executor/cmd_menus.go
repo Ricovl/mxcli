@@ -43,13 +43,13 @@ func describeMenu(ctx *ExecContext, name ast.QualifiedName) error {
 
 	// Output is re-executable: the item syntax is the same one CREATE MENU
 	// accepts, so describe → exec → describe is a fixed point.
-	fmt.Fprintf(ctx.Output, "create or modify menu %s.%s%s (\n", name.Module, md.Name, describeFolderClause(ctx, md.ContainerID))
+	fmt.Fprintf(ctx.Output, "create or modify menu %s.%s%s {\n", name.Module, md.Name, describeFolderClause(ctx, md.ContainerID))
 	printMenuMDL(ctx.Output, md.Items, 1, "CREATE MENU")
-	fmt.Fprintln(ctx.Output, ");")
+	fmt.Fprintln(ctx.Output, "};")
 	return nil
 }
 
-// execCreateMenu handles CREATE [OR MODIFY] MENU Module.Name ( items ).
+// execCreateMenu handles CREATE [OR MODIFY] MENU Module.Name { items }.
 //
 // Like CREATE NAVIGATION, the item list is the document's complete contents, so
 // a modify replaces the items wholesale rather than merging. The existing

@@ -40,7 +40,7 @@ end;
 -- the listview's survived. Both are in one page so the asymmetry is visible.
 create or modify page Bug941.PgContext
   ( Title: 'Context sources', Layout: Atlas_Core.PopupLayout,
-    Params: { $Bucket: Bug941.Bucket } )
+    Params: ( $Bucket: Bug941.Bucket ) )
 {
   dataview dvBucket (DataSource: $Bucket) {
     listview lvAssoc (DataSource: $currentObject/Bug941.Item_Bucket) {

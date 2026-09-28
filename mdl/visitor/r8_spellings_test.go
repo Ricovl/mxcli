@@ -36,8 +36,8 @@ var r8Pairs = []r8Pair{
 	{"open link attr", pageWith("open_link $currentObject/Url"), pageWith("open link $currentObject/Url"), deprecation.PageActionWord},
 	{"sign out", pageWith("sign_out"), pageWith("sign out"), deprecation.PageActionWord},
 	{"complete task", pageWith("complete_task 'Approve'"), pageWith("complete task 'Approve'"), deprecation.PageActionWord},
-	{"menu sign out", "create navigation Responsive home page M.Home menu (menu item 'Out' sign_out;);",
-		"create navigation Responsive home page M.Home menu (menu item 'Out' sign out;);", deprecation.PageActionWord},
+	{"menu sign out", "create navigation Responsive home page M.Home { menu item 'Out' ( OnClick: sign_out ) };",
+		"create navigation Responsive home page M.Home { menu item 'Out' ( OnClick: sign out ) };", deprecation.PageActionWord},
 	{"alter page set action", "alter page M.P { set (Action: show_page M.Q) on b };",
 		"alter page M.P { set (Action: show page M.Q) on b };", deprecation.PageActionWord},
 

@@ -44,6 +44,6 @@ create page MyFirstModule.LvSearchRefs (
   Layout: Atlas_Core.Atlas_Default
 ) {
   listview lvTrips (datasource: database from MyFirstModule.Trip sort by Name asc) {
-    dynamictext dtName (content: '{1}', contentparams: [{1} = Name])
+    dynamictext dtName (content: '{1}', contentparams: ({1} = Name))
   }
 }

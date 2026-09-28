@@ -87,11 +87,11 @@ create or replace layout Icon1008.AppFrame
 
 -- 4. A standalone menu document, sub-items included — the same NavMenuItemDef a
 --    navigation profile's menu uses, which is why it needs the same recursion.
-create or modify menu Icon1008.Main_Menu (
-  menu item 'Home' page Icon1008.PlaceholderPage
-    icon Atlas_Core.Atlas_Filled.home;
-  menu 'More' icon Atlas_Core.Atlas_Filled.home (
-    menu item 'Edit' page Icon1008.PlaceholderPage
-      icon Atlas_Core.Atlas_Filled.pencil;
-  );
-);
+create or modify menu Icon1008.Main_Menu {
+  menu item 'Home' ( OnClick: show page Icon1008.PlaceholderPage,
+    Icon: Atlas_Core.Atlas_Filled.home )
+  menu 'More' ( Icon: Atlas_Core.Atlas_Filled.home ) {
+    menu item 'Edit' ( OnClick: show page Icon1008.PlaceholderPage,
+      Icon: Atlas_Core.Atlas_Filled.pencil )
+  }
+};

@@ -389,7 +389,7 @@ grant execute on nanoflow OntologyViewer.ACT_StopAwareSendMessage to OntologyVie
 -- 7. Input snippet — textarea + send/stop buttons + suggested prompts
 -- ----------------------------------------------------------------------------
 create snippet OntologyViewer.Snippet_ChatContext_Interaction (
-  params: { $ChatContext: ConversationalUI.ChatContext }
+  params: ( $ChatContext: ConversationalUI.ChatContext )
 ) {
   container container1 (class: 'chat-input-wrapper') {
     textarea textAreaUserPrompt (attribute: CurrentUserPrompt)
@@ -415,7 +415,7 @@ create snippet OntologyViewer.Snippet_ChatContext_Interaction (
 -- 8. Chat page — embeds the custom graph widget + the tool-call cards
 -- ----------------------------------------------------------------------------
 create page OntologyViewer.ConversationalUI_FullScreenChat (
-  params: { $ChatContext: ConversationalUI.ChatContext },
+  params: ( $ChatContext: ConversationalUI.ChatContext ),
   title: 'Full Screen Chat',
   layout: Atlas_Core.Atlas_Default
 ) {

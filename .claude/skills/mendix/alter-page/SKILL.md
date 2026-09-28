@@ -96,7 +96,7 @@ everywhere. Removing one has its own form:
 alter page Pages.Vehicle_Overview {
   insert into vehicleListView {
     template for Pages.Motorcycle {
-      dynamictext mcLabel (content: 'Motorcycle {1}', contentparams: [{1} = Brand])
+      dynamictext mcLabel (content: 'Motorcycle {1}', contentparams: ({1} = Brand))
     }
   };
   drop template for Pages.SUV in vehicleListView

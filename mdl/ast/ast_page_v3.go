@@ -27,7 +27,7 @@ import (
 type CreatePageStmtV3 struct {
 	CreateGuard // `create … if not exists` (ako/mxcli#731)
 	Name        QualifiedName
-	Parameters  []PageParameter // From Params: { } block
+	Parameters  []PageParameter // From the Params: ( ) map
 	Variables   []PageVariable  // From Variables: { } block
 	Title       string
 	Layout      string
@@ -74,7 +74,7 @@ type PagePlaceholderV3 struct {
 type CreateSnippetStmtV3 struct {
 	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
-	Parameters       []PageParameter // From Params: { } block
+	Parameters       []PageParameter // From the Params: ( ) map
 	Variables        []PageVariable  // From Variables: { } block
 	Folder           string
 	Widgets          []*WidgetV3

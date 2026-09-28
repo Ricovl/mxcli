@@ -22,6 +22,6 @@ create or replace page MyFirstModule.BadDatabaseDataView
 ( Title: 'Bad', Layout: Atlas_Core.Atlas_Default )
 {
   dataview dvBad (datasource: database from MyFirstModule.Expense) {
-    dynamictext t (content: 'by {1}', contentparams: [{1} = MyFirstModule.Expense_Employee/Name])
+    dynamictext t (content: 'by {1}', contentparams: ({1} = MyFirstModule.Expense_Employee/Name))
   }
 }

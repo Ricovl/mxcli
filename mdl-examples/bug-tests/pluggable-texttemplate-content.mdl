@@ -57,7 +57,7 @@ create or replace page TTContent.Home ( layout: Atlas_Core.Atlas_Default ) {
 /
 -- Badge: value is a textTemplate (rendered inside a data view context).
 create or replace page TTContent.Detail (
-  params: { $Item: TTContent.DemoItem },
+  params: ( $Item: TTContent.DemoItem ),
   layout: Atlas_Core.Atlas_Default
 ) {
   dataview dv (DataSource: $Item) {

@@ -304,7 +304,7 @@ func init() {
 			"body", "response", "mapping", "authentication",
 			"json structure", "import mapping", "export mapping",
 		},
-		Syntax:  "CREATE [OR MODIFY] CONSUMED REST SERVICE Module.Name (\n  BaseUrl: 'https://...',\n  Authentication: NONE | BASIC (...)\n)\n{\n  OPERATION Name (\n    Method: GET|POST|PUT|DELETE|PATCH,\n    Path: '/path/{param}',\n    Parameters: ($param: Type),\n    Query: ($param: Type),\n    Headers: ('Key' = 'Value'),\n    Timeout: 30,\n    Body: JSON FROM $var | MAPPING Entity { jsonField = Attribute, ... },\n    Response: JSON AS $var | MAPPING Entity { Attribute = jsonField, ... }\n  )\n};\n\n-- An operation is a child of the service, so its properties are in ( ).\n-- `OPERATION Name { ... }` is the deprecated spelling (MDL-DEPR070).\n\n-- MAPPING takes a target ENTITY plus a body listing the JSON fields; Mendix\n-- stores it inline on the operation. An existing import/export mapping\n-- document cannot be referenced here (rejected as MDL-REST01).\n-- There is no FILE request body: Mendix's consumed operation stores one of\n-- Rest$JsonBody, Rest$StringBody or Rest$ImplicitMappingBody, so a file\n-- document has nowhere to go. `Body: FILE FROM $Doc` is rejected as\n-- MDL-REST02 rather than sent as the literal text \"$Doc\" (it used to be,\n-- returning 200 with a 4-byte payload). Binary POST lives on the\n-- microflow activity: `call rest service post '<url>' body binary $Doc/Contents`.\n-- `Response: FILE AS $Doc` is unaffected — downloads work.",
+		Syntax:  "CREATE [OR MODIFY] CONSUMED REST SERVICE Module.Name (\n  BaseUrl: 'https://...',\n  Authentication: NONE | BASIC (...)\n)\n{\n  OPERATION Name (\n    Method: GET|POST|PUT|DELETE|PATCH,\n    Path: '/path/{param}',\n    Parameters: ($param: Type),\n    Query: ($param: Type),\n    Headers: ('Key': 'Value'),\n    Timeout: 30,\n    Body: JSON FROM $var | MAPPING Entity { jsonField = Attribute, ... },\n    Response: JSON AS $var | MAPPING Entity { Attribute = jsonField, ... }\n  )\n};\n\n-- An operation is a child of the service, so its properties are in ( ).\n-- `OPERATION Name { ... }` is the deprecated spelling (MDL-DEPR070).\n\n-- MAPPING takes a target ENTITY plus a body listing the JSON fields; Mendix\n-- stores it inline on the operation. An existing import/export mapping\n-- document cannot be referenced here (rejected as MDL-REST01).\n-- There is no FILE request body: Mendix's consumed operation stores one of\n-- Rest$JsonBody, Rest$StringBody or Rest$ImplicitMappingBody, so a file\n-- document has nowhere to go. `Body: FILE FROM $Doc` is rejected as\n-- MDL-REST02 rather than sent as the literal text \"$Doc\" (it used to be,\n-- returning 200 with a 4-byte payload). Binary POST lives on the\n-- microflow activity: `call rest service post '<url>' body binary $Doc/Contents`.\n-- `Response: FILE AS $Doc` is unaffected — downloads work.",
 		Example: "CREATE CONSUMED REST SERVICE Module.PetStore (\n  BaseUrl: 'https://petstore.example.com/api',\n  Authentication: NONE\n)\n{\n  OPERATION GetPet (\n    Method: GET,\n    Path: '/pets/{id}',\n    Parameters: ($id: String),\n    Query: ($verbose: String),\n    Response: MAPPING Module.Pet {\n      Name = name,\n      Status = status\n    }\n  )\n};",
 		SeeAlso: []string{"rest", "rest.published"},
 	})
@@ -411,19 +411,26 @@ func init() {
 			"jdbc", "byod", "database connector", "execute database query",
 			"postgresql", "mysql", "oracle", "snowflake", "sql server",
 		},
-		Syntax: `CREATE [OR MODIFY] DATABASE CONNECTION Module.Name [FOLDER 'path']
-  TYPE '<type>'
-  CONNECTION STRING @Module.UrlConstant
-  USERNAME @Module.UserConstant
-  PASSWORD @Module.PasswordConstant
-[BEGIN
-  QUERY <QueryName>
-    SQL $$<sql>$$
-    [PARAMETER <name>: <Type> [DEFAULT '<value>' | NULL]]
-    [RETURNS Module.Entity
-      [MAP ( <column> AS <Attribute>, ... )]]
-  ;
-END];
+		Syntax: `CREATE [OR MODIFY] DATABASE CONNECTION Module.Name [FOLDER 'path'] (
+  Type: '<type>',
+  ConnectionString: @Module.UrlConstant,
+  Username: @Module.UserConstant,
+  Password: @Module.PasswordConstant
+  [, Host: '<host>', Port: <n>, DatabaseName: '<db>']
+) [{
+  QUERY <QueryName> (
+    Sql: $$<sql>$$
+    [, Parameters: ( <name>: <Type> [DEFAULT '<value>' | NULL], ... )]
+    [, Returns: Module.Entity]
+    [, Map: ( <Attribute> = <column>, ... )]
+  )
+  ...
+}];
+
+The properties are in ( ) and the queries are children in { } (R2). The old
+clause form -- TYPE '…' CONNECTION STRING @… BEGIN QUERY … SQL … RETURNS …
+MAP (column AS Attribute); END -- still parses and warns (MDL-DEPR127);
+mxcli fmt --upgrade rewrites it.
 
 SHOW DATABASE CONNECTIONS [IN <module>];
 DESCRIBE DATABASE CONNECTION Module.Name;
@@ -432,7 +439,7 @@ DROP DATABASE CONNECTION Module.Name;
 Calling a query from a microflow:
   EXECUTE DATABASE QUERY Module.Connection.QueryName (...);
 
-TYPE is one of Studio Pro's entries — 'MSSQL', 'MySQL', 'Oracle',
+Type is one of Studio Pro's entries — 'MSSQL', 'MySQL', 'Oracle',
 'PostgreSQL', 'Snowflake' — or 'BYOD' ("bring your own driver"), which skips
 the driver-presence check and takes the connection string verbatim. Use BYOD
 for any JDBC driver Mendix has no entry for; put the driver on the classpath
@@ -442,12 +449,12 @@ build stays green and the connection simply does not work.
 
 Three traps:
 
-  1. CONNECTION STRING / USERNAME / PASSWORD must reference CONSTANTS
+  1. ConnectionString / Username / Password must reference CONSTANTS
      (@Module.Name), not literals. A literal produces a project Studio Pro
      cannot open at all: StorageLoadException "is not a valid
      ConstantIdentifier". mxcli catches it (MDL058); mxbuild does not, so the
      build is green.
-  2. USERNAME and PASSWORD must be given even when the driver needs neither.
+  2. Username and Password must be given even when the driver needs neither.
      Omitting them writes an empty constant reference, the build stays green,
      and the query fails only at run time with "Could not find value for
      constant ''".
@@ -477,22 +484,22 @@ CREATE NON-PERSISTENT ENTITY Ops.EmployeeRow (
   Name: String(100)
 );
 
-CREATE DATABASE CONNECTION Ops.Erp
-  TYPE 'PostgreSQL'
-  CONNECTION STRING @Ops.DbUrl
-  USERNAME @Ops.DbUser
-  PASSWORD @Ops.DbPass
-BEGIN
-  QUERY GetEmployees
-    SQL $$SELECT id, name FROM employees WHERE dept = {dept}$$
-    PARAMETER dept: String DEFAULT 'sales'
-    RETURNS Ops.EmployeeRow
-    MAP (
-      id AS EmployeeId,
-      name AS Name
+CREATE DATABASE CONNECTION Ops.Erp (
+  Type: 'PostgreSQL',
+  ConnectionString: @Ops.DbUrl,
+  Username: @Ops.DbUser,
+  Password: @Ops.DbPass
+) {
+  QUERY GetEmployees (
+    Sql: $$SELECT id, name FROM employees WHERE dept = {dept}$$,
+    Parameters: ( dept: String DEFAULT 'sales' ),
+    Returns: Ops.EmployeeRow,
+    Map: (
+      EmployeeId = id,
+      Name = name
     )
-  ;
-END;
+  )
+};
 
 -- A named type needs its driver declared, or the build fails with CE5278.
 ALTER MODULE Ops ADD JAR DEPENDENCY (
@@ -683,7 +690,7 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 
 	Register(SyntaxFeature{
 		Path:    "glyph",
-		Summary: "Glyph icons — the numeric codes `icon glyph <n>` accepts, and their names",
+		Summary: "Glyph icons — the numeric codes `Icon: glyph <n>` accepts, and their names",
 		Keywords: []string{
 			"glyph", "glyphs", "show glyphs", "describe glyph", "icon glyph",
 			"glyphicon", "glyph code", "menu icon", "navigation icon",
@@ -694,10 +701,10 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 		Example: "-- A glyph is a character code in the Mendix glyph font, not a document in the\n" +
 			"-- project, so there is no module to scope and no connection needed.\n" +
 			"SHOW GLYPHS LIKE 'star';\n" +
-			"--   57350  star        icon glyph 57350\n" +
-			"--   57351  star-empty  icon glyph 57351\n" +
+			"--   57350  star        Icon: glyph 57350\n" +
+			"--   57351  star-empty  Icon: glyph 57351\n" +
 			"DESCRIBE GLYPH 'star';\n" +
-			"-- → then: MENU ITEM 'Favourites' PAGE M.Favourites ICON GLYPH 57350;\n" +
+			"-- → then: MENU ITEM 'Favourites' ( OnClick: SHOW PAGE M.Favourites, Icon: GLYPH 57350 )\n" +
 			"\n" +
 			"-- Prefer an icon COLLECTION reference where the icon exists there: it is a\n" +
 			"-- model reference that `check --references` resolves, while a glyph code is\n" +

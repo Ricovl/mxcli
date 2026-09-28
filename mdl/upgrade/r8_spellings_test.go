@@ -28,7 +28,7 @@ func TestUpgrade_R8Spellings(t *testing.T) {
 		{page("sign_out"), page("sign out")},
 		{page("complete_task 'Approve'"), page("complete task 'Approve'")},
 		{"create navigation Responsive home page M.Home menu (menu item 'Out' sign_out;);\n",
-			"create navigation Responsive home page M.Home menu (menu item 'Out' sign out;);\n"},
+			"create navigation Responsive home page M.Home {menu item 'Out' ( OnClick: sign out )};\n"},
 		{"create entity M.E (\n  Name: String(100) not null error 'Required',\n  Code: String(9) UNIQUE ERROR 'Taken'\n);\n",
 			"create entity M.E (\n  Name: String(100) not null error message 'Required',\n  Code: String(9) UNIQUE ERROR MESSAGE 'Taken'\n);\n"},
 		{"create validation rule for M.E.Email regex M.Pattern\n  feedback 'Bad';\n",

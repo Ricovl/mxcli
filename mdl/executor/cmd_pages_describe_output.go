@@ -214,12 +214,12 @@ func appendAppearanceProps(props []string, w rawWidget) []string {
 // formatDesignPropertiesMDL formats design properties as MDL V3 syntax.
 // Toggle → 'Key': ON, Option → 'Key': 'Value'
 func formatDesignPropertiesMDL(dps []rawDesignProp) string {
-	return fmt.Sprintf("DesignProperties: [%s]", joinDesignPropertyEntries(dps))
+	return fmt.Sprintf("DesignProperties: (%s)", joinDesignPropertyEntries(dps))
 }
 
 // joinDesignPropertyEntries renders design-property entries as comma-separated
 // MDL. Compound properties recurse into a nested list (issue #668):
-// 'Spacing': ['margin-top': 'Large', 'margin-bottom': 'Medium'].
+// 'Spacing': ('margin-top': 'Large', 'margin-bottom': 'Medium').
 func joinDesignPropertyEntries(dps []rawDesignProp) string {
 	var entries []string
 	for _, dp := range dps {
@@ -229,7 +229,7 @@ func joinDesignPropertyEntries(dps []rawDesignProp) string {
 		case "option":
 			entries = append(entries, fmt.Sprintf("%s: %s", mdlQuote(dp.Key), mdlQuote(dp.Option)))
 		case "compound":
-			entries = append(entries, fmt.Sprintf("%s: [%s]", mdlQuote(dp.Key), joinDesignPropertyEntries(dp.Nested)))
+			entries = append(entries, fmt.Sprintf("%s: (%s)", mdlQuote(dp.Key), joinDesignPropertyEntries(dp.Nested)))
 		}
 	}
 	return strings.Join(entries, ", ")
@@ -498,7 +498,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = append(props, fmt.Sprintf("RenderMode: %s", w.RenderMode))
 		}
 		if len(w.Parameters) > 0 {
-			props = append(props, fmt.Sprintf("ContentParams: [%s]", strings.Join(formatParametersV3(w.Parameters), ", ")))
+			props = append(props, fmt.Sprintf("ContentParams: (%s)", strings.Join(formatParametersV3(w.Parameters), ", ")))
 		}
 		props = appendAppearanceProps(props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
@@ -515,7 +515,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(w.Caption)))
 		}
 		if len(w.Parameters) > 0 {
-			props = append(props, fmt.Sprintf("CaptionParams: [%s]", strings.Join(formatParametersV3(w.Parameters), ", ")))
+			props = append(props, fmt.Sprintf("CaptionParams: (%s)", strings.Join(formatParametersV3(w.Parameters), ", ")))
 		}
 		if w.Action != "" {
 			props = append(props, actionProp("Action", w.Action))
@@ -803,7 +803,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 				// A `{1}` re-executed without its parameter is CE0720, so the
 				// companion travels with the text it belongs to (#575).
 				if len(ep.Params) > 0 {
-					props = append(props, fmt.Sprintf("%sParams: [%s]",
+					props = append(props, fmt.Sprintf("%sParams: (%s)",
 						ep.Key, strings.Join(formatParametersV3(ep.Params), ", ")))
 				}
 			}
@@ -1121,7 +1121,7 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridCol
 		props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(col.Caption)))
 	}
 	if len(col.CaptionParams) > 0 {
-		props = append(props, fmt.Sprintf("CaptionParams: [%s]", strings.Join(formatParametersV3(col.CaptionParams), ", ")))
+		props = append(props, fmt.Sprintf("CaptionParams: (%s)", strings.Join(formatParametersV3(col.CaptionParams), ", ")))
 	}
 	// Add ShowContentAs if not default "attribute"
 	if col.ShowContentAs != "" && col.ShowContentAs != "attribute" {
@@ -1131,7 +1131,7 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridCol
 	if col.ShowContentAs == "dynamicText" && col.DynamicText != "" {
 		props = append(props, fmt.Sprintf("Content: %s", mdlQuote(col.DynamicText)))
 		if len(col.DynamicTextParams) > 0 {
-			props = append(props, fmt.Sprintf("ContentParams: [%s]", strings.Join(formatParametersV3(col.DynamicTextParams), ", ")))
+			props = append(props, fmt.Sprintf("ContentParams: (%s)", strings.Join(formatParametersV3(col.DynamicTextParams), ", ")))
 		}
 	}
 	// Add column styling properties if non-default
@@ -2019,14 +2019,14 @@ func describeImageWidgetProps(w rawWidget) []string {
 	if w.ImageUrl != "" {
 		props = append(props, fmt.Sprintf("ImageUrl: %s", mdlQuote(w.ImageUrl)))
 		if len(w.ImageUrlParams) > 0 {
-			props = append(props, fmt.Sprintf("ImageUrlParams: [%s]",
+			props = append(props, fmt.Sprintf("ImageUrlParams: (%s)",
 				strings.Join(formatParametersV3(w.ImageUrlParams), ", ")))
 		}
 	}
 	if w.AlternativeText != "" {
 		props = append(props, fmt.Sprintf("AlternativeText: %s", mdlQuote(w.AlternativeText)))
 		if len(w.AlternativeTextParams) > 0 {
-			props = append(props, fmt.Sprintf("AlternativeTextParams: [%s]",
+			props = append(props, fmt.Sprintf("AlternativeTextParams: (%s)",
 				strings.Join(formatParametersV3(w.AlternativeTextParams), ", ")))
 		}
 	}

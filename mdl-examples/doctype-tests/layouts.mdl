@@ -152,10 +152,10 @@ alter layout LayoutTest.App_Default {
 -- document) or `profile:` (a navigation profile), never both.
 -- ----------------------------------------------------------------------------
 
-create or modify menu LayoutTest.Phone_Menu (
-  menu item 'Home' icon Atlas_Core.Atlas.home;
-  menu item 'Account' icon Atlas_Core.Atlas.user;
-);
+create or modify menu LayoutTest.Phone_Menu {
+  menu item 'Home' ( Icon: Atlas_Core.Atlas.home )
+  menu item 'Account' ( Icon: Atlas_Core.Atlas.user )
+};
 
 create or replace layout LayoutTest.Phone_Bottom (
   layouttype: 'Phone',

@@ -44,7 +44,7 @@ create or replace page ChildSlot.Home ( layout: Atlas_Core.Atlas_Default ) {
     showIcon: 'left'
   ) {
     container children {
-      dynamictext treeChildText (content: 'Score: {1}', contentparams: [{1} = Score])
+      dynamictext treeChildText (content: 'Score: {1}', contentparams: ({1} = Score))
     }
   }
 }

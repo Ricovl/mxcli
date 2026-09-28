@@ -8,7 +8,7 @@
 -- last.
 
 create persistent entity WFEND.Ctx ( Title: string(50) );
-create page WFEND.TaskPage ( title: 'T', layout: Atlas_Core.Atlas_Default, params: { $WorkflowUserTask: System.WorkflowUserTask } ) { };
+create page WFEND.TaskPage ( title: 'T', layout: Atlas_Core.Atlas_Default, params: ( $WorkflowUserTask: System.WorkflowUserTask ) ) { };
 
 create workflow WFEND.EveryPathEnds parameter $Ctx: WFEND.Ctx
 begin

@@ -86,7 +86,7 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 		fmt.Fprintln(ctx.Output, "@excluded")
 	}
 
-	// V3 syntax: CREATE PAGE Module.Page (Title: '...', Layout: ..., Params: { })
+	// V3 syntax: CREATE PAGE Module.Page (Title: '...', Layout: ..., Params: ( ))
 	header := fmt.Sprintf("create or modify page %s.%s", modName, foundPage.Name)
 	// The folder is a clause after the name (R9); `Folder:` is its alias.
 	if folderPath := h.BuildFolderPath(foundPage.ContainerID); folderPath != "" {
@@ -135,7 +135,7 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 			typeName := pageParamTypeMDL(p)
 			params = append(params, fmt.Sprintf("$%s: %s", p.Name, typeName))
 		}
-		props = append(props, fmt.Sprintf("Params: { %s }", strings.Join(params, ", ")))
+		props = append(props, fmt.Sprintf("Params: ( %s )", strings.Join(params, ", ")))
 	}
 	// Output page variables from raw BSON
 	if rawData != nil {
@@ -157,7 +157,7 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 				}
 				varParts = append(varParts, fmt.Sprintf("$%s: %s = %s", varName, varTypeName, mdlQuote(defaultVal)))
 			}
-			props = append(props, fmt.Sprintf("Variables: { %s }", strings.Join(varParts, ", ")))
+			props = append(props, fmt.Sprintf("Variables: ( %s )", strings.Join(varParts, ", ")))
 		}
 	}
 
@@ -284,7 +284,7 @@ func describeSnippet(ctx *ExecContext, name ast.QualifiedName) error {
 				paramName, _ := p["Name"].(string)
 				paramParts = append(paramParts, fmt.Sprintf("$%s: %s", paramName, snippetParamTypeMDL(p["ParameterType"])))
 			}
-			snippetProps = append(snippetProps, fmt.Sprintf("Params: { %s }", strings.Join(paramParts, ", ")))
+			snippetProps = append(snippetProps, fmt.Sprintf("Params: ( %s )", strings.Join(paramParts, ", ")))
 		}
 		fmt.Fprintf(ctx.Output, " (%s)", strings.Join(snippetProps, ", "))
 	}

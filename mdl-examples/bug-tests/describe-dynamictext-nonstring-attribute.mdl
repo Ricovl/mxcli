@@ -33,7 +33,7 @@ create or replace page MyFirstModule.P_NonStringRT
 (
   Title: 'Non-string round-trip',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Counter: MyFirstModule.Counter }
+  Params: ( $Counter: MyFirstModule.Counter )
 )
 {
   dataview dv (datasource: $Counter) {

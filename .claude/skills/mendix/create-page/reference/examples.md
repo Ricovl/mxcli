@@ -9,7 +9,7 @@ Supporting reference for [create-page](../SKILL.md).
 ```sql
 create or replace page CRM.CustomerEdit
 (
-  params: { $Customer: CRM.Customer },
+  params: ( $Customer: CRM.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -82,8 +82,8 @@ create page CRM.Customer_MasterDetail
         dynamictext heading (content: 'Customers', rendermode: H3)
         gallery customerList (datasource: database from CRM.Customer sort by Name asc, selection: single) {
           template {
-            dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-            dynamictext email (content: '{1}', contentparams: [{1} = Email])
+            dynamictext name (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+            dynamictext email (content: '{1}', contentparams: ({1} = Email))
           }
         }
       }

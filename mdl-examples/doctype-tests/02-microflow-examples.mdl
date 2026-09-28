@@ -2687,9 +2687,9 @@ end;
  */
 create page MfTest.ProductDetail
 (
-  params: {
+  params: (
     $Product: MfTest.Product
-  },
+  ),
   title: 'Product Detail',
   layout: Atlas_Core.Atlas_Default
 )

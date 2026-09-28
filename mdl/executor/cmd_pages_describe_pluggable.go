@@ -1246,8 +1246,8 @@ func extractImageProperties(ctx *ExecContext, w map[string]any, widget *rawWidge
 // property of a CustomWidget, together with the `{N}` parameters bound to it.
 //
 // The parameters are returned separately rather than folded into the text
-// because MDL spells them separately: `imageUrl: '{1}', imageUrlParams: [{1} =
-// PictureUrl]` (#575).
+// because MDL spells them separately: `imageUrl: '{1}', imageUrlParams: ({1} =
+// PictureUrl)` (#575).
 func extractCustomWidgetPropertyTextTemplate(ctx *ExecContext, w map[string]any, propertyKey string) (string, []string) {
 	obj, ok := w["Object"].(map[string]any)
 	if !ok {

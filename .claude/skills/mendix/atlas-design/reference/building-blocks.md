@@ -63,13 +63,13 @@ create page MyModule.CardDemo
   layout: Atlas_Core.Atlas_Default
 )
 {
-  container myCard (designproperties: ['Card style': on]) {
+  container myCard (designproperties: ('Card style': on)) {
     dynamictext cardTitle
     (
       content: 'Customers',
       rendermode: H4,
       class: 'card-title',
-      designproperties: ['Spacing': ['margin-bottom': 'L']]
+      designproperties: ('Spacing': ('margin-bottom': 'L'))
     )
   }
 };
@@ -81,7 +81,7 @@ arbitrary bodies, no copy-paste of the wrapper markup.
 
 ```mdl
 create fragment SectionCard as {
-  container card1 (designproperties: ['Card style': on, 'Spacing': ['margin-bottom': 'Large']]) {
+  container card1 (designproperties: ('Card style': on, 'Spacing': ('margin-bottom': 'Large'))) {
     container cardBody (class: 'card-body') {
       slot content            -- each page's widgets land here
     }
@@ -120,7 +120,7 @@ inside; typed **parameters** vary *which entity* and *which microflow*. Declare 
 
 ```mdl
 create fragment EntityCard($data: datasource, $onOpen: action) as {
-  container card1 (designproperties: ['Card style': on]) {
+  container card1 (designproperties: ('Card style': on)) {
     listview lv (datasource: $data) {
       slot content
       actionbutton open (caption: 'Open', action: $onOpen, buttonstyle: primary)
@@ -149,10 +149,10 @@ For a binding the override rule can't reach, copy the block in (`as prefix_`) an
 
 ```
 {
-  container container1 (Class: 'pageheader', DesignProperties: ['Item gap': 'None']) {
+  container container1 (Class: 'pageheader', DesignProperties: ('Item gap': 'None')) {
     dynamictext text40 (Content: 'Page header title', RenderMode: H1, Class: 'pageheader-title')
     dynamictext text39 (Content: 'Supporting text', RenderMode: Paragraph, Class: 'pageheader-subtitle',
-      DesignProperties: ['Color': 'Detail color', 'Spacing': ['margin-bottom': 'None']])
+      DesignProperties: ('Color': 'Detail color', 'Spacing': ('margin-bottom': 'None')))
   }
 }
 ```
@@ -166,14 +166,14 @@ create page MyModule.CustomersHeaderDemo
   layout: Atlas_Core.Atlas_Default
 )
 {
-  container pageHeader (class: 'pageheader', designproperties: ['Item gap': 'None']) {
+  container pageHeader (class: 'pageheader', designproperties: ('Item gap': 'None')) {
     dynamictext headerTitle (content: 'Customers', rendermode: H1, class: 'pageheader-title')
     dynamictext headerSubtitle
     (
       content: 'All active accounts',
       rendermode: Paragraph,
       class: 'pageheader-subtitle',
-      designproperties: ['Color': 'Detail color', 'Spacing': ['margin-bottom': 'None']]
+      designproperties: ('Color': 'Detail color', 'Spacing': ('margin-bottom': 'None'))
     )
   }
 };
@@ -245,13 +245,13 @@ cleanly into Studio Pro. Common mappings:
 
 | Class-style | Typed design-property equivalent |
 |---|---|
-| `class:'card'` | `designproperties: ['Card style': on]` |
-| `class:'background-primary'` | `designproperties: ['Background color': 'Brand Primary']` |
-| `class:'flex-column'` | `designproperties: ['Flex container': 'Vertical (column)']` |
-| `class:'flex-row'` | `designproperties: ['Flex container': 'Horizontal (row)']` |
-| `class:'align-x-center'` | `designproperties: ['Align items X': 'Center']` |
-| `class:'Shadow'` | `designproperties: ['Shadow': 'None' / 'Small' / …]` |
-| spacing utilities | `designproperties: ['Spacing': ['margin-bottom': 'L', 'padding-top': 'S']]` |
+| `class:'card'` | `designproperties: ('Card style': on)` |
+| `class:'background-primary'` | `designproperties: ('Background color': 'Brand Primary')` |
+| `class:'flex-column'` | `designproperties: ('Flex container': 'Vertical (column)')` |
+| `class:'flex-row'` | `designproperties: ('Flex container': 'Horizontal (row)')` |
+| `class:'align-x-center'` | `designproperties: ('Align items X': 'Center')` |
+| `class:'Shadow'` | `designproperties: ('Shadow': 'None' / 'Small' / …)` |
+| spacing utilities | `designproperties: ('Spacing': ('margin-bottom': 'L', 'padding-top': 'S'))` |
 
 **Both channels render identically at runtime** — raw `class:` is sufficient for the
 visual result today. The typed channel matters for Studio Pro round-trip and is the

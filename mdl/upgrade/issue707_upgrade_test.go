@@ -21,7 +21,7 @@ func TestUpgrade_Issue707UserRoleAndRestHeader(t *testing.T) {
 		"CREATE OR MODIFY USER ROLE Admin ( ModuleRoles: (M.Admin), ManageAllRoles: true );\n" +
 		"create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) {\n" +
 		"  operation Get (Method: get, Path: '/a', Parameters: ($Token: String, $Key: String),\n" +
-		"    Headers: ('Authorization' = 'Bearer {Token}', 'X-Key' = '{Key}', 'X-Odd' = '{x' + $Key), Response: none)\n" +
+		"    Headers: ('Authorization': 'Bearer {Token}', 'X-Key': '{Key}', 'X-Odd': '{x' + $Key), Response: none)\n" +
 		"};\n"
 	res := mustUpgrade(t, src, Options{})
 	if res.Source != want {

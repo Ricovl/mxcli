@@ -21,7 +21,7 @@ create module Probe;
 create persistent entity Probe.Ctx ( Code: string(50) );
 
 create page Probe."WF_TaskPage" (
-  params: { $Task: System.WorkflowUserTask },
+  params: ( $Task: System.WorkflowUserTask ),
   title: 'Task', layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid g { row r { column c (desktopwidth: 12) {

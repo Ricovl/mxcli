@@ -28,11 +28,11 @@ var r2Cases = []r2Case{
 		name: "rest operation",
 		code: deprecation.RestOperationBraces,
 		old: `create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) {
-  operation GetUser { Method: get, Path: '/u/{id}', Parameters: ($id: Integer), Headers: ('Accept' = 'application/json'), Response: none }
+  operation GetUser { Method: get, Path: '/u/{id}', Parameters: ($id: Integer), Headers: ('Accept': 'application/json'), Response: none }
   operation Ping { Method: get, Path: '/ping', Response: none }
 };`,
 		canonical: `create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) {
-  operation GetUser ( Method: get, Path: '/u/{id}', Parameters: ($id: Integer), Headers: ('Accept' = 'application/json'), Response: none, )
+  operation GetUser ( Method: get, Path: '/u/{id}', Parameters: ($id: Integer), Headers: ('Accept': 'application/json'), Response: none, )
   operation Ping ( Method: get, Path: '/ping', Response: none )
 };`,
 	},

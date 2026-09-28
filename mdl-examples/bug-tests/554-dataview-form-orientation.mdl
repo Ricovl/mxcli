@@ -33,7 +33,7 @@ CREATE PERSISTENT ENTITY Bug554.Customer (
 CREATE OR REPLACE PAGE Bug554.PageVertical (
   Title: 'Vertical form',
   Layout: Atlas_Core.PopupLayout,
-  Params: { $Customer: Bug554.Customer }
+  Params: ( $Customer: Bug554.Customer )
 ) {
   layoutgrid lg {
     row r {
@@ -49,7 +49,7 @@ CREATE OR REPLACE PAGE Bug554.PageVertical (
 CREATE OR REPLACE PAGE Bug554.PageHorizontal (
   Title: 'Horizontal form',
   Layout: Atlas_Core.PopupLayout,
-  Params: { $Customer: Bug554.Customer }
+  Params: ( $Customer: Bug554.Customer )
 ) {
   layoutgrid lg {
     row r {
@@ -65,7 +65,7 @@ CREATE OR REPLACE PAGE Bug554.PageHorizontal (
 CREATE OR REPLACE PAGE Bug554.PageLabelWidth5 (
   Title: 'LabelWidth=5',
   Layout: Atlas_Core.PopupLayout,
-  Params: { $Customer: Bug554.Customer }
+  Params: ( $Customer: Bug554.Customer )
 ) {
   layoutgrid lg {
     row r {

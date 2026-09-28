@@ -55,9 +55,9 @@ create page ICONREF.IconPage ( Title: 'Icons', Layout: 'Atlas_Core.Atlas_Default
 -- (Hyphenated names are double-quoted in this position: Atlas_Core.Atlas."shopping-cart")
 create or replace navigation Responsive
   HOME PAGE ICONREF.IconPage
-  MENU (
-    MENU ITEM 'Home' PAGE ICONREF.IconPage ICON Atlas_Core.Atlas.home;
-    MENU 'Group' ICON Atlas_Core.Atlas."shopping-cart" (
-      MENU ITEM 'Edit' PAGE ICONREF.IconPage ICON Atlas_Core.Atlas_Filled.pencil;
-    );
-  );
+  {
+    MENU ITEM 'Home' ( OnClick: SHOW PAGE ICONREF.IconPage, Icon: Atlas_Core.Atlas.home )
+    MENU 'Group' ( Icon: Atlas_Core.Atlas."shopping-cart" ) {
+      MENU ITEM 'Edit' ( OnClick: SHOW PAGE ICONREF.IconPage, Icon: Atlas_Core.Atlas_Filled.pencil )
+    }
+  };

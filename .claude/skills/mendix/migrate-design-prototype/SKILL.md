@@ -57,7 +57,7 @@ gives you *before* hand-writing custom SCSS. In order of preference:
 2. **Atlas utility classes and typed design properties** — `class:'card'`, `class:'btn btn-primary'`,
    `spacing-inner-*`/`spacing-outer-*` for padding/margin, `flex-row`/`flex-column` +
    `align-x-*`/`align-y-*` for layout (no `layoutgrid` needed); or the typed equivalents
-   `designproperties: ['Card style': on]`, `['Background color': 'Brand Primary']`,
+   `designproperties: ('Card style': on)`, `['Background color': 'Brand Primary']`,
    `['Spacing': ['margin-bottom': 'L']]`. `mxcli check -p` validates design-property keys
    and values (MDL-WIDGET11/12) and lists the allowed values.
 3. **Brand-token retune** — build the palette with `mxcli theme create --from`
@@ -485,7 +485,7 @@ create or replace page ResourceScheduling.ResourceHeatmap (
       Class: 'ss-panel ss-heat-lv'
     ) {
       container heatRow (Class: 'ss-heat-row') {
-        dynamictext hc01 (Content: '{1}', ContentParams: [{1} = M01], Class: 'ss-heat-cell')
+        dynamictext hc01 (Content: '{1}', ContentParams: ({1} = M01), Class: 'ss-heat-cell')
       }
     }
   }
@@ -646,10 +646,10 @@ the fast index so a design migration doesn't rediscover them.
     children bind to the related entity:
     ```
     dataview dvEmp (datasource: $currentObject/Module.Entity_Related) {
-      dynamictext n (content: 'By {1}', contentparams: [{1} = Name])   -- own attr of the related entity
+      dynamictext n (content: 'By {1}', contentparams: ({1} = Name))   -- own attr of the related entity
     }
     ```
-  - An **association path** for a single inline value: `contentparams: [{1} = Entity_Related/Name]`
+  - An **association path** for a single inline value: `contentparams: ({1} = Entity_Related/Name)`
     in a `dynamictext`, or `attribute: Entity_Related/Name` on a DataGrid2 column — both persist as
     an AttributeRef over the association (use a **bare** association name; a module-qualified one is
     rejected on a column).
@@ -690,7 +690,7 @@ the fast index so a design migration doesn't rediscover them.
 - [ ] Persistent sidebar/topbar built as **navigation profile + layout + CSS**, not per-page widgets; new screens added via `CREATE OR REPLACE NAVIGATION`
 - [ ] Shell **restructured** to the design (full-height sidebar via `position:fixed` + `margin-left` offset; region sizes forced with `flex-basis`; collapse toggle hidden if unused)
 - [ ] Multi-part chrome (brand block, user chip) rendered as **inline-SVG backgrounds**; single-style chrome (labels, dots, footer) as plain `::before`/`::after`
-- [ ] Related (to-one) object attributes shown via a **nested "data from context" DataView** (full read view) or an **association path** (`contentparams: [{1} = Assoc/Attr]` / column `attribute: Assoc/Attr`) for a single inline value — both persist
+- [ ] Related (to-one) object attributes shown via a **nested "data from context" DataView** (full read view) or an **association path** (`contentparams: ({1} = Assoc/Attr)` / column `attribute: Assoc/Attr`) for a single inline value — both persist
 - [ ] A real **`docker build`** run after each slice (not just `mxcli check`) before screenshotting
 - [ ] Widgets styled with `Class:`; data-driven state via `DynamicClasses:`
 - [ ] No inline `Style:` on any DYNAMICTEXT

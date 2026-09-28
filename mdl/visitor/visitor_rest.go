@@ -257,7 +257,7 @@ func parseRestClientOpProp(ctx *parser.RestClientOpPropContext, op *ast.RestOper
 		return
 	}
 
-	// Header list: ('Name' = 'Value', ...)
+	// Header list: ('Name': 'Value', ...) — or the old ('Name' = 'Value')
 	headerItems := ctx.AllRestClientHeaderItem()
 	if len(headerItems) > 0 {
 		for _, hi := range headerItems {

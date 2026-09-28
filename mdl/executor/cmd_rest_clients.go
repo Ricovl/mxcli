@@ -180,11 +180,11 @@ func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 		fmt.Fprintf(w, "    Query: (%s),\n", strings.Join(params, ", "))
 	}
 
-	// Headers: ('Name' = 'Value', ...)
+	// Headers: ('Name': 'Value', ...) — a map, `key: value` (R2/R3)
 	if len(op.Headers) > 0 {
 		var hdrs []string
 		for _, h := range op.Headers {
-			hdrs = append(hdrs, mdlQuoted(h.Name)+" = "+mdlQuoted(h.Value))
+			hdrs = append(hdrs, mdlQuoted(h.Name)+": "+mdlQuoted(h.Value))
 		}
 		fmt.Fprintf(w, "    Headers: (%s),\n", strings.Join(hdrs, ", "))
 	}

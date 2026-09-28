@@ -276,12 +276,12 @@ Navigation:
     [home page Module.Page for UserRole]
     [login page Module.Page]
     [not found page Module.Page]
-    [menu (
-      menu item 'Caption' page Module.Page;
-      menu 'SubMenu' (
-        menu item 'Child' microflow Module.Flow;
-      );
-    )];
+    [{
+      menu item 'Caption' ( OnClick: show page Module.Page )
+      menu 'SubMenu' {
+        menu item 'Child' ( OnClick: call microflow Module.Flow )
+      }
+    }];
 
 Data Types:
   String[(length)]  Integer  Long  Decimal[(p,s)]

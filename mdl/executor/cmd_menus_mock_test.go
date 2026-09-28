@@ -62,13 +62,13 @@ func TestDescribeMenu_Nested(t *testing.T) {
 	out := buf.String()
 
 	// The output is re-executable, so it opens with the statement that recreates it.
-	assertContainsStr(t, out, "create or modify menu Atlas_Core.Main_Menu (")
-	assertContainsStr(t, out, "menu item 'Home' page MyModule.Home_Web icon Atlas_Core.Atlas.home;")
+	assertContainsStr(t, out, "create or modify menu Atlas_Core.Main_Menu {")
+	assertContainsStr(t, out, "menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )")
 
 	// A sub-menu opens a nested block and its children are indented one level in.
-	assertContainsStr(t, out, "menu 'Admin' (")
-	assertContainsStr(t, out, "    menu item 'Accounts' page Administration.Account_Overview;")
-	assertContainsStr(t, out, "    menu item 'Rebuild' microflow Administration.Rebuild;")
+	assertContainsStr(t, out, "menu 'Admin' {")
+	assertContainsStr(t, out, "    menu item 'Accounts' ( OnClick: show page Administration.Account_Overview )")
+	assertContainsStr(t, out, "    menu item 'Rebuild' ( OnClick: call microflow Administration.Rebuild )")
 
 	// The glyph icon is reported rather than dropped, and points at the statement
 	// that would have to reproduce it — CREATE MENU, not CREATE NAVIGATION.
@@ -83,8 +83,8 @@ func TestDescribeMenu_Empty(t *testing.T) {
 	ctx, buf := newMockCtx(t, withBackend(menuBackend(md)))
 	assertNoError(t, describeMenu(ctx, ast.QualifiedName{Module: "Atlas_Core", Name: "Empty_Menu"}))
 	// An empty menu still describes to a statement that recreates it.
-	assertContainsStr(t, buf.String(), "create or modify menu Atlas_Core.Empty_Menu (")
-	assertContainsStr(t, buf.String(), ");")
+	assertContainsStr(t, buf.String(), "create or modify menu Atlas_Core.Empty_Menu {")
+	assertContainsStr(t, buf.String(), "};")
 }
 
 func TestDescribeMenu_NotFound(t *testing.T) {

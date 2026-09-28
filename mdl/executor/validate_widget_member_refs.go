@@ -29,7 +29,7 @@ import (
 //     (mendixlabs/mxcli#1046). The writer put the whole string in the attribute
 //     name, so the model came out naming an attribute that could never exist:
 //
-//     ContentParams: [{1} = $Customer/Name]
+//     ContentParams: ({1} = $Customer/Name)
 //     mx check -> [CE1613] "The selected attribute
 //     'Bench.Customer.$Customer/Name' no longer exists."
 //

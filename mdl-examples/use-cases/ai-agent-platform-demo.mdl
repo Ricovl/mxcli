@@ -259,7 +259,7 @@ end;
 create page AICustSupport.WF_AgentReview (
   title:  'Review Support Case',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 {
     row r1 {
@@ -273,7 +273,7 @@ create page AICustSupport.WF_AgentReview (
 create page AICustSupport.WF_Overview (
   title:  'Case Workflow Overview',
   layout: Atlas_Core.Atlas_Default,
-  params: { $workflow: System.Workflow }
+  params: ( $workflow: System.Workflow )
 ) {
   layoutgrid g1 {
     row r1 {

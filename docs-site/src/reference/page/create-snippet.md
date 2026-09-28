@@ -5,7 +5,7 @@
 ```sql
 CREATE [ OR REPLACE ] SNIPPET module.Name [ FOLDER 'path' ]
 [(
-    Params: { $param : Module.Entity | Type [, ...] }
+    Params: ( $param : Module.Entity | Type [, ...] )
 )]
 {
     widget_tree
@@ -33,7 +33,7 @@ The optional `Folder` property places the snippet in a subfolder within the modu
 `module.Name`
 :   The qualified name of the snippet (`Module.SnippetName`). The module must already exist.
 
-`Params: { ... }`
+`Params: ( ... )`
 :   Optional snippet parameters. Each parameter has a `$`-prefixed name and an
     **entity** type (`Module.Entity`).
 
@@ -54,7 +54,7 @@ Simple snippet with a header:
 ```sql
 CREATE SNIPPET MyModule.CustomerHeader
 (
-    Params: { $Customer: MyModule.Customer }
+    Params: ( $Customer: MyModule.Customer )
 )
 {
     CONTAINER cntHeader (Class: 'card-header') {
@@ -69,7 +69,7 @@ Snippet with form fields:
 ```sql
 CREATE SNIPPET MyModule.AddressFields
 (
-    Params: { $Address: MyModule.Address }
+    Params: ( $Address: MyModule.Address )
 )
 {
     TEXTBOX txtStreet (Label: 'Street', Attribute: Street)
@@ -95,7 +95,7 @@ Embedding a snippet in a page:
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-    Params: { $Customer: MyModule.Customer },
+    Params: ( $Customer: MyModule.Customer ),
     Title: 'Edit Customer',
     Layout: Atlas_Core.PopupLayout
 )

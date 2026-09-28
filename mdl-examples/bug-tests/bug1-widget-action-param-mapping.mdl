@@ -35,7 +35,7 @@ create microflow BugOne.ACT_Edit ($Form: BugOne.ExpenseForm)
 /
 
 create or replace page BugOne.P
-( params: { $Form: BugOne.ExpenseForm }, title: 'Bug 1', layout: Atlas_Core.Atlas_Default )
+( params: ( $Form: BugOne.ExpenseForm ), title: 'Bug 1', layout: Atlas_Core.Atlas_Default )
 {
   dataview dv (datasource: $Form) {
     actionbutton b1 (Caption: 'Submit', Action: microflow BugOne.ACT_Submit(Form: $Form))
