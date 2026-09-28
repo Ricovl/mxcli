@@ -45,14 +45,14 @@ func TestWorkflowExpression_BareFormIsCanonical(t *testing.T) {
 			wfHead + "begin\n  event subprocess Esp on interrupting timer 'addDays([%CurrentDateTime%], 30)' as Start caption 'After 30 days' { };\nend workflow;",
 			wfHead + "begin\n  event subprocess Esp on interrupting timer addDays([%CurrentDateTime%], 30) as Start caption 'After 30 days' { };\nend workflow;"},
 		{"alter workflow due date",
-			"alter workflow M.WF set due date 'addDays([%CurrentDateTime%], 1)';",
-			"alter workflow M.WF set due date addDays([%CurrentDateTime%], 1);"},
+			"alter workflow M.WF { set (DueDate: 'addDays([%CurrentDateTime%], 1)'); };",
+			"alter workflow M.WF { set (DueDate: addDays([%CurrentDateTime%], 1)); };"},
 		{"alter activity due date",
-			"alter workflow M.WF set activity Review due date 'addDays([%CurrentDateTime%], 1)';",
-			"alter workflow M.WF set activity Review due date addDays([%CurrentDateTime%], 1);"},
+			"alter workflow M.WF { set (DueDate: 'addDays([%CurrentDateTime%], 1)') on Review; };",
+			"alter workflow M.WF { set (DueDate: addDays([%CurrentDateTime%], 1)) on Review; };"},
 		{"inserted wait for timer",
-			"alter workflow M.WF insert after Review wait for timer 'addHours([%CurrentDateTime%], 1)' caption 'W';",
-			"alter workflow M.WF insert after Review wait for timer addHours([%CurrentDateTime%], 1) caption 'W';"},
+			"alter workflow M.WF { insert after Review { wait for timer 'addHours([%CurrentDateTime%], 1)' caption 'W'; } };",
+			"alter workflow M.WF { insert after Review { wait for timer addHours([%CurrentDateTime%], 1) caption 'W'; } };"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			old, canon := mustBuild(t, tc.quoted), mustBuild(t, tc.bare)
@@ -101,7 +101,7 @@ func TestWorkflowExpression_DecisionNameOrCall(t *testing.T) {
 // `set due date ”` clears the due date: it is no expression at all, so it is
 // not an expression written in a string.
 func TestWorkflowExpression_EmptyStringIsNotDeprecated(t *testing.T) {
-	prog := mustBuild(t, "alter workflow M.WF set due date '';")
+	prog := mustBuild(t, "alter workflow M.WF { set (DueDate: ''); };")
 	if got := deprecationCodes(prog); len(got) != 0 {
 		t.Errorf("recorded %v, want none", got)
 	}

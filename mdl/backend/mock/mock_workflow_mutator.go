@@ -17,6 +17,8 @@ type MockWorkflowMutator struct {
 	SetPropertyWithEntityFunc func(prop string, value string, entity string) error
 	SetActivityPropertyFunc   func(activityRef string, atPos int, prop string, value string) error
 	InsertAfterActivityFunc   func(activityRef string, atPos int, activities []workflows.WorkflowActivity) error
+	InsertBeforeActivityFunc  func(activityRef string, atPos int, activities []workflows.WorkflowActivity) error
+	ResolveAlterTargetFunc    func(t backend.AlterTarget) (backend.AlterTargetMatch, error)
 	DropActivityFunc          func(activityRef string, atPos int) error
 	ReplaceActivityFunc       func(activityRef string, atPos int, activities []workflows.WorkflowActivity) error
 	InsertOutcomeFunc         func(activityRef string, atPos int, outcomeName string, activities []workflows.WorkflowActivity) error
@@ -56,6 +58,23 @@ func (m *MockWorkflowMutator) InsertAfterActivity(activityRef string, atPos int,
 		return m.InsertAfterActivityFunc(activityRef, atPos, activities)
 	}
 	return nil
+}
+
+func (m *MockWorkflowMutator) InsertBeforeActivity(activityRef string, atPos int, activities []workflows.WorkflowActivity) error {
+	if m.InsertBeforeActivityFunc != nil {
+		return m.InsertBeforeActivityFunc(activityRef, atPos, activities)
+	}
+	return nil
+}
+
+// ResolveAlterTarget resolves every target unless ResolveAlterTargetFunc says
+// otherwise, so a test that does not care about resolution exercises the
+// operation behind it.
+func (m *MockWorkflowMutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTargetMatch, error) {
+	if m.ResolveAlterTargetFunc != nil {
+		return m.ResolveAlterTargetFunc(t)
+	}
+	return backend.AlterTargetMatch{Kind: "activity", Name: t.String()}, nil
 }
 
 func (m *MockWorkflowMutator) DropActivity(activityRef string, atPos int) error {

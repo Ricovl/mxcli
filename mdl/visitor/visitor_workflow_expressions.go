@@ -96,6 +96,10 @@ func (b *Builder) ExitWorkflowExpression(ctx *parser.WorkflowExpressionContext) 
 		// spelling and stays as it is.
 		return
 	}
+	if isAlterWorkflowStringProperty(ctx) {
+		// `alter workflow … { set (Display: 'x') }`: the string is the value.
+		return
+	}
 	b.recordDeprecation(deprecation.WorkflowStringExpression, lit.GetSymbol(), "workflow expression")
 	fix, why := workflowStringExpressionFix(ctx, lit)
 	b.fixLastDeprecation(deprecation.WorkflowStringExpression, fix, why)

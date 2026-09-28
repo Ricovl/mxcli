@@ -357,20 +357,99 @@ workflowAnnotationStmt
 // ALTER WORKFLOW
 // =============================================================================
 
+/**
+ * `alter workflow` operations: the generic ALTER (ADR-0012 decision 2,
+ * ako/mxcli#712).
+ *
+ * ```mdl
+ * alter workflow Shop.OrderApproval {
+ *   set (Display: 'Order approval', DueDate: addDays([%CurrentDateTime%], 3));
+ *   set (Page: Shop.TaskPage, Targeting: xpath [Active = true()]) on ReviewOrder;
+ *   insert after ReviewOrder { call microflow Shop.ACT_Notify; }
+ *   insert before 'Review the order'@2 { wait for notification Ready; }
+ *   insert into ReviewOrder { outcomes 'Escalate' { call microflow Shop.ACT_Escalate; } }
+ *   insert into decision1 { outcomes default -> { } }
+ *   insert into split1 { path { call microflow Shop.ACT_Log; } }
+ *   insert into ReviewOrder { boundary event interrupting timer addHours([%CurrentDateTime%], 4) { } }
+ *   replace ReviewOrder with { user task ReviewOrder caption 'Review' outcomes 'Done' { }; }
+ *   drop ReviewOrder outcome 'Reject', split1 path 2, ReviewOrder boundary event;
+ *   drop callMicroflow1;
+ * }
+ * ```
+ *
+ * A target is an activity's name or its quoted caption, with `@n` to choose
+ * one of several matches; the workflow's resolver (wfmutator) refuses an
+ * ambiguous one and lists the matches. A fragment is written exactly as
+ * `create workflow` writes it: activities in `{ }`, and for `insert into` the
+ * activity's own `outcomes`, `path` or `boundary event` clause.
+ */
+alterWorkflowOperation
+    : SET LPAREN alterWorkflowAssignment (COMMA alterWorkflowAssignment)* RPAREN (ON alterTarget)? SEMICOLON?
+    | INSERT (AFTER | BEFORE) alterTarget alterWorkflowFragment SEMICOLON?
+    | INSERT INTO alterTarget LBRACE alterWorkflowMember+ RBRACE SEMICOLON?
+    | REPLACE alterTarget WITH alterWorkflowFragment SEMICOLON?
+    | DROP alterWorkflowTarget (COMMA alterWorkflowTarget)* SEMICOLON?
+    ;
+
+// Activities, as the body of an outcome in `create workflow` writes them.
+alterWorkflowFragment
+    : LBRACE workflowBody RBRACE
+    ;
+
+// What `insert into <activity>` adds: the activity's own clause, as `create
+// workflow` writes it. A path's number may be left out; when written it must
+// be the next one.
+alterWorkflowMember
+    : OUTCOMES (workflowUserTaskOutcome | workflowConditionOutcome)+
+    | PATH NUMBER_LITERAL? LBRACE workflowBody RBRACE
+    | BOUNDARY EVENT workflowBoundaryEventClause
+    ;
+
+// A drop target: an activity, or one member of it — a user task's or a
+// decision's outcome, a parallel split's path, the activity's boundary event.
+alterWorkflowTarget
+    : alterTarget alterWorkflowTargetMember?
+    ;
+
+alterWorkflowTargetMember
+    : OUTCOME (STRING_LITERAL | TRUE | FALSE | DEFAULT)
+    | PATH NUMBER_LITERAL
+    | BOUNDARY EVENT
+    ;
+
+// `Key: value`, the key naming a workflow property (Display, Description,
+// ExportLevel, DueDate, OverviewPage, Parameter) or, with `on <activity>`, an
+// activity property (Page, Description, Targeting, DueDate). Which keys exist
+// is the visitor's call, so an unknown key is refused with the list.
+alterWorkflowAssignment
+    : identifierOrKeyword COLON alterWorkflowValue
+    ;
+
+alterWorkflowValue
+    : VARIABLE COLON qualifiedName                  // Parameter: $WorkflowContext: M.Ctx
+    | MICROFLOW qualifiedName                       // Targeting: microflow M.Target
+    | XPATH xpathConstraint+                        // Targeting: xpath [Active = true()]
+    | XPATH STRING_LITERAL /* @alias MDL-DEPR031 */ // Targeting: xpath '[Active = true()]'
+    | qualifiedName                                 // Page: M.P, ExportLevel: API
+    | workflowExpression                            // Display: 'x', DueDate: addDays(…)
+    ;
+
+// The old per-action forms, each a registered alias of the generic operation
+// it spells (MDL-DEPR140-149); `fmt --upgrade` rewrites them.
 alterWorkflowAction
-    : SET workflowSetProperty
-    | SET ACTIVITY alterActivityRef activitySetProperty
-    | INSERT AFTER alterActivityRef workflowActivityStmt
-    | DROP ACTIVITY alterActivityRef
-    | REPLACE ACTIVITY alterActivityRef WITH workflowActivityStmt
-    | INSERT OUTCOME STRING_LITERAL ON alterActivityRef LBRACE workflowBody RBRACE
-    | INSERT PATH ON alterActivityRef LBRACE workflowBody RBRACE
-    | DROP OUTCOME STRING_LITERAL ON alterActivityRef
-    | DROP PATH STRING_LITERAL ON alterActivityRef
-    | INSERT BOUNDARY EVENT ON alterActivityRef workflowBoundaryEventClause
-    | DROP BOUNDARY EVENT ON alterActivityRef
-    | INSERT CONDITION STRING_LITERAL ON alterActivityRef LBRACE workflowBody RBRACE
-    | DROP CONDITION STRING_LITERAL ON alterActivityRef
+    : SET /* @alias MDL-DEPR140 */ workflowSetProperty
+    | SET ACTIVITY /* @alias MDL-DEPR141 */ alterActivityRef activitySetProperty
+    | INSERT AFTER /* @alias MDL-DEPR142 */ alterActivityRef workflowActivityStmt
+    | DROP ACTIVITY /* @alias MDL-DEPR143 */ alterActivityRef
+    | REPLACE ACTIVITY /* @alias MDL-DEPR144 */ alterActivityRef WITH workflowActivityStmt
+    | INSERT OUTCOME /* @alias MDL-DEPR145 */ STRING_LITERAL ON alterActivityRef LBRACE workflowBody RBRACE
+    | INSERT PATH /* @alias MDL-DEPR146 */ ON alterActivityRef LBRACE workflowBody RBRACE
+    | DROP OUTCOME /* @alias MDL-DEPR149 */ STRING_LITERAL ON alterActivityRef
+    | DROP PATH /* @alias MDL-DEPR149 */ STRING_LITERAL ON alterActivityRef
+    | INSERT BOUNDARY EVENT /* @alias MDL-DEPR148 */ ON alterActivityRef workflowBoundaryEventClause
+    | DROP BOUNDARY EVENT /* @alias MDL-DEPR149 */ ON alterActivityRef
+    | INSERT CONDITION /* @alias MDL-DEPR147 */ STRING_LITERAL ON alterActivityRef LBRACE workflowBody RBRACE
+    | DROP CONDITION /* @alias MDL-DEPR149 */ STRING_LITERAL ON alterActivityRef
     ;
 
 workflowSetProperty

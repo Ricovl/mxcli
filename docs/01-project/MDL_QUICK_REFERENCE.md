@@ -814,70 +814,53 @@ end workflow;
 
 ## ALTER WORKFLOW
 
-Modify an existing workflow's properties, activities, outcomes, paths, conditions, and boundary events without full replacement.
+Modify an existing workflow's properties, activities, outcomes, paths, conditions, and boundary events without full replacement. It is the generic alter (the same shape as `alter page`): operations in `{ }`, properties in `set ( Key: value )`, fragments written exactly as in `create workflow`.
 
 | Operation | Syntax | Notes |
 |-----------|--------|-------|
-| Set display name | `set display 'name'` | Workflow-level display name |
-| Set description | `set description 'text'` | Workflow-level description |
-| Set export level | `set export level api\|Hidden` | Visibility level |
-| Set due date | `set due date <expr>` | Workflow-level due date expression |
-| Set overview page | `set overview page Module.Page` | Workflow overview page |
-| Set parameter | `set parameter $Var: Module.Entity` | Workflow context parameter |
-| Set activity page | `set activity name page Module.Page` | Change user task page |
-| Set activity description | `set activity name description 'text'` | Activity description |
-| Set activity targeting | `set activity name targeting [users\|groups] microflow Module.MF` | Target user/group assignment |
-| Set activity XPath | `set activity name targeting xpath [<xpath>]` | XPath targeting, in brackets; the quoted `xpath '[…]'` warns MDL-DEPR031 |
-| Set activity due date | `set activity name due date <expr>` | Activity-level due date |
-| Insert activity | `insert after name call microflow Module.MF` | Insert after named activity |
-| Drop activity | `drop activity name` | Remove activity by name |
-| Replace activity | `replace activity name with activity` | Replace activity in-place |
-| Insert outcome | `insert outcome 'name' on activity { body }` | Add outcome to user task/decision |
-| Drop outcome | `drop outcome 'name' on activity` | Remove outcome |
-| Insert path | `insert path on activity { body }` | Add path to parallel split |
-| Drop path | `drop path 'name' on activity` | Remove parallel split path |
-| Insert condition | `insert condition 'name' on activity { body }` | Add decision branch |
-| Drop condition | `drop condition 'name' on activity` | Remove decision branch |
-| Insert boundary event | `insert boundary event on activity interrupting timer [<expr>] { body }` | Add boundary timer |
-| Drop boundary event | `drop boundary event on activity` | Remove boundary event |
+| Set workflow properties | `set (Display: 'name', Description: 'text', ExportLevel: API, DueDate: <expr>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity);` | Any subset of the keys |
+| Set activity properties | `set (Page: Module.Page, Description: 'text', DueDate: <expr>) on activity;` | User task page, description, due date |
+| Set activity targeting | `set (Targeting: microflow Module.MF) on activity;` / `set (Targeting: xpath [<xpath>]) on activity;` | XPath in brackets; the quoted `xpath '[…]'` warns MDL-DEPR031 |
+| Insert activities | `insert after activity { … }` / `insert before activity { … }` | One or more activities, as in `create workflow` |
+| Replace activity | `replace activity with { … }` | Replace in place |
+| Drop activity | `drop activity;` | Several targets separated by commas |
+| Insert user-task outcome | `insert into activity { outcomes 'name' { body } }` | User task only |
+| Insert decision outcome | `insert into activity { outcomes 'Module.Enum.Value' -> { body } }` (or `true`, `false`, `default`) | Decision or call microflow |
+| Insert path | `insert into activity { path { body } }` | Parallel split; `path n` must be the next number |
+| Insert boundary event | `insert into activity { boundary event interrupting timer <expr> { body } }` | Boundary timer |
+| Drop outcome | `drop activity outcome 'name';` / `drop activity outcome true;` | `true`, `false`, `default` for a decision's Boolean or default outcome |
+| Drop path | `drop activity path 2;` | Parallel split path by number |
+| Drop boundary event | `drop activity boundary event;` | Removes the activity's first boundary event |
 
-**Activity references** can be identifiers (`ReviewOrder`) or string literals (`'Review the order'`). Use `@N` suffix for positional disambiguation when multiple activities share a name (e.g., `ACT_Process@2`).
+**Activity references** are names (`ReviewOrder`) or captions in quotes (`'Review the order'`). Add `@n` to choose one of several matches (`ACT_Process@2`); without it a name wins over a caption that repeats it, and an ambiguous reference is refused with the matches listed. Every target is resolved before anything changes.
 
-**Multiple actions** can be combined in a single ALTER statement.
+The old one-action-per-clause form (`alter workflow M.W set display 'x' insert outcome 'N' on X { };`) still parses and warns MDL-DEPR140–149; `mxcli fmt --upgrade` rewrites it.
 
 **Example:**
 ```sql
--- Set workflow-level properties
-alter workflow Module.OrderApproval
-  set display 'Updated Order Approval'
-  set description 'Updated description';
+alter workflow Module.OrderApproval {
+  -- workflow-level properties
+  set (Display: 'Updated Order Approval', Description: 'Updated description');
 
--- Modify an activity
-alter workflow Module.OrderApproval
-  set activity ReviewOrder page Module.AlternatePage;
+  -- an activity's properties
+  set (Page: Module.AlternatePage) on ReviewOrder;
 
--- Insert and drop activities
-alter workflow Module.OrderApproval
-  insert after ReviewOrder call microflow Module.ACT_Escalate;
-alter workflow Module.OrderApproval
-  drop activity ACT_Notify@1;
+  -- insert and drop activities
+  insert after ReviewOrder { call microflow Module.ACT_Escalate; }
+  drop ACT_Notify@1;
 
--- Manage outcomes on a user task
-alter workflow Module.OrderApproval
-  insert outcome 'Escalate' on ReviewOrder {
-    call microflow Module.ACT_Review;
-  };
-alter workflow Module.OrderApproval
-  drop outcome 'Hold' on ReviewOrder;
+  -- outcomes on a user task
+  insert into ReviewOrder { outcomes 'Escalate' { call microflow Module.ACT_Review; } }
+  drop ReviewOrder outcome 'Hold';
 
--- Boundary events
-alter workflow Module.OrderApproval
-  insert boundary event on ReviewOrder interrupting timer addHours([%CurrentDateTime%], 2) {
-    call microflow Module.ACT_BoundaryHandler;
-    jump to ReviewOrder;
-  };
-alter workflow Module.OrderApproval
-  drop boundary event on ReviewOrder;
+  -- boundary events
+  insert into ReviewOrder {
+    boundary event interrupting timer addHours([%CurrentDateTime%], 2) {
+      call microflow Module.ACT_BoundaryHandler;
+      jump to ReviewOrder;
+    }
+  }
+};
 ```
 
 **Tip:** Run `describe workflow Module.Name` first to see activity names.

@@ -325,14 +325,26 @@ type SetActivityPropertyOp struct {
 
 func (o *SetActivityPropertyOp) alterWorkflowOp() {}
 
-// InsertAfterOp inserts an activity after a named activity (linear position).
+// InsertAfterOp inserts activities after a named activity (linear position).
+// The old `insert after X <activity>` form carries exactly one; the generic
+// `insert after X { … }` any number.
 type InsertAfterOp struct {
-	ActivityRef string
-	AtPosition  int
-	NewActivity WorkflowActivityNode
+	ActivityRef   string
+	AtPosition    int
+	NewActivities []WorkflowActivityNode
 }
 
 func (o *InsertAfterOp) alterWorkflowOp() {}
+
+// InsertBeforeOp inserts activities before a named activity: the generic
+// ALTER's `insert before X { … }`, which the old form had no spelling for.
+type InsertBeforeOp struct {
+	ActivityRef   string
+	AtPosition    int
+	NewActivities []WorkflowActivityNode
+}
+
+func (o *InsertBeforeOp) alterWorkflowOp() {}
 
 // DropActivityOp removes a linear activity from the flow graph.
 type DropActivityOp struct {
@@ -344,9 +356,9 @@ func (o *DropActivityOp) alterWorkflowOp() {}
 
 // ReplaceActivityOp swaps an activity in place, preserving edges.
 type ReplaceActivityOp struct {
-	ActivityRef string
-	AtPosition  int
-	NewActivity WorkflowActivityNode
+	ActivityRef   string
+	AtPosition    int
+	NewActivities []WorkflowActivityNode
 }
 
 func (o *ReplaceActivityOp) alterWorkflowOp() {}
@@ -370,10 +382,13 @@ type DropOutcomeOp struct {
 
 func (o *DropOutcomeOp) alterWorkflowOp() {}
 
-// InsertPathOp adds a new path to a ParallelSplit.
+// InsertPathOp adds a new path to a ParallelSplit. PathNumber is the `path n`
+// the generic form may write, which must be the split's next path; 0 when it
+// is left out (and always for the old `insert path on X`).
 type InsertPathOp struct {
 	ActivityRef string
 	AtPosition  int
+	PathNumber  int
 	Activities  []WorkflowActivityNode
 }
 
