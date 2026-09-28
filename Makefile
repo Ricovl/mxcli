@@ -35,7 +35,7 @@ GO_BUILD_FLAGS = -trimpath
 # Clean version for VS Code extension (must be valid semver: major.minor.patch)
 VSCE_VERSION = $(shell echo "$(VERSION)" | sed 's/^v//; s/-.*//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$$' || echo "0.0.0")
 
-.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
+.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-conformance conformance-shrink check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
 
 # Helper: copy file only if content differs (avoids mtime updates that invalidate go build cache)
 # Usage: $(call copy-if-changed,src,dst)
@@ -201,7 +201,7 @@ test: grammar sync-all
 # cover the guard with a unit test.
 check-mdl: build
 	@FAILED=0; \
-	for f in mdl-examples/doctype-tests/*.mdl mdl-examples/bug-tests/*.mdl; do \
+	for f in mdl-examples/doctype-tests/*.mdl mdl-examples/bug-tests/*.mdl mdl-examples/deprecated-aliases/*.mdl; do \
 		case "$$f" in \
 			*/116-datagrid2-column-name-mismatch.mdl|\
 			*/343-list-attribute-find-filter.mdl|\
@@ -264,6 +264,21 @@ check-skill-mdl: build
 		echo "  ok $$f"; \
 	done
 	@./scripts/check-skill-mdl.sh ./$(BUILD_DIR)/$(BINARY_NAME) docs-site/src
+
+# Canonical-form conformance gate (ako/mxcli#756, plan item 1.4 of
+# PROPOSAL_mdl_beta_syntax_freeze.md). Parses every MDL block in `mxcli syntax`,
+# the user-facing skills, docs-site, the quick reference and mdl-examples, with
+# a deprecated spelling (MDL-DEPRnnn) counted as a failure, against the
+# allowlist in mdl/conformance/allowlist.txt, which may only shrink: a count
+# above its ceiling fails, and so does one below it. After fixing docs, run
+# `make conformance-shrink`, which lowers the list and never raises it.
+# mdl-examples/deprecated-aliases/ is exempt: it is the old-spelling corpus
+# `fmt --upgrade` is proven on (see its README).
+check-conformance:
+	@go test ./mdl/conformance -count=1
+
+conformance-shrink:
+	@MXCLI_CONFORMANCE_SHRINK=1 go test ./mdl/conformance -run 'TestConformanceGate$$' -count=1
 
 # Guard: the embedded tunnel (chisel) must stay out of the Windows/macOS builds.
 # See docs/13-decisions/0009-tunnel-is-linux-only.md. Needs no build — it reads
@@ -376,7 +391,7 @@ check-widget-versions: build
 	done
 
 # Lint all code (Go + TypeScript)
-lint: lint-go lint-ts
+lint: lint-go lint-ts check-conformance
 
 # Lint Go code
 #

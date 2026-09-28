@@ -99,6 +99,8 @@ What `mdl 1` makes strict (each is a warning without the header, with the code s
 
 `mxcli fmt --upgrade` rewrites every deprecated spelling (the `MDL-DEPRnnn` warnings) to its canonical form — `create or replace` becomes `create or modify`, `show entities` becomes `list entities`, `on error { … }` becomes `on error begin … end error` — and changes nothing else: comments, layout and keyword case are kept. A deprecated use with no mechanical rewrite is reported and left in place.
 
+The manual, the skills, `mxcli syntax` and the example scripts are written in the canonical form, and CI holds them to it: `make check-conformance` parses every MDL block in them and fails on a deprecated spelling (`mxcli check --deprecations=error` does the same for a script of your own).
+
 ```bash
 mxcli fmt --upgrade script.mdl            # print the upgraded script
 mxcli fmt --upgrade -w script.mdl         # upgrade in place
