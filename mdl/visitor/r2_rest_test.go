@@ -276,9 +276,9 @@ func TestR2Rest_RewriteText(t *testing.T) {
 		`create or modify navigation Responsive menu (menu item 'A' microflow M.F;) home page M.H;`:                              `create or modify navigation Responsive {menu item 'A' ( OnClick: call microflow M.F )} home page M.H;`,
 		`create page M.P (Title: 'P', Layout: L.L) { snippetcall s (Snippet: M.S, Params: {$A: $A}) };`:                          `create page M.P (Title: 'P', Layout: L.L) { snippetcall s (Snippet: M.S, Params: (A = $A)) };`,
 		// Half-converted: the braces are new, the sub-menu's icon clause and the items' `;` old.
-		"create menu M.M { menu 'X' icon glyph 1 { menu item 'a' page M.P; }; };": "create menu M.M { menu 'X' ( Icon: glyph 1 ) { menu item 'a' ( OnClick: show page M.P ) } };",
-		`create database connection M.Db type 'x' connection string @M.C;`:                                                       `create database connection M.Db ( Type: 'x', ConnectionString: @M.C );`,
-		"create database connection M.Db type 'x' connection string @M.C begin query Q sql 'select 1' returns M.E; end;":         "create database connection M.Db ( Type: 'x', ConnectionString: @M.C ) { query Q ( Sql: 'select 1', Returns: M.E ) };",
+		"create menu M.M { menu 'X' icon glyph 1 { menu item 'a' page M.P; }; };":                                        "create menu M.M { menu 'X' ( Icon: glyph 1 ) { menu item 'a' ( OnClick: show page M.P ) } };",
+		`create database connection M.Db type 'x' connection string @M.C;`:                                               `create database connection M.Db ( Type: 'x', ConnectionString: @M.C );`,
+		"create database connection M.Db type 'x' connection string @M.C begin query Q sql 'select 1' returns M.E; end;": "create database connection M.Db ( Type: 'x', ConnectionString: @M.C ) { query Q ( Sql: 'select 1', Returns: M.E ) };",
 	} {
 		prog := buildNoErrors(t, src)
 		if got := applyAllFixes(prog, src); got != want {
