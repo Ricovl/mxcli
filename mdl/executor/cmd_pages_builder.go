@@ -150,13 +150,11 @@ func (pb *pageBuilder) registerWidgetName(name string, id model.ID) error {
 
 // getModules returns cached modules or loads them.
 func (pb *pageBuilder) getModules() []*model.Module {
-	if pb.execCache != nil && pb.execCache.modules != nil {
-		return pb.execCache.modules
+	if pb.execCache == nil {
+		modules, _ := pb.backend.ListModules()
+		return modules
 	}
-	modules, _ := pb.backend.ListModules()
-	if pb.execCache != nil {
-		pb.execCache.modules = modules
-	}
+	modules, _ := pb.execCache.cachedModules(pb.backend.ListModules)
 	return modules
 }
 
