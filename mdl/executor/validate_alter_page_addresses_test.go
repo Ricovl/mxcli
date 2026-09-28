@@ -3,10 +3,6 @@
 package executor
 
 import (
-	"os"
-	"path/filepath"
-	"regexp"
-	"sort"
 	"strings"
 	"testing"
 
@@ -30,7 +26,8 @@ func aliasWarnings(t *testing.T, src string) []linter.Violation {
 }
 
 // The old ALTER PAGE spellings still run, and warn with the code that names
-// their rewrite (ako/mxcli#712). The canonical script is the control: it must
+// their rewrite (ako/mxcli#712; registered in mdl/deprecation since
+// ako/mxcli#751). The canonical script is the control: it must
 // produce no deprecation warning at all, or a warning on every ALTER would pass.
 func TestAlterAliases_OldSpellingsWarn(t *testing.T) {
 	old := aliasWarnings(t, `alter page M.P {
@@ -50,8 +47,8 @@ func TestAlterAliases_OldSpellingsWarn(t *testing.T) {
 	if strings.Join(codes, ",") != strings.Join(want, ",") {
 		t.Errorf("codes: got %v, want %v", codes, want)
 	}
-	if len(old) > 0 && !strings.Contains(old[0].Suggestion, "set (Key: value") {
-		t.Errorf("suggestion should name the canonical form: %q", old[0].Suggestion)
+	if len(old) > 0 && !strings.Contains(old[0].Message, "set (Key: value") {
+		t.Errorf("the warning should name the canonical form: %q", old[0].Message)
 	}
 
 	canonical := aliasWarnings(t, `alter page M.P {
@@ -63,47 +60,6 @@ func TestAlterAliases_OldSpellingsWarn(t *testing.T) {
 	};`)
 	if len(canonical) != 0 {
 		t.Errorf("canonical form must not warn, got %v", canonical)
-	}
-}
-
-// Every grammar alternative marked `// alias: <code>` has an entry in the
-// alias table, and every entry is marked somewhere in the grammar — so an alias
-// cannot be added to one without the other. The deprecation registry
-// (ako/mxcli#709) generalises this check.
-func TestAlterAliasGrammarMarkersMatchTable(t *testing.T) {
-	marker := regexp.MustCompile(`//\s*alias:\s*(MDL-DEPR\d+)`)
-	files, _ := filepath.Glob("../grammar/*.g4")
-	more, _ := filepath.Glob("../grammar/domains/*.g4")
-	files = append(files, more...)
-	if len(files) == 0 {
-		t.Fatal("no grammar files found")
-	}
-	marked := map[string]bool{}
-	for _, f := range files {
-		b, err := os.ReadFile(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, m := range marker.FindAllStringSubmatch(string(b), -1) {
-			marked[m[1]] = true
-		}
-	}
-	table := map[string]bool{}
-	for _, a := range alterAliases {
-		table[a.Code] = true
-		if !marked[a.Code] {
-			t.Errorf("%s is in the alias table but no grammar alternative is marked `// alias: %s`", a.Code, a.Code)
-		}
-	}
-	var missing []string
-	for code := range marked {
-		if !table[code] {
-			missing = append(missing, code)
-		}
-	}
-	sort.Strings(missing)
-	for _, code := range missing {
-		t.Errorf("grammar marks an alias %s with no entry in alterAliases", code)
 	}
 }
 

@@ -38,8 +38,8 @@ var r8Pairs = []r8Pair{
 	{"complete task", pageWith("complete_task 'Approve'"), pageWith("complete task 'Approve'"), deprecation.PageActionWord},
 	{"menu sign out", "create navigation Responsive home page M.Home menu (menu item 'Out' sign_out;);",
 		"create navigation Responsive home page M.Home menu (menu item 'Out' sign out;);", deprecation.PageActionWord},
-	{"alter page set action", "alter page M.P { set Action = show_page M.Q on b };",
-		"alter page M.P { set Action = show page M.Q on b };", deprecation.PageActionWord},
+	{"alter page set action", "alter page M.P { set (Action: show_page M.Q) on b };",
+		"alter page M.P { set (Action: show page M.Q) on b };", deprecation.PageActionWord},
 
 	{"not null error", "create entity M.E (Name: String(100) not null error 'Required');",
 		"create entity M.E (Name: String(100) not null error message 'Required');", deprecation.ErrorMessageKeyword},

@@ -66,6 +66,12 @@ func (b *Builder) ExitOdataPropertyAssignment(ctx *parser.OdataPropertyAssignmen
 	if _, onClient := ctx.GetParent().(*parser.CreateODataClientStatementContext); onClient && isODataClientExpressionProp(name) {
 		return
 	}
+	// `alter consumed odata service X set ( Key: expr )` takes the same list.
+	if list, ok := ctx.GetParent().(*parser.OdataAlterPropertyListContext); ok && isODataClientExpressionProp(name) {
+		if alter, ok := list.GetParent().(*parser.AlterStatementContext); ok && alter.ConsumedODataServiceKw() != nil {
+			return
+		}
+	}
 	b.addError(odataExpressionNotAllowed(name, ctx.Expression()))
 }
 

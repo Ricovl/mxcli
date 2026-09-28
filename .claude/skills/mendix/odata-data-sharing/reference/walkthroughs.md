@@ -309,8 +309,8 @@ from consumed odata service ShopClient.ShopApiClient
 );
 
 -- Toggle the flag without recreating the entity.
-alter entity ShopClient.Product set allow_create_change_locally = true;
-alter entity ShopClient.Product set allow_create_change_locally = false;
+alter entity ShopClient.Product set ( AllowCreateChangeLocally: true );
+alter entity ShopClient.Product set ( AllowCreateChangeLocally: false );
 ```
 ## Publishing a Non-Persistable Entity (no copy of the data)
 

@@ -157,6 +157,40 @@ const (
 	// on a text template: the placeholders bound by position (R4,
 	// ako/mxcli#751).
 	PositionalTemplateArguments = "MDL-DEPR009"
+
+	// Codes 060-069 and 101-103 are R3's (ako/mxcli#751,
+	// PROPOSAL_mdl_beta_syntax_freeze.md §3 R3): `:` sets a model property, so
+	// an `alter` sets properties in create's `( Key: value, … )` list, and a
+	// colon is written where a property list or an attribute definition has
+	// one and nowhere else.
+
+	// AlterPageSetEquals is the generic alter's `set Key = value` /
+	// `set (Key = value, …)`. Numbered from 101 because it shipped with the
+	// generic alter (ako/mxcli#712) before the registry existed; the code is
+	// published, so it is kept.
+	AlterPageSetEquals = "MDL-DEPR101"
+	// AlterPageSetUnparenthesised is `set Key: value` without the list's
+	// parentheses.
+	AlterPageSetUnparenthesised = "MDL-DEPR102"
+	// AlterPageDropWidget is `drop widget a, b`.
+	AlterPageDropWidget = "MDL-DEPR103"
+	// SettingsAssignment is a settings property written `Key = value`, outside
+	// a list: `alter settings <section>`, `alter settings configuration` and
+	// `create configuration`.
+	SettingsAssignment = "MDL-DEPR060"
+	// ODataAlterAssignment is `alter … odata service X set Key = value, …`.
+	ODataAlterAssignment = "MDL-DEPR061"
+	// StylingAssignment is `alter styling … set Class = 'x', 'Prop' = on`.
+	StylingAssignment = "MDL-DEPR062"
+	// AllowCreateChangeLocally is `alter entity … set allow_create_change_locally
+	// = true`, the only snake-case `=` alter action.
+	AllowCreateChangeLocally = "MDL-DEPR063"
+	// AssociationClauseColon is `type: Reference` (also `owner:`, `storage:`)
+	// on an association: a clause, which takes no colon.
+	AssociationClauseColon = "MDL-DEPR064"
+	// ModifyAttributeColon is `modify attribute A T`: an attribute definition
+	// is always `Name: Type`.
+	ModifyAttributeColon = "MDL-DEPR065"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -283,8 +317,8 @@ var entries = []Entry{
 		Rewrite:          Rewrite{Structural: "section name: `model` becomes `runtime`"},
 		RemovedIn:        2,
 		Note:             "`runtime` is the App Settings tab that holds these values in Studio Pro (R10); `model` also collided with the agent-editor document type.",
-		Example:          "alter settings model AfterStartupMicroflow = 'M.Startup';",
-		CanonicalExample: "alter settings runtime AfterStartupMicroflow = 'M.Startup';",
+		Example:          "alter settings model ( AfterStartupMicroflow: 'M.Startup' );",
+		CanonicalExample: "alter settings runtime ( AfterStartupMicroflow: 'M.Startup' );",
 	},
 	{
 		Code:      ReversedEntityGrant,
@@ -374,6 +408,105 @@ var entries = []Entry{
 
 func init() {
 	entries = append(entries, r8Entries...)
+	entries = append(entries, r3Entries...)
+}
+
+// r3Entries are R3's spellings (ako/mxcli#751): `:` sets a model property. An
+// `alter` takes exactly create's `( Key: value, … )` list, so a fragment of
+// describe output pastes into an alter unchanged.
+var r3Entries = []Entry{
+	{
+		Code:      AlterPageSetEquals,
+		Old:       "set Key = value [on target]  /  set (Key = value, …) [on target]",
+		Canonical: "set (Key: value, …) [on target]",
+		Rewrite:   Rewrite{Structural: "each `=` as `:`, and the assignments in parentheses when they are not"},
+		RemovedIn: 2,
+		Note: "In `alter page`, `alter snippet` and `alter layout`. `set layout = M.L` is a separate form " +
+			"and is not reported.",
+		Example:          "alter page M.P { set Caption = 'Save' on btnSave; };",
+		CanonicalExample: "alter page M.P { set (Caption: 'Save') on btnSave; };",
+	},
+	{
+		Code:             AlterPageSetUnparenthesised,
+		Old:              "set Key: value [on target]",
+		Canonical:        "set (Key: value) [on target]",
+		Rewrite:          Rewrite{Structural: "assignment in parentheses"},
+		RemovedIn:        2,
+		Note:             "Properties are a parenthesised list, even when there is one.",
+		Example:          "alter page M.P { set Caption: 'Save' on btnSave; };",
+		CanonicalExample: "alter page M.P { set (Caption: 'Save') on btnSave; };",
+	},
+	{
+		Code:             AlterPageDropWidget,
+		Old:              "drop widget a, b",
+		Canonical:        "drop a, b",
+		Rewrite:          Rewrite{Structural: "`drop widget a` as `drop a`"},
+		RemovedIn:        2,
+		Note:             "The target names the element; the kind is its own.",
+		Example:          "alter page M.P { drop widget txtOld; };",
+		CanonicalExample: "alter page M.P { drop txtOld; };",
+	},
+	{
+		Code:      SettingsAssignment,
+		Old:       "alter settings runtime Key = value, …  /  create configuration 'X' Key = value, …",
+		Canonical: "alter settings runtime ( Key: value, … )  /  create configuration 'X' ( Key: value, … )",
+		Rewrite:   Rewrite{Structural: "assignments in parentheses, each `=` as `:`"},
+		RemovedIn: 2,
+		Note: "Every settings section (runtime, language, workflows, configuration 'X') and `create configuration`. " +
+			"`alter settings constant 'C' value 'v'` is a clause, not a property, and is unchanged.",
+		Example:          "alter settings runtime AfterStartupMicroflow = 'M.Startup', BcryptCost = 11;",
+		CanonicalExample: "alter settings runtime ( AfterStartupMicroflow: 'M.Startup', BcryptCost: 11 );",
+	},
+	{
+		Code:             ODataAlterAssignment,
+		Old:              "alter consumed|published odata service X set Key = value, …",
+		Canonical:        "alter consumed|published odata service X set ( Key: value, … )",
+		Rewrite:          Rewrite{Structural: "assignments in parentheses, each `=` as `:`"},
+		RemovedIn:        2,
+		Note:             "The list takes exactly the keys and values of the service's `create` statement.",
+		Example:          "alter consumed odata service M.Crm set Version = '2.0', Timeout = 30;",
+		CanonicalExample: "alter consumed odata service M.Crm set ( Version: '2.0', Timeout: 30 );",
+	},
+	{
+		Code:             StylingAssignment,
+		Old:              "alter styling on page P widget w set Class = 'x', 'Full width' = on",
+		Canonical:        "alter styling on page P widget w set ( Class: 'x', 'Full width': on )",
+		Rewrite:          Rewrite{Structural: "assignments in parentheses, each `=` as `:`"},
+		RemovedIn:        2,
+		Note:             "The same list `alter page … set ( … ) on w` takes for a widget's class, style and design properties.",
+		Example:          "alter styling on page M.P widget ctn1 set Class = 'card', 'Full width' = on;",
+		CanonicalExample: "alter styling on page M.P widget ctn1 set ( Class: 'card', 'Full width': on );",
+	},
+	{
+		Code:             AllowCreateChangeLocally,
+		Old:              "alter entity M.E set allow_create_change_locally = true",
+		Canonical:        "alter entity M.E set ( AllowCreateChangeLocally: true )",
+		Rewrite:          Rewrite{Structural: "property as create's list: `set ( AllowCreateChangeLocally: <value> )`"},
+		RemovedIn:        2,
+		Note:             "The key `create external entity` takes for the same property.",
+		Example:          "alter entity M.Remote set allow_create_change_locally = true;",
+		CanonicalExample: "alter entity M.Remote set ( AllowCreateChangeLocally: true );",
+	},
+	{
+		Code:             AssociationClauseColon,
+		Old:              "type: Reference / owner: Both / storage: Table",
+		Canonical:        "type Reference / owner Both / storage Table",
+		Rewrite:          Rewrite{Structural: "clause without its colon: `type: Reference` as `type Reference` (also `owner`, `storage`)"},
+		RemovedIn:        2,
+		Note:             "A clause outside a property list takes no colon, as describe writes it.",
+		Example:          "create association M.Order_Customer from M.Order to M.Customer type: Reference;",
+		CanonicalExample: "create association M.Order_Customer from M.Order to M.Customer type Reference;",
+	},
+	{
+		Code:             ModifyAttributeColon,
+		Old:              "alter entity M.E modify attribute A Type",
+		Canonical:        "alter entity M.E modify attribute A: Type",
+		Rewrite:          Rewrite{Structural: "attribute definition with its colon: `A Type` as `A: Type`"},
+		RemovedIn:        2,
+		Note:             "An attribute definition is always `Name: Type`, as in `create entity` and `add attribute`.",
+		Example:          "alter entity M.E modify attribute Code String(20);",
+		CanonicalExample: "alter entity M.E modify attribute Code: String(20);",
+	},
 }
 
 // r8Entries are R8's spellings (ako/mxcli#752). Kept apart from the list above

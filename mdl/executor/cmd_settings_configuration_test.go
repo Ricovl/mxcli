@@ -51,7 +51,7 @@ func TestDescribeSettingsConfiguration_ByName(t *testing.T) {
 	if !strings.Contains(out, "create or modify configuration 'Default'") {
 		t.Errorf("expected the named configuration in its replayable form, got:\n%s", out)
 	}
-	if !strings.Contains(out, "ApplicationRootUrl = 'http://backend.local:8080/'") {
+	if !strings.Contains(out, "ApplicationRootUrl: 'http://backend.local:8080/'") {
 		t.Errorf("expected the root URL, got:\n%s", out)
 	}
 	// Naming one configuration means one configuration, not all of them.
