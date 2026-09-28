@@ -62,7 +62,7 @@ create module GlyphNav;
 /
 
 /** A page for the menu items to point at. */
-CREATE OR REPLACE PAGE GlyphNav.PG_Home ( Title: 'Home', Layout: Atlas_Core.Atlas_Default )
+CREATE OR MODIFY PAGE GlyphNav.PG_Home ( Title: 'Home', Layout: Atlas_Core.Atlas_Default )
 {
   CONTAINER root { DYNAMICTEXT txt (Content: 'home') }
 }
@@ -92,7 +92,7 @@ create or modify menu GlyphNav.MENU_Collection {
 
 -- The browsing commands, which is how the code above is meant to be found.
 -- Read-only, and they work without `-p`.
-show glyphs like 'star';
+list glyphs like 'star';
 /
 
 describe glyph 57350;

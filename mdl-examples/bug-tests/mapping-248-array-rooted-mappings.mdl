@@ -52,10 +52,10 @@ create persistent entity BugTest248.SensorReading (
 -- The array root is the whole point: the same body over an object-rooted
 -- structure always worked.
 create json structure BugTest248.JSON_Readings
-  snippet $$[{"machine_id": "m1", "temperature": 20.5}]$$;
+  sample $$[{"machine_id": "m1", "temperature": 20.5}]$$;
 
 create json structure BugTest248.JSON_Reading
-  snippet $${"machine_id": "m1", "temperature": 20.5}$$;
+  sample $${"machine_id": "m1", "temperature": 20.5}$$;
 
 -- Array-rooted import: one root element, bound to the array's item.
 create import mapping BugTest248.IMM_Readings

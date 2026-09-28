@@ -56,7 +56,7 @@ begin
 
   -- An enumeration decision carries one outcome per value plus the empty one
   -- (MDL-WF06 / CE6686).
-  decision decision9 '$WorkflowContext/Kind'
+  decision decision9 $WorkflowContext/Kind
     outcomes
       'WF415.Kind.Standard' -> { }
       'WF415.Kind.Priority' -> { }
@@ -70,6 +70,6 @@ begin
 end workflow;
 
 -- Each op aimed at the activity kind whose list can hold what it writes.
-alter workflow WF415.WF insert outcome 'Rejected' on task1 { };
-alter workflow WF415.WF insert path on split1 { };
-alter workflow WF415.WF insert boundary event on task1 interrupting timer 'addHours([%CurrentDateTime%], 1)' { };
+alter workflow WF415.WF { insert into task1 { outcomes 'Rejected' { } } };
+alter workflow WF415.WF { insert into split1 { path { } } };
+alter workflow WF415.WF { insert into task1 { boundary event interrupting timer addHours([%CurrentDateTime%], 1) { } } };

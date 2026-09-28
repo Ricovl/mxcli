@@ -34,12 +34,12 @@ CREATE MODULE Bug834;
 
 CREATE OR MODIFY PERSISTENT ENTITY Bug834.Thing ( Slug: String(50) );
 
-CREATE OR REPLACE PAGE Bug834.PgCC ( Title: 'PgCC', Layout: Atlas_Core.Atlas_Default )
+CREATE OR MODIFY PAGE Bug834.PgCC ( Title: 'PgCC', Layout: Atlas_Core.Atlas_Default )
 {
   actionbutton btnTop (caption: 'Edit')
   datagrid dgcc (datasource: database from Bug834.Thing) {
-    column colA (attribute: Slug, caption: 'Slug')
-    column colB (caption: 'Act', ShowContentAs: customContent) {
+    column (attribute: Slug, caption: 'Slug')
+    column (caption: 'Act', ShowContentAs: customContent) {
       actionbutton btnEdit (caption: 'Edit')
     }
   }
@@ -47,10 +47,10 @@ CREATE OR REPLACE PAGE Bug834.PgCC ( Title: 'PgCC', Layout: Atlas_Core.Atlas_Def
 
 -- Defect 1: reaching a widget nested in a customContent column.
 ALTER PAGE Bug834.PgCC {
-  set caption = 'Changed' on btnEdit;
+  set (caption: 'Changed') on btnEdit;
 };
 
 -- Defect 2: the same setter on a top-level action button, which failed too.
 ALTER PAGE Bug834.PgCC {
-  set caption = 'Changed too' on btnTop;
+  set (caption: 'Changed too') on btnTop;
 };

@@ -37,7 +37,7 @@
 
 create entity MyModule.Summary ( Amount: Decimal, LastImport: DateTime );
 
-create or replace page MyModule.SummaryPage
+create or modify page MyModule.SummaryPage
 (
   Title: 'Summary',
   Layout: Atlas_Core.Atlas_Default,

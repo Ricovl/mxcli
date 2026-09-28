@@ -40,7 +40,7 @@ create snippet S868.OrderActions ( params: ( $Order: S868.Order ) ) {
 create page S868.PageOmitted (
   params: ( $Order: S868.Order ), title: 'A', layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     dataview dvOrder (datasource: $Order) {
       snippetcall scActions (snippet: S868.OrderActions)
     }
@@ -51,7 +51,7 @@ create page S868.PageOmitted (
 create page S868.PageCurrentObject (
   params: ( $Order: S868.Order ), title: 'B', layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     dataview dvOrder (datasource: $Order) {
       snippetcall scActions (snippet: S868.OrderActions, params: (Order = $currentObject))
     }
@@ -62,7 +62,7 @@ create page S868.PageCurrentObject (
 create page S868.PageRealParam (
   params: ( $Order: S868.Order ), title: 'C', layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     snippetcall scActions (snippet: S868.OrderActions, params: (Order = $Order))
   } } }
 }

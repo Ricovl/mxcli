@@ -34,8 +34,8 @@ create page Ledger.LineItems (
 )
 {
   layoutgrid grid {
-    row r {
-      column c (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         listview lv (DataSource: DATABASE FROM Ledger.LineItem) {
           -- Decimal with 2 decimals and a thousands separator.
           dynamictext txtAmount (

@@ -51,7 +51,7 @@ create or modify microflow BugTest922.ACT_DownloadFile (
   $Location: String
 )
 begin
-  $fileResponseGet = rest call get '{1}' with ({1} = $Location)
+  $fileResponseGet = call rest service get '{1}' with ({1} = $Location)
     header 'Accept' = 'application/octet-stream'
     timeout 300
     returns BugTest922.MyFile;
@@ -64,7 +64,7 @@ create or modify microflow BugTest922.ACT_FetchResponse (
   $Location: String
 )
 begin
-  $httpResponseGet = rest call get '{1}' with ({1} = $Location)
+  $httpResponseGet = call rest service get '{1}' with ({1} = $Location)
     timeout 300
     returns response;
 end;

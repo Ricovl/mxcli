@@ -53,6 +53,6 @@ create persistent entity Img.PlainThing (
   "Label": String(100)
 );
 
-grant Img.Worker on Img.CaseImage (read ("ImageNumber", "Caption"));
-grant Img.Worker on Img.CaseAttachment (read ("DocumentNumber"));
-grant Img.Worker on Img.PlainThing (read *);
+grant read ("ImageNumber", "Caption") on entity Img.CaseImage to Img.Worker;
+grant read ("DocumentNumber") on entity Img.CaseAttachment to Img.Worker;
+grant read * on entity Img.PlainThing to Img.Worker;

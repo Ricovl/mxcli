@@ -58,8 +58,8 @@ create page BugNF2633.Item_View (
   Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (DesktopWidth: autofill) {
+    row {
+      column (DesktopWidth: autofill) {
         dataview dvItem (DataSource: nanoflow BugNF2633.DS_Item) {
           textbox txtName (Label: 'Name', Attribute: Name)
         }

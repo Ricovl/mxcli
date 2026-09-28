@@ -69,7 +69,7 @@ create persistent entity MapUse.PetRecord (
 /
 
 create json structure MapUse.JSON_Pet
-  snippet '{"id": 1, "name": "Fido", "status": "available"}';
+  sample '{"id": 1, "name": "Fido", "status": "available"}';
 
 -- ############################################################################
 -- PART 1: OBJECT HANDLING — what the mapping does with each object it reads
@@ -287,7 +287,7 @@ end;
 create microflow MapUse.ACT_RestAsEntity ($Url : string)
 returns MapUse.PetResponse
 begin
-  $Pet = rest call get $Url
+  $Pet = call rest service get $Url
     timeout 30
     returns mapping MapUse.IMM_Pet as MapUse.PetResponse
     on error rollback;
@@ -326,7 +326,7 @@ end;
 create microflow MapUse.ACT_RestThenImport ($Url : string)
 returns MapUse.PetResponse
 begin
-  $Body = rest call get $Url
+  $Body = call rest service get $Url
     timeout 30
     returns string
     on error rollback;

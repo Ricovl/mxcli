@@ -171,6 +171,11 @@ jobs:
         run: ./scripts/check-skill-mdl.sh ./bin/mxcli .claude/skills/mendix
       - name: Check docs-site MDL blocks
         run: ./scripts/check-skill-mdl.sh ./bin/mxcli docs-site/src
+      - name: Check MDL conformance
+        # Every MDL block in `mxcli syntax`, the skills, docs-site, the quick
+        # reference and mdl-examples, with deprecated spellings as failures,
+        # against an allowlist that may only shrink (ako/mxcli#756).
+        run: make check-conformance
       # The integration tests are the `integration` job below.
       - name: Lint Go
         run: make lint-go

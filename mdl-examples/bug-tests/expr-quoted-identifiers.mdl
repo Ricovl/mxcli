@@ -54,17 +54,17 @@ begin
 end
 
 -- 1b/1c — quoted attributes in widget contentparams and visibility expressions.
-create or replace page MyFirstModule.P_Expense
+create or modify page MyFirstModule.P_Expense
 ( Title: 'Expense', Layout: Atlas_Core.Atlas_Default, Params: ( $Expense: MyFirstModule.Expense ) )
 {
   dataview dv (datasource: $Expense) {
     dynamictext qAmount (content: '{1}', contentparams: ({1} = "Amount"))
-    dynamictext qReview (content: 'Needs review', visible: [ "Amount" > 1000 ])
+    dynamictext qReview (content: 'Needs review', visible: $currentObject/Amount > 1000)
   }
 }
 
 -- 1d — quoted attribute in an XPath database datasource WHERE constraint.
-create or replace page MyFirstModule.P_Queue
+create or modify page MyFirstModule.P_Queue
 ( Title: 'Queue', Layout: Atlas_Core.Atlas_Default )
 {
   gallery galQueue (datasource: database from MyFirstModule.Expense where [ "Status" = 'Submitted' ]) {

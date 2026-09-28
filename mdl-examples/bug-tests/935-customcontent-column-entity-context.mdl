@@ -47,15 +47,15 @@ create or modify persistent entity Sample.Order (
 create or modify association Sample.Customer_Country from Sample.Customer to Sample.Country type reference;
 create or modify association Sample.Order_Customer from Sample.Order to Sample.Customer type reference;
 
-create or replace page Sample.Order_Overview (
+create or modify page Sample.Order_Overview (
   title: 'Orders',
   layout: Atlas_Core.Atlas_Default
 ) {
   datagrid grid1 (
     datasource: database from Sample.Order
   ) {
-    column colNo (caption: 'Order', attribute: OrderNo)
-    column colCust (caption: 'Customer', ShowContentAs: customContent) {
+    column (caption: 'Order', attribute: OrderNo)
+    column (caption: 'Customer', ShowContentAs: customContent) {
       container ctnCust {
         dynamictext txtCust (content: '{1}', contentparams: ({1} = Sample.Order_Customer/Sample.Customer_Country/CountryName))
       }

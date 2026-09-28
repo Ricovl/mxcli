@@ -24,7 +24,7 @@ create module ViewPar;
 @position(100, 100)
 create persistent entity ViewPar.ProductCategory (
   /** Category name (e.g., Electronics, Clothing) */
-  CategoryName: string(200) not null error 'Category name is required'
+  CategoryName: string(200) not null error message 'Category name is required'
 );
 
 /**
@@ -35,7 +35,7 @@ create persistent entity ViewPar.ProductCategory (
 @position(300, 100)
 create persistent entity ViewPar.SaleTransaction (
   /** Sale amount in euros */
-  Amount: decimal not null error 'Amount is required',
+  Amount: decimal not null error message 'Amount is required',
   /** Date of the sale */
   SaleDate: datetime
 );
@@ -47,7 +47,7 @@ create association ViewPar.SaleTransaction_ProductCategory
   from ViewPar.SaleTransaction to ViewPar.ProductCategory
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 -- -----------------------------------------------------------------------------
 -- Step 2: View Entity - Aggregates ALL data, no filtering

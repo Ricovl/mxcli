@@ -42,23 +42,23 @@ create page BugTest631.P_Styling
 
 -- Class + inline style
 ALTER STYLING ON PAGE BugTest631.P_Styling WIDGET ctnTarget
-  SET Class = 'card card-bordered',
-      Style = 'padding: 24px;';
+  SET ( Class: 'card card-bordered',
+      Style: 'padding: 24px;' );
 
 -- Option (dropdown) design property
 ALTER STYLING ON PAGE BugTest631.P_Styling WIDGET ctnTarget
-  SET 'Spacing bottom' = 'Large';
+  SET ( 'Spacing bottom': 'Large' );
 
 -- Toggle design property ON
 ALTER STYLING ON PAGE BugTest631.P_Styling WIDGET ctnTarget
-  SET 'Full width' = ON;
+  SET ( 'Full width': ON );
 
 -- Read back — should report the class, style, and both design properties
 DESCRIBE STYLING ON PAGE BugTest631.P_Styling WIDGET ctnTarget;
 
 -- Toggle OFF removes the property again
 ALTER STYLING ON PAGE BugTest631.P_Styling WIDGET ctnTarget
-  SET 'Full width' = OFF;
+  SET ( 'Full width': OFF );
 
 -- Clear all design properties (Class/Style remain)
 ALTER STYLING ON PAGE BugTest631.P_Styling WIDGET ctnTarget

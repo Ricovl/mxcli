@@ -86,10 +86,10 @@ DESCRIBE ENTITY MyFirstModule.Customer;
 Output:
 ```
 @Position(100, 100)
-CREATE OR REPLACE PERSISTENT ENTITY MyFirstModule.Customer (
-  Name: String(200) NOT NULL,
+create or modify persistent entity MyFirstModule.Customer (
+  Name: String(200) not null,
   Email: String(200),
-  IsActive: Boolean DEFAULT true
+  IsActive: Boolean default true
 );
 ```
 

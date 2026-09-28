@@ -33,18 +33,18 @@ create page BugTests.Bug8Sort (
   Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row row1 {
-      column col1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         datagrid dgDesc (
           DataSource: database from Administration.Account sort by FullName desc,
           Selection: Single
         ) {
-          column c1 (Attribute: FullName, Caption: 'Name')
+          column (Attribute: FullName, Caption: 'Name')
         }
         gallery galDesc (
           DataSource: database from Administration.Account sort by "Email" desc
         ) {
-          template tpl1 {
+          template {
             dynamictext t1 (Content: '{1}', ContentParams: ({1} = Email))
           }
         }

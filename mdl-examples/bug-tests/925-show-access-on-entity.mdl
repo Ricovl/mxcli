@@ -33,11 +33,11 @@
 -- Unit coverage: mdl/visitor/visitor_show_access_test.go
 
 -- The regression: this line is the whole issue.
-show access on entity Administration.Account;
+list access on entity Administration.Account;
 /
 
 -- Its synonym, which always worked. The two must print the same report.
-show access on Administration.Account;
+list access on Administration.Account;
 /
 
 -- LIST is the other half of showOrList, so it must reach the same statement.
@@ -45,7 +45,7 @@ list access on entity Administration.Account;
 /
 
 -- The second defect: this printed the page's widget tree before the fix.
-show access on page Administration.Account_Overview;
+list access on page Administration.Account_Overview;
 /
 
 -- Controls — the guards must not steal the plain spellings, which still
@@ -53,5 +53,5 @@ show access on page Administration.Account_Overview;
 describe entity Administration.Account;
 /
 
-show page Administration.Account_Overview;
+describe page Administration.Account_Overview;
 /

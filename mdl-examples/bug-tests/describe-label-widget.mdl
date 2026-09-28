@@ -22,7 +22,7 @@
 -- `mxcli docker check` — 0 errors.
 -- ============================================================================
 
-create or replace page MyFirstModule.LabelWidget_Test
+create or modify page MyFirstModule.LabelWidget_Test
 ( Title: 'Labels', Layout: Atlas_Core.Atlas_Default )
 {
   label lblPlain (Content: 'Attachment')

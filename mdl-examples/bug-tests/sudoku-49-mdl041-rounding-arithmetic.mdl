@@ -18,32 +18,32 @@
 create or modify module RoundingProbe;
 
 -- Accepted before the fix too: the rounding call is the whole expression.
-create or replace microflow RoundingProbe.WholeExpression ($bu: Integer) returns Integer
+create or modify microflow RoundingProbe.WholeExpression ($bu: Integer) returns Integer
 begin
   declare $r Integer = round(floor($bu div 3));
   return $r;
 end;
 
 -- The reported case: the rounded value becomes an operand.
-create or replace microflow RoundingProbe.RoundedThenMultiplied ($bu: Integer) returns Integer
+create or modify microflow RoundingProbe.RoundedThenMultiplied ($bu: Integer) returns Integer
 begin
   declare $r Integer = round(floor($bu div 3)) * 3;
   return $r;
 end;
 
-create or replace microflow RoundingProbe.RoundedThenAdded ($bu: Integer) returns Integer
+create or modify microflow RoundingProbe.RoundedThenAdded ($bu: Integer) returns Integer
 begin
   declare $r Integer = round($bu div 3) + 3;
   return $r;
 end;
 
-create or replace microflow RoundingProbe.FloorThenMultiplied ($bu: Integer) returns Integer
+create or modify microflow RoundingProbe.FloorThenMultiplied ($bu: Integer) returns Integer
 begin
   declare $r Integer = floor($bu div 3) * 3;
   return $r;
 end;
 
-create or replace microflow RoundingProbe.CeilThenMultiplied ($bu: Integer) returns Integer
+create or modify microflow RoundingProbe.CeilThenMultiplied ($bu: Integer) returns Integer
 begin
   declare $r Integer = ceil($bu div 3) * 3;
   return $r;
@@ -51,7 +51,7 @@ end;
 
 -- abs/max/min preserve their operands' kind rather than always widening to
 -- Decimal, so these are Integer-valued and were false positives as well.
-create or replace microflow RoundingProbe.KindPreservingMath ($bu: Integer) returns Integer
+create or modify microflow RoundingProbe.KindPreservingMath ($bu: Integer) returns Integer
 begin
   declare $r Integer = abs($bu) + max($bu, 3) + min($bu, 3);
   return $r;

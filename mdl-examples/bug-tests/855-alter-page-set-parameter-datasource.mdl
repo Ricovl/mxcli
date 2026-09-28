@@ -34,7 +34,7 @@ create persistent entity P855.Order (Code: String(20));
 create microflow P855.MF_GetOrder () returns P855.Order as $Result
 begin
   retrieve $Orders from P855.Order;
-  $Result = head($Orders);
+  $Result = head $Orders;
   return $Result;
 end;
 
@@ -43,7 +43,7 @@ create page P855.OrderPage (
   title: 'Order',
   layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     dataview dvOrder (datasource: microflow P855.MF_GetOrder) {
       textbox tbCode (attribute: Code, label: 'Code')
     }
@@ -52,5 +52,5 @@ create page P855.OrderPage (
 
 -- The reported operation: retype the datasource from microflow to parameter.
 alter page P855.OrderPage {
-  set DataSource = $Order on dvOrder;
+  set (DataSource: $Order) on dvOrder;
 }

@@ -21,7 +21,7 @@
 --   mxcli check mdl-examples/bug-tests/widget-unknown-property.mdl
 -- ============================================================================
 
-create or replace page MyFirstModule.P_UnknownProp
+create or modify page MyFirstModule.P_UnknownProp
 ( Title: 'Unknown prop', Layout: Atlas_Core.Atlas_Default )
 {
   -- all recognized → no warning

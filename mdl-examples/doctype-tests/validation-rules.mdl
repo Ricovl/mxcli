@@ -18,39 +18,39 @@ create entity Shop.Booking (
 
 -- A regular expression is a DOCUMENT. The rule references it by qualified
 -- name, so the pattern must exist before the rule that uses it.
+/** Permissive email address check */
 create regular expression Shop.EmailPattern (
-    Expression: '^[^@\s]+@[^@\s]+\.[^@\s]+$',
-    Documentation: 'Permissive email address check'
+    Expression: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
 );
 
 create validation rule for Shop.Customer.Email
     regex Shop.EmailPattern
-    feedback 'Enter a valid email address';
+    error message 'Enter a valid email address';
 
 -- Both bounds: Mendix TypeOfRange "Between". Bounds are inclusive.
 create validation rule for Shop.Booking.Guests
     range from 1 to 100
-    feedback 'Between 1 and 100 guests are allowed';
+    error message 'Between 1 and 100 guests are allowed';
 
 -- Lower bound only: TypeOfRange "GreaterThanOrEqualTo".
 create validation rule for Shop.Customer.Age
     range from 18
-    feedback 'Customers must be 18 or over';
+    error message 'Customers must be 18 or over';
 
 -- Upper bound only: TypeOfRange "SmallerThanOrEqualTo".
 create validation rule for Shop.Booking.Discount
     range to 100
-    feedback 'A discount cannot exceed 100%';
+    error message 'A discount cannot exceed 100%';
 
 -- Re-running a rule replaces the one of the SAME type on that attribute and
 -- leaves the attribute's other rules alone, so this narrows the range rather
 -- than adding a second one.
 create validation rule for Shop.Booking.Guests
     range from 1 to 50
-    feedback 'Between 1 and 50 guests are allowed';
+    error message 'Between 1 and 50 guests are allowed';
 
 -- Required and Unique are attribute constraints, not CREATE VALIDATION RULE.
 -- They are stored as validation rules too, so an attribute can end up carrying
 -- a Required rule and a RegEx rule at once.
-alter entity Shop.Customer modify attribute Email string(200)
-    not null error 'Email is required';
+alter entity Shop.Customer modify attribute Email: string(200)
+    not null error message 'Email is required';

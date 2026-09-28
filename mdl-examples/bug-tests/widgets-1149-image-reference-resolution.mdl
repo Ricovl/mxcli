@@ -53,7 +53,7 @@
 -- widgets-1057-staticimage-slot-round-trip.mdl carries. A new page should use
 -- the pluggable `image` widget.
 
-create or replace page MyFirstModule.ImageRefsResolve (
+create or modify page MyFirstModule.ImageRefsResolve (
   Title: 'Image references resolve', Layout: Atlas_Core.Atlas_Default
 ) {
   placeholder Main {
@@ -76,7 +76,7 @@ create or replace page MyFirstModule.ImageRefsResolve (
 -- too, with the widgets in the position the walk DOES reach — which is what
 -- separates the two halves.
 
-create or replace page MyFirstModule.ImageRefsBareBody (
+create or modify page MyFirstModule.ImageRefsBareBody (
   Title: 'Image references, bare body', Layout: Atlas_Core.Atlas_Default
 ) {
   staticimage imgBare (Image: 'MyFirstModule.Images.microflow')
@@ -89,13 +89,13 @@ create or replace page MyFirstModule.ImageRefsBareBody (
 -- regression, and the escape was silent for long enough that plenty of correct
 -- scripts have only ever been checked in the bare-body position.
 
-create or replace page MyFirstModule.PlaceholderRefsAreFine (
+create or modify page MyFirstModule.PlaceholderRefsAreFine (
   Title: 'Placeholder references resolve', Layout: Atlas_Core.Atlas_Default
 ) {
   placeholder Main {
     actionbutton btnHome (
       Caption: 'Home',
-      Action: SHOW_PAGE MyFirstModule.ImageRefsResolve
+      Action: SHOW PAGE MyFirstModule.ImageRefsResolve
     )
   }
 };

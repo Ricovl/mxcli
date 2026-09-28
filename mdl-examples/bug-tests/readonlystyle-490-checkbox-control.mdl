@@ -26,20 +26,20 @@ create entity BugTests.Task (
   Done: boolean
 );
 
-create or replace page BugTests.P_490_ReadOnlyStyle (
+create or modify page BugTests.P_490_ReadOnlyStyle (
   Title: 'Read-only style',
   Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lgMain {
-    row rowMain {
-      column colMain (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         datagrid dgTasks (DataSource: database from BugTests.Task, Selection: None) {
-          column Description (Attribute: Description, Caption: 'Task') {
+          column (Attribute: Description, Caption: 'Task') {
             textfilter tfDescription
           }
           -- Control: the cell renders a disabled checkbox, and the column still
           -- filters (Yes / No) — the two halves ako/mxcli#489 and #490 together.
-          column Done (Attribute: Done, Caption: 'Done') {
+          column (Attribute: Done, Caption: 'Done') {
             checkbox cbDoneControl (Attribute: Done, Editable: Never, ReadOnlyStyle: Control)
             dropdownfilter ddfDone
           }

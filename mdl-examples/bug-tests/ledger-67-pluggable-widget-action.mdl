@@ -39,13 +39,13 @@ begin
   return true;
 end;
 
-create or replace page L67.Grid (
+create or modify page L67.Grid (
   Title: 'Grid',
   Layout: Atlas_Core.Atlas_Default
 ) {
   pluggablewidget 'com.mendix.widget.web.datagrid.Datagrid' dg (
     DataSource: database from L67.Thing,
-    onClick: microflow L67.OnRowClick(Thing: $currentObject)
+    onClick: call microflow L67.OnRowClick(Thing = $currentObject)
   ) {
     column c1 (Attribute: Name, Caption: 'Name')
   }

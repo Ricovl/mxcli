@@ -29,9 +29,9 @@ create page Mod.Detail (Title: 'Car', Layout: Atlas_Core.Atlas_Default, Params: 
 create page Mod.Grid (Title: 'Cars', Layout: Atlas_Core.Atlas_Default) {
   datagrid dgCars (
     DataSource: DATABASE Mod.Car,
-    onClick: SHOW_PAGE Mod.Detail(Car: $currentObject)
+    onClick: SHOW PAGE Mod.Detail(Car = $currentObject)
   ) {
-    column colName (Caption: 'Name', Attribute: Name)
+    column (Caption: 'Name', Attribute: Name)
   }
 };
 
@@ -39,7 +39,7 @@ create page Mod.Grid (Title: 'Cars', Layout: Atlas_Core.Atlas_Default) {
 create page Mod.List (Title: 'Cars', Layout: Atlas_Core.Atlas_Default) {
   listview lvCars (
     DataSource: DATABASE Mod.Car,
-    onClick: SHOW_PAGE Mod.Detail(Car: $currentObject)
+    onClick: SHOW PAGE Mod.Detail(Car = $currentObject)
   ) {
     dynamictext dtName (Content: '{1}', ContentParams: ({1} = Name))
   }

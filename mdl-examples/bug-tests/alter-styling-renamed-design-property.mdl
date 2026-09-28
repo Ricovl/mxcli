@@ -21,7 +21,7 @@
 -- statement is meant to be applied).
 -- ============================================================================
 
-create or replace page MyFirstModule.StylingRenamed_Test
+create or modify page MyFirstModule.StylingRenamed_Test
 ( Title: 'Styling', Layout: Atlas_Core.Atlas_Default )
 {
   container cntBody {

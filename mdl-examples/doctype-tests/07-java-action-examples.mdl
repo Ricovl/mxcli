@@ -1447,147 +1447,147 @@ create page JaTest.JavaActionTestPage
 )
 {
   layoutgrid mainGrid {
-    row rowHeader {
-      column colHeader (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading (content: 'Java Action Test Suite', rendermode: H2)
         dynamictext subheading (content: 'Click buttons to invoke each test microflow. Check the console log for results.')
       }
     }
 
-    row rowLevel1 {
-      column colLevel1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading1 (content: 'Level 1: No-Parameter Actions', rendermode: H3)
       }
     }
-    row rowLevel1Btns {
-      column col1a (desktopwidth: 4) {
-        actionbutton btnM001 (caption: 'M001 GetTimestamp', action: microflow JaTest.M001_GetTimestamp, buttonstyle: primary)
+    row {
+      column (desktopwidth: 4) {
+        actionbutton btnM001 (caption: 'M001 GetTimestamp', action: call microflow JaTest.M001_GetTimestamp, buttonstyle: primary)
       }
-      column col1b (desktopwidth: 4) {
-        actionbutton btnM002 (caption: 'M002 CheckMaintenance', action: microflow JaTest.M002_CheckMaintenanceMode, buttonstyle: primary)
+      column (desktopwidth: 4) {
+        actionbutton btnM002 (caption: 'M002 CheckMaintenance', action: call microflow JaTest.M002_CheckMaintenanceMode, buttonstyle: primary)
       }
-      column col1c (desktopwidth: 4) {
-        actionbutton btnM003 (caption: 'M003 GetAppVersion', action: microflow JaTest.M003_GetAppVersion, buttonstyle: primary)
+      column (desktopwidth: 4) {
+        actionbutton btnM003 (caption: 'M003 GetAppVersion', action: call microflow JaTest.M003_GetAppVersion, buttonstyle: primary)
       }
     }
 
-    row rowLevel2 {
-      column colLevel2 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading2 (content: 'Level 2: Primitive Parameters', rendermode: H3)
       }
     }
-    row rowLevel2Btns1 {
-      column col2a (desktopwidth: 4) {
-        actionbutton btnM010 (caption: 'M010 StringToUpper', action: microflow JaTest.Test_M010, buttonstyle: primary)
+    row {
+      column (desktopwidth: 4) {
+        actionbutton btnM010 (caption: 'M010 StringToUpper', action: call microflow JaTest.Test_M010, buttonstyle: primary)
       }
-      column col2b (desktopwidth: 4) {
-        actionbutton btnM011 (caption: 'M011 Concatenate', action: microflow JaTest.Test_M011, buttonstyle: primary)
+      column (desktopwidth: 4) {
+        actionbutton btnM011 (caption: 'M011 Concatenate', action: call microflow JaTest.Test_M011, buttonstyle: primary)
       }
-      column col2c (desktopwidth: 4) {
-        actionbutton btnM012 (caption: 'M012 Percentage', action: microflow JaTest.Test_M012, buttonstyle: primary)
+      column (desktopwidth: 4) {
+        actionbutton btnM012 (caption: 'M012 Percentage', action: call microflow JaTest.Test_M012, buttonstyle: primary)
       }
     }
-    row rowLevel2Btns2 {
-      column col2d (desktopwidth: 6) {
-        actionbutton btnM013 (caption: 'M013 FormatDate', action: microflow JaTest.Test_M013, buttonstyle: primary)
+    row {
+      column (desktopwidth: 6) {
+        actionbutton btnM013 (caption: 'M013 FormatDate', action: call microflow JaTest.Test_M013, buttonstyle: primary)
       }
-      column col2e (desktopwidth: 6) {
-        actionbutton btnM014 (caption: 'M014 CalculateTax', action: microflow JaTest.Test_M014, buttonstyle: primary)
+      column (desktopwidth: 6) {
+        actionbutton btnM014 (caption: 'M014 CalculateTax', action: call microflow JaTest.Test_M014, buttonstyle: primary)
       }
     }
 
-    row rowLevel3 {
-      column colLevel3 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading3 (content: 'Level 3: Entity Parameters', rendermode: H3)
       }
     }
-    row rowLevel3Btns1 {
-      column col3a (desktopwidth: 4) {
-        actionbutton btnM020 (caption: 'M020 SendEmail', action: microflow JaTest.Test_M020, buttonstyle: success)
+    row {
+      column (desktopwidth: 4) {
+        actionbutton btnM020 (caption: 'M020 SendEmail', action: call microflow JaTest.Test_M020, buttonstyle: success)
       }
-      column col3b (desktopwidth: 4) {
-        actionbutton btnM021 (caption: 'M021 LogMessage', action: microflow JaTest.Test_M021, buttonstyle: success)
+      column (desktopwidth: 4) {
+        actionbutton btnM021 (caption: 'M021 LogMessage', action: call microflow JaTest.Test_M021, buttonstyle: success)
       }
-      column col3c (desktopwidth: 4) {
-        actionbutton btnM022 (caption: 'M022 AttachFile', action: microflow JaTest.Test_M022, buttonstyle: success)
+      column (desktopwidth: 4) {
+        actionbutton btnM022 (caption: 'M022 AttachFile', action: call microflow JaTest.Test_M022, buttonstyle: success)
       }
     }
 
-    row rowLevel4 {
-      column colLevel4 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading4 (content: 'Level 4: List Parameters', rendermode: H3)
       }
     }
-    row rowLevel4Btns {
-      column col4a (desktopwidth: 4) {
-        actionbutton btnM030 (caption: 'M030 BatchSend', action: microflow JaTest.Test_M030, buttonstyle: danger)
+    row {
+      column (desktopwidth: 4) {
+        actionbutton btnM030 (caption: 'M030 BatchSend', action: call microflow JaTest.Test_M030, buttonstyle: danger)
       }
-      column col4b (desktopwidth: 4) {
-        actionbutton btnM031 (caption: 'M031 SearchLogs', action: microflow JaTest.Test_M031, buttonstyle: danger)
+      column (desktopwidth: 4) {
+        actionbutton btnM031 (caption: 'M031 SearchLogs', action: call microflow JaTest.Test_M031, buttonstyle: danger)
       }
-      column col4c (desktopwidth: 4) {
-        actionbutton btnM032 (caption: 'M032 FilterErrors', action: microflow JaTest.Test_M032, buttonstyle: danger)
+      column (desktopwidth: 4) {
+        actionbutton btnM032 (caption: 'M032 FilterErrors', action: call microflow JaTest.Test_M032, buttonstyle: danger)
       }
     }
 
-    row rowLevel5 {
-      column colLevel5 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading5 (content: 'Level 5: OQL/SQL Templates', rendermode: H3)
       }
     }
-    row rowLevel5Btns {
-      column col5a (desktopwidth: 4) {
-        actionbutton btnM040 (caption: 'M040 OQL Update', action: microflow JaTest.Test_M040, buttonstyle: danger)
+    row {
+      column (desktopwidth: 4) {
+        actionbutton btnM040 (caption: 'M040 OQL Update', action: call microflow JaTest.Test_M040, buttonstyle: danger)
       }
-      column col5b (desktopwidth: 4) {
-        actionbutton btnM041 (caption: 'M041 SQL Cleanup', action: microflow JaTest.Test_M041, buttonstyle: danger)
+      column (desktopwidth: 4) {
+        actionbutton btnM041 (caption: 'M041 SQL Cleanup', action: call microflow JaTest.Test_M041, buttonstyle: danger)
       }
-      column col5c (desktopwidth: 4) {
-        actionbutton btnM042 (caption: 'M042 Query Errors', action: microflow JaTest.Test_M042, buttonstyle: danger)
+      column (desktopwidth: 4) {
+        actionbutton btnM042 (caption: 'M042 Query Errors', action: call microflow JaTest.Test_M042, buttonstyle: danger)
       }
     }
 
-    row rowLevel6 {
-      column colLevel6 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading6 (content: 'Level 6: Complex Patterns', rendermode: H3)
       }
     }
-    row rowLevel6Btns1 {
-      column col6a (desktopwidth: 4) {
-        actionbutton btnM050 (caption: 'M050 ProcessNotify', action: microflow JaTest.Test_M050, buttonstyle: default)
+    row {
+      column (desktopwidth: 4) {
+        actionbutton btnM050 (caption: 'M050 ProcessNotify', action: call microflow JaTest.Test_M050, buttonstyle: default)
       }
-      column col6b (desktopwidth: 4) {
-        actionbutton btnM051 (caption: 'M051 ProcessPending', action: microflow JaTest.Test_M051, buttonstyle: default)
+      column (desktopwidth: 4) {
+        actionbutton btnM051 (caption: 'M051 ProcessPending', action: call microflow JaTest.Test_M051, buttonstyle: default)
       }
-      column col6c (desktopwidth: 4) {
-        actionbutton btnM052 (caption: 'M052 SafeFileProc', action: microflow JaTest.Test_M052, buttonstyle: default)
+      column (desktopwidth: 4) {
+        actionbutton btnM052 (caption: 'M052 SafeFileProc', action: call microflow JaTest.Test_M052, buttonstyle: default)
       }
     }
-    row rowLevel6Btns2 {
-      column col6d (desktopwidth: 12) {
-        actionbutton btnM053 (caption: 'M053 Conditional', action: microflow JaTest.Test_M053, buttonstyle: default)
+    row {
+      column (desktopwidth: 12) {
+        actionbutton btnM053 (caption: 'M053 Conditional', action: call microflow JaTest.Test_M053, buttonstyle: default)
       }
     }
 
-    row rowLevel7 {
-      column colLevel7 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading7 (content: 'Level 7: Advanced Integration', rendermode: H3)
       }
     }
-    row rowLevel7Btns1 {
-      column col7a (desktopwidth: 4) {
-        actionbutton btnM060 (caption: 'M060 CallAPI', action: microflow JaTest.Test_M060, buttonstyle: default)
+    row {
+      column (desktopwidth: 4) {
+        actionbutton btnM060 (caption: 'M060 CallAPI', action: call microflow JaTest.Test_M060, buttonstyle: default)
       }
-      column col7b (desktopwidth: 4) {
-        actionbutton btnM061 (caption: 'M061 HashPassword', action: microflow JaTest.Test_M061, buttonstyle: default)
+      column (desktopwidth: 4) {
+        actionbutton btnM061 (caption: 'M061 HashPassword', action: call microflow JaTest.Test_M061, buttonstyle: default)
       }
-      column col7c (desktopwidth: 4) {
-        actionbutton btnM062 (caption: 'M062 ReadFile', action: microflow JaTest.Test_M062, buttonstyle: default)
+      column (desktopwidth: 4) {
+        actionbutton btnM062 (caption: 'M062 ReadFile', action: call microflow JaTest.Test_M062, buttonstyle: default)
       }
     }
-    row rowLevel7Btns2 {
-      column col7d (desktopwidth: 12) {
-        actionbutton btnM063 (caption: 'M063 QueueTask', action: microflow JaTest.Test_M063, buttonstyle: default)
+    row {
+      column (desktopwidth: 12) {
+        actionbutton btnM063 (caption: 'M063 QueueTask', action: call microflow JaTest.Test_M063, buttonstyle: default)
       }
     }
   }

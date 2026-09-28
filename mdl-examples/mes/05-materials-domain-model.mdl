@@ -81,7 +81,7 @@ create enumeration Materials.PurchaseOrderStatus (
 @position(50, 50)
 create persistent entity Materials.MaterialCategory (
   /** Category name */
-  CategoryName: string(200) not null error 'Category name is required',
+  CategoryName: string(200) not null error message 'Category name is required',
   /** Category description */
   CategoryDescription: string(1000),
   /** Whether this category is active */
@@ -101,13 +101,13 @@ create persistent entity Materials.MaterialCategory (
 @position(350, 50)
 create persistent entity Materials.Material (
   /** Unique material code */
-  MaterialCode: string(50) not null error 'Material code is required' unique error 'Material code must be unique',
+  MaterialCode: string(50) not null error message 'Material code is required' unique error message 'Material code must be unique',
   /** Material display name */
-  MaterialName: string(200) not null error 'Material name is required',
+  MaterialName: string(200) not null error message 'Material name is required',
   /** Detailed description */
   MaterialDescription: string(2000),
   /** Unit of measure */
-  UnitOfMeasure: enumeration(Materials.MaterialUnit) not null error 'Unit of measure is required',
+  UnitOfMeasure: enumeration(Materials.MaterialUnit) not null error message 'Unit of measure is required',
   /** Unit cost (last purchase price) */
   UnitCost: decimal default 0,
   /** Current quantity in stock */
@@ -137,9 +137,9 @@ index (IsActive);
 @position(50, 250)
 create persistent entity Materials.Supplier (
   /** Unique supplier code */
-  SupplierCode: string(50) not null error 'Supplier code is required' unique error 'Supplier code must be unique',
+  SupplierCode: string(50) not null error message 'Supplier code is required' unique error message 'Supplier code must be unique',
   /** Company name */
-  SupplierName: string(200) not null error 'Supplier name is required',
+  SupplierName: string(200) not null error message 'Supplier name is required',
   /** Primary contact person */
   ContactPerson: string(200),
   /** Email address */
@@ -177,11 +177,11 @@ index (SupplierCode);
 @position(650, 50)
 create persistent entity Materials.StockMovement (
   /** Type of movement */
-  MovementType: enumeration(Materials.MovementType) not null error 'Movement type is required',
+  MovementType: enumeration(Materials.MovementType) not null error message 'Movement type is required',
   /** Quantity moved (positive for in, negative for out) */
-  Quantity: decimal not null error 'Quantity is required',
+  Quantity: decimal not null error message 'Quantity is required',
   /** Date and time of the movement */
-  MovementDate: datetime not null error 'Movement date is required',
+  MovementDate: datetime not null error message 'Movement date is required',
   /** Reference number (PO number, work order number, etc.) */
   ReferenceNumber: string(100),
   /** Reason or notes for this movement */
@@ -206,7 +206,7 @@ create persistent entity Materials.PurchaseOrder (
   /** Auto-generated PO number */
   PONumber: autonumber default 1,
   /** Current order status */
-  POStatus: enumeration(Materials.PurchaseOrderStatus) not null error 'PO status is required',
+  POStatus: enumeration(Materials.PurchaseOrderStatus) not null error message 'PO status is required',
   /** Date the order was placed */
   OrderDate: datetime,
   /** Expected delivery date */
@@ -234,13 +234,13 @@ index (POStatus);
 @position(650, 250)
 create persistent entity Materials.PurchaseOrderLine (
   /** Line number */
-  LineNumber: integer not null error 'Line number is required',
+  LineNumber: integer not null error message 'Line number is required',
   /** Quantity ordered */
-  QuantityOrdered: decimal not null error 'Quantity ordered is required',
+  QuantityOrdered: decimal not null error message 'Quantity ordered is required',
   /** Quantity received so far */
   QuantityReceived: decimal default 0,
   /** Unit price */
-  UnitPrice: decimal not null error 'Unit price is required',
+  UnitPrice: decimal not null error message 'Unit price is required',
   /** Line total */
   LineTotal: decimal default 0
 );
@@ -258,7 +258,7 @@ create association Materials.Material_MaterialCategory
   from Materials.Material to Materials.MaterialCategory
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links material to its preferred supplier
@@ -271,7 +271,7 @@ create association Materials.Material_Supplier
   from Materials.Material to Materials.Supplier
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links stock movement to its material
@@ -284,7 +284,7 @@ create association Materials.StockMovement_Material
   from Materials.StockMovement to Materials.Material
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links purchase order to its supplier
@@ -297,7 +297,7 @@ create association Materials.PurchaseOrder_Supplier
   from Materials.PurchaseOrder to Materials.Supplier
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links PO line to its purchase order
@@ -310,7 +310,7 @@ create association Materials.PurchaseOrderLine_PurchaseOrder
   from Materials.PurchaseOrderLine to Materials.PurchaseOrder
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links PO line to the material being ordered
@@ -323,4 +323,4 @@ create association Materials.PurchaseOrderLine_Material
   from Materials.PurchaseOrderLine to Materials.Material
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;

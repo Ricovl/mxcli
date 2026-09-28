@@ -16,7 +16,7 @@ create persistent entity NestFrag.Order (
 );
 
 -- A slotted card shell reused inside a layout container.
-define fragment Card as {
+create fragment Card as {
   container cardWrap (class: 'card', designproperties: ('Card style': on)) {
     container cardBody (class: 'card-body') {
       slot content
@@ -33,16 +33,16 @@ create page NestFrag.NestedCards
 {
   -- The cards are NESTED inside a layoutgrid column, not at the top level.
   layoutgrid lg {
-    row r {
-      column colA (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         use fragment Card as left_ {
           dynamictext leftTitle (content: 'Customers', rendermode: H4)
         }
       }
-      column colB (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         use fragment Card as right_ {
           datagrid ordGrid (datasource: database NestFrag.Order) {
-            column colNum (attribute: OrderNumber, caption: 'Order #')
+            column (attribute: OrderNumber, caption: 'Order #')
           }
         }
       }

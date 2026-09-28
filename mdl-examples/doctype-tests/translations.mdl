@@ -17,10 +17,10 @@ create module TrDoc;
 create module role TrDoc.User;
 create persistent entity TrDoc.Thing ( Name: string(100) );
 
-create or replace page TrDoc.P_Things (Title: 'Things', Layout: Atlas_Core.Atlas_Default)
+create or modify page TrDoc.P_Things (Title: 'Things', Layout: Atlas_Core.Atlas_Default)
 {
   DATAGRID dg (DataSource: DATABASE TrDoc.Thing) {
-    COLUMN c1 (Attribute: Name, Caption: 'Name')
+    COLUMN (Attribute: Name, Caption: 'Name')
   }
 }
 

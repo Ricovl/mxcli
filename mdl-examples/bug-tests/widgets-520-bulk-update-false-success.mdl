@@ -44,11 +44,11 @@ create persistent entity MyFirstModule.Vehicle (
   Model: string(100)
 );
 
-create or replace page MyFirstModule.GridA (
+create or modify page MyFirstModule.GridA (
   title: 'A', layout: 'Atlas_Core.Atlas_Default'
 ) {
   datagrid dgA (DataSource: database from MyFirstModule.Vehicle) {
-    column colBrand (Attribute: Brand, Caption: 'Brand')
+    column (Attribute: Brand, Caption: 'Brand')
   }
 };
 

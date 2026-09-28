@@ -39,7 +39,7 @@ create entity MyFirstModule.Expense ( Description: String );
 create association MyFirstModule.Expense_Employee
   from MyFirstModule.Expense to MyFirstModule.Employee;
 
-create or replace page MyFirstModule.MasterDetail
+create or modify page MyFirstModule.MasterDetail
 ( Title: 'Master Detail', Layout: Atlas_Core.Atlas_Default, Params: ( $Employee: MyFirstModule.Employee ) )
 {
   dataview dvEmp (datasource: $Employee) {

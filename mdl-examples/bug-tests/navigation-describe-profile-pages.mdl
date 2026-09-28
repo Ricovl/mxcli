@@ -52,7 +52,7 @@ create page NavRT.SignIn  (title: 'Sign In', Layout: Atlas_Core.Atlas_Default) {
 create page NavRT.Missing (title: 'Missing', Layout: Atlas_Core.Atlas_Default) { container c1 { } }
 /
 
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page NavRT.Home
   login page NavRT.SignIn
   not found page NavRT.Missing

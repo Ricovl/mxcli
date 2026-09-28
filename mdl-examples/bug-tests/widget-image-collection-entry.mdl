@@ -33,7 +33,7 @@
 
 create module IMG;
 
-create or replace page IMG.ImagePage (
+create or modify page IMG.ImagePage (
   title: 'Image sources',
   layout: Atlas_Core.Atlas_Default
 ) {

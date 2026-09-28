@@ -43,8 +43,8 @@ create page MyFirstModule.ImgPage (
   Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg {
-    row r {
-      column c (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         pluggablewidget 'com.mendix.widget.web.image.Image' img (
           ImageType: 'imageUrl',
           imageUrl: 'https://example.com/x.png'

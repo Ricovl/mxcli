@@ -73,12 +73,12 @@ create page PW.P_PW01_Minimal (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         -- Badge: no required properties
         pluggablewidget 'com.mendix.widget.custom.badge.Badge' badge1
       }
-      column c2 (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         -- ProgressBar: renders with defaults
         pluggablewidget 'com.mendix.widget.custom.progressbar.ProgressBar' prog1
       }
@@ -97,8 +97,8 @@ create page PW.P_PW02_Properties (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         -- TODO(grammar): Tooltip requires its `TRIGGER` child slot to be
         -- filled (CE0642). The slot keyword is not in the grammar yet,
         -- so the widget is omitted here. The primitive-properties pattern
@@ -114,8 +114,8 @@ create page PW.P_PW02_Properties (
         dynamictext placeholder1 (content: 'Tooltip example pending TRIGGER keyword')
       }
     }
-    row r2 {
-      column c2 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         -- VideoPlayer with URL expression
         pluggablewidget 'com.mendix.widget.web.videoplayer.VideoPlayer' video1 (
           type: 'expression',
@@ -137,8 +137,8 @@ create page PW.P_PW03_DataSource (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         -- TreeNode: datasource only, flat list
         pluggablewidget 'com.mendix.widget.web.treenode.TreeNode' tree1 (
           datasource: database from PW.Item sort by title asc,
@@ -148,7 +148,7 @@ create page PW.P_PW03_DataSource (
           showIcon: 'no'
         )
       }
-      column c2 (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         -- Timeline with datasource
         pluggablewidget 'com.mendix.widget.web.timeline.Timeline' timeline1 (
           datasource: database from PW.Item sort by DateCreated desc,
@@ -173,15 +173,15 @@ create page PW.P_PW04_ChildSlot (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         -- Fieldset wraps a labeled group of widgets
         pluggablewidget 'com.mendix.widget.web.fieldset.Fieldset' fieldset1 {
           dynamictext fsHdr (content: 'Inside fieldset', rendermode: H4)
           dynamictext fsBody (content: 'This content sits inside the fieldset slot', rendermode: paragraph)
         }
       }
-      column c2 (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         -- AccessibilityHelper with content
         pluggablewidget 'com.mendix.widget.web.accessibilityhelper.AccessibilityHelper' acc1 (
           targetSelector: '.mx-name-acc1'
@@ -206,18 +206,18 @@ create page PW.P_PW05_Attribute (
 ) {
   dataview dv1 (datasource: $Item) {
     layoutgrid lg1 {
-      row r1 {
-        column c1 (desktopwidth: 4) {
+      row {
+        column (desktopwidth: 4) {
           pluggablewidget 'com.mendix.widget.custom.switch.Switch' sw1 (
             booleanAttribute: IsActive
           )
         }
-        column c2 (desktopwidth: 4) {
+        column (desktopwidth: 4) {
           pluggablewidget 'com.mendix.widget.custom.starrating.StarRating' rating1 (
             rateAttribute: Score
           )
         }
-        column c3 (desktopwidth: 4) {
+        column (desktopwidth: 4) {
           pluggablewidget 'com.mendix.widget.custom.slider.Slider' slider1 (
             valueAttribute: Score
           )
@@ -238,17 +238,17 @@ create page PW.P_PW06_GalleryFilter (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         gallery gal1 (
           datasource: database from PW.Item sort by title asc
         ) {
-          filter flt1 {
+          filter {
             textfilter tf1 (attributes: [title, description])
             -- DropdownSort is a pluggable widget usable in filter bars
             pluggablewidget 'com.mendix.widget.web.dropdownsort.DropdownSort' ddSort1
           }
-          template tpl1 {
+          template {
             dynamictext tTitle (content: '{1}', contentparams: ({1} = title), rendermode: H4)
           }
         }
@@ -268,8 +268,8 @@ create page PW.P_PW07_TextTemplate (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         -- Timeline with TextTemplate title/description fields
         pluggablewidget 'com.mendix.widget.web.timeline.Timeline' timelineText1 (
           datasource: database from PW.Item sort by DateCreated desc,
@@ -295,8 +295,8 @@ create page PW.P_PW08_MultiSlot (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         -- Timeline customVisualization: uses customTitle + customDescription slots
         pluggablewidget 'com.mendix.widget.web.timeline.Timeline' timelineCustom1 (
           datasource: database from PW.Item sort by DateCreated desc,
@@ -327,8 +327,8 @@ create page PW.P_PW09_Nested (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         -- AccessibilityHelper wrapping a Switch
         pluggablewidget 'com.mendix.widget.web.accessibilityhelper.AccessibilityHelper' accOuter (
           targetSelector: '.mx-name-accOuter'
@@ -359,8 +359,8 @@ create page PW.P_PW10_Trigger (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         -- pluggablewidget 'com.mendix.widget.web.tooltip.Tooltip' tooltipTrigger (
         --   renderMethod: 'text',
         --   textMessage: 'Click for more info',
@@ -374,7 +374,7 @@ create page PW.P_PW10_Trigger (
         -- }
         dynamictext placeholderTip (content: 'Tooltip-trigger pattern pending TRIGGER keyword')
       }
-      column c2 (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         -- pluggablewidget 'com.mendix.widget.web.popupmenu.PopupMenu' popupMenu1 {
         --   menutrigger {
         --     actionbutton btnMenu (caption: 'Open Menu', action: close_page, buttonstyle: default)

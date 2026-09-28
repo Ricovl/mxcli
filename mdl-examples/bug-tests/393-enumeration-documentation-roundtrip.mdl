@@ -15,7 +15,7 @@
 /**
  * Priority levels for tasks.
  */
-create or replace enumeration MyFirstModule.PriorityDoc (
+create or modify enumeration MyFirstModule.PriorityDoc (
   LOW 'Low',
   MEDIUM 'Medium',
   HIGH 'High'

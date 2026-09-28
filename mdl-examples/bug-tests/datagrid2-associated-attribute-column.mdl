@@ -31,13 +31,13 @@ create entity MyFirstModule.Expense ( Description: String );
 create association MyFirstModule.Expense_Employee
   from MyFirstModule.Expense to MyFirstModule.Employee;
 
-create or replace page MyFirstModule.DGAssocCol
+create or modify page MyFirstModule.DGAssocCol
 ( Title: 'DG Assoc Column', Layout: Atlas_Core.Atlas_Default )
 {
   datagrid dg (datasource: database from MyFirstModule.Expense) {
-    column colDesc (caption: 'Description', attribute: Description)
+    column (caption: 'Description', attribute: Description)
     -- associated attribute: the Employee's Name via the Expense_Employee association
-    column colEmployee (caption: 'Submitted by', attribute: Expense_Employee/Name)
+    column (caption: 'Submitted by', attribute: Expense_Employee/Name)
   }
 }
 

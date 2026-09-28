@@ -42,7 +42,7 @@ create persistent entity BindTest.Order (
  * A reusable list panel. `$data` binds the list's datasource; `$onEdit` binds
  * the button's action. `slot content` still lets the caller inject a header.
  */
-define fragment DataPanel($data: datasource, $onEdit: action) as {
+create fragment DataPanel($data: datasource, $onEdit: action) as {
   container panelWrap (class: 'card') {
     listview lvItems (datasource: $data) {
       slot content
@@ -62,7 +62,7 @@ create page BindTest.P001_Bound_Panel
   url: 'bind_001_panel'
 )
 {
-  use fragment DataPanel ($data: database BindTest.Order, $onEdit: save_changes) {
+  use fragment DataPanel ($data: database BindTest.Order, $onEdit: save changes) {
     dynamictext panelHeading (content: 'Orders', rendermode: H4)
   }
 };

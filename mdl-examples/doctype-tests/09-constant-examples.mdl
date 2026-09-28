@@ -22,14 +22,14 @@ type string
 default 'https://api.example.com/v1';
 /
 
-/**
+/*
  * Level 1.2: Create a string constant with a comment
  * Comments help explain the purpose and expected values.
  */
+/** API key for external service. Configure per environment. */
 create constant CoTest.ApiKey
 type string
-default ''
-comment 'API key for external service. Configure per environment.';
+default '';
 /
 
 /**
@@ -41,34 +41,34 @@ type integer
 default 3;
 /
 
-/**
+/*
  * Level 1.4: Create a long constant
  * Long constants support larger numeric values.
  */
+/** Maximum file upload size in bytes (default 10MB) */
 create constant CoTest.MaxFileSize
 type long
-default 10485760
-comment 'Maximum file upload size in bytes (default 10MB)';
+default 10485760;
 /
 
-/**
+/*
  * Level 1.5: Create a decimal constant
  * Decimal constants are useful for precise numeric values like rates.
  */
+/** Default tax rate (21%) */
 create constant CoTest.TaxRate
 type decimal
-default 0.21
-comment 'Default tax rate (21%)';
+default 0.21;
 /
 
-/**
+/*
  * Level 1.6: Create a boolean constant
  * Boolean constants are useful for feature flags.
  */
+/** Enable verbose debug logging */
 create constant CoTest.EnableDebugLogging
 type boolean
-default false
-comment 'Enable verbose debug logging';
+default false;
 /
 
 /**
@@ -86,27 +86,27 @@ default '[%BeginOfCurrentDay%]';
  * Level 2.1: Show all constants in the project
  * Lists all constants across all modules with their types and default values.
  */
-show constants;
+list constants;
 /
 
 /**
  * Level 2.2: Show constants in a specific module
  * Lists only constants defined in the specified module.
  */
-show constants in CoTest;
+list constants in CoTest;
 /
 
 /**
  * Level 2.3: Show constant values across all configurations
  * Displays one row per constant per configuration for easy comparison.
  */
-show constant values;
+list constant values;
 /
 
 /**
  * Level 2.4: Show constant values for a specific module
  */
-show constant values in CoTest;
+list constant values in CoTest;
 /
 
 -- MARK: - Describe Constant
@@ -120,16 +120,16 @@ describe constant CoTest.ServiceEndpoint;
 
 -- MARK: - Create Or Modify Constants
 
-/**
+/*
  * Level 3.2: Create or modify a constant (upsert)
  * Creates the constant if it does not exist, or updates it if it does.
  * Use this when you want to ensure a constant has a specific value
  * regardless of whether it was previously created.
  */
+/** Updated endpoint for staging environment */
 create or modify constant CoTest.ServiceEndpoint
 type string
-default 'https://api.staging.example.com/v2'
-comment 'Updated endpoint for staging environment';
+default 'https://api.staging.example.com/v2';
 /
 
 /**
@@ -157,7 +157,7 @@ drop constant CoTest.LaunchDate;
  * Tests that `@Module.Const` syntax parses and round-trips correctly.
  * Regression test for: DESCRIBE → re-parse roundtrip with @-style constant refs.
  */
-create or replace microflow CoTest.UseConstantRef ()
+create or modify microflow CoTest.UseConstantRef ()
 returns nothing
 begin
   declare $Endpoint string = @CoTest.ServiceEndpoint;
@@ -170,7 +170,7 @@ end;
  * Level 5.2: Mix @Module.Const with other expressions
  * Confirms constant references work in compound expressions alongside literals.
  */
-create or replace microflow CoTest.MixedConstantExpressions ()
+create or modify microflow CoTest.MixedConstantExpressions ()
 returns nothing
 begin
   declare $limit decimal = @CoTest.TaxRate + 0.05;

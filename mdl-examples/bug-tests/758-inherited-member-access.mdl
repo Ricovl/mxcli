@@ -65,6 +65,6 @@ create persistent entity Sec758.Employee extends System.User (
   EmployeeNo: String(20)
 );
 
-grant Sec758.Editor on Sec758.Item (read (SharedField, OwnField));
-grant Sec758.Editor on Sec758.Attachment (read ("Caption"));
-grant Sec758.Editor on Sec758.Employee (read (EmployeeNo));
+grant read (SharedField, OwnField) on entity Sec758.Item to Sec758.Editor;
+grant read ("Caption") on entity Sec758.Attachment to Sec758.Editor;
+grant read (EmployeeNo) on entity Sec758.Employee to Sec758.Editor;

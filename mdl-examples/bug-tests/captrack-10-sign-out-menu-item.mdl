@@ -31,7 +31,7 @@
 
 create module SignOutMenu;
 /
-create or replace page SignOutMenu.Home (Title: 'Home', Layout: Atlas_Core.Atlas_Default)
+create or modify page SignOutMenu.Home (Title: 'Home', Layout: Atlas_Core.Atlas_Default)
 {
   dynamictext t (Content: 'home')
 }
@@ -41,11 +41,11 @@ create or modify menu SignOutMenu.Account_Menu {
   menu item 'Home' ( OnClick: show page SignOutMenu.Home )
 
   -- The item that could not be spelled.
-  menu item 'Sign out' ( OnClick: sign_out )
+  menu item 'Sign out' ( OnClick: sign out )
 
   -- SIGN_OUT names no target, so it must not disturb the qualified-name list it
   -- shares with PAGE/MICROFLOW and ICON — an icon after it still lands as one.
-  menu item 'Log out' ( OnClick: sign_out, Icon: Atlas_Core.Atlas.home )
+  menu item 'Log out' ( OnClick: sign out, Icon: Atlas_Core.Atlas.home )
 
   -- CONTROL: an item with no action must stay actionless. A conversion that
   -- stamped every actionless item as sign-out would look correct above.

@@ -30,7 +30,7 @@
 create or modify module role CapTrack.DropIf_Role;
 /
 
-create or modify user role DropIf_Role (CapTrack.DropIf_Role, System.User);
+create or modify user role DropIf_Role ( ModuleRoles: (CapTrack.DropIf_Role, System.User) );
 /
 
 create demo user 'dropif_demo' password 'Password12345!' (DropIf_Role);

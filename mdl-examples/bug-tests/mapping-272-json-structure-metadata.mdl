@@ -70,7 +70,7 @@ create persistent entity BugTest272.Probe (
 
 -- Every member here was previously fatal at build time.
 create json structure BugTest272.JSON_Awkward
-  snippet $${
+  sample $${
     "$type": "weird",
     "research%3Aread": "scope",
     "Support Prediction": "s"

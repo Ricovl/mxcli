@@ -84,7 +84,7 @@ create or modify entity LvXp.Movement (
 /
 
 -- §6: the reported case. Every input inside this list view must be a field.
-create or replace page LvXp.P_Editable
+create or modify page LvXp.P_Editable
 ( title: 'Editable rows', layout: Atlas_Core.Atlas_Default )
 {
   listview lvRows (datasource: DATABASE LvXp.Movement, Editable: true) {
@@ -96,7 +96,7 @@ create or replace page LvXp.P_Editable
 -- CONTROL for §6: Mendix's default is No, and a list view that does not ask for
 -- it must stay read-only. Without this, a fix that set Editable unconditionally
 -- would look correct on the page above.
-create or replace page LvXp.P_ReadOnly
+create or modify page LvXp.P_ReadOnly
 ( title: 'Read-only rows', layout: Atlas_Core.Atlas_Default )
 {
   listview lvPlain (datasource: DATABASE LvXp.Movement) {

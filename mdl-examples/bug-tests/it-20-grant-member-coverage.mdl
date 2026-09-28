@@ -57,15 +57,15 @@ create or modify association IT20.Issue_Label
   owner Both;
 
 create module role IT20.Admin;
-create user role IT20Admin (IT20.Admin);
+create user role IT20Admin ( ModuleRoles: (IT20.Admin) );
 
 -- Wildcards cover every member, including the audit members and the
 -- association on both ends.
-grant IT20.Admin on IT20.Issue (create, delete, read *, write *);
-grant IT20.Admin on IT20.Label (create, delete, read *, write *);
+grant create, delete, read *, write * on entity IT20.Issue to IT20.Admin;
+grant create, delete, read *, write * on entity IT20.Label to IT20.Admin;
 
 -- The TO-side association can also be named for per-member rights.
-grant IT20.Admin on IT20.Label (create, delete, write *, read (Issue_Label));
+grant create, delete, write *, read (Issue_Label) on entity IT20.Label to IT20.Admin;
 
 -- Naming an audit member at the rule's own default is a no-op, not an error.
-grant IT20.Admin on IT20.Issue (create, delete, read *, read (createdDate, changedDate));
+grant create, delete, read *, read (createdDate, changedDate) on entity IT20.Issue to IT20.Admin;

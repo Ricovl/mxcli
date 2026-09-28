@@ -34,12 +34,12 @@ create microflow BugOne.ACT_Edit ($Form: BugOne.ExpenseForm)
   returns boolean as $ok begin declare $ok boolean = true; return $ok; end;
 /
 
-create or replace page BugOne.P
+create or modify page BugOne.P
 ( params: ( $Form: BugOne.ExpenseForm ), title: 'Bug 1', layout: Atlas_Core.Atlas_Default )
 {
   dataview dv (datasource: $Form) {
-    actionbutton b1 (Caption: 'Submit', Action: microflow BugOne.ACT_Submit(Form: $Form))
-    container rowCard (Action: microflow BugOne.ACT_Edit(Form: $currentObject)) {
+    actionbutton b1 (Caption: 'Submit', Action: call microflow BugOne.ACT_Submit(Form = $Form))
+    container rowCard (Action: call microflow BugOne.ACT_Edit(Form = $currentObject)) {
       dynamictext t (Content: 'Edit')
     }
   }

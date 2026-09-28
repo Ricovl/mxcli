@@ -49,7 +49,7 @@ create persistent entity Sales.Customer (
   Age: Integer
 );
 
-create or replace layout Sales.App_Default (
+create or modify layout Sales.App_Default (
   layouttype: 'Responsive'
 ) {
   scrollcontainer layoutContainer {
@@ -67,14 +67,14 @@ create page Sales.Customer_Overview (
   }
 }
 
-create or replace microflow Sales.SUB_Helper ()
+create or modify microflow Sales.SUB_Helper ()
 begin
   log info 'helper';
 end;
 
 -- One activity per label the guide got wrong, so every disputed value appears in
 -- CATALOG.ACTIVITIES.ActionType after a full refresh.
-create or replace microflow Sales.ACT_Customer_Create ()
+create or modify microflow Sales.ACT_Customer_Create ()
 begin
   $cust = CREATE Sales.Customer (Name = 'x');
   CHANGE $cust (Age = 1);

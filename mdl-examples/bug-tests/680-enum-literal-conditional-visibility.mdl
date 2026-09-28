@@ -41,7 +41,7 @@ create page BugTest680.Dashboard
 {
   dataview dv (datasource: $Equip) {
     -- Status pill: conditional visibility on a qualified enum literal.
-    container pillRunning (Visible: [$currentObject/Status = BugTest680.EquipmentStatus.Running]) {
+    container pillRunning (Visible: $currentObject/Status = BugTest680.EquipmentStatus.Running) {
       dynamictext t (content: 'Running')
     }
   }
@@ -54,7 +54,7 @@ create page BugTest680.Dashboard
 
 -- ALTER uses the same serializer — enum literal preserved here too.
 alter page BugTest680.Dashboard {
-  set Visible = [$currentObject/Status = BugTest680.EquipmentStatus.Stopped] on pillRunning;
+  set (Visible: $currentObject/Status = BugTest680.EquipmentStatus.Stopped) on pillRunning;
 }
 
 describe page BugTest680.Dashboard;

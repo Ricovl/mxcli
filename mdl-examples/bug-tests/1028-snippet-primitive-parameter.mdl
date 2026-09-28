@@ -43,7 +43,7 @@ create persistent entity S1028.Order (Code: String(20), Label: String(100));
 -- object. `create snippet S1028.SNIPPET_Label ( params: { $Label: string } )`
 -- is refused as MDL087 — see 1028-snippet-primitive-parameter.fail.mdl.
 create snippet S1028.SNIPPET_Label ( params: ( $Order: S1028.Order ) ) {
-  layoutgrid gl { row rl { column cl (desktopwidth: autofill) {
+  layoutgrid gl { row { column (desktopwidth: autofill) {
     dataview dvLabel (datasource: $Order) {
       textbox tbLabel (attribute: Label, label: 'Label')
     }
@@ -66,7 +66,7 @@ create page S1028.PagePrimitives (
   ),
   title: 'Primitives', layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     snippetcall scLabel (snippet: S1028.SNIPPET_Label, params: (Order = $Order))
   } } }
 }

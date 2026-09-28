@@ -77,7 +77,7 @@ create enumeration QualityControl.DefectStatus (
 @position(50, 50)
 create persistent entity QualityControl.InspectionTemplate (
   /** Template name */
-  TemplateName: string(200) not null error 'Template name is required',
+  TemplateName: string(200) not null error message 'Template name is required',
   /** Template description */
   TemplateDescription: string(2000),
   /** Number of checkpoints in this template */
@@ -100,9 +100,9 @@ create persistent entity QualityControl.InspectionTemplate (
 @position(50, 250)
 create persistent entity QualityControl.TemplateCheckpoint (
   /** Sequence number within the template */
-  CheckpointSequence: integer not null error 'Sequence is required',
+  CheckpointSequence: integer not null error message 'Sequence is required',
   /** Checkpoint description (what to check) */
-  CheckpointDescription: string(500) not null error 'Description is required',
+  CheckpointDescription: string(500) not null error message 'Description is required',
   /** Acceptance criteria */
   AcceptanceCriteria: string(1000),
   /** Whether this checkpoint is mandatory */
@@ -132,7 +132,7 @@ create persistent entity QualityControl.QualityInspection (
   /** Auto-generated inspection number */
   InspectionNumber: autonumber default 1,
   /** Date and time of the inspection */
-  InspectionDate: datetime not null error 'Inspection date is required',
+  InspectionDate: datetime not null error message 'Inspection date is required',
   /** Overall outcome */
   InspectionOutcome: enumeration(QualityControl.InspectionOutcome),
   /** Inspector's overall comments */
@@ -181,13 +181,13 @@ create persistent entity QualityControl.DefectReport (
   /** Auto-generated defect number */
   DefectNumber: autonumber default 1,
   /** Brief defect title */
-  DefectTitle: string(200) not null error 'Defect title is required',
+  DefectTitle: string(200) not null error message 'Defect title is required',
   /** Detailed defect description */
-  DefectDescription: string(4000) not null error 'Defect description is required',
+  DefectDescription: string(4000) not null error message 'Defect description is required',
   /** Severity classification */
-  Severity: enumeration(QualityControl.DefectSeverity) not null error 'Severity is required',
+  Severity: enumeration(QualityControl.DefectSeverity) not null error message 'Severity is required',
   /** Current resolution status */
-  DefectStatus: enumeration(QualityControl.DefectStatus) not null error 'Defect status is required',
+  DefectStatus: enumeration(QualityControl.DefectStatus) not null error message 'Defect status is required',
   /** Date the defect was reported */
   ReportedDate: datetime,
   /** Date the defect was resolved */
@@ -217,7 +217,7 @@ create association QualityControl.TemplateCheckpoint_InspectionTemplate
   from QualityControl.TemplateCheckpoint to QualityControl.InspectionTemplate
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 -- MARK: - Inspection Associations
 
@@ -232,7 +232,7 @@ create association QualityControl.QualityInspection_WorkOrderLine
   from QualityControl.QualityInspection to Manufacturing.WorkOrderLine
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links inspection to the template used
@@ -245,7 +245,7 @@ create association QualityControl.QualityInspection_InspectionTemplate
   from QualityControl.QualityInspection to QualityControl.InspectionTemplate
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links inspection to the inspector
@@ -258,7 +258,7 @@ create association QualityControl.QualityInspection_Account
   from QualityControl.QualityInspection to Administration.Account
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links inspection result to its inspection
@@ -271,7 +271,7 @@ create association QualityControl.InspectionResult_QualityInspection
   from QualityControl.InspectionResult to QualityControl.QualityInspection
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links inspection result to the template checkpoint
@@ -284,7 +284,7 @@ create association QualityControl.InspectionResult_TemplateCheckpoint
   from QualityControl.InspectionResult to QualityControl.TemplateCheckpoint
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 -- MARK: - Defect Associations
 
@@ -299,7 +299,7 @@ create association QualityControl.DefectReport_QualityInspection
   from QualityControl.DefectReport to QualityControl.QualityInspection
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links defect to the production step where it occurred (optional)
@@ -312,7 +312,7 @@ create association QualityControl.DefectReport_ProductionStep
   from QualityControl.DefectReport to Manufacturing.ProductionStep
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links defect to the person who reported it
@@ -325,4 +325,4 @@ create association QualityControl.DefectReport_Account
   from QualityControl.DefectReport to Administration.Account
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;

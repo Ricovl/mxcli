@@ -2,7 +2,7 @@
 -- Uses WidgetDemo.DemoItem + WidgetDemo.Helper (no external dependencies)
 -- Every widget is fully configured with realistic properties
 
-create or replace page WidgetDemo.WidgetDemo_Showcase (
+create or modify page WidgetDemo.WidgetDemo_Showcase (
   title: 'Widget Showcase',
   layout: Atlas_Core.Atlas_Default,
   url: 'widget-demo/{DemoItem}',
@@ -11,50 +11,50 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
   layoutgrid gridMain {
 
     -- ======== Section 1: Text ========
-    row rowS1H {
-      column cS1H (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container hdrS1 (class: 'card', style: 'padding: 16px; background-color: #f0f4ff;') {
           dynamictext tS1 (content: '1. Text Widgets', rendermode: H2)
         }
       }
     }
-    row rowS1 {
-      column cS1a (desktopwidth: 4) {
+    row {
+      column (desktopwidth: 4) {
         dynamictext txtH1 (content: 'Heading H1', rendermode: H1)
         dynamictext txtH2 (content: 'Heading H2', rendermode: H2)
         dynamictext txtH3 (content: 'Heading H3', rendermode: H3)
       }
-      column cS1b (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         dynamictext txtH4 (content: 'Heading H4', rendermode: H4)
         dynamictext txtH5 (content: 'Heading H5', rendermode: H5)
         dynamictext txtH6 (content: 'Heading H6', rendermode: H6)
       }
-      column cS1c (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         dynamictext txtPar (content: 'Paragraph text using RenderMode: Paragraph.', rendermode: paragraph)
       }
     }
 
     -- ======== Section 2: Layout (Container, GroupBox, TabContainer, LayoutGrid) ========
-    row rowS2H {
-      column cS2H (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container hdrS2 (class: 'card', style: 'padding: 16px; background-color: #e8f5e9;') {
           dynamictext tS2 (content: '2. Layout Widgets', rendermode: H2)
         }
       }
     }
-    row rowS2 {
-      column cS2a (desktopwidth: 4) {
+    row {
+      column (desktopwidth: 4) {
         container ctnDemo (class: 'card', style: 'padding: 12px;') {
           dynamictext ctnL (content: 'CONTAINER', rendermode: H4)
           dynamictext ctnD (content: 'Generic div container with class/style', rendermode: paragraph)
         }
       }
-      column cS2b (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         groupbox gbDemo (caption: 'GROUPBOX') {
           dynamictext gbL (content: 'Collapsible labeled container', rendermode: paragraph)
         }
       }
-      column cS2c (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         tabcontainer tabDemo {
           tabpage tabPage1 (caption: 'Tab 1') {
             dynamictext tab1L (content: 'First tab content', rendermode: paragraph)
@@ -70,46 +70,46 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
     }
 
     -- ======== Section 3: Buttons ========
-    row rowS3H {
-      column cS3H (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container hdrS3 (class: 'card', style: 'padding: 16px; background-color: #fff3e0;') {
           dynamictext tS3 (content: '3. Buttons', rendermode: H2)
         }
       }
     }
-    row rowS3 {
-      column cS3a (desktopwidth: 12) {
-        actionbutton btnDef (caption: 'Default', action: close_page)
-        actionbutton btnPri (caption: 'Primary', action: close_page, buttonstyle: primary)
-        actionbutton btnSuc (caption: 'Success', action: close_page, buttonstyle: success)
-        actionbutton btnWar (caption: 'Warning', action: close_page, buttonstyle: warning)
-        actionbutton btnDng (caption: 'Danger', action: close_page, buttonstyle: danger)
+    row {
+      column (desktopwidth: 12) {
+        actionbutton btnDef (caption: 'Default', action: close page)
+        actionbutton btnPri (caption: 'Primary', action: close page, buttonstyle: primary)
+        actionbutton btnSuc (caption: 'Success', action: close page, buttonstyle: success)
+        actionbutton btnWar (caption: 'Warning', action: close page, buttonstyle: warning)
+        actionbutton btnDng (caption: 'Danger', action: close page, buttonstyle: danger)
       }
     }
 
     -- ======== Section 4: Gallery + Filters + DataView + Inputs ========
-    row rowS4H {
-      column cS4H (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container hdrS4 (class: 'card', style: 'padding: 16px; background-color: #e3f2fd;') {
           dynamictext tS4 (content: '4. Gallery + Filters + DataView + Inputs', rendermode: H2)
         }
       }
     }
-    row rowS4 {
-      column cS4a (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         gallery galItems (
           datasource: database from WidgetDemo.DemoItem sort by DateCreated desc,
           selection: single,
           DesktopColumns: 2
         ) {
-          filter flt1 {
+          filter {
             textfilter tfTitle (attributes: [title, Code])
             dropdownfilter dfCat (attributes: [Category])
             numberfilter nfAmt (attributes: [Amount])
             datefilter dtfDate (attributes: [DateCreated])
             pluggablewidget 'com.mendix.widget.web.dropdownsort.DropdownSort' ddSort1
           }
-          template tmpl1 {
+          template {
             dynamictext tTitle (content: '{1}', rendermode: H4, contentparams: ({1} = title))
             dynamictext tCode (content: 'Code: {1} | Priority: {2}', contentparams: ({1} = Code, {2} = Priority))
             dynamictext tAmount (content: 'Amount: {1} | Score: {2}', contentparams: ({1} = Amount, {2} = Score))
@@ -117,88 +117,88 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
         }
         dataview dvDetail (datasource: $DemoItem) {
           layoutgrid gForm {
-            row rF1 {
-              column cF1 (desktopwidth: 6) {
+            row {
+              column (desktopwidth: 6) {
                 textbox txtTitle (label: 'Title', attribute: title)
               }
-              column cF2 (desktopwidth: 6) {
+              column (desktopwidth: 6) {
                 textbox txtCode (label: 'Code', attribute: Code)
               }
             }
-            row rF2 {
-              column cF3 (desktopwidth: 6) {
+            row {
+              column (desktopwidth: 6) {
                 datepicker dpCreated (label: 'Date Created', attribute: DateCreated)
               }
-              column cF4 (desktopwidth: 6) {
+              column (desktopwidth: 6) {
                 datepicker dpDue (label: 'Due Date', attribute: DueDate)
               }
             }
-            row rF3 {
-              column cF5 (desktopwidth: 6) {
+            row {
+              column (desktopwidth: 6) {
                 pluggablewidget 'com.mendix.widget.web.combobox.Combobox' cbPri (label: 'Priority', attributeEnumeration: Priority)
               }
-              column cF6 (desktopwidth: 6) {
+              column (desktopwidth: 6) {
                 radiobuttons rbStatus (label: 'Status', attribute: ItemStatus)
               }
             }
-            row rF3b {
-              column cF5b (desktopwidth: 12) {
+            row {
+              column (desktopwidth: 12) {
                 pluggablewidget 'com.mendix.widget.web.combobox.Combobox' cbCat (label: 'Category', attributeEnumeration: Category)
               }
             }
-            row rF4 {
-              column cF7 (desktopwidth: 6) {
+            row {
+              column (desktopwidth: 6) {
                 checkbox cbActive (label: 'Active', attribute: IsActive)
               }
-              column cF8 (desktopwidth: 6) {
+              column (desktopwidth: 6) {
                 textarea taNotes (label: 'Notes', attribute: Notes)
               }
             }
           }
           footer ftr1 {
-            actionbutton btnSv (caption: 'Save', action: save_changes, buttonstyle: primary)
-            actionbutton btnCn (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSv (caption: 'Save', action: save changes, buttonstyle: primary)
+            actionbutton btnCn (caption: 'Cancel', action: cancel changes)
           }
         }
       }
     }
 
     -- ======== Section 5: DataGrid ========
-    row rowS5H {
-      column cS5H (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container hdrS5 (class: 'card', style: 'padding: 16px; background-color: #fce4ec;') {
           dynamictext tS5 (content: '5. DataGrid + ControlBar', rendermode: H2)
         }
       }
     }
-    row rowS5 {
-      column cS5a (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         datagrid dgItems (
           datasource: database from WidgetDemo.DemoItem sort by DateCreated desc,
           PageSize: 5
         ) {
-          controlbar cbDG {
-            actionbutton btnNewDG (caption: 'New Item', action: close_page, buttonstyle: primary)
+          controlbar {
+            actionbutton btnNewDG (caption: 'New Item', action: close page, buttonstyle: primary)
           }
-          column cTitle (attribute: title, caption: 'Title')
-          column cCode (attribute: Code, caption: 'Code')
-          column cPri (attribute: Priority, caption: 'Priority', Alignment: center)
-          column cAmt (attribute: Amount, caption: 'Amount', Alignment: right)
-          column cScore (attribute: Score, caption: 'Score', Alignment: right)
+          column (attribute: title, caption: 'Title')
+          column (attribute: Code, caption: 'Code')
+          column (attribute: Priority, caption: 'Priority', Alignment: center)
+          column (attribute: Amount, caption: 'Amount', Alignment: right)
+          column (attribute: Score, caption: 'Score', Alignment: right)
         }
       }
     }
 
     -- ======== Section 6: ListView ========
-    row rowS6H {
-      column cS6H (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container hdrS6 (class: 'card', style: 'padding: 16px; background-color: #f3e5f5;') {
           dynamictext tS6 (content: '6. ListView', rendermode: H2)
         }
       }
     }
-    row rowS6 {
-      column cS6a (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         listview lvItems (datasource: database from WidgetDemo.DemoItem sort by title asc) {
           dynamictext lvT (content: '{1}', rendermode: H4, contentparams: ({1} = title))
           dynamictext lvD (content: '{1}', contentparams: ({1} = description))
@@ -207,35 +207,35 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
     }
 
     -- ======== Section 7: Navigation + SnippetCall ========
-    row rowS7H {
-      column cS7H (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container hdrS7 (class: 'card', style: 'padding: 16px; background-color: #e0f2f1;') {
           dynamictext tS7 (content: '7. Navigation + SnippetCall', rendermode: H2)
         }
       }
     }
-    row rowS7 {
-      column cS7a (desktopwidth: 4) {
+    row {
+      column (desktopwidth: 4) {
         navigationlist navQ {
-          item nHome (action: close_page) {
+          item nHome (action: close page) {
             dynamictext nHt (content: 'Home')
           }
-          item nList (action: close_page) {
+          item nList (action: close page) {
             dynamictext nLt (content: 'Item List')
           }
-          item nSettings (action: close_page) {
+          item nSettings (action: close page) {
             dynamictext nSt (content: 'Settings')
           }
         }
       }
-      column cS7b (desktopwidth: 8) {
+      column (desktopwidth: 8) {
         snippetcall snCall (snippet: WidgetDemo.SNIPPET_ButtonShowcase)
       }
     }
 
     -- ======== Section 8: Pluggable Widgets ========
-    row rowS8H {
-      column cS8H (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container hdrS8 (class: 'card', style: 'padding: 16px; background-color: #ede7f6;') {
           dynamictext tS8 (content: '8. Pluggable Widgets', rendermode: H2)
           dynamictext tS8d (content: 'React-based widgets with explicit property bindings', rendermode: paragraph)
@@ -244,29 +244,29 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
     }
 
     -- 8a: Input pluggable widgets (entity context from DataView)
-    row rowS8a {
-      column cS8a1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dataview dvPluggable (datasource: $DemoItem) {
           layoutgrid gPlug {
-            row rPlug1 {
-              column cPlug1 (desktopwidth: 3) {
+            row {
+              column (desktopwidth: 3) {
                 pluggablewidget 'com.mendix.widget.custom.switch.Switch' switch1 (booleanAttribute: IsActive)
               }
-              column cPlug2 (desktopwidth: 3) {
+              column (desktopwidth: 3) {
                 pluggablewidget 'com.mendix.widget.custom.starrating.StarRating' rating1 (rateAttribute: Rating)
               }
-              column cPlug3 (desktopwidth: 3) {
+              column (desktopwidth: 3) {
                 pluggablewidget 'com.mendix.widget.custom.slider.Slider' slider1 (valueAttribute: Score)
               }
-              column cPlug4 (desktopwidth: 3) {
+              column (desktopwidth: 3) {
                 pluggablewidget 'com.mendix.widget.custom.RangeSlider.RangeSlider' rangeSlider1 (lowerBoundAttribute: Score, upperBoundAttribute: Rating)
               }
             }
-            row rPlug2 {
-              column cPlug5 (desktopwidth: 6) {
+            row {
+              column (desktopwidth: 6) {
                 pluggablewidget 'com.mendix.widget.web.barcodescanner.BarcodeScanner' scanner1 (attribute: Code)
               }
-              column cPlug6 (desktopwidth: 6) {
+              column (desktopwidth: 6) {
                 -- HTMLElement: tagContentMode='container' with child widgets
                 pluggablewidget 'com.mendix.widget.web.htmlelement.HTMLElement' htmlElem1 (tagContentMode: 'container') {
                   container tagContentContainer {
@@ -281,35 +281,35 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
     }
 
     -- 8b: Display pluggable widgets
-    row rowS8b {
-      column cS8b1 (desktopwidth: 3) {
+    row {
+      column (desktopwidth: 3) {
         pluggablewidget 'com.mendix.widget.custom.badge.Badge' badge1
       }
-      column cS8b2 (desktopwidth: 3) {
+      column (desktopwidth: 3) {
         pluggablewidget 'com.mendix.widget.custom.badgebutton.BadgeButton' badgeBtn1
       }
-      column cS8b3 (desktopwidth: 3) {
+      column (desktopwidth: 3) {
         pluggablewidget 'com.mendix.widget.custom.progressbar.ProgressBar' progBar1
       }
-      column cS8b4 (desktopwidth: 3) {
+      column (desktopwidth: 3) {
         pluggablewidget 'com.mendix.widget.custom.progresscircle.ProgressCircle' progCirc1
       }
     }
 
     -- 8c: Layout pluggable widgets with child content
-    row rowS8c {
-      column cS8c1 (desktopwidth: 4) {
+    row {
+      column (desktopwidth: 4) {
         pluggablewidget 'com.mendix.widget.web.accordion.Accordion' accordion1 (
           expandBehavior: 'singleExpanded',
           showIcon: 'right'
         )
       }
-      column cS8c2 (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         pluggablewidget 'com.mendix.widget.web.fieldset.Fieldset' fieldset1 {
           dynamictext fsBody (content: 'Fieldset wraps content with an optional legend', rendermode: paragraph)
         }
       }
-      column cS8c3 (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         pluggablewidget 'com.mendix.widget.web.tooltip.Tooltip' myTooltip1 (
           renderMethod: 'text',
           textMessage: 'Additional info shown on hover',
@@ -318,15 +318,15 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
           openOn: 'hover'
         ) {
           container trigger {
-            actionbutton btnTooltip (caption: 'Hover me for tooltip', action: close_page, buttonstyle: info)
+            actionbutton btnTooltip (caption: 'Hover me for tooltip', action: close page, buttonstyle: info)
           }
         }
       }
     }
 
     -- 8d: Data-driven pluggable widgets
-    row rowS8d {
-      column cS8d1 (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         -- Timeline mode 1: default visualization (TextTemplate properties)
         pluggablewidget 'com.mendix.widget.web.timeline.Timeline' timelineText (
           datasource: database from WidgetDemo.DemoItem sort by DateCreated desc,
@@ -337,7 +337,7 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
           customVisualization: false
         )
       }
-      column cS8d2 (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         -- Timeline mode 2: custom visualization (Widgets child containers)
         pluggablewidget 'com.mendix.widget.web.timeline.Timeline' timelineCustom (
           datasource: database from WidgetDemo.DemoItem sort by DateCreated desc,
@@ -353,14 +353,14 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
         }
       }
     }
-    row rowS8d2 {
-      column cS8d2a (desktopwidth: 4) {
+    row {
+      column (desktopwidth: 4) {
         pluggablewidget 'com.mendix.widget.web.videoplayer.VideoPlayer' videoPlayer1 (
           type: 'expression',
           urlExpression: '''https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'''
         )
       }
-      column cS8d3 (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         pluggablewidget 'com.mendix.widget.web.image.Image' myImage1 (
           datasource: 'imageUrl',
           imageUrl: 'https://placehold.co/300x200?text=MDL+Image+Widget'
@@ -369,15 +369,15 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
     }
 
     -- 8e: Menu + Tree + Selection
-    row rowS8e {
-      column cS8e1 (desktopwidth: 4) {
+    row {
+      column (desktopwidth: 4) {
         pluggablewidget 'com.mendix.widget.web.popupmenu.PopupMenu' myPopupMenu1 {
           container menuTrigger {
-            actionbutton btnPopup (caption: 'Open Menu', action: close_page, buttonstyle: primary)
+            actionbutton btnPopup (caption: 'Open Menu', action: close page, buttonstyle: primary)
           }
         }
       }
-      column cS8e2 (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         -- TreeNode mode 1: text header, flat list (no children)
         pluggablewidget 'com.mendix.widget.web.treenode.TreeNode' treeText (
           datasource: database from WidgetDemo.DemoItem,
@@ -387,12 +387,12 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
           showIcon: 'no'
         )
       }
-      column cS8e3 (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         pluggablewidget 'com.mendix.widget.web.selectionhelper.SelectionHelper' selHelper1 (renderStyle: 'checkbox')
       }
     }
-    row rowS8e2 {
-      column cS8e2a (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         -- TreeNode mode 2: text header, expandable with children content
         pluggablewidget 'com.mendix.widget.web.treenode.TreeNode' treeNested (
           datasource: database from WidgetDemo.DemoItem,
@@ -407,7 +407,7 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
           }
         }
       }
-      column cS8e2b (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         -- TreeNode mode 3: custom header with widgets
         pluggablewidget 'com.mendix.widget.web.treenode.TreeNode' treeCustom (
           datasource: database from WidgetDemo.DemoItem,
@@ -423,13 +423,13 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
     }
 
     -- 8f: Language + Accessibility
-    row rowS8f {
-      column cS8f1 (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         -- LanguageSelector requires runtime data source and caption — omitted (needs running app)
         -- PLUGGABLEWIDGET 'com.mendix.widget.web.languageselector.LanguageSelector' langSel1
         dynamictext langPlaceholder (content: '[LanguageSelector — requires runtime config]', rendermode: paragraph)
       }
-      column cS8f2 (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         pluggablewidget 'com.mendix.widget.web.accessibilityhelper.AccessibilityHelper' accHelper1 (targetSelector: '.mx-name-accHelper1') {
           dynamictext accBody (content: 'Accessible content area with ARIA attributes')
         }
@@ -437,15 +437,15 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
     }
 
     -- 8g: Maps + Charts
-    row rowS8g {
-      column cS8g1 (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         pluggablewidget 'com.mendix.widget.custom.Maps.Maps' maps1 (
           apiKey: 'demo-key',
           geodecodeApiKey: 'demo-key',
           googleMapId: 'default'
         )
       }
-      column cS8g2 (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         pluggablewidget 'com.mendix.widget.web.areachart.AreaChart' areaChart1
       }
     }

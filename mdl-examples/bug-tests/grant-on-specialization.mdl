@@ -43,7 +43,7 @@ create association Spec25.Base_Other from Spec25.Base to Spec25.Other;
 create module role Spec25.User;
 /
 
-grant Spec25.User on Spec25.Base (read *, write *);
-grant Spec25.User on Spec25.Derived (read *, write *);
-grant Spec25.User on Spec25.Other (read *, write *);
+grant read *, write * on entity Spec25.Base to Spec25.User;
+grant read *, write * on entity Spec25.Derived to Spec25.User;
+grant read *, write * on entity Spec25.Other to Spec25.User;
 /

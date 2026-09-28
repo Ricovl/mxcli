@@ -1085,20 +1085,6 @@ func execRevokePageAccess(ctx *ExecContext, s *ast.RevokePageAccessStmt) error {
 	return mdlerrors.NewNotFound("page", s.Page.Module+"."+s.Page.Name)
 }
 
-// execGrantWorkflowAccess handles GRANT EXECUTE ON WORKFLOW Module.WF TO roles.
-// Mendix workflows do not have a document-level AllowedModuleRoles field (unlike
-// microflows and pages), so this operation is not supported.
-func execGrantWorkflowAccess(ctx *ExecContext, s *ast.GrantWorkflowAccessStmt) error {
-	return mdlerrors.NewUnsupported("grant execute on workflow is not supported: Mendix workflows do not have document-level AllowedModuleRoles (unlike microflows and pages). Workflow access is controlled through the microflow that triggers the workflow and UserTask targeting")
-}
-
-// execRevokeWorkflowAccess handles REVOKE EXECUTE ON WORKFLOW Module.WF FROM roles.
-// Mendix workflows do not have a document-level AllowedModuleRoles field (unlike
-// microflows and pages), so this operation is not supported.
-func execRevokeWorkflowAccess(ctx *ExecContext, s *ast.RevokeWorkflowAccessStmt) error {
-	return mdlerrors.NewUnsupported("revoke execute on workflow is not supported: Mendix workflows do not have document-level AllowedModuleRoles (unlike microflows and pages). Workflow access is controlled through the microflow that triggers the workflow and UserTask targeting")
-}
-
 // validateModuleRole checks that a module role exists in the project.
 // qualifiedModuleRoleNames renders a statement's module-role list as
 // "Module.Role" strings, refusing any entry that has no module.

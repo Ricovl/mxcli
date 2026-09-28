@@ -38,18 +38,18 @@ create page Ledger.LineItemsGrid (
 )
 {
   layoutgrid grid {
-    row r {
-      column c (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         datagrid dg (DataSource: DATABASE FROM Ledger.LineItem) {
           -- Dynamic-text cell: Decimal with 2 decimals and a thousands separator.
-          column amount (
+          column (
             Caption: 'Amount',
             ShowContentAs: dynamicText,
             Content: 'Amt: {1}',
             ContentParams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true))
           )
           -- Plain attribute column for contrast.
-          column due (Attribute: DueOn, Caption: 'Due')
+          column (Attribute: DueOn, Caption: 'Due')
         }
       }
     }

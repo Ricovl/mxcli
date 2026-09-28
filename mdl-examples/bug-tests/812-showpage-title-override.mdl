@@ -65,7 +65,7 @@ end;
 create page Issue812.HostPage (title: 'Host', Layout: Atlas_Core.Atlas_Default)
 {
   container c1 {
-    actionbutton btnOpen (caption: 'Open popup', action: show_page Issue812.PopupPage)
+    actionbutton btnOpen (caption: 'Open popup', action: show page Issue812.PopupPage)
   }
 }
 /

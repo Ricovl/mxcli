@@ -30,7 +30,7 @@ create module TSMarker;
 /
 create entity TSMarker.Sale ( SaleDate: DateTime, Total: Decimal );
 /
-create or replace page TSMarker.Home ( layout: Atlas_Core.Atlas_Default ) {
+create or modify page TSMarker.Home ( layout: Atlas_Core.Atlas_Default ) {
   -- default line style: markerColor is hidden -> must be null (not empty ClientTemplate)
   pluggablewidget 'com.mendix.widget.web.timeseries.TimeSeries' tsPlain {
     line lRev ( DataSet: 'static', DataSource: database from TSMarker.Sale,

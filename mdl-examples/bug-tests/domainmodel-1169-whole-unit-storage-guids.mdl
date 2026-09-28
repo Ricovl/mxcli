@@ -99,7 +99,7 @@ CREATE OR MODIFY ASSOCIATION BugUnitGuid1169.OrderLine_Order
 -- 1. An association edit that names ONE association and rewrote every element in
 --    the module. This is the reported statement.
 ALTER ASSOCIATION BugUnitGuid1169.Order_Customer
-  SET COMMENT 'Storage GUIDs must survive an association comment edit.';
+  SET DOCUMENTATION 'Storage GUIDs must survive an association comment edit.';
 
 -- 2. The same, for a property Mendix actually stores on the association.
 ALTER ASSOCIATION BugUnitGuid1169.OrderLine_Order SET OWNER BOTH;

@@ -45,8 +45,8 @@ create page A91.AccPage ( Title: 'Acc', Layout: Atlas_Core.Atlas_Default )
   PLUGGABLEWIDGET 'com.mendix.widget.web.accordion.Accordion' acc1 {
     GROUP g1 (Caption: 'Group one') {
       DATAGRID grid1 (DataSource: DATABASE A91.Item) {
-        COLUMN Name (Attribute: Name, Caption: 'Name')
-        COLUMN Qty (Attribute: Qty, Caption: 'Qty')
+        COLUMN (Attribute: Name, Caption: 'Name')
+        COLUMN (Attribute: Qty, Caption: 'Qty')
       }
     }
   }

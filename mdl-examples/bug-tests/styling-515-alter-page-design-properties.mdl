@@ -48,7 +48,7 @@
 
 create entity MyFirstModule.Thing ( Name: string(200) );
 
-create or replace page MyFirstModule.ThingList (
+create or modify page MyFirstModule.ThingList (
   title: 'Things', layout: 'Atlas_Core.Atlas_Default'
 ) {
   listview lvThings (DataSource: database from MyFirstModule.Thing) {
@@ -60,14 +60,14 @@ create or replace page MyFirstModule.ThingList (
 -- group, which applies to every widget — resolving only the type-specific list
 -- is the mistake this area keeps producing).
 alter page MyFirstModule.ThingList {
-  set 'Row size' = 'Small' on lvThings;
-  set 'Align self' = 'Right' on lvThings;
+  set ('Row size': 'Small') on lvThings;
+  set ('Align self': 'Right') on lvThings;
 };
 
 -- A toggle. OFF is a REMOVAL, not a stored false: Mendix represents the off
 -- state as the absence of the entry, matching what `alter styling … = off` does.
 alter page MyFirstModule.ThingList {
-  set 'Hover style' = on on lvThings;
+  set ('Hover style': on) on lvThings;
 };
 
 -- The control that keeps the routing narrow. A key the theme does not declare

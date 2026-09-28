@@ -9,7 +9,7 @@
 
 create module Q1064;
 /
-create queue Q1064.Work (Parallelism: 1);
+create task queue Q1064.Work (Parallelism: 1);
 /
 create microflow Q1064.ACT_Work ()
 begin

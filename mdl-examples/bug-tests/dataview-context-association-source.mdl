@@ -35,7 +35,7 @@ create entity MyFirstModule.Expense ( Description: String );
 create association MyFirstModule.Expense_Employee
   from MyFirstModule.Expense to MyFirstModule.Employee;
 
-create or replace page MyFirstModule.Expense_NewEdit
+create or modify page MyFirstModule.Expense_NewEdit
 ( Title: 'Expense', Layout: Atlas_Core.Atlas_Default, Params: ( $Expense: MyFirstModule.Expense ) )
 {
   dataview dvExpense (datasource: $Expense) {

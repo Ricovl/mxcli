@@ -57,7 +57,7 @@ create microflow M956Item.ACT_SeriesClicked () begin log 'series clicked'; end;
 
 -- 1. The microflow form — the one that parses as a data source and has to be
 --    converted by the widget definition.
-create or replace page M956Item.P_SeriesMicroflow (
+create or modify page M956Item.P_SeriesMicroflow (
   Title: 'Series action (microflow)', Layout: Atlas_Core.Atlas_Default
 ) {
   pluggablewidget 'com.mendix.widget.web.barchart.BarChart' chart1 {
@@ -74,7 +74,7 @@ create or replace page M956Item.P_SeriesMicroflow (
 describe page M956Item.P_SeriesMicroflow;
 
 -- 2. A client-action form, which reaches the AST as an action directly.
-create or replace page M956Item.P_SeriesShowPage (
+create or modify page M956Item.P_SeriesShowPage (
   Title: 'Series action (show page)', Layout: Atlas_Core.Atlas_Default
 ) {
   pluggablewidget 'com.mendix.widget.web.barchart.BarChart' chart2 {
@@ -84,7 +84,7 @@ create or replace page M956Item.P_SeriesShowPage (
       StaticXAttribute: Region,
       StaticYAttribute: Total,
       StaticName: 'Revenue',
-      StaticOnClickAction: show_page M956Item.P_SeriesMicroflow
+      StaticOnClickAction: show page M956Item.P_SeriesMicroflow
     )
   }
 }

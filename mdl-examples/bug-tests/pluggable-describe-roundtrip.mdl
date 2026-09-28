@@ -22,7 +22,7 @@
 -- `labelType: 'percentage'` used to write a widget Mendix rejects with CE0463,
 -- with no DESCRIBE involved.
 
-create or replace page MyFirstModule.BT_PluggableRoundTrip (
+create or modify page MyFirstModule.BT_PluggableRoundTrip (
   title: 'Pluggable widget round trip',
   layout: Atlas_Core.Atlas_Default,
   url: 'bt_pluggable_roundtrip'

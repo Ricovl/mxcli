@@ -39,7 +39,7 @@
 
 CREATE MODULE BugLayoutRewrite;
 
-CREATE OR REPLACE LAYOUT BugLayoutRewrite.Probe_Layout (
+CREATE OR MODIFY LAYOUT BugLayoutRewrite.Probe_Layout (
   layouttype: 'Responsive'
 ) {
   scrollcontainer scrollContainer1 {

@@ -32,7 +32,7 @@ create page NavTest.NavTest_Home
 -- SHOW NAVIGATION — summary of all profiles
 -- ============================================================================
 
-show navigation;
+list navigation;
 
 -- ============================================================================
 -- DESCRIBE NAVIGATION — full detail for a specific profile
@@ -44,13 +44,13 @@ describe navigation Responsive;
 -- SHOW NAVIGATION MENU — menu tree for a specific profile
 -- ============================================================================
 
-show navigation menu Responsive;
+list navigation menu Responsive;
 
 -- ============================================================================
 -- SHOW NAVIGATION MENU (all) — menu tree for all profiles
 -- ============================================================================
 
-show navigation menu;
+list navigation menu;
 
 -- ============================================================================
 -- LIST NAVIGATION HOMES — home page assignments across all profiles and roles
@@ -67,7 +67,7 @@ list navigation homes;
 -- ============================================================================
 
 -- Set the home page and login page for Responsive profile
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page NavTest.NavTest_Home
   login page Administration.login;
 
@@ -75,13 +75,13 @@ create or replace navigation Responsive
 -- `for` takes a USER role, written bare. A module-qualified name here
 -- (`Administration.Administrator` is a MODULE role) gives a project Mendix
 -- cannot load at all -- see bug-tests/navigation-1001-home-page-for-user-role.mdl.
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page NavTest.NavTest_Home
   home page NavTest.NavTest_Home for Administrator
   login page Administration.login;
 
 -- Replace the entire menu tree
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page NavTest.NavTest_Home
   login page Administration.login
   {
@@ -98,7 +98,7 @@ create or replace navigation Responsive
 -- double-quoted, the same way a keyword-colliding name is.
 -- ============================================================================
 
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page NavTest.NavTest_Home
   login page Administration.login
   {
@@ -113,7 +113,7 @@ create or replace navigation Responsive
 describe navigation Responsive;
 
 -- Clear the menu (an empty { } block removes all items)
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page NavTest.NavTest_Home
   {};
 
@@ -139,14 +139,14 @@ where RefKind in ('home_page', 'menu_item', 'login_page');
 -- Impact & context analysis on the page we created
 -- ============================================================================
 
-show impact of NavTest.NavTest_Home;
+list impact of NavTest.NavTest_Home;
 
 describe context of NavTest.NavTest_Home;
 
 /**
  * Responsive navigation
  */
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page MyFirstModule.Home_Web
   {
     menu item 'Home' ( OnClick: show page MyFirstModule.Home_Web )

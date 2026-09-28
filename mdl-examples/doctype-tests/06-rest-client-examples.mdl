@@ -54,7 +54,7 @@ create module RestTest;
 --
 -- The simplest possible REST client with a single GET operation.
 
-create rest client RestTest.RC001_SimpleAPI (
+create consumed rest service RestTest.RC001_SimpleAPI (
   BaseUrl: 'https://reqbin.com',
   authentication: none
 )
@@ -73,7 +73,7 @@ create rest client RestTest.RC001_SimpleAPI (
 --
 -- A REST client that returns JSON data mapped to a variable.
 
-create rest client RestTest.RC002_JsonAPI (
+create consumed rest service RestTest.RC002_JsonAPI (
   BaseUrl: 'https://jsonplaceholder.typicode.com',
   authentication: none
 )
@@ -92,7 +92,7 @@ create rest client RestTest.RC002_JsonAPI (
 --
 -- Demonstrates path parameters using {param} syntax in the path.
 
-create rest client RestTest.RC003_UserAPI (
+create consumed rest service RestTest.RC003_UserAPI (
   BaseUrl: 'https://jsonplaceholder.typicode.com',
   authentication: none
 )
@@ -118,7 +118,7 @@ create rest client RestTest.RC003_UserAPI (
 --
 -- Demonstrates all supported HTTP methods in a single client.
 
-create rest client RestTest.RC004_CrudAPI (
+create consumed rest service RestTest.RC004_CrudAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -176,7 +176,7 @@ create rest client RestTest.RC004_CrudAPI (
 -- Level 3.1: Single Query Parameter
 -- ============================================================================
 
-create rest client RestTest.RC005_SearchAPI (
+create consumed rest service RestTest.RC005_SearchAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -195,7 +195,7 @@ create rest client RestTest.RC005_SearchAPI (
 --
 -- Demonstrates pagination and filtering with multiple query parameters.
 
-create rest client RestTest.RC006_PaginatedAPI (
+create consumed rest service RestTest.RC006_PaginatedAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -213,7 +213,7 @@ create rest client RestTest.RC006_PaginatedAPI (
 -- Level 3.3: Mixed Path and Query Parameters
 -- ============================================================================
 
-create rest client RestTest.RC007_FilteredAPI (
+create consumed rest service RestTest.RC007_FilteredAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -240,7 +240,7 @@ create rest client RestTest.RC007_FilteredAPI (
 --
 -- Headers with literal string values.
 
-create rest client RestTest.RC008_HeaderAPI (
+create consumed rest service RestTest.RC008_HeaderAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -259,7 +259,7 @@ create rest client RestTest.RC008_HeaderAPI (
 --
 -- Headers that include parameter values using concatenation.
 
-create rest client RestTest.RC009_AuthHeaderAPI (
+create consumed rest service RestTest.RC009_AuthHeaderAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -276,7 +276,7 @@ create rest client RestTest.RC009_AuthHeaderAPI (
 -- Level 4.3: Content-Type Headers for POST/PUT
 -- ============================================================================
 
-create rest client RestTest.RC010_ContentTypeAPI (
+create consumed rest service RestTest.RC010_ContentTypeAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -300,7 +300,7 @@ create rest client RestTest.RC010_ContentTypeAPI (
 -- Level 5.1: No Authentication (explicit)
 -- ============================================================================
 
-create rest client RestTest.RC011_PublicAPI (
+create consumed rest service RestTest.RC011_PublicAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -316,7 +316,7 @@ create rest client RestTest.RC011_PublicAPI (
 -- Level 5.2: Basic Authentication with Literals
 -- ============================================================================
 
-create rest client RestTest.RC012_BasicAuthAPI (
+create consumed rest service RestTest.RC012_BasicAuthAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: basic (username: 'api_user', password: 'api_secret')
 )
@@ -334,7 +334,7 @@ create rest client RestTest.RC012_BasicAuthAPI (
 --
 -- For production use, credentials should come from constants.
 
-create rest client RestTest.RC013_SecureAuthAPI (
+create consumed rest service RestTest.RC013_SecureAuthAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: basic (username: 'testuser', password: 'testpass')
 )
@@ -357,7 +357,7 @@ create rest client RestTest.RC013_SecureAuthAPI (
 -- Level 6.1: JSON Body
 -- ============================================================================
 
-create rest client RestTest.RC014_JsonBodyAPI (
+create consumed rest service RestTest.RC014_JsonBodyAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -387,7 +387,7 @@ create rest client RestTest.RC014_JsonBodyAPI (
 --
 -- Downloading is unaffected — `response: file as $Doc` works.
 
-create rest client RestTest.RC015_FileDownloadAPI (
+create consumed rest service RestTest.RC015_FileDownloadAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -411,7 +411,7 @@ create rest client RestTest.RC015_FileDownloadAPI (
 --
 -- Demonstrates all supported response handling types.
 
-create rest client RestTest.RC016_ResponseTypesAPI (
+create consumed rest service RestTest.RC016_ResponseTypesAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -465,7 +465,7 @@ create rest client RestTest.RC016_ResponseTypesAPI (
 --
 -- Default timeout is 300 seconds. Override for long-running operations.
 
-create rest client RestTest.RC017_LongRunningAPI (
+create consumed rest service RestTest.RC017_LongRunningAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: none
 )
@@ -503,7 +503,7 @@ create rest client RestTest.RC017_LongRunningAPI (
  * A complete REST client for the classic Pet Store demo API.
  * Demonstrates full CRUD operations with various features.
  */
-create rest client RestTest.RC018_PetStoreAPI (
+create consumed rest service RestTest.RC018_PetStoreAPI (
   BaseUrl: 'https://petstore.swagger.io/v2',
   authentication: none
 )
@@ -584,7 +584,7 @@ create rest client RestTest.RC018_PetStoreAPI (
  * GitHub REST API Client
  * Demonstrates integration with GitHub's REST API v3.
  */
-create rest client RestTest.RC019_GitHubAPI (
+create consumed rest service RestTest.RC019_GitHubAPI (
   BaseUrl: 'https://api.github.com',
   authentication: none
 )
@@ -635,7 +635,7 @@ create rest client RestTest.RC019_GitHubAPI (
  * OpenWeatherMap API Client
  * Demonstrates API key authentication via query parameter.
  */
-create rest client RestTest.RC020_WeatherAPI (
+create consumed rest service RestTest.RC020_WeatherAPI (
   BaseUrl: 'https://api.openweathermap.org/data/2.5',
   authentication: none
 )
@@ -676,7 +676,7 @@ create rest client RestTest.RC020_WeatherAPI (
  * Payment Processing API
  * Demonstrates secure API patterns for payment processing.
  */
-create rest client RestTest.RC021_PaymentAPI (
+create consumed rest service RestTest.RC021_PaymentAPI (
   BaseUrl: 'https://api.payments.example.com/v1',
   authentication: basic (username: 'sk_test_placeholder', password: '')
 )
@@ -827,7 +827,7 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  $response = rest call get 'https://jsonplaceholder.typicode.com/posts'
+  $response = call rest service get 'https://jsonplaceholder.typicode.com/posts'
     header Accept = 'application/json'
     timeout 15
     returns string
@@ -858,7 +858,7 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  $response = rest call get 'https://jsonplaceholder.typicode.com/users/{1}' with (
+  $response = call rest service get 'https://jsonplaceholder.typicode.com/users/{1}' with (
     {1} = '1'
   )
     header Accept = 'application/json'
@@ -889,7 +889,7 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  $response = rest call post 'https://httpbin.org/post'
+  $response = call rest service post 'https://httpbin.org/post'
     header 'Content-Type' = 'application/json'
     header Accept = 'application/json'
     body '{{"title": "test", "body": "hello from MDL", "userId": 1}'
@@ -920,7 +920,7 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  $response = rest call get 'https://httpbin.org/anything/search?q={1}&page={2}' with (
+  $response = call rest service get 'https://httpbin.org/anything/search?q={1}&page={2}' with (
     {1} = 'mendix',
     {2} = '1'
   )
@@ -952,7 +952,7 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  $response = rest call put 'https://httpbin.org/put'
+  $response = call rest service put 'https://httpbin.org/put'
     header 'Content-Type' = 'application/json'
     header Accept = 'application/json'
     body '{{"name": "updated", "value": 42}'
@@ -983,7 +983,7 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  rest call delete 'https://httpbin.org/delete'
+  call rest service delete 'https://httpbin.org/delete'
     header Accept = '*/*'
     timeout 15
     returns nothing
@@ -1007,7 +1007,7 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  $response = rest call get 'https://httpbin.org/basic-auth/api_user/api_secret'
+  $response = call rest service get 'https://httpbin.org/basic-auth/api_user/api_secret'
     header Accept = 'application/json'
     auth basic 'api_user' password 'api_secret'
     timeout 15
@@ -1037,7 +1037,7 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  rest call get 'https://httpbin.org/status/200'
+  call rest service get 'https://httpbin.org/status/200'
     header Accept = '*/*'
     timeout 5
     returns nothing
@@ -1127,66 +1127,66 @@ create page RestTest.RESTClientTestPage
 )
 {
   layoutgrid mainGrid {
-    row rowTitle {
-      column colTitle (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txtTitle (content: 'REST Client Test Runner', rendermode: H2)
         dynamictext txtDesc (content: 'Click a button to run the corresponding REST test microflow. Results are logged to the console.', rendermode: paragraph)
       }
     }
-    row rowRunAll {
-      column colRunAll (desktopwidth: 4) {
-        actionbutton btnRunAll (caption: 'Run All Tests', action: microflow RestTest.ACT_RunAllRestTests, buttonstyle: primary)
+    row {
+      column (desktopwidth: 4) {
+        actionbutton btnRunAll (caption: 'Run All Tests', action: call microflow RestTest.ACT_RunAllRestTests, buttonstyle: primary)
       }
     }
-    row rowBasicHeader {
-      column colBasicHeader (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txtBasic (content: 'Basic Operations', rendermode: H4)
       }
     }
-    row rowBasicTests {
-      column colGet (desktopwidth: 3) {
-        actionbutton btnSimpleGet (caption: 'Simple GET', action: microflow RestTest.ACT_TestSimpleGet, buttonstyle: default)
+    row {
+      column (desktopwidth: 3) {
+        actionbutton btnSimpleGet (caption: 'Simple GET', action: call microflow RestTest.ACT_TestSimpleGet, buttonstyle: default)
       }
-      column colJson (desktopwidth: 3) {
-        actionbutton btnJsonGet (caption: 'JSON GET', action: microflow RestTest.ACT_TestJsonGet, buttonstyle: default)
+      column (desktopwidth: 3) {
+        actionbutton btnJsonGet (caption: 'JSON GET', action: call microflow RestTest.ACT_TestJsonGet, buttonstyle: default)
       }
-      column colPath (desktopwidth: 3) {
-        actionbutton btnPathParams (caption: 'Path Params', action: microflow RestTest.ACT_TestPathParams, buttonstyle: default)
+      column (desktopwidth: 3) {
+        actionbutton btnPathParams (caption: 'Path Params', action: call microflow RestTest.ACT_TestPathParams, buttonstyle: default)
       }
-      column colQuery (desktopwidth: 3) {
-        actionbutton btnQueryParams (caption: 'Query Params', action: microflow RestTest.ACT_TestQueryParams, buttonstyle: default)
+      column (desktopwidth: 3) {
+        actionbutton btnQueryParams (caption: 'Query Params', action: call microflow RestTest.ACT_TestQueryParams, buttonstyle: default)
       }
     }
-    row rowMethodHeader {
-      column colMethodHeader (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txtMethods (content: 'HTTP Methods', rendermode: H4)
       }
     }
-    row rowMethodTests {
-      column colPost (desktopwidth: 4) {
-        actionbutton btnPost (caption: 'POST', action: microflow RestTest.ACT_TestPost, buttonstyle: success)
+    row {
+      column (desktopwidth: 4) {
+        actionbutton btnPost (caption: 'POST', action: call microflow RestTest.ACT_TestPost, buttonstyle: success)
       }
-      column colPut (desktopwidth: 4) {
-        actionbutton btnPut (caption: 'PUT', action: microflow RestTest.ACT_TestPut, buttonstyle: info)
+      column (desktopwidth: 4) {
+        actionbutton btnPut (caption: 'PUT', action: call microflow RestTest.ACT_TestPut, buttonstyle: info)
       }
-      column colDelete (desktopwidth: 4) {
-        actionbutton btnDelete (caption: 'DELETE', action: microflow RestTest.ACT_TestDelete, buttonstyle: danger)
+      column (desktopwidth: 4) {
+        actionbutton btnDelete (caption: 'DELETE', action: call microflow RestTest.ACT_TestDelete, buttonstyle: danger)
       }
     }
-    row rowAdvHeader {
-      column colAdvHeader (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txtAdv (content: 'Advanced Features', rendermode: H4)
       }
     }
-    row rowAdvTests {
-      column colAuth (desktopwidth: 4) {
-        actionbutton btnAuth (caption: 'Basic Auth', action: microflow RestTest.ACT_TestBasicAuth, buttonstyle: warning)
+    row {
+      column (desktopwidth: 4) {
+        actionbutton btnAuth (caption: 'Basic Auth', action: call microflow RestTest.ACT_TestBasicAuth, buttonstyle: warning)
       }
-      column colHeaders (desktopwidth: 4) {
-        actionbutton btnHeaders (caption: 'Custom Headers', action: microflow RestTest.ACT_TestHeaders, buttonstyle: default)
+      column (desktopwidth: 4) {
+        actionbutton btnHeaders (caption: 'Custom Headers', action: call microflow RestTest.ACT_TestHeaders, buttonstyle: default)
       }
-      column colTimeout (desktopwidth: 4) {
-        actionbutton btnTimeout (caption: 'Timeout', action: microflow RestTest.ACT_TestTimeout, buttonstyle: default)
+      column (desktopwidth: 4) {
+        actionbutton btnTimeout (caption: 'Timeout', action: call microflow RestTest.ACT_TestTimeout, buttonstyle: default)
       }
     }
   }
@@ -1207,7 +1207,7 @@ create page RestTest.RESTClientTestPage
 -- automatically derived from the snippet.
 
 create json structure RestTest.JSON_Pet
-snippet '{"id": 1, "name": "Fido", "status": "available"}';
+sample '{"id": 1, "name": "Fido", "status": "available"}';
 
 -- ============================================================================
 -- Level 12.2: Nested JSON Structure
@@ -1216,7 +1216,7 @@ snippet '{"id": 1, "name": "Fido", "status": "available"}';
 -- Demonstrates a JSON structure with nested objects and arrays.
 
 create json structure RestTest.JSON_Order
-snippet '{"orderId": 100, "customer": {"name": "Alice", "email": "alice@example.com"}, "items": [{"sku": "A1", "quantity": 2, "price": 9.99}]}';
+sample '{"orderId": 100, "customer": {"name": "Alice", "email": "alice@example.com"}, "items": [{"sku": "A1", "quantity": 2, "price": 9.99}]}';
 
 -- ############################################################################
 -- PART 13: IMPORT MAPPINGS
@@ -1443,7 +1443,7 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  $Result = rest call get 'https://jsonplaceholder.typicode.com/posts/1'
+  $Result = call rest service get 'https://jsonplaceholder.typicode.com/posts/1'
     header Accept = 'application/json'
     timeout 15
     returns string
@@ -1471,7 +1471,7 @@ end;
 create microflow RestTest.ACT_RestMappingSingleObject ()
 returns RestTest.PetResponse
 begin
-  $Pet = rest call get 'https://api.example.com/pets/1'
+  $Pet = call rest service get 'https://api.example.com/pets/1'
     header Accept = 'application/json'
     timeout 15
     returns mapping RestTest.IMM_Pet as RestTest.PetResponse
@@ -1554,19 +1554,19 @@ end;
 -- MARK: Verification
 
 -- List all created REST clients
-show rest clients;
+list consumed rest services;
 
 -- Show details of the Pet Store API
-describe rest client RestTest.RC018_PetStoreAPI;
+describe consumed rest service RestTest.RC018_PetStoreAPI;
 
 -- Show JSON structures
-show json structures;
+list json structures;
 describe json structure RestTest.JSON_Pet;
 
 -- Show import and export mappings
-show import mappings;
+list import mappings;
 describe import mapping RestTest.IMM_Pet;
-show export mappings;
+list export mappings;
 describe export mapping RestTest.EMM_Pet;
 
 -- ============================================================================

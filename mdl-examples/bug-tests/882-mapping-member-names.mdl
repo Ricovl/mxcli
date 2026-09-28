@@ -43,7 +43,7 @@ create association B882.Inner_Item from B882.Item to B882.Inner;
 /
 
 create json structure B882.JS
-  snippet $${ "total": 1, "camelCase": "x", "entityInstances": { "__returnedCount": 2, "__Value": [ { "name": "a" } ] } }$$;
+  sample $${ "total": 1, "camelCase": "x", "entityInstances": { "__returnedCount": 2, "__Value": [ { "name": "a" } ] } }$$;
 /
 
 -- Authored with the RAW JSON keys, as hand-written MDL spells them.
@@ -83,7 +83,7 @@ create import mapping B882.IM_ExposedNames with json structure B882.JS
 -- Export mappings carry the same two names and had the same defect.
 create non-persistent entity B882.ExRoot ( Total: integer, Camel: string(200) );
 /
-create json structure B882.JSX snippet '{ "total": 1, "camelCase": "x" }';
+create json structure B882.JSX sample '{ "total": 1, "camelCase": "x" }';
 /
 create export mapping B882.EM_RawKeys with json structure B882.JSX
 {

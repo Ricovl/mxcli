@@ -46,7 +46,7 @@ create association ODR.Order_Customer
   from ODR.Order to ODR.Customer
   type Reference
   on delete restrict
-    error_message 'A customer with orders cannot be deleted';
+    error message 'A customer with orders cannot be deleted';
 /
 
 -- CONTROL: the other two actions must NOT get a message element — Studio Pro
@@ -68,6 +68,6 @@ create association ODR.Order_SetNull
 create association ODR.Order_Legacy
   from ODR.Order to ODR.Customer
   type Reference
-  delete_behavior prevent
-    error_message 'still referenced';
+  on delete restrict
+    error message 'still referenced';
 /

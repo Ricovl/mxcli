@@ -28,7 +28,7 @@ create page WFWN.TaskPage (
   layout: Atlas_Core.Atlas_Default,
   params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
-  layoutgrid g1 { row r1 { column c1 (desktopwidth: 12) { dynamictext t1 (content: 'Task') } } }
+  layoutgrid g1 { row { column (desktopwidth: 12) { dynamictext t1 (content: 'Task') } } }
 }
 /
 
@@ -43,10 +43,10 @@ begin
     -- `boundary event` before each clause — the form describe emits. The
     -- grammar used to take the keyword once, so describe -> exec of this
     -- activity failed to parse; both forms parse now.
-    boundary event interrupting timer 'addDays([%CurrentDateTime%], 5)' {
+    boundary event interrupting timer addDays([%CurrentDateTime%], 5) {
       jump to Ask;
     }
-    boundary event non interrupting timer 'addDays([%CurrentDateTime%], 2)' {
+    boundary event non interrupting timer addDays([%CurrentDateTime%], 2) {
       user task Remind 'Send a reminder'
         page WFWN.TaskPage
         outcomes 'Done' { } 'Skip' { };

@@ -27,7 +27,7 @@ create or modify menu Bug573.Bottom_Menu {
   menu item 'Profile' ( Icon: Atlas_Core.Atlas.user )
 };
 
-create or replace layout Bug573.Phone_Bottom (
+create or modify layout Bug573.Phone_Bottom (
   layouttype: 'Phone',
   class: 'layout-atlas layout-atlas-phone'
 ) {
@@ -43,7 +43,7 @@ create or replace layout Bug573.Phone_Bottom (
 
 -- The other source, the other orientation, and the two sibling menu widgets
 -- pointed at a menu document.
-create or replace layout Bug573.Responsive_Menus (
+create or modify layout Bug573.Responsive_Menus (
   layouttype: 'Responsive',
   class: 'layout-atlas layout-atlas-responsive-default'
 ) {

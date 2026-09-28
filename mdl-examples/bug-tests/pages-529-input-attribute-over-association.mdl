@@ -52,7 +52,7 @@ create persistent entity Issue529.RuleAction (
 create association Issue529.RuleAction_BusinessRule
   from Issue529.RuleAction to Issue529.BusinessRule;
 
-create or replace page Issue529.RuleAction_NewEdit (
+create or modify page Issue529.RuleAction_NewEdit (
   title: 'Edit Rule Action',
   layout: Atlas_Core.PopupLayout,
   params: ( $RuleAction: Issue529.RuleAction )
@@ -60,8 +60,8 @@ create or replace page Issue529.RuleAction_NewEdit (
 {
   -- Wrapped in a layout grid, as the Studio Pro reference page is (MPR010).
   layoutgrid layoutGrid1 {
-    row row1 {
-      column col1 (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
   dataview dvMain (datasource: $RuleAction) {
     -- The control: an own attribute, which must stay a bare binding.
     textbox tbActionType (label: 'Action type', attribute: ActionType)

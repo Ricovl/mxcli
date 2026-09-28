@@ -63,15 +63,13 @@ end;
 create workflow WF1031.Dec
   parameter $Ctx: WF1031.Ctx
 begin
-  decision decision1 '$WorkflowContext/Status'
+  decision decision1 $WorkflowContext/Status
     outcomes
       'WF1031.Status.OutcomeA' -> {
-        call microflow WF1031.ACT_Noop as callMicroflow1
-          with (Ctx = '$WorkflowContext') outcomes default -> { };
+        call microflow WF1031.ACT_Noop(Ctx = $WorkflowContext) as callMicroflow1 outcomes default -> { };
       }
       'WF1031.Status.OutcomeB' -> {
-        call microflow WF1031.ACT_Noop as callMicroflow2
-          with (Ctx = '$WorkflowContext') outcomes default -> { };
+        call microflow WF1031.ACT_Noop(Ctx = $WorkflowContext) as callMicroflow2 outcomes default -> { };
       }
       '' -> { }
   ;
@@ -98,6 +96,6 @@ end workflow;
 create workflow WF1031.Call
   parameter $Ctx: WF1031.Ctx
 begin
-  call microflow WF1031.ACT_Noop as callMicroflow1 with (Ctx = '$WorkflowContext');
+  call microflow WF1031.ACT_Noop(Ctx = $WorkflowContext) as callMicroflow1;
 end workflow;
 /

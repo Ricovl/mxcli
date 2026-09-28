@@ -48,7 +48,7 @@ create page WFSIG.ReviewPage (
   layout: Atlas_Core.Atlas_Default,
   params: ( $WorkflowUserTask: System.WorkflowUserTask, $Request: WFSIG.Request )
 ) {
-  layoutgrid g1 { row r1 { column c1 (desktopwidth: 12) { dynamictext t1 (content: 'Review') } } }
+  layoutgrid g1 { row { column (desktopwidth: 12) { dynamictext t1 (content: 'Review') } } }
 }
 /
 

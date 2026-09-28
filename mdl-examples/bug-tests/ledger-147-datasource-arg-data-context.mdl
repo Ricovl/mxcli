@@ -49,7 +49,7 @@ begin
   @position(130, 200)
   retrieve $Rows from DS147.Row;
   @position(320, 200)
-  $R = head($Rows);
+  $R = head $Rows;
   @position(510, 200)
   return $R;
 end;
@@ -69,7 +69,7 @@ create or modify page DS147.NestedOK
   {
     DATAVIEW dvContext (DataSource: MICROFLOW DS147.DS_ReportContext) {
       DATAGRID dgMatrix (DataSource: MICROFLOW DS147.DS_Rows) {
-        COLUMN colLabel (Attribute: Label, Caption: 'Label')
+        COLUMN (Attribute: Label, Caption: 'Label')
       }
     }
   };
@@ -81,7 +81,7 @@ create or modify page DS147.NestedTwoDeep
     DATAVIEW dvOuter (DataSource: MICROFLOW DS147.DS_ReportContext) {
       DATAVIEW dvInner (DataSource: MICROFLOW DS147.DS_OneRow) {
         DATAGRID dgDeep (DataSource: MICROFLOW DS147.DS_Rows) {
-          COLUMN colDeep (Attribute: Label, Caption: 'Label')
+          COLUMN (Attribute: Label, Caption: 'Label')
         }
       }
     }
@@ -92,7 +92,7 @@ create or modify page DS147.TopLevelBad
   ( Title: 'No enclosing context', Layout: Atlas_Core.Atlas_Default )
   {
     DATAGRID dgLoose (DataSource: MICROFLOW DS147.DS_Rows) {
-      COLUMN colLoose (Attribute: Label, Caption: 'Label')
+      COLUMN (Attribute: Label, Caption: 'Label')
     }
   };
 
@@ -104,7 +104,7 @@ create or modify page DS147.NestedWrongType
   {
     DATAVIEW dvRow (DataSource: $Row) {
       DATAGRID dgWrong (DataSource: MICROFLOW DS147.DS_Rows) {
-        COLUMN colWrong (Attribute: Label, Caption: 'Label')
+        COLUMN (Attribute: Label, Caption: 'Label')
       }
     }
   };
@@ -117,6 +117,6 @@ create or modify page DS147.ParamInScope
     Params: ( $Ctx: DS147.ReportContext ) )
   {
     DATAGRID dgParamScope (DataSource: MICROFLOW DS147.DS_Rows) {
-      COLUMN colParam (Attribute: Label, Caption: 'Label')
+      COLUMN (Attribute: Label, Caption: 'Label')
     }
   };

@@ -51,9 +51,6 @@ func TestValidateGrantRoles_UnqualifiedRoleIsReported(t *testing.T) {
 		{"grant view on page", &ast.GrantPageAccessStmt{
 			Page: qualRole("Sales", "Pg"), Roles: []ast.QualifiedName{bareRole("Wide")},
 		}},
-		{"grant execute on workflow", &ast.GrantWorkflowAccessStmt{
-			Workflow: qualRole("Sales", "Wf"), Roles: []ast.QualifiedName{bareRole("Wide")},
-		}},
 		{"grant access on odata service", &ast.GrantODataServiceAccessStmt{
 			Service: qualRole("Sales", "Svc"), Roles: []ast.QualifiedName{bareRole("Wide")},
 		}},

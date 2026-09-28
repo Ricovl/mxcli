@@ -39,7 +39,7 @@ create constant Issue782.SvcUrl
   type string
   default 'https://services.odata.org/V4/Northwind/Northwind.svc/';
 
-create odata client Issue782.Sample (
+create consumed odata service Issue782.Sample (
   MetadataUrl: './mdl-examples/odata-local-metadata/sample-metadata.xml',
   ServiceUrl: '@Issue782.SvcUrl'
 );
@@ -50,7 +50,7 @@ create external entities from Issue782.Sample into Issue782;
 describe external entity Issue782.Products;
 
 -- The reported flow: turn the flag on, and it must stick.
-alter entity Issue782.Products set allow_create_change_locally = true;
+alter entity Issue782.Products set ( AllowCreateChangeLocally: true );
 describe external entity Issue782.Products;
 
 -- (2) A re-import refreshes the contract-derived capabilities but must not reset

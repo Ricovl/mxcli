@@ -19,7 +19,7 @@ create module LayoutTest;
 -- A layout with no placeholder is refused — no page could use it.
 -- ----------------------------------------------------------------------------
 
-create or replace layout LayoutTest.Minimal (
+create or modify layout LayoutTest.Minimal (
   layouttype: 'Responsive'
 ) {
   scrollcontainer layoutContainer {
@@ -41,7 +41,7 @@ create or replace layout LayoutTest.Minimal (
 -- The class is load-bearing, not decoration: Atlas scopes 24 of its layout
 -- rules to .layout-atlas and its variants, so a layout without one builds
 -- cleanly and renders with no topbar bar and no sidebar rail.
-create or replace layout LayoutTest.App_Default (
+create or modify layout LayoutTest.App_Default (
   layouttype: 'Responsive',
   class: 'layout-atlas layout-atlas-responsive-default'
 ) {
@@ -69,7 +69,7 @@ create or replace layout LayoutTest.App_Default (
 -- is the main one, and every layout Atlas ships follows that convention.
 -- ----------------------------------------------------------------------------
 
-create or replace layout LayoutTest.SplitHeader (
+create or modify layout LayoutTest.SplitHeader (
   layouttype: 'Responsive'
 ) {
   scrollcontainer layoutContainer {
@@ -88,14 +88,14 @@ create or replace layout LayoutTest.SplitHeader (
 -- fills a named one.
 -- ----------------------------------------------------------------------------
 
-create or replace page LayoutTest.Home (
+create or modify page LayoutTest.Home (
   title: 'Home',
   layout: LayoutTest.App_Default
 ) {
   dynamictext welcome (content: 'Hello from the content region')
 }
 
-create or replace page LayoutTest.Split (
+create or modify page LayoutTest.Split (
   title: 'Split',
   layout: LayoutTest.SplitHeader
 ) {
@@ -139,11 +139,11 @@ alter pages in LayoutTest set layout = LayoutTest.App_Default
 
 alter layout LayoutTest.App_Default {
   insert into layoutContainer.top { dynamictext tagline (content: 'A project-owned layout') };
-  set Content = 'My Application v2' on brandText;
+  set (Content: 'My Application v2') on brandText;
 };
 
 alter layout LayoutTest.App_Default {
-  drop widget tagline;
+  drop tagline;
 };
 
 -- ----------------------------------------------------------------------------
@@ -157,7 +157,7 @@ create or modify menu LayoutTest.Phone_Menu {
   menu item 'Account' ( Icon: Atlas_Core.Atlas.user )
 };
 
-create or replace layout LayoutTest.Phone_Bottom (
+create or modify layout LayoutTest.Phone_Bottom (
   layouttype: 'Phone',
   class: 'layout-atlas layout-atlas-phone'
 ) {
@@ -180,5 +180,5 @@ create or replace layout LayoutTest.Phone_Bottom (
 -- is the way to change a layout without that risk.
 -- ----------------------------------------------------------------------------
 
-show layouts in LayoutTest;
+list layouts in LayoutTest;
 describe layout LayoutTest.App_Default;

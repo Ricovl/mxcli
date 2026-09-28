@@ -26,5 +26,5 @@ create module role bug431.User;
 
 -- GRANT with XPath WHERE clause containing a string literal with single quotes.
 -- The XPath '[Status = ''Open'']' must be stored as [Status = 'Open'] in BSON.
-grant bug431.User on bug431.Order (read *, write *)
-  where '[Status = ''Open'']';
+grant read *, write * on entity bug431.Order to bug431.User
+  where [Status = 'Open'];

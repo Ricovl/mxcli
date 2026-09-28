@@ -396,44 +396,6 @@ func TestGrantRevokePage(t *testing.T) {
 	})
 }
 
-func TestGrantRevokeWorkflow(t *testing.T) {
-	t.Run("grant", func(t *testing.T) {
-		input := `GRANT EXECUTE ON WORKFLOW MyModule.ApprovalWF TO MyModule.Manager;`
-		prog, errs := Build(input)
-		if len(errs) > 0 {
-			for _, e := range errs {
-				t.Errorf("Parse error: %v", e)
-			}
-			return
-		}
-		stmt, ok := prog.Statements[0].(*ast.GrantWorkflowAccessStmt)
-		if !ok {
-			t.Fatalf("Expected GrantWorkflowAccessStmt, got %T", prog.Statements[0])
-		}
-		if stmt.Workflow.Name != "ApprovalWF" {
-			t.Errorf("Expected ApprovalWF, got %s", stmt.Workflow.Name)
-		}
-	})
-
-	t.Run("revoke", func(t *testing.T) {
-		input := `REVOKE EXECUTE ON WORKFLOW MyModule.ApprovalWF FROM MyModule.Manager;`
-		prog, errs := Build(input)
-		if len(errs) > 0 {
-			for _, e := range errs {
-				t.Errorf("Parse error: %v", e)
-			}
-			return
-		}
-		stmt, ok := prog.Statements[0].(*ast.RevokeWorkflowAccessStmt)
-		if !ok {
-			t.Fatalf("Expected RevokeWorkflowAccessStmt, got %T", prog.Statements[0])
-		}
-		if stmt.Workflow.Name != "ApprovalWF" {
-			t.Errorf("Expected ApprovalWF, got %s", stmt.Workflow.Name)
-		}
-	})
-}
-
 func TestGrantRevokeODataService(t *testing.T) {
 	t.Run("grant", func(t *testing.T) {
 		input := `GRANT ACCESS ON ODATA SERVICE MyModule.OrderAPI TO MyModule.APIUser;`

@@ -19,7 +19,7 @@
 -- described text changes nothing.
 
 create json structure MyFirstModule.JSON_1176
-snippet '{"code": "NL", "name": "Netherlands"}';
+sample '{"code": "NL", "name": "Netherlands"}';
 
 create non-persistent entity MyFirstModule.Country1176 ( Code: string, Name: string );
 /

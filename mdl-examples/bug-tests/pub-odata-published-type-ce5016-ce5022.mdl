@@ -29,12 +29,12 @@
 create module PubMeta;
 
 create persistent entity PubMeta.Customer (
-  Email: string(200) unique error 'Email must be unique' required error 'Email is required',
+  Email: string(200) unique error message 'Email must be unique' required error message 'Email is required',
   Name: string(200)
 );
 
 create persistent entity PubMeta.Order (
-  OrderNumber: string(50) unique error 'OrderNumber must be unique' required error 'OrderNumber is required',
+  OrderNumber: string(50) unique error message 'OrderNumber must be unique' required error message 'OrderNumber is required',
   Amount: decimal
 );
 
@@ -42,7 +42,7 @@ create association PubMeta.Order_Customer
 from PubMeta.Order to PubMeta.Customer
 type reference owner default;
 
-create odata service PubMeta.ShopAPI (
+create published odata service PubMeta.ShopAPI (
   path: 'odata/shop/', version: '1.0.0', ODataVersion: OData4,
   namespace: 'PubMeta.Shop', ServiceName: 'Shop Service', PublishAssociations: Yes
 )

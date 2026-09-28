@@ -51,6 +51,6 @@ create microflow BugTest295.ACT_OpenProductPage (
   $Product: BugTest295.Product
 )
 begin
-  show page BugTest295.Product_Detail (Product: $Product);
+  show page BugTest295.Product_Detail (Product = $Product);
 end;
 /

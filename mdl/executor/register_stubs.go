@@ -199,12 +199,6 @@ func registerSecurityHandlers(r *Registry) {
 	r.Register(&ast.RevokePageAccessStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return execRevokePageAccess(ctx, stmt.(*ast.RevokePageAccessStmt))
 	})
-	r.Register(&ast.GrantWorkflowAccessStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
-		return execGrantWorkflowAccess(ctx, stmt.(*ast.GrantWorkflowAccessStmt))
-	})
-	r.Register(&ast.RevokeWorkflowAccessStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
-		return execRevokeWorkflowAccess(ctx, stmt.(*ast.RevokeWorkflowAccessStmt))
-	})
 	r.Register(&ast.AlterProjectSecurityStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return execAlterProjectSecurity(ctx, stmt.(*ast.AlterProjectSecurityStmt))
 	})

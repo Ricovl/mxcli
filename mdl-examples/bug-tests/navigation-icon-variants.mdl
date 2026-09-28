@@ -42,7 +42,7 @@ create page NavIconVariants.Logo ( Title: 'Logo', Layout: Atlas_Core.Atlas_Defau
   dynamictext t (Content: 'Logo')
 }
 
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page NavIconVariants.Home
   {
     -- Forms$IconCollectionIcon — the bare form, unchanged

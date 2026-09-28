@@ -34,4 +34,4 @@ begin
 end;
 /
 
-show structure depth 1 in StructFlowCounts;
+describe structure depth 1 in StructFlowCounts;

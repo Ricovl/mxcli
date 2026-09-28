@@ -67,7 +67,7 @@ create page Nav1001.AdminHome ( title: 'Admin', layout: Atlas_Core.Atlas_Default
 
 -- 1. A bare user role: the correct form. `Administrator` is a project user
 --    role in every Mendix app.
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page Nav1001.Home
   home page Nav1001.AdminHome for Administrator;
 
@@ -75,8 +75,8 @@ create or replace navigation Responsive
 --    project when `check` runs, so the check has to read the script's own
 --    CREATE USER ROLE statements as well as the project's — otherwise this
 --    perfectly valid pairing is refused.
-create user role Nav1001_Supervisor (System.User, Nav1001.User);
+create user role Nav1001_Supervisor ( ModuleRoles: (System.User, Nav1001.User) );
 
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page Nav1001.Home
   home page Nav1001.AdminHome for Nav1001_Supervisor;

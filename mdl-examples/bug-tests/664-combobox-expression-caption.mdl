@@ -26,7 +26,7 @@ create entity MyFirstModule.Office ( Name: String(200) );
 create association MyFirstModule.Office_Region from MyFirstModule.Office to MyFirstModule.Region;
 /
 
-create or replace page MyFirstModule.Office_Edit
+create or modify page MyFirstModule.Office_Edit
 ( Title: 'Office', Layout: Atlas_Core.Atlas_Default, Params: ( $Office: MyFirstModule.Office ) )
 {
   dataview dv (datasource: $Office) {

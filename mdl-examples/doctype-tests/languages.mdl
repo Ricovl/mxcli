@@ -49,7 +49,7 @@ describe settings;
 --    not refuse. Removing a language does not delete its translations: the
 --    enabled list and the translation data are independent, which a stock blank
 --    app proves by enabling ONE language while storing translations in EIGHT.
-alter settings LANGUAGE remove 'de_DE';
+alter settings LANGUAGE drop 'de_DE';
 
 -- 5. Refused: the DEFAULT language. Every missing translation falls back on it,
 --    so a project without one has no fallback. Change the default first.

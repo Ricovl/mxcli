@@ -26,24 +26,24 @@ create module Issue760;
 create module role Issue760.User;
 
 -- The reported case: one widget in, one widget out.
-create or replace page Issue760.OneWidget (
+create or modify page Issue760.OneWidget (
   title: 'One widget',
   Layout: Atlas_Core.Atlas_Default
 )
 {
-  actionbutton btnOnly (caption: 'Only widget', action: close_page)
+  actionbutton btnOnly (caption: 'Only widget', action: close page)
 }
 /
 
 -- The case the wrapper was introduced for: several top-level widgets go into the
 -- placeholder's Widgets array side by side, not inside a container.
-create or replace page Issue760.SeveralWidgets (
+create or modify page Issue760.SeveralWidgets (
   title: 'Several widgets',
   Layout: Atlas_Core.Atlas_Default
 )
 {
   dynamictext dtTitle (content: 'Heading', rendermode: H1)
-  actionbutton btnA (caption: 'A', action: close_page)
+  actionbutton btnA (caption: 'A', action: close page)
   container cAuthored {
     dynamictext dtNested (content: 'A container the author DID write — must survive')
   }

@@ -25,10 +25,9 @@
 -- Not in this file: the capability gap itself (30 of 46 documented constructs
 -- do not parse). That is slices 2-3 of the proposal.
 
-create page Bug1036.EmptyProps (
+create page Bug1036.EmptyProps folder 'Bug1036' (
   title: 'Empty property lists',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'Bug1036'
+  layout: Atlas_Core.Atlas_Default
 ) {
   -- All three spellings are now accepted, and mean the same thing.
   container outer () {

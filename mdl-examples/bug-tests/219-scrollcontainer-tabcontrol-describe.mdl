@@ -24,12 +24,11 @@
 
 create module BugTest219;
 
-create page BugTest219.PageWithTabs
+create page BugTest219.PageWithTabs folder 'Pages'
 (
   title: 'Page with tabs',
   layout: Atlas_Core.Atlas_Default,
-  url: 'bugtest219/tabs',
-  folder: 'Pages'
+  url: 'bugtest219/tabs'
 )
 {
   tabcontainer tabs {

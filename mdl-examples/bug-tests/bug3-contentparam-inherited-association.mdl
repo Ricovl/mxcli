@@ -31,15 +31,15 @@ create persistent entity MyFirstModule.SpecialExpense extends MyFirstModule.Expe
 create association MyFirstModule.Expense_Employee
   from MyFirstModule.Expense to MyFirstModule.Employee;
 
-create or replace page MyFirstModule.InheritedAssocPage
+create or modify page MyFirstModule.InheritedAssocPage
 ( Title: 'Inherited Assoc', Layout: Atlas_Core.Atlas_Default )
 {
   layoutgrid lg1 {
-    row row1 {
-      column col1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         -- grid over the SUBCLASS; association is on the base Expense
         datagrid dg (DataSource: database from MyFirstModule.SpecialExpense, Selection: Single) {
-          column colEmp (Caption: 'Employee') {
+          column (Caption: 'Employee') {
             dynamictext dEmp (content: 'Submitted by {1}',
               contentparams: ({1} = MyFirstModule.Expense_Employee/Name))
           }

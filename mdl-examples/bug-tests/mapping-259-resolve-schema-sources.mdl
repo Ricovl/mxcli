@@ -82,7 +82,7 @@ create module BugTest259;
 create persistent entity BugTest259.Loc ( LocId: String(100) );
 
 create json structure BugTest259.JSON_Loc
-  snippet $${"locationId": "x"}$$;
+  sample $${"locationId": "x"}$$;
 
 -- The control: a source that resolves, and a member that exists.
 create or modify import mapping BugTest259.IMM_Loc

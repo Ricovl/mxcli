@@ -57,13 +57,13 @@ create or modify persistent entity OntologyViewer.Graphmart (
 )
 index (Uri);
 
-grant OntologyViewer.User on OntologyViewer.Graphmart (read *);
+grant read * on entity OntologyViewer.Graphmart to OntologyViewer.User;
 /
 
 @Position(350, 50)
 create or modify persistent entity OntologyViewer.ChatbotSettings ();
 
-grant OntologyViewer.User on OntologyViewer.ChatbotSettings (read *);
+grant read * on entity OntologyViewer.ChatbotSettings to OntologyViewer.User;
 /
 
 -- Per-tool-call presentation metadata, attached 1:1 to a ConversationalUI.ToolMessage.
@@ -79,7 +79,7 @@ create or modify persistent entity OntologyViewer.ToolCallMetadata (
   IsExpanded: Boolean default false
 );
 
-grant OntologyViewer.User on OntologyViewer.ToolCallMetadata (read *);
+grant read * on entity OntologyViewer.ToolCallMetadata to OntologyViewer.User;
 /
 
 @Position(950, 50)
@@ -87,7 +87,7 @@ create or modify persistent entity OntologyViewer.SuggestedUserPrompt (
   Content: String(500)
 );
 
-grant OntologyViewer.User on OntologyViewer.SuggestedUserPrompt (read *);
+grant read * on entity OntologyViewer.SuggestedUserPrompt to OntologyViewer.User;
 /
 
 @Position(1300, 50)
@@ -119,7 +119,7 @@ create or modify persistent entity OntologyViewer.ChatContext_Control (
   StopRequested: Boolean default false
 );
 
-grant OntologyViewer.User on OntologyViewer.ChatContext_Control (read *);
+grant read * on entity OntologyViewer.ChatContext_Control to OntologyViewer.User;
 /
 
 @Position(2350, 50)
@@ -130,7 +130,7 @@ create or modify persistent entity OntologyViewer.GraphTraversalHelper (
 )
 index (PayloadHash);
 
-grant OntologyViewer.User on OntologyViewer.GraphTraversalHelper (read *);
+grant read * on entity OntologyViewer.GraphTraversalHelper to OntologyViewer.User;
 /
 
 -- ----------------------------------------------------------------------------
@@ -396,13 +396,13 @@ create snippet OntologyViewer.Snippet_ChatContext_Interaction (
     container container16 (class: 'send-btn-container') {
       actionbutton btnSendMessage (
         caption: 'Send',
-        action: nanoflow OntologyViewer.ACT_StopAwareSendMessage,
+        action: call nanoflow OntologyViewer.ACT_StopAwareSendMessage,
         buttonstyle: primary,
         class: 'send-btn'
       )
       actionbutton btnStopMessage (
         caption: 'Stop',
-        action: microflow OntologyViewer.ACT_ChatContext_RequestStop,
+        action: call microflow OntologyViewer.ACT_ChatContext_RequestStop,
         buttonstyle: primary,
         class: 'stop-btn'
       )

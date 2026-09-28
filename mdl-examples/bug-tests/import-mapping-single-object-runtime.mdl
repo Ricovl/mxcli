@@ -35,7 +35,7 @@ create non-persistent entity ImportSingle.Item (
 );
 
 create json structure ImportSingle.JSON_Item
-  snippet '{"title": "hello", "qty": "3"}';
+  sample '{"title": "hello", "qty": "3"}';
 
 create import mapping ImportSingle.IMM_Item
   with json structure ImportSingle.JSON_Item

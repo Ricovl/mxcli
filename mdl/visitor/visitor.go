@@ -124,6 +124,25 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 			"    mdl 1;\n"+
 			"    create entity Shop.Customer ( Name: String(200) );   (correct)", msg)
 	}
+	// Grammar removed as dead (ako/mxcli#756): it parsed, and could never
+	// succeed. The parse error is where the explanation now has to live.
+	if workflowAccessRe.MatchString(offendingLine) {
+		return fmt.Sprintf("%s\n\n  A Mendix workflow has no allowed roles of its own, so there is nothing to\n"+
+			"  grant or revoke on it. Who may start a workflow is decided by the microflow\n"+
+			"  that calls it, and who may act on it by each user task's targeting:\n"+
+			"    grant execute on microflow Mod.ACT_StartApproval to Mod.Manager;   (correct)\n"+
+			"    grant execute on workflow Mod.Approval to Mod.Manager;             (removed)", msg)
+	}
+	if strings.Contains(msg, "'else' expecting {WHEN, END}") {
+		return fmt.Sprintf("%s\n\n  An enumeration split (`case`) has no default branch: Mendix gives it one\n"+
+			"  outgoing flow per value plus one for (empty), and no `else` flow. Write a\n"+
+			"  `when` for every value, and `when (empty)` for an unset one:\n"+
+			"    case $Order/Status\n"+
+			"      when Open then …\n"+
+			"      when Closed, Cancelled then …\n"+
+			"      when (empty) then …\n"+
+			"    end case;", msg)
+	}
 	// A `\'` in a string literal under mdl 1, where a backslash no longer
 	// escapes: the literal ends at the quote, and the rest of the line is read
 	// as MDL. Under mdl 0 the same text parses, so the hint only fires on an
@@ -302,6 +321,9 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 	// command away. (Kept to one line since it can repeat across cascading errors.)
 	return msg + "  [see: mxcli syntax <topic>, e.g. entity | microflow | page]"
 }
+
+// workflowAccessRe matches the removed `grant|revoke execute on workflow`.
+var workflowAccessRe = regexp.MustCompile(`(?i)^\s*(grant|revoke)\s+execute\s+on\s+workflow\b`)
 
 // addMissingAttributeRe matches `add <name>:` on a source line — the shape of an
 // ALTER ENTITY add-attribute clause missing its `attribute` keyword. The captured

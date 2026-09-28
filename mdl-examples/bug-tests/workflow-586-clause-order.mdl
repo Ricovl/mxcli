@@ -41,8 +41,8 @@ create page WF586.TaskPage (
   params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Review the request', rendermode: H2)
       }
     }
@@ -55,8 +55,8 @@ create page WF586.Overview (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Requests', rendermode: H2)
       }
     }
@@ -106,7 +106,7 @@ end;
 
 -- The header clauses in a deliberately different order from the one the old
 -- grammar demanded: the event handler first, `folder` last.
-create or replace workflow WF586.Review
+create or modify workflow WF586.Review
   on any workflow event microflow WF586.ACT_OnEvent as 'all events'
   due date addDays([%CurrentDateTime%], 2)
   description 'Reviews a request'
@@ -139,7 +139,7 @@ begin
     decide by majority more than half fallback 'Confirmed'
     page WF586.TaskPage
     participants 60 percent
-    targeting groups xpath '[Name = ''Administrator'']'
+    targeting groups xpath [Name = 'Administrator']
     due date addHours([%CurrentDateTime%], 2);
 end workflow;
 /

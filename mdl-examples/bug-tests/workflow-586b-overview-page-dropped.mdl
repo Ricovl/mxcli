@@ -51,8 +51,8 @@ create page WF586B.Overview (
   params: ( $Workflow: System.Workflow )
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'All requests', rendermode: H2)
       }
     }
@@ -66,8 +66,8 @@ create page WF586B.TaskPage (
   params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Handle the request', rendermode: H2)
       }
     }
@@ -77,7 +77,7 @@ create page WF586B.TaskPage (
 
 -- The clause under test. Before the fix this workflow was written with no
 -- overview page at all.
-create or replace workflow WF586B.Review
+create or modify workflow WF586B.Review
   parameter $WorkflowContext: WF586B.Request
   overview page WF586B.Overview
 begin
@@ -91,4 +91,4 @@ end workflow;
 
 -- The ALTER path has always written AdminPage correctly; it is here because
 -- until the READ was fixed it, too, described back as absent.
-alter workflow WF586B.Review set overview page WF586B.Overview;
+alter workflow WF586B.Review { set (OverviewPage: WF586B.Overview); };

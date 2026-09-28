@@ -58,7 +58,7 @@ create non-persistent entity CustomModule.UpdateBufferDefinition (
   Name: String(100)
 );
 
-create or replace layout CustomModule.App_Default (
+create or modify layout CustomModule.App_Default (
   layouttype: 'Responsive'
 ) {
   scrollcontainer layoutContainer {
@@ -68,7 +68,7 @@ create or replace layout CustomModule.App_Default (
   }
 }
 
-create or replace nanoflow CustomModule.ACT_BufferDefinition_SaveEdit_NF
+create or modify nanoflow CustomModule.ACT_BufferDefinition_SaveEdit_NF
   ($Dto: CustomModule.UpdateBufferDefinition,
    $BufferDefinition: CustomModule.BufferDefinition)
 begin
@@ -77,7 +77,7 @@ end;
 
 -- The reported page. Both arguments name a page parameter, and the one that is
 -- NOT the dataview's object is the one the report is about.
-create or replace page CustomModule.PANEL_BufferDefinition_Edit (
+create or modify page CustomModule.PANEL_BufferDefinition_Edit (
   Title: 'Edit',
   Layout: CustomModule.App_Default,
   Params: ( $Dto: CustomModule.UpdateBufferDefinition,
@@ -88,9 +88,9 @@ create or replace page CustomModule.PANEL_BufferDefinition_Edit (
       footer footer1 {
         actionbutton btnSave (
           Caption: 'Save',
-          Action: nanoflow CustomModule.ACT_BufferDefinition_SaveEdit_NF(
-            $Dto = $Dto,
-            $BufferDefinition = $BufferDefinition
+          Action: call nanoflow CustomModule.ACT_BufferDefinition_SaveEdit_NF(
+            Dto = $Dto,
+            BufferDefinition = $BufferDefinition
           )
         )
       }
@@ -101,7 +101,7 @@ create or replace page CustomModule.PANEL_BufferDefinition_Edit (
 -- CONTROL 1 — a literal argument must stay an Expression. A fix that routed
 -- everything through Variable would clear the report and break this, which is the
 -- shape of all six Expression-bound mappings in the reference.
-create or replace nanoflow CustomModule.ACT_Flag_NF ($Keep: Boolean)
+create or modify nanoflow CustomModule.ACT_Flag_NF ($Keep: Boolean)
 begin
   log info 'flag';
 end;
@@ -111,12 +111,12 @@ end;
 -- relies on the context object being inferred rather than named. PANEL_Controls
 -- declares a $Row page parameter it never uses, so the control also shows that a
 -- name in scope does not drag $currentObject into the Variable form.
-create or replace nanoflow CustomModule.ACT_Row_NF ($Row: CustomModule.BufferDefinition)
+create or modify nanoflow CustomModule.ACT_Row_NF ($Row: CustomModule.BufferDefinition)
 begin
   log info 'row';
 end;
 
-create or replace page CustomModule.PANEL_Controls (
+create or modify page CustomModule.PANEL_Controls (
   Title: 'Controls',
   Layout: CustomModule.App_Default,
   Params: ( $Row: CustomModule.BufferDefinition )
@@ -126,11 +126,11 @@ create or replace page CustomModule.PANEL_Controls (
       container rowBox {
         actionbutton btnFlag (
           Caption: 'Flag',
-          Action: nanoflow CustomModule.ACT_Flag_NF($Keep = true)
+          Action: call nanoflow CustomModule.ACT_Flag_NF(Keep = true)
         )
         actionbutton btnRow (
           Caption: 'Row',
-          Action: nanoflow CustomModule.ACT_Row_NF($Row = $currentObject)
+          Action: call nanoflow CustomModule.ACT_Row_NF(Row = $currentObject)
         )
       }
     }

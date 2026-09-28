@@ -179,11 +179,14 @@ branches, and `from` is the flow leaving its closing merge — the merge has no
 statement of its own, just as its position rides on the `if` as `@merge`:
 
 ```sql
-@anchor(from: bottom, to: top)
-@merge(2650, 200)
-if $Factory/Latitude = empty then
-  ...
-end if;
+create microflow Sales.ACT_CheckFactory ($Factory: Sales.Factory)
+begin
+  @anchor(from: bottom, to: top)
+  @merge(2650, 200)
+  if $Factory/Latitude = empty then
+    log warning node 'Factory' 'No location';
+  end if;
+end;
 ```
 
 This is how `DESCRIBE` writes a decision whose merge drops onto the next row.

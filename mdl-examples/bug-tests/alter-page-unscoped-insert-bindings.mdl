@@ -45,8 +45,8 @@ create or modify page BugTestAlterScope.Draft_Example
     dynamictext txtIntro (Content: 'Example')
   }
   layoutgrid lg {
-    row r {
-      column c (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
         dataview dvFlow (DataSource: nanoflow BugTestAlterScope.DS_MissingForm) {
           textbox txtSubject (Label: 'Subject', Attribute: BugTestAlterScope.Draft.Subject)
         }
