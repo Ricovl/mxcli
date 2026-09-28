@@ -160,13 +160,23 @@ func TestAlterProjectSecurity_GuestUserRoleAlone(t *testing.T) {
 		var rec guestCall
 		stored := projectWithRoles("Administrator")
 		stored.EnableGuestAccess = storedOn
-		ctx, _ := newMockCtx(t, withBackend(guestMock(stored, &rec)))
+		ctx, out := newMockCtx(t, withBackend(guestMock(stored, &rec)))
 
 		assertNoError(t, execAlterProjectSecurity(ctx, &ast.AlterProjectSecurityStmt{GuestUserRole: "anonymous"}))
 
 		if !rec.called || rec.enabled != storedOn || rec.role != "Anonymous" {
 			t.Errorf("stored on=%v: backend got called=%v enabled=%v role=%q; want the role with the state kept",
 				storedOn, rec.called, rec.enabled, rec.role)
+		}
+		// The report says what changed: the role. "Guest access disabled"
+		// read as if the statement had turned guest access off.
+		state := "off"
+		if storedOn {
+			state = "on"
+		}
+		want := "Guest user role set to Anonymous (guest access stays " + state + ")"
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("stored on=%v: output %q, want it to contain %q", storedOn, out.String(), want)
 		}
 	}
 }

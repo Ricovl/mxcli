@@ -1236,6 +1236,15 @@ func applyGuestAccess(ctx *ExecContext, ps *security.ProjectSecurity, s *ast.Alt
 		return mdlerrors.NewBackend("set guest access", err)
 	}
 
+	if s.GuestAccessEnabled == nil {
+		// The role alone: report the role, not a state the statement never set.
+		state := "off"
+		if enabled {
+			state = "on"
+		}
+		fmt.Fprintf(ctx.Output, "Guest user role set to %s (guest access stays %s)\n", role, state)
+		return nil
+	}
 	if !enabled {
 		fmt.Fprintf(ctx.Output, "Guest access disabled\n")
 		return nil
