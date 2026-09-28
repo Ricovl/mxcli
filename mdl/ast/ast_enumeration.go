@@ -71,6 +71,8 @@ type AlterEnumerationStmt struct {
 	ValueName string
 	NewName   string // For RENAME
 	Caption   string // For ADD and MODIFY CAPTION
+	// Documentation is the text of SET DOCUMENTATION.
+	Documentation string
 
 	// Idempotency guards, so a script that adds an enumeration value is
 	// re-runnable. Without them the second run errors and exec STOPS THERE,
@@ -90,6 +92,9 @@ const (
 	AlterEnumDrop
 	AlterEnumRename
 	AlterEnumModifyCaption // MODIFY VALUE X CAPTION '...' — change an existing value's caption
+	// AlterEnumSetDocumentation is SET DOCUMENTATION '…' (SET COMMENT is its
+	// deprecated alias, MDL-DEPR135).
+	AlterEnumSetDocumentation
 )
 
 // DropEnumerationStmt represents: DROP ENUMERATION Module.Name

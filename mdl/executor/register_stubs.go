@@ -58,6 +58,9 @@ func registerDatabaseConnectionHandlers(r *Registry) {
 	r.Register(&ast.CreateDatabaseConnectionStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return createDatabaseConnection(ctx, stmt.(*ast.CreateDatabaseConnectionStmt))
 	})
+	r.Register(&ast.DropDatabaseConnectionStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
+		return execDropDatabaseConnection(ctx, stmt.(*ast.DropDatabaseConnectionStmt))
+	})
 }
 
 func registerEntityHandlers(r *Registry) {
@@ -270,6 +273,9 @@ func registerScheduledEventHandlers(r *Registry) {
 func registerValidationRuleHandlers(r *Registry) {
 	r.Register(&ast.CreateValidationRuleStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return execCreateValidationRule(ctx, stmt.(*ast.CreateValidationRuleStmt))
+	})
+	r.Register(&ast.DropValidationRuleStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
+		return execDropValidationRule(ctx, stmt.(*ast.DropValidationRuleStmt))
 	})
 }
 

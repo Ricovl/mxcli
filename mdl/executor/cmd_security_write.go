@@ -1201,7 +1201,7 @@ func execAlterProjectSecurity(ctx *ExecContext, s *ast.AlterProjectSecurityStmt)
 		fmt.Fprintf(ctx.Output, "Demo users %s\n", state)
 	}
 
-	if s.GuestAccessEnabled != nil {
+	if s.GuestAccessEnabled != nil || s.GuestUserRole != "" {
 		if err := applyGuestAccess(ctx, ps, s); err != nil {
 			return err
 		}
@@ -1235,7 +1235,11 @@ func execAlterProjectSecurity(ctx *ExecContext, s *ast.AlterProjectSecurityStmt)
 //   - OFF leaves the stored role in place. Guest access off with a role set is
 //     valid, and dropping it would lose the operator's choice on a toggle.
 func applyGuestAccess(ctx *ExecContext, ps *security.ProjectSecurity, s *ast.AlterProjectSecurityStmt) error {
-	enabled := *s.GuestAccessEnabled
+	// `( GuestUserRole: R )` alone changes the role and keeps the stored state.
+	enabled := ps.EnableGuestAccess
+	if s.GuestAccessEnabled != nil {
+		enabled = *s.GuestAccessEnabled
+	}
 	role := s.GuestUserRole
 
 	if role != "" {
@@ -1258,15 +1262,24 @@ func applyGuestAccess(ctx *ExecContext, ps *security.ProjectSecurity, s *ast.Alt
 		role = match
 	} else if enabled && ps.GuestUserRole == "" {
 		return mdlerrors.NewValidation(
-			"GUEST ACCESS ON requires a role: no anonymous user role is configured, and Mendix " +
-				"rejects anonymous access without one (CE0133). Use ALTER APP SECURITY " +
-				"GUEST ACCESS ON ROLE <UserRole>")
+			"EnableGuestAccess: true requires a role: no anonymous user role is configured, and Mendix " +
+				"rejects anonymous access without one (CE0133). Use alter app security " +
+				"( EnableGuestAccess: true, GuestUserRole: <UserRole> )")
 	}
 
 	if err := ctx.Backend.SetProjectGuestAccess(ps.ID, enabled, role); err != nil {
 		return mdlerrors.NewBackend("set guest access", err)
 	}
 
+	if s.GuestAccessEnabled == nil {
+		// The role alone: report the role, not a state the statement never set.
+		state := "off"
+		if enabled {
+			state = "on"
+		}
+		fmt.Fprintf(ctx.Output, "Guest user role set to %s (guest access stays %s)\n", role, state)
+		return nil
+	}
 	if !enabled {
 		fmt.Fprintf(ctx.Output, "Guest access disabled\n")
 		return nil
@@ -1387,7 +1400,7 @@ func warnDemoUsersInert(ctx *ExecContext, level string) {
 	}
 	fmt.Fprintf(ctx.Output, "  Note: project security level is Off, so the runtime creates no accounts "+
 		"and this demo user will not appear in the app.\n"+
-		"  Raise it first: alter app security level prototype;\n")
+		"  Raise it first: alter app security ( SecurityLevel: prototype );\n")
 }
 
 // detectUserEntity finds the entity that generalizes System.User.

@@ -234,10 +234,10 @@ PATH (e.g. `brew install antlr4`).
 
 ```bash
 # list all modules
-mxcli -p app.mpr -c "show modules"
+mxcli -p app.mpr -c "list modules"
 
 # list entities in a module
-mxcli -p app.mpr -c "show entities in MyModule"
+mxcli -p app.mpr -c "list entities in MyModule"
 
 # describe any element (module, entity, microflow, nanoflow, page, etc.)
 mxcli describe -p app.mpr module MyModule
@@ -305,10 +305,10 @@ Find and update widget properties across pages and snippets:
 
 ```bash
 # Discover widgets by type
-mxcli -p app.mpr -c "show widgets where widgettype like '%combobox%'"
+mxcli -p app.mpr -c "list widgets where widgettype like '%combobox%'"
 
 # filter by module
-mxcli -p app.mpr -c "show widgets in MyModule"
+mxcli -p app.mpr -c "list widgets in MyModule"
 
 # Preview changes (dry run)
 mxcli -p app.mpr -c "update widgets set 'showLabel' = false where widgettype like '%DataGrid%' dry run"
@@ -411,8 +411,8 @@ MDL (Mendix Definition Language) is a SQL-like syntax for working with Mendix mo
 
 ```sql
 -- Show project structure
-show modules;
-show entities in MyModule;
+list modules;
+list entities in MyModule;
 describe entity MyModule.Customer;
 describe microflow MyModule.ProcessOrder;
 describe page MyModule.CustomerOverview;
@@ -457,20 +457,20 @@ grant view on page MyModule.Product_Edit to MyModule.Admin, MyModule.Viewer;
 grant create, delete, read *, write * on entity MyModule.Product to MyModule.Admin;
 grant read * on entity MyModule.Product to MyModule.Viewer;
 create user role AppAdmin (MyModule.Admin) manage all roles;
-alter project security level production;
+alter app security ( SecurityLevel: production );
 show security matrix in MyModule;
 
 -- Search
 search 'validation';
 
 -- Code navigation
-show callers of MyModule.ProcessOrder transitive;
-show references to MyModule.Customer;
-show impact of MyModule.Customer;
+list callers of MyModule.ProcessOrder transitive;
+list references to MyModule.Customer;
+list impact of MyModule.Customer;
 show context of MyModule.ProcessOrder depth 3;
 
 -- Widget discovery and bulk updates
-show widgets where widgettype like '%combobox%';
+list widgets where widgettype like '%combobox%';
 update widgets set 'showLabel' = false where widgettype like '%DataGrid%' dry run;
 ```
 

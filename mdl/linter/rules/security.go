@@ -132,6 +132,6 @@ func (r *DemoUsersActiveRule) Check(ctx *linter.LintContext) []linter.Violation 
 			DocumentType: "security",
 			DocumentName: "ProjectSecurity",
 		},
-		Suggestion: "ALTER APP SECURITY DEMO USERS OFF",
+		Suggestion: "ALTER APP SECURITY ( EnableDemoUsers: FALSE )",
 	}}
 }

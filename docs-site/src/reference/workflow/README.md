@@ -15,5 +15,5 @@ Mendix workflows model long-running business processes with user tasks, decision
 
 | Statement | Syntax |
 |-----------|--------|
-| Show workflows | `SHOW WORKFLOWS [IN module]` |
+| Show workflows | `LIST WORKFLOWS [IN module]` |
 | Describe workflow | `DESCRIBE WORKFLOW module.Name` |

@@ -19,10 +19,10 @@ func init() {
 		Path:    "workflow.show",
 		Summary: "List and describe existing workflows",
 		Keywords: []string{
-			"list workflows", "show workflows", "describe workflow",
+			"list workflows", "list workflows", "describe workflow",
 		},
-		Syntax:  "SHOW WORKFLOWS;\nSHOW WORKFLOWS IN <module>;\nDESCRIBE WORKFLOW Module.Name;",
-		Example: "SHOW WORKFLOWS IN HR;\nDESCRIBE WORKFLOW HR.LeaveApproval;",
+		Syntax:  "LIST WORKFLOWS;\nLIST WORKFLOWS IN <module>;\nDESCRIBE WORKFLOW Module.Name;",
+		Example: "LIST WORKFLOWS IN HR;\nDESCRIBE WORKFLOW HR.LeaveApproval;",
 	})
 
 	Register(SyntaxFeature{
@@ -393,7 +393,7 @@ func init() {
 			"catalog", "query workflows", "workflow metadata",
 			"cross-reference", "callers", "callees",
 		},
-		Syntax:  "REFRESH CATALOG FULL;\nSELECT * FROM CATALOG.WORKFLOWS;\nSHOW CALLERS OF Module.WorkflowName;\nSHOW REFERENCES TO Module.WorkflowName;",
+		Syntax:  "REFRESH CATALOG FULL;\nSELECT * FROM CATALOG.WORKFLOWS;\nLIST CALLERS OF Module.WorkflowName;\nLIST REFERENCES TO Module.WorkflowName;",
 		Example: "REFRESH CATALOG FULL;\nSELECT QualifiedName, ActivityCount, UserTaskCount\n  FROM CATALOG.WORKFLOWS WHERE UserTaskCount > 0;",
 		SeeAlso: []string{"workflow.show"},
 	})

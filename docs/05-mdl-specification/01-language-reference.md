@@ -1170,8 +1170,13 @@ Changes project-wide security settings.
 
 **Syntax:**
 ```sql
-alter app security level off | prototype | production
-alter app security demo users on | off
+alter app security (
+  [SecurityLevel: off | prototype | production,]
+  [EnableDemoUsers: true | false,]
+  [EnableGuestAccess: true | false,]
+  [GuestUserRole: <UserRole>,]
+  [StrictMode: true | false]
+)
 ```
 
 ### CREATE DEMO USER

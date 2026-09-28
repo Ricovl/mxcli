@@ -344,7 +344,7 @@ func TestDescribeAgentEditorModel_Mock(t *testing.T) {
 	assertNoError(t, describeAgentEditorModel(ctx, ast.QualifiedName{Module: "M", Name: "GPT4"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create or modify model")
+	assertContainsStr(t, out, "create or modify ai model")
 	assertTerminated(t, out) // #744
 	assertContainsStr(t, out, "Provider")
 	assertContainsStr(t, out, "Key: @M.APIKey") // R5: the one constant reference (ako/mxcli#753)

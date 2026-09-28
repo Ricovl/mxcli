@@ -148,7 +148,7 @@ Map a JSON response to Mendix entities using a JSON structure and import mapping
 ```sql
 -- Step 1: Define the JSON structure
 CREATE JSON STRUCTURE Integration.JSON_Pet
-  SNIPPET '{"id": 1, "name": "Fido", "status": "available"}';
+  SAMPLE '{"id": 1, "name": "Fido", "status": "available"}';
 
 -- Step 2: Create a non-persistent entity to hold the data
 CREATE NON-PERSISTENT ENTITY Integration.PetResponse (
@@ -407,4 +407,4 @@ DROP DATA TRANSFORMER Integration.WeatherTransform;
 - Steps execute in order; the output of each step feeds the next.
 - `JSLT '...'` for short single-line expressions; `JSLT $$ ... $$` for multi-line.
 - `XSLT $$ ... $$` is also supported for XML-to-XML transformations.
-- Requires Mendix 11.9+. Use `SHOW FEATURES` to confirm support before using.
+- Requires Mendix 11.9+. Use `LIST FEATURES` to confirm support before using.

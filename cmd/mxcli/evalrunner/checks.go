@@ -31,7 +31,7 @@ func RunChecks(checks []Check, opts CheckOptions) []CheckResult {
 	entityList := runMxCli(opts, "SHOW ENTITIES")
 	pageList := runMxCli(opts, "SHOW PAGES")
 	microflowList := runMxCli(opts, "SHOW MICROFLOWS")
-	navMenu := runMxCli(opts, "SHOW NAVIGATION MENU")
+	navMenu := runMxCli(opts, "LIST NAVIGATION MENU")
 
 	// Cache for DESCRIBE results (avoid re-describing the same entity/page)
 	describeCache := make(map[string]string)

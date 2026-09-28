@@ -29,8 +29,10 @@ func init() {
 			"-- every statement ends with ';' and '/' is not a terminator; '' is the\n" +
 			"-- only string escape, so a backslash is an ordinary character; and an\n" +
 			"-- unknown or mis-shaped property key in a REST, business event or agent\n" +
-			"-- property list is an error; and a session command (connect, set format,\n" +
-			"-- status, help, …) in a script is an error (MDL-V1-SESSION). A trailing\n" +
+			"-- property list is an error; a session command (connect, set format,\n" +
+			"-- status, show version, help, …) in a script is an error (MDL-V1-SESSION);\n" +
+			"-- and `show entity X` / `show association X`, which print a summary no\n" +
+			"-- statement prints any more, are an error (MDL-V1-SHOWSUMMARY). A trailing\n" +
 			"-- comma is allowed in every bracketed list, with or without the header.\n" +
 			"--\n" +
 			"-- A script's meaning never depends on which mxcli release runs it: a\n" +
@@ -44,7 +46,8 @@ func init() {
 			"-- and writes list operations one statement per activity. It refuses, and\n" +
 			"-- says why, when a construct has no rewrite: an unknown or mis-shaped\n" +
 			"-- property (MDL-V1-PROP/PROPVALUE), `create or replace view entity`\n" +
-			"-- (MDL-V1-REPLACE01), a session command in a script (MDL-V1-SESSION), a\n" +
+			"-- (MDL-V1-REPLACE01), a session command in a script (MDL-V1-SESSION),\n" +
+			"-- `show entity|association X` (MDL-V1-SHOWSUMMARY), a\n" +
 			"-- nested list operation, find/contains on a variable\n" +
 			"-- whose type the script does not state, and an escaped line break inside\n" +
 			"-- an expression.\n" +
@@ -219,13 +222,15 @@ func init() {
 			"session", "session command", "repl", "repl command", "meta-command",
 			"connect", "disconnect", "use", "set format", "status", "check", "build",
 			"lint", "debug", "execute script", "execute runtime", "help", "introspect",
+			"show version", "show status", "show connections", "show catalog status",
 			"MDL-V1-SESSION",
 		},
 		Syntax: "CONNECT LOCAL '<app.mpr>';   DISCONNECT;   STATUS;\n" +
 			"SET format = json|table;       USE <session> | USE ALL;\n" +
 			"CHECK;  BUILD;  LINT [target];  DEBUG '<…>';  INTROSPECT API;\n" +
 			"EXECUTE SCRIPT '<file.mdl>';   EXECUTE RUNTIME '<command>';\n" +
-			"HELP [topic];\n\n" +
+			"HELP [topic];\n" +
+			"SHOW VERSION;  SHOW STATUS;  SHOW CONNECTIONS;  SHOW CATALOG STATUS;\n\n" +
 			"-- A session command needs a session or an environment: a connection, an\n" +
 			"-- output format, a build, a running app. It is typed at the REPL, or given\n" +
 			"-- as a command-line flag. A .mdl script holds model statements only:\n" +
@@ -283,7 +288,7 @@ DISCONNECT;`,
 			"status", "show status", "connection status",
 			"project info", "version", "connected",
 		},
-		Syntax:  "STATUS;\nSHOW STATUS;\n\n-- A session command, for the REPL (see session-commands).",
+		Syntax:  "STATUS;\nSHOW STATUS;\n\n-- A session command, for the REPL (see session-commands). In a script it\n-- warns MDL-V1-SESSION, and under `mdl 1;` it is an error.",
 		Example: "STATUS;\n-- Output: Connected to /projects/MyApp/MyApp.mpr (Mendix 10.24.0, 5 modules)",
 		SeeAlso: []string{"connect", "disconnect", "session-commands"},
 	})
@@ -297,8 +302,8 @@ DISCONNECT;`,
 			"navigation", "nav", "profile", "responsive", "phone", "tablet",
 			"home page", "menu", "login page",
 		},
-		Syntax:  "SHOW NAVIGATION;\nDESCRIBE NAVIGATION [profile];\nCREATE OR REPLACE NAVIGATION <profile> ...;",
-		Example: "SHOW NAVIGATION;\nDESCRIBE NAVIGATION Responsive;",
+		Syntax:  "LIST NAVIGATION;\nDESCRIBE NAVIGATION [profile];\nCREATE OR MODIFY NAVIGATION <profile> ...;",
+		Example: "LIST NAVIGATION;\nDESCRIBE NAVIGATION Responsive;",
 		SeeAlso: []string{"navigation.show", "navigation.create", "navigation.alter"},
 	})
 
@@ -306,11 +311,13 @@ DISCONNECT;`,
 		Path:    "navigation.show",
 		Summary: "List navigation profiles, menus, and home page assignments",
 		Keywords: []string{
-			"show navigation", "describe navigation", "navigation menu",
+			"list navigation", "list navigation", "describe navigation", "navigation menu",
 			"navigation homes", "list profiles",
 		},
-		Syntax:  "SHOW NAVIGATION;\nSHOW NAVIGATION MENU;\nSHOW NAVIGATION MENU <profile>;\nLIST NAVIGATION HOMES;\nDESCRIBE NAVIGATION;\nDESCRIBE NAVIGATION <profile>;",
-		Example: "SHOW NAVIGATION;\nSHOW NAVIGATION MENU Responsive;\nDESCRIBE NAVIGATION Responsive;",
+		Syntax: "LIST NAVIGATION;                  -- the profiles, one row each\nLIST NAVIGATION MENU [<profile>];  -- the menu tree\n" +
+			"LIST NAVIGATION HOMES;\nDESCRIBE NAVIGATION [<profile>];    -- the profile as MDL\n\n" +
+			"-- `list navigation [menu]` is a deprecated alias of the list form (MDL-DEPR002).",
+		Example: "LIST NAVIGATION;\nLIST NAVIGATION MENU Responsive;\nDESCRIBE NAVIGATION Responsive;",
 	})
 
 	Register(SyntaxFeature{
@@ -363,7 +370,7 @@ DISCONNECT;`,
 -- reference, not a string. Hyphenated Atlas names are double-quoted:
 --   Icon: Atlas_Core.Atlas."align-center"
 -- Browse the available names with:
---   SHOW ICON COLLECTION  /  DESCRIBE ICON COLLECTION Module.Name
+--   LIST ICON COLLECTIONS  /  DESCRIBE ICON COLLECTION Module.Name
 --
 -- <profile> is one of Mendix's fixed web kinds, and the profile is CREATED if
 -- the project does not have it yet:
@@ -506,7 +513,7 @@ translations out of the model:
 A translation for a language the project has not ENABLED is stored, passes
 mx check, and is DISCARDED at build time — no translations_<code>.properties
 is produced at all. The run warns; enable the language in project settings
-first. Note SHOW LANGUAGES lists languages that HAVE translations, not the
+first. Note LIST LANGUAGES lists languages that HAVE translations, not the
 enabled ones (8 vs 1 on a stock app); the enabled list is in DESCRIBE
 SETTINGS.`,
 		Example: `describe translations for nl_NL;
@@ -522,10 +529,11 @@ create or modify translations in Administration for nl_NL (
 		Path:    "settings.show",
 		Summary: "Show and describe project settings",
 		Keywords: []string{
-			"show settings", "describe settings", "list settings",
+			"list settings", "describe settings", "list settings",
 		},
-		Syntax:  "DESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION '<name>';",
-		Example: "DESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION 'Default';",
+		Syntax: "LIST SETTINGS;                              -- the sections, one row each\n" +
+			"DESCRIBE SETTINGS;                          -- the settings as MDL\nDESCRIBE SETTINGS CONFIGURATION '<name>';",
+		Example: "LIST SETTINGS;\nDESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION 'Default';",
 	})
 
 	Register(SyntaxFeature{
@@ -615,7 +623,7 @@ ALTER SETTINGS WORKFLOWS ADD GROUP 'Approvers' (Description: 'Primary approval g
 ALTER SETTINGS WORKFLOWS ADD GROUP 'Reviewers';
 ALTER SETTINGS WORKFLOWS MODIFY GROUP 'Reviewers' (Description: 'Second-line review');
 ALTER SETTINGS WORKFLOWS DROP GROUP 'Reviewers';
-SHOW WORKFLOW GROUPS;
+LIST WORKFLOW GROUPS;
 
 -- Description is the ONLY option: a Settings$WorkflowGroup stores Name and
 -- Description and nothing else, so there is no identifier to set and the NAME is
@@ -661,11 +669,11 @@ SHOW WORKFLOW GROUPS;
 		Summary: "Task queues — bound concurrency for queued microflow calls",
 		Keywords: []string{
 			"queue", "queues", "task queue", "create task queue", "create queue", "drop task queue",
-			"describe task queue", "show task queues", "parallelism", "cluster wide",
+			"describe task queue", "list task queues", "parallelism", "cluster wide",
 			"background", "async microflow",
 		},
 		Syntax: `CREATE [OR MODIFY] TASK QUEUE Module.Name [FOLDER 'path'] [( <property>: <value>, ... )];
-SHOW TASK QUEUES [IN <module>];
+LIST TASK QUEUES [IN <module>];
 LIST TASK QUEUES [IN <module>];
 DESCRIBE TASK QUEUE Module.Name;
 DROP TASK QUEUE Module.Name;
@@ -706,7 +714,7 @@ BEGIN
   CALL MICROFLOW Ops.ACT_Process(Order = $Order) IN QUEUE Ops.OrderProcessing;
 END;
 
-SHOW TASK QUEUES IN Ops;
+LIST TASK QUEUES IN Ops;
 DESCRIBE TASK QUEUE Ops.OrderProcessing;
 DROP TASK QUEUE Ops.Mail;`,
 	})
@@ -719,7 +727,7 @@ DROP TASK QUEUE Ops.Mail;`,
 		Keywords: []string{
 			"regular expression", "regular expressions", "regex", "pattern", "validation",
 			"create regular expression", "drop regular expression", "describe regular expression",
-			"show regular expressions", "email regex", "match",
+			"list regular expressions", "email regex", "match",
 		},
 		Syntax: `[/** <documentation> */]
 CREATE [OR MODIFY] REGULAR EXPRESSION Module.Name [FOLDER 'path'] (
@@ -730,7 +738,7 @@ CREATE [OR MODIFY] REGULAR EXPRESSION Module.Name [FOLDER 'path'] (
 -- Documentation is the doc comment; the Documentation: '<text>' property is
 -- its deprecated alias (MDL-DEPR106).
 
-SHOW REGULAR EXPRESSIONS [IN <module>];
+LIST REGULAR EXPRESSIONS [IN <module>];
 LIST REGULAR EXPRESSIONS [IN <module>];
 DESCRIBE REGULAR EXPRESSION Module.Name;
 DROP REGULAR EXPRESSION Module.Name;
@@ -761,12 +769,12 @@ CREATE REGULAR EXPRESSION Val.Identifier (
 -- .NET lookbehind: legal in Mendix, not verifiable by mxcli
 CREATE REGULAR EXPRESSION Val.NoTrailingSlash ( Expression: '.*(?<!/)$' );
 
-SHOW REGULAR EXPRESSIONS IN Val;
+LIST REGULAR EXPRESSIONS IN Val;
 DESCRIBE REGULAR EXPRESSION Val.EmailAddress;
 DROP REGULAR EXPRESSION Val.Identifier;
 
 -- Which entities validate against a shared pattern
-SHOW REFERENCES TO Val.EmailAddress;`,
+LIST REFERENCES TO Val.EmailAddress;`,
 	})
 
 	// ── Validation rules ────────────────────────────────────────────────
@@ -776,7 +784,7 @@ SHOW REFERENCES TO Val.EmailAddress;`,
 		Summary: "Validation rules — constrain an attribute with a pattern or a range",
 		Keywords: []string{
 			"validation rule", "validation rules", "validate", "constraint",
-			"create validation rule", "regex rule", "range rule",
+			"create validation rule", "drop validation rule", "regex rule", "range rule",
 			"required", "unique", "not null", "feedback",
 		},
 		Syntax: `CREATE VALIDATION RULE FOR Module.Entity.Attribute
@@ -786,6 +794,9 @@ SHOW REFERENCES TO Val.EmailAddress;`,
 CREATE VALIDATION RULE FOR Module.Entity.Attribute
   RANGE FROM <literal> TO <literal>
   ERROR MESSAGE '<message>';
+
+DROP VALIDATION RULE [IF EXISTS] FOR Module.Entity.Attribute [REGEX | RANGE];
+  -- without a kind, drops both the regex and the range rule on the attribute
 
 The bounds are inclusive and either may be omitted:
   RANGE FROM 1 TO 100   between 1 and 100
@@ -837,7 +848,7 @@ CREATE VALIDATION RULE FOR Shop.Product.Price
 			"repeat", "daily", "hourly", "weekly", "monthly", "yearly", "timer", "batch job",
 		},
 		Syntax: `CREATE [OR MODIFY] SCHEDULED EVENT Module.Name [FOLDER 'path'] ( <property>: <value>, ... );
-SHOW SCHEDULED EVENTS [IN <module>];
+LIST SCHEDULED EVENTS [IN <module>];
 LIST SCHEDULED EVENTS [IN <module>];
 DESCRIBE SCHEDULED EVENT Module.Name;
 DROP SCHEDULED EVENT Module.Name;
@@ -903,7 +914,7 @@ CREATE SCHEDULED EVENT Ops.QuarterEnd (
   HourOfDay: 18
 );
 
-SHOW SCHEDULED EVENTS IN Ops;
+LIST SCHEDULED EVENTS IN Ops;
 DESCRIBE SCHEDULED EVENT Ops.NightlyCleanup;
 DROP SCHEDULED EVENT Ops.HourlyPing;`,
 		SeeAlso: []string{"queue"},
@@ -984,13 +995,13 @@ MOVE JSON STRUCTURE MyModule.JSON_Order TO FOLDER 'Private/JSON structures';
 -- one; on most it goes straight after the qualified name
 CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Order
   FOLDER 'Private/JSON structures'
-  SNIPPET '{"id": 1}';
+  SAMPLE '{"id": 1}';
 CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
 CREATE IMPORT MAPPING MyModule.IMM_Order FOLDER 'Private/Import mappings'
   WITH JSON STRUCTURE MyModule.JSON_Order { CREATE MyModule.Order { Id = id } };
 
 -- Check impact before cross-module move
-SHOW IMPACT OF OldModule.CustomerPage;
+LIST IMPACT OF OldModule.CustomerPage;
 MOVE PAGE OldModule.CustomerPage TO NewModule;
 
 -- Drop empty folder
@@ -1007,7 +1018,7 @@ LIST FOLDERS IN MyModule;`,
 		Path:    "folders",
 		Summary: "LIST FOLDERS — the folder layout of a module, with what is in each folder",
 		Keywords: []string{
-			"folders", "list folders", "show folders", "layout",
+			"folders", "list folders", "list folders", "layout",
 			"folder tree", "where is this document", "unfiled",
 		},
 		Syntax: "LIST FOLDERS [IN <module>];",

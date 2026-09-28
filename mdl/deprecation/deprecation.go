@@ -180,9 +180,9 @@ const (
 	// R6: one verb per job (ako/mxcli#755). A block of their own, 090-099, so
 	// the parallel phase-3 changes do not collide.
 
-	// ShowSingleThing is `show` (or `list`) on a form that names one thing:
-	// entity, association, page, navigation, app security, security matrix,
-	// structure, context, settings. Its canonical verb is `describe`.
+	// ShowSingleThing is `show` (or `list`) on a form that names one thing
+	// whose describe is the same statement: page, app security, security
+	// matrix, structure, context. Its canonical verb is `describe`.
 	ShowSingleThing = "MDL-DEPR090"
 	// UserRoleRemove is `alter user role … remove module roles`.
 	UserRoleRemove = "MDL-DEPR091"
@@ -196,6 +196,28 @@ const (
 	DescribeWidgetType = "MDL-DEPR095"
 	// DefineFragment is `define fragment`.
 	DefineFragment = "MDL-DEPR096"
+
+	// Codes 130-139 finish R6 and R10 (ako/mxcli#755).
+
+	// SingularCollectionList is `list image|icon|message definition
+	// collection`: `list` names a plural.
+	SingularCollectionList = "MDL-DEPR130"
+	// AIModel is `model` for the agent editor's model document: Studio Pro
+	// calls it an AI model (R10).
+	AIModel = "MDL-DEPR131"
+	// JSONStructureSample is a JSON structure's `snippet '…'`: the example
+	// JSON is its sample, and `snippet` is a page document type (R10).
+	JSONStructureSample = "MDL-DEPR132"
+	// AppSecurityClause is `alter app security level|demo users|guest
+	// access|strict mode …`: the clause forms of what is a property list.
+	AppSecurityClause = "MDL-DEPR133"
+	// FolderClausePosition is a `folder '…'` clause written anywhere but
+	// right after the name: among a constant's trailing options, or after a
+	// snippet's header (R9).
+	FolderClausePosition = "MDL-DEPR134"
+	// SetComment is `alter entity|association|enumeration … set comment '…'`:
+	// it sets the element's documentation (R9).
+	SetComment = "MDL-DEPR135"
 
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
@@ -338,11 +360,12 @@ var entries = []Entry{
 		Canonical: "list …",
 		Rewrite:   Rewrite{Token: "show", Replacement: "list"},
 		RemovedIn: 2,
-		Note: "Reported only for plurals and relationship queries, whose canonical " +
-			"form is `list`. Forms that name a single thing (`show entity X`, " +
-			"`show navigation`, `show project security`, …) become `describe` " +
-			"(MDL-DEPR090), and session state (`show version`, `show status`) a REPL " +
-			"command (R7), which is not reported until that command exists.",
+		Note: "Reported for plurals, relationship queries and the summary tables " +
+			"(`show navigation [menu]`, `show settings`), whose canonical form is `list`. " +
+			"Forms that name a single thing (`show page X`, `show project security`, …) " +
+			"become `describe` (MDL-DEPR090); `show entity X` / `show association X` have no " +
+			"mdl 1 statement (MDL-V1-SHOWSUMMARY); session state (`show version`, `show status`, " +
+			"`show catalog status`) is a session command (MDL-V1-SESSION).",
 		Example:          "show entities in M;",
 		CanonicalExample: "list entities in M;",
 	},
@@ -430,8 +453,8 @@ var entries = []Entry{
 		Rewrite:          Rewrite{Structural: "security name: `project security` becomes `app security`"},
 		RemovedIn:        2,
 		Note:             "Studio Pro calls it App Security (R10). `show project security` becomes `describe app security` (MDL-DEPR090).",
-		Example:          "alter project security demo users off;",
-		CanonicalExample: "alter app security demo users off;",
+		Example:          "alter project security ( EnableDemoUsers: false );",
+		CanonicalExample: "alter app security ( EnableDemoUsers: false );",
 	},
 	{
 		Code:             SettingsRuntime,
@@ -631,15 +654,16 @@ var r9Entries = []Entry{
 var r6Entries = []Entry{
 	{
 		Code:      ShowSingleThing,
-		Old:       "show entity|association|page|navigation|project security|security matrix|structure|context of|settings …",
-		Canonical: "describe entity|association|page|navigation|app security|security matrix|structure|context of|settings …",
+		Old:       "show page|project security|security matrix|structure|context of …",
+		Canonical: "describe page|app security|security matrix|structure|context of …",
 		Rewrite: Rewrite{Structural: "verb as `describe`: `show page X` -> `describe page X`, `show project security` -> " +
 			"`describe app security`; the same for `list` on these forms"},
 		RemovedIn: 2,
-		Note: "`show` is dropped (R6): plurals are listed, one thing is described. For page, app security, security " +
-			"matrix, structure and context the describe is the same statement. `show entity`, `show association`, " +
-			"`show navigation` and `show settings` print a summary where describe prints the full definition as MDL, " +
-			"so they keep their summary and `fmt --upgrade` reports them instead of rewriting them.",
+		Note: "`show` is dropped (R6): plurals are listed, one thing is described, and each of these describes " +
+			"is the same statement as its `show`. Not covered here: `show navigation [menu]` and `show settings` " +
+			"print tables, so they are `list navigation [menu]` / `list settings` (MDL-DEPR002); `show entity X` and " +
+			"`show association X` print a summary no mdl 1 statement prints, so they are not aliases at all and are " +
+			"refused under mdl 1 (MDL-V1-SHOWSUMMARY).",
 		Example:          "show security matrix in M;",
 		CanonicalExample: "describe security matrix in M;",
 	},
@@ -704,6 +728,70 @@ var r6Entries = []Entry{
 		Note:             "`create` is the verb every other definition uses (R6). A fragment is still session-scoped and unqualified.",
 		Example:          "define fragment Header as { dynamictext t (Content: 'x') };",
 		CanonicalExample: "create fragment Header as { dynamictext t (Content: 'x') };",
+	},
+	{
+		Code:             SingularCollectionList,
+		Old:              "list image|icon|message definition collection [in M]",
+		Canonical:        "list image|icon|message definition collections [in M]",
+		Rewrite:          Rewrite{Structural: "singular as the plural: `collection` -> `collections` after `list`"},
+		RemovedIn:        2,
+		Note:             "`list` enumerates, and names what it enumerates in the plural, as `list entities` does (R6).",
+		Example:          "list image collection in M;",
+		CanonicalExample: "list image collections in M;",
+	},
+	{
+		Code:      AIModel,
+		Old:       "create|alter|drop|describe|move model M.X / list models",
+		Canonical: "create|alter|drop|describe|move ai model M.X / list ai models",
+		Rewrite:   Rewrite{Structural: "document name: `model` becomes `ai model`, `models` becomes `ai models`"},
+		RemovedIn: 2,
+		Note: "Studio Pro's name for the agent editor's model document (R10). `model` alone is too generic, and " +
+			"collided with `alter settings model` (now `alter settings runtime`, MDL-DEPR555). An agent's " +
+			"`Model: M.X` property is unchanged.",
+		Example:          "drop model M.Gpt;",
+		CanonicalExample: "drop ai model M.Gpt;",
+	},
+	{
+		Code:             JSONStructureSample,
+		Old:              "create json structure M.J snippet '…'",
+		Canonical:        "create json structure M.J sample '…'",
+		Rewrite:          Rewrite{Token: "snippet", Replacement: "sample"},
+		RemovedIn:        2,
+		Note:             "The example JSON the structure is derived from is its sample (R10); `snippet` is a page document type.",
+		Example:          "create json structure M.J snippet '{\"a\": 1}';",
+		CanonicalExample: "create json structure M.J sample '{\"a\": 1}';",
+	},
+	{
+		Code:      AppSecurityClause,
+		Old:       "alter app security level …|demo users on|off|guest access on [role R]|off|strict mode on|off",
+		Canonical: "alter app security ( SecurityLevel: …, EnableDemoUsers: …, EnableGuestAccess: …, GuestUserRole: R, StrictMode: … )",
+		Rewrite:   Rewrite{Structural: "clause as a property list: `level production` -> `( SecurityLevel: production )`"},
+		RemovedIn: 2,
+		Note: "App security is a document with properties, set like every other one (R10, R3). The keys are " +
+			"Studio Pro's property names, and one statement can set several.",
+		Example:          "alter app security guest access on role Guest;",
+		CanonicalExample: "alter app security ( EnableGuestAccess: true, GuestUserRole: Guest );",
+	},
+	{
+		Code:      FolderClausePosition,
+		Old:       "create constant M.C type … default … folder '…' / create snippet M.S (…) folder '…' { … }",
+		Canonical: "create constant M.C folder '…' type … default … / create snippet M.S folder '…' (…) { … }",
+		Rewrite:   Rewrite{Structural: "clause moved: `folder '…'` goes right after the name"},
+		RemovedIn: 2,
+		Note: "The folder is a clause right after the name on every document (R9). A statement with the clause in " +
+			"both places is reported, not rewritten: the later one is what is stored.",
+		Example:          "create constant M.Url type String default 'x' folder 'Config';",
+		CanonicalExample: "create constant M.Url folder 'Config' type String default 'x';",
+	},
+	{
+		Code:             SetComment,
+		Old:              "alter entity|association|enumeration … set comment '…'",
+		Canonical:        "alter entity|association|enumeration … set documentation '…'",
+		Rewrite:          Rewrite{Token: "comment", Replacement: "documentation"},
+		RemovedIn:        2,
+		Note:             "It sets the element's documentation, which is what the alter form is called (R9).",
+		Example:          "alter entity M.E set comment 'Orders';",
+		CanonicalExample: "alter entity M.E set documentation 'Orders';",
 	},
 }
 
@@ -775,9 +863,9 @@ var r5Entries = []Entry{
 		Canonical:        "Key: @Module.Const",
 		Rewrite:          Rewrite{Structural: "`@` before the constant's name"},
 		RemovedIn:        2,
-		Note:             "A constant is referred to one way everywhere: `@Module.Const` (R5). Also in `alter model|knowledge base … set Key = …`.",
-		Example:          "create model M.GPT (Provider: MxCloudGenAI, Key: M.ApiKey);",
-		CanonicalExample: "create model M.GPT (Provider: MxCloudGenAI, Key: @M.ApiKey);",
+		Note:             "A constant is referred to one way everywhere: `@Module.Const` (R5). Also in `alter ai model|knowledge base … set Key = …`.",
+		Example:          "create ai model M.GPT (Provider: MxCloudGenAI, Key: M.ApiKey);",
+		CanonicalExample: "create ai model M.GPT (Provider: MxCloudGenAI, Key: @M.ApiKey);",
 	},
 	{
 		Code:      QuotedSettingsConstant,

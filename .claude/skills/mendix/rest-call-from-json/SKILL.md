@@ -26,7 +26,7 @@ JSON Structure → Non-persistent entities → Import Mapping → microflow.
 
 ```sql
 create json structure Module.JSON_MyStructure
-  snippet '{"key": "value", "count": 1}';
+  sample '{"key": "value", "count": 1}';
 ```
 
 - The executor **formats** the snippet (pretty-print) then **refreshes** (derives element tree) automatically.
@@ -248,7 +248,7 @@ on an operation is fine; downloads work either way.)
 ```sql
 -- Step 1: JSON Structure
 create json structure Integrations.JSON_BibleVerse
-  snippet '{"translation":{"identifier":"web","name":"World English Bible","language":"English","language_code":"eng","license":"Public Domain"},"random_verse":{"book_id":"1SA","book":"1 Samuel","chapter":17,"verse":49,"text":"David put his hand in his bag, took a stone, and slung it."}}';
+  sample '{"translation":{"identifier":"web","name":"World English Bible","language":"English","language_code":"eng","license":"Public Domain"},"random_verse":{"book_id":"1SA","book":"1 Samuel","chapter":17,"verse":49,"text":"David put his hand in his bag, took a stone, and slung it."}}';
 
 -- Step 2: Entities
 create non-persistent entity Integrations.BibleApiResponse ();

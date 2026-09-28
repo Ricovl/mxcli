@@ -1,9 +1,9 @@
-# CREATE MODEL
+# CREATE AI MODEL
 
 ## Synopsis
 
 ```sql
-CREATE [ OR MODIFY ] MODEL module.Name (
+CREATE [ OR MODIFY ] AI MODEL module.Name (
     Provider: MxCloudGenAI,
     key: @module.KeyConstant
     [, DisplayName: 'display name' ]
@@ -11,14 +11,14 @@ CREATE [ OR MODIFY ] MODEL module.Name (
     [, Environment: 'environment' ]
 );
 
-DROP MODEL module.Name
+DROP AI MODEL module.Name
 ```
 
 Requires Mendix 11.9+.
 
 ## Description
 
-Creates an agent-editor Model document. A model represents an LLM configuration in the Mendix Agent Editor. It references a String constant that holds the Mendix Cloud GenAI Portal resource key.
+Creates an agent-editor Model document, which Studio Pro calls an AI model. `MODEL` without `AI` is the old spelling: it still parses and warns `MDL-DEPR131`. A model represents an LLM configuration in the Mendix Agent Editor. It references a String constant that holds the Mendix Cloud GenAI Portal resource key.
 
 At runtime, the `ASU_AgentEditor` after-startup microflow reads the constant value and registers the corresponding `GenAICommons.DeployedModel`, making the model available to agents.
 
@@ -56,7 +56,7 @@ CREATE CONSTANT MyModule."ModelKey"
     DEFAULT '';
 /
 
-CREATE MODEL MyModule."GPT4Model" (
+CREATE AI MODEL MyModule."GPT4Model" (
     Provider: MxCloudGenAI,
     key: @MyModule.ModelKey
 );
@@ -66,7 +66,7 @@ CREATE MODEL MyModule."GPT4Model" (
 ### Model with Portal metadata (for round-trip scripts)
 
 ```sql
-CREATE MODEL MyModule."ConfiguredModel" (
+CREATE AI MODEL MyModule."ConfiguredModel" (
     Provider: MxCloudGenAI,
     key: @MyModule.ModelKey,
     DisplayName: 'GPT-4 Turbo (128K)',
@@ -79,7 +79,7 @@ CREATE MODEL MyModule."ConfiguredModel" (
 ### Idempotent upsert
 
 ```sql
-CREATE OR MODIFY MODEL MyModule."GPT4Model" (
+CREATE OR MODIFY AI MODEL MyModule."GPT4Model" (
     Provider: MxCloudGenAI,
     key: @MyModule.ModelKey,
     DisplayName: 'GPT-4 Turbo (Updated)'
@@ -90,7 +90,7 @@ CREATE OR MODIFY MODEL MyModule."GPT4Model" (
 ### Cleanup
 
 ```sql
-DROP MODEL MyModule.GPT4Model;
+DROP AI MODEL MyModule.GPT4Model;
 /
 ```
 

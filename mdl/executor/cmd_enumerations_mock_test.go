@@ -358,3 +358,31 @@ func TestAlterEnumeration_DropValueIfExists_Mock(t *testing.T) {
 		t.Fatal("the unguarded drop accepted a value that does not exist")
 	}
 }
+
+// R9 (ako/mxcli#755): `alter enumeration … set documentation '…'` writes the
+// enumeration's documentation and leaves its values alone.
+func TestAlterEnumeration_SetDocumentation_Mock(t *testing.T) {
+	mod := mkModule("MyModule")
+	enum := mkEnumeration(mod.ID, "Status", "Active", "Inactive")
+	h := mkHierarchy(mod)
+	withContainer(h, enum.ContainerID, mod.ID)
+
+	var updated *model.Enumeration
+	mb := &mock.MockBackend{
+		IsConnectedFunc:       func() bool { return true },
+		ListEnumerationsFunc:  func() ([]*model.Enumeration, error) { return []*model.Enumeration{enum}, nil },
+		UpdateEnumerationFunc: func(e *model.Enumeration) error { updated = e; return nil },
+	}
+	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	assertNoError(t, execAlterEnumeration(ctx, &ast.AlterEnumerationStmt{
+		Name:          ast.QualifiedName{Module: "MyModule", Name: "Status"},
+		Operation:     ast.AlterEnumSetDocumentation,
+		Documentation: "Lifecycle state",
+	}))
+	if updated == nil || updated.Documentation != "Lifecycle state" {
+		t.Fatalf("updated = %+v, want the documentation written", updated)
+	}
+	if len(updated.Values) != 2 {
+		t.Errorf("values changed: %+v", updated.Values)
+	}
+}

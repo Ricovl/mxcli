@@ -68,6 +68,18 @@ func (b *Builder) ExitAppSecurityKw(ctx *parser.AppSecurityKwContext) {
 	b.recordDocumentName(deprecation.AppSecurity, ctx, ctx.PROJECT() != nil, "app security")
 }
 
+func (b *Builder) ExitAiModelKw(ctx *parser.AiModelKwContext) {
+	b.recordDocumentName(deprecation.AIModel, ctx, ctx.AI() == nil, "ai model")
+}
+
+func (b *Builder) ExitAiModelsKw(ctx *parser.AiModelsKwContext) {
+	b.recordDocumentName(deprecation.AIModel, ctx, ctx.AI() == nil, "ai models")
+}
+
+func (b *Builder) ExitJsonSampleKw(ctx *parser.JsonSampleKwContext) {
+	b.recordDocumentName(deprecation.JSONStructureSample, ctx, ctx.SNIPPET() != nil, "sample")
+}
+
 func (b *Builder) ExitSettingsSection(ctx *parser.SettingsSectionContext) {
 	b.recordDocumentName(deprecation.SettingsRuntime, ctx, ctx.MODEL() != nil, "runtime")
 }

@@ -150,3 +150,11 @@ type ImportStmt struct {
 }
 
 func (s *ImportStmt) isStatement() {}
+
+// DropDatabaseConnectionStmt represents: DROP DATABASE CONNECTION [IF EXISTS] Module.Name
+type DropDatabaseConnectionStmt struct {
+	DropGuard
+	Name QualifiedName
+}
+
+func (s *DropDatabaseConnectionStmt) isStatement() {}

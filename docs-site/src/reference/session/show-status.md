@@ -34,7 +34,7 @@ Modules: 5
 
 ```sql
 STATUS;
-SHOW MODULES;
+LIST MODULES;
 ```
 
 ## See Also

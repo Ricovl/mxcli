@@ -44,6 +44,8 @@ showStatement
     | showOrList REGULAR EXPRESSIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList JAVA ACTIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList JAVASCRIPT ACTIONS (IN (qualifiedName | IDENTIFIER))?
+    // COLLECTION also matches `collections` (lexer); the plural is canonical,
+    // the singular a deprecated alias (/* @alias MDL-DEPR130 */, R6).
     | showOrList IMAGE COLLECTION (IN (qualifiedName | IDENTIFIER))?
     | showOrList ICON COLLECTION (IN (qualifiedName | IDENTIFIER))?
     // A glyph is a character code in a FONT, not an element in the project, so
@@ -51,7 +53,7 @@ showStatement
     // LIKE filters on the name, which is the direction an author needs: they
     // know they want a star and not that a star is 57350.
     | showOrList GLYPHS (LIKE STRING_LITERAL)?
-    | showOrList MODELS (IN (qualifiedName | IDENTIFIER))?
+    | showOrList aiModelsKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList AGENTS (IN (qualifiedName | IDENTIFIER))?
     | showOrList KNOWLEDGE BASES (IN (qualifiedName | IDENTIFIER))?
     | showOrList CONSUMED MCP SERVICES (IN (qualifiedName | IDENTIFIER))?
@@ -59,12 +61,12 @@ showStatement
     | showOrList MESSAGE DEFINITION COLLECTION (IN (qualifiedName | IDENTIFIER))?
     | showOrList IMPORT MAPPINGS (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXPORT MAPPINGS (IN (qualifiedName | IDENTIFIER))?
-    // R6: a single thing is described, not shown. `show` on these is a
-    // deprecated alias (MDL-DEPR090); page, app security, security matrix,
-    // structure and context build the same statement as their describe, the
-    // others keep their summary and are reported without a rewrite.
-    | showOrList ENTITY qualifiedName /* @alias MDL-DEPR090 */
-    | showOrList ASSOCIATION qualifiedName /* @alias MDL-DEPR090 */
+    // R6: a single thing is described, not shown. `show page X` is a
+    // deprecated alias of `describe page X` (MDL-DEPR090). The entity and
+    // association summaries have no mdl 1 statement: they keep their summary
+    // under mdl 0 and are refused under mdl 1 (MDL-V1-SHOWSUMMARY).
+    | showOrList ENTITY qualifiedName
+    | showOrList ASSOCIATION qualifiedName
     | showOrList PAGE qualifiedName /* @alias MDL-DEPR090 */
     | showOrList CONNECTIONS
     | showOrList STATUS
@@ -100,15 +102,16 @@ showStatement
     | showOrList publishedODataServicesKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXTERNAL ENTITIES (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXTERNAL ACTIONS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList NAVIGATION /* @alias MDL-DEPR090 */
-    | showOrList NAVIGATION MENU_KW (qualifiedName | IDENTIFIER)? /* @alias MDL-DEPR090 */
+    // The profiles table and the menu tree are listings: `list navigation`.
+    | showOrList NAVIGATION
+    | showOrList NAVIGATION MENU_KW (qualifiedName | IDENTIFIER)?
     | showOrList NAVIGATION HOMES
     | showOrList DESIGN PROPERTIES (FOR widgetTypeKeyword)?
     | showOrList STRUCTURE (DEPTH NUMBER_LITERAL)? (IN (qualifiedName | IDENTIFIER))? ALL? /* @alias MDL-DEPR090 */
     | showOrList BUSINESS EVENT SERVICES (IN (qualifiedName | IDENTIFIER))?
     | showOrList BUSINESS EVENT CLIENTS (IN (qualifiedName | IDENTIFIER))?
     | showOrList BUSINESS EVENTS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList SETTINGS /* @alias MDL-DEPR090 */
+    | showOrList SETTINGS   // the settings sections, one row each: `list settings`
     | showOrList FRAGMENTS
     | showOrList DATABASE CONNECTIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList consumedRestServicesKw (IN (qualifiedName | IDENTIFIER))?
@@ -202,7 +205,7 @@ describeStatement
     | DESCRIBE IMAGE COLLECTION qualifiedName           // DESCRIBE IMAGE COLLECTION Module.Name
     | DESCRIBE ICON COLLECTION qualifiedName            // DESCRIBE ICON COLLECTION Module.Name
     | DESCRIBE GLYPH (NUMBER_LITERAL | STRING_LITERAL)  // DESCRIBE GLYPH 57350 | DESCRIBE GLYPH 'star' 
-    | DESCRIBE MODEL qualifiedName                      // DESCRIBE MODEL Module.Name (agent-editor)
+    | DESCRIBE aiModelKw qualifiedName                  // DESCRIBE AI MODEL Module.Name (agent-editor)
     | DESCRIBE AGENT qualifiedName                      // DESCRIBE AGENT Module.Name (agent-editor)
     | DESCRIBE KNOWLEDGE BASE qualifiedName             // DESCRIBE KNOWLEDGE BASE Module.Name
     | DESCRIBE CONSUMED MCP SERVICE qualifiedName       // DESCRIBE CONSUMED MCP SERVICE Module.Name

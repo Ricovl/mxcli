@@ -60,7 +60,7 @@ A stock app invites the mistake: it enables **one** language while its marketpla
 modules ship translations in **nine**, so "other languages already have
 translations here" is true and misleading.
 
-> `SHOW LANGUAGES` lists languages that **have translations**, which is a
+> `LIST LANGUAGES` lists languages that **have translations**, which is a
 > different list — a stock app reports nine while one is enabled. The enabled
 > list is in `DESCRIBE SETTINGS`.
 

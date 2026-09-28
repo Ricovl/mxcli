@@ -152,7 +152,7 @@ The JSON structure represents the **transformed** shape (after JSLT), not the ra
 
 ```sql
 create json structure MyModule.JSON_Customers
-snippet '{"customers":[{"customerUri":"http://example.com/Customer/0","customerId":"CUST001","customerName":"Global Tech Solutions Inc."}]}';
+sample '{"customers":[{"customerUri":"http://example.com/Customer/0","customerId":"CUST001","customerName":"Global Tech Solutions Inc."}]}';
 
 create import mapping MyModule.IMM_Customers
   with json structure MyModule.JSON_Customers
@@ -242,7 +242,7 @@ with ({1} = '{', {2} = '}')
 
 ### JSON structure auto-detects ISO strings as DateTime
 
-If your JSLT emits ISO 8601 timestamps (`"2026-04-13T14:00"`) and the target Mendix attribute is `string`, `create json structure ... snippet '...'` will infer `datetime` from the sample and mxbuild fails with `CE5015` ("schema type DateTime doesn't match attribute type String").
+If your JSLT emits ISO 8601 timestamps (`"2026-04-13T14:00"`) and the target Mendix attribute is `string`, `create json structure ... sample '...'` will infer `datetime` from the sample and mxbuild fails with `CE5015` ("schema type DateTime doesn't match attribute type String").
 
 **Solutions:**
 - Use a non-ISO sample value in the snippet (e.g. `"2026-04-13 14:00 CET"`).

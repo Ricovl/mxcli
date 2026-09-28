@@ -183,8 +183,8 @@ CREATE DEMO USER 'demo_admin' PASSWORD 'Admin123!' (Administrator);
 CREATE DEMO USER 'demo_user' PASSWORD 'User123!' (Employee);
 
 -- Enable demo users
-ALTER APP SECURITY DEMO USERS ON;
-ALTER APP SECURITY LEVEL PROTOTYPE;
+ALTER APP SECURITY ( EnableDemoUsers: TRUE );
+ALTER APP SECURITY ( SecurityLevel: PROTOTYPE );
 ```
 
 ## See Also

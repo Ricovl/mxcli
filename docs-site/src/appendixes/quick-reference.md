@@ -221,9 +221,9 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Revoke page access | `REVOKE VIEW ON PAGE Mod.Page FROM Mod.Role, ...;` | |
 | Grant entity access | `GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Mod.Entity TO Mod.Role;` | Supports member lists and WHERE |
 | Revoke entity access | `REVOKE ALL ON ENTITY Mod.Entity FROM Mod.Role;` | |
-| Set security level | `ALTER APP SECURITY LEVEL OFF\|PROTOTYPE\|PRODUCTION;` | |
-| Toggle demo users | `ALTER APP SECURITY DEMO USERS ON\|OFF;` | |
-| Toggle guest access | `ALTER APP SECURITY GUEST ACCESS ON ROLE UserRole\|OFF;` | Anonymous users; role required (CE0133) |
+| Set security level | `ALTER APP SECURITY ( SecurityLevel: OFF\|PROTOTYPE\|PRODUCTION );` | |
+| Toggle demo users | `ALTER APP SECURITY ( EnableDemoUsers: TRUE\|FALSE );` | |
+| Toggle guest access | `ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: UserRole );` / `( EnableGuestAccess: FALSE )` | Anonymous users; role required (CE0133) |
 | Create demo user | `CREATE DEMO USER 'name' PASSWORD 'pass' [ENTITY Module.Entity] (UserRole, ...);` | |
 | Drop demo user | `DROP DEMO USER [IF EXISTS] 'name';` | `IF EXISTS` makes a cleanup script re-runnable |
 
@@ -301,7 +301,7 @@ CREATE OR REPLACE NAVIGATION Responsive
 |-----------|--------|-------|
 | Describe settings | `DESCRIBE SETTINGS;` | All settings parts, as MDL |
 | Describe settings | `DESCRIBE SETTINGS;` | Full MDL output (round-trippable) |
-| Alter model settings | `ALTER SETTINGS RUNTIME (Key: Value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
+| Alter runtime settings | `ALTER SETTINGS RUNTIME (Key: Value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
 | Alter configuration | `ALTER SETTINGS CONFIGURATION 'Name' (Key: Value, ...);` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
 | Alter constant | `ALTER SETTINGS CONSTANT @Module.Name VALUE 'val' IN CONFIGURATION 'cfg';` | Override constant per configuration |
 | Alter language | `ALTER SETTINGS LANGUAGE (Key: Value);` | DefaultLanguageCode |

@@ -550,8 +550,9 @@ describe microflow TaskMgmt.SUB_Task_Validate;
 -- The catalog indexes the project for advanced queries. Must be built before
 -- using callers, callees, impact, context, refs, or SQL queries.
 
--- Check if a catalog already exists and its freshness
-show catalog status;
+-- Check if a catalog already exists and its freshness: a session command,
+-- typed at the REPL rather than written in a script (R7):
+--   show catalog status
 
 -- Build the catalog (fast mode - entities, microflows, pages only)
 refresh catalog;

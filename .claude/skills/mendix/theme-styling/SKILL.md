@@ -20,7 +20,7 @@ project owns and seeds its palette from `--mxt-*` declarations. See "A theme of
 your own" below. Hand-editing inside a generated block works exactly once — the
 digest fence refuses it on the next apply.
 
-For **MDL styling commands** (`show design properties`, `describe styling`, `alter styling`, inline `designproperties:`, `update widgets`), see:
+For **MDL styling commands** (`list design properties`, `describe styling`, `alter styling`, inline `designproperties:`, `update widgets`), see:
 - Existing proposal: `docs/11-proposals/page-styling-support.md`
 - Working examples: `mdl-examples/doctype-tests/12-styling-examples.mdl` (595 lines)
 - Implementation: `mdl/executor/cmd_styling.go`, `mdl/executor/theme_reader.go`
@@ -406,7 +406,7 @@ validated against the project's theme registry (`themesource/*/web/design-proper
   allowed values** (case-sensitive), which is the fastest way to fix a casing typo.
 
 Both are warnings (a newer theme may add keys/values), so they inform without blocking.
-`show design properties <widget>` lists the same allowed keys/values up front. On the
+`list design properties <widget>` lists the same allowed keys/values up front. On the
 write side, the value's BSON type is taken from the registry (a `ColorPicker` /
 `ToggleButtonGroup` property serializes as a custom value, not a plain option).
 

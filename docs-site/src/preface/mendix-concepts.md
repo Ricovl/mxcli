@@ -21,7 +21,7 @@ A **module** is the top-level organizational unit, like a package in Go or a nam
 A typical project has a few custom modules (`Sales`, `Admin`, `Integration`) plus system modules provided by the platform (`System`, `Administration`).
 
 ```sql
-SHOW MODULES;
+LIST MODULES;
 ```
 
 ## Domain Model

@@ -29,8 +29,8 @@ DROP MODULE ROLE Shop.Viewer;
 ### Listing Module Roles
 
 ```sql
-SHOW MODULE ROLES;
-SHOW MODULE ROLES IN Shop;
+LIST MODULE ROLES;
+LIST MODULE ROLES IN Shop;
 ```
 
 ## User Roles
@@ -78,7 +78,7 @@ DROP USER ROLE AppViewer;
 ### Listing User Roles
 
 ```sql
-SHOW USER ROLES;
+LIST USER ROLES;
 ```
 
 ## Typical Setup

@@ -68,4 +68,4 @@ CREATE OR MODIFY CONSUMED MCP SERVICE MyModule."WebSearch" (
 
 ## See Also
 
-[CREATE AGENT](create-agent.md), [CREATE MODEL](create-model.md)
+[CREATE AGENT](create-agent.md), [CREATE AI MODEL](create-model.md)

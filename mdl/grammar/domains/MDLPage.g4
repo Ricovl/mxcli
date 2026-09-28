@@ -49,7 +49,8 @@ createSnippetStatement
     ;
 
 snippetOptions: snippetOption+ ;
-snippetOption: FOLDER STRING_LITERAL ;
+// R9: the folder is a clause after the name; after the header is its old place.
+snippetOption: FOLDER STRING_LITERAL /* @alias MDL-DEPR134 */ ;
 
 // =============================================================================
 // SHARED PAGE/SNIPPET RULES

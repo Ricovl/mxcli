@@ -38,7 +38,7 @@ Instead of using `CONNECT LOCAL` inside the REPL, you can specify the project pa
 ```sql
 -- These are shell commands, not MDL:
 -- mxcli -p /path/to/app.mpr
--- mxcli -p app.mpr -c "SHOW ENTITIES"
+-- mxcli -p app.mpr -c "LIST ENTITIES"
 ```
 
 ## See Also

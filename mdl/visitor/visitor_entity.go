@@ -9,6 +9,7 @@ import (
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
@@ -736,12 +737,14 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 				return
 			}
 
-			// SET COMMENT
+			// SET COMMENT: the deprecated spelling of SET DOCUMENTATION (R9,
+			// MDL-DEPR135), and the same statement.
 			if ctx.SET() != nil && ctx.COMMENT() != nil && ctx.STRING_LITERAL() != nil {
+				b.recordDeprecation(deprecation.SetComment, ctx.COMMENT().GetSymbol(), "")
 				b.statements = append(b.statements, &ast.AlterEntityStmt{
-					Name:      name,
-					Operation: ast.AlterEntitySetComment,
-					Comment:   unquoteStringLit(ctx.STRING_LITERAL()),
+					Name:          name,
+					Operation:     ast.AlterEntitySetDocumentation,
+					Documentation: unquoteStringLit(ctx.STRING_LITERAL()),
 				})
 				return
 			}
@@ -915,8 +918,22 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 
 	if ctx.ENTITY() != nil {
 		b.statements = append(b.statements, &ast.DropEntityStmt{
+			Name:     buildQualifiedName(names[0]),
+			External: ctx.EXTERNAL() != nil,
+		})
+	} else if ctx.DATABASE() != nil && ctx.CONNECTION() != nil {
+		b.statements = append(b.statements, &ast.DropDatabaseConnectionStmt{
 			Name: buildQualifiedName(names[0]),
 		})
+	} else if ctx.VALIDATION() != nil {
+		stmt := &ast.DropValidationRuleStmt{Attribute: buildQualifiedName(names[0])}
+		switch {
+		case ctx.REGEX() != nil:
+			stmt.Kind = ast.ValidationRuleRegEx
+		case ctx.RANGE() != nil:
+			stmt.Kind = ast.ValidationRuleRange
+		}
+		b.statements = append(b.statements, stmt)
 	} else if ctx.ASSOCIATION() != nil {
 		b.statements = append(b.statements, &ast.DropAssociationStmt{
 			Name: buildQualifiedName(names[0]),
@@ -1002,7 +1019,7 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 		b.statements = append(b.statements, &ast.DropRegularExpressionStmt{
 			Name: buildQualifiedName(names[0]),
 		})
-	} else if ctx.MODEL() != nil {
+	} else if ctx.AiModelKw() != nil {
 		b.statements = append(b.statements, &ast.DropModelStmt{
 			Name: buildQualifiedName(names[0]),
 		})

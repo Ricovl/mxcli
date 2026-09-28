@@ -331,13 +331,16 @@ create database connection Inventory.ProductDatabase (
 
 ```sql
 -- List all database connections
-show database connections;
+list database connections;
 
 -- List connections in a specific module
-show database connections in MyModule;
+list database connections in MyModule;
 
 -- View connection source code
 describe database connection MyModule.MyDatabase;
+
+-- Remove one
+drop database connection [if exists] MyModule.MyDatabase;
 ```
 
 ## Best Practices
@@ -380,11 +383,11 @@ describe database connection MyModule.MyDatabase;
 ```sql
 -- Constants for configuration
 create constant Module.Name type string default 'value';
-show constants in module;
+list constants in module;
 
 -- Non-persistent entities for results
 create non-persistent entity Module.Name (...);
-show entities in module;
+list entities in module;
 ```
 
 ## Executing Queries from Microflows

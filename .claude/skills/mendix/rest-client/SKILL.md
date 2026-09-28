@@ -257,7 +257,7 @@ end;
 ### Show / Describe / Drop
 
 ```sql
-show consumed rest services [in module];
+list consumed rest services [in module];
 describe consumed rest service Module.ClientName;
 drop consumed rest service Module.ClientName;
 create or modify consumed rest service Module.ClientName ...  -- idempotent
@@ -351,7 +351,7 @@ See [json-structures-and-mappings](../json-structures-and-mappings/SKILL.md) for
 ```sql
 -- JSON structure from snippet
 create json structure Module.JSON_Weather
-snippet '{"temp": 12.8, "wind": 18.3, "lat": 52.52}';
+sample '{"temp": 12.8, "wind": 18.3, "lat": 52.52}';
 
 -- Non-persistent entity
 create non-persistent entity Module.WeatherInfo (
@@ -409,7 +409,7 @@ source json '{"latitude":52.52,"current":{"time":"2024-01-15T14:00","temperature
 
 -- 3. JSON Structure + Import Mapping (for transformed output)
 create json structure Module.JSON_Weather
-snippet '{"temperature":12.8,"windSpeed":18.3,"latitude":52.52,"observationTime":"2024-01-15T14:00"}';
+sample '{"temperature":12.8,"windSpeed":18.3,"latitude":52.52,"observationTime":"2024-01-15T14:00"}';
 
 create import mapping Module.IMM_Weather
   with json structure Module.JSON_Weather

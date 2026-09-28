@@ -49,4 +49,4 @@ DESCRIBE STRUCTURE DEPTH 3 ALL
 
 ## See Also
 
-[SHOW MODULES](show-modules.md), [SHOW ENTITIES](show-entities.md), [SHOW MICROFLOWS](show-microflows.md), [SHOW PAGES](show-pages.md)
+[LIST MODULES](list-modules.md), [LIST ENTITIES](list-entities.md), [LIST MICROFLOWS](list-microflows.md), [LIST PAGES](list-pages.md)

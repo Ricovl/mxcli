@@ -201,4 +201,4 @@ CREATE OR MODIFY AGENT MyModule."ResearchAssistant" (
 
 ## See Also
 
-[CREATE MODEL](create-model.md), [CREATE KNOWLEDGE BASE](create-knowledge-base.md), [CREATE CONSUMED MCP SERVICE](create-consumed-mcp-service.md)
+[CREATE AI MODEL](create-model.md), [CREATE KNOWLEDGE BASE](create-knowledge-base.md), [CREATE CONSUMED MCP SERVICE](create-consumed-mcp-service.md)

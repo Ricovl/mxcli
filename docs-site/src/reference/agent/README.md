@@ -13,7 +13,7 @@ The Mendix Agent Editor introduces four document types that must be set up in de
 
 | Statement | Description |
 |-----------|-------------|
-| [CREATE MODEL](create-model.md) | Define an LLM model configuration |
+| [CREATE AI MODEL](create-model.md) | Define an LLM model configuration |
 | [CREATE KNOWLEDGE BASE](create-knowledge-base.md) | Define a vector knowledge base |
 | [CREATE CONSUMED MCP SERVICE](create-consumed-mcp-service.md) | Register an external MCP tool server |
 | [CREATE AGENT](create-agent.md) | Define an AI agent with prompts and optional tools |
@@ -22,7 +22,7 @@ The Mendix Agent Editor introduces four document types that must be set up in de
 
 | Statement | Syntax |
 |-----------|--------|
-| List models | `LIST MODELS [IN module]` |
+| List AI models | `LIST AI MODELS [IN module]` |
 | List knowledge bases | `LIST KNOWLEDGE BASES [IN module]` |
 | List consumed MCP services | `LIST CONSUMED MCP SERVICES [IN module]` |
 | List agents | `LIST AGENTS [IN module]` |
@@ -31,7 +31,7 @@ The Mendix Agent Editor introduces four document types that must be set up in de
 ## Drop Statements
 
 ```sql
-DROP MODEL module.Name;
+DROP AI MODEL module.Name;
 DROP KNOWLEDGE BASE module.Name;
 DROP CONSUMED MCP SERVICE module.Name;
 DROP AGENT module.Name;

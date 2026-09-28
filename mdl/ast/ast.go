@@ -225,6 +225,7 @@ var MoveDocumentTypeByKeyword = map[string]DocumentType{
 	"ODATASERVICE":         DocumentTypeODataService,
 	"BUSINESSEVENTSERVICE": DocumentTypeBusinessEventService,
 	"MODEL":                DocumentTypeModel,
+	"AIMODEL":              DocumentTypeModel,
 	"AGENT":                DocumentTypeAgent,
 	"KNOWLEDGEBASE":        DocumentTypeKnowledgeBase,
 	"CONSUMEDMCPSERVICE":   DocumentTypeConsumedMCPService,

@@ -119,16 +119,16 @@ OpenCode uses mxcli commands to understand the project before making changes:
 
 ```sql
 -- What modules exist?
-SHOW MODULES;
+LIST MODULES;
 
 -- What entities are in this module?
-SHOW ENTITIES IN Sales;
+LIST ENTITIES IN Sales;
 
 -- What does this entity look like?
 DESCRIBE ENTITY Sales.Customer;
 
 -- What microflows exist?
-SHOW MICROFLOWS IN Sales;
+LIST MICROFLOWS IN Sales;
 
 -- Search for something specific
 SEARCH 'validation';

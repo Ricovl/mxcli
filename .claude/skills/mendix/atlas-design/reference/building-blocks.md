@@ -26,14 +26,14 @@ All are `Platform: Web`, all live in module `Atlas_Web_Content`, referenced as
 `Atlas_Web_Content.<Name>`.
 
 > Your project may ship more blocks from installed modules (e.g. a feedback widget).
-> Always `show building blocks` on the actual project rather than trusting this list —
+> Always `list building blocks` on the actual project rather than trusting this list —
 > it is the standard Atlas baseline, not an exhaustive per-project inventory.
 
 ### Capability reality: discover, inspect, and instantiate
 
 | Capability | State |
 |---|---|
-| **Discover** — `SHOW BUILDING BLOCKS`, `CATALOG.building_blocks` | ✅ shipped |
+| **Discover** — `LIST BUILDING BLOCKS`, `CATALOG.building_blocks` | ✅ shipped |
 | **Inspect** — `DESCRIBE BUILDING BLOCK Mod.Name` (full widget tree) | ✅ shipped |
 | **Instantiate** — `use building block Mod.Name [as prefix_]` onto a page | ✅ v1 (deep-copy; configure afterwards with `alter page`; legacy engine today) |
 | **Author** — `CREATE BUILDING BLOCK` | ❌ not yet (proposed) |
@@ -218,7 +218,7 @@ Apply via `class:` on any widget (space-join several: `class:'card flex-column'`
 | **Group boxes** | `groupbox-{primary,danger,secondary,callout}` |
 
 Source: `atlas_core/web/design-properties.json` (verified in-project). To see what a
-specific widget offers, run `show design properties` / `describe styling`
+specific widget offers, run `list design properties` / `describe styling`
 (`theme-styling`).
 
 ### When to reach for each

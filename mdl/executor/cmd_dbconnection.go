@@ -158,6 +158,33 @@ func createDatabaseConnection(ctx *ExecContext, stmt *ast.CreateDatabaseConnecti
 	return nil
 }
 
+// execDropDatabaseConnection handles DROP DATABASE CONNECTION.
+func execDropDatabaseConnection(ctx *ExecContext, s *ast.DropDatabaseConnectionStmt) error {
+	if !ctx.ConnectedForWrite() {
+		return mdlerrors.NewNotConnectedWrite()
+	}
+	connections, err := ctx.Backend.ListDatabaseConnections()
+	if err != nil {
+		return mdlerrors.NewBackend("list database connections", err)
+	}
+	h, err := getHierarchy(ctx)
+	if err != nil {
+		return mdlerrors.NewBackend("build hierarchy", err)
+	}
+	for _, conn := range connections {
+		modName := h.GetModuleName(h.FindModuleID(conn.ContainerID))
+		if strings.EqualFold(modName, s.Name.Module) && strings.EqualFold(conn.Name, s.Name.Name) {
+			if err := ctx.Backend.DeleteDatabaseConnection(conn.ID); err != nil {
+				return mdlerrors.NewBackend("drop database connection", err)
+			}
+			invalidateHierarchy(ctx)
+			ctx.ReportMutation("Dropped", "database connection: %s.%s", modName, conn.Name)
+			return nil
+		}
+	}
+	return mdlerrors.NewNotFound("database connection", s.Name.String())
+}
+
 // listDatabaseConnections handles SHOW DATABASE CONNECTIONS command.
 func listDatabaseConnections(ctx *ExecContext, moduleName string) error {
 	connections, err := ctx.Backend.ListDatabaseConnections()

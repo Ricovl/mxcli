@@ -206,7 +206,7 @@ rather than trusting a list here:
 
 `schedule`, `publish`, `event` and `settings` are **entry points**: something
 outside the call graph runs the microflow, so nothing in the model calls it.
-They are what stops `GRAPH_DEAD_ASSETS`, `SHOW CALLERS OF` and lint rule QUAL004
+They are what stops `GRAPH_DEAD_ASSETS`, `LIST CALLERS OF` and lint rule QUAL004
 from reporting a live scheduled job, API handler or event handler as unused.
 `sync` is not one — it names an entity a profile downloads, which is a use of a
 type, so `SHOW CALLERS` excludes it for the same reason it excludes

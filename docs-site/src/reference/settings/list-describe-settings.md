@@ -1,14 +1,14 @@
-# SHOW / DESCRIBE SETTINGS
+# LIST / DESCRIBE SETTINGS
 
 ## Synopsis
 
-    SHOW SETTINGS
+    LIST SETTINGS
 
     DESCRIBE SETTINGS [ category ]
 
 ## Description
 
-Displays project settings. `SHOW SETTINGS` provides a compact overview of all settings across all categories. `DESCRIBE SETTINGS` outputs the full settings in round-trippable MDL syntax that can be used to recreate the same configuration.
+Displays project settings. `LIST SETTINGS` provides a compact overview of all settings across all categories. `DESCRIBE SETTINGS` outputs the full settings in round-trippable MDL syntax that can be used to recreate the same configuration.
 
 When `DESCRIBE SETTINGS` is called without a category, it outputs all settings. When a category is specified, only that category is shown.
 
@@ -32,7 +32,7 @@ The available settings categories are:
 ### Show settings overview
 
 ```sql
-SHOW SETTINGS;
+LIST SETTINGS;
 ```
 
 ### Describe all settings in MDL format
@@ -56,7 +56,7 @@ DESCRIBE SETTINGS CONFIGURATION;
 ### List workflow groups
 
 ```sql
-SHOW WORKFLOW GROUPS;
+LIST WORKFLOW GROUPS;
 ```
 
 Lists the workflow groups from App Settings ▸ Workflows ▸ Groups with their
@@ -72,4 +72,4 @@ DESCRIBE SETTINGS WORKFLOWS;
 
 ## See Also
 
-[ALTER SETTINGS](alter-settings.md), [SHOW CONSTANT VALUES](../query/show-constants.md)
+[ALTER SETTINGS](alter-settings.md), [LIST CONSTANT VALUES](../query/list-constants.md)

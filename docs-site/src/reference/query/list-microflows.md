@@ -1,10 +1,10 @@
-# SHOW MICROFLOWS / SHOW NANOFLOWS
+# LIST MICROFLOWS / LIST NANOFLOWS
 
 ## Synopsis
 
-    SHOW MICROFLOWS [IN <module>]
+    LIST MICROFLOWS [IN <module>]
 
-    SHOW NANOFLOWS [IN <module>]
+    LIST NANOFLOWS [IN <module>]
 
 ## Description
 
@@ -22,27 +22,27 @@ Microflows run on the server side and can perform database operations, call exte
 List all microflows in the project:
 
 ```sql
-SHOW MICROFLOWS
+LIST MICROFLOWS
 ```
 
 List microflows in a specific module:
 
 ```sql
-SHOW MICROFLOWS IN Administration
+LIST MICROFLOWS IN Administration
 ```
 
 List all nanoflows:
 
 ```sql
-SHOW NANOFLOWS
+LIST NANOFLOWS
 ```
 
 List nanoflows in a specific module:
 
 ```sql
-SHOW NANOFLOWS IN MyFirstModule
+LIST NANOFLOWS IN MyFirstModule
 ```
 
 ## See Also
 
-[DESCRIBE MICROFLOW](describe-microflow.md), [SHOW PAGES](show-pages.md), [SHOW MODULES](show-modules.md)
+[DESCRIBE MICROFLOW](describe-microflow.md), [LIST PAGES](list-pages.md), [LIST MODULES](list-modules.md)

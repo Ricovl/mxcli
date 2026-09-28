@@ -101,7 +101,7 @@ otherwise — reproducing English inflection needs `-y → -ies` and an
 already-plural detector, and a name the author writes beats one a heuristic
 guesses. Everything else is derived from the domain model.
 
-`show message definition collections [in Module]` lists them; `describe` emits
+`list message definition collections [in Module]` lists them; `describe` emits
 re-executable MDL.
 
 ### SOAP-sourced mappings are refused, not rewritten

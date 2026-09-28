@@ -58,15 +58,21 @@ DESCRIBE WIDGET TYPE 'com.mendix.widget.web.htmlelement.HTMLElement';
 -- its own as MDL gains ground, and cannot promise syntax that fails.
 --
 -- Same output as ` + "`mxcli widget describe`" + `, because it is the same code.
+--
+-- The answer is a report on this project's widget package, not MDL: its first
+-- line is "-- widget type definition (not executable)", and with --json the
+-- document carries "executable": false. The same holds for DESCRIBE GLYPH and
+-- DESCRIBE CONTRACT ENTITY|ACTION|MESSAGE (unless FORMAT mdl). Use MXCLI SYNTAX
+-- for how to write a widget in MDL; this for what a given project installs.
 
 -- The other direction — which pages already use it — is a reference query,
 -- and needs ` + "`refresh catalog full`" + `:
-SHOW REFERENCES TO combobox;
-SHOW IMPACT OF htmlelement;
+LIST REFERENCES TO combobox;
+LIST IMPACT OF htmlelement;
 
 -- Name it as you write it in a page body; the casing does not matter. A
 -- built-in Mendix widget (textbox, dynamictext) has no definition and so no
--- reference edge — use SHOW WIDGETS for those.`,
+-- reference edge — use LIST WIDGETS for those.`,
 		SeeAlso: []string{"page.widgets", "page.create"},
 	})
 
@@ -154,7 +160,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"-- Display\nDYNAMICTEXT name (Content: 'Hello, {1}!', ContentParams: ({1} = Name))\nTITLE name (Content: 'Heading')\nIMAGE name (Image: 'Module.Collection.ImageName')\nIMAGE name (ImageType: imageUrl, ImageUrl: 'https://…')\n" +
 			"--   IMAGE needs a source. Its default, `ImageType: image`, shows an entry from an\n" +
 			"--   image collection, named as three parts: Module.Collection.ImageName.\n" +
-			"--   `show image collections` lists the collections, `describe image collection\n" +
+			"--   `list image collections` lists the collections, `describe image collection\n" +
 			"--   Module.Collection` the images inside one. An IMAGE with that source and no\n" +
 			"--   entry writes a model mxbuild refuses (\"No image selected.\"); MDL-WIDGET22\n" +
 			"--   reports that at check time, and a name that does not resolve is reported by\n" +
@@ -265,7 +271,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"icon", "linkbutton", "link button",
 			"nothing", "no action", "inert", "dead button",
 		},
-		Syntax:  "Action: NOTHING                      -- deliberately no action (Forms$NoAction)\nAction: SAVE CHANGES\nAction: SAVE CHANGES CLOSE PAGE      -- save, then close the pop-up\nAction: CANCEL CHANGES\nAction: CANCEL CHANGES CLOSE PAGE\nAction: CLOSE PAGE\nAction: DELETE\nAction: DELETE CLOSE PAGE\nAction: CALL NANOFLOW Module.NF\nAction: CALL NANOFLOW Module.NF(Param = $val)\nAction: OPEN LINK 'https://example.com'\nAction: OPEN LINK $currentObject/URL  -- address read from an attribute\nAction: SIGN OUT\nAction: COMPLETE TASK 'OutcomeName'\nAction: SHOW PAGE Module.Page\nAction: SHOW PAGE Module.Page(Param = $currentObject)\nAction: CALL MICROFLOW Module.MF\nAction: CALL MICROFLOW Module.MF(Param = $val)\nAction: CREATE OBJECT Module.Entity THEN SHOW PAGE Module.Page\n\nThe list above is exhaustive. Anything else in an action slot is an\nERROR: `Action: OPEN LINK` without a URL or `Action: SHOW PAGE` without a\npage is a syntax error, and a value that is not an action at all\n(or a snake-case keyword short its argument) is MDL-WIDGET28.\nSuch a widget used to be written with NO action at all and rendered as a\ndead control, with check, exec and mxbuild all clean, because a\nno-action widget is legal Mendix (mendixlabs/mxcli#1062). Write NOTHING\nwhen a control really is meant to be inert.\n\nThe actions are the words a microflow uses (R8). The snake-case spellings\n(SAVE_CHANGES, SHOW_PAGE, CLOSE_PAGE, DELETE_OBJECT, OPEN_LINK, SIGN_OUT, ...)\nand a flow call without CALL still parse, but are deprecated (MDL-DEPR020);\n`mxcli fmt --upgrade` rewrites them.\n\nThe same forms serve `OnClick:` (an alias of `Action:`) and `OnChange:`.\n\nA microflow or nanoflow action is a CALL: it needs an argument for every\nparameter the flow declares, or Mendix rejects the page with CE1571. The\nargument list is the same on every widget that takes an action -- a\nCONTAINER (which is clickable) as much as an ACTIONBUTTON. An enclosing\ndata container of the right type supplies it without an argument; a data\ngrid's CONTROL BAR does not, because it is not row-scoped -- pass the\ngrid's selection there (`$dgOrders`).\n\nA SHOW PAGE argument must be the enclosing widget's context object --\neither $currentObject or the name of the variable the enclosing data\nwidget is bound to. Mendix infers it from that widget, so naming any\nother variable is refused (MDL-PAGEARG01); call a microflow instead.\nOutside any data widget there is no context object to infer, so such a\nbutton takes NO argument at all -- not a page parameter, not\n$currentObject, not a literal. mxcli used to drop it in silence and\nmxbuild then reported CE1571 per parameter of the target page\n(mendixlabs/mxcli#1029). Route that navigation through a microflow.\n\nOPEN LINK takes a web address, stored as a Forms$StaticOrDynamicString:\neither a literal, or $currentObject/Attr to read it from an attribute of\nthe enclosing data container's object at runtime (Studio Pro's \"Address:\nattribute\"). An address over an association path is not supported yet.\n\nButton styles: Default, Primary, Success, Info, Warning, Danger\n\nMendix has THREE icon elements and the keyword picks which one:\n\nIcon: 'Atlas_Core.Atlas_Filled.pencil'   -- an icon collection\nIcon: image MyModule.Images.logo         -- an IMAGE collection\nIcon: glyph 57377                        -- a font code point\n\nThe bare form is the icon-collection icon and any collection in the\nproject works, third-party ones included. The image form points into a\ndifferent document, and is spelled the same way apart from the keyword\n-- write it without `image` and mxcli stores a custom-icon reference,\nwhich fails the build with CE1613 (mendixlabs/mxcli#1059).\n`mxcli check -p … --references` resolves each kind against its own\ncollection and names the remedy when the kind is wrong.\n\nA glyph carries a code and no name. Codes are sparse, and an undefined\none fails only at `mxbuild --target=deploy`, naming the PAGE rather\nthan the icon -- so MDL078 checks it against the font's own table.\nList them with `show glyphs`.\n\nA name may be quoted or bare; a hyphenated segment is double-quoted on\nits own: Atlas_Core.Atlas.\"align-center\".\n\nUse `linkbutton` instead of `actionbutton` for link render mode (same properties).",
+		Syntax:  "Action: NOTHING                      -- deliberately no action (Forms$NoAction)\nAction: SAVE CHANGES\nAction: SAVE CHANGES CLOSE PAGE      -- save, then close the pop-up\nAction: CANCEL CHANGES\nAction: CANCEL CHANGES CLOSE PAGE\nAction: CLOSE PAGE\nAction: DELETE\nAction: DELETE CLOSE PAGE\nAction: CALL NANOFLOW Module.NF\nAction: CALL NANOFLOW Module.NF(Param = $val)\nAction: OPEN LINK 'https://example.com'\nAction: OPEN LINK $currentObject/URL  -- address read from an attribute\nAction: SIGN OUT\nAction: COMPLETE TASK 'OutcomeName'\nAction: SHOW PAGE Module.Page\nAction: SHOW PAGE Module.Page(Param = $currentObject)\nAction: CALL MICROFLOW Module.MF\nAction: CALL MICROFLOW Module.MF(Param = $val)\nAction: CREATE OBJECT Module.Entity THEN SHOW PAGE Module.Page\n\nThe list above is exhaustive. Anything else in an action slot is an\nERROR: `Action: OPEN LINK` without a URL or `Action: SHOW PAGE` without a\npage is a syntax error, and a value that is not an action at all\n(or a snake-case keyword short its argument) is MDL-WIDGET28.\nSuch a widget used to be written with NO action at all and rendered as a\ndead control, with check, exec and mxbuild all clean, because a\nno-action widget is legal Mendix (mendixlabs/mxcli#1062). Write NOTHING\nwhen a control really is meant to be inert.\n\nThe actions are the words a microflow uses (R8). The snake-case spellings\n(SAVE_CHANGES, SHOW_PAGE, CLOSE_PAGE, DELETE_OBJECT, OPEN_LINK, SIGN_OUT, ...)\nand a flow call without CALL still parse, but are deprecated (MDL-DEPR020);\n`mxcli fmt --upgrade` rewrites them.\n\nThe same forms serve `OnClick:` (an alias of `Action:`) and `OnChange:`.\n\nA microflow or nanoflow action is a CALL: it needs an argument for every\nparameter the flow declares, or Mendix rejects the page with CE1571. The\nargument list is the same on every widget that takes an action -- a\nCONTAINER (which is clickable) as much as an ACTIONBUTTON. An enclosing\ndata container of the right type supplies it without an argument; a data\ngrid's CONTROL BAR does not, because it is not row-scoped -- pass the\ngrid's selection there (`$dgOrders`).\n\nA SHOW PAGE argument must be the enclosing widget's context object --\neither $currentObject or the name of the variable the enclosing data\nwidget is bound to. Mendix infers it from that widget, so naming any\nother variable is refused (MDL-PAGEARG01); call a microflow instead.\nOutside any data widget there is no context object to infer, so such a\nbutton takes NO argument at all -- not a page parameter, not\n$currentObject, not a literal. mxcli used to drop it in silence and\nmxbuild then reported CE1571 per parameter of the target page\n(mendixlabs/mxcli#1029). Route that navigation through a microflow.\n\nOPEN LINK takes a web address, stored as a Forms$StaticOrDynamicString:\neither a literal, or $currentObject/Attr to read it from an attribute of\nthe enclosing data container's object at runtime (Studio Pro's \"Address:\nattribute\"). An address over an association path is not supported yet.\n\nButton styles: Default, Primary, Success, Info, Warning, Danger\n\nMendix has THREE icon elements and the keyword picks which one:\n\nIcon: 'Atlas_Core.Atlas_Filled.pencil'   -- an icon collection\nIcon: image MyModule.Images.logo         -- an IMAGE collection\nIcon: glyph 57377                        -- a font code point\n\nThe bare form is the icon-collection icon and any collection in the\nproject works, third-party ones included. The image form points into a\ndifferent document, and is spelled the same way apart from the keyword\n-- write it without `image` and mxcli stores a custom-icon reference,\nwhich fails the build with CE1613 (mendixlabs/mxcli#1059).\n`mxcli check -p … --references` resolves each kind against its own\ncollection and names the remedy when the kind is wrong.\n\nA glyph carries a code and no name. Codes are sparse, and an undefined\none fails only at `mxbuild --target=deploy`, naming the PAGE rather\nthan the icon -- so MDL078 checks it against the font's own table.\nList them with `list glyphs`.\n\nA name may be quoted or bare; a hyphenated segment is double-quoted on\nits own: Atlas_Core.Atlas.\"align-center\".\n\nUse `linkbutton` instead of `actionbutton` for link render mode (same properties).",
 		Example: "ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)\nACTIONBUTTON btnEdit (Caption: 'Edit',\n  Action: SHOW PAGE Module.EditPage(Item = $currentObject))\nLINKBUTTON btnDelete (Caption: 'Delete', Action: DELETE,\n  Icon: 'Atlas_Core.Atlas_Filled.pencil')\n\n-- A clickable CONTAINER in a data grid's control bar, calling a nanoflow\n-- with the grid's selection as its argument.\nDATAGRID dgOrders (DataSource: DATABASE FROM Sales.Order, Selection: Single) {\n  COLUMN colNr (Attribute: Number, Caption: 'Order #')\n  CONTROLBAR cb {\n    CONTAINER cShip (Class: 'command',\n      Action: CALL NANOFLOW Sales.ACT_Ship(Order = $dgOrders)) {\n      ACTIONBUTTON btnShip (Caption: 'Ship')\n    }\n  }\n}",
 		SeeAlso: []string{"page.widgets"},
 	})
@@ -274,10 +280,10 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 		Path:    "page.show",
 		Summary: "List and describe existing pages",
 		Keywords: []string{
-			"show pages", "list pages", "describe page",
+			"list pages", "list pages", "describe page",
 		},
-		Syntax:  "SHOW PAGES;\nSHOW PAGES IN <module>;\nDESCRIBE PAGE Module.Name;",
-		Example: "SHOW PAGES IN MyModule;\nDESCRIBE PAGE MyModule.EditCustomer;",
+		Syntax:  "LIST PAGES;\nLIST PAGES IN <module>;\nDESCRIBE PAGE Module.Name;",
+		Example: "LIST PAGES IN MyModule;\nDESCRIBE PAGE MyModule.EditCustomer;",
 		SeeAlso: []string{"page", "page.create"},
 	})
 
@@ -290,7 +296,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"popup width", "popup height", "popup resizable",
 			"drop template", "insert template", "list view template",
 		},
-		Syntax:  "ALTER PAGE Module.Name {       -- the generic ALTER: set / insert / replace / drop\n  SET (property: value) ON widgetName;  -- widget property names: any casing\n  SET ('Row size': 'Small') ON lvOrders;  -- an Atlas DESIGN property of that widget's\n                                         --   type; quoted and case-sensitive.\n                                         --   `show design properties for <type>` lists\n                                         --   them. ON/OFF for a toggle, where OFF\n                                         --   REMOVES the entry.\n                                         --   A multi-select ('Hide on') or compound\n                                         --   ('Spacing') one needs the inline\n                                         --   DesignProperties: (...) form, because a\n                                         --   SET assignment carries one value.\n  SET (Action: CALL MICROFLOW Module.MF) ON btnSave;   -- any CREATE PAGE action form\n  SET ('createFileAction': CALL MICROFLOW Module.MF) ON fileUploader1;\n                                         -- a pluggable widget's NAMED action slot,\n                                         --   by the widget's own key; refused on a\n                                         --   key that is not action-typed\n  SET (DataSource: $Param) ON dvOrder;  -- parameter/microflow/nanoflow/selection;\n                                        --   DATABASE and association are REPLACE-only,\n                                        --   and a data view takes no database source\n  SET (prop1: val1, prop2: val2) ON widgetName;\n  SET (Title: 'New Title');  -- page-level (case-sensitive): no ON\n  SET (Documentation: 'What this page is for.');\n  SET (Class: 'css-class');  -- page-level CSS class / style\n  SET (Style: 'css: rule');\n  SET (PopupWidth: 800, PopupHeight: 480, PopupResizable: true);  -- page-level pop-up\n  INSERT AFTER widgetName { <widgets> };\n  INSERT BEFORE widgetName { <widgets> };\n  INSERT INTO containerName { <widgets> };\n  DROP name1, name2;\n  DROP TEMPLATE FOR Module.Specialization IN listViewName;\n  REPLACE widgetName WITH { <widgets> };\n};\n-- A target is a widget name, or a DataGrid 2 column by what it shows:\n-- grid column(Attr), grid column('Caption'), @n when two match. The old spellings `SET p = v`,\n-- `SET p: v` (no parentheses) and `DROP WIDGET a` still run and warn\n-- (MDL-DEPR101..103).\n\n-- The BULK form: one design property on every widget of a TYPE.\nALTER PAGES [IN Module]\n  SET 'Compact' = ON, 'Striped' = ON\n  WHERE WIDGETTYPE = datagrid            -- the MDL keyword, which resolves to\n                                         --   exactly one widget id. A full id in\n                                         --   quotes works too. NOT a name: a widget\n                                         --   name is unique only within its page.\n  [DRY RUN];                             -- run this FIRST. It reports the matches\n                                         --   against a discardable copy and writes\n                                         --   nothing.",
+		Syntax:  "ALTER PAGE Module.Name {       -- the generic ALTER: set / insert / replace / drop\n  SET (property: value) ON widgetName;  -- widget property names: any casing\n  SET ('Row size': 'Small') ON lvOrders;  -- an Atlas DESIGN property of that widget's\n                                         --   type; quoted and case-sensitive.\n                                         --   `list design properties for <type>` lists\n                                         --   them. ON/OFF for a toggle, where OFF\n                                         --   REMOVES the entry.\n                                         --   A multi-select ('Hide on') or compound\n                                         --   ('Spacing') one needs the inline\n                                         --   DesignProperties: (...) form, because a\n                                         --   SET assignment carries one value.\n  SET (Action: CALL MICROFLOW Module.MF) ON btnSave;   -- any CREATE PAGE action form\n  SET ('createFileAction': CALL MICROFLOW Module.MF) ON fileUploader1;\n                                         -- a pluggable widget's NAMED action slot,\n                                         --   by the widget's own key; refused on a\n                                         --   key that is not action-typed\n  SET (DataSource: $Param) ON dvOrder;  -- parameter/microflow/nanoflow/selection;\n                                        --   DATABASE and association are REPLACE-only,\n                                        --   and a data view takes no database source\n  SET (prop1: val1, prop2: val2) ON widgetName;\n  SET (Title: 'New Title');  -- page-level (case-sensitive): no ON\n  SET (Documentation: 'What this page is for.');\n  SET (Class: 'css-class');  -- page-level CSS class / style\n  SET (Style: 'css: rule');\n  SET (PopupWidth: 800, PopupHeight: 480, PopupResizable: true);  -- page-level pop-up\n  INSERT AFTER widgetName { <widgets> };\n  INSERT BEFORE widgetName { <widgets> };\n  INSERT INTO containerName { <widgets> };\n  DROP name1, name2;\n  DROP TEMPLATE FOR Module.Specialization IN listViewName;\n  REPLACE widgetName WITH { <widgets> };\n};\n-- A target is a widget name, or a DataGrid 2 column by what it shows:\n-- grid column(Attr), grid column('Caption'), @n when two match. The old spellings `SET p = v`,\n-- `SET p: v` (no parentheses) and `DROP WIDGET a` still run and warn\n-- (MDL-DEPR101..103).\n\n-- The BULK form: one design property on every widget of a TYPE.\nALTER PAGES [IN Module]\n  SET 'Compact' = ON, 'Striped' = ON\n  WHERE WIDGETTYPE = datagrid            -- the MDL keyword, which resolves to\n                                         --   exactly one widget id. A full id in\n                                         --   quotes works too. NOT a name: a widget\n                                         --   name is unique only within its page.\n  [DRY RUN];                             -- run this FIRST. It reports the matches\n                                         --   against a discardable copy and writes\n                                         --   nothing.",
 		Example: "ALTER PAGE Module.EditPage {\n  SET (Caption: 'Save & Close', ButtonStyle: Success) ON btnSave;\n  INSERT AFTER txtName {\n    TEXTBOX txtMiddleName (Label: 'Middle Name', Attribute: MiddleName)\n  };\n  DROP txtUnused;\n};",
 		SeeAlso: []string{"page.create", "page.show", "snippet.alter"},
 	})
@@ -339,10 +345,10 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 		Path:    "page.update-widgets",
 		Summary: "SHOW / UPDATE WIDGETS — find widgets across every page, and set a property on all of them",
 		Keywords: []string{
-			"show widgets", "update widgets", "bulk", "bulk update", "across pages",
+			"list widgets", "update widgets", "bulk", "bulk update", "across pages",
 			"widgettype", "dry run", "every page", "all pages", "sweep", "mass edit",
 		},
-		Syntax: "SHOW WIDGETS [WHERE <cond> [AND <cond>...]] [IN Module];\n\n" +
+		Syntax: "LIST WIDGETS [WHERE <cond> [AND <cond>...]] [IN Module];\n\n" +
 			"UPDATE WIDGETS\n" +
 			"  SET 'property' = <value> [, 'property' = <value>...]\n" +
 			"  WHERE <cond> [AND <cond>...]\n" +
@@ -356,7 +362,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"statement rewrites every page a match lands on.\n\n" +
 			"RUN IT WITH `DRY RUN` FIRST. It reports the matches and the containers they\n" +
 			"sit in and writes nothing — the only way to see what a pattern actually\n" +
-			"selects before it has selected it. `SHOW WIDGETS` with the same WHERE\n" +
+			"selects before it has selected it. `LIST WIDGETS` with the same WHERE\n" +
 			"answers the same question read-only.\n\n" +
 			"Needs a full catalog, which the statement builds itself, and a project open\n" +
 			"for writing. The catalog is NOT refreshed by the update — run\n" +
@@ -366,7 +372,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"that does not belong to a widget's schema is what CE0463 is made of. Check\n" +
 			"the build afterwards.",
 		Example: "-- What would match, read-only\n" +
-			"show widgets where WidgetType like '%combobox%' in Sales;\n\n" +
+			"list widgets where WidgetType like '%combobox%' in Sales;\n\n" +
 			"-- What would change, still writing nothing\n" +
 			"update widgets\n" +
 			"  set 'showLabel' = false\n" +
@@ -440,10 +446,10 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 		Path:    "snippet.show",
 		Summary: "List and describe existing snippets",
 		Keywords: []string{
-			"show snippets", "list snippets", "describe snippet",
+			"list snippets", "list snippets", "describe snippet",
 		},
-		Syntax:  "SHOW SNIPPETS;\nSHOW SNIPPETS IN <module>;\nDESCRIBE SNIPPET Module.Name;",
-		Example: "SHOW SNIPPETS IN MyModule;\nDESCRIBE SNIPPET MyModule.NavigationMenu;",
+		Syntax:  "LIST SNIPPETS;\nLIST SNIPPETS IN <module>;\nDESCRIBE SNIPPET Module.Name;",
+		Example: "LIST SNIPPETS IN MyModule;\nDESCRIBE SNIPPET MyModule.NavigationMenu;",
 		SeeAlso: []string{"snippet", "snippet.create"},
 	})
 
@@ -598,9 +604,9 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 		Path:    "layout.show",
 		Summary: "List and describe layouts (DESCRIBE emits re-executable CREATE LAYOUT)",
 		Keywords: []string{
-			"show layouts", "list layouts", "describe layout",
+			"list layouts", "list layouts", "describe layout",
 		},
-		Syntax:  "SHOW LAYOUTS;\nSHOW LAYOUTS IN <module>;\nDESCRIBE LAYOUT Module.Name;",
+		Syntax:  "LIST LAYOUTS;\nLIST LAYOUTS IN <module>;\nDESCRIBE LAYOUT Module.Name;",
 		Example: "-- Copy an Atlas layout into your own module: describe it, rename it, run it.\nDESCRIBE LAYOUT Atlas_Core.Atlas_Default;",
 		SeeAlso: []string{"layout", "page.show"},
 	})
@@ -611,11 +617,11 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 		Path:    "buildingblock.show",
 		Summary: "List and describe building blocks (read-only)",
 		Keywords: []string{
-			"show building blocks", "list building blocks", "describe building block",
+			"list building blocks", "list building blocks", "describe building block",
 			"building block", "building blocks",
 		},
-		Syntax:  "SHOW BUILDING BLOCKS;\nSHOW BUILDING BLOCKS IN <module>;\nDESCRIBE BUILDING BLOCK Module.Name;",
-		Example: "SHOW BUILDING BLOCKS IN MyModule;\nDESCRIBE BUILDING BLOCK MyModule.LoginForm;",
+		Syntax:  "LIST BUILDING BLOCKS;\nLIST BUILDING BLOCKS IN <module>;\nDESCRIBE BUILDING BLOCK Module.Name;",
+		Example: "LIST BUILDING BLOCKS IN MyModule;\nDESCRIBE BUILDING BLOCK MyModule.LoginForm;",
 		SeeAlso: []string{"snippet.show", "page.show"},
 	})
 
@@ -644,7 +650,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"-- Notes:\n" +
 			"--   * A menu document is the reusable menu a menu widget points at. It is\n" +
 			"--     NOT the menu inside a navigation profile — for that use\n" +
-			"--     SHOW NAVIGATION MENU and ALTER NAVIGATION. Both use these same items.\n" +
+			"--     LIST NAVIGATION MENU and ALTER NAVIGATION. Both use these same items.\n" +
 			"--   * OR MODIFY replaces the item list wholesale; an omitted item is removed.\n" +
 			"--     The document's identity and export level are preserved.\n" +
 			"--   * SIGN OUT is the log-out menu item. It needs no target and stores the\n" +
@@ -669,7 +675,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"fragment", "fragments", "reusable widgets", "define fragment",
 			"use fragment", "template", "script scope",
 		},
-		Syntax:  "CREATE FRAGMENT Name AS { <widgets> };\nCREATE FRAGMENT Name AS { <widgets> SLOT [name] <widgets> };\nCREATE FRAGMENT Name ($d: datasource, $a: action) AS { <widgets> };\nUSE FRAGMENT Name [(args)] [AS prefix_];\nUSE FRAGMENT Name [(args)] [AS prefix_] { <payload widgets> };\nSHOW FRAGMENTS;\nDESCRIBE FRAGMENT Name;\nDESCRIBE FRAGMENT FROM PAGE Module.Page WIDGET widgetName;",
+		Syntax:  "CREATE FRAGMENT Name AS { <widgets> };\nCREATE FRAGMENT Name AS { <widgets> SLOT [name] <widgets> };\nCREATE FRAGMENT Name ($d: datasource, $a: action) AS { <widgets> };\nUSE FRAGMENT Name [(args)] [AS prefix_];\nUSE FRAGMENT Name [(args)] [AS prefix_] { <payload widgets> };\nLIST FRAGMENTS;\nDESCRIBE FRAGMENT Name;\nDESCRIBE FRAGMENT FROM PAGE Module.Page WIDGET widgetName;",
 		Example: "CREATE FRAGMENT SaveCancelFooter AS {\n  FOOTER footer1 {\n    ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)\n    ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)\n  }\n};\n\nCREATE PAGE Module.EditPage (Params: ( $Param: Module.Customer ), Title: 'Edit', Layout: 'Atlas_Core.Atlas_Default') {\n  DATAVIEW dv (DataSource: $Param) {\n    TEXTBOX txtName (Label: 'Name', Attribute: Name)\n    USE FRAGMENT SaveCancelFooter\n  }\n};",
 		SeeAlso: []string{"fragment.define", "fragment.use", "fragment.slot", "fragment.params", "snippet"},
 	})
@@ -725,11 +731,11 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 		Path:    "fragment.show",
 		Summary: "SHOW/DESCRIBE FRAGMENTS and extract widget subtrees from existing pages",
 		Keywords: []string{
-			"show fragments", "describe fragment", "list fragments",
+			"list fragments", "describe fragment", "list fragments",
 			"extract widget", "widget subtree",
 		},
-		Syntax:  "SHOW FRAGMENTS;\nDESCRIBE FRAGMENT Name;\nDESCRIBE FRAGMENT FROM PAGE Module.Page WIDGET widgetName;\nDESCRIBE FRAGMENT FROM SNIPPET Module.Snippet WIDGET widgetName;",
-		Example: "SHOW FRAGMENTS;\nDESCRIBE FRAGMENT SaveCancelFooter;\n\n-- Extract a widget subtree from an existing page\nDESCRIBE FRAGMENT FROM PAGE Module.MyPage WIDGET footer1;",
+		Syntax:  "LIST FRAGMENTS;\nDESCRIBE FRAGMENT Name;\nDESCRIBE FRAGMENT FROM PAGE Module.Page WIDGET widgetName;\nDESCRIBE FRAGMENT FROM SNIPPET Module.Snippet WIDGET widgetName;",
+		Example: "LIST FRAGMENTS;\nDESCRIBE FRAGMENT SaveCancelFooter;\n\n-- Extract a widget subtree from an existing page\nDESCRIBE FRAGMENT FROM PAGE Module.MyPage WIDGET footer1;",
 		SeeAlso: []string{"fragment", "fragment.define"},
 	})
 }

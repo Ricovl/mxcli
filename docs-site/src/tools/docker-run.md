@@ -26,7 +26,7 @@ mxcli docker run -p app.mpr
 The runtime uses configuration from the project's settings. You can view and modify these with:
 
 ```sql
-SHOW SETTINGS;
+LIST SETTINGS;
 DESCRIBE SETTINGS;
 ALTER SETTINGS CONFIGURATION 'default' ( DatabaseType: 'POSTGRESQL' );
 ALTER SETTINGS CONFIGURATION 'default' ( HttpPortNumber: '8080' );

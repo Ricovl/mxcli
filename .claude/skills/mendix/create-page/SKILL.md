@@ -386,7 +386,7 @@ entry is named as three parts — `Module.Collection.ImageName`:
 image imgLogo (Image: 'MyFirstModule.Images._1', Width: 48, Height: 48)
 ```
 
-`show image collections` lists the collections; `describe image collection
+`list image collections` lists the collections; `describe image collection
 MyFirstModule.Images` lists the images inside one.
 
 An `image` with that (default) source and no `Image:` builds into a model mxbuild
@@ -425,14 +425,14 @@ without it and mxcli stores a custom-icon reference, which fails the build with
 --references` resolves each kind against its own collection and names the remedy
 when the kind is wrong, which is cheaper than a build.
 
-Any icon collection works, third-party ones included — `show icon collections`
+Any icon collection works, third-party ones included — `list icon collections`
 lists them and `describe icon collection Atlas_Core.Atlas_Filled` lists the names
 (they are non-obvious: it is `add`, not `plus`).
 
 A glyph has a code and no name. The codes are **sparse**, and an undefined one
 fails only at `mxbuild --target=deploy` — with *"An exception occurred while
 exporting page '<name>'"*, naming the page and never the icon — so `mxcli check`
-reports it as **MDL078** first. Browse them with `show glyphs`.
+reports it as **MDL078** first. Browse them with `list glyphs`.
 
 `describe page` emits all three forms, so describe → exec round-trips a button's
 icon whichever kind it is.
@@ -496,8 +496,8 @@ DYNAMICTEXT txtCreated (Attribute: CreatedDate)   -- also accepts createdDate
 - `alter snippet Module.SnippetName { ... }` - Modify snippet widgets in-place
 - `describe page Module.PageName` - View page source in MDL format (shows Class, Style, DesignProperties)
 - `describe snippet Module.SnippetName` - View snippet source in MDL format
-- `show pages [in module]` - List all pages
-- `show widgets [where ...] [in module]` - Discover widgets across pages/snippets
+- `list pages [in module]` - List all pages
+- `list widgets [where ...] [in module]` - Discover widgets across pages/snippets
 - `update widgets set ... where ... [dry run]` - Bulk update widget properties (see below)
 - `drop page Module.PageName` - Delete a page
 

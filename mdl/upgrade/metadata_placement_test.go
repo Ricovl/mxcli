@@ -31,8 +31,8 @@ func TestUpgrade_MetadataPlacement(t *testing.T) {
 			"/** Links */\nCREATE ASSOCIATION M.A_B FROM M.A TO M.B TYPE Reference;\n",
 			deprecation.DocumentationClause},
 		{"json structure comment clause",
-			"create json structure M.J folder 'Json' comment 'Shape' snippet '{\"a\": 1}';\n",
-			"/** Shape */\ncreate json structure M.J folder 'Json' snippet '{\"a\": 1}';\n",
+			"create json structure M.J folder 'Json' comment 'Shape' sample '{\"a\": 1}';\n",
+			"/** Shape */\ncreate json structure M.J folder 'Json' sample '{\"a\": 1}';\n",
 			deprecation.DocumentationClause},
 		{"image collection comment clause",
 			"create image collection M.Icons export level 'Public' comment 'Icons';\n",
@@ -132,5 +132,30 @@ func TestUpgrade_MetadataPlacementUnrewritable(t *testing.T) {
 		if len(res.Unrewritten) != 1 {
 			t.Errorf("%q: Unrewritten = %v, want one", src, res.Unrewritten)
 		}
+	}
+}
+
+// R9 (ako/mxcli#755): the folder moves to right after the name.
+func TestUpgrade_FolderClausePosition(t *testing.T) {
+	src := "CREATE CONSTANT M.Url TYPE String DEFAULT 'x' FOLDER 'Config' EXPOSED TO CLIENT;\n" +
+		"create snippet M.S (Params: ( $C: M.E )) folder 'Common' { };\n"
+	want := "CREATE CONSTANT M.Url FOLDER 'Config' TYPE String DEFAULT 'x' EXPOSED TO CLIENT;\n" +
+		"create snippet M.S folder 'Common' (Params: ( $C: M.E )) { };\n"
+	res := mustUpgrade(t, src, Options{})
+	if res.Source != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", res.Source, want)
+	}
+	if again := mustUpgrade(t, res.Source, Options{}); again.Changed() {
+		t.Errorf("second upgrade changed the script again: %v", again.Rewritten)
+	}
+}
+
+// R9 (ako/mxcli#755): `set comment` is `set documentation`.
+func TestUpgrade_SetComment(t *testing.T) {
+	src := "alter entity M.E set comment 'A';\nALTER ENUMERATION M.C SET COMMENT 'B';\nalter association M.A set comment 'C';\n"
+	want := "alter entity M.E set documentation 'A';\nALTER ENUMERATION M.C SET DOCUMENTATION 'B';\nalter association M.A set documentation 'C';\n"
+	res := mustUpgrade(t, src, Options{})
+	if res.Source != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", res.Source, want)
 	}
 }

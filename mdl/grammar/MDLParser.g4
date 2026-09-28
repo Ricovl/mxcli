@@ -84,7 +84,24 @@ languageHeader
 
 /** A statement can be DDL, DQL, or utility */
 statement
-    : docComment? (ddlStatement | dqlStatement | utilityStatement) SEMICOLON? SLASH?
+    : docComment? (reservedDocumentStatement | ddlStatement | dqlStatement | utilityStatement) SEMICOLON? SLASH?
+    ;
+
+/**
+ * R10 (ako/mxcli#755): Studio Pro document types MDL does not support yet.
+ * Their names are reserved, so a statement naming one is refused by name
+ * (the visitor reports it) rather than failing somewhere in its body, and no
+ * later syntax can give the words another meaning.
+ */
+reservedDocumentStatement
+    : (CREATE (OR MODIFY)? | ALTER | DROP | DESCRIBE | LIST_KW | SHOW) reservedDocumentName ~SEMICOLON*
+    ;
+
+reservedDocumentName
+    : CONSUMED WEB SERVICES?
+    | PUBLISHED WEB SERVICES?
+    | XML SCHEMA
+    | XML IDENTIFIER   // `xml schemas`: SCHEMA has no plural token
     ;
 
 // =============================================================================
@@ -227,7 +244,7 @@ alterStatement
     | alterMessageDefinitionCollectionStatement
     | alterMessageDefinitionStatement
     | ALTER PUBLISHED REST SERVICE qualifiedName alterPublishedRestServiceAction (COMMA? alterPublishedRestServiceAction)*
-    | ALTER MODEL qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
+    | ALTER aiModelKw qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER KNOWLEDGE BASE qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER CONSUMED MCP SERVICE qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER AGENT qualifiedName alterAgentAction+
@@ -665,6 +682,15 @@ createMenuStatement
 
 dropStatement
     : DROP ENTITY ifExists? qualifiedName
+    // R6 (ako/mxcli#755): every document that can be created can be dropped.
+    // An external entity is an entity; the word says which kind is meant, so a
+    // local entity named by mistake is refused rather than dropped.
+    | DROP EXTERNAL ENTITY ifExists? qualifiedName
+    | DROP DATABASE CONNECTION ifExists? qualifiedName
+    // A validation rule is anonymous and lives on its attribute, so the drop
+    // names the attribute, as `create validation rule for` does. Without a
+    // kind it drops both the regex and the range rule.
+    | DROP VALIDATION RULE ifExists? FOR qualifiedName (REGEX | RANGE)?
     | DROP ASSOCIATION ifExists? qualifiedName
     | DROP ENUMERATION ifExists? qualifiedName
     | DROP CONSTANT ifExists? qualifiedName
@@ -696,7 +722,7 @@ dropStatement
     | DROP consumedRestServiceKw ifExists? qualifiedName
     | DROP PUBLISHED REST SERVICE ifExists? qualifiedName
     | DROP DATA TRANSFORMER ifExists? qualifiedName
-    | DROP MODEL ifExists? qualifiedName                               // DROP MODEL Module.Name (agent-editor)
+    | DROP aiModelKw ifExists? qualifiedName                           // DROP AI MODEL Module.Name (agent-editor)
     | DROP CONSUMED MCP SERVICE ifExists? qualifiedName                // DROP CONSUMED MCP SERVICE Module.Name
     | DROP KNOWLEDGE BASE ifExists? qualifiedName                      // DROP KNOWLEDGE BASE Module.Name
     | DROP AGENT ifExists? qualifiedName                               // DROP AGENT Module.Name
@@ -799,7 +825,7 @@ moveDocumentType
     | consumedODataServiceKw
     | publishedODataServiceKw
     | BUSINESS EVENT SERVICE
-    | MODEL
+    | aiModelKw
     | AGENT
     | KNOWLEDGE BASE
     | CONSUMED MCP SERVICE

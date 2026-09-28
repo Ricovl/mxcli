@@ -89,7 +89,7 @@ actionbutton widgetName (caption: 'Caption', action: ACTION_TYPE [, buttonstyle:
 
 `icon:` names an icon inside an icon collection — `Module.Collection.IconName`,
 e.g. `'Atlas_Core.Atlas_Filled.pencil'`. Browse what a project has with
-`show icon collection` and `describe icon collection Atlas_Core.Atlas_Filled`.
+`list icon collections` and `describe icon collection Atlas_Core.Atlas_Filled`.
 
 A wrong icon name is a **build error** (CE1613, *"The selected custom icon … no
 longer exists"*), so check it before building:
@@ -111,7 +111,7 @@ must exist in the icon collection or MxBuild rejects it (CE1613).
 `add`, not `plus`). List them:
 
 ```
-show icon collections                              -- the project's icon sets
+list icon collections                              -- the project's icon sets
 describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference form
 ```
 

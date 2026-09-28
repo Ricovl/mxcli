@@ -98,14 +98,14 @@ var createOrReplaceCases = map[string]string{
 	"queue":                       "task queue M.Q_Orders (Parallelism: 3);",
 	"scheduledevent":              "scheduled event M.NightlyCleanup (Microflow: M.SE_Cleanup, Repeat: Daily, HourOfDay: 4, MinuteOfHour: 0, TimeZone: Server, Enabled: true);",
 	"regularexpression":           "regular expression M.Email (Expression: '.+@.+');",
-	"jsonstructure":               "json structure M.JSON_Pet snippet '{\"id\": 1}';",
+	"jsonstructure":               "json structure M.JSON_Pet sample '{\"id\": 1}';",
 	"messagedefinitioncollection": "message definition collection M.MD_Order {definition OrderMessage for M.Order as 'Orders' {OrderId}};",
 	"importmapping":               "import mapping M.IMM_Order with json structure M.JSON_Order { create M.Order { Id = id } };",
 	"exportmapping":               "export mapping M.EMM_Order with json structure M.JSON_Order { M.Order { orderId = OrderId } };",
 	"configuration":               "configuration 'Default';",
 	"publishedrestservice":        "published rest service M.OrderAPI (Path: 'rest/orders/v1', Version: '1.0.0', ServiceName: 'Order API') { };",
 	"datatransformer":             "data transformer M.Flatten source json '{\"id\": 1}' { jslt '{\"id\": .id}'; };",
-	"model":                       "model M.GPT4 (Provider: MxCloudGenAI, Key: @M.ModelApiKey);",
+	"model":                       "ai model M.GPT4 (Provider: MxCloudGenAI, Key: @M.ModelApiKey);",
 	"consumedmcpservice":          "consumed mcp service M.WebSearch (ProtocolVersion: v2025_03_26, Version: '1.0');",
 	"knowledgebase":               "knowledge base M.Docs (Provider: MxCloudGenAI, Key: @M.KBApiKey);",
 	"agent":                       "agent M.Summarizer (UsageType: Task, Model: M.GPT4, SystemPrompt: 'Summarize.', UserPrompt: 'Text.');",
@@ -263,20 +263,25 @@ func TestShowRecordsDeprecation(t *testing.T) {
 		// §3, R6): MDL-DEPR090, never MDL-DEPR002, so `fmt --upgrade` does
 		// not rewrite them to a `list` that is not canonical either. `list`
 		// on these forms is reported too.
-		{"show entity M.E;", []string{deprecation.ShowSingleThing}},
-		{"show association M.A;", []string{deprecation.ShowSingleThing}},
+		// `show entity|association X` alias nothing: gated instead (MDL-V1-SHOWSUMMARY).
+		{"show entity M.E;", nil},
+		{"show association M.A;", nil},
 		{"show page M.P;", []string{deprecation.ShowSingleThing}},
 		{"list page M.P;", []string{deprecation.ShowSingleThing}},
-		{"show navigation;", []string{deprecation.ShowSingleThing}},
+		// The navigation and settings tables are listings (ako/mxcli#755).
+		{"show navigation;", []string{deprecation.Show}},
+		{"list navigation;", nil},
 		{"show navigation homes;", []string{deprecation.Show}},
 		{"list navigation homes;", nil},
-		{"show navigation menu M.Nav;", []string{deprecation.ShowSingleThing}},
+		{"show navigation menu M.Nav;", []string{deprecation.Show}},
 		{"show structure depth 2 in M;", []string{deprecation.ShowSingleThing}},
 		{"show context of M.MF;", []string{deprecation.ShowSingleThing}},
 		{"show project security;", []string{deprecation.ShowSingleThing}},
 		{"show security matrix in M;", []string{deprecation.ShowSingleThing}},
-		{"show settings;", []string{deprecation.ShowSingleThing}},
-		// Session state becomes a REPL command (R7), not reported until then.
+		{"show settings;", []string{deprecation.Show}},
+		{"list settings;", nil},
+		// Session state is a session command (R7): gated as MDL-V1-SESSION,
+		// not a deprecated spelling.
 		{"show version;", nil},
 		{"show status;", nil},
 		{"show connections;", nil},

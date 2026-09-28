@@ -10,13 +10,13 @@ A Mendix application has one or more **navigation profiles**, each targeting a d
 
 ```sql
 -- Summary of all profiles
-SHOW NAVIGATION;
+LIST NAVIGATION;
 
 -- Menu tree for a specific profile
-SHOW NAVIGATION MENU Responsive;
+LIST NAVIGATION MENU Responsive;
 
 -- Home page assignments across all profiles
-SHOW NAVIGATION HOMES;
+LIST NAVIGATION HOMES;
 
 -- Full MDL output (round-trippable)
 DESCRIBE NAVIGATION;
@@ -40,7 +40,7 @@ Project settings control runtime configuration, database connections, languages,
 
 ```sql
 -- Overview of all settings
-SHOW SETTINGS;
+LIST SETTINGS;
 
 -- Full MDL output
 DESCRIBE SETTINGS;

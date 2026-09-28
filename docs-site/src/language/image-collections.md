@@ -6,10 +6,10 @@ Image collections are Mendix's way of bundling images (icons, logos, graphics) w
 
 ```sql
 -- List all image collections across all modules
-SHOW IMAGE COLLECTION;
+LIST IMAGE COLLECTIONS;
 
 -- Filter by module
-SHOW IMAGE COLLECTION IN MyModule;
+LIST IMAGE COLLECTIONS IN MyModule;
 
 -- View full definition including embedded images
 DESCRIBE IMAGE COLLECTION MyModule.AppIcons;
@@ -86,7 +86,7 @@ read-only in mxcli; use `SHOW` / `DESCRIBE` to discover valid icon names (icons
 have non-obvious names — it's `add`, not `plus`):
 
 ```sql
-SHOW ICON COLLECTIONS;                              -- name, prefix, export level, icon count
+LIST ICON COLLECTIONS;                              -- name, prefix, export level, icon count
 DESCRIBE ICON COLLECTION Atlas_Core.Atlas_Filled;   -- every icon + its reference form
 ```
 

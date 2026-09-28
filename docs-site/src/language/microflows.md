@@ -47,10 +47,10 @@ END;
 List microflows and nanoflows in the project:
 
 ```sql
-SHOW MICROFLOWS
-SHOW MICROFLOWS IN MyModule
-SHOW NANOFLOWS
-SHOW NANOFLOWS IN MyModule
+LIST MICROFLOWS
+LIST MICROFLOWS IN MyModule
+LIST NANOFLOWS
+LIST NANOFLOWS IN MyModule
 ```
 
 View the full MDL definition of an existing microflow or nanoflow (round-trippable output):

@@ -1,10 +1,10 @@
-# SHOW CONSTANTS
+# LIST CONSTANTS
 
 ## Synopsis
 
-    SHOW CONSTANTS [IN <module>]
+    LIST CONSTANTS [IN <module>]
 
-    SHOW CONSTANT VALUES [IN <module>]
+    LIST CONSTANT VALUES [IN <module>]
 
 ## Description
 
@@ -12,7 +12,7 @@ Lists constants defined in the project. Without the `IN` clause, lists all const
 
 Constants are named values (strings, integers, booleans, etc.) that can be configured per deployment environment. They are typically used for API URLs, feature flags, and configuration values.
 
-`SHOW CONSTANT VALUES` shows one row per constant per configuration, making it easy to compare constant overrides across configurations (e.g., Default, Acceptance, Production). Each constant's default value is shown first, followed by any per-configuration overrides.
+`LIST CONSTANT VALUES` shows one row per constant per configuration, making it easy to compare constant overrides across configurations (e.g., Default, Acceptance, Production). Each constant's default value is shown first, followed by any per-configuration overrides.
 
 ## Parameters
 
@@ -24,27 +24,27 @@ Constants are named values (strings, integers, booleans, etc.) that can be confi
 List all constants in the project:
 
 ```sql
-SHOW CONSTANTS
+LIST CONSTANTS
 ```
 
 List constants in a specific module:
 
 ```sql
-SHOW CONSTANTS IN MyModule
+LIST CONSTANTS IN MyModule
 ```
 
 Compare constant values across all configurations:
 
 ```sql
-SHOW CONSTANT VALUES
+LIST CONSTANT VALUES
 ```
 
 Compare constant values for a specific module:
 
 ```sql
-SHOW CONSTANT VALUES IN MyModule
+LIST CONSTANT VALUES IN MyModule
 ```
 
 ## See Also
 
-[SHOW MODULES](show-modules.md), [DESCRIBE STRUCTURE](show-structure.md), [SHOW / DESCRIBE SETTINGS](../settings/show-settings.md)
+[LIST MODULES](list-modules.md), [DESCRIBE STRUCTURE](describe-structure.md), [SHOW / DESCRIBE SETTINGS](../settings/list-describe-settings.md)

@@ -204,14 +204,14 @@ set $count = 1;
 
 **Problem**: Using non-existent module name.
 
-**Fix**: Check module exists with `show modules`.
+**Fix**: Check module exists with `list modules`.
 
 ### "Entity not found"
 
 **Problem**: Using non-existent entity name.
 
 **Fix**:
-1. Check entity exists: `show entities in ModuleName`
+1. Check entity exists: `list entities in ModuleName`
 2. Use fully qualified name: `Module.EntityName`
 
 ### "Microflow not found"
@@ -219,7 +219,7 @@ set $count = 1;
 **Problem**: Calling non-existent microflow.
 
 **Fix**:
-1. Check microflow exists: `show microflows in ModuleName`
+1. Check microflow exists: `list microflows in ModuleName`
 2. Use fully qualified name: `Module.MicroflowName`
 
 ### "page not found" for a page the script creates further down (MDL-PAGE01)

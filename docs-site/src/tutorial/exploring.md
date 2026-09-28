@@ -4,7 +4,7 @@ Once you have a project open -- whether through the REPL, a CLI one-liner, or a 
 
 mxcli provides three families of commands for exploration:
 
-- **SHOW** commands list elements by type. `SHOW ENTITIES` lists all entities; `SHOW MICROFLOWS IN Sales` narrows the list to one module.
+- **SHOW** commands list elements by type. `LIST ENTITIES` lists all entities; `LIST MICROFLOWS IN Sales` narrows the list to one module.
 - **DESCRIBE** commands display the full MDL source for a single element, giving you the complete definition including attributes, associations, logic, and widget trees.
 - **SEARCH** performs full-text search across every string in the project -- captions, messages, expressions, documentation, and more.
 - **DESCRIBE STRUCTURE** gives you a compact tree view of the entire project or a single module, at varying levels of detail.
@@ -31,7 +31,7 @@ The examples in this chapter assume you have a Mendix project open. You can foll
 mxcli -p /path/to/app.mpr
 
 # CLI one-liner
-mxcli -p /path/to/app.mpr -c "SHOW ENTITIES"
+mxcli -p /path/to/app.mpr -c "LIST ENTITIES"
 ```
 
 If you do not have a Mendix project handy, the commands will still make sense -- the output format and options are the same regardless of the project content.

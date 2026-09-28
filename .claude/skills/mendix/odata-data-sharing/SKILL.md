@@ -285,25 +285,25 @@ Use these commands to inspect existing OData setup in a project:
 
 ```sql
 -- List all published and consumed services
-show published odata services;
-show consumed odata services;
+list published odata services;
+list consumed odata services;
 
 -- Inspect a specific service
 describe published odata service ShopViews.ShopViewsApi;
 describe consumed odata service ShopViewsClient.ShopViewsApiClient;
 
 -- See external entities and view entities
-show entities in ShopViewsClient;
-show external entities;
-show external actions;
+list entities in ShopViewsClient;
+list external entities;
+list external actions;
 
 -- Browse available assets from cached $metadata contract
-show contract entities from ShopViewsClient.ShopViewsApiClient;
-show contract actions from ShopViewsClient.ShopViewsApiClient;
+list contract entities from ShopViewsClient.ShopViewsApiClient;
+list contract actions from ShopViewsClient.ShopViewsApiClient;
 describe contract entity ShopViewsClient.ShopViewsApiClient.Product;
 describe contract entity ShopViewsClient.ShopViewsApiClient.Product format mdl;
 
 -- Check security setup
-show access on odata service ShopViews.ShopViewsApi;
-show module roles in ShopViews;
+list access on odata service ShopViews.ShopViewsApi;
+list module roles in ShopViews;
 ```

@@ -56,10 +56,26 @@ func TestDocumentTypeNamesFollowStudioPro(t *testing.T) {
 		{deprecation.TaskQueue, "describe queue M.Jobs;", "describe task queue M.Jobs;"},
 		{deprecation.TaskQueue, "list queues in M;", "list task queues in M;"},
 		{deprecation.TaskQueue, "move queue M.Jobs to folder 'Q';", "move task queue M.Jobs to folder 'Q';"},
+		// ai model (the agent editor's model document; ako/mxcli#755)
+		{deprecation.AIModel, "create model M.Gpt (Provider: MxCloudGenAI, Key: @M.ApiKey);",
+			"create ai model M.Gpt (Provider: MxCloudGenAI, Key: @M.ApiKey);"},
+		{deprecation.AIModel, "create or modify model M.Gpt folder 'AI' (Provider: MxCloudGenAI, Key: @M.ApiKey);",
+			"create or modify ai model M.Gpt folder 'AI' (Provider: MxCloudGenAI, Key: @M.ApiKey);"},
+		{deprecation.AIModel, "alter model M.Gpt set DisplayName = 'GPT';", "alter ai model M.Gpt set DisplayName = 'GPT';"},
+		{deprecation.AIModel, "drop model if exists M.Gpt;", "drop ai model if exists M.Gpt;"},
+		{deprecation.AIModel, "describe model M.Gpt;", "describe ai model M.Gpt;"},
+		{deprecation.AIModel, "list models in M;", "list ai models in M;"},
+		{deprecation.AIModel, "move model M.Gpt to folder 'AI';", "move ai model M.Gpt to folder 'AI';"},
+		// json structure sample
+		{deprecation.JSONStructureSample, "create json structure M.J snippet '{\"a\": 1}';",
+			"create json structure M.J sample '{\"a\": 1}';"},
+		{deprecation.JSONStructureSample, "create or modify json structure M.J folder 'J' snippet $${\"a\": 1}$$;",
+			"create or modify json structure M.J folder 'J' sample $${\"a\": 1}$$;"},
 		// app security
-		{deprecation.AppSecurity, "alter project security level production;", "alter app security level production;"},
-		{deprecation.AppSecurity, "alter project security guest access on role Guest;", "alter app security guest access on role Guest;"},
-		{deprecation.AppSecurity, "alter project security strict mode on;", "alter app security strict mode on;"},
+		{deprecation.AppSecurity, "alter project security ( SecurityLevel: production );", "alter app security ( SecurityLevel: production );"},
+		{deprecation.AppSecurity, "alter project security ( EnableGuestAccess: true, GuestUserRole: Guest );",
+			"alter app security ( EnableGuestAccess: true, GuestUserRole: Guest );"},
+		{deprecation.AppSecurity, "alter project security ( StrictMode: true );", "alter app security ( StrictMode: true );"},
 		// settings runtime
 		{deprecation.SettingsRuntime, "alter settings model ( BcryptCost: 11, HashAlgorithm: 'BCrypt' );", "alter settings runtime ( BcryptCost: 11, HashAlgorithm: 'BCrypt' );"},
 		{deprecation.SettingsRuntime, "ALTER SETTINGS MODEL (BcryptCost: 11);", "ALTER SETTINGS RUNTIME (BcryptCost: 11);"},
@@ -97,6 +113,11 @@ func TestDocumentTypeNamesLeaveOtherUsesAlone(t *testing.T) {
 		// phrase becomes `describe app security`), not R10's name alias.
 		"describe app security;",
 		"alter settings workflows ( UserEntity: 'System.User' );",
+		// `Model:` on an agent is a property key, and `alter settings model`
+		// is R10's other rename (MDL-DEPR555), not the document type.
+		"create agent M.A (UsageType: Task, Model: M.Gpt, SystemPrompt: 'x');",
+		// `snippet` names the page document type everywhere else.
+		"drop snippet M.S;",
 	} {
 		t.Run(src, func(t *testing.T) {
 			if got := deprecationCodes(mustBuild(t, src)); len(got) != 0 {

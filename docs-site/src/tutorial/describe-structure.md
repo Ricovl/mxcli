@@ -161,7 +161,7 @@ mxcli -p app.mpr -c "DESCRIBE STRUCTURE ALL"
 |------|---------|
 | "What modules are in this project?" | `DESCRIBE STRUCTURE DEPTH 1` |
 | "What does module X contain?" | `DESCRIBE STRUCTURE IN X` |
-| "List all entities (just names)" | `SHOW ENTITIES` |
+| "List all entities (just names)" | `LIST ENTITIES` |
 | "What are the attributes of entity X?" | `DESCRIBE ENTITY X` |
 | "Give me a complete overview of everything" | `DESCRIBE STRUCTURE DEPTH 3` |
 

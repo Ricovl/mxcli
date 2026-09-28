@@ -1,8 +1,8 @@
-# SHOW CATALOG TABLES
+# LIST CATALOG TABLES
 
 ## Synopsis
 
-    SHOW CATALOG TABLES
+    LIST CATALOG TABLES
 
 ## Description
 
@@ -19,14 +19,14 @@ This statement takes no parameters.
 ### List all catalog tables
 
 ```sql
-SHOW CATALOG TABLES;
+LIST CATALOG TABLES;
 ```
 
 ### Typical workflow: discover then query
 
 ```sql
 REFRESH CATALOG;
-SHOW CATALOG TABLES;
+LIST CATALOG TABLES;
 SELECT * FROM CATALOG.ENTITIES LIMIT 5;
 ```
 

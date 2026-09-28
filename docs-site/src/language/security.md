@@ -13,7 +13,7 @@ The project security level determines how strictly the runtime enforces access r
 | Production | `PRODUCTION` | Full enforcement, all access rules must be complete |
 
 ```sql
-ALTER APP SECURITY LEVEL PRODUCTION;
+ALTER APP SECURITY ( SecurityLevel: PRODUCTION );
 ```
 
 ## Security Architecture
@@ -35,22 +35,22 @@ MDL provides several commands for viewing the current security configuration:
 DESCRIBE APP SECURITY;
 
 -- Roles
-SHOW MODULE ROLES;
-SHOW MODULE ROLES IN Shop;
-SHOW USER ROLES;
+LIST MODULE ROLES;
+LIST MODULE ROLES IN Shop;
+LIST USER ROLES;
 
 -- Access rules
-SHOW ACCESS ON MICROFLOW Shop.ACT_ProcessOrder;
-SHOW ACCESS ON PAGE Shop.Order_Edit;
-SHOW ACCESS ON ENTITY Shop.Customer;
-SHOW ACCESS ON Shop.Customer;         -- a bare name means the entity
+LIST ACCESS ON MICROFLOW Shop.ACT_ProcessOrder;
+LIST ACCESS ON PAGE Shop.Order_Edit;
+LIST ACCESS ON ENTITY Shop.Customer;
+LIST ACCESS ON Shop.Customer;         -- a bare name means the entity
 
 -- Full matrix
 DESCRIBE SECURITY MATRIX;
 DESCRIBE SECURITY MATRIX IN Shop;
 
 -- Demo users
-SHOW DEMO USERS;
+LIST DEMO USERS;
 ```
 
 ## Modifying Project Security
@@ -58,9 +58,9 @@ SHOW DEMO USERS;
 Toggle the security level and demo user visibility:
 
 ```sql
-ALTER APP SECURITY LEVEL PRODUCTION;
-ALTER APP SECURITY DEMO USERS ON;
-ALTER APP SECURITY DEMO USERS OFF;
+ALTER APP SECURITY ( SecurityLevel: PRODUCTION );
+ALTER APP SECURITY ( EnableDemoUsers: TRUE );
+ALTER APP SECURITY ( EnableDemoUsers: FALSE );
 ```
 
 ## Guest (Anonymous) Access
@@ -74,7 +74,7 @@ the weight -- **whatever it can read is public**.
 -- unauthenticated session exist at all.
 CREATE USER ROLE Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );
 
-ALTER APP SECURITY GUEST ACCESS ON ROLE Anonymous;
+ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: Anonymous );
 
 -- Grant exactly what should be public, and nothing else.
 GRANT read * ON ENTITY Shop.Product TO Anonymous;
@@ -84,19 +84,19 @@ Turning it off keeps the stored role, so switching it back on needs no `ROLE`
 clause:
 
 ```sql
-ALTER APP SECURITY GUEST ACCESS OFF;
-ALTER APP SECURITY GUEST ACCESS ON;
+ALTER APP SECURITY ( EnableGuestAccess: FALSE );
+ALTER APP SECURITY ( EnableGuestAccess: TRUE );
 ```
 
 ### The role is mandatory
 
 Mendix fails the build with **CE0133** -- *"No user role for anonymous users
 selected even though the feature anonymous users is enabled"* -- when guest access
-is on and no role is set. `GUEST ACCESS ON` is therefore refused unless a role is
+is on and no role is set. `EnableGuestAccess: TRUE` is therefore refused unless a role is
 given in the statement or already stored in the project:
 
 ```
-Error: GUEST ACCESS ON requires a role: no anonymous user role is configured,
+Error: EnableGuestAccess: true requires a role: no anonymous user role is configured,
 and Mendix rejects anonymous access without one (CE0133).
 ```
 

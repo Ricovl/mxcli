@@ -21,28 +21,28 @@ This skill covers discovering external services, browsing cached contracts, and 
 
 ```sql
 -- All OData clients (consumed services)
-show consumed odata services;
+list consumed odata services;
 
 -- All published OData services
-show published odata services;
+list published odata services;
 
 -- All consumed REST services
-show consumed rest services;
+list consumed rest services;
 
 -- All published REST services
-show published rest services;
+list published rest services;
 
 -- All business event services
-show business event services;
+list business event services;
 
 -- All database connections
-show database connections;
+list database connections;
 
 -- All external entities (imported from OData)
-show external entities;
+list external entities;
 
 -- All external actions used in microflows
-show external actions;
+list external actions;
 ```
 
 ## Contract Browsing: OData $metadata
@@ -59,10 +59,10 @@ Local metadata files enable offline development, reproducible testing, and versi
 
 ```sql
 -- List all entity types from the contract
-show contract entities from MyModule.SalesforceAPI;
+list contract entities from MyModule.SalesforceAPI;
 
 -- List actions/functions
-show contract actions from MyModule.SalesforceAPI;
+list contract actions from MyModule.SalesforceAPI;
 
 -- Inspect a specific entity (properties, keys, navigation)
 describe contract entity MyModule.SalesforceAPI.PurchaseOrder;
@@ -80,10 +80,10 @@ Business event client services cache the AsyncAPI YAML:
 
 ```sql
 -- List channels
-show contract channels from MyModule.ShopEventsClient;
+list contract channels from MyModule.ShopEventsClient;
 
 -- List messages with payload info
-show contract messages from MyModule.ShopEventsClient;
+list contract messages from MyModule.ShopEventsClient;
 
 -- Inspect a message's payload properties
 describe contract message MyModule.ShopEventsClient.OrderChangedEvent;
@@ -148,7 +148,7 @@ create or modify external entities from MyModule.SalesforceAPI;
 
 1. Browse available entities:
    ```sql
-   show contract entities from MyModule.SalesforceAPI;
+   list contract entities from MyModule.SalesforceAPI;
    ```
 
 2. Inspect the entity you want:

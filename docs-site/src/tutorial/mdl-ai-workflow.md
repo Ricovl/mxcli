@@ -53,7 +53,7 @@ Before making changes, the AI uses mxcli to understand the current state of your
 
 ```sql
 -- See what modules exist
-SHOW MODULES;
+LIST MODULES;
 
 -- Check what's already in the Sales module
 DESCRIBE STRUCTURE IN Sales;
@@ -140,7 +140,7 @@ Here is what a full session looks like when you ask Claude Code to build a custo
 
 **Claude Code:**
 
-1. Runs `SHOW MODULES` and `SHOW ENTITIES IN CRM` to understand the project
+1. Runs `LIST MODULES` and `LIST ENTITIES IN CRM` to understand the project
 2. Reads `generate-domain-model.md`, `overview-pages.md`, and `write-microflows.md` skills
 3. Writes a script with the entity, enumeration, pages, and microflow
 4. Validates with `mxcli check`

@@ -52,10 +52,13 @@ type CreateEntityStmt struct {
 
 func (s *CreateEntityStmt) isStatement() {}
 
-// DropEntityStmt represents: DROP ENTITY Module.Name
+// DropEntityStmt represents: DROP [EXTERNAL] ENTITY Module.Name
 type DropEntityStmt struct {
 	DropGuard
 	Name QualifiedName
+	// External is `drop external entity`: the entity must be an external
+	// (OData) entity, and a local one is refused rather than dropped.
+	External bool
 }
 
 func (s *DropEntityStmt) isStatement() {}

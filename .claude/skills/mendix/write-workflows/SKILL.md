@@ -443,7 +443,7 @@ matches. Route on your own entity's status instead.
 The System module's enumerations are **not in the project file** — Mendix ships
 them with the platform — so mxcli synthesizes them from its own table of platform
 definitions. `describe enumeration System.WorkflowUserTaskState` and
-`show enumerations` report them, read-only:
+`list enumerations` report them, read-only:
 
 ```bash
 mxcli -p app.mpr describe enumeration System.WorkflowUserTaskState
@@ -614,6 +614,6 @@ Two traps worth knowing before you start:
 ./bin/mxcli check script.mdl -p app.mpr --references   # entity/page/microflow refs exist
 ```
 
-Then `show workflows` (lists the workflow, its parameter entity, and activity
+Then `list workflows` (lists the workflow, its parameter entity, and activity
 count) and, if Docker is available, `mxcli docker build -p app.mpr` for the full
 Studio-Pro validation.

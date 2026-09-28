@@ -100,18 +100,18 @@ then stops part-way through.
 describe app security;
 
 -- Module roles (all or filtered)
-show module roles;
-show module roles in MyModule;
+list module roles;
+list module roles in MyModule;
 
 -- User roles and demo users
-show user roles;
-show demo users;
+list user roles;
+list demo users;
 
 -- Access on specific elements
-show access on microflow MyModule.ProcessOrder;
-show access on page MyModule.CustomerOverview;
-show access on entity MyModule.Customer;
-show access on MyModule.Customer;        -- a bare name means the entity
+list access on microflow MyModule.ProcessOrder;
+list access on page MyModule.CustomerOverview;
+list access on entity MyModule.Customer;
+list access on MyModule.Customer;        -- a bare name means the entity
 
 -- Full security matrix
 describe security matrix;
@@ -203,7 +203,7 @@ grant execute on nanoflow MyModule.NF_ValidateCart to MyModule.User, MyModule.Ad
 revoke execute on nanoflow MyModule.NF_ValidateCart from MyModule.User;
 
 -- Show current access
-show access on nanoflow MyModule.NF_ValidateCart;
+list access on nanoflow MyModule.NF_ValidateCart;
 ```
 
 > **Note:** Security roles persist through DROP+CREATE of the same nanoflow name within a session (by design, for refactor-in-place workflows).
@@ -414,13 +414,13 @@ drop user role RegularUser;
 
 ```sql
 -- Set security level
-alter app security level off;
-alter app security level prototype;
-alter app security level production;
+alter app security ( SecurityLevel: off );
+alter app security ( SecurityLevel: prototype );
+alter app security ( SecurityLevel: production );
 
 -- Enable/disable demo users
-alter app security demo users on;
-alter app security demo users off;
+alter app security ( EnableDemoUsers: true );
+alter app security ( EnableDemoUsers: false );
 ```
 
 ### Guest (Anonymous) Access
@@ -434,21 +434,21 @@ the important half: **whatever that role can read is the app's public surface.**
 -- unauthenticated session exist at all.
 create user role Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );
 
-alter app security guest access on role Anonymous;
+alter app security ( EnableGuestAccess: true, GuestUserRole: Anonymous );
 
 -- Now grant exactly what should be public — and nothing else.
 grant read * on entity Shop.Product to Anonymous;
 
 -- Re-enabling later does not need the role retyped; the stored one is used.
-alter app security guest access off;
-alter app security guest access on;
+alter app security ( EnableGuestAccess: false );
+alter app security ( EnableGuestAccess: true );
 ```
 
 Three things worth knowing:
 
 - **The role is mandatory.** Mendix fails the build with **CE0133** ("No user role
   for anonymous users selected even though the feature anonymous users is
-  enabled") when access is on with no role. `guest access on` is refused unless a
+  enabled") when access is on with no role. `EnableGuestAccess: true` is refused unless a
   role is given or one is already stored.
 - **Mendix does not check the role exists**, so mxcli does. A misspelled role
   would otherwise build with zero errors and leave anonymous visitors with no

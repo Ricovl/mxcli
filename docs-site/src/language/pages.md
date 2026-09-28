@@ -150,7 +150,7 @@ Use `SHOW` and `DESCRIBE` to examine existing pages:
 
 ```sql
 -- List all pages in a module
-SHOW PAGES IN MyModule;
+LIST PAGES IN MyModule;
 
 -- Show the full MDL definition of a page (round-trippable)
 DESCRIBE PAGE MyModule.Customer_Edit;
