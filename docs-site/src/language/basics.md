@@ -59,13 +59,18 @@ Each keyword has one spelling, and a page action uses the words a microflow uses
 | Canonical | Deprecated | Code |
 |---|---|---|
 | `describe page M.P`, `describe app security`, `describe security matrix [in M]`, `describe structure …`, `describe context of X` | `show` (or `list`) with the same words; `show project security` | `MDL-DEPR090` |
-| `describe entity X`, `describe association X`, `describe navigation`, `describe settings` | `show entity X`, `show association X`, `show navigation [menu]`, `show settings` — these print a summary where `describe` prints the definition as MDL, so `fmt --upgrade` reports them and leaves them in place | `MDL-DEPR090` |
+| `list navigation`, `list navigation menu [profile]`, `list settings` | `show` with the same words. These print tables (the profiles, the menu items, the settings sections), so they are listings | `MDL-DEPR002` |
 | `alter user role R drop module roles (…)` | `… remove module roles (…)` | `MDL-DEPR091` |
 | `alter settings language drop '…'`, `alter settings workflows drop group '…'` | `remove` | `MDL-DEPR092` |
 | `alter entity E add\|rename\|modify\|drop attribute …` | `… column …` | `MDL-DEPR093` |
 | `call rest service get '…' …` | `rest call get '…' …` | `MDL-DEPR094` |
 | `describe widget type combobox` | `describe widget combobox` | `MDL-DEPR095` |
 | `create fragment F as { … }` | `define fragment F as { … }` | `MDL-DEPR096` |
+
+Two `show` forms have no canonical spelling at all:
+
+- `show entity X` and `show association X` print a summary that no statement prints any more. `describe entity X` prints the definition as MDL, and `list entities in M` / `list associations in M` print the summary columns. Neither gives the same output, so they are not aliases. They keep working without a header and warn `MDL-V1-SHOWSUMMARY`; under `mdl 1;` they are an error. `fmt --upgrade --header` refuses the header over them, so you choose the replacement.
+- `show version`, `show status`, `show connections` and `show catalog status` report the session, not the model. They are session commands (R7): type them at the REPL. In a script they warn `MDL-V1-SESSION`, and under `mdl 1;` they are an error.
 
 ## Language Version Header
 
@@ -93,7 +98,8 @@ What `mdl 1` makes strict (each is a warning without the header, with the code s
 | `''` is the only string escape; a backslash is an ordinary character, so `'C:\temp'` is that path. | `\n`, `\r`, `\t`, `\\` and `\'` are escapes; `MDL-V1-ESCAPE` for each literal whose value would change. |
 | In a REST client, published REST service, business event service, model, knowledge base, consumed MCP service or agent, an unknown property key is an error that names the key it most likely meant, and so is a value its key does not take (`Response: json from $X`). | The property is ignored, or read by its shape as before; `MDL-V1-PROP` / `MDL-V1-PROPVALUE`. |
 | A `while` loop is `while <condition> begin … end while;`; leaving out `begin`, or the `while` after `end`, is an error. | Accepted; `MDL-V1-WHILE`. |
-| A session command — `connect`, `disconnect`, `use`, `set format = …`, `status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help`, `introspect api` — is an error in a script. Type it at the REPL, or use the command-line flag (`mxcli exec script.mdl -p app.mpr --json`). The REPL keeps accepting them. | Runs as before; `MDL-V1-SESSION`. |
+| `show entity X` / `show association X` is an error: `describe entity X` prints the definition, `list entities in M` the summary columns. | Prints the summary; `MDL-V1-SHOWSUMMARY`. |
+| A session command — `connect`, `disconnect`, `use`, `set format = …`, `status`, `show version`, `show status`, `show connections`, `show catalog status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help`, `introspect api` — is an error in a script. Type it at the REPL, or use the command-line flag (`mxcli exec script.mdl -p app.mpr --json`). The REPL keeps accepting them. | Runs as before; `MDL-V1-SESSION`. |
 
 ### Upgrading a script: `mxcli fmt --upgrade`
 

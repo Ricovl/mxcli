@@ -29,8 +29,10 @@ func init() {
 			"-- every statement ends with ';' and '/' is not a terminator; '' is the\n" +
 			"-- only string escape, so a backslash is an ordinary character; and an\n" +
 			"-- unknown or mis-shaped property key in a REST, business event or agent\n" +
-			"-- property list is an error; and a session command (connect, set format,\n" +
-			"-- status, help, …) in a script is an error (MDL-V1-SESSION). A trailing\n" +
+			"-- property list is an error; a session command (connect, set format,\n" +
+			"-- status, show version, help, …) in a script is an error (MDL-V1-SESSION);\n" +
+			"-- and `show entity X` / `show association X`, which print a summary no\n" +
+			"-- statement prints any more, are an error (MDL-V1-SHOWSUMMARY). A trailing\n" +
 			"-- comma is allowed in every bracketed list, with or without the header.\n" +
 			"--\n" +
 			"-- A script's meaning never depends on which mxcli release runs it: a\n" +
@@ -44,7 +46,8 @@ func init() {
 			"-- and writes list operations one statement per activity. It refuses, and\n" +
 			"-- says why, when a construct has no rewrite: an unknown or mis-shaped\n" +
 			"-- property (MDL-V1-PROP/PROPVALUE), `create or replace view entity`\n" +
-			"-- (MDL-V1-REPLACE01), a session command in a script (MDL-V1-SESSION), a\n" +
+			"-- (MDL-V1-REPLACE01), a session command in a script (MDL-V1-SESSION),\n" +
+			"-- `show entity|association X` (MDL-V1-SHOWSUMMARY), a\n" +
 			"-- nested list operation, find/contains on a variable\n" +
 			"-- whose type the script does not state, and an escaped line break inside\n" +
 			"-- an expression.\n" +
@@ -184,13 +187,15 @@ func init() {
 			"session", "session command", "repl", "repl command", "meta-command",
 			"connect", "disconnect", "use", "set format", "status", "check", "build",
 			"lint", "debug", "execute script", "execute runtime", "help", "introspect",
+			"show version", "show status", "show connections", "show catalog status",
 			"MDL-V1-SESSION",
 		},
 		Syntax: "CONNECT LOCAL '<app.mpr>';   DISCONNECT;   STATUS;\n" +
 			"SET format = json|table;       USE <session> | USE ALL;\n" +
 			"CHECK;  BUILD;  LINT [target];  DEBUG '<…>';  INTROSPECT API;\n" +
 			"EXECUTE SCRIPT '<file.mdl>';   EXECUTE RUNTIME '<command>';\n" +
-			"HELP [topic];\n\n" +
+			"HELP [topic];\n" +
+			"SHOW VERSION;  SHOW STATUS;  SHOW CONNECTIONS;  SHOW CATALOG STATUS;\n\n" +
 			"-- A session command needs a session or an environment: a connection, an\n" +
 			"-- output format, a build, a running app. It is typed at the REPL, or given\n" +
 			"-- as a command-line flag. A .mdl script holds model statements only:\n" +
@@ -248,7 +253,7 @@ DISCONNECT;`,
 			"status", "show status", "connection status",
 			"project info", "version", "connected",
 		},
-		Syntax:  "STATUS;\nSHOW STATUS;\n\n-- A session command, for the REPL (see session-commands).",
+		Syntax:  "STATUS;\nSHOW STATUS;\n\n-- A session command, for the REPL (see session-commands). In a script it\n-- warns MDL-V1-SESSION, and under `mdl 1;` it is an error.",
 		Example: "STATUS;\n-- Output: Connected to /projects/MyApp/MyApp.mpr (Mendix 10.24.0, 5 modules)",
 		SeeAlso: []string{"connect", "disconnect", "session-commands"},
 	})
@@ -262,8 +267,8 @@ DISCONNECT;`,
 			"navigation", "nav", "profile", "responsive", "phone", "tablet",
 			"home page", "menu", "login page",
 		},
-		Syntax:  "SHOW NAVIGATION;\nDESCRIBE NAVIGATION [profile];\nCREATE OR REPLACE NAVIGATION <profile> ...;",
-		Example: "SHOW NAVIGATION;\nDESCRIBE NAVIGATION Responsive;",
+		Syntax:  "LIST NAVIGATION;\nDESCRIBE NAVIGATION [profile];\nCREATE OR MODIFY NAVIGATION <profile> ...;",
+		Example: "LIST NAVIGATION;\nDESCRIBE NAVIGATION Responsive;",
 		SeeAlso: []string{"navigation.show", "navigation.create", "navigation.alter"},
 	})
 
@@ -271,11 +276,13 @@ DISCONNECT;`,
 		Path:    "navigation.show",
 		Summary: "List navigation profiles, menus, and home page assignments",
 		Keywords: []string{
-			"show navigation", "describe navigation", "navigation menu",
+			"show navigation", "list navigation", "describe navigation", "navigation menu",
 			"navigation homes", "list profiles",
 		},
-		Syntax:  "SHOW NAVIGATION;\nSHOW NAVIGATION MENU;\nSHOW NAVIGATION MENU <profile>;\nLIST NAVIGATION HOMES;\nDESCRIBE NAVIGATION;\nDESCRIBE NAVIGATION <profile>;",
-		Example: "SHOW NAVIGATION;\nSHOW NAVIGATION MENU Responsive;\nDESCRIBE NAVIGATION Responsive;",
+		Syntax: "LIST NAVIGATION;                  -- the profiles, one row each\nLIST NAVIGATION MENU [<profile>];  -- the menu tree\n" +
+			"LIST NAVIGATION HOMES;\nDESCRIBE NAVIGATION [<profile>];    -- the profile as MDL\n\n" +
+			"-- `show navigation [menu]` is a deprecated alias of the list form (MDL-DEPR002).",
+		Example: "LIST NAVIGATION;\nLIST NAVIGATION MENU Responsive;\nDESCRIBE NAVIGATION Responsive;",
 	})
 
 	Register(SyntaxFeature{
@@ -481,8 +488,9 @@ create or modify translations in Administration for nl_NL (
 		Keywords: []string{
 			"show settings", "describe settings", "list settings",
 		},
-		Syntax:  "DESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION '<name>';",
-		Example: "DESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION 'Default';",
+		Syntax: "LIST SETTINGS;                              -- the sections, one row each\n" +
+			"DESCRIBE SETTINGS;                          -- the settings as MDL\nDESCRIBE SETTINGS CONFIGURATION '<name>';",
+		Example: "LIST SETTINGS;\nDESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION 'Default';",
 	})
 
 	Register(SyntaxFeature{

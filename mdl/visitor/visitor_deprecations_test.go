@@ -263,20 +263,25 @@ func TestShowRecordsDeprecation(t *testing.T) {
 		// §3, R6): MDL-DEPR090, never MDL-DEPR002, so `fmt --upgrade` does
 		// not rewrite them to a `list` that is not canonical either. `list`
 		// on these forms is reported too.
-		{"show entity M.E;", []string{deprecation.ShowSingleThing}},
-		{"show association M.A;", []string{deprecation.ShowSingleThing}},
+		// `show entity|association X` alias nothing: gated instead (MDL-V1-SHOWSUMMARY).
+		{"show entity M.E;", nil},
+		{"show association M.A;", nil},
 		{"show page M.P;", []string{deprecation.ShowSingleThing}},
 		{"list page M.P;", []string{deprecation.ShowSingleThing}},
-		{"show navigation;", []string{deprecation.ShowSingleThing}},
+		// The navigation and settings tables are listings (ako/mxcli#755).
+		{"show navigation;", []string{deprecation.Show}},
+		{"list navigation;", nil},
 		{"show navigation homes;", []string{deprecation.Show}},
 		{"list navigation homes;", nil},
-		{"show navigation menu M.Nav;", []string{deprecation.ShowSingleThing}},
+		{"show navigation menu M.Nav;", []string{deprecation.Show}},
 		{"show structure depth 2 in M;", []string{deprecation.ShowSingleThing}},
 		{"show context of M.MF;", []string{deprecation.ShowSingleThing}},
 		{"show project security;", []string{deprecation.ShowSingleThing}},
 		{"show security matrix in M;", []string{deprecation.ShowSingleThing}},
-		{"show settings;", []string{deprecation.ShowSingleThing}},
-		// Session state becomes a REPL command (R7), not reported until then.
+		{"show settings;", []string{deprecation.Show}},
+		{"list settings;", nil},
+		// Session state is a session command (R7): gated as MDL-V1-SESSION,
+		// not a deprecated spelling.
 		{"show version;", nil},
 		{"show status;", nil},
 		{"show connections;", nil},

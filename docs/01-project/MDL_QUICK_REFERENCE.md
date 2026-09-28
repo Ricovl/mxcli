@@ -15,7 +15,7 @@ create persistent entity Sales.Customer ( Name: String(200) );
 
 ## Session commands — the REPL, not a script
 
-`connect`, `disconnect`, `use`, `set format = …`, `status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help` and `introspect api` set up or inspect the session. Type them at the REPL, or use the command-line flags; a `.mdl` script holds model statements only. Under `mdl 1;` a session command in a script is an error; without the header it runs and warns `MDL-V1-SESSION`. `exit` / `quit` are not session commands.
+`connect`, `disconnect`, `use`, `set format = …`, `status`, `show version`, `show status`, `show connections`, `show catalog status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help` and `introspect api` set up or inspect the session. Type them at the REPL, or use the command-line flags; a `.mdl` script holds model statements only. Under `mdl 1;` a session command in a script is an error; without the header it runs and warns `MDL-V1-SESSION`. `exit` / `quit` are not session commands.
 
 ```bash
 mxcli exec changes.mdl -p app.mpr --json     # not: connect local 'app.mpr'; set format = json; in the script

@@ -190,7 +190,11 @@ func TestGatedRegistryIsComplete(t *testing.T) {
 	// MDL-V1-SESSION (R7, ako/mxcli#755) was added with its change: moving a
 	// session command out of a script is a decision about how the script is run.
 	pinned := map[string]bool{"MDL-V1-PROP": true, "MDL-V1-PROPVALUE": true, "MDL-V1-REPLACE01": true,
-		"MDL-V1-SESSION": true}
+		"MDL-V1-SESSION": true,
+		// MDL-V1-SHOWSUMMARY (R6, ako/mxcli#755) was added with its change:
+		// the summary is removed, not respelt, so the choice of replacement
+		// is the author's.
+		"MDL-V1-SHOWSUMMARY": true}
 	known := map[string]bool{}
 	for _, c := range visitor.LanguageChanges() {
 		known[c.Code] = true

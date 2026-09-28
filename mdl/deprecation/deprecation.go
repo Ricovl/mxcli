@@ -180,9 +180,9 @@ const (
 	// R6: one verb per job (ako/mxcli#755). A block of their own, 090-099, so
 	// the parallel phase-3 changes do not collide.
 
-	// ShowSingleThing is `show` (or `list`) on a form that names one thing:
-	// entity, association, page, navigation, app security, security matrix,
-	// structure, context, settings. Its canonical verb is `describe`.
+	// ShowSingleThing is `show` (or `list`) on a form that names one thing
+	// whose describe is the same statement: page, app security, security
+	// matrix, structure, context. Its canonical verb is `describe`.
 	ShowSingleThing = "MDL-DEPR090"
 	// UserRoleRemove is `alter user role … remove module roles`.
 	UserRoleRemove = "MDL-DEPR091"
@@ -298,11 +298,12 @@ var entries = []Entry{
 		Canonical: "list …",
 		Rewrite:   Rewrite{Token: "show", Replacement: "list"},
 		RemovedIn: 2,
-		Note: "Reported only for plurals and relationship queries, whose canonical " +
-			"form is `list`. Forms that name a single thing (`show entity X`, " +
-			"`show navigation`, `show project security`, …) become `describe` " +
-			"(MDL-DEPR090), and session state (`show version`, `show status`) a REPL " +
-			"command (R7), which is not reported until that command exists.",
+		Note: "Reported for plurals, relationship queries and the summary tables " +
+			"(`show navigation [menu]`, `show settings`), whose canonical form is `list`. " +
+			"Forms that name a single thing (`show page X`, `show project security`, …) " +
+			"become `describe` (MDL-DEPR090); `show entity X` / `show association X` have no " +
+			"mdl 1 statement (MDL-V1-SHOWSUMMARY); session state (`show version`, `show status`, " +
+			"`show catalog status`) is a session command (MDL-V1-SESSION).",
 		Example:          "show entities in M;",
 		CanonicalExample: "list entities in M;",
 	},
@@ -557,15 +558,16 @@ var r9Entries = []Entry{
 var r6Entries = []Entry{
 	{
 		Code:      ShowSingleThing,
-		Old:       "show entity|association|page|navigation|project security|security matrix|structure|context of|settings …",
-		Canonical: "describe entity|association|page|navigation|app security|security matrix|structure|context of|settings …",
+		Old:       "show page|project security|security matrix|structure|context of …",
+		Canonical: "describe page|app security|security matrix|structure|context of …",
 		Rewrite: Rewrite{Structural: "verb as `describe`: `show page X` -> `describe page X`, `show project security` -> " +
 			"`describe app security`; the same for `list` on these forms"},
 		RemovedIn: 2,
-		Note: "`show` is dropped (R6): plurals are listed, one thing is described. For page, app security, security " +
-			"matrix, structure and context the describe is the same statement. `show entity`, `show association`, " +
-			"`show navigation` and `show settings` print a summary where describe prints the full definition as MDL, " +
-			"so they keep their summary and `fmt --upgrade` reports them instead of rewriting them.",
+		Note: "`show` is dropped (R6): plurals are listed, one thing is described, and each of these describes " +
+			"is the same statement as its `show`. Not covered here: `show navigation [menu]` and `show settings` " +
+			"print tables, so they are `list navigation [menu]` / `list settings` (MDL-DEPR002); `show entity X` and " +
+			"`show association X` print a summary no mdl 1 statement prints, so they are not aliases at all and are " +
+			"refused under mdl 1 (MDL-V1-SHOWSUMMARY).",
 		Example:          "show security matrix in M;",
 		CanonicalExample: "describe security matrix in M;",
 	},

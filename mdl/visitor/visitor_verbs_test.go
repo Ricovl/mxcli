@@ -4,6 +4,7 @@ package visitor
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
@@ -66,24 +67,101 @@ func TestR6OldVerbsAreAliases(t *testing.T) {
 	}
 }
 
-// `show entity|association|navigation|settings` print a summary where
-// describe prints the definition as MDL: deprecated, but they keep their
-// statement and carry no rewrite, only the reason.
-func TestR6ShowSummariesAreReportedWithoutRewrite(t *testing.T) {
-	for _, src := range []string{
-		"show entity M.E;", "show association M.A;", "show navigation;",
-		"show navigation menu Responsive;", "show settings;",
-	} {
-		t.Run(src, func(t *testing.T) {
-			prog := mustBuild(t, src)
-			if len(prog.Deprecations) != 1 || prog.Deprecations[0].Code != deprecation.ShowSingleThing {
-				t.Fatalf("recorded %+v, want one %s", prog.Deprecations, deprecation.ShowSingleThing)
+// `show navigation`, `show navigation menu` and `show settings` print a
+// table, which is a listing: their canonical verb is `list`, the same
+// statement, so they are MDL-DEPR002 with the token swap and `list` on them
+// records nothing (ako/mxcli#755). They were MDL-DEPR090, whose canonical
+// `describe` prints the definition as MDL instead — not the same output.
+func TestR6ShowSummaryTablesAreListed(t *testing.T) {
+	cases := []struct{ old, canonical string }{
+		{"show navigation;", "list navigation;"},
+		{"show navigation menu;", "list navigation menu;"},
+		{"show navigation menu Responsive;", "list navigation menu Responsive;"},
+		{"show settings;", "list settings;"},
+	}
+	for _, c := range cases {
+		t.Run(c.old, func(t *testing.T) {
+			old := mustBuild(t, c.old)
+			if got := deprecationCodes(old); !reflect.DeepEqual(got, []string{deprecation.Show}) {
+				t.Errorf("old recorded %v, want [%s]", got, deprecation.Show)
 			}
-			d := prog.Deprecations[0]
-			if d.Fix != nil || d.NoFix == "" {
-				t.Errorf("Fix = %+v, NoFix = %q; want no fix and a reason", d.Fix, d.NoFix)
+			canon := mustBuild(t, c.canonical)
+			if got := deprecationCodes(canon); len(got) != 0 {
+				t.Errorf("canonical recorded %v, want none", got)
+			}
+			if !reflect.DeepEqual(old.Statements, canon.Statements) {
+				t.Errorf("old and canonical build different statements")
 			}
 		})
+	}
+}
+
+// `show entity X` / `show association X` print a summary that no mdl 1
+// statement prints: `describe` prints the definition as MDL, `list entities` /
+// `list associations` the summary columns. So they are not aliases of either.
+// They are removed under mdl 1 (MDL-V1-SHOWSUMMARY, a new rejection) and keep
+// their summary under mdl 0 with that warning. `list entity X` is the same
+// statement and goes with them.
+func TestR6ShowSummaryOfOneElementIsRemovedUnderMdl1(t *testing.T) {
+	for _, src := range []string{
+		"show entity M.E;", "show association M.A;", "list entity M.E;", "list association M.A;",
+	} {
+		t.Run(src, func(t *testing.T) {
+			prog, errs := Build(src)
+			if len(errs) > 0 {
+				t.Fatalf("mdl 0: %v", errs)
+			}
+			if len(prog.Deprecations) != 0 {
+				t.Errorf("mdl 0 recorded deprecations %+v: it is not an alias of anything", prog.Deprecations)
+			}
+			if n := countNotes(prog.LanguageNotes, showSummaryRemoved.Code); n != 1 {
+				t.Errorf("mdl 0: %d %s note(s), want 1", n, showSummaryRemoved.Code)
+			}
+			if len(prog.Statements) != 1 {
+				t.Errorf("mdl 0: %d statements, want the summary statement", len(prog.Statements))
+			}
+			_, errs = Build("mdl 1;\n" + src)
+			if len(errs) != 1 || !strings.Contains(errs[0].Error(), "describe") {
+				t.Errorf("mdl 1: want one error pointing at describe, got %v", errs)
+			}
+		})
+	}
+	// Control: the describe and list forms are untouched under both versions.
+	for _, src := range []string{"describe entity M.E;", "describe association M.A;", "list entities in M;"} {
+		for _, v := range []string{"", "mdl 1;\n"} {
+			prog, errs := Build(v + src)
+			if len(errs) > 0 || countNotes(prog.LanguageNotes, showSummaryRemoved.Code) != 0 {
+				t.Errorf("%q: errs %v, notes %+v", v+src, errs, prog.LanguageNotes)
+			}
+		}
+	}
+}
+
+// R7: `show version|status|connections`, `show catalog status` report the
+// session, not the model. They are session commands: refused in an mdl 1
+// script, warned under mdl 0 (MDL-V1-SESSION, as `status;` is).
+func TestShowSessionStateIsASessionCommand(t *testing.T) {
+	for _, src := range []string{
+		"show version;", "show status;", "show connections;", "show catalog status;",
+		"list version;", "list catalog status;",
+	} {
+		t.Run(src, func(t *testing.T) {
+			prog, errs := Build(src)
+			if len(errs) > 0 {
+				t.Fatalf("mdl 0: %v", errs)
+			}
+			if n := countNotes(prog.LanguageNotes, sessionCommandInScript.Code); n != 1 {
+				t.Errorf("mdl 0: %d %s note(s), want 1", n, sessionCommandInScript.Code)
+			}
+			_, errs = Build("mdl 1;\n" + src)
+			if len(errs) != 1 || !strings.Contains(errs[0].Error(), "session command") {
+				t.Errorf("mdl 1: want one session-command error, got %v", errs)
+			}
+		})
+	}
+	// Control: `list catalog tables` lists the model's catalog, not the session.
+	if prog := mustBuild(t, "list catalog tables;"); countNotes(prog.LanguageNotes, sessionCommandInScript.Code) != 0 {
+		t.Errorf("list catalog tables reported as a session command")
 	}
 }
 
@@ -98,6 +176,9 @@ func TestR6CanonicalFormsRecordNothing(t *testing.T) {
 		"alter entity M.E drop default on attribute Note;",
 		"create association M.A_B from M.A to M.B type Reference storage column;",
 		"list navigation homes;",
+		"list navigation;",
+		"list navigation menu;",
+		"list settings;",
 	} {
 		t.Run(src, func(t *testing.T) {
 			if got := deprecationCodes(mustBuild(t, src)); len(got) != 0 {

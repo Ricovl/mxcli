@@ -59,12 +59,12 @@ showStatement
     | showOrList MESSAGE DEFINITION COLLECTION (IN (qualifiedName | IDENTIFIER))?
     | showOrList IMPORT MAPPINGS (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXPORT MAPPINGS (IN (qualifiedName | IDENTIFIER))?
-    // R6: a single thing is described, not shown. `show` on these is a
-    // deprecated alias (MDL-DEPR090); page, app security, security matrix,
-    // structure and context build the same statement as their describe, the
-    // others keep their summary and are reported without a rewrite.
-    | showOrList ENTITY qualifiedName /* @alias MDL-DEPR090 */
-    | showOrList ASSOCIATION qualifiedName /* @alias MDL-DEPR090 */
+    // R6: a single thing is described, not shown. `show page X` is a
+    // deprecated alias of `describe page X` (MDL-DEPR090). The entity and
+    // association summaries have no mdl 1 statement: they keep their summary
+    // under mdl 0 and are refused under mdl 1 (MDL-V1-SHOWSUMMARY).
+    | showOrList ENTITY qualifiedName
+    | showOrList ASSOCIATION qualifiedName
     | showOrList PAGE qualifiedName /* @alias MDL-DEPR090 */
     | showOrList CONNECTIONS
     | showOrList STATUS
@@ -100,15 +100,16 @@ showStatement
     | showOrList publishedODataServicesKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXTERNAL ENTITIES (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXTERNAL ACTIONS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList NAVIGATION /* @alias MDL-DEPR090 */
-    | showOrList NAVIGATION MENU_KW (qualifiedName | IDENTIFIER)? /* @alias MDL-DEPR090 */
+    // The profiles table and the menu tree are listings: `list navigation`.
+    | showOrList NAVIGATION
+    | showOrList NAVIGATION MENU_KW (qualifiedName | IDENTIFIER)?
     | showOrList NAVIGATION HOMES
     | showOrList DESIGN PROPERTIES (FOR widgetTypeKeyword)?
     | showOrList STRUCTURE (DEPTH NUMBER_LITERAL)? (IN (qualifiedName | IDENTIFIER))? ALL? /* @alias MDL-DEPR090 */
     | showOrList BUSINESS EVENT SERVICES (IN (qualifiedName | IDENTIFIER))?
     | showOrList BUSINESS EVENT CLIENTS (IN (qualifiedName | IDENTIFIER))?
     | showOrList BUSINESS EVENTS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList SETTINGS /* @alias MDL-DEPR090 */
+    | showOrList SETTINGS   // the settings sections, one row each: `list settings`
     | showOrList FRAGMENTS
     | showOrList DATABASE CONNECTIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList consumedRestServicesKw (IN (qualifiedName | IDENTIFIER))?
