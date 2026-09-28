@@ -134,12 +134,10 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 		outputJavadoc(ctx.Output, svc.Description)
 	}
 
-	// describe keeps a plain `create` here, not `create or modify` (ADR-0012: carry or refuse,
-	// never silently drop). A `create or modify` rewrite of this type does not yet carry what
-	// describe cannot print, so re-running this output on an existing document would silently
-	// lose Studio Pro-authored content; a plain `create` refuses instead. Switch the verb only
-	// once the rewrite's carry is proven by the round-trip harness (see #743).
-	fmt.Fprintf(ctx.Output, "create consumed odata service %s.%s (\n", moduleName, svc.Name)
+	// `create or modify`: the rewrite carries what describe cannot print (the icon,
+	// UseQuerySegment, the catalog and proxy keys, see carryStoredConsumedODataService),
+	// proven on ako/TestApp's clients by the round-trip harness (#743).
+	fmt.Fprintf(ctx.Output, "create or modify consumed odata service %s.%s (\n", moduleName, svc.Name)
 
 	var props []string
 	if folderPath != "" {
@@ -775,8 +773,9 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 		outputJavadoc(ctx.Output, entity.Documentation)
 	}
 
-	// Plain `create` on purpose; see describeODataClient.
-	fmt.Fprintf(ctx.Output, "create external entity %s.%s\n", moduleName, entity.Name)
+	// `create or modify`: the rewrite keeps each stored attribute's identity and
+	// OData mapping by name (#743), proven on ako/TestApp by the round-trip harness.
+	fmt.Fprintf(ctx.Output, "create or modify external entity %s.%s\n", moduleName, entity.Name)
 	fmt.Fprintf(ctx.Output, "from consumed odata service %s\n", entity.RemoteServiceName)
 	fmt.Fprintln(ctx.Output, "(")
 
@@ -1135,13 +1134,11 @@ func createODataClient(ctx *ExecContext, stmt *ast.CreateODataClientStmt) error 
 					}
 					return nil
 				}
-				// Not "use create or modify": that rewrite does not yet carry what
-				// describe cannot print and would lose Studio Pro-authored
-				// settings (#743).
+				// The rewrite carries what describe cannot print (#743), so it is
+				// the advice again, as for every other document type.
 				return mdlerrors.NewAlreadyExistsMsg("OData client", modName+"."+svc.Name, fmt.Sprintf(
-					"OData client already exists: %s.%s — use 'alter consumed odata service %s.%s set ...' to change it; "+
-						"'create or modify consumed odata service' rewrites the whole client and does not yet keep everything Studio Pro stores "+
-						"(UseQuerySegment, catalog, proxy and microflow settings, icon)", modName, svc.Name, modName, svc.Name))
+					"OData client already exists: %s.%s (use create or modify to update it, or "+
+						"'alter consumed odata service %s.%s set ...' to change one property)", modName, svc.Name, modName, svc.Name))
 			}
 		}
 	}

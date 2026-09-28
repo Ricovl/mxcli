@@ -289,7 +289,11 @@ tasks, decisions, splits, jump-to targets, wait activities and boundary events
 all come back as statements (not comments). You can learn the exact syntax by
 describing a Studio-Pro-authored workflow, and `describe → drop → exec`
 reproduces a workflow that builds. (The implicit start/end activities are
-omitted, as they are re-synthesised on create.)
+omitted, as they are re-synthesised on create.) `describe` prints
+`create or modify workflow`, and re-running it on the workflow it came from
+changes nothing: the rewrite keeps the stored names of the activities MDL cannot
+name (Studio Pro's `start1`, `end1`, …), the empty flow of an outcome that leads
+nowhere, and the empty event sub-process list.
 
 That is for learning the syntax and for workflows your scripts own. **To change an
 existing Studio Pro workflow, use `alter workflow`**, never drop → exec: that

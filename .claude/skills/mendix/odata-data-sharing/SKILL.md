@@ -84,6 +84,15 @@ refresh — that invalidates the client ID the existing external entities point 
 Note that `ALTER CONSUMED ODATA SERVICE SET MetadataUrl = …` does *not* re-fetch. Use
 `CREATE OR MODIFY` when the contract is what changed.
 
+`describe` prints a client and an external entity as `create or modify …`, and
+re-running that output changes nothing: the rewrite keeps what it cannot print
+(the client's icon, UseQuerySegment, the catalog and proxy settings; each
+attribute's OData mapping). An external entity's attribute **types** are the
+service's, not the script's: declaring another (`OrderId: String(20)` for an
+`Edm.Int64` property) is CE6616 in mx check. Under `mdl 1` that statement is
+refused with nothing written; without the header it still writes, with warning
+`MDL-V1-REMOTETYPE`.
+
 **Use Cases for Local Metadata:**
 - **Offline development** — no network access required
 - **Testing and CI/CD** — reproducible builds with metadata snapshots
