@@ -248,7 +248,7 @@ USER TASK Review 'Review'
   };
 ```
 
-An activity may carry only one interrupting boundary event (CE6697). `ALTER WORKFLOW … INSERT BOUNDARY EVENT` cannot add a notification boundary event yet.
+An activity may carry only one interrupting boundary event (CE6697). `ALTER WORKFLOW … { INSERT INTO <activity> { BOUNDARY EVENT … } }` cannot add a notification boundary event yet.
 
 A microflow reaches any of these with `NOTIFY WORKFLOW`, naming the element:
 
