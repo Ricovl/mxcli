@@ -73,7 +73,7 @@ Does an existing pattern cover this? If yes, extend it. Don't invent new syntax.
 ```
 New feature: "image collections"
 Existing pattern: create/alter/drop/list/describe
-design: create image collection Module.Name (...)
+design: create image collection Module.Name { image X ( File: '…' ) }
         describe image collection Module.Name
         list image COLLECTIONS [in module]
 ```

@@ -5,12 +5,11 @@ Every MDL page has three main parts: page properties (title, layout, parameters)
 ## CREATE PAGE Syntax
 
 ```sql
-CREATE [OR REPLACE] PAGE <Module>.<Name>
+CREATE [OR REPLACE] PAGE <Module>.<Name> [FOLDER '<path>']
 (
   [Params: { $Param: Module.Entity | Type [, ...] },]
   Title: '<title>',
   Layout: <Module.LayoutName>
-  [, Folder: '<path>']
   [, Variables: { $name: Type = 'expression' [, ...] }]
 )
 {
@@ -183,22 +182,21 @@ The widget tree is a nested hierarchy. Container widgets hold child widgets with
 
 ## Folder Organization
 
-Use the `Folder` property to organize pages into folders within a module:
+Use the `FOLDER` clause after the name to organize pages into folders within a module:
 
 ```sql
-CREATE PAGE MyModule.Customer_Edit
+CREATE PAGE MyModule.Customer_Edit FOLDER 'Customers'
 (
   Params: { $Customer: MyModule.Customer },
   Title: 'Edit Customer',
-  Layout: Atlas_Core.PopupLayout,
-  Folder: 'Customers'
+  Layout: Atlas_Core.PopupLayout
 )
 {
   ...
 }
 ```
 
-Nested folders use `/` separators: `Folder: 'Pages/Customers/Detail'`. Missing folders are auto-created.
+Nested folders use `/` separators: `FOLDER 'Pages/Customers/Detail'`. Missing folders are auto-created. The `Folder: '…'` property is a deprecated alias of the clause (`MDL-DEPR105`).
 
 ## See Also
 

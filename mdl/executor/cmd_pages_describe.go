@@ -88,6 +88,10 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 
 	// V3 syntax: CREATE PAGE Module.Page (Title: '...', Layout: ..., Params: { })
 	header := fmt.Sprintf("create or modify page %s.%s", modName, foundPage.Name)
+	// The folder is a clause after the name (R9); `Folder:` is its alias.
+	if folderPath := h.BuildFolderPath(foundPage.ContainerID); folderPath != "" {
+		header += " folder " + mdlQuote(folderPath)
+	}
 	props := []string{}
 	if title != "" {
 		props = append(props, fmt.Sprintf("Title: %s", mdlQuote(title)))
@@ -97,9 +101,6 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 	if foundPage.URL != "" {
 		props = append(props, fmt.Sprintf("Url: %s", mdlQuote(foundPage.URL)))
-	}
-	if folderPath := h.BuildFolderPath(foundPage.ContainerID); folderPath != "" {
-		props = append(props, fmt.Sprintf("Folder: %s", mdlQuote(folderPath)))
 	}
 	// Pop-up dimensions (issues #661, #713) — emit only non-default values so
 	// the CREATE PAGE header round-trips. Studio Pro's default is 0/0 (auto-size);
@@ -271,8 +272,11 @@ func describeSnippet(ctx *ExecContext, name ast.QualifiedName) error {
 
 	// Output CREATE SNIPPET statement (V3 syntax)
 	fmt.Fprintf(ctx.Output, "create or modify snippet %s.%s", modName, foundSnippet.Name)
-	folderPath := h.BuildFolderPath(foundSnippet.ContainerID)
-	if len(params) > 0 || folderPath != "" {
+	// The folder is a clause after the name (R9); `Folder:` is its alias.
+	if folderPath := h.BuildFolderPath(foundSnippet.ContainerID); folderPath != "" {
+		fmt.Fprintf(ctx.Output, " folder %s", mdlQuote(folderPath))
+	}
+	if len(params) > 0 {
 		snippetProps := []string{}
 		if len(params) > 0 {
 			paramParts := []string{}
@@ -281,9 +285,6 @@ func describeSnippet(ctx *ExecContext, name ast.QualifiedName) error {
 				paramParts = append(paramParts, fmt.Sprintf("$%s: %s", paramName, snippetParamTypeMDL(p["ParameterType"])))
 			}
 			snippetProps = append(snippetProps, fmt.Sprintf("Params: { %s }", strings.Join(paramParts, ", ")))
-		}
-		if folderPath != "" {
-			snippetProps = append(snippetProps, fmt.Sprintf("Folder: %s", mdlQuote(folderPath)))
 		}
 		fmt.Fprintf(ctx.Output, " (%s)", strings.Join(snippetProps, ", "))
 	}

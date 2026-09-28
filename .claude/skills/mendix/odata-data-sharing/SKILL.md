@@ -81,7 +81,7 @@ Then re-import: `CREATE OR MODIFY EXTERNAL ENTITIES FROM F1Now.NowApi` maps the
 new entity sets. Do **not** `DROP CONSUMED ODATA SERVICE` and recreate it to force a
 refresh — that invalidates the client ID the existing external entities point at.
 
-Note that `ALTER CONSUMED ODATA SERVICE SET MetadataUrl = …` does *not* re-fetch. Use
+Note that `ALTER CONSUMED ODATA SERVICE … SET ( MetadataUrl: … )` does *not* re-fetch. Use
 `CREATE OR MODIFY` when the contract is what changed.
 
 `describe` prints a client and an external entity as `create or modify …`, and
@@ -211,31 +211,27 @@ Use the `Folder` property to organize OData documents within modules.
 
 ```sql
 -- Format 1: HTTP(S) URL
-create consumed odata service ProductClient.ProductDataApiClient (
+create consumed odata service ProductClient.ProductDataApiClient folder 'Integration/ProductAPI' (
   ODataVersion: OData4,
-  MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
-  Folder: 'Integration/ProductAPI'
+  MetadataUrl: 'https://api.example.com/odata/v4/$metadata'
 );
 
 -- Format 2: Absolute file:// URI
-create consumed odata service ProductClient.ProductDataApiClient (
+create consumed odata service ProductClient.ProductDataApiClient folder 'Integration/ProductAPI' (
   ODataVersion: OData4,
-  MetadataUrl: 'file:///Users/team/contracts/productdataapi.xml',
-  Folder: 'Integration/ProductAPI'
+  MetadataUrl: 'file:///Users/team/contracts/productdataapi.xml'
 );
 
 -- Format 3a: Relative path with ./
-create consumed odata service ProductClient.ProductDataApiClient (
+create consumed odata service ProductClient.ProductDataApiClient folder 'Integration/ProductAPI' (
   ODataVersion: OData4,
-  MetadataUrl: './metadata/productdataapi.xml',
-  Folder: 'Integration/ProductAPI'
+  MetadataUrl: './metadata/productdataapi.xml'
 );
 
 -- Format 3b: Relative path without ./
-create consumed odata service ProductClient.ProductDataApiClient (
+create consumed odata service ProductClient.ProductDataApiClient folder 'Integration/ProductAPI' (
   ODataVersion: OData4,
-  MetadataUrl: 'metadata/productdataapi.xml',
-  Folder: 'Integration/ProductAPI'
+  MetadataUrl: 'metadata/productdataapi.xml'
 );
 
 create published odata service ProductApi.ProductDataApi (

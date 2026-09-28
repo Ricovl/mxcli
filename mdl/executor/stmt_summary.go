@@ -211,7 +211,7 @@ func stmtSummary(stmt ast.Statement) string {
 
 	// Fragments
 	case *ast.DefineFragmentStmt:
-		return fmt.Sprintf("define fragment %s", s.Name)
+		return fmt.Sprintf("create fragment %s", s.Name)
 	case *ast.DescribeFragmentFromStmt:
 		return fmt.Sprintf("describe fragment from %s %s widget %s", s.ContainerType, s.ContainerName, s.WidgetName)
 

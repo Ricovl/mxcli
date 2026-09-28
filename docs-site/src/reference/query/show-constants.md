@@ -47,4 +47,4 @@ SHOW CONSTANT VALUES IN MyModule
 
 ## See Also
 
-[SHOW MODULES](show-modules.md), [SHOW STRUCTURE](show-structure.md), [SHOW / DESCRIBE SETTINGS](../settings/show-settings.md)
+[SHOW MODULES](show-modules.md), [DESCRIBE STRUCTURE](show-structure.md), [SHOW / DESCRIBE SETTINGS](../settings/show-settings.md)

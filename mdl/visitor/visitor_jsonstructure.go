@@ -23,8 +23,15 @@ func (b *Builder) ExitCreateJsonStructureStatement(ctx *parser.CreateJsonStructu
 		stmt.Folder = unquoteStringLit(allStrings[strIdx])
 		strIdx++
 	}
-	if ctx.COMMENT() != nil && strIdx < len(allStrings) {
-		stmt.Documentation = unquoteStringLit(allStrings[strIdx])
+	// R9: documentation is a doc comment; `comment '…'` is its alias. The
+	// doc comment wins when a statement has both, as it always has.
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
+	if c := ctx.COMMENT(); c != nil && strIdx < len(allStrings) {
+		text := unquoteStringLit(allStrings[strIdx])
+		b.recordDocumentationClause(ctx, c.GetSymbol(), allStrings[strIdx].GetSymbol(), text, false)
+		if !stmt.DocumentationSet {
+			stmt.Documentation, stmt.DocumentationSet = text, true
+		}
 	}
 
 	// Parse SNIPPET value — can be STRING_LITERAL or DOLLAR_STRING.
@@ -66,9 +73,6 @@ func (b *Builder) ExitCreateJsonStructureStatement(ctx *parser.CreateJsonStructu
 		if createStmt.OR() != nil && (createStmt.REPLACE() != nil || createStmt.MODIFY() != nil) {
 			stmt.CreateOrModify = true
 		}
-	}
-	if doc := findDocCommentText(ctx); doc != "" {
-		stmt.Documentation = doc
 	}
 
 	b.statements = append(b.statements, stmt)

@@ -47,6 +47,9 @@ var unrewritable = map[string]string{
 	"MDL-V1-REPLACE01": "`create or replace view entity` drops and recreates the view entity under mdl 0, " +
 		"which no mdl 1 statement does: write `create or modify view entity` to keep its identity, or " +
 		"`drop entity` then `create view entity` to discard it",
+	"MDL-V1-SESSION": "a session command (`connect`, `set format`, `status`, `help`, …) is refused in an mdl 1 " +
+		"script, and no model statement does what it does: move it out of the script, to the command line " +
+		"(`-p app.mpr` to connect, `--json` for the output format) or the REPL",
 }
 
 // visitorFix applies the rewrite the visitor computed from the parse tree when

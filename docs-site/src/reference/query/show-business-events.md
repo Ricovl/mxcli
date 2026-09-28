@@ -31,4 +31,4 @@ SHOW BUSINESS EVENTS IN OrderModule
 
 ## See Also
 
-[SHOW MODULES](show-modules.md), [SHOW STRUCTURE](show-structure.md)
+[SHOW MODULES](show-modules.md), [DESCRIBE STRUCTURE](show-structure.md)

@@ -39,4 +39,4 @@ Search using the CLI:
 
 ## See Also
 
-[SHOW STRUCTURE](show-structure.md), [SHOW ENTITIES](show-entities.md), [SHOW MICROFLOWS](show-microflows.md)
+[DESCRIBE STRUCTURE](show-structure.md), [SHOW ENTITIES](show-entities.md), [SHOW MICROFLOWS](show-microflows.md)

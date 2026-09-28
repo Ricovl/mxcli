@@ -5,7 +5,7 @@
 ```sql
 CREATE [ OR MODIFY ] KNOWLEDGE BASE module.Name (
     Provider: MxCloudGenAI,
-    key: module.KeyConstant
+    key: @module.KeyConstant
 );
 
 DROP KNOWLEDGE BASE module.Name
@@ -44,7 +44,7 @@ CREATE CONSTANT MyModule."KBKey"
 
 CREATE KNOWLEDGE BASE MyModule."ProductDocs" (
     Provider: MxCloudGenAI,
-    key: MyModule.KBKey
+    key: @MyModule.KBKey
 );
 /
 ```
@@ -54,7 +54,7 @@ CREATE KNOWLEDGE BASE MyModule."ProductDocs" (
 ```sql
 CREATE OR MODIFY KNOWLEDGE BASE MyModule."ProductDocs" (
     Provider: MxCloudGenAI,
-    key: MyModule.KBKey
+    key: @MyModule.KBKey
 );
 /
 ```

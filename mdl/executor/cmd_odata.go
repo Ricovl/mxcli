@@ -137,12 +137,14 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 	// `create or modify`: the rewrite carries what describe cannot print (the icon,
 	// UseQuerySegment, the catalog and proxy keys, see carryStoredConsumedODataService),
 	// proven on ako/TestApp's clients by the round-trip harness (#743).
-	fmt.Fprintf(ctx.Output, "create or modify consumed odata service %s.%s (\n", moduleName, svc.Name)
+	// The folder is a clause after the name (R9); `Folder:` is its alias.
+	folder := ""
+	if folderPath != "" {
+		folder = " folder " + mdlQuote(folderPath)
+	}
+	fmt.Fprintf(ctx.Output, "create or modify consumed odata service %s.%s%s (\n", moduleName, svc.Name, folder)
 
 	var props []string
-	if folderPath != "" {
-		props = append(props, fmt.Sprintf("  Folder: %s", mdlQuote(folderPath)))
-	}
 	if svc.Version != "" {
 		props = append(props, fmt.Sprintf("  Version: %s", mdlQuote(svc.Version)))
 	}
@@ -333,12 +335,14 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 	// (ExportLevel, PageSize without paging, entity-set order, CanBeEmpty), and
 	// TestTestAppRoundTrip holds it to both round-trip laws on the Studio
 	// Pro-authored services of ako/TestApp (#743).
-	fmt.Fprintf(ctx.Output, "create or modify published odata service %s.%s (\n", moduleName, svc.Name)
+	// The folder is a clause after the name (R9); `Folder:` is its alias.
+	folder := ""
+	if folderPath != "" {
+		folder = " folder " + mdlQuoted(folderPath)
+	}
+	fmt.Fprintf(ctx.Output, "create or modify published odata service %s.%s%s (\n", moduleName, svc.Name, folder)
 
 	var props []string
-	if folderPath != "" {
-		props = append(props, "  Folder: "+mdlQuoted(folderPath))
-	}
 	if svc.Path != "" {
 		props = append(props, "  Path: "+mdlQuoted(svc.Path))
 	}

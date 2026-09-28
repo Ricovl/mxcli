@@ -4,6 +4,7 @@ package deprecation
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -30,6 +31,11 @@ func TestRegistryEntriesAreWellFormed(t *testing.T) {
 		swap := e.Rewrite.Token != "" && e.Rewrite.Replacement != ""
 		if swap == (e.Rewrite.Structural != "") {
 			t.Errorf("%s: a rewrite is either a keyword swap or structural, exactly one: %+v", e.Code, e.Rewrite)
+		}
+		// The warning prints "Rewrite the <Structural>", so a Structural that
+		// starts with "the" reads "Rewrite the the …".
+		if strings.HasPrefix(strings.ToLower(e.Rewrite.Structural), "the ") {
+			t.Errorf("%s: Structural %q starts with \"the\"; it is printed after \"Rewrite the\"", e.Code, e.Rewrite.Structural)
 		}
 		if e.Old == "" || e.Canonical == "" || e.Example == "" || e.CanonicalExample == "" {
 			t.Errorf("%s is incomplete: %+v", e.Code, e)

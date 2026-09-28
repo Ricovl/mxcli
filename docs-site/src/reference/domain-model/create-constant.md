@@ -72,7 +72,7 @@ CREATE CONSTANT MyModule.DatabasePassword TYPE String DEFAULT '';
 CREATE CONSTANT MyModule.ApiBaseUrl TYPE String DEFAULT 'https://api.example.com';
 
 -- Override in a specific runtime configuration
-ALTER SETTINGS CONSTANT 'MyModule.ApiBaseUrl' VALUE 'https://staging.example.com' IN CONFIGURATION 'Staging';
+ALTER SETTINGS CONSTANT @MyModule.ApiBaseUrl VALUE 'https://staging.example.com' IN CONFIGURATION 'Staging';
 ```
 
 ### Shared and private values

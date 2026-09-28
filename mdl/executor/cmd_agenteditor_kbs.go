@@ -90,7 +90,7 @@ func describeAgentEditorKnowledgeBase(ctx *ExecContext, name ast.QualifiedName) 
 		lines = append(lines, fmt.Sprintf("  Provider: %s", k.Provider))
 	}
 	if k.Key != nil && k.Key.QualifiedName != "" {
-		lines = append(lines, fmt.Sprintf("  Key: %s", k.Key.QualifiedName))
+		lines = append(lines, fmt.Sprintf("  Key: @%s", k.Key.QualifiedName))
 	}
 	if k.ModelDisplayName != "" {
 		lines = append(lines, fmt.Sprintf("  ModelDisplayName: '%s'", escapeSQLString(k.ModelDisplayName)))

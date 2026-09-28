@@ -10,8 +10,8 @@ func init() {
 			"security", "access control", "roles", "permissions",
 			"grant", "revoke", "authentication", "authorization",
 		},
-		Syntax:  "SHOW PROJECT SECURITY;\nSHOW MODULE ROLES [IN <module>];\nSHOW USER ROLES;\nSHOW SECURITY MATRIX [IN <module>];",
-		Example: "SHOW PROJECT SECURITY;\nSHOW SECURITY MATRIX IN Shop;",
+		Syntax:  "DESCRIBE APP SECURITY;\nLIST MODULE ROLES [IN <module>];\nLIST USER ROLES;\nDESCRIBE SECURITY MATRIX [IN <module>];",
+		Example: "DESCRIBE APP SECURITY;\nDESCRIBE SECURITY MATRIX IN Shop;",
 		SeeAlso: []string{"security.module-role", "security.entity-access", "security.user-role"},
 	})
 
@@ -34,13 +34,15 @@ func init() {
 			"create", "delete", "xpath", "row-level security",
 		},
 		Syntax: "GRANT <rights> ON ENTITY <module>.<entity> TO <module>.<role> [, ...] [WHERE [<xpath>]];\n" +
-			"REVOKE <module>.<role> ON <module>.<entity>;\n" +
-			"REVOKE <module>.<role> ON <module>.<entity> (<rights>);\n\n" +
+			"REVOKE ALL ON ENTITY <module>.<entity> FROM <module>.<role> [, ...];       -- removes the rule\n" +
+			"REVOKE <rights> ON ENTITY <module>.<entity> FROM <module>.<role> [, ...];  -- takes rights away\n\n" +
 			"Rights: CREATE, DELETE, READ *, READ (<attr>,...), WRITE *, WRITE (<attr>,...)\n\n" +
 			"The XPath is written in [ ], as everywhere else, so quotes inside it are\n" +
 			"not doubled; sibling groups ([a][b]) are one constraint. The old order,\n" +
 			"GRANT <role> ON <entity> (<rights>) WHERE '<xpath>', still parses and\n" +
-			"warns MDL-DEPR030; `mxcli fmt --upgrade` rewrites it.\n\n" +
+			"warns MDL-DEPR030; `mxcli fmt --upgrade` rewrites it. The revoke mirrors\n" +
+			"the grant; its old order, REVOKE <role> ON <entity> [(<rights>)], warns\n" +
+			"MDL-DEPR082 and is rewritten the same way.\n\n" +
 			"A module role is always Module.Role. A bare role name parses but is\n" +
 			"refused (MDL-GRANT02) — mxcli cannot tell which module it belongs to.\n\n" +
 			"Members added later:\n" +
@@ -66,7 +68,9 @@ func init() {
 			"-- Contract extends DocumentBase: DocName is inherited, ContractNumber is own\n" +
 			"GRANT READ (DocName, ContractNumber) ON ENTITY Docs.Contract TO Docs.Viewer;\n\n" +
 			"-- Attachment extends System.FileDocument: Name and Size are inherited\n" +
-			"GRANT READ (Category, \"Name\", Size) ON ENTITY Docs.Attachment TO Docs.Viewer;",
+			"GRANT READ (Category, \"Name\", Size) ON ENTITY Docs.Attachment TO Docs.Viewer;\n\n" +
+			"REVOKE WRITE (Email) ON ENTITY Shop.Customer FROM Shop.User;\n" +
+			"REVOKE ALL ON ENTITY Shop.Order FROM Shop.User;",
 		SeeAlso: []string{"security.module-role", "security.microflow-access"},
 	})
 
@@ -129,7 +133,7 @@ func init() {
 			"user role", "application role", "manage roles",
 			"add module roles", "remove module roles",
 		},
-		Syntax:  "CREATE USER ROLE <name> (<role> [, ...]) [MANAGE ALL ROLES];\nALTER USER ROLE <name> ADD MODULE ROLES (<role> [, ...]);\nALTER USER ROLE <name> REMOVE MODULE ROLES (<role> [, ...]);\nDROP USER ROLE [IF EXISTS] <name>;",
+		Syntax:  "CREATE USER ROLE <name> (<role> [, ...]) [MANAGE ALL ROLES];\nALTER USER ROLE <name> ADD MODULE ROLES (<role> [, ...]);\nALTER USER ROLE <name> DROP MODULE ROLES (<role> [, ...]);\nDROP USER ROLE [IF EXISTS] <name>;",
 		Example: "CREATE USER ROLE AppAdmin (Shop.Admin, HR.Admin) MANAGE ALL ROLES;\nALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Viewer);",
 		SeeAlso: []string{"security.module-role", "security.demo-user"},
 	})

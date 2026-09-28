@@ -59,4 +59,4 @@ create or replace navigation PhoneOffline
     menu item 'Home' page MyFirstModule.Home_Web;
   );
 
-show navigation;
+describe navigation;

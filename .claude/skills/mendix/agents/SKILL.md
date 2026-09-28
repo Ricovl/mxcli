@@ -39,7 +39,7 @@ register `ASU_AgentEditor` as an after-startup microflow.
 ```sql
 create model Module.MyModel (
   Provider: MxCloudGenAI,   -- default, can omit
-  key: Module.ApiKeyConst   -- must be a String constant
+  key: @Module.ApiKeyConst   -- must be a String constant
 );
 ```
 
@@ -64,7 +64,7 @@ document Studio Pro created**, rather than from memory or from this file.
 ```sql
 create knowledge base Module.ProductDocs (
   Provider: MxCloudGenAI,
-  key: Module.KBKeyConst
+  key: @Module.KBKeyConst
 );
 ```
 
@@ -96,22 +96,22 @@ prompt here.$$,
   UserPrompt: 'Single line prompt.'
 )
 {
-  mcp service Module.WebSearch {
+  mcp service Module.WebSearch (
     Enabled: true
-  }
+  )
 
-  knowledge base KBAlias {
+  knowledge base KBAlias (
     source: Module.ProductDocs,
     collection: 'product-docs',
     MaxResults: 5,
     description: 'Product docs',
     Enabled: true
-  }
+  )
 
-  tool MyMicroflowTool {
+  tool MyMicroflowTool (
     description: 'Fetch customer data',
     Enabled: true
-  }
+  )
 };
 ```
 
@@ -131,9 +131,9 @@ alter consumed mcp service Module.MyMCP
 -- Agent: SET for scalars, ADD/DROP for tools, MCP services, knowledge bases
 alter agent Module.MyAgent
     set SystemPrompt = 'New prompt', Temperature = 0.7, MaxTokens = 4096
-    add tool MyMicroflow { Description: '...', Enabled: true }
-    add mcp service Module.WeatherSvc { Description: '...', Enabled: true }
-    add knowledge base Docs { Source: Module.MyKB, Collection: 'docs', MaxResults: 5 }
+    add tool MyMicroflow ( Description: '...', Enabled: true )
+    add mcp service Module.WeatherSvc ( Description: '...', Enabled: true )
+    add knowledge base Docs ( Source: Module.MyKB, Collection: 'docs', MaxResults: 5 )
     drop tool OldTool
     drop mcp service Module.OldSvc
     drop knowledge base OldKB;
@@ -173,7 +173,7 @@ The feature uses `CustomBlobDocument` BSON type with a `Contents` field holding 
 
 ### Minimal agent (no tools)
 ```sql
-create model Module.M (Provider: MxCloudGenAI, key: Module.K);
+create model Module.M (Provider: MxCloudGenAI, key: @Module.K);
 create agent Module.A (
   UsageType: task,
   model: Module.M,

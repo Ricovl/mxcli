@@ -157,6 +157,123 @@ const (
 	// on a text template: the placeholders bound by position (R4,
 	// ako/mxcli#751).
 	PositionalTemplateArguments = "MDL-DEPR009"
+
+	// R9 (ako/mxcli#755): where document metadata lives. Codes 100–119 are
+	// this change's block; 101–103 are left to the parallel work that took them.
+
+	// DocumentationClause is the `comment '…'` clause on a constant,
+	// association, JSON structure or image collection: the document's
+	// documentation, which every other document takes as a `/** … */` doc
+	// comment.
+	DocumentationClause = "MDL-DEPR100"
+	// WorkflowCommentCaption is a workflow activity's `comment '…'`, which sets
+	// the activity's caption, not a comment.
+	WorkflowCommentCaption = "MDL-DEPR104"
+	// FolderProperty is `Folder: '…'` in a page, snippet, consumed REST
+	// service, consumed or published OData service or published REST service
+	// header: the folder is a clause after the name on every document.
+	FolderProperty = "MDL-DEPR105"
+	// DocumentationProperty is `Documentation: '…'` in a regular expression,
+	// task queue or scheduled event property list.
+	DocumentationProperty = "MDL-DEPR106"
+
+	// R6: one verb per job (ako/mxcli#755). A block of their own, 090-099, so
+	// the parallel phase-3 changes do not collide.
+
+	// ShowSingleThing is `show` (or `list`) on a form that names one thing:
+	// entity, association, page, navigation, app security, security matrix,
+	// structure, context, settings. Its canonical verb is `describe`.
+	ShowSingleThing = "MDL-DEPR090"
+	// UserRoleRemove is `alter user role … remove module roles`.
+	UserRoleRemove = "MDL-DEPR091"
+	// SettingsRemove is `alter settings language|workflows remove …`.
+	SettingsRemove = "MDL-DEPR092"
+	// ColumnForAttribute is `column` for `attribute` in alter entity.
+	ColumnForAttribute = "MDL-DEPR093"
+	// RestCall is the `rest call` microflow statement.
+	RestCall = "MDL-DEPR094"
+	// DescribeWidgetType is `describe widget <name>` for a widget definition.
+	DescribeWidgetType = "MDL-DEPR095"
+	// DefineFragment is `define fragment`.
+	DefineFragment = "MDL-DEPR096"
+
+	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
+	// constant reference, and the revoke that mirrors the grant.
+
+	// WorkflowStringExpression is a workflow decision's condition, a timer's
+	// delay or first execution time, or a due date written inside a string:
+	// `decision '$WorkflowContext/Total > 1000'`.
+	WorkflowStringExpression = "MDL-DEPR080"
+	// BracketedWidgetCondition is a page widget's conditional `Visible: [expr]`
+	// / `Editable: [expr]`: a client expression written in the brackets of an
+	// XPath constraint.
+	BracketedWidgetCondition = "MDL-DEPR081"
+	// ReversedEntityRevoke is `revoke M.Role on M.E [(rights)]`, the revoke
+	// with the role first — the mirror of MDL-DEPR030's grant.
+	ReversedEntityRevoke = "MDL-DEPR082"
+	// DollarConstant is a consumed REST service credential written `$Const`:
+	// a constant named like a variable, and without its module.
+	DollarConstant = "MDL-DEPR083"
+	// BareConstantKey is an agent-editor model's or knowledge base's `Key:
+	// Module.Const` (and `set Key = Module.Const`): a constant written as a
+	// plain document name.
+	BareConstantKey = "MDL-DEPR084"
+	// QuotedSettingsConstant is `alter settings [drop] constant 'Module.Const'`:
+	// a constant named in a string.
+	QuotedSettingsConstant = "MDL-DEPR085"
+
+	// Codes 070-079 are R2's integration documents (ako/mxcli#754): properties
+	// in ( ), declarative children in { }.
+
+	// RestOperationBraces is a consumed REST service's `operation X { … }`:
+	// the operation's properties in braces.
+	RestOperationBraces = "MDL-DEPR070"
+	// AgentAttachmentBraces is an agent's `tool X { … }`, `mcp service M.S
+	// { … }` or `knowledge base K { … }`: the attachment's properties in braces.
+	AgentAttachmentBraces = "MDL-DEPR071"
+	// ImageCollectionParens is an image collection's images in parentheses,
+	// each written `image X from file '…'`.
+	ImageCollectionParens = "MDL-DEPR072"
+	// MessageTreeParens is a message definition collection's definitions and
+	// member trees in parentheses.
+	MessageTreeParens = "MDL-DEPR073"
+	// AlterFlowFragmentBraces is an `alter microflow` / `alter nanoflow`
+	// fragment in braces: `insert after $X { … }`, `replace … with { … }`.
+	AlterFlowFragmentBraces = "MDL-DEPR074"
+
+	// Codes 060-069 and 101-103 are R3's (ako/mxcli#751,
+	// PROPOSAL_mdl_beta_syntax_freeze.md §3 R3): `:` sets a model property, so
+	// an `alter` sets properties in create's `( Key: value, … )` list, and a
+	// colon is written where a property list or an attribute definition has
+	// one and nowhere else.
+
+	// AlterPageSetEquals is the generic alter's `set Key = value` /
+	// `set (Key = value, …)`. Numbered from 101 because it shipped with the
+	// generic alter (ako/mxcli#712) before the registry existed; the code is
+	// published, so it is kept.
+	AlterPageSetEquals = "MDL-DEPR101"
+	// AlterPageSetUnparenthesised is `set Key: value` without the list's
+	// parentheses.
+	AlterPageSetUnparenthesised = "MDL-DEPR102"
+	// AlterPageDropWidget is `drop widget a, b`.
+	AlterPageDropWidget = "MDL-DEPR103"
+	// SettingsAssignment is a settings property written `Key = value`, outside
+	// a list: `alter settings <section>`, `alter settings configuration` and
+	// `create configuration`.
+	SettingsAssignment = "MDL-DEPR060"
+	// ODataAlterAssignment is `alter … odata service X set Key = value, …`.
+	ODataAlterAssignment = "MDL-DEPR061"
+	// StylingAssignment is `alter styling … set Class = 'x', 'Prop' = on`.
+	StylingAssignment = "MDL-DEPR062"
+	// AllowCreateChangeLocally is `alter entity … set allow_create_change_locally
+	// = true`, the only snake-case `=` alter action.
+	AllowCreateChangeLocally = "MDL-DEPR063"
+	// AssociationClauseColon is `type: Reference` (also `owner:`, `storage:`)
+	// on an association: a clause, which takes no colon.
+	AssociationClauseColon = "MDL-DEPR064"
+	// ModifyAttributeColon is `modify attribute A T`: an attribute definition
+	// is always `Name: Type`.
+	ModifyAttributeColon = "MDL-DEPR065"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -183,9 +300,9 @@ var entries = []Entry{
 		RemovedIn: 2,
 		Note: "Reported only for plurals and relationship queries, whose canonical " +
 			"form is `list`. Forms that name a single thing (`show entity X`, " +
-			"`show navigation`, `show project security`, …) become `describe`, and " +
-			"session state (`show version`, `show status`) a REPL command; they are " +
-			"not reported until those forms exist.",
+			"`show navigation`, `show project security`, …) become `describe` " +
+			"(MDL-DEPR090), and session state (`show version`, `show status`) a REPL " +
+			"command (R7), which is not reported until that command exists.",
 		Example:          "show entities in M;",
 		CanonicalExample: "list entities in M;",
 	},
@@ -272,7 +389,7 @@ var entries = []Entry{
 		Canonical:        "alter app security …",
 		Rewrite:          Rewrite{Structural: "security name: `project security` becomes `app security`"},
 		RemovedIn:        2,
-		Note:             "Studio Pro calls it App Security (R10). `show project security` becomes `describe app security` with the rest of R6, and is not reported here yet.",
+		Note:             "Studio Pro calls it App Security (R10). `show project security` becomes `describe app security` (MDL-DEPR090).",
 		Example:          "alter project security demo users off;",
 		CanonicalExample: "alter app security demo users off;",
 	},
@@ -283,8 +400,8 @@ var entries = []Entry{
 		Rewrite:          Rewrite{Structural: "section name: `model` becomes `runtime`"},
 		RemovedIn:        2,
 		Note:             "`runtime` is the App Settings tab that holds these values in Studio Pro (R10); `model` also collided with the agent-editor document type.",
-		Example:          "alter settings model AfterStartupMicroflow = 'M.Startup';",
-		CanonicalExample: "alter settings runtime AfterStartupMicroflow = 'M.Startup';",
+		Example:          "alter settings model ( AfterStartupMicroflow: 'M.Startup' );",
+		CanonicalExample: "alter settings runtime ( AfterStartupMicroflow: 'M.Startup' );",
 	},
 	{
 		Code:      ReversedEntityGrant,
@@ -303,7 +420,7 @@ var entries = []Entry{
 		Code:      QuotedTargetingXPath,
 		Old:       "targeting [users|groups] xpath '[xpath]'",
 		Canonical: "targeting [users|groups] xpath [xpath]",
-		Rewrite:   Rewrite{Structural: "the XPath out of its string: `xpath '[Name = ''Admin'']'` becomes `xpath [Name = 'Admin']`"},
+		Rewrite:   Rewrite{Structural: "XPath out of its string: `xpath '[Name = ''Admin'']'` becomes `xpath [Name = 'Admin']`"},
 		RemovedIn: 2,
 		Note: "XPath is written in [ ] everywhere (R5), so the quotes inside it are no longer doubled. " +
 			"A string whose value is not a bracketed XPath is left in place and reported by `fmt --upgrade`.",
@@ -374,6 +491,392 @@ var entries = []Entry{
 
 func init() {
 	entries = append(entries, r8Entries...)
+	entries = append(entries, r9Entries...)
+	entries = append(entries, r6Entries...)
+	entries = append(entries, r5Entries...)
+	entries = append(entries, r2Entries...)
+	entries = append(entries, r3Entries...)
+}
+
+// r9Entries are R9's (ako/mxcli#755): documentation is a `/** … */` doc
+// comment, the folder is a `folder '…'` clause, and a workflow activity's
+// caption is `caption '…'`.
+var r9Entries = []Entry{
+	{
+		Code:      DocumentationClause,
+		Old:       "create constant|association|json structure|image collection … comment '…'",
+		Canonical: "/** … */ before the statement",
+		Rewrite: Rewrite{Structural: "documentation as a doc comment: the clause is deleted and its text " +
+			"written as `/** … */` before the statement"},
+		RemovedIn: 2,
+		Note: "Documentation is a doc comment on every document. A statement that has both is reported, " +
+			"not rewritten, and so is a text a doc comment cannot hold exactly (a `*/`, blank lines, " +
+			"or space at the start or end of a line).",
+		Example:          "create constant M.ApiUrl type string default 'https://x' comment 'Base URL';",
+		CanonicalExample: "/** Base URL */\ncreate constant M.ApiUrl type string default 'https://x';",
+	},
+	{
+		Code:             WorkflowCommentCaption,
+		Old:              "<workflow activity> comment '…'",
+		Canonical:        "<workflow activity> caption '…'",
+		Rewrite:          Rewrite{Token: "comment", Replacement: "caption"},
+		RemovedIn:        2,
+		Note:             "The clause sets the caption Studio Pro shows on the activity; it was never a comment. Also on `end workflow` and an event sub-process's timer start.",
+		Example:          "create workflow M.W parameter $WorkflowContext: M.E begin notification Ready comment 'Ready'; end workflow;",
+		CanonicalExample: "create workflow M.W parameter $WorkflowContext: M.E begin notification Ready caption 'Ready'; end workflow;",
+	},
+	{
+		Code:      FolderProperty,
+		Old:       "create page|snippet|consumed rest service|… M.N (…, Folder: '…', …)",
+		Canonical: "create page|snippet|consumed rest service|… M.N folder '…' (…)",
+		Rewrite: Rewrite{Structural: "folder as a clause: the property is deleted from the list and written " +
+			"as `folder '…'` after the name"},
+		RemovedIn: 2,
+		Note: "The folder is a clause after the name on every document, as for a microflow or an enumeration. " +
+			"On a page, snippet, consumed REST service, consumed or published OData service and published " +
+			"REST service.",
+		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Folder: 'Admin') { };",
+		CanonicalExample: "create page M.P folder 'Admin' (Title: 'P', Layout: Atlas_Core.Atlas_Default) { };",
+	},
+	{
+		Code:      DocumentationProperty,
+		Old:       "Documentation: '…' in a regular expression, task queue or scheduled event",
+		Canonical: "/** … */ before the statement",
+		Rewrite: Rewrite{Structural: "documentation as a doc comment: the property is deleted from the list and " +
+			"its text written as `/** … */` before the statement"},
+		RemovedIn: 2,
+		Note: "A statement that has both is reported, not rewritten, and so is a text a doc comment cannot " +
+			"hold exactly.",
+		Example:          "create regular expression M.Zip (Expression: '[0-9]{4}', Documentation: 'Dutch zip');",
+		CanonicalExample: "/** Dutch zip */\ncreate regular expression M.Zip (Expression: '[0-9]{4}');",
+	},
+}
+
+// r6Entries are R6's verbs (ako/mxcli#755, PROPOSAL_mdl_beta_syntax_freeze.md
+// §3 R6).
+var r6Entries = []Entry{
+	{
+		Code:      ShowSingleThing,
+		Old:       "show entity|association|page|navigation|project security|security matrix|structure|context of|settings …",
+		Canonical: "describe entity|association|page|navigation|app security|security matrix|structure|context of|settings …",
+		Rewrite: Rewrite{Structural: "verb as `describe`: `show page X` -> `describe page X`, `show project security` -> " +
+			"`describe app security`; the same for `list` on these forms"},
+		RemovedIn: 2,
+		Note: "`show` is dropped (R6): plurals are listed, one thing is described. For page, app security, security " +
+			"matrix, structure and context the describe is the same statement. `show entity`, `show association`, " +
+			"`show navigation` and `show settings` print a summary where describe prints the full definition as MDL, " +
+			"so they keep their summary and `fmt --upgrade` reports them instead of rewriting them.",
+		Example:          "show security matrix in M;",
+		CanonicalExample: "describe security matrix in M;",
+	},
+	{
+		Code:             UserRoleRemove,
+		Old:              "alter user role R remove module roles (…)",
+		Canonical:        "alter user role R drop module roles (…)",
+		Rewrite:          Rewrite{Token: "remove", Replacement: "drop"},
+		RemovedIn:        2,
+		Note:             "An alter adds and drops its children (R6), as `alter entity … drop attribute` does.",
+		Example:          "alter user role Clerk remove module roles (M.User);",
+		CanonicalExample: "alter user role Clerk drop module roles (M.User);",
+	},
+	{
+		Code:             SettingsRemove,
+		Old:              "alter settings language remove '…' / alter settings workflows remove group '…'",
+		Canonical:        "alter settings language drop '…' / alter settings workflows drop group '…'",
+		Rewrite:          Rewrite{Token: "remove", Replacement: "drop"},
+		RemovedIn:        2,
+		Note:             "An alter adds and drops its children (R6). `modify` and `add or modify` are unchanged for now.",
+		Example:          "alter settings language remove 'ar_SD';",
+		CanonicalExample: "alter settings language drop 'ar_SD';",
+	},
+	{
+		Code:             ColumnForAttribute,
+		Old:              "alter entity E add|rename|modify|drop column …",
+		Canonical:        "alter entity E add|rename|modify|drop attribute …",
+		Rewrite:          Rewrite{Token: "column", Replacement: "attribute"},
+		RemovedIn:        2,
+		Note:             "An entity has attributes; `column` was a synonym in four alter entity actions.",
+		Example:          "alter entity M.E drop column Note;",
+		CanonicalExample: "alter entity M.E drop attribute Note;",
+	},
+	{
+		Code:      RestCall,
+		Old:       "rest call get|post|… 'url' …",
+		Canonical: "call rest service get|post|… 'url' …",
+		Rewrite:   Rewrite{Structural: "statement keyword: `rest call` becomes `call rest service`"},
+		RemovedIn: 2,
+		Note: "Studio Pro's name for the activity, in the `call <kind>` pattern of every other call (R6). " +
+			"The clauses after the method are unchanged.",
+		Example:          "create microflow M.F () begin $R = rest call get 'https://example.com' returns string; end;",
+		CanonicalExample: "create microflow M.F () begin $R = call rest service get 'https://example.com' returns string; end;",
+	},
+	{
+		Code:      DescribeWidgetType,
+		Old:       "describe widget <name>",
+		Canonical: "describe widget type <name>",
+		Rewrite:   Rewrite{Structural: "`type` after `widget`: `describe widget combobox` -> `describe widget type combobox`"},
+		RemovedIn: 2,
+		Note: "`widget type` asks which kind of widget, and cannot be read as a widget on a page " +
+			"(`describe fragment … widget`, `describe styling … widget`).",
+		Example:          "describe widget combobox;",
+		CanonicalExample: "describe widget type combobox;",
+	},
+	{
+		Code:             DefineFragment,
+		Old:              "define fragment F as { … }",
+		Canonical:        "create fragment F as { … }",
+		Rewrite:          Rewrite{Token: "define", Replacement: "create"},
+		RemovedIn:        2,
+		Note:             "`create` is the verb every other definition uses (R6). A fragment is still session-scoped and unqualified.",
+		Example:          "define fragment Header as { dynamictext t (Content: 'x') };",
+		CanonicalExample: "create fragment Header as { dynamictext t (Content: 'x') };",
+	},
+}
+
+// r5Entries are the rest of R5's spellings (ako/mxcli#753), kept apart for the
+// same reason as r8Entries.
+var r5Entries = []Entry{
+	{
+		Code:      WorkflowStringExpression,
+		Old:       "decision '<expression>' / timer '<expression>' / due date '<expression>'",
+		Canonical: "decision <expression> / timer <expression> / due date <expression>",
+		Rewrite:   Rewrite{Structural: "expression out of its string: `decision '$Ctx/Total > 1000'` becomes `decision $Ctx/Total > 1000`"},
+		RemovedIn: 2,
+		Note: "Expressions are bare everywhere (R5): a workflow decision, `wait for timer`, a timer boundary " +
+			"event, a timer event sub-process and a due date (workflow, user task, alter workflow). The string " +
+			"form keeps its meaning — its content is the expression — so it is an alias, not a change of " +
+			"meaning. A string whose content does not read back as the same bare expression is left in place " +
+			"and reported by fmt --upgrade.",
+		Example: "create workflow M.W parameter $WorkflowContext: M.E begin " +
+			"decision '$WorkflowContext/Total > 1000' outcomes true -> { } false -> { }; end workflow;",
+		CanonicalExample: "create workflow M.W parameter $WorkflowContext: M.E begin " +
+			"decision $WorkflowContext/Total > 1000 outcomes true -> { } false -> { }; end workflow;",
+	},
+	{
+		Code:      BracketedWidgetCondition,
+		Old:       "Visible: [<expression>] / Editable: [<expression>]",
+		Canonical: "Visible: <expression> / Editable: <expression>",
+		Rewrite: Rewrite{Structural: "brackets into the expression they store: `Visible: [Active]` becomes " +
+			"`Visible: $currentObject/Active`"},
+		RemovedIn: 2,
+		Note: "A conditional visibility or editability is a client expression, not XPath, so it is written bare " +
+			"like every other expression (R5) and stored as written — name an attribute as " +
+			"`$currentObject/Attr`. Also in `alter page … set (Visible: …)`. The bracketed form rooted a bare " +
+			"attribute in $currentObject; the rewrite writes the expression it stored. One whose stored text " +
+			"would not read back as the same bare expression is left in place and reported by fmt --upgrade.",
+		Example: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { dataview dv (DataSource: $E) { " +
+			"textbox t (Attribute: Name, Visible: [Active and $currentObject/Name != empty]) } };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { dataview dv (DataSource: $E) { " +
+			"textbox t (Attribute: Name, Visible: $currentObject/Active and $currentObject/Name != empty) } };",
+	},
+	{
+		Code:      ReversedEntityRevoke,
+		Old:       "revoke M.Role on M.E [(rights)]",
+		Canonical: "revoke rights|all on entity M.E from M.Role",
+		Rewrite: Rewrite{Structural: "rights (or `all` when none are listed) before `on entity`, roles after `from`: " +
+			"`revoke R on M.E (write *)` becomes `revoke write * on entity M.E from R`, `revoke R on M.E` becomes " +
+			"`revoke all on entity M.E from R`"},
+		RemovedIn: 2,
+		Note: "The revoke mirrors the grant (MDL-DEPR030). `all` removes the roles' access rule; a rights list " +
+			"takes those rights away and keeps the rule.",
+		Example:          "revoke M.User, M.Admin on M.Order (write *, delete);",
+		CanonicalExample: "revoke write *, delete on entity M.Order from M.User, M.Admin;",
+	},
+	{
+		Code:      DollarConstant,
+		Old:       "Username: $Const",
+		Canonical: "Username: @Module.Const",
+		Rewrite:   Rewrite{Structural: "`$Const` becomes `@<the service's module>.Const`"},
+		RemovedIn: 2,
+		Note: "A constant is referred to one way everywhere: `@Module.Const` (R5). `$` names a variable, and " +
+			"`$Const` meant a constant of the consumed REST service's own module.",
+		Example: "create consumed rest service M.Api (BaseUrl: 'https://example.com', " +
+			"Authentication: basic (Username: $ApiUser, Password: @M.ApiPassword)) { };",
+		CanonicalExample: "create consumed rest service M.Api (BaseUrl: 'https://example.com', " +
+			"Authentication: basic (Username: @M.ApiUser, Password: @M.ApiPassword)) { };",
+	},
+	{
+		Code:             BareConstantKey,
+		Old:              "Key: Module.Const",
+		Canonical:        "Key: @Module.Const",
+		Rewrite:          Rewrite{Structural: "`@` before the constant's name"},
+		RemovedIn:        2,
+		Note:             "A constant is referred to one way everywhere: `@Module.Const` (R5). Also in `alter model|knowledge base … set Key = …`.",
+		Example:          "create model M.GPT (Provider: MxCloudGenAI, Key: M.ApiKey);",
+		CanonicalExample: "create model M.GPT (Provider: MxCloudGenAI, Key: @M.ApiKey);",
+	},
+	{
+		Code:      QuotedSettingsConstant,
+		Old:       "alter settings constant 'Module.Const' …",
+		Canonical: "alter settings constant @Module.Const …",
+		Rewrite:   Rewrite{Structural: "constant's name out of its string, with `@`: `constant 'M.ApiUrl'` becomes `constant @M.ApiUrl`"},
+		RemovedIn: 2,
+		Note: "A constant is referred to one way everywhere: `@Module.Const` (R5). Also in `alter settings drop " +
+			"constant`. A string that is not a qualified name is left in place and reported by fmt --upgrade.",
+		Example:          "alter settings constant 'M.ApiUrl' value 'https://test.example.com' in configuration 'Default';",
+		CanonicalExample: "alter settings constant @M.ApiUrl value 'https://test.example.com' in configuration 'Default';",
+	},
+}
+
+// r2Entries are R2's integration-document brackets (ako/mxcli#754).
+var r2Entries = []Entry{
+	{
+		Code:      RestOperationBraces,
+		Old:       "operation X { Method: get, … }",
+		Canonical: "operation X ( Method: get, … )",
+		Rewrite:   Rewrite{Structural: "operation's braces: `operation X { … }` becomes `operation X ( … )`"},
+		RemovedIn: 2,
+		Note: "An operation is a child of the service: its properties are in ( ) like every child's, " +
+			"and { } holds children (R2). A body or response mapping keeps its { } tree.",
+		Example: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation GetUser { Method: get, Path: '/u', Response: none } };",
+		CanonicalExample: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation GetUser ( Method: get, Path: '/u', Response: none ) };",
+	},
+	{
+		Code:      AgentAttachmentBraces,
+		Old:       "tool X { … } / mcp service M.S { … } / knowledge base K { … }",
+		Canonical: "tool X ( … ) / mcp service M.S ( … ) / knowledge base K ( … )",
+		Rewrite:   Rewrite{Structural: "attachment's braces: `tool X { … }` becomes `tool X ( … )`"},
+		RemovedIn: 2,
+		Note:      "In create agent and in alter agent … add. An attachment is a child of the agent: its properties are in ( ) (R2).",
+		Example: "create agent M.A (UsageType: Task, Model: M.Gpt, SystemPrompt: 'x') " +
+			"{ tool Lookup { Description: 'Find', Enabled: true } };",
+		CanonicalExample: "create agent M.A (UsageType: Task, Model: M.Gpt, SystemPrompt: 'x') " +
+			"{ tool Lookup ( Description: 'Find', Enabled: true ) };",
+	},
+	{
+		Code:      ImageCollectionParens,
+		Old:       "image collection M.C ( image X from file '…', … )",
+		Canonical: "image collection M.C { image X ( File: '…' ) … }",
+		Rewrite: Rewrite{Structural: "image list: the images move into { } without commas, and `from file '…'` " +
+			"becomes `( File: '…' )`"},
+		RemovedIn:        2,
+		Note:             "The images are the collection's children, so they are in { }, each with its properties in ( ) (R2).",
+		Example:          "create image collection M.Icons (image Logo from file 'logo.png', image Home from file 'home.png');",
+		CanonicalExample: "create image collection M.Icons {image Logo ( File: 'logo.png' ) image Home ( File: 'home.png' )};",
+	},
+	{
+		Code:      MessageTreeParens,
+		Old:       "message definition collection M.C ( definition D for M.E ( A, M.E_B/M.B ( C ) ) )",
+		Canonical: "message definition collection M.C { definition D for M.E { A, M.E_B/M.B { C } } }",
+		Rewrite:   Rewrite{Structural: "message trees: each parenthesised definition list and member tree moves into { }"},
+		RemovedIn: 2,
+		Note: "The definitions and members are children, so they are in { }, as in an import or export " +
+			"mapping (R2). Also in `alter message definition collection … add definition` and " +
+			"`alter message definition … add member`. One warning per statement.",
+		Example:          "create message definition collection M.Msgs (definition Order for M.Order (Number, M.Order_Line/M.Line (Sku)));",
+		CanonicalExample: "create message definition collection M.Msgs {definition Order for M.Order {Number, M.Order_Line/M.Line {Sku}}};",
+	},
+	{
+		Code:      AlterFlowFragmentBraces,
+		Old:       "alter microflow M.F { insert after $X { … } }",
+		Canonical: "alter microflow M.F { insert after $X begin … end; }",
+		Rewrite:   Rewrite{Structural: "fragment's braces: `{` becomes `begin` and `}` becomes `end`"},
+		RemovedIn: 2,
+		Note: "A fragment is imperative flow, written exactly as the body of `create microflow`, so it is " +
+			"`begin … end` (R2). The operations around it are the alter's children and stay in its { }.",
+		Example:          "alter microflow M.F { insert after $X { log info 'x'; } };",
+		CanonicalExample: "alter microflow M.F { insert after $X begin log info 'x'; end };",
+	},
+}
+
+// r3Entries are R3's spellings (ako/mxcli#751): `:` sets a model property. An
+// `alter` takes exactly create's `( Key: value, … )` list, so a fragment of
+// describe output pastes into an alter unchanged.
+var r3Entries = []Entry{
+	{
+		Code:      AlterPageSetEquals,
+		Old:       "set Key = value [on target]  /  set (Key = value, …) [on target]",
+		Canonical: "set (Key: value, …) [on target]",
+		Rewrite:   Rewrite{Structural: "each `=` as `:`, and the assignments in parentheses when they are not"},
+		RemovedIn: 2,
+		Note: "In `alter page`, `alter snippet` and `alter layout`. `set layout = M.L` is a separate form " +
+			"and is not reported.",
+		Example:          "alter page M.P { set Caption = 'Save' on btnSave; };",
+		CanonicalExample: "alter page M.P { set (Caption: 'Save') on btnSave; };",
+	},
+	{
+		Code:             AlterPageSetUnparenthesised,
+		Old:              "set Key: value [on target]",
+		Canonical:        "set (Key: value) [on target]",
+		Rewrite:          Rewrite{Structural: "assignment in parentheses"},
+		RemovedIn:        2,
+		Note:             "Properties are a parenthesised list, even when there is one.",
+		Example:          "alter page M.P { set Caption: 'Save' on btnSave; };",
+		CanonicalExample: "alter page M.P { set (Caption: 'Save') on btnSave; };",
+	},
+	{
+		Code:             AlterPageDropWidget,
+		Old:              "drop widget a, b",
+		Canonical:        "drop a, b",
+		Rewrite:          Rewrite{Structural: "`drop widget a` as `drop a`"},
+		RemovedIn:        2,
+		Note:             "The target names the element; the kind is its own.",
+		Example:          "alter page M.P { drop widget txtOld; };",
+		CanonicalExample: "alter page M.P { drop txtOld; };",
+	},
+	{
+		Code:      SettingsAssignment,
+		Old:       "alter settings runtime Key = value, …  /  create configuration 'X' Key = value, …",
+		Canonical: "alter settings runtime ( Key: value, … )  /  create configuration 'X' ( Key: value, … )",
+		Rewrite:   Rewrite{Structural: "assignments in parentheses, each `=` as `:`"},
+		RemovedIn: 2,
+		Note: "Every settings section (runtime, language, workflows, configuration 'X') and `create configuration`. " +
+			"`alter settings constant 'C' value 'v'` is a clause, not a property, and is unchanged.",
+		Example:          "alter settings runtime AfterStartupMicroflow = 'M.Startup', BcryptCost = 11;",
+		CanonicalExample: "alter settings runtime ( AfterStartupMicroflow: 'M.Startup', BcryptCost: 11 );",
+	},
+	{
+		Code:             ODataAlterAssignment,
+		Old:              "alter consumed|published odata service X set Key = value, …",
+		Canonical:        "alter consumed|published odata service X set ( Key: value, … )",
+		Rewrite:          Rewrite{Structural: "assignments in parentheses, each `=` as `:`"},
+		RemovedIn:        2,
+		Note:             "The list takes exactly the keys and values of the service's `create` statement.",
+		Example:          "alter consumed odata service M.Crm set Version = '2.0', Timeout = 30;",
+		CanonicalExample: "alter consumed odata service M.Crm set ( Version: '2.0', Timeout: 30 );",
+	},
+	{
+		Code:             StylingAssignment,
+		Old:              "alter styling on page P widget w set Class = 'x', 'Full width' = on",
+		Canonical:        "alter styling on page P widget w set ( Class: 'x', 'Full width': on )",
+		Rewrite:          Rewrite{Structural: "assignments in parentheses, each `=` as `:`"},
+		RemovedIn:        2,
+		Note:             "The same list `alter page … set ( … ) on w` takes for a widget's class, style and design properties.",
+		Example:          "alter styling on page M.P widget ctn1 set Class = 'card', 'Full width' = on;",
+		CanonicalExample: "alter styling on page M.P widget ctn1 set ( Class: 'card', 'Full width': on );",
+	},
+	{
+		Code:             AllowCreateChangeLocally,
+		Old:              "alter entity M.E set allow_create_change_locally = true",
+		Canonical:        "alter entity M.E set ( AllowCreateChangeLocally: true )",
+		Rewrite:          Rewrite{Structural: "property as create's list: `set ( AllowCreateChangeLocally: <value> )`"},
+		RemovedIn:        2,
+		Note:             "The key `create external entity` takes for the same property.",
+		Example:          "alter entity M.Remote set allow_create_change_locally = true;",
+		CanonicalExample: "alter entity M.Remote set ( AllowCreateChangeLocally: true );",
+	},
+	{
+		Code:             AssociationClauseColon,
+		Old:              "type: Reference / owner: Both / storage: Table",
+		Canonical:        "type Reference / owner Both / storage Table",
+		Rewrite:          Rewrite{Structural: "clause without its colon: `type: Reference` as `type Reference` (also `owner`, `storage`)"},
+		RemovedIn:        2,
+		Note:             "A clause outside a property list takes no colon, as describe writes it.",
+		Example:          "create association M.Order_Customer from M.Order to M.Customer type: Reference;",
+		CanonicalExample: "create association M.Order_Customer from M.Order to M.Customer type Reference;",
+	},
+	{
+		Code:             ModifyAttributeColon,
+		Old:              "alter entity M.E modify attribute A Type",
+		Canonical:        "alter entity M.E modify attribute A: Type",
+		Rewrite:          Rewrite{Structural: "attribute definition with its colon: `A Type` as `A: Type`"},
+		RemovedIn:        2,
+		Note:             "An attribute definition is always `Name: Type`, as in `create entity` and `add attribute`.",
+		Example:          "alter entity M.E modify attribute Code String(20);",
+		CanonicalExample: "alter entity M.E modify attribute Code: String(20);",
+	},
 }
 
 // r8Entries are R8's spellings (ako/mxcli#752). Kept apart from the list above
@@ -429,12 +932,12 @@ var r8Entries = []Entry{
 	},
 	{
 		Code:             ReturnsNone,
-		Old:              "rest call … returns none",
-		Canonical:        "rest call … returns nothing",
+		Old:              "call rest service … returns none",
+		Canonical:        "call rest service … returns nothing",
 		Rewrite:          Rewrite{Token: "none", Replacement: "nothing"},
 		RemovedIn:        2,
-		Example:          "create microflow M.F () begin rest call get 'https://example.com' returns none; end;",
-		CanonicalExample: "create microflow M.F () begin rest call get 'https://example.com' returns nothing; end;",
+		Example:          "create microflow M.F () begin call rest service get 'https://example.com' returns none; end;",
+		CanonicalExample: "create microflow M.F () begin call rest service get 'https://example.com' returns nothing; end;",
 	},
 }
 

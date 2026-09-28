@@ -121,6 +121,12 @@ var keepsItsVersion = map[string][]string{
 	// parameter) instead of the template text. Measured by the execute-both
 	// test before this entry was made.
 	"bug-tests/264-log-node-expression-roundtrip.mdl": {"MDL-V1-ESCAPE"},
+	// Scripts that exercise session commands — `help <topic>` and `lint` —
+	// which are REPL commands under mdl 1 (R7, ako/mxcli#755). They test the
+	// commands, so they stay mdl 0 scripts rather than lose what they test.
+	"bug-tests/904-lint-rules-discovery.mdl":    {"MDL-V1-SESSION"},
+	"bug-tests/syntax-1025-topic-drilldown.mdl": {"MDL-V1-SESSION"},
+	"doctype-tests/20-help-examples.mdl":        {"MDL-V1-SESSION"},
 }
 
 // buildsTheSameModelNotTheSameAST lists the example scripts whose upgrade
@@ -212,9 +218,12 @@ func TestUpgrade_ExamplesKeepTheirStatements(t *testing.T) {
 				t.Errorf("%s (%+v): upgraded output does not parse: %v", path, opts, errs[0])
 				continue
 			}
-			if len(got.Deprecations) > 0 {
-				t.Errorf("%s (%+v): upgraded output still records %d deprecation(s), first %s at line %d",
-					path, opts, len(got.Deprecations), got.Deprecations[0].Code, got.Deprecations[0].Line)
+			// A use the upgrade reported as unrewritable (Result.Unrewritten) stays,
+			// by contract: it is reported, never guessed at. Anything beyond those
+			// is a rewrite that did not produce the canonical form.
+			if len(got.Deprecations) > len(res.Unrewritten) {
+				t.Errorf("%s (%+v): upgraded output still records %d deprecation(s) (%d reported unrewritable), first %s at line %d",
+					path, opts, len(got.Deprecations), len(res.Unrewritten), got.Deprecations[0].Code, got.Deprecations[0].Line)
 			}
 			want, _ := visitor.Build(src)
 			foldModeFlags(want.Statements)

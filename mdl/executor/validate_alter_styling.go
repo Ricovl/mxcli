@@ -19,7 +19,7 @@ import (
 // *ast.AlterStylingStmt is not among them, so an unsupported key was silent
 // until mxbuild:
 //
-//	alter styling on page … widget lvThings set 'Remove empty text' = on;
+//	alter styling on page … widget lvThings set ( 'Remove empty text': on );
 //	  mxcli check --references -> Check passed!
 //	  mxcli exec               -> Updated styling on widget "lvThings"
 //	  mxcli docker check       -> [CE6083] "Design property Remove empty text is
@@ -243,9 +243,9 @@ func renamedStylingSuggestion(r *designPropRename, value string) string {
 		return fmt.Sprintf("ALTER STYLING cannot write its current form, which is a compound: set "+
 			"`DesignProperties: [%s]` on the widget in CREATE PAGE, or in an ALTER PAGE REPLACE.", r.Replacement)
 	}
-	// 'Key': 'Value'  →  set 'Key' = 'Value'
-	if i := strings.Index(r.Replacement, "': "); i > 0 {
-		return fmt.Sprintf("Write it as `set %s' = %s`.", r.Replacement[:i], r.Replacement[i+3:])
+	// 'Key': 'Value'  →  set ( 'Key': 'Value' ), the canonical list (R3)
+	if strings.Contains(r.Replacement, "': ") {
+		return fmt.Sprintf("Write it as `set ( %s )`.", r.Replacement)
 	}
 	return renamedDesignPropSuggestion(r, value)
 }

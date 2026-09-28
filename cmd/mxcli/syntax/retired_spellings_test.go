@@ -40,3 +40,30 @@ func TestSyntaxDocs_NoRetiredSpellings(t *testing.T) {
 		}
 	}
 }
+
+// R6 (ako/mxcli#755): the old verbs still parse as deprecated aliases, but the
+// reference an agent reads shows only the canonical ones. Case-insensitive,
+// because the entries mix the two cases.
+func TestSyntaxDocs_NoR6DeprecatedVerbs(t *testing.T) {
+	deprecated := map[string]string{
+		"rest call ":            "call rest service (MDL-DEPR094)",
+		"define fragment":       "create fragment (MDL-DEPR096)",
+		"remove module roles":   "drop module roles (MDL-DEPR091)",
+		"show project security": "describe app security (MDL-DEPR090)",
+		"show security matrix":  "describe security matrix (MDL-DEPR090)",
+		"show structure":        "describe structure (MDL-DEPR090)",
+		"show context of":       "describe context of (MDL-DEPR090)",
+		"language remove '":     "language drop (MDL-DEPR092)",
+		"remove group '":        "drop group (MDL-DEPR092)",
+	}
+	for _, f := range All() {
+		for field, text := range map[string]string{"Syntax": f.Syntax, "Example": f.Example} {
+			low := strings.ToLower(text)
+			for old, canonical := range deprecated {
+				if strings.Contains(low, old) {
+					t.Errorf("syntax topic %q, %s field, shows %q — write %s", f.Path, field, old, canonical)
+				}
+			}
+		}
+	}
+}

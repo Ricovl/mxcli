@@ -1272,7 +1272,7 @@ func formatRestCallAction(ctx *ExecContext, a *microflows.RestCallAction) string
 		sb.WriteString(" = ")
 	}
 
-	sb.WriteString("rest call ")
+	sb.WriteString("call rest service ")
 
 	// HTTP method
 	method := "get"

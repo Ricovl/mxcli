@@ -25,7 +25,7 @@ the **properties** (the widget's own spelling — `tagName`, not `TagName`), and
 the **body containers** — `attribute` is an object list (one entry per
 repetition), `tagcontentcontainer` a child slot (holds widgets).
 
-**Ask the widget rather than guessing.** `describe widget <name>` lists every
+**Ask the widget rather than guessing.** `describe widget type <name>` lists every
 property with its type, default and enumeration members; every body container
 and whether MDL can express it; and a complete example that parses AND checks as
 written:
@@ -94,7 +94,7 @@ form is reported only when the widget resolves, because without a definition
 matter because a required slot left empty is not a silent no-op at build time —
 it is `CE0642 "Property '…' is required."`, one per slot.
 
-`describe widget <name> -p <project.mpr>` lists a widget's container keywords
+`describe widget type <name> -p <project.mpr>` lists a widget's container keywords
 under **Body containers**, and — for an object list — the widgets-typed **slots
 inside one item**, with the widget types that route into each:
 

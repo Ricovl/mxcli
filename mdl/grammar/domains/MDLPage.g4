@@ -13,8 +13,11 @@ options { tokenVocab = MDLLexer; }
 /**
  * Creates a new page with layout, parameters, and widget content.
  */
+// R9: the folder is a clause after the name, as on every document; the
+// `Folder:` header property is a registered alias.
 createPageStatement
     : PAGE qualifiedName
+      (FOLDER STRING_LITERAL)?
       pageHeaderV3
       LBRACE pageBodyV3 RBRACE
     ;
@@ -39,6 +42,7 @@ createLayoutStatement
 
 createSnippetStatement
     : SNIPPET qualifiedName
+      (FOLDER STRING_LITERAL)?
       snippetHeaderV3?
       snippetOptions?
       LBRACE pageBodyV3 RBRACE
@@ -244,7 +248,7 @@ pageHeaderPropertyV3
     | TITLE COLON STRING_LITERAL                                     // Title: 'My Page'
     | LAYOUT COLON (qualifiedName | STRING_LITERAL)                  // Layout: Atlas_Core.Atlas_Default
     | URL COLON STRING_LITERAL                                       // Url: 'my-page'
-    | FOLDER COLON STRING_LITERAL                                    // Folder: 'Pages/Admin'
+    | FOLDER COLON /* @alias MDL-DEPR105 */ STRING_LITERAL          // Folder: 'Pages/Admin'
     | CLASS COLON STRING_LITERAL                                     // Class: 'my-page bg-primary'
     | STYLE COLON STRING_LITERAL                                     // Style: 'padding: 10px'
     | IDENTIFIER COLON propertyValueV3                               // Generic page property: PopupWidth: 800, PopupResizable: true
@@ -258,7 +262,7 @@ snippetHeaderV3
 snippetHeaderPropertyV3
     : PARAMS COLON LBRACE pageParameterList RBRACE                 // Params: { $Customer: Module.Entity } — entities only (MDL087)
     | VARIABLES_KW COLON LBRACE variableDeclarationList RBRACE     // Variables: { $show: Boolean = 'true' }
-    | FOLDER COLON STRING_LITERAL                                  // Folder: 'Snippets/Common'
+    | FOLDER COLON /* @alias MDL-DEPR105 */ STRING_LITERAL        // Folder: 'Snippets/Common'
     ;
 
 // V3 Page body. Bare widgets bind to the layout's Main placeholder; a
@@ -523,11 +527,19 @@ widgetPropertyV3
     | DESIGNPROPERTIES COLON designPropertyListV3       // DesignProperties: [...]
     | WIDTH COLON NUMBER_LITERAL                        // Width: 200
     | HEIGHT COLON NUMBER_LITERAL                      // Height: 100
-    | VISIBLE COLON xpathConstraint                    // Visible: [IsActive = true]
+    // R5 (ako/mxcli#753): a conditional Visible / Editable is a client
+    // expression, written bare like every other expression and stored as
+    // written. The bracketed form is the deprecated alias; it roots a bare
+    // attribute in $currentObject on the way in. The plain values keep their
+    // alternative, ahead of the expression, so `Visible: false` and `Editable:
+    // Never` mean what they did.
+    | VISIBLE COLON xpathConstraint /* @alias MDL-DEPR081 */  // Visible: [IsActive = true]
     | VISIBLE COLON qualifiedName IN LPAREN visibleValueV3 (COMMA visibleValueV3)* RPAREN  // Visible: Status in (Running, empty) | Mod.Entity.Attr in (…)
     | VISIBLE COLON propertyValueV3                   // Visible: false
-    | EDITABLE COLON xpathConstraint                  // Editable: [Status != 'Closed']
+    | VISIBLE COLON expression                        // Visible: $currentObject/Status = 'Open'
+    | EDITABLE COLON xpathConstraint /* @alias MDL-DEPR081 */ // Editable: [Status != 'Closed']
     | EDITABLE COLON propertyValueV3                  // Editable: Never | Always
+    | EDITABLE COLON expression                       // Editable: $currentObject/Status != 'Closed'
     | TOOLTIP COLON propertyValueV3                   // Tooltip: 'text'
     // Generic datasource-typed property (e.g. chart series `staticDataSource:
     // database Module.View`, `dynamicDataSource: $var`). Placed before the

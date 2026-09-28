@@ -74,7 +74,7 @@ Returns all direct and transitive dependents -- everything that would potentiall
 Assemble context for understanding a document:
 
 ```sql
-SHOW CONTEXT OF Sales.ProcessOrder DEPTH 3;
+DESCRIBE CONTEXT OF Sales.ProcessOrder DEPTH 3;
 ```
 
 Returns the element itself plus its callers and callees up to the specified depth, providing a focused view of the element's neighborhood in the dependency graph.

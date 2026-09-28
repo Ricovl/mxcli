@@ -87,6 +87,11 @@ build with `CE0117 "Error(s) in expression."`.
 
 ## Activities
 
+Expressions are bare, as everywhere in MDL: a decision's condition, a timer's
+delay, a due date (`decision $WorkflowContext/Total > 1000`, `due date
+addDays([%CurrentDateTime%], 3)`). The older string form (`decision '…'`) still
+parses and warns `MDL-DEPR080`; `mxcli fmt --upgrade` rewrites it.
+
 Every activity statement ends with `;`. Blocks `{ … }` nest a sub-flow.
 
 ```sql
@@ -113,14 +118,14 @@ begin
 
   -- Decision: a boolean or enum exclusive split. The name is optional; give one
   -- when a `jump to` targets it.
-  decision decision1 '$WorkflowContext/Total > 1000'
+  decision decision1 $WorkflowContext/Total > 1000
     outcomes
       true  -> { call microflow Module.ACT_Escalate; }
       false -> { call microflow Module.ACT_AutoApprove; };
 
   -- An enum decision: each outcome is a FULLY QUALIFIED enumeration value
   -- (Module.Enumeration.Value), plus one '' outcome for "none of the above".
-  decision decision2 '$WorkflowContext/Status'
+  decision decision2 $WorkflowContext/Status
     outcomes
       'Module.ENUM_Status.Approved' -> { }
       'Module.ENUM_Status.Rejected' -> { }
@@ -132,14 +137,14 @@ begin
     path 2 { call microflow Module.ACT_Log; };
 
   -- Wait for a timer, then continue (duration is a Mendix expression)
-  wait for timer timer1 'addHours([%CurrentDateTime%], 1)';
+  wait for timer timer1 addHours([%CurrentDateTime%], 1);
 
   -- Wait for an external notification (e.g. an event)
   wait for notification waitForNotification1;
 
   -- An intermediate notification event (Mendix 11.11+): what `notify workflow`
   -- targets by name
-  notification DocumentsReceived comment 'Documents received';
+  notification DocumentsReceived caption 'Documents received';
 
   -- Loop back, or stop the whole workflow, from inside an outcome. A `jump to`
   -- and an `end workflow` must each END their path, so neither can close the
@@ -148,11 +153,11 @@ begin
     page Module.ReviewPage
     outcomes
       'Redo'   { jump to Review; }
-      'Cancel' { end workflow comment 'Cancelled'; }
+      'Cancel' { end workflow caption 'Cancelled'; }
       'Done'   { };
 
   -- Call a sub-workflow
-  call workflow Module.SubProcess as callWorkflow1 comment 'delegate';
+  call workflow Module.SubProcess as callWorkflow1 caption 'delegate';
 end workflow;
 ```
 
@@ -173,7 +178,7 @@ begin
   user task Review 'Review'
     page Module.ReviewPage
     outcomes 'Done' { }
-    boundary event interrupting timer 'addDays([%CurrentDateTime%], 3)' {
+    boundary event interrupting timer addDays([%CurrentDateTime%], 3) {
       call microflow Module.ACT_Escalate;
     };
 end workflow;
@@ -219,7 +224,7 @@ begin
     call microflow HR.ACT_LogCancel;
   };
   event subprocess ESP_Reminder 'Daily reminder'
-    on non interrupting timer 'addDays([%CurrentDateTime%], 1)' as espReminderStart {
+    on non interrupting timer addDays([%CurrentDateTime%], 1) as espReminderStart {
     call microflow HR.ACT_Remind;
   };
 end workflow;
@@ -272,7 +277,7 @@ typed, and each op writes exactly one outcome type into it:
 | `insert outcome '<name>' on X { }` | `UserTaskOutcome` | a user task |
 | `insert condition '<Module.Enum.Value>' on X { }` | `…ConditionOutcome` | a decision, a call microflow |
 | `insert path on X { }` | `ParallelSplitOutcome` | a parallel split |
-| `insert boundary event on X interrupting timer '<expr>' { }` | a boundary event | user task, call microflow, call workflow, wait for notification |
+| `insert boundary event on X interrupting timer <expr> { }` | a boundary event | user task, call microflow, call workflow, wait for notification |
 
 Aim one at the wrong kind and the outcome lands in a list that cannot hold it,
 which is **not** a build error: the project stops **loading**, so Studio Pro will
@@ -448,7 +453,7 @@ values. The full list and the System **entities** are in `system-module`.
     reaches the end of the workflow needs no `end workflow`.
   - The main flow needs none: the body's closing `end workflow` is its End.
   An outcome left **empty** does not stop anything — it rejoins the main flow.
-  `comment '…'` sets the End's caption, as on every workflow activity.
+  `caption '…'` sets the End's caption, as on every workflow activity (`comment '…'` is its deprecated alias, MDL-DEPR104).
 
 - **A multi-user task says who must respond and how their outcomes decide**:
   `participants all | <n> | <n> percent`, `decide by …` and `await all users`,

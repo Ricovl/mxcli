@@ -2,9 +2,9 @@
 
 ## Synopsis
 
-    DESCRIBE WIDGET <keyword>
+    DESCRIBE WIDGET TYPE <keyword>
 
-    DESCRIBE WIDGET '<widget id>'
+    DESCRIBE WIDGET TYPE '<widget id>'
 
 ## Description
 
@@ -38,7 +38,7 @@ widget appears at all. Without it, they come from mxcli's embedded template.
 ## Examples
 
 ```sql
-DESCRIBE WIDGET htmlelement;
+DESCRIBE WIDGET TYPE htmlelement;
 ```
 
 Example output, abbreviated:
@@ -82,7 +82,7 @@ MDL example (parses as written):
 By widget id:
 
 ```sql
-DESCRIBE WIDGET 'com.mendix.widget.web.htmlelement.HTMLElement';
+DESCRIBE WIDGET TYPE 'com.mendix.widget.web.htmlelement.HTMLElement';
 ```
 
 ## Notes

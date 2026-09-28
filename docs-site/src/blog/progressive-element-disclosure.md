@@ -10,7 +10,7 @@
 
 ## The Problem with Full Output
 
-<!-- TODO: why dumping everything at once (full DESCRIBE, full SHOW STRUCTURE) is overwhelming for AI and humans alike -->
+<!-- TODO: why dumping everything at once (full DESCRIBE, full DESCRIBE STRUCTURE) is overwhelming for AI and humans alike -->
 
 ## How mxcli Applies It
 

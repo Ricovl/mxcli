@@ -55,7 +55,7 @@ func alterSettingsLanguageAdd(ctx *ExecContext, ps *model.ProjectSettings, stmt 
 	for _, l := range ps.Language.Languages {
 		if strings.EqualFold(l.Code, code) {
 			return mdlerrors.NewValidationf(
-				"language %q is already enabled in this project — use `alter settings LANGUAGE remove '%s'` to disable it, "+
+				"language %q is already enabled in this project — use `alter settings language drop '%s'` to disable it, "+
 					"or `describe settings` to see the whole list", l.Code, l.Code)
 		}
 	}
@@ -251,7 +251,7 @@ func alterSettingsLanguageRemove(ctx *ExecContext, ps *model.ProjectSettings, st
 	if strings.EqualFold(ps.Language.DefaultLanguageCode, code) {
 		return mdlerrors.NewValidationf(
 			"%s is the project's DEFAULT language and cannot be removed — every missing translation falls back on it. "+
-				"Make another language the default first: `alter settings LANGUAGE DefaultLanguageCode = '<code>'`", code)
+				"Make another language the default first: `alter settings LANGUAGE (DefaultLanguageCode: '<code>')`", code)
 	}
 
 	stored := ps.Language.Languages[idx].Code

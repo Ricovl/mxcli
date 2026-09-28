@@ -5,11 +5,10 @@ Snippets are reusable page fragments that can be embedded in multiple pages. The
 ## CREATE SNIPPET
 
 ```sql
-CREATE [OR REPLACE] SNIPPET <Module>.<Name>
-(
-  [Params: { $Param: Module.Entity [, ...] },]
-  [Folder: '<path>']
-)
+CREATE [OR REPLACE] SNIPPET <Module>.<Name> [FOLDER '<path>']
+[(
+  Params: { $Param: Module.Entity [, ...] }
+)]
 {
   <widget-tree>
 }
@@ -20,10 +19,7 @@ CREATE [OR REPLACE] SNIPPET <Module>.<Name>
 A snippet without parameters:
 
 ```sql
-CREATE SNIPPET MyModule.Footer
-(
-  Folder: 'Snippets'
-)
+CREATE SNIPPET MyModule.Footer FOLDER 'Snippets'
 {
   CONTAINER cFooter (Class: 'app-footer') {
     DYNAMICTEXT txtCopyright (Content: '2024 My Company. All rights reserved.')
@@ -94,7 +90,7 @@ Snippets support the same in-place modification operations as pages. See [ALTER 
 
 ```sql
 ALTER SNIPPET MyModule.CustomerCard {
-  SET Caption = 'View Details' ON btnEdit;
+  SET (Caption: 'View Details') ON btnEdit;
   INSERT AFTER txtEmail {
     DYNAMICTEXT txtPhone (Content: '{1}', Attribute: Phone)
   };

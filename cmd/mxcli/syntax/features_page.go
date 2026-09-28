@@ -12,7 +12,7 @@ func init() {
 			"page", "pages", "form", "UI", "user interface",
 			"widget", "layout", "screen",
 		},
-		Syntax:  "CREATE PAGE Module.Name\n  (\n    Title: 'Page Title',\n    Layout: Module.LayoutName\n    [, Params: { $Param: Module.Entity }]\n    [, Url: 'page-url']\n    [, Folder: 'FolderPath']\n    [, Variables: { $var: Boolean = 'true' }]\n    [, PopupWidth: 800, PopupHeight: 480, PopupResizable: true]\n    [, PopupCloseAction: cancelButton1]\n    [, Class: 'css-class', Style: 'css: rule']\n  )\n  {\n    -- widgets\n  }",
+		Syntax:  "CREATE PAGE Module.Name [FOLDER 'FolderPath']\n  (\n    Title: 'Page Title',\n    Layout: Module.LayoutName\n    [, Params: { $Param: Module.Entity }]\n    [, Url: 'page-url']\n    [, Variables: { $var: Boolean = 'true' }]\n    [, PopupWidth: 800, PopupHeight: 480, PopupResizable: true]\n    [, PopupCloseAction: cancelButton1]\n    [, Class: 'css-class', Style: 'css: rule']\n  )\n  {\n    -- widgets\n  }",
 		Example: "CREATE PAGE MyModule.EditCustomer\n  (\n    Params: { $Customer: MyModule.Customer },\n    Title: 'Edit Customer',\n    Layout: Atlas_Core.PopupLayout,\n    Class: 'container-fluid'\n  )\n  {\n    DATAVIEW dvCustomer (DataSource: $Customer) {\n      TEXTBOX txtName (Label: 'Name', Attribute: Name)\n      FOOTER footer1 {\n        ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)\n        ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)\n      }\n    }\n  }",
 		SeeAlso: []string{"page.create", "page.widgets", "page.alter", "snippet"},
 	})
@@ -24,22 +24,22 @@ func init() {
 			"create page", "new page", "page parameters", "page variables",
 			"layout", "url", "folder",
 		},
-		Syntax:  "CREATE PAGE Module.Name\n  (\n    Title: 'Title',\n    Layout: Module.Layout\n    [, Params: { $P: Module.Entity, $Qty: Integer }]\n    [, Url: 'page-url']\n    [, Folder: 'FolderPath']\n    [, Variables: { $showStock: Boolean = 'true' }]\n  )\n  { <widgets> }",
+		Syntax:  "CREATE PAGE Module.Name [FOLDER 'FolderPath']\n  (\n    Title: 'Title',\n    Layout: Module.Layout\n    [, Params: { $P: Module.Entity, $Qty: Integer }]\n    [, Url: 'page-url']\n    [, Variables: { $showStock: Boolean = 'true' }]\n  )\n  { <widgets> }",
 		Example: "CREATE PAGE Module.Products\n  (\n    Title: 'Products',\n    Layout: Atlas_Core.Atlas_Default,\n    Url: 'products',\n    Variables: { $showStock: Boolean = 'true' }\n  )\n  {\n    DATAGRID gridProducts (DataSource: DATABASE Module.Product) {\n      COLUMN colName (Attribute: Name, Caption: 'Name')\n    }\n  }",
 		SeeAlso: []string{"page", "page.widgets", "page.datasource"},
 	})
 
 	Register(SyntaxFeature{
 		Path:    "page.widget-describe",
-		Summary: "DESCRIBE WIDGET — a widget's properties, enum values and editor rules",
+		Summary: "DESCRIBE WIDGET TYPE — a widget's properties, enum values and editor rules",
 		Keywords: []string{
-			"describe widget", "widget properties", "widget definition", "what properties",
+			"describe widget type", "describe widget", "widget properties", "widget definition", "what properties",
 			"enum values", "widget rules", "hidden properties", "pluggable widget properties",
 		},
-		Syntax: `DESCRIBE WIDGET <keyword>;
-DESCRIBE WIDGET '<widget id>';`,
-		Example: `DESCRIBE WIDGET combobox;
-DESCRIBE WIDGET 'com.mendix.widget.web.htmlelement.HTMLElement';
+		Syntax: `DESCRIBE WIDGET TYPE <keyword>;
+DESCRIBE WIDGET TYPE '<widget id>';`,
+		Example: `DESCRIBE WIDGET TYPE combobox;
+DESCRIBE WIDGET TYPE 'com.mendix.widget.web.htmlelement.HTMLElement';
 
 -- Names the widget by its MDL keyword or its full widget id.
 --
@@ -82,7 +82,7 @@ SHOW IMPACT OF htmlelement;
 		Syntax: `<widget-mdl-name> <name> [( Prop: Value, ... )] [{ <containers and widgets> }]
 <container-name> <name> [( Prop: Value, ... )] [{ ... }]`,
 		Example: `-- Any widget with a definition is written by its own MDL name. There is no
--- list of blessed keywords: if ` + "`describe widget <name>`" + ` knows it, you can write it.
+-- list of blessed keywords: if ` + "`describe widget type <name>`" + ` knows it, you can write it.
 CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
   htmlelement frame (tagName: 'div') {
     -- object lists and child slots the widget's own definition declares
@@ -120,7 +120,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"image", "filter", "textfilter", "numberfilter", "datefilter",
 			"dropdownfilter", "dropdownsort", "customwidget", "pluggablewidget",
 			"statictext", "staticimage", "dynamicimage", "dropdown", "referenceselector",
-			"legacydatagrid",
+			"legacydatagrid", "visible", "editable", "conditional visibility",
 		},
 		Syntax: "-- Containers\nLAYOUTGRID name { ROW r { COLUMN c (DesktopWidth: 6) { ... } } }\nCONTAINER name (Class: 'cls') { ... }\nCONTAINER name (OnClick: CALL MICROFLOW Module.MF) { ... }   -- clickable container\nCUSTOMCONTAINER name (Class: 'cls') { ... }\nGROUPBOX name (Caption: 'C') { ... }\nTABCONTAINER name { TABPAGE tp (Caption: 'One') { ... } TABPAGE tp2 (Caption: 'Two') { ... } }\n\n" +
 			"-- Data widgets\nDATAVIEW name (DataSource: $Param) { ... FOOTER f { ... } }\nDATAGRID name (DataSource: DATABASE Module.Entity) { COLUMN c (Attribute: A) }\nGALLERY name (DataSource: DATABASE Module.Entity, DesktopColumns: 3) { ... }\nLISTVIEW name (DataSource: DATABASE Module.Entity) { ... }\nLISTVIEW name (...) { ... TEMPLATE FOR Module.Specialization { ... } }\n\n" +
@@ -144,6 +144,12 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"--   container the grid declares — it used to be dropped on write with no\n" +
 			"--   diagnostic, and is now refused (MDL-WIDGET30).\n\n" +
 			"-- Inputs\nTEXTBOX name (Label: 'L', Attribute: Attr)\nTEXTAREA | DATEPICKER | COMBOBOX | CHECKBOX | RADIOBUTTONS\n\n" +
+			"-- Conditional visibility / editability: a bare client expression, stored as\n" +
+			"-- written (name attributes as $currentObject/Attr). A plain value is static.\n" +
+			"TEXTBOX name (Attribute: Attr, Visible: $currentObject/IsActive, Editable: $currentObject/Status != 'Closed')\n" +
+			"TEXTBOX name (Attribute: Attr, Visible: false, Editable: Never)\n" +
+			"--   The bracketed Visible: [IsActive] (attributes rooted for you) is the deprecated\n" +
+			"--   spelling, MDL-DEPR081.\n\n" +
 			"-- Actions\nACTIONBUTTON name (Caption: 'C', Action: SAVE CHANGES, ButtonStyle: Primary)\nLINKBUTTON name (Caption: 'C', Action: ...)\n\n" +
 			"-- Display\nDYNAMICTEXT name (Content: 'Hello, {1}!', ContentParams: [{1} = Name])\nTITLE name (Content: 'Heading')\nIMAGE name (Image: 'Module.Collection.ImageName')\nIMAGE name (ImageType: imageUrl, ImageUrl: 'https://…')\n" +
 			"--   IMAGE needs a source. Its default, `ImageType: image`, shows an entry from an\n" +
@@ -306,21 +312,23 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"  DesignProperties: ['Full width': ON]\n\n" +
 			"ON A PAGE THAT ALREADY EXISTS, without rewriting it:\n\n" +
 			"  ALTER STYLING ON PAGE|SNIPPET Module.Name WIDGET <widgetName>\n" +
-			"    SET Class = 'css-class', Style = 'css', 'Design property' = 'Value'|ON|OFF;\n\n" +
+			"    SET (Class: 'css-class', Style: 'css', 'Design property': 'Value'|ON|OFF);\n\n" +
 			"  ALTER STYLING ON PAGE|SNIPPET Module.Name WIDGET <widgetName>\n" +
 			"    CLEAR DESIGN PROPERTIES;\n\n" +
 			"The widget is named by its MDL NAME — the identifier after the widget\n" +
 			"keyword (`ACTIONBUTTON btnSave`), not its caption. `DESCRIBE PAGE` prints\n" +
 			"the names.\n\n" +
-			"A bare `Class =` REPLACES the widget's classes rather than adding to them.\n" +
+			"A bare `Class:` REPLACES the widget's classes rather than adding to them.\n" +
 			"Read the current value first if you meant to append.\n\n" +
 			"Reach for ALTER STYLING rather than CREATE OR REPLACE PAGE whenever only\n" +
 			"the look changes: replacing the page rewrites every widget in it, so the\n" +
-			"diff is the whole document and anything MDL cannot yet spell is lost.",
+			"diff is the whole document and anything MDL cannot yet spell is lost.\n\n" +
+			"`SET Class = 'x', 'P' = ON` (no parentheses, `=`) still runs and warns\n" +
+			"MDL-DEPR062.",
 		Example: "CONTAINER ctn (\n  Class: 'my-card',\n  DynamicClasses: if $currentObject/Priority = 'High' then 'card-danger' else 'card-normal'\n) {\n  DYNAMICTEXT txt (Content: 'Styled text')\n}\n\n" +
 			"-- Restyle one widget on a page that already exists\n" +
 			"alter styling on page Sales.OrderOverview widget btnSave\n" +
-			"  set Class = 'btn-primary', 'Spacing top' = 'Large';\n\n" +
+			"  set (Class: 'btn-primary', 'Spacing top': 'Large');\n\n" +
 			"-- Back to Atlas defaults\n" +
 			"alter styling on snippet Sales.OrderRow widget ctnMain\n" +
 			"  clear design properties;",
@@ -394,7 +402,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"snippet", "snippets", "reusable", "snippetcall",
 			"page fragment", "component",
 		},
-		Syntax:  "CREATE SNIPPET Module.Name\n  [( Params: { $P: Module.Entity }, Folder: 'path' )]   -- parameters are entities only\n  {\n    -- widgets (same as page)\n  }\n\n-- Embed in a page:\nSNIPPETCALL scName (Snippet: Module.SnippetName)",
+		Syntax:  "CREATE SNIPPET Module.Name [FOLDER 'path']\n  [( Params: { $P: Module.Entity } )]   -- parameters are entities only\n  {\n    -- widgets (same as page)\n  }\n\n-- Embed in a page:\nSNIPPETCALL scName (Snippet: Module.SnippetName)",
 		Example: "CREATE SNIPPET MyModule.CustomerInfo (\n  Params: { $Customer: MyModule.Customer }\n)\n{\n  DATAVIEW dv (DataSource: $Customer) {\n    TEXTBOX txtName (Label: 'Name', Attribute: Name)\n    TEXTBOX txtEmail (Label: 'Email', Attribute: Email)\n  }\n}",
 		SeeAlso: []string{"snippet.create", "snippet.alter", "page"},
 	})
@@ -412,7 +420,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 		// (a PAGE parameter may be primitive; a snippet parameter may not), and
 		// the reporter of mendixlabs/mxcli#1028 reached the bug by following
 		// this line. A primitive is now refused as MDL087.
-		Syntax:  "CREATE SNIPPET Module.Name\n  [( Params: { $P: Module.Entity } )]   -- entities only; a primitive is CE0046\n  [( Variables: { $isEditable: Boolean = 'true' } )]\n  [( Folder: 'Snippets/Common' )]\n  {\n    -- widgets\n  }\n\n-- To parameterise a snippet on a primitive, keep the primitive on the\n-- calling PAGE and pass an object, or read the value off an entity member.",
+		Syntax:  "CREATE SNIPPET Module.Name [FOLDER 'Snippets/Common']\n  [( Params: { $P: Module.Entity } )]   -- entities only; a primitive is CE0046\n  [( Variables: { $isEditable: Boolean = 'true' } )]\n  {\n    -- widgets\n  }\n\n-- To parameterise a snippet on a primitive, keep the primitive on the\n-- calling PAGE and pass an object, or read the value off an entity member.",
 		Example: "CREATE SNIPPET MyModule.NavigationMenu\n{\n  NAVIGATIONLIST navMenu {\n    ITEM itemCustomers (Action: SHOW PAGE MyModule.CustomerOverview) {\n      DYNAMICTEXT txtCustomers (Content: 'Customers')\n    }\n  }\n}",
 		SeeAlso: []string{"snippet", "snippet.alter", "page.widgets"},
 	})
@@ -657,19 +665,19 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"fragment", "fragments", "reusable widgets", "define fragment",
 			"use fragment", "template", "script scope",
 		},
-		Syntax:  "DEFINE FRAGMENT Name AS { <widgets> };\nDEFINE FRAGMENT Name AS { <widgets> SLOT [name] <widgets> };\nDEFINE FRAGMENT Name ($d: datasource, $a: action) AS { <widgets> };\nUSE FRAGMENT Name [(args)] [AS prefix_];\nUSE FRAGMENT Name [(args)] [AS prefix_] { <payload widgets> };\nSHOW FRAGMENTS;\nDESCRIBE FRAGMENT Name;\nDESCRIBE FRAGMENT FROM PAGE Module.Page WIDGET widgetName;",
-		Example: "DEFINE FRAGMENT SaveCancelFooter AS {\n  FOOTER footer1 {\n    ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)\n    ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)\n  }\n};\n\nCREATE PAGE Module.EditPage (Params: { $Param: Module.Customer }, Title: 'Edit', Layout: 'Atlas_Core.Atlas_Default') {\n  DATAVIEW dv (DataSource: $Param) {\n    TEXTBOX txtName (Label: 'Name', Attribute: Name)\n    USE FRAGMENT SaveCancelFooter\n  }\n};",
+		Syntax:  "CREATE FRAGMENT Name AS { <widgets> };\nCREATE FRAGMENT Name AS { <widgets> SLOT [name] <widgets> };\nCREATE FRAGMENT Name ($d: datasource, $a: action) AS { <widgets> };\nUSE FRAGMENT Name [(args)] [AS prefix_];\nUSE FRAGMENT Name [(args)] [AS prefix_] { <payload widgets> };\nSHOW FRAGMENTS;\nDESCRIBE FRAGMENT Name;\nDESCRIBE FRAGMENT FROM PAGE Module.Page WIDGET widgetName;",
+		Example: "CREATE FRAGMENT SaveCancelFooter AS {\n  FOOTER footer1 {\n    ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)\n    ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)\n  }\n};\n\nCREATE PAGE Module.EditPage (Params: { $Param: Module.Customer }, Title: 'Edit', Layout: 'Atlas_Core.Atlas_Default') {\n  DATAVIEW dv (DataSource: $Param) {\n    TEXTBOX txtName (Label: 'Name', Attribute: Name)\n    USE FRAGMENT SaveCancelFooter\n  }\n};",
 		SeeAlso: []string{"fragment.define", "fragment.use", "fragment.slot", "fragment.params", "snippet"},
 	})
 
 	Register(SyntaxFeature{
 		Path:    "fragment.define",
-		Summary: "DEFINE FRAGMENT — declare a reusable widget group for the script session",
+		Summary: "CREATE FRAGMENT — declare a reusable widget group for the script session",
 		Keywords: []string{
 			"define fragment", "declare fragment", "create fragment",
 		},
-		Syntax:  "DEFINE FRAGMENT Name AS {\n  <widgets>\n};",
-		Example: "DEFINE FRAGMENT FormFields AS {\n  TEXTBOX txtName (Label: 'Name', Attribute: Name)\n  TEXTBOX txtEmail (Label: 'Email', Attribute: Email)\n};",
+		Syntax:  "CREATE FRAGMENT Name AS {\n  <widgets>\n};",
+		Example: "CREATE FRAGMENT FormFields AS {\n  TEXTBOX txtName (Label: 'Name', Attribute: Name)\n  TEXTBOX txtEmail (Label: 'Email', Attribute: Email)\n};",
 		SeeAlso: []string{"fragment", "fragment.use"},
 	})
 
@@ -692,8 +700,8 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"fragment parameter", "fragment param", "datasource param", "action param",
 			"binding", "rebind", "building block override", "reusable component",
 		},
-		Syntax:  "-- Declare typed params, reference with $name in a datasource/action slot:\nDEFINE FRAGMENT Name ($data: datasource, $onEdit: action) AS { … };\n-- Supply values at the use site:\nUSE FRAGMENT Name ($data: <datasource>, $onEdit: <action>) [{ payload }]\n-- Building blocks: rebind the outermost datasource / first button:\nUSE BUILDING BLOCK Module.Block (datasource: <ds>, action: <action>) [AS prefix_]",
-		Example: "DEFINE FRAGMENT DataPanel ($data: datasource, $onEdit: action) AS {\n  CONTAINER panel (Class: 'card') {\n    LISTVIEW lv (DataSource: $data) {\n      SLOT content\n      ACTIONBUTTON edit (Caption: 'Edit', Action: $onEdit, ButtonStyle: Primary)\n    }\n  }\n};\n\nCREATE PAGE Module.Orders (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {\n  USE FRAGMENT DataPanel ($data: DATABASE Sales.Order, $onEdit: MICROFLOW Sales.Edit) {\n    DYNAMICTEXT heading (Content: 'Orders', RenderMode: H4)\n  }\n};\n\n-- Rebind a building block's datasource and primary button:\nUSE BUILDING BLOCK Atlas_Web_Content.List_Cards (datasource: DATABASE Sales.Order, action: CALL MICROFLOW Sales.Open) AS orders_\n\n-- Notes:\n--   * Param kinds: datasource | action. Every declared param must be supplied.\n--   * A microflow value parses as a datasource and is reinterpreted for an action param.\n--   * BB binding-point rule: datasource → first datasource widget; action → first button.",
+		Syntax:  "-- Declare typed params, reference with $name in a datasource/action slot:\nCREATE FRAGMENT Name ($data: datasource, $onEdit: action) AS { … };\n-- Supply values at the use site:\nUSE FRAGMENT Name ($data: <datasource>, $onEdit: <action>) [{ payload }]\n-- Building blocks: rebind the outermost datasource / first button:\nUSE BUILDING BLOCK Module.Block (datasource: <ds>, action: <action>) [AS prefix_]",
+		Example: "CREATE FRAGMENT DataPanel ($data: datasource, $onEdit: action) AS {\n  CONTAINER panel (Class: 'card') {\n    LISTVIEW lv (DataSource: $data) {\n      SLOT content\n      ACTIONBUTTON edit (Caption: 'Edit', Action: $onEdit, ButtonStyle: Primary)\n    }\n  }\n};\n\nCREATE PAGE Module.Orders (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {\n  USE FRAGMENT DataPanel ($data: DATABASE Sales.Order, $onEdit: MICROFLOW Sales.Edit) {\n    DYNAMICTEXT heading (Content: 'Orders', RenderMode: H4)\n  }\n};\n\n-- Rebind a building block's datasource and primary button:\nUSE BUILDING BLOCK Atlas_Web_Content.List_Cards (datasource: DATABASE Sales.Order, action: CALL MICROFLOW Sales.Open) AS orders_\n\n-- Notes:\n--   * Param kinds: datasource | action. Every declared param must be supplied.\n--   * A microflow value parses as a datasource and is reinterpreted for an action param.\n--   * BB binding-point rule: datasource → first datasource widget; action → first button.",
 		SeeAlso: []string{"fragment", "fragment.slot", "fragment.use"},
 	})
 
@@ -704,8 +712,8 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"slot", "content slot", "fragment slot", "wrap content",
 			"card wrapper", "reusable shell", "use fragment payload",
 		},
-		Syntax:  "-- In the definition, mark where caller content lands:\nDEFINE FRAGMENT Name AS { <wrapper> SLOT [name] <wrapper> };\n-- At the use site, supply the payload in a brace block:\nUSE FRAGMENT Name [AS prefix_] { <payload widgets> }",
-		Example: "DEFINE FRAGMENT Card AS {\n  CONTAINER cardWrap (Class: 'card', DesignProperties: ['Card style': on]) {\n    CONTAINER cardBody (Class: 'card-body') {\n      SLOT content\n    }\n  }\n};\n\nCREATE PAGE Module.Dashboard (Title: 'Dashboard', Layout: Atlas_Core.Atlas_Default) {\n  USE FRAGMENT Card {\n    DYNAMICTEXT cardHeading (Content: 'Welcome', RenderMode: H2)\n    DYNAMICTEXT cardText (Content: 'Any widgets can go inside the reusable Card shell')\n  }\n};\n\n-- Notes:\n--   * Slot name is optional (defaults to 'content'); one slot per fragment.\n--   * USE FRAGMENT with no payload leaves the slot empty (valid).\n--   * Supplying a payload to a slotless fragment is an error.",
+		Syntax:  "-- In the definition, mark where caller content lands:\nCREATE FRAGMENT Name AS { <wrapper> SLOT [name] <wrapper> };\n-- At the use site, supply the payload in a brace block:\nUSE FRAGMENT Name [AS prefix_] { <payload widgets> }",
+		Example: "CREATE FRAGMENT Card AS {\n  CONTAINER cardWrap (Class: 'card', DesignProperties: ['Card style': on]) {\n    CONTAINER cardBody (Class: 'card-body') {\n      SLOT content\n    }\n  }\n};\n\nCREATE PAGE Module.Dashboard (Title: 'Dashboard', Layout: Atlas_Core.Atlas_Default) {\n  USE FRAGMENT Card {\n    DYNAMICTEXT cardHeading (Content: 'Welcome', RenderMode: H2)\n    DYNAMICTEXT cardText (Content: 'Any widgets can go inside the reusable Card shell')\n  }\n};\n\n-- Notes:\n--   * Slot name is optional (defaults to 'content'); one slot per fragment.\n--   * USE FRAGMENT with no payload leaves the slot empty (valid).\n--   * Supplying a payload to a slotless fragment is an error.",
 		SeeAlso: []string{"fragment", "fragment.define", "fragment.use"},
 	})
 

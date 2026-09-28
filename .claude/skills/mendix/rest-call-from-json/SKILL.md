@@ -121,7 +121,7 @@ begin
   @position(185, 200)
   declare $endpoint string = $baseUrl + '/path';
   @position(375, 200)
-  $Result = rest call get '{1}' with ({1} = $endpoint)
+  $Result = call rest service get '{1}' with ({1} = $endpoint)
     header 'Accept' = 'application/json'
     timeout 300
     returns mapping Module.IMM_MyMapping as Module.MyRootObject on error rollback;
@@ -139,7 +139,7 @@ end;
 
 **For list responses** (JSON root is an array):
 ```sql
-  $Results = rest call get '{1}' with ({1} = $endpoint)
+  $Results = call rest service get '{1}' with ({1} = $endpoint)
     header 'Accept' = 'application/json'
     timeout 300
     returns mapping Module.IMM_MyMapping as Module.MyItem on error rollback;
@@ -220,7 +220,7 @@ create or modify microflow Module.POST_Document_Upload (
 returns boolean as $Ok
 begin
   declare $Ok boolean = false;
-  $Response = rest call post 'https://api.example.com/documents'
+  $Response = call rest service post 'https://api.example.com/documents'
     header 'ContentType' = 'application/pdf'
     body binary $Doc/Contents
     timeout 300
@@ -307,7 +307,7 @@ begin
   @position(185, 200)
   declare $endpoint string = $baseUrl + '/data/web/random';
   @position(375, 200)
-  $Result = rest call get '{1}' with ({1} = $endpoint)
+  $Result = call rest service get '{1}' with ({1} = $endpoint)
     header 'Accept' = 'application/json'
     timeout 300
     returns mapping Integrations.IMM_BibleVerse as Integrations.BibleApiResponse on error rollback;

@@ -538,7 +538,7 @@ Use `alter page` to attach a class without rewriting the page (see `alter-page`)
 
 ```sql
 alter page ResourceScheduling.Approvals {
-  set Class = 'ss-appr-card ss-appr-card--conflict' on queueCard;
+  set (Class: 'ss-appr-card ss-appr-card--conflict') on queueCard;
 }
 ```
 

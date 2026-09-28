@@ -15,25 +15,27 @@ SHOW IMAGE COLLECTION IN MyModule;
 DESCRIBE IMAGE COLLECTION MyModule.AppIcons;
 ```
 
-The `DESCRIBE` output includes the full `CREATE` statement. If the collection contains images, they are shown with `IMAGE 'name' FROM FILE 'path'` syntax that can be copied and re-executed. In the TUI, images are rendered inline when the terminal supports it (Kitty, iTerm2, Sixel).
+The `DESCRIBE` output includes the full `CREATE` statement. If the collection contains images, they are shown as `image Name ( File: 'path' )` children that can be copied and re-executed. In the TUI, images are rendered inline when the terminal supports it (Kitty, iTerm2, Sixel).
 
 ## CREATE IMAGE COLLECTION
 
 ```sql
+[/** <description> */]
 CREATE IMAGE COLLECTION <Module>.<Name>
   [EXPORT LEVEL 'Hidden'|'Public']
-  [COMMENT '<description>']
-  [(
-    IMAGE <Name> FROM FILE '<path>',
+  [{
+    IMAGE <Name> ( File: '<path>' )
     ...
-  )];
+  }];
 ```
 
 | Option | Description | Default |
 |--------|-------------|---------|
 | `EXPORT LEVEL` | `'Hidden'` (internal to module) or `'Public'` (accessible from other modules) | `'Hidden'` |
-| `COMMENT` | Documentation for the collection | (none) |
-| `IMAGE Name FROM FILE` | Load an image from the filesystem into the collection | (none) |
+| `/** … */` | Documentation for the collection, as a doc comment before the statement (`COMMENT '…'` is its deprecated alias, `MDL-DEPR100`) | (none) |
+| `IMAGE Name ( File: '…' )` | Load an image from the filesystem into the collection | (none) |
+
+The images are the collection's children, so they are in `{ }`, each with its properties in `( )`. The older form `( IMAGE Name FROM FILE '<path>', … )` still parses but warns (MDL-DEPR072); `mxcli fmt --upgrade` rewrites it.
 
 The image format is detected automatically from the file extension. Relative paths are resolved from the current working directory. Supported formats: PNG, SVG, GIF, JPEG, BMP, WebP.
 
@@ -46,23 +48,23 @@ CREATE IMAGE COLLECTION MyModule.AppIcons;
 -- With export level
 CREATE IMAGE COLLECTION MyModule.SharedIcons EXPORT LEVEL 'Public';
 
--- With comment
-CREATE IMAGE COLLECTION MyModule.StatusIcons
-  COMMENT 'Icons for order and task status indicators';
+-- With documentation
+/** Icons for order and task status indicators */
+CREATE IMAGE COLLECTION MyModule.StatusIcons;
 
 -- With images from files
-CREATE IMAGE COLLECTION MyModule.NavigationIcons (
-  IMAGE home FROM FILE 'assets/home.png',
-  IMAGE settings FROM FILE 'assets/settings.svg'
-);
+CREATE IMAGE COLLECTION MyModule.NavigationIcons {
+  IMAGE home ( File: 'assets/home.png' )
+  IMAGE settings ( File: 'assets/settings.svg' )
+};
 
 -- All options combined
+/** Company branding assets */
 CREATE IMAGE COLLECTION MyModule.BrandAssets
-  EXPORT LEVEL 'Public'
-  COMMENT 'Company branding assets' (
-  IMAGE logo_dark FROM FILE 'assets/logo-dark.png',
-  IMAGE logo_light FROM FILE 'assets/logo-light.png'
-);
+  EXPORT LEVEL 'Public' {
+  IMAGE logo_dark ( File: 'assets/logo-dark.png' )
+  IMAGE logo_light ( File: 'assets/logo-light.png' )
+};
 ```
 
 ## DROP IMAGE COLLECTION

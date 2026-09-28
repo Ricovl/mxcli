@@ -345,7 +345,7 @@ show references to MyModule.Home_Web;
 show impact of MyModule.Home_Web;
 
 -- Full context for a page (includes navigation references)
-show context of MyModule.Home_Web;
+describe context of MyModule.Home_Web;
 ```
 
 ## Common Patterns

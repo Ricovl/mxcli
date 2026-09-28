@@ -147,7 +147,8 @@ func (b *Builder) ExitGrantEntityAccessStatement(ctx *parser.GrantEntityAccessSt
 	b.statements = append(b.statements, stmt)
 }
 
-// ExitRevokeEntityAccessStatement handles REVOKE role1, role2 ON Module.Entity [(rights...)]
+// ExitRevokeEntityAccessStatement handles REVOKE rights|ALL ON ENTITY Module.Entity FROM role1, role2,
+// and its deprecated alias REVOKE role1, role2 ON Module.Entity [(rights...)].
 func (b *Builder) ExitRevokeEntityAccessStatement(ctx *parser.RevokeEntityAccessStatementContext) {
 	qn := ctx.QualifiedName()
 	if qn == nil {
@@ -164,12 +165,16 @@ func (b *Builder) ExitRevokeEntityAccessStatement(ctx *parser.RevokeEntityAccess
 		}
 	}
 
-	// Parse optional rights list for partial revoke
+	// Parse optional rights list for partial revoke; `all` (or, in the old
+	// form, no list) is the full revoke.
 	if earl := ctx.EntityAccessRightList(); earl != nil {
 		for _, ear := range earl.AllEntityAccessRight() {
 			right := parseEntityAccessRight(ear)
 			stmt.Rights = append(stmt.Rights, right)
 		}
+	}
+	if ctx.ENTITY() == nil {
+		b.recordReversedEntityRevoke(ctx)
 	}
 
 	b.statements = append(b.statements, stmt)

@@ -13,9 +13,9 @@ import (
 // CREATE [OR REPLACE|MODIFY] QUEUE Module.Name ( ... ).
 func (b *Builder) ExitCreateQueueStatement(ctx *parser.CreateQueueStatementContext) {
 	stmt := &ast.CreateQueueStmt{
-		Name:          buildQualifiedName(ctx.QualifiedName()),
-		Documentation: findDocCommentText(ctx),
+		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
 		stmt.Folder = unquoteStringLit(lit)
 	}
@@ -27,7 +27,7 @@ func (b *Builder) ExitCreateQueueStatement(ctx *parser.CreateQueueStatementConte
 
 	if body := ctx.QueueBody(); body != nil {
 		bodyCtx := body.(*parser.QueueBodyContext)
-		for _, prop := range bodyCtx.AllQueueProperty() {
+		for i, prop := range bodyCtx.AllQueueProperty() {
 			pc, ok := prop.(*parser.QueuePropertyContext)
 			if !ok || pc == nil {
 				continue
@@ -45,7 +45,9 @@ func (b *Builder) ExitCreateQueueStatement(ctx *parser.CreateQueueStatementConte
 			case "exportlevel":
 				stmt.ExportLevel = queuePropertyText(pc)
 			case "documentation":
-				stmt.Documentation = queuePropertyText(pc)
+				// R9: an alias of the doc comment, which it overrides.
+				stmt.Documentation, stmt.DocumentationSet = queuePropertyText(pc), true
+				b.recordDocumentationProperty(ctx, ruleContexts(bodyCtx.AllQueueProperty()), i, stmt.Documentation)
 			}
 		}
 	}
