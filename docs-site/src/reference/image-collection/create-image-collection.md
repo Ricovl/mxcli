@@ -2,9 +2,9 @@
 
 ## Synopsis
 
+    [/** description */]
     CREATE [OR MODIFY] IMAGE COLLECTION module.name
         [EXPORT LEVEL 'Hidden' | 'Public']
-        [COMMENT 'description']
         [{
             IMAGE image_name ( File: 'path' )
             ...
@@ -22,8 +22,8 @@ Creates a new image collection in the specified module. `OR MODIFY` updates an e
 **EXPORT LEVEL**
 : Controls visibility from other modules. `'Hidden'` (default) restricts access to the owning module. `'Public'` makes images available to other modules.
 
-**COMMENT**
-: Documentation text for the collection.
+**`/** … */`**
+: Documentation text for the collection, as a doc comment before the statement. The `COMMENT '…'` clause is its deprecated alias (`MDL-DEPR100`).
 
 **IMAGE name ( File: 'path' )**
 : Loads an image from a file on disk. The path is relative to the current working directory. Supported formats: PNG, SVG, GIF, JPEG, BMP, WebP. A name that is not a plain identifier is written as a quoted identifier (`"logo-dark"`).
@@ -41,9 +41,9 @@ CREATE IMAGE COLLECTION MyModule.AppIcons;
 ### Public collection with description
 
 ```sql
+/** Shared icons for all modules */
 CREATE IMAGE COLLECTION MyModule.SharedIcons
-    EXPORT LEVEL 'Public'
-    COMMENT 'Shared icons for all modules';
+    EXPORT LEVEL 'Public';
 ```
 
 ### Collection with images
@@ -59,9 +59,9 @@ CREATE IMAGE COLLECTION MyModule.NavigationIcons {
 ### All options combined
 
 ```sql
+/** Company branding assets */
 CREATE IMAGE COLLECTION MyModule.BrandAssets
-    EXPORT LEVEL 'Public'
-    COMMENT 'Company branding assets' {
+    EXPORT LEVEL 'Public' {
     IMAGE "logo-dark" ( File: 'assets/logo-dark.png' )
     IMAGE "logo-light" ( File: 'assets/logo-light.png' )
 };

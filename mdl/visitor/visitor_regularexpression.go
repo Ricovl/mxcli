@@ -13,9 +13,9 @@ import (
 // CREATE [OR REPLACE|MODIFY] REGULAR EXPRESSION Module.Name ( ... ).
 func (b *Builder) ExitCreateRegularExpressionStatement(ctx *parser.CreateRegularExpressionStatementContext) {
 	stmt := &ast.CreateRegularExpressionStmt{
-		Name:          buildQualifiedName(ctx.QualifiedName()),
-		Documentation: findDocCommentText(ctx),
+		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
 		stmt.Folder = unquoteStringLit(lit)
 	}
@@ -27,7 +27,7 @@ func (b *Builder) ExitCreateRegularExpressionStatement(ctx *parser.CreateRegular
 
 	if body := ctx.RegularExpressionBody(); body != nil {
 		bodyCtx := body.(*parser.RegularExpressionBodyContext)
-		for _, prop := range bodyCtx.AllRegularExpressionProperty() {
+		for i, prop := range bodyCtx.AllRegularExpressionProperty() {
 			pc, ok := prop.(*parser.RegularExpressionPropertyContext)
 			if !ok || pc == nil {
 				continue
@@ -42,7 +42,9 @@ func (b *Builder) ExitCreateRegularExpressionStatement(ctx *parser.CreateRegular
 			case "exportlevel":
 				stmt.ExportLevel = regularExpressionPropertyText(pc)
 			case "documentation":
-				stmt.Documentation = regularExpressionPropertyText(pc)
+				// R9: an alias of the doc comment, which it overrides.
+				stmt.Documentation, stmt.DocumentationSet = regularExpressionPropertyText(pc), true
+				b.recordDocumentationProperty(ctx, ruleContexts(bodyCtx.AllRegularExpressionProperty()), i, stmt.Documentation)
 			}
 		}
 	}

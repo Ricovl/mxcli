@@ -105,7 +105,7 @@ func wrapEdits(before, first, last antlr.Token, pad bool) []ast.TextEdit {
 		if strings.Contains(gap, "\n") {
 			return []ast.TextEdit{
 				insertAt(before.GetStop()+1, " ("),
-				insertAt(last.GetStop()+1, "\n"+lineIndent(is, before.GetStart())+")"),
+				insertAt(last.GetStop()+1, "\n"+lineIndentAt(is, before.GetStart())+")"),
 			}
 		}
 	}
@@ -312,8 +312,8 @@ func (b *Builder) recordAssociationClauseColon(ctx *parser.AssociationOptionCont
 	b.fixLastDeprecation(deprecation.AssociationClauseColon, &ast.Fix{Edits: []ast.TextEdit{edit}}, "")
 }
 
-// lineIndent is the leading whitespace of the line holding rune offset pos.
-func lineIndent(is antlr.CharStream, pos int) string {
+// lineIndentAt is the leading whitespace of the line holding rune offset pos.
+func lineIndentAt(is antlr.CharStream, pos int) string {
 	if pos <= 0 {
 		return ""
 	}

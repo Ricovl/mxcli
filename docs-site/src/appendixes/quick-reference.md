@@ -188,10 +188,10 @@ AUTHENTICATION Basic, Session
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
 | Microflow folder | `FOLDER 'path'` (before BEGIN) | `CREATE MICROFLOW ... FOLDER 'ACT' BEGIN ... END;` |
-| Page folder | `Folder: 'path'` (in properties) | `CREATE PAGE ... (Folder: 'Pages/Detail') { ... }` |
+| Page folder | `FOLDER 'path'` (after the name) | `CREATE PAGE ... FOLDER 'Pages/Detail' (...) { ... }` |
 | Move to folder | `MOVE <doctype> Module.Name TO FOLDER 'path';` | Folders created automatically. Any top-level doctype, spelled as `DESCRIBE` spells it |
 | Move a mapping / structure | `MOVE IMPORT MAPPING\|EXPORT MAPPING\|JSON STRUCTURE Module.Name TO FOLDER 'path';` | |
-| Place while creating | `CREATE <doctype> Module.Name FOLDER 'path' ...` | Every doctype. Pages/snippets use `Folder: 'path'` as a property; microflows/nanoflows a keyword before `BEGIN` |
+| Place while creating | `CREATE <doctype> Module.Name FOLDER 'path' ...` | Every doctype: a clause after the name (after the signature on microflows/nanoflows, before `BEGIN`). The `Folder: 'path'` property on pages, snippets and REST/OData services is a deprecated alias (`MDL-DEPR105`) |
 | Place an existing document | `CREATE OR MODIFY ... FOLDER 'path' ...` | Moves it; omitting the clause leaves placement alone |
 | Move to module root | `MOVE PAGE Module.Name TO Module;` | Removes from folder |
 | Move across modules | `MOVE PAGE Old.Name TO NewModule;` | **Breaks by-name references** -- use `LIST IMPACT OF` first |
@@ -238,8 +238,8 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 
 **Workflow Activity Types:**
 - `USER TASK <name> '<caption>' [PAGE Mod.Page] [TARGETING MICROFLOW Mod.MF] [OUTCOMES '<out>' { } ...];`
-- `CALL MICROFLOW Mod.MF [COMMENT '<text>'] [OUTCOMES '<out>' { } ...];`
-- `CALL WORKFLOW Mod.WF [COMMENT '<text>'];`
+- `CALL MICROFLOW Mod.MF [CAPTION '<text>'] [OUTCOMES '<out>' { } ...];`
+- `CALL WORKFLOW Mod.WF [CAPTION '<text>'];`
 - `DECISION ['<caption>'] OUTCOMES '<out>' { } ...;`
 - `PARALLEL SPLIT PATH 1 { } PATH 2 { };`
 - `JUMP TO <activity-name>;`

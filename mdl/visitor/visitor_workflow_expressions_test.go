@@ -20,8 +20,8 @@ const wfHead = "create workflow M.WF\n  parameter $WorkflowContext: M.E\n"
 func TestWorkflowExpression_BareFormIsCanonical(t *testing.T) {
 	for _, tc := range []struct{ name, quoted, bare string }{
 		{"decision",
-			wfHead + "begin\n  decision '$WorkflowContext/Total > 1000' comment 'Large?'\n    outcomes true -> { } false -> { };\nend workflow;",
-			wfHead + "begin\n  decision $WorkflowContext/Total > 1000 comment 'Large?'\n    outcomes true -> { } false -> { };\nend workflow;"},
+			wfHead + "begin\n  decision '$WorkflowContext/Total > 1000' caption 'Large?'\n    outcomes true -> { } false -> { };\nend workflow;",
+			wfHead + "begin\n  decision $WorkflowContext/Total > 1000 caption 'Large?'\n    outcomes true -> { } false -> { };\nend workflow;"},
 		{"named decision",
 			wfHead + "begin\n  decision Big 'toLowerCase($WorkflowContext/Name) = ''big'''\n    outcomes true -> { } false -> { };\nend workflow;",
 			wfHead + "begin\n  decision Big toLowerCase($WorkflowContext/Name) = 'big'\n    outcomes true -> { } false -> { };\nend workflow;"},
@@ -29,8 +29,8 @@ func TestWorkflowExpression_BareFormIsCanonical(t *testing.T) {
 			wfHead + "begin\n  decision 'toLowerCase($WorkflowContext/Name) = ''big'''\n    outcomes true -> { } false -> { };\nend workflow;",
 			wfHead + "begin\n  decision toLowerCase($WorkflowContext/Name) = 'big'\n    outcomes true -> { } false -> { };\nend workflow;"},
 		{"wait for timer",
-			wfHead + "begin\n  wait for timer 'addHours([%CurrentDateTime%], 1)' comment 'Wait';\nend workflow;",
-			wfHead + "begin\n  wait for timer addHours([%CurrentDateTime%], 1) comment 'Wait';\nend workflow;"},
+			wfHead + "begin\n  wait for timer 'addHours([%CurrentDateTime%], 1)' caption 'Wait';\nend workflow;",
+			wfHead + "begin\n  wait for timer addHours([%CurrentDateTime%], 1) caption 'Wait';\nend workflow;"},
 		{"named wait for timer",
 			wfHead + "begin\n  wait for timer T1 'addHours([%CurrentDateTime%], 1)';\nend workflow;",
 			wfHead + "begin\n  wait for timer T1 addHours([%CurrentDateTime%], 1);\nend workflow;"},
@@ -42,8 +42,8 @@ func TestWorkflowExpression_BareFormIsCanonical(t *testing.T) {
 				"    outcomes 'Done' { }\n    boundary event interrupting timer addHours([%CurrentDateTime%], 8) { }\n" +
 				"    boundary event non interrupting timer addHours([%CurrentDateTime%], 9)\n    boundary event timer addHours([%CurrentDateTime%], 10);\nend workflow;"},
 		{"timer event sub-process",
-			wfHead + "begin\n  event subprocess Esp on interrupting timer 'addDays([%CurrentDateTime%], 30)' as Start comment 'After 30 days' { };\nend workflow;",
-			wfHead + "begin\n  event subprocess Esp on interrupting timer addDays([%CurrentDateTime%], 30) as Start comment 'After 30 days' { };\nend workflow;"},
+			wfHead + "begin\n  event subprocess Esp on interrupting timer 'addDays([%CurrentDateTime%], 30)' as Start caption 'After 30 days' { };\nend workflow;",
+			wfHead + "begin\n  event subprocess Esp on interrupting timer addDays([%CurrentDateTime%], 30) as Start caption 'After 30 days' { };\nend workflow;"},
 		{"alter workflow due date",
 			"alter workflow M.WF set due date 'addDays([%CurrentDateTime%], 1)';",
 			"alter workflow M.WF set due date addDays([%CurrentDateTime%], 1);"},
@@ -51,8 +51,8 @@ func TestWorkflowExpression_BareFormIsCanonical(t *testing.T) {
 			"alter workflow M.WF set activity Review due date 'addDays([%CurrentDateTime%], 1)';",
 			"alter workflow M.WF set activity Review due date addDays([%CurrentDateTime%], 1);"},
 		{"inserted wait for timer",
-			"alter workflow M.WF insert after Review wait for timer 'addHours([%CurrentDateTime%], 1)' comment 'W';",
-			"alter workflow M.WF insert after Review wait for timer addHours([%CurrentDateTime%], 1) comment 'W';"},
+			"alter workflow M.WF insert after Review wait for timer 'addHours([%CurrentDateTime%], 1)' caption 'W';",
+			"alter workflow M.WF insert after Review wait for timer addHours([%CurrentDateTime%], 1) caption 'W';"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			old, canon := mustBuild(t, tc.quoted), mustBuild(t, tc.bare)
@@ -88,7 +88,7 @@ func TestWorkflowExpression_DecisionNameOrCall(t *testing.T) {
 		{"decision toLowerCase($WorkflowContext/Name) = 'big'", "", "toLowerCase($WorkflowContext/Name) = 'big'"},
 		{"decision BigOrder toLowerCase($WorkflowContext/Name) = 'big'", "BigOrder", "toLowerCase($WorkflowContext/Name) = 'big'"},
 		{"decision BigOrder $WorkflowContext/Big", "BigOrder", "$WorkflowContext/Big"},
-		{"decision BigOrder comment 'Is it big?'", "BigOrder", ""},
+		{"decision BigOrder caption 'Is it big?'", "BigOrder", ""},
 		{"decision $WorkflowContext/Big", "", "$WorkflowContext/Big"},
 	} {
 		d := decisionOf(t, tc.body)

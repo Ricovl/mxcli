@@ -29,8 +29,9 @@ func init() {
 			"-- every statement ends with ';' and '/' is not a terminator; '' is the\n" +
 			"-- only string escape, so a backslash is an ordinary character; and an\n" +
 			"-- unknown or mis-shaped property key in a REST, business event or agent\n" +
-			"-- property list is an error. A trailing comma is allowed in every\n" +
-			"-- bracketed list, with or without the header.\n" +
+			"-- property list is an error; and a session command (connect, set format,\n" +
+			"-- status, help, …) in a script is an error (MDL-V1-SESSION). A trailing\n" +
+			"-- comma is allowed in every bracketed list, with or without the header.\n" +
 			"--\n" +
 			"-- A script's meaning never depends on which mxcli release runs it: a\n" +
 			"-- change of meaning applies only under the version that introduces it.\n" +
@@ -43,7 +44,8 @@ func init() {
 			"-- and writes list operations one statement per activity. It refuses, and\n" +
 			"-- says why, when a construct has no rewrite: an unknown or mis-shaped\n" +
 			"-- property (MDL-V1-PROP/PROPVALUE), `create or replace view entity`\n" +
-			"-- (MDL-V1-REPLACE01), a nested list operation, find/contains on a variable\n" +
+			"-- (MDL-V1-REPLACE01), a session command in a script (MDL-V1-SESSION), a\n" +
+			"-- nested list operation, find/contains on a variable\n" +
 			"-- whose type the script does not state, and an escaped line break inside\n" +
 			"-- an expression.\n" +
 			"-- `mxcli fmt --upgrade` alone rewrites deprecated spellings (MDL-DEPRnnn).",
@@ -140,9 +142,12 @@ func init() {
 		},
 		Syntax: "-- Every document type takes a folder clause on CREATE. Where it goes\n" +
 			"-- depends on the statement's shape:\n" +
-			"--   Pages, snippets       Folder: 'path'   a property, inside the parentheses\n" +
-			"--   Microflows, nanoflows FOLDER 'path'    a keyword, before BEGIN\n" +
-			"--   Everything else       FOLDER 'path'    a keyword, after the qualified name\n" +
+			"--   Microflows, nanoflows FOLDER 'path'    after the signature, before BEGIN\n" +
+			"--   Everything else       FOLDER 'path'    after the qualified name\n" +
+			"--                                          (pages and snippets included)\n" +
+			"--\n" +
+			"-- The Folder: 'path' property that pages, snippets and REST/OData services\n" +
+			"-- also take is a deprecated alias (MDL-DEPR105); fmt --upgrade moves it.\n" +
 			"--\n" +
 			"-- Missing folders in the path are created. Nested paths use '/'.\n" +
 			"--\n" +
@@ -158,10 +163,9 @@ func init() {
 			"  WITH JSON STRUCTURE MyModule.JSON_Order {\n" +
 			"    CREATE MyModule.Order { Id = id }\n" +
 			"  };\n\n" +
-			"CREATE PAGE MyModule.OrderList\n" +
+			"CREATE PAGE MyModule.OrderList FOLDER 'Orders'\n" +
 			"  (\n" +
 			"    Title: 'Orders',\n" +
-			"    Folder: 'Orders',\n" +
 			"    Layout: Atlas_Core.Atlas_Default\n" +
 			"  )\n" +
 			"  {\n" +
@@ -171,11 +175,41 @@ func init() {
 		SeeAlso: []string{"move", "folders", "create-modifiers"},
 	})
 
+	// ── Session commands (R7, ako/mxcli#755) ───────────────────────────
+
+	Register(SyntaxFeature{
+		Path:    "session-commands",
+		Summary: "REPL commands that set up the session: connect, set format, status, help, … — not for scripts",
+		Keywords: []string{
+			"session", "session command", "repl", "repl command", "meta-command",
+			"connect", "disconnect", "use", "set format", "status", "check", "build",
+			"lint", "debug", "execute script", "execute runtime", "help", "introspect",
+			"MDL-V1-SESSION",
+		},
+		Syntax: "CONNECT LOCAL '<app.mpr>';   DISCONNECT;   STATUS;\n" +
+			"SET format = json|table;       USE <session> | USE ALL;\n" +
+			"CHECK;  BUILD;  LINT [target];  DEBUG '<…>';  INTROSPECT API;\n" +
+			"EXECUTE SCRIPT '<file.mdl>';   EXECUTE RUNTIME '<command>';\n" +
+			"HELP [topic];\n\n" +
+			"-- A session command needs a session or an environment: a connection, an\n" +
+			"-- output format, a build, a running app. It is typed at the REPL, or given\n" +
+			"-- as a command-line flag. A .mdl script holds model statements only:\n" +
+			"--\n" +
+			"--   mxcli exec script.mdl -p app.mpr --json\n" +
+			"--\n" +
+			"-- Under `mdl 1;` a session command in a script is an error; without the\n" +
+			"-- header it runs as before and warns MDL-V1-SESSION. The REPL keeps\n" +
+			"-- accepting them. EXIT / QUIT end a script and are not session commands.",
+		Example: "-- at the REPL\nCONNECT LOCAL '/projects/MyApp/MyApp.mpr';\nSET format = json;\nSTATUS;\n\n" +
+			"-- from the shell, for a script\nmxcli exec changes.mdl -p /projects/MyApp/MyApp.mpr --json",
+		SeeAlso: []string{"connect", "disconnect", "status", "language-header"},
+	})
+
 	// ── Connection ──────────────────────────────────────────────────────
 
 	Register(SyntaxFeature{
 		Path:    "connect",
-		Summary: "Connect to a Mendix project (.mpr file) for the current session",
+		Summary: "Connect to a Mendix project (.mpr file) for the current REPL session",
 		Keywords: []string{
 			"connect", "connect local", "connect project",
 			"open project", "mpr", "connection",
@@ -183,15 +217,17 @@ func init() {
 		Syntax: `CONNECT LOCAL '<path/to/app.mpr>';
 CONNECT LOCAL '<path>' BRANCH '<branch>';
 
--- CLI flags (equivalent)
-mxcli -p <path/to/app.mpr> -c "<statement>"`,
-		Example: `CONNECT LOCAL '/projects/MyApp/MyApp.mpr';
+-- CLI flags (equivalent, and the form for a script)
+mxcli -p <path/to/app.mpr> -c "<statement>"
+mxcli exec script.mdl -p <path/to/app.mpr>
 
--- Read-write session
+-- A session command: typed at the REPL. In a script it is an error under
+-- mdl 1 and a warning (MDL-V1-SESSION) without the header.`,
+		Example: `-- at the REPL
 CONNECT LOCAL '/projects/MyApp/MyApp.mpr';
 CREATE ENTITY MyModule.Product ( Name: String(200) );
 DISCONNECT;`,
-		SeeAlso: []string{"disconnect", "status"},
+		SeeAlso: []string{"disconnect", "status", "session-commands"},
 	})
 
 	Register(SyntaxFeature{
@@ -200,9 +236,9 @@ DISCONNECT;`,
 		Keywords: []string{
 			"disconnect", "close", "close connection", "close project",
 		},
-		Syntax:  "DISCONNECT;",
+		Syntax:  "DISCONNECT;\n\n-- A session command, for the REPL (see session-commands).",
 		Example: "DISCONNECT;",
-		SeeAlso: []string{"connect", "status"},
+		SeeAlso: []string{"connect", "status", "session-commands"},
 	})
 
 	Register(SyntaxFeature{
@@ -212,9 +248,9 @@ DISCONNECT;`,
 			"status", "show status", "connection status",
 			"project info", "version", "connected",
 		},
-		Syntax:  "STATUS;\nSHOW STATUS;",
+		Syntax:  "STATUS;\nSHOW STATUS;\n\n-- A session command, for the REPL (see session-commands).",
 		Example: "STATUS;\n-- Output: Connected to /projects/MyApp/MyApp.mpr (Mendix 10.24.0, 5 modules)",
-		SeeAlso: []string{"connect", "disconnect"},
+		SeeAlso: []string{"connect", "disconnect", "session-commands"},
 	})
 
 	// ── Navigation ──────────────────────────────────────────────────────
@@ -642,11 +678,14 @@ DROP TASK QUEUE Ops.Mail;`,
 			"create regular expression", "drop regular expression", "describe regular expression",
 			"show regular expressions", "email regex", "match",
 		},
-		Syntax: `CREATE [OR MODIFY] REGULAR EXPRESSION Module.Name [FOLDER 'path'] (
+		Syntax: `[/** <documentation> */]
+CREATE [OR MODIFY] REGULAR EXPRESSION Module.Name [FOLDER 'path'] (
   Expression: '<pattern>',
-  [Documentation: '<text>',]
   [ExportLevel: Hidden|Public,]
 );
+
+-- Documentation is the doc comment; the Documentation: '<text>' property is
+-- its deprecated alias (MDL-DEPR106).
 
 SHOW REGULAR EXPRESSIONS [IN <module>];
 LIST REGULAR EXPRESSIONS [IN <module>];
@@ -667,9 +706,9 @@ notes that it could not verify it — it does not call it invalid.
 
 Bind a pattern to an attribute with CREATE VALIDATION RULE — see
 'mxcli syntax validation-rule'.`,
-		Example: `CREATE REGULAR EXPRESSION Val.EmailAddress (
-  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+',
-  Documentation: 'A, not too restrictive, email address regular expression'
+		Example: `/** A, not too restrictive, email address regular expression */
+CREATE REGULAR EXPRESSION Val.EmailAddress (
+  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+'
 );
 
 CREATE REGULAR EXPRESSION Val.Identifier (

@@ -16,12 +16,11 @@ Pages define the user interface of a Mendix application. Each page consists of a
 The basic syntax for creating a page:
 
 ```sql
-CREATE [OR REPLACE] PAGE <Module>.<Name>
+CREATE [OR REPLACE] PAGE <Module>.<Name> [FOLDER '<path>']
 (
   [Params: { $Param: Module.Entity | Type [, ...] },]
   Title: '<title>',
   Layout: <Module.LayoutName>
-  [, Folder: '<path>']
   [, Class: '<css-class>', Style: '<css: rule>']
 )
 {
@@ -74,10 +73,11 @@ CREATE PAGE MyModule.Customer_Edit
 | `Params` | Page parameters (entity objects or primitives) | `Params: { $Order: Sales.Order, $Qty: Integer }` |
 | `Title` | Page title shown in the browser/tab | `Title: 'Edit Customer'` |
 | `Layout` | Layout to use for the page | `Layout: Atlas_Core.PopupLayout` |
-| `Folder` | Organizational folder within the module | `Folder: 'Pages/Customers'` |
 | `Variables` | Page-level variables for conditional logic | `Variables: { $show: Boolean = 'true' }` |
 | `Class` | CSS class applied to the page (Forms$Appearance) | `Class: 'container-fluid bg-light'` |
 | `Style` | Inline CSS style applied to the page | `Style: 'min-height: 100vh'` |
+
+The folder is a clause after the name, not a property: `CREATE PAGE MyModule.Customer_Edit FOLDER 'Pages/Customers' (…)`. The `Folder: '…'` property still parses as a deprecated alias (`MDL-DEPR105`); `mxcli fmt --upgrade` moves it.
 
 ## Widget Properties
 

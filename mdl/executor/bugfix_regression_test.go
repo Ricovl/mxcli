@@ -249,10 +249,11 @@ func TestLongType_GetTypeName(t *testing.T) {
 }
 
 // =============================================================================
-// Issue #25: DESCRIBE CONSTANT emits COMMENT field
+// Issue #25: DESCRIBE CONSTANT emits the documentation — as a doc comment
+// since R9 (ako/mxcli#755), where `comment '…'` became its deprecated alias.
 // =============================================================================
 
-// TestOutputConstantMDL_WithComment verifies DESCRIBE CONSTANT includes COMMENT clause.
+// TestOutputConstantMDL_WithComment verifies DESCRIBE CONSTANT includes the documentation.
 func TestOutputConstantMDL_WithComment(t *testing.T) {
 	buf := &bytes.Buffer{}
 	e := New(buf)
@@ -266,8 +267,11 @@ func TestOutputConstantMDL_WithComment(t *testing.T) {
 		t.Fatalf("outputConstantMDL: %v", err)
 	}
 	gotStr := buf.String()
-	if !strings.Contains(gotStr, "comment 'Maximum retry attempts'") {
-		t.Errorf("expected comment clause in output, got:\n%s", gotStr)
+	if !strings.HasPrefix(gotStr, "/**\n * Maximum retry attempts\n */\ncreate or modify constant") {
+		t.Errorf("expected a doc comment before the statement, got:\n%s", gotStr)
+	}
+	if strings.Contains(gotStr, "comment '") {
+		t.Errorf("describe emitted the deprecated comment clause:\n%s", gotStr)
 	}
 }
 
@@ -284,12 +288,13 @@ func TestOutputConstantMDL_WithoutComment(t *testing.T) {
 		t.Fatalf("outputConstantMDL: %v", err)
 	}
 	gotStr := buf.String()
-	if strings.Contains(gotStr, "comment") {
-		t.Errorf("expected no comment clause, got:\n%s", gotStr)
+	if strings.Contains(gotStr, "comment") || strings.Contains(gotStr, "/**") {
+		t.Errorf("expected no documentation, got:\n%s", gotStr)
 	}
 }
 
-// TestOutputConstantMDL_CommentEscapesSingleQuotes verifies quotes in COMMENT are escaped.
+// TestOutputConstantMDL_CommentEscapesSingleQuotes verifies a quote in the
+// documentation is written as is: a doc comment is not a string literal.
 func TestOutputConstantMDL_CommentEscapesSingleQuotes(t *testing.T) {
 	buf := &bytes.Buffer{}
 	e := New(buf)
@@ -303,8 +308,42 @@ func TestOutputConstantMDL_CommentEscapesSingleQuotes(t *testing.T) {
 		t.Fatalf("outputConstantMDL: %v", err)
 	}
 	gotStr := buf.String()
-	if !strings.Contains(gotStr, "comment 'It''s a test'") {
-		t.Errorf("expected escaped quote in comment, got:\n%s", gotStr)
+	if !strings.Contains(gotStr, " * It's a test\n") {
+		t.Errorf("expected the quote in the doc comment, got:\n%s", gotStr)
+	}
+}
+
+// TestOutputConstantMDL_DocumentationWithCommentEnd: a documentation text
+// with `*/` in it ends a doc comment early, so describe keeps the deprecated
+// `comment '…'` clause for it rather than emit a statement that no longer
+// parses (R9 moved the constant's documentation into a doc comment; before,
+// the clause held any text). The control is an ordinary text.
+func TestOutputConstantMDL_DocumentationWithCommentEnd(t *testing.T) {
+	for _, doc := range []string{"ends */ here", "plain text", "two\nlines"} {
+		buf := &bytes.Buffer{}
+		e := New(buf)
+		c := &model.Constant{
+			Name:          "K",
+			Type:          model.ConstantDataType{Kind: "String"},
+			DefaultValue:  "'x'",
+			Documentation: doc,
+		}
+		if err := e.outputConstantMDL(c, "M"); err != nil {
+			t.Fatalf("outputConstantMDL: %v", err)
+		}
+		prog, errs := visitor.Build(buf.String())
+		if len(errs) > 0 {
+			t.Fatalf("describe of documentation %q does not parse: %v\n%s", doc, errs, buf.String())
+		}
+		var got *ast.CreateConstantStmt
+		for _, s := range prog.Statements {
+			if cs, ok := s.(*ast.CreateConstantStmt); ok {
+				got = cs
+			}
+		}
+		if got == nil || got.Documentation != doc {
+			t.Errorf("documentation %q did not read back; got %+v from:\n%s", doc, got, buf.String())
+		}
 	}
 }
 

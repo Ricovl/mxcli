@@ -41,7 +41,7 @@ func TestDescribeWorkflow_DecisionExpressionIsBare(t *testing.T) {
 		quoted                    bool
 	}{
 		{"decision1", "Large order?", "$WorkflowContext/Total > 1000",
-			"decision decision1 $WorkflowContext/Total > 1000 comment 'Large order?'", false},
+			"decision decision1 $WorkflowContext/Total > 1000 caption 'Large order?'", false},
 		{"BigOrder", "BigOrder", "toLowerCase($WorkflowContext/Name) = 'big'",
 			"decision toLowerCase($WorkflowContext/Name) = 'big'", false},
 		// Written after no name, `Total` would be read as the name: the name
@@ -71,7 +71,7 @@ func TestDescribeWorkflow_TimersAndDueDatesAreBare(t *testing.T) {
 	timer := &workflows.WaitForTimerActivity{DelayExpression: "addHours([%CurrentDateTime%], 1)"}
 	timer.Name, timer.Caption = "wait1", "Wait"
 	out, prog := describedWorkflowActivity(t, timer)
-	if !strings.Contains(out, "wait for timer wait1 addHours([%CurrentDateTime%], 1) comment 'Wait'") {
+	if !strings.Contains(out, "wait for timer wait1 addHours([%CurrentDateTime%], 1) caption 'Wait'") {
 		t.Errorf("describe wrote:\n%s", out)
 	}
 	if len(prog.Deprecations) != 0 {

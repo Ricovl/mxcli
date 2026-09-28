@@ -18,14 +18,14 @@ func TestUpgrade_WorkflowExpressionsBare(t *testing.T) {
 			head + "  due date 'addDays([%CurrentDateTime%], 2)'\nbegin\n" +
 				"  user task Review 'Review'\n    due date 'addHours([%CurrentDateTime%], 4)'\n    outcomes 'Done' { }\n" +
 				"    boundary event interrupting timer 'addHours([%CurrentDateTime%], 8)' { };\n" +
-				"  decision '$WorkflowContext/Total > 1000' comment 'Large?' -- keep\n    outcomes true -> { } false -> { };\n" +
-				"  wait for timer 'addHours([%CurrentDateTime%], 1)' comment 'Wait';\n" +
+				"  decision '$WorkflowContext/Total > 1000' caption 'Large?' -- keep\n    outcomes true -> { } false -> { };\n" +
+				"  wait for timer 'addHours([%CurrentDateTime%], 1)' caption 'Wait';\n" +
 				"  event subprocess Esp on interrupting timer 'addDays([%CurrentDateTime%], 30)' as Start { };\nend workflow;",
 			head + "  due date addDays([%CurrentDateTime%], 2)\nbegin\n" +
 				"  user task Review 'Review'\n    due date addHours([%CurrentDateTime%], 4)\n    outcomes 'Done' { }\n" +
 				"    boundary event interrupting timer addHours([%CurrentDateTime%], 8) { };\n" +
-				"  decision $WorkflowContext/Total > 1000 comment 'Large?' -- keep\n    outcomes true -> { } false -> { };\n" +
-				"  wait for timer addHours([%CurrentDateTime%], 1) comment 'Wait';\n" +
+				"  decision $WorkflowContext/Total > 1000 caption 'Large?' -- keep\n    outcomes true -> { } false -> { };\n" +
+				"  wait for timer addHours([%CurrentDateTime%], 1) caption 'Wait';\n" +
 				"  event subprocess Esp on interrupting timer addDays([%CurrentDateTime%], 30) as Start { };\nend workflow;",
 		},
 		{

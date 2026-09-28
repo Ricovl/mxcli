@@ -367,7 +367,7 @@ func formatEventSubProcesses(esps []*workflows.EventSubProcess, indent string) [
 				header += " as " + mdlIdent(start.Name)
 			}
 			if start.Caption != "" {
-				header += " comment " + mdlQuoted(start.Caption)
+				header += " caption " + mdlQuoted(start.Caption)
 			}
 		} else {
 			header += fmt.Sprintf(" on %s notification", trigger)
@@ -431,14 +431,14 @@ func formatFlowActivities(flow *workflows.Flow, indent string, mainFlow bool) []
 			if a.Annotation != "" {
 				actLines = append(actLines, formatAnnotation(a.Annotation, indent))
 			}
-			// Only emit `comment '...'` when it carries information the author
+			// Only emit `caption '...'` when it carries information the author
 			// wrote. buildJumpTo defaults Caption to the target name, so echoing it
 			// unconditionally rendered a plain `jump to Triage;` as
-			// `jump to Triage comment 'Triage'` — a phantom comment nobody authored
+			// `jump to Triage caption 'Triage'` — a phantom comment nobody authored
 			// (issuetracker #16). Re-applying the shorter form rebuilds the same
 			// Caption, so dropping it is lossless.
 			if caption := a.Caption; caption != "" && caption != target && caption != a.Name {
-				actLines = append(actLines, fmt.Sprintf("%sjump to %s comment %s", indent, mdlIdent(target), mdlQuoted(caption)))
+				actLines = append(actLines, fmt.Sprintf("%sjump to %s caption %s", indent, mdlIdent(target), mdlQuoted(caption)))
 			} else {
 				actLines = append(actLines, fmt.Sprintf("%sjump to %s", indent, mdlIdent(target)))
 			}
@@ -454,9 +454,9 @@ func formatFlowActivities(flow *workflows.Flow, indent string, mainFlow bool) []
 			if a.DelayExpression != "" {
 				var delay string
 				nameClause, delay = namedWorkflowExpressionMDL(a.Name, nameClause, a.DelayExpression, visitor.WorkflowWaitForTimerReadsBack)
-				actLines = append(actLines, fmt.Sprintf("%swait for timer%s %s comment %s", indent, nameClause, delay, mdlQuoted(caption)))
+				actLines = append(actLines, fmt.Sprintf("%swait for timer%s %s caption %s", indent, nameClause, delay, mdlQuoted(caption)))
 			} else {
-				actLines = append(actLines, fmt.Sprintf("%swait for timer%s comment %s", indent, nameClause, mdlQuoted(caption)))
+				actLines = append(actLines, fmt.Sprintf("%swait for timer%s caption %s", indent, nameClause, mdlQuoted(caption)))
 			}
 		case *workflows.WaitForNotificationActivity:
 			caption := a.Caption
@@ -479,7 +479,7 @@ func formatFlowActivities(flow *workflows.Flow, indent string, mainFlow bool) []
 				line += " " + mdlIdent(a.Name)
 			}
 			if a.Caption != "" {
-				line += " comment " + mdlQuoted(a.Caption)
+				line += " caption " + mdlQuoted(a.Caption)
 			}
 			actLines = append(actLines, line)
 		case *workflows.StartWorkflowActivity:
@@ -498,7 +498,7 @@ func formatFlowActivities(flow *workflows.Flow, indent string, mainFlow bool) []
 			// `Reject -> End` as `'Reject' { }` — and that, re-executed, falls
 			// through into the main flow.
 			if a.Caption != "" && a.Caption != "End" {
-				actLines = []string{fmt.Sprintf("%send workflow comment %s", indent, mdlQuoted(a.Caption))}
+				actLines = []string{fmt.Sprintf("%send workflow caption %s", indent, mdlQuoted(a.Caption))}
 			} else {
 				actLines = []string{indent + "end workflow"}
 			}
@@ -781,7 +781,7 @@ func formatCallMicroflowTask(a *workflows.CallMicroflowTask, indent string) []st
 	if a.IsAgent {
 		verb = "call agent microflow"
 	}
-	// A caption the author set is emitted as `comment '…'`, which the grammar
+	// A caption the author set is emitted as `caption '…'`, which the grammar
 	// reads back into the caption. It used to be emitted only as a trailing
 	// `-- caption` comment, so describe → exec replaced it with the microflow's
 	// name. The derived default (the microflow's short name) carries nothing and
@@ -789,7 +789,7 @@ func formatCallMicroflowTask(a *workflows.CallMicroflowTask, indent string) []st
 	asAndComment := workflowActivityAsClause(a.Name, shortDocName(mf))
 	trailing := " -- " + caption
 	if a.Caption != "" && a.Caption != shortDocName(mf) {
-		asAndComment += " comment " + mdlQuoted(a.Caption)
+		asAndComment += " caption " + mdlQuoted(a.Caption)
 		trailing = ""
 	}
 	args, legacy := workflowCallArguments(a.ParameterMappings)
@@ -852,7 +852,7 @@ func formatCallWorkflowActivity(a *workflows.CallWorkflowActivity, indent string
 	}
 
 	args, legacy := workflowCallArguments(a.ParameterMappings)
-	lines = append(lines, fmt.Sprintf("%scall workflow %s%s%s comment %s%s", indent, wf, args,
+	lines = append(lines, fmt.Sprintf("%scall workflow %s%s%s caption %s%s", indent, wf, args,
 		workflowActivityAsClause(a.Name, shortDocName(wf)), mdlQuoted(caption), legacy))
 
 	// BoundaryEvents
@@ -898,7 +898,7 @@ func workflowActivityAsClause(name, derived string) string {
 // whose writer defaults the caption to defaultCaption and the name to the
 // caption (decision, parallel split).
 //
-// A caption the author set is emitted as `comment '…'`, which the grammar reads
+// A caption the author set is emitted as `caption '…'`, which the grammar reads
 // back into the caption. It used to be emitted only as a trailing `-- caption`
 // comment, so describe → exec replaced it with the default (ako/mxcli#707). The
 // default carries nothing and stays a plain trailing comment, as for call
@@ -908,7 +908,7 @@ func workflowCaptionClauses(name, caption, defaultCaption string) (nameClause, c
 	written := defaultCaption
 	if caption != "" && caption != defaultCaption {
 		written = caption
-		captionClause = " comment " + mdlQuoted(caption)
+		captionClause = " caption " + mdlQuoted(caption)
 	} else {
 		shown := caption
 		if shown == "" {

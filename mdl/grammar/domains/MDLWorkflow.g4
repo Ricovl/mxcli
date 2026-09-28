@@ -68,7 +68,7 @@ workflowEventSubProcess
  */
 workflowEventSubProcessTrigger
     : NOTIFICATION workflowActivityName? STRING_LITERAL?
-    | TIMER workflowExpression (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
+    | TIMER workflowExpression (AS workflowActivityName)? workflowCaption?
     ;
 
 /**
@@ -104,9 +104,19 @@ workflowBody
     : (workflowActivityStmt | workflowEndStmt SEMICOLON | workflowReturnStmt SEMICOLON)*
     ;
 
-/** Ends the whole workflow from inside a branch; `comment` sets the End's caption. */
+/**
+ * An activity's caption, the text Studio Pro shows on it (R9). `comment` was
+ * the first spelling: it set the caption, not a comment, which misled the
+ * reader into taking it for an annotation, so it is a registered alias.
+ */
+workflowCaption
+    : CAPTION STRING_LITERAL
+    | COMMENT /* @alias MDL-DEPR104 */ STRING_LITERAL
+    ;
+
+/** Ends the whole workflow from inside a branch; `caption` sets the End's caption. */
 workflowEndStmt
-    : END WORKFLOW (COMMENT STRING_LITERAL)?
+    : END WORKFLOW workflowCaption?
     ;
 
 /**
@@ -267,7 +277,7 @@ workflowUserTaskOutcome
  * invoked.
  */
 workflowCallMicroflowStmt
-    : CALL AGENT? MICROFLOW qualifiedName workflowCallArguments? (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
+    : CALL AGENT? MICROFLOW qualifiedName workflowCallArguments? (AS workflowActivityName)? workflowCaption?
       (WITH /* @alias MDL-DEPR008 */ LPAREN workflowParameterMapping (COMMA workflowParameterMapping)* RPAREN)?
       (OUTCOMES workflowConditionOutcome+)?
       (BOUNDARY EVENT workflowBoundaryEventClause ((BOUNDARY EVENT)? workflowBoundaryEventClause)*)?
@@ -290,12 +300,12 @@ workflowParameterMapping
     ;
 
 workflowCallWorkflowStmt
-    : CALL WORKFLOW qualifiedName workflowCallArguments? (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
+    : CALL WORKFLOW qualifiedName workflowCallArguments? (AS workflowActivityName)? workflowCaption?
       (WITH /* @alias MDL-DEPR008 */ LPAREN workflowParameterMapping (COMMA workflowParameterMapping)* RPAREN)?
     ;
 
 workflowDecisionStmt
-    : DECISION workflowActivityName? workflowExpression? (COMMENT STRING_LITERAL)?
+    : DECISION workflowActivityName? workflowExpression? workflowCaption?
       (OUTCOMES workflowConditionOutcome+)?
     ;
 
@@ -304,7 +314,7 @@ workflowConditionOutcome
     ;
 
 workflowParallelSplitStmt
-    : PARALLEL SPLIT workflowActivityName? (COMMENT STRING_LITERAL)?
+    : PARALLEL SPLIT workflowActivityName? workflowCaption?
       workflowParallelPath+
     ;
 
@@ -313,15 +323,15 @@ workflowParallelPath
     ;
 
 workflowJumpToStmt
-    : JUMP TO (IDENTIFIER | QUOTED_IDENTIFIER) (COMMENT STRING_LITERAL)?
+    : JUMP TO (IDENTIFIER | QUOTED_IDENTIFIER) workflowCaption?
     ;
 
 workflowWaitForTimerStmt
-    : WAIT FOR TIMER workflowActivityName? workflowExpression? (COMMENT STRING_LITERAL)?
+    : WAIT FOR TIMER workflowActivityName? workflowExpression? workflowCaption?
     ;
 
 workflowWaitForNotificationStmt
-    : WAIT FOR NOTIFICATION workflowActivityName? (COMMENT STRING_LITERAL)?
+    : WAIT FOR NOTIFICATION workflowActivityName? workflowCaption?
       (BOUNDARY EVENT workflowBoundaryEventClause ((BOUNDARY EVENT)? workflowBoundaryEventClause)*)?
     ;
 
@@ -330,7 +340,7 @@ workflowWaitForNotificationStmt
  * the point a `notify workflow … target <name>` reaches.
  */
 workflowNotificationStmt
-    : NOTIFICATION workflowActivityName? (COMMENT STRING_LITERAL)?
+    : NOTIFICATION workflowActivityName? workflowCaption?
     ;
 
 workflowAnnotationStmt

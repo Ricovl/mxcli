@@ -13,6 +13,14 @@ mdl 1;
 create persistent entity Sales.Customer ( Name: String(200) );
 ```
 
+## Session commands — the REPL, not a script
+
+`connect`, `disconnect`, `use`, `set format = …`, `status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help` and `introspect api` set up or inspect the session. Type them at the REPL, or use the command-line flags; a `.mdl` script holds model statements only. Under `mdl 1;` a session command in a script is an error; without the header it runs and warns `MDL-V1-SESSION`. `exit` / `quit` are not session commands.
+
+```bash
+mxcli exec changes.mdl -p app.mpr --json     # not: connect local 'app.mpr'; set format = json; in the script
+```
+
 ## DESCRIBE — type is optional
 
 Every `describe <type> Module.Name` statement also accepts a **bare** form with the type omitted — `describe Module.Name` — and the document type is auto-detected from the project (via the catalog `objects` index, built on demand). Use it anywhere: the REPL, `exec` scripts, and `mxcli describe Module.Name`.
@@ -105,7 +113,7 @@ Modifies an existing entity without full replacement.
 | Modify attribute | `alter entity Module.Name modify attribute Attr: NewType [constraints];` | Change type/constraints. Always `Name: Type`; without the colon warns MDL-DEPR065 |
 | Rename attribute | `alter entity Module.Name rename attribute OldName to NewName;` | Also rewrites stored references (microflow members, page widgets, validation/access rules) and XPath constraints. Microflow expressions are free text and are **not** rewritten |
 | Add index | `alter entity Module.Name add index [if not exists] [name] [on] (Col1 [asc\|desc], ...);` | `on` is optional (SQL-like). **Without `if not exists`, re-running is an error** — a second identical index fails the build with CE0072 |
-| Document an association | `/** What it links. */`<br>`create association Mod.C_P from Mod.C to Mod.P;`<br>or `... to Mod.P comment 'What it links.';` | Both spellings work on create; the doc comment wins when both are present. `comment` survives here — and only here among the CREATE statements — because it is an association's **only inline** spelling |
+| Document an association | `/** What it links. */`<br>`create association Mod.C_P from Mod.C to Mod.P;` | Documentation is a doc comment, as on every document. `... comment 'What it links.'` still parses as a deprecated alias (`MDL-DEPR100`, also on constants, JSON structures and image collections); the doc comment wins when both are present |
 | Create if absent | `create entity if not exists Module.Name (...);`<br>`create association if not exists Module.Assoc from ... to ...;` | Skips when it already exists, leaving the stored definition untouched. Unlike `create or modify`, which rebuilds the element from the statement and drops any attribute the statement omits — `mxcli check … -p app.mpr --references` warns about that as **MDL087**, naming the members the script removes without restating them |
 | Add index (SQL form) | `create index IdxName on Module.Name (Col1 [asc\|desc], ...);` | Same effect as `alter entity … add index`. The index name is accepted and not stored — a Mendix index is identified by its columns — so `check` warns (MDL-IDX01); prefer `alter entity … add index (…)` |
 | Drop index | `alter entity Module.Name drop index [if exists] (Col1 [asc\|desc], ...);` | Selected by its columns — a Mendix index stores no name, so the columns are its identity, and they are what `describe entity` prints. The legacy positional form `drop index idx1` still works but shifts when an earlier index is dropped |
@@ -267,9 +275,9 @@ Required rule.
 
 **Example:**
 ```sql
+/** A, not too restrictive, email address regular expression */
 create regular expression Val.EmailAddress (
-  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+',
-  Documentation: 'A, not too restrictive, email address regular expression'
+  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+'
 );
 
 -- .NET lookbehind: legal in Mendix, not verifiable by mxcli
@@ -715,21 +723,22 @@ mandatory and a misplaced clause failed with a token error
   - A **targeting microflow** takes exactly `System.Workflow` + the context entity (or a generalization of it), in either order — anything else is CE6677. Users targeting returns a list of `System.User`, groups a list of `System.WorkflowGroup`.
   - An **on-created microflow** takes exactly `System.WorkflowUserTask` + the context entity, in either order (CE6683), and returns nothing (CE5012).
   - `check --references` reports these before anything is written; `exec` refuses the workflow statement itself (Mendix 11+).
-- `call microflow Mod.MF[(<Param> = <expr>, ...)] [as <name>] [comment '<text>'] [outcomes '<out>' -> { } ...];`
-- `call agent microflow Mod.MF [as <name>] [comment '<text>'] [with (<Param> = '<expr>', ...)] [outcomes … -> { } ...];` — an **AI agent task** (Mendix 11.9+): the call-microflow statement stored as `Workflows$AIAgentTaskActivity`. Its microflow must take at least one parameter (CE1590).
-- `call workflow Mod.WF[(<Param> = <expr>, ...)] [as <name>] [comment '<text>'];`
-- `decision [<name>] [<expression>] [comment '<caption>'] outcomes <true|false|'Module.Enum.Value'> -> { } ...;` — the expression is bare; a decision's condition, a timer and a due date written in a string (`decision '<expr>'`) warn MDL-DEPR080
+- `call microflow Mod.MF[(<Param> = <expr>, ...)] [as <name>] [caption '<text>'] [outcomes '<out>' -> { } ...];`
+- `call agent microflow Mod.MF [as <name>] [caption '<text>'] [with (<Param> = '<expr>', ...)] [outcomes … -> { } ...];` — an **AI agent task** (Mendix 11.9+): the call-microflow statement stored as `Workflows$AIAgentTaskActivity`. Its microflow must take at least one parameter (CE1590).
+- `call workflow Mod.WF[(<Param> = <expr>, ...)] [as <name>] [caption '<text>'];`
+- `decision [<name>] [<expression>] [caption '<caption>'] outcomes <true|false|'Module.Enum.Value'> -> { } ...;` — the expression is bare; a decision's condition, a timer and a due date written in a string (`decision '<expr>'`) warn MDL-DEPR080
 - `parallel split [<name>] path 1 { } path 2 { };`
 - `jump to <activity-name>;`
 - `wait for timer [<name>] [<expr>] [comment '<caption>'];`
 - `wait for notification [<name>];`
-- `notification [<name>] [comment '<caption>'];` — an intermediate notification event (Mendix 11.11+)
-- `end workflow [comment '<caption>'];` — only inside a `{ }` block; ends the whole workflow
+- `notification [<name>] [caption '<caption>'];` — an intermediate notification event (Mendix 11.11+)
+- `end workflow [caption '<caption>'];` — only inside a `{ }` block; ends the whole workflow
+- `caption '…'` sets the caption Studio Pro shows on an activity; `comment '…'`, the old spelling, is a deprecated alias (`MDL-DEPR104`)
 - Boundary events, after `outcomes`: `boundary event [non] interrupting timer <expr> { … }` or `boundary event [non] interrupting notification <name> ['<caption>'] { … }` (11.11+). One interrupting event per activity (CE6697, MDL-WF15).
 
 **Notifying a workflow** (a microflow statement): `[$Notified =] notify workflow $Workflow target Module.Workflow.ElementName;` — the element is a notification-started event sub-process's start, a notification activity, a notification boundary event or a wait for notification, and mxcli resolves which. The target is required (CE0166, MDL-WF16).
 
-**Event sub-processes**, after the main body: `event subprocess <name> ['<caption>'] on [non] interrupting notification [<start>] ['<caption>'] { … };` (11.8+) or `… on [non] interrupting timer <first-execution-time> [as <start>] [comment '<caption>'] { … };` (11.13+). The body's End is implicit; a `jump to` stays in its own sub-process (CE6682, MDL-WF05); a timer needs its expression (CE0126, MDL-WF14).
+**Event sub-processes**, after the main body: `event subprocess <name> ['<caption>'] on [non] interrupting notification [<start>] ['<caption>'] { … };` (11.8+) or `… on [non] interrupting timer <first-execution-time> [as <start>] [caption '<caption>'] { … };` (11.13+). The body's End is implicit; a `jump to` stays in its own sub-process (CE6682, MDL-WF05); a timer needs its expression (CE0126, MDL-WF14).
 
 **Workflow event handlers.** `on workflow events (UserTaskStarted, UserTaskEnded)
 microflow Mod.MF as 'Task audit'` in the header runs the microflow for each listed
@@ -1093,7 +1102,7 @@ Respond in {{Language}}.$$,
 |-----------|--------|-------|
 | Show collections | `show image collection [in module];` | List all or filter by module |
 | Describe collection | `describe image collection Module.Name;` | Full MDL output with embedded images |
-| Create collection | `create image collection Module.Name [folder 'path'] [export level 'Hidden'\|'Public'] [comment 'text'] [{ image Name ( File: 'path' ) ... }];` | With or without images |
+| Create collection | `[/** text */] create image collection Module.Name [folder 'path'] [export level 'Hidden'\|'Public'] [{ image Name ( File: 'path' ) ... }];` | With or without images. `comment 'text'` is a deprecated alias of the doc comment (`MDL-DEPR100`) |
 | Create or modify | `create or modify image collection Module.Name [...];` | Preserves UUID — preferred for AI agents |
 | Drop collection | `drop image collection [if exists] Module.Name;` | Removes collection and all embedded images |
 | Show an image on a page | `image imgLogo (Image: 'Module.Collection.ImageName');` | Three-part name, like an icon reference. `describe image collection` lists the names |
@@ -1229,11 +1238,10 @@ Operations, path/query parameters, headers, request body, response type, resourc
 | Revoke access | `revoke access on published rest service Module.Name from Module.Role, ...;` | |
 
 ```sql
-create published rest service Module.MyAPI (
+create published rest service Module.MyAPI folder 'Integration/REST' (
   path: 'rest/api/v1',
   version: '1.0.0',
-  ServiceName: 'My API',
-  folder: 'Integration/REST'
+  ServiceName: 'My API'
 )
 {
   resource 'orders' {
@@ -1286,7 +1294,7 @@ source json '{"latitude": 51.9, "current": {"temp": 12.8}}'
 |-----------|--------|-------|
 | Show structures | `show json structures [in module];` | List all or filter by module |
 | Describe structure | `describe json structure Module.Name;` | Re-executable CREATE OR MODIFY + element tree |
-| Create structure | `create json structure Module.Name [comment 'text'] snippet '...json...';` | Element tree auto-built from snippet |
+| Create structure | `[/** text */] create json structure Module.Name [folder 'path'] snippet '...json...';` | Element tree auto-built from snippet. `comment 'text'` is a deprecated alias of the doc comment (`MDL-DEPR100`) |
 | Create (multi-line) | `create json structure Module.Name snippet $${ "key": "value" }$$;` | Dollar-quoted snippet for readability |
 | Create or modify | `create or modify json structure Module.Name snippet '...';` | Preserves UUID — preferred for AI agents |
 | Create with name map | `create json structure Module.Name snippet '...' CUSTOM NAME map ('jsonKey' as 'CustomName', ...);` | Override auto-generated ExposedNames |

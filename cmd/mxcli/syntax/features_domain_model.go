@@ -287,7 +287,7 @@ func init() {
 			"many-to-one", "many-to-many", "foreign key",
 			"owner", "delete behavior",
 		},
-		Syntax:  "[@anchor(from: (x, y), to: (x, y))]\nCREATE [OR MODIFY] ASSOCIATION Module.Name\n  FROM Module.FromEntity TO Module.ToEntity\n  TYPE Reference|ReferenceSet\n  [OWNER Default|Both]\n  [ON DELETE CASCADE|RESTRICT|SET NULL [ERROR MESSAGE 'text']]\n  [COMMENT 'text'];\nALTER ASSOCIATION Module.Name SET ANCHOR FROM (x, y) TO (x, y);\nDROP ASSOCIATION Module.Name;\n\nOR MODIFY: updates type/owner/delete behavior in-place, preserves UUID.\n\n@anchor sets the LINE ANCHORS — where the connector attaches to each entity box\nin the domain model editor — as a PERCENTAGE of the box (0..100, whole numbers).\n`from` is the FROM entity's box, `to` the TO entity's: (0, 50) is the middle of\nthe left edge, (100, 50) the right, (50, 100) the bottom centre. Omitting an end\nPRESERVES what is stored, so a CREATE OR MODIFY about something else never\nflattens a hand-tuned line. Cross-module associations have no anchors.\n\nDROP reconciles the entity access rules that named the association, and is\nREFUSED while a message definition still exposes it (that one cannot be\nreconciled -- removing the member would change a published contract). The\nrefusal prints the `alter message definition ... drop member` statement for\neach definition, ready to run.",
+		Syntax:  "[@anchor(from: (x, y), to: (x, y))]\nCREATE [OR MODIFY] ASSOCIATION Module.Name\n  FROM Module.FromEntity TO Module.ToEntity\n  TYPE Reference|ReferenceSet\n  [OWNER Default|Both]\n  [ON DELETE CASCADE|RESTRICT|SET NULL [ERROR MESSAGE 'text']];\n-- Documentation: the /** … */ doc comment before the statement\n-- (COMMENT 'text' is its deprecated alias, MDL-DEPR100).\nALTER ASSOCIATION Module.Name SET ANCHOR FROM (x, y) TO (x, y);\nDROP ASSOCIATION Module.Name;\n\nOR MODIFY: updates type/owner/delete behavior in-place, preserves UUID.\n\n@anchor sets the LINE ANCHORS — where the connector attaches to each entity box\nin the domain model editor — as a PERCENTAGE of the box (0..100, whole numbers).\n`from` is the FROM entity's box, `to` the TO entity's: (0, 50) is the middle of\nthe left edge, (100, 50) the right, (50, 100) the bottom centre. Omitting an end\nPRESERVES what is stored, so a CREATE OR MODIFY about something else never\nflattens a hand-tuned line. Cross-module associations have no anchors.\n\nDROP reconciles the entity access rules that named the association, and is\nREFUSED while a message definition still exposes it (that one cannot be\nreconciled -- removing the member would change a published contract). The\nrefusal prints the `alter message definition ... drop member` statement for\neach definition, ready to run.",
 		Example: "-- Many-to-one\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE SET NULL;\n\n-- Many-to-many\nCREATE ASSOCIATION Shop.Product_Tag\n  FROM Shop.Product TO Shop.Tag\n  TYPE ReferenceSet\n  OWNER Both;\n\n-- Line leaving the bottom of Order and entering the top of Customer\n@anchor(from: (50, 100), to: (50, 0))\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer;\n\n-- Retune the line without restating the association\nALTER ASSOCIATION Shop.Order_Customer SET ANCHOR FROM (0, 54) TO (100, 54);",
 		SeeAlso: []string{"domain-model.association.create", "domain-model.association.anchor", "domain-model.association.delete-behavior"},
 	})
@@ -300,7 +300,7 @@ func init() {
 			"reference set", "junction table", "foreign key",
 			"owner default", "owner both", "storage column", "storage table",
 		},
-		Syntax:  "CREATE [OR MODIFY] ASSOCIATION Module.AssociationName\n  FROM Module.FromEntity TO Module.ToEntity\n  TYPE Reference|ReferenceSet\n  [OWNER Default|Both]\n  [STORAGE COLUMN|TABLE]\n  [ON DELETE CASCADE|RESTRICT|SET NULL [ERROR MESSAGE 'text']]\n  [COMMENT 'text'];\n\nDirection:\n  FROM = entity holding the FK (the \"many\" side)\n  TO   = entity being referenced (the \"one\" side)\n\nTypes:\n  Reference    = Many-to-one (FK column on FROM table)\n  ReferenceSet = Many-to-many (junction table)\n\nOR MODIFY: updates in-place, preserves UUID. Safe to re-run.",
+		Syntax:  "CREATE [OR MODIFY] ASSOCIATION Module.AssociationName\n  FROM Module.FromEntity TO Module.ToEntity\n  TYPE Reference|ReferenceSet\n  [OWNER Default|Both]\n  [STORAGE COLUMN|TABLE]\n  [ON DELETE CASCADE|RESTRICT|SET NULL [ERROR MESSAGE 'text']];\n\nDocumentation: the /** … */ doc comment before the statement\n(COMMENT 'text' is its deprecated alias, MDL-DEPR100).\n\nDirection:\n  FROM = entity holding the FK (the \"many\" side)\n  TO   = entity being referenced (the \"one\" side)\n\nTypes:\n  Reference    = Many-to-one (FK column on FROM table)\n  ReferenceSet = Many-to-many (junction table)\n\nOR MODIFY: updates in-place, preserves UUID. Safe to re-run.",
 		Example: "-- Many-to-one with delete behavior\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE RESTRICT;\n\n-- Many-to-many\nCREATE ASSOCIATION Shop.Product_Tag\n  FROM Shop.Product TO Shop.Tag\n  TYPE ReferenceSet\n  OWNER Both;\n\n-- Idempotent update\nCREATE OR MODIFY ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE CASCADE;",
 		SeeAlso: []string{"domain-model.association.delete-behavior", "domain-model.entity.create"},
 	})
@@ -405,8 +405,8 @@ func init() {
 			"constant", "configuration", "config value",
 			"create constant", "setting",
 		},
-		Syntax:  "CREATE CONSTANT Module.Name TYPE DataType DEFAULT value [COMMENT 'text'];\nCREATE OR MODIFY CONSTANT Module.Name TYPE DataType DEFAULT value;\n\nSHOW CONSTANTS;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;",
-		Example: "CREATE CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.example.com/v1';\n\nCREATE CONSTANT MyModule.MaxRetries\n  TYPE Integer\n  DEFAULT 3\n  COMMENT 'Maximum API retry attempts';",
+		Syntax:  "[/** documentation */]\nCREATE CONSTANT Module.Name TYPE DataType DEFAULT value;\nCREATE OR MODIFY CONSTANT Module.Name TYPE DataType DEFAULT value;\n\nSHOW CONSTANTS;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;",
+		Example: "CREATE CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.example.com/v1';\n\n/** Maximum API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries\n  TYPE Integer\n  DEFAULT 3;",
 		SeeAlso: []string{"domain-model.constant.create"},
 	})
 
@@ -418,7 +418,7 @@ func init() {
 			"show constants", "constant values", "modify constant",
 			"string constant", "integer constant", "boolean constant",
 		},
-		Syntax: "CREATE CONSTANT Module.Name\n  TYPE String|Integer|Long|Decimal|Boolean|DateTime\n  DEFAULT value\n  [COMMENT 'description'];\n\nCREATE OR MODIFY CONSTANT Module.Name\n  TYPE DataType DEFAULT value [COMMENT 'text'];\n\nSHOW CONSTANTS;\nSHOW CONSTANTS IN <module>;\nSHOW CONSTANT VALUES;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;\n\nRemove override:\n  ALTER SETTINGS DROP CONSTANT @Module.Name IN CONFIGURATION 'cfg';\n\n" +
+		Syntax: "[/** description */]\nCREATE CONSTANT Module.Name\n  TYPE String|Integer|Long|Decimal|Boolean|DateTime\n  DEFAULT value;\n\nCREATE OR MODIFY CONSTANT Module.Name\n  TYPE DataType DEFAULT value;\n\n-- Documentation is the /** … */ doc comment; COMMENT 'text' is its\n-- deprecated alias (MDL-DEPR100).\n\nSHOW CONSTANTS;\nSHOW CONSTANTS IN <module>;\nSHOW CONSTANT VALUES;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;\n\nRemove override:\n  ALTER SETTINGS DROP CONSTANT @Module.Name IN CONFIGURATION 'cfg';\n\n" +
 			"Shared vs private values:\n" +
 			"  A per-configuration override holds either a SHARED value (stored in the\n" +
 			"  model, so in version control — every developer gets it) or a PRIVATE one\n" +
@@ -430,7 +430,7 @@ func init() {
 			"  SHOW CONSTANT VALUES reports it as (private); DESCRIBE SETTINGS reports it\n" +
 			"  as a comment, not a re-executable statement. DROP CONSTANT still works.\n" +
 			"  Change a constant to a shared value in Studio Pro.",
-		Example: "CREATE CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.example.com/v1';\n\nCREATE CONSTANT MyModule.MaxRetries\n  TYPE Integer DEFAULT 3\n  COMMENT 'Maximum number of API retry attempts';\n\nCREATE CONSTANT MyModule.EnableDebug\n  TYPE Boolean DEFAULT false;\n\nCREATE OR MODIFY CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.staging.example.com/v2';",
+		Example: "CREATE CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.example.com/v1';\n\n/** Maximum number of API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries\n  TYPE Integer DEFAULT 3;\n\nCREATE CONSTANT MyModule.EnableDebug\n  TYPE Boolean DEFAULT false;\n\nCREATE OR MODIFY CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.staging.example.com/v2';",
 		SeeAlso: []string{"domain-model.constant"},
 	})
 

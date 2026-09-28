@@ -12,7 +12,7 @@ func init() {
 			"page", "pages", "form", "UI", "user interface",
 			"widget", "layout", "screen",
 		},
-		Syntax:  "CREATE PAGE Module.Name\n  (\n    Title: 'Page Title',\n    Layout: Module.LayoutName\n    [, Params: { $Param: Module.Entity }]\n    [, Url: 'page-url']\n    [, Folder: 'FolderPath']\n    [, Variables: { $var: Boolean = 'true' }]\n    [, PopupWidth: 800, PopupHeight: 480, PopupResizable: true]\n    [, PopupCloseAction: cancelButton1]\n    [, Class: 'css-class', Style: 'css: rule']\n  )\n  {\n    -- widgets\n  }",
+		Syntax:  "CREATE PAGE Module.Name [FOLDER 'FolderPath']\n  (\n    Title: 'Page Title',\n    Layout: Module.LayoutName\n    [, Params: { $Param: Module.Entity }]\n    [, Url: 'page-url']\n    [, Variables: { $var: Boolean = 'true' }]\n    [, PopupWidth: 800, PopupHeight: 480, PopupResizable: true]\n    [, PopupCloseAction: cancelButton1]\n    [, Class: 'css-class', Style: 'css: rule']\n  )\n  {\n    -- widgets\n  }",
 		Example: "CREATE PAGE MyModule.EditCustomer\n  (\n    Params: { $Customer: MyModule.Customer },\n    Title: 'Edit Customer',\n    Layout: Atlas_Core.PopupLayout,\n    Class: 'container-fluid'\n  )\n  {\n    DATAVIEW dvCustomer (DataSource: $Customer) {\n      TEXTBOX txtName (Label: 'Name', Attribute: Name)\n      FOOTER footer1 {\n        ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)\n        ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)\n      }\n    }\n  }",
 		SeeAlso: []string{"page.create", "page.widgets", "page.alter", "snippet"},
 	})
@@ -24,7 +24,7 @@ func init() {
 			"create page", "new page", "page parameters", "page variables",
 			"layout", "url", "folder",
 		},
-		Syntax:  "CREATE PAGE Module.Name\n  (\n    Title: 'Title',\n    Layout: Module.Layout\n    [, Params: { $P: Module.Entity, $Qty: Integer }]\n    [, Url: 'page-url']\n    [, Folder: 'FolderPath']\n    [, Variables: { $showStock: Boolean = 'true' }]\n  )\n  { <widgets> }",
+		Syntax:  "CREATE PAGE Module.Name [FOLDER 'FolderPath']\n  (\n    Title: 'Title',\n    Layout: Module.Layout\n    [, Params: { $P: Module.Entity, $Qty: Integer }]\n    [, Url: 'page-url']\n    [, Variables: { $showStock: Boolean = 'true' }]\n  )\n  { <widgets> }",
 		Example: "CREATE PAGE Module.Products\n  (\n    Title: 'Products',\n    Layout: Atlas_Core.Atlas_Default,\n    Url: 'products',\n    Variables: { $showStock: Boolean = 'true' }\n  )\n  {\n    DATAGRID gridProducts (DataSource: DATABASE Module.Product) {\n      COLUMN colName (Attribute: Name, Caption: 'Name')\n    }\n  }",
 		SeeAlso: []string{"page", "page.widgets", "page.datasource"},
 	})
@@ -402,7 +402,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"snippet", "snippets", "reusable", "snippetcall",
 			"page fragment", "component",
 		},
-		Syntax:  "CREATE SNIPPET Module.Name\n  [( Params: { $P: Module.Entity }, Folder: 'path' )]   -- parameters are entities only\n  {\n    -- widgets (same as page)\n  }\n\n-- Embed in a page:\nSNIPPETCALL scName (Snippet: Module.SnippetName)",
+		Syntax:  "CREATE SNIPPET Module.Name [FOLDER 'path']\n  [( Params: { $P: Module.Entity } )]   -- parameters are entities only\n  {\n    -- widgets (same as page)\n  }\n\n-- Embed in a page:\nSNIPPETCALL scName (Snippet: Module.SnippetName)",
 		Example: "CREATE SNIPPET MyModule.CustomerInfo (\n  Params: { $Customer: MyModule.Customer }\n)\n{\n  DATAVIEW dv (DataSource: $Customer) {\n    TEXTBOX txtName (Label: 'Name', Attribute: Name)\n    TEXTBOX txtEmail (Label: 'Email', Attribute: Email)\n  }\n}",
 		SeeAlso: []string{"snippet.create", "snippet.alter", "page"},
 	})
@@ -420,7 +420,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 		// (a PAGE parameter may be primitive; a snippet parameter may not), and
 		// the reporter of mendixlabs/mxcli#1028 reached the bug by following
 		// this line. A primitive is now refused as MDL087.
-		Syntax:  "CREATE SNIPPET Module.Name\n  [( Params: { $P: Module.Entity } )]   -- entities only; a primitive is CE0046\n  [( Variables: { $isEditable: Boolean = 'true' } )]\n  [( Folder: 'Snippets/Common' )]\n  {\n    -- widgets\n  }\n\n-- To parameterise a snippet on a primitive, keep the primitive on the\n-- calling PAGE and pass an object, or read the value off an entity member.",
+		Syntax:  "CREATE SNIPPET Module.Name [FOLDER 'Snippets/Common']\n  [( Params: { $P: Module.Entity } )]   -- entities only; a primitive is CE0046\n  [( Variables: { $isEditable: Boolean = 'true' } )]\n  {\n    -- widgets\n  }\n\n-- To parameterise a snippet on a primitive, keep the primitive on the\n-- calling PAGE and pass an object, or read the value off an entity member.",
 		Example: "CREATE SNIPPET MyModule.NavigationMenu\n{\n  NAVIGATIONLIST navMenu {\n    ITEM itemCustomers (Action: SHOW PAGE MyModule.CustomerOverview) {\n      DYNAMICTEXT txtCustomers (Content: 'Customers')\n    }\n  }\n}",
 		SeeAlso: []string{"snippet", "snippet.alter", "page.widgets"},
 	})

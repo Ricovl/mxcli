@@ -50,8 +50,12 @@ createConfigurationStatement
 /**
  * CREATE CONSUMED REST SERVICE — property-based syntax with { } blocks.
  */
+// R9: the folder is a clause after the name. `Folder: '…'` in the property
+// list is a registered alias /* @alias MDL-DEPR105 */, here and in the
+// published REST and OData property lists; the visitor reports it by key.
 createRestClientStatement
     : consumedRestServiceKw qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN restClientProperty (COMMA restClientProperty)* RPAREN
       (LBRACE restClientOperation* RBRACE)?
     ;
@@ -110,6 +114,7 @@ restHttpMethod
 
 createPublishedRestServiceStatement
     : PUBLISHED REST SERVICE qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN publishedRestProperty (COMMA publishedRestProperty)* RPAREN
       LBRACE publishedRestResource* RBRACE
     ;
@@ -187,12 +192,14 @@ taskQueuesKw
 
 createODataClientStatement
     : consumedODataServiceKw qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       odataHeadersClause?
     ;
 
 createODataServiceStatement
     : publishedODataServiceKw qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       odataAuthenticationClause?
       (LBRACE (publishEntityBlock | publishMicroflowBlock)* RBRACE)?

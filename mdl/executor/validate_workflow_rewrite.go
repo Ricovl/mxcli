@@ -82,7 +82,7 @@ func checkNoDroppedWorkflowConstructs(ctx *ExecContext, workflowID model.ID, qua
 		return mdlerrors.NewUnsupported(fmt.Sprintf(
 			"workflow %s has %d stored notification activit(ies) but this statement declares %d — rewriting it would "+
 				"delete the difference, and a notify action targeting one would target nothing.\n"+
-				"  Restate them (`notification <name> comment '…';`), which `describe workflow %s` now emits, or use "+
+				"  Restate them (`notification <name> caption '…';`), which `describe workflow %s` now emits, or use "+
 				"ALTER WORKFLOW to change one activity at a time.",
 			qualifiedName, stored, authored, qualifiedName))
 	}

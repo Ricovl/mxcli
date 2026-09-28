@@ -644,7 +644,7 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"json structure", "create json structure", "drop json structure",
 			"snippet", "schema", "json schema",
 		},
-		Syntax: "SHOW JSON STRUCTURES [IN Module];\nDESCRIBE JSON STRUCTURE Module.Name;\nCREATE JSON STRUCTURE Module.Name [FOLDER 'path'] [COMMENT 'text'] SNIPPET '{ ... }'\n  [CUSTOM NAME MAP (\n    'jsonKey' AS 'CustomName',       -- rename the element that key reaches\n    ITEM OF 'arrayKey' AS 'Name',    -- name the ARRAY's item element\n    ITEM OF 'Root' AS 'Name'         -- ... of a ROOT-level array\n  )];\nCREATE OR MODIFY JSON STRUCTURE Module.Name SNIPPET '{ ... }';\nDROP JSON STRUCTURE Module.Name;\n\n" +
+		Syntax: "SHOW JSON STRUCTURES [IN Module];\nDESCRIBE JSON STRUCTURE Module.Name;\n[/** documentation */]\nCREATE JSON STRUCTURE Module.Name [FOLDER 'path'] SNIPPET '{ ... }'\n  [CUSTOM NAME MAP (\n    'jsonKey' AS 'CustomName',       -- rename the element that key reaches\n    ITEM OF 'arrayKey' AS 'Name',    -- name the ARRAY's item element\n    ITEM OF 'Root' AS 'Name'         -- ... of a ROOT-level array\n  )];\nCREATE OR MODIFY JSON STRUCTURE Module.Name SNIPPET '{ ... }';\nDROP JSON STRUCTURE Module.Name;\n\n" +
 			"An array's item is the anonymous [...] entry, so it has no JSON key and the\n" +
 			"plain form cannot reach it — ITEM OF addresses it by the array's key, and\n" +
 			"names a primitive array's wrapper too. Left unnamed an item keeps its\n" +
@@ -664,8 +664,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"image collection", "create image collection", "drop image collection",
 			"export level", "image", "icon", "logo",
 		},
-		Syntax:  "SHOW IMAGE COLLECTION [IN Module];\nDESCRIBE IMAGE COLLECTION Module.Name;\nCREATE IMAGE COLLECTION Module.Name [FOLDER 'path']\n  [EXPORT LEVEL 'Hidden'|'Public']\n  [COMMENT 'text']\n  [{ IMAGE name ( File: 'path' ) ... }];\nCREATE OR MODIFY IMAGE COLLECTION Module.Name [...];\nDROP IMAGE COLLECTION Module.Name;\n\n-- The images are the collection's children, so they are in { }, each with\n-- its properties in ( ). `( IMAGE name FROM FILE 'path', ... )` is the\n-- deprecated spelling (MDL-DEPR072).",
-		Example: "CREATE OR MODIFY IMAGE COLLECTION MyModule.AppIcons\n  EXPORT LEVEL 'Public'\n  COMMENT 'Application icons' {\n  IMAGE logo ( File: 'assets/logo.png' )\n  IMAGE \"favicon\" ( File: 'assets/favicon.ico' )\n};\n\nDESCRIBE IMAGE COLLECTION MyModule.AppIcons;",
+		Syntax:  "SHOW IMAGE COLLECTION [IN Module];\nDESCRIBE IMAGE COLLECTION Module.Name;\n[/** documentation */]\nCREATE IMAGE COLLECTION Module.Name [FOLDER 'path']\n  [EXPORT LEVEL 'Hidden'|'Public']\n  [{ IMAGE name ( File: 'path' ) ... }];\nCREATE OR MODIFY IMAGE COLLECTION Module.Name [...];\nDROP IMAGE COLLECTION Module.Name;\n\n-- The images are the collection's children, so they are in { }, each with\n-- its properties in ( ). `( IMAGE name FROM FILE 'path', ... )` is the\n-- deprecated spelling (MDL-DEPR072).",
+		Example: "/** Application icons */\nCREATE OR MODIFY IMAGE COLLECTION MyModule.AppIcons\n  EXPORT LEVEL 'Public' {\n  IMAGE logo ( File: 'assets/logo.png' )\n  IMAGE \"favicon\" ( File: 'assets/favicon.ico' )\n};\n\nDESCRIBE IMAGE COLLECTION MyModule.AppIcons;",
 		SeeAlso: []string{"integration", "icon-collection"},
 	})
 

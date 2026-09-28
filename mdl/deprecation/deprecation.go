@@ -158,6 +158,25 @@ const (
 	// ako/mxcli#751).
 	PositionalTemplateArguments = "MDL-DEPR009"
 
+	// R9 (ako/mxcli#755): where document metadata lives. Codes 100–119 are
+	// this change's block; 101–103 are left to the parallel work that took them.
+
+	// DocumentationClause is the `comment '…'` clause on a constant,
+	// association, JSON structure or image collection: the document's
+	// documentation, which every other document takes as a `/** … */` doc
+	// comment.
+	DocumentationClause = "MDL-DEPR100"
+	// WorkflowCommentCaption is a workflow activity's `comment '…'`, which sets
+	// the activity's caption, not a comment.
+	WorkflowCommentCaption = "MDL-DEPR104"
+	// FolderProperty is `Folder: '…'` in a page, snippet, consumed REST
+	// service, consumed or published OData service or published REST service
+	// header: the folder is a clause after the name on every document.
+	FolderProperty = "MDL-DEPR105"
+	// DocumentationProperty is `Documentation: '…'` in a regular expression,
+	// task queue or scheduled event property list.
+	DocumentationProperty = "MDL-DEPR106"
+
 	// R6: one verb per job (ako/mxcli#755). A block of their own, 090-099, so
 	// the parallel phase-3 changes do not collide.
 
@@ -472,10 +491,65 @@ var entries = []Entry{
 
 func init() {
 	entries = append(entries, r8Entries...)
+	entries = append(entries, r9Entries...)
 	entries = append(entries, r6Entries...)
 	entries = append(entries, r5Entries...)
 	entries = append(entries, r2Entries...)
 	entries = append(entries, r3Entries...)
+}
+
+// r9Entries are R9's (ako/mxcli#755): documentation is a `/** … */` doc
+// comment, the folder is a `folder '…'` clause, and a workflow activity's
+// caption is `caption '…'`.
+var r9Entries = []Entry{
+	{
+		Code:      DocumentationClause,
+		Old:       "create constant|association|json structure|image collection … comment '…'",
+		Canonical: "/** … */ before the statement",
+		Rewrite: Rewrite{Structural: "documentation as a doc comment: the clause is deleted and its text " +
+			"written as `/** … */` before the statement"},
+		RemovedIn: 2,
+		Note: "Documentation is a doc comment on every document. A statement that has both is reported, " +
+			"not rewritten, and so is a text a doc comment cannot hold exactly (a `*/`, blank lines, " +
+			"or space at the start or end of a line).",
+		Example:          "create constant M.ApiUrl type string default 'https://x' comment 'Base URL';",
+		CanonicalExample: "/** Base URL */\ncreate constant M.ApiUrl type string default 'https://x';",
+	},
+	{
+		Code:             WorkflowCommentCaption,
+		Old:              "<workflow activity> comment '…'",
+		Canonical:        "<workflow activity> caption '…'",
+		Rewrite:          Rewrite{Token: "comment", Replacement: "caption"},
+		RemovedIn:        2,
+		Note:             "The clause sets the caption Studio Pro shows on the activity; it was never a comment. Also on `end workflow` and an event sub-process's timer start.",
+		Example:          "create workflow M.W parameter $WorkflowContext: M.E begin notification Ready comment 'Ready'; end workflow;",
+		CanonicalExample: "create workflow M.W parameter $WorkflowContext: M.E begin notification Ready caption 'Ready'; end workflow;",
+	},
+	{
+		Code:      FolderProperty,
+		Old:       "create page|snippet|consumed rest service|… M.N (…, Folder: '…', …)",
+		Canonical: "create page|snippet|consumed rest service|… M.N folder '…' (…)",
+		Rewrite: Rewrite{Structural: "folder as a clause: the property is deleted from the list and written " +
+			"as `folder '…'` after the name"},
+		RemovedIn: 2,
+		Note: "The folder is a clause after the name on every document, as for a microflow or an enumeration. " +
+			"On a page, snippet, consumed REST service, consumed or published OData service and published " +
+			"REST service.",
+		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Folder: 'Admin') { };",
+		CanonicalExample: "create page M.P folder 'Admin' (Title: 'P', Layout: Atlas_Core.Atlas_Default) { };",
+	},
+	{
+		Code:      DocumentationProperty,
+		Old:       "Documentation: '…' in a regular expression, task queue or scheduled event",
+		Canonical: "/** … */ before the statement",
+		Rewrite: Rewrite{Structural: "documentation as a doc comment: the property is deleted from the list and " +
+			"its text written as `/** … */` before the statement"},
+		RemovedIn: 2,
+		Note: "A statement that has both is reported, not rewritten, and so is a text a doc comment cannot " +
+			"hold exactly.",
+		Example:          "create regular expression M.Zip (Expression: '[0-9]{4}', Documentation: 'Dutch zip');",
+		CanonicalExample: "/** Dutch zip */\ncreate regular expression M.Zip (Expression: '[0-9]{4}');",
+	},
 }
 
 // r6Entries are R6's verbs (ako/mxcli#755, PROPOSAL_mdl_beta_syntax_freeze.md

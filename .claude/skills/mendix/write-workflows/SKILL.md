@@ -144,7 +144,7 @@ begin
 
   -- An intermediate notification event (Mendix 11.11+): what `notify workflow`
   -- targets by name
-  notification DocumentsReceived comment 'Documents received';
+  notification DocumentsReceived caption 'Documents received';
 
   -- Loop back, or stop the whole workflow, from inside an outcome. A `jump to`
   -- and an `end workflow` must each END their path, so neither can close the
@@ -153,11 +153,11 @@ begin
     page Module.ReviewPage
     outcomes
       'Redo'   { jump to Review; }
-      'Cancel' { end workflow comment 'Cancelled'; }
+      'Cancel' { end workflow caption 'Cancelled'; }
       'Done'   { };
 
   -- Call a sub-workflow
-  call workflow Module.SubProcess as callWorkflow1 comment 'delegate';
+  call workflow Module.SubProcess as callWorkflow1 caption 'delegate';
 end workflow;
 ```
 
@@ -449,7 +449,7 @@ values. The full list and the System **entities** are in `system-module`.
     reaches the end of the workflow needs no `end workflow`.
   - The main flow needs none: the body's closing `end workflow` is its End.
   An outcome left **empty** does not stop anything — it rejoins the main flow.
-  `comment '…'` sets the End's caption, as on every workflow activity.
+  `caption '…'` sets the End's caption, as on every workflow activity (`comment '…'` is its deprecated alias, MDL-DEPR104).
 
 - **A multi-user task says who must respond and how their outcomes decide**:
   `participants all | <n> | <n> percent`, `decide by …` and `await all users`,

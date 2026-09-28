@@ -474,8 +474,7 @@ create association Module.EntityWithFK_ReferencedEntity
 from Module.EntityWithFK to Module.ReferencedEntity
 type reference
 owner default
-on delete set null
-comment 'Additional documentation';
+on delete set null;
 ```
 
 **Idempotency**: plain `create association` is **not** idempotent — re-running it

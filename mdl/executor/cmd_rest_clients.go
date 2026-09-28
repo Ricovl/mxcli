@@ -121,7 +121,14 @@ func outputConsumedRestServiceMDL(ctx *ExecContext, svc *model.ConsumedRestServi
 		outputJavadoc(w, svc.Documentation)
 	}
 
-	fmt.Fprintf(w, "create or modify consumed rest service %s.%s (\n", moduleName, svc.Name)
+	// The folder is a clause after the name (R9).
+	folder := ""
+	if h, err := getHierarchy(ctx); err == nil && h != nil {
+		if folderPath := h.BuildFolderPath(svc.ContainerID); folderPath != "" {
+			folder = " folder " + mdlQuoted(folderPath)
+		}
+	}
+	fmt.Fprintf(w, "create or modify consumed rest service %s.%s%s (\n", moduleName, svc.Name, folder)
 	fmt.Fprintf(w, "  BaseUrl: %s,\n", mdlQuoted(svc.BaseUrl))
 	if svc.Authentication == nil {
 		fmt.Fprintln(w, "  Authentication: none")

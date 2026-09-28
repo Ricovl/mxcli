@@ -30,8 +30,12 @@ func (b *Builder) ExitCreateImageCollectionStatement(ctx *parser.CreateImageColl
 			if optCtx.EXPORT() != nil && optCtx.LEVEL() != nil && optCtx.STRING_LITERAL() != nil {
 				stmt.ExportLevel = unquoteStringLit(optCtx.STRING_LITERAL())
 			}
-			if optCtx.COMMENT() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Comment = unquoteStringLit(optCtx.STRING_LITERAL())
+			if c := optCtx.COMMENT(); c != nil && optCtx.STRING_LITERAL() != nil {
+				// R9: `comment '…'` is the documentation, which a doc
+				// comment also states; the clause wins, as it always has.
+				text := unquoteStringLit(optCtx.STRING_LITERAL())
+				b.recordDocumentationClause(ctx, c.GetSymbol(), optCtx.STRING_LITERAL().GetSymbol(), text, true)
+				stmt.Comment, stmt.DocumentationSet = text, true
 			}
 		}
 	}

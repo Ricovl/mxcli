@@ -45,7 +45,7 @@ create page M.Q (Title: 'Q', Layout: Atlas_Core.Atlas_Default) {
   }
 };
 create workflow M.W parameter $WorkflowContext: M.E begin
-  call microflow M.G(Order = $WorkflowContext) as act1 comment 'Go';
+  call microflow M.G(Order = $WorkflowContext) as act1 caption 'Go';
 end workflow;
 `
 	res := mustUpgrade(t, src, Options{})
