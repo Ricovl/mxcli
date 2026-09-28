@@ -1522,6 +1522,8 @@ type activityRefMatch struct {
 	arrayPath string
 	index     int
 	name      string // the activity's own name (activityRef may be its caption)
+	caption   string
+	sType     string // the activity's storage $Type
 	inSplit   bool   // under a parallel split at any depth
 }
 
@@ -1608,7 +1610,8 @@ func (m *mcpWorkflowMutator) searchActivities(arrayPath, ref string, inSplit boo
 			taken[name] = true
 		}
 		if name == ref || mapString(a, "caption") == ref {
-			*matches = append(*matches, activityRefMatch{arrayPath: arrayPath, index: i, name: name, inSplit: inSplit})
+			*matches = append(*matches, activityRefMatch{arrayPath: arrayPath, index: i, name: name,
+				caption: mapString(a, "caption"), sType: mapString(a, "$Type"), inSplit: inSplit})
 		}
 		actPath := fmt.Sprintf("%s/%d", arrayPath, i)
 		sType := mapString(a, "$Type")
@@ -1771,6 +1774,45 @@ func (m *mcpWorkflowMutator) InsertAfterActivity(activityRef string, atPos int, 
 		ops = append(ops, addAtOp(arrayPath, idx+1, mapped))
 	}
 	return m.apply(ops...)
+}
+
+// InsertBeforeActivity inserts activities just before the referenced one. A
+// batch counts every add's index against the list before the batch, so each
+// goes in at the anchor's index and they keep their order (see
+// InsertAfterActivity).
+func (m *mcpWorkflowMutator) InsertBeforeActivity(activityRef string, atPos int, activities []workflows.WorkflowActivity) error {
+	loc, err := m.resolve(activityRef, atPos)
+	if err != nil {
+		return err
+	}
+	wfnames.Dedup(activities, loc.taken)
+	ops := make([]pedOpEntry, 0, len(activities))
+	for _, a := range activities {
+		mapped, err := mapWorkflowActivity(a)
+		if err != nil {
+			return err
+		}
+		ops = append(ops, addAtOp(loc.arrayPath, loc.index, mapped))
+	}
+	return m.apply(ops...)
+}
+
+// ResolveAlterTarget is the MCP workflow mutator's backend.AlterTargetResolver,
+// under the rule backend.ResolveWorkflowActivityTarget shares with the modelsdk
+// backend: the same walk resolve does, the same answer.
+func (m *mcpWorkflowMutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTargetMatch, error) {
+	if err := backend.CheckWorkflowAlterTarget(t); err != nil {
+		return backend.AlterTargetMatch{}, err
+	}
+	var matches []activityRefMatch
+	if err := m.searchActivities("/flow/activities", backend.WorkflowTargetText(t), false, &matches, map[string]bool{}); err != nil {
+		return backend.AlterTargetMatch{}, err
+	}
+	candidates := make([]backend.WorkflowActivityCandidate, 0, len(matches))
+	for _, mt := range matches {
+		candidates = append(candidates, backend.WorkflowActivityCandidate{Name: mt.name, Caption: mt.caption, StorageType: mt.sType})
+	}
+	return backend.ResolveWorkflowActivityTarget(t, candidates)
 }
 
 func (m *mcpWorkflowMutator) DropActivity(activityRef string, atPos int) error {

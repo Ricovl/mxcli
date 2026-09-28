@@ -130,7 +130,7 @@ func TestAlterWorkflow_RefusalNamesTheRightOp(t *testing.T) {
 		t.Fatal("expected a refusal")
 	}
 	joined := strings.Join(errs, "\n")
-	for _, want := range []string{"INSERT CONDITION", "decision"} {
+	for _, want := range []string{"insert into decision9 { outcomes '<Module.Enumeration.Value>' -> { … } }", "decision"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("refusal does not mention %q: %s", want, joined)
 		}
