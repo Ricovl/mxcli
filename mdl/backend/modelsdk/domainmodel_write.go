@@ -268,20 +268,14 @@ func entityToGen(e *domainmodel.Entity, moduleName string, major int) *genDm.Ent
 	} else {
 		ng := genDm.NewNoGeneralization()
 		ng.SetPersistable(e.Persistable)
-		// Legacy omits the system-attribute flags when false, so only set the
-		// true ones to keep the BSON in parity.
-		if e.HasOwner {
-			ng.SetHasOwner(true)
-		}
-		if e.HasChangedBy {
-			ng.SetHasChangedBy(true)
-		}
-		if e.HasCreatedDate {
-			ng.SetHasCreatedDate(true)
-		}
-		if e.HasChangedDate {
-			ng.SetHasChangedDate(true)
-		}
+		// All four system-attribute flags, false ones included: Studio Pro stores
+		// every one (ako/TestApp 11.14.0, PedApp 11.13.0). Writing only the true
+		// ones, as the legacy serializer did, deleted the false flags on every
+		// rewrite of a Studio Pro domain model (#721 B, #743).
+		ng.SetHasOwner(e.HasOwner)
+		ng.SetHasChangedBy(e.HasChangedBy)
+		ng.SetHasCreatedDate(e.HasCreatedDate)
+		ng.SetHasChangedDate(e.HasChangedDate)
 		out.SetGeneralization(ng)
 	}
 
