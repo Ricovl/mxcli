@@ -86,26 +86,14 @@ func (b *Builder) buildAlterSet(ctx *parser.AlterSetContext) ast.AlterPageOperat
 		}
 	}
 
-	usedEquals := false
 	for _, assignCtx := range ctx.AllAlterPageAssignment() {
 		assign := assignCtx.(*parser.AlterPageAssignmentContext)
-		if ao := assign.AlterAssignOp(); ao != nil && ao.(*parser.AlterAssignOpContext).EQUALS() != nil {
-			usedEquals = true
-		}
 		name, value := b.buildAlterPageAssignment(assign)
 		if name != "" {
 			op.Properties[name] = value
 		}
 	}
-
-	// Which alias, if any. `=` is reported first: its rewrite — the
-	// parenthesised, colon form — also fixes a missing parenthesis.
-	switch {
-	case usedEquals:
-		op.Legacy = ast.AlterAliasSetEquals
-	case ctx.LPAREN() == nil:
-		op.Legacy = ast.AlterAliasSetUnparenthesised
-	}
+	b.recordAlterPageSet(ctx)
 
 	return op
 }
@@ -188,6 +176,18 @@ func (b *Builder) buildAlterPageAssignment(ctx *parser.AlterPageAssignmentContex
 			return "EditableIf", buildConditionalExpression(xc)
 		}
 	}
+	// Visible: <expression> / Editable: <expression> — the canonical form, the
+	// expression stored as written (R5); a plain value keeps the key it had
+	// when it reached the generic alternative below.
+	if kw := visibleOrEditable(ctx.VISIBLE(), ctx.EDITABLE()); kw != nil {
+		if e := ctx.Expression(); e != nil {
+			if ctx.VISIBLE() != nil {
+				return "VisibleIf", bareArgumentText(e)
+			}
+			return "EditableIf", bareArgumentText(e)
+		}
+		return kw.GetText(), buildPropertyValueV3(ctx.PropertyValueV3())
+	}
 
 	var name string
 
@@ -225,9 +225,7 @@ func (b *Builder) buildAlterInsert(ctx *parser.AlterInsertContext) *ast.InsertWi
 // buildAlterDrop builds a DropWidgetOp from the parse tree.
 func (b *Builder) buildAlterDrop(ctx *parser.AlterDropContext) *ast.DropWidgetOp {
 	op := &ast.DropWidgetOp{}
-	if ctx.WIDGET() != nil {
-		op.Legacy = ast.AlterAliasDropWidget
-	}
+	b.recordAlterPageDropWidget(ctx)
 	for _, tr := range ctx.AllAlterTarget() {
 		op.Targets = append(op.Targets, b.buildAlterTarget(tr))
 	}

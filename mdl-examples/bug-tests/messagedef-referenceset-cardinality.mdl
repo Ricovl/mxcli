@@ -65,26 +65,26 @@ create or modify association MsgCard.Order_Tag
 /
 
 create or modify message definition collection MsgCard.MD_Orders
-(
+{
   -- The forward traversal of each. Before the fix both stored MaxOccurs 1;
   -- only Tags was wrong.
-  definition "OrderMsg" for MsgCard.Order as 'Order' (
+  definition "OrderMsg" for MsgCard.Order as 'Order' {
     "OrderNo",
-    MsgCard.Order_Customer/MsgCard.Customer as 'Customer' (
+    MsgCard.Order_Customer/MsgCard.Customer as 'Customer' {
       "Name"
-    ),
-    MsgCard.Order_Tag/MsgCard.Tag as 'Tags' (
+    },
+    MsgCard.Order_Tag/MsgCard.Tag as 'Tags' {
       "Label"
-    )
-  ),
+    }
+  },
   -- The reverse of the set, which was already right and must stay right.
-  definition "TagMsg" for MsgCard.Tag as 'Tag' (
+  definition "TagMsg" for MsgCard.Tag as 'Tag' {
     "Label",
-    MsgCard.Order_Tag/MsgCard.Order as 'Orders' (
+    MsgCard.Order_Tag/MsgCard.Order as 'Orders' {
       "OrderNo"
-    )
-  )
-);
+    }
+  }
+};
 /
 
 -- The mapping is where CE0295 lands: an object mapping element bound to an

@@ -523,11 +523,19 @@ widgetPropertyV3
     | DESIGNPROPERTIES COLON designPropertyListV3       // DesignProperties: [...]
     | WIDTH COLON NUMBER_LITERAL                        // Width: 200
     | HEIGHT COLON NUMBER_LITERAL                      // Height: 100
-    | VISIBLE COLON xpathConstraint                    // Visible: [IsActive = true]
+    // R5 (ako/mxcli#753): a conditional Visible / Editable is a client
+    // expression, written bare like every other expression and stored as
+    // written. The bracketed form is the deprecated alias; it roots a bare
+    // attribute in $currentObject on the way in. The plain values keep their
+    // alternative, ahead of the expression, so `Visible: false` and `Editable:
+    // Never` mean what they did.
+    | VISIBLE COLON xpathConstraint /* @alias MDL-DEPR081 */  // Visible: [IsActive = true]
     | VISIBLE COLON qualifiedName IN LPAREN visibleValueV3 (COMMA visibleValueV3)* RPAREN  // Visible: Status in (Running, empty) | Mod.Entity.Attr in (…)
     | VISIBLE COLON propertyValueV3                   // Visible: false
-    | EDITABLE COLON xpathConstraint                  // Editable: [Status != 'Closed']
+    | VISIBLE COLON expression                        // Visible: $currentObject/Status = 'Open'
+    | EDITABLE COLON xpathConstraint /* @alias MDL-DEPR081 */ // Editable: [Status != 'Closed']
     | EDITABLE COLON propertyValueV3                  // Editable: Never | Always
+    | EDITABLE COLON expression                       // Editable: $currentObject/Status != 'Closed'
     | TOOLTIP COLON propertyValueV3                   // Tooltip: 'text'
     // Generic datasource-typed property (e.g. chart series `staticDataSource:
     // database Module.View`, `dynamicDataSource: $var`). Placed before the

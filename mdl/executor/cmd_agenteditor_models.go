@@ -96,7 +96,7 @@ func describeAgentEditorModel(ctx *ExecContext, name ast.QualifiedName) error {
 		lines = append(lines, fmt.Sprintf("  Provider: %s", m.Provider))
 	}
 	if m.Key != nil && m.Key.QualifiedName != "" {
-		lines = append(lines, fmt.Sprintf("  Key: %s", m.Key.QualifiedName))
+		lines = append(lines, fmt.Sprintf("  Key: @%s", m.Key.QualifiedName))
 	}
 	// Portal-populated fields — round-tripped but flagged read-only in MDL.
 	if m.DisplayName != "" {

@@ -262,16 +262,16 @@ grant read (Phone) on entity MyModule.Customer to MyModule.User;
 grant read *, write * on entity MyModule.Order to MyModule.User where [Status = 'Open'];
 
 -- Revoke entity access entirely
-revoke MyModule.Viewer on MyModule.Customer;
+revoke all on entity MyModule.Customer from MyModule.Viewer;
 
 -- Partial revoke: remove read on specific attribute
-revoke MyModule.User on MyModule.Customer (read (Phone));
+revoke read (Phone) on entity MyModule.Customer from MyModule.User;
 
 -- Partial revoke: downgrade write to read-only
-revoke MyModule.User on MyModule.Customer (write (Email));
+revoke write (Email) on entity MyModule.Customer from MyModule.User;
 
 -- Partial revoke: remove structural permission
-revoke MyModule.User on MyModule.Customer (delete);
+revoke delete on entity MyModule.Customer from MyModule.User;
 ```
 
 #### Members added later

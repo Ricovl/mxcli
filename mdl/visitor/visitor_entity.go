@@ -604,6 +604,9 @@ func parseAnnotationParamInt(ctx parser.IAnnotationParamContext) int {
 
 // ExitAlterEntityAction handles ALTER ENTITY ... ADD/DROP/RENAME/MODIFY ATTRIBUTE ...
 func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
+	// R3 respellings (visitor_r3_property_lists.go).
+	b.recordAllowCreateChangeLocally(ctx)
+	b.recordModifyAttributeColon(ctx)
 	// Walk up to the parent AlterStatement to get the entity's qualified name
 	parent := ctx.GetParent()
 	for parent != nil {

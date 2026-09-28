@@ -301,9 +301,7 @@ where {
 
 ## Credential management
 
-For demos, literal credentials inline in the microflow are the simplest and most reliable. For anything else, put them in a project constant and reference it from the microflow via `$ConstantName` (requires a non-trivial amount of setup — see the project settings skill).
-
-**Do not** use `$ConstantName` in `create consumed rest service ... authentication: basic (username: $C, password: $C)` — the MDL parser rejects the `$` prefix there, and the skill files' claim of `rest$ConstantValue` serialization isn't reachable.
+For demos, literal credentials inline in the microflow are the simplest and most reliable. For anything else, put them in a project constant and reference it as `@Module.ConstantName` — the one way MDL refers to a constant, in a microflow expression and in `create consumed rest service ... authentication: basic (username: @Module.User, password: @Module.Password)` alike. The older `$ConstantName` spelling in a REST credential still parses and warns MDL-DEPR083.
 
 ## Related skills
 

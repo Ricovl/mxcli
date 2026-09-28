@@ -141,6 +141,37 @@ func (b *Builder) recordReversedEntityGrant(ctx *parser.GrantEntityAccessStateme
 	b.fixLastDeprecation(deprecation.ReversedEntityGrant, &ast.Fix{Edits: edits}, "")
 }
 
+// recordReversedEntityRevoke records MDL-DEPR082 on the reversed revoke and
+// computes its rewrite: `revoke R1, R2 on M.E [(rights)]` becomes `revoke
+// rights|all on entity M.E from R1, R2`. Roles, entity and rights are moved as
+// written.
+func (b *Builder) recordReversedEntityRevoke(ctx *parser.RevokeEntityAccessStatementContext) {
+	revoke := ctx.REVOKE().GetSymbol()
+	b.recordDeprecation(deprecation.ReversedEntityRevoke, revoke, "")
+
+	roles, ok1 := ctx.ModuleRoleList().(antlr.ParserRuleContext)
+	entity, ok2 := ctx.QualifiedName().(antlr.ParserRuleContext)
+	if !ok1 || !ok2 || entity.GetStop() == nil {
+		b.fixLastDeprecation(deprecation.ReversedEntityRevoke, nil, "the statement is incomplete")
+		return
+	}
+	like := revoke.GetText()
+	rights := keywordLike(like, "all")
+	last := entity.GetStop()
+	if list, ok := ctx.EntityAccessRightList().(antlr.ParserRuleContext); ok && list != nil {
+		if ctx.RPAREN() == nil {
+			b.fixLastDeprecation(deprecation.ReversedEntityRevoke, nil, "the statement is incomplete")
+			return
+		}
+		rights = nodeText(list)
+		last = ctx.RPAREN().GetSymbol()
+	}
+	text := rights + " " + keywordLike(like, "on") + " " + keywordLike(like, "entity") + " " +
+		nodeText(entity) + " " + keywordLike(like, "from") + " " + nodeText(roles)
+	b.fixLastDeprecation(deprecation.ReversedEntityRevoke,
+		&ast.Fix{Edits: []ast.TextEdit{replaceSpan(roles.GetStart(), last, text)}}, "")
+}
+
 // recordQuotedTargetingXPath records MDL-DEPR031 on a quoted targeting XPath,
 // with the rewrite that takes the XPath out of its string.
 func (b *Builder) recordQuotedTargetingXPath(lit antlr.TerminalNode) {

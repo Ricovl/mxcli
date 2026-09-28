@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 )
 
 // The generic ALTER (ADR-0012 decision 2, ako/mxcli#712): one grammar rule
@@ -31,10 +32,14 @@ func buildAlterPage(t *testing.T, input string) *ast.AlterPageStmt {
 }
 
 func TestGenericAlter_CanonicalSetIsParenthesisedAndColon(t *testing.T) {
-	stmt := buildAlterPage(t, `alter page Module.Page {
+	const src = `alter page Module.Page {
 		set (Caption: 'Save', ButtonStyle: Success) on btnSave;
 		set (Title: 'Edit order');
-	};`)
+	};`
+	stmt := buildAlterPage(t, src)
+	if got := deprecationCodes(mustBuild(t, src)); len(got) != 0 {
+		t.Errorf("canonical set must not be reported as an alias, got %v", got)
+	}
 	if len(stmt.Operations) != 2 {
 		t.Fatalf("want 2 operations, got %d", len(stmt.Operations))
 	}
@@ -45,22 +50,20 @@ func TestGenericAlter_CanonicalSetIsParenthesisedAndColon(t *testing.T) {
 	if onWidget.Properties["Caption"] != "Save" || onWidget.Properties["ButtonStyle"] != "Success" {
 		t.Errorf("properties: got %v", onWidget.Properties)
 	}
-	if onWidget.Legacy != "" {
-		t.Errorf("canonical set must not be flagged as an alias, got %q", onWidget.Legacy)
-	}
 	pageLevel := stmt.Operations[1].(*ast.SetPropertyOp)
 	if pageLevel.Target.Widget != "" || pageLevel.Properties["Title"] != "Edit order" {
 		t.Errorf("page-level set: target %q, properties %v", pageLevel.Target.Widget, pageLevel.Properties)
 	}
-	if pageLevel.Legacy != "" {
-		t.Errorf("canonical page-level set flagged as alias: %q", pageLevel.Legacy)
-	}
 }
 
 func TestGenericAlter_CanonicalDropNamesTargetsWithoutKeyword(t *testing.T) {
-	stmt := buildAlterPage(t, `alter snippet Module.Snip {
+	const src = `alter snippet Module.Snip {
 		drop txtOld, dgOrders.Total;
-	};`)
+	};`
+	stmt := buildAlterPage(t, src)
+	if got := deprecationCodes(mustBuild(t, src)); len(got) != 0 {
+		t.Errorf("canonical drop reported as an alias: %v", got)
+	}
 	if stmt.ContainerType != "SNIPPET" {
 		t.Errorf("container type: got %q", stmt.ContainerType)
 	}
@@ -69,18 +72,16 @@ func TestGenericAlter_CanonicalDropNamesTargetsWithoutKeyword(t *testing.T) {
 		drop.Targets[1].Widget != "dgOrders" || drop.Targets[1].Column != "Total" {
 		t.Errorf("targets: got %+v", drop.Targets)
 	}
-	if drop.Legacy != "" {
-		t.Errorf("canonical drop flagged as alias: %q", drop.Legacy)
-	}
 }
 
 // A widget may be NAMED like a keyword the old forms use; the canonical drop
 // of it must still parse as a drop of that name.
 func TestGenericAlter_DropOfWidgetNamedLikeAKeyword(t *testing.T) {
-	stmt := buildAlterPage(t, `alter page Module.Page { drop widget; };`)
+	const src = `alter page Module.Page { drop widget; };`
+	stmt := buildAlterPage(t, src)
 	drop := stmt.Operations[0].(*ast.DropWidgetOp)
-	if len(drop.Targets) != 1 || drop.Targets[0].Widget != "widget" || drop.Legacy != "" {
-		t.Errorf("got %+v legacy=%q", drop.Targets, drop.Legacy)
+	if got := deprecationCodes(mustBuild(t, src)); len(drop.Targets) != 1 || drop.Targets[0].Widget != "widget" || len(got) != 0 {
+		t.Errorf("got %+v, deprecations %v", drop.Targets, got)
 	}
 }
 
@@ -114,26 +115,17 @@ func TestGenericAlter_OldSpellingsAreFlaggedAliases(t *testing.T) {
 		name, op string
 		legacy   string
 	}{
-		{"set without parentheses", `set Caption = 'Save' on btnSave`, ast.AlterAliasSetEquals},
-		{"page-level set without parentheses", `set Title = 'Edit'`, ast.AlterAliasSetEquals},
-		{"parenthesised set with =", `set (Caption = 'Save', ButtonStyle = Success) on btnSave`, ast.AlterAliasSetEquals},
-		{"set without parentheses, with colon", `set Caption: 'Save' on btnSave`, ast.AlterAliasSetUnparenthesised},
-		{"drop widget", `drop widget txtOld, txtUnused`, ast.AlterAliasDropWidget},
+		{"set without parentheses", `set Caption = 'Save' on btnSave`, deprecation.AlterPageSetEquals},
+		{"page-level set without parentheses", `set Title = 'Edit'`, deprecation.AlterPageSetEquals},
+		{"parenthesised set with =", `set (Caption = 'Save', ButtonStyle = Success) on btnSave`, deprecation.AlterPageSetEquals},
+		{"set without parentheses, with colon", `set Caption: 'Save' on btnSave`, deprecation.AlterPageSetUnparenthesised},
+		{"drop widget", `drop widget txtOld, txtUnused`, deprecation.AlterPageDropWidget},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			stmt := buildAlterPage(t, "alter page Module.Page { "+c.op+"; };")
-			var got string
-			switch o := stmt.Operations[0].(type) {
-			case *ast.SetPropertyOp:
-				got = o.Legacy
-			case *ast.DropWidgetOp:
-				got = o.Legacy
-			default:
-				t.Fatalf("unexpected op %T", o)
-			}
-			if got != c.legacy {
-				t.Errorf("legacy spelling: got %q, want %q", got, c.legacy)
+			got := deprecationCodes(mustBuild(t, "alter page Module.Page { "+c.op+"; };"))
+			if len(got) != 1 || got[0] != c.legacy {
+				t.Errorf("recorded %v, want [%s]", got, c.legacy)
 			}
 		})
 	}

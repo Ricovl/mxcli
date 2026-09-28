@@ -23,10 +23,10 @@ INSERT BEFORE widgetName { widget_definitions };
 INSERT AFTER widgetName { widget_definitions };
 
 -- Set a property on a widget
-SET property = value ON widgetName;
+SET (property: value) ON widgetName;
 
 -- Remove widgets
-DROP WIDGET widgetName1, widgetName2;
+DROP widgetName1, widgetName2;
 
 -- Replace a widget with new widgets
 REPLACE widgetName WITH { widget_definitions };
@@ -114,11 +114,11 @@ Change it, then remove it:
 
 ```sql
 ALTER LAYOUT MyModule.App_Default {
-    SET Content = 'Renamed' ON brand;
+    SET (Content: 'Renamed') ON brand;
 };
 
 ALTER LAYOUT MyModule.App_Default {
-    DROP WIDGET brand;
+    DROP brand;
 };
 ```
 

@@ -157,13 +157,13 @@ Examples:
 
 ```sql
 -- Remove all access for Viewer
-REVOKE Shop.Viewer ON Shop.Customer;
+REVOKE ALL ON ENTITY Shop.Customer FROM Shop.Viewer;
 
 -- Remove read access on a specific attribute
-REVOKE Shop.User ON Shop.Customer (READ (Notes));
+REVOKE READ (Notes) ON ENTITY Shop.Customer FROM Shop.User;
 
 -- Downgrade write to read-only on Email
-REVOKE Shop.User ON Shop.Customer (WRITE (Email));
+REVOKE WRITE (Email) ON ENTITY Shop.Customer FROM Shop.User;
 ```
 
 A full `REVOKE` (without rights list) removes the entire access rule. A partial `REVOKE` downgrades specific rights: `REVOKE READ (x)` sets member x to no access, `REVOKE WRITE (x)` downgrades from ReadWrite to ReadOnly.

@@ -148,27 +148,31 @@ func describeSettings(ctx *ExecContext, configName string) error {
 			}
 		}
 
-		addIfSet("AfterStartupMicroflow", "AfterStartupMicroflow = '%s'", ms.AfterStartupMicroflow)
-		addIfSet("BeforeShutdownMicroflow", "BeforeShutdownMicroflow = '%s'", ms.BeforeShutdownMicroflow)
-		addIfSet("HealthCheckMicroflow", "HealthCheckMicroflow = '%s'", ms.HealthCheckMicroflow)
-		add("HashAlgorithm", "HashAlgorithm = '%s'", ms.HashAlgorithm)
-		add("BcryptCost", "BcryptCost = %d", ms.BcryptCost)
+		addIfSet("AfterStartupMicroflow", "AfterStartupMicroflow: '%s'", ms.AfterStartupMicroflow)
+		addIfSet("BeforeShutdownMicroflow", "BeforeShutdownMicroflow: '%s'", ms.BeforeShutdownMicroflow)
+		addIfSet("HealthCheckMicroflow", "HealthCheckMicroflow: '%s'", ms.HealthCheckMicroflow)
+		add("HashAlgorithm", "HashAlgorithm: '%s'", ms.HashAlgorithm)
+		add("BcryptCost", "BcryptCost: %d", ms.BcryptCost)
 		// JavaVersion is stored under either JavaVersion or JavaMajorVersion; emit it
 		// when the document carries whichever spelling, in mxcli's single input name.
 		if settingsoverlay.JavaVersionKey(stored) != "" || stored == nil {
-			parts = append(parts, fmt.Sprintf("  JavaVersion = '%s'", ms.JavaVersion))
+			parts = append(parts, fmt.Sprintf("  JavaVersion: '%s'", ms.JavaVersion))
 		}
-		add("RoundingMode", "RoundingMode = '%s'", ms.RoundingMode)
-		add("AllowUserMultipleSessions", "AllowUserMultipleSessions = %t", ms.AllowUserMultipleSessions)
-		add("EnableDataStorageOptimisticLocking", "EnableDataStorageOptimisticLocking = %t", ms.EnableDataStorageOptimisticLocking)
-		add("UseDatabaseForeignKeyConstraints", "UseDatabaseForeignKeyConstraints = %t", ms.UseDatabaseForeignKeyConstraints)
-		add("UseOQLVersion2", "UseOQLVersion2 = %t", ms.UseOQLVersion2)
-		add("DecimalScale", "DecimalScale = %d", ms.DecimalScale)
-		addIfSet("FirstDayOfWeek", "FirstDayOfWeek = '%s'", ms.FirstDayOfWeek)
-		addIfSet("SslCertificateAlgorithm", "SslCertificateAlgorithm = '%s'", ms.SslCertificateAlgorithm)
-		addIfSet("ScheduledEventTimeZoneCode", "ScheduledEventTimeZoneCode = '%s'", ms.ScheduledEventTimeZoneCode)
-		addIfSet("DefaultTimeZoneCode", "DefaultTimeZoneCode = '%s'", ms.DefaultTimeZoneCode)
-		fmt.Fprintf(ctx.Output, "alter settings runtime\n%s;\n\n", strings.Join(parts, ",\n"))
+		add("RoundingMode", "RoundingMode: '%s'", ms.RoundingMode)
+		add("AllowUserMultipleSessions", "AllowUserMultipleSessions: %t", ms.AllowUserMultipleSessions)
+		add("EnableDataStorageOptimisticLocking", "EnableDataStorageOptimisticLocking: %t", ms.EnableDataStorageOptimisticLocking)
+		add("UseDatabaseForeignKeyConstraints", "UseDatabaseForeignKeyConstraints: %t", ms.UseDatabaseForeignKeyConstraints)
+		add("UseOQLVersion2", "UseOQLVersion2: %t", ms.UseOQLVersion2)
+		add("DecimalScale", "DecimalScale: %d", ms.DecimalScale)
+		addIfSet("FirstDayOfWeek", "FirstDayOfWeek: '%s'", ms.FirstDayOfWeek)
+		addIfSet("SslCertificateAlgorithm", "SslCertificateAlgorithm: '%s'", ms.SslCertificateAlgorithm)
+		addIfSet("ScheduledEventTimeZoneCode", "ScheduledEventTimeZoneCode: '%s'", ms.ScheduledEventTimeZoneCode)
+		addIfSet("DefaultTimeZoneCode", "DefaultTimeZoneCode: '%s'", ms.DefaultTimeZoneCode)
+		// R3: the ( Key: value, … ) list every alter takes (ako/mxcli#751). An
+		// empty list does not parse, so nothing is written for none.
+		if len(parts) > 0 {
+			fmt.Fprintf(ctx.Output, "alter settings runtime (\n%s\n);\n\n", strings.Join(parts, ",\n"))
+		}
 	}
 
 	// Configuration settings
@@ -211,7 +215,7 @@ func describeSettings(ctx *ExecContext, configName string) error {
 				mdlQuoted(l.Code), l.CheckCompleteness, mdlQuoted(l.CustomDateFormat),
 				mdlQuoted(l.CustomTimeFormat), mdlQuoted(l.CustomDateTimeFormat))
 		}
-		fmt.Fprintf(ctx.Output, "alter settings LANGUAGE\n  DefaultLanguageCode = '%s';\n", ps.Language.DefaultLanguageCode)
+		fmt.Fprintf(ctx.Output, "alter settings LANGUAGE (\n  DefaultLanguageCode: '%s'\n);\n", ps.Language.DefaultLanguageCode)
 		fmt.Fprintln(ctx.Output)
 	}
 
@@ -220,16 +224,16 @@ func describeSettings(ctx *ExecContext, configName string) error {
 		ws := ps.Workflows
 		var parts []string
 		if ws.UserEntity != "" {
-			parts = append(parts, fmt.Sprintf("  UserEntity = '%s'", ws.UserEntity))
+			parts = append(parts, fmt.Sprintf("  UserEntity: '%s'", ws.UserEntity))
 		}
 		if ws.DefaultTaskParallelism > 0 {
-			parts = append(parts, fmt.Sprintf("  DefaultTaskParallelism = %d", ws.DefaultTaskParallelism))
+			parts = append(parts, fmt.Sprintf("  DefaultTaskParallelism: %d", ws.DefaultTaskParallelism))
 		}
 		if ws.WorkflowEngineParallelism > 0 {
-			parts = append(parts, fmt.Sprintf("  WorkflowEngineParallelism = %d", ws.WorkflowEngineParallelism))
+			parts = append(parts, fmt.Sprintf("  WorkflowEngineParallelism: %d", ws.WorkflowEngineParallelism))
 		}
 		if len(parts) > 0 {
-			fmt.Fprintf(ctx.Output, "alter settings workflows\n%s;\n\n", strings.Join(parts, ",\n"))
+			fmt.Fprintf(ctx.Output, "alter settings workflows (\n%s\n);\n\n", strings.Join(parts, ",\n"))
 		}
 		// The groups, in stored order. `add or modify` so a described project
 		// re-executes against a project that already has some of them.
@@ -748,7 +752,7 @@ func alterSettingsConstant(ctx *ExecContext, ps *model.ProjectSettings, stmt *as
 					"constant '%s' has a private value in configuration '%s'; "+
 						"its value is stored on the developer's workstation, not in the shared model. "+
 						"Change the constant to a shared value in Studio Pro first, "+
-						"or use `alter settings drop constant '%s' in configuration '%s'` to remove the override",
+						"or use `alter settings drop constant @%s in configuration '%s'` to remove the override",
 					stmt.ConstantId, targetConfig, stmt.ConstantId, targetConfig)
 			}
 			cv.Value = stmt.Value
@@ -972,31 +976,31 @@ func settingsValueToString(val any) string {
 // writeSettingsConfiguration emits one configuration as re-executable MDL.
 func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration) {
 	var parts []string
-	parts = append(parts, "  DatabaseType = "+mdlQuoted(cfg.DatabaseType))
-	parts = append(parts, "  DatabaseUrl = "+mdlQuoted(cfg.DatabaseUrl))
-	parts = append(parts, "  DatabaseName = "+mdlQuoted(cfg.DatabaseName))
-	parts = append(parts, "  DatabaseUserName = "+mdlQuoted(cfg.DatabaseUserName))
+	parts = append(parts, "  DatabaseType: "+mdlQuoted(cfg.DatabaseType))
+	parts = append(parts, "  DatabaseUrl: "+mdlQuoted(cfg.DatabaseUrl))
+	parts = append(parts, "  DatabaseName: "+mdlQuoted(cfg.DatabaseName))
+	parts = append(parts, "  DatabaseUserName: "+mdlQuoted(cfg.DatabaseUserName))
 	// DatabasePassword is deliberately not printed (ako/mxcli#707): describe
 	// output is what gets committed and reviewed, and printing the stored value
 	// put a database credential into PR diffs. Omitting the key is lossless for
 	// the replay that matters — `create or modify` on an existing configuration
 	// is a patch, so the stored password is left as it is. On a project without
 	// this configuration the password starts empty, which the comment says.
-	parts = append(parts, fmt.Sprintf("  HttpPortNumber = %d", cfg.HttpPortNumber))
-	parts = append(parts, fmt.Sprintf("  ServerPortNumber = %d", cfg.ServerPortNumber))
+	parts = append(parts, fmt.Sprintf("  HttpPortNumber: %d", cfg.HttpPortNumber))
+	parts = append(parts, fmt.Sprintf("  ServerPortNumber: %d", cfg.ServerPortNumber))
 	if cfg.ApplicationRootUrl != "" {
-		parts = append(parts, "  ApplicationRootUrl = "+mdlQuoted(cfg.ApplicationRootUrl))
+		parts = append(parts, "  ApplicationRootUrl: "+mdlQuoted(cfg.ApplicationRootUrl))
 	}
 	if cfg.DatabasePassword != "" {
 		fmt.Fprintf(ctx.Output, "-- DatabasePassword is set in configuration %s and is not printed; "+
-			"add `DatabasePassword = '…'` to set it on a project that lacks it.\n", mdlQuoted(cfg.Name))
+			"add `DatabasePassword: '…'` to set it on a project that lacks it.\n", mdlQuoted(cfg.Name))
 	}
 	// CREATE OR MODIFY, not ALTER: a described project has to replay onto a
 	// target that does not have this configuration yet. ALTER answered
 	// "configuration not found: Acceptance" and stopped the whole file, which is
 	// the same shape as the language list emitting a comment — output that reads
 	// correctly and cannot be run.
-	fmt.Fprintf(ctx.Output, "create or modify configuration %s\n%s;\n\n", mdlQuoted(cfg.Name), strings.Join(parts, ",\n"))
+	fmt.Fprintf(ctx.Output, "create or modify configuration %s (\n%s\n);\n\n", mdlQuoted(cfg.Name), strings.Join(parts, ",\n"))
 
 	// Output constant overrides. A private override has no value in the
 	// model — emitting `value ''` would round-trip into a *shared* empty

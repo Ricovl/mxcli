@@ -561,26 +561,25 @@ func execDescribeMessageDefinitionCollection(ctx *ExecContext, name ast.Qualifie
 			fmt.Fprintf(ctx.Output, "  folder '%s'\n", folder)
 		}
 	}
-	fmt.Fprintln(ctx.Output, "(")
-	for i, def := range c.Definitions {
-		sep := ","
-		if i == len(c.Definitions)-1 {
-			sep = ""
-		}
-		describeMessageDefinition(ctx, def, sep)
+	fmt.Fprintln(ctx.Output, "{")
+	for _, def := range c.Definitions {
+		describeMessageDefinition(ctx, def)
 	}
-	fmt.Fprintln(ctx.Output, ");")
+	fmt.Fprintln(ctx.Output, "};")
 	return nil
 }
 
-func describeMessageDefinition(ctx *ExecContext, def *model.MessageDefinition, sep string) {
+// describeMessageDefinition prints one definition. Definitions and member
+// trees are children, so they are in { } (R2); a definition ends in `}`, so the
+// definitions need no separator.
+func describeMessageDefinition(ctx *ExecContext, def *model.MessageDefinition) {
 	if def == nil || def.Root == nil {
 		return
 	}
-	fmt.Fprintf(ctx.Output, "  definition %s for %s%s (\n",
+	fmt.Fprintf(ctx.Output, "  definition %s for %s%s {\n",
 		def.Name, def.Root.Entity, exposedClause(def.Root, shortEntityName(def.Root.Entity)))
 	describeMessageMembers(ctx, def.Root.Children, "    ")
-	fmt.Fprintf(ctx.Output, "  )%s\n", sep)
+	fmt.Fprintln(ctx.Output, "  }")
 }
 
 func describeMessageMembers(ctx *ExecContext, members []*model.MessageDefinitionElement, indent string) {
@@ -594,13 +593,13 @@ func describeMessageMembers(ctx *ExecContext, members []*model.MessageDefinition
 			fmt.Fprintf(ctx.Output, "%s%s%s%s%s\n", indent, m.OriginalName,
 				exposedClause(m, m.OriginalName), exampleClause(m), sep)
 		case len(m.Children) == 0:
-			fmt.Fprintf(ctx.Output, "%s%s/%s%s ()%s\n", indent, m.Association, m.Entity,
+			fmt.Fprintf(ctx.Output, "%s%s/%s%s { }%s\n", indent, m.Association, m.Entity,
 				exposedClause(m, shortEntityName(m.Entity)), sep)
 		default:
-			fmt.Fprintf(ctx.Output, "%s%s/%s%s (\n", indent, m.Association, m.Entity,
+			fmt.Fprintf(ctx.Output, "%s%s/%s%s {\n", indent, m.Association, m.Entity,
 				exposedClause(m, shortEntityName(m.Entity)))
 			describeMessageMembers(ctx, m.Children, indent+"  ")
-			fmt.Fprintf(ctx.Output, "%s)%s\n", indent, sep)
+			fmt.Fprintf(ctx.Output, "%s}%s\n", indent, sep)
 		}
 	}
 }

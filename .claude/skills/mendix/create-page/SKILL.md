@@ -47,11 +47,11 @@ create [or replace] page Module.PageName
 page is opened in a pop-up. They are optional — omitting them uses the Mendix defaults
 (600 × 600, not resizable). Unlike the other header keywords, these property names are
 **case-sensitive** and must be written exactly as shown. They can also be changed later
-with `alter page … { set PopupWidth = …; }` (see the alter-page skill).
+with `alter page … { set (PopupWidth: …); }` (see the alter-page skill).
 
 **Page CSS class / style** (`Class` / `Style`) set the page's Appearance — a CSS class
 and inline style applied to the whole page (e.g. `Class: 'container-fluid bg-light'`).
-Both are optional and can be changed later with `alter page … { set Class = '…'; }`.
+Both are optional and can be changed later with `alter page … { set (Class: '…'); }`.
 
 **Page Variables**: Local variables at the page level for use in expressions (e.g., column visibility).
 - DataType: `boolean`, `string`, `integer`, `decimal`, `datetime`
@@ -243,7 +243,7 @@ To make targeted changes to an existing page (change a label, add a field, remov
 ```sql
 -- Change a button caption and add a field
 alter page Module.Customer_Edit {
-  set caption = 'Save & Close' on btnSave;
+  set (caption: 'Save & Close') on btnSave;
   insert after txtEmail {
     textbox txtPhone (label: 'Phone', attribute: Phone)
   }
@@ -259,42 +259,42 @@ See the dedicated skill file: [ALTER PAGE/SNIPPET](../alter-page/SKILL.md)
 
 ## Conditional Visibility and Editability
 
-Any widget (including CONTAINER) can have conditional visibility. Input widgets can also have conditional editability. Use bracket syntax `[expression]`:
+Any widget (including CONTAINER) can have conditional visibility. Input widgets can also have conditional editability. The condition is a Mendix client expression, written bare like every expression in MDL and stored exactly as written — so name the context object's attributes as `$currentObject/Attr`:
 
 ```sql
 -- Conditionally visible widget (boolean attribute)
-textbox txtName (label: 'Name', attribute: Name, visible: [IsActive])
+textbox txtName (label: 'Name', attribute: Name, visible: $currentObject/IsActive)
 
 -- Conditionally visible container
-container ctnDetails (visible: [Name != '']) { dynamictext t (content: '...') }
+container ctnDetails (visible: $currentObject/Name != '') { dynamictext t (content: '...') }
 
 -- Conditionally editable input (boolean)
-textbox txtStatus (label: 'Status', attribute: status, editable: [CanEdit])
+textbox txtStatus (label: 'Status', attribute: status, editable: $currentObject/CanEdit)
 
--- Enum comparison: use the QUALIFIED enum value. Attributes are rooted for you,
--- but a bare enum VALUE would be treated as an attribute — always qualify it.
+-- Enum comparison: use the QUALIFIED enum value.
 textbox txtNotes (label: 'Notes', attribute: Notes,
-  visible: [Status = MES.EquipmentStatus.Running])
+  visible: $currentObject/Status = MES.EquipmentStatus.Running)
 
 -- Combined
 textbox txtEmail (label: 'Email', attribute: Email,
-  visible: [ShowEmail],
-  editable: [CanEdit])
+  visible: $currentObject/ShowEmail,
+  editable: $currentObject/CanEdit)
 
--- Static values still work
+-- Static values still work — a plain value is not a condition
 textbox txtReadOnly (label: 'Read Only', attribute: Name, editable: Never)
 textbox txtHidden (label: 'Hidden', attribute: Name, visible: false)
 
--- A quoted-string expression is also accepted (CREATE and ALTER). Unlike the
--- bracket form, it is NOT auto-rooted — write $currentObject/ yourself.
-dynamictext ovChip (content: 'chip', visible: '$currentObject/Name != empty')
-
--- Function calls work in the bracket form, including functions whose name is
--- also an MDL keyword (trim, length, find). Arguments are rooted like any other
--- reference.
-dynamictext tTrim (content: 'x', visible: [trim($currentObject/Slug) != ''])
-textbox txtSlug (label: 'Slug', attribute: Slug, editable: [length(Slug) > 0])
+-- Function calls work, including functions whose name is also an MDL keyword
+-- (trim, length, find).
+dynamictext tTrim (content: 'x', visible: trim($currentObject/Slug) != '')
+textbox txtSlug (label: 'Slug', attribute: Slug, editable: length($currentObject/Slug) > 0)
 ```
+
+The older bracketed form, `visible: [IsActive]`, still parses: it roots a bare
+attribute in `$currentObject` for you, and warns **MDL-DEPR081**. `mxcli fmt
+--upgrade` rewrites it to the expression it stores (`visible: $currentObject/IsActive`).
+A constant condition (`editable: [false]`, stored as the condition `false`, not as
+`Never`) has no bare spelling and keeps its brackets.
 
 **Visible based on an attribute value** (Studio Pro's "Visible: based on attribute
 value") — list the Boolean/enumeration values that SHOW the widget; `empty` is
@@ -307,7 +307,7 @@ textbox txtPassword (label: 'Password', attribute: Password, visible: IsLocalUse
 
 
 > **`visible:`/`editable:` is a Mendix *expression*, not XPath** — a different
-> function set from a datasource `where` clause, even though both use `[ ... ]`:
+> function set from a datasource `where [ ... ]` clause:
 >
 > | | `visible:` / `editable:` (client expression) | `where [ … ]` (XPath) |
 > |---|---|---|
@@ -323,23 +323,20 @@ textbox txtPassword (label: 'Password', attribute: Password, visible: IsLocalUse
 > [XPath keywords](https://docs.mendix.com/refguide/xpath-keywords-and-system-variables/).
 
 > **An unparseable conditional is an error, not a silent drop.** If the
-> expression inside `visible: [ ... ]` / `editable: [ ... ]` can't be parsed, the
+> expression in `visible:` / `editable:` can't be parsed, the
 > property has nowhere to go and would vanish on write — leaving the widget
 > unconditionally visible/editable, which looks identical to a specificity bug in
 > the running app. `mxcli check` reports this as **MDL-WIDGET19** and fails the
 > command instead. Until v0.16.x, `trim(…)` and `length(…)` hit exactly this path
 > and disappeared without a word (issue #852).
 
-> **Attribute rooting is automatic** — a bare attribute in a widget
-> visibility/editability expression (`[Name != '']`, `[IsActive]`) is rooted in the
-> widget data context as `$currentObject/Name != ''` for you, so it no longer
-> triggers CE0117. Paths you write with an explicit `$currentObject/…` or `$Param/…`
-> prefix pass through unchanged.
+> **Attributes are not rooted for you in the bare form** — the expression is
+> stored as written, so a bare `Name` is CE0117. Write `$currentObject/Name` (or
+> `$Param/…`). Only the deprecated bracketed form roots a bare attribute.
 >
 > **Enum comparison differs by context:**
 > - **Widget visibility/editability expression** (per-object): qualified enum value —
->   `[Status = MES.EquipmentStatus.Running]` (the `Status` attribute is rooted for you;
->   the *value* must stay qualified, or it would be mistaken for an attribute).
+>   `$currentObject/Status = MES.EquipmentStatus.Running`.
 > - **XPath datasource constraint** (`where […]`): the string key works —
 >   `where [Status = 'Running']` (see [xpath-constraints](../xpath-constraints/SKILL.md)).
 > - **Microflow expression**: qualified value —

@@ -61,8 +61,10 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 					if sl := sp.STRING_LITERAL(); sl != nil {
 						val = unquoteStringLit(sl)
 					} else if v := sp.VARIABLE(); v != nil {
-						// $Constant reference (legacy) — keep $ prefix
-						val = v.GetText()
+						// $Constant (MDL-DEPR083): a constant of the service's own
+						// module, stored qualified as `@Module.Const` stores it.
+						val = "$" + dollarConstantName(stmt.Name.Module, v.GetText())
+						b.recordDollarConstant(v, stmt.Name.Module)
 					} else if sp.AT() != nil {
 						// @Module.Constant reference (preferred Mendix convention)
 						// Store with $ prefix so the writer serializes as Rest$ConstantValue

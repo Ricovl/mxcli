@@ -150,6 +150,7 @@ What would change:
 - `on error { … }` is the only brace block inside a microflow. It becomes `on error [without rollback] begin … end error;`.
 - `while` makes both `begin` and `end while` optional. Make both required, the same as `loop`.
 - The `split type` body becomes mandatory.
+- *Decided in ako/mxcli#754:* an `alter microflow` / `alter nanoflow` fragment is imperative content, so it is `begin … end`, not `{ … }`: `insert after $X begin … end;`, `replace <target> with begin … end;`. The fragment is written exactly as the body of `create microflow` is (ADR-0012). The operations around it are the alter's declarative children and stay in the alter's `{ }`. The brace fragment is a deprecated alias (MDL-DEPR074).
 
 **Before** — properties in braces, children in parentheses, menu items separated by `;`, braces inside a microflow:
 

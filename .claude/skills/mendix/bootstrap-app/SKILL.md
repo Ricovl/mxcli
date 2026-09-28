@@ -253,8 +253,9 @@ with these deltas:
   against the host name rather than the listen address:
 
   ```sql
-  alter settings configuration 'Default'
-    ApplicationRootUrl = 'http://backend.local:8080/';
+  alter settings configuration 'Default' (
+    ApplicationRootUrl: 'http://backend.local:8080/'
+  );
   ```
 
   `run --local` picks that up at boot and prints which configuration it came from.

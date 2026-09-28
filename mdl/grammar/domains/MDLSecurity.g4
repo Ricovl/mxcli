@@ -57,8 +57,12 @@ grantEntityAccessStatement
       (WHERE STRING_LITERAL)?
     ;
 
+// R5 (ako/mxcli#753): the revoke mirrors the grant — rights first, then
+// `on entity`, the roles after `from`. `all` removes the roles' access rule
+// altogether; a rights list takes those rights away and keeps the rule.
 revokeEntityAccessStatement
-    : REVOKE moduleRoleList ON qualifiedName
+    : REVOKE (ALL | entityAccessRightList) ON ENTITY qualifiedName FROM moduleRoleList
+    | REVOKE moduleRoleList ON qualifiedName /* @alias MDL-DEPR082 */
       (LPAREN entityAccessRightList RPAREN)?
     ;
 

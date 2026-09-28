@@ -31,7 +31,7 @@ func TestDocumentTypeNamesFollowStudioPro(t *testing.T) {
 		{deprecation.ConsumedODataService,
 			"create odata client M.Crm (ODataVersion: OData4, MetadataUrl: 'https://x/$metadata');",
 			"create consumed odata service M.Crm (ODataVersion: OData4, MetadataUrl: 'https://x/$metadata');"},
-		{deprecation.ConsumedODataService, "alter odata client M.Crm set Version = '2';", "alter consumed odata service M.Crm set Version = '2';"},
+		{deprecation.ConsumedODataService, "alter odata client M.Crm set ( Version: '2' );", "alter consumed odata service M.Crm set ( Version: '2' );"},
 		{deprecation.ConsumedODataService, "drop odata client M.Crm;", "drop consumed odata service M.Crm;"},
 		{deprecation.ConsumedODataService, "describe odata client M.Crm;", "describe consumed odata service M.Crm;"},
 		{deprecation.ConsumedODataService, "list odata clients;", "list consumed odata services;"},
@@ -43,7 +43,7 @@ func TestDocumentTypeNamesFollowStudioPro(t *testing.T) {
 		{deprecation.PublishedODataService,
 			"create odata service M.Api (Path: 'odata/v1', Namespace: 'M');",
 			"create published odata service M.Api (Path: 'odata/v1', Namespace: 'M');"},
-		{deprecation.PublishedODataService, "alter odata service M.Api set Version = '2';", "alter published odata service M.Api set Version = '2';"},
+		{deprecation.PublishedODataService, "alter odata service M.Api set ( Version: '2' );", "alter published odata service M.Api set ( Version: '2' );"},
 		{deprecation.PublishedODataService, "drop odata service M.Api;", "drop published odata service M.Api;"},
 		{deprecation.PublishedODataService, "describe odata service M.Api;", "describe published odata service M.Api;"},
 		{deprecation.PublishedODataService, "list odata services in M;", "list published odata services in M;"},
@@ -61,8 +61,8 @@ func TestDocumentTypeNamesFollowStudioPro(t *testing.T) {
 		{deprecation.AppSecurity, "alter project security guest access on role Guest;", "alter app security guest access on role Guest;"},
 		{deprecation.AppSecurity, "alter project security strict mode on;", "alter app security strict mode on;"},
 		// settings runtime
-		{deprecation.SettingsRuntime, "alter settings model BcryptCost = 11, HashAlgorithm = 'BCrypt';", "alter settings runtime BcryptCost = 11, HashAlgorithm = 'BCrypt';"},
-		{deprecation.SettingsRuntime, "ALTER SETTINGS MODEL BcryptCost = 11;", "ALTER SETTINGS RUNTIME BcryptCost = 11;"},
+		{deprecation.SettingsRuntime, "alter settings model ( BcryptCost: 11, HashAlgorithm: 'BCrypt' );", "alter settings runtime ( BcryptCost: 11, HashAlgorithm: 'BCrypt' );"},
+		{deprecation.SettingsRuntime, "ALTER SETTINGS MODEL (BcryptCost: 11);", "ALTER SETTINGS RUNTIME (BcryptCost: 11);"},
 	}
 	for _, c := range cases {
 		t.Run(c.old, func(t *testing.T) {
@@ -96,7 +96,7 @@ func TestDocumentTypeNamesLeaveOtherUsesAlone(t *testing.T) {
 		// `project security` after `show` is R6's MDL-DEPR090 (the whole
 		// phrase becomes `describe app security`), not R10's name alias.
 		"describe app security;",
-		"alter settings workflows UserEntity = 'System.User';",
+		"alter settings workflows ( UserEntity: 'System.User' );",
 	} {
 		t.Run(src, func(t *testing.T) {
 			if got := deprecationCodes(mustBuild(t, src)); len(got) != 0 {

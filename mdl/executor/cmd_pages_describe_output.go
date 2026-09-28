@@ -117,16 +117,28 @@ func appendDataGridPagingProps(props []string, w rawWidget) []string {
 	return props
 }
 
+// widgetConditionMDL writes a conditional Visible / Editable as the bare
+// expression it stores (R5, ako/mxcli#753). One that would not read back bare
+// as itself — `true`, a lone name, text the MDL expression grammar cannot
+// parse — is written in the deprecated bracketed form, as before.
+func widgetConditionMDL(key, expr string) string {
+	expr = describeExpr(expr)
+	if visitor.BareWidgetCondition(key, expr) {
+		return key + ": " + expr
+	}
+	return fmt.Sprintf("%s: [%s]", key, expr)
+}
+
 // appendConditionalProps appends VISIBLE IF and EDITABLE IF if present.
 func appendConditionalProps(props []string, w rawWidget) []string {
 	if w.VisibleIf != "" {
-		props = append(props, fmt.Sprintf("Visible: [%s]", describeExpr(w.VisibleIf)))
+		props = append(props, widgetConditionMDL("Visible", w.VisibleIf))
 	}
 	if prop := visibleWhenProp(w); prop != "" {
 		props = append(props, prop)
 	}
 	if w.EditableIf != "" {
-		props = append(props, fmt.Sprintf("Editable: [%s]", describeExpr(w.EditableIf)))
+		props = append(props, widgetConditionMDL("Editable", w.EditableIf))
 	}
 	return props
 }
@@ -188,13 +200,13 @@ func appendAppearanceProps(props []string, w rawWidget) []string {
 		props = append(props, formatDesignPropertiesMDL(w.DesignProperties))
 	}
 	if w.VisibleIf != "" {
-		props = append(props, fmt.Sprintf("Visible: [%s]", describeExpr(w.VisibleIf)))
+		props = append(props, widgetConditionMDL("Visible", w.VisibleIf))
 	}
 	if prop := visibleWhenProp(w); prop != "" {
 		props = append(props, prop)
 	}
 	if w.EditableIf != "" {
-		props = append(props, fmt.Sprintf("Editable: [%s]", describeExpr(w.EditableIf)))
+		props = append(props, widgetConditionMDL("Editable", w.EditableIf))
 	}
 	return props
 }

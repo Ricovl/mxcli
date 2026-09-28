@@ -112,7 +112,7 @@ func validateWidgetEditability(w *ast.WidgetV3, locationPrefix string) []linter.
 				"widget stays enabled",
 			locationPrefix, widgetLabel(w.Name, w.Type), key, w.Type,
 		),
-		Suggestion: "Use `visible: [ ... ]` to hide it conditionally (buttons do support conditional " +
+		Suggestion: "Use `visible: <expression>` to hide it conditionally (buttons do support conditional " +
 			"visibility), or move the condition into the microflow the button calls",
 	}}
 }

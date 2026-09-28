@@ -87,13 +87,13 @@ GRANT READ (Phone) ON ENTITY Sales.Customer TO Sales.Viewer;
 
 ```sql
 -- Remove all access for a role
-REVOKE Sales.Viewer ON Sales.Customer;
+REVOKE ALL ON ENTITY Sales.Customer FROM Sales.Viewer;
 
 -- Partial revoke: remove read on a specific attribute
-REVOKE Sales.User ON Sales.Customer (READ (Phone));
+REVOKE READ (Phone) ON ENTITY Sales.Customer FROM Sales.User;
 
 -- Partial revoke: downgrade write to read-only
-REVOKE Sales.User ON Sales.Customer (WRITE (Email));
+REVOKE WRITE (Email) ON ENTITY Sales.Customer FROM Sales.User;
 
 -- Remove microflow access
 REVOKE EXECUTE ON MICROFLOW Sales.ACT_Order_Delete FROM Sales.User;

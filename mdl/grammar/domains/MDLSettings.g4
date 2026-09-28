@@ -11,14 +11,17 @@ options { tokenVocab = MDLLexer; }
 // =============================================================================
 
 /**
- * ALTER SETTINGS RUNTIME Key = Value, ...;   (MODEL is a deprecated alias)
- * ALTER SETTINGS CONFIGURATION 'name' Key = Value, ...;
- * ALTER SETTINGS CONSTANT 'name' VALUE 'value' [IN CONFIGURATION 'name'];
- * ALTER SETTINGS LANGUAGE Key = Value, ...;
+ * ALTER SETTINGS RUNTIME ( Key: Value, ... );   (MODEL is a deprecated alias)
+ * ALTER SETTINGS CONFIGURATION 'name' ( Key: Value, ... );
+ * ALTER SETTINGS CONSTANT @Module.Name VALUE 'value' [IN CONFIGURATION 'name'];
+ * ALTER SETTINGS LANGUAGE ( Key: Value, ... );
  * ALTER SETTINGS LANGUAGE ADD [OR MODIFY] 'ar_SD' [(Key: Value, ...)];
  * ALTER SETTINGS LANGUAGE MODIFY 'ar_SD' (Key: Value, ...);
  * ALTER SETTINGS LANGUAGE DROP 'ar_SD';          (REMOVE is a deprecated alias)
- * ALTER SETTINGS WORKFLOWS Key = Value, ...;
+ * ALTER SETTINGS WORKFLOWS ( Key: Value, ... );
+ *
+ * `Key = Value, …` without the parentheses is the old spelling of the property
+ * list (MDL-DEPR060, R3).
  * ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP 'Approvers' [(Description: '...')];
  * ALTER SETTINGS WORKFLOWS MODIFY GROUP 'Approvers' (Description: '...');
  * ALTER SETTINGS WORKFLOWS DROP GROUP 'Approvers'; (REMOVE is a deprecated alias)
@@ -45,10 +48,19 @@ alterSettingsClause
     | settingsSection ADD STRING_LITERAL settingsItemOptions?
     | settingsSection MODIFY STRING_LITERAL settingsItemOptions
     | settingsSection (DROP | REMOVE /* @alias MDL-DEPR092 */) STRING_LITERAL
-    | settingsSection settingsAssignment (COMMA settingsAssignment)*
-    | CONSTANT STRING_LITERAL (VALUE settingsValue | DROP) (IN CONFIGURATION STRING_LITERAL)?
-    | DROP CONSTANT STRING_LITERAL (IN CONFIGURATION STRING_LITERAL)?
-    | CONFIGURATION STRING_LITERAL settingsAssignment (COMMA settingsAssignment)*
+    | settingsSection settingsItemOptions                                  // runtime ( Key: value, … )
+    | settingsSection settingsAssignment (COMMA settingsAssignment)*        // old spelling (MDL-DEPR060)
+    | CONSTANT settingsConstantRef (VALUE settingsValue | DROP) (IN CONFIGURATION STRING_LITERAL)?
+    | DROP CONSTANT settingsConstantRef (IN CONFIGURATION STRING_LITERAL)?
+    | CONFIGURATION STRING_LITERAL settingsItemOptions                      // configuration 'X' ( Key: value, … )
+    | CONFIGURATION STRING_LITERAL settingsAssignment (COMMA settingsAssignment)*  // old spelling (MDL-DEPR060)
+    ;
+
+// R5 (ako/mxcli#753): a constant is referred to one way everywhere,
+// `@Module.Const`. The quoted name is the deprecated spelling.
+settingsConstantRef
+    : AT qualifiedName
+    | STRING_LITERAL /* @alias MDL-DEPR085 */
     ;
 
 // RUNTIME is Studio Pro's tab for Settings$ModelSettings (R10); MODEL, the
@@ -60,8 +72,11 @@ settingsSection
     | WORKFLOWS
     ;
 
+// The old spelling of a settings property: `Key = value`, outside a list. R3
+// (ako/mxcli#751): `:` sets a model property, in the ( Key: value, … ) list
+// every other statement uses.
 settingsAssignment
-    : IDENTIFIER EQUALS settingsValue
+    : IDENTIFIER EQUALS /* @alias MDL-DEPR060 */ settingsValue
     ;
 
 // The optional properties of an added language or workflow group, in the

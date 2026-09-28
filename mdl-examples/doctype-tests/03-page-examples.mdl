@@ -2672,7 +2672,7 @@ create page PgTest.P040_ConditionalProps
     row row1 {
       column col1 (desktopwidth: 8, tabletwidth: 6, phonewidth: 12) {
         dataview dv1 (datasource: microflow PgTest.DS_GetFirstCustomer) {
-          textbox txtName (label: 'Name', attribute: Name, visible: [$currentObject/Name != empty])
+          textbox txtName (label: 'Name', attribute: Name, visible: $currentObject/Name != empty)
           textbox txtPhone (label: 'Phone', attribute: Phone, editable: [true])
         }
       }

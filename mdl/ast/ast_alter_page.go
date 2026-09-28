@@ -81,21 +81,6 @@ func (r WidgetRef) Name() string {
 	return s
 }
 
-// Spellings of the generic ALTER that are aliases of its canonical form
-// (ADR-0011: an old form warns, and is rewritten mechanically). The visitor
-// records which one a statement used; the executor maps it to a deprecation
-// code. Nothing downstream of the validator may branch on these: both spellings
-// build the identical operation.
-const (
-	// `set Key = value …` / `set (Key = value, …) …` — R3 puts `:` between a
-	// property and its value; `=` is comparison.
-	AlterAliasSetEquals = "set-equals"
-	// `set Key: value …` — properties are a parenthesised list (R2), even one.
-	AlterAliasSetUnparenthesised = "set-unparenthesised"
-	// `drop widget a, b` — the target names the element; the kind is its own.
-	AlterAliasDropWidget = "drop-widget"
-)
-
 // IsColumn returns true if this addresses a member of a widget: a grid column
 // (`dg.Name` or `dg column(Name)`) or a scroll-container region.
 func (r WidgetRef) IsColumn() bool {
@@ -107,7 +92,6 @@ func (r WidgetRef) IsColumn() bool {
 type SetPropertyOp struct {
 	Target     WidgetRef              // empty Widget for page-level SET
 	Properties map[string]interface{} // property name -> value
-	Legacy     string                 // AlterAlias* when an old spelling was used, else ""
 }
 
 func (s *SetPropertyOp) isAlterPageOperation() {}
@@ -124,7 +108,6 @@ func (s *InsertWidgetOp) isAlterPageOperation() {}
 // DropWidgetOp represents: DROP WIDGET ref1, ref2, ...
 type DropWidgetOp struct {
 	Targets []WidgetRef
-	Legacy  string // AlterAliasDropWidget when written `drop widget …`, else ""
 }
 
 func (s *DropWidgetOp) isAlterPageOperation() {}

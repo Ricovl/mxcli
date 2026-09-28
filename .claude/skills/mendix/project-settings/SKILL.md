@@ -30,22 +30,22 @@ describe settings;
 ### Modify Model Settings
 
 ```sql
-alter settings runtime AfterStartupMicroflow = 'Module.MF_Startup';  -- must return Boolean (CE0142)
-alter settings runtime BeforeShutdownMicroflow = 'Module.MF_Shutdown';
-alter settings runtime HealthCheckMicroflow = 'Module.MF_HealthCheck';
-alter settings runtime HashAlgorithm = 'BCrypt';
-alter settings runtime BcryptCost = 12;
-alter settings runtime JavaVersion = 'Java21';  -- or '21'; see note below
-alter settings runtime RoundingMode = 'HalfUp';
-alter settings runtime AllowUserMultipleSessions = true;
-alter settings runtime ScheduledEventTimeZoneCode = 'Etc/UTC';
-alter settings runtime DefaultTimeZoneCode = 'Europe/Amsterdam';
-alter settings runtime FirstDayOfWeek = 'Monday';       -- Default, Monday..Sunday
-alter settings runtime DecimalScale = 8;
-alter settings runtime EnableDataStorageOptimisticLocking = true;
-alter settings runtime UseDatabaseForeignKeyConstraints = true;
-alter settings runtime UseOQLVersion2 = true;
-alter settings runtime SslCertificateAlgorithm = 'PKIX';   -- PKIX or SunX509
+alter settings runtime ( AfterStartupMicroflow: 'Module.MF_Startup' );  -- must return Boolean (CE0142)
+alter settings runtime ( BeforeShutdownMicroflow: 'Module.MF_Shutdown' );
+alter settings runtime ( HealthCheckMicroflow: 'Module.MF_HealthCheck' );
+alter settings runtime ( HashAlgorithm: 'BCrypt' );
+alter settings runtime ( BcryptCost: 12 );
+alter settings runtime ( JavaVersion: 'Java21' );  -- or '21'; see note below
+alter settings runtime ( RoundingMode: 'HalfUp' );
+alter settings runtime ( AllowUserMultipleSessions: true );
+alter settings runtime ( ScheduledEventTimeZoneCode: 'Etc/UTC' );
+alter settings runtime ( DefaultTimeZoneCode: 'Europe/Amsterdam' );
+alter settings runtime ( FirstDayOfWeek: 'Monday' );       -- Default, Monday..Sunday
+alter settings runtime ( DecimalScale: 8 );
+alter settings runtime ( EnableDataStorageOptimisticLocking: true );
+alter settings runtime ( UseDatabaseForeignKeyConstraints: true );
+alter settings runtime ( UseOQLVersion2: true );
+alter settings runtime ( SslCertificateAlgorithm: 'PKIX' );   -- PKIX or SunX509
 ```
 
 **Not every project stores every setting.** Mendix adds model settings over time —
@@ -97,18 +97,20 @@ configuration, add `DatabasePassword = '…'` yourself.
 
 ```sql
 -- Full database configuration
-alter settings configuration 'Default'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'localhost:5432',
-  DatabaseName = 'mydb',
-  DatabaseUserName = 'mendix',
-  DatabasePassword = 'mendix',
-  HttpPortNumber = 8080,
-  ServerPortNumber = 8090;
+alter settings configuration 'Default' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'localhost:5432',
+  DatabaseName: 'mydb',
+  DatabaseUserName: 'mendix',
+  DatabasePassword: 'mendix',
+  HttpPortNumber: 8080,
+  ServerPortNumber: 8090
+);
 
 -- Update a single field
-alter settings configuration 'Default'
-  DatabaseUrl = 'newhost:5432';
+alter settings configuration 'Default' (
+  DatabaseUrl: 'newhost:5432'
+);
 ```
 
 `HttpPortNumber`, `ServerPortNumber`, `BcryptCost`, `DefaultTaskParallelism` and
@@ -131,14 +133,14 @@ show constant values;
 show constant values in MyModule;    -- Filter by module
 
 -- Override a constant value in a configuration
-alter settings constant 'BusinessEvents.ServerUrl' value 'kafka:9092'
+alter settings constant @BusinessEvents.ServerUrl value 'kafka:9092'
   in configuration 'Default';
 
 -- Without IN CONFIGURATION (uses first configuration)
-alter settings constant 'MyModule.ApiKey' value 'abc123';
+alter settings constant @MyModule.ApiKey value 'abc123';
 
 -- Remove a constant override (reset to default)
-alter settings drop constant 'MyModule.ApiKey' in configuration 'Default';
+alter settings drop constant @MyModule.ApiKey in configuration 'Default';
 ```
 
 #### Shared vs private values
@@ -169,10 +171,11 @@ on shared values only:
 create configuration 'Staging';
 
 -- Create with properties
-create configuration 'Production'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'prod-db:5432',
-  HttpPortNumber = 8080;
+create configuration 'Production' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'prod-db:5432',
+  HttpPortNumber: 8080
+);
 
 -- Drop a configuration
 drop configuration 'Staging';
@@ -197,7 +200,7 @@ alter settings LANGUAGE modify 'de_DE' (CheckCompleteness: true);
 alter settings Language drop 'de_DE';
 
 -- the default must already be enabled
-alter settings LANGUAGE DefaultLanguageCode = 'en_US';
+alter settings LANGUAGE ( DefaultLanguageCode: 'en_US' );
 ```
 
 A language is identified by its **code** — "Arabic, Sudan" is derived from
@@ -213,7 +216,7 @@ A language is identified by its **code** — "Arabic, Sudan" is derived from
 
 **Set the default language BEFORE authoring content.** The default is not only a
 fallback — it is the language a new caption is stored under, because Mendix has no
-language-neutral text. `alter settings LANGUAGE DefaultLanguageCode = 'nl_NL'`
+language-neutral text. `alter settings LANGUAGE (DefaultLanguageCode: 'nl_NL')`
 *after* creating a page leaves that page's texts in the old language, and nothing
 reports it: `mx check` is 0 errors either way and the symptom shows up only in
 Studio Pro, as the empty-caption placeholder plus a "no translation" warning.
@@ -231,9 +234,10 @@ list.
 
 ```sql
 
-alter settings workflows
-  UserEntity = 'System.User',
-  DefaultTaskParallelism = 3;
+alter settings workflows (
+  UserEntity: 'System.User',
+  DefaultTaskParallelism: 3
+);
 ```
 
 ### Workflow Groups (Mendix 11.2+)
@@ -281,24 +285,26 @@ Four things worth knowing:
 
 ### PostgreSQL Configuration
 ```sql
-alter settings configuration 'Default'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'localhost:5432',
-  DatabaseName = 'myapp',
-  DatabaseUserName = 'mendix',
-  DatabasePassword = 'mendix',
-  HttpPortNumber = 8080;
+alter settings configuration 'Default' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'localhost:5432',
+  DatabaseName: 'myapp',
+  DatabaseUserName: 'mendix',
+  DatabasePassword: 'mendix',
+  HttpPortNumber: 8080
+);
 ```
 
 ### SQL Server Configuration
 ```sql
-alter settings configuration 'Default'
-  DatabaseType = 'SqlServer',
-  DatabaseUrl = 'localhost:1433',
-  DatabaseName = 'myapp',
-  DatabaseUserName = 'sa',
-  DatabasePassword = 'MyPassword',
-  HttpPortNumber = 8080;
+alter settings configuration 'Default' (
+  DatabaseType: 'SqlServer',
+  DatabaseUrl: 'localhost:1433',
+  DatabaseName: 'myapp',
+  DatabaseUserName: 'sa',
+  DatabasePassword: 'MyPassword',
+  HttpPortNumber: 8080
+);
 ```
 
 ## Checklist

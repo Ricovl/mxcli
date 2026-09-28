@@ -120,7 +120,7 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"image", "filter", "textfilter", "numberfilter", "datefilter",
 			"dropdownfilter", "dropdownsort", "customwidget", "pluggablewidget",
 			"statictext", "staticimage", "dynamicimage", "dropdown", "referenceselector",
-			"legacydatagrid",
+			"legacydatagrid", "visible", "editable", "conditional visibility",
 		},
 		Syntax: "-- Containers\nLAYOUTGRID name { ROW r { COLUMN c (DesktopWidth: 6) { ... } } }\nCONTAINER name (Class: 'cls') { ... }\nCONTAINER name (OnClick: CALL MICROFLOW Module.MF) { ... }   -- clickable container\nCUSTOMCONTAINER name (Class: 'cls') { ... }\nGROUPBOX name (Caption: 'C') { ... }\nTABCONTAINER name { TABPAGE tp (Caption: 'One') { ... } TABPAGE tp2 (Caption: 'Two') { ... } }\n\n" +
 			"-- Data widgets\nDATAVIEW name (DataSource: $Param) { ... FOOTER f { ... } }\nDATAGRID name (DataSource: DATABASE Module.Entity) { COLUMN c (Attribute: A) }\nGALLERY name (DataSource: DATABASE Module.Entity, DesktopColumns: 3) { ... }\nLISTVIEW name (DataSource: DATABASE Module.Entity) { ... }\nLISTVIEW name (...) { ... TEMPLATE FOR Module.Specialization { ... } }\n\n" +
@@ -144,6 +144,12 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"--   container the grid declares — it used to be dropped on write with no\n" +
 			"--   diagnostic, and is now refused (MDL-WIDGET30).\n\n" +
 			"-- Inputs\nTEXTBOX name (Label: 'L', Attribute: Attr)\nTEXTAREA | DATEPICKER | COMBOBOX | CHECKBOX | RADIOBUTTONS\n\n" +
+			"-- Conditional visibility / editability: a bare client expression, stored as\n" +
+			"-- written (name attributes as $currentObject/Attr). A plain value is static.\n" +
+			"TEXTBOX name (Attribute: Attr, Visible: $currentObject/IsActive, Editable: $currentObject/Status != 'Closed')\n" +
+			"TEXTBOX name (Attribute: Attr, Visible: false, Editable: Never)\n" +
+			"--   The bracketed Visible: [IsActive] (attributes rooted for you) is the deprecated\n" +
+			"--   spelling, MDL-DEPR081.\n\n" +
 			"-- Actions\nACTIONBUTTON name (Caption: 'C', Action: SAVE CHANGES, ButtonStyle: Primary)\nLINKBUTTON name (Caption: 'C', Action: ...)\n\n" +
 			"-- Display\nDYNAMICTEXT name (Content: 'Hello, {1}!', ContentParams: [{1} = Name])\nTITLE name (Content: 'Heading')\nIMAGE name (Image: 'Module.Collection.ImageName')\nIMAGE name (ImageType: imageUrl, ImageUrl: 'https://…')\n" +
 			"--   IMAGE needs a source. Its default, `ImageType: image`, shows an entry from an\n" +
@@ -306,21 +312,23 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"  DesignProperties: ['Full width': ON]\n\n" +
 			"ON A PAGE THAT ALREADY EXISTS, without rewriting it:\n\n" +
 			"  ALTER STYLING ON PAGE|SNIPPET Module.Name WIDGET <widgetName>\n" +
-			"    SET Class = 'css-class', Style = 'css', 'Design property' = 'Value'|ON|OFF;\n\n" +
+			"    SET (Class: 'css-class', Style: 'css', 'Design property': 'Value'|ON|OFF);\n\n" +
 			"  ALTER STYLING ON PAGE|SNIPPET Module.Name WIDGET <widgetName>\n" +
 			"    CLEAR DESIGN PROPERTIES;\n\n" +
 			"The widget is named by its MDL NAME — the identifier after the widget\n" +
 			"keyword (`ACTIONBUTTON btnSave`), not its caption. `DESCRIBE PAGE` prints\n" +
 			"the names.\n\n" +
-			"A bare `Class =` REPLACES the widget's classes rather than adding to them.\n" +
+			"A bare `Class:` REPLACES the widget's classes rather than adding to them.\n" +
 			"Read the current value first if you meant to append.\n\n" +
 			"Reach for ALTER STYLING rather than CREATE OR REPLACE PAGE whenever only\n" +
 			"the look changes: replacing the page rewrites every widget in it, so the\n" +
-			"diff is the whole document and anything MDL cannot yet spell is lost.",
+			"diff is the whole document and anything MDL cannot yet spell is lost.\n\n" +
+			"`SET Class = 'x', 'P' = ON` (no parentheses, `=`) still runs and warns\n" +
+			"MDL-DEPR062.",
 		Example: "CONTAINER ctn (\n  Class: 'my-card',\n  DynamicClasses: if $currentObject/Priority = 'High' then 'card-danger' else 'card-normal'\n) {\n  DYNAMICTEXT txt (Content: 'Styled text')\n}\n\n" +
 			"-- Restyle one widget on a page that already exists\n" +
 			"alter styling on page Sales.OrderOverview widget btnSave\n" +
-			"  set Class = 'btn-primary', 'Spacing top' = 'Large';\n\n" +
+			"  set (Class: 'btn-primary', 'Spacing top': 'Large');\n\n" +
 			"-- Back to Atlas defaults\n" +
 			"alter styling on snippet Sales.OrderRow widget ctnMain\n" +
 			"  clear design properties;",

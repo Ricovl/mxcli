@@ -171,7 +171,7 @@ func TestEndpointCleanupCommands(t *testing.T) {
 			state:   projectState{afterStartup: "Mod.ASU", createdMxTest: true},
 			present: true,
 			want: []string{
-				"ALTER SETTINGS RUNTIME AfterStartupMicroflow = 'Mod.ASU'",
+				"ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Mod.ASU')",
 				"DROP MODULE MxTest",
 			},
 		},
@@ -180,7 +180,7 @@ func TestEndpointCleanupCommands(t *testing.T) {
 			state:   projectState{createdMxTest: false},
 			present: true,
 			want: []string{
-				"ALTER SETTINGS RUNTIME AfterStartupMicroflow = ''",
+				"ALTER SETTINGS RUNTIME (AfterStartupMicroflow: '')",
 				"DROP MICROFLOW MxTest.Test_test_1",
 				"DROP MICROFLOW MxTest.Test_test_2",
 				"DROP MICROFLOW " + endpointStartupFlow,
@@ -191,7 +191,7 @@ func TestEndpointCleanupCommands(t *testing.T) {
 			name:    "drops nothing when the module never landed",
 			state:   projectState{afterStartup: "Mod.ASU", createdMxTest: true},
 			present: false,
-			want:    []string{"ALTER SETTINGS RUNTIME AfterStartupMicroflow = 'Mod.ASU'"},
+			want:    []string{"ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Mod.ASU')"},
 		},
 	}
 
@@ -220,7 +220,7 @@ func TestEndpointCleanupRestoreIsAlwaysFirst(t *testing.T) {
 		{afterStartup: "Mod.ASU", createdMxTest: true},
 	} {
 		cmds := endpointCleanupCommands(st, suiteTestFlowNames(suite), true)
-		if !strings.HasPrefix(cmds[0], "ALTER SETTINGS RUNTIME AfterStartupMicroflow") {
+		if !strings.HasPrefix(cmds[0], "ALTER SETTINGS RUNTIME (AfterStartupMicroflow") {
 			t.Errorf("state %+v: first command is %q, want the after-startup restore", st, cmds[0])
 		}
 	}

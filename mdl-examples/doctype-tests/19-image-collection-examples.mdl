@@ -73,10 +73,10 @@ create image collection ImgTest.BrandAssets
  *
  * Supported formats: PNG, SVG, GIF, JPEG, BMP, WebP
  */
-create image collection ImgTest.NavigationIcons (
-  image cli_screenshot from file '../../docs/images/mxcli-cli.png',
-  image repl_screenshot from file '../../docs/images/mxcli-repl.png'
-);
+create image collection ImgTest.NavigationIcons {
+  image cli_screenshot ( File: '../../docs/images/mxcli-cli.png' )
+  image repl_screenshot ( File: '../../docs/images/mxcli-repl.png' )
+};
 /
 
 /**
@@ -84,10 +84,10 @@ create image collection ImgTest.NavigationIcons (
  */
 create image collection ImgTest.AppLogos
   export level 'Public'
-  comment 'Application logos for branding' (
-  image vscode_ext from file '../../docs/images/mxcli-vscode-ext.png',
-  image catalog_view from file '../../docs/images/mxcli-catalog.png'
-);
+  comment 'Application logos for branding' {
+  image vscode_ext ( File: '../../docs/images/mxcli-vscode-ext.png' )
+  image catalog_view ( File: '../../docs/images/mxcli-catalog.png' )
+};
 /
 
 -- MARK: Show
