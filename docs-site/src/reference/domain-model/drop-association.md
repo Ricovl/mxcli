@@ -8,7 +8,7 @@
 
 `DROP ASSOCIATION` removes an association (relationship) between two entities from the domain model. The entities themselves are not affected -- only the relationship is removed.
 
-After dropping an association, any microflows, pages, or access rules that traverse it will become invalid. Use `SHOW IMPACT OF Module.AssociationName` to check references before dropping.
+After dropping an association, any microflows, pages, or access rules that traverse it will become invalid. Use `LIST IMPACT OF Module.AssociationName` to check references before dropping.
 
 ## Parameters
 
@@ -26,7 +26,7 @@ DROP ASSOCIATION Sales.Order_Customer;
 ### Drop after checking impact
 
 ```sql
-SHOW IMPACT OF Sales.OldAssociation;
+LIST IMPACT OF Sales.OldAssociation;
 DROP ASSOCIATION Sales.OldAssociation;
 ```
 

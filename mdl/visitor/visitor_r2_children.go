@@ -77,6 +77,7 @@ func (b *Builder) EnterStatement(ctx *parser.StatementContext) {
 				use(deprecation.MessageTreeParens, x.LPAREN().GetSymbol()).swap(x.LPAREN(), x.RPAREN(), "{", "}")
 			}
 		}
+		r2RestUse(n, use)
 		for _, c := range n.GetChildren() {
 			walk(c)
 		}

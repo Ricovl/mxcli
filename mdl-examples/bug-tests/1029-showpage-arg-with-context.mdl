@@ -16,7 +16,7 @@ create persistent entity Probe1029Ok.Item (
 );
 
 create page Probe1029Ok.Detail (
-  params: { $Item: Probe1029Ok.Item },
+  params: ( $Item: Probe1029Ok.Item ),
   title: 'Detail',
   layout: Atlas_Core.Atlas_Default
 ) {
@@ -39,7 +39,7 @@ create page Probe1029Ok.Plain (
 -- Inside a data view: the argument names the context object, under either
 -- spelling. This is the documented form in create-page.md.
 create page Probe1029Ok.Ok (
-  params: { $SomeRef: Probe1029Ok.Item },
+  params: ( $SomeRef: Probe1029Ok.Item ),
   title: 'Ok',
   layout: Atlas_Core.Atlas_Default
 ) {

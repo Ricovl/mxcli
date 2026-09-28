@@ -7,6 +7,7 @@
         [EXPORT LEVEL 'Hidden' | 'Public']
         [{
             IMAGE image_name ( File: 'path' )
+            IMAGE image_name ( Data: 'base64' [, Format: png | jpg | gif | svg | bmp | webp] )
             ...
         }];
 
@@ -26,7 +27,10 @@ Creates a new image collection in the specified module. `OR MODIFY` updates an e
 : Documentation text for the collection, as a doc comment before the statement. The `COMMENT '…'` clause is its deprecated alias (`MDL-DEPR100`).
 
 **IMAGE name ( File: 'path' )**
-: Loads an image from a file on disk. The path is relative to the current working directory. Supported formats: PNG, SVG, GIF, JPEG, BMP, WebP. A name that is not a plain identifier is written as a quoted identifier (`"logo-dark"`).
+: Loads an image from a file on disk. A relative path is resolved against the script's directory, then the current working directory. Supported formats: PNG, SVG, GIF, JPEG, BMP, WebP, taken from the file extension. A name that is not a plain identifier is written as a quoted identifier (`"logo-dark"`).
+
+**IMAGE name ( Data: 'base64', Format: fmt )**
+: The image itself, base64-encoded. This is what `DESCRIBE IMAGE COLLECTION` writes, so its output replays anywhere without the files it came from. `Format` is needed only when the bytes do not show it (PNG, JPEG, GIF, BMP and WebP signatures, and SVG markup, are recognised).
 
 The images are the collection's children, so they are in `{ }`, each with its properties in `( )`. The older form `( IMAGE name FROM FILE 'path', … )` still parses but warns (MDL-DEPR072); `mxcli fmt --upgrade` rewrites it.
 
@@ -69,4 +73,4 @@ CREATE IMAGE COLLECTION MyModule.BrandAssets
 
 ## See Also
 
-[DROP IMAGE COLLECTION](drop-image-collection.md), [SHOW / DESCRIBE IMAGE COLLECTION](show-describe-image-collection.md)
+[DROP IMAGE COLLECTION](drop-image-collection.md), [SHOW / DESCRIBE IMAGE COLLECTION](list-describe-image-collection.md)

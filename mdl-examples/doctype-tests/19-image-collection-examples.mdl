@@ -98,11 +98,11 @@ create image collection ImgTest.AppLogos
 -- ============================================================================
 
 -- Show all image collections across all modules
-list image collection;
+list image collections;
 /
 
 -- Show image collections in a specific module
-list image collection in ImgTest;
+list image collections in ImgTest;
 /
 
 -- ICON collections are a distinct, read-only document type (CustomIcons$
@@ -156,7 +156,7 @@ drop image collection ImgTest.StatusIcons;
 /
 
 -- Verify it's gone
-list image collection in ImgTest;
+list image collections in ImgTest;
 /
 
 -- ============================================================================

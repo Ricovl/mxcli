@@ -46,7 +46,7 @@ create persistent entity WFSIG.UrgentRequest extends WFSIG.Request ( Reason: str
 create page WFSIG.ReviewPage (
   title: 'Review',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask, $Request: WFSIG.Request }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask, $Request: WFSIG.Request )
 ) {
   layoutgrid g1 { row { column (desktopwidth: 12) { dynamictext t1 (content: 'Review') } } }
 }

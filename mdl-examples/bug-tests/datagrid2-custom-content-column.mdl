@@ -40,7 +40,7 @@ create or modify page MyFirstModule.DGOverview
     column (caption: 'Description', attribute: Description)
     -- custom content: a dynamictext binding an attribute over an association
     column (caption: 'Submitted by') {
-      dynamictext dtEmp (content: '{1}', contentparams: [{1} = MyFirstModule.Expense_Employee/Name])
+      dynamictext dtEmp (content: '{1}', contentparams: ({1} = MyFirstModule.Expense_Employee/Name))
     }
     -- custom content: an action button
     column (caption: 'Actions') {

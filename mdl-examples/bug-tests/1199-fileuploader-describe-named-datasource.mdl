@@ -27,7 +27,7 @@ create association Uploads.UploadedFile_UploadRequest from Uploads.UploadedFile 
 create nanoflow Uploads.NF_CreateFile ( $Request: Uploads.UploadRequest ) begin end
 
 create or modify page Uploads.UploadRequest_NewEdit (Title: 'Upload', Layout: Atlas_Core.Atlas_Default,
-  Params: { $Request: Uploads.UploadRequest })
+  Params: ( $Request: Uploads.UploadRequest ))
 {
   DATAVIEW dv (DataSource: $Request) {
     pluggablewidget 'com.mendix.widget.web.fileuploader.FileUploader' upFiles (

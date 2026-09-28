@@ -192,7 +192,7 @@ Cross-module moves change the qualified name (e.g., `OldModule.CustomerPage` bec
 **Always check impact before cross-module moves:**
 
 ```mdl
-show impact of OldModule.CustomerPage;
+list impact of OldModule.CustomerPage;
 -- Review the output, then move if safe:
 move page OldModule.CustomerPage to NewModule;
 ```
@@ -279,11 +279,11 @@ move microflow CRM.ACT_Order_Save to folder 'Order';
 move microflow CRM.ACT_Order_Process to folder 'Order/Processing';
 
 -- Move shared artifacts to a Shared folder or common module
-show impact of CRM.Header_Snippet;
+list impact of CRM.Header_Snippet;
 move snippet CRM.Header_Snippet to folder 'Shared' in Common;
 
 -- Move entity to different module
-show impact of CRM.Customer;
+list impact of CRM.Customer;
 move entity CRM.Customer to CustomerModule;
 
 -- Move enumeration to different module
@@ -328,7 +328,7 @@ drop folder 'Processing' in MyModule;
 
 - [ ] Folder paths use `/` separator (not `\`)
 - [ ] FOLDER keyword placement is correct (before BEGIN for microflows, inside properties for pages)
-- [ ] Cross-module moves: checked impact with `show impact of` first
+- [ ] Cross-module moves: checked impact with `list impact of` first
 - [ ] Folder naming is consistent across modules
 - [ ] DROP FOLDER: verify folder is empty before dropping
 - [ ] After a batch of moves: `list folders in MyModule` to confirm the layout

@@ -30,7 +30,7 @@
 -- PREREQUISITES — Set up baseline agent-editor documents.
 -- ############################################################################
 
-CREATE OR MODIFY MODEL Bug464.MyModel (
+CREATE OR MODIFY AI MODEL Bug464.MyModel (
   Provider: MxCloudGenAI,
   Key: @ExternalDatabaseConnector.LogNode
 );
@@ -55,7 +55,7 @@ CREATE OR MODIFY AGENT Bug464.MyAgent (
 -- ALTER — the new statements.
 -- ############################################################################
 
-ALTER MODEL Bug464.MyModel SET DisplayName = 'GPT-4 Turbo', KeyName = 'OPENAI_KEY';
+ALTER AI MODEL Bug464.MyModel SET DisplayName = 'GPT-4 Turbo', KeyName = 'OPENAI_KEY';
 
 ALTER KNOWLEDGE BASE Bug464.MyKB SET ModelDisplayName = 'text-embedding-3-small';
 

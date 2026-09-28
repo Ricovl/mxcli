@@ -247,6 +247,8 @@ func allKnownStatements() []ast.Statement {
 		&ast.DropConsumedMCPServiceStmt{},
 		&ast.DropConstantStmt{},
 		&ast.DropDataTransformerStmt{},
+		&ast.DropDatabaseConnectionStmt{},
+		&ast.DropValidationRuleStmt{},
 		&ast.DropDemoUserStmt{},
 		&ast.DropEntityStmt{},
 		&ast.DropEnumerationStmt{},

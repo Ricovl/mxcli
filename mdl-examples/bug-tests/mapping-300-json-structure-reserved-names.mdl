@@ -48,7 +48,7 @@ create module BugTest300;
 
 -- The reported case, plus one of each other family.
 create json structure BugTest300.JSON_Reserved
-  snippet $${
+  sample $${
     "owner": "o",
     "changedDate": "d",
     "class": "c",
@@ -60,8 +60,8 @@ create json structure BugTest300.JSON_Reserved
 -- Controls: ordinary members must keep the plain capitalised name, and a
 -- Java-keyword lookalike that is not one must not be prefixed.
 create json structure BugTest300.JSON_Ordinary
-  snippet $${"name": "n", "value": "v", "status": "s", "index": 1}$$;
+  sample $${"name": "n", "value": "v", "status": "s", "index": 1}$$;
 
 -- Studio Pro avoids these even though mxbuild accepts them; mxcli matches.
 create json structure BugTest300.JSON_StudioProAvoids
-  snippet $${"id": "i", "object": "o", "type": "t"}$$;
+  sample $${"id": "i", "object": "o", "type": "t"}$$;

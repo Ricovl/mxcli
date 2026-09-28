@@ -121,7 +121,7 @@ do — the constraint would vanish and the build would still pass.
 ## Finding out who uses one
 
 ```sql
-show references to Val.EmailAddress;
+list references to Val.EmailAddress;
 ```
 
 lists the entities whose validation rules use that pattern — worth checking
@@ -151,4 +151,4 @@ select QualifiedName, Expression from CATALOG.REGULAR_EXPRESSIONS;
 
 ## Regular expressions (LIST/DESCRIBE/CREATE [OR MODIFY]/DROP REGULAR EXPRESSION)
 
-named patterns that attribute validation rules reference **by qualified name**, which is why they are documents. `modelsdk/gen` is **wrong** about the pattern's key — it binds `RegEx` where every Studio Pro document stores `Expression` (`generated/metamodel` agrees with the documents), so both engines share one raw-BSON codec in `mdl/regularexpressions`; a reader keyed on gen's name returns an empty pattern for every real document. Pinned against five Studio Pro-authored documents (Email Connector 6.4.2, Community Commons 11.5.1). Mendix validates with .NET's engine, so a pattern Go's RE2 cannot compile (lookaround — the Email Connector ships one) is stored unchanged and reported "not verifiable", never "invalid". A `validate` edge into `CATALOG.REFS` makes `show references to <regex>` list the entities using it
+named patterns that attribute validation rules reference **by qualified name**, which is why they are documents. `modelsdk/gen` is **wrong** about the pattern's key — it binds `RegEx` where every Studio Pro document stores `Expression` (`generated/metamodel` agrees with the documents), so both engines share one raw-BSON codec in `mdl/regularexpressions`; a reader keyed on gen's name returns an empty pattern for every real document. Pinned against five Studio Pro-authored documents (Email Connector 6.4.2, Community Commons 11.5.1). Mendix validates with .NET's engine, so a pattern Go's RE2 cannot compile (lookaround — the Email Connector ships one) is stored unchanged and reported "not verifiable", never "invalid". A `validate` edge into `CATALOG.REFS` makes `list references to <regex>` list the entities using it

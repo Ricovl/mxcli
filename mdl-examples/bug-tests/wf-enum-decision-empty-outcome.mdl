@@ -61,10 +61,11 @@ end workflow;
 /
 
 -- The ALTER control: the same insert carrying the empty outcome.
-alter workflow WFEmptyOK.EnumDecision insert after decision1
-  decision decision9 $WorkflowContext/Kind
+alter workflow WFEmptyOK.EnumDecision { insert after decision1
+  { decision decision9 $WorkflowContext/Kind
     outcomes
       'WFEmptyOK.Kind.Standard' -> { }
       'WFEmptyOK.Kind.Priority' -> { }
       '' -> { }
-  ;
+  ; }
+};

@@ -34,7 +34,7 @@ CREATE OR MODIFY PAGE Bug713.ThingPopupAuto (
   Layout: Atlas_Core.PopupLayout,
   PopupWidth: 0,
   PopupHeight: 0,
-  Params: { $Thing: Bug713.Thing }
+  Params: ( $Thing: Bug713.Thing )
 ) {
   dataview dv (DataSource: $Thing) {
     textbox tb (Label: 'Name', Attribute: Name)
@@ -47,7 +47,7 @@ CREATE OR MODIFY PAGE Bug713.ThingPopupFixed (
   Layout: Atlas_Core.PopupLayout,
   PopupWidth: 800,
   PopupHeight: 480,
-  Params: { $Thing: Bug713.Thing }
+  Params: ( $Thing: Bug713.Thing )
 ) {
   dataview dv (DataSource: $Thing) {
     textbox tb (Label: 'Name', Attribute: Name)

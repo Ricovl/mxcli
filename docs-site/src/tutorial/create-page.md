@@ -12,7 +12,7 @@ Before creating a page, you need two things:
 To see what layouts are available:
 
 ```bash
-mxcli -p app.mpr -c "SHOW PAGES IN Atlas_Core"
+mxcli -p app.mpr -c "LIST PAGES IN Atlas_Core"
 ```
 
 Most Mendix projects based on Atlas UI have layouts like `Atlas_Core.Atlas_Default` (full page), `Atlas_Core.PopupLayout` (dialog), and others.
@@ -74,7 +74,7 @@ Edit pages use a **DataView** to display and edit a single object. The object is
 ```sql
 CREATE PAGE MyModule.Product_Edit
 (
-    Params: { $Product: MyModule.Product },
+    Params: ( $Product: MyModule.Product ),
     Title: 'Edit Product',
     Layout: Atlas_Core.PopupLayout
 )
@@ -96,7 +96,7 @@ Key differences from the overview page:
 
 | Part | Meaning |
 |------|---------|
-| `Params: { $Product: MyModule.Product }` | The page expects a `Product` object to be passed when opened |
+| `Params: ( $Product: MyModule.Product )` | The page expects a `Product` object to be passed when opened |
 | `Layout: Atlas_Core.PopupLayout` | Uses a popup/dialog layout instead of a full page |
 | `DATAVIEW dvProduct (DataSource: $Product)` | Binds to the page parameter |
 | `TEXTBOX`, `CHECKBOX` | Input widgets bound to entity attributes |
@@ -163,7 +163,7 @@ The snippet must already exist in the project.
 
 ## Common mistakes
 
-**Layout must exist in the project.** If you specify a layout that doesn't exist, the page will fail validation. Check available layouts with `SHOW PAGES` and look for documents of type `Layout`.
+**Layout must exist in the project.** If you specify a layout that doesn't exist, the page will fail validation. Check available layouts with `LIST PAGES` and look for documents of type `Layout`.
 
 **Widget names must be unique within a page.** Every widget needs a name (e.g., `txtName`, `btnSave`), and these must not collide within the same page.
 

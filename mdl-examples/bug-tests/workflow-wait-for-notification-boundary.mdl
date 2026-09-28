@@ -26,7 +26,7 @@ create persistent entity WFWN.Request ( Title: string(100) );
 create page WFWN.TaskPage (
   title: 'Task',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 { row { column (desktopwidth: 12) { dynamictext t1 (content: 'Task') } } }
 }

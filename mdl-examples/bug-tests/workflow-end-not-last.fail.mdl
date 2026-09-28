@@ -5,7 +5,7 @@
 -- what follows. Measured on mxbuild 11.13.0.
 
 create persistent entity WFEND.Ctx ( Title: string(50) );
-create page WFEND.TaskPage ( title: 'T', layout: Atlas_Core.Atlas_Default, params: { $WorkflowUserTask: System.WorkflowUserTask } ) { };
+create page WFEND.TaskPage ( title: 'T', layout: Atlas_Core.Atlas_Default, params: ( $WorkflowUserTask: System.WorkflowUserTask ) ) { };
 
 create workflow WFEND.EndNotLast parameter $Ctx: WFEND.Ctx
 begin

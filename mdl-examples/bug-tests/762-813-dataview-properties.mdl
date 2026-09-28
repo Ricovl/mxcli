@@ -36,7 +36,7 @@ create persistent entity Issue762.Thing (
 create or modify page Issue762.DVTest (
   title: 'DataView properties',
   Layout: Atlas_Core.Atlas_Default,
-  params: { $Thing: Issue762.Thing }
+  params: ( $Thing: Issue762.Thing )
 )
 {
   container c1 {

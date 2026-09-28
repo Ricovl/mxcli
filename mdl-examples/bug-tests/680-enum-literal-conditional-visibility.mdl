@@ -36,7 +36,7 @@ create page BugTest680.Dashboard
 (
   title: 'Dashboard',
   layout: Atlas_Core.Atlas_Default,
-  params: { $Equip: BugTest680.Equip }
+  params: ( $Equip: BugTest680.Equip )
 )
 {
   dataview dv (datasource: $Equip) {

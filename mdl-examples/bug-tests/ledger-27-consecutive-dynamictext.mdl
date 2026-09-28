@@ -41,24 +41,24 @@ create or modify page MyModule.SummaryPage
 (
   Title: 'Summary',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Summary: MyModule.Summary }
+  Params: ( $Summary: MyModule.Summary )
 )
 {
   dataview dv (datasource: $Summary) {
     -- Text-mode pair fuses → flagged
     container box {
-      dynamictext dMonth (content: 'This month: {1}', contentparams: [{1} = Amount])
-      dynamictext dImport (content: 'Last import: {1}', contentparams: [{1} = LastImport])
+      dynamictext dMonth (content: 'This month: {1}', contentparams: ({1} = Amount))
+      dynamictext dImport (content: 'Last import: {1}', contentparams: ({1} = LastImport))
     }
     -- Paragraph-mode pair ALSO fuses (renders inline) → flagged (#29)
     container paras {
-      dynamictext pMonth (content: 'This month: {1}', RenderMode: Paragraph, contentparams: [{1} = Amount])
-      dynamictext pImport (content: 'Last import: {1}', RenderMode: Paragraph, contentparams: [{1} = LastImport])
+      dynamictext pMonth (content: 'This month: {1}', RenderMode: Paragraph, contentparams: ({1} = Amount))
+      dynamictext pImport (content: 'Last import: {1}', RenderMode: Paragraph, contentparams: ({1} = LastImport))
     }
     -- Heading (block-level) + subtitle does NOT fuse → not flagged
     container heads {
-      dynamictext hTitle (content: 'Summary {1}', RenderMode: H2, contentparams: [{1} = Amount])
-      dynamictext hSub (content: 'as of {1}', contentparams: [{1} = LastImport])
+      dynamictext hTitle (content: 'Summary {1}', RenderMode: H2, contentparams: ({1} = Amount))
+      dynamictext hSub (content: 'as of {1}', contentparams: ({1} = LastImport))
     }
   }
 }

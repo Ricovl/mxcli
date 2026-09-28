@@ -39,7 +39,7 @@
 create entity MyFirstModule.Entry ( Label: String );
 /
 create or modify page MyFirstModule.EditEntry
-( Title: 'Edit', Layout: Atlas_Core.Atlas_Default, Params: { $Entry: MyFirstModule.Entry } )
+( Title: 'Edit', Layout: Atlas_Core.Atlas_Default, Params: ( $Entry: MyFirstModule.Entry ) )
 {
   dataview dv (datasource: $Entry) { dynamictext t (content: 'Edit') }
 }

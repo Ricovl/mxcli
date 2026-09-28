@@ -90,7 +90,7 @@ end;
 create page WFTest.TaskPage (
   title: 'Task Page',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 {
     row {
@@ -104,7 +104,7 @@ create page WFTest.TaskPage (
 create page WFTest.AlternateTaskPage (
   title: 'Alternate Task',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 {
     row {
@@ -119,7 +119,7 @@ create page WFTest.AlternateTaskPage (
 create page WFTest.OverviewPage (
   title: 'Workflow Overview',
   layout: Atlas_Core.Atlas_Default,
-  params: { $workflow: System.Workflow }
+  params: ( $workflow: System.Workflow )
 ) {
   layoutgrid g1 {
     row {
@@ -174,127 +174,150 @@ end workflow;
 
 -- SET workflow-level properties
 
-alter workflow WFTest.OrderApproval set display 'Updated Order Approval';
-alter workflow WFTest.OrderApproval set description 'Updated workflow description';
-alter workflow WFTest.OrderApproval set export level api;
-alter workflow WFTest.OrderApproval set due date '';
-alter workflow WFTest.OrderApproval set overview page WFTest.OverviewPage;
-alter workflow WFTest.OrderApproval set parameter $WorkflowContext: WFTest.OrderContext;
+alter workflow WFTest.OrderApproval { set (Display: 'Updated Order Approval'); };
+alter workflow WFTest.OrderApproval { set (Description: 'Updated workflow description'); };
+alter workflow WFTest.OrderApproval { set (ExportLevel: api); };
+alter workflow WFTest.OrderApproval { set (DueDate: ''); };
+alter workflow WFTest.OrderApproval { set (OverviewPage: WFTest.OverviewPage); };
+alter workflow WFTest.OrderApproval { set (Parameter: $WorkflowContext: WFTest.OrderContext); };
 
 -- Multiple SET in one statement
-alter workflow WFTest.OrderApproval
-  set display 'Final Order Approval'
-  set description 'Final description';
+alter workflow WFTest.OrderApproval {
+  set (Display: 'Final Order Approval');
+  set (Description: 'Final description');
+};
 
 -- SET activity properties
 
-alter workflow WFTest.OrderApproval set activity ReviewOrder page WFTest.AlternateTaskPage;
-alter workflow WFTest.OrderApproval set activity ReviewOrder description 'Updated instructions';
-alter workflow WFTest.OrderApproval set activity ReviewOrder targeting xpath [Status = 'Pending'];
-alter workflow WFTest.OrderApproval set activity ReviewOrder targeting microflow WFTest.ACT_TargetUsers;
-alter workflow WFTest.OrderApproval set activity ReviewOrder due date '';
-alter workflow WFTest.OrderApproval set activity 'Review the order' description 'Referenced by caption';
+alter workflow WFTest.OrderApproval { set (Page: WFTest.AlternateTaskPage) on ReviewOrder; };
+alter workflow WFTest.OrderApproval { set (Description: 'Updated instructions') on ReviewOrder; };
+alter workflow WFTest.OrderApproval { set (Targeting: xpath [Status = 'Pending']) on ReviewOrder; };
+alter workflow WFTest.OrderApproval { set (Targeting: microflow WFTest.ACT_TargetUsers) on ReviewOrder; };
+alter workflow WFTest.OrderApproval { set (DueDate: '') on ReviewOrder; };
+alter workflow WFTest.OrderApproval { set (Description: 'Referenced by caption') on 'Review the order'; };
 
 -- INSERT / DROP / REPLACE activities
 
-alter workflow WFTest.OrderApproval
-  insert after ReviewOrder call microflow WFTest.ACT_Escalate;
+alter workflow WFTest.OrderApproval {
+  insert after ReviewOrder { call microflow WFTest.ACT_Escalate; }
+};
 
-alter workflow WFTest.OrderApproval
-  insert after ACT_Escalate call microflow WFTest.ACT_Notify;
-alter workflow WFTest.OrderApproval
-  drop activity ACT_Notify@1;
+alter workflow WFTest.OrderApproval {
+  insert after ACT_Escalate { call microflow WFTest.ACT_Notify; }
+};
+alter workflow WFTest.OrderApproval {
+  drop ACT_Notify@1;
+};
 
-alter workflow WFTest.OrderApproval
-  replace activity ACT_Validate with call microflow WFTest.ACT_Process;
+alter workflow WFTest.OrderApproval {
+  replace ACT_Validate with { call microflow WFTest.ACT_Process; }
+};
 
 -- INSERT / DROP outcome
 
-alter workflow WFTest.OrderApproval
-  insert outcome 'Escalate' on ReviewOrder {
+alter workflow WFTest.OrderApproval {
+  insert into ReviewOrder { outcomes 'Escalate' {
     call microflow WFTest.ACT_Review;
-  };
+  } }
+};
 
-alter workflow WFTest.OrderApproval
-  drop outcome 'Hold' on ReviewOrder;
+alter workflow WFTest.OrderApproval {
+  drop ReviewOrder outcome 'Hold';
+};
 
 -- INSERT / DROP path
 
-alter workflow WFTest.OrderApproval
-  insert path on 'Parallel split' {
+alter workflow WFTest.OrderApproval {
+  insert into 'Parallel split' { path {
     call microflow WFTest.ACT_Finalize;
-  };
+  } }
+};
 
-alter workflow WFTest.OrderApproval
-  drop path 'Path 3' on 'Parallel split';
+alter workflow WFTest.OrderApproval {
+  drop 'Parallel split' path 3;
+};
 
 -- INSERT / DROP condition
 
-alter workflow WFTest.OrderApproval
-  insert condition 'Default' on 'Decision' {
+alter workflow WFTest.OrderApproval {
+  insert into 'Decision' { outcomes 'Default' -> {
     call microflow WFTest.ACT_Review;
-  };
+  } }
+};
 
 -- INSERT / DROP boundary event
 
-alter workflow WFTest.OrderApproval
-  insert boundary event on ReviewOrder interrupting timer addHours([%CurrentDateTime%], 2) {
+alter workflow WFTest.OrderApproval {
+  insert into ReviewOrder { boundary event interrupting timer addHours([%CurrentDateTime%], 2) {
     call microflow WFTest.ACT_BoundaryHandler;
     jump to ReviewOrder;
-  };
+  } }
+};
 
-alter workflow WFTest.OrderApproval
-  insert boundary event on ACT_Escalate@1 interrupting timer;
-alter workflow WFTest.OrderApproval
-  drop boundary event on ACT_Escalate@1;
+alter workflow WFTest.OrderApproval {
+  insert into ACT_Escalate@1 { boundary event interrupting timer }
+};
+alter workflow WFTest.OrderApproval {
+  drop ACT_Escalate@1 boundary event;
+};
 
 -- INSERT into nested flows
 
-alter workflow WFTest.OrderApproval
-  insert after ACT_Process@1 call microflow WFTest.ACT_Finalize;
+alter workflow WFTest.OrderApproval {
+  insert after ACT_Process@1 { call microflow WFTest.ACT_Finalize; }
+};
 
-alter workflow WFTest.OrderApproval
-  insert after ACT_Process@2 call microflow WFTest.ACT_Review;
+alter workflow WFTest.OrderApproval {
+  insert after ACT_Process@2 { call microflow WFTest.ACT_Review; }
+};
 
 -- All remaining activity types
 
-alter workflow WFTest.OrderApproval
-  insert after ACT_Escalate@1 wait for timer addHours([%CurrentDateTime%], 1) caption 'WaitOneHour';
+alter workflow WFTest.OrderApproval {
+  insert after ACT_Escalate@1 { wait for timer addHours([%CurrentDateTime%], 1) caption 'WaitOneHour'; }
+};
 
-alter workflow WFTest.OrderApproval
-  insert after WaitOneHour wait for notification caption 'WaitForApproval';
+alter workflow WFTest.OrderApproval {
+  insert after WaitOneHour { wait for notification caption 'WaitForApproval'; }
+};
 
-alter workflow WFTest.OrderApproval
-  insert after WaitForApproval call workflow WFTest.SubProcess;
+alter workflow WFTest.OrderApproval {
+  insert after WaitForApproval { call workflow WFTest.SubProcess; }
+};
 
-alter workflow WFTest.OrderApproval
-  insert after SubProcess multi user task GroupApproval 'Group Approval'
+alter workflow WFTest.OrderApproval {
+  insert after SubProcess { multi user task GroupApproval 'Group Approval'
     page WFTest.TaskPage
     outcomes
       'Approved' { }
       'Denied' { }
-  ;
+  ; }
+};
 
 -- NON INTERRUPTING TIMER boundary event (compare with INTERRUPTING above)
-alter workflow WFTest.OrderApproval
-  insert boundary event on GroupApproval non interrupting timer addHours([%CurrentDateTime%], 48) {
+alter workflow WFTest.OrderApproval {
+  insert into GroupApproval { boundary event non interrupting timer addHours([%CurrentDateTime%], 48) {
     call microflow WFTest.ACT_Notify;
-  };
+  } }
+};
 
-alter workflow WFTest.OrderApproval
-  insert outcome 'Retry' on ReviewOrder@1 {
+alter workflow WFTest.OrderApproval {
+  insert into ReviewOrder@1 { outcomes 'Retry' {
     jump to ReviewOrder;
-  };
+  } }
+};
 
 -- Positional disambiguation (@N syntax)
 
-alter workflow WFTest.OrderApproval
-  set activity ACT_Escalate@1 description 'Disambiguated by @1';
+alter workflow WFTest.OrderApproval {
+  set (Description: 'Disambiguated by @1') on ACT_Escalate@1;
+};
 
 -- String literal activity reference
 
-alter workflow WFTest.OrderApproval
-  set activity 'Review the order' description 'Final description via caption';
+alter workflow WFTest.OrderApproval {
+  set (Description: 'Final description via caption') on 'Review the order';
+};
 
 
 -- ############################################################################
@@ -367,7 +390,7 @@ end;
 create page WFTarget.TaskPage (
   title: 'Task Page',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 {
     row {
@@ -568,10 +591,11 @@ begin
 end workflow;
 /
 
-alter workflow WFTest.EndInBranches
-  insert outcome 'Withdraw' on FinalCheck {
+alter workflow WFTest.EndInBranches {
+  insert into FinalCheck { outcomes 'Withdraw' {
     end workflow caption 'Withdrawn';
-  };
+  } }
+};
 
 -- ############################################################################
 -- PART F: HANDLERS — on-created microflows and workflow event handlers

@@ -32,7 +32,7 @@ create or modify entity WidgetProbe.Ticket (
 
 create or modify page WidgetProbe.PDeprecatedWidgets
 (
-  params: { $Ticket: WidgetProbe.Ticket },
+  params: ( $Ticket: WidgetProbe.Ticket ),
   title: 'Deprecated built-in widgets',
   layout: Atlas_Core.Atlas_Default
 )

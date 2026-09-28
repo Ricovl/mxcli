@@ -46,7 +46,7 @@ create consumed rest service ZZB."MESSlice" (
     Path: '/routes/{id}',
     Parameters: ($id: String),
     Query: ($page: String, $pageSize: String),
-    Headers: ('X-Tenant-Id' = 'demo-tenant-01'),
+    Headers: ('X-Tenant-Id': 'demo-tenant-01'),
     Timeout: 300,
     -- The clause names the target ENTITY and maps JSON fields onto it. Mendix
     -- stores this inline on the operation; it is not a reference to an import

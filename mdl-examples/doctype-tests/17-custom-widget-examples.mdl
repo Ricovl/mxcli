@@ -80,8 +80,8 @@ create page CWTest.P_Gallery_Basic folder 'CustomWidgets'
           datasource: database CWTest.task sort by title asc
         ) {
           template {
-            dynamictext dtTitle (content: '{1}', contentparams: [{1} = title], rendermode: H4)
-            dynamictext dtDesc (content: '{1}', contentparams: [{1} = description])
+            dynamictext dtTitle (content: '{1}', contentparams: ({1} = title), rendermode: H4)
+            dynamictext dtDesc (content: '{1}', contentparams: ({1} = description))
           }
         }
       }
@@ -114,8 +114,8 @@ create page CWTest.P_Gallery_Filtered folder 'CustomWidgets'
           datasource: database CWTest.task sort by DueDate desc
         ) {
           template {
-            dynamictext dtTitle (content: '{1}', contentparams: [{1} = title], rendermode: H4)
-            dynamictext dtPriority (content: 'Priority: {1}', contentparams: [{1} = Priority])
+            dynamictext dtTitle (content: '{1}', contentparams: ({1} = title), rendermode: H4)
+            dynamictext dtPriority (content: 'Priority: {1}', contentparams: ({1} = Priority))
           }
           filter {
             textfilter tfSearch (attribute: title)
@@ -141,9 +141,9 @@ create page CWTest.P_Gallery_Filtered folder 'CustomWidgets'
  */
 create page CWTest.P_ComboBox_Enum folder 'CustomWidgets'
 (
-  params: {
+  params: (
     $task: CWTest.task
-  },
+  ),
   title: 'ComboBox Enum',
   layout: Atlas_Core.PopupLayout
 )
@@ -180,9 +180,9 @@ create page CWTest.P_ComboBox_Enum folder 'CustomWidgets'
  */
 create page CWTest.P_ComboBox_Assoc folder 'CustomWidgets'
 (
-  params: {
+  params: (
     $task: CWTest.task
-  },
+  ),
   title: 'ComboBox Association',
   layout: Atlas_Core.PopupLayout
 )
@@ -289,9 +289,9 @@ create page CWTest.P_Image_Dimensions folder 'CustomWidgets'
  */
 create page CWTest.P_Image_OnClick folder 'CustomWidgets'
 (
-  params: {
+  params: (
     $task: CWTest.task
-  },
+  ),
   title: 'Image with OnClick',
   layout: Atlas_Core.Atlas_Default
 )
@@ -313,8 +313,8 @@ create page CWTest.P_Image_OnClick folder 'CustomWidgets'
           )
         }
         column (desktopwidth: 6) {
-          dynamictext dtTitle (content: '{1}', contentparams: [{1} = title], rendermode: H3)
-          dynamictext dtDesc (content: '{1}', contentparams: [{1} = description])
+          dynamictext dtTitle (content: '{1}', contentparams: ({1} = title), rendermode: H3)
+          dynamictext dtDesc (content: '{1}', contentparams: ({1} = description))
         }
       }
     }

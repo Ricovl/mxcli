@@ -123,7 +123,7 @@ func designPropertyAssignment(p *ThemeProperty, value any) (valueType, option st
 	if p.MultiSelect {
 		return "", "", fmt.Errorf(
 			"design property %q takes a SET of options, not one value — `set` carries a single "+
-				"value, so write it inline instead: `DesignProperties: ['%s': ['%s': on]]` on the "+
+				"value, so write it inline instead: `DesignProperties: ('%s': ('%s': on))` on the "+
 				"widget, in CREATE PAGE or an ALTER PAGE REPLACE. A single value is stored as an "+
 				"Option and mxbuild refuses it with CE6084",
 			p.Name, p.Name, firstOptionName(p, str))

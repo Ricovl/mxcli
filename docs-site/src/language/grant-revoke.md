@@ -154,9 +154,9 @@ CREATE MODULE ROLE Shop.User DESCRIPTION 'Standard access';
 CREATE MODULE ROLE Shop.Viewer DESCRIPTION 'Read-only access';
 
 -- User roles
-CREATE USER ROLE Administrator (Shop.Admin, System.Administrator) MANAGE ALL ROLES;
-CREATE USER ROLE Employee (Shop.User);
-CREATE USER ROLE Guest (Shop.Viewer);
+CREATE USER ROLE Administrator ( ModuleRoles: (Shop.Admin, System.Administrator), ManageAllRoles: true );
+CREATE USER ROLE Employee ( ModuleRoles: (Shop.User) );
+CREATE USER ROLE Guest ( ModuleRoles: (Shop.Viewer) );
 
 -- Entity access
 GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Customer TO Shop.Admin;
@@ -183,8 +183,8 @@ CREATE DEMO USER 'demo_admin' PASSWORD 'Admin123!' (Administrator);
 CREATE DEMO USER 'demo_user' PASSWORD 'User123!' (Employee);
 
 -- Enable demo users
-ALTER APP SECURITY DEMO USERS ON;
-ALTER APP SECURITY LEVEL PROTOTYPE;
+ALTER APP SECURITY ( EnableDemoUsers: TRUE );
+ALTER APP SECURITY ( SecurityLevel: PROTOTYPE );
 ```
 
 ## See Also

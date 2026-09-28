@@ -3,9 +3,14 @@
 package visitor
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 )
 
 // R6 (PROPOSAL_mdl_beta_syntax_freeze.md §3; ADR-0010): one verb per job.
@@ -16,24 +21,10 @@ import (
 // replacement, so the parse tree is the only place it is visible: the
 // listeners below record it (codes MDL-DEPR090..096).
 
-// showNoRewrite says why a single-thing `show` has no mechanical rewrite: its
-// summary is not what `describe` prints, so rewriting it would change the
-// output. Keyed on the token after `show`.
-var showNoRewrite = map[int]string{
-	parser.MDLParserENTITY: "`show entity` prints a summary table, `describe entity` the full definition as MDL; " +
-		"replace it by hand",
-	parser.MDLParserASSOCIATION: "`show association` prints a summary, `describe association` the full definition " +
-		"as MDL; replace it by hand",
-	parser.MDLParserNAVIGATION: "`show navigation` prints a summary table, `describe navigation` the full " +
-		"definition as MDL; replace it by hand",
-	parser.MDLParserSETTINGS: "`show settings` prints a summary table, `describe settings` the full definition " +
-		"as MDL; replace it by hand",
-}
-
 // recordShowSingleThing records MDL-DEPR090 for `show` (or `list`) on a form
-// that names one thing, with the rewrite to `describe` where the describe
-// statement is the same statement: page, app security, security matrix,
-// structure and context.
+// that names one thing whose describe is the same statement: page, app
+// security, security matrix, structure and context. Each use carries the
+// rewrite to `describe`.
 func (b *Builder) recordShowSingleThing(ctx *parser.ShowOrListContext) {
 	stmt, ok := ctx.GetParent().(*parser.ShowStatementContext)
 	if !ok {
@@ -42,19 +33,96 @@ func (b *Builder) recordShowSingleThing(ctx *parser.ShowOrListContext) {
 	verb := ctx.GetStart()
 	b.recordDeprecation(deprecation.ShowSingleThing, verb, "")
 	first := tokenTypeAt(stmt, 1)
-	if why, ok := showNoRewrite[first]; ok {
-		if first == parser.MDLParserNAVIGATION && stmt.MENU_KW() != nil {
-			why = "`show navigation menu` prints the menu tree, `describe navigation` the profile as MDL; replace it by hand"
-		}
-		b.fixLastDeprecation(deprecation.ShowSingleThing, nil, why)
-		return
-	}
 	edit := replaceSpan(verb, verb, keywordLike(verb.GetText(), "describe"))
 	if first == parser.MDLParserPROJECT {
 		// `show project security` -> `describe app security` (R10's name).
 		edit = replaceSpan(verb, stmt.SECURITY().GetSymbol(), keywordLike(verb.GetText(), "describe app security"))
 	}
 	b.fixLastDeprecation(deprecation.ShowSingleThing, &ast.Fix{Edits: []ast.TextEdit{edit}}, "")
+}
+
+// showSummaryRemoved is the removal of the one-element summaries: `show
+// entity X` and `show association X` (and `list` on them) print a summary no
+// mdl 1 statement prints. `describe` prints the definition as MDL and `list
+// entities` / `list associations` the summary columns, so neither is an alias,
+// and rewriting to either would change the script's output.
+var showSummaryRemoved = langver.Change{
+	Code:  "MDL-V1-SHOWSUMMARY",
+	Since: langver.V1,
+	Old:   "`show entity X` / `show association X` prints a summary of the element",
+	New: "an error: `show` is dropped (R6) and the summary has no mdl 1 statement; write " +
+		"`describe entity X` for the definition, or `list entities in M` / `list associations in M` for the summary",
+}
+
+// gateShowSummary gates a one-element summary: refused under mdl 1, kept with
+// a warning under mdl 0.
+func (b *Builder) gateShowSummary(ctx *parser.ShowOrListContext) {
+	stmt, ok := ctx.GetParent().(*parser.ShowStatementContext)
+	if !ok {
+		return
+	}
+	kind := "entity"
+	if tokenTypeAt(stmt, 1) == parser.MDLParserASSOCIATION {
+		kind = "association"
+	}
+	if b.gate(showSummaryRemoved, stmt) {
+		b.addError(fmt.Errorf("line %d: `%s %s` is not in %s: write `describe %s` for the definition, or `list %s` "+
+			"for the summary columns",
+			stmt.GetStart().GetLine(), strings.ToLower(ctx.GetText()), kind, b.langVersion, kind, pluralKind(kind)))
+		return
+	}
+	b.fixLastNote(showSummaryRemoved.Code, nil, "`"+strings.ToLower(ctx.GetText())+" "+kind+
+		"` prints a summary no mdl 1 statement prints: replace it with `describe "+kind+"` (the definition) or `list "+
+		pluralKind(kind)+"` (the summary columns)")
+}
+
+func pluralKind(kind string) string {
+	if kind == "entity" {
+		return "entities"
+	}
+	return kind + "s"
+}
+
+// gateShowSession gates `show version|status|connections|catalog status`:
+// session state, which a script does not ask for (R7).
+func (b *Builder) gateShowSession(ctx *parser.ShowOrListContext) {
+	stmt, ok := ctx.GetParent().(*parser.ShowStatementContext)
+	if !ok {
+		return
+	}
+	var words []string
+	for i := 1; i < stmt.GetChildCount(); i++ {
+		if tn, ok := stmt.GetChild(i).(antlr.TerminalNode); ok {
+			words = append(words, strings.ToLower(tn.GetText()))
+		}
+	}
+	cmd := strings.ToLower(ctx.GetText()) + " " + strings.Join(words, " ")
+	if b.gate(sessionCommandInScript, stmt) {
+		b.addError(fmt.Errorf("line %d: `%s` is a session command, not a model statement: under %s a script "+
+			"holds model statements only. Type it at the REPL",
+			stmt.GetStart().GetLine(), cmd, b.langVersion))
+		return
+	}
+	if n := len(b.langNotes); n > 0 && b.langNotes[n-1].Code == sessionCommandInScript.Code {
+		b.langNotes[n-1].Message = fmt.Sprintf("`%s` is a session command: %s", cmd, b.langNotes[n-1].Message)
+	}
+}
+
+// recordSingularCollection records `list image|icon|message definition
+// collection` for the plural. The lexer's COLLECTION matches both spellings,
+// so the token's text says which one was written.
+func (b *Builder) recordSingularCollection(ctx *parser.ShowOrListContext) {
+	stmt, ok := ctx.GetParent().(*parser.ShowStatementContext)
+	if !ok || stmt.COLLECTION() == nil {
+		return
+	}
+	tok := stmt.COLLECTION().GetSymbol()
+	if strings.HasSuffix(strings.ToLower(tok.GetText()), "s") {
+		return
+	}
+	b.recordDeprecation(deprecation.SingularCollectionList, tok, "")
+	edit := insertAt(tok.GetStop()+1, keywordLike(tok.GetText(), "s"))
+	b.fixLastDeprecation(deprecation.SingularCollectionList, &ast.Fix{Edits: []ast.TextEdit{edit}}, "")
 }
 
 // EnterAlterUserRoleStatement records `remove module roles` for `drop module

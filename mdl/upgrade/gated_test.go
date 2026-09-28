@@ -75,8 +75,8 @@ func TestUpgrade_GatedRewrites(t *testing.T) {
 			mf + "  set $i = find($S, 'x');\nend;\n", false},
 		{"set contains on a String", mf + "  declare $b Boolean = false;\n  set $b = contains($S, $S);\nend;\n",
 			mf + "  declare $b Boolean = false;\n  set $b = contains($S, $S);\nend;\n", false},
-		{"create or replace user role is a plain create", "create or replace user role R (M.Admin);\n",
-			"create user role R (M.Admin);\n", true},
+		{"create or replace user role is a plain create", "create or replace user role R ( ModuleRoles: (M.Admin) );\n",
+			"create user role R ( ModuleRoles: (M.Admin) );\n", true},
 		{"while without begin", mf + "  while $S = 'a'\n    log info 'x';\n  end while;\nend;\n",
 			mf + "  while $S = 'a' begin\n    log info 'x';\n  end while;\nend;\n", true},
 		{"while ending in a bare end", mf + "  while $S = 'a' begin\n    log info 'x';\n  end; -- note\nend;\n",
@@ -190,7 +190,11 @@ func TestGatedRegistryIsComplete(t *testing.T) {
 	// MDL-V1-SESSION (R7, ako/mxcli#755) was added with its change: moving a
 	// session command out of a script is a decision about how the script is run.
 	pinned := map[string]bool{"MDL-V1-PROP": true, "MDL-V1-PROPVALUE": true, "MDL-V1-REPLACE01": true,
-		"MDL-V1-SESSION": true}
+		"MDL-V1-SESSION": true,
+		// MDL-V1-SHOWSUMMARY (R6, ako/mxcli#755) was added with its change:
+		// the summary is removed, not respelt, so the choice of replacement
+		// is the author's.
+		"MDL-V1-SHOWSUMMARY": true}
 	known := map[string]bool{}
 	for _, c := range visitor.LanguageChanges() {
 		known[c.Code] = true

@@ -56,7 +56,7 @@ create module RtMap;
 
 -- ---- #248 array-rooted structure -------------------------------------------
 create persistent entity RtMap.Item ( Code: String(20), Qty: Integer );
-create json structure RtMap.JSON_Items snippet $$[{"code": "A", "qty": 1}]$$;
+create json structure RtMap.JSON_Items sample $$[{"code": "A", "qty": 1}]$$;
 create import mapping RtMap.IMM_Items
   with json structure RtMap.JSON_Items
 { create RtMap.Item { Code = code, Qty = qty } };
@@ -72,7 +72,7 @@ end;
 create persistent entity RtMap.Product ( Name: String(50) );
 create persistent entity RtMap.Tag ( Value: String(50) );
 create association RtMap.Tag_Product from RtMap.Tag to RtMap.Product type Reference;
-create json structure RtMap.JSON_Product snippet $${"name": "n", "tags": ["a", "b"]}$$;
+create json structure RtMap.JSON_Product sample $${"name": "n", "tags": ["a", "b"]}$$;
 create import mapping RtMap.IMM_Product
   with json structure RtMap.JSON_Product
 {
@@ -92,7 +92,7 @@ end;
 -- ---- #267 mapping rooted below the payload root ----------------------------
 create persistent entity RtMap.Msg ( Content: String(200) );
 create json structure RtMap.JSON_Chat
-  snippet $${"id": "x", "choices": [{"index": 0, "message": {"role": "a", "content": "hi"}}]}$$;
+  sample $${"id": "x", "choices": [{"index": 0, "message": {"role": "a", "content": "hi"}}]}$$;
 create import mapping RtMap.IMM_Chat
   with json structure RtMap.JSON_Chat root choices/message
 { create RtMap.Msg { Content = content } };
@@ -117,7 +117,7 @@ end;
 /
 
 create persistent entity RtMap.Conv ( Loud: String(50) );
-create json structure RtMap.JSON_Conv snippet $${"word": "quiet"}$$;
+create json structure RtMap.JSON_Conv sample $${"word": "quiet"}$$;
 create import mapping RtMap.IMM_Conv
   with json structure RtMap.JSON_Conv
 { create RtMap.Conv { Loud = RtMap.CONV_Upper(word) } };
@@ -154,7 +154,7 @@ end;
 
 -- ---- #261 what `find` does when the object is not found ---------------------
 create persistent entity RtMap.Person ( Code: String(20), Name: String(50) );
-create json structure RtMap.JSON_Person snippet $${"code": "X", "name": "n"}$$;
+create json structure RtMap.JSON_Person sample $${"code": "X", "name": "n"}$$;
 
 create import mapping RtMap.IMM_FindOrCreate
   with json structure RtMap.JSON_Person
@@ -214,7 +214,7 @@ create persistent entity RtMap.Box ( Label: String(50) );
 create persistent entity RtMap.Chunk ( Idx: Integer, Text: String(50) );
 create association RtMap.Chunk_Box from RtMap.Chunk to RtMap.Box type Reference;
 create json structure RtMap.JSON_Box
-  snippet $${"label": "b", "items": [{"idx": 1, "text": "t"}]}$$;
+  sample $${"label": "b", "items": [{"idx": 1, "text": "t"}]}$$;
 
 -- The resolver. If custom handling really runs, the import binds the object
 -- THIS returns instead of creating one.
@@ -256,7 +256,7 @@ create persistent entity RtMap.Cart ( Holder: String(50) );
 create persistent entity RtMap.Line ( Sku: String(50) );
 create association RtMap.Line_Cart from RtMap.Line to RtMap.Cart type Reference;
 create json structure RtMap.JSON_Cart
-  snippet $${"holder": "o", "meta": {"lines": [{"sku": "s"}]}}$$;
+  sample $${"holder": "o", "meta": {"lines": [{"sku": "s"}]}}$$;
 
 -- A bare array container plus an entity-less grouping node — the two shapes
 -- #262 changed. If either is written wrong the export produces the wrong JSON.
@@ -288,7 +288,7 @@ end;
 create persistent entity RtMap.Coll ( Title: String(50) );
 create persistent entity RtMap.Piece ( Body: String(50) );
 create association RtMap.Piece_Coll from RtMap.Piece to RtMap.Coll type Reference;
-create json structure RtMap.JSON_Pieces snippet $${"items": [{"body": "b"}]}$$;
+create json structure RtMap.JSON_Pieces sample $${"items": [{"body": "b"}]}$$;
 
 create microflow RtMap.MF_FromParam ( $Collection: RtMap.Coll )
 returns RtMap.Piece as $P

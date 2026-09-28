@@ -25,12 +25,12 @@
 -- Run with `mxcli exec`, then `mxcli docker check --no-update-widgets`: the
 -- project must report 0 errors at production security level.
 
-alter app security level production;
+alter app security ( SecurityLevel: production );
 
 create module Sec554;
 
 create module role Sec554.Administrator;
-create or modify user role Administrator (Sec554.Administrator, System.User);
+create or modify user role Administrator ( ModuleRoles: (Sec554.Administrator, System.User) );
 
 -- The owner half.
 create persistent entity Sec554.Fab (

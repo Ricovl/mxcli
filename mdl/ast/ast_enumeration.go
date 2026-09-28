@@ -15,7 +15,8 @@ type EnumValue struct {
 
 // CreateModuleStmt represents: CREATE MODULE ModuleName
 type CreateModuleStmt struct {
-	Name string
+	CreateGuard // `create … if not exists` (ako/mxcli#731)
+	Name        string
 }
 
 func (s *CreateModuleStmt) isStatement() {}
@@ -48,6 +49,7 @@ func (s *MoveFolderStmt) isStatement() {}
 
 // CreateEnumerationStmt represents: CREATE ENUMERATION Module.Name (values) COMMENT '...'
 type CreateEnumerationStmt struct {
+	CreateGuard   // `create … if not exists` (ako/mxcli#731)
 	Name          QualifiedName
 	Values        []EnumValue
 	Documentation string
@@ -69,6 +71,8 @@ type AlterEnumerationStmt struct {
 	ValueName string
 	NewName   string // For RENAME
 	Caption   string // For ADD and MODIFY CAPTION
+	// Documentation is the text of SET DOCUMENTATION.
+	Documentation string
 
 	// Idempotency guards, so a script that adds an enumeration value is
 	// re-runnable. Without them the second run errors and exec STOPS THERE,
@@ -88,6 +92,9 @@ const (
 	AlterEnumDrop
 	AlterEnumRename
 	AlterEnumModifyCaption // MODIFY VALUE X CAPTION '...' — change an existing value's caption
+	// AlterEnumSetDocumentation is SET DOCUMENTATION '…' (SET COMMENT is its
+	// deprecated alias, MDL-DEPR135).
+	AlterEnumSetDocumentation
 )
 
 // DropEnumerationStmt represents: DROP ENUMERATION Module.Name
@@ -104,6 +111,7 @@ func (s *DropEnumerationStmt) isStatement() {}
 
 // CreateConstantStmt represents: CREATE CONSTANT Module.Name TYPE type DEFAULT value [COMMENT '...']
 type CreateConstantStmt struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	DataType         DataType
 	DefaultValue     any // The default value (can be string, number, boolean, etc.)

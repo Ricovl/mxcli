@@ -38,7 +38,7 @@
 create module BugTest519;
 
 create json structure BugTest519.JSON_Pets
-snippet '[{"id": 1, "name": "Fido", "status": "available"}]';
+sample '[{"id": 1, "name": "Fido", "status": "available"}]';
 
 create non-persistent entity BugTest519.PetResponse (
   PetId : integer,

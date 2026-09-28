@@ -70,7 +70,7 @@ create association BugTest260.Item_Root  from BugTest260.Item  to BugTest260.Roo
 create association BugTest260.Price_Item from BugTest260.Price to BugTest260.Item type Reference;
 
 create json structure BugTest260.JSON_Payload
-  snippet $${
+  sample $${
     "name": "n",
     "meta": {"pagination": {"start": 0, "total": 10}},
     "data": [{"code": "c", "items": {"price": {"regular": 1}}}]

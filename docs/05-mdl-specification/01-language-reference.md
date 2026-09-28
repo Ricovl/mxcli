@@ -762,7 +762,7 @@ Creates a page with a widget tree.
 ```sql
 create [or replace] page <qualified-name>
 (
-  [params: { $Param: Module.Entity | type [, ...] },]
+  [params: ( $Param: Module.Entity | type [, ...] ),]
   title: '<title>',
   layout: <Module.LayoutName>
   [, folder: '<path>']
@@ -788,7 +788,7 @@ WIDGET_TYPE widgetName (Property: value, ...) [{ children }]
 ```sql
 create page MyModule.Customer_Edit
 (
-  params: { $Customer: MyModule.Customer },
+  params: ( $Customer: MyModule.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -1170,8 +1170,13 @@ Changes project-wide security settings.
 
 **Syntax:**
 ```sql
-alter app security level off | prototype | production
-alter app security demo users on | off
+alter app security (
+  [SecurityLevel: off | prototype | production,]
+  [EnableDemoUsers: true | false,]
+  [EnableGuestAccess: true | false,]
+  [GuestUserRole: <UserRole>,]
+  [StrictMode: true | false]
+)
 ```
 
 ### CREATE DEMO USER
@@ -1226,13 +1231,17 @@ create or replace navigation <profile>
   [home page Module.AdminHome for AdminUserRole]
   [login page Module.LoginPage]
   [not found page Module.Custom404]
-  [menu (
-    menu item 'Label' page Module.Page;
-    menu 'Submenu' (
-      menu item 'Label' page Module.Page;
-    );
-  )]
+  [{
+    menu item 'Label' ( OnClick: show page Module.Page [, Icon: <icon>] )
+    menu 'Submenu' [( Icon: <icon> )] {
+      menu item 'Label' ( OnClick: call microflow Module.Flow )
+    }
+  }]
 ```
+
+Menu items are the profile's children, in `{ }` with no separator. `OnClick` is
+`show page`, `call microflow` or `sign out`. The old `menu ( menu item 'Label' page
+Module.Page; )` still parses and warns (MDL-DEPR121, MDL-DEPR122).
 
 **Example:**
 ```sql
@@ -1240,12 +1249,12 @@ create or replace navigation Responsive
   home page MyModule.Home_Web
   home page MyModule.AdminHome for Administrator
   login page Administration.Login
-  menu (
-    menu item 'Home' page MyModule.Home_Web;
-    menu 'Admin' (
-      menu item 'Users' page Administration.Account_Overview;
-    );
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyModule.Home_Web )
+    menu 'Admin' {
+      menu item 'Users' ( OnClick: show page Administration.Account_Overview )
+    }
+  };
 ```
 
 ---

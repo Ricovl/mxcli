@@ -17,7 +17,7 @@ create module Bug932;
 -- Everything is created at the module root first, so the folder clauses below
 -- are genuinely moves rather than initial placements.
 create or modify json structure Bug932.JSON_Example
-  snippet '{"result": [{"id": 1}]}';
+  sample '{"result": [{"id": 1}]}';
 /
 
 create or modify microflow Bug932.ACT_Example()
@@ -38,7 +38,7 @@ create or modify constant Bug932.CONST_Example type string default 'x';
 -- and moved nothing.
 create or modify json structure Bug932.JSON_Example
   folder 'Private/JSON Structures'
-  snippet '{"result": [{"id": 1}]}';
+  sample '{"result": [{"id": 1}]}';
 /
 
 create or modify microflow Bug932.ACT_Example()
@@ -54,8 +54,7 @@ create or modify enumeration Bug932.ENUM_Example (Draft 'Draft', Published 'Publ
   folder 'Private';
 /
 
-create or modify constant Bug932.CONST_Example type string default 'x'
-  folder 'Private';
+create or modify constant Bug932.CONST_Example folder 'Private' type string default 'x';
 /
 
 -- Expected layout: nothing left at the module root, and no empty folders.
@@ -79,7 +78,7 @@ list folders in Bug932;
 -- alone. If this filed JSON_Example back into the module root, every
 -- CREATE OR MODIFY in every existing script would unfile its document.
 create or modify json structure Bug932.JSON_Example
-  snippet '{"result": [{"id": 1}, {"id": 2}]}';
+  sample '{"result": [{"id": 1}, {"id": 2}]}';
 /
 
 list folders in Bug932;

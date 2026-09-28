@@ -59,7 +59,7 @@ create association BugTest265.Chunk_ChunkCollection
   type Reference;
 
 create json structure BugTest265.JSON_Embed
-  snippet $${"id": "x", "embeddings": [{"text": "t", "idx": 1}]}$$;
+  sample $${"id": "x", "embeddings": [{"text": "t", "idx": 1}]}$$;
 
 create microflow BugTest265.MF_FindChunk (
   $Collection: BugTest265.ChunkCollection,

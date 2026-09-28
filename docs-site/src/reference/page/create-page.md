@@ -5,10 +5,10 @@
 ```sql
 CREATE [ OR REPLACE ] PAGE module.Name [ FOLDER 'path' ]
 (
-    [ Params: { $param : Module.Entity | Type [, ...] }, ]
+    [ Params: ( $param : Module.Entity | Type [, ...] ), ]
     Title: 'title',
     Layout: Module.LayoutName
-    [, Variables: { $name : type = 'expression' [, ...] } ]
+    [, Variables: ( $name : type = 'expression' [, ...] ) ]
 )
 {
     widget_tree
@@ -192,14 +192,14 @@ These properties are available on most widget types:
 | `DynamicClasses` | Runtime-computed CSS classes (expression; stacks on `Class`) | `DynamicClasses: if $currentObject/IsActive then 'is-active' else ''` |
 | `Editable` | Edit control | `Editable: NEVER` or `Editable: ALWAYS` |
 | `Visible` | Visibility expression | `Visible: '$showField'` |
-| `DesignProperties` | Atlas design properties | `DesignProperties: ['Spacing top': 'Large']` |
+| `DesignProperties` | Atlas design properties | `DesignProperties: ('Spacing top': 'Large')` |
 
 ## Parameters
 
 `module.Name`
 :   The qualified name of the page (`Module.PageName`). The module must already exist.
 
-`Params: { ... }`
+`Params: ( ... )`
 :   Optional page parameters. Each parameter has a `$`-prefixed name and an entity type.
 
 `Title: 'title'`
@@ -211,7 +211,7 @@ These properties are available on most widget types:
 `FOLDER 'path'`
 :   Optional folder within the module, as a clause after the name. Nested folders use `/`. The `Folder: 'path'` property is its deprecated alias (`MDL-DEPR105`).
 
-`Variables: { ... }`
+`Variables: ( ... )`
 :   Optional page variables with type and default expression.
 
 ## Examples
@@ -221,7 +221,7 @@ Edit page with a data view and form fields:
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-    Params: { $Customer: MyModule.Customer },
+    Params: ( $Customer: MyModule.Customer ),
     Title: 'Edit Customer',
     Layout: Atlas_Core.PopupLayout
 )
@@ -293,7 +293,7 @@ Page with snippet call:
 ```sql
 CREATE PAGE MyModule.Customer_Detail
 (
-    Params: { $Customer: MyModule.Customer },
+    Params: ( $Customer: MyModule.Customer ),
     Title: 'Customer Detail',
     Layout: Atlas_Core.Atlas_Default
 )
@@ -339,10 +339,10 @@ Page with page variables and conditional visibility:
 ```sql
 CREATE PAGE MyModule.AdvancedForm
 (
-    Params: { $Item: MyModule.Item },
+    Params: ( $Item: MyModule.Item ),
     Title: 'Advanced Form',
     Layout: Atlas_Core.Atlas_Default,
-    Variables: { $showAdvanced: Boolean = 'false' }
+    Variables: ( $showAdvanced: Boolean = 'false' )
 )
 {
     DATAVIEW dvItem (DataSource: $Item) {

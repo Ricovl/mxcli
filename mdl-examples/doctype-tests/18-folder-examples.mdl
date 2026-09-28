@@ -167,7 +167,7 @@ create entity FolderMove932.Order (
 /
 
 create json structure FolderMove932.JSON_Order
-  snippet '{"id": 1, "name": "Widget"}';
+  sample '{"id": 1, "name": "Widget"}';
 /
 
 create import mapping FolderMove932.IMM_Order
@@ -191,7 +191,7 @@ move import mapping FolderMove932.IMM_Order to folder 'Private/Import mappings';
 -- and re-running it must be a no-op rather than a second move.
 create or modify json structure FolderMove932.JSON_Order
   folder 'Private/JSON structures'
-  snippet '{"id": 1, "name": "Widget"}';
+  sample '{"id": 1, "name": "Widget"}';
 /
 
 list folders in FolderMove932;

@@ -32,7 +32,7 @@ func TestWarnDemoUsersInert(t *testing.T) {
 			if !strings.Contains(got, "security level is Off") {
 				t.Errorf("level %q: expected a warning, got %q", tt.level, got)
 			}
-			if !strings.Contains(got, "alter app security level prototype") {
+			if !strings.Contains(got, "alter app security ( SecurityLevel: prototype )") {
 				t.Errorf("level %q: the warning must name the fix, got %q", tt.level, got)
 			}
 		} else if got != "" {

@@ -30,7 +30,7 @@ create persistent entity Issue527.ServiceRequest (
  */
 create or modify page Issue527.ServiceRequest_Triage (
   title: 'Triage',
-  params: { $Request: Issue527.ServiceRequest }
+  params: ( $Request: Issue527.ServiceRequest )
 )
 {
   dataview dvMain (datasource: $Request) {

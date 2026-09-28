@@ -29,8 +29,8 @@ DROP MODULE ROLE Shop.Viewer;
 ### Listing Module Roles
 
 ```sql
-SHOW MODULE ROLES;
-SHOW MODULE ROLES IN Shop;
+LIST MODULE ROLES;
+LIST MODULE ROLES IN Shop;
 ```
 
 ## User Roles
@@ -40,7 +40,9 @@ A user role is a project-level role assigned to end users at login. Each user ro
 ### CREATE USER ROLE
 
 ```sql
-CREATE USER ROLE <Name> (<Module>.<Role> [, ...]) [MANAGE ALL ROLES];
+CREATE USER ROLE <Name> [( ModuleRoles: (<Module>.<Role> [, ...]), Description: '<text>',
+    ManageAllRoles: true|false, ManageableRoles: (<UserRole> [, ...]),
+    ManageUsersWithoutRoles: true|false, CheckSecurity: true|false )];
 ```
 
 The `MANAGE ALL ROLES` option allows users with this role to assign any user role to other users (typically for administrators).
@@ -49,13 +51,13 @@ Examples:
 
 ```sql
 -- Administrator with management rights
-CREATE USER ROLE AppAdmin (Shop.Admin, System.Administrator) MANAGE ALL ROLES;
+CREATE USER ROLE AppAdmin ( ModuleRoles: (Shop.Admin, System.Administrator), ManageAllRoles: true );
 
 -- Regular user
-CREATE USER ROLE AppUser (Shop.User);
+CREATE USER ROLE AppUser ( ModuleRoles: (Shop.User) );
 
 -- Read-only viewer
-CREATE USER ROLE AppViewer (Shop.Viewer);
+CREATE USER ROLE AppViewer ( ModuleRoles: (Shop.Viewer) );
 ```
 
 ### ALTER USER ROLE
@@ -76,7 +78,7 @@ DROP USER ROLE AppViewer;
 ### Listing User Roles
 
 ```sql
-SHOW USER ROLES;
+LIST USER ROLES;
 ```
 
 ## Typical Setup
@@ -90,9 +92,9 @@ CREATE MODULE ROLE Shop.User DESCRIPTION 'Standard shop access';
 CREATE MODULE ROLE Reporting.Viewer DESCRIPTION 'View reports';
 
 -- 2. User roles
-CREATE USER ROLE Administrator (Shop.Admin, Reporting.Viewer, System.Administrator) MANAGE ALL ROLES;
-CREATE USER ROLE Employee (Shop.User, Reporting.Viewer);
-CREATE USER ROLE Guest (Shop.User);
+CREATE USER ROLE Administrator ( ModuleRoles: (Shop.Admin, Reporting.Viewer, System.Administrator), ManageAllRoles: true );
+CREATE USER ROLE Employee ( ModuleRoles: (Shop.User, Reporting.Viewer) );
+CREATE USER ROLE Guest ( ModuleRoles: (Shop.User) );
 ```
 
 ## See Also

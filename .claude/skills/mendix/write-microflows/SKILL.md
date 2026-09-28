@@ -162,7 +162,7 @@ alternative. Java and JavaScript actions have one entry each and use the shorter
 
 `@excluded` before a `create microflow` marks the document **"Exclude from project"**
 (the same checkbox Studio Pro offers). The document stays in the `.mpr`, does not
-build, and `show microflows` reports it in the `Excluded` column.
+build, and `list microflows` reports it in the `Excluded` column.
 
 ```mdl
 @excluded

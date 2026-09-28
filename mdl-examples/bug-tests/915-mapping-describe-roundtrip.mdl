@@ -32,7 +32,7 @@
 --
 -- Export mappings had both defects identically; the issue only reported import.
 
-create or modify json structure Bug915.JSON_Payload snippet $${
+create or modify json structure Bug915.JSON_Payload sample $${
   "total": 3,
   "camelCase": "x",
   "item": [

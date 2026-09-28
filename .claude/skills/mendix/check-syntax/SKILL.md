@@ -87,8 +87,10 @@ fourth — so "run it and see" is not a free experiment. `check` reports every
 conflict in the script before anything is written.
 
 Three spellings say "fine if it already exists", and none is reported:
-`create or modify`, `create or replace`, and `create … if not exists` (which
-leaves the stored element untouched rather than rewriting it). `create module M;`
+`create or modify`, `create or replace`, and `create <kind> if not exists <name>`
+(which leaves the stored element untouched rather than rewriting it; every
+`create` that names one element takes it, e.g. `create page if not exists M.P …`
+— `mxcli syntax create-if-not-exists`). `create module M;`
 is never reported either — it is a no-op when the module exists, which is what
 lets it open every script.
 
@@ -311,7 +313,7 @@ Before writing any MDL, verify these requirements:
 > **Exception — never quote `$`-prefixed variable/parameter references.** The quote
 > rule is for *bare* names (entities, attributes, associations, declared parameter
 > names). Variable and parameter **references** in expressions and widget bindings
-> stay **unquoted**: `datasource: $X`, `params: { $X: MES."Order" }`, `$currentObject`.
+> stay **unquoted**: `datasource: $X`, `params: ( $X: MES."Order" )`, `$currentObject`.
 > Quoting them (`"$X"`) breaks resolution ("parameter … references '$X' but no such
 > parameter is declared").
 >

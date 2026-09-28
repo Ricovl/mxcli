@@ -39,11 +39,11 @@
 -- Written against a `mxcli new` app, whose starting module is MyFirstModule.
 -- Re-runnable: every statement is CREATE OR MODIFY / OR REPLACE.
 
-alter app security level production;
-alter app security demo users on;
+alter app security ( SecurityLevel: production );
+alter app security ( EnableDemoUsers: true );
 
 create or modify module role MyFirstModule.User;
-create or modify user role ApiUser (MyFirstModule.User, System.User);
+create or modify user role ApiUser ( ModuleRoles: (MyFirstModule.User, System.User) );
 
 create or modify entity MyFirstModule.Row (
   -- CE6624: an OData key attribute needs a unique validation rule.

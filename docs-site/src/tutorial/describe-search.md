@@ -82,7 +82,7 @@ Example output:
 ```sql
 CREATE PAGE MyFirstModule.Customer_Edit
 (
-  Params: { $Customer: MyFirstModule.Customer },
+  Params: ( $Customer: MyFirstModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )
@@ -217,8 +217,8 @@ A typical exploration workflow looks like this:
 
 1. **Start broad** with SHOW to see what exists:
    ```sql
-   SHOW MODULES;
-   SHOW ENTITIES IN Sales;
+   LIST MODULES;
+   LIST ENTITIES IN Sales;
    ```
 
 2. **Zoom in** with DESCRIBE on interesting elements:
@@ -234,4 +234,4 @@ A typical exploration workflow looks like this:
 
 This workflow mirrors how you would explore a project in Mendix Studio Pro -- browsing the project explorer, opening documents, and using Find to locate things.
 
-Next, learn how to get a compact overview of the entire project with [DESCRIBE STRUCTURE](show-structure.md).
+Next, learn how to get a compact overview of the entire project with [DESCRIBE STRUCTURE](describe-structure.md).

@@ -30,10 +30,10 @@ create module MapTest;
 -- ============================================================================
 
 create json structure MapTest.JSON_Pet
-snippet '{"id": 1, "name": "Fido", "status": "available"}';
+sample '{"id": 1, "name": "Fido", "status": "available"}';
 
 create json structure MapTest.JSON_Order
-snippet '{"orderId": 100, "customer": {"name": "Alice", "email": "alice@example.com"}, "items": [{"sku": "A1", "quantity": 2, "price": 9.99}]}';
+sample '{"orderId": 100, "customer": {"name": "Alice", "email": "alice@example.com"}, "items": [{"sku": "A1", "quantity": 2, "price": 9.99}]}';
 
 -- ############################################################################
 -- PART 1: SIMPLE MAPPINGS (flat JSON, shared domain model)

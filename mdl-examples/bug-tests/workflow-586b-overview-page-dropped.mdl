@@ -48,7 +48,7 @@ create entity WF586B.Request (
 create page WF586B.Overview (
   title: 'Requests',
   layout: Atlas_Core.Atlas_Default,
-  params: { $Workflow: System.Workflow }
+  params: ( $Workflow: System.Workflow )
 ) {
   layoutgrid g1 {
     row {
@@ -63,7 +63,7 @@ create page WF586B.Overview (
 create page WF586B.TaskPage (
   title: 'Task',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 {
     row {
@@ -91,4 +91,4 @@ end workflow;
 
 -- The ALTER path has always written AdminPage correctly; it is here because
 -- until the READ was fixed it, too, described back as absent.
-alter workflow WF586B.Review set overview page WF586B.Overview;
+alter workflow WF586B.Review { set (OverviewPage: WF586B.Overview); };

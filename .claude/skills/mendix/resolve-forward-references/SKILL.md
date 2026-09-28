@@ -133,7 +133,7 @@ page must exist before the overview can reference it.
 
 create page MyModule.Customer_NewEdit
 (
-  params: { $Customer: MyModule.Customer },
+  params: ( $Customer: MyModule.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -181,7 +181,7 @@ For simple cases, reordering declarations is sufficient and no placeholder is ne
 -- Page first
 create page MyModule.Order_Detail
 (
-  params: { $Order: MyModule.Order },
+  params: ( $Order: MyModule.Order ),
   title: 'Order Detail',
   layout: Atlas_Core.Atlas_Default
 )
@@ -267,7 +267,7 @@ create snippet MyModule.AppNav
 -- 2. NewEdit page (referenced by Overview's New button)
 create page MyModule.Customer_NewEdit
 (
-  params: { $Customer: MyModule.Customer },
+  params: ( $Customer: MyModule.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )

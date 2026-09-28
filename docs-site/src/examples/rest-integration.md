@@ -148,7 +148,7 @@ Map a JSON response to Mendix entities using a JSON structure and import mapping
 ```sql
 -- Step 1: Define the JSON structure
 CREATE JSON STRUCTURE Integration.JSON_Pet
-  SNIPPET '{"id": 1, "name": "Fido", "status": "available"}';
+  SAMPLE '{"id": 1, "name": "Fido", "status": "available"}';
 
 -- Step 2: Create a non-persistent entity to hold the data
 CREATE NON-PERSISTENT ENTITY Integration.PetResponse (
@@ -255,7 +255,7 @@ CREATE CONSUMED REST SERVICE Integration.OrdersApi (
     Method: GET,
     Path: '/orders/{id}',
     Parameters: ($id: String),
-    Headers: ('Accept' = 'application/json'),
+    Headers: ('Accept': 'application/json'),
     Timeout: 30,
     Response: JSON AS $Result
   )
@@ -263,7 +263,7 @@ CREATE CONSUMED REST SERVICE Integration.OrdersApi (
   OPERATION CreateOrder (
     Method: POST,
     Path: '/orders',
-    Headers: ('Content-Type' = 'application/json'),
+    Headers: ('Content-Type': 'application/json'),
     Body: MAPPING Integration.OrderRequest {
       customerId = CustomerId,
       totalAmount = TotalAmount,
@@ -278,6 +278,8 @@ CREATE CONSUMED REST SERVICE Integration.OrdersApi (
 };
 ```
 
+A header value is a template, like the path: `{Token}` is the operation parameter `Token`, which the operation must declare (`Parameters: ($Token: String)`, else CE7056). An authorization header is `Headers: ('Authorization': 'Bearer {Token}')`. The expression spelling `'Bearer ' + $Token` is deprecated (MDL-DEPR711) and `mxcli fmt --upgrade` rewrites it; it used to store only `Bearer `.
+
 Use `CREATE OR MODIFY CONSUMED REST SERVICE` to update an existing client without dropping it first:
 
 ```sql
@@ -290,7 +292,7 @@ CREATE OR MODIFY CONSUMED REST SERVICE Integration.OrdersApi (
     Method: GET,
     Path: '/orders/{id}',
     Parameters: ($id: String),
-    Headers: ('Accept' = 'application/json'),
+    Headers: ('Accept': 'application/json'),
     Timeout: 60,
     Response: JSON AS $Result
   )
@@ -405,4 +407,4 @@ DROP DATA TRANSFORMER Integration.WeatherTransform;
 - Steps execute in order; the output of each step feeds the next.
 - `JSLT '...'` for short single-line expressions; `JSLT $$ ... $$` for multi-line.
 - `XSLT $$ ... $$` is also supported for XML-to-XML transformations.
-- Requires Mendix 11.9+. Use `SHOW FEATURES` to confirm support before using.
+- Requires Mendix 11.9+. Use `LIST FEATURES` to confirm support before using.

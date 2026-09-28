@@ -90,7 +90,7 @@ end;
 
 create page RefsGraph.Machine_Details
 (
-  params: { $Machine: RefsGraph.Machine },
+  params: ( $Machine: RefsGraph.Machine ),
   title: 'Machine',
   layout: Atlas_Core.Atlas_Default
 )

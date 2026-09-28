@@ -41,7 +41,7 @@ create or modify page MyFirstModule.P_LowerSet
 (
   Title: 'Lowercase Set',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Row: MyFirstModule.Row }
+  Params: ( $Row: MyFirstModule.Row )
 )
 {
   dataview dv (datasource: $Row) {

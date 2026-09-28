@@ -9,7 +9,7 @@
 --   SNIPPETCALL call1 (Snippet: Mod.MySnippet, Params: {Asset: $Asset})
 
 CREATE SNIPPET Mod.MySnippet FOLDER 'Snippets' (
-  Params: { $Asset: Mod.Asset }
+  Params: ( $Asset: Mod.Asset )
 ) {
   DYNAMICTEXT txt1 (Content: 'Hello')
 };

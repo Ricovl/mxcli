@@ -41,7 +41,7 @@ create snippet Module.Entity_Menu
 ```sql
 create [or replace] snippet Module.SnippetName
 [(
-  params: { $ParamName: Module.EntityType }
+  params: ( $ParamName: Module.EntityType )
 )]
 [folder 'path']
 {
@@ -96,7 +96,7 @@ create page Module.Entity_Overview
           datasource: database Module.Entity,
           selection: Multi,
           PagingPosition: both,
-          designproperties: ['Compact': on, 'Hover': on, 'Striped': on]
+          designproperties: ('Compact': on, 'Hover': on, 'Striped': on)
         ) {
           column (attribute: Name, caption: 'Name') {
             textfilter textFilter1
@@ -124,7 +124,7 @@ Include a snippet in a page using SNIPPETCALL:
 snippetcall widgetName (snippet: Module.SnippetName)
 
 -- With parameters (for parameterized snippets):
-snippetcall widgetName (snippet: Module.SnippetName, params: {Customer: $Customer})
+snippetcall widgetName (snippet: Module.SnippetName, params: (Customer = $Customer))
 ```
 
 ### Overview Page Components
@@ -141,7 +141,7 @@ datagrid GridName (
   datasource: database from Module.Entity where [IsActive = true] sort by Name asc,
   selection: Multi,
   PagingPosition: both,
-  designproperties: ['Compact': on, 'Hover': on, 'Striped': on]
+  designproperties: ('Compact': on, 'Hover': on, 'Striped': on)
 ) {
   column (attribute: Name, caption: 'Name') {
     textfilter textFilter1
@@ -163,7 +163,7 @@ datagrid GridName (
   thing (mendixlabs/mxcli#1152)
 - `selection: Multi` - Multi-selection (`Multi`, `Single`, or omit for none)
 - `PagingPosition: both` - Pagination bar position (`top`, `bottom`, `both`)
-- `designproperties: ['Compact': on, 'Hover': on, 'Striped': on]` - Atlas design tokens
+- `designproperties: ('Compact': on, 'Hover': on, 'Striped': on)` - Atlas design tokens
 
 **Column Types:**
 - `column (attribute: attribute, caption: 'label')` - Attribute column (own-entity attribute)
@@ -236,7 +236,7 @@ Form for creating or editing a single entity. **Requires a page parameter** to r
 ```sql
 create page Module.Entity_NewEdit
 (
-  params: { $entity: Module.Entity },
+  params: ( $entity: Module.Entity ),
   title: 'Edit Entity',
   layout: Atlas_Core.PopupLayout,
   folder: 'OverviewPages'
@@ -268,7 +268,7 @@ create page Module.Entity_NewEdit
 ```sql
 create page Module.PageName
 (
-  params: { $ParamName: Module.EntityName },
+  params: ( $ParamName: Module.EntityName ),
   title: '...',
   layout: ...
 )
@@ -281,7 +281,7 @@ create page Module.PageName
 
 ### NewEdit Page Components
 
-1. **Page Parameter**: `params: { $entity: Module.Entity }` - Receives the object to edit
+1. **Page Parameter**: `params: ( $entity: Module.Entity )` - Receives the object to edit
 2. **Layout**: `Atlas_Core.PopupLayout` - Popup/modal style
 3. **DataView**: Container bound to page parameter (`datasource: $entity`)
 4. **Input Widgets**: Match entity attributes with `attribute:` property
@@ -354,7 +354,7 @@ create page MdlTemplates.Store_Overview
 ```sql
 create page MdlTemplates.Store_NewEdit
 (
-  params: { $store: MdlTemplates.Store },
+  params: ( $store: MdlTemplates.Store ),
   title: 'Edit Store',
   layout: Atlas_Core.PopupLayout,
   folder: 'OverviewPages'
@@ -407,7 +407,7 @@ Shows various input widget types:
 ```sql
 create page MdlTemplates.Car_NewEdit
 (
-  params: { $Car: MdlTemplates.Car },
+  params: ( $Car: MdlTemplates.Car ),
   title: 'Edit Car',
   layout: Atlas_Core.PopupLayout,
   folder: 'OverviewPages'
@@ -498,7 +498,7 @@ module/
 ## Parameterized Snippets
 
 Snippets can accept parameters to display context-specific data. **A snippet
-parameter must be an entity.** A primitive one (`params: { $Label: String }`) is
+parameter must be an entity.** A primitive one (`params: ( $Label: String )`) is
 refused as **MDL087**, because Mendix rejects it with **CE0046** *"Invalid data
 type 'String'."* — a *page* parameter may be a primitive, a snippet parameter may
 not. To parameterise a snippet on a value, keep the primitive on the calling
@@ -508,7 +508,7 @@ page's parameters, or pass an object and read the member inside the snippet.
 -- Create a snippet with a parameter
 create snippet Module.CustomerDetails
 (
-  params: { $Customer: Module.Customer }
+  params: ( $Customer: Module.Customer )
 )
 {
   layoutgrid detailsGrid {
@@ -521,7 +521,7 @@ create snippet Module.CustomerDetails
 }
 
 -- Use the snippet with parameter passing
-snippetcall customerDetails (snippet: Module.CustomerDetails, params: {Customer: $Customer})
+snippetcall customerDetails (snippet: Module.CustomerDetails, params: (Customer = $Customer))
 ```
 
 ## Entity Menu Snippets with NavigationList
@@ -531,7 +531,7 @@ For entity-specific action menus (Edit, Delete, etc.), use the `navigationlist` 
 ```sql
 create snippet Module.Entity_Menu
 (
-  params: { $EntityParameter: Module.Entity }
+  params: ( $EntityParameter: Module.Entity )
 )
 {
   navigationlist EntityMenuNav {
@@ -604,7 +604,7 @@ create snippet Module.NavigationMenu
 -- Step 2: Create all pages (they reference the snippet via SNIPPETCALL)
 create page Module.Customer_NewEdit
 (
-  params: { $Customer: Module.Customer },
+  params: ( $Customer: Module.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -659,7 +659,7 @@ See [Resolve Forward References](../resolve-forward-references/SKILL.md) for the
 
 | Command | Description |
 |---------|-------------|
-| `show snippets [in module]` | List all snippets |
+| `list snippets [in module]` | List all snippets |
 | `show snippet Module.Name` | Show snippet summary |
 | `describe snippet Module.Name` | Show snippet MDL source |
 | `create snippet Module.Name { ... }` | Create a new snippet |

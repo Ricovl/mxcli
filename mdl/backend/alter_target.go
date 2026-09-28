@@ -146,3 +146,109 @@ func CheckPageAlterTarget(t AlterTarget) error {
 	}
 	return nil
 }
+
+// WorkflowActivityCandidate is one workflow activity a target was compared
+// with: its name, its caption and its storage $Type.
+type WorkflowActivityCandidate struct {
+	Name        string
+	Caption     string
+	StorageType string
+}
+
+// ResolveWorkflowActivityTarget is the workflow's address rule, shared by
+// every backend's workflow mutator so an activity address means the same thing
+// on each. candidates are the activities whose name or caption equals the
+// target's text, in the depth-first order `describe workflow` prints them (an
+// activity, then its outcome flows, then its boundary-event flows).
+//
+// A name is an activity's identity and a caption a label that may repeat
+// another activity's name (a jump's caption defaults to its target's name), so
+// without @n the activities NAMED so win over those merely captioned so. With
+// @n every match counts, so an existing `ACT_Process@2` keeps addressing what
+// it always did.
+func ResolveWorkflowActivityTarget(t AlterTarget, candidates []WorkflowActivityCandidate) (AlterTargetMatch, error) {
+	if err := CheckWorkflowAlterTarget(t); err != nil {
+		return AlterTargetMatch{}, err
+	}
+	ref := WorkflowTargetText(t)
+	pool := candidates
+	if t.Ordinal == 0 {
+		var named []WorkflowActivityCandidate
+		for _, c := range candidates {
+			if c.Name == ref {
+				named = append(named, c)
+			}
+		}
+		if len(named) > 0 {
+			pool = named
+		}
+	}
+	matches := make([]AlterTargetMatch, 0, len(pool))
+	for _, c := range pool {
+		name := c.Name
+		if name == "" {
+			name = "'" + strings.ReplaceAll(c.Caption, "'", "''") + "'"
+		}
+		matches = append(matches, AlterTargetMatch{Kind: WorkflowActivityKind(c.StorageType), Name: name})
+	}
+	return PickAlterTargetMatch(t, matches)
+}
+
+// WorkflowTargetText is the text a workflow target compares with an
+// activity's name and caption.
+func WorkflowTargetText(t AlterTarget) string {
+	if t.Caption != "" {
+		return t.Caption
+	}
+	if len(t.Path) > 0 {
+		return t.Path[0]
+	}
+	return ""
+}
+
+// CheckWorkflowAlterTarget refuses the address forms a workflow activity has
+// no use for: a dotted member path.
+func CheckWorkflowAlterTarget(t AlterTarget) error {
+	if t.Caption == "" && len(t.Path) != 1 {
+		return &AlterTargetError{Target: t, Detail: fmt.Sprintf(
+			"alter target %s: a workflow activity is addressed by its name (`ReviewOrder`) or its "+
+				"caption (`'Review the order'`), with @n to choose one of several matches", t)}
+	}
+	return nil
+}
+
+// WorkflowActivityKind names a workflow activity's storage $Type the way an
+// author would, for the matches an ambiguous target lists.
+func WorkflowActivityKind(storageType string) string {
+	switch storageType {
+	case "Workflows$SingleUserTaskActivity", "Workflows$UserTaskActivity":
+		return "user task"
+	case "Workflows$MultiUserTaskActivity":
+		return "multi user task"
+	case "Workflows$ExclusiveSplitActivity":
+		return "decision"
+	case "Workflows$ParallelSplitActivity":
+		return "parallel split"
+	case "Workflows$CallMicroflowTask", "Workflows$CallMicroflowActivity":
+		return "call microflow"
+	case "Workflows$AIAgentTaskActivity":
+		return "call agent microflow"
+	case "Workflows$CallWorkflowActivity":
+		return "call workflow"
+	case "Workflows$JumpToActivity":
+		return "jump"
+	case "Workflows$WaitForTimerActivity":
+		return "wait for timer"
+	case "Workflows$WaitForNotificationActivity":
+		return "wait for notification"
+	case "Workflows$NotificationActivity":
+		return "notification"
+	case "Workflows$EndWorkflowActivity":
+		return "end workflow"
+	case "Workflows$StartWorkflowActivity":
+		return "start"
+	case "Workflows$Annotation":
+		return "annotation"
+	}
+	return "activity"
+}

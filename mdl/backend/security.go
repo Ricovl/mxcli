@@ -37,9 +37,29 @@ type ProjectSecurityBackend interface {
 	SetProjectGuestAccess(unitID model.ID, enabled bool, guestUserRole string) error
 	AddUserRole(unitID model.ID, name string, moduleRoles []string, manageAllRoles bool) error
 	AlterUserRoleModuleRoles(unitID model.ID, userRoleName string, add bool, moduleRoles []string) error
+	// SetUserRoleProperties sets the properties props states on an existing
+	// user role and leaves the others as stored (ako/mxcli#707).
+	SetUserRoleProperties(unitID model.ID, userRoleName string, props UserRoleProperties) error
 	RemoveUserRole(unitID model.ID, name string) error
 	AddDemoUser(unitID model.ID, userName, password, entity string, userRoles []string) error
 	RemoveDemoUser(unitID model.ID, userName string) error
+}
+
+// UserRoleProperties are a user role's properties other than its name and
+// module roles. A nil field is left as stored.
+type UserRoleProperties struct {
+	Description             *string
+	ManageAllRoles          *bool
+	ManageUsersWithoutRoles *bool
+	CheckSecurity           *bool
+	// ManageableRoles is set when non-nil; an empty, non-nil slice clears it.
+	ManageableRoles []string
+}
+
+// IsZero reports whether p states no property.
+func (p UserRoleProperties) IsZero() bool {
+	return p.Description == nil && p.ManageAllRoles == nil && p.ManageUsersWithoutRoles == nil &&
+		p.CheckSecurity == nil && p.ManageableRoles == nil
 }
 
 // ModuleSecurityBackend manages module-level security.

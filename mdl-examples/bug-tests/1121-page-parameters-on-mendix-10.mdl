@@ -39,7 +39,7 @@ CREATE PERSISTENT ENTITY Bug1121.Item (
 CREATE OR MODIFY PAGE Bug1121.Item_Edit (
   Title: 'Edit item',
   Layout: Atlas_Core.PopupLayout,
-  Params: { $Item: Bug1121.Item }
+  Params: ( $Item: Bug1121.Item )
 ) {
   layoutgrid lg {
     row {

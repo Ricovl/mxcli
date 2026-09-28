@@ -6,16 +6,16 @@ Image collections are Mendix's way of bundling images (icons, logos, graphics) w
 
 ```sql
 -- List all image collections across all modules
-SHOW IMAGE COLLECTION;
+LIST IMAGE COLLECTIONS;
 
 -- Filter by module
-SHOW IMAGE COLLECTION IN MyModule;
+LIST IMAGE COLLECTIONS IN MyModule;
 
 -- View full definition including embedded images
 DESCRIBE IMAGE COLLECTION MyModule.AppIcons;
 ```
 
-The `DESCRIBE` output includes the full `CREATE` statement. If the collection contains images, they are shown as `image Name ( File: 'path' )` children that can be copied and re-executed. In the TUI, images are rendered inline when the terminal supports it (Kitty, iTerm2, Sixel).
+The `DESCRIBE` output includes the full `CREATE` statement. If the collection contains images, each is written into the statement as `image Name ( Data: '<base64>' )`, so the output can be copied and re-executed without the original files. In the TUI, images are rendered inline when the terminal supports it (Kitty, iTerm2, Sixel).
 
 ## CREATE IMAGE COLLECTION
 
@@ -34,10 +34,11 @@ CREATE IMAGE COLLECTION <Module>.<Name>
 | `EXPORT LEVEL` | `'Hidden'` (internal to module) or `'Public'` (accessible from other modules) | `'Hidden'` |
 | `/** … */` | Documentation for the collection, as a doc comment before the statement (`COMMENT '…'` is its deprecated alias, `MDL-DEPR100`) | (none) |
 | `IMAGE Name ( File: '…' )` | Load an image from the filesystem into the collection | (none) |
+| `IMAGE Name ( Data: '…' [, Format: png] )` | The image itself, base64-encoded (what `DESCRIBE` writes); `Format` only when the bytes do not show it | (none) |
 
 The images are the collection's children, so they are in `{ }`, each with its properties in `( )`. The older form `( IMAGE Name FROM FILE '<path>', … )` still parses but warns (MDL-DEPR072); `mxcli fmt --upgrade` rewrites it.
 
-The image format is detected automatically from the file extension. Relative paths are resolved from the current working directory. Supported formats: PNG, SVG, GIF, JPEG, BMP, WebP.
+The image format is detected automatically from the file extension. Relative paths are resolved against the script's directory, then the current working directory. Supported formats: PNG, SVG, GIF, JPEG, BMP, WebP.
 
 ### Examples
 
@@ -85,7 +86,7 @@ read-only in mxcli; use `SHOW` / `DESCRIBE` to discover valid icon names (icons
 have non-obvious names — it's `add`, not `plus`):
 
 ```sql
-SHOW ICON COLLECTIONS;                              -- name, prefix, export level, icon count
+LIST ICON COLLECTIONS;                              -- name, prefix, export level, icon count
 DESCRIBE ICON COLLECTION Atlas_Core.Atlas_Filled;   -- every icon + its reference form
 ```
 

@@ -69,7 +69,7 @@ create non-persistent entity RestSingle.Token (
 /
 
 create json structure RestSingle.JSON_Token
-  snippet '{"access_token": "obj-ok", "token_type": "Bearer"}';
+  sample '{"access_token": "obj-ok", "token_type": "Bearer"}';
 
 create import mapping RestSingle.IMM_Token
   with json structure RestSingle.JSON_Token

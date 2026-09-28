@@ -49,9 +49,9 @@ end;
  */
 create page MCPWidgetTest.P_BarcodeScanner folder 'MCPWidgets'
 (
-  params: {
+  params: (
     $Item: MCPWidgetTest.Item
-  },
+  ),
   title: 'Scan Barcode',
   layout: Atlas_Core.PopupLayout
 )
@@ -80,9 +80,9 @@ create page MCPWidgetTest.P_BarcodeScanner folder 'MCPWidgets'
  */
 create page MCPWidgetTest.P_ImageActions folder 'MCPWidgets'
 (
-  params: {
+  params: (
     $Item: MCPWidgetTest.Item
-  },
+  ),
   title: 'Item Image',
   layout: Atlas_Core.PopupLayout
 )

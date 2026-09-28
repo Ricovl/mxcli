@@ -56,9 +56,9 @@ create or modify navigation Responsive
   home page NavRT.Home
   login page NavRT.SignIn
   not found page NavRT.Missing
-  menu (
-    menu item 'Home' page NavRT.Home;
-  );
+  {
+    menu item 'Home' ( OnClick: show page NavRT.Home )
+  };
 
 -- Must print all three clauses. Before the fix, on the default engine, only
 -- `home page` came back.

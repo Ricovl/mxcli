@@ -3,6 +3,7 @@
 package visitor
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -20,7 +21,10 @@ func (b *Builder) ExitCreateDatabaseConnectionStatement(ctx *parser.CreateDataba
 		stmt.Folder = unquoteStringLit(lit)
 	}
 
-	// Parse options
+	// Canonical form: ( Key: value, … ) { query Q ( … ) } (R2)
+	b.applyDatabaseConnectionProps(stmt, ctx)
+
+	// Old form: clauses and a begin … end block (MDL-DEPR127)
 	for _, optCtx := range ctx.AllDatabaseConnectionOption() {
 		opt := optCtx.(*parser.DatabaseConnectionOptionContext)
 
@@ -202,4 +206,149 @@ func unquoteDollarString(s string) string {
 		return s[2 : len(s)-2]
 	}
 	return s
+}
+
+// applyDatabaseConnectionProps reads the canonical database connection: its
+// properties in ( ) and its queries as { query Q ( … ) } children (R2,
+// ako/mxcli#754). The keys are those of the old clauses; they are new syntax,
+// so an unknown key or a value of the wrong kind is an error rather than
+// something to warn about and drop.
+func (b *Builder) applyDatabaseConnectionProps(stmt *ast.CreateDatabaseConnectionStmt, ctx *parser.CreateDatabaseConnectionStatementContext) {
+	seen := map[string]bool{}
+	for _, pc := range ctx.AllDatabaseConnectionProp() {
+		p := pc.(*parser.DatabaseConnectionPropContext)
+		key := identifierOrKeywordText(p.IdentifierOrKeyword())
+		line := p.GetStart().GetLine()
+		if seen[strings.ToLower(key)] {
+			b.addError(fmt.Errorf("line %d: database connection %s: %s is written twice", line, stmt.Name, key))
+			continue
+		}
+		seen[strings.ToLower(key)] = true
+		str, ref, num := p.STRING_LITERAL(), p.QualifiedName(), p.NUMBER_LITERAL()
+		refOrString := func(val *string, isRef *bool) {
+			switch {
+			case ref != nil:
+				*val, *isRef = buildQualifiedName(ref).String(), true
+			case str != nil:
+				*val = unquoteStringLit(str)
+			default:
+				b.addError(fmt.Errorf("line %d: database connection %s: %s takes a string or a constant (@Module.Constant)", line, stmt.Name, key))
+			}
+		}
+		onlyString := func(val *string) {
+			if str == nil {
+				b.addError(fmt.Errorf("line %d: database connection %s: %s takes a string", line, stmt.Name, key))
+				return
+			}
+			*val = unquoteStringLit(str)
+		}
+		switch strings.ToLower(key) {
+		case "type":
+			onlyString(&stmt.DatabaseType)
+		case "connectionstring":
+			refOrString(&stmt.ConnectionString, &stmt.ConnectionStringIsRef)
+		case "username":
+			refOrString(&stmt.UserName, &stmt.UserNameIsRef)
+		case "password":
+			refOrString(&stmt.Password, &stmt.PasswordIsRef)
+		case "host":
+			onlyString(&stmt.Host)
+		case "databasename":
+			onlyString(&stmt.Database)
+		case "port":
+			if num == nil {
+				b.addError(fmt.Errorf("line %d: database connection %s: Port takes a number", line, stmt.Name))
+				continue
+			}
+			stmt.Port, _ = strconv.Atoi(num.GetText())
+		default:
+			b.addError(fmt.Errorf("line %d: unknown property '%s' on database connection %s: the properties are "+
+				"Type, ConnectionString, Host, Port, DatabaseName, Username and Password", line, key, stmt.Name))
+		}
+	}
+
+	for _, qc := range ctx.AllDatabaseQueryDef() {
+		stmt.Queries = append(stmt.Queries, b.buildDatabaseQueryDef(stmt.Name, qc.(*parser.DatabaseQueryDefContext)))
+	}
+}
+
+// buildDatabaseQueryDef reads `query Q ( Sql: …, Parameters: ( … ), Returns:
+// M.E, Map: ( Attr = column ) )`.
+func (b *Builder) buildDatabaseQueryDef(conn ast.QualifiedName, qc *parser.DatabaseQueryDefContext) ast.DatabaseQueryDef {
+	q := ast.DatabaseQueryDef{Name: identifierOrKeywordText(qc.IdentifierOrKeyword())}
+	seen := map[string]bool{}
+	for _, pc := range qc.AllDatabaseQueryProp() {
+		p := pc.(*parser.DatabaseQueryPropContext)
+		key := identifierOrKeywordText(p.IdentifierOrKeyword())
+		line := p.GetStart().GetLine()
+		if seen[strings.ToLower(key)] {
+			b.addError(fmt.Errorf("line %d: query %s on database connection %s: %s is written twice", line, q.Name, conn, key))
+			continue
+		}
+		seen[strings.ToLower(key)] = true
+		wrong := func(want string) {
+			b.addError(fmt.Errorf("line %d: query %s on database connection %s: %s takes %s", line, q.Name, conn, key, want))
+		}
+		switch strings.ToLower(key) {
+		case "sql":
+			switch {
+			case p.DOLLAR_STRING() != nil:
+				q.SQL = unquoteDollarString(p.DOLLAR_STRING().GetText())
+			case p.STRING_LITERAL() != nil:
+				q.SQL = unquoteStringLit(p.STRING_LITERAL())
+			default:
+				wrong("the SQL, as $$…$$ or a string")
+			}
+		case "returns":
+			if p.QualifiedName() == nil {
+				wrong("an entity")
+				continue
+			}
+			q.Returns = buildQualifiedName(p.QualifiedName())
+		case "parameters":
+			if len(p.AllDatabaseQueryParam()) == 0 {
+				wrong("a parameter list, ( name: Type [default '…' | null], … )")
+				continue
+			}
+			for _, dc := range p.AllDatabaseQueryParam() {
+				d := dc.(*parser.DatabaseQueryParamContext)
+				param := ast.DatabaseQueryParamDef{Name: identifierOrKeywordText(d.IdentifierOrKeyword())}
+				if dt := d.DataType(); dt != nil {
+					param.DataType = buildDataType(dt)
+				}
+				switch {
+				case d.DEFAULT() != nil && d.STRING_LITERAL() != nil:
+					param.DefaultValue = unquoteStringLit(d.STRING_LITERAL())
+				case d.NULL() != nil:
+					param.TestWithNull = true
+				}
+				q.Parameters = append(q.Parameters, param)
+			}
+		case "map":
+			if len(p.AllDatabaseQueryColumn()) == 0 {
+				wrong("a column map, ( Attribute = column, … )")
+				continue
+			}
+			for _, mc := range p.AllDatabaseQueryColumn() {
+				m := mc.(*parser.DatabaseQueryColumnContext)
+				ioks := m.AllIdentifierOrKeyword()
+				if len(ioks) < 2 {
+					continue
+				}
+				q.Mappings = append(q.Mappings, ast.DatabaseQueryMappingDef{
+					ColumnName:    identifierOrKeywordText(ioks[1]),
+					AttributeName: identifierOrKeywordText(ioks[0]),
+				})
+			}
+		default:
+			b.addError(fmt.Errorf("line %d: unknown property '%s' on query %s of database connection %s: "+
+				"a query takes Sql, Parameters, Returns and Map", line, key, q.Name, conn))
+		}
+	}
+	// The old clause form could not omit the SQL; the property list must not
+	// either, or it writes a query with no statement to run.
+	if !seen["sql"] {
+		b.addError(fmt.Errorf("line %d: query %s on database connection %s has no Sql", qc.GetStart().GetLine(), q.Name, conn))
+	}
+	return q
 }

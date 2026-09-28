@@ -55,7 +55,7 @@ create or modify page Lv631.P_Inputs
 
   -- No inputs at all: quiet.
   listview lvDisplay (datasource: database Lv631.Thing) {
-    dynamictext dtDisplay (content: '{1}', contentparams: [{1} = Name])
+    dynamictext dtDisplay (content: '{1}', contentparams: ({1} = Name))
   }
 }
 /

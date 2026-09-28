@@ -28,7 +28,7 @@ create fragment SaveCancelFooter as {
 
 create page FragAlter.ServiceRequest_NewEdit
 (
-  params: { $ServiceRequest: FragAlter.ServiceRequest },
+  params: ( $ServiceRequest: FragAlter.ServiceRequest ),
   title: 'Service Request',
   layout: Atlas_Core.PopupLayout
 )

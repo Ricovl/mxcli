@@ -41,7 +41,7 @@ create or modify page MyFirstModule.InheritedAssocPage
         datagrid dg (DataSource: database from MyFirstModule.SpecialExpense, Selection: Single) {
           column (Caption: 'Employee') {
             dynamictext dEmp (content: 'Submitted by {1}',
-              contentparams: [{1} = MyFirstModule.Expense_Employee/Name])
+              contentparams: ({1} = MyFirstModule.Expense_Employee/Name))
           }
         }
       }

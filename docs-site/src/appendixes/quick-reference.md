@@ -212,7 +212,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Describe security matrix | `DESCRIBE SECURITY MATRIX [IN Module];` | Full access overview |
 | Create module role | `CREATE MODULE ROLE Mod.Role [DESCRIPTION 'text'];` | |
 | Drop module role | `DROP MODULE ROLE Mod.Role;` | |
-| Create user role | `CREATE USER ROLE Name (Mod.Role, ...) [MANAGE ALL ROLES];` | Aggregates module roles |
+| Create user role | `CREATE USER ROLE Name ( ModuleRoles: (Mod.Role, ...), Description: '...', ManageAllRoles: true, CheckSecurity: true );` | Aggregates module roles; every property optional |
 | Alter user role | `ALTER USER ROLE Name ADD\|DROP MODULE ROLES (Mod.Role, ...);` | |
 | Drop user role | `DROP USER ROLE [IF EXISTS] Name;` | `IF EXISTS` makes a cleanup script re-runnable |
 | Grant microflow access | `GRANT EXECUTE ON MICROFLOW Mod.MF TO Mod.Role, ...;` | |
@@ -221,9 +221,9 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Revoke page access | `REVOKE VIEW ON PAGE Mod.Page FROM Mod.Role, ...;` | |
 | Grant entity access | `GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Mod.Entity TO Mod.Role;` | Supports member lists and WHERE |
 | Revoke entity access | `REVOKE ALL ON ENTITY Mod.Entity FROM Mod.Role;` | |
-| Set security level | `ALTER APP SECURITY LEVEL OFF\|PROTOTYPE\|PRODUCTION;` | |
-| Toggle demo users | `ALTER APP SECURITY DEMO USERS ON\|OFF;` | |
-| Toggle guest access | `ALTER APP SECURITY GUEST ACCESS ON ROLE UserRole\|OFF;` | Anonymous users; role required (CE0133) |
+| Set security level | `ALTER APP SECURITY ( SecurityLevel: OFF\|PROTOTYPE\|PRODUCTION );` | |
+| Toggle demo users | `ALTER APP SECURITY ( EnableDemoUsers: TRUE\|FALSE );` | |
+| Toggle guest access | `ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: UserRole );` / `( EnableGuestAccess: FALSE )` | Anonymous users; role required (CE0133) |
 | Create demo user | `CREATE DEMO USER 'name' PASSWORD 'pass' [ENTITY Module.Entity] (UserRole, ...);` | |
 | Drop demo user | `DROP DEMO USER [IF EXISTS] 'name';` | `IF EXISTS` makes a cleanup script re-runnable |
 
@@ -235,6 +235,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Describe workflow | `DESCRIBE WORKFLOW Module.Name;` | Full MDL output |
 | Create workflow | `CREATE [OR MODIFY] WORKFLOW Module.Name PARAMETER $Ctx: Module.Entity BEGIN ... END WORKFLOW;` | See activity types below |
 | Drop workflow | `DROP WORKFLOW Module.Name;` | |
+| Alter workflow | `ALTER WORKFLOW Module.Name { SET (Key: value, ...) [ON <activity>]; INSERT BEFORE\|AFTER <activity> { ... } INSERT INTO <activity> { OUTCOMES ... \| PATH { ... } \| BOUNDARY EVENT ... } REPLACE <activity> WITH { ... } DROP <activity> [OUTCOME '<x>' \| PATH <n> \| BOUNDARY EVENT]; };` | An activity is its name or `'caption'`, `@n` for one of several matches; the old per-action form warns MDL-DEPR140–149 |
 
 **Workflow Activity Types:**
 - `USER TASK <name> '<caption>' [PAGE Mod.Page] [TARGETING MICROFLOW Mod.MF] [OUTCOMES '<out>' { } ...];`
@@ -286,12 +287,12 @@ CREATE OR REPLACE NAVIGATION Responsive
   HOME PAGE MyModule.AdminHome FOR Administrator
   LOGIN PAGE Administration.Login
   NOT FOUND PAGE MyModule.Custom404
-  MENU (
-    MENU ITEM 'Home' PAGE MyModule.Home_Web;
-    MENU 'Admin' (
-      MENU ITEM 'Users' PAGE Administration.Account_Overview;
-    );
-  );
+  {
+    MENU ITEM 'Home' ( OnClick: SHOW PAGE MyModule.Home_Web )
+    MENU 'Admin' {
+      MENU ITEM 'Users' ( OnClick: SHOW PAGE Administration.Account_Overview )
+    }
+  };
 ```
 
 ## Project Settings
@@ -300,7 +301,7 @@ CREATE OR REPLACE NAVIGATION Responsive
 |-----------|--------|-------|
 | Describe settings | `DESCRIBE SETTINGS;` | All settings parts, as MDL |
 | Describe settings | `DESCRIBE SETTINGS;` | Full MDL output (round-trippable) |
-| Alter model settings | `ALTER SETTINGS RUNTIME (Key: Value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
+| Alter runtime settings | `ALTER SETTINGS RUNTIME (Key: Value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
 | Alter configuration | `ALTER SETTINGS CONFIGURATION 'Name' (Key: Value, ...);` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
 | Alter constant | `ALTER SETTINGS CONSTANT @Module.Name VALUE 'val' IN CONFIGURATION 'cfg';` | Override constant per configuration |
 | Alter language | `ALTER SETTINGS LANGUAGE (Key: Value);` | DefaultLanguageCode |
@@ -349,7 +350,7 @@ MDL uses explicit property declarations for pages:
 | Element | Syntax | Example |
 |---------|-----------|---------|
 | Page properties | `(Key: value, ...)` | `(Title: 'Edit', Layout: Atlas_Core.Atlas_Default)` |
-| Page variables | `Variables: { $name: Type = 'expr' }` | `Variables: { $show: Boolean = 'true' }` |
+| Page variables | `Variables: ( $name: Type = 'expr' )` | `Variables: ( $show: Boolean = 'true' )` |
 | Widget name | Required after type | `TEXTBOX txtName (...)` |
 | Attribute binding | `Attribute: AttrName` | `TEXTBOX txt (Label: 'Name', Attribute: Name)` |
 | Variable binding | `DataSource: $Var` | `DATAVIEW dv (DataSource: $Product) { ... }` |
@@ -360,7 +361,7 @@ MDL uses explicit property declarations for pages:
 | CSS class | `Class: 'classes'` | `CONTAINER c (Class: 'card mx-spacing-top-large')` |
 | Inline style | `Style: 'css'` | `CONTAINER c (Style: 'padding: 16px;')` |
 | Dynamic classes | `DynamicClasses: 'expr'` | `CONTAINER c (DynamicClasses: if $currentObject/IsActive then 'is-active' else '')` — runtime-computed; stacks on `Class` |
-| Design properties | `DesignProperties: [...]` | `CONTAINER c (DesignProperties: ['Spacing top': 'Large', 'Full width': ON])` |
+| Design properties | `DesignProperties: (...)` | `CONTAINER c (DesignProperties: ('Spacing top': 'Large', 'Full width': ON))` |
 | Width (pixels) | `Width: integer` | `IMAGE img (Width: 200)` |
 | Height (pixels) | `Height: integer` | `IMAGE img (Height: 150)` |
 | Page size | `PageSize: integer` | `DATAGRID dg (PageSize: 25)` |
@@ -390,7 +391,7 @@ MDL uses explicit property declarations for pages:
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )

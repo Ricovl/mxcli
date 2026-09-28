@@ -39,8 +39,8 @@ create page BugRenamedDesignProp.LegacyNames (
   title: 'Legacy Names',
   layout: Atlas_Core.Atlas_Default
 ) {
-  container container1 (designproperties: ['Align content': 'Right align as a row', 'Spacing bottom': 'Outer medium']) {
-    dynamictext text1 (content: 'Legacy', designproperties: ['Spacing top': 'Outer small', 'Font Weight': 'Light'])
+  container container1 (designproperties: ('Align content': 'Right align as a row', 'Spacing bottom': 'Outer medium')) {
+    dynamictext text1 (content: 'Legacy', designproperties: ('Spacing top': 'Outer small', 'Font Weight': 'Light'))
   }
 }
 
@@ -48,7 +48,7 @@ create page BugRenamedDesignProp.CurrentNames (
   title: 'Current Names',
   layout: Atlas_Core.Atlas_Default
 ) {
-  container container1 (designproperties: ['Align content (deprecated)': 'Right align as a row', 'Spacing': ['margin-bottom': 'M']]) {
-    dynamictext text1 (content: 'Current', designproperties: ['Spacing': ['margin-top': 'S'], 'Weight': 'Light'])
+  container container1 (designproperties: ('Align content (deprecated)': 'Right align as a row', 'Spacing': ('margin-bottom': 'M'))) {
+    dynamictext text1 (content: 'Current', designproperties: ('Spacing': ('margin-top': 'S'), 'Weight': 'Light'))
   }
 }

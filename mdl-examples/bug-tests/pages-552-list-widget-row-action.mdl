@@ -19,7 +19,7 @@ create entity Mod.Car (
   Name: String(100)
 );
 
-create page Mod.Detail (Title: 'Car', Layout: Atlas_Core.Atlas_Default, Params: { $Car: Mod.Car }) {
+create page Mod.Detail (Title: 'Car', Layout: Atlas_Core.Atlas_Default, Params: ( $Car: Mod.Car )) {
   dataview dvCar (DataSource: $Car) {
     textbox tbName (Label: 'Name', Attribute: Name)
   }
@@ -41,7 +41,7 @@ create page Mod.List (Title: 'Cars', Layout: Atlas_Core.Atlas_Default) {
     DataSource: DATABASE Mod.Car,
     onClick: SHOW PAGE Mod.Detail(Car = $currentObject)
   ) {
-    dynamictext dtName (Content: '{1}', ContentParams: [{1} = Name])
+    dynamictext dtName (Content: '{1}', ContentParams: ({1} = Name))
   }
 };
 

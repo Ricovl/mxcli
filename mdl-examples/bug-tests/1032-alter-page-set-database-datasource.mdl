@@ -49,7 +49,7 @@ begin
 end;
 
 create page P1032.CustomerPage (
-  params: { $Customer: P1032.Customer },
+  params: ( $Customer: P1032.Customer ),
   title: 'Customer',
   layout: Atlas_Core.Atlas_Default
 ) {

@@ -54,7 +54,7 @@ create association BugTest264.Item_Root
   type Reference;
 
 create json structure BugTest264.JSON_Payload
-  snippet $${"name": "n", "items": [{"code": "c", "idx": 1}]}$$;
+  sample $${"name": "n", "items": [{"code": "c", "idx": 1}]}$$;
 
 create microflow BugTest264.FindItemByIndex ( $Index: Integer )
 returns BugTest264.Item

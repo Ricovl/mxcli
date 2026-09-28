@@ -43,4 +43,4 @@ DESCRIBE ASSOCIATION Sales.Order_Product
 
 ## See Also
 
-[SHOW ASSOCIATIONS](show-associations.md), [DESCRIBE ENTITY](describe-entity.md), [SHOW MODULES](show-modules.md)
+[LIST ASSOCIATIONS](list-associations.md), [DESCRIBE ENTITY](describe-entity.md), [LIST MODULES](list-modules.md)

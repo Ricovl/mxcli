@@ -133,8 +133,8 @@ func init() {
 			"user role", "application role", "manage roles",
 			"add module roles", "remove module roles",
 		},
-		Syntax:  "CREATE USER ROLE <name> (<role> [, ...]) [MANAGE ALL ROLES];\nALTER USER ROLE <name> ADD MODULE ROLES (<role> [, ...]);\nALTER USER ROLE <name> DROP MODULE ROLES (<role> [, ...]);\nDROP USER ROLE [IF EXISTS] <name>;",
-		Example: "CREATE USER ROLE AppAdmin (Shop.Admin, HR.Admin) MANAGE ALL ROLES;\nALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Viewer);",
+		Syntax:  "CREATE USER ROLE <name> [( ModuleRoles: (<role> [, ...]), Description: '<text>', ManageAllRoles: true|false, ManageableRoles: (<user role> [, ...]), ManageUsersWithoutRoles: true|false, CheckSecurity: true|false )];\nALTER USER ROLE <name> ADD MODULE ROLES (<role> [, ...]);\nALTER USER ROLE <name> DROP MODULE ROLES (<role> [, ...]);\nDROP USER ROLE [IF EXISTS] <name>;",
+		Example: "CREATE USER ROLE AppAdmin ( ModuleRoles: (Shop.Admin, HR.Admin), ManageAllRoles: true );\nALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Viewer);",
 		SeeAlso: []string{"security.module-role", "security.demo-user"},
 	})
 
@@ -142,15 +142,22 @@ func init() {
 		Path:    "security.project-security",
 		Summary: "Set project security level, strict mode, demo user and guest access toggles",
 		Keywords: []string{
-			"project security", "security level", "prototype",
+			"project security", "app security", "alter app security", "security level", "prototype",
 			"production", "off", "strict mode", "SEC005",
 		},
-		Syntax: "ALTER APP SECURITY LEVEL OFF|PROTOTYPE|PRODUCTION;\n" +
-			"ALTER APP SECURITY DEMO USERS ON|OFF;\n" +
-			"ALTER APP SECURITY STRICT MODE ON|OFF;   -- clears lint rule SEC005",
-		Example: "ALTER APP SECURITY LEVEL PRODUCTION;\n" +
-			"ALTER APP SECURITY DEMO USERS OFF;\n" +
-			"ALTER APP SECURITY STRICT MODE ON;",
+		Syntax: "ALTER APP SECURITY (\n" +
+			"  [SecurityLevel: OFF|PROTOTYPE|PRODUCTION,]\n" +
+			"  [EnableDemoUsers: TRUE|FALSE,]\n" +
+			"  [EnableGuestAccess: TRUE|FALSE,]\n" +
+			"  [GuestUserRole: <UserRole>,]\n" +
+			"  [StrictMode: TRUE|FALSE]          -- clears lint rule SEC005\n" +
+			");\n\n" +
+			"-- Set any subset of the properties, in create's ( Key: value ) list. The\n" +
+			"-- clause forms (LEVEL …, DEMO USERS ON|OFF, GUEST ACCESS ON [ROLE r]|OFF,\n" +
+			"-- STRICT MODE ON|OFF) still run and warn MDL-DEPR133.",
+		Example: "ALTER APP SECURITY ( SecurityLevel: PRODUCTION );\n" +
+			"ALTER APP SECURITY ( EnableDemoUsers: FALSE );\n" +
+			"ALTER APP SECURITY ( StrictMode: TRUE );",
 		SeeAlso: []string{"security.demo-user", "security.guest-access"},
 	})
 
@@ -161,17 +168,18 @@ func init() {
 			"guest access", "anonymous", "anonymous users", "public",
 			"unauthenticated", "guest user role", "CE0133",
 		},
-		Syntax: "ALTER APP SECURITY GUEST ACCESS ON ROLE <UserRole>;\n" +
-			"ALTER APP SECURITY GUEST ACCESS ON;   -- only when a role is already configured\n" +
-			"ALTER APP SECURITY GUEST ACCESS OFF;  -- keeps the stored role\n" +
+		Syntax: "ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: <UserRole> );\n" +
+			"ALTER APP SECURITY ( EnableGuestAccess: TRUE );   -- only when a role is already configured\n" +
+			"ALTER APP SECURITY ( EnableGuestAccess: FALSE );  -- keeps the stored role\n" +
 			"\n" +
 			"-- The role is what anonymous visitors get, so its entity access IS the app's\n" +
 			"-- public surface. Mendix requires one: guest access with no role fails the\n" +
-			"-- build (CE0133), so ON is refused unless a role is given or already stored.\n" +
+			"-- build (CE0133), so TRUE is refused unless a role is given or already stored.\n" +
+			"-- GuestUserRole alone changes the role and keeps guest access on or off.\n" +
 			"-- Mendix does not check the role exists, so mxcli does — an unknown role\n" +
 			"-- would build cleanly and leave visitors with nothing.",
-		Example: "CREATE USER ROLE Anonymous (Shop.Viewer, System.User);\n" +
-			"ALTER APP SECURITY GUEST ACCESS ON ROLE Anonymous;\n" +
+		Example: "CREATE USER ROLE Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );\n" +
+			"ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: Anonymous );\n" +
 			"GRANT READ * ON ENTITY Shop.Product TO Shop.Viewer;",
 		SeeAlso: []string{"security.user-role", "security.project-security"},
 	})

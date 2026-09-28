@@ -39,13 +39,14 @@ func TestUpgrade_WorkflowExpressionsBare(t *testing.T) {
 		},
 		{
 			"a string with no space around it",
+			// The old action form is rewritten as well (MDL-DEPR141, ako/mxcli#712).
 			"alter workflow M.WF set activity Review due date'addDays([%CurrentDateTime%], 1)';",
-			"alter workflow M.WF set activity Review due date addDays([%CurrentDateTime%], 1);",
+			"alter workflow M.WF { set (DueDate: addDays([%CurrentDateTime%], 1)) on Review; };",
 		},
 		{
 			"upper case, doubled quotes inside",
 			"ALTER WORKFLOW M.WF SET DUE DATE 'if $x = ''a'' then [%CurrentDateTime%] else [%BeginOfCurrentDay%]';",
-			"ALTER WORKFLOW M.WF SET DUE DATE if $x = 'a' then [%CurrentDateTime%] else [%BeginOfCurrentDay%];",
+			"ALTER WORKFLOW M.WF { SET (DueDate: if $x = 'a' then [%CurrentDateTime%] else [%BeginOfCurrentDay%]); };",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -66,8 +67,8 @@ func TestUpgrade_WorkflowExpressionsBare(t *testing.T) {
 func TestUpgrade_WorkflowExpressionNotBareIsReported(t *testing.T) {
 	head := "create workflow M.WF\n  parameter $WorkflowContext: M.E\nbegin\n"
 	for _, src := range []string{
-		"alter workflow M.WF set due date '${PT1H}';",
-		"alter workflow M.WF set due date ' addDays([%CurrentDateTime%], 1)';",
+		"alter workflow M.WF { set (DueDate: '${PT1H}'); };",
+		"alter workflow M.WF { set (DueDate: ' addDays([%CurrentDateTime%], 1)'); };",
 		head + "  decision 'Total + 1 > 3'\n    outcomes true -> { } false -> { };\nend workflow;",
 	} {
 		res := mustUpgrade(t, src, Options{})

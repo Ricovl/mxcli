@@ -55,10 +55,10 @@ end
 
 -- 1b/1c — quoted attributes in widget contentparams and visibility expressions.
 create or modify page MyFirstModule.P_Expense
-( Title: 'Expense', Layout: Atlas_Core.Atlas_Default, Params: { $Expense: MyFirstModule.Expense } )
+( Title: 'Expense', Layout: Atlas_Core.Atlas_Default, Params: ( $Expense: MyFirstModule.Expense ) )
 {
   dataview dv (datasource: $Expense) {
-    dynamictext qAmount (content: '{1}', contentparams: [{1} = "Amount"])
+    dynamictext qAmount (content: '{1}', contentparams: ({1} = "Amount"))
     dynamictext qReview (content: 'Needs review', visible: $currentObject/Amount > 1000)
   }
 }
@@ -68,7 +68,7 @@ create or modify page MyFirstModule.P_Queue
 ( Title: 'Queue', Layout: Atlas_Core.Atlas_Default )
 {
   gallery galQueue (datasource: database from MyFirstModule.Expense where [ "Status" = 'Submitted' ]) {
-    dynamictext qStatus (content: '{1}', contentparams: [{1} = "Status"])
+    dynamictext qStatus (content: '{1}', contentparams: ({1} = "Status"))
   }
 }
 

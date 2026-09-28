@@ -21,7 +21,7 @@ Use this skill when the user wants to:
 
 ```sql
 -- Overview table of all settings parts
-show settings;
+list settings;
 
 -- Full MDL output (round-trippable ALTER SETTINGS statements)
 describe settings;
@@ -129,8 +129,8 @@ fine: `HttpPortNumber = '8080'` and `HttpPortNumber = 8080` are equivalent.
 
 ```sql
 -- View constant values across all configurations
-show constant values;
-show constant values in MyModule;    -- Filter by module
+list constant values;
+list constant values in MyModule;    -- Filter by module
 
 -- Override a constant value in a configuration
 alter settings constant @BusinessEvents.ServerUrl value 'kafka:9092'
@@ -153,7 +153,7 @@ API tokens are the usual reason to make one private.
 MDL **preserves that choice but never changes it**. The two statements above operate
 on shared values only:
 
-- `show constant values` reports a private override as `(private)` rather than a blank
+- `list constant values` reports a private override as `(private)` rather than a blank
   cell — the value is not in the project, so mxcli cannot show it.
 - `describe settings` reports a private override as a comment, not as a re-executable
   `alter settings constant` line — replaying that line would publish into the shared
@@ -226,7 +226,7 @@ rewritten under the new default (the old copy stays alongside, harmless).
 `create translations for '<the default>'` is refused: the default is the source
 language, not a translation target.
 
-⚠️ `show languages` lists languages that have **translations**, not enabled ones —
+⚠️ `list languages` lists languages that have **translations**, not enabled ones —
 a stock app reports 8 while 1 is enabled. Use `describe settings` for the enabled
 list.
 
@@ -257,7 +257,7 @@ alter settings workflows modify group 'Reviewers' (Description: 'Second-line rev
 
 alter settings workflows drop group 'Reviewers';
 
-show workflow groups;
+list workflow groups;
 ```
 
 Four things worth knowing:
@@ -309,8 +309,8 @@ alter settings configuration 'Default' (
 
 ## Checklist
 
-- [ ] Always run `show settings` or `describe settings` first to see current values
-- [ ] Verify changes after modification with `show settings`
+- [ ] Always run `list settings` or `describe settings` first to see current values
+- [ ] Verify changes after modification with `list settings`
 - [ ] There is always exactly one ProjectSettings document; it cannot be created or deleted
 - [ ] Model setting key names are case-sensitive (e.g., `JavaVersion`, not `javaversion`)
 - [ ] Configuration names are case-insensitive (e.g., `'default'` matches `'default'`)

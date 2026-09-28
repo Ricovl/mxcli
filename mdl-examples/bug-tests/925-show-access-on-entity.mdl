@@ -50,7 +50,7 @@ list access on page Administration.Account_Overview;
 
 -- Controls — the guards must not steal the plain spellings, which still
 -- describe the document rather than reporting access.
-show entity Administration.Account;
+describe entity Administration.Account;
 /
 
 describe page Administration.Account_Overview;

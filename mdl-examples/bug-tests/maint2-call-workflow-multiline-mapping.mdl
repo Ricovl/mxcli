@@ -20,7 +20,7 @@ create module role WFA.User;
 create persistent entity WFA.Request ( Code: string(50) );
 
 create page WFA."TaskPage" (
-  params: { $Task: System.WorkflowUserTask },
+  params: ( $Task: System.WorkflowUserTask ),
   title: 'Task', layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid g { row { column (desktopwidth: 12) {

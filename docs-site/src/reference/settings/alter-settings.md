@@ -168,7 +168,7 @@ settings group, since a user task targets groups through a microflow or an XPath
 returning `System.WorkflowGroup` objects. The coupling is at runtime, where the
 removed group's row simply stops being maintained.
 
-List the groups with [`SHOW WORKFLOW GROUPS`](show-settings.md).
+List the groups with [`LIST WORKFLOW GROUPS`](list-describe-settings.md).
 
 ### Set Java version
 
@@ -206,4 +206,4 @@ DROP CONFIGURATION 'Staging';
 
 ## See Also
 
-[SHOW / DESCRIBE SETTINGS](show-settings.md)
+[SHOW / DESCRIBE SETTINGS](list-describe-settings.md)

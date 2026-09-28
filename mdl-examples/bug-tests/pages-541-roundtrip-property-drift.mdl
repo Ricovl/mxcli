@@ -73,7 +73,7 @@ create association Issue541.RuleAction_BusinessRule
 create or modify page Issue541.RuleAction_NewEdit (
   title: 'Edit Rule Action',
   layout: Atlas_Core.PopupLayout,
-  params: { $RuleAction: Issue541.RuleAction }
+  params: ( $RuleAction: Issue541.RuleAction )
 )
 {
   layoutgrid layoutGrid1 {

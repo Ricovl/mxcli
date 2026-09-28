@@ -31,7 +31,7 @@ create entity MyFirstModule.Job (
 /
 
 create or modify page MyFirstModule.Job_View
-( Title: 'Job', Layout: Atlas_Core.Atlas_Default, Params: { $Job: MyFirstModule.Job } )
+( Title: 'Job', Layout: Atlas_Core.Atlas_Default, Params: ( $Job: MyFirstModule.Job ) )
 {
   dataview dv (datasource: $Job) {
     textbox txtTitle (Label: 'Title', Attribute: Title, Visible: IsUrgent in (true))

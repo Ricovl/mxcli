@@ -1436,7 +1436,7 @@ alter entity DmTest.SimpleTag
 
 -- Set entity comment.
 alter entity DmTest.Category
-  set comment 'Used for product and department categorization.';
+  set documentation 'Used for product and department categorization.';
 
 -- ============================================================================
 -- Level 10.6: ADD INDEX / DROP INDEX
@@ -1461,7 +1461,7 @@ alter entity DmTest.BankAccount
   add attribute CurrencyCode: string(3) default 'EUR'
   add attribute IBAN: string(34)
   add index (IBAN)
-  set comment 'Extended with multi-currency support.';
+  set documentation 'Extended with multi-currency support.';
 
 -- ============================================================================
 -- Level 10.8: Quoted Identifiers for Reserved-Word Attribute Names

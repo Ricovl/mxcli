@@ -14,7 +14,7 @@
 
 ## How mxcli Applies It
 
-<!-- TODO: SHOW vs DESCRIBE, DEPTH levels, SHOW CALLERS vs SHOW IMPACT — each command reveals the next layer on demand -->
+<!-- TODO: SHOW vs DESCRIBE, DEPTH levels, LIST CALLERS vs LIST IMPACT — each command reveals the next layer on demand -->
 
 ## Demo
 

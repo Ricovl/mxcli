@@ -46,8 +46,10 @@ begin
   wait for notification updC caption 'C';
 end workflow;
 
-alter workflow workflow.ZzMxcliBug_UpdateOrder
-  insert after updB wait for notification updInserted caption 'Inserted after B';
+alter workflow workflow.ZzMxcliBug_UpdateOrder {
+  insert after updB { wait for notification updInserted caption 'Inserted after B'; }
+};
 
-alter workflow workflow.ZzMxcliBug_UpdateOrder
-  replace activity updC with wait for notification updReplaced caption 'Replaced C';
+alter workflow workflow.ZzMxcliBug_UpdateOrder {
+  replace updC with { wait for notification updReplaced caption 'Replaced C'; }
+};

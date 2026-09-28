@@ -27,7 +27,7 @@ create association MyFirstModule.Office_Region from MyFirstModule.Office to MyFi
 /
 
 create or modify page MyFirstModule.Office_Edit
-( Title: 'Office', Layout: Atlas_Core.Atlas_Default, Params: { $Office: MyFirstModule.Office } )
+( Title: 'Office', Layout: Atlas_Core.Atlas_Default, Params: ( $Office: MyFirstModule.Office ) )
 {
   dataview dv (datasource: $Office) {
     combobox cmbRegion (

@@ -8,10 +8,10 @@ Use `--` (SQL style) or `//` (C style) for single-line comments:
 
 ```sql
 -- This is a single-line comment
-SHOW MODULES
+LIST MODULES
 
 // This is also a single-line comment
-SHOW ENTITIES IN Sales
+LIST ENTITIES IN Sales
 ```
 
 Everything after the comment marker to the end of the line is ignored.

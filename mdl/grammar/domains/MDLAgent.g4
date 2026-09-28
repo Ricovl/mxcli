@@ -15,9 +15,21 @@ options { tokenVocab = MDLLexer; }
 //   [, DisplayName: '...', KeyName: '...', etc. — Portal-populated metadata]
 // );
 createModelStatement
-    : MODEL qualifiedName
+    : aiModelKw ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
+    ;
+
+// R10: Studio Pro calls the agent editor's model document an AI model; `model`
+// alone is too generic (it is also the old `alter settings model`).
+aiModelKw
+    : AI MODEL
+    | MODEL /* @alias MDL-DEPR131 */
+    ;
+
+aiModelsKw
+    : AI MODELS
+    | MODELS /* @alias MDL-DEPR131 */
     ;
 
 modelProperty
@@ -51,7 +63,7 @@ variableDef
 //   Documentation: '...'
 // );
 createConsumedMCPServiceStatement
-    : CONSUMED MCP SERVICE qualifiedName
+    : CONSUMED MCP SERVICE ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
     ;
@@ -64,7 +76,7 @@ createConsumedMCPServiceStatement
 //   Key: @Module.SomeConstant
 // );
 createKnowledgeBaseStatement
-    : KNOWLEDGE BASE qualifiedName
+    : KNOWLEDGE BASE ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
     ;
@@ -81,7 +93,7 @@ createKnowledgeBaseStatement
 // [ { tool X ( ... ) | mcp service M.X ( ... ) | knowledge base KB ( ... ) } ]
 // ;
 createAgentStatement
-    : AGENT qualifiedName
+    : AGENT ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
       agentBody?

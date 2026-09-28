@@ -85,23 +85,23 @@ Browse available assets from cached service contracts without network access.
 
 | Statement | Description |
 |-----------|-------------|
-| `SHOW CONTRACT ENTITIES FROM Module.Service` | List entity types from cached $metadata |
-| `SHOW CONTRACT ACTIONS FROM Module.Service` | List actions/functions from cached $metadata |
+| `LIST CONTRACT ENTITIES FROM Module.Service` | List entity types from cached $metadata |
+| `LIST CONTRACT ACTIONS FROM Module.Service` | List actions/functions from cached $metadata |
 | `DESCRIBE CONTRACT ENTITY Module.Service.Entity` | Show entity properties, types, keys |
 | `DESCRIBE CONTRACT ENTITY Module.Service.Entity FORMAT mdl` | Generate CREATE EXTERNAL ENTITY |
 | `DESCRIBE CONTRACT ACTION Module.Service.Action` | Show action parameters and return type |
-| `SHOW CONTRACT CHANNELS FROM Module.Service` | List channels from cached AsyncAPI |
-| `SHOW CONTRACT MESSAGES FROM Module.Service` | List messages from cached AsyncAPI |
+| `LIST CONTRACT CHANNELS FROM Module.Service` | List channels from cached AsyncAPI |
+| `LIST CONTRACT MESSAGES FROM Module.Service` | List messages from cached AsyncAPI |
 | `DESCRIBE CONTRACT MESSAGE Module.Service.Message` | Show message payload properties |
 
 ## Related Show/Describe Statements
 
 | Statement | Syntax |
 |-----------|--------|
-| Show consumed odata services | `SHOW CONSUMED ODATA SERVICES [IN module]` |
-| Show published odata services | `SHOW PUBLISHED ODATA SERVICES [IN module]` |
-| Show external entities | `SHOW EXTERNAL ENTITIES [IN module]` |
-| Show external actions | `SHOW EXTERNAL ACTIONS [IN module]` |
+| Show consumed odata services | `LIST CONSUMED ODATA SERVICES [IN module]` |
+| Show published odata services | `LIST PUBLISHED ODATA SERVICES [IN module]` |
+| Show external entities | `LIST EXTERNAL ENTITIES [IN module]` |
+| Show external actions | `LIST EXTERNAL ACTIONS [IN module]` |
 | Describe consumed odata service | `DESCRIBE CONSUMED ODATA SERVICE Module.Name` |
 | Describe published odata service | `DESCRIBE PUBLISHED ODATA SERVICE Module.Name` |
 | Describe external entity | `DESCRIBE EXTERNAL ENTITY Module.Name` |

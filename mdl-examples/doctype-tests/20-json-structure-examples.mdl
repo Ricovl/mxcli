@@ -21,7 +21,7 @@ list json structures in JsonTest;
  */
 create json structure JsonTest.SimpleItem
 folder 'json-snippets'
-snippet '{"id": 1, "name": "John", "active": true}'
+sample '{"id": 1, "name": "John", "active": true}'
 ;
 
 drop json structure JsonTest.SimpleItem;
@@ -31,13 +31,13 @@ drop json structure JsonTest.SimpleItem;
  */
 create json structure JsonTest.SimpleItem
 folder 'json-snippets'
-snippet '{"id": 1, "name": "John", "active": true}'
+sample '{"id": 1, "name": "John", "active": true}'
 ;
 
 /**
  * Create a JSON structure in a folder
  */
-create json structure JsonTest.CustomerResponse folder 'Resources' snippet $${
+create json structure JsonTest.CustomerResponse folder 'Resources' sample $${
   "id": 1,
   "name": "John Doe",
   "email": "john@example.com",
@@ -59,12 +59,12 @@ describe json structure JsonTest.CustomerResponse;
  * Create with a documentation comment
  */
 create json structure JsonTest.ApiError
-  snippet $${"code": 400, "message": "Bad request", "details": [{"field": "email", "error": "Invalid email format"}]}$$;
+  sample $${"code": 400, "message": "Bad request", "details": [{"field": "email", "error": "Invalid email format"}]}$$;
 
 /**
  * Create with custom name mappings (matches Studio Pro's "Custom name" column)
  */
-create json structure JsonTest.ExternalApi snippet $${"kvkNummer": "68750110", "vestigingsnummer": "000037178598", "naam": "Acme Corp"}$$
+create json structure JsonTest.ExternalApi sample $${"kvkNummer": "68750110", "vestigingsnummer": "000037178598", "naam": "Acme Corp"}$$
 CUSTOM NAME map (
   'kvkNummer' as 'ChamberOfCommerceNumber',
   'vestigingsnummer' as 'BranchNumber',
@@ -86,7 +86,7 @@ CUSTOM NAME map (
  * its array -- and `item of` works for a primitive array's wrapper too.
  */
 create json structure JsonTest.Invoice
-  snippet $${"lines": [{"sku": "A1", "qty": 2}], "tags": ["urgent"]}$$
+  sample $${"lines": [{"sku": "A1", "qty": 2}], "tags": ["urgent"]}$$
 CUSTOM NAME map (
   'lines' as 'OrderLines',
   item of 'lines' as 'OrderLine',
@@ -98,7 +98,7 @@ CUSTOM NAME map (
  * element every mapping over an array-rooted structure binds (ako/mxcli#248).
  */
 create json structure JsonTest.Feed
-  snippet $$[{"id": 1, "title": "t"}]$$
+  sample $$[{"id": 1, "title": "t"}]$$
 CUSTOM NAME map (item of 'Root' as 'Entry');
 
 -- MARK: Describe
@@ -114,7 +114,7 @@ describe json structure JsonTest.CustomerResponse;
  * CREATE OR MODIFY preserves the document UUID so import/export mappings
  * that reference this structure remain valid. OR REPLACE is a synonym.
  */
-create or modify json structure JsonTest.CustomerResponse snippet $${
+create or modify json structure JsonTest.CustomerResponse sample $${
   "id": 1,
   "name": "John Doe",
   "email": "john@example.com",

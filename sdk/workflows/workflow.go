@@ -118,6 +118,11 @@ func (a *BaseWorkflowActivity) SetName(name string) {
 }
 
 // GetCaption returns the activity's caption.
+// SetAnnotation sets the note attached to the activity.
+func (a *BaseWorkflowActivity) SetAnnotation(s string) {
+	a.Annotation = s
+}
+
 func (a *BaseWorkflowActivity) GetCaption() string {
 	return a.Caption
 }

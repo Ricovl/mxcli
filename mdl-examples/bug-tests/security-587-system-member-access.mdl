@@ -85,7 +85,7 @@ create or modify page Sec.Home (
   }
 }
 /
-alter app security level production;
+alter app security ( SecurityLevel: production );
 
 -- Sec.Viewer may read everything this MODULE owns and may run both microflows
 -- and open the page — so anything blank is the System module's doing, not a
@@ -102,9 +102,9 @@ grant view on page Sec.Home to Sec.Viewer, Sec.Admin;
 
 create or modify navigation Responsive
   home page Sec.Home
-  menu (
-    menu item 'Home' page Sec.Home icon glyph 57377;
-  )
+  {
+    menu item 'Home' ( OnClick: show page Sec.Home, Icon: glyph 57377 )
+  }
 ;
 
 -- The control is the ROLE, not the build: Administrator sees both names in list

@@ -26,7 +26,7 @@ create persistent entity WFEND.Request (
 create page WFEND.TaskPage (
   title: 'Task',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 { row { column (desktopwidth: 12) { dynamictext t1 (content: 'Task') } } }
 }
@@ -95,7 +95,8 @@ end workflow;
 /
 
 -- ALTER takes the same statement in any inserted block.
-alter workflow WFEND.Approval
-  insert outcome 'Withdraw' on Book {
+alter workflow WFEND.Approval {
+  insert into Book { outcomes 'Withdraw' {
     end workflow caption 'Withdrawn';
-  };
+  } }
+};

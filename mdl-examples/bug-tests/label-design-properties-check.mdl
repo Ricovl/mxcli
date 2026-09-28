@@ -28,8 +28,8 @@ create or modify page MyFirstModule.LabelDesignProps_Test
 ( Title: 'Label design properties', Layout: Atlas_Core.Atlas_Default )
 {
   container c1 {
-    label lblOpt (Content: 'Option', DesignProperties: ['Style': 'Brand Primary', 'Align self': 'Left'])
-    label lblSpaced (Content: 'Spaced', DesignProperties: ['Spacing': ['margin-bottom': 'M'], 'Hide on': ['Phone': on]])
+    label lblOpt (Content: 'Option', DesignProperties: ('Style': 'Brand Primary', 'Align self': 'Left'))
+    label lblSpaced (Content: 'Spaced', DesignProperties: ('Spacing': ('margin-bottom': 'M'), 'Hide on': ('Phone': on)))
   }
 }
 /

@@ -58,24 +58,26 @@ CREATE OR REPLACE NAVIGATION Responsive
 
 ## Menus
 
-The `MENU` block defines the navigation menu as a tree of items and submenus.
+The `{ }` block after the profile's clauses defines the navigation menu as a tree of items and submenus.
 
 ### Menu Items
 
-A menu item links a label to a page:
+A menu item links a label to a page, a microflow, or sign-out, in the words a page action uses:
 
 ```sql
-MENU ITEM '<label>' PAGE <Module>.<Page>;
+MENU ITEM '<label>' ( OnClick: SHOW PAGE <Module>.<Page> )
+MENU ITEM '<label>' ( OnClick: CALL MICROFLOW <Module>.<Microflow>, Icon: <Module>.<IconCollection>.<Icon> )
+MENU ITEM '<label>' ( OnClick: SIGN OUT )
 ```
 
 ### Submenus
 
-Nest items inside a `MENU '<label>' (...)` block:
+Nest items inside a `MENU '<label>' { ... }` block:
 
 ```sql
-MENU '<label>' (
+MENU '<label>' [( Icon: <icon> )] {
   <menu-items>
-);
+}
 ```
 
 ### Complete Example
@@ -84,30 +86,30 @@ MENU '<label>' (
 CREATE OR REPLACE NAVIGATION Responsive
   HOME PAGE Shop.Home
   LOGIN PAGE Administration.Login
-  MENU (
-    MENU ITEM 'Home' PAGE Shop.Home;
-    MENU ITEM 'Products' PAGE Shop.Product_Overview;
-    MENU ITEM 'Orders' PAGE Shop.Order_Overview;
-    MENU 'Administration' (
-      MENU ITEM 'Users' PAGE Administration.Account_Overview;
-      MENU ITEM 'Roles' PAGE Administration.Role_Overview;
-      MENU 'System' (
-        MENU ITEM 'Logs' PAGE Administration.Log_Overview;
-        MENU ITEM 'Settings' PAGE Shop.Settings;
-      );
-    );
-  );
+  {
+    MENU ITEM 'Home' ( OnClick: SHOW PAGE Shop.Home )
+    MENU ITEM 'Products' ( OnClick: SHOW PAGE Shop.Product_Overview )
+    MENU ITEM 'Orders' ( OnClick: SHOW PAGE Shop.Order_Overview )
+    MENU 'Administration' {
+      MENU ITEM 'Users' ( OnClick: SHOW PAGE Administration.Account_Overview )
+      MENU ITEM 'Roles' ( OnClick: SHOW PAGE Administration.Role_Overview )
+      MENU 'System' {
+        MENU ITEM 'Logs' ( OnClick: SHOW PAGE Administration.Log_Overview )
+        MENU ITEM 'Settings' ( OnClick: SHOW PAGE Shop.Settings )
+      }
+    }
+  };
 ```
 
 ### Inspecting Menus
 
 ```sql
 -- View menu tree
-SHOW NAVIGATION MENU;
-SHOW NAVIGATION MENU Responsive;
+LIST NAVIGATION MENU;
+LIST NAVIGATION MENU Responsive;
 
 -- View home page assignments
-SHOW NAVIGATION HOMES;
+LIST NAVIGATION HOMES;
 ```
 
 ## See Also

@@ -35,7 +35,7 @@ create or modify page MyFirstModule.FeedbackDraft_Example
 {
   dataview dv (DataSource: nanoflow MyFirstModule.DS_MissingForm) {
     textbox txtSubject (Label: 'Subject', Attribute: MyFirstModule.FeedbackDraft.Subject)
-    dynamictext txtEcho (Content: 'About: {1}', ContentParams: [{1} = MyFirstModule.FeedbackDraft.Subject])
+    dynamictext txtEcho (Content: 'About: {1}', ContentParams: ({1} = MyFirstModule.FeedbackDraft.Subject))
     textbox txtEmail (
       Label: 'Email',
       Attribute: MyFirstModule.FeedbackDraft.Email,

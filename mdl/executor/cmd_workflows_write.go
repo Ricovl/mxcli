@@ -180,6 +180,7 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	// Display metadata
 	wf.WorkflowName = s.DisplayName
 	wf.WorkflowDescription = s.Description
+	wf.Annotation = s.Annotation
 	if s.ExportLevel != "" {
 		wf.ExportLevel = s.ExportLevel
 	}
@@ -356,8 +357,20 @@ func buildBoundaryEvents(nodes []ast.WorkflowBoundaryEventNode) []*workflows.Bou
 	return events
 }
 
-// buildWorkflowActivity converts a single AST activity node to an SDK workflow activity.
+// buildWorkflowActivity converts a single AST activity node to an SDK workflow
+// activity, with the note `@annotation '…'` attached to it (ako/mxcli#707).
 func buildWorkflowActivity(node ast.WorkflowActivityNode) workflows.WorkflowActivity {
+	act := buildWorkflowActivityCore(node)
+	if an, ok := node.(ast.AnnotatedWorkflowActivity); ok && an.ActivityAnnotation() != "" {
+		if a, ok := act.(interface{ SetAnnotation(string) }); ok {
+			a.SetAnnotation(an.ActivityAnnotation())
+		}
+	}
+	return act
+}
+
+// buildWorkflowActivityCore converts the activity itself.
+func buildWorkflowActivityCore(node ast.WorkflowActivityNode) workflows.WorkflowActivity {
 	switch n := node.(type) {
 	case *ast.WorkflowUserTaskNode:
 		return buildUserTask(n)
@@ -822,7 +835,7 @@ func buildNotificationActivity(n *ast.WorkflowNotificationNode) *workflows.Notif
 func buildEventSubProcesses(nodes []ast.WorkflowEventSubProcessNode) []*workflows.EventSubProcess {
 	var out []*workflows.EventSubProcess
 	for _, n := range nodes {
-		esp := &workflows.EventSubProcess{Name: n.Name, Caption: n.Caption}
+		esp := &workflows.EventSubProcess{Name: n.Name, Caption: n.Caption, Annotation: n.Annotation}
 		esp.ID = model.ID(generateWorkflowUUID())
 
 		start := &workflows.EventSubProcessStartActivity{

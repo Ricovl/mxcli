@@ -100,7 +100,7 @@ create or modify page DS147.TopLevelBad
 -- message names the type that is actually in context.
 create or modify page DS147.NestedWrongType
   ( Title: 'Nested in a mismatched context', Layout: Atlas_Core.Atlas_Default,
-    Params: { $Row: DS147.Row } )
+    Params: ( $Row: DS147.Row ) )
   {
     DATAVIEW dvRow (DataSource: $Row) {
       DATAGRID dgWrong (DataSource: MICROFLOW DS147.DS_Rows) {
@@ -114,7 +114,7 @@ create or modify page DS147.NestedWrongType
 -- the fix is "enclosing data context", not "in scope".
 create or modify page DS147.ParamInScope
   ( Title: 'Page parameter of the exact type', Layout: Atlas_Core.Atlas_Default,
-    Params: { $Ctx: DS147.ReportContext } )
+    Params: ( $Ctx: DS147.ReportContext ) )
   {
     DATAGRID dgParamScope (DataSource: MICROFLOW DS147.DS_Rows) {
       COLUMN (Attribute: Label, Caption: 'Label')

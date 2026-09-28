@@ -142,8 +142,8 @@ gallery galleryName (
   PhoneColumns: 1
 ) {
   template {
-    dynamictext title (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-    dynamictext info  (content: '{1}', contentparams: [{1} = Email])
+    dynamictext title (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+    dynamictext info  (content: '{1}', contentparams: ({1} = Email))
   }
   filter {
     textfilter   searchName  (attribute: Name)
@@ -456,7 +456,7 @@ Set `"templateFile": "mywidget.json"` in the .def.json. Project definitions over
 ```sql
 MYWIDGET myWidget1 (datasource: database Module.Entity, attribute: Name) {
   template content1 {
-    dynamictext label1 (content: '{1}', contentparams: [{1}=Name])
+    dynamictext label1 (content: '{1}', contentparams: ({1}=Name))
   }
 }
 ```
@@ -559,7 +559,7 @@ A `texttemplate` takes **text**, so a bare value renders the same string on ever
 row. Bind it with the property's own `<Name>Params` companion, named for
 whichever spelling the template used (`ImageUrl:` pairs with `ImageUrlParams:`)
 and taking the same `format (...)` block a `dynamictext` does — e.g.
-`headerCaption: '{1}', headerCaptionParams: [{1} = Name]`, or a Timeline's
+`headerCaption: '{1}', headerCaptionParams: ({1} = Name)`, or a Timeline's
 `title` / `description` bound separately. `contentparams:` is ONE list shared by
 every template on the widget, so it only disambiguates a widget with a single
 one; `'{AttrName}'` is the short form for one attribute. A companion whose

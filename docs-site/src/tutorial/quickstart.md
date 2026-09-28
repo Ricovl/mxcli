@@ -120,7 +120,7 @@ No errors? You're done. Open in Studio Pro and everything is there.
 
 | I want to... | Read... |
 |---|---|
-| Explore my project deeper | [SHOW Commands](show-commands.md) |
+| Explore my project deeper | [SHOW Commands](list-commands.md) |
 | Create pages with widgets | [Creating a Page](create-page.md) |
 | Use AI to generate code | [Claude Code Integration](claude-code.md) |
 | Set up for a team | [Skills and CLAUDE.md](skills.md) |

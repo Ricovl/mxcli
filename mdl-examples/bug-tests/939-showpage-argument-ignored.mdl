@@ -17,7 +17,7 @@ create or modify entity PgArg.Car (
 create or modify page PgArg.Detail (
   Title: 'Detail',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Car: PgArg.Car }
+  Params: ( $Car: PgArg.Car )
 ) {
   dataview dvDetail (DataSource: $Car) {
     textbox tbName (Attribute: Name)
@@ -42,7 +42,7 @@ create or modify page PgArg.Overview (
 create or modify page PgArg.Caller (
   Title: 'Caller',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Car: PgArg.Car }
+  Params: ( $Car: PgArg.Car )
 ) {
   dataview dvCar (DataSource: $Car) {
     actionbutton btnGo (

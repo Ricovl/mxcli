@@ -180,7 +180,7 @@ SmartForms Views map to Mendix pages/snippets. The rules system (event-driven, "
 ```sql
 create page CRM.Customer_Edit
 (
-  params: { $Customer: CRM.Customer },
+  params: ( $Customer: CRM.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )

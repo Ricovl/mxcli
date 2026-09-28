@@ -56,7 +56,7 @@ create persistent entity AlterPg.Product (
 
 -- A NewEdit page so the row Edit button has somewhere to navigate.
 create or modify page AlterPg.Product_NewEdit folder 'OverviewPages' (
-  Params: { $Product: AlterPg.Product },
+  Params: ( $Product: AlterPg.Product ),
   Title: 'Edit Product',
   Layout: Atlas_Core.PopupLayout
 ) {
@@ -394,12 +394,12 @@ alter page AlterPg.Product_Overview {
 
 create or modify snippet AlterPg.Product_Card_Snippet
 (
-  Params: { $Product: AlterPg.Product }
+  Params: ( $Product: AlterPg.Product )
 )
 {
   dataview dvCard (datasource: $Product) {
-    dynamictext cardTitle (Content: '{1}', ContentParams: [{1} = Name], RenderMode: H4)
-    dynamictext cardBody (Content: '{1}', ContentParams: [{1} = Notes])
+    dynamictext cardTitle (Content: '{1}', ContentParams: ({1} = Name), RenderMode: H4)
+    dynamictext cardBody (Content: '{1}', ContentParams: ({1} = Notes))
   }
 };
 

@@ -145,4 +145,4 @@ AS $$ return false; $$;
 
 ## See Also
 
-[CREATE MICROFLOW](create-microflow.md), [SHOW JAVA ACTIONS](/reference/query/show-microflows.md)
+[CREATE MICROFLOW](create-microflow.md), [LIST JAVA ACTIONS](/reference/query/list-microflows.md)

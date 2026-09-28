@@ -21,9 +21,9 @@ create entity KeyGap.Box ( Tag : string );
 /
 create association KeyGap.Box_Pet from KeyGap.Box to KeyGap.PetRecord;
 
-create json structure KeyGap.JSON_Pet snippet '{"id": 1, "name": "Fido"}';
+create json structure KeyGap.JSON_Pet sample '{"id": 1, "name": "Fido"}';
 create json structure KeyGap.JSON_Nest
-  snippet '{"tag": "t", "pet": {"id": 1, "name": "Fido"}}';
+  sample '{"tag": "t", "pet": {"id": 1, "name": "Fido"}}';
 
 create import mapping KeyGap.IMM_FindPet
   with json structure KeyGap.JSON_Pet

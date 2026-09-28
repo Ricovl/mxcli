@@ -47,12 +47,12 @@ create or modify page MyFirstModule.ExpensePage
 (
   Title: 'Expense',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Expense: MyFirstModule.Expense }
+  Params: ( $Expense: MyFirstModule.Expense )
 )
 {
   dataview dv (datasource: $Expense) {
     -- Association-navigated template parameter (the fixed case).
-    dynamictext dEmp (content: 'Submitted by {1}', contentparams: [{1} = MyFirstModule.Expense_Employee/Name])
+    dynamictext dEmp (content: 'Submitted by {1}', contentparams: ({1} = MyFirstModule.Expense_Employee/Name))
   }
 }
 

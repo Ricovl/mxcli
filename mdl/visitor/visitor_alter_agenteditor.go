@@ -33,7 +33,7 @@ func (b *Builder) exitAlterAgentEditorStatement(ctx *parser.AlterStatementContex
 	// MODEL / KNOWLEDGE BASE / CONSUMED MCP SERVICE — SET-only.
 	changes := parseAgentEditorAlterAssignments(ctx.AllAgentEditorAlterAssignment())
 	switch {
-	case ctx.MODEL() != nil:
+	case ctx.AiModelKw() != nil:
 		b.statements = append(b.statements, &ast.AlterModelStmt{Name: name, Changes: changes})
 	case ctx.KNOWLEDGE() != nil && ctx.BASE() != nil:
 		b.statements = append(b.statements, &ast.AlterKnowledgeBaseStmt{Name: name, Changes: changes})

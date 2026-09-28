@@ -94,6 +94,8 @@ func workflowHeaderClauseKind(c *parser.WorkflowHeaderClauseContext) string {
 		return "OVERVIEW PAGE"
 	case c.DUE() != nil:
 		return "DUE DATE"
+	case c.ANNOTATION() != nil:
+		return "ANNOTATION"
 	}
 	// Event handlers accumulate.
 	return ""

@@ -843,6 +843,8 @@ MANAGE: M A N A G E;
 DEMO: D E M O;
 MATRIX: M A T R I X;
 APP: A P P;  // `alter app security` (R10: Studio Pro's name for project security)
+AI: A I;     // `ai model` (R10: Studio Pro's name for the agent editor's model document)
+SAMPLE: S A M P L E;  // `create json structure … sample '…'` (R10)
 APPLY: A P P L Y;
 ACCESS: A C C E S S;
 LEVEL: L E V E L;

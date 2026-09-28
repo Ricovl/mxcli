@@ -25,7 +25,7 @@ mxcli>
 Type any MDL statement and press Enter:
 
 ```sql
-SHOW MODULES;
+LIST MODULES;
 ```
 
 Results are printed as formatted tables directly in the terminal.
@@ -79,15 +79,15 @@ You can also press `Ctrl+D` to exit.
 You don't always need an interactive session. The `-c` flag lets you run a single command and exit:
 
 ```bash
-mxcli -p app.mpr -c "SHOW ENTITIES IN MyModule"
+mxcli -p app.mpr -c "LIST ENTITIES IN MyModule"
 ```
 
 This is great for quick lookups and for scripting. The output is pipe-friendly, so you can chain it with other tools:
 
 ```bash
 # Count entities per module
-mxcli -p app.mpr -c "SHOW MODULES" | tail -n +2 | while read module; do
-    echo "$module: $(mxcli -p app.mpr -c "SHOW ENTITIES IN $module" | wc -l) entities"
+mxcli -p app.mpr -c "LIST MODULES" | tail -n +2 | while read module; do
+    echo "$module: $(mxcli -p app.mpr -c "LIST ENTITIES IN $module" | wc -l) entities"
 done
 ```
 

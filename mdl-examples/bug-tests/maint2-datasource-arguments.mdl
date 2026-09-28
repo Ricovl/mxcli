@@ -49,7 +49,7 @@ create page DSArgs."P_Requests" (
 };
 
 create page DSArgs."P_TaskRequests" (
-  params: { $Task: DSArgs.Task },
+  params: ( $Task: DSArgs.Task ),
   Title: 'Task requests',
   Layout: Atlas_Core.Atlas_Default
 ) {

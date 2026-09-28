@@ -50,6 +50,9 @@ var unrewritable = map[string]string{
 	"MDL-V1-SESSION": "a session command (`connect`, `set format`, `status`, `help`, …) is refused in an mdl 1 " +
 		"script, and no model statement does what it does: move it out of the script, to the command line " +
 		"(`-p app.mpr` to connect, `--json` for the output format) or the REPL",
+	"MDL-V1-SHOWSUMMARY": "`show entity X` / `show association X` print a summary no mdl 1 statement prints: " +
+		"`describe` prints the definition as MDL and `list entities` / `list associations` the summary columns, so " +
+		"either would change the script's output; choose one by hand",
 }
 
 // visitorFix applies the rewrite the visitor computed from the parse tree when

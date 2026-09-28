@@ -97,7 +97,7 @@ snippets and REST/OData services also take is a deprecated alias (`MDL-DEPR105`)
 ```sql
 CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Order
   FOLDER 'Private/JSON structures'
-  SNIPPET '{"id": 1}';
+  SAMPLE '{"id": 1}';
 
 CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
 
@@ -120,7 +120,7 @@ MOVE FOLDER MyModule.OldName TO FOLDER 'Archive';
 ### Check impact before a cross-module move
 
 ```sql
-SHOW IMPACT OF OldModule.Customer;
+LIST IMPACT OF OldModule.Customer;
 MOVE ENTITY OldModule.Customer TO NewModule;
 ```
 

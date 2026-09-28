@@ -24,7 +24,7 @@ CREATE PAGE bug295.Product_Detail (
   -- (flagged by MDL-PAGE20); this page takes $Product.
   Url: 'Product_Detail/{Product}',
   layout: Atlas_Core.Atlas_Default,
-  Params: { $Product: bug295.Product }
+  Params: ( $Product: bug295.Product )
 ) {
   DATAVIEW dv1 (DataSource: $Product) {
     DYNAMICTEXT txt1 (Content: '$Product/Name')

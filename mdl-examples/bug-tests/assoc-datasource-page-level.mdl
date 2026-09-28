@@ -49,7 +49,7 @@ create or modify association AssocDS.Order_Customer
 -- association is traversed from is `$Customer`. This is the reported case.
 create or modify page AssocDS.P_PageLevel
 (
-  params: { $Customer: AssocDS.Customer },
+  params: ( $Customer: AssocDS.Customer ),
   title: 'Orders for a customer',
   layout: Atlas_Core.Atlas_Default
 )
@@ -65,7 +65,7 @@ create or modify page AssocDS.P_PageLevel
 -- named, and leaves the enclosing-entity path alone.
 create or modify page AssocDS.P_InDataView
 (
-  params: { $Customer: AssocDS.Customer },
+  params: ( $Customer: AssocDS.Customer ),
   title: 'Same thing, enclosed',
   layout: Atlas_Core.Atlas_Default
 )
@@ -90,7 +90,7 @@ create or modify page AssocDS.P_InDataView
 -- reason.
 create or modify page AssocDS.P_Reverse
 (
-  params: { $Order: AssocDS.Order },
+  params: ( $Order: AssocDS.Order ),
   title: 'The other way',
   layout: Atlas_Core.Atlas_Default
 )

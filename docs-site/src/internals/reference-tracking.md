@@ -28,7 +28,7 @@ VALUES ('Sales.ProcessOrder', 'Microflow', 'Sales.Customer', 'Entity', 'Retrieve
 Find what calls a given element:
 
 ```sql
-SHOW CALLERS OF Sales.ProcessOrder;
+LIST CALLERS OF Sales.ProcessOrder;
 ```
 
 Returns all microflows, nanoflows, and pages that reference `Sales.ProcessOrder`.
@@ -36,7 +36,7 @@ Returns all microflows, nanoflows, and pages that reference `Sales.ProcessOrder`
 **Transitive callers** follow the call chain recursively:
 
 ```sql
-SHOW CALLERS OF Sales.ProcessOrder TRANSITIVE;
+LIST CALLERS OF Sales.ProcessOrder TRANSITIVE;
 ```
 
 ### SHOW CALLEES
@@ -44,7 +44,7 @@ SHOW CALLERS OF Sales.ProcessOrder TRANSITIVE;
 Find what a microflow calls:
 
 ```sql
-SHOW CALLEES OF Sales.ProcessOrder;
+LIST CALLEES OF Sales.ProcessOrder;
 ```
 
 Returns all microflows, entities, and pages referenced by `Sales.ProcessOrder`.
@@ -54,7 +54,7 @@ Returns all microflows, entities, and pages referenced by `Sales.ProcessOrder`.
 Find all references to an element:
 
 ```sql
-SHOW REFERENCES TO Sales.Customer;
+LIST REFERENCES TO Sales.Customer;
 ```
 
 Returns every document that references `Sales.Customer` in any way (data source, parameter, association, etc.).
@@ -64,7 +64,7 @@ Returns every document that references `Sales.Customer` in any way (data source,
 Analyze the impact of changing an element:
 
 ```sql
-SHOW IMPACT OF Sales.Customer;
+LIST IMPACT OF Sales.Customer;
 ```
 
 Returns all direct and transitive dependents -- everything that would potentially be affected by changing or removing the element.

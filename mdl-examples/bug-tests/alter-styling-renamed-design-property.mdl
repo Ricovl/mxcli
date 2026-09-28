@@ -36,7 +36,7 @@ create or modify page MyFirstModule.StylingRenamed_Test
 -- The current name, written the way the warning says: 0 errors.
 alter page MyFirstModule.StylingRenamed_Test {
   replace cntBody with {
-    container cntBody (DesignProperties: ['Spacing': ['margin-bottom': 'M']]) {
+    container cntBody (DesignProperties: ('Spacing': ('margin-bottom': 'M'))) {
       dynamictext txtSpaced (Content: 'Hello')
     }
   }

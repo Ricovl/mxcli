@@ -35,7 +35,7 @@ create module BugTest260B;
 
 create persistent entity BugTest260B.Row  ( Key: String(50), Name: String(50) );
 create json structure BugTest260B.JSON_Attached
-  snippet $${"attributes": {"key": "k", "name": "n"}}$$;
+  sample $${"attributes": {"key": "k", "name": "n"}}$$;
 
 -- 1: an export mapping whose ROOT has no entity.
 create or modify export mapping BugTest260B.EXM_Attached

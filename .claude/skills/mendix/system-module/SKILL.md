@@ -364,7 +364,7 @@ Inspect any of these from the CLI rather than copying from here — the values a
 
 ```bash
 mxcli -p app.mpr describe enumeration System.WorkflowActivityType
-mxcli -p app.mpr show enumerations            # includes the System module
+mxcli -p app.mpr list enumerations            # includes the System module
 ```
 
 Two of these names are easy to confuse, and mixing them up is the mistake that

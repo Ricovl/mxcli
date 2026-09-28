@@ -94,16 +94,16 @@ Claude uses mxcli commands to understand your project before making changes:
 
 ```sql
 -- What modules exist?
-SHOW MODULES;
+LIST MODULES;
 
 -- What entities are in this module?
-SHOW ENTITIES IN Sales;
+LIST ENTITIES IN Sales;
 
 -- What does this entity look like?
 DESCRIBE ENTITY Sales.Customer;
 
 -- What microflows exist?
-SHOW MICROFLOWS IN Sales;
+LIST MICROFLOWS IN Sales;
 
 -- Search for something specific
 SEARCH 'validation';
@@ -161,9 +161,9 @@ Here is a typical conversation with Claude Code:
 
 **Claude** (explores the project):
 ```bash
-./mxcli -p app.mpr -c "SHOW MODULES"
-./mxcli -p app.mpr -c "SHOW ENTITIES IN Sales"
-./mxcli -p app.mpr -c "SHOW PAGES IN Sales"
+./mxcli -p app.mpr -c "LIST MODULES"
+./mxcli -p app.mpr -c "LIST ENTITIES IN Sales"
+./mxcli -p app.mpr -c "LIST PAGES IN Sales"
 ```
 
 **Claude** (reads skills, writes MDL, validates, and executes):

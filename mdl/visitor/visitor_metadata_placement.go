@@ -8,6 +8,7 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
+	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
 // R9 (PROPOSAL_mdl_beta_syntax_freeze.md §3; ADR-0010): where document
@@ -220,4 +221,46 @@ func ruleContexts[T antlr.ParserRuleContext](items []T) []antlr.ParserRuleContex
 		out[i] = it
 	}
 	return out
+}
+
+// recordFolderClausePosition records a `folder '…'` clause written after the
+// rest of the statement (MDL-DEPR134), with the rewrite that moves it to right
+// after name. twice reports that the statement also states the folder
+// elsewhere, which leaves the two to be reconciled by hand.
+func (b *Builder) recordFolderClausePosition(name antlr.ParserRuleContext, kw, lit antlr.Token, twice bool) {
+	b.recordDeprecation(deprecation.FolderClausePosition, kw, "")
+	if twice || name == nil || name.GetStop() == nil {
+		b.fixLastDeprecation(deprecation.FolderClausePosition, nil,
+			"the statement states its folder more than once; keep one `folder '…'` right after the name by hand")
+		return
+	}
+	del := ast.TextEdit{Start: startAfterSpace(kw), Stop: lit.GetStop() + 1}
+	ins := insertAt(name.GetStop().GetStop()+1, " "+kw.GetText()+" "+lit.GetText())
+	b.fixLastDeprecation(deprecation.FolderClausePosition, &ast.Fix{Edits: []ast.TextEdit{ins, del}}, "")
+}
+
+// countFolderOptions counts the `folder` options among a constant's options.
+func countFolderOptions(opts *parser.ConstantOptionsContext) int {
+	n := 0
+	for _, o := range opts.AllConstantOption() {
+		if o.(*parser.ConstantOptionContext).FOLDER() != nil {
+			n++
+		}
+	}
+	return n
+}
+
+// snippetHeaderHasFolder reports whether a snippet's header has a `Folder:`
+// property (MDL-DEPR105's alias of the same clause).
+func snippetHeaderHasFolder(ctx *parser.CreateSnippetStatementContext) bool {
+	h, ok := ctx.SnippetHeaderV3().(*parser.SnippetHeaderV3Context)
+	if !ok || h == nil {
+		return false
+	}
+	for _, p := range h.AllSnippetHeaderPropertyV3() {
+		if p.(*parser.SnippetHeaderPropertyV3Context).FOLDER() != nil {
+			return true
+		}
+	}
+	return false
 }

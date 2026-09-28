@@ -591,6 +591,8 @@ var mdlGeneratedKeywords = []protocol.CompletionItem{
 	{Label: "DEMO", Kind: protocol.CompletionItemKindKeyword, Detail: "Keyword"},
 	{Label: "MATRIX", Kind: protocol.CompletionItemKindKeyword, Detail: "Keyword"},
 	{Label: "APP", Kind: protocol.CompletionItemKindKeyword, Detail: "Keyword"},
+	{Label: "AI", Kind: protocol.CompletionItemKindKeyword, Detail: "Keyword"},
+	{Label: "SAMPLE", Kind: protocol.CompletionItemKindKeyword, Detail: "Keyword"},
 	{Label: "APPLY", Kind: protocol.CompletionItemKindKeyword, Detail: "Keyword"},
 	{Label: "ACCESS", Kind: protocol.CompletionItemKindKeyword, Detail: "Keyword"},
 	{Label: "LEVEL", Kind: protocol.CompletionItemKindKeyword, Detail: "Keyword"},

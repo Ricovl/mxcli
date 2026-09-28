@@ -35,7 +35,7 @@ create or modify page MyFirstModule.P_Search
 (
   Title: 'Search',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Filter: MyFirstModule.Filter }
+  Params: ( $Filter: MyFirstModule.Filter )
 )
 {
   layoutgrid grid {

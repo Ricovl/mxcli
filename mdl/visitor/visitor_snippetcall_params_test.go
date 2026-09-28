@@ -31,8 +31,10 @@ func TestSnippetCallParams_DollarPrefix(t *testing.T) {
 	if len(params) != 1 {
 		t.Fatalf("GetSnippetParams: want 1, got %d", len(params))
 	}
-	if params[0].ParamName != "$Asset" {
-		t.Errorf("ParamName: want $Asset, got %q", params[0].ParamName)
+	// The name is stored without its `$` (the builder strips it either way),
+	// so the old brace map builds what the canonical (Asset = $theAsset) does.
+	if params[0].ParamName != "Asset" {
+		t.Errorf("ParamName: want Asset, got %q", params[0].ParamName)
 	}
 	if params[0].Variable != "$theAsset" {
 		t.Errorf("Variable: want $theAsset, got %q", params[0].Variable)

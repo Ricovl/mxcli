@@ -37,7 +37,7 @@ create or modify page MyFirstModule.P_KwArg
 (
   Title: 'Keyword Arg Names',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Item: MyFirstModule.Item }
+  Params: ( $Item: MyFirstModule.Item )
 )
 {
   dataview dv (datasource: $Item) {

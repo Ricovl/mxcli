@@ -148,7 +148,7 @@ func listDemoUsers(ctx *ExecContext) error {
 	if !ps.EnableDemoUsers {
 		if ctx.Format != FormatJSON {
 			fmt.Fprintln(ctx.Output, "Demo users are disabled.")
-			fmt.Fprintln(ctx.Output, "Enable with: alter app security demo users on;")
+			fmt.Fprintln(ctx.Output, "Enable with: alter app security ( EnableDemoUsers: true );")
 			return nil
 		}
 		return writeResult(ctx, &TableResult{Columns: []string{"User Name", "User Roles"}})
@@ -852,29 +852,7 @@ func describeUserRole(ctx *ExecContext, name ast.QualifiedName) error {
 
 	for _, ur := range ps.UserRoles {
 		if ur.Name == name.Name {
-			fmt.Fprintf(ctx.Output, "create or modify user role %s", ur.Name)
-
-			// Module roles
-			if len(ur.ModuleRoles) > 0 {
-				fmt.Fprintf(ctx.Output, " (%s)", strings.Join(ur.ModuleRoles, ", "))
-			}
-
-			if ur.ManageAllRoles {
-				fmt.Fprint(ctx.Output, " manage all roles")
-			}
-
-			fmt.Fprintln(ctx.Output, ";")
-
-			// Show description if present
-			if ur.Description != "" {
-				fmt.Fprintf(ctx.Output, "\n-- Description: %s\n", ur.Description)
-			}
-
-			// Show check security flag
-			if ur.CheckSecurity {
-				fmt.Fprintln(ctx.Output, "-- Check security: enabled")
-			}
-
+			fmt.Fprint(ctx.Output, formatUserRoleMDL(ur))
 			return nil
 		}
 	}
@@ -884,3 +862,40 @@ func describeUserRole(ctx *ExecContext, name ast.QualifiedName) error {
 
 // Executor method wrappers — delegate to free functions for callers that
 // still use the Executor receiver (e.g. executor_query.go).
+
+// formatUserRoleMDL writes a user role as `create or modify user role`, its
+// properties in a ( Key: value ) list (ako/mxcli#707). The positional form it
+// replaces had no slot for the description or the check-security flag, which
+// describe printed as `--` comments that a replay dropped, and it could not
+// write a role with no module roles at all. A property at Mendix's default for
+// a new role is left out (R12), so an empty role is `create or modify user
+// role R;`.
+func formatUserRoleMDL(ur *security.UserRole) string {
+	var props []string
+	if len(ur.ModuleRoles) > 0 {
+		props = append(props, "ModuleRoles: ("+strings.Join(ur.ModuleRoles, ", ")+")")
+	}
+	if ur.Description != "" {
+		props = append(props, "Description: "+mdlQuoted(ur.Description))
+	}
+	if ur.ManageAllRoles {
+		props = append(props, "ManageAllRoles: true")
+	}
+	if len(ur.ManageableRoles) > 0 && !ur.ManageAllRoles {
+		props = append(props, "ManageableRoles: ("+strings.Join(ur.ManageableRoles, ", ")+")")
+	}
+	if ur.ManageUsersWithoutRoles {
+		props = append(props, "ManageUsersWithoutRoles: true")
+	}
+	if ur.CheckSecurity {
+		props = append(props, "CheckSecurity: true")
+	}
+	head := "create or modify user role " + ur.Name
+	switch len(props) {
+	case 0:
+		return head + ";\n"
+	case 1:
+		return head + " ( " + props[0] + " );\n"
+	}
+	return head + " (\n  " + strings.Join(props, ",\n  ") + "\n);\n"
+}

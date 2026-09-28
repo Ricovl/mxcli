@@ -22,6 +22,7 @@ type JavaActionParam struct {
 //	EXPOSED AS 'caption' IN 'category'
 //	AS $$ ... $$;
 type CreateJavaActionStmt struct {
+	CreateGuard                        // `create … if not exists` (ako/mxcli#731)
 	Folder           string            // Folder path within module (empty = leave placement alone)
 	Name             QualifiedName     // Qualified name (Module.ActionName)
 	Parameters       []JavaActionParam // Input parameters
@@ -64,6 +65,7 @@ func (s *DropJavaActionStmt) isStatement() {}
 // It mirrors CreateJavaActionStmt with an added Platform (Web/Native/Hybrid/All,
 // default Web). The inline source is JavaScript rather than Java.
 type CreateJavaScriptActionStmt struct {
+	CreateGuard                        // `create … if not exists` (ako/mxcli#731)
 	Folder           string            // Folder path within module (empty = leave placement alone)
 	Name             QualifiedName     // Qualified name (Module.ActionName)
 	Parameters       []JavaActionParam // Input parameters

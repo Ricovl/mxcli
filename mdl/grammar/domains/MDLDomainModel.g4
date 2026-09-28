@@ -280,7 +280,7 @@ alterEntityAction
     | DROP attributeKw ifExists? attributeName
     | DROP DEFAULT ON ATTRIBUTE attributeName   // clear an attribute's default value
     | SET DOCUMENTATION STRING_LITERAL
-    | SET COMMENT STRING_LITERAL
+    | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     | SET POSITION LPAREN NUMBER_LITERAL COMMA NUMBER_LITERAL RPAREN
     | SET LPAREN ALLOW_CREATE_CHANGE_LOCALLY COLON (TRUE | FALSE) RPAREN    // set ( AllowCreateChangeLocally: true )
     | SET ALLOW_CREATE_CHANGE_LOCALLY EQUALS /* @alias MDL-DEPR063 */ (TRUE | FALSE)
@@ -294,8 +294,13 @@ alterEntityAction
 // Idempotency guards for a re-runnable domain script: ADD ... IF NOT EXISTS
 // skips (with a notice) when the member is already present, and DROP ... IF
 // EXISTS skips when it is already gone — instead of erroring and halting the
-// run. Accepted on ATTRIBUTE, EVENT HANDLER and INDEX, and on CREATE ENTITY /
-// CREATE ASSOCIATION.
+// run. Accepted on ATTRIBUTE, EVENT HANDLER and INDEX.
+//
+// On a document-level CREATE it sits after the kind's keywords and before the
+// name (`create page if not exists M.P …`) on every kind that names one element
+// (ako/mxcli#731, ADR-0010 R1): leave an existing element untouched, create it
+// otherwise. The visitor applies it once, in ExitCreateStatement, and the
+// executor's dispatch honours it, so a create rule only has to accept it.
 //
 // EVENT HANDLER and INDEX have no other way to be re-run: a defensive
 // drop-then-add fails on the drop when the member is absent, and on the add
@@ -315,7 +320,8 @@ alterAssociationAction
     | SET onDeleteClause
     | SET OWNER (DEFAULT | BOTH)
     | SET STORAGE (COLUMN | TABLE)
-    | SET COMMENT STRING_LITERAL
+    | SET DOCUMENTATION STRING_LITERAL
+    | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     // Line anchors: where the connector attaches to each entity box, as a
     // PERCENTAGE of the box (0..100). Both ends together — the pair is one
     // visual decision, and `from`/`to` are the association's own words for its
@@ -334,11 +340,14 @@ anchorPoint
 // unapplied — so one already-present value silently truncates the script.
 // (ako/mxcli-rest FINDINGS #60)
 alterEnumerationAction
-    : ADD VALUE ifNotExists? IDENTIFIER (CAPTION STRING_LITERAL)?
-    | RENAME VALUE IDENTIFIER TO IDENTIFIER
-    | MODIFY VALUE IDENTIFIER CAPTION STRING_LITERAL
-    | DROP VALUE ifExists? IDENTIFIER
-    | SET COMMENT STRING_LITERAL
+    // A value is named as `create enumeration` names it (enumValueName), so a
+    // value spelled like a keyword (Sample, AI, Model) can be altered too.
+    : ADD VALUE ifNotExists? enumValueName (CAPTION STRING_LITERAL)?
+    | RENAME VALUE enumValueName TO enumValueName
+    | MODIFY VALUE enumValueName CAPTION STRING_LITERAL
+    | DROP VALUE ifExists? enumValueName
+    | SET DOCUMENTATION STRING_LITERAL
+    | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     ;
 
 // =============================================================================
@@ -346,7 +355,7 @@ alterEnumerationAction
 // =============================================================================
 
 createModuleStatement
-    : MODULE identifierOrKeyword moduleOptions?
+    : MODULE ifNotExists? identifierOrKeyword moduleOptions?
     ;
 
 // =============================================================================
@@ -386,7 +395,7 @@ moduleOption
 // =============================================================================
 
 createEnumerationStatement
-    : ENUMERATION qualifiedName
+    : ENUMERATION ifNotExists? qualifiedName
       LPAREN enumerationValueList RPAREN
       enumerationOptions?
     ;
@@ -428,7 +437,7 @@ enumerationOption
  * quoted expression.
  */
 createQueueStatement
-    : taskQueueKw qualifiedName (FOLDER STRING_LITERAL)? queueBody?
+    : taskQueueKw ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? queueBody?
     ;
 
 queueBody
@@ -448,7 +457,7 @@ queueProperty
 // document rather than a string on the rule.
 
 createRegularExpressionStatement
-    : REGULAR EXPRESSION qualifiedName (FOLDER STRING_LITERAL)? regularExpressionBody?
+    : REGULAR EXPRESSION ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? regularExpressionBody?
     ;
 
 regularExpressionBody
@@ -473,7 +482,7 @@ regularExpressionProperty
 // not belong to the chosen repeat.
 
 createScheduledEventStatement
-    : SCHEDULED EVENT qualifiedName (FOLDER STRING_LITERAL)? scheduledEventBody?
+    : SCHEDULED EVENT ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? scheduledEventBody?
     ;
 
 scheduledEventBody
@@ -489,7 +498,7 @@ scheduledEventProperty
 // =============================================================================
 
 createImageCollectionStatement
-    : IMAGE COLLECTION qualifiedName (FOLDER STRING_LITERAL)? imageCollectionOptions? imageCollectionBody?
+    : IMAGE COLLECTION ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? imageCollectionOptions? imageCollectionBody?
     ;
 
 // CREATE [OR MODIFY] ANNOTATION IN Module ( Caption: '…', Position: (x, y), Width: n )
@@ -538,8 +547,12 @@ imageCollectionChild
     : IMAGE imageName LPAREN imageProperty (COMMA imageProperty)* COMMA? RPAREN   // image Logo ( File: 'logo.png' )
     ;
 
+// File: '<path>' reads the image from a file; Data: '<base64>' carries the
+// bytes in the script, which is what describe writes (ako/mxcli#707), with
+// Format: <png|jpg|gif|svg|bmp|webp> when the bytes do not say it themselves.
 imageProperty
     : identifierOrKeyword COLON STRING_LITERAL
+    | identifierOrKeyword COLON identifierOrKeyword
     ;
 
 imageCollectionItem
@@ -557,8 +570,15 @@ imageName
 // =============================================================================
 
 createJsonStructureStatement
-    : JSON STRUCTURE qualifiedName (FOLDER STRING_LITERAL)? (COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL)? SNIPPET (STRING_LITERAL | DOLLAR_STRING)
+    : JSON STRUCTURE ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? (COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL)? jsonSampleKw (STRING_LITERAL | DOLLAR_STRING)
       (CUSTOM_NAME_MAP LPAREN customNameMapping (COMMA customNameMapping)* RPAREN)?
+    ;
+
+// R10: the example JSON a structure is derived from is its sample; `snippet`
+// is a page document type.
+jsonSampleKw
+    : SAMPLE
+    | SNIPPET /* @alias MDL-DEPR132 */
     ;
 
 /**
@@ -611,7 +631,7 @@ customNameMapping
  * (Module.Collection.Definition), so the collection is never implicit.
  */
 createMessageDefinitionCollectionStatement
-    : MESSAGE DEFINITION COLLECTION qualifiedName
+    : MESSAGE DEFINITION COLLECTION ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       ( LBRACE messageDefinitionDef (COMMA? messageDefinitionDef)* COMMA? RBRACE
       | LPAREN /* @alias MDL-DEPR073 */ messageDefinitionDef (COMMA messageDefinitionDef)* COMMA? RPAREN
@@ -727,7 +747,7 @@ messageMemberPath
  * };
  */
 createImportMappingStatement
-    : IMPORT MAPPING qualifiedName
+    : IMPORT MAPPING ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       importMappingWithClause?
       importMappingParameterClause?
@@ -869,7 +889,7 @@ importMappingObjectHandling
  * };
  */
 createExportMappingStatement
-    : EXPORT MAPPING qualifiedName
+    : EXPORT MAPPING ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       exportMappingWithClause?
       exportMappingNullValuesClause?
@@ -969,7 +989,8 @@ validationRuleRange
 // =============================================================================
 
 createConstantStatement
-    : CONSTANT qualifiedName
+    : CONSTANT ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?   // R9: the folder is a clause after the name
       TYPE dataType
       DEFAULT literal
       constantOptions?
@@ -981,7 +1002,7 @@ constantOptions
 
 constantOption
     : COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL   // R9: a `/** … */` doc comment
-    | FOLDER STRING_LITERAL
+    | FOLDER STRING_LITERAL /* @alias MDL-DEPR134 */   // R9: after the name
     | EXPOSED TO CLIENT
     ;
 
@@ -1005,7 +1026,7 @@ createIndexStatement
  * };
  */
 createDataTransformerStatement
-    : DATA TRANSFORMER qualifiedName
+    : DATA TRANSFORMER ifNotExists? qualifiedName
       (FOLDER folder=STRING_LITERAL)?
       SOURCE_KW (JSON | XML) source=STRING_LITERAL
       LBRACE dataTransformerStep* RBRACE

@@ -15,17 +15,39 @@ options { tokenVocab = MDLLexer; }
 // it, re-executing the script that sets up roles fails on the first role that
 // already exists), and a doc comment attaches to it (#731).
 createModuleRoleStatement
-    : MODULE ROLE qualifiedName (DESCRIPTION STRING_LITERAL)?
+    : MODULE ROLE ifNotExists? qualifiedName (DESCRIPTION STRING_LITERAL)?
     ;
 
 dropModuleRoleStatement
     : DROP MODULE ROLE ifExists? qualifiedName
     ;
 
+// A user role's properties are a ( Key: value ) list, as a scheduled event's
+// are (ako/mxcli#707, PROPOSAL_mdl_beta_syntax_freeze.md §4 Security). The
+// positional form had no slot for Description or CheckSecurity, so describe
+// printed them as comments and a replay lost them, and it required at least one
+// module role, so a role with none described into a statement that did not
+// parse. The list is optional, and may be empty: `create user role Guest;`.
+// The positional form is the deprecated alias; both start `( <name>`, and the
+// `:` after the first name tells them apart.
 createUserRoleStatement
-    : USER ROLE identifierOrKeyword
+    : USER ROLE ifNotExists? identifierOrKeyword userRolePropertyList?
+    | USER ROLE ifNotExists? identifierOrKeyword /* @alias MDL-DEPR710 */
       LPAREN moduleRoleList RPAREN
       (MANAGE ALL ROLES)?
+    ;
+
+userRolePropertyList
+    : LPAREN (userRoleProperty (COMMA userRoleProperty)* COMMA?)? RPAREN
+    ;
+
+// ModuleRoles: (M.R, …) and ManageableRoles: (UserRole, …) take a list;
+// Description a string; ManageAllRoles, ManageUsersWithoutRoles and
+// CheckSecurity a boolean. The visitor refuses any other key.
+userRoleProperty
+    : identifierOrKeyword COLON LPAREN (qualifiedName (COMMA qualifiedName)*)? RPAREN
+    | identifierOrKeyword COLON STRING_LITERAL
+    | identifierOrKeyword COLON booleanLiteral
     ;
 
 alterUserRoleStatement
@@ -113,21 +135,26 @@ revokePublishedRestServiceAccessStatement
     ;
 
 alterProjectSecurityStatement
-    : ALTER appSecurityKw LEVEL (PRODUCTION | PROTOTYPE | OFF)
-    | ALTER appSecurityKw DEMO USERS (ON | OFF)
+    // R10 (ako/mxcli#755): `alter app security ( Key: value, … )`, create's
+    // property list with Security$ProjectSecurity's property names:
+    // SecurityLevel, EnableDemoUsers, EnableGuestAccess, GuestUserRole,
+    // StrictMode. Each clause form below is a deprecated alias of one key.
+    : ALTER appSecurityKw settingsItemOptions
+    | ALTER appSecurityKw LEVEL (PRODUCTION | PROTOTYPE | OFF) /* @alias MDL-DEPR133 */
+    | ALTER appSecurityKw DEMO USERS (ON | OFF) /* @alias MDL-DEPR133 */
     // ROLE is optional here but effectively required by Mendix: mxbuild raises
     // CE0133 when guest access is on with no role. It is optional so that
     // re-enabling a project that already stores one does not force a retype;
     // the executor refuses ON when neither source supplies a role.
-    | ALTER appSecurityKw GUEST ACCESS ON (ROLE identifierOrKeyword)?
-    | ALTER appSecurityKw GUEST ACCESS OFF
+    | ALTER appSecurityKw GUEST ACCESS ON (ROLE identifierOrKeyword)? /* @alias MDL-DEPR133 */
+    | ALTER appSecurityKw GUEST ACCESS OFF /* @alias MDL-DEPR133 */
     // Strict mode is a plain bool on Security$ProjectSecurity, declared by BOTH
     // generated sources and already read back from real projects — so this
     // writes a property Studio Pro knows, not one gen merely offers.
     //
     // mxcli LINTED for it (SEC005) and offered no way to clear it, which is a
     // rule with no remedy (ako/mxcli#526).
-    | ALTER appSecurityKw STRICT MODE (ON | OFF)
+    | ALTER appSecurityKw STRICT MODE (ON | OFF) /* @alias MDL-DEPR133 */
     ;
 
 // R10: Studio Pro calls it App Security; `project security` is the old name.
@@ -137,7 +164,7 @@ appSecurityKw
     ;
 
 createDemoUserStatement
-    : DEMO USER STRING_LITERAL PASSWORD STRING_LITERAL (ENTITY qualifiedName)?
+    : DEMO USER ifNotExists? STRING_LITERAL PASSWORD STRING_LITERAL (ENTITY qualifiedName)?
       LPAREN identifierOrKeyword (COMMA identifierOrKeyword)* RPAREN
     ;
 

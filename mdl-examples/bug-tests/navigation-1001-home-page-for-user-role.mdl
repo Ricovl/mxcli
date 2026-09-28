@@ -75,7 +75,7 @@ create or modify navigation Responsive
 --    project when `check` runs, so the check has to read the script's own
 --    CREATE USER ROLE statements as well as the project's — otherwise this
 --    perfectly valid pairing is refused.
-create user role Nav1001_Supervisor (System.User, Nav1001.User);
+create user role Nav1001_Supervisor ( ModuleRoles: (System.User, Nav1001.User) );
 
 create or modify navigation Responsive
   home page Nav1001.Home

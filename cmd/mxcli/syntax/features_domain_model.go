@@ -22,9 +22,9 @@ func init() {
 		Summary: "Canvas notes on a domain model — the boxes that explain the diagram",
 		Keywords: []string{
 			"annotation", "annotations", "note", "canvas", "section", "comment box",
-			"create annotation", "drop annotation", "show annotations",
+			"create annotation", "drop annotation", "list annotations",
 		},
-		Syntax: "SHOW ANNOTATIONS [IN Module];\n\n" +
+		Syntax: "LIST ANNOTATIONS [IN Module];\n\n" +
 			"CREATE [OR MODIFY] ANNOTATION IN Module (\n" +
 			"  Caption: 'text'  |  $$multi\nline$$,\n" +
 			"  [Position: (x, y),]\n" +
@@ -56,7 +56,7 @@ func init() {
 			"  Caption: 'Orders and invoices',\n" +
 			"  Position: (60, 40)\n" +
 			");\n\n" +
-			"SHOW ANNOTATIONS IN Sales;\n" +
+			"LIST ANNOTATIONS IN Sales;\n" +
 			"DROP ANNOTATION AT (60, 40) IN Sales;",
 		SeeAlso: []string{"domain-model", "domain-model.entity"},
 	})
@@ -81,7 +81,7 @@ func init() {
 			"non-persistent", "extends", "generalization",
 			"index", "event handler", "before commit", "after commit",
 		},
-		Syntax:  "CREATE PERSISTENT ENTITY Module.Name (\n  Attr: Type [NOT NULL [ERROR 'msg']] [UNIQUE [ERROR 'msg']] [DEFAULT val],\n  ...\n)\n[INDEX (attr1, attr2)]\n[ON BEFORE|AFTER CREATE|COMMIT|DELETE|ROLLBACK CALL Module.MF [RAISE ERROR]];\n\n-- Documentation: the /** … */ doc comment before the statement, or\n-- ALTER ENTITY Module.Name SET COMMENT 'text' on an existing entity.\n\nCREATE NON-PERSISTENT ENTITY Module.Name (...);\nCREATE PERSISTENT ENTITY Module.Name EXTENDS Module.Parent (...);\n\n-- INDEX goes AFTER the closing parenthesis, never inside the attribute list.\n-- On an existing entity, either spelling works:\nALTER ENTITY Module.Name ADD INDEX [IF NOT EXISTS] [name] [ON] (attr1 [ASC|DESC], ...);\nCREATE INDEX IdxName ON Module.Name (attr1 [ASC|DESC], ...);\n\n-- Re-runnable script: IF NOT EXISTS skips instead of erroring, and leaves an\n-- existing element untouched (unlike OR MODIFY, which rebuilds it from the\n-- statement and drops any attribute the statement omits).\nCREATE ENTITY IF NOT EXISTS Module.Name (...);\nALTER ENTITY Module.Name ADD ATTRIBUTE IF NOT EXISTS Attr: Type;\nALTER ENTITY Module.Name DROP INDEX IF EXISTS (attr1, ...);",
+		Syntax:  "CREATE PERSISTENT ENTITY Module.Name (\n  Attr: Type [NOT NULL [ERROR 'msg']] [UNIQUE [ERROR 'msg']] [DEFAULT val],\n  ...\n)\n[INDEX (attr1, attr2)]\n[ON BEFORE|AFTER CREATE|COMMIT|DELETE|ROLLBACK CALL Module.MF [RAISE ERROR]];\n\n-- Documentation: the /** … */ doc comment before the statement, or\n-- ALTER ENTITY Module.Name SET DOCUMENTATION 'text' on an existing entity.\n\nCREATE NON-PERSISTENT ENTITY Module.Name (...);\nCREATE PERSISTENT ENTITY Module.Name EXTENDS Module.Parent (...);\n\n-- INDEX goes AFTER the closing parenthesis, never inside the attribute list.\n-- On an existing entity, either spelling works:\nALTER ENTITY Module.Name ADD INDEX [IF NOT EXISTS] [name] [ON] (attr1 [ASC|DESC], ...);\nCREATE INDEX IdxName ON Module.Name (attr1 [ASC|DESC], ...);\n\n-- Re-runnable script: IF NOT EXISTS skips instead of erroring, and leaves an\n-- existing element untouched (unlike OR MODIFY, which rebuilds it from the\n-- statement and drops any attribute the statement omits).\nCREATE ENTITY IF NOT EXISTS Module.Name (...);\nALTER ENTITY Module.Name ADD ATTRIBUTE IF NOT EXISTS Attr: Type;\nALTER ENTITY Module.Name DROP INDEX IF EXISTS (attr1, ...);",
 		Example: "-- Persistent with constraints and index\nCREATE PERSISTENT ENTITY Shop.Order (\n  OrderNumber: String(20) NOT NULL,\n  Total: Decimal DEFAULT 0,\n  CreatedAt: DateTime\n)\nINDEX (OrderNumber)\nON BEFORE COMMIT CALL Shop.ValidateOrder($currentObject) RAISE ERROR;\n\n-- With generalization\nCREATE PERSISTENT ENTITY Shop.ProductImage EXTENDS System.Image (\n  Caption: String(200)\n);",
 		SeeAlso: []string{"domain-model.entity.alter", "domain-model.entity.attributes"},
 	})
@@ -105,11 +105,11 @@ func init() {
 		Path:    "domain-model.entity.show",
 		Summary: "List and describe entities in the project",
 		Keywords: []string{
-			"show entities", "list entities", "describe entity",
+			"list entities", "list entities", "describe entity",
 			"show attributes", "entity details",
 		},
-		Syntax:  "SHOW ENTITIES;\nSHOW ENTITIES IN <module>;\nDESCRIBE ENTITY Module.Name;",
-		Example: "SHOW ENTITIES IN Shop;\nDESCRIBE ENTITY Shop.Customer;",
+		Syntax:  "LIST ENTITIES;\nLIST ENTITIES IN <module>;\nDESCRIBE ENTITY Module.Name;",
+		Example: "LIST ENTITIES IN Shop;\nDESCRIBE ENTITY Shop.Customer;",
 		SeeAlso: []string{"domain-model.entity.create"},
 	})
 
@@ -388,10 +388,10 @@ func init() {
 		Summary: "CREATE ENUMERATION with values and captions, usage in entities",
 		Keywords: []string{
 			"create enumeration", "new enum", "enum values",
-			"caption", "show enumerations", "describe enumeration",
+			"caption", "list enumerations", "describe enumeration",
 			"drop enumeration",
 		},
-		Syntax:  "CREATE ENUMERATION Module.Name (\n  ValueName 'Display Caption',\n  ...\n);\n\nALTER ENUMERATION Module.Name ADD VALUE [IF NOT EXISTS] NewValue [CAPTION 'Display Caption'];\nALTER ENUMERATION Module.Name RENAME VALUE OldName TO NewName;\nALTER ENUMERATION Module.Name MODIFY VALUE ValueName CAPTION 'New Caption';\nALTER ENUMERATION Module.Name DROP VALUE [IF EXISTS] ValueName;\n\nIF NOT EXISTS / IF EXISTS make a script RE-RUNNABLE. Without them the second\nrun errors and exec STOPS THERE, so one already-present value leaves every\nlater statement unapplied. A defensive drop-then-add is not a substitute: the\ndrop fails when the value is absent and the add when it is present.\n\nSHOW ENUMERATIONS;\nSHOW ENUMERATIONS IN <module>;\nDESCRIBE ENUMERATION Module.Name;\nDROP ENUMERATION Module.Name;\n\nUsing in entity:\n  AttrName: Enumeration(Module.EnumName)\n\nThe System module's enumerations are platform built-ins with no stored\nunit. SHOW ENUMERATIONS and DESCRIBE ENUMERATION report them anyway, so\ntheir values can be read instead of guessed at until the build rejects one\nwith CE1613. They are READ-ONLY: DESCRIBE prints them as -- comment lines,\nand CREATE / ALTER / DROP / MOVE naming System is refused.\n  mxcli -p app.mpr describe enumeration System.WorkflowActivityType",
+		Syntax:  "CREATE ENUMERATION Module.Name (\n  ValueName 'Display Caption',\n  ...\n);\n\nALTER ENUMERATION Module.Name ADD VALUE [IF NOT EXISTS] NewValue [CAPTION 'Display Caption'];\nALTER ENUMERATION Module.Name RENAME VALUE OldName TO NewName;\nALTER ENUMERATION Module.Name MODIFY VALUE ValueName CAPTION 'New Caption';\nALTER ENUMERATION Module.Name DROP VALUE [IF EXISTS] ValueName;\n\nIF NOT EXISTS / IF EXISTS make a script RE-RUNNABLE. Without them the second\nrun errors and exec STOPS THERE, so one already-present value leaves every\nlater statement unapplied. A defensive drop-then-add is not a substitute: the\ndrop fails when the value is absent and the add when it is present.\n\nLIST ENUMERATIONS;\nLIST ENUMERATIONS IN <module>;\nDESCRIBE ENUMERATION Module.Name;\nDROP ENUMERATION Module.Name;\n\nUsing in entity:\n  AttrName: Enumeration(Module.EnumName)\n\nThe System module's enumerations are platform built-ins with no stored\nunit. LIST ENUMERATIONS and DESCRIBE ENUMERATION report them anyway, so\ntheir values can be read instead of guessed at until the build rejects one\nwith CE1613. They are READ-ONLY: DESCRIBE prints them as -- comment lines,\nand CREATE / ALTER / DROP / MOVE naming System is refused.\n  mxcli -p app.mpr describe enumeration System.WorkflowActivityType",
 		Example: "CREATE ENUMERATION MyModule.OrderStatus (\n  Pending 'Pending Approval',\n  Processing 'Being Processed',\n  Shipped 'Shipped to Customer'\n);\n\n-- Using in an entity\nCREATE PERSISTENT ENTITY MyModule.Order (\n  OrderNumber: String(20) NOT NULL,\n  Status: Enumeration(MyModule.OrderStatus)\n);",
 		SeeAlso: []string{"domain-model.enumeration", "domain-model.entity.attributes"},
 	})
@@ -405,7 +405,7 @@ func init() {
 			"constant", "configuration", "config value",
 			"create constant", "setting",
 		},
-		Syntax:  "[/** documentation */]\nCREATE CONSTANT Module.Name TYPE DataType DEFAULT value;\nCREATE OR MODIFY CONSTANT Module.Name TYPE DataType DEFAULT value;\n\nSHOW CONSTANTS;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;",
+		Syntax:  "[/** documentation */]\nCREATE CONSTANT Module.Name TYPE DataType DEFAULT value;\nCREATE OR MODIFY CONSTANT Module.Name TYPE DataType DEFAULT value;\n\nLIST CONSTANTS;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;",
 		Example: "CREATE CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.example.com/v1';\n\n/** Maximum API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries\n  TYPE Integer\n  DEFAULT 3;",
 		SeeAlso: []string{"domain-model.constant.create"},
 	})
@@ -415,10 +415,10 @@ func init() {
 		Summary: "CREATE/DROP/DESCRIBE CONSTANT with supported types and configuration values",
 		Keywords: []string{
 			"create constant", "drop constant", "describe constant",
-			"show constants", "constant values", "modify constant",
+			"list constants", "constant values", "modify constant",
 			"string constant", "integer constant", "boolean constant",
 		},
-		Syntax: "[/** description */]\nCREATE CONSTANT Module.Name\n  TYPE String|Integer|Long|Decimal|Boolean|DateTime\n  DEFAULT value;\n\nCREATE OR MODIFY CONSTANT Module.Name\n  TYPE DataType DEFAULT value;\n\n-- Documentation is the /** … */ doc comment; COMMENT 'text' is its\n-- deprecated alias (MDL-DEPR100).\n\nSHOW CONSTANTS;\nSHOW CONSTANTS IN <module>;\nSHOW CONSTANT VALUES;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;\n\nRemove override:\n  ALTER SETTINGS DROP CONSTANT @Module.Name IN CONFIGURATION 'cfg';\n\n" +
+		Syntax: "[/** description */]\nCREATE CONSTANT Module.Name [FOLDER 'path']\n  TYPE String|Integer|Long|Decimal|Boolean|DateTime\n  DEFAULT value\n  [EXPOSED TO CLIENT];\n\nCREATE OR MODIFY CONSTANT Module.Name\n  TYPE DataType DEFAULT value;\n\n-- Documentation is the /** … */ doc comment; COMMENT 'text' is its\n-- deprecated alias (MDL-DEPR100). FOLDER goes right after the name; after\n-- DEFAULT it is its old position (MDL-DEPR134).\n\nLIST CONSTANTS;\nLIST CONSTANTS IN <module>;\nLIST CONSTANT VALUES;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;\n\nRemove override:\n  ALTER SETTINGS DROP CONSTANT @Module.Name IN CONFIGURATION 'cfg';\n\n" +
 			"Shared vs private values:\n" +
 			"  A per-configuration override holds either a SHARED value (stored in the\n" +
 			"  model, so in version control — every developer gets it) or a PRIVATE one\n" +
@@ -427,7 +427,7 @@ func init() {
 			"  MDL preserves that choice but never changes it. ALTER SETTINGS CONSTANT\n" +
 			"  applies to shared values only — on a private override it is refused, since\n" +
 			"  setting a value would publish a deliberately-local one into version control.\n" +
-			"  SHOW CONSTANT VALUES reports it as (private); DESCRIBE SETTINGS reports it\n" +
+			"  LIST CONSTANT VALUES reports it as (private); DESCRIBE SETTINGS reports it\n" +
 			"  as a comment, not a re-executable statement. DROP CONSTANT still works.\n" +
 			"  Change a constant to a shared value in Studio Pro.",
 		Example: "CREATE CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.example.com/v1';\n\n/** Maximum number of API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries\n  TYPE Integer DEFAULT 3;\n\nCREATE CONSTANT MyModule.EnableDebug\n  TYPE Boolean DEFAULT false;\n\nCREATE OR MODIFY CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.staging.example.com/v2';",
@@ -444,7 +444,7 @@ func init() {
 			"quoted identifier", "escape", "backtick", "double quote",
 		},
 		Syntax:  "Quoted identifier syntax:\n  \"ModuleName\".EntityName     -- ANSI SQL double quotes\n  `ModuleName`.EntityName     -- MySQL-style backticks\n  \"ModuleName\".\"EntityName\"   -- Both parts quoted\n\nMixed quoting is allowed: \"ComboBox\".CategoryTreeVE",
-		Example: "-- Use quotes when module/entity name conflicts with a keyword\nDESCRIBE ENTITY \"ComboBox\".\"CategoryTreeVE\";\nSHOW ENTITIES IN \"ComboBox\";\nSHOW MICROFLOWS IN `Order`;\n\n-- Common conflicts: ComboBox, DataGrid, Gallery, Title, Status, Type, Value",
+		Example: "-- Use quotes when module/entity name conflicts with a keyword\nDESCRIBE ENTITY \"ComboBox\".\"CategoryTreeVE\";\nLIST ENTITIES IN \"ComboBox\";\nLIST MICROFLOWS IN `Order`;\n\n-- Common conflicts: ComboBox, DataGrid, Gallery, Title, Status, Type, Value",
 	})
 
 	// --- Types ---

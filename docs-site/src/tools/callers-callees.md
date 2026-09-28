@@ -1,4 +1,4 @@
-# SHOW CALLERS / CALLEES
+# LIST CALLERS / CALLEES
 
 These commands trace the call graph of your Mendix project, showing what calls a given element and what that element calls.
 
@@ -10,27 +10,27 @@ Both commands require a full catalog refresh:
 REFRESH CATALOG FULL;
 ```
 
-## SHOW CALLERS OF
+## LIST CALLERS OF
 
 Shows all elements that call or reference a given element.
 
 **Syntax:**
 
 ```sql
-SHOW CALLERS OF <qualified-name>
+LIST CALLERS OF <qualified-name>
 ```
 
 **Examples:**
 
 ```sql
 -- Find everything that calls a microflow
-SHOW CALLERS OF Sales.ACT_ProcessOrder;
+LIST CALLERS OF Sales.ACT_ProcessOrder;
 
 -- Find what references an entity
-SHOW CALLERS OF Sales.Customer;
+LIST CALLERS OF Sales.Customer;
 
 -- Find what uses a page
-SHOW CALLERS OF Sales.CustomerOverview;
+LIST CALLERS OF Sales.CustomerOverview;
 ```
 
 ### CLI Usage
@@ -45,24 +45,24 @@ mxcli callers -p app.mpr Module.MyMicroflow --transitive
 
 The `--transitive` flag follows the call chain recursively, showing not just direct callers but also callers of callers.
 
-## SHOW CALLEES OF
+## LIST CALLEES OF
 
 Shows all elements that a given element calls or references.
 
 **Syntax:**
 
 ```sql
-SHOW CALLEES OF <qualified-name>
+LIST CALLEES OF <qualified-name>
 ```
 
 **Examples:**
 
 ```sql
 -- Find what a microflow calls
-SHOW CALLEES OF Sales.ACT_ProcessOrder;
+LIST CALLEES OF Sales.ACT_ProcessOrder;
 
 -- Find what entities a microflow uses
-SHOW CALLEES OF Sales.SubmitOrder;
+LIST CALLEES OF Sales.SubmitOrder;
 ```
 
 ### CLI Usage
@@ -78,7 +78,7 @@ mxcli callees -p app.mpr Module.MyMicroflow
 Check what calls a microflow before renaming or modifying it:
 
 ```sql
-SHOW CALLERS OF Sales.ACT_OldName;
+LIST CALLERS OF Sales.ACT_OldName;
 -- Review the list of callers before making changes
 ```
 
@@ -87,15 +87,15 @@ SHOW CALLERS OF Sales.ACT_OldName;
 Trace the full call chain of a complex microflow:
 
 ```sql
-SHOW CALLEES OF Sales.ACT_ProcessOrder;
+LIST CALLEES OF Sales.ACT_ProcessOrder;
 -- Shows: Sales.ValidateOrder, Sales.UpdateInventory, Sales.SendConfirmation
 ```
 
 ### Finding Dead Code
 
-If `SHOW CALLERS` returns no results, the element may be unused:
+If `LIST CALLERS` returns no results, the element may be unused:
 
 ```sql
-SHOW CALLERS OF Sales.ACT_UnusedMicroflow;
+LIST CALLERS OF Sales.ACT_UnusedMicroflow;
 -- Empty result = potentially dead code
 ```

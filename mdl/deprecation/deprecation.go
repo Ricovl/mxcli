@@ -180,9 +180,9 @@ const (
 	// R6: one verb per job (ako/mxcli#755). A block of their own, 090-099, so
 	// the parallel phase-3 changes do not collide.
 
-	// ShowSingleThing is `show` (or `list`) on a form that names one thing:
-	// entity, association, page, navigation, app security, security matrix,
-	// structure, context, settings. Its canonical verb is `describe`.
+	// ShowSingleThing is `show` (or `list`) on a form that names one thing
+	// whose describe is the same statement: page, app security, security
+	// matrix, structure, context. Its canonical verb is `describe`.
 	ShowSingleThing = "MDL-DEPR090"
 	// UserRoleRemove is `alter user role … remove module roles`.
 	UserRoleRemove = "MDL-DEPR091"
@@ -196,6 +196,28 @@ const (
 	DescribeWidgetType = "MDL-DEPR095"
 	// DefineFragment is `define fragment`.
 	DefineFragment = "MDL-DEPR096"
+
+	// Codes 130-139 finish R6 and R10 (ako/mxcli#755).
+
+	// SingularCollectionList is `list image|icon|message definition
+	// collection`: `list` names a plural.
+	SingularCollectionList = "MDL-DEPR130"
+	// AIModel is `model` for the agent editor's model document: Studio Pro
+	// calls it an AI model (R10).
+	AIModel = "MDL-DEPR131"
+	// JSONStructureSample is a JSON structure's `snippet '…'`: the example
+	// JSON is its sample, and `snippet` is a page document type (R10).
+	JSONStructureSample = "MDL-DEPR132"
+	// AppSecurityClause is `alter app security level|demo users|guest
+	// access|strict mode …`: the clause forms of what is a property list.
+	AppSecurityClause = "MDL-DEPR133"
+	// FolderClausePosition is a `folder '…'` clause written anywhere but
+	// right after the name: among a constant's trailing options, or after a
+	// snippet's header (R9).
+	FolderClausePosition = "MDL-DEPR134"
+	// SetComment is `alter entity|association|enumeration … set comment '…'`:
+	// it sets the element's documentation (R9).
+	SetComment = "MDL-DEPR135"
 
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
@@ -241,6 +263,34 @@ const (
 	// fragment in braces: `insert after $X { … }`, `replace … with { … }`.
 	AlterFlowFragmentBraces = "MDL-DEPR074"
 
+	// Codes 120-129 are the rest of R2 (ako/mxcli#754): navigation and menus,
+	// property maps, and the database connection.
+
+	// RestHeaderEquals is a consumed REST service operation's header written
+	// `'Name' = value`: a header list is a map, `( 'Name': value )`.
+	RestHeaderEquals = "MDL-DEPR120"
+	// MenuChildrenParens is a navigation profile's `menu ( … )`, a menu
+	// document's or a sub-menu's items in ( ), and the `;` after an item:
+	// menu items are children, in { } with no separator.
+	MenuChildrenParens = "MDL-DEPR121"
+	// MenuItemClauses is a menu item's action or icon written as a clause after
+	// its caption, `menu item 'X' page M.P icon I`, rather than in its property
+	// list `( OnClick: show page M.P, Icon: I )`.
+	MenuItemClauses = "MDL-DEPR122"
+	// HeaderMapBraces is a page or snippet header's `Params: { … }` /
+	// `Variables: { … }`: a map in braces.
+	HeaderMapBraces = "MDL-DEPR123"
+	// TemplateParamsBrackets is a text template's parameters in brackets,
+	// `ContentParams: [{1} = …]` (also CaptionParams and `<Name>Params`).
+	TemplateParamsBrackets = "MDL-DEPR124"
+	// DesignPropertiesBrackets is `DesignProperties: ['Key': 'Value']`.
+	DesignPropertiesBrackets = "MDL-DEPR125"
+	// SnippetCallParamsBraces is a snippet call's `Params: {$P: $v}`.
+	SnippetCallParamsBraces = "MDL-DEPR126"
+	// DatabaseConnectionClauses is a database connection written as clauses
+	// with a begin … end block of queries.
+	DatabaseConnectionClauses = "MDL-DEPR127"
+
 	// Codes 060-069 and 101-103 are R3's (ako/mxcli#751,
 	// PROPOSAL_mdl_beta_syntax_freeze.md §3 R3): `:` sets a model property, so
 	// an `alter` sets properties in create's `( Key: value, … )` list, and a
@@ -274,6 +324,18 @@ const (
 	// ModifyAttributeColon is `modify attribute A T`: an attribute definition
 	// is always `Name: Type`.
 	ModifyAttributeColon = "MDL-DEPR065"
+
+	// Codes 710-719 are ako/mxcli#707's: describe output that did not re-parse
+	// or lost data, where the fix needed a canonical form the old one lacked.
+
+	// UserRolePositional is `create user role R (M.A, M.B) manage all roles`:
+	// the module roles by position, with no slot for the role's description,
+	// its check-security flag or its manageable roles.
+	UserRolePositional = "MDL-DEPR710"
+	// RestHeaderConcat is a consumed REST service header written
+	// `'Bearer ' + $Token` or `$Token`: the value template `'Bearer {Token}'`
+	// written as an expression.
+	RestHeaderConcat = "MDL-DEPR711"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -298,11 +360,12 @@ var entries = []Entry{
 		Canonical: "list …",
 		Rewrite:   Rewrite{Token: "show", Replacement: "list"},
 		RemovedIn: 2,
-		Note: "Reported only for plurals and relationship queries, whose canonical " +
-			"form is `list`. Forms that name a single thing (`show entity X`, " +
-			"`show navigation`, `show project security`, …) become `describe` " +
-			"(MDL-DEPR090), and session state (`show version`, `show status`) a REPL " +
-			"command (R7), which is not reported until that command exists.",
+		Note: "Reported for plurals, relationship queries and the summary tables " +
+			"(`show navigation [menu]`, `show settings`), whose canonical form is `list`. " +
+			"Forms that name a single thing (`show page X`, `show project security`, …) " +
+			"become `describe` (MDL-DEPR090); `show entity X` / `show association X` have no " +
+			"mdl 1 statement (MDL-V1-SHOWSUMMARY); session state (`show version`, `show status`, " +
+			"`show catalog status`) is a session command (MDL-V1-SESSION).",
 		Example:          "show entities in M;",
 		CanonicalExample: "list entities in M;",
 	},
@@ -390,8 +453,8 @@ var entries = []Entry{
 		Rewrite:          Rewrite{Structural: "security name: `project security` becomes `app security`"},
 		RemovedIn:        2,
 		Note:             "Studio Pro calls it App Security (R10). `show project security` becomes `describe app security` (MDL-DEPR090).",
-		Example:          "alter project security demo users off;",
-		CanonicalExample: "alter app security demo users off;",
+		Example:          "alter project security ( EnableDemoUsers: false );",
+		CanonicalExample: "alter app security ( EnableDemoUsers: false );",
 	},
 	{
 		Code:             SettingsRuntime,
@@ -424,8 +487,8 @@ var entries = []Entry{
 		RemovedIn: 2,
 		Note: "XPath is written in [ ] everywhere (R5), so the quotes inside it are no longer doubled. " +
 			"A string whose value is not a bracketed XPath is left in place and reported by `fmt --upgrade`.",
-		Example:          "alter workflow M.WF set activity 'Review' targeting xpath '[Role = ''Manager'']';",
-		CanonicalExample: "alter workflow M.WF set activity 'Review' targeting xpath [Role = 'Manager'];",
+		Example:          "alter workflow M.WF { set (Targeting: xpath '[Role = ''Manager'']') on 'Review'; };",
+		CanonicalExample: "alter workflow M.WF { set (Targeting: xpath [Role = 'Manager']) on 'Review'; };",
 	},
 	{
 		Code:      OnErrorBraces,
@@ -495,7 +558,41 @@ func init() {
 	entries = append(entries, r6Entries...)
 	entries = append(entries, r5Entries...)
 	entries = append(entries, r2Entries...)
+	entries = append(entries, r2RestEntries...)
 	entries = append(entries, r3Entries...)
+	entries = append(entries, issue707Entries...)
+}
+
+// issue707Entries are ako/mxcli#707's: forms describe could not write, so its
+// output lost what they had no slot for.
+var issue707Entries = []Entry{
+	{
+		Code:      UserRolePositional,
+		Old:       "create user role R (M.A, …) [manage all roles]",
+		Canonical: "create user role R ( ModuleRoles: (M.A, …), ManageAllRoles: true, … )",
+		Rewrite: Rewrite{Structural: "user role properties: the role list becomes `ModuleRoles: (…)` in a " +
+			"( Key: value ) list, and `manage all roles` becomes `ManageAllRoles: true`"},
+		RemovedIn: 2,
+		Note: "The property list also takes Description, CheckSecurity, ManageableRoles and " +
+			"ManageUsersWithoutRoles, and may be empty or left out: `create user role Guest;`.",
+		Example:          "create user role Clerk (M.User, M.Viewer) manage all roles;",
+		CanonicalExample: "create user role Clerk ( ModuleRoles: (M.User, M.Viewer), ManageAllRoles: true );",
+	},
+	{
+		Code:      RestHeaderConcat,
+		Old:       "Headers: ('Authorization': 'Bearer ' + $Token) / ('X-Key': $Key)",
+		Canonical: "Headers: ('Authorization': 'Bearer {Token}') / ('X-Key': '{Key}')",
+		Rewrite:   Rewrite{Structural: "header value as a template: `'text' + $P` becomes `'text{P}'`"},
+		RemovedIn: 2,
+		Note: "A header value is a template like the path: `{P}` is the operation parameter P. The old " +
+			"form stored only the text before the `+`. Not rewritten when that text holds a `{` or `}`.",
+		Example: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation Get (Method: get, Path: '/a', Parameters: ($Token: String), " +
+			"Headers: ('Authorization': 'Bearer ' + $Token), Response: none) };",
+		CanonicalExample: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation Get (Method: get, Path: '/a', Parameters: ($Token: String), " +
+			"Headers: ('Authorization': 'Bearer {Token}'), Response: none) };",
+	},
 }
 
 // r9Entries are R9's (ako/mxcli#755): documentation is a `/** … */` doc
@@ -557,15 +654,16 @@ var r9Entries = []Entry{
 var r6Entries = []Entry{
 	{
 		Code:      ShowSingleThing,
-		Old:       "show entity|association|page|navigation|project security|security matrix|structure|context of|settings …",
-		Canonical: "describe entity|association|page|navigation|app security|security matrix|structure|context of|settings …",
+		Old:       "show page|project security|security matrix|structure|context of …",
+		Canonical: "describe page|app security|security matrix|structure|context of …",
 		Rewrite: Rewrite{Structural: "verb as `describe`: `show page X` -> `describe page X`, `show project security` -> " +
 			"`describe app security`; the same for `list` on these forms"},
 		RemovedIn: 2,
-		Note: "`show` is dropped (R6): plurals are listed, one thing is described. For page, app security, security " +
-			"matrix, structure and context the describe is the same statement. `show entity`, `show association`, " +
-			"`show navigation` and `show settings` print a summary where describe prints the full definition as MDL, " +
-			"so they keep their summary and `fmt --upgrade` reports them instead of rewriting them.",
+		Note: "`show` is dropped (R6): plurals are listed, one thing is described, and each of these describes " +
+			"is the same statement as its `show`. Not covered here: `show navigation [menu]` and `show settings` " +
+			"print tables, so they are `list navigation [menu]` / `list settings` (MDL-DEPR002); `show entity X` and " +
+			"`show association X` print a summary no mdl 1 statement prints, so they are not aliases at all and are " +
+			"refused under mdl 1 (MDL-V1-SHOWSUMMARY).",
 		Example:          "show security matrix in M;",
 		CanonicalExample: "describe security matrix in M;",
 	},
@@ -630,6 +728,70 @@ var r6Entries = []Entry{
 		Note:             "`create` is the verb every other definition uses (R6). A fragment is still session-scoped and unqualified.",
 		Example:          "define fragment Header as { dynamictext t (Content: 'x') };",
 		CanonicalExample: "create fragment Header as { dynamictext t (Content: 'x') };",
+	},
+	{
+		Code:             SingularCollectionList,
+		Old:              "list image|icon|message definition collection [in M]",
+		Canonical:        "list image|icon|message definition collections [in M]",
+		Rewrite:          Rewrite{Structural: "singular as the plural: `collection` -> `collections` after `list`"},
+		RemovedIn:        2,
+		Note:             "`list` enumerates, and names what it enumerates in the plural, as `list entities` does (R6).",
+		Example:          "list image collection in M;",
+		CanonicalExample: "list image collections in M;",
+	},
+	{
+		Code:      AIModel,
+		Old:       "create|alter|drop|describe|move model M.X / list models",
+		Canonical: "create|alter|drop|describe|move ai model M.X / list ai models",
+		Rewrite:   Rewrite{Structural: "document name: `model` becomes `ai model`, `models` becomes `ai models`"},
+		RemovedIn: 2,
+		Note: "Studio Pro's name for the agent editor's model document (R10). `model` alone is too generic, and " +
+			"collided with `alter settings model` (now `alter settings runtime`, MDL-DEPR555). An agent's " +
+			"`Model: M.X` property is unchanged.",
+		Example:          "drop model M.Gpt;",
+		CanonicalExample: "drop ai model M.Gpt;",
+	},
+	{
+		Code:             JSONStructureSample,
+		Old:              "create json structure M.J snippet '…'",
+		Canonical:        "create json structure M.J sample '…'",
+		Rewrite:          Rewrite{Token: "snippet", Replacement: "sample"},
+		RemovedIn:        2,
+		Note:             "The example JSON the structure is derived from is its sample (R10); `snippet` is a page document type.",
+		Example:          "create json structure M.J snippet '{\"a\": 1}';",
+		CanonicalExample: "create json structure M.J sample '{\"a\": 1}';",
+	},
+	{
+		Code:      AppSecurityClause,
+		Old:       "alter app security level …|demo users on|off|guest access on [role R]|off|strict mode on|off",
+		Canonical: "alter app security ( SecurityLevel: …, EnableDemoUsers: …, EnableGuestAccess: …, GuestUserRole: R, StrictMode: … )",
+		Rewrite:   Rewrite{Structural: "clause as a property list: `level production` -> `( SecurityLevel: production )`"},
+		RemovedIn: 2,
+		Note: "App security is a document with properties, set like every other one (R10, R3). The keys are " +
+			"Studio Pro's property names, and one statement can set several.",
+		Example:          "alter app security guest access on role Guest;",
+		CanonicalExample: "alter app security ( EnableGuestAccess: true, GuestUserRole: Guest );",
+	},
+	{
+		Code:      FolderClausePosition,
+		Old:       "create constant M.C type … default … folder '…' / create snippet M.S (…) folder '…' { … }",
+		Canonical: "create constant M.C folder '…' type … default … / create snippet M.S folder '…' (…) { … }",
+		Rewrite:   Rewrite{Structural: "clause moved: `folder '…'` goes right after the name"},
+		RemovedIn: 2,
+		Note: "The folder is a clause right after the name on every document (R9). A statement with the clause in " +
+			"both places is reported, not rewritten: the later one is what is stored.",
+		Example:          "create constant M.Url type String default 'x' folder 'Config';",
+		CanonicalExample: "create constant M.Url folder 'Config' type String default 'x';",
+	},
+	{
+		Code:             SetComment,
+		Old:              "alter entity|association|enumeration … set comment '…'",
+		Canonical:        "alter entity|association|enumeration … set documentation '…'",
+		Rewrite:          Rewrite{Token: "comment", Replacement: "documentation"},
+		RemovedIn:        2,
+		Note:             "It sets the element's documentation, which is what the alter form is called (R9).",
+		Example:          "alter entity M.E set comment 'Orders';",
+		CanonicalExample: "alter entity M.E set documentation 'Orders';",
 	},
 }
 
@@ -701,9 +863,9 @@ var r5Entries = []Entry{
 		Canonical:        "Key: @Module.Const",
 		Rewrite:          Rewrite{Structural: "`@` before the constant's name"},
 		RemovedIn:        2,
-		Note:             "A constant is referred to one way everywhere: `@Module.Const` (R5). Also in `alter model|knowledge base … set Key = …`.",
-		Example:          "create model M.GPT (Provider: MxCloudGenAI, Key: M.ApiKey);",
-		CanonicalExample: "create model M.GPT (Provider: MxCloudGenAI, Key: @M.ApiKey);",
+		Note:             "A constant is referred to one way everywhere: `@Module.Const` (R5). Also in `alter ai model|knowledge base … set Key = …`.",
+		Example:          "create ai model M.GPT (Provider: MxCloudGenAI, Key: M.ApiKey);",
+		CanonicalExample: "create ai model M.GPT (Provider: MxCloudGenAI, Key: @M.ApiKey);",
 	},
 	{
 		Code:      QuotedSettingsConstant,
@@ -778,6 +940,111 @@ var r2Entries = []Entry{
 			"`begin … end` (R2). The operations around it are the alter's children and stay in its { }.",
 		Example:          "alter microflow M.F { insert after $X { log info 'x'; } };",
 		CanonicalExample: "alter microflow M.F { insert after $X begin log info 'x'; end };",
+	},
+}
+
+// r2RestEntries are the rest of R2 (ako/mxcli#754): navigation and menus,
+// property maps, and the database connection.
+var r2RestEntries = []Entry{
+	{
+		Code:      RestHeaderEquals,
+		Old:       "Headers: ( 'Name' = value )",
+		Canonical: "Headers: ( 'Name': value )",
+		Rewrite:   Rewrite{Structural: "header list: `'Name' = value` becomes `'Name': value`"},
+		RemovedIn: 2,
+		Note:      "A header list is a map of the operation's properties, so it is `( key: value )` like every property map (R2/R3).",
+		Example: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation Ping ( Method: get, Path: '/p', Headers: ('Accept' = 'application/json'), Response: none ) };",
+		CanonicalExample: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation Ping ( Method: get, Path: '/p', Headers: ('Accept': 'application/json'), Response: none ) };",
+	},
+	{
+		Code:      MenuChildrenParens,
+		Old:       "navigation P menu ( menu item …; menu 'X' ( … ); )  /  create menu M.M ( … )",
+		Canonical: "navigation P { menu item … menu 'X' { … } }  /  create menu M.M { … }",
+		Rewrite: Rewrite{Structural: "menu items: `menu (` becomes `{`, a menu's or sub-menu's ( ) become { }, " +
+			"and the `;` after each item is dropped"},
+		RemovedIn: 2,
+		Note: "Menu items are children, so they are in { } like a page's widgets, and a child ends in `)` or `}`, " +
+			"so it needs no separator (R2). In a navigation profile the items are the profile's own children.",
+		Example:          "create or modify navigation Responsive home page M.Home menu ( menu item 'Home'; menu 'Admin' ( menu item 'Users'; ); );",
+		CanonicalExample: "create or modify navigation Responsive home page M.Home { menu item 'Home' menu 'Admin' { menu item 'Users' } };",
+	},
+	{
+		Code:      MenuItemClauses,
+		Old:       "menu item 'X' page M.P icon I  /  microflow M.F  /  sign out",
+		Canonical: "menu item 'X' ( OnClick: show page M.P, Icon: I )  /  call microflow M.F  /  sign out",
+		Rewrite: Rewrite{Structural: "item clauses: `page M.P` becomes `( OnClick: show page M.P )`, `microflow M.F` " +
+			"`OnClick: call microflow M.F`, `sign out` `OnClick: sign out`, and `icon I` `Icon: I`"},
+		RemovedIn: 2,
+		Note: "A menu item is a child: its properties are in ( ), and its action is written in the words a page " +
+			"action uses (R2, R8). A sub-menu's icon moves the same way: `menu 'X' ( Icon: I ) { … }`.",
+		Example:          "create menu M.Main { menu item 'Home' page M.Home icon Atlas_Core.Atlas.home menu item 'Bye' sign out };",
+		CanonicalExample: "create menu M.Main { menu item 'Home' ( OnClick: show page M.Home, Icon: Atlas_Core.Atlas.home ) menu item 'Bye' ( OnClick: sign out ) };",
+	},
+	{
+		Code:             HeaderMapBraces,
+		Old:              "Params: { $P: M.E }  /  Variables: { $v: Boolean = 'true' }",
+		Canonical:        "Params: ( $P: M.E )  /  Variables: ( $v: Boolean = 'true' )",
+		Rewrite:          Rewrite{Structural: "header map: the braces become ( )"},
+		RemovedIn:        2,
+		Note:             "In a page's and a snippet's header. A map is a property list, so it is in ( ); { } holds children (R2).",
+		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: { $Order: M.Order }) { };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: ( $Order: M.Order )) { };",
+	},
+	{
+		Code:      TemplateParamsBrackets,
+		Old:       "ContentParams: [{1} = expr]",
+		Canonical: "ContentParams: ({1} = expr)",
+		Rewrite:   Rewrite{Structural: "template parameters: the brackets become ( )"},
+		RemovedIn: 2,
+		Note: "Also CaptionParams and a pluggable widget's `<Name>Params`. The parameters are a map, in ( ) (R2), " +
+			"and each binds a value with `=`, as `with ({1} = …)` does (R4).",
+		Example: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) " +
+			"{ dynamictext t (Content: 'Hi {1}', ContentParams: [{1} = 'x']) };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) " +
+			"{ dynamictext t (Content: 'Hi {1}', ContentParams: ({1} = 'x')) };",
+	},
+	{
+		Code:      DesignPropertiesBrackets,
+		Old:       "DesignProperties: ['Key': 'Value', 'Group': ['k': on]]",
+		Canonical: "DesignProperties: ('Key': 'Value', 'Group': ('k': on))",
+		Rewrite:   Rewrite{Structural: "design properties: each bracketed list becomes ( )"},
+		RemovedIn: 2,
+		Note:      "The design properties are a map of properties, so they are in ( ) (R2).",
+		Example: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) " +
+			"{ container c (DesignProperties: ['Spacing': ['margin-top': 'Large'], 'Full width': on]) };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) " +
+			"{ container c (DesignProperties: ('Spacing': ('margin-top': 'Large'), 'Full width': on)) };",
+	},
+	{
+		Code:      SnippetCallParamsBraces,
+		Old:       "snippetcall s (Snippet: M.S, Params: {$Asset: $var})",
+		Canonical: "snippetcall s (Snippet: M.S, Params: (Asset = $var))",
+		Rewrite:   Rewrite{Structural: "snippet call arguments: `{$P: $v}` becomes `(P = $v)`"},
+		RemovedIn: 2,
+		Note: "A snippet call is a call site, so it binds `Param = value` without a `$` on the parameter name (R4), " +
+			"in the ( ) of a map (R2).",
+		Example: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: ($Asset: M.Asset)) " +
+			"{ snippetcall s (Snippet: M.S, Params: {$Asset: $Asset}) };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: ($Asset: M.Asset)) " +
+			"{ snippetcall s (Snippet: M.S, Params: (Asset = $Asset)) };",
+	},
+	{
+		Code:      DatabaseConnectionClauses,
+		Old:       "database connection M.Db type '…' connection string @M.C … begin query Q sql '…' returns M.E map (c as A); end",
+		Canonical: "database connection M.Db ( Type: '…', ConnectionString: @M.C, … ) { query Q ( Sql: '…', Returns: M.E, Map: ( A = c ) ) }",
+		Rewrite: Rewrite{Structural: "clauses become the property list: `type` `Type:`, `connection string` `ConnectionString:`, " +
+			"`host` `Host:`, `port` `Port:`, `database` `DatabaseName:`, `username` `Username:`, `password` `Password:`; " +
+			"`begin … end` becomes { }; a query's `sql`, `parameter`, `returns` and `map` become Sql, Parameters, Returns " +
+			"and Map, and `column as Attr` becomes `Attr = column`"},
+		RemovedIn: 2,
+		Note: "The database connection was the one declarative document written as clauses and begin … end. Its " +
+			"properties are in ( ) and its queries are children in { } (R2).",
+		Example: "create database connection M.Db type 'PostgreSQL' connection string @M.Url username @M.User password @M.Pass " +
+			"begin query Q sql $$select id from t where id > {min}$$ parameter min: Integer default '0' returns M.T map (id as Id); end;",
+		CanonicalExample: "create database connection M.Db ( Type: 'PostgreSQL', ConnectionString: @M.Url, Username: @M.User, Password: @M.Pass ) " +
+			"{ query Q ( Sql: $$select id from t where id > {min}$$, Parameters: ( min: Integer default '0' ), Returns: M.T, Map: (Id = id) ) };",
 	},
 }
 

@@ -1,7 +1,7 @@
 -- `icon glyph <n>` with a code the Mendix glyph font does not define broke the
 -- build, blaming a document nobody had touched (ako/CapTrackV4 007, R2).
 --
---   menu item 'Overview' page M.P icon glyph 57562;
+--   menu item 'Overview' ( OnClick: show page M.P, Icon: glyph 57562 )
 --   mxcli check -> passed
 --   mx check    -> 0 errors
 --   mxbuild --target=deploy ->
@@ -70,24 +70,24 @@ CREATE OR MODIFY PAGE GlyphNav.PG_Home ( Title: 'Home', Layout: Atlas_Core.Atlas
 
 -- THE REPORTED CASE. 57562 is past the font's last icon (57952 / 0xE260) with
 -- nothing in between, so mxbuild's lookup throws.
-create or modify menu GlyphNav.MENU_Bad (
-  menu item 'Overview' page GlyphNav.PG_Home icon glyph 57562;
-)
+create or modify menu GlyphNav.MENU_Bad {
+  menu item 'Overview' ( OnClick: show page GlyphNav.PG_Home, Icon: glyph 57562 )
+}
 /
 
 -- CONTROL: the code the blank app itself ships. A rule that flagged glyphs in
 -- general would reject this, and every working navigation with it.
-create or modify menu GlyphNav.MENU_Good (
-  menu item 'Overview' page GlyphNav.PG_Home icon glyph 57377;
-)
+create or modify menu GlyphNav.MENU_Good {
+  menu item 'Overview' ( OnClick: show page GlyphNav.PG_Home, Icon: glyph 57377 )
+}
 /
 
 -- CONTROL: the spelling that avoids the whole problem. An icon collection entry
 -- is resolved by `check --references`, so a wrong NAME is caught immediately
 -- where a wrong NUMBER never was.
-create or modify menu GlyphNav.MENU_Collection (
-  menu item 'Overview' page GlyphNav.PG_Home icon Atlas_Core.Atlas.dashboard;
-)
+create or modify menu GlyphNav.MENU_Collection {
+  menu item 'Overview' ( OnClick: show page GlyphNav.PG_Home, Icon: Atlas_Core.Atlas.dashboard )
+}
 /
 
 -- The browsing commands, which is how the code above is meant to be found.

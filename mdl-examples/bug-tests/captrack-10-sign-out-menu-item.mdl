@@ -37,18 +37,18 @@ create or modify page SignOutMenu.Home (Title: 'Home', Layout: Atlas_Core.Atlas_
 }
 /
 
-create or modify menu SignOutMenu.Account_Menu (
-  menu item 'Home' page SignOutMenu.Home;
+create or modify menu SignOutMenu.Account_Menu {
+  menu item 'Home' ( OnClick: show page SignOutMenu.Home )
 
   -- The item that could not be spelled.
-  menu item 'Sign out' sign out;
+  menu item 'Sign out' ( OnClick: sign out )
 
   -- SIGN_OUT names no target, so it must not disturb the qualified-name list it
   -- shares with PAGE/MICROFLOW and ICON — an icon after it still lands as one.
-  menu item 'Log out' sign out icon Atlas_Core.Atlas.home;
+  menu item 'Log out' ( OnClick: sign out, Icon: Atlas_Core.Atlas.home )
 
   -- CONTROL: an item with no action must stay actionless. A conversion that
   -- stamped every actionless item as sign-out would look correct above.
-  menu item 'Plain';
-);
+  menu item 'Plain'
+};
 /

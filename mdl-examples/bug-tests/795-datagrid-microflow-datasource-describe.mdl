@@ -64,7 +64,7 @@ create or modify page Issue795.ProbeGallery (
 ) {
   gallery galMicroflow (datasource: microflow Issue795.GetBuckets) {
     template {
-      dynamictext txtKey (content: '{1}', contentparams: [{1} = BucketKey])
+      dynamictext txtKey (content: '{1}', contentparams: ({1} = BucketKey))
     }
   }
 }

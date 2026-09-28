@@ -39,7 +39,7 @@ begin
 end;
 
 create page P855.OrderPage (
-  params: { $Order: P855.Order },
+  params: ( $Order: P855.Order ),
   title: 'Order',
   layout: Atlas_Core.Atlas_Default
 ) {

@@ -57,7 +57,7 @@ create or modify association IT20.Issue_Label
   owner Both;
 
 create module role IT20.Admin;
-create user role IT20Admin (IT20.Admin);
+create user role IT20Admin ( ModuleRoles: (IT20.Admin) );
 
 -- Wildcards cover every member, including the audit members and the
 -- association on both ends.

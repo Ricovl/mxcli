@@ -238,6 +238,14 @@ type PluggablePropertyContext struct {
 // workflow unit. Obtain one via WorkflowMutationBackend.OpenWorkflowForMutation.
 // All methods operate on the in-memory representation; call Save to persist.
 type WorkflowMutator interface {
+	// AlterTargetResolver resolves a generic ALTER target against this
+	// workflow's activities: the workflow's half of `alter workflow X { … }`
+	// (ADR-0012). An activity is addressed by its name or its caption, @n
+	// choosing one of several matches; a name wins over a caption that repeats
+	// it. The executor resolves every operation's target through it first, so
+	// a miss or an ambiguity refuses the statement before anything changes.
+	AlterTargetResolver
+
 	// --- Top-level property operations ---
 
 	// SetProperty sets a workflow-level property (DisplayName, Description,
@@ -256,6 +264,9 @@ type WorkflowMutator interface {
 
 	// InsertAfterActivity inserts new activities after the referenced activity.
 	InsertAfterActivity(activityRef string, atPos int, activities []workflows.WorkflowActivity) error
+
+	// InsertBeforeActivity inserts new activities before the referenced activity.
+	InsertBeforeActivity(activityRef string, atPos int, activities []workflows.WorkflowActivity) error
 
 	// DropActivity removes the referenced activity.
 	DropActivity(activityRef string, atPos int) error

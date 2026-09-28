@@ -48,4 +48,4 @@ DESCRIBE ENTITY Sales.CustomerFilter
 
 ## See Also
 
-[SHOW ENTITIES](show-entities.md), [DESCRIBE ASSOCIATION](describe-association.md), [DESCRIBE ENUMERATION](describe-enumeration.md)
+[LIST ENTITIES](list-entities.md), [DESCRIBE ASSOCIATION](describe-association.md), [DESCRIBE ENUMERATION](describe-enumeration.md)

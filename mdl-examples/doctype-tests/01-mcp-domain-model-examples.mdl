@@ -230,7 +230,7 @@ alter entity McpDm.Product
   set documentation 'Catalog product. Authored entirely over the MCP backend.';
 
 alter entity McpDm.Customer
-  set comment 'Customer master, MCP-authored.';
+  set documentation 'Customer master, MCP-authored.';
 
 -- ############################################################################
 -- PART 6: VERIFY (reads always work over MCP — they delegate to the local .mpr)

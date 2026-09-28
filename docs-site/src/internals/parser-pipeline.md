@@ -6,7 +6,7 @@ The complete parsing pipeline from raw MDL text through lexical analysis, parsin
 
 ```mermaid
 flowchart TD
-    INPUT[/"SHOW ENTITIES IN MyModule"/]
+    INPUT[/"LIST ENTITIES IN MyModule"/]
 
     subgraph Parsing
         LEXER[ANTLR4 Lexer]
@@ -67,8 +67,8 @@ Parser rules use labeled alternatives for type-safe listener methods:
 
 ```antlr
 showStatement
-    : SHOW MODULES SEMI?                       # ShowModules
-    | SHOW ENTITIES (IN IDENTIFIER)? SEMI?     # ShowEntities
+    : LIST MODULES SEMI?                       # ShowModules
+    | LIST ENTITIES (IN IDENTIFIER)? SEMI?     # ShowEntities
     | SHOW ENTITY qualifiedName SEMI?          # ShowEntity
     ;
 ```

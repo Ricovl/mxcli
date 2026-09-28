@@ -43,12 +43,12 @@ alter page AlterInto.Home {
 -- page and its ALTER are version-gated; the rest of the INSERT INTO coverage
 -- (the two AlterInto.Home cases above) still runs on 10.x.
 -- @version: 11.0+
-create or modify page AlterInto.Detail ( params: { $Item: AlterInto.Item }, layout: Atlas_Core.Atlas_Default ) {
+create or modify page AlterInto.Detail ( params: ( $Item: AlterInto.Item ), layout: Atlas_Core.Atlas_Default ) {
   dataview dv (datasource: $Item) { }
 }
 /
 alter page AlterInto.Detail {
   insert into dv {
-    dynamictext dtTitle (content: '{1}', contentparams: [{1} = Title], rendermode: H1)
+    dynamictext dtTitle (content: '{1}', contentparams: ({1} = Title), rendermode: H1)
   }
 }

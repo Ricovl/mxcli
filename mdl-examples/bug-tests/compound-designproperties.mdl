@@ -20,10 +20,10 @@ create page BugCompoundDP.SpacingCard (
   title: 'Spacing Card',
   layout: Atlas_Core.Atlas_Default
 ) {
-  container card1 (designproperties: [
+  container card1 (designproperties: (
     'Card style': on,
-    'Spacing': ['margin-bottom': 'Large', 'margin-top': 'Medium']
-  ]) {
+    'Spacing': ('margin-bottom': 'Large', 'margin-top': 'Medium')
+  )) {
     dynamictext title1 (content: 'Title', rendermode: H4, class: 'card-title')
   }
 }

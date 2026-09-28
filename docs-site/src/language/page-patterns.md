@@ -52,7 +52,7 @@ An edit page displayed as a popup dialog. Receives the entity as a page paramete
 ```sql
 CREATE PAGE MyModule.Customer_Edit FOLDER 'Customers'
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )
@@ -78,7 +78,7 @@ A full-page detail view with sections organized using layout grids:
 ```sql
 CREATE PAGE MyModule.Customer_Detail FOLDER 'Customers'
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Customer Detail',
   Layout: Atlas_Core.Atlas_Default
 )
@@ -242,7 +242,7 @@ CREATE PAGE HR.Employee_Overview FOLDER 'Employees'
 -- 2. Edit page (popup)
 CREATE PAGE HR.Employee_Edit FOLDER 'Employees'
 (
-  Params: { $Employee: HR.Employee },
+  Params: ( $Employee: HR.Employee ),
   Title: 'Edit Employee',
   Layout: Atlas_Core.PopupLayout
 )

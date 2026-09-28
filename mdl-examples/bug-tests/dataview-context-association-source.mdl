@@ -36,7 +36,7 @@ create association MyFirstModule.Expense_Employee
   from MyFirstModule.Expense to MyFirstModule.Employee;
 
 create or modify page MyFirstModule.Expense_NewEdit
-( Title: 'Expense', Layout: Atlas_Core.Atlas_Default, Params: { $Expense: MyFirstModule.Expense } )
+( Title: 'Expense', Layout: Atlas_Core.Atlas_Default, Params: ( $Expense: MyFirstModule.Expense ) )
 {
   dataview dvExpense (datasource: $Expense) {
     textbox tbDesc (label: 'Description', attribute: Description)

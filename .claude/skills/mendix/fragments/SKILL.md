@@ -10,7 +10,7 @@ description: "Define reusable widget groups with CREATE FRAGMENT and place them 
 Use this skill when:
 - Defining reusable widget groups with `create fragment`
 - Inserting fragments into pages or snippets with `use fragment`
-- Listing or inspecting fragments with `show fragments` / `describe fragment`
+- Listing or inspecting fragments with `list fragments` / `describe fragment`
 - Building multiple pages that share common widget patterns (footers, form fields, buttons)
 - Avoiding copy-paste of repeated widget structures across pages
 
@@ -52,7 +52,7 @@ Inside a page or snippet body:
 ```mdl
 create page Module.CustomerEdit
 (
-  params: { $Customer: Module.Customer },
+  params: ( $Customer: Module.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -80,7 +80,7 @@ widgets should land, then fill it with the `use fragment X { … }` payload form
 
 ```mdl
 create fragment Card as {
-  container cardWrap (class: 'card', designproperties: ['Card style': on]) {
+  container cardWrap (class: 'card', designproperties: ('Card style': on)) {
     container cardBody (class: 'card-body') {
       slot content            -- caller's widgets are spliced in here
     }
@@ -152,10 +152,10 @@ Binding-point rule (prototype): datasource → the first widget carrying a
 datasource; action → the first button widget. For anything more specific, copy
 the block in with `as prefix_` and use `alter page … set … on prefix_widget`.
 
-### SHOW FRAGMENTS
+### LIST FRAGMENTS
 
 ```mdl
-show fragments;
+list fragments;
 -- Lists all defined fragments with widget counts
 ```
 
