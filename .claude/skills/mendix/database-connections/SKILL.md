@@ -230,7 +230,7 @@ create constant OracleDemo.OracleConnectionString type string
 
 create constant OracleDemo.OracleUser type string default 'scott';
 
-create constant OracleDemo.OraclePassword type string default 'tiger' PRIVATE;
+create constant OracleDemo.OraclePassword type string default 'tiger';
 
 -- Step 3: Create non-persistent entity for results
 create non-persistent entity OracleDemo.EmpRecord (
@@ -271,7 +271,7 @@ create constant Inventory.PgConnectionString type string
   default 'jdbc:postgresql://localhost:5432/inventory_db';
 
 create constant Inventory.PgUser type string default 'inventory_app';
-create constant Inventory.PgPassword type string default '' PRIVATE;
+create constant Inventory.PgPassword type string default '';
 
 create non-persistent entity Inventory.ProductRecord (
   ProductId: integer,
@@ -329,7 +329,7 @@ describe database connection MyModule.MyDatabase;
 - Use `MX_Module_ConstantName` environment variables in production
 
 ### 2. Credential Security
-- Use `PRIVATE` flag for password constants during development
+- Leave a password constant's default empty (`default ''`) and set the value per environment; MDL has no private flag, and a trailing `PRIVATE` was never read
 - Never commit real passwords to version control
 - Inject credentials via CI/CD pipelines in production
 
@@ -461,7 +461,7 @@ create non-persistent entity HR.EmployeeRecord (
 
 create constant HR.DbUrl type string default 'jdbc:postgresql://localhost:5432/hrdb';
 create constant HR.DbUser type string default 'app';
-create constant HR.DbPass type string default '' PRIVATE;
+create constant HR.DbPass type string default '';
 
 create database connection HR.MainDB
 type 'PostgreSQL'
