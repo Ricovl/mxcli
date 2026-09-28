@@ -53,7 +53,7 @@ func TestRoundtripRestClient_WithJsonResponse(t *testing.T) {
   operation GetPosts {
     Method: get,
     Path: '/posts',
-    Headers: ('Accept' = 'application/json'),
+    Headers: ('Accept': 'application/json'),
     Response: json as $Posts
   }
 };`
@@ -65,7 +65,7 @@ func TestRoundtripRestClient_WithJsonResponse(t *testing.T) {
 		"operation GetPosts",
 		"Method: get",
 		"Path: '/posts'",
-		"'Accept' = 'application/json'",
+		"'Accept': 'application/json'",
 		"Response: json",
 	})
 }
@@ -210,7 +210,7 @@ func TestRoundtripRestClient_MultipleOperations(t *testing.T) {
     Method: get,
     Path: '/pet/findByStatus',
     Query: ($status: String),
-    Headers: ('Accept' = 'application/json'),
+    Headers: ('Accept': 'application/json'),
     Timeout: 30,
     Response: json as $PetList
   }
@@ -389,7 +389,7 @@ func TestMxCheck_RestClient_SimpleGet(t *testing.T) {
   operation GetStatus {
     Method: get,
     Path: '/status',
-    Headers: ('Accept' = '*/*'),
+    Headers: ('Accept': '*/*'),
     Response: none
   }
 };`
@@ -424,7 +424,7 @@ func TestMxCheck_RestClient_PostWithBody(t *testing.T) {
     Method: get,
     Path: '/items/{itemId}',
     Parameters: ($itemId: Integer),
-    Headers: ('Accept' = '*/*'),
+    Headers: ('Accept': '*/*'),
     Response: none
   }
 };`
@@ -474,7 +474,7 @@ func TestMxCheck_RestClient_BasicAuth(t *testing.T) {
   operation GetSecureData {
     Method: get,
     Path: '/secure/data',
-    Headers: ('Accept' = '*/*'),
+    Headers: ('Accept': '*/*'),
     Response: none
   }
 };`
@@ -508,7 +508,7 @@ func TestMxCheck_RestClient_MultipleOperations(t *testing.T) {
     Method: get,
     Path: '/pet/findByStatus',
     Query: ($status: String),
-    Headers: ('Accept' = 'application/json'),
+    Headers: ('Accept': 'application/json'),
     Timeout: 30,
     Response: none
   }
@@ -517,7 +517,7 @@ func TestMxCheck_RestClient_MultipleOperations(t *testing.T) {
     Method: get,
     Path: '/pet/{petId}',
     Parameters: ($petId: Integer),
-    Headers: ('Accept' = 'application/json'),
+    Headers: ('Accept': 'application/json'),
     Response: none
   }
 
@@ -525,7 +525,7 @@ func TestMxCheck_RestClient_MultipleOperations(t *testing.T) {
     Method: delete,
     Path: '/pet/{petId}',
     Parameters: ($petId: Integer),
-    Headers: ('Accept' = '*/*'),
+    Headers: ('Accept': '*/*'),
     Response: none
   }
 };`
