@@ -123,7 +123,7 @@ func init() {
 		// parameter PLUS others builds clean, so the help must not say "exactly".
 		Syntax: "[MULTI] USER TASK <name> '<caption>'\n" +
 			"  PAGE Module.TaskPage\n" +
-			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH '<xpath>']\n" +
+			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH [<xpath>]]\n" +
 			"  [ON CREATED MICROFLOW Module.MF]  -- (System.WorkflowUserTask, <context entity>), returns nothing\n" +
 			"  [ENTITY Module.Entity]\n" +
 			"  [DUE DATE '<expression>']\n" +
@@ -140,7 +140,7 @@ func init() {
 			"-- Other parameters may sit alongside it.",
 		Example: "-- The task page takes the task:\n" +
 			"CREATE PAGE HR.ReviewPage (\n  title: 'Review',\n  layout: Atlas_Core.Atlas_Default,\n  params: { $WorkflowUserTask: System.WorkflowUserTask }\n) { };\n\n" +
-			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING XPATH '[Module.Employee/Active = true()]'\n  OUTCOMES 'Approve' { } 'Reject' { };",
+			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING USERS XPATH [Module.Employee/Active = true()]\n  OUTCOMES 'Approve' { } 'Reject' { };",
 		SeeAlso: []string{"workflow.user-task.targeting", "workflow.multi-user-task", "workflow.create"},
 	})
 
@@ -160,13 +160,16 @@ func init() {
 		// context entity but not a specialization. Users and groups share it.
 		Syntax: "TARGETING [USERS] MICROFLOW Module.MF    -- returns a List of System.User\n" +
 			"TARGETING GROUPS MICROFLOW Module.MF     -- returns a List of System.WorkflowGroup\n" +
-			"TARGETING [USERS | GROUPS] XPATH '<xpath-expression>'\n\n" +
+			"TARGETING [USERS | GROUPS] XPATH [<xpath-expression>]\n\n" +
+			"-- The XPath is written in brackets, as everywhere else, so quotes inside\n" +
+			"-- it are written once. The quoted form XPATH '[...]' still parses and\n" +
+			"-- warns MDL-DEPR031; `mxcli fmt --upgrade` rewrites it.\n\n" +
 			"-- A targeting microflow takes EXACTLY two parameters, in either order:\n" +
 			"--   System.Workflow\n" +
 			"--   the workflow's context entity, or a generalization of it\n" +
 			"-- One parameter, none, a third, or a specialization of the context\n" +
 			"-- entity is CE6677.",
-		Example: "-- XPath targeting: only active managers\nUSER TASK Approve 'Approve request'\n  TARGETING XPATH '[HR.Employee/Role = \"Manager\" and Active = true()]'\n  OUTCOMES 'Done' { };\n\n" +
+		Example: "-- XPath targeting: only active managers\nUSER TASK Approve 'Approve request'\n  TARGETING USERS XPATH [HR.Employee/Role = 'Manager' and Active = true()]\n  OUTCOMES 'Done' { };\n\n" +
 			"-- Microflow targeting: the microflow takes the workflow AND its context object\n" +
 			"CREATE MICROFLOW HR.GetApprovers ($Workflow: System.Workflow, $Request: HR.Request)\nRETURNS List of System.User AS $Approvers\nBEGIN\n  RETRIEVE $Approvers FROM System.User;\n  RETURN $Approvers;\nEND;\n\n" +
 			"USER TASK Approve 'Approve request'\n  TARGETING MICROFLOW HR.GetApprovers\n  OUTCOMES 'Done' { };",
@@ -190,7 +193,7 @@ func init() {
 		// task too) and the same targeting rule.
 		Syntax: "MULTI USER TASK <name> '<caption>'\n" +
 			"  PAGE Module.TaskPage\n" +
-			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH '<xpath>']\n" +
+			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH [<xpath>]]\n" +
 			"  [ON CREATED MICROFLOW Module.MF]  -- (System.WorkflowUserTask, <context entity>), returns nothing\n" +
 			"  [ENTITY Module.Entity]\n" +
 			"  [DUE DATE '<expression>']\n" +

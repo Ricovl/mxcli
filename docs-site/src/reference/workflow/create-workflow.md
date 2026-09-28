@@ -30,12 +30,14 @@ The following activity types can appear inside a workflow body:
 USER TASK name 'caption'
     [ PAGE module.PageName ]
     [ TARGETING MICROFLOW module.MicroflowName ]
-    [ TARGETING XPATH 'expression' ]
+    [ TARGETING [ USERS | GROUPS ] XPATH [ xpath ] ]
     [ ENTITY module.Entity ]
     [ DUE DATE 'expression' ]
     [ DESCRIPTION 'text' ]
     OUTCOMES 'OutcomeName' { activities } [ 'OutcomeName' { activities } ... ]
 ```
+
+The targeting XPath is written in literal brackets, like every XPath in MDL, so quotes inside it are written once: `TARGETING USERS XPATH [System.UserRoles = '[%UserRole_Manager%]']`. The quoted form `XPATH '[...]'` still parses and warns `MDL-DEPR031`; `mxcli fmt --upgrade` rewrites it.
 
 **MULTI USER TASK**
 :   Same as USER TASK but assigned to multiple users. Uses the same syntax with `MULTI USER TASK` instead of `USER TASK`.

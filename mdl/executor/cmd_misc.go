@@ -243,7 +243,7 @@ Security - Access Control:
   revoke execute on microflow Module.Name from Role [, Role...];
   grant view on page Module.Name to Role [, Role...];
   revoke view on page Module.Name from Role [, Role...];
-  grant Role on Module.Entity (create, delete, read *, write *) [where 'xpath'];
+  grant create, delete, read *, write * on entity Module.Entity to Role [, Role...] [where [xpath]];
   revoke Role on Module.Entity;
 
 Security - Project Settings:

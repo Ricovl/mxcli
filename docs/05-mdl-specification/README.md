@@ -42,7 +42,7 @@ create page Module.Name (title: 'Title', layout: Module.Layout) { ... };
 alter page Module.Name { set caption = 'New' on btnSave; };
 
 -- Security
-grant Module.Role on Module.Entity (create, delete, read *, write *);
+grant create, delete, read *, write * on entity Module.Entity to Module.Role;
 grant execute on microflow Module.Name to Module.Role;
 
 -- External SQL

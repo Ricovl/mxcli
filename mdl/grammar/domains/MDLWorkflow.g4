@@ -163,7 +163,8 @@ workflowUserTaskStmt
 workflowUserTaskClause
     : PAGE qualifiedName
     | TARGETING (USERS | GROUPS)? MICROFLOW qualifiedName
-    | TARGETING (USERS | GROUPS)? XPATH STRING_LITERAL
+    | TARGETING (USERS | GROUPS)? XPATH xpathConstraint+
+    | TARGETING (USERS | GROUPS)? XPATH STRING_LITERAL /* @alias MDL-DEPR031 */
     | ON CREATED MICROFLOW qualifiedName
     | ENTITY qualifiedName
     | DUE DATE_TYPE STRING_LITERAL
@@ -340,7 +341,8 @@ activitySetProperty
     : PAGE qualifiedName
     | DESCRIPTION STRING_LITERAL
     | TARGETING MICROFLOW qualifiedName
-    | TARGETING XPATH STRING_LITERAL
+    | TARGETING XPATH xpathConstraint+
+    | TARGETING XPATH STRING_LITERAL /* @alias MDL-DEPR031 */
     | DUE DATE_TYPE STRING_LITERAL
     ;
 

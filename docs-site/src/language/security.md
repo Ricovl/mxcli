@@ -77,7 +77,7 @@ CREATE USER ROLE Anonymous (Shop.Viewer, System.User);
 ALTER PROJECT SECURITY GUEST ACCESS ON ROLE Anonymous;
 
 -- Grant exactly what should be public, and nothing else.
-GRANT Anonymous ON Shop.Product (read *);
+GRANT read * ON ENTITY Shop.Product TO Anonymous;
 ```
 
 Turning it off keeps the stored role, so switching it back on needs no `ROLE`

@@ -378,8 +378,8 @@ create module role CRM.Manager description 'Can approve orders and manage custom
 create module role CRM.User description 'Can create and edit own records';
 
 -- Access rules
-grant CRM.Manager on CRM.Order (create, delete, read *, write *);
-grant CRM.User on CRM.Order (create, read *, write *) where [owner = '[%CurrentUser%]'];
+grant create, delete, read *, write * on entity CRM.Order to CRM.Manager;
+grant create, read *, write * on entity CRM.Order to CRM.User where [owner = '[%CurrentUser%]'];
 ```
 
 ## Common Challenges and Solutions

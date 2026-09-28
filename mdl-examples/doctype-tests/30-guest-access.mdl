@@ -41,8 +41,8 @@ alter project security guest access on role Anonymous;
 -- Grant exactly what should be public, and nothing else. The XPath constraint
 -- is the difference between "the catalogue is public" and "every row is
 -- public" — see lint rule SEC004 / DIVD-2022-00019.
-grant Catalog.Visitor on Catalog.Product (read *) where '[Published = true()]';
-grant Catalog.Editor on Catalog.Product (create, delete, read *, write *);
+grant read * on entity Catalog.Product to Catalog.Visitor where [Published = true()];
+grant create, delete, read *, write * on entity Catalog.Product to Catalog.Editor;
 
 -- Toggling access off keeps the stored role, so switching it back on needs no
 -- ROLE clause. Both statements are no-ops on a project already in that state.

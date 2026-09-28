@@ -18,22 +18,22 @@ GRANT controls which CRUD operations a role can perform. XPath constraints in `W
 
 ```sql
 -- Admin: full access to all customers
-GRANT Sales.Admin ON Sales.Customer (CREATE, DELETE, READ *, WRITE *);
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Sales.Customer TO Sales.Admin;
 
 -- User: can create and edit, but only active customers
-GRANT Sales.User ON Sales.Customer (CREATE, READ *, WRITE *)
-  WHERE '[IsActive = true]';
+GRANT CREATE, READ *, WRITE * ON ENTITY Sales.Customer TO Sales.User
+  WHERE [IsActive = true];
 
 -- Viewer: read-only, active customers only
-GRANT Sales.Viewer ON Sales.Customer (READ *)
-  WHERE '[IsActive = true]';
+GRANT READ * ON ENTITY Sales.Customer TO Sales.Viewer
+  WHERE [IsActive = true];
 
 -- Orders: users can only see their own (via owner token)
-GRANT Sales.User ON Sales.Order (CREATE, READ *, WRITE *)
-  WHERE '[System.owner = ''[%CurrentUser%]'']';
+GRANT CREATE, READ *, WRITE * ON ENTITY Sales.Order TO Sales.User
+  WHERE [System.owner = '[%CurrentUser%]'];
 
 -- Admin sees all orders
-GRANT Sales.Admin ON Sales.Order (CREATE, DELETE, READ *, WRITE *);
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Sales.Order TO Sales.Admin;
 ```
 
 ## Microflow and Page Access
@@ -79,7 +79,7 @@ GRANT merges with existing access — it never removes permissions:
 
 ```sql
 -- Viewer already has READ (Name, Email)
-GRANT Sales.Viewer ON Sales.Customer (READ (Phone));
+GRANT READ (Phone) ON ENTITY Sales.Customer TO Sales.Viewer;
 -- Result: READ (Name, Email, Phone)
 ```
 

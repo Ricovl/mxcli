@@ -669,7 +669,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Revoke nanoflow access | `revoke execute on nanoflow Mod.NF from Mod.Role, ...;` | |
 | Grant page access | `grant view on page Mod.Page to Mod.Role, ...;` | |
 | Revoke page access | `revoke view on page Mod.Page from Mod.Role, ...;` | |
-| Grant entity access | `grant Mod.Role on Mod.Entity (create, delete, read *, write *);` | Additive — merges with existing. A module role must be qualified: a bare `Role` parses but is refused (MDL-GRANT02). Inherited members are named like the entity's own (`read *` covers them); an unknown name is an error. Entities extending `System.User` are the exception — their platform members must not be granted |
+| Grant entity access | `grant create, delete, read *, write * on entity Mod.Entity to Mod.Role;` / `grant read * on entity Mod.Entity to Mod.Role where [Status = 'Open'];` | The XPath is in brackets, quotes written once; the old `grant Mod.Role on Mod.Entity (…) where '…'` warns MDL-DEPR030 (`fmt --upgrade` rewrites it). Additive — merges with existing. A module role must be qualified: a bare `Role` parses but is refused (MDL-GRANT02). Inherited members are named like the entity's own (`read *` covers them); an unknown name is an error. Entities extending `System.User` are the exception — their platform members must not be granted |
 | Access for members added later | — | A rule's default for new members is derived from the grant: `write *` → ReadWrite, `read *` → ReadOnly, member lists alone → **None**. So an attribute added later is granted None on a member-listed rule — clean build, blank field. `alter entity … add attribute` warns and prints the widening grant. The rule's *default* decides this, not how narrow its member list is |
 | Revoke entity access | `revoke Mod.Role on Mod.Entity;` | Full revoke — removes entire rule |
 | Revoke entity access (partial) | `revoke Mod.Role on Mod.Entity (read (attr));` | Partial — downgrades specific rights |
@@ -708,7 +708,7 @@ mandatory and a misplaced clause failed with a token error
 (`mismatched input 'ON' expecting ';'`) that named neither the clause nor the rule.
 
 **Workflow Activity Types:**
-- `[multi] user task <name> '<caption>' [page Mod.Page] [targeting [users|groups] microflow Mod.MF] [targeting [users|groups] xpath '<expr>'] [on created microflow Mod.MF] [entity Mod.Entity] [due date '<expr>'] [description '<text>'] [participants all|<n>|<n> percent] [decide by <rule>] [await all users] [outcomes '<out>' { } ...] [boundary event …];`
+- `[multi] user task <name> '<caption>' [page Mod.Page] [targeting [users|groups] microflow Mod.MF] [targeting [users|groups] xpath [<xpath>]] [on created microflow Mod.MF] [entity Mod.Entity] [due date '<expr>'] [description '<text>'] [participants all|<n>|<n> percent] [decide by <rule>] [await all users] [outcomes '<out>' { } ...] [boundary event …];`
   - **Multi-user only:** `decide by consensus|majority more than half|majority most chosen|threshold <n> percent|votes fallback '<outcome>'`, `decide by veto '<outcome>'`, `decide by microflow Mod.MF`. A fallback is required for consensus, majority and threshold (CE1866), a veto needs its outcome (CE1867), and a decision microflow returns String (CE5012) — all `MDL-WF13` / check. Omitted: all participants, consensus on the first outcome, not waiting.
   - The **task page** must take a `System.WorkflowUserTask` parameter — none at all is CE7410, none of that type is CE7412; extra parameters are allowed.
   - A **targeting microflow** takes exactly `System.Workflow` + the context entity (or a generalization of it), in either order — anything else is CE6677. Users targeting returns a list of `System.User`, groups a list of `System.WorkflowGroup`.
@@ -815,7 +815,7 @@ Modify an existing workflow's properties, activities, outcomes, paths, condition
 | Set activity page | `set activity name page Module.Page` | Change user task page |
 | Set activity description | `set activity name description 'text'` | Activity description |
 | Set activity targeting | `set activity name targeting [users\|groups] microflow Module.MF` | Target user/group assignment |
-| Set activity XPath | `set activity name targeting [users\|groups] xpath '[expr]'` | XPath targeting |
+| Set activity XPath | `set activity name targeting xpath [<xpath>]` | XPath targeting, in brackets; the quoted `xpath '[…]'` warns MDL-DEPR031 |
 | Set activity due date | `set activity name due date 'expr'` | Activity-level due date |
 | Insert activity | `insert after name call microflow Module.MF` | Insert after named activity |
 | Drop activity | `drop activity name` | Remove activity by name |

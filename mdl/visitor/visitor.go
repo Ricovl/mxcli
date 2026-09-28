@@ -146,8 +146,8 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 	if looksLikeQuotedGrantAttribute(msg) {
 		return fmt.Sprintf("%s\n\n  Attribute-level GRANT uses unquoted identifiers inside parentheses,\n"+
 			"  not quoted strings. Comma-separate multiple attributes:\n"+
-			"    GRANT Mod.Role ON Mod.Entity (READ (Attr1, Attr2), WRITE (Attr1));  (correct)\n"+
-			"    GRANT Mod.Role ON Mod.Entity (READ \"Attr1\", \"Attr2\");            (wrong — causes parse error)", msg)
+			"    GRANT READ (Attr1, Attr2), WRITE (Attr1) ON ENTITY Mod.Entity TO Mod.Role;  (correct)\n"+
+			"    GRANT READ \"Attr1\", \"Attr2\" ON ENTITY Mod.Entity TO Mod.Role;            (wrong — causes parse error)", msg)
 	}
 
 	// Check for an `=` between an enumeration value name and its caption. Users

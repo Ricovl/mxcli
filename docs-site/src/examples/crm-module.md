@@ -167,12 +167,12 @@ CREATE MODULE ROLE CRM.User;
 CREATE MODULE ROLE CRM.Admin DESCRIPTION 'Full customer management access';
 
 -- Entity access
-GRANT CRM.Admin ON CRM.Customer (CREATE, DELETE, READ *, WRITE *);
-GRANT CRM.User ON CRM.Customer (CREATE, READ *, WRITE *)
-  WHERE '[IsActive = true]';
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY CRM.Customer TO CRM.Admin;
+GRANT CREATE, READ *, WRITE * ON ENTITY CRM.Customer TO CRM.User
+  WHERE [IsActive = true];
 
-GRANT CRM.Admin ON CRM.ContactLog (CREATE, DELETE, READ *, WRITE *);
-GRANT CRM.User ON CRM.ContactLog (CREATE, READ *, WRITE *);
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY CRM.ContactLog TO CRM.Admin;
+GRANT CREATE, READ *, WRITE * ON ENTITY CRM.ContactLog TO CRM.User;
 
 -- Document access
 GRANT EXECUTE ON MICROFLOW CRM.ACT_Customer_Save TO CRM.User;

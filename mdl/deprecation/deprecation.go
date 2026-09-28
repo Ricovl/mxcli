@@ -99,6 +99,13 @@ const (
 	// name for: a layout grid's rows and columns, a data grid's columns and
 	// control bar, a gallery's template and filter (R12, ako/mxcli#749).
 	UnstoredWidgetName = "MDL-DEPR005"
+	// ReversedEntityGrant is `grant M.Role on M.E (rights) where '…'`, the only
+	// grant with the role first and the XPath in a string (R5, ako/mxcli#753).
+	// Codes 006-029 are taken by the other wave-2 changes in flight.
+	ReversedEntityGrant = "MDL-DEPR030"
+	// QuotedTargetingXPath is a workflow user task's `targeting xpath '…'`,
+	// the XPath in a string instead of in [ ] (R5, ako/mxcli#753).
+	QuotedTargetingXPath = "MDL-DEPR031"
 
 	// Codes 020–029 are R8's (ako/mxcli#752, PROPOSAL_mdl_beta_syntax_freeze.md
 	// §3 R8): words, not SCREAMING_SNAKE, and one spelling per keyword. They
@@ -209,6 +216,30 @@ var entries = []Entry{
 			"A data grid column is addressed as `grid column(Attr)` or `grid column('Caption')`.",
 		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column Name (Attribute: Name) } };",
 		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column (Attribute: Name) } };",
+	},
+	{
+		Code:      ReversedEntityGrant,
+		Old:       "grant M.Role on M.E (rights) where '[xpath]'",
+		Canonical: "grant rights on entity M.E to M.Role where [xpath]",
+		Rewrite: Rewrite{Structural: "rights before `on entity`, roles after `to`, and the XPath out of its " +
+			"string: `grant R on M.E (read *) where '[A = ''x'']'` becomes `grant read * on entity M.E to R where [A = 'x']`"},
+		RemovedIn: 2,
+		Note: "Every other grant names the right first and the role after `to`. XPath is written in [ ] " +
+			"everywhere (R5), so the quotes inside it are no longer doubled. A string whose value is not " +
+			"a bracketed XPath is left in place and reported by `fmt --upgrade`.",
+		Example:          "grant M.User on M.Order (read *, write *) where '[Status = ''Open'']';",
+		CanonicalExample: "grant read *, write * on entity M.Order to M.User where [Status = 'Open'];",
+	},
+	{
+		Code:      QuotedTargetingXPath,
+		Old:       "targeting [users|groups] xpath '[xpath]'",
+		Canonical: "targeting [users|groups] xpath [xpath]",
+		Rewrite:   Rewrite{Structural: "the XPath out of its string: `xpath '[Name = ''Admin'']'` becomes `xpath [Name = 'Admin']`"},
+		RemovedIn: 2,
+		Note: "XPath is written in [ ] everywhere (R5), so the quotes inside it are no longer doubled. " +
+			"A string whose value is not a bracketed XPath is left in place and reported by `fmt --upgrade`.",
+		Example:          "alter workflow M.WF set activity 'Review' targeting xpath '[Role = ''Manager'']';",
+		CanonicalExample: "alter workflow M.WF set activity 'Review' targeting xpath [Role = 'Manager'];",
 	},
 	{
 		Code:      OnErrorBraces,
