@@ -14,6 +14,36 @@ options {
     tokenVocab = MDLLexer;
 }
 
+// Hand-written parser helpers. In the Go target `@members` is package-level
+// code; the predicates in the imported grammars call it by name.
+@parser::members {
+// IsHelpWord reports whether word begins a help statement: `help`, `exit` or
+// `quit`, in any letter case. They are IDENTIFIERs rather than keywords, so
+// that reserving them does not take the words away as names; the predicate
+// on helpStatement is what keeps that rule from being the grammar's
+// catch-all, where a misspelt statement keyword (`craete entity …`) parsed
+// as a help topic and was silently dropped (ako/mxcli#755, R7).
+//
+// The generated file imports no strings package, so the letter case is folded
+// here by hand; the words are ASCII.
+func IsHelpWord(word string) bool {
+	if len(word) != 4 {
+		return false
+	}
+	folded := []byte(word)
+	for i, c := range folded {
+		if c >= 'A' && c <= 'Z' {
+			folded[i] = c + ('a' - 'A')
+		}
+	}
+	switch string(folded) {
+	case "help", "exit", "quit":
+		return true
+	}
+	return false
+}
+}
+
 import
     MDLDomainModel,
     MDLMicroflow,

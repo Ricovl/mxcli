@@ -35,10 +35,13 @@ func newErrorListener() *errorListener {
 }
 
 // SyntaxError is called by ANTLR when a syntax error is encountered.
-func (l *errorListener) SyntaxError(_ antlr.Recognizer, _ any, line, column int, msg string, _ antlr.RecognitionException) {
+func (l *errorListener) SyntaxError(rec antlr.Recognizer, sym any, line, column int, msg string, _ antlr.RecognitionException) {
 	offending := ""
 	if line >= 1 && line <= len(l.source) {
 		offending = l.source[line-1]
+	}
+	if word, ok := unknownStatementWord(rec, sym, msg); ok {
+		msg = unknownStatementMessage(word)
 	}
 	enhancedMsg := l.deduplicateHint(enhanceErrorMessage(msg, offending), line)
 	l.errors = append(l.errors, fmt.Errorf("line %d:%d %s", line, column, enhancedMsg))
