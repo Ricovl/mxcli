@@ -161,13 +161,26 @@ begin
 end workflow;
 ```
 
-> **Do NOT use `annotation '...'` in a workflow body.** It parses, but the
-> annotation is written into the workflow's activity flow, which Mendix loads by
+**Notes** attach to an activity with `@annotation '…'` on the line before it,
+as in a microflow; the workflow's own note is the header clause
+`annotation '…'`, and an event sub-process takes `@annotation` before
+`event subprocess`. One note per activity; no other `@` annotation is accepted.
+
+```sql
+create workflow Module.Approve
+  parameter $WorkflowContext: Module.Request
+  annotation 'Started from the request form'
+begin
+  @annotation 'Escalates after two days'
+  user task review 'Review' page Module.Review_Task outcomes 'Done' { };
+end workflow;
+```
+
+> **Do NOT use a standalone `annotation '...';` statement in a workflow body.**
+> It parses, but the note is written into the activity flow, which Mendix loads by
 > constructing every child with a `Flow` parent — no annotation type takes one, so
-> the resulting `.mpr` **cannot be loaded at all**: Studio Pro will not open the
-> project and `mx check` fails before validating anything. `mxcli` now refuses the
-> statement (MDL-WF04) at both check and exec time. Keep the note as an MDL comment
-> (`-- ...`); workflow canvas annotations are not yet writable.
+> the resulting `.mpr` **cannot be loaded at all**. `mxcli` refuses it (MDL-WF04)
+> at check and exec time. Attach the note to an activity with `@annotation`.
 
 **Boundary events** attach a timer to a user task / call-microflow / wait:
 

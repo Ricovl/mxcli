@@ -670,7 +670,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Describe security matrix | `describe security matrix [in module];` | Full access overview |
 | Create module role | `create [or modify] module role Mod.Role [description 'text'];` | `or modify` updates an existing role instead of failing, so a security script can be re-run |
 | Drop module role | `drop module role Mod.Role;` | |
-| Create user role | `create user role Name (Mod.Role, ...) [manage all roles];` | Aggregates module roles |
+| Create user role | `create user role Name ( ModuleRoles: (Mod.Role, ...), Description: '...', ManageAllRoles: true, CheckSecurity: true );` | Aggregates module roles; every property optional, `create user role Name;` has none |
 | Alter user role | `alter user role Name add\|drop module roles (Mod.Role, ...);` | |
 | Drop user role | `drop user role [if exists] Name;` | `if exists` makes a cleanup script re-runnable |
 | Grant microflow access | `grant execute on microflow Mod.MF to Mod.Role, ...;` | |
