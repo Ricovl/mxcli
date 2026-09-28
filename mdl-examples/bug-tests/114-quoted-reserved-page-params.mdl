@@ -50,5 +50,5 @@ create snippet BugTest114.Snip
 -- SHOW PAGE with a reserved-keyword argument name (already worked; pinned here).
 create microflow BugTest114.ACT_Open (Obj : BugTest114.Order) returns Nothing
 begin
-  show page BugTest114.P_Edit ("List": $Obj);
+  show page BugTest114.P_Edit ("List" = $Obj);
 end;

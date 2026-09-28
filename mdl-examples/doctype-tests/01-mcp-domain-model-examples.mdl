@@ -87,11 +87,11 @@ create enumeration McpDm.PaymentMethod (
 @position(100, 100)
 create persistent entity McpDm.Customer (
   /** Customer first name */
-  FirstName: string(100) not null error 'First name is required',
+  FirstName: string(100) not null error message 'First name is required',
   /** Customer last name */
-  LastName: string(100) not null error 'Last name is required',
+  LastName: string(100) not null error message 'Last name is required',
   /** Customer email address (unique) */
-  Email: string(200) not null error 'Email is required' unique error 'Email must be unique',
+  Email: string(200) not null error message 'Email is required' unique error message 'Email must be unique',
   /** Phone number */
   Phone: string(50),
   /** Whether the customer is active */
@@ -105,9 +105,9 @@ create persistent entity McpDm.Customer (
 @position(100, 300)
 create persistent entity McpDm.Product (
   /** Product name (required) */
-  Name: string(200) not null error 'Product name is required',
+  Name: string(200) not null error message 'Product name is required',
   /** Unique product code */
-  Code: string(50) unique error 'Product code must be unique',
+  Code: string(50) unique error message 'Product code must be unique',
   /** Full product description */
   Description1: string(2000),
   /** Unit price */
@@ -131,15 +131,15 @@ create persistent entity McpDm.Product (
 @position(400, 100)
 create persistent entity McpDm.SalesOrder (
   /** Unique order number */
-  OrderNumber: string(50) not null error 'Order number is required' unique error 'Order number must be unique',
+  OrderNumber: string(50) not null error message 'Order number is required' unique error message 'Order number must be unique',
   /** Order date */
-  OrderDate: datetime not null error 'Order date is required',
+  OrderDate: datetime not null error message 'Order date is required',
   /** Order status */
-  OrderStatus: enumeration(McpDm.OrderStatus) not null error 'Status is required',
+  OrderStatus: enumeration(McpDm.OrderStatus) not null error message 'Status is required',
   /** Payment method */
   PaymentMethod: enumeration(McpDm.PaymentMethod),
   /** Total amount */
-  TotalAmount: decimal not null error 'Total is required'
+  TotalAmount: decimal not null error message 'Total is required'
 );
 /
 
@@ -154,7 +154,7 @@ create association McpDm.SalesOrder_Customer
 from McpDm.SalesOrder to McpDm.Customer
 type reference
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -188,7 +188,7 @@ create persistent entity McpDm.Attachment extends System.FileDocument (
 @position(700, 300)
 create persistent entity McpDm.Vehicle (
   /** License plate (unique) */
-  LicensePlate: string(20) not null error 'License plate is required' unique error 'License plate must be unique',
+  LicensePlate: string(20) not null error message 'License plate is required' unique error message 'License plate must be unique',
   /** Manufacturer */
   Make: string(100),
   /** Current mileage */
@@ -236,8 +236,8 @@ alter entity McpDm.Customer
 -- PART 6: VERIFY (reads always work over MCP — they delegate to the local .mpr)
 -- ############################################################################
 
-show entities in McpDm;
-show enumerations in McpDm;
+list entities in McpDm;
+list enumerations in McpDm;
 describe entity McpDm.Customer;
 describe entity McpDm.SalesOrder;
 describe entity McpDm.Truck;

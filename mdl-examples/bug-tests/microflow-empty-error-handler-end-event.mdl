@@ -26,7 +26,7 @@
 
 create or modify module EhProbe;
 
-create or replace microflow EhProbe.Helper () returns String
+create or modify microflow EhProbe.Helper () returns String
 begin
   return 'x';
 end;
@@ -34,7 +34,7 @@ end;
 
 -- THE CASE. Both branches return, and the THEN branch's call carries an empty
 -- error handler. Before the fix this built a project mxbuild refused.
-create or replace microflow EhProbe.EmptyHandler () returns String
+create or modify microflow EhProbe.EmptyHandler () returns String
 begin
   if 1 = 1 then
     $r = call microflow EhProbe.Helper() on error without rollback begin end error;
@@ -49,7 +49,7 @@ end;
 -- its own path, never needed the merge, and must not gain one. Without this the
 -- file would pass equally against a builder that merged in front of every end
 -- event unconditionally.
-create or replace microflow EhProbe.FilledHandler () returns String
+create or modify microflow EhProbe.FilledHandler () returns String
 begin
   if 1 = 1 then
     $r = call microflow EhProbe.Helper() on error without rollback begin return 'err'; end error;
@@ -62,7 +62,7 @@ end;
 
 -- CONTROL 2: no error handling at all. The post-pass must leave an ordinary
 -- if/else alone — the narrowest statement that it does not rewrite every graph.
-create or replace microflow EhProbe.PlainIf () returns String
+create or modify microflow EhProbe.PlainIf () returns String
 begin
   if 1 = 1 then
     return 'yes';

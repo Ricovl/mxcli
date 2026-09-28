@@ -33,7 +33,7 @@ begin
   return true;
 end;
 
-create or replace page L54c.Grid (
+create or modify page L54c.Grid (
   Title: 'Grid',
   Layout: Atlas_Core.Atlas_Default
 ) {
@@ -43,11 +43,11 @@ create or replace page L54c.Grid (
     column colName (Attribute: Name, Caption: 'Name')
     -- Custom-content column, empty caption → header falls back to the column name
     column colActionsEmpty (Caption: '') {
-      actionbutton btnA (Caption: 'Go', Action: microflow L54c.RowAction(Thing: $currentObject))
+      actionbutton btnA (Caption: 'Go', Action: call microflow L54c.RowAction(Thing = $currentObject))
     }
     -- Custom-content column, no caption → header falls back to the column name
     column colActionsBare {
-      actionbutton btnB (Caption: 'Go2', Action: microflow L54c.RowAction(Thing: $currentObject))
+      actionbutton btnB (Caption: 'Go2', Action: call microflow L54c.RowAction(Thing = $currentObject))
     }
   }
 }

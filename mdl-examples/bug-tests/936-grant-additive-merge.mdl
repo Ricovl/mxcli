@@ -67,29 +67,29 @@ create module role BugTest936.Scoped;
 
 -- 1. The reported scenario, unconstrained. Before the fix the second statement
 --    left the rule reading `(Phone)` -- Name and Email silently revoked.
-grant BugTest936.Viewer on BugTest936.Customer (read (Name, Email));
-grant BugTest936.Viewer on BugTest936.Customer (read (Phone));
+grant read (Name, Email) on entity BugTest936.Customer to BugTest936.Viewer;
+grant read (Phone) on entity BugTest936.Customer to BugTest936.Viewer;
 
 -- 2. The same thing with the WHERE clause the issue was filed against. It fails
 --    and passes together with section 1; the constraint never mattered.
-grant BugTest936.Reader on BugTest936.Customer (read (Name, Email))
-  where '[Name != $currentUser/Name]';
-grant BugTest936.Reader on BugTest936.Customer (read (Phone))
-  where '[Name != $currentUser/Name]';
+grant read (Name, Email) on entity BugTest936.Customer to BugTest936.Reader
+  where [Name != $currentUser/Name];
+grant read (Phone) on entity BugTest936.Customer to BugTest936.Reader
+  where [Name != $currentUser/Name];
 
 -- 3. Structural permissions. The narrow re-grant must not revoke create, delete
 --    or the rule's ReadWrite default -- it used to drop all three.
-grant BugTest936.Admin on BugTest936.Customer (create, delete, read *, write *);
-grant BugTest936.Admin on BugTest936.Customer (read (Name));
+grant create, delete, read *, write * on entity BugTest936.Customer to BugTest936.Admin;
+grant read (Name) on entity BugTest936.Customer to BugTest936.Admin;
 
 -- 4. Two constraints for one role are two rules, not one. Before the fix the
 --    second statement overwrote the first rule's constraint AND its members,
 --    leaving a single rule -- the pattern was simply not expressible in MDL.
 --    mx check accepts the result: Mendix combines the two at runtime.
-grant BugTest936.Scoped on BugTest936.Customer (read (Name))  where '[Name = ''a'']';
-grant BugTest936.Scoped on BugTest936.Customer (read (Email)) where '[Name = ''b'']';
+grant read (Name) on entity BugTest936.Customer to BugTest936.Scoped  where [Name = 'a'];
+grant read (Email) on entity BugTest936.Customer to BugTest936.Scoped where [Name = 'b'];
 
 -- 5. Re-running a statement must not accumulate rules. The constraint is part
 --    of the match key, so a repeat lands on its own rule and this file stays
 --    idempotent under `mxcli exec` (ADR-0008).
-grant BugTest936.Scoped on BugTest936.Customer (read (Name))  where '[Name = ''a'']';
+grant read (Name) on entity BugTest936.Customer to BugTest936.Scoped  where [Name = 'a'];

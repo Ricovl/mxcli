@@ -61,7 +61,7 @@ begin
     change $LogisticWhitelist (IsLinked = false) refresh;
 end;
 
-create or replace page BugTest1082.MaterialsOverview
+create or modify page BugTest1082.MaterialsOverview
 (
   title: 'Material definitions',
   layout: Atlas_Core.Atlas_Default,
@@ -72,21 +72,21 @@ create or replace page BugTest1082.MaterialsOverview
     datasource: database from BugTest1082.LogisticWhitelist,
     selection: single
   ) {
-    column colName (attribute: Name, caption: 'Name')
+    column (attribute: Name, caption: 'Name')
 
     -- Row-scoped: the grid's row supplies the parameter, no argument needed.
-    column colRow (caption: 'Row') {
-      container cRowUnlink (action: nanoflow BugTest1082.ACT_UnLink, class: 'command') {
+    column (caption: 'Row') {
+      container cRowUnlink (action: call nanoflow BugTest1082.ACT_UnLink, class: 'command') {
         actionbutton btnRowUnlink (caption: 'Unlink')
       }
     }
 
-    controlbar controlBar1 {
+    controlbar {
       -- The reported shape, written correctly. Remove the argument list and
       -- `mxcli check -p <app>` reports CE1571 before mxbuild ever runs.
       container containerUnlinkMat (
         class: 'command',
-        action: nanoflow BugTest1082.ACT_UnLink ($LogisticWhitelist = $dgMaterials)
+        action: call nanoflow BugTest1082.ACT_UnLink (LogisticWhitelist = $dgMaterials)
       ) {
         actionbutton btnUnlink (caption: 'Unlink', icon: 'Atlas_Core.Atlas_Filled.trash-can')
       }

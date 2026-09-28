@@ -93,8 +93,8 @@ create page WFTest.TaskPage (
   params: { $WorkflowUserTask: System.WorkflowUserTask }
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Task Page', rendermode: H2)
       }
     }
@@ -107,8 +107,8 @@ create page WFTest.AlternateTaskPage (
   params: { $WorkflowUserTask: System.WorkflowUserTask }
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Alternate Task', rendermode: H2)
       }
     }
@@ -122,8 +122,8 @@ create page WFTest.OverviewPage (
   params: { $workflow: System.Workflow }
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Overview', rendermode: H2)
       }
     }
@@ -141,14 +141,14 @@ end workflow;
 
 -- Initial workflow — simple starting point, all richness added via ALTER
 
-create or replace workflow WFTest.OrderApproval
+create or modify workflow WFTest.OrderApproval
   parameter $WorkflowContext: WFTest.OrderContext
   display 'Order Approval'
   description 'Handles order approval process'
 begin
   user task ReviewOrder 'Review the order'
     page WFTest.TaskPage
-    targeting xpath '[Status = ''Draft'']'
+    targeting xpath [Status = 'Draft']
     description 'Please review this order'
     outcomes
       'Approve' { call microflow WFTest.ACT_Process; }
@@ -190,7 +190,7 @@ alter workflow WFTest.OrderApproval
 
 alter workflow WFTest.OrderApproval set activity ReviewOrder page WFTest.AlternateTaskPage;
 alter workflow WFTest.OrderApproval set activity ReviewOrder description 'Updated instructions';
-alter workflow WFTest.OrderApproval set activity ReviewOrder targeting xpath '[Status = ''Pending'']';
+alter workflow WFTest.OrderApproval set activity ReviewOrder targeting xpath [Status = 'Pending'];
 alter workflow WFTest.OrderApproval set activity ReviewOrder targeting microflow WFTest.ACT_TargetUsers;
 alter workflow WFTest.OrderApproval set activity ReviewOrder due date '';
 alter workflow WFTest.OrderApproval set activity 'Review the order' description 'Referenced by caption';
@@ -259,10 +259,10 @@ alter workflow WFTest.OrderApproval
 -- All remaining activity types
 
 alter workflow WFTest.OrderApproval
-  insert after ACT_Escalate@1 wait for timer addHours([%CurrentDateTime%], 1) comment 'WaitOneHour';
+  insert after ACT_Escalate@1 wait for timer addHours([%CurrentDateTime%], 1) caption 'WaitOneHour';
 
 alter workflow WFTest.OrderApproval
-  insert after WaitOneHour wait for notification comment 'WaitForApproval';
+  insert after WaitOneHour wait for notification caption 'WaitForApproval';
 
 alter workflow WFTest.OrderApproval
   insert after WaitForApproval call workflow WFTest.SubProcess;
@@ -370,8 +370,8 @@ create page WFTarget.TaskPage (
   params: { $WorkflowUserTask: System.WorkflowUserTask }
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Task', rendermode: H2)
       }
     }
@@ -390,7 +390,7 @@ begin
   -- TARGETING USERS XPATH (explicit user xpath targeting)
   user task ByUserXP 'User xpath targeting'
     page WFTarget.TaskPage
-    targeting users xpath '[Name = ''admin'']'
+    targeting users xpath [Name = 'admin']
     outcomes 'Done' { };
 
   -- TARGETING GROUPS MICROFLOW (group microflow targeting)
@@ -402,7 +402,7 @@ begin
   -- TARGETING GROUPS XPATH (group xpath targeting)
   user task ByGroupXP 'Group xpath targeting'
     page WFTarget.TaskPage
-    targeting groups xpath '[Name = ''Administrators'']'
+    targeting groups xpath [Name = 'Administrators']
     outcomes 'Done' { };
 
   -- TARGETING MICROFLOW (legacy short form)
@@ -414,7 +414,7 @@ begin
   -- TARGETING XPATH (legacy short form)
   user task LegacyXP 'Legacy xpath targeting'
     page WFTarget.TaskPage
-    targeting xpath '[Name = ''admin'']'
+    targeting xpath [Name = 'admin']
     outcomes 'Done' { };
 
   -- MULTI USER TASK with group targeting
@@ -550,7 +550,7 @@ begin
         user task ManagerReview 'Manager review'
           page WFTest.TaskPage
           outcomes
-            'Reject' { end workflow comment 'Rejected by manager'; }
+            'Reject' { end workflow caption 'Rejected by manager'; }
             'Approve' { };
       }
       false -> { };
@@ -561,7 +561,7 @@ begin
       'Cancel' { end workflow; }
       'Confirm' { }
     boundary event interrupting timer addDays([%CurrentDateTime%], 3) {
-      end workflow comment 'Expired';
+      end workflow caption 'Expired';
     };
 
   wait for timer timer1 addHours([%CurrentDateTime%], 1) ;
@@ -570,7 +570,7 @@ end workflow;
 
 alter workflow WFTest.EndInBranches
   insert outcome 'Withdraw' on FinalCheck {
-    end workflow comment 'Withdrawn';
+    end workflow caption 'Withdrawn';
   };
 
 -- ############################################################################
@@ -648,11 +648,9 @@ end;
 create workflow WFTest.WithAgentTasks
   parameter $OrderContext: WFTest.OrderContext
 begin
-  call agent microflow WFTest.ACT_SummariseOrder as aiAgentTask1 comment 'Summarise the order'
-    with (OrderContext = '$WorkflowContext');
+  call agent microflow WFTest.ACT_SummariseOrder(OrderContext = $WorkflowContext) as aiAgentTask1 caption 'Summarise the order';
 
-  call agent microflow WFTest.ACT_ClassifyOrder as aiAgentTask2 comment 'Classify the order'
-    with (OrderContext = '$WorkflowContext')
+  call agent microflow WFTest.ACT_ClassifyOrder(OrderContext = $WorkflowContext) as aiAgentTask2 caption 'Classify the order'
     outcomes
       true -> {
         user task Expedite 'Expedite the order'
@@ -745,7 +743,7 @@ end;
 create workflow WFTest.WithNotifications
   parameter $OrderContext: WFTest.OrderContext
 begin
-  notification DocumentsReceived comment 'Documents received';
+  notification DocumentsReceived caption 'Documents received';
 
   user task Review 'Review the order'
     page WFTest.TaskPage
@@ -754,12 +752,12 @@ begin
       end workflow;
     }
     boundary event non interrupting notification Nudge 'Reminder requested' {
-      call microflow WFTest.ACT_LogCancel with (OrderContext = '$WorkflowContext');
+      call microflow WFTest.ACT_LogCancel(OrderContext = $WorkflowContext);
     };
 
   event subprocess ESP_Cancel 'Cancel order'
     on interrupting notification CancelStart 'Cancel received' {
-    call microflow WFTest.ACT_LogCancel with (OrderContext = '$WorkflowContext');
+    call microflow WFTest.ACT_LogCancel(OrderContext = $WorkflowContext);
   };
 
   event subprocess ESP_Audit 'Audit'
@@ -783,12 +781,12 @@ begin
     outcomes 'Approve' { } 'Reject' { };
 
   event subprocess ESP_Expire 'Expire'
-    on interrupting timer addDays([%CurrentDateTime%], 30) as ExpireStart comment 'After 30 days' {
+    on interrupting timer addDays([%CurrentDateTime%], 30) as ExpireStart caption 'After 30 days' {
   };
 
   event subprocess ESP_Remind 'Daily reminder'
     on non interrupting timer addDays([%CurrentDateTime%], 1) as RemindStart {
-    call microflow WFTest.ACT_LogCancel with (OrderContext = '$WorkflowContext');
+    call microflow WFTest.ACT_LogCancel(OrderContext = $WorkflowContext);
   };
 end workflow;
 /

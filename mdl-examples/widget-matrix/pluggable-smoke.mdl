@@ -30,7 +30,7 @@ create page WMatrix.Pg
     DataSource: database from WMatrix.Item sort by Name asc,
     Selection: Single
   ) {
-    column colName (caption: 'Name', attribute: Name)
+    column (caption: 'Name', attribute: Name)
   }
 
   -- Gallery (pluggable) over a database datasource with a parameterized dynamic text.
@@ -38,7 +38,7 @@ create page WMatrix.Pg
     DataSource: database from WMatrix.Item sort by Name asc,
     Selection: Single
   ) {
-    template tmpl {
+    template {
       dynamictext dt (content: '{1}', contentparams: [{1} = Name])
     }
   }

@@ -39,7 +39,7 @@ create page W.ReviewPage (
   params: { $Task: System.WorkflowUserTask },
   title: 'Review', layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     dataview dv (datasource: $Task) { textbox tb (attribute: Name, label: 'Task') }
   } } }
 }

@@ -32,7 +32,7 @@ create or modify page PgArg.Overview (
   listview lvCars (DataSource: DATABASE PgArg.Car) {
     actionbutton btnOpen (
       Caption: 'Open',
-      Action: SHOW_PAGE PgArg.Detail(Car: $currentObject)
+      Action: SHOW PAGE PgArg.Detail(Car = $currentObject)
     )
   }
 }
@@ -47,7 +47,7 @@ create or modify page PgArg.Caller (
   dataview dvCar (DataSource: $Car) {
     actionbutton btnGo (
       Caption: 'Go',
-      Action: SHOW_PAGE PgArg.Detail(Car: $Car)
+      Action: SHOW PAGE PgArg.Detail(Car = $Car)
     )
   }
 }

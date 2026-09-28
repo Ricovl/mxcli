@@ -15,7 +15,7 @@
 create module Sig;
 create persistent entity Sig.Request ( SignatureData: string(unlimited) );
 
-create or replace page Sig.Sign_Edit (Title: 'Sign', Layout: Atlas_Core.Atlas_Default,
+create or modify page Sig.Sign_Edit (Title: 'Sign', Layout: Atlas_Core.Atlas_Default,
   Params: { $Request: Sig.Request })
 {
   DATAVIEW dv (DataSource: $Request) {

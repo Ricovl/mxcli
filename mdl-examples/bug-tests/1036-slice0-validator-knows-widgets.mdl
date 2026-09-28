@@ -39,10 +39,9 @@
 -- Run it against a project to see them:
 --   mxcli check mdl-examples/bug-tests/1036-slice0-validator-knows-widgets.mdl -p app.mpr
 
-create page Bug1036.SliceZero (
+create page Bug1036.SliceZero folder 'Bug1036' (
   title: 'Slice 0',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'Bug1036'
+  layout: Atlas_Core.Atlas_Default
 ) {
   -- MDL-WIDGET25: no definition, and no package in widgets/ either.
   pluggablewidget 'com.acme.widget.NotAWidget' w1 (someProp: 'x')

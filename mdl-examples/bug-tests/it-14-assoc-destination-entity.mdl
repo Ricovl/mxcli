@@ -40,7 +40,7 @@ create page IT14.TaskPage (
   Layout: Atlas_Core.Atlas_Default,
   Params: { $Task: System.WorkflowUserTask }
 ) {
-  layoutgrid g { row r { column c (DesktopWidth: 12) {
+  layoutgrid g { row { column (DesktopWidth: 12) {
     dataview dvWf (datasource: $Task/System.WorkflowUserTask_Workflow) {
       -- Explicit destination: required when the association ends in System.
       gallery galIssue (datasource: $currentObject/IT14.Issue_Workflow/IT14.Issue) {

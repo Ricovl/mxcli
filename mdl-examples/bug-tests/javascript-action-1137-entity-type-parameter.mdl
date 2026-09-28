@@ -32,7 +32,7 @@
 --   "Entity": "Administration.Account"
 -- and must NOT carry an "Argument" key.
 
-create or replace nanoflow MyFirstModule.ACT_Refresh_NF ()
+create or modify nanoflow MyFirstModule.ACT_Refresh_NF ()
 begin
   call javascript action NanoflowCommons.RefreshEntity (EntityToRefresh = Administration.Account);
 end;

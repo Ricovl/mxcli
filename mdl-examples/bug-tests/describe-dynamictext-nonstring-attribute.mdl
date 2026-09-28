@@ -29,7 +29,7 @@
 
 create entity MyFirstModule.Counter ( CountAll: Integer, ListTitle: String );
 
-create or replace page MyFirstModule.P_NonStringRT
+create or modify page MyFirstModule.P_NonStringRT
 (
   Title: 'Non-string round-trip',
   Layout: Atlas_Core.Atlas_Default,

@@ -31,20 +31,20 @@ create module DbTest;
 -- Constants for F1 SQL Server Connection
 -- ============================================================================
 
+/* JDBC connection string for F1 database */
 /** JDBC connection string for F1 database */
 create constant DbTest.F1Database_DBSource type string
-  default 'jdbc:sqlserver://host.docker.internal:1433;databaseName=F1;encrypt=false'
-  comment 'JDBC connection string for F1 database';
+  default 'jdbc:sqlserver://host.docker.internal:1433;databaseName=F1;encrypt=false';
 
-/** Database username */
+/* Database username */
+/** Database username for F1 database */
 create constant DbTest.F1Database_DBUsername type string
-  default 'sa'
-  comment 'Database username for F1 database';
+  default 'sa';
 
-/** Database password */
+/* Database password */
+/** Database password for F1 database */
 create constant DbTest.F1Database_DBPassword type string
-  default ''
-  comment 'Database password for F1 database';
+  default '';
 
 -- ============================================================================
 -- Non-Persistent Entities for Query Results
@@ -510,8 +510,8 @@ move database connection DbTest.SimpleQueryDB to folder 'Resources';
 
 -- After executing this script, verify with:
 --
-show constants in DbTest;
-show database connections;
+list constants in DbTest;
+list database connections;
 --
 describe database connection DbTest.MinimalDB;
 describe database connection DbTest.F1Database;

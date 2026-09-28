@@ -93,7 +93,7 @@ $$;
 
 -- MARK: Inspect
 
-show javascript actions in JsTest;
+list javascript actions in JsTest;
 describe javascript action JsTest.ShowToast;
 describe javascript action JsTest.FormatSeverity;
 

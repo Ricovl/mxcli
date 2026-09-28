@@ -8,10 +8,10 @@ create module JsonTest;
 -- MARK: Show (empty)
 
 -- List all JSON structures in the project (empty initially)
-show json structures;
+list json structures;
 
 -- List JSON structures in a specific module
-show json structures in JsonTest;
+list json structures in JsonTest;
 
 -- MARK: Create
 
@@ -59,7 +59,6 @@ describe json structure JsonTest.CustomerResponse;
  * Create with a documentation comment
  */
 create json structure JsonTest.ApiError
-  comment 'Standard API error response'
   snippet $${"code": 400, "message": "Bad request", "details": [{"field": "email", "error": "Invalid email format"}]}$$;
 
 /**

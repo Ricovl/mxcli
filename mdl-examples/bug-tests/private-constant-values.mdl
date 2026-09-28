@@ -52,8 +52,9 @@
 
 -- An unrelated edit: nothing here mentions the constant, but the whole settings
 -- document is rewritten. This is the write that used to corrupt the override.
-alter settings configuration 'Default'
-  HttpPortNumber = 8099;
+alter settings configuration 'Default' (
+  HttpPortNumber: 8099
+);
 
 -- Setting a value on a private override is refused rather than silently converting
 -- it to a shared one. Uncomment against a project that has one, and expect:

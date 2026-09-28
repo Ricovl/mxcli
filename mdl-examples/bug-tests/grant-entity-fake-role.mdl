@@ -6,4 +6,4 @@
 --   Module.FakeRole  → does not exist
 --   Module.MyEntity  → must exist for this test
 
-grant Module.FakeRole on Module.MyEntity (read *);
+grant read * on entity Module.MyEntity to Module.FakeRole;

@@ -28,7 +28,7 @@ create persistent entity Issue527.ServiceRequest (
 /**
  * Written by the doc comment on CREATE — the only route before this fix.
  */
-create or replace page Issue527.ServiceRequest_Triage (
+create or modify page Issue527.ServiceRequest_Triage (
   title: 'Triage',
   params: { $Request: Issue527.ServiceRequest }
 )
@@ -41,18 +41,18 @@ create or replace page Issue527.ServiceRequest_Triage (
 -- The statement that was refused. It replaces the doc comment's text in place,
 -- with no need to restate the page.
 alter page Issue527.ServiceRequest_Triage {
-  set Documentation = 'Coordinator triage step: set priority, then accept or reject.';
+  set (Documentation: 'Coordinator triage step: set priority, then accept or reject.');
 }
 
 -- An empty string clears it — removing a doc comment from a script has to be
 -- expressible, and the property is a bare string with no unset value.
 alter page Issue527.ServiceRequest_Triage {
-  set Documentation = '';
+  set (Documentation: '');
 }
 
 -- Back to a real value, so the file leaves the page documented.
 alter page Issue527.ServiceRequest_Triage {
-  set Documentation = 'Coordinator triage step: set priority, then accept or reject.';
+  set (Documentation: 'Coordinator triage step: set priority, then accept or reject.');
 }
 
 describe page Issue527.ServiceRequest_Triage;

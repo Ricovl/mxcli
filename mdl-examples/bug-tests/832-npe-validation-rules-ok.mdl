@@ -13,8 +13,8 @@ CREATE MODULE Bug832Ok;
 
 -- A PERSISTENT entity is exactly where validation rules belong.
 CREATE OR MODIFY PERSISTENT ENTITY Bug832Ok.P (
-  "Name": String(100) not null error 'Name is required',
-  "Code": String(50) unique error 'Code must be unique'
+  "Name": String(100) not null error message 'Name is required',
+  "Code": String(50) unique error message 'Code must be unique'
 );
 
 -- A non-persistent entity with no validation rule is fine.

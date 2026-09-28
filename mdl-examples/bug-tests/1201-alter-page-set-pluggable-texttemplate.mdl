@@ -18,7 +18,7 @@ create page IMod.P1 ( title: 'P1', layout: Atlas_Core.Atlas_Default ) {
 };
 
 alter page IMod.P1 {
-  set ImageUrl = 'https://b.example/y.png' on img1
+  set (ImageUrl: 'https://b.example/y.png') on img1
 };
 
 describe page IMod.P1;

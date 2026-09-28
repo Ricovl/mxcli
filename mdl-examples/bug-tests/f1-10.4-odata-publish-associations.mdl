@@ -52,7 +52,7 @@ BEGIN
 END;
 
 -- No ServiceName:, no PublishAssociations:, no follow-up ALTER — one statement.
-create odata service F1PUBASSOC.LapApi (
+create published odata service F1PUBASSOC.LapApi (
   path: 'odata/f1laps/',
   version: '1.0.0',
   ODataVersion: OData4,

@@ -40,10 +40,10 @@ create module TrPreserve;
 create module role TrPreserve.User;
 create persistent entity TrPreserve.Thing ( Name: string(100) );
 
-create or replace page TrPreserve.P_Single (Title: 'Things', Layout: Atlas_Core.Atlas_Default)
+create or modify page TrPreserve.P_Single (Title: 'Things', Layout: Atlas_Core.Atlas_Default)
 {
   DATAGRID dg (DataSource: DATABASE TrPreserve.Thing) {
-    COLUMN c1 (Attribute: Name, Caption: 'Name')
+    COLUMN (Attribute: Name, Caption: 'Name')
   }
 }
 

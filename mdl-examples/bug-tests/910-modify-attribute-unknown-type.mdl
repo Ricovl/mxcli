@@ -54,7 +54,7 @@ create persistent entity Bug910.OdooSession (
 alter entity Bug910.OdooSession drop default on attribute UserID;
 
 -- UserID is now `Integer` with no default. A genuine retype still works:
-alter entity Bug910.OdooSession modify attribute UserID long;
+alter entity Bug910.OdooSession modify attribute UserID: long;
 
 -- Verify:
 --   describe entity Bug910.OdooSession;

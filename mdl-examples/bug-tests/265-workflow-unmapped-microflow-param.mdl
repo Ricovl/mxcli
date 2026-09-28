@@ -22,7 +22,7 @@
 create or modify workflow "Demo"."WF_Ok"
   parameter $Context: Demo.Thing
 begin
-  call microflow "Demo"."ACT_Need" with (Item = '$workflowContext');
+  call microflow "Demo"."ACT_Need"(Item = $workflowContext);
 end workflow;
 /
 

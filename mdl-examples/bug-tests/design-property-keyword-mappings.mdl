@@ -32,7 +32,7 @@
 -- `mxcli docker check` — 0 errors.
 -- ============================================================================
 
-create or replace page MyFirstModule.DesignPropKeywords_Test
+create or modify page MyFirstModule.DesignPropKeywords_Test
 ( Title: 'Design property keyword mappings', Layout: Atlas_Core.Atlas_Default )
 {
   container c1 {
@@ -49,7 +49,7 @@ create or replace page MyFirstModule.DesignPropKeywords_Test
     }
     navigationtree nt1 (profile: 'Responsive', DesignProperties: ['Hide icons': on])
     row r1 (DesignProperties: ['Background color': '#00ff00']) {
-      column rc1 {
+      column {
         dynamictext t4 (Content: 'r')
       }
     }

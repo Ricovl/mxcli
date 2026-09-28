@@ -54,7 +54,7 @@ CREATE MODULE MxExpectRepro;
 -- table, in the form the test runner generates: assert, and on failure report
 -- both the expectation and the value that came back.
 
-CREATE OR REPLACE MICROFLOW MxExpectRepro.Canary_Equality ()
+CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Equality ()
 RETURNS String AS $Verdict
 BEGIN
   DECLARE $Verdict String = 'PASS';
@@ -68,7 +68,7 @@ END;
 /
 
 -- `<>` in the annotation, `!=` in the model. The other spelling is CE0117.
-CREATE OR REPLACE MICROFLOW MxExpectRepro.Canary_Inequality ()
+CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Inequality ()
 RETURNS String AS $Verdict
 BEGIN
   DECLARE $Verdict String = 'PASS';
@@ -82,7 +82,7 @@ END;
 /
 
 -- length() returns Integer, so the observed value is wrapped in toString().
-CREATE OR REPLACE MICROFLOW MxExpectRepro.Canary_Length ()
+CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Length ()
 RETURNS String AS $Verdict
 BEGIN
   DECLARE $Verdict String = 'PASS';
@@ -95,7 +95,7 @@ BEGIN
 END;
 /
 
-CREATE OR REPLACE MICROFLOW MxExpectRepro.Canary_Find ()
+CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Find ()
 RETURNS String AS $Verdict
 BEGIN
   DECLARE $Verdict String = 'PASS';
@@ -109,7 +109,7 @@ END;
 /
 
 -- substring() returns String, so no wrapping. The observed side is the left one.
-CREATE OR REPLACE MICROFLOW MxExpectRepro.Canary_Substring ()
+CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Substring ()
 RETURNS String AS $Verdict
 BEGIN
   DECLARE $Verdict String = 'PASS';
@@ -123,7 +123,7 @@ END;
 /
 
 -- The contradiction from the finding: it passed as one expression, and must not.
-CREATE OR REPLACE MICROFLOW MxExpectRepro.Canary_Contradiction ()
+CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Contradiction ()
 RETURNS String AS $Verdict
 BEGIN
   DECLARE $Verdict String = 'PASS';
@@ -137,7 +137,7 @@ END;
 /
 
 -- Neither side is observed, so no actual value is reported.
-CREATE OR REPLACE MICROFLOW MxExpectRepro.Canary_Falsehood ()
+CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Falsehood ()
 RETURNS String AS $Verdict
 BEGIN
   DECLARE $Verdict String = 'PASS';
@@ -150,7 +150,7 @@ END;
 /
 
 -- A Boolean literal on the right pins the left side's type.
-CREATE OR REPLACE MICROFLOW MxExpectRepro.Canary_Boolean ()
+CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Boolean ()
 RETURNS String AS $Verdict
 BEGIN
   DECLARE $Verdict String = 'PASS';
@@ -163,7 +163,7 @@ BEGIN
 END;
 /
 
-CREATE OR REPLACE MICROFLOW MxExpectRepro.Canary_Not ()
+CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Not ()
 RETURNS String AS $Verdict
 BEGIN
   DECLARE $Verdict String = 'PASS';
@@ -176,7 +176,7 @@ BEGIN
 END;
 /
 
-CREATE OR REPLACE MICROFLOW MxExpectRepro.Canary_NestedCalls ()
+CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_NestedCalls ()
 RETURNS String AS $Verdict
 BEGIN
   DECLARE $Verdict String = 'PASS';

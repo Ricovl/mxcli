@@ -39,30 +39,30 @@
 -- Written against a `mxcli new` app, whose starting module is MyFirstModule.
 -- Re-runnable: every statement is CREATE OR MODIFY / OR REPLACE.
 
-alter project security level production;
-alter project security demo users on;
+alter app security level production;
+alter app security demo users on;
 
 create or modify module role MyFirstModule.User;
 create or modify user role ApiUser (MyFirstModule.User, System.User);
 
 create or modify entity MyFirstModule.Row (
   -- CE6624: an OData key attribute needs a unique validation rule.
-  Cat: String(100) unique error 'Cat must be unique',
+  Cat: String(100) unique error message 'Cat must be unique',
   V: Decimal
 );
 
-grant MyFirstModule.User on MyFirstModule.Row (CREATE, DELETE, READ *, WRITE *);
+grant CREATE, DELETE, READ *, WRITE * on entity MyFirstModule.Row to MyFirstModule.User;
 
 create demo user 'probe' password 'ProbePassw0rd1!' (ApiUser);
 
 -- Seed one row, so a 200 over data can be told apart from a 200 over nothing.
 -- Returns Boolean because an after-startup microflow must (CE0142).
-create or replace microflow MyFirstModule.Seed ()
+create or modify microflow MyFirstModule.Seed ()
   returns Boolean as $Ok
 begin
   declare $Ok Boolean = true;
   retrieve $Existing from MyFirstModule.Row;
-  $N = count($Existing);
+  $N = count $Existing;
   if $N = 0 then
     $R = create MyFirstModule.Row (Cat = 'Groceries', V = 697.70) commit;
   end if;
@@ -70,11 +70,11 @@ begin
   return $Ok;
 end;
 
-alter settings MODEL AfterStartupMicroflow = 'MyFirstModule.Seed';
+alter settings RUNTIME ( AfterStartupMicroflow: 'MyFirstModule.Seed' );
 
 -- Both methods on one service: `basic` is the control that proves the endpoint
 -- and the data are fine when `session` answers 401.
-create or modify odata service MyFirstModule.ChartApi (
+create or modify published odata service MyFirstModule.ChartApi (
   path: 'odata/chartapi/v1/',
   version: '1.0.0',
   ODataVersion: OData4,
@@ -95,4 +95,4 @@ authentication basic, session
   );
 };
 
-grant access on odata service MyFirstModule.ChartApi to MyFirstModule.User;
+grant access on published odata service MyFirstModule.ChartApi to MyFirstModule.User;

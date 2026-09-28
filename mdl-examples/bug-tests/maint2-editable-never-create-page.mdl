@@ -25,14 +25,14 @@ create entity if not exists MaintTwo.WorkOrder (
   Status: MaintTwo.Status
 );
 
-create or replace page MaintTwo.WorkOrder_View (
+create or modify page MaintTwo.WorkOrder_View (
   Title: 'Work order',
   Layout: Atlas_Core.Atlas_Default,
   Params: { $WorkOrder: MaintTwo.WorkOrder }
 ) {
   layoutgrid lg {
-    row r1 {
-      column c1 (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
         -- A page parameter, not `Datasource: MaintTwo.WorkOrder`: that shorthand was
         -- silently dropped (ako/mxcli#576) and left this data view unbound; it now
         -- means DATABASE, which a data view refuses (MDL-WIDGET09).

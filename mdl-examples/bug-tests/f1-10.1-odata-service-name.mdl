@@ -32,12 +32,12 @@ create persistent entity F1SVCNAME.Driver (
   -- The published key needs a unique validation rule, or Mendix answers
   -- CE6624 "Add a unique validation rule to attribute 'Code' … to be able to
   -- use it as the key".
-  Code: string(10) unique error 'Code must be unique',
+  Code: string(10) unique error message 'Code must be unique',
   Name: string(120)
 );
 
 -- No ServiceName: — the shape that used to fail CE0729.
-create odata service F1SVCNAME.DriverApi (
+create published odata service F1SVCNAME.DriverApi (
   path: 'odata/f1svcname/',
   version: '1.0.0',
   ODataVersion: OData4,

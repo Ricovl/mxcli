@@ -31,7 +31,7 @@ CREATE OR MODIFY PERSISTENT ENTITY Bug851.Thing (
 );
 
 -- Reference: the CREATE path, which was already correct.
-CREATE OR REPLACE PAGE Bug851.PageCreated (
+CREATE OR MODIFY PAGE Bug851.PageCreated (
   Params: { $currentObject: Bug851.Thing },
   Title: 'Conditional settings via CREATE',
   Layout: Atlas_Core.Atlas_Default
@@ -40,14 +40,14 @@ CREATE OR REPLACE PAGE Bug851.PageCreated (
     textbox txtCreated (
       label: 'Slug',
       attribute: Slug,
-      editable: [$currentObject/Slug != ''],
-      visible: [$currentObject/Slug != '']
+      editable: $currentObject/Slug != '',
+      visible: $currentObject/Slug != ''
     )
   }
 }
 
 -- The regression: the same two settings applied through ALTER.
-CREATE OR REPLACE PAGE Bug851.PageAltered (
+CREATE OR MODIFY PAGE Bug851.PageAltered (
   Params: { $currentObject: Bug851.Thing },
   Title: 'Conditional settings via ALTER',
   Layout: Atlas_Core.Atlas_Default
@@ -58,6 +58,6 @@ CREATE OR REPLACE PAGE Bug851.PageAltered (
 }
 
 ALTER PAGE Bug851.PageAltered {
-  set Editable = [$currentObject/Slug != ''] on txtAltered;
-  set Visible = [$currentObject/Slug != ''] on txtAltered;
+  set (Editable: $currentObject/Slug != '') on txtAltered;
+  set (Visible: $currentObject/Slug != '') on txtAltered;
 };

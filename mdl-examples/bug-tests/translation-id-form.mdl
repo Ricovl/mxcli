@@ -41,10 +41,10 @@ create module TrId;
 create module role TrId.User;
 create persistent entity TrId.Widget ( Label: string(100) );
 
-create or replace page TrId.P_Widgets (Title: 'Widgets', Layout: Atlas_Core.Atlas_Default)
+create or modify page TrId.P_Widgets (Title: 'Widgets', Layout: Atlas_Core.Atlas_Default)
 {
   DATAGRID dg (DataSource: DATABASE TrId.Widget) {
-    COLUMN c1 (Attribute: Label, Caption: 'Label')
+    COLUMN (Attribute: Label, Caption: 'Label')
   }
 }
 

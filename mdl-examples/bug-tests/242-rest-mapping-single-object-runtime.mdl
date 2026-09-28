@@ -83,11 +83,11 @@ create import mapping RestSingle.IMM_Token
 -- The regression. An OBJECT-rooted mapping bound with `as Entity` must store
 -- ForceSingleOccurrence=false: there is no occurrence to force, and forcing one
 -- is what the importer refuses.
-create or replace microflow RestSingle.ACT_RestObjAsEntity ()
+create or modify microflow RestSingle.ACT_RestObjAsEntity ()
 returns string as $out
 begin
   declare $out string = 'EMPTY';
-  $T = rest call get 'http://127.0.0.1:8199/obj.json'
+  $T = call rest service get 'http://127.0.0.1:8199/obj.json'
     returns mapping RestSingle.IMM_Token as RestSingle.Token;
   if $T != empty then
     set $out = $T/AccessToken;
@@ -98,11 +98,11 @@ end;
 
 -- The control that always worked: `returns string` plus a bare import. If this
 -- passes at runtime and the REST form above does not, the regression is back.
-create or replace microflow RestSingle.ACT_RestStringThenImport ()
+create or modify microflow RestSingle.ACT_RestStringThenImport ()
 returns string as $out
 begin
   declare $out string = 'EMPTY';
-  $Body = rest call get 'http://127.0.0.1:8199/obj.json'
+  $Body = call rest service get 'http://127.0.0.1:8199/obj.json'
     returns string;
   $T = import from mapping RestSingle.IMM_Token($Body);
   if $T != empty then

@@ -69,7 +69,7 @@ begin
   return $Rows;
 end;
 
-create or replace page Sec.Home (
+create or modify page Sec.Home (
   title: 'System vs owned',
   Layout: Atlas_Core.Atlas_Default
 ) {
@@ -85,7 +85,7 @@ create or replace page Sec.Home (
   }
 }
 /
-alter project security level production;
+alter app security level production;
 
 -- Sec.Viewer may read everything this MODULE owns and may run both microflows
 -- and open the page — so anything blank is the System module's doing, not a
@@ -93,14 +93,14 @@ alter project security level production;
 alter user role User add module roles (Sec.Viewer);
 alter user role Administrator add module roles (Sec.Admin);
 
-grant Sec.Viewer on Sec.UserRow (read *, write *, create, delete);
-grant Sec.Admin  on Sec.UserRow (read *, write *, create, delete);
+grant read *, write *, create, delete on entity Sec.UserRow to Sec.Viewer;
+grant read *, write *, create, delete on entity Sec.UserRow to Sec.Admin;
 
 grant execute on microflow Sec.GetSystemUsers to Sec.Viewer, Sec.Admin;
 grant execute on microflow Sec.GetUserRows to Sec.Viewer, Sec.Admin;
 grant view on page Sec.Home to Sec.Viewer, Sec.Admin;
 
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page Sec.Home
   menu (
     menu item 'Home' page Sec.Home icon glyph 57377;

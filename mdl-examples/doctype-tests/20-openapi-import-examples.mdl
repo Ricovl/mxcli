@@ -20,19 +20,19 @@ create module OpenApiTest;
 -- @version: 11.0+
 -- Rest$JsonBody used by OpenAPI-imported operations requires Mendix 11+.
 -- Minimal: spec drives operations and auth; BaseUrl set explicitly (spec uses relative /api/v3)
-create or modify rest client OpenApiTest.PetStoreMinimal (
+create or modify consumed rest service OpenApiTest.PetStoreMinimal (
   OpenAPI: 'https://petstore3.swagger.io/api/v3/openapi.json',
   BaseUrl: 'https://petstore3.swagger.io/api/v3'
 );
 
 -- With BaseUrl override: replaces servers[0].url from the spec
-create or modify rest client OpenApiTest.PetStoreV4 (
+create or modify consumed rest service OpenApiTest.PetStoreV4 (
   OpenAPI: 'https://petstore3.swagger.io/api/v3/openapi.json',
   BaseUrl: 'https://petstore3.swagger.io/api/v4'
 );
 
 -- Verify the created service is visible
-show rest clients in OpenApiTest;
+list consumed rest services in OpenApiTest;
 
 -- Describe the created service (roundtrip)
-describe rest client OpenApiTest.PetStoreMinimal;
+describe consumed rest service OpenApiTest.PetStoreMinimal;

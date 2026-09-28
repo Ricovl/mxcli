@@ -58,17 +58,17 @@ owner both;
 /**
  * Simple save/cancel footer — the most common reusable pattern.
  */
-define fragment SaveCancelFooter as {
+create fragment SaveCancelFooter as {
   footer footer1 {
-    actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
 };
 
 /**
  * Fragment with multiple top-level widgets.
  */
-define fragment CustomerFields as {
+create fragment CustomerFields as {
   textbox txtName (label: 'Name', attribute: Name)
   textbox txtEmail (label: 'Email', attribute: Email)
   textbox txtPhone (label: 'Phone', attribute: Phone)
@@ -81,7 +81,7 @@ define fragment CustomerFields as {
 -- ============================================================================
 
 -- List all defined fragments (works without project connection)
-show fragments;
+list fragments;
 
 -- Show the full MDL definition of a fragment
 describe fragment SaveCancelFooter;
@@ -123,9 +123,9 @@ describe page FragTest.P001_Customer_Edit;
  * When using the same fragment multiple times on one page,
  * use AS prefix_ to create unique widget names.
  */
-define fragment StatusButtons as {
-  actionbutton btnApprove (caption: 'Approve', action: save_changes, buttonstyle: success)
-  actionbutton btnReject (caption: 'Reject', action: cancel_changes, buttonstyle: danger)
+create fragment StatusButtons as {
+  actionbutton btnApprove (caption: 'Approve', action: save changes, buttonstyle: success)
+  actionbutton btnReject (caption: 'Reject', action: cancel changes, buttonstyle: danger)
 };
 
 /**
@@ -141,12 +141,12 @@ create page FragTest.P002_Dual_Fragment
 )
 {
   layoutgrid lgMain {
-    row row1 {
-      column col1 (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         dynamictext txtCustHeader (content: 'Customer Actions', rendermode: H4)
         use fragment StatusButtons as cust_
       }
-      column col2 (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         dynamictext txtOrderHeader (content: 'Order Actions', rendermode: H4)
         use fragment StatusButtons as order_
       }
@@ -164,7 +164,7 @@ create page FragTest.P002_Dual_Fragment
  * Fragments can be used inside any container widget — DATAVIEW,
  * LAYOUTGRID columns, CONTAINER, etc.
  */
-define fragment OrderFields as {
+create fragment OrderFields as {
   textbox txtOrderNumber (label: 'Order #', attribute: OrderNumber)
   datepicker dpOrderDate (label: 'Order Date', attribute: OrderDate)
   textbox txtTotal (label: 'Total', attribute: TotalAmount)
@@ -179,8 +179,8 @@ create page FragTest.P003_Order_Form
 {
   dataview dvOrder (datasource: $Order) {
     layoutgrid lgForm {
-      row row1 {
-        column col1 (desktopwidth: 12) {
+      row {
+        column (desktopwidth: 12) {
           use fragment OrderFields
         }
       }
@@ -236,7 +236,7 @@ create page FragTest.P005_Quick_View
     dynamictext txtHeader (content: 'Customer Details', rendermode: H3)
     use fragment CustomerFields
     footer footer1 {
-      actionbutton btnClose (caption: 'Close', action: close_page)
+      actionbutton btnClose (caption: 'Close', action: close page)
     }
   }
 };

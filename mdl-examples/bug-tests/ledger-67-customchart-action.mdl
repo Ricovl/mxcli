@@ -45,7 +45,7 @@ begin
   return $New;
 end;
 
-create or replace page CCm.Chart (
+create or modify page CCm.Chart (
   Title: 'Chart',
   Layout: Atlas_Core.Atlas_Default
 ) {
@@ -53,7 +53,7 @@ create or replace page CCm.Chart (
     pluggablewidget 'com.mendix.widget.web.customchart.CustomChart' chart (
       dataAttribute: ChartData,
       layoutAttribute: ChartLayout,
-      onClick: microflow CCm.OnPointClick(Data: $currentObject)
+      onClick: call microflow CCm.OnPointClick(Data = $currentObject)
     )
   }
 }

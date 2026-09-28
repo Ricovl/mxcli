@@ -72,31 +72,31 @@ end
 
 -- Page 1 — uploadMode: files. Visible slots: createFileAction,
 -- onUploadSuccessFile, onUploadFailureFile.
-create or replace page FU.P_Files (Title: 'Files', Layout: Atlas_Core.Atlas_Default,
+create or modify page FU.P_Files (Title: 'Files', Layout: Atlas_Core.Atlas_Default,
   Params: { $Ctx: FU.UploadCtx })
 {
   DATAVIEW dv (DataSource: $Ctx) {
     pluggablewidget 'com.mendix.widget.web.fileuploader.FileUploader' fu (
       uploadMode: 'files',
       associatedFiles: association FU.MyFile_UploadCtx,
-      createFileAction: nanoflow FU.NF_CreateFile($Ctx = $Ctx),
-      onUploadSuccessFile: microflow FU.ACT_FileUploaded($Ctx = $Ctx),
+      createFileAction: nanoflow FU.NF_CreateFile(Ctx = $Ctx),
+      onUploadSuccessFile: microflow FU.ACT_FileUploaded(Ctx = $Ctx),
       onUploadFailureFile: microflow FU.ACT_FileFailed
     )
   }
 }
 
 -- Page 2 — uploadMode: images. The other half of the pairs.
-create or replace page FU.P_Images (Title: 'Images', Layout: Atlas_Core.Atlas_Default,
+create or modify page FU.P_Images (Title: 'Images', Layout: Atlas_Core.Atlas_Default,
   Params: { $Ctx: FU.UploadCtx })
 {
   DATAVIEW dv (DataSource: $Ctx) {
     pluggablewidget 'com.mendix.widget.web.fileuploader.FileUploader' fu (
       uploadMode: 'images',
       associatedImages: association FU.MyImage_UploadCtx,
-      createImageAction: nanoflow FU.NF_CreateImage($Ctx = $Ctx),
-      onUploadSuccessImage: nanoflow FU.NF_UploadedImage($Ctx = $Ctx),
-      onUploadFailureImage: microflow FU.ACT_ImageFailed($Ctx = $Ctx)
+      createImageAction: nanoflow FU.NF_CreateImage(Ctx = $Ctx),
+      onUploadSuccessImage: nanoflow FU.NF_UploadedImage(Ctx = $Ctx),
+      onUploadFailureImage: microflow FU.ACT_ImageFailed(Ctx = $Ctx)
     )
   }
 }

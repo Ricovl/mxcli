@@ -51,13 +51,13 @@ create page Bug632.OrderDetail (
 ) {
   dataview dv (datasource: $o) {
     -- quoted literal: stays a literal
-    actionbutton b1 (caption: 'Save {1}', captionparams: [{1} = 'order'], action: save_changes)
+    actionbutton b1 (caption: 'Save {1}', captionparams: [{1} = 'order'], action: save changes)
     -- bare attribute: binds Bug632.Order.Title (was the literal 'Title')
-    actionbutton b2 (caption: 'Save {1}', captionparams: [{1} = Title], action: save_changes)
+    actionbutton b2 (caption: 'Save {1}', captionparams: [{1} = Title], action: save changes)
     -- parameter-qualified attribute
-    actionbutton b3 (caption: 'Save {1}', captionparams: [{1} = $o.Title], action: save_changes)
+    actionbutton b3 (caption: 'Save {1}', captionparams: [{1} = $o.Title], action: save changes)
     -- non-string bare attribute
-    linkbutton b4 (caption: 'Order #{1}', captionparams: [{1} = Num], action: save_changes)
+    linkbutton b4 (caption: 'Order #{1}', captionparams: [{1} = Num], action: save changes)
     -- the workaround from the report, for comparison: binds the same way
     dynamictext t1 (content: 'Save {1}', contentparams: [{1} = Title])
   }

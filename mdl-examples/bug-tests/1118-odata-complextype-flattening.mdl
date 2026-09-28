@@ -50,7 +50,7 @@ create constant Issue1118.SvcUrl
   type string
   default 'https://example.com/odata/v4/App/';
 
-create odata client Issue1118.App (
+create consumed odata service Issue1118.App (
   ODataVersion: 'OData4',
   MetadataUrl: './complextype-metadata.xml',
   ServiceUrl: '@Issue1118.SvcUrl'

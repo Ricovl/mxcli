@@ -26,7 +26,7 @@ create association MyFirstModule.Order_Customer
   from MyFirstModule.Order to MyFirstModule.Customer;
 /
 
-create or replace page MyFirstModule.OrderEdit
+create or modify page MyFirstModule.OrderEdit
 ( Title: 'Order', Layout: Atlas_Core.Atlas_Default, Params: { $Order: MyFirstModule.Order } )
 {
   dataview dv (datasource: $Order) {

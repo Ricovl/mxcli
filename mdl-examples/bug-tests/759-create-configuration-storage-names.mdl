@@ -49,16 +49,18 @@ create configuration 'Issue759 Defaults';
 
 -- User-supplied values are canonicalised to the enum's spelling, whatever case
 -- they were typed in. 'postgresql' below must be stored as "PostgreSql".
-create configuration 'Issue759 Postgres'
-  DatabaseType = 'postgresql',
-  DatabaseName = 'issue759',
-  DatabaseUserName = 'mendix',
-  HttpPortNumber = 8081,
-  ServerPortNumber = 8091;
+create configuration 'Issue759 Postgres' (
+  DatabaseType: 'postgresql',
+  DatabaseName: 'issue759',
+  DatabaseUserName: 'mendix',
+  HttpPortNumber: 8081,
+  ServerPortNumber: 8091
+);
 
 -- ALTER goes through the same canonicalisation.
-alter settings configuration 'Issue759 Postgres'
-  DatabaseType = 'PostgreSql',
-  ApplicationRootUrl = 'http://localhost:8081/';
+alter settings configuration 'Issue759 Postgres' (
+  DatabaseType: 'PostgreSql',
+  ApplicationRootUrl: 'http://localhost:8081/'
+);
 
 describe settings;

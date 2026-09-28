@@ -125,7 +125,7 @@ begin
 end;
 /
 
-alter settings model AfterStartupMicroflow = 'MxTest.AfterStartup';
+alter settings runtime ( AfterStartupMicroflow: 'MxTest.AfterStartup' );
 
 -- ----------------------------------------------------------------------------
 -- Sample tests. Each is its own microflow -> per-test invocation and filtering

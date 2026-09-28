@@ -40,8 +40,8 @@ create or modify page RA.SubDetail
   )
   {
     LAYOUTGRID lgMain {
-      ROW rowMain {
-        COLUMN colMain (DesktopWidth: AutoFill) {
+      ROW {
+        COLUMN (DesktopWidth: AutoFill) {
 
           -- The reported case: the context is a SPECIALIZATION of the TO end,
           -- so the rows are Note and `Content` must resolve against Note.

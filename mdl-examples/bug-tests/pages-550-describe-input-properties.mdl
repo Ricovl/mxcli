@@ -52,7 +52,7 @@ begin
   return true;
 end
 
-create or replace page Issue550.ChangePasswordForm (
+create or modify page Issue550.ChangePasswordForm (
   title: 'Change Password',
   layout: Atlas_Core.PopupLayout,
   params: { $Account: Issue550.Account },
@@ -61,8 +61,8 @@ create or replace page Issue550.ChangePasswordForm (
 )
 {
   layoutgrid layoutGrid1 {
-    row row1 {
-      column col1 (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
         -- A DataView's own read-only style: Control is Studio Pro's default
         -- here (47 of 56 measured), so Text is the value that gets lost.
         dataview dvAccount (datasource: $Account, ReadOnlyStyle: Text) {
@@ -80,8 +80,8 @@ create or replace page Issue550.ChangePasswordForm (
           )
 
           footer footerButtons {
-            actionbutton okButton1 (caption: 'OK', action: microflow Issue550.ACT_ChangePassword)
-            actionbutton cancelButton1 (caption: 'Cancel', action: cancel_changes close_page)
+            actionbutton okButton1 (caption: 'OK', action: call microflow Issue550.ACT_ChangePassword)
+            actionbutton cancelButton1 (caption: 'Cancel', action: cancel changes close page)
           }
         }
       }

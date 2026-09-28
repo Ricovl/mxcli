@@ -5,7 +5,7 @@
  * Seeds DemoItem data and opens the showcase page.
  * Skips creation if data already exists.
  */
-create or replace microflow WidgetDemo.SeedAndShowShowcase ()
+create or modify microflow WidgetDemo.SeedAndShowShowcase ()
 begin
   @position(200, 200)
   retrieve $Existing from WidgetDemo.DemoItem limit 1;
@@ -13,7 +13,7 @@ begin
   @position(400, 200)
   if $Existing != empty then
     @position(600, 100)
-    show page WidgetDemo.WidgetDemo_Showcase(DemoItem: $Existing);
+    show page WidgetDemo.WidgetDemo_Showcase(DemoItem = $Existing);
     @position(800, 100)
     return;
   end if;
@@ -89,7 +89,7 @@ begin
     ImageUrl = 'https://placehold.co/200x200?text=Charger');
 
   @position(600, 400)
-  show page WidgetDemo.WidgetDemo_Showcase(DemoItem: $Item1);
+  show page WidgetDemo.WidgetDemo_Showcase(DemoItem = $Item1);
   @position(800, 400)
   return;
 end;

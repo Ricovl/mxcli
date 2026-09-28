@@ -65,13 +65,13 @@ create page VFilterDrop.Meters (
   datagrid dgMeters (datasource: database VFilterDrop.Meter) {
     -- The working form: the filter goes INSIDE the column's own braces, and
     -- must match the column attribute's type.
-    column colCode (attribute: MeterCode, caption: 'Meter') {
+    column (attribute: MeterCode, caption: 'Meter') {
       textfilter fCode (attribute: MeterCode)
     }
-    column colReadings (attribute: Readings, caption: 'Readings') {
+    column (attribute: Readings, caption: 'Readings') {
       numberfilter fReadings (attribute: Readings)
     }
-    column colSeen (attribute: LastSeen, caption: 'Last seen') {
+    column (attribute: LastSeen, caption: 'Last seen') {
       datefilter fSeen (attribute: LastSeen)
     }
   }
@@ -86,10 +86,10 @@ create page VFilterDrop.MeterGallery (
   layout: Atlas_Core.Atlas_Default
 ) {
   gallery galMeters (datasource: database VFilterDrop.Meter, desktopcolumns: 3) {
-    filter galFilter {
+    filter {
       textfilter fGalCode (attribute: MeterCode)
     }
-    template galTemplate {
+    template {
       dynamictext txtCode (content: '{1}', contentparams: [{1} = MeterCode])
     }
   }

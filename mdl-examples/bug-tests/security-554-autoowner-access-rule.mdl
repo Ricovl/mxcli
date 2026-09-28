@@ -25,7 +25,7 @@
 -- Run with `mxcli exec`, then `mxcli docker check --no-update-widgets`: the
 -- project must report 0 errors at production security level.
 
-alter project security level production;
+alter app security level production;
 
 create module Sec554;
 
@@ -60,10 +60,10 @@ create persistent entity Sec554.Customer (
   CustomerName: String(100)
 );
 
-grant Sec554.Administrator on Sec554.Fab (create, delete, read *, write *);
-grant Sec554.Administrator on Sec554.Line (create, delete, read *, write *);
-grant Sec554.Administrator on Sec554.Tool (create, delete, read *, write *);
-grant Sec554.Administrator on Sec554.Customer (create, delete, read *, write *);
+grant create, delete, read *, write * on entity Sec554.Fab to Sec554.Administrator;
+grant create, delete, read *, write * on entity Sec554.Line to Sec554.Administrator;
+grant create, delete, read *, write * on entity Sec554.Tool to Sec554.Administrator;
+grant create, delete, read *, write * on entity Sec554.Customer to Sec554.Administrator;
 
 -- Must be a no-op here, and must REPAIR a project an older mxcli damaged.
 update security;

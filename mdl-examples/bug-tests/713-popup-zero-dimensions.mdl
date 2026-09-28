@@ -29,7 +29,7 @@ CREATE PERSISTENT ENTITY Bug713.Thing (
 );
 
 -- Pop-up page with explicit 0/0 (auto-size) — the case the bug rejected.
-CREATE OR REPLACE PAGE Bug713.ThingPopupAuto (
+CREATE OR MODIFY PAGE Bug713.ThingPopupAuto (
   Title: 'Thing (auto-size pop-up)',
   Layout: Atlas_Core.PopupLayout,
   PopupWidth: 0,
@@ -42,7 +42,7 @@ CREATE OR REPLACE PAGE Bug713.ThingPopupAuto (
 }
 
 -- Pop-up page with explicit non-zero dimensions — must still round-trip.
-CREATE OR REPLACE PAGE Bug713.ThingPopupFixed (
+CREATE OR MODIFY PAGE Bug713.ThingPopupFixed (
   Title: 'Thing (fixed pop-up)',
   Layout: Atlas_Core.PopupLayout,
   PopupWidth: 800,
@@ -56,6 +56,6 @@ CREATE OR REPLACE PAGE Bug713.ThingPopupFixed (
 
 -- ALTER must accept SET PopupWidth = 0 (auto-size) too.
 ALTER PAGE Bug713.ThingPopupFixed {
-  SET PopupWidth = 0;
-  SET PopupHeight = 0;
+  SET (PopupWidth: 0);
+  SET (PopupHeight: 0);
 }

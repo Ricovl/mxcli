@@ -55,19 +55,18 @@ create persistent entity AlterPg.Product (
 );
 
 -- A NewEdit page so the row Edit button has somewhere to navigate.
-create or replace page AlterPg.Product_NewEdit (
+create or modify page AlterPg.Product_NewEdit folder 'OverviewPages' (
   Params: { $Product: AlterPg.Product },
   Title: 'Edit Product',
-  Layout: Atlas_Core.PopupLayout,
-  Folder: 'OverviewPages'
+  Layout: Atlas_Core.PopupLayout
 ) {
   dataview dv1 (datasource: $Product) {
     textbox txtName (label: 'Name', attribute: Name)
     textarea txtNotes (label: 'Notes', attribute: Notes)
     textbox txtPrice (label: 'Price', attribute: Price)
     combobox cbLifecycle (label: 'Lifecycle', attribute: Lifecycle)
-    actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
 };
 
@@ -78,14 +77,13 @@ create or replace page AlterPg.Product_NewEdit (
 -- All subsequent ALTER PAGE blocks build it up into a full overview page.
 -- ============================================================================
 
-create or replace page AlterPg.Product_Overview (
+create or modify page AlterPg.Product_Overview folder 'OverviewPages' (
   Title: 'Products (placeholder)',
-  Layout: Atlas_Core.Atlas_TopBar,
-  Folder: 'OverviewPages'
+  Layout: Atlas_Core.Atlas_TopBar
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
         -- This column is intentionally empty; widgets are added below.
         container placeholder1 (Class: 'spacing-outer-bottom-large')
       }
@@ -102,12 +100,12 @@ create or replace page AlterPg.Product_Overview (
 
 -- Page-level: update the page Title.
 alter page AlterPg.Product_Overview {
-  set Title = 'Products'
+  set (Title: 'Products')
 };
 
 -- Widget-level: update a widget property using ON.
 alter page AlterPg.Product_Overview {
-  set Class = 'product-overview-placeholder' on placeholder1
+  set (Class: 'product-overview-placeholder') on placeholder1
 };
 
 -- MARK: AP02 — INSERT a widget
@@ -156,10 +154,10 @@ alter page AlterPg.Product_Overview {
       datasource: database from AlterPg.Product sort by Name asc,
       Selection: Single
     ) {
-      column Name (attribute: Name, caption: 'Product Name') {
+      column (attribute: Name, caption: 'Product Name') {
         textfilter filterName
       }
-      column Price (attribute: Price, caption: 'Price', Alignment: right) {
+      column (attribute: Price, caption: 'Price', Alignment: right) {
         numberfilter filterPrice
       }
     }
@@ -221,12 +219,12 @@ alter page AlterPg.Product_Overview {
     ) {
       actionbutton btnEdit (
         caption: 'Edit',
-        action: show_page AlterPg.Product_NewEdit,
+        action: show page AlterPg.Product_NewEdit,
         buttonstyle: primary
       )
       actionbutton btnDelete (
         caption: 'Delete',
-        action: delete_object,
+        action: delete,
         buttonstyle: danger
       )
     }
@@ -242,12 +240,12 @@ alter page AlterPg.Product_Overview {
 -- Column property names (caption, alignment, visible, sortable, …) are
 -- case-insensitive: caption and Caption both work.
 alter page AlterPg.Product_Overview {
-  set caption = 'Name' on dgProducts.Name
+  set (caption: 'Name') on dgProducts.Name
 };
 
 -- Multiple column properties in a single SET.
 alter page AlterPg.Product_Overview {
-  set (caption = 'Cost', alignment = right) on dgProducts.Price
+  set (caption: 'Cost', alignment: right) on dgProducts.Price
 };
 
 -- MARK: AP07 — REPLACE a column
@@ -272,7 +270,7 @@ alter page AlterPg.Product_Overview {
 -- ============================================================================
 
 alter page AlterPg.Product_Overview {
-  drop widget dgProducts.Notes
+  drop dgProducts.Notes
 };
 
 -- MARK: AP09 — REPLACE a widget subtree
@@ -296,12 +294,12 @@ alter page AlterPg.Product_Overview {
 -- ============================================================================
 
 alter page AlterPg.Product_Overview {
-  drop widget placeholder1
+  drop placeholder1
 };
 
 -- DROP multiple widgets in one statement.
 alter page AlterPg.Product_Overview {
-  drop widget divider, subtitleWrap
+  drop divider, subtitleWrap
 };
 
 -- MARK: AP11 — ADD / DROP page variables
@@ -362,11 +360,11 @@ alter page AlterPg.Product_Overview {
 -- ============================================================================
 
 alter page AlterPg.Product_Overview {
-  set caption = 'Product Name' on dgProducts.Name;
+  set (caption: 'Product Name') on dgProducts.Name;
   insert after dgProducts.Lifecycle {
     column NewNotesCol (attribute: Notes, caption: 'Notes')
   };
-  drop widget dgProducts.Notes
+  drop dgProducts.Notes
 };
 
 -- MARK: AP12c — Bulk updates across multiple pages
@@ -394,7 +392,7 @@ alter page AlterPg.Product_Overview {
 -- (SET Layout is the only exception — snippets don't have layouts.)
 -- ============================================================================
 
-create or replace snippet AlterPg.Product_Card_Snippet
+create or modify snippet AlterPg.Product_Card_Snippet
 (
   Params: { $Product: AlterPg.Product }
 )
@@ -407,7 +405,7 @@ create or replace snippet AlterPg.Product_Card_Snippet
 
 -- SET a property on a snippet widget.
 alter snippet AlterPg.Product_Card_Snippet {
-  set Class = 'mx-card-title' on cardTitle
+  set (Class: 'mx-card-title') on cardTitle
 };
 
 -- INSERT a widget into a snippet.
@@ -415,7 +413,7 @@ alter snippet AlterPg.Product_Card_Snippet {
   insert after cardBody {
     actionbutton btnViewDetails (
       caption: 'View Details',
-      action: show_page AlterPg.Product_NewEdit,
+      action: show page AlterPg.Product_NewEdit,
       buttonstyle: default
     )
   }
@@ -423,7 +421,7 @@ alter snippet AlterPg.Product_Card_Snippet {
 
 -- DROP a widget from a snippet.
 alter snippet AlterPg.Product_Card_Snippet {
-  drop widget btnViewDetails
+  drop btnViewDetails
 };
 
 -- MARK: AP14 — The canonical generic ALTER form

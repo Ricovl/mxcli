@@ -136,8 +136,8 @@ create or modify page M931.StylingOK (
 )
 {
   LAYOUTGRID lg1 {
-    ROW r1 {
-      COLUMN c1 (DesktopWidth: AutoFill) {
+    ROW {
+      COLUMN (DesktopWidth: AutoFill) {
         DYNAMICTEXT t1 (Content: 'design property target', RenderMode: P)
       }
     }
@@ -146,4 +146,4 @@ create or modify page M931.StylingOK (
 /
 
 ALTER STYLING ON PAGE M931.StylingOK WIDGET lg1
-  SET 'Row gap' = 'Large';
+  SET ( 'Row gap': 'Large' );

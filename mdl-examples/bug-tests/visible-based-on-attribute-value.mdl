@@ -30,7 +30,7 @@ create entity MyFirstModule.Job (
 );
 /
 
-create or replace page MyFirstModule.Job_View
+create or modify page MyFirstModule.Job_View
 ( Title: 'Job', Layout: Atlas_Core.Atlas_Default, Params: { $Job: MyFirstModule.Job } )
 {
   dataview dv (datasource: $Job) {

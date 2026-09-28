@@ -40,7 +40,7 @@
 -- round-trip what the model stores. A new page should use the pluggable `image`
 -- widget, which has carried `Image:` since mxcli-formula1 FINDINGS §142.
 
-create or replace page MyFirstModule.SelectionHelperDemo (
+create or modify page MyFirstModule.SelectionHelperDemo (
   Title: 'Selection helper demo', Layout: Atlas_Core.Atlas_Default
 ) {
   placeholder Main {
@@ -67,7 +67,7 @@ create or replace page MyFirstModule.SelectionHelperDemo (
 --
 --     describe -> exec  -> Unchanged page   (Mendix 11.12.1)
 
-create or replace page MyFirstModule.StaticImageFixedSize (
+create or modify page MyFirstModule.StaticImageFixedSize (
   Title: 'Fixed size', Layout: Atlas_Core.Atlas_Default
 ) {
   placeholder Main {
@@ -90,7 +90,7 @@ create or replace page MyFirstModule.StaticImageFixedSize (
 -- — the "invents" half of the describe failure class, where each round trip
 -- accumulates another default.
 
-create or replace page MyFirstModule.StaticImageNoReference (
+create or modify page MyFirstModule.StaticImageNoReference (
   Title: 'No reference', Layout: Atlas_Core.Atlas_Default
 ) {
   placeholder Main {

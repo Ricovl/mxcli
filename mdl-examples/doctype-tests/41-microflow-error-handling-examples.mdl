@@ -25,7 +25,7 @@
 
 create or modify module EhDoc;
 
-create or replace microflow EhDoc.SUB_Post (Payload: String) returns String
+create or modify microflow EhDoc.SUB_Post (Payload: String) returns String
 begin
   @position(100, 100)
   return 'ok';
@@ -42,7 +42,7 @@ end;
 --
 --   start → call →(normal) EndEvent
 
-create or replace microflow EhDoc.Form1_Continue (Payload: String) returns String
+create or modify microflow EhDoc.Form1_Continue (Payload: String) returns String
 begin
   $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error continue;
   return $r;
@@ -59,7 +59,7 @@ end;
 --   call →(ERROR) log → EndEvent «return 'failed'»
 --   call →(normal)      EndEvent «return $r»
 
-create or replace microflow EhDoc.Form2_OwnPath (Payload: String) returns String
+create or modify microflow EhDoc.Form2_OwnPath (Payload: String) returns String
 begin
   $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback begin
     log error node 'EhDoc' 'post failed';
@@ -90,7 +90,7 @@ end;
 -- Prefer FORM 4 when you mean it. An empty block reads as "ignore the error"
 -- and does not do that.
 
-create or replace microflow EhDoc.Form3_EmptyHandler (Payload: String) returns String
+create or modify microflow EhDoc.Form3_EmptyHandler (Payload: String) returns String
 begin
   if $Payload != '' then
     $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback begin end error;
@@ -114,7 +114,7 @@ end;
 --   call →(normal)      ExclusiveMerge «recovered»
 --   ExclusiveMerge → change → EndEvent
 
-create or replace microflow EhDoc.Form4_JoinNamedMerge (Payload: String) returns String
+create or modify microflow EhDoc.Form4_JoinNamedMerge (Payload: String) returns String
 begin
   declare $Status String = 'sent';
   $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback begin
@@ -139,7 +139,7 @@ end;
 -- inner split's TRUE branch and the outer split's FALSE branch land on the same
 -- point, which no nesting of `if` reproduces.
 
-create or replace microflow EhDoc.Crossed_Branches () returns Boolean
+create or modify microflow EhDoc.Crossed_Branches () returns Boolean
 begin
   if 1 = 1 then
     if 2 = 2 then
@@ -167,7 +167,7 @@ end;
 -- `join` resolves backwards too, which makes an error-driven retry expressible:
 -- the merge sits BEFORE the activity, and the handler jumps back to it.
 
-create or replace microflow EhDoc.Backward_Retry (Payload: String) returns String
+create or modify microflow EhDoc.Backward_Retry (Payload: String) returns String
 begin
   merge attempt;
   $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error without rollback begin

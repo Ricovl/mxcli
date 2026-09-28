@@ -262,8 +262,8 @@ create page AICustSupport.WF_AgentReview (
   params: { $WorkflowUserTask: System.WorkflowUserTask }
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Review AI Response', rendermode: H2)
       }
     }
@@ -276,8 +276,8 @@ create page AICustSupport.WF_Overview (
   params: { $workflow: System.Workflow }
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Workflow Overview', rendermode: H2)
       }
     }
@@ -416,17 +416,17 @@ create page AICustSupport.Customer_Portal (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid mainGrid {
-    row titleRow {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext welcomeText (content: 'Welcome to Support', rendermode: H1)
       }
     }
-    row caseRow {
-      column col2 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         datagrid dgCases (datasource: database AICustSupport.SupportCase) {
-          column colSubject (attribute: Subject,    caption: 'Subject')
-          column colStatus  (attribute: CaseStatus, caption: 'Status')
-          column colPrio    (attribute: Priority,   caption: 'Priority')
+          column (attribute: Subject,    caption: 'Subject')
+          column  (attribute: CaseStatus, caption: 'Status')
+          column    (attribute: Priority,   caption: 'Priority')
         }
       }
     }
@@ -438,18 +438,18 @@ create page AICustSupport.Agent_Workspace (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid wsGrid {
-    row headerRow {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext wsTitle (content: 'Case Queue', rendermode: H2)
       }
     }
-    row queueRow {
-      column col2 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         datagrid dgQueue (datasource: database AICustSupport.SupportCase) {
-          column colSubject  (attribute: Subject,        caption: 'Subject')
-          column colStatus   (attribute: CaseStatus,     caption: 'Status')
-          column colPriority (attribute: Priority,       caption: 'Priority')
-          column colAI       (attribute: AIResponseText, caption: 'AI Response')
+          column  (attribute: Subject,        caption: 'Subject')
+          column   (attribute: CaseStatus,     caption: 'Status')
+          column (attribute: Priority,       caption: 'Priority')
+          column       (attribute: AIResponseText, caption: 'AI Response')
         }
       }
     }
@@ -462,21 +462,21 @@ create page AICustSupport.Admin_AuditLog (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid auditGrid {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext auditTitle (content: 'AI Monitoring — Audit Log', rendermode: H2)
       }
     }
-    row r2 {
-      column c2 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         datagrid dgAudit (datasource: database AICustSupport.AIAuditLog) {
-          column colAction  (attribute: LogAction,    caption: 'Action')
-          column colModel   (attribute: ModelUsed,    caption: 'Model')
-          column colIn      (attribute: InputTokens,  caption: 'In Tokens')
-          column colOut     (attribute: OutputTokens, caption: 'Out Tokens')
-          column colMs      (attribute: LatencyMs,    caption: 'Latency ms')
-          column colOk      (attribute: Passed,       caption: 'Guardrail OK')
-          column colTs      (attribute: LogTimestamp, caption: 'Timestamp')
+          column  (attribute: LogAction,    caption: 'Action')
+          column   (attribute: ModelUsed,    caption: 'Model')
+          column      (attribute: InputTokens,  caption: 'In Tokens')
+          column     (attribute: OutputTokens, caption: 'Out Tokens')
+          column      (attribute: LatencyMs,    caption: 'Latency ms')
+          column      (attribute: Passed,       caption: 'Guardrail OK')
+          column      (attribute: LogTimestamp, caption: 'Timestamp')
         }
       }
     }
@@ -489,27 +489,25 @@ create page AICustSupport.Admin_AuditLog (
 -- ############################################################################
 
 -- Admins: full CRUD on everything
-grant AICustSupport.Admin on AICustSupport.Customer         (create, delete, read *, write *);
-grant AICustSupport.Admin on AICustSupport.SupportCase      (create, delete, read *, write *);
-grant AICustSupport.Admin on AICustSupport.AIAuditLog       (create, delete, read *, write *);
-grant AICustSupport.Admin on AICustSupport.ConversationTurn (create, delete, read *, write *);
+grant create, delete, read *, write * on entity AICustSupport.Customer to AICustSupport.Admin;
+grant create, delete, read *, write * on entity AICustSupport.SupportCase to AICustSupport.Admin;
+grant create, delete, read *, write * on entity AICustSupport.AIAuditLog to AICustSupport.Admin;
+grant create, delete, read *, write * on entity AICustSupport.ConversationTurn to AICustSupport.Admin;
 
 -- Support agents: read all cases, write resolution fields
-grant AICustSupport.Agent on AICustSupport.SupportCase
-  (read *, write (CaseStatus, AIResponseText, EscalationNote, Priority, ResolvedAt));
-grant AICustSupport.Agent on AICustSupport.Customer         (read *);
-grant AICustSupport.Agent on AICustSupport.ConversationTurn (read *);
+grant read *, write (CaseStatus, AIResponseText, EscalationNote, Priority, ResolvedAt) on entity AICustSupport.SupportCase to AICustSupport.Agent;
+grant read * on entity AICustSupport.Customer to AICustSupport.Agent;
+grant read * on entity AICustSupport.ConversationTurn to AICustSupport.Agent;
 
 -- Supervisors: full case access, read-only audit and history
-grant AICustSupport.Supervisor on AICustSupport.SupportCase      (read *, write *);
-grant AICustSupport.Supervisor on AICustSupport.Customer         (read *);
-grant AICustSupport.Supervisor on AICustSupport.AIAuditLog       (read *);
-grant AICustSupport.Supervisor on AICustSupport.ConversationTurn (read *);
+grant read *, write * on entity AICustSupport.SupportCase to AICustSupport.Supervisor;
+grant read * on entity AICustSupport.Customer to AICustSupport.Supervisor;
+grant read * on entity AICustSupport.AIAuditLog to AICustSupport.Supervisor;
+grant read * on entity AICustSupport.ConversationTurn to AICustSupport.Supervisor;
 
 -- Customers: data-level guardrail via XPath — only their own active cases
-grant AICustSupport.Customer on AICustSupport.SupportCase
-  (create, read (Subject, CaseDetail, CaseStatus, AIResponseText), write (Subject, CaseDetail))
-  where '[AICustSupport.SupportCase_Customer/AICustSupport.Customer/IsActive = true()]';
+grant create, read (Subject, CaseDetail, CaseStatus, AIResponseText), write (Subject, CaseDetail) on entity AICustSupport.SupportCase to AICustSupport.Customer
+  where [AICustSupport.SupportCase_Customer/AICustSupport.Customer/IsActive = true()];
 
 -- ############################################################################
 -- RBAC: MICROFLOW ACCESS
@@ -554,7 +552,7 @@ create or modify user role SupportSupervisor (System.User, AICustSupport.Agent, 
 create or modify user role PlatformAdmin     (System.Administrator, AICustSupport.Admin) manage all roles;
 
 -- Enable demo users (disable in production — use SSO)
-alter project security demo users on;
+alter app security demo users on;
 
 create or modify demo user 'customer@demo'   password 'Customer1!xx' (EndCustomer);
 create or modify demo user 'agent@demo'      password 'Agent1!xxxx'  (SupportAgent);
@@ -584,7 +582,7 @@ create published rest service AICustSupport.SupportAPI (
 -- Navigation uses user role names (not module roles).
 -- ############################################################################
 
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page AICustSupport.Customer_Portal
   home page AICustSupport.Agent_Workspace   for SupportAgent
   home page AICustSupport.Agent_Workspace   for SupportSupervisor
@@ -594,8 +592,8 @@ create or replace navigation Responsive
 -- VERIFY
 -- ############################################################################
 
-show project security;
-show security matrix in AICustSupport;
+describe app security;
+describe security matrix in AICustSupport;
 list agents              in AICustSupport;
 list models              in AICustSupport;
 list knowledge bases     in AICustSupport;

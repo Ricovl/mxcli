@@ -24,7 +24,7 @@
 -- to Spacing". exec, then `mxcli docker check` — 0 errors.
 -- ============================================================================
 
-create or replace page MyFirstModule.LabelDesignProps_Test
+create or modify page MyFirstModule.LabelDesignProps_Test
 ( Title: 'Label design properties', Layout: Atlas_Core.Atlas_Default )
 {
   container c1 {

@@ -36,7 +36,7 @@ create non-persistent entity ZZB."Routing" (
   "RoutingName": String(200)
 );
 
-create rest client ZZB."MESSlice" (
+create consumed rest service ZZB."MESSlice" (
   BaseUrl: 'http://localhost:3001/api/mes/core/v1',
   Authentication: none
 )

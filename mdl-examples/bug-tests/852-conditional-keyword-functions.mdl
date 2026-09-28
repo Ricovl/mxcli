@@ -36,24 +36,24 @@ CREATE OR MODIFY PERSISTENT ENTITY Bug852.Thing (
   Slug: String(200)
 );
 
-CREATE OR REPLACE PAGE Bug852.PageConditionals (
+CREATE OR MODIFY PAGE Bug852.PageConditionals (
   Params: { $currentObject: Bug852.Thing },
   Title: 'Conditionals using keyword-named functions',
   Layout: Atlas_Core.Atlas_Default
 ) {
   dataview dv (datasource: $currentObject) {
     -- Keyword-named functions: these were the dropped ones.
-    dynamictext tKeywordTrim   (content: 'trim',   visible: [trim($currentObject/Slug) != ''])
-    dynamictext tKeywordLength (content: 'length', visible: [length($currentObject/Slug) > 0])
-    dynamictext tKeywordFind   (content: 'find',   visible: [find($currentObject/Slug, 'x') >= 0])
+    dynamictext tKeywordTrim   (content: 'trim',   visible: trim($currentObject/Slug) != '')
+    dynamictext tKeywordLength (content: 'length', visible: length($currentObject/Slug) > 0)
+    dynamictext tKeywordFind   (content: 'find',   visible: find($currentObject/Slug, 'x') >= 0)
 
     -- Identifier-named functions: these always worked. Guard against regressing them.
-    dynamictext tIdentifierUpper    (content: 'upper',    visible: [toUpperCase($currentObject/Slug) != ''])
-    dynamictext tIdentifierContains (content: 'contains', visible: [contains($currentObject/Slug, 'x')])
+    dynamictext tIdentifierUpper    (content: 'upper',    visible: toUpperCase($currentObject/Slug) != '')
+    dynamictext tIdentifierContains (content: 'contains', visible: contains($currentObject/Slug, 'x'))
 
     -- A bare attribute inside a keyword-named call is still rooted in the data
     -- context, exactly as it is outside one.
-    textbox txtEditable (label: 'Slug', attribute: Slug, editable: [trim(Slug) != ''])
+    textbox txtEditable (label: 'Slug', attribute: Slug, editable: trim($currentObject/Slug) != '')
   }
 }
 
@@ -88,16 +88,16 @@ BEGIN
   return $p;
 END;
 
-CREATE OR REPLACE PAGE Bug852.Verify (
+CREATE OR MODIFY PAGE Bug852.Verify (
   Title: 'Verify 852',
   Layout: Atlas_Core.Atlas_Default,
   Url: 'verify852'
 ) {
   dataview dv (datasource: microflow Bug852.DS_Probe) {
-    dynamictext tTrimHidden    (content: 'TRIM_HIDDEN_MARKER',    visible: [trim($currentObject/Slug) != ''])
-    dynamictext tTrimVisible   (content: 'TRIM_VISIBLE_MARKER',   visible: [trim($currentObject/Slug) = ''])
-    dynamictext tLenHidden     (content: 'LEN_HIDDEN_MARKER',     visible: [length(trim($currentObject/Slug)) > 0])
-    dynamictext tNoTrimVisible (content: 'NOTRIM_VISIBLE_MARKER', visible: [$currentObject/Slug != ''])
+    dynamictext tTrimHidden    (content: 'TRIM_HIDDEN_MARKER',    visible: trim($currentObject/Slug) != '')
+    dynamictext tTrimVisible   (content: 'TRIM_VISIBLE_MARKER',   visible: trim($currentObject/Slug) = '')
+    dynamictext tLenHidden     (content: 'LEN_HIDDEN_MARKER',     visible: length(trim($currentObject/Slug)) > 0)
+    dynamictext tNoTrimVisible (content: 'NOTRIM_VISIBLE_MARKER', visible: $currentObject/Slug != '')
     dynamictext tBeacon        (content: 'PAGE_RENDERED_BEACON')
   }
 }

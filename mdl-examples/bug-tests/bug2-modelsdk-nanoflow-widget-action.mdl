@@ -22,13 +22,13 @@ create persistent entity Bug2.Expense ( Name: string(100) );
 create nanoflow  Bug2.NAV_Test ( Form: Bug2.Expense ) begin end
 create microflow Bug2.ACT_Test ( Form: Bug2.Expense ) begin end
 
-create or replace page Bug2.P (
+create or modify page Bug2.P (
   params: { $Form: Bug2.Expense },
   title: 'x',
   layout: Atlas_Core.Atlas_Default
 ) {
   dataview dv (datasource: $Form) {
-    actionbutton bNano (Caption: 'N', Action: nanoflow  Bug2.NAV_Test(Form: $Form))
-    actionbutton bMf   (Caption: 'M', Action: microflow Bug2.ACT_Test(Form: $Form))
+    actionbutton bNano (Caption: 'N', Action: call nanoflow  Bug2.NAV_Test(Form = $Form))
+    actionbutton bMf   (Caption: 'M', Action: call microflow Bug2.ACT_Test(Form = $Form))
   }
 }

@@ -77,38 +77,38 @@ end;
 /
 -- Each control below carries an OnChange. Before the fix only a `textbox` kept
 -- it; the other five wrote nothing and the page still built green.
-create or replace page Ctrl.ControlPanel (
+create or modify page Ctrl.ControlPanel (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lgMain {
-    row rowMain {
-      column colMain (desktopwidth: autofill) {
+    row {
+      column (desktopwidth: autofill) {
         dataview dvFilter (datasource: microflow Ctrl.DS_Filter) {
           textbox txtNotesShort (
             Label: 'Notes (short)', Attribute: Notes,
-            OnChange: MICROFLOW Ctrl.ACT_Apply(Filter: $currentObject)
+            OnChange: CALL MICROFLOW Ctrl.ACT_Apply(Filter = $currentObject)
           )
           textarea taNotes (
             Label: 'Notes', Attribute: Notes,
-            OnChange: MICROFLOW Ctrl.ACT_Apply(Filter: $currentObject)
+            OnChange: CALL MICROFLOW Ctrl.ACT_Apply(Filter = $currentObject)
           )
           datepicker dpAsOf (
             Label: 'As of', Attribute: AsOf,
-            OnChange: MICROFLOW Ctrl.ACT_Apply(Filter: $currentObject)
+            OnChange: CALL MICROFLOW Ctrl.ACT_Apply(Filter = $currentObject)
           )
           checkbox cbEnabled (
             Label: 'Enabled', Attribute: Enabled,
-            OnChange: MICROFLOW Ctrl.ACT_Apply(Filter: $currentObject)
+            OnChange: CALL MICROFLOW Ctrl.ACT_Apply(Filter = $currentObject)
           )
           radiobuttons rbTopic (
             Label: 'Topic', Attribute: Topic,
-            OnChange: MICROFLOW Ctrl.ACT_Apply(Filter: $currentObject)
+            OnChange: CALL MICROFLOW Ctrl.ACT_Apply(Filter = $currentObject)
           )
           -- The pluggable case, and the one originally reported. Its slot is named
           -- `onChangeEvent`, not `onChange`, which is why it needed a fix of its own.
           combobox cboTopic (
             Label: 'Topic', Attribute: Topic,
-            OnChange: MICROFLOW Ctrl.ACT_Apply(Filter: $currentObject)
+            OnChange: CALL MICROFLOW Ctrl.ACT_Apply(Filter = $currentObject)
           )
         }
       }

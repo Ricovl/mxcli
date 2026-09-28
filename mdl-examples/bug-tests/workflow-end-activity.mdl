@@ -28,7 +28,7 @@ create page WFEND.TaskPage (
   layout: Atlas_Core.Atlas_Default,
   params: { $WorkflowUserTask: System.WorkflowUserTask }
 ) {
-  layoutgrid g1 { row r1 { column c1 (desktopwidth: 12) { dynamictext t1 (content: 'Task') } } }
+  layoutgrid g1 { row { column (desktopwidth: 12) { dynamictext t1 (content: 'Task') } } }
 }
 /
 
@@ -49,16 +49,16 @@ create workflow WFEND.Approval
   parameter $Request: WFEND.Request
 begin
   -- A decision branch that ends the workflow.
-  decision decision1 '$WorkflowContext/IsDuplicate'
+  decision decision1 $WorkflowContext/IsDuplicate
     outcomes
-      true  -> { end workflow comment 'Duplicate'; }
+      true  -> { end workflow caption 'Duplicate'; }
       false -> { };
 
   -- A call-microflow outcome that ends it.
-  call microflow WFEND.ACT_IsComplete as callMicroflow1 with (Request = '$WorkflowContext')
+  call microflow WFEND.ACT_IsComplete(Request = $WorkflowContext) as callMicroflow1
     outcomes
       true  -> { }
-      false -> { end workflow comment 'Incomplete'; };
+      false -> { end workflow caption 'Incomplete'; };
 
   -- An outcome that ends it after an activity, and an interrupting boundary
   -- event whose path ends it.
@@ -67,15 +67,15 @@ begin
     outcomes
       'Approve' { }
       'Reject' {
-        call microflow WFEND.ACT_Notify as callMicroflow2 with (Request = '$WorkflowContext') outcomes default -> { };
-        end workflow comment 'Rejected by reviewer';
+        call microflow WFEND.ACT_Notify(Request = $WorkflowContext) as callMicroflow2 outcomes default -> { };
+        end workflow caption 'Rejected by reviewer';
       }
-    boundary event interrupting timer 'addDays([%CurrentDateTime%], 5)' {
-      end workflow comment 'Expired';
+    boundary event interrupting timer addDays([%CurrentDateTime%], 5) {
+      end workflow caption 'Expired';
     };
 
   -- An End nested at depth: inside an outcome, inside a decision branch.
-  decision decision2 '$WorkflowContext/IsDuplicate'
+  decision decision2 $WorkflowContext/IsDuplicate
     outcomes
       true -> {
         user task Confirm 'Confirm the duplicate'
@@ -97,5 +97,5 @@ end workflow;
 -- ALTER takes the same statement in any inserted block.
 alter workflow WFEND.Approval
   insert outcome 'Withdraw' on Book {
-    end workflow comment 'Withdrawn';
+    end workflow caption 'Withdrawn';
   };

@@ -33,7 +33,7 @@ create persistent entity NamedDS.Order (
 create association NamedDS.Order_Customer
   from NamedDS.Order to NamedDS.Customer;
 
-create or replace page NamedDS.Order_Edit (
+create or modify page NamedDS.Order_Edit (
   Title: 'Named datasource mapping',
   Layout: Atlas_Core.Atlas_Default,
   Params: { $Order: NamedDS.Order }

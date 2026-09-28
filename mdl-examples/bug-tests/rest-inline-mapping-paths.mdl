@@ -69,7 +69,7 @@ create association RestInline.Task_TaskFields
   from RestInline.Task to RestInline.TaskFields
   type Reference;
 
-create or modify rest client RestInline.RC_Probe (
+create or modify consumed rest service RestInline.RC_Probe (
   BaseUrl: 'http://localhost:4010',
   Authentication: NONE
 )

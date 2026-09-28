@@ -41,29 +41,29 @@ begin
   return $items;
 end;
 
-create or replace page Issue795.Probe (
+create or modify page Issue795.Probe (
   Title: 'Probe',
   Layout: Atlas_Core.Atlas_Default
 ) {
   -- The regression: a microflow-bound grid lost its DataSource on describe.
   datagrid gMicroflow (datasource: microflow Issue795.GetBuckets) {
-    column colKey (attribute: BucketKey, caption: 'Key')
+    column (attribute: BucketKey, caption: 'Key')
   }
 
   -- Control case: a database-bound grid always described correctly.
   datagrid gDatabase (datasource: database from Issue795.Bucket) {
-    column colKey2 (attribute: BucketKey, caption: 'Key')
+    column (attribute: BucketKey, caption: 'Key')
   }
 }
 
 -- A gallery exercises the same reader from a different entry point; its legacy
 -- flat-shaped source was unreadable too.
-create or replace page Issue795.ProbeGallery (
+create or modify page Issue795.ProbeGallery (
   Title: 'Probe Gallery',
   Layout: Atlas_Core.Atlas_Default
 ) {
   gallery galMicroflow (datasource: microflow Issue795.GetBuckets) {
-    template template1 {
+    template {
       dynamictext txtKey (content: '{1}', contentparams: [{1} = BucketKey])
     }
   }

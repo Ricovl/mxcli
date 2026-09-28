@@ -28,7 +28,7 @@ create or modify entity Lv631.Thing (
 );
 /
 
-create or replace page Lv631.P_Inputs
+create or modify page Lv631.P_Inputs
 ( title: 'List view inputs', layout: Atlas_Core.Atlas_Default )
 {
   -- WARNS: the reported case. The textbox's own `editable: Always` does not help.

@@ -84,7 +84,7 @@ end;
 create or modify microflow ErrH.ACT_Handled ()
 begin
   RETRIEVE $Rows FROM ErrH.Thing ON ERROR CONTINUE;
-  $T = HEAD($Rows);
+  $T = HEAD $Rows;
   DELETE $T ON ERROR CONTINUE;
   CALL MICROFLOW ErrH.SUB_Noop () ON ERROR CONTINUE;
 end;
@@ -97,7 +97,7 @@ end;
 create or modify microflow ErrH.ACT_Plain ()
 begin
   RETRIEVE $Rows FROM ErrH.Thing;
-  $T = HEAD($Rows);
+  $T = HEAD $Rows;
   DELETE $T;
   CALL MICROFLOW ErrH.SUB_Noop ();
 end;

@@ -69,7 +69,7 @@ create persistent entity Delivery.DeliveryOrder (
   /** Auto-generated delivery number */
   DeliveryNumber: autonumber default 1,
   /** Current delivery status */
-  DeliveryStatus: enumeration(Delivery.DeliveryStatus) not null error 'Delivery status is required',
+  DeliveryStatus: enumeration(Delivery.DeliveryStatus) not null error message 'Delivery status is required',
   /** Scheduled delivery date */
   ScheduledDate: datetime,
   /** Actual delivery date */
@@ -105,11 +105,11 @@ index (ScheduledDate);
 @position(350, 50)
 create persistent entity Delivery.DeliveryLine (
   /** Line number */
-  LineNumber: integer not null error 'Line number is required',
+  LineNumber: integer not null error message 'Line number is required',
   /** Item description */
-  ItemDescription: string(500) not null error 'Item description is required',
+  ItemDescription: string(500) not null error message 'Item description is required',
   /** Quantity being delivered */
-  QuantityDelivered: integer not null error 'Quantity is required' default 1,
+  QuantityDelivered: integer not null error message 'Quantity is required' default 1,
   /** Condition on delivery (for damage tracking) */
   DeliveryCondition: string(500),
   /** Whether the item was accepted by customer */
@@ -131,9 +131,9 @@ create persistent entity Delivery.InstallationAppointment (
   /** Auto-generated appointment number */
   AppointmentNumber: autonumber default 1,
   /** Current appointment status */
-  AppointmentStatus: enumeration(Delivery.InstallationStatus) not null error 'Status is required',
+  AppointmentStatus: enumeration(Delivery.InstallationStatus) not null error message 'Status is required',
   /** Scheduled date and start time */
-  ScheduledDateTime: datetime not null error 'Scheduled date is required',
+  ScheduledDateTime: datetime not null error message 'Scheduled date is required',
   /** Estimated duration in hours */
   EstimatedDurationHours: decimal default 2,
   /** Actual duration in hours */
@@ -167,7 +167,7 @@ create association Delivery.DeliveryOrder_CustomerOrder
   from Delivery.DeliveryOrder to SalesOrder.CustomerOrder
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links delivery order to the delivery address
@@ -180,7 +180,7 @@ create association Delivery.DeliveryOrder_CustomerAddress
   from Delivery.DeliveryOrder to CRM.CustomerAddress
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links delivery line to its delivery order
@@ -193,7 +193,7 @@ create association Delivery.DeliveryLine_DeliveryOrder
   from Delivery.DeliveryLine to Delivery.DeliveryOrder
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links delivery line to the order line
@@ -206,7 +206,7 @@ create association Delivery.DeliveryLine_OrderLine
   from Delivery.DeliveryLine to SalesOrder.OrderLine
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links installation to its delivery order
@@ -219,4 +219,4 @@ create association Delivery.InstallationAppointment_DeliveryOrder
   from Delivery.InstallationAppointment to Delivery.DeliveryOrder
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;

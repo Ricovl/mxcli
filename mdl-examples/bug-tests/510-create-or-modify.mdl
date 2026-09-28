@@ -35,8 +35,8 @@ describe json structure BugTest510.JS_Order;
 create image collection BugTest510.TestIcons;
 
 -- Modify in-place
-create or modify image collection BugTest510.TestIcons
-  comment 'Updated comment';
+/** Updated comment */
+create or modify image collection BugTest510.TestIcons;
 
 describe image collection BugTest510.TestIcons;
 -- Expected: "create or modify image collection ..." (not "create or replace ...")

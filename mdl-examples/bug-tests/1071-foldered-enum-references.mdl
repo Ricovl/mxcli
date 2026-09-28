@@ -75,4 +75,4 @@ create or modify entity Approval.NewThing (
   Station: Enumeration(Approval.StationKey)
 );
 
-show enumerations in Approval;
+list enumerations in Approval;

@@ -32,12 +32,12 @@
 
 CREATE OR MODIFY MODEL Bug464.MyModel (
   Provider: MxCloudGenAI,
-  Key: ExternalDatabaseConnector.LogNode
+  Key: @ExternalDatabaseConnector.LogNode
 );
 
 CREATE OR MODIFY KNOWLEDGE BASE Bug464.MyKB (
   Provider: MxCloudGenAI,
-  Key: ExternalDatabaseConnector.LogNode
+  Key: @ExternalDatabaseConnector.LogNode
 );
 
 CREATE OR MODIFY CONSUMED MCP SERVICE Bug464.MyMCP (

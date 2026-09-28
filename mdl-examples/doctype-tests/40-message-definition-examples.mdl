@@ -136,6 +136,6 @@ create import mapping MsgTest.IMM_Order
 
 -- MARK: Browse
 
-show message definition collections;
-show message definition collections in MsgTest;
+list message definition collections;
+list message definition collections in MsgTest;
 describe message definition collection MsgTest.MD_Order;

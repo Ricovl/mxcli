@@ -33,8 +33,8 @@ create page BugTests.Bug10 (
   Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row row1 {
-      column col1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         -- 10b: lowercase `dynamicclasses` must survive (case-insensitive)
         dynamictext t1 (
           content: 'hi',
@@ -46,7 +46,7 @@ create page BugTests.Bug10 (
           DataSource: database from Administration.Account,
           Selection: Single
         ) {
-          column colStatus (
+          column (
             Attribute: FullName,
             Caption: 'Name',
             DynamicCellClass: if $currentObject/FullName = 'x' then 'ea-ok' else 'ea-draft'

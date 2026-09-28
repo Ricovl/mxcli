@@ -37,7 +37,7 @@ create entity TTContent.DemoItem (
 );
 /
 -- Timeline: title / description are textTemplate captions (default visualization).
-create or replace page TTContent.Home ( layout: Atlas_Core.Atlas_Default ) {
+create or modify page TTContent.Home ( layout: Atlas_Core.Atlas_Default ) {
   pluggablewidget 'com.mendix.widget.web.timeline.Timeline' tl (
     datasource: database from TTContent.DemoItem,
     title: '{Title}',
@@ -56,7 +56,7 @@ create or replace page TTContent.Home ( layout: Atlas_Core.Atlas_Default ) {
 }
 /
 -- Badge: value is a textTemplate (rendered inside a data view context).
-create or replace page TTContent.Detail (
+create or modify page TTContent.Detail (
   params: { $Item: TTContent.DemoItem },
   layout: Atlas_Core.Atlas_Default
 ) {

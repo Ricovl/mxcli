@@ -28,8 +28,8 @@ create page Alpha.Overview (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Overview', rendermode: H2)
       }
     }

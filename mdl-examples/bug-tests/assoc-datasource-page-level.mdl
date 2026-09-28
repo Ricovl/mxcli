@@ -47,7 +47,7 @@ create or modify association AssocDS.Order_Customer
 
 -- PAGE LEVEL: nothing encloses the grid, so the only thing that can say what the
 -- association is traversed from is `$Customer`. This is the reported case.
-create or replace page AssocDS.P_PageLevel
+create or modify page AssocDS.P_PageLevel
 (
   params: { $Customer: AssocDS.Customer },
   title: 'Orders for a customer',
@@ -55,7 +55,7 @@ create or replace page AssocDS.P_PageLevel
 )
 {
   datagrid gridOrders (datasource: $Customer/AssocDS.Order_Customer) {
-    column cNo (attribute: OrderNo, caption: 'No')
+    column (attribute: OrderNo, caption: 'No')
   }
 }
 /
@@ -63,7 +63,7 @@ create or replace page AssocDS.P_PageLevel
 -- CONTROL: the same traversal INSIDE a data view. This was already correct, and
 -- must stay correct — the fix only adds a better answer where a variable is
 -- named, and leaves the enclosing-entity path alone.
-create or replace page AssocDS.P_InDataView
+create or modify page AssocDS.P_InDataView
 (
   params: { $Customer: AssocDS.Customer },
   title: 'Same thing, enclosed',
@@ -72,7 +72,7 @@ create or replace page AssocDS.P_InDataView
 {
   dataview dvCustomer (datasource: $Customer) {
     datagrid gridOrders2 (datasource: $currentObject/AssocDS.Order_Customer) {
-      column cNo2 (attribute: OrderNo, caption: 'No')
+      column (attribute: OrderNo, caption: 'No')
     }
   }
 }
@@ -88,7 +88,7 @@ create or replace page AssocDS.P_InDataView
 -- That is about cardinality rather than about which entity was resolved, and
 -- writing it as a grid here would have made this control fail for the wrong
 -- reason.
-create or replace page AssocDS.P_Reverse
+create or modify page AssocDS.P_Reverse
 (
   params: { $Order: AssocDS.Order },
   title: 'The other way',

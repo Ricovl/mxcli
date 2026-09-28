@@ -45,31 +45,31 @@
 
 create entity MyFirstModule.Product ( Title: String(200) );
 
-create or replace page MyFirstModule.P_GridPaging
+create or modify page MyFirstModule.P_GridPaging
 (
   Title: 'Grid Paging',
   Layout: Atlas_Core.Atlas_Default
 )
 {
   datagrid dgProducts (DataSource: database MyFirstModule.Product, PageSize: 20) {
-    column colTitle (Attribute: Title, Caption: 'Title')
+    column (Attribute: Title, Caption: 'Title')
   }
 }
 
 -- The statement from the issue. Before the fix: `pluggable property "PageSize"
 -- not found`, and nothing after it in the script ran.
 alter page MyFirstModule.P_GridPaging {
-  set PageSize = 10 on dgProducts;
+  set (PageSize: 10) on dgProducts;
 }
 
 -- The template's own spelling — the only one that used to work.
 alter page MyFirstModule.P_GridPaging {
-  set pageSize = 25 on dgProducts;
+  set (pageSize: 25) on dgProducts;
 }
 
 -- Flat lowercase, as an author types it without thinking about the template.
 alter page MyFirstModule.P_GridPaging {
-  set pagesize = 15 on dgProducts;
+  set (pagesize: 15) on dgProducts;
 }
 
 -- Round-trip: DESCRIBE emits `PageSize: 15`, which is now executable MDL.

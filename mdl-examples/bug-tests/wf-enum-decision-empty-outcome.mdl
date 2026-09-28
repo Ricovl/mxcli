@@ -13,7 +13,7 @@ create module WFEmptyOK;
 create enumeration WFEmptyOK.Kind ( Standard, Priority );
 
 create persistent entity WFEmptyOK.Order (
-  Kind : enumeration(WFEmptyOK.Kind) not null error 'required'
+  Kind : enumeration(WFEmptyOK.Kind) not null error message 'required'
 );
 
 create microflow WFEmptyOK.ACT_Kind ($Order: WFEmptyOK.Order)
@@ -27,7 +27,7 @@ end;
 create workflow WFEmptyOK.EnumDecision
   parameter $WorkflowContext: WFEmptyOK.Order
 begin
-  decision decision1 '$WorkflowContext/Kind'
+  decision decision1 $WorkflowContext/Kind
     outcomes
       'WFEmptyOK.Kind.Standard' -> { }
       'WFEmptyOK.Kind.Priority' -> { }
@@ -52,7 +52,7 @@ end workflow;
 create workflow WFEmptyOK.BooleanDecision
   parameter $WorkflowContext: WFEmptyOK.Order
 begin
-  decision decision1 '$WorkflowContext/Kind = WFEmptyOK.Kind.Priority'
+  decision decision1 $WorkflowContext/Kind = WFEmptyOK.Kind.Priority
     outcomes
       true  -> { }
       false -> { }
@@ -62,7 +62,7 @@ end workflow;
 
 -- The ALTER control: the same insert carrying the empty outcome.
 alter workflow WFEmptyOK.EnumDecision insert after decision1
-  decision decision9 '$WorkflowContext/Kind'
+  decision decision9 $WorkflowContext/Kind
     outcomes
       'WFEmptyOK.Kind.Standard' -> { }
       'WFEmptyOK.Kind.Priority' -> { }

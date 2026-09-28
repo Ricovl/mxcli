@@ -40,7 +40,7 @@ create persistent entity MyFirstModule.Photo extends System.Image (
   Caption: string(200)
 );
 
-create or replace page MyFirstModule.DynImageDemo (
+create or modify page MyFirstModule.DynImageDemo (
   Title: 'Dynamic image demo', Layout: Atlas_Core.Atlas_Default
 ) {
   placeholder Main {
@@ -59,7 +59,7 @@ create or replace page MyFirstModule.DynImageDemo (
 -- MDL. Harmless while nothing described the widget; a silent normalisation on
 -- every replay once something did.
 
-create or replace page MyFirstModule.DynImageThumbnail (
+create or modify page MyFirstModule.DynImageThumbnail (
   Title: 'Thumbnail', Layout: Atlas_Core.Atlas_Default
 ) {
   placeholder Main {
@@ -86,7 +86,7 @@ create or replace page MyFirstModule.DynImageThumbnail (
 -- This one still builds as CE0489 — deliberately. mxcli writes what it is told;
 -- refusing an unbound source is a separate decision from round-tripping one.
 
-create or replace page MyFirstModule.DynImageUnbound (
+create or modify page MyFirstModule.DynImageUnbound (
   Title: 'Unbound', Layout: Atlas_Core.Atlas_Default
 ) {
   placeholder Main {

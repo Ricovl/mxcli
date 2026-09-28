@@ -35,8 +35,8 @@ create module role Catalog.Editor description 'Maintains the product catalogue';
 create user role Anonymous (Catalog.Visitor, System.User);
 create user role CatalogAdmin (Catalog.Editor, System.User);
 
-alter project security level production;
-alter project security guest access on role Anonymous;
+alter app security level production;
+alter app security guest access on role Anonymous;
 
 -- Grant exactly what should be public, and nothing else. The XPath constraint
 -- is the difference between "the catalogue is public" and "every row is
@@ -46,7 +46,7 @@ grant create, delete, read *, write * on entity Catalog.Product to Catalog.Edito
 
 -- Toggling access off keeps the stored role, so switching it back on needs no
 -- ROLE clause. Both statements are no-ops on a project already in that state.
-alter project security guest access off;
-alter project security guest access on;
+alter app security guest access off;
+alter app security guest access on;
 
-show project security;
+describe app security;

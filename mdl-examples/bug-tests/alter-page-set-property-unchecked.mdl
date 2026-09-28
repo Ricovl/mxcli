@@ -43,7 +43,7 @@
 
 create entity MyFirstModule.Product ( Title: String(200), Brand: String(100) );
 
-create or replace page MyFirstModule.P_SetChecked
+create or modify page MyFirstModule.P_SetChecked
 (
   Title: 'Set checked',
   Layout: Atlas_Core.Atlas_Default
@@ -51,7 +51,7 @@ create or replace page MyFirstModule.P_SetChecked
 {
   container cGrid {
     datagrid dgProducts (DataSource: database MyFirstModule.Product, PageSize: 20) {
-      column colTitle (Attribute: Title, Caption: 'Title')
+      column (Attribute: Title, Caption: 'Title')
     }
   }
 }
@@ -62,9 +62,9 @@ create or replace page MyFirstModule.P_SetChecked
 -- tool's own DESCRIBE output — that was mendixlabs/mxcli#1069, and this is the
 -- control that the pre-flight did not reintroduce it.
 alter page MyFirstModule.P_SetChecked {
-  set PageSize = 12 on dgProducts;
-  set pageSize = 13 on dgProducts;
-  set pagesize = 14 on dgProducts;
+  set (PageSize: 12) on dgProducts;
+  set (pageSize: 13) on dgProducts;
+  set (pagesize: 14) on dgProducts;
 }
 
 -- A first-class property on a built-in widget: resolved by the setter's switch,
@@ -72,8 +72,8 @@ alter page MyFirstModule.P_SetChecked {
 -- any casing (mendixlabs/mxcli#1069's sibling — see
 -- alter-page-lowercase-set-on-builtin.mdl).
 alter page MyFirstModule.P_SetChecked {
-  set class = 'fl-grid-wrap' on cGrid;
-  set Class = 'fl-grid-wrap mx-spacing-top-large' on cGrid;
+  set (class: 'fl-grid-wrap') on cGrid;
+  set (Class: 'fl-grid-wrap mx-spacing-top-large') on cGrid;
 }
 
 -- A widget the script itself adds is not in the stored document, and must not
@@ -83,7 +83,7 @@ alter page MyFirstModule.P_SetChecked {
 -- which is why the suppression cannot be a name match.
 alter page MyFirstModule.P_SetChecked {
   insert after dgProducts.Title { column colBrand (Attribute: Brand, Caption: 'Brand') }
-  set Caption = 'Brand name' on dgProducts.Brand;
+  set (Caption: 'Brand name') on dgProducts.Brand;
 }
 
 describe page MyFirstModule.P_SetChecked;

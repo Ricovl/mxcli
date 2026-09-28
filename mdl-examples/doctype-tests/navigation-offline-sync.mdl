@@ -49,7 +49,7 @@ create page "OfflineSync"."Mobile_Home"
 -- PhoneOffline is created if the project does not already have it: Mendix's
 -- web profile kinds are a closed set, and the offline ones are the online
 -- names plus "Offline".
-create or replace navigation "PhoneOffline"
+create or modify navigation "PhoneOffline"
   home page "OfflineSync"."Mobile_Home"
   -- Studio Pro's "Throw error when server rejects objects during
   -- synchronization". Spelled with the phrase MDL already uses for failure

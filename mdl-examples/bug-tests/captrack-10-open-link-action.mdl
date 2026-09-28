@@ -37,17 +37,17 @@
 create module OpenLink;
 /
 
-create or replace page OpenLink.P_Links
+create or modify page OpenLink.P_Links
   (Title: 'Links', Layout: Atlas_Core.Atlas_Default)
 {
   container cLinks {
-    actionbutton btnDocs (Caption: 'Docs', Action: open_link 'https://example.com')
+    actionbutton btnDocs (Caption: 'Docs', Action: open link 'https://example.com')
 
     -- A link button is the render mode a URL usually wants.
-    linkbutton lnkHome (Caption: 'Mendix', Action: open_link 'https://www.mendix.com/')
+    linkbutton lnkHome (Caption: 'Mendix', Action: open link 'https://www.mendix.com/')
 
     -- CONTROL: the actions that already worked are untouched.
-    actionbutton btnClose (Caption: 'Close', Action: close_page)
+    actionbutton btnClose (Caption: 'Close', Action: close page)
   }
 }
 /

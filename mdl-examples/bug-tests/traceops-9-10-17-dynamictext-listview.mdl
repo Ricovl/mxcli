@@ -24,7 +24,7 @@
 create entity MyFirstModule.Item ( Label: String );
 /
 
-create or replace page MyFirstModule.TraceOpsWidgets ( Title: 'W', Layout: Atlas_Core.Atlas_Default )
+create or modify page MyFirstModule.TraceOpsWidgets ( Title: 'W', Layout: Atlas_Core.Atlas_Default )
 {
   listview lvTree (datasource: database MyFirstModule.Item, PageSize: 200) {
     dynamictext x1  (Content: '')       -- #9: empty → literal empty template

@@ -36,7 +36,7 @@ create module ChartBug;
 /
 create entity ChartBug.Sales ( Region: String, Total: Decimal );
 /
-create or replace page ChartBug.Home ( layout: Atlas_Core.Atlas_Default ) {
+create or modify page ChartBug.Home ( layout: Atlas_Core.Atlas_Default ) {
   -- Pie chart: single implicit series (widget-level DataSource/ValueAttribute).
   pluggablewidget 'com.mendix.widget.web.piechart.PieChart' pie1 (
     DataSource: database from ChartBug.Sales,

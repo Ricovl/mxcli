@@ -18,8 +18,8 @@ create page ProbeInBindOk.Edit (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg {
-    row r1 {
-      column c1 (desktopwidth: autofill) {
+    row {
+      column (desktopwidth: autofill) {
         -- The data view supplies the object; bare and qualified both bind.
         dataview dv (DataSource: $P) {
           textbox tName (Attribute: FullName)
@@ -35,7 +35,7 @@ create page ProbeInBindOk.Edit (
     dynamictext lvName (Attribute: FullName)
   }
   datagrid dg (DataSource: database ProbeInBindOk.Person) {
-    column cName (Attribute: FullName, Caption: 'Name')
+    column (Attribute: FullName, Caption: 'Name')
   }
 };
 

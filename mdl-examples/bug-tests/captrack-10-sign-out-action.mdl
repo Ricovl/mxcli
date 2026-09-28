@@ -30,14 +30,14 @@
 create module SignOut;
 /
 
-create or replace page SignOut.P_Account
+create or modify page SignOut.P_Account
   (Title: 'Account', Layout: Atlas_Core.Atlas_Default)
 {
   container cActions {
-    actionbutton btnSignOut (Caption: 'Sign out', Action: sign_out, ButtonStyle: Default)
+    actionbutton btnSignOut (Caption: 'Sign out', Action: sign out, ButtonStyle: Default)
 
     -- CONTROL: the actions that already worked are untouched by the new case.
-    actionbutton btnClose (Caption: 'Close', Action: close_page)
+    actionbutton btnClose (Caption: 'Close', Action: close page)
   }
 }
 /

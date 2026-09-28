@@ -112,7 +112,7 @@ BEGIN
   RETURN $Rows;
 END;
 
-create odata service FolderTest.PublicApi (
+create published odata service FolderTest.PublicApi (
   path: 'odata/foldertest/',
   version: '1.0.0',
   ODataVersion: OData4,
@@ -130,7 +130,7 @@ create odata service FolderTest.PublicApi (
   expose ( RowKey as 'rowKey' (KEY) );
 };
 
-move odata service FolderTest.PublicApi to folder 'Api/Published';
+move published odata service FolderTest.PublicApi to folder 'Api/Published';
 
 -- ============================================================================
 -- Level 7: Read the layout back
@@ -145,7 +145,7 @@ move odata service FolderTest.PublicApi to folder 'Api/Published';
 list folders in FolderTest;
 
 -- SHOW is accepted as the legacy verb for the same statement.
-show folders in FolderTest;
+list folders in FolderTest;
 
 -- With no IN clause, every module in the project.
 list folders;
@@ -194,7 +194,7 @@ create or modify json structure FolderMove932.JSON_Order
   snippet '{"id": 1, "name": "Widget"}';
 /
 
-show folders in FolderMove932;
+list folders in FolderMove932;
 /
 
 drop module FolderMove932;

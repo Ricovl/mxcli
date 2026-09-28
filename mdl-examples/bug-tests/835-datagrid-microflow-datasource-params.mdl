@@ -50,7 +50,7 @@ create page Issue835."P_Grid" (
   Title: 'Grid',
   Layout: Atlas_Core.Atlas_Default
 ) {
-  datagrid dg1 (datasource: microflow Issue835.GET_ItemByName(Name: 'abc')) {
-    column c1 (attribute: Name, caption: 'Name')
+  datagrid dg1 (datasource: microflow Issue835.GET_ItemByName(Name = 'abc')) {
+    column (attribute: Name, caption: 'Name')
   }
 };

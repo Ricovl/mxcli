@@ -37,24 +37,24 @@ create or modify persistent entity IT17.Request (
 
 -- The header declares `$Ctx`; every spelling below must resolve to the stored
 -- `WorkflowContext` parameter.
-create or replace workflow IT17.ApprovalFlow
+create or modify workflow IT17.ApprovalFlow
   parameter $Ctx: IT17.Request
   display 'IT17 Approval'
 begin
   -- 1. the author's own declared name
-  decision '$Ctx/Total > 1000'
+  decision $Ctx/Total > 1000
     outcomes
       true  -> { }
       false -> { };
 
   -- 2. the canonical name in the casing the skill used to document
-  decision '$workflowContext/Title != '''''
+  decision $workflowContext/Title != ''
     outcomes
       true  -> { }
       false -> { };
 
   -- 3. the canonical name, spelled exactly
-  decision '$WorkflowContext/Total > 0'
+  decision $WorkflowContext/Total > 0
     outcomes
       true  -> { }
       false -> { };

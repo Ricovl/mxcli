@@ -117,7 +117,7 @@ list models in ModelTest;
 /
 
 -- SHOW also works (deprecated alias for LIST)
-show models in ModelTest;
+list models in ModelTest;
 /
 
 -- MARK: Describe

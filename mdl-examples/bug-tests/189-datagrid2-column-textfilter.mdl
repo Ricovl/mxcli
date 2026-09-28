@@ -14,7 +14,7 @@
 
 CREATE ENTITY Bug189.MyEntity ( Attribute: String, Attribute_2: String );
 
-CREATE OR REPLACE PAGE Bug189.MyEntity_Overview
+CREATE OR MODIFY PAGE Bug189.MyEntity_Overview
 (
   Title: 'MyEntity Overview',
   Layout: Atlas_Core.Atlas_Default,
@@ -22,8 +22,8 @@ CREATE OR REPLACE PAGE Bug189.MyEntity_Overview
 )
 {
   LAYOUTGRID mainGrid {
-    ROW row1 {
-      COLUMN colContent (DesktopWidth: 12) {
+    ROW {
+      COLUMN (DesktopWidth: 12) {
         DYNAMICTEXT heading (Content: 'MyEntity', RenderMode: H2)
         DATAGRID MyEntityGrid (
           DataSource: DATABASE FROM Bug189.MyEntity,
@@ -31,10 +31,10 @@ CREATE OR REPLACE PAGE Bug189.MyEntity_Overview
           PageSize: 50,
           Pagination: virtualScrolling
         ) {
-          COLUMN colAttribute (Attribute: Attribute, Caption: 'Attribute', Tooltip: 'Attribute') {
+          COLUMN (Attribute: Attribute, Caption: 'Attribute', Tooltip: 'Attribute') {
             TEXTFILTER textFilter1
           }
-          COLUMN colAttribute2 (Attribute: Attribute_2, Caption: 'Attribute 2', Tooltip: 'Attribute 2') {
+          COLUMN (Attribute: Attribute_2, Caption: 'Attribute 2', Tooltip: 'Attribute 2') {
             TEXTFILTER textFilter2
           }
         }

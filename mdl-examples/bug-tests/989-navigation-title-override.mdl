@@ -118,7 +118,7 @@ create page Issue989.NavLogin (
 -- Three page menu items (one of them nested, to cover the recursive sub-item
 -- build) and a login page: four Forms$FormSettings, four TitleOverrides that
 -- must all be null.
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page Issue989.NavHome
   login page Issue989.NavLogin
   menu (
@@ -138,7 +138,7 @@ begin
 end;
 /
 
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page Issue989.NavHome
   login page Issue989.NavLogin
   menu (

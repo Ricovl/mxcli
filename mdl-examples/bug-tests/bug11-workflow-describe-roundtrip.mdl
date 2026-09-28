@@ -51,11 +51,11 @@ begin
 end;
 /
 
-create or replace workflow WF11.WF_RoundTrip
+create or modify workflow WF11.WF_RoundTrip
   parameter $Context: WF11.Request
 begin
   call microflow WF11.ACT_Noop;
-  wait for timer 'addHours([%CurrentDateTime%], 1)';
+  wait for timer addHours([%CurrentDateTime%], 1);
   wait for notification;
   -- The jump sits in an outcome. It used to close the main flow, which this
   -- fixture's own claim ("a workflow that docker build accepts") did not

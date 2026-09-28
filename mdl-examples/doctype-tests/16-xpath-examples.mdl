@@ -522,9 +522,9 @@ create page XpathTest.OrderOverviewPage (
   datagrid dgOrders (
     datasource: database from XpathTest.Order where [State != 'Cancelled'] sort by OrderDate desc
   ) {
-    column colNumber (attribute: OrderNumber, caption: 'Order #')
-    column colAmount (attribute: TotalAmount, caption: 'Amount')
-    column colState (attribute: State, caption: 'Status')
+    column (attribute: OrderNumber, caption: 'Order #')
+    column (attribute: TotalAmount, caption: 'Amount')
+    column (attribute: State, caption: 'Status')
   }
 };
 
@@ -538,8 +538,8 @@ create page XpathTest.ActiveCustomerPage (
   datagrid dgCustomers (
     datasource: database from XpathTest.Customer where [IsActive = true] and [Name != empty] sort by Name asc
   ) {
-    column colName (attribute: Name, caption: 'Name')
-    column colEmail (attribute: Email, caption: 'Email')
+    column (attribute: Name, caption: 'Name')
+    column (attribute: Email, caption: 'Email')
   }
 };
 

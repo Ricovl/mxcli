@@ -21,12 +21,12 @@ create module DropAttr;
 create module role DropAttr.User;
 
 create persistent entity DropAttr.Account (
-  AccountNumber: String(20) NOT NULL ERROR 'Account number is required',
+  AccountNumber: String(20) NOT NULL ERROR MESSAGE 'Account number is required',
   Balance: Decimal
 )
 INDEX (AccountNumber);
 
-grant DropAttr.User on DropAttr.Account (READ (AccountNumber, Balance), WRITE (AccountNumber, Balance));
+grant READ (AccountNumber, Balance), WRITE (AccountNumber, Balance) on entity DropAttr.Account to DropAttr.User;
 
 -- The entity's only validation rule, its only index column, and one of its two
 -- member-access entries all point at this attribute.

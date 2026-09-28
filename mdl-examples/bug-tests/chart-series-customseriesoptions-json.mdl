@@ -33,7 +33,7 @@ create module ColJSON;
 /
 create entity ColJSON.Sales ( Region: String, Total: Decimal );
 /
-create or replace page ColJSON.Home ( layout: Atlas_Core.Atlas_Default ) {
+create or modify page ColJSON.Home ( layout: Atlas_Core.Atlas_Default ) {
   pluggablewidget 'com.mendix.widget.web.columnchart.ColumnChart' col1 {
     series s ( dataSet: static, staticDataSource: database from ColJSON.Sales,
                staticXAttribute: Region, staticYAttribute: Total, staticName: 'Revenue' )

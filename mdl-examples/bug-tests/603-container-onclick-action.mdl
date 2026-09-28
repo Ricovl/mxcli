@@ -24,12 +24,12 @@ create page MyFirstModule.ClickableCard (
   Layout: Atlas_Core.Atlas_Default
 ) {
   -- OnClick: alias — reads as English, matches Studio Pro's "On click" event.
-  container card (OnClick: MICROFLOW MyFirstModule.ACT_OpenDetails, Class: 'clickable-card') {
+  container card (OnClick: CALL MICROFLOW MyFirstModule.ACT_OpenDetails, Class: 'clickable-card') {
     dynamictext cardText (Content: 'Open details')
   }
 
   -- Action: keyword — the canonical form; both build the same OnClickAction.
-  container nfCard (Action: NANOFLOW MyFirstModule.NF_Refresh, Class: 'clickable-card') {
+  container nfCard (Action: CALL NANOFLOW MyFirstModule.NF_Refresh, Class: 'clickable-card') {
     dynamictext nfText (Content: 'Refresh')
   }
 

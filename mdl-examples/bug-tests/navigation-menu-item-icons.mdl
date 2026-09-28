@@ -32,7 +32,7 @@ create page NavIcons.Users ( Title: 'Users', Layout: Atlas_Core.Atlas_Default ) 
 
 -- Every item iconed, including the SUBMENU PARENT — it sits directly on the
 -- collapsed rail, so it needs one most of all.
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page NavIcons.Home
   menu (
     menu item 'Home' page NavIcons.Home icon Atlas_Core.Atlas.home;

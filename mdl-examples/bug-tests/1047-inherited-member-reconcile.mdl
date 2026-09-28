@@ -62,8 +62,8 @@ create module role ProbeSecond.User;
 create persistent entity ProbeSecond."Gen" ( Name: string(200) );
 create persistent entity ProbeSecond."Spec" extends ProbeSecond."Gen" ( Extra: string(50) );
 
-grant ProbeSecond.User on ProbeSecond."Gen" (READ *, WRITE *);
-grant ProbeSecond.User on ProbeSecond."Spec" (READ *, WRITE *);
+grant READ *, WRITE * on entity ProbeSecond."Gen" to ProbeSecond.User;
+grant READ *, WRITE * on entity ProbeSecond."Spec" to ProbeSecond.User;
 
 -- The control: everything above checks clean. A run that only executes the
 -- ALTER below cannot tell a fixed build from a broken one.

@@ -37,18 +37,18 @@ BEGIN
   return $Text;
 END;
 
-CREATE OR REPLACE SNIPPET Bug705.SN_Header {
+CREATE OR MODIFY SNIPPET Bug705.SN_Header {
   dynamictext txtHeader (Content: 'Notes', RenderMode: H2)
 }
 
-CREATE OR REPLACE PAGE Bug705.Note_Edit (
+CREATE OR MODIFY PAGE Bug705.Note_Edit (
   Title: 'Edit note',
   Layout: Atlas_Core.PopupLayout,
   Params: { $Note: Bug705.Note }
 ) {
   layoutgrid lgBody {
-    row r1 {
-      column c1 (DesktopWidth: autofill) {
+    row {
+      column (DesktopWidth: autofill) {
         dataview dvNote (DataSource: $Note) {
           textarea taBody (Label: 'Body', Attribute: Body, Placeholder: 'Describe the problem')
         }

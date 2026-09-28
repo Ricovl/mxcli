@@ -14,7 +14,7 @@ create persistent entity bug295.Product (
   /** Auto-incrementing product ID */
   ProductId: autonumber default 1,
   /** Product name (required) */
-  Name: string(200) not null error 'Product name is required'
+  Name: string(200) not null error message 'Product name is required'
 );
 
 -- Target page that accepts an entity parameter.
@@ -43,11 +43,11 @@ CREATE PAGE bug295.Product_Overview (
     DataSource: bug295.Product,
     Caption: 'Products'
   ) {
-    COLUMN colName (Attribute: Name, Caption: 'Name')
-    COLUMN colActions (Caption: 'Actions') {
+    COLUMN (Attribute: Name, Caption: 'Name')
+    COLUMN (Caption: 'Actions') {
       ACTIONBUTTON btnDetail (
         Caption: 'Detail',
-        Action: SHOW_PAGE bug295.Product_Detail (Product: $currentObject)
+        Action: SHOW PAGE bug295.Product_Detail (Product = $currentObject)
       )
     }
   }

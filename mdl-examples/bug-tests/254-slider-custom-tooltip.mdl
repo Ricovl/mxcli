@@ -31,7 +31,7 @@ create module role T254.User;
 create persistent entity T254.Reading ( Score: decimal );
 
 -- 1. Plain text — the case that was dropped.
-create or replace page T254.P_Text (Title: 'Text', Layout: Atlas_Core.Atlas_Default) {
+create or modify page T254.P_Text (Title: 'Text', Layout: Atlas_Core.Atlas_Default) {
   LISTVIEW lv (DataSource: DATABASE T254.Reading) {
     pluggablewidget 'com.mendix.widget.custom.slider.Slider' sl (
       Attribute: Score, tooltipType: 'customText', tooltip: 'Current score')
@@ -39,7 +39,7 @@ create or replace page T254.P_Text (Title: 'Text', Layout: Atlas_Core.Atlas_Defa
 }
 
 -- 2. `{AttrName}` — worked before, must keep working.
-create or replace page T254.P_Attr (Title: 'Attr', Layout: Atlas_Core.Atlas_Default) {
+create or modify page T254.P_Attr (Title: 'Attr', Layout: Atlas_Core.Atlas_Default) {
   LISTVIEW lv (DataSource: DATABASE T254.Reading) {
     pluggablewidget 'com.mendix.widget.custom.slider.Slider' sl (
       Attribute: Score, tooltipType: 'customText', tooltip: 'Score: {Score}')
@@ -50,7 +50,7 @@ create or replace page T254.P_Attr (Title: 'Attr', Layout: Atlas_Core.Atlas_Defa
 --    `contentparams:` (the explicit-property pass has routed it since #928), so
 --    this stored an empty parameter list and mxbuild answered CE0720 — a gap
 --    that only became reachable once the text stopped being dropped.
-create or replace page T254.P_Num (Title: 'Num', Layout: Atlas_Core.Atlas_Default) {
+create or modify page T254.P_Num (Title: 'Num', Layout: Atlas_Core.Atlas_Default) {
   LISTVIEW lv (DataSource: DATABASE T254.Reading) {
     pluggablewidget 'com.mendix.widget.custom.slider.Slider' sl (
       Attribute: Score, tooltipType: 'customText',
@@ -61,7 +61,7 @@ create or replace page T254.P_Num (Title: 'Num', Layout: Atlas_Core.Atlas_Defaul
 -- 4. CONTROL: tooltipType left at its default `value`, so the tooltip property
 --    is PRUNED. Nothing must be stored for it — dropping the text here is
 --    correct, and Studio Pro shows no `ct:tooltip` on this widget at all.
-create or replace page T254.P_Pruned (Title: 'Pruned', Layout: Atlas_Core.Atlas_Default) {
+create or modify page T254.P_Pruned (Title: 'Pruned', Layout: Atlas_Core.Atlas_Default) {
   LISTVIEW lv (DataSource: DATABASE T254.Reading) {
     pluggablewidget 'com.mendix.widget.custom.slider.Slider' sl (
       Attribute: Score, tooltip: 'never shown')
@@ -72,7 +72,7 @@ create or replace page T254.P_Pruned (Title: 'Pruned', Layout: Atlas_Core.Atlas_
 --    worked (its template is not conditional, so it is never stored null), and
 --    it is what proves the bug was the null slot rather than textTemplate
 --    authoring in general.
-create or replace page T254.P_Timeline (Title: 'Timeline', Layout: Atlas_Core.Atlas_Default) {
+create or modify page T254.P_Timeline (Title: 'Timeline', Layout: Atlas_Core.Atlas_Default) {
   pluggablewidget 'com.mendix.widget.web.timeline.Timeline' tl (
     datasource: database from T254.Reading,
     title: 'Score is {Score}',

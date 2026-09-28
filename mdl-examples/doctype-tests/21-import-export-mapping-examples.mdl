@@ -292,10 +292,10 @@ describe export mapping MapTest.EMM_Order;
 -- PART 4: SHOW AND LIST COMMANDS
 -- ############################################################################
 
-show import mappings;
-show import mappings in MapTest;
-show export mappings;
-show export mappings in MapTest;
+list import mappings;
+list import mappings in MapTest;
+list export mappings;
+list export mappings in MapTest;
 
 -- ############################################################################
 -- PART 5: DROP COMMANDS
@@ -304,8 +304,8 @@ show export mappings in MapTest;
 drop import mapping MapTest.IMM_UpsertPet;
 drop export mapping MapTest.EMM_PetNullable;
 
-show import mappings in MapTest;
-show export mappings in MapTest;
+list import mappings in MapTest;
+list export mappings in MapTest;
 
 -- ############################################################################
 -- PART 6: MICROFLOW ACTIONS (IMPORT FROM / EXPORT TO MAPPING)

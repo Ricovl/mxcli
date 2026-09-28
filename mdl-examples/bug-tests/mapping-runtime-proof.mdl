@@ -134,7 +134,7 @@ create microflow RtMap.MF_First ( $Json: string )
 returns RtMap.Item as $Item
 begin
   $List = import from mapping RtMap.IMM_Items($Json);
-  $Item = head($List);
+  $Item = head $List;
 end;
 /
 
@@ -175,7 +175,7 @@ begin
   commit $Seed;
   $P = import from mapping RtMap.IMM_FindOrCreate($Json);
   retrieve $All from RtMap.Person;
-  $N = count($All);
+  $N = count $All;
   declare $Who string = 'EMPTY';
   if $P != empty then
     $Who = $P/Name;
@@ -191,7 +191,7 @@ begin
   commit $Seed;
   $P = import from mapping RtMap.IMM_FindOrIgnore($Json);
   retrieve $All from RtMap.Person;
-  $N = count($All);
+  $N = count $All;
   declare $Who string = 'EMPTY';
   if $P != empty then
     $Who = $P/Name;
@@ -222,7 +222,7 @@ create microflow RtMap.MF_ResolveChunk ( $Index: Integer )
 returns RtMap.Chunk as $Found
 begin
   retrieve $Hits from RtMap.Chunk where Idx = $Index;
-  $Found = head($Hits);
+  $Found = head $Hits;
 end;
 /
 
@@ -244,9 +244,9 @@ begin
   commit $Seed;
   $B = import from mapping RtMap.IMM_Box($Json);
   retrieve $All from RtMap.Chunk;
-  $N = count($All);
+  $N = count $All;
   retrieve $One from RtMap.Chunk where Idx = 1;
-  $C = head($One);
+  $C = head $One;
   return $C/Text + '/' + toString($N);
 end;
 /
@@ -294,7 +294,7 @@ create microflow RtMap.MF_FromParam ( $Collection: RtMap.Coll )
 returns RtMap.Piece as $P
 begin
   retrieve $Ps from $Collection/RtMap.Piece_Coll;
-  $P = head($Ps);
+  $P = head $Ps;
 end;
 /
 

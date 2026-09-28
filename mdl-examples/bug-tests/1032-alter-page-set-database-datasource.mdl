@@ -53,7 +53,7 @@ create page P1032.CustomerPage (
   title: 'Customer',
   layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     -- A LIST VIEW is where a database query belongs. Authored here through
     -- CREATE PAGE, which builds the Forms$ListViewXPathSource the widget needs.
     listview lvCustomers (datasource: database P1032.Customer) {
@@ -70,15 +70,15 @@ create page P1032.CustomerPage (
 -- the refusal — the control that says this fixes #1032 rather than replacing it
 -- with a blanket "no".
 alter page P1032.CustomerPage {
-  set DataSource = $Customer on dvCust;
+  set (DataSource: $Customer) on dvCust;
 }
 
 alter page P1032.CustomerPage {
-  set DataSource = microflow P1032.MF_GetCustomer on dvCust;
+  set (DataSource: microflow P1032.MF_GetCustomer) on dvCust;
 }
 
 alter page P1032.CustomerPage {
-  set DataSource = selection lvCustomers on dvCust;
+  set (DataSource: selection lvCustomers) on dvCust;
 }
 
 -- REFUSED, both by `check -p --references` and by `exec` (uncomment to see):

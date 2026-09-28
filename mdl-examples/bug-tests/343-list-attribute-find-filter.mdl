@@ -51,6 +51,6 @@ create microflow BugTest343.MF_FilterByAttribute (
 )
 returns list of BugTest343.Item as $Active
 begin
-  $Active = filter($Items, Active = true);
+  $Active = filter $Items by Active = true;
 end;
 /

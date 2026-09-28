@@ -97,7 +97,7 @@ end;
 create or modify microflow ExprKinds.ACT_Filter ()
 begin
   RETRIEVE $All FROM ExprKinds.Order;
-  $Open = FILTER($All, Status = 'Open');
+  $Open = FILTER $All BY Status = 'Open';
   LOG INFO 'filtered';
 end;
 /

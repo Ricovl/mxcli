@@ -27,11 +27,11 @@
 
 create entity MyFirstModule.Filter ( Query: String );
 
-create or replace nanoflow MyFirstModule.NF_Search ($Filter: MyFirstModule.Filter)
+create or modify nanoflow MyFirstModule.NF_Search ($Filter: MyFirstModule.Filter)
 begin
 end;
 
-create or replace page MyFirstModule.P_Search
+create or modify page MyFirstModule.P_Search
 (
   Title: 'Search',
   Layout: Atlas_Core.Atlas_Default,
@@ -39,14 +39,14 @@ create or replace page MyFirstModule.P_Search
 )
 {
   layoutgrid grid {
-    row r {
-      column c (desktopwidth: autofill) {
+    row {
+      column (desktopwidth: autofill) {
         dataview dv (datasource: $Filter) {
           textbox txtQuery (
             Attribute: Query,
             Label: 'Search',
             Placeholder: 'Search all articles',
-            OnChange: nanoflow MyFirstModule.NF_Search(Filter: $Filter)
+            OnChange: call nanoflow MyFirstModule.NF_Search(Filter = $Filter)
           )
         }
       }

@@ -21,7 +21,7 @@
 -- Run: mxcli check mdl-examples/bug-tests/1063-layout-placeholder-rules.mdl
 --      (this file is the PASSING shape; the failing ones are commented below)
 
-CREATE OR REPLACE LAYOUT MyFirstModule.App_Probe1063 (
+CREATE OR MODIFY LAYOUT MyFirstModule.App_Probe1063 (
   layouttype: 'Responsive',
   class: 'layout-atlas'
 ) {
