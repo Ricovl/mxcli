@@ -189,10 +189,8 @@ func TestUpgrade_ListCallFormToStatementForm(t *testing.T) {
 func TestGatedRegistryIsComplete(t *testing.T) {
 	// MDL-V1-SESSION (R7, ako/mxcli#755) was added with its change: moving a
 	// session command out of a script is a decision about how the script is run.
-	// MDL-V1-UNKNOWN (R7, ako/mxcli#755) likewise: which keyword a misspelt
-	// word was meant to be cannot be guessed.
 	pinned := map[string]bool{"MDL-V1-PROP": true, "MDL-V1-PROPVALUE": true, "MDL-V1-REPLACE01": true,
-		"MDL-V1-SESSION": true, "MDL-V1-UNKNOWN": true}
+		"MDL-V1-SESSION": true}
 	known := map[string]bool{}
 	for _, c := range visitor.LanguageChanges() {
 		known[c.Code] = true

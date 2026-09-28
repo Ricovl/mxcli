@@ -1379,10 +1379,6 @@ func (b *Builder) ExitHelpStatement(ctx *parser.HelpStatementContext) {
 			b.statements = append(b.statements, stmt)
 		case "exit", "quit":
 			b.statements = append(b.statements, &ast.ExitStmt{})
-		default:
-			// Only under mdl 0 does the grammar take another word here: the
-			// statement builds nothing, as it always has, and warns.
-			b.noteUnknownStatementWord(ctx, id.GetText())
 		}
 	}
 }

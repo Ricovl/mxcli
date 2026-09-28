@@ -29,10 +29,8 @@ func init() {
 			"-- every statement ends with ';' and '/' is not a terminator; '' is the\n" +
 			"-- only string escape, so a backslash is an ordinary character; and an\n" +
 			"-- unknown or mis-shaped property key in a REST, business event or agent\n" +
-			"-- property list is an error; a session command (connect, set format,\n" +
-			"-- status, help, …) in a script is an error (MDL-V1-SESSION); and a\n" +
-			"-- statement that starts with an unknown word (`craete …`) is an error at\n" +
-			"-- the word, where mdl 0 did nothing with it (MDL-V1-UNKNOWN). A trailing\n" +
+			"-- property list is an error; and a session command (connect, set format,\n" +
+			"-- status, help, …) in a script is an error (MDL-V1-SESSION). A trailing\n" +
 			"-- comma is allowed in every bracketed list, with or without the header.\n" +
 			"--\n" +
 			"-- A script's meaning never depends on which mxcli release runs it: a\n" +
@@ -47,7 +45,6 @@ func init() {
 			"-- says why, when a construct has no rewrite: an unknown or mis-shaped\n" +
 			"-- property (MDL-V1-PROP/PROPVALUE), `create or replace view entity`\n" +
 			"-- (MDL-V1-REPLACE01), a session command in a script (MDL-V1-SESSION), a\n" +
-			"-- statement that starts with an unknown word (MDL-V1-UNKNOWN), a\n" +
 			"-- nested list operation, find/contains on a variable\n" +
 			"-- whose type the script does not state, and an escaped line break inside\n" +
 			"-- an expression.\n" +

@@ -31,7 +31,7 @@ func LanguageChanges() []langver.Change {
 	return []langver.Change{
 		semicolonRequired, slashIsNotATerminator, backslashIsLiteral, limitOneIsAList,
 		listCallForm, setIsMandatory, viewEntityReplaceIsModify, roleReplaceIsModify, whileBlockRequired,
-		unknownPropertyKey, misshapedPropertyValue, sessionCommandInScript, unknownStatementWordIsAnError,
+		unknownPropertyKey, misshapedPropertyValue, sessionCommandInScript,
 	}
 }
 

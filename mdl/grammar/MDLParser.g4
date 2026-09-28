@@ -42,14 +42,6 @@ func IsHelpWord(word string) bool {
 	}
 	return false
 }
-
-// IsMdl1Parse reports whether p reads a script written in mdl 1 or later. The
-// `mdl <n>;` header is scanned before lexing, and a script under mdl 1 is
-// lexed from a StrictEscapeStream (MDLLexer.g4); the stream is how that
-// decision reaches a predicate, which runs before the header is visited.
-func IsMdl1Parse(p *MDLParser) bool {
-	return HasStrictEscapes(p.GetTokenStream().GetTokenSource().GetInputStream())
-}
 }
 
 import
