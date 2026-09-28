@@ -31,4 +31,4 @@ SHOW WORKFLOWS IN Approvals
 
 ## See Also
 
-[SHOW MODULES](show-modules.md), [SHOW MICROFLOWS](show-microflows.md), [SHOW STRUCTURE](show-structure.md)
+[SHOW MODULES](show-modules.md), [SHOW MICROFLOWS](show-microflows.md), [DESCRIBE STRUCTURE](show-structure.md)

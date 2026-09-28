@@ -1,6 +1,6 @@
 ---
 name: fragments
-description: "Define reusable widget groups with DEFINE FRAGMENT and place them with USE FRAGMENT. Use when the same widget pattern repeats across pages and should be written once."
+description: "Define reusable widget groups with CREATE FRAGMENT and place them with USE FRAGMENT. Use when the same widget pattern repeats across pages and should be written once."
 ---
 
 # Mendix Fragments Skill
@@ -8,7 +8,7 @@ description: "Define reusable widget groups with DEFINE FRAGMENT and place them 
 ## When to Use This Skill
 
 Use this skill when:
-- Defining reusable widget groups with `define fragment`
+- Defining reusable widget groups with `create fragment`
 - Inserting fragments into pages or snippets with `use fragment`
 - Listing or inspecting fragments with `show fragments` / `describe fragment`
 - Building multiple pages that share common widget patterns (footers, form fields, buttons)
@@ -24,10 +24,10 @@ Fragments are **script-scoped, transient** widget groups:
 
 ## Syntax Reference
 
-### DEFINE FRAGMENT
+### CREATE FRAGMENT
 
 ```mdl
-define fragment SaveCancelFooter as {
+create fragment SaveCancelFooter as {
   footer footer1 {
     actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
     actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
@@ -38,7 +38,7 @@ define fragment SaveCancelFooter as {
 Multiple top-level widgets:
 
 ```mdl
-define fragment CustomerFields as {
+create fragment CustomerFields as {
   textbox txtName (label: 'Name', attribute: Name)
   textbox txtEmail (label: 'Email', attribute: Email)
   textbox txtPhone (label: 'Phone', attribute: Phone)
@@ -79,7 +79,7 @@ panel, or section) whose body varies per use. Declare a `slot` where the caller'
 widgets should land, then fill it with the `use fragment X { … }` payload form:
 
 ```mdl
-define fragment Card as {
+create fragment Card as {
   container cardWrap (class: 'card', designproperties: ['Card style': on]) {
     container cardBody (class: 'card-body') {
       slot content            -- caller's widgets are spliced in here
@@ -106,7 +106,7 @@ Rules (v1):
   (no slot marker), and there are no BSON/round-trip surprises.
 
 > For varying a leaf **value** (a label or attribute name) rather than wrapping a
-> subtree, scalar params (`define fragment F($label, $attr) as …`) are a planned
+> subtree, scalar params (`create fragment F($label, $attr) as …`) are a planned
 > v1.1 follow-up; today use a slot plus a one-line value fill.
 
 ### Parameter bindings — datasource & action (experimental)
@@ -118,7 +118,7 @@ its value at the use site. This turns a shell into a real reusable component —
 one panel bound to a different entity and a different handler per use.
 
 ```mdl
-define fragment DataPanel($data: datasource, $onEdit: action) as {
+create fragment DataPanel($data: datasource, $onEdit: action) as {
   container panelWrap (class: 'card') {
     listview lvItems (datasource: $data) {
       slot content
@@ -171,7 +171,7 @@ describe fragment SaveCancelFooter;
 ### Pattern 1: Standard CRUD Footer
 
 ```mdl
-define fragment CrudFooter as {
+create fragment CrudFooter as {
   footer footer1 {
     actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
     actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
@@ -197,7 +197,7 @@ create page Module.Order_Edit (...) {
 ### Pattern 2: Form Field Groups
 
 ```mdl
-define fragment AddressFields as {
+create fragment AddressFields as {
   textbox txtStreet (label: 'Street', attribute: Street)
   textbox txtCity (label: 'City', attribute: City)
   textbox txtZip (label: 'Zip Code', attribute: ZipCode)
@@ -217,7 +217,7 @@ create page Module.Customer_Edit (...) {
 ### Pattern 3: Same Fragment with Prefix
 
 ```mdl
-define fragment ActionButtons as {
+create fragment ActionButtons as {
   actionbutton btnApprove (caption: 'Approve', action: save changes, buttonstyle: success)
   actionbutton btnReject (caption: 'Reject', action: cancel changes, buttonstyle: danger)
 };
@@ -242,8 +242,8 @@ create page Module.DualPanel (...) {
 
 ```mdl
 -- WRONG: Defining the same fragment name twice causes an error
-define fragment footer as { ... };
-define fragment footer as { ... };  -- Error: fragment "Footer" already defined
+create fragment footer as { ... };
+create fragment footer as { ... };  -- Error: fragment "Footer" already defined
 ```
 
 ### Missing Fragment
@@ -274,10 +274,10 @@ use fragment footer as second_
 create page Module.MyPage (...) {
   use fragment footer   -- Error: fragment "Footer" not found
 };
-define fragment footer as { ... };
+create fragment footer as { ... };
 
 -- CORRECT: Define before use
-define fragment footer as { ... };
+create fragment footer as { ... };
 create page Module.MyPage (...) {
   use fragment footer   -- OK
 };
@@ -285,7 +285,7 @@ create page Module.MyPage (...) {
 
 ## Validation Checklist
 
-- [ ] All `define fragment` statements appear before their `use fragment` references
+- [ ] All `create fragment` statements appear before their `use fragment` references
 - [ ] No duplicate fragment names in the script
 - [ ] Prefix used when the same fragment appears multiple times on one page
 - [ ] Fragment widget names don't conflict with other widgets on the page

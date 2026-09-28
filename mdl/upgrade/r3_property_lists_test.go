@@ -39,7 +39,7 @@ func TestUpgrade_R3PropertyLists(t *testing.T) {
 		{"alter entity M.Remote set allow_create_change_locally = true;\n",
 			"alter entity M.Remote set ( AllowCreateChangeLocally: true );\n"},
 		{"alter entity M.E modify attribute Code String(20), modify column Amount Decimal;\n",
-			"alter entity M.E modify attribute Code: String(20), modify column Amount: Decimal;\n"},
+			"alter entity M.E modify attribute Code: String(20), modify attribute Amount: Decimal;\n"},
 		{"create association M.A_B from M.A to M.B type: Reference owner:Both storage :Table;\n",
 			"create association M.A_B from M.A to M.B type Reference owner Both storage Table;\n"},
 		{"alter page M.P {\n  set Caption = 'Save' on btnSave;\n  set (Caption = 'x', ButtonStyle = Success) on b2;\n  set Title: 'T';\n  drop widget a, b;\n};\n",

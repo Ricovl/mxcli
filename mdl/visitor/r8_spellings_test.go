@@ -68,8 +68,8 @@ var r8Pairs = []r8Pair{
 	{"reference_set", "create association M.A_B from M.A to M.B type reference_set;",
 		"create association M.A_B from M.A to M.B type ReferenceSet;", deprecation.ReferenceSetUnderscore},
 
-	{"returns none", "create microflow M.F () begin rest call get 'https://x.org' returns none; end;",
-		"create microflow M.F () begin rest call get 'https://x.org' returns nothing; end;", deprecation.ReturnsNone},
+	{"returns none", "create microflow M.F () begin call rest service get 'https://x.org' returns none; end;",
+		"create microflow M.F () begin call rest service get 'https://x.org' returns nothing; end;", deprecation.ReturnsNone},
 }
 
 func TestR8OldSpellingsAreAliases(t *testing.T) {

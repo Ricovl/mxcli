@@ -176,7 +176,7 @@ SHOW ACCESS ON ENTITY Shop.Customer;
 SHOW ACCESS ON Shop.Customer;
 
 -- Full matrix across a module
-SHOW SECURITY MATRIX IN Shop;
+DESCRIBE SECURITY MATRIX IN Shop;
 ```
 
 ## See Also

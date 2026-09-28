@@ -15,7 +15,7 @@ Statements for browsing and inspecting project elements. Query statements are re
 | [SHOW CONSTANTS](show-constants.md) | List constants, optionally filtered by module |
 | [SHOW WORKFLOWS](show-workflows.md) | List workflows, optionally filtered by module |
 | [SHOW BUSINESS EVENTS](show-business-events.md) | List business event services |
-| [SHOW STRUCTURE](show-structure.md) | Hierarchical project overview at configurable depth |
+| [DESCRIBE STRUCTURE](show-structure.md) | Hierarchical project overview at configurable depth |
 | [SHOW WIDGETS](show-widgets.md) | List widgets across pages with optional filtering |
 
 ## DESCRIBE Statements

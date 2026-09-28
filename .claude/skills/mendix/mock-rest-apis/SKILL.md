@@ -49,7 +49,7 @@ create constant MyModule.ApiBaseUrl type String default 'https://api.example.com
 
 create microflow MyModule.CallApi() returns string
 begin
-  $response = rest call get @MyModule.ApiBaseUrl + '/rates'
+  $response = call rest service get @MyModule.ApiBaseUrl + '/rates'
     header Accept = 'application/json'
     returns string;
   return $response;

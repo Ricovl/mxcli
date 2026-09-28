@@ -182,7 +182,7 @@ begin
   end loop;
 
   -- Inline REST CALL — NOT the REST Client (see notes)
-  $RawJson = rest call post 'https://graphstudio.mendixdemo.com/sparql/graphmart/http%3A%2F%2Fcambridgesemantics.com%2FGraphmart%2F3617250aca6a40d88972c1c0de38f86a'
+  $RawJson = call rest service post 'https://graphstudio.mendixdemo.com/sparql/graphmart/http%3A%2F%2Fcambridgesemantics.com%2FGraphmart%2F3617250aca6a40d88972c1c0de38f86a'
     header 'Accept'       = 'application/sparql-results+json'
     header 'Content-Type' = 'application/sparql-query'
     auth basic '<username>' password '<password>'

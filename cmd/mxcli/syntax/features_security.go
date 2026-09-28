@@ -10,8 +10,8 @@ func init() {
 			"security", "access control", "roles", "permissions",
 			"grant", "revoke", "authentication", "authorization",
 		},
-		Syntax:  "SHOW PROJECT SECURITY;\nSHOW MODULE ROLES [IN <module>];\nSHOW USER ROLES;\nSHOW SECURITY MATRIX [IN <module>];",
-		Example: "SHOW PROJECT SECURITY;\nSHOW SECURITY MATRIX IN Shop;",
+		Syntax:  "DESCRIBE APP SECURITY;\nLIST MODULE ROLES [IN <module>];\nLIST USER ROLES;\nDESCRIBE SECURITY MATRIX [IN <module>];",
+		Example: "DESCRIBE APP SECURITY;\nDESCRIBE SECURITY MATRIX IN Shop;",
 		SeeAlso: []string{"security.module-role", "security.entity-access", "security.user-role"},
 	})
 
@@ -133,7 +133,7 @@ func init() {
 			"user role", "application role", "manage roles",
 			"add module roles", "remove module roles",
 		},
-		Syntax:  "CREATE USER ROLE <name> (<role> [, ...]) [MANAGE ALL ROLES];\nALTER USER ROLE <name> ADD MODULE ROLES (<role> [, ...]);\nALTER USER ROLE <name> REMOVE MODULE ROLES (<role> [, ...]);\nDROP USER ROLE [IF EXISTS] <name>;",
+		Syntax:  "CREATE USER ROLE <name> (<role> [, ...]) [MANAGE ALL ROLES];\nALTER USER ROLE <name> ADD MODULE ROLES (<role> [, ...]);\nALTER USER ROLE <name> DROP MODULE ROLES (<role> [, ...]);\nDROP USER ROLE [IF EXISTS] <name>;",
 		Example: "CREATE USER ROLE AppAdmin (Shop.Admin, HR.Admin) MANAGE ALL ROLES;\nALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Viewer);",
 		SeeAlso: []string{"security.module-role", "security.demo-user"},
 	})

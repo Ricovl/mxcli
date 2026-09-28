@@ -149,7 +149,7 @@ Three things about the output are deliberate:
 Use the CLI's `--json` flag for a row per document (`Module, Folder, Kind, Document`)
 when comparing against a checked-in layout.
 
-Do **not** reach for `show structure` here: it groups by document type at every
+Do **not** reach for `describe structure` here: it groups by document type at every
 depth and never shows which folder a document sits in.
 
 ## Moving Documents

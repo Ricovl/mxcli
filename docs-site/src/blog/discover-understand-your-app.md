@@ -10,7 +10,7 @@
 
 ## Getting the Lay of the Land
 
-<!-- TODO: SHOW STRUCTURE, SHOW MODULES — reading the output -->
+<!-- TODO: DESCRIBE STRUCTURE, LIST MODULES — reading the output -->
 
 ## Exploring Entities and Associations
 

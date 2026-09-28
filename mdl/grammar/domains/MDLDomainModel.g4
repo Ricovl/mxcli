@@ -259,22 +259,24 @@ alterEntitiesAction
     : docComment? ADD ATTRIBUTE ifNotExists? attributeDefinition
     ;
 
+attributeKw
+    : ATTRIBUTE
+    | COLUMN /* @alias MDL-DEPR093 */
+    ;
+
 entityPersistenceFilter
     : PERSISTENT
     | NON_PERSISTENT
     ;
 
 alterEntityAction
-    : docComment? ADD ATTRIBUTE ifNotExists? attributeDefinition
-    | docComment? ADD COLUMN ifNotExists? attributeDefinition
-    | RENAME ATTRIBUTE attributeName TO attributeName
-    | RENAME COLUMN attributeName TO attributeName
+    // R6: `column` is a deprecated synonym for `attribute` (MDL-DEPR093).
+    : docComment? ADD attributeKw ifNotExists? attributeDefinition
+    | RENAME attributeKw attributeName TO attributeName
     // An attribute definition is always `Name: Type` (R3). The colon is
     // optional only so the old spelling keeps parsing: its ABSENCE is the alias.
-    | MODIFY ATTRIBUTE attributeName COLON? /* @alias MDL-DEPR065 */ dataType attributeConstraint*
-    | MODIFY COLUMN attributeName COLON? /* @alias MDL-DEPR065 */ dataType attributeConstraint*
-    | DROP ATTRIBUTE ifExists? attributeName
-    | DROP COLUMN ifExists? attributeName
+    | MODIFY attributeKw attributeName COLON? /* @alias MDL-DEPR065 */ dataType attributeConstraint*
+    | DROP attributeKw ifExists? attributeName
     | DROP DEFAULT ON ATTRIBUTE attributeName   // clear an attribute's default value
     | SET DOCUMENTATION STRING_LITERAL
     | SET COMMENT STRING_LITERAL

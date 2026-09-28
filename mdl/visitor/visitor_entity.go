@@ -622,7 +622,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 			attrNames := ctx.AllAttributeName()
 
 			// ADD ATTRIBUTE / ADD COLUMN
-			if ctx.ADD() != nil && (ctx.ATTRIBUTE() != nil || ctx.COLUMN() != nil) {
+			if ctx.ADD() != nil && ctx.AttributeKw() != nil {
 				if attrDef := ctx.AttributeDefinition(); attrDef != nil {
 					attr := buildSingleAttribute(attrDef.(*parser.AttributeDefinitionContext))
 					// A `/** … */` doc comment written BETWEEN clauses (before the
@@ -648,7 +648,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 			}
 
 			// RENAME ATTRIBUTE / RENAME COLUMN
-			if ctx.RENAME() != nil && (ctx.ATTRIBUTE() != nil || ctx.COLUMN() != nil) && len(attrNames) >= 2 {
+			if ctx.RENAME() != nil && ctx.AttributeKw() != nil && len(attrNames) >= 2 {
 				b.statements = append(b.statements, &ast.AlterEntityStmt{
 					Name:          name,
 					Operation:     ast.AlterEntityRenameAttribute,
@@ -659,7 +659,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 			}
 
 			// MODIFY ATTRIBUTE / MODIFY COLUMN
-			if ctx.MODIFY() != nil && (ctx.ATTRIBUTE() != nil || ctx.COLUMN() != nil) && len(attrNames) >= 1 {
+			if ctx.MODIFY() != nil && ctx.AttributeKw() != nil && len(attrNames) >= 1 {
 				dt := buildDataType(ctx.DataType())
 				stmt := &ast.AlterEntityStmt{
 					Name:          name,
@@ -717,7 +717,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 			}
 
 			// DROP ATTRIBUTE / DROP COLUMN
-			if ctx.DROP() != nil && (ctx.ATTRIBUTE() != nil || ctx.COLUMN() != nil) && len(attrNames) >= 1 {
+			if ctx.DROP() != nil && ctx.AttributeKw() != nil && len(attrNames) >= 1 {
 				b.statements = append(b.statements, &ast.AlterEntityStmt{
 					Name:          name,
 					Operation:     ast.AlterEntityDropAttribute,

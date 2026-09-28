@@ -135,7 +135,7 @@ returns HTTP 200 with a 4-byte payload.
 Upload binary from a **microflow** instead, which does have a binary body:
 
 ```sql
-rest call post 'https://api.example.com/upload'
+call rest service post 'https://api.example.com/upload'
   header 'ContentType' = 'application/pdf'
   body binary $Doc/Contents
   returns response;
@@ -260,40 +260,40 @@ Call an HTTP endpoint directly from a microflow — no REST client document need
 
 ```sql
 -- Simple GET returning a string
-$response = rest call get 'https://api.example.com/data'
+$response = call rest service get 'https://api.example.com/data'
   header Accept = 'application/json'
   timeout 30
   returns string;
 
 -- GET with URL template parameters
-$response = rest call get 'https://api.example.com/users/{1}' with (
+$response = call rest service get 'https://api.example.com/users/{1}' with (
   {1} = toString($UserId)
 )
   header Accept = 'application/json'
   returns string;
 
 -- POST with body
-$response = rest call post 'https://api.example.com/items'
+$response = call rest service post 'https://api.example.com/items'
   header 'Content-Type' = 'application/json'
   body '{"name": "test"}'
   returns string;
 
 -- With basic auth
-$response = rest call get 'https://api.example.com/secure'
+$response = call rest service get 'https://api.example.com/secure'
   auth basic 'username' password 'password'
   returns string;
 
 -- With import mapping (JSON → entity)
-$item = rest call get 'https://api.example.com/item/1'
+$item = call rest service get 'https://api.example.com/item/1'
   header Accept = 'application/json'
   returns mapping Module.IMM_Item as Module.Item;
 
 -- Fire and forget
-rest call delete 'https://api.example.com/item/1'
+call rest service delete 'https://api.example.com/item/1'
   returns nothing;
 
 -- Error handling
-$response = rest call get 'https://api.example.com/data'
+$response = call rest service get 'https://api.example.com/data'
   returns string
   on error continue;
 ```

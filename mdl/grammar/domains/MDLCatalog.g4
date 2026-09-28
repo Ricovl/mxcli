@@ -59,9 +59,13 @@ showStatement
     | showOrList MESSAGE DEFINITION COLLECTION (IN (qualifiedName | IDENTIFIER))?
     | showOrList IMPORT MAPPINGS (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXPORT MAPPINGS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList ENTITY qualifiedName
-    | showOrList ASSOCIATION qualifiedName
-    | showOrList PAGE qualifiedName
+    // R6: a single thing is described, not shown. `show` on these is a
+    // deprecated alias (MDL-DEPR090); page, app security, security matrix,
+    // structure and context build the same statement as their describe, the
+    // others keep their summary and are reported without a rewrite.
+    | showOrList ENTITY qualifiedName /* @alias MDL-DEPR090 */
+    | showOrList ASSOCIATION qualifiedName /* @alias MDL-DEPR090 */
+    | showOrList PAGE qualifiedName /* @alias MDL-DEPR090 */
     | showOrList CONNECTIONS
     | showOrList STATUS
     | showOrList VERSION
@@ -71,12 +75,12 @@ showStatement
     | showOrList CALLEES OF qualifiedName TRANSITIVE?
     | showOrList REFERENCES TO qualifiedName
     | showOrList IMPACT OF qualifiedName
-    | showOrList CONTEXT OF qualifiedName (DEPTH NUMBER_LITERAL)?
+    | showOrList CONTEXT OF qualifiedName (DEPTH NUMBER_LITERAL)? /* @alias MDL-DEPR090 */
     | showOrList COMMUNITY MEMBERS OF qualifiedName
     | showOrList COMMUNITY OF qualifiedName
     | showOrList COMMUNITIES
     | showOrList WIDGETS showWidgetsFilter?
-    | showOrList PROJECT SECURITY
+    | showOrList PROJECT SECURITY /* @alias MDL-DEPR090 */
     | showOrList MODULE ROLES (IN (qualifiedName | IDENTIFIER))?
     | showOrList USER ROLES
     | showOrList DEMO USERS
@@ -91,20 +95,20 @@ showStatement
     | showOrList ACCESS ON PAGE qualifiedName
     | showOrList ACCESS ON WORKFLOW qualifiedName
     | showOrList ACCESS ON NANOFLOW qualifiedName
-    | showOrList SECURITY MATRIX (IN (qualifiedName | IDENTIFIER))?
+    | showOrList SECURITY MATRIX (IN (qualifiedName | IDENTIFIER))? /* @alias MDL-DEPR090 */
     | showOrList consumedODataServicesKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList publishedODataServicesKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXTERNAL ENTITIES (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXTERNAL ACTIONS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList NAVIGATION
-    | showOrList NAVIGATION MENU_KW (qualifiedName | IDENTIFIER)?
+    | showOrList NAVIGATION /* @alias MDL-DEPR090 */
+    | showOrList NAVIGATION MENU_KW (qualifiedName | IDENTIFIER)? /* @alias MDL-DEPR090 */
     | showOrList NAVIGATION HOMES
     | showOrList DESIGN PROPERTIES (FOR widgetTypeKeyword)?
-    | showOrList STRUCTURE (DEPTH NUMBER_LITERAL)? (IN (qualifiedName | IDENTIFIER))? ALL?
+    | showOrList STRUCTURE (DEPTH NUMBER_LITERAL)? (IN (qualifiedName | IDENTIFIER))? ALL? /* @alias MDL-DEPR090 */
     | showOrList BUSINESS EVENT SERVICES (IN (qualifiedName | IDENTIFIER))?
     | showOrList BUSINESS EVENT CLIENTS (IN (qualifiedName | IDENTIFIER))?
     | showOrList BUSINESS EVENTS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList SETTINGS
+    | showOrList SETTINGS /* @alias MDL-DEPR090 */
     | showOrList FRAGMENTS
     | showOrList DATABASE CONNECTIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList consumedRestServicesKw (IN (qualifiedName | IDENTIFIER))?
@@ -180,8 +184,11 @@ describeStatement
     | DESCRIBE publishedODataServiceKw qualifiedName  // DESCRIBE PUBLISHED ODATA SERVICE Module.ServiceName
     | DESCRIBE EXTERNAL ENTITY qualifiedName    // DESCRIBE EXTERNAL ENTITY Module.EntityName
     | DESCRIBE NAVIGATION (qualifiedName | IDENTIFIER)?  // DESCRIBE NAVIGATION [profile]
-    | DESCRIBE WIDGET identifierOrKeyword                                      // DESCRIBE WIDGET combobox | DESCRIBE WIDGET 'com.mendix…'
-    | DESCRIBE WIDGET STRING_LITERAL                                           // …by full widget id, which contains dots
+    // R6: `widget type` names the kind of widget, so it cannot be read as a
+    // widget on a page. `describe widget <name>` is a deprecated alias.
+    | DESCRIBE WIDGET TYPE (identifierOrKeyword | STRING_LITERAL)              // DESCRIBE WIDGET TYPE combobox | DESCRIBE WIDGET TYPE 'com.mendix…'
+    | DESCRIBE WIDGET identifierOrKeyword /* @alias MDL-DEPR095 */             // DESCRIBE WIDGET combobox
+    | DESCRIBE WIDGET STRING_LITERAL /* @alias MDL-DEPR095 */                  // …by full widget id, which contains dots
     | DESCRIBE STYLING ON (PAGE | SNIPPET) qualifiedName (WIDGET IDENTIFIER)?  // DESCRIBE STYLING ON PAGE Module.Page [WIDGET name]
     | DESCRIBE CATALOG DOT (catalogTableName)  // DESCRIBE CATALOG.ENTITIES
     | DESCRIBE BUSINESS EVENT SERVICE qualifiedName  // DESCRIBE BUSINESS EVENT SERVICE Module.Name
@@ -210,6 +217,12 @@ describeStatement
     | DESCRIBE FRAGMENT identifierOrKeyword            // DESCRIBE FRAGMENT Name
     | DESCRIBE JAR DEPENDENCY (qualifiedName | IDENTIFIER) STRING_LITERAL   // DESCRIBE JAR DEPENDENCY ModuleName 'group:artifact'
     | DESCRIBE TRANSLATIONS (IN identifierOrKeyword)? FOR identifierOrKeyword   // DESCRIBE TRANSLATIONS [IN Module] FOR nl_NL
+    // R6: the single-thing reports that were `show` forms. Each builds the
+    // same statement as its `show` spelling (MDL-DEPR090).
+    | DESCRIBE APP SECURITY                                                     // DESCRIBE APP SECURITY
+    | DESCRIBE SECURITY MATRIX (IN (qualifiedName | IDENTIFIER))?              // DESCRIBE SECURITY MATRIX [IN Module]
+    | DESCRIBE STRUCTURE (DEPTH NUMBER_LITERAL)? (IN (qualifiedName | IDENTIFIER))? ALL?  // DESCRIBE STRUCTURE [DEPTH n] [IN Module] [ALL]
+    | DESCRIBE CONTEXT OF qualifiedName (DEPTH NUMBER_LITERAL)?                // DESCRIBE CONTEXT OF Module.Name [DEPTH n]
     | DESCRIBE qualifiedName    // DESCRIBE Module.Name — type auto-detected at execution time (must be LAST so all typed forms above win)
     ;
 

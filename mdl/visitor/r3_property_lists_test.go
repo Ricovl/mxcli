@@ -53,8 +53,8 @@ var r3Pairs = []r8Pair{
 		"alter entity M.Remote set ( AllowCreateChangeLocally: true );", deprecation.AllowCreateChangeLocally},
 	{"modify attribute", "alter entity M.E modify attribute Code String(20) default 'x';",
 		"alter entity M.E modify attribute Code: String(20) default 'x';", deprecation.ModifyAttributeColon},
-	{"modify column", "alter entity M.E modify column Amount Decimal;",
-		"alter entity M.E modify column Amount: Decimal;", deprecation.ModifyAttributeColon},
+	{"modify attribute", "alter entity M.E modify attribute Amount Decimal;",
+		"alter entity M.E modify attribute Amount: Decimal;", deprecation.ModifyAttributeColon},
 
 	// association clauses.
 	{"association type", "create association M.A_B from M.A to M.B type: Reference owner: Both storage: Table;",

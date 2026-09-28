@@ -238,4 +238,4 @@ A typical exploration workflow looks like this:
 
 This workflow mirrors how you would explore a project in Mendix Studio Pro -- browsing the project explorer, opening documents, and using Find to locate things.
 
-Next, learn how to get a compact overview of the entire project with [SHOW STRUCTURE](show-structure.md).
+Next, learn how to get a compact overview of the entire project with [DESCRIBE STRUCTURE](show-structure.md).

@@ -158,6 +158,26 @@ const (
 	// ako/mxcli#751).
 	PositionalTemplateArguments = "MDL-DEPR009"
 
+	// R6: one verb per job (ako/mxcli#755). A block of their own, 090-099, so
+	// the parallel phase-3 changes do not collide.
+
+	// ShowSingleThing is `show` (or `list`) on a form that names one thing:
+	// entity, association, page, navigation, app security, security matrix,
+	// structure, context, settings. Its canonical verb is `describe`.
+	ShowSingleThing = "MDL-DEPR090"
+	// UserRoleRemove is `alter user role … remove module roles`.
+	UserRoleRemove = "MDL-DEPR091"
+	// SettingsRemove is `alter settings language|workflows remove …`.
+	SettingsRemove = "MDL-DEPR092"
+	// ColumnForAttribute is `column` for `attribute` in alter entity.
+	ColumnForAttribute = "MDL-DEPR093"
+	// RestCall is the `rest call` microflow statement.
+	RestCall = "MDL-DEPR094"
+	// DescribeWidgetType is `describe widget <name>` for a widget definition.
+	DescribeWidgetType = "MDL-DEPR095"
+	// DefineFragment is `define fragment`.
+	DefineFragment = "MDL-DEPR096"
+
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
 
@@ -261,9 +281,9 @@ var entries = []Entry{
 		RemovedIn: 2,
 		Note: "Reported only for plurals and relationship queries, whose canonical " +
 			"form is `list`. Forms that name a single thing (`show entity X`, " +
-			"`show navigation`, `show project security`, …) become `describe`, and " +
-			"session state (`show version`, `show status`) a REPL command; they are " +
-			"not reported until those forms exist.",
+			"`show navigation`, `show project security`, …) become `describe` " +
+			"(MDL-DEPR090), and session state (`show version`, `show status`) a REPL " +
+			"command (R7), which is not reported until that command exists.",
 		Example:          "show entities in M;",
 		CanonicalExample: "list entities in M;",
 	},
@@ -350,7 +370,7 @@ var entries = []Entry{
 		Canonical:        "alter app security …",
 		Rewrite:          Rewrite{Structural: "security name: `project security` becomes `app security`"},
 		RemovedIn:        2,
-		Note:             "Studio Pro calls it App Security (R10). `show project security` becomes `describe app security` with the rest of R6, and is not reported here yet.",
+		Note:             "Studio Pro calls it App Security (R10). `show project security` becomes `describe app security` (MDL-DEPR090).",
 		Example:          "alter project security demo users off;",
 		CanonicalExample: "alter app security demo users off;",
 	},
@@ -452,9 +472,91 @@ var entries = []Entry{
 
 func init() {
 	entries = append(entries, r8Entries...)
+	entries = append(entries, r6Entries...)
 	entries = append(entries, r5Entries...)
 	entries = append(entries, r2Entries...)
 	entries = append(entries, r3Entries...)
+}
+
+// r6Entries are R6's verbs (ako/mxcli#755, PROPOSAL_mdl_beta_syntax_freeze.md
+// §3 R6).
+var r6Entries = []Entry{
+	{
+		Code:      ShowSingleThing,
+		Old:       "show entity|association|page|navigation|project security|security matrix|structure|context of|settings …",
+		Canonical: "describe entity|association|page|navigation|app security|security matrix|structure|context of|settings …",
+		Rewrite: Rewrite{Structural: "verb as `describe`: `show page X` -> `describe page X`, `show project security` -> " +
+			"`describe app security`; the same for `list` on these forms"},
+		RemovedIn: 2,
+		Note: "`show` is dropped (R6): plurals are listed, one thing is described. For page, app security, security " +
+			"matrix, structure and context the describe is the same statement. `show entity`, `show association`, " +
+			"`show navigation` and `show settings` print a summary where describe prints the full definition as MDL, " +
+			"so they keep their summary and `fmt --upgrade` reports them instead of rewriting them.",
+		Example:          "show security matrix in M;",
+		CanonicalExample: "describe security matrix in M;",
+	},
+	{
+		Code:             UserRoleRemove,
+		Old:              "alter user role R remove module roles (…)",
+		Canonical:        "alter user role R drop module roles (…)",
+		Rewrite:          Rewrite{Token: "remove", Replacement: "drop"},
+		RemovedIn:        2,
+		Note:             "An alter adds and drops its children (R6), as `alter entity … drop attribute` does.",
+		Example:          "alter user role Clerk remove module roles (M.User);",
+		CanonicalExample: "alter user role Clerk drop module roles (M.User);",
+	},
+	{
+		Code:             SettingsRemove,
+		Old:              "alter settings language remove '…' / alter settings workflows remove group '…'",
+		Canonical:        "alter settings language drop '…' / alter settings workflows drop group '…'",
+		Rewrite:          Rewrite{Token: "remove", Replacement: "drop"},
+		RemovedIn:        2,
+		Note:             "An alter adds and drops its children (R6). `modify` and `add or modify` are unchanged for now.",
+		Example:          "alter settings language remove 'ar_SD';",
+		CanonicalExample: "alter settings language drop 'ar_SD';",
+	},
+	{
+		Code:             ColumnForAttribute,
+		Old:              "alter entity E add|rename|modify|drop column …",
+		Canonical:        "alter entity E add|rename|modify|drop attribute …",
+		Rewrite:          Rewrite{Token: "column", Replacement: "attribute"},
+		RemovedIn:        2,
+		Note:             "An entity has attributes; `column` was a synonym in four alter entity actions.",
+		Example:          "alter entity M.E drop column Note;",
+		CanonicalExample: "alter entity M.E drop attribute Note;",
+	},
+	{
+		Code:      RestCall,
+		Old:       "rest call get|post|… 'url' …",
+		Canonical: "call rest service get|post|… 'url' …",
+		Rewrite:   Rewrite{Structural: "statement keyword: `rest call` becomes `call rest service`"},
+		RemovedIn: 2,
+		Note: "Studio Pro's name for the activity, in the `call <kind>` pattern of every other call (R6). " +
+			"The clauses after the method are unchanged.",
+		Example:          "create microflow M.F () begin $R = rest call get 'https://example.com' returns string; end;",
+		CanonicalExample: "create microflow M.F () begin $R = call rest service get 'https://example.com' returns string; end;",
+	},
+	{
+		Code:      DescribeWidgetType,
+		Old:       "describe widget <name>",
+		Canonical: "describe widget type <name>",
+		Rewrite:   Rewrite{Structural: "`type` after `widget`: `describe widget combobox` -> `describe widget type combobox`"},
+		RemovedIn: 2,
+		Note: "`widget type` asks which kind of widget, and cannot be read as a widget on a page " +
+			"(`describe fragment … widget`, `describe styling … widget`).",
+		Example:          "describe widget combobox;",
+		CanonicalExample: "describe widget type combobox;",
+	},
+	{
+		Code:             DefineFragment,
+		Old:              "define fragment F as { … }",
+		Canonical:        "create fragment F as { … }",
+		Rewrite:          Rewrite{Token: "define", Replacement: "create"},
+		RemovedIn:        2,
+		Note:             "`create` is the verb every other definition uses (R6). A fragment is still session-scoped and unqualified.",
+		Example:          "define fragment Header as { dynamictext t (Content: 'x') };",
+		CanonicalExample: "create fragment Header as { dynamictext t (Content: 'x') };",
+	},
 }
 
 // r5Entries are the rest of R5's spellings (ako/mxcli#753), kept apart for the
@@ -756,12 +858,12 @@ var r8Entries = []Entry{
 	},
 	{
 		Code:             ReturnsNone,
-		Old:              "rest call … returns none",
-		Canonical:        "rest call … returns nothing",
+		Old:              "call rest service … returns none",
+		Canonical:        "call rest service … returns nothing",
 		Rewrite:          Rewrite{Token: "none", Replacement: "nothing"},
 		RemovedIn:        2,
-		Example:          "create microflow M.F () begin rest call get 'https://example.com' returns none; end;",
-		CanonicalExample: "create microflow M.F () begin rest call get 'https://example.com' returns nothing; end;",
+		Example:          "create microflow M.F () begin call rest service get 'https://example.com' returns none; end;",
+		CanonicalExample: "create microflow M.F () begin call rest service get 'https://example.com' returns nothing; end;",
 	},
 }
 

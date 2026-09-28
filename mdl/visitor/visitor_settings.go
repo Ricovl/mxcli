@@ -48,25 +48,25 @@ func (b *Builder) ExitAlterSettingsClause(ctx *parser.AlterSettingsClauseContext
 	} else if ctx.SettingsSection() != nil && ctx.GROUP() != nil {
 		// ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP 'Approvers' [( Description: '…' )]
 		// ALTER SETTINGS WORKFLOWS MODIFY          GROUP 'Approvers'  ( Description: '…' )
-		// ALTER SETTINGS WORKFLOWS REMOVE          GROUP 'Approvers'
+		// ALTER SETTINGS WORKFLOWS DROP            GROUP 'Approvers' (REMOVE: MDL-DEPR092)
 		stmt.Section = settingsSectionName(ctx.SettingsSection())
 		stmt.UpsertGroup = ctx.ADD() != nil && ctx.OR() != nil && ctx.MODIFY() != nil
 		stmt.AddGroup = ctx.ADD() != nil && !stmt.UpsertGroup
 		stmt.ModifyGroup = ctx.MODIFY() != nil && !stmt.UpsertGroup
-		stmt.RemoveGroup = ctx.REMOVE() != nil
+		stmt.RemoveGroup = ctx.DROP() != nil || ctx.REMOVE() != nil
 		if lit := ctx.STRING_LITERAL(); lit != nil {
 			stmt.GroupName = unquoteStringLit(lit)
 		}
 		collectSettingsItemOptions(ctx.SettingsItemOptions(), stmt.Properties)
-	} else if ctx.SettingsSection() != nil && (ctx.ADD() != nil || ctx.MODIFY() != nil || ctx.REMOVE() != nil) {
+	} else if ctx.SettingsSection() != nil && (ctx.ADD() != nil || ctx.MODIFY() != nil || ctx.DROP() != nil || ctx.REMOVE() != nil) {
 		// ALTER SETTINGS LANGUAGE ADD    'ar_SD' [( key: value, … )]
 		// ALTER SETTINGS LANGUAGE MODIFY 'ar_SD'  ( key: value, … )
-		// ALTER SETTINGS LANGUAGE REMOVE 'ar_SD'
+		// ALTER SETTINGS LANGUAGE DROP   'ar_SD' (REMOVE: MDL-DEPR092)
 		stmt.Section = settingsSectionName(ctx.SettingsSection())
 		stmt.UpsertLanguage = ctx.ADD() != nil && ctx.OR() != nil && ctx.MODIFY() != nil
 		stmt.AddLanguage = ctx.ADD() != nil && !stmt.UpsertLanguage
 		stmt.ModifyLanguage = ctx.MODIFY() != nil && !stmt.UpsertLanguage
-		stmt.RemoveLanguage = ctx.REMOVE() != nil
+		stmt.RemoveLanguage = ctx.DROP() != nil || ctx.REMOVE() != nil
 		if lit := ctx.STRING_LITERAL(); lit != nil {
 			stmt.LanguageCode = unquoteStringLit(lit)
 		}

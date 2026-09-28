@@ -17,12 +17,12 @@
     ALTER SETTINGS LANGUAGE ( key: value, ... )
     ALTER SETTINGS LANGUAGE ADD [OR MODIFY] 'code' [( option: value, ... )]
     ALTER SETTINGS LANGUAGE MODIFY 'code' ( option: value, ... )
-    ALTER SETTINGS LANGUAGE REMOVE 'code' 
+    ALTER SETTINGS LANGUAGE DROP 'code' 
 
     ALTER SETTINGS WORKFLOWS ( key: value, ... )
     ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP 'name' [( Description: 'text' )]
     ALTER SETTINGS WORKFLOWS MODIFY GROUP 'name' ( Description: 'text' )
-    ALTER SETTINGS WORKFLOWS REMOVE GROUP 'name'
+    ALTER SETTINGS WORKFLOWS DROP GROUP 'name'
 
 ## Description
 
@@ -117,7 +117,7 @@ ALTER SETTINGS LANGUAGE ADD 'de_DE';
 ALTER SETTINGS LANGUAGE ADD 'ar_SD' (CheckCompleteness: true, CustomDateFormat: 'yyyy-MM-dd');
 ALTER SETTINGS LANGUAGE ADD OR MODIFY 'de_DE' (CheckCompleteness: true);
 ALTER SETTINGS LANGUAGE MODIFY 'de_DE' (CustomDateFormat: 'dd.MM.yyyy');
-ALTER SETTINGS LANGUAGE REMOVE 'de_DE';
+ALTER SETTINGS LANGUAGE DROP 'de_DE';
 ```
 
 Options: `CheckCompleteness` (report errors for texts with no translation in this
@@ -150,7 +150,7 @@ ALTER SETTINGS WORKFLOWS ADD OR MODIFY GROUP 'Approvers' (Description: 'Approves
 -- changes only the options it names
 ALTER SETTINGS WORKFLOWS MODIFY GROUP 'Reviewers' (Description: 'Second-line review');
 
-ALTER SETTINGS WORKFLOWS REMOVE GROUP 'Reviewers';
+ALTER SETTINGS WORKFLOWS DROP GROUP 'Reviewers';
 ```
 
 `Description` is the only option, because a workflow group stores a name and a

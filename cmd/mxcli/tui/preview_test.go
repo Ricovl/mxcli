@@ -22,8 +22,8 @@ func TestBuildDescribeCmd(t *testing.T) {
 		{"DemoUser", "demo_user", "DESCRIBE DEMO USER 'demo_user'"},
 
 		// Virtual root node: show structure overview
-		{"systemoverview", "SystemOverview", "SHOW STRUCTURE DEPTH 2"},
-		{"SystemOverview", "SystemOverview", "SHOW STRUCTURE DEPTH 2"},
+		{"systemoverview", "SystemOverview", "DESCRIBE STRUCTURE DEPTH 2"},
+		{"SystemOverview", "SystemOverview", "DESCRIBE STRUCTURE DEPTH 2"},
 
 		// Virtual container nodes: no valid DESCRIBE, return empty string
 		{"security", "", ""},

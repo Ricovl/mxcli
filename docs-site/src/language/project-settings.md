@@ -78,7 +78,7 @@ the step that makes translating an app do anything.
 ALTER SETTINGS LANGUAGE ( <Key>: <Value>, ... );
 ALTER SETTINGS LANGUAGE ADD [OR MODIFY] '<code>' [( <option>: <value>, ... )];
 ALTER SETTINGS LANGUAGE MODIFY '<code>' ( <option>: <value>, ... );
-ALTER SETTINGS LANGUAGE REMOVE '<code>';
+ALTER SETTINGS LANGUAGE DROP '<code>';
 ```
 
 ```sql
@@ -95,7 +95,7 @@ ALTER SETTINGS LANGUAGE MODIFY 'de_DE' (CheckCompleteness: true);
 ALTER SETTINGS LANGUAGE ( DefaultLanguageCode: 'de_DE' );
 
 -- disable it
-ALTER SETTINGS LANGUAGE REMOVE 'de_DE';
+ALTER SETTINGS LANGUAGE DROP 'de_DE';
 ```
 
 A language is identified by its **code** alone — Studio Pro's "Arabic, Sudan" is

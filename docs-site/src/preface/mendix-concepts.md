@@ -205,7 +205,7 @@ Project
 In mxcli, you can explore this structure with:
 
 ```sql
-SHOW STRUCTURE DEPTH 2;
+DESCRIBE STRUCTURE DEPTH 2;
 ```
 
 ## What's Next

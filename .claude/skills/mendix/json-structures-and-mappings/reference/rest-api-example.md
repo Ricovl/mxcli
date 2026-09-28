@@ -139,7 +139,7 @@ create microflow Integration.GetCountryInfo ()
 returns string as $json
 begin
   -- Fetch country data from REST API
-  $response = rest call get 'https://restcountries.com/v3.1/name/netherlands'
+  $response = call rest service get 'https://restcountries.com/v3.1/name/netherlands'
     header Accept = 'application/json'
     timeout 30
     returns string

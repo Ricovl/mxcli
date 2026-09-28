@@ -93,7 +93,9 @@ func TestDocumentTypeNamesLeaveOtherUsesAlone(t *testing.T) {
 		"create microflow M.F () begin call microflow M.G() in queue M.Jobs; end;",
 		"drop published rest service M.Api;",
 		"list consumed mcp services;",
-		"show project security;",
+		// `project security` after `show` is R6's MDL-DEPR090 (the whole
+		// phrase becomes `describe app security`), not R10's name alias.
+		"describe app security;",
 		"alter settings workflows ( UserEntity: 'System.User' );",
 	} {
 		t.Run(src, func(t *testing.T) {

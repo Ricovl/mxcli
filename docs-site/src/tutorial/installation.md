@@ -17,7 +17,7 @@ The Codespace comes with mxcli, a JDK, Docker-in-Docker, Claude Code, and a samp
 Once the Codespace is running:
 
 ```bash
-./mxcli -p App.mpr -c "SHOW STRUCTURE"          # Explore the project
+./mxcli -p App.mpr -c "DESCRIBE STRUCTURE"          # Explore the project
 ./mxcli exec scripts/01-explore.mdl -p App.mpr   # Run an example script
 ./mxcli                                           # Start interactive REPL
 ```

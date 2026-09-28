@@ -1,8 +1,8 @@
-# SHOW STRUCTURE
+# DESCRIBE STRUCTURE
 
 ## Synopsis
 
-    SHOW STRUCTURE [DEPTH 1|2|3] [IN <module>] [ALL]
+    DESCRIBE STRUCTURE [DEPTH 1|2|3] [IN <module>] [ALL]
 
 ## Description
 
@@ -26,25 +26,25 @@ This is useful for getting a quick birds-eye view of what a project contains wit
 Show module-level summary (one line per module):
 
 ```sql
-SHOW STRUCTURE DEPTH 1
+DESCRIBE STRUCTURE DEPTH 1
 ```
 
 Show default structure (documents with signatures, user modules only):
 
 ```sql
-SHOW STRUCTURE
+DESCRIBE STRUCTURE
 ```
 
-Show structure of a single module:
+Describe structure of a single module:
 
 ```sql
-SHOW STRUCTURE IN MyFirstModule
+DESCRIBE STRUCTURE IN MyFirstModule
 ```
 
 Show full detail including all modules:
 
 ```sql
-SHOW STRUCTURE DEPTH 3 ALL
+DESCRIBE STRUCTURE DEPTH 3 ALL
 ```
 
 ## See Also

@@ -238,7 +238,7 @@ DISCONNECT;`,
 			"show navigation", "describe navigation", "navigation menu",
 			"navigation homes", "list profiles",
 		},
-		Syntax:  "SHOW NAVIGATION;\nSHOW NAVIGATION MENU;\nSHOW NAVIGATION MENU <profile>;\nSHOW NAVIGATION HOMES;\nDESCRIBE NAVIGATION;\nDESCRIBE NAVIGATION <profile>;",
+		Syntax:  "SHOW NAVIGATION;\nSHOW NAVIGATION MENU;\nSHOW NAVIGATION MENU <profile>;\nLIST NAVIGATION HOMES;\nDESCRIBE NAVIGATION;\nDESCRIBE NAVIGATION <profile>;",
 		Example: "SHOW NAVIGATION;\nSHOW NAVIGATION MENU Responsive;\nDESCRIBE NAVIGATION Responsive;",
 	})
 
@@ -278,7 +278,7 @@ DISCONNECT;`,
 -- module roles called Administrator in three modules). A qualified name here
 -- gives a project Mendix cannot LOAD -- StorageLoadException "not a valid
 -- UserRoleIdentifier", raised before checking runs, so there is no error code
--- and no line number. List the real ones with SHOW USER ROLES.
+-- and no line number. List the real ones with LIST USER ROLES.
 --
 -- ICON is a qualified name into an ICON COLLECTION (Atlas_Core.Atlas,
 -- Atlas_Core.Atlas_Filled, Atlas_Core.Atlas_Styling, or your own) -- a model
@@ -369,8 +369,8 @@ CREATE OR REPLACE NAVIGATION TabletOffline
 			"settings", "project settings", "configuration",
 			"startup", "shutdown", "hash algorithm", "java version",
 		},
-		Syntax:  "SHOW SETTINGS;\nDESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION '<name>';   -- just one configuration\nALTER SETTINGS RUNTIME (<key>: <value>, ...);   -- MODEL is a deprecated alias\nALTER SETTINGS CONFIGURATION '<name>' (<key>: <value>, ...);",
-		Example: "SHOW SETTINGS;\nALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Module.MF_Startup');",
+		Syntax:  "DESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION '<name>';   -- just one configuration\nALTER SETTINGS RUNTIME (<key>: <value>, ...);   -- MODEL is a deprecated alias\nALTER SETTINGS CONFIGURATION '<name>' (<key>: <value>, ...);",
+		Example: "ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Module.MF_Startup');",
 		SeeAlso: []string{"settings.show", "settings.alter"},
 	})
 
@@ -445,8 +445,8 @@ create or modify translations in Administration for nl_NL (
 		Keywords: []string{
 			"show settings", "describe settings", "list settings",
 		},
-		Syntax:  "SHOW SETTINGS;\nDESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION '<name>';",
-		Example: "SHOW SETTINGS;\nDESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION 'Default';",
+		Syntax:  "DESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION '<name>';",
+		Example: "DESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION 'Default';",
 	})
 
 	Register(SyntaxFeature{
@@ -468,11 +468,11 @@ ALTER SETTINGS LANGUAGE (DefaultLanguageCode: '<code>');
 ALTER SETTINGS LANGUAGE ADD '<code>' [(CheckCompleteness: true, CustomDateFormat: '<fmt>')];
 ALTER SETTINGS LANGUAGE ADD OR MODIFY '<code>' [(...)];
 ALTER SETTINGS LANGUAGE MODIFY '<code>' (CheckCompleteness: true, ...);
-ALTER SETTINGS LANGUAGE REMOVE '<code>';
+ALTER SETTINGS LANGUAGE DROP '<code>';
 ALTER SETTINGS WORKFLOWS (UserEntity: '<qualifiedName>');
 ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP '<name>' [(Description: '<text>')];
 ALTER SETTINGS WORKFLOWS MODIFY GROUP '<name>' (Description: '<text>');
-ALTER SETTINGS WORKFLOWS REMOVE GROUP '<name>';
+ALTER SETTINGS WORKFLOWS DROP GROUP '<name>';
 CREATE [OR MODIFY] CONFIGURATION '<name>' [(<key>: <value>, ...)];
 DROP CONFIGURATION '<name>';
 
@@ -499,7 +499,7 @@ CREATE CONFIGURATION 'Production' (
 ALTER SETTINGS LANGUAGE ADD 'de_DE';
 ALTER SETTINGS LANGUAGE ADD 'ar_SD' (CheckCompleteness: true);
 ALTER SETTINGS LANGUAGE MODIFY 'ar_SD' (CustomDateFormat: 'yyyy-MM-dd');
-ALTER SETTINGS LANGUAGE REMOVE 'de_DE';
+ALTER SETTINGS LANGUAGE DROP 'de_DE';
 
 -- ADD OR MODIFY is the upsert, and what DESCRIBE emits: it enables a language
 -- that is not there and changes one that is, so a described project replays onto
@@ -535,7 +535,7 @@ ALTER SETTINGS LANGUAGE REMOVE 'de_DE';
 ALTER SETTINGS WORKFLOWS ADD GROUP 'Approvers' (Description: 'Primary approval group');
 ALTER SETTINGS WORKFLOWS ADD GROUP 'Reviewers';
 ALTER SETTINGS WORKFLOWS MODIFY GROUP 'Reviewers' (Description: 'Second-line review');
-ALTER SETTINGS WORKFLOWS REMOVE GROUP 'Reviewers';
+ALTER SETTINGS WORKFLOWS DROP GROUP 'Reviewers';
 SHOW WORKFLOW GROUPS;
 
 -- Description is the ONLY option: a Settings$WorkflowGroup stores Name and
@@ -831,26 +831,26 @@ DROP SCHEDULED EVENT Ops.HourlyPing;`,
 
 	Register(SyntaxFeature{
 		Path:    "structure",
-		Summary: "SHOW STRUCTURE — compact project overview at configurable depth",
+		Summary: "DESCRIBE STRUCTURE — compact project overview at configurable depth",
 		Keywords: []string{
-			"structure", "show structure", "project overview",
+			"structure", "describe structure", "project overview",
 			"repo map", "module summary", "depth",
 		},
-		Syntax: "SHOW STRUCTURE [DEPTH 1|2|3] [IN <module>] [ALL];",
+		Syntax: "DESCRIBE STRUCTURE [DEPTH 1|2|3] [IN <module>] [ALL];",
 		Example: `-- Module counts only
-SHOW STRUCTURE DEPTH 1;
+DESCRIBE STRUCTURE DEPTH 1;
 
 -- Elements with signatures (default)
-SHOW STRUCTURE;
+DESCRIBE STRUCTURE;
 
 -- Full types and parameter names
-SHOW STRUCTURE DEPTH 3;
+DESCRIBE STRUCTURE DEPTH 3;
 
 -- Focus on one module
-SHOW STRUCTURE IN MyModule;
+DESCRIBE STRUCTURE IN MyModule;
 
 -- Include system modules
-SHOW STRUCTURE DEPTH 1 ALL;`,
+DESCRIBE STRUCTURE DEPTH 1 ALL;`,
 	})
 
 	// ── Move ────────────────────────────────────────────────────────────
@@ -939,7 +939,7 @@ LIST FOLDERS;
 mxcli -p app.mpr --json -c "LIST FOLDERS IN MyModule"
 
 -- Complements MOVE: MOVE places a document in a folder, LIST FOLDERS reads
--- the placement back. SHOW STRUCTURE is organised by document type at every
+-- the placement back. DESCRIBE STRUCTURE is organised by document type at every
 -- depth, so it never shows which folder a document sits in.
 --
 -- Empty folders are listed too (with [0]), and documents still at the module

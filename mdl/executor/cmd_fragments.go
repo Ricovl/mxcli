@@ -59,7 +59,7 @@ func describeFragment(ctx *ExecContext, name ast.QualifiedName) error {
 		return mdlerrors.NewNotFound("fragment", name.Name)
 	}
 
-	fmt.Fprintf(ctx.Output, "define fragment %s as {\n", frag.Name)
+	fmt.Fprintf(ctx.Output, "create fragment %s as {\n", frag.Name)
 	for _, w := range frag.Widgets {
 		outputASTWidgetMDL(ctx.Output, w, 1)
 	}

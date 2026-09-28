@@ -204,16 +204,16 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| List project security | `LIST PROJECT SECURITY;` | Displays security level, admin, demo users |
+| Describe app security | `DESCRIBE APP SECURITY;` | Displays security level, admin, demo users |
 | List module roles | `LIST MODULE ROLES [IN Module];` | All roles or filtered by module |
 | List user roles | `LIST USER ROLES;` | Project-level user roles |
 | List demo users | `LIST DEMO USERS;` | Configured demo users |
 | List access on element | `LIST ACCESS ON [ENTITY\|MICROFLOW\|PAGE\|NANOFLOW] Mod.Name;` | Which roles can access; a bare name means the entity |
-| List security matrix | `LIST SECURITY MATRIX [IN Module];` | Full access overview |
+| Describe security matrix | `DESCRIBE SECURITY MATRIX [IN Module];` | Full access overview |
 | Create module role | `CREATE MODULE ROLE Mod.Role [DESCRIPTION 'text'];` | |
 | Drop module role | `DROP MODULE ROLE Mod.Role;` | |
 | Create user role | `CREATE USER ROLE Name (Mod.Role, ...) [MANAGE ALL ROLES];` | Aggregates module roles |
-| Alter user role | `ALTER USER ROLE Name ADD\|REMOVE MODULE ROLES (Mod.Role, ...);` | |
+| Alter user role | `ALTER USER ROLE Name ADD\|DROP MODULE ROLES (Mod.Role, ...);` | |
 | Drop user role | `DROP USER ROLE [IF EXISTS] Name;` | `IF EXISTS` makes a cleanup script re-runnable |
 | Grant microflow access | `GRANT EXECUTE ON MICROFLOW Mod.MF TO Mod.Role, ...;` | |
 | Revoke microflow access | `REVOKE EXECUTE ON MICROFLOW Mod.MF FROM Mod.Role, ...;` | |
@@ -263,11 +263,11 @@ END WORKFLOW;
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| Structure overview | `LIST STRUCTURE;` | Depth 2 (elements with signatures), user modules only |
-| Module counts | `LIST STRUCTURE DEPTH 1;` | One line per module with element counts |
-| Full types | `LIST STRUCTURE DEPTH 3;` | Typed attributes, named parameters |
-| Filter by module | `LIST STRUCTURE IN ModuleName;` | Single module only |
-| Include all modules | `LIST STRUCTURE DEPTH 1 ALL;` | Include system/marketplace modules |
+| Structure overview | `DESCRIBE STRUCTURE;` | Depth 2 (elements with signatures), user modules only |
+| Module counts | `DESCRIBE STRUCTURE DEPTH 1;` | One line per module with element counts |
+| Full types | `DESCRIBE STRUCTURE DEPTH 3;` | Typed attributes, named parameters |
+| Filter by module | `DESCRIBE STRUCTURE IN ModuleName;` | Single module only |
+| Include all modules | `DESCRIBE STRUCTURE DEPTH 1 ALL;` | Include system/marketplace modules |
 
 ## Navigation
 
@@ -298,7 +298,7 @@ CREATE OR REPLACE NAVIGATION Responsive
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| List settings | `LIST SETTINGS;` | Overview of all settings parts |
+| Describe settings | `DESCRIBE SETTINGS;` | All settings parts, as MDL |
 | Describe settings | `DESCRIBE SETTINGS;` | Full MDL output (round-trippable) |
 | Alter model settings | `ALTER SETTINGS RUNTIME (Key: Value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
 | Alter configuration | `ALTER SETTINGS CONFIGURATION 'Name' (Key: Value, ...);` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
@@ -514,7 +514,7 @@ CLI subcommand: `mxcli sql --driver postgres --dsn '...' "SELECT 1"` (see `mxcli
 | List callees | `LIST CALLEES OF Module.Name;` | What this element calls |
 | List references | `LIST REFERENCES OF Module.Name;` | All references to/from |
 | List impact | `LIST IMPACT OF Module.Name;` | Impact analysis |
-| List context | `LIST CONTEXT OF Module.Name;` | Surrounding context |
+| Describe context | `DESCRIBE CONTEXT OF Module.Name;` | Surrounding context |
 | Full-text search | `SEARCH '<keyword>';` | Search across all strings and source |
 
 Cross-reference commands require `REFRESH CATALOG FULL` to populate reference data.
