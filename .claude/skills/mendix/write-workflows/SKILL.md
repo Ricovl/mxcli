@@ -271,7 +271,9 @@ alter workflow Module.ApprovalFlow {
 over a caption that repeats it. An ambiguous target is refused, and the error
 lists the matches (`@1 user task Review, @2 decision Review`) — mxcli never
 guesses. Every target is resolved before anything changes, so a refused
-statement leaves the workflow untouched.
+statement leaves the workflow untouched. The flow's start activity (`start1`,
+caption `'Start'`) is addressable too, but nothing goes before it — `insert
+before start1` is refused (it would be `CE9526`); use `insert after start1`.
 
 Workflow keys: `Display`, `Description`, `ExportLevel`, `DueDate`,
 `OverviewPage`, `Parameter: $WorkflowContext: Module.Entity`. Activity keys
@@ -450,9 +452,9 @@ values. The full list and the System **entities** are in `system-module`.
   reset it.** An event sub-process and a workflow event handler subscribed to no
   event types are set in Studio Pro.
   `create or modify` on a workflow that holds any of them is refused with the
-  list, and so is `alter workflow … replace activity` on an activity that holds
-  one. Change such a workflow with `alter workflow … set activity …` (it edits
-  the stored document and keeps the rest) or in Studio Pro.
+  list, and so is `alter workflow … { replace X with { … } }` on an activity that holds
+  one. Change such a workflow with `alter workflow … { set ( … ) on X; }` (it
+  edits the stored document and keeps the rest) or in Studio Pro.
 
 - **`end workflow` ends the whole workflow from inside a branch** — the workflow
   counterpart of a microflow's `return`. `return;` itself is refused in a workflow
