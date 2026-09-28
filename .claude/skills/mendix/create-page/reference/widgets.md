@@ -111,7 +111,7 @@ must exist in the icon collection or MxBuild rejects it (CE1613).
 `add`, not `plus`). List them:
 
 ```
-show icon collections                              -- the project's icon sets
+list icon collections                              -- the project's icon sets
 describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference form
 ```
 

@@ -145,3 +145,37 @@ func TestAllowlistRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// A test block (```mdl-test, what the test runner reads from a .md) is MDL, and
+// so is an untagged fence that parses: a deprecated spelling in either is
+// reported. An untagged fence is often not MDL at all (a shell transcript, a
+// tree), so one that parses in no context is not counted as a syntax finding.
+func TestMarkdownUnits_TestFencesAndUntaggedMDL(t *testing.T) {
+	doc := strings.Join([]string{
+		"```mdl-test",               // 1
+		"/** @test Old spelling */", // 2
+		"$H = head($L);",            // 3
+		"```",                       // 4
+		"```",                       // 5
+		"show entities in M;",       // 6
+		"```",                       // 7
+		"```",                       // 8
+		"src/",                      // 9: not MDL
+		"└── main.go",               // 10
+		"```",                       // 11
+		"```",                       // 12
+		"list entities in M;",       // 13: control, canonical
+		"```",                       // 14
+	}, "\n")
+	var got []Finding
+	for _, u := range MarkdownUnits("d.md", doc) {
+		got = append(got, Check(u)...)
+	}
+	want := []string{"MDL-DEPR003", "MDL-DEPR002"}
+	if !reflect.DeepEqual(classes(got), want) {
+		t.Fatalf("findings %v, want %v", got, want)
+	}
+	if got[0].Line != 3 || got[1].Line != 6 {
+		t.Errorf("lines %d, %d; want 3, 6", got[0].Line, got[1].Line)
+	}
+}

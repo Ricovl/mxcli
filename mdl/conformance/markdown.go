@@ -8,12 +8,18 @@ import (
 
 // MarkdownLanguages are the fence info strings that hold MDL. The docs fence
 // most MDL as ```sql, for the highlighting; a block that is not MDL — a
-// counterexample, a template, real SQL — belongs in a ```text fence.
-var MarkdownLanguages = map[string]bool{"mdl": true, "sql": true}
+// counterexample, a template, real SQL — belongs in a ```text fence. A
+// ```mdl-test fence is a test block, the MDL the test runner reads from a .md.
+var MarkdownLanguages = map[string]bool{"mdl": true, "sql": true, "mdl-test": true}
 
 // MarkdownUnits returns the MDL fenced blocks of a markdown document. A fence
 // may be indented (a block inside a list item); the indentation of its opening
 // line is removed from its content.
+//
+// An untagged fence is returned too, as a Lenient unit: it holds MDL often
+// enough that a deprecated spelling in one must be seen, and something else (a
+// transcript, a file tree) often enough that one that does not parse is not a
+// finding.
 func MarkdownUnits(source, content string) []Unit {
 	var out []Unit
 	lines := strings.Split(content, "\n")
@@ -27,12 +33,12 @@ func MarkdownUnits(source, content string) []Unit {
 		for end < len(lines) && !closesFence(lines[end], marker) {
 			end++
 		}
-		if MarkdownLanguages[lang] {
+		if MarkdownLanguages[lang] || lang == "" {
 			body := make([]string, 0, end-start)
 			for _, l := range lines[start:min(end, len(lines))] {
 				body = append(body, dedent(l, indent))
 			}
-			out = append(out, Unit{Source: source, Line: start + 1, Text: strings.Join(body, "\n")})
+			out = append(out, Unit{Source: source, Line: start + 1, Text: strings.Join(body, "\n"), Lenient: lang == ""})
 		}
 		i = end
 	}

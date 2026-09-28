@@ -253,7 +253,7 @@ And before changing an entity, ask which profiles download it — an offline
 change reaches every device that already synced:
 
 ```
-show references to MyModule.Order
+list references to MyModule.Order
 ```
 
 The `sync` row names the profile. Every mode produces one, **including the

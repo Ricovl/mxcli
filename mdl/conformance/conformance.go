@@ -48,6 +48,9 @@ type Unit struct {
 	// a documentation block, which may be a fragment and is tried in each
 	// context a fragment is written for (Contexts).
 	Script bool
+	// Lenient says Text may not be MDL at all (an untagged markdown fence): its
+	// deprecated spellings are reported, but not failing to parse.
+	Lenient bool
 }
 
 // Finding is one non-conforming use.
@@ -102,7 +105,17 @@ func Check(u Unit) []Finding {
 	if u.Script {
 		return checkScript(u)
 	}
-	return checkBlock(u)
+	findings := checkBlock(u)
+	if !u.Lenient {
+		return findings
+	}
+	kept := findings[:0]
+	for _, f := range findings {
+		if f.Class != ClassSyntax {
+			kept = append(kept, f)
+		}
+	}
+	return kept
 }
 
 func checkScript(u Unit) []Finding {
