@@ -684,10 +684,10 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Access for members added later | — | A rule's default for new members is derived from the grant: `write *` → ReadWrite, `read *` → ReadOnly, member lists alone → **None**. So an attribute added later is granted None on a member-listed rule — clean build, blank field. `alter entity … add attribute` warns and prints the widening grant. The rule's *default* decides this, not how narrow its member list is |
 | Revoke entity access | `revoke all on entity Mod.Entity from Mod.Role;` | Full revoke — removes entire rule |
 | Revoke entity access (partial) | `revoke read (attr) on entity Mod.Entity from Mod.Role;` | Partial — downgrades specific rights |
-| Set security level | `alter app security level off\|prototype\|production;` | |
-| Toggle demo users | `alter app security demo users on\|off;` | |
-| Enable guest access | `alter app security guest access on role UserRole;` | Anonymous users. The role is what visitors get — its entity access is the public surface. Mendix fails the build without one (CE0133), so `on` is refused unless a role is given or already stored. mxcli validates the role exists; Mendix does not |
-| Disable guest access | `alter app security guest access off;` | Keeps the stored role, so re-enabling needs no `role` clause |
+| Set security level | `alter app security ( SecurityLevel: off\|prototype\|production );` | The clause forms (`level …`, `demo users on`, `guest access on role R`, `strict mode on`) warn MDL-DEPR133 |
+| Toggle demo users | `alter app security ( EnableDemoUsers: true\|false );` | Several keys may go in one list |
+| Enable guest access | `alter app security ( EnableGuestAccess: true, GuestUserRole: UserRole );` | Anonymous users. The role is what visitors get — its entity access is the public surface. Mendix fails the build without one (CE0133), so `on` is refused unless a role is given or already stored. mxcli validates the role exists; Mendix does not |
+| Disable guest access | `alter app security ( EnableGuestAccess: false );` | Keeps the stored role, so re-enabling needs no `GuestUserRole` |
 | Create demo user | `create demo user 'name' password 'pass' [entity Module.Entity] (UserRole, ...);` | |
 | Drop demo user | `drop demo user [if exists] 'name';` | `if exists` makes a cleanup script re-runnable |
 | Update security | `update security [[in] Module];` | Re-syncs access rules with their domain model — Studio Pro's **Update security** button, headless. Repairs **CE0066** "Entity access is out of date", which a model authored elsewhere can carry (a module imported or updated outside Studio Pro). Not needed after mxcli's own writes: every write path reconciles as it writes. Writes nothing when the rules already match, and skips `System` |

@@ -72,9 +72,10 @@ func TestDocumentTypeNamesFollowStudioPro(t *testing.T) {
 		{deprecation.JSONStructureSample, "create or modify json structure M.J folder 'J' snippet $${\"a\": 1}$$;",
 			"create or modify json structure M.J folder 'J' sample $${\"a\": 1}$$;"},
 		// app security
-		{deprecation.AppSecurity, "alter project security level production;", "alter app security level production;"},
-		{deprecation.AppSecurity, "alter project security guest access on role Guest;", "alter app security guest access on role Guest;"},
-		{deprecation.AppSecurity, "alter project security strict mode on;", "alter app security strict mode on;"},
+		{deprecation.AppSecurity, "alter project security ( SecurityLevel: production );", "alter app security ( SecurityLevel: production );"},
+		{deprecation.AppSecurity, "alter project security ( EnableGuestAccess: true, GuestUserRole: Guest );",
+			"alter app security ( EnableGuestAccess: true, GuestUserRole: Guest );"},
+		{deprecation.AppSecurity, "alter project security ( StrictMode: true );", "alter app security ( StrictMode: true );"},
 		// settings runtime
 		{deprecation.SettingsRuntime, "alter settings model ( BcryptCost: 11, HashAlgorithm: 'BCrypt' );", "alter settings runtime ( BcryptCost: 11, HashAlgorithm: 'BCrypt' );"},
 		{deprecation.SettingsRuntime, "ALTER SETTINGS MODEL (BcryptCost: 11);", "ALTER SETTINGS RUNTIME (BcryptCost: 11);"},

@@ -52,13 +52,13 @@ DROP DEMO USER 'demo_admin';
 Demo users only appear on the login screen when enabled in project security:
 
 ```sql
-ALTER APP SECURITY DEMO USERS ON;
+ALTER APP SECURITY ( EnableDemoUsers: TRUE );
 ```
 
 To hide them:
 
 ```sql
-ALTER APP SECURITY DEMO USERS OFF;
+ALTER APP SECURITY ( EnableDemoUsers: FALSE );
 ```
 
 ## Listing Demo Users
@@ -71,8 +71,8 @@ SHOW DEMO USERS;
 
 ```sql
 -- Enable demo users and set prototype security
-ALTER APP SECURITY LEVEL PROTOTYPE;
-ALTER APP SECURITY DEMO USERS ON;
+ALTER APP SECURITY ( SecurityLevel: PROTOTYPE );
+ALTER APP SECURITY ( EnableDemoUsers: TRUE );
 
 -- Create demo accounts for each role
 CREATE DEMO USER 'demo_admin' PASSWORD 'Admin123!'

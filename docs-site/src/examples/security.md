@@ -70,7 +70,7 @@ CREATE OR MODIFY DEMO USER 'sales_rep' PASSWORD 'Password1!' (SalesRep);
 CREATE OR MODIFY DEMO USER 'manager' PASSWORD 'Password1!' (SalesManager);
 
 -- Enable demo users in project security
-ALTER APP SECURITY DEMO USERS ON;
+ALTER APP SECURITY ( EnableDemoUsers: TRUE );
 ```
 
 ## Additive Grants

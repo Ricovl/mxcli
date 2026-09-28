@@ -457,7 +457,7 @@ grant view on page MyModule.Product_Edit to MyModule.Admin, MyModule.Viewer;
 grant create, delete, read *, write * on entity MyModule.Product to MyModule.Admin;
 grant read * on entity MyModule.Product to MyModule.Viewer;
 create user role AppAdmin (MyModule.Admin) manage all roles;
-alter project security level production;
+alter app security ( SecurityLevel: production );
 show security matrix in MyModule;
 
 -- Search

@@ -208,6 +208,9 @@ const (
 	// JSONStructureSample is a JSON structure's `snippet '…'`: the example
 	// JSON is its sample, and `snippet` is a page document type (R10).
 	JSONStructureSample = "MDL-DEPR132"
+	// AppSecurityClause is `alter app security level|demo users|guest
+	// access|strict mode …`: the clause forms of what is a property list.
+	AppSecurityClause = "MDL-DEPR133"
 
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
@@ -403,8 +406,8 @@ var entries = []Entry{
 		Rewrite:          Rewrite{Structural: "security name: `project security` becomes `app security`"},
 		RemovedIn:        2,
 		Note:             "Studio Pro calls it App Security (R10). `show project security` becomes `describe app security` (MDL-DEPR090).",
-		Example:          "alter project security demo users off;",
-		CanonicalExample: "alter app security demo users off;",
+		Example:          "alter project security ( EnableDemoUsers: false );",
+		CanonicalExample: "alter app security ( EnableDemoUsers: false );",
 	},
 	{
 		Code:             SettingsRuntime,
@@ -676,6 +679,17 @@ var r6Entries = []Entry{
 		Note:             "The example JSON the structure is derived from is its sample (R10); `snippet` is a page document type.",
 		Example:          "create json structure M.J snippet '{\"a\": 1}';",
 		CanonicalExample: "create json structure M.J sample '{\"a\": 1}';",
+	},
+	{
+		Code:      AppSecurityClause,
+		Old:       "alter app security level …|demo users on|off|guest access on [role R]|off|strict mode on|off",
+		Canonical: "alter app security ( SecurityLevel: …, EnableDemoUsers: …, EnableGuestAccess: …, GuestUserRole: R, StrictMode: … )",
+		Rewrite:   Rewrite{Structural: "clause as a property list: `level production` -> `( SecurityLevel: production )`"},
+		RemovedIn: 2,
+		Note: "App security is a document with properties, set like every other one (R10, R3). The keys are " +
+			"Studio Pro's property names, and one statement can set several.",
+		Example:          "alter app security guest access on role Guest;",
+		CanonicalExample: "alter app security ( EnableGuestAccess: true, GuestUserRole: Guest );",
 	},
 }
 

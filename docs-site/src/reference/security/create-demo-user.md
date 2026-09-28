@@ -12,7 +12,7 @@ CREATE DEMO USER 'username' PASSWORD 'password'
 
 Creates a demo user for development and testing. Demo users appear on the login screen when running the application locally, allowing quick login without manual credential entry.
 
-Demo users require that project security has demo users enabled (`ALTER APP SECURITY DEMO USERS ON`).
+Demo users require that project security has demo users enabled (`ALTER APP SECURITY ( EnableDemoUsers: TRUE )`).
 
 The optional `ENTITY` clause specifies which entity (a specialization of `System.User`) stores the demo user. If omitted, the system auto-detects the unique `System.User` subtype in the project (typically `Administration.Account`).
 

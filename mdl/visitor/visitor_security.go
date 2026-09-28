@@ -3,7 +3,12 @@
 package visitor
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
@@ -420,10 +425,29 @@ func (b *Builder) ExitRevokePublishedRestServiceAccessStatement(ctx *parser.Revo
 	b.statements = append(b.statements, stmt)
 }
 
-// ExitAlterProjectSecurityStatement handles ALTER PROJECT SECURITY commands
+// ExitAlterProjectSecurityStatement handles ALTER APP SECURITY: the property
+// list, or one of the clause forms it replaces (MDL-DEPR133, R10).
 func (b *Builder) ExitAlterProjectSecurityStatement(ctx *parser.AlterProjectSecurityStatementContext) {
 	stmt := &ast.AlterProjectSecurityStmt{}
 
+	if opts := ctx.SettingsItemOptions(); opts != nil {
+		b.appSecurityProperties(stmt, opts.(*parser.SettingsItemOptionsContext))
+		b.statements = append(b.statements, stmt)
+		return
+	}
+
+	first := ctx.GetStart() // ALTER; the clause starts after the name rule
+	if kw := ctx.AppSecurityKw(); kw != nil {
+		first = nextToken(kw.GetStop(), ctx)
+	}
+	kw := func(word string) string { return keywordLike(first.GetText(), word) }
+	onOff := func() string {
+		if ctx.ON() != nil {
+			return kw("true")
+		}
+		return kw("false")
+	}
+	var list string
 	if ctx.LEVEL() != nil {
 		if ctx.PRODUCTION() != nil {
 			stmt.SecurityLevel = "Production"
@@ -432,21 +456,116 @@ func (b *Builder) ExitAlterProjectSecurityStatement(ctx *parser.AlterProjectSecu
 		} else if ctx.OFF() != nil {
 			stmt.SecurityLevel = "Off"
 		}
+		list = "SecurityLevel: " + kw(strings.ToLower(stmt.SecurityLevel))
 	} else if ctx.DEMO() != nil {
 		enabled := ctx.ON() != nil
 		stmt.DemoUsersEnabled = &enabled
+		list = "EnableDemoUsers: " + onOff()
 	} else if ctx.GUEST() != nil {
 		enabled := ctx.ON() != nil
 		stmt.GuestAccessEnabled = &enabled
+		list = "EnableGuestAccess: " + onOff()
 		if roleCtx := ctx.IdentifierOrKeyword(); roleCtx != nil {
 			stmt.GuestUserRole = unquoteIdentifier(roleCtx.GetText())
+			list += ", GuestUserRole: " + roleCtx.GetText()
 		}
 	} else if ctx.STRICT() != nil {
 		enabled := ctx.ON() != nil
 		stmt.StrictModeEnabled = &enabled
+		list = "StrictMode: " + onOff()
+	}
+	if first != nil && list != "" {
+		b.recordDeprecation(deprecation.AppSecurityClause, first, "")
+		edit := replaceSpan(first, ctx.GetStop(), "( "+list+" )")
+		b.fixLastDeprecation(deprecation.AppSecurityClause, &ast.Fix{Edits: []ast.TextEdit{edit}}, "")
 	}
 
 	b.statements = append(b.statements, stmt)
+}
+
+// nextToken is the first token of ctx after the token at stop.
+func nextToken(stop antlr.Token, ctx antlr.ParserRuleContext) antlr.Token {
+	for i := 0; i < ctx.GetChildCount(); i++ {
+		if tn, ok := ctx.GetChild(i).(antlr.TerminalNode); ok && tn.GetSymbol().GetTokenIndex() > stop.GetTokenIndex() {
+			return tn.GetSymbol()
+		}
+	}
+	return nil
+}
+
+// appSecurityKeys are the properties `alter app security ( … )` takes: the
+// Security$ProjectSecurity property names.
+var appSecurityKeys = []string{"SecurityLevel", "EnableDemoUsers", "EnableGuestAccess", "GuestUserRole", "StrictMode"}
+
+// appSecurityProperties reads the property list into stmt. A key or value the
+// list does not take is an error, never an ignored property.
+func (b *Builder) appSecurityProperties(stmt *ast.AlterProjectSecurityStmt, opts *parser.SettingsItemOptionsContext) {
+	seen := map[string]bool{}
+	for _, o := range opts.AllSettingsItemOption() {
+		so, ok := o.(*parser.SettingsItemOptionContext)
+		if !ok || so.IdentifierOrKeyword() == nil || so.SettingsValue() == nil {
+			continue
+		}
+		line := so.GetStart().GetLine()
+		key := unquoteIdentifier(so.IdentifierOrKeyword().GetText())
+		sv := so.SettingsValue().(*parser.SettingsValueContext)
+		canonical := ""
+		for _, k := range appSecurityKeys {
+			if strings.EqualFold(k, key) {
+				canonical = k
+			}
+		}
+		if canonical == "" {
+			b.addError(fmt.Errorf("line %d: alter app security has no property %q; it takes %s",
+				line, key, strings.Join(appSecurityKeys, ", ")))
+			continue
+		}
+		if seen[canonical] {
+			b.addError(fmt.Errorf("line %d: alter app security sets %s twice", line, canonical))
+			continue
+		}
+		seen[canonical] = true
+		boolValue := func() *bool {
+			bl := sv.BooleanLiteral()
+			if bl == nil {
+				b.addError(fmt.Errorf("line %d: %s takes true or false, not %s", line, canonical, sv.GetText()))
+				return nil
+			}
+			v := strings.EqualFold(bl.GetText(), "true")
+			return &v
+		}
+		switch canonical {
+		case "SecurityLevel":
+			level := ""
+			if sv.QualifiedName() != nil {
+				switch strings.ToLower(sv.GetText()) {
+				case "production":
+					level = "Production"
+				case "prototype":
+					level = "Prototype"
+				case "off":
+					level = "Off"
+				}
+			}
+			if level == "" {
+				b.addError(fmt.Errorf("line %d: SecurityLevel takes production, prototype or off, not %s", line, sv.GetText()))
+				continue
+			}
+			stmt.SecurityLevel = level
+		case "EnableDemoUsers":
+			stmt.DemoUsersEnabled = boolValue()
+		case "EnableGuestAccess":
+			stmt.GuestAccessEnabled = boolValue()
+		case "StrictMode":
+			stmt.StrictModeEnabled = boolValue()
+		case "GuestUserRole":
+			if sv.QualifiedName() == nil && sv.STRING_LITERAL() == nil {
+				b.addError(fmt.Errorf("line %d: GuestUserRole takes the name of a user role, not %s", line, sv.GetText()))
+				continue
+			}
+			stmt.GuestUserRole = settingsValueText(sv)
+		}
+	}
 }
 
 // ExitCreateDemoUserStatement handles CREATE [OR MODIFY] DEMO USER 'name' PASSWORD 'pw' [ENTITY Module.Entity] (Role1, Role2)

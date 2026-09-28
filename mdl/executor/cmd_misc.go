@@ -247,9 +247,9 @@ Security - Access Control:
   revoke Role on Module.Entity;
 
 Security - Project Settings:
-  alter app security level off|prototype|production;
-  alter app security demo users on|off;
-  alter app security guest access on role <UserRole>|off;
+  alter app security ( SecurityLevel: off|prototype|production );
+  alter app security ( EnableDemoUsers: true|false, StrictMode: true|false );
+  alter app security ( EnableGuestAccess: true|false [, GuestUserRole: <UserRole>] );
   create demo user 'name' password 'pass' (UserRole [, ...]);
   drop demo user 'name';
 
