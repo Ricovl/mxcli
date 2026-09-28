@@ -89,16 +89,13 @@ func describeJsonStructure(ctx *ExecContext, name ast.QualifiedName) error {
 
 	// Documentation as doc comment
 	if js.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", js.Documentation)
+		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", strings.ReplaceAll(js.Documentation, "\n", "\n * "))
 	}
 
 	// Re-executable CREATE OR MODIFY statement
 	fmt.Fprintf(ctx.Output, "create or modify json structure %s", qualifiedName)
 	if folderPath := h.BuildFolderPath(js.ContainerID); folderPath != "" {
 		fmt.Fprintf(ctx.Output, "\n  folder '%s'", folderPath)
-	}
-	if js.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "\n  comment '%s'", strings.ReplaceAll(js.Documentation, "'", "''"))
 	}
 
 	if js.JsonSnippet != "" {

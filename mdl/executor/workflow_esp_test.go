@@ -11,7 +11,7 @@ import (
 )
 
 const espWorkflow = `create workflow M.W parameter $C: M.Ctx begin
-  notification received comment 'Documents received';
+  notification received caption 'Documents received';
   wait for notification waitApproval
     boundary event interrupting notification withdrawn 'Withdrawn' { end workflow; }
     boundary event non interrupting notification nudge 'Nudge' { call microflow M.Log; };
@@ -23,7 +23,7 @@ const espWorkflow = `create workflow M.W parameter $C: M.Ctx begin
     call microflow M.Log as logIt;
     jump to logIt;
   };
-  event subprocess ESP_Expire 'Expire' on interrupting timer 'addDays([%CurrentDateTime%], 30)' as expireStart comment 'After 30 days' {
+  event subprocess ESP_Expire 'Expire' on interrupting timer 'addDays([%CurrentDateTime%], 30)' as expireStart caption 'After 30 days' {
   };
 end workflow;`
 
@@ -103,12 +103,12 @@ func TestWorkflowESP_DescribeRoundTrips(t *testing.T) {
 	}
 	first := format(parseWorkflowStmt(t, espWorkflow))
 	for _, want := range []string{
-		"notification received comment 'Documents received';",
+		"notification received caption 'Documents received';",
 		"boundary event interrupting notification withdrawn 'Withdrawn'",
 		"boundary event non interrupting notification nudge 'Nudge'",
 		"event subprocess ESP_Cancel 'Cancel request' on interrupting notification cancelStart 'Cancel received' {",
 		"event subprocess ESP_Loop on non interrupting notification loopStart 'loopStart' {",
-		"event subprocess ESP_Expire 'Expire' on interrupting timer 'addDays([%CurrentDateTime%], 30)' as expireStart comment 'After 30 days' {",
+		"event subprocess ESP_Expire 'Expire' on interrupting timer 'addDays([%CurrentDateTime%], 30)' as expireStart caption 'After 30 days' {",
 		"jump to logIt;",
 	} {
 		if !strings.Contains(first, want) {

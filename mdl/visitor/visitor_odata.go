@@ -19,9 +19,14 @@ func (b *Builder) ExitCreateODataClientStatement(ctx *parser.CreateODataClientSt
 	stmt := &ast.CreateODataClientStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	// `folder '…'` after the name (R9); `Folder:` in the list is its alias.
+	folderClause := ctx.STRING_LITERAL() != nil
+	if folderClause {
+		stmt.Folder = unquoteStringLit(ctx.STRING_LITERAL())
+	}
 
 	// Parse property assignments
-	for _, propCtx := range ctx.AllOdataPropertyAssignment() {
+	for i, propCtx := range ctx.AllOdataPropertyAssignment() {
 		prop := propCtx.(*parser.OdataPropertyAssignmentContext)
 		name := identifierOrKeywordText(prop.IdentifierOrKeyword())
 		value := odataAssignmentValueText(prop)
@@ -70,7 +75,10 @@ func (b *Builder) ExitCreateODataClientStatement(ctx *parser.CreateODataClientSt
 		case "proxypassword":
 			stmt.ProxyPassword = value
 		case "folder":
-			stmt.Folder = value
+			if !folderClause {
+				stmt.Folder = value
+			}
+			b.recordFolderProperty(ctx.QualifiedName(), ruleContexts(ctx.AllOdataPropertyAssignment()), i, value, folderClause, nil)
 		default:
 			stmt.UnknownProperties = append(stmt.UnknownProperties, name)
 		}
@@ -98,9 +106,14 @@ func (b *Builder) ExitCreateODataServiceStatement(ctx *parser.CreateODataService
 	stmt := &ast.CreateODataServiceStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	// `folder '…'` after the name (R9); `Folder:` in the list is its alias.
+	folderClause := ctx.STRING_LITERAL() != nil
+	if folderClause {
+		stmt.Folder = unquoteStringLit(ctx.STRING_LITERAL())
+	}
 
 	// Parse property assignments
-	for _, propCtx := range ctx.AllOdataPropertyAssignment() {
+	for i, propCtx := range ctx.AllOdataPropertyAssignment() {
 		prop := propCtx.(*parser.OdataPropertyAssignmentContext)
 		name := identifierOrKeywordText(prop.IdentifierOrKeyword())
 		value := odataAssignmentValueText(prop)
@@ -127,7 +140,10 @@ func (b *Builder) ExitCreateODataServiceStatement(ctx *parser.CreateODataService
 			stmt.SupportsGraphQL = strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
 			stmt.SupportsGraphQLSet = true
 		case "folder":
-			stmt.Folder = value
+			if !folderClause {
+				stmt.Folder = value
+			}
+			b.recordFolderProperty(ctx.QualifiedName(), ruleContexts(ctx.AllOdataPropertyAssignment()), i, value, folderClause, nil)
 		default:
 			stmt.UnknownProperties = append(stmt.UnknownProperties, name)
 		}

@@ -9,6 +9,7 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
@@ -468,12 +469,10 @@ func buildWorkflowStatements(children []antlr.Tree) []ast.WorkflowActivityNode {
 	return activities
 }
 
-// buildWorkflowEnd builds `end workflow [comment '<caption>']`.
+// buildWorkflowEnd builds `end workflow [caption '<caption>']`.
 func buildWorkflowEnd(ctx *parser.WorkflowEndStmtContext) *ast.WorkflowEndNode {
 	node := &ast.WorkflowEndNode{}
-	if ctx.COMMENT() != nil && ctx.STRING_LITERAL() != nil {
-		node.Caption = unquoteStringLit(ctx.STRING_LITERAL())
-	}
+	node.Caption = workflowCaptionText(ctx.WorkflowCaption())
 	return node
 }
 
@@ -673,9 +672,7 @@ func buildWorkflowCallMicroflow(ctx parser.IWorkflowCallMicroflowStmtContext) *a
 		Microflow: buildQualifiedName(cmCtx.QualifiedName()),
 	}
 
-	if cmCtx.COMMENT() != nil && cmCtx.STRING_LITERAL() != nil {
-		node.Caption = unquoteStringLit(cmCtx.STRING_LITERAL())
-	}
+	node.Caption = workflowCaptionText(cmCtx.WorkflowCaption())
 
 	for _, outcomeCtx := range cmCtx.AllWorkflowConditionOutcome() {
 		outcome := buildWorkflowConditionOutcome(outcomeCtx)
@@ -747,9 +744,7 @@ func buildWorkflowCallWorkflow(ctx parser.IWorkflowCallWorkflowStmtContext) *ast
 		Workflow: buildQualifiedName(cwCtx.QualifiedName()),
 	}
 
-	if cwCtx.COMMENT() != nil && cwCtx.STRING_LITERAL() != nil {
-		node.Caption = unquoteStringLit(cwCtx.STRING_LITERAL())
-	}
+	node.Caption = workflowCaptionText(cwCtx.WorkflowCaption())
 
 	// Parameter mappings
 	node.ParameterMappings = buildWorkflowCallArguments(cwCtx.WorkflowCallArguments())
@@ -767,26 +762,11 @@ func buildWorkflowDecision(ctx parser.IWorkflowDecisionStmtContext) *ast.Workflo
 		Name: workflowActivityNameText(dCtx.WorkflowActivityName()),
 	}
 
-	allStrings := dCtx.AllSTRING_LITERAL()
-	stringIdx := 0
-
-	// First STRING_LITERAL is the expression (if present and COMMENT is not present or expression comes first)
-	if len(allStrings) > 0 && dCtx.COMMENT() == nil {
-		// All strings are expression
-		node.Expression = unquoteStringLit(allStrings[0])
-		stringIdx = 1
-	} else if len(allStrings) > 0 && dCtx.COMMENT() != nil {
-		// Distinguish expression from comment
-		if len(allStrings) >= 2 {
-			node.Expression = unquoteStringLit(allStrings[0])
-			node.Caption = unquoteStringLit(allStrings[1])
-		} else {
-			// Only one string with COMMENT - it's the caption
-			node.Caption = unquoteStringLit(allStrings[0])
-		}
-		stringIdx = len(allStrings)
+	// The decision's own string is its expression; the caption is in its clause.
+	if s := dCtx.STRING_LITERAL(); s != nil {
+		node.Expression = unquoteStringLit(s)
 	}
-	_ = stringIdx
+	node.Caption = workflowCaptionText(dCtx.WorkflowCaption())
 
 	for _, outcomeCtx := range dCtx.AllWorkflowConditionOutcome() {
 		outcome := buildWorkflowConditionOutcome(outcomeCtx)
@@ -825,9 +805,7 @@ func buildWorkflowParallelSplit(ctx parser.IWorkflowParallelSplitStmtContext) *a
 		Name: workflowActivityNameText(psCtx.WorkflowActivityName()),
 	}
 
-	if psCtx.COMMENT() != nil && psCtx.STRING_LITERAL() != nil {
-		node.Caption = unquoteStringLit(psCtx.STRING_LITERAL())
-	}
+	node.Caption = workflowCaptionText(psCtx.WorkflowCaption())
 
 	for _, pathCtx := range psCtx.AllWorkflowParallelPath() {
 		path := buildWorkflowParallelPath(pathCtx)
@@ -868,9 +846,7 @@ func buildWorkflowJumpTo(ctx parser.IWorkflowJumpToStmtContext) *ast.WorkflowJum
 		Target: target,
 	}
 
-	if jtCtx.COMMENT() != nil && jtCtx.STRING_LITERAL() != nil {
-		node.Caption = unquoteStringLit(jtCtx.STRING_LITERAL())
-	}
+	node.Caption = workflowCaptionText(jtCtx.WorkflowCaption())
 
 	return node
 }
@@ -882,15 +858,10 @@ func buildWorkflowWaitForTimer(ctx parser.IWorkflowWaitForTimerStmtContext) *ast
 		Name: workflowActivityNameText(wtCtx.WorkflowActivityName()),
 	}
 
-	allStrings := wtCtx.AllSTRING_LITERAL()
-	if len(allStrings) > 0 && wtCtx.COMMENT() == nil {
-		node.DelayExpression = unquoteStringLit(allStrings[0])
-	} else if len(allStrings) >= 2 && wtCtx.COMMENT() != nil {
-		node.DelayExpression = unquoteStringLit(allStrings[0])
-		node.Caption = unquoteStringLit(allStrings[1])
-	} else if len(allStrings) == 1 && wtCtx.COMMENT() != nil {
-		node.Caption = unquoteStringLit(allStrings[0])
+	if s := wtCtx.STRING_LITERAL(); s != nil {
+		node.DelayExpression = unquoteStringLit(s)
 	}
+	node.Caption = workflowCaptionText(wtCtx.WorkflowCaption())
 
 	return node
 }
@@ -902,9 +873,7 @@ func buildWorkflowWaitForNotification(ctx parser.IWorkflowWaitForNotificationStm
 		Name: workflowActivityNameText(wnCtx.WorkflowActivityName()),
 	}
 
-	if wnCtx.COMMENT() != nil && wnCtx.STRING_LITERAL() != nil {
-		node.Caption = unquoteStringLit(wnCtx.STRING_LITERAL())
-	}
+	node.Caption = workflowCaptionText(wnCtx.WorkflowCaption())
 
 	// BoundaryEvents (Issue #7)
 	for _, beCtx := range wnCtx.AllWorkflowBoundaryEventClause() {
@@ -948,19 +917,17 @@ func buildBoundaryEventNode(beCtx parser.IWorkflowBoundaryEventClauseContext) as
 	return be
 }
 
-// buildWorkflowNotification builds `notification [<name>] [comment '<caption>']`.
+// buildWorkflowNotification builds `notification [<name>] [caption '<caption>']`.
 func buildWorkflowNotification(ctx parser.IWorkflowNotificationStmtContext) *ast.WorkflowNotificationNode {
 	c := ctx.(*parser.WorkflowNotificationStmtContext)
 	node := &ast.WorkflowNotificationNode{Name: workflowActivityNameText(c.WorkflowActivityName())}
-	if c.COMMENT() != nil && c.STRING_LITERAL() != nil {
-		node.Caption = unquoteStringLit(c.STRING_LITERAL())
-	}
+	node.Caption = workflowCaptionText(c.WorkflowCaption())
 	return node
 }
 
 // buildWorkflowEventSubProcess builds `event subprocess <name> ['<caption>'] on
 // [non] interrupting notification [<start>] ['<caption>'] { … }` and its timer
-// form, `… timer '<first execution time>' [as <start>] [comment '<caption>']`.
+// form, `… timer '<first execution time>' [as <start>] [caption '<caption>']`.
 func buildWorkflowEventSubProcess(ctx parser.IWorkflowEventSubProcessContext) ast.WorkflowEventSubProcessNode {
 	c := ctx.(*parser.WorkflowEventSubProcessContext)
 	node := ast.WorkflowEventSubProcessNode{
@@ -973,17 +940,17 @@ func buildWorkflowEventSubProcess(ctx parser.IWorkflowEventSubProcessContext) as
 	if t, ok := c.WorkflowEventSubProcessTrigger().(*parser.WorkflowEventSubProcessTriggerContext); ok && t != nil {
 		node.Timer = t.TIMER() != nil
 		node.StartName = workflowActivityNameText(t.WorkflowActivityName())
-		strs := t.AllSTRING_LITERAL()
-		switch {
+		// Each alternative has one string of its own: a timer's first
+		// execution time, a notification's caption. A timer's caption is its
+		// `caption '…'` clause.
+		switch s := t.STRING_LITERAL(); {
 		case node.Timer:
-			if len(strs) > 0 {
-				node.FirstExecutionTime = unquoteStringLit(strs[0])
+			if s != nil {
+				node.FirstExecutionTime = unquoteStringLit(s)
 			}
-			if t.COMMENT() != nil && len(strs) > 1 {
-				node.StartCaption = unquoteStringLit(strs[1])
-			}
-		case len(strs) > 0:
-			node.StartCaption = unquoteStringLit(strs[0])
+			node.StartCaption = workflowCaptionText(t.WorkflowCaption())
+		case s != nil:
+			node.StartCaption = unquoteStringLit(s)
 		}
 	}
 	if body := c.WorkflowBody(); body != nil {
@@ -1065,4 +1032,22 @@ func buildWorkflowCompletionRule(ctx *parser.WorkflowCompletionClauseContext) *a
 		r.HasFallback = true
 	}
 	return r
+}
+
+// workflowCaptionText is the caption a `caption '…'` clause (or its alias
+// `comment '…'`) sets, or "" when there is none.
+func workflowCaptionText(ctx parser.IWorkflowCaptionContext) string {
+	c, ok := ctx.(*parser.WorkflowCaptionContext)
+	if !ok || c == nil || c.STRING_LITERAL() == nil {
+		return ""
+	}
+	return unquoteStringLit(c.STRING_LITERAL())
+}
+
+// ExitWorkflowCaption records `comment '…'`, the alias of an activity's
+// `caption '…'` (R9, ako/mxcli#755).
+func (b *Builder) ExitWorkflowCaption(ctx *parser.WorkflowCaptionContext) {
+	if c := ctx.COMMENT(); c != nil {
+		b.recordDeprecation(deprecation.WorkflowCommentCaption, c.GetSymbol(), "")
+	}
 }

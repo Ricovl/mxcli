@@ -108,17 +108,21 @@ func (b *Builder) ExitCreateConstantStatement(ctx *parser.CreateConstantStatemen
 		stmt.DefaultValue = extractLiteralValue(lit)
 	}
 
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
+
 	// Handle options (COMMENT, FOLDER, EXPOSED TO CLIENT)
 	if opts := ctx.ConstantOptions(); opts != nil {
 		optsCtx := opts.(*parser.ConstantOptionsContext)
 		for _, opt := range optsCtx.AllConstantOption() {
 			optCtx := opt.(*parser.ConstantOptionContext)
-			if optCtx.COMMENT() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Comment = unquoteStringLit(optCtx.STRING_LITERAL())
+			if c := optCtx.COMMENT(); c != nil && optCtx.STRING_LITERAL() != nil {
+				// R9: `comment '…'` is the documentation, which a doc
+				// comment also states; the clause wins, as it always has.
+				text := unquoteStringLit(optCtx.STRING_LITERAL())
+				b.recordDocumentationClause(ctx, c.GetSymbol(), optCtx.STRING_LITERAL().GetSymbol(), text, true)
+				stmt.Documentation, stmt.DocumentationSet = text, true
 			}
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
-			} else if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
 				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
 			} else if optCtx.EXPOSED() != nil {
 				stmt.ExposedToClient = true
@@ -133,7 +137,6 @@ func (b *Builder) ExitCreateConstantStatement(ctx *parser.CreateConstantStatemen
 			stmt.CreateOrModify = true
 		}
 	}
-	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 
 	b.statements = append(b.statements, stmt)
 }

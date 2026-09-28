@@ -65,6 +65,11 @@ func (b *Builder) buildPageV3(ctx *parser.CreatePageStatementContext) *ast.Creat
 		}
 	}
 
+	// `folder '…'` after the name (R9); the header's `Folder:` is its alias.
+	if lit := ctx.STRING_LITERAL(); lit != nil {
+		stmt.Folder = unquoteStringLit(lit)
+	}
+
 	// Parse V3 header
 	if headerCtx := ctx.PageHeaderV3(); headerCtx != nil {
 		b.parsePageHeaderV3(headerCtx, stmt)
@@ -86,8 +91,9 @@ func (b *Builder) parsePageHeaderV3(ctx parser.IPageHeaderV3Context, stmt *ast.C
 		return
 	}
 	headerCtx := ctx.(*parser.PageHeaderV3Context)
+	page, _ := headerCtx.GetParent().(*parser.CreatePageStatementContext)
 
-	for _, propCtx := range headerCtx.AllPageHeaderPropertyV3() {
+	for i, propCtx := range headerCtx.AllPageHeaderPropertyV3() {
 		prop := propCtx.(*parser.PageHeaderPropertyV3Context)
 
 		if prop.PARAMS() != nil {
@@ -118,9 +124,15 @@ func (b *Builder) parsePageHeaderV3(ctx parser.IPageHeaderV3Context, stmt *ast.C
 				stmt.URL = unquoteStringLit(str)
 			}
 		} else if prop.FOLDER() != nil {
-			// Folder: 'Pages/Admin'
-			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Folder = unquoteStringLit(str)
+			// Folder: 'Pages/Admin' — the alias of `folder '…'` after the name
+			// (R9, MDL-DEPR105). The clause wins when both are written.
+			if str := prop.STRING_LITERAL(); str != nil && page != nil {
+				clause := page.STRING_LITERAL() != nil
+				if !clause {
+					stmt.Folder = unquoteStringLit(str)
+				}
+				b.recordFolderProperty(page.QualifiedName(), ruleContexts(headerCtx.AllPageHeaderPropertyV3()), i,
+					unquoteStringLit(str), clause, nil)
 			}
 		} else if prop.CLASS() != nil {
 			// Class: 'my-page' — page-level CSS class (issue #714)
@@ -216,6 +228,11 @@ func (b *Builder) buildSnippetV3(ctx *parser.CreateSnippetStatementContext) *ast
 		stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	}
 
+	// `folder '…'` after the name (R9); the header's `Folder:` is its alias.
+	if lit := ctx.STRING_LITERAL(); lit != nil {
+		stmt.Folder = unquoteStringLit(lit)
+	}
+
 	// Parse V3 header
 	if headerCtx := ctx.SnippetHeaderV3(); headerCtx != nil {
 		b.parseSnippetHeaderV3(headerCtx, stmt)
@@ -246,8 +263,9 @@ func (b *Builder) parseSnippetHeaderV3(ctx parser.ISnippetHeaderV3Context, stmt 
 		return
 	}
 	headerCtx := ctx.(*parser.SnippetHeaderV3Context)
+	snippet, _ := headerCtx.GetParent().(*parser.CreateSnippetStatementContext)
 
-	for _, propCtx := range headerCtx.AllSnippetHeaderPropertyV3() {
+	for i, propCtx := range headerCtx.AllSnippetHeaderPropertyV3() {
 		prop := propCtx.(*parser.SnippetHeaderPropertyV3Context)
 
 		if prop.PARAMS() != nil {
@@ -261,9 +279,16 @@ func (b *Builder) parseSnippetHeaderV3(ctx parser.ISnippetHeaderV3Context, stmt 
 				stmt.Variables = buildVariableDeclarations(varList)
 			}
 		} else if prop.FOLDER() != nil {
-			// Folder: 'Snippets/Common'
-			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Folder = unquoteStringLit(str)
+			// Folder: 'Snippets/Common' — the alias of `folder '…'` after the
+			// name (R9, MDL-DEPR105). The clause wins when both are written.
+			if str := prop.STRING_LITERAL(); str != nil && snippet != nil {
+				clause := snippet.STRING_LITERAL() != nil
+				if !clause {
+					stmt.Folder = unquoteStringLit(str)
+				}
+				// The snippet header is optional, so an only `Folder:` goes with it.
+				b.recordFolderProperty(snippet.QualifiedName(), ruleContexts(headerCtx.AllSnippetHeaderPropertyV3()), i,
+					unquoteStringLit(str), clause, headerCtx)
 			}
 		}
 	}

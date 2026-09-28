@@ -7,6 +7,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend/mock"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 )
@@ -91,23 +92,21 @@ func TestCreateAssociationStoresTheDocComment(t *testing.T) {
 	}
 }
 
-// `comment 'text'` still works here. It is the only inline spelling an
-// association has, which is why it survived the removal that took it off every
-// other CREATE.
+// `comment 'text'` still works here. It is a deprecated alias of the doc
+// comment (R9, MDL-DEPR100): the visitor folds it into Documentation, so it is
+// parsed rather than set on the AST, which no longer has a field for it.
 func TestCreateAssociationStoresTheCommentOption(t *testing.T) {
 	ctx, created := assocCtx(t)
 
-	s := createAssocStmt()
-	s.Comment = "Links a child to its parent."
+	s := parseAssocStmt(t, "create association As.Child_Parent from As.Child to As.Parent comment 'Links a child to its parent.';")
 	assertNoError(t, execCreateAssociation(ctx, s))
 
 	got := *created
 	if got == nil {
 		t.Fatal("CreateAssociation was never called")
 	}
-	if got.Documentation != s.Comment {
-		t.Errorf("Documentation = %q, want %q — the comment option was dropped on create",
-			got.Documentation, s.Comment)
+	if got.Documentation != "Links a child to its parent." {
+		t.Errorf("Documentation = %q — the comment option was dropped on create", got.Documentation)
 	}
 }
 
@@ -116,14 +115,26 @@ func TestCreateAssociationStoresTheCommentOption(t *testing.T) {
 func TestCreateAssociationPrefersTheDocCommentOverTheOption(t *testing.T) {
 	ctx, created := assocCtx(t)
 
-	s := createAssocStmt()
-	s.Documentation = "From the doc comment."
-	s.Comment = "From the option."
+	s := parseAssocStmt(t, "/** From the doc comment. */\n"+
+		"create association As.Child_Parent from As.Child to As.Parent comment 'From the option.';")
 	assertNoError(t, execCreateAssociation(ctx, s))
 
 	if got := (*created).Documentation; got != "From the doc comment." {
 		t.Errorf("Documentation = %q, want the doc comment to win", got)
 	}
+}
+
+func parseAssocStmt(t *testing.T, src string) *ast.CreateAssociationStmt {
+	t.Helper()
+	prog, errs := visitor.Build(src)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	s, ok := prog.Statements[0].(*ast.CreateAssociationStmt)
+	if !ok {
+		t.Fatalf("got %T", prog.Statements[0])
+	}
+	return s
 }
 
 // The control: an association with neither is created with empty documentation,

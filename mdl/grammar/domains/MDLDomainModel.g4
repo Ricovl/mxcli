@@ -194,7 +194,8 @@ associationOption
     | STORAGE COLON? (COLUMN | TABLE)
     | DELETE_BEHAVIOR /* @alias MDL-DEPR022 */ deleteBehavior errorMessageClause?
     | onDeleteClause
-    | COMMENT STRING_LITERAL
+    // R9: documentation is a `/** … */` doc comment before the statement.
+    | COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL
     ;
 
 // The SQL spelling. Mendix's three delete behaviours ARE SQL's referential
@@ -448,6 +449,9 @@ regularExpressionBody
     : LPAREN (regularExpressionProperty (COMMA regularExpressionProperty)* COMMA?)? RPAREN
     ;
 
+// `Documentation: '…'` is a registered alias of the `/** … */` doc comment
+// (R9) /* @alias MDL-DEPR106 */, here and in the task queue and scheduled
+// event property lists; the visitor reports it by key.
 regularExpressionProperty
     : identifierOrKeyword COLON (STRING_LITERAL | booleanLiteral | identifierOrKeyword)
     ;
@@ -510,7 +514,7 @@ imageCollectionOptions
 
 imageCollectionOption
     : EXPORT LEVEL STRING_LITERAL   // e.g. EXPORT LEVEL 'Public'
-    | COMMENT STRING_LITERAL
+    | COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL   // R9: a `/** … */` doc comment
     ;
 
 imageCollectionBody
@@ -532,7 +536,7 @@ imageName
 // =============================================================================
 
 createJsonStructureStatement
-    : JSON STRUCTURE qualifiedName (FOLDER STRING_LITERAL)? (COMMENT STRING_LITERAL)? SNIPPET (STRING_LITERAL | DOLLAR_STRING)
+    : JSON STRUCTURE qualifiedName (FOLDER STRING_LITERAL)? (COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL)? SNIPPET (STRING_LITERAL | DOLLAR_STRING)
       (CUSTOM_NAME_MAP LPAREN customNameMapping (COMMA customNameMapping)* RPAREN)?
     ;
 
@@ -948,7 +952,7 @@ constantOptions
     ;
 
 constantOption
-    : COMMENT STRING_LITERAL
+    : COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL   // R9: a `/** … */` doc comment
     | FOLDER STRING_LITERAL
     | EXPOSED TO CLIENT
     ;

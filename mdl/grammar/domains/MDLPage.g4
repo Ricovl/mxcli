@@ -13,8 +13,11 @@ options { tokenVocab = MDLLexer; }
 /**
  * Creates a new page with layout, parameters, and widget content.
  */
+// R9: the folder is a clause after the name, as on every document; the
+// `Folder:` header property is a registered alias.
 createPageStatement
     : PAGE qualifiedName
+      (FOLDER STRING_LITERAL)?
       pageHeaderV3
       LBRACE pageBodyV3 RBRACE
     ;
@@ -39,6 +42,7 @@ createLayoutStatement
 
 createSnippetStatement
     : SNIPPET qualifiedName
+      (FOLDER STRING_LITERAL)?
       snippetHeaderV3?
       snippetOptions?
       LBRACE pageBodyV3 RBRACE
@@ -244,7 +248,7 @@ pageHeaderPropertyV3
     | TITLE COLON STRING_LITERAL                                     // Title: 'My Page'
     | LAYOUT COLON (qualifiedName | STRING_LITERAL)                  // Layout: Atlas_Core.Atlas_Default
     | URL COLON STRING_LITERAL                                       // Url: 'my-page'
-    | FOLDER COLON STRING_LITERAL                                    // Folder: 'Pages/Admin'
+    | FOLDER COLON /* @alias MDL-DEPR105 */ STRING_LITERAL          // Folder: 'Pages/Admin'
     | CLASS COLON STRING_LITERAL                                     // Class: 'my-page bg-primary'
     | STYLE COLON STRING_LITERAL                                     // Style: 'padding: 10px'
     | IDENTIFIER COLON propertyValueV3                               // Generic page property: PopupWidth: 800, PopupResizable: true
@@ -258,7 +262,7 @@ snippetHeaderV3
 snippetHeaderPropertyV3
     : PARAMS COLON LBRACE pageParameterList RBRACE                 // Params: { $Customer: Module.Entity } — entities only (MDL087)
     | VARIABLES_KW COLON LBRACE variableDeclarationList RBRACE     // Variables: { $show: Boolean = 'true' }
-    | FOLDER COLON STRING_LITERAL                                  // Folder: 'Snippets/Common'
+    | FOLDER COLON /* @alias MDL-DEPR105 */ STRING_LITERAL        // Folder: 'Snippets/Common'
     ;
 
 // V3 Page body. Bare widgets bind to the layout's Main placeholder; a

@@ -110,6 +110,10 @@ func outputConstantMDL(ctx *ExecContext, c *model.Constant, moduleName string) e
 	// Format default value based on type
 	defaultValueStr := formatDefaultValue(c.Type, c.DefaultValue)
 
+	// Documentation is a doc comment (R9); `comment '…'` is its deprecated alias.
+	if c.Documentation != "" {
+		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", strings.ReplaceAll(c.Documentation, "\n", "\n * "))
+	}
 	fmt.Fprintf(ctx.Output, "create or modify constant %s.%s\n", moduleName, c.Name)
 	fmt.Fprintf(ctx.Output, "  type %s\n", formatConstantTypeForMDL(c.Type))
 	fmt.Fprintf(ctx.Output, "  default %s", defaultValueStr)
@@ -122,11 +126,6 @@ func outputConstantMDL(ctx *ExecContext, c *model.Constant, moduleName string) e
 		}
 	}
 
-	// Add options if present
-	if c.Documentation != "" {
-		escaped := strings.ReplaceAll(c.Documentation, "'", "''")
-		fmt.Fprintf(ctx.Output, "\n  comment '%s'", escaped)
-	}
 	if c.ExposedToClient {
 		fmt.Fprintf(ctx.Output, "\n  exposed to client")
 	}
@@ -286,15 +285,12 @@ func createConstant(ctx *ExecContext, stmt *ast.CreateConstantStmt) error {
 			modName := h.GetModuleName(modID)
 			if strings.EqualFold(modName, stmt.Name.Module) && strings.EqualFold(c.Name, stmt.Name.Name) {
 				if stmt.CreateOrModify {
-					// Update existing constant — COMMENT takes precedence over
-					// doc-comment, and a rewrite that mentioned NEITHER keeps
-					// what is stored (#1018).
-					if stmt.Comment != "" {
-						c.Documentation = stmt.Comment
-					} else {
-						c.Documentation = carriedDocumentation(
-							stmt.DocumentationSet, stmt.Documentation, c.Documentation)
-					}
+					// Update existing constant — a rewrite that states no
+					// documentation keeps what is stored (#1018). The
+					// `comment '…'` clause is folded into Documentation by
+					// the visitor (R9).
+					c.Documentation = carriedDocumentation(
+						stmt.DocumentationSet, stmt.Documentation, c.Documentation)
 					c.Type = constType
 					c.DefaultValue = defaultValue
 					c.ExposedToClient = stmt.ExposedToClient
@@ -317,11 +313,7 @@ func createConstant(ctx *ExecContext, stmt *ast.CreateConstantStmt) error {
 		}
 	}
 
-	// COMMENT 'text' takes precedence; fall back to /** */ doc-comment
-	doc := stmt.Comment
-	if doc == "" {
-		doc = stmt.Documentation
-	}
+	doc := stmt.Documentation
 
 	containerID := module.ID
 	if stmt.Folder != "" {

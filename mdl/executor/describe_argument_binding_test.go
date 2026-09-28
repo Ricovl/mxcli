@@ -82,7 +82,7 @@ func TestDescribe_WorkflowCallArguments(t *testing.T) {
 	bare.Name = "act1"
 	bare.Caption = "Go"
 	got := strings.Join(formatSingleActivity(bare, "  "), "\n")
-	if !strings.Contains(got, "call microflow M.G(Order = $WorkflowContext) as act1 comment 'Go'") {
+	if !strings.Contains(got, "call microflow M.G(Order = $WorkflowContext) as act1 caption 'Go'") {
 		t.Errorf("describe = %q", got)
 	}
 	assertCanonicalWorkflowLine(t, got, false)
@@ -96,7 +96,7 @@ func TestDescribe_WorkflowCallArguments(t *testing.T) {
 	odd.Name = "callWorkflow1"
 	odd.Caption = "Sub"
 	got = strings.Join(formatSingleActivity(odd, "  "), "\n")
-	if !strings.Contains(got, "comment 'Sub' with (Order = '") {
+	if !strings.Contains(got, "caption 'Sub' with (Order = '") {
 		t.Errorf("describe = %q", got)
 	}
 	prog := assertCanonicalWorkflowLine(t, got, true)

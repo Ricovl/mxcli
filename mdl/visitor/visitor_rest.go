@@ -19,9 +19,14 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 	stmt := &ast.CreateRestClientStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	// `folder '…'` after the name (R9); `Folder:` in the list is its alias.
+	folderClause := ctx.STRING_LITERAL() != nil
+	if folderClause {
+		stmt.Folder = unquoteStringLit(ctx.STRING_LITERAL())
+	}
 
 	// Parse service-level properties (BaseUrl, Authentication, Folder)
-	for _, propCtx := range ctx.AllRestClientProperty() {
+	for i, propCtx := range ctx.AllRestClientProperty() {
 		pc, ok := propCtx.(*parser.RestClientPropertyContext)
 		if !ok || pc == nil {
 			continue
@@ -40,7 +45,11 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 			}
 		case "folder":
 			if sl := pc.STRING_LITERAL(); sl != nil {
-				stmt.Folder = unquoteStringLit(sl)
+				if !folderClause {
+					stmt.Folder = unquoteStringLit(sl)
+				}
+				b.recordFolderProperty(ctx.QualifiedName(), ruleContexts(ctx.AllRestClientProperty()), i,
+					unquoteStringLit(sl), folderClause, nil)
 			}
 		case "openapi":
 			if sl := pc.STRING_LITERAL(); sl != nil {
@@ -354,6 +363,11 @@ func (b *Builder) ExitCreatePublishedRestServiceStatement(ctx *parser.CreatePubl
 	stmt := &ast.CreatePublishedRestServiceStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	// `folder '…'` after the name (R9); `Folder:` in the list is its alias.
+	folderClause := ctx.STRING_LITERAL() != nil
+	if folderClause {
+		stmt.Folder = unquoteStringLit(ctx.STRING_LITERAL())
+	}
 
 	// Check for CREATE OR MODIFY (or OR REPLACE, treated identically)
 	createStmt := findParentCreateStatement(ctx)
@@ -364,7 +378,7 @@ func (b *Builder) ExitCreatePublishedRestServiceStatement(ctx *parser.CreatePubl
 	}
 
 	// Parse properties (Path, Version, ServiceName)
-	for _, propCtx := range ctx.AllPublishedRestProperty() {
+	for i, propCtx := range ctx.AllPublishedRestProperty() {
 		pc := propCtx.(*parser.PublishedRestPropertyContext)
 		key := identifierOrKeywordText(pc.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
 		b.checkProperty(pc, &publishedRestSchema, key, shapeString)
@@ -377,7 +391,10 @@ func (b *Builder) ExitCreatePublishedRestServiceStatement(ctx *parser.CreatePubl
 		case "servicename":
 			stmt.ServiceName = val
 		case "folder":
-			stmt.Folder = val
+			if !folderClause {
+				stmt.Folder = val
+			}
+			b.recordFolderProperty(ctx.QualifiedName(), ruleContexts(ctx.AllPublishedRestProperty()), i, val, folderClause, nil)
 		}
 	}
 
