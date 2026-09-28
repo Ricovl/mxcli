@@ -1270,26 +1270,26 @@ Displays one row per constant per configuration. Shows the default value followe
 ### ALTER SETTINGS
 
 ```sql
-alter settings runtime key = value;
-alter settings configuration 'Name' key = value;
+alter settings runtime ( key: value, ... );
+alter settings configuration 'Name' ( key: value, ... );
 alter settings constant 'Name' value 'val' in configuration 'cfg';
 alter settings drop constant 'Name' in configuration 'cfg';
-alter settings LANGUAGE key = value;
-alter settings workflows key = value;
+alter settings language ( key: value, ... );
+alter settings workflows ( key: value, ... );
 ```
 
 ### CREATE / DROP CONFIGURATION
 
 ```sql
-create configuration 'Name' [key = value, ...];
+create configuration 'Name' [( key: value, ... )];
 drop configuration 'Name';
 ```
 
 **Example:**
 ```sql
-alter settings runtime AfterStartupMicroflow = 'MyModule.ACT_Startup';
-alter settings configuration 'default' DatabaseType = 'POSTGRESQL';
-alter settings LANGUAGE DefaultLanguageCode = 'en_US';
+alter settings runtime ( AfterStartupMicroflow: 'MyModule.ACT_Startup' );
+alter settings configuration 'default' ( DatabaseType: 'POSTGRESQL' );
+alter settings language ( DefaultLanguageCode: 'en_US' );
 
 -- View constant values across all configurations
 show constant values;

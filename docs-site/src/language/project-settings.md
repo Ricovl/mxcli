@@ -21,7 +21,7 @@ Settings are organized into categories. Each `ALTER SETTINGS` command targets on
 Runtime-level settings such as the after-startup microflow, hashing algorithm, and Java version:
 
 ```sql
-ALTER SETTINGS RUNTIME <Key> = <Value>;
+ALTER SETTINGS RUNTIME ( <Key>: <Value>, ... );
 ```
 
 Examples:
@@ -42,7 +42,7 @@ project already uses.
 Server configuration settings like database type, URL, and HTTP port. Each configuration is identified by name (commonly `'default'`):
 
 ```sql
-ALTER SETTINGS CONFIGURATION '<Name>' <Key> = <Value>;
+ALTER SETTINGS CONFIGURATION '<Name>' ( <Key>: <Value>, ... );
 ```
 
 Examples:
@@ -75,7 +75,7 @@ for. A translation written for any other language is stored in the model, passes
 the step that makes translating an app do anything.
 
 ```sql
-ALTER SETTINGS LANGUAGE <Key> = <Value>;
+ALTER SETTINGS LANGUAGE ( <Key>: <Value>, ... );
 ALTER SETTINGS LANGUAGE ADD [OR MODIFY] '<code>' [( <option>: <value>, ... )];
 ALTER SETTINGS LANGUAGE MODIFY '<code>' ( <option>: <value>, ... );
 ALTER SETTINGS LANGUAGE REMOVE '<code>';
@@ -167,7 +167,7 @@ because the default is the source language every other translation is keyed on.
 Configure workflow behavior such as the user entity and task parallelism:
 
 ```sql
-ALTER SETTINGS WORKFLOWS <Key> = <Value>;
+ALTER SETTINGS WORKFLOWS ( <Key>: <Value>, ... );
 ```
 
 Examples:
