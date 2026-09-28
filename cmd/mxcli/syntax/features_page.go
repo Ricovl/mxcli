@@ -58,6 +58,12 @@ DESCRIBE WIDGET TYPE 'com.mendix.widget.web.htmlelement.HTMLElement';
 -- its own as MDL gains ground, and cannot promise syntax that fails.
 --
 -- Same output as ` + "`mxcli widget describe`" + `, because it is the same code.
+--
+-- The answer is a report on this project's widget package, not MDL: its first
+-- line is "-- widget type definition (not executable)", and with --json the
+-- document carries "executable": false. The same holds for DESCRIBE GLYPH and
+-- DESCRIBE CONTRACT ENTITY|ACTION|MESSAGE (unless FORMAT mdl). Use MXCLI SYNTAX
+-- for how to write a widget in MDL; this for what a given project installs.
 
 -- The other direction — which pages already use it — is a reference query,
 -- and needs ` + "`refresh catalog full`" + `:

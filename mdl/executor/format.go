@@ -128,6 +128,13 @@ func writeResultJSON(ctx *ExecContext, r *TableResult) error {
 // In table/text mode it calls fn directly. In JSON mode it captures fn's output
 // and wraps it as {"name": ..., "type": ..., "mdl": ...}.
 func writeDescribeJSON(ctx *ExecContext, name, objectType string, fn func() error) error {
+	return writeDescribeJSONAs(ctx, name, objectType, true, fn)
+}
+
+// writeDescribeJSONAs is writeDescribeJSON for an answer that may not be MDL:
+// executable false marks a definition report (a widget type, a glyph, a
+// contract), whose text is under "mdl" like every describe but is not runnable.
+func writeDescribeJSONAs(ctx *ExecContext, name, objectType string, executable bool, fn func() error) error {
 	if ctx.Format != FormatJSON {
 		return fn()
 	}
@@ -144,9 +151,10 @@ func writeDescribeJSON(ctx *ExecContext, name, objectType string, fn func() erro
 	}
 
 	result := map[string]any{
-		"name": name,
-		"type": objectType,
-		"mdl":  buf.String(),
+		"name":       name,
+		"type":       objectType,
+		"mdl":        buf.String(),
+		"executable": executable,
 	}
 	enc := json.NewEncoder(ctx.Output)
 	enc.SetIndent("", "  ")

@@ -1,4 +1,4 @@
-# DESCRIBE WIDGET
+# DESCRIBE WIDGET TYPE
 
 ## Synopsis
 
@@ -12,6 +12,12 @@ Shows the format mxcli has discovered for a pluggable or custom widget: its
 properties (key, type, caption, category, required, default, enumeration
 members), the **body containers** it accepts, the editor rules that hide a
 property under some configurations, and a complete MDL example.
+
+The answer is a report on the widget package installed in this project, not
+MDL: its first line is `-- widget type definition (not executable)`, and with
+`--json` the document carries `"executable": false`. `DESCRIBE GLYPH`,
+`DESCRIBE CONTRACT …` and `DESCRIBE CATALOG.<table>` are marked the same way.
+`DESCRIBE WIDGET <name>` without `TYPE` is the old spelling (`MDL-DEPR095`).
 
 A widget was the only MDL extension point without a `DESCRIBE`. That is why
 `mxcli widget init` writes markdown documentation at all — and why the two could
