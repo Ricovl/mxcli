@@ -39,10 +39,7 @@ CREATE PERSISTENT ENTITY MyFirstModule.Order (
 );
 
 CREATE ASSOCIATION MyFirstModule.Order_Customer
-  FROM MyFirstModule.Order TO MyFirstModule.Customer
-  TYPE Reference
-  OWNER Default
-  ON DELETE SET NULL;
+  FROM MyFirstModule.Order TO MyFirstModule.Customer;
 ```
 
 ## DESCRIBE MICROFLOW
@@ -127,12 +124,11 @@ Each value is followed by its caption (the display label shown to end users).
 DESCRIBE ASSOCIATION MyFirstModule.Order_Customer;
 ```
 
+DESCRIBE prints only the clauses that differ from the defaults (`TYPE Reference`, `OWNER Default`, `STORAGE COLUMN`, `ON DELETE SET NULL`), so an association that uses all of them comes back as just its ends:
+
 ```sql
 CREATE ASSOCIATION MyFirstModule.Order_Customer
-  FROM MyFirstModule.Order TO MyFirstModule.Customer
-  TYPE Reference
-  OWNER Default
-  ON DELETE SET NULL;
+  FROM MyFirstModule.Order TO MyFirstModule.Customer;
 ```
 
 ## DESCRIBE MODULE

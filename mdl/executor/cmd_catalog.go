@@ -969,6 +969,10 @@ func captureDescribeParallel(ctx *ExecContext, objectType string, qualifiedName 
 		// Pins the describe to this document rather than to whichever
 		// document of this name the lookup prefers (#1185).
 		describeID: id,
+		// The text feeds the search index, where layout annotations do not
+		// matter, and telling derived layout from authored rebuilds each flow
+		// several times — it made a full source refresh 2.3x slower (#766).
+		describeFullLayout: true,
 	}
 
 	describe := describeDispatch(objectType)

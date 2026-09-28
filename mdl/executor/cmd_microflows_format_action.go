@@ -530,6 +530,9 @@ func formatAction(
 					// can pick the other one — a model that builds cleanly and sorts
 					// by the wrong thing (mendixlabs/mxcli#1152).
 					attrName := sortItem.AttributeQualifiedName
+					if len(sortItem.EntityRefSteps) == 0 {
+						attrName = shortSortAttribute(ctx, entityName, attrName)
+					}
 					for i := len(sortItem.EntityRefSteps) - 1; i >= 0; i-- {
 						if assoc := sortItem.EntityRefSteps[i].Association; assoc != "" {
 							attrName = assoc + "/" + attrName
@@ -606,7 +609,16 @@ func formatAction(
 			withClause = fmt.Sprintf(" with (%s)", strings.Join(params, ", "))
 		}
 
-		return fmt.Sprintf("log %s node %s %s%s;", strings.ToLower(level), node, message, withClause)
+		// Level info and node 'Application' are what an unstated level and node
+		// build (addLogMessageAction), so neither is printed (R12, #748).
+		head := "log"
+		if lvl := strings.ToLower(level); lvl != "info" {
+			head += " " + lvl
+		}
+		if node != defaultLogNodeExpression {
+			head += " node " + node
+		}
+		return fmt.Sprintf("%s %s%s;", head, message, withClause)
 
 	case *microflows.MicroflowCallAction:
 		mfName := ""
@@ -1963,6 +1975,33 @@ func canonicalBSONMap(m map[string]any) bson.D {
 		doc = append(doc, bson.E{Key: k, Value: canonicalBSONValue(v)})
 	}
 	return canonicalBSONDocument(doc)
+}
+
+// shortSortAttribute returns the bare attribute name for a sort on the
+// retrieved entity's own (or inherited) attribute, and the qualified name
+// otherwise.
+//
+// A fully qualified `sort by M.Order.Name` is the default spelling of what
+// `sort by Name` already means (R12, #748): the builder qualifies a bare name
+// with the entity that DECLARES it, walking the generalization chain. So the
+// short form is printed exactly when that same walk, from the retrieved
+// entity, lands on the stored reference — then re-executing it writes the
+// same AttributeQualifiedName. Anything the walk does not confirm (no project,
+// a system member, an attribute of another entity) keeps the qualified name.
+func shortSortAttribute(ctx *ExecContext, entityQN, attrQN string) string {
+	if !ctx.Connected() || entityQN == "" {
+		return attrQN
+	}
+	dot := strings.LastIndex(attrQN, ".")
+	if dot <= 0 || strings.Count(attrQN, ".") != 2 {
+		return attrQN
+	}
+	bare := attrQN[dot+1:]
+	fb := &flowBuilder{backend: ctx.Backend}
+	if declared, ok := fb.resolveAttributeInEntityHierarchy(entityQN, bare); ok && declared == attrQN {
+		return bare
+	}
+	return attrQN
 }
 
 // enrichXPathConstraintForDescribe enriches the raw BSON XPathConstraint string for

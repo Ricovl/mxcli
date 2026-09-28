@@ -462,7 +462,7 @@ func init() {
 			"log", "logging", "info", "warning", "error", "debug",
 			"trace", "critical", "node", "message template",
 		},
-		Syntax:  "LOG LEVEL [NODE 'Name'] 'message';\nLOG LEVEL 'template {1}' WITH ({1} = $value);\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL",
+		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.",
 		Example: "LOG INFO NODE 'OrderService' 'Order created successfully';\nLOG WARNING 'Customer not found';\nLOG ERROR 'Failed to process {1}' WITH (\n  {1} = $OrderNumber\n);",
 	})
 

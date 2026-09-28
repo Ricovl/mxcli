@@ -692,7 +692,7 @@ func TestFormatAction_LogMessage_WithTemplateParams(t *testing.T) {
 		TemplateParameters: []string{"$OrderNumber", "$CustomerName"},
 	}
 	got := e.formatAction(action, nil, nil)
-	want := "log info node 'App' 'Order {1} for {2}' with ({1} = $OrderNumber, {2} = $CustomerName);"
+	want := "log node 'App' 'Order {1} for {2}' with ({1} = $OrderNumber, {2} = $CustomerName);"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -708,7 +708,7 @@ func TestFormatAction_LogMessage_EscapesMultiline(t *testing.T) {
 		},
 	}
 	got := e.formatAction(action, nil, nil)
-	want := "log info node 'App' 'Line 1\\nLine 2';"
+	want := "log node 'App' 'Line 1\\nLine 2';"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -724,7 +724,7 @@ func TestFormatAction_LogMessage_NodeExpression(t *testing.T) {
 		},
 	}
 	got := e.formatAction(action, nil, nil)
-	want := "log info node @MyModule.SecurityLogNode 'User added';"
+	want := "log node @MyModule.SecurityLogNode 'User added';"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}

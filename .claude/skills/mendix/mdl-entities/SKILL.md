@@ -380,6 +380,10 @@ from Module.ChildEntity to Module.ParentEntity
 [on delete cascade | restrict | set null [error message '...']];
 ```
 
+Every clause is optional; unstated means `type Reference owner Default storage column
+on delete set null`. `describe` prints only the clauses that differ, so a table
+association always shows `storage table`.
+
 ### Enumeration Syntax
 ```mdl
 create enumeration Module.Name (

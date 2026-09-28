@@ -94,7 +94,7 @@ func TestDescribeTrimsStoredExpressionWhitespace(t *testing.T) {
 				LogNodeName:        "'Node'\n",
 				TemplateParameters: []string{"$Order/Number\n"},
 			},
-			want: "log info node 'Node' 'Message' with ({1} = $Order/Number);",
+			want: "log node 'Node' 'Message' with ({1} = $Order/Number);",
 		},
 	}
 	for _, tc := range cases {
