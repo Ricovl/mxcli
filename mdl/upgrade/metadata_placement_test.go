@@ -149,3 +149,13 @@ func TestUpgrade_FolderClausePosition(t *testing.T) {
 		t.Errorf("second upgrade changed the script again: %v", again.Rewritten)
 	}
 }
+
+// R9 (ako/mxcli#755): `set comment` is `set documentation`.
+func TestUpgrade_SetComment(t *testing.T) {
+	src := "alter entity M.E set comment 'A';\nALTER ENUMERATION M.C SET COMMENT 'B';\nalter association M.A set comment 'C';\n"
+	want := "alter entity M.E set documentation 'A';\nALTER ENUMERATION M.C SET DOCUMENTATION 'B';\nalter association M.A set documentation 'C';\n"
+	res := mustUpgrade(t, src, Options{})
+	if res.Source != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", res.Source, want)
+	}
+}

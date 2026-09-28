@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
@@ -285,8 +286,12 @@ func (b *Builder) ExitAlterAssociationAction(ctx *parser.AlterAssociationActionC
 				return
 			}
 
-			// SET COMMENT
+			// SET DOCUMENTATION; SET COMMENT is its deprecated spelling (R9,
+			// MDL-DEPR135).
 			if ctx.COMMENT() != nil && ctx.STRING_LITERAL() != nil {
+				b.recordDeprecation(deprecation.SetComment, ctx.COMMENT().GetSymbol(), "")
+			}
+			if (ctx.COMMENT() != nil || ctx.DOCUMENTATION() != nil) && ctx.STRING_LITERAL() != nil {
 				b.statements = append(b.statements, &ast.AlterAssociationStmt{
 					Name:      name,
 					Operation: ast.AlterAssociationSetComment,

@@ -264,6 +264,9 @@ func execAlterEnumeration(ctx *ExecContext, s *ast.AlterEnumerationStmt) error {
 		}
 		enum.Values[idx].Caption.Translations[authoringLanguage(ctx)] = s.Caption
 
+	case ast.AlterEnumSetDocumentation:
+		enum.Documentation = s.Documentation
+
 	default:
 		return mdlerrors.NewUnsupported("unknown ALTER ENUMERATION operation")
 	}

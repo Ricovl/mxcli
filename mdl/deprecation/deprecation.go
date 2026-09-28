@@ -215,6 +215,9 @@ const (
 	// right after the name: among a constant's trailing options, or after a
 	// snippet's header (R9).
 	FolderClausePosition = "MDL-DEPR134"
+	// SetComment is `alter entity|association|enumeration … set comment '…'`:
+	// it sets the element's documentation (R9).
+	SetComment = "MDL-DEPR135"
 
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
@@ -705,6 +708,16 @@ var r6Entries = []Entry{
 			"both places is reported, not rewritten: the later one is what is stored.",
 		Example:          "create constant M.Url type String default 'x' folder 'Config';",
 		CanonicalExample: "create constant M.Url folder 'Config' type String default 'x';",
+	},
+	{
+		Code:             SetComment,
+		Old:              "alter entity|association|enumeration … set comment '…'",
+		Canonical:        "alter entity|association|enumeration … set documentation '…'",
+		Rewrite:          Rewrite{Token: "comment", Replacement: "documentation"},
+		RemovedIn:        2,
+		Note:             "It sets the element's documentation, which is what the alter form is called (R9).",
+		Example:          "alter entity M.E set comment 'Orders';",
+		CanonicalExample: "alter entity M.E set documentation 'Orders';",
 	},
 }
 

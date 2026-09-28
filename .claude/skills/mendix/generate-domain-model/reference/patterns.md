@@ -223,7 +223,7 @@ alter entity Module.Customer
   set position (100, 200);
 ```
 
-**Supported operations:** ADD ATTRIBUTE, RENAME ATTRIBUTE, MODIFY ATTRIBUTE (type + `NULLABLE`/`NOT NULL`/`UNIQUE`/`DEFAULT` constraints), DROP ATTRIBUTE, SET DOCUMENTATION, SET COMMENT, ADD INDEX, DROP INDEX, SET POSITION.
+**Supported operations:** ADD ATTRIBUTE, RENAME ATTRIBUTE, MODIFY ATTRIBUTE (type + `NULLABLE`/`NOT NULL`/`UNIQUE`/`DEFAULT` constraints), DROP ATTRIBUTE, SET DOCUMENTATION (`SET COMMENT` is its deprecated alias, MDL-DEPR135), ADD INDEX, DROP INDEX, SET POSITION.
 
 > **`MODIFY ATTRIBUTE` always takes a type** — restate it even when you only want
 > to change a constraint. Its type slot accepts a bare qualified name, so a

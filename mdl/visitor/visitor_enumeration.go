@@ -4,6 +4,7 @@ package visitor
 
 import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
@@ -76,6 +77,17 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 						Operation: ast.AlterEnumRename,
 						ValueName: ids[0].GetText(),
 						NewName:   ids[1].GetText(),
+					})
+				} else if ctx.SET() != nil && ctx.STRING_LITERAL() != nil && (ctx.DOCUMENTATION() != nil || ctx.COMMENT() != nil) {
+					// SET DOCUMENTATION; SET COMMENT is its deprecated spelling
+					// (R9, MDL-DEPR135). Neither built a statement before.
+					if ctx.COMMENT() != nil {
+						b.recordDeprecation(deprecation.SetComment, ctx.COMMENT().GetSymbol(), "")
+					}
+					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
+						Name:          name,
+						Operation:     ast.AlterEnumSetDocumentation,
+						Documentation: unquoteStringLit(ctx.STRING_LITERAL()),
 					})
 				} else if ctx.MODIFY() != nil && ctx.VALUE() != nil && ctx.CAPTION() != nil && len(ids) >= 1 && ctx.STRING_LITERAL() != nil {
 					b.statements = append(b.statements, &ast.AlterEnumerationStmt{

@@ -280,7 +280,7 @@ alterEntityAction
     | DROP attributeKw ifExists? attributeName
     | DROP DEFAULT ON ATTRIBUTE attributeName   // clear an attribute's default value
     | SET DOCUMENTATION STRING_LITERAL
-    | SET COMMENT STRING_LITERAL
+    | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     | SET POSITION LPAREN NUMBER_LITERAL COMMA NUMBER_LITERAL RPAREN
     | SET LPAREN ALLOW_CREATE_CHANGE_LOCALLY COLON (TRUE | FALSE) RPAREN    // set ( AllowCreateChangeLocally: true )
     | SET ALLOW_CREATE_CHANGE_LOCALLY EQUALS /* @alias MDL-DEPR063 */ (TRUE | FALSE)
@@ -315,7 +315,8 @@ alterAssociationAction
     | SET onDeleteClause
     | SET OWNER (DEFAULT | BOTH)
     | SET STORAGE (COLUMN | TABLE)
-    | SET COMMENT STRING_LITERAL
+    | SET DOCUMENTATION STRING_LITERAL
+    | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     // Line anchors: where the connector attaches to each entity box, as a
     // PERCENTAGE of the box (0..100). Both ends together — the pair is one
     // visual decision, and `from`/`to` are the association's own words for its
@@ -338,7 +339,8 @@ alterEnumerationAction
     | RENAME VALUE IDENTIFIER TO IDENTIFIER
     | MODIFY VALUE IDENTIFIER CAPTION STRING_LITERAL
     | DROP VALUE ifExists? IDENTIFIER
-    | SET COMMENT STRING_LITERAL
+    | SET DOCUMENTATION STRING_LITERAL
+    | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     ;
 
 // =============================================================================

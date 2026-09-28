@@ -1565,7 +1565,7 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 			return mdlerrors.NewBackend("set comment", err)
 		}
 		invalidateDomainModelsCache(ctx)
-		fmt.Fprintf(ctx.Output, "Set comment on entity %s\n", s.Name)
+		fmt.Fprintf(ctx.Output, "Set documentation on entity %s\n", s.Name)
 
 	case ast.AlterEntitySetPosition:
 		if s.Position == nil {
