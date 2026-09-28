@@ -29,8 +29,9 @@ func init() {
 			"-- every statement ends with ';' and '/' is not a terminator; '' is the\n" +
 			"-- only string escape, so a backslash is an ordinary character; and an\n" +
 			"-- unknown or mis-shaped property key in a REST, business event or agent\n" +
-			"-- property list is an error. A trailing comma is allowed in every\n" +
-			"-- bracketed list, with or without the header.\n" +
+			"-- property list is an error; and a session command (connect, set format,\n" +
+			"-- status, help, …) in a script is an error (MDL-V1-SESSION). A trailing\n" +
+			"-- comma is allowed in every bracketed list, with or without the header.\n" +
 			"--\n" +
 			"-- A script's meaning never depends on which mxcli release runs it: a\n" +
 			"-- change of meaning applies only under the version that introduces it.\n" +
@@ -43,7 +44,8 @@ func init() {
 			"-- and writes list operations one statement per activity. It refuses, and\n" +
 			"-- says why, when a construct has no rewrite: an unknown or mis-shaped\n" +
 			"-- property (MDL-V1-PROP/PROPVALUE), `create or replace view entity`\n" +
-			"-- (MDL-V1-REPLACE01), a nested list operation, find/contains on a variable\n" +
+			"-- (MDL-V1-REPLACE01), a session command in a script (MDL-V1-SESSION), a\n" +
+			"-- nested list operation, find/contains on a variable\n" +
 			"-- whose type the script does not state, and an escaped line break inside\n" +
 			"-- an expression.\n" +
 			"-- `mxcli fmt --upgrade` alone rewrites deprecated spellings (MDL-DEPRnnn).",
@@ -140,9 +142,12 @@ func init() {
 		},
 		Syntax: "-- Every document type takes a folder clause on CREATE. Where it goes\n" +
 			"-- depends on the statement's shape:\n" +
-			"--   Pages, snippets       Folder: 'path'   a property, inside the parentheses\n" +
-			"--   Microflows, nanoflows FOLDER 'path'    a keyword, before BEGIN\n" +
-			"--   Everything else       FOLDER 'path'    a keyword, after the qualified name\n" +
+			"--   Microflows, nanoflows FOLDER 'path'    after the signature, before BEGIN\n" +
+			"--   Everything else       FOLDER 'path'    after the qualified name\n" +
+			"--                                          (pages and snippets included)\n" +
+			"--\n" +
+			"-- The Folder: 'path' property that pages, snippets and REST/OData services\n" +
+			"-- also take is a deprecated alias (MDL-DEPR105); fmt --upgrade moves it.\n" +
 			"--\n" +
 			"-- Missing folders in the path are created. Nested paths use '/'.\n" +
 			"--\n" +
@@ -158,10 +163,9 @@ func init() {
 			"  WITH JSON STRUCTURE MyModule.JSON_Order {\n" +
 			"    CREATE MyModule.Order { Id = id }\n" +
 			"  };\n\n" +
-			"CREATE PAGE MyModule.OrderList\n" +
+			"CREATE PAGE MyModule.OrderList FOLDER 'Orders'\n" +
 			"  (\n" +
 			"    Title: 'Orders',\n" +
-			"    Folder: 'Orders',\n" +
 			"    Layout: Atlas_Core.Atlas_Default\n" +
 			"  )\n" +
 			"  {\n" +
@@ -670,11 +674,14 @@ DROP TASK QUEUE Ops.Mail;`,
 			"create regular expression", "drop regular expression", "describe regular expression",
 			"show regular expressions", "email regex", "match",
 		},
-		Syntax: `CREATE [OR MODIFY] REGULAR EXPRESSION Module.Name [FOLDER 'path'] (
+		Syntax: `[/** <documentation> */]
+CREATE [OR MODIFY] REGULAR EXPRESSION Module.Name [FOLDER 'path'] (
   Expression: '<pattern>',
-  [Documentation: '<text>',]
   [ExportLevel: Hidden|Public,]
 );
+
+-- Documentation is the doc comment; the Documentation: '<text>' property is
+-- its deprecated alias (MDL-DEPR106).
 
 SHOW REGULAR EXPRESSIONS [IN <module>];
 LIST REGULAR EXPRESSIONS [IN <module>];
@@ -695,9 +702,9 @@ notes that it could not verify it — it does not call it invalid.
 
 Bind a pattern to an attribute with CREATE VALIDATION RULE — see
 'mxcli syntax validation-rule'.`,
-		Example: `CREATE REGULAR EXPRESSION Val.EmailAddress (
-  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+',
-  Documentation: 'A, not too restrictive, email address regular expression'
+		Example: `/** A, not too restrictive, email address regular expression */
+CREATE REGULAR EXPRESSION Val.EmailAddress (
+  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+'
 );
 
 CREATE REGULAR EXPRESSION Val.Identifier (

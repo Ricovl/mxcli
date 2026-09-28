@@ -3,12 +3,11 @@
 ## Synopsis
 
 ```sql
-CREATE [ OR REPLACE ] PAGE module.Name
+CREATE [ OR REPLACE ] PAGE module.Name [ FOLDER 'path' ]
 (
     [ Params: { $param : Module.Entity | Type [, ...] }, ]
     Title: 'title',
     Layout: Module.LayoutName
-    [, Folder: 'path' ]
     [, Variables: { $name : type = 'expression' [, ...] } ]
 )
 {
@@ -209,8 +208,8 @@ These properties are available on most widget types:
 `Layout: Module.LayoutName`
 :   The page layout. Must reference an existing layout. Required.
 
-`Folder: 'path'`
-:   Optional folder within the module. Nested folders use `/`.
+`FOLDER 'path'`
+:   Optional folder within the module, as a clause after the name. Nested folders use `/`. The `Folder: 'path'` property is its deprecated alias (`MDL-DEPR105`).
 
 `Variables: { ... }`
 :   Optional page variables with type and default expression.
@@ -243,11 +242,10 @@ CREATE PAGE MyModule.Customer_Edit
 Overview page with a data grid:
 
 ```sql
-CREATE PAGE Sales.Order_Overview
+CREATE PAGE Sales.Order_Overview FOLDER 'Orders'
 (
     Title: 'Orders',
-    Layout: Atlas_Core.Atlas_Default,
-    Folder: 'Orders'
+    Layout: Atlas_Core.Atlas_Default
 )
 {
     DATAGRID dgOrders (DataSource: DATABASE Sales.Order, PageSize: 20) {

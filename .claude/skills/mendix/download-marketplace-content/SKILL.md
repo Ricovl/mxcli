@@ -300,7 +300,7 @@ DESCRIBE renders imperfectly — a snippet whose body comes out `{ }`, a buildin
 block under "Building blocks are read-only; they cannot be created via MDL" — and
 two imperfect renderings can differ for reasons that have nothing to do with you.
 Those are reported `unknown`, never `changed`, and `--save-edits` refuses to write
-them: replaying `create or modify snippet X (Folder: 'Web') { }` would **empty**
+them: replaying `create or modify snippet X folder 'Web' { }` would **empty**
 the snippet.
 
 **Read `verified`, not just `locallyModified`.** An element that cannot be described is

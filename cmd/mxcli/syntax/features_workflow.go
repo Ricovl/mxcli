@@ -237,10 +237,10 @@ func init() {
 		// cannot open. This entry taught 'Under 1000' / 'Over 1000' — both of
 		// which corrupt the model (ako/mxcli#1031, ako/mxcli#1065).
 		Syntax: "-- Boolean decision:\n" +
-			"DECISION [<name>] '<boolean-expression>' [COMMENT '<text>']\n  OUTCOMES TRUE -> { <activities> } FALSE -> { <activities> };\n\n" +
+			"DECISION [<name>] '<boolean-expression>' [CAPTION '<text>']\n  OUTCOMES TRUE -> { <activities> } FALSE -> { <activities> };\n\n" +
 			"-- Enumeration decision — each outcome is a QUALIFIED enum value,\n" +
 			"-- plus one '' outcome for 'none of the above' (without it: CE6686):\n" +
-			"DECISION [<name>] '<enum-expression>' [COMMENT '<text>']\n  OUTCOMES 'Module.Enumeration.Value' -> { <activities> } ... '' -> { };",
+			"DECISION [<name>] '<enum-expression>' [CAPTION '<text>']\n  OUTCOMES 'Module.Enumeration.Value' -> { <activities> } ... '' -> { };",
 		Example: "-- Boolean\nDECISION decision1 '$WorkflowContext/Amount > 1000'\n  OUTCOMES\n    TRUE -> {\n      USER TASK ManagerApproval 'Manager must approve'\n        OUTCOMES 'OK' { };\n    }\n    FALSE -> { };\n\n" +
 			"-- Enumeration: the value must be Module.Enumeration.Value.\n-- A bare 'Approved' makes the project UNLOADABLE, not merely invalid.\nDECISION decision2 '$WorkflowContext/Status'\n  OUTCOMES\n    'Sales.ENUM_Status.Approved' -> { }\n    'Sales.ENUM_Status.Rejected' -> { }\n    '' -> { };",
 		SeeAlso: []string{"workflow.create", "workflow.parallel-split"},
@@ -253,7 +253,7 @@ func init() {
 			"parallel", "concurrent", "split", "fork", "join",
 			"parallel gateway", "AND",
 		},
-		Syntax:  "PARALLEL SPLIT [<name>] [COMMENT '<text>']\n  PATH 1 { <activities> }\n  PATH 2 { <activities> };",
+		Syntax:  "PARALLEL SPLIT [<name>] [CAPTION '<text>']\n  PATH 1 { <activities> }\n  PATH 2 { <activities> };",
 		Example: "PARALLEL SPLIT\n  PATH 1 {\n    USER TASK LegalReview 'Legal review'\n      OUTCOMES 'Done' { };\n  }\n  PATH 2 {\n    USER TASK TechReview 'Technical review'\n      OUTCOMES 'Done' { };\n  };",
 		SeeAlso: []string{"workflow.decision", "workflow.create"},
 	})
@@ -267,12 +267,14 @@ func init() {
 		},
 		// R4 (ako/mxcli#751): arguments are bound as at every call site, right
 		// after the callee, the expression bare. The older `WITH (P = '<expr>')`
-		// after the comment is the deprecated alias MDL-DEPR008.
-		Syntax: "CALL MICROFLOW Module.MF[(<Param> = <expression>, ...)] [AS <name>] [COMMENT '<text>']\n" +
+		// after the caption is the deprecated alias MDL-DEPR008.
+		Syntax: "CALL MICROFLOW Module.MF[(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>']\n" +
 			"  [OUTCOMES '<outcome>' -> { <activities> } ...];\n\n" +
 			"-- WITH (<Param> = '<expression>'), the expression in a string, is the\n" +
-			"-- deprecated spelling of the argument list (MDL-DEPR008).",
-		Example: "CALL MICROFLOW HR.SendNotification\n  COMMENT 'Notify manager';\n\n-- Arguments are named by their BARE parameter name:\nCALL MICROFLOW HR.Escalate(Request = $WorkflowContext) AS callMicroflow1;",
+			"-- deprecated spelling of the argument list (MDL-DEPR008).\n" +
+			"-- CAPTION sets the caption the activity shows; COMMENT '<text>', its old\n" +
+			"-- spelling on every workflow activity, is a deprecated alias (MDL-DEPR104).",
+		Example: "CALL MICROFLOW HR.SendNotification\n  CAPTION 'Notify manager';\n\n-- Arguments are named by their BARE parameter name:\nCALL MICROFLOW HR.Escalate(Request = $WorkflowContext) AS callMicroflow1;",
 		SeeAlso: []string{"workflow.create", "workflow.call-workflow", "workflow.ai-agent-task"},
 	})
 
@@ -286,7 +288,7 @@ func init() {
 		// Measured on mxbuild 11.13.0 against the same activity written as a call
 		// microflow: the only difference in what builds is CE1590 for a microflow
 		// with no parameters.
-		Syntax: "CALL AGENT MICROFLOW Module.MF[(<Param> = <expression>, ...)] [AS <name>] [COMMENT '<text>']\n" +
+		Syntax: "CALL AGENT MICROFLOW Module.MF[(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>']\n" +
 			"  [OUTCOMES <true|false|'Module.Enum.Value'|''> -> { <activities> } ...]\n" +
 			"  [BOUNDARY EVENT ...];\n\n" +
 			"-- The same statement as CALL MICROFLOW, stored as an AI agent task. The microflow\n" +
@@ -296,7 +298,7 @@ func init() {
 		Example: "CREATE MICROFLOW HR.ACT_ClassifyRequest ($Request: HR.LeaveRequest)\n" +
 			"RETURNS Boolean AS $Urgent\nBEGIN\n  -- call the agent here\n  RETURN false;\nEND;\n\n" +
 			"CALL AGENT MICROFLOW HR.ACT_ClassifyRequest(Request = $WorkflowContext) AS aiAgentTask1\n" +
-			"  COMMENT 'Classify the request'\n" +
+			"  CAPTION 'Classify the request'\n" +
 			"  OUTCOMES true -> { USER TASK Expedite 'Expedite' PAGE HR.TaskPage OUTCOMES 'Done' { }; }\n" +
 			"           false -> { };",
 		SeeAlso: []string{"workflow.call-microflow", "agents"},
@@ -308,8 +310,8 @@ func init() {
 		Keywords: []string{
 			"call workflow", "sub-workflow", "nested workflow",
 		},
-		Syntax:  "CALL WORKFLOW Module.WF[(<Param> = <expression>, ...)] [AS <name>] [COMMENT '<text>'];",
-		Example: "CALL WORKFLOW HR.SubApproval COMMENT 'Delegate to sub-process';\n\nCALL WORKFLOW HR.SubApproval(Request = $WorkflowContext) AS callWf1;",
+		Syntax:  "CALL WORKFLOW Module.WF[(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>'];",
+		Example: "CALL WORKFLOW HR.SubApproval CAPTION 'Delegate to sub-process';\n\nCALL WORKFLOW HR.SubApproval(Request = $WorkflowContext) AS callWf1;",
 		SeeAlso: []string{"workflow.create", "workflow.call-microflow"},
 	})
 
@@ -324,7 +326,7 @@ func init() {
 		// activities by type and ordinal regardless of caption (decision1,
 		// split1, callMicroflow1); mxcli derives a name when none is given, which
 		// is why an explicit one matters when reproducing a stored workflow.
-		Syntax: "JUMP TO <activity-name> [COMMENT '<text>'];\n\n" +
+		Syntax: "JUMP TO <activity-name> [CAPTION '<text>'];\n\n" +
 			"-- name the target so the jump resolves:\n" +
 			"DECISION <name> ['<caption>'] ...\nPARALLEL SPLIT <name> ...\n" +
 			"WAIT FOR TIMER <name> ...\nWAIT FOR NOTIFICATION <name>\n" +
@@ -344,7 +346,7 @@ func init() {
 		},
 		// Every placement rule below is an mxbuild measurement (11.13.0), not a
 		// reading of the error text. See docs/11-proposals/PROPOSAL_workflow_end_activity.md.
-		Syntax: "end workflow [comment '<caption>'];\n\n" +
+		Syntax: "end workflow [caption '<caption>'];\n\n" +
 			"-- Legal as the LAST statement of a user-task outcome, a decision branch,\n" +
 			"-- a call-microflow outcome or an interrupting boundary-event path, at any depth.\n" +
 			"-- It ends the WHOLE workflow, not the block it is written in.\n" +
@@ -356,17 +358,17 @@ func init() {
 			"--   `return;` — a microflow's spelling                            MDL-WF11\n" +
 			"--\n" +
 			"-- The main flow needs none: the body's own closing `end workflow` is its End.\n" +
-			"-- `comment` sets the End's caption on the canvas. An End is not a jump target.",
+			"-- `caption` sets the End's caption on the canvas. An End is not a jump target.",
 		Example: "USER TASK Review 'Review the request'\n" +
 			"  PAGE HR.ReviewPage\n" +
 			"  OUTCOMES\n" +
 			"    'Approve' { }\n" +
 			"    'Reject' {\n" +
 			"      CALL MICROFLOW HR.ACT_NotifyRejected;\n" +
-			"      END WORKFLOW COMMENT 'Rejected';\n" +
+			"      END WORKFLOW CAPTION 'Rejected';\n" +
 			"    }\n" +
 			"  BOUNDARY EVENT INTERRUPTING TIMER 'addDays([%CurrentDateTime%], 5)' {\n" +
-			"    END WORKFLOW COMMENT 'Expired';\n" +
+			"    END WORKFLOW CAPTION 'Expired';\n" +
 			"  };",
 		SeeAlso: []string{"workflow.user-task", "workflow.decision", "workflow.boundary-event", "workflow.jump-to"},
 	})
@@ -425,7 +427,7 @@ func init() {
 			"  ON (INTERRUPTING | NON INTERRUPTING) NOTIFICATION [<start>] ['<start caption>']\n" +
 			"  { <activities> };\n" +
 			"EVENT SUBPROCESS <name> ['<caption>']\n" +
-			"  ON (INTERRUPTING | NON INTERRUPTING) TIMER '<first-execution-time>' [AS <start>] [COMMENT '<start caption>']\n" +
+			"  ON (INTERRUPTING | NON INTERRUPTING) TIMER '<first-execution-time>' [AS <start>] [CAPTION '<start caption>']\n" +
 			"  { <activities> };\n\n" +
 			"-- Interrupting cancels every active path first; non-interrupting runs alongside.\n" +
 			"-- A notification start is what `notify workflow` targets. The body's End is\n" +
@@ -454,11 +456,11 @@ func init() {
 		Keywords: []string{
 			"notification", "notification activity", "intermediate event", "notify",
 		},
-		Syntax: "NOTIFICATION [<name>] [COMMENT '<caption>'];\n\n" +
+		Syntax: "NOTIFICATION [<name>] [CAPTION '<caption>'];\n\n" +
 			"-- The point a `notify workflow` action reaches (Workflows$NotificationActivity,\n" +
 			"-- Mendix 11.11+). `wait for notification` is the older activity for the same\n" +
 			"-- purpose and works on every version.",
-		Example:    "notification DocumentsReceived comment 'Documents received';",
+		Example:    "notification DocumentsReceived caption 'Documents received';",
 		MinVersion: "11.11.0",
 		SeeAlso:    []string{"workflow.event-subprocess", "workflow.boundary-event", "workflow.notify"},
 	})

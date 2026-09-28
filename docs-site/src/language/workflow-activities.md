@@ -80,35 +80,39 @@ builds and never completes.
 
 ## Call Microflow
 
-Execute a microflow as part of the workflow. Optionally specify a comment and outcomes:
+Execute a microflow as part of the workflow. Optionally specify a caption and outcomes:
 
 ```sql
-CALL MICROFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [COMMENT '<text>']
+CALL MICROFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [CAPTION '<text>']
   [OUTCOMES '<outcome>' { <activities> } ...];
 ```
 
 Example:
 
 ```sql
-CALL MICROFLOW HR.ACT_SendNotification COMMENT 'Notify the applicant';
-CALL MICROFLOW HR.ACT_Escalate(Request = $WorkflowContext) COMMENT 'Escalate';
+CALL MICROFLOW HR.ACT_SendNotification CAPTION 'Notify the applicant';
+CALL MICROFLOW HR.ACT_Escalate(Request = $WorkflowContext) CAPTION 'Escalate';
 ```
 
 Arguments are bound like every other call in MDL: `Param = expression` right
 after the callee, the expression written bare. The older spelling after the
-comment, `WITH (Param = '<expression>')` with the expression inside a string,
+caption, `WITH (Param = '<expression>')` with the expression inside a string,
 still parses with the same meaning but is deprecated (MDL-DEPR008);
 `mxcli fmt --upgrade` rewrites it.
+
+`CAPTION '…'` sets the caption Studio Pro shows on the activity, on every workflow
+activity. It used to be spelt `COMMENT '…'`, which still parses as a deprecated
+alias (MDL-DEPR104) — it was never a comment.
 
 ## AI Agent Task
 
 A step that runs an AI agent (Mendix 11.9 or later). It is written like `CALL
-MICROFLOW` with `AGENT` added, and takes the same name, comment, parameter
+MICROFLOW` with `AGENT` added, and takes the same name, caption, parameter
 mappings, outcomes and boundary events. The microflow is where the agent is
 invoked — build agents with the Studio Pro Agent Editor, or `CREATE AGENT`.
 
 ```sql
-CALL AGENT MICROFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [AS <name>] [COMMENT '<text>']
+CALL AGENT MICROFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>']
   [OUTCOMES <true|false|'Module.Enum.Value'|''> -> { <activities> } ...];
 ```
 
@@ -116,7 +120,7 @@ Example — branch on the agent's answer:
 
 ```sql
 CALL AGENT MICROFLOW HR.ACT_ClassifyRequest(Request = $WorkflowContext) AS aiAgentTask1
-  COMMENT 'Classify the request'
+  CAPTION 'Classify the request'
   OUTCOMES true -> {
     USER TASK Expedite 'Expedite the request' PAGE HR.TaskPage OUTCOMES 'Done' { };
   } false -> { };
@@ -131,13 +135,13 @@ branch with `OUTCOMES`; return nothing for a single path.
 Start a sub-workflow:
 
 ```sql
-CALL WORKFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [COMMENT '<text>'];
+CALL WORKFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [CAPTION '<text>'];
 ```
 
 Example:
 
 ```sql
-CALL WORKFLOW HR.BackgroundCheck COMMENT 'Run background check sub-process';
+CALL WORKFLOW HR.BackgroundCheck CAPTION 'Run background check sub-process';
 ```
 
 ## Decision
@@ -228,7 +232,7 @@ WAIT FOR NOTIFICATION;
 An intermediate notification event (Mendix 11.11+): the point a `NOTIFY WORKFLOW` action targets by name.
 
 ```sql
-NOTIFICATION [<name>] [COMMENT '<caption>'];
+NOTIFICATION [<name>] [CAPTION '<caption>'];
 ```
 
 A **notification boundary event** attaches the same trigger to a user task, call microflow or wait. It takes a name instead of a timer delay:
@@ -262,7 +266,7 @@ EVENT SUBPROCESS <name> ['<caption>']
   { <activities> };
 
 EVENT SUBPROCESS <name> ['<caption>']
-  ON (INTERRUPTING | NON INTERRUPTING) TIMER '<first-execution-time>' [AS <start>] [COMMENT '<start caption>']
+  ON (INTERRUPTING | NON INTERRUPTING) TIMER '<first-execution-time>' [AS <start>] [CAPTION '<start caption>']
   { <activities> };
 ```
 

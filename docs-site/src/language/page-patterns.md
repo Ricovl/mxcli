@@ -7,11 +7,10 @@ This page collects frequently used page patterns: overview/list pages, edit page
 An overview page displays a list of entities with a control bar for creating, editing, and deleting records. Clicking a row opens the edit page.
 
 ```sql
-CREATE PAGE MyModule.Customer_Overview
+CREATE PAGE MyModule.Customer_Overview FOLDER 'Customers'
 (
   Title: 'Customers',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Customers'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   DATAGRID dgCustomers (DataSource: DATABASE MyModule.Customer, PageSize: 20) {
@@ -51,12 +50,11 @@ END;
 An edit page displayed as a popup dialog. Receives the entity as a page parameter:
 
 ```sql
-CREATE PAGE MyModule.Customer_Edit
+CREATE PAGE MyModule.Customer_Edit FOLDER 'Customers'
 (
   Params: { $Customer: MyModule.Customer },
   Title: 'Edit Customer',
-  Layout: Atlas_Core.PopupLayout,
-  Folder: 'Customers'
+  Layout: Atlas_Core.PopupLayout
 )
 {
   DATAVIEW dvCustomer (DataSource: $Customer) {
@@ -78,12 +76,11 @@ CREATE PAGE MyModule.Customer_Edit
 A full-page detail view with sections organized using layout grids:
 
 ```sql
-CREATE PAGE MyModule.Customer_Detail
+CREATE PAGE MyModule.Customer_Detail FOLDER 'Customers'
 (
   Params: { $Customer: MyModule.Customer },
   Title: 'Customer Detail',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Customers'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   DATAVIEW dvCustomer (DataSource: $Customer) {
@@ -123,11 +120,10 @@ A master-detail page shows a list on one side and the selected item's details on
 ### Side-by-Side Layout
 
 ```sql
-CREATE PAGE MyModule.Product_MasterDetail
+CREATE PAGE MyModule.Product_MasterDetail FOLDER 'Products'
 (
   Title: 'Products',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Products'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   LAYOUTGRID gridMain {
@@ -167,11 +163,10 @@ CREATE PAGE MyModule.Product_MasterDetail
 A master-detail pattern where selecting an entity also shows its related child entities via an association:
 
 ```sql
-CREATE PAGE MyModule.Order_MasterDetail
+CREATE PAGE MyModule.Order_MasterDetail FOLDER 'Orders'
 (
   Title: 'Orders',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Orders'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   LAYOUTGRID gridMain {
@@ -222,11 +217,10 @@ Here is a concise CRUD set for an `Employee` entity:
 
 ```sql
 -- 1. Overview page
-CREATE PAGE HR.Employee_Overview
+CREATE PAGE HR.Employee_Overview FOLDER 'Employees'
 (
   Title: 'Employees',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Employees'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   DATAGRID dgEmployees (DataSource: DATABASE HR.Employee, PageSize: 20) {
@@ -246,12 +240,11 @@ CREATE PAGE HR.Employee_Overview
 }
 
 -- 2. Edit page (popup)
-CREATE PAGE HR.Employee_Edit
+CREATE PAGE HR.Employee_Edit FOLDER 'Employees'
 (
   Params: { $Employee: HR.Employee },
   Title: 'Edit Employee',
-  Layout: Atlas_Core.PopupLayout,
-  Folder: 'Employees'
+  Layout: Atlas_Core.PopupLayout
 )
 {
   DATAVIEW dvEmployee (DataSource: $Employee) {
@@ -283,11 +276,10 @@ END;
 A dashboard page using layout grids to arrange multiple data sections:
 
 ```sql
-CREATE PAGE MyModule.Dashboard
+CREATE PAGE MyModule.Dashboard FOLDER 'Dashboard'
 (
   Title: 'Dashboard',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Dashboard'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   LAYOUTGRID gridDash {

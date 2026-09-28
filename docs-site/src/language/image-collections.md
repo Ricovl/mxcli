@@ -20,9 +20,9 @@ The `DESCRIBE` output includes the full `CREATE` statement. If the collection co
 ## CREATE IMAGE COLLECTION
 
 ```sql
+[/** <description> */]
 CREATE IMAGE COLLECTION <Module>.<Name>
   [EXPORT LEVEL 'Hidden'|'Public']
-  [COMMENT '<description>']
   [(
     IMAGE <Name> FROM FILE '<path>',
     ...
@@ -32,7 +32,7 @@ CREATE IMAGE COLLECTION <Module>.<Name>
 | Option | Description | Default |
 |--------|-------------|---------|
 | `EXPORT LEVEL` | `'Hidden'` (internal to module) or `'Public'` (accessible from other modules) | `'Hidden'` |
-| `COMMENT` | Documentation for the collection | (none) |
+| `/** … */` | Documentation for the collection, as a doc comment before the statement (`COMMENT '…'` is its deprecated alias, `MDL-DEPR100`) | (none) |
 | `IMAGE Name FROM FILE` | Load an image from the filesystem into the collection | (none) |
 
 The image format is detected automatically from the file extension. Relative paths are resolved from the current working directory. Supported formats: PNG, SVG, GIF, JPEG, BMP, WebP.
@@ -46,9 +46,9 @@ CREATE IMAGE COLLECTION MyModule.AppIcons;
 -- With export level
 CREATE IMAGE COLLECTION MyModule.SharedIcons EXPORT LEVEL 'Public';
 
--- With comment
-CREATE IMAGE COLLECTION MyModule.StatusIcons
-  COMMENT 'Icons for order and task status indicators';
+-- With documentation
+/** Icons for order and task status indicators */
+CREATE IMAGE COLLECTION MyModule.StatusIcons;
 
 -- With images from files
 CREATE IMAGE COLLECTION MyModule.NavigationIcons (
@@ -57,9 +57,9 @@ CREATE IMAGE COLLECTION MyModule.NavigationIcons (
 );
 
 -- All options combined
+/** Company branding assets */
 CREATE IMAGE COLLECTION MyModule.BrandAssets
-  EXPORT LEVEL 'Public'
-  COMMENT 'Company branding assets' (
+  EXPORT LEVEL 'Public' (
   IMAGE logo_dark FROM FILE 'assets/logo-dark.png',
   IMAGE logo_light FROM FILE 'assets/logo-light.png'
 );

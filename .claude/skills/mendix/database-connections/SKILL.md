@@ -47,21 +47,17 @@ create non-persistent entity MyModule.EmployeeRecord (
 Connection credentials should be stored in constants:
 
 ```sql
--- Connection string (JDBC URL)
+/** JDBC connection string for external database */
 create constant MyModule.DbConnectionString type string
-  default 'jdbc:oracle:thin:@//hostname:1521/SERVICENAME'
-  comment 'JDBC connection string for external database';
+  default 'jdbc:oracle:thin:@//hostname:1521/SERVICENAME';
 
--- Username
+/** Database username */
 create constant MyModule.DbUsername type string
-  default 'app_user'
-  comment 'Database username';
+  default 'app_user';
 
--- Password (use PRIVATE for local development)
+/** Database password - inject via environment variable in production */
 create constant MyModule.DbPassword type string
-  default ''
-  comment 'Database password - inject via environment variable in production'
-  PRIVATE;
+  default '';
 ```
 
 ## Database Connection Syntax
