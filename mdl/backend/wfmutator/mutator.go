@@ -356,9 +356,12 @@ func (m *Mutator) DropOutcome(activityRef string, atPos int, outcomeName string)
 			kept = append(kept, elem)
 			continue
 		}
-		value := bsonnav.DGetString(oDoc, "Value")
+		// Only an outcome that stores a string value can be addressed by one:
+		// a path, a void or a boolean outcome reads back as "" and would match
+		// an empty value (found reviewing ako/mxcli#791).
+		value, hasValue := bsonnav.DGet(oDoc, "Value").(string)
 		typeName := bsonnav.DGetString(oDoc, "$Type")
-		matched := value == outcomeName
+		matched := hasValue && value == outcomeName
 		if !matched && strings.EqualFold(outcomeName, "Default") && typeName == "Workflows$VoidConditionOutcome" {
 			matched = true
 		}
@@ -514,8 +517,7 @@ func (m *Mutator) DropBranch(activityRef string, atPos int, branchName string) e
 					continue
 				}
 			default:
-				value := bsonnav.DGetString(oDoc, "Value")
-				if value == branchName {
+				if value, ok := bsonnav.DGet(oDoc, "Value").(string); ok && value == branchName {
 					found = true
 					continue
 				}

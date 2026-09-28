@@ -35,6 +35,10 @@ func TestTestAppAlterWorkflow_DropPathOnUserTaskIsRefused(t *testing.T) {
 		{"alter workflow workflow.Workflow1 drop path '' on userTask1;", "not a parallel split"},
 		{"alter workflow workflow.Workflow1 { drop aiAgentTask1 path 1 };", "not a parallel split"},
 		{"alter workflow workflow.Workflow1 { insert into userTask1 { path { } } };", "cannot hold"},
+		// Sibling found in review: an empty value matched aiAgentTask1's void
+		// (default) outcome, which stores no value, and dropped it.
+		{"alter workflow workflow.Workflow1 { drop aiAgentTask1 outcome '' };", "not found"},
+		{"alter workflow workflow.Workflow1 drop condition '' on aiAgentTask1;", "not found"},
 	} {
 		err := h.exec(tc.script)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {

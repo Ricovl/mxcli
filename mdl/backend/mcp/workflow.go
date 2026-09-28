@@ -3,6 +3,7 @@
 package mcp
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -1901,7 +1902,7 @@ func (m *mcpWorkflowMutator) DropOutcome(activityRef string, atPos int, outcomeN
 	}
 	actPath := loc.actPath
 	return m.dropFromActivityArray(actPath, "outcomes", activityRef, "outcome", func(o pedOutcomeElem) bool {
-		return o.valueString() == outcomeName ||
+		return o.hasValue(outcomeName) ||
 			(strings.EqualFold(outcomeName, "Default") && o.SType == "Workflows$VoidConditionOutcome")
 	})
 }
@@ -1979,7 +1980,7 @@ func (m *mcpWorkflowMutator) DropBranch(activityRef string, atPos int, branchNam
 		case "default":
 			return o.SType == "Workflows$VoidConditionOutcome"
 		default:
-			return o.valueString() == branchName
+			return o.hasValue(branchName)
 		}
 	})
 }
@@ -2071,10 +2072,13 @@ type pedOutcomeElem struct {
 	Value json.RawMessage `json:"value"`
 }
 
-func (o pedOutcomeElem) valueString() string {
+// hasValue reports whether the outcome stores the string value v. A path, a
+// void or a boolean outcome has none, and must not match an empty value (found
+// reviewing ako/mxcli#791).
+func (o pedOutcomeElem) hasValue(v string) bool {
+	raw := bytes.TrimSpace(o.Value)
 	var s string
-	_ = json.Unmarshal(o.Value, &s)
-	return s
+	return len(raw) > 0 && raw[0] == '"' && json.Unmarshal(raw, &s) == nil && s == v
 }
 
 func (o pedOutcomeElem) valueBool() bool {

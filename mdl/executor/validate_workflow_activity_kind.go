@@ -58,8 +58,9 @@ import (
 // loadable, which is what made it silent. It is refused here on anything that
 // is not a parallel split, as the mutators refuse it, and a path number the
 // split does not have is refused rather than left to a lookup miss. DROP
-// OUTCOME and DROP CONDITION address by value, which cannot land on a member
-// of another kind, so they are not covered.
+// OUTCOME and DROP CONDITION address by value; the mutators match a value only
+// against an outcome that stores one (an empty value used to hit the first
+// path or void outcome), so they are not covered here.
 
 // workflowOutcomeSlot is the list an ALTER WORKFLOW op writes into.
 type workflowOutcomeSlot int

@@ -57,3 +57,23 @@ func TestWFInsertMember_OnWrongKindIsRefused(t *testing.T) {
 		})
 	}
 }
+
+// Sibling of #791: a value address matched every outcome with no string value,
+// so an empty value on `drop Split outcome` removed the first path and on `drop Decide outcome`
+// the true branch. It matches only an outcome that stores a string value.
+func TestWFDropOutcome_EmptyValueMatchesNoValuelessOutcome(t *testing.T) {
+	for _, ref := range []string{"Parallel split", "Decision"} {
+		for name, op := range map[string]func(m *mcpWorkflowMutator) error{
+			"outcome": func(m *mcpWorkflowMutator) error { return m.DropOutcome(ref, 0, "") },
+			"branch":  func(m *mcpWorkflowMutator) error { return m.DropBranch(ref, 0, "") },
+		} {
+			f, m := wfMutatorFake(t)
+			if err := op(m); err == nil {
+				t.Errorf("drop %s %s '': want not found, got success", ref, name)
+			}
+			if _, sent := f.callByName("ped_update_document"); sent {
+				t.Errorf("drop %s %s '' sent an update", ref, name)
+			}
+		}
+	}
+}

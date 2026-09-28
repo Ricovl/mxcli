@@ -102,7 +102,7 @@ func TestDropPath_OnParallelSplitDropsThePath(t *testing.T) {
 	}
 }
 
-// The old `drop path ” on X` dropped the LAST path: an empty caption names no
+// The old `drop path <empty> on X` dropped the LAST path: an empty caption names no
 // path, so which one went was a guess.
 func TestDropPath_EmptyCaptionIsRefused(t *testing.T) {
 	m := memberFixture()
@@ -178,5 +178,49 @@ func TestInsertMember_OnRightKindLands(t *testing.T) {
 	}
 	if err := m.InsertBoundaryEvent("userTask1", 0, "InterruptingTimer", "", nil); err != nil {
 		t.Errorf("insert boundary event on a user task: %v", err)
+	}
+}
+
+// Sibling of #791 found in review: an outcome addressed by value matched any
+// outcome whose Value read back as "" — a parallel split's paths, a decision's
+// void (default) outcome, a boolean outcome — so an empty value on `drop split1 outcome`
+// removed the first path and on `drop decision1 outcome` the default branch,
+// each reported as "Altered workflow". A value address matches only an outcome
+// that stores a string value.
+func TestDropOutcome_EmptyValueMatchesNoValuelessOutcome(t *testing.T) {
+	boolDecision := makeWfKindActivity("Workflows$ExclusiveSplitActivity", "decision2",
+		append(makeWfOutcome("Workflows$BooleanConditionOutcome", ""), bson.E{Key: "Value", Value: true}),
+		append(makeWfOutcome("Workflows$BooleanConditionOutcome", ""), bson.E{Key: "Value", Value: false}))
+	for _, tc := range []struct {
+		ref  string
+		drop func(m *Mutator, ref string) error
+	}{
+		{"split1", func(m *Mutator, ref string) error { return m.DropOutcome(ref, 0, "") }},
+		{"decision1", func(m *Mutator, ref string) error { return m.DropOutcome(ref, 0, "") }},
+		{"decision2", func(m *Mutator, ref string) error { return m.DropOutcome(ref, 0, "") }},
+		{"split1", func(m *Mutator, ref string) error { return m.DropBranch(ref, 0, "") }},
+		{"decision1", func(m *Mutator, ref string) error { return m.DropBranch(ref, 0, "") }},
+		{"decision2", func(m *Mutator, ref string) error { return m.DropBranch(ref, 0, "") }},
+	} {
+		m := memberFixture()
+		flow := bsonnav.DGetDoc(m.rawData, "Flow")
+		acts := bsonnav.DGetArrayElements(bsonnav.DGet(flow, "Activities"))
+		bsonnav.DSetArray(flow, "Activities", append(acts, boolDecision))
+		before, _ := bson.Marshal(m.rawData)
+		if err := tc.drop(m, tc.ref); err == nil {
+			t.Errorf("drop %s outcome '': want not found, got success", tc.ref)
+		}
+		if after, _ := bson.Marshal(m.rawData); string(after) != string(before) {
+			t.Errorf("drop %s outcome '' changed the workflow", tc.ref)
+		}
+	}
+	// Control: a stored string value still matches, and 'Default' still names
+	// a decision's void outcome.
+	m := memberFixture()
+	if err := m.DropOutcome("userTask1", 0, "Bad"); err != nil {
+		t.Errorf("drop userTask1 outcome 'Bad': %v", err)
+	}
+	if err := m.DropOutcome("decision1", 0, "Default"); err != nil {
+		t.Errorf("drop decision1 outcome 'Default': %v", err)
 	}
 }
