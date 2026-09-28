@@ -3,6 +3,7 @@
 package visitor
 
 import (
+	"fmt"
 	"github.com/antlr4-go/antlr/v4"
 	"strconv"
 	"strings"
@@ -81,14 +82,14 @@ func (b *Builder) processNavigationClause(stmt *ast.AlterNavigationStmt, ctx *pa
 		// { navMenuItemDef* } — the profile's menu items as its children (R2)
 		stmt.HasMenuBlock = true
 		for _, itemCtx := range ch.AllNavMenuItemDef() {
-			item := buildNavMenuItemDef(itemCtx)
+			item := b.buildNavMenuItemDef(itemCtx)
 			stmt.MenuItems = append(stmt.MenuItems, item)
 		}
 	} else if ctx.MENU_KW() != nil {
 		// MENU (navMenuItemDef*) — the old spelling (MDL-DEPR121)
 		stmt.HasMenuBlock = true
 		for _, itemCtx := range ctx.AllNavMenuItemDef() {
-			item := buildNavMenuItemDef(itemCtx)
+			item := b.buildNavMenuItemDef(itemCtx)
 			stmt.MenuItems = append(stmt.MenuItems, item)
 		}
 	} else if ctx.ON() != nil && ctx.SYNC() != nil && ctx.ERROR() != nil {
@@ -167,7 +168,7 @@ func buildNavSyncDef(ctx parser.INavSyncDefContext) ast.NavSyncDef {
 // `menu item 'X' ( OnClick: show page M.P, Icon: … )` with sub-items in { },
 // or the old clauses `menu item 'X' page M.P icon …;` with sub-items in ( )
 // (R2, ako/mxcli#754). The two build the same item.
-func buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.NavMenuItemDef {
+func (b *Builder) buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.NavMenuItemDef {
 	c := ctx.(*parser.NavMenuItemDefContext)
 
 	caption := ""
@@ -199,11 +200,28 @@ func buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.NavMenuItemDef {
 	}
 
 	// Canonical spelling: OnClick and Icon in the item's property list.
+	// The list is new syntax, so it is strict: a key written twice is an error
+	// rather than a silent first- or last-wins, and a sub-menu — which opens
+	// its items rather than acting — takes no OnClick (the old spelling had no
+	// way to write one, and describe never prints one).
 	if pc, ok := c.NavMenuItemProps().(*parser.NavMenuItemPropsContext); ok && pc != nil {
+		seen := map[string]bool{}
 		for _, p := range pc.AllNavMenuItemProp() {
 			prop := p.(*parser.NavMenuItemPropContext)
+			key := prop.GetStart().GetText()
+			line := prop.GetStart().GetLine()
+			if seen[strings.ToLower(key)] {
+				b.addError(fmt.Errorf("line %d: menu item '%s': %s is written twice", line, caption, key))
+				continue
+			}
+			seen[strings.ToLower(key)] = true
 			switch {
 			case prop.ONCLICK() != nil:
+				if c.NavMenuChildren() != nil {
+					b.addError(fmt.Errorf("line %d: menu '%s': a sub-menu has no OnClick — it opens its items; "+
+						"give the action to one of them", line, caption))
+					continue
+				}
 				applyNavMenuAction(&item, prop.NavMenuAction())
 			case prop.ICON() != nil:
 				applyNavMenuIcon(&item, prop.NavMenuIconValue())
@@ -217,7 +235,7 @@ func buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.NavMenuItemDef {
 		subs = ch.AllNavMenuItemDef()
 	}
 	for _, subCtx := range subs {
-		item.Items = append(item.Items, buildNavMenuItemDef(subCtx))
+		item.Items = append(item.Items, b.buildNavMenuItemDef(subCtx))
 	}
 
 	return item

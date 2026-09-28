@@ -275,6 +275,8 @@ func TestR2Rest_RewriteText(t *testing.T) {
 		`create menu M.M (menu item 'A' page M.A icon Atlas_Core.Atlas.home; menu 'B' icon glyph 1 (menu item 'C' sign_out;););`: `create menu M.M {menu item 'A' ( OnClick: show page M.A, Icon: Atlas_Core.Atlas.home ) menu 'B' ( Icon: glyph 1 ) {menu item 'C' ( OnClick: sign out )}};`,
 		`create or modify navigation Responsive menu (menu item 'A' microflow M.F;) home page M.H;`:                              `create or modify navigation Responsive {menu item 'A' ( OnClick: call microflow M.F )} home page M.H;`,
 		`create page M.P (Title: 'P', Layout: L.L) { snippetcall s (Snippet: M.S, Params: {$A: $A}) };`:                          `create page M.P (Title: 'P', Layout: L.L) { snippetcall s (Snippet: M.S, Params: (A = $A)) };`,
+		// Half-converted: the braces are new, the sub-menu's icon clause and the items' `;` old.
+		"create menu M.M { menu 'X' icon glyph 1 { menu item 'a' page M.P; }; };": "create menu M.M { menu 'X' ( Icon: glyph 1 ) { menu item 'a' ( OnClick: show page M.P ) } };",
 		`create database connection M.Db type 'x' connection string @M.C;`:                                                       `create database connection M.Db ( Type: 'x', ConnectionString: @M.C );`,
 		"create database connection M.Db type 'x' connection string @M.C begin query Q sql 'select 1' returns M.E; end;":         "create database connection M.Db ( Type: 'x', ConnectionString: @M.C ) { query Q ( Sql: 'select 1', Returns: M.E ) };",
 	} {
@@ -306,5 +308,40 @@ func TestR2Rest_DatabaseConnectionRejectsUnknownKeys(t *testing.T) {
 func TestR2Rest_MenuItemActionIsRestricted(t *testing.T) {
 	if _, errs := Build(`create menu M.M { menu item 'x' ( OnClick: save changes ) };`); len(errs) == 0 {
 		t.Error("a menu item accepted `save changes`, which a menu item cannot carry")
+	}
+}
+
+// The new property lists are strict in the other direction too: a key written
+// twice is an error rather than a silent last-wins (a menu item with two
+// OnClick actions was written with whichever the builder checked first), a
+// query must say its SQL (the old clause form required it; the property list
+// made it optional by accident), and a sub-menu carries no OnClick (the old
+// form had no way to write one, and describe never prints one).
+func TestR2Rest_NewPropertyListsRejectDuplicatesAndOmissions(t *testing.T) {
+	for src, want := range map[string]string{
+		`create database connection M.Db (Type: 'x', ConnectionString: @M.C, Type: 'y');`:                    "Type is written twice",
+		`create database connection M.Db (Type: 'x') { query Q ( Sql: 'x', Sql: 'y' ) };`:                    "Sql is written twice",
+		`create database connection M.Db (Type: 'x') { query Q ( Returns: M.E ) };`:                          "query Q on database connection M.Db has no Sql",
+		`create menu M.M { menu item 'x' ( OnClick: show page M.P, OnClick: call microflow M.F ) };`:         "OnClick is written twice",
+		`create menu M.M { menu item 'x' ( Icon: glyph 57345, Icon: glyph 57346 ) };`:                        "Icon is written twice",
+		`create menu M.M { menu 'Sub' ( OnClick: show page M.P ) { menu item 'x' ( OnClick: sign out ) } };`: "a sub-menu has no OnClick",
+	} {
+		_, errs := Build(src)
+		found := false
+		for _, e := range errs {
+			found = found || strings.Contains(e.Error(), want)
+		}
+		if !found {
+			t.Errorf("%q: errors %v, want one containing %q", src, errs, want)
+		}
+	}
+	// Control: the same shapes written once build cleanly.
+	for _, src := range []string{
+		`create database connection M.Db (Type: 'x', ConnectionString: @M.C) { query Q ( Sql: 'x', Returns: M.E ) };`,
+		`create menu M.M { menu item 'x' ( OnClick: show page M.P, Icon: glyph 57345 ) menu 'Sub' ( Icon: glyph 57345 ) { menu item 'y' } };`,
+	} {
+		if _, errs := Build(src); len(errs) != 0 {
+			t.Errorf("%q: unexpected errors %v", src, errs)
+		}
 	}
 }

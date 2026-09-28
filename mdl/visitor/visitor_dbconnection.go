@@ -214,10 +214,16 @@ func unquoteDollarString(s string) string {
 // so an unknown key or a value of the wrong kind is an error rather than
 // something to warn about and drop.
 func (b *Builder) applyDatabaseConnectionProps(stmt *ast.CreateDatabaseConnectionStmt, ctx *parser.CreateDatabaseConnectionStatementContext) {
+	seen := map[string]bool{}
 	for _, pc := range ctx.AllDatabaseConnectionProp() {
 		p := pc.(*parser.DatabaseConnectionPropContext)
 		key := identifierOrKeywordText(p.IdentifierOrKeyword())
 		line := p.GetStart().GetLine()
+		if seen[strings.ToLower(key)] {
+			b.addError(fmt.Errorf("line %d: database connection %s: %s is written twice", line, stmt.Name, key))
+			continue
+		}
+		seen[strings.ToLower(key)] = true
 		str, ref, num := p.STRING_LITERAL(), p.QualifiedName(), p.NUMBER_LITERAL()
 		refOrString := func(val *string, isRef *bool) {
 			switch {
@@ -270,10 +276,16 @@ func (b *Builder) applyDatabaseConnectionProps(stmt *ast.CreateDatabaseConnectio
 // M.E, Map: ( Attr = column ) )`.
 func (b *Builder) buildDatabaseQueryDef(conn ast.QualifiedName, qc *parser.DatabaseQueryDefContext) ast.DatabaseQueryDef {
 	q := ast.DatabaseQueryDef{Name: identifierOrKeywordText(qc.IdentifierOrKeyword())}
+	seen := map[string]bool{}
 	for _, pc := range qc.AllDatabaseQueryProp() {
 		p := pc.(*parser.DatabaseQueryPropContext)
 		key := identifierOrKeywordText(p.IdentifierOrKeyword())
 		line := p.GetStart().GetLine()
+		if seen[strings.ToLower(key)] {
+			b.addError(fmt.Errorf("line %d: query %s on database connection %s: %s is written twice", line, q.Name, conn, key))
+			continue
+		}
+		seen[strings.ToLower(key)] = true
 		wrong := func(want string) {
 			b.addError(fmt.Errorf("line %d: query %s on database connection %s: %s takes %s", line, q.Name, conn, key, want))
 		}
@@ -332,6 +344,11 @@ func (b *Builder) buildDatabaseQueryDef(conn ast.QualifiedName, qc *parser.Datab
 			b.addError(fmt.Errorf("line %d: unknown property '%s' on query %s of database connection %s: "+
 				"a query takes Sql, Parameters, Returns and Map", line, key, q.Name, conn))
 		}
+	}
+	// The old clause form could not omit the SQL; the property list must not
+	// either, or it writes a query with no statement to run.
+	if !seen["sql"] {
+		b.addError(fmt.Errorf("line %d: query %s on database connection %s has no Sql", qc.GetStart().GetLine(), q.Name, conn))
 	}
 	return q
 }

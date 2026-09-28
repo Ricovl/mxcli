@@ -31,7 +31,7 @@ func (b *Builder) ExitCreateMenuStatement(ctx *parser.CreateMenuStatementContext
 		items = ch.AllNavMenuItemDef()
 	}
 	for _, itemCtx := range items {
-		stmt.Items = append(stmt.Items, buildNavMenuItemDef(itemCtx))
+		stmt.Items = append(stmt.Items, b.buildNavMenuItemDef(itemCtx))
 	}
 
 	if createStmt := findParentCreateStatement(ctx); createStmt != nil {

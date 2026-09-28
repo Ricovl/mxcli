@@ -598,6 +598,8 @@ navMenuItemDef
     | MENU_KW ITEM STRING_LITERAL
       ((PAGE qualifiedName) | (MICROFLOW qualifiedName) | SIGN_OUT)? /* @alias MDL-DEPR122 */ navMenuIcon? SEMICOLON?
     | MENU_KW STRING_LITERAL navMenuIcon? LPAREN /* @alias MDL-DEPR121 */ navMenuItemDef* RPAREN SEMICOLON?
+    // Half-converted: the items already in { }, the icon still a clause.
+    | MENU_KW STRING_LITERAL navMenuIcon /* @alias MDL-DEPR122 */ navMenuChildren SEMICOLON?
     ;
 
 navMenuChildren
