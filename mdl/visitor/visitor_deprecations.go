@@ -228,6 +228,7 @@ func (b *Builder) ExitShowOrList(ctx *parser.ShowOrListContext) {
 		if ctx.SHOW() != nil {
 			b.recordDeprecation(deprecation.Show, ctx.SHOW().GetSymbol(), "")
 		}
+		b.recordSingularCollection(ctx)
 	case showIsDescribe:
 		// `list page X` names one thing too, so it is reported with `show`.
 		b.recordShowSingleThing(ctx)

@@ -108,6 +108,23 @@ func (b *Builder) gateShowSession(ctx *parser.ShowOrListContext) {
 	}
 }
 
+// recordSingularCollection records `list image|icon|message definition
+// collection` for the plural. The lexer's COLLECTION matches both spellings,
+// so the token's text says which one was written.
+func (b *Builder) recordSingularCollection(ctx *parser.ShowOrListContext) {
+	stmt, ok := ctx.GetParent().(*parser.ShowStatementContext)
+	if !ok || stmt.COLLECTION() == nil {
+		return
+	}
+	tok := stmt.COLLECTION().GetSymbol()
+	if strings.HasSuffix(strings.ToLower(tok.GetText()), "s") {
+		return
+	}
+	b.recordDeprecation(deprecation.SingularCollectionList, tok, "")
+	edit := insertAt(tok.GetStop()+1, keywordLike(tok.GetText(), "s"))
+	b.fixLastDeprecation(deprecation.SingularCollectionList, &ast.Fix{Edits: []ast.TextEdit{edit}}, "")
+}
+
 // EnterAlterUserRoleStatement records `remove module roles` for `drop module
 // roles`.
 func (b *Builder) EnterAlterUserRoleStatement(ctx *parser.AlterUserRoleStatementContext) {

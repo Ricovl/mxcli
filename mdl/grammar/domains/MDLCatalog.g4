@@ -44,6 +44,8 @@ showStatement
     | showOrList REGULAR EXPRESSIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList JAVA ACTIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList JAVASCRIPT ACTIONS (IN (qualifiedName | IDENTIFIER))?
+    // COLLECTION also matches `collections` (lexer); the plural is canonical,
+    // the singular a deprecated alias (/* @alias MDL-DEPR130 */, R6).
     | showOrList IMAGE COLLECTION (IN (qualifiedName | IDENTIFIER))?
     | showOrList ICON COLLECTION (IN (qualifiedName | IDENTIFIER))?
     // A glyph is a character code in a FONT, not an element in the project, so

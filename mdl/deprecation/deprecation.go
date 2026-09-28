@@ -197,6 +197,12 @@ const (
 	// DefineFragment is `define fragment`.
 	DefineFragment = "MDL-DEPR096"
 
+	// Codes 130-139 finish R6 and R10 (ako/mxcli#755).
+
+	// SingularCollectionList is `list image|icon|message definition
+	// collection`: `list` names a plural.
+	SingularCollectionList = "MDL-DEPR130"
+
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
 
@@ -632,6 +638,16 @@ var r6Entries = []Entry{
 		Note:             "`create` is the verb every other definition uses (R6). A fragment is still session-scoped and unqualified.",
 		Example:          "define fragment Header as { dynamictext t (Content: 'x') };",
 		CanonicalExample: "create fragment Header as { dynamictext t (Content: 'x') };",
+	},
+	{
+		Code:             SingularCollectionList,
+		Old:              "list image|icon|message definition collection [in M]",
+		Canonical:        "list image|icon|message definition collections [in M]",
+		Rewrite:          Rewrite{Structural: "singular as the plural: `collection` -> `collections` after `list`"},
+		RemovedIn:        2,
+		Note:             "`list` enumerates, and names what it enumerates in the plural, as `list entities` does (R6).",
+		Example:          "list image collection in M;",
+		CanonicalExample: "list image collections in M;",
 	},
 }
 

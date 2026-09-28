@@ -46,14 +46,24 @@ func TestR6OldVerbsAreAliases(t *testing.T) {
 		{"describe widget combobox;", "describe widget type combobox;", deprecation.DescribeWidgetType},
 		{"describe widget 'com.mendix.widget.web.combobox.Combobox';",
 			"describe widget type 'com.mendix.widget.web.combobox.Combobox';", deprecation.DescribeWidgetType},
+		// `list` names a plural (ako/mxcli#755): the collections too.
+		{"list image collection;", "list image collections;", deprecation.SingularCollectionList},
+		{"show image collection in M;", "list image collections in M;", ""},
+		{"LIST ICON COLLECTION IN M;", "LIST ICON COLLECTIONS IN M;", deprecation.SingularCollectionList},
+		{"list message definition collection in M;", "list message definition collections in M;",
+			deprecation.SingularCollectionList},
 		{"define fragment Hdr ($p: datasource) as { dynamictext t (Content: 'x') };",
 			"create fragment Hdr ($p: datasource) as { dynamictext t (Content: 'x') };", deprecation.DefineFragment},
 	}
 	for _, c := range cases {
 		t.Run(c.old, func(t *testing.T) {
 			old := mustBuild(t, c.old)
-			if got := deprecationCodes(old); !reflect.DeepEqual(got, []string{c.code}) {
-				t.Errorf("old recorded %v, want [%s]", got, c.code)
+			want := []string{c.code}
+			if c.code == "" { // `show … collection`: both the verb and the plural
+				want = []string{deprecation.Show, deprecation.SingularCollectionList}
+			}
+			if got := deprecationCodes(old); !reflect.DeepEqual(got, want) {
+				t.Errorf("old recorded %v, want %v", got, want)
 			}
 			canon := mustBuild(t, c.canonical)
 			if got := deprecationCodes(canon); len(got) != 0 {
