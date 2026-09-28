@@ -39,7 +39,7 @@ func (v *microflowValidator) checkRestFileDocumentResult(stmt *ast.RestCallStmt)
 
 	if entity.Module == "" {
 		v.addViolation("MDL064", linter.SeverityError,
-			fmt.Sprintf("rest call 'returns %s': the file document type needs a module prefix",
+			fmt.Sprintf("call rest service 'returns %s': the file document type needs a module prefix",
 				entity.Name),
 			fmt.Sprintf("Write the qualified name, e.g. 'MyModule.%s'", entity.Name))
 		return
@@ -47,7 +47,7 @@ func (v *microflowValidator) checkRestFileDocumentResult(stmt *ast.RestCallStmt)
 
 	if entity.String() == systemFileDocument {
 		v.addViolation("MDL064", linter.SeverityError,
-			"rest call 'returns System.FileDocument': Mendix does not allow the base "+
+			"call rest service 'returns System.FileDocument': Mendix does not allow the base "+
 				"System.FileDocument as a REST result type — mxbuild rejects it with CE0362 "+
 				"\"System entity 'System.FileDocument' is not allowed as a return type.\"",
 			"Create an entity that specializes it (create persistent entity MyModule.MyFile "+

@@ -102,7 +102,7 @@ create entity Val.Person (
   Code:  String(20)  unique error message 'Code must be unique'
 );
 
-alter entity Val.Person modify attribute Email String(200)
+alter entity Val.Person modify attribute Email: String(200)
   not null error message 'Email is required';
 ```
 

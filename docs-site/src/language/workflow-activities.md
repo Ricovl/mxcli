@@ -146,23 +146,25 @@ CALL WORKFLOW HR.BackgroundCheck CAPTION 'Run background check sub-process';
 
 ## Decision
 
-Branch the workflow based on a condition. Each outcome contains a block of activities:
+Branch the workflow based on a condition. The condition is a bare expression, Boolean or enumeration; each outcome contains a block of activities:
 
 ```sql
-DECISION ['<caption>']
-  OUTCOMES '<outcome>' { <activities> } ['<outcome>' { <activities> }] ...;
+DECISION [<name>] <expression> [COMMENT '<caption>']
+  OUTCOMES TRUE -> { <activities> } FALSE -> { <activities> };
 ```
 
 Example:
 
 ```sql
-DECISION 'Order value over $1000?'
-  OUTCOMES 'Yes' {
+DECISION $WorkflowContext/Total > 1000 COMMENT 'Order value over $1000?'
+  OUTCOMES TRUE -> {
     USER TASK ManagerApproval 'Manager must approve'
       PAGE Shop.ApprovalPage
-      OUTCOMES 'Approved' { } 'Rejected' { END; };
-  } 'No' { };
+      OUTCOMES 'Approved' { } 'Rejected' { END WORKFLOW; };
+  } FALSE -> { };
 ```
+
+An enumeration decision has one outcome per qualified enumeration value, plus `''` for "none of the above". The expression used to be written in a string (`DECISION '$WorkflowContext/Total > 1000'`); that form still parses and warns `MDL-DEPR080`, and `mxcli fmt --upgrade` rewrites it.
 
 ## Parallel Split
 
@@ -210,13 +212,13 @@ JUMP TO ReviewTask;
 Pause the workflow until a timer expression evaluates:
 
 ```sql
-WAIT FOR TIMER ['<expression>'];
+WAIT FOR TIMER [<name>] [<expression>] [COMMENT '<caption>'];
 ```
 
 Example:
 
 ```sql
-WAIT FOR TIMER 'addDays([%CurrentDateTime%], 3)';
+WAIT FOR TIMER addDays([%CurrentDateTime%], 3);
 ```
 
 ## Wait for Notification
@@ -266,7 +268,7 @@ EVENT SUBPROCESS <name> ['<caption>']
   { <activities> };
 
 EVENT SUBPROCESS <name> ['<caption>']
-  ON (INTERRUPTING | NON INTERRUPTING) TIMER '<first-execution-time>' [AS <start>] [CAPTION '<start caption>']
+  ON (INTERRUPTING | NON INTERRUPTING) TIMER <first-execution-time> [AS <start>] [CAPTION '<start caption>']
   { <activities> };
 ```
 

@@ -114,7 +114,7 @@ func ValidateWorkflowEventSubProcesses(stmt *ast.CreateWorkflowStmt) []linter.Vi
 				Severity:   linter.SeverityError,
 				Location:   loc,
 				Message:    fmt.Sprintf("event subprocess %s starts on a timer with no first execution time — the build fails CE0126", esp.Name),
-				Suggestion: "Give the timer an expression, e.g. `on interrupting timer 'addDays([%CurrentDateTime%], 1)'`.",
+				Suggestion: "Give the timer an expression, e.g. `on interrupting timer addDays([%CurrentDateTime%], 1)`.",
 			})
 		}
 	}

@@ -93,7 +93,7 @@ create or replace workflow WF586.Review
   description 'Reviews a request'
   export level Hidden
   overview page WF586.Overview
-  due date '${P2D}'
+  due date addDays([%CurrentDateTime%], 2)
   on any workflow event microflow WF586.ACT_OnEvent as 'all events'
 begin
   user task Review 'Review the request'
@@ -101,17 +101,17 @@ begin
     targeting microflow WF586.ACT_GetUsers
     on created microflow WF586.ACT_OnCreated
     entity WF586.Request
-    due date '${PT4H}'
+    due date addHours([%CurrentDateTime%], 4)
     description 'Check the request and decide'
     outcomes
       'Approve' { call microflow WF586.ACT_Audit; }
       'Reject'  { }
-    boundary event interrupting timer '${PT8H}';
+    boundary event interrupting timer addHours([%CurrentDateTime%], 8);
 
   multi user task Confirm 'Confirm the decision'
     page WF586.TaskPage
     targeting groups xpath '[Name = ''Administrator'']'
-    due date '${PT2H}'
+    due date addHours([%CurrentDateTime%], 2)
     participants 60 percent
     decide by majority more than half fallback 'Confirmed'
     await all users

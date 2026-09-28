@@ -75,9 +75,7 @@ func (b *Builder) ExitCreateWorkflowStatement(ctx *parser.CreateWorkflowStatemen
 				stmt.OverviewPage = buildQualifiedName(qn)
 			}
 		case hc.DUE() != nil && hc.DATE_TYPE() != nil:
-			if tok := hc.GetDueDate(); tok != nil {
-				stmt.DueDate = unquoteStringLit(tok)
-			}
+			stmt.DueDate = workflowExpressionText(hc.GetDueDate())
 		case hc.WorkflowEventHandlerClause() != nil:
 			h, ok := hc.WorkflowEventHandlerClause().(*parser.WorkflowEventHandlerClauseContext)
 			if !ok {
@@ -355,7 +353,7 @@ func buildWorkflowSetPropertyOp(ctx *parser.WorkflowSetPropertyContext) *ast.Set
 		}
 	} else if ctx.DUE() != nil {
 		op.Property = "due_date"
-		op.Value = unquoteStringLit(ctx.STRING_LITERAL())
+		op.Value = workflowExpressionText(ctx.WorkflowExpression())
 	} else if ctx.OVERVIEW() != nil {
 		op.Property = "overview_page"
 		if qn := ctx.QualifiedName(); qn != nil {
@@ -401,7 +399,7 @@ func buildActivitySetPropertyOp(ctx *parser.ActivitySetPropertyContext, ref stri
 		}
 	} else if ctx.DUE() != nil {
 		op.Property = "due_date"
-		op.Value = unquoteStringLit(ctx.STRING_LITERAL())
+		op.Value = workflowExpressionText(ctx.WorkflowExpression())
 	}
 
 	return op
@@ -617,9 +615,7 @@ func applyWorkflowUserTaskClause(node *ast.WorkflowUserTaskNode, clause parser.I
 			node.Entity = buildQualifiedName(qn)
 		}
 	case c.DUE() != nil && c.DATE_TYPE() != nil:
-		if str := c.STRING_LITERAL(); str != nil {
-			node.DueDate = unquoteStringLit(str)
-		}
+		node.DueDate = workflowExpressionText(c.WorkflowExpression())
 	case c.DESCRIPTION() != nil:
 		if str := c.STRING_LITERAL(); str != nil {
 			node.TaskDescription = unquoteStringLit(str)
@@ -758,14 +754,8 @@ func buildWorkflowCallWorkflow(ctx parser.IWorkflowCallWorkflowStmtContext) *ast
 // buildWorkflowDecision builds a WorkflowDecisionNode.
 func buildWorkflowDecision(ctx parser.IWorkflowDecisionStmtContext) *ast.WorkflowDecisionNode {
 	dCtx := ctx.(*parser.WorkflowDecisionStmtContext)
-	node := &ast.WorkflowDecisionNode{
-		Name: workflowActivityNameText(dCtx.WorkflowActivityName()),
-	}
-
-	// The decision's own string is its expression; the caption is in its clause.
-	if s := dCtx.STRING_LITERAL(); s != nil {
-		node.Expression = unquoteStringLit(s)
-	}
+	node := &ast.WorkflowDecisionNode{}
+	node.Name, node.Expression = activityNameAndExpression(dCtx.WorkflowActivityName(), dCtx.WorkflowExpression())
 	node.Caption = workflowCaptionText(dCtx.WorkflowCaption())
 
 	for _, outcomeCtx := range dCtx.AllWorkflowConditionOutcome() {
@@ -854,13 +844,8 @@ func buildWorkflowJumpTo(ctx parser.IWorkflowJumpToStmtContext) *ast.WorkflowJum
 // buildWorkflowWaitForTimer builds a WorkflowWaitForTimerNode.
 func buildWorkflowWaitForTimer(ctx parser.IWorkflowWaitForTimerStmtContext) *ast.WorkflowWaitForTimerNode {
 	wtCtx := ctx.(*parser.WorkflowWaitForTimerStmtContext)
-	node := &ast.WorkflowWaitForTimerNode{
-		Name: workflowActivityNameText(wtCtx.WorkflowActivityName()),
-	}
-
-	if s := wtCtx.STRING_LITERAL(); s != nil {
-		node.DelayExpression = unquoteStringLit(s)
-	}
+	node := &ast.WorkflowWaitForTimerNode{}
+	node.Name, node.DelayExpression = activityNameAndExpression(wtCtx.WorkflowActivityName(), wtCtx.WorkflowExpression())
 	node.Caption = workflowCaptionText(wtCtx.WorkflowCaption())
 
 	return node
@@ -900,12 +885,14 @@ func buildBoundaryEventNode(beCtx parser.IWorkflowBoundaryEventClauseContext) as
 	default:
 		be.EventType = "Timer"
 	}
-	// A timer's string is its delay; a notification event's is its caption.
-	if s := beCtx2.STRING_LITERAL(); s != nil {
-		if notification {
-			be.Caption = unquoteStringLit(s)
-		} else {
-			be.Delay = unquoteStringLit(s)
+	// A timer's expression is its delay; a notification event's string is its
+	// caption.
+	if s := beCtx2.STRING_LITERAL(); s != nil && notification {
+		be.Caption = unquoteStringLit(s)
+	}
+	if !notification {
+		if d := beCtx2.WorkflowTimerDelay(); d != nil {
+			be.Delay = workflowExpressionText(d.WorkflowExpression())
 		}
 	}
 	if notification {
@@ -940,16 +927,12 @@ func buildWorkflowEventSubProcess(ctx parser.IWorkflowEventSubProcessContext) as
 	if t, ok := c.WorkflowEventSubProcessTrigger().(*parser.WorkflowEventSubProcessTriggerContext); ok && t != nil {
 		node.Timer = t.TIMER() != nil
 		node.StartName = workflowActivityNameText(t.WorkflowActivityName())
-		// Each alternative has one string of its own: a timer's first
-		// execution time, a notification's caption. A timer's caption is its
-		// `caption '…'` clause.
-		switch s := t.STRING_LITERAL(); {
-		case node.Timer:
-			if s != nil {
-				node.FirstExecutionTime = unquoteStringLit(s)
-			}
+		// A timer's first execution time is an expression and its caption is its
+		// `caption '…'` clause; a notification's caption is its own string.
+		if node.Timer {
+			node.FirstExecutionTime = workflowExpressionText(t.WorkflowExpression())
 			node.StartCaption = workflowCaptionText(t.WorkflowCaption())
-		case s != nil:
+		} else if s := t.STRING_LITERAL(); s != nil {
 			node.StartCaption = unquoteStringLit(s)
 		}
 	}

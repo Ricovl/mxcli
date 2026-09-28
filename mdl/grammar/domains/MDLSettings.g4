@@ -11,19 +11,22 @@ options { tokenVocab = MDLLexer; }
 // =============================================================================
 
 /**
- * ALTER SETTINGS RUNTIME Key = Value, ...;   (MODEL is a deprecated alias)
- * ALTER SETTINGS CONFIGURATION 'name' Key = Value, ...;
- * ALTER SETTINGS CONSTANT 'name' VALUE 'value' [IN CONFIGURATION 'name'];
- * ALTER SETTINGS LANGUAGE Key = Value, ...;
+ * ALTER SETTINGS RUNTIME ( Key: Value, ... );   (MODEL is a deprecated alias)
+ * ALTER SETTINGS CONFIGURATION 'name' ( Key: Value, ... );
+ * ALTER SETTINGS CONSTANT @Module.Name VALUE 'value' [IN CONFIGURATION 'name'];
+ * ALTER SETTINGS LANGUAGE ( Key: Value, ... );
  * ALTER SETTINGS LANGUAGE ADD [OR MODIFY] 'ar_SD' [(Key: Value, ...)];
  * ALTER SETTINGS LANGUAGE MODIFY 'ar_SD' (Key: Value, ...);
- * ALTER SETTINGS LANGUAGE REMOVE 'ar_SD';
- * ALTER SETTINGS WORKFLOWS Key = Value, ...;
+ * ALTER SETTINGS LANGUAGE DROP 'ar_SD';          (REMOVE is a deprecated alias)
+ * ALTER SETTINGS WORKFLOWS ( Key: Value, ... );
+ *
+ * `Key = Value, …` without the parentheses is the old spelling of the property
+ * list (MDL-DEPR060, R3).
  * ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP 'Approvers' [(Description: '...')];
  * ALTER SETTINGS WORKFLOWS MODIFY GROUP 'Approvers' (Description: '...');
- * ALTER SETTINGS WORKFLOWS REMOVE GROUP 'Approvers';
+ * ALTER SETTINGS WORKFLOWS DROP GROUP 'Approvers'; (REMOVE is a deprecated alias)
  *
- * ADD/REMOVE name the ENABLED languages — the list Studio Pro shows under
+ * ADD/DROP name the ENABLED languages — the list Studio Pro shows under
  * App Settings > Languages, and the only languages a build emits anything for.
  * A language is identified by its code alone: Studio Pro's "Arabic, Sudan" is
  * derived from `ar_SD` for display and is not stored (verified against a
@@ -40,15 +43,24 @@ alterSettingsClause
     : settingsSection ADD OR MODIFY GROUP STRING_LITERAL settingsItemOptions?
     | settingsSection ADD GROUP STRING_LITERAL settingsItemOptions?
     | settingsSection MODIFY GROUP STRING_LITERAL settingsItemOptions
-    | settingsSection REMOVE GROUP STRING_LITERAL
+    | settingsSection (DROP | REMOVE /* @alias MDL-DEPR092 */) GROUP STRING_LITERAL
     | settingsSection ADD OR MODIFY STRING_LITERAL settingsItemOptions?
     | settingsSection ADD STRING_LITERAL settingsItemOptions?
     | settingsSection MODIFY STRING_LITERAL settingsItemOptions
-    | settingsSection REMOVE STRING_LITERAL
-    | settingsSection settingsAssignment (COMMA settingsAssignment)*
-    | CONSTANT STRING_LITERAL (VALUE settingsValue | DROP) (IN CONFIGURATION STRING_LITERAL)?
-    | DROP CONSTANT STRING_LITERAL (IN CONFIGURATION STRING_LITERAL)?
-    | CONFIGURATION STRING_LITERAL settingsAssignment (COMMA settingsAssignment)*
+    | settingsSection (DROP | REMOVE /* @alias MDL-DEPR092 */) STRING_LITERAL
+    | settingsSection settingsItemOptions                                  // runtime ( Key: value, … )
+    | settingsSection settingsAssignment (COMMA settingsAssignment)*        // old spelling (MDL-DEPR060)
+    | CONSTANT settingsConstantRef (VALUE settingsValue | DROP) (IN CONFIGURATION STRING_LITERAL)?
+    | DROP CONSTANT settingsConstantRef (IN CONFIGURATION STRING_LITERAL)?
+    | CONFIGURATION STRING_LITERAL settingsItemOptions                      // configuration 'X' ( Key: value, … )
+    | CONFIGURATION STRING_LITERAL settingsAssignment (COMMA settingsAssignment)*  // old spelling (MDL-DEPR060)
+    ;
+
+// R5 (ako/mxcli#753): a constant is referred to one way everywhere,
+// `@Module.Const`. The quoted name is the deprecated spelling.
+settingsConstantRef
+    : AT qualifiedName
+    | STRING_LITERAL /* @alias MDL-DEPR085 */
     ;
 
 // RUNTIME is Studio Pro's tab for Settings$ModelSettings (R10); MODEL, the
@@ -60,8 +72,11 @@ settingsSection
     | WORKFLOWS
     ;
 
+// The old spelling of a settings property: `Key = value`, outside a list. R3
+// (ako/mxcli#751): `:` sets a model property, in the ( Key: value, … ) list
+// every other statement uses.
 settingsAssignment
-    : IDENTIFIER EQUALS settingsValue
+    : IDENTIFIER EQUALS /* @alias MDL-DEPR060 */ settingsValue
     ;
 
 // The optional properties of an added language or workflow group, in the
@@ -298,14 +313,17 @@ helpTopicWord
     ;
 
 /**
- * DEFINE FRAGMENT Name [($p: datasource, $q: action)] AS { widgets }
+ * CREATE FRAGMENT Name [($p: datasource, $q: action)] AS { widgets }
+ *
+ * R6: `create`, the verb every other definition uses; DEFINE is a deprecated
+ * alias (MDL-DEPR096). A fragment is still session-scoped and unqualified.
  *
  * Optional typed parameters let a fragment bind a datasource or an action
  * handler supplied by the caller (`use fragment Name ($p: $Data, $q: microflow M)`).
  * References in the body use the bare `$p` form in a datasource/action position.
  */
 defineFragmentStatement
-    : DEFINE FRAGMENT identifierOrKeyword fragmentParams? AS LBRACE pageBodyV3 RBRACE
+    : (CREATE | DEFINE /* @alias MDL-DEPR096 */) FRAGMENT identifierOrKeyword fragmentParams? AS LBRACE pageBodyV3 RBRACE
     ;
 
 fragmentParams

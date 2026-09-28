@@ -20,7 +20,7 @@ This populates the reference data needed for callers, callees, references, impac
 | `SHOW CALLEES OF` | Find what a given element calls |
 | `SHOW REFERENCES OF` | Find all references to and from an element |
 | `SHOW IMPACT OF` | Analyze the impact of changing an element |
-| `SHOW CONTEXT OF` | Show the surrounding context of an element |
+| `DESCRIBE CONTEXT OF` | Show the surrounding context of an element |
 | `SEARCH` | Full-text search across all strings and source |
 
 ## CLI Subcommands
@@ -54,7 +54,7 @@ SHOW CALLERS OF Sales.ACT_ProcessOrder;
 SHOW IMPACT OF Sales.Customer;
 
 -- Step 4: Gather context for AI consumption
-SHOW CONTEXT OF Sales.SubmitOrder;
+DESCRIBE CONTEXT OF Sales.SubmitOrder;
 ```
 
 ## How AI Assistants Use This

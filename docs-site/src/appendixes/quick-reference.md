@@ -83,12 +83,12 @@ CREATE CONSTANT MyModule.EnableLogging TYPE Boolean DEFAULT true;
 | List consumed odata services | `LIST CONSUMED ODATA SERVICES [IN Module];` | Consumed OData services |
 | Describe consumed odata service | `DESCRIBE CONSUMED ODATA SERVICE Module.Name;` | Full MDL output |
 | Create consumed odata service | `CREATE [OR MODIFY] CONSUMED ODATA SERVICE Module.Name (...);` | Version, MetadataUrl, Timeout, etc. |
-| Alter consumed odata service | `ALTER CONSUMED ODATA SERVICE Module.Name SET Key = Value;` | |
+| Alter consumed odata service | `ALTER CONSUMED ODATA SERVICE Module.Name SET (Key: Value, ...);` | |
 | Drop consumed odata service | `DROP CONSUMED ODATA SERVICE Module.Name;` | |
 | List published odata services | `LIST PUBLISHED ODATA SERVICES [IN Module];` | Published OData services |
 | Describe published odata service | `DESCRIBE PUBLISHED ODATA SERVICE Module.Name;` | Full MDL output |
 | Create published odata service | `CREATE [OR MODIFY] PUBLISHED ODATA SERVICE Module.Name (...) AUTHENTICATION ... { PUBLISH ENTITY ... };` | |
-| Alter published odata service | `ALTER PUBLISHED ODATA SERVICE Module.Name SET Key = Value;` | |
+| Alter published odata service | `ALTER PUBLISHED ODATA SERVICE Module.Name SET (Key: Value, ...);` | |
 | Drop published odata service | `DROP PUBLISHED ODATA SERVICE Module.Name;` | |
 | List external entities | `LIST EXTERNAL ENTITIES [IN Module];` | OData-backed entities |
 | List external actions | `LIST EXTERNAL ACTIONS [IN Module];` | Actions used in microflows |
@@ -204,23 +204,23 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| List project security | `LIST PROJECT SECURITY;` | Displays security level, admin, demo users |
+| Describe app security | `DESCRIBE APP SECURITY;` | Displays security level, admin, demo users |
 | List module roles | `LIST MODULE ROLES [IN Module];` | All roles or filtered by module |
 | List user roles | `LIST USER ROLES;` | Project-level user roles |
 | List demo users | `LIST DEMO USERS;` | Configured demo users |
 | List access on element | `LIST ACCESS ON [ENTITY\|MICROFLOW\|PAGE\|NANOFLOW] Mod.Name;` | Which roles can access; a bare name means the entity |
-| List security matrix | `LIST SECURITY MATRIX [IN Module];` | Full access overview |
+| Describe security matrix | `DESCRIBE SECURITY MATRIX [IN Module];` | Full access overview |
 | Create module role | `CREATE MODULE ROLE Mod.Role [DESCRIPTION 'text'];` | |
 | Drop module role | `DROP MODULE ROLE Mod.Role;` | |
 | Create user role | `CREATE USER ROLE Name (Mod.Role, ...) [MANAGE ALL ROLES];` | Aggregates module roles |
-| Alter user role | `ALTER USER ROLE Name ADD\|REMOVE MODULE ROLES (Mod.Role, ...);` | |
+| Alter user role | `ALTER USER ROLE Name ADD\|DROP MODULE ROLES (Mod.Role, ...);` | |
 | Drop user role | `DROP USER ROLE [IF EXISTS] Name;` | `IF EXISTS` makes a cleanup script re-runnable |
 | Grant microflow access | `GRANT EXECUTE ON MICROFLOW Mod.MF TO Mod.Role, ...;` | |
 | Revoke microflow access | `REVOKE EXECUTE ON MICROFLOW Mod.MF FROM Mod.Role, ...;` | |
 | Grant page access | `GRANT VIEW ON PAGE Mod.Page TO Mod.Role, ...;` | |
 | Revoke page access | `REVOKE VIEW ON PAGE Mod.Page FROM Mod.Role, ...;` | |
 | Grant entity access | `GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Mod.Entity TO Mod.Role;` | Supports member lists and WHERE |
-| Revoke entity access | `REVOKE Mod.Role ON Mod.Entity;` | |
+| Revoke entity access | `REVOKE ALL ON ENTITY Mod.Entity FROM Mod.Role;` | |
 | Set security level | `ALTER APP SECURITY LEVEL OFF\|PROTOTYPE\|PRODUCTION;` | |
 | Toggle demo users | `ALTER APP SECURITY DEMO USERS ON\|OFF;` | |
 | Toggle guest access | `ALTER APP SECURITY GUEST ACCESS ON ROLE UserRole\|OFF;` | Anonymous users; role required (CE0133) |
@@ -263,11 +263,11 @@ END WORKFLOW;
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| Structure overview | `LIST STRUCTURE;` | Depth 2 (elements with signatures), user modules only |
-| Module counts | `LIST STRUCTURE DEPTH 1;` | One line per module with element counts |
-| Full types | `LIST STRUCTURE DEPTH 3;` | Typed attributes, named parameters |
-| Filter by module | `LIST STRUCTURE IN ModuleName;` | Single module only |
-| Include all modules | `LIST STRUCTURE DEPTH 1 ALL;` | Include system/marketplace modules |
+| Structure overview | `DESCRIBE STRUCTURE;` | Depth 2 (elements with signatures), user modules only |
+| Module counts | `DESCRIBE STRUCTURE DEPTH 1;` | One line per module with element counts |
+| Full types | `DESCRIBE STRUCTURE DEPTH 3;` | Typed attributes, named parameters |
+| Filter by module | `DESCRIBE STRUCTURE IN ModuleName;` | Single module only |
+| Include all modules | `DESCRIBE STRUCTURE DEPTH 1 ALL;` | Include system/marketplace modules |
 
 ## Navigation
 
@@ -298,13 +298,13 @@ CREATE OR REPLACE NAVIGATION Responsive
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| List settings | `LIST SETTINGS;` | Overview of all settings parts |
+| Describe settings | `DESCRIBE SETTINGS;` | All settings parts, as MDL |
 | Describe settings | `DESCRIBE SETTINGS;` | Full MDL output (round-trippable) |
-| Alter model settings | `ALTER SETTINGS RUNTIME Key = Value;` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
-| Alter configuration | `ALTER SETTINGS CONFIGURATION 'Name' Key = Value;` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
-| Alter constant | `ALTER SETTINGS CONSTANT 'Name' VALUE 'val' IN CONFIGURATION 'cfg';` | Override constant per configuration |
-| Alter language | `ALTER SETTINGS LANGUAGE Key = Value;` | DefaultLanguageCode |
-| Alter workflows | `ALTER SETTINGS WORKFLOWS Key = Value;` | UserEntity, DefaultTaskParallelism |
+| Alter model settings | `ALTER SETTINGS RUNTIME (Key: Value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
+| Alter configuration | `ALTER SETTINGS CONFIGURATION 'Name' (Key: Value, ...);` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
+| Alter constant | `ALTER SETTINGS CONSTANT @Module.Name VALUE 'val' IN CONFIGURATION 'cfg';` | Override constant per configuration |
+| Alter language | `ALTER SETTINGS LANGUAGE (Key: Value);` | DefaultLanguageCode |
+| Alter workflows | `ALTER SETTINGS WORKFLOWS (Key: Value, ...);` | UserEntity, DefaultTaskParallelism |
 
 ## Business Events
 
@@ -421,15 +421,15 @@ Modify an existing page or snippet's widget tree in-place without full `CREATE O
 
 | Operation | Syntax | Notes |
 |-----------|--------|-------|
-| Set property | `SET Caption = 'New' ON widgetName` | Single property on a widget |
+| Set property | `SET (Caption: 'New') ON widgetName` | Single property on a widget |
 | Set multiple | `SET (Caption = 'Save', ButtonStyle = Success) ON btn` | Multiple properties at once |
-| Page-level set | `SET Title = 'New Title'` | No ON clause for page properties |
+| Page-level set | `SET (Title: 'New Title')` | No ON clause for page properties |
 | Insert after | `INSERT AFTER widgetName { widgets }` | Add widgets after target |
 | Insert before | `INSERT BEFORE widgetName { widgets }` | Add widgets before target |
 | Insert into | `INSERT INTO containerName { widgets }` | Append as the container's last child (fills an empty container) |
-| Drop widgets | `DROP WIDGET name1, name2` | Remove widgets by name |
+| Drop widgets | `DROP name1, name2` | Remove widgets by name |
 | Replace widget | `REPLACE widgetName WITH { widgets }` | Replace widget subtree |
-| Pluggable prop | `SET 'showLabel' = false ON cbStatus` | Quoted name for pluggable widgets |
+| Pluggable prop | `SET ('showLabel': false) ON cbStatus` | Quoted name for pluggable widgets |
 | Add variable | `ADD Variables $name: Type = 'expr'` | Add a page variable |
 | Drop variable | `DROP Variables $name` | Remove a page variable |
 
@@ -438,15 +438,15 @@ Modify an existing page or snippet's widget tree in-place without full `CREATE O
 **Example:**
 ```sql
 ALTER PAGE Module.EditPage {
-  SET (Caption = 'Save & Close', ButtonStyle = Success) ON btnSave;
-  DROP WIDGET txtUnused;
+  SET (Caption: 'Save & Close', ButtonStyle: Success) ON btnSave;
+  DROP txtUnused;
   INSERT AFTER txtEmail {
     TEXTBOX txtPhone (Label: 'Phone', Attribute: Phone)
   }
 };
 
 ALTER SNIPPET Module.NavMenu {
-  SET Caption = 'Dashboard' ON btnHome
+  SET (Caption: 'Dashboard') ON btnHome
 };
 ```
 
@@ -514,7 +514,7 @@ CLI subcommand: `mxcli sql --driver postgres --dsn '...' "SELECT 1"` (see `mxcli
 | List callees | `LIST CALLEES OF Module.Name;` | What this element calls |
 | List references | `LIST REFERENCES OF Module.Name;` | All references to/from |
 | List impact | `LIST IMPACT OF Module.Name;` | Impact analysis |
-| List context | `LIST CONTEXT OF Module.Name;` | Surrounding context |
+| Describe context | `DESCRIBE CONTEXT OF Module.Name;` | Surrounding context |
 | Full-text search | `SEARCH '<keyword>';` | Search across all strings and source |
 
 Cross-reference commands require `REFRESH CATALOG FULL` to populate reference data.

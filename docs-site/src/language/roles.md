@@ -60,11 +60,11 @@ CREATE USER ROLE AppViewer (Shop.Viewer);
 
 ### ALTER USER ROLE
 
-Add or remove module roles from an existing user role:
+Add or drop module roles from an existing user role:
 
 ```sql
 ALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Admin);
-ALTER USER ROLE AppUser REMOVE MODULE ROLES (Shop.Viewer);
+ALTER USER ROLE AppUser DROP MODULE ROLES (Shop.Viewer);
 ```
 
 ### DROP USER ROLE

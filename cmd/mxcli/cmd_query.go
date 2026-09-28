@@ -157,7 +157,7 @@ Examples:
 			os.Exit(1)
 		}
 
-		mdlCmd := "SHOW STRUCTURE"
+		mdlCmd := "DESCRIBE STRUCTURE"
 		if depth != 2 {
 			mdlCmd += fmt.Sprintf(" DEPTH %d", depth)
 		}
@@ -211,7 +211,7 @@ Examples:
 			os.Exit(1)
 		}
 
-		mdlCmd := fmt.Sprintf("SHOW CONTEXT OF %s", args[0])
+		mdlCmd := fmt.Sprintf("DESCRIBE CONTEXT OF %s", args[0])
 		if depth > 0 {
 			mdlCmd += fmt.Sprintf(" DEPTH %d", depth)
 		}

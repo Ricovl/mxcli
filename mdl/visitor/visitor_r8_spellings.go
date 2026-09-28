@@ -165,6 +165,7 @@ func (b *Builder) recordDeleteBehavior(kw antlr.TerminalNode, behaviour parser.I
 
 // ExitAssociationOption reports `delete_behavior …` and `reference_set`.
 func (b *Builder) ExitAssociationOption(ctx *parser.AssociationOptionContext) {
+	b.recordAssociationClauseColon(ctx) // R3: `type: Reference` (visitor_r3_property_lists.go)
 	b.recordDeleteBehavior(ctx.DELETE_BEHAVIOR(), ctx.DeleteBehavior())
 	if n := ctx.REFERENCE_SET(); n != nil && strings.Contains(n.GetText(), "_") {
 		b.recordRespelling(deprecation.ReferenceSetUnderscore, n.GetSymbol(), "ReferenceSet")

@@ -41,4 +41,4 @@ SHOW WIDGETS WHERE WidgetType = 'DataGrid'
 
 ## See Also
 
-[SHOW PAGES](show-pages.md), [DESCRIBE PAGE](describe-page.md), [SHOW STRUCTURE](show-structure.md)
+[SHOW PAGES](show-pages.md), [DESCRIBE PAGE](describe-page.md), [DESCRIBE STRUCTURE](show-structure.md)

@@ -68,19 +68,29 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 	}
 
 	changes := make(map[string]any)
-	for _, propCtx := range ctx.AllOdataAlterAssignment() {
-		prop := propCtx.(*parser.OdataAlterAssignmentContext)
-		name := identifierOrKeywordText(prop.IdentifierOrKeyword())
+	// One property, in either spelling: `set ( Key: value, … )` or the old
+	// `set Key = value, …` (MDL-DEPR061). Both build the same statement.
+	set := func(name string, value parser.IOdataPropertyValueContext, expr parser.IExpressionContext) {
 		if ctx.ConsumedODataServiceKw() != nil && isODataClientExpressionProp(name) {
 			// Expression-typed: the expression as written (see visitor_odata_expression.go).
-			changes[name], _ = odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
-			continue
+			changes[name], _ = odataExpressionValue(value, expr)
+			return
 		}
-		val := prop.OdataPropertyValue()
-		if val != nil {
-			changes[name] = odataValueText(val.(*parser.OdataPropertyValueContext))
+		if value != nil {
+			changes[name] = odataValueText(value.(*parser.OdataPropertyValueContext))
 		}
 	}
+	if pl, ok := ctx.OdataAlterPropertyList().(*parser.OdataAlterPropertyListContext); ok && pl != nil {
+		for _, propCtx := range pl.AllOdataPropertyAssignment() {
+			prop := propCtx.(*parser.OdataPropertyAssignmentContext)
+			set(identifierOrKeywordText(prop.IdentifierOrKeyword()), prop.OdataPropertyValue(), prop.Expression())
+		}
+	}
+	for _, propCtx := range ctx.AllOdataAlterAssignment() {
+		prop := propCtx.(*parser.OdataAlterAssignmentContext)
+		set(identifierOrKeywordText(prop.IdentifierOrKeyword()), prop.OdataPropertyValue(), prop.Expression())
+	}
+	b.recordODataAlterAssignments(ctx)
 
 	if ctx.ConsumedODataServiceKw() != nil {
 		b.statements = append(b.statements, &ast.AlterODataClientStmt{

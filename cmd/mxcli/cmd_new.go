@@ -266,7 +266,7 @@ Examples:
 		if lowered, err := alignJavaVersion(mprPath, os.Stdout); err != nil {
 			fmt.Fprintf(os.Stderr, "  Warning: could not align the project's Java version: %v\n", err)
 			fmt.Fprintln(os.Stderr, "  If the first build fails with 'release version NN not supported',")
-			fmt.Fprintln(os.Stderr, "  run: mxcli -p <project>.mpr -c \"alter settings runtime JavaVersion = '21'\"")
+			fmt.Fprintln(os.Stderr, "  run: mxcli -p <project>.mpr -c \"alter settings runtime ( JavaVersion: '21' )\"")
 		} else if lowered {
 			fmt.Println()
 		}

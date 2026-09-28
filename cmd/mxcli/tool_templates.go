@@ -479,7 +479,7 @@ MPR file: %s
 
 ## Quick Commands
 
-- Explore: ./mxcli -p %s -c "SHOW STRUCTURE"
+- Explore: ./mxcli -p %s -c "DESCRIBE STRUCTURE"
 - Check: ./mxcli check script.mdl -p %s --references
 - Execute: ./mxcli exec script.mdl -p %s
 - Search: ./mxcli search -p %s "keyword"
@@ -530,7 +530,7 @@ func generateCopilotInstructions(projectName, mprPath string) string {
 		"## Quick Commands\n\n"+
 		"```bash\n"+
 		"# Explore project structure\n"+
-		"./mxcli -p %s -c \"SHOW STRUCTURE\"\n\n"+
+		"./mxcli -p %s -c \"DESCRIBE STRUCTURE\"\n\n"+
 		"# Validate an MDL script (always do this before executing)\n"+
 		"./mxcli check script.mdl -p %s --references\n\n"+
 		"# Execute an MDL script\n"+

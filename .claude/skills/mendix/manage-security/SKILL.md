@@ -97,7 +97,7 @@ then stops part-way through.
 
 ```sql
 -- Project-wide security overview
-show project security;
+describe app security;
 
 -- Module roles (all or filtered)
 show module roles;
@@ -114,8 +114,8 @@ show access on entity MyModule.Customer;
 show access on MyModule.Customer;        -- a bare name means the entity
 
 -- Full security matrix
-show security matrix;
-show security matrix in MyModule;
+describe security matrix;
+describe security matrix in MyModule;
 ```
 
 ### Describe Commands
@@ -262,16 +262,16 @@ grant read (Phone) on entity MyModule.Customer to MyModule.User;
 grant read *, write * on entity MyModule.Order to MyModule.User where [Status = 'Open'];
 
 -- Revoke entity access entirely
-revoke MyModule.Viewer on MyModule.Customer;
+revoke all on entity MyModule.Customer from MyModule.Viewer;
 
 -- Partial revoke: remove read on specific attribute
-revoke MyModule.User on MyModule.Customer (read (Phone));
+revoke read (Phone) on entity MyModule.Customer from MyModule.User;
 
 -- Partial revoke: downgrade write to read-only
-revoke MyModule.User on MyModule.Customer (write (Email));
+revoke write (Email) on entity MyModule.Customer from MyModule.User;
 
 -- Partial revoke: remove structural permission
-revoke MyModule.User on MyModule.Customer (delete);
+revoke delete on entity MyModule.Customer from MyModule.User;
 ```
 
 #### Members added later
@@ -390,9 +390,9 @@ create user role RegularUser (MyModule.User, OtherModule.Reader);
 -- Create with manage all roles permission
 create user role SuperAdmin (MyModule.Admin) manage all roles;
 
--- Add/remove module roles
+-- Add/drop module roles
 alter user role RegularUser add module roles (MyModule.Viewer);
-alter user role RegularUser remove module roles (MyModule.Viewer);
+alter user role RegularUser drop module roles (MyModule.Viewer);
 
 -- Remove user role
 drop user role RegularUser;
@@ -506,7 +506,7 @@ create user role AppUser (Shop.User);
 create user role AppAdmin (Shop.Admin) manage all roles;
 
 -- 6. Verify
-show security matrix in Shop;
+describe security matrix in Shop;
 describe user role AppAdmin;
 ```
 
@@ -543,7 +543,7 @@ rule's default cover it, or change the default.
 After setting up security, verify with:
 ```bash
 # check security matrix
-mxcli -p app.mpr -c "show security matrix in MyModule"
+mxcli -p app.mpr -c "describe security matrix in MyModule"
 
 # Validate with Mendix
 mxcli docker check -p app.mpr

@@ -49,7 +49,7 @@ is the fallback for hand-tuning or the modelsdk engine; the how-to is below.
    `DesignProperties:` — copy both.
 3. **Reproduce the tree** on your page, binding real data where the block has
    placeholder text (`'Card title'` → your attribute/content).
-4. **DRY it** — if the shape repeats, put it in a `define fragment` and `use` it.
+4. **DRY it** — if the shape repeats, put it in a `create fragment` and `use` it.
 
 ### Worked example — `Card`
 
@@ -80,7 +80,7 @@ the slot with each card's own content. This is the key idiom: one card wrapper,
 arbitrary bodies, no copy-paste of the wrapper markup.
 
 ```mdl
-define fragment SectionCard as {
+create fragment SectionCard as {
   container card1 (designproperties: ['Card style': on, 'Spacing': ['margin-bottom': 'Large']]) {
     container cardBody (class: 'card-body') {
       slot content            -- each page's widgets land here
@@ -119,7 +119,7 @@ inside; typed **parameters** vary *which entity* and *which microflow*. Declare 
 `datasource` and/or `action` parameter and the card becomes a real component:
 
 ```mdl
-define fragment EntityCard($data: datasource, $onOpen: action) as {
+create fragment EntityCard($data: datasource, $onOpen: action) as {
   container card1 (designproperties: ['Card style': on]) {
     listview lv (datasource: $data) {
       slot content

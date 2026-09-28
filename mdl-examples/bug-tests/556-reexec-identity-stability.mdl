@@ -53,9 +53,9 @@ CREATE OR MODIFY REST CLIENT BugReexecIdentity.PartsAvailabilityAPI (
   Authentication: NONE
 )
 {
-  OPERATION GetPart {
+  OPERATION GetPart (
     Method: GET,
     Path: '/parts/{id}',
     Parameters: ($id: String)
-  }
+  )
 };

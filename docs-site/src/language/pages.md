@@ -93,13 +93,15 @@ Values are 1-12 (grid units) or `AutoFill`. TabletWidth and PhoneWidth default t
 
 ### Conditional Visibility
 
-Any widget can be conditionally visible using an XPath expression in brackets:
+Any widget can be conditionally visible. The condition is a Mendix client expression, written bare and stored as written, so an attribute of the context object is `$currentObject/Attr`:
 
 ```sql
-TEXTBOX txtName (Label: 'Name', Attribute: Name, Visible: [IsActive])
+TEXTBOX txtName (Label: 'Name', Attribute: Name, Visible: $currentObject/IsActive)
 ```
 
 Static values also work: `Visible: false` hides the widget unconditionally.
+
+The older bracketed form, `Visible: [IsActive]`, still parses — it roots a bare attribute in `$currentObject` — and warns `MDL-DEPR081`; `mxcli fmt --upgrade` rewrites it to the expression it stores. A constant condition such as `Editable: [false]` has no bare spelling and keeps its brackets.
 
 Studio Pro's **"based on attribute value"** form lists the values of a Boolean or
 enumeration attribute (of the enclosing data container's entity) that show the
@@ -119,7 +121,7 @@ set up that way in Studio Pro.
 Input widgets can be conditionally editable:
 
 ```sql
-TEXTBOX txtStatus (Label: 'Status', Attribute: Status, Editable: [Status != 'Closed'])
+TEXTBOX txtStatus (Label: 'Status', Attribute: Status, Editable: $currentObject/Status != 'Closed')
 ```
 
 Static values: `Editable: Never`, `Editable: Always`.

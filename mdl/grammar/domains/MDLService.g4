@@ -42,8 +42,9 @@ databaseQueryMapping
     ;
 
 createConfigurationStatement
-    : CONFIGURATION STRING_LITERAL
-      (settingsAssignment (COMMA settingsAssignment)*)?
+    : CONFIGURATION STRING_LITERAL settingsItemOptions?          // configuration 'X' ( Key: value, … )
+    | CONFIGURATION STRING_LITERAL
+      settingsAssignment (COMMA settingsAssignment)*             // old spelling: Key = value, … (MDL-DEPR060)
     ;
 
 /**
@@ -61,16 +62,20 @@ createRestClientStatement
 
 restClientProperty
     : identifierOrKeyword COLON STRING_LITERAL                       // BaseUrl: '...', Username: '...'
-    | identifierOrKeyword COLON VARIABLE                             // Username: $Constant (legacy, stored as Rest$ConstantValue)
-    | identifierOrKeyword COLON AT qualifiedName                     // Username: @Module.Constant (preferred Mendix convention)
+    | identifierOrKeyword COLON VARIABLE /* @alias MDL-DEPR083 */    // Username: $Constant (a constant of the client's own module)
+    | identifierOrKeyword COLON AT qualifiedName                     // Username: @Module.Constant (the one constant reference, R5)
     | identifierOrKeyword COLON NONE                                 // Authentication: NONE
     | identifierOrKeyword COLON BASIC LPAREN restClientProperty (COMMA restClientProperty)* RPAREN
     ;
 
+// An operation is a child of the service, so its properties are in ( ) like
+// every other child's (R2, ako/mxcli#754). The brace form is the old spelling.
 restClientOperation
     : docComment?
       OPERATION (identifierOrKeyword | STRING_LITERAL)
-      LBRACE restClientOpProp (COMMA restClientOpProp)* RBRACE
+      ( LPAREN restClientOpProp (COMMA restClientOpProp)* COMMA? RPAREN
+      | LBRACE /* @alias MDL-DEPR070 */ restClientOpProp (COMMA restClientOpProp)* COMMA? RBRACE
+      )
     ;
 
 restClientOpProp
@@ -222,9 +227,15 @@ odataPropertyAssignment
     | identifierOrKeyword COLON expression
     ;
 
+// ALTER … SET ( Key: value, … ): exactly create's property list (R3).
+odataAlterPropertyList
+    : LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
+    ;
+
+// The old spelling of the alter list: `set Key = value, …` (R3).
 odataAlterAssignment
-    : identifierOrKeyword EQUALS odataPropertyValue
-    | identifierOrKeyword EQUALS expression
+    : identifierOrKeyword EQUALS /* @alias MDL-DEPR061 */ odataPropertyValue
+    | identifierOrKeyword EQUALS /* @alias MDL-DEPR061 */ expression
     ;
 
 odataAuthenticationClause

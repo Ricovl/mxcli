@@ -108,7 +108,7 @@ func TestWorkflowESP_DescribeRoundTrips(t *testing.T) {
 		"boundary event non interrupting notification nudge 'Nudge'",
 		"event subprocess ESP_Cancel 'Cancel request' on interrupting notification cancelStart 'Cancel received' {",
 		"event subprocess ESP_Loop on non interrupting notification loopStart 'loopStart' {",
-		"event subprocess ESP_Expire 'Expire' on interrupting timer 'addDays([%CurrentDateTime%], 30)' as expireStart caption 'After 30 days' {",
+		"event subprocess ESP_Expire 'Expire' on interrupting timer addDays([%CurrentDateTime%], 30) as expireStart caption 'After 30 days' {",
 		"jump to logIt;",
 	} {
 		if !strings.Contains(first, want) {

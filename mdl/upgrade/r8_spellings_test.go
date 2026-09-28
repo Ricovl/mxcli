@@ -39,8 +39,8 @@ func TestUpgrade_R8Spellings(t *testing.T) {
 			"create association M.A_B from M.A to M.B ON DELETE CASCADE;\n"},
 		{"alter association M.A_B set delete_behavior delete but keep references error_message 'x';\n",
 			"alter association M.A_B set on delete set null error message 'x';\n"},
-		{"create microflow M.F () begin rest call get 'https://x.org' returns none; end;\n",
-			"create microflow M.F () begin rest call get 'https://x.org' returns nothing; end;\n"},
+		{"create microflow M.F () begin call rest service get 'https://x.org' returns none; end;\n",
+			"create microflow M.F () begin call rest service get 'https://x.org' returns nothing; end;\n"},
 	}
 	for _, c := range cases {
 		res := mustUpgrade(t, c.old, Options{})

@@ -145,7 +145,7 @@ begin
       true -> { }
       false -> { };
 
-  decision '$WorkflowContext/IsApproved'
+  decision $WorkflowContext/IsApproved
     outcomes
       true -> {
         wait for timer '${PT2H}';
@@ -192,7 +192,8 @@ end workflow;`
 		{"call microflow args", "call microflow " + mod + ".ScoreCalc(Score = $WorkflowContext/Score)"},
 		{"outcomes true", "true ->"},
 		{"outcomes false", "false ->"},
-		{"decision", "decision '$WorkflowContext/IsApproved'"},
+		// R5 (#753): describe writes a decision's condition bare.
+		{"decision", "decision $WorkflowContext/IsApproved"},
 		{"wait for timer", "wait for timer '${PT2H}'"},
 		{"jump to", "jump to ReviewTask"},
 		{"parallel split", "parallel split"},

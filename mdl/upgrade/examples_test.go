@@ -218,9 +218,12 @@ func TestUpgrade_ExamplesKeepTheirStatements(t *testing.T) {
 				t.Errorf("%s (%+v): upgraded output does not parse: %v", path, opts, errs[0])
 				continue
 			}
-			if len(got.Deprecations) > 0 {
-				t.Errorf("%s (%+v): upgraded output still records %d deprecation(s), first %s at line %d",
-					path, opts, len(got.Deprecations), got.Deprecations[0].Code, got.Deprecations[0].Line)
+			// A use the upgrade reported as unrewritable (Result.Unrewritten) stays,
+			// by contract: it is reported, never guessed at. Anything beyond those
+			// is a rewrite that did not produce the canonical form.
+			if len(got.Deprecations) > len(res.Unrewritten) {
+				t.Errorf("%s (%+v): upgraded output still records %d deprecation(s) (%d reported unrewritable), first %s at line %d",
+					path, opts, len(got.Deprecations), len(res.Unrewritten), got.Deprecations[0].Code, got.Deprecations[0].Line)
 			}
 			want, _ := visitor.Build(src)
 			foldModeFlags(want.Statements)

@@ -108,7 +108,7 @@ func validateWidgetKind(w *ast.WidgetV3, registry *WidgetRegistry, parentDef *Wi
 			Severity: linter.SeverityError,
 			Message: fmt.Sprintf("%s: `%s` is not a widget in this project%s",
 				locationPrefix, strings.ToLower(w.Type), nearestWidgetNames(registry, w.Type)),
-			Suggestion: "run `mxcli widget init` if the package was just installed, or `describe widget <name>` to see what is available",
+			Suggestion: "run `mxcli widget init` if the package was just installed, or `describe widget type <name>` to see what is available",
 		}}
 	}
 

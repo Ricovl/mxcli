@@ -46,13 +46,13 @@ create rest client AuthTest.HttpBinAuthAPI (
 )
 {
   /** Calls /basic-auth/testuser/testpass123! — returns 200 if auth header sent */
-  operation CheckAuth {
+  operation CheckAuth (
     method: get,
     path: '/basic-auth/testuser/testpass123!',
     headers: ('Accept' = 'application/json'),
     timeout: 30,
     response: none
-  }
+  )
 };
 
 -- ############################################################################

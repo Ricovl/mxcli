@@ -414,13 +414,13 @@ grant read (Notes) on entity SecTest.Customer to SecTest.User;
  * Remove read access on a specific attribute (Notes).
  * Other permissions are preserved.
  */
-revoke SecTest.User on SecTest.Customer (read (Notes));
+revoke read (Notes) on entity SecTest.Customer from SecTest.User;
 /
 
 /**
  * Downgrade write to read-only on Email.
  */
-revoke SecTest.User on SecTest.Customer (write (Email));
+revoke write (Email) on entity SecTest.Customer from SecTest.User;
 /
 
 -- ============================================================================
@@ -430,7 +430,7 @@ revoke SecTest.User on SecTest.Customer (write (Email));
 /**
  * Remove the Viewer role's access rule from Customer entirely.
  */
-revoke SecTest.Viewer on SecTest.Customer;
+revoke all on entity SecTest.Customer from SecTest.Viewer;
 /
 
 -- Verify after revoke
@@ -670,9 +670,9 @@ show access on page SecTest.Order_Overview;
 -- Revoke entity access to avoid CE0066 "entity access out of date".
 -- When a module has partial access rules (not all entities covered by all
 -- roles), MxBuild reports CE0066 regardless of security level.
-revoke SecTest.Administrator on SecTest.Customer;
-revoke SecTest.User on SecTest.Customer;
-revoke SecTest.User on SecTest.Order;
-revoke SecTest.Manager on SecTest.Customer;
+revoke all on entity SecTest.Customer from SecTest.Administrator;
+revoke all on entity SecTest.Customer from SecTest.User;
+revoke all on entity SecTest.Order from SecTest.User;
+revoke all on entity SecTest.Customer from SecTest.Manager;
 
 

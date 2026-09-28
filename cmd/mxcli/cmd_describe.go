@@ -147,7 +147,7 @@ Example:
 		case "USERROLE", "USER ROLE":
 			mdlCmd = fmt.Sprintf("DESCRIBE USER ROLE '%s'", name)
 		case "PROJECTSECURITY", "PROJECT SECURITY":
-			mdlCmd = "SHOW PROJECT SECURITY"
+			mdlCmd = "DESCRIBE APP SECURITY"
 		case "SETTINGS":
 			mdlCmd = "DESCRIBE SETTINGS"
 		case "DEMOUSER", "DEMO USER":

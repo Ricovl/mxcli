@@ -817,6 +817,14 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		return
 	}
 
+	// R6: the single-thing reports that were `show` forms. Each builds the
+	// statement its `show` spelling builds, so the two are one statement and
+	// `show` is a pure alias (MDL-DEPR090).
+	if stmt := describeReport(ctx); stmt != nil {
+		b.statements = append(b.statements, stmt)
+		return
+	}
+
 	// DESCRIBE GLYPH 57350 | DESCRIBE GLYPH 'star'. Placed with the other
 	// no-document statements: a glyph is a character code in a font, so it has no
 	// qualified name for the chain below to build.
@@ -1407,3 +1415,47 @@ func (b *Builder) ExitUpdateStatement(ctx *parser.UpdateStatementContext) {
 // ----------------------------------------------------------------------------
 // Helper Functions
 // ----------------------------------------------------------------------------
+
+// describeReport builds `describe app security`, `describe security matrix`,
+// `describe structure` and `describe context of`: the same statements as their
+// `show` spellings (see ExitShowStatement). Nil for every other describe.
+func describeReport(ctx *parser.DescribeStatementContext) ast.Statement {
+	inModule := func() string {
+		if ctx.IN() == nil {
+			return ""
+		}
+		if qn := ctx.QualifiedName(); qn != nil {
+			return getQualifiedNameText(qn)
+		}
+		if id := ctx.IDENTIFIER(); id != nil {
+			return id.GetText()
+		}
+		return ""
+	}
+	depth := func() int {
+		if ctx.DEPTH() != nil {
+			if n := ctx.NUMBER_LITERAL(); n != nil {
+				if d, err := strconv.Atoi(n.GetText()); err == nil {
+					return d
+				}
+			}
+		}
+		return 2
+	}
+	switch {
+	case ctx.APP() != nil && ctx.SECURITY() != nil:
+		return &ast.ShowStmt{ObjectType: ast.ShowProjectSecurity}
+	case ctx.SECURITY() != nil && ctx.MATRIX() != nil:
+		return &ast.ShowStmt{ObjectType: ast.ShowSecurityMatrix, InModule: inModule()}
+	case ctx.STRUCTURE() != nil && ctx.JSON() == nil:
+		return &ast.ShowStmt{ObjectType: ast.ShowStructure, Depth: depth(), All: ctx.ALL() != nil, InModule: inModule()}
+	case ctx.CONTEXT() != nil && ctx.OF() != nil:
+		qn := ctx.QualifiedName()
+		if qn == nil {
+			return nil
+		}
+		name := buildQualifiedName(qn)
+		return &ast.ShowStmt{ObjectType: ast.ShowContext, Name: &name, Depth: depth()}
+	}
+	return nil
+}

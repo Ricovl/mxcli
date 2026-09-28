@@ -15,16 +15,16 @@ CREATE [ OR MODIFY ] AGENT module.Name (
     [, ToolChoice: { Auto | None | Required } ]
 )
 [ {
-    [ MCP SERVICE module.McpServiceName {
+    [ MCP SERVICE module.McpServiceName (
         Enabled: true
-    } ]
-    [ KNOWLEDGE BASE alias {
+    ) ]
+    [ KNOWLEDGE BASE alias (
         source: module.KBName,
         collection: 'collection-name',
         MaxResults: 5,
         description: 'description',
         Enabled: true
-    } ]
+    ) ]
 } ]
 ;
 
@@ -63,6 +63,9 @@ The optional body block (inside `{ }`) attaches tools and knowledge bases to the
 
 - **MCP SERVICE** — attaches a consumed MCP service by its qualified name
 - **KNOWLEDGE BASE** — attaches a knowledge base with retrieval settings
+- **TOOL** — attaches a tool
+
+Each attachment is a child of the agent, so its properties are in `( )`. The older brace form (`TOOL Name { … }`) still parses but warns (MDL-DEPR071); `mxcli fmt --upgrade` rewrites it.
 
 ### OR MODIFY
 
@@ -161,17 +164,17 @@ CREATE AGENT MyModule."ResearchAssistant" (
     UserPrompt: 'Find information about quantum computing.'
 )
 {
-    MCP SERVICE MyModule.WebSearch {
+    MCP SERVICE MyModule.WebSearch (
         Enabled: true
-    }
+    )
 
-    KNOWLEDGE BASE ProductKB {
+    KNOWLEDGE BASE ProductKB (
         source: MyModule.ProductDocs,
         collection: 'product-docs',
         MaxResults: 5,
         description: 'Product documentation',
         Enabled: true
-    }
+    )
 };
 /
 ```
