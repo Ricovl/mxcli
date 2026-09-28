@@ -51,7 +51,7 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 	}
 
 	// Handle agent-editor ALTER statements
-	if ctx.MODEL() != nil || ctx.AGENT() != nil ||
+	if ctx.AiModelKw() != nil || ctx.AGENT() != nil ||
 		(ctx.KNOWLEDGE() != nil && ctx.BASE() != nil) ||
 		(ctx.CONSUMED() != nil && ctx.MCP() != nil && ctx.SERVICE() != nil) {
 		b.exitAlterAgentEditorStatement(ctx)

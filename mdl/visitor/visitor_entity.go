@@ -1017,7 +1017,7 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 		b.statements = append(b.statements, &ast.DropRegularExpressionStmt{
 			Name: buildQualifiedName(names[0]),
 		})
-	} else if ctx.MODEL() != nil {
+	} else if ctx.AiModelKw() != nil {
 		b.statements = append(b.statements, &ast.DropModelStmt{
 			Name: buildQualifiedName(names[0]),
 		})

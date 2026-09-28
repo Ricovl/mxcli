@@ -43,3 +43,28 @@ func TestUpgrade_DocumentTypeNames(t *testing.T) {
 		t.Errorf("second upgrade changed the script again: %v", again.Rewritten)
 	}
 }
+
+// The rest of R10 (ako/mxcli#755): `ai model` and a JSON structure's `sample`;
+// an agent's `Model:` key and a page `snippet` are not the names.
+func TestUpgrade_AIModelAndJSONSample(t *testing.T) {
+	src := "CREATE MODEL M.Gpt (Provider: MxCloudGenAI, Key: @M.ApiKey);\n" +
+		"list models in M;\nmove model M.Gpt to folder 'AI';\n" +
+		"create agent M.A (UsageType: Task, Model: M.Gpt, SystemPrompt: 'x');\n" +
+		"create json structure M.J Snippet '{\"a\": 1}';\n" +
+		"drop snippet M.S;\n"
+	want := "CREATE AI MODEL M.Gpt (Provider: MxCloudGenAI, Key: @M.ApiKey);\n" +
+		"list ai models in M;\nmove ai model M.Gpt to folder 'AI';\n" +
+		"create agent M.A (UsageType: Task, Model: M.Gpt, SystemPrompt: 'x');\n" +
+		"create json structure M.J Sample '{\"a\": 1}';\n" +
+		"drop snippet M.S;\n"
+	res := mustUpgrade(t, src, Options{})
+	if res.Source != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", res.Source, want)
+	}
+	if res.Rewritten[deprecation.AIModel] != 3 || res.Rewritten[deprecation.JSONStructureSample] != 1 {
+		t.Errorf("Rewritten = %v", res.Rewritten)
+	}
+	if again := mustUpgrade(t, res.Source, Options{}); again.Changed() {
+		t.Errorf("second upgrade changed the script again: %v", again.Rewritten)
+	}
+}

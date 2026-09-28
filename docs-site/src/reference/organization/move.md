@@ -97,7 +97,7 @@ snippets and REST/OData services also take is a deprecated alias (`MDL-DEPR105`)
 ```sql
 CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Order
   FOLDER 'Private/JSON structures'
-  SNIPPET '{"id": 1}';
+  SAMPLE '{"id": 1}';
 
 CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
 

@@ -148,7 +148,7 @@ Map a JSON response to Mendix entities using a JSON structure and import mapping
 ```sql
 -- Step 1: Define the JSON structure
 CREATE JSON STRUCTURE Integration.JSON_Pet
-  SNIPPET '{"id": 1, "name": "Fido", "status": "available"}';
+  SAMPLE '{"id": 1, "name": "Fido", "status": "available"}';
 
 -- Step 2: Create a non-persistent entity to hold the data
 CREATE NON-PERSISTENT ENTITY Integration.PetResponse (

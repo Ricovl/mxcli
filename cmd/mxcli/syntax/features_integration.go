@@ -645,14 +645,14 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"json structure", "create json structure", "drop json structure",
 			"snippet", "schema", "json schema",
 		},
-		Syntax: "SHOW JSON STRUCTURES [IN Module];\nDESCRIBE JSON STRUCTURE Module.Name;\n[/** documentation */]\nCREATE JSON STRUCTURE Module.Name [FOLDER 'path'] SNIPPET '{ ... }'\n  [CUSTOM NAME MAP (\n    'jsonKey' AS 'CustomName',       -- rename the element that key reaches\n    ITEM OF 'arrayKey' AS 'Name',    -- name the ARRAY's item element\n    ITEM OF 'Root' AS 'Name'         -- ... of a ROOT-level array\n  )];\nCREATE OR MODIFY JSON STRUCTURE Module.Name SNIPPET '{ ... }';\nDROP JSON STRUCTURE Module.Name;\n\n" +
+		Syntax: "SHOW JSON STRUCTURES [IN Module];\nDESCRIBE JSON STRUCTURE Module.Name;\n[/** documentation */]\nCREATE JSON STRUCTURE Module.Name [FOLDER 'path'] SAMPLE '{ ... }'\n  [CUSTOM NAME MAP (\n    'jsonKey' AS 'CustomName',       -- rename the element that key reaches\n    ITEM OF 'arrayKey' AS 'Name',    -- name the ARRAY's item element\n    ITEM OF 'Root' AS 'Name'         -- ... of a ROOT-level array\n  )];\nCREATE OR MODIFY JSON STRUCTURE Module.Name SAMPLE '{ ... }';\nDROP JSON STRUCTURE Module.Name;\n\n" +
 			"An array's item is the anonymous [...] entry, so it has no JSON key and the\n" +
 			"plain form cannot reach it — ITEM OF addresses it by the array's key, and\n" +
 			"names a primitive array's wrapper too. Left unnamed an item keeps its\n" +
 			"generated name. The name matters because a mapping element clones it.\n" +
 			"An entry whose key is not in the snippet is an error (MDL-JSON01), as is\n" +
 			"ITEM OF on a key that is not an array (MDL-JSON02).",
-		Example: "CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Pet\n  SNIPPET '{\"id\": 1, \"name\": \"Fido\", \"status\": \"available\"}';\n\nCREATE JSON STRUCTURE MyModule.JSON_Invoice\n  SNIPPET '{\"lines\": [{\"sku\": \"A1\"}], \"tags\": [\"urgent\"]}'\n  CUSTOM NAME MAP (\n    'lines' AS 'OrderLines',\n    ITEM OF 'lines' AS 'OrderLine',\n    ITEM OF 'tags' AS 'Tag'\n  );\n\nDESCRIBE JSON STRUCTURE MyModule.JSON_Pet;",
+		Example: "CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Pet\n  SAMPLE '{\"id\": 1, \"name\": \"Fido\", \"status\": \"available\"}';\n\nCREATE JSON STRUCTURE MyModule.JSON_Invoice\n  SAMPLE '{\"lines\": [{\"sku\": \"A1\"}], \"tags\": [\"urgent\"]}'\n  CUSTOM NAME MAP (\n    'lines' AS 'OrderLines',\n    ITEM OF 'lines' AS 'OrderLine',\n    ITEM OF 'tags' AS 'Tag'\n  );\n\nDESCRIBE JSON STRUCTURE MyModule.JSON_Pet;",
 		SeeAlso: []string{"import-mapping", "export-mapping"},
 	})
 
@@ -824,18 +824,19 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"agent", "agents", "model", "knowledge base", "mcp service",
 			"agent editor", "llm", "ai", "genai", "mxcloudgenai",
 		},
-		Syntax:  "LIST MODELS [IN Module];\nLIST KNOWLEDGE BASES [IN Module];\nLIST CONSUMED MCP SERVICES [IN Module];\nLIST AGENTS [IN Module];\nDESCRIBE MODEL Module.Name;\nCREATE MODEL Module.Name (Provider: MxCloudGenAI, Key: @Module.ApiKey);\nCREATE KNOWLEDGE BASE Module.Name (Provider: MxCloudGenAI, Key: @Module.KBKey);\nCREATE CONSUMED MCP SERVICE Module.Name (ProtocolVersion: v2025_03_26, ...);\nCREATE AGENT Module.Name (UsageType: Task|Chat, Model: Module.MyModel, SystemPrompt: '...') { ... };\nDROP AGENT Module.Name;",
-		Example: "CREATE MODEL MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: @MyModule.ModelApiKey\n);\n\nCREATE AGENT MyModule.Summarizer (\n  UsageType: Task,\n  Model: MyModule.GPT4,\n  SystemPrompt: 'Summarize in 3 sentences.',\n  UserPrompt: 'Enter text.'\n);",
+		Syntax:  "LIST AI MODELS [IN Module];\nLIST KNOWLEDGE BASES [IN Module];\nLIST CONSUMED MCP SERVICES [IN Module];\nLIST AGENTS [IN Module];\nDESCRIBE AI MODEL Module.Name;\nCREATE AI MODEL Module.Name (Provider: MxCloudGenAI, Key: @Module.ApiKey);\nCREATE KNOWLEDGE BASE Module.Name (Provider: MxCloudGenAI, Key: @Module.KBKey);\nCREATE CONSUMED MCP SERVICE Module.Name (ProtocolVersion: v2025_03_26, ...);\nCREATE AGENT Module.Name (UsageType: Task|Chat, Model: Module.MyModel, SystemPrompt: '...') { ... };\nDROP AGENT Module.Name;",
+		Example: "CREATE AI MODEL MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: @MyModule.ModelApiKey\n);\n\nCREATE AGENT MyModule.Summarizer (\n  UsageType: Task,\n  Model: MyModule.GPT4,\n  SystemPrompt: 'Summarize in 3 sentences.',\n  UserPrompt: 'Enter text.'\n);",
 		SeeAlso: []string{"agents.model", "agents.knowledge-base", "agents.mcp-service", "agents.agent"},
 	})
 
 	Register(SyntaxFeature{
-		Path:     "agents.model",
-		Summary:  "CREATE/DROP MODEL documents for AI agents",
-		Keywords: []string{"create model", "drop model", "describe model", "list models", "provider", "mxcloudgenai"},
-		Syntax:   "CREATE [OR MODIFY] MODEL Module.Name [FOLDER 'path'] (\n  Provider: MxCloudGenAI,\n  Key: @Module.ApiKeyConstant\n);\nDESCRIBE MODEL Module.Name;\nLIST MODELS [IN Module];\nDROP MODEL Module.Name;",
-		Example:  "create model MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: @MyModule.ModelApiKey\n);",
-		SeeAlso:  []string{"agents"},
+		Path:    "agents.model",
+		Summary: "CREATE/DROP AI MODEL documents for AI agents",
+		Keywords: []string{"create ai model", "drop ai model", "describe ai model", "list ai models",
+			"create model", "drop model", "describe model", "list models", "provider", "mxcloudgenai"},
+		Syntax:  "CREATE [OR MODIFY] AI MODEL Module.Name [FOLDER 'path'] (\n  Provider: MxCloudGenAI,\n  Key: @Module.ApiKeyConstant\n);\nDESCRIBE AI MODEL Module.Name;\nLIST AI MODELS [IN Module];\nDROP AI MODEL Module.Name;",
+		Example: "create ai model MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: @MyModule.ModelApiKey\n);",
+		SeeAlso: []string{"agents"},
 	})
 
 	Register(SyntaxFeature{

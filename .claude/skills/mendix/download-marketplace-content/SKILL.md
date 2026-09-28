@@ -402,7 +402,7 @@ mxcli docker check -p MyAgentApp.mpr        # read the errors; they name what is
 # ...repeat per row...
 ```
 
-Then authoring works — `create constant` + `create model` + `create agent` executed and
+Then authoring works — `create constant` + `create ai model` + `create agent` executed and
 added 3 units, with `show features in agent_documents` reporting all four document types
 available on 11.12.1.
 

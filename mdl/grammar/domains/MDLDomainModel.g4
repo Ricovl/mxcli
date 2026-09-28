@@ -557,8 +557,15 @@ imageName
 // =============================================================================
 
 createJsonStructureStatement
-    : JSON STRUCTURE qualifiedName (FOLDER STRING_LITERAL)? (COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL)? SNIPPET (STRING_LITERAL | DOLLAR_STRING)
+    : JSON STRUCTURE qualifiedName (FOLDER STRING_LITERAL)? (COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL)? jsonSampleKw (STRING_LITERAL | DOLLAR_STRING)
       (CUSTOM_NAME_MAP LPAREN customNameMapping (COMMA customNameMapping)* RPAREN)?
+    ;
+
+// R10: the example JSON a structure is derived from is its sample; `snippet`
+// is a page document type.
+jsonSampleKw
+    : SAMPLE
+    | SNIPPET /* @alias MDL-DEPR132 */
     ;
 
 /**

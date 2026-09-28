@@ -274,7 +274,7 @@
   - [CREATE EXPORT MAPPING](reference/integration/create-export-mapping.md)
   - [CREATE DATA TRANSFORMER](reference/integration/create-data-transformer.md)
 - [Agent Editor Statements](reference/agent/README.md)
-  - [CREATE MODEL](reference/agent/create-model.md)
+  - [CREATE AI MODEL](reference/agent/create-model.md)
   - [CREATE KNOWLEDGE BASE](reference/agent/create-knowledge-base.md)
   - [CREATE CONSUMED MCP SERVICE](reference/agent/create-consumed-mcp-service.md)
   - [CREATE AGENT](reference/agent/create-agent.md)

@@ -102,13 +102,13 @@ An export mapping converts Mendix entity objects into a JSON string. It maps ent
 
 ```sql
 create json structure Module.JSON_Pet
-  snippet '{"id": 1, "name": "Fido", "status": "available"}';
+  sample '{"id": 1, "name": "Fido", "status": "available"}';
 ```
 
 For multi-line JSON, use dollar-quoting:
 ```sql
 create json structure Module.JSON_Order
-  snippet $${
+  sample $${
   "orderId": 100,
   "customer": {"name": "Alice", "email": "alice@example.com"},
   "items": [{"sku": "A1", "quantity": 2, "price": 9.99}]
@@ -118,7 +118,7 @@ create json structure Module.JSON_Order
 Custom name mapping (rename JSON fields):
 ```sql
 create json structure Module.JSON_Pet
-  snippet '{"id": 1, "name": "Fido"}'
+  sample '{"id": 1, "name": "Fido"}'
   CUSTOM NAME map ('id' as '_id');
 ```
 
@@ -128,7 +128,7 @@ it; left alone it gets a derived name like `LinesItem`:
 
 ```sql
 create json structure Module.JSON_Invoice
-  snippet '{"lines": [{"sku": "A1"}], "tags": ["urgent"]}'
+  sample '{"lines": [{"sku": "A1"}], "tags": ["urgent"]}'
   CUSTOM NAME map (
     'lines' as 'OrderLines',
     item of 'lines' as 'OrderLine',
@@ -596,7 +596,7 @@ the qualified name. Missing folders in the path are created:
 
 ```mdl
 create json structure Sales.JSON_Order folder 'Private/JSON structures'
-  snippet '{"id": 1, "total": 9.99}';
+  sample '{"id": 1, "total": 9.99}';
 
 create import mapping Sales.IMM_Order folder 'Private/Import mappings'
   with json structure Sales.JSON_Order

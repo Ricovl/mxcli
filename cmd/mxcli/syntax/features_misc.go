@@ -952,7 +952,7 @@ MOVE JSON STRUCTURE MyModule.JSON_Order TO FOLDER 'Private/JSON structures';
 -- one; on most it goes straight after the qualified name
 CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Order
   FOLDER 'Private/JSON structures'
-  SNIPPET '{"id": 1}';
+  SAMPLE '{"id": 1}';
 CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
 CREATE IMPORT MAPPING MyModule.IMM_Order FOLDER 'Private/Import mappings'
   WITH JSON STRUCTURE MyModule.JSON_Order { CREATE MyModule.Order { Id = id } };

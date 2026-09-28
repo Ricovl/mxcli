@@ -53,7 +53,7 @@ showStatement
     // LIKE filters on the name, which is the direction an author needs: they
     // know they want a star and not that a star is 57350.
     | showOrList GLYPHS (LIKE STRING_LITERAL)?
-    | showOrList MODELS (IN (qualifiedName | IDENTIFIER))?
+    | showOrList aiModelsKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList AGENTS (IN (qualifiedName | IDENTIFIER))?
     | showOrList KNOWLEDGE BASES (IN (qualifiedName | IDENTIFIER))?
     | showOrList CONSUMED MCP SERVICES (IN (qualifiedName | IDENTIFIER))?
@@ -205,7 +205,7 @@ describeStatement
     | DESCRIBE IMAGE COLLECTION qualifiedName           // DESCRIBE IMAGE COLLECTION Module.Name
     | DESCRIBE ICON COLLECTION qualifiedName            // DESCRIBE ICON COLLECTION Module.Name
     | DESCRIBE GLYPH (NUMBER_LITERAL | STRING_LITERAL)  // DESCRIBE GLYPH 57350 | DESCRIBE GLYPH 'star' 
-    | DESCRIBE MODEL qualifiedName                      // DESCRIBE MODEL Module.Name (agent-editor)
+    | DESCRIBE aiModelKw qualifiedName                  // DESCRIBE AI MODEL Module.Name (agent-editor)
     | DESCRIBE AGENT qualifiedName                      // DESCRIBE AGENT Module.Name (agent-editor)
     | DESCRIBE KNOWLEDGE BASE qualifiedName             // DESCRIBE KNOWLEDGE BASE Module.Name
     | DESCRIBE CONSUMED MCP SERVICE qualifiedName       // DESCRIBE CONSUMED MCP SERVICE Module.Name

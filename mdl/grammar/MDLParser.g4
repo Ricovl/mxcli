@@ -221,7 +221,7 @@ alterStatement
     | alterMessageDefinitionCollectionStatement
     | alterMessageDefinitionStatement
     | ALTER PUBLISHED REST SERVICE qualifiedName alterPublishedRestServiceAction (COMMA? alterPublishedRestServiceAction)*
-    | ALTER MODEL qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
+    | ALTER aiModelKw qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER KNOWLEDGE BASE qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER CONSUMED MCP SERVICE qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER AGENT qualifiedName alterAgentAction+
@@ -651,7 +651,7 @@ dropStatement
     | DROP consumedRestServiceKw ifExists? qualifiedName
     | DROP PUBLISHED REST SERVICE ifExists? qualifiedName
     | DROP DATA TRANSFORMER ifExists? qualifiedName
-    | DROP MODEL ifExists? qualifiedName                               // DROP MODEL Module.Name (agent-editor)
+    | DROP aiModelKw ifExists? qualifiedName                           // DROP AI MODEL Module.Name (agent-editor)
     | DROP CONSUMED MCP SERVICE ifExists? qualifiedName                // DROP CONSUMED MCP SERVICE Module.Name
     | DROP KNOWLEDGE BASE ifExists? qualifiedName                      // DROP KNOWLEDGE BASE Module.Name
     | DROP AGENT ifExists? qualifiedName                               // DROP AGENT Module.Name
@@ -754,7 +754,7 @@ moveDocumentType
     | consumedODataServiceKw
     | publishedODataServiceKw
     | BUSINESS EVENT SERVICE
-    | MODEL
+    | aiModelKw
     | AGENT
     | KNOWLEDGE BASE
     | CONSUMED MCP SERVICE

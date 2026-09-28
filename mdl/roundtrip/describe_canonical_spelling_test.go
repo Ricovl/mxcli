@@ -75,6 +75,9 @@ var r8Codes = map[string]bool{
 	deprecation.WorkflowCommentCaption: true,
 	deprecation.FolderProperty:         true,
 	deprecation.DocumentationProperty:  true,
+	// R10's names finished in #755: `ai model`, a JSON structure's `sample`.
+	deprecation.AIModel:             true,
+	deprecation.JSONStructureSample: true,
 }
 
 func firstDifferentLine(a, b string) string {

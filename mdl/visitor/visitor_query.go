@@ -611,7 +611,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.MODELS() != nil {
+	} else if ctx.AiModelsKw() != nil {
 		// SHOW MODELS [IN module] (agent-editor Model documents)
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowModels}
 		if ctx.IN() != nil {
@@ -1241,8 +1241,8 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 			ObjectType: ast.DescribeIconCollection,
 			Name:       name,
 		})
-	} else if ctx.MODEL() != nil {
-		// DESCRIBE MODEL Module.Name (agent-editor Model document)
+	} else if ctx.AiModelKw() != nil {
+		// DESCRIBE AI MODEL Module.Name (agent-editor Model document)
 		b.statements = append(b.statements, &ast.DescribeStmt{
 			ObjectType: ast.DescribeModel,
 			Name:       name,

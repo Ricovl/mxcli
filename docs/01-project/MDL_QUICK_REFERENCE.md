@@ -985,7 +985,7 @@ still flagged rather than guessed at.
 |-----------|--------|-------|
 | Show settings | `show settings;` | Overview of all settings parts |
 | Describe settings | `describe settings;` | Full MDL output (round-trippable) |
-| Alter model settings | `alter settings runtime (Key: value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
+| Alter runtime settings | `alter settings runtime (Key: value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
 | Alter configuration | `alter settings configuration 'Name' (Key: value, ...);` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
 | Alter constant | `alter settings constant @Module.Name value 'val' in configuration 'cfg';` | Override constant per configuration |
 | Drop constant override | `alter settings drop constant @Module.Name in configuration 'cfg';` | Reset to default value |
@@ -1025,10 +1025,10 @@ the `AgentEditorCommons` marketplace module and Mendix 11.9+.
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| List models | `list models [in module];` | Also `show models` |
-| Describe model | `describe model Module.Name;` | Full MDL output |
-| Create model | `create [or modify] model Module.Name (Provider: MxCloudGenAI, key: Module.Const);` | OR MODIFY updates existing model, preserves UUID |
-| Drop model | `drop model [if exists] Module.Name;` | |
+| List AI models | `list ai models [in module];` | `model` / `models` without `ai` warn MDL-DEPR131 |
+| Describe AI model | `describe ai model Module.Name;` | Full MDL output |
+| Create AI model | `create [or modify] ai model Module.Name (Provider: MxCloudGenAI, Key: @Module.Const);` | OR MODIFY updates existing model, preserves UUID |
+| Drop AI model | `drop ai model [if exists] Module.Name;` | |
 
 **Knowledge Base**
 
@@ -1296,10 +1296,10 @@ source json '{"latitude": 51.9, "current": {"temp": 12.8}}'
 |-----------|--------|-------|
 | Show structures | `show json structures [in module];` | List all or filter by module |
 | Describe structure | `describe json structure Module.Name;` | Re-executable CREATE OR MODIFY + element tree |
-| Create structure | `[/** text */] create json structure Module.Name [folder 'path'] snippet '...json...';` | Element tree auto-built from snippet. `comment 'text'` is a deprecated alias of the doc comment (`MDL-DEPR100`) |
-| Create (multi-line) | `create json structure Module.Name snippet $${ "key": "value" }$$;` | Dollar-quoted snippet for readability |
-| Create or modify | `create or modify json structure Module.Name snippet '...';` | Preserves UUID — preferred for AI agents |
-| Create with name map | `create json structure Module.Name snippet '...' CUSTOM NAME map ('jsonKey' as 'CustomName', ...);` | Override auto-generated ExposedNames |
+| Create structure | `[/** text */] create json structure Module.Name [folder 'path'] sample '...json...';` | Element tree auto-built from snippet. `comment 'text'` is a deprecated alias of the doc comment (`MDL-DEPR100`) |
+| Create (multi-line) | `create json structure Module.Name sample $${ "key": "value" }$$;` | Dollar-quoted snippet for readability |
+| Create or modify | `create or modify json structure Module.Name sample '...';` | Preserves UUID — preferred for AI agents |
+| Create with name map | `create json structure Module.Name sample '...' CUSTOM NAME map ('jsonKey' as 'CustomName', ...);` | Override auto-generated ExposedNames |
 | Name an array's item | `CUSTOM NAME map (item of 'lines' as 'OrderLine')` | An item has no JSON key; `item of 'Root'` for a root array |
 | Message definition collection | `create [or modify] message definition collection M.Name [folder '...'] ( definition D for M.Entity [as 'X'] ( members ) );` | A selection over the domain model — the one non-JSON mapping source MDL can create |
 | Message definition member | attribute: `OrderId [as 'X'] [example '...']`; association: `M.Assoc/M.Entity [as 'X'] ( ... )` | Naming the target sets the traversal direction, which decides the cardinality |

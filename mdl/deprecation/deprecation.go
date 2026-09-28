@@ -202,6 +202,12 @@ const (
 	// SingularCollectionList is `list image|icon|message definition
 	// collection`: `list` names a plural.
 	SingularCollectionList = "MDL-DEPR130"
+	// AIModel is `model` for the agent editor's model document: Studio Pro
+	// calls it an AI model (R10).
+	AIModel = "MDL-DEPR131"
+	// JSONStructureSample is a JSON structure's `snippet '…'`: the example
+	// JSON is its sample, and `snippet` is a page document type (R10).
+	JSONStructureSample = "MDL-DEPR132"
 
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
@@ -649,6 +655,28 @@ var r6Entries = []Entry{
 		Example:          "list image collection in M;",
 		CanonicalExample: "list image collections in M;",
 	},
+	{
+		Code:      AIModel,
+		Old:       "create|alter|drop|describe|move model M.X / list models",
+		Canonical: "create|alter|drop|describe|move ai model M.X / list ai models",
+		Rewrite:   Rewrite{Structural: "document name: `model` becomes `ai model`, `models` becomes `ai models`"},
+		RemovedIn: 2,
+		Note: "Studio Pro's name for the agent editor's model document (R10). `model` alone is too generic, and " +
+			"collided with `alter settings model` (now `alter settings runtime`, MDL-DEPR555). An agent's " +
+			"`Model: M.X` property is unchanged.",
+		Example:          "drop model M.Gpt;",
+		CanonicalExample: "drop ai model M.Gpt;",
+	},
+	{
+		Code:             JSONStructureSample,
+		Old:              "create json structure M.J snippet '…'",
+		Canonical:        "create json structure M.J sample '…'",
+		Rewrite:          Rewrite{Token: "snippet", Replacement: "sample"},
+		RemovedIn:        2,
+		Note:             "The example JSON the structure is derived from is its sample (R10); `snippet` is a page document type.",
+		Example:          "create json structure M.J snippet '{\"a\": 1}';",
+		CanonicalExample: "create json structure M.J sample '{\"a\": 1}';",
+	},
 }
 
 // r5Entries are the rest of R5's spellings (ako/mxcli#753), kept apart for the
@@ -719,9 +747,9 @@ var r5Entries = []Entry{
 		Canonical:        "Key: @Module.Const",
 		Rewrite:          Rewrite{Structural: "`@` before the constant's name"},
 		RemovedIn:        2,
-		Note:             "A constant is referred to one way everywhere: `@Module.Const` (R5). Also in `alter model|knowledge base … set Key = …`.",
-		Example:          "create model M.GPT (Provider: MxCloudGenAI, Key: M.ApiKey);",
-		CanonicalExample: "create model M.GPT (Provider: MxCloudGenAI, Key: @M.ApiKey);",
+		Note:             "A constant is referred to one way everywhere: `@Module.Const` (R5). Also in `alter ai model|knowledge base … set Key = …`.",
+		Example:          "create ai model M.GPT (Provider: MxCloudGenAI, Key: M.ApiKey);",
+		CanonicalExample: "create ai model M.GPT (Provider: MxCloudGenAI, Key: @M.ApiKey);",
 	},
 	{
 		Code:      QuotedSettingsConstant,

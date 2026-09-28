@@ -72,6 +72,24 @@ Two `show` forms have no canonical spelling at all:
 - `show entity X` and `show association X` print a summary that no statement prints any more. `describe entity X` prints the definition as MDL, and `list entities in M` / `list associations in M` print the summary columns. Neither gives the same output, so they are not aliases. They keep working without a header and warn `MDL-V1-SHOWSUMMARY`; under `mdl 1;` they are an error. `fmt --upgrade --header` refuses the header over them, so you choose the replacement.
 - `show version`, `show status`, `show connections` and `show catalog status` report the session, not the model. They are session commands (R7): type them at the REPL. In a script they warn `MDL-V1-SESSION`, and under `mdl 1;` they are an error.
 
+## Document Type Names
+
+Document types are named as Studio Pro names them. The old names still parse with the same meaning, warn with the code shown, and `mxcli fmt --upgrade` rewrites them:
+
+| Canonical | Deprecated | Code |
+|---|---|---|
+| `consumed rest service(s)` | `rest client(s)` | `MDL-DEPR550` |
+| `consumed odata service(s)` | `odata client(s)` | `MDL-DEPR551` |
+| `published odata service(s)` | `odata service(s)` | `MDL-DEPR552` |
+| `task queue(s)` | `queue(s)` | `MDL-DEPR553` |
+| `alter app security …` | `alter project security …` | `MDL-DEPR554` |
+| `alter settings runtime …` | `alter settings model …` | `MDL-DEPR555` |
+| `list image collections`, `list icon collections`, `list message definition collections` | the singular after `list` | `MDL-DEPR130` |
+| `ai model` / `ai models` (the agent editor's model document) | `model` / `models` | `MDL-DEPR131` |
+| `create json structure M.J sample '…'` | `… snippet '…'` | `MDL-DEPR132` |
+
+`business event service` and `database connection` keep their names: a Mendix 10+ business event service document holds both the published and the subscribed operations, and `database connection` is the Database Connector's own name for the document.
+
 ## Language Version Header
 
 A script may start with a header that names the MDL language version it is written in:
