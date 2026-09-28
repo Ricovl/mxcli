@@ -102,9 +102,12 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 			if len(errs) > 0 {
 				t.Fatalf("upgraded script does not parse: %v", errs[0])
 			}
-			if n := len(prog.Deprecations); n > 0 {
-				t.Fatalf("upgraded script still has %d deprecated spelling(s), first %s at line %d",
-					n, prog.Deprecations[0].Code, prog.Deprecations[0].Line)
+			// A use the upgrade reported as unrewritable stays by contract
+			// (reported, never guessed at); anything beyond those is a rewrite
+			// that did not produce the canonical form.
+			if n := len(prog.Deprecations); n > len(res.Unrewritten) {
+				t.Fatalf("upgraded script still has %d deprecated spelling(s) (%d reported unrewritable), first %s at line %d",
+					n, len(res.Unrewritten), prog.Deprecations[0].Code, prog.Deprecations[0].Line)
 			}
 			if !all && onlyTerminatorsAndHeader(res) {
 				headerOnly = append(headerOnly, rel)
