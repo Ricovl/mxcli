@@ -302,7 +302,7 @@ func dataSourceExpr(ds *rawDataSource) string {
 		if len(ds.Args) > 0 {
 			parts := make([]string, 0, len(ds.Args))
 			for _, arg := range ds.Args {
-				parts = append(parts, arg.Name+": "+arg.Value)
+				parts = append(parts, visitor.ParameterNameSpelling(arg.Name)+" = "+arg.Value)
 			}
 			expr += "(" + strings.Join(parts, ", ") + ")"
 		}

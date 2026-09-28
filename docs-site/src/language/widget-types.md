@@ -364,7 +364,7 @@ ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
 ```sql
 ACTIONBUTTON btnProcess (
   Caption: 'Process',
-  Action: MICROFLOW Sales.ACT_ProcessOrder(Order: $Order),
+  Action: MICROFLOW Sales.ACT_ProcessOrder(Order = $Order),
   ButtonStyle: Primary
 )
 ```

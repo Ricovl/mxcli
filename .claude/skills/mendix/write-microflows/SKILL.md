@@ -524,14 +524,15 @@ When calling microflows, always check the target's parameter list. Use `describe
 ### SHOW PAGE
 
 ```mdl
--- Open page with parameter (canonical syntax)
-show page Module.EditPage($Product = $Product);
-
--- Widget-style syntax also accepted in microflows
-show page Module.EditPage(Product: $Product);
+-- Open page with parameter
+show page Module.EditPage(Product = $Product);
 ```
 
-Both `($Param = $value)` and `(Param: $value)` syntaxes are accepted in microflow SHOW PAGE statements. Similarly, widget Action: properties accept both `show_page Module.Page(Param: $value)` and `show_page Module.Page($Param = $value)`.
+Every call site binds an argument as `Param = expression`, with no `$` on the
+parameter name: `call microflow`, `show page`, and widget actions
+(`action: show_page Module.Page(Param = $value)`) alike. `$Param = $value` and
+`Param: $value` still parse but are deprecated (MDL-DEPR006/007); `mxcli fmt
+--upgrade` rewrites them.
 
 ### CLOSE PAGE
 
@@ -646,8 +647,7 @@ the short `@annotation 'text'` form.
 
 ### Page Navigation Pattern
 ```mdl
-show page Module.Page($Param = $value);               -- Canonical
-show page Module.Page(Param: $value);                  -- Widget-style (also valid)
+show page Module.Page(Param = $value);
 close page;
 show home page;
 ```
@@ -670,7 +670,7 @@ log info node 'App' 'starting' on error { return; };
 show message 'saved' on error { return; };
 
 -- BLOCKING halts the client until dismissed; after `objects`, before `on error`.
-show message 'Hello {1}' type Warning objects [$Name] blocking;
+show message 'Hello {1}' type Warning with ({1} = $Name) blocking;
 validation feedback $Order/Total message 'must be positive' on error { return; };
 show page Module.Page on error { return; };
 close page on error { return; };

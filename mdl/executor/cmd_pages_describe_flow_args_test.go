@@ -85,17 +85,17 @@ func TestDataSourceArgsReadPageVariableBinding(t *testing.T) {
 				"Parameter": "Mod.DS.Order",
 				"Variable":  map[string]any{"$Type": "Forms$PageVariable", "PageParameter": "Order"},
 			},
-			"microflow Mod.DS(Order: $Order)",
+			"microflow Mod.DS(Order = $Order)",
 		},
 		{
 			"expression binding still read",
 			map[string]any{"Parameter": "Mod.DS.Order", "Expression": "$Order"},
-			"microflow Mod.DS(Order: $Order)",
+			"microflow Mod.DS(Order = $Order)",
 		},
 		{
 			"bare string in Variable still read",
 			map[string]any{"Parameter": "Mod.DS.Order", "Variable": "$Order"},
-			"microflow Mod.DS(Order: $Order)",
+			"microflow Mod.DS(Order = $Order)",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

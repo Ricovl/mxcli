@@ -22,7 +22,7 @@ BEGIN
   );
   COMMIT $Customer;
 
-  SHOW PAGE Sales.Customer_Edit ($Customer = $Customer);
+  SHOW PAGE Sales.Customer_Edit (Customer = $Customer);
   RETURN $Customer;
 END;
 ```

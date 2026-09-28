@@ -249,7 +249,7 @@ Before writing any MDL, verify these requirements:
 - `retrieve $Var from Module.Entity [where condition];`
 - `$Result = call microflow Module.Name (Param = $value);` (NOT `set $Result = ...`)
 - `$Result = call nanoflow Module.Name (Param = $value);`
-- `show page Module.PageName ($Param = $value);`
+- `show page Module.PageName (Param = $value);`
 - `close page;`
 - `validation feedback $entity/attribute message 'message';`
 - `log info|warning|error [node 'name'] 'message';`

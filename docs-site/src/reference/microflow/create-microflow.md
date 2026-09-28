@@ -86,7 +86,7 @@ Call another microflow, nanoflow, or Java action. Parameters are passed by name.
 **UI Actions**
 
 ```sql
-SHOW PAGE Module.PageName ( $Param = $value );
+SHOW PAGE Module.PageName ( Param = $value );
 CLOSE PAGE;
 ```
 
@@ -199,7 +199,7 @@ BEGIN
         Status = 'Draft'
     );
     COMMIT $Order;
-    SHOW PAGE Sales.Order_Edit ($Order = $Order);
+    SHOW PAGE Sales.Order_Edit (Order = $Order);
     RETURN $Order;
 END;
 ```

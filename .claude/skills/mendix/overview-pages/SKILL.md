@@ -105,7 +105,7 @@ create page Module.Entity_Overview
             textfilter textFilter2
           }
           column (caption: 'Actions') {
-            actionbutton btnEdit (caption: 'Edit', action: show_page Module.Entity_NewEdit("entity": $currentObject))
+            actionbutton btnEdit (caption: 'Edit', action: show_page Module.Entity_NewEdit("entity" = $currentObject))
             actionbutton btnDelete (caption: 'Delete', action: delete, buttonstyle: danger)
           }
         }
@@ -147,7 +147,7 @@ datagrid GridName (
     textfilter textFilter1
   }
   column (caption: 'Actions') {
-    actionbutton btnEdit (caption: 'Edit', action: show_page Module.Entity_NewEdit("entity": $currentObject))
+    actionbutton btnEdit (caption: 'Edit', action: show_page Module.Entity_NewEdit("entity" = $currentObject))
   }
 }
 ```
@@ -276,8 +276,8 @@ create page Module.PageName
 
 - Parameter name conventionally matches the entity name (e.g., `$store`, `$Customer`)
 - The DataView's binding references this parameter (`datasource: $ParamName`)
-- When calling the page via SHOW_PAGE, pass the object by parameter name: `show_page Module.PageName(ParamName: $value)`
-- **Reserved-word parameter names must be quoted in the SHOW_PAGE args.** The generic examples above name the parameter `entity`, which is a reserved keyword, so the call quotes it: `show_page Module.Entity_NewEdit("entity": $currentObject)`. A non-reserved name (`$store`, `$Customer`) needs no quotes: `show_page Module.Store_NewEdit(store: $currentObject)`.
+- When calling the page via SHOW_PAGE, pass the object by parameter name: `show_page Module.PageName(ParamName = $value)`
+- **Reserved-word parameter names must be quoted in the SHOW_PAGE args.** The generic examples above name the parameter `entity`, which is a reserved keyword, so the call quotes it: `show_page Module.Entity_NewEdit("entity" = $currentObject)`. A non-reserved name (`$store`, `$Customer`) needs no quotes: `show_page Module.Store_NewEdit(store = $currentObject)`.
 
 ### NewEdit Page Components
 
@@ -535,7 +535,7 @@ create snippet Module.Entity_Menu
 )
 {
   navigationlist EntityMenuNav {
-    item itemEdit (caption: 'Edit', action: show_page Module.Entity_NewEdit("entity": $EntityParameter))
+    item itemEdit (caption: 'Edit', action: show_page Module.Entity_NewEdit("entity" = $EntityParameter))
     item itemDelete (caption: 'Delete', action: delete)
     item itemBack (caption: 'Back', action: close_page)
   }
@@ -556,13 +556,13 @@ navigationlist widgetName {
 - `action: close_page` - Close current page
 - `action: delete` - Delete object
 - `action: microflow Module.MicroflowName` - Call microflow
-- `action: microflow Module.MicroflowName(Param: $value)` - Call microflow with parameters
+- `action: microflow Module.MicroflowName(Param = $value)` - Call microflow with parameters
 - `action: show_page Module.PageName` - Navigate to page
-- `action: show_page Module.PageName(Param: $value)` - Navigate with parameters
+- `action: show_page Module.PageName(Param = $value)` - Navigate with parameters
 - **A `show_page` argument must be the context object, and there has to BE one.**
   Mendix takes the page argument from the enclosing data widget, so the only
   spellings that mean anything are `$currentObject` or the name of the variable
-  that widget is bound to (`datasource: $Customer` → `(Customer: $Customer)` is
+  that widget is bound to (`datasource: $Customer` → `(Customer = $Customer)` is
   fine). Naming any other variable is refused as **MDL-PAGEARG01** — it used to be
   accepted and silently opened the page with the context object anyway.
 - **Outside a data widget the same rule leaves nothing at all**, so a button sitting
@@ -572,7 +572,7 @@ navigationlist widgetName {
   mxbuild reports **CE1571** per parameter of the target page, and a page whose
   parameters are optional would simply show the wrong data. MDL-PAGEARG01 refuses
   that too (mendixlabs/mxcli#1029). To open a parameterised page from such a
-  button, call a microflow that does `show page Module.Page(Param: $value)` —
+  button, call a microflow that does `show page Module.Page(Param = $value)` —
   that path wires the arguments properly.
 
 ## Handling Circular Dependencies

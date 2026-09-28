@@ -83,7 +83,7 @@ builds and never completes.
 Execute a microflow as part of the workflow. Optionally specify a comment and outcomes:
 
 ```sql
-CALL MICROFLOW <Module>.<Name> [COMMENT '<text>']
+CALL MICROFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [COMMENT '<text>']
   [OUTCOMES '<outcome>' { <activities> } ...];
 ```
 
@@ -91,7 +91,14 @@ Example:
 
 ```sql
 CALL MICROFLOW HR.ACT_SendNotification COMMENT 'Notify the applicant';
+CALL MICROFLOW HR.ACT_Escalate(Request = $WorkflowContext) COMMENT 'Escalate';
 ```
+
+Arguments are bound like every other call in MDL: `Param = expression` right
+after the callee, the expression written bare. The older spelling after the
+comment, `WITH (Param = '<expression>')` with the expression inside a string,
+still parses with the same meaning but is deprecated (MDL-DEPR008);
+`mxcli fmt --upgrade` rewrites it.
 
 ## AI Agent Task
 
@@ -101,16 +108,15 @@ mappings, outcomes and boundary events. The microflow is where the agent is
 invoked — build agents with the Studio Pro Agent Editor, or `CREATE AGENT`.
 
 ```sql
-CALL AGENT MICROFLOW <Module>.<Name> [AS <name>] [COMMENT '<text>']
-  [WITH (<Param> = '<expression>', ...)]
+CALL AGENT MICROFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [AS <name>] [COMMENT '<text>']
   [OUTCOMES <true|false|'Module.Enum.Value'|''> -> { <activities> } ...];
 ```
 
 Example — branch on the agent's answer:
 
 ```sql
-CALL AGENT MICROFLOW HR.ACT_ClassifyRequest AS aiAgentTask1 COMMENT 'Classify the request'
-  WITH (Request = '$WorkflowContext')
+CALL AGENT MICROFLOW HR.ACT_ClassifyRequest(Request = $WorkflowContext) AS aiAgentTask1
+  COMMENT 'Classify the request'
   OUTCOMES true -> {
     USER TASK Expedite 'Expedite the request' PAGE HR.TaskPage OUTCOMES 'Done' { };
   } false -> { };
@@ -125,7 +131,7 @@ branch with `OUTCOMES`; return nothing for a single path.
 Start a sub-workflow:
 
 ```sql
-CALL WORKFLOW <Module>.<Name> [COMMENT '<text>'];
+CALL WORKFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [COMMENT '<text>'];
 ```
 
 Example:

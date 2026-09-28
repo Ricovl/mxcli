@@ -109,8 +109,7 @@ begin
     outcomes 'Done' { };
 
   -- Call a microflow (server logic); optional name, parameter mapping + outcomes
-  call microflow Module.ACT_Validate as callMicroflow1
-    with (Module.ACT_Validate.Item = '$WorkflowContext');
+  call microflow Module.ACT_Validate(Item = $WorkflowContext) as callMicroflow1;
 
   -- Decision: a boolean or enum exclusive split. The name is optional; give one
   -- when a `jump to` targets it.
@@ -466,11 +465,11 @@ values. The full list and the System **entities** are in `system-module`.
   users` is refused — each omitted clause would reset it.
 - **An AI agent task is `call agent microflow`** (Mendix 11.9+) — the call
   microflow statement stored as `Workflows$AIAgentTaskActivity`, with the same
-  `as`, `comment`, `with (…)`, `outcomes` and boundary events. The microflow is
+  argument list, `as`, `comment`, `outcomes` and boundary events. The microflow is
   where the agent is invoked. Measured on mxbuild 11.13 against the identical
   call microflow, one rule differs: **its microflow must take a parameter**
-  (`CE1590 "Missing parameter"`), usually the context object mapped with
-  `with (Param = '$WorkflowContext')`. Return Boolean or an enumeration to
+  (`CE1590 "Missing parameter"`), usually the context object passed as
+  `(Param = $WorkflowContext)`. Return Boolean or an enumeration to
   branch on the answer.
 - **Handler microflows have fixed signatures** (measured, mxbuild 11.13):
   - `on created microflow` takes exactly `System.WorkflowUserTask` and the context
@@ -525,9 +524,11 @@ values. The full list and the System **entities** are in `system-module`.
   `REPLACE ACTIVITY`. A **required (`not null`) attribute does not exempt it** —
   measured, the empty outcome is still required. Boolean (`true`/`false`)
   decisions do not take one.
-- **A `with (...)` parameter value is a quoted string**, not a bare variable:
-  `with (Request = '$WorkflowContext')`. The unquoted spelling used elsewhere in
-  MDL is a syntax error here (it used to crash the binary — ako/mxcli#1023).
+- **Arguments go right after the callee, as bare expressions**, like every other
+  call: `call microflow HR.Escalate(Request = $WorkflowContext) as callMicroflow1`.
+  The older `with (Request = '$WorkflowContext')`, the expression inside a
+  string, still parses with the same meaning but is deprecated (MDL-DEPR008);
+  `mxcli fmt --upgrade` rewrites it.
 - The context **Parameter entity must be persistent**.
 - Write the context variable as **`$WorkflowContext`**, matching the parameter
   name exactly. Mendix expressions are case-sensitive on 11.9+, so a lowercase
