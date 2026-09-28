@@ -398,7 +398,7 @@ end loop;
 above for the correct form. What is not supported is the SQL-flavoured spelling of
 it: quoted values, an `else` fallback, and an `AS` alias all fail.
 
-```mdl
+```text
 -- WRONG: case values are not string literals (parse error)
 case $Order/Status
   when 'Active' then set $Result = 1;
@@ -414,12 +414,14 @@ case $Order/Status as s
   when Active then set $Result = 1;
 end case;
 
--- WRONG: no else branch (MDL008 → mxbuild CE0079 + CE0773)
+-- WRONG: no else branch — an enumeration split has no default flow (parse error)
 case $Order/Status
   when Active then set $Result = 1;
   else set $Result = 0;
 end case;
+```
 
+```mdl
 -- CORRECT: bare enum values, one branch per value, including (empty)
 case $Order/Status
   when Active then set $Result = 1;

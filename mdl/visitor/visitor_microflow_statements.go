@@ -186,7 +186,7 @@ func buildCaseStatement(ctx parser.ICaseStatementContext) *ast.EnumSplitStmt {
 	}
 
 	// Reconstruct per-WHEN groups from the flat child list.
-	// Grammar: (WHEN caseValue (, caseValue)* THEN microflowBody)+ (ELSE microflowBody)?
+	// Grammar: (WHEN caseValue (, caseValue)* THEN microflowBody)+ — no ELSE (#756).
 	// AllEnumSplitCaseValue() is flat across all WHEN clauses, so we walk children
 	// and bucket values by their nearest preceding WHEN token.
 	type whenGroup struct{ values []string }
@@ -216,10 +216,6 @@ func buildCaseStatement(ctx parser.ICaseStatementContext) *ast.EnumSplitStmt {
 			Values: g.values,
 			Body:   buildMicroflowBody(bodies[i]),
 		})
-	}
-
-	if caseCtx.ELSE() != nil && len(bodies) > len(groups) {
-		stmt.ElseBody = buildMicroflowBody(bodies[len(bodies)-1])
 	}
 
 	return stmt

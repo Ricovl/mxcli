@@ -146,8 +146,6 @@ begin
       return 'a';
     when (empty) then
       return 'b';
-    else
-      return 'c';
   end case;
 end;`
 	prog, errs := visitor.Build(src)
@@ -155,6 +153,11 @@ end;`
 		t.Fatalf("parse error: %v", errs[0])
 	}
 	stmt := prog.Statements[0].(*ast.CreateMicroflowStmt)
+	// `else` on a case no longer parses (ako/mxcli#756), but an AST built by
+	// other means can still carry one, and MDL008 still refuses it.
+	stmt.Body[0].(*ast.EnumSplitStmt).ElseBody = []ast.MicroflowStatement{
+		&ast.ReturnStmt{Value: &ast.LiteralExpr{Kind: ast.LiteralString, Value: "c"}},
+	}
 
 	sawInCheck := false
 	for _, v := range ValidateMicroflow(stmt) {

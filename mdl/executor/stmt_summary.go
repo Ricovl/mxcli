@@ -115,10 +115,6 @@ func stmtSummary(stmt ast.Statement) string {
 		return fmt.Sprintf("grant view on page %s", s.Page)
 	case *ast.RevokePageAccessStmt:
 		return fmt.Sprintf("revoke view on page %s", s.Page)
-	case *ast.GrantWorkflowAccessStmt:
-		return fmt.Sprintf("grant execute on workflow %s", s.Workflow)
-	case *ast.RevokeWorkflowAccessStmt:
-		return fmt.Sprintf("revoke execute on workflow %s", s.Workflow)
 	case *ast.GrantEntityAccessStmt:
 		return fmt.Sprintf("grant on entity %s", s.Entity)
 	case *ast.RevokeEntityAccessStmt:

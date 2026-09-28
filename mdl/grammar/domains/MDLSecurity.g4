@@ -90,13 +90,11 @@ revokePageAccessStatement
     : REVOKE VIEW ON PAGE qualifiedName FROM moduleRoleList
     ;
 
-grantWorkflowAccessStatement
-    : GRANT EXECUTE ON WORKFLOW qualifiedName TO moduleRoleList
-    ;
-
-revokeWorkflowAccessStatement
-    : REVOKE EXECUTE ON WORKFLOW qualifiedName FROM moduleRoleList
-    ;
+// There is no `grant|revoke execute on workflow`: a Mendix workflow has no
+// allowed roles of its own — who may start one is the microflow that calls it,
+// and who may act on it is a user task's targeting. The form parsed and exec
+// always refused it; it was removed as dead grammar (ako/mxcli#756), and the
+// parse error says where the access lives instead.
 
 grantODataServiceAccessStatement
     : GRANT ACCESS ON publishedODataServiceKw qualifiedName TO moduleRoleList

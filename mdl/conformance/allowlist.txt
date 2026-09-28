@@ -89,7 +89,7 @@
 1	syntax	.claude/skills/mendix/write-layouts/SKILL.md
 17	syntax	.claude/skills/mendix/write-microflows/SKILL.md
 1	syntax	.claude/skills/mendix/write-microflows/reference/integration.md
-15	syntax	.claude/skills/mendix/write-microflows/reference/pitfalls.md
+12	syntax	.claude/skills/mendix/write-microflows/reference/pitfalls.md
 3	MDL-DEPR002	.claude/skills/mendix/write-nanoflows/SKILL.md
 7	syntax	.claude/skills/mendix/write-nanoflows/SKILL.md
 28	syntax	.claude/skills/mendix/write-oql-queries/SKILL.md

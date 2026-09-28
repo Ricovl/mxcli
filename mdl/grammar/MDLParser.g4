@@ -767,8 +767,6 @@ securityStatement
     | revokeNanoflowAccessStatement
     | grantPageAccessStatement
     | revokePageAccessStatement
-    | grantWorkflowAccessStatement
-    | revokeWorkflowAccessStatement
     | grantODataServiceAccessStatement
     | revokeODataServiceAccessStatement
     | grantPublishedRestServiceAccessStatement

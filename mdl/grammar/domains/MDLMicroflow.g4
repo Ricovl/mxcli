@@ -316,7 +316,10 @@ declareStatement
 caseStatement
     : CASE enumSplitSource
       (WHEN enumSplitCaseValue (COMMA enumSplitCaseValue)* THEN microflowBody)+
-      (ELSE microflowBody)?
+      // No ELSE: an enumeration split has an outgoing flow per value and one for
+      // (empty), and no default flow. `else` parsed, check refused it (MDL008)
+      // and mxbuild rejected what exec wrote (CE0079/CE0773); it was removed as
+      // dead grammar (ako/mxcli#756). Write `when (empty) then`.
       END CASE
     ;
 
