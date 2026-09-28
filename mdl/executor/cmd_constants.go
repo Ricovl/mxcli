@@ -110,9 +110,18 @@ func outputConstantMDL(ctx *ExecContext, c *model.Constant, moduleName string) e
 	// Format default value based on type
 	defaultValueStr := formatDefaultValue(c.Type, c.DefaultValue)
 
-	// Documentation is a doc comment (R9); `comment '…'` is its deprecated alias.
+	// Documentation is a doc comment (R9); `comment '…'` is its deprecated
+	// alias, kept for a text with `*/` in it, which would end a doc comment
+	// early and leave a statement that does not parse. (A doc comment also
+	// trims each line and drops blank ones, as for every other document; that
+	// normalisation is accepted here, as it is there.)
+	docClause := false
 	if c.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", strings.ReplaceAll(c.Documentation, "\n", "\n * "))
+		if !strings.Contains(c.Documentation, "*/") {
+			fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", strings.ReplaceAll(c.Documentation, "\n", "\n * "))
+		} else {
+			docClause = true
+		}
 	}
 	fmt.Fprintf(ctx.Output, "create or modify constant %s.%s\n", moduleName, c.Name)
 	fmt.Fprintf(ctx.Output, "  type %s\n", formatConstantTypeForMDL(c.Type))
@@ -126,6 +135,9 @@ func outputConstantMDL(ctx *ExecContext, c *model.Constant, moduleName string) e
 		}
 	}
 
+	if docClause {
+		fmt.Fprintf(ctx.Output, "\n  comment '%s'", strings.ReplaceAll(c.Documentation, "'", "''"))
+	}
 	if c.ExposedToClient {
 		fmt.Fprintf(ctx.Output, "\n  exposed to client")
 	}

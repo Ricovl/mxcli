@@ -313,6 +313,40 @@ func TestOutputConstantMDL_CommentEscapesSingleQuotes(t *testing.T) {
 	}
 }
 
+// TestOutputConstantMDL_DocumentationWithCommentEnd: a documentation text
+// with `*/` in it ends a doc comment early, so describe keeps the deprecated
+// `comment '…'` clause for it rather than emit a statement that no longer
+// parses (R9 moved the constant's documentation into a doc comment; before,
+// the clause held any text). The control is an ordinary text.
+func TestOutputConstantMDL_DocumentationWithCommentEnd(t *testing.T) {
+	for _, doc := range []string{"ends */ here", "plain text", "two\nlines"} {
+		buf := &bytes.Buffer{}
+		e := New(buf)
+		c := &model.Constant{
+			Name:          "K",
+			Type:          model.ConstantDataType{Kind: "String"},
+			DefaultValue:  "'x'",
+			Documentation: doc,
+		}
+		if err := e.outputConstantMDL(c, "M"); err != nil {
+			t.Fatalf("outputConstantMDL: %v", err)
+		}
+		prog, errs := visitor.Build(buf.String())
+		if len(errs) > 0 {
+			t.Fatalf("describe of documentation %q does not parse: %v\n%s", doc, errs, buf.String())
+		}
+		var got *ast.CreateConstantStmt
+		for _, s := range prog.Statements {
+			if cs, ok := s.(*ast.CreateConstantStmt); ok {
+				got = cs
+			}
+		}
+		if got == nil || got.Documentation != doc {
+			t.Errorf("documentation %q did not read back; got %+v from:\n%s", doc, got, buf.String())
+		}
+	}
+}
+
 // =============================================================================
 // Issue #26: Date type distinct from DateTime
 // =============================================================================
