@@ -76,7 +76,7 @@ create or modify rest client RestInline.RC_Probe (
 {
   -- #36: the nested member must reach (Object)|fields|Title, not
   -- (Object)|fields/Title.
-  OPERATION GetItem {
+  OPERATION GetItem (
     Method: GET,
     Path: '/items/{id}',
     Parameters: ($id: String),
@@ -84,11 +84,11 @@ create or modify rest client RestInline.RC_Probe (
       ItemId = "id",
       Title  = "fields/Title"
     }
-  }
+  )
 
   -- #37: the nested element here is an EXPORT object element, so it must not
   -- be ObjectHandling "Create".
-  OPERATION PostTask {
+  OPERATION PostTask (
     Method: POST,
     Path: '/tasks',
     Body: MAPPING RestInline.Task {
@@ -96,5 +96,5 @@ create or modify rest client RestInline.RC_Probe (
         "Title" = Title
       }
     }
-  }
+  )
 };

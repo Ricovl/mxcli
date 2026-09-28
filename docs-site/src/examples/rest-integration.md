@@ -251,16 +251,16 @@ CREATE CONSUMED REST SERVICE Integration.OrdersApi (
   Authentication: NONE
 )
 {
-  OPERATION GetOrder {
+  OPERATION GetOrder (
     Method: GET,
     Path: '/orders/{id}',
     Parameters: ($id: String),
     Headers: ('Accept' = 'application/json'),
     Timeout: 30,
     Response: JSON AS $Result
-  }
+  )
 
-  OPERATION CreateOrder {
+  OPERATION CreateOrder (
     Method: POST,
     Path: '/orders',
     Headers: ('Content-Type' = 'application/json'),
@@ -274,7 +274,7 @@ CREATE CONSUMED REST SERVICE Integration.OrdersApi (
       Status = status,
       CreatedAt = createdAt,
     }
-  }
+  )
 };
 ```
 
@@ -286,14 +286,14 @@ CREATE OR MODIFY CONSUMED REST SERVICE Integration.OrdersApi (
   Authentication: BASIC (Username: 'apiuser', Password: 'secret')
 )
 {
-  OPERATION GetOrder {
+  OPERATION GetOrder (
     Method: GET,
     Path: '/orders/{id}',
     Parameters: ($id: String),
     Headers: ('Accept' = 'application/json'),
     Timeout: 60,
     Response: JSON AS $Result
-  }
+  )
 };
 ```
 

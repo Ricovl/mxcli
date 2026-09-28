@@ -81,22 +81,22 @@ create consumed rest service Module.OpenMeteoAPI (
   authentication: none
 )
 {
-  operation GetForecast {
+  operation GetForecast (
     method: get,
     path: '/forecast',
     query: ($latitude: decimal, $longitude: decimal, $current: string),
     headers: ('Accept' = 'application/json'),
     timeout: 30,
     response: json as $WeatherJson
-  }
+  )
 
-  operation PostData {
+  operation PostData (
     method: post,
     path: '/submit',
     headers: ('Content-Type' = 'application/json'),
     body: json from $JsonPayload,
     response: none
-  }
+  )
 };
 ```
 
@@ -417,13 +417,13 @@ create consumed rest service Module.WeatherAPI (
   authentication: none
 )
 {
-  operation GetCurrent {
+  operation GetCurrent (
     method: get,
     path: '/forecast',
     query: ($latitude: decimal, $longitude: decimal, $current: string),
     headers: ('Accept' = 'application/json'),
     response: json as $Result
-  }
+  )
 };
 
 -- 5. Microflow (REST Client → Transform → Import)
