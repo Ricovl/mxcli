@@ -354,6 +354,15 @@ func diffAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) (*DiffResul
 			return result, nil
 		}
 	}
+	// A cross-module association is stored apart, in CrossAssociations; without
+	// this lookup every existing one diffed as new.
+	for _, ca := range dm.CrossAssociations {
+		if ca.Name == s.Name.Name {
+			result.Current = crossAssociationToMDL(module.Name, ca, dm)
+			result.Proposed = associationStmtToMDL(ctx, s, ca.StorageFormat)
+			return result, nil
+		}
+	}
 
 	result.IsNew = true
 	result.Proposed = associationStmtToMDL(ctx, s, "")

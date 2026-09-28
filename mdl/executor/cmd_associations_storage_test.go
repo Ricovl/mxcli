@@ -90,7 +90,54 @@ func TestDiffAssociationComparesStorage(t *testing.T) {
 		r, err = diffAssociation(ctx, base(s))
 		assertNoError(t, err)
 		if r.Proposed != r.Current {
-			t.Errorf("storage %v against stored Table reported as a change\n--- current ---\n%s\n--- proposed ---\n%s",
+			t.Errorf("storage clause %d against stored Table reported as a change\n--- current ---\n%s\n--- proposed ---\n%s",
+				s, r.Current, r.Proposed)
+		}
+	}
+}
+
+// A cross-module association lives in dm.CrossAssociations. The differ looked
+// only in dm.Associations, so it reported every existing cross-module
+// association as new — a storage flip on one was shown as a creation, never as
+// the Table → Column change exec would make.
+func TestDiffCrossModuleAssociationComparesStorage(t *testing.T) {
+	ctx, assoc := assocFixture(t)
+	dm, err := ctx.Backend.GetDomainModel("")
+	assertNoError(t, err)
+	dm.Associations = nil
+	dm.CrossAssociations = []*domainmodel.CrossModuleAssociation{{
+		Name:                "Child_Remote",
+		ParentID:            assoc.ParentID,
+		ChildRef:            "Other.Remote",
+		Type:                domainmodel.AssociationTypeReference,
+		Owner:               domainmodel.AssociationOwnerDefault,
+		StorageFormat:       domainmodel.StorageFormatTable,
+		ChildDeleteBehavior: &domainmodel.DeleteBehavior{Type: domainmodel.DeleteBehaviorTypeDeleteMeAndReferences},
+	}}
+	stmt := func(s ast.StorageType) *ast.CreateAssociationStmt {
+		return &ast.CreateAssociationStmt{
+			Name:           ast.QualifiedName{Module: "M", Name: "Child_Remote"},
+			Parent:         ast.QualifiedName{Module: "M", Name: "Child"},
+			Child:          ast.QualifiedName{Module: "Other", Name: "Remote"},
+			Type:           ast.AssocReference,
+			DeleteBehavior: ast.DeleteCascade,
+			Storage:        s,
+		}
+	}
+
+	r, err := diffAssociation(ctx, stmt(ast.StorageColumn))
+	assertNoError(t, err)
+	if r.IsNew {
+		t.Fatalf("existing cross-module association reported as new\n%s", r.Proposed)
+	}
+	if r.Proposed == r.Current {
+		t.Errorf("cross-module Table → Column reported as no change\n%s", r.Current)
+	}
+	for _, s := range []ast.StorageType{ast.StorageDefault, ast.StorageTable} {
+		r, err = diffAssociation(ctx, stmt(s))
+		assertNoError(t, err)
+		if r.Proposed != r.Current {
+			t.Errorf("cross-module storage %d against stored Table reported as a change\n--- current ---\n%s\n--- proposed ---\n%s",
 				s, r.Current, r.Proposed)
 		}
 	}
