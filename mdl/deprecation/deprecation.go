@@ -322,7 +322,7 @@ var entries = []Entry{
 		Code:      QuotedTargetingXPath,
 		Old:       "targeting [users|groups] xpath '[xpath]'",
 		Canonical: "targeting [users|groups] xpath [xpath]",
-		Rewrite:   Rewrite{Structural: "the XPath out of its string: `xpath '[Name = ''Admin'']'` becomes `xpath [Name = 'Admin']`"},
+		Rewrite:   Rewrite{Structural: "XPath out of its string: `xpath '[Name = ''Admin'']'` becomes `xpath [Name = 'Admin']`"},
 		RemovedIn: 2,
 		Note: "XPath is written in [ ] everywhere (R5), so the quotes inside it are no longer doubled. " +
 			"A string whose value is not a bracketed XPath is left in place and reported by `fmt --upgrade`.",
@@ -402,7 +402,7 @@ var r2Entries = []Entry{
 		Code:      RestOperationBraces,
 		Old:       "operation X { Method: get, … }",
 		Canonical: "operation X ( Method: get, … )",
-		Rewrite:   Rewrite{Structural: "the operation's braces become parentheses"},
+		Rewrite:   Rewrite{Structural: "operation's braces: `operation X { … }` becomes `operation X ( … )`"},
 		RemovedIn: 2,
 		Note: "An operation is a child of the service: its properties are in ( ) like every child's, " +
 			"and { } holds children (R2). A body or response mapping keeps its { } tree.",
@@ -415,7 +415,7 @@ var r2Entries = []Entry{
 		Code:      AgentAttachmentBraces,
 		Old:       "tool X { … } / mcp service M.S { … } / knowledge base K { … }",
 		Canonical: "tool X ( … ) / mcp service M.S ( … ) / knowledge base K ( … )",
-		Rewrite:   Rewrite{Structural: "the attachment's braces become parentheses"},
+		Rewrite:   Rewrite{Structural: "attachment's braces: `tool X { … }` becomes `tool X ( … )`"},
 		RemovedIn: 2,
 		Note:      "In create agent and in alter agent … add. An attachment is a child of the agent: its properties are in ( ) (R2).",
 		Example: "create agent M.A (UsageType: Task, Model: M.Gpt, SystemPrompt: 'x') " +
@@ -427,7 +427,7 @@ var r2Entries = []Entry{
 		Code:      ImageCollectionParens,
 		Old:       "image collection M.C ( image X from file '…', … )",
 		Canonical: "image collection M.C { image X ( File: '…' ) … }",
-		Rewrite: Rewrite{Structural: "the images move into { } without commas, and `from file '…'` " +
+		Rewrite: Rewrite{Structural: "image list: the images move into { } without commas, and `from file '…'` " +
 			"becomes `( File: '…' )`"},
 		RemovedIn:        2,
 		Note:             "The images are the collection's children, so they are in { }, each with its properties in ( ) (R2).",
@@ -438,7 +438,7 @@ var r2Entries = []Entry{
 		Code:      MessageTreeParens,
 		Old:       "message definition collection M.C ( definition D for M.E ( A, M.E_B/M.B ( C ) ) )",
 		Canonical: "message definition collection M.C { definition D for M.E { A, M.E_B/M.B { C } } }",
-		Rewrite:   Rewrite{Structural: "each parenthesised definition list and member tree moves into { }"},
+		Rewrite:   Rewrite{Structural: "message trees: each parenthesised definition list and member tree moves into { }"},
 		RemovedIn: 2,
 		Note: "The definitions and members are children, so they are in { }, as in an import or export " +
 			"mapping (R2). Also in `alter message definition collection … add definition` and " +
@@ -450,7 +450,7 @@ var r2Entries = []Entry{
 		Code:      AlterFlowFragmentBraces,
 		Old:       "alter microflow M.F { insert after $X { … } }",
 		Canonical: "alter microflow M.F { insert after $X begin … end; }",
-		Rewrite:   Rewrite{Structural: "the fragment's `{` becomes `begin` and its `}` becomes `end`"},
+		Rewrite:   Rewrite{Structural: "fragment's braces: `{` becomes `begin` and `}` becomes `end`"},
 		RemovedIn: 2,
 		Note: "A fragment is imperative flow, written exactly as the body of `create microflow`, so it is " +
 			"`begin … end` (R2). The operations around it are the alter's children and stay in its { }.",
