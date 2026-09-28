@@ -100,9 +100,9 @@ Pluggable widget templates are currently extracted from Mendix 11.6. When used o
 
 | Feature | MDL Syntax | 10.0+ | 10.1+ | 10.4+ | 10.6+ | 11.0+ |
 |---------|-----------|-------|-------|-------|-------|-------|
-| OData client | `CREATE ODATA CLIENT` | Yes | Yes | Yes | Yes | Yes |
+| OData client | `CREATE CONSUMED ODATA SERVICE` | Yes | Yes | Yes | Yes | Yes |
 | Business events | `CREATE BUSINESS EVENT SERVICE` | Yes | Yes | Yes | Yes | Yes |
-| REST client (basic) | `CREATE REST CLIENT ... BEGIN ... END` | -- | Yes | Yes | Yes | Yes |
+| REST client (basic) | `CREATE CONSUMED REST SERVICE ... BEGIN ... END` | -- | Yes | Yes | Yes | Yes |
 | REST client headers | `HEADER 'Name' = 'Value'` | -- | -- | Yes | Yes | Yes |
 | Database Connector | `CREATE DATABASE CONNECTION` | -- | -- | -- | Yes | Yes |
 | REST client query params | `QUERY $param: Type` | -- | -- | -- | -- | Yes |

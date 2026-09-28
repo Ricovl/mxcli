@@ -77,7 +77,7 @@ create persistent entity Module.Photo (
 | Create view entity | `create view entity Module.Name (attrs) as select ...;` | OQL-backed read-only |
 | View entity clause order | `... as select … from …;` **or** `... as from … group by … select …;` | Both are Mendix OQL and both are checked. The second is what **Studio Pro stores**, so it is what `DESCRIBE ENTITY` emits — describe → edit → exec round-trips. The declared attributes are matched to the select columns **by position**, in either order |
 | View entity → persistent entity | `select t.ID as MyRef, …` in the OQL | Selecting the target's **id** under an alias gives the view entity an **association** named after the alias. It is not an attribute and gets no declaration: the column *is* the declaration, so mxcli creates the member (with the `OqlViewAssociationSource` mxbuild requires — without it, CE6771 + CE6770). A plain `create association` with a view entity at either end is **refused**. The alias must be free in the module, case-insensitively. `cast(t.ID as string) as MyId` is a plain String attribute instead — one query rather than two, no objects in the client |
-| Create external entity | `create external entity Module.Name from odata client Module.Client (...) (attrs);` | From consumed OData |
+| Create external entity | `create external entity Module.Name from consumed odata service Module.Client (...) (attrs);` | From consumed OData |
 | Create external entities | `create [or modify] external entities from Module.Client [into module] [entities (...)];` | Bulk from $metadata |
 | Drop entity | `drop entity [if exists] Module.Name;` | |
 | Describe entity | `describe entity Module.Name;` | Full MDL output |
@@ -179,10 +179,10 @@ create constant MyModule.EnableLogging type boolean default true;
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| Show queues | `show queues [in module];` (`list queues` too) | Parallelism + cluster-wide flag |
-| Describe queue | `describe queue Module.Name;` | Re-executable MDL |
-| Create queue | `create [or modify] queue Module.Name [folder 'path'] ( Parallelism: 3, ClusterWide: true );` | Body optional; defaults `1` / `false` |
-| Drop queue | `drop queue [if exists] Module.Name;` | |
+| Show task queues | `show task queues [in module];` (`list task queues` too) | Parallelism + cluster-wide flag |
+| Describe task queue | `describe task queue Module.Name;` | Re-executable MDL |
+| Create task queue | `create [or modify] task queue Module.Name [folder 'path'] ( Parallelism: 3, ClusterWide: true );` | Body optional; defaults `1` / `false` |
+| Drop task queue | `drop task queue [if exists] Module.Name;` | |
 
 `Parallelism` is an **expression**, not a number — Mendix stores it as a string
 (`Queues$BasicQueueConfig.ParallelismExpression`). A bare integer is the common
@@ -197,10 +197,10 @@ was gone.)
 
 **Example:**
 ```sql
-create queue Ops.OrderProcessing ( Parallelism: 3, ClusterWide: true );
-create queue Ops.Mail;
-create or modify queue Ops.OrderProcessing ( Parallelism: '$MyModule.Workers' );
-drop queue Ops.Mail;
+create task queue Ops.OrderProcessing ( Parallelism: 3, ClusterWide: true );
+create task queue Ops.Mail;
+create or modify task queue Ops.OrderProcessing ( Parallelism: '$MyModule.Workers' );
+drop task queue Ops.Mail;
 ```
 
 ## Regular Expressions
@@ -334,23 +334,23 @@ create scheduled event Ops.WeeklyReport (
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| Show OData clients | `show odata clients [in module];` | Consumed OData services |
-| Describe OData client | `describe odata client Module.Name;` | Full MDL output |
-| Create OData client | `create [or modify] odata client Module.Name (...);` | Version, MetadataUrl, Timeout, etc. |
-| Alter OData client | `alter odata client Module.Name set key = value;` | |
-| Drop OData client | `drop odata client [if exists] Module.Name;` | |
-| Show OData services | `show odata services [in module];` | Published OData services |
-| Describe OData service | `describe odata service Module.Name;` | Full MDL output |
-| Create OData service | `create [or modify] odata service Module.Name (...) authentication ... { publish entity ... };` | |
-| Publish as GraphQL too | `create odata service Module.Name (SupportsGraphQL: Yes) {...};` | Mendix 10.14+. Same location, clients POST a query. Exposed names must be unique beyond case (CE2881); query fields are camelCased |
-| Alter OData service | `alter odata service Module.Name set key = value;` | |
-| Drop OData service | `drop odata service [if exists] Module.Name;` | |
+| Show consumed odata services | `show consumed odata services [in module];` | Consumed OData services |
+| Describe consumed odata service | `describe consumed odata service Module.Name;` | Full MDL output |
+| Create consumed odata service | `create [or modify] consumed odata service Module.Name (...);` | Version, MetadataUrl, Timeout, etc. |
+| Alter consumed odata service | `alter consumed odata service Module.Name set key = value;` | |
+| Drop consumed odata service | `drop consumed odata service [if exists] Module.Name;` | |
+| Show published odata services | `show published odata services [in module];` | Published OData services |
+| Describe published odata service | `describe published odata service Module.Name;` | Full MDL output |
+| Create published odata service | `create [or modify] published odata service Module.Name (...) authentication ... { publish entity ... };` | |
+| Publish as GraphQL too | `create published odata service Module.Name (SupportsGraphQL: Yes) {...};` | Mendix 10.14+. Same location, clients POST a query. Exposed names must be unique beyond case (CE2881); query fields are camelCased |
+| Alter published odata service | `alter published odata service Module.Name set key = value;` | |
+| Drop published odata service | `drop published odata service [if exists] Module.Name;` | |
 | Show external entities | `show external entities [in module];` | OData-backed entities |
 | Show external actions | `show external actions [in module];` | Actions used in microflows |
-| Create external entity | `create [or modify] external entity Module.Name from odata client Module.Client (...) (attrs);` | |
+| Create external entity | `create [or modify] external entity Module.Name from consumed odata service Module.Client (...) (attrs);` | |
 | Create external entities | `create [or modify] external entities from Module.Client [into module] [entities (...)];` | Bulk from $metadata |
-| Grant OData access | `grant access on odata service Module.Name to Module.Role, ...;` | |
-| Revoke OData access | `revoke access on odata service Module.Name from Module.Role, ...;` | |
+| Grant OData access | `grant access on published odata service Module.Name to Module.Role, ...;` | |
+| Revoke OData access | `revoke access on published odata service Module.Name from Module.Role, ...;` | |
 | Show contract entities | `show contract entities from Module.Client;` | Browse cached $metadata |
 | Show contract actions | `show contract actions from Module.Client;` | Browse cached $metadata |
 | Describe contract entity | `describe contract entity Module.Client.Entity [format mdl];` | Properties, types, keys |
@@ -365,7 +365,7 @@ create scheduled event Ops.WeeklyReport (
 **OData Client Example:**
 ```sql
 -- HTTP(S) URL (fetches metadata from remote service)
-create odata client MyModule.ExternalAPI (
+create consumed odata service MyModule.ExternalAPI (
   Version: '1.0',
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
@@ -373,7 +373,7 @@ create odata client MyModule.ExternalAPI (
 );
 
 -- Local file with absolute file:// URI
-CREATE ODATA CLIENT MyModule.LocalService (
+CREATE CONSUMED ODATA SERVICE MyModule.LocalService (
   Version: '1.0',
   ODataVersion: OData4,
   MetadataUrl: 'file:///path/to/metadata.xml',
@@ -381,7 +381,7 @@ CREATE ODATA CLIENT MyModule.LocalService (
 );
 
 -- Local file with relative path (normalized to absolute file:// in model)
-CREATE ODATA CLIENT MyModule.LocalService2 (
+CREATE CONSUMED ODATA SERVICE MyModule.LocalService2 (
   Version: '1.0',
   ODataVersion: OData4,
   MetadataUrl: './metadata/service.xml',
@@ -402,7 +402,7 @@ CREATE CONSTANT MyModule.ServiceLocation TYPE String DEFAULT 'https://api.exampl
 
 **OData Service Example:**
 ```sql
-create odata service MyModule.CustomerAPI (
+create published odata service MyModule.CustomerAPI (
   path: 'odata/customers/',     -- no leading slash (CE6550); trailing slash required (CE6552)
   version: '1.0.0',
   ODataVersion: OData4,
@@ -673,10 +673,10 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Access for members added later | — | A rule's default for new members is derived from the grant: `write *` → ReadWrite, `read *` → ReadOnly, member lists alone → **None**. So an attribute added later is granted None on a member-listed rule — clean build, blank field. `alter entity … add attribute` warns and prints the widening grant. The rule's *default* decides this, not how narrow its member list is |
 | Revoke entity access | `revoke Mod.Role on Mod.Entity;` | Full revoke — removes entire rule |
 | Revoke entity access (partial) | `revoke Mod.Role on Mod.Entity (read (attr));` | Partial — downgrades specific rights |
-| Set security level | `alter project security level off\|prototype\|production;` | |
-| Toggle demo users | `alter project security demo users on\|off;` | |
-| Enable guest access | `alter project security guest access on role UserRole;` | Anonymous users. The role is what visitors get — its entity access is the public surface. Mendix fails the build without one (CE0133), so `on` is refused unless a role is given or already stored. mxcli validates the role exists; Mendix does not |
-| Disable guest access | `alter project security guest access off;` | Keeps the stored role, so re-enabling needs no `role` clause |
+| Set security level | `alter app security level off\|prototype\|production;` | |
+| Toggle demo users | `alter app security demo users on\|off;` | |
+| Enable guest access | `alter app security guest access on role UserRole;` | Anonymous users. The role is what visitors get — its entity access is the public surface. Mendix fails the build without one (CE0133), so `on` is refused unless a role is given or already stored. mxcli validates the role exists; Mendix does not |
+| Disable guest access | `alter app security guest access off;` | Keeps the stored role, so re-enabling needs no `role` clause |
 | Create demo user | `create demo user 'name' password 'pass' [entity Module.Entity] (UserRole, ...);` | |
 | Drop demo user | `drop demo user [if exists] 'name';` | `if exists` makes a cleanup script re-runnable |
 | Update security | `update security [[in] Module];` | Re-syncs access rules with their domain model — Studio Pro's **Update security** button, headless. Repairs **CE0066** "Entity access is out of date", which a model authored elsewhere can carry (a module imported or updated outside Studio Pro). Not needed after mxcli's own writes: every write path reconciles as it writes. Writes nothing when the rules already match, and skips `System` |
@@ -973,7 +973,7 @@ still flagged rather than guessed at.
 |-----------|--------|-------|
 | Show settings | `show settings;` | Overview of all settings parts |
 | Describe settings | `describe settings;` | Full MDL output (round-trippable) |
-| Alter model settings | `alter settings model key = value;` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
+| Alter model settings | `alter settings runtime key = value;` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
 | Alter configuration | `alter settings configuration 'Name' key = value;` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
 | Alter constant | `alter settings constant 'Name' value 'val' in configuration 'cfg';` | Override constant per configuration |
 | Drop constant override | `alter settings drop constant 'Name' in configuration 'cfg';` | Reset to default value |
@@ -1139,16 +1139,16 @@ Icon collections (`CustomIcons$CustomIconCollection`, e.g. `Atlas_Core.Atlas_Fil
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| Show clients | `show rest clients [in module];` | List all or filter by module |
-| Describe client | `describe rest client Module.Name;` | Re-executable CREATE |
+| Show clients | `show consumed rest services [in module];` | List all or filter by module |
+| Describe client | `describe consumed rest service Module.Name;` | Re-executable CREATE |
 | Create client | See syntax below | Property-based `{}` syntax |
-| Create or modify | `create or modify rest client ...` | Replaces existing |
-| Drop client | `drop rest client [if exists] Module.Name;` | |
+| Create or modify | `create or modify consumed rest service ...` | Replaces existing |
+| Drop client | `drop consumed rest service [if exists] Module.Name;` | |
 | Import from OpenAPI | See OpenAPI import below | Auto-generate from spec |
 | Preview OpenAPI | `describe contract operation from openapi 'path';` | Preview without writing |
 
 ```sql
-create rest client Module.Api (
+create consumed rest service Module.Api (
   BaseUrl: 'https://api.example.com',
   authentication: none
 )
@@ -1189,17 +1189,17 @@ Generate a consumed REST service document directly from an OpenAPI 3.0 spec (JSO
 
 ```sql
 -- From a local file (relative to the .mpr file)
-create or modify rest client CapitalModule.CapitalAPI (
+create or modify consumed rest service CapitalModule.CapitalAPI (
   OpenAPI: 'specs/capital.json'
 );
 
 -- From a URL
-create or modify rest client PetStoreModule.PetStoreAPI (
+create or modify consumed rest service PetStoreModule.PetStoreAPI (
   OpenAPI: 'https://petstore3.swagger.io/api/v3/openapi.json'
 );
 
 -- Override the base URL from the spec (e.g. point at staging instead of prod)
-create or modify rest client PetStoreModule.PetStoreStaging (
+create or modify consumed rest service PetStoreModule.PetStoreStaging (
   OpenAPI: 'https://petstore3.swagger.io/api/v3/openapi.json',
   BaseUrl: 'https://staging.petstore.example.com/api/v3'
 );

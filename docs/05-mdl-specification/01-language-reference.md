@@ -1164,14 +1164,14 @@ Removes a project-level user role.
 drop user role <name>
 ```
 
-### ALTER PROJECT SECURITY
+### ALTER APP SECURITY
 
 Changes project-wide security settings.
 
 **Syntax:**
 ```sql
-alter project security level off | prototype | production
-alter project security demo users on | off
+alter app security level off | prototype | production
+alter app security demo users on | off
 ```
 
 ### CREATE DEMO USER
@@ -1270,7 +1270,7 @@ Displays one row per constant per configuration. Shows the default value followe
 ### ALTER SETTINGS
 
 ```sql
-alter settings model key = value;
+alter settings runtime key = value;
 alter settings configuration 'Name' key = value;
 alter settings constant 'Name' value 'val' in configuration 'cfg';
 alter settings drop constant 'Name' in configuration 'cfg';
@@ -1287,7 +1287,7 @@ drop configuration 'Name';
 
 **Example:**
 ```sql
-alter settings model AfterStartupMicroflow = 'MyModule.ACT_Startup';
+alter settings runtime AfterStartupMicroflow = 'MyModule.ACT_Startup';
 alter settings configuration 'default' DatabaseType = 'POSTGRESQL';
 alter settings LANGUAGE DefaultLanguageCode = 'en_US';
 

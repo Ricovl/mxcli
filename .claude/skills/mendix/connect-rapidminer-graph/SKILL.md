@@ -73,7 +73,7 @@ Each row in `bindings` is an object of `{var: {type, value}}`. A JSLT transforme
 └────────────────────┘   └────────────────────┘   └────────────────────┘   └────────────────┘
 ```
 
-**Why inline `rest call` rather than `create rest client` + `send rest request`?**
+**Why inline `rest call` rather than `create consumed rest service` + `send rest request`?**
 
 - At the time of writing, REST Client `authentication: basic (username: '...', password: '...')` silently fails to attach the `Authorization` header when the password contains special characters (e.g. `!`). Result: `401 Unauthorized`.
 - Inline `rest call ... auth basic '<user>' password '<pass>'` handles the same credentials correctly.
@@ -303,7 +303,7 @@ where {
 
 For demos, literal credentials inline in the microflow are the simplest and most reliable. For anything else, put them in a project constant and reference it from the microflow via `$ConstantName` (requires a non-trivial amount of setup — see the project settings skill).
 
-**Do not** use `$ConstantName` in `create rest client ... authentication: basic (username: $C, password: $C)` — the MDL parser rejects the `$` prefix there, and the skill files' claim of `rest$ConstantValue` serialization isn't reachable.
+**Do not** use `$ConstantName` in `create consumed rest service ... authentication: basic (username: $C, password: $C)` — the MDL parser rejects the `$` prefix there, and the skill files' claim of `rest$ConstantValue` serialization isn't reachable.
 
 ## Related skills
 

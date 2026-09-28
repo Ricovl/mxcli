@@ -968,11 +968,11 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 		b.statements = append(b.statements, &ast.DropJavaActionStmt{
 			Name: buildQualifiedName(names[0]),
 		})
-	} else if ctx.ODATA() != nil && ctx.CLIENT() != nil {
+	} else if ctx.ConsumedODataServiceKw() != nil {
 		b.statements = append(b.statements, &ast.DropODataClientStmt{
 			Name: buildQualifiedName(names[0]),
 		})
-	} else if ctx.ODATA() != nil && ctx.SERVICE() != nil {
+	} else if ctx.PublishedODataServiceKw() != nil {
 		b.statements = append(b.statements, &ast.DropODataServiceStmt{
 			Name: buildQualifiedName(names[0]),
 		})
@@ -988,7 +988,7 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 		b.statements = append(b.statements, &ast.DropImageCollectionStmt{
 			Name: buildQualifiedName(names[0]),
 		})
-	} else if ctx.QUEUE() != nil {
+	} else if ctx.TaskQueueKw() != nil {
 		b.statements = append(b.statements, &ast.DropQueueStmt{
 			Name: buildQualifiedName(names[0]),
 		})
@@ -1020,7 +1020,7 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 		b.statements = append(b.statements, &ast.DropPublishedRestServiceStmt{
 			Name: buildQualifiedName(names[0]),
 		})
-	} else if ctx.REST() != nil && ctx.CLIENT() != nil {
+	} else if ctx.ConsumedRestServiceKw() != nil {
 		b.statements = append(b.statements, &ast.DropRestClientStmt{
 			Name: buildQualifiedName(names[0]),
 		})

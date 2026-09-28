@@ -47,10 +47,10 @@ createConfigurationStatement
     ;
 
 /**
- * CREATE REST CLIENT — property-based syntax with { } blocks.
+ * CREATE CONSUMED REST SERVICE — property-based syntax with { } blocks.
  */
 createRestClientStatement
-    : REST CLIENT qualifiedName
+    : consumedRestServiceKw qualifiedName
       LPAREN restClientProperty (COMMA restClientProperty)* RPAREN
       (LBRACE restClientOperation* RBRACE)?
     ;
@@ -136,14 +136,58 @@ publishedRestOpPath
 // ODATA CLIENT / SERVICE
 // =============================================================================
 
+// R10 (ADR-0010): a document type is named as Studio Pro names it. Each rule
+// below is the one place its name is spelt, the canonical form first; the old
+// mxcli name is a registered deprecated alias (mdl/deprecation) that the
+// visitor reports and `fmt --upgrade` rewrites.
+consumedRestServiceKw
+    : CONSUMED REST SERVICE
+    | REST CLIENT /* @alias MDL-DEPR550 */
+    ;
+
+consumedRestServicesKw
+    : CONSUMED REST SERVICES
+    | REST CLIENTS /* @alias MDL-DEPR550 */
+    ;
+
+consumedODataServiceKw
+    : CONSUMED ODATA SERVICE
+    | ODATA CLIENT /* @alias MDL-DEPR551 */
+    ;
+
+consumedODataServicesKw
+    : CONSUMED ODATA SERVICES
+    | ODATA CLIENTS /* @alias MDL-DEPR551 */
+    ;
+
+publishedODataServiceKw
+    : PUBLISHED ODATA SERVICE
+    | ODATA SERVICE /* @alias MDL-DEPR552 */
+    ;
+
+publishedODataServicesKw
+    : PUBLISHED ODATA SERVICES
+    | ODATA SERVICES /* @alias MDL-DEPR552 */
+    ;
+
+taskQueueKw
+    : TASK QUEUE
+    | QUEUE /* @alias MDL-DEPR553 */
+    ;
+
+taskQueuesKw
+    : TASK QUEUES
+    | QUEUES /* @alias MDL-DEPR553 */
+    ;
+
 createODataClientStatement
-    : ODATA CLIENT qualifiedName
+    : consumedODataServiceKw qualifiedName
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       odataHeadersClause?
     ;
 
 createODataServiceStatement
-    : ODATA SERVICE qualifiedName
+    : publishedODataServiceKw qualifiedName
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       odataAuthenticationClause?
       (LBRACE (publishEntityBlock | publishMicroflowBlock)* RBRACE)?
@@ -222,7 +266,7 @@ exposeMemberOptions
 
 createExternalEntityStatement
     : EXTERNAL ENTITY qualifiedName
-      FROM ODATA CLIENT qualifiedName
+      FROM consumedODataServiceKw qualifiedName
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       (LPAREN attributeDefinitionList? RPAREN)?
     ;

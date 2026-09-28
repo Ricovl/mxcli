@@ -92,7 +92,7 @@ type must match what you do with it — returning `$Response` from a
 
 A consumed REST **client document** has no binary body — its three body types
 (`Rest$JsonBody`, `Rest$StringBody`, `Rest$ImplicitMappingBody`) are all textual
-— so `Body: file from $Doc` in a `CREATE REST CLIENT` operation is refused as
+— so `Body: file from $Doc` in a `CREATE CONSUMED REST SERVICE` operation is refused as
 **MDL-REST02**. Downloading is unaffected: `Response: file as $Doc` works.
 
 ## Basic Authentication
@@ -223,12 +223,12 @@ If the API has an OpenAPI 3.0 spec (JSON or YAML), generate the REST client in o
 
 ```sql
 -- From a local file (relative to the .mpr file)
-CREATE OR MODIFY REST CLIENT CapitalModule.CapitalAPI (
+CREATE OR MODIFY CONSUMED REST SERVICE CapitalModule.CapitalAPI (
   OpenAPI: 'specs/capital.json'
 );
 
 -- From a URL
-CREATE OR MODIFY REST CLIENT PetStoreModule.PetStoreAPI (
+CREATE OR MODIFY CONSUMED REST SERVICE PetStoreModule.PetStoreAPI (
   OpenAPI: 'https://petstore3.swagger.io/api/v3/openapi.json'
 );
 ```
@@ -242,11 +242,11 @@ DESCRIBE CONTRACT OPERATION FROM OPENAPI 'specs/capital.json';
 
 ### Manual Definition
 
-Define a reusable REST client with typed operations using `CREATE REST CLIENT`. Each operation declares its method, path, optional parameters, headers, body, and response mapping.
+Define a reusable REST client with typed operations using `CREATE CONSUMED REST SERVICE`. Each operation declares its method, path, optional parameters, headers, body, and response mapping.
 
 ```sql
 -- Define a client for the orders API
-CREATE REST CLIENT Integration.OrdersApi (
+CREATE CONSUMED REST SERVICE Integration.OrdersApi (
   BaseUrl: 'https://api.example.com/v1',
   Authentication: NONE
 )
@@ -278,10 +278,10 @@ CREATE REST CLIENT Integration.OrdersApi (
 };
 ```
 
-Use `CREATE OR MODIFY REST CLIENT` to update an existing client without dropping it first:
+Use `CREATE OR MODIFY CONSUMED REST SERVICE` to update an existing client without dropping it first:
 
 ```sql
-CREATE OR MODIFY REST CLIENT Integration.OrdersApi (
+CREATE OR MODIFY CONSUMED REST SERVICE Integration.OrdersApi (
   BaseUrl: 'https://api.example.com/v2',
   Authentication: BASIC (Username: 'apiuser', Password: 'secret')
 )

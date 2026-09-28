@@ -482,7 +482,7 @@ call microflow Module.ACT_Refresh() in queue Module.RefreshQueue;
 call java action Module.RefreshData(Url = $Url) in queue Module.RefreshQueue;
 ```
 
-**Queued calls** — the queue must already exist (`create queue Module.RefreshQueue
+**Queued calls** — the queue must already exist (`create task queue Module.RefreshQueue
 (Parallelism: 2)`), and the called flow must return nothing: a queued
 **microflow with a `returns` clause** fails the build with CE7033 (`mxcli check`:
 MDL088), a queued **Java action must `returns void`** or it fails with CE7038. Rewriting a microflow that has a queued call must restate the

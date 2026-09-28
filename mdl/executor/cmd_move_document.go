@@ -23,7 +23,7 @@ import (
 // moveDocumentUnit reparents a document located by name rather than by type,
 // and reports it by the kind it turned out to be.
 func moveDocumentUnit(ctx *ExecContext, docType ast.DocumentType, name ast.QualifiedName, targetContainerID model.ID) error {
-	asked := strings.ToLower(string(docType))
+	asked := docType.CanonicalSpelling()
 	// The parser cannot produce a doctype outside the registry, so reaching
 	// here with one means a DocumentType was added to the AST without being
 	// added to the registry the grammar and this handler share. Refuse rather

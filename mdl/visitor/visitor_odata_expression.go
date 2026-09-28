@@ -75,7 +75,7 @@ func (b *Builder) ExitOdataAlterAssignment(ctx *parser.OdataAlterAssignmentConte
 		return
 	}
 	name := identifierOrKeywordText(ctx.IdentifierOrKeyword())
-	if alter, ok := ctx.GetParent().(*parser.AlterStatementContext); ok && alter.CLIENT() != nil && isODataClientExpressionProp(name) {
+	if alter, ok := ctx.GetParent().(*parser.AlterStatementContext); ok && alter.ConsumedODataServiceKw() != nil && isODataClientExpressionProp(name) {
 		return
 	}
 	b.addError(odataExpressionNotAllowed(name, ctx.Expression()))

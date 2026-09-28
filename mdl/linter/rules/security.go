@@ -89,7 +89,7 @@ func (r *WeakPasswordPolicyRule) Check(ctx *linter.LintContext) []linter.Violati
 			DocumentType: "security",
 			DocumentName: "ProjectSecurity",
 		},
-		Suggestion: "ALTER PROJECT SECURITY PASSWORD POLICY MINIMUM LENGTH 8",
+		Suggestion: "ALTER APP SECURITY PASSWORD POLICY MINIMUM LENGTH 8",
 	}}
 }
 
@@ -132,6 +132,6 @@ func (r *DemoUsersActiveRule) Check(ctx *linter.LintContext) []linter.Violation 
 			DocumentType: "security",
 			DocumentName: "ProjectSecurity",
 		},
-		Suggestion: "ALTER PROJECT SECURITY DEMO USERS OFF",
+		Suggestion: "ALTER APP SECURITY DEMO USERS OFF",
 	}}
 }

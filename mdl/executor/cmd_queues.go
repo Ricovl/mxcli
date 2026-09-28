@@ -177,7 +177,7 @@ func execDescribeQueue(ctx *ExecContext, s *ast.DescribeQueueStmt) error {
 	if q.Documentation != "" {
 		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", q.Documentation)
 	}
-	fmt.Fprintf(ctx.Output, "create or modify queue %s%s (\n", s.Name.String(), describeFolderClause(ctx, q.ContainerID))
+	fmt.Fprintf(ctx.Output, "create or modify task queue %s%s (\n", s.Name.String(), describeFolderClause(ctx, q.ContainerID))
 	// Parallelism is an expression string; quote it unless it is a plain integer,
 	// so an expression survives the round-trip.
 	fmt.Fprintf(ctx.Output, "  Parallelism: %s,\n", formatParallelism(q.Parallelism))

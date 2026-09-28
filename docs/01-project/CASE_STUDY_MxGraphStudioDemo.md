@@ -64,8 +64,8 @@ navigation: Responsive -> Main.Home_Web -> buttons to OdataPlm pages
 | Page parameters | `params: { $Var: entity }` | Supported |
 | Show page actions | `action: show_page Module.Page` | Supported |
 | Save/Cancel actions | `action: save_changes / cancel_changes` | Supported |
-| Consumed OData clients | `create odata client` | Supported |
-| External entities with OData source | `create external entity ... from odata client` | Supported |
+| Consumed OData clients | `create consumed odata service` | Supported |
+| External entities with OData source | `create external entity ... from consumed odata service` | Supported |
 
 ### Not Supported
 
@@ -106,7 +106,7 @@ create constant OdataPlm.MxPlmOdataApiClient_Location as string = 'https://graph
 ### Step 3: Create the Consumed OData Client
 
 ```sql
-create odata client OdataPlm.MxPlmOdataApiClient (
+create consumed odata service OdataPlm.MxPlmOdataApiClient (
   ODataVersion: OData4,
   MetadataUrl: 'https://graphstudio.mendixdemo.com/dataondemand/Mx-PLM-example/MxPlmExample/$metadata',
   timeout: 300,
@@ -122,7 +122,7 @@ create odata client OdataPlm.MxPlmOdataApiClient (
 
 ```sql
 create external entity OdataPlm.Customer
-from odata client OdataPlm.MxPlmOdataApiClient
+from consumed odata service OdataPlm.MxPlmOdataApiClient
 (
   EntitySet: 'Customer',
   RemoteName: 'Customer',
@@ -144,7 +144,7 @@ from odata client OdataPlm.MxPlmOdataApiClient
 /
 
 create external entity OdataPlm.Address
-from odata client OdataPlm.MxPlmOdataApiClient
+from consumed odata service OdataPlm.MxPlmOdataApiClient
 (
   EntitySet: 'Address',
   RemoteName: 'Address',
@@ -165,7 +165,7 @@ from odata client OdataPlm.MxPlmOdataApiClient
 /
 
 create external entity OdataPlm.Bom
-from odata client OdataPlm.MxPlmOdataApiClient
+from consumed odata service OdataPlm.MxPlmOdataApiClient
 (
   EntitySet: 'Bom',
   RemoteName: 'Bom',
@@ -184,7 +184,7 @@ from odata client OdataPlm.MxPlmOdataApiClient
 /
 
 create external entity OdataPlm.Component
-from odata client OdataPlm.MxPlmOdataApiClient
+from consumed odata service OdataPlm.MxPlmOdataApiClient
 (
   EntitySet: 'Component',
   RemoteName: 'Component',
@@ -204,7 +204,7 @@ from odata client OdataPlm.MxPlmOdataApiClient
 /
 
 create external entity OdataPlm.Sub_Component
-from odata client OdataPlm.MxPlmOdataApiClient
+from consumed odata service OdataPlm.MxPlmOdataApiClient
 (
   EntitySet: 'Sub_Component',
   RemoteName: 'Sub_Component',

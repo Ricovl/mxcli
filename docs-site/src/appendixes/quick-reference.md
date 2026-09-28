@@ -25,7 +25,7 @@ CREATE PERSISTENT ENTITY Module.Photo (
 | Create entity | `CREATE [OR MODIFY] PERSISTENT\|NON-PERSISTENT ENTITY Module.Name (attrs);` | Persistent is default |
 | Create with extends | `CREATE PERSISTENT ENTITY Module.Name EXTENDS Parent.Entity (attrs);` | EXTENDS before `(` |
 | Create view entity | `CREATE VIEW ENTITY Module.Name (attrs) AS SELECT ...;` | OQL-backed; no storage, edit-in-memory, write back via source |
-| Create external entity | `CREATE EXTERNAL ENTITY Module.Name FROM ODATA CLIENT Module.Client (...) (attrs);` | From consumed OData |
+| Create external entity | `CREATE EXTERNAL ENTITY Module.Name FROM CONSUMED ODATA SERVICE Module.Client (...) (attrs);` | From consumed OData |
 | Create external entities | `CREATE [OR MODIFY] EXTERNAL ENTITIES FROM Module.Client [INTO Module] [ENTITIES (...)];` | Bulk from $metadata |
 | Drop entity | `DROP ENTITY Module.Name;` | |
 | Describe entity | `DESCRIBE ENTITY Module.Name;` | Full MDL output |
@@ -80,22 +80,22 @@ CREATE CONSTANT MyModule.EnableLogging TYPE Boolean DEFAULT true;
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| List OData clients | `LIST ODATA CLIENTS [IN Module];` | Consumed OData services |
-| Describe OData client | `DESCRIBE ODATA CLIENT Module.Name;` | Full MDL output |
-| Create OData client | `CREATE [OR MODIFY] ODATA CLIENT Module.Name (...);` | Version, MetadataUrl, Timeout, etc. |
-| Alter OData client | `ALTER ODATA CLIENT Module.Name SET Key = Value;` | |
-| Drop OData client | `DROP ODATA CLIENT Module.Name;` | |
-| List OData services | `LIST ODATA SERVICES [IN Module];` | Published OData services |
-| Describe OData service | `DESCRIBE ODATA SERVICE Module.Name;` | Full MDL output |
-| Create OData service | `CREATE [OR MODIFY] ODATA SERVICE Module.Name (...) AUTHENTICATION ... { PUBLISH ENTITY ... };` | |
-| Alter OData service | `ALTER ODATA SERVICE Module.Name SET Key = Value;` | |
-| Drop OData service | `DROP ODATA SERVICE Module.Name;` | |
+| List consumed odata services | `LIST CONSUMED ODATA SERVICES [IN Module];` | Consumed OData services |
+| Describe consumed odata service | `DESCRIBE CONSUMED ODATA SERVICE Module.Name;` | Full MDL output |
+| Create consumed odata service | `CREATE [OR MODIFY] CONSUMED ODATA SERVICE Module.Name (...);` | Version, MetadataUrl, Timeout, etc. |
+| Alter consumed odata service | `ALTER CONSUMED ODATA SERVICE Module.Name SET Key = Value;` | |
+| Drop consumed odata service | `DROP CONSUMED ODATA SERVICE Module.Name;` | |
+| List published odata services | `LIST PUBLISHED ODATA SERVICES [IN Module];` | Published OData services |
+| Describe published odata service | `DESCRIBE PUBLISHED ODATA SERVICE Module.Name;` | Full MDL output |
+| Create published odata service | `CREATE [OR MODIFY] PUBLISHED ODATA SERVICE Module.Name (...) AUTHENTICATION ... { PUBLISH ENTITY ... };` | |
+| Alter published odata service | `ALTER PUBLISHED ODATA SERVICE Module.Name SET Key = Value;` | |
+| Drop published odata service | `DROP PUBLISHED ODATA SERVICE Module.Name;` | |
 | List external entities | `LIST EXTERNAL ENTITIES [IN Module];` | OData-backed entities |
 | List external actions | `LIST EXTERNAL ACTIONS [IN Module];` | Actions used in microflows |
-| Create external entity | `CREATE [OR MODIFY] EXTERNAL ENTITY Module.Name FROM ODATA CLIENT Module.Client (...) (attrs);` | |
+| Create external entity | `CREATE [OR MODIFY] EXTERNAL ENTITY Module.Name FROM CONSUMED ODATA SERVICE Module.Client (...) (attrs);` | |
 | Create external entities | `CREATE [OR MODIFY] EXTERNAL ENTITIES FROM Module.Client [INTO Module] [ENTITIES (...)];` | Bulk from $metadata |
-| Grant OData access | `GRANT ACCESS ON ODATA SERVICE Module.Name TO Module.Role, ...;` | |
-| Revoke OData access | `REVOKE ACCESS ON ODATA SERVICE Module.Name FROM Module.Role, ...;` | |
+| Grant OData access | `GRANT ACCESS ON PUBLISHED ODATA SERVICE Module.Name TO Module.Role, ...;` | |
+| Revoke OData access | `REVOKE ACCESS ON PUBLISHED ODATA SERVICE Module.Name FROM Module.Role, ...;` | |
 | List contract entities | `LIST CONTRACT ENTITIES FROM Module.Client;` | Browse cached $metadata |
 | List contract actions | `LIST CONTRACT ACTIONS FROM Module.Client;` | Browse cached $metadata |
 | Describe contract entity | `DESCRIBE CONTRACT ENTITY Module.Client.Entity [FORMAT mdl];` | Properties, types, keys |
@@ -109,7 +109,7 @@ CREATE CONSTANT MyModule.EnableLogging TYPE Boolean DEFAULT true;
 
 **OData Client Example:**
 ```sql
-CREATE ODATA CLIENT MyModule.ExternalAPI (
+CREATE CONSUMED ODATA SERVICE MyModule.ExternalAPI (
   Version: '1.0',
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
@@ -119,7 +119,7 @@ CREATE ODATA CLIENT MyModule.ExternalAPI (
 
 **OData Service Example:**
 ```sql
-CREATE ODATA SERVICE MyModule.CustomerAPI (
+CREATE PUBLISHED ODATA SERVICE MyModule.CustomerAPI (
   Path: '/odata/customers',
   Version: '1.0.0',
   ODataVersion: OData4,
@@ -221,9 +221,9 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Revoke page access | `REVOKE VIEW ON PAGE Mod.Page FROM Mod.Role, ...;` | |
 | Grant entity access | `GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Mod.Entity TO Mod.Role;` | Supports member lists and WHERE |
 | Revoke entity access | `REVOKE Mod.Role ON Mod.Entity;` | |
-| Set security level | `ALTER PROJECT SECURITY LEVEL OFF\|PROTOTYPE\|PRODUCTION;` | |
-| Toggle demo users | `ALTER PROJECT SECURITY DEMO USERS ON\|OFF;` | |
-| Toggle guest access | `ALTER PROJECT SECURITY GUEST ACCESS ON ROLE UserRole\|OFF;` | Anonymous users; role required (CE0133) |
+| Set security level | `ALTER APP SECURITY LEVEL OFF\|PROTOTYPE\|PRODUCTION;` | |
+| Toggle demo users | `ALTER APP SECURITY DEMO USERS ON\|OFF;` | |
+| Toggle guest access | `ALTER APP SECURITY GUEST ACCESS ON ROLE UserRole\|OFF;` | Anonymous users; role required (CE0133) |
 | Create demo user | `CREATE DEMO USER 'name' PASSWORD 'pass' [ENTITY Module.Entity] (UserRole, ...);` | |
 | Drop demo user | `DROP DEMO USER [IF EXISTS] 'name';` | `IF EXISTS` makes a cleanup script re-runnable |
 
@@ -300,7 +300,7 @@ CREATE OR REPLACE NAVIGATION Responsive
 |-----------|--------|-------|
 | List settings | `LIST SETTINGS;` | Overview of all settings parts |
 | Describe settings | `DESCRIBE SETTINGS;` | Full MDL output (round-trippable) |
-| Alter model settings | `ALTER SETTINGS MODEL Key = Value;` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
+| Alter model settings | `ALTER SETTINGS RUNTIME Key = Value;` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
 | Alter configuration | `ALTER SETTINGS CONFIGURATION 'Name' Key = Value;` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
 | Alter constant | `ALTER SETTINGS CONSTANT 'Name' VALUE 'val' IN CONFIGURATION 'cfg';` | Override constant per configuration |
 | Alter language | `ALTER SETTINGS LANGUAGE Key = Value;` | DefaultLanguageCode |

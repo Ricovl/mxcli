@@ -21,15 +21,15 @@ Settings are organized into categories. Each `ALTER SETTINGS` command targets on
 Runtime-level settings such as the after-startup microflow, hashing algorithm, and Java version:
 
 ```sql
-ALTER SETTINGS MODEL <Key> = <Value>;
+ALTER SETTINGS RUNTIME <Key> = <Value>;
 ```
 
 Examples:
 
 ```sql
-ALTER SETTINGS MODEL AfterStartupMicroflow = 'MyModule.ACT_Startup';
-ALTER SETTINGS MODEL HashAlgorithm = 'BCrypt';
-ALTER SETTINGS MODEL JavaVersion = '17';
+ALTER SETTINGS RUNTIME AfterStartupMicroflow = 'MyModule.ACT_Startup';
+ALTER SETTINGS RUNTIME HashAlgorithm = 'BCrypt';
+ALTER SETTINGS RUNTIME JavaVersion = '17';
 ```
 
 Mendix renamed the Java version property between versions — up to 11.6 it is stored

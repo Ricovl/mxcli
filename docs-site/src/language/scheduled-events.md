@@ -146,15 +146,15 @@ repeat, and `CREATE OR MODIFY` carries whatever is stored through untouched.
 A task queue bounds how many instances of a queued microflow call run at once.
 
 ```sql
-CREATE [OR MODIFY] QUEUE <Module>.<Name> [(
+CREATE [OR MODIFY] TASK QUEUE <Module>.<Name> [(
   Parallelism: <expression>,
   ClusterWide: true|false,
   Documentation: '<text>'
 )];
 
-LIST QUEUES [IN <Module>];
-DESCRIBE QUEUE <Module>.<Name>;
-DROP QUEUE <Module>.<Name>;
+LIST TASK QUEUES [IN <Module>];
+DESCRIBE TASK QUEUE <Module>.<Name>;
+DROP TASK QUEUE <Module>.<Name>;
 ```
 
 | Property | Meaning | Default |
@@ -166,9 +166,9 @@ Mendix stores parallelism as an expression string, so a bare integer and a quote
 one mean the same thing and an arbitrary expression is legal:
 
 ```sql
-CREATE QUEUE Ops.OrderProcessing ( Parallelism: 3, ClusterWide: true );
-CREATE QUEUE Ops.Mail;                      -- defaults: 1, per-instance
-CREATE OR MODIFY QUEUE Ops.OrderProcessing ( Parallelism: '$MyModule.Workers' );
+CREATE TASK QUEUE Ops.OrderProcessing ( Parallelism: 3, ClusterWide: true );
+CREATE TASK QUEUE Ops.Mail;                      -- defaults: 1, per-instance
+CREATE OR MODIFY TASK QUEUE Ops.OrderProcessing ( Parallelism: '$MyModule.Workers' );
 ```
 
 ### Binding a call to a queue is not yet expressible

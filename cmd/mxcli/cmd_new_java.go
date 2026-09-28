@@ -56,13 +56,13 @@ func alignJavaVersion(projectPath string, out io.Writer) (bool, error) {
 		return false, nil
 	}
 
-	script := fmt.Sprintf("alter settings MODEL JavaVersion = '%d';\n", fallback)
+	script := fmt.Sprintf("alter settings runtime JavaVersion = '%d';\n", fallback)
 	if err := runMDL(projectPath, script, io.Discard); err != nil {
 		return false, fmt.Errorf("lowering JavaVersion from %d to %d: %w", major, fallback, err)
 	}
 	fmt.Fprintf(out, "  Java %d → %d: no JDK %d on this machine, and the project would not build.\n",
 		major, fallback, major)
 	fmt.Fprintf(out, "  Install a JDK %d and set JavaVersion back to %d to build for it:\n", major, major)
-	fmt.Fprintf(out, "    mxcli -p <project>.mpr -c \"alter settings MODEL JavaVersion = '%d'\"\n", major)
+	fmt.Fprintf(out, "    mxcli -p <project>.mpr -c \"alter settings runtime JavaVersion = '%d'\"\n", major)
 	return true, nil
 }

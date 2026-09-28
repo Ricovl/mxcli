@@ -29,17 +29,17 @@ If the API has an OpenAPI 3.0 spec (JSON or YAML), generate the REST client in o
 
 ```sql
 -- From a local file (relative to the .mpr file)
-create or modify rest client CapitalModule.CapitalAPI (
+create or modify consumed rest service CapitalModule.CapitalAPI (
   OpenAPI: 'specs/capital.json'
 );
 
 -- From a URL
-create or modify rest client PetStoreModule.PetStoreAPI (
+create or modify consumed rest service PetStoreModule.PetStoreAPI (
   OpenAPI: 'https://petstore3.swagger.io/api/v3/openapi.json'
 );
 
 -- Override the base URL (replaces servers[0].url from the spec)
-create or modify rest client PetStoreModule.PetStoreStaging (
+create or modify consumed rest service PetStoreModule.PetStoreStaging (
   OpenAPI: 'https://petstore3.swagger.io/api/v3/openapi.json',
   BaseUrl: 'https://staging.petstore.example.com/api/v3'
 );
@@ -76,7 +76,7 @@ Define the API once as a REST client document, then call its operations from mic
 ### Step 1 — Create the REST Client
 
 ```sql
-create rest client Module.OpenMeteoAPI (
+create consumed rest service Module.OpenMeteoAPI (
   BaseUrl: 'https://api.open-meteo.com/v1',
   authentication: none
 )
@@ -246,10 +246,10 @@ end;
 ### Show / Describe / Drop
 
 ```sql
-show rest clients [in module];
-describe rest client Module.ClientName;
-drop rest client Module.ClientName;
-create or modify rest client Module.ClientName ...  -- idempotent
+show consumed rest services [in module];
+describe consumed rest service Module.ClientName;
+drop consumed rest service Module.ClientName;
+create or modify consumed rest service Module.ClientName ...  -- idempotent
 ```
 
 ---
@@ -412,7 +412,7 @@ create import mapping Module.IMM_Weather
 };
 
 -- 4. REST Client
-create rest client Module.WeatherAPI (
+create consumed rest service Module.WeatherAPI (
   BaseUrl: 'https://api.open-meteo.com/v1',
   authentication: none
 )

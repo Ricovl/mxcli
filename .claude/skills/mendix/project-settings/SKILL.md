@@ -30,22 +30,22 @@ describe settings;
 ### Modify Model Settings
 
 ```sql
-alter settings model AfterStartupMicroflow = 'Module.MF_Startup';  -- must return Boolean (CE0142)
-alter settings model BeforeShutdownMicroflow = 'Module.MF_Shutdown';
-alter settings model HealthCheckMicroflow = 'Module.MF_HealthCheck';
-alter settings model HashAlgorithm = 'BCrypt';
-alter settings model BcryptCost = 12;
-alter settings model JavaVersion = 'Java21';  -- or '21'; see note below
-alter settings model RoundingMode = 'HalfUp';
-alter settings model AllowUserMultipleSessions = true;
-alter settings model ScheduledEventTimeZoneCode = 'Etc/UTC';
-alter settings model DefaultTimeZoneCode = 'Europe/Amsterdam';
-alter settings model FirstDayOfWeek = 'Monday';       -- Default, Monday..Sunday
-alter settings model DecimalScale = 8;
-alter settings model EnableDataStorageOptimisticLocking = true;
-alter settings model UseDatabaseForeignKeyConstraints = true;
-alter settings model UseOQLVersion2 = true;
-alter settings model SslCertificateAlgorithm = 'PKIX';   -- PKIX or SunX509
+alter settings runtime AfterStartupMicroflow = 'Module.MF_Startup';  -- must return Boolean (CE0142)
+alter settings runtime BeforeShutdownMicroflow = 'Module.MF_Shutdown';
+alter settings runtime HealthCheckMicroflow = 'Module.MF_HealthCheck';
+alter settings runtime HashAlgorithm = 'BCrypt';
+alter settings runtime BcryptCost = 12;
+alter settings runtime JavaVersion = 'Java21';  -- or '21'; see note below
+alter settings runtime RoundingMode = 'HalfUp';
+alter settings runtime AllowUserMultipleSessions = true;
+alter settings runtime ScheduledEventTimeZoneCode = 'Etc/UTC';
+alter settings runtime DefaultTimeZoneCode = 'Europe/Amsterdam';
+alter settings runtime FirstDayOfWeek = 'Monday';       -- Default, Monday..Sunday
+alter settings runtime DecimalScale = 8;
+alter settings runtime EnableDataStorageOptimisticLocking = true;
+alter settings runtime UseDatabaseForeignKeyConstraints = true;
+alter settings runtime UseOQLVersion2 = true;
+alter settings runtime SslCertificateAlgorithm = 'PKIX';   -- PKIX or SunX509
 ```
 
 **Not every project stores every setting.** Mendix adds model settings over time —

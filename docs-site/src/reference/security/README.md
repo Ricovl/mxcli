@@ -25,10 +25,10 @@ Mendix security operates at two levels. **Module roles** define permissions with
 | Show demo users | `SHOW DEMO USERS` |
 | Show access on element | `SHOW ACCESS ON [ENTITY\|MICROFLOW\|PAGE\|NANOFLOW] module.Name` |
 | Show security matrix | `SHOW SECURITY MATRIX [IN module]` |
-| Alter project security level | `ALTER PROJECT SECURITY LEVEL OFF\|PROTOTYPE\|PRODUCTION` |
-| Toggle demo users | `ALTER PROJECT SECURITY DEMO USERS ON\|OFF` |
-| Toggle strict mode | `ALTER PROJECT SECURITY STRICT MODE ON\|OFF` |
-| Toggle guest access | `ALTER PROJECT SECURITY GUEST ACCESS ON [ROLE UserRole]\|OFF` |
+| Alter app security level | `ALTER APP SECURITY LEVEL OFF\|PROTOTYPE\|PRODUCTION` |
+| Toggle demo users | `ALTER APP SECURITY DEMO USERS ON\|OFF` |
+| Toggle strict mode | `ALTER APP SECURITY STRICT MODE ON\|OFF` |
+| Toggle guest access | `ALTER APP SECURITY GUEST ACCESS ON [ROLE UserRole]\|OFF` |
 | Drop module role | `DROP MODULE ROLE module.Role` |
 | Drop user role | `DROP USER ROLE [IF EXISTS] Name` |
 | Drop demo user | `DROP DEMO USER [IF EXISTS] 'username'` |

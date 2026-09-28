@@ -218,7 +218,7 @@ func ToRestClientModel(spec *Spec, serviceName string, baseUrlOverride string) (
 		if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
 			baseURL = u
 		} else {
-			warnings = append(warnings, fmt.Sprintf("server URL %q is relative and cannot be used as BaseUrl; set BaseUrl explicitly in CREATE REST CLIENT", u))
+			warnings = append(warnings, fmt.Sprintf("server URL %q is relative and cannot be used as BaseUrl; set BaseUrl explicitly in create consumed rest service", u))
 		}
 	}
 	svc.BaseUrl = baseURL

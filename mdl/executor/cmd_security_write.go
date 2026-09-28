@@ -1224,7 +1224,7 @@ func applyGuestAccess(ctx *ExecContext, ps *security.ProjectSecurity, s *ast.Alt
 	} else if enabled && ps.GuestUserRole == "" {
 		return mdlerrors.NewValidation(
 			"GUEST ACCESS ON requires a role: no anonymous user role is configured, and Mendix " +
-				"rejects anonymous access without one (CE0133). Use ALTER PROJECT SECURITY " +
+				"rejects anonymous access without one (CE0133). Use ALTER APP SECURITY " +
 				"GUEST ACCESS ON ROLE <UserRole>")
 	}
 
@@ -1352,7 +1352,7 @@ func warnDemoUsersInert(ctx *ExecContext, level string) {
 	}
 	fmt.Fprintf(ctx.Output, "  Note: project security level is Off, so the runtime creates no accounts "+
 		"and this demo user will not appear in the app.\n"+
-		"  Raise it first: alter project security level prototype;\n")
+		"  Raise it first: alter app security level prototype;\n")
 }
 
 // detectUserEntity finds the entity that generalizes System.User.

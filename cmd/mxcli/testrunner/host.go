@@ -61,7 +61,7 @@ func InstallHostedEndpoint(projectPath string, w io.Writer) (*HostedEndpoint, er
 		h.Remove()
 		return nil, fmt.Errorf("injecting the test endpoint: %w", err)
 	}
-	if err := execMxcliCmd(projectPath, "ALTER SETTINGS MODEL AfterStartupMicroflow = "+quoteMDLString(endpointStartupFlow)); err != nil {
+	if err := execMxcliCmd(projectPath, "ALTER SETTINGS RUNTIME AfterStartupMicroflow = "+quoteMDLString(endpointStartupFlow)); err != nil {
 		h.Remove()
 		return nil, fmt.Errorf("pointing after-startup at the endpoint: %w", err)
 	}

@@ -10,7 +10,7 @@ JSON Structure → Non-persistent entities → Import Mapping → microflow.
 
 > **Two approaches**: This skill uses the **inline REST CALL** approach (good for one-off calls
 > and quick prototyping). For structured APIs with reusable operations, use the **REST Client**
-> approach instead — see [rest-client](../rest-client/SKILL.md) for `create rest client` + `send rest request`
+> approach instead — see [rest-client](../rest-client/SKILL.md) for `create consumed rest service` + `send rest request`
 > + optional `transform` with JSLT data transformers.
 
 ## Overview — Four Steps
@@ -237,7 +237,7 @@ file document.
 
 **A consumed REST CLIENT document cannot do this.** Its body is one of
 `Rest$JsonBody`, `Rest$StringBody` or `Rest$ImplicitMappingBody` — all textual —
-so `Body: file from $Doc` in a `create rest client` operation is refused as
+so `Body: file from $Doc` in a `create consumed rest service` operation is refused as
 **MDL-REST02**. Binary uploads belong in a microflow. (`Response: file as $Doc`
 on an operation is fine; downloads work either way.)
 

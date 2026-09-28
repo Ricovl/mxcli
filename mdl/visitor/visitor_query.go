@@ -257,7 +257,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.QUEUES() != nil {
+	} else if ctx.TaskQueuesKw() != nil {
 		stmt := &ast.ShowQueuesStmt{}
 		if ctx.IN() != nil {
 			if qn := ctx.QualifiedName(); qn != nil {
@@ -462,7 +462,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 				})
 			}
 		}
-	} else if ctx.ODATA() != nil && ctx.CLIENTS() != nil {
+	} else if ctx.ConsumedODataServicesKw() != nil {
 		// SHOW ODATA CLIENTS [IN module]
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowODataClients}
 		if ctx.IN() != nil {
@@ -473,7 +473,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.ODATA() != nil && ctx.SERVICES() != nil {
+	} else if ctx.PublishedODataServicesKw() != nil {
 		// SHOW ODATA SERVICES [IN module]
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowODataServices}
 		if ctx.IN() != nil {
@@ -677,7 +677,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.REST() != nil && ctx.CLIENTS() != nil {
+	} else if ctx.ConsumedRestServicesKw() != nil {
 		// SHOW REST CLIENTS [IN module]
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowRestClients}
 		if ctx.IN() != nil {
@@ -834,7 +834,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	}
 
 	// DESCRIBE QUEUE Module.Name
-	if ctx.QUEUE() != nil {
+	if ctx.TaskQueueKw() != nil {
 		if qn := ctx.QualifiedName(); qn != nil {
 			b.statements = append(b.statements, &ast.DescribeQueueStmt{Name: buildQualifiedName(qn)})
 		}
@@ -918,7 +918,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	}
 
 	// Handle DESCRIBE ODATA CLIENT/SERVICE and DESCRIBE EXTERNAL ENTITY
-	if ctx.ODATA() != nil && ctx.CLIENT() != nil {
+	if ctx.ConsumedODataServiceKw() != nil {
 		if qn := ctx.QualifiedName(); qn != nil {
 			name := buildQualifiedName(qn)
 			b.statements = append(b.statements, &ast.DescribeStmt{
@@ -928,7 +928,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		}
 		return
 	}
-	if ctx.ODATA() != nil && ctx.SERVICE() != nil {
+	if ctx.PublishedODataServiceKw() != nil {
 		if qn := ctx.QualifiedName(); qn != nil {
 			name := buildQualifiedName(qn)
 			b.statements = append(b.statements, &ast.DescribeStmt{
@@ -1257,7 +1257,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 			ObjectType: ast.DescribeConsumedMCPService,
 			Name:       name,
 		})
-	} else if ctx.REST() != nil && ctx.CLIENT() != nil {
+	} else if ctx.ConsumedRestServiceKw() != nil {
 		b.statements = append(b.statements, &ast.DescribeStmt{
 			ObjectType: ast.DescribeRestClient,
 			Name:       name,
