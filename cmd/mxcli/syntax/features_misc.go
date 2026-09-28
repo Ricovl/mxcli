@@ -171,11 +171,41 @@ func init() {
 		SeeAlso: []string{"move", "folders", "create-modifiers"},
 	})
 
+	// ── Session commands (R7, ako/mxcli#755) ───────────────────────────
+
+	Register(SyntaxFeature{
+		Path:    "session-commands",
+		Summary: "REPL commands that set up the session: connect, set format, status, help, … — not for scripts",
+		Keywords: []string{
+			"session", "session command", "repl", "repl command", "meta-command",
+			"connect", "disconnect", "use", "set format", "status", "check", "build",
+			"lint", "debug", "execute script", "execute runtime", "help", "introspect",
+			"MDL-V1-SESSION",
+		},
+		Syntax: "CONNECT LOCAL '<app.mpr>';   DISCONNECT;   STATUS;\n" +
+			"SET format = json|table;       USE <session> | USE ALL;\n" +
+			"CHECK;  BUILD;  LINT [target];  DEBUG '<…>';  INTROSPECT API;\n" +
+			"EXECUTE SCRIPT '<file.mdl>';   EXECUTE RUNTIME '<command>';\n" +
+			"HELP [topic];\n\n" +
+			"-- A session command needs a session or an environment: a connection, an\n" +
+			"-- output format, a build, a running app. It is typed at the REPL, or given\n" +
+			"-- as a command-line flag. A .mdl script holds model statements only:\n" +
+			"--\n" +
+			"--   mxcli exec script.mdl -p app.mpr --json\n" +
+			"--\n" +
+			"-- Under `mdl 1;` a session command in a script is an error; without the\n" +
+			"-- header it runs as before and warns MDL-V1-SESSION. The REPL keeps\n" +
+			"-- accepting them. EXIT / QUIT end a script and are not session commands.",
+		Example: "-- at the REPL\nCONNECT LOCAL '/projects/MyApp/MyApp.mpr';\nSET format = json;\nSTATUS;\n\n" +
+			"-- from the shell, for a script\nmxcli exec changes.mdl -p /projects/MyApp/MyApp.mpr --json",
+		SeeAlso: []string{"connect", "disconnect", "status", "language-header"},
+	})
+
 	// ── Connection ──────────────────────────────────────────────────────
 
 	Register(SyntaxFeature{
 		Path:    "connect",
-		Summary: "Connect to a Mendix project (.mpr file) for the current session",
+		Summary: "Connect to a Mendix project (.mpr file) for the current REPL session",
 		Keywords: []string{
 			"connect", "connect local", "connect project",
 			"open project", "mpr", "connection",
@@ -183,15 +213,17 @@ func init() {
 		Syntax: `CONNECT LOCAL '<path/to/app.mpr>';
 CONNECT LOCAL '<path>' BRANCH '<branch>';
 
--- CLI flags (equivalent)
-mxcli -p <path/to/app.mpr> -c "<statement>"`,
-		Example: `CONNECT LOCAL '/projects/MyApp/MyApp.mpr';
+-- CLI flags (equivalent, and the form for a script)
+mxcli -p <path/to/app.mpr> -c "<statement>"
+mxcli exec script.mdl -p <path/to/app.mpr>
 
--- Read-write session
+-- A session command: typed at the REPL. In a script it is an error under
+-- mdl 1 and a warning (MDL-V1-SESSION) without the header.`,
+		Example: `-- at the REPL
 CONNECT LOCAL '/projects/MyApp/MyApp.mpr';
 CREATE ENTITY MyModule.Product ( Name: String(200) );
 DISCONNECT;`,
-		SeeAlso: []string{"disconnect", "status"},
+		SeeAlso: []string{"disconnect", "status", "session-commands"},
 	})
 
 	Register(SyntaxFeature{
@@ -200,9 +232,9 @@ DISCONNECT;`,
 		Keywords: []string{
 			"disconnect", "close", "close connection", "close project",
 		},
-		Syntax:  "DISCONNECT;",
+		Syntax:  "DISCONNECT;\n\n-- A session command, for the REPL (see session-commands).",
 		Example: "DISCONNECT;",
-		SeeAlso: []string{"connect", "status"},
+		SeeAlso: []string{"connect", "status", "session-commands"},
 	})
 
 	Register(SyntaxFeature{
@@ -212,9 +244,9 @@ DISCONNECT;`,
 			"status", "show status", "connection status",
 			"project info", "version", "connected",
 		},
-		Syntax:  "STATUS;\nSHOW STATUS;",
+		Syntax:  "STATUS;\nSHOW STATUS;\n\n-- A session command, for the REPL (see session-commands).",
 		Example: "STATUS;\n-- Output: Connected to /projects/MyApp/MyApp.mpr (Mendix 10.24.0, 5 modules)",
-		SeeAlso: []string{"connect", "disconnect"},
+		SeeAlso: []string{"connect", "disconnect", "session-commands"},
 	})
 
 	// ── Navigation ──────────────────────────────────────────────────────

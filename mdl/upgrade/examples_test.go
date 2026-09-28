@@ -121,6 +121,12 @@ var keepsItsVersion = map[string][]string{
 	// parameter) instead of the template text. Measured by the execute-both
 	// test before this entry was made.
 	"bug-tests/264-log-node-expression-roundtrip.mdl": {"MDL-V1-ESCAPE"},
+	// Scripts that exercise session commands — `help <topic>` and `lint` —
+	// which are REPL commands under mdl 1 (R7, ako/mxcli#755). They test the
+	// commands, so they stay mdl 0 scripts rather than lose what they test.
+	"bug-tests/904-lint-rules-discovery.mdl":    {"MDL-V1-SESSION"},
+	"bug-tests/syntax-1025-topic-drilldown.mdl": {"MDL-V1-SESSION"},
+	"doctype-tests/20-help-examples.mdl":        {"MDL-V1-SESSION"},
 }
 
 // buildsTheSameModelNotTheSameAST lists the example scripts whose upgrade
