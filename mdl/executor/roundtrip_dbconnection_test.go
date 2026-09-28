@@ -66,15 +66,15 @@ end;`
 	env.assertContains(createMDL, []string{
 		"database connection",
 		"TestDatabase",
-		"type 'PostgreSQL'",
-		"connection string @" + testModule + ".TestDatabase_DBSource",
-		"username @" + testModule + ".TestDatabase_DBUsername",
-		"password @" + testModule + ".TestDatabase_DBPassword",
+		"Type: 'PostgreSQL'",
+		"ConnectionString: @" + testModule + ".TestDatabase_DBSource",
+		"Username: @" + testModule + ".TestDatabase_DBUsername",
+		"Password: @" + testModule + ".TestDatabase_DBPassword",
 		"query GetAllEmployees",
-		"returns " + testModule + ".Employee",
-		"id as EmployeeId",
-		"name as Name",
-		"email as Email",
+		"Returns: " + testModule + ".Employee",
+		"EmployeeId = id",
+		"Name = name",
+		"Email = email",
 	})
 }
 
@@ -129,10 +129,10 @@ end;`
 		"database connection",
 		"ParamDB",
 		"query GetRacesBySeason",
-		"parameter startYear: Integer default '1900'",
-		"parameter endYear: Integer null",
-		"returns " + testModule + ".Race",
-		"raceId as RaceId",
+		"startYear: Integer default '1900'",
+		"endYear: Integer null",
+		"Returns: " + testModule + ".Race",
+		"RaceId = raceId",
 	})
 }
 
@@ -162,9 +162,9 @@ password @` + testModule + `.SimpleDB_DBPassword;`
 	env.assertContains(createMDL, []string{
 		"database connection",
 		"SimpleDB",
-		"type 'MSSQL'",
-		"connection string @" + testModule + ".SimpleDB_DBSource",
-		"username @" + testModule + ".SimpleDB_DBUsername",
-		"password @" + testModule + ".SimpleDB_DBPassword",
+		"Type: 'MSSQL'",
+		"ConnectionString: @" + testModule + ".SimpleDB_DBSource",
+		"Username: @" + testModule + ".SimpleDB_DBUsername",
+		"Password: @" + testModule + ".SimpleDB_DBPassword",
 	})
 }
