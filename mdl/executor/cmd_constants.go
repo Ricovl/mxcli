@@ -123,17 +123,16 @@ func outputConstantMDL(ctx *ExecContext, c *model.Constant, moduleName string) e
 			docClause = true
 		}
 	}
-	fmt.Fprintf(ctx.Output, "create or modify constant %s.%s\n", moduleName, c.Name)
-	fmt.Fprintf(ctx.Output, "  type %s\n", formatConstantTypeForMDL(c.Type))
-	fmt.Fprintf(ctx.Output, "  default %s", defaultValueStr)
-
-	// Add folder if present
-	h, _ := getHierarchy(ctx)
-	if h != nil {
+	// The folder is a clause right after the name (R9).
+	folder := ""
+	if h, _ := getHierarchy(ctx); h != nil {
 		if folderPath := h.BuildFolderPath(c.ContainerID); folderPath != "" {
-			fmt.Fprintf(ctx.Output, "\n  folder '%s'", folderPath)
+			folder = fmt.Sprintf(" folder '%s'", strings.ReplaceAll(folderPath, "'", "''"))
 		}
 	}
+	fmt.Fprintf(ctx.Output, "create or modify constant %s.%s%s\n", moduleName, c.Name, folder)
+	fmt.Fprintf(ctx.Output, "  type %s\n", formatConstantTypeForMDL(c.Type))
+	fmt.Fprintf(ctx.Output, "  default %s", defaultValueStr)
 
 	if docClause {
 		fmt.Fprintf(ctx.Output, "\n  comment '%s'", strings.ReplaceAll(c.Documentation, "'", "''"))

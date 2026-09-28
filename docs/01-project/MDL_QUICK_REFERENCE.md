@@ -170,7 +170,7 @@ alter entity Sales.Customer
 | Show constants | `list constants [in module];` | List all or filter by module |
 | Show constant values | `list constant values [in module];` | Compare values across configurations |
 | Describe constant | `describe constant Module.Name;` | Full MDL output |
-| Create constant | `create [or modify] constant Module.Name type DataType default 'value';` | String, Integer, Boolean, etc. |
+| Create constant | `create [or modify] constant Module.Name [folder 'path'] type DataType default 'value' [exposed to client];` | `folder` after `default` warns MDL-DEPR134 |
 | Drop constant | `drop constant [if exists] Module.Name;` | |
 
 A per-configuration override holds either a **shared** value (in the model, so in

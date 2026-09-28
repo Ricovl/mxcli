@@ -110,6 +110,12 @@ func (b *Builder) ExitCreateConstantStatement(ctx *parser.CreateConstantStatemen
 
 	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 
+	// `folder '…'` after the name (R9); a trailing `folder` option is its old
+	// position and, being later, wins when both are written.
+	if lit := ctx.STRING_LITERAL(); lit != nil && ctx.FOLDER() != nil {
+		stmt.Folder = unquoteStringLit(lit)
+	}
+
 	// Handle options (COMMENT, FOLDER, EXPOSED TO CLIENT)
 	if opts := ctx.ConstantOptions(); opts != nil {
 		optsCtx := opts.(*parser.ConstantOptionsContext)
@@ -124,6 +130,8 @@ func (b *Builder) ExitCreateConstantStatement(ctx *parser.CreateConstantStatemen
 			}
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
 				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
+				b.recordFolderClausePosition(ctx.QualifiedName(), optCtx.FOLDER().GetSymbol(),
+					optCtx.STRING_LITERAL().GetSymbol(), ctx.FOLDER() != nil || countFolderOptions(optsCtx) > 1)
 			} else if optCtx.EXPOSED() != nil {
 				stmt.ExposedToClient = true
 			}

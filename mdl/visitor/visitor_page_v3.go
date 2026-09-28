@@ -241,10 +241,13 @@ func (b *Builder) buildSnippetV3(ctx *parser.CreateSnippetStatementContext) *ast
 	// Parse options (FOLDER)
 	if opts := ctx.SnippetOptions(); opts != nil {
 		optsCtx := opts.(*parser.SnippetOptionsContext)
-		for _, opt := range optsCtx.AllSnippetOption() {
+		all := optsCtx.AllSnippetOption()
+		for _, opt := range all {
 			optCtx := opt.(*parser.SnippetOptionContext)
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
 				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
+				b.recordFolderClausePosition(ctx.QualifiedName(), optCtx.FOLDER().GetSymbol(),
+					optCtx.STRING_LITERAL().GetSymbol(), ctx.STRING_LITERAL() != nil || len(all) > 1 || snippetHeaderHasFolder(ctx))
 			}
 		}
 	}

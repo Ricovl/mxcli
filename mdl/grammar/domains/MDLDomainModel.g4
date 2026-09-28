@@ -977,6 +977,7 @@ validationRuleRange
 
 createConstantStatement
     : CONSTANT qualifiedName
+      (FOLDER STRING_LITERAL)?   // R9: the folder is a clause after the name
       TYPE dataType
       DEFAULT literal
       constantOptions?
@@ -988,7 +989,7 @@ constantOptions
 
 constantOption
     : COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL   // R9: a `/** … */` doc comment
-    | FOLDER STRING_LITERAL
+    | FOLDER STRING_LITERAL /* @alias MDL-DEPR134 */   // R9: after the name
     | EXPOSED TO CLIENT
     ;
 

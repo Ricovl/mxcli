@@ -211,6 +211,10 @@ const (
 	// AppSecurityClause is `alter app security level|demo users|guest
 	// access|strict mode …`: the clause forms of what is a property list.
 	AppSecurityClause = "MDL-DEPR133"
+	// FolderClausePosition is a `folder '…'` clause written anywhere but
+	// right after the name: among a constant's trailing options, or after a
+	// snippet's header (R9).
+	FolderClausePosition = "MDL-DEPR134"
 
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
@@ -690,6 +694,17 @@ var r6Entries = []Entry{
 			"Studio Pro's property names, and one statement can set several.",
 		Example:          "alter app security guest access on role Guest;",
 		CanonicalExample: "alter app security ( EnableGuestAccess: true, GuestUserRole: Guest );",
+	},
+	{
+		Code:      FolderClausePosition,
+		Old:       "create constant M.C type … default … folder '…' / create snippet M.S (…) folder '…' { … }",
+		Canonical: "create constant M.C folder '…' type … default … / create snippet M.S folder '…' (…) { … }",
+		Rewrite:   Rewrite{Structural: "clause moved: `folder '…'` goes right after the name"},
+		RemovedIn: 2,
+		Note: "The folder is a clause right after the name on every document (R9). A statement with the clause in " +
+			"both places is reported, not rewritten: the later one is what is stored.",
+		Example:          "create constant M.Url type String default 'x' folder 'Config';",
+		CanonicalExample: "create constant M.Url folder 'Config' type String default 'x';",
 	},
 }
 

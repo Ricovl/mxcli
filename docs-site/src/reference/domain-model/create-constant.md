@@ -2,7 +2,8 @@
 
 ## Synopsis
 
-    CREATE [ OR MODIFY ] CONSTANT module.name TYPE data_type [ DEFAULT value ]
+    [ /** documentation */ ]
+    CREATE [ OR MODIFY ] CONSTANT module.name [ FOLDER 'path' ] TYPE data_type DEFAULT value [ EXPOSED TO CLIENT ]
 
 ## Description
 
@@ -15,6 +16,8 @@ The optional `DEFAULT` clause sets the constant's default value. This is the val
 If `OR MODIFY` is specified, the statement is idempotent. If the constant already exists, its type and default value are updated.
 
 Constant values can also be overridden per deployment configuration using `ALTER SETTINGS CONSTANT`.
+
+`FOLDER 'path'` goes right after the name, as on every document. A `FOLDER` after the default value is the old position: it still parses and warns `MDL-DEPR134`, and `mxcli fmt --upgrade` moves it.
 
 ## Parameters
 
