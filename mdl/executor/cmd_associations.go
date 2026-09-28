@@ -287,8 +287,15 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 			case ast.AlterAssociationSetAnchor:
 				applyAnchors(assoc, s.FromAnchor, s.ToAnchor)
 			}
+			want := alteredAssociationValue(s.Operation, assocAlterView{
+				del: assoc.ChildDeleteBehavior, owner: string(assoc.Owner), storage: string(assoc.StorageFormat),
+				doc: assoc.Documentation, anchors: associationAnchors(assoc),
+			})
 			if err := ctx.Backend.UpdateDomainModel(dm); err != nil {
 				return mdlerrors.NewBackend("update association", err)
+			}
+			if err := verifyAssociationAltered(ctx, module.ID, s, want); err != nil {
+				return err
 			}
 			fmt.Fprintf(ctx.Output, "Altered association: %s\n", s.Name)
 			return nil
@@ -318,8 +325,15 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 					"association %s is cross-module, and Mendix stores no line anchors for those — "+
 						"the connector is routed automatically", s.Name.String())
 			}
+			want := alteredAssociationValue(s.Operation, assocAlterView{
+				del: ca.ChildDeleteBehavior, owner: string(ca.Owner), storage: string(ca.StorageFormat),
+				doc: ca.Documentation,
+			})
 			if err := ctx.Backend.UpdateDomainModel(dm); err != nil {
 				return mdlerrors.NewBackend("update cross-module association", err)
+			}
+			if err := verifyAssociationAltered(ctx, module.ID, s, want); err != nil {
+				return err
 			}
 			fmt.Fprintf(ctx.Output, "Altered association: %s\n", s.Name)
 			return nil
@@ -327,6 +341,89 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 	}
 
 	return mdlerrors.NewNotFound("association", s.Name.String())
+}
+
+// assocAlterView is the part of an association ALTER ASSOCIATION can change,
+// common to the same-module and the cross-module kind.
+type assocAlterView struct {
+	del                          *domainmodel.DeleteBehavior
+	owner, storage, doc, anchors string
+}
+
+// alteredAssociationValue renders the one property op changes, so the value the
+// statement asked for can be compared with the value read back from storage.
+func alteredAssociationValue(op ast.AlterAssociationOperation, v assocAlterView) string {
+	switch op {
+	case ast.AlterAssociationSetDeleteBehavior:
+		if v.del == nil {
+			return ""
+		}
+		// The message is stored only on the restrict side (assocToGen), so it is
+		// only part of the comparison there.
+		if v.del.Type == domainmodel.DeleteBehaviorTypeDeleteMeIfNoReferences {
+			return string(v.del.Type) + "|" + v.del.ErrorMessage
+		}
+		return string(v.del.Type)
+	case ast.AlterAssociationSetOwner:
+		return v.owner
+	case ast.AlterAssociationSetStorage:
+		return v.storage
+	case ast.AlterAssociationSetComment:
+		return v.doc
+	case ast.AlterAssociationSetAnchor:
+		return v.anchors
+	}
+	return ""
+}
+
+func associationAnchors(a *domainmodel.Association) string {
+	return domainmodel.FormatConnectionPoint(a.ParentConnection, domainmodel.DefaultParentConnection) + " " +
+		domainmodel.FormatConnectionPoint(a.ChildConnection, domainmodel.DefaultChildConnection)
+}
+
+// verifyAssociationAltered reads the association back after an ALTER and refuses
+// to report success unless storage holds what the statement asked for.
+//
+// ako/mxcli#792: on a cross-module association the backend dropped every edit
+// and "Altered association" was printed anyway. The backend is fixed; this is the
+// backstop for the class — a statement that reports success must have written.
+func verifyAssociationAltered(ctx *ExecContext, moduleID model.ID, s *ast.AlterAssociationStmt, want string) error {
+	dm, err := ctx.Backend.GetDomainModel(moduleID)
+	if err != nil {
+		return mdlerrors.NewBackend("re-read domain model after alter association", err)
+	}
+	got, found := "", false
+	if dm != nil {
+		for _, a := range dm.Associations {
+			if a.Name == s.Name.Name {
+				got, found = alteredAssociationValue(s.Operation, assocAlterView{
+					del: a.ChildDeleteBehavior, owner: string(a.Owner), storage: string(a.StorageFormat),
+					doc: a.Documentation, anchors: associationAnchors(a),
+				}), true
+				break
+			}
+		}
+		if !found {
+			for _, ca := range dm.CrossAssociations {
+				if ca.Name == s.Name.Name {
+					got, found = alteredAssociationValue(s.Operation, assocAlterView{
+						del: ca.ChildDeleteBehavior, owner: string(ca.Owner), storage: string(ca.StorageFormat),
+						doc: ca.Documentation,
+					}), true
+					break
+				}
+			}
+		}
+	}
+	if !found {
+		return mdlerrors.NewValidationf("alter association %s: change not persisted — the association "+
+			"is no longer found in module %s after the write", s.Name.String(), s.Name.Module)
+	}
+	if got != want {
+		return mdlerrors.NewValidationf("alter association %s: change not persisted — storage holds %q "+
+			"where the statement set %q", s.Name.String(), got, want)
+	}
+	return nil
 }
 
 // execDropAssociation handles DROP ASSOCIATION statements.
