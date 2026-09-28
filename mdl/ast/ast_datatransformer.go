@@ -6,6 +6,7 @@ package ast
 //
 //	CREATE DATA TRANSFORMER Module.Name SOURCE JSON '...' { JSLT '...'; };
 type CreateDataTransformerStmt struct {
+	CreateGuard           // `create … if not exists` (ako/mxcli#731)
 	Folder         string // Folder path within module (empty = leave placement alone)
 	Name           QualifiedName
 	SourceType     string // "JSON" or "XML"

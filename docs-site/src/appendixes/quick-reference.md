@@ -212,7 +212,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Describe security matrix | `DESCRIBE SECURITY MATRIX [IN Module];` | Full access overview |
 | Create module role | `CREATE MODULE ROLE Mod.Role [DESCRIPTION 'text'];` | |
 | Drop module role | `DROP MODULE ROLE Mod.Role;` | |
-| Create user role | `CREATE USER ROLE Name (Mod.Role, ...) [MANAGE ALL ROLES];` | Aggregates module roles |
+| Create user role | `CREATE USER ROLE Name ( ModuleRoles: (Mod.Role, ...), Description: '...', ManageAllRoles: true, CheckSecurity: true );` | Aggregates module roles; every property optional |
 | Alter user role | `ALTER USER ROLE Name ADD\|DROP MODULE ROLES (Mod.Role, ...);` | |
 | Drop user role | `DROP USER ROLE [IF EXISTS] Name;` | `IF EXISTS` makes a cleanup script re-runnable |
 | Grant microflow access | `GRANT EXECUTE ON MICROFLOW Mod.MF TO Mod.Role, ...;` | |
@@ -235,6 +235,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Describe workflow | `DESCRIBE WORKFLOW Module.Name;` | Full MDL output |
 | Create workflow | `CREATE [OR MODIFY] WORKFLOW Module.Name PARAMETER $Ctx: Module.Entity BEGIN ... END WORKFLOW;` | See activity types below |
 | Drop workflow | `DROP WORKFLOW Module.Name;` | |
+| Alter workflow | `ALTER WORKFLOW Module.Name { SET (Key: value, ...) [ON <activity>]; INSERT BEFORE\|AFTER <activity> { ... } INSERT INTO <activity> { OUTCOMES ... \| PATH { ... } \| BOUNDARY EVENT ... } REPLACE <activity> WITH { ... } DROP <activity> [OUTCOME '<x>' \| PATH <n> \| BOUNDARY EVENT]; };` | An activity is its name or `'caption'`, `@n` for one of several matches; the old per-action form warns MDL-DEPR140–149 |
 
 **Workflow Activity Types:**
 - `USER TASK <name> '<caption>' [PAGE Mod.Page] [TARGETING MICROFLOW Mod.MF] [OUTCOMES '<out>' { } ...];`

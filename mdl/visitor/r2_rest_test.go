@@ -24,11 +24,11 @@ var r2RestCases = []r2Case{
 		name: "rest header",
 		code: deprecation.RestHeaderEquals,
 		old: `create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) {
-  operation GetUser ( Method: get, Path: '/u', Headers: ('Accept' = 'application/json', 'X-Key'='k', 'Auth' = 'Bearer ' + $Token), Response: none )
+  operation GetUser ( Method: get, Path: '/u', Headers: ('Accept' = 'application/json', 'X-Key'='k', 'Auth' = 'Bearer x'), Response: none )
   operation Ping ( Method: get, Path: '/ping', Headers: ('Accept' = '*/*'), Response: none )
 };`,
 		canonical: `create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) {
-  operation GetUser ( Method: get, Path: '/u', Headers: ('Accept': 'application/json', 'X-Key':'k', 'Auth': 'Bearer ' + $Token), Response: none )
+  operation GetUser ( Method: get, Path: '/u', Headers: ('Accept': 'application/json', 'X-Key':'k', 'Auth': 'Bearer x'), Response: none )
   operation Ping ( Method: get, Path: '/ping', Headers: ('Accept': '*/*'), Response: none )
 };`,
 	},

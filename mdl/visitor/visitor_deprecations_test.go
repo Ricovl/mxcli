@@ -91,7 +91,7 @@ var createOrReplaceCases = map[string]string{
 	"navigation":                  "navigation Responsive home page M.Home_Web;",
 	"businesseventservice":        "business event service M.CustomerEventsApi (ServiceName: 'CustomerEventsApi', EventNamePrefix: '') { message CustomerChangedEvent (CustomerId: Long) publish entity M.PBE_CustomerChangedEvent; };",
 	"workflow":                    "workflow M.LeaveApproval parameter $Context: M.LeaveRequest begin end workflow;",
-	"userrole":                    "user role Clerk (M.User);",
+	"userrole":                    "user role Clerk ( ModuleRoles: (M.User) );",
 	"demouser":                    "demo user 'demo' password 'Password1!' (Clerk);",
 	"imagecollection":             "image collection M.AppIcons;",
 	"annotation":                  "annotation in M (Caption: 'Orders', Position: (60, 40));",

@@ -89,7 +89,7 @@ func init() {
 			"-- where it does not, DESCRIBE flags the gap as a comment rather than\n" +
 			"-- producing output that looks complete.",
 		Example: "CREATE OR REPLACE MICROFLOW MyModule.ACT_Recalculate ()\nBEGIN\n  RETURN;\nEND;\n\nCREATE OR MODIFY PERSISTENT ENTITY MyModule.Customer (\n  Name: String(200)\n);",
-		SeeAlso: []string{"microflow", "domain-model.entity", "page", "document-folder"},
+		SeeAlso: []string{"microflow", "domain-model.entity", "page", "document-folder", "create-if-not-exists"},
 	})
 
 	// IF EXISTS sits on every document-level alternative of dropStatement, so it
@@ -126,6 +126,41 @@ func init() {
 			"DROP MICROFLOW IF EXISTS FieldService.ACT_Old;\n" +
 			"DROP FOLDER IF EXISTS 'Scratch' IN FieldService;",
 		SeeAlso: []string{"create-modifiers"},
+	})
+
+	// IF NOT EXISTS sits in every create rule that names one element, and is
+	// applied once in the visitor and once in the executor's dispatch, so it is
+	// documented once here too (ako/mxcli#731, ADR-0010 R1).
+	Register(SyntaxFeature{
+		Path:    "create-if-not-exists",
+		Summary: "CREATE … IF NOT EXISTS — create an element only when it is absent",
+		Keywords: []string{
+			"if not exists", "create if not exists", "re-run", "rerun",
+			"idempotent", "already exists", "leave alone", "skip",
+		},
+		Syntax: "CREATE <document type> IF NOT EXISTS Module.Name …;\n" +
+			"CREATE MODULE IF NOT EXISTS ModuleName;\n" +
+			"CREATE USER ROLE IF NOT EXISTS Name (…);\n" +
+			"CREATE DEMO USER IF NOT EXISTS 'name' PASSWORD '…' (…);\n" +
+			"CREATE CONFIGURATION IF NOT EXISTS 'Name' (…);\n\n" +
+			"-- IF NOT EXISTS goes after the kind's keywords, before the name. When the\n" +
+			"-- element already exists the statement is SKIPPED (and says so) and the\n" +
+			"-- stored element is left exactly as it is; otherwise it creates, like a\n" +
+			"-- plain CREATE.\n" +
+			"--\n" +
+			"-- It is not CREATE OR MODIFY, which makes the stored element match the\n" +
+			"-- statement. Writing both is refused as MDL067. DESCRIBE never emits it.\n" +
+			"--\n" +
+			"-- Every CREATE that names one element accepts it. Not accepted where\n" +
+			"-- there is no one named element to test: ANNOTATION, INDEX (use ALTER\n" +
+			"-- ENTITY … ADD INDEX IF NOT EXISTS), VALIDATION RULE, NAVIGATION,\n" +
+			"-- TRANSLATIONS and EXTERNAL ENTITIES.",
+		Example: "-- seed a module once; later runs leave hand edits alone\n" +
+			"CREATE MODULE IF NOT EXISTS Shop;\n" +
+			"CREATE ENUMERATION IF NOT EXISTS Shop.Status (Open 'Open', Closed 'Closed');\n" +
+			"CREATE CONSTANT IF NOT EXISTS Shop.ApiUrl TYPE String DEFAULT 'https://api.example.com';\n" +
+			"CREATE MICROFLOW IF NOT EXISTS Shop.ACT_Init ()\nBEGIN\n  RETURN;\nEND;",
+		SeeAlso: []string{"create-modifiers", "drop-if-exists"},
 	})
 
 	// The folder clause is the other cross-cutting CREATE modifier, and gets one

@@ -1035,6 +1035,10 @@ func (unimplemented) SetProjectStrictMode(_ model.ID, _ bool) error {
 	return errUnimplemented("SetProjectStrictMode")
 }
 
+func (unimplemented) SetUserRoleProperties(_ model.ID, _ string, _ backend.UserRoleProperties) error {
+	return errUnimplemented("SetUserRoleProperties")
+}
+
 func (unimplemented) UpdateAgentEditorAgent(_ *agenteditor.Agent) error {
 	return errUnimplemented("UpdateAgentEditorAgent")
 }

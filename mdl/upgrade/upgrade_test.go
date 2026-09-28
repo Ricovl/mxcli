@@ -75,7 +75,7 @@ func TestUpgrade_LeavesNonAliasesAlone(t *testing.T) {
 	for _, src := range []string{
 		"create or replace view entity M.V (Name: String(100)) as (select c.Name as Name from M.Customer as c);",
 		"create or replace translations in Administration for nl_NL ('Save' as 'Opslaan');",
-		"create or replace user role Clerk (M.User);",
+		"create or replace user role Clerk ( ModuleRoles: (M.User) );",
 		"show version;",
 	} {
 		res := mustUpgrade(t, src, Options{})

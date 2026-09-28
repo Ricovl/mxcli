@@ -277,9 +277,11 @@ func validateAlterWorkflowRefs(ctx *ExecContext, s *ast.AlterWorkflowStmt, sc *s
 				}
 				nested = append(nested, o.Activities...)
 			case *ast.InsertAfterOp:
-				nested = append(nested, o.NewActivity)
+				nested = append(nested, o.NewActivities...)
+			case *ast.InsertBeforeOp:
+				nested = append(nested, o.NewActivities...)
 			case *ast.ReplaceActivityOp:
-				nested = append(nested, o.NewActivity)
+				nested = append(nested, o.NewActivities...)
 			case *ast.InsertOutcomeOp:
 				nested = append(nested, o.Activities...)
 			case *ast.InsertPathOp:
@@ -297,9 +299,11 @@ func validateAlterWorkflowRefs(ctx *ExecContext, s *ast.AlterWorkflowStmt, sc *s
 	for _, op := range s.Operations {
 		switch o := op.(type) {
 		case *ast.InsertAfterOp:
-			added = append(added, o.NewActivity)
+			added = append(added, o.NewActivities...)
+		case *ast.InsertBeforeOp:
+			added = append(added, o.NewActivities...)
 		case *ast.ReplaceActivityOp:
-			added = append(added, o.NewActivity)
+			added = append(added, o.NewActivities...)
 		case *ast.InsertOutcomeOp:
 			added = append(added, o.Activities...)
 		case *ast.InsertPathOp:

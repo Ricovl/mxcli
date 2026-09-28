@@ -16,6 +16,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/mdl/backend/wfnames"
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
@@ -228,6 +229,49 @@ func (m *Mutator) InsertAfterActivity(activityRef string, atPos int, activities 
 
 	bsonnav.DSetArray(containingFlow, "Activities", newArr)
 	return nil
+}
+
+// InsertBeforeActivity inserts activities just before the referenced one, in
+// the same flow: the generic ALTER's `insert before X { … }`.
+func (m *Mutator) InsertBeforeActivity(activityRef string, atPos int, activities []workflows.WorkflowActivity) error {
+	idx, acts, containingFlow, err := m.findActivityIndex(activityRef, atPos)
+	if err != nil {
+		return err
+	}
+
+	newBsonActs := m.serializeAndDedup(activities, "")
+
+	newArr := make([]any, 0, len(acts)+len(newBsonActs))
+	newArr = append(newArr, acts[:idx]...)
+	newArr = append(newArr, newBsonActs...)
+	newArr = append(newArr, acts[idx:]...)
+
+	bsonnav.DSetArray(containingFlow, "Activities", newArr)
+	return nil
+}
+
+// ResolveAlterTarget is the workflow's backend.AlterTargetResolver: the
+// activities whose name or caption the target names, in describe order, under
+// the rule backend.ResolveWorkflowActivityTarget shares with every backend.
+func (m *Mutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTargetMatch, error) {
+	if err := backend.CheckWorkflowAlterTarget(t); err != nil {
+		return backend.AlterTargetMatch{}, err
+	}
+	flow := bsonnav.DGetDoc(m.rawData, "Flow")
+	if flow == nil {
+		return backend.AlterTargetMatch{}, fmt.Errorf("workflow has no Flow")
+	}
+	var found []bson.D
+	findActivitiesRecursive(flow, backend.WorkflowTargetText(t), &found)
+	candidates := make([]backend.WorkflowActivityCandidate, 0, len(found))
+	for _, d := range found {
+		candidates = append(candidates, backend.WorkflowActivityCandidate{
+			Name:        bsonnav.DGetString(d, "Name"),
+			Caption:     bsonnav.DGetString(d, "Caption"),
+			StorageType: bsonnav.DGetString(d, "$Type"),
+		})
+	}
+	return backend.ResolveWorkflowActivityTarget(t, candidates)
 }
 
 func (m *Mutator) DropActivity(activityRef string, atPos int) error {

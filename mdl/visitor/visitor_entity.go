@@ -20,9 +20,8 @@ func (b *Builder) ExitCreateEntityStatement(ctx *parser.CreateEntityStatementCon
 	}
 
 	stmt := &ast.CreateEntityStmt{
-		Name:        buildQualifiedName(ctx.QualifiedName()),
-		Kind:        ast.EntityPersistent, // Default
-		IfNotExists: ctx.IfNotExists() != nil,
+		Name: buildQualifiedName(ctx.QualifiedName()),
+		Kind: ast.EntityPersistent, // Default
 	}
 
 	// Entity type

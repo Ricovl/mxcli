@@ -114,7 +114,7 @@ Modifies an existing entity without full replacement.
 | Rename attribute | `alter entity Module.Name rename attribute OldName to NewName;` | Also rewrites stored references (microflow members, page widgets, validation/access rules) and XPath constraints. Microflow expressions are free text and are **not** rewritten |
 | Add index | `alter entity Module.Name add index [if not exists] [name] [on] (Col1 [asc\|desc], ...);` | `on` is optional (SQL-like). **Without `if not exists`, re-running is an error** — a second identical index fails the build with CE0072 |
 | Document an association | `/** What it links. */`<br>`create association Mod.C_P from Mod.C to Mod.P;` | Documentation is a doc comment, as on every document. `... comment 'What it links.'` still parses as a deprecated alias (`MDL-DEPR100`, also on constants, JSON structures and image collections); the doc comment wins when both are present |
-| Create if absent | `create entity if not exists Module.Name (...);`<br>`create association if not exists Module.Assoc from ... to ...;` | Skips when it already exists, leaving the stored definition untouched. Unlike `create or modify`, which rebuilds the element from the statement and drops any attribute the statement omits — `mxcli check … -p app.mpr --references` warns about that as **MDL087**, naming the members the script removes without restating them |
+| Create if absent | `create entity if not exists Module.Name (...);`<br>`create association if not exists Module.Assoc from ... to ...;` | Every `create` that names one element takes the same guard, after the kind's keywords (`create page if not exists M.P …`, `create module if not exists M;`) — see `mxcli syntax create-if-not-exists`. Skips when it already exists, leaving the stored definition untouched. Unlike `create or modify`, which rebuilds the element from the statement and drops any attribute the statement omits — `mxcli check … -p app.mpr --references` warns about that as **MDL087**, naming the members the script removes without restating them |
 | Add index (SQL form) | `create index IdxName on Module.Name (Col1 [asc\|desc], ...);` | Same effect as `alter entity … add index`. The index name is accepted and not stored — a Mendix index is identified by its columns — so `check` warns (MDL-IDX01); prefer `alter entity … add index (…)` |
 | Drop index | `alter entity Module.Name drop index [if exists] (Col1 [asc\|desc], ...);` | Selected by its columns — a Mendix index stores no name, so the columns are its identity, and they are what `describe entity` prints. The legacy positional form `drop index idx1` still works but shifts when an earlier index is dropped |
 | Add event handler | `alter entity Module.Name add event handler on before commit call Mod.MF($currentObject) [raise error];` | `($currentObject)` or `()`, RAISE ERROR only on BEFORE |
@@ -126,9 +126,10 @@ Modifies an existing entity without full replacement.
 | Add attribute to every entity | `alter entities [in Module] add attribute [if not exists] attr: type [, ...] [where persistent\|non-persistent];` | The bulk form — one statement instead of one per entity. **ADD ATTRIBUTE only**: drop/rename aimed at a set are destructive by a typo. A **view** entity matches neither persistence filter. **Without `in`**, the sweep skips System and every Marketplace module (and says which) — an upgrade replaces those and would take the attribute with it |
 
 > **Re-running domain scripts.** `IF NOT EXISTS` / `IF EXISTS` make an individual
-> create/add/drop a no-op when already applied — accepted on `create entity`,
-> `create association`, `add attribute`, `add index`, `add event handler` and
-> their drops. A script built from guarded statements re-runs to a byte-identical
+> create/add/drop a no-op when already applied — accepted on every `create` that
+> names one element (entity, association, microflow, page, enumeration, module,
+> role, …), on `add attribute`, `add index`, `add event handler`, and on their
+> drops. A script built from guarded statements re-runs to a byte-identical
 > project.
 >
 > Prefer them to `CREATE OR MODIFY`, which is not the same thing: `or modify`
@@ -582,6 +583,7 @@ it is for pages.
 | Unknown annotation | — | **MDL059**. An annotation that parses and does nothing loses whatever it was meant to express, so a name the target does not read is refused — on a statement *and* before a `create`. Covers a typo (`@applyentityacces`), an annotation on a document kind that reads none (`@excluded` on a queue), and an activity annotation written at document level. The message names what that document does accept |
 | Parameter position | `@position(x, y)` before a parameter, **inside** the `( … )` list | The only annotation a parameter takes. Omit it and parameters form a row at 200;53, 300;53, …; a parameter off that row is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#993) |
 | Start event | `@start(x, y)` | Canvas position of the start, on the **first** statement. Omit it and the start is placed one spacing unit left of the first activity and MOVES with it on a rewrite; a start that is not at that derived spot is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#951) |
+| Flow anchors | `@anchor(from: bottom, to: top)`; on an `if` also `true: (from: …, to: …)`, `false: (…)` | The side each end of a flow attaches to: `to` = the flow arriving, `from` = the flow leaving. On an `if`, `from` is the flow out of its closing **merge**, which has no statement of its own (#767) |
 | Caption | `@caption 'text'` | Custom caption (before activity). A decision with no `@caption` is captioned with its condition, so `describe` prints none for one whose caption is its condition |
 | Color | `@color Green` | Background color (before activity) |
 | Annotation | `@annotation 'text'` | Visual note attached to next activity. **Repeatable** — an activity can carry several, and each is its own note |
@@ -670,7 +672,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Describe security matrix | `describe security matrix [in module];` | Full access overview |
 | Create module role | `create [or modify] module role Mod.Role [description 'text'];` | `or modify` updates an existing role instead of failing, so a security script can be re-run |
 | Drop module role | `drop module role Mod.Role;` | |
-| Create user role | `create user role Name (Mod.Role, ...) [manage all roles];` | Aggregates module roles |
+| Create user role | `create user role Name ( ModuleRoles: (Mod.Role, ...), Description: '...', ManageAllRoles: true, CheckSecurity: true );` | Aggregates module roles; every property optional, `create user role Name;` has none |
 | Alter user role | `alter user role Name add\|drop module roles (Mod.Role, ...);` | |
 | Drop user role | `drop user role [if exists] Name;` | `if exists` makes a cleanup script re-runnable |
 | Grant microflow access | `grant execute on microflow Mod.MF to Mod.Role, ...;` | |
@@ -813,70 +815,53 @@ end workflow;
 
 ## ALTER WORKFLOW
 
-Modify an existing workflow's properties, activities, outcomes, paths, conditions, and boundary events without full replacement.
+Modify an existing workflow's properties, activities, outcomes, paths, conditions, and boundary events without full replacement. It is the generic alter (the same shape as `alter page`): operations in `{ }`, properties in `set ( Key: value )`, fragments written exactly as in `create workflow`.
 
 | Operation | Syntax | Notes |
 |-----------|--------|-------|
-| Set display name | `set display 'name'` | Workflow-level display name |
-| Set description | `set description 'text'` | Workflow-level description |
-| Set export level | `set export level api\|Hidden` | Visibility level |
-| Set due date | `set due date <expr>` | Workflow-level due date expression |
-| Set overview page | `set overview page Module.Page` | Workflow overview page |
-| Set parameter | `set parameter $Var: Module.Entity` | Workflow context parameter |
-| Set activity page | `set activity name page Module.Page` | Change user task page |
-| Set activity description | `set activity name description 'text'` | Activity description |
-| Set activity targeting | `set activity name targeting [users\|groups] microflow Module.MF` | Target user/group assignment |
-| Set activity XPath | `set activity name targeting xpath [<xpath>]` | XPath targeting, in brackets; the quoted `xpath '[…]'` warns MDL-DEPR031 |
-| Set activity due date | `set activity name due date <expr>` | Activity-level due date |
-| Insert activity | `insert after name call microflow Module.MF` | Insert after named activity |
-| Drop activity | `drop activity name` | Remove activity by name |
-| Replace activity | `replace activity name with activity` | Replace activity in-place |
-| Insert outcome | `insert outcome 'name' on activity { body }` | Add outcome to user task/decision |
-| Drop outcome | `drop outcome 'name' on activity` | Remove outcome |
-| Insert path | `insert path on activity { body }` | Add path to parallel split |
-| Drop path | `drop path 'name' on activity` | Remove parallel split path |
-| Insert condition | `insert condition 'name' on activity { body }` | Add decision branch |
-| Drop condition | `drop condition 'name' on activity` | Remove decision branch |
-| Insert boundary event | `insert boundary event on activity interrupting timer [<expr>] { body }` | Add boundary timer |
-| Drop boundary event | `drop boundary event on activity` | Remove boundary event |
+| Set workflow properties | `set (Display: 'name', Description: 'text', ExportLevel: API, DueDate: <expr>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity);` | Any subset of the keys |
+| Set activity properties | `set (Page: Module.Page, Description: 'text', DueDate: <expr>) on activity;` | User task page, description, due date |
+| Set activity targeting | `set (Targeting: microflow Module.MF) on activity;` / `set (Targeting: xpath [<xpath>]) on activity;` | XPath in brackets; the quoted `xpath '[…]'` warns MDL-DEPR031 |
+| Insert activities | `insert after activity { … }` / `insert before activity { … }` | One or more activities, as in `create workflow` |
+| Replace activity | `replace activity with { … }` | Replace in place |
+| Drop activity | `drop activity;` | Several targets separated by commas |
+| Insert user-task outcome | `insert into activity { outcomes 'name' { body } }` | User task only |
+| Insert decision outcome | `insert into activity { outcomes 'Module.Enum.Value' -> { body } }` (or `true`, `false`, `default`) | Decision or call microflow |
+| Insert path | `insert into activity { path { body } }` | Parallel split; `path n` must be the next number |
+| Insert boundary event | `insert into activity { boundary event interrupting timer <expr> { body } }` | Boundary timer |
+| Drop outcome | `drop activity outcome 'name';` / `drop activity outcome true;` | `true`, `false`, `default` for a decision's Boolean or default outcome |
+| Drop path | `drop activity path 2;` | Parallel split path by number |
+| Drop boundary event | `drop activity boundary event;` | Removes the activity's first boundary event |
 
-**Activity references** can be identifiers (`ReviewOrder`) or string literals (`'Review the order'`). Use `@N` suffix for positional disambiguation when multiple activities share a name (e.g., `ACT_Process@2`).
+**Activity references** are names (`ReviewOrder`) or captions in quotes (`'Review the order'`). Add `@n` to choose one of several matches (`ACT_Process@2`); without it a name wins over a caption that repeats it, and an ambiguous reference is refused with the matches listed. Every target is resolved before anything changes.
 
-**Multiple actions** can be combined in a single ALTER statement.
+The old one-action-per-clause form (`alter workflow M.W set display 'x' insert outcome 'N' on X { };`) still parses and warns MDL-DEPR140–149; `mxcli fmt --upgrade` rewrites it.
 
 **Example:**
 ```sql
--- Set workflow-level properties
-alter workflow Module.OrderApproval
-  set display 'Updated Order Approval'
-  set description 'Updated description';
+alter workflow Module.OrderApproval {
+  -- workflow-level properties
+  set (Display: 'Updated Order Approval', Description: 'Updated description');
 
--- Modify an activity
-alter workflow Module.OrderApproval
-  set activity ReviewOrder page Module.AlternatePage;
+  -- an activity's properties
+  set (Page: Module.AlternatePage) on ReviewOrder;
 
--- Insert and drop activities
-alter workflow Module.OrderApproval
-  insert after ReviewOrder call microflow Module.ACT_Escalate;
-alter workflow Module.OrderApproval
-  drop activity ACT_Notify@1;
+  -- insert and drop activities
+  insert after ReviewOrder { call microflow Module.ACT_Escalate; }
+  drop ACT_Notify@1;
 
--- Manage outcomes on a user task
-alter workflow Module.OrderApproval
-  insert outcome 'Escalate' on ReviewOrder {
-    call microflow Module.ACT_Review;
-  };
-alter workflow Module.OrderApproval
-  drop outcome 'Hold' on ReviewOrder;
+  -- outcomes on a user task
+  insert into ReviewOrder { outcomes 'Escalate' { call microflow Module.ACT_Review; } }
+  drop ReviewOrder outcome 'Hold';
 
--- Boundary events
-alter workflow Module.OrderApproval
-  insert boundary event on ReviewOrder interrupting timer addHours([%CurrentDateTime%], 2) {
-    call microflow Module.ACT_BoundaryHandler;
-    jump to ReviewOrder;
-  };
-alter workflow Module.OrderApproval
-  drop boundary event on ReviewOrder;
+  -- boundary events
+  insert into ReviewOrder {
+    boundary event interrupting timer addHours([%CurrentDateTime%], 2) {
+      call microflow Module.ACT_BoundaryHandler;
+      jump to ReviewOrder;
+    }
+  }
+};
 ```
 
 **Tip:** Run `describe workflow Module.Name` first to see activity names.

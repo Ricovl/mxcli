@@ -87,8 +87,10 @@ fourth — so "run it and see" is not a free experiment. `check` reports every
 conflict in the script before anything is written.
 
 Three spellings say "fine if it already exists", and none is reported:
-`create or modify`, `create or replace`, and `create … if not exists` (which
-leaves the stored element untouched rather than rewriting it). `create module M;`
+`create or modify`, `create or replace`, and `create <kind> if not exists <name>`
+(which leaves the stored element untouched rather than rewriting it; every
+`create` that names one element takes it, e.g. `create page if not exists M.P …`
+— `mxcli syntax create-if-not-exists`). `create module M;`
 is never reported either — it is a no-op when the module exists, which is what
 lets it open every script.
 

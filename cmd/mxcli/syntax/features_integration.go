@@ -671,7 +671,7 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"image collection", "create image collection", "drop image collection",
 			"export level", "image", "icon", "logo",
 		},
-		Syntax:  "SHOW IMAGE COLLECTION [IN Module];\nDESCRIBE IMAGE COLLECTION Module.Name;\n[/** documentation */]\nCREATE IMAGE COLLECTION Module.Name [FOLDER 'path']\n  [EXPORT LEVEL 'Hidden'|'Public']\n  [{ IMAGE name ( File: 'path' ) ... }];\nCREATE OR MODIFY IMAGE COLLECTION Module.Name [...];\nDROP IMAGE COLLECTION Module.Name;\n\n-- The images are the collection's children, so they are in { }, each with\n-- its properties in ( ). `( IMAGE name FROM FILE 'path', ... )` is the\n-- deprecated spelling (MDL-DEPR072).",
+		Syntax:  "SHOW IMAGE COLLECTION [IN Module];\nDESCRIBE IMAGE COLLECTION Module.Name;\n[/** documentation */]\nCREATE IMAGE COLLECTION Module.Name [FOLDER 'path']\n  [EXPORT LEVEL 'Hidden'|'Public']\n  [{ IMAGE name ( File: 'path' ) | IMAGE name ( Data: 'base64' [, Format: png] ) ... }];\nCREATE OR MODIFY IMAGE COLLECTION Module.Name [...];\nDROP IMAGE COLLECTION Module.Name;\n\n-- The images are the collection's children, so they are in { }, each with\n-- its properties in ( ). `( IMAGE name FROM FILE 'path', ... )` is the\n-- deprecated spelling (MDL-DEPR072). DESCRIBE writes each image as\n-- Data: '<base64>', so its output needs no files.",
 		Example: "/** Application icons */\nCREATE OR MODIFY IMAGE COLLECTION MyModule.AppIcons\n  EXPORT LEVEL 'Public' {\n  IMAGE logo ( File: 'assets/logo.png' )\n  IMAGE \"favicon\" ( File: 'assets/favicon.ico' )\n};\n\nDESCRIBE IMAGE COLLECTION MyModule.AppIcons;",
 		SeeAlso: []string{"integration", "icon-collection"},
 	})

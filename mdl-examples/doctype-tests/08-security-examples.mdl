@@ -451,7 +451,7 @@ show access on SecTest.Customer;
 /**
  * Create a user role and assign a single module role.
  */
-create or modify user role RegularUser (System.User, SecTest.User);
+create or modify user role RegularUser ( ModuleRoles: (System.User, SecTest.User) );
 /
 
 -- ============================================================================
@@ -461,7 +461,7 @@ create or modify user role RegularUser (System.User, SecTest.User);
 /**
  * A user role can include roles from multiple modules.
  */
-create or modify user role PowerUser (System.User, SecTest.User, SecTest.Administrator);
+create or modify user role PowerUser ( ModuleRoles: (System.User, SecTest.User, SecTest.Administrator) );
 /
 
 -- ============================================================================
@@ -471,7 +471,7 @@ create or modify user role PowerUser (System.User, SecTest.User, SecTest.Adminis
 /**
  * Admin user role that can manage all roles.
  */
-create or modify user role SuperAdmin (System.Administrator, SecTest.Administrator) manage all roles;
+create or modify user role SuperAdmin ( ModuleRoles: (System.Administrator, SecTest.Administrator), ManageAllRoles: true );
 /
 
 -- Verify

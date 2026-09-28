@@ -548,10 +548,10 @@ grant view on page AICustSupport.Admin_AuditLog
 -- Demo users stand in for SSO identities during development.
 -- ############################################################################
 
-create or modify user role EndCustomer       (System.User, AICustSupport.Customer);
-create or modify user role SupportAgent      (System.User, AICustSupport.Agent);
-create or modify user role SupportSupervisor (System.User, AICustSupport.Agent, AICustSupport.Supervisor);
-create or modify user role PlatformAdmin     (System.Administrator, AICustSupport.Admin) manage all roles;
+create or modify user role EndCustomer       ( ModuleRoles: (System.User, AICustSupport.Customer) );
+create or modify user role SupportAgent      ( ModuleRoles: (System.User, AICustSupport.Agent) );
+create or modify user role SupportSupervisor ( ModuleRoles: (System.User, AICustSupport.Agent, AICustSupport.Supervisor) );
+create or modify user role PlatformAdmin     ( ModuleRoles: (System.Administrator, AICustSupport.Admin), ManageAllRoles: true );
 
 -- Enable demo users (disable in production — use SSO)
 alter project security demo users on;

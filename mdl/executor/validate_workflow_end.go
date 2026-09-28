@@ -166,9 +166,11 @@ func ValidateAlterWorkflowEnds(stmt *ast.AlterWorkflowStmt) []linter.Violation {
 	for _, op := range stmt.Operations {
 		switch o := op.(type) {
 		case *ast.InsertAfterOp:
-			collectEndBodies(endBody{activities: []ast.WorkflowActivityNode{o.NewActivity}}, &bodies)
+			collectEndBodies(endBody{activities: o.NewActivities}, &bodies)
+		case *ast.InsertBeforeOp:
+			collectEndBodies(endBody{activities: o.NewActivities}, &bodies)
 		case *ast.ReplaceActivityOp:
-			collectEndBodies(endBody{activities: []ast.WorkflowActivityNode{o.NewActivity}}, &bodies)
+			collectEndBodies(endBody{activities: o.NewActivities}, &bodies)
 		case *ast.InsertOutcomeOp:
 			collectEndBodies(endBody{activities: o.Activities}, &bodies)
 		case *ast.InsertBranchOp:
@@ -282,9 +284,11 @@ func validateAlterWorkflowEndAncestry(ctx *ExecContext, s *ast.AlterWorkflowStmt
 	for _, op := range s.Operations {
 		switch o := op.(type) {
 		case *ast.InsertAfterOp:
-			check("insert after", o.ActivityRef, o.AtPosition, []ast.WorkflowActivityNode{o.NewActivity})
+			check("insert after", o.ActivityRef, o.AtPosition, o.NewActivities)
+		case *ast.InsertBeforeOp:
+			check("insert before", o.ActivityRef, o.AtPosition, o.NewActivities)
 		case *ast.ReplaceActivityOp:
-			check("replace activity", o.ActivityRef, o.AtPosition, []ast.WorkflowActivityNode{o.NewActivity})
+			check("replace activity", o.ActivityRef, o.AtPosition, o.NewActivities)
 		case *ast.InsertOutcomeOp:
 			check("insert outcome", o.ActivityRef, o.AtPosition, o.Activities)
 		case *ast.InsertBranchOp:
@@ -400,9 +404,11 @@ func alterWorkflowAddedActivities(s *ast.AlterWorkflowStmt) []ast.WorkflowActivi
 	for _, op := range s.Operations {
 		switch o := op.(type) {
 		case *ast.InsertAfterOp:
-			added = append(added, o.NewActivity)
+			added = append(added, o.NewActivities...)
+		case *ast.InsertBeforeOp:
+			added = append(added, o.NewActivities...)
 		case *ast.ReplaceActivityOp:
-			added = append(added, o.NewActivity)
+			added = append(added, o.NewActivities...)
 		case *ast.InsertOutcomeOp:
 			added = append(added, o.Activities...)
 		case *ast.InsertPathOp:

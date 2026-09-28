@@ -16,7 +16,7 @@ options { tokenVocab = MDLLexer; }
 // R9: the folder is a clause after the name, as on every document; the
 // `Folder:` header property is a registered alias.
 createPageStatement
-    : PAGE qualifiedName
+    : PAGE ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       pageHeaderV3
       LBRACE pageBodyV3 RBRACE
@@ -31,7 +31,7 @@ createPageStatement
 // wrapper, not on the layout element — and which placeholder a page's content
 // goes into.
 createLayoutStatement
-    : LAYOUT qualifiedName
+    : LAYOUT ifNotExists? qualifiedName
       widgetPropertiesV3?
       LBRACE pageBodyV3 RBRACE
     ;
@@ -41,7 +41,7 @@ createLayoutStatement
 // =============================================================================
 
 createSnippetStatement
-    : SNIPPET qualifiedName
+    : SNIPPET ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       snippetHeaderV3?
       snippetOptions?

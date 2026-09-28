@@ -78,7 +78,7 @@ func TestKnownODataProps_CoverEveryASTField(t *testing.T) {
 			"external entity", reflect.TypeOf(ast.CreateExternalEntityStmt{}), knownExternalEntityProps,
 			map[string]bool{
 				"Name": true, "ServiceRef": true, "Attributes": true, "Documentation": true,
-				"CreateOrModify": true, "UnknownProperties": true,
+				"CreateOrModify": true, "UnknownProperties": true, "CreateGuard": true,
 			},
 		},
 	}
