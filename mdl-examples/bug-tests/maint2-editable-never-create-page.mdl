@@ -28,7 +28,7 @@ create entity if not exists MaintTwo.WorkOrder (
 create or replace page MaintTwo.WorkOrder_View (
   Title: 'Work order',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $WorkOrder: MaintTwo.WorkOrder }
+  Params: ( $WorkOrder: MaintTwo.WorkOrder )
 ) {
   layoutgrid lg {
     row r1 {

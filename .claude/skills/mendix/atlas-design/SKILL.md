@@ -151,9 +151,9 @@ mxcli -p app.mpr -c "describe building block Atlas_Web_Content.Card"
 ```
 ```
 {
-  container container2 (DesignProperties: ['Card style': on]) {
+  container container2 (DesignProperties: ('Card style': on)) {
     dynamictext text22 (Content: 'Card title', RenderMode: H4, Class: 'card-title',
-      DesignProperties: ['Spacing': ['margin-bottom': 'L']])
+      DesignProperties: ('Spacing': ('margin-bottom': 'L')))
   }
 }
 ```

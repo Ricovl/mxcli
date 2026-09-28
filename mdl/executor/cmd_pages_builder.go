@@ -90,7 +90,7 @@ type pageBuilder struct {
 	// reference as a last line, ALTER included (canon.BareAttributeRefError).
 	tolerateDanglingRefs bool
 
-	// Local page/snippet variables (Variables: { $name: Type = 'default' }).
+	// Local page/snippet variables (Variables: ( $name: Type = 'default' )).
 	// Used to distinguish a $localVar reference from a page parameter when
 	// resolving TextTemplate parameters — local variables must be stored as
 	// Forms$PageVariable.LocalVariable in BSON, not as a literal Expression.
@@ -150,13 +150,11 @@ func (pb *pageBuilder) registerWidgetName(name string, id model.ID) error {
 
 // getModules returns cached modules or loads them.
 func (pb *pageBuilder) getModules() []*model.Module {
-	if pb.execCache != nil && pb.execCache.modules != nil {
-		return pb.execCache.modules
+	if pb.execCache == nil {
+		modules, _ := pb.backend.ListModules()
+		return modules
 	}
-	modules, _ := pb.backend.ListModules()
-	if pb.execCache != nil {
-		pb.execCache.modules = modules
-	}
+	modules, _ := pb.execCache.cachedModules(pb.backend.ListModules)
 	return modules
 }
 

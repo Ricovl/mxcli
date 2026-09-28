@@ -89,6 +89,12 @@ func (r *Registry) Dispatch(ctx *ExecContext, stmt ast.Statement) error {
 	if h == nil {
 		return mdlerrors.NewUnsupported(fmt.Sprintf("unhandled statement type %T", stmt))
 	}
+	// CREATE … IF NOT EXISTS: an element that is already there is left
+	// untouched, and the handler — which would refuse or rewrite it — never
+	// runs (ako/mxcli#731).
+	if skipped, err := skipExistingCreate(ctx, stmt); skipped || err != nil {
+		return err
+	}
 	err := h(ctx, stmt)
 	// DROP … IF EXISTS: a missing target is a skip, not a failure (#531). The
 	// guard lives here rather than in the ~35 drop handlers because every one

@@ -51,7 +51,7 @@ ALTER NANOFLOW M.N {
   operation GetUser (
     Method: get,
     Path: '/u/{id}',
-    Headers: ('Accept' = 'application/json'),
+    Headers: ('Accept': 'application/json'),
     Response: mapping M.User { Name = name }
   )
   operation Ping ( Method: get, Path: '/ping', Response: none )

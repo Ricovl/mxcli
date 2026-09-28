@@ -104,6 +104,7 @@ type DatabaseQueryParamDef struct {
 
 // CreateDatabaseConnectionStmt represents: CREATE DATABASE CONNECTION Module.Name ...
 type CreateDatabaseConnectionStmt struct {
+	CreateGuard                  // `create … if not exists` (ako/mxcli#731)
 	Folder                string // Folder path within module (empty = leave placement alone)
 	Name                  QualifiedName
 	DatabaseType          string // "PostgreSQL", "MSSQL", "Oracle"

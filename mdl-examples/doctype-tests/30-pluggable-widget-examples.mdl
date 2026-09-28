@@ -200,7 +200,7 @@ create page PW.P_PW04_ChildSlot (
 -- ============================================================================
 
 create page PW.P_PW05_Attribute (
-  params: { $Item: PW.Item },
+  params: ( $Item: PW.Item ),
   title: 'PW05 Attribute',
   layout: Atlas_Core.PopupLayout
 ) {
@@ -249,7 +249,7 @@ create page PW.P_PW06_GalleryFilter (
             pluggablewidget 'com.mendix.widget.web.dropdownsort.DropdownSort' ddSort1
           }
           template tpl1 {
-            dynamictext tTitle (content: '{1}', contentparams: [{1} = title], rendermode: H4)
+            dynamictext tTitle (content: '{1}', contentparams: ({1} = title), rendermode: H4)
           }
         }
       }
@@ -304,10 +304,10 @@ create page PW.P_PW08_MultiSlot (
           customVisualization: true
         ) {
           container customTitle {
-            dynamictext tlTitle (content: '{1}', rendermode: H4, contentparams: [{1} = title])
+            dynamictext tlTitle (content: '{1}', rendermode: H4, contentparams: ({1} = title))
           }
           container customDescription {
-            dynamictext tlDesc (content: '{1}', contentparams: [{1} = description])
+            dynamictext tlDesc (content: '{1}', contentparams: ({1} = description))
           }
         }
       }
@@ -322,7 +322,7 @@ create page PW.P_PW08_MultiSlot (
 -- ============================================================================
 
 create page PW.P_PW09_Nested (
-  params: { $Item: PW.Item },
+  params: ( $Item: PW.Item ),
   title: 'PW09 Nested',
   layout: Atlas_Core.Atlas_Default
 ) {

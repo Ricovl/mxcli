@@ -36,7 +36,7 @@ create association NamedDS.Order_Customer
 create or replace page NamedDS.Order_Edit (
   Title: 'Named datasource mapping',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Order: NamedDS.Order }
+  Params: ( $Order: NamedDS.Order )
 ) {
   dataview orderView (DataSource: $Order) {
     combobox customer (

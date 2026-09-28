@@ -428,8 +428,9 @@ func validateAlterReplaceKeepsStudioProState(ctx *ExecContext, s *ast.AlterWorkf
 		var reasons []string
 		walkRawDocs(raw, func(d map[string]any) {
 			if n, _ := d["Name"].(string); n != "" && n == act.GetName() {
-				reasons = append(reasons, rawReplaceLosses(d, o.NewActivity)...)
-				if mf := rawOnCreatedMicroflow(d); mf != "" && !restatesOnCreated(o.NewActivity) {
+				repl := replacementFor(o.NewActivities, n)
+				reasons = append(reasons, rawReplaceLosses(d, repl)...)
+				if mf := rawOnCreatedMicroflow(d); mf != "" && !restatesOnCreated(repl) {
 					reasons = append(reasons, fmt.Sprintf(
 						"it runs on-created microflow %s, which the replacement does not restate (add `on created microflow %s`)", mf, mf))
 				}
@@ -438,7 +439,7 @@ func validateAlterReplaceKeepsStudioProState(ctx *ExecContext, s *ast.AlterWorkf
 		if len(reasons) > 0 {
 			errs = append(errs, fmt.Sprintf(
 				"replace activity '%s' is refused: the activity is rebuilt from the statement, and the statement does not carry what it "+
-					"holds — %s. Change it with SET ACTIVITY, which edits it in place, or in Studio Pro.",
+					"holds — %s. Change it with `set ( … ) on <activity>`, which edits it in place, or in Studio Pro.",
 				o.ActivityRef, strings.Join(reasons, "; ")))
 		}
 	}
@@ -515,6 +516,21 @@ func countAuthoredOnCreated(activities []ast.WorkflowActivityNode) int {
 		}
 	})
 	return n
+}
+
+// replacementFor picks, among a replace's new activities, the one that stands in
+// for the stored activity called name: the user task that keeps its name (the
+// only kind whose losses this guard measures), else the first. The old `replace activity X with a` form always carries exactly one.
+func replacementFor(acts []ast.WorkflowActivityNode, name string) ast.WorkflowActivityNode {
+	for _, a := range acts {
+		if t, ok := a.(*ast.WorkflowUserTaskNode); ok && t.Name == name {
+			return a
+		}
+	}
+	if len(acts) > 0 {
+		return acts[0]
+	}
+	return nil
 }
 
 func restatesOnCreated(act ast.WorkflowActivityNode) bool {

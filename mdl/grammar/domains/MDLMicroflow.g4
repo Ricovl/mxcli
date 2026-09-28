@@ -14,7 +14,7 @@ options { tokenVocab = MDLLexer; }
  * Creates a new microflow with parameters, return type, and activity body.
  */
 createMicroflowStatement
-    : MICROFLOW qualifiedName
+    : MICROFLOW ifNotExists? qualifiedName
       LPAREN microflowParameterList? RPAREN
       microflowReturnType?
       microflowOptions?
@@ -25,7 +25,7 @@ createMicroflowStatement
  * Nanoflow creation — mirrors microflow syntax but targets client-side execution.
  */
 createNanoflowStatement
-    : NANOFLOW qualifiedName
+    : NANOFLOW ifNotExists? qualifiedName
       LPAREN microflowParameterList? RPAREN
       microflowReturnType?
       microflowOptions?
@@ -41,7 +41,7 @@ createNanoflowStatement
  * no explanation.
  */
 createRuleStatement
-    : RULE qualifiedName
+    : RULE ifNotExists? qualifiedName
       LPAREN microflowParameterList? RPAREN
       microflowReturnType?
       microflowOptions?
@@ -52,7 +52,7 @@ createRuleStatement
  * Java Action creation with inline Java source code.
  */
 createJavaActionStatement
-    : JAVA ACTION qualifiedName
+    : JAVA ACTION ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN javaActionParameterList? RPAREN
       javaActionReturnType?
@@ -108,7 +108,7 @@ exposeBitmapClause
  * defaults to Web). Reuses the javaAction parameter/return/exposed sub-rules.
  */
 createJavaScriptActionStatement
-    : JAVASCRIPT ACTION qualifiedName
+    : JAVASCRIPT ACTION ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN javaActionParameterList? RPAREN
       javaActionReturnType?

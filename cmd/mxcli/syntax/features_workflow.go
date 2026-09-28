@@ -139,7 +139,7 @@ func init() {
 			"--   page without a WorkflowUserTask one  -> CE7412\n" +
 			"-- Other parameters may sit alongside it.",
 		Example: "-- The task page takes the task:\n" +
-			"CREATE PAGE HR.ReviewPage (\n  title: 'Review',\n  layout: Atlas_Core.Atlas_Default,\n  params: { $WorkflowUserTask: System.WorkflowUserTask }\n) { };\n\n" +
+			"CREATE PAGE HR.ReviewPage (\n  title: 'Review',\n  layout: Atlas_Core.Atlas_Default,\n  params: ( $WorkflowUserTask: System.WorkflowUserTask )\n) { };\n\n" +
 			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING USERS XPATH [Module.Employee/Active = true()]\n  OUTCOMES 'Approve' { } 'Reject' { };",
 		SeeAlso: []string{"workflow.user-task.targeting", "workflow.multi-user-task", "workflow.create"},
 	})
@@ -411,7 +411,7 @@ func init() {
 		// 'Workflows$TimerBoundaryEvent' could not be found"). This entry showed
 		// the bare form, with 'P3D' — not a valid timer expression — as its delay.
 		// ako/view-entity-examples FINDINGS §7.
-		Syntax:     "-- inline, as a clause of a USER TASK (after OUTCOMES):\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> }\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) NOTIFICATION <name> ['<caption>'] { <activities> }\n\n-- A notification boundary event (Mendix 11.11+) is triggered by `notify workflow`\n-- targeting its name, so the name is unique in the workflow. ALTER cannot insert\n-- one yet; restate the workflow instead.\n\n-- or add a timer to an existing task:\nALTER WORKFLOW <wf> INSERT BOUNDARY EVENT ON <task> (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> }\n\n-- Name the kind: a bare TIMER is refused on Mendix 11 (MDL-WF07) — it writes a\n-- type the runtime cannot load. The delay is an expression that yields a\n-- DateTime, e.g. addDays([%CurrentDateTime%], 3). mxcli ends every boundary\n-- path with Mendix's end-of-path marker, so a path may end in a call; use\n-- JUMP TO to return to the task instead.",
+		Syntax:     "-- inline, as a clause of a USER TASK (after OUTCOMES):\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> }\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) NOTIFICATION <name> ['<caption>'] { <activities> }\n\n-- A notification boundary event (Mendix 11.11+) is triggered by `notify workflow`\n-- targeting its name, so the name is unique in the workflow. ALTER cannot insert\n-- one yet; restate the workflow instead.\n\n-- or add a timer to an existing task:\nALTER WORKFLOW <wf> { INSERT INTO <task> { BOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> } } };\n\n-- Name the kind: a bare TIMER is refused on Mendix 11 (MDL-WF07) — it writes a\n-- type the runtime cannot load. The delay is an expression that yields a\n-- DateTime, e.g. addDays([%CurrentDateTime%], 3). mxcli ends every boundary\n-- path with Mendix's end-of-path marker, so a path may end in a call; use\n-- JUMP TO to return to the task instead.",
 		Example:    "user task ReviewTask 'Review'\n  page Module.WF_Review\n  outcomes 'Done' { }\n  boundary event interrupting timer addDays([%CurrentDateTime%], 3) {\n    call microflow Module.WF_Escalate;\n  };",
 		MinVersion: "10.6.0",
 		SeeAlso:    []string{"workflow.user-task", "workflow.notification", "workflow.event-subprocess"},
@@ -491,25 +491,46 @@ func init() {
 		Keywords: []string{
 			"alter workflow", "modify workflow", "update workflow",
 			"add activity", "drop activity", "replace activity",
+			"insert before", "insert into", "insert outcome", "insert path",
 		},
-		// SET properties are keyword-led phrases, not `name = value` assignments:
-		// `SET DUE DATE <expr>`, `SET DISPLAY '<text>'`, `SET OVERVIEW PAGE
-		// Module.Page`. The `= ` this entry used to show does not parse.
-		// INSERT names the anchor first and the activity second — INSERT AFTER
-		// <name> <activity> — and there is no BEFORE. DROP and REPLACE take the
-		// ACTIVITY keyword. This entry previously showed the operand order
-		// reversed, advertised a BEFORE that does not exist, and omitted
-		// ACTIVITY, so none of it parsed.
+		// The generic ALTER (ADR-0012, ako/mxcli#712): the operations go in
+		// { }, a target is an activity's name or 'caption' with @n to choose one
+		// of several matches (an ambiguous one is refused with the matches
+		// listed), and a fragment is written exactly as in CREATE WORKFLOW.
+		// The old per-action forms (`SET DISPLAY '…'`, `SET ACTIVITY X …`,
+		// `INSERT OUTCOME 'x' ON X { … }`, `DROP PATH 'Path 2' ON X`) still
+		// parse and warn MDL-DEPR140-149; `mxcli fmt --upgrade` rewrites them.
 		//
-		// The four INSERT ops that add to an activity's outcome list each write
-		// ONE outcome type, and the list is typed per activity kind — INSERT
-		// OUTCOME only on a user task, INSERT PATH only on a parallel split,
-		// INSERT CONDITION only on a decision or call microflow. Aiming one at
-		// the wrong kind used to produce a project Mendix could not LOAD
-		// (ako/mxcli#415); it is refused now, but the entry documented only two
-		// of the ops, which is how an author reached for the wrong one.
-		Syntax:  "ALTER WORKFLOW Module.Name SET DISPLAY '<text>';\nALTER WORKFLOW Module.Name SET DUE DATE <expression>;\nALTER WORKFLOW Module.Name SET OVERVIEW PAGE Module.Page;\nALTER WORKFLOW Module.Name SET ACTIVITY <name> <property>;\nALTER WORKFLOW Module.Name INSERT AFTER <name> <activity>;\nALTER WORKFLOW Module.Name DROP ACTIVITY <name>;\nALTER WORKFLOW Module.Name REPLACE ACTIVITY <name> WITH <activity>;\nALTER WORKFLOW Module.Name INSERT OUTCOME '<name>' ON <user-task> { <activities> };\nALTER WORKFLOW Module.Name DROP OUTCOME '<name>' ON <activity>;\nALTER WORKFLOW Module.Name INSERT CONDITION '<Module.Enum.Value>' ON <decision|call-microflow> { <activities> };\nALTER WORKFLOW Module.Name INSERT PATH ON <parallel-split> { <activities> };\nALTER WORKFLOW Module.Name INSERT BOUNDARY EVENT ON <activity> (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> };",
-		Example: "ALTER WORKFLOW HR.LeaveApproval SET DUE DATE addDays([%CurrentDateTime%], 7);\nALTER WORKFLOW HR.LeaveApproval INSERT AFTER ReviewTask\n  CALL MICROFLOW HR.NotifyHR;\nALTER WORKFLOW HR.LeaveApproval DROP ACTIVITY ObsoleteStep;\n\n-- The INSERT op has to match the activity kind: an outcome list is typed,\n-- and the wrong one is refused (it would leave a project Mendix cannot open).\nALTER WORKFLOW HR.LeaveApproval INSERT OUTCOME 'Rejected' ON ReviewTask { };\nALTER WORKFLOW HR.LeaveApproval INSERT CONDITION 'HR.Status.Urgent' ON Triage { };\nALTER WORKFLOW HR.LeaveApproval INSERT PATH ON NotifyAll { };",
+		// What `insert into` adds must fit the activity: an outcome list is
+		// typed per activity kind — a user task takes `outcomes 'x' { … }`, a
+		// decision or call microflow `outcomes <value> -> { … }`, a parallel
+		// split `path { … }`. The wrong one is refused (it would leave a project
+		// Mendix cannot LOAD, ako/mxcli#415).
+		Syntax: "ALTER WORKFLOW Module.Name {\n" +
+			"  SET ( Display: '<text>', Description: '<text>', ExportLevel: API | Hidden,\n" +
+			"        DueDate: <expression>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity );\n" +
+			"  SET ( Page: Module.Page, Description: '<text>', DueDate: <expression>,\n" +
+			"        Targeting: microflow Module.Mf | Targeting: xpath [<xpath>] ) ON <activity>;\n" +
+			"  INSERT BEFORE | AFTER <activity> { <activities> }\n" +
+			"  INSERT INTO <user-task> { OUTCOMES '<name>' { <activities> } }\n" +
+			"  INSERT INTO <decision | call-microflow> { OUTCOMES true | false | default | '<value>' -> { <activities> } }\n" +
+			"  INSERT INTO <parallel-split> { PATH [<next number>] { <activities> } }\n" +
+			"  INSERT INTO <activity> { BOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> } }\n" +
+			"  REPLACE <activity> WITH { <activities> }\n" +
+			"  DROP <activity>, <activity> OUTCOME '<name>' | true | false | default,\n" +
+			"       <parallel-split> PATH <n>, <activity> BOUNDARY EVENT;\n" +
+			"};\n\n" +
+			"-- <activity> is a name (ReviewTask) or a caption ('Review the request'),\n" +
+			"-- optionally @n to choose one of several matches: describe workflow prints the names.",
+		Example: "alter workflow HR.LeaveApproval {\n" +
+			"  set (DueDate: addDays([%CurrentDateTime%], 7));\n" +
+			"  set (Page: HR.ReviewPage) on ReviewTask;\n" +
+			"  insert after ReviewTask { call microflow HR.NotifyHR; }\n" +
+			"  insert into ReviewTask { outcomes 'Rejected' { } }\n" +
+			"  insert into Triage { outcomes 'HR.Status.Urgent' -> { } }\n" +
+			"  insert into NotifyAll { path { } }\n" +
+			"  drop ObsoleteStep;\n" +
+			"};",
 		SeeAlso: []string{"workflow.create", "workflow.drop"},
 	})
 }

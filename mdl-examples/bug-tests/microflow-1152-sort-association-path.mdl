@@ -68,6 +68,6 @@ create or replace page Sort1152.Orders_Overview (
 ) {
   listview lvOrders (datasource: database from Sort1152.Order
       sort by Sort1152.Order_BillTo/City asc) {
-    dynamictext txtNo (content: '{1}', contentparams: [{1} = OrderNo])
+    dynamictext txtNo (content: '{1}', contentparams: ({1} = OrderNo))
   }
 }

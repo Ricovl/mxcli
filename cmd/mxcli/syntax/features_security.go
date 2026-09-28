@@ -133,8 +133,8 @@ func init() {
 			"user role", "application role", "manage roles",
 			"add module roles", "remove module roles",
 		},
-		Syntax:  "CREATE USER ROLE <name> (<role> [, ...]) [MANAGE ALL ROLES];\nALTER USER ROLE <name> ADD MODULE ROLES (<role> [, ...]);\nALTER USER ROLE <name> DROP MODULE ROLES (<role> [, ...]);\nDROP USER ROLE [IF EXISTS] <name>;",
-		Example: "CREATE USER ROLE AppAdmin (Shop.Admin, HR.Admin) MANAGE ALL ROLES;\nALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Viewer);",
+		Syntax:  "CREATE USER ROLE <name> [( ModuleRoles: (<role> [, ...]), Description: '<text>', ManageAllRoles: true|false, ManageableRoles: (<user role> [, ...]), ManageUsersWithoutRoles: true|false, CheckSecurity: true|false )];\nALTER USER ROLE <name> ADD MODULE ROLES (<role> [, ...]);\nALTER USER ROLE <name> DROP MODULE ROLES (<role> [, ...]);\nDROP USER ROLE [IF EXISTS] <name>;",
+		Example: "CREATE USER ROLE AppAdmin ( ModuleRoles: (Shop.Admin, HR.Admin), ManageAllRoles: true );\nALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Viewer);",
 		SeeAlso: []string{"security.module-role", "security.demo-user"},
 	})
 
@@ -178,7 +178,7 @@ func init() {
 			"-- GuestUserRole alone changes the role and keeps guest access on or off.\n" +
 			"-- Mendix does not check the role exists, so mxcli does — an unknown role\n" +
 			"-- would build cleanly and leave visitors with nothing.",
-		Example: "CREATE USER ROLE Anonymous (Shop.Viewer, System.User);\n" +
+		Example: "CREATE USER ROLE Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );\n" +
 			"ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: Anonymous );\n" +
 			"GRANT READ * ON ENTITY Shop.Product TO Shop.Viewer;",
 		SeeAlso: []string{"security.user-role", "security.project-security"},

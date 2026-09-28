@@ -36,7 +36,7 @@ create or modify page RA.SubDetail
   (
     Title: 'Sub detail',
     Layout: Atlas_Core.Atlas_Default,
-    Params: { $Sub: RA.Sub, $Base: RA.Base, $Note: RA.Note }
+    Params: ( $Sub: RA.Sub, $Base: RA.Base, $Note: RA.Note )
   )
   {
     LAYOUTGRID lgMain {

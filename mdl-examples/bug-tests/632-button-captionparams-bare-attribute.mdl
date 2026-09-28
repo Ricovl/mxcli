@@ -47,18 +47,18 @@ create persistent entity Bug632.Order (
 create page Bug632.OrderDetail (
   title: 'Order',
   layout: Atlas_Core.Atlas_Default,
-  params: { $o: Bug632.Order }
+  params: ( $o: Bug632.Order )
 ) {
   dataview dv (datasource: $o) {
     -- quoted literal: stays a literal
-    actionbutton b1 (caption: 'Save {1}', captionparams: [{1} = 'order'], action: save_changes)
+    actionbutton b1 (caption: 'Save {1}', captionparams: ({1} = 'order'), action: save_changes)
     -- bare attribute: binds Bug632.Order.Title (was the literal 'Title')
-    actionbutton b2 (caption: 'Save {1}', captionparams: [{1} = Title], action: save_changes)
+    actionbutton b2 (caption: 'Save {1}', captionparams: ({1} = Title), action: save_changes)
     -- parameter-qualified attribute
-    actionbutton b3 (caption: 'Save {1}', captionparams: [{1} = $o.Title], action: save_changes)
+    actionbutton b3 (caption: 'Save {1}', captionparams: ({1} = $o.Title), action: save_changes)
     -- non-string bare attribute
-    linkbutton b4 (caption: 'Order #{1}', captionparams: [{1} = Num], action: save_changes)
+    linkbutton b4 (caption: 'Order #{1}', captionparams: ({1} = Num), action: save_changes)
     -- the workaround from the report, for comparison: binds the same way
-    dynamictext t1 (content: 'Save {1}', contentparams: [{1} = Title])
+    dynamictext t1 (content: 'Save {1}', contentparams: ({1} = Title))
   }
 }

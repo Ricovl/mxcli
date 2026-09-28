@@ -234,6 +234,12 @@ alterStatement
     | ALTER (MICROFLOW | NANOFLOW) qualifiedName LBRACE alterFlowOperation* RBRACE
     | alterPagesLayoutStatement
     | alterPagesStylingStatement
+    // The generic ALTER on a workflow (ADR-0012 decision 2, ako/mxcli#712): its
+    // targets are activities (name, 'caption', @n) and its fragments are
+    // workflow activities, so it has its own operation rule, like microflows.
+    | ALTER WORKFLOW qualifiedName LBRACE alterWorkflowOperation+ RBRACE
+    // The old per-action form: each alternative of alterWorkflowAction is a
+    // registered alias (MDL-DEPR140-149).
     | ALTER WORKFLOW qualifiedName alterWorkflowAction+ SEMICOLON?
     | alterMessageDefinitionCollectionStatement
     | alterMessageDefinitionStatement
@@ -361,9 +367,8 @@ alterDrop
     | DROP WIDGET /* @alias MDL-DEPR103 */ alterTarget (COMMA alterTarget)*   // drop widget a, b
     ;
 
-// A fragment is written exactly as `create` writes the same content. Only the
-// page family is on the generic path so far; a workflow's body joins here when
-// ALTER WORKFLOW is ported.
+// A fragment is written exactly as `create` writes the same content. A
+// workflow's fragment is a workflow body (alterWorkflowFragment).
 alterFragment
     : LBRACE pageBodyV3 RBRACE
     ;
@@ -535,7 +540,12 @@ navigationClause
     : HOME (PAGE | MICROFLOW) qualifiedName (FOR qualifiedName)?
     | LOGIN PAGE qualifiedName
     | NOT FOUND PAGE qualifiedName
-    | MENU_KW LPAREN navMenuItemDef* RPAREN
+    // The profile's menu items are its declarative children, in { } like a
+    // page's widgets and with no separators (R2, ako/mxcli#754). describe
+    // writes the block after every other clause; the clauses are order-free,
+    // so it parses anywhere among them. `menu ( item; … )` is the old spelling.
+    | navMenuChildren
+    | MENU_KW LPAREN /* @alias MDL-DEPR121 */ navMenuItemDef* RPAREN
     | SYNC LPAREN navSyncDef* RPAREN
     // Studio Pro's "Throw error when server rejects objects during
     // synchronization", stored as the profile-level ThrowPartialSyncError.
@@ -591,9 +601,48 @@ navSyncMode
 // the same Forms$SignOutClientAction a button uses (measured on ako/TestApp),
 // which is why it sits beside PAGE and MICROFLOW rather than in a syntax of its
 // own.
+//
+// R2 (ako/mxcli#754): a menu item is a child with the shape every child has,
+// `<kind> Caption ( props ) [ { children } ]`. Its action is `OnClick:` with the
+// words a page action uses (R8), and its icon is `Icon:` as on a widget:
+//   menu item 'Home' ( OnClick: show page Shop.Home, Icon: Atlas_Core.Atlas.home )
+//   menu 'Admin' ( Icon: glyph 57345 ) { menu item 'Users' ( OnClick: call microflow M.F ) }
+// A child ends in `)` or `}`, so no separator is needed.
+//
+// The old spelling is still read: the action and icon as clauses after the
+// caption (MDL-DEPR122), and a sub-menu's items in ( ) with `;` after each
+// item (MDL-DEPR121) — a `;` is read after either shape, so a half-converted
+// menu still parses. The canonical alternatives come first, so a bare
+// `menu item 'x'` is read as the canonical form.
 navMenuItemDef
-    : MENU_KW ITEM STRING_LITERAL ((PAGE qualifiedName) | (MICROFLOW qualifiedName) | SIGN_OUT)? navMenuIcon? SEMICOLON?
-    | MENU_KW STRING_LITERAL navMenuIcon? LPAREN navMenuItemDef* RPAREN SEMICOLON?
+    : MENU_KW ITEM STRING_LITERAL navMenuItemProps? (SEMICOLON /* @alias MDL-DEPR121 */)?
+    | MENU_KW STRING_LITERAL navMenuItemProps? navMenuChildren (SEMICOLON /* @alias MDL-DEPR121 */)?
+    | MENU_KW ITEM STRING_LITERAL
+      ((PAGE qualifiedName) | (MICROFLOW qualifiedName) | SIGN_OUT)? /* @alias MDL-DEPR122 */ navMenuIcon? SEMICOLON?
+    | MENU_KW STRING_LITERAL navMenuIcon? LPAREN /* @alias MDL-DEPR121 */ navMenuItemDef* RPAREN SEMICOLON?
+    // Half-converted: the items already in { }, the icon still a clause.
+    | MENU_KW STRING_LITERAL navMenuIcon /* @alias MDL-DEPR122 */ navMenuChildren SEMICOLON?
+    ;
+
+navMenuChildren
+    : LBRACE navMenuItemDef* RBRACE
+    ;
+
+navMenuItemProps
+    : LPAREN (navMenuItemProp (COMMA navMenuItemProp)* COMMA?)? RPAREN
+    ;
+
+// OnClick takes the three actions a menu item can carry, in the page-action
+// words (R8); Icon the three icon elements, as navMenuIcon.
+navMenuItemProp
+    : ONCLICK COLON navMenuAction
+    | ICON COLON navMenuIconValue
+    ;
+
+navMenuAction
+    : SHOW PAGE qualifiedName
+    | CALL MICROFLOW qualifiedName
+    | SIGN_OUT
     ;
 
 // Mendix stores three DIFFERENT icon elements, and they are not variants of one
@@ -613,9 +662,13 @@ navMenuItemDef
 // bare form with `image` read as the name; listing the specific alternatives
 // ahead of the general one is what settles it.
 navMenuIcon
-    : ICON GLYPH NUMBER_LITERAL
-    | ICON IMAGE qualifiedName
-    | ICON qualifiedName
+    : ICON navMenuIconValue
+    ;
+
+navMenuIconValue
+    : GLYPH NUMBER_LITERAL
+    | IMAGE qualifiedName
+    | qualifiedName
     ;
 
 // A standalone menu document (Menus$MenuDocument) — the reusable menu a menu
@@ -623,7 +676,8 @@ navMenuIcon
 // built from the same items, so this reuses navMenuItemDef rather than defining a
 // second item syntax.
 createMenuStatement
-    : MENU_KW qualifiedName (FOLDER STRING_LITERAL)? LPAREN navMenuItemDef* RPAREN
+    : MENU_KW ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? navMenuChildren
+    | MENU_KW ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? LPAREN /* @alias MDL-DEPR121 */ navMenuItemDef* RPAREN
     ;
 
 dropStatement

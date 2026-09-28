@@ -74,7 +74,7 @@ Edit pages use a **DataView** to display and edit a single object. The object is
 ```sql
 CREATE PAGE MyModule.Product_Edit
 (
-    Params: { $Product: MyModule.Product },
+    Params: ( $Product: MyModule.Product ),
     Title: 'Edit Product',
     Layout: Atlas_Core.PopupLayout
 )
@@ -96,7 +96,7 @@ Key differences from the overview page:
 
 | Part | Meaning |
 |------|---------|
-| `Params: { $Product: MyModule.Product }` | The page expects a `Product` object to be passed when opened |
+| `Params: ( $Product: MyModule.Product )` | The page expects a `Product` object to be passed when opened |
 | `Layout: Atlas_Core.PopupLayout` | Uses a popup/dialog layout instead of a full page |
 | `DATAVIEW dvProduct (DataSource: $Product)` | Binds to the page parameter |
 | `TEXTBOX`, `CHECKBOX` | Input widgets bound to entity attributes |

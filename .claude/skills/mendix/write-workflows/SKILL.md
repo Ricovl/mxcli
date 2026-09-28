@@ -161,13 +161,26 @@ begin
 end workflow;
 ```
 
-> **Do NOT use `annotation '...'` in a workflow body.** It parses, but the
-> annotation is written into the workflow's activity flow, which Mendix loads by
+**Notes** attach to an activity with `@annotation '…'` on the line before it,
+as in a microflow; the workflow's own note is the header clause
+`annotation '…'`, and an event sub-process takes `@annotation` before
+`event subprocess`. One note per activity; no other `@` annotation is accepted.
+
+```sql
+create workflow Module.Approve
+  parameter $WorkflowContext: Module.Request
+  annotation 'Started from the request form'
+begin
+  @annotation 'Escalates after two days'
+  user task review 'Review' page Module.Review_Task outcomes 'Done' { };
+end workflow;
+```
+
+> **Do NOT use a standalone `annotation '...';` statement in a workflow body.**
+> It parses, but the note is written into the activity flow, which Mendix loads by
 > constructing every child with a `Flow` parent — no annotation type takes one, so
-> the resulting `.mpr` **cannot be loaded at all**: Studio Pro will not open the
-> project and `mx check` fails before validating anything. `mxcli` now refuses the
-> statement (MDL-WF04) at both check and exec time. Keep the note as an MDL comment
-> (`-- ...`); workflow canvas annotations are not yet writable.
+> the resulting `.mpr` **cannot be loaded at all**. `mxcli` refuses it (MDL-WF04)
+> at check and exec time. Attach the note to an activity with `@annotation`.
 
 **Boundary events** attach a timer to a user task / call-microflow / wait:
 
@@ -201,8 +214,8 @@ end workflow;
   targets it, so it takes a **name** instead of a delay:
   `boundary event interrupting notification Withdrawn 'Request withdrawn' { end workflow; }`.
   The name is unique in the workflow. Only one interrupting boundary event per
-  activity, of either kind (CE6697, MDL-WF15). `alter workflow … insert boundary
-  event` cannot add one yet — restate the workflow.
+  activity, of either kind (CE6697, MDL-WF15). `alter workflow … { insert into X
+  { boundary event … } }` cannot add one yet — restate the workflow.
 - **Over MCP (`--mcp`), Studio Pro dictates how a notification path ends**, which
   mxbuild does not: an interrupting one ends in `end workflow;` (in `jump to` inside
   a parallel split), a non-interrupting one runs to its end. mxcli refuses the
@@ -248,44 +261,64 @@ drop workflow Module.ApprovalFlow;
 
 ## ALTER WORKFLOW
 
-In-place edits go through the workflow mutator — no full rewrite. Supports
-`SET` properties, and `INSERT` / `DROP` / `REPLACE` of activities, outcomes,
-parallel paths, decision conditions, and boundary events. Reference an activity
-by its name (or an auto-named one by its caption in quotes).
-
-Each operation is its **own statement** — there is no `{ … }` wrapper, and `SET`
-uses no `=` (`set display 'X'`, not `set display = 'X'`):
+In-place edits go through the workflow mutator — no full rewrite. `alter
+workflow` is the generic alter (the same shape as `alter page`): the operations
+go in `{ … }`, properties are set with `set ( Key: value )`, and a fragment is
+written exactly as in `create workflow`.
 
 ```sql
-alter workflow Module.ApprovalFlow set display 'Updated Approval';
-alter workflow Module.ApprovalFlow set activity Review page Module.AltReviewPage;
-alter workflow Module.ApprovalFlow insert after Review call microflow Module.ACT_Log;
-alter workflow Module.ApprovalFlow replace activity ACT_Validate with call microflow Module.ACT_Process;
+alter workflow Module.ApprovalFlow {
+  set (Display: 'Updated Approval', DueDate: addDays([%CurrentDateTime%], 7));
+  set (Page: Module.AltReviewPage, Description: 'Check the amount') on Review;
+  set (Targeting: xpath [Active = true()]) on Review;
+  insert before Review { call microflow Module.ACT_Prepare; }
+  insert after Review { call microflow Module.ACT_Log; call microflow Module.ACT_Notify; }
+  replace ACT_Validate with { call microflow Module.ACT_Process; }
+  drop ObsoleteStep;
+};
 ```
 
-Consecutive `set`s may chain in one statement:
-`alter workflow Module.ApprovalFlow set display 'X' set description 'Y';`
+**Addressing an activity.** A target is the activity's **name** (`Review` —
+`describe workflow` prints every name) or its **caption** in quotes
+(`'Review the request'`); add `@n` to choose one of several matches. A name wins
+over a caption that repeats it. An ambiguous target is refused, and the error
+lists the matches (`@1 user task Review, @2 decision Review`) — mxcli never
+guesses. Every target is resolved before anything changes, so a refused
+statement leaves the workflow untouched. The flow's start activity (`start1`,
+caption `'Start'`) is addressable too, but nothing goes before it — `insert
+before start1` is refused (it would be `CE9526`); use `insert after start1`.
 
-See `mdl-examples/doctype-tests/24-workflow-examples.mdl` for the full ALTER
-surface (insert path, drop path, insert condition, boundary events).
+Workflow keys: `Display`, `Description`, `ExportLevel`, `DueDate`,
+`OverviewPage`, `Parameter: $WorkflowContext: Module.Entity`. Activity keys
+(with `on <activity>`): `Page`, `Description`, `Targeting: microflow M.F` /
+`Targeting: xpath [ … ]`, `DueDate`.
 
-**The INSERT op has to match the activity kind.** An activity's outcome list is
-typed, and each op writes exactly one outcome type into it:
+**Adding to an activity: `insert into`.** What goes in the braces is the
+activity's own clause, as `create workflow` writes it — and it has to match the
+activity kind, because an activity's outcome list is typed:
 
-| Op | Writes | Only on |
-|----|--------|---------|
-| `insert outcome '<name>' on X { }` | `UserTaskOutcome` | a user task |
-| `insert condition '<Module.Enum.Value>' on X { }` | `…ConditionOutcome` | a decision, a call microflow |
-| `insert path on X { }` | `ParallelSplitOutcome` | a parallel split |
-| `insert boundary event on X interrupting timer <expr> { }` | a boundary event | user task, call microflow, call workflow, wait for notification |
+| Fragment | Writes | Only on |
+|----------|--------|---------|
+| `insert into X { outcomes '<name>' { … } }` | `UserTaskOutcome` | a user task |
+| `insert into X { outcomes '<Module.Enum.Value>' -> { … } }` (or `true`, `false`, `default`) | `…ConditionOutcome` | a decision, a call microflow |
+| `insert into X { path { … } }` (`path n` must be the next number) | `ParallelSplitOutcome` | a parallel split |
+| `insert into X { boundary event interrupting timer <expr> { … } }` | a boundary event | user task, call microflow, call workflow, wait for notification |
 
 Aim one at the wrong kind and the outcome lands in a list that cannot hold it,
 which is **not** a build error: the project stops **loading**, so Studio Pro will
 not open it and `mx check` dies before it validates anything (ako/mxcli#415).
-mxcli refuses all of these now — at `check --references` and at `exec`, which
-call the same function — and the refusal names the op that fits the target. The
-`drop` ops are unaffected: removing a branch cannot write a wrong type, and it
-leaves an ordinary build error (`CE6686`) rather than an unloadable project.
+mxcli refuses all of these — at `check --references` and at `exec`, which call
+the same function — and the refusal names the fragment that fits the target.
+
+**Removing a member: `drop X outcome 'Reject'`**, `drop Decision1 outcome true`
+(`false`, `default`), `drop Split1 path 2`, `drop X boundary event`. Removing a
+branch cannot write a wrong type; it leaves an ordinary build error (`CE6686`)
+rather than an unloadable project.
+
+The old per-action statements (`alter workflow M.W set display 'X';`, `set
+activity X page …`, `insert outcome 'N' on X { }`, `drop path 'Path 2' on X`)
+still parse and warn `MDL-DEPR140`–`149`; `mxcli fmt --upgrade` rewrites them.
+See `mdl-examples/doctype-tests/24-workflow-examples.mdl` for the full surface.
 
 ## DESCRIBE round-trip
 
@@ -432,9 +465,9 @@ values. The full list and the System **entities** are in `system-module`.
   reset it.** An event sub-process and a workflow event handler subscribed to no
   event types are set in Studio Pro.
   `create or modify` on a workflow that holds any of them is refused with the
-  list, and so is `alter workflow … replace activity` on an activity that holds
-  one. Change such a workflow with `alter workflow … set activity …` (it edits
-  the stored document and keeps the rest) or in Studio Pro.
+  list, and so is `alter workflow … { replace X with { … } }` on an activity that holds
+  one. Change such a workflow with `alter workflow … { set ( … ) on X; }` (it
+  edits the stored document and keeps the rest) or in Studio Pro.
 
 - **`end workflow` ends the whole workflow from inside a branch** — the workflow
   counterpart of a microflow's `return`. `return;` itself is refused in a workflow

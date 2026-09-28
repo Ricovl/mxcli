@@ -367,10 +367,10 @@ Two surprises when styling a **DataGrid2** matrix/pivot (ledger finding #46):
 Keys must match the `name` field in `design-properties.json` exactly:
 ```sql
 -- CORRECT
-designproperties: ['Spacing top': 'Large']
+designproperties: ('Spacing top': 'Large')
 
 -- WRONG (case mismatch — silently ignored)
-designproperties: ['spacing top': 'Large']
+designproperties: ('spacing top': 'Large')
 ```
 
 ### Compound (Nested) Design Properties
@@ -381,11 +381,11 @@ one whose value is itself a set of sub-properties (e.g. Atlas's `Spacing` →
 `margin-top`, `margin-bottom`, …). A compound value is written as a nested list:
 
 ```sql
-designproperties: [
+designproperties: (
   'Column gap': 'Medium',                                       -- flat option
   'Cards style': ON,                                            -- flat toggle
-  'Spacing': ['margin-top': 'Large', 'margin-bottom': 'Medium'] -- compound
-]
+  'Spacing': ('margin-top': 'Large', 'margin-bottom': 'Medium') -- compound
+)
 ```
 
 Supported on the **modelsdk** (`.mpr`) and **MCP** (live Studio Pro) backends.

@@ -29,8 +29,8 @@ Guide for writing CREATE PAGE statements in Mendix Definition Language (MDL).
 ```sql
 create [or replace] page Module.PageName
 (
-  [params: { $ParamName: Module.EntityType | PrimitiveType, ... },]
-  [variables: { $varName: DataType = 'defaultExpression', ... },]
+  [params: ( $ParamName: Module.EntityType | PrimitiveType, ... ),]
+  [variables: ( $varName: DataType = 'defaultExpression', ... ),]
   title: 'Page Title',
   layout: Module.LayoutName,
   [url: 'page-url',]
@@ -75,7 +75,7 @@ Both are optional and can be changed later with `alter page … { set (Class: '�
 | Selection binding | `datasource: selection widget` | `dataview dv (datasource: selection galleryList)` |
 | CSS class | `class: 'classes'` | `container c (class: 'card mx-spacing-top-large')` |
 | Inline style | `style: 'css'` | `container c (style: 'padding: 16px;')` |
-| Design properties | `designproperties: [...]` | `container c (designproperties: ['Spacing top': 'Large', 'full width': on])` |
+| Design properties | `designproperties: (...)` | `container c (designproperties: ('Spacing top': 'Large', 'full width': on))` |
 
 ### FOLDER Option
 
@@ -124,13 +124,13 @@ container c (style: 'background-color: #f8f9fa; padding: 16px;') { ... }
 **Design Properties** — Atlas UI structured properties (spacing, colors, toggles):
 ```sql
 -- Option property: 'Key': 'Value'
-container c (designproperties: ['Spacing top': 'Large', 'Background color': 'Brand Primary']) { ... }
+container c (designproperties: ('Spacing top': 'Large', 'Background color': 'Brand Primary')) { ... }
 
 -- Toggle property: 'Key': ON (enabled) or OFF (disabled/omitted)
-container c (designproperties: ['Full width': on]) { ... }
+container c (designproperties: ('Full width': on)) { ... }
 
 -- Multiple types combined
-actionbutton btn (caption: 'Save', designproperties: ['Size': 'Large', 'Full width': on])
+actionbutton btn (caption: 'Save', designproperties: ('Size': 'Large', 'Full width': on))
 ```
 
 **Dynamic Classes** — a Mendix expression evaluated at runtime that returns a
@@ -157,7 +157,7 @@ container ctnHero (
   class: 'card',
   style: 'border-left: 4px solid #264AE5;',
   dynamicclasses: if $currentObject/Featured then 'is-featured' else '',
-  designproperties: ['Spacing top': 'Large', 'Full width': on]
+  designproperties: ('Spacing top': 'Large', 'Full width': on)
 ) {
   dynamictext txtTitle (content: 'Styled Container', rendermode: H3)
 }

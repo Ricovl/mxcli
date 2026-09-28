@@ -52,7 +52,7 @@ Inside a page or snippet body:
 ```mdl
 create page Module.CustomerEdit
 (
-  params: { $Customer: Module.Customer },
+  params: ( $Customer: Module.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -80,7 +80,7 @@ widgets should land, then fill it with the `use fragment X { … }` payload form
 
 ```mdl
 create fragment Card as {
-  container cardWrap (class: 'card', designproperties: ['Card style': on]) {
+  container cardWrap (class: 'card', designproperties: ('Card style': on)) {
     container cardBody (class: 'card-body') {
       slot content            -- caller's widgets are spliced in here
     }

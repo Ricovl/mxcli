@@ -29,6 +29,7 @@ func TestValidateDatabaseConnection_RejectsLiteralCredentials(t *testing.T) {
 		name     string
 		stmt     *ast.CreateDatabaseConnectionStmt
 		wantProp string
+		wantKey  string // the canonical (R2) property key the suggestion writes
 	}{
 		{
 			name: "literal connection string",
@@ -37,6 +38,7 @@ func TestValidateDatabaseConnection_RejectsLiteralCredentials(t *testing.T) {
 				ConnectionString: "jdbc:postgresql://localhost:5432/app",
 			},
 			wantProp: "connection string",
+			wantKey:  "ConnectionString: @M.DbUrl",
 		},
 		{
 			name: "literal username",
@@ -45,6 +47,7 @@ func TestValidateDatabaseConnection_RejectsLiteralCredentials(t *testing.T) {
 				UserName: "app",
 			},
 			wantProp: "username",
+			wantKey:  "Username: @M.DbUser",
 		},
 		{
 			name: "literal password",
@@ -53,6 +56,7 @@ func TestValidateDatabaseConnection_RejectsLiteralCredentials(t *testing.T) {
 				Password: "secret",
 			},
 			wantProp: "password",
+			wantKey:  "Password: @M.DbPassword",
 		},
 	}
 
@@ -72,6 +76,11 @@ func TestValidateDatabaseConnection_RejectsLiteralCredentials(t *testing.T) {
 			// The remedy must be actionable: name the constant form.
 			if !strings.Contains(v.Suggestion, "@") || !strings.Contains(strings.ToLower(v.Suggestion), "constant") {
 				t.Errorf("suggestion %q does not point at the `@Module.Constant` form", v.Suggestion)
+			}
+			// ... in the canonical property-list spelling (R2, #754), not the
+			// deprecated clause (`username @M.X`, MDL-DEPR127).
+			if !strings.Contains(v.Suggestion, tc.wantKey) {
+				t.Errorf("suggestion %q does not write the canonical %q", v.Suggestion, tc.wantKey)
 			}
 		})
 	}

@@ -40,12 +40,12 @@ create page Ledger.LineItems (
           -- Decimal with 2 decimals and a thousands separator.
           dynamictext txtAmount (
             Content: '{1}',
-            ContentParams: [{1} = Amount format (decimalPrecision: 2, groupDigits: true)]
+            ContentParams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true))
           )
           -- DateTime shown with date + time.
           dynamictext txtDue (
             Content: '{1}',
-            ContentParams: [{1} = DueOn format (dateFormat: DateTime)]
+            ContentParams: ({1} = DueOn format (dateFormat: DateTime))
           )
         }
       }

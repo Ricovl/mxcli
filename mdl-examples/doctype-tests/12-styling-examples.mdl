@@ -66,7 +66,7 @@ create page StyleTest.P001_CSS_Classes
   title: 'CSS Classes',
   layout: Atlas_Core.Atlas_Default,
   url: 'style_001_css_classes/{Employee}',
-  params: { $Employee: StyleTest.Employee }
+  params: ( $Employee: StyleTest.Employee )
 )
 {
   -- Single CSS class
@@ -157,7 +157,7 @@ create page StyleTest.P002b_Dynamic_Classes
   title: 'Dynamic Classes',
   layout: Atlas_Core.Atlas_Default,
   url: 'style_002b_dynamic_classes/{Employee}',
-  params: { $Employee: StyleTest.Employee }
+  params: ( $Employee: StyleTest.Employee )
 )
 {
   dataview dvEmp (datasource: $Employee) {
@@ -203,21 +203,21 @@ create page StyleTest.P003_Design_Properties
   title: 'Design Properties',
   layout: Atlas_Core.Atlas_Default,
   url: 'style_003_design_properties/{task}',
-  params: { $task: StyleTest.task }
+  params: ( $task: StyleTest.task )
 )
 {
   -- Toggle property (ON) — 'Card style' is a genuine Toggle on Container
-  container ctnFullWidth (designproperties: ['Card style': on]) {
+  container ctnFullWidth (designproperties: ('Card style': on)) {
     dynamictext txtFull (content: 'Container with card style', rendermode: H3)
   }
 
   -- Another Toggle property on Container
-  container ctnBordered (designproperties: ['Disable row wrap': on]) {
+  container ctnBordered (designproperties: ('Disable row wrap': on)) {
     dynamictext txtSpacing (content: 'Container with flex nowrap')
   }
 
   -- Multiple Toggle design properties
-  container ctnMultiProps (designproperties: ['Card style': on, 'Disable row wrap': on]) {
+  container ctnMultiProps (designproperties: ('Card style': on, 'Disable row wrap': on)) {
     dynamictext txtMulti (content: 'Multiple toggle properties applied')
   }
 
@@ -241,7 +241,7 @@ create page StyleTest.P003_Design_Properties
     checkbox chkDone (label: 'Completed', attribute: IsCompleted)
 
     footer footer1 {
-      actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary, designproperties: ['Full width': on])
+      actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary, designproperties: ('Full width': on))
       actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
     }
   }
@@ -262,14 +262,14 @@ create page StyleTest.P004_Combined_Styling
   title: 'Combined Styling',
   layout: Atlas_Core.Atlas_Default,
   url: 'style_004_combined_styling/{Employee}',
-  params: { $Employee: StyleTest.Employee }
+  params: ( $Employee: StyleTest.Employee )
 )
 {
   -- All three on a single container — Card style is a Toggle property
   container ctnHero (
     class: 'card',
     style: 'background: linear-gradient(135deg, #264AE5 0%, #1a237e 100%); color: white;',
-    designproperties: ['Card style': on]
+    designproperties: ('Card style': on)
   ) {
     dynamictext txtHero (content: 'Hero Section', rendermode: H1)
     dynamictext txtSubtitle (content: 'Combining Class, Style, and DesignProperties')
@@ -282,7 +282,7 @@ create page StyleTest.P004_Combined_Styling
         container ctnStat1 (
           class: 'card card-bordered',
           style: 'border-top: 3px solid #4caf50;',
-          designproperties: ['Card style': on]
+          designproperties: ('Card style': on)
         ) {
           dynamictext txtStat1Title (content: 'Active Employees', rendermode: H5)
           dynamictext txtStat1Value (content: '42', class: 'text-primary')
@@ -292,7 +292,7 @@ create page StyleTest.P004_Combined_Styling
         container ctnStat2 (
           class: 'card card-bordered',
           style: 'border-top: 3px solid #ff9800;',
-          designproperties: ['Card style': on]
+          designproperties: ('Card style': on)
         ) {
           dynamictext txtStat2Title (content: 'Open Tasks', rendermode: H5)
           dynamictext txtStat2Value (content: '17', class: 'text-warning')
@@ -302,7 +302,7 @@ create page StyleTest.P004_Combined_Styling
         container ctnStat3 (
           class: 'card card-bordered',
           style: 'border-top: 3px solid #f44336;',
-          designproperties: ['Card style': on]
+          designproperties: ('Card style': on)
         ) {
           dynamictext txtStat3Title (content: 'Overdue', rendermode: H5)
           dynamictext txtStat3Value (content: '3', class: 'text-danger')
@@ -313,7 +313,7 @@ create page StyleTest.P004_Combined_Styling
 
   -- Form with mixed styling
   dataview dvEmployee (datasource: $Employee) {
-    container ctnFormHeader (class: 'card-header', designproperties: ['Card style': on]) {
+    container ctnFormHeader (class: 'card-header', designproperties: ('Card style': on)) {
       dynamictext txtFormTitle (content: 'Employee Details', rendermode: H4)
     }
 
@@ -347,7 +347,7 @@ create page StyleTest.P004_Combined_Styling
         action: save_changes,
         buttonstyle: primary,
         class: 'btn-lg',
-        designproperties: ['Full width': on, 'Border': on]
+        designproperties: ('Full width': on, 'Border': on)
       )
       actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
     }
@@ -372,17 +372,17 @@ create page StyleTest.P005_Toggle_OFF
 )
 {
   -- ON enables a Toggle property — 'Card style' is a genuine Toggle on Container
-  container ctnOn (designproperties: ['Card style': on]) {
+  container ctnOn (designproperties: ('Card style': on)) {
     dynamictext txtOn (content: 'Card style is ON')
   }
 
   -- OFF disables/omits the toggle (equivalent to not setting it)
-  container ctnOff (designproperties: ['Card style': off]) {
+  container ctnOff (designproperties: ('Card style': off)) {
     dynamictext txtOff (content: 'Card style is OFF (omitted)')
   }
 
   -- Mix Toggle ON/OFF with option values (Shadow is a ToggleButtonGroup)
-  container ctnMixed (designproperties: ['Card style': on, 'Disable row wrap': on]) {
+  container ctnMixed (designproperties: ('Card style': on, 'Disable row wrap': on)) {
     dynamictext txtMixed (content: 'Mixed Toggle with option values')
   }
 }
@@ -406,7 +406,7 @@ describe page StyleTest.P001_CSS_Classes;
 -- Describe a snippet (creates it first so it exists)
 create snippet StyleTest.MySnippet
 (
-  params: { $Employee: StyleTest.Employee }
+  params: ( $Employee: StyleTest.Employee )
 )
 {
   container ctnSnippet (class: 'card', style: 'padding: 12px;') {
@@ -526,13 +526,13 @@ create page StyleTest.P006_Roundtrip
   title: 'Roundtrip Example',
   layout: Atlas_Core.Atlas_Default,
   url: 'style_006_roundtrip/{Employee}',
-  params: { $Employee: StyleTest.Employee }
+  params: ( $Employee: StyleTest.Employee )
 )
 {
   container ctnHeader (
     class: 'card',
     style: 'padding: 16px;',
-    designproperties: ['Card style': on]
+    designproperties: ('Card style': on)
   ) {
     dynamictext txtHeader (content: 'Employee Form', rendermode: H3)
   }
@@ -565,13 +565,13 @@ create or replace page StyleTest.P006_Roundtrip
   title: 'Roundtrip Example',
   layout: Atlas_Core.Atlas_Default,
   url: 'style_006_roundtrip/{Employee}',
-  params: { $Employee: StyleTest.Employee }
+  params: ( $Employee: StyleTest.Employee )
 )
 {
   container ctnHeader (
     class: 'card card-bordered',
     style: 'padding: 16px;',
-    designproperties: ['Card style': on, 'Disable row wrap': on]
+    designproperties: ('Card style': on, 'Disable row wrap': on)
   ) {
     dynamictext txtHeader (content: 'Employee Form', rendermode: H3)
   }
@@ -683,10 +683,10 @@ create or modify page StyleTest."P007_Compound" (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lgCompound (
-    designproperties: [
+    designproperties: (
       'Column gap': 'Medium',
-      'Spacing': ['margin-top': 'Large', 'margin-bottom': 'Medium']
-    ]
+      'Spacing': ('margin-top': 'Large', 'margin-bottom': 'Medium')
+    )
   ) {
     row rCompound {
       column colCompound (desktopwidth: autofill) {

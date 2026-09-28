@@ -7,7 +7,7 @@ Snippets are reusable page fragments that can be embedded in multiple pages. The
 ```sql
 CREATE [OR REPLACE] SNIPPET <Module>.<Name> [FOLDER '<path>']
 [(
-  Params: { $Param: Module.Entity [, ...] }
+  Params: ( $Param: Module.Entity [, ...] )
 )]
 {
   <widget-tree>
@@ -34,7 +34,7 @@ Snippets can accept entity parameters, similar to pages:
 ```sql
 CREATE SNIPPET MyModule.CustomerCard
 (
-  Params: { $Customer: MyModule.Customer }
+  Params: ( $Customer: MyModule.Customer )
 )
 {
   CONTAINER cCard (Class: 'card') {

@@ -53,7 +53,7 @@ func TestUpgrade_XPathInBrackets(t *testing.T) {
 func TestUpgrade_XPathNotBracketedIsReported(t *testing.T) {
 	for _, tc := range []struct{ src, code string }{
 		{"grant M.R on M.E (read *) where 'a = 1';", deprecation.ReversedEntityGrant},
-		{"alter workflow M.WF set activity 'Review' targeting xpath 'Role = 1';", deprecation.QuotedTargetingXPath},
+		{"alter workflow M.WF { set (Targeting: xpath 'Role = 1') on 'Review'; };", deprecation.QuotedTargetingXPath},
 	} {
 		res := mustUpgrade(t, tc.src, Options{})
 		if res.Source != tc.src {

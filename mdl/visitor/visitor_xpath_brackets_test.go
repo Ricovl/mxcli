@@ -125,8 +125,13 @@ func TestAlterWorkflowTargeting_BracketedXPath(t *testing.T) {
 		src   string
 		codes []string
 	}{
-		{"alter workflow M.WF\n  set activity 'Review' targeting xpath [Role = 'Manager'];", nil},
-		{"alter workflow M.WF\n  set activity 'Review' targeting xpath '[Role = ''Manager'']';", []string{deprecation.QuotedTargetingXPath}},
+		{"alter workflow M.WF {\n  set (Targeting: xpath [Role = 'Manager']) on 'Review'; };", nil},
+		{"alter workflow M.WF {\n  set (Targeting: xpath '[Role = ''Manager'']') on 'Review'; };", []string{deprecation.QuotedTargetingXPath}},
+		// The old action form records its own alias as well (ako/mxcli#712).
+		{"alter workflow M.WF\n  set activity 'Review' targeting xpath [Role = 'Manager'];",
+			[]string{deprecation.AlterWorkflowSetActivity}},
+		{"alter workflow M.WF\n  set activity 'Review' targeting xpath '[Role = ''Manager'']';",
+			[]string{deprecation.QuotedTargetingXPath, deprecation.AlterWorkflowSetActivity}},
 	} {
 		prog := mustBuild(t, tc.src)
 		alt, ok := prog.Statements[0].(*ast.AlterWorkflowStmt)

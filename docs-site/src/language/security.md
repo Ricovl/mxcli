@@ -72,7 +72,7 @@ the weight -- **whatever it can read is public**.
 ```sql
 -- The role anonymous visitors are given. System.User is what lets an
 -- unauthenticated session exist at all.
-CREATE USER ROLE Anonymous (Shop.Viewer, System.User);
+CREATE USER ROLE Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );
 
 ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: Anonymous );
 

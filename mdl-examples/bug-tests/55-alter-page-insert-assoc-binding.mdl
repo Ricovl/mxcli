@@ -33,7 +33,7 @@ create association MyFirstModule.WeekRow_Week
 /
 
 create or replace page MyFirstModule.WeekTimesheet
-( Title: 'Week', Layout: Atlas_Core.Atlas_Default, Params: { $Week: MyFirstModule.Week } )
+( Title: 'Week', Layout: Atlas_Core.Atlas_Default, Params: ( $Week: MyFirstModule.Week ) )
 {
   dataview dvWeek (datasource: $Week) {
     dynamictext hLabel (content: 'Week')

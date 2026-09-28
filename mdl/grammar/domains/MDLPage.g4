@@ -16,7 +16,7 @@ options { tokenVocab = MDLLexer; }
 // R9: the folder is a clause after the name, as on every document; the
 // `Folder:` header property is a registered alias.
 createPageStatement
-    : PAGE qualifiedName
+    : PAGE ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       pageHeaderV3
       LBRACE pageBodyV3 RBRACE
@@ -31,7 +31,7 @@ createPageStatement
 // wrapper, not on the layout element — and which placeholder a page's content
 // goes into.
 createLayoutStatement
-    : LAYOUT qualifiedName
+    : LAYOUT ifNotExists? qualifiedName
       widgetPropertiesV3?
       LBRACE pageBodyV3 RBRACE
     ;
@@ -41,7 +41,7 @@ createLayoutStatement
 // =============================================================================
 
 createSnippetStatement
-    : SNIPPET qualifiedName
+    : SNIPPET ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       snippetHeaderV3?
       snippetOptions?
@@ -244,8 +244,11 @@ pageHeaderV3
     ;
 
 pageHeaderPropertyV3
-    : PARAMS COLON LBRACE pageParameterList RBRACE                   // Params: { $Order: Entity }
-    | VARIABLES_KW COLON LBRACE variableDeclarationList RBRACE       // Variables: { $show: Boolean = 'true' }
+    // A map is a property list, so it is in ( ) (R2, ako/mxcli#754).
+    : PARAMS COLON LPAREN pageParameterList COMMA? RPAREN                         // Params: ( $Order: Entity )
+    | PARAMS COLON LBRACE /* @alias MDL-DEPR123 */ pageParameterList RBRACE       // Params: { $Order: Entity }
+    | VARIABLES_KW COLON LPAREN variableDeclarationList COMMA? RPAREN             // Variables: ( $show: Boolean = 'true' )
+    | VARIABLES_KW COLON LBRACE /* @alias MDL-DEPR123 */ variableDeclarationList RBRACE
     | TITLE COLON STRING_LITERAL                                     // Title: 'My Page'
     | LAYOUT COLON (qualifiedName | STRING_LITERAL)                  // Layout: Atlas_Core.Atlas_Default
     | URL COLON STRING_LITERAL                                       // Url: 'my-page'
@@ -261,8 +264,10 @@ snippetHeaderV3
     ;
 
 snippetHeaderPropertyV3
-    : PARAMS COLON LBRACE pageParameterList RBRACE                 // Params: { $Customer: Module.Entity } — entities only (MDL087)
-    | VARIABLES_KW COLON LBRACE variableDeclarationList RBRACE     // Variables: { $show: Boolean = 'true' }
+    : PARAMS COLON LPAREN pageParameterList COMMA? RPAREN                         // Params: ( $Customer: Module.Entity ) — entities only (MDL087)
+    | PARAMS COLON LBRACE /* @alias MDL-DEPR123 */ pageParameterList RBRACE
+    | VARIABLES_KW COLON LPAREN variableDeclarationList COMMA? RPAREN             // Variables: ( $show: Boolean = 'true' )
+    | VARIABLES_KW COLON LBRACE /* @alias MDL-DEPR123 */ variableDeclarationList RBRACE
     | FOLDER COLON /* @alias MDL-DEPR105 */ STRING_LITERAL        // Folder: 'Snippets/Common'
     ;
 
@@ -504,15 +509,15 @@ widgetPropertyV3
     | ATTR COLON attributePathV3                      // Attr: (deprecated, use Attribute:)
     | CONTENT COLON stringExprV3                      // Content: 'Hello {1}'
     | RENDERMODE COLON renderModeV3                   // RenderMode: H3
-    | CONTENTPARAMS COLON paramListV3                 // ContentParams: [{1} = $var.Name]
-    | CAPTIONPARAMS COLON paramListV3                 // CaptionParams: [{1} = 'hello']
+    | CONTENTPARAMS COLON paramListV3                 // ContentParams: ({1} = $var.Name)
+    | CAPTIONPARAMS COLON paramListV3                 // CaptionParams: ({1} = 'hello')
     // A text-template sub-property of an object-list ITEM carries its
     // parameters under `<Name>Params`, and those names are the widget's own
     // (a File Uploader custom button's `ButtonCaptionParams`), so they cannot
     // each have a token. Placed before the generic propertyValueV3
     // alternatives, which also admit a `[...]` array — `{N} = expr` inside is
     // what separates them (#956).
-    | (IDENTIFIER | keyword) COLON paramListV3        // <Name>Params: [{1} = Attr]
+    | (IDENTIFIER | keyword) COLON paramListV3        // <Name>Params: ({1} = Attr)
     | BUTTONSTYLE COLON buttonStyleV3                  // ButtonStyle: Primary
     | ICON COLON widgetIconV3                          // Icon: 'Atlas_Core.Atlas_Filled.pencil' | image Mod.Images.logo | glyph 57377
     | CLASS COLON STRING_LITERAL                       // Class: 'my-class'
@@ -522,10 +527,10 @@ widgetPropertyV3
     | PHONEWIDTH COLON desktopWidthV3                 // PhoneWidth: 12 | AutoFill
     | SELECTION COLON selectionModeV3                 // Selection: Single | Multiple
     | SNIPPET COLON qualifiedName                     // Snippet: Module.SnippetName
-    | PARAMS COLON snippetCallParamListV3             // Params: {$Asset: $var} — snippet call parameter mappings
+    | PARAMS COLON snippetCallParamListV3             // Params: (Asset = $var) — snippet call arguments
     | ATTRIBUTES COLON attributeListV3                // Attributes: [Entity.Attr1, Entity.Attr2]
     | FILTERTYPE COLON filterTypeValue                // FilterType: startsWith | contains | equal
-    | DESIGNPROPERTIES COLON designPropertyListV3       // DesignProperties: [...]
+    | DESIGNPROPERTIES COLON designPropertyListV3       // DesignProperties: ( 'Key': 'Value', … )
     | WIDTH COLON NUMBER_LITERAL                        // Width: 200
     | HEIGHT COLON NUMBER_LITERAL                      // Height: 100
     // R5 (ako/mxcli#753): a conditional Visible / Editable is a client
@@ -614,9 +619,17 @@ filterTypeValue
     | IDENTIFIER    // startsWith, endsWith, greater, greaterEqual, equal, notEqual, smaller, smallerEqual, notEmpty
     ;
 
-// Snippet call parameter mappings: {$Asset: $var, $Other: $other}
+// Snippet call arguments: (Asset = $var, Other = $other). A snippet call is a
+// call site, so it binds its arguments the way every call does, `Param = value`
+// (R4), in the ( ) of a property map (R2, ako/mxcli#754). The old spelling was
+// a brace map `{$Asset: $var}`.
 snippetCallParamListV3
-    : LBRACE snippetCallParamMappingV3 (COMMA snippetCallParamMappingV3)* RBRACE
+    : LPAREN snippetCallArgV3 (COMMA snippetCallArgV3)* COMMA? RPAREN
+    | LBRACE /* @alias MDL-DEPR126 */ snippetCallParamMappingV3 (COMMA snippetCallParamMappingV3)* RBRACE
+    ;
+
+snippetCallArgV3
+    : parameterName EQUALS VARIABLE
     ;
 
 snippetCallParamMappingV3
@@ -731,9 +744,12 @@ stringExprV3
     | VARIABLE (DOT (IDENTIFIER | keyword))?
     ;
 
-// V3 Parameter list: [{1} = value, {2} = value]
+// V3 Parameter list: ({1} = value, {2} = value). The parameters of a text
+// template are a map, so they are in ( ) (R2, ako/mxcli#754), and each binds a
+// runtime value with `=` (R4, `with ({1} = …)`). `[…]` is the old spelling.
 paramListV3
-    : LBRACKET paramAssignmentV3 (COMMA paramAssignmentV3)* RBRACKET
+    : LPAREN paramAssignmentV3 (COMMA paramAssignmentV3)* COMMA? RPAREN
+    | LBRACKET /* @alias MDL-DEPR124 */ paramAssignmentV3 (COMMA paramAssignmentV3)* RBRACKET
     ;
 
 paramAssignmentV3
@@ -823,17 +839,19 @@ objectEntryFieldV3
     : identifierOrKeyword COLON propertyValueV3
     ;
 
-// V3 Design property list: ['Key': 'Value', 'Key': ON]
+// V3 Design property list: ('Key': 'Value', 'Key': on). A map of properties, so
+// it is in ( ) (R2, ako/mxcli#754); `['Key': 'Value']` is the old spelling.
 designPropertyListV3
-    : LBRACKET designPropertyEntryV3 (COMMA designPropertyEntryV3)* RBRACKET
-    | LBRACKET RBRACKET
+    : LPAREN (designPropertyEntryV3 (COMMA designPropertyEntryV3)* COMMA?)? RPAREN
+    | LBRACKET /* @alias MDL-DEPR125 */ designPropertyEntryV3 (COMMA designPropertyEntryV3)* RBRACKET
+    | LBRACKET /* @alias MDL-DEPR125 */ RBRACKET
     ;
 
 designPropertyEntryV3
     : STRING_LITERAL COLON STRING_LITERAL
     | STRING_LITERAL COLON ON
     | STRING_LITERAL COLON OFF
-    | STRING_LITERAL COLON designPropertyListV3   // compound: 'Spacing': ['margin-top': 'Large', ...]
+    | STRING_LITERAL COLON designPropertyListV3   // compound: 'Spacing': ('margin-top': 'Large', ...)
     ;
 
 // V3 Widget body: { children }

@@ -131,7 +131,7 @@ CREATE PAGE CRM.Customer_Overview (
 
 -- NewEdit page with validation
 CREATE PAGE CRM.Customer_NewEdit (
-  Params: { $Customer: CRM.Customer },
+  Params: ( $Customer: CRM.Customer ),
   Title: 'Customer',
   Layout: Atlas_Core.PopupLayout
 ) {
@@ -180,8 +180,8 @@ GRANT VIEW ON PAGE CRM.Customer_Overview TO CRM.User;
 GRANT VIEW ON PAGE CRM.Customer_NewEdit TO CRM.User;
 
 -- User roles
-CREATE OR MODIFY USER ROLE CRMUser (System.User, CRM.User);
-CREATE OR MODIFY USER ROLE CRMAdmin (System.User, CRM.Admin);
+CREATE OR MODIFY USER ROLE CRMUser ( ModuleRoles: (System.User, CRM.User) );
+CREATE OR MODIFY USER ROLE CRMAdmin ( ModuleRoles: (System.User, CRM.Admin) );
 
 -- Demo users for testing
 CREATE OR MODIFY DEMO USER 'crm_user' PASSWORD 'Password1!' (CRMUser);

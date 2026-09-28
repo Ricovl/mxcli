@@ -97,12 +97,12 @@ func (b *Builder) parsePageHeaderV3(ctx parser.IPageHeaderV3Context, stmt *ast.C
 		prop := propCtx.(*parser.PageHeaderPropertyV3Context)
 
 		if prop.PARAMS() != nil {
-			// Params: { $Order: Entity, ... }
+			// Params: ( $Order: Entity, ... )
 			if paramList := prop.PageParameterList(); paramList != nil {
 				stmt.Parameters = buildPageParameters(paramList)
 			}
 		} else if prop.VARIABLES_KW() != nil {
-			// Variables: { $showStock: Boolean = 'true', ... }
+			// Variables: ( $showStock: Boolean = 'true', ... )
 			if varList := prop.VariableDeclarationList(); varList != nil {
 				stmt.Variables = buildVariableDeclarations(varList)
 			}
@@ -272,12 +272,12 @@ func (b *Builder) parseSnippetHeaderV3(ctx parser.ISnippetHeaderV3Context, stmt 
 		prop := propCtx.(*parser.SnippetHeaderPropertyV3Context)
 
 		if prop.PARAMS() != nil {
-			// Params: { $Customer: Entity, ... }
+			// Params: ( $Customer: Entity, ... )
 			if paramList := prop.PageParameterList(); paramList != nil {
 				stmt.Parameters = buildPageParameters(paramList)
 			}
 		} else if prop.VARIABLES_KW() != nil {
-			// Variables: { $showStock: Boolean = 'true', ... }
+			// Variables: ( $showStock: Boolean = 'true', ... )
 			if varList := prop.VariableDeclarationList(); varList != nil {
 				stmt.Variables = buildVariableDeclarations(varList)
 			}
@@ -719,7 +719,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		return
 	}
 
-	// ContentParams: [...]
+	// ContentParams: (...)
 	if propCtx.CONTENTPARAMS() != nil {
 		if plCtx := propCtx.ParamListV3(); plCtx != nil {
 			widget.Properties["ContentParams"] = buildParamListV3(plCtx)
@@ -727,7 +727,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		return
 	}
 
-	// CaptionParams: [...]
+	// CaptionParams: (...)
 	if propCtx.CAPTIONPARAMS() != nil {
 		if plCtx := propCtx.ParamListV3(); plCtx != nil {
 			widget.Properties["CaptionParams"] = buildParamListV3(plCtx)
@@ -809,7 +809,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		return
 	}
 
-	// Params: {$Asset: $var} — snippet call parameter mappings
+	// Params: (Asset = $var) — snippet call arguments
 	if propCtx.PARAMS() != nil {
 		if plCtx := propCtx.SnippetCallParamListV3(); plCtx != nil {
 			widget.Properties["Params"] = buildSnippetCallParamListV3(plCtx)
@@ -853,7 +853,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		return
 	}
 
-	// DesignProperties: [...]
+	// DesignProperties: (...)
 	if propCtx.DESIGNPROPERTIES() != nil {
 		if dpCtx := propCtx.DesignPropertyListV3(); dpCtx != nil {
 			widget.Properties["DesignProperties"] = buildDesignPropertyListV3(dpCtx)
@@ -918,7 +918,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 			}
 			return
 		}
-		// `<Name>Params: [{1} = Attr]` — the parameters of a text-template
+		// `<Name>Params: ({1} = Attr)` — the parameters of a text-template
 		// sub-property whose name belongs to the WIDGET rather than to MDL (a
 		// File Uploader custom button's ButtonCaptionParams). ContentParams and
 		// CaptionParams have their own tokens and are handled above; every other
@@ -1921,8 +1921,21 @@ func xpathPathToString(path *ast.XPathPathExpr) string {
 
 // buildSnippetCallParamListV3 converts a parsed snippetCallParamListV3 context
 // into a slice of SnippetCallParam AST nodes.
+//
+// The canonical form binds `Param = $var` (R4) in ( ); the old brace map
+// `{$Param: $var}` / `{Param: $var}` builds the same params. The parameter name
+// is stored without its `$`, which the builder strips either way.
 func buildSnippetCallParamListV3(ctx parser.ISnippetCallParamListV3Context) []ast.SnippetCallParam {
 	var params []ast.SnippetCallParam
+	for _, argCtx := range ctx.AllSnippetCallArgV3() {
+		param := ast.SnippetCallParam{ParamName: parameterNameText(argCtx.ParameterName())}
+		if v := argCtx.VARIABLE(); v != nil {
+			param.Variable = v.GetText()
+		}
+		if param.ParamName != "" && param.Variable != "" {
+			params = append(params, param)
+		}
+	}
 	for _, mappingCtx := range ctx.AllSnippetCallParamMappingV3() {
 		param := ast.SnippetCallParam{}
 		if iok := mappingCtx.IdentifierOrKeyword(); iok != nil {
@@ -1935,7 +1948,7 @@ func buildSnippetCallParamListV3(ctx parser.ISnippetCallParamListV3Context) []as
 			// Param name written with $: $Asset: $someVar
 			vars := mappingCtx.AllVARIABLE()
 			if len(vars) >= 2 {
-				param.ParamName = vars[0].GetText()
+				param.ParamName = strings.TrimPrefix(vars[0].GetText(), "$")
 				param.Variable = vars[1].GetText()
 			}
 		}

@@ -17,13 +17,13 @@ dynamictext heading (content: 'Heading Text', rendermode: H2)
 dynamictext productName (content: '$Product.Name', rendermode: H3)
 
 -- Explicit template with page parameter binding
-dynamictext greeting (content: 'Welcome, {1}!', contentparams: [{1} = $Customer.Name])
+dynamictext greeting (content: 'Welcome, {1}!', contentparams: ({1} = $Customer.Name))
 
 -- Template with attribute from current DataView context (simple attribute name)
-dynamictext email (content: 'Email: {1}', contentparams: [{1} = Email])
+dynamictext email (content: 'Email: {1}', contentparams: ({1} = Email))
 
 -- Bind directly to an attribute of the surrounding DataView/ListView/Gallery
--- entity. `Attribute: X` is shorthand for `content: '{1}', contentparams: [{1} = X]`.
+-- entity. `Attribute: X` is shorthand for `content: '{1}', contentparams: ({1} = X)`.
 dynamictext title (Attribute: Title)
 ```
 
@@ -40,11 +40,11 @@ default (e.g. `5068.38000000`).
 
 ```sql
 -- Decimal: 2 decimals + thousands separator  ->  "5,068.38"
-dynamictext amt (content: '{1}', contentparams: [{1} = Amount format (decimalPrecision: 2, groupDigits: true)])
+dynamictext amt (content: '{1}', contentparams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true)))
 
 -- DateTime: date + time, or a custom pattern
-dynamictext due  (content: '{1}', contentparams: [{1} = DueOn format (dateFormat: DateTime)])
-dynamictext day  (content: '{1}', contentparams: [{1} = DueOn format (dateFormat: Custom, customDateFormat: 'dd-MM-yyyy')])
+dynamictext due  (content: '{1}', contentparams: ({1} = DueOn format (dateFormat: DateTime)))
+dynamictext day  (content: '{1}', contentparams: ({1} = DueOn format (dateFormat: Custom, customDateFormat: 'dd-MM-yyyy')))
 ```
 
 | Format key | Applies to | Values |
@@ -198,13 +198,13 @@ name, which is why the keyword takes `for` and a qualified entity:
 ```sql
 listview vehicleListView (datasource: database from Pages.Vehicle) {
   -- the default body: used for an object no template matches
-  dynamictext defaultVehicle (content: '{1} {2}', contentparams: [{1} = Brand, {2} = Model])
+  dynamictext defaultVehicle (content: '{1} {2}', contentparams: ({1} = Brand, {2} = Model))
 
   template for Pages.Bus {
-    dynamictext busLabel (content: 'Bus, capacity {1}', contentparams: [{1} = PassengerCapacity])
+    dynamictext busLabel (content: 'Bus, capacity {1}', contentparams: ({1} = PassengerCapacity))
   }
   template for Pages.Truck {
-    dynamictext truckLabel (content: 'Truck, max load {1} kg', contentparams: [{1} = MaxLoadKg])
+    dynamictext truckLabel (content: 'Truck, max load {1} kg', contentparams: ({1} = MaxLoadKg))
   }
 }
 ```
@@ -322,7 +322,7 @@ datagrid gridName (datasource: database from Module.Entity) {
     Caption: 'Amount',
     ShowContentAs: dynamicText,
     Content: 'Amt: {1}',
-    ContentParams: [{1} = Amount format (decimalPrecision: 2, groupDigits: true)]
+    ContentParams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true))
   )
   column due (attribute: DueOn, caption: 'Due')
 }
@@ -549,8 +549,8 @@ gallery galleryName (
   PhoneColumns: 1
 ) {
   template {
-    dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-    dynamictext email (content: '{1}', contentparams: [{1} = Email])
+    dynamictext name (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+    dynamictext email (content: '{1}', contentparams: ({1} = Email))
   }
 }
 ```
@@ -562,8 +562,8 @@ gallery productGallery (datasource: database Module.Product, selection: single) 
     textfilter searchName (attribute: Name)
   }
   template {
-    dynamictext prodName (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-    dynamictext prodCode (content: 'SKU: {1}', contentparams: [{1} = Code])
+    dynamictext prodName (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+    dynamictext prodCode (content: 'SKU: {1}', contentparams: ({1} = Code))
   }
 }
 ```
@@ -658,7 +658,7 @@ Embed a reusable snippet:
 snippetcall snippetName (snippet: Module.SnippetName)
 
 -- With parameters
-snippetcall actions (snippet: Module.EntityActions, params: {entity: $Param})
+snippetcall actions (snippet: Module.EntityActions, params: (entity = $Param))
 ```
 
 **A parameter satisfied by the enclosing data context takes NO mapping.** Mendix
@@ -672,12 +672,12 @@ dataview dvOrder (datasource: $Order) {
 }
 ```
 
-`params: {Order: $currentObject}` means the same thing and produces the same
+`params: (Order = $currentObject)` means the same thing and produces the same
 (empty) mapping. Naming a real page parameter or variable produces a real
 mapping, as expected:
 
 ```sql
-snippetcall scActions (snippet: MyModule.OrderActions, params: {Order: $Order})
+snippetcall scActions (snippet: MyModule.OrderActions, params: (Order = $Order))
 ```
 
 Omitting `Params:` where the context is a *different* entity is still an error —
@@ -804,7 +804,7 @@ pluggablewidget 'com.mendix.widget.web.image.Image' cardImage (
 -- numbered placeholders + contentparams: needed for several values, or a format block
 pluggablewidget 'com.mendix.widget.web.image.Image' cardImage (
   datasource: imageUrl,
-  imageUrl: '{1}/{2}', contentparams: [{1} = BaseUrl, {2} = PictureUrl]
+  imageUrl: '{1}/{2}', contentparams: ({1} = BaseUrl, {2} = PictureUrl)
 )
 
 -- `<Name>Params`: the property's OWN parameters. `contentparams` is one list
@@ -812,8 +812,8 @@ pluggablewidget 'com.mendix.widget.web.image.Image' cardImage (
 -- `alternativeText` to different attributes; this can (ako/mxcli#575).
 pluggablewidget 'com.mendix.widget.web.image.Image' cardImage (
   datasource: imageUrl,
-  imageUrl: '{1}',        imageUrlParams: [{1} = PictureUrl],
-  alternativeText: '{1}', alternativeTextParams: [{1} = Name]
+  imageUrl: '{1}',        imageUrlParams: ({1} = PictureUrl),
+  alternativeText: '{1}', alternativeTextParams: ({1} = Name)
 )
 ```
 
@@ -911,13 +911,13 @@ container card1 (class: 'card', style: 'padding: 16px;') {
 }
 
 -- Container with design properties
-container spaced1 (designproperties: ['Spacing top': 'Large', 'Full width': on]) {
+container spaced1 (designproperties: ('Spacing top': 'Large', 'Full width': on)) {
   dynamictext text1 (content: 'Spaced full-width content')
 }
 
 -- Nested containers with combined styling
 customcontainer outer1 (class: 'section') {
-  container inner1 (class: 'card', designproperties: ['Spacing top': 'Medium']) {
+  container inner1 (class: 'card', designproperties: ('Spacing top': 'Medium')) {
     dynamictext text1 (content: 'Nested content')
   }
 }

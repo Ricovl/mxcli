@@ -90,7 +90,7 @@ create page VFilterDrop.MeterGallery (
       textfilter fGalCode (attribute: MeterCode)
     }
     template galTemplate {
-      dynamictext txtCode (content: '{1}', contentparams: [{1} = MeterCode])
+      dynamictext txtCode (content: '{1}', contentparams: ({1} = MeterCode))
     }
   }
 }

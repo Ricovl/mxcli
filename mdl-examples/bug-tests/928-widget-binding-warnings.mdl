@@ -43,7 +43,7 @@ create or modify page BugTest928.Warnings (
     -- MDL-WIDGET21: parameters with no placeholder to fill.
     PLUGGABLEWIDGET 'com.mendix.widget.web.image.Image' imgNoPlaceholder (
       datasource: imageUrl,
-      imageUrl: 'static.png', contentparams: [{1} = PictureUrl]
+      imageUrl: 'static.png', contentparams: ({1} = PictureUrl)
     )
   }
 }

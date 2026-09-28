@@ -43,21 +43,21 @@ create constant DbType.Dsn type string
 create constant DbType.User type string default 'demo';
 create constant DbType.Pass type string default '';
 
-create database connection DbType.Warehouse
-type 'PostgreSQL'
-connection string @DbType.Dsn
-username @DbType.User
-password @DbType.Pass
-begin
+create database connection DbType.Warehouse (
+  Type: 'PostgreSQL',
+  ConnectionString: @DbType.Dsn,
+  Username: @DbType.User,
+  Password: @DbType.Pass
+) {
   -- Reads: stored as Type = 'Select' on 11.13+.
-  query ListOrders
-    sql 'SELECT orderId, customer, total FROM orders ORDER BY orderId';
+  query ListOrders (
+    Sql: 'SELECT orderId, customer, total FROM orders ORDER BY orderId' )
 
   -- Writes: stored as Type = 'NonSelect'. The legacy integer could not express
   -- this distinction at all.
-  query ArchiveOrders
-    sql 'UPDATE orders SET archived = true WHERE total = 0';
-end;
+  query ArchiveOrders (
+    Sql: 'UPDATE orders SET archived = true WHERE total = 0' )
+};
 
 -- The activity is where CE5277 surfaced, so the repro needs one.
 create microflow DbType.MF_ListOrders()

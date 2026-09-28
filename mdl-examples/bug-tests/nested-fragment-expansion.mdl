@@ -17,7 +17,7 @@ create persistent entity NestFrag.Order (
 
 -- A slotted card shell reused inside a layout container.
 define fragment Card as {
-  container cardWrap (class: 'card', designproperties: ['Card style': on]) {
+  container cardWrap (class: 'card', designproperties: ('Card style': on)) {
     container cardBody (class: 'card-body') {
       slot content
     }

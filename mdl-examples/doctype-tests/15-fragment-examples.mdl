@@ -99,7 +99,7 @@ describe fragment CustomerFields;
  */
 create page FragTest.P001_Customer_Edit
 (
-  params: { $Customer: FragTest.Customer },
+  params: ( $Customer: FragTest.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -172,7 +172,7 @@ define fragment OrderFields as {
 
 create page FragTest.P003_Order_Form
 (
-  params: { $Order: FragTest.Order },
+  params: ( $Order: FragTest.Order ),
   title: 'Edit Order',
   layout: Atlas_Core.PopupLayout
 )
@@ -210,7 +210,7 @@ create page FragTest.P003_Order_Form
  */
 create page FragTest.P004_Customer_New
 (
-  params: { $Customer: FragTest.Customer },
+  params: ( $Customer: FragTest.Customer ),
   title: 'New Customer',
   layout: Atlas_Core.Atlas_Default,
   url: 'frag_004_customer_new/{Customer}'
@@ -227,7 +227,7 @@ create page FragTest.P004_Customer_New
 
 create page FragTest.P005_Quick_View
 (
-  params: { $Customer: FragTest.Customer },
+  params: ( $Customer: FragTest.Customer ),
   title: 'Customer Details',
   layout: Atlas_Core.PopupLayout
 )
@@ -252,7 +252,7 @@ create page FragTest.P005_Quick_View
  */
 create snippet FragTest.CustomerCard
 (
-  params: { $Customer: FragTest.Customer }
+  params: ( $Customer: FragTest.Customer )
 )
 {
   container ctnCard (class: 'card') {

@@ -53,6 +53,13 @@ func (m *MockBackend) AddUserRole(unitID model.ID, name string, moduleRoles []st
 	return nil
 }
 
+func (m *MockBackend) SetUserRoleProperties(unitID model.ID, userRoleName string, props backend.UserRoleProperties) error {
+	if m.SetUserRolePropertiesFunc != nil {
+		return m.SetUserRolePropertiesFunc(unitID, userRoleName, props)
+	}
+	return nil
+}
+
 func (m *MockBackend) AlterUserRoleModuleRoles(unitID model.ID, userRoleName string, add bool, moduleRoles []string) error {
 	if m.AlterUserRoleModuleRolesFunc != nil {
 		return m.AlterUserRoleModuleRolesFunc(unitID, userRoleName, add, moduleRoles)

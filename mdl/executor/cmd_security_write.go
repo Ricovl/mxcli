@@ -234,13 +234,21 @@ func execCreateUserRole(ctx *ExecContext, s *ast.CreateUserRoleStmt) error {
 				// exist and filed it as missing MDL surface; it exists, and its
 				// module-role list is required.
 				return mdlerrors.NewAlreadyExistsMsg("user role", s.Name, fmt.Sprintf(
-					"user role already exists: %s — use 'create or modify user role %s (Module.Role, ...)' "+
-						"to add module roles to it and keep the script re-runnable "+
-						"(the parenthesised module-role list is required)", s.Name, s.Name))
+					"user role already exists: %s — use 'create or modify user role %s ( ModuleRoles: (Module.Role, ...) )' "+
+						"to add module roles to it and keep the script re-runnable", s.Name, s.Name))
 			}
 			// Additive: ensure specified module roles are present
-			if err := ctx.Backend.AlterUserRoleModuleRoles(ps.ID, s.Name, true, moduleRoleNames); err != nil {
-				return mdlerrors.NewBackend("update user role", err)
+			if len(moduleRoleNames) > 0 {
+				if err := ctx.Backend.AlterUserRoleModuleRoles(ps.ID, s.Name, true, moduleRoleNames); err != nil {
+					return mdlerrors.NewBackend("update user role", err)
+				}
+			}
+			// The properties the statement states; the rest keep their stored
+			// values, as a module role's missing description does.
+			if props := userRoleProperties(s); !props.IsZero() {
+				if err := ctx.Backend.SetUserRoleProperties(ps.ID, s.Name, props); err != nil {
+					return mdlerrors.NewBackend("update user role", err)
+				}
 			}
 			ctx.ReportMutation("Modified", "user role: %s", s.Name)
 			return nil
@@ -250,9 +258,36 @@ func execCreateUserRole(ctx *ExecContext, s *ast.CreateUserRoleStmt) error {
 	if err := ctx.Backend.AddUserRole(ps.ID, s.Name, moduleRoleNames, s.ManageAllRoles); err != nil {
 		return mdlerrors.NewBackend("create user role", err)
 	}
+	// Description, CheckSecurity and the manageable roles: a positional role
+	// list had no slot for them, so describe → exec lost them (ako/mxcli#707).
+	props := userRoleProperties(s)
+	props.ManageAllRoles = nil // AddUserRole set it
+	if !props.IsZero() {
+		if err := ctx.Backend.SetUserRoleProperties(ps.ID, s.Name, props); err != nil {
+			return mdlerrors.NewBackend("create user role", err)
+		}
+	}
 
 	fmt.Fprintf(ctx.Output, "Created user role: %s\n", s.Name)
 	return nil
+}
+
+// userRoleProperties is what a create user role statement states beyond the
+// name and the module roles.
+func userRoleProperties(s *ast.CreateUserRoleStmt) backend.UserRoleProperties {
+	p := backend.UserRoleProperties{
+		Description:             s.Description,
+		CheckSecurity:           s.CheckSecurity,
+		ManageUsersWithoutRoles: s.ManageUsersWithoutRoles,
+	}
+	if s.ManageAllRolesSet {
+		v := s.ManageAllRoles
+		p.ManageAllRoles = &v
+	}
+	if s.ManageableSet {
+		p.ManageableRoles = append([]string{}, s.ManageableRoles...)
+	}
+	return p
 }
 
 // execAlterUserRole handles ALTER USER ROLE Name ADD/REMOVE MODULE ROLES (...).

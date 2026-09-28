@@ -43,7 +43,7 @@ create or replace page MyFirstModule.HideOn (
 ) {
   listview lvH (
     DataSource: database from MyFirstModule.Thing,
-    DesignProperties: ['Hide on': ['Phone': on, 'Tablet': on]]
+    DesignProperties: ('Hide on': ('Phone': on, 'Tablet': on))
   ) {
     dynamictext dt (Content: 'x')
   }

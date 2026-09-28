@@ -121,13 +121,13 @@ create page Issue989.NavLogin (
 create or replace navigation Responsive
   home page Issue989.NavHome
   login page Issue989.NavLogin
-  menu (
-    menu item 'Home' page Issue989.NavHome;
-    menu 'Admin' (
-      menu item 'Reports' page Issue989.NavReports;
-      menu item 'Settings' page Issue989.NavSettings;
-    );
-  );
+  {
+    menu item 'Home' ( OnClick: show page Issue989.NavHome )
+    menu 'Admin' {
+      menu item 'Reports' ( OnClick: show page Issue989.NavReports )
+      menu item 'Settings' ( OnClick: show page Issue989.NavSettings )
+    }
+  };
 
 -- A microflow action and a sub-menu container write Forms$MicroflowAction /
 -- Forms$NoAction, which carry no FormSettings -- included so the TextTemplate
@@ -141,13 +141,13 @@ end;
 create or replace navigation Responsive
   home page Issue989.NavHome
   login page Issue989.NavLogin
-  menu (
-    menu item 'Home' page Issue989.NavHome;
-    menu item 'Run' microflow Issue989.DoNothing;
-    menu 'Admin' (
-      menu item 'Reports' page Issue989.NavReports;
-      menu item 'Settings' page Issue989.NavSettings;
-    );
-  );
+  {
+    menu item 'Home' ( OnClick: show page Issue989.NavHome )
+    menu item 'Run' ( OnClick: call microflow Issue989.DoNothing )
+    menu 'Admin' {
+      menu item 'Reports' ( OnClick: show page Issue989.NavReports )
+      menu item 'Settings' ( OnClick: show page Issue989.NavSettings )
+    }
+  };
 
 describe navigation Responsive;

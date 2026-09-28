@@ -46,7 +46,7 @@ create page Ledger.LineItemsGrid (
             Caption: 'Amount',
             ShowContentAs: dynamicText,
             Content: 'Amt: {1}',
-            ContentParams: [{1} = Amount format (decimalPrecision: 2, groupDigits: true)]
+            ContentParams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true))
           )
           -- Plain attribute column for contrast.
           column due (Attribute: DueOn, Caption: 'Due')

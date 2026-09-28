@@ -8,6 +8,7 @@ package ast
 
 // CreateODataClientStmt represents: CREATE ODATA CLIENT Module.Name (...)
 type CreateODataClientStmt struct {
+	CreateGuard       // `create … if not exists` (ako/mxcli#731)
 	Name              QualifiedName
 	Version           string
 	ODataVersion      string
@@ -86,6 +87,7 @@ func (s *DropODataClientStmt) isStatement() {}
 
 // CreateODataServiceStmt represents: CREATE ODATA SERVICE Module.Name (...) AUTHENTICATION ... { ... }
 type CreateODataServiceStmt struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	Path             string
 	Version          string
@@ -210,6 +212,7 @@ func (s *DropODataServiceStmt) isStatement() {}
 // from "explicitly set to zero" (e.g. Countable: false). Treating omitted
 // fields as zero on modify silently corrupted entities — see issue #594.
 type CreateExternalEntityStmt struct {
+	CreateGuard              // `create … if not exists` (ako/mxcli#731)
 	Name                     QualifiedName
 	ServiceRef               QualifiedName // FROM ODATA CLIENT ...
 	EntitySet                *string

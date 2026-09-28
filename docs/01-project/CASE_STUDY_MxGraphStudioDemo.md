@@ -61,7 +61,7 @@ navigation: Responsive -> Main.Home_Web -> buttons to OdataPlm pages
 | ComboBox | `combobox` | Supported |
 | Navigation profiles | `create or replace navigation` | Supported |
 | Constants | `create constant` | Supported |
-| Page parameters | `params: { $Var: entity }` | Supported |
+| Page parameters | `params: ( $Var: entity )` | Supported |
 | Show page actions | `action: show_page Module.Page` | Supported |
 | Save/Cancel actions | `action: save_changes / cancel_changes` | Supported |
 | Consumed OData clients | `create consumed odata service` | Supported |
@@ -346,7 +346,7 @@ create page OdataPlm.Customer_Overview
 
 ```sql
 create page OdataPlm.Customer_NewEdit
-(title: 'Edit Customer', layout: Atlas_Core.PopupLayout, params: { $Customer: OdataPlm.Customer })
+(title: 'Edit Customer', layout: Atlas_Core.PopupLayout, params: ( $Customer: OdataPlm.Customer ))
 {
   layoutgrid layoutGrid1 {
     row row1 {
@@ -421,7 +421,7 @@ create page OdataPlm.Address_Overview
 
 ```sql
 create page OdataPlm.Address_NewEdit
-(title: 'Edit Address', layout: Atlas_Core.PopupLayout, params: { $Address: OdataPlm.Address })
+(title: 'Edit Address', layout: Atlas_Core.PopupLayout, params: ( $Address: OdataPlm.Address ))
 {
   layoutgrid layoutGrid1 {
     row row1 {
@@ -521,9 +521,9 @@ create page Main.Home_Web
 ```sql
 create or replace navigation Responsive
   home page Main.Home_Web
-  menu (
-    menu item 'Home' page Main.Home_Web;
-  )
+  {
+    menu item 'Home' ( OnClick: show page Main.Home_Web )
+  }
 ;
 ```
 

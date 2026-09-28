@@ -13,6 +13,6 @@
 
 create module F1028;
 
-create snippet F1028.SNIPPET_Label ( params: { $Label: string } ) {
+create snippet F1028.SNIPPET_Label ( params: ( $Label: string ) ) {
   dynamictext dt (content: $Label)
 }

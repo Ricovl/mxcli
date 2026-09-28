@@ -160,9 +160,9 @@ instead of its own. The fix is a phone layout of your own whose bottom bar names
 your own menu document, not an edit to Atlas's layout:
 
 ```sql
-create or modify menu MyModule.Phone_Menu (
-  menu item 'Home' page MyModule.Home_Phone icon Atlas_Core.Atlas.home;
-);
+create or modify menu MyModule.Phone_Menu {
+  menu item 'Home' ( OnClick: show page MyModule.Home_Phone, Icon: Atlas_Core.Atlas.home )
+};
 create or replace layout MyModule.Phone_Bottom (
   layouttype: 'Phone', class: 'layout-atlas layout-atlas-phone'
 ) {

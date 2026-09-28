@@ -550,6 +550,9 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 				fb.nextConnectionPoint = ""
 				pendingCase = fb.nextFlowCase
 				fb.nextFlowCase = ""
+				// A branch statement's own anchor (prevAnchor) already carries its
+				// outgoing side; a nested if's exit anchor must not outlive it.
+				fb.nextFlowAnchor = nil
 			} else {
 				lastID = actID
 			}
@@ -722,6 +725,9 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 				fb.nextConnectionPoint = ""
 				pendingCase = fb.nextFlowCase
 				fb.nextFlowCase = ""
+				// A branch statement's own anchor (prevAnchor) already carries its
+				// outgoing side; a nested if's exit anchor must not outlive it.
+				fb.nextFlowAnchor = nil
 			} else {
 				lastID = actID
 			}

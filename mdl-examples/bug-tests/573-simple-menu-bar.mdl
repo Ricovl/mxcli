@@ -21,11 +21,11 @@
 
 create module Bug573;
 
-create or modify menu Bug573.Bottom_Menu (
-  menu item 'Home' icon Atlas_Core.Atlas.home;
-  menu item 'Agenda' icon Atlas_Core.Atlas.calendar;
-  menu item 'Profile' icon Atlas_Core.Atlas.user;
-);
+create or modify menu Bug573.Bottom_Menu {
+  menu item 'Home' ( Icon: Atlas_Core.Atlas.home )
+  menu item 'Agenda' ( Icon: Atlas_Core.Atlas.calendar )
+  menu item 'Profile' ( Icon: Atlas_Core.Atlas.user )
+};
 
 create or replace layout Bug573.Phone_Bottom (
   layouttype: 'Phone',

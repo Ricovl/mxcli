@@ -42,17 +42,18 @@ create constant DbQ863.DbUrl  type String default 'jdbc:postgresql://localhost:5
 create constant DbQ863.DbUser type String default 'app';
 create constant DbQ863.DbPass type String default 'secret';
 
-create database connection DbQ863.Conn
-  type 'PostgreSQL'
-  connection string @DbQ863.DbUrl
-  username @DbQ863.DbUser
-  password @DbQ863.DbPass
-begin
-  query GetRows
-    sql 'select n from rows where status = $Status'
-    parameter Status: String
-    returns DbQ863.Row map (n as N);
-end;
+create database connection DbQ863.Conn (
+  Type: 'PostgreSQL',
+  ConnectionString: @DbQ863.DbUrl,
+  Username: @DbQ863.DbUser,
+  Password: @DbQ863.DbPass
+) {
+  query GetRows (
+    Sql: 'select n from rows where status = $Status',
+    Parameters: ( Status: String ),
+    Returns: DbQ863.Row, Map: (N = n)
+  )
+};
 
 create microflow DbQ863.MF_Query ($Status: String)
 begin

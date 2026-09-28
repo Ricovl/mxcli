@@ -42,7 +42,7 @@ create page WF415.TaskPage
   (
     Title: 'Task',
     Layout: Atlas_Core.Atlas_Default,
-    Params: { $TaskPageParam: System.WorkflowUserTask }
+    Params: ( $TaskPageParam: System.WorkflowUserTask )
   )
   {
     CONTAINER c1 { }

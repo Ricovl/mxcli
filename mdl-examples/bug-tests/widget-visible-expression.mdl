@@ -36,7 +36,7 @@
 create entity MyFirstModule.Vessel ( Name: String, Active: Boolean );
 
 create or replace page MyFirstModule.P_VisString
-( Title: 'Visible string form', Layout: Atlas_Core.Atlas_Default, Params: { $Vessel: MyFirstModule.Vessel } )
+( Title: 'Visible string form', Layout: Atlas_Core.Atlas_Default, Params: ( $Vessel: MyFirstModule.Vessel ) )
 {
   dataview dv (datasource: $Vessel) {
     -- expression as a quoted string (root in $currentObject yourself)

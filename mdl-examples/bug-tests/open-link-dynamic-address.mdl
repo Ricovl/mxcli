@@ -33,7 +33,7 @@ create entity MyFirstModule.LinkTarget (
 /
 
 create or replace page MyFirstModule.LinkTarget_View
-( Title: 'Link', Layout: Atlas_Core.Atlas_Default, Params: { $LinkTarget: MyFirstModule.LinkTarget } )
+( Title: 'Link', Layout: Atlas_Core.Atlas_Default, Params: ( $LinkTarget: MyFirstModule.LinkTarget ) )
 {
   dataview dv (datasource: $LinkTarget) {
     actionbutton btnStatic (Caption: 'Docs', Action: open_link 'https://docs.mendix.com')

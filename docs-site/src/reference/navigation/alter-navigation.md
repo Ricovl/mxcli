@@ -8,13 +8,13 @@ CREATE OR REPLACE NAVIGATION profile
     [ HOME PAGE module.PageName FOR UserRole ]
     [ LOGIN PAGE module.PageName ]
     [ NOT FOUND PAGE module.PageName ]
-    [ MENU (
-        menu_items
-    ) ]
     [ ON SYNC ERROR { THROW | CONTINUE } ]
     [ SYNC (
         sync_rules
     ) ]
+    [ {
+        menu_items
+    } ]
 ```
 
 ## Description
@@ -44,9 +44,11 @@ download anything.
 
 ### Menu Items
 
-Menu items form a hierarchy. Top-level items appear in the main navigation bar. Nested submenus are created with the `MENU 'label' ( ... )` syntax.
+Menu items form a hierarchy. They are the profile's children, in `{ ... }` after its clauses, like a page's widgets. Top-level items appear in the main navigation bar. Nested submenus are created with the `MENU 'label' { ... }` syntax.
 
-Each `MENU ITEM` specifies a label and a target page. Menu items are terminated with semicolons.
+Each `MENU ITEM` specifies a label and, in its property list, an action and an icon: `MENU ITEM 'Home' ( OnClick: SHOW PAGE M.Home, Icon: Atlas_Core.Atlas.home )`. A child ends in `)` or `}`, so no separator is written between items.
+
+The old spelling — `MENU ( MENU ITEM 'Home' PAGE M.Home; … )` — still parses and warns (MDL-DEPR121, MDL-DEPR122); `mxcli fmt --upgrade` rewrites it.
 
 ## Parameters
 
@@ -69,13 +71,13 @@ Each `MENU ITEM` specifies a label and a target page. Menu items are terminated 
 `NOT FOUND PAGE module.PageName`
 :   Optional custom 404 page shown when a requested page is not found.
 
-`MENU ( menu_items )`
-:   Optional menu structure. Contains `MENU ITEM` and nested `MENU` entries.
+`{ menu_items }`
+:   Optional menu structure. Contains `MENU ITEM` and nested `MENU` entries. An empty `{ }` clears the menu; omitting the block leaves it alone.
 
-`MENU ITEM 'label' PAGE module.PageName`
-:   A leaf menu item that navigates to a page.
+`MENU ITEM 'label' ( OnClick: action, Icon: icon )`
+:   A leaf menu item. `OnClick` is `SHOW PAGE module.PageName`, `CALL MICROFLOW module.Microflow` or `SIGN OUT`; `Icon` is `Module.Collection.icon`, `GLYPH n` or `IMAGE Module.Images.name`. Both are optional.
 
-`MENU 'label' ( ... )`
+`MENU 'label' [( Icon: icon )] { ... }`
 :   A submenu containing nested menu items and/or further submenus.
 
 ### Offline Synchronization
@@ -144,14 +146,14 @@ CREATE OR REPLACE NAVIGATION Responsive
     HOME PAGE MyModule.AdminHome FOR Administrator
     LOGIN PAGE Administration.Login
     NOT FOUND PAGE MyModule.Custom404
-    MENU (
-        MENU ITEM 'Home' PAGE MyModule.Home_Web;
-        MENU 'Admin' (
-            MENU ITEM 'Users' PAGE Administration.Account_Overview;
-            MENU ITEM 'Settings' PAGE MyModule.Settings;
-        );
-        MENU ITEM 'About' PAGE MyModule.About;
-    );
+    {
+        MENU ITEM 'Home' ( OnClick: SHOW PAGE MyModule.Home_Web )
+        MENU 'Admin' {
+            MENU ITEM 'Users' ( OnClick: SHOW PAGE Administration.Account_Overview )
+            MENU ITEM 'Settings' ( OnClick: SHOW PAGE MyModule.Settings )
+        }
+        MENU ITEM 'About' ( OnClick: SHOW PAGE MyModule.About )
+    };
 ```
 
 Native mobile navigation:
@@ -159,11 +161,11 @@ Native mobile navigation:
 ```sql
 CREATE OR REPLACE NAVIGATION NativePhone
     HOME PAGE Mobile.Dashboard
-    MENU (
-        MENU ITEM 'Home' PAGE Mobile.Dashboard;
-        MENU ITEM 'Tasks' PAGE Mobile.TaskList;
-        MENU ITEM 'Profile' PAGE Mobile.UserProfile;
-    );
+    {
+        MENU ITEM 'Home' ( OnClick: SHOW PAGE Mobile.Dashboard )
+        MENU ITEM 'Tasks' ( OnClick: SHOW PAGE Mobile.TaskList )
+        MENU ITEM 'Profile' ( OnClick: SHOW PAGE Mobile.UserProfile )
+    };
 ```
 
 ## See Also

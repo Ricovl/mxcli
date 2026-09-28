@@ -28,7 +28,7 @@ create page Module.Entity_MasterDetail
       column (desktopwidth: 4) {
         gallery entityList (datasource: database Module.Entity, selection: single) {
           template {
-            dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
+            dynamictext name (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
           }
         }
       }
@@ -59,7 +59,7 @@ gallery widgetName (
 ) {
   template template1 {
     -- Widgets for each item
-    dynamictext name (content: '{1}', contentparams: [{1} = AttrName], rendermode: H4)
+    dynamictext name (content: '{1}', contentparams: ({1} = AttrName), rendermode: H4)
   }
 }
 ```
@@ -110,8 +110,8 @@ create page CRM.Customer_MasterDetail
         dynamictext heading (content: 'Customers', rendermode: H3)
         gallery customerList (datasource: database from CRM.Customer sort by Name asc, selection: single) {
           template {
-            dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-            dynamictext email (content: '{1}', contentparams: [{1} = Email])
+            dynamictext name (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+            dynamictext email (content: '{1}', contentparams: ({1} = Email))
           }
         }
       }
@@ -154,8 +154,8 @@ The selection binding uses widget names to connect:
 Inside Gallery templates, use `contentparams` to reference current item attributes:
 ```sql
 template template1 {
-  dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-  dynamictext email (content: '{1}', contentparams: [{1} = Email])
+  dynamictext name (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+  dynamictext email (content: '{1}', contentparams: ({1} = Email))
 }
 ```
 
@@ -174,7 +174,7 @@ template template1 {
 | Attribute binding | `attribute: attributename` |
 | Action binding | `action: save changes` |
 | Button style | `buttonstyle: success` |
-| Text content | `content: 'text'` with `contentparams: [{1} = attr]` |
+| Text content | `content: 'text'` with `contentparams: ({1} = attr)` |
 | Render mode | `rendermode: H4` |
 | Template content | `template template1 { ... }` |
 

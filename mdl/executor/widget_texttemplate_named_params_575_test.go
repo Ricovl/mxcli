@@ -229,8 +229,8 @@ func TestIssue575_DescribeEmitsTheParamsCompanion(t *testing.T) {
 	}
 	got := strings.Join(describeImageWidgetProps(w), ", ")
 	for _, want := range []string{
-		"ImageUrlParams: [{1} = Bug575.Product.PictureUrl]",
-		"AlternativeTextParams: [{1} = Bug575.Product.Name]",
+		"ImageUrlParams: ({1} = Bug575.Product.PictureUrl)",
+		"AlternativeTextParams: ({1} = Bug575.Product.Name)",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("describe output missing %q; got: %s", want, got)

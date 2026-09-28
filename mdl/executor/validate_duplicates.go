@@ -89,8 +89,20 @@ func (r *nameRegistry) renameModule(oldMod, newMod string) {
 // re-runnable domain scripts use it. Missing it makes the check disagree with
 // what exec does, and the check is wrong: a `create entity if not exists` was
 // reported as a conflict for a statement exec cleanly skips.
-// TestIfNotExistsCountsAsIdempotent guards the mapping.
+// TestIfNotExistsCountsAsIdempotent guards the mapping. The guard is read once,
+// here, for every document kind that carries it (ako/mxcli#731).
 func stmtCreateInfo(stmt ast.Statement) (docType, name string, idempotent bool) {
+	docType, name, idempotent = stmtCreateKind(stmt)
+	if g, ok := stmt.(ast.IfNotExistsCreate); ok && g.CreateIfNotExists() {
+		idempotent = true
+	}
+	return docType, name, idempotent
+}
+
+// stmtCreateKind is stmtCreateInfo without the `if not exists` guard: the
+// doc-type key, the qualified name, and whether `or modify` / `or replace`
+// makes the create idempotent.
+func stmtCreateKind(stmt ast.Statement) (docType, name string, idempotent bool) {
 	switch s := stmt.(type) {
 	case *ast.CreateModuleStmt:
 		return "module", s.Name, false
@@ -100,7 +112,7 @@ func stmtCreateInfo(stmt ast.Statement) (docType, name string, idempotent bool) 
 		// existing role, so check has to as well.
 		return "module-role", s.Name.String(), s.CreateOrModify
 	case *ast.CreateEntityStmt:
-		return "entity", s.Name.String(), s.CreateOrModify || s.IfNotExists
+		return "entity", s.Name.String(), s.CreateOrModify
 	case *ast.CreateViewEntityStmt:
 		return "entity", s.Name.String(), s.CreateOrModify || s.CreateOrReplace
 	case *ast.CreateExternalEntityStmt:
@@ -108,7 +120,7 @@ func stmtCreateInfo(stmt ast.Statement) (docType, name string, idempotent bool) 
 	case *ast.CreateEnumerationStmt:
 		return "enumeration", s.Name.String(), s.CreateOrModify
 	case *ast.CreateAssociationStmt:
-		return "association", s.Name.String(), s.CreateOrModify || s.IfNotExists
+		return "association", s.Name.String(), s.CreateOrModify
 	case *ast.CreateConstantStmt:
 		return "constant", s.Name.String(), s.CreateOrModify
 	case *ast.CreateMicroflowStmt:

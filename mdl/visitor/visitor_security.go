@@ -10,6 +10,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/mdl/suggest"
 )
 
 // ExitCreateModuleRoleStatement handles CREATE [OR MODIFY] MODULE ROLE Module.RoleName [DESCRIPTION '...']
@@ -50,8 +51,10 @@ func (b *Builder) ExitCreateUserRoleStatement(ctx *parser.CreateUserRoleStatemen
 	}
 
 	stmt := &ast.CreateUserRoleStmt{
-		Name:           identifierOrKeywordText(iok),
-		ManageAllRoles: ctx.MANAGE() != nil,
+		Name: identifierOrKeywordText(iok),
+	}
+	if ctx.MANAGE() != nil {
+		stmt.ManageAllRoles, stmt.ManageAllRolesSet = true, true
 	}
 
 	// Check parent createStatement for OR MODIFY
@@ -63,12 +66,111 @@ func (b *Builder) ExitCreateUserRoleStatement(ctx *parser.CreateUserRoleStatemen
 	}
 
 	if mrl := ctx.ModuleRoleList(); mrl != nil {
+		// The positional form (MDL-DEPR710).
 		for _, qn := range mrl.AllQualifiedName() {
 			stmt.ModuleRoles = append(stmt.ModuleRoles, buildQualifiedName(qn))
+		}
+		b.recordDeprecation(deprecation.UserRolePositional, ctx.LPAREN().GetSymbol(), "")
+		b.fixLastDeprecation(deprecation.UserRolePositional, userRolePositionalFix(ctx), "")
+	}
+	if pl, ok := ctx.UserRolePropertyList().(*parser.UserRolePropertyListContext); ok && pl != nil {
+		for _, p := range pl.AllUserRoleProperty() {
+			if pc, ok := p.(*parser.UserRolePropertyContext); ok && pc != nil {
+				b.userRoleProperty(stmt, pc)
+			}
 		}
 	}
 
 	b.statements = append(b.statements, stmt)
+}
+
+// userRoleProperty reads one `Key: value` of a user role's property list. The
+// list is new syntax, so an unknown key or a value of the wrong shape is an
+// error under every language version: there is no older reading to keep.
+func (b *Builder) userRoleProperty(stmt *ast.CreateUserRoleStmt, pc *parser.UserRolePropertyContext) {
+	key := identifierOrKeywordText(pc.IdentifierOrKeyword())
+	line := pc.GetStart().GetLine()
+	isList := pc.LPAREN() != nil
+	var list []ast.QualifiedName
+	for _, qn := range pc.AllQualifiedName() {
+		list = append(list, buildQualifiedName(qn))
+	}
+	var str *string
+	if sl := pc.STRING_LITERAL(); sl != nil {
+		s := unquoteStringLit(sl)
+		str = &s
+	}
+	var boolean *bool
+	if bl := pc.BooleanLiteral(); bl != nil {
+		v := strings.EqualFold(bl.GetText(), "true")
+		boolean = &v
+	}
+	wrong := func(takes string) {
+		b.addError(fmt.Errorf("line %d: user role property '%s' takes %s", line, key, takes))
+	}
+	switch strings.ToLower(key) {
+	case "moduleroles":
+		if !isList {
+			wrong("a list of module roles: ModuleRoles: (Module.Role, …)")
+			return
+		}
+		stmt.ModuleRoles = append(stmt.ModuleRoles, list...)
+	case "manageableroles":
+		if !isList {
+			wrong("a list of user roles: ManageableRoles: (UserRole, …)")
+			return
+		}
+		stmt.ManageableSet = true
+		stmt.ManageableRoles = []string{}
+		for _, qn := range list {
+			stmt.ManageableRoles = append(stmt.ManageableRoles, qn.String())
+		}
+	case "description":
+		if str == nil {
+			wrong("a string: Description: '…'")
+			return
+		}
+		stmt.Description = str
+	case "manageallroles":
+		if boolean == nil {
+			wrong("true or false")
+			return
+		}
+		stmt.ManageAllRoles, stmt.ManageAllRolesSet = *boolean, true
+	case "manageuserswithoutroles":
+		if boolean == nil {
+			wrong("true or false")
+			return
+		}
+		stmt.ManageUsersWithoutRoles = boolean
+	case "checksecurity":
+		if boolean == nil {
+			wrong("true or false")
+			return
+		}
+		stmt.CheckSecurity = boolean
+	default:
+		known := []string{"ModuleRoles", "Description", "ManageAllRoles", "ManageableRoles", "ManageUsersWithoutRoles", "CheckSecurity"}
+		detail := fmt.Sprintf("line %d: unknown user role property '%s'", line, key)
+		if near := suggest.Closest(key, known); near != "" {
+			detail += fmt.Sprintf(" — did you mean '%s'?", near)
+		}
+		b.addError(fmt.Errorf("%s Known properties: %s", detail, strings.Join(known, ", ")))
+	}
+}
+
+// userRolePositionalFix rewrites `(M.A, M.B) manage all roles` as
+// `( ModuleRoles: (M.A, M.B), ManageAllRoles: true )`. The role list's text is
+// kept as written.
+func userRolePositionalFix(ctx *parser.CreateUserRoleStatementContext) *ast.Fix {
+	lp, rp := ctx.LPAREN().GetSymbol(), ctx.RPAREN().GetSymbol()
+	props := "ModuleRoles: (" + nodeText(ctx.ModuleRoleList()) + ")"
+	last := rp
+	if ctx.MANAGE() != nil {
+		props += ", ManageAllRoles: true"
+		last = ctx.ROLES().GetSymbol()
+	}
+	return &ast.Fix{Edits: []ast.TextEdit{replaceSpan(lp, last, "( "+props+" )")}}
 }
 
 // ExitAlterUserRoleStatement handles ALTER USER ROLE Name ADD/REMOVE MODULE ROLES (...)

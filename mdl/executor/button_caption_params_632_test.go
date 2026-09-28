@@ -108,7 +108,7 @@ func TestDescribeButtonEmitsCaptionParams(t *testing.T) {
 		Action:     "save_changes",
 	}, 0)
 	out := buf.String()
-	if !strings.Contains(out, "CaptionParams: [{1} = Title]") {
+	if !strings.Contains(out, "CaptionParams: ({1} = Title)") {
 		t.Errorf("button parameters not described as CaptionParams:\n%s", out)
 	}
 	if strings.Contains(out, "ContentParams") {

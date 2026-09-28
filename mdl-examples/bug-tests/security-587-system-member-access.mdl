@@ -102,9 +102,9 @@ grant view on page Sec.Home to Sec.Viewer, Sec.Admin;
 
 create or replace navigation Responsive
   home page Sec.Home
-  menu (
-    menu item 'Home' page Sec.Home icon glyph 57377;
-  )
+  {
+    menu item 'Home' ( OnClick: show page Sec.Home, Icon: glyph 57377 )
+  }
 ;
 
 -- The control is the ROLE, not the build: Administrator sees both names in list

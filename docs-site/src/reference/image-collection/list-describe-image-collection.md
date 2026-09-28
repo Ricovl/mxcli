@@ -40,7 +40,7 @@ LIST IMAGE COLLECTIONS IN MyModule;
 DESCRIBE IMAGE COLLECTION MyModule.AppIcons;
 ```
 
-The output includes the complete `CREATE` statement with all `IMAGE ... FROM FILE` entries, which can be copied and re-executed.
+The output is the complete `CREATE OR MODIFY` statement, each image written into it as `IMAGE name ( Data: '<base64>' )`, so it can be copied and re-executed on any machine. `DESCRIBE` writes no files.
 
 ## See Also
 

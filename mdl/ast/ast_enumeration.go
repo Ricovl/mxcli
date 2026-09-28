@@ -15,7 +15,8 @@ type EnumValue struct {
 
 // CreateModuleStmt represents: CREATE MODULE ModuleName
 type CreateModuleStmt struct {
-	Name string
+	CreateGuard // `create … if not exists` (ako/mxcli#731)
+	Name        string
 }
 
 func (s *CreateModuleStmt) isStatement() {}
@@ -48,6 +49,7 @@ func (s *MoveFolderStmt) isStatement() {}
 
 // CreateEnumerationStmt represents: CREATE ENUMERATION Module.Name (values) COMMENT '...'
 type CreateEnumerationStmt struct {
+	CreateGuard   // `create … if not exists` (ako/mxcli#731)
 	Name          QualifiedName
 	Values        []EnumValue
 	Documentation string
@@ -109,6 +111,7 @@ func (s *DropEnumerationStmt) isStatement() {}
 
 // CreateConstantStmt represents: CREATE CONSTANT Module.Name TYPE type DEFAULT value [COMMENT '...']
 type CreateConstantStmt struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	DataType         DataType
 	DefaultValue     any // The default value (can be string, number, boolean, etc.)

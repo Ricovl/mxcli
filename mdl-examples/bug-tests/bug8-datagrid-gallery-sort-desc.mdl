@@ -45,7 +45,7 @@ create page BugTests.Bug8Sort (
           DataSource: database from Administration.Account sort by "Email" desc
         ) {
           template tpl1 {
-            dynamictext t1 (Content: '{1}', ContentParams: [{1} = Email])
+            dynamictext t1 (Content: '{1}', ContentParams: ({1} = Email))
           }
         }
       }

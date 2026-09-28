@@ -240,8 +240,8 @@ create page PluggableV10.P_PD05_CustomCellContent (
             container ctnTotal {
               dynamictext txtTotal (
                 Content: '${1}',
-                ContentParams: [{1} = TotalAmount],
-                DesignProperties: ['Weight': 'Semibold', 'Size': 'Large']
+                ContentParams: ({1} = TotalAmount),
+                DesignProperties: ('Weight': 'Semibold', 'Size': 'Large')
               )
             }
           }
@@ -253,7 +253,7 @@ create page PluggableV10.P_PD05_CustomCellContent (
             container ctnStatus (Class: 'badge') {
               dynamictext txtStatus (
                 Content: '{1}',
-                ContentParams: [{1} = OrderStatusValue]
+                ContentParams: ({1} = OrderStatusValue)
               )
             }
           }
@@ -273,10 +273,10 @@ create page PluggableV10.P_PD05_CustomCellContent (
 -- ShowContentAs: dynamicText branch below) IS per-row, so its
 -- ContentParams CAN reference $currentObject attributes.
 create page PluggableV10.P_PD06_DynamicCaption (
-  Variables: {
+  Variables: (
     $Col1Label: String = '''Customer Name''',
     $Col2Label: String = '''Date Joined'''
-  },
+  ),
   Title: 'Customers — Dynamic',
   Layout: Atlas_Core.Atlas_Default,
   Folder: 'PluggableDataGrid'
@@ -295,7 +295,7 @@ create page PluggableV10.P_PD06_DynamicCaption (
           column Name (
             Attribute: Name,
             Caption: '{1}',
-            CaptionParams: [{1} = $Col1Label],
+            CaptionParams: ({1} = $Col1Label),
             ColumnWidth: manual,
             Size: 8
           ) {
@@ -307,10 +307,10 @@ create page PluggableV10.P_PD06_DynamicCaption (
           column JoinedDate (
             Attribute: JoinedDate,
             Caption: '{1}  {2}',
-            CaptionParams: [{1} = $Col2Label, {2} = '[%CurrentDateTime%]'],
+            CaptionParams: ({1} = $Col2Label, {2} = '[%CurrentDateTime%]'),
             ShowContentAs: dynamicText,
             Content: 'Joined on {1}',
-            ContentParams: [{1} = JoinedDate],
+            ContentParams: ({1} = JoinedDate),
             ColumnWidth: manual,
             Size: 6
           ) {
@@ -342,9 +342,9 @@ create page PluggableV10.P_PG01_BasicGallery (
               dynamictext txtName (
                 Content: '{1}',
                 RenderMode: H4,
-                ContentParams: [{1} = Name]
+                ContentParams: ({1} = Name)
               )
-              dynamictext txtEmail (Content: '{1}', ContentParams: [{1} = Email])
+              dynamictext txtEmail (Content: '{1}', ContentParams: ({1} = Email))
             }
           }
         }
@@ -379,7 +379,7 @@ create page PluggableV10.P_PG02_GalleryFilter (
               dynamictext txtName (
                 Content: '{1}',
                 RenderMode: H4,
-                ContentParams: [{1} = Name]
+                ContentParams: ({1} = Name)
               )
             }
           }
@@ -412,16 +412,16 @@ create page PluggableV10.P_PG03_RichGallery (
                     dynamictext txtNum (
                       Content: 'Order {1}',
                       RenderMode: H4,
-                      ContentParams: [{1} = OrderNumber],
-                      DesignProperties: ['Weight': 'Semibold']
+                      ContentParams: ({1} = OrderNumber),
+                      DesignProperties: ('Weight': 'Semibold')
                     )
-                    dynamictext txtDate (Content: '{1}', ContentParams: [{1} = OrderDate])
+                    dynamictext txtDate (Content: '{1}', ContentParams: ({1} = OrderDate))
                   }
                   column c2 (DesktopWidth: 4) {
                     dynamictext txtTotal (
                       Content: '${1}',
-                      ContentParams: [{1} = TotalAmount],
-                      DesignProperties: ['Weight': 'Bold', 'Size': 'Large', 'Align self': 'Right']
+                      ContentParams: ({1} = TotalAmount),
+                      DesignProperties: ('Weight': 'Bold', 'Size': 'Large', 'Align self': 'Right')
                     )
                   }
                 }
@@ -475,7 +475,7 @@ create page PluggableV10.P_MX01_GridAndGallery (
             dynamictext gtxtName (
               Content: '{1}',
               RenderMode: H4,
-              ContentParams: [{1} = Name]
+              ContentParams: ({1} = Name)
             )
           }
         }

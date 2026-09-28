@@ -72,7 +72,7 @@ The page's Save button calls the action microflow (not the validation microflow 
 
 ```sql
 CREATE PAGE Sales.Order_Edit (
-  Params: { $Order: Sales.Order },
+  Params: ( $Order: Sales.Order ),
   Title: 'Order',
   Layout: Atlas_Core.PopupLayout
 ) {

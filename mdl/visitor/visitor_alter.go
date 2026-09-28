@@ -39,7 +39,7 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 	}
 
 	// Handle ALTER WORKFLOW
-	if ctx.WORKFLOW() != nil && len(ctx.AllAlterWorkflowAction()) > 0 {
+	if ctx.WORKFLOW() != nil && (len(ctx.AllAlterWorkflowAction()) > 0 || len(ctx.AllAlterWorkflowOperation()) > 0) {
 		b.exitAlterWorkflowStatement(ctx)
 		return
 	}

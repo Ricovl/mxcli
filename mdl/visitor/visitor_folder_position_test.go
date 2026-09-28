@@ -19,8 +19,8 @@ func TestFolderClauseAfterTheName(t *testing.T) {
 			"create constant M.Url folder 'Config' type String default 'x';"},
 		{"create or modify constant M.Url type String default 'x' folder 'Config' exposed to client;",
 			"create or modify constant M.Url folder 'Config' type String default 'x' exposed to client;"},
-		{"create snippet M.S (Params: { $C: M.E }) folder 'Common' { };",
-			"create snippet M.S folder 'Common' (Params: { $C: M.E }) { };"},
+		{"create snippet M.S (Params: ( $C: M.E )) folder 'Common' { };",
+			"create snippet M.S folder 'Common' (Params: ( $C: M.E )) { };"},
 		{"create snippet M.S folder 'Common' { };", ""}, // control: already canonical
 	}
 	for _, c := range cases {

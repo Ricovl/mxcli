@@ -78,7 +78,7 @@ create association DgTest.Category_Supplier
 -- @version: 11.0+
 -- Helper page: edit form opened from CRUD examples (page params require 11.0+)
 create page DgTest.Product_Edit (
-  params: { $Product: DgTest.Product },
+  params: ( $Product: DgTest.Product ),
   title: 'Edit Product',
   layout: Atlas_Core.PopupLayout,
   url: 'dg/product/edit/{Product/Name}',
@@ -248,14 +248,14 @@ create page DgTest.DG04_Microflow_DataSource (
  * The outer DataView provides $Category; the inner DataGrid shows its Products.
  */
 create page DgTest.DG05_Association_DataSource (
-  params: { $Category: DgTest.Category },
+  params: ( $Category: DgTest.Category ),
   title: 'Category Products',
   layout: Atlas_Core.PopupLayout,
   url: 'dg05_association_datasource/{Category/Name}',
   folder: 'DataGrid'
 ) {
   dataview dvCategory (datasource: $Category, editable: false) {
-    dynamictext txtName (content: '{1}', contentparams: [{1} = Name])
+    dynamictext txtName (content: '{1}', contentparams: ({1} = Name))
     datagrid dg1 (
       datasource: $Category/DgTest.Product_Category/DgTest.Product
     ) {
@@ -420,7 +420,7 @@ create page DgTest.DG09_Custom_Content_Column (
   datagrid dg1 (datasource: database DgTest.Product) {
     column colName   (attribute: Name, caption: 'Name')
     column colStatus (attribute: Status, caption: 'Status', ShowContentAs: customContent) {
-      dynamictext txtStatus (content: '{1}', contentparams: [{1} = Status])
+      dynamictext txtStatus (content: '{1}', contentparams: ({1} = Status))
     }
     column colActions (caption: 'Actions', ShowContentAs: customContent) {
       actionbutton btnEdit (
@@ -613,11 +613,11 @@ create page DgTest.DG14b_Styling_DesignProps (
     datasource: database DgTest.Product,
     PageSize: 10,
     PagingPosition: both,
-    designproperties: ['Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal']
+    designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal')
   ) {
     column colName (
       attribute: Name, caption: 'Name',
-      designproperties: ['Compact': on]
+      designproperties: ('Compact': on)
     )
     column colPrice (attribute: Price, caption: 'Price', Alignment: right)
     column colStock (attribute: Stock, caption: 'Stock', Alignment: right)
@@ -637,7 +637,7 @@ create page DgTest.DG15_Variable_Visibility (
   layout: Atlas_Core.Atlas_Default,
   url: 'dg15_variable_visibility',
   folder: 'DataGrid',
-  variables: { $showStock: boolean = 'if (1 < 2) then true else false' }
+  variables: ( $showStock: boolean = 'if (1 < 2) then true else false' )
 ) {
   datagrid dg1 (datasource: database DgTest.Product) {
     column colName  (attribute: Name,  caption: 'Name')
@@ -694,7 +694,7 @@ create page DgTest.DG16_Associated_Attributes (
     column colCatBadge (caption: 'Category (badge)', ShowContentAs: customContent) {
       dynamictext dtCat (
         content: 'in {1}',
-        contentparams: [{1} = DgTest.Product_Category/Name]
+        contentparams: ({1} = DgTest.Product_Category/Name)
       )
     }
   }

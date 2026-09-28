@@ -371,9 +371,11 @@ func ValidateAlterWorkflow(stmt *ast.AlterWorkflowStmt) []linter.Violation {
 	for _, op := range stmt.Operations {
 		switch o := op.(type) {
 		case *ast.InsertAfterOp:
-			added = append(added, o.NewActivity)
+			added = append(added, o.NewActivities...)
+		case *ast.InsertBeforeOp:
+			added = append(added, o.NewActivities...)
 		case *ast.ReplaceActivityOp:
-			added = append(added, o.NewActivity)
+			added = append(added, o.NewActivities...)
 		case *ast.InsertOutcomeOp:
 			added = append(added, o.Activities...)
 		case *ast.InsertPathOp:

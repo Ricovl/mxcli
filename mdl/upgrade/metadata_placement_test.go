@@ -63,8 +63,8 @@ func TestUpgrade_MetadataPlacement(t *testing.T) {
 			"create page M.P folder 'Admin' (Title: 'P', Layout: Atlas_Core.Atlas_Default) { };\n",
 			deprecation.FolderProperty},
 		{"snippet Folder property",
-			"create snippet M.S (Params: { $C: M.E }, Folder: 'Common') { };\n",
-			"create snippet M.S folder 'Common' (Params: { $C: M.E }) { };\n",
+			"create snippet M.S (Params: ( $C: M.E ), Folder: 'Common') { };\n",
+			"create snippet M.S folder 'Common' (Params: ( $C: M.E )) { };\n",
 			deprecation.FolderProperty},
 		{"snippet with Folder as its only property",
 			"create snippet M.S(\n  folder: 'Snippets'\n)\n{ };\n",
@@ -138,9 +138,9 @@ func TestUpgrade_MetadataPlacementUnrewritable(t *testing.T) {
 // R9 (ako/mxcli#755): the folder moves to right after the name.
 func TestUpgrade_FolderClausePosition(t *testing.T) {
 	src := "CREATE CONSTANT M.Url TYPE String DEFAULT 'x' FOLDER 'Config' EXPOSED TO CLIENT;\n" +
-		"create snippet M.S (Params: { $C: M.E }) folder 'Common' { };\n"
+		"create snippet M.S (Params: ( $C: M.E )) folder 'Common' { };\n"
 	want := "CREATE CONSTANT M.Url FOLDER 'Config' TYPE String DEFAULT 'x' EXPOSED TO CLIENT;\n" +
-		"create snippet M.S folder 'Common' (Params: { $C: M.E }) { };\n"
+		"create snippet M.S folder 'Common' (Params: ( $C: M.E )) { };\n"
 	res := mustUpgrade(t, src, Options{})
 	if res.Source != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", res.Source, want)

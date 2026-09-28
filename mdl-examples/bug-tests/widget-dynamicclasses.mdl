@@ -32,7 +32,7 @@ create or replace page MyFirstModule.P_DynClass
 (
   Title: 'Dynamic Classes',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Boat: MyFirstModule.Boat }
+  Params: ( $Boat: MyFirstModule.Boat )
 )
 {
   dataview dv (datasource: $Boat) {
