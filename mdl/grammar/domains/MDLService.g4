@@ -10,11 +10,58 @@ options { tokenVocab = MDLLexer; }
 // DATABASE / REST CLIENT
 // =============================================================================
 
+// R2 (ako/mxcli#754): a declarative document has its properties in ( ) and
+// its children in { }. The database connection was the one declarative
+// document written as clauses with a begin … end block of queries:
+//
+//   create database connection M.Db (
+//     Type: 'PostgreSQL', ConnectionString: @M.Url, Username: @M.User, Password: @M.Pass,
+//   ) {
+//     query GetCustomers (
+//       Sql: $$select id, name from customer where id > {minId}$$,
+//       Parameters: ( minId: Integer default '0' ),
+//       Returns: M.Customer,
+//       Map: ( CustomerId = id, Name = name ),
+//     )
+//   };
+//
+// A query's column map binds an attribute to a column, `Attr = column`, the way
+// a REST mapping binds `Attr = jsonField` (R3: `=` for a mapping side). The
+// clause form is the old spelling (MDL-DEPR127), and builds the same statement.
 createDatabaseConnectionStatement
     : DATABASE CONNECTION qualifiedName
       (FOLDER STRING_LITERAL)?
-      databaseConnectionOption+
+      LPAREN databaseConnectionProp (COMMA databaseConnectionProp)* COMMA? RPAREN
+      (LBRACE databaseQueryDef* RBRACE)?
+    | DATABASE CONNECTION qualifiedName
+      (FOLDER STRING_LITERAL)?
+      databaseConnectionOption+ /* @alias MDL-DEPR127 */
       (BEGIN databaseQuery* END)?
+    ;
+
+databaseConnectionProp
+    : identifierOrKeyword COLON (STRING_LITERAL | NUMBER_LITERAL | AT qualifiedName)
+    ;
+
+databaseQueryDef
+    : QUERY identifierOrKeyword LPAREN databaseQueryProp (COMMA databaseQueryProp)* COMMA? RPAREN
+    ;
+
+databaseQueryProp
+    : identifierOrKeyword COLON (STRING_LITERAL | DOLLAR_STRING)                     // Sql: $$…$$
+    | identifierOrKeyword COLON LPAREN
+      databaseQueryParam (COMMA databaseQueryParam)* COMMA? RPAREN                  // Parameters: ( p: Integer default '0' )
+    | identifierOrKeyword COLON LPAREN
+      databaseQueryColumn (COMMA databaseQueryColumn)* COMMA? RPAREN                // Map: ( Attr = column )
+    | identifierOrKeyword COLON qualifiedName                                       // Returns: M.Entity
+    ;
+
+databaseQueryParam
+    : identifierOrKeyword COLON dataType (DEFAULT STRING_LITERAL | NULL)?
+    ;
+
+databaseQueryColumn
+    : identifierOrKeyword EQUALS identifierOrKeyword
     ;
 
 databaseConnectionOption
@@ -94,8 +141,10 @@ restClientParamItem
     : VARIABLE COLON dataType
     ;
 
+// A header list is a map, so it is `( 'Name': value, … )` like every other
+// property map (R2/R3, ako/mxcli#754). `'Name' = value` is the old spelling.
 restClientHeaderItem
-    : STRING_LITERAL EQUALS (STRING_LITERAL | VARIABLE | STRING_LITERAL PLUS VARIABLE)
+    : STRING_LITERAL (COLON | EQUALS /* @alias MDL-DEPR120 */) (STRING_LITERAL | VARIABLE | STRING_LITERAL PLUS VARIABLE)
     ;
 
 restClientMappingEntry

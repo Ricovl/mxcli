@@ -7,7 +7,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
-// ExitCreateMenuStatement handles CREATE [OR MODIFY] MENU Module.Name ( items ).
+// ExitCreateMenuStatement handles CREATE [OR MODIFY] MENU Module.Name { items } (old spelling: ( items )).
 //
 // The items reuse navMenuItemDef, the same rule CREATE NAVIGATION's MENU block
 // uses, so buildNavMenuItemDef is reused verbatim — a menu item is written the
@@ -26,7 +26,11 @@ func (b *Builder) ExitCreateMenuStatement(ctx *parser.CreateMenuStatementContext
 	if lit := ctx.STRING_LITERAL(); lit != nil {
 		stmt.Folder = unquoteStringLit(lit)
 	}
-	for _, itemCtx := range ctx.AllNavMenuItemDef() {
+	items := ctx.AllNavMenuItemDef()
+	if ch, ok := ctx.NavMenuChildren().(*parser.NavMenuChildrenContext); ok && ch != nil {
+		items = ch.AllNavMenuItemDef()
+	}
+	for _, itemCtx := range items {
 		stmt.Items = append(stmt.Items, buildNavMenuItemDef(itemCtx))
 	}
 

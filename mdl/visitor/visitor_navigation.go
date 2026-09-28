@@ -77,8 +77,15 @@ func (b *Builder) processNavigationClause(stmt *ast.AlterNavigationStmt, ctx *pa
 			qn := buildQualifiedName(names[0])
 			stmt.NotFoundPage = &qn
 		}
+	} else if ch, ok := ctx.NavMenuChildren().(*parser.NavMenuChildrenContext); ok && ch != nil {
+		// { navMenuItemDef* } — the profile's menu items as its children (R2)
+		stmt.HasMenuBlock = true
+		for _, itemCtx := range ch.AllNavMenuItemDef() {
+			item := buildNavMenuItemDef(itemCtx)
+			stmt.MenuItems = append(stmt.MenuItems, item)
+		}
 	} else if ctx.MENU_KW() != nil {
-		// MENU (navMenuItemDef*)
+		// MENU (navMenuItemDef*) — the old spelling (MDL-DEPR121)
 		stmt.HasMenuBlock = true
 		for _, itemCtx := range ctx.AllNavMenuItemDef() {
 			item := buildNavMenuItemDef(itemCtx)
@@ -155,6 +162,11 @@ func buildNavSyncDef(ctx parser.INavSyncDefContext) ast.NavSyncDef {
 }
 
 // buildNavMenuItemDef recursively builds a NavMenuItemDef from the parse context.
+//
+// An item is read the same whichever spelling wrote it: the canonical
+// `menu item 'X' ( OnClick: show page M.P, Icon: … )` with sub-items in { },
+// or the old clauses `menu item 'X' page M.P icon …;` with sub-items in ( )
+// (R2, ako/mxcli#754). The two build the same item.
 func buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.NavMenuItemDef {
 	c := ctx.(*parser.NavMenuItemDefContext)
 
@@ -165,10 +177,8 @@ func buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.NavMenuItemDef {
 
 	item := ast.NavMenuItemDef{Caption: caption}
 
-	// The PAGE/MICROFLOW target is the item's only qualifiedName now that the
-	// icon is its own sub-rule — which is what removed the old positional
-	// bookkeeping, where the target and the icon shared one indexed list and the
-	// icon was "whatever remains".
+	// Old spelling: the PAGE/MICROFLOW target is the item's only qualifiedName
+	// now that the icon is its own sub-rule.
 	if qn := c.QualifiedName(); qn != nil {
 		switch {
 		case c.PAGE() != nil:
@@ -184,15 +194,52 @@ func buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.NavMenuItemDef {
 	if c.SIGN_OUT() != nil {
 		item.SignOut = true
 	}
-	applyNavMenuIcon(&item, c.NavMenuIcon())
+	if ic, ok := c.NavMenuIcon().(*parser.NavMenuIconContext); ok && ic != nil {
+		applyNavMenuIcon(&item, ic.NavMenuIconValue())
+	}
 
-	// Recurse into sub-items (for MENU 'caption' (...))
-	for _, subCtx := range c.AllNavMenuItemDef() {
-		subItem := buildNavMenuItemDef(subCtx)
-		item.Items = append(item.Items, subItem)
+	// Canonical spelling: OnClick and Icon in the item's property list.
+	if pc, ok := c.NavMenuItemProps().(*parser.NavMenuItemPropsContext); ok && pc != nil {
+		for _, p := range pc.AllNavMenuItemProp() {
+			prop := p.(*parser.NavMenuItemPropContext)
+			switch {
+			case prop.ONCLICK() != nil:
+				applyNavMenuAction(&item, prop.NavMenuAction())
+			case prop.ICON() != nil:
+				applyNavMenuIcon(&item, prop.NavMenuIconValue())
+			}
+		}
+	}
+
+	// Sub-items: in { } (canonical) or directly in ( ) (old spelling).
+	subs := c.AllNavMenuItemDef()
+	if ch, ok := c.NavMenuChildren().(*parser.NavMenuChildrenContext); ok && ch != nil {
+		subs = ch.AllNavMenuItemDef()
+	}
+	for _, subCtx := range subs {
+		item.Items = append(item.Items, buildNavMenuItemDef(subCtx))
 	}
 
 	return item
+}
+
+// applyNavMenuAction reads a menu item's `OnClick:` action: `show page M.P`,
+// `call microflow M.F` or `sign out`.
+func applyNavMenuAction(item *ast.NavMenuItemDef, ctx parser.INavMenuActionContext) {
+	a, ok := ctx.(*parser.NavMenuActionContext)
+	if !ok || a == nil {
+		return
+	}
+	switch {
+	case a.SIGN_OUT() != nil:
+		item.SignOut = true
+	case a.PAGE() != nil && a.QualifiedName() != nil:
+		built := buildQualifiedName(a.QualifiedName())
+		item.Page = &built
+	case a.MICROFLOW() != nil && a.QualifiedName() != nil:
+		built := buildQualifiedName(a.QualifiedName())
+		item.Microflow = &built
+	}
 }
 
 // applyNavMenuIcon reads the ICON clause onto the item.
@@ -206,12 +253,9 @@ func buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.NavMenuItemDef {
 //
 // The bare form is the collection icon, which keeps every existing script
 // meaning exactly what it did.
-func applyNavMenuIcon(item *ast.NavMenuItemDef, ctx parser.INavMenuIconContext) {
-	if ctx == nil {
-		return
-	}
-	c, ok := ctx.(*parser.NavMenuIconContext)
-	if !ok {
+func applyNavMenuIcon(item *ast.NavMenuItemDef, ctx parser.INavMenuIconValueContext) {
+	c, ok := ctx.(*parser.NavMenuIconValueContext)
+	if !ok || c == nil {
 		return
 	}
 	switch {

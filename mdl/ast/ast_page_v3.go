@@ -26,7 +26,7 @@ import (
 // V3 syntax: CREATE PAGE Module.Page (Title: '...', Layout: ...) { widgets }
 type CreatePageStmtV3 struct {
 	Name       QualifiedName
-	Parameters []PageParameter // From Params: { } block
+	Parameters []PageParameter // From the Params: ( ) map
 	Variables  []PageVariable  // From Variables: { } block
 	Title      string
 	Layout     string
@@ -72,7 +72,7 @@ type PagePlaceholderV3 struct {
 // CreateSnippetStmtV3 represents a V3 snippet creation statement.
 type CreateSnippetStmtV3 struct {
 	Name             QualifiedName
-	Parameters       []PageParameter // From Params: { } block
+	Parameters       []PageParameter // From the Params: ( ) map
 	Variables        []PageVariable  // From Variables: { } block
 	Folder           string
 	Widgets          []*WidgetV3

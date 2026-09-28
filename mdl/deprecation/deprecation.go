@@ -241,6 +241,34 @@ const (
 	// fragment in braces: `insert after $X { … }`, `replace … with { … }`.
 	AlterFlowFragmentBraces = "MDL-DEPR074"
 
+	// Codes 120-129 are the rest of R2 (ako/mxcli#754): navigation and menus,
+	// property maps, and the database connection.
+
+	// RestHeaderEquals is a consumed REST service operation's header written
+	// `'Name' = value`: a header list is a map, `( 'Name': value )`.
+	RestHeaderEquals = "MDL-DEPR120"
+	// MenuChildrenParens is a navigation profile's `menu ( … )`, a menu
+	// document's or a sub-menu's items in ( ), and the `;` after an item:
+	// menu items are children, in { } with no separator.
+	MenuChildrenParens = "MDL-DEPR121"
+	// MenuItemClauses is a menu item's action or icon written as a clause after
+	// its caption, `menu item 'X' page M.P icon I`, rather than in its property
+	// list `( OnClick: show page M.P, Icon: I )`.
+	MenuItemClauses = "MDL-DEPR122"
+	// HeaderMapBraces is a page or snippet header's `Params: { … }` /
+	// `Variables: { … }`: a map in braces.
+	HeaderMapBraces = "MDL-DEPR123"
+	// TemplateParamsBrackets is a text template's parameters in brackets,
+	// `ContentParams: [{1} = …]` (also CaptionParams and `<Name>Params`).
+	TemplateParamsBrackets = "MDL-DEPR124"
+	// DesignPropertiesBrackets is `DesignProperties: ['Key': 'Value']`.
+	DesignPropertiesBrackets = "MDL-DEPR125"
+	// SnippetCallParamsBraces is a snippet call's `Params: {$P: $v}`.
+	SnippetCallParamsBraces = "MDL-DEPR126"
+	// DatabaseConnectionClauses is a database connection written as clauses
+	// with a begin … end block of queries.
+	DatabaseConnectionClauses = "MDL-DEPR127"
+
 	// Codes 060-069 and 101-103 are R3's (ako/mxcli#751,
 	// PROPOSAL_mdl_beta_syntax_freeze.md §3 R3): `:` sets a model property, so
 	// an `alter` sets properties in create's `( Key: value, … )` list, and a
@@ -495,6 +523,7 @@ func init() {
 	entries = append(entries, r6Entries...)
 	entries = append(entries, r5Entries...)
 	entries = append(entries, r2Entries...)
+	entries = append(entries, r2RestEntries...)
 	entries = append(entries, r3Entries...)
 }
 
@@ -778,6 +807,111 @@ var r2Entries = []Entry{
 			"`begin … end` (R2). The operations around it are the alter's children and stay in its { }.",
 		Example:          "alter microflow M.F { insert after $X { log info 'x'; } };",
 		CanonicalExample: "alter microflow M.F { insert after $X begin log info 'x'; end };",
+	},
+}
+
+// r2RestEntries are the rest of R2 (ako/mxcli#754): navigation and menus,
+// property maps, and the database connection.
+var r2RestEntries = []Entry{
+	{
+		Code:      RestHeaderEquals,
+		Old:       "Headers: ( 'Name' = value )",
+		Canonical: "Headers: ( 'Name': value )",
+		Rewrite:   Rewrite{Structural: "header list: `'Name' = value` becomes `'Name': value`"},
+		RemovedIn: 2,
+		Note:      "A header list is a map of the operation's properties, so it is `( key: value )` like every property map (R2/R3).",
+		Example: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation Ping ( Method: get, Path: '/p', Headers: ('Accept' = 'application/json'), Response: none ) };",
+		CanonicalExample: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation Ping ( Method: get, Path: '/p', Headers: ('Accept': 'application/json'), Response: none ) };",
+	},
+	{
+		Code:      MenuChildrenParens,
+		Old:       "navigation P menu ( menu item …; menu 'X' ( … ); )  /  create menu M.M ( … )",
+		Canonical: "navigation P { menu item … menu 'X' { … } }  /  create menu M.M { … }",
+		Rewrite: Rewrite{Structural: "menu items: `menu (` becomes `{`, a menu's or sub-menu's ( ) become { }, " +
+			"and the `;` after each item is dropped"},
+		RemovedIn: 2,
+		Note: "Menu items are children, so they are in { } like a page's widgets, and a child ends in `)` or `}`, " +
+			"so it needs no separator (R2). In a navigation profile the items are the profile's own children.",
+		Example:          "create or modify navigation Responsive home page M.Home menu ( menu item 'Home'; menu 'Admin' ( menu item 'Users'; ); );",
+		CanonicalExample: "create or modify navigation Responsive home page M.Home { menu item 'Home' menu 'Admin' { menu item 'Users' } };",
+	},
+	{
+		Code:      MenuItemClauses,
+		Old:       "menu item 'X' page M.P icon I  /  microflow M.F  /  sign out",
+		Canonical: "menu item 'X' ( OnClick: show page M.P, Icon: I )  /  call microflow M.F  /  sign out",
+		Rewrite: Rewrite{Structural: "item clauses: `page M.P` becomes `( OnClick: show page M.P )`, `microflow M.F` " +
+			"`OnClick: call microflow M.F`, `sign out` `OnClick: sign out`, and `icon I` `Icon: I`"},
+		RemovedIn: 2,
+		Note: "A menu item is a child: its properties are in ( ), and its action is written in the words a page " +
+			"action uses (R2, R8). A sub-menu's icon moves the same way: `menu 'X' ( Icon: I ) { … }`.",
+		Example:          "create menu M.Main { menu item 'Home' page M.Home icon Atlas_Core.Atlas.home menu item 'Bye' sign out };",
+		CanonicalExample: "create menu M.Main { menu item 'Home' ( OnClick: show page M.Home, Icon: Atlas_Core.Atlas.home ) menu item 'Bye' ( OnClick: sign out ) };",
+	},
+	{
+		Code:             HeaderMapBraces,
+		Old:              "Params: { $P: M.E }  /  Variables: { $v: Boolean = 'true' }",
+		Canonical:        "Params: ( $P: M.E )  /  Variables: ( $v: Boolean = 'true' )",
+		Rewrite:          Rewrite{Structural: "header map: the braces become ( )"},
+		RemovedIn:        2,
+		Note:             "In a page's and a snippet's header. A map is a property list, so it is in ( ); { } holds children (R2).",
+		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: { $Order: M.Order }) { };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: ( $Order: M.Order )) { };",
+	},
+	{
+		Code:      TemplateParamsBrackets,
+		Old:       "ContentParams: [{1} = expr]",
+		Canonical: "ContentParams: ({1} = expr)",
+		Rewrite:   Rewrite{Structural: "template parameters: the brackets become ( )"},
+		RemovedIn: 2,
+		Note: "Also CaptionParams and a pluggable widget's `<Name>Params`. The parameters are a map, in ( ) (R2), " +
+			"and each binds a value with `=`, as `with ({1} = …)` does (R4).",
+		Example: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) " +
+			"{ dynamictext t (Content: 'Hi {1}', ContentParams: [{1} = 'x']) };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) " +
+			"{ dynamictext t (Content: 'Hi {1}', ContentParams: ({1} = 'x')) };",
+	},
+	{
+		Code:      DesignPropertiesBrackets,
+		Old:       "DesignProperties: ['Key': 'Value', 'Group': ['k': on]]",
+		Canonical: "DesignProperties: ('Key': 'Value', 'Group': ('k': on))",
+		Rewrite:   Rewrite{Structural: "design properties: each bracketed list becomes ( )"},
+		RemovedIn: 2,
+		Note:      "The design properties are a map of properties, so they are in ( ) (R2).",
+		Example: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) " +
+			"{ container c (DesignProperties: ['Spacing': ['margin-top': 'Large'], 'Full width': on]) };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) " +
+			"{ container c (DesignProperties: ('Spacing': ('margin-top': 'Large'), 'Full width': on)) };",
+	},
+	{
+		Code:      SnippetCallParamsBraces,
+		Old:       "snippetcall s (Snippet: M.S, Params: {$Asset: $var})",
+		Canonical: "snippetcall s (Snippet: M.S, Params: (Asset = $var))",
+		Rewrite:   Rewrite{Structural: "snippet call arguments: `{$P: $v}` becomes `(P = $v)`"},
+		RemovedIn: 2,
+		Note: "A snippet call is a call site, so it binds `Param = value` without a `$` on the parameter name (R4), " +
+			"in the ( ) of a map (R2).",
+		Example: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: ($Asset: M.Asset)) " +
+			"{ snippetcall s (Snippet: M.S, Params: {$Asset: $Asset}) };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: ($Asset: M.Asset)) " +
+			"{ snippetcall s (Snippet: M.S, Params: (Asset = $Asset)) };",
+	},
+	{
+		Code:      DatabaseConnectionClauses,
+		Old:       "database connection M.Db type '…' connection string @M.C … begin query Q sql '…' returns M.E map (c as A); end",
+		Canonical: "database connection M.Db ( Type: '…', ConnectionString: @M.C, … ) { query Q ( Sql: '…', Returns: M.E, Map: ( A = c ) ) }",
+		Rewrite: Rewrite{Structural: "clauses become the property list: `type` `Type:`, `connection string` `ConnectionString:`, " +
+			"`host` `Host:`, `port` `Port:`, `database` `DatabaseName:`, `username` `Username:`, `password` `Password:`; " +
+			"`begin … end` becomes { }; a query's `sql`, `parameter`, `returns` and `map` become Sql, Parameters, Returns " +
+			"and Map, and `column as Attr` becomes `Attr = column`"},
+		RemovedIn: 2,
+		Note: "The database connection was the one declarative document written as clauses and begin … end. Its " +
+			"properties are in ( ) and its queries are children in { } (R2).",
+		Example: "create database connection M.Db type 'PostgreSQL' connection string @M.Url username @M.User password @M.Pass " +
+			"begin query Q sql $$select id from t where id > {min}$$ parameter min: Integer default '0' returns M.T map (id as Id); end;",
+		CanonicalExample: "create database connection M.Db ( Type: 'PostgreSQL', ConnectionString: @M.Url, Username: @M.User, Password: @M.Pass ) " +
+			"{ query Q ( Sql: $$select id from t where id > {min}$$, Parameters: ( min: Integer default '0' ), Returns: M.T, Map: (Id = id) ) };",
 	},
 }
 
