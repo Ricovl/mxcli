@@ -119,18 +119,18 @@ values, including the argument list.
 
 | Action | Syntax | Description |
 |--------|--------|-------------|
-| Save | `Action: SAVE_CHANGES` | Commits and closes |
-| Cancel | `Action: CANCEL_CHANGES` | Rolls back and closes |
+| Save | `Action: save changes` | Commits and closes |
+| Cancel | `Action: cancel changes` | Rolls back and closes |
 | Microflow | `Action: MICROFLOW Module.Name(Param = val)` | Calls a microflow |
 | Nanoflow | `Action: NANOFLOW Module.Name(Param = val)` | Calls a nanoflow |
 | Page | `Action: PAGE Module.PageName` | Opens a page |
-| Close | `Action: CLOSE_PAGE` | Closes the current page |
+| Close | `Action: CLOSE PAGE` | Closes the current page |
 | Delete | `Action: DELETE` | Deletes the context object |
 | Nothing | `Action: NOTHING` | Deliberately no action — a decorative button, a card that is not clickable |
 
 The set is closed. Anything else in an action slot is an error
 (**MDL-WIDGET28**), and that includes a real action keyword **missing its
-argument** — `Action: OPEN_LINK` with no URL, `Action: SHOW_PAGE` with no page.
+argument** — `Action: OPEN LINK` with no URL, `Action: SHOW PAGE` with no page.
 Such a widget used to be written with no action at all: it rendered, carried its
 caption, and did nothing, while `mxcli check`, `exec` and mxbuild all reported
 success, because a no-action widget is perfectly legal Mendix. Write `NOTHING`
@@ -233,8 +233,8 @@ CREATE PAGE MyModule.Customer_Edit
         COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
 
         FOOTER footer1 {
-            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
         }
     }
 };
@@ -256,7 +256,7 @@ CREATE PAGE Sales.Order_Overview
         COLUMN colStatus (Attribute: Status, Caption: 'Status')
         COLUMN colAmount (Attribute: TotalAmount, Caption: 'Amount', Alignment: right)
         CONTROLBAR cb1 {
-            ACTIONBUTTON btnNew (Caption: 'New Order', Action: SHOW_PAGE Sales.Order_Edit, ButtonStyle: Primary)
+            ACTIONBUTTON btnNew (Caption: 'New Order', Action: SHOW PAGE Sales.Order_Edit, ButtonStyle: Primary)
         }
     }
 };
@@ -349,13 +349,13 @@ CREATE PAGE MyModule.AdvancedForm
 {
     DATAVIEW dvItem (DataSource: $Item) {
         TEXTBOX txtName (Label: 'Name', Attribute: Name)
-        ACTIONBUTTON btnToggle (Caption: 'Show Advanced', Action: NANOFLOW MyModule.NAV_Toggle)
+        ACTIONBUTTON btnToggle (Caption: 'Show Advanced', Action: CALL NANOFLOW MyModule.NAV_Toggle)
         CONTAINER cntAdvanced (Visible: '$showAdvanced') {
             TEXTAREA taNotes (Label: 'Notes', Attribute: Notes)
         }
         FOOTER footer1 {
-            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
         }
     }
 };

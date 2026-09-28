@@ -4,6 +4,7 @@ package visitor
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
@@ -69,7 +70,7 @@ func (b *Builder) ExitAlterSettingsClause(ctx *parser.AlterSettingsClauseContext
 		// ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP 'Approvers' [( Description: '…' )]
 		// ALTER SETTINGS WORKFLOWS MODIFY          GROUP 'Approvers'  ( Description: '…' )
 		// ALTER SETTINGS WORKFLOWS REMOVE          GROUP 'Approvers'
-		stmt.Section = ctx.SettingsSection().GetText()
+		stmt.Section = strings.ToLower(ctx.SettingsSection().GetText())
 		stmt.UpsertGroup = ctx.ADD() != nil && ctx.OR() != nil && ctx.MODIFY() != nil
 		stmt.AddGroup = ctx.ADD() != nil && !stmt.UpsertGroup
 		stmt.ModifyGroup = ctx.MODIFY() != nil && !stmt.UpsertGroup
@@ -82,7 +83,7 @@ func (b *Builder) ExitAlterSettingsClause(ctx *parser.AlterSettingsClauseContext
 		// ALTER SETTINGS LANGUAGE ADD    'ar_SD' [( key: value, … )]
 		// ALTER SETTINGS LANGUAGE MODIFY 'ar_SD'  ( key: value, … )
 		// ALTER SETTINGS LANGUAGE REMOVE 'ar_SD'
-		stmt.Section = ctx.SettingsSection().GetText()
+		stmt.Section = strings.ToLower(ctx.SettingsSection().GetText())
 		stmt.UpsertLanguage = ctx.ADD() != nil && ctx.OR() != nil && ctx.MODIFY() != nil
 		stmt.AddLanguage = ctx.ADD() != nil && !stmt.UpsertLanguage
 		stmt.ModifyLanguage = ctx.MODIFY() != nil && !stmt.UpsertLanguage
@@ -93,7 +94,7 @@ func (b *Builder) ExitAlterSettingsClause(ctx *parser.AlterSettingsClauseContext
 		collectSettingsItemOptions(ctx.SettingsItemOptions(), stmt.Properties)
 	} else if ctx.SettingsSection() != nil {
 		// ALTER SETTINGS MODEL|LANGUAGE|WORKFLOWS Key = Value, ...
-		stmt.Section = ctx.SettingsSection().GetText()
+		stmt.Section = strings.ToLower(ctx.SettingsSection().GetText())
 		for _, assignCtx := range ctx.AllSettingsAssignment() {
 			assign, ok := assignCtx.(*parser.SettingsAssignmentContext)
 			if !ok || assign == nil {

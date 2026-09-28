@@ -293,13 +293,13 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 					if vr.Type == "Required" {
 						constraints.WriteString(" not null")
 						if errMsg := pickTextTranslation(vr.ErrorMessage, lang); errMsg != "" {
-							constraints.WriteString(" error " + mdlQuoted(errMsg))
+							constraints.WriteString(" error message " + mdlQuoted(errMsg))
 						}
 					}
 					if vr.Type == "Unique" {
 						constraints.WriteString(" unique")
 						if errMsg := pickTextTranslation(vr.ErrorMessage, lang); errMsg != "" {
-							constraints.WriteString(" error " + mdlQuoted(errMsg))
+							constraints.WriteString(" error message " + mdlQuoted(errMsg))
 						}
 					}
 				}

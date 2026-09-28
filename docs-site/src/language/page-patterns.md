@@ -22,10 +22,10 @@ CREATE PAGE MyModule.Customer_Overview
     CONTROLBAR bar1 {
       ACTIONBUTTON btnNew (
         Caption: 'New Customer',
-        Action: MICROFLOW MyModule.ACT_Customer_New,
+        Action: CALL MICROFLOW MyModule.ACT_Customer_New,
         ButtonStyle: Primary
       )
-      ACTIONBUTTON btnEdit (Caption: 'Edit', Action: SHOW_PAGE MyModule.Customer_Edit)
+      ACTIONBUTTON btnEdit (Caption: 'Edit', Action: SHOW PAGE MyModule.Customer_Edit)
       ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
     }
   }
@@ -66,8 +66,8 @@ CREATE PAGE MyModule.Customer_Edit
     COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
     CHECKBOX cbActive (Label: 'Active', Attribute: IsActive)
     FOOTER footer1 {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 }
@@ -107,10 +107,10 @@ CREATE PAGE MyModule.Customer_Detail
     FOOTER footer1 {
       ACTIONBUTTON btnEdit (
         Caption: 'Edit',
-        Action: SHOW_PAGE MyModule.Customer_Edit,
+        Action: SHOW PAGE MyModule.Customer_Edit,
         ButtonStyle: Primary
       )
-      ACTIONBUTTON btnBack (Caption: 'Back', Action: CLOSE_PAGE)
+      ACTIONBUTTON btnBack (Caption: 'Back', Action: CLOSE PAGE)
     }
   }
 }
@@ -140,7 +140,7 @@ CREATE PAGE MyModule.Product_MasterDetail
           CONTROLBAR bar1 {
             ACTIONBUTTON btnNew (
               Caption: 'New',
-              Action: MICROFLOW MyModule.ACT_Product_New,
+              Action: CALL MICROFLOW MyModule.ACT_Product_New,
               ButtonStyle: Primary
             )
           }
@@ -153,7 +153,7 @@ CREATE PAGE MyModule.Product_MasterDetail
           TEXTBOX txtPrice (Label: 'Price', Attribute: Price)
           COMBOBOX cbCategory (Label: 'Category', Attribute: Category)
           FOOTER footer1 {
-            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
+            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
           }
         }
       }
@@ -199,7 +199,7 @@ CREATE PAGE MyModule.Order_MasterDetail
           FOOTER footer1 {
             ACTIONBUTTON btnEdit (
               Caption: 'Edit Order',
-              Action: SHOW_PAGE MyModule.Order_Edit,
+              Action: SHOW PAGE MyModule.Order_Edit,
               ButtonStyle: Primary
             )
           }
@@ -236,10 +236,10 @@ CREATE PAGE HR.Employee_Overview
     CONTROLBAR bar1 {
       ACTIONBUTTON btnNew (
         Caption: 'New Employee',
-        Action: MICROFLOW HR.ACT_Employee_New,
+        Action: CALL MICROFLOW HR.ACT_Employee_New,
         ButtonStyle: Primary
       )
-      ACTIONBUTTON btnEdit (Caption: 'Edit', Action: SHOW_PAGE HR.Employee_Edit)
+      ACTIONBUTTON btnEdit (Caption: 'Edit', Action: SHOW PAGE HR.Employee_Edit)
       ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
     }
   }
@@ -260,8 +260,8 @@ CREATE PAGE HR.Employee_Edit
     DATEPICKER dpHireDate (Label: 'Hire Date', Attribute: HireDate)
     TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
     FOOTER footer1 {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 }

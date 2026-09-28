@@ -530,7 +530,7 @@ show page Module.EditPage(Product = $Product);
 
 Every call site binds an argument as `Param = expression`, with no `$` on the
 parameter name: `call microflow`, `show page`, and widget actions
-(`action: show_page Module.Page(Param = $value)`) alike. `$Param = $value` and
+(`action: show page Module.Page(Param = $value)`) alike. `$Param = $value` and
 `Param: $value` still parse but are deprecated (MDL-DEPR006/007); `mxcli fmt
 --upgrade` rewrites them.
 

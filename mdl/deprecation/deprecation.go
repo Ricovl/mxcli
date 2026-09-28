@@ -99,6 +99,30 @@ const (
 	// name for: a layout grid's rows and columns, a data grid's columns and
 	// control bar, a gallery's template and filter (R12, ako/mxcli#749).
 	UnstoredWidgetName = "MDL-DEPR005"
+
+	// Codes 020–029 are R8's (ako/mxcli#752, PROPOSAL_mdl_beta_syntax_freeze.md
+	// §3 R8): words, not SCREAMING_SNAKE, and one spelling per keyword. They
+	// start at 020 rather than 006 because the other phase-3 issues add entries
+	// in parallel; a gap in the numbering means nothing.
+
+	// PageActionWord is a page action written as one snake-case token —
+	// `show_page`, `save_changes`, `close_page`, `create_object`,
+	// `delete_object`, `open_link`, `sign_out`, `complete_task`,
+	// `cancel_changes` — or a flow call without `call` (`microflow M.F`).
+	PageActionWord = "MDL-DEPR020"
+	// ErrorMessageKeyword is the user-facing message of a validation, spelled
+	// anything but `error message`: `not null error '…'` (also after unique
+	// and required), a validation rule's `feedback '…'`, and `error_message` /
+	// `errormessage`.
+	ErrorMessageKeyword = "MDL-DEPR021"
+	// DeleteBehaviorClause is an association's `delete_behavior <behaviour>`
+	// clause, in any of its spellings; `on delete …` says the same thing.
+	DeleteBehaviorClause = "MDL-DEPR022"
+	// ReferenceSetUnderscore is `reference_set` for the `ReferenceSet` type.
+	ReferenceSetUnderscore = "MDL-DEPR023"
+	// ReturnsNone is a REST call's `returns none`, the second spelling of
+	// `returns nothing`.
+	ReturnsNone = "MDL-DEPR024"
 	// OnErrorBraces is a custom error handler written `on error { … }`: the
 	// only brace block inside a microflow, where flow is `begin … end <keyword>`
 	// (R2, ako/mxcli#754).
@@ -245,6 +269,72 @@ var entries = []Entry{
 			"url and body templates.",
 		Example:          "create microflow M.F ($N: String) begin show message 'Hi {1}' type Information objects [$N]; end;",
 		CanonicalExample: "create microflow M.F ($N: String) begin show message 'Hi {1}' type Information with ({1} = $N); end;",
+	},
+}
+
+func init() {
+	entries = append(entries, r8Entries...)
+}
+
+// r8Entries are R8's spellings (ako/mxcli#752). Kept apart from the list above
+// only so the parallel phase-3 changes do not all edit its last lines.
+var r8Entries = []Entry{
+	{
+		Code:      PageActionWord,
+		Old:       "show_page, save_changes, close_page, microflow M.F, …",
+		Canonical: "show page, save changes, close page, call microflow M.F, …",
+		Rewrite: Rewrite{Structural: "page action as words: the underscore becomes a space (`show_page` -> " +
+			"`show page`, also `save_changes`, `cancel_changes`, `close_page`, `create_object`, `open_link`, " +
+			"`sign_out`, `complete_task`); `delete_object` -> `delete`; `microflow M.F` / `nanoflow M.F` -> " +
+			"`call microflow M.F` / `call nanoflow M.F`"},
+		RemovedIn: 2,
+		Note: "The words are the ones a microflow uses for the same activity. A navigation menu's " +
+			"`sign_out` is the same keyword. Arguments are unchanged.",
+		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { actionbutton b (Caption: 'Save', Action: sign_out) };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { actionbutton b (Caption: 'Save', Action: sign out) };",
+	},
+	{
+		Code:      ErrorMessageKeyword,
+		Old:       "error '…' / feedback '…' / error_message '…'",
+		Canonical: "error message '…'",
+		Rewrite: Rewrite{Structural: "message keyword as `error message`: `not null error '…'` (and after " +
+			"`unique` or `required`), a validation rule's `feedback '…'`, and `error_message` / `errormessage`"},
+		RemovedIn:        2,
+		Note:             "One keyword for the text a user sees when a rule refuses a change.",
+		Example:          "create entity M.E (Name: String(100) not null error 'Name is required');",
+		CanonicalExample: "create entity M.E (Name: String(100) not null error message 'Name is required');",
+	},
+	{
+		Code:      DeleteBehaviorClause,
+		Old:       "delete_behavior …",
+		Canonical: "on delete cascade|restrict|set null",
+		Rewrite: Rewrite{Structural: "delete behaviour as the SQL referential action: " +
+			"`delete_behavior cascade` / `delete_and_references` -> `on delete cascade`; " +
+			"`prevent` / `delete_if_no_references` -> `on delete restrict`; " +
+			"`delete_but_keep_references` -> `on delete set null`"},
+		RemovedIn: 2,
+		Note: "Also in `alter association … set delete_behavior …`. The three compound behaviour keywords " +
+			"had three spellings each; the SQL referential actions have one.",
+		Example:          "create association M.Order_Customer from M.Order to M.Customer type Reference delete_behavior prevent;",
+		CanonicalExample: "create association M.Order_Customer from M.Order to M.Customer type Reference on delete restrict;",
+	},
+	{
+		Code:             ReferenceSetUnderscore,
+		Old:              "type reference_set",
+		Canonical:        "type ReferenceSet",
+		Rewrite:          Rewrite{Structural: "type name as Mendix writes it: `reference_set` -> `ReferenceSet`"},
+		RemovedIn:        2,
+		Example:          "create association M.Order_Tag from M.Order to M.Tag type reference_set;",
+		CanonicalExample: "create association M.Order_Tag from M.Order to M.Tag type ReferenceSet;",
+	},
+	{
+		Code:             ReturnsNone,
+		Old:              "rest call … returns none",
+		Canonical:        "rest call … returns nothing",
+		Rewrite:          Rewrite{Token: "none", Replacement: "nothing"},
+		RemovedIn:        2,
+		Example:          "create microflow M.F () begin rest call get 'https://example.com' returns none; end;",
+		CanonicalExample: "create microflow M.F () begin rest call get 'https://example.com' returns nothing; end;",
 	},
 }
 

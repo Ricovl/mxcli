@@ -66,7 +66,7 @@ func TestRenderShowPageAction_RecoversTheImplicitParameter(t *testing.T) {
 	ctx := pageParamFixture(t, "Race")
 
 	got := renderClientActionMDL(ctx, showPageAction("Formula1Frontend.Race_Weekend", nil))
-	want := "show_page Formula1Frontend.Race_Weekend(Race = $currentObject)"
+	want := "show page Formula1Frontend.Race_Weekend(Race = $currentObject)"
 	if got != want {
 		t.Errorf("DESCRIBE lost the page parameter:\n got: %s\nwant: %s", got, want)
 	}
@@ -77,7 +77,7 @@ func TestRenderShowPageAction_RecoversEveryParameter(t *testing.T) {
 	ctx := pageParamFixture(t, "Race", "Season")
 
 	got := renderClientActionMDL(ctx, showPageAction("Formula1Frontend.Race_Weekend", nil))
-	want := "show_page Formula1Frontend.Race_Weekend(Race = $currentObject, Season = $currentObject)"
+	want := "show page Formula1Frontend.Race_Weekend(Race = $currentObject, Season = $currentObject)"
 	if got != want {
 		t.Errorf("got:  %s\nwant: %s", got, want)
 	}
@@ -88,7 +88,7 @@ func TestRenderShowPageAction_NoParametersStaysBare(t *testing.T) {
 	ctx := pageParamFixture(t)
 
 	got := renderClientActionMDL(ctx, showPageAction("Formula1Frontend.Race_Weekend", nil))
-	if want := "show_page Formula1Frontend.Race_Weekend"; got != want {
+	if want := "show page Formula1Frontend.Race_Weekend"; got != want {
 		t.Errorf("got:  %s\nwant: %s", got, want)
 	}
 }
@@ -100,7 +100,7 @@ func TestRenderShowPageAction_UnknownPageInventsNothing(t *testing.T) {
 	ctx := pageParamFixture(t, "Race")
 
 	got := renderClientActionMDL(ctx, showPageAction("OtherModule.Gone", nil))
-	if want := "show_page OtherModule.Gone"; got != want {
+	if want := "show page OtherModule.Gone"; got != want {
 		t.Errorf("got:  %s\nwant: %s", got, want)
 	}
 }
@@ -119,7 +119,7 @@ func TestRenderShowPageAction_ExplicitMappingWins(t *testing.T) {
 		},
 	}
 	got := renderClientActionMDL(ctx, showPageAction("Formula1Frontend.Race_Weekend", mappings))
-	want := "show_page Formula1Frontend.Race_Weekend(Race = $SelectedRace)"
+	want := "show page Formula1Frontend.Race_Weekend(Race = $SelectedRace)"
 	if got != want {
 		t.Errorf("an explicit mapping was overwritten:\n got: %s\nwant: %s", got, want)
 	}

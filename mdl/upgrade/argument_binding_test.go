@@ -41,7 +41,7 @@ end workflow;
 end;
 create page M.Q (Title: 'Q', Layout: Atlas_Core.Atlas_Default) {
   dataview dv (DataSource: $O) {
-    actionbutton b (Caption: 'Go', Action: microflow M.G(Order = $currentObject))
+    actionbutton b (Caption: 'Go', Action: call microflow M.G(Order = $currentObject))
   }
 };
 create workflow M.W parameter $WorkflowContext: M.E begin

@@ -1408,7 +1408,7 @@ func formatRestCallAction(ctx *ExecContext, a *microflows.RestCallAction) string
 			// reported nothing.
 			sb.WriteString(rh.EntityRef)
 		case *microflows.ResultHandlingNone:
-			sb.WriteString("Nothing")
+			sb.WriteString("nothing")
 		default:
 			// Refuse rather than guess. The previous "String" fallback here and
 			// below is what turned an unread result handling into a silent

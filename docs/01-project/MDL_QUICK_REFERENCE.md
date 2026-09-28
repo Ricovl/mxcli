@@ -89,7 +89,7 @@ create persistent entity Module.Photo (
 | Create enumeration | `create [or modify] enumeration Module.Name (Value1 'caption', ...);` | |
 | Alter enumeration values | `alter enumeration Module.Name add value [if not exists] X [caption '..'] \| rename value X to Y \| modify value X caption '..' \| drop value [if exists] X;` | `modify value … caption` re-captions in place (works while referenced). `if not exists` / `if exists` make the script re-runnable — the bare forms error and stop the run |
 | Drop enumeration | `drop enumeration [if exists] Module.Name;` | Refused for `System.*` (read-only platform module) |
-| Create association | `create [or modify] association Module.Name from Parent to Child type reference\|ReferenceSet [owner default\|both] [delete_behavior ...];` | OR MODIFY updates existing association in-place. **The FROM entity must live in `Module`** — Mendix stores an association in its FROM entity's module, so a remote FROM writes a dangling pointer and the project stops OPENING (**MDL070**). The TO entity may be remote; that direction is stored BY NAME |
+| Create association | `create [or modify] association Module.Name from Parent to Child type reference\|ReferenceSet [owner default\|both] [on delete cascade\|restrict\|set null [error message '...']];` | OR MODIFY updates existing association in-place. **The FROM entity must live in `Module`** — Mendix stores an association in its FROM entity's module, so a remote FROM writes a dangling pointer and the project stops OPENING (**MDL070**). The TO entity may be remote; that direction is stored BY NAME |
 | Drop association | `drop association [if exists] Module.Name;` | |
 | Association line anchors | `@anchor(from: (0, 54), to: (100, 54))` above `create association …` | Where the connector attaches to each entity box, as a **percentage** of the box (0..100, whole numbers). `from` = the FROM entity's box, `to` = the TO entity's. Omitting an end preserves what is stored, so a `create or modify` about something else never flattens a hand-tuned line. Cross-module associations have no anchors — Mendix stores none |
 | Retune anchors in place | `alter association Module.Name set anchor from (50, 100) to (50, 0);` | `(0, 50)` left-middle, `(100, 50)` right-middle, `(50, 100)` bottom-centre. `describe association` re-emits a non-default pair as the same `@anchor(...)`, so describe → edit → exec round-trips |
@@ -236,8 +236,8 @@ the statement names the **attribute**, not the rule.
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| Create regex rule | `create validation rule for Module.Entity.Attribute regex Module.Pattern feedback '<msg>';` | Pattern must already exist |
-| Create range rule | `create validation rule for Module.Entity.Attribute range from <lit> to <lit> feedback '<msg>';` | Bounds inclusive |
+| Create regex rule | `create validation rule for Module.Entity.Attribute regex Module.Pattern error message '<msg>';` | Pattern must already exist |
+| Create range rule | `create validation rule for Module.Entity.Attribute range from <lit> to <lit> error message '<msg>';` | Bounds inclusive |
 | Lower bound only | `... range from <lit> ...` | Mendix `GreaterThanOrEqualTo` |
 | Upper bound only | `... range to <lit> ...` | Mendix `SmallerThanOrEqualTo` |
 
@@ -255,8 +255,8 @@ expression specified".
 **Required and Unique are attribute constraints, not this statement:**
 
 ```sql
-create entity Shop.Product ( Email: String(200) not null error 'Required' );
-alter entity Shop.Product modify attribute Code String(20) unique error 'Unique';
+create entity Shop.Product ( Email: String(200) not null error message 'Required' );
+alter entity Shop.Product modify attribute Code String(20) unique error message 'Unique';
 ```
 
 A range bounded by another *attribute* cannot be authored in MDL, but survives a
@@ -1455,13 +1455,13 @@ MDL uses explicit property declarations for pages:
 | Password field | `Password: true` on a textbox | `textbox tbPw (attribute: Secret, Password: true)` — omitted when false. Without it a describe → exec round trip turns a password field into a plaintext one |
 | Widget validation | `Validation: '<expression>'`, `ValidationMessage: '<text>'` | `Validation: 'length(toString($value)) > 0'` — a Mendix expression over `$value`, QUOTED not bracketed (`[...]` is the XPath spelling and parses as an array) |
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |
-| Action binding | `action: type` | `actionbutton btn (caption: 'Save', action: save_changes)` — the forms are a closed set (`mxcli syntax page.action`); anything else is **MDL-WIDGET28** |
-| No action | `action: nothing` | `actionbutton btn (caption: 'Decorative', action: nothing)` — an explicitly inert control. Write it deliberately: an action keyword **short its argument** (`action: open_link` with no URL) is now an error rather than a widget silently written with no action at all |
-| Microflow action | `action: microflow Name(Param = val)` | `action: microflow Mod.ACT_Process(Order = $Order)` |
+| Action binding | `action: type` | `actionbutton btn (caption: 'Save', action: save changes)` — the forms are a closed set (`mxcli syntax page.action`); anything else is **MDL-WIDGET28** |
+| No action | `action: nothing` | `actionbutton btn (caption: 'Decorative', action: nothing)` — an explicitly inert control. Write it deliberately: an action keyword **short its argument** (`action: open link` with no URL) is now an error rather than a widget silently written with no action at all |
+| Microflow action | `action: call microflow Name(Param = val)` | `action: call microflow Mod.ACT_Process(Order = $Order)` |
 | Button icon | `icon: 'Module.IconCollection.IconName'` | `linkbutton btn (caption: 'Edit', action: nothing, icon: 'Atlas_Core.Atlas_Filled.pencil')` — the **icon-collection** icon; MxBuild rejects an unknown name (CE1613) |
 | Image icon | `icon: image Module.ImageCollection.Name` | `actionbutton btn (caption: 'Logo', action: nothing, icon: image MyMod.Images.logo)` — an **image** collection is a different document from an icon collection, and the names are spelled the same, so the keyword is what separates them. Written without `image` it is stored as a custom-icon reference and the build fails **CE1613** |
 | Glyph icon | `icon: glyph <code>` | `actionbutton btn (caption: 'Home', action: nothing, icon: glyph 57377)` — a font code point with no name. Codes are sparse; an undefined one fails only at `mxbuild --target=deploy`, naming the **page**, so **MDL078** checks it. Browse with `show glyphs` |
-| Clickable container | `onclick: action` (alias of `action:`) | `container card (onclick: microflow Mod.ACT_Open) { ... }` — takes an argument list like a button: `action: nanoflow Mod.ACT_Ship(Order = $dgOrders)` |
+| Clickable container | `onclick: action` (alias of `action:`) | `container card (onclick: call microflow Mod.ACT_Open) { ... }` — takes an argument list like a button: `action: call nanoflow Mod.ACT_Ship(Order = $dgOrders)` |
 | Action arguments | every parameter needs one | A flow action with an unfilled parameter is **CE1571**. An enclosing data container of its type supplies it; a data grid's **control bar** does not (not row-scoped) — pass the grid's selection, `$dgOrders` |
 | Database source | `datasource: database entity` | `datagrid dg (datasource: database Module.Entity)` |
 | Database source, constrained and sorted | `datasource: database entity where [...] sort by Attr asc` | `listview lv (datasource: database from Mod.Vehicle where [Brand != ''] sort by Brand asc)` |
@@ -1554,8 +1554,8 @@ create page MyModule.Customer_Edit
     combobox cbStatus (label: 'Status', attribute: status)
 
     footer footer1 {
-      actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-      actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+      actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+      actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
 }
@@ -1669,7 +1669,7 @@ This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <t
 | Drop widgets | `drop name1, name2` | Remove widgets by name |
 | Replace widget | `replace widgetName with { widgets }` | Replace widget subtree |
 | Pluggable prop | `set ('showLabel': false) on cbStatus` | Quoted name for pluggable widgets |
-| Named action slot | `set ('createFileAction': microflow M.ACT_Create) on fileUploader1` | A pluggable widget's action-typed property, by its own key; any `create page` action form. Refused on a key that is not action-typed |
+| Named action slot | `set ('createFileAction': call microflow M.ACT_Create) on fileUploader1` | A pluggable widget's action-typed property, by its own key; any `create page` action form. Refused on a key that is not action-typed |
 | Set column prop | `set (caption: 'New') on dgGrid column(Attr)` | A DataGrid 2 column by its attribute, or `column('Caption')`; `@n` when two columns match. The older `dgGrid.colName` (a derived name) still works |
 | Drop column | `drop dgGrid column(Attr)` | Remove a DataGrid column |
 | Insert column | `insert after dgGrid column(Attr) { column (…) }` | Add column to DataGrid; a column takes no name |

@@ -117,25 +117,25 @@ describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference
 
 **Action Bindings:**
 - `action: nothing` - Deliberately no action (a decorative button, a card that is not clickable)
-- `action: save_changes` - Save changes to object
-- `action: save_changes close_page` - Save and close page
-- `action: cancel_changes` - Cancel changes
-- `action: close_page` - Close the page
+- `action: save changes` - Save changes to object
+- `action: save changes close page` - Save and close page
+- `action: cancel changes` - Cancel changes
+- `action: close page` - Close the page
 - `action: delete` - Delete object
-- `action: microflow Module.MicroflowName` - Call microflow
-- `action: microflow Module.MicroflowName(Param = $value)` - Call microflow with parameters
-- `action: nanoflow Module.NanoflowName` - Call nanoflow (client-side)
-- `action: nanoflow Module.NanoflowName(Param = $value)` - Call nanoflow with parameters
-- `action: open_link 'https://example.com'` - Open a fixed web address
-- `action: open_link $currentObject/URL` - Open the address held in an attribute of the enclosing data container's object (inside a data container only; not over an association)
+- `action: call microflow Module.MicroflowName` - Call microflow
+- `action: call microflow Module.MicroflowName(Param = $value)` - Call microflow with parameters
+- `action: call nanoflow Module.NanoflowName` - Call nanoflow (client-side)
+- `action: call nanoflow Module.NanoflowName(Param = $value)` - Call nanoflow with parameters
+- `action: open link 'https://example.com'` - Open a fixed web address
+- `action: open link $currentObject/URL` - Open the address held in an attribute of the enclosing data container's object (inside a data container only; not over an association)
 - **Every parameter needs an argument, or an enclosing data container of its
   type.** A flow called with a parameter nothing fills is **CE1571**; `mxcli
   check -p` reports it. This is the same on every widget that takes an action,
   a clickable `container` included.
-- `action: show_page Module.PageName` - Navigate to page
-- `action: show_page Module.PageName(Param = $value)` - Navigate with parameters
-- `action: create_object Module.Entity then show_page Module.PageName` - Create and navigate
-- **A `show_page` argument must be the context object, and there has to BE one.**
+- `action: show page Module.PageName` - Navigate to page
+- `action: show page Module.PageName(Param = $value)` - Navigate with parameters
+- `action: create object Module.Entity then show page Module.PageName` - Create and navigate
+- **A `show page` argument must be the context object, and there has to BE one.**
   Mendix takes the page argument from the enclosing data widget, so the only
   spellings that mean anything are `$currentObject` or the name of the variable
   that widget is bound to (`datasource: $Customer` → `(Customer = $Customer)` is
@@ -151,8 +151,8 @@ describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference
   button, call a microflow that does `show page Module.Page(Param = $value)` —
   that path wires the arguments properly.
 - **The list above is the whole vocabulary, and a keyword without its argument is
-  not in it.** `action: open_link` with no URL, `action: show_page` with no page,
-  `action: microflow` with no name — each is **MDL-WIDGET28**. Until
+  not in it.** `action: open link` with no URL, `action: show page` with no page,
+  `action: call microflow` with no name — each is **MDL-WIDGET28**. Until
   mendixlabs/mxcli#1062 these were written as a widget with *no action at all*:
   it rendered, carried its caption, and did nothing, while `mxcli check`, `exec`
   and mxbuild all reported success, because a no-action widget is legal Mendix.
@@ -168,22 +168,22 @@ describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference
 **Examples:**
 ```sql
 -- Save with style
-actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
+actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
 
 -- Navigate with parameter (inside DATAVIEW)
-actionbutton btnEdit (caption: 'Edit', action: show_page Module.EditPage(Product = $Product))
+actionbutton btnEdit (caption: 'Edit', action: show page Module.EditPage(Product = $Product))
 
 -- Navigate with $currentObject (inside DATAGRID column)
-actionbutton btnEdit (caption: 'Edit', action: show_page Module.EditPage(Product = $currentObject))
+actionbutton btnEdit (caption: 'Edit', action: show page Module.EditPage(Product = $currentObject))
 
 -- Call microflow with page/dataview parameter
-actionbutton btnProcess (caption: 'Process', action: microflow Module.ACT_Process(Order = $Order), buttonstyle: success)
+actionbutton btnProcess (caption: 'Process', action: call microflow Module.ACT_Process(Order = $Order), buttonstyle: success)
 
 -- Call microflow with $currentObject (inside DATAGRID/LISTVIEW column)
-actionbutton btnDelete (caption: 'Delete', action: microflow Module.ACT_Delete(Target = $currentObject), buttonstyle: danger)
+actionbutton btnDelete (caption: 'Delete', action: call microflow Module.ACT_Delete(Target = $currentObject), buttonstyle: danger)
 
 -- Create object and show page
-actionbutton btnNew (caption: 'New', action: create_object Module.Product then show_page Module.Product_Edit, buttonstyle: primary)
+actionbutton btnNew (caption: 'New', action: create object Module.Product then show page Module.Product_Edit, buttonstyle: primary)
 ```
 
 **Using `$currentObject`:**
@@ -366,7 +366,7 @@ correctly on the default engine (mxbuild-verified, 0 errors) — an earlier CE04
 
 ```sql
 column (caption: 'Actions') {
-  actionbutton btnView (caption: 'View', action: close_page)
+  actionbutton btnView (caption: 'View', action: close page)
 }
 ```
 
@@ -446,8 +446,8 @@ dataview dvName (datasource: $VariableName) {
   textarea txtDescription (label: 'Description', attribute: description)
 
   footer footer1 {
-    actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
 }
 ```
@@ -506,8 +506,8 @@ dataview dataView1 (datasource: $Customer) {
   datepicker dpCreated (label: 'Created', attribute: CreateDate)
 
   footer footer1 {
-    actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
 }
 ```
@@ -643,9 +643,9 @@ Create a menu with action items:
 
 ```sql
 navigationlist navName {
-  item itemEdit (caption: 'Edit', action: show_page Module.EditPage(entity = $EntityParameter))
+  item itemEdit (caption: 'Edit', action: show page Module.EditPage(entity = $EntityParameter))
   item itemDelete (caption: 'Delete', action: delete)
-  item itemBack (caption: 'Back', action: close_page)
+  item itemBack (caption: 'Back', action: close page)
 }
 ```
 
@@ -841,7 +841,7 @@ conditional visibility — or put the condition in the microflow it calls:
 
 ```sql
 actionbutton btnSubmit (
-  caption: 'Submit', action: microflow Mod.ACT_Submit,
+  caption: 'Submit', action: call microflow Mod.ACT_Submit,
   visible: [$currentObject/Status = Mod.Status.Draft]
 )
 ```
@@ -883,13 +883,13 @@ Two shapes, two remedies:
 
 ```sql
 -- WRONG: silently does nothing
-dataview dvOrder (datasource: microflow Mod.DS_Order, onclick: show_page Mod.Detail) {
+dataview dvOrder (datasource: microflow Mod.DS_Order, onclick: show page Mod.Detail) {
   dynamictext t (content: 'Open')
 }
 
 -- RIGHT: the container carries the click
 dataview dvOrder (datasource: microflow Mod.DS_Order) {
-  container clickable (onclick: show_page Mod.Detail) {
+  container clickable (onclick: show page Mod.Detail) {
     dynamictext t (content: 'Open')
   }
 }
@@ -925,10 +925,10 @@ customcontainer outer1 (class: 'section') {
 
 **Clickable container (On click action).** A container can trigger an action when
 clicked — use `OnClick:` (or the equivalent `Action:` keyword) with any client
-action (`microflow`, `nanoflow`, `show_page`, `save_changes`, …):
+action (`microflow`, `nanoflow`, `show page`, `save changes`, …):
 
 ```sql
-container card1 (OnClick: microflow MyModule.ACT_OpenDetails, class: 'clickable-card') {
+container card1 (OnClick: call microflow MyModule.ACT_OpenDetails, class: 'clickable-card') {
   dynamictext title (content: 'Open details')
 }
 ```
@@ -945,7 +945,7 @@ as an `actionbutton`'s `action:`:
 
 ```sql
 -- Rich, parameterised trigger: a card that opens the object it represents
-container tileCard (OnClick: microflow MyModule.ACT_Open(Item = $currentObject), class: 'tile') {
+container tileCard (OnClick: call microflow MyModule.ACT_Open(Item = $currentObject), class: 'tile') {
   dynamictext tileValue (content: '4')
   dynamictext tileLabel (content: '4 LEFT', class: 'tile-label')
 }
@@ -962,8 +962,8 @@ Container for form action buttons:
 
 ```sql
 footer footerName {
-  actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-  actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+  actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+  actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
 }
 ```
 
@@ -983,7 +983,7 @@ Control bar for data widgets:
 
 ```sql
 controlbar {
-  actionbutton btnNew (caption: 'New', action: create_object Module.Entity then show_page Module.EditPage, buttonstyle: primary)
+  actionbutton btnNew (caption: 'New', action: create object Module.Entity then show page Module.EditPage, buttonstyle: primary)
 }
 ```
 
@@ -1002,7 +1002,7 @@ datagrid dgMaterials (
 
   -- Row-scoped: the grid's row supplies the parameter, no argument needed.
   column (caption: 'Row') {
-    container cRowUnlink (action: nanoflow Module.ACT_UnLink, class: 'command') {
+    container cRowUnlink (action: call nanoflow Module.ACT_UnLink, class: 'command') {
       actionbutton btnRowUnlink (caption: 'Unlink')
     }
   }
@@ -1011,7 +1011,7 @@ datagrid dgMaterials (
     -- Not row-scoped: pass the selection explicitly.
     container cUnlink (
       class: 'command',
-      action: nanoflow Module.ACT_UnLink (Material = $dgMaterials)
+      action: call nanoflow Module.ACT_UnLink (Material = $dgMaterials)
     ) {
       actionbutton btnUnlink (caption: 'Unlink')
     }

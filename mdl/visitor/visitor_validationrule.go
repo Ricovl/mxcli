@@ -8,8 +8,9 @@ import (
 )
 
 // ExitCreateValidationRuleStatement builds a CreateValidationRuleStmt from
-// CREATE VALIDATION RULE FOR Module.Entity.Attribute <constraint> FEEDBACK '...'.
+// CREATE VALIDATION RULE FOR Module.Entity.Attribute <constraint> error message '...' (`feedback '...'` is the deprecated spelling).
 func (b *Builder) ExitCreateValidationRuleStatement(ctx *parser.CreateValidationRuleStatementContext) {
+	b.recordValidationRuleFeedback(ctx)
 	stmt := &ast.CreateValidationRuleStmt{
 		Attribute: buildQualifiedName(ctx.QualifiedName()),
 	}

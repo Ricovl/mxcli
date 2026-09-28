@@ -406,7 +406,7 @@ an invoice number, an ISIN, an employee number. Mendix requires a key to be
 unique, required and stable (the last is the point here), and the unique
 validation rule it makes you add is checking exactly that.
 
-That is also why the key needs `unique error '…'` on the attribute — see the
+That is also why the key needs `unique error message '…'` on the attribute — see the
 CE6624 note below. Both halves of the same idea: the value identifies one row,
 and keeps identifying it.
 
@@ -526,7 +526,7 @@ Measured on Mendix 11.13, each row a separate build:
 | shape | result |
 |---|---|
 | single key attribute, persistable, no `unique` rule | **CE6624** — add one |
-| single key attribute, persistable, `unique error '…'` | 0 errors |
+| single key attribute, persistable, `unique error message '…'` | 0 errors |
 | **single key attribute, VIEW entity, no `unique` rule** | **0 errors** |
 | **composite key, `OData3`** | **CE7238** "You can only have more than one key attribute when the OData version is 4" |
 | composite key, `OData4`, persistable, no `unique` rules | 0 errors |

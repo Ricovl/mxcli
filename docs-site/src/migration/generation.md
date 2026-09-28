@@ -46,8 +46,8 @@ CREATE ENUMERATION Sales.OrderStatus (
 /** Customer master data */
 @Position(100, 100)
 CREATE PERSISTENT ENTITY CRM.Customer (
-  Name: String(200) NOT NULL ERROR 'Customer name is required',
-  Email: String(200) UNIQUE ERROR 'Email already exists',
+  Name: String(200) NOT NULL ERROR MESSAGE 'Customer name is required',
+  Email: String(200) UNIQUE ERROR MESSAGE 'Email already exists',
   Phone: String(50),
   IsActive: Boolean DEFAULT TRUE
 )
@@ -106,7 +106,7 @@ CREATE PAGE CRM.Customer_Overview (
     COLUMN colPhone (Attribute: Phone, Caption: 'Phone')
     COLUMN colActive (Attribute: IsActive, Caption: 'Active')
     CONTROLBAR cb1 {
-      ACTIONBUTTON btnNew (Caption: 'New', Action: SHOW_PAGE CRM.Customer_NewEdit, ButtonStyle: Primary)
+      ACTIONBUTTON btnNew (Caption: 'New', Action: SHOW PAGE CRM.Customer_NewEdit, ButtonStyle: Primary)
     }
   }
 };

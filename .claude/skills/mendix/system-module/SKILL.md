@@ -220,7 +220,7 @@ create persistent entity MyModule.Attachment extends System.FileDocument (
 
 create association MyModule.Order_Attachments
 from MyModule.Order to MyModule.Attachment
-type reference_set;
+type ReferenceSet;
 ```
 
 ### System.Image
@@ -475,7 +475,7 @@ create persistent entity MyModule.Attachment extends System.FileDocument (
 
 create association MyModule.Order_Attachments
 from MyModule.Order to MyModule.Attachment
-type reference_set;
+type ReferenceSet;
 ```
 
 ### Workflow Context Object

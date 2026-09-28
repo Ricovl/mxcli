@@ -36,6 +36,22 @@ Under `mdl 1;` a missing `;` is an error, and so is the Oracle SQL*Plus-style `/
 
 A trailing comma is allowed in every bracketed list — attributes, enumeration values, parameters, property lists, `{ … }` blocks — under every language version. `()` is the only way to write an empty list: `(,)` and `(a,,)` are errors.
 
+## Keyword Case
+
+Keywords are case-insensitive, and lowercase is canonical: `describe` writes them in lowercase and `mxcli fmt` normalizes them to it. Names are not keywords, even when they are spelled like one — a module member `User`, an attribute `Title` or a property key `Folder:` keeps its case, and so does a CamelCase value such as `ButtonStyle: Success` or a type name such as `String(200)`. Expressions, XPath, OQL and SQL are stored as written, so `fmt` leaves their text alone.
+
+## One Spelling per Keyword
+
+Each keyword has one spelling, and a page action uses the words a microflow uses. The older spellings still parse with the same meaning, warn with the code shown, and are rewritten by `mxcli fmt --upgrade`:
+
+| Canonical | Deprecated | Code |
+|---|---|---|
+| `show page`, `save changes`, `cancel changes`, `close page`, `create object`, `delete`, `open link`, `sign out`, `complete task`, `call microflow M.F`, `call nanoflow M.F` | `show_page`, `save_changes`, `cancel_changes`, `close_page`, `create_object`, `delete_object`, `open_link`, `sign_out`, `complete_task`, `microflow M.F`, `nanoflow M.F` | `MDL-DEPR020` |
+| `not null error message '…'` (also after `unique`, `required`), validation rule `error message '…'`, `on delete restrict error message '…'` | `not null error '…'`, `feedback '…'`, `error_message '…'`, `errormessage '…'` | `MDL-DEPR021` |
+| `on delete cascade` / `restrict` / `set null` | `delete_behavior cascade` / `prevent` / `delete_and_references` / `delete_if_no_references` / `delete_but_keep_references` | `MDL-DEPR022` |
+| `type ReferenceSet` | `type reference_set` | `MDL-DEPR023` |
+| `returns nothing` (REST call) | `returns none` | `MDL-DEPR024` |
+
 ## Language Version Header
 
 A script may start with a header that names the MDL language version it is written in:

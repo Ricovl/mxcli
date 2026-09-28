@@ -209,7 +209,8 @@ microflowConcurrencyClause
 
 // ERROR_MESSAGE is one token, not ERROR + MESSAGE — it already exists for an
 // association's delete behaviour, and re-splitting it here would make the lexer
-// ambiguous. It accepts `error message`, `error_message` and `errormessage`.
+// ambiguous. `error message` is its spelling; `error_message` and
+// `errormessage` still lex as deprecated aliases (MDL-DEPR021).
 microflowConcurrencyError
     : ERROR_MESSAGE STRING_LITERAL
     | ERROR MICROFLOW qualifiedName
@@ -825,8 +826,8 @@ restCallReturnsClause
     | RETURNS RESPONSE                                          // Return HttpResponse object
     | RETURNS MAPPING qualifiedName AS LIST_OF qualifiedName    // Import mapping → list result
     | RETURNS MAPPING qualifiedName AS qualifiedName            // Import mapping → single object
-    | RETURNS NONE                                              // Ignore response
-    | RETURNS NOTHING                                           // Ignore response (alias)
+    | RETURNS NOTHING                                           // Ignore response
+    | RETURNS NONE /* @alias MDL-DEPR024 */                     // Ignore response (old second spelling)
     | RETURNS qualifiedName                                     // Store in file document (a System.FileDocument specialization)
     ;
 

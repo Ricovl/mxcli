@@ -103,11 +103,11 @@ func TestPrintMenuMDL_RendersSignOut(t *testing.T) {
 	}, 0, "CREATE NAVIGATION")
 
 	out := b.String()
-	if !strings.Contains(out, "menu item 'Sign out' sign_out;") {
+	if !strings.Contains(out, "menu item 'Sign out' sign out;") {
 		t.Errorf("describe output does not round-trip the sign-out item:\n%s", out)
 	}
 	// CONTROL: a plain item must not gain an action.
-	if strings.Contains(out, "'Plain' sign_out") {
+	if strings.Contains(out, "'Plain' sign out") {
 		t.Errorf("a plain item was rendered as sign-out:\n%s", out)
 	}
 }

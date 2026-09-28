@@ -32,7 +32,7 @@ CREATE PERSISTENT ENTITY Module.Photo (
 | List entities | `LIST ENTITIES [IN Module];` | List all or filter by module |
 | Create enumeration | `CREATE [OR MODIFY] ENUMERATION Module.Name (Value1 'Caption', ...);` | |
 | Drop enumeration | `DROP ENUMERATION Module.Name;` | |
-| Create association | `CREATE ASSOCIATION Module.Name FROM Parent TO Child TYPE Reference\|ReferenceSet [OWNER Default\|Both] [DELETE_BEHAVIOR ...];` | |
+| Create association | `CREATE ASSOCIATION Module.Name FROM Parent TO Child TYPE Reference\|ReferenceSet [OWNER Default\|Both] [ON DELETE CASCADE\|RESTRICT\|SET NULL];` | |
 | Drop association | `DROP ASSOCIATION Module.Name;` | |
 
 ## ALTER ENTITY
@@ -353,7 +353,7 @@ MDL uses explicit property declarations for pages:
 | Widget name | Required after type | `TEXTBOX txtName (...)` |
 | Attribute binding | `Attribute: AttrName` | `TEXTBOX txt (Label: 'Name', Attribute: Name)` |
 | Variable binding | `DataSource: $Var` | `DATAVIEW dv (DataSource: $Product) { ... }` |
-| Action binding | `Action: TYPE` | `ACTIONBUTTON btn (Caption: 'Save', Action: SAVE_CHANGES)` |
+| Action binding | `Action: TYPE` | `ACTIONBUTTON btn (Caption: 'Save', Action: save changes)` |
 | Microflow action | `Action: MICROFLOW Name(Param = val)` | `Action: MICROFLOW Mod.ACT_Process(Order = $Order)` |
 | Database source | `DataSource: DATABASE Entity` | `DATAGRID dg (DataSource: DATABASE Module.Entity)` |
 | Selection binding | `DataSource: SELECTION widget` | `DATAVIEW dv (DataSource: SELECTION galleryList)` |
@@ -401,8 +401,8 @@ CREATE PAGE MyModule.Customer_Edit
     COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
 
     FOOTER footer1 {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 }

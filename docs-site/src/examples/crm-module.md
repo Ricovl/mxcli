@@ -25,9 +25,9 @@ CREATE PERSISTENT ENTITY CRM.Customer (
   /** Auto-generated unique identifier */
   CustomerId: AutoNumber NOT NULL UNIQUE DEFAULT 1,
   /** Full legal name */
-  Name: String(200) NOT NULL ERROR 'Customer name is required',
+  Name: String(200) NOT NULL ERROR MESSAGE 'Customer name is required',
   /** Primary contact email */
-  Email: String(200) UNIQUE ERROR 'Email already exists',
+  Email: String(200) UNIQUE ERROR MESSAGE 'Email already exists',
   /** Phone number in international format */
   Phone: String(50),
   /** Current account balance */
@@ -51,7 +51,7 @@ CREATE PERSISTENT ENTITY CRM.ContactLog (
   /** Type of interaction */
   Type: Enumeration(CRM.ContactType) DEFAULT 'Email',
   /** Summary of what was discussed */
-  Summary: String(2000) NOT NULL ERROR 'Summary is required',
+  Summary: String(2000) NOT NULL ERROR MESSAGE 'Summary is required',
   /** Follow-up needed? */
   FollowUpRequired: Boolean DEFAULT FALSE
 );
@@ -123,7 +123,7 @@ CREATE PAGE CRM.Customer_Overview (
     COLUMN colStatus (Attribute: Status, Caption: 'Status')
     COLUMN colActive (Attribute: IsActive, Caption: 'Active')
     CONTROLBAR cb1 {
-      ACTIONBUTTON btnNew (Caption: 'New', Action: SHOW_PAGE CRM.Customer_NewEdit, ButtonStyle: Primary)
+      ACTIONBUTTON btnNew (Caption: 'New', Action: SHOW PAGE CRM.Customer_NewEdit, ButtonStyle: Primary)
     }
   }
 };
@@ -146,10 +146,10 @@ CREATE PAGE CRM.Customer_NewEdit (
           FOOTER footer1 {
             ACTIONBUTTON btnSave (
               Caption: 'Save',
-              Action: MICROFLOW CRM.ACT_Customer_Save,
+              Action: CALL MICROFLOW CRM.ACT_Customer_Save,
               ButtonStyle: Success
             )
-            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
           }
         }
       }
