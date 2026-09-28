@@ -542,7 +542,7 @@ adds. Both still fail at exec if they are genuinely wrong.
 | Missing `on widgetName` for widget SET | Add `on widgetName` (only page-level properties — `Title`, `Documentation`, `PopupWidth`, `PopupHeight`, `PopupResizable`, `Class`, `Style` — omit ON) |
 | `unsupported page-level property: title` | Page-level property names are case-sensitive — use `Title`, `PopupWidth`, `PopupHeight`, `PopupResizable`, `Class`, `Style` |
 | Using unquoted pluggable property names | Quote pluggable props: `set ('showLabel': false) on cb` |
-| `pluggable property "X" not found` | The widget does not declare it — casing is not the problem (any casing resolves). The error lists the keys it does declare; `describe widget <type>` or `describe page` shows them in context. Run `mxcli check … --references` to get this before the script runs |
+| `pluggable property "X" not found` | The widget does not declare it — casing is not the problem (any casing resolves). The error lists the keys it does declare; `describe widget type <type>` or `describe page` shows them in context. Run `mxcli check … --references` to get this before the script runs |
 | Wrong widget name | Use `describe page Module.Name` to see widget names |
 | SET on non-existent widget | Widget names are case-sensitive; check with DESCRIBE |
 | Missing semicolons between operations | Each operation inside `{ }` ends with `;` |

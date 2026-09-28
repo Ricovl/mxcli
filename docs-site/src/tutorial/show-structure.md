@@ -1,13 +1,13 @@
-# SHOW STRUCTURE
+# DESCRIBE STRUCTURE
 
-The `SHOW STRUCTURE` command gives you a compact, tree-style overview of a project. It is the fastest way to understand the overall shape of an application -- what modules exist, what types of documents they contain, and how large each module is.
+The `DESCRIBE STRUCTURE` command gives you a compact, tree-style overview of a project. It is the fastest way to understand the overall shape of an application -- what modules exist, what types of documents they contain, and how large each module is.
 
 ## Default view
 
-With no arguments, `SHOW STRUCTURE` displays all user modules at depth 2 -- modules with their documents listed by type:
+With no arguments, `DESCRIBE STRUCTURE` displays all user modules at depth 2 -- modules with their documents listed by type:
 
 ```sql
-SHOW STRUCTURE;
+DESCRIBE STRUCTURE;
 ```
 
 Example output:
@@ -49,7 +49,7 @@ The `DEPTH` option controls how much detail is shown:
 Shows one line per module with element counts:
 
 ```sql
-SHOW STRUCTURE DEPTH 1;
+DESCRIBE STRUCTURE DEPTH 1;
 ```
 
 ```
@@ -61,14 +61,14 @@ This is useful for getting a quick sense of project size and where the complexit
 
 ### DEPTH 2 -- Elements with signatures (default)
 
-This is the default when you run `SHOW STRUCTURE` with no depth specified. It shows modules, their documents grouped by type, and compact signatures for each element. See the example under [Default view](#default-view) above.
+This is the default when you run `DESCRIBE STRUCTURE` with no depth specified. It shows modules, their documents grouped by type, and compact signatures for each element. See the example under [Default view](#default-view) above.
 
 ### DEPTH 3 -- Full detail
 
 Shows typed attributes and named parameters:
 
 ```sql
-SHOW STRUCTURE DEPTH 3;
+DESCRIBE STRUCTURE DEPTH 3;
 ```
 
 ```
@@ -116,13 +116,13 @@ Depth 3 is verbose but gives you the most complete picture without running indiv
 Use `IN` to show only a single module:
 
 ```sql
-SHOW STRUCTURE IN MyFirstModule;
+DESCRIBE STRUCTURE IN MyFirstModule;
 ```
 
 This produces the same tree format but limited to one module. Combine with `DEPTH` for control over detail:
 
 ```sql
-SHOW STRUCTURE DEPTH 3 IN MyFirstModule;
+DESCRIBE STRUCTURE DEPTH 3 IN MyFirstModule;
 ```
 
 ## Including system modules
@@ -130,7 +130,7 @@ SHOW STRUCTURE DEPTH 3 IN MyFirstModule;
 By default, system and marketplace modules are hidden. Add `ALL` to include them:
 
 ```sql
-SHOW STRUCTURE DEPTH 1 ALL;
+DESCRIBE STRUCTURE DEPTH 1 ALL;
 ```
 
 ```
@@ -142,30 +142,30 @@ System              15 entities, 0 microflows, 0 pages
 
 This is useful when you need to see system entities (like `System.Image` or `System.FileDocument`) or check what a marketplace module provides.
 
-## Using SHOW STRUCTURE from the command line
+## Using DESCRIBE STRUCTURE from the command line
 
 ```bash
 # Quick project overview
-mxcli -p app.mpr -c "SHOW STRUCTURE DEPTH 1"
+mxcli -p app.mpr -c "DESCRIBE STRUCTURE DEPTH 1"
 
 # Detailed view of one module
-mxcli -p app.mpr -c "SHOW STRUCTURE DEPTH 3 IN Sales"
+mxcli -p app.mpr -c "DESCRIBE STRUCTURE DEPTH 3 IN Sales"
 
 # Full project including system modules
-mxcli -p app.mpr -c "SHOW STRUCTURE ALL"
+mxcli -p app.mpr -c "DESCRIBE STRUCTURE ALL"
 ```
 
-## When to use SHOW STRUCTURE vs SHOW + DESCRIBE
+## When to use DESCRIBE STRUCTURE vs SHOW + DESCRIBE
 
 | Goal | Command |
 |------|---------|
-| "What modules are in this project?" | `SHOW STRUCTURE DEPTH 1` |
-| "What does module X contain?" | `SHOW STRUCTURE IN X` |
+| "What modules are in this project?" | `DESCRIBE STRUCTURE DEPTH 1` |
+| "What does module X contain?" | `DESCRIBE STRUCTURE IN X` |
 | "List all entities (just names)" | `SHOW ENTITIES` |
 | "What are the attributes of entity X?" | `DESCRIBE ENTITY X` |
-| "Give me a complete overview of everything" | `SHOW STRUCTURE DEPTH 3` |
+| "Give me a complete overview of everything" | `DESCRIBE STRUCTURE DEPTH 3` |
 
-`SHOW STRUCTURE` is best for orientation -- understanding the shape of the project at a glance. For detailed work on specific elements, switch to `DESCRIBE`.
+`DESCRIBE STRUCTURE` is best for orientation -- understanding the shape of the project at a glance. For detailed work on specific elements, switch to `DESCRIBE`.
 
 ## What is next
 

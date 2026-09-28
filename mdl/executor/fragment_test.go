@@ -155,8 +155,8 @@ func TestExecDescribeFragment(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "define fragment Footer") {
-		t.Errorf("Expected 'define fragment Footer' in output, got: %s", output)
+	if !strings.Contains(output, "create fragment Footer") {
+		t.Errorf("Expected 'create fragment Footer' in output, got: %s", output)
 	}
 	if !strings.Contains(output, "footer f1") {
 		t.Errorf("Expected 'footer f1' in output, got: %s", output)
@@ -666,8 +666,8 @@ func TestRoundtripDefineAndDescribe(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "define fragment Footer") {
-		t.Errorf("Expected define fragment in output, got: %s", output)
+	if !strings.Contains(output, "create fragment Footer") {
+		t.Errorf("Expected create fragment in output, got: %s", output)
 	}
 	if !strings.Contains(output, "footer f1") {
 		t.Errorf("Expected footer f1 in output, got: %s", output)

@@ -16,11 +16,11 @@ Everything mxcli can do, organized by use case.
 | List nanoflows | `LIST NANOFLOWS [IN Module]` | |
 | List layouts | `LIST LAYOUTS [IN Module]` | |
 | List snippets | `LIST SNIPPETS [IN Module]` | |
-| Compact overview | `LIST STRUCTURE [DEPTH 1\|2\|3]` | Tree view of entire project |
+| Compact overview | `DESCRIBE STRUCTURE [DEPTH 1\|2\|3]` | Tree view of entire project |
 | Describe any document | `DESCRIBE ENTITY\|MICROFLOW\|PAGE ...` | Full MDL output (re-executable) |
 | Full-text search | `SEARCH 'keyword'` | Across all strings and source |
 | Show languages | `LIST LANGUAGES` | All languages in the project |
-| Show project security | `LIST PROJECT SECURITY` | Security overview |
+| Describe app security | `DESCRIBE APP SECURITY` | Security overview |
 | Show access rules | `LIST ACCESS ON [ENTITY] Module.Name` | Entity/microflow/page/nanoflow access |
 | Show settings | `LIST SETTINGS` | Project-level settings |
 

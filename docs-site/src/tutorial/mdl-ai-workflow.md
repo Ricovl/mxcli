@@ -56,7 +56,7 @@ Before making changes, the AI uses mxcli to understand the current state of your
 SHOW MODULES;
 
 -- Check what's already in the Sales module
-SHOW STRUCTURE IN Sales;
+DESCRIBE STRUCTURE IN Sales;
 
 -- Look at an existing entity for context
 DESCRIBE ENTITY Sales.Category;

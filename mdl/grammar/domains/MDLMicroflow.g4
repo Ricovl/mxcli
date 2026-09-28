@@ -769,13 +769,21 @@ validationFeedbackStatement
  * REST call statement for making HTTP requests to external APIs.
  */
 restCallStatement
-    : (VARIABLE EQUALS)? REST CALL httpMethod restCallUrl restCallUrlParams?
+    : (VARIABLE EQUALS)? restCallKw httpMethod restCallUrl restCallUrlParams?
       restCallHeaderClause*
       restCallAuthClause?
       restCallBodyClause?
       restCallTimeoutClause?
       restCallReturnsClause
       onErrorClause?
+    ;
+
+// R6: `call rest service`, Studio Pro's name for the activity, in the
+// `call <kind>` pattern every other call follows. `rest call` is a deprecated
+// alias (MDL-DEPR094).
+restCallKw
+    : CALL REST SERVICE
+    | REST CALL /* @alias MDL-DEPR094 */
     ;
 
 httpMethod

@@ -52,6 +52,21 @@ Each keyword has one spelling, and a page action uses the words a microflow uses
 | `type ReferenceSet` | `type reference_set` | `MDL-DEPR023` |
 | `returns nothing` (REST call) | `returns none` | `MDL-DEPR024` |
 
+## One Verb per Job
+
+`list` enumerates, `describe` shows one thing, and an `alter` adds and drops its children. The older verbs still parse with the same meaning and warn with the code shown; `mxcli fmt --upgrade` rewrites them, except where noted:
+
+| Canonical | Deprecated | Code |
+|---|---|---|
+| `describe page M.P`, `describe app security`, `describe security matrix [in M]`, `describe structure …`, `describe context of X` | `show` (or `list`) with the same words; `show project security` | `MDL-DEPR090` |
+| `describe entity X`, `describe association X`, `describe navigation`, `describe settings` | `show entity X`, `show association X`, `show navigation [menu]`, `show settings` — these print a summary where `describe` prints the definition as MDL, so `fmt --upgrade` reports them and leaves them in place | `MDL-DEPR090` |
+| `alter user role R drop module roles (…)` | `… remove module roles (…)` | `MDL-DEPR091` |
+| `alter settings language drop '…'`, `alter settings workflows drop group '…'` | `remove` | `MDL-DEPR092` |
+| `alter entity E add\|rename\|modify\|drop attribute …` | `… column …` | `MDL-DEPR093` |
+| `call rest service get '…' …` | `rest call get '…' …` | `MDL-DEPR094` |
+| `describe widget type combobox` | `describe widget combobox` | `MDL-DEPR095` |
+| `create fragment F as { … }` | `define fragment F as { … }` | `MDL-DEPR096` |
+
 ## Language Version Header
 
 A script may start with a header that names the MDL language version it is written in:

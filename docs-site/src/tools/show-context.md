@@ -13,20 +13,20 @@ REFRESH CATALOG FULL;
 ## Syntax
 
 ```sql
-SHOW CONTEXT OF <qualified-name>
+DESCRIBE CONTEXT OF <qualified-name>
 ```
 
 ## Examples
 
 ```sql
--- Show context of a microflow
-SHOW CONTEXT OF Sales.ACT_ProcessOrder;
+-- Describe context of a microflow
+DESCRIBE CONTEXT OF Sales.ACT_ProcessOrder;
 
--- Show context of an entity
-SHOW CONTEXT OF Sales.Customer;
+-- Describe context of an entity
+DESCRIBE CONTEXT OF Sales.Customer;
 
--- Show context of a page
-SHOW CONTEXT OF Sales.CustomerOverview;
+-- Describe context of a page
+DESCRIBE CONTEXT OF Sales.CustomerOverview;
 ```
 
 ## CLI Usage

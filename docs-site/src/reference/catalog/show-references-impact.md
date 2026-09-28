@@ -6,7 +6,7 @@
 
     SHOW IMPACT OF qualified_name
 
-    SHOW CONTEXT OF qualified_name [ DEPTH n ]
+    DESCRIBE CONTEXT OF qualified_name [ DEPTH n ]
 
 ## Description
 
@@ -16,7 +16,7 @@ These commands provide different views of cross-reference information for a give
 
 **SHOW IMPACT OF** performs an impact analysis showing what would be affected if the specified element were changed or removed. This is broader than `SHOW REFERENCES` as it considers transitive dependencies and indirect effects.
 
-**SHOW CONTEXT OF** assembles the surrounding context of an element -- its definition, its callers, callees, and related elements -- suitable for providing to an LLM or for understanding an element in its broader project context. The optional `DEPTH` parameter controls how many levels of related elements to include.
+**DESCRIBE CONTEXT OF** assembles the surrounding context of an element -- its definition, its callers, callees, and related elements -- suitable for providing to an LLM or for understanding an element in its broader project context. The optional `DEPTH` parameter controls how many levels of related elements to include.
 
 ### Attributes, enumerations and enumeration values
 
@@ -68,13 +68,13 @@ SHOW IMPACT OF Sales.Order.DiscountCode;
 ### Gather context for a microflow
 
 ```sql
-SHOW CONTEXT OF Sales.ACT_CreateOrder;
+DESCRIBE CONTEXT OF Sales.ACT_CreateOrder;
 ```
 
 ### Gather deeper context
 
 ```sql
-SHOW CONTEXT OF Sales.ACT_CreateOrder DEPTH 3;
+DESCRIBE CONTEXT OF Sales.ACT_CreateOrder DEPTH 3;
 ```
 
 ### Check impact before moving an element

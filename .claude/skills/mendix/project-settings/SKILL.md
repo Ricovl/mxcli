@@ -194,7 +194,7 @@ and produces nothing at build time — so enable the language first.
 alter settings LANGUAGE add 'de_DE';
 alter settings LANGUAGE add 'ar_SD' (CheckCompleteness: true, CustomDateFormat: 'yyyy-MM-dd');
 alter settings LANGUAGE modify 'de_DE' (CheckCompleteness: true);
-alter settings LANGUAGE remove 'de_DE';
+alter settings Language drop 'de_DE';
 
 -- the default must already be enabled
 alter settings LANGUAGE DefaultLanguageCode = 'en_US';
@@ -251,7 +251,7 @@ alter settings workflows add or modify group 'Approvers' (Description: 'Approves
 -- changes only the options it names
 alter settings workflows modify group 'Reviewers' (Description: 'Second-line review');
 
-alter settings workflows remove group 'Reviewers';
+alter settings workflows drop group 'Reviewers';
 
 show workflow groups;
 ```

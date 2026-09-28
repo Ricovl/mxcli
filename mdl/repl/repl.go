@@ -473,6 +473,8 @@ func (c *mdlCompleter) dynamicComplete(line, lineUpper string) ([][]rune, int) {
 		"SHOW MODULE ROLES IN ",
 		"SHOW SECURITY MATRIX IN ",
 		"SHOW STRUCTURE IN ",
+		"DESCRIBE SECURITY MATRIX IN ",
+		"DESCRIBE STRUCTURE IN ",
 		"SHOW WIDGETS IN ",
 		"SHOW DATABASE CONNECTIONS IN ",
 		"SHOW REST CLIENTS IN ",

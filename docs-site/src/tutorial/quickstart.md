@@ -57,7 +57,7 @@ LIST MODULES;
 LIST ENTITIES IN MyFirstModule;
 
 -- See the full structure at a glance
-LIST STRUCTURE;
+DESCRIBE STRUCTURE;
 ```
 
 ## 4. Create something

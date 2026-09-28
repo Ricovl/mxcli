@@ -42,7 +42,7 @@ This level is required for:
 - `SHOW CALLEES OF`
 - `SHOW REFERENCES OF`
 - `SHOW IMPACT OF`
-- `SHOW CONTEXT OF`
+- `DESCRIBE CONTEXT OF`
 - `SEARCH`
 - Full-text catalog queries
 

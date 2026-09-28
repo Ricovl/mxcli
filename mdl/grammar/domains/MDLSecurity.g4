@@ -30,7 +30,8 @@ createUserRoleStatement
 
 alterUserRoleStatement
     : ALTER USER ROLE identifierOrKeyword ADD MODULE ROLES LPAREN moduleRoleList RPAREN
-    | ALTER USER ROLE identifierOrKeyword REMOVE MODULE ROLES LPAREN moduleRoleList RPAREN
+    // R6: an alter's children are added and dropped; `remove` is the old verb.
+    | ALTER USER ROLE identifierOrKeyword (DROP | REMOVE /* @alias MDL-DEPR091 */) MODULE ROLES LPAREN moduleRoleList RPAREN
     ;
 
 // IF EXISTS makes a cleanup script re-runnable. Without it the statement fails
