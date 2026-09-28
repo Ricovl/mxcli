@@ -20,10 +20,10 @@ Mendix security operates at two levels. **Module roles** define permissions with
 | Statement | Syntax |
 |-----------|--------|
 | Describe app security | `DESCRIBE APP SECURITY` |
-| Show module roles | `SHOW MODULE ROLES [IN module]` |
-| Show user roles | `SHOW USER ROLES` |
-| Show demo users | `SHOW DEMO USERS` |
-| Show access on element | `SHOW ACCESS ON [ENTITY\|MICROFLOW\|PAGE\|NANOFLOW] module.Name` |
+| Show module roles | `LIST MODULE ROLES [IN module]` |
+| Show user roles | `LIST USER ROLES` |
+| Show demo users | `LIST DEMO USERS` |
+| Show access on element | `LIST ACCESS ON [ENTITY\|MICROFLOW\|PAGE\|NANOFLOW] module.Name` |
 | Describe security matrix | `DESCRIBE SECURITY MATRIX [IN module]` |
 | Alter app security level | `ALTER APP SECURITY ( SecurityLevel: OFF\|PROTOTYPE\|PRODUCTION )` |
 | Toggle demo users | `ALTER APP SECURITY ( EnableDemoUsers: TRUE\|FALSE )` |

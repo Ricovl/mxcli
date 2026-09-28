@@ -130,7 +130,7 @@ ALTER ENTITY Sales.Customer
 ## Notes
 
 - Each `ALTER ENTITY` statement performs a single operation. Chain multiple statements for multiple changes.
-- `RENAME ATTRIBUTE` updates references in microflows, pages and access rules, and rewrites XPath constraints. It does not rewrite microflow expressions (`$obj/Attr`); use `SHOW IMPACT OF` to find the documents to check, or build and read the CE0117s.
+- `RENAME ATTRIBUTE` updates references in microflows, pages and access rules, and rewrites XPath constraints. It does not rewrite microflow expressions (`$obj/Attr`); use `LIST IMPACT OF` to find the documents to check, or build and read the CE0117s.
 - `DROP` removes the attribute's validation rules and index entries automatically.
 
 ## See Also

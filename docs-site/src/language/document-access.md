@@ -71,8 +71,8 @@ REVOKE EXECUTE ON NANOFLOW Shop.NAV_Filter FROM Shop.User;
 ## Viewing Document Access
 
 ```sql
-SHOW ACCESS ON MICROFLOW Shop.ACT_ProcessOrder;
-SHOW ACCESS ON PAGE Shop.Order_Overview;
+LIST ACCESS ON MICROFLOW Shop.ACT_ProcessOrder;
+LIST ACCESS ON PAGE Shop.Order_Overview;
 ```
 
 ## Typical Pattern

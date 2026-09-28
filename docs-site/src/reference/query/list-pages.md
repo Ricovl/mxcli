@@ -1,10 +1,10 @@
-# SHOW PAGES / SHOW SNIPPETS
+# LIST PAGES / LIST SNIPPETS
 
 ## Synopsis
 
-    SHOW PAGES [IN <module>]
+    LIST PAGES [IN <module>]
 
-    SHOW SNIPPETS [IN <module>]
+    LIST SNIPPETS [IN <module>]
 
 ## Description
 
@@ -22,27 +22,27 @@ Pages are the user interface screens of a Mendix application. Snippets are reusa
 List all pages in the project:
 
 ```sql
-SHOW PAGES
+LIST PAGES
 ```
 
 List pages in a specific module:
 
 ```sql
-SHOW PAGES IN Sales
+LIST PAGES IN Sales
 ```
 
 List all snippets:
 
 ```sql
-SHOW SNIPPETS
+LIST SNIPPETS
 ```
 
 List snippets in a specific module:
 
 ```sql
-SHOW SNIPPETS IN Common
+LIST SNIPPETS IN Common
 ```
 
 ## See Also
 
-[DESCRIBE PAGE](describe-page.md), [SHOW WIDGETS](show-widgets.md), [SHOW MODULES](show-modules.md)
+[DESCRIBE PAGE](describe-page.md), [LIST WIDGETS](list-widgets.md), [LIST MODULES](list-modules.md)

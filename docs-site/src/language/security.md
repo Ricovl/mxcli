@@ -35,22 +35,22 @@ MDL provides several commands for viewing the current security configuration:
 DESCRIBE APP SECURITY;
 
 -- Roles
-SHOW MODULE ROLES;
-SHOW MODULE ROLES IN Shop;
-SHOW USER ROLES;
+LIST MODULE ROLES;
+LIST MODULE ROLES IN Shop;
+LIST USER ROLES;
 
 -- Access rules
-SHOW ACCESS ON MICROFLOW Shop.ACT_ProcessOrder;
-SHOW ACCESS ON PAGE Shop.Order_Edit;
-SHOW ACCESS ON ENTITY Shop.Customer;
-SHOW ACCESS ON Shop.Customer;         -- a bare name means the entity
+LIST ACCESS ON MICROFLOW Shop.ACT_ProcessOrder;
+LIST ACCESS ON PAGE Shop.Order_Edit;
+LIST ACCESS ON ENTITY Shop.Customer;
+LIST ACCESS ON Shop.Customer;         -- a bare name means the entity
 
 -- Full matrix
 DESCRIBE SECURITY MATRIX;
 DESCRIBE SECURITY MATRIX IN Shop;
 
 -- Demo users
-SHOW DEMO USERS;
+LIST DEMO USERS;
 ```
 
 ## Modifying Project Security

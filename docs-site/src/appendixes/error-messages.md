@@ -222,7 +222,7 @@ Error: module 'MyModule' not found in project
 
 **Cause:** The referenced module does not exist in the `.mpr` file.
 
-**Solution:** Check the module name with `SHOW MODULES` and verify the spelling. Module names are case-sensitive.
+**Solution:** Check the module name with `LIST MODULES` and verify the spelling. Module names are case-sensitive.
 
 ### Entity not found
 
@@ -232,7 +232,7 @@ Error: entity 'MyModule.Customer' not found
 
 **Cause:** The referenced entity does not exist in the specified module.
 
-**Solution:** Check with `SHOW ENTITIES IN MyModule`. If the entity was just created, ensure the create statement executed successfully before referencing it.
+**Solution:** Check with `LIST ENTITIES IN MyModule`. If the entity was just created, ensure the create statement executed successfully before referencing it.
 
 ### Reference validation failed
 

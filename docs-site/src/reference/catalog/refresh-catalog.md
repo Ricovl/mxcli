@@ -10,7 +10,7 @@ Rebuilds the project metadata catalog from the current state of the open project
 
 Without any options, `REFRESH CATALOG` performs a basic rebuild that populates the core metadata tables: MODULES, ENTITIES, ATTRIBUTES, ASSOCIATIONS, MICROFLOWS, NANOFLOWS, PAGES, SNIPPETS, ENUMERATIONS, and WORKFLOWS.
 
-With the `FULL` option, the rebuild additionally populates cross-reference tables (REFS), widget inventories (WIDGETS), string tables (STRINGS), source text (SOURCE), activity tables (ACTIVITIES), and permission tables (PERMISSIONS). The FULL rebuild is required before using `SHOW CALLERS`, `SHOW CALLEES`, `SHOW REFERENCES`, `SHOW IMPACT`, `SHOW CONTEXT`, or `SEARCH`.
+With the `FULL` option, the rebuild additionally populates cross-reference tables (REFS), widget inventories (WIDGETS), string tables (STRINGS), source text (SOURCE), activity tables (ACTIVITIES), and permission tables (PERMISSIONS). The FULL rebuild is required before using `LIST CALLERS`, `LIST CALLEES`, `LIST REFERENCES`, `LIST IMPACT`, `DESCRIBE CONTEXT`, or `SEARCH`.
 
 The catalog is cached between sessions. If the project has not changed, repeated `REFRESH CATALOG` calls reuse the cached data. Use `FORCE` to bypass the cache and rebuild unconditionally -- useful after external changes to the MPR file.
 
@@ -53,4 +53,4 @@ REFRESH CATALOG FULL FORCE;
 
 ## See Also
 
-[SELECT FROM CATALOG](select-from-catalog.md), [SHOW CATALOG TABLES](show-catalog-tables.md), [SHOW CALLERS / CALLEES](show-callers-callees.md)
+[SELECT FROM CATALOG](select-from-catalog.md), [LIST CATALOG TABLES](list-catalog-tables.md), [LIST CALLERS / CALLEES](list-callers-callees.md)

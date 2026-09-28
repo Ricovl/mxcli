@@ -659,7 +659,7 @@ See [Resolve Forward References](../resolve-forward-references/SKILL.md) for the
 
 | Command | Description |
 |---------|-------------|
-| `show snippets [in module]` | List all snippets |
+| `list snippets [in module]` | List all snippets |
 | `show snippet Module.Name` | Show snippet summary |
 | `describe snippet Module.Name` | Show snippet MDL source |
 | `create snippet Module.Name { ... }` | Create a new snippet |

@@ -57,8 +57,8 @@ The tree is backed by the same metadata that powers the `SHOW` commands:
 
 | Tree Level | Equivalent MDL Command |
 |-----------|----------------------|
-| Module list | `SHOW MODULES` |
-| Entities in a module | `SHOW ENTITIES IN MyModule` |
-| Microflows in a module | `SHOW MICROFLOWS IN MyModule` |
-| Pages in a module | `SHOW PAGES IN MyModule` |
+| Module list | `LIST MODULES` |
+| Entities in a module | `LIST ENTITIES IN MyModule` |
+| Microflows in a module | `LIST MICROFLOWS IN MyModule` |
+| Pages in a module | `LIST PAGES IN MyModule` |
 | Full structure | `DESCRIBE STRUCTURE IN MyModule DEPTH 2` |

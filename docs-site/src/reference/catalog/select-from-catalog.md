@@ -113,4 +113,4 @@ SELECT Name FROM CATALOG.MICROFLOWS LIMIT 10;
 
 ## See Also
 
-[REFRESH CATALOG](refresh-catalog.md), [SHOW CATALOG TABLES](show-catalog-tables.md), [SEARCH](show-references-impact.md)
+[REFRESH CATALOG](refresh-catalog.md), [LIST CATALOG TABLES](list-catalog-tables.md), [SEARCH](list-references-impact.md)

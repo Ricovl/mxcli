@@ -1,11 +1,11 @@
 # Available Tables
 
-The catalog provides several tables that can be queried using standard SQL syntax. Use `SHOW CATALOG TABLES` to list all available tables in your catalog.
+The catalog provides several tables that can be queried using standard SQL syntax. Use `LIST CATALOG TABLES` to list all available tables in your catalog.
 
 ## Discovering Tables
 
 ```sql
-SHOW CATALOG TABLES;
+LIST CATALOG TABLES;
 ```
 
 ## Core Tables
@@ -188,7 +188,7 @@ where m.Id is null;
 ```
 
 A scheduled event also produces a `schedule` row in `CATALOG.REFS`, so
-`show callers of <microflow>` and the dead-asset analysis both see it. Without
+`list callers of <microflow>` and the dead-asset analysis both see it. Without
 that edge a microflow run only by a scheduled event looked unreferenced.
 
 ### CATALOG.QUEUES
@@ -232,7 +232,7 @@ reports what is stored, and a flag invisible to every query is one nobody
 discovers until it matters.
 
 A configured entity also produces a `sync` row in `CATALOG.REFS`, so
-`show references to Sales.Order` names the profiles that download it:
+`list references to Sales.Order` names the profiles that download it:
 
 ```sql
 select SourceName, TargetName from CATALOG.REFS where RefKind = 'sync';
@@ -274,7 +274,7 @@ select SourceName, TargetName from CATALOG.REFS where RefKind = 'event';
 ```
 
 Without that edge the handler microflow was reported dead from three directions
-at once — `show callers` said `(no callers found)`, `CATALOG.GRAPH_DEAD_ASSETS`
+at once — `list callers` said `(no callers found)`, `CATALOG.GRAPH_DEAD_ASSETS`
 listed it, and `mxcli lint` emitted **QUAL004** "is not called from anywhere"
 with the suggestion *Remove if unused* — on code that runs on every commit
 ([mendixlabs/mxcli#1127](https://github.com/mendixlabs/mxcli/issues/1127)).
@@ -306,7 +306,7 @@ have no effect on cycles or layers.
 select * from CATALOG.graph_god_nodes order by Degree desc limit 20;
 select * from CATALOG.graph_module_coupling order by Edges desc;
 select * from CATALOG.graph_module_cycles order by CycleSize desc;
-show communities;
+list communities;
 ```
 
 ## Listing All Tables
@@ -314,9 +314,9 @@ show communities;
 To see the complete list of available tables in your catalog (which may vary by project and refresh level):
 
 ```sql
-SHOW CATALOG TABLES;
+LIST CATALOG TABLES;
 ```
 
 ```bash
-mxcli -p app.mpr -c "SHOW CATALOG TABLES"
+mxcli -p app.mpr -c "LIST CATALOG TABLES"
 ```

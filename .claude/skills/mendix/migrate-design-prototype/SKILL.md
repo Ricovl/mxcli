@@ -53,7 +53,7 @@ gives you *before* hand-writing custom SCSS. In order of preference:
 
 1. **An Atlas building block** — `use building block Atlas_Web_Content.Card` / `Pageheader`
    / `List_Cards` etc. gives you the whole component's markup + styling for free. Discover
-   with `show building blocks`, inspect with `describe building block`.
+   with `list building blocks`, inspect with `describe building block`.
 2. **Atlas utility classes and typed design properties** — `class:'card'`, `class:'btn btn-primary'`,
    `spacing-inner-*`/`spacing-outer-*` for padding/margin, `flex-row`/`flex-column` +
    `align-x-*`/`align-y-*` for layout (no `layoutgrid` needed); or the typed equivalents
@@ -194,7 +194,7 @@ bespoke is an Atlas building block or utility class.
 
 For each repeated element in the prototype (panel, stat tile, chip, card, table row,
 progress bar…), **first check whether Atlas already provides it** (Atlas-first, above):
-is there a building block (`show building blocks`) or an Atlas class / design property
+is there a building block (`list building blocks`) or an Atlas class / design property
 (`card`, `btn-*`, `spacing-*`, `flex-*`+`align-*`, `['Card style': on]`) that gets you
 most of the way? If so, use it and add a thin `.ss-*` class only for the brand delta
 (colour, radius, font). Re-implementing `card`/`panel`/`btn` from scratch is the mistake
@@ -385,8 +385,8 @@ its menu grows by adding navigation items — never by editing pages.
 ### Add a screen to the menu
 
 ```bash
-mxcli -p baedemo.mpr -c "SHOW NAVIGATION"              # profiles, home page, item count
-mxcli -p baedemo.mpr -c "SHOW NAVIGATION MENU Responsive"   # the menu tree
+mxcli -p baedemo.mpr -c "LIST NAVIGATION"              # profiles, home page, item count
+mxcli -p baedemo.mpr -c "LIST NAVIGATION MENU Responsive"   # the menu tree
 ```
 
 Add or reorder items with `CREATE OR REPLACE NAVIGATION <Profile> …` (full-replacement — dump

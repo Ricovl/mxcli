@@ -365,11 +365,11 @@ drop database connection [if exists] MyModule.MyDatabase;
 ```sql
 -- Constants for configuration
 create constant Module.Name type string default 'value';
-show constants in module;
+list constants in module;
 
 -- Non-persistent entities for results
 create non-persistent entity Module.Name (...);
-show entities in module;
+list entities in module;
 ```
 
 ## Executing Queries from Microflows

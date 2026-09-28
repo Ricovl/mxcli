@@ -276,12 +276,12 @@ DISCONNECT;`,
 		Path:    "navigation.show",
 		Summary: "List navigation profiles, menus, and home page assignments",
 		Keywords: []string{
-			"show navigation", "list navigation", "describe navigation", "navigation menu",
+			"list navigation", "list navigation", "describe navigation", "navigation menu",
 			"navigation homes", "list profiles",
 		},
 		Syntax: "LIST NAVIGATION;                  -- the profiles, one row each\nLIST NAVIGATION MENU [<profile>];  -- the menu tree\n" +
 			"LIST NAVIGATION HOMES;\nDESCRIBE NAVIGATION [<profile>];    -- the profile as MDL\n\n" +
-			"-- `show navigation [menu]` is a deprecated alias of the list form (MDL-DEPR002).",
+			"-- `list navigation [menu]` is a deprecated alias of the list form (MDL-DEPR002).",
 		Example: "LIST NAVIGATION;\nLIST NAVIGATION MENU Responsive;\nDESCRIBE NAVIGATION Responsive;",
 	})
 
@@ -328,7 +328,7 @@ DISCONNECT;`,
 -- reference, not a string. Hyphenated Atlas names are double-quoted:
 --   ICON Atlas_Core.Atlas."align-center"
 -- Browse the available names with:
---   SHOW ICON COLLECTION  /  DESCRIBE ICON COLLECTION Module.Name
+--   LIST ICON COLLECTIONS  /  DESCRIBE ICON COLLECTION Module.Name
 --
 -- <profile> is one of Mendix's fixed web kinds, and the profile is CREATED if
 -- the project does not have it yet:
@@ -470,7 +470,7 @@ translations out of the model:
 A translation for a language the project has not ENABLED is stored, passes
 mx check, and is DISCARDED at build time — no translations_<code>.properties
 is produced at all. The run warns; enable the language in project settings
-first. Note SHOW LANGUAGES lists languages that HAVE translations, not the
+first. Note LIST LANGUAGES lists languages that HAVE translations, not the
 enabled ones (8 vs 1 on a stock app); the enabled list is in DESCRIBE
 SETTINGS.`,
 		Example: `describe translations for nl_NL;
@@ -486,7 +486,7 @@ create or modify translations in Administration for nl_NL (
 		Path:    "settings.show",
 		Summary: "Show and describe project settings",
 		Keywords: []string{
-			"show settings", "describe settings", "list settings",
+			"list settings", "describe settings", "list settings",
 		},
 		Syntax: "LIST SETTINGS;                              -- the sections, one row each\n" +
 			"DESCRIBE SETTINGS;                          -- the settings as MDL\nDESCRIBE SETTINGS CONFIGURATION '<name>';",
@@ -580,7 +580,7 @@ ALTER SETTINGS WORKFLOWS ADD GROUP 'Approvers' (Description: 'Primary approval g
 ALTER SETTINGS WORKFLOWS ADD GROUP 'Reviewers';
 ALTER SETTINGS WORKFLOWS MODIFY GROUP 'Reviewers' (Description: 'Second-line review');
 ALTER SETTINGS WORKFLOWS DROP GROUP 'Reviewers';
-SHOW WORKFLOW GROUPS;
+LIST WORKFLOW GROUPS;
 
 -- Description is the ONLY option: a Settings$WorkflowGroup stores Name and
 -- Description and nothing else, so there is no identifier to set and the NAME is
@@ -626,11 +626,11 @@ SHOW WORKFLOW GROUPS;
 		Summary: "Task queues — bound concurrency for queued microflow calls",
 		Keywords: []string{
 			"queue", "queues", "task queue", "create task queue", "create queue", "drop task queue",
-			"describe task queue", "show task queues", "parallelism", "cluster wide",
+			"describe task queue", "list task queues", "parallelism", "cluster wide",
 			"background", "async microflow",
 		},
 		Syntax: `CREATE [OR MODIFY] TASK QUEUE Module.Name [FOLDER 'path'] [( <property>: <value>, ... )];
-SHOW TASK QUEUES [IN <module>];
+LIST TASK QUEUES [IN <module>];
 LIST TASK QUEUES [IN <module>];
 DESCRIBE TASK QUEUE Module.Name;
 DROP TASK QUEUE Module.Name;
@@ -671,7 +671,7 @@ BEGIN
   CALL MICROFLOW Ops.ACT_Process(Order = $Order) IN QUEUE Ops.OrderProcessing;
 END;
 
-SHOW TASK QUEUES IN Ops;
+LIST TASK QUEUES IN Ops;
 DESCRIBE TASK QUEUE Ops.OrderProcessing;
 DROP TASK QUEUE Ops.Mail;`,
 	})
@@ -684,7 +684,7 @@ DROP TASK QUEUE Ops.Mail;`,
 		Keywords: []string{
 			"regular expression", "regular expressions", "regex", "pattern", "validation",
 			"create regular expression", "drop regular expression", "describe regular expression",
-			"show regular expressions", "email regex", "match",
+			"list regular expressions", "email regex", "match",
 		},
 		Syntax: `[/** <documentation> */]
 CREATE [OR MODIFY] REGULAR EXPRESSION Module.Name [FOLDER 'path'] (
@@ -695,7 +695,7 @@ CREATE [OR MODIFY] REGULAR EXPRESSION Module.Name [FOLDER 'path'] (
 -- Documentation is the doc comment; the Documentation: '<text>' property is
 -- its deprecated alias (MDL-DEPR106).
 
-SHOW REGULAR EXPRESSIONS [IN <module>];
+LIST REGULAR EXPRESSIONS [IN <module>];
 LIST REGULAR EXPRESSIONS [IN <module>];
 DESCRIBE REGULAR EXPRESSION Module.Name;
 DROP REGULAR EXPRESSION Module.Name;
@@ -726,12 +726,12 @@ CREATE REGULAR EXPRESSION Val.Identifier (
 -- .NET lookbehind: legal in Mendix, not verifiable by mxcli
 CREATE REGULAR EXPRESSION Val.NoTrailingSlash ( Expression: '.*(?<!/)$' );
 
-SHOW REGULAR EXPRESSIONS IN Val;
+LIST REGULAR EXPRESSIONS IN Val;
 DESCRIBE REGULAR EXPRESSION Val.EmailAddress;
 DROP REGULAR EXPRESSION Val.Identifier;
 
 -- Which entities validate against a shared pattern
-SHOW REFERENCES TO Val.EmailAddress;`,
+LIST REFERENCES TO Val.EmailAddress;`,
 	})
 
 	// ── Validation rules ────────────────────────────────────────────────
@@ -805,7 +805,7 @@ CREATE VALIDATION RULE FOR Shop.Product.Price
 			"repeat", "daily", "hourly", "weekly", "monthly", "yearly", "timer", "batch job",
 		},
 		Syntax: `CREATE [OR MODIFY] SCHEDULED EVENT Module.Name [FOLDER 'path'] ( <property>: <value>, ... );
-SHOW SCHEDULED EVENTS [IN <module>];
+LIST SCHEDULED EVENTS [IN <module>];
 LIST SCHEDULED EVENTS [IN <module>];
 DESCRIBE SCHEDULED EVENT Module.Name;
 DROP SCHEDULED EVENT Module.Name;
@@ -871,7 +871,7 @@ CREATE SCHEDULED EVENT Ops.QuarterEnd (
   HourOfDay: 18
 );
 
-SHOW SCHEDULED EVENTS IN Ops;
+LIST SCHEDULED EVENTS IN Ops;
 DESCRIBE SCHEDULED EVENT Ops.NightlyCleanup;
 DROP SCHEDULED EVENT Ops.HourlyPing;`,
 		SeeAlso: []string{"queue"},
@@ -958,7 +958,7 @@ CREATE IMPORT MAPPING MyModule.IMM_Order FOLDER 'Private/Import mappings'
   WITH JSON STRUCTURE MyModule.JSON_Order { CREATE MyModule.Order { Id = id } };
 
 -- Check impact before cross-module move
-SHOW IMPACT OF OldModule.CustomerPage;
+LIST IMPACT OF OldModule.CustomerPage;
 MOVE PAGE OldModule.CustomerPage TO NewModule;
 
 -- Drop empty folder
@@ -975,7 +975,7 @@ LIST FOLDERS IN MyModule;`,
 		Path:    "folders",
 		Summary: "LIST FOLDERS — the folder layout of a module, with what is in each folder",
 		Keywords: []string{
-			"folders", "list folders", "show folders", "layout",
+			"folders", "list folders", "list folders", "layout",
 			"folder tree", "where is this document", "unfiled",
 		},
 		Syntax: "LIST FOLDERS [IN <module>];",

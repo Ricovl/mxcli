@@ -40,18 +40,18 @@ Use when the user asks to:
 
 ```sql
 -- Summary of all navigation profiles (home pages, menu counts)
-show navigation;
+list navigation;
 
 -- Full MDL description of a profile (round-trippable output)
 describe navigation Responsive;
 describe navigation;              -- all profiles
 
 -- Menu tree for a specific profile
-show navigation menu Responsive;
-show navigation menu;             -- all profiles
+list navigation menu Responsive;
+list navigation menu;             -- all profiles
 
 -- Home page assignments across all profiles and roles
-show navigation homes;
+list navigation homes;
 ```
 
 ## CREATE OR REPLACE NAVIGATION (Full Replacement)
@@ -93,7 +93,7 @@ no error code and no line number, and `mx check` exits non-zero *without* the
 "The app contains: N errors" line. The two role kinds are easy to confuse
 because they share names: a blank app has a user role `Administrator` and module
 roles called `Administrator` in three modules. List the real ones with
-`show user roles`; `mxcli check --references` refuses the wrong form.
+`list user roles`; `mxcli check --references` refuses the wrong form.
 
 ### Full Menu Tree
 
@@ -146,8 +146,8 @@ errors and then breaks `mxbuild --target=deploy` with *"An exception occurred
 while exporting layout '<some layout>'"* — a message naming a document that is
 not the cause. `mxcli check` now warns (**MDL078**) against the 247 codes the
 shipped font defines, but a glyph is still an unchecked number where an icon
-collection reference is a resolved model reference. Browse the codes with `show glyphs`
-(`show glyphs like 'star'` searches by name, `describe glyph 57350` goes the
+collection reference is a resolved model reference. Browse the codes with `list glyphs`
+(`list glyphs like 'star'` searches by name, `describe glyph 57350` goes the
 other way), or use `icon Atlas_Core.Atlas.<name>` and list the names with
 `describe icon collection Atlas_Core.Atlas`.
 
@@ -174,7 +174,7 @@ collections: `Atlas` (outline), `Atlas_Filled`, and `Atlas_Styling`. List what
 is actually available in your project rather than guessing a name:
 
 ```sql
-show icon collection;
+list icon collections;
 describe icon collection Atlas_Core.Atlas;
 ```
 
@@ -253,7 +253,7 @@ And before changing an entity, ask which profiles download it — an offline
 change reaches every device that already synced:
 
 ```
-show references to MyModule.Order
+list references to MyModule.Order
 ```
 
 The `sync` row names the profile. Every mode produces one, **including the
@@ -339,10 +339,10 @@ from CATALOG.REFS
 where RefKind in ('home_page', 'menu_item', 'login_page');
 
 -- What references point to a specific page?
-show references to MyModule.Home_Web;
+list references to MyModule.Home_Web;
 
 -- Impact analysis: what breaks if I change this page?
-show impact of MyModule.Home_Web;
+list impact of MyModule.Home_Web;
 
 -- Full context for a page (includes navigation references)
 describe context of MyModule.Home_Web;
@@ -406,7 +406,7 @@ menu widget on a page points at it. Atlas_Core ships `Phone_Menu` and
 Tell them apart by which command reads them:
 
 ```sql
-show navigation menu;                    -- the menu inside each profile
+list navigation menu;                    -- the menu inside each profile
 describe menu Atlas_Core.Phone_Menu;     -- a standalone menu document
 ```
 
@@ -508,12 +508,12 @@ stored. MDL does not author per-entity sync modes — set those in Studio Pro.
 - [ ] `icon` is a qualified name (not a string); hyphenated segments are double-quoted
 - [ ] The icon exists — check with `describe icon collection Module.Name`, do not guess
 - [ ] Use `describe navigation` to verify changes after applying
-- [ ] For a **menu document**, confirm you want `create menu` and not a profile menu — `show navigation menu` vs `describe menu` tells them apart
+- [ ] For a **menu document**, confirm you want `create menu` and not a profile menu — `list navigation menu` vs `describe menu` tells them apart
 - [ ] No menu item targets a page with required parameters (CE1571)
 
 ## Offline synchronization (`CREATE NAVIGATION … SYNC (…)`)
 
-an offline navigation profile downloads **nothing** until each entity has a sync mode, so a profile mxcli created built, routed and installed as a PWA and showed an **empty app** — with `mxcli check`, `exec` and `mx check` all clean. The six mode words are the members Mendix stores, **not** Studio Pro's captions (its "All Objects" is `ALL`, its "By XPath" is `WHERE`), and a caption is refused rather than written — the CE0463 gallery defect wearing a different hat. `WHERE` takes the XPath in **brackets**, verbatim: the quoted form doubles every quote, and a stored constraint already carries Mendix's own escaping, so the two compose into runs of six (mendixlabs/mxcli#750, and `PROPOSAL_first_class_expressions.md`). The write is an **overlay keyed by entity**, so `CompatibilityMode` — stored, unauthorable — survives a rewrite; every reference config carries `false`, so only a synthetic `true` case distinguishes a correct writer from one that always emits `false`. `DownloadMode`/`ShouldDownload` are deliberately **not** written though gen declares them: zero occurrences in ako/TestApp, and a property Studio Pro fills in on load is one whose emission makes a document Studio Pro cannot open. Creating the *profile* stays modelsdk-only (a fourteen-key document pinned to a Studio Pro reference); the SYNC block works on both engines. `ON SYNC ERROR THROW|CONTINUE` writes `ThrowPartialSyncError`, a property **neither generated source declares** (zero occurrences in gen and in generated/metamodel), so it is read from `element.Base.Raw()` and written as a raw key. The spec field is a **pointer**: the property is a bare bool with no unset value, so a non-pointer would reset it on every rewrite that never mentions the clause. Absent reads as **true**, matching every reference profile and Studio Pro's checked-by-default box. Both halves are in the catalog: `CATALOG.OFFLINE_ENTITY_CONFIGS` holds one row per configured entity (the profile's `OfflineEntityCount` said how many and nothing else), and a configured entity emits a **`sync` edge** into `CATALOG.REFS` so `show references to Mod.Entity` names the profiles that download it. Every mode gets an edge, **including the ones that download nothing** — a profile with `sync X never` still names X, so renaming or dropping it leaves the config dangling, which is exactly what the edge exists to reveal. and `docs/11-proposals/PROPOSAL_offline_sync_configuration.md`
+an offline navigation profile downloads **nothing** until each entity has a sync mode, so a profile mxcli created built, routed and installed as a PWA and showed an **empty app** — with `mxcli check`, `exec` and `mx check` all clean. The six mode words are the members Mendix stores, **not** Studio Pro's captions (its "All Objects" is `ALL`, its "By XPath" is `WHERE`), and a caption is refused rather than written — the CE0463 gallery defect wearing a different hat. `WHERE` takes the XPath in **brackets**, verbatim: the quoted form doubles every quote, and a stored constraint already carries Mendix's own escaping, so the two compose into runs of six (mendixlabs/mxcli#750, and `PROPOSAL_first_class_expressions.md`). The write is an **overlay keyed by entity**, so `CompatibilityMode` — stored, unauthorable — survives a rewrite; every reference config carries `false`, so only a synthetic `true` case distinguishes a correct writer from one that always emits `false`. `DownloadMode`/`ShouldDownload` are deliberately **not** written though gen declares them: zero occurrences in ako/TestApp, and a property Studio Pro fills in on load is one whose emission makes a document Studio Pro cannot open. Creating the *profile* stays modelsdk-only (a fourteen-key document pinned to a Studio Pro reference); the SYNC block works on both engines. `ON SYNC ERROR THROW|CONTINUE` writes `ThrowPartialSyncError`, a property **neither generated source declares** (zero occurrences in gen and in generated/metamodel), so it is read from `element.Base.Raw()` and written as a raw key. The spec field is a **pointer**: the property is a bare bool with no unset value, so a non-pointer would reset it on every rewrite that never mentions the clause. Absent reads as **true**, matching every reference profile and Studio Pro's checked-by-default box. Both halves are in the catalog: `CATALOG.OFFLINE_ENTITY_CONFIGS` holds one row per configured entity (the profile's `OfflineEntityCount` said how many and nothing else), and a configured entity emits a **`sync` edge** into `CATALOG.REFS` so `list references to Mod.Entity` names the profiles that download it. Every mode gets an edge, **including the ones that download nothing** — a profile with `sync X never` still names X, so renaming or dropping it leaves the config dangling, which is exactly what the edge exists to reveal. and `docs/11-proposals/PROPOSAL_offline_sync_configuration.md`
 
 ## Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU)
 

@@ -1,8 +1,8 @@
-# SHOW MODULES
+# LIST MODULES
 
 ## Synopsis
 
-    SHOW MODULES
+    LIST MODULES
 
 ## Description
 
@@ -19,16 +19,16 @@ This statement takes no parameters.
 List all modules in the project:
 
 ```sql
-SHOW MODULES
+LIST MODULES
 ```
 
 Use the result to explore a specific module:
 
 ```sql
-SHOW MODULES
-SHOW ENTITIES IN MyFirstModule
+LIST MODULES
+LIST ENTITIES IN MyFirstModule
 ```
 
 ## See Also
 
-[DESCRIBE STRUCTURE](show-structure.md), [SHOW ENTITIES](show-entities.md), [SHOW MICROFLOWS](show-microflows.md), [SHOW PAGES](show-pages.md)
+[DESCRIBE STRUCTURE](describe-structure.md), [LIST ENTITIES](list-entities.md), [LIST MICROFLOWS](list-microflows.md), [LIST PAGES](list-pages.md)

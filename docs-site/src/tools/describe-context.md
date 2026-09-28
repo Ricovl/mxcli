@@ -1,6 +1,6 @@
-# SHOW CONTEXT
+# DESCRIBE CONTEXT
 
-The `SHOW CONTEXT` command assembles the surrounding context of an element within its module and project hierarchy. This is particularly useful for AI-assisted development, where an LLM needs to understand the neighborhood of an element to generate accurate code.
+The `DESCRIBE CONTEXT` command assembles the surrounding context of an element within its module and project hierarchy. This is particularly useful for AI-assisted development, where an LLM needs to understand the neighborhood of an element to generate accurate code.
 
 ## Prerequisites
 
@@ -54,7 +54,7 @@ The context command gathers information about:
 
 ## Use Case: AI-Assisted Development
 
-When an AI assistant needs to modify a microflow, it uses `SHOW CONTEXT` to understand:
+When an AI assistant needs to modify a microflow, it uses `DESCRIBE CONTEXT` to understand:
 
 1. What parameters the microflow expects
 2. What entities and associations are involved

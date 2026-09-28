@@ -72,7 +72,7 @@ CREATE PAGE MyModule.Home
 
 ```sql
 -- List all snippets in a module
-SHOW SNIPPETS IN MyModule;
+LIST SNIPPETS IN MyModule;
 
 -- View full MDL definition
 DESCRIBE SNIPPET MyModule.CustomerCard;

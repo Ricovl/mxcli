@@ -92,7 +92,7 @@ belongs to the constant, and configurations just respect it:
 |-----------|----------------------|
 | `ALTER SETTINGS CONSTANT … VALUE …` | **refused** — setting a value would convert it to shared and publish a deliberately-local value into version control |
 | `ALTER SETTINGS DROP CONSTANT …` | allowed — removes the whole override, which is what was asked for |
-| `SHOW CONSTANT VALUES` | reports `(private)` rather than a blank cell |
+| `LIST CONSTANT VALUES` | reports `(private)` rather than a blank cell |
 | `DESCRIBE SETTINGS` | emits a comment, not a re-executable statement |
 
 To make a private value shared (or the reverse), change it in Studio Pro.

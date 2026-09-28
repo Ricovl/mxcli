@@ -321,7 +321,7 @@ flags it. The cost lands later, on someone else.
   `GROUP BY`, `SUM`/`COUNT` — returning rows a page binds to directly. The microflow
   version pulls every object into memory to produce one number, and it gets slower
   exactly as the app succeeds, which is the worst possible failure curve. Needs
-  **Mendix 10.18+** (`show features` confirms it). `create view entity Mod.Name (…)
+  **Mendix 10.18+** (`list features` confirms it). `create view entity Mod.Name (…)
   as ( select … )` — see `mxcli syntax view-entity` for the shape, its `oql` and
   `association` subtopics for the rules that bite (every column needs an `AS`
   alias; `ORDER BY` needs a `LIMIT`; selecting an id under an alias makes an

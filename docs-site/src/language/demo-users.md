@@ -64,7 +64,7 @@ ALTER APP SECURITY ( EnableDemoUsers: FALSE );
 ## Listing Demo Users
 
 ```sql
-SHOW DEMO USERS;
+LIST DEMO USERS;
 ```
 
 ## Typical Setup

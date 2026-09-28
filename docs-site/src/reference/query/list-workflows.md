@@ -1,8 +1,8 @@
-# SHOW WORKFLOWS
+# LIST WORKFLOWS
 
 ## Synopsis
 
-    SHOW WORKFLOWS [IN <module>]
+    LIST WORKFLOWS [IN <module>]
 
 ## Description
 
@@ -20,15 +20,15 @@ Workflows model multi-step business processes with user tasks, decisions, parall
 List all workflows in the project:
 
 ```sql
-SHOW WORKFLOWS
+LIST WORKFLOWS
 ```
 
 List workflows in a specific module:
 
 ```sql
-SHOW WORKFLOWS IN Approvals
+LIST WORKFLOWS IN Approvals
 ```
 
 ## See Also
 
-[SHOW MODULES](show-modules.md), [SHOW MICROFLOWS](show-microflows.md), [DESCRIBE STRUCTURE](show-structure.md)
+[LIST MODULES](list-modules.md), [LIST MICROFLOWS](list-microflows.md), [DESCRIBE STRUCTURE](describe-structure.md)

@@ -11,7 +11,7 @@
 ## Discovering Available Widgets
 
 ```mdl
-SHOW WIDGETS
+LIST WIDGETS
 DESCRIBE WIDGET TYPE DataGrid2
 ```
 

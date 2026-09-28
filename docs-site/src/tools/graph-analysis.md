@@ -137,9 +137,9 @@ graph survives a rebuild. To drop back, delete `.mxcli/catalog.db` and refresh.
 ### SHOW commands
 
 ```sql
-show communities                                   -- the community_summary listing
-show community of Sales.Order                      -- which community an asset is in
-show community members of Sales.Order              -- its co-clustered assets
+list communities                                   -- the community_summary listing
+list community of Sales.Order                      -- which community an asset is in
+list community members of Sales.Order              -- its co-clustered assets
 ```
 
 ## Two refactoring journeys
@@ -151,7 +151,7 @@ select * from CATALOG.graph_cycles;                       -- tangled documents
 select * from CATALOG.graph_module_cycles;                -- tangled modules
 select Layer, AssetName from CATALOG.graph_layers
   order by Layer;                                          -- dependency depth
-show communities;                                          -- cleaner module groupings
+list communities;                                          -- cleaner module groupings
 ```
 
 mxcli reports the *facts* (layer numbers, directed `graph_module_dependencies`);

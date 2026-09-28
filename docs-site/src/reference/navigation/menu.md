@@ -31,7 +31,7 @@ are read:
 |---|---|---|
 | Lives in | a navigation profile | its own document |
 | Used by | the app's navigation | a menu widget you place on a page |
-| Read with | `SHOW NAVIGATION MENU` | `DESCRIBE MENU module.name` |
+| Read with | `LIST NAVIGATION MENU` | `DESCRIBE MENU module.name` |
 | Written with | `CREATE OR REPLACE NAVIGATION` | `CREATE OR MODIFY MENU` |
 
 `OR MODIFY` replaces the item list **wholesale**, exactly as `CREATE OR REPLACE
@@ -127,4 +127,4 @@ Re-running such output therefore loses that icon — visibly, not silently.
 ## See Also
 
 - [ALTER NAVIGATION](alter-navigation.md) — the menu inside a navigation profile
-- [SHOW NAVIGATION](show-navigation.md) — read profile menus and home pages
+- [LIST NAVIGATION](list-navigation.md) — read profile menus and home pages

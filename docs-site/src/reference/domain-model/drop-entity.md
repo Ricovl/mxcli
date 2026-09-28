@@ -10,7 +10,7 @@
 
 Associations that reference the dropped entity are **not** automatically removed. Drop those separately with `DROP ASSOCIATION` before or after dropping the entity to avoid dangling references.
 
-Use `SHOW IMPACT OF Module.EntityName` to check which microflows, pages, and associations reference the entity before dropping it.
+Use `LIST IMPACT OF Module.EntityName` to check which microflows, pages, and associations reference the entity before dropping it.
 
 ## Parameters
 
@@ -29,7 +29,7 @@ DROP ENTITY Sales.CustomerFilter;
 
 ```sql
 -- Check what references this entity
-SHOW IMPACT OF Sales.OldEntity;
+LIST IMPACT OF Sales.OldEntity;
 
 -- Drop related association first
 DROP ASSOCIATION Sales.OldEntity_Customer;

@@ -6,7 +6,7 @@ Project settings control application runtime behavior, server configurations, la
 
 ```sql
 -- Overview of all settings
-SHOW SETTINGS;
+LIST SETTINGS;
 
 -- Full MDL output (round-trippable)
 DESCRIBE SETTINGS;
@@ -158,7 +158,7 @@ CREATE OR MODIFY PAGE MyModule.Opslaan ( Title: 'Opslaanpagina', ... ) { ... }
 `CREATE TRANSLATIONS FOR '<the default>'` is **not** the way out — it is refused,
 because the default is the source language every other translation is keyed on.
 
-> `SHOW LANGUAGES` lists languages that have **translations**, which is not the
+> `LIST LANGUAGES` lists languages that have **translations**, which is not the
 > same list — a stock app reports eight while one is enabled. For the enabled
 > list use `DESCRIBE SETTINGS`.
 

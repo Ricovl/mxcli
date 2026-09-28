@@ -127,11 +127,11 @@ more often than it is, so every term is shown and every term must hold before a
 binding is pruned. A rule with one indeterminable term prunes nothing: the
 binding is listed and you decide.
 
-**`LIST WIDGETS` does not exist**, deliberately. `SHOW WIDGETS` already means
+**`LIST WIDGETS` does not exist**, deliberately. `LIST WIDGETS` already means
 widget *instances placed on pages*, and the definitions are
 `SELECT * FROM CATALOG.WIDGET_DEFINITIONS`.
 
 ## See Also
 
-[SHOW WIDGETS](show-widgets.md), [DESCRIBE PAGE](describe-page.md),
+[LIST WIDGETS](list-widgets.md), [DESCRIBE PAGE](describe-page.md),
 [Pluggable Widgets Across Versions](../../guides/pluggable-widgets.md)

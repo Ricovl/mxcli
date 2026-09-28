@@ -1,8 +1,8 @@
-# SHOW ASSOCIATIONS
+# LIST ASSOCIATIONS
 
 ## Synopsis
 
-    SHOW ASSOCIATIONS [IN <module>]
+    LIST ASSOCIATIONS [IN <module>]
 
     SHOW ASSOCIATION <qualified_name>
 
@@ -25,21 +25,21 @@ The `SHOW ASSOCIATION` variant displays a summary of a single association by its
 List all associations in the project:
 
 ```sql
-SHOW ASSOCIATIONS
+LIST ASSOCIATIONS
 ```
 
 List associations in a specific module:
 
 ```sql
-SHOW ASSOCIATIONS IN Sales
+LIST ASSOCIATIONS IN Sales
 ```
 
 Show a single association:
 
 ```sql
-SHOW ASSOCIATION Sales.Order_Customer
+DESCRIBE ASSOCIATION Sales.Order_Customer
 ```
 
 ## See Also
 
-[DESCRIBE ASSOCIATION](describe-association.md), [SHOW ENTITIES](show-entities.md), [SHOW MODULES](show-modules.md)
+[DESCRIBE ASSOCIATION](describe-association.md), [LIST ENTITIES](list-entities.md), [LIST MODULES](list-modules.md)

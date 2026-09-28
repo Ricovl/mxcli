@@ -1,8 +1,8 @@
-# SHOW BUSINESS EVENTS
+# LIST BUSINESS EVENTS
 
 ## Synopsis
 
-    SHOW BUSINESS EVENTS [IN <module>]
+    LIST BUSINESS EVENTS [IN <module>]
 
 ## Description
 
@@ -20,15 +20,15 @@ Business event services enable asynchronous, event-driven communication between 
 List all business event services:
 
 ```sql
-SHOW BUSINESS EVENTS
+LIST BUSINESS EVENTS
 ```
 
 List business event services in a specific module:
 
 ```sql
-SHOW BUSINESS EVENTS IN OrderModule
+LIST BUSINESS EVENTS IN OrderModule
 ```
 
 ## See Also
 
-[SHOW MODULES](show-modules.md), [DESCRIBE STRUCTURE](show-structure.md)
+[LIST MODULES](list-modules.md), [DESCRIBE STRUCTURE](describe-structure.md)

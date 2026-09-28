@@ -38,10 +38,10 @@ Builds everything in the basic refresh plus:
 - **Call graph** -- Caller/callee relationships between elements
 
 This level is required for:
-- `SHOW CALLERS OF`
-- `SHOW CALLEES OF`
-- `SHOW REFERENCES OF`
-- `SHOW IMPACT OF`
+- `LIST CALLERS OF`
+- `LIST CALLEES OF`
+- `LIST REFERENCES TO`
+- `LIST IMPACT OF`
 - `DESCRIBE CONTEXT OF`
 - `SEARCH`
 - Full-text catalog queries

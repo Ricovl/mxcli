@@ -158,4 +158,4 @@ Description: String(unlimited)
 
 **EXTENDS must come before the parenthesis.** See the example above. This is a common source of parse errors.
 
-**Module must exist.** The module in the qualified name (e.g., `MyModule` in `MyModule.Product`) must already exist in the project. Check with `SHOW MODULES`.
+**Module must exist.** The module in the qualified name (e.g., `MyModule` in `MyModule.Product`) must already exist in the project. Check with `LIST MODULES`.

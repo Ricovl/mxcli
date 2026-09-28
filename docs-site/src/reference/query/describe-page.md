@@ -54,4 +54,4 @@ DESCRIBE SNIPPET Common.NavigationMenu
 
 ## See Also
 
-[SHOW PAGES](show-pages.md), [SHOW WIDGETS](show-widgets.md), [DESCRIBE MICROFLOW](describe-microflow.md)
+[LIST PAGES](list-pages.md), [LIST WIDGETS](list-widgets.md), [DESCRIBE MICROFLOW](describe-microflow.md)

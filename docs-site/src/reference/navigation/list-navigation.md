@@ -1,11 +1,11 @@
-# SHOW NAVIGATION
+# LIST NAVIGATION
 
 ## Synopsis
 
 ```sql
-SHOW NAVIGATION
-SHOW NAVIGATION MENU [ profile ]
-SHOW NAVIGATION HOMES
+LIST NAVIGATION
+LIST NAVIGATION MENU [ profile ]
+LIST NAVIGATION HOMES
 DESCRIBE NAVIGATION [ profile ]
 ```
 
@@ -13,17 +13,17 @@ DESCRIBE NAVIGATION [ profile ]
 
 Displays navigation configuration for the current project.
 
-### SHOW NAVIGATION
+### LIST NAVIGATION
 
 Displays a summary of all configured navigation profiles, showing the profile type and whether a home page, login page, and menu are configured.
 
-### SHOW NAVIGATION MENU
+### LIST NAVIGATION MENU
 
 Displays the menu tree for one or all navigation profiles. When a profile is specified, only that profile's menu is shown. Without a profile, all profiles' menus are displayed.
 
 The menu tree is rendered as an indented hierarchy showing menu labels and their target pages.
 
-### SHOW NAVIGATION HOMES
+### LIST NAVIGATION HOMES
 
 Displays home page assignments across all navigation profiles, including role-specific overrides.
 
@@ -41,19 +41,19 @@ Outputs the full MDL representation of one or all navigation profiles. The outpu
 Show a summary of all profiles:
 
 ```sql
-SHOW NAVIGATION;
+LIST NAVIGATION;
 ```
 
 Show the menu tree for the responsive profile:
 
 ```sql
-SHOW NAVIGATION MENU Responsive;
+LIST NAVIGATION MENU Responsive;
 ```
 
 Show all home page assignments:
 
 ```sql
-SHOW NAVIGATION HOMES;
+LIST NAVIGATION HOMES;
 ```
 
 Export the responsive profile as MDL:

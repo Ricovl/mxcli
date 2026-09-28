@@ -92,7 +92,7 @@ Domain Model - Enumerations:
   );
 
   drop enumeration Module.Name;
-  show enumerations [in Module];
+  list enumerations [in Module];
   describe enumeration Module.Name;
 
 Domain Model - Entities:
@@ -112,7 +112,7 @@ Domain Model - Entities:
   /
 
   drop entity Module.Name;
-  show entities [in Module];
+  list entities [in Module];
   describe entity Module.Name;
 
 Domain Model - Associations:
@@ -125,7 +125,7 @@ Domain Model - Associations:
   /
 
   drop association Module.Name;
-  show associations [in Module];
+  list associations [in Module];
   describe association Module.Name;
 
 Microflows:
@@ -161,8 +161,8 @@ Microflows:
   /
 
   drop microflow Module.Name;
-  show microflows [in Module];
-  show nanoflows [in Module];
+  list microflows [in Module];
+  list nanoflows [in Module];
   describe microflow Module.Name;
 
 Pages, Snippets, Layouts, Java Actions:
@@ -170,17 +170,17 @@ Pages, Snippets, Layouts, Java Actions:
   drop page Module.Name;
   create [or replace] snippet Module.Name (...) { ... };
   drop snippet Module.Name;
-  show pages [in Module];
-  show snippets [in Module];
-  show layouts [in Module];
-  show java actions [in Module];
+  list pages [in Module];
+  list snippets [in Module];
+  list layouts [in Module];
+  list java actions [in Module];
   describe page Module.Name;
   describe snippet Module.Name;
 
 Widget Discovery and Bulk Updates (requires refresh catalog full):
   *** EXPERIMENTAL: Untested proof-of-concept. Use dry run first! ***
 
-  show widgets [where condition] [in Module];
+  list widgets [where condition] [in Module];
     where conditions: WidgetType like '%pattern%', Name = 'value'
 
   update widgets
@@ -190,13 +190,13 @@ Widget Discovery and Bulk Updates (requires refresh catalog full):
     [dry run];
 
   Examples:
-    show widgets where WidgetType like '%combobox%';
+    list widgets where WidgetType like '%combobox%';
     update widgets set 'showLabel' = false where WidgetType like '%DataGrid%' dry run;
 
   Always backup your project before applying changes without dry RUN.
 
 Catalog Queries:
-  show catalog tables;
+  list catalog tables;
   show catalog status;             Show cache information
   describe CATALOG.tablename;      Show table columns and required mode
   refresh catalog;                 Rebuild catalog (uses cache if valid)
@@ -224,10 +224,10 @@ Catalog Queries:
   To drop back to a cheaper level, delete .mxcli/catalog.db and refresh.
 
 Code Search (requires refresh catalog full):
-  show callers of Module.Microflow [transitive];
-  show callees of Module.Microflow [transitive];
-  show references to Module.Element;
-  show impact of Module.Element;
+  list callers of Module.Microflow [transitive];
+  list callees of Module.Microflow [transitive];
+  list references to Module.Element;
+  list impact of Module.Element;
   show context of Module.Element [depth n];  -- Assemble context for LLM
 
 Security - Roles:
@@ -255,21 +255,21 @@ Security - Project Settings:
 
 Security - Queries:
   show project security;
-  show module roles [in Module];
-  show user roles;
-  show demo users;
-  show access on microflow Module.Name;
-  show access on page Module.Name;
-  show access on Module.Entity;
+  list module roles [in Module];
+  list user roles;
+  list demo users;
+  list access on microflow Module.Name;
+  list access on page Module.Name;
+  list access on Module.Entity;
   show security matrix [in Module];
   describe module role Module.Role;
   describe user role Name;
   describe demo user 'name';
 
 Navigation:
-  show navigation;
-  show navigation menu [Profile];
-  show navigation homes;
+  list navigation;
+  list navigation menu [Profile];
+  list navigation homes;
   describe navigation Profile;
   create or modify navigation Profile
     home page Module.Page
@@ -294,7 +294,7 @@ Scripts:
 Modules:
   create module Name;
   drop module Name;                -- Cascade-deletes all contents
-  show modules;
+  list modules;
 
 External sql:
   sql connect <driver> '<dsn>' as <alias>;
@@ -341,7 +341,7 @@ Image Collections:
     [{ image Name ( File: 'path' ) ... }];
 
   drop image collection Module.Name;
-  show image collection [in Module];
+  list image collections [in Module];
   describe image collection Module.Name;
 
 Other:

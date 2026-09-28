@@ -1,9 +1,9 @@
-# SHOW IMAGE COLLECTION
+# LIST IMAGE COLLECTIONS
 
 ## Synopsis
 
-    SHOW IMAGE COLLECTION;
-    SHOW IMAGE COLLECTION IN module;
+    LIST IMAGE COLLECTIONS;
+    LIST IMAGE COLLECTIONS IN module;
 
 ## Description
 
@@ -19,13 +19,13 @@ Lists all image collections in the project. Use `IN module` to filter to a speci
 ### List all collections
 
 ```sql
-SHOW IMAGE COLLECTION;
+LIST IMAGE COLLECTIONS;
 ```
 
 ### Filter by module
 
 ```sql
-SHOW IMAGE COLLECTION IN MyModule;
+LIST IMAGE COLLECTIONS IN MyModule;
 ```
 
 ### Describe a specific collection
@@ -36,4 +36,4 @@ DESCRIBE IMAGE COLLECTION MyModule.AppIcons;
 
 ## See Also
 
-[DESCRIBE IMAGE COLLECTION](../image-collection/show-describe-image-collection.md), [CREATE IMAGE COLLECTION](../image-collection/create-image-collection.md), [SHOW MODULES](show-modules.md)
+[DESCRIBE IMAGE COLLECTION](../image-collection/list-describe-image-collection.md), [CREATE IMAGE COLLECTION](../image-collection/create-image-collection.md), [LIST MODULES](list-modules.md)

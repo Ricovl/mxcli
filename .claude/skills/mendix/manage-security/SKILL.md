@@ -100,18 +100,18 @@ then stops part-way through.
 describe app security;
 
 -- Module roles (all or filtered)
-show module roles;
-show module roles in MyModule;
+list module roles;
+list module roles in MyModule;
 
 -- User roles and demo users
-show user roles;
-show demo users;
+list user roles;
+list demo users;
 
 -- Access on specific elements
-show access on microflow MyModule.ProcessOrder;
-show access on page MyModule.CustomerOverview;
-show access on entity MyModule.Customer;
-show access on MyModule.Customer;        -- a bare name means the entity
+list access on microflow MyModule.ProcessOrder;
+list access on page MyModule.CustomerOverview;
+list access on entity MyModule.Customer;
+list access on MyModule.Customer;        -- a bare name means the entity
 
 -- Full security matrix
 describe security matrix;
@@ -203,7 +203,7 @@ grant execute on nanoflow MyModule.NF_ValidateCart to MyModule.User, MyModule.Ad
 revoke execute on nanoflow MyModule.NF_ValidateCart from MyModule.User;
 
 -- Show current access
-show access on nanoflow MyModule.NF_ValidateCart;
+list access on nanoflow MyModule.NF_ValidateCart;
 ```
 
 > **Note:** Security roles persist through DROP+CREATE of the same nanoflow name within a session (by design, for refactor-in-place workflows).

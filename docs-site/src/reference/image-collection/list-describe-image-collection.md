@@ -1,14 +1,14 @@
-# SHOW / DESCRIBE IMAGE COLLECTION
+# LIST / DESCRIBE IMAGE COLLECTION
 
 ## Synopsis
 
-    SHOW IMAGE COLLECTION;
-    SHOW IMAGE COLLECTION IN module;
+    LIST IMAGE COLLECTIONS;
+    LIST IMAGE COLLECTIONS IN module;
     DESCRIBE IMAGE COLLECTION module.name;
 
 ## Description
 
-`SHOW IMAGE COLLECTION` lists all image collections in the project, optionally filtered by module. `DESCRIBE IMAGE COLLECTION` shows the full definition of a specific collection, including its images as a re-executable `CREATE` statement.
+`LIST IMAGE COLLECTIONS` lists all image collections in the project, optionally filtered by module. `DESCRIBE IMAGE COLLECTION` shows the full definition of a specific collection, including its images as a re-executable `CREATE` statement.
 
 In the TUI, images are rendered inline when the terminal supports it (Kitty, iTerm2, Sixel).
 
@@ -25,13 +25,13 @@ In the TUI, images are rendered inline when the terminal supports it (Kitty, iTe
 ### List all image collections
 
 ```sql
-SHOW IMAGE COLLECTION;
+LIST IMAGE COLLECTIONS;
 ```
 
 ### Filter by module
 
 ```sql
-SHOW IMAGE COLLECTION IN MyModule;
+LIST IMAGE COLLECTIONS IN MyModule;
 ```
 
 ### View full definition

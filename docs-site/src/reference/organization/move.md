@@ -120,7 +120,7 @@ MOVE FOLDER MyModule.OldName TO FOLDER 'Archive';
 ### Check impact before a cross-module move
 
 ```sql
-SHOW IMPACT OF OldModule.Customer;
+LIST IMPACT OF OldModule.Customer;
 MOVE ENTITY OldModule.Customer TO NewModule;
 ```
 

@@ -405,4 +405,4 @@ DROP DATA TRANSFORMER Integration.WeatherTransform;
 - Steps execute in order; the output of each step feeds the next.
 - `JSLT '...'` for short single-line expressions; `JSLT $$ ... $$` for multi-line.
 - `XSLT $$ ... $$` is also supported for XML-to-XML transformations.
-- Requires Mendix 11.9+. Use `SHOW FEATURES` to confirm support before using.
+- Requires Mendix 11.9+. Use `LIST FEATURES` to confirm support before using.

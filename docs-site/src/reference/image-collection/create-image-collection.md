@@ -69,4 +69,4 @@ CREATE IMAGE COLLECTION MyModule.BrandAssets
 
 ## See Also
 
-[DROP IMAGE COLLECTION](drop-image-collection.md), [SHOW / DESCRIBE IMAGE COLLECTION](show-describe-image-collection.md)
+[DROP IMAGE COLLECTION](drop-image-collection.md), [SHOW / DESCRIBE IMAGE COLLECTION](list-describe-image-collection.md)

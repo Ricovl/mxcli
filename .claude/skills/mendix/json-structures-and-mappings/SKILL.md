@@ -150,8 +150,8 @@ this structure carries, and it is one of the two names a member resolves by.
 ### Browse
 
 ```sql
-show json structures;
-show json structures in module;
+list json structures;
+list json structures in module;
 describe json structure Module.JSON_Pet;
 drop json structure Module.JSON_Pet;
 ```
@@ -527,8 +527,8 @@ end;
 ## Browse
 
 ```sql
-show import mappings [in module];
-show export mappings [in module];
+list import mappings [in module];
+list export mappings [in module];
 describe import mapping Module.Name;
 describe export mapping Module.Name;
 drop import mapping Module.Name;

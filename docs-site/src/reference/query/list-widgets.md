@@ -1,8 +1,8 @@
-# SHOW WIDGETS
+# LIST WIDGETS
 
 ## Synopsis
 
-    SHOW WIDGETS [IN <module>] [WHERE <condition>]
+    LIST WIDGETS [IN <module>] [WHERE <condition>]
 
 ## Description
 
@@ -24,21 +24,21 @@ List all widgets (requires catalog):
 
 ```sql
 REFRESH CATALOG FULL
-SHOW WIDGETS
+LIST WIDGETS
 ```
 
 List widgets in a specific module:
 
 ```sql
-SHOW WIDGETS IN Sales
+LIST WIDGETS IN Sales
 ```
 
 Filter widgets by type:
 
 ```sql
-SHOW WIDGETS WHERE WidgetType = 'DataGrid'
+LIST WIDGETS WHERE WidgetType = 'DataGrid'
 ```
 
 ## See Also
 
-[SHOW PAGES](show-pages.md), [DESCRIBE PAGE](describe-page.md), [DESCRIBE STRUCTURE](show-structure.md)
+[LIST PAGES](list-pages.md), [DESCRIBE PAGE](describe-page.md), [DESCRIBE STRUCTURE](describe-structure.md)

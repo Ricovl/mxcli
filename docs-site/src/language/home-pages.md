@@ -103,11 +103,11 @@ CREATE OR REPLACE NAVIGATION Responsive
 
 ```sql
 -- View menu tree
-SHOW NAVIGATION MENU;
-SHOW NAVIGATION MENU Responsive;
+LIST NAVIGATION MENU;
+LIST NAVIGATION MENU Responsive;
 
 -- View home page assignments
-SHOW NAVIGATION HOMES;
+LIST NAVIGATION HOMES;
 ```
 
 ## See Also

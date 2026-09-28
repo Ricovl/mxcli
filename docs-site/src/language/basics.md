@@ -30,7 +30,7 @@ CREATE PERSISTENT ENTITY Sales.Order (
 INDEX (OrderDate DESC);
 ```
 
-Under `mdl 1;` a missing `;` is an error, and so is the Oracle SQL*Plus-style `/` on its own line. A script without the header still accepts both, and `check` warns `MDL-V1-SEMI` / `MDL-V1-SLASH` for each one. At the REPL, where there is no header, a single command such as `SHOW ENTITIES` still needs no terminator.
+Under `mdl 1;` a missing `;` is an error, and so is the Oracle SQL*Plus-style `/` on its own line. A script without the header still accepts both, and `check` warns `MDL-V1-SEMI` / `MDL-V1-SLASH` for each one. At the REPL, where there is no header, a single command such as `LIST ENTITIES` still needs no terminator.
 
 ## Trailing Commas
 
@@ -123,7 +123,7 @@ What `mdl 1` makes strict (each is a warning without the header, with the code s
 
 ### Upgrading a script: `mxcli fmt --upgrade`
 
-`mxcli fmt --upgrade` rewrites every deprecated spelling (the `MDL-DEPRnnn` warnings) to its canonical form — `create or replace` becomes `create or modify`, `show entities` becomes `list entities`, `on error { … }` becomes `on error begin … end error` — and changes nothing else: comments, layout and keyword case are kept. A deprecated use with no mechanical rewrite is reported and left in place.
+`mxcli fmt --upgrade` rewrites every deprecated spelling (the `MDL-DEPRnnn` warnings) to its canonical form — `create or replace` becomes `create or modify`, `list entities` becomes `list entities`, `on error { … }` becomes `on error begin … end error` — and changes nothing else: comments, layout and keyword case are kept. A deprecated use with no mechanical rewrite is reported and left in place.
 
 ```bash
 mxcli fmt --upgrade script.mdl            # print the upgraded script
@@ -166,7 +166,7 @@ MDL statements fall into several categories:
 
 | Category | Examples |
 |----------|----------|
-| **Query** | `SHOW ENTITIES`, `DESCRIBE ENTITY`, `SEARCH` |
+| **Query** | `LIST ENTITIES`, `DESCRIBE ENTITY`, `SEARCH` |
 | **Domain Model** | `CREATE ENTITY`, `CREATE ASSOCIATION`, `ALTER ENTITY` |
 | **Enumerations** | `CREATE ENUMERATION`, `ALTER ENUMERATION` |
 | **Microflows** | `CREATE MICROFLOW`, `DROP MICROFLOW` |

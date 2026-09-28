@@ -168,4 +168,4 @@ CREATE OR REPLACE NAVIGATION NativePhone
 
 ## See Also
 
-[SHOW NAVIGATION](show-navigation.md)
+[LIST NAVIGATION](list-navigation.md)

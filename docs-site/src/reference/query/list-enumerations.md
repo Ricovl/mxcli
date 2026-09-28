@@ -1,8 +1,8 @@
-# SHOW ENUMERATIONS
+# LIST ENUMERATIONS
 
 ## Synopsis
 
-    SHOW ENUMERATIONS [IN <module>]
+    LIST ENUMERATIONS [IN <module>]
 
 ## Description
 
@@ -20,15 +20,15 @@ Enumerations define a fixed set of named values that can be used as attribute ty
 List all enumerations in the project:
 
 ```sql
-SHOW ENUMERATIONS
+LIST ENUMERATIONS
 ```
 
 List enumerations in a specific module:
 
 ```sql
-SHOW ENUMERATIONS IN Sales
+LIST ENUMERATIONS IN Sales
 ```
 
 ## See Also
 
-[DESCRIBE ENUMERATION](describe-enumeration.md), [SHOW ENTITIES](show-entities.md), [SHOW MODULES](show-modules.md)
+[DESCRIBE ENUMERATION](describe-enumeration.md), [LIST ENTITIES](list-entities.md), [LIST MODULES](list-modules.md)

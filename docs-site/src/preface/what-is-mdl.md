@@ -78,7 +78,7 @@ MDL provides statements for the following areas of a Mendix project:
 | Navigation | `ALTER NAVIGATION` |
 | Workflows | `CREATE WORKFLOW` |
 | Business events | `CREATE BUSINESS EVENT SERVICE` |
-| Project queries | `SHOW MODULES`, `DESCRIBE ENTITY`, `SEARCH` |
+| Project queries | `LIST MODULES`, `DESCRIBE ENTITY`, `SEARCH` |
 | Catalog | `REFRESH CATALOG`, `SELECT FROM CATALOG` |
 
 See Part II (The MDL Language) for a complete guide, or Part VI (MDL Statement Reference) for detailed syntax of each statement.

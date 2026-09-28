@@ -246,7 +246,7 @@ end;
 ### Show / Describe / Drop
 
 ```sql
-show consumed rest services [in module];
+list consumed rest services [in module];
 describe consumed rest service Module.ClientName;
 drop consumed rest service Module.ClientName;
 create or modify consumed rest service Module.ClientName ...  -- idempotent

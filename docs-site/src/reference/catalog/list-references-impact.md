@@ -1,10 +1,10 @@
-# SHOW REFERENCES / IMPACT / CONTEXT
+# LIST REFERENCES / IMPACT, DESCRIBE CONTEXT
 
 ## Synopsis
 
-    SHOW REFERENCES TO qualified_name
+    LIST REFERENCES TO qualified_name
 
-    SHOW IMPACT OF qualified_name
+    LIST IMPACT OF qualified_name
 
     DESCRIBE CONTEXT OF qualified_name [ DEPTH n ]
 
@@ -12,9 +12,9 @@
 
 These commands provide different views of cross-reference information for a given element. All three require `REFRESH CATALOG FULL` to have been run beforehand.
 
-**SHOW REFERENCES TO** lists all elements that reference the specified element. This includes microflows that use an entity, pages that display it, associations that connect to it, and any other form of reference.
+**LIST REFERENCES TO** lists all elements that reference the specified element. This includes microflows that use an entity, pages that display it, associations that connect to it, and any other form of reference.
 
-**SHOW IMPACT OF** performs an impact analysis showing what would be affected if the specified element were changed or removed. This is broader than `SHOW REFERENCES` as it considers transitive dependencies and indirect effects.
+**LIST IMPACT OF** performs an impact analysis showing what would be affected if the specified element were changed or removed. This is broader than `LIST REFERENCES` as it considers transitive dependencies and indirect effects.
 
 **DESCRIBE CONTEXT OF** assembles the surrounding context of an element -- its definition, its callers, callees, and related elements -- suitable for providing to an LLM or for understanding an element in its broader project context. The optional `DEPTH` parameter controls how many levels of related elements to include.
 
@@ -50,19 +50,19 @@ When nothing is found, the message says what was searched. An attribute named on
 
 ```sql
 REFRESH CATALOG FULL;
-SHOW REFERENCES TO Sales.Customer;
+LIST REFERENCES TO Sales.Customer;
 ```
 
 ### Analyze impact before making changes
 
 ```sql
-SHOW IMPACT OF Sales.Customer;
+LIST IMPACT OF Sales.Customer;
 ```
 
 ### Check an attribute before dropping it
 
 ```sql
-SHOW IMPACT OF Sales.Order.DiscountCode;
+LIST IMPACT OF Sales.Order.DiscountCode;
 ```
 
 ### Gather context for a microflow
@@ -80,7 +80,7 @@ DESCRIBE CONTEXT OF Sales.ACT_CreateOrder DEPTH 3;
 ### Check impact before moving an element
 
 ```sql
-SHOW IMPACT OF Sales.CustomerEdit;
+LIST IMPACT OF Sales.CustomerEdit;
 MOVE PAGE Sales.CustomerEdit TO NewModule;
 ```
 
@@ -95,4 +95,4 @@ MOVE PAGE Sales.CustomerEdit TO NewModule;
 
 ## See Also
 
-[SHOW CALLERS / CALLEES](show-callers-callees.md), [REFRESH CATALOG](refresh-catalog.md), [SELECT FROM CATALOG](select-from-catalog.md)
+[LIST CALLERS / CALLEES](list-callers-callees.md), [REFRESH CATALOG](refresh-catalog.md), [SELECT FROM CATALOG](select-from-catalog.md)

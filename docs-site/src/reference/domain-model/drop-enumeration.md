@@ -8,7 +8,7 @@
 
 `DROP ENUMERATION` removes an enumeration type from the project. Any entity attributes that reference the enumeration as their type (via `Enumeration(Module.EnumName)`) will become invalid after the enumeration is dropped.
 
-Use `SHOW IMPACT OF Module.EnumName` to check which entities and attributes reference the enumeration before dropping it.
+Use `LIST IMPACT OF Module.EnumName` to check which entities and attributes reference the enumeration before dropping it.
 
 ## Parameters
 
@@ -26,7 +26,7 @@ DROP ENUMERATION Sales.OrderStatus;
 ### Drop after checking references
 
 ```sql
-SHOW IMPACT OF Sales.OldStatus;
+LIST IMPACT OF Sales.OldStatus;
 DROP ENUMERATION Sales.OldStatus;
 ```
 

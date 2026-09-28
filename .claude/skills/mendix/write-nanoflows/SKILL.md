@@ -594,13 +594,13 @@ REVOKE EXECUTE ON NANOFLOW Shop.NAV_Filter FROM Shop.User;
 ## Management Commands
 
 ```mdl
-SHOW NANOFLOWS
-SHOW NANOFLOWS IN MyModule
+LIST NANOFLOWS
+LIST NANOFLOWS IN MyModule
 DESCRIBE NANOFLOW MyModule.NAV_ShowDetails
 DROP NANOFLOW MyModule.NAV_ShowDetails;
 RENAME NANOFLOW MyModule.NAV_OldName TO NAV_NewName;
 MOVE NANOFLOW Sales.NAV_OpenCart TO FOLDER 'UI/Navigation';
-SHOW ACCESS ON NANOFLOW MyModule.NAV_ShowDetails;
+LIST ACCESS ON NANOFLOW MyModule.NAV_ShowDetails;
 ```
 
 ## Common Mistakes
