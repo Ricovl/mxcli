@@ -759,6 +759,26 @@ func buildRuleQualifiedNames(ctx *ExecContext) map[string]bool {
 	return result
 }
 
+// buildEnumerationQualifiedNames returns a set of all enumeration qualified names in the project.
+func buildEnumerationQualifiedNames(ctx *ExecContext) map[string]bool {
+	result := make(map[string]bool)
+	h, err := getHierarchy(ctx)
+	if err != nil || h == nil {
+		return result
+	}
+	enums, err := ctx.Backend.ListEnumerations()
+	if err != nil {
+		return result
+	}
+	for _, e := range enums {
+		if e == nil {
+			continue
+		}
+		result[h.GetQualifiedName(e.ContainerID, e.Name)] = true
+	}
+	return result
+}
+
 // buildJavaActionQualifiedNames returns a set of all java action qualified names in the project.
 func buildJavaActionQualifiedNames(ctx *ExecContext) map[string]bool {
 	result := make(map[string]bool)
