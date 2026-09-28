@@ -43,7 +43,7 @@ alter project security level production;
 alter project security demo users on;
 
 create or modify module role MyFirstModule.User;
-create or modify user role ApiUser (MyFirstModule.User, System.User);
+create or modify user role ApiUser ( ModuleRoles: (MyFirstModule.User, System.User) );
 
 create or modify entity MyFirstModule.Row (
   -- CE6624: an OData key attribute needs a unique validation rule.

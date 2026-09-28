@@ -66,9 +66,38 @@ func TestDescribeWorkflow_AttachedAnnotationPassesOwnCheck(t *testing.T) {
 	if !strings.Contains(src, "Source: Receive + Set busState = New Opening") {
 		t.Errorf("the annotation text was dropped:\n%s", src)
 	}
-	if strings.Contains(src, "annotation '") {
-		t.Errorf("still emitting an `annotation` statement:\n%s", src)
+	for _, line := range strings.Split(src, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "annotation '") {
+			t.Errorf("still emitting an `annotation` statement:\n%s", src)
+		}
 	}
+	// And it is attached, not a comment: a replay keeps it (ako/mxcli#707).
+	if got := reparsedAnnotations(t, src); len(got) != 1 || got[0] != jump.Annotation {
+		t.Errorf("re-parsed annotations %q, want [%q]\n%s", got, jump.Annotation, src)
+	}
+}
+
+// reparsedAnnotations is the attached annotation of every top-level activity
+// the source re-parses into that has one.
+func reparsedAnnotations(t *testing.T, src string) []string {
+	t.Helper()
+	prog, errs := visitor.Build(src)
+	if len(errs) > 0 {
+		t.Fatalf("parse: %v\n%s", errs, src)
+	}
+	var out []string
+	for _, stmt := range prog.Statements {
+		wf, ok := stmt.(*ast.CreateWorkflowStmt)
+		if !ok {
+			continue
+		}
+		for _, a := range wf.Activities {
+			if an, ok := a.(ast.AnnotatedWorkflowActivity); ok && an.ActivityAnnotation() != "" {
+				out = append(out, an.ActivityAnnotation())
+			}
+		}
+	}
+	return out
 }
 
 // A standalone annotation (a canvas sticky note) read back from the model, which
@@ -95,10 +124,11 @@ func TestDescribeWorkflow_StandaloneAnnotationPassesOwnCheck(t *testing.T) {
 	}
 }
 
-// An annotation may contain newlines, and `--` runs to end of line — so every
-// line needs its own prefix or the tail becomes stray tokens, which is the same
-// failure mode the statement form had.
-func TestDescribeWorkflow_MultiLineAnnotationCommentsEveryLine(t *testing.T) {
+// An annotation may contain newlines. It was a `--` comment, where every line
+// needed its own prefix or the tail became stray tokens; as `@annotation '…'`
+// the newlines are inside the string, and the text re-parses unchanged
+// (ako/mxcli#707).
+func TestDescribeWorkflow_MultiLineAnnotationSurvives(t *testing.T) {
 	jump := &workflows.JumpToActivity{TargetActivity: "Review"}
 	jump.Name = "j1"
 	jump.Annotation = "first line\nsecond line\nthird line"
@@ -112,12 +142,8 @@ func TestDescribeWorkflow_MultiLineAnnotationCommentsEveryLine(t *testing.T) {
 			t.Errorf("%q missing from:\n%s", want, src)
 		}
 	}
-	for _, line := range strings.Split(src, "\n") {
-		for _, part := range []string{"second line", "third line"} {
-			if strings.Contains(line, part) && !strings.Contains(line, "--") {
-				t.Errorf("continuation line is not commented: %q", line)
-			}
-		}
+	if got := reparsedAnnotations(t, src); len(got) != 1 || got[0] != jump.Annotation {
+		t.Errorf("re-parsed annotations %q, want [%q]\n%s", got, jump.Annotation, src)
 	}
 }
 

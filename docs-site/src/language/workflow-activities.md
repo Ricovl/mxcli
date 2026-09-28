@@ -297,6 +297,28 @@ END;
 
 Typically used inside an outcome block to stop the workflow after a rejection or cancellation.
 
+## Notes (annotations)
+
+Studio Pro's notes attach to an activity. Write one as `@annotation '…'` on the
+line before the activity, as in a microflow; an event sub-process takes it before
+`EVENT SUBPROCESS`, and the note on the workflow itself is the header clause
+`ANNOTATION '…'`:
+
+```sql
+CREATE WORKFLOW Module.Approve
+  PARAMETER $WorkflowContext: Module.Request
+  ANNOTATION 'Started from the request form'
+BEGIN
+  @annotation 'Escalates after two days'
+  USER TASK Review 'Review' PAGE Module.Review_Task OUTCOMES 'Done' { };
+END WORKFLOW;
+```
+
+An activity takes one note, and no other `@` annotation. `DESCRIBE WORKFLOW`
+writes them the same way, so a replay keeps them. A standalone
+`ANNOTATION '…';` statement in the body is refused (MDL-WF04): Mendix cannot
+load a note placed in the activity flow.
+
 ## Summary Table
 
 | Activity | Purpose | Pauses Workflow? |

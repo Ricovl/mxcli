@@ -94,8 +94,14 @@ restClientParamItem
     : VARIABLE COLON dataType
     ;
 
+// A header value is a template: `{Name}` is replaced by the operation
+// parameter Name, as in the path (ako/mxcli#707). `'Bearer ' + $Token` and
+// `$Token` are the old spellings of `'Bearer {Token}'` and `'{Token}'`; they
+// used to store only the text before the `+`.
 restClientHeaderItem
-    : STRING_LITERAL EQUALS (STRING_LITERAL | VARIABLE | STRING_LITERAL PLUS VARIABLE)
+    : STRING_LITERAL EQUALS STRING_LITERAL
+    | STRING_LITERAL EQUALS /* @alias MDL-DEPR711 */ VARIABLE
+    | STRING_LITERAL EQUALS /* @alias MDL-DEPR711 */ STRING_LITERAL PLUS VARIABLE
     ;
 
 restClientMappingEntry

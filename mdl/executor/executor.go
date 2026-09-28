@@ -27,6 +27,9 @@ import (
 
 // executorCache holds cached data for performance across multiple operations.
 type executorCache struct {
+	// modulesMu guards modules, the one cache a parallel describe fills
+	// lazily (see getModulesFromCache, ako/mxcli#765).
+	modulesMu    sync.Mutex
 	modules      []*model.Module
 	units        []*types.UnitInfo
 	folders      []*types.FolderInfo

@@ -543,8 +543,12 @@ imageCollectionChild
     : IMAGE imageName LPAREN imageProperty (COMMA imageProperty)* COMMA? RPAREN   // image Logo ( File: 'logo.png' )
     ;
 
+// File: '<path>' reads the image from a file; Data: '<base64>' carries the
+// bytes in the script, which is what describe writes (ako/mxcli#707), with
+// Format: <png|jpg|gif|svg|bmp|webp> when the bytes do not say it themselves.
 imageProperty
     : identifierOrKeyword COLON STRING_LITERAL
+    | identifierOrKeyword COLON identifierOrKeyword
     ;
 
 imageCollectionItem

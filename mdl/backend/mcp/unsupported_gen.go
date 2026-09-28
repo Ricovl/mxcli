@@ -1142,6 +1142,11 @@ func (unsupportedBackend) SetProjectStrictMode(_ model.ID, _ bool) (err0 error) 
 	return
 }
 
+func (unsupportedBackend) SetUserRoleProperties(_ model.ID, _ string, _ backend.UserRoleProperties) (err0 error) {
+	err0 = errUnsupported("SetUserRoleProperties")
+	return
+}
+
 func (unsupportedBackend) UpdateAgentEditorAgent(_ *agenteditor.Agent) (err0 error) {
 	err0 = errUnsupported("UpdateAgentEditorAgent")
 	return

@@ -582,6 +582,7 @@ it is for pages.
 | Unknown annotation | — | **MDL059**. An annotation that parses and does nothing loses whatever it was meant to express, so a name the target does not read is refused — on a statement *and* before a `create`. Covers a typo (`@applyentityacces`), an annotation on a document kind that reads none (`@excluded` on a queue), and an activity annotation written at document level. The message names what that document does accept |
 | Parameter position | `@position(x, y)` before a parameter, **inside** the `( … )` list | The only annotation a parameter takes. Omit it and parameters form a row at 200;53, 300;53, …; a parameter off that row is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#993) |
 | Start event | `@start(x, y)` | Canvas position of the start, on the **first** statement. Omit it and the start is placed one spacing unit left of the first activity and MOVES with it on a rewrite; a start that is not at that derived spot is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#951) |
+| Flow anchors | `@anchor(from: bottom, to: top)`; on an `if` also `true: (from: …, to: …)`, `false: (…)` | The side each end of a flow attaches to: `to` = the flow arriving, `from` = the flow leaving. On an `if`, `from` is the flow out of its closing **merge**, which has no statement of its own (#767) |
 | Caption | `@caption 'text'` | Custom caption (before activity). A decision with no `@caption` is captioned with its condition, so `describe` prints none for one whose caption is its condition |
 | Color | `@color Green` | Background color (before activity) |
 | Annotation | `@annotation 'text'` | Visual note attached to next activity. **Repeatable** — an activity can carry several, and each is its own note |
@@ -670,7 +671,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Describe security matrix | `describe security matrix [in module];` | Full access overview |
 | Create module role | `create [or modify] module role Mod.Role [description 'text'];` | `or modify` updates an existing role instead of failing, so a security script can be re-run |
 | Drop module role | `drop module role Mod.Role;` | |
-| Create user role | `create user role Name (Mod.Role, ...) [manage all roles];` | Aggregates module roles |
+| Create user role | `create user role Name ( ModuleRoles: (Mod.Role, ...), Description: '...', ManageAllRoles: true, CheckSecurity: true );` | Aggregates module roles; every property optional, `create user role Name;` has none |
 | Alter user role | `alter user role Name add\|drop module roles (Mod.Role, ...);` | |
 | Drop user role | `drop user role [if exists] Name;` | `if exists` makes a cleanup script re-runnable |
 | Grant microflow access | `grant execute on microflow Mod.MF to Mod.Role, ...;` | |

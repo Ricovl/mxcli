@@ -302,11 +302,12 @@ func emitAnchorAnnotationWithActivityMap(
 	id := obj.GetID()
 
 	if _, isSplit := obj.(*microflows.ExclusiveSplit); isSplit {
-		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, false)
+		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, false,
+			mergeExitAnchor(id, flowsByOrigin, activityMap))
 		return
 	}
 	if _, isSplit := obj.(*microflows.InheritanceSplit); isSplit {
-		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, true)
+		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, true, "")
 		return
 	}
 	if loop, isLoop := obj.(*microflows.LoopedActivity); isLoop {
@@ -433,6 +434,22 @@ func emitMergeAnnotation(
 	*lines = append(*lines, indentStr+fmt.Sprintf("@merge(%d, %d)", p.X, p.Y))
 }
 
+// closingMergeID is the merge an ExclusiveSplit's description speaks for (its
+// @merge and the `from:` of its @anchor), or "" for anything else.
+func closingMergeID(
+	obj microflows.MicroflowObject,
+	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
+	activityMap map[model.ID]microflows.MicroflowObject,
+) model.ID {
+	if _, ok := obj.(*microflows.ExclusiveSplit); !ok || activityMap == nil {
+		return ""
+	}
+	if merge := commonMergeAfter(obj.GetID(), flowsByOrigin, activityMap); merge != nil {
+		return merge.GetID()
+	}
+	return ""
+}
+
 // commonMergeAfter returns the nearest ExclusiveMerge reachable from every
 // outgoing branch of splitID, or nil when the branches do not rejoin (each
 // returns, say).
@@ -552,6 +569,7 @@ func emitSplitAnchorAnnotation(
 	lines *[]string,
 	indentStr string,
 	preserveDefaultIncoming bool,
+	mergeExitFrom string,
 ) {
 	// Incoming flow anchor (where the previous activity's flow lands on the split).
 	var inTo string
@@ -571,11 +589,16 @@ func emitSplitAnchorAnnotation(
 		falseTo = anchorSideKeyword(falseFlow.DestinationConnectionIndex)
 	}
 
-	if inTo == "" && trueFrom == "" && trueTo == "" && falseFrom == "" && falseTo == "" {
+	if inTo == "" && trueFrom == "" && trueTo == "" && falseFrom == "" && falseTo == "" && mergeExitFrom == "" {
 		return
 	}
 
 	var parts []string
+	// `from:` on an if is the flow leaving the statement — out of its closing
+	// merge (#767). mergeExitAnchor has already dropped the default side.
+	if mergeExitFrom != "" {
+		parts = append(parts, "from: "+mergeExitFrom)
+	}
 	trueDefaultFroms := []string{anchorSideKeyword(AnchorRight), anchorSideKeyword(AnchorBottom)}
 	trueDefaultTos := []string{anchorSideKeyword(AnchorLeft)}
 	falseDefaultFroms := []string{anchorSideKeyword(AnchorBottom), anchorSideKeyword(AnchorRight)}
@@ -594,6 +617,44 @@ func emitSplitAnchorAnnotation(
 		return
 	}
 	*lines = append(*lines, indentStr+fmt.Sprintf("@anchor(%s)", strings.Join(parts, ", ")))
+}
+
+// mergeExitAnchor returns the side the flow LEAVING an if's closing merge
+// starts from, or "" when it is the default (right) or there is no such merge.
+//
+// The merge has no statement of its own, so this anchor is written as `from:`
+// on the if — the same slot `from:` has on any other statement: the flow
+// leaving it. Without it a merge-to-split flow that wraps onto a new row
+// (bottom of the merge to top of the next decision) re-executed as leaving the
+// merge's right side, back across the row above (ako/mxcli#767).
+//
+// Only an if (a split with true/false branches) has this slot; the merge is
+// found the way @merge finds it, so the two annotations name the same node.
+func mergeExitAnchor(
+	splitID model.ID,
+	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
+	activityMap map[model.ID]microflows.MicroflowObject,
+) string {
+	if activityMap == nil {
+		return ""
+	}
+	if trueFlow, falseFlow := findBranchFlows(flowsByOrigin[splitID]); trueFlow == nil && falseFlow == nil {
+		return ""
+	}
+	merge := commonMergeAfter(splitID, flowsByOrigin, activityMap)
+	if merge == nil {
+		return ""
+	}
+	for _, flow := range flowsByOrigin[merge.GetID()] {
+		if flow.IsErrorHandler {
+			continue
+		}
+		if flow.OriginConnectionIndex == AnchorRight {
+			return ""
+		}
+		return anchorSideKeyword(flow.OriginConnectionIndex)
+	}
+	return ""
 }
 
 // branchAnchorFragment builds a `key: (from: X, to: Y)` fragment for a branch
@@ -804,7 +865,9 @@ func emitObjectAnnotations(
 		// @anchor — emit whenever attached flows exist, for roundtrip fidelity.
 		// The emitter sorts out the right form (simple / split / loop) based on
 		// the object type.
-		if layout.keepsAnchor(currentID) {
+		// An if's anchor also carries the flow out of its closing merge, which
+		// has no statement of its own — so a pinned merge keeps the if's anchor.
+		if layout.keepsAnchor(currentID) || layout.keepsAnchor(closingMergeID(obj, flowsByOrigin, activityMap)) {
 			emitAnchorAnnotationWithActivityMap(obj, flowsByOrigin, flowsByDest, activityMap, lines, indentStr)
 		}
 		if layout.keepsCurve(currentID) {

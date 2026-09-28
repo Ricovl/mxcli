@@ -22,10 +22,32 @@ dropModuleRoleStatement
     : DROP MODULE ROLE ifExists? qualifiedName
     ;
 
+// A user role's properties are a ( Key: value ) list, as a scheduled event's
+// are (ako/mxcli#707, PROPOSAL_mdl_beta_syntax_freeze.md §4 Security). The
+// positional form had no slot for Description or CheckSecurity, so describe
+// printed them as comments and a replay lost them, and it required at least one
+// module role, so a role with none described into a statement that did not
+// parse. The list is optional, and may be empty: `create user role Guest;`.
+// The positional form is the deprecated alias; both start `( <name>`, and the
+// `:` after the first name tells them apart.
 createUserRoleStatement
-    : USER ROLE ifNotExists? identifierOrKeyword
+    : USER ROLE ifNotExists? identifierOrKeyword userRolePropertyList?
+    | USER ROLE ifNotExists? identifierOrKeyword /* @alias MDL-DEPR710 */
       LPAREN moduleRoleList RPAREN
       (MANAGE ALL ROLES)?
+    ;
+
+userRolePropertyList
+    : LPAREN (userRoleProperty (COMMA userRoleProperty)* COMMA?)? RPAREN
+    ;
+
+// ModuleRoles: (M.R, …) and ManageableRoles: (UserRole, …) take a list;
+// Description a string; ManageAllRoles, ManageUsersWithoutRoles and
+// CheckSecurity a boolean. The visitor refuses any other key.
+userRoleProperty
+    : identifierOrKeyword COLON LPAREN (qualifiedName (COMMA qualifiedName)*)? RPAREN
+    | identifierOrKeyword COLON STRING_LITERAL
+    | identifierOrKeyword COLON booleanLiteral
     ;
 
 alterUserRoleStatement
