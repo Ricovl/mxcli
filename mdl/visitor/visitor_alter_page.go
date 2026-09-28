@@ -176,6 +176,18 @@ func (b *Builder) buildAlterPageAssignment(ctx *parser.AlterPageAssignmentContex
 			return "EditableIf", buildConditionalExpression(xc)
 		}
 	}
+	// Visible: <expression> / Editable: <expression> — the canonical form, the
+	// expression stored as written (R5); a plain value keeps the key it had
+	// when it reached the generic alternative below.
+	if kw := visibleOrEditable(ctx.VISIBLE(), ctx.EDITABLE()); kw != nil {
+		if e := ctx.Expression(); e != nil {
+			if ctx.VISIBLE() != nil {
+				return "VisibleIf", bareArgumentText(e)
+			}
+			return "EditableIf", bareArgumentText(e)
+		}
+		return kw.GetText(), buildPropertyValueV3(ctx.PropertyValueV3())
+	}
 
 	var name string
 

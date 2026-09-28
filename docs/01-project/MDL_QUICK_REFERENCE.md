@@ -672,8 +672,8 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Revoke page access | `revoke view on page Mod.Page from Mod.Role, ...;` | |
 | Grant entity access | `grant create, delete, read *, write * on entity Mod.Entity to Mod.Role;` / `grant read * on entity Mod.Entity to Mod.Role where [Status = 'Open'];` | The XPath is in brackets, quotes written once; the old `grant Mod.Role on Mod.Entity (…) where '…'` warns MDL-DEPR030 (`fmt --upgrade` rewrites it). Additive — merges with existing. A module role must be qualified: a bare `Role` parses but is refused (MDL-GRANT02). Inherited members are named like the entity's own (`read *` covers them); an unknown name is an error. Entities extending `System.User` are the exception — their platform members must not be granted |
 | Access for members added later | — | A rule's default for new members is derived from the grant: `write *` → ReadWrite, `read *` → ReadOnly, member lists alone → **None**. So an attribute added later is granted None on a member-listed rule — clean build, blank field. `alter entity … add attribute` warns and prints the widening grant. The rule's *default* decides this, not how narrow its member list is |
-| Revoke entity access | `revoke Mod.Role on Mod.Entity;` | Full revoke — removes entire rule |
-| Revoke entity access (partial) | `revoke Mod.Role on Mod.Entity (read (attr));` | Partial — downgrades specific rights |
+| Revoke entity access | `revoke all on entity Mod.Entity from Mod.Role;` | Full revoke — removes entire rule |
+| Revoke entity access (partial) | `revoke read (attr) on entity Mod.Entity from Mod.Role;` | Partial — downgrades specific rights |
 | Set security level | `alter app security level off\|prototype\|production;` | |
 | Toggle demo users | `alter app security demo users on\|off;` | |
 | Enable guest access | `alter app security guest access on role UserRole;` | Anonymous users. The role is what visitors get — its entity access is the public surface. Mendix fails the build without one (CE0133), so `on` is refused unless a role is given or already stored. mxcli validates the role exists; Mendix does not |
@@ -709,7 +709,7 @@ mandatory and a misplaced clause failed with a token error
 (`mismatched input 'ON' expecting ';'`) that named neither the clause nor the rule.
 
 **Workflow Activity Types:**
-- `[multi] user task <name> '<caption>' [page Mod.Page] [targeting [users|groups] microflow Mod.MF] [targeting [users|groups] xpath [<xpath>]] [on created microflow Mod.MF] [entity Mod.Entity] [due date '<expr>'] [description '<text>'] [participants all|<n>|<n> percent] [decide by <rule>] [await all users] [outcomes '<out>' { } ...] [boundary event …];`
+- `[multi] user task <name> '<caption>' [page Mod.Page] [targeting [users|groups] microflow Mod.MF] [targeting [users|groups] xpath [<xpath>]] [on created microflow Mod.MF] [entity Mod.Entity] [due date <expr>] [description '<text>'] [participants all|<n>|<n> percent] [decide by <rule>] [await all users] [outcomes '<out>' { } ...] [boundary event …];`
   - **Multi-user only:** `decide by consensus|majority more than half|majority most chosen|threshold <n> percent|votes fallback '<outcome>'`, `decide by veto '<outcome>'`, `decide by microflow Mod.MF`. A fallback is required for consensus, majority and threshold (CE1866), a veto needs its outcome (CE1867), and a decision microflow returns String (CE5012) — all `MDL-WF13` / check. Omitted: all participants, consensus on the first outcome, not waiting.
   - The **task page** must take a `System.WorkflowUserTask` parameter — none at all is CE7410, none of that type is CE7412; extra parameters are allowed.
   - A **targeting microflow** takes exactly `System.Workflow` + the context entity (or a generalization of it), in either order — anything else is CE6677. Users targeting returns a list of `System.User`, groups a list of `System.WorkflowGroup`.
@@ -718,18 +718,18 @@ mandatory and a misplaced clause failed with a token error
 - `call microflow Mod.MF[(<Param> = <expr>, ...)] [as <name>] [comment '<text>'] [outcomes '<out>' -> { } ...];`
 - `call agent microflow Mod.MF [as <name>] [comment '<text>'] [with (<Param> = '<expr>', ...)] [outcomes … -> { } ...];` — an **AI agent task** (Mendix 11.9+): the call-microflow statement stored as `Workflows$AIAgentTaskActivity`. Its microflow must take at least one parameter (CE1590).
 - `call workflow Mod.WF[(<Param> = <expr>, ...)] [as <name>] [comment '<text>'];`
-- `decision [<name>] ['<expression>'] outcomes <true|false|'Module.Enum.Value'> -> { } ...;`
+- `decision [<name>] [<expression>] [comment '<caption>'] outcomes <true|false|'Module.Enum.Value'> -> { } ...;` — the expression is bare; a decision's condition, a timer and a due date written in a string (`decision '<expr>'`) warn MDL-DEPR080
 - `parallel split [<name>] path 1 { } path 2 { };`
 - `jump to <activity-name>;`
-- `wait for timer [<name>] ['<expr>'];`
+- `wait for timer [<name>] [<expr>] [comment '<caption>'];`
 - `wait for notification [<name>];`
 - `notification [<name>] [comment '<caption>'];` — an intermediate notification event (Mendix 11.11+)
 - `end workflow [comment '<caption>'];` — only inside a `{ }` block; ends the whole workflow
-- Boundary events, after `outcomes`: `boundary event [non] interrupting timer '<expr>' { … }` or `boundary event [non] interrupting notification <name> ['<caption>'] { … }` (11.11+). One interrupting event per activity (CE6697, MDL-WF15).
+- Boundary events, after `outcomes`: `boundary event [non] interrupting timer <expr> { … }` or `boundary event [non] interrupting notification <name> ['<caption>'] { … }` (11.11+). One interrupting event per activity (CE6697, MDL-WF15).
 
 **Notifying a workflow** (a microflow statement): `[$Notified =] notify workflow $Workflow target Module.Workflow.ElementName;` — the element is a notification-started event sub-process's start, a notification activity, a notification boundary event or a wait for notification, and mxcli resolves which. The target is required (CE0166, MDL-WF16).
 
-**Event sub-processes**, after the main body: `event subprocess <name> ['<caption>'] on [non] interrupting notification [<start>] ['<caption>'] { … };` (11.8+) or `… on [non] interrupting timer '<first-execution-time>' [as <start>] [comment '<caption>'] { … };` (11.13+). The body's End is implicit; a `jump to` stays in its own sub-process (CE6682, MDL-WF05); a timer needs its expression (CE0126, MDL-WF14).
+**Event sub-processes**, after the main body: `event subprocess <name> ['<caption>'] on [non] interrupting notification [<start>] ['<caption>'] { … };` (11.8+) or `… on [non] interrupting timer <first-execution-time> [as <start>] [comment '<caption>'] { … };` (11.13+). The body's End is implicit; a `jump to` stays in its own sub-process (CE6682, MDL-WF05); a timer needs its expression (CE0126, MDL-WF14).
 
 **Workflow event handlers.** `on workflow events (UserTaskStarted, UserTaskEnded)
 microflow Mod.MF as 'Task audit'` in the header runs the microflow for each listed
@@ -781,7 +781,7 @@ an enumeration return as well, and a required (`not null`) attribute does **not*
 exempt it. Boolean decisions (`true`/`false`) do not take one.
 
 ```sql
-  decision '$WorkflowContext/Kind'
+  decision $WorkflowContext/Kind
     outcomes
       'Module.Kind.Standard' -> { }
       'Module.Kind.Priority' -> { }
@@ -810,14 +810,14 @@ Modify an existing workflow's properties, activities, outcomes, paths, condition
 | Set display name | `set display 'name'` | Workflow-level display name |
 | Set description | `set description 'text'` | Workflow-level description |
 | Set export level | `set export level api\|Hidden` | Visibility level |
-| Set due date | `set due date 'expr'` | Workflow-level due date expression |
+| Set due date | `set due date <expr>` | Workflow-level due date expression |
 | Set overview page | `set overview page Module.Page` | Workflow overview page |
 | Set parameter | `set parameter $Var: Module.Entity` | Workflow context parameter |
 | Set activity page | `set activity name page Module.Page` | Change user task page |
 | Set activity description | `set activity name description 'text'` | Activity description |
 | Set activity targeting | `set activity name targeting [users\|groups] microflow Module.MF` | Target user/group assignment |
 | Set activity XPath | `set activity name targeting xpath [<xpath>]` | XPath targeting, in brackets; the quoted `xpath '[…]'` warns MDL-DEPR031 |
-| Set activity due date | `set activity name due date 'expr'` | Activity-level due date |
+| Set activity due date | `set activity name due date <expr>` | Activity-level due date |
 | Insert activity | `insert after name call microflow Module.MF` | Insert after named activity |
 | Drop activity | `drop activity name` | Remove activity by name |
 | Replace activity | `replace activity name with activity` | Replace activity in-place |
@@ -827,7 +827,7 @@ Modify an existing workflow's properties, activities, outcomes, paths, condition
 | Drop path | `drop path 'name' on activity` | Remove parallel split path |
 | Insert condition | `insert condition 'name' on activity { body }` | Add decision branch |
 | Drop condition | `drop condition 'name' on activity` | Remove decision branch |
-| Insert boundary event | `insert boundary event on activity interrupting timer ['expr'] { body }` | Add boundary timer |
+| Insert boundary event | `insert boundary event on activity interrupting timer [<expr>] { body }` | Add boundary timer |
 | Drop boundary event | `drop boundary event on activity` | Remove boundary event |
 
 **Activity references** can be identifiers (`ReviewOrder`) or string literals (`'Review the order'`). Use `@N` suffix for positional disambiguation when multiple activities share a name (e.g., `ACT_Process@2`).
@@ -861,7 +861,7 @@ alter workflow Module.OrderApproval
 
 -- Boundary events
 alter workflow Module.OrderApproval
-  insert boundary event on ReviewOrder interrupting timer 'addHours([%CurrentDateTime%], 2)' {
+  insert boundary event on ReviewOrder interrupting timer addHours([%CurrentDateTime%], 2) {
     call microflow Module.ACT_BoundaryHandler;
     jump to ReviewOrder;
   };
@@ -976,8 +976,8 @@ still flagged rather than guessed at.
 | Describe settings | `describe settings;` | Full MDL output (round-trippable) |
 | Alter model settings | `alter settings runtime (Key: value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
 | Alter configuration | `alter settings configuration 'Name' (Key: value, ...);` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
-| Alter constant | `alter settings constant 'Name' value 'val' in configuration 'cfg';` | Override constant per configuration |
-| Drop constant override | `alter settings drop constant 'Name' in configuration 'cfg';` | Reset to default value |
+| Alter constant | `alter settings constant @Module.Name value 'val' in configuration 'cfg';` | Override constant per configuration |
+| Drop constant override | `alter settings drop constant @Module.Name in configuration 'cfg';` | Reset to default value |
 | Create or modify configuration | `create or modify configuration 'Name' [key = value, ...];` | Upsert — what `describe settings` emits, so a described project replays onto a target that already has `Default` |
 | Create configuration | `create configuration 'Name' [key = value, ...];` | New server configuration. `DatabaseType` must be `Db2`, `Hsqldb`, `MySql`, `Oracle`, `PostgreSql`, `SapHana` or `SqlServer` (case-insensitive) |
 | Drop configuration | `drop configuration [if exists] 'Name';` | Remove a configuration |
@@ -1570,8 +1570,8 @@ create page MyModule.Customer_Edit
 | DesktopWidth | `column (desktopwidth: 8)` | 1-12 or AutoFill |
 | TabletWidth | `column (tabletwidth: 6)` | 1-12 or AutoFill (default: auto) |
 | PhoneWidth | `column (phonewidth: 12)` | 1-12 or AutoFill (default: auto) |
-| Visible | `textbox txt (visible: [IsActive])` | Conditional visibility (XPath expression) |
-| Editable | `textbox txt (editable: [status != 'Closed'])` | Conditional editability (XPath expression) |
+| Visible | `textbox txt (visible: $currentObject/IsActive)` | Conditional visibility: a client expression, stored as written; `visible: [IsActive]` warns MDL-DEPR081 |
+| Editable | `textbox txt (editable: $currentObject/Status != 'Closed')` | Conditional editability: a client expression, stored as written |
 | Image | `staticimage img (Image: 'Mod.Images.logo')` | Image-collection entry, `Module.Collection.Image`. Omitted → CE0436 "No image selected." |
 | DataSource (dynamicimage) | `dynamicimage img (DataSource: database from Mod.Photo)` | The entity holding the image. Omitted → CE0489 "Select an entity for the data source of this dynamic image." |
 | DefaultImage | `dynamicimage img (DefaultImage: 'Mod.Images.placeholder')` | Fallback when the object has no image |

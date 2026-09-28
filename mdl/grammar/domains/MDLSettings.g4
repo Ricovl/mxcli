@@ -13,7 +13,7 @@ options { tokenVocab = MDLLexer; }
 /**
  * ALTER SETTINGS RUNTIME ( Key: Value, ... );   (MODEL is a deprecated alias)
  * ALTER SETTINGS CONFIGURATION 'name' ( Key: Value, ... );
- * ALTER SETTINGS CONSTANT 'name' VALUE 'value' [IN CONFIGURATION 'name'];
+ * ALTER SETTINGS CONSTANT @Module.Name VALUE 'value' [IN CONFIGURATION 'name'];
  * ALTER SETTINGS LANGUAGE ( Key: Value, ... );
  * ALTER SETTINGS LANGUAGE ADD [OR MODIFY] 'ar_SD' [(Key: Value, ...)];
  * ALTER SETTINGS LANGUAGE MODIFY 'ar_SD' (Key: Value, ...);
@@ -50,10 +50,17 @@ alterSettingsClause
     | settingsSection REMOVE STRING_LITERAL
     | settingsSection settingsItemOptions                                  // runtime ( Key: value, … )
     | settingsSection settingsAssignment (COMMA settingsAssignment)*        // old spelling (MDL-DEPR060)
-    | CONSTANT STRING_LITERAL (VALUE settingsValue | DROP) (IN CONFIGURATION STRING_LITERAL)?
-    | DROP CONSTANT STRING_LITERAL (IN CONFIGURATION STRING_LITERAL)?
+    | CONSTANT settingsConstantRef (VALUE settingsValue | DROP) (IN CONFIGURATION STRING_LITERAL)?
+    | DROP CONSTANT settingsConstantRef (IN CONFIGURATION STRING_LITERAL)?
     | CONFIGURATION STRING_LITERAL settingsItemOptions                      // configuration 'X' ( Key: value, … )
     | CONFIGURATION STRING_LITERAL settingsAssignment (COMMA settingsAssignment)*  // old spelling (MDL-DEPR060)
+    ;
+
+// R5 (ako/mxcli#753): a constant is referred to one way everywhere,
+// `@Module.Const`. The quoted name is the deprecated spelling.
+settingsConstantRef
+    : AT qualifiedName
+    | STRING_LITERAL /* @alias MDL-DEPR085 */
     ;
 
 // RUNTIME is Studio Pro's tab for Settings$ModelSettings (R10); MODEL, the

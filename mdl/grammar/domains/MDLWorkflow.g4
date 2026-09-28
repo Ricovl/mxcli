@@ -41,7 +41,7 @@ workflowHeaderClause
     // rule bypasses by taking IDENTIFIER directly.
     | EXPORT LEVEL (IDENTIFIER | API | HIDDEN_KW)
     | OVERVIEW PAGE qualifiedName
-    | DUE DATE_TYPE dueDate=STRING_LITERAL
+    | DUE DATE_TYPE dueDate=workflowExpression
     | workflowEventHandlerClause
     ;
 
@@ -68,7 +68,7 @@ workflowEventSubProcess
  */
 workflowEventSubProcessTrigger
     : NOTIFICATION workflowActivityName? STRING_LITERAL?
-    | TIMER STRING_LITERAL (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
+    | TIMER workflowExpression (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
     ;
 
 /**
@@ -144,6 +144,35 @@ workflowActivityName
     ;
 
 /**
+ * A Mendix expression a workflow stores: a decision's condition, a timer's
+ * delay or first execution time, a due date. R5 (ako/mxcli#753): written bare,
+ * like every other expression in MDL — `decision $WorkflowContext/Total > 1000`.
+ *
+ * The string form (`decision '$WorkflowContext/Total > 1000'`) is the
+ * deprecated spelling of the same thing: its CONTENT is the expression, as it
+ * always was. It is listed first so a lone string keeps that reading; no slot
+ * here takes a string-valued expression (a condition is Boolean or an
+ * enumeration, a timer or due date a DateTime), so nothing written bare means
+ * a string either.
+ */
+workflowExpression
+    : STRING_LITERAL /* @alias MDL-DEPR080 */
+    | expression
+    ;
+
+/**
+ * A timer boundary event's delay. The delay is optional and the next boundary
+ * event may follow without repeating `boundary event`, so a bare delay must not
+ * start with the `non` of `non interrupting timer`, a word the expression
+ * grammar admits as a name: `interrupting timer non interrupting timer 'x'` is
+ * two events, the first without a delay, as it was when only a string could be
+ * the delay (ako/mxcli#753).
+ */
+workflowTimerDelay
+    : {p.GetTokenStream().LA(1) != MDLParserNON}? workflowExpression
+    ;
+
+/**
  * A user task. Its clauses are a SET, not a sequence — see
  * `workflowHeaderClause` for why, and `checkWorkflowClausesAtMostOnce` for the
  * half of the old rule the grammar no longer carries.
@@ -167,7 +196,7 @@ workflowUserTaskClause
     | TARGETING (USERS | GROUPS)? XPATH STRING_LITERAL /* @alias MDL-DEPR031 */
     | ON CREATED MICROFLOW qualifiedName
     | ENTITY qualifiedName
-    | DUE DATE_TYPE STRING_LITERAL
+    | DUE DATE_TYPE workflowExpression
     | DESCRIPTION STRING_LITERAL
     | OUTCOMES workflowUserTaskOutcome+
     | BOUNDARY EVENT workflowBoundaryEventClause ((BOUNDARY EVENT)? workflowBoundaryEventClause)*
@@ -218,9 +247,9 @@ workflowFallbackClause
  * with two boundary events did not parse.
  */
 workflowBoundaryEventClause
-    : INTERRUPTING TIMER STRING_LITERAL? (LBRACE workflowBody RBRACE)?
-    | NON INTERRUPTING TIMER STRING_LITERAL? (LBRACE workflowBody RBRACE)?
-    | TIMER STRING_LITERAL? (LBRACE workflowBody RBRACE)?
+    : INTERRUPTING TIMER workflowTimerDelay? (LBRACE workflowBody RBRACE)?
+    | NON INTERRUPTING TIMER workflowTimerDelay? (LBRACE workflowBody RBRACE)?
+    | TIMER workflowTimerDelay? (LBRACE workflowBody RBRACE)?
     // A notification boundary event is triggered by `notify workflow … target
     // <name>`, so its name is what matters; the string is its caption.
     | INTERRUPTING NOTIFICATION workflowActivityName? STRING_LITERAL? (LBRACE workflowBody RBRACE)?
@@ -266,7 +295,7 @@ workflowCallWorkflowStmt
     ;
 
 workflowDecisionStmt
-    : DECISION workflowActivityName? STRING_LITERAL? (COMMENT STRING_LITERAL)?
+    : DECISION workflowActivityName? workflowExpression? (COMMENT STRING_LITERAL)?
       (OUTCOMES workflowConditionOutcome+)?
     ;
 
@@ -288,7 +317,7 @@ workflowJumpToStmt
     ;
 
 workflowWaitForTimerStmt
-    : WAIT FOR TIMER workflowActivityName? STRING_LITERAL? (COMMENT STRING_LITERAL)?
+    : WAIT FOR TIMER workflowActivityName? workflowExpression? (COMMENT STRING_LITERAL)?
     ;
 
 workflowWaitForNotificationStmt
@@ -332,7 +361,7 @@ workflowSetProperty
     : DISPLAY STRING_LITERAL
     | DESCRIPTION STRING_LITERAL
     | EXPORT LEVEL (IDENTIFIER | API | HIDDEN_KW)
-    | DUE DATE_TYPE STRING_LITERAL
+    | DUE DATE_TYPE workflowExpression
     | OVERVIEW PAGE qualifiedName
     | PARAMETER VARIABLE COLON qualifiedName
     ;
@@ -343,7 +372,7 @@ activitySetProperty
     | TARGETING MICROFLOW qualifiedName
     | TARGETING XPATH xpathConstraint+
     | TARGETING XPATH STRING_LITERAL /* @alias MDL-DEPR031 */
-    | DUE DATE_TYPE STRING_LITERAL
+    | DUE DATE_TYPE workflowExpression
     ;
 
 alterActivityRef

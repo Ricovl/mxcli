@@ -58,13 +58,13 @@ ALTER SETTINGS CONFIGURATION 'default' ( HttpPortNumber: '8080' );
 Override a constant value within a specific configuration:
 
 ```sql
-ALTER SETTINGS CONSTANT '<ConstantName>' VALUE '<value>' IN CONFIGURATION '<cfg>';
+ALTER SETTINGS CONSTANT @<Module.Constant> VALUE '<value>' IN CONFIGURATION '<cfg>';
 ```
 
 Example:
 
 ```sql
-ALTER SETTINGS CONSTANT 'MyModule.ApiBaseUrl' VALUE 'https://staging.example.com' IN CONFIGURATION 'default';
+ALTER SETTINGS CONSTANT @MyModule.ApiBaseUrl VALUE 'https://staging.example.com' IN CONFIGURATION 'default';
 ```
 
 ### Language Settings

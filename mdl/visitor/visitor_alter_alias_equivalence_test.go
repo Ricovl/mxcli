@@ -23,7 +23,7 @@ func TestGenericAlter_AliasesBuildTheIdenticalOperation(t *testing.T) {
 		{"action", `set Action = call microflow M.ACT on btnGo`, `set (Action: call microflow M.ACT) on btnGo`},
 		{"named action slot", `set 'createFileAction' = call microflow M.F on up1`, `set ('createFileAction': call microflow M.F) on up1`},
 		{"datasource", `set DataSource = $Param on dv1`, `set (DataSource: $Param) on dv1`},
-		{"visible", `set Visible = [Name != ''] on txt1`, `set (Visible: [Name != '']) on txt1`},
+		{"visible", `set Visible = $currentObject/Name != '' on txt1`, `set (Visible: $currentObject/Name != '') on txt1`},
 		{"expression", `set DynamicClasses = if $x/F then 'a' else '' on c1`, `set (DynamicClasses: if $x/F then 'a' else '') on c1`},
 		{"column target", `set Caption = 'Total' on dg.Total`, `set (Caption: 'Total') on dg.Total`},
 		{"drop widget", `drop widget a, dg.Total`, `drop a, dg.Total`},

@@ -310,7 +310,7 @@ end workflow;
 -- Boundary timer: if the agent task sits unreviewed for 4 hours → auto-escalate
 alter workflow AICustSupport.CaseResolution
   insert boundary event on ReviewAIResponse interrupting
-    timer 'addHours([%CurrentDateTime%], 4)' {
+    timer addHours([%CurrentDateTime%], 4) {
       call microflow AICustSupport.ACT_Case_Escalate;
       jump to ReviewAIResponse;
     };
@@ -334,7 +334,7 @@ create constant AICustSupport."KBKey"
 -- Model document (visible in Studio Pro Agent Editor — developer UX)
 create model AICustSupport."GPT4TurboModel" (
   Provider:    MxCloudGenAI,
-  key:         AICustSupport.LLMKey,
+  key:         @AICustSupport.LLMKey,
   DisplayName: 'GPT-4 Turbo (128K context)',
   Environment: 'production'
 );
@@ -342,7 +342,7 @@ create model AICustSupport."GPT4TurboModel" (
 -- Knowledge Base for RAG: product docs and known-solution articles
 create knowledge base AICustSupport."SupportKnowledgeBase" (
   Provider: MxCloudGenAI,
-  key:      AICustSupport.KBKey
+  key:      @AICustSupport.KBKey
 );
 
 -- Consumed MCP service: real-time web search tool (MCP 2025-03-26 / A2A)

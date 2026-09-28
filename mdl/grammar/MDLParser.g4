@@ -438,8 +438,13 @@ alterAssignOp
 alterPageAssignment
     : DATASOURCE alterAssignOp dataSourceExprV3               // DataSource: selection widgetName
     | ACTION alterAssignOp actionExprV3                       // Action: MICROFLOW Module.MF | SHOW_PAGE Module.Page | SAVE_CHANGES CLOSE_PAGE
-    | VISIBLE alterAssignOp xpathConstraint                   // Visible: [Name != ''] (conditional visibility)
-    | EDITABLE alterAssignOp xpathConstraint                  // Editable: [Status = 'Open'] (conditional editability)
+    // R5 (ako/mxcli#753): the condition is a bare expression; the bracketed
+    // form is the deprecated alias. The plain value keeps its reading, ahead of
+    // the expression, as in widgetPropertyV3.
+    | VISIBLE alterAssignOp xpathConstraint /* @alias MDL-DEPR081 */  // Visible: [Name != ''] (conditional visibility)
+    | EDITABLE alterAssignOp xpathConstraint /* @alias MDL-DEPR081 */ // Editable: [Status = 'Open'] (conditional editability)
+    | (VISIBLE | EDITABLE) alterAssignOp propertyValueV3      // Visible: false, Editable: Never
+    | (VISIBLE | EDITABLE) alterAssignOp expression           // Visible: $currentObject/Name != ''
     // A pluggable widget's NAMED action slot, addressed by the widget's own key:
     // `set 'createFileAction' = microflow M.F on fileUploader1`. The ALTER-level
     // twin of widgetPropertyV3's `key: actionExprV3` (#956); without it the value

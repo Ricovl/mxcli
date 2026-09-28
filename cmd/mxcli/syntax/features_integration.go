@@ -823,8 +823,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"agent", "agents", "model", "knowledge base", "mcp service",
 			"agent editor", "llm", "ai", "genai", "mxcloudgenai",
 		},
-		Syntax:  "LIST MODELS [IN Module];\nLIST KNOWLEDGE BASES [IN Module];\nLIST CONSUMED MCP SERVICES [IN Module];\nLIST AGENTS [IN Module];\nDESCRIBE MODEL Module.Name;\nCREATE MODEL Module.Name (Provider: MxCloudGenAI, Key: Module.ApiKey);\nCREATE KNOWLEDGE BASE Module.Name (Provider: MxCloudGenAI, Key: Module.KBKey);\nCREATE CONSUMED MCP SERVICE Module.Name (ProtocolVersion: v2025_03_26, ...);\nCREATE AGENT Module.Name (UsageType: Task|Chat, Model: Module.MyModel, SystemPrompt: '...') { ... };\nDROP AGENT Module.Name;",
-		Example: "CREATE MODEL MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: MyModule.ModelApiKey\n);\n\nCREATE AGENT MyModule.Summarizer (\n  UsageType: Task,\n  Model: MyModule.GPT4,\n  SystemPrompt: 'Summarize in 3 sentences.',\n  UserPrompt: 'Enter text.'\n);",
+		Syntax:  "LIST MODELS [IN Module];\nLIST KNOWLEDGE BASES [IN Module];\nLIST CONSUMED MCP SERVICES [IN Module];\nLIST AGENTS [IN Module];\nDESCRIBE MODEL Module.Name;\nCREATE MODEL Module.Name (Provider: MxCloudGenAI, Key: @Module.ApiKey);\nCREATE KNOWLEDGE BASE Module.Name (Provider: MxCloudGenAI, Key: @Module.KBKey);\nCREATE CONSUMED MCP SERVICE Module.Name (ProtocolVersion: v2025_03_26, ...);\nCREATE AGENT Module.Name (UsageType: Task|Chat, Model: Module.MyModel, SystemPrompt: '...') { ... };\nDROP AGENT Module.Name;",
+		Example: "CREATE MODEL MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: @MyModule.ModelApiKey\n);\n\nCREATE AGENT MyModule.Summarizer (\n  UsageType: Task,\n  Model: MyModule.GPT4,\n  SystemPrompt: 'Summarize in 3 sentences.',\n  UserPrompt: 'Enter text.'\n);",
 		SeeAlso: []string{"agents.model", "agents.knowledge-base", "agents.mcp-service", "agents.agent"},
 	})
 
@@ -832,8 +832,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 		Path:     "agents.model",
 		Summary:  "CREATE/DROP MODEL documents for AI agents",
 		Keywords: []string{"create model", "drop model", "describe model", "list models", "provider", "mxcloudgenai"},
-		Syntax:   "CREATE [OR MODIFY] MODEL Module.Name [FOLDER 'path'] (\n  Provider: MxCloudGenAI,\n  Key: Module.ApiKeyConstant\n);\nDESCRIBE MODEL Module.Name;\nLIST MODELS [IN Module];\nDROP MODEL Module.Name;",
-		Example:  "create model MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: MyModule.ModelApiKey\n);",
+		Syntax:   "CREATE [OR MODIFY] MODEL Module.Name [FOLDER 'path'] (\n  Provider: MxCloudGenAI,\n  Key: @Module.ApiKeyConstant\n);\nDESCRIBE MODEL Module.Name;\nLIST MODELS [IN Module];\nDROP MODEL Module.Name;",
+		Example:  "create model MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: @MyModule.ModelApiKey\n);",
 		SeeAlso:  []string{"agents"},
 	})
 
@@ -841,8 +841,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 		Path:     "agents.knowledge-base",
 		Summary:  "CREATE/DROP KNOWLEDGE BASE documents for AI agents",
 		Keywords: []string{"create knowledge base", "drop knowledge base", "knowledge base", "kb", "rag"},
-		Syntax:   "CREATE [OR MODIFY] KNOWLEDGE BASE Module.Name [FOLDER 'path'] (\n  Provider: MxCloudGenAI,\n  Key: Module.KBApiKeyConstant\n);\nDESCRIBE KNOWLEDGE BASE Module.Name;\nLIST KNOWLEDGE BASES [IN Module];\nDROP KNOWLEDGE BASE Module.Name;",
-		Example:  "create knowledge base MyModule.ProductDocs (\n  Provider: MxCloudGenAI,\n  Key: MyModule.KBApiKey\n);",
+		Syntax:   "CREATE [OR MODIFY] KNOWLEDGE BASE Module.Name [FOLDER 'path'] (\n  Provider: MxCloudGenAI,\n  Key: @Module.KBApiKeyConstant\n);\nDESCRIBE KNOWLEDGE BASE Module.Name;\nLIST KNOWLEDGE BASES [IN Module];\nDROP KNOWLEDGE BASE Module.Name;",
+		Example:  "create knowledge base MyModule.ProductDocs (\n  Provider: MxCloudGenAI,\n  Key: @MyModule.KBApiKey\n);",
 		SeeAlso:  []string{"agents"},
 	})
 

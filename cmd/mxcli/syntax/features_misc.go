@@ -462,8 +462,8 @@ create or modify translations in Administration for nl_NL (
 		},
 		Syntax: `ALTER SETTINGS RUNTIME (<key>: <value>, ...);
 ALTER SETTINGS CONFIGURATION '<name>' (<key>: <value>, ...);
-ALTER SETTINGS CONSTANT '<qualifiedName>' VALUE '<value>' IN CONFIGURATION '<name>';
-ALTER SETTINGS DROP CONSTANT '<qualifiedName>' IN CONFIGURATION '<name>';
+ALTER SETTINGS CONSTANT @<qualifiedName> VALUE '<value>' IN CONFIGURATION '<name>';
+ALTER SETTINGS DROP CONSTANT @<qualifiedName> IN CONFIGURATION '<name>';
 ALTER SETTINGS LANGUAGE (DefaultLanguageCode: '<code>');
 ALTER SETTINGS LANGUAGE ADD '<code>' [(CheckCompleteness: true, CustomDateFormat: '<fmt>')];
 ALTER SETTINGS LANGUAGE ADD OR MODIFY '<code>' [(...)];
@@ -485,7 +485,7 @@ ALTER SETTINGS CONFIGURATION 'Default' (
   DatabaseUrl: 'localhost:5432',
   DatabaseName: 'mydb'
 );
-ALTER SETTINGS CONSTANT 'BusinessEvents.ServerUrl' VALUE 'kafka:9092'
+ALTER SETTINGS CONSTANT @BusinessEvents.ServerUrl VALUE 'kafka:9092'
   IN CONFIGURATION 'Default';
 CREATE CONFIGURATION 'Production' (
   DatabaseType: 'PostgreSql',

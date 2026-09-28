@@ -6,9 +6,9 @@
 
     ALTER SETTINGS CONFIGURATION 'name' ( key: value, ... )
 
-    ALTER SETTINGS CONSTANT 'name' VALUE 'value' IN CONFIGURATION 'config'
+    ALTER SETTINGS CONSTANT @Module.Name VALUE 'value' IN CONFIGURATION 'config'
 
-    ALTER SETTINGS DROP CONSTANT 'name' IN CONFIGURATION 'config'
+    ALTER SETTINGS DROP CONSTANT @Module.Name IN CONFIGURATION 'config'
 
     CREATE CONFIGURATION 'name' [( key: value, ... )]
 
@@ -32,7 +32,7 @@ Modifies project settings by category. Each category has its own syntax and avai
 
 **CONFIGURATION** settings control named runtime configurations. Each project can have multiple configurations (e.g., `default`, `staging`, `production`). Settings include database type, database URL, HTTP port number, and other runtime parameters. The configuration name must be enclosed in single quotes.
 
-**CONSTANT** settings override the default value of a project constant within a specific runtime configuration. Both the constant name and the configuration name must be enclosed in single quotes.
+**CONSTANT** settings override the default value of a project constant within a specific runtime configuration. The constant is named as MDL names a constant everywhere, `@Module.Name`; the configuration name is enclosed in single quotes. The older quoted constant name (`CONSTANT 'Module.Name'`) still parses and warns `MDL-DEPR085`; `mxcli fmt --upgrade` rewrites it.
 
 **LANGUAGE** settings control localization: the default language code, and the
 list of **enabled** languages — the only ones a build emits translations for.
@@ -50,8 +50,11 @@ task's group targeting selects from. Groups need Mendix **11.2** or later.
 **value**
 : The new value for the setting. String values must be enclosed in single quotes.
 
-**name** (CONFIGURATION, CONSTANT)
-: The name of the configuration or constant, enclosed in single quotes.
+**name** (CONFIGURATION)
+: The name of the configuration, enclosed in single quotes.
+
+**Module.Name** (CONSTANT)
+: The constant, written `@Module.Name`.
 
 **config** (CONSTANT only)
 : The name of the runtime configuration where the constant override applies, enclosed in single quotes.
@@ -83,7 +86,7 @@ ALTER SETTINGS CONFIGURATION 'production' ( DatabaseUrl: 'jdbc:postgresql://dbho
 ### Override a constant in a configuration
 
 ```sql
-ALTER SETTINGS CONSTANT 'MyModule.ApiBaseUrl' VALUE 'https://api.staging.example.com' IN CONFIGURATION 'staging';
+ALTER SETTINGS CONSTANT @MyModule.ApiBaseUrl VALUE 'https://api.staging.example.com' IN CONFIGURATION 'staging';
 ```
 
 An override's value is either **shared** — stored in the model, and so in version
@@ -176,7 +179,7 @@ ALTER SETTINGS RUNTIME ( JavaVersion: '17' );
 ### Remove a constant override from a configuration
 
 ```sql
-ALTER SETTINGS DROP CONSTANT 'MyModule.ApiBaseUrl' IN CONFIGURATION 'staging';
+ALTER SETTINGS DROP CONSTANT @MyModule.ApiBaseUrl IN CONFIGURATION 'staging';
 ```
 
 ### Create a new configuration

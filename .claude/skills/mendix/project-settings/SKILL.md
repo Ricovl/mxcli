@@ -133,14 +133,14 @@ show constant values;
 show constant values in MyModule;    -- Filter by module
 
 -- Override a constant value in a configuration
-alter settings constant 'BusinessEvents.ServerUrl' value 'kafka:9092'
+alter settings constant @BusinessEvents.ServerUrl value 'kafka:9092'
   in configuration 'Default';
 
 -- Without IN CONFIGURATION (uses first configuration)
-alter settings constant 'MyModule.ApiKey' value 'abc123';
+alter settings constant @MyModule.ApiKey value 'abc123';
 
 -- Remove a constant override (reset to default)
-alter settings drop constant 'MyModule.ApiKey' in configuration 'Default';
+alter settings drop constant @MyModule.ApiKey in configuration 'Default';
 ```
 
 #### Shared vs private values

@@ -26,7 +26,7 @@ import (
 // (issue #948). That is the same shape as a dropped queue binding
 // (checkNoQueuedCalls) — guard-don't-drop, ADR-0005.
 //
-// Boundary events ARE authorable (`boundary event interrupting timer '…' { … }`),
+// Boundary events ARE authorable (`boundary event interrupting timer … { … }`),
 // so a script that restates them is allowed straight through — that is the normal
 // way to edit a workflow that has one. So are event sub-processes and
 // notification activities now; only a sub-process with no start event, which MDL
@@ -173,7 +173,7 @@ func checkNoDroppedWorkflowConstructs(ctx *ExecContext, workflowID model.ID, qua
 	return mdlerrors.NewUnsupported(fmt.Sprintf(
 		"workflow %s has %d stored boundary event(s) but this statement declares %d — "+
 			"rewriting it would delete the difference, along with each one's handler flow.\n"+
-			"  Restate them (`boundary event interrupting timer '<expr>' { … }`), which "+
+			"  Restate them (`boundary event interrupting timer <expr> { … }`), which "+
 			"`describe workflow %s` now emits, or use ALTER WORKFLOW to change one activity at a time.",
 		qualifiedName, storedBE, authored, qualifiedName))
 }

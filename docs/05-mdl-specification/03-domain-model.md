@@ -398,7 +398,7 @@ grant read (Name, Email), write (Email) on entity Sales.Customer to Sales.User;
 grant read *, write * on entity Sales.Order to Sales.User where [Status = 'Open'];
 
 -- Revoke
-revoke Sales.User on Sales.Order;
+revoke all on entity Sales.Order from Sales.User;
 ```
 
 ### Access Rule Properties
