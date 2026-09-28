@@ -369,8 +369,8 @@ CREATE OR REPLACE NAVIGATION TabletOffline
 			"settings", "project settings", "configuration",
 			"startup", "shutdown", "hash algorithm", "java version",
 		},
-		Syntax:  "SHOW SETTINGS;\nDESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION '<name>';   -- just one configuration\nALTER SETTINGS RUNTIME <key> = <value>;   -- MODEL is a deprecated alias\nALTER SETTINGS CONFIGURATION '<name>' <key> = <value>;",
-		Example: "SHOW SETTINGS;\nALTER SETTINGS RUNTIME AfterStartupMicroflow = 'Module.MF_Startup';",
+		Syntax:  "SHOW SETTINGS;\nDESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION '<name>';   -- just one configuration\nALTER SETTINGS RUNTIME (<key>: <value>, ...);   -- MODEL is a deprecated alias\nALTER SETTINGS CONFIGURATION '<name>' (<key>: <value>, ...);",
+		Example: "SHOW SETTINGS;\nALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Module.MF_Startup');",
 		SeeAlso: []string{"settings.show", "settings.alter"},
 	})
 
@@ -460,33 +460,37 @@ create or modify translations in Administration for nl_NL (
 			"optimistic locking", "concurrency", "lost update",
 			"workflow group", "workflow groups", "add group", "task assignment",
 		},
-		Syntax: `ALTER SETTINGS RUNTIME <key> = <value>;
-ALTER SETTINGS CONFIGURATION '<name>' <key> = <value>, ...;
+		Syntax: `ALTER SETTINGS RUNTIME (<key>: <value>, ...);
+ALTER SETTINGS CONFIGURATION '<name>' (<key>: <value>, ...);
 ALTER SETTINGS CONSTANT '<qualifiedName>' VALUE '<value>' IN CONFIGURATION '<name>';
 ALTER SETTINGS DROP CONSTANT '<qualifiedName>' IN CONFIGURATION '<name>';
-ALTER SETTINGS LANGUAGE DefaultLanguageCode = '<code>';
+ALTER SETTINGS LANGUAGE (DefaultLanguageCode: '<code>');
 ALTER SETTINGS LANGUAGE ADD '<code>' [(CheckCompleteness: true, CustomDateFormat: '<fmt>')];
 ALTER SETTINGS LANGUAGE ADD OR MODIFY '<code>' [(...)];
 ALTER SETTINGS LANGUAGE MODIFY '<code>' (CheckCompleteness: true, ...);
 ALTER SETTINGS LANGUAGE REMOVE '<code>';
-ALTER SETTINGS WORKFLOWS UserEntity = '<qualifiedName>';
+ALTER SETTINGS WORKFLOWS (UserEntity: '<qualifiedName>');
 ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP '<name>' [(Description: '<text>')];
 ALTER SETTINGS WORKFLOWS MODIFY GROUP '<name>' (Description: '<text>');
 ALTER SETTINGS WORKFLOWS REMOVE GROUP '<name>';
-CREATE [OR MODIFY] CONFIGURATION '<name>' [<key> = <value>, ...];
-DROP CONFIGURATION '<name>';`,
-		Example: `ALTER SETTINGS RUNTIME AfterStartupMicroflow = 'Module.MF_Startup';
-ALTER SETTINGS RUNTIME HashAlgorithm = 'BCrypt';
-ALTER SETTINGS RUNTIME EnableDataStorageOptimisticLocking = true;
-ALTER SETTINGS CONFIGURATION 'Default'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'localhost:5432',
-  DatabaseName = 'mydb';
+CREATE [OR MODIFY] CONFIGURATION '<name>' [(<key>: <value>, ...)];
+DROP CONFIGURATION '<name>';
+
+-- A property is Key: value in a ( … ) list, as everywhere else in MDL (R3).
+-- Key = value, … without the parentheses still runs and warns MDL-DEPR060.`,
+		Example: `ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Module.MF_Startup');
+ALTER SETTINGS RUNTIME (HashAlgorithm: 'BCrypt', EnableDataStorageOptimisticLocking: true);
+ALTER SETTINGS CONFIGURATION 'Default' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'localhost:5432',
+  DatabaseName: 'mydb'
+);
 ALTER SETTINGS CONSTANT 'BusinessEvents.ServerUrl' VALUE 'kafka:9092'
   IN CONFIGURATION 'Default';
-CREATE CONFIGURATION 'Production'
-  DatabaseType = 'PostgreSql',
-  HttpPortNumber = 8080;
+CREATE CONFIGURATION 'Production' (
+  DatabaseType: 'PostgreSql',
+  HttpPortNumber: 8080
+);
 
 -- LANGUAGE ADD/REMOVE change the ENABLED languages — the list under App
 -- Settings > Languages, and the only languages a build emits anything for. A
@@ -719,9 +723,9 @@ CE0135 "No regular expression specified" at build time.
 
 REQUIRED and UNIQUE rules are written as attribute constraints instead, on
 CREATE ENTITY or ALTER ENTITY:
-  ALTER ENTITY Shop.Product MODIFY ATTRIBUTE Email string(200)
+  ALTER ENTITY Shop.Product MODIFY ATTRIBUTE Email: string(200)
     NOT NULL ERROR MESSAGE 'Email is required';
-  ALTER ENTITY Shop.Product MODIFY ATTRIBUTE Code string(20)
+  ALTER ENTITY Shop.Product MODIFY ATTRIBUTE Code: string(20)
     UNIQUE ERROR MESSAGE 'Code must be unique';`,
 		Example: `CREATE REGULAR EXPRESSION Shop.EmailPattern (
   Expression: '^[^@\s]+@[^@\s]+\.[^@\s]+$'

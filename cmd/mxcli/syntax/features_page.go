@@ -306,21 +306,23 @@ CREATE PAGE Sales.Detail (Title: 'Detail', Layout: Atlas_Core.Atlas_Default) {
 			"  DesignProperties: ['Full width': ON]\n\n" +
 			"ON A PAGE THAT ALREADY EXISTS, without rewriting it:\n\n" +
 			"  ALTER STYLING ON PAGE|SNIPPET Module.Name WIDGET <widgetName>\n" +
-			"    SET Class = 'css-class', Style = 'css', 'Design property' = 'Value'|ON|OFF;\n\n" +
+			"    SET (Class: 'css-class', Style: 'css', 'Design property': 'Value'|ON|OFF);\n\n" +
 			"  ALTER STYLING ON PAGE|SNIPPET Module.Name WIDGET <widgetName>\n" +
 			"    CLEAR DESIGN PROPERTIES;\n\n" +
 			"The widget is named by its MDL NAME — the identifier after the widget\n" +
 			"keyword (`ACTIONBUTTON btnSave`), not its caption. `DESCRIBE PAGE` prints\n" +
 			"the names.\n\n" +
-			"A bare `Class =` REPLACES the widget's classes rather than adding to them.\n" +
+			"A bare `Class:` REPLACES the widget's classes rather than adding to them.\n" +
 			"Read the current value first if you meant to append.\n\n" +
 			"Reach for ALTER STYLING rather than CREATE OR REPLACE PAGE whenever only\n" +
 			"the look changes: replacing the page rewrites every widget in it, so the\n" +
-			"diff is the whole document and anything MDL cannot yet spell is lost.",
+			"diff is the whole document and anything MDL cannot yet spell is lost.\n\n" +
+			"`SET Class = 'x', 'P' = ON` (no parentheses, `=`) still runs and warns\n" +
+			"MDL-DEPR062.",
 		Example: "CONTAINER ctn (\n  Class: 'my-card',\n  DynamicClasses: if $currentObject/Priority = 'High' then 'card-danger' else 'card-normal'\n) {\n  DYNAMICTEXT txt (Content: 'Styled text')\n}\n\n" +
 			"-- Restyle one widget on a page that already exists\n" +
 			"alter styling on page Sales.OrderOverview widget btnSave\n" +
-			"  set Class = 'btn-primary', 'Spacing top' = 'Large';\n\n" +
+			"  set (Class: 'btn-primary', 'Spacing top': 'Large');\n\n" +
 			"-- Back to Atlas defaults\n" +
 			"alter styling on snippet Sales.OrderRow widget ctnMain\n" +
 			"  clear design properties;",

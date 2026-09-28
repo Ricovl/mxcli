@@ -110,9 +110,6 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		if awfStmt, ok := stmt.(*ast.AlterWorkflowStmt); ok {
 			violations = append(violations, ValidateAlterWorkflow(awfStmt)...)
 		}
-		// The old ALTER PAGE / SNIPPET / LAYOUT spellings are aliases of the
-		// generic ALTER and warn with their deprecation code (MDL-DEPR101..103).
-		violations = append(violations, validateAlterAliases(stmt)...)
 		// A page element is addressed by name; a caption or @n target is
 		// refused before exec would stop on it (MDL-ALTER01).
 		violations = append(violations, validateAlterPageAddresses(stmt)...)

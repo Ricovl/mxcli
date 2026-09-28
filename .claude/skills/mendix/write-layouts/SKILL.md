@@ -96,8 +96,8 @@ survive. Same operations as `ALTER PAGE`:
 ```sql
 alter layout MyModule.App_Default {
   insert into layoutContainer.top { snippetcall bar (snippet: MyModule.SNIPPET_ThemeBar) };
-  set Content = 'My App' on brandText;
-  drop widget oldBanner;
+  set (Content: 'My App') on brandText;
+  drop oldBanner;
 };
 ```
 

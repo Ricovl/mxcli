@@ -189,9 +189,10 @@ associationOptions
     ;
 
 associationOption
-    : TYPE COLON? (REFERENCE | REFERENCE_SET)
-    | OWNER COLON? (DEFAULT | BOTH)
-    | STORAGE COLON? (COLUMN | TABLE)
+    // A clause takes no colon (R3): `type Reference`. The colon is an alias.
+    : TYPE (COLON /* @alias MDL-DEPR064 */)? (REFERENCE | REFERENCE_SET)
+    | OWNER (COLON /* @alias MDL-DEPR064 */)? (DEFAULT | BOTH)
+    | STORAGE (COLON /* @alias MDL-DEPR064 */)? (COLUMN | TABLE)
     | DELETE_BEHAVIOR /* @alias MDL-DEPR022 */ deleteBehavior errorMessageClause?
     | onDeleteClause
     | COMMENT STRING_LITERAL
@@ -268,15 +269,18 @@ alterEntityAction
     | docComment? ADD COLUMN ifNotExists? attributeDefinition
     | RENAME ATTRIBUTE attributeName TO attributeName
     | RENAME COLUMN attributeName TO attributeName
-    | MODIFY ATTRIBUTE attributeName COLON? dataType attributeConstraint*
-    | MODIFY COLUMN attributeName COLON? dataType attributeConstraint*
+    // An attribute definition is always `Name: Type` (R3). The colon is
+    // optional only so the old spelling keeps parsing: its ABSENCE is the alias.
+    | MODIFY ATTRIBUTE attributeName COLON? /* @alias MDL-DEPR065 */ dataType attributeConstraint*
+    | MODIFY COLUMN attributeName COLON? /* @alias MDL-DEPR065 */ dataType attributeConstraint*
     | DROP ATTRIBUTE ifExists? attributeName
     | DROP COLUMN ifExists? attributeName
     | DROP DEFAULT ON ATTRIBUTE attributeName   // clear an attribute's default value
     | SET DOCUMENTATION STRING_LITERAL
     | SET COMMENT STRING_LITERAL
     | SET POSITION LPAREN NUMBER_LITERAL COMMA NUMBER_LITERAL RPAREN
-    | SET ALLOW_CREATE_CHANGE_LOCALLY EQUALS (TRUE | FALSE)
+    | SET LPAREN ALLOW_CREATE_CHANGE_LOCALLY COLON (TRUE | FALSE) RPAREN    // set ( AllowCreateChangeLocally: true )
+    | SET ALLOW_CREATE_CHANGE_LOCALLY EQUALS /* @alias MDL-DEPR063 */ (TRUE | FALSE)
     | ADD INDEX ifNotExists? indexDefinition
     | DROP INDEX ifExists? indexDefinition
     | DROP INDEX ifExists? IDENTIFIER

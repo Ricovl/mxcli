@@ -163,7 +163,11 @@ alterStatement
     | alterEntitiesStatement
     | ALTER ASSOCIATION qualifiedName alterAssociationAction+
     | ALTER ENUMERATION qualifiedName alterEnumerationAction+
+    // R3 (ako/mxcli#751): `set ( Key: value, … )`, create's property list.
+    // The unparenthesised `set Key = value, …` is the old spelling.
+    | ALTER consumedODataServiceKw qualifiedName SET odataAlterPropertyList
     | ALTER consumedODataServiceKw qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
+    | ALTER publishedODataServiceKw qualifiedName SET odataAlterPropertyList
     | ALTER publishedODataServiceKw qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
     | ALTER STYLING ON (PAGE | SNIPPET) qualifiedName WIDGET IDENTIFIER alterStylingAction+
     | ALTER SETTINGS alterSettingsClause
@@ -226,16 +230,24 @@ publishedRestAlterAssignment
  * ```
  */
 alterStylingAction
-    : SET alterStylingAssignment (COMMA alterStylingAssignment)*
+    : SET LPAREN alterStylingAssignment (COMMA alterStylingAssignment)* RPAREN  // set ( Class: 'x', 'Full width': on )
+    | SET alterStylingAssignment (COMMA alterStylingAssignment)*  /* @alias MDL-DEPR062 */  // set Class = 'x'
     | CLEAR DESIGN PROPERTIES
     ;
 
+// `Key: value` is canonical (R3: `:` sets a model property); `=` is the old
+// spelling, still accepted.
+alterStylingAssignOp
+    : COLON
+    | EQUALS   /* @alias MDL-DEPR062 */
+    ;
+
 alterStylingAssignment
-    : CLASS EQUALS STRING_LITERAL                  // Class = 'my-class'
-    | STYLE EQUALS STRING_LITERAL                  // Style = 'color: red;'
-    | STRING_LITERAL EQUALS STRING_LITERAL         // 'Spacing top' = 'Large'
-    | STRING_LITERAL EQUALS ON                     // 'Full width' = ON
-    | STRING_LITERAL EQUALS OFF                    // 'Full width' = OFF
+    : CLASS alterStylingAssignOp STRING_LITERAL                  // Class: 'my-class'
+    | STYLE alterStylingAssignOp STRING_LITERAL                  // Style: 'color: red;'
+    | STRING_LITERAL alterStylingAssignOp STRING_LITERAL         // 'Spacing top': 'Large'
+    | STRING_LITERAL alterStylingAssignOp ON                     // 'Full width': ON
+    | STRING_LITERAL alterStylingAssignOp OFF                    // 'Full width': OFF
     ;
 
 /**
@@ -282,7 +294,7 @@ alterOperation
 alterSet
     : SET LAYOUT EQUALS qualifiedName (MAP LPAREN alterLayoutMapping (COMMA alterLayoutMapping)* RPAREN)?  // SET Layout = Atlas_Core.TopBar MAP (Main AS Content)
     | SET LPAREN alterPageAssignment (COMMA alterPageAssignment)* RPAREN (ON alterTarget)?  // set (Caption: 'Save', ButtonStyle: Success) on btnSave
-    | SET alterPageAssignment (ON alterTarget)?     // alias: MDL-DEPR102 — set Caption: 'Save' on btnSave
+    | SET alterPageAssignment (ON alterTarget)?     /* @alias MDL-DEPR102 */  // set Caption: 'Save' on btnSave
     ;
 
 alterLayoutMapping
@@ -299,7 +311,7 @@ alterReplace
 
 alterDrop
     : DROP alterTarget (COMMA alterTarget)*
-    | DROP WIDGET alterTarget (COMMA alterTarget)*   // alias: MDL-DEPR103 — drop widget a, b
+    | DROP WIDGET /* @alias MDL-DEPR103 */ alterTarget (COMMA alterTarget)*   // drop widget a, b
     ;
 
 // A fragment is written exactly as `create` writes the same content. Only the
@@ -420,7 +432,7 @@ alterPagesStylingAssignment
 // the old spelling, still accepted.
 alterAssignOp
     : COLON
-    | EQUALS   // alias: MDL-DEPR101 — set (Caption = 'Save') / set Caption = 'Save'
+    | EQUALS   /* @alias MDL-DEPR101 */  // set (Caption = 'Save') / set Caption = 'Save'
     ;
 
 alterPageAssignment

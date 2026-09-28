@@ -42,8 +42,9 @@ databaseQueryMapping
     ;
 
 createConfigurationStatement
-    : CONFIGURATION STRING_LITERAL
-      (settingsAssignment (COMMA settingsAssignment)*)?
+    : CONFIGURATION STRING_LITERAL settingsItemOptions?          // configuration 'X' ( Key: value, … )
+    | CONFIGURATION STRING_LITERAL
+      settingsAssignment (COMMA settingsAssignment)*             // old spelling: Key = value, … (MDL-DEPR060)
     ;
 
 /**
@@ -219,9 +220,15 @@ odataPropertyAssignment
     | identifierOrKeyword COLON expression
     ;
 
+// ALTER … SET ( Key: value, … ): exactly create's property list (R3).
+odataAlterPropertyList
+    : LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
+    ;
+
+// The old spelling of the alter list: `set Key = value, …` (R3).
 odataAlterAssignment
-    : identifierOrKeyword EQUALS odataPropertyValue
-    | identifierOrKeyword EQUALS expression
+    : identifierOrKeyword EQUALS /* @alias MDL-DEPR061 */ odataPropertyValue
+    | identifierOrKeyword EQUALS /* @alias MDL-DEPR061 */ expression
     ;
 
 odataAuthenticationClause
