@@ -313,7 +313,11 @@ the same function — and the refusal names the fragment that fits the target.
 **Removing a member: `drop X outcome 'Reject'`**, `drop Decision1 outcome true`
 (`false`, `default`), `drop Split1 path 2`, `drop X boundary event`. Removing a
 branch cannot write a wrong type; it leaves an ordinary build error (`CE6686`)
-rather than an unloadable project.
+rather than an unloadable project. `path n` addresses a **parallel split** only
+— on a user task it used to delete the n-th outcome (ako/mxcli#791) and is now
+refused; drop a user task's outcome by its value. `drop X boundary event` names
+no event, so on an activity with several it is refused under `mdl 1` (under
+`mdl 0` it drops the first and warns `MDL-V1-BOUNDARYDROP`).
 
 The old per-action statements (`alter workflow M.W set display 'X';`, `set
 activity X page …`, `insert outcome 'N' on X { }`, `drop path 'Path 2' on X`)

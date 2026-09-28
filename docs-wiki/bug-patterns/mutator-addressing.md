@@ -115,6 +115,19 @@ falling through is what silently produced a *plausible* wrong entity instead of
 an obvious empty one, which is why the failure reached mxbuild rather than the
 author.
 
+**A position is only an address inside a list of the kind it names.** A
+parallel split's paths have no name, so `path 2` is an index — and a user task
+keeps its outcomes in a list of the same field name. `drop userTask1 path 1`
+indexed that list and deleted a real outcome, loadable and silent (#791). The
+insert side had been guarded for a year (#415) because a wrong insert breaks
+loading; the drop side was left out on the reasoning that removing cannot write
+a wrong type, which is true and beside the point. Check the target's kind for
+*every* member op, reads included, and make the check one table both engines
+share (`backend.CheckWorkflowMemberList`). The old unit fixtures had built the
+split and the decision as user tasks — a test fixture of the wrong kind is how
+this class stays invisible, so the guard failing those fixtures first is the
+evidence it works.
+
 ## See also
 
 - [fix-issue findings](../../.claude/skills/fix-issue/findings/) — the individual

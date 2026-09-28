@@ -1535,6 +1535,7 @@ type wfLocation struct {
 	index     int    // the match's index within that array
 	actPath   string // full PED path to the matched activity element
 	name      string // the matched activity's own name (ref may be its caption)
+	sType     string // the matched activity's storage $Type
 	inSplit   bool   // the match sits under a parallel split at any depth
 	taken     map[string]bool
 }
@@ -1585,9 +1586,24 @@ func (m *mcpWorkflowMutator) resolve(ref string, atPos int) (wfLocation, error) 
 		index:     pick.index,
 		actPath:   fmt.Sprintf("%s/%d", pick.arrayPath, pick.index),
 		name:      pick.name,
+		sType:     pick.sType,
 		inSplit:   pick.inSplit,
 		taken:     taken,
 	}, nil
+}
+
+// resolveMember resolves the activity a member op addresses and refuses it when
+// its document does not declare the list the op reads or writes — the same
+// check wfmutator makes (backend.CheckWorkflowMemberList), before any update.
+func (m *mcpWorkflowMutator) resolveMember(ref string, atPos int, op string, list backend.WorkflowMemberList) (wfLocation, error) {
+	loc, err := m.resolve(ref, atPos)
+	if err != nil {
+		return wfLocation{}, err
+	}
+	if err := backend.CheckWorkflowMemberList(loc.sType, ref, op, list); err != nil {
+		return wfLocation{}, err
+	}
+	return loc, nil
 }
 
 // searchActivities walks an activities array and every descendant sub-flow
@@ -1864,7 +1880,7 @@ func (m *mcpWorkflowMutator) ReplaceActivity(activityRef string, atPos int, acti
 
 // InsertOutcome adds a named outcome (with an optional sub-flow) to a user task.
 func (m *mcpWorkflowMutator) InsertOutcome(activityRef string, atPos int, outcomeName string, activities []workflows.WorkflowActivity) error {
-	loc, err := m.resolve(activityRef, atPos)
+	loc, err := m.resolveMember(activityRef, atPos, "insert outcome", backend.WorkflowUserTaskOutcomes)
 	if err != nil {
 		return err
 	}
@@ -1892,7 +1908,7 @@ func (m *mcpWorkflowMutator) DropOutcome(activityRef string, atPos int, outcomeN
 
 // InsertPath adds a concurrent path (with an optional sub-flow) to a parallel split.
 func (m *mcpWorkflowMutator) InsertPath(activityRef string, atPos int, pathCaption string, activities []workflows.WorkflowActivity) error {
-	loc, err := m.resolve(activityRef, atPos)
+	loc, err := m.resolveMember(activityRef, atPos, "insert path", backend.WorkflowParallelPaths)
 	if err != nil {
 		return err
 	}
@@ -1912,9 +1928,11 @@ func (m *mcpWorkflowMutator) InsertPath(activityRef string, atPos int, pathCapti
 }
 
 // DropPath removes a parallel-split path. Paths have no stored name; the caption
-// "Path N" addresses the N-th path, and an empty caption drops the last one.
+// "Path N" addresses the N-th path. Anything else — an empty caption, or an
+// activity that is not a parallel split, whose outcomes the number would index
+// instead (ako/mxcli#791) — is refused.
 func (m *mcpWorkflowMutator) DropPath(activityRef string, atPos int, pathCaption string) error {
-	loc, err := m.resolve(activityRef, atPos)
+	loc, err := m.resolveMember(activityRef, atPos, "drop path", backend.WorkflowParallelPaths)
 	if err != nil {
 		return err
 	}
@@ -1923,25 +1941,16 @@ func (m *mcpWorkflowMutator) DropPath(activityRef string, atPos int, pathCaption
 	if err != nil {
 		return err
 	}
-	target := len(paths) - 1 // empty caption -> last
-	if pathCaption != "" {
-		target = -1
-		for i := range paths {
-			if fmt.Sprintf("Path %d", i+1) == pathCaption {
-				target = i
-				break
-			}
-		}
-	}
-	if target < 0 || target >= len(paths) {
-		return fmt.Errorf("path %q not found on parallel split %q", pathCaption, activityRef)
+	target, err := backend.ParallelPathIndex(pathCaption, activityRef, len(paths))
+	if err != nil {
+		return err
 	}
 	return m.apply(removeAtOp(actPath+"/outcomes", target))
 }
 
 // InsertBranch adds a condition branch (true/false/default/enum-value) to a decision.
 func (m *mcpWorkflowMutator) InsertBranch(activityRef string, atPos int, condition string, activities []workflows.WorkflowActivity) error {
-	loc, err := m.resolve(activityRef, atPos)
+	loc, err := m.resolveMember(activityRef, atPos, "insert outcome", backend.WorkflowConditionOutcomes)
 	if err != nil {
 		return err
 	}
@@ -1980,7 +1989,7 @@ func (m *mcpWorkflowMutator) DropBranch(activityRef string, atPos int, branchNam
 // InsertBoundaryEvent attaches a (non-)interrupting timer boundary event, with an
 // optional handler sub-flow, to a user task or call-microflow activity.
 func (m *mcpWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, eventType, delay string, activities []workflows.WorkflowActivity) error {
-	loc, err := m.resolve(activityRef, atPos)
+	loc, err := m.resolveMember(activityRef, atPos, "insert boundary event", backend.WorkflowBoundaryEvents)
 	if err != nil {
 		return err
 	}
