@@ -62,13 +62,19 @@ func describeUsesCanonicalSpellings(t *testing.T, fx fixture) {
 	}
 }
 
-// r8Codes are the registry codes R8 (#752) owns.
+// r8Codes are the registry codes R8 (#752) owns, and R9's (#755): describe
+// writes documentation as a doc comment, the folder as a clause and a workflow
+// activity's caption as `caption`.
 var r8Codes = map[string]bool{
 	deprecation.PageActionWord:         true,
 	deprecation.ErrorMessageKeyword:    true,
 	deprecation.DeleteBehaviorClause:   true,
 	deprecation.ReferenceSetUnderscore: true,
 	deprecation.ReturnsNone:            true,
+	deprecation.DocumentationClause:    true,
+	deprecation.WorkflowCommentCaption: true,
+	deprecation.FolderProperty:         true,
+	deprecation.DocumentationProperty:  true,
 }
 
 func firstDifferentLine(a, b string) string {
