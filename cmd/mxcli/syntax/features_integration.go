@@ -55,12 +55,17 @@ func init() {
 			"  ErrorHandlingMicroflow: microflow Module.HandleError\n" +
 			")\n" +
 			"[HEADERS ('Key': 'Value')];\n\n" +
+			"ALTER CONSUMED ODATA SERVICE Module.Name SET (Key: value, ...);  -- CREATE's keys\n" +
+			"ALTER PUBLISHED ODATA SERVICE Module.Name SET (Key: value, ...);\n\n" +
 			"CREATE EXTERNAL ENTITY Module.Name\n" +
 			"  FROM CONSUMED ODATA SERVICE Module.Client\n" +
 			"  (EntitySet: 'Name', RemoteName: 'Name')\n" +
 			"  (Attr: Type, ...);\n\n" +
 			"CREATE EXTERNAL ENTITIES FROM Module.Client\n" +
-			"  [INTO Module] [ENTITIES (Name1, Name2)];",
+			"  [INTO Module] [ENTITIES (Name1, Name2)];\n\n" +
+			"ALTER ENTITY Module.Name SET (AllowCreateChangeLocally: true);\n\n" +
+			"-- `SET Key = value, ...` (no parentheses) still runs and warns MDL-DEPR061;\n" +
+			"-- `SET allow_create_change_locally = true` warns MDL-DEPR063.",
 		Example: "CREATE CONSTANT MyModule.SvcUrl TYPE String DEFAULT 'https://api.example.com/odata/v4/';\n\nCREATE CONSUMED ODATA SERVICE MyModule.SalesforceAPI (\n  Version: '1.0',\n  ODataVersion: OData4,\n  MetadataUrl: 'https://api.example.com/odata/$metadata',\n  Timeout: 300,\n  ServiceUrl: MyModule.SvcUrl\n);\n\nCREATE EXTERNAL ENTITIES FROM MyModule.SalesforceAPI INTO Integration;",
 		SeeAlso: []string{"odata", "odata.publish", "odata.show"},
 	})

@@ -27,9 +27,9 @@ ALTER SETTINGS RUNTIME <Key> = <Value>;
 Examples:
 
 ```sql
-ALTER SETTINGS RUNTIME AfterStartupMicroflow = 'MyModule.ACT_Startup';
-ALTER SETTINGS RUNTIME HashAlgorithm = 'BCrypt';
-ALTER SETTINGS RUNTIME JavaVersion = '17';
+ALTER SETTINGS RUNTIME ( AfterStartupMicroflow: 'MyModule.ACT_Startup' );
+ALTER SETTINGS RUNTIME ( HashAlgorithm: 'BCrypt' );
+ALTER SETTINGS RUNTIME ( JavaVersion: '17' );
 ```
 
 Mendix renamed the Java version property between versions — up to 11.6 it is stored
@@ -48,9 +48,9 @@ ALTER SETTINGS CONFIGURATION '<Name>' <Key> = <Value>;
 Examples:
 
 ```sql
-ALTER SETTINGS CONFIGURATION 'default' DatabaseType = 'POSTGRESQL';
-ALTER SETTINGS CONFIGURATION 'default' DatabaseUrl = 'jdbc:postgresql://localhost:5432/myapp';
-ALTER SETTINGS CONFIGURATION 'default' HttpPortNumber = '8080';
+ALTER SETTINGS CONFIGURATION 'default' ( DatabaseType: 'POSTGRESQL' );
+ALTER SETTINGS CONFIGURATION 'default' ( DatabaseUrl: 'jdbc:postgresql://localhost:5432/myapp' );
+ALTER SETTINGS CONFIGURATION 'default' ( HttpPortNumber: '8080' );
 ```
 
 ### Constant Overrides
@@ -92,7 +92,7 @@ ALTER SETTINGS LANGUAGE ADD 'ar_SD' (CheckCompleteness: true, CustomDateFormat: 
 ALTER SETTINGS LANGUAGE MODIFY 'de_DE' (CheckCompleteness: true);
 
 -- make it the default (it must already be enabled)
-ALTER SETTINGS LANGUAGE DefaultLanguageCode = 'de_DE';
+ALTER SETTINGS LANGUAGE ( DefaultLanguageCode: 'de_DE' );
 
 -- disable it
 ALTER SETTINGS LANGUAGE REMOVE 'de_DE';
@@ -131,13 +131,13 @@ So the order of these two statements changes the result:
 ```sql
 -- right: the page's texts are stored as nl_NL
 ALTER SETTINGS LANGUAGE ADD 'nl_NL';
-ALTER SETTINGS LANGUAGE DefaultLanguageCode = 'nl_NL';
+ALTER SETTINGS LANGUAGE ( DefaultLanguageCode: 'nl_NL' );
 CREATE PAGE MyModule.Opslaan ( Title: 'Opslaanpagina', ... ) { ... }
 
 -- wrong: the page is authored while en_US is still the default, so its texts
 -- are stored as en_US and stay there
 CREATE PAGE MyModule.Opslaan ( Title: 'Opslaanpagina', ... ) { ... }
-ALTER SETTINGS LANGUAGE DefaultLanguageCode = 'nl_NL';
+ALTER SETTINGS LANGUAGE ( DefaultLanguageCode: 'nl_NL' );
 ```
 
 Changing `DefaultLanguageCode` **does not move text that already exists** — it
@@ -173,8 +173,8 @@ ALTER SETTINGS WORKFLOWS <Key> = <Value>;
 Examples:
 
 ```sql
-ALTER SETTINGS WORKFLOWS UserEntity = 'Administration.Account';
-ALTER SETTINGS WORKFLOWS DefaultTaskParallelism = '5';
+ALTER SETTINGS WORKFLOWS ( UserEntity: 'Administration.Account' );
+ALTER SETTINGS WORKFLOWS ( DefaultTaskParallelism: '5' );
 ```
 
 ## See Also

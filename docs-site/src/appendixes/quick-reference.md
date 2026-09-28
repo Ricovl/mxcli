@@ -83,12 +83,12 @@ CREATE CONSTANT MyModule.EnableLogging TYPE Boolean DEFAULT true;
 | List consumed odata services | `LIST CONSUMED ODATA SERVICES [IN Module];` | Consumed OData services |
 | Describe consumed odata service | `DESCRIBE CONSUMED ODATA SERVICE Module.Name;` | Full MDL output |
 | Create consumed odata service | `CREATE [OR MODIFY] CONSUMED ODATA SERVICE Module.Name (...);` | Version, MetadataUrl, Timeout, etc. |
-| Alter consumed odata service | `ALTER CONSUMED ODATA SERVICE Module.Name SET Key = Value;` | |
+| Alter consumed odata service | `ALTER CONSUMED ODATA SERVICE Module.Name SET (Key: Value, ...);` | |
 | Drop consumed odata service | `DROP CONSUMED ODATA SERVICE Module.Name;` | |
 | List published odata services | `LIST PUBLISHED ODATA SERVICES [IN Module];` | Published OData services |
 | Describe published odata service | `DESCRIBE PUBLISHED ODATA SERVICE Module.Name;` | Full MDL output |
 | Create published odata service | `CREATE [OR MODIFY] PUBLISHED ODATA SERVICE Module.Name (...) AUTHENTICATION ... { PUBLISH ENTITY ... };` | |
-| Alter published odata service | `ALTER PUBLISHED ODATA SERVICE Module.Name SET Key = Value;` | |
+| Alter published odata service | `ALTER PUBLISHED ODATA SERVICE Module.Name SET (Key: Value, ...);` | |
 | Drop published odata service | `DROP PUBLISHED ODATA SERVICE Module.Name;` | |
 | List external entities | `LIST EXTERNAL ENTITIES [IN Module];` | OData-backed entities |
 | List external actions | `LIST EXTERNAL ACTIONS [IN Module];` | Actions used in microflows |
@@ -300,11 +300,11 @@ CREATE OR REPLACE NAVIGATION Responsive
 |-----------|--------|-------|
 | List settings | `LIST SETTINGS;` | Overview of all settings parts |
 | Describe settings | `DESCRIBE SETTINGS;` | Full MDL output (round-trippable) |
-| Alter model settings | `ALTER SETTINGS RUNTIME Key = Value;` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
-| Alter configuration | `ALTER SETTINGS CONFIGURATION 'Name' Key = Value;` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
+| Alter model settings | `ALTER SETTINGS RUNTIME (Key: Value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
+| Alter configuration | `ALTER SETTINGS CONFIGURATION 'Name' (Key: Value, ...);` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
 | Alter constant | `ALTER SETTINGS CONSTANT 'Name' VALUE 'val' IN CONFIGURATION 'cfg';` | Override constant per configuration |
-| Alter language | `ALTER SETTINGS LANGUAGE Key = Value;` | DefaultLanguageCode |
-| Alter workflows | `ALTER SETTINGS WORKFLOWS Key = Value;` | UserEntity, DefaultTaskParallelism |
+| Alter language | `ALTER SETTINGS LANGUAGE (Key: Value);` | DefaultLanguageCode |
+| Alter workflows | `ALTER SETTINGS WORKFLOWS (Key: Value, ...);` | UserEntity, DefaultTaskParallelism |
 
 ## Business Events
 
@@ -421,15 +421,15 @@ Modify an existing page or snippet's widget tree in-place without full `CREATE O
 
 | Operation | Syntax | Notes |
 |-----------|--------|-------|
-| Set property | `SET Caption = 'New' ON widgetName` | Single property on a widget |
+| Set property | `SET (Caption: 'New') ON widgetName` | Single property on a widget |
 | Set multiple | `SET (Caption = 'Save', ButtonStyle = Success) ON btn` | Multiple properties at once |
-| Page-level set | `SET Title = 'New Title'` | No ON clause for page properties |
+| Page-level set | `SET (Title: 'New Title')` | No ON clause for page properties |
 | Insert after | `INSERT AFTER widgetName { widgets }` | Add widgets after target |
 | Insert before | `INSERT BEFORE widgetName { widgets }` | Add widgets before target |
 | Insert into | `INSERT INTO containerName { widgets }` | Append as the container's last child (fills an empty container) |
-| Drop widgets | `DROP WIDGET name1, name2` | Remove widgets by name |
+| Drop widgets | `DROP name1, name2` | Remove widgets by name |
 | Replace widget | `REPLACE widgetName WITH { widgets }` | Replace widget subtree |
-| Pluggable prop | `SET 'showLabel' = false ON cbStatus` | Quoted name for pluggable widgets |
+| Pluggable prop | `SET ('showLabel': false) ON cbStatus` | Quoted name for pluggable widgets |
 | Add variable | `ADD Variables $name: Type = 'expr'` | Add a page variable |
 | Drop variable | `DROP Variables $name` | Remove a page variable |
 
@@ -438,15 +438,15 @@ Modify an existing page or snippet's widget tree in-place without full `CREATE O
 **Example:**
 ```sql
 ALTER PAGE Module.EditPage {
-  SET (Caption = 'Save & Close', ButtonStyle = Success) ON btnSave;
-  DROP WIDGET txtUnused;
+  SET (Caption: 'Save & Close', ButtonStyle: Success) ON btnSave;
+  DROP txtUnused;
   INSERT AFTER txtEmail {
     TEXTBOX txtPhone (Label: 'Phone', Attribute: Phone)
   }
 };
 
 ALTER SNIPPET Module.NavMenu {
-  SET Caption = 'Dashboard' ON btnHome
+  SET (Caption: 'Dashboard') ON btnHome
 };
 ```
 

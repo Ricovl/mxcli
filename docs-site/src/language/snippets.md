@@ -94,7 +94,7 @@ Snippets support the same in-place modification operations as pages. See [ALTER 
 
 ```sql
 ALTER SNIPPET MyModule.CustomerCard {
-  SET Caption = 'View Details' ON btnEdit;
+  SET (Caption: 'View Details') ON btnEdit;
   INSERT AFTER txtEmail {
     DYNAMICTEXT txtPhone (Content: '{1}', Attribute: Phone)
   };

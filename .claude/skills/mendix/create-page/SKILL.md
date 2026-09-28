@@ -47,11 +47,11 @@ create [or replace] page Module.PageName
 page is opened in a pop-up. They are optional — omitting them uses the Mendix defaults
 (600 × 600, not resizable). Unlike the other header keywords, these property names are
 **case-sensitive** and must be written exactly as shown. They can also be changed later
-with `alter page … { set PopupWidth = …; }` (see the alter-page skill).
+with `alter page … { set (PopupWidth: …); }` (see the alter-page skill).
 
 **Page CSS class / style** (`Class` / `Style`) set the page's Appearance — a CSS class
 and inline style applied to the whole page (e.g. `Class: 'container-fluid bg-light'`).
-Both are optional and can be changed later with `alter page … { set Class = '…'; }`.
+Both are optional and can be changed later with `alter page … { set (Class: '…'); }`.
 
 **Page Variables**: Local variables at the page level for use in expressions (e.g., column visibility).
 - DataType: `boolean`, `string`, `integer`, `decimal`, `datetime`
@@ -243,7 +243,7 @@ To make targeted changes to an existing page (change a label, add a field, remov
 ```sql
 -- Change a button caption and add a field
 alter page Module.Customer_Edit {
-  set caption = 'Save & Close' on btnSave;
+  set (caption: 'Save & Close') on btnSave;
   insert after txtEmail {
     textbox txtPhone (label: 'Phone', attribute: Phone)
   }

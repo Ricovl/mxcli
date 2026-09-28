@@ -251,7 +251,7 @@ func alterSettingsLanguageRemove(ctx *ExecContext, ps *model.ProjectSettings, st
 	if strings.EqualFold(ps.Language.DefaultLanguageCode, code) {
 		return mdlerrors.NewValidationf(
 			"%s is the project's DEFAULT language and cannot be removed — every missing translation falls back on it. "+
-				"Make another language the default first: `alter settings LANGUAGE DefaultLanguageCode = '<code>'`", code)
+				"Make another language the default first: `alter settings LANGUAGE (DefaultLanguageCode: '<code>')`", code)
 	}
 
 	stored := ps.Language.Languages[idx].Code

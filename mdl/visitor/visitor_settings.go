@@ -49,22 +49,9 @@ func (b *Builder) ExitAlterSettingsClause(ctx *parser.AlterSettingsClauseContext
 		if len(allStrings) > 0 {
 			stmt.ConfigName = unquoteStringLit(allStrings[0])
 		}
-		for _, assignCtx := range ctx.AllSettingsAssignment() {
-			assign, ok := assignCtx.(*parser.SettingsAssignmentContext)
-			if !ok || assign == nil {
-				continue
-			}
-			if assign.IDENTIFIER() == nil || assign.SettingsValue() == nil {
-				continue
-			}
-			key := assign.IDENTIFIER().GetText()
-			svCtx, ok := assign.SettingsValue().(*parser.SettingsValueContext)
-			if !ok || svCtx == nil {
-				continue
-			}
-			val := settingsValueText(svCtx)
-			stmt.Properties[key] = val
-		}
+		eachSettingsProperty(ctx.SettingsItemOptions(), ctx.AllSettingsAssignment(), func(key string, sv *parser.SettingsValueContext) {
+			stmt.Properties[key] = settingsValueText(sv)
+		})
 	} else if ctx.SettingsSection() != nil && ctx.GROUP() != nil {
 		// ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP 'Approvers' [( Description: '…' )]
 		// ALTER SETTINGS WORKFLOWS MODIFY          GROUP 'Approvers'  ( Description: '…' )
@@ -92,25 +79,13 @@ func (b *Builder) ExitAlterSettingsClause(ctx *parser.AlterSettingsClauseContext
 		}
 		collectSettingsItemOptions(ctx.SettingsItemOptions(), stmt.Properties)
 	} else if ctx.SettingsSection() != nil {
-		// ALTER SETTINGS MODEL|LANGUAGE|WORKFLOWS Key = Value, ...
+		// ALTER SETTINGS RUNTIME|LANGUAGE|WORKFLOWS ( Key: Value, ... )
 		stmt.Section = settingsSectionName(ctx.SettingsSection())
-		for _, assignCtx := range ctx.AllSettingsAssignment() {
-			assign, ok := assignCtx.(*parser.SettingsAssignmentContext)
-			if !ok || assign == nil {
-				continue
-			}
-			if assign.IDENTIFIER() == nil || assign.SettingsValue() == nil {
-				continue
-			}
-			key := assign.IDENTIFIER().GetText()
-			svCtx, ok := assign.SettingsValue().(*parser.SettingsValueContext)
-			if !ok || svCtx == nil {
-				continue
-			}
-			val := settingsValueToInterface(svCtx)
-			stmt.Properties[key] = val
-		}
+		eachSettingsProperty(ctx.SettingsItemOptions(), ctx.AllSettingsAssignment(), func(key string, sv *parser.SettingsValueContext) {
+			stmt.Properties[key] = settingsValueToInterface(sv)
+		})
 	}
+	b.recordSettingsAssignments(ctx.AllSettingsAssignment())
 
 	b.statements = append(b.statements, stmt)
 }
@@ -132,23 +107,39 @@ func (b *Builder) ExitCreateConfigurationStatement(ctx *parser.CreateConfigurati
 		}
 	}
 
-	for _, assignCtx := range ctx.AllSettingsAssignment() {
-		assign, ok := assignCtx.(*parser.SettingsAssignmentContext)
-		if !ok || assign == nil {
-			continue
-		}
-		if assign.IDENTIFIER() == nil || assign.SettingsValue() == nil {
-			continue
-		}
-		key := assign.IDENTIFIER().GetText()
-		svCtx, ok := assign.SettingsValue().(*parser.SettingsValueContext)
-		if !ok || svCtx == nil {
-			continue
-		}
-		stmt.Properties[key] = settingsValueText(svCtx)
-	}
+	eachSettingsProperty(ctx.SettingsItemOptions(), ctx.AllSettingsAssignment(), func(key string, sv *parser.SettingsValueContext) {
+		stmt.Properties[key] = settingsValueText(sv)
+	})
+	b.recordSettingsAssignments(ctx.AllSettingsAssignment())
 
 	b.statements = append(b.statements, stmt)
+}
+
+// eachSettingsProperty calls f for every property of a settings list, in
+// either spelling: the canonical ( Key: value, … ) list, or the old
+// `Key = value, …` assignments (MDL-DEPR060). Both build the same statement.
+func eachSettingsProperty(opts parser.ISettingsItemOptionsContext, assigns []parser.ISettingsAssignmentContext,
+	f func(key string, sv *parser.SettingsValueContext)) {
+	if oc, ok := opts.(*parser.SettingsItemOptionsContext); ok && oc != nil {
+		for _, o := range oc.AllSettingsItemOption() {
+			so, ok := o.(*parser.SettingsItemOptionContext)
+			if !ok || so == nil || so.IdentifierOrKeyword() == nil || so.SettingsValue() == nil {
+				continue
+			}
+			if sv, ok := so.SettingsValue().(*parser.SettingsValueContext); ok && sv != nil {
+				f(unquoteIdentifier(so.IdentifierOrKeyword().GetText()), sv)
+			}
+		}
+	}
+	for _, a := range assigns {
+		assign, ok := a.(*parser.SettingsAssignmentContext)
+		if !ok || assign == nil || assign.IDENTIFIER() == nil || assign.SettingsValue() == nil {
+			continue
+		}
+		if sv, ok := assign.SettingsValue().(*parser.SettingsValueContext); ok && sv != nil {
+			f(assign.IDENTIFIER().GetText(), sv)
+		}
+	}
 }
 
 // collectSettingsItemOptions reads a ( key: value, … ) option list — the shared
