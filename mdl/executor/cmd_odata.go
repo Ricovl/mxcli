@@ -926,6 +926,9 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 					}
 				}
 			}
+			if err := checkRemoteTypes(ctx, s.Name.String(), existingEntity, attrs); err != nil {
+				return err
+			}
 			carryStoredAttributeState(existingEntity, attrs)
 			existingEntity.Attributes = attrs
 		}
