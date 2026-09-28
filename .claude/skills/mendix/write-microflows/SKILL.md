@@ -656,24 +656,24 @@ show home page;
 ```mdl
 call microflow ... on error continue;                  -- Ignore error
 call microflow ... on error rollback;                  -- Rollback on error
-call microflow ... on error { log ...; return ...; };  -- Custom handler
-call microflow ... on error without rollback { ... };  -- No rollback
+call microflow ... on error begin log ...; return ...; end error;  -- Custom handler
+call microflow ... on error without rollback begin ... end error;  -- No rollback
 ```
 
 The clause goes on whichever activity may fail, not only on calls:
 
 ```mdl
-declare $Name String = 'default' on error { return 'could not initialise'; };
-$Name = $Other/Name on error { return 'lookup failed'; };
-change $Order (Status = Shipped) on error { log error 'could not ship'; return; };
-log info node 'App' 'starting' on error { return; };
-show message 'saved' on error { return; };
+declare $Name String = 'default' on error begin return 'could not initialise'; end error;
+$Name = $Other/Name on error begin return 'lookup failed'; end error;
+change $Order (Status = Shipped) on error begin log error 'could not ship'; return; end error;
+log info node 'App' 'starting' on error begin return; end error;
+show message 'saved' on error begin return; end error;
 
 -- BLOCKING halts the client until dismissed; after `objects`, before `on error`.
 show message 'Hello {1}' type Warning with ({1} = $Name) blocking;
-validation feedback $Order/Total message 'must be positive' on error { return; };
-show page Module.Page on error { return; };
-close page on error { return; };
+validation feedback $Order/Total message 'must be positive' on error begin return; end error;
+show page Module.Page on error begin return; end error;
+close page on error begin return; end error;
 ```
 
 **Two limits, both reported rather than silently ignored:**

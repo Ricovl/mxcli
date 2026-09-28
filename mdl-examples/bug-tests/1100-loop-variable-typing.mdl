@@ -117,8 +117,8 @@ returns String
 begin
   declare $out String = '';
   retrieve $reqs from Probe.Request
-    on error {
+    on error begin
       $out = $out + 'retrieve failed';
-    };
+    end error;
   return $out;
 end;

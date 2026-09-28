@@ -212,7 +212,7 @@ func TestMicroflowTargets_NegatedIfMatchesBothForms(t *testing.T) {
 
 // errorHandlerFixture is a flow whose custom error handler holds a statement
 // that also occurs after the handled activity. Describe prints the handler's
-// copy first, inside the `on error { … }` block.
+// copy first, inside the `on error begin … end error` block.
 func errorHandlerFixture() *microflows.Microflow {
 	act := func(id string, x, y int, a microflows.MicroflowAction) *microflows.ActionActivity {
 		return &microflows.ActionActivity{
@@ -258,7 +258,7 @@ func errorHandlerFixture() *microflows.Microflow {
 	return &microflows.Microflow{ObjectCollection: oc}
 }
 
-// An activity inside an `on error { … }` block is printed, so it gets a handle
+// An activity inside an `on error begin … end error` block is printed, so it gets a handle
 // directly above it, and ordinals count it where it is printed: before the
 // main-path copy that follows the block. Ranking handler bodies after
 // everything else would make `@1` pick the activity a reader counts second.
@@ -273,7 +273,7 @@ func TestDescribeWithHandles_ErrorHandlerBody(t *testing.T) {
 			setLines = append(setLines, i)
 		}
 	}
-	if len(setLines) != 2 || !strings.Contains(got, "on error without rollback {") {
+	if len(setLines) != 2 || !strings.Contains(got, "on error without rollback begin") {
 		t.Fatalf("fixture should print the handler's set inside the block, then the main one:\n%s", got)
 	}
 
@@ -310,16 +310,21 @@ func TestDescribeWithHandles_ErrorHandlerBody(t *testing.T) {
 }
 
 // A handle has to be writable as an `alter microflow` target, and a target
-// ends at the `{` that opens a fragment. So the `{` describe prints after an
-// activity with a custom error handler is not part of its statement.
+// names the activity and ends before any fragment. So the `begin` describe
+// prints after an activity with a custom error handler, and an empty handler's
+// whole `begin end error`, are not part of its statement.
 func TestPrintedStatement_ErrorHandlerBlockOpenerIsNotPartOfTheStatement(t *testing.T) {
-	body := []string{"  commit $Order on error {", "    return false;", "  };"}
-	obj := &microflows.ActionActivity{}
-	got := printedStatement(obj, body, elkSourceRange{StartLine: 0, EndLine: 2})
-	if got != "commit $Order on error" {
-		t.Errorf("printed statement %q, want %q", got, "commit $Order on error")
-	}
-	if _, err := mfmutator.ParseTarget(got); err != nil {
-		t.Errorf("the handle does not parse as a target: %v", err)
+	for _, body := range [][]string{
+		{"  commit $Order on error begin", "    return false;", "  end error;"},
+		{"  commit $Order on error begin end error;"},
+	} {
+		obj := &microflows.ActionActivity{}
+		got := printedStatement(obj, body, elkSourceRange{StartLine: 0, EndLine: len(body) - 1})
+		if got != "commit $Order on error" {
+			t.Errorf("%q: printed statement %q, want %q", body[0], got, "commit $Order on error")
+		}
+		if _, err := mfmutator.ParseTarget(got); err != nil {
+			t.Errorf("the handle does not parse as a target: %v", err)
+		}
 	}
 }

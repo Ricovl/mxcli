@@ -10,7 +10,7 @@ package executor
 //
 // The case this exists for is an ERROR path that rejoins the normal one. Before
 // it, `collectErrorHandlerStatements` stopped dead at the merge and emitted an
-// empty `on error … { }` block — MDL that re-executes to a DIFFERENT graph, with
+// empty `on error … begin end error` block — MDL that re-executes to a DIFFERENT graph, with
 // no warning. Measured: repointing SUB_Feedback_SendToServer's error edge from
 // the tail merge to an upstream one produced byte-identical MDL, and executing
 // it reproduced the tail-merge graph.
@@ -326,7 +326,7 @@ func droppedMergeWarnings(ctx *ExecContext, oc *microflows.MicroflowObjectCollec
 
 // fallThroughRejoinMerge returns the merge where the custom error handler of
 // source rejoins the normal path when that rejoin is a FALL-THROUGH — the shape
-// `on error { … };` with no `join` builds — and "" otherwise.
+// `on error begin … end error;` with no `join` builds — and "" otherwise.
 //
 // A fall-through is exactly this, and anything looser is a goto the labels must
 // keep spelling:

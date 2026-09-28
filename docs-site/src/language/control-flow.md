@@ -170,6 +170,8 @@ END WHILE;
 
 > **Caution:** Ensure the condition will eventually become false to avoid infinite loops.
 
+`BEGIN` and `END WHILE` are required under the `mdl 1;` header, as they are for `LOOP`. A script without the header may still leave either out, and `check` warns `MDL-V1-WHILE`.
+
 ## Error Handling
 
 ### ON ERROR Suffix
@@ -197,13 +199,15 @@ DELETE $Order ON ERROR ROLLBACK;
 Executes a custom error handling block when the activity fails:
 
 ```sql
-COMMIT $Order ON ERROR {
+COMMIT $Order ON ERROR BEGIN
   LOG ERROR 'Failed to commit order: ' + $Order/OrderNumber;
   ROLLBACK $Order;
-};
+END ERROR;
 ```
 
 The handler block can contain any activities -- logging, rollback, showing validation messages, etc.
+
+The handler is flow, so it is written `BEGIN … END ERROR` like every other flow block; add `WITHOUT ROLLBACK` before `BEGIN` to keep the database changes made so far. The older brace form, `ON ERROR { … }`, still parses and builds the same handler, with warning `MDL-DEPR540`; `mxcli fmt --upgrade` rewrites it.
 
 A handler that does not end in `RETURN` or `RAISE ERROR` falls through: after it
 runs, the microflow continues with the statement after the activity, through a
@@ -221,10 +225,10 @@ RETRIEVE $Config FROM Admin.SystemConfig LIMIT 1 ON ERROR CONTINUE;
 -- Custom error handler for external call
 $Response = CALL MICROFLOW Integration.CallExternalAPI (
   Payload = $RequestBody
-) ON ERROR {
+) ON ERROR BEGIN
   LOG ERROR NODE 'Integration' 'External API call failed';
   SET $Response = empty;
-};
+END ERROR;
 
 -- Rollback on commit failure
 COMMIT $Order ON ERROR ROLLBACK;
@@ -236,13 +240,13 @@ COMMIT $Order ON ERROR ROLLBACK;
 
 `RAISE ERROR` builds Mendix's **error event**, which re-raises the error currently
 being handled. Mendix allows one only where an error is in scope, so it belongs
-inside an `ON ERROR { ... }` block:
+inside an `ON ERROR BEGIN ... END ERROR` block:
 
 ```sql
-CALL MICROFLOW Integration.CallExternalAPI (Payload = $Body) ON ERROR {
+CALL MICROFLOW Integration.CallExternalAPI (Payload = $Body) ON ERROR BEGIN
   LOG ERROR NODE 'Integration' 'API call failed, re-raising';
   RAISE ERROR;
-};
+END ERROR;
 ```
 
 On the **main flow** it is refused as **MDL084**, at any nesting depth — inside an
@@ -331,7 +335,7 @@ The following constructs are **not** supported in MDL and will cause parse error
 | Unsupported | Use Instead |
 |-------------|-------------|
 | `CASE ... WHEN 'String' ... ELSE ...` | Bare enum values and a branch per value — see [CASE (Enum Split)](#case-enum-split); `CASE` itself is supported |
-| `TRY ... CATCH ... END TRY` | `ON ERROR { ... }` blocks on individual activities |
+| `TRY ... CATCH ... END TRY` | `ON ERROR BEGIN ... END ERROR` blocks on individual activities |
 
 ## Complete Example
 
@@ -356,11 +360,11 @@ BEGIN
     @caption 'Process order'
     CALL MICROFLOW Sales.SUB_ProcessSingleOrder (
       Order = $Order
-    ) ON ERROR {
+    ) ON ERROR BEGIN
       LOG ERROR 'Failed to process order: ' + $Order/OrderNumber;
       SET $ErrorCount = $ErrorCount + 1;
       CONTINUE;
-    };
+    END ERROR;
 
     SET $SuccessCount = $SuccessCount + 1;
   END LOOP;

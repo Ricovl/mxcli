@@ -44,7 +44,7 @@ begin
   synchronize unsynchronized;          -- Mendix 9.4+ (version-gated)
   synchronize $Order;                  -- Specific mode
   synchronize all on error continue;
-  synchronize all on error without rollback {
+  synchronize all on error without rollback begin
     log error 'sync failed';
-  };
+  end error;
 end;

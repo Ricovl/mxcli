@@ -249,10 +249,10 @@ begin
   declare $out string = 'EMPTY';
   declare $Json string = '{"id": 1, "name": "Fido", "status": "available"}';
   $Pet = import from mapping MapUse.IMM_Pet($Json)
-    on error {
+    on error begin
       set $out = 'import failed';
       return $out;
-    };
+    end error;
   if $Pet != empty then
     set $out = $Pet/Name;
   end if;

@@ -170,14 +170,14 @@ AUTHENTICATION Basic, Session
 | WHILE | `WHILE condition BEGIN ... END WHILE;` | Condition-based loop |
 | Return | `RETURN $value;` | Required at end of every flow path |
 | Execute DB query | `$Result = EXECUTE DATABASE QUERY Module.Conn.Query;` | 3-part name; supports DYNAMIC, params, CONNECTION override |
-| Error handling | `... ON ERROR CONTINUE\|ROLLBACK\|{ handler };` | Not supported on EXECUTE DATABASE QUERY |
+| Error handling | `... ON ERROR CONTINUE\|ROLLBACK\|[WITHOUT ROLLBACK] BEGIN handler END ERROR;` | Not supported on EXECUTE DATABASE QUERY |
 
 ## Microflows - NOT Supported (Will Cause Parse Errors)
 
 | Unsupported | Use Instead | Notes |
 |-------------|-------------|-------|
 | `CASE ... WHEN 'String' ... ELSE ...` | Bare enum values, one branch per value | `CASE` itself IS supported for **enum splits**; what fails is quoted/qualified values, an `ELSE` branch (MDL008), and an `AS` alias |
-| `TRY ... CATCH ... END TRY` | `ON ERROR { ... }` blocks | Use error handlers on specific activities |
+| `TRY ... CATCH ... END TRY` | `ON ERROR BEGIN ... END ERROR` blocks | Use error handlers on specific activities |
 
 **Notes:**
 - `RETRIEVE ... FIRST` returns a single entity; `RETRIEVE ... LIMIT n [OFFSET n]` returns a list. A bare `LIMIT 1` is a list of one under `mdl 1;`, and without the header the single entity, with warning `MDL-V1-LIMIT1`.

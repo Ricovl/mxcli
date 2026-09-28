@@ -528,9 +528,9 @@ synchronize unsynchronized;      -- only objects with uncommitted offline change
 synchronize $Order, $Lines;      -- named objects/lists ("Specific" mode)
 
 synchronize all on error continue;
-synchronize all on error without rollback {
+synchronize all on error without rollback begin
   log error 'sync failed';
-};
+end error;
 ```
 
 The mode is always written out, including `all` — the statement says what it does

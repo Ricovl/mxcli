@@ -135,11 +135,11 @@ BEGIN
   BEGIN
     CALL MICROFLOW Sales.SUB_ProcessOrder (
       Order = $Order
-    ) ON ERROR {
+    ) ON ERROR BEGIN
       LOG ERROR NODE 'BatchProcess' 'Failed to process order: ' + $Order/OrderNumber;
       SET $ErrorCount = $ErrorCount + 1;
       CONTINUE;
-    };
+    END ERROR;
 
     SET $SuccessCount = $SuccessCount + 1;
   END LOOP;
@@ -266,19 +266,19 @@ BEGIN
   @caption 'Call external API'
   $Response = CALL MICROFLOW Integration.SUB_CallExternalAPI (
     Config = $Config
-  ) ON ERROR {
+  ) ON ERROR BEGIN
     LOG ERROR NODE 'Integration' 'External API call failed';
     RETURN false;
-  };
+  END ERROR;
 
   IF $Response != empty THEN
     @caption 'Process response'
     CALL MICROFLOW Integration.SUB_ProcessResponse (
       Response = $Response
-    ) ON ERROR {
+    ) ON ERROR BEGIN
       LOG ERROR NODE 'Integration' 'Failed to process response';
       RETURN false;
-    };
+    END ERROR;
     SET $Success = true;
   END IF;
 

@@ -256,7 +256,7 @@ Before writing any MDL, verify these requirements:
 - `if condition then ... [else ...] end if;`
 - `loop $item in $list begin ... end loop;`
 - `return $value;`
-- `on error continue|rollback|{ handler };`
+- `on error continue|rollback|[without rollback] begin handler end error;`
 
 **Now Supported (previously not):**
 - `rollback $entity [refresh];` - Reverts uncommitted changes

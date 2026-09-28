@@ -137,12 +137,12 @@ RETURN $value;
 -- Suffix on any activity (except EXECUTE DATABASE QUERY)
 activity ON ERROR CONTINUE;
 activity ON ERROR ROLLBACK;
-activity ON ERROR {
+activity ON ERROR BEGIN
     handler_statements
-};
+END ERROR;
 ```
 
-Error handling is attached as a suffix to an individual activity. `ON ERROR CONTINUE` suppresses the error and continues. `ON ERROR ROLLBACK` rolls back the current transaction. `ON ERROR { ... }` executes custom error-handling logic.
+Error handling is attached as a suffix to an individual activity. `ON ERROR CONTINUE` suppresses the error and continues. `ON ERROR ROLLBACK` rolls back the current transaction. `ON ERROR BEGIN ... END ERROR` executes custom error-handling logic.
 
 ### Annotations
 
@@ -257,11 +257,11 @@ BEGIN
 
     $Result = CALL MICROFLOW Integration.SUB_FetchExternalData (
         SyncResult = $Result
-    ) ON ERROR {
+    ) ON ERROR BEGIN
         CHANGE $Result (Status = 'Failed');
         COMMIT $Result;
         LOG ERROR NODE 'Integration' 'Sync failed';
-    };
+    END ERROR;
 
     CHANGE $Result (
         Status = 'Completed',

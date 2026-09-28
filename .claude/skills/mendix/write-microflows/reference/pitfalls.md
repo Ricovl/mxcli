@@ -443,9 +443,9 @@ CATCH
 end TRY;
 
 -- CORRECT: Use ON ERROR on specific activities
-commit $Order on error {
+commit $Order on error begin
   log error 'Commit failed';
-};
+end error;
 ```
 
 ### BREAK/CONTINUE in Loops
