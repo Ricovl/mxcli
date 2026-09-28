@@ -484,7 +484,7 @@ list in mxcli:
 Ask the widget:
 
 ```sql
-DESCRIBE WIDGET htmlelement;
+DESCRIBE WIDGET TYPE htmlelement;
 ```
 
 It lists every property with its type, default and enumeration members, every

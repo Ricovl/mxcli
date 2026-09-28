@@ -23,9 +23,9 @@ list regular expressions;
 list regular expressions in Val;
 describe regular expression Val.EmailAddress;   -- re-executable MDL
 
+/** A, not too restrictive, email address regular expression */
 create regular expression Val.EmailAddress (
-  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+',
-  Documentation: 'A, not too restrictive, email address regular expression'
+  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+'
 );
 
 drop regular expression Val.EmailAddress;
@@ -102,7 +102,7 @@ create entity Val.Person (
   Code:  String(20)  unique error message 'Code must be unique'
 );
 
-alter entity Val.Person modify attribute Email String(200)
+alter entity Val.Person modify attribute Email: String(200)
   not null error message 'Email is required';
 ```
 

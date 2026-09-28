@@ -87,9 +87,15 @@ func describeJsonStructure(ctx *ExecContext, name ast.QualifiedName) error {
 
 	qualifiedName := fmt.Sprintf("%s.%s", modName, js.Name)
 
-	// Documentation as doc comment
+	// Documentation as doc comment (R9). A text with `*/` in it would end the
+	// doc comment early, so it keeps the deprecated `comment '…'` clause.
+	docClause := false
 	if js.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", js.Documentation)
+		if !strings.Contains(js.Documentation, "*/") {
+			fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", strings.ReplaceAll(js.Documentation, "\n", "\n * "))
+		} else {
+			docClause = true
+		}
 	}
 
 	// Re-executable CREATE OR MODIFY statement
@@ -97,7 +103,7 @@ func describeJsonStructure(ctx *ExecContext, name ast.QualifiedName) error {
 	if folderPath := h.BuildFolderPath(js.ContainerID); folderPath != "" {
 		fmt.Fprintf(ctx.Output, "\n  folder '%s'", folderPath)
 	}
-	if js.Documentation != "" {
+	if docClause {
 		fmt.Fprintf(ctx.Output, "\n  comment '%s'", strings.ReplaceAll(js.Documentation, "'", "''"))
 	}
 

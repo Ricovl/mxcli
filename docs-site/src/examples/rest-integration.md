@@ -8,7 +8,7 @@ Calling external APIs from microflows -- GET, POST, authentication, and error ha
 CREATE MICROFLOW Integration.FetchWebpage ()
 RETURNS String AS $Content
 BEGIN
-  $Content = REST CALL GET 'https://example.com/api/status'
+  $Content = CALL REST SERVICE GET 'https://example.com/api/status'
     HEADER Accept = 'application/json'
     TIMEOUT 30
     RETURNS String;
@@ -26,7 +26,7 @@ CREATE MICROFLOW Integration.SearchProducts (
 )
 RETURNS String AS $Response
 BEGIN
-  $Response = REST CALL GET 'https://api.example.com/search?q={1}&page={2}' WITH (
+  $Response = CALL REST SERVICE GET 'https://api.example.com/search?q={1}&page={2}' WITH (
     {1} = urlEncode($Query),
     {2} = toString($Page)
   )
@@ -47,7 +47,7 @@ CREATE MICROFLOW Integration.CreateCustomer (
 )
 RETURNS String AS $Response
 BEGIN
-  $Response = REST CALL POST 'https://api.example.com/customers'
+  $Response = CALL REST SERVICE POST 'https://api.example.com/customers'
     HEADER 'Content-Type' = 'application/json'
     BODY '{{"name": "{1}", "email": "{2}"}' WITH (
       {1} = $Name,
@@ -73,7 +73,7 @@ CREATE MICROFLOW Integration.UploadDocument (
 RETURNS Boolean AS $Ok
 BEGIN
   DECLARE $Ok Boolean = false;
-  $Response = REST CALL POST 'https://api.example.com/documents'
+  $Response = CALL REST SERVICE POST 'https://api.example.com/documents'
     HEADER 'ContentType' = 'application/pdf'
     BODY BINARY $Doc/Contents
     TIMEOUT 300
@@ -104,7 +104,7 @@ CREATE MICROFLOW Integration.FetchSecureData (
 )
 RETURNS String AS $Response
 BEGIN
-  $Response = REST CALL GET 'https://api.example.com/secure/data'
+  $Response = CALL REST SERVICE GET 'https://api.example.com/secure/data'
     HEADER Accept = 'application/json'
     AUTH BASIC $Username PASSWORD $Password
     TIMEOUT 30
@@ -126,7 +126,7 @@ RETURNS Boolean AS $Success
 BEGIN
   DECLARE $Success Boolean = false;
 
-  $Response = REST CALL GET $Url
+  $Response = CALL REST SERVICE GET $Url
     HEADER Accept = 'application/json'
     TIMEOUT 30
     RETURNS String
@@ -251,16 +251,16 @@ CREATE CONSUMED REST SERVICE Integration.OrdersApi (
   Authentication: NONE
 )
 {
-  OPERATION GetOrder {
+  OPERATION GetOrder (
     Method: GET,
     Path: '/orders/{id}',
     Parameters: ($id: String),
     Headers: ('Accept' = 'application/json'),
     Timeout: 30,
     Response: JSON AS $Result
-  }
+  )
 
-  OPERATION CreateOrder {
+  OPERATION CreateOrder (
     Method: POST,
     Path: '/orders',
     Headers: ('Content-Type' = 'application/json'),
@@ -274,7 +274,7 @@ CREATE CONSUMED REST SERVICE Integration.OrdersApi (
       Status = status,
       CreatedAt = createdAt,
     }
-  }
+  )
 };
 ```
 
@@ -286,14 +286,14 @@ CREATE OR MODIFY CONSUMED REST SERVICE Integration.OrdersApi (
   Authentication: BASIC (Username: 'apiuser', Password: 'secret')
 )
 {
-  OPERATION GetOrder {
+  OPERATION GetOrder (
     Method: GET,
     Path: '/orders/{id}',
     Parameters: ($id: String),
     Headers: ('Accept' = 'application/json'),
     Timeout: 60,
     Response: JSON AS $Result
-  }
+  )
 };
 ```
 

@@ -57,22 +57,22 @@ create association MsgTest.OrderLine_Order from MsgTest.OrderLine to MsgTest.Ord
 
 create message definition collection MsgTest.MD_Order
   folder 'Messages'
-(
-  definition OrderMessage for MsgTest.Order as 'Orders' (
+{
+  definition OrderMessage for MsgTest.Order as 'Orders' {
     OrderId,
     OrderDate,
     TotalAmount as 'Total',
-    MsgTest.OrderLine_Order/MsgTest.OrderLine as 'Lines' (
+    MsgTest.OrderLine_Order/MsgTest.OrderLine as 'Lines' {
       Sku,
       Quantity
-    ),
-    MsgTest.Order_Customer/MsgTest.Customer (
+    },
+    MsgTest.Order_Customer/MsgTest.Customer {
       FirstName,
       LastName,
       Address example 'Kerstraat 5, Leiden, Netherlands'
-    )
-  )
-);
+    }
+  }
+};
 
 -- ============================================================================
 -- Level 2: several definitions, and the same association both ways
@@ -84,16 +84,16 @@ create message definition collection MsgTest.MD_Order
 
 create or modify message definition collection MsgTest.MD_Order
   folder 'Messages'
-(
-  definition OrderMessage for MsgTest.Order as 'Orders' (
+{
+  definition OrderMessage for MsgTest.Order as 'Orders' {
     OrderId,
-    MsgTest.Order_Customer/MsgTest.Customer ( FirstName )
-  ),
-  definition CustomerOrders for MsgTest.Customer as 'Customers' (
+    MsgTest.Order_Customer/MsgTest.Customer { FirstName }
+  },
+  definition CustomerOrders for MsgTest.Customer as 'Customers' {
     FirstName,
-    MsgTest.Order_Customer/MsgTest.Order as 'Orders' ( OrderId, OrderDate )
-  )
-);
+    MsgTest.Order_Customer/MsgTest.Order as 'Orders' { OrderId, OrderDate }
+  }
+};
 
 -- ============================================================================
 -- Level 3: targeted edits
@@ -118,7 +118,7 @@ alter message definition MsgTest.MD_Order.OrderMessage drop member LastName in C
 
 -- Definitions within the collection.
 alter message definition collection MsgTest.MD_Order
-  add definition LineMessage for MsgTest.OrderLine ( Sku, Quantity );
+  add definition LineMessage for MsgTest.OrderLine { Sku, Quantity };
 alter message definition collection MsgTest.MD_Order rename definition LineMessage to Lines;
 alter message definition collection MsgTest.MD_Order drop definition if exists Lines;
 

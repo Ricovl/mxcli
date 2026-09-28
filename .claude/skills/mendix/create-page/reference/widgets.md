@@ -842,7 +842,7 @@ conditional visibility — or put the condition in the microflow it calls:
 ```sql
 actionbutton btnSubmit (
   caption: 'Submit', action: call microflow Mod.ACT_Submit,
-  visible: [$currentObject/Status = Mod.Status.Draft]
+  visible: $currentObject/Status = Mod.Status.Draft
 )
 ```
 

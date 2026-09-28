@@ -42,31 +42,40 @@ databaseQueryMapping
     ;
 
 createConfigurationStatement
-    : CONFIGURATION STRING_LITERAL
-      (settingsAssignment (COMMA settingsAssignment)*)?
+    : CONFIGURATION STRING_LITERAL settingsItemOptions?          // configuration 'X' ( Key: value, … )
+    | CONFIGURATION STRING_LITERAL
+      settingsAssignment (COMMA settingsAssignment)*             // old spelling: Key = value, … (MDL-DEPR060)
     ;
 
 /**
  * CREATE CONSUMED REST SERVICE — property-based syntax with { } blocks.
  */
+// R9: the folder is a clause after the name. `Folder: '…'` in the property
+// list is a registered alias /* @alias MDL-DEPR105 */, here and in the
+// published REST and OData property lists; the visitor reports it by key.
 createRestClientStatement
     : consumedRestServiceKw qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN restClientProperty (COMMA restClientProperty)* RPAREN
       (LBRACE restClientOperation* RBRACE)?
     ;
 
 restClientProperty
     : identifierOrKeyword COLON STRING_LITERAL                       // BaseUrl: '...', Username: '...'
-    | identifierOrKeyword COLON VARIABLE                             // Username: $Constant (legacy, stored as Rest$ConstantValue)
-    | identifierOrKeyword COLON AT qualifiedName                     // Username: @Module.Constant (preferred Mendix convention)
+    | identifierOrKeyword COLON VARIABLE /* @alias MDL-DEPR083 */    // Username: $Constant (a constant of the client's own module)
+    | identifierOrKeyword COLON AT qualifiedName                     // Username: @Module.Constant (the one constant reference, R5)
     | identifierOrKeyword COLON NONE                                 // Authentication: NONE
     | identifierOrKeyword COLON BASIC LPAREN restClientProperty (COMMA restClientProperty)* RPAREN
     ;
 
+// An operation is a child of the service, so its properties are in ( ) like
+// every other child's (R2, ako/mxcli#754). The brace form is the old spelling.
 restClientOperation
     : docComment?
       OPERATION (identifierOrKeyword | STRING_LITERAL)
-      LBRACE restClientOpProp (COMMA restClientOpProp)* RBRACE
+      ( LPAREN restClientOpProp (COMMA restClientOpProp)* COMMA? RPAREN
+      | LBRACE /* @alias MDL-DEPR070 */ restClientOpProp (COMMA restClientOpProp)* COMMA? RBRACE
+      )
     ;
 
 restClientOpProp
@@ -105,6 +114,7 @@ restHttpMethod
 
 createPublishedRestServiceStatement
     : PUBLISHED REST SERVICE qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN publishedRestProperty (COMMA publishedRestProperty)* RPAREN
       LBRACE publishedRestResource* RBRACE
     ;
@@ -182,12 +192,14 @@ taskQueuesKw
 
 createODataClientStatement
     : consumedODataServiceKw qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       odataHeadersClause?
     ;
 
 createODataServiceStatement
     : publishedODataServiceKw qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       odataAuthenticationClause?
       (LBRACE (publishEntityBlock | publishMicroflowBlock)* RBRACE)?
@@ -215,9 +227,15 @@ odataPropertyAssignment
     | identifierOrKeyword COLON expression
     ;
 
+// ALTER … SET ( Key: value, … ): exactly create's property list (R3).
+odataAlterPropertyList
+    : LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
+    ;
+
+// The old spelling of the alter list: `set Key = value, …` (R3).
 odataAlterAssignment
-    : identifierOrKeyword EQUALS odataPropertyValue
-    | identifierOrKeyword EQUALS expression
+    : identifierOrKeyword EQUALS /* @alias MDL-DEPR061 */ odataPropertyValue
+    | identifierOrKeyword EQUALS /* @alias MDL-DEPR061 */ expression
     ;
 
 odataAuthenticationClause

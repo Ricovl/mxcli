@@ -121,7 +121,14 @@ func outputConsumedRestServiceMDL(ctx *ExecContext, svc *model.ConsumedRestServi
 		outputJavadoc(w, svc.Documentation)
 	}
 
-	fmt.Fprintf(w, "create or modify consumed rest service %s.%s (\n", moduleName, svc.Name)
+	// The folder is a clause after the name (R9).
+	folder := ""
+	if h, err := getHierarchy(ctx); err == nil && h != nil {
+		if folderPath := h.BuildFolderPath(svc.ContainerID); folderPath != "" {
+			folder = " folder " + mdlQuoted(folderPath)
+		}
+	}
+	fmt.Fprintf(w, "create or modify consumed rest service %s.%s%s (\n", moduleName, svc.Name, folder)
 	fmt.Fprintf(w, "  BaseUrl: %s,\n", mdlQuoted(svc.BaseUrl))
 	if svc.Authentication == nil {
 		fmt.Fprintln(w, "  Authentication: none")
@@ -145,13 +152,13 @@ func outputConsumedRestServiceMDL(ctx *ExecContext, svc *model.ConsumedRestServi
 	return nil
 }
 
-// outputRestOperation writes a single operation in the new { Key: Value } format.
+// outputRestOperation writes a single operation, its properties in ( ) (R2).
 func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 	if op.Documentation != "" {
 		outputJavadocIndented(w, op.Documentation, "  ")
 	}
 
-	fmt.Fprintf(w, "  operation %s {\n", op.Name)
+	fmt.Fprintf(w, "  operation %s (\n", op.Name)
 	fmt.Fprintf(w, "    Method: %s,\n", strings.ToLower(op.HttpMethod))
 	fmt.Fprintf(w, "    Path: %s,\n", mdlQuoted(op.Path))
 
@@ -235,7 +242,7 @@ func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 		fmt.Fprintln(w, "    Response: none")
 	}
 
-	fmt.Fprintln(w, "  }")
+	fmt.Fprintln(w, "  )")
 }
 
 // restParamTypeOrDefault supplies the type describe prints for a REST parameter.
@@ -674,7 +681,7 @@ func checkFileRequestBody(opDef *ast.RestOperationDef) error {
 			"  write a string body holding the literal text %q, which sends %d bytes and\n"+
 			"  still returns 200.\n"+
 			"  Binary POST lives on the microflow activity, not the client document:\n"+
-			"    rest call post '<url>' header 'ContentType' = '<type>' body binary %s/Contents\n"+
+			"    call rest service post '<url>' header 'ContentType' = '<type>' body binary %s/Contents\n"+
 			"  (Microflows$BinaryRequestHandling — the shape Studio Pro writes).",
 		target, target, len(target), target)
 }

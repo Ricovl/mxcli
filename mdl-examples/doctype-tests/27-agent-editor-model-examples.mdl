@@ -65,7 +65,7 @@ create constant ModelTest."ClaudeKey"
  */
 create model ModelTest."GPT4Model" (
   Provider: MxCloudGenAI,
-  key: ModelTest.GPT4Key
+  key: @ModelTest.GPT4Key
 );
 /
 
@@ -77,7 +77,7 @@ create model ModelTest."GPT4Model" (
  */
 create model ModelTest."ClaudeModel" (
   Provider: MxCloudGenAI,
-  key: ModelTest.ClaudeKey
+  key: @ModelTest.ClaudeKey
 );
 /
 
@@ -95,7 +95,7 @@ create model ModelTest."ClaudeModel" (
  */
 create model ModelTest."ConfiguredModel" (
   Provider: MxCloudGenAI,
-  key: ModelTest.GPT4Key,
+  key: @ModelTest.GPT4Key,
   DisplayName: 'GPT-4 Turbo (128K)',
   KeyName: 'prod-gpt4-turbo',
   Environment: 'production'
@@ -153,11 +153,11 @@ list models in ModelTest;
 -- These statements produce errors (commented out to not block the script):
 
 -- Duplicate model name:
--- CREATE MODEL ModelTest.GPT4Model (Provider: MxCloudGenAI, Key: ModelTest.GPT4Key);
+-- CREATE MODEL ModelTest.GPT4Model (Provider: MxCloudGenAI, Key: @ModelTest.GPT4Key);
 -- → Error: model already exists: ModelTest.GPT4Model
 
 -- Missing constant:
--- CREATE MODEL ModelTest.BadModel (Provider: MxCloudGenAI, Key: ModelTest.NoSuchConst);
+-- CREATE MODEL ModelTest.BadModel (Provider: MxCloudGenAI, Key: @ModelTest.NoSuchConst);
 -- → Error: CREATE MODEL ModelTest.BadModel: constant not found: ModelTest.NoSuchConst
 
 -- Drop non-existent model:
@@ -176,7 +176,7 @@ list models in ModelTest;
 
 create or modify model ModelTest."GPT4Model" (
   Provider: MxCloudGenAI,
-  key: ModelTest.GPT4Key,
+  key: @ModelTest.GPT4Key,
   DisplayName: 'GPT-4 Turbo (Updated)'
 );
 /

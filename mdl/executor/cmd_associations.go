@@ -722,33 +722,18 @@ func associationExists(dm *domainmodel.DomainModel, name string) bool {
 	return false
 }
 
-// associationDocumentation resolves the documentation a CREATE ASSOCIATION
-// carries, from either spelling.
-//
-// An association was the one domain-model element with no way to document it on
-// create: `comment 'text'` was accepted and dropped, and the `/** … */` doc
-// comment was dropped too — the plain-CREATE branches built the association
-// without Documentation at all, while the OR MODIFY branches beside them set it.
-// `mx check` passed, because an undocumented association is valid.
-//
-// The doc comment wins when both are present, matching the precedence the entity
-// path already uses. `comment` survives here — and only here among the CREATE
-// statements — because it is an association's only inline spelling; everywhere
-// else the doc comment already worked, so the dead option was removed instead.
 // associationDocumentationStated reports whether the statement said anything
-// about documentation — a doc comment (even an empty one) or a COMMENT clause.
-// The OR MODIFY path used `if doc != ""`, which preserved the stored value but
-// also made it unclearable; #1018's rule is that an explicitly empty comment
-// clears while an absent one preserves.
+// about documentation — a doc comment, even an empty one. The OR MODIFY path
+// used `if doc != ""`, which preserved the stored value but also made it
+// unclearable; #1018's rule is that an explicitly empty comment clears while
+// an absent one preserves. The `comment '…'` clause is folded into the doc
+// comment by the visitor (R9, where it is a deprecated alias).
 func associationDocumentationStated(s *ast.CreateAssociationStmt) bool {
-	return s.DocumentationSet || s.Comment != ""
+	return s.DocumentationSet
 }
 
 func associationDocumentation(s *ast.CreateAssociationStmt) string {
-	if s.Documentation != "" {
-		return s.Documentation
-	}
-	return s.Comment
+	return s.Documentation
 }
 
 // defaultDeleteClause is the delete behaviour an association statement with no

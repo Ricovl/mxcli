@@ -55,12 +55,17 @@ func init() {
 			"  ErrorHandlingMicroflow: microflow Module.HandleError\n" +
 			")\n" +
 			"[HEADERS ('Key': 'Value')];\n\n" +
+			"ALTER CONSUMED ODATA SERVICE Module.Name SET (Key: value, ...);  -- CREATE's keys\n" +
+			"ALTER PUBLISHED ODATA SERVICE Module.Name SET (Key: value, ...);\n\n" +
 			"CREATE EXTERNAL ENTITY Module.Name\n" +
 			"  FROM CONSUMED ODATA SERVICE Module.Client\n" +
 			"  (EntitySet: 'Name', RemoteName: 'Name')\n" +
 			"  (Attr: Type, ...);\n\n" +
 			"CREATE EXTERNAL ENTITIES FROM Module.Client\n" +
-			"  [INTO Module] [ENTITIES (Name1, Name2)];",
+			"  [INTO Module] [ENTITIES (Name1, Name2)];\n\n" +
+			"ALTER ENTITY Module.Name SET (AllowCreateChangeLocally: true);\n\n" +
+			"-- `SET Key = value, ...` (no parentheses) still runs and warns MDL-DEPR061;\n" +
+			"-- `SET allow_create_change_locally = true` warns MDL-DEPR063.",
 		Example: "CREATE CONSTANT MyModule.SvcUrl TYPE String DEFAULT 'https://api.example.com/odata/v4/';\n\nCREATE CONSUMED ODATA SERVICE MyModule.SalesforceAPI (\n  Version: '1.0',\n  ODataVersion: OData4,\n  MetadataUrl: 'https://api.example.com/odata/$metadata',\n  Timeout: 300,\n  ServiceUrl: MyModule.SvcUrl\n);\n\nCREATE EXTERNAL ENTITIES FROM MyModule.SalesforceAPI INTO Integration;",
 		SeeAlso: []string{"odata", "odata.publish", "odata.show"},
 	})
@@ -199,14 +204,14 @@ func init() {
 
 	Register(SyntaxFeature{
 		Path:    "rest.call",
-		Summary: "REST CALL activity inside a microflow, and its five RETURNS forms",
+		Summary: "CALL REST SERVICE activity inside a microflow, and its five RETURNS forms",
 		Keywords: []string{
 			"rest call", "call rest service", "http get", "http post",
 			"returns response", "returns string", "returns mapping",
 			"file document", "filedocument", "download", "httpresponse",
 			"body binary", "binary", "upload", "post binary",
 		},
-		Syntax: "[$Var =] REST CALL GET|POST|PUT|PATCH|DELETE '<url>' [WITH ({1} = expr, ...)]\n" +
+		Syntax: "[$Var =] CALL REST SERVICE GET|POST|PUT|PATCH|DELETE '<url>' [WITH ({1} = expr, ...)]\n" +
 			"  [HEADER 'Name' = expr]\n" +
 			"  [AUTH BASIC $user PASSWORD $pass]\n" +
 			"  [BODY '<template>' [WITH ({1} = expr)] | BODY <expr> | BODY BINARY <expr>\n" +
@@ -227,7 +232,7 @@ func init() {
 		Example: "create persistent entity MyModule.MyFile extends System.FileDocument ();\n\n" +
 			"create microflow MyModule.ACT_Download ($Location: String)\n" +
 			"begin\n" +
-			"  $file = rest call get '{1}' with ({1} = $Location)\n" +
+			"  $file = call rest service get '{1}' with ({1} = $Location)\n" +
 			"    header 'Accept' = 'application/octet-stream'\n" +
 			"    timeout 300\n" +
 			"    returns MyModule.MyFile;\n" +
@@ -299,8 +304,8 @@ func init() {
 			"body", "response", "mapping", "authentication",
 			"json structure", "import mapping", "export mapping",
 		},
-		Syntax:  "CREATE [OR MODIFY] CONSUMED REST SERVICE Module.Name (\n  BaseUrl: 'https://...',\n  Authentication: NONE | BASIC (...)\n)\n{\n  OPERATION Name {\n    Method: GET|POST|PUT|DELETE|PATCH,\n    Path: '/path/{param}',\n    Parameters: ($param: Type),\n    Query: ($param: Type),\n    Headers: ('Key' = 'Value'),\n    Timeout: 30,\n    Body: JSON FROM $var | MAPPING Entity { jsonField = Attribute, ... },\n    Response: JSON AS $var | MAPPING Entity { Attribute = jsonField, ... }\n  }\n};\n\n-- MAPPING takes a target ENTITY plus a body listing the JSON fields; Mendix\n-- stores it inline on the operation. An existing import/export mapping\n-- document cannot be referenced here (rejected as MDL-REST01).\n-- There is no FILE request body: Mendix's consumed operation stores one of\n-- Rest$JsonBody, Rest$StringBody or Rest$ImplicitMappingBody, so a file\n-- document has nowhere to go. `Body: FILE FROM $Doc` is rejected as\n-- MDL-REST02 rather than sent as the literal text \"$Doc\" (it used to be,\n-- returning 200 with a 4-byte payload). Binary POST lives on the\n-- microflow activity: `rest call post '<url>' body binary $Doc/Contents`.\n-- `Response: FILE AS $Doc` is unaffected — downloads work.",
-		Example: "CREATE CONSUMED REST SERVICE Module.PetStore (\n  BaseUrl: 'https://petstore.example.com/api',\n  Authentication: NONE\n)\n{\n  OPERATION GetPet {\n    Method: GET,\n    Path: '/pets/{id}',\n    Parameters: ($id: String),\n    Query: ($verbose: String),\n    Response: MAPPING Module.Pet {\n      Name = name,\n      Status = status\n    }\n  }\n};",
+		Syntax:  "CREATE [OR MODIFY] CONSUMED REST SERVICE Module.Name (\n  BaseUrl: 'https://...',\n  Authentication: NONE | BASIC (...)\n)\n{\n  OPERATION Name (\n    Method: GET|POST|PUT|DELETE|PATCH,\n    Path: '/path/{param}',\n    Parameters: ($param: Type),\n    Query: ($param: Type),\n    Headers: ('Key' = 'Value'),\n    Timeout: 30,\n    Body: JSON FROM $var | MAPPING Entity { jsonField = Attribute, ... },\n    Response: JSON AS $var | MAPPING Entity { Attribute = jsonField, ... }\n  )\n};\n\n-- An operation is a child of the service, so its properties are in ( ).\n-- `OPERATION Name { ... }` is the deprecated spelling (MDL-DEPR070).\n\n-- MAPPING takes a target ENTITY plus a body listing the JSON fields; Mendix\n-- stores it inline on the operation. An existing import/export mapping\n-- document cannot be referenced here (rejected as MDL-REST01).\n-- There is no FILE request body: Mendix's consumed operation stores one of\n-- Rest$JsonBody, Rest$StringBody or Rest$ImplicitMappingBody, so a file\n-- document has nowhere to go. `Body: FILE FROM $Doc` is rejected as\n-- MDL-REST02 rather than sent as the literal text \"$Doc\" (it used to be,\n-- returning 200 with a 4-byte payload). Binary POST lives on the\n-- microflow activity: `call rest service post '<url>' body binary $Doc/Contents`.\n-- `Response: FILE AS $Doc` is unaffected — downloads work.",
+		Example: "CREATE CONSUMED REST SERVICE Module.PetStore (\n  BaseUrl: 'https://petstore.example.com/api',\n  Authentication: NONE\n)\n{\n  OPERATION GetPet (\n    Method: GET,\n    Path: '/pets/{id}',\n    Parameters: ($id: String),\n    Query: ($verbose: String),\n    Response: MAPPING Module.Pet {\n      Name = name,\n      Status = status\n    }\n  )\n};",
 		SeeAlso: []string{"rest", "rest.published"},
 	})
 
@@ -602,9 +607,9 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"message definition", "message definition collection", "create message definition",
 			"exposed entity", "exposed attribute", "exposed association",
 		},
-		Syntax: "SHOW MESSAGE DEFINITION COLLECTIONS [IN Module];\nDESCRIBE MESSAGE DEFINITION COLLECTION Module.Name;\nCREATE [OR MODIFY] MESSAGE DEFINITION COLLECTION Module.Name [FOLDER 'path']\n(\n  DEFINITION Name FOR Module.Entity [AS 'Exposed'] (\n    AttributeName [AS 'Exposed'] [EXAMPLE 'text'],\n    Module.Assoc/Module.TargetEntity [AS 'Exposed'] ( ... )\n  )\n);\nDROP MESSAGE DEFINITION COLLECTION Module.Name;\n\n" +
+		Syntax: "SHOW MESSAGE DEFINITION COLLECTIONS [IN Module];\nDESCRIBE MESSAGE DEFINITION COLLECTION Module.Name;\nCREATE [OR MODIFY] MESSAGE DEFINITION COLLECTION Module.Name [FOLDER 'path']\n{\n  DEFINITION Name FOR Module.Entity [AS 'Exposed'] {\n    AttributeName [AS 'Exposed'] [EXAMPLE 'text'],\n    Module.Assoc/Module.TargetEntity [AS 'Exposed'] { ... }\n  }\n};\nDROP MESSAGE DEFINITION COLLECTION Module.Name;\n\n" +
 			"ALTER MESSAGE DEFINITION COLLECTION Module.Name\n" +
-			"  ADD DEFINITION [IF NOT EXISTS] Name FOR Module.Entity [AS 'X'] ( ... )\n" +
+			"  ADD DEFINITION [IF NOT EXISTS] Name FOR Module.Entity [AS 'X'] { ... }\n" +
 			"  | DROP DEFINITION [IF EXISTS] Name\n" +
 			"  | RENAME DEFINITION Old TO New;\n\n" +
 			"ALTER MESSAGE DEFINITION Module.Collection.Definition\n" +
@@ -626,8 +631,10 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"pluralises a repeating element's exposed name; mxcli defaults to the\n" +
 			"entity's own name and lets AS say otherwise.\n\n" +
 			"IN <path> reaches a nested member, in exposed names. SET changes only the\n" +
-			"exposed name — it is not a model rename. Authoring is modelsdk-only.",
-		Example: "CREATE MESSAGE DEFINITION COLLECTION Sales.MD_Order\n(\n  DEFINITION OrderMessage FOR Sales.Order AS 'Orders' (\n    OrderId,\n    Sales.OrderLine_Order/Sales.OrderLine AS 'Lines' ( Sku, Quantity ),\n    Sales.Order_Customer/Sales.Customer ( FirstName )\n  )\n);\n\nALTER MESSAGE DEFINITION Sales.MD_Order.OrderMessage ADD MEMBER LastName IN Customer;\n\nCREATE IMPORT MAPPING Sales.IMM_Order\n  WITH MESSAGE DEFINITION Sales.MD_Order.OrderMessage\n{ create Sales.Order { OrderId = OrderId } };",
+			"exposed name — it is not a model rename. Authoring is modelsdk-only.\n\n" +
+			"Definitions and member trees are children, so they are in { } (R2); the\n" +
+			"parenthesised form is the deprecated spelling MDL-DEPR073.",
+		Example: "CREATE MESSAGE DEFINITION COLLECTION Sales.MD_Order\n{\n  DEFINITION OrderMessage FOR Sales.Order AS 'Orders' {\n    OrderId,\n    Sales.OrderLine_Order/Sales.OrderLine AS 'Lines' { Sku, Quantity },\n    Sales.Order_Customer/Sales.Customer { FirstName }\n  }\n};\n\nALTER MESSAGE DEFINITION Sales.MD_Order.OrderMessage ADD MEMBER LastName IN Customer;\n\nCREATE IMPORT MAPPING Sales.IMM_Order\n  WITH MESSAGE DEFINITION Sales.MD_Order.OrderMessage\n{ create Sales.Order { OrderId = OrderId } };",
 	})
 
 	Register(SyntaxFeature{
@@ -637,7 +644,7 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"json structure", "create json structure", "drop json structure",
 			"snippet", "schema", "json schema",
 		},
-		Syntax: "SHOW JSON STRUCTURES [IN Module];\nDESCRIBE JSON STRUCTURE Module.Name;\nCREATE JSON STRUCTURE Module.Name [FOLDER 'path'] [COMMENT 'text'] SNIPPET '{ ... }'\n  [CUSTOM NAME MAP (\n    'jsonKey' AS 'CustomName',       -- rename the element that key reaches\n    ITEM OF 'arrayKey' AS 'Name',    -- name the ARRAY's item element\n    ITEM OF 'Root' AS 'Name'         -- ... of a ROOT-level array\n  )];\nCREATE OR MODIFY JSON STRUCTURE Module.Name SNIPPET '{ ... }';\nDROP JSON STRUCTURE Module.Name;\n\n" +
+		Syntax: "SHOW JSON STRUCTURES [IN Module];\nDESCRIBE JSON STRUCTURE Module.Name;\n[/** documentation */]\nCREATE JSON STRUCTURE Module.Name [FOLDER 'path'] SNIPPET '{ ... }'\n  [CUSTOM NAME MAP (\n    'jsonKey' AS 'CustomName',       -- rename the element that key reaches\n    ITEM OF 'arrayKey' AS 'Name',    -- name the ARRAY's item element\n    ITEM OF 'Root' AS 'Name'         -- ... of a ROOT-level array\n  )];\nCREATE OR MODIFY JSON STRUCTURE Module.Name SNIPPET '{ ... }';\nDROP JSON STRUCTURE Module.Name;\n\n" +
 			"An array's item is the anonymous [...] entry, so it has no JSON key and the\n" +
 			"plain form cannot reach it — ITEM OF addresses it by the array's key, and\n" +
 			"names a primitive array's wrapper too. Left unnamed an item keeps its\n" +
@@ -657,8 +664,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"image collection", "create image collection", "drop image collection",
 			"export level", "image", "icon", "logo",
 		},
-		Syntax:  "SHOW IMAGE COLLECTION [IN Module];\nDESCRIBE IMAGE COLLECTION Module.Name;\nCREATE IMAGE COLLECTION Module.Name [FOLDER 'path']\n  [EXPORT LEVEL 'Hidden'|'Public']\n  [COMMENT 'text']\n  [(IMAGE name FROM FILE 'path', ...)];\nCREATE OR MODIFY IMAGE COLLECTION Module.Name [...];\nDROP IMAGE COLLECTION Module.Name;",
-		Example: "CREATE OR MODIFY IMAGE COLLECTION MyModule.AppIcons\n  EXPORT LEVEL 'Public'\n  COMMENT 'Application icons' (\n  IMAGE logo FROM FILE 'assets/logo.png',\n  IMAGE \"favicon\" FROM FILE 'assets/favicon.ico'\n);\n\nDESCRIBE IMAGE COLLECTION MyModule.AppIcons;",
+		Syntax:  "SHOW IMAGE COLLECTION [IN Module];\nDESCRIBE IMAGE COLLECTION Module.Name;\n[/** documentation */]\nCREATE IMAGE COLLECTION Module.Name [FOLDER 'path']\n  [EXPORT LEVEL 'Hidden'|'Public']\n  [{ IMAGE name ( File: 'path' ) ... }];\nCREATE OR MODIFY IMAGE COLLECTION Module.Name [...];\nDROP IMAGE COLLECTION Module.Name;\n\n-- The images are the collection's children, so they are in { }, each with\n-- its properties in ( ). `( IMAGE name FROM FILE 'path', ... )` is the\n-- deprecated spelling (MDL-DEPR072).",
+		Example: "/** Application icons */\nCREATE OR MODIFY IMAGE COLLECTION MyModule.AppIcons\n  EXPORT LEVEL 'Public' {\n  IMAGE logo ( File: 'assets/logo.png' )\n  IMAGE \"favicon\" ( File: 'assets/favicon.ico' )\n};\n\nDESCRIBE IMAGE COLLECTION MyModule.AppIcons;",
 		SeeAlso: []string{"integration", "icon-collection"},
 	})
 
@@ -816,8 +823,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"agent", "agents", "model", "knowledge base", "mcp service",
 			"agent editor", "llm", "ai", "genai", "mxcloudgenai",
 		},
-		Syntax:  "LIST MODELS [IN Module];\nLIST KNOWLEDGE BASES [IN Module];\nLIST CONSUMED MCP SERVICES [IN Module];\nLIST AGENTS [IN Module];\nDESCRIBE MODEL Module.Name;\nCREATE MODEL Module.Name (Provider: MxCloudGenAI, Key: Module.ApiKey);\nCREATE KNOWLEDGE BASE Module.Name (Provider: MxCloudGenAI, Key: Module.KBKey);\nCREATE CONSUMED MCP SERVICE Module.Name (ProtocolVersion: v2025_03_26, ...);\nCREATE AGENT Module.Name (UsageType: Task|Chat, Model: Module.MyModel, SystemPrompt: '...') { ... };\nDROP AGENT Module.Name;",
-		Example: "CREATE MODEL MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: MyModule.ModelApiKey\n);\n\nCREATE AGENT MyModule.Summarizer (\n  UsageType: Task,\n  Model: MyModule.GPT4,\n  SystemPrompt: 'Summarize in 3 sentences.',\n  UserPrompt: 'Enter text.'\n);",
+		Syntax:  "LIST MODELS [IN Module];\nLIST KNOWLEDGE BASES [IN Module];\nLIST CONSUMED MCP SERVICES [IN Module];\nLIST AGENTS [IN Module];\nDESCRIBE MODEL Module.Name;\nCREATE MODEL Module.Name (Provider: MxCloudGenAI, Key: @Module.ApiKey);\nCREATE KNOWLEDGE BASE Module.Name (Provider: MxCloudGenAI, Key: @Module.KBKey);\nCREATE CONSUMED MCP SERVICE Module.Name (ProtocolVersion: v2025_03_26, ...);\nCREATE AGENT Module.Name (UsageType: Task|Chat, Model: Module.MyModel, SystemPrompt: '...') { ... };\nDROP AGENT Module.Name;",
+		Example: "CREATE MODEL MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: @MyModule.ModelApiKey\n);\n\nCREATE AGENT MyModule.Summarizer (\n  UsageType: Task,\n  Model: MyModule.GPT4,\n  SystemPrompt: 'Summarize in 3 sentences.',\n  UserPrompt: 'Enter text.'\n);",
 		SeeAlso: []string{"agents.model", "agents.knowledge-base", "agents.mcp-service", "agents.agent"},
 	})
 
@@ -825,8 +832,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 		Path:     "agents.model",
 		Summary:  "CREATE/DROP MODEL documents for AI agents",
 		Keywords: []string{"create model", "drop model", "describe model", "list models", "provider", "mxcloudgenai"},
-		Syntax:   "CREATE [OR MODIFY] MODEL Module.Name [FOLDER 'path'] (\n  Provider: MxCloudGenAI,\n  Key: Module.ApiKeyConstant\n);\nDESCRIBE MODEL Module.Name;\nLIST MODELS [IN Module];\nDROP MODEL Module.Name;",
-		Example:  "create model MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: MyModule.ModelApiKey\n);",
+		Syntax:   "CREATE [OR MODIFY] MODEL Module.Name [FOLDER 'path'] (\n  Provider: MxCloudGenAI,\n  Key: @Module.ApiKeyConstant\n);\nDESCRIBE MODEL Module.Name;\nLIST MODELS [IN Module];\nDROP MODEL Module.Name;",
+		Example:  "create model MyModule.GPT4 (\n  Provider: MxCloudGenAI,\n  Key: @MyModule.ModelApiKey\n);",
 		SeeAlso:  []string{"agents"},
 	})
 
@@ -834,8 +841,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 		Path:     "agents.knowledge-base",
 		Summary:  "CREATE/DROP KNOWLEDGE BASE documents for AI agents",
 		Keywords: []string{"create knowledge base", "drop knowledge base", "knowledge base", "kb", "rag"},
-		Syntax:   "CREATE [OR MODIFY] KNOWLEDGE BASE Module.Name [FOLDER 'path'] (\n  Provider: MxCloudGenAI,\n  Key: Module.KBApiKeyConstant\n);\nDESCRIBE KNOWLEDGE BASE Module.Name;\nLIST KNOWLEDGE BASES [IN Module];\nDROP KNOWLEDGE BASE Module.Name;",
-		Example:  "create knowledge base MyModule.ProductDocs (\n  Provider: MxCloudGenAI,\n  Key: MyModule.KBApiKey\n);",
+		Syntax:   "CREATE [OR MODIFY] KNOWLEDGE BASE Module.Name [FOLDER 'path'] (\n  Provider: MxCloudGenAI,\n  Key: @Module.KBApiKeyConstant\n);\nDESCRIBE KNOWLEDGE BASE Module.Name;\nLIST KNOWLEDGE BASES [IN Module];\nDROP KNOWLEDGE BASE Module.Name;",
+		Example:  "create knowledge base MyModule.ProductDocs (\n  Provider: MxCloudGenAI,\n  Key: @MyModule.KBApiKey\n);",
 		SeeAlso:  []string{"agents"},
 	})
 
@@ -868,11 +875,11 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
   [UserPrompt: 'prompt']
 )
 {
-  [MCP SERVICE Module.ServiceName { Enabled: true }]
-  [KNOWLEDGE BASE AliaName { Source: Module.KB, Collection: 'col', MaxResults: 5, Enabled: true }]
-  [TOOL MicroflowName { Description: 'desc', Enabled: true }]
+  [MCP SERVICE Module.ServiceName ( Enabled: true )]
+  [KNOWLEDGE BASE AliaName ( Source: Module.KB, Collection: 'col', MaxResults: 5, Enabled: true )]
+  [TOOL MicroflowName ( Description: 'desc', Enabled: true )]
 };`,
-		Example: "create agent MyModule.Assistant (\n  UsageType: Chat,\n  Model: MyModule.GPT4,\n  SystemPrompt: $$You are a helpful assistant.$$,\n  UserPrompt: 'Ask me anything.'\n)\n{\n  MCP SERVICE MyModule.WebSearch { Enabled: true }\n};",
+		Example: "create agent MyModule.Assistant (\n  UsageType: Chat,\n  Model: MyModule.GPT4,\n  SystemPrompt: $$You are a helpful assistant.$$,\n  UserPrompt: 'Ask me anything.'\n)\n{\n  MCP SERVICE MyModule.WebSearch ( Enabled: true )\n};",
 		SeeAlso: []string{"agents", "agents.model", "agents.knowledge-base", "agents.mcp-service"},
 	})
 }

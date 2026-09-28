@@ -31,4 +31,4 @@ SHOW ENTITIES IN MyFirstModule
 
 ## See Also
 
-[SHOW STRUCTURE](show-structure.md), [SHOW ENTITIES](show-entities.md), [SHOW MICROFLOWS](show-microflows.md), [SHOW PAGES](show-pages.md)
+[DESCRIBE STRUCTURE](show-structure.md), [SHOW ENTITIES](show-entities.md), [SHOW MICROFLOWS](show-microflows.md), [SHOW PAGES](show-pages.md)

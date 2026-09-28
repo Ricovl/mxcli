@@ -53,10 +53,10 @@ show navigation menu Responsive;
 show navigation menu;
 
 -- ============================================================================
--- SHOW NAVIGATION HOMES — home page assignments across all profiles and roles
+-- LIST NAVIGATION HOMES — home page assignments across all profiles and roles
 -- ============================================================================
 
-show navigation homes;
+list navigation homes;
 
 -- MARK: CREATE OR REPLACE NAVIGATION
 
@@ -141,7 +141,7 @@ where RefKind in ('home_page', 'menu_item', 'login_page');
 
 show impact of NavTest.NavTest_Home;
 
-show context of NavTest.NavTest_Home;
+describe context of NavTest.NavTest_Home;
 
 /**
  * Responsive navigation

@@ -16,14 +16,14 @@ func TestUpgrade_DocumentTypeNames(t *testing.T) {
 		"grant access on odata service M.Api to M.User;\n" +
 		"create or modify queue M.Jobs (Parallelism: 2);\nlist queues;\n" +
 		"alter project security demo users off;\n" +
-		"alter settings model BcryptCost = 11;\n" +
+		"alter settings model ( BcryptCost: 11 );\n" +
 		"create microflow M.F () begin call microflow M.G() in queue M.Jobs; end;\n"
 	want := "CREATE CONSUMED REST SERVICE M.Api (BaseUrl: 'https://x', Authentication: none) { };\n" +
 		"list consumed odata services;\nlist published odata services in M;\n" +
 		"grant access on published odata service M.Api to M.User;\n" +
 		"create or modify task queue M.Jobs (Parallelism: 2);\nlist task queues;\n" +
 		"alter app security demo users off;\n" +
-		"alter settings runtime BcryptCost = 11;\n" +
+		"alter settings runtime ( BcryptCost: 11 );\n" +
 		// `in queue` is a call option, not the document type name.
 		"create microflow M.F () begin call microflow M.G() in queue M.Jobs; end;\n"
 	res := mustUpgrade(t, src, Options{})

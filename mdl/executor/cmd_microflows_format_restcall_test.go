@@ -26,7 +26,7 @@ func TestFormatRestCallAction_GET(t *testing.T) {
 	if got == "" {
 		t.Fatal("expected non-empty output")
 	}
-	assertContains(t, got, "rest call get")
+	assertContains(t, got, "call rest service get")
 	assertContains(t, got, "'https://api.example.com/orders'")
 	assertContains(t, got, "$Response = ")
 	assertContains(t, got, "returns String")
@@ -59,7 +59,7 @@ func TestFormatRestCallAction_POST_CustomBody(t *testing.T) {
 		ResultHandling: &microflows.ResultHandlingNone{},
 	}
 	got := e.formatRestCallAction(action)
-	assertContains(t, got, "rest call post")
+	assertContains(t, got, "call rest service post")
 	assertContains(t, got, "body '{\"name\": \"test\"}'")
 	assertContains(t, got, "returns nothing")
 }

@@ -133,13 +133,13 @@ Direct HTTP call with URL, headers, auth, body, and response handling specified 
 
 ```mdl
 -- Simple GET returning string
-$response = rest call get 'https://api.example.com/data'
+$response = call rest service get 'https://api.example.com/data'
     header Accept = 'application/json'
     timeout 30
     returns string;
 
 -- POST with JSON body
-$response = rest call post 'https://api.example.com/items'
+$response = call rest service post 'https://api.example.com/items'
     header 'Content-Type' = 'application/json'
     header Accept = 'application/json'
     body '{{"name": "{1}", "value": {2}}' with (
@@ -155,28 +155,28 @@ $response = rest call post 'https://api.example.com/items'
 -- itself, and the content type goes on a header. A consumed REST CLIENT
 -- document has no binary body — `Body: file from $Doc` there is refused as
 -- MDL-REST02 — so binary uploads belong here.
-$response = rest call post 'https://api.example.com/upload'
+$response = call rest service post 'https://api.example.com/upload'
     header 'ContentType' = 'application/pdf'
     body binary $Doc/Contents
     timeout 300
     returns response;
 
 -- GET with URL template parameters
-$response = rest call get 'https://api.example.com/users/{1}' with (
+$response = call rest service get 'https://api.example.com/users/{1}' with (
     {1} = toString($UserId)
 )
     header Accept = 'application/json'
     returns string;
 
 -- With basic authentication
-$response = rest call get 'https://api.example.com/secure'
+$response = call rest service get 'https://api.example.com/secure'
     header Accept = 'application/json'
     auth basic $username password $password
     timeout 30
     returns string;
 
 -- DELETE (no response)
-rest call delete 'https://api.example.com/items/{1}' with (
+call rest service delete 'https://api.example.com/items/{1}' with (
     {1} = $ItemId
 )
     returns nothing
@@ -200,7 +200,7 @@ create persistent entity MyModule.MyFile extends System.FileDocument ();
 
 create microflow MyModule.ACT_Download ($Location: String)
 begin
-  $file = rest call get '{1}' with ({1} = $Location)
+  $file = call rest service get '{1}' with ({1} = $Location)
     header 'Accept' = 'application/octet-stream'
     timeout 300
     returns MyModule.MyFile;

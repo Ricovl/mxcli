@@ -6,7 +6,7 @@ package ast
 //
 //	CREATE MODEL Module.Name (
 //	  Provider: MxCloudGenAI,
-//	  Key: Module.SomeConstant
+//	  Key: @Module.SomeConstant
 //	  -- optional Portal-populated fields:
 //	  [, DisplayName: '...']
 //	  [, KeyName: '...']
@@ -92,7 +92,7 @@ func (s *AlterConsumedMCPServiceStmt) isStatement() {}
 //
 //	CREATE KNOWLEDGE BASE Module.Name (
 //	  Provider: MxCloudGenAI,
-//	  Key: Module.SomeConstant
+//	  Key: @Module.SomeConstant
 //	);
 type CreateKnowledgeBaseStmt struct {
 	Folder           string // Folder path within module (empty = leave placement alone)

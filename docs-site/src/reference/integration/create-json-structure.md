@@ -3,9 +3,9 @@
 ## Synopsis
 
 ```sql
+[ /** description */ ]
 CREATE [ OR MODIFY ] JSON STRUCTURE module.Name
     [ FOLDER 'folder/path' ]
-    [ COMMENT 'description' ]
     SNIPPET 'json_sample'
     [ CUSTOM_NAME_MAP ( 'jsonKey' AS 'AttributeName' [, ...] ) ]
 ```
@@ -28,8 +28,8 @@ The optional `CUSTOM_NAME_MAP` clause overrides the attribute names generated fr
 `FOLDER 'folder/path'`
 :   Optional. Places the document in the specified Studio Pro folder (forward-slash separated), creating missing folders in the path. On `CREATE OR MODIFY` this **moves** an existing document; omitting the clause leaves placement alone rather than returning the document to the module root. See [MOVE](../organization/move.md).
 
-`COMMENT 'description'`
-:   Optional. A description for the JSON structure document.
+`/** description */`
+:   Optional. The documentation of the JSON structure document, as a doc comment before the statement. The `COMMENT 'description'` clause is its deprecated alias (`MDL-DEPR100`).
 
 `SNIPPET 'json_sample'`
 :   A representative JSON document. Must be a valid JSON string. The sample defines field names and types. Multi-line snippets can use `$$...$$` quoting.

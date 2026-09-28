@@ -108,8 +108,7 @@ type CreateConstantStmt struct {
 	DataType         DataType
 	DefaultValue     any // The default value (can be string, number, boolean, etc.)
 	Documentation    string
-	DocumentationSet bool // see mendixlabs/mxcli#1018: absent preserves, empty clears
-	Comment          string
+	DocumentationSet bool   // see mendixlabs/mxcli#1018: absent preserves, empty clears
 	Folder           string // Folder path within module (e.g., "Resources/Constants")
 	ExposedToClient  bool
 	CreateOrModify   bool // True if CREATE OR MODIFY was used

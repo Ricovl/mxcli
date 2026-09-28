@@ -350,7 +350,7 @@ func resolveJDK(major int) (string, error) {
 	// be noise.
 	if major != DefaultJavaMajor {
 		msg += fmt.Sprintf("\n  This is the project's own Settings > Model > JavaVersion. To build for a"+
-			"\n  release you already have instead: mxcli -p <project>.mpr -c \"alter settings runtime JavaVersion = '%d'\"", DefaultJavaMajor)
+			"\n  release you already have instead: mxcli -p <project>.mpr -c \"alter settings runtime ( JavaVersion: '%d' )\"", DefaultJavaMajor)
 	}
 	return "", fmt.Errorf("%s", msg)
 }

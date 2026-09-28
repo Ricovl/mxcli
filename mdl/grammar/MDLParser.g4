@@ -14,6 +14,36 @@ options {
     tokenVocab = MDLLexer;
 }
 
+// Hand-written parser helpers. In the Go target `@members` is package-level
+// code; the predicates in the imported grammars call it by name.
+@parser::members {
+// IsHelpWord reports whether word begins a help statement: `help`, `exit` or
+// `quit`, in any letter case. They are IDENTIFIERs rather than keywords, so
+// that reserving them does not take the words away as names; the predicate
+// on helpStatement is what keeps that rule from being the grammar's
+// catch-all, where a misspelt statement keyword (`craete entity …`) parsed
+// as a help topic and was silently dropped (ako/mxcli#755, R7).
+//
+// The generated file imports no strings package, so the letter case is folded
+// here by hand; the words are ASCII.
+func IsHelpWord(word string) bool {
+	if len(word) != 4 {
+		return false
+	}
+	folded := []byte(word)
+	for i, c := range folded {
+		if c >= 'A' && c <= 'Z' {
+			folded[i] = c + ('a' - 'A')
+		}
+	}
+	switch string(folded) {
+	case "help", "exit", "quit":
+		return true
+	}
+	return false
+}
+}
+
 import
     MDLDomainModel,
     MDLMicroflow,
@@ -163,7 +193,11 @@ alterStatement
     | alterEntitiesStatement
     | ALTER ASSOCIATION qualifiedName alterAssociationAction+
     | ALTER ENUMERATION qualifiedName alterEnumerationAction+
+    // R3 (ako/mxcli#751): `set ( Key: value, … )`, create's property list.
+    // The unparenthesised `set Key = value, …` is the old spelling.
+    | ALTER consumedODataServiceKw qualifiedName SET odataAlterPropertyList
     | ALTER consumedODataServiceKw qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
+    | ALTER publishedODataServiceKw qualifiedName SET odataAlterPropertyList
     | ALTER publishedODataServiceKw qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
     | ALTER STYLING ON (PAGE | SNIPPET) qualifiedName WIDGET IDENTIFIER alterStylingAction+
     | ALTER SETTINGS alterSettingsClause
@@ -226,16 +260,24 @@ publishedRestAlterAssignment
  * ```
  */
 alterStylingAction
-    : SET alterStylingAssignment (COMMA alterStylingAssignment)*
+    : SET LPAREN alterStylingAssignment (COMMA alterStylingAssignment)* RPAREN  // set ( Class: 'x', 'Full width': on )
+    | SET alterStylingAssignment (COMMA alterStylingAssignment)*  /* @alias MDL-DEPR062 */  // set Class = 'x'
     | CLEAR DESIGN PROPERTIES
     ;
 
+// `Key: value` is canonical (R3: `:` sets a model property); `=` is the old
+// spelling, still accepted.
+alterStylingAssignOp
+    : COLON
+    | EQUALS   /* @alias MDL-DEPR062 */
+    ;
+
 alterStylingAssignment
-    : CLASS EQUALS STRING_LITERAL                  // Class = 'my-class'
-    | STYLE EQUALS STRING_LITERAL                  // Style = 'color: red;'
-    | STRING_LITERAL EQUALS STRING_LITERAL         // 'Spacing top' = 'Large'
-    | STRING_LITERAL EQUALS ON                     // 'Full width' = ON
-    | STRING_LITERAL EQUALS OFF                    // 'Full width' = OFF
+    : CLASS alterStylingAssignOp STRING_LITERAL                  // Class: 'my-class'
+    | STYLE alterStylingAssignOp STRING_LITERAL                  // Style: 'color: red;'
+    | STRING_LITERAL alterStylingAssignOp STRING_LITERAL         // 'Spacing top': 'Large'
+    | STRING_LITERAL alterStylingAssignOp ON                     // 'Full width': ON
+    | STRING_LITERAL alterStylingAssignOp OFF                    // 'Full width': OFF
     ;
 
 /**
@@ -282,7 +324,7 @@ alterOperation
 alterSet
     : SET LAYOUT EQUALS qualifiedName (MAP LPAREN alterLayoutMapping (COMMA alterLayoutMapping)* RPAREN)?  // SET Layout = Atlas_Core.TopBar MAP (Main AS Content)
     | SET LPAREN alterPageAssignment (COMMA alterPageAssignment)* RPAREN (ON alterTarget)?  // set (Caption: 'Save', ButtonStyle: Success) on btnSave
-    | SET alterPageAssignment (ON alterTarget)?     // alias: MDL-DEPR102 — set Caption: 'Save' on btnSave
+    | SET alterPageAssignment (ON alterTarget)?     /* @alias MDL-DEPR102 */  // set Caption: 'Save' on btnSave
     ;
 
 alterLayoutMapping
@@ -299,7 +341,7 @@ alterReplace
 
 alterDrop
     : DROP alterTarget (COMMA alterTarget)*
-    | DROP WIDGET alterTarget (COMMA alterTarget)*   // alias: MDL-DEPR103 — drop widget a, b
+    | DROP WIDGET /* @alias MDL-DEPR103 */ alterTarget (COMMA alterTarget)*   // drop widget a, b
     ;
 
 // A fragment is written exactly as `create` writes the same content. Only the
@@ -334,9 +376,9 @@ alterTarget
  *
  * ```mdl
  * alter microflow FeedbackModule.VAL_Feedback {
- *   insert after $IsValidEmail { log info node 'Feedback' 'Email checked'; }
- *   insert before 'Email is Valid?' { … }
- *   replace commit $Order with { commit $Order with events; }
+ *   insert after $IsValidEmail begin log info node 'Feedback' 'Email checked'; end;
+ *   insert before 'Email is Valid?' begin … end;
+ *   replace commit $Order with begin commit $Order with events; end;
  *   drop log * node 'Debug' *;
  * }
  * ```
@@ -345,17 +387,29 @@ alterTarget
  * microflow`. A target is a content address, resolved by mfmutator: `$Var`
  * (the activity that outputs it), `'Caption'`, or a statement pattern with `*`
  * wildcards, each optionally followed by `@n`. A pattern is any run of tokens,
- * so the target is taken as raw text up to the `{`, `with` or `;` that ends it;
+ * so the target is taken as raw text up to the `begin`, `{`, `with` or `;` that ends it;
  * that is why `drop` needs its semicolon.
  */
 alterFlowOperation
-    : INSERT (AFTER | BEFORE) alterFlowTarget LBRACE microflowBody RBRACE SEMICOLON?
-    | REPLACE alterFlowTarget WITH LBRACE microflowBody RBRACE SEMICOLON?
+    : INSERT (AFTER | BEFORE) alterFlowTarget alterFlowFragment SEMICOLON?
+    | REPLACE alterFlowTarget WITH alterFlowFragment SEMICOLON?
     | DROP alterFlowTarget SEMICOLON
     ;
 
+// A fragment is imperative flow, so it is `begin … end` like the body of the
+// `create microflow` it is copied from (R2, ako/mxcli#754). The operations
+// around it are the alter's declarative children and stay in the alter's { }.
+// The brace fragment is the old spelling.
+alterFlowFragment
+    : BEGIN microflowBody END
+    | LBRACE /* @alias MDL-DEPR074 */ microflowBody RBRACE
+    ;
+
+// BEGIN ends a target as `{` does. describe's handles never contain it: a loop
+// prints `begin` on a line of its own, and an error handler's `begin` is
+// stripped from its activity's handle.
 alterFlowTarget
-    : ~(LBRACE | RBRACE | SEMICOLON | WITH)+
+    : ~(LBRACE | RBRACE | SEMICOLON | WITH | BEGIN)+
     ;
 
 // ALTER PAGES [IN <module>] SET LAYOUT = Module.Layout [MAP (...)] [WHERE LAYOUT = Module.Old]
@@ -408,14 +462,19 @@ alterPagesStylingAssignment
 // the old spelling, still accepted.
 alterAssignOp
     : COLON
-    | EQUALS   // alias: MDL-DEPR101 — set (Caption = 'Save') / set Caption = 'Save'
+    | EQUALS   /* @alias MDL-DEPR101 */  // set (Caption = 'Save') / set Caption = 'Save'
     ;
 
 alterPageAssignment
     : DATASOURCE alterAssignOp dataSourceExprV3               // DataSource: selection widgetName
     | ACTION alterAssignOp actionExprV3                       // Action: MICROFLOW Module.MF | SHOW_PAGE Module.Page | SAVE_CHANGES CLOSE_PAGE
-    | VISIBLE alterAssignOp xpathConstraint                   // Visible: [Name != ''] (conditional visibility)
-    | EDITABLE alterAssignOp xpathConstraint                  // Editable: [Status = 'Open'] (conditional editability)
+    // R5 (ako/mxcli#753): the condition is a bare expression; the bracketed
+    // form is the deprecated alias. The plain value keeps its reading, ahead of
+    // the expression, as in widgetPropertyV3.
+    | VISIBLE alterAssignOp xpathConstraint /* @alias MDL-DEPR081 */  // Visible: [Name != ''] (conditional visibility)
+    | EDITABLE alterAssignOp xpathConstraint /* @alias MDL-DEPR081 */ // Editable: [Status = 'Open'] (conditional editability)
+    | (VISIBLE | EDITABLE) alterAssignOp propertyValueV3      // Visible: false, Editable: Never
+    | (VISIBLE | EDITABLE) alterAssignOp expression           // Visible: $currentObject/Name != ''
     // A pluggable widget's NAMED action slot, addressed by the widget's own key:
     // `set 'createFileAction' = microflow M.F on fileUploader1`. The ALTER-level
     // twin of widgetPropertyV3's `key: actionExprV3` (#956); without it the value

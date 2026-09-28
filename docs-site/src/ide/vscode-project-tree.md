@@ -61,4 +61,4 @@ The tree is backed by the same metadata that powers the `SHOW` commands:
 | Entities in a module | `SHOW ENTITIES IN MyModule` |
 | Microflows in a module | `SHOW MICROFLOWS IN MyModule` |
 | Pages in a module | `SHOW PAGES IN MyModule` |
-| Full structure | `SHOW STRUCTURE IN MyModule DEPTH 2` |
+| Full structure | `DESCRIBE STRUCTURE IN MyModule DEPTH 2` |

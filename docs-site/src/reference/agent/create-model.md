@@ -5,7 +5,7 @@
 ```sql
 CREATE [ OR MODIFY ] MODEL module.Name (
     Provider: MxCloudGenAI,
-    key: module.KeyConstant
+    key: @module.KeyConstant
     [, DisplayName: 'display name' ]
     [, KeyName: 'portal key name' ]
     [, Environment: 'environment' ]
@@ -58,7 +58,7 @@ CREATE CONSTANT MyModule."ModelKey"
 
 CREATE MODEL MyModule."GPT4Model" (
     Provider: MxCloudGenAI,
-    key: MyModule.ModelKey
+    key: @MyModule.ModelKey
 );
 /
 ```
@@ -68,7 +68,7 @@ CREATE MODEL MyModule."GPT4Model" (
 ```sql
 CREATE MODEL MyModule."ConfiguredModel" (
     Provider: MxCloudGenAI,
-    key: MyModule.ModelKey,
+    key: @MyModule.ModelKey,
     DisplayName: 'GPT-4 Turbo (128K)',
     KeyName: 'prod-gpt4-turbo',
     Environment: 'production'
@@ -81,7 +81,7 @@ CREATE MODEL MyModule."ConfiguredModel" (
 ```sql
 CREATE OR MODIFY MODEL MyModule."GPT4Model" (
     Provider: MxCloudGenAI,
-    key: MyModule.ModelKey,
+    key: @MyModule.ModelKey,
     DisplayName: 'GPT-4 Turbo (Updated)'
 );
 /

@@ -155,8 +155,8 @@ func TestExecDescribeFragment(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "define fragment Footer") {
-		t.Errorf("Expected 'define fragment Footer' in output, got: %s", output)
+	if !strings.Contains(output, "create fragment Footer") {
+		t.Errorf("Expected 'create fragment Footer' in output, got: %s", output)
 	}
 	if !strings.Contains(output, "footer f1") {
 		t.Errorf("Expected 'footer f1' in output, got: %s", output)
@@ -489,7 +489,7 @@ func TestExpandBareSlotErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error for a bare slot outside a fragment")
 	}
-	if !strings.Contains(err.Error(), "only valid inside a `define fragment`") {
+	if !strings.Contains(err.Error(), "only valid inside a `create fragment`") {
 		t.Errorf("Unexpected error: %v", err)
 	}
 }
@@ -666,8 +666,8 @@ func TestRoundtripDefineAndDescribe(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "define fragment Footer") {
-		t.Errorf("Expected define fragment in output, got: %s", output)
+	if !strings.Contains(output, "create fragment Footer") {
+		t.Errorf("Expected create fragment in output, got: %s", output)
 	}
 	if !strings.Contains(output, "footer f1") {
 		t.Errorf("Expected footer f1 in output, got: %s", output)

@@ -32,7 +32,7 @@ MDL provides several commands for viewing the current security configuration:
 
 ```sql
 -- Project-wide settings
-SHOW PROJECT SECURITY;
+DESCRIBE APP SECURITY;
 
 -- Roles
 SHOW MODULE ROLES;
@@ -46,8 +46,8 @@ SHOW ACCESS ON ENTITY Shop.Customer;
 SHOW ACCESS ON Shop.Customer;         -- a bare name means the entity
 
 -- Full matrix
-SHOW SECURITY MATRIX;
-SHOW SECURITY MATRIX IN Shop;
+DESCRIBE SECURITY MATRIX;
+DESCRIBE SECURITY MATRIX IN Shop;
 
 -- Demo users
 SHOW DEMO USERS;

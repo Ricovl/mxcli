@@ -146,10 +146,10 @@ repeat, and `CREATE OR MODIFY` carries whatever is stored through untouched.
 A task queue bounds how many instances of a queued microflow call run at once.
 
 ```sql
+[/** <documentation> */]
 CREATE [OR MODIFY] TASK QUEUE <Module>.<Name> [(
   Parallelism: <expression>,
-  ClusterWide: true|false,
-  Documentation: '<text>'
+  ClusterWide: true|false
 )];
 
 LIST TASK QUEUES [IN <Module>];

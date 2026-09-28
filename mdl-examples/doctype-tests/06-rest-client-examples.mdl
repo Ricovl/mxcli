@@ -59,12 +59,12 @@ create rest client RestTest.RC001_SimpleAPI (
   authentication: none
 )
 {
-  operation GetStatus {
+  operation GetStatus (
     method: get,
     path: '/echo',
     headers: ('Accept' = '*/*'),
     response: none
-  }
+  )
 };
 
 -- ============================================================================
@@ -78,12 +78,12 @@ create rest client RestTest.RC002_JsonAPI (
   authentication: none
 )
 {
-  operation GetPosts {
+  operation GetPosts (
     method: get,
     path: '/posts',
     headers: ('Accept' = 'application/json'),
     response: json as $Posts
-  }
+  )
 };
 
 -- ============================================================================
@@ -97,13 +97,13 @@ create rest client RestTest.RC003_UserAPI (
   authentication: none
 )
 {
-  operation GetUser {
+  operation GetUser (
     method: get,
     path: '/users/{userId}',
     parameters: ($userId: integer),
     headers: ('Accept' = 'application/json'),
     response: json as $user
-  }
+  )
 };
 
 -- ############################################################################
@@ -124,46 +124,46 @@ create rest client RestTest.RC004_CrudAPI (
 )
 {
   /** Retrieve all resources */
-  operation GetAll {
+  operation GetAll (
     method: get,
     path: '/get',
     headers: ('Accept' = 'application/json'),
     response: json as $Resources
-  }
+  )
 
   /** Create a new resource */
-  operation CreateResource {
+  operation CreateResource (
     method: post,
     path: '/post',
     headers: ('Accept' = 'application/json'),
     body: json from $NewResource,
     response: json as $CreatedResource
-  }
+  )
 
   /** Fully update an existing resource */
-  operation UpdateResource {
+  operation UpdateResource (
     method: put,
     path: '/put',
     headers: ('Accept' = 'application/json'),
     body: json from $UpdatedResource,
     response: json as $resource
-  }
+  )
 
   /** Partially update an existing resource */
-  operation "PatchResource" {
+  operation "PatchResource" (
     method: patch,
     path: '/patch',
     headers: ('Accept' = 'application/json'),
     body: json from $PatchData,
     response: json as $resource
-  }
+  )
 
   /** Delete a resource */
-  operation "DeleteResource" {
+  operation "DeleteResource" (
     method: delete,
     path: '/delete',
     response: none
-  }
+  )
 };
 
 -- ############################################################################
@@ -181,12 +181,12 @@ create rest client RestTest.RC005_SearchAPI (
   authentication: none
 )
 {
-  operation search {
+  operation search (
     method: get,
     path: '/anything/search',
     query: ($q: string),
     response: json as $Results
-  }
+  )
 };
 
 -- ============================================================================
@@ -201,12 +201,12 @@ create rest client RestTest.RC006_PaginatedAPI (
 )
 {
   /** Search with pagination */
-  operation SearchPaginated {
+  operation SearchPaginated (
     method: get,
     path: '/anything/items',
     query: ($search: string, $page: integer, $limit: integer, $sortBy: string, $ascending: boolean),
     response: json as $Items
-  }
+  )
 };
 
 -- ============================================================================
@@ -219,13 +219,13 @@ create rest client RestTest.RC007_FilteredAPI (
 )
 {
   /** Get items in a category with filters */
-  operation GetCategoryItems {
+  operation GetCategoryItems (
     method: get,
     path: '/anything/categories/{categoryId}/items',
     parameters: ($categoryId: integer),
     query: ($status: string, $minPrice: decimal, $maxPrice: decimal),
     response: json as $Items
-  }
+  )
 };
 
 -- ############################################################################
@@ -245,12 +245,12 @@ create rest client RestTest.RC008_HeaderAPI (
   authentication: none
 )
 {
-  operation GetData {
+  operation GetData (
     method: get,
     path: '/headers',
     headers: ('Accept' = 'application/json', 'X-API-Version' = '2.0', 'X-Client-ID' = 'mendix-repl'),
     response: json as $data
-  }
+  )
 };
 
 -- ============================================================================
@@ -264,12 +264,12 @@ create rest client RestTest.RC009_AuthHeaderAPI (
   authentication: none
 )
 {
-  operation GetSecureData {
+  operation GetSecureData (
     method: get,
     path: '/headers',
     headers: ('Accept' = 'application/json', 'Authorization' = 'Bearer my-api-token', 'X-Request-ID' = 'request-001'),
     response: json as $data
-  }
+  )
 };
 
 -- ============================================================================
@@ -281,13 +281,13 @@ create rest client RestTest.RC010_ContentTypeAPI (
   authentication: none
 )
 {
-  operation PostJson {
+  operation PostJson (
     method: post,
     path: '/post',
     headers: ('Content-Type' = 'application/json', 'Accept' = 'application/json'),
     body: json from $Payload,
     response: json as $Result
-  }
+  )
 };
 
 -- ############################################################################
@@ -305,11 +305,11 @@ create rest client RestTest.RC011_PublicAPI (
   authentication: none
 )
 {
-  operation GetPublicData {
+  operation GetPublicData (
     method: get,
     path: '/get',
     response: json as $data
-  }
+  )
 };
 
 -- ============================================================================
@@ -321,11 +321,11 @@ create rest client RestTest.RC012_BasicAuthAPI (
   authentication: basic (username: 'api_user', password: 'api_secret')
 )
 {
-  operation GetProtectedData {
+  operation GetProtectedData (
     method: get,
     path: '/basic-auth/api_user/api_secret',
     response: json as $data
-  }
+  )
 };
 
 -- ============================================================================
@@ -339,12 +339,12 @@ create rest client RestTest.RC013_SecureAuthAPI (
   authentication: basic (username: 'testuser', password: 'testpass')
 )
 {
-  operation GetSecureData {
+  operation GetSecureData (
     method: get,
     path: '/hidden-basic-auth/testuser/testpass',
     headers: ('Accept' = 'application/json'),
     response: json as $data
-  }
+  )
 };
 
 -- ############################################################################
@@ -362,13 +362,13 @@ create rest client RestTest.RC014_JsonBodyAPI (
   authentication: none
 )
 {
-  operation AddItem {
+  operation AddItem (
     method: post,
     path: '/post',
     headers: ('Content-Type' = 'application/json'),
     body: json from $ItemData,
     response: json as $CreatedItem
-  }
+  )
 };
 
 -- ============================================================================
@@ -392,11 +392,11 @@ create rest client RestTest.RC015_FileDownloadAPI (
   authentication: none
 )
 {
-  operation DownloadFile {
+  operation DownloadFile (
     method: get,
     path: '/image/png',
     response: file as $Downloaded
-  }
+  )
 };
 
 -- ############################################################################
@@ -417,40 +417,40 @@ create rest client RestTest.RC016_ResponseTypesAPI (
 )
 {
   /** JSON response mapped to entity */
-  operation GetJson {
+  operation GetJson (
     method: get,
     path: '/json',
     response: json as $JsonData
-  }
+  )
 
   /** Raw string response */
-  operation GetString {
+  operation GetString (
     method: get,
     path: '/robots.txt',
     response: string as $TextContent
-  }
+  )
 
   /** Binary file download */
-  operation DownloadFile {
+  operation DownloadFile (
     method: get,
     path: '/bytes/{fileId}',
     parameters: ($fileId: string),
     response: file as $FileDocument
-  }
+  )
 
   /** HTTP status code only */
-  operation CheckStatus {
+  operation CheckStatus (
     method: get,
     path: '/status/200',
     response: status as $StatusCode
-  }
+  )
 
   /** No response expected */
-  operation Ping {
+  operation Ping (
     method: get,
     path: '/status/204',
     response: none
-  }
+  )
 };
 
 -- ############################################################################
@@ -471,21 +471,21 @@ create rest client RestTest.RC017_LongRunningAPI (
 )
 {
   /** Quick health check with short timeout */
-  operation HealthCheck {
+  operation HealthCheck (
     method: get,
     path: '/status/200',
     timeout: 5,
     response: status as $status
-  }
+  )
 
   /** Report generation with extended timeout (delay/10 waits 10 seconds) */
-  operation GenerateReport {
+  operation GenerateReport (
     method: post,
     path: '/delay/10',
     body: json from $ReportParams,
     timeout: 600,
     response: json as $ReportResult
-  }
+  )
 };
 
 -- ############################################################################
@@ -513,63 +513,63 @@ create rest client RestTest.RC018_PetStoreAPI (
    * @param status Filter by pet status (available, pending, sold)
    * @param limit Maximum number of pets to return
    */
-  operation ListPets {
+  operation ListPets (
     method: get,
     path: '/pet/findByStatus',
     query: ($status: string),
     headers: ('Accept' = 'application/json'),
     timeout: 30,
     response: json as $PetList
-  }
+  )
 
   /**
    * Get a single pet by ID
    * @param petId The unique identifier of the pet
    */
-  operation GetPet {
+  operation GetPet (
     method: get,
     path: '/pet/{petId}',
     parameters: ($petId: integer),
     headers: ('Accept' = 'application/json'),
     response: json as $Pet
-  }
+  )
 
   /**
    * Create a new pet
    * Adds a new pet to the store inventory.
    */
-  operation AddPet {
+  operation AddPet (
     method: post,
     path: '/pet',
     headers: ('Content-Type' = 'application/json', 'Accept' = 'application/json'),
     body: json from $NewPet,
     response: json as $CreatedPet
-  }
+  )
 
   /**
    * Update an existing pet
    * Modifies all fields of an existing pet record.
    */
-  operation ModifyPet {
+  operation ModifyPet (
     method: put,
     path: '/pet',
     headers: ('Content-Type' = 'application/json', 'Accept' = 'application/json'),
     body: json from $UpdatedPet,
     response: json as $Pet
-  }
+  )
 
   /**
    * Delete a pet
    * Removes a pet from the store inventory.
    * @param petId The unique identifier of the pet to delete
    */
-  operation RemovePet {
+  operation RemovePet (
     method: delete,
     path: '/pet/{petId}',
     parameters: ($petId: integer),
     headers: ('api_key' = 'special-key'),
     response: none
-  }
+  )
 
   -- Upload pet image: not expressible HERE. `body: file from $ImageFile` is
   -- refused as MDL-REST02 — a consumed operation has no binary request body.
@@ -590,41 +590,41 @@ create rest client RestTest.RC019_GitHubAPI (
 )
 {
   /** Get repository information */
-  operation GetRepository {
+  operation GetRepository (
     method: get,
     path: '/repos/{owner}/{repo}',
     parameters: ($owner: string, $repo: string),
     headers: ('Accept' = 'application/vnd.github.v3+json', 'User-Agent' = 'Mendix-REPL'),
     response: json as $Repository
-  }
+  )
 
   /** List repository issues */
-  operation ListIssues {
+  operation ListIssues (
     method: get,
     path: '/repos/{owner}/{repo}/issues',
     parameters: ($owner: string, $repo: string),
     query: ($state: string, $labels: string, $page: integer, $per_page: integer),
     headers: ('Accept' = 'application/vnd.github.v3+json', 'User-Agent' = 'Mendix-REPL'),
     response: json as $Issues
-  }
+  )
 
   /** Create an issue (requires authentication) */
-  operation AddIssue {
+  operation AddIssue (
     method: post,
     path: '/repos/{owner}/{repo}/issues',
     parameters: ($owner: string, $repo: string),
     headers: ('Accept' = 'application/vnd.github.v3+json', 'User-Agent' = 'Mendix-REPL', 'Authorization' = 'token ghp_exampletoken123'),
     body: json from $IssueData,
     response: json as $CreatedIssue
-  }
+  )
 
   /** Get authenticated user */
-  operation GetAuthenticatedUser {
+  operation GetAuthenticatedUser (
     method: get,
     path: '/user',
     headers: ('Accept' = 'application/vnd.github.v3+json', 'User-Agent' = 'Mendix-REPL', 'Authorization' = 'token ghp_exampletoken123'),
     response: json as $user
-  }
+  )
 };
 
 -- ============================================================================
@@ -641,31 +641,31 @@ create rest client RestTest.RC020_WeatherAPI (
 )
 {
   /** Get current weather for a city */
-  operation GetCurrentWeather {
+  operation GetCurrentWeather (
     method: get,
     path: '/weather',
     query: ($q: string, $appid: string, $units: string),
     headers: ('Accept' = 'application/json'),
     response: json as $Weather
-  }
+  )
 
   /** Get 5-day forecast */
-  operation GetForecast {
+  operation GetForecast (
     method: get,
     path: '/forecast',
     query: ($q: string, $appid: string, $units: string, $cnt: integer),
     headers: ('Accept' = 'application/json'),
     response: json as $Forecast
-  }
+  )
 
   /** Get weather by coordinates */
-  operation GetWeatherByCoords {
+  operation GetWeatherByCoords (
     method: get,
     path: '/weather',
     query: ($lat: decimal, $lon: decimal, $appid: string, $units: string),
     headers: ('Accept' = 'application/json'),
     response: json as $Weather
-  }
+  )
 };
 
 -- ============================================================================
@@ -682,48 +682,48 @@ create rest client RestTest.RC021_PaymentAPI (
 )
 {
   /** Create a payment intent */
-  operation InitiatePayment {
+  operation InitiatePayment (
     method: post,
     path: '/payment_intents',
     headers: ('Content-Type' = 'application/json', 'Accept' = 'application/json', 'Idempotency-Key' = 'idem-key-001'),
     body: json from $PaymentData,
     timeout: 30,
     response: json as $PaymentIntent
-  }
+  )
 
   /** Retrieve a payment intent */
-  operation GetPaymentIntent {
+  operation GetPaymentIntent (
     method: get,
     path: '/payment_intents/{paymentIntentId}',
     parameters: ($paymentIntentId: string),
     response: json as $PaymentIntent
-  }
+  )
 
   /** Confirm a payment */
-  operation ConfirmPayment {
+  operation ConfirmPayment (
     method: post,
     path: '/payment_intents/{paymentIntentId}/confirm',
     parameters: ($paymentIntentId: string),
     headers: ('Content-Type' = 'application/json'),
     body: json from $ConfirmData,
     response: json as $PaymentIntent
-  }
+  )
 
   /** Cancel a payment */
-  operation CancelPayment {
+  operation CancelPayment (
     method: post,
     path: '/payment_intents/{paymentIntentId}/cancel',
     parameters: ($paymentIntentId: string),
     response: json as $PaymentIntent
-  }
+  )
 
   /** List all payments */
-  operation ListPayments {
+  operation ListPayments (
     method: get,
     path: '/payment_intents',
     query: ($limit: integer, $starting_after: string, $created: integer),
     response: json as $PaymentList
-  }
+  )
 };
 
 -- ############################################################################

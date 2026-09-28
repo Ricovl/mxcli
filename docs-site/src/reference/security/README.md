@@ -19,12 +19,12 @@ Mendix security operates at two levels. **Module roles** define permissions with
 
 | Statement | Syntax |
 |-----------|--------|
-| Show project security | `SHOW PROJECT SECURITY` |
+| Describe app security | `DESCRIBE APP SECURITY` |
 | Show module roles | `SHOW MODULE ROLES [IN module]` |
 | Show user roles | `SHOW USER ROLES` |
 | Show demo users | `SHOW DEMO USERS` |
 | Show access on element | `SHOW ACCESS ON [ENTITY\|MICROFLOW\|PAGE\|NANOFLOW] module.Name` |
-| Show security matrix | `SHOW SECURITY MATRIX [IN module]` |
+| Describe security matrix | `DESCRIBE SECURITY MATRIX [IN module]` |
 | Alter app security level | `ALTER APP SECURITY LEVEL OFF\|PROTOTYPE\|PRODUCTION` |
 | Toggle demo users | `ALTER APP SECURITY DEMO USERS ON\|OFF` |
 | Toggle strict mode | `ALTER APP SECURITY STRICT MODE ON\|OFF` |
@@ -32,4 +32,4 @@ Mendix security operates at two levels. **Module roles** define permissions with
 | Drop module role | `DROP MODULE ROLE module.Role` |
 | Drop user role | `DROP USER ROLE [IF EXISTS] Name` |
 | Drop demo user | `DROP DEMO USER [IF EXISTS] 'username'` |
-| Alter user role | `ALTER USER ROLE Name ADD\|REMOVE MODULE ROLES (module.Role, ...)` |
+| Alter user role | `ALTER USER ROLE Name ADD\|DROP MODULE ROLES (module.Role, ...)` |

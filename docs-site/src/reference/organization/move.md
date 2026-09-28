@@ -89,9 +89,10 @@ MOVE JSON STRUCTURE MyModule.JSON_Order TO FOLDER 'Private/JSON structures';
 ### Place a document while creating it
 
 Every document type takes a `FOLDER` clause on `CREATE`, so a document can be
-placed by the statement that creates it. On pages and snippets it is a property
-(`Folder: 'path'`); on microflows and nanoflows a keyword before `BEGIN`; on
-everything else a keyword straight after the qualified name:
+placed by the statement that creates it. On microflows and nanoflows it follows
+the signature, before `BEGIN`; on everything else, pages and snippets included, it
+follows the qualified name straight away. The `Folder: 'path'` property that pages,
+snippets and REST/OData services also take is a deprecated alias (`MDL-DEPR105`):
 
 ```sql
 CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Order

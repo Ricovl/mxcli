@@ -149,21 +149,21 @@ alter settings configuration 'Default'
  * Example 3.1: Override a constant value in a specific configuration
  */
 create constant MyModule.ServerUrl type string default 'localhost:9092';
-alter settings constant 'MyModule.ServerUrl' value 'kafka:9092'
+alter settings constant @MyModule.ServerUrl value 'kafka:9092'
   in configuration 'Default';
 
 /**
  * Example 3.2: Remove a constant override (reset to default)
  */
-alter settings drop constant 'MyModule.ServerUrl' in configuration 'Default';
+alter settings drop constant @MyModule.ServerUrl in configuration 'Default';
 
 /**
  * Example 3.3: Alternative syntax for removing a constant override
  * (Re-set the value first so there is something to drop)
  */
-alter settings constant 'MyModule.ServerUrl' value 'kafka:9092'
+alter settings constant @MyModule.ServerUrl value 'kafka:9092'
   in configuration 'Default';
-alter settings constant 'MyModule.ServerUrl' drop in configuration 'Default';
+alter settings constant @MyModule.ServerUrl drop in configuration 'Default';
 
 -- MARK: Create / Drop Configuration
 

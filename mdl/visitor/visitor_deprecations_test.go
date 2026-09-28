@@ -99,15 +99,15 @@ var createOrReplaceCases = map[string]string{
 	"scheduledevent":              "scheduled event M.NightlyCleanup (Microflow: M.SE_Cleanup, Repeat: Daily, HourOfDay: 4, MinuteOfHour: 0, TimeZone: Server, Enabled: true);",
 	"regularexpression":           "regular expression M.Email (Expression: '.+@.+');",
 	"jsonstructure":               "json structure M.JSON_Pet snippet '{\"id\": 1}';",
-	"messagedefinitioncollection": "message definition collection M.MD_Order (definition OrderMessage for M.Order as 'Orders' (OrderId));",
+	"messagedefinitioncollection": "message definition collection M.MD_Order {definition OrderMessage for M.Order as 'Orders' {OrderId}};",
 	"importmapping":               "import mapping M.IMM_Order with json structure M.JSON_Order { create M.Order { Id = id } };",
 	"exportmapping":               "export mapping M.EMM_Order with json structure M.JSON_Order { M.Order { orderId = OrderId } };",
 	"configuration":               "configuration 'Default';",
 	"publishedrestservice":        "published rest service M.OrderAPI (Path: 'rest/orders/v1', Version: '1.0.0', ServiceName: 'Order API') { };",
 	"datatransformer":             "data transformer M.Flatten source json '{\"id\": 1}' { jslt '{\"id\": .id}'; };",
-	"model":                       "model M.GPT4 (Provider: MxCloudGenAI, Key: M.ModelApiKey);",
+	"model":                       "model M.GPT4 (Provider: MxCloudGenAI, Key: @M.ModelApiKey);",
 	"consumedmcpservice":          "consumed mcp service M.WebSearch (ProtocolVersion: v2025_03_26, Version: '1.0');",
-	"knowledgebase":               "knowledge base M.Docs (Provider: MxCloudGenAI, Key: M.KBApiKey);",
+	"knowledgebase":               "knowledge base M.Docs (Provider: MxCloudGenAI, Key: @M.KBApiKey);",
 	"agent":                       "agent M.Summarizer (UsageType: Task, Model: M.GPT4, SystemPrompt: 'Summarize.', UserPrompt: 'Text.');",
 	"nanoflow":                    "nanoflow M.NF_Validate () begin return; end;",
 	"rule":                        "rule M.Rule_IsSolvent ($c: M.Customer) returns Boolean begin return true; end;",
@@ -259,22 +259,24 @@ func TestShowRecordsDeprecation(t *testing.T) {
 		{"show access on M.E;", []string{deprecation.Show}},
 		{"show design properties;", []string{deprecation.Show}},
 		{"show widgets;", []string{deprecation.Show}},
-		// Not reported: the decided canonical form of these is NOT `list`
-		// (PROPOSAL_mdl_beta_syntax_freeze.md §3, R6). Single things become
-		// `describe`, session state a REPL command, so `list entity M.E` or
-		// `list version` would name a non-canonical form and make
-		// `fmt --upgrade` rewrite them twice.
-		{"show entity M.E;", nil},
-		{"show association M.A;", nil},
-		{"show page M.P;", nil},
-		{"show navigation;", nil},
-		{"show navigation homes;", nil},
-		{"show navigation menu M.Nav;", nil},
-		{"show structure depth 2 in M;", nil},
-		{"show context of M.MF;", nil},
-		{"show project security;", nil},
-		{"show security matrix in M;", nil},
-		{"show settings;", nil},
+		// A single thing is described, not listed (PROPOSAL_mdl_beta_syntax_freeze.md
+		// §3, R6): MDL-DEPR090, never MDL-DEPR002, so `fmt --upgrade` does
+		// not rewrite them to a `list` that is not canonical either. `list`
+		// on these forms is reported too.
+		{"show entity M.E;", []string{deprecation.ShowSingleThing}},
+		{"show association M.A;", []string{deprecation.ShowSingleThing}},
+		{"show page M.P;", []string{deprecation.ShowSingleThing}},
+		{"list page M.P;", []string{deprecation.ShowSingleThing}},
+		{"show navigation;", []string{deprecation.ShowSingleThing}},
+		{"show navigation homes;", []string{deprecation.Show}},
+		{"list navigation homes;", nil},
+		{"show navigation menu M.Nav;", []string{deprecation.ShowSingleThing}},
+		{"show structure depth 2 in M;", []string{deprecation.ShowSingleThing}},
+		{"show context of M.MF;", []string{deprecation.ShowSingleThing}},
+		{"show project security;", []string{deprecation.ShowSingleThing}},
+		{"show security matrix in M;", []string{deprecation.ShowSingleThing}},
+		{"show settings;", []string{deprecation.ShowSingleThing}},
+		// Session state becomes a REPL command (R7), not reported until then.
 		{"show version;", nil},
 		{"show status;", nil},
 		{"show connections;", nil},

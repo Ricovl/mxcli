@@ -61,4 +61,4 @@ alter settings configuration 'Issue759 Postgres'
   DatabaseType = 'PostgreSql',
   ApplicationRootUrl = 'http://localhost:8081/';
 
-show settings;
+describe settings;

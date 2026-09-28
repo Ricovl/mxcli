@@ -41,13 +41,14 @@ For full credentials (username, password):
 
 Example output:
 ```sql
-alter settings configuration 'Default'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'localhost:5434',
-  DatabaseName = 'mxcli2-dev',
-  DatabaseUserName = 'mendix',
-  DatabasePassword = 'mendix',
-  HttpPortNumber = 8080;
+alter settings configuration 'Default' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'localhost:5434',
+  DatabaseName: 'mxcli2-dev',
+  DatabaseUserName: 'mendix',
+  DatabasePassword: 'mendix',
+  HttpPortNumber: 8080
+);
 ```
 
 ---

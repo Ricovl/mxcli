@@ -26,6 +26,9 @@ var strictParsingCases = []struct {
 	{"unknown property key", "show modules;\ncreate published rest service M.S (Path: 'rest/s', Verison: '1.0') { };", "MDL-V1-PROP", "did you mean 'Version'"},
 	{"mis-shaped property value", "show modules;\ncreate rest client M.Api (BaseUrl: 'https://x', Authentication: none) { operation Post { Method: post, Path: '/u', Response: json from $X } };", "MDL-V1-PROPVALUE", "takes none or json as $var"},
 	// A change of meaning, not a rejection: see TestStringEscapeUnderEachVersion.
+	// R7 (ako/mxcli#755): a session command belongs at the REPL or on the
+	// command line; under mdl 0 the script still sets the format.
+	{"session command", "show modules;\nset format = json;", "MDL-V1-SESSION", "`set format` is a session command"},
 	{"backslash escape", "show modules;\ncreate persistent entity M.N (T: String(20) default 'C:\\temp');", "MDL-V1-ESCAPE", ""},
 }
 
@@ -35,7 +38,7 @@ func countStatements(e *Executor, ran *int, defaults *[]any) {
 		*ran++
 		return nil
 	}
-	for _, s := range []ast.Statement{&ast.CreatePublishedRestServiceStmt{}, &ast.CreateRestClientStmt{}} {
+	for _, s := range []ast.Statement{&ast.CreatePublishedRestServiceStmt{}, &ast.CreateRestClientStmt{}, &ast.SetStmt{}} {
 		e.registry.handlers[reflect.TypeOf(s)] = func(*ExecContext, ast.Statement) error {
 			*ran++
 			return nil

@@ -52,6 +52,21 @@ Each keyword has one spelling, and a page action uses the words a microflow uses
 | `type ReferenceSet` | `type reference_set` | `MDL-DEPR023` |
 | `returns nothing` (REST call) | `returns none` | `MDL-DEPR024` |
 
+## One Verb per Job
+
+`list` enumerates, `describe` shows one thing, and an `alter` adds and drops its children. The older verbs still parse with the same meaning and warn with the code shown; `mxcli fmt --upgrade` rewrites them, except where noted:
+
+| Canonical | Deprecated | Code |
+|---|---|---|
+| `describe page M.P`, `describe app security`, `describe security matrix [in M]`, `describe structure …`, `describe context of X` | `show` (or `list`) with the same words; `show project security` | `MDL-DEPR090` |
+| `describe entity X`, `describe association X`, `describe navigation`, `describe settings` | `show entity X`, `show association X`, `show navigation [menu]`, `show settings` — these print a summary where `describe` prints the definition as MDL, so `fmt --upgrade` reports them and leaves them in place | `MDL-DEPR090` |
+| `alter user role R drop module roles (…)` | `… remove module roles (…)` | `MDL-DEPR091` |
+| `alter settings language drop '…'`, `alter settings workflows drop group '…'` | `remove` | `MDL-DEPR092` |
+| `alter entity E add\|rename\|modify\|drop attribute …` | `… column …` | `MDL-DEPR093` |
+| `call rest service get '…' …` | `rest call get '…' …` | `MDL-DEPR094` |
+| `describe widget type combobox` | `describe widget combobox` | `MDL-DEPR095` |
+| `create fragment F as { … }` | `define fragment F as { … }` | `MDL-DEPR096` |
+
 ## Language Version Header
 
 A script may start with a header that names the MDL language version it is written in:
@@ -78,6 +93,7 @@ What `mdl 1` makes strict (each is a warning without the header, with the code s
 | `''` is the only string escape; a backslash is an ordinary character, so `'C:\temp'` is that path. | `\n`, `\r`, `\t`, `\\` and `\'` are escapes; `MDL-V1-ESCAPE` for each literal whose value would change. |
 | In a REST client, published REST service, business event service, model, knowledge base, consumed MCP service or agent, an unknown property key is an error that names the key it most likely meant, and so is a value its key does not take (`Response: json from $X`). | The property is ignored, or read by its shape as before; `MDL-V1-PROP` / `MDL-V1-PROPVALUE`. |
 | A `while` loop is `while <condition> begin … end while;`; leaving out `begin`, or the `while` after `end`, is an error. | Accepted; `MDL-V1-WHILE`. |
+| A session command — `connect`, `disconnect`, `use`, `set format = …`, `status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help`, `introspect api` — is an error in a script. Type it at the REPL, or use the command-line flag (`mxcli exec script.mdl -p app.mpr --json`). The REPL keeps accepting them. | Runs as before; `MDL-V1-SESSION`. |
 
 ### Upgrading a script: `mxcli fmt --upgrade`
 
@@ -102,7 +118,7 @@ mxcli fmt --upgrade --header -w script.mdl  # also add `mdl 1;`
 | `MDL-V1-REPLACE02` | `create or replace user role` / `demo user` becomes a plain `create` |
 | `MDL-V1-WHILE` | inserts the missing `begin` after a `while` condition and `while` after its `end` |
 
-A construct with no mechanical rewrite is reported with the reason, and `fmt` refuses to add the header rather than change the script's meaning: an unknown or mis-shaped property (`MDL-V1-PROP`, `MDL-V1-PROPVALUE`), `create or replace view entity` (`MDL-V1-REPLACE01`), a nested list operation such as `count(filter(…))`, `find`/`contains` on a variable whose type the script does not state, and an escaped line break (`\n`) inside an expression. While `mdl 1` is a preview, the header is added only when asked. Running `fmt --upgrade` on its own output changes nothing.
+A construct with no mechanical rewrite is reported with the reason, and `fmt` refuses to add the header rather than change the script's meaning: an unknown or mis-shaped property (`MDL-V1-PROP`, `MDL-V1-PROPVALUE`), `create or replace view entity` (`MDL-V1-REPLACE01`), a session command in a script (`MDL-V1-SESSION`: move it to the command line or the REPL), a nested list operation such as `count(filter(…))`, `find`/`contains` on a variable whose type the script does not state, and an escaped line break (`\n`) inside an expression. While `mdl 1` is a preview, the header is added only when asked. Running `fmt --upgrade` on its own output changes nothing.
 
 The design is in [ADR-0011](https://github.com/mendixlabs/mxcli/blob/main/docs/13-decisions/0011-mdl-language-versioning.md); `mxcli syntax language-header` has the details.
 

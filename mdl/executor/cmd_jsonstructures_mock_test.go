@@ -8,6 +8,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend/mock"
 	"github.com/mendixlabs/mxcli/mdl/types"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 )
 
@@ -85,6 +86,45 @@ func TestDescribeJsonStructure_Mock(t *testing.T) {
 	ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
 	assertNoError(t, describeJsonStructure(ctx, ast.QualifiedName{Module: "OrderMgmt", Name: "OrderSchema"}))
 	assertContainsStr(t, buf.String(), "create or modify json structure")
+}
+
+// TestDescribeJsonStructure_DocumentationWithCommentEnd: R9 made the doc
+// comment the one spelling describe emits, but a text with `*/` in it ends a
+// doc comment early. Describe keeps the `comment '…'` clause for it, so the
+// statement parses and the documentation reads back unchanged. The control is
+// an ordinary text.
+func TestDescribeJsonStructure_DocumentationWithCommentEnd(t *testing.T) {
+	for _, doc := range []string{"ends */ here", "plain text"} {
+		mod := mkModule("OrderMgmt")
+		js := &types.JsonStructure{
+			BaseElement:   model.BaseElement{ID: nextID("js")},
+			ContainerID:   mod.ID,
+			Name:          "OrderSchema",
+			Documentation: doc,
+			JsonSnippet:   `{"a":1}`,
+		}
+		h := mkHierarchy(mod)
+		withContainer(h, js.ContainerID, mod.ID)
+		mb := &mock.MockBackend{
+			IsConnectedFunc:        func() bool { return true },
+			ListJsonStructuresFunc: func() ([]*types.JsonStructure, error) { return []*types.JsonStructure{js}, nil },
+		}
+		ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
+		assertNoError(t, describeJsonStructure(ctx, ast.QualifiedName{Module: "OrderMgmt", Name: "OrderSchema"}))
+		prog, errs := visitor.Build(buf.String())
+		if len(errs) > 0 {
+			t.Fatalf("describe of documentation %q does not parse: %v\n%s", doc, errs, buf.String())
+		}
+		var got *ast.CreateJsonStructureStmt
+		for _, s := range prog.Statements {
+			if cs, ok := s.(*ast.CreateJsonStructureStmt); ok {
+				got = cs
+			}
+		}
+		if got == nil || got.Documentation != doc {
+			t.Errorf("documentation %q did not read back; got %+v from:\n%s", doc, got, buf.String())
+		}
+	}
 }
 
 func TestDescribeJsonStructure_NotFound(t *testing.T) {

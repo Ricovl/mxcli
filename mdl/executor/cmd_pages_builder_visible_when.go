@@ -78,7 +78,7 @@ func (pb *pageBuilder) applyVisibleWhen(widget pages.Widget, w *ast.WidgetV3) er
 		}
 		all = append(values, emptyConditionValue)
 	default:
-		return mdlerrors.NewValidationf("%s: %s is not a Boolean or enumeration attribute — use an expression instead: `Visible: [...]`", where, attrQN)
+		return mdlerrors.NewValidationf("%s: %s is not a Boolean or enumeration attribute — use an expression instead: `Visible: $currentObject/…`", where, attrQN)
 	}
 
 	visible := map[string]bool{}

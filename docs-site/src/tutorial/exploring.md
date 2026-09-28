@@ -7,7 +7,7 @@ mxcli provides three families of commands for exploration:
 - **SHOW** commands list elements by type. `SHOW ENTITIES` lists all entities; `SHOW MICROFLOWS IN Sales` narrows the list to one module.
 - **DESCRIBE** commands display the full MDL source for a single element, giving you the complete definition including attributes, associations, logic, and widget trees.
 - **SEARCH** performs full-text search across every string in the project -- captions, messages, expressions, documentation, and more.
-- **SHOW STRUCTURE** gives you a compact tree view of the entire project or a single module, at varying levels of detail.
+- **DESCRIBE STRUCTURE** gives you a compact tree view of the entire project or a single module, at varying levels of detail.
 
 These commands are read-only. They never modify your project. You can run them freely to build a mental model of the application before making any changes.
 
@@ -18,7 +18,7 @@ In this chapter, you will:
 1. List modules, entities, microflows, pages, and other elements with **SHOW** commands
 2. Inspect the full definition of any element with **DESCRIBE**
 3. Find elements by keyword with **SEARCH**
-4. Get a bird's-eye view of project structure with **SHOW STRUCTURE**
+4. Get a bird's-eye view of project structure with **DESCRIBE STRUCTURE**
 
 ## Prerequisites
 

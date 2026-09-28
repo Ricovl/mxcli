@@ -16,7 +16,7 @@ Press `:` to open the command palette at the bottom of the TUI. The command bar 
 | `:run` | Execute the current MDL file |
 | `:callers` | Show callers of the selected element |
 | `:callees` | Show callees of the selected element |
-| `:context` | Show context of the selected element |
+| `:context` | Describe context of the selected element |
 | `:impact` | Show impact analysis of the selected element |
 | `:refs` | Show references to the selected element |
 | `:diagram` | Open a diagram of the selected element in the system browser |

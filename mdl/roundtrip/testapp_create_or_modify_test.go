@@ -23,12 +23,13 @@ import (
 //
 // `odata service` switched in #743: its probe passed on all three TestApp
 // services once the rewrite carried ExportLevel, PageSize, the entity-set order
-// and CanBeEmpty.
-var deferredVerbKinds = map[string]bool{
-	"workflow":        true,
-	"odata client":    true,
-	"external entity": true,
-}
+// and CanBeEmpty. `workflow`, `odata client` and `external entity` switched
+// once theirs passed too: the names of a workflow's implicit activities, empty
+// outcome flows and the empty EventSubProcesses list; a client's icon,
+// UseQuerySegment and the keys Studio Pro stores empty; an entity's false
+// generalization flags. No kind is deferred now; the probe stays for the next
+// kind whose describe has to keep a plain `create`.
+var deferredVerbKinds = map[string]bool{}
 
 // createOrModifyProbeKnownFailures lives in testapp_allowlist_test.go.
 
@@ -48,6 +49,12 @@ func TestTestAppCreateOrModifyProbe(t *testing.T) {
 	h := newFixtureHarness(t, testApp)
 	defer h.close()
 
+	if len(deferredVerbKinds) == 0 {
+		if len(createOrModifyProbeKnownFailures) > 0 {
+			t.Errorf("createOrModifyProbeKnownFailures lists %d document(s), but no kind is deferred — remove them", len(createOrModifyProbeKnownFailures))
+		}
+		t.Skip("no kind's describe prints a plain `create`; TestTestAppRoundTrip covers every kind")
+	}
 	probed := 0
 	seen := map[string]bool{}
 	for _, d := range h.documents() {

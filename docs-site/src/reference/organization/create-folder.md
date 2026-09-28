@@ -45,11 +45,10 @@ END;
 ### Use a folder when creating a page
 
 ```sql
-CREATE PAGE MyModule.Order_Edit
+CREATE PAGE MyModule.Order_Edit FOLDER 'Orders'
 (
   Title: 'Edit Order',
-  Layout: Atlas_Core.PopupLayout,
-  Folder: 'Orders'
+  Layout: Atlas_Core.PopupLayout
 )
 {
   CONTAINER main {}

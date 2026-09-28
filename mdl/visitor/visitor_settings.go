@@ -16,101 +16,69 @@ func (b *Builder) ExitAlterSettingsClause(ctx *parser.AlterSettingsClauseContext
 	}
 
 	if ctx.DROP() != nil && ctx.CONSTANT() != nil {
-		// ALTER SETTINGS DROP CONSTANT 'name' [IN CONFIGURATION 'cfg']
+		// ALTER SETTINGS DROP CONSTANT @name [IN CONFIGURATION 'cfg']
 		stmt.Section = "constant"
 		stmt.DropConstant = true
-		allStrings := ctx.AllSTRING_LITERAL()
-		if len(allStrings) > 0 {
-			stmt.ConstantId = unquoteStringLit(allStrings[0])
-		}
-		if ctx.IN() != nil && ctx.CONFIGURATION() != nil && len(allStrings) > 1 {
-			stmt.ConfigName = unquoteStringLit(allStrings[1])
+		stmt.ConstantId = settingsConstantRefText(ctx.SettingsConstantRef())
+		if ctx.IN() != nil && ctx.CONFIGURATION() != nil && ctx.STRING_LITERAL() != nil {
+			stmt.ConfigName = unquoteStringLit(ctx.STRING_LITERAL())
 		}
 	} else if ctx.CONSTANT() != nil {
-		// ALTER SETTINGS CONSTANT 'name' (VALUE 'value' | DROP) [IN CONFIGURATION 'cfg']
+		// ALTER SETTINGS CONSTANT @name (VALUE 'value' | DROP) [IN CONFIGURATION 'cfg']
 		stmt.Section = "constant"
-		allStrings := ctx.AllSTRING_LITERAL()
-		if len(allStrings) > 0 {
-			stmt.ConstantId = unquoteStringLit(allStrings[0])
-		}
+		stmt.ConstantId = settingsConstantRefText(ctx.SettingsConstantRef())
 		if ctx.DROP() != nil {
 			stmt.DropConstant = true
 		} else if ctx.SettingsValue() != nil {
 			stmt.Value = settingsValueText(ctx.SettingsValue().(*parser.SettingsValueContext))
 		}
 		// Check for IN CONFIGURATION 'name'
-		if ctx.IN() != nil && ctx.CONFIGURATION() != nil && len(allStrings) > 1 {
-			stmt.ConfigName = unquoteStringLit(allStrings[1])
+		if ctx.IN() != nil && ctx.CONFIGURATION() != nil && ctx.STRING_LITERAL() != nil {
+			stmt.ConfigName = unquoteStringLit(ctx.STRING_LITERAL())
 		}
 	} else if ctx.CONFIGURATION() != nil {
 		// ALTER SETTINGS CONFIGURATION 'name' Key = Value, ...
 		stmt.Section = "configuration"
-		allStrings := ctx.AllSTRING_LITERAL()
-		if len(allStrings) > 0 {
-			stmt.ConfigName = unquoteStringLit(allStrings[0])
+		if lit := ctx.STRING_LITERAL(); lit != nil {
+			stmt.ConfigName = unquoteStringLit(lit)
 		}
-		for _, assignCtx := range ctx.AllSettingsAssignment() {
-			assign, ok := assignCtx.(*parser.SettingsAssignmentContext)
-			if !ok || assign == nil {
-				continue
-			}
-			if assign.IDENTIFIER() == nil || assign.SettingsValue() == nil {
-				continue
-			}
-			key := assign.IDENTIFIER().GetText()
-			svCtx, ok := assign.SettingsValue().(*parser.SettingsValueContext)
-			if !ok || svCtx == nil {
-				continue
-			}
-			val := settingsValueText(svCtx)
-			stmt.Properties[key] = val
-		}
+		eachSettingsProperty(ctx.SettingsItemOptions(), ctx.AllSettingsAssignment(), func(key string, sv *parser.SettingsValueContext) {
+			stmt.Properties[key] = settingsValueText(sv)
+		})
 	} else if ctx.SettingsSection() != nil && ctx.GROUP() != nil {
 		// ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP 'Approvers' [( Description: '…' )]
 		// ALTER SETTINGS WORKFLOWS MODIFY          GROUP 'Approvers'  ( Description: '…' )
-		// ALTER SETTINGS WORKFLOWS REMOVE          GROUP 'Approvers'
+		// ALTER SETTINGS WORKFLOWS DROP            GROUP 'Approvers' (REMOVE: MDL-DEPR092)
 		stmt.Section = settingsSectionName(ctx.SettingsSection())
 		stmt.UpsertGroup = ctx.ADD() != nil && ctx.OR() != nil && ctx.MODIFY() != nil
 		stmt.AddGroup = ctx.ADD() != nil && !stmt.UpsertGroup
 		stmt.ModifyGroup = ctx.MODIFY() != nil && !stmt.UpsertGroup
-		stmt.RemoveGroup = ctx.REMOVE() != nil
-		if all := ctx.AllSTRING_LITERAL(); len(all) > 0 {
-			stmt.GroupName = unquoteStringLit(all[0])
+		stmt.RemoveGroup = ctx.DROP() != nil || ctx.REMOVE() != nil
+		if lit := ctx.STRING_LITERAL(); lit != nil {
+			stmt.GroupName = unquoteStringLit(lit)
 		}
 		collectSettingsItemOptions(ctx.SettingsItemOptions(), stmt.Properties)
-	} else if ctx.SettingsSection() != nil && (ctx.ADD() != nil || ctx.MODIFY() != nil || ctx.REMOVE() != nil) {
+	} else if ctx.SettingsSection() != nil && (ctx.ADD() != nil || ctx.MODIFY() != nil || ctx.DROP() != nil || ctx.REMOVE() != nil) {
 		// ALTER SETTINGS LANGUAGE ADD    'ar_SD' [( key: value, … )]
 		// ALTER SETTINGS LANGUAGE MODIFY 'ar_SD'  ( key: value, … )
-		// ALTER SETTINGS LANGUAGE REMOVE 'ar_SD'
+		// ALTER SETTINGS LANGUAGE DROP   'ar_SD' (REMOVE: MDL-DEPR092)
 		stmt.Section = settingsSectionName(ctx.SettingsSection())
 		stmt.UpsertLanguage = ctx.ADD() != nil && ctx.OR() != nil && ctx.MODIFY() != nil
 		stmt.AddLanguage = ctx.ADD() != nil && !stmt.UpsertLanguage
 		stmt.ModifyLanguage = ctx.MODIFY() != nil && !stmt.UpsertLanguage
-		stmt.RemoveLanguage = ctx.REMOVE() != nil
-		if all := ctx.AllSTRING_LITERAL(); len(all) > 0 {
-			stmt.LanguageCode = unquoteStringLit(all[0])
+		stmt.RemoveLanguage = ctx.DROP() != nil || ctx.REMOVE() != nil
+		if lit := ctx.STRING_LITERAL(); lit != nil {
+			stmt.LanguageCode = unquoteStringLit(lit)
 		}
 		collectSettingsItemOptions(ctx.SettingsItemOptions(), stmt.Properties)
 	} else if ctx.SettingsSection() != nil {
-		// ALTER SETTINGS MODEL|LANGUAGE|WORKFLOWS Key = Value, ...
+		// ALTER SETTINGS RUNTIME|LANGUAGE|WORKFLOWS ( Key: Value, ... )
 		stmt.Section = settingsSectionName(ctx.SettingsSection())
-		for _, assignCtx := range ctx.AllSettingsAssignment() {
-			assign, ok := assignCtx.(*parser.SettingsAssignmentContext)
-			if !ok || assign == nil {
-				continue
-			}
-			if assign.IDENTIFIER() == nil || assign.SettingsValue() == nil {
-				continue
-			}
-			key := assign.IDENTIFIER().GetText()
-			svCtx, ok := assign.SettingsValue().(*parser.SettingsValueContext)
-			if !ok || svCtx == nil {
-				continue
-			}
-			val := settingsValueToInterface(svCtx)
-			stmt.Properties[key] = val
-		}
+		eachSettingsProperty(ctx.SettingsItemOptions(), ctx.AllSettingsAssignment(), func(key string, sv *parser.SettingsValueContext) {
+			stmt.Properties[key] = settingsValueToInterface(sv)
+		})
 	}
+	b.recordSettingsAssignments(ctx.AllSettingsAssignment())
 
 	b.statements = append(b.statements, stmt)
 }
@@ -132,23 +100,39 @@ func (b *Builder) ExitCreateConfigurationStatement(ctx *parser.CreateConfigurati
 		}
 	}
 
-	for _, assignCtx := range ctx.AllSettingsAssignment() {
-		assign, ok := assignCtx.(*parser.SettingsAssignmentContext)
-		if !ok || assign == nil {
-			continue
-		}
-		if assign.IDENTIFIER() == nil || assign.SettingsValue() == nil {
-			continue
-		}
-		key := assign.IDENTIFIER().GetText()
-		svCtx, ok := assign.SettingsValue().(*parser.SettingsValueContext)
-		if !ok || svCtx == nil {
-			continue
-		}
-		stmt.Properties[key] = settingsValueText(svCtx)
-	}
+	eachSettingsProperty(ctx.SettingsItemOptions(), ctx.AllSettingsAssignment(), func(key string, sv *parser.SettingsValueContext) {
+		stmt.Properties[key] = settingsValueText(sv)
+	})
+	b.recordSettingsAssignments(ctx.AllSettingsAssignment())
 
 	b.statements = append(b.statements, stmt)
+}
+
+// eachSettingsProperty calls f for every property of a settings list, in
+// either spelling: the canonical ( Key: value, … ) list, or the old
+// `Key = value, …` assignments (MDL-DEPR060). Both build the same statement.
+func eachSettingsProperty(opts parser.ISettingsItemOptionsContext, assigns []parser.ISettingsAssignmentContext,
+	f func(key string, sv *parser.SettingsValueContext)) {
+	if oc, ok := opts.(*parser.SettingsItemOptionsContext); ok && oc != nil {
+		for _, o := range oc.AllSettingsItemOption() {
+			so, ok := o.(*parser.SettingsItemOptionContext)
+			if !ok || so == nil || so.IdentifierOrKeyword() == nil || so.SettingsValue() == nil {
+				continue
+			}
+			if sv, ok := so.SettingsValue().(*parser.SettingsValueContext); ok && sv != nil {
+				f(unquoteIdentifier(so.IdentifierOrKeyword().GetText()), sv)
+			}
+		}
+	}
+	for _, a := range assigns {
+		assign, ok := a.(*parser.SettingsAssignmentContext)
+		if !ok || assign == nil || assign.IDENTIFIER() == nil || assign.SettingsValue() == nil {
+			continue
+		}
+		if sv, ok := assign.SettingsValue().(*parser.SettingsValueContext); ok && sv != nil {
+			f(assign.IDENTIFIER().GetText(), sv)
+		}
+	}
 }
 
 // collectSettingsItemOptions reads a ( key: value, … ) option list — the shared

@@ -3,11 +3,10 @@
 ## Synopsis
 
 ```sql
-CREATE [ OR REPLACE ] SNIPPET module.Name
-(
-    [ Params: { $param : Module.Entity | Type [, ...] } ]
-    [, Folder: 'path' ]
-)
+CREATE [ OR REPLACE ] SNIPPET module.Name [ FOLDER 'path' ]
+[(
+    Params: { $param : Module.Entity | Type [, ...] }
+)]
 {
     widget_tree
 }
@@ -45,8 +44,8 @@ The optional `Folder` property places the snippet in a subfolder within the modu
     on a value, keep the primitive on the calling page's parameters, or pass an
     object and read the member inside the snippet.
 
-`Folder: 'path'`
-:   Optional folder path within the module.
+`FOLDER 'path'`
+:   Optional folder path within the module, as a clause after the name. The `Folder: 'path'` property is its deprecated alias (`MDL-DEPR105`).
 
 ## Examples
 
