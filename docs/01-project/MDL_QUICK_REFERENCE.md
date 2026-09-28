@@ -246,6 +246,7 @@ the statement names the **attribute**, not the rule.
 |-----------|--------|-------|
 | Create regex rule | `create validation rule for Module.Entity.Attribute regex Module.Pattern error message '<msg>';` | Pattern must already exist |
 | Create range rule | `create validation rule for Module.Entity.Attribute range from <lit> to <lit> error message '<msg>';` | Bounds inclusive |
+| Drop a rule | `drop validation rule [if exists] for Module.Entity.Attribute [regex \| range];` | No kind: both the regex and the range rule |
 | Lower bound only | `... range from <lit> ...` | Mendix `GreaterThanOrEqualTo` |
 | Upper bound only | `... range to <lit> ...` | Mendix `SmallerThanOrEqualTo` |
 
@@ -356,6 +357,7 @@ create scheduled event Ops.WeeklyReport (
 | Show external entities | `show external entities [in module];` | OData-backed entities |
 | Show external actions | `show external actions [in module];` | Actions used in microflows |
 | Create external entity | `create [or modify] external entity Module.Name from consumed odata service Module.Client (...) (attrs);` | |
+| Drop external entity | `drop external entity [if exists] Module.Name;` | Refuses a local entity |
 | Create external entities | `create [or modify] external entities from Module.Client [into module] [entities (...)];` | Bulk from $metadata |
 | Allow local create/change | `alter entity Module.Name set (AllowCreateChangeLocally: true);` | `create external entity`'s key. `set allow_create_change_locally = true` warns MDL-DEPR063 |
 | Grant OData access | `grant access on published odata service Module.Name to Module.Role, ...;` | |

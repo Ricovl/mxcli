@@ -313,13 +313,16 @@ end;
 
 ```sql
 -- List all database connections
-show database connections;
+list database connections;
 
 -- List connections in a specific module
-show database connections in MyModule;
+list database connections in MyModule;
 
 -- View connection source code
 describe database connection MyModule.MyDatabase;
+
+-- Remove one
+drop database connection [if exists] MyModule.MyDatabase;
 ```
 
 ## Best Practices

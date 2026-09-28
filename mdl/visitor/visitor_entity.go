@@ -916,8 +916,22 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 
 	if ctx.ENTITY() != nil {
 		b.statements = append(b.statements, &ast.DropEntityStmt{
+			Name:     buildQualifiedName(names[0]),
+			External: ctx.EXTERNAL() != nil,
+		})
+	} else if ctx.DATABASE() != nil && ctx.CONNECTION() != nil {
+		b.statements = append(b.statements, &ast.DropDatabaseConnectionStmt{
 			Name: buildQualifiedName(names[0]),
 		})
+	} else if ctx.VALIDATION() != nil {
+		stmt := &ast.DropValidationRuleStmt{Attribute: buildQualifiedName(names[0])}
+		switch {
+		case ctx.REGEX() != nil:
+			stmt.Kind = ast.ValidationRuleRegEx
+		case ctx.RANGE() != nil:
+			stmt.Kind = ast.ValidationRuleRange
+		}
+		b.statements = append(b.statements, stmt)
 	} else if ctx.ASSOCIATION() != nil {
 		b.statements = append(b.statements, &ast.DropAssociationStmt{
 			Name: buildQualifiedName(names[0]),

@@ -64,6 +64,7 @@ func init() {
 			"CREATE EXTERNAL ENTITIES FROM Module.Client\n" +
 			"  [INTO Module] [ENTITIES (Name1, Name2)];\n\n" +
 			"ALTER ENTITY Module.Name SET (AllowCreateChangeLocally: true);\n\n" +
+			"DROP EXTERNAL ENTITY [IF EXISTS] Module.Name;  -- refuses a local entity\n\n" +
 			"-- `SET Key = value, ...` (no parentheses) still runs and warns MDL-DEPR061;\n" +
 			"-- `SET allow_create_change_locally = true` warns MDL-DEPR063.",
 		Example: "CREATE CONSTANT MyModule.SvcUrl TYPE String DEFAULT 'https://api.example.com/odata/v4/';\n\nCREATE CONSUMED ODATA SERVICE MyModule.SalesforceAPI (\n  Version: '1.0',\n  ODataVersion: OData4,\n  MetadataUrl: 'https://api.example.com/odata/$metadata',\n  Timeout: 300,\n  ServiceUrl: MyModule.SvcUrl\n);\n\nCREATE EXTERNAL ENTITIES FROM MyModule.SalesforceAPI INTO Integration;",
@@ -427,7 +428,7 @@ END];
 
 SHOW DATABASE CONNECTIONS [IN <module>];
 DESCRIBE DATABASE CONNECTION Module.Name;
-DROP DATABASE CONNECTION Module.Name;
+DROP DATABASE CONNECTION [IF EXISTS] Module.Name;
 
 Calling a query from a microflow:
   EXECUTE DATABASE QUERY Module.Connection.QueryName (...);

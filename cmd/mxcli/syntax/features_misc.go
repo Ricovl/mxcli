@@ -741,7 +741,7 @@ SHOW REFERENCES TO Val.EmailAddress;`,
 		Summary: "Validation rules — constrain an attribute with a pattern or a range",
 		Keywords: []string{
 			"validation rule", "validation rules", "validate", "constraint",
-			"create validation rule", "regex rule", "range rule",
+			"create validation rule", "drop validation rule", "regex rule", "range rule",
 			"required", "unique", "not null", "feedback",
 		},
 		Syntax: `CREATE VALIDATION RULE FOR Module.Entity.Attribute
@@ -751,6 +751,9 @@ SHOW REFERENCES TO Val.EmailAddress;`,
 CREATE VALIDATION RULE FOR Module.Entity.Attribute
   RANGE FROM <literal> TO <literal>
   ERROR MESSAGE '<message>';
+
+DROP VALIDATION RULE [IF EXISTS] FOR Module.Entity.Attribute [REGEX | RANGE];
+  -- without a kind, drops both the regex and the range rule on the attribute
 
 The bounds are inclusive and either may be omitted:
   RANGE FROM 1 TO 100   between 1 and 100

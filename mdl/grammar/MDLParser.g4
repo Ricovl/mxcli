@@ -611,6 +611,15 @@ createMenuStatement
 
 dropStatement
     : DROP ENTITY ifExists? qualifiedName
+    // R6 (ako/mxcli#755): every document that can be created can be dropped.
+    // An external entity is an entity; the word says which kind is meant, so a
+    // local entity named by mistake is refused rather than dropped.
+    | DROP EXTERNAL ENTITY ifExists? qualifiedName
+    | DROP DATABASE CONNECTION ifExists? qualifiedName
+    // A validation rule is anonymous and lives on its attribute, so the drop
+    // names the attribute, as `create validation rule for` does. Without a
+    // kind it drops both the regex and the range rule.
+    | DROP VALIDATION RULE ifExists? FOR qualifiedName (REGEX | RANGE)?
     | DROP ASSOCIATION ifExists? qualifiedName
     | DROP ENUMERATION ifExists? qualifiedName
     | DROP CONSTANT ifExists? qualifiedName

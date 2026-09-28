@@ -1826,6 +1826,11 @@ func execDropEntity(ctx *ExecContext, s *ast.DropEntityStmt) error {
 
 	for _, entity := range dm.Entities {
 		if entity.Name == s.Name.Name {
+			// `drop external entity` names the kind: a local entity is refused,
+			// not dropped (R6, ako/mxcli#755).
+			if s.External && !strings.HasPrefix(entity.Source, "Rest$OData") {
+				return mdlerrors.NewValidationf("%s is not an external entity: use `drop entity %s` to drop it", s.Name, s.Name)
+			}
 			// Warn about references before deleting (best-effort)
 			warnEntityReferences(ctx, s.Name.String())
 
