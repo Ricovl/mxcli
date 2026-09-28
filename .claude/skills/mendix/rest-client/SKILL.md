@@ -100,6 +100,17 @@ create consumed rest service Module.OpenMeteoAPI (
 };
 ```
 
+A header value is a template, like the path: `{Name}` is the operation
+parameter `Name`, which must be declared in `Parameters:` (CE7056 otherwise).
+
+```sql
+parameters: ($Token: string),
+headers: ('Authorization' = 'Bearer {Token}')
+```
+
+`'Bearer ' + $Token` is the old spelling of the same header (MDL-DEPR711);
+`mxcli fmt --upgrade` rewrites it. It used to store only `Bearer `.
+
 ### Authentication
 
 ```sql

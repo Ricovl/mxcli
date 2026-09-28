@@ -55,9 +55,9 @@ GRANT VIEW ON PAGE Sales.Admin_Dashboard TO Sales.Admin;
 User roles combine module roles from different modules into a single assignable role:
 
 ```sql
-CREATE OR MODIFY USER ROLE SalesViewer (System.User, Sales.Viewer);
-CREATE OR MODIFY USER ROLE SalesRep (System.User, Sales.User);
-CREATE OR MODIFY USER ROLE SalesManager (System.User, Sales.Admin) MANAGE ALL ROLES;
+CREATE OR MODIFY USER ROLE SalesViewer ( ModuleRoles: (System.User, Sales.Viewer) );
+CREATE OR MODIFY USER ROLE SalesRep ( ModuleRoles: (System.User, Sales.User) );
+CREATE OR MODIFY USER ROLE SalesManager ( ModuleRoles: (System.User, Sales.Admin), ManageAllRoles: true );
 ```
 
 ## Demo Users

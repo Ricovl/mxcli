@@ -278,6 +278,8 @@ CREATE CONSUMED REST SERVICE Integration.OrdersApi (
 };
 ```
 
+A header value is a template, like the path: `{Token}` is the operation parameter `Token`, which the operation must declare (`Parameters: ($Token: String)`, else CE7056). An authorization header is `Headers: ('Authorization' = 'Bearer {Token}')`. The expression spelling `'Bearer ' + $Token` is deprecated (MDL-DEPR711) and `mxcli fmt --upgrade` rewrites it; it used to store only `Bearer `.
+
 Use `CREATE OR MODIFY CONSUMED REST SERVICE` to update an existing client without dropping it first:
 
 ```sql

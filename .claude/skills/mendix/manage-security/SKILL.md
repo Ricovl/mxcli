@@ -385,10 +385,22 @@ grant read (EmployeeNo) on entity Docs.Employee to Docs.Viewer;   -- not Name/Bl
 
 ```sql
 -- Create with module roles
-create user role RegularUser (MyModule.User, OtherModule.Reader);
+create user role RegularUser ( ModuleRoles: (MyModule.User, OtherModule.Reader) );
 
 -- Create with manage all roles permission
-create user role SuperAdmin (MyModule.Admin) manage all roles;
+create user role SuperAdmin ( ModuleRoles: (MyModule.Admin), ManageAllRoles: true );
+
+-- Every property is optional: Description, CheckSecurity, ManageableRoles,
+-- ManageUsersWithoutRoles. `create user role Guest;` has no module roles.
+-- `create or modify` adds the listed module roles and sets only the stated
+-- properties. The positional `create user role R (M.A) manage all roles`
+-- is deprecated (MDL-DEPR710); `mxcli fmt --upgrade` rewrites it.
+create or modify user role Manager (
+  ModuleRoles: (MyModule.Manager),
+  Description: 'Approves orders',
+  ManageableRoles: (RegularUser),
+  CheckSecurity: true
+);
 
 -- Add/drop module roles
 alter user role RegularUser add module roles (MyModule.Viewer);
@@ -420,7 +432,7 @@ the important half: **whatever that role can read is the app's public surface.**
 ```sql
 -- The role anonymous visitors are given. System.User is what lets an
 -- unauthenticated session exist at all.
-create user role Anonymous (Shop.Viewer, System.User);
+create user role Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );
 
 alter app security guest access on role Anonymous;
 
@@ -502,8 +514,8 @@ grant view on page Shop.Customer_Overview to Shop.User, Shop.Admin, Shop.Viewer;
 grant view on page Shop.Customer_Edit to Shop.User, Shop.Admin;
 
 -- 5. Create user roles (project-level)
-create user role AppUser (Shop.User);
-create user role AppAdmin (Shop.Admin) manage all roles;
+create user role AppUser ( ModuleRoles: (Shop.User) );
+create user role AppAdmin ( ModuleRoles: (Shop.Admin), ManageAllRoles: true );
 
 -- 6. Verify
 describe security matrix in Shop;

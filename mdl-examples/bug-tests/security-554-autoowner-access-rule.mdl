@@ -30,7 +30,7 @@ alter project security level production;
 create module Sec554;
 
 create module role Sec554.Administrator;
-create or modify user role Administrator (Sec554.Administrator, System.User);
+create or modify user role Administrator ( ModuleRoles: (Sec554.Administrator, System.User) );
 
 -- The owner half.
 create persistent entity Sec554.Fab (
