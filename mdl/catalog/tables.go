@@ -7,6 +7,16 @@ package catalog
 //
 // History:
 //
+//	15 — permissions_data.DefaultMemberAccessRights, and the belated bump for
+//	    activities_data.UseRequestTimeout / TimeoutExpression. Both columns
+//	    were added without a bump. The activity pair happened to be rescued by
+//	    14, which landed after it for an unrelated reason; the permissions
+//	    column landed after 14 and so is still unreachable on any cache built
+//	    at 14. PermissionsFor and Permissions both SELECT it, so on such a
+//	    cache every permissions query fails with "no such column" — mxcli lint
+//	    says so via QueryErrors, mxcli report builds the same LintContext,
+//	    never calls it, and silently scores the project with every entity
+//	    access rule finding nothing.
 //	14 — import_mappings_data / export_mappings_data: Id is the document's ID
 //	    (was an AUTOINCREMENT integer) and Excluded is recorded; source gains
 //	    ElementId. Two mappings may share a name when one is excluded, and the
@@ -46,7 +56,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "14"
+const CatalogSchemaVersion = "15"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
