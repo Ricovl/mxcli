@@ -49,12 +49,48 @@ func assignmentAt(ctx antlr.ParserRuleContext, op antlr.Tree) (oldAssignment, bo
 
 // colonEdits writes each assignment's `=` as `:`, directly after the key:
 // `Caption = 'x'` becomes `Caption: 'x'`.
+//
+// A comment between the key and the `=` stays where it is: only the `=` is
+// replaced then (`Key /* c */: 'x'`).
 func colonEdits(as []oldAssignment) []ast.TextEdit {
 	out := make([]ast.TextEdit, 0, len(as))
 	for _, a := range as {
-		out = append(out, ast.TextEdit{Start: a.keyStop + 1, Stop: a.op.GetStop() + 1, Text: ":"})
+		start := a.keyStop + 1
+		if !blankBetween(a.op.GetInputStream(), start, a.op.GetStart()) {
+			start = a.op.GetStart()
+		}
+		out = append(out, ast.TextEdit{Start: start, Stop: a.op.GetStop() + 1, Text: ":"})
 	}
 	return out
+}
+
+// blankBetween reports whether the runes in [start, stop) are whitespace only
+// — no comment the rewrite would delete. A missing stream counts as blank.
+func blankBetween(is antlr.CharStream, start, stop int) bool {
+	if is == nil || stop <= start {
+		return true
+	}
+	return strings.TrimSpace(is.GetText(start, stop-1)) == ""
+}
+
+// afterBlank is the offset of the first non-blank rune after tok: deleting
+// [tok.start, afterBlank(tok)) removes the token and the space after it, and
+// keeps a comment that follows.
+func afterBlank(tok antlr.Token) int {
+	end := tok.GetStop() + 1
+	is := tok.GetInputStream()
+	if is == nil {
+		return end
+	}
+	for end < is.Size() {
+		switch is.GetText(end, end) {
+		case " ", "\t", "\n", "\r":
+			end++
+			continue
+		}
+		break
+	}
+	return end
 }
 
 // wrapEdits puts the list from first to last in parentheses. A list that
@@ -137,7 +173,7 @@ func (b *Builder) recordAlterPageDropWidget(ctx *parser.AlterDropContext) {
 	}
 	tok := w.GetSymbol()
 	b.recordDeprecation(deprecation.AlterPageDropWidget, tok, "drop widget")
-	edit := ast.TextEdit{Start: tok.GetStart(), Stop: targets[0].GetStart().GetStart(), Text: ""}
+	edit := ast.TextEdit{Start: tok.GetStart(), Stop: afterBlank(tok), Text: ""}
 	b.fixLastDeprecation(deprecation.AlterPageDropWidget, &ast.Fix{Edits: []ast.TextEdit{edit}}, "")
 }
 
@@ -225,7 +261,8 @@ func (b *Builder) recordAllowCreateChangeLocally(ctx *parser.AlterEntityActionCo
 	kt := key.GetSymbol()
 	b.recordDeprecation(deprecation.AllowCreateChangeLocally, kt, "alter entity")
 	b.fixLastDeprecation(deprecation.AllowCreateChangeLocally, &ast.Fix{Edits: []ast.TextEdit{
-		{Start: kt.GetStart(), Stop: eq.GetSymbol().GetStop() + 1, Text: "( AllowCreateChangeLocally:"},
+		{Start: kt.GetStart(), Stop: kt.GetStop() + 1, Text: "( AllowCreateChangeLocally"},
+		colonEdits([]oldAssignment{{keyStop: kt.GetStop(), op: eq.GetSymbol()}})[0],
 		insertAt(value.GetSymbol().GetStop()+1, " )"),
 	}}, "")
 }
@@ -259,9 +296,20 @@ func (b *Builder) recordAssociationClauseColon(ctx *parser.AssociationOptionCont
 	if kwStop < 0 || valueStart < 0 {
 		return
 	}
-	b.recordDeprecation(deprecation.AssociationClauseColon, colon.GetSymbol(), "association")
-	b.fixLastDeprecation(deprecation.AssociationClauseColon,
-		&ast.Fix{Edits: []ast.TextEdit{replaceGap(kwStop, valueStart, " ")}}, "")
+	ct := colon.GetSymbol()
+	is := ct.GetInputStream()
+	edit := replaceGap(kwStop, valueStart, " ")
+	if !blankBetween(is, kwStop+1, valueStart) {
+		// A comment sits in the gap: delete only the colon and the space
+		// after it, keeping one space between the keyword and what follows.
+		text := ""
+		if kwStop+1 == ct.GetStart() {
+			text = " "
+		}
+		edit = ast.TextEdit{Start: ct.GetStart(), Stop: afterBlank(ct), Text: text}
+	}
+	b.recordDeprecation(deprecation.AssociationClauseColon, ct, "association")
+	b.fixLastDeprecation(deprecation.AssociationClauseColon, &ast.Fix{Edits: []ast.TextEdit{edit}}, "")
 }
 
 // lineIndent is the leading whitespace of the line holding rune offset pos.

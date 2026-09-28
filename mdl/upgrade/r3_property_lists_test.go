@@ -58,3 +58,32 @@ func TestUpgrade_R3PropertyLists(t *testing.T) {
 		}
 	}
 }
+
+// A comment between the tokens a rewrite touches survives it: the rewrite
+// removes the old token and the blank space after it, never the text between
+// two tokens (upgrade.go: "comments, layout … are kept").
+func TestUpgrade_R3KeepsCommentsInsideTheRewrite(t *testing.T) {
+	cases := []struct{ old, want string }{
+		{"alter page M.P { drop widget -- old\n  a; };\n",
+			"alter page M.P { drop -- old\n  a; };\n"},
+		{"alter page M.P { drop widget /* x */ a; };\n",
+			"alter page M.P { drop /* x */ a; };\n"},
+		{"create association M.A_B from M.A to M.B type: /* c */ Reference;\n",
+			"create association M.A_B from M.A to M.B type /* c */ Reference;\n"},
+		{"create association M.A_B from M.A to M.B type /* c */ : Reference;\n",
+			"create association M.A_B from M.A to M.B type /* c */ Reference;\n"},
+		{"alter settings runtime BcryptCost /* c */ = 11;\n",
+			"alter settings runtime ( BcryptCost /* c */ : 11 );\n"},
+		{"alter entity M.Remote set allow_create_change_locally /* c */ = true;\n",
+			"alter entity M.Remote set ( AllowCreateChangeLocally /* c */ : true );\n"},
+	}
+	for _, c := range cases {
+		res := mustUpgrade(t, c.old, Options{})
+		if res.Source != c.want {
+			t.Errorf("upgrade of\n%s got:\n%s want:\n%s", c.old, res.Source, c.want)
+		}
+		if again := mustUpgrade(t, res.Source, Options{}); again.Changed() {
+			t.Errorf("upgrade is not idempotent on\n%s", res.Source)
+		}
+	}
+}
