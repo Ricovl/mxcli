@@ -424,8 +424,8 @@ var entries = []Entry{
 		RemovedIn: 2,
 		Note: "XPath is written in [ ] everywhere (R5), so the quotes inside it are no longer doubled. " +
 			"A string whose value is not a bracketed XPath is left in place and reported by `fmt --upgrade`.",
-		Example:          "alter workflow M.WF set activity 'Review' targeting xpath '[Role = ''Manager'']';",
-		CanonicalExample: "alter workflow M.WF set activity 'Review' targeting xpath [Role = 'Manager'];",
+		Example:          "alter workflow M.WF { set (Targeting: xpath '[Role = ''Manager'']') on 'Review'; };",
+		CanonicalExample: "alter workflow M.WF { set (Targeting: xpath [Role = 'Manager']) on 'Review'; };",
 	},
 	{
 		Code:      OnErrorBraces,

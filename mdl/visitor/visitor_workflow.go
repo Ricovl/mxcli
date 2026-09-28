@@ -130,12 +130,18 @@ func (b *Builder) exitAlterWorkflowStatement(ctx *parser.AlterStatementContext) 
 	// included, so the at-most-once rule has to be applied here as well.
 	b.checkWorkflowClausesAtMostOnce(ctx)
 
+	// The generic block (ako/mxcli#712), or the old per-action form, whose
+	// every action is a registered alias of a generic operation.
+	for _, opCtx := range ctx.AllAlterWorkflowOperation() {
+		stmt.Operations = append(stmt.Operations, b.buildAlterWorkflowOperation(opCtx.(*parser.AlterWorkflowOperationContext))...)
+	}
 	for _, actionCtx := range ctx.AllAlterWorkflowAction() {
 		op := buildAlterWorkflowAction(actionCtx.(*parser.AlterWorkflowActionContext))
 		if op != nil {
 			stmt.Operations = append(stmt.Operations, op)
 		}
 	}
+	b.recordOldAlterWorkflowActions(ctx)
 
 	b.statements = append(b.statements, stmt)
 }
@@ -167,9 +173,9 @@ func buildAlterWorkflowAction(ctx *parser.AlterWorkflowActionContext) ast.AlterW
 			return nil
 		}
 		return &ast.InsertAfterOp{
-			ActivityRef: ref,
-			AtPosition:  atPos,
-			NewActivity: act,
+			ActivityRef:   ref,
+			AtPosition:    atPos,
+			NewActivities: []ast.WorkflowActivityNode{act},
 		}
 	}
 
@@ -196,9 +202,9 @@ func buildAlterWorkflowAction(ctx *parser.AlterWorkflowActionContext) ast.AlterW
 			return nil
 		}
 		return &ast.ReplaceActivityOp{
-			ActivityRef: ref,
-			AtPosition:  atPos,
-			NewActivity: act,
+			ActivityRef:   ref,
+			AtPosition:    atPos,
+			NewActivities: []ast.WorkflowActivityNode{act},
 		}
 	}
 

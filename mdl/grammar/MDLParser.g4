@@ -217,6 +217,12 @@ alterStatement
     | ALTER (MICROFLOW | NANOFLOW) qualifiedName LBRACE alterFlowOperation* RBRACE
     | alterPagesLayoutStatement
     | alterPagesStylingStatement
+    // The generic ALTER on a workflow (ADR-0012 decision 2, ako/mxcli#712): its
+    // targets are activities (name, 'caption', @n) and its fragments are
+    // workflow activities, so it has its own operation rule, like microflows.
+    | ALTER WORKFLOW qualifiedName LBRACE alterWorkflowOperation+ RBRACE
+    // The old per-action form: each alternative of alterWorkflowAction is a
+    // registered alias (MDL-DEPR140-149).
     | ALTER WORKFLOW qualifiedName alterWorkflowAction+ SEMICOLON?
     | alterMessageDefinitionCollectionStatement
     | alterMessageDefinitionStatement
@@ -344,9 +350,8 @@ alterDrop
     | DROP WIDGET /* @alias MDL-DEPR103 */ alterTarget (COMMA alterTarget)*   // drop widget a, b
     ;
 
-// A fragment is written exactly as `create` writes the same content. Only the
-// page family is on the generic path so far; a workflow's body joins here when
-// ALTER WORKFLOW is ported.
+// A fragment is written exactly as `create` writes the same content. A
+// workflow's fragment is a workflow body (alterWorkflowFragment).
 alterFragment
     : LBRACE pageBodyV3 RBRACE
     ;
