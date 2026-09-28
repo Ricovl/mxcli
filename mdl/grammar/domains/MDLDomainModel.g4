@@ -335,10 +335,12 @@ anchorPoint
 // unapplied — so one already-present value silently truncates the script.
 // (ako/mxcli-rest FINDINGS #60)
 alterEnumerationAction
-    : ADD VALUE ifNotExists? IDENTIFIER (CAPTION STRING_LITERAL)?
-    | RENAME VALUE IDENTIFIER TO IDENTIFIER
-    | MODIFY VALUE IDENTIFIER CAPTION STRING_LITERAL
-    | DROP VALUE ifExists? IDENTIFIER
+    // A value is named as `create enumeration` names it (enumValueName), so a
+    // value spelled like a keyword (Sample, AI, Model) can be altered too.
+    : ADD VALUE ifNotExists? enumValueName (CAPTION STRING_LITERAL)?
+    | RENAME VALUE enumValueName TO enumValueName
+    | MODIFY VALUE enumValueName CAPTION STRING_LITERAL
+    | DROP VALUE ifExists? enumValueName
     | SET DOCUMENTATION STRING_LITERAL
     | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     ;

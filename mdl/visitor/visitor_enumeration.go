@@ -50,7 +50,10 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 				}
 
 				name := buildQualifiedName(qn)
-				ids := ctx.AllIDENTIFIER()
+				var ids []string
+				for _, v := range ctx.AllEnumValueName() {
+					ids = append(ids, unquoteIdentifier(v.GetText()))
+				}
 
 				if ctx.ADD() != nil && len(ids) >= 1 {
 					caption := ""
@@ -60,7 +63,7 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
 						Name:        name,
 						Operation:   ast.AlterEnumAdd,
-						ValueName:   ids[0].GetText(),
+						ValueName:   ids[0],
 						Caption:     caption,
 						IfNotExists: ctx.IfNotExists() != nil,
 					})
@@ -68,15 +71,15 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
 						Name:      name,
 						Operation: ast.AlterEnumDrop,
-						ValueName: ids[0].GetText(),
+						ValueName: ids[0],
 						IfExists:  ctx.IfExists() != nil,
 					})
 				} else if ctx.RENAME() != nil && ctx.VALUE() != nil && len(ids) >= 2 {
 					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
 						Name:      name,
 						Operation: ast.AlterEnumRename,
-						ValueName: ids[0].GetText(),
-						NewName:   ids[1].GetText(),
+						ValueName: ids[0],
+						NewName:   ids[1],
 					})
 				} else if ctx.SET() != nil && ctx.STRING_LITERAL() != nil && (ctx.DOCUMENTATION() != nil || ctx.COMMENT() != nil) {
 					// SET DOCUMENTATION; SET COMMENT is its deprecated spelling
@@ -93,7 +96,7 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
 						Name:      name,
 						Operation: ast.AlterEnumModifyCaption,
-						ValueName: ids[0].GetText(),
+						ValueName: ids[0],
 						Caption:   unquoteStringLit(ctx.STRING_LITERAL()),
 					})
 				}
