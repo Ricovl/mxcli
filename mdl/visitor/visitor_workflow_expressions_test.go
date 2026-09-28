@@ -122,3 +122,38 @@ func TestWorkflowDecisionReadsBack(t *testing.T) {
 		}
 	}
 }
+
+// A timer boundary event's delay is optional, and the next clause may follow
+// without repeating `boundary event`. `non` of `non interrupting timer` is
+// also a word the expression grammar admits as a bare name, so a bare delay
+// must not take it: `interrupting timer non interrupting timer 'x'` is an
+// interrupting timer with no delay and a non-interrupting one, as it was
+// before the delay could be written bare — not an interrupting timer whose
+// delay is `non` followed by a second interrupting one.
+func TestWorkflowExpression_BoundaryDelayDoesNotTakeNon(t *testing.T) {
+	for _, activity := range []string{
+		"user task R 'R'\n    outcomes 'Done' { }",
+		"multi user task R 'R'\n    outcomes 'Done' { }",
+		"call microflow M.F",
+	} {
+		for _, second := range []string{"'x'", "x"} {
+			src := wfHead + "begin\n  " + activity + "\n    boundary event interrupting timer non interrupting timer " + second + ";\nend workflow;"
+			prog := mustBuild(t, src)
+			wf := prog.Statements[0].(*ast.CreateWorkflowStmt)
+			var events []ast.WorkflowBoundaryEventNode
+			switch a := wf.Activities[0].(type) {
+			case *ast.WorkflowUserTaskNode:
+				events = a.BoundaryEvents
+			case *ast.WorkflowCallMicroflowNode:
+				events = a.BoundaryEvents
+			}
+			want := []ast.WorkflowBoundaryEventNode{
+				{EventType: "InterruptingTimer"},
+				{EventType: "NonInterruptingTimer", Delay: "x"},
+			}
+			if !reflect.DeepEqual(events, want) {
+				t.Errorf("%s\nbuilt %+v\nwant  %+v", src, events, want)
+			}
+		}
+	}
+}

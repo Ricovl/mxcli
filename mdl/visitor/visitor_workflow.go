@@ -906,7 +906,9 @@ func buildBoundaryEventNode(beCtx parser.IWorkflowBoundaryEventClauseContext) as
 		be.Caption = unquoteStringLit(s)
 	}
 	if !notification {
-		be.Delay = workflowExpressionText(beCtx2.WorkflowExpression())
+		if d := beCtx2.WorkflowTimerDelay(); d != nil {
+			be.Delay = workflowExpressionText(d.WorkflowExpression())
+		}
 	}
 	if notification {
 		be.Name = workflowActivityNameText(beCtx2.WorkflowActivityName())

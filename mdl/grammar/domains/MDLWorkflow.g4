@@ -161,6 +161,18 @@ workflowExpression
     ;
 
 /**
+ * A timer boundary event's delay. The delay is optional and the next boundary
+ * event may follow without repeating `boundary event`, so a bare delay must not
+ * start with the `non` of `non interrupting timer`, a word the expression
+ * grammar admits as a name: `interrupting timer non interrupting timer 'x'` is
+ * two events, the first without a delay, as it was when only a string could be
+ * the delay (ako/mxcli#753).
+ */
+workflowTimerDelay
+    : {p.GetTokenStream().LA(1) != MDLParserNON}? workflowExpression
+    ;
+
+/**
  * A user task. Its clauses are a SET, not a sequence — see
  * `workflowHeaderClause` for why, and `checkWorkflowClausesAtMostOnce` for the
  * half of the old rule the grammar no longer carries.
@@ -235,9 +247,9 @@ workflowFallbackClause
  * with two boundary events did not parse.
  */
 workflowBoundaryEventClause
-    : INTERRUPTING TIMER workflowExpression? (LBRACE workflowBody RBRACE)?
-    | NON INTERRUPTING TIMER workflowExpression? (LBRACE workflowBody RBRACE)?
-    | TIMER workflowExpression? (LBRACE workflowBody RBRACE)?
+    : INTERRUPTING TIMER workflowTimerDelay? (LBRACE workflowBody RBRACE)?
+    | NON INTERRUPTING TIMER workflowTimerDelay? (LBRACE workflowBody RBRACE)?
+    | TIMER workflowTimerDelay? (LBRACE workflowBody RBRACE)?
     // A notification boundary event is triggered by `notify workflow … target
     // <name>`, so its name is what matters; the string is its caption.
     | INTERRUPTING NOTIFICATION workflowActivityName? STRING_LITERAL? (LBRACE workflowBody RBRACE)?

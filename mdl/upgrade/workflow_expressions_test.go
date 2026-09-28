@@ -29,6 +29,15 @@ func TestUpgrade_WorkflowExpressionsBare(t *testing.T) {
 				"  event subprocess Esp on interrupting timer addDays([%CurrentDateTime%], 30) as Start { };\nend workflow;",
 		},
 		{
+			// The first timer has no delay, and `non` must stay the start of
+			// the second event rather than become the first one's delay.
+			"a delayless timer before a non-interrupting one",
+			head + "begin\n  user task Review 'Review'\n    outcomes 'Done' { }\n" +
+				"    boundary event interrupting timer non interrupting timer 'addHours([%CurrentDateTime%], 1)';\nend workflow;",
+			head + "begin\n  user task Review 'Review'\n    outcomes 'Done' { }\n" +
+				"    boundary event interrupting timer non interrupting timer addHours([%CurrentDateTime%], 1);\nend workflow;",
+		},
+		{
 			"a string with no space around it",
 			"alter workflow M.WF set activity Review due date'addDays([%CurrentDateTime%], 1)';",
 			"alter workflow M.WF set activity Review due date addDays([%CurrentDateTime%], 1);",
