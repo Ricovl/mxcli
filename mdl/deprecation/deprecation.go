@@ -157,6 +157,31 @@ const (
 	// on a text template: the placeholders bound by position (R4,
 	// ako/mxcli#751).
 	PositionalTemplateArguments = "MDL-DEPR009"
+
+	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
+	// constant reference, and the revoke that mirrors the grant.
+
+	// WorkflowStringExpression is a workflow decision's condition, a timer's
+	// delay or first execution time, or a due date written inside a string:
+	// `decision '$WorkflowContext/Total > 1000'`.
+	WorkflowStringExpression = "MDL-DEPR080"
+	// BracketedWidgetCondition is a page widget's conditional `Visible: [expr]`
+	// / `Editable: [expr]`: a client expression written in the brackets of an
+	// XPath constraint.
+	BracketedWidgetCondition = "MDL-DEPR081"
+	// ReversedEntityRevoke is `revoke M.Role on M.E [(rights)]`, the revoke
+	// with the role first — the mirror of MDL-DEPR030's grant.
+	ReversedEntityRevoke = "MDL-DEPR082"
+	// DollarConstant is a consumed REST service credential written `$Const`:
+	// a constant named like a variable, and without its module.
+	DollarConstant = "MDL-DEPR083"
+	// BareConstantKey is an agent-editor model's or knowledge base's `Key:
+	// Module.Const` (and `set Key = Module.Const`): a constant written as a
+	// plain document name.
+	BareConstantKey = "MDL-DEPR084"
+	// QuotedSettingsConstant is `alter settings [drop] constant 'Module.Const'`:
+	// a constant named in a string.
+	QuotedSettingsConstant = "MDL-DEPR085"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -374,6 +399,92 @@ var entries = []Entry{
 
 func init() {
 	entries = append(entries, r8Entries...)
+	entries = append(entries, r5Entries...)
+}
+
+// r5Entries are the rest of R5's spellings (ako/mxcli#753), kept apart for the
+// same reason as r8Entries.
+var r5Entries = []Entry{
+	{
+		Code:      WorkflowStringExpression,
+		Old:       "decision '<expression>' / timer '<expression>' / due date '<expression>'",
+		Canonical: "decision <expression> / timer <expression> / due date <expression>",
+		Rewrite:   Rewrite{Structural: "the expression out of its string: `decision '$Ctx/Total > 1000'` becomes `decision $Ctx/Total > 1000`"},
+		RemovedIn: 2,
+		Note: "Expressions are bare everywhere (R5): a workflow decision, `wait for timer`, a timer boundary " +
+			"event, a timer event sub-process and a due date (workflow, user task, alter workflow). The string " +
+			"form keeps its meaning — its content is the expression — so it is an alias, not a change of " +
+			"meaning. A string whose content does not read back as the same bare expression is left in place " +
+			"and reported by fmt --upgrade.",
+		Example: "create workflow M.W parameter $WorkflowContext: M.E begin " +
+			"decision '$WorkflowContext/Total > 1000' outcomes true -> { } false -> { }; end workflow;",
+		CanonicalExample: "create workflow M.W parameter $WorkflowContext: M.E begin " +
+			"decision $WorkflowContext/Total > 1000 outcomes true -> { } false -> { }; end workflow;",
+	},
+	{
+		Code:      BracketedWidgetCondition,
+		Old:       "Visible: [<expression>] / Editable: [<expression>]",
+		Canonical: "Visible: <expression> / Editable: <expression>",
+		Rewrite: Rewrite{Structural: "the brackets become the expression they store: `Visible: [Active]` becomes " +
+			"`Visible: $currentObject/Active`"},
+		RemovedIn: 2,
+		Note: "A conditional visibility or editability is a client expression, not XPath, so it is written bare " +
+			"like every other expression (R5) and stored as written — name an attribute as " +
+			"`$currentObject/Attr`. Also in `alter page … set (Visible: …)`. The bracketed form rooted a bare " +
+			"attribute in $currentObject; the rewrite writes the expression it stored. One whose stored text " +
+			"would not read back as the same bare expression is left in place and reported by fmt --upgrade.",
+		Example: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { dataview dv (DataSource: $E) { " +
+			"textbox t (Attribute: Name, Visible: [Active and $currentObject/Name != empty]) } };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { dataview dv (DataSource: $E) { " +
+			"textbox t (Attribute: Name, Visible: $currentObject/Active and $currentObject/Name != empty) } };",
+	},
+	{
+		Code:      ReversedEntityRevoke,
+		Old:       "revoke M.Role on M.E [(rights)]",
+		Canonical: "revoke rights|all on entity M.E from M.Role",
+		Rewrite: Rewrite{Structural: "rights (or `all` when none are listed) before `on entity`, roles after `from`: " +
+			"`revoke R on M.E (write *)` becomes `revoke write * on entity M.E from R`, `revoke R on M.E` becomes " +
+			"`revoke all on entity M.E from R`"},
+		RemovedIn: 2,
+		Note: "The revoke mirrors the grant (MDL-DEPR030). `all` removes the roles' access rule; a rights list " +
+			"takes those rights away and keeps the rule.",
+		Example:          "revoke M.User, M.Admin on M.Order (write *, delete);",
+		CanonicalExample: "revoke write *, delete on entity M.Order from M.User, M.Admin;",
+	},
+	{
+		Code:      DollarConstant,
+		Old:       "Username: $Const",
+		Canonical: "Username: @Module.Const",
+		Rewrite:   Rewrite{Structural: "`$Const` becomes `@<the service's module>.Const`"},
+		RemovedIn: 2,
+		Note: "A constant is referred to one way everywhere: `@Module.Const` (R5). `$` names a variable, and " +
+			"`$Const` meant a constant of the consumed REST service's own module.",
+		Example: "create consumed rest service M.Api (BaseUrl: 'https://example.com', " +
+			"Authentication: basic (Username: $ApiUser, Password: @M.ApiPassword)) { };",
+		CanonicalExample: "create consumed rest service M.Api (BaseUrl: 'https://example.com', " +
+			"Authentication: basic (Username: @M.ApiUser, Password: @M.ApiPassword)) { };",
+	},
+	{
+		Code:             BareConstantKey,
+		Old:              "Key: Module.Const",
+		Canonical:        "Key: @Module.Const",
+		Rewrite:          Rewrite{Structural: "`@` before the constant's name"},
+		RemovedIn:        2,
+		Note:             "A constant is referred to one way everywhere: `@Module.Const` (R5). Also in `alter model|knowledge base … set Key = …`.",
+		Example:          "create model M.GPT (Provider: MxCloudGenAI, Key: M.ApiKey);",
+		CanonicalExample: "create model M.GPT (Provider: MxCloudGenAI, Key: @M.ApiKey);",
+	},
+	{
+		Code:      QuotedSettingsConstant,
+		Old:       "alter settings constant 'Module.Const' …",
+		Canonical: "alter settings constant @Module.Const …",
+		Rewrite:   Rewrite{Structural: "the constant's name out of its string, with `@`: `constant 'M.ApiUrl'` becomes `constant @M.ApiUrl`"},
+		RemovedIn: 2,
+		Note: "A constant is referred to one way everywhere: `@Module.Const` (R5). Also in `alter settings drop " +
+			"constant`. A string that is not a qualified name is left in place and reported by fmt --upgrade.",
+		Example:          "alter settings constant 'M.ApiUrl' value 'https://test.example.com' in configuration 'Default';",
+		CanonicalExample: "alter settings constant @M.ApiUrl value 'https://test.example.com' in configuration 'Default';",
+	},
 }
 
 // r8Entries are R8's spellings (ako/mxcli#752). Kept apart from the list above

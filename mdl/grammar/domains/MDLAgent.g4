@@ -11,7 +11,7 @@ options { tokenVocab = MDLLexer; }
 // =============================================================================
 // CREATE MODEL Module.Name (
 //   Provider: MxCloudGenAI,
-//   Key: Module.SomeConstant
+//   Key: @Module.SomeConstant
 //   [, DisplayName: '...', KeyName: '...', etc. — Portal-populated metadata]
 // );
 createModelStatement
@@ -22,7 +22,10 @@ createModelStatement
 
 modelProperty
     : identifierOrKeyword COLON identifierOrKeyword       // Provider: MxCloudGenAI
-    | identifierOrKeyword COLON qualifiedName             // Key: Module.Constant
+    | identifierOrKeyword COLON AT qualifiedName          // Key: @Module.Constant (the one constant reference, R5)
+    // A document name (Model: Module.Model). For Key, a constant, the bare name
+    // is the deprecated spelling of Key: @Module.Constant.
+    | identifierOrKeyword COLON qualifiedName /* @alias MDL-DEPR084 */
     | identifierOrKeyword COLON STRING_LITERAL            // DisplayName: 'GPT-4 Turbo' etc.
     | identifierOrKeyword COLON NUMBER_LITERAL            // ConnectionTimeoutSeconds: 30
     | identifierOrKeyword COLON booleanLiteral            // Enabled: true
@@ -58,7 +61,7 @@ createConsumedMCPServiceStatement
 // =============================================================================
 // CREATE KNOWLEDGE BASE Module.Name (
 //   Provider: MxCloudGenAI,
-//   Key: Module.SomeConstant
+//   Key: @Module.SomeConstant
 // );
 createKnowledgeBaseStatement
     : KNOWLEDGE BASE qualifiedName
@@ -109,6 +112,7 @@ agentEditorAlterValue
     | NUMBER_LITERAL
     | DOLLAR_STRING
     | booleanLiteral
+    | AT qualifiedName   // Key = @Module.Constant
     | qualifiedName
     | identifierOrKeyword
     ;

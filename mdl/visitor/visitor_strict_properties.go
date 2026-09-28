@@ -195,7 +195,7 @@ var businessEventServiceSchema = propSchema{on: "a business event service", keys
 // written as a string was dropped.
 var modelSchema = propSchema{on: "a model", keys: []propKey{
 	{"Provider", []propShape{shapeName}},
-	{"Key", []propShape{shapeQName}},
+	{"Key", []propShape{shapeConstant, shapeQName}},
 	{"DisplayName", []propShape{shapeString}},
 	{"KeyName", []propShape{shapeString}},
 	{"KeyId", []propShape{shapeString}},
@@ -206,7 +206,7 @@ var modelSchema = propSchema{on: "a model", keys: []propKey{
 
 var knowledgeBaseSchema = propSchema{on: "a knowledge base", keys: []propKey{
 	{"Provider", nameShapes},
-	{"Key", []propShape{shapeQName}},
+	{"Key", []propShape{shapeConstant, shapeQName}},
 	{"ModelDisplayName", []propShape{shapeString}},
 	{"ModelName", []propShape{shapeString}},
 	{"KeyName", []propShape{shapeString}},
@@ -266,6 +266,8 @@ var agentKnowledgeBaseSchema = propSchema{on: "an agent's knowledge base block",
 func modelPropertyShape(pc *parser.ModelPropertyContext) propShape {
 	idents := pc.AllIdentifierOrKeyword()
 	switch {
+	case pc.AT() != nil:
+		return shapeConstant
 	case pc.QualifiedName() != nil:
 		return shapeQName
 	case pc.STRING_LITERAL() != nil:

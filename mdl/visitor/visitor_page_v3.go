@@ -845,7 +845,9 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 			return
 		}
 		if xc := propCtx.XpathConstraint(); xc != nil {
-			widget.Properties["VisibleIf"] = buildConditionalExpression(xc)
+			widget.Properties["VisibleIf"] = buildConditionalExpression(xc) // MDL-DEPR081
+		} else if e := propCtx.Expression(); e != nil {
+			widget.Properties["VisibleIf"] = bareArgumentText(e)
 		} else if valCtx := propCtx.PropertyValueV3(); valCtx != nil {
 			widget.Properties["Visible"] = buildPropertyValueV3(valCtx)
 		}
@@ -855,7 +857,9 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	// Editable: [expression] (conditional editability) or Editable: Never (static)
 	if propCtx.EDITABLE() != nil {
 		if xc := propCtx.XpathConstraint(); xc != nil {
-			widget.Properties["EditableIf"] = buildConditionalExpression(xc)
+			widget.Properties["EditableIf"] = buildConditionalExpression(xc) // MDL-DEPR081
+		} else if e := propCtx.Expression(); e != nil {
+			widget.Properties["EditableIf"] = bareArgumentText(e)
 		} else if valCtx := propCtx.PropertyValueV3(); valCtx != nil {
 			widget.Properties["Editable"] = buildPropertyValueV3(valCtx)
 		}

@@ -132,7 +132,7 @@ func checkAfterStartupReturnsBoolean(key, ref string, returnTypes map[string]str
 
 // validateSettingsConstantRef resolves the constant an override names.
 //
-// This one is not merely a dangling pointer: `alter settings constant 'Typo'
+// This one is not merely a dangling pointer: `alter settings constant @Typo
 // value 'x'` CREATES the override, so a misspelled name leaves dead
 // configuration data behind and the build fails. Dropping an override is exempt
 // — removing one whose constant is already gone is legitimate cleanup, and

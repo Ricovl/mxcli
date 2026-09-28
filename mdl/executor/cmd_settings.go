@@ -748,7 +748,7 @@ func alterSettingsConstant(ctx *ExecContext, ps *model.ProjectSettings, stmt *as
 					"constant '%s' has a private value in configuration '%s'; "+
 						"its value is stored on the developer's workstation, not in the shared model. "+
 						"Change the constant to a shared value in Studio Pro first, "+
-						"or use `alter settings drop constant '%s' in configuration '%s'` to remove the override",
+						"or use `alter settings drop constant @%s in configuration '%s'` to remove the override",
 					stmt.ConstantId, targetConfig, stmt.ConstantId, targetConfig)
 			}
 			cv.Value = stmt.Value
