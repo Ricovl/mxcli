@@ -619,6 +619,8 @@ func init() {
 			"@anchor(from: right, to: left)        -- which SIDE each end of the outgoing flow attaches to\n" +
 			"@curve(from: (40, -90), to: (-40, 90))  -- the flow's bezier control vectors\n" +
 			"@merge(x, y)                          -- the implicit merge that closes a split\n" +
+			"@anchor(from: bottom, to: top, true: (…), false: (…))  -- on an IF: to = its incoming flow,\n" +
+			"                                      -- from = the flow leaving its closing merge\n" +
 			"@caption 'text'\n@color Green\n@annotation 'a note'\n@excluded\n" +
 			"@applyentityaccess | @applyentityaccess(false)  -- DOCUMENT-level, before CREATE MICROFLOW/RULE\n" +
 			"@annotation(id: n1, text: 'a note', position: (x, y), size: (w, h))\n" +

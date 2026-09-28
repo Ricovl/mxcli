@@ -170,6 +170,24 @@ was placed on purpose — in Studio Pro or with `@start` — so it survives a re
 that does not mention it, and `DESCRIBE` emits an `@start` line for it. An
 explicit `@start` overrides both.
 
+### Anchors
+
+`@anchor(from: X, to: Y)` picks the side (`top`, `right`, `bottom`, `left`) each
+end of a flow attaches to: `to` is the flow arriving at the statement, `from` the
+flow leaving it. On an `if`, `true: (from: …, to: …)` and `false: (…)` are its
+branches, and `from` is the flow leaving its closing merge — the merge has no
+statement of its own, just as its position rides on the `if` as `@merge`:
+
+```sql
+@anchor(from: bottom, to: top)
+@merge(2650, 200)
+if $Factory/Latitude = empty then
+  ...
+end if;
+```
+
+This is how `DESCRIBE` writes a decision whose merge drops onto the next row.
+
 ### Layout in `DESCRIBE` output
 
 `DESCRIBE MICROFLOW` and `DESCRIBE NANOFLOW` print a layout annotation —
