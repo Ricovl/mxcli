@@ -82,7 +82,7 @@ Example output:
 ```sql
 CREATE PAGE MyFirstModule.Customer_Edit
 (
-  Params: { $Customer: MyFirstModule.Customer },
+  Params: ( $Customer: MyFirstModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )

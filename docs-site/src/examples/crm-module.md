@@ -131,7 +131,7 @@ CREATE PAGE CRM.Customer_Overview (
 
 -- NewEdit page with validation
 CREATE PAGE CRM.Customer_NewEdit (
-  Params: { $Customer: CRM.Customer },
+  Params: ( $Customer: CRM.Customer ),
   Title: 'Customer',
   Layout: Atlas_Core.PopupLayout
 ) {

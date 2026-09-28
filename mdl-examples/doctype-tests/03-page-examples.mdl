@@ -188,15 +188,15 @@ create page PgTest.P003_1_Nested_LayoutGrid_Dynamic_Text_Page
     }
     row row3 {
       column col3a (desktopwidth: autofill) {
-        actionbutton btnSave1 (caption: 'Save {1}', captionparams: [{1} = 'Hello'], action: save_changes, buttonstyle: primary)
+        actionbutton btnSave1 (caption: 'Save {1}', captionparams: ({1} = 'Hello'), action: save_changes, buttonstyle: primary)
       }
       column col3b (desktopwidth: autofill) {
-        actionbutton btnSave2 (caption: 'Cancel {1}', captionparams: [{1} = 'Hello'], action: cancel_changes, buttonstyle: default)
+        actionbutton btnSave2 (caption: 'Cancel {1}', captionparams: ({1} = 'Hello'), action: cancel_changes, buttonstyle: default)
       }
     }
     row row4 {
       column col4 (desktopwidth: autofill) {
-        dynamictext text5 (content: 'Just some H4 header: {1}', contentparams: [{1} = 'Hello'], rendermode: H4)
+        dynamictext text5 (content: 'Just some H4 header: {1}', contentparams: ({1} = 'Hello'), rendermode: H4)
       }
     }
   }
@@ -242,7 +242,7 @@ create page PgTest.P005_OrderEdit
     }
     row row2 {
       column col2a (desktopwidth: 6) {
-        actionbutton btnSave (caption: 'Save {1}', captionparams: [{1} = 'Hello'], action: save_changes, buttonstyle: primary)
+        actionbutton btnSave (caption: 'Save {1}', captionparams: ({1} = 'Hello'), action: save_changes, buttonstyle: primary)
       }
       column col2b (desktopwidth: 6) {
         actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
@@ -261,9 +261,9 @@ create page PgTest.P005_OrderEdit
  */
 create page PgTest.P006_DataForm
 (
-  params: {
+  params: (
     $Customer: PgTest.Customer
-  },
+  ),
   title: 'Edit Customer',
   layout: Atlas_Core.Atlas_Default,
   url: 'p006_dataform/{Customer/Name}',
@@ -298,7 +298,7 @@ create page PgTest.P006_DataForm
     row row3 {
       column col3a (desktopwidth: 6) { }
       column col3b (desktopwidth: 6) {
-        actionbutton btnSave (caption: 'Save {1}', captionparams: [{1} = 'abc'], action: save_changes, buttonstyle: primary)
+        actionbutton btnSave (caption: 'Save {1}', captionparams: ({1} = 'abc'), action: save_changes, buttonstyle: primary)
       }
     }
   }
@@ -433,7 +433,7 @@ create page PgTest.P008_Product_Overview
     row row1 {
       column col1 (desktopwidth: 12) {
         dynamictext textIntro (content: 'P008_Product_Overview', rendermode: H3)
-        dynamictext textIntro2 (content: 'P008_Product_Overview: {1}', contentparams: [{1}='abc'], rendermode: H3)
+        dynamictext textIntro2 (content: 'P008_Product_Overview: {1}', contentparams: ({1}='abc'), rendermode: H3)
       }
     }
     row row2 {
@@ -582,9 +582,9 @@ create page PgTest.P010_Product_Sorted_filtered_styled_2 (
     datasource:  database from PgTest.Product where (IsActive = true() and contains(Code, 'a') and Price > 10) or (Stock < 2) sort by PgTest.Product.Name asc, PgTest.Product.Price desc, 
     PageSize: 10, 
     PagingPosition: both, 
-    designproperties: ['Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal']
+    designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal')
   ) {
-    column colName (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false, designproperties: ['Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal'])
+    column colName (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false, designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal'))
     column colCode (attribute: Code, caption: 'SKU')
     column colPrice (attribute: Price, caption: 'Unit Price', Alignment: right, WrapText: false)
     column colStock (attribute: Stock, caption: 'Available', Alignment: right, WrapText: false)
@@ -617,9 +617,9 @@ create page PgTest.P010_Product_Microflow_DataSource (
     datasource: microflow PgTest.P010_DSO_GetProducts ,
     PageSize: 10, 
     PagingPosition: both, 
-    designproperties: ['Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal']
+    designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal')
   ) {
-    column colName (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false, designproperties: ['Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal'])
+    column colName (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false, designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal'))
     column colCode (attribute: Code, caption: 'SKU')
     column colPrice (attribute: Price, caption: 'Unit Price', Alignment: right, WrapText: false)
     column colStock (attribute: Stock, caption: 'Available', Alignment: right, WrapText: false)
@@ -641,9 +641,9 @@ create page PgTest.P010_Product_Microflow_DataSource (
  */
 create page PgTest.P011_DataGrid_ControlBar_Dummy
 (
-  params: {
+  params: (
     $Product: PgTest.Product
-  },
+  ),
   title: 'Edit Product',
   layout: Atlas_Core.PopupLayout,
   folder: 'DataGrid'
@@ -653,7 +653,7 @@ create page PgTest.P011_DataGrid_ControlBar_Dummy
     row row1 {
       column col1 (desktopwidth: 12) {
         dynamictext textIntro (content: 'Dummy', rendermode: H3)
-        dynamictext textIntro2 (content: 'Dummy: {1}', contentparams: [{1}=$Product.Name], rendermode: H3)
+        dynamictext textIntro2 (content: 'Dummy: {1}', contentparams: ({1}=$Product.Name), rendermode: H3)
       }
     }
   }
@@ -666,10 +666,10 @@ create page PgTest.P011_DataGrid_ControlBar_Dummy
  */
 create page PgTest.P011_DataGrid_ControlBar_Dummy_2
 (
-  params: {
+  params: (
     $Product1: PgTest.Product,
     $Product2: PgTest.Product
-  },
+  ),
   title: 'Edit Product',
   layout: Atlas_Core.PopupLayout,
   folder: 'DataGrid'
@@ -679,8 +679,8 @@ create page PgTest.P011_DataGrid_ControlBar_Dummy_2
     row row1 {
       column col1 (desktopwidth: 12) {
         dynamictext textIntro1 (content: 'Dummy', rendermode: H3)
-        dynamictext textIntro2 (content: 'Dummy: {1}, {2}', contentparams: [{1}=$Product1.Name, {2}=$Product1.Code], rendermode: paragraph)
-        dynamictext textIntro3 (content: 'Dummy: {1}, {2}', contentparams: [{1}=$Product2.Name, {2}=$Product2.Code], rendermode: text)
+        dynamictext textIntro2 (content: 'Dummy: {1}, {2}', contentparams: ({1}=$Product1.Name, {2}=$Product1.Code), rendermode: paragraph)
+        dynamictext textIntro3 (content: 'Dummy: {1}, {2}', contentparams: ({1}=$Product2.Name, {2}=$Product2.Code), rendermode: text)
       }
     }
   }
@@ -728,9 +728,9 @@ create page PgTest.P011_DataGrid_ControlBar
  */
 create page PgTest.P012_Product_Manage_Edit
 (
-  params: {
+  params: (
     $Product: PgTest.Product
-  },
+  ),
   title: 'Edit Product',
   layout: Atlas_Core.PopupLayout,
   folder: 'DataGrid'
@@ -771,7 +771,7 @@ create page PgTest.P012_Product_Manage
     row row1 {
       column col1 (desktopwidth: 12) {
         dynamictext textIntro (content: 'P008_Product_Overview', rendermode: H3)
-        dynamictext textIntro2 (content: 'P008_Product_Overview: {1}', contentparams: [{1}='abc'], rendermode: H3)
+        dynamictext textIntro2 (content: 'P008_Product_Overview: {1}', contentparams: ({1}='abc'), rendermode: H3)
       }
     }
     row row2 {
@@ -1031,7 +1031,7 @@ create page PgTest.P013e_ControlBar_Container_Action
 create or replace page PgTest.P014_Product_Edit (
   title: 'Edit Product',
   layout: Atlas_Core.PopupLayout,
-  params: { $Product: PgTest.Product },
+  params: ( $Product: PgTest.Product ),
   folder: 'DataView'
 ) {
   dataview ProductForm (datasource: $Product) {
@@ -1058,9 +1058,9 @@ create or replace page PgTest.P014_Product_Edit (
  */
 create page PgTest.P015_Product_EditFull
 (
-  params: {
+  params: (
     $Product: PgTest.Product
-  },
+  ),
   title: 'Edit Product Details',
   layout: Atlas_Core.PopupLayout,
   folder: 'DataView'
@@ -1114,7 +1114,7 @@ create page PgTest.P015_Product_EditFull
 create or replace page PgTest.P018_DataView_FormOrientation_Vertical (
   title: 'Vertical Form',
   layout: Atlas_Core.PopupLayout,
-  params: { $Product: PgTest.Product },
+  params: ( $Product: PgTest.Product ),
   folder: 'DataView'
 ) {
   dataview ProductForm (datasource: $Product, FormOrientation: Vertical) {
@@ -1135,7 +1135,7 @@ create or replace page PgTest.P018_DataView_FormOrientation_Vertical (
 create or replace page PgTest.P018_DataView_FormOrientation_Horizontal (
   title: 'Horizontal Form',
   layout: Atlas_Core.PopupLayout,
-  params: { $Product: PgTest.Product },
+  params: ( $Product: PgTest.Product ),
   folder: 'DataView'
 ) {
   dataview ProductForm (datasource: $Product, FormOrientation: Horizontal) {
@@ -1156,7 +1156,7 @@ create or replace page PgTest.P018_DataView_FormOrientation_Horizontal (
 create or replace page PgTest.P018_DataView_LabelWidth (
   title: 'Custom Label Width',
   layout: Atlas_Core.PopupLayout,
-  params: { $Product: PgTest.Product },
+  params: ( $Product: PgTest.Product ),
   folder: 'DataView'
 ) {
   dataview ProductForm (datasource: $Product, LabelWidth: 5) {
@@ -1219,9 +1219,9 @@ create snippet PgTest.NavigationMenuList(
  */
 create or replace snippet PgTest.CustomerInfo
 (
-  params: {
+  params: (
     $Customer: PgTest.Customer
-  },
+  ),
   folder: 'Snippets'
 )
 {
@@ -1247,9 +1247,9 @@ create or replace snippet PgTest.CustomerInfo
  */
 create snippet PgTest.CustomerSidebar
 (
-  params: {
+  params: (
     $Customer: PgTest.Customer
-  },
+  ),
   folder: 'Snippets'
 )
 {
@@ -1392,17 +1392,18 @@ create page PgTest.P016_Page_With_Snippet
  * Page that calls a parameterized snippet with Params: mapping.
  * Demonstrates fix for issue #291: SNIPPETCALL with Params syntax.
  *
- * Two forms are accepted:
- *   Params: {Customer: $Customer}   -- bare parameter name (keywords OK)
- *   Params: {$Customer: $Customer}  -- dollar-prefixed parameter name
+ * A snippet call binds its arguments as every call does (R4), in the ( ) of a
+ * map (R2):
+ *   Params: (Customer = $Customer)  -- parameter name without `$` (keywords OK)
+ * The old brace map, {$Customer: $Customer}, still parses and warns (MDL-DEPR126).
  */
 create or replace page PgTest.P017_SnippetCall_With_Params
 (
   title: 'Customer Detail with Snippet',
   layout: Atlas_Core.Atlas_Default,
-  params: {
+  params: (
     $Customer: PgTest.Customer
-  },
+  ),
   url: 'p017_snippet_with_params/{Customer/Name}',
   folder: 'Snippets'
 )
@@ -1413,14 +1414,14 @@ create or replace page PgTest.P017_SnippetCall_With_Params
         -- Call CustomerInfo snippet — bare parameter name form
         snippetcall customerInfoSnippet (
           snippet: PgTest.CustomerInfo,
-          params: {Customer: $Customer}
+          params: (Customer = $Customer)
         )
       }
       column col2 (desktopwidth: 4) {
         -- Call CustomerSidebar snippet — dollar-prefixed parameter name form
         snippetcall sidebarSnippet (
           snippet: PgTest.CustomerSidebar,
-          params: {$Customer: $Customer}
+          params: (Customer = $Customer)
         )
       }
     }
@@ -1480,9 +1481,9 @@ create page PgTest.P019_Gallery_Simple
           selection: single
         ) {
           template template1 {
-            dynamictext custName (content: '{1}',contentparams:[{1}=Name], rendermode: H4)
-            dynamictext custEmail (content: '{1}',contentparams:[{1}=Email], rendermode: text)
-            dynamictext custCity (content: '{1}',contentparams:[{1}=City], rendermode: text)
+            dynamictext custName (content: '{1}',contentparams:({1}=Name), rendermode: H4)
+            dynamictext custEmail (content: '{1}',contentparams:({1}=Email), rendermode: text)
+            dynamictext custCity (content: '{1}',contentparams:({1}=City), rendermode: text)
           }
         }
       }
@@ -1512,15 +1513,15 @@ create page PgTest.P020_Master_Detail
     row row1 {
       -- Master list (4 columns)
       column colMaster (desktopwidth: 4) {
-        dynamictext masterTitle (content: 'Customers: {1}',contentparams:[{1}='too many'], rendermode: H3)
+        dynamictext masterTitle (content: 'Customers: {1}',contentparams:({1}='too many'), rendermode: H3)
         gallery customerList (
           datasource: database from PgTest.Customer sort by Name asc,
           selection: single,
           ItemSelectionMode: toggle
         ) {
           template template1 {
-            dynamictext custName (content: '{1}',contentparams:[{1}=Name], rendermode: H4)
-            dynamictext custEmail (content: 'Email: {1}',contentparams:[{1}=Email], rendermode: text)
+            dynamictext custName (content: '{1}',contentparams:({1}=Name), rendermode: H4)
+            dynamictext custEmail (content: 'Email: {1}',contentparams:({1}=Email), rendermode: text)
           }
         }
       }
@@ -1569,9 +1570,9 @@ create page PgTest.P022_Gallery_With_Filter
             textfilter searchName (attributes: [Name])
           }
           template template1 {
-            dynamictext prodName (content: '{1}',contentparams:[{1}=Name], rendermode: H4)
-            dynamictext prodCode (content: 'SKU: {1}',contentparams:[{1}=Code], rendermode: text)
-            dynamictext prodPrice (content: 'Price: {1}',contentparams:[{1}=Price], rendermode: text)
+            dynamictext prodName (content: '{1}',contentparams:({1}=Name), rendermode: H4)
+            dynamictext prodCode (content: 'SKU: {1}',contentparams:({1}=Code), rendermode: text)
+            dynamictext prodPrice (content: 'Price: {1}',contentparams:({1}=Price), rendermode: text)
           }
         }
       }
@@ -1598,9 +1599,9 @@ create page PgTest.P022_Gallery_With_Filter_2 (
             textfilter textFilter1 (attributes: [Name])
           }
           template template1 {
-            dynamictext text1 (content: '{1}', rendermode: H4, contentparams: [{1} = Name])
-            dynamictext text2 (content: 'SKU: {1}', contentparams: [{1} = Code])
-            dynamictext text3 (content: 'Price: {1}', contentparams: [{1} = Price])
+            dynamictext text1 (content: '{1}', rendermode: H4, contentparams: ({1} = Name))
+            dynamictext text2 (content: 'SKU: {1}', contentparams: ({1} = Code))
+            dynamictext text3 (content: 'Price: {1}', contentparams: ({1} = Price))
           }
         }
       }
@@ -1628,15 +1629,15 @@ create page PgTest.P022_Gallery_With_Filter_3 (
             layoutgrid layoutGrid2 {
               row row1 {
                 column col1 (desktopwidth: autofill) {
-                  dynamictext text1 (content: '{1}', rendermode: H4, contentparams: [{1} = Name])
+                  dynamictext text1 (content: '{1}', rendermode: H4, contentparams: ({1} = Name))
                 }
               }
               row row2 {
                 column col1 (desktopwidth: autofill) {
-                  dynamictext text2 (content: 'SKU: {1}', contentparams: [{1} = Code])
+                  dynamictext text2 (content: 'SKU: {1}', contentparams: ({1} = Code))
                 }
                 column col2 (desktopwidth: autofill) {
-                  dynamictext text3 (content: 'Price: {1}', contentparams: [{1} = Price])
+                  dynamictext text3 (content: 'Price: {1}', contentparams: ({1} = Price))
                 }
               }
             }
@@ -1668,15 +1669,15 @@ create page PgTest.P022_Gallery_With_Filter_4 (
             layoutgrid layoutGrid2 {
               row row1 {
                 column col1 (desktopwidth: autofill) {
-                  dynamictext text1 (content: '{1}', rendermode: H4, contentparams: [{1} = Name])
+                  dynamictext text1 (content: '{1}', rendermode: H4, contentparams: ({1} = Name))
                 }
               }
               row row2 {
                 column col1 (desktopwidth: autofill) {
-                  dynamictext text2 (content: 'SKU: {1}', contentparams: [{1} = Code])
+                  dynamictext text2 (content: 'SKU: {1}', contentparams: ({1} = Code))
                 }
                 column col2 (desktopwidth: autofill) {
-                  dynamictext text3 (content: 'Price: {1}', contentparams: [{1} = Price])
+                  dynamictext text3 (content: 'Price: {1}', contentparams: ({1} = Price))
                 }
               }
             }
@@ -1702,19 +1703,19 @@ create page PgTest.P023_Gallery_MultiSelect
     row row1 {
       column col1 (desktopwidth: 12) {
         dynamictext pageTitle1 (content: 'Select Products for Batch Action', rendermode: H1)
-        dynamictext pageTitle2 (content: '{1}',contentparams:[{1}='Select Products for Batch Action'], rendermode: H2)
-        dynamictext pageTitle3 (content: 'Select {1}',contentparams:[{1}='Products for Batch Action'], rendermode: H3)
-        dynamictext pageTitle4 (content: '{1} - {2}',contentparams:[{1}='Select ', {2}='Products for Batch Action'], rendermode: H4)
-        dynamictext pageTitle5 (content: '{1} - {2} - {3}',contentparams:[{1}='Select ', {2}='Products for Batch Action', {3}='Extra'], rendermode: H5)
-        dynamictext pageTitle6 (content: '{1} - {2} - {3} - {4}',contentparams:[{1}='Select ', {2}='Products for Batch Action', {3}='Extra', {4}='More'], rendermode: H6)
+        dynamictext pageTitle2 (content: '{1}',contentparams:({1}='Select Products for Batch Action'), rendermode: H2)
+        dynamictext pageTitle3 (content: 'Select {1}',contentparams:({1}='Products for Batch Action'), rendermode: H3)
+        dynamictext pageTitle4 (content: '{1} - {2}',contentparams:({1}='Select ', {2}='Products for Batch Action'), rendermode: H4)
+        dynamictext pageTitle5 (content: '{1} - {2} - {3}',contentparams:({1}='Select ', {2}='Products for Batch Action', {3}='Extra'), rendermode: H5)
+        dynamictext pageTitle6 (content: '{1} - {2} - {3} - {4}',contentparams:({1}='Select ', {2}='Products for Batch Action', {3}='Extra', {4}='More'), rendermode: H6)
       }
     }
     row row2 {
       column col2 (desktopwidth: 12) {
         gallery productGallery (datasource: database PgTest.Product, selection: multiple) {
           template template1 {
-            dynamictext prodName (content: '{1}',contentparams:[{1}=Name], rendermode: H4)
-            dynamictext prodStock (content: 'Stock: {1}',contentparams:[{1}=Stock], rendermode: text)
+            dynamictext prodName (content: '{1}',contentparams:({1}=Name), rendermode: H4)
+            dynamictext prodStock (content: 'Stock: {1}',contentparams:({1}=Stock), rendermode: text)
           }
         }
       }
@@ -1749,7 +1750,7 @@ create page PgTest.P024_Gallery_Columns
           PhoneColumns: 1
         ) {
           template template1 {
-            dynamictext prodName (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
+            dynamictext prodName (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
           }
         }
       }
@@ -1873,9 +1874,9 @@ create page PgTest.P023b_DataGrid_MicroflowActions
  */
 create page PgTest.P023c_Detail_MicroflowAction
 (
-  params: {
+  params: (
     $Product: PgTest.Product
-  },
+  ),
   title: 'Product Details',
   layout: Atlas_Core.PopupLayout,
   url: 'p023c_detail_microflow/{Product/Code}',
@@ -1938,9 +1939,9 @@ owner both;
  */
 create page PgTest.P024_Template_Basic
 (
-  params: {
+  params: (
     $Order: PgTest.Order
-  },
+  ),
   title: 'Order Details',
   layout: Atlas_Core.Atlas_Default,
   url: 'p024_template_basic/{Order/OrderNumber}',
@@ -1953,25 +1954,25 @@ create page PgTest.P024_Template_Basic
         dataview dvOrder (datasource: $Order) {
           dynamictext txtOrderHeader (
             content: 'Order #{1} - Status: {2}',
-            contentparams: [{1} = $order.OrderNumber, {2} = $order.status],
+            contentparams: ({1} = $order.OrderNumber, {2} = $order.status),
             rendermode: H3
           )
 
           dynamictext txtOrderDate (
             content: 'Placed on: {1}',
-            contentparams: [{1} = $order.OrderDate],
+            contentparams: ({1} = $order.OrderDate),
             rendermode: paragraph
           )
 
           dynamictext txtTotal (
             content: 'Total Amount: ${1}',
-            contentparams: [{1} = $order.TotalAmount],
+            contentparams: ({1} = $order.TotalAmount),
             rendermode: H4
           )
 
           actionbutton btnProcess (
             caption: 'Process Order #{1}',
-            captionparams: [{1} = $order.OrderNumber],
+            captionparams: ({1} = $order.OrderNumber),
             action: microflow PgTest.ProcessProducts,
             buttonstyle: primary
           )
@@ -1996,7 +1997,7 @@ create page PgTest.P024_Template_Basic
 
 create page PgTest.StyledPage
 (
-  params: { $Customer: PgTest.Customer },
+  params: ( $Customer: PgTest.Customer ),
   title: 'Styled Customer',
   layout: Atlas_Core.Atlas_Default,
   folder: 'Styling'
@@ -2009,7 +2010,7 @@ create page PgTest.StyledPage
       -- NOTE: an inline `style` on a dynamictext crashes MxBuild — style the
       -- wrapping container instead (the dynamictext keeps its class).
       container ctnCity (style: 'font-size: 12px;') {
-        dynamictext dtCity (content: 'City: {1}', contentparams: [{1} = City], class: 'text-muted')
+        dynamictext dtCity (content: 'City: {1}', contentparams: ({1} = City), class: 'text-muted')
       }
 
       footer footer1 {
@@ -2125,7 +2126,7 @@ end;
  */
 create page PgTest.P030_ProductDetail
 (
-  params: { $Product: PgTest.Product },
+  params: ( $Product: PgTest.Product ),
   title: 'Product Detail',
   layout: Atlas_Core.Atlas_Default,
   url: 'p030_detail/{Product}',
@@ -2155,7 +2156,7 @@ create page PgTest.P030_WidgetReferences
       column col1 (desktopwidth: 12) {
         -- DataSource: MICROFLOW reference
         listview lvProducts (datasource: microflow PgTest.DSO_GetProducts) {
-          dynamictext txtProductName (content: '{1}', contentparams: [{1} = Name])
+          dynamictext txtProductName (content: '{1}', contentparams: ({1} = Name))
         }
       }
     }
@@ -2304,7 +2305,7 @@ create page PgTest.P033b_DataGrid_ColumnProperties
   layout: Atlas_Core.Atlas_Default,
   url: 'p033b_datagrid_column_properties',
   folder: 'DataGrid',
-  variables: { $showStockColumn: boolean = 'if (3 < 4) then true else false' }
+  variables: ( $showStockColumn: boolean = 'if (3 < 4) then true else false' )
 )
 {
   datagrid dgProducts (datasource: database PgTest.Product) {
@@ -2358,9 +2359,9 @@ create page PgTest.P033b_DataGrid_ColumnProperties
  */
 create page PgTest.P034_ComboBox_Enum
 (
-  params: {
+  params: (
     $Customer: PgTest.Customer
-  },
+  ),
   title: 'ComboBox Enumeration Selection',
   layout: Atlas_Core.PopupLayout,
   folder: 'ComboBox'
@@ -2392,9 +2393,9 @@ create page PgTest.P034_ComboBox_Enum
  */
 create page PgTest.P035_Order_Edit
 (
-  params: {
+  params: (
     $Order: PgTest.Order
-  },
+  ),
   title: 'Edit Order',
   layout: Atlas_Core.PopupLayout,
   folder: 'ComboBox'
@@ -2474,9 +2475,9 @@ create page PgTest.P035_Order_With_ComboBox
  */
 create page PgTest.P037_GroupBox_Example
 (
-  params: {
+  params: (
     $Customer: PgTest.Customer
-  },
+  ),
   title: 'GroupBox Example',
   layout: Atlas_Core.PopupLayout,
   folder: 'GroupBox'
@@ -2523,9 +2524,9 @@ create page PgTest.P037_GroupBox_Example
  */
 create page PgTest.P036_ComboBox_Association
 (
-  params: {
+  params: (
     $Order: PgTest.Order
-  },
+  ),
   title: 'ComboBox Association Selection',
   layout: Atlas_Core.PopupLayout,
   folder: 'ComboBox'
@@ -2782,7 +2783,7 @@ move snippet PgTest.CustomerSidebar to folder 'Shared' in PgTest2;
 create page PgTest.UserTaskPage (
   title: 'User Task Page',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   actionbutton btnApprove (
     caption: 'Approve',
@@ -2807,7 +2808,7 @@ create page PgTest.UserTaskPage (
 create page PgTest.P_OrderWithCustomer (
   Title: 'Order + Customer',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Order: PgTest.Order }
+  Params: ( $Order: PgTest.Order )
 )
 {
   dataview dvOrder (DataSource: $Order) {

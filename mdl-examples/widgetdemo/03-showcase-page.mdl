@@ -6,7 +6,7 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
   title: 'Widget Showcase',
   layout: Atlas_Core.Atlas_Default,
   url: 'widget-demo/{DemoItem}',
-  params: { $DemoItem: WidgetDemo.DemoItem }
+  params: ( $DemoItem: WidgetDemo.DemoItem )
 ) {
   layoutgrid gridMain {
 
@@ -110,9 +110,9 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
             pluggablewidget 'com.mendix.widget.web.dropdownsort.DropdownSort' ddSort1
           }
           template tmpl1 {
-            dynamictext tTitle (content: '{1}', rendermode: H4, contentparams: [{1} = title])
-            dynamictext tCode (content: 'Code: {1} | Priority: {2}', contentparams: [{1} = Code, {2} = Priority])
-            dynamictext tAmount (content: 'Amount: {1} | Score: {2}', contentparams: [{1} = Amount, {2} = Score])
+            dynamictext tTitle (content: '{1}', rendermode: H4, contentparams: ({1} = title))
+            dynamictext tCode (content: 'Code: {1} | Priority: {2}', contentparams: ({1} = Code, {2} = Priority))
+            dynamictext tAmount (content: 'Amount: {1} | Score: {2}', contentparams: ({1} = Amount, {2} = Score))
           }
         }
         dataview dvDetail (datasource: $DemoItem) {
@@ -200,8 +200,8 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
     row rowS6 {
       column cS6a (desktopwidth: 12) {
         listview lvItems (datasource: database from WidgetDemo.DemoItem sort by title asc) {
-          dynamictext lvT (content: '{1}', rendermode: H4, contentparams: [{1} = title])
-          dynamictext lvD (content: '{1}', contentparams: [{1} = description])
+          dynamictext lvT (content: '{1}', rendermode: H4, contentparams: ({1} = title))
+          dynamictext lvD (content: '{1}', contentparams: ({1} = description))
         }
       }
     }
@@ -345,10 +345,10 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
           customVisualization: true
         ) {
           container customTitle {
-            dynamictext tlTitle (content: '{1}', rendermode: H4, contentparams: [{1} = title])
+            dynamictext tlTitle (content: '{1}', rendermode: H4, contentparams: ({1} = title))
           }
           container customDescription {
-            dynamictext tlDesc (content: '{1}', contentparams: [{1} = description])
+            dynamictext tlDesc (content: '{1}', contentparams: ({1} = description))
           }
         }
       }
@@ -403,7 +403,7 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
           showIcon: 'left'
         ) {
           container children {
-            dynamictext treeChildText (content: 'Score: {1} | Amount: {2}', contentparams: [{1} = Score, {2} = Amount])
+            dynamictext treeChildText (content: 'Score: {1} | Amount: {2}', contentparams: ({1} = Score, {2} = Amount))
           }
         }
       }
@@ -415,8 +415,8 @@ create or replace page WidgetDemo.WidgetDemo_Showcase (
           hasChildren: false
         ) {
           container headerContent {
-            dynamictext treeHdrTitle (content: '{1}', rendermode: H5, contentparams: [{1} = title])
-            dynamictext treeHdrMeta (content: 'Priority: {1}', contentparams: [{1} = Priority])
+            dynamictext treeHdrTitle (content: '{1}', rendermode: H5, contentparams: ({1} = title))
+            dynamictext treeHdrMeta (content: 'Priority: {1}', contentparams: ({1} = Priority))
           }
         }
       }

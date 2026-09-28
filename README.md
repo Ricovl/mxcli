@@ -432,7 +432,7 @@ create association MyModule.Order_Product
 -- Create pages
 create page MyModule.Product_Edit
 (
-  params: { $Product: MyModule.Product },
+  params: ( $Product: MyModule.Product ),
   title: 'Edit Product',
   layout: Atlas_Core.PopupLayout
 )

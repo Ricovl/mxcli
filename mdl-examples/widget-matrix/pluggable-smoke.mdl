@@ -39,7 +39,7 @@ create page WMatrix.Pg
     Selection: Single
   ) {
     template tmpl {
-      dynamictext dt (content: '{1}', contentparams: [{1} = Name])
+      dynamictext dt (content: '{1}', contentparams: ({1} = Name))
     }
   }
 }

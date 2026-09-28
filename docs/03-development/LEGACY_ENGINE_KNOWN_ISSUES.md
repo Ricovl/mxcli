@@ -66,7 +66,7 @@ When a legacy issue is encountered:
 
 - **Symptom:** a widget binding that navigates an association to an attribute —
   a DataGrid2 column `attribute: Assoc/Attr`, or a `dynamictext`/`datagrid`
-  `contentparams: [{1} = Module.Assoc/Attr]` — is written by legacy as a flat
+  `contentparams: ({1} = Module.Assoc/Attr)` — is written by legacy as a flat
   attribute reference with no association step, so `mx check` fails with
   **CE1365** "Attribute 'Module.Dest.Attr' is not an attribute of entity
   'Module.Context'" (the destination attribute resolved against the context

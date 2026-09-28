@@ -27,7 +27,7 @@ create or replace page MyFirstModule.LabelWidget_Test
 {
   label lblPlain (Content: 'Attachment')
   label lblStyled (Content: 'Provisioned elsewhere', Class: 'alert alert-warning', Style: 'width:100%;')
-  label lblSpaced (Content: 'Spaced', Class: 'text-semibold', DesignProperties: ['Spacing': ['margin-bottom': 'None']])
+  label lblSpaced (Content: 'Spaced', Class: 'text-semibold', DesignProperties: ('Spacing': ('margin-bottom': 'None')))
 }
 /
 

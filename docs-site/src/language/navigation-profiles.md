@@ -27,10 +27,14 @@ CREATE OR REPLACE NAVIGATION <Profile>
   [HOME PAGE <Module>.<Page> FOR <UserRole>]
   [LOGIN PAGE <Module>.<Page>]
   [NOT FOUND PAGE <Module>.<Page>]
-  [MENU (
+  [{
     <menu-items>
-  )]
+  }]
 ```
+
+The menu items are the profile's children, in `{ }` after its clauses and with
+no `;` between them. The old `MENU ( … )` block still parses and warns
+(MDL-DEPR121).
 
 ### Full Example
 
@@ -40,14 +44,14 @@ CREATE OR REPLACE NAVIGATION Responsive
   HOME PAGE MyModule.AdminHome FOR Administrator
   LOGIN PAGE Administration.Login
   NOT FOUND PAGE MyModule.Custom404
-  MENU (
-    MENU ITEM 'Home' PAGE MyModule.Home_Web;
-    MENU ITEM 'Orders' PAGE Shop.Order_Overview;
-    MENU 'Administration' (
-      MENU ITEM 'Users' PAGE Administration.Account_Overview;
-      MENU ITEM 'Settings' PAGE MyModule.Settings;
-    );
-  );
+  {
+    MENU ITEM 'Home' ( OnClick: SHOW PAGE MyModule.Home_Web )
+    MENU ITEM 'Orders' ( OnClick: SHOW PAGE Shop.Order_Overview )
+    MENU 'Administration' {
+      MENU ITEM 'Users' ( OnClick: SHOW PAGE Administration.Account_Overview )
+      MENU ITEM 'Settings' ( OnClick: SHOW PAGE MyModule.Settings )
+    }
+  };
 ```
 
 ### Minimal Example

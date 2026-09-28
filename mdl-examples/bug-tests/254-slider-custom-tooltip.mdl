@@ -54,7 +54,7 @@ create or replace page T254.P_Num (Title: 'Num', Layout: Atlas_Core.Atlas_Defaul
   LISTVIEW lv (DataSource: DATABASE T254.Reading) {
     pluggablewidget 'com.mendix.widget.custom.slider.Slider' sl (
       Attribute: Score, tooltipType: 'customText',
-      tooltip: 'Score is {1}', contentparams: [{1} = Score])
+      tooltip: 'Score is {1}', contentparams: ({1} = Score))
   }
 }
 

@@ -55,7 +55,7 @@ create or modify page Vehicles.Vehicle_Overview (
         -- below renders as. This is the list view's own Widgets array.
         dynamictext defaultVehicle (
             Content: '{1} {2} ({3})',
-            ContentParams: [{1} = Brand, {2} = Model, {3} = Year]
+            ContentParams: ({1} = Brand, {2} = Model, {3} = Year)
         )
 
         -- One body per specialization. The template has no name — the entity it
@@ -67,19 +67,19 @@ create or modify page Vehicles.Vehicle_Overview (
         template for Vehicles.Bus {
             dynamictext busLabel (
                 Content: 'Bus {1} - capacity {2}, route {3}',
-                ContentParams: [{1} = Brand, {2} = PassengerCapacity, {3} = RouteNumber]
+                ContentParams: ({1} = Brand, {2} = PassengerCapacity, {3} = RouteNumber)
             )
         }
         template for Vehicles.Truck {
             dynamictext truckLabel (
                 Content: 'Truck {1} - max load {2} kg, trailer: {3}',
-                ContentParams: [{1} = Brand, {2} = MaxLoadKg, {3} = HasTrailer]
+                ContentParams: ({1} = Brand, {2} = MaxLoadKg, {3} = HasTrailer)
             )
         }
         template for Vehicles.Car {
             dynamictext carLabel (
                 Content: 'Car {1} - {2} doors',
-                ContentParams: [{1} = Brand, {2} = NumberOfDoors]
+                ContentParams: ({1} = Brand, {2} = NumberOfDoors)
             )
         }
     }
@@ -98,7 +98,7 @@ alter page Vehicles.Vehicle_Overview {
         template for Vehicles.Motorcycle {
             dynamictext mcLabel (
                 Content: 'Motorcycle {1} - sidecar: {2}',
-                ContentParams: [{1} = Brand, {2} = HasSidecar]
+                ContentParams: ({1} = Brand, {2} = HasSidecar)
             )
         }
     };

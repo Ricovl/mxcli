@@ -255,7 +255,7 @@ CREATE CONSUMED REST SERVICE Integration.OrdersApi (
     Method: GET,
     Path: '/orders/{id}',
     Parameters: ($id: String),
-    Headers: ('Accept' = 'application/json'),
+    Headers: ('Accept': 'application/json'),
     Timeout: 30,
     Response: JSON AS $Result
   )
@@ -263,7 +263,7 @@ CREATE CONSUMED REST SERVICE Integration.OrdersApi (
   OPERATION CreateOrder (
     Method: POST,
     Path: '/orders',
-    Headers: ('Content-Type' = 'application/json'),
+    Headers: ('Content-Type': 'application/json'),
     Body: MAPPING Integration.OrderRequest {
       customerId = CustomerId,
       totalAmount = TotalAmount,
@@ -290,7 +290,7 @@ CREATE OR MODIFY CONSUMED REST SERVICE Integration.OrdersApi (
     Method: GET,
     Path: '/orders/{id}',
     Parameters: ($id: String),
-    Headers: ('Accept' = 'application/json'),
+    Headers: ('Accept': 'application/json'),
     Timeout: 60,
     Response: JSON AS $Result
   )

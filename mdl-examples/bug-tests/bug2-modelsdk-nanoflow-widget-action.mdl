@@ -23,7 +23,7 @@ create nanoflow  Bug2.NAV_Test ( Form: Bug2.Expense ) begin end
 create microflow Bug2.ACT_Test ( Form: Bug2.Expense ) begin end
 
 create or replace page Bug2.P (
-  params: { $Form: Bug2.Expense },
+  params: ( $Form: Bug2.Expense ),
   title: 'x',
   layout: Atlas_Core.Atlas_Default
 ) {

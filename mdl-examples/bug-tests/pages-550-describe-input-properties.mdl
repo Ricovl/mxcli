@@ -55,7 +55,7 @@ end
 create or replace page Issue550.ChangePasswordForm (
   title: 'Change Password',
   layout: Atlas_Core.PopupLayout,
-  params: { $Account: Issue550.Account },
+  params: ( $Account: Issue550.Account ),
   -- Names the widget whose action closes the pop-up. Written as "" before.
   PopupCloseAction: cancelButton1
 )

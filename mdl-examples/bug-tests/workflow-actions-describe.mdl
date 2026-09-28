@@ -36,7 +36,7 @@ create module W;
 create persistent entity W.Order (Code: String(20));
 
 create page W.ReviewPage (
-  params: { $Task: System.WorkflowUserTask },
+  params: ( $Task: System.WorkflowUserTask ),
   title: 'Review', layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid g { row r { column c (desktopwidth: 12) {

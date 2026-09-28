@@ -62,7 +62,7 @@ create entity CBBug112.Boat (
 /
 
 create or replace page CBBug112.Boat_NewEdit (
-  params: { $Boat: CBBug112.Boat },
+  params: ( $Boat: CBBug112.Boat ),
   layout: Atlas_Core.Atlas_Default
 ) {
   dataview boatDV (DataSource: $Boat) {

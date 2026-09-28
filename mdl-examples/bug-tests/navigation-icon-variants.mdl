@@ -44,22 +44,22 @@ create page NavIconVariants.Logo ( Title: 'Logo', Layout: Atlas_Core.Atlas_Defau
 
 create or replace navigation Responsive
   home page NavIconVariants.Home
-  menu (
+  {
     -- Forms$IconCollectionIcon — the bare form, unchanged
-    menu item 'Home' page NavIconVariants.Home icon Atlas_Core.Atlas.home;
+    menu item 'Home' ( OnClick: show page NavIconVariants.Home, Icon: Atlas_Core.Atlas.home )
     -- Forms$GlyphIcon — the numeric character code IS the glyph's identity
-    menu item 'Close' page NavIconVariants.Close icon glyph 57377;
+    menu item 'Close' ( OnClick: show page NavIconVariants.Close, Icon: glyph 57377 )
     -- Forms$ImageIcon — an image collection, a different document
-    menu item 'Logo' page NavIconVariants.Logo icon image NavIconVariants.Images.logo;
+    menu item 'Logo' ( OnClick: show page NavIconVariants.Logo, Icon: image NavIconVariants.Images.logo )
     -- A submenu takes any of the three too; it sits on the collapsed icon rail
-    menu 'Admin' icon glyph 57345 (
-      menu item 'Users' page NavIconVariants.Home icon Atlas_Core.Atlas.user;
-    );
-  );
+    menu 'Admin' ( Icon: glyph 57345 ) {
+      menu item 'Users' ( OnClick: show page NavIconVariants.Home, Icon: Atlas_Core.Atlas.user )
+    }
+  };
 
 -- The same item syntax serves a standalone menu document, which is why one AST
 -- node backs both and the two cannot diverge.
-create or modify menu NavIconVariants.Main_Menu (
-  menu item 'Home' page NavIconVariants.Home icon Atlas_Core.Atlas.home;
-  menu item 'Close' page NavIconVariants.Close icon glyph 57377;
-);
+create or modify menu NavIconVariants.Main_Menu {
+  menu item 'Home' ( OnClick: show page NavIconVariants.Home, Icon: Atlas_Core.Atlas.home )
+  menu item 'Close' ( OnClick: show page NavIconVariants.Close, Icon: glyph 57377 )
+};

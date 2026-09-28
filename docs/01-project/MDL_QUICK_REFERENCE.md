@@ -569,7 +569,8 @@ it is for pages.
 | Close page | `close page;` | |
 | Download file | `download file $FileDocument [show in browser];` | Streams a `System.FileDocument` |
 | Show message | `show message 'text' [type Information\|Warning\|Error] [with ({1} = $a, {2} = $b)] [blocking];` | `blocking` halts the client until the user dismisses it — Studio Pro's checkbox. It goes after the `with` list and before `on error`. `with ({1} = $a, {2} = $b)` is the deprecated spelling of the list (MDL-DEPR009). Without it, a describe → exec round trip turned a blocking message into a non-blocking one (16 microflows measured) |
-| Database connection credentials | `connection string @Mod.Const`, `username @Mod.Const`, `password @Mod.Const` | Constant **references** only. A literal writes an unopenable project — MDL058 |
+| Database connection | `create database connection Mod.Db ( Type: 'PostgreSQL', ConnectionString: @Mod.Url, Username: @Mod.User, Password: @Mod.Pass ) { query Q ( Sql: $$…$$, Parameters: ( p: Integer default '0' ), Returns: Mod.E, Map: ( Attr = column ) ) }` | Properties in `( )`, queries as children in `{ }` (R2). The clause form with `begin … end` still parses and warns (MDL-DEPR127) |
+| Database connection credentials | `ConnectionString: @Mod.Const`, `Username: @Mod.Const`, `Password: @Mod.Const` | Constant **references** only. A literal writes an unopenable project — MDL058 |
 | Synchronize (nanoflow only) | `synchronize all;` / `synchronize unsynchronized;` / `synchronize $Obj, $List;` | Offline sync. `unsynchronized` needs Mendix 9.4+. In a microflow this is MDL057 / CE0009 |
 | Validation | `validation feedback $entity/attribute message 'message {1}' [with ({1} = $a)];` | Requires attribute path + MESSAGE |
 | Log | `log [info\|warning\|error] [node 'name'] 'message';` | Level `info` and node `'Application'` are the defaults; `describe` leaves them out |
@@ -904,6 +905,12 @@ alter workflow Module.OrderApproval
 | Profile kinds | `Responsive` · `Phone` · `Tablet` · `ResponsiveOffline` · `PhoneOffline` · `TabletOffline` | A closed set. An invented name (`Mobile`) is an error, not a new profile: the runtime routes on User-Agent to Mendix's own kinds. Native profiles are a different document type and are not creatable |
 | Offline profiles | `create or replace navigation TabletOffline ...;` | Same properties as the online twin, but every page the profile can reach may bind an attribute across **at most one** association hop (**CE6206**). Creating one reports the documents that already exceed that |
 
+Menu items are the profile's children, in `{ }` after its clauses, with no `;`
+between them: `menu item 'Caption' ( OnClick: show page M.P, Icon: … )`, where
+`OnClick` is `show page M.P`, `call microflow M.F` or `sign out`, and a sub-menu
+is `menu 'Caption' [( Icon: … )] { … }`. The old `menu ( menu item 'X' page M.P; )`
+spelling still parses and warns (MDL-DEPR121, MDL-DEPR122).
+
 **Navigation Example:**
 ```sql
 create or replace navigation Responsive
@@ -911,12 +918,12 @@ create or replace navigation Responsive
   home page MyModule.AdminHome for Administrator
   login page Administration.Login
   not found page MyModule.Custom404
-  menu (
-    menu item 'Home' page MyModule.Home_Web icon Atlas_Core.Atlas.home;
-    menu 'Admin' icon Atlas_Core.Atlas."align-center" (
-      menu item 'Users' page Administration.Account_Overview;
-    );
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )
+    menu 'Admin' ( Icon: Atlas_Core.Atlas."align-center" ) {
+      menu item 'Users' ( OnClick: show page Administration.Account_Overview )
+    }
+  };
 ```
 
 **An item with no icon is reported (MDL077, a warning).** The navigation sidebar
@@ -924,10 +931,10 @@ collapses to an icon rail, and that is the state most users leave it in: a
 collapsed item shows its icon, and one without falls back to the first few
 characters of its caption — rarely enough to tell `Orders` from `Order lines`.
 The menu still builds and `mx check` passes, so the only symptom is in a browser.
-The rule covers every item at every depth, in both `create navigation`'s `menu`
-block and `create menu`, and needs no project.
+The rule covers every item at every depth, in both `create navigation`'s `{ }`
+menu block and `create menu`, and needs no project.
 
-`icon` is optional and is a **qualified name** into an **icon collection** —
+`Icon:` is optional and is a **qualified name** into an **icon collection** —
 `Atlas_Core.Atlas`, `Atlas_Core.Atlas_Filled`, `Atlas_Core.Atlas_Styling`, or one
 of your own — written like any other model reference. Hyphenated Atlas names
 (`align-center`) are double-quoted, the same way a keyword-colliding name is:
@@ -942,9 +949,9 @@ name at all:
 
 | form | element | holds |
 |------|---------|-------|
-| `icon Atlas_Core.Atlas.home` | `Forms$IconCollectionIcon` | a name in an icon collection |
-| `icon glyph 57377` | `Forms$GlyphIcon` | a numeric character code |
-| `icon image MyModule.Images.logo` | `Forms$ImageIcon` | a name in an image collection |
+| `Icon: Atlas_Core.Atlas.home` | `Forms$IconCollectionIcon` | a name in an icon collection |
+| `Icon: glyph 57377` | `Forms$GlyphIcon` | a numeric character code |
+| `Icon: image MyModule.Images.logo` | `Forms$ImageIcon` | a name in an image collection |
 
 **Browse the glyph codes with `show glyphs`.** A glyph is a character code in a
 font, not a document in the project, so there is nothing to scope with `IN` and
@@ -1124,8 +1131,8 @@ property's own `<Name>Params` companion:
 ```sql
 image cardImage (
   ImageType: imageUrl,
-  ImageUrl: '{1}',        ImageUrlParams: [{1} = PictureUrl],
-  AlternativeText: '{1}', AlternativeTextParams: [{1} = Name]
+  ImageUrl: '{1}',        ImageUrlParams: ({1} = PictureUrl),
+  AlternativeText: '{1}', AlternativeTextParams: ({1} = Name)
 );
 ```
 
@@ -1168,7 +1175,7 @@ create consumed rest service Module.Api (
     path: '/items/{id}',
     parameters: ($id: string),
     query: ($filter: string),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 30,
     response: json as $Result
   )
@@ -1176,7 +1183,7 @@ create consumed rest service Module.Api (
   operation CreateItem (
     method: post,
     path: '/items',
-    headers: ('Content-Type' = 'application/json'),
+    headers: ('Content-Type': 'application/json'),
     body: mapping Module.ItemRequest {
       name = Name,
       price = Price,
@@ -1453,7 +1460,10 @@ MDL uses explicit property declarations for pages:
 | Pop-up close button | `PopupCloseAction: <widgetName>` | `(Layout: Atlas_Core.PopupLayout, PopupCloseAction: cancelButton1)` — names a widget on this page. Not carried from the stored document on a rewrite: the statement rebuilds the widget tree, so a carried name could dangle |
 | DataView read-only style | `ReadOnlyStyle: Inherit\|Control\|Text` | `dataview dv (datasource: $O, ReadOnlyStyle: Text)` — a DataView's own, distinct from a checkbox's. **Control** is Studio Pro's default here, not Inherit |
 | Page CSS class / style | `Class: 'css-class', Style: 'css: rule'` | `(Title: 'Home', Class: 'container-fluid bg-light', Style: 'min-height: 100vh')` — the page's Appearance |
-| Page variables | `variables: { $name: type = 'expr' }` | `variables: { $show: boolean = 'true' }` |
+| Page variables | `variables: ( $name: type = 'expr' )` | `variables: ( $show: boolean = 'true' )` |
+| Page parameters | `params: ( $name: type, … )` | `params: ( $Order: Shop.Order )` — a map, in `( )`; `params: { … }` is the deprecated spelling (MDL-DEPR123) |
+| Snippet call arguments | `snippetcall s (snippet: M.S, params: (Param = $var))` | Bound as at every call site, `Param = value` (R4). `params: {$Param: $var}` is deprecated (MDL-DEPR126) |
+| Text template parameters | `contentparams: ({1} = expr, …)` | Also `captionparams:` and a pluggable widget's `<Name>Params:`. `[…]` is deprecated (MDL-DEPR124) |
 | Repeated widget entries | `<container> <name> ( … )` **in the widget body** | A repeatable property (FileUploader `allowedFileFormats`, HTML Element `attributes`, a chart's `series`) is a block, never a property value. `attributes: [(attributeName: 'x')]` is **MDL-WIDGET27** — it used to check clean, exec, and vanish from storage. `describe widget type <name> -p app.mpr` lists the container keywords |
 | Data grid 2 column filter | `column (attribute: A) { textfilter f }` | **Inside the column's braces.** `column (…) filter { … }` is the GALLERY form — the grammar reads it as a column with no body plus a sibling `filter` widget, which the grid has nowhere to put; it used to be dropped on write and is now **MDL-WIDGET30**. A grid-wide filter bar is `controlbar`; a gallery spells that same slot `filter`. Match the filter to the column's type (String → `textfilter`, number → `numberfilter`, DateTime → `datefilter`, Enumeration **and Boolean** → `dropdownfilter` — the drop-down filter's own attribute types are Enum and Boolean, and a Boolean column filters Yes/No). A column may carry a **custom-content widget AND a filter**: `content` and `filter` are separate slots, so `column (attribute: IsActive) { checkbox cb (Editable: Never, ReadOnlyStyle: Control) dropdownfilter ddf }` renders checkbox cells and still filters |
 | Widget with nowhere to go | any widget in a pluggable widget's body | A child matching no container, slot or `template` catch-all is **MDL-WIDGET30** at check time and refused by `exec`. `describe widget type <name> -p app.mpr` lists what the parent declares. Needs the parent's definition, so it is silent without `-p` |
@@ -1480,7 +1490,7 @@ MDL uses explicit property declarations for pages:
 | CSS class | `class: 'classes'` | `container c (class: 'card mx-spacing-top-large')` |
 | Inline style | `style: 'css'` | `container c (style: 'padding: 16px;')` |
 | Dynamic classes | `dynamicclasses: 'expr'` | `container c (dynamicclasses: if $currentObject/IsActive then 'is-active' else '')` — runtime-computed classes; stacks on `class` |
-| Design properties | `designproperties: [...]` | `container c (designproperties: ['Spacing top': 'Large', 'full width': on])` |
+| Design properties | `designproperties: (...)` | `container c (designproperties: ('Spacing top': 'Large', 'full width': on))` — a map, in `( )`; a compound one nests: `('Spacing': ('margin-top': 'L'))`. `[…]` is deprecated (MDL-DEPR125) |
 | Width (pixels) | `width: integer` | `image img (width: 200)` |
 | Height (pixels) | `height: integer` | `image img (height: 150)` |
 | Page size | `PageSize: integer` | `datagrid dg (PageSize: 25)` |
@@ -1498,7 +1508,7 @@ MDL uses explicit property declarations for pages:
 | Drop layout | `drop layout [if exists] Module.Name;` | Pages still bound to it are named in a warning and the drop proceeds; left dropped they fail **CE1613**, which names the *page* |
 | Declare a placeholder | `placeholder Main` | **No body.** Exactly one must be named `Main` — mxbuild enforces it (**CE0848**/**CE0849**), and names must be unique (**CE0495**). `placeholder X { … }` is the page-side form and declares nothing (MDL083) |
 | Alter layout | `alter layout Module.Name { <alter-page operations> };` | Edits the stored document, so widgets MDL cannot spell survive. Refused for a Marketplace target |
-| Set a design property | `alter page Module.Page { set ('Row size': 'Small') on lvOrders; };` | An Atlas design property of that widget's **type** — quoted, case-sensitive; `show design properties for <type>` lists them. `on`/`off` for a toggle, where `off` removes the entry. Same document `alter styling` writes. A **multi-select** (`Hide on`) or **compound** (`Spacing`) property needs the inline `DesignProperties: [...]` form, since a `set` assignment carries one value |
+| Set a design property | `alter page Module.Page { set ('Row size': 'Small') on lvOrders; };` | An Atlas design property of that widget's **type** — quoted, case-sensitive; `show design properties for <type>` lists them. `on`/`off` for a toggle, where `off` removes the entry. Same document `alter styling` writes. A **multi-select** (`Hide on`) or **compound** (`Spacing`) property needs the inline `DesignProperties: (...)` form, since a `set` assignment carries one value |
 | Restyle one widget | `alter styling on page Module.Page widget w set (Class: 'card', 'Full width': on);` | `set Class = …, 'P' = on` (no parentheses, `=`) warns MDL-DEPR062 |
 | Repoint one page | `alter page Module.Page { set Layout = Module.Layout [map (Old as New, …)]; };` | Rewrites the layout reference **and** every placeholder binding |
 | Set a design property on every widget of a type | `alter pages [in <module>] set 'Compact' = on, 'Striped' = on where widgettype = datagrid [dry run];` | The house-style sweep. `widgettype` takes the **MDL keyword**, which resolves to exactly one widget id — a `like '%datagrid%'` predicate also matches the data grid's *filter* widgets. Never a widget **name**: a name is unique only within its page. `dry run` previews against a discardable copy. A sweep that matches widgets and writes none of them exits non-zero |
@@ -1524,10 +1534,10 @@ MDL uses explicit property declarations for pages:
 | Describe snippet | `describe snippet Module.Name;` | Round-trippable MDL output |
 | List building blocks | `show building blocks [in module];` | Read-only; cannot be authored via MDL |
 | Describe building block | `describe building block Module.Name;` | Informational (header comment + widget tree), not a `create` statement |
-| Create menu | `create [or modify] menu Module.Name [folder 'path'] ( <items> );` | Standalone `Menus$MenuDocument`. Full replacement: the item list is the document's complete contents |
+| Create menu | `create [or modify] menu Module.Name [folder 'path'] { <items> };` | Standalone `Menus$MenuDocument`. Full replacement: the item list is the document's complete contents |
 | Describe menu | `describe menu Module.Name;` | Round-trippable MDL. Not the navigation-profile menu — see `show navigation menu` |
 | Drop menu | `drop menu [if exists] Module.Name;` | |
-| Create menu | `create [or modify] menu Module.Name [folder 'path'] ( <items> );` | Standalone `Menus$MenuDocument`. Full replacement: the item list is the document's complete contents |
+| Create menu | `create [or modify] menu Module.Name [folder 'path'] { <items> };` | Standalone `Menus$MenuDocument`. Full replacement: the item list is the document's complete contents |
 | Describe menu | `describe menu Module.Name;` | Round-trippable MDL. Not the navigation-profile menu — see `show navigation menu` |
 | Drop menu | `drop menu [if exists] Module.Name;` | |
 
@@ -1553,7 +1563,7 @@ MDL uses explicit property declarations for pages:
 ```sql
 create page MyModule.Customer_Edit
 (
-  params: { $Customer: MyModule.Customer },
+  params: ( $Customer: MyModule.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -1600,13 +1610,13 @@ own body already renders objects no template matches.
 
 ```sql
 listview vehicleListView (DataSource: database from Pages.Vehicle) {
-  dynamictext defaultVehicle (Content: '{1}', ContentParams: [{1} = Brand])
+  dynamictext defaultVehicle (Content: '{1}', ContentParams: ({1} = Brand))
 
   template for Pages.Bus {
-    dynamictext busLabel (Content: 'Bus, capacity {1}', ContentParams: [{1} = PassengerCapacity])
+    dynamictext busLabel (Content: 'Bus, capacity {1}', ContentParams: ({1} = PassengerCapacity))
   }
   template for Pages.Truck {
-    dynamictext truckLabel (Content: 'Truck, max load {1} kg', ContentParams: [{1} = MaxLoadKg])
+    dynamictext truckLabel (Content: 'Truck, max load {1} kg', ContentParams: ({1} = MaxLoadKg))
   }
 }
 ```
@@ -1653,8 +1663,8 @@ A column cannot bind the association itself: `column c (attribute: Order_Custome
 
 **DynamicText parameter formatting** — append a `format (…)` block to a content parameter (the `format` keyword is required):
 ```sql
-dynamictext amt (content: '{1}', contentparams: [{1} = Amount format (decimalPrecision: 2, groupDigits: true)])
-dynamictext due (content: '{1}', contentparams: [{1} = DueOn  format (dateFormat: DateTime)])
+dynamictext amt (content: '{1}', contentparams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true)))
+dynamictext due (content: '{1}', contentparams: ({1} = DueOn  format (dateFormat: DateTime)))
 ```
 Keys: `decimalPrecision` (int), `groupDigits` (bool), `dateFormat` (`Date`|`DateTime`|`Time`|`Custom`), `customDateFormat` (pattern, with `dateFormat: Custom`), `enumFormat` (`Text`|`Image`).
 

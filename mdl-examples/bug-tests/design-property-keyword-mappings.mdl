@@ -36,24 +36,24 @@ create or replace page MyFirstModule.DesignPropKeywords_Test
 ( Title: 'Design property keyword mappings', Layout: Atlas_Core.Atlas_Default )
 {
   container c1 {
-    groupbox gbCustom (Caption: 'Custom', DesignProperties: ['Style': '#ff0000', 'Callout style': on]) {
+    groupbox gbCustom (Caption: 'Custom', DesignProperties: ('Style': '#ff0000', 'Callout style': on)) {
       dynamictext t1 (Content: 'x')
     }
-    groupbox gbSwatch (Caption: 'Swatch', DesignProperties: ['Style': 'Brand Primary']) {
+    groupbox gbSwatch (Caption: 'Swatch', DesignProperties: ('Style': 'Brand Primary')) {
       dynamictext t2 (Content: 'y')
     }
-    tabcontainer tc1 (DesignProperties: ['Style': 'Pills', 'Tab position': 'Center', 'Justify': on]) {
+    tabcontainer tc1 (DesignProperties: ('Style': 'Pills', 'Tab position': 'Center', 'Justify': on)) {
       tabpage tp1 (Caption: 'One') {
         dynamictext t3 (Content: 'z')
       }
     }
-    navigationtree nt1 (profile: 'Responsive', DesignProperties: ['Hide icons': on])
-    row r1 (DesignProperties: ['Background color': '#00ff00']) {
+    navigationtree nt1 (profile: 'Responsive', DesignProperties: ('Hide icons': on))
+    row r1 (DesignProperties: ('Background color': '#00ff00')) {
       column rc1 {
         dynamictext t4 (Content: 'r')
       }
     }
-    column k1 (DesignProperties: ['Background color': '#0000ff', 'Card style': on]) {
+    column k1 (DesignProperties: ('Background color': '#0000ff', 'Card style': on)) {
       dynamictext t5 (Content: 'k')
     }
   }

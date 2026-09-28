@@ -46,7 +46,7 @@ create association M854A.Order_Note from M854A.Order to M854A.Note type Referenc
 create association M854A.Order_Line from M854A.Order to M854B.Line type ReferenceSet;
 
 create page M854A.OrderDetail (
-  Params: { $Order: M854A.Order },
+  Params: ( $Order: M854A.Order ),
   Title: 'Order Detail',
   Layout: Atlas_Core.Atlas_Default
 ) {

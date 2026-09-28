@@ -55,7 +55,7 @@ create association Issue529.RuleAction_BusinessRule
 create or replace page Issue529.RuleAction_NewEdit (
   title: 'Edit Rule Action',
   layout: Atlas_Core.PopupLayout,
-  params: { $RuleAction: Issue529.RuleAction }
+  params: ( $RuleAction: Issue529.RuleAction )
 )
 {
   -- Wrapped in a layout grid, as the Studio Pro reference page is (MPR010).

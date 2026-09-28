@@ -62,7 +62,7 @@ create rest client RestTest.RC001_SimpleAPI (
   operation GetStatus (
     method: get,
     path: '/echo',
-    headers: ('Accept' = '*/*'),
+    headers: ('Accept': '*/*'),
     response: none
   )
 };
@@ -81,7 +81,7 @@ create rest client RestTest.RC002_JsonAPI (
   operation GetPosts (
     method: get,
     path: '/posts',
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     response: json as $Posts
   )
 };
@@ -101,7 +101,7 @@ create rest client RestTest.RC003_UserAPI (
     method: get,
     path: '/users/{userId}',
     parameters: ($userId: integer),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     response: json as $user
   )
 };
@@ -127,7 +127,7 @@ create rest client RestTest.RC004_CrudAPI (
   operation GetAll (
     method: get,
     path: '/get',
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     response: json as $Resources
   )
 
@@ -135,7 +135,7 @@ create rest client RestTest.RC004_CrudAPI (
   operation CreateResource (
     method: post,
     path: '/post',
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     body: json from $NewResource,
     response: json as $CreatedResource
   )
@@ -144,7 +144,7 @@ create rest client RestTest.RC004_CrudAPI (
   operation UpdateResource (
     method: put,
     path: '/put',
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     body: json from $UpdatedResource,
     response: json as $resource
   )
@@ -153,7 +153,7 @@ create rest client RestTest.RC004_CrudAPI (
   operation "PatchResource" (
     method: patch,
     path: '/patch',
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     body: json from $PatchData,
     response: json as $resource
   )
@@ -248,7 +248,7 @@ create rest client RestTest.RC008_HeaderAPI (
   operation GetData (
     method: get,
     path: '/headers',
-    headers: ('Accept' = 'application/json', 'X-API-Version' = '2.0', 'X-Client-ID' = 'mendix-repl'),
+    headers: ('Accept': 'application/json', 'X-API-Version': '2.0', 'X-Client-ID': 'mendix-repl'),
     response: json as $data
   )
 };
@@ -267,7 +267,7 @@ create rest client RestTest.RC009_AuthHeaderAPI (
   operation GetSecureData (
     method: get,
     path: '/headers',
-    headers: ('Accept' = 'application/json', 'Authorization' = 'Bearer my-api-token', 'X-Request-ID' = 'request-001'),
+    headers: ('Accept': 'application/json', 'Authorization': 'Bearer my-api-token', 'X-Request-ID': 'request-001'),
     response: json as $data
   )
 };
@@ -284,7 +284,7 @@ create rest client RestTest.RC010_ContentTypeAPI (
   operation PostJson (
     method: post,
     path: '/post',
-    headers: ('Content-Type' = 'application/json', 'Accept' = 'application/json'),
+    headers: ('Content-Type': 'application/json', 'Accept': 'application/json'),
     body: json from $Payload,
     response: json as $Result
   )
@@ -342,7 +342,7 @@ create rest client RestTest.RC013_SecureAuthAPI (
   operation GetSecureData (
     method: get,
     path: '/hidden-basic-auth/testuser/testpass',
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     response: json as $data
   )
 };
@@ -365,7 +365,7 @@ create rest client RestTest.RC014_JsonBodyAPI (
   operation AddItem (
     method: post,
     path: '/post',
-    headers: ('Content-Type' = 'application/json'),
+    headers: ('Content-Type': 'application/json'),
     body: json from $ItemData,
     response: json as $CreatedItem
   )
@@ -517,7 +517,7 @@ create rest client RestTest.RC018_PetStoreAPI (
     method: get,
     path: '/pet/findByStatus',
     query: ($status: string),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 30,
     response: json as $PetList
   )
@@ -530,7 +530,7 @@ create rest client RestTest.RC018_PetStoreAPI (
     method: get,
     path: '/pet/{petId}',
     parameters: ($petId: integer),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     response: json as $Pet
   )
 
@@ -541,7 +541,7 @@ create rest client RestTest.RC018_PetStoreAPI (
   operation AddPet (
     method: post,
     path: '/pet',
-    headers: ('Content-Type' = 'application/json', 'Accept' = 'application/json'),
+    headers: ('Content-Type': 'application/json', 'Accept': 'application/json'),
     body: json from $NewPet,
     response: json as $CreatedPet
   )
@@ -553,7 +553,7 @@ create rest client RestTest.RC018_PetStoreAPI (
   operation ModifyPet (
     method: put,
     path: '/pet',
-    headers: ('Content-Type' = 'application/json', 'Accept' = 'application/json'),
+    headers: ('Content-Type': 'application/json', 'Accept': 'application/json'),
     body: json from $UpdatedPet,
     response: json as $Pet
   )
@@ -567,7 +567,7 @@ create rest client RestTest.RC018_PetStoreAPI (
     method: delete,
     path: '/pet/{petId}',
     parameters: ($petId: integer),
-    headers: ('api_key' = 'special-key'),
+    headers: ('api_key': 'special-key'),
     response: none
   )
 
@@ -594,7 +594,7 @@ create rest client RestTest.RC019_GitHubAPI (
     method: get,
     path: '/repos/{owner}/{repo}',
     parameters: ($owner: string, $repo: string),
-    headers: ('Accept' = 'application/vnd.github.v3+json', 'User-Agent' = 'Mendix-REPL'),
+    headers: ('Accept': 'application/vnd.github.v3+json', 'User-Agent': 'Mendix-REPL'),
     response: json as $Repository
   )
 
@@ -604,7 +604,7 @@ create rest client RestTest.RC019_GitHubAPI (
     path: '/repos/{owner}/{repo}/issues',
     parameters: ($owner: string, $repo: string),
     query: ($state: string, $labels: string, $page: integer, $per_page: integer),
-    headers: ('Accept' = 'application/vnd.github.v3+json', 'User-Agent' = 'Mendix-REPL'),
+    headers: ('Accept': 'application/vnd.github.v3+json', 'User-Agent': 'Mendix-REPL'),
     response: json as $Issues
   )
 
@@ -613,7 +613,7 @@ create rest client RestTest.RC019_GitHubAPI (
     method: post,
     path: '/repos/{owner}/{repo}/issues',
     parameters: ($owner: string, $repo: string),
-    headers: ('Accept' = 'application/vnd.github.v3+json', 'User-Agent' = 'Mendix-REPL', 'Authorization' = 'token ghp_exampletoken123'),
+    headers: ('Accept': 'application/vnd.github.v3+json', 'User-Agent': 'Mendix-REPL', 'Authorization': 'token ghp_exampletoken123'),
     body: json from $IssueData,
     response: json as $CreatedIssue
   )
@@ -622,7 +622,7 @@ create rest client RestTest.RC019_GitHubAPI (
   operation GetAuthenticatedUser (
     method: get,
     path: '/user',
-    headers: ('Accept' = 'application/vnd.github.v3+json', 'User-Agent' = 'Mendix-REPL', 'Authorization' = 'token ghp_exampletoken123'),
+    headers: ('Accept': 'application/vnd.github.v3+json', 'User-Agent': 'Mendix-REPL', 'Authorization': 'token ghp_exampletoken123'),
     response: json as $user
   )
 };
@@ -645,7 +645,7 @@ create rest client RestTest.RC020_WeatherAPI (
     method: get,
     path: '/weather',
     query: ($q: string, $appid: string, $units: string),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     response: json as $Weather
   )
 
@@ -654,7 +654,7 @@ create rest client RestTest.RC020_WeatherAPI (
     method: get,
     path: '/forecast',
     query: ($q: string, $appid: string, $units: string, $cnt: integer),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     response: json as $Forecast
   )
 
@@ -663,7 +663,7 @@ create rest client RestTest.RC020_WeatherAPI (
     method: get,
     path: '/weather',
     query: ($lat: decimal, $lon: decimal, $appid: string, $units: string),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     response: json as $Weather
   )
 };
@@ -685,7 +685,7 @@ create rest client RestTest.RC021_PaymentAPI (
   operation InitiatePayment (
     method: post,
     path: '/payment_intents',
-    headers: ('Content-Type' = 'application/json', 'Accept' = 'application/json', 'Idempotency-Key' = 'idem-key-001'),
+    headers: ('Content-Type': 'application/json', 'Accept': 'application/json', 'Idempotency-Key': 'idem-key-001'),
     body: json from $PaymentData,
     timeout: 30,
     response: json as $PaymentIntent
@@ -704,7 +704,7 @@ create rest client RestTest.RC021_PaymentAPI (
     method: post,
     path: '/payment_intents/{paymentIntentId}/confirm',
     parameters: ($paymentIntentId: string),
-    headers: ('Content-Type' = 'application/json'),
+    headers: ('Content-Type': 'application/json'),
     body: json from $ConfirmData,
     response: json as $PaymentIntent
   )

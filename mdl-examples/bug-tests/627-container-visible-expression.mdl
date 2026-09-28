@@ -32,7 +32,7 @@ create page MyFirstModule.P_Vis
 (
   Title: 'Conditional Visibility',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Customer: MyFirstModule.Customer }
+  Params: ( $Customer: MyFirstModule.Customer )
 )
 {
   dataview dv (datasource: $Customer) {

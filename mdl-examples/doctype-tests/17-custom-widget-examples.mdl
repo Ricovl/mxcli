@@ -81,8 +81,8 @@ create page CWTest.P_Gallery_Basic
           datasource: database CWTest.task sort by title asc
         ) {
           template tpl1 {
-            dynamictext dtTitle (content: '{1}', contentparams: [{1} = title], rendermode: H4)
-            dynamictext dtDesc (content: '{1}', contentparams: [{1} = description])
+            dynamictext dtTitle (content: '{1}', contentparams: ({1} = title), rendermode: H4)
+            dynamictext dtDesc (content: '{1}', contentparams: ({1} = description))
           }
         }
       }
@@ -116,8 +116,8 @@ create page CWTest.P_Gallery_Filtered
           datasource: database CWTest.task sort by DueDate desc
         ) {
           template tpl1 {
-            dynamictext dtTitle (content: '{1}', contentparams: [{1} = title], rendermode: H4)
-            dynamictext dtPriority (content: 'Priority: {1}', contentparams: [{1} = Priority])
+            dynamictext dtTitle (content: '{1}', contentparams: ({1} = title), rendermode: H4)
+            dynamictext dtPriority (content: 'Priority: {1}', contentparams: ({1} = Priority))
           }
           filter flt1 {
             textfilter tfSearch (attribute: title)
@@ -143,9 +143,9 @@ create page CWTest.P_Gallery_Filtered
  */
 create page CWTest.P_ComboBox_Enum
 (
-  params: {
+  params: (
     $task: CWTest.task
-  },
+  ),
   title: 'ComboBox Enum',
   layout: Atlas_Core.PopupLayout,
   folder: 'CustomWidgets'
@@ -183,9 +183,9 @@ create page CWTest.P_ComboBox_Enum
  */
 create page CWTest.P_ComboBox_Assoc
 (
-  params: {
+  params: (
     $task: CWTest.task
-  },
+  ),
   title: 'ComboBox Association',
   layout: Atlas_Core.PopupLayout,
   folder: 'CustomWidgets'
@@ -295,9 +295,9 @@ create page CWTest.P_Image_Dimensions
  */
 create page CWTest.P_Image_OnClick
 (
-  params: {
+  params: (
     $task: CWTest.task
-  },
+  ),
   title: 'Image with OnClick',
   layout: Atlas_Core.Atlas_Default,
   folder: 'CustomWidgets'
@@ -320,8 +320,8 @@ create page CWTest.P_Image_OnClick
           )
         }
         column col2 (desktopwidth: 6) {
-          dynamictext dtTitle (content: '{1}', contentparams: [{1} = title], rendermode: H3)
-          dynamictext dtDesc (content: '{1}', contentparams: [{1} = description])
+          dynamictext dtTitle (content: '{1}', contentparams: ({1} = title), rendermode: H3)
+          dynamictext dtDesc (content: '{1}', contentparams: ({1} = description))
         }
       }
     }

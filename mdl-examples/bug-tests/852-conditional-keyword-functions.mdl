@@ -37,7 +37,7 @@ CREATE OR MODIFY PERSISTENT ENTITY Bug852.Thing (
 );
 
 CREATE OR REPLACE PAGE Bug852.PageConditionals (
-  Params: { $currentObject: Bug852.Thing },
+  Params: ( $currentObject: Bug852.Thing ),
   Title: 'Conditionals using keyword-named functions',
   Layout: Atlas_Core.Atlas_Default
 ) {

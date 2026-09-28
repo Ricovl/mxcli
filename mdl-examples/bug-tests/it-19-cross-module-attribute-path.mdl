@@ -64,7 +64,7 @@ create or replace page IT19.IssuePage
 (
   Title: 'Issue',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Issue: IT19.Issue }
+  Params: ( $Issue: IT19.Issue )
 )
 {
   DATAVIEW dvIssue (DataSource: $Issue) {

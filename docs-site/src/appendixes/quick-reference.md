@@ -286,12 +286,12 @@ CREATE OR REPLACE NAVIGATION Responsive
   HOME PAGE MyModule.AdminHome FOR Administrator
   LOGIN PAGE Administration.Login
   NOT FOUND PAGE MyModule.Custom404
-  MENU (
-    MENU ITEM 'Home' PAGE MyModule.Home_Web;
-    MENU 'Admin' (
-      MENU ITEM 'Users' PAGE Administration.Account_Overview;
-    );
-  );
+  {
+    MENU ITEM 'Home' ( OnClick: SHOW PAGE MyModule.Home_Web )
+    MENU 'Admin' {
+      MENU ITEM 'Users' ( OnClick: SHOW PAGE Administration.Account_Overview )
+    }
+  };
 ```
 
 ## Project Settings
@@ -349,7 +349,7 @@ MDL uses explicit property declarations for pages:
 | Element | Syntax | Example |
 |---------|-----------|---------|
 | Page properties | `(Key: value, ...)` | `(Title: 'Edit', Layout: Atlas_Core.Atlas_Default)` |
-| Page variables | `Variables: { $name: Type = 'expr' }` | `Variables: { $show: Boolean = 'true' }` |
+| Page variables | `Variables: ( $name: Type = 'expr' )` | `Variables: ( $show: Boolean = 'true' )` |
 | Widget name | Required after type | `TEXTBOX txtName (...)` |
 | Attribute binding | `Attribute: AttrName` | `TEXTBOX txt (Label: 'Name', Attribute: Name)` |
 | Variable binding | `DataSource: $Var` | `DATAVIEW dv (DataSource: $Product) { ... }` |
@@ -360,7 +360,7 @@ MDL uses explicit property declarations for pages:
 | CSS class | `Class: 'classes'` | `CONTAINER c (Class: 'card mx-spacing-top-large')` |
 | Inline style | `Style: 'css'` | `CONTAINER c (Style: 'padding: 16px;')` |
 | Dynamic classes | `DynamicClasses: 'expr'` | `CONTAINER c (DynamicClasses: if $currentObject/IsActive then 'is-active' else '')` — runtime-computed; stacks on `Class` |
-| Design properties | `DesignProperties: [...]` | `CONTAINER c (DesignProperties: ['Spacing top': 'Large', 'Full width': ON])` |
+| Design properties | `DesignProperties: (...)` | `CONTAINER c (DesignProperties: ('Spacing top': 'Large', 'Full width': ON))` |
 | Width (pixels) | `Width: integer` | `IMAGE img (Width: 200)` |
 | Height (pixels) | `Height: integer` | `IMAGE img (Height: 150)` |
 | Page size | `PageSize: integer` | `DATAGRID dg (PageSize: 25)` |
@@ -390,7 +390,7 @@ MDL uses explicit property declarations for pages:
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )

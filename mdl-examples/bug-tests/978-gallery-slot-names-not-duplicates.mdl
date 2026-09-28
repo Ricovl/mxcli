@@ -31,15 +31,15 @@ create page MyFirstModule.Bug978Galleries (
   layout: Atlas_Core.Atlas_Default
 ) {
   gallery g1 (datasource: database MyFirstModule.Bug978Item) {
-    template template1 { dynamictext t1 (content: '{1}', contentparams: [{1} = Name]) }
+    template template1 { dynamictext t1 (content: '{1}', contentparams: ({1} = Name)) }
   }
   gallery g2 (datasource: database MyFirstModule.Bug978Item) {
-    template template1 { dynamictext t2 (content: '{1}', contentparams: [{1} = Name]) }
+    template template1 { dynamictext t2 (content: '{1}', contentparams: ({1} = Name)) }
   }
   gallery g3 (datasource: database MyFirstModule.Bug978Item) {
-    template template1 { dynamictext t3 (content: '{1}', contentparams: [{1} = Name]) }
+    template template1 { dynamictext t3 (content: '{1}', contentparams: ({1} = Name)) }
   }
   gallery g4 (datasource: database MyFirstModule.Bug978Item) {
-    template template1 { dynamictext t4 (content: '{1}', contentparams: [{1} = Name]) }
+    template template1 { dynamictext t4 (content: '{1}', contentparams: ({1} = Name)) }
   }
 }

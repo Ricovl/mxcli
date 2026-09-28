@@ -80,8 +80,8 @@ end;
 create or replace page CustomModule.PANEL_BufferDefinition_Edit (
   Title: 'Edit',
   Layout: CustomModule.App_Default,
-  Params: { $Dto: CustomModule.UpdateBufferDefinition,
-            $BufferDefinition: CustomModule.BufferDefinition }
+  Params: ( $Dto: CustomModule.UpdateBufferDefinition,
+            $BufferDefinition: CustomModule.BufferDefinition )
 ) {
   placeholder Main {
     dataview dvEdit (DataSource: $Dto, FormOrientation: Vertical) {
@@ -119,7 +119,7 @@ end;
 create or replace page CustomModule.PANEL_Controls (
   Title: 'Controls',
   Layout: CustomModule.App_Default,
-  Params: { $Row: CustomModule.BufferDefinition }
+  Params: ( $Row: CustomModule.BufferDefinition )
 ) {
   placeholder Main {
     listview lvRows (DataSource: DATABASE CustomModule.BufferDefinition) {

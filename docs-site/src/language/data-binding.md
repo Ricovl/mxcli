@@ -30,7 +30,7 @@ The simplest binding -- connects a DataView to a page parameter:
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )

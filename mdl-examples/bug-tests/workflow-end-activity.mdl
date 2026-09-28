@@ -26,7 +26,7 @@ create persistent entity WFEND.Request (
 create page WFEND.TaskPage (
   title: 'Task',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 { row r1 { column c1 (desktopwidth: 12) { dynamictext t1 (content: 'Task') } } }
 }

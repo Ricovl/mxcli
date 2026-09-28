@@ -85,7 +85,7 @@ create consumed rest service Module.OpenMeteoAPI (
     method: get,
     path: '/forecast',
     query: ($latitude: decimal, $longitude: decimal, $current: string),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 30,
     response: json as $WeatherJson
   )
@@ -93,7 +93,7 @@ create consumed rest service Module.OpenMeteoAPI (
   operation PostData (
     method: post,
     path: '/submit',
-    headers: ('Content-Type' = 'application/json'),
+    headers: ('Content-Type': 'application/json'),
     body: json from $JsonPayload,
     response: none
   )
@@ -421,7 +421,7 @@ create consumed rest service Module.WeatherAPI (
     method: get,
     path: '/forecast',
     query: ($latitude: decimal, $longitude: decimal, $current: string),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     response: json as $Result
   )
 };

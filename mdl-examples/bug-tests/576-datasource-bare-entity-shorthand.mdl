@@ -21,7 +21,7 @@ create persistent entity bug576.Car (
   Name: string(200)
 );
 
-create page bug576.Detail (Title: 'Car', Layout: Atlas_Core.Atlas_Default, Params: { $Car: bug576.Car }) {
+create page bug576.Detail (Title: 'Car', Layout: Atlas_Core.Atlas_Default, Params: ( $Car: bug576.Car )) {
   dataview dvCar (DataSource: $Car) {
     textbox txtName (Label: 'Name', Attribute: Name)
   }

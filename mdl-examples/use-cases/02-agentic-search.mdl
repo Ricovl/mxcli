@@ -381,7 +381,7 @@ end;
  */
 create page TaskMgmt.Task_Detail
 (
-  params: { $task: TaskMgmt.task },
+  params: ( $task: TaskMgmt.task ),
   title: 'Task Detail',
   layout: Atlas_Core.PopupLayout
 )
@@ -408,14 +408,14 @@ create page TaskMgmt.Task_Detail
  */
 create page TaskMgmt.Project_Overview
 (
-  params: { $TaskProject: TaskMgmt.TaskProject },
+  params: ( $TaskProject: TaskMgmt.TaskProject ),
   title: 'Project Overview',
   layout: Atlas_Core.Atlas_Default
 )
 {
   dataview dvProject (datasource: $TaskProject) {
-    dynamictext dtName (content: '{1}', contentparams: [{1} = Name], rendermode: H2)
-    dynamictext dtDesc (content: '{1}', contentparams: [{1} = description])
+    dynamictext dtName (content: '{1}', contentparams: ({1} = Name), rendermode: H2)
+    dynamictext dtDesc (content: '{1}', contentparams: ({1} = description))
 
     container cTasks (class: 'mt-3') {
       datagrid dgProjectTasks (datasource: database TaskMgmt.task) {

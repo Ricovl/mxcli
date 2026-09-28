@@ -70,7 +70,7 @@ CONTAINER cCard (Class: 'card mx-spacing-top-large') {
 | `Class` | CSS class names | `Class: 'card p-3'` |
 | `Style` | Inline CSS styles | `Style: 'padding: 16px;'` |
 | `DynamicClasses` | Runtime-computed CSS classes (expression; stacks on `Class`) | `DynamicClasses: if $currentObject/IsActive then 'is-active' else ''` |
-| `DesignProperties` | Design property values | `DesignProperties: ['Spacing top': 'Large']` |
+| `DesignProperties` | Design property values | `DesignProperties: ('Spacing top': 'Large')` |
 
 ### CUSTOMCONTAINER
 
@@ -167,13 +167,13 @@ has no name, hence `TEMPLATE FOR <entity>`:
 ```sql
 LISTVIEW vehicleListView (DataSource: DATABASE Pages.Vehicle) {
   -- the default body, used for an object no template matches
-  DYNAMICTEXT defaultVehicle (Content: '{1} {2}', ContentParams: [{1} = Brand, {2} = Model])
+  DYNAMICTEXT defaultVehicle (Content: '{1} {2}', ContentParams: ({1} = Brand, {2} = Model))
 
   TEMPLATE FOR Pages.Bus {
-    DYNAMICTEXT busLabel (Content: 'Bus, capacity {1}', ContentParams: [{1} = PassengerCapacity])
+    DYNAMICTEXT busLabel (Content: 'Bus, capacity {1}', ContentParams: ({1} = PassengerCapacity))
   }
   TEMPLATE FOR Pages.Truck {
-    DYNAMICTEXT truckLabel (Content: 'Truck, max load {1} kg', ContentParams: [{1} = MaxLoadKg])
+    DYNAMICTEXT truckLabel (Content: 'Truck, max load {1} kg', ContentParams: ({1} = MaxLoadKg))
   }
 }
 ```
@@ -540,8 +540,8 @@ Bind one with the property's own `<Name>Params` companion:
 ```sql
 image cardImage (
   ImageType: imageUrl,
-  ImageUrl: '{1}',        ImageUrlParams: [{1} = PictureUrl],
-  AlternativeText: '{1}', AlternativeTextParams: [{1} = Name]
+  ImageUrl: '{1}',        ImageUrlParams: ({1} = PictureUrl),
+  AlternativeText: '{1}', AlternativeTextParams: ({1} = Name)
 )
 ```
 
@@ -558,7 +558,7 @@ Two shorter spellings remain:
 | Spelling | Use it for |
 |----------|-----------|
 | `'{AttrName}'` | one attribute, no formatting block |
-| `contentparams: [...]` | a widget with a **single** text template — it is one list shared by every template on the widget |
+| `contentparams: (...)` | a widget with a **single** text template — it is one list shared by every template on the widget |
 
 Every `{N}` needs a matching parameter (Mendix rejects a shortfall with
 `CE0720`), and parameters with no `{N}` to fill are reported as MDL-WIDGET21
@@ -573,7 +573,7 @@ These properties are shared across many widget types:
 | `Class` | CSS class names | `Class: 'card p-3'` |
 | `Style` | Inline CSS styles | `Style: 'margin-top: 8px;'` |
 | `DynamicClasses` | Runtime-computed CSS classes (expression; stacks on `Class`) | `DynamicClasses: if $currentObject/IsActive then 'is-active' else ''` |
-| `DesignProperties` | Atlas design properties | `DesignProperties: ['Spacing top': 'Large', 'Full width': ON]` |
+| `DesignProperties` | Atlas design properties | `DesignProperties: ('Spacing top': 'Large', 'Full width': ON)` |
 | `Visible` | Visibility expression | `Visible: '$showSection'` |
 | `Editable` | Editability mode | `Editable: ReadOnly` |
 

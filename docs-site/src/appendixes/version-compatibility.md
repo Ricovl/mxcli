@@ -78,10 +78,10 @@ The tables below show exactly which features are available on each Mendix versio
 | Conditional visibility | `Visible: <expression>` | -- | -- | -- | Yes |
 | Conditional editability | `Editable: <expression>` | -- | -- | -- | Yes |
 | Responsive column widths | `TabletWidth: 6, PhoneWidth: 12` | -- | -- | -- | Yes |
-| Page parameters (entity) | `Params: { $Item: Module.Entity }` | 9.4+ | Yes | Yes | Yes |
-| Page parameters (primitive) | `Params: { $Qty: Integer }` | -- | -- | -- | 11.6+ |
-| Page variables | `Variables: { ... }` | -- | 10.20+ | 10.20+ | Yes |
-| Design properties (Atlas v3) | `DesignProperties: [...]` | -- | -- | -- | Yes |
+| Page parameters (entity) | `Params: ( $Item: Module.Entity )` | 9.4+ | Yes | Yes | Yes |
+| Page parameters (primitive) | `Params: ( $Qty: Integer )` | -- | -- | -- | 11.6+ |
+| Page variables | `Variables: ( ... )` | -- | 10.20+ | 10.20+ | Yes |
+| Design properties (Atlas v3) | `DesignProperties: (...)` | -- | -- | -- | Yes |
 
 ::: tip Widget Templates
 Pluggable widget templates are currently extracted from Mendix 11.6. When used on 10.x projects, the [MPK augmentation system](../internals/widget-templates.md) reconciles property differences. Some CE0463 ("widget definition changed") errors may still occur.
@@ -102,8 +102,8 @@ Pluggable widget templates are currently extracted from Mendix 11.6. When used o
 |---------|-----------|-------|-------|-------|-------|-------|
 | OData client | `CREATE CONSUMED ODATA SERVICE` | Yes | Yes | Yes | Yes | Yes |
 | Business events | `CREATE BUSINESS EVENT SERVICE` | Yes | Yes | Yes | Yes | Yes |
-| REST client (basic) | `CREATE CONSUMED REST SERVICE ... BEGIN ... END` | -- | Yes | Yes | Yes | Yes |
-| REST client headers | `HEADER 'Name' = 'Value'` | -- | -- | Yes | Yes | Yes |
+| REST client (basic) | `CREATE CONSUMED REST SERVICE ... ( ... ) { OPERATION ... }` | -- | Yes | Yes | Yes | Yes |
+| REST client headers | `Headers: ('Name': 'Value')` | -- | -- | Yes | Yes | Yes |
 | Database Connector | `CREATE DATABASE CONNECTION` | -- | -- | -- | Yes | Yes |
 | REST client query params | `QUERY $param: Type` | -- | -- | -- | -- | Yes |
 

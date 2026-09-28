@@ -32,7 +32,7 @@ create page BugCompoundDPMarker.SpacingPage (
   title: 'Spacing Page',
   layout: Atlas_Core.Atlas_Default
 ) {
-  container container1 (designproperties: ['Spacing': ['margin-bottom': 'None']]) {
+  container container1 (designproperties: ('Spacing': ('margin-bottom': 'None'))) {
     dynamictext text1 (content: 'Spaced')
   }
 }

@@ -94,7 +94,7 @@ GRANT EXECUTE ON MICROFLOW Shop.ACT_CreateOrder TO Shop.User, Shop.Admin;
 
 -- Create the page
 CREATE PAGE Shop.Order_Edit (
-  Params: { $Order: Shop.Order },
+  Params: ( $Order: Shop.Order ),
   Title: 'Edit Order',
   Layout: Atlas_Core.PopupLayout
 ) { ... }

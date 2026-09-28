@@ -44,7 +44,7 @@ CREATE OR REPLACE SNIPPET Bug705.SN_Header {
 CREATE OR REPLACE PAGE Bug705.Note_Edit (
   Title: 'Edit note',
   Layout: Atlas_Core.PopupLayout,
-  Params: { $Note: Bug705.Note }
+  Params: ( $Note: Bug705.Note )
 ) {
   layoutgrid lgBody {
     row r1 {

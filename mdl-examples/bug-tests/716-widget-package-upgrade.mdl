@@ -68,7 +68,7 @@ create page W716.Overview
   ) {
     template tpl1 {
       container ctnCard (Class: 'card') {
-        dynamictext txtName (Content: '{1}', ContentParams: [{1} = Name])
+        dynamictext txtName (Content: '{1}', ContentParams: ({1} = Name))
       }
     }
   }

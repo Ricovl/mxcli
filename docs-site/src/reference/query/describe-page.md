@@ -30,7 +30,7 @@ Example output:
 ```sql
 CREATE PAGE Sales.Customer_Edit
 (
-  Params: { $Customer: Sales.Customer },
+  Params: ( $Customer: Sales.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )

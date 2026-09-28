@@ -28,7 +28,7 @@ create page BugTest114.P_Edit
 (
   title: 'Edit',
   layout: Atlas_Core.Atlas_Default,
-  params: { "List": BugTest114.Order }
+  params: ( "List": BugTest114.Order )
 )
 {
   container c {
@@ -39,7 +39,7 @@ create page BugTest114.P_Edit
 -- Snippet with a reserved-keyword parameter name, quoted.
 create snippet BugTest114.Snip
 (
-  params: { "Template": BugTest114.Order }
+  params: ( "Template": BugTest114.Order )
 )
 {
   container c2 {

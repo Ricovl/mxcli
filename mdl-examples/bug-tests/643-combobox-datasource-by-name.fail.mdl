@@ -21,7 +21,7 @@ create page Administration.MxfCombo
 (
   title: 'T',
   layout: Atlas_Core.Atlas_Default,
-  params: { $Obj: Administration.AccountPasswordData }
+  params: ( $Obj: Administration.AccountPasswordData )
 )
 {
   dataview dv (datasource: $Obj) {

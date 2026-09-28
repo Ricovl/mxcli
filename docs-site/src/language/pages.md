@@ -18,7 +18,7 @@ The basic syntax for creating a page:
 ```sql
 CREATE [OR REPLACE] PAGE <Module>.<Name> [FOLDER '<path>']
 (
-  [Params: { $Param: Module.Entity | Type [, ...] },]
+  [Params: ( $Param: Module.Entity | Type [, ...] ),]
   Title: '<title>',
   Layout: <Module.LayoutName>
   [, Class: '<css-class>', Style: '<css: rule>']
@@ -50,7 +50,7 @@ Pages can receive entity objects or primitive values as parameters from the call
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )
@@ -70,10 +70,10 @@ CREATE PAGE MyModule.Customer_Edit
 
 | Property | Description | Example |
 |----------|-------------|---------|
-| `Params` | Page parameters (entity objects or primitives) | `Params: { $Order: Sales.Order, $Qty: Integer }` |
+| `Params` | Page parameters (entity objects or primitives) | `Params: ( $Order: Sales.Order, $Qty: Integer )` |
 | `Title` | Page title shown in the browser/tab | `Title: 'Edit Customer'` |
 | `Layout` | Layout to use for the page | `Layout: Atlas_Core.PopupLayout` |
-| `Variables` | Page-level variables for conditional logic | `Variables: { $show: Boolean = 'true' }` |
+| `Variables` | Page-level variables for conditional logic | `Variables: ( $show: Boolean = 'true' )` |
 | `Class` | CSS class applied to the page (Forms$Appearance) | `Class: 'container-fluid bg-light'` |
 | `Style` | Inline CSS style applied to the page | `Style: 'min-height: 100vh'` |
 

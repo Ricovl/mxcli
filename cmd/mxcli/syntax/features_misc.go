@@ -294,10 +294,6 @@ DISCONNECT;`,
   [HOME PAGE Module.Page FOR UserRole]
   [LOGIN PAGE Module.LoginPage]
   [NOT FOUND PAGE Module.Custom404]
-  [MENU (
-    MENU ITEM 'Label' PAGE Module.Page [ICON Module.IconCollection.Name];
-    MENU 'Group' [ICON Module.IconCollection.Name] ( ... );
-  )]
   [ON SYNC ERROR THROW|CONTINUE]
   [SYNC (
     SYNC Module.Entity ONLINE;
@@ -306,7 +302,18 @@ DISCONNECT;`,
     SYNC Module.Entity NEVER;
     SYNC Module.Entity NONE;
     SYNC Module.Entity NONE PRESERVE DATA;
-  )];
+  )]
+  [{
+    MENU ITEM 'Label' [( OnClick: SHOW PAGE Module.Page | CALL MICROFLOW Module.Flow | SIGN OUT
+                        [, Icon: Module.IconCollection.Name] )]
+    MENU 'Group' [( Icon: Module.IconCollection.Name )] { ... }
+  }];
+
+-- The menu items are the profile's CHILDREN, in { } after its clauses, like a
+-- page's widgets: no ; between them, since a child ends in ) or }. An item's
+-- action is OnClick: in the words a page action uses. The old spelling,
+-- MENU ( MENU ITEM 'Label' PAGE M.P ICON I; ... ), still parses and warns
+-- (MDL-DEPR121, MDL-DEPR122); mxcli fmt --upgrade rewrites it.
 
 -- FOR takes a USER role, written BARE (FOR Administrator). User roles are
 -- project-level and have no module part; a module role is a different thing
@@ -316,10 +323,10 @@ DISCONNECT;`,
 -- UserRoleIdentifier", raised before checking runs, so there is no error code
 -- and no line number. List the real ones with LIST USER ROLES.
 --
--- ICON is a qualified name into an ICON COLLECTION (Atlas_Core.Atlas,
+-- Icon: is a qualified name into an ICON COLLECTION (Atlas_Core.Atlas,
 -- Atlas_Core.Atlas_Filled, Atlas_Core.Atlas_Styling, or your own) -- a model
 -- reference, not a string. Hyphenated Atlas names are double-quoted:
---   ICON Atlas_Core.Atlas."align-center"
+--   Icon: Atlas_Core.Atlas."align-center"
 -- Browse the available names with:
 --   SHOW ICON COLLECTION  /  DESCRIBE ICON COLLECTION Module.Name
 --
@@ -355,7 +362,7 @@ DISCONNECT;`,
 -- than a new keyword. OMITTING it leaves the stored value alone; DESCRIBE emits
 -- it only when it is not the default.
 --
--- The block REPLACES the stored list, the way MENU replaces the menu. An
+-- The block REPLACES the stored list, the way { } replaces the menu. An
 -- entity's compatibility-mode flag has no syntax and is preserved across the
 -- rewrite untouched; DESCRIBE NAVIGATION flags it rather than dropping it.
 -- An invented name ("Mobile") is an error: the runtime routes on User-Agent to
@@ -368,19 +375,20 @@ DISCONNECT;`,
   HOME PAGE MyModule.Home_Web
   HOME PAGE MyModule.AdminDashboard FOR Administrator
   LOGIN PAGE Administration.Login
-  MENU (
-    MENU ITEM 'Home' PAGE MyModule.Home_Web ICON Atlas_Core.Atlas.home;
-    MENU 'Orders' ICON Atlas_Core.Atlas."shopping-cart" (
-      MENU ITEM 'All Orders' PAGE Orders.Order_Overview ICON Atlas_Core.Atlas."list-bullets";
-      MENU ITEM 'New Order' PAGE Orders.Order_New ICON Atlas_Core.Atlas.add;
-    );
-  );
+  {
+    MENU ITEM 'Home' ( OnClick: SHOW PAGE MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )
+    MENU 'Orders' ( Icon: Atlas_Core.Atlas."shopping-cart" ) {
+      MENU ITEM 'All Orders' ( OnClick: SHOW PAGE Orders.Order_Overview, Icon: Atlas_Core.Atlas."list-bullets" )
+      MENU ITEM 'New Order' ( OnClick: SHOW PAGE Orders.Order_New, Icon: Atlas_Core.Atlas.add )
+    }
+    MENU ITEM 'Log out' ( OnClick: SIGN OUT, Icon: Atlas_Core.Atlas."log-out" )
+  };
 
 CREATE OR REPLACE NAVIGATION TabletOffline
   HOME PAGE Maintenance.Request_Overview
-  MENU (
-    MENU ITEM 'Requests' PAGE Maintenance.Request_Overview;
-  );`,
+  {
+    MENU ITEM 'Requests' ( OnClick: SHOW PAGE Maintenance.Request_Overview )
+  };`,
 		SeeAlso: []string{"navigation.show"},
 	})
 

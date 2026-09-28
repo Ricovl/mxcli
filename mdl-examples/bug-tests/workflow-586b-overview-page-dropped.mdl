@@ -48,7 +48,7 @@ create entity WF586B.Request (
 create page WF586B.Overview (
   title: 'Requests',
   layout: Atlas_Core.Atlas_Default,
-  params: { $Workflow: System.Workflow }
+  params: ( $Workflow: System.Workflow )
 ) {
   layoutgrid g1 {
     row r1 {
@@ -63,7 +63,7 @@ create page WF586B.Overview (
 create page WF586B.TaskPage (
   title: 'Task',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 {
     row r1 {

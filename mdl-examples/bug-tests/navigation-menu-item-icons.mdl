@@ -34,17 +34,17 @@ create page NavIcons.Users ( Title: 'Users', Layout: Atlas_Core.Atlas_Default ) 
 -- collapsed rail, so it needs one most of all.
 create or replace navigation Responsive
   home page NavIcons.Home
-  menu (
-    menu item 'Home' page NavIcons.Home icon Atlas_Core.Atlas.home;
-    menu item 'Orders' page NavIcons.Orders icon Atlas_Core.Atlas."shopping-cart";
-    menu 'Admin' icon Atlas_Core.Atlas.cog (
-      menu item 'Users' page NavIcons.Users icon Atlas_Core.Atlas.user;
-    );
-  );
+  {
+    menu item 'Home' ( OnClick: show page NavIcons.Home, Icon: Atlas_Core.Atlas.home )
+    menu item 'Orders' ( OnClick: show page NavIcons.Orders, Icon: Atlas_Core.Atlas."shopping-cart" )
+    menu 'Admin' ( Icon: Atlas_Core.Atlas.cog ) {
+      menu item 'Users' ( OnClick: show page NavIcons.Users, Icon: Atlas_Core.Atlas.user )
+    }
+  };
 
 -- A standalone menu document carries the same items and gets the same rule:
 -- CREATE MENU and CREATE NAVIGATION share one AST node so they cannot diverge.
-create or modify menu NavIcons.Main_Menu (
-  menu item 'Home' page NavIcons.Home icon Atlas_Core.Atlas.home;
-  menu item 'Orders' page NavIcons.Orders icon Atlas_Core.Atlas."shopping-cart";
-);
+create or modify menu NavIcons.Main_Menu {
+  menu item 'Home' ( OnClick: show page NavIcons.Home, Icon: Atlas_Core.Atlas.home )
+  menu item 'Orders' ( OnClick: show page NavIcons.Orders, Icon: Atlas_Core.Atlas."shopping-cart" )
+};

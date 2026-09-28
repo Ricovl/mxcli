@@ -38,13 +38,13 @@ create association IT14.Issue_Workflow from IT14.Issue to System.Workflow;
 create page IT14.TaskPage (
   Title: 'Task',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Task: System.WorkflowUserTask }
+  Params: ( $Task: System.WorkflowUserTask )
 ) {
   layoutgrid g { row r { column c (DesktopWidth: 12) {
     dataview dvWf (datasource: $Task/System.WorkflowUserTask_Workflow) {
       -- Explicit destination: required when the association ends in System.
       gallery galIssue (datasource: $currentObject/IT14.Issue_Workflow/IT14.Issue) {
-        dynamictext t (Content: '{1}', ContentParams: [{1} = Title])
+        dynamictext t (Content: '{1}', ContentParams: ({1} = Title))
       }
     }
   } } }

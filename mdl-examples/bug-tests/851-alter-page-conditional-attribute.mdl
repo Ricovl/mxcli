@@ -32,7 +32,7 @@ CREATE OR MODIFY PERSISTENT ENTITY Bug851.Thing (
 
 -- Reference: the CREATE path, which was already correct.
 CREATE OR REPLACE PAGE Bug851.PageCreated (
-  Params: { $currentObject: Bug851.Thing },
+  Params: ( $currentObject: Bug851.Thing ),
   Title: 'Conditional settings via CREATE',
   Layout: Atlas_Core.Atlas_Default
 ) {
@@ -48,7 +48,7 @@ CREATE OR REPLACE PAGE Bug851.PageCreated (
 
 -- The regression: the same two settings applied through ALTER.
 CREATE OR REPLACE PAGE Bug851.PageAltered (
-  Params: { $currentObject: Bug851.Thing },
+  Params: ( $currentObject: Bug851.Thing ),
   Title: 'Conditional settings via ALTER',
   Layout: Atlas_Core.Atlas_Default
 ) {

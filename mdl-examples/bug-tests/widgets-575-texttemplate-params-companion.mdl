@@ -77,14 +77,14 @@ create or modify page Bug575.Catalogue (
 
     -- The control: a built-in widget whose parameters always bound. It has one
     -- template, so the widget-wide contentparams was never ambiguous for it.
-    DYNAMICTEXT dt ( Content: '{1}', ContentParams: [{1} = Name] )
+    DYNAMICTEXT dt ( Content: '{1}', ContentParams: ({1} = Name) )
 
     -- The fix, in the schema-key spelling: each template names its own
     -- parameters, so the two bind DIFFERENT attributes.
     PLUGGABLEWIDGET 'com.mendix.widget.web.image.Image' cardImage (
       datasource: imageUrl,
-      imageUrl: '{1}',        imageUrlParams: [{1} = PictureUrl],
-      alternativeText: '{1}', alternativeTextParams: [{1} = Name]
+      imageUrl: '{1}',        imageUrlParams: ({1} = PictureUrl),
+      alternativeText: '{1}', alternativeTextParams: ({1} = Name)
     )
 
     -- The same, in the source-name spelling the def.json also accepts. This
@@ -92,8 +92,8 @@ create or modify page Bug575.Catalogue (
     -- #928 wired only into the schema-key path.
     PLUGGABLEWIDGET 'com.mendix.widget.web.image.Image' cardImage2 (
       datasource: imageUrl,
-      ImageUrl: '{1}',        ImageUrlParams: [{1} = PictureUrl],
-      AlternativeText: '{1}', AlternativeTextParams: [{1} = Name]
+      ImageUrl: '{1}',        ImageUrlParams: ({1} = PictureUrl),
+      AlternativeText: '{1}', AlternativeTextParams: ({1} = Name)
     )
 
     -- Unchanged: the widget-wide contentparams remains the fallback for a
@@ -101,7 +101,7 @@ create or modify page Bug575.Catalogue (
     -- untouched.
     PLUGGABLEWIDGET 'com.mendix.widget.web.image.Image' cardImage3 (
       datasource: imageUrl,
-      imageUrl: '{1}', contentparams: [{1} = PictureUrl]
+      imageUrl: '{1}', contentparams: ({1} = PictureUrl)
     )
   }
 }
@@ -118,7 +118,7 @@ create or modify page Bug575.Tree (
   TREENODE tnProduct (
     datasource: DATABASE Bug575.Product,
     headerType: 'text',
-    headerCaption: '{1}', headerCaptionParams: [{1} = Name]
+    headerCaption: '{1}', headerCaptionParams: ({1} = Name)
   )
 
   -- Three templates on one widget, of which two are bound to DIFFERENT
@@ -127,8 +127,8 @@ create or modify page Bug575.Tree (
   TIMELINE tl (
     data: DATABASE Bug575.Product,
     groupEvents: false,
-    title: '{1}',       titleParams: [{1} = Name],
-    description: '{1}', descriptionParams: [{1} = PictureUrl]
+    title: '{1}',       titleParams: ({1} = Name),
+    description: '{1}', descriptionParams: ({1} = PictureUrl)
   )
 }
 /

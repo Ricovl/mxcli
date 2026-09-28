@@ -57,7 +57,7 @@ create or replace page MyFirstModule.Issue970Writers
   (
     Title: 'SchrijverTitel',
     Layout: Atlas_Core.Atlas_Default,
-    Params: { $Item: MyFirstModule.Issue970Ent }
+    Params: ( $Item: MyFirstModule.Issue970Ent )
   )
   {
     -- a Label reaches the writer as a bare string (pages.TextBox.Label is a string)
@@ -75,8 +75,8 @@ create or replace page MyFirstModule.Issue970Writers
 -- navigation and menu-document captions are creations, not edits
 create or replace navigation Responsive
   home page MyFirstModule.Issue970Writers
-  menu ( menu item 'Startpagina' page MyFirstModule.Issue970Writers; );
+  { menu item 'Startpagina' ( OnClick: show page MyFirstModule.Issue970Writers ) };
 
-create or modify menu MyFirstModule.Issue970Menu (
-  menu item 'Overzicht' page MyFirstModule.Issue970Writers;
-);
+create or modify menu MyFirstModule.Issue970Menu {
+  menu item 'Overzicht' ( OnClick: show page MyFirstModule.Issue970Writers )
+};

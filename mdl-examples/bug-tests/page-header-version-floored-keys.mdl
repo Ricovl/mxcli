@@ -28,7 +28,7 @@ CREATE PERSISTENT ENTITY KeyTest.Item (
 CREATE OR REPLACE PAGE KeyTest.Item_Edit (
   Title: 'Edit item',
   Layout: Atlas_Core.PopupLayout,
-  Params: { $Item: KeyTest.Item }
+  Params: ( $Item: KeyTest.Item )
 ) {
   layoutgrid lg {
     row r {
