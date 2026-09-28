@@ -588,19 +588,11 @@ func buildRestClientOperation(opDef *ast.RestOperationDef) (*model.RestClientOpe
 
 	// Headers
 	for _, h := range opDef.Headers {
-		header := &model.RestClientHeader{
-			Name: h.Name,
-		}
-		if h.Variable != "" {
-			// Dynamic headers: store static prefix only.
-			// Mendix consumed REST services don't support dynamic header values
-			// in the service definition; dynamic values must be set through the
-			// calling microflow.
-			header.Value = h.Prefix
-		} else {
-			header.Value = h.Value
-		}
-		op.Headers = append(op.Headers, header)
+		// The value is a template: `{P}` is the operation parameter P, as in
+		// the path. `'Bearer ' + $Token` used to store "Bearer " alone, which
+		// dropped the token and described back as a literal (ako/mxcli#707);
+		// the visitor now builds `Bearer {Token}` from it.
+		op.Headers = append(op.Headers, &model.RestClientHeader{Name: h.Name, Value: h.Value})
 	}
 
 	return op, nil

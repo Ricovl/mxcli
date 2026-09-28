@@ -73,11 +73,13 @@ type RestParamDef struct {
 }
 
 // RestHeaderDef represents an HTTP header definition.
+//
+// Value is the stored value template: `{Name}` in it is replaced by the
+// operation parameter Name when the request is sent, as in the path. The old
+// spelling `'Bearer ' + $Token` builds the value `Bearer {Token}` (ako/mxcli#707).
 type RestHeaderDef struct {
-	Name     string // header name, e.g. "Accept"
-	Value    string // static value, e.g. "application/json" (may be empty if Variable is set)
-	Variable string // dynamic variable, e.g. "$Token" (may be empty if Value is set)
-	Prefix   string // concatenation prefix, e.g. "Bearer " (used with Variable)
+	Name  string // header name, e.g. "Authorization"
+	Value string // value template, e.g. "application/json" or "Bearer {Token}"
 }
 
 // DropRestClientStmt represents: DROP REST CLIENT Module.Name

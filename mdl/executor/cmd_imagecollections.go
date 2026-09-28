@@ -4,6 +4,8 @@
 package executor
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -59,21 +61,26 @@ func execCreateImageCollection(ctx *ExecContext, s *ast.CreateImageCollectionStm
 		ic.Excluded = existing.Excluded
 	}
 
-	// Load image files
+	// Load the images: inline Data (what describe writes), or a file, which a
+	// relative path names relative to the script, as `execute script` does.
 	for _, item := range s.Images {
-		filePath := item.FilePath
-		if !filepath.IsAbs(filePath) {
-			cwd, err := os.Getwd()
+		data, format := item.Data, item.Format
+		if !item.HasData {
+			filePath, err := ctx.ResolveScriptRelative(item.FilePath)
 			if err != nil {
-				return mdlerrors.NewBackend("get working directory", err)
+				return err
 			}
-			filePath = filepath.Join(cwd, filePath)
+			data, err = os.ReadFile(filePath)
+			if err != nil {
+				return mdlerrors.NewBackend(fmt.Sprintf("read image file %q", item.FilePath), err)
+			}
+			if format == "" {
+				format = extToImageFormat(filepath.Ext(filePath))
+			}
 		}
-		data, err := os.ReadFile(filePath)
-		if err != nil {
-			return mdlerrors.NewBackend(fmt.Sprintf("read image file %q", item.FilePath), err)
+		if format == "" {
+			format = sniffImageFormat(data)
 		}
-		format := extToImageFormat(filepath.Ext(filePath))
 		ic.Images = append(ic.Images, types.Image{
 			Name:   item.Name,
 			Data:   data,
@@ -154,50 +161,27 @@ func describeImageCollection(ctx *ExecContext, name ast.QualifiedName) error {
 		return nil
 	}
 
-	// Write image data to temp files and output CREATE statement with IMAGE lines
-	previewDir := filepath.Join("/tmp/mxcli-preview", qualifiedName)
-	if err := os.MkdirAll(previewDir, 0o755); err != nil {
-		return mdlerrors.NewBackend("create preview directory", err)
-	}
-
 	fmt.Fprintf(ctx.Output, "create or modify image collection %s%s", qualifiedName, describeFolderClause(ctx, ic.ContainerID))
 	if exportLevel != "Hidden" {
 		fmt.Fprintf(ctx.Output, " export level '%s'", exportLevel)
 	}
 	fmt.Fprintln(ctx.Output, " {")
 
+	// The images are written into the statement, base64-encoded. They used to
+	// be written to /tmp/mxcli-preview and named by that path, so the output
+	// only replayed on the machine that described it, until /tmp was cleared,
+	// and a diff of it showed a path rather than a changed image
+	// (ako/mxcli#707). Format is written only where the bytes do not say it.
 	for _, img := range ic.Images {
-		ext := imageFormatToExt(img.Format)
-		filePath := filepath.Join(previewDir, img.Name+ext)
-		if len(img.Data) > 0 {
-			if err := os.WriteFile(filePath, img.Data, 0o644); err != nil {
-				return mdlerrors.NewBackend(fmt.Sprintf("write image %s", img.Name), err)
-			}
+		props := "Data: '" + base64.StdEncoding.EncodeToString(img.Data) + "'"
+		if f := img.Format; f != "" && f != sniffImageFormat(img.Data) {
+			props += ", Format: " + strings.ToLower(f)
 		}
-
-		fmt.Fprintf(ctx.Output, "  image %s ( File: '%s' )\n", img.Name, filePath)
+		fmt.Fprintf(ctx.Output, "  image %s ( %s )\n", mdlIdent(img.Name), props)
 	}
 
 	fmt.Fprintln(ctx.Output, "};")
 	return nil
-}
-
-// imageFormatToExt converts a Mendix ImageFormat value to a file extension.
-func imageFormatToExt(format string) string {
-	switch format {
-	case "Svg":
-		return ".svg"
-	case "Gif":
-		return ".gif"
-	case "Jpg":
-		return ".jpg"
-	case "Bmp":
-		return ".bmp"
-	case "Webp":
-		return ".webp"
-	default:
-		return ".png"
-	}
 }
 
 // extToImageFormat converts a file extension to a Mendix ImageFormat value.
@@ -273,4 +257,30 @@ func findImageCollection(ctx *ExecContext, moduleName, collectionName string) *t
 		}
 	}
 	return nil
+}
+
+// sniffImageFormat is the Mendix ImageFormat the bytes of an image declare
+// themselves: a PNG, JPEG, GIF, BMP or WebP signature, or an SVG document. ""
+// when they declare none.
+func sniffImageFormat(data []byte) string {
+	switch {
+	case bytes.HasPrefix(data, []byte("\x89PNG\r\n\x1a\n")):
+		return "Png"
+	case bytes.HasPrefix(data, []byte{0xFF, 0xD8, 0xFF}):
+		return "Jpg"
+	case bytes.HasPrefix(data, []byte("GIF87a")), bytes.HasPrefix(data, []byte("GIF89a")):
+		return "Gif"
+	case bytes.HasPrefix(data, []byte("BM")):
+		return "Bmp"
+	case len(data) >= 12 && bytes.Equal(data[0:4], []byte("RIFF")) && bytes.Equal(data[8:12], []byte("WEBP")):
+		return "Webp"
+	}
+	head := data
+	if len(head) > 512 {
+		head = head[:512]
+	}
+	if bytes.Contains(bytes.ToLower(head), []byte("<svg")) {
+		return "Svg"
+	}
+	return ""
 }

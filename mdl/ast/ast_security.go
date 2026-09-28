@@ -27,12 +27,29 @@ type DropModuleRoleStmt struct {
 
 func (s *DropModuleRoleStmt) isStatement() {}
 
-// CreateUserRoleStmt represents: CREATE [OR MODIFY] USER ROLE Name (ModuleRole, ...) [MANAGE ALL ROLES]
+// CreateUserRoleStmt represents
+// CREATE [OR MODIFY] USER ROLE Name [( ModuleRoles: (…), Description: '…', … )],
+// and the old positional form CREATE USER ROLE Name (ModuleRole, …) [MANAGE ALL ROLES].
+//
+// The pointer properties are nil when the statement does not state them: a new
+// role then gets Mendix's default, and `create or modify` leaves the stored
+// value alone (ako/mxcli#707).
 type CreateUserRoleStmt struct {
 	Name           string
 	ModuleRoles    []QualifiedName
 	ManageAllRoles bool
 	CreateOrModify bool // If true, adds module roles to existing role instead of failing
+
+	Description             *string
+	CheckSecurity           *bool
+	ManageUsersWithoutRoles *bool
+	// ManageableRoles names the user roles this role may manage; nil when the
+	// statement does not say. Only meaningful when ManageAllRoles is false.
+	ManageableRoles []string
+	ManageableSet   bool
+	// ManageAllRolesSet is true when the statement states ManageAllRoles, so
+	// `create or modify` can set it to false as well as to true.
+	ManageAllRolesSet bool
 }
 
 func (s *CreateUserRoleStmt) isStatement() {}

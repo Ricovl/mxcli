@@ -181,9 +181,6 @@ func describeWorkflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 
 	// Header
 	lines = append(lines, fmt.Sprintf("-- Workflow: %s", qualifiedName))
-	if targetWf.Annotation != "" {
-		lines = append(lines, fmt.Sprintf("-- %s", targetWf.Annotation))
-	}
 	lines = append(lines, "")
 
 	// `create or modify`: the rewrite carries what describe cannot print (the names
@@ -224,6 +221,12 @@ func describeWorkflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 		lines = append(lines, fmt.Sprintf("  due date %s", workflowExpressionMDL(targetWf.DueDate)))
 	}
 
+	// The note attached to the workflow's start. It was a `--` comment, which
+	// a replay dropped (ako/mxcli#707).
+	if targetWf.Annotation != "" {
+		lines = append(lines, fmt.Sprintf("  annotation %s", mdlQuoted(targetWf.Annotation)))
+	}
+
 	lines = append(lines, formatWorkflowEventHandlers(ctx, targetWf.EventHandlers)...)
 
 	lines = append(lines, "")
@@ -241,33 +244,19 @@ func describeWorkflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	return strings.Join(lines, "\n"), nil, nil
 }
 
-// formatAnnotation renders an activity's annotation as MDL comment lines.
+// formatAnnotation renders the note attached to an activity as the
+// `@annotation '…'` line before it, the form a microflow activity's note takes.
 //
-// It used to emit `annotation '<text>';`, and its own doc comment claimed that
-// statement "survives round-trips". It does not, and has not since MDL-WF04: a
-// standalone `annotation` in a workflow body is refused at check time AND by
-// execCreateWorkflow, because Mendix constructs every child of the activity flow
-// with a Flow parent and no annotation type takes one — the written unit cannot
-// be LOADED, so Studio Pro will not open the project. The describer was emitting
-// the one construct the writer refuses, and a 23-activity workflow produced 13
-// MDL-WF04 errors from unmodified DESCRIBE output (mendixlabs/mxcli#1007).
-//
-// A comment is the honest emit today, not a workaround. The annotation being
-// re-emitted here is ATTACHED to an activity, and although the write path stores
-// an attached annotation (addActivityBaseFields), no MDL input can produce one:
-// MDLWorkflow.g4 has only the standalone `workflowAnnotationStmt`. So the text is
-// unwritable either way, and carrying it as a comment at least keeps it in front
-// of whoever edits the script. The `annotation:` marker says what the line was.
-//
-// The microflow domain does have an attached form (`@annotation 'text'`, see
-// MDLMicroflow.g4) and it round-trips properly. Giving workflow activities the
-// same prefix is the fix that would preserve the annotation rather than
-// commenting it out; it is a grammar change, and deliberately not bundled here.
+// It was a `-- annotation:` comment, because MDLWorkflow.g4 had no attached
+// form: the only workflow `annotation` was the standalone statement, which
+// MDL-WF04 and exec refuse (mendixlabs/mxcli#1007). A comment kept the text in
+// front of the reader, but a replay dropped it (ako/mxcli#707). A standalone
+// note read back from the model is still a comment: see annotationComment.
 func formatAnnotation(annotation string, indent string) string {
 	if annotation == "" {
 		return ""
 	}
-	return annotationComment(annotation, indent)
+	return indent + "@annotation " + mdlQuoted(annotation)
 }
 
 // annotationComment renders text as one or more `-- annotation:` lines. An

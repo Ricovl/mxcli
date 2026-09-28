@@ -26,6 +26,10 @@ type CreateWorkflowStmt struct {
 	// Workflow event handlers, in statement order.
 	EventHandlers []WorkflowEventHandlerNode
 
+	// Annotation is the note attached to the workflow's start, from the header
+	// clause `annotation '…'` (ako/mxcli#707).
+	Annotation string
+
 	// Activities
 	Activities []WorkflowActivityNode
 
@@ -36,6 +40,7 @@ type CreateWorkflowStmt struct {
 // WorkflowEventSubProcessNode is `event subprocess <name> ['<caption>'] on
 // [non] interrupting notification|timer … { … };`.
 type WorkflowEventSubProcessNode struct {
+	WorkflowActivityAnnotation
 	Name         string
 	Caption      string
 	Interrupting bool
@@ -71,8 +76,27 @@ type WorkflowActivityNode interface {
 	workflowActivityNode()
 }
 
+// WorkflowActivityAnnotation is the note attached to an activity, written
+// `@annotation '…'` before it (ako/mxcli#707). Every activity node embeds it.
+type WorkflowActivityAnnotation struct {
+	Annotation string
+}
+
+// ActivityAnnotation returns the attached note, "" when there is none.
+func (a *WorkflowActivityAnnotation) ActivityAnnotation() string { return a.Annotation }
+
+// SetActivityAnnotation sets the attached note.
+func (a *WorkflowActivityAnnotation) SetActivityAnnotation(s string) { a.Annotation = s }
+
+// AnnotatedWorkflowActivity is an activity node that carries an attached note.
+type AnnotatedWorkflowActivity interface {
+	ActivityAnnotation() string
+	SetActivityAnnotation(string)
+}
+
 // WorkflowUserTaskNode represents a USER TASK activity.
 type WorkflowUserTaskNode struct {
+	WorkflowActivityAnnotation
 	Name            string // identifier name
 	Caption         string // display caption
 	Page            QualifiedName
@@ -127,6 +151,7 @@ type WorkflowUserTaskOutcomeNode struct {
 
 // WorkflowCallMicroflowNode represents a CALL MICROFLOW activity.
 type WorkflowCallMicroflowNode struct {
+	WorkflowActivityAnnotation
 	Name              string // explicit activity name (`as <name>`); see ako/mxcli#408
 	Agent             bool   // `call agent microflow`: an AI agent task (Workflows$AIAgentTaskActivity)
 	Microflow         QualifiedName
@@ -140,6 +165,7 @@ func (n *WorkflowCallMicroflowNode) workflowActivityNode() {}
 
 // WorkflowCallWorkflowNode represents a CALL WORKFLOW activity.
 type WorkflowCallWorkflowNode struct {
+	WorkflowActivityAnnotation
 	Name              string // explicit activity name (`as <name>`); see ako/mxcli#408
 	Workflow          QualifiedName
 	Caption           string
@@ -150,6 +176,7 @@ func (n *WorkflowCallWorkflowNode) workflowActivityNode() {}
 
 // WorkflowDecisionNode represents a DECISION activity.
 type WorkflowDecisionNode struct {
+	WorkflowActivityAnnotation
 	Name       string // explicit activity name; see ako/mxcli#408
 	Expression string // decision expression
 	Caption    string
@@ -166,6 +193,7 @@ type WorkflowConditionOutcomeNode struct {
 
 // WorkflowParallelSplitNode represents a PARALLEL SPLIT activity.
 type WorkflowParallelSplitNode struct {
+	WorkflowActivityAnnotation
 	Name    string // explicit activity name; see ako/mxcli#408
 	Caption string
 	Paths   []WorkflowParallelPathNode
@@ -181,6 +209,7 @@ type WorkflowParallelPathNode struct {
 
 // WorkflowJumpToNode represents a JUMP TO activity.
 type WorkflowJumpToNode struct {
+	WorkflowActivityAnnotation
 	Target  string // name of target activity
 	Caption string
 }
@@ -189,6 +218,7 @@ func (n *WorkflowJumpToNode) workflowActivityNode() {}
 
 // WorkflowWaitForTimerNode represents a WAIT FOR TIMER activity.
 type WorkflowWaitForTimerNode struct {
+	WorkflowActivityAnnotation
 	Name            string // explicit activity name; see ako/mxcli#408
 	DelayExpression string
 	Caption         string
@@ -198,6 +228,7 @@ func (n *WorkflowWaitForTimerNode) workflowActivityNode() {}
 
 // WorkflowWaitForNotificationNode represents a WAIT FOR NOTIFICATION activity.
 type WorkflowWaitForNotificationNode struct {
+	WorkflowActivityAnnotation
 	Name           string // explicit activity name; see ako/mxcli#408
 	Caption        string
 	BoundaryEvents []WorkflowBoundaryEventNode // Issue #7
@@ -208,6 +239,7 @@ func (n *WorkflowWaitForNotificationNode) workflowActivityNode() {}
 // WorkflowNotificationNode is `notification [<name>] [comment '<caption>']`, an
 // intermediate notification event.
 type WorkflowNotificationNode struct {
+	WorkflowActivityAnnotation
 	Name    string
 	Caption string
 }
