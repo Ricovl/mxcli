@@ -88,6 +88,8 @@ Document types are named as Studio Pro names them. The old names still parse wit
 | `ai model` / `ai models` (the agent editor's model document) | `model` / `models` | `MDL-DEPR131` |
 | `create json structure M.J sample '…'` | `… snippet '…'` | `MDL-DEPR132` |
 
+`consumed web service`, `published web service` and `xml schema` are reserved: MDL does not support these Studio Pro documents yet, and a statement that names one is refused with an error saying so.
+
 `business event service` and `database connection` keep their names: a Mendix 10+ business event service document holds both the published and the subscribed operations, and `database connection` is the Database Connector's own name for the document.
 
 ## Language Version Header

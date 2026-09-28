@@ -84,7 +84,24 @@ languageHeader
 
 /** A statement can be DDL, DQL, or utility */
 statement
-    : docComment? (ddlStatement | dqlStatement | utilityStatement) SEMICOLON? SLASH?
+    : docComment? (reservedDocumentStatement | ddlStatement | dqlStatement | utilityStatement) SEMICOLON? SLASH?
+    ;
+
+/**
+ * R10 (ako/mxcli#755): Studio Pro document types MDL does not support yet.
+ * Their names are reserved, so a statement naming one is refused by name
+ * (the visitor reports it) rather than failing somewhere in its body, and no
+ * later syntax can give the words another meaning.
+ */
+reservedDocumentStatement
+    : (CREATE (OR MODIFY)? | ALTER | DROP | DESCRIBE | LIST_KW | SHOW) reservedDocumentName ~SEMICOLON*
+    ;
+
+reservedDocumentName
+    : CONSUMED WEB SERVICES?
+    | PUBLISHED WEB SERVICES?
+    | XML SCHEMA
+    | XML IDENTIFIER   // `xml schemas`: SCHEMA has no plural token
     ;
 
 // =============================================================================

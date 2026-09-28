@@ -13,6 +13,10 @@ mdl 1;
 create persistent entity Sales.Customer ( Name: String(200) );
 ```
 
+## Document type names follow Studio Pro
+
+`consumed rest service`, `consumed odata service`, `published odata service`, `task queue`, `ai model`, `alter app security ( … )`, `alter settings runtime`; a JSON structure's example is its `sample`. The old names (`rest client`, `odata client`, `odata service`, `queue`, `model`, `project security`, `settings model`, `snippet`) still parse and warn MDL-DEPR550–555 / 131–133. `consumed web service`, `published web service` and `xml schema` are reserved: not supported yet, and refused by name.
+
 ## Session commands — the REPL, not a script
 
 `connect`, `disconnect`, `use`, `set format = …`, `status`, `show version`, `show status`, `show connections`, `show catalog status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help` and `introspect api` set up or inspect the session. Type them at the REPL, or use the command-line flags; a `.mdl` script holds model statements only. Under `mdl 1;` a session command in a script is an error; without the header it runs and warns `MDL-V1-SESSION`. `exit` / `quit` are not session commands.
