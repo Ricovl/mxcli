@@ -8,6 +8,7 @@ package ast
 //	  Expression: '^[a-z]+$'
 //	);
 type CreateRegularExpressionStmt struct {
+	CreateGuard             // `create … if not exists` (ako/mxcli#731)
 	Folder           string // Folder path within module (empty = leave placement alone)
 	Name             QualifiedName
 	Documentation    string

@@ -13,7 +13,7 @@ options { tokenVocab = MDLLexer; }
  * Create a workflow with activities.
  */
 createWorkflowStatement
-    : WORKFLOW qualifiedName
+    : WORKFLOW ifNotExists? qualifiedName
       workflowHeaderClause*
       BEGIN workflowMainBody workflowEventSubProcess* END WORKFLOW SEMICOLON? SLASH?
     ;
@@ -42,6 +42,9 @@ workflowHeaderClause
     | EXPORT LEVEL (IDENTIFIER | API | HIDDEN_KW)
     | OVERVIEW PAGE qualifiedName
     | DUE DATE_TYPE dueDate=workflowExpression
+    // The note attached to the workflow's start (ako/mxcli#707); an activity's
+    // is `@annotation '…'` before it.
+    | ANNOTATION annotationText=STRING_LITERAL
     | workflowEventHandlerClause
     ;
 
@@ -56,7 +59,7 @@ workflowHeaderClause
  * the body does not already end (in an End, a jump, or branches that all end).
  */
 workflowEventSubProcess
-    : EVENT SUBPROCESS workflowActivityName STRING_LITERAL?
+    : annotation* EVENT SUBPROCESS workflowActivityName STRING_LITERAL?
       ON (INTERRUPTING | NON INTERRUPTING) workflowEventSubProcessTrigger
       LBRACE workflowBody RBRACE SEMICOLON
     ;
@@ -128,16 +131,19 @@ workflowReturnStmt
     : RETURN
     ;
 
+// `@annotation '…'` before an activity is the note Studio Pro attaches to it,
+// as it is before a microflow activity (ako/mxcli#707). The standalone
+// `annotation '…';` is a different thing, a sticky note, and MDL-WF04 refuses it.
 workflowActivityStmt
-    : workflowUserTaskStmt SEMICOLON
-    | workflowCallMicroflowStmt SEMICOLON
-    | workflowCallWorkflowStmt SEMICOLON
-    | workflowDecisionStmt SEMICOLON
-    | workflowParallelSplitStmt SEMICOLON
-    | workflowJumpToStmt SEMICOLON
-    | workflowWaitForTimerStmt SEMICOLON
-    | workflowWaitForNotificationStmt SEMICOLON
-    | workflowNotificationStmt SEMICOLON
+    : annotation* workflowUserTaskStmt SEMICOLON
+    | annotation* workflowCallMicroflowStmt SEMICOLON
+    | annotation* workflowCallWorkflowStmt SEMICOLON
+    | annotation* workflowDecisionStmt SEMICOLON
+    | annotation* workflowParallelSplitStmt SEMICOLON
+    | annotation* workflowJumpToStmt SEMICOLON
+    | annotation* workflowWaitForTimerStmt SEMICOLON
+    | annotation* workflowWaitForNotificationStmt SEMICOLON
+    | annotation* workflowNotificationStmt SEMICOLON
     | workflowAnnotationStmt SEMICOLON
     ;
 

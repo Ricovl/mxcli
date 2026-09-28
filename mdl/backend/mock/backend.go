@@ -155,6 +155,7 @@ type MockBackend struct {
 	SetProjectGuestAccessFunc            func(unitID model.ID, enabled bool, guestUserRole string) error
 	AddUserRoleFunc                      func(unitID model.ID, name string, moduleRoles []string, manageAllRoles bool) error
 	AlterUserRoleModuleRolesFunc         func(unitID model.ID, userRoleName string, add bool, moduleRoles []string) error
+	SetUserRolePropertiesFunc            func(unitID model.ID, userRoleName string, props backend.UserRoleProperties) error
 	RemoveUserRoleFunc                   func(unitID model.ID, name string) error
 	AddDemoUserFunc                      func(unitID model.ID, userName, password, entity string, userRoles []string) error
 	RemoveDemoUserFunc                   func(unitID model.ID, userName string) error

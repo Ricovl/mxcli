@@ -92,7 +92,7 @@ func TestDescribeImageCollection_ImagesInBraces(t *testing.T) {
 	ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
 	assertNoError(t, describeImageCollection(ctx, ast.QualifiedName{Module: "Icons", Name: "AppIcons"}))
 	out := buf.String()
-	assertCanonicalDescribe(t, out, "export level 'Public' {", "image Logo ( File: ", "image Home ( File: ")
+	assertCanonicalDescribe(t, out, "export level 'Public' {", "image Logo ( Data: ", "image \"Home\" ( Data: ")
 	s := findStmt[*ast.CreateImageCollectionStmt](t, reparse(t, out), out)
 	if len(s.Images) != 2 || s.Images[0].Name != "Logo" || s.Images[1].Name != "Home" {
 		t.Errorf("images = %+v", s.Images)

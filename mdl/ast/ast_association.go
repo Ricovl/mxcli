@@ -97,6 +97,7 @@ func (s StorageType) String() string {
 
 // CreateAssociationStmt represents: CREATE ASSOCIATION Module.Name FROM ... TO ... TYPE ...
 type CreateAssociationStmt struct {
+	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	Name           QualifiedName
 	Parent         QualifiedName
 	Child          QualifiedName
@@ -112,9 +113,6 @@ type CreateAssociationStmt struct {
 	Documentation      string
 	DocumentationSet   bool // see mendixlabs/mxcli#1018: absent preserves, empty clears
 	CreateOrModify     bool // true for CREATE OR MODIFY / CREATE OR REPLACE
-	// IfNotExists is CREATE ASSOCIATION IF NOT EXISTS: skip when it already
-	// exists, leaving the stored definition untouched.
-	IfNotExists bool
 
 	// Line anchors from `@anchor(from: (x, y), to: (x, y))` — where the
 	// connector attaches to the FROM and TO entity boxes, as a PERCENTAGE of the

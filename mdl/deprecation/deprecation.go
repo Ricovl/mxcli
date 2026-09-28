@@ -274,6 +274,18 @@ const (
 	// ModifyAttributeColon is `modify attribute A T`: an attribute definition
 	// is always `Name: Type`.
 	ModifyAttributeColon = "MDL-DEPR065"
+
+	// Codes 710-719 are ako/mxcli#707's: describe output that did not re-parse
+	// or lost data, where the fix needed a canonical form the old one lacked.
+
+	// UserRolePositional is `create user role R (M.A, M.B) manage all roles`:
+	// the module roles by position, with no slot for the role's description,
+	// its check-security flag or its manageable roles.
+	UserRolePositional = "MDL-DEPR710"
+	// RestHeaderConcat is a consumed REST service header written
+	// `'Bearer ' + $Token` or `$Token`: the value template `'Bearer {Token}'`
+	// written as an expression.
+	RestHeaderConcat = "MDL-DEPR711"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -496,6 +508,39 @@ func init() {
 	entries = append(entries, r5Entries...)
 	entries = append(entries, r2Entries...)
 	entries = append(entries, r3Entries...)
+	entries = append(entries, issue707Entries...)
+}
+
+// issue707Entries are ako/mxcli#707's: forms describe could not write, so its
+// output lost what they had no slot for.
+var issue707Entries = []Entry{
+	{
+		Code:      UserRolePositional,
+		Old:       "create user role R (M.A, …) [manage all roles]",
+		Canonical: "create user role R ( ModuleRoles: (M.A, …), ManageAllRoles: true, … )",
+		Rewrite: Rewrite{Structural: "user role properties: the role list becomes `ModuleRoles: (…)` in a " +
+			"( Key: value ) list, and `manage all roles` becomes `ManageAllRoles: true`"},
+		RemovedIn: 2,
+		Note: "The property list also takes Description, CheckSecurity, ManageableRoles and " +
+			"ManageUsersWithoutRoles, and may be empty or left out: `create user role Guest;`.",
+		Example:          "create user role Clerk (M.User, M.Viewer) manage all roles;",
+		CanonicalExample: "create user role Clerk ( ModuleRoles: (M.User, M.Viewer), ManageAllRoles: true );",
+	},
+	{
+		Code:      RestHeaderConcat,
+		Old:       "Headers: ('Authorization' = 'Bearer ' + $Token) / ('X-Key' = $Key)",
+		Canonical: "Headers: ('Authorization' = 'Bearer {Token}') / ('X-Key' = '{Key}')",
+		Rewrite:   Rewrite{Structural: "header value as a template: `'text' + $P` becomes `'text{P}'`"},
+		RemovedIn: 2,
+		Note: "A header value is a template like the path: `{P}` is the operation parameter P. The old " +
+			"form stored only the text before the `+`. Not rewritten when that text holds a `{` or `}`.",
+		Example: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation Get (Method: get, Path: '/a', Parameters: ($Token: String), " +
+			"Headers: ('Authorization' = 'Bearer ' + $Token), Response: none) };",
+		CanonicalExample: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation Get (Method: get, Path: '/a', Parameters: ($Token: String), " +
+			"Headers: ('Authorization' = 'Bearer {Token}'), Response: none) };",
+	},
 }
 
 // r9Entries are R9's (ako/mxcli#755): documentation is a `/** … */` doc

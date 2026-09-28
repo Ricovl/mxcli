@@ -29,6 +29,7 @@ func (b *Builder) ExitCreateStatement(ctx *parser.CreateStatementContext) {
 		return
 	}
 	b.recordCreateOrReplace(ctx)
+	b.applyCreateGuard(ctx)
 	anns := ctx.AllAnnotation()
 	if len(anns) == 0 {
 		return

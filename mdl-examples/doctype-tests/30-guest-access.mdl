@@ -32,8 +32,8 @@ create module role Catalog.Editor description 'Maintains the product catalogue';
 
 -- The role anonymous visitors are given. System.User is what lets an
 -- unauthenticated session exist at all.
-create user role Anonymous (Catalog.Visitor, System.User);
-create user role CatalogAdmin (Catalog.Editor, System.User);
+create user role Anonymous ( ModuleRoles: (Catalog.Visitor, System.User) );
+create user role CatalogAdmin ( ModuleRoles: (Catalog.Editor, System.User) );
 
 alter project security level production;
 alter project security guest access on role Anonymous;

@@ -56,7 +56,7 @@ The [Mendix Model SDK](https://docs.mendix.com/apidocs-mxsdk/mxsdk/) is Mendix's
 |---------------|----------------|
 | `security.ModuleRole.createIn(module)` | `CREATE MODULE ROLE Module.RoleName` |
 | Manual access rule construction | `GRANT role ON Entity (permissions)` |
-| Manual user role creation | `CREATE USER ROLE Name (ModuleRoles)` |
+| Manual user role creation | `CREATE USER ROLE Name ( ModuleRoles: (ModuleRoles) )` |
 
 ## Workflow Comparison
 

@@ -28,7 +28,6 @@ func (b *Builder) ExitCreateAssociationStatement(ctx *parser.CreateAssociationSt
 		Type:           ast.AssocReference, // Default
 		Owner:          ast.OwnerDefault,
 		DeleteBehavior: ast.DeleteKeepReferences,
-		IfNotExists:    ctx.IfNotExists() != nil,
 	}
 	// The doc comment, the same spelling every other document type uses. It
 	// was never captured here, so an association was the one domain-model

@@ -294,8 +294,13 @@ alterEntityAction
 // Idempotency guards for a re-runnable domain script: ADD ... IF NOT EXISTS
 // skips (with a notice) when the member is already present, and DROP ... IF
 // EXISTS skips when it is already gone — instead of erroring and halting the
-// run. Accepted on ATTRIBUTE, EVENT HANDLER and INDEX, and on CREATE ENTITY /
-// CREATE ASSOCIATION.
+// run. Accepted on ATTRIBUTE, EVENT HANDLER and INDEX.
+//
+// On a document-level CREATE it sits after the kind's keywords and before the
+// name (`create page if not exists M.P …`) on every kind that names one element
+// (ako/mxcli#731, ADR-0010 R1): leave an existing element untouched, create it
+// otherwise. The visitor applies it once, in ExitCreateStatement, and the
+// executor's dispatch honours it, so a create rule only has to accept it.
 //
 // EVENT HANDLER and INDEX have no other way to be re-run: a defensive
 // drop-then-add fails on the drop when the member is absent, and on the add
@@ -346,7 +351,7 @@ alterEnumerationAction
 // =============================================================================
 
 createModuleStatement
-    : MODULE identifierOrKeyword moduleOptions?
+    : MODULE ifNotExists? identifierOrKeyword moduleOptions?
     ;
 
 // =============================================================================
@@ -386,7 +391,7 @@ moduleOption
 // =============================================================================
 
 createEnumerationStatement
-    : ENUMERATION qualifiedName
+    : ENUMERATION ifNotExists? qualifiedName
       LPAREN enumerationValueList RPAREN
       enumerationOptions?
     ;
@@ -428,7 +433,7 @@ enumerationOption
  * quoted expression.
  */
 createQueueStatement
-    : taskQueueKw qualifiedName (FOLDER STRING_LITERAL)? queueBody?
+    : taskQueueKw ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? queueBody?
     ;
 
 queueBody
@@ -448,7 +453,7 @@ queueProperty
 // document rather than a string on the rule.
 
 createRegularExpressionStatement
-    : REGULAR EXPRESSION qualifiedName (FOLDER STRING_LITERAL)? regularExpressionBody?
+    : REGULAR EXPRESSION ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? regularExpressionBody?
     ;
 
 regularExpressionBody
@@ -473,7 +478,7 @@ regularExpressionProperty
 // not belong to the chosen repeat.
 
 createScheduledEventStatement
-    : SCHEDULED EVENT qualifiedName (FOLDER STRING_LITERAL)? scheduledEventBody?
+    : SCHEDULED EVENT ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? scheduledEventBody?
     ;
 
 scheduledEventBody
@@ -489,7 +494,7 @@ scheduledEventProperty
 // =============================================================================
 
 createImageCollectionStatement
-    : IMAGE COLLECTION qualifiedName (FOLDER STRING_LITERAL)? imageCollectionOptions? imageCollectionBody?
+    : IMAGE COLLECTION ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? imageCollectionOptions? imageCollectionBody?
     ;
 
 // CREATE [OR MODIFY] ANNOTATION IN Module ( Caption: '…', Position: (x, y), Width: n )
@@ -538,8 +543,12 @@ imageCollectionChild
     : IMAGE imageName LPAREN imageProperty (COMMA imageProperty)* COMMA? RPAREN   // image Logo ( File: 'logo.png' )
     ;
 
+// File: '<path>' reads the image from a file; Data: '<base64>' carries the
+// bytes in the script, which is what describe writes (ako/mxcli#707), with
+// Format: <png|jpg|gif|svg|bmp|webp> when the bytes do not say it themselves.
 imageProperty
     : identifierOrKeyword COLON STRING_LITERAL
+    | identifierOrKeyword COLON identifierOrKeyword
     ;
 
 imageCollectionItem
@@ -557,7 +566,7 @@ imageName
 // =============================================================================
 
 createJsonStructureStatement
-    : JSON STRUCTURE qualifiedName (FOLDER STRING_LITERAL)? (COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL)? SNIPPET (STRING_LITERAL | DOLLAR_STRING)
+    : JSON STRUCTURE ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? (COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL)? SNIPPET (STRING_LITERAL | DOLLAR_STRING)
       (CUSTOM_NAME_MAP LPAREN customNameMapping (COMMA customNameMapping)* RPAREN)?
     ;
 
@@ -611,7 +620,7 @@ customNameMapping
  * (Module.Collection.Definition), so the collection is never implicit.
  */
 createMessageDefinitionCollectionStatement
-    : MESSAGE DEFINITION COLLECTION qualifiedName
+    : MESSAGE DEFINITION COLLECTION ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       ( LBRACE messageDefinitionDef (COMMA? messageDefinitionDef)* COMMA? RBRACE
       | LPAREN /* @alias MDL-DEPR073 */ messageDefinitionDef (COMMA messageDefinitionDef)* COMMA? RPAREN
@@ -727,7 +736,7 @@ messageMemberPath
  * };
  */
 createImportMappingStatement
-    : IMPORT MAPPING qualifiedName
+    : IMPORT MAPPING ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       importMappingWithClause?
       importMappingParameterClause?
@@ -869,7 +878,7 @@ importMappingObjectHandling
  * };
  */
 createExportMappingStatement
-    : EXPORT MAPPING qualifiedName
+    : EXPORT MAPPING ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       exportMappingWithClause?
       exportMappingNullValuesClause?
@@ -969,7 +978,7 @@ validationRuleRange
 // =============================================================================
 
 createConstantStatement
-    : CONSTANT qualifiedName
+    : CONSTANT ifNotExists? qualifiedName
       TYPE dataType
       DEFAULT literal
       constantOptions?
@@ -1005,7 +1014,7 @@ createIndexStatement
  * };
  */
 createDataTransformerStatement
-    : DATA TRANSFORMER qualifiedName
+    : DATA TRANSFORMER ifNotExists? qualifiedName
       (FOLDER folder=STRING_LITERAL)?
       SOURCE_KW (JSON | XML) source=STRING_LITERAL
       LBRACE dataTransformerStep* RBRACE

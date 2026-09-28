@@ -58,7 +58,7 @@ func ValidateUserRoleSystemModuleRole(stmt *ast.CreateUserRoleStmt, securityEnab
 		Message: fmt.Sprintf(
 			"user role %q has no System module role — %snobody holding it can sign in or read "+
 				"System entities (MxBuild reports this as CE0156 once security is on; at security "+
-				"level Off it is not flagged). Add System.User: CREATE USER ROLE %s (%s, System.User)",
+				"level Off it is not flagged). Add System.User: CREATE USER ROLE %s ( ModuleRoles: (%s, System.User) )",
 			stmt.Name, when, stmt.Name, joinQualified(stmt.ModuleRoles)),
 	}}
 }

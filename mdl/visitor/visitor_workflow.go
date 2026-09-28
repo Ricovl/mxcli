@@ -3,6 +3,7 @@
 package visitor
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -76,6 +77,10 @@ func (b *Builder) ExitCreateWorkflowStatement(ctx *parser.CreateWorkflowStatemen
 			}
 		case hc.DUE() != nil && hc.DATE_TYPE() != nil:
 			stmt.DueDate = workflowExpressionText(hc.GetDueDate())
+		case hc.ANNOTATION() != nil:
+			if tok := hc.GetAnnotationText(); tok != nil {
+				stmt.Annotation = unquoteStringLit(tok)
+			}
 		case hc.WorkflowEventHandlerClause() != nil:
 			h, ok := hc.WorkflowEventHandlerClause().(*parser.WorkflowEventHandlerClauseContext)
 			if !ok {
@@ -486,7 +491,68 @@ func buildWorkflowActivityStmt(ctx parser.IWorkflowActivityStmtContext) ast.Work
 		return nil
 	}
 	actCtx := ctx.(*parser.WorkflowActivityStmtContext)
+	act := buildWorkflowActivityCore(actCtx)
+	if a, ok := act.(ast.AnnotatedWorkflowActivity); ok {
+		a.SetActivityAnnotation(workflowAttachedAnnotation(actCtx.AllAnnotation()))
+	}
+	return act
+}
 
+// workflowAttachedAnnotation is the text of the `@annotation '…'` before a
+// workflow activity or event sub-process, "" when there is none. The listener
+// ExitWorkflowActivityStmt reports any other annotation.
+func workflowAttachedAnnotation(anns []parser.IAnnotationContext) string {
+	for _, a := range anns {
+		ann, ok := a.(*parser.AnnotationContext)
+		if !ok || !strings.EqualFold(ann.AnnotationName().GetText(), "annotation") {
+			continue
+		}
+		if v := ann.AnnotationValue(); v != nil {
+			return extractAnnotationValueString(v)
+		}
+	}
+	return ""
+}
+
+// checkWorkflowAnnotations reports what a workflow activity cannot carry: an
+// annotation other than one `@annotation '…'`. MDL writes no position for a
+// workflow activity, and Mendix attaches at most one note to it.
+func (b *Builder) checkWorkflowAnnotations(anns []parser.IAnnotationContext) {
+	notes := 0
+	for _, a := range anns {
+		ann, ok := a.(*parser.AnnotationContext)
+		if !ok {
+			continue
+		}
+		line := ann.GetStart().GetLine()
+		name := ann.AnnotationName().GetText()
+		if !strings.EqualFold(name, "annotation") {
+			b.addError(fmt.Errorf("line %d: @%s is not a workflow annotation; a workflow activity takes only @annotation '…'", line, name))
+			continue
+		}
+		if ann.AnnotationValue() == nil || extractAnnotationValueString(ann.AnnotationValue()) == "" {
+			b.addError(fmt.Errorf("line %d: a workflow activity's note is @annotation '<text>'", line))
+			continue
+		}
+		notes++
+		if notes > 1 {
+			b.addError(fmt.Errorf("line %d: a workflow activity has at most one @annotation", line))
+		}
+	}
+}
+
+// ExitWorkflowActivityStmt checks the annotations before an activity.
+func (b *Builder) ExitWorkflowActivityStmt(ctx *parser.WorkflowActivityStmtContext) {
+	b.checkWorkflowAnnotations(ctx.AllAnnotation())
+}
+
+// ExitWorkflowEventSubProcess checks the annotations before an event sub-process.
+func (b *Builder) ExitWorkflowEventSubProcess(ctx *parser.WorkflowEventSubProcessContext) {
+	b.checkWorkflowAnnotations(ctx.AllAnnotation())
+}
+
+// buildWorkflowActivityCore builds the activity itself, without its annotation.
+func buildWorkflowActivityCore(actCtx *parser.WorkflowActivityStmtContext) ast.WorkflowActivityNode {
 	if ut := actCtx.WorkflowUserTaskStmt(); ut != nil {
 		return buildWorkflowUserTask(ut)
 	}
@@ -930,6 +996,7 @@ func buildWorkflowEventSubProcess(ctx parser.IWorkflowEventSubProcessContext) as
 	if s := c.STRING_LITERAL(); s != nil {
 		node.Caption = unquoteStringLit(s)
 	}
+	node.Annotation = workflowAttachedAnnotation(c.AllAnnotation())
 	if t, ok := c.WorkflowEventSubProcessTrigger().(*parser.WorkflowEventSubProcessTriggerContext); ok && t != nil {
 		node.Timer = t.TIMER() != nil
 		node.StartName = workflowActivityNameText(t.WorkflowActivityName())

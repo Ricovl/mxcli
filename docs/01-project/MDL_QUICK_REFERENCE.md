@@ -114,7 +114,7 @@ Modifies an existing entity without full replacement.
 | Rename attribute | `alter entity Module.Name rename attribute OldName to NewName;` | Also rewrites stored references (microflow members, page widgets, validation/access rules) and XPath constraints. Microflow expressions are free text and are **not** rewritten |
 | Add index | `alter entity Module.Name add index [if not exists] [name] [on] (Col1 [asc\|desc], ...);` | `on` is optional (SQL-like). **Without `if not exists`, re-running is an error** — a second identical index fails the build with CE0072 |
 | Document an association | `/** What it links. */`<br>`create association Mod.C_P from Mod.C to Mod.P;` | Documentation is a doc comment, as on every document. `... comment 'What it links.'` still parses as a deprecated alias (`MDL-DEPR100`, also on constants, JSON structures and image collections); the doc comment wins when both are present |
-| Create if absent | `create entity if not exists Module.Name (...);`<br>`create association if not exists Module.Assoc from ... to ...;` | Skips when it already exists, leaving the stored definition untouched. Unlike `create or modify`, which rebuilds the element from the statement and drops any attribute the statement omits — `mxcli check … -p app.mpr --references` warns about that as **MDL087**, naming the members the script removes without restating them |
+| Create if absent | `create entity if not exists Module.Name (...);`<br>`create association if not exists Module.Assoc from ... to ...;` | Every `create` that names one element takes the same guard, after the kind's keywords (`create page if not exists M.P …`, `create module if not exists M;`) — see `mxcli syntax create-if-not-exists`. Skips when it already exists, leaving the stored definition untouched. Unlike `create or modify`, which rebuilds the element from the statement and drops any attribute the statement omits — `mxcli check … -p app.mpr --references` warns about that as **MDL087**, naming the members the script removes without restating them |
 | Add index (SQL form) | `create index IdxName on Module.Name (Col1 [asc\|desc], ...);` | Same effect as `alter entity … add index`. The index name is accepted and not stored — a Mendix index is identified by its columns — so `check` warns (MDL-IDX01); prefer `alter entity … add index (…)` |
 | Drop index | `alter entity Module.Name drop index [if exists] (Col1 [asc\|desc], ...);` | Selected by its columns — a Mendix index stores no name, so the columns are its identity, and they are what `describe entity` prints. The legacy positional form `drop index idx1` still works but shifts when an earlier index is dropped |
 | Add event handler | `alter entity Module.Name add event handler on before commit call Mod.MF($currentObject) [raise error];` | `($currentObject)` or `()`, RAISE ERROR only on BEFORE |
@@ -126,9 +126,10 @@ Modifies an existing entity without full replacement.
 | Add attribute to every entity | `alter entities [in Module] add attribute [if not exists] attr: type [, ...] [where persistent\|non-persistent];` | The bulk form — one statement instead of one per entity. **ADD ATTRIBUTE only**: drop/rename aimed at a set are destructive by a typo. A **view** entity matches neither persistence filter. **Without `in`**, the sweep skips System and every Marketplace module (and says which) — an upgrade replaces those and would take the attribute with it |
 
 > **Re-running domain scripts.** `IF NOT EXISTS` / `IF EXISTS` make an individual
-> create/add/drop a no-op when already applied — accepted on `create entity`,
-> `create association`, `add attribute`, `add index`, `add event handler` and
-> their drops. A script built from guarded statements re-runs to a byte-identical
+> create/add/drop a no-op when already applied — accepted on every `create` that
+> names one element (entity, association, microflow, page, enumeration, module,
+> role, …), on `add attribute`, `add index`, `add event handler`, and on their
+> drops. A script built from guarded statements re-runs to a byte-identical
 > project.
 >
 > Prefer them to `CREATE OR MODIFY`, which is not the same thing: `or modify`
@@ -581,6 +582,7 @@ it is for pages.
 | Unknown annotation | — | **MDL059**. An annotation that parses and does nothing loses whatever it was meant to express, so a name the target does not read is refused — on a statement *and* before a `create`. Covers a typo (`@applyentityacces`), an annotation on a document kind that reads none (`@excluded` on a queue), and an activity annotation written at document level. The message names what that document does accept |
 | Parameter position | `@position(x, y)` before a parameter, **inside** the `( … )` list | The only annotation a parameter takes. Omit it and parameters form a row at 200;53, 300;53, …; a parameter off that row is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#993) |
 | Start event | `@start(x, y)` | Canvas position of the start, on the **first** statement. Omit it and the start is placed one spacing unit left of the first activity and MOVES with it on a rewrite; a start that is not at that derived spot is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#951) |
+| Flow anchors | `@anchor(from: bottom, to: top)`; on an `if` also `true: (from: …, to: …)`, `false: (…)` | The side each end of a flow attaches to: `to` = the flow arriving, `from` = the flow leaving. On an `if`, `from` is the flow out of its closing **merge**, which has no statement of its own (#767) |
 | Caption | `@caption 'text'` | Custom caption (before activity). A decision with no `@caption` is captioned with its condition, so `describe` prints none for one whose caption is its condition |
 | Color | `@color Green` | Background color (before activity) |
 | Annotation | `@annotation 'text'` | Visual note attached to next activity. **Repeatable** — an activity can carry several, and each is its own note |
@@ -669,7 +671,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Describe security matrix | `describe security matrix [in module];` | Full access overview |
 | Create module role | `create [or modify] module role Mod.Role [description 'text'];` | `or modify` updates an existing role instead of failing, so a security script can be re-run |
 | Drop module role | `drop module role Mod.Role;` | |
-| Create user role | `create user role Name (Mod.Role, ...) [manage all roles];` | Aggregates module roles |
+| Create user role | `create user role Name ( ModuleRoles: (Mod.Role, ...), Description: '...', ManageAllRoles: true, CheckSecurity: true );` | Aggregates module roles; every property optional, `create user role Name;` has none |
 | Alter user role | `alter user role Name add\|drop module roles (Mod.Role, ...);` | |
 | Drop user role | `drop user role [if exists] Name;` | `if exists` makes a cleanup script re-runnable |
 | Grant microflow access | `grant execute on microflow Mod.MF to Mod.Role, ...;` | |

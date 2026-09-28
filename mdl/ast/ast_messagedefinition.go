@@ -16,6 +16,7 @@ package ast
 //	  [FOLDER 'path']
 //	( definition Name for Module.Entity [as 'Exposed'] ( members ) , ... );
 type CreateMessageDefinitionCollectionStmt struct {
+	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	Name           QualifiedName
 	Folder         string
 	CreateOrModify bool
