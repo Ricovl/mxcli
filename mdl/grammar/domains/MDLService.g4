@@ -63,10 +63,14 @@ restClientProperty
     | identifierOrKeyword COLON BASIC LPAREN restClientProperty (COMMA restClientProperty)* RPAREN
     ;
 
+// An operation is a child of the service, so its properties are in ( ) like
+// every other child's (R2, ako/mxcli#754). The brace form is the old spelling.
 restClientOperation
     : docComment?
       OPERATION (identifierOrKeyword | STRING_LITERAL)
-      LBRACE restClientOpProp (COMMA restClientOpProp)* RBRACE
+      ( LPAREN restClientOpProp (COMMA restClientOpProp)* COMMA? RPAREN
+      | LBRACE /* @alias MDL-DEPR070 */ restClientOpProp (COMMA restClientOpProp)* COMMA? RBRACE
+      )
     ;
 
 restClientOpProp

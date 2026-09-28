@@ -157,6 +157,22 @@ const (
 	// on a text template: the placeholders bound by position (R4,
 	// ako/mxcli#751).
 	PositionalTemplateArguments = "MDL-DEPR009"
+
+	// Codes 070-079 are R2's integration documents (ako/mxcli#754): properties
+	// in ( ), declarative children in { }.
+
+	// RestOperationBraces is a consumed REST service's `operation X { … }`:
+	// the operation's properties in braces.
+	RestOperationBraces = "MDL-DEPR070"
+	// AgentAttachmentBraces is an agent's `tool X { … }`, `mcp service M.S
+	// { … }` or `knowledge base K { … }`: the attachment's properties in braces.
+	AgentAttachmentBraces = "MDL-DEPR071"
+	// ImageCollectionParens is an image collection's images in parentheses,
+	// each written `image X from file '…'`.
+	ImageCollectionParens = "MDL-DEPR072"
+	// MessageTreeParens is a message definition collection's definitions and
+	// member trees in parentheses.
+	MessageTreeParens = "MDL-DEPR073"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -374,6 +390,59 @@ var entries = []Entry{
 
 func init() {
 	entries = append(entries, r8Entries...)
+	entries = append(entries, r2Entries...)
+}
+
+// r2Entries are R2's integration-document brackets (ako/mxcli#754).
+var r2Entries = []Entry{
+	{
+		Code:      RestOperationBraces,
+		Old:       "operation X { Method: get, … }",
+		Canonical: "operation X ( Method: get, … )",
+		Rewrite:   Rewrite{Structural: "the operation's braces become parentheses"},
+		RemovedIn: 2,
+		Note: "An operation is a child of the service: its properties are in ( ) like every child's, " +
+			"and { } holds children (R2). A body or response mapping keeps its { } tree.",
+		Example: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation GetUser { Method: get, Path: '/u', Response: none } };",
+		CanonicalExample: "create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none) " +
+			"{ operation GetUser ( Method: get, Path: '/u', Response: none ) };",
+	},
+	{
+		Code:      AgentAttachmentBraces,
+		Old:       "tool X { … } / mcp service M.S { … } / knowledge base K { … }",
+		Canonical: "tool X ( … ) / mcp service M.S ( … ) / knowledge base K ( … )",
+		Rewrite:   Rewrite{Structural: "the attachment's braces become parentheses"},
+		RemovedIn: 2,
+		Note:      "In create agent and in alter agent … add. An attachment is a child of the agent: its properties are in ( ) (R2).",
+		Example: "create agent M.A (UsageType: Task, Model: M.Gpt, SystemPrompt: 'x') " +
+			"{ tool Lookup { Description: 'Find', Enabled: true } };",
+		CanonicalExample: "create agent M.A (UsageType: Task, Model: M.Gpt, SystemPrompt: 'x') " +
+			"{ tool Lookup ( Description: 'Find', Enabled: true ) };",
+	},
+	{
+		Code:      ImageCollectionParens,
+		Old:       "image collection M.C ( image X from file '…', … )",
+		Canonical: "image collection M.C { image X ( File: '…' ) … }",
+		Rewrite: Rewrite{Structural: "the images move into { } without commas, and `from file '…'` " +
+			"becomes `( File: '…' )`"},
+		RemovedIn:        2,
+		Note:             "The images are the collection's children, so they are in { }, each with its properties in ( ) (R2).",
+		Example:          "create image collection M.Icons (image Logo from file 'logo.png', image Home from file 'home.png');",
+		CanonicalExample: "create image collection M.Icons {image Logo ( File: 'logo.png' ) image Home ( File: 'home.png' )};",
+	},
+	{
+		Code:      MessageTreeParens,
+		Old:       "message definition collection M.C ( definition D for M.E ( A, M.E_B/M.B ( C ) ) )",
+		Canonical: "message definition collection M.C { definition D for M.E { A, M.E_B/M.B { C } } }",
+		Rewrite:   Rewrite{Structural: "each parenthesised definition list and member tree moves into { }"},
+		RemovedIn: 2,
+		Note: "The definitions and members are children, so they are in { }, as in an import or export " +
+			"mapping (R2). Also in `alter message definition collection … add definition` and " +
+			"`alter message definition … add member`. One warning per statement.",
+		Example:          "create message definition collection M.Msgs (definition Order for M.Order (Number, M.Order_Line/M.Line (Sku)));",
+		CanonicalExample: "create message definition collection M.Msgs {definition Order for M.Order {Number, M.Order_Line/M.Line {Sku}}};",
+	},
 }
 
 // r8Entries are R8's spellings (ako/mxcli#752). Kept apart from the list above

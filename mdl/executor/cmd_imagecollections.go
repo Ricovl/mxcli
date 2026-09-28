@@ -164,9 +164,9 @@ func describeImageCollection(ctx *ExecContext, name ast.QualifiedName) error {
 	if exportLevel != "Hidden" {
 		fmt.Fprintf(ctx.Output, " export level '%s'", exportLevel)
 	}
-	fmt.Fprintln(ctx.Output, " (")
+	fmt.Fprintln(ctx.Output, " {")
 
-	for i, img := range ic.Images {
+	for _, img := range ic.Images {
 		ext := imageFormatToExt(img.Format)
 		filePath := filepath.Join(previewDir, img.Name+ext)
 		if len(img.Data) > 0 {
@@ -175,14 +175,10 @@ func describeImageCollection(ctx *ExecContext, name ast.QualifiedName) error {
 			}
 		}
 
-		comma := ","
-		if i == len(ic.Images)-1 {
-			comma = ""
-		}
-		fmt.Fprintf(ctx.Output, "    image %s from file '%s'%s\n", img.Name, filePath, comma)
+		fmt.Fprintf(ctx.Output, "  image %s ( File: '%s' )\n", img.Name, filePath)
 	}
 
-	fmt.Fprintln(ctx.Output, ");")
+	fmt.Fprintln(ctx.Output, "};")
 	return nil
 }
 

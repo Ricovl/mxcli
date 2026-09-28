@@ -13,7 +13,7 @@ import (
 //
 //	CREATE [OR MODIFY] MESSAGE DEFINITION COLLECTION Module.Name
 //	  [FOLDER 'path']
-//	( definition Name for Module.Entity [as 'Exposed'] ( members ), ... );
+//	{ definition Name for Module.Entity [as 'Exposed'] { members } ... };
 func (b *Builder) ExitCreateMessageDefinitionCollectionStatement(ctx *parser.CreateMessageDefinitionCollectionStatementContext) {
 	stmt := &ast.CreateMessageDefinitionCollectionStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
@@ -47,12 +47,24 @@ func (b *Builder) buildMessageDefinitionDef(c parser.IMessageDefinitionDefContex
 		Entity:      buildQualifiedName(ctx.QualifiedName()),
 		ExposedName: exposedNameOf(ctx.MessageExposedName()),
 	}
+	def.Members = b.buildMessageMemberTree(ctx.MessageMemberTree())
+	return def
+}
+
+// buildMessageMemberTree builds the members of a `{ … }` tree, or of the old
+// `( … )` one (MDL-DEPR073).
+func (b *Builder) buildMessageMemberTree(c parser.IMessageMemberTreeContext) []*ast.MessageMemberDef {
+	ctx, ok := c.(*parser.MessageMemberTreeContext)
+	if ctx == nil || !ok {
+		return nil
+	}
+	var out []*ast.MessageMemberDef
 	for _, m := range ctx.AllMessageMember() {
 		if mem := b.buildMessageMember(m); mem != nil {
-			def.Members = append(def.Members, mem)
+			out = append(out, mem)
 		}
 	}
-	return def
+	return out
 }
 
 // buildMessageMember builds an exposed attribute or an exposed association.
@@ -68,16 +80,12 @@ func (b *Builder) buildMessageMember(c parser.IMessageMemberContext) *ast.Messag
 	mem := &ast.MessageMemberDef{ExposedName: exposedNameOf(ctx.MessageExposedName())}
 
 	if qns := ctx.AllQualifiedName(); len(qns) == 2 {
-		// Association: Assoc/Module.Entity ( members ). The target entity is
+		// Association: Assoc/Module.Entity { members }. The target entity is
 		// spelled out because MaxOccurs tracks the DIRECTION of traversal, not
 		// the association's type — see the AST doc comment.
 		mem.Association = buildQualifiedName(qns[0])
 		mem.Entity = buildQualifiedName(qns[1])
-		for _, sub := range ctx.AllMessageMember() {
-			if child := b.buildMessageMember(sub); child != nil {
-				mem.Members = append(mem.Members, child)
-			}
-		}
+		mem.Members = b.buildMessageMemberTree(ctx.MessageMemberTree())
 		return mem
 	}
 
@@ -125,11 +133,7 @@ func (b *Builder) ExitAlterMessageDefinitionCollectionStatement(ctx *parser.Alte
 		if len(ids) > 0 {
 			def.Name = identifierOrKeywordText(ids[0])
 		}
-		for _, m := range op.AllMessageMember() {
-			if mem := b.buildMessageMember(m); mem != nil {
-				def.Members = append(def.Members, mem)
-			}
-		}
+		def.Members = b.buildMessageMemberTree(op.MessageMemberTree())
 		stmt.Definition = def
 	case op.RENAME() != nil:
 		stmt.Op = "RENAME"
