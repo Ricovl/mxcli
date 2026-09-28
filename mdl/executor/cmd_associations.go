@@ -553,32 +553,38 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 		}
 	}
 
-	// Helper to format association type, owner, storage, and delete behavior
+	// formatAssocDetails prints the clauses after `from … to …` and the
+	// terminator. A clause is printed only when it differs from what the
+	// statement defaults to (R12, #748): type Reference, owner Default, storage
+	// column and on delete set null are what an unstated clause means, so
+	// printing them is noise that says nothing a reader or a re-execution needs.
+	//
+	// Storage is the asymmetric one. Column is the create default, so it is
+	// omitted; Table is not, so it is always printed — omitting it made a table
+	// association come back as column wherever the description was replayed
+	// (#704).
 	formatAssocDetails := func(assocType domainmodel.AssociationType, assocOwner domainmodel.AssociationOwner, storageFormat domainmodel.AssociationStorageFormat, childDeleteBehavior *domainmodel.DeleteBehavior) {
-		typeName := "Reference"
+		var clauses []string
 		if assocType == domainmodel.AssociationTypeReferenceSet {
-			typeName = "ReferenceSet"
+			clauses = append(clauses, "type ReferenceSet")
 		}
-		fmt.Fprintf(ctx.Output, "type %s\n", typeName)
-
-		owner := "Default"
 		if assocOwner == domainmodel.AssociationOwnerBoth {
-			owner = "Both"
+			clauses = append(clauses, "owner Both")
 		}
-		fmt.Fprintf(ctx.Output, "owner %s\n", owner)
-
-		// Only output STORAGE when it's not the default (Table)
-		if storageFormat == domainmodel.StorageFormatColumn {
-			fmt.Fprintf(ctx.Output, "storage column\n")
+		if storageFormat == domainmodel.StorageFormatTable {
+			clauses = append(clauses, "storage table")
 		}
-
 		// DELETE_AND_REFERENCES, not DELETE_CASCADE: DESCRIBE has to emit MDL the
-		// parser accepts, and DELETE_CASCADE is not a token — only CASCADE and the
-		// three canonical names are. The other two arms already spell the
-		// canonical name, so cascade was the odd one out and a describe → edit →
-		// exec loop died on it (upstream #901). The round-trip test in
-		// cmd_associations_delete_behavior_test.go feeds this back through the parser.
-		fmt.Fprintf(ctx.Output, "%s;\n", describeDeleteClause(childDeleteBehavior))
+		// parser accepts, and DELETE_CASCADE is not a token (upstream #901). The
+		// round-trip test in cmd_associations_delete_behavior_test.go feeds this
+		// back through the parser.
+		if del := describeDeleteClause(childDeleteBehavior); del != defaultDeleteClause {
+			clauses = append(clauses, del)
+		}
+		for _, c := range clauses {
+			fmt.Fprintf(ctx.Output, "\n%s", c)
+		}
+		fmt.Fprint(ctx.Output, ";\n")
 	}
 
 	for _, assoc := range dm.Associations {
@@ -592,7 +598,7 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 
 			describeConnectionPoints(ctx, assoc)
 			fmt.Fprintf(ctx.Output, "create or modify association %s.%s\n", module.Name, assoc.Name)
-			fmt.Fprintf(ctx.Output, "from %s to %s\n", fromEntity, toEntity)
+			fmt.Fprintf(ctx.Output, "from %s to %s", fromEntity, toEntity)
 			formatAssocDetails(assoc.Type, assoc.Owner, assoc.StorageFormat, assoc.ChildDeleteBehavior)
 			return nil
 		}
@@ -609,7 +615,7 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 			}
 
 			fmt.Fprintf(ctx.Output, "create or modify association %s.%s\n", module.Name, ca.Name)
-			fmt.Fprintf(ctx.Output, "from %s to %s\n", fromEntity, ca.ChildRef)
+			fmt.Fprintf(ctx.Output, "from %s to %s", fromEntity, ca.ChildRef)
 			formatAssocDetails(ca.Type, ca.Owner, ca.StorageFormat, ca.ChildDeleteBehavior)
 			return nil
 		}
@@ -730,6 +736,10 @@ func associationDocumentation(s *ast.CreateAssociationStmt) string {
 	return s.Documentation
 }
 
+// defaultDeleteClause is the delete behaviour an association statement with no
+// delete clause writes (storageDeleteBehavior's default arm).
+const defaultDeleteClause = "on delete set null"
+
 // describeDeleteClause renders a child delete behaviour as MDL.
 //
 // It emits the SQL spelling, because that is the one that says what the
@@ -743,7 +753,7 @@ func associationDocumentation(s *ast.CreateAssociationStmt) string {
 // start, which is the failure this whole clause exists to prevent (CapTrackV2
 // §1) — and the round trip is exactly how these scripts get regenerated.
 func describeDeleteClause(db *domainmodel.DeleteBehavior) string {
-	action := "on delete set null"
+	action := defaultDeleteClause
 	if db != nil {
 		switch db.Type {
 		case domainmodel.DeleteBehaviorTypeDeleteMeAndReferences:

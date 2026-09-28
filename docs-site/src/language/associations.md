@@ -16,10 +16,13 @@ Associations define relationships between entities. They determine how objects r
 CREATE ASSOCIATION <Module>.<Name>
   FROM <ParentEntity>
   TO <ChildEntity>
-  TYPE <Reference|ReferenceSet>
+  [TYPE <Reference|ReferenceSet>]
   [OWNER <Default|Both|Parent|Child>]
+  [STORAGE <COLUMN|TABLE>]
   [ON DELETE <CASCADE|RESTRICT|SET NULL> [ERROR MESSAGE '<text>']]
 ```
+
+Every clause after `TO` is optional. Left out, they mean `TYPE Reference OWNER Default STORAGE COLUMN ON DELETE SET NULL`, and `DESCRIBE ASSOCIATION` prints only the clauses that differ from that. `STORAGE TABLE` is therefore always printed: re-running a description without it would store the association as a column.
 
 ### Reference (Many-to-One)
 

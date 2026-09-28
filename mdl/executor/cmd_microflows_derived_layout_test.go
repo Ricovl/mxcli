@@ -215,3 +215,27 @@ end;`)
 		t.Errorf("second describe differs:\nfirst:\n%s\nsecond:\n%s", mdl, again)
 	}
 }
+
+// The catalog's source build does not run the derivation (#766). Its text feeds
+// a search index, where layout lines are harmless, and the derivation rebuilds
+// every flow several times — it made `refresh catalog full source` 2.3x slower.
+// Observable as the full layout in the catalog text of a flow whose canonical
+// description has none; the canonical describe of the same flow is the control.
+func TestCatalogSource_SkipsDerivedLayout(t *testing.T) {
+	exec, out := describeExecutor(t)
+	const name = "Administration.ChangeMyPassword"
+	if res, err := exec.LayoutFlow("microflow", flowQN(name), false); err != nil || res.Refused != "" {
+		t.Fatalf("layout: %v %s", err, res.Refused)
+	}
+	if got := layoutLines(describeText(t, exec, out, "describe microflow "+name+";")); len(got) > 0 {
+		t.Fatalf("control: the canonical description keeps layout, so this cannot tell the two apart:\n  %s",
+			strings.Join(got, "\n  "))
+	}
+	src, err := captureDescribeParallel(exec.newExecContext(t.Context()), "MICROFLOW", name, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(layoutLines(src)) == 0 {
+		t.Errorf("the catalog source ran the derived-layout check:\n%s", src)
+	}
+}

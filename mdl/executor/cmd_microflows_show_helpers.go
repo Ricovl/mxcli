@@ -766,6 +766,17 @@ func emitLoopAnchorAnnotation(
 	*lines = append(*lines, indentStr+fmt.Sprintf("@anchor(%s)", strings.Join(parts, ", ")))
 }
 
+// captionIsCondition reports whether a decision's caption is its condition
+// text, which is what a decision gets when no @caption is written: the builder
+// stores one string as both the caption and the expression (addIfStatement,
+// the enum case). Printing it would repeat the line below it (R12, #748), and
+// leaving it out re-executes to the same caption, since the two are built from
+// the same text.
+func captionIsCondition(split *microflows.ExclusiveSplit) bool {
+	cond, ok := split.SplitCondition.(*microflows.ExpressionSplitCondition)
+	return ok && split.Caption == cond.Expression
+}
+
 // emitObjectAnnotations emits @position, @caption, @color, @annotation, and
 // @anchor lines for a microflow object before its statement.
 //
@@ -814,7 +825,7 @@ func emitObjectAnnotations(
 		}
 	}
 
-	if split, ok := obj.(*microflows.ExclusiveSplit); ok && split.Caption != "" {
+	if split, ok := obj.(*microflows.ExclusiveSplit); ok && split.Caption != "" && !captionIsCondition(split) {
 		*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", mdlQuote(split.Caption)))
 	}
 	if split, ok := obj.(*microflows.InheritanceSplit); ok && split.Caption != "" {

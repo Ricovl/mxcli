@@ -127,7 +127,7 @@ func TestFlowModify_InsertIsSpliced(t *testing.T) {
 		t.Errorf("merges: %d after the insert, %d before — the rebuild ran", got, want)
 	}
 	again := h.mustDescribe(t, valFeedback)
-	if !strings.Contains(again, "log info node 'Feedback' 'validating feedback';") {
+	if !strings.Contains(again, "log node 'Feedback' 'validating feedback';") {
 		t.Errorf("describe does not show the inserted statement:\n%s", again)
 	}
 
