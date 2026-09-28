@@ -13,7 +13,8 @@ import (
 // grammar's catch-all, so a misspelt statement keyword was a HELP statement.
 // `craete module Foo;` parsed cleanly into nothing at all — the visitor dropped
 // a help statement whose word was not help/exit/quit — and `craete entity
-// M.E (…)` reported its error at the `(`, far from the typo.
+// M.E (…)` reported its error at the `(`, far from the typo. Under mdl 1 the
+// word is an error, reported where it is.
 func TestMisspeltStatementKeywordIsAnErrorAtTheWord(t *testing.T) {
 	for _, tc := range []struct {
 		input string
@@ -24,21 +25,53 @@ func TestMisspeltStatementKeywordIsAnErrorAtTheWord(t *testing.T) {
 		{"craete persistent entity Shop.Note (Text: string(200));", "create"},
 		{"descibe entity M.E;", "describe"},
 	} {
-		prog, errs := Build(tc.input)
+		prog, errs := Build("mdl 1;\n" + tc.input)
 		if len(errs) == 0 {
 			t.Errorf("%q: parsed without error into %d statement(s); a misspelt keyword must be an error",
 				tc.input, len(prog.Statements))
 			continue
 		}
 		first := errs[0].Error()
-		if !strings.HasPrefix(first, "line 1:0 ") {
-			t.Errorf("%q: first error is not at the misspelt word (line 1:0): %s", tc.input, first)
+		if !strings.HasPrefix(first, "line 2:0 ") {
+			t.Errorf("%q: first error is not at the misspelt word (line 2:0): %s", tc.input, first)
 		}
 		word := strings.Fields(tc.input)[0]
 		want := "unknown statement '" + word + "' — did you mean '" + tc.near + "'?"
 		if !strings.Contains(first, want) {
 			t.Errorf("%q: error does not say %q: %s", tc.input, want, first)
 		}
+	}
+}
+
+// ADR-0011: the rejection is new, so it applies only under mdl 1. Without the
+// header a statement the catch-all accepted — it built nothing — still parses
+// into nothing, and warns MDL-V1-UNKNOWN; one it did not accept is the error it
+// always was. Scripts following a skill that taught `… default ” PRIVATE;`
+// ran under mdl 0, the `PRIVATE;` being such a statement.
+func TestMisspeltStatementKeywordWarnsUnderMdl0(t *testing.T) {
+	for _, in := range []string{"craete module Foo;", "PRIVATE;", "descibe entity M.E;"} {
+		prog, errs := Build("create module A;\n" + in + "\ncreate module B;")
+		if len(errs) > 0 {
+			t.Errorf("%q: an error under mdl 0: %v", in, errs)
+			continue
+		}
+		if len(prog.Statements) != 2 {
+			t.Errorf("%q: %d statements, want the two around it", in, len(prog.Statements))
+		}
+		var note *ast.LanguageNote
+		for i := range prog.LanguageNotes {
+			if prog.LanguageNotes[i].Code == "MDL-V1-UNKNOWN" {
+				note = &prog.LanguageNotes[i]
+			}
+		}
+		if note == nil || note.Line != 2 || !strings.Contains(note.Message, strings.Fields(strings.TrimSuffix(in, ";"))[0]) {
+			t.Errorf("%q: want an MDL-V1-UNKNOWN warning on line 2 naming the word, got %+v", in, prog.LanguageNotes)
+		}
+	}
+	// Control: a misspelt statement the catch-all never accepted was an error
+	// under mdl 0 before, and stays one.
+	if _, errs := Build("craete persistent entity Shop.Note (Text: string(200));"); len(errs) == 0 {
+		t.Error("a misspelt create with a body parsed under mdl 0")
 	}
 }
 

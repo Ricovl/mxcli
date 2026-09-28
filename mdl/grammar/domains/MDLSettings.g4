@@ -283,11 +283,12 @@ linkMapping
  * CREATE MODULE ROLE alternative wins as it did before.
  */
 helpStatement
-    // Only `help`, `exit` and `quit` start one (IsHelpWord, MDLParser.g4).
-    // Without the predicate every IDENTIFIER did, so `craete entity M.E;`
-    // was a help statement with a topic, parsed without error and dropped
-    // (ako/mxcli#755, R7).
-    : {IsHelpWord(p.GetTokenStream().LT(1).GetText())}?
+    // Under mdl 1 only `help`, `exit` and `quit` start one (IsHelpWord,
+    // MDLParser.g4). Without the predicate every IDENTIFIER did, so `craete
+    // entity M.E;` was a help statement with a topic, parsed without error and
+    // dropped (ako/mxcli#755, R7). The rejection is new, so under mdl 0 the
+    // rule still takes any word and the visitor warns (ADR-0011).
+    : {IsHelpWord(p.GetTokenStream().LT(1).GetText()) || !IsMdl1Parse(p)}?
       IDENTIFIER (helpTopicWord (DOT? helpTopicWord)*)?  // HELP [topic]
     ;
 
