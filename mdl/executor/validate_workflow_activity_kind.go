@@ -205,6 +205,15 @@ func validateAlterWorkflowActivityKinds(ctx *ExecContext, s *ast.AlterWorkflowSt
 			check(o.ActivityRef, o.AtPosition, slotConditionOutcome)
 		case *ast.InsertBoundaryEventOp:
 			check(o.ActivityRef, o.AtPosition, slotBoundaryEvent)
+		case *ast.InsertBeforeOp:
+			// A flow begins with its start activity; anything before it is
+			// CE9526 "Main process in workflow should start with a start event".
+			if _, ok := resolveStoredActivity(wf.Flow, o.ActivityRef, o.AtPosition).(*workflows.StartWorkflowActivity); ok {
+				errs = append(errs, fmt.Sprintf(
+					"`insert before %s` is refused: '%s' is the workflow's start activity, and a flow must begin with it "+
+						"(mx check CE9526); use `insert after %s { … }` to add activities at the start of the flow",
+					o.ActivityRef, o.ActivityRef, o.ActivityRef))
+			}
 		}
 	}
 	return errs
