@@ -30,14 +30,14 @@ create or modify entity WidgetProbe.Ticket (
   Status: enum WidgetProbe.Status
 );
 
-create or replace page WidgetProbe.PDeprecatedWidgets
+create or modify page WidgetProbe.PDeprecatedWidgets
 (
-  params: { $Ticket: WidgetProbe.Ticket },
+  params: ( $Ticket: WidgetProbe.Ticket ),
   title: 'Deprecated built-in widgets',
   layout: Atlas_Core.Atlas_Default
 )
 {
-  layoutgrid lg1 { row row1 { column col1 (desktopwidth: autofill) {
+  layoutgrid lg1 { row { column (desktopwidth: autofill) {
   dataview dvTicket (datasource: $Ticket) {
     textbox txtTitle (label: 'Title', attribute: Title)
 

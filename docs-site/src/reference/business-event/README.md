@@ -15,5 +15,5 @@ Business event services enable asynchronous, event-driven communication between 
 
 | Statement | Syntax |
 |-----------|--------|
-| Show business events | `SHOW BUSINESS EVENTS [IN module]` |
+| Show business events | `LIST BUSINESS EVENTS [IN module]` |
 | Describe service | `DESCRIBE BUSINESS EVENT SERVICE module.Name` |

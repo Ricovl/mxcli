@@ -47,22 +47,22 @@ create association TODO12.Task_Assignee
   from TODO12.Task to TODO12.Person;
 
 -- (1) Direct binding: the grid's data source IS the specialization.
-create or replace page TODO12.People
+create or modify page TODO12.People
 ( Title: 'People', Layout: Atlas_Core.Atlas_Default )
 {
   datagrid gridPeople (datasource: database from TODO12.Person) {
-    column colOwn       (caption: 'Available', attribute: IsAvailable)
-    column colInherited (caption: 'Full name', attribute: FullName)
+    column       (caption: 'Available', attribute: IsAvailable)
+    column (caption: 'Full name', attribute: FullName)
   }
 }
 
 -- (2) Association path: the final hop lands on the specialization.
-create or replace page TODO12.Tasks
+create or modify page TODO12.Tasks
 ( Title: 'Tasks', Layout: Atlas_Core.Atlas_Default )
 {
   datagrid gridTasks (datasource: database from TODO12.Task) {
-    column colTitle    (caption: 'Title',     attribute: Title)
-    column colOwnHop   (caption: 'Available', attribute: Task_Assignee/IsAvailable)
-    column colInhHop   (caption: 'Full name', attribute: Task_Assignee/FullName)
+    column    (caption: 'Title',     attribute: Title)
+    column   (caption: 'Available', attribute: Task_Assignee/IsAvailable)
+    column   (caption: 'Full name', attribute: Task_Assignee/FullName)
   }
 }

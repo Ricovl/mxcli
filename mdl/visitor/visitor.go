@@ -35,10 +35,13 @@ func newErrorListener() *errorListener {
 }
 
 // SyntaxError is called by ANTLR when a syntax error is encountered.
-func (l *errorListener) SyntaxError(_ antlr.Recognizer, _ any, line, column int, msg string, _ antlr.RecognitionException) {
+func (l *errorListener) SyntaxError(rec antlr.Recognizer, sym any, line, column int, msg string, _ antlr.RecognitionException) {
 	offending := ""
 	if line >= 1 && line <= len(l.source) {
 		offending = l.source[line-1]
+	}
+	if word, ok := unknownStatementWord(rec, sym, msg); ok {
+		msg = unknownStatementMessage(word)
 	}
 	enhancedMsg := l.deduplicateHint(enhanceErrorMessage(msg, offending), line)
 	l.errors = append(l.errors, fmt.Errorf("line %d:%d %s", line, column, enhancedMsg))
@@ -121,6 +124,25 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 			"    mdl 1;\n"+
 			"    create entity Shop.Customer ( Name: String(200) );   (correct)", msg)
 	}
+	// Grammar removed as dead (ako/mxcli#756): it parsed, and could never
+	// succeed. The parse error is where the explanation now has to live.
+	if workflowAccessRe.MatchString(offendingLine) {
+		return fmt.Sprintf("%s\n\n  A Mendix workflow has no allowed roles of its own, so there is nothing to\n"+
+			"  grant or revoke on it. Who may start a workflow is decided by the microflow\n"+
+			"  that calls it, and who may act on it by each user task's targeting:\n"+
+			"    grant execute on microflow Mod.ACT_StartApproval to Mod.Manager;   (correct)\n"+
+			"    grant execute on workflow Mod.Approval to Mod.Manager;             (removed)", msg)
+	}
+	if strings.Contains(msg, "'else' expecting {WHEN, END}") {
+		return fmt.Sprintf("%s\n\n  An enumeration split (`case`) has no default branch: Mendix gives it one\n"+
+			"  outgoing flow per value plus one for (empty), and no `else` flow. Write a\n"+
+			"  `when` for every value, and `when (empty)` for an unset one:\n"+
+			"    case $Order/Status\n"+
+			"      when Open then …\n"+
+			"      when Closed, Cancelled then …\n"+
+			"      when (empty) then …\n"+
+			"    end case;", msg)
+	}
 	// A `\'` in a string literal under mdl 1, where a backslash no longer
 	// escapes: the literal ends at the quote, and the rest of the line is read
 	// as MDL. Under mdl 0 the same text parses, so the hint only fires on an
@@ -146,8 +168,8 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 	if looksLikeQuotedGrantAttribute(msg) {
 		return fmt.Sprintf("%s\n\n  Attribute-level GRANT uses unquoted identifiers inside parentheses,\n"+
 			"  not quoted strings. Comma-separate multiple attributes:\n"+
-			"    GRANT Mod.Role ON Mod.Entity (READ (Attr1, Attr2), WRITE (Attr1));  (correct)\n"+
-			"    GRANT Mod.Role ON Mod.Entity (READ \"Attr1\", \"Attr2\");            (wrong — causes parse error)", msg)
+			"    GRANT READ (Attr1, Attr2), WRITE (Attr1) ON ENTITY Mod.Entity TO Mod.Role;  (correct)\n"+
+			"    GRANT READ \"Attr1\", \"Attr2\" ON ENTITY Mod.Entity TO Mod.Role;            (wrong — causes parse error)", msg)
 	}
 
 	// Check for an `=` between an enumeration value name and its caption. Users
@@ -299,6 +321,9 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 	// command away. (Kept to one line since it can repeat across cascading errors.)
 	return msg + "  [see: mxcli syntax <topic>, e.g. entity | microflow | page]"
 }
+
+// workflowAccessRe matches the removed `grant|revoke execute on workflow`.
+var workflowAccessRe = regexp.MustCompile(`(?i)^\s*(grant|revoke)\s+execute\s+on\s+workflow\b`)
 
 // addMissingAttributeRe matches `add <name>:` on a source line — the shape of an
 // ALTER ENTITY add-attribute clause missing its `attribute` keyword. The captured
@@ -514,6 +539,10 @@ type Builder struct {
 	// stringLits are the string literals of the parse tree, by token index,
 	// for the string-escape rewrite to find the expression each is in.
 	stringLits map[int]antlr.TerminalNode
+	// createStart is len(statements) when the current createStatement was
+	// entered, so ExitCreateStatement can tell which statement it built — see
+	// applyCreateGuard.
+	createStart int
 }
 
 // NewBuilder creates a new AST builder.

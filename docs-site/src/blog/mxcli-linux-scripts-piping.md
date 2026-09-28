@@ -11,7 +11,7 @@
 ## Running Commands Non-Interactively
 
 ```bash
-mxcli -p app.mpr -c "SHOW ENTITIES"
+mxcli -p app.mpr -c "LIST ENTITIES"
 mxcli -p app.mpr -c "DESCRIBE CustomerModule.Customer"
 ```
 
@@ -20,8 +20,8 @@ mxcli -p app.mpr -c "DESCRIBE CustomerModule.Customer"
 ## JSON Output
 
 ```bash
-mxcli -p app.mpr -c "SHOW ENTITIES" --json
-mxcli -p app.mpr -c "SHOW ENTITIES" --json | jq '.[] | .name'
+mxcli -p app.mpr -c "LIST ENTITIES" --json
+mxcli -p app.mpr -c "LIST ENTITIES" --json | jq '.[] | .name'
 ```
 
 <!-- TODO: cover --json flag across commands, structure of the output -->

@@ -16,8 +16,9 @@ import (
 // something other than what the model calls it, and each one is a place the two
 // vocabularies can drift. A type absent from this map is not a gap.
 var documentKindOverrides = map[string]string{
-	"Menus$MenuDocument":                     "menu",
-	"Rest$ConsumedRestService":               "rest client",
+	"Menus$MenuDocument": "menu",
+	// Studio Pro calls it a task queue; the stored $Type says only "Queue".
+	"Queues$Queue":                           "task queue",
 	"Rest$PublishedRestService":              "published rest service",
 	"CustomBlobDocuments$CustomBlobDocument": "agent document",
 	"CustomIcons$CustomIconCollection":       "icon collection",
@@ -26,8 +27,8 @@ var documentKindOverrides = map[string]string{
 	// one word, so it produces "consumed o data service" and "java script
 	// action". These are the derivation's blind spot, not a vocabulary
 	// difference.
-	"Rest$ConsumedODataService":          "odata client",
-	"ODataPublish$PublishedODataService": "odata service",
+	"Rest$ConsumedODataService":          "consumed odata service",
+	"ODataPublish$PublishedODataService": "published odata service",
 	"JavaScriptActions$JavaScriptAction": "javascript action",
 }
 

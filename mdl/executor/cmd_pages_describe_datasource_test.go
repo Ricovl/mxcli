@@ -299,7 +299,7 @@ func TestDataSourceArgsRoundTrip(t *testing.T) {
 		t.Errorf("second arg = %+v, want {Limit 10}", got.Args[1])
 	}
 
-	want := "microflow Mod.DS_Filtered(Term: $Term, Limit: 10)"
+	want := "microflow Mod.DS_Filtered(Term = $Term, Limit = 10)"
 	if expr := dataSourceExpr(got); expr != want {
 		t.Errorf("rendered %q, want %q", expr, want)
 	}
@@ -345,7 +345,7 @@ func TestDataSourceArgsNanoflowFlat(t *testing.T) {
 	if got == nil {
 		t.Fatal("nanoflow datasource not read")
 	}
-	want := "nanoflow Mod.NF_Rows(Ctx: $currentObject)"
+	want := "nanoflow Mod.NF_Rows(Ctx = $currentObject)"
 	if expr := dataSourceExpr(got); expr != want {
 		t.Errorf("rendered %q, want %q", expr, want)
 	}
@@ -369,7 +369,7 @@ func TestDataSourceArgsNanoflow(t *testing.T) {
 	if got == nil {
 		t.Fatal("nanoflow datasource not read")
 	}
-	want := "nanoflow Mod.NF_Rows(Ctx: $currentObject)"
+	want := "nanoflow Mod.NF_Rows(Ctx = $currentObject)"
 	if expr := dataSourceExpr(got); expr != want {
 		t.Errorf("rendered %q, want %q", expr, want)
 	}

@@ -15,19 +15,17 @@ import (
 // table, Column a foreign-key column on the FROM entity's table. Flipping it on a
 // deployed app migrates the database.
 //
-// DESCRIBE printed `storage column` and nothing for Table (its comment called
-// Table "the default"), while CREATE [OR MODIFY] defaulted an unstated storage to
-// Column and applied it to an existing association too. So replaying unchanged
-// DESCRIBE output of a Studio Pro table-stored association — measured on PedApp's
-// Administration.AccountPasswordData_Account — silently turned it into a column
-// association, and `mxcli diff` said "(no changes)" because neither side of the
-// script differ rendered storage at all.
+// DESCRIBE used to print `storage column` and nothing for Table (its comment
+// called Table "the default"), while CREATE defaults an unstated storage to
+// Column. So a description of a Studio Pro table-stored association — measured on
+// PedApp's Administration.AccountPasswordData_Account — replayed elsewhere, or as
+// plain `create`, produced a column association.
 //
-// #704 made OR MODIFY carry an unstated storage, which closed the loop for this
-// replay — but only by accident of the carry. DESCRIBE itself still did not say
-// what is stored, so a description taken to ANOTHER project, or run with plain
-// `create`, still produced Column. The assertion is therefore on the MDL: the
-// replayed statement must STATE the stored storage, not merely end up there.
+// #704 made OR MODIFY carry an unstated storage, which closes the same-project
+// replay by accident of the carry; describe now omits only the create default
+// (R12, #748). The assertion is therefore on the MDL: the replayed statement,
+// read with CREATE's defaults, must mean the stored storage — not merely end up
+// there because OR MODIFY carried it.
 func TestDescribeAssociationStorageSurvivesReplay(t *testing.T) {
 	for _, stored := range []domainmodel.AssociationStorageFormat{
 		domainmodel.StorageFormatTable, domainmodel.StorageFormatColumn,
@@ -45,12 +43,14 @@ func TestDescribeAssociationStorageSurvivesReplay(t *testing.T) {
 				t.Fatalf("DESCRIBE emitted MDL the parser rejects: %v\n%s", errs, buf.String())
 			}
 			stmt := prog.Statements[0].(*ast.CreateAssociationStmt)
-			want := map[domainmodel.AssociationStorageFormat]ast.StorageType{
-				domainmodel.StorageFormatTable:  ast.StorageTable,
-				domainmodel.StorageFormatColumn: ast.StorageColumn,
-			}[stored]
-			if stmt.Storage != want {
-				t.Errorf("DESCRIBE does not state storage %s\n%s", stored, buf.String())
+			// What plain `create` of this text would store: a stated storage, or
+			// CREATE's default (Column).
+			asCreated, stated := statedStorageFormat(stmt.Storage)
+			if !stated {
+				asCreated = domainmodel.StorageFormatColumn
+			}
+			if asCreated != stored {
+				t.Errorf("DESCRIBE of storage %s reads back as %s under CREATE's defaults\n%s", stored, asCreated, buf.String())
 			}
 			stmt.CreateOrModify = true
 			assertNoError(t, execCreateAssociation(ctx, stmt))

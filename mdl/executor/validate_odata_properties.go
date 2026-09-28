@@ -82,7 +82,7 @@ func ValidateODataProperties(prog *ast.Program) []linter.Violation {
 				out = append(out, legacyODataExpression(loc, "header "+h.Key, h.Value)...)
 			}
 		case *ast.AlterODataClientStmt:
-			loc := "alter odata client " + s.Name.String()
+			loc := "alter consumed odata service " + s.Name.String()
 			names := make([]string, 0, len(s.Changes))
 			for name := range s.Changes {
 				names = append(names, name)

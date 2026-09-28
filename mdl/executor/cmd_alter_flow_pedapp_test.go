@@ -392,7 +392,7 @@ func TestAlterMicroflow_PedApp_InsertAfterChangesOnlyTheSplice(t *testing.T) {
 	}
 	body := buf.String()
 	iCall := strings.Index(body, "$IsValidEmail = call java action")
-	iLog := strings.Index(body, "log info node 'Feedback' 'Email checked';")
+	iLog := strings.Index(body, "log node 'Feedback' 'Email checked';")
 	iSplit := strings.Index(body, "@caption 'Email is Valid?'")
 	if iCall < 0 || iLog < iCall || iSplit < iLog {
 		t.Errorf("describe does not show the log between the call and the decision:\n%s", body)

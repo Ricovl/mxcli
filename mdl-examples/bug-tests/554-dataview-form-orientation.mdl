@@ -30,14 +30,14 @@ CREATE PERSISTENT ENTITY Bug554.Customer (
   Name: String(200)
 );
 
-CREATE OR REPLACE PAGE Bug554.PageVertical (
+CREATE OR MODIFY PAGE Bug554.PageVertical (
   Title: 'Vertical form',
   Layout: Atlas_Core.PopupLayout,
-  Params: { $Customer: Bug554.Customer }
+  Params: ( $Customer: Bug554.Customer )
 ) {
   layoutgrid lg {
-    row r {
-      column c (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
         dataview dv (DataSource: $Customer, FormOrientation: Vertical) {
           textbox tb (Label: 'Name', Attribute: Name)
         }
@@ -46,14 +46,14 @@ CREATE OR REPLACE PAGE Bug554.PageVertical (
   }
 }
 
-CREATE OR REPLACE PAGE Bug554.PageHorizontal (
+CREATE OR MODIFY PAGE Bug554.PageHorizontal (
   Title: 'Horizontal form',
   Layout: Atlas_Core.PopupLayout,
-  Params: { $Customer: Bug554.Customer }
+  Params: ( $Customer: Bug554.Customer )
 ) {
   layoutgrid lg {
-    row r {
-      column c (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
         dataview dv (DataSource: $Customer, FormOrientation: Horizontal) {
           textbox tb (Label: 'Name', Attribute: Name)
         }
@@ -62,14 +62,14 @@ CREATE OR REPLACE PAGE Bug554.PageHorizontal (
   }
 }
 
-CREATE OR REPLACE PAGE Bug554.PageLabelWidth5 (
+CREATE OR MODIFY PAGE Bug554.PageLabelWidth5 (
   Title: 'LabelWidth=5',
   Layout: Atlas_Core.PopupLayout,
-  Params: { $Customer: Bug554.Customer }
+  Params: ( $Customer: Bug554.Customer )
 ) {
   layoutgrid lg {
-    row r {
-      column c (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
         dataview dv (DataSource: $Customer, LabelWidth: 5) {
           textbox tb (Label: 'Name', Attribute: Name)
         }

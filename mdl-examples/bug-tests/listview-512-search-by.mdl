@@ -42,7 +42,7 @@ create persistent entity MyFirstModule.Vehicle (
   Model: string(100)
 );
 
-create or replace page MyFirstModule.SearchBy (
+create or modify page MyFirstModule.SearchBy (
   title: 's', layout: 'Atlas_Core.Atlas_Default'
 ) {
   listview lvS (

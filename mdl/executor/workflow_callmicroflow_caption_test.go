@@ -20,9 +20,9 @@ func TestFormatCallMicroflow_CaptionRoundTrips(t *testing.T) {
 		name, caption, wantClause string
 		agent                     bool
 	}{
-		{"authored caption", "Summarise the order", "comment 'Summarise the order'", false},
-		{"authored caption on an agent task", "Classify", "comment 'Classify'", true},
-		{"quote escaped", "it's done", "comment 'it''s done'", false},
+		{"authored caption", "Summarise the order", "caption 'Summarise the order'", false},
+		{"authored caption on an agent task", "Classify", "caption 'Classify'", true},
+		{"quote escaped", "it's done", "caption 'it''s done'", false},
 		{"derived default is not a comment clause", "ACT_Summarise", "", false},
 	}
 	for _, c := range cases {
@@ -37,7 +37,7 @@ func TestFormatCallMicroflow_CaptionRoundTrips(t *testing.T) {
 			out := strings.Join(formatSingleActivity(task, "  "), "\n")
 
 			if c.wantClause == "" {
-				if strings.Contains(out, " comment ") {
+				if strings.Contains(out, " caption ") {
 					t.Errorf("derived caption must not become a comment clause: %q", out)
 				}
 			} else if !strings.Contains(out, c.wantClause) {

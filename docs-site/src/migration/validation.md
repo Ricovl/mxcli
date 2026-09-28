@@ -65,7 +65,7 @@ $Line = CREATE Sales.OrderLine (Price = 10.00, Quantity = 3);
 CHANGE $Line (Sales.OrderLine_Order = $Order);
 COMMIT $Line;
 
-CALL MICROFLOW Sales.ACT_Order_CalculateTotal ($Order = $Order);
+CALL MICROFLOW Sales.ACT_Order_CalculateTotal (Order = $Order);
 
 -- @assert: $Order/TotalAmount = 30.00
 ```
@@ -95,7 +95,7 @@ mxcli docker check -p app.mpr          # No compiler errors
 mxcli lint -p app.mpr                  # No critical lint issues
 mxcli report -p app.mpr               # Review quality scores
 mxcli test tests/ -p app.mpr          # All tests pass
-mxcli -p app.mpr -c "SHOW STRUCTURE DEPTH 2"  # Review structure
+mxcli -p app.mpr -c "DESCRIBE STRUCTURE DEPTH 2"  # Review structure
 ```
 
 ## Iterative Workflow

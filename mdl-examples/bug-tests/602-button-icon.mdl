@@ -23,7 +23,7 @@
 
 create module I602;
 
-create or replace page I602.IconButtons
+create or modify page I602.IconButtons
 ( Title: 'Icon Buttons', Layout: Atlas_Core.Atlas_Default )
 {
   -- Link render mode + icon

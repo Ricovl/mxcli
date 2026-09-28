@@ -293,7 +293,7 @@ func outputContractEntityMDL(ctx *ExecContext, et *types.EdmEntityType, svcQN st
 	}
 
 	fmt.Fprintf(ctx.Output, "create external entity %s.%s\n", module, et.Name)
-	fmt.Fprintf(ctx.Output, "from odata client %s (\n", svcQN)
+	fmt.Fprintf(ctx.Output, "from consumed odata service %s (\n", svcQN)
 	fmt.Fprintf(ctx.Output, "    EntitySet: '%s',\n", entitySetName)
 	fmt.Fprintf(ctx.Output, "    RemoteName: '%s',\n", et.Name)
 	fmt.Fprintf(ctx.Output, "    Countable: Yes\n")

@@ -35,7 +35,7 @@
 refresh catalog full;
 
 -- Every language in the project, not only the ones on a page title.
-show languages;
+list languages;
 
 -- A widget caption is translatable text; before the fix this found nothing.
 search 'Opslaan';

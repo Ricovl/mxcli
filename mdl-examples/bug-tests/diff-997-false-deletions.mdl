@@ -20,7 +20,7 @@
 -- and a real edit must still show. Change 'Ford' to 'Tesla' in the dump and
 -- diff again — one line, and the java action stays as context.
 
-create or replace microflow MyFirstModule.ACT_Diff997 (
+create or modify microflow MyFirstModule.ACT_Diff997 (
   $Email: String
 )
 returns Boolean as $Ok
@@ -37,7 +37,7 @@ end;
 
 -- `show message` was also among the 25 unrendered types, and nanoflows went
 -- through the same second renderer.
-create or replace nanoflow MyFirstModule.NF_Diff997 ($In: String)
+create or modify nanoflow MyFirstModule.NF_Diff997 ($In: String)
 returns String as $Out
 begin
   @position(200, 200)

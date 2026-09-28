@@ -39,5 +39,5 @@ from MyFirstModule.BugOrder to Administration.Account
 type reference
 owner default
 storage column
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /

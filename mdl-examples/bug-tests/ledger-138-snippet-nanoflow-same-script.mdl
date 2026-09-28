@@ -44,17 +44,17 @@ end;
 -- The snippet is written AFTER the nanoflows it calls, which is the ordering
 -- MDL-ORDER01 requires. #138 is the inverse of that rule: a reference to
 -- something created EARLIER being reported as missing.
-create or replace snippet Ledger138.SNIPPET_ThemeBar
+create or modify snippet Ledger138.SNIPPET_ThemeBar
 {
   container ctnThemeBar (Class: 'ledger-themebar') {
     actionbutton btnSkinPaper (
       Caption: 'Ledger Paper',
-      Action: nanoflow Ledger138.ACT_SkinLedgerPaper,
+      Action: call nanoflow Ledger138.ACT_SkinLedgerPaper,
       Class: 'ledger-themebar-btn'
     )
     actionbutton btnSkinIng (
       Caption: 'ING',
-      Action: nanoflow Ledger138.ACT_SkinIng,
+      Action: call nanoflow Ledger138.ACT_SkinIng,
       Class: 'ledger-themebar-btn'
     )
   }

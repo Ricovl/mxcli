@@ -67,22 +67,21 @@ owner both;
  * Basic Gallery showing Task cards with title and description.
  * Validates: GALLERY widget, DATABASE datasource, TEMPLATE with DYNAMICTEXT.
  */
-create page CWTest.P_Gallery_Basic
+create page CWTest.P_Gallery_Basic folder 'CustomWidgets'
 (
   title: 'Gallery Basic',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'CustomWidgets'
+  layout: Atlas_Core.Atlas_Default
 )
 {
   layoutgrid lgMain {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         gallery galTasks (
           datasource: database CWTest.task sort by title asc
         ) {
-          template tpl1 {
-            dynamictext dtTitle (content: '{1}', contentparams: [{1} = title], rendermode: H4)
-            dynamictext dtDesc (content: '{1}', contentparams: [{1} = description])
+          template {
+            dynamictext dtTitle (content: '{1}', contentparams: ({1} = title), rendermode: H4)
+            dynamictext dtDesc (content: '{1}', contentparams: ({1} = description))
           }
         }
       }
@@ -102,24 +101,23 @@ create page CWTest.P_Gallery_Basic
  * KNOWN BUG: CE0463 on TEXTFILTER due to embedded template mismatch.
  * The MDL syntax is correct; the engine template needs re-extraction.
  */
-create page CWTest.P_Gallery_Filtered
+create page CWTest.P_Gallery_Filtered folder 'CustomWidgets'
 (
   title: 'Gallery with Filter',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'CustomWidgets'
+  layout: Atlas_Core.Atlas_Default
 )
 {
   layoutgrid lgMain {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         gallery galFiltered (
           datasource: database CWTest.task sort by DueDate desc
         ) {
-          template tpl1 {
-            dynamictext dtTitle (content: '{1}', contentparams: [{1} = title], rendermode: H4)
-            dynamictext dtPriority (content: 'Priority: {1}', contentparams: [{1} = Priority])
+          template {
+            dynamictext dtTitle (content: '{1}', contentparams: ({1} = title), rendermode: H4)
+            dynamictext dtPriority (content: 'Priority: {1}', contentparams: ({1} = Priority))
           }
-          filter flt1 {
+          filter {
             textfilter tfSearch (attribute: title)
           }
         }
@@ -141,20 +139,19 @@ create page CWTest.P_Gallery_Filtered
  *
  * @param $Task The task to edit
  */
-create page CWTest.P_ComboBox_Enum
+create page CWTest.P_ComboBox_Enum folder 'CustomWidgets'
 (
-  params: {
+  params: (
     $task: CWTest.task
-  },
+  ),
   title: 'ComboBox Enum',
-  layout: Atlas_Core.PopupLayout,
-  folder: 'CustomWidgets'
+  layout: Atlas_Core.PopupLayout
 )
 {
   dataview dvTask (datasource: $task) {
     layoutgrid lg1 {
-      row row1 {
-        column col1 (desktopwidth: 12) {
+      row {
+        column (desktopwidth: 12) {
           textbox txtTitle (label: 'Title', attribute: title)
           combobox cmbPriority (label: 'Priority', attribute: Priority)
           datepicker dpDue (label: 'Due Date', attribute: DueDate)
@@ -162,8 +159,8 @@ create page CWTest.P_ComboBox_Enum
       }
     }
     footer footer1 {
-      actionbutton btnSave (caption: 'Save', action: save_changes close_page, buttonstyle: success)
-      actionbutton btnCancel (caption: 'Cancel', action: cancel_changes close_page, buttonstyle: default)
+      actionbutton btnSave (caption: 'Save', action: save changes close page, buttonstyle: success)
+      actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }
   }
 }
@@ -181,20 +178,19 @@ create page CWTest.P_ComboBox_Enum
  *
  * @param $Task The task to edit
  */
-create page CWTest.P_ComboBox_Assoc
+create page CWTest.P_ComboBox_Assoc folder 'CustomWidgets'
 (
-  params: {
+  params: (
     $task: CWTest.task
-  },
+  ),
   title: 'ComboBox Association',
-  layout: Atlas_Core.PopupLayout,
-  folder: 'CustomWidgets'
+  layout: Atlas_Core.PopupLayout
 )
 {
   dataview dvTask (datasource: $task) {
     layoutgrid lg1 {
-      row row1 {
-        column col1 (desktopwidth: 12) {
+      row {
+        column (desktopwidth: 12) {
           textbox txtTitle (label: 'Title', attribute: title)
           combobox cmbCategory (
             label: 'Category',
@@ -206,8 +202,8 @@ create page CWTest.P_ComboBox_Assoc
       }
     }
     footer footer1 {
-      actionbutton btnSave (caption: 'Save', action: save_changes close_page, buttonstyle: success)
-      actionbutton btnCancel (caption: 'Cancel', action: cancel_changes close_page, buttonstyle: default)
+      actionbutton btnSave (caption: 'Save', action: save changes close page, buttonstyle: success)
+      actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }
   }
 }
@@ -223,16 +219,15 @@ create page CWTest.P_ComboBox_Assoc
  * Page with a basic pluggable Image widget using default settings.
  * The IMAGE keyword creates a com.mendix.widget.web.image.Image widget.
  */
-create page CWTest.P_Image_Basic
+create page CWTest.P_Image_Basic folder 'CustomWidgets'
 (
   title: 'Image Basic',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'CustomWidgets'
+  layout: Atlas_Core.Atlas_Default
 )
 {
   layoutgrid lgMain {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         -- An image needs a SOURCE. The widget's default source is an image
         -- collection entry, which MDL cannot yet name, so the bare form builds
         -- to "No image selected." (MDL-WIDGET22). The URL form is complete.
@@ -255,16 +250,15 @@ create page CWTest.P_Image_Basic
  * the template's imageUrl property is null and cannot be created from
  * scratch without triggering CE0463.
  */
-create page CWTest.P_Image_Dimensions
+create page CWTest.P_Image_Dimensions folder 'CustomWidgets'
 (
   title: 'Image Dimensions',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'CustomWidgets'
+  layout: Atlas_Core.Atlas_Default
 )
 {
   layoutgrid lgMain {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         image imgBanner (
           ImageType: imageUrl,
           ImageUrl: 'https://example.com/banner.png',
@@ -293,20 +287,19 @@ create page CWTest.P_Image_Dimensions
  *
  * @param $Task The task whose image to display
  */
-create page CWTest.P_Image_OnClick
+create page CWTest.P_Image_OnClick folder 'CustomWidgets'
 (
-  params: {
+  params: (
     $task: CWTest.task
-  },
+  ),
   title: 'Image with OnClick',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'CustomWidgets'
+  layout: Atlas_Core.Atlas_Default
 )
 {
   dataview dvTask (datasource: $task) {
     layoutgrid lgMain {
-      row row1 {
-        column col1 (desktopwidth: 6) {
+      row {
+        column (desktopwidth: 6) {
           -- DisplayAs is NOT set here on purpose: the widget hides it unless
           -- the source is an image collection entry, and MDL cannot name one
           -- (MDL-WIDGET22), so this page uses the URL source. Setting DisplayAs
@@ -319,9 +312,9 @@ create page CWTest.P_Image_OnClick
             width: 300
           )
         }
-        column col2 (desktopwidth: 6) {
-          dynamictext dtTitle (content: '{1}', contentparams: [{1} = title], rendermode: H3)
-          dynamictext dtDesc (content: '{1}', contentparams: [{1} = description])
+        column (desktopwidth: 6) {
+          dynamictext dtTitle (content: '{1}', contentparams: ({1} = title), rendermode: H3)
+          dynamictext dtDesc (content: '{1}', contentparams: ({1} = description))
         }
       }
     }

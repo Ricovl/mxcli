@@ -833,9 +833,9 @@ func TestAlterWorkflow_InsertAfter(t *testing.T) {
 		t.Errorf("Expected ActivityRef 'Review', got %q", op.ActivityRef)
 	}
 
-	callMf, ok := op.NewActivity.(*ast.WorkflowCallMicroflowNode)
+	callMf, ok := op.NewActivities[0].(*ast.WorkflowCallMicroflowNode)
 	if !ok {
-		t.Fatalf("Expected WorkflowCallMicroflowNode, got %T", op.NewActivity)
+		t.Fatalf("Expected WorkflowCallMicroflowNode, got %T", op.NewActivities[0])
 	}
 	if callMf.Microflow.Name != "SendNotification" {
 		t.Errorf("Expected Microflow 'SendNotification', got %q", callMf.Microflow.Name)
@@ -883,9 +883,9 @@ func TestAlterWorkflow_ReplaceActivity(t *testing.T) {
 		t.Errorf("Expected ActivityRef 'OldStep', got %q", op.ActivityRef)
 	}
 
-	_, ok = op.NewActivity.(*ast.WorkflowCallMicroflowNode)
+	_, ok = op.NewActivities[0].(*ast.WorkflowCallMicroflowNode)
 	if !ok {
-		t.Fatalf("Expected WorkflowCallMicroflowNode, got %T", op.NewActivity)
+		t.Fatalf("Expected WorkflowCallMicroflowNode, got %T", op.NewActivities[0])
 	}
 }
 

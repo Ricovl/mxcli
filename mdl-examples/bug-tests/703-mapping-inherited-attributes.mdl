@@ -39,7 +39,7 @@
 create module Map703;
 
 create json structure Map703.JSON_Contract
-snippet '{"docName": "NDA", "confidential": true, "contractNumber": "C-1"}';
+sample '{"docName": "NDA", "confidential": true, "contractNumber": "C-1"}';
 
 -- Parent supplies DocName (String) and Confidential (Boolean).
 create persistent entity Map703.DocumentBase (

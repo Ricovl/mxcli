@@ -5,13 +5,12 @@ Every MDL page has three main parts: page properties (title, layout, parameters)
 ## CREATE PAGE Syntax
 
 ```sql
-CREATE [OR REPLACE] PAGE <Module>.<Name>
+CREATE [OR REPLACE] PAGE <Module>.<Name> [FOLDER '<path>']
 (
-  [Params: { $Param: Module.Entity | Type [, ...] },]
+  [Params: ( $Param: Module.Entity | Type [, ...] ),]
   Title: '<title>',
   Layout: <Module.LayoutName>
-  [, Folder: '<path>']
-  [, Variables: { $name: Type = 'expression' [, ...] }]
+  [, Variables: ( $name: Type = 'expression' [, ...] )]
 )
 {
   <widget-tree>
@@ -42,7 +41,7 @@ Popup layouts are typically used for edit and detail pages:
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )
@@ -50,8 +49,8 @@ CREATE PAGE MyModule.Customer_Edit
   DATAVIEW dvCustomer (DataSource: $Customer) {
     TEXTBOX txtName (Label: 'Name', Attribute: Name)
     FOOTER footer1 {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 }
@@ -63,7 +62,7 @@ Page parameters define values that must be passed when the page is opened. Param
 
 ```sql
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   ...
 )
 ```
@@ -72,7 +71,7 @@ Multiple parameters are comma-separated, and can mix entity and primitive types:
 
 ```sql
 (
-  Params: { $Order: Sales.Order, $Quantity: Integer, $IsNew: Boolean },
+  Params: ( $Order: Sales.Order, $Quantity: Integer, $IsNew: Boolean ),
   ...
 )
 ```
@@ -87,7 +86,7 @@ Page variables store local state (booleans, strings, etc.) that can control widg
 (
   Title: 'Product Detail',
   Layout: Atlas_Core.Atlas_Default,
-  Variables: { $showDetails: Boolean = 'true' }
+  Variables: ( $showDetails: Boolean = 'true' )
 )
 ```
 
@@ -183,22 +182,21 @@ The widget tree is a nested hierarchy. Container widgets hold child widgets with
 
 ## Folder Organization
 
-Use the `Folder` property to organize pages into folders within a module:
+Use the `FOLDER` clause after the name to organize pages into folders within a module:
 
 ```sql
-CREATE PAGE MyModule.Customer_Edit
+CREATE PAGE MyModule.Customer_Edit FOLDER 'Customers'
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
-  Layout: Atlas_Core.PopupLayout,
-  Folder: 'Customers'
+  Layout: Atlas_Core.PopupLayout
 )
 {
   ...
 }
 ```
 
-Nested folders use `/` separators: `Folder: 'Pages/Customers/Detail'`. Missing folders are auto-created.
+Nested folders use `/` separators: `FOLDER 'Pages/Customers/Detail'`. Missing folders are auto-created. The `Folder: '…'` property is a deprecated alias of the clause (`MDL-DEPR105`).
 
 ## See Also
 

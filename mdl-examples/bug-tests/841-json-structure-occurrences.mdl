@@ -37,11 +37,11 @@ create module role Issue841.User;
 
 -- Object root with a nested object, an object array, and a primitive array.
 create json structure Issue841."JSON_SearchRoutes"
-  snippet $${"pagination":{"page":1,"pageSize":1,"totalItems":10,"totalPages":10},"items":[{"id":"a","name":"b"}],"tags":["x","y"]}$$;
+  sample $${"pagination":{"page":1,"pageSize":1,"totalItems":10,"totalPages":10},"items":[{"id":"a","name":"b"}],"tags":["x","y"]}$$;
 
 -- Array root: the other top-level shape, which used a separate builder.
 create json structure Issue841."JSON_RouteList"
-  snippet $$[{"id":"a","name":"b"}]$$;
+  sample $$[{"id":"a","name":"b"}]$$;
 
 -- Mappings BOUND to a structure. This half guards the follow-up defect: Mendix
 -- cross-validates every mapping element's occurrence against its schema element
@@ -57,7 +57,7 @@ create json structure Issue841."JSON_RouteList"
 -- Structures alone cannot catch this: the original repro created no mappings, so
 -- it passed mx check while the doctype suite went red.
 create json structure Issue841."JSON_Route"
-  snippet $${"id":"a","name":"b"}$$;
+  sample $${"id":"a","name":"b"}$$;
 
 @position(100, 300)
 create non-persistent entity Issue841.Route (

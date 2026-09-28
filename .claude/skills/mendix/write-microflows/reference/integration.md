@@ -86,7 +86,7 @@ MDL supports two patterns for calling REST APIs from microflows:
 
 ### SEND REST REQUEST — Consumed REST Service Operations
 
-Calls an operation defined in a consumed REST service (created via `create rest client`). The URL, headers, authentication, and response mapping are configured in the REST client document — the microflow only references the operation.
+Calls an operation defined in a consumed REST service (created via `create consumed rest service`). The URL, headers, authentication, and response mapping are configured in the REST client document — the microflow only references the operation.
 
 ```mdl
 -- Fire and forget (RESPONSE NONE operation)
@@ -94,6 +94,10 @@ send rest request Module.ServiceName.OperationName;
 
 -- With output variable (RESPONSE JSON operation — maps to entity)
 $Result = send rest request Module.ServiceName.OperationName;
+
+-- With path/query parameters, bound as at every call site: `Param = expression`
+$Result = send rest request Module.ServiceName.GetItem
+    with (id = $ItemId, lang = 'en');
 
 -- With request body (POST/PUT operations)
 $Result = send rest request Module.ServiceName.CreateItem
@@ -121,7 +125,7 @@ if $RootResult != empty then  -- ERROR!
 
 **Restrictions:**
 - `send rest request` does **NOT** support custom error handling (`on error continue/rollback` causes CE6035). Errors are always handled by aborting.
-- The operation must be defined via `create rest client` with a three-part qualified name: `Module.ServiceDocument.OperationName`.
+- The operation must be defined via `create consumed rest service` with a three-part qualified name: `Module.ServiceDocument.OperationName`.
 
 ### REST CALL — Inline HTTP Calls
 
@@ -129,13 +133,13 @@ Direct HTTP call with URL, headers, auth, body, and response handling specified 
 
 ```mdl
 -- Simple GET returning string
-$response = rest call get 'https://api.example.com/data'
+$response = call rest service get 'https://api.example.com/data'
     header Accept = 'application/json'
     timeout 30
     returns string;
 
 -- POST with JSON body
-$response = rest call post 'https://api.example.com/items'
+$response = call rest service post 'https://api.example.com/items'
     header 'Content-Type' = 'application/json'
     header Accept = 'application/json'
     body '{{"name": "{1}", "value": {2}}' with (
@@ -151,28 +155,28 @@ $response = rest call post 'https://api.example.com/items'
 -- itself, and the content type goes on a header. A consumed REST CLIENT
 -- document has no binary body — `Body: file from $Doc` there is refused as
 -- MDL-REST02 — so binary uploads belong here.
-$response = rest call post 'https://api.example.com/upload'
+$response = call rest service post 'https://api.example.com/upload'
     header 'ContentType' = 'application/pdf'
     body binary $Doc/Contents
     timeout 300
     returns response;
 
 -- GET with URL template parameters
-$response = rest call get 'https://api.example.com/users/{1}' with (
+$response = call rest service get 'https://api.example.com/users/{1}' with (
     {1} = toString($UserId)
 )
     header Accept = 'application/json'
     returns string;
 
 -- With basic authentication
-$response = rest call get 'https://api.example.com/secure'
+$response = call rest service get 'https://api.example.com/secure'
     header Accept = 'application/json'
     auth basic $username password $password
     timeout 30
     returns string;
 
 -- DELETE (no response)
-rest call delete 'https://api.example.com/items/{1}' with (
+call rest service delete 'https://api.example.com/items/{1}' with (
     {1} = $ItemId
 )
     returns nothing
@@ -181,7 +185,7 @@ rest call delete 'https://api.example.com/items/{1}' with (
 
 **REST CALL response types:**
 - `returns string` — response body as string variable
-- `returns nothing` / `returns none` — ignore response
+- `returns nothing` — ignore response (`returns none` is the deprecated second spelling, MDL-DEPR024)
 - `returns response` — returns `System.HttpResponse` object
 - `returns mapping Module.ImportMapping as Module.Entity` — single object result
 - `returns mapping Module.ImportMapping as list of Module.Entity` — list result
@@ -196,7 +200,7 @@ create persistent entity MyModule.MyFile extends System.FileDocument ();
 
 create microflow MyModule.ACT_Download ($Location: String)
 begin
-  $file = rest call get '{1}' with ({1} = $Location)
+  $file = call rest service get '{1}' with ({1} = $Location)
     header 'Accept' = 'application/octet-stream'
     timeout 300
     returns MyModule.MyFile;

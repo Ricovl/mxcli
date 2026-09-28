@@ -236,7 +236,7 @@ func refuseShowPageArgument(widgetName, target, argName, argValue string, c page
 	}
 	if !c.present {
 		return fmt.Sprintf(
-			"show_page %s: argument %s: %s cannot be stored — %s is not inside a data view, list view or grid row, "+
+			"show page %s: argument %s: %s cannot be stored — %s is not inside a data view, list view or grid row, "+
 				"so there is no context object at all, and a widget's page argument is always that object. "+
 				"The page would be opened with no argument, which mxbuild reports as CE1571 \"No argument has been "+
 				"selected for parameter '%s'\". Put the button inside a data widget bound to the object, or call a "+
@@ -244,7 +244,7 @@ func refuseShowPageArgument(widgetName, target, argName, argValue string, c page
 			target, argName, argValue, where, argName)
 	}
 	return fmt.Sprintf(
-		"show_page %s: argument %s: %s cannot be stored — a widget's page argument is always the enclosing context "+
+		"show page %s: argument %s: %s cannot be stored — a widget's page argument is always the enclosing context "+
 			"object, which mxcli records by leaving the mapping empty (an explicit one is rejected as CE0115). "+
 			"Writing %s here would silently open the page with %s instead. Use $currentObject%s, or call a microflow "+
 			"that shows the page with the object you want",

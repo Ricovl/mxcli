@@ -134,17 +134,17 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 		outputJavadoc(ctx.Output, svc.Description)
 	}
 
-	// describe keeps a plain `create` here, not `create or modify` (ADR-0012: carry or refuse,
-	// never silently drop). A `create or modify` rewrite of this type does not yet carry what
-	// describe cannot print, so re-running this output on an existing document would silently
-	// lose Studio Pro-authored content; a plain `create` refuses instead. Switch the verb only
-	// once the rewrite's carry is proven by the round-trip harness (see #743).
-	fmt.Fprintf(ctx.Output, "create odata client %s.%s (\n", moduleName, svc.Name)
+	// `create or modify`: the rewrite carries what describe cannot print (the icon,
+	// UseQuerySegment, the catalog and proxy keys, see carryStoredConsumedODataService),
+	// proven on ako/TestApp's clients by the round-trip harness (#743).
+	// The folder is a clause after the name (R9); `Folder:` is its alias.
+	folder := ""
+	if folderPath != "" {
+		folder = " folder " + mdlQuote(folderPath)
+	}
+	fmt.Fprintf(ctx.Output, "create or modify consumed odata service %s.%s%s (\n", moduleName, svc.Name, folder)
 
 	var props []string
-	if folderPath != "" {
-		props = append(props, fmt.Sprintf("  Folder: %s", mdlQuote(folderPath)))
-	}
 	if svc.Version != "" {
 		props = append(props, fmt.Sprintf("  Version: %s", mdlQuote(svc.Version)))
 	}
@@ -335,12 +335,14 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 	// (ExportLevel, PageSize without paging, entity-set order, CanBeEmpty), and
 	// TestTestAppRoundTrip holds it to both round-trip laws on the Studio
 	// Pro-authored services of ako/TestApp (#743).
-	fmt.Fprintf(ctx.Output, "create or modify odata service %s.%s (\n", moduleName, svc.Name)
+	// The folder is a clause after the name (R9); `Folder:` is its alias.
+	folder := ""
+	if folderPath != "" {
+		folder = " folder " + mdlQuoted(folderPath)
+	}
+	fmt.Fprintf(ctx.Output, "create or modify published odata service %s.%s%s (\n", moduleName, svc.Name, folder)
 
 	var props []string
-	if folderPath != "" {
-		props = append(props, "  Folder: "+mdlQuoted(folderPath))
-	}
 	if svc.Path != "" {
 		props = append(props, "  Path: "+mdlQuoted(svc.Path))
 	}
@@ -527,7 +529,7 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 	// Output GRANT statements for allowed module roles
 	if len(svc.AllowedModuleRoles) > 0 {
 		fmt.Fprintln(ctx.Output)
-		fmt.Fprintf(ctx.Output, "grant access on odata service %s.%s to %s;\n",
+		fmt.Fprintf(ctx.Output, "grant access on published odata service %s.%s to %s;\n",
 			moduleName, svc.Name, strings.Join(svc.AllowedModuleRoles, ", "))
 	}
 
@@ -775,9 +777,10 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 		outputJavadoc(ctx.Output, entity.Documentation)
 	}
 
-	// Plain `create` on purpose; see describeODataClient.
-	fmt.Fprintf(ctx.Output, "create external entity %s.%s\n", moduleName, entity.Name)
-	fmt.Fprintf(ctx.Output, "from odata client %s\n", entity.RemoteServiceName)
+	// `create or modify`: the rewrite keeps each stored attribute's identity and
+	// OData mapping by name (#743), proven on ako/TestApp by the round-trip harness.
+	fmt.Fprintf(ctx.Output, "create or modify external entity %s.%s\n", moduleName, entity.Name)
+	fmt.Fprintf(ctx.Output, "from consumed odata service %s\n", entity.RemoteServiceName)
 	fmt.Fprintln(ctx.Output, "(")
 
 	var props []string
@@ -837,7 +840,7 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 	}
 
 	if s.Name.Module == "" {
-		return mdlerrors.NewValidation("module name required: use create external entity Module.Name from odata client ...")
+		return mdlerrors.NewValidation("module name required: use create external entity Module.Name from consumed odata service ...")
 	}
 
 	// Find module
@@ -926,6 +929,9 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 					}
 				}
 			}
+			if err := checkRemoteTypes(ctx, s.Name.String(), existingEntity, attrs); err != nil {
+				return err
+			}
 			carryStoredAttributeState(existingEntity, attrs)
 			existingEntity.Attributes = attrs
 		}
@@ -1000,7 +1006,7 @@ func createODataClient(ctx *ExecContext, stmt *ast.CreateODataClientStmt) error 
 	}
 
 	if stmt.Name.Module == "" {
-		return mdlerrors.NewValidation("module name required: use create odata client Module.Name (...)")
+		return mdlerrors.NewValidation("module name required: use create consumed odata service Module.Name (...)")
 	}
 
 	if err := validateMetadataURL(stmt.MetadataUrl); err != nil {
@@ -1132,13 +1138,11 @@ func createODataClient(ctx *ExecContext, stmt *ast.CreateODataClientStmt) error 
 					}
 					return nil
 				}
-				// Not "use create or modify": that rewrite does not yet carry what
-				// describe cannot print and would lose Studio Pro-authored
-				// settings (#743).
+				// The rewrite carries what describe cannot print (#743), so it is
+				// the advice again, as for every other document type.
 				return mdlerrors.NewAlreadyExistsMsg("OData client", modName+"."+svc.Name, fmt.Sprintf(
-					"OData client already exists: %s.%s — use 'alter odata client %s.%s set ...' to change it; "+
-						"'create or modify odata client' rewrites the whole client and does not yet keep everything Studio Pro stores "+
-						"(UseQuerySegment, catalog, proxy and microflow settings, icon)", modName, svc.Name, modName, svc.Name))
+					"OData client already exists: %s.%s (use create or modify to update it, or "+
+						"'alter consumed odata service %s.%s set ...' to change one property)", modName, svc.Name, modName, svc.Name))
 			}
 		}
 	}
@@ -1468,7 +1472,7 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 	}
 
 	if stmt.Name.Module == "" {
-		return mdlerrors.NewValidation("module name required: use create odata service Module.Name (...)")
+		return mdlerrors.NewValidation("module name required: use create published odata service Module.Name (...)")
 	}
 
 	// Gate before the write, not after: a property the project's Mendix version

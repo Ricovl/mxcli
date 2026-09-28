@@ -111,8 +111,8 @@ create view entity ChartExamples.SalesByDate (
 -- item 1 makes it persist. X/Y attributes already resolve.
 
 -- BarChart -------------------------------------------------------------------
-create page ChartExamples.P_Bar (
-  Title: 'Sales by Region (Bar)', Layout: Atlas_Core.Atlas_Default, Folder: 'Charts'
+create page ChartExamples.P_Bar folder 'Charts' (
+  Title: 'Sales by Region (Bar)', Layout: Atlas_Core.Atlas_Default
 ) {
   pluggablewidget 'com.mendix.widget.web.barchart.BarChart' barChart1 {
     series sRegion (
@@ -126,8 +126,8 @@ create page ChartExamples.P_Bar (
 }
 
 -- ColumnChart ----------------------------------------------------------------
-create page ChartExamples.P_Column (
-  Title: 'Sales by Period (Column)', Layout: Atlas_Core.Atlas_Default, Folder: 'Charts'
+create page ChartExamples.P_Column folder 'Charts' (
+  Title: 'Sales by Period (Column)', Layout: Atlas_Core.Atlas_Default
 ) {
   pluggablewidget 'com.mendix.widget.web.columnchart.ColumnChart' columnChart1 {
     series sRevenue (
@@ -148,8 +148,8 @@ create page ChartExamples.P_Column (
 }
 
 -- AreaChart ------------------------------------------------------------------
-create page ChartExamples.P_Area (
-  Title: 'Cumulative Sales (Area)', Layout: Atlas_Core.Atlas_Default, Folder: 'Charts'
+create page ChartExamples.P_Area folder 'Charts' (
+  Title: 'Cumulative Sales (Area)', Layout: Atlas_Core.Atlas_Default
 ) {
   pluggablewidget 'com.mendix.widget.web.areachart.AreaChart' areaChart1 {
     series sRegion (
@@ -170,8 +170,8 @@ create page ChartExamples.P_Area (
 -- LINE is now a grammar object-list keyword; these blocks parse and persist.
 
 -- LineChart ------------------------------------------------------------------
-create page ChartExamples.P_Line (
-  Title: 'Sales Trend (Line)', Layout: Atlas_Core.Atlas_Default, Folder: 'Charts'
+create page ChartExamples.P_Line folder 'Charts' (
+  Title: 'Sales Trend (Line)', Layout: Atlas_Core.Atlas_Default
 ) {
   pluggablewidget 'com.mendix.widget.web.linechart.LineChart' lineChart1 {
     line lRevenue (
@@ -186,8 +186,8 @@ create page ChartExamples.P_Line (
 }
 
 -- TimeSeries -----------------------------------------------------------------
-create page ChartExamples.P_TimeSeries (
-  Title: 'Sales Over Time', Layout: Atlas_Core.Atlas_Default, Folder: 'Charts'
+create page ChartExamples.P_TimeSeries folder 'Charts' (
+  Title: 'Sales Over Time', Layout: Atlas_Core.Atlas_Default
 ) {
   pluggablewidget 'com.mendix.widget.web.timeseries.TimeSeries' timeSeries1 {
     line lRevenue (
@@ -201,8 +201,8 @@ create page ChartExamples.P_TimeSeries (
 }
 
 -- BubbleChart ----------------------------------------------------------------
-create page ChartExamples.P_Bubble (
-  Title: 'Region vs Units (Bubble)', Layout: Atlas_Core.Atlas_Default, Folder: 'Charts'
+create page ChartExamples.P_Bubble folder 'Charts' (
+  Title: 'Region vs Units (Bubble)', Layout: Atlas_Core.Atlas_Default
 ) {
   pluggablewidget 'com.mendix.widget.web.bubblechart.BubbleChart' bubbleChart1 {
     line lRegion (
@@ -219,8 +219,8 @@ create page ChartExamples.P_Bubble (
 -- ============================================================================
 -- HEATMAP (container keyword SCALECOLOR)
 -- ============================================================================
-create page ChartExamples.P_HeatMap (
-  Title: 'Sales Heat Map', Layout: Atlas_Core.Atlas_Default, Folder: 'Charts'
+create page ChartExamples.P_HeatMap folder 'Charts' (
+  Title: 'Sales Heat Map', Layout: Atlas_Core.Atlas_Default
 ) {
   pluggablewidget 'com.mendix.widget.web.heatmap.HeatMap' heatMap1 (
     DataSource: database from ChartExamples.SalesByRegion,
@@ -238,8 +238,8 @@ create page ChartExamples.P_HeatMap (
 -- ============================================================================
 -- PieChart binds a single datasource at the widget level (no series). The
 -- `DataSource:` parses today but, like series datasources, is not yet persisted.
-create page ChartExamples.P_Pie (
-  Title: 'Sales Share (Pie)', Layout: Atlas_Core.Atlas_Default, Folder: 'Charts'
+create page ChartExamples.P_Pie folder 'Charts' (
+  Title: 'Sales Share (Pie)', Layout: Atlas_Core.Atlas_Default
 ) {
   pluggablewidget 'com.mendix.widget.web.piechart.PieChart' pieChart1 (
     DataSource: database from ChartExamples.SalesByRegion,
@@ -251,19 +251,19 @@ create page ChartExamples.P_Pie (
 -- ============================================================================
 -- DASHBOARD — all chart types on a single page (the showcase page)
 -- ============================================================================
-create page ChartExamples.P_Dashboard (
-  Title: 'Sales Dashboard', Layout: Atlas_Core.Atlas_Default, Folder: 'Charts'
+create page ChartExamples.P_Dashboard folder 'Charts' (
+  Title: 'Sales Dashboard', Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid dash {
-    row rTop {
-      column cBar (DesktopWidth: 6) {
+    row {
+      column (DesktopWidth: 6) {
         dynamictext hBar (Content: 'Revenue by Region', RenderMode: H4)
         pluggablewidget 'com.mendix.widget.web.barchart.BarChart' dashBar {
           series s (DataSet: 'static', DataSource: database from ChartExamples.SalesByRegion,
                     StaticXAttribute: Region, StaticYAttribute: Total, StaticName: 'Revenue')
         }
       }
-      column cColumn (DesktopWidth: 6) {
+      column (DesktopWidth: 6) {
         dynamictext hCol (Content: 'Quarterly Revenue', RenderMode: H4)
         pluggablewidget 'com.mendix.widget.web.columnchart.ColumnChart' dashColumn {
           series s (DataSet: 'static', DataSource: database from ChartExamples.SalesByQuarter,
@@ -271,15 +271,15 @@ create page ChartExamples.P_Dashboard (
         }
       }
     }
-    row rMid {
-      column cLine (DesktopWidth: 8) {
+    row {
+      column (DesktopWidth: 8) {
         dynamictext hLine (Content: 'Trend', RenderMode: H4)
         pluggablewidget 'com.mendix.widget.web.linechart.LineChart' dashLine {
           line l (DataSet: 'static', DataSource: database from ChartExamples.SalesByQuarter,
                   StaticXAttribute: Period, StaticYAttribute: Total, StaticName: 'Revenue')
         }
       }
-      column cPie (DesktopWidth: 4) {
+      column (DesktopWidth: 4) {
         dynamictext hPie (Content: 'Share', RenderMode: H4)
         pluggablewidget 'com.mendix.widget.web.piechart.PieChart' dashPie (
           DataSource: database from ChartExamples.SalesByRegion,
@@ -287,8 +287,8 @@ create page ChartExamples.P_Dashboard (
         )
       }
     }
-    row rBot {
-      column cArea (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         dynamictext hArea (Content: 'Cumulative', RenderMode: H4)
         pluggablewidget 'com.mendix.widget.web.areachart.AreaChart' dashArea {
           series s (DataSet: 'static', DataSource: database from ChartExamples.SalesByRegion,

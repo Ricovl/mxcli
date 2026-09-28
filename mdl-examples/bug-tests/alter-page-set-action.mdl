@@ -36,7 +36,7 @@ create page PA.OrderPage ( Title: 'Order', Layout: 'Atlas_Core.Atlas_Default' ) 
   container c1 {
     actionbutton btnGo (
       Caption: 'Go',
-      Action: MICROFLOW PA.ACT_Save,
+      Action: CALL MICROFLOW PA.ACT_Save,
       ButtonStyle: Primary,
       Class: 'my-css'
     )
@@ -46,17 +46,17 @@ create page PA.OrderPage ( Title: 'Order', Layout: 'Atlas_Core.Atlas_Default' ) 
 -- Retarget the action. ButtonStyle and Class must still be there afterwards —
 -- that is the difference from REPLACE.
 alter page PA.OrderPage {
-  set Action = microflow PA.ACT_Other on btnGo;
+  set (Action: call microflow PA.ACT_Other) on btnGo;
 };
 
 -- Every actionExprV3 form is available, including the combined ones. The close
 -- is a flag on the save action, not a separate action.
 alter page PA.OrderPage {
-  set Action = SAVE_CHANGES CLOSE_PAGE on btnGo;
+  set (Action: SAVE CHANGES CLOSE PAGE) on btnGo;
 };
 
 alter page PA.OrderPage {
-  set Action = CANCEL_CHANGES CLOSE_PAGE on btnGo;
+  set (Action: CANCEL CHANGES CLOSE PAGE) on btnGo;
 };
 
 -- Not every action form is available on the default engine: OPEN_LINK maps to
@@ -72,6 +72,6 @@ alter page PA.OrderPage {
 
 -- Settable alongside ordinary properties in one statement.
 alter page PA.OrderPage {
-  set (Caption = 'Save & Close', ButtonStyle = Success) on btnGo;
-  set Action = SAVE_CHANGES CLOSE_PAGE on btnGo;
+  set (Caption: 'Save & Close', ButtonStyle: Success) on btnGo;
+  set (Action: SAVE CHANGES CLOSE PAGE) on btnGo;
 };

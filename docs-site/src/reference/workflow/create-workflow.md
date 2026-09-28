@@ -30,12 +30,14 @@ The following activity types can appear inside a workflow body:
 USER TASK name 'caption'
     [ PAGE module.PageName ]
     [ TARGETING MICROFLOW module.MicroflowName ]
-    [ TARGETING XPATH 'expression' ]
+    [ TARGETING [ USERS | GROUPS ] XPATH [ xpath ] ]
     [ ENTITY module.Entity ]
-    [ DUE DATE 'expression' ]
+    [ DUE DATE expression ]
     [ DESCRIPTION 'text' ]
     OUTCOMES 'OutcomeName' { activities } [ 'OutcomeName' { activities } ... ]
 ```
+
+The targeting XPath is written in literal brackets, like every XPath in MDL, so quotes inside it are written once: `TARGETING USERS XPATH [System.UserRoles = '[%UserRole_Manager%]']`. The quoted form `XPATH '[...]'` still parses and warns `MDL-DEPR031`; `mxcli fmt --upgrade` rewrites it.
 
 **MULTI USER TASK**
 :   Same as USER TASK but assigned to multiple users. Uses the same syntax with `MULTI USER TASK` instead of `USER TASK`.
@@ -61,9 +63,11 @@ CALL WORKFLOW module.Name [ 'caption' ]
 :   A conditional branch based on an expression. Each outcome maps to a different execution path.
 
 ```sql
-DECISION [ 'caption' ]
-    OUTCOMES 'OutcomeName' { activities } [ 'OutcomeName' { activities } ... ]
+DECISION [ name ] expression [ COMMENT 'caption' ]
+    OUTCOMES TRUE -> { activities } FALSE -> { activities }
 ```
+
+Every workflow expression — a decision's condition, a timer's delay, a due date — is written bare: `DECISION $Context/Total > 1000`, `DUE DATE addDays([%CurrentDateTime%], 3)`. The string form (`DECISION '$Context/Total > 1000'`) still parses and warns `MDL-DEPR080`; `mxcli fmt --upgrade` rewrites it.
 
 **PARALLEL SPLIT**
 :   Splits the workflow into parallel paths that execute concurrently and rejoin before continuing.
@@ -86,7 +90,7 @@ JUMP TO activity_name [ 'caption' ]
 :   Pauses the workflow until a timer expression elapses.
 
 ```sql
-WAIT FOR TIMER [ 'duration_expression' ]
+WAIT FOR TIMER [ name ] [ datetime_expression ] [ COMMENT 'caption' ]
 ```
 
 **WAIT FOR NOTIFICATION**
@@ -111,8 +115,8 @@ User tasks, call microflow activities, and wait-for-notification activities supp
 USER TASK name 'caption'
     PAGE module.Page
     OUTCOMES 'Done' { }
-    BOUNDARY EVENT InterruptingTimer '${PT1H}' { activities }
-    BOUNDARY EVENT NonInterruptingTimer '${PT30M}' { activities }
+    BOUNDARY EVENT INTERRUPTING TIMER addHours([%CurrentDateTime%], 1) { activities }
+    BOUNDARY EVENT NON INTERRUPTING TIMER addMinutes([%CurrentDateTime%], 30) { activities }
 ```
 
 ## Parameters
@@ -183,7 +187,7 @@ BEGIN
     USER TASK AssignTask 'Handle ticket'
         PAGE Support.TicketPage
         OUTCOMES 'Resolved' { }
-        BOUNDARY EVENT InterruptingTimer '${PT24H}' {
+        BOUNDARY EVENT INTERRUPTING TIMER addHours([%CurrentDateTime%], 24) {
             CALL MICROFLOW Support.ACT_EscalateTicket;
         };
 END WORKFLOW;

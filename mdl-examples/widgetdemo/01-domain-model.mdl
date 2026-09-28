@@ -52,4 +52,4 @@ create association WidgetDemo.Helper_DemoItem
   from WidgetDemo.Helper to WidgetDemo.DemoItem
   type ReferenceSet;
 
-grant WidgetDemo.user on WidgetDemo.DemoItem (create, delete, read *, write *);
+grant create, delete, read *, write * on entity WidgetDemo.DemoItem to WidgetDemo.user;

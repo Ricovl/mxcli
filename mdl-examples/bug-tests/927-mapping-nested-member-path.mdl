@@ -27,7 +27,7 @@
 create module BugTest927;
 
 create json structure BugTest927.JSON_Order
-snippet '{"orderId": 100, "customer": {"name": "Alice", "contact": {"email": "a@b.c"}}, "items": [{"sku": "A1"}]}';
+sample '{"orderId": 100, "customer": {"name": "Alice", "contact": {"email": "a@b.c"}}, "items": [{"sku": "A1"}]}';
 /
 
 create non-persistent entity BugTest927.Order (

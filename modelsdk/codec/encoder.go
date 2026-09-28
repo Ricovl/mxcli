@@ -194,7 +194,7 @@ func (e *Encoder) buildDoc(elem element.Element) (bson.D, error) {
 				}
 				sort.Strings(names)
 				for _, name := range names {
-					if !emitted[name] {
+					if !emitted[name] && !e.omits(elem.TypeName(), name) {
 						doc = append(doc, bson.E{Key: name, Value: bson.A{d.MandatoryListMarkers[name]}})
 					}
 				}

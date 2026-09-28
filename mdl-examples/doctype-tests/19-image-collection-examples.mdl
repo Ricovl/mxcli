@@ -44,20 +44,21 @@ create image collection ImgTest.AppIcons;
 create image collection ImgTest.SharedIcons export level 'Public';
 /
 
-/**
+/*
  * Level 1.3: Create with comment
  *
  * COMMENT documents the purpose of the collection.
  */
-create image collection ImgTest.StatusIcons comment 'Icons for order and task status indicators';
+/** Icons for order and task status indicators */
+create image collection ImgTest.StatusIcons;
 /
 
-/**
+/*
  * Level 1.4: Create with both export level and comment
  */
+/** Company branding assets: logos, favicons, and splash screens */
 create image collection ImgTest.BrandAssets
-  export level 'Public'
-  comment 'Company branding assets: logos, favicons, and splash screens';
+  export level 'Public';
 /
 
 -- ============================================================================
@@ -73,21 +74,21 @@ create image collection ImgTest.BrandAssets
  *
  * Supported formats: PNG, SVG, GIF, JPEG, BMP, WebP
  */
-create image collection ImgTest.NavigationIcons (
-  image cli_screenshot from file '../../docs/images/mxcli-cli.png',
-  image repl_screenshot from file '../../docs/images/mxcli-repl.png'
-);
+create image collection ImgTest.NavigationIcons {
+  image cli_screenshot ( File: '../../docs/images/mxcli-cli.png' )
+  image repl_screenshot ( File: '../../docs/images/mxcli-repl.png' )
+};
 /
 
-/**
+/*
  * Level 2.2: Create with both options and images
  */
+/** Application logos for branding */
 create image collection ImgTest.AppLogos
-  export level 'Public'
-  comment 'Application logos for branding' (
-  image vscode_ext from file '../../docs/images/mxcli-vscode-ext.png',
-  image catalog_view from file '../../docs/images/mxcli-catalog.png'
-);
+  export level 'Public' {
+  image vscode_ext ( File: '../../docs/images/mxcli-vscode-ext.png' )
+  image catalog_view ( File: '../../docs/images/mxcli-catalog.png' )
+};
 /
 
 -- MARK: Show
@@ -97,11 +98,11 @@ create image collection ImgTest.AppLogos
 -- ============================================================================
 
 -- Show all image collections across all modules
-show image collection;
+list image collections;
 /
 
 -- Show image collections in a specific module
-show image collection in ImgTest;
+list image collections in ImgTest;
 /
 
 -- ICON collections are a distinct, read-only document type (CustomIcons$
@@ -109,7 +110,7 @@ show image collection in ImgTest;
 -- SHOW / DESCRIBE ICON COLLECTION discover the icon names used by a widget's
 -- `icon:` property (referenced as Module.Collection.IconName). Plural or singular
 -- ("collection(s)") both parse.
-show icon collections;
+list icon collections;
 /
 -- describe icon collection Atlas_Core.Atlas_Filled;   -- lists every icon + its reference
 
@@ -130,14 +131,14 @@ describe image collection ImgTest.BrandAssets;
 -- LEVEL 5: Create Or Modify
 -- ============================================================================
 
-/**
+/*
  * Level 5.1: Update an existing collection in-place
  *
  * CREATE OR MODIFY preserves the document UUID so widget references
  * remain valid. OR REPLACE is accepted as a synonym.
  */
-create or modify image collection ImgTest.AppIcons
-  comment 'Updated description for AppIcons';
+/** Updated description for AppIcons */
+create or modify image collection ImgTest.AppIcons;
 /
 
 -- MARK: Drop
@@ -155,7 +156,7 @@ drop image collection ImgTest.StatusIcons;
 /
 
 -- Verify it's gone
-show image collection in ImgTest;
+list image collections in ImgTest;
 /
 
 -- ============================================================================

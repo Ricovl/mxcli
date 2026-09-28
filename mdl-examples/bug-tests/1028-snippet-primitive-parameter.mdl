@@ -42,8 +42,8 @@ create persistent entity S1028.Order (Code: String(20), Label: String(100));
 -- The reported snippet, in the shape Mendix accepts: the value travels on an
 -- object. `create snippet S1028.SNIPPET_Label ( params: { $Label: string } )`
 -- is refused as MDL087 — see 1028-snippet-primitive-parameter.fail.mdl.
-create snippet S1028.SNIPPET_Label ( params: { $Order: S1028.Order } ) {
-  layoutgrid gl { row rl { column cl (desktopwidth: autofill) {
+create snippet S1028.SNIPPET_Label ( params: ( $Order: S1028.Order ) ) {
+  layoutgrid gl { row { column (desktopwidth: autofill) {
     dataview dvLabel (datasource: $Order) {
       textbox tbLabel (attribute: Label, label: 'Label')
     }
@@ -55,7 +55,7 @@ create snippet S1028.SNIPPET_Label ( params: { $Order: S1028.Order } ) {
 -- Pro's type is the single "Integer/Long"), so `describe` re-emits it as
 -- Integer — which is why this page is here rather than only in a unit test.
 create page S1028.PagePrimitives (
-  params: {
+  params: (
     $Order: S1028.Order,
     $Label: String,
     $Count: Long,
@@ -63,10 +63,10 @@ create page S1028.PagePrimitives (
     $Amount: Decimal,
     $Active: Boolean,
     $Due: DateTime
-  },
+  ),
   title: 'Primitives', layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
-    snippetcall scLabel (snippet: S1028.SNIPPET_Label, params: {Order: $Order})
+  layoutgrid g { row { column (desktopwidth: 12) {
+    snippetcall scLabel (snippet: S1028.SNIPPET_Label, params: (Order = $Order))
   } } }
 }

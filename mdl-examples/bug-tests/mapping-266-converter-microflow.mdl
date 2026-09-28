@@ -42,7 +42,7 @@ create persistent entity BugTest266.Response (
 );
 
 create json structure BugTest266.JSON_Response
-  snippet $${"uuid": "00000000-0000-0000-0000-000000000000", "payload": "abc"}$$;
+  sample $${"uuid": "00000000-0000-0000-0000-000000000000", "payload": "abc"}$$;
 
 create microflow BugTest266.ConvertUUIDToURL (
   $uuid: String

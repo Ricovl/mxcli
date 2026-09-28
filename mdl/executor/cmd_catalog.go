@@ -229,8 +229,9 @@ func execDescribeCatalogTable(ctx *ExecContext, stmt *ast.DescribeCatalogTableSt
 		return mdlerrors.NewNotFoundMsg("catalog table", strings.ToUpper(tableName), "unknown catalog table: CATALOG."+strings.ToUpper(tableName))
 	}
 
-	// Print table header
-	fmt.Fprintf(ctx.Output, "\nCATALOG.%s\n", strings.ToUpper(tableName))
+	// Print table header. A catalog table's columns are a definition, not MDL
+	// (R6): SQL's DESCRIBE TABLE.
+	fmt.Fprintf(ctx.Output, "-- catalog table definition (not executable)\nCATALOG.%s\n", strings.ToUpper(tableName))
 	fmt.Fprintf(ctx.Output, "Requires: %s\n\n", tableRequiredMode(tableName))
 
 	// PRAGMA table_info returns: cid, name, type, notnull, dflt_value, pk
@@ -969,6 +970,10 @@ func captureDescribeParallel(ctx *ExecContext, objectType string, qualifiedName 
 		// Pins the describe to this document rather than to whichever
 		// document of this name the lookup prefers (#1185).
 		describeID: id,
+		// The text feeds the search index, where layout annotations do not
+		// matter, and telling derived layout from authored rebuilds each flow
+		// several times — it made a full source refresh 2.3x slower (#766).
+		describeFullLayout: true,
 	}
 
 	describe := describeDispatch(objectType)

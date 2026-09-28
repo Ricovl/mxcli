@@ -386,7 +386,7 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 		// A slot that reaches the builder was written somewhere the fragment
 		// expander doesn't reach (e.g. nested in a page container rather than a
 		// `define fragment` body). Slots are resolved during fragment expansion.
-		return nil, mdlerrors.NewValidation("`slot` is only valid inside a `define fragment` body")
+		return nil, mdlerrors.NewValidation("`slot` is only valid inside a `create fragment` body")
 	case "textbox":
 		widget, err = pb.buildTextBoxV3(w)
 	case "textarea":
@@ -1665,17 +1665,17 @@ func (pb *pageBuilder) buildClientActionV3(action *ast.ActionV3) (pages.ClientAc
 			// the only variable Studio Pro's "Address: attribute" choice binds.
 			if !strings.EqualFold(action.LinkVariable, "$currentObject") {
 				return nil, mdlerrors.NewValidationf(
-					"open_link %s/%s: a dynamic link address is read from $currentObject — write `open_link $currentObject/%s` inside the data container that holds it",
+					"open link %s/%s: a dynamic link address is read from $currentObject — write `open link $currentObject/%s` inside the data container that holds it",
 					action.LinkVariable, action.LinkAttribute, action.LinkAttribute)
 			}
 			if strings.Contains(action.LinkAttribute, "/") {
 				return nil, mdlerrors.NewValidationf(
-					"open_link $currentObject/%s: an address over an association path is not supported yet — bind an attribute of the data container's own entity",
+					"open link $currentObject/%s: an address over an association path is not supported yet — bind an attribute of the data container's own entity",
 					action.LinkAttribute)
 			}
 			if pb.entityContext == "" {
 				return nil, mdlerrors.NewValidationf(
-					"open_link $currentObject/%s: a dynamic link address needs an object to read it from — place the button inside a data container",
+					"open link $currentObject/%s: a dynamic link address needs an object to read it from — place the button inside a data container",
 					action.LinkAttribute)
 			}
 			addressAttr = pb.resolveAttributePath(action.LinkAttribute)
@@ -2373,7 +2373,7 @@ func (pb *pageBuilder) expandIfFragment(w *ast.WidgetV3) ([]*ast.WidgetV3, error
 		// A slot marker is only meaningful inside a `define fragment` body, where
 		// it is resolved during expandFragmentRef. Reaching here means a bare
 		// `slot` was written directly in a page/snippet body.
-		return nil, mdlerrors.NewValidation("`slot` is only valid inside a `define fragment` body")
+		return nil, mdlerrors.NewValidation("`slot` is only valid inside a `create fragment` body")
 	default:
 		return []*ast.WidgetV3{w}, nil
 	}
@@ -2511,7 +2511,7 @@ func substituteFragmentParams(fragName string, params []ast.FragmentParam, rawAr
 			}
 			if act == nil {
 				return mdlerrors.NewValidation(fmt.Sprintf(
-					"fragment %q: parameter $%s expects an action (e.g. a microflow, show_page, save)", fragName, p.Name))
+					"fragment %q: parameter $%s expects an action (e.g. call microflow, show page, save changes)", fragName, p.Name))
 			}
 			actSubst[p.Name] = act
 		}
@@ -2606,8 +2606,8 @@ func (pb *pageBuilder) expandBuildingBlockRef(w *ast.WidgetV3) ([]*ast.WidgetV3,
 		outputWidgetMDLV3(&renderCtx, rw, 1)
 	}
 
-	// Re-parse via a `define fragment` wrapper to obtain []*ast.WidgetV3.
-	src := "define fragment __bbtmp as {\n" + sb.String() + "\n};"
+	// Re-parse via a `create fragment` wrapper to obtain []*ast.WidgetV3.
+	src := "create fragment __bbtmp as {\n" + sb.String() + "\n};"
 	prog, errs := visitor.Build(src)
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("use building block %s: could not expand widget tree: %v", w.Name, errs)

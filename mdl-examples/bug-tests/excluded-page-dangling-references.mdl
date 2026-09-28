@@ -50,8 +50,8 @@ create page BugTestExclRefs.Dangling_Excluded (
   Layout: Atlas_Core.PopupLayout
 ) {
   container c1 {
-    actionbutton b1 (Caption: 'NF', Action: nanoflow BugTestExclRefs.No_Such_Nanoflow)
-    actionbutton b2 (Caption: 'MF', Action: microflow BugTestExclRefs.No_Such_Microflow)
-    actionbutton b3 (Caption: 'PG', Action: show_page BugTestExclRefs.No_Such_Page)
+    actionbutton b1 (Caption: 'NF', Action: call nanoflow BugTestExclRefs.No_Such_Nanoflow)
+    actionbutton b2 (Caption: 'MF', Action: call microflow BugTestExclRefs.No_Such_Microflow)
+    actionbutton b3 (Caption: 'PG', Action: show page BugTestExclRefs.No_Such_Page)
   }
 }

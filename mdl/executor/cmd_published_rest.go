@@ -99,17 +99,18 @@ func describePublishedRestService(ctx *ExecContext, name ast.QualifiedName) erro
 		}
 
 		// Output as re-executable MDL
-		fmt.Fprintf(ctx.Output, "create or modify published rest service %s (\n", qualifiedName)
+		// The folder is a clause after the name (R9); `Folder:` is its alias.
+		folder := ""
+		if folderPath := h.BuildFolderPath(svc.ContainerID); folderPath != "" {
+			folder = " folder " + mdlQuoted(folderPath)
+		}
+		fmt.Fprintf(ctx.Output, "create or modify published rest service %s%s (\n", qualifiedName, folder)
 		fmt.Fprintf(ctx.Output, "  Path: %s", mdlQuoted(svc.Path))
 		if svc.Version != "" {
 			fmt.Fprintf(ctx.Output, ",\n  Version: %s", mdlQuoted(svc.Version))
 		}
 		if svc.ServiceName != "" {
 			fmt.Fprintf(ctx.Output, ",\n  ServiceName: %s", mdlQuoted(svc.ServiceName))
-		}
-		folderPath := h.BuildFolderPath(svc.ContainerID)
-		if folderPath != "" {
-			fmt.Fprintf(ctx.Output, ",\n  Folder: %s", mdlQuoted(folderPath))
 		}
 		fmt.Fprintln(ctx.Output, "\n)")
 
@@ -135,7 +136,7 @@ func describePublishedRestService(ctx *ExecContext, name ast.QualifiedName) erro
 						opPath = " " + mdlQuoted(op.Path)
 					}
 					fmt.Fprintf(ctx.Output, "    %s%s%s%s;%s\n",
-						strings.ToUpper(op.HTTPMethod), opPath, mf, deprecated, summary)
+						strings.ToLower(op.HTTPMethod), opPath, mf, deprecated, summary)
 				}
 				fmt.Fprintln(ctx.Output, "  }")
 			}

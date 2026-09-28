@@ -34,7 +34,7 @@ The choreography — not the statement count — drives the cost.
 | `create association` | 2× `ped_read_document` (resolve parent/child entity refs) + `ped_update_document` (add) + `ped_check_errors` | 4 |
 | `alter entity` (add / rename / set documentation) | 2× `ped_read_document` (locate + read live attrs) + `ped_update_document` + `ped_check_errors` | 4 |
 | `show` / `describe` of a **just-modified** module | `ped_read_document` (entities + associations) + an enrichment read for attribute types | 2 |
-| `show enumerations` (and other reads of unchanged docs) | served from the local `.mpr` | 0 |
+| `list enumerations` (and other reads of unchanged docs) | served from the local `.mpr` | 0 |
 | one-time `ped_get_schema` per element type (entity, attribute, association, validation rule) | fetched once per session, then cached | ~4 total |
 | `initialize` handshake | once per connection | 1 |
 

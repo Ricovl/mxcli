@@ -26,13 +26,13 @@ create persistent entity DG628.Product (
   Price: decimal
 );
 
-create or replace page DG628.MasterDetail
+create or modify page DG628.MasterDetail
 ( Title: 'Master Detail', Layout: Atlas_Core.Atlas_Default )
 {
   -- Master: a DataGrid2 with single-row selection
   datagrid dgProducts (datasource: database DG628.Product, selection: single) {
-    column colName  (attribute: Name,  caption: 'Name')
-    column colPrice (attribute: Price, caption: 'Price')
+    column  (attribute: Name,  caption: 'Name')
+    column (attribute: Price, caption: 'Price')
   }
 
   -- Detail: a DataView listening to the grid's selection

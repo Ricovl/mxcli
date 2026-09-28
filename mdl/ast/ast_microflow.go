@@ -52,6 +52,7 @@ type MicroflowReturnType struct {
 
 // CreateMicroflowStmt represents: CREATE MICROFLOW Module.Name (params) RETURNS type BEGIN body END
 type CreateMicroflowStmt struct {
+	CreateGuard   // `create … if not exists` (ako/mxcli#731)
 	Name          QualifiedName
 	Parameters    []MicroflowParam
 	ReturnType    *MicroflowReturnType
@@ -153,6 +154,7 @@ func (s *DropMicroflowStmt) isStatement() {}
 
 // CreateNanoflowStmt represents: CREATE NANOFLOW Module.Name (params) RETURNS type BEGIN body END
 type CreateNanoflowStmt struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	Parameters       []MicroflowParam
 	ReturnType       *MicroflowReturnType
@@ -181,6 +183,7 @@ func (s *CreateNanoflowStmt) isStatement() {}
 // are the same minus the ones a rule document has no property for (a rule stores
 // no AllowedModuleRoles, so there is nothing to grant).
 type CreateRuleStmt struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	Parameters       []MicroflowParam
 	ReturnType       *MicroflowReturnType

@@ -50,7 +50,7 @@ alter page MyFirstModule.AlterBareDraft_Example {
     image imgQualified (
       ImageType: imageUrl,
       ImageUrl: '{1}',
-      ImageUrlParams: [{1} = MyFirstModule.AlterBareDraft.PictureUrl]
+      ImageUrlParams: ({1} = MyFirstModule.AlterBareDraft.PictureUrl)
     )
   }
 };

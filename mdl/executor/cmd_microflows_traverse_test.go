@@ -396,11 +396,11 @@ func TestTraverseFlow_LoopBodyMergesParentFlowsForExistingOrigin(t *testing.T) {
 
 	out := strings.Join(lines, "\n")
 	for _, want := range []string{
-		"log info node 'Synthetic' 'setup';",
-		"log info node 'Synthetic' 'fetch';",
+		"log node 'Synthetic' 'setup';",
+		"log node 'Synthetic' 'fetch';",
 		"loop $role in $roles",
-		"log info node 'Synthetic' 'nested';",
-		"log info node 'Synthetic' 'nested-tail';",
+		"log node 'Synthetic' 'nested';",
+		"log node 'Synthetic' 'nested-tail';",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("expected %q in output:\n%s", want, out)
@@ -1342,8 +1342,8 @@ func TestTraverseFlow_EmptyThenSwap(t *testing.T) {
 	if strings.Count(output, "if ") != 1 {
 		t.Errorf("expected split header to be emitted once, got:\n%s", output)
 	}
-	if !strings.Contains(output, "log info") {
-		t.Errorf("expected 'log info' in output, got:\n%s", output)
+	if !strings.Contains(output, "log node 'Test'") {
+		t.Errorf("expected a log statement in output, got:\n%s", output)
 	}
 	if strings.Contains(output, "else") {
 		t.Errorf("expected no empty else block, got:\n%s", output)

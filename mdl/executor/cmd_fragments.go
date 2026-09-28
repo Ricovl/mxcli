@@ -59,7 +59,7 @@ func describeFragment(ctx *ExecContext, name ast.QualifiedName) error {
 		return mdlerrors.NewNotFound("fragment", name.Name)
 	}
 
-	fmt.Fprintf(ctx.Output, "define fragment %s as {\n", frag.Name)
+	fmt.Fprintf(ctx.Output, "create fragment %s as {\n", frag.Name)
 	for _, w := range frag.Widgets {
 		outputASTWidgetMDL(ctx.Output, w, 1)
 	}
@@ -273,28 +273,31 @@ func formatActionV3(a *ast.ActionV3) string {
 		return "nothing"
 	case "save":
 		if a.ClosePage {
-			return "save_changes close_page"
+			return "save changes close page"
 		}
-		return "save_changes"
+		return "save changes"
 	case "cancel":
 		if a.ClosePage {
-			return "cancel_changes close_page"
+			return "cancel changes close page"
 		}
-		return "cancel_changes"
+		return "cancel changes"
 	case "close":
-		return "close_page"
+		return "close page"
 	case "delete":
-		return "delete_object"
+		if a.ClosePage {
+			return "delete close page"
+		}
+		return "delete"
 	case "showPage":
-		return "show_page " + a.Target
+		return "show page " + a.Target
 	case "microflow":
-		return "microflow " + a.Target
+		return "call microflow " + a.Target
 	case "nanoflow":
-		return "nanoflow " + a.Target
+		return "call nanoflow " + a.Target
 	case "signOut":
-		return "sign_out"
+		return "sign out"
 	case "completeTask":
-		return "complete_task '" + strings.ReplaceAll(a.OutcomeValue, "'", "''") + "'"
+		return "complete task '" + strings.ReplaceAll(a.OutcomeValue, "'", "''") + "'"
 	default:
 		return a.Type
 	}

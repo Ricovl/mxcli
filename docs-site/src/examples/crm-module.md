@@ -25,9 +25,9 @@ CREATE PERSISTENT ENTITY CRM.Customer (
   /** Auto-generated unique identifier */
   CustomerId: AutoNumber NOT NULL UNIQUE DEFAULT 1,
   /** Full legal name */
-  Name: String(200) NOT NULL ERROR 'Customer name is required',
+  Name: String(200) NOT NULL ERROR MESSAGE 'Customer name is required',
   /** Primary contact email */
-  Email: String(200) UNIQUE ERROR 'Email already exists',
+  Email: String(200) UNIQUE ERROR MESSAGE 'Email already exists',
   /** Phone number in international format */
   Phone: String(50),
   /** Current account balance */
@@ -51,7 +51,7 @@ CREATE PERSISTENT ENTITY CRM.ContactLog (
   /** Type of interaction */
   Type: Enumeration(CRM.ContactType) DEFAULT 'Email',
   /** Summary of what was discussed */
-  Summary: String(2000) NOT NULL ERROR 'Summary is required',
+  Summary: String(2000) NOT NULL ERROR MESSAGE 'Summary is required',
   /** Follow-up needed? */
   FollowUpRequired: Boolean DEFAULT FALSE
 );
@@ -96,7 +96,7 @@ END;
 CREATE MICROFLOW CRM.ACT_Customer_Save ($Customer: CRM.Customer)
 RETURNS Boolean AS $IsValid
 BEGIN
-  $IsValid = CALL MICROFLOW CRM.VAL_Customer($param = $Customer);
+  $IsValid = CALL MICROFLOW CRM.VAL_Customer(param = $Customer);
 
   IF $IsValid THEN
     COMMIT $Customer;
@@ -123,7 +123,7 @@ CREATE PAGE CRM.Customer_Overview (
     COLUMN colStatus (Attribute: Status, Caption: 'Status')
     COLUMN colActive (Attribute: IsActive, Caption: 'Active')
     CONTROLBAR cb1 {
-      ACTIONBUTTON btnNew (Caption: 'New', Action: SHOW_PAGE CRM.Customer_NewEdit, ButtonStyle: Primary)
+      ACTIONBUTTON btnNew (Caption: 'New', Action: SHOW PAGE CRM.Customer_NewEdit, ButtonStyle: Primary)
     }
   }
 };
@@ -131,7 +131,7 @@ CREATE PAGE CRM.Customer_Overview (
 
 -- NewEdit page with validation
 CREATE PAGE CRM.Customer_NewEdit (
-  Params: { $Customer: CRM.Customer },
+  Params: ( $Customer: CRM.Customer ),
   Title: 'Customer',
   Layout: Atlas_Core.PopupLayout
 ) {
@@ -146,10 +146,10 @@ CREATE PAGE CRM.Customer_NewEdit (
           FOOTER footer1 {
             ACTIONBUTTON btnSave (
               Caption: 'Save',
-              Action: MICROFLOW CRM.ACT_Customer_Save,
+              Action: CALL MICROFLOW CRM.ACT_Customer_Save,
               ButtonStyle: Success
             )
-            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
           }
         }
       }
@@ -167,12 +167,12 @@ CREATE MODULE ROLE CRM.User;
 CREATE MODULE ROLE CRM.Admin DESCRIPTION 'Full customer management access';
 
 -- Entity access
-GRANT CRM.Admin ON CRM.Customer (CREATE, DELETE, READ *, WRITE *);
-GRANT CRM.User ON CRM.Customer (CREATE, READ *, WRITE *)
-  WHERE '[IsActive = true]';
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY CRM.Customer TO CRM.Admin;
+GRANT CREATE, READ *, WRITE * ON ENTITY CRM.Customer TO CRM.User
+  WHERE [IsActive = true];
 
-GRANT CRM.Admin ON CRM.ContactLog (CREATE, DELETE, READ *, WRITE *);
-GRANT CRM.User ON CRM.ContactLog (CREATE, READ *, WRITE *);
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY CRM.ContactLog TO CRM.Admin;
+GRANT CREATE, READ *, WRITE * ON ENTITY CRM.ContactLog TO CRM.User;
 
 -- Document access
 GRANT EXECUTE ON MICROFLOW CRM.ACT_Customer_Save TO CRM.User;
@@ -180,11 +180,11 @@ GRANT VIEW ON PAGE CRM.Customer_Overview TO CRM.User;
 GRANT VIEW ON PAGE CRM.Customer_NewEdit TO CRM.User;
 
 -- User roles
-CREATE OR MODIFY USER ROLE CRMUser (System.User, CRM.User);
-CREATE OR MODIFY USER ROLE CRMAdmin (System.User, CRM.Admin);
+CREATE OR MODIFY USER ROLE CRMUser ( ModuleRoles: (System.User, CRM.User) );
+CREATE OR MODIFY USER ROLE CRMAdmin ( ModuleRoles: (System.User, CRM.Admin) );
 
 -- Demo users for testing
 CREATE OR MODIFY DEMO USER 'crm_user' PASSWORD 'Password1!' (CRMUser);
 CREATE OR MODIFY DEMO USER 'crm_admin' PASSWORD 'Password1!' (CRMAdmin);
-ALTER PROJECT SECURITY DEMO USERS ON;
+ALTER APP SECURITY ( EnableDemoUsers: TRUE );
 ```

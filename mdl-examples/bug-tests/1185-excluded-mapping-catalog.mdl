@@ -28,7 +28,7 @@
 -- not built).
 
 create json structure MyFirstModule.JSON_1185
-snippet '{"id": 1, "name": "x"}';
+sample '{"id": 1, "name": "x"}';
 
 create non-persistent entity MyFirstModule.Order1185 ( OrderId: integer, Name: string(200) );
 /

@@ -43,7 +43,7 @@ create persistent entity Issue842."Routing" (
 );
 
 create json structure Issue842."JSON_Route"
-  snippet $${"id":"a","name":"b"}$$;
+  sample $${"id":"a","name":"b"}$$;
 
 -- Every identifier quoted on purpose: this is the documented style.
 create import mapping Issue842."IMM_Route"

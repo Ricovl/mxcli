@@ -75,7 +75,7 @@ CREATE MODULE ROLE BugRenameRefs.User;
 -- without one, only the access-rule half of the defect is exercised and a fix
 -- that covered access rules alone would look complete.
 CREATE OR MODIFY PERSISTENT ENTITY BugRenameRefs.Widget (
-  WidgetName: String(100) NOT NULL ERROR 'A name is required',
+  WidgetName: String(100) NOT NULL ERROR MESSAGE 'A name is required',
   WidgetCode: String(50)
 );
 
@@ -89,11 +89,9 @@ CREATE OR MODIFY ASSOCIATION BugRenameRefs.Widget_Holder
 -- The access rules: member entries naming both attributes AND the association.
 -- Mendix stores an association's MemberAccess on the FROM entity only (putting one
 -- on the TO entity is CE0066), so this has to be granted on Widget.
-GRANT BugRenameRefs.User ON BugRenameRefs.Widget (
-  CREATE, DELETE,
+GRANT CREATE, DELETE,
   READ (WidgetName, WidgetCode, Widget_Holder),
-  WRITE (WidgetCode, Widget_Holder)
-);
+  WRITE (WidgetCode, Widget_Holder) ON ENTITY BugRenameRefs.Widget TO BugRenameRefs.User;
 
 -- ---------------------------------------------------------------------------
 -- The two renames. Order matters: the association first, so the second rename

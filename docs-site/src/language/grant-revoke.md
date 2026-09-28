@@ -7,7 +7,7 @@ The `GRANT` and `REVOKE` statements control all permissions in a Mendix project.
 ### GRANT
 
 ```sql
-GRANT <Module>.<Role> ON <Module>.<Entity> (<rights>) [WHERE '<xpath>'];
+GRANT <rights> ON ENTITY <Module>.<Entity> TO <Module>.<Role> [, ...] [WHERE [<xpath>]];
 ```
 
 Where `<rights>` is a comma-separated list of:
@@ -27,20 +27,20 @@ Examples:
 
 ```sql
 -- Full access
-GRANT Shop.Admin ON Shop.Customer (CREATE, DELETE, READ *, WRITE *);
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Customer TO Shop.Admin;
 
 -- Read-only
-GRANT Shop.Viewer ON Shop.Customer (READ *);
+GRANT READ * ON ENTITY Shop.Customer TO Shop.Viewer;
 
 -- Selective members
-GRANT Shop.User ON Shop.Customer (READ (Name, Email), WRITE (Email));
+GRANT READ (Name, Email), WRITE (Email) ON ENTITY Shop.Customer TO Shop.User;
 
 -- With XPath constraint (doubled single quotes for string literals)
-GRANT Shop.User ON Shop.Order (READ *, WRITE *)
-  WHERE '[Status = ''Open'']';
+GRANT READ *, WRITE * ON ENTITY Shop.Order TO Shop.User
+  WHERE [Status = 'Open'];
 
 -- Additive: adds Notes to existing read access without removing Name, Email
-GRANT Shop.User ON Shop.Customer (READ (Notes));
+GRANT READ (Notes) ON ENTITY Shop.Customer TO Shop.User;
 ```
 
 ### REVOKE
@@ -61,16 +61,16 @@ Examples:
 
 ```sql
 -- Remove all access
-REVOKE Shop.Viewer ON Shop.Customer;
+REVOKE ALL ON ENTITY Shop.Customer FROM Shop.Viewer;
 
 -- Remove read access on a specific member
-REVOKE Shop.User ON Shop.Customer (READ (Notes));
+REVOKE READ (Notes) ON ENTITY Shop.Customer FROM Shop.User;
 
 -- Downgrade write to read-only
-REVOKE Shop.User ON Shop.Customer (WRITE (Email));
+REVOKE WRITE (Email) ON ENTITY Shop.Customer FROM Shop.User;
 
 -- Remove delete permission only
-REVOKE Shop.User ON Shop.Customer (DELETE);
+REVOKE DELETE ON ENTITY Shop.Customer FROM Shop.User;
 ```
 
 ## Microflow Access
@@ -139,8 +139,8 @@ REVOKE EXECUTE ON NANOFLOW <Module>.<Name> FROM <Module>.<Role> [, ...];
 ## OData Service Access
 
 ```sql
-GRANT ACCESS ON ODATA SERVICE <Module>.<Name> TO <Module>.<Role> [, ...];
-REVOKE ACCESS ON ODATA SERVICE <Module>.<Name> FROM <Module>.<Role> [, ...];
+GRANT ACCESS ON PUBLISHED ODATA SERVICE <Module>.<Name> TO <Module>.<Role> [, ...];
+REVOKE ACCESS ON PUBLISHED ODATA SERVICE <Module>.<Name> FROM <Module>.<Role> [, ...];
 ```
 
 ## Complete Example
@@ -154,19 +154,19 @@ CREATE MODULE ROLE Shop.User DESCRIPTION 'Standard access';
 CREATE MODULE ROLE Shop.Viewer DESCRIPTION 'Read-only access';
 
 -- User roles
-CREATE USER ROLE Administrator (Shop.Admin, System.Administrator) MANAGE ALL ROLES;
-CREATE USER ROLE Employee (Shop.User);
-CREATE USER ROLE Guest (Shop.Viewer);
+CREATE USER ROLE Administrator ( ModuleRoles: (Shop.Admin, System.Administrator), ManageAllRoles: true );
+CREATE USER ROLE Employee ( ModuleRoles: (Shop.User) );
+CREATE USER ROLE Guest ( ModuleRoles: (Shop.Viewer) );
 
 -- Entity access
-GRANT Shop.Admin ON Shop.Customer (CREATE, DELETE, READ *, WRITE *);
-GRANT Shop.User ON Shop.Customer (READ *, WRITE (Email, Phone));
-GRANT Shop.Viewer ON Shop.Customer (READ *);
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Customer TO Shop.Admin;
+GRANT READ *, WRITE (Email, Phone) ON ENTITY Shop.Customer TO Shop.User;
+GRANT READ * ON ENTITY Shop.Customer TO Shop.Viewer;
 
-GRANT Shop.Admin ON Shop.Order (CREATE, DELETE, READ *, WRITE *);
-GRANT Shop.User ON Shop.Order (CREATE, READ *, WRITE *)
-  WHERE '[Status = ''Open'']';
-GRANT Shop.Viewer ON Shop.Order (READ *);
+GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Order TO Shop.Admin;
+GRANT CREATE, READ *, WRITE * ON ENTITY Shop.Order TO Shop.User
+  WHERE [Status = 'Open'];
+GRANT READ * ON ENTITY Shop.Order TO Shop.Viewer;
 
 -- Microflow access
 GRANT EXECUTE ON MICROFLOW Shop.ACT_ProcessOrder TO Shop.Admin;
@@ -183,8 +183,8 @@ CREATE DEMO USER 'demo_admin' PASSWORD 'Admin123!' (Administrator);
 CREATE DEMO USER 'demo_user' PASSWORD 'User123!' (Employee);
 
 -- Enable demo users
-ALTER PROJECT SECURITY DEMO USERS ON;
-ALTER PROJECT SECURITY LEVEL PROTOTYPE;
+ALTER APP SECURITY ( EnableDemoUsers: TRUE );
+ALTER APP SECURITY ( SecurityLevel: PROTOTYPE );
 ```
 
 ## See Also

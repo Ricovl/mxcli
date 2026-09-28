@@ -35,8 +35,8 @@
 
 create entity MyFirstModule.Vessel ( Name: String, Active: Boolean );
 
-create or replace page MyFirstModule.P_VisString
-( Title: 'Visible string form', Layout: Atlas_Core.Atlas_Default, Params: { $Vessel: MyFirstModule.Vessel } )
+create or modify page MyFirstModule.P_VisString
+( Title: 'Visible string form', Layout: Atlas_Core.Atlas_Default, Params: ( $Vessel: MyFirstModule.Vessel ) )
 {
   dataview dv (datasource: $Vessel) {
     -- expression as a quoted string (root in $currentObject yourself)
@@ -51,7 +51,7 @@ create or replace page MyFirstModule.P_VisString
 -- ALTER PAGE ... SET Visible = "<expr>" (quoted string) — previously a silent
 -- no-op; now writes ConditionalVisibilitySettings.
 alter page MyFirstModule.P_VisString {
-  set Visible = "$currentObject/Active" on ovLater;
+  set (Visible: "$currentObject/Active") on ovLater;
 }
 
 describe page MyFirstModule.P_VisString;

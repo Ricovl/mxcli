@@ -14,7 +14,7 @@ Only structural MDL keywords require quoting: `Create`, `Delete`, `Begin`, `End`
 
 ```sql
 DESCRIBE ENTITY "ComboBox"."CategoryTreeVE";
-SHOW ENTITIES IN "ComboBox";
+LIST ENTITIES IN "ComboBox";
 CREATE PERSISTENT ENTITY Module.VATRate ("Create": DateTime, Rate: Decimal);
 ```
 

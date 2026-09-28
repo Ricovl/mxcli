@@ -45,13 +45,13 @@ begin
   return $items;
 end;
 
-create or replace page Issue795b.Probe (
+create or modify page Issue795b.Probe (
   Title: 'Probe',
   Layout: Atlas_Core.Atlas_Default
 ) {
   -- The context comment under this grid must name Issue795b.Bucket, not the microflow.
   datagrid gMicroflow (datasource: microflow Issue795b.GetBuckets) {
-    column colKey (attribute: BucketKey, caption: 'Key')
+    column (attribute: BucketKey, caption: 'Key')
   }
 }
 

@@ -23,7 +23,7 @@
 -- The correct form specifies a layout, so the widgets are placed:
 -- ============================================================================
 
-create or replace page "MyFirstModule"."WithLayout" (
+create or modify page "MyFirstModule"."WithLayout" (
   URL: 'withlayout',
   Layout: Atlas_Core.Atlas_Default
 ) {

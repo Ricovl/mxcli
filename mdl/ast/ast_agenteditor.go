@@ -6,7 +6,7 @@ package ast
 //
 //	CREATE MODEL Module.Name (
 //	  Provider: MxCloudGenAI,
-//	  Key: Module.SomeConstant
+//	  Key: @Module.SomeConstant
 //	  -- optional Portal-populated fields:
 //	  [, DisplayName: '...']
 //	  [, KeyName: '...']
@@ -16,6 +16,7 @@ package ast
 //	  [, DeepLinkURL: '...']
 //	);
 type CreateModelStmt struct {
+	CreateGuard             // `create … if not exists` (ako/mxcli#731)
 	Folder           string // Folder path within module (empty = leave placement alone)
 	Name             QualifiedName
 	Documentation    string
@@ -58,6 +59,7 @@ func (s *AlterModelStmt) isStatement() {}
 //	  Documentation: '...'
 //	);
 type CreateConsumedMCPServiceStmt struct {
+	CreateGuard                     // `create … if not exists` (ako/mxcli#731)
 	Folder                   string // Folder path within module (empty = leave placement alone)
 	Name                     QualifiedName
 	OuterDocumentation       string // /** ... */ doc comment
@@ -92,9 +94,10 @@ func (s *AlterConsumedMCPServiceStmt) isStatement() {}
 //
 //	CREATE KNOWLEDGE BASE Module.Name (
 //	  Provider: MxCloudGenAI,
-//	  Key: Module.SomeConstant
+//	  Key: @Module.SomeConstant
 //	);
 type CreateKnowledgeBaseStmt struct {
+	CreateGuard             // `create … if not exists` (ako/mxcli#731)
 	Folder           string // Folder path within module (empty = leave placement alone)
 	Name             QualifiedName
 	Documentation    string
@@ -131,6 +134,7 @@ func (s *AlterKnowledgeBaseStmt) isStatement() {}
 
 // CreateAgentStmt represents CREATE AGENT Module.Name (...) [{ body }].
 type CreateAgentStmt struct {
+	CreateGuard             // `create … if not exists` (ako/mxcli#731)
 	Folder           string // Folder path within module (empty = leave placement alone)
 	Name             QualifiedName
 	Documentation    string

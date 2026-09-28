@@ -80,37 +80,47 @@ builds and never completes.
 
 ## Call Microflow
 
-Execute a microflow as part of the workflow. Optionally specify a comment and outcomes:
+Execute a microflow as part of the workflow. Optionally specify a caption and outcomes:
 
 ```sql
-CALL MICROFLOW <Module>.<Name> [COMMENT '<text>']
+CALL MICROFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [CAPTION '<text>']
   [OUTCOMES '<outcome>' { <activities> } ...];
 ```
 
 Example:
 
 ```sql
-CALL MICROFLOW HR.ACT_SendNotification COMMENT 'Notify the applicant';
+CALL MICROFLOW HR.ACT_SendNotification CAPTION 'Notify the applicant';
+CALL MICROFLOW HR.ACT_Escalate(Request = $WorkflowContext) CAPTION 'Escalate';
 ```
+
+Arguments are bound like every other call in MDL: `Param = expression` right
+after the callee, the expression written bare. The older spelling after the
+caption, `WITH (Param = '<expression>')` with the expression inside a string,
+still parses with the same meaning but is deprecated (MDL-DEPR008);
+`mxcli fmt --upgrade` rewrites it.
+
+`CAPTION '…'` sets the caption Studio Pro shows on the activity, on every workflow
+activity. It used to be spelt `COMMENT '…'`, which still parses as a deprecated
+alias (MDL-DEPR104) — it was never a comment.
 
 ## AI Agent Task
 
 A step that runs an AI agent (Mendix 11.9 or later). It is written like `CALL
-MICROFLOW` with `AGENT` added, and takes the same name, comment, parameter
+MICROFLOW` with `AGENT` added, and takes the same name, caption, parameter
 mappings, outcomes and boundary events. The microflow is where the agent is
 invoked — build agents with the Studio Pro Agent Editor, or `CREATE AGENT`.
 
 ```sql
-CALL AGENT MICROFLOW <Module>.<Name> [AS <name>] [COMMENT '<text>']
-  [WITH (<Param> = '<expression>', ...)]
+CALL AGENT MICROFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>']
   [OUTCOMES <true|false|'Module.Enum.Value'|''> -> { <activities> } ...];
 ```
 
 Example — branch on the agent's answer:
 
 ```sql
-CALL AGENT MICROFLOW HR.ACT_ClassifyRequest AS aiAgentTask1 COMMENT 'Classify the request'
-  WITH (Request = '$WorkflowContext')
+CALL AGENT MICROFLOW HR.ACT_ClassifyRequest(Request = $WorkflowContext) AS aiAgentTask1
+  CAPTION 'Classify the request'
   OUTCOMES true -> {
     USER TASK Expedite 'Expedite the request' PAGE HR.TaskPage OUTCOMES 'Done' { };
   } false -> { };
@@ -125,34 +135,36 @@ branch with `OUTCOMES`; return nothing for a single path.
 Start a sub-workflow:
 
 ```sql
-CALL WORKFLOW <Module>.<Name> [COMMENT '<text>'];
+CALL WORKFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [CAPTION '<text>'];
 ```
 
 Example:
 
 ```sql
-CALL WORKFLOW HR.BackgroundCheck COMMENT 'Run background check sub-process';
+CALL WORKFLOW HR.BackgroundCheck CAPTION 'Run background check sub-process';
 ```
 
 ## Decision
 
-Branch the workflow based on a condition. Each outcome contains a block of activities:
+Branch the workflow based on a condition. The condition is a bare expression, Boolean or enumeration; each outcome contains a block of activities:
 
 ```sql
-DECISION ['<caption>']
-  OUTCOMES '<outcome>' { <activities> } ['<outcome>' { <activities> }] ...;
+DECISION [<name>] <expression> [COMMENT '<caption>']
+  OUTCOMES TRUE -> { <activities> } FALSE -> { <activities> };
 ```
 
 Example:
 
 ```sql
-DECISION 'Order value over $1000?'
-  OUTCOMES 'Yes' {
+DECISION $WorkflowContext/Total > 1000 COMMENT 'Order value over $1000?'
+  OUTCOMES TRUE -> {
     USER TASK ManagerApproval 'Manager must approve'
       PAGE Shop.ApprovalPage
-      OUTCOMES 'Approved' { } 'Rejected' { END; };
-  } 'No' { };
+      OUTCOMES 'Approved' { } 'Rejected' { END WORKFLOW; };
+  } FALSE -> { };
 ```
+
+An enumeration decision has one outcome per qualified enumeration value, plus `''` for "none of the above". The expression used to be written in a string (`DECISION '$WorkflowContext/Total > 1000'`); that form still parses and warns `MDL-DEPR080`, and `mxcli fmt --upgrade` rewrites it.
 
 ## Parallel Split
 
@@ -200,13 +212,13 @@ JUMP TO ReviewTask;
 Pause the workflow until a timer expression evaluates:
 
 ```sql
-WAIT FOR TIMER ['<expression>'];
+WAIT FOR TIMER [<name>] [<expression>] [COMMENT '<caption>'];
 ```
 
 Example:
 
 ```sql
-WAIT FOR TIMER 'addDays([%CurrentDateTime%], 3)';
+WAIT FOR TIMER addDays([%CurrentDateTime%], 3);
 ```
 
 ## Wait for Notification
@@ -222,7 +234,7 @@ WAIT FOR NOTIFICATION;
 An intermediate notification event (Mendix 11.11+): the point a `NOTIFY WORKFLOW` action targets by name.
 
 ```sql
-NOTIFICATION [<name>] [COMMENT '<caption>'];
+NOTIFICATION [<name>] [CAPTION '<caption>'];
 ```
 
 A **notification boundary event** attaches the same trigger to a user task, call microflow or wait. It takes a name instead of a timer delay:
@@ -236,7 +248,7 @@ USER TASK Review 'Review'
   };
 ```
 
-An activity may carry only one interrupting boundary event (CE6697). `ALTER WORKFLOW … INSERT BOUNDARY EVENT` cannot add a notification boundary event yet.
+An activity may carry only one interrupting boundary event (CE6697). `ALTER WORKFLOW … { INSERT INTO <activity> { BOUNDARY EVENT … } }` cannot add a notification boundary event yet.
 
 A microflow reaches any of these with `NOTIFY WORKFLOW`, naming the element:
 
@@ -256,7 +268,7 @@ EVENT SUBPROCESS <name> ['<caption>']
   { <activities> };
 
 EVENT SUBPROCESS <name> ['<caption>']
-  ON (INTERRUPTING | NON INTERRUPTING) TIMER '<first-execution-time>' [AS <start>] [COMMENT '<start caption>']
+  ON (INTERRUPTING | NON INTERRUPTING) TIMER <first-execution-time> [AS <start>] [CAPTION '<start caption>']
   { <activities> };
 ```
 
@@ -284,6 +296,28 @@ END;
 ```
 
 Typically used inside an outcome block to stop the workflow after a rejection or cancellation.
+
+## Notes (annotations)
+
+Studio Pro's notes attach to an activity. Write one as `@annotation '…'` on the
+line before the activity, as in a microflow; an event sub-process takes it before
+`EVENT SUBPROCESS`, and the note on the workflow itself is the header clause
+`ANNOTATION '…'`:
+
+```sql
+CREATE WORKFLOW Module.Approve
+  PARAMETER $WorkflowContext: Module.Request
+  ANNOTATION 'Started from the request form'
+BEGIN
+  @annotation 'Escalates after two days'
+  USER TASK Review 'Review' PAGE Module.Review_Task OUTCOMES 'Done' { };
+END WORKFLOW;
+```
+
+An activity takes one note, and no other `@` annotation. `DESCRIBE WORKFLOW`
+writes them the same way, so a replay keeps them. A standalone
+`ANNOTATION '…';` statement in the body is refused (MDL-WF04): Mendix cannot
+load a note placed in the activity flow.
 
 ## Summary Table
 

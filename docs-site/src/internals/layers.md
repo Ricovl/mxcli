@@ -38,7 +38,7 @@ sequenceDiagram
     participant Executor
     participant SDK
 
-    User->>REPL: "SHOW ENTITIES IN MyModule"
+    User->>REPL: "LIST ENTITIES IN MyModule"
     REPL->>Parser: Parse MDL command
     Parser->>Visitor: Walk parse tree
     Visitor->>Executor: Build AST node

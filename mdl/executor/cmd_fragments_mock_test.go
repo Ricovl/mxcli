@@ -44,7 +44,7 @@ func TestDescribeFragment_Mock(t *testing.T) {
 	assertNoError(t, describeFragment(ctx, ast.QualifiedName{Name: "myFrag"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "define fragment myFrag")
+	assertContainsStr(t, out, "create fragment myFrag")
 	assertContainsStr(t, out, "Button btnSave")
 }
 

@@ -44,7 +44,7 @@
 create module Icon1008;
 
 -- 1. A page whose button lives in a named layout placeholder, not the body.
-create or replace page Icon1008.PlaceholderPage
+create or modify page Icon1008.PlaceholderPage
 ( title: 'Placeholder', layout: Atlas_Core.Atlas_Default )
 {
   placeholder Main {
@@ -57,7 +57,7 @@ create or replace page Icon1008.PlaceholderPage
 }
 
 -- 2. A snippet.
-create or replace snippet Icon1008.ButtonSnippet
+create or modify snippet Icon1008.ButtonSnippet
 {
   actionbutton abInSnippet (
     caption: 'Edit',
@@ -68,7 +68,7 @@ create or replace snippet Icon1008.ButtonSnippet
 
 -- 3. A layout. The costliest of the four to get wrong: the topbar is shared, so
 --    one bad icon here is an error on every page using the layout.
-create or replace layout Icon1008.AppFrame
+create or modify layout Icon1008.AppFrame
 ( layouttype: 'Responsive' )
 {
   scrollcontainer layoutContainer {
@@ -87,11 +87,11 @@ create or replace layout Icon1008.AppFrame
 
 -- 4. A standalone menu document, sub-items included — the same NavMenuItemDef a
 --    navigation profile's menu uses, which is why it needs the same recursion.
-create or modify menu Icon1008.Main_Menu (
-  menu item 'Home' page Icon1008.PlaceholderPage
-    icon Atlas_Core.Atlas_Filled.home;
-  menu 'More' icon Atlas_Core.Atlas_Filled.home (
-    menu item 'Edit' page Icon1008.PlaceholderPage
-      icon Atlas_Core.Atlas_Filled.pencil;
-  );
-);
+create or modify menu Icon1008.Main_Menu {
+  menu item 'Home' ( OnClick: show page Icon1008.PlaceholderPage,
+    Icon: Atlas_Core.Atlas_Filled.home )
+  menu 'More' ( Icon: Atlas_Core.Atlas_Filled.home ) {
+    menu item 'Edit' ( OnClick: show page Icon1008.PlaceholderPage,
+      Icon: Atlas_Core.Atlas_Filled.pencil )
+  }
+};

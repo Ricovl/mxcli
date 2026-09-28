@@ -30,7 +30,7 @@ create microflow BugTest619c.MF_SortByStatus (
 )
 returns list of BugTest619c.Product as $Sorted
 begin
-  $Sorted = sort($ProductList, "Status" asc, Name desc);
+  $Sorted = sort $ProductList by "Status" asc, Name desc;
   return $Sorted;
 end;
 
@@ -45,6 +45,6 @@ create page BugTest619c.P_Detail
     dynamictext t1 (content: 'Row')
   }
   dataview detail (datasource: selection "List") {
-    actionbutton btnOpen (caption: 'Open', action: show_page BugTest619c.P_Detail ("Status": $currentObject))
+    actionbutton btnOpen (caption: 'Open', action: show page BugTest619c.P_Detail ("Status" = $currentObject))
   }
 }

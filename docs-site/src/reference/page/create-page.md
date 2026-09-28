@@ -3,13 +3,12 @@
 ## Synopsis
 
 ```sql
-CREATE [ OR REPLACE ] PAGE module.Name
+CREATE [ OR REPLACE ] PAGE module.Name [ FOLDER 'path' ]
 (
-    [ Params: { $param : Module.Entity | Type [, ...] }, ]
+    [ Params: ( $param : Module.Entity | Type [, ...] ), ]
     Title: 'title',
     Layout: Module.LayoutName
-    [, Folder: 'path' ]
-    [, Variables: { $name : type = 'expression' [, ...] } ]
+    [, Variables: ( $name : type = 'expression' [, ...] ) ]
 )
 {
     widget_tree
@@ -119,18 +118,18 @@ values, including the argument list.
 
 | Action | Syntax | Description |
 |--------|--------|-------------|
-| Save | `Action: SAVE_CHANGES` | Commits and closes |
-| Cancel | `Action: CANCEL_CHANGES` | Rolls back and closes |
-| Microflow | `Action: MICROFLOW Module.Name(Param: val)` | Calls a microflow |
-| Nanoflow | `Action: NANOFLOW Module.Name(Param: val)` | Calls a nanoflow |
+| Save | `Action: save changes` | Commits and closes |
+| Cancel | `Action: cancel changes` | Rolls back and closes |
+| Microflow | `Action: MICROFLOW Module.Name(Param = val)` | Calls a microflow |
+| Nanoflow | `Action: NANOFLOW Module.Name(Param = val)` | Calls a nanoflow |
 | Page | `Action: PAGE Module.PageName` | Opens a page |
-| Close | `Action: CLOSE_PAGE` | Closes the current page |
+| Close | `Action: CLOSE PAGE` | Closes the current page |
 | Delete | `Action: DELETE` | Deletes the context object |
 | Nothing | `Action: NOTHING` | Deliberately no action — a decorative button, a card that is not clickable |
 
 The set is closed. Anything else in an action slot is an error
 (**MDL-WIDGET28**), and that includes a real action keyword **missing its
-argument** — `Action: OPEN_LINK` with no URL, `Action: SHOW_PAGE` with no page.
+argument** — `Action: OPEN LINK` with no URL, `Action: SHOW PAGE` with no page.
 Such a widget used to be written with no action at all: it rendered, carried its
 caption, and did nothing, while `mxcli check`, `exec` and mxbuild all reported
 success, because a no-action widget is perfectly legal Mendix. Write `NOTHING`
@@ -150,7 +149,7 @@ DATAGRID dgOrders (DataSource: DATABASE FROM Sales.Order, Selection: Single) {
   COLUMN colNr (Attribute: Number, Caption: 'Order #')
   CONTROLBAR cb {
     CONTAINER cShip (Class: 'command',
-      Action: NANOFLOW Sales.ACT_Ship($Order = $dgOrders)) {
+      Action: NANOFLOW Sales.ACT_Ship(Order = $dgOrders)) {
       ACTIONBUTTON btnShip (Caption: 'Ship')
     }
   }
@@ -193,14 +192,14 @@ These properties are available on most widget types:
 | `DynamicClasses` | Runtime-computed CSS classes (expression; stacks on `Class`) | `DynamicClasses: if $currentObject/IsActive then 'is-active' else ''` |
 | `Editable` | Edit control | `Editable: NEVER` or `Editable: ALWAYS` |
 | `Visible` | Visibility expression | `Visible: '$showField'` |
-| `DesignProperties` | Atlas design properties | `DesignProperties: ['Spacing top': 'Large']` |
+| `DesignProperties` | Atlas design properties | `DesignProperties: ('Spacing top': 'Large')` |
 
 ## Parameters
 
 `module.Name`
 :   The qualified name of the page (`Module.PageName`). The module must already exist.
 
-`Params: { ... }`
+`Params: ( ... )`
 :   Optional page parameters. Each parameter has a `$`-prefixed name and an entity type.
 
 `Title: 'title'`
@@ -209,10 +208,10 @@ These properties are available on most widget types:
 `Layout: Module.LayoutName`
 :   The page layout. Must reference an existing layout. Required.
 
-`Folder: 'path'`
-:   Optional folder within the module. Nested folders use `/`.
+`FOLDER 'path'`
+:   Optional folder within the module, as a clause after the name. Nested folders use `/`. The `Folder: 'path'` property is its deprecated alias (`MDL-DEPR105`).
 
-`Variables: { ... }`
+`Variables: ( ... )`
 :   Optional page variables with type and default expression.
 
 ## Examples
@@ -222,7 +221,7 @@ Edit page with a data view and form fields:
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-    Params: { $Customer: MyModule.Customer },
+    Params: ( $Customer: MyModule.Customer ),
     Title: 'Edit Customer',
     Layout: Atlas_Core.PopupLayout
 )
@@ -233,8 +232,8 @@ CREATE PAGE MyModule.Customer_Edit
         COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
 
         FOOTER footer1 {
-            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
         }
     }
 };
@@ -243,11 +242,10 @@ CREATE PAGE MyModule.Customer_Edit
 Overview page with a data grid:
 
 ```sql
-CREATE PAGE Sales.Order_Overview
+CREATE PAGE Sales.Order_Overview FOLDER 'Orders'
 (
     Title: 'Orders',
-    Layout: Atlas_Core.Atlas_Default,
-    Folder: 'Orders'
+    Layout: Atlas_Core.Atlas_Default
 )
 {
     DATAGRID dgOrders (DataSource: DATABASE Sales.Order, PageSize: 20) {
@@ -256,7 +254,7 @@ CREATE PAGE Sales.Order_Overview
         COLUMN colStatus (Attribute: Status, Caption: 'Status')
         COLUMN colAmount (Attribute: TotalAmount, Caption: 'Amount', Alignment: right)
         CONTROLBAR cb1 {
-            ACTIONBUTTON btnNew (Caption: 'New Order', Action: SHOW_PAGE Sales.Order_Edit, ButtonStyle: Primary)
+            ACTIONBUTTON btnNew (Caption: 'New Order', Action: SHOW PAGE Sales.Order_Edit, ButtonStyle: Primary)
         }
     }
 };
@@ -295,7 +293,7 @@ Page with snippet call:
 ```sql
 CREATE PAGE MyModule.Customer_Detail
 (
-    Params: { $Customer: MyModule.Customer },
+    Params: ( $Customer: MyModule.Customer ),
     Title: 'Customer Detail',
     Layout: Atlas_Core.Atlas_Default
 )
@@ -341,21 +339,21 @@ Page with page variables and conditional visibility:
 ```sql
 CREATE PAGE MyModule.AdvancedForm
 (
-    Params: { $Item: MyModule.Item },
+    Params: ( $Item: MyModule.Item ),
     Title: 'Advanced Form',
     Layout: Atlas_Core.Atlas_Default,
-    Variables: { $showAdvanced: Boolean = 'false' }
+    Variables: ( $showAdvanced: Boolean = 'false' )
 )
 {
     DATAVIEW dvItem (DataSource: $Item) {
         TEXTBOX txtName (Label: 'Name', Attribute: Name)
-        ACTIONBUTTON btnToggle (Caption: 'Show Advanced', Action: NANOFLOW MyModule.NAV_Toggle)
+        ACTIONBUTTON btnToggle (Caption: 'Show Advanced', Action: CALL NANOFLOW MyModule.NAV_Toggle)
         CONTAINER cntAdvanced (Visible: '$showAdvanced') {
             TEXTAREA taNotes (Label: 'Notes', Attribute: Notes)
         }
         FOOTER footer1 {
-            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
         }
     }
 };

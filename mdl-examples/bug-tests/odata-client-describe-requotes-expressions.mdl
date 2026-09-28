@@ -31,7 +31,7 @@ type string
 default 'secret';
 /
 
-create odata client OdQuote.QuotedApi (
+create consumed odata service OdQuote.QuotedApi (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
   ServiceUrl: '@OdQuote.ApiLocation',

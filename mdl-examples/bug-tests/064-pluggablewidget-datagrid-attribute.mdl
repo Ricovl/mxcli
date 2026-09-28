@@ -22,7 +22,7 @@ create persistent entity Issue64.UoM (
   IsHidden: boolean default false
 );
 
-create or replace page Issue64.UoM_TestDG2 (
+create or modify page Issue64.UoM_TestDG2 (
   Title: 'UoM Test - DataGrid2',
   Layout: Atlas_Core.Atlas_Default
 ) {

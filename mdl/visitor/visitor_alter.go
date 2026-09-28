@@ -39,7 +39,7 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 	}
 
 	// Handle ALTER WORKFLOW
-	if ctx.WORKFLOW() != nil && len(ctx.AllAlterWorkflowAction()) > 0 {
+	if ctx.WORKFLOW() != nil && (len(ctx.AllAlterWorkflowAction()) > 0 || len(ctx.AllAlterWorkflowOperation()) > 0) {
 		b.exitAlterWorkflowStatement(ctx)
 		return
 	}
@@ -51,14 +51,14 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 	}
 
 	// Handle agent-editor ALTER statements
-	if ctx.MODEL() != nil || ctx.AGENT() != nil ||
+	if ctx.AiModelKw() != nil || ctx.AGENT() != nil ||
 		(ctx.KNOWLEDGE() != nil && ctx.BASE() != nil) ||
 		(ctx.CONSUMED() != nil && ctx.MCP() != nil && ctx.SERVICE() != nil) {
 		b.exitAlterAgentEditorStatement(ctx)
 		return
 	}
 
-	if ctx.ODATA() == nil {
+	if ctx.ConsumedODataServiceKw() == nil && ctx.PublishedODataServiceKw() == nil {
 		return // Not an OData alter - handled elsewhere
 	}
 
@@ -68,26 +68,36 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 	}
 
 	changes := make(map[string]any)
-	for _, propCtx := range ctx.AllOdataAlterAssignment() {
-		prop := propCtx.(*parser.OdataAlterAssignmentContext)
-		name := identifierOrKeywordText(prop.IdentifierOrKeyword())
-		if ctx.CLIENT() != nil && isODataClientExpressionProp(name) {
+	// One property, in either spelling: `set ( Key: value, … )` or the old
+	// `set Key = value, …` (MDL-DEPR061). Both build the same statement.
+	set := func(name string, value parser.IOdataPropertyValueContext, expr parser.IExpressionContext) {
+		if ctx.ConsumedODataServiceKw() != nil && isODataClientExpressionProp(name) {
 			// Expression-typed: the expression as written (see visitor_odata_expression.go).
-			changes[name], _ = odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
-			continue
+			changes[name], _ = odataExpressionValue(value, expr)
+			return
 		}
-		val := prop.OdataPropertyValue()
-		if val != nil {
-			changes[name] = odataValueText(val.(*parser.OdataPropertyValueContext))
+		if value != nil {
+			changes[name] = odataValueText(value.(*parser.OdataPropertyValueContext))
 		}
 	}
+	if pl, ok := ctx.OdataAlterPropertyList().(*parser.OdataAlterPropertyListContext); ok && pl != nil {
+		for _, propCtx := range pl.AllOdataPropertyAssignment() {
+			prop := propCtx.(*parser.OdataPropertyAssignmentContext)
+			set(identifierOrKeywordText(prop.IdentifierOrKeyword()), prop.OdataPropertyValue(), prop.Expression())
+		}
+	}
+	for _, propCtx := range ctx.AllOdataAlterAssignment() {
+		prop := propCtx.(*parser.OdataAlterAssignmentContext)
+		set(identifierOrKeywordText(prop.IdentifierOrKeyword()), prop.OdataPropertyValue(), prop.Expression())
+	}
+	b.recordODataAlterAssignments(ctx)
 
-	if ctx.CLIENT() != nil {
+	if ctx.ConsumedODataServiceKw() != nil {
 		b.statements = append(b.statements, &ast.AlterODataClientStmt{
 			Name:    buildQualifiedName(qn),
 			Changes: changes,
 		})
-	} else if ctx.SERVICE() != nil {
+	} else if ctx.PublishedODataServiceKw() != nil {
 		b.statements = append(b.statements, &ast.AlterODataServiceStmt{
 			Name:    buildQualifiedName(qn),
 			Changes: changes,

@@ -73,7 +73,7 @@ create association BugTest261.Note_Order
   type Reference;
 
 create json structure BugTest261.JSON_Order
-  snippet $${"number": "n", "lines": [{"code": "c"}], "note": {"text": "t"}}$$;
+  sample $${"number": "n", "lines": [{"code": "c"}], "note": {"text": "t"}}$$;
 
 -- Root: find, error out when it isn't there.
 create or modify import mapping BugTest261.IMM_FindOrError

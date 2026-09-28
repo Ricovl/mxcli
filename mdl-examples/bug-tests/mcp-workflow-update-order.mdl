@@ -34,20 +34,22 @@
 create workflow workflow.ZzMxcliBug_UpdateOrder
   parameter $WorkflowContext: workflow.workfow1context
 begin
-  wait for notification oldA comment 'Old A';
-  wait for notification oldB comment 'Old B';
+  wait for notification oldA caption 'Old A';
+  wait for notification oldB caption 'Old B';
 end workflow;
 
 create or modify workflow workflow.ZzMxcliBug_UpdateOrder
   parameter $WorkflowContext: workflow.workfow1context
 begin
-  wait for notification updA comment 'A';
-  wait for notification updB comment 'B';
-  wait for notification updC comment 'C';
+  wait for notification updA caption 'A';
+  wait for notification updB caption 'B';
+  wait for notification updC caption 'C';
 end workflow;
 
-alter workflow workflow.ZzMxcliBug_UpdateOrder
-  insert after updB wait for notification updInserted comment 'Inserted after B';
+alter workflow workflow.ZzMxcliBug_UpdateOrder {
+  insert after updB { wait for notification updInserted caption 'Inserted after B'; }
+};
 
-alter workflow workflow.ZzMxcliBug_UpdateOrder
-  replace activity updC with wait for notification updReplaced comment 'Replaced C';
+alter workflow workflow.ZzMxcliBug_UpdateOrder {
+  replace updC with { wait for notification updReplaced caption 'Replaced C'; }
+};

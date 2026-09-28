@@ -63,9 +63,9 @@ create constant ModelTest."ClaudeKey"
  * After creation, the model appears in Studio Pro's Agent Editor and
  * can be selected when configuring an Agent.
  */
-create model ModelTest."GPT4Model" (
+create ai model ModelTest."GPT4Model" (
   Provider: MxCloudGenAI,
-  key: ModelTest.GPT4Key
+  key: @ModelTest.GPT4Key
 );
 /
 
@@ -75,9 +75,9 @@ create model ModelTest."GPT4Model" (
  * Projects commonly have multiple models (e.g., GPT-4 for complex tasks,
  * Claude for document analysis). Each references its own key constant.
  */
-create model ModelTest."ClaudeModel" (
+create ai model ModelTest."ClaudeModel" (
   Provider: MxCloudGenAI,
-  key: ModelTest.ClaudeKey
+  key: @ModelTest.ClaudeKey
 );
 /
 
@@ -93,9 +93,9 @@ create model ModelTest."ClaudeModel" (
  * in MDL for round-trip preservation (e.g., when DESCRIBE output is
  * re-executed), but setting them manually has no functional effect.
  */
-create model ModelTest."ConfiguredModel" (
+create ai model ModelTest."ConfiguredModel" (
   Provider: MxCloudGenAI,
-  key: ModelTest.GPT4Key,
+  key: @ModelTest.GPT4Key,
   DisplayName: 'GPT-4 Turbo (128K)',
   KeyName: 'prod-gpt4-turbo',
   Environment: 'production'
@@ -109,15 +109,15 @@ create model ModelTest."ConfiguredModel" (
 -- ============================================================================
 
 -- List all models across all modules
-list models;
+list ai models;
 /
 
 -- List models in a specific module
-list models in ModelTest;
+list ai models in ModelTest;
 /
 
 -- SHOW also works (deprecated alias for LIST)
-show models in ModelTest;
+list ai models in ModelTest;
 /
 
 -- MARK: Describe
@@ -128,8 +128,8 @@ show models in ModelTest;
 
 -- Describe produces round-trippable MDL. User-set fields (Provider, Key)
 -- come first; Portal-populated fields only appear when non-empty.
-describe model ModelTest.GPT4Model;
-describe model ModelTest.ConfiguredModel;
+describe ai model ModelTest.GPT4Model;
+describe ai model ModelTest.ConfiguredModel;
 
 -- MARK: Drop
 
@@ -139,11 +139,11 @@ describe model ModelTest.ConfiguredModel;
 
 -- Drop a model by qualified name.
 -- The underlying CustomBlobDocument is removed from the project.
-drop model ModelTest.ConfiguredModel;
+drop ai model ModelTest.ConfiguredModel;
 /
 
 -- Verify it's gone
-list models in ModelTest;
+list ai models in ModelTest;
 /
 
 -- ============================================================================
@@ -153,11 +153,11 @@ list models in ModelTest;
 -- These statements produce errors (commented out to not block the script):
 
 -- Duplicate model name:
--- CREATE MODEL ModelTest.GPT4Model (Provider: MxCloudGenAI, Key: ModelTest.GPT4Key);
+-- CREATE MODEL ModelTest.GPT4Model (Provider: MxCloudGenAI, Key: @ModelTest.GPT4Key);
 -- → Error: model already exists: ModelTest.GPT4Model
 
 -- Missing constant:
--- CREATE MODEL ModelTest.BadModel (Provider: MxCloudGenAI, Key: ModelTest.NoSuchConst);
+-- CREATE MODEL ModelTest.BadModel (Provider: MxCloudGenAI, Key: @ModelTest.NoSuchConst);
 -- → Error: CREATE MODEL ModelTest.BadModel: constant not found: ModelTest.NoSuchConst
 
 -- Drop non-existent model:
@@ -174,9 +174,9 @@ list models in ModelTest;
 --
 -- Useful in scripts that run multiple times (CI/CD pipelines, migrations).
 
-create or modify model ModelTest."GPT4Model" (
+create or modify ai model ModelTest."GPT4Model" (
   Provider: MxCloudGenAI,
-  key: ModelTest.GPT4Key,
+  key: @ModelTest.GPT4Key,
   DisplayName: 'GPT-4 Turbo (Updated)'
 );
 /
@@ -185,6 +185,6 @@ create or modify model ModelTest."GPT4Model" (
 -- Cleanup
 -- ============================================================================
 
-drop model ModelTest.GPT4Model;
-drop model ModelTest.ClaudeModel;
+drop ai model ModelTest.GPT4Model;
+drop ai model ModelTest.ClaudeModel;
 /

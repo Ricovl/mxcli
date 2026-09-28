@@ -54,6 +54,6 @@ end;
 create or modify workflow "MyFirstModule"."WF_CallMicroflowStorageName"
   parameter $Context: MyFirstModule.Ctx
 begin
-  call microflow "MyFirstModule"."ACT_ApproveStep" with (Ctx = '$workflowContext');
+  call microflow "MyFirstModule"."ACT_ApproveStep"(Ctx = $workflowContext);
 end workflow;
 /

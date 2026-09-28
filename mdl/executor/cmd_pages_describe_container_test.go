@@ -243,7 +243,7 @@ func TestParseRawWidget_DivContainerExtractsOnClickAction(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 widget, got %d", len(got))
 	}
-	if want := "microflow MyFirstModule.MyFirstLogic"; got[0].Action != want {
+	if want := "call microflow MyFirstModule.MyFirstLogic"; got[0].Action != want {
 		t.Errorf("Action: got %q, want %q", got[0].Action, want)
 	}
 	if len(got[0].Children) != 1 || got[0].Children[0].Name != "t" {
@@ -276,7 +276,7 @@ func TestOutputWidgetMDLV3_DivContainerEmitsAction(t *testing.T) {
 	box := rawWidget{
 		Type:   "Forms$DivContainer",
 		Name:   "box",
-		Action: "microflow MyFirstModule.MyFirstLogic",
+		Action: "call microflow MyFirstModule.MyFirstLogic",
 		Children: []rawWidget{
 			{Type: "Forms$DynamicText", Name: "t"},
 		},
@@ -286,7 +286,7 @@ func TestOutputWidgetMDLV3_DivContainerEmitsAction(t *testing.T) {
 	out := buf.String()
 	for _, want := range []string{
 		"container box",
-		"Action: microflow MyFirstModule.MyFirstLogic",
+		"Action: call microflow MyFirstModule.MyFirstLogic",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q\nfull output:\n%s", want, out)

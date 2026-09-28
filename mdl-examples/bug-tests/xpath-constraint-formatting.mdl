@@ -43,8 +43,8 @@ create or modify page XPathFmt.RequestOverview
   )
   {
     LAYOUTGRID lgMain {
-      ROW rowMain {
-        COLUMN colMain (DesktopWidth: AutoFill) {
+      ROW {
+        COLUMN (DesktopWidth: AutoFill) {
 
           -- Too long for one line: broken at its `and` joints.
           DATAGRID dgLong (
@@ -52,14 +52,14 @@ create or modify page XPathFmt.RequestOverview
               where [Archived = false and Status = 'Open' and Priority = 'High' and Category = 'Electrical' and Severity > 3 and ReportedOn > '[%BeginOfCurrentDay%]']
               sort by ReportedOn desc
           ) {
-            COLUMN colLongTitle (Attribute: RequestTitle, Caption: 'Title')
+            COLUMN (Attribute: RequestTitle, Caption: 'Title')
           }
 
           -- The control: short enough to read, stored exactly as written.
           DATAGRID dgShort (
             DataSource: database from XPathFmt.MaintenanceRequest where [Archived = false]
           ) {
-            COLUMN colShortTitle (Attribute: RequestTitle, Caption: 'Title')
+            COLUMN (Attribute: RequestTitle, Caption: 'Title')
           }
 
           -- Mixed and/or. The `and` runs get explicit parentheses as they are
@@ -70,7 +70,7 @@ create or modify page XPathFmt.RequestOverview
             DataSource: database from XPathFmt.MaintenanceRequest
               where [Archived = false and (Status = 'Open' and Priority = 'High' and Category = 'Electrical' or Escalated = true and Severity > 3)]
           ) {
-            COLUMN colMixedTitle (Attribute: RequestTitle, Caption: 'Title')
+            COLUMN (Attribute: RequestTitle, Caption: 'Title')
           }
         }
       }
@@ -91,5 +91,5 @@ end;
 -- … and to an entity access rule. DESCRIBE ENTITY renders it back on one line,
 -- inside the quoted `where '...'` form, and re-executing that leaves the stored
 -- constraint untouched.
-grant XPathFmt.Viewer on XPathFmt.MaintenanceRequest (read *)
-  where '[Archived = false and Status = ''Open'' and Priority = ''High'' and Category = ''Electrical'' and Severity > 3]';
+grant read * on entity XPathFmt.MaintenanceRequest to XPathFmt.Viewer
+  where [Archived = false and Status = 'Open' and Priority = 'High' and Category = 'Electrical' and Severity > 3];

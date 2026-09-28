@@ -36,7 +36,7 @@ create persistent entity XPathRn.Order ( FirstName: String(100), Total: Decimal 
 /
 create association XPathRn.Order_Person from XPathRn.Order to XPathRn.Person;
 /
-create or replace microflow XPathRn.ACT_FindPeople ()
+create or modify microflow XPathRn.ACT_FindPeople ()
 begin
   -- (1) bare step on the renamed entity itself
   retrieve $People from XPathRn.Person where [FirstName = 'Ada'];
@@ -49,7 +49,7 @@ begin
 end;
 /
 create module role XPathRn.User;
-grant XPathRn.User on XPathRn.Person (read *) where '[FirstName != '''']';
+grant read * on entity XPathRn.Person to XPathRn.User where [FirstName != ''];
 /
 alter entity XPathRn.Person rename attribute FirstName to GivenName;
 /

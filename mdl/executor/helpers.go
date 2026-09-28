@@ -22,25 +22,44 @@ import (
 
 // getModulesFromCache returns cached modules or loads them.
 func getModulesFromCache(ctx *ExecContext) ([]*model.Module, error) {
-	if ctx.Cache != nil && ctx.Cache.modules != nil {
-		return ctx.Cache.modules, nil
+	if ctx.Cache == nil {
+		return ctx.Backend.ListModules()
 	}
-	modules, err := ctx.Backend.ListModules()
+	return ctx.Cache.cachedModules(ctx.Backend.ListModules)
+}
+
+// cachedModules returns the cached module list, filling it with list on first
+// use.
+//
+// The list is filled lazily, and `refresh catalog full source` reaches this
+// from a pool of goroutines sharing one executorCache (every describeEntity
+// calls findModule). The fill is therefore made under modulesMu: unguarded,
+// one worker published its freshly built slice while another read the field,
+// which the race detector reported twice per refresh (ako/mxcli#765). The
+// slice is never mutated once published, so returning it after the lock is
+// released is safe.
+func (c *executorCache) cachedModules(list func() ([]*model.Module, error)) ([]*model.Module, error) {
+	c.modulesMu.Lock()
+	defer c.modulesMu.Unlock()
+	if c.modules != nil {
+		return c.modules, nil
+	}
+	modules, err := list()
 	if err != nil {
 		return nil, err
 	}
-	if ctx.Cache != nil {
-		ctx.Cache.modules = modules
-	}
+	c.modules = modules
 	return modules, nil
 }
 
 // invalidateModuleCache clears the module cache so next lookup gets fresh data.
 // Also invalidates the hierarchy cache since new modules affect hierarchy.
 func invalidateModuleCache(ctx *ExecContext) {
-	if ctx.Cache != nil {
-		ctx.Cache.modules = nil
-		ctx.Cache.hierarchy = nil
+	if c := ctx.Cache; c != nil {
+		c.modulesMu.Lock()
+		c.modules = nil
+		c.modulesMu.Unlock()
+		c.hierarchy = nil
 	}
 }
 

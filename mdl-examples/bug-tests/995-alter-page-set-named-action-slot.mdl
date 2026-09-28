@@ -26,7 +26,7 @@ create persistent entity M995.Thing ( Name: string(100) );
 create microflow M995.ACT_A () begin log 'A'; end;
 create microflow M995.ACT_B () begin log 'B'; end;
 
-create or replace page M995.P_Grid (Title: 'Grid', Layout: Atlas_Core.Atlas_Default)
+create or modify page M995.P_Grid (Title: 'Grid', Layout: Atlas_Core.Atlas_Default)
 {
   DATAGRID dg (
     DataSource: DATABASE M995.Thing,
@@ -34,16 +34,16 @@ create or replace page M995.P_Grid (Title: 'Grid', Layout: Atlas_Core.Atlas_Defa
     PageSize: 17,
     onSelectionChange: microflow M995.ACT_A
   ) {
-    COLUMN c1 (Attribute: Name, Caption: 'Name')
+    COLUMN (Attribute: Name, Caption: 'Name')
   }
 }
 
 -- The quoted form (the pluggable-property convention) and the bare form both work.
 alter page M995.P_Grid {
-  set 'onSelectionChange' = microflow M995.ACT_B on dg;
+  set ('onSelectionChange': call microflow M995.ACT_B) on dg;
 };
 alter page M995.P_Grid {
-  set onSelectionChange = microflow M995.ACT_B on dg;
+  set (onSelectionChange: call microflow M995.ACT_B) on dg;
 };
 
 describe page M995.P_Grid;

@@ -34,7 +34,7 @@ create persistent entity Issue574.Event (
 
 -- VideoPlayer in expression mode: videoUrl + posterUrl are hidden, so they
 -- must serialize as TextTemplate: null.
-create or replace page Issue574.VideoExpression (
+create or modify page Issue574.VideoExpression (
   Title: 'Issue574 Video (expression)',
   Layout: Atlas_Core.Atlas_Default
 ) {
@@ -47,7 +47,7 @@ create or replace page Issue574.VideoExpression (
 -- Timeline with custom visualization: title/description/timeIndication are
 -- hidden in favour of the customTitle/customDescription slots, so they must
 -- serialize as TextTemplate: null.
-create or replace page Issue574.TimelineCustom (
+create or modify page Issue574.TimelineCustom (
   Title: 'Issue574 Timeline (custom)',
   Layout: Atlas_Core.Atlas_Default
 ) {
@@ -57,10 +57,10 @@ create or replace page Issue574.TimelineCustom (
     customVisualization: true
   ) {
     container customTitle {
-      dynamictext tlTitle (content: '{1}', rendermode: H4, contentparams: [{1} = Title])
+      dynamictext tlTitle (content: '{1}', rendermode: H4, contentparams: ({1} = Title))
     }
     container customDescription {
-      dynamictext tlDesc (content: '{1}', contentparams: [{1} = Description])
+      dynamictext tlDesc (content: '{1}', contentparams: ({1} = Description))
     }
   }
 }

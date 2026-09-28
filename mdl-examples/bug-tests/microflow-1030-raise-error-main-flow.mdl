@@ -11,7 +11,7 @@
 
 create or modify module RaiseProbe;
 
-create or replace microflow RaiseProbe.MF_Inner ()
+create or modify microflow RaiseProbe.MF_Inner ()
 begin
   log info node 'RaiseProbe' 'inner';
 end;
@@ -19,26 +19,26 @@ end;
 
 -- The error flow out of the call ends in the error event: an error IS in scope,
 -- so re-raising it is exactly what the event is for.
-create or replace microflow RaiseProbe.MF_Handled ()
+create or modify microflow RaiseProbe.MF_Handled ()
 begin
   call microflow RaiseProbe.MF_Inner ()
-  on error {
+  on error begin
     log error node 'RaiseProbe' 'failed';
     raise error;
-  };
+  end error;
 end;
 /
 
 -- Nested a branch deeper inside the handler — still an error flow.
-create or replace microflow RaiseProbe.MF_HandledIf ($Retry: Boolean)
+create or modify microflow RaiseProbe.MF_HandledIf ($Retry: Boolean)
 begin
   call microflow RaiseProbe.MF_Inner ()
-  on error {
+  on error begin
     if $Retry then
       log warning node 'RaiseProbe' 'retrying';
     else
       raise error;
     end if;
-  };
+  end error;
 end;
 /

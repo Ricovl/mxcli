@@ -20,7 +20,7 @@ There are two levels of catalog refresh:
 REFRESH CATALOG;
 
 -- See what tables are available
-SHOW CATALOG TABLES;
+LIST CATALOG TABLES;
 
 -- Query entities in a module
 SELECT Name, EntityType FROM CATALOG.ENTITIES WHERE ModuleName = 'Sales';
@@ -47,7 +47,7 @@ mxcli -p app.mpr -c "REFRESH CATALOG FULL"
 
 # Query catalog
 mxcli -p app.mpr -c "SELECT Name FROM CATALOG.MICROFLOWS LIMIT 10"
-mxcli -p app.mpr -c "SHOW CATALOG TABLES"
+mxcli -p app.mpr -c "LIST CATALOG TABLES"
 ```
 
 ## Related Pages

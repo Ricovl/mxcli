@@ -77,19 +77,18 @@ create association DgTest.Category_Supplier
 
 -- @version: 11.0+
 -- Helper page: edit form opened from CRUD examples (page params require 11.0+)
-create page DgTest.Product_Edit (
-  params: { $Product: DgTest.Product },
+create page DgTest.Product_Edit folder 'DataGrid' (
+  params: ( $Product: DgTest.Product ),
   title: 'Edit Product',
   layout: Atlas_Core.PopupLayout,
-  url: 'dg/product/edit/{Product/Name}',
-  folder: 'DataGrid'
+  url: 'dg/product/edit/{Product/Name}'
 ) {
   dataview dvProduct (datasource: $Product) {
     textbox txtName (label: 'Name', attribute: Name)
     textbox txtCode (label: 'Code', attribute: Code)
     footer footer1 {
-      actionbutton btnSave   (caption: 'Save',   action: save_changes close_page,   buttonstyle: primary)
-      actionbutton btnCancel (caption: 'Cancel', action: cancel_changes close_page, buttonstyle: default)
+      actionbutton btnSave   (caption: 'Save',   action: save changes close page,   buttonstyle: primary)
+      actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }
   }
 };
@@ -123,19 +122,18 @@ end;
 /**
  * DG01: Minimal DataGrid with database datasource and a handful of columns.
  */
-create page DgTest.DG01_Basic (
+create page DgTest.DG01_Basic folder 'DataGrid' (
   title: 'Products',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg01_basic',
-  folder: 'DataGrid'
+  url: 'dg01_basic'
 ) {
   datagrid dg1 (datasource: database DgTest.Product) {
-    column colName   (attribute: Name,     caption: 'Product Name')
-    column colCode   (attribute: Code,     caption: 'SKU')
-    column colPrice  (attribute: Price,    caption: 'Price')
-    column colStock  (attribute: Stock,    caption: 'In Stock')
-    column colActive (attribute: IsActive, caption: 'Active')
-    column colStatus (attribute: Status,   caption: 'Status')
+    column   (attribute: Name,     caption: 'Product Name')
+    column   (attribute: Code,     caption: 'SKU')
+    column  (attribute: Price,    caption: 'Price')
+    column  (attribute: Stock,    caption: 'In Stock')
+    column (attribute: IsActive, caption: 'Active')
+    column (attribute: Status,   caption: 'Status')
   }
 };
 
@@ -146,34 +144,32 @@ create page DgTest.DG01_Basic (
 /**
  * DG02a: Single-column ascending sort.
  */
-create page DgTest.DG02a_Sort_Single (
+create page DgTest.DG02a_Sort_Single folder 'DataGrid' (
   title: 'Products A–Z',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg02a_sort_single',
-  folder: 'DataGrid'
+  url: 'dg02a_sort_single'
 ) {
   datagrid dg1 (datasource: database from DgTest.Product sort by Name asc) {
-    column colName  (attribute: Name,  caption: 'Name')
-    column colCode  (attribute: Code,  caption: 'SKU')
-    column colPrice (attribute: Price, caption: 'Price')
+    column  (attribute: Name,  caption: 'Name')
+    column  (attribute: Code,  caption: 'SKU')
+    column (attribute: Price, caption: 'Price')
   }
 };
 
 /**
  * DG02b: Multi-column sort — primary ascending Name, secondary descending Price.
  */
-create page DgTest.DG02b_Sort_Multi (
+create page DgTest.DG02b_Sort_Multi folder 'DataGrid' (
   title: 'Products sorted',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg02b_sort_multi',
-  folder: 'DataGrid'
+  url: 'dg02b_sort_multi'
 ) {
   datagrid dg1 (
     datasource: database from DgTest.Product sort by Name asc, Price desc
   ) {
-    column colName  (attribute: Name,  caption: 'Name')
-    column colPrice (attribute: Price, caption: 'Price')
-    column colStock (attribute: Stock, caption: 'Stock')
+    column  (attribute: Name,  caption: 'Name')
+    column (attribute: Price, caption: 'Price')
+    column (attribute: Stock, caption: 'Stock')
   }
 };
 
@@ -184,37 +180,35 @@ create page DgTest.DG02b_Sort_Multi (
 /**
  * DG03a: Simple equality filter — active products only.
  */
-create page DgTest.DG03a_Filter_Simple (
+create page DgTest.DG03a_Filter_Simple folder 'DataGrid' (
   title: 'Active Products',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg03a_filter_simple',
-  folder: 'DataGrid'
+  url: 'dg03a_filter_simple'
 ) {
   datagrid dg1 (
     datasource: database from DgTest.Product where [IsActive = true()]
   ) {
-    column colName   (attribute: Name,   caption: 'Name')
-    column colStatus (attribute: Status, caption: 'Status')
+    column   (attribute: Name,   caption: 'Name')
+    column (attribute: Status, caption: 'Status')
   }
 };
 
 /**
  * DG03b: Complex AND/OR filter with multiple criteria.
  */
-create page DgTest.DG03b_Filter_Complex (
+create page DgTest.DG03b_Filter_Complex folder 'DataGrid' (
   title: 'High Priority Active Products',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg03b_filter_complex',
-  folder: 'DataGrid'
+  url: 'dg03b_filter_complex'
 ) {
   datagrid dg1 (
     datasource: database from DgTest.Product
       where [IsActive = true() and Priority = 'High'] or [Stock > 100]
       sort by Name asc
   ) {
-    column colName     (attribute: Name,     caption: 'Name')
-    column colPriority (attribute: Priority, caption: 'Priority')
-    column colStock    (attribute: Stock,    caption: 'Stock')
+    column     (attribute: Name,     caption: 'Name')
+    column (attribute: Priority, caption: 'Priority')
+    column    (attribute: Stock,    caption: 'Stock')
   }
 };
 
@@ -225,16 +219,15 @@ create page DgTest.DG03b_Filter_Complex (
 /**
  * DG04: DataGrid driven by a microflow that returns a filtered/sorted list.
  */
-create page DgTest.DG04_Microflow_DataSource (
+create page DgTest.DG04_Microflow_DataSource folder 'DataGrid' (
   title: 'Active Products (via Microflow)',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg04_microflow_datasource',
-  folder: 'DataGrid'
+  url: 'dg04_microflow_datasource'
 ) {
   datagrid dg1 (datasource: microflow DgTest.DSO_GetActiveProducts) {
-    column colName  (attribute: Name,  caption: 'Name')
-    column colCode  (attribute: Code,  caption: 'SKU')
-    column colPrice (attribute: Price, caption: 'Price')
+    column  (attribute: Name,  caption: 'Name')
+    column  (attribute: Code,  caption: 'SKU')
+    column (attribute: Price, caption: 'Price')
   }
 };
 
@@ -247,21 +240,20 @@ create page DgTest.DG04_Microflow_DataSource (
  * DG05: DataGrid inside a DataView sourced via an association path.
  * The outer DataView provides $Category; the inner DataGrid shows its Products.
  */
-create page DgTest.DG05_Association_DataSource (
-  params: { $Category: DgTest.Category },
+create page DgTest.DG05_Association_DataSource folder 'DataGrid' (
+  params: ( $Category: DgTest.Category ),
   title: 'Category Products',
   layout: Atlas_Core.PopupLayout,
-  url: 'dg05_association_datasource/{Category/Name}',
-  folder: 'DataGrid'
+  url: 'dg05_association_datasource/{Category/Name}'
 ) {
   dataview dvCategory (datasource: $Category, editable: false) {
-    dynamictext txtName (content: '{1}', contentparams: [{1} = Name])
+    dynamictext txtName (content: '{1}', contentparams: ({1} = Name))
     datagrid dg1 (
       datasource: $Category/DgTest.Product_Category/DgTest.Product
     ) {
-      column colName  (attribute: Name,  caption: 'Product Name')
-      column colPrice (attribute: Price, caption: 'Price')
-      column colStock (attribute: Stock, caption: 'Stock')
+      column  (attribute: Name,  caption: 'Product Name')
+      column (attribute: Price, caption: 'Price')
+      column (attribute: Stock, caption: 'Stock')
     }
   }
 };
@@ -274,11 +266,10 @@ create page DgTest.DG05_Association_DataSource (
 /**
  * DG06a: Paging buttons shown both above and below the grid.
  */
-create page DgTest.DG06a_Paging_Both (
+create page DgTest.DG06a_Paging_Both folder 'DataGrid' (
   title: 'Products (paging both)',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg06a_paging_both',
-  folder: 'DataGrid'
+  url: 'dg06a_paging_both'
 ) {
   datagrid dg1 (
     datasource: database DgTest.Product,
@@ -286,38 +277,36 @@ create page DgTest.DG06a_Paging_Both (
     Pagination: buttons,
     PagingPosition: both
   ) {
-    column colName  (attribute: Name,  caption: 'Name')
-    column colPrice (attribute: Price, caption: 'Price')
+    column  (attribute: Name,  caption: 'Name')
+    column (attribute: Price, caption: 'Price')
   }
 };
 
 /**
  * DG06b: Virtual scrolling — no paging buttons.
  */
-create page DgTest.DG06b_Paging_VirtualScroll (
+create page DgTest.DG06b_Paging_VirtualScroll folder 'DataGrid' (
   title: 'Products (virtual scroll)',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg06b_virtual_scroll',
-  folder: 'DataGrid'
+  url: 'dg06b_virtual_scroll'
 ) {
   datagrid dg1 (
     datasource: database DgTest.Product,
     PageSize: 50,
     Pagination: virtualScrolling
   ) {
-    column colName  (attribute: Name,  caption: 'Name')
-    column colPrice (attribute: Price, caption: 'Price')
+    column  (attribute: Name,  caption: 'Name')
+    column (attribute: Price, caption: 'Price')
   }
 };
 
 /**
  * DG06c: Paging on top only; buttons shown automatically when needed.
  */
-create page DgTest.DG06c_Paging_Top (
+create page DgTest.DG06c_Paging_Top folder 'DataGrid' (
   title: 'Products (top paging)',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg06c_paging_top',
-  folder: 'DataGrid'
+  url: 'dg06c_paging_top'
 ) {
   datagrid dg1 (
     datasource: database DgTest.Product,
@@ -325,8 +314,8 @@ create page DgTest.DG06c_Paging_Top (
     PagingPosition: top,
     ShowPagingButtons: auto
   ) {
-    column colName  (attribute: Name,  caption: 'Name')
-    column colPrice (attribute: Price, caption: 'Price')
+    column  (attribute: Name,  caption: 'Name')
+    column (attribute: Price, caption: 'Price')
   }
 };
 
@@ -338,18 +327,17 @@ create page DgTest.DG06c_Paging_Top (
  * DG07: Full column property matrix — alignment, width modes, sortable,
  * resizable, draggable, hidable, wrapText, tooltip.
  */
-create page DgTest.DG07_Column_Properties (
+create page DgTest.DG07_Column_Properties folder 'DataGrid' (
   title: 'DataGrid Column Properties',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg07_column_properties',
-  folder: 'DataGrid'
+  url: 'dg07_column_properties'
 ) {
   datagrid dg1 (datasource: database DgTest.Product) {
     -- Default column — all properties at their defaults
-    column colName (attribute: Name, caption: 'Product Name')
+    column (attribute: Name, caption: 'Product Name')
 
     -- Right-aligned, fixed width, not sortable/resizable/draggable
-    column colPrice (
+    column (
       attribute: Price, caption: 'Price (USD)',
       Alignment: right,
       WrapText: false,
@@ -361,21 +349,21 @@ create page DgTest.DG07_Column_Properties (
     )
 
     -- Auto-fit width, always hidden from column chooser
-    column colCode (
+    column (
       attribute: Code, caption: 'SKU',
       ColumnWidth: autoFit,
       Hidable: hidden
     )
 
     -- Center-aligned stock, not removable from column chooser
-    column colStock (
+    column (
       attribute: Stock, caption: 'Stock',
       Alignment: center,
       Hidable: no
     )
 
     -- Status column with dynamic cell class based on value
-    column colStatus (
+    column (
       attribute: Status, caption: 'Status',
       DynamicCellClass: if ($currentObject/Status = DgTest.Status.Active) then 'text-success' else 'text-muted'
     )
@@ -389,16 +377,15 @@ create page DgTest.DG07_Column_Properties (
 /**
  * DG08: Columns that render their content as a clickable URL or mailto link.
  */
-create page DgTest.DG08_ShowContentAs (
+create page DgTest.DG08_ShowContentAs folder 'DataGrid' (
   title: 'Products with links',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg08_show_content_as',
-  folder: 'DataGrid'
+  url: 'dg08_show_content_as'
 ) {
   datagrid dg1 (datasource: database DgTest.Product) {
-    column colName  (attribute: Name,  caption: 'Name',    ShowContentAs: text)
-    column colUrl   (attribute: Url,   caption: 'Website', ShowContentAs: url)
-    column colEmail (attribute: Email, caption: 'Email',   ShowContentAs: email)
+    column  (attribute: Name,  caption: 'Name',    ShowContentAs: text)
+    column   (attribute: Url,   caption: 'Website', ShowContentAs: url)
+    column (attribute: Email, caption: 'Email',   ShowContentAs: email)
   }
 };
 
@@ -411,21 +398,20 @@ create page DgTest.DG08_ShowContentAs (
  * DG09: Column with ShowContentAs: customContent renders widgets instead of text.
  * Used for action buttons and conditional content in each row.
  */
-create page DgTest.DG09_Custom_Content_Column (
+create page DgTest.DG09_Custom_Content_Column folder 'DataGrid' (
   title: 'Products with status badges',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg09_custom_content',
-  folder: 'DataGrid'
+  url: 'dg09_custom_content'
 ) {
   datagrid dg1 (datasource: database DgTest.Product) {
-    column colName   (attribute: Name, caption: 'Name')
-    column colStatus (attribute: Status, caption: 'Status', ShowContentAs: customContent) {
-      dynamictext txtStatus (content: '{1}', contentparams: [{1} = Status])
+    column   (attribute: Name, caption: 'Name')
+    column (attribute: Status, caption: 'Status', ShowContentAs: customContent) {
+      dynamictext txtStatus (content: '{1}', contentparams: ({1} = Status))
     }
-    column colActions (caption: 'Actions', ShowContentAs: customContent) {
+    column (caption: 'Actions', ShowContentAs: customContent) {
       actionbutton btnEdit (
         caption: 'Edit',
-        action: show_page DgTest.Product_Edit (Product: $currentObject),
+        action: show page DgTest.Product_Edit (Product = $currentObject),
         buttonstyle: default
       )
     }
@@ -441,25 +427,24 @@ create page DgTest.DG09_Custom_Content_Column (
  * DG10: DataGrid with a control bar containing a New button that creates
  * a product and immediately opens the edit popup.
  */
-create page DgTest.DG10_ControlBar (
+create page DgTest.DG10_ControlBar folder 'DataGrid' (
   title: 'Manage Products',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg10_controlbar',
-  folder: 'DataGrid'
+  url: 'dg10_controlbar'
 ) {
   datagrid dg1 (
     datasource: database from DgTest.Product sort by Name asc
   ) {
-    controlbar cb1 {
+    controlbar {
       actionbutton btnNew (
         caption: 'New Product',
-        action: create_object DgTest.Product then show_page DgTest.Product_Edit,
+        action: create object DgTest.Product then show page DgTest.Product_Edit,
         buttonstyle: primary
       )
     }
-    column colName   (attribute: Name,   caption: 'Name')
-    column colCode   (attribute: Code,   caption: 'SKU')
-    column colStatus (attribute: Status, caption: 'Status')
+    column   (attribute: Name,   caption: 'Name')
+    column   (attribute: Code,   caption: 'SKU')
+    column (attribute: Status, caption: 'Status')
   }
 };
 
@@ -471,33 +456,32 @@ create page DgTest.DG10_ControlBar (
  * DG11: Complete CRUD grid — control bar New, column Edit (show_page with
  * $currentObject), and column Delete (delete_object).
  */
-create page DgTest.DG11_CRUD (
+create page DgTest.DG11_CRUD folder 'DataGrid' (
   title: 'Product CRUD',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg11_crud',
-  folder: 'DataGrid'
+  url: 'dg11_crud'
 ) {
   datagrid dg1 (datasource: database DgTest.Product) {
-    controlbar cb1 {
+    controlbar {
       actionbutton btnNew (
         caption: 'New',
-        action: create_object DgTest.Product then show_page DgTest.Product_Edit,
+        action: create object DgTest.Product then show page DgTest.Product_Edit,
         buttonstyle: primary
       )
     }
-    column colName   (attribute: Name,   caption: 'Name')
-    column colCode   (attribute: Code,   caption: 'SKU')
-    column colPrice  (attribute: Price,  caption: 'Price')
-    column colStatus (attribute: Status, caption: 'Status')
-    column colActions (caption: 'Actions', ShowContentAs: customContent) {
+    column   (attribute: Name,   caption: 'Name')
+    column   (attribute: Code,   caption: 'SKU')
+    column  (attribute: Price,  caption: 'Price')
+    column (attribute: Status, caption: 'Status')
+    column (caption: 'Actions', ShowContentAs: customContent) {
       actionbutton btnEdit (
         caption: 'Edit',
-        action: show_page DgTest.Product_Edit (Product: $currentObject),
+        action: show page DgTest.Product_Edit (Product = $currentObject),
         buttonstyle: default
       )
       actionbutton btnDelete (
         caption: 'Delete',
-        action: delete_object,
+        action: delete,
         buttonstyle: danger
       )
     }
@@ -513,20 +497,19 @@ create page DgTest.DG11_CRUD (
  * DG12: Column with action buttons that call a microflow with $currentObject.
  * Demonstrates passing the current row's entity to a parameterized microflow.
  */
-create page DgTest.DG12_MicroflowRowActions (
+create page DgTest.DG12_MicroflowRowActions folder 'DataGrid' (
   title: 'Products with Microflow Actions',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg12_mf_row_actions',
-  folder: 'DataGrid'
+  url: 'dg12_mf_row_actions'
 ) {
   datagrid dg1 (datasource: database DgTest.Product) {
-    column colName     (attribute: Name,     caption: 'Name')
-    column colStatus   (attribute: Status,   caption: 'Status')
-    column colPriority (attribute: Priority, caption: 'Priority')
-    column colActions (caption: 'Actions', ShowContentAs: customContent) {
+    column     (attribute: Name,     caption: 'Name')
+    column   (attribute: Status,   caption: 'Status')
+    column (attribute: Priority, caption: 'Priority')
+    column (caption: 'Actions', ShowContentAs: customContent) {
       actionbutton btnActivate (
         caption: 'Activate',
-        action: microflow DgTest.ACT_ActivateProduct(Product: $currentObject),
+        action: call microflow DgTest.ACT_ActivateProduct(Product = $currentObject),
         buttonstyle: success
       )
     }
@@ -540,29 +523,27 @@ create page DgTest.DG12_MicroflowRowActions (
 /**
  * DG13a: Single-row selection — clicking a row highlights it.
  */
-create page DgTest.DG13a_Selection_Single (
+create page DgTest.DG13a_Selection_Single folder 'DataGrid' (
   title: 'Products (single select)',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg13a_selection_single',
-  folder: 'DataGrid'
+  url: 'dg13a_selection_single'
 ) {
   datagrid dg1 (
     datasource: database DgTest.Product,
     selection: single
   ) {
-    column colName   (attribute: Name,   caption: 'Name')
-    column colStatus (attribute: Status, caption: 'Status')
+    column   (attribute: Name,   caption: 'Name')
+    column (attribute: Status, caption: 'Status')
   }
 };
 
 /**
  * DG13b: Multi-row selection — checkboxes appear for each row.
  */
-create page DgTest.DG13b_Selection_Multiple (
+create page DgTest.DG13b_Selection_Multiple folder 'DataGrid' (
   title: 'Products (multi select)',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg13b_selection_multiple',
-  folder: 'DataGrid'
+  url: 'dg13b_selection_multiple'
 ) {
   datagrid dg1 (
     datasource: database DgTest.Product,
@@ -570,10 +551,10 @@ create page DgTest.DG13b_Selection_Multiple (
     PageSize: 25,
     PagingPosition: both
   ) {
-    column colName   (attribute: Name,     caption: 'Name')
-    column colCode   (attribute: Code,     caption: 'SKU')
-    column colStatus (attribute: Status,   caption: 'Status')
-    column colStock  (attribute: Stock,    caption: 'Stock')
+    column   (attribute: Name,     caption: 'Name')
+    column   (attribute: Code,     caption: 'SKU')
+    column (attribute: Status,   caption: 'Status')
+    column  (attribute: Stock,    caption: 'Stock')
   }
 };
 
@@ -584,43 +565,41 @@ create page DgTest.DG13b_Selection_Multiple (
 /**
  * DG14a: Design properties via class string (legacy Atlas CSS approach).
  */
-create page DgTest.DG14a_Styling_Class (
+create page DgTest.DG14a_Styling_Class folder 'DataGrid' (
   title: 'Products (styled)',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg14a_styling_class',
-  folder: 'DataGrid'
+  url: 'dg14a_styling_class'
 ) {
   datagrid dg1 (
     datasource: database DgTest.Product,
     class: 'datagrid-striped datagrid-hover datagrid-sm'
   ) {
-    column colName  (attribute: Name,  caption: 'Name')
-    column colPrice (attribute: Price, caption: 'Price')
-    column colStock (attribute: Stock, caption: 'Stock')
+    column  (attribute: Name,  caption: 'Name')
+    column (attribute: Price, caption: 'Price')
+    column (attribute: Stock, caption: 'Stock')
   }
 };
 
 /**
  * DG14b: Design properties via the Atlas design system token map.
  */
-create page DgTest.DG14b_Styling_DesignProps (
+create page DgTest.DG14b_Styling_DesignProps folder 'DataGrid' (
   title: 'Products (design props)',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg14b_styling_designprops',
-  folder: 'DataGrid'
+  url: 'dg14b_styling_designprops'
 ) {
   datagrid dg1 (
     datasource: database DgTest.Product,
     PageSize: 10,
     PagingPosition: both,
-    designproperties: ['Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal']
+    designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal')
   ) {
-    column colName (
+    column (
       attribute: Name, caption: 'Name',
-      designproperties: ['Compact': on]
+      designproperties: ('Compact': on)
     )
-    column colPrice (attribute: Price, caption: 'Price', Alignment: right)
-    column colStock (attribute: Stock, caption: 'Stock', Alignment: right)
+    column (attribute: Price, caption: 'Price', Alignment: right)
+    column (attribute: Stock, caption: 'Stock', Alignment: right)
   }
 };
 
@@ -632,21 +611,20 @@ create page DgTest.DG14b_Styling_DesignProps (
  * DG15: Page variable controls whether the Stock column is visible.
  * The variable expression uses Mendix expression syntax.
  */
-create page DgTest.DG15_Variable_Visibility (
+create page DgTest.DG15_Variable_Visibility folder 'DataGrid' (
   title: 'Products (conditional column)',
   layout: Atlas_Core.Atlas_Default,
   url: 'dg15_variable_visibility',
-  folder: 'DataGrid',
-  variables: { $showStock: boolean = 'if (1 < 2) then true else false' }
+  variables: ( $showStock: boolean = 'if (1 < 2) then true else false' )
 ) {
   datagrid dg1 (datasource: database DgTest.Product) {
-    column colName  (attribute: Name,  caption: 'Name')
-    column colPrice (attribute: Price, caption: 'Price')
-    column colStock (
+    column  (attribute: Name,  caption: 'Name')
+    column (attribute: Price, caption: 'Price')
+    column (
       attribute: Stock, caption: 'Stock',
       visible: '$showStock'
     )
-    column colStatus (attribute: Status, caption: 'Status')
+    column (attribute: Status, caption: 'Status')
   }
 };
 
@@ -671,30 +649,29 @@ create page DgTest.DG15_Variable_Visibility (
  * Product_Category/Name resolves to that Product's Category Name; a second hop
  * Category_Supplier/Name reaches the Supplier's Name.
  */
-create page DgTest.DG16_Associated_Attributes (
+create page DgTest.DG16_Associated_Attributes folder 'DataGrid' (
   title: 'Products with related data',
   layout: Atlas_Core.Atlas_Default,
-  url: 'dg16_associated_attributes',
-  folder: 'DataGrid'
+  url: 'dg16_associated_attributes'
 ) {
   datagrid dg1 (datasource: database from DgTest.Product sort by Name asc) {
-    column colName (attribute: Name, caption: 'Product')
+    column (attribute: Name, caption: 'Product')
 
     -- single-hop associated attribute: the related Category's Name
-    column colCategory (attribute: Product_Category/Name, caption: 'Category')
+    column (attribute: Product_Category/Name, caption: 'Category')
 
     -- multi-hop associated attribute: the Category's Supplier's Name
-    column colSupplier (
+    column (
       attribute: Product_Category/Category_Supplier/Name,
       caption: 'Supplier'
     )
 
     -- embedded widget over the association: a dynamictext showing the related
     -- Category Name inside a custom-content cell
-    column colCatBadge (caption: 'Category (badge)', ShowContentAs: customContent) {
+    column (caption: 'Category (badge)', ShowContentAs: customContent) {
       dynamictext dtCat (
         content: 'in {1}',
-        contentparams: [{1} = DgTest.Product_Category/Name]
+        contentparams: ({1} = DgTest.Product_Category/Name)
       )
     }
   }

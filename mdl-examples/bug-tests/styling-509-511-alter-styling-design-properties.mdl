@@ -38,12 +38,12 @@
 create entity MyFirstModule.Thing ( Name: string(200) );
 
 -- #511 control: the compound spelling is the one that works. Verified 0 errors.
-create or replace page MyFirstModule.HideOn (
+create or modify page MyFirstModule.HideOn (
   title: 'h', layout: 'Atlas_Core.Atlas_Default'
 ) {
   listview lvH (
     DataSource: database from MyFirstModule.Thing,
-    DesignProperties: ['Hide on': ['Phone': on, 'Tablet': on]]
+    DesignProperties: ('Hide on': ('Phone': on, 'Tablet': on))
   ) {
     dynamictext dt (Content: 'x')
   }
@@ -54,7 +54,7 @@ create or replace page MyFirstModule.HideOn (
 -- `Widget` group, which a check built from one type's properties would wrongly
 -- report — the mistake this area keeps producing.
 alter styling on page MyFirstModule.HideOn widget lvH
-  set 'Row size' = 'Small', 'Align self' = 'Right';
+  set ( 'Row size': 'Small', 'Align self': 'Right' );
 
 -- The two failing shapes, kept commented so `make check-mdl` (which runs `check`
 -- with no project, where there is no theme to judge against) stays green:

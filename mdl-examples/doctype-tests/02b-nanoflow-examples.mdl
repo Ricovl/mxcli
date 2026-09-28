@@ -293,8 +293,8 @@ grant execute on nanoflow NanoflowExamples.SUB_FormatPrice to NanoflowExamples.U
 -- Management commands
 -- ============================================================
 
-show nanoflows;
-show nanoflows in NanoflowExamples;
+list nanoflows;
+list nanoflows in NanoflowExamples;
 
 describe nanoflow NanoflowExamples.VAL_Product;
 describe nanoflow NanoflowExamples.ACT_SubmitProduct;
@@ -303,7 +303,7 @@ describe nanoflow NanoflowExamples.ACT_MarkAllNotificationsRead;
 rename nanoflow NanoflowExamples.NF_Empty to NF_Placeholder;
 move nanoflow NanoflowExamples.NF_Placeholder to NanoflowExamples;
 
-show access on nanoflow NanoflowExamples.VAL_Product;
+list access on nanoflow NanoflowExamples.VAL_Product;
 revoke execute on nanoflow NanoflowExamples.VAL_Product from NanoflowExamples.User;
 
 drop nanoflow NanoflowExamples.NF_Placeholder;

@@ -98,7 +98,10 @@ SORT_BY: S O R T WS+ B Y;
 // deliberately: same position, same comma list, so one example teaches both.
 SEARCH_BY: S E A R C H WS+ B Y;
 NON_PERSISTENT: N O N '-' P E R S I S T E N T;
-REFERENCE_SET: R E F E R E N C E '_'? S E T;
+// `ReferenceSet`, the Mendix type name describe writes; `reference_set` is the
+// old second spelling (R8, ako/mxcli#752).
+REFERENCE_SET: R E F E R E N C E S E T
+             | R E F E R E N C E '_' S E T /* @alias MDL-DEPR023 */;
 LIST_OF: L I S T WS+ O F;
 
 // Delete behavior compound keywords
@@ -188,9 +191,12 @@ DELETE_BEHAVIOR: D E L E T E '_'? B E H A V I O R;
 // deleted"). SQL's RESTRICT has no custom message, so this clause is a Mendix
 // extension rather than something borrowed.
 RESTRICT: R E S T R I C T;
+//
+// `error message` is the one spelling (R8, ako/mxcli#752); the other two are
+// aliases, and so are `error`, `feedback` where a rule takes a message.
 ERROR_MESSAGE: E R R O R WS+ M E S S A G E
-             | E R R O R '_' M E S S A G E
-             | E R R O R M E S S A G E;
+             | E R R O R '_' M E S S A G E /* @alias MDL-DEPR021 */
+             | E R R O R M E S S A G E /* @alias MDL-DEPR021 */;
 CASCADE: C A S C A D E;
 PREVENT: P R E V E N T;
 
@@ -506,8 +512,15 @@ TABPAGE: T A B P A G E;
 GROUPBOX: G R O U P B O X;
 VISIBLE: V I S I B L E;
 SAVECHANGES: S A V E C H A N G E S;
-SAVE_CHANGES: S A V E '_' C H A N G E S;
-CANCEL_CHANGES: C A N C E L '_' C H A N G E S;
+// Page actions are the words a microflow uses (R8, ako/mxcli#752). The
+// two-word actions whose words are not tokens of their own are one token that
+// admits both spellings; the snake-case one is the deprecated alias, told
+// apart by its underscore. The rest (show page, close page, create object,
+// open link, call microflow) are token sequences in actionExprV3.
+SAVE_CHANGES: S A V E WS+ C H A N G E S
+            | S A V E '_' C H A N G E S /* @alias MDL-DEPR020 */;
+CANCEL_CHANGES: C A N C E L WS+ C H A N G E S
+              | C A N C E L '_' C H A N G E S /* @alias MDL-DEPR020 */;
 CLOSE_PAGE: C L O S E '_' P A G E;
 SHOW_PAGE: S H O W '_' P A G E;
 DELETE_ACTION: D E L E T E '_' A C T I O N;
@@ -516,7 +529,8 @@ CREATE_OBJECT: C R E A T E '_' O B J E C T;
 CALL_MICROFLOW: C A L L '_' M I C R O F L O W;
 CALL_NANOFLOW: C A L L '_' N A N O F L O W;
 OPEN_LINK: O P E N '_' L I N K;
-SIGN_OUT: S I G N '_' O U T;
+SIGN_OUT: S I G N WS+ O U T
+        | S I G N '_' O U T /* @alias MDL-DEPR020 */;
 CANCEL: C A N C E L;
 
 // Button styles
@@ -828,6 +842,9 @@ PROTOTYPE: P R O T O T Y P E;
 MANAGE: M A N A G E;
 DEMO: D E M O;
 MATRIX: M A T R I X;
+APP: A P P;  // `alter app security` (R10: Studio Pro's name for project security)
+AI: A I;     // `ai model` (R10: Studio Pro's name for the agent editor's model document)
+SAMPLE: S A M P L E;  // `create json structure … sample '…'` (R10)
 APPLY: A P P L Y;
 ACCESS: A C C E S S;
 LEVEL: L E V E L;
@@ -908,7 +925,8 @@ LOCK: L O C K;
 UNLOCK: U N L O C K;
 REASON: R E A S O N;
 OPEN: O P E N;
-COMPLETE_TASK: C O M P L E T E '_' T A S K;
+COMPLETE_TASK: C O M P L E T E WS+ T A S K
+             | C O M P L E T E '_' T A S K /* @alias MDL-DEPR020 */;
 
 // =============================================================================
 // COMPARISON OPERATORS (multi-char before single-char)

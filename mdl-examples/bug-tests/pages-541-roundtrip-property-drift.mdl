@@ -70,15 +70,15 @@ create persistent entity Issue541.RuleAction (
 create association Issue541.RuleAction_BusinessRule
   from Issue541.RuleAction to Issue541.BusinessRule;
 
-create or replace page Issue541.RuleAction_NewEdit (
+create or modify page Issue541.RuleAction_NewEdit (
   title: 'Edit Rule Action',
   layout: Atlas_Core.PopupLayout,
-  params: { $RuleAction: Issue541.RuleAction }
+  params: ( $RuleAction: Issue541.RuleAction )
 )
 {
   layoutgrid layoutGrid1 {
-    row row1 {
-      column col1 (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
         -- A page-parameter datasource: exercises Forms$PageVariable (class 4).
         dataview dvMain (datasource: $RuleAction) {
           -- A plain binding: exercises AttributeRef.EntityRef = null (class 3).
@@ -89,10 +89,10 @@ create or replace page Issue541.RuleAction_NewEdit (
           -- All four actions whose DisabledDuringExecution was missing, plus
           -- save_changes' SyncAutomatically (class 2).
           footer footerButtons {
-            actionbutton btnSave (caption: 'Save', action: save_changes close_page, buttonstyle: Success)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes close_page)
-            actionbutton btnClose (caption: 'Close', action: close_page)
-            actionbutton btnDelete (caption: 'Delete', action: delete_object)
+            actionbutton btnSave (caption: 'Save', action: save changes close page, buttonstyle: Success)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page)
+            actionbutton btnClose (caption: 'Close', action: close page)
+            actionbutton btnDelete (caption: 'Delete', action: delete)
           }
         }
       }

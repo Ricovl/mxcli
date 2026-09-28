@@ -19,16 +19,16 @@ create persistent entity FragAlter.ServiceRequest (
   Note: string(200)
 );
 
-define fragment SaveCancelFooter as {
+create fragment SaveCancelFooter as {
   footer ctnFooter {
-    actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
 };
 
 create page FragAlter.ServiceRequest_NewEdit
 (
-  params: { $ServiceRequest: FragAlter.ServiceRequest },
+  params: ( $ServiceRequest: FragAlter.ServiceRequest ),
   title: 'Service Request',
   layout: Atlas_Core.PopupLayout
 )

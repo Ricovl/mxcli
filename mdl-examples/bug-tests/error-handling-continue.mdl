@@ -84,7 +84,7 @@ end;
 create or modify microflow ErrH.ACT_Handled ()
 begin
   RETRIEVE $Rows FROM ErrH.Thing ON ERROR CONTINUE;
-  $T = HEAD($Rows);
+  $T = HEAD $Rows;
   DELETE $T ON ERROR CONTINUE;
   CALL MICROFLOW ErrH.SUB_Noop () ON ERROR CONTINUE;
 end;
@@ -97,7 +97,7 @@ end;
 create or modify microflow ErrH.ACT_Plain ()
 begin
   RETRIEVE $Rows FROM ErrH.Thing;
-  $T = HEAD($Rows);
+  $T = HEAD $Rows;
   DELETE $T;
   CALL MICROFLOW ErrH.SUB_Noop ();
 end;
@@ -119,11 +119,11 @@ end;
 -- and a custom handler is the fix MDL076 suggests.
 create or modify microflow ErrH.ACT_CustomHandler ()
 begin
-  $T = CREATE ErrH.Thing ( Code = 'a' ) ON ERROR {
+  $T = CREATE ErrH.Thing ( Code = 'a' ) ON ERROR BEGIN
     LOG ERROR 'create failed';
-  };
-  COMMIT $T ON ERROR {
+  END ERROR;
+  COMMIT $T ON ERROR BEGIN
     LOG ERROR 'commit failed';
-  };
+  END ERROR;
 end;
 /

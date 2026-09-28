@@ -186,7 +186,7 @@ func buildCaseStatement(ctx parser.ICaseStatementContext) *ast.EnumSplitStmt {
 	}
 
 	// Reconstruct per-WHEN groups from the flat child list.
-	// Grammar: (WHEN caseValue (, caseValue)* THEN microflowBody)+ (ELSE microflowBody)?
+	// Grammar: (WHEN caseValue (, caseValue)* THEN microflowBody)+ — no ELSE (#756).
 	// AllEnumSplitCaseValue() is flat across all WHEN clauses, so we walk children
 	// and bucket values by their nearest preceding WHEN token.
 	type whenGroup struct{ values []string }
@@ -216,10 +216,6 @@ func buildCaseStatement(ctx parser.ICaseStatementContext) *ast.EnumSplitStmt {
 			Values: g.values,
 			Body:   buildMicroflowBody(bodies[i]),
 		})
-	}
-
-	if caseCtx.ELSE() != nil && len(bodies) > len(groups) {
-		stmt.ElseBody = buildMicroflowBody(bodies[len(bodies)-1])
 	}
 
 	return stmt
@@ -648,10 +644,13 @@ func buildOnErrorClause(ctx parser.IOnErrorClauseContext) *ast.ErrorHandlingClau
 	if errCtx.CONTINUE() != nil {
 		return &ast.ErrorHandlingClause{Type: ast.ErrorHandlingContinue}
 	}
-	if errCtx.ROLLBACK() != nil && errCtx.LBRACE() == nil {
+	custom := errCtx.BEGIN() != nil || errCtx.LBRACE() != nil
+	if errCtx.ROLLBACK() != nil && !custom {
 		return &ast.ErrorHandlingClause{Type: ast.ErrorHandlingRollback}
 	}
-	if errCtx.LBRACE() != nil {
+	// `begin … end error` and its deprecated brace spelling (MDL-DEPR540,
+	// recorded by ExitOnErrorClause) build the same handler.
+	if custom {
 		body := buildMicroflowBody(errCtx.MicroflowBody())
 		if errCtx.WITHOUT() != nil {
 			return &ast.ErrorHandlingClause{Type: ast.ErrorHandlingCustomWithoutRollback, Body: body}

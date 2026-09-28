@@ -29,9 +29,9 @@ Create a reusable navigation snippet using NAVIGATIONLIST for vertical sidebar m
 create snippet Module.Entity_Menu
 {
   navigationlist navMenu {
-    item itemCustomers (caption: 'Customers', action: show_page Module.Customer_Overview)
-    item itemOrders (caption: 'Orders', action: show_page Module.Order_Overview)
-    item itemProducts (caption: 'Products', action: show_page Module.Product_Overview)
+    item itemCustomers (caption: 'Customers', action: show page Module.Customer_Overview)
+    item itemOrders (caption: 'Orders', action: show page Module.Order_Overview)
+    item itemProducts (caption: 'Products', action: show page Module.Product_Overview)
   }
 }
 ```
@@ -41,7 +41,7 @@ create snippet Module.Entity_Menu
 ```sql
 create [or replace] snippet Module.SnippetName
 [(
-  params: { $ParamName: Module.EntityType }
+  params: ( $ParamName: Module.EntityType )
 )]
 [folder 'path']
 {
@@ -55,9 +55,9 @@ The NAVIGATIONLIST widget creates a vertical menu with navigation items:
 
 ```sql
 navigationlist widgetName {
-  item itemName (caption: 'Caption', action: show_page Module.PageName)
-  item itemName (caption: 'Caption', action: microflow Module.MicroflowName)
-  item itemName (caption: 'Caption', action: close_page)
+  item itemName (caption: 'Caption', action: show page Module.PageName)
+  item itemName (caption: 'Caption', action: call microflow Module.MicroflowName)
+  item itemName (caption: 'Caption', action: close page)
 }
 ```
 
@@ -96,7 +96,7 @@ create page Module.Entity_Overview
           datasource: database Module.Entity,
           selection: Multi,
           PagingPosition: both,
-          designproperties: ['Compact': on, 'Hover': on, 'Striped': on]
+          designproperties: ('Compact': on, 'Hover': on, 'Striped': on)
         ) {
           column (attribute: Name, caption: 'Name') {
             textfilter textFilter1
@@ -105,7 +105,7 @@ create page Module.Entity_Overview
             textfilter textFilter2
           }
           column (caption: 'Actions') {
-            actionbutton btnEdit (caption: 'Edit', action: show_page Module.Entity_NewEdit("entity": $currentObject))
+            actionbutton btnEdit (caption: 'Edit', action: show page Module.Entity_NewEdit("entity" = $currentObject))
             actionbutton btnDelete (caption: 'Delete', action: delete, buttonstyle: danger)
           }
         }
@@ -124,7 +124,7 @@ Include a snippet in a page using SNIPPETCALL:
 snippetcall widgetName (snippet: Module.SnippetName)
 
 -- With parameters (for parameterized snippets):
-snippetcall widgetName (snippet: Module.SnippetName, params: {Customer: $Customer})
+snippetcall widgetName (snippet: Module.SnippetName, params: (Customer = $Customer))
 ```
 
 ### Overview Page Components
@@ -141,13 +141,13 @@ datagrid GridName (
   datasource: database from Module.Entity where [IsActive = true] sort by Name asc,
   selection: Multi,
   PagingPosition: both,
-  designproperties: ['Compact': on, 'Hover': on, 'Striped': on]
+  designproperties: ('Compact': on, 'Hover': on, 'Striped': on)
 ) {
   column (attribute: Name, caption: 'Name') {
     textfilter textFilter1
   }
   column (caption: 'Actions') {
-    actionbutton btnEdit (caption: 'Edit', action: show_page Module.Entity_NewEdit("entity": $currentObject))
+    actionbutton btnEdit (caption: 'Edit', action: show page Module.Entity_NewEdit("entity" = $currentObject))
   }
 }
 ```
@@ -163,7 +163,7 @@ datagrid GridName (
   thing (mendixlabs/mxcli#1152)
 - `selection: Multi` - Multi-selection (`Multi`, `Single`, or omit for none)
 - `PagingPosition: both` - Pagination bar position (`top`, `bottom`, `both`)
-- `designproperties: ['Compact': on, 'Hover': on, 'Striped': on]` - Atlas design tokens
+- `designproperties: ('Compact': on, 'Hover': on, 'Striped': on)` - Atlas design tokens
 
 **Column Types:**
 - `column (attribute: attribute, caption: 'label')` - Attribute column (own-entity attribute)
@@ -236,7 +236,7 @@ Form for creating or editing a single entity. **Requires a page parameter** to r
 ```sql
 create page Module.Entity_NewEdit
 (
-  params: { $entity: Module.Entity },
+  params: ( $entity: Module.Entity ),
   title: 'Edit Entity',
   layout: Atlas_Core.PopupLayout,
   folder: 'OverviewPages'
@@ -253,8 +253,8 @@ create page Module.Entity_NewEdit
           combobox cbStatus (label: 'Status', attribute: status)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: success)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
         }
       }
@@ -268,7 +268,7 @@ create page Module.Entity_NewEdit
 ```sql
 create page Module.PageName
 (
-  params: { $ParamName: Module.EntityName },
+  params: ( $ParamName: Module.EntityName ),
   title: '...',
   layout: ...
 )
@@ -276,12 +276,12 @@ create page Module.PageName
 
 - Parameter name conventionally matches the entity name (e.g., `$store`, `$Customer`)
 - The DataView's binding references this parameter (`datasource: $ParamName`)
-- When calling the page via SHOW_PAGE, pass the object by parameter name: `show_page Module.PageName(ParamName: $value)`
-- **Reserved-word parameter names must be quoted in the SHOW_PAGE args.** The generic examples above name the parameter `entity`, which is a reserved keyword, so the call quotes it: `show_page Module.Entity_NewEdit("entity": $currentObject)`. A non-reserved name (`$store`, `$Customer`) needs no quotes: `show_page Module.Store_NewEdit(store: $currentObject)`.
+- When calling the page via show page, pass the object by parameter name: `show page Module.PageName(ParamName = $value)`
+- **Reserved-word parameter names must be quoted in the show page args.** The generic examples above name the parameter `entity`, which is a reserved keyword, so the call quotes it: `show page Module.Entity_NewEdit("entity" = $currentObject)`. A non-reserved name (`$store`, `$Customer`) needs no quotes: `show page Module.Store_NewEdit(store = $currentObject)`.
 
 ### NewEdit Page Components
 
-1. **Page Parameter**: `params: { $entity: Module.Entity }` - Receives the object to edit
+1. **Page Parameter**: `params: ( $entity: Module.Entity )` - Receives the object to edit
 2. **Layout**: `Atlas_Core.PopupLayout` - Popup/modal style
 3. **DataView**: Container bound to page parameter (`datasource: $entity`)
 4. **Input Widgets**: Match entity attributes with `attribute:` property
@@ -299,8 +299,8 @@ create snippet MdlTemplates.NavigationMenu
   layoutgrid navGrid {
     row {
       column (desktopwidth: 12) {
-        actionbutton btnStores (caption: 'Stores', action: show_page MdlTemplates.Store_Overview)
-        actionbutton btnCars (caption: 'Cars', action: show_page MdlTemplates.Car_Overview)
+        actionbutton btnStores (caption: 'Stores', action: show page MdlTemplates.Store_Overview)
+        actionbutton btnCars (caption: 'Cars', action: show page MdlTemplates.Car_Overview)
       }
     }
   }
@@ -354,7 +354,7 @@ create page MdlTemplates.Store_Overview
 ```sql
 create page MdlTemplates.Store_NewEdit
 (
-  params: { $store: MdlTemplates.Store },
+  params: ( $store: MdlTemplates.Store ),
   title: 'Edit Store',
   layout: Atlas_Core.PopupLayout,
   folder: 'OverviewPages'
@@ -368,8 +368,8 @@ create page MdlTemplates.Store_NewEdit
           textbox txtLocation (label: 'Location', attribute: Location)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: success)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
         }
       }
@@ -407,7 +407,7 @@ Shows various input widget types:
 ```sql
 create page MdlTemplates.Car_NewEdit
 (
-  params: { $Car: MdlTemplates.Car },
+  params: ( $Car: MdlTemplates.Car ),
   title: 'Edit Car',
   layout: Atlas_Core.PopupLayout,
   folder: 'OverviewPages'
@@ -425,8 +425,8 @@ create page MdlTemplates.Car_NewEdit
           radiobuttons rbType (label: 'Car type', attribute: CarType)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: success)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
         }
       }
@@ -498,7 +498,7 @@ module/
 ## Parameterized Snippets
 
 Snippets can accept parameters to display context-specific data. **A snippet
-parameter must be an entity.** A primitive one (`params: { $Label: String }`) is
+parameter must be an entity.** A primitive one (`params: ( $Label: String )`) is
 refused as **MDL087**, because Mendix rejects it with **CE0046** *"Invalid data
 type 'String'."* — a *page* parameter may be a primitive, a snippet parameter may
 not. To parameterise a snippet on a value, keep the primitive on the calling
@@ -508,7 +508,7 @@ page's parameters, or pass an object and read the member inside the snippet.
 -- Create a snippet with a parameter
 create snippet Module.CustomerDetails
 (
-  params: { $Customer: Module.Customer }
+  params: ( $Customer: Module.Customer )
 )
 {
   layoutgrid detailsGrid {
@@ -521,7 +521,7 @@ create snippet Module.CustomerDetails
 }
 
 -- Use the snippet with parameter passing
-snippetcall customerDetails (snippet: Module.CustomerDetails, params: {Customer: $Customer})
+snippetcall customerDetails (snippet: Module.CustomerDetails, params: (Customer = $Customer))
 ```
 
 ## Entity Menu Snippets with NavigationList
@@ -531,13 +531,13 @@ For entity-specific action menus (Edit, Delete, etc.), use the `navigationlist` 
 ```sql
 create snippet Module.Entity_Menu
 (
-  params: { $EntityParameter: Module.Entity }
+  params: ( $EntityParameter: Module.Entity )
 )
 {
   navigationlist EntityMenuNav {
-    item itemEdit (caption: 'Edit', action: show_page Module.Entity_NewEdit("entity": $EntityParameter))
+    item itemEdit (caption: 'Edit', action: show page Module.Entity_NewEdit("entity" = $EntityParameter))
     item itemDelete (caption: 'Delete', action: delete)
-    item itemBack (caption: 'Back', action: close_page)
+    item itemBack (caption: 'Back', action: close page)
   }
 }
 ```
@@ -551,18 +551,18 @@ navigationlist widgetName {
 ```
 
 **Supported Actions:**
-- `action: save_changes` - Save changes
-- `action: cancel_changes` - Cancel changes
-- `action: close_page` - Close current page
+- `action: save changes` - Save changes
+- `action: cancel changes` - Cancel changes
+- `action: close page` - Close current page
 - `action: delete` - Delete object
-- `action: microflow Module.MicroflowName` - Call microflow
-- `action: microflow Module.MicroflowName(Param: $value)` - Call microflow with parameters
-- `action: show_page Module.PageName` - Navigate to page
-- `action: show_page Module.PageName(Param: $value)` - Navigate with parameters
-- **A `show_page` argument must be the context object, and there has to BE one.**
+- `action: call microflow Module.MicroflowName` - Call microflow
+- `action: call microflow Module.MicroflowName(Param = $value)` - Call microflow with parameters
+- `action: show page Module.PageName` - Navigate to page
+- `action: show page Module.PageName(Param = $value)` - Navigate with parameters
+- **A `show page` argument must be the context object, and there has to BE one.**
   Mendix takes the page argument from the enclosing data widget, so the only
   spellings that mean anything are `$currentObject` or the name of the variable
-  that widget is bound to (`datasource: $Customer` → `(Customer: $Customer)` is
+  that widget is bound to (`datasource: $Customer` → `(Customer = $Customer)` is
   fine). Naming any other variable is refused as **MDL-PAGEARG01** — it used to be
   accepted and silently opened the page with the context object anyway.
 - **Outside a data widget the same rule leaves nothing at all**, so a button sitting
@@ -572,12 +572,12 @@ navigationlist widgetName {
   mxbuild reports **CE1571** per parameter of the target page, and a page whose
   parameters are optional would simply show the wrong data. MDL-PAGEARG01 refuses
   that too (mendixlabs/mxcli#1029). To open a parameterised page from such a
-  button, call a microflow that does `show page Module.Page(Param: $value)` —
+  button, call a microflow that does `show page Module.Page(Param = $value)` —
   that path wires the arguments properly.
 
 ## Handling Circular Dependencies
 
-When a navigation snippet references pages (via `show_page`) and those pages reference the snippet (via `snippetcall`), you have a circular dependency. Use the **placeholder pattern**:
+When a navigation snippet references pages (via `show page`) and those pages reference the snippet (via `snippetcall`), you have a circular dependency. Use the **placeholder pattern**:
 
 ### Creation Order
 
@@ -604,7 +604,7 @@ create snippet Module.NavigationMenu
 -- Step 2: Create all pages (they reference the snippet via SNIPPETCALL)
 create page Module.Customer_NewEdit
 (
-  params: { $Customer: Module.Customer },
+  params: ( $Customer: Module.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -631,7 +631,7 @@ create or modify snippet Module.NavigationMenu
   layoutgrid navGrid {
     row {
       column (desktopwidth: 12) {
-        actionbutton btnCustomers (caption: 'Customers', action: show_page Module.Customer_Overview)
+        actionbutton btnCustomers (caption: 'Customers', action: show page Module.Customer_Overview)
       }
     }
   }
@@ -659,7 +659,7 @@ See [Resolve Forward References](../resolve-forward-references/SKILL.md) for the
 
 | Command | Description |
 |---------|-------------|
-| `show snippets [in module]` | List all snippets |
+| `list snippets [in module]` | List all snippets |
 | `show snippet Module.Name` | Show snippet summary |
 | `describe snippet Module.Name` | Show snippet MDL source |
 | `create snippet Module.Name { ... }` | Create a new snippet |

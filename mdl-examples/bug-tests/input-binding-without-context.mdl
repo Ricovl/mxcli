@@ -13,13 +13,13 @@ create persistent entity ProbeInBindOk.Person (
 );
 
 create page ProbeInBindOk.Edit (
-  params: { $P: ProbeInBindOk.Person },
+  params: ( $P: ProbeInBindOk.Person ),
   title: 'Edit',
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg {
-    row r1 {
-      column c1 (desktopwidth: autofill) {
+    row {
+      column (desktopwidth: autofill) {
         -- The data view supplies the object; bare and qualified both bind.
         dataview dv (DataSource: $P) {
           textbox tName (Attribute: FullName)
@@ -35,13 +35,13 @@ create page ProbeInBindOk.Edit (
     dynamictext lvName (Attribute: FullName)
   }
   datagrid dg (DataSource: database ProbeInBindOk.Person) {
-    column cName (Attribute: FullName, Caption: 'Name')
+    column (Attribute: FullName, Caption: 'Name')
   }
 };
 
 -- A snippet binds through a data view over its parameter, exactly as a page does.
 create snippet ProbeInBindOk.PersonFields (
-  params: { $P: ProbeInBindOk.Person }
+  params: ( $P: ProbeInBindOk.Person )
 ) {
   dataview sdv (DataSource: $P) {
     textbox sName (Attribute: FullName)

@@ -257,7 +257,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.QUEUES() != nil {
+	} else if ctx.TaskQueuesKw() != nil {
 		stmt := &ast.ShowQueuesStmt{}
 		if ctx.IN() != nil {
 			if qn := ctx.QualifiedName(); qn != nil {
@@ -462,7 +462,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 				})
 			}
 		}
-	} else if ctx.ODATA() != nil && ctx.CLIENTS() != nil {
+	} else if ctx.ConsumedODataServicesKw() != nil {
 		// SHOW ODATA CLIENTS [IN module]
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowODataClients}
 		if ctx.IN() != nil {
@@ -473,7 +473,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.ODATA() != nil && ctx.SERVICES() != nil {
+	} else if ctx.PublishedODataServicesKw() != nil {
 		// SHOW ODATA SERVICES [IN module]
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowODataServices}
 		if ctx.IN() != nil {
@@ -611,7 +611,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.MODELS() != nil {
+	} else if ctx.AiModelsKw() != nil {
 		// SHOW MODELS [IN module] (agent-editor Model documents)
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowModels}
 		if ctx.IN() != nil {
@@ -677,7 +677,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.REST() != nil && ctx.CLIENTS() != nil {
+	} else if ctx.ConsumedRestServicesKw() != nil {
 		// SHOW REST CLIENTS [IN module]
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowRestClients}
 		if ctx.IN() != nil {
@@ -817,6 +817,14 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		return
 	}
 
+	// R6: the single-thing reports that were `show` forms. Each builds the
+	// statement its `show` spelling builds, so the two are one statement and
+	// `show` is a pure alias (MDL-DEPR090).
+	if stmt := describeReport(ctx); stmt != nil {
+		b.statements = append(b.statements, stmt)
+		return
+	}
+
 	// DESCRIBE GLYPH 57350 | DESCRIBE GLYPH 'star'. Placed with the other
 	// no-document statements: a glyph is a character code in a font, so it has no
 	// qualified name for the chain below to build.
@@ -834,7 +842,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	}
 
 	// DESCRIBE QUEUE Module.Name
-	if ctx.QUEUE() != nil {
+	if ctx.TaskQueueKw() != nil {
 		if qn := ctx.QualifiedName(); qn != nil {
 			b.statements = append(b.statements, &ast.DescribeQueueStmt{Name: buildQualifiedName(qn)})
 		}
@@ -918,7 +926,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	}
 
 	// Handle DESCRIBE ODATA CLIENT/SERVICE and DESCRIBE EXTERNAL ENTITY
-	if ctx.ODATA() != nil && ctx.CLIENT() != nil {
+	if ctx.ConsumedODataServiceKw() != nil {
 		if qn := ctx.QualifiedName(); qn != nil {
 			name := buildQualifiedName(qn)
 			b.statements = append(b.statements, &ast.DescribeStmt{
@@ -928,7 +936,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		}
 		return
 	}
-	if ctx.ODATA() != nil && ctx.SERVICE() != nil {
+	if ctx.PublishedODataServiceKw() != nil {
 		if qn := ctx.QualifiedName(); qn != nil {
 			name := buildQualifiedName(qn)
 			b.statements = append(b.statements, &ast.DescribeStmt{
@@ -1233,8 +1241,8 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 			ObjectType: ast.DescribeIconCollection,
 			Name:       name,
 		})
-	} else if ctx.MODEL() != nil {
-		// DESCRIBE MODEL Module.Name (agent-editor Model document)
+	} else if ctx.AiModelKw() != nil {
+		// DESCRIBE AI MODEL Module.Name (agent-editor Model document)
 		b.statements = append(b.statements, &ast.DescribeStmt{
 			ObjectType: ast.DescribeModel,
 			Name:       name,
@@ -1257,7 +1265,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 			ObjectType: ast.DescribeConsumedMCPService,
 			Name:       name,
 		})
-	} else if ctx.REST() != nil && ctx.CLIENT() != nil {
+	} else if ctx.ConsumedRestServiceKw() != nil {
 		b.statements = append(b.statements, &ast.DescribeStmt{
 			ObjectType: ast.DescribeRestClient,
 			Name:       name,
@@ -1403,3 +1411,47 @@ func (b *Builder) ExitUpdateStatement(ctx *parser.UpdateStatementContext) {
 // ----------------------------------------------------------------------------
 // Helper Functions
 // ----------------------------------------------------------------------------
+
+// describeReport builds `describe app security`, `describe security matrix`,
+// `describe structure` and `describe context of`: the same statements as their
+// `show` spellings (see ExitShowStatement). Nil for every other describe.
+func describeReport(ctx *parser.DescribeStatementContext) ast.Statement {
+	inModule := func() string {
+		if ctx.IN() == nil {
+			return ""
+		}
+		if qn := ctx.QualifiedName(); qn != nil {
+			return getQualifiedNameText(qn)
+		}
+		if id := ctx.IDENTIFIER(); id != nil {
+			return id.GetText()
+		}
+		return ""
+	}
+	depth := func() int {
+		if ctx.DEPTH() != nil {
+			if n := ctx.NUMBER_LITERAL(); n != nil {
+				if d, err := strconv.Atoi(n.GetText()); err == nil {
+					return d
+				}
+			}
+		}
+		return 2
+	}
+	switch {
+	case ctx.APP() != nil && ctx.SECURITY() != nil:
+		return &ast.ShowStmt{ObjectType: ast.ShowProjectSecurity}
+	case ctx.SECURITY() != nil && ctx.MATRIX() != nil:
+		return &ast.ShowStmt{ObjectType: ast.ShowSecurityMatrix, InModule: inModule()}
+	case ctx.STRUCTURE() != nil && ctx.JSON() == nil:
+		return &ast.ShowStmt{ObjectType: ast.ShowStructure, Depth: depth(), All: ctx.ALL() != nil, InModule: inModule()}
+	case ctx.CONTEXT() != nil && ctx.OF() != nil:
+		qn := ctx.QualifiedName()
+		if qn == nil {
+			return nil
+		}
+		name := buildQualifiedName(qn)
+		return &ast.ShowStmt{ObjectType: ast.ShowContext, Name: &name, Depth: depth()}
+	}
+	return nil
+}

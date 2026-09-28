@@ -3,7 +3,7 @@
 
 -- Create an external entity with the flag set at creation time.
 create or modify external entity TripPin.People
-from odata client TripPin.TripPinClient
+from consumed odata service TripPin.TripPinClient
 (
   EntitySet: 'People',
   Countable: Yes,
@@ -19,5 +19,5 @@ from odata client TripPin.TripPinClient
 );
 
 -- Toggle the flag using ALTER ENTITY.
-alter entity TripPin.People set allow_create_change_locally = true;
-alter entity TripPin.People set allow_create_change_locally = false;
+alter entity TripPin.People set ( AllowCreateChangeLocally: true );
+alter entity TripPin.People set ( AllowCreateChangeLocally: false );

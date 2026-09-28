@@ -9,23 +9,17 @@ package roundtrip
 // rules are those of knownFailures in allowlist_test.go.
 //
 // Measured on 2026-09-27 at TestApp 11a8fca, when TestApp joined the harness
-// (#743): 142 of 775 documents keep both laws. The #743 entries are the three
-// kinds whose describe still prints a plain `create`; their `create or modify`
-// rewrites are measured by TestTestAppCreateOrModifyProbe. Everything else is
-// the #721 classes on a larger fixture and has not been triaged per document.
+// (#743): 142 of 775 documents keep both laws. Everything listed is the #721
+// classes on a larger fixture and has not been triaged per document. The #743
+// entries (workflows, OData clients and external entities, whose describe
+// printed a plain `create`) were struck when their rewrites learned to carry
+// what describe cannot print, and the false generalization flags #721 B
+// dropped struck 27 entity and association entries with them.
 var testAppKnownFailures = map[string]knownFailure{
 	"association Administration.AccountPasswordData_Account":                          {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"association Clients.Customer_Order":                                              {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"association Clients.OrderLine_Order":                                             {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"association Clients.Order_GetCustomerOrdersResponse":                             {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"association Clients.Order_SaveOrder":                                             {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"association Clients.Product_OrderLine":                                           {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"association Mappings.OrderLine_Order":                                            {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"association Mappings.OrderLine_Product":                                          {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"association Mappings.Order_Customer":                                             {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"association Rules.BusinessRule_RuleCategory":                                     {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"association Rules.RuleAction_BusinessRule":                                       {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"association Rules.RuleExecutionLog_BusinessRule":                                 {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"association ViewAssociations.persistent_order":                                   {laws: []law{lawExec}, issue: "#721", why: "association: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"association WorkflowCommons.CleanupHelper_WorkflowDefinition":                    {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"association WorkflowCommons.ConflictReasonGroup_Workflow":                        {laws: []law{lawGetPut}, issue: "#721", why: "association: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -128,32 +122,14 @@ var testAppKnownFailures = map[string]knownFailure{
 	"entity Administration.Account":                                                   {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity Administration.AccountPasswordData":                                       {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity Atlas_Web_Content.LoginContext":                                           {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Clients.Customer":                                                         {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Clients.GetCustomerOrdersResponse":                                        {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Clients.Order":                                                            {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Clients.OrderLine":                                                        {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Clients.Orders":                                                           {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Clients.Product":                                                          {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Clients.Root":                                                             {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Clients.SaveOrder":                                                        {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity FeedbackModule.Feedback":                                                  {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity FeedbackModule.ResponseHelper":                                            {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity Mappings.Customer":                                                        {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Mappings.Item":                                                            {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity Mappings.Order":                                                           {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity Mappings.OrderLine":                                                       {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity Mappings.Product":                                                         {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity MyFirstModule.Car":                                                        {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity MyFirstModule.VCar":                                                       {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity NanoflowCommons.Geolocation":                                              {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity NanoflowCommons.Position":                                                 {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Odata.Devices":                                                            {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Pages.Vehicle":                                                            {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Rules.BusinessRule":                                                       {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Rules.RuleAction":                                                         {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Rules.RuleCategory":                                                       {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity Rules.RuleExecutionLog":                                                   {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity ViewAssociations.OrdersVE":                                                {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity WorkflowCommons.AssignmentHelper":                                         {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity WorkflowCommons.AuditTrailViewer":                                         {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity WorkflowCommons.CleanupHelper":                                            {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -189,12 +165,9 @@ var testAppKnownFailures = map[string]knownFailure{
 	"entity WorkflowCommons.WorkflowTaskDetail":                                       {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity WorkflowCommons.WorkflowUserTaskView":                                     {laws: []law{lawExec}, issue: "#721", why: "entity: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity WorkflowCommons.WorkflowView":                                             {laws: []law{lawExec}, issue: "#721", why: "entity: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"entity workflow.workfow1context":                                                 {laws: []law{lawGetPut}, issue: "#721", why: "entity: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"enumeration WorkflowCommons.Enum_NotificationArea_RenderAs":                      {laws: []law{lawGetPut}, issue: "#721", why: "enumeration: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"export mapping Clients.SoapOrderExportMapping":                                   {laws: []law{lawGetPut}, issue: "#721", why: "export mapping: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"export mapping Services.OrdersExportMapping":                                     {laws: []law{lawGetPut}, issue: "#721", why: "export mapping: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"external entity Clients.Orders":                                                  {laws: []law{lawExec}, issue: "#743", why: "describe external entity prints a plain create, refused on the existing entity; its create or modify probe leaves only #721 B"},
-	"external entity Odata.Devices":                                                   {laws: []law{lawExec}, issue: "#743", why: "describe external entity prints a plain create, refused on the existing entity; its create or modify probe leaves only #721 B"},
 	"import mapping Clients.SoapCustomerOrdersImportMapping":                          {laws: []law{lawGetPut}, issue: "#721", why: "import mapping: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"import mapping Clients.SoapOrdersImportMapping":                                  {laws: []law{lawGetPut}, issue: "#721", why: "import mapping: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"javascript action DataWidgets.Reset_All_Filters":                                 {laws: []law{lawParse}, issue: "#721", why: "javascript action: breaks parse on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -225,8 +198,6 @@ var testAppKnownFailures = map[string]knownFailure{
 	"menu Atlas_Core.Tablet_Menu":                                                     {laws: []law{lawGetPut}, issue: "#721", why: "menu: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"microflow WorkflowCommons.SUB_WorkflowTask_AverageHandlingTime":                  {laws: []law{lawParse}, issue: "#721", why: "microflow: breaks parse on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"microflow WorkflowCommons.SUB_Workflow_AverageHandlingTime":                      {laws: []law{lawParse}, issue: "#721", why: "microflow: breaks parse on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"odata client Clients.OrderODataClient":                                           {laws: []law{lawExec}, issue: "#743", why: "plain create refused until the rewrite carries UseQuerySegment, catalog, proxy and microflow settings and the icon"},
-	"odata client Odata.Bug1073":                                                      {laws: []law{lawExec}, issue: "#743", why: "plain create refused until the rewrite carries UseQuerySegment, catalog, proxy and microflow settings and the icon"},
 	"page Administration.Account_Edit":                                                {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Administration.Account_New":                                                 {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Administration.Account_Overview":                                            {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -386,18 +357,9 @@ var testAppKnownFailures = map[string]knownFailure{
 	"snippet WorkflowCommons.Snip_Workflow_TaskTimeLineOnly":                          {laws: []law{lawExec}, issue: "#721", why: "snippet: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet WorkflowCommons.Snip_Workflow_TaskTimeline":                              {laws: []law{lawExec}, issue: "#721", why: "snippet: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet WorkflowCommons.Snip_Workflow_TaskTimeline_WithoutName":                  {laws: []law{lawExec}, issue: "#721", why: "snippet: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"workflow workflow.Workflow1":                                                     {laws: []law{lawExec}, issue: "#743", why: "plain create refused until the rewrite carries event sub-processes, outcome flows and activity names"},
-	"workflow workflow.Workflow1_2":                                                   {laws: []law{lawExec}, issue: "#743", why: "plain create refused until the rewrite carries event sub-processes, outcome flows and activity names"},
 }
 
 // createOrModifyProbeKnownFailures is the allowlist of
 // TestTestAppCreateOrModifyProbe. It may only shrink; a kind switches its
 // describe verb once none of its documents is listed here.
-var createOrModifyProbeKnownFailures = map[string]knownFailure{
-	"external entity Clients.Orders":        {laws: []law{lawGetPut}, issue: "#721", why: "only the NoGeneralization HasXAttr=false flags are dropped (#721 B)"},
-	"external entity Odata.Devices":         {laws: []law{lawGetPut}, issue: "#721", why: "only the NoGeneralization HasXAttr=false flags are dropped (#721 B)"},
-	"odata client Clients.OrderODataClient": {laws: []law{lawGetPut}, issue: "#743", why: "UseQuerySegment, ApplicationId, EndpointId, CatalogUrl, Icon, proxy and microflow settings dropped; list markers"},
-	"odata client Odata.Bug1073":            {laws: []law{lawGetPut}, issue: "#743", why: "UseQuerySegment, ApplicationId, EndpointId, CatalogUrl, Icon, proxy and microflow settings dropped; list markers"},
-	"workflow workflow.Workflow1":           {laws: []law{lawGetPut}, issue: "#743", why: "event sub-processes, outcome flows, activity names and sizes dropped"},
-	"workflow workflow.Workflow1_2":         {laws: []law{lawGetPut}, issue: "#743", why: "event sub-processes, outcome flows, activity names and sizes dropped"},
-}
+var createOrModifyProbeKnownFailures = map[string]knownFailure{}

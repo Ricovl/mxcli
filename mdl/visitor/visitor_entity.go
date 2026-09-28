@@ -9,6 +9,7 @@ import (
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
@@ -20,9 +21,8 @@ func (b *Builder) ExitCreateEntityStatement(ctx *parser.CreateEntityStatementCon
 	}
 
 	stmt := &ast.CreateEntityStmt{
-		Name:        buildQualifiedName(ctx.QualifiedName()),
-		Kind:        ast.EntityPersistent, // Default
-		IfNotExists: ctx.IfNotExists() != nil,
+		Name: buildQualifiedName(ctx.QualifiedName()),
+		Kind: ast.EntityPersistent, // Default
 	}
 
 	// Entity type
@@ -604,6 +604,9 @@ func parseAnnotationParamInt(ctx parser.IAnnotationParamContext) int {
 
 // ExitAlterEntityAction handles ALTER ENTITY ... ADD/DROP/RENAME/MODIFY ATTRIBUTE ...
 func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
+	// R3 respellings (visitor_r3_property_lists.go).
+	b.recordAllowCreateChangeLocally(ctx)
+	b.recordModifyAttributeColon(ctx)
 	// Walk up to the parent AlterStatement to get the entity's qualified name
 	parent := ctx.GetParent()
 	for parent != nil {
@@ -619,7 +622,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 			attrNames := ctx.AllAttributeName()
 
 			// ADD ATTRIBUTE / ADD COLUMN
-			if ctx.ADD() != nil && (ctx.ATTRIBUTE() != nil || ctx.COLUMN() != nil) {
+			if ctx.ADD() != nil && ctx.AttributeKw() != nil {
 				if attrDef := ctx.AttributeDefinition(); attrDef != nil {
 					attr := buildSingleAttribute(attrDef.(*parser.AttributeDefinitionContext))
 					// A `/** … */` doc comment written BETWEEN clauses (before the
@@ -645,7 +648,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 			}
 
 			// RENAME ATTRIBUTE / RENAME COLUMN
-			if ctx.RENAME() != nil && (ctx.ATTRIBUTE() != nil || ctx.COLUMN() != nil) && len(attrNames) >= 2 {
+			if ctx.RENAME() != nil && ctx.AttributeKw() != nil && len(attrNames) >= 2 {
 				b.statements = append(b.statements, &ast.AlterEntityStmt{
 					Name:          name,
 					Operation:     ast.AlterEntityRenameAttribute,
@@ -656,7 +659,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 			}
 
 			// MODIFY ATTRIBUTE / MODIFY COLUMN
-			if ctx.MODIFY() != nil && (ctx.ATTRIBUTE() != nil || ctx.COLUMN() != nil) && len(attrNames) >= 1 {
+			if ctx.MODIFY() != nil && ctx.AttributeKw() != nil && len(attrNames) >= 1 {
 				dt := buildDataType(ctx.DataType())
 				stmt := &ast.AlterEntityStmt{
 					Name:          name,
@@ -675,12 +678,12 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 						stmt.ModifyNotNull = &false_
 					case c.NOT_NULL() != nil || (c.NOT() != nil && c.NULL() != nil) || c.REQUIRED() != nil:
 						stmt.ModifyNotNull = &true_
-						if c.ERROR() != nil && c.STRING_LITERAL() != nil {
+						if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
 							stmt.ModifyNotNullError = unquoteStringLit(c.STRING_LITERAL())
 						}
 					case c.UNIQUE() != nil:
 						stmt.ModifyUnique = &true_
-						if c.ERROR() != nil && c.STRING_LITERAL() != nil {
+						if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
 							stmt.ModifyUniqueError = unquoteStringLit(c.STRING_LITERAL())
 						}
 					case c.DEFAULT() != nil:
@@ -714,7 +717,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 			}
 
 			// DROP ATTRIBUTE / DROP COLUMN
-			if ctx.DROP() != nil && (ctx.ATTRIBUTE() != nil || ctx.COLUMN() != nil) && len(attrNames) >= 1 {
+			if ctx.DROP() != nil && ctx.AttributeKw() != nil && len(attrNames) >= 1 {
 				b.statements = append(b.statements, &ast.AlterEntityStmt{
 					Name:          name,
 					Operation:     ast.AlterEntityDropAttribute,
@@ -734,12 +737,14 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 				return
 			}
 
-			// SET COMMENT
+			// SET COMMENT: the deprecated spelling of SET DOCUMENTATION (R9,
+			// MDL-DEPR135), and the same statement.
 			if ctx.SET() != nil && ctx.COMMENT() != nil && ctx.STRING_LITERAL() != nil {
+				b.recordDeprecation(deprecation.SetComment, ctx.COMMENT().GetSymbol(), "")
 				b.statements = append(b.statements, &ast.AlterEntityStmt{
-					Name:      name,
-					Operation: ast.AlterEntitySetComment,
-					Comment:   unquoteStringLit(ctx.STRING_LITERAL()),
+					Name:          name,
+					Operation:     ast.AlterEntitySetDocumentation,
+					Documentation: unquoteStringLit(ctx.STRING_LITERAL()),
 				})
 				return
 			}
@@ -913,8 +918,22 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 
 	if ctx.ENTITY() != nil {
 		b.statements = append(b.statements, &ast.DropEntityStmt{
+			Name:     buildQualifiedName(names[0]),
+			External: ctx.EXTERNAL() != nil,
+		})
+	} else if ctx.DATABASE() != nil && ctx.CONNECTION() != nil {
+		b.statements = append(b.statements, &ast.DropDatabaseConnectionStmt{
 			Name: buildQualifiedName(names[0]),
 		})
+	} else if ctx.VALIDATION() != nil {
+		stmt := &ast.DropValidationRuleStmt{Attribute: buildQualifiedName(names[0])}
+		switch {
+		case ctx.REGEX() != nil:
+			stmt.Kind = ast.ValidationRuleRegEx
+		case ctx.RANGE() != nil:
+			stmt.Kind = ast.ValidationRuleRange
+		}
+		b.statements = append(b.statements, stmt)
 	} else if ctx.ASSOCIATION() != nil {
 		b.statements = append(b.statements, &ast.DropAssociationStmt{
 			Name: buildQualifiedName(names[0]),
@@ -968,11 +987,11 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 		b.statements = append(b.statements, &ast.DropJavaActionStmt{
 			Name: buildQualifiedName(names[0]),
 		})
-	} else if ctx.ODATA() != nil && ctx.CLIENT() != nil {
+	} else if ctx.ConsumedODataServiceKw() != nil {
 		b.statements = append(b.statements, &ast.DropODataClientStmt{
 			Name: buildQualifiedName(names[0]),
 		})
-	} else if ctx.ODATA() != nil && ctx.SERVICE() != nil {
+	} else if ctx.PublishedODataServiceKw() != nil {
 		b.statements = append(b.statements, &ast.DropODataServiceStmt{
 			Name: buildQualifiedName(names[0]),
 		})
@@ -988,7 +1007,7 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 		b.statements = append(b.statements, &ast.DropImageCollectionStmt{
 			Name: buildQualifiedName(names[0]),
 		})
-	} else if ctx.QUEUE() != nil {
+	} else if ctx.TaskQueueKw() != nil {
 		b.statements = append(b.statements, &ast.DropQueueStmt{
 			Name: buildQualifiedName(names[0]),
 		})
@@ -1000,7 +1019,7 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 		b.statements = append(b.statements, &ast.DropRegularExpressionStmt{
 			Name: buildQualifiedName(names[0]),
 		})
-	} else if ctx.MODEL() != nil {
+	} else if ctx.AiModelKw() != nil {
 		b.statements = append(b.statements, &ast.DropModelStmt{
 			Name: buildQualifiedName(names[0]),
 		})
@@ -1020,7 +1039,7 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 		b.statements = append(b.statements, &ast.DropPublishedRestServiceStmt{
 			Name: buildQualifiedName(names[0]),
 		})
-	} else if ctx.REST() != nil && ctx.CLIENT() != nil {
+	} else if ctx.ConsumedRestServiceKw() != nil {
 		b.statements = append(b.statements, &ast.DropRestClientStmt{
 			Name: buildQualifiedName(names[0]),
 		})

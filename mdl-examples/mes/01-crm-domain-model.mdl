@@ -62,9 +62,9 @@ create persistent entity CRM.Customer (
   /** Unique customer number for reference */
   CustomerNumber: autonumber default 1,
   /** Display name (company name or full name) */
-  CustomerName: string(200) not null error 'Customer name is required',
+  CustomerName: string(200) not null error message 'Customer name is required',
   /** Company or individual */
-  CustomerType: enumeration(CRM.CustomerType) not null error 'Customer type is required',
+  CustomerType: enumeration(CRM.CustomerType) not null error message 'Customer type is required',
   /** Primary email address */
   Email: string(200),
   /** Primary phone number */
@@ -89,9 +89,9 @@ index (IsActive);
 @position(350, 50)
 create persistent entity CRM.CustomerContact (
   /** Contact's first name */
-  FirstName: string(100) not null error 'First name is required',
+  FirstName: string(100) not null error message 'First name is required',
   /** Contact's last name */
-  LastName: string(100) not null error 'Last name is required',
+  LastName: string(100) not null error message 'Last name is required',
   /** Job title or role at the company */
   JobTitle: string(100),
   /** Direct email address */
@@ -118,17 +118,17 @@ create persistent entity CRM.CustomerAddress (
   /** Address label (e.g. 'Main Office', 'Warehouse') */
   AddressLabel: string(100),
   /** Street and house number */
-  Street: string(200) not null error 'Street is required',
+  Street: string(200) not null error message 'Street is required',
   /** City */
-  City: string(100) not null error 'City is required',
+  City: string(100) not null error message 'City is required',
   /** State or province */
   StateProvince: string(100),
   /** Postal or zip code */
   PostalCode: string(20),
   /** Country */
-  Country: string(100) not null error 'Country is required',
+  Country: string(100) not null error message 'Country is required',
   /** Type of address */
-  AddressType: enumeration(CRM.AddressType) not null error 'Address type is required',
+  AddressType: enumeration(CRM.AddressType) not null error message 'Address type is required',
   /** Whether this is the default address for its type */
   IsDefault: boolean default false
 );
@@ -147,7 +147,7 @@ create association CRM.CustomerContact_Customer
   from CRM.CustomerContact to CRM.Customer
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links addresses to their customer
@@ -161,4 +161,4 @@ create association CRM.CustomerAddress_Customer
   from CRM.CustomerAddress to CRM.Customer
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;

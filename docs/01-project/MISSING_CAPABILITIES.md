@@ -119,7 +119,7 @@ EM = EnquiriesManagement, FM = FactoryManagement, LPI = LatoProductInventory
 
 #### 6. Consumed REST Services (`rest$ConsumedRestService`) - 2 documents
 
-> **Status: supported** via `CREATE REST CLIENT` (see `mxcli syntax rest`). OpenAPI-driven generation is partial.
+> **Status: supported** via `CREATE CONSUMED REST SERVICE` (see `mxcli syntax rest`). OpenAPI-driven generation is partial.
 
 **Impact**: Different from consumed OData services (which are already supported). These are plain REST API integrations.
 
@@ -175,7 +175,7 @@ EM = EnquiriesManagement, FM = FactoryManagement, LPI = LatoProductInventory
 
 #### 11. Queues (`Queues$Queue`) - 5 documents
 
-> **Status: supported.** `CREATE [OR MODIFY] QUEUE`, and a call is bound to one with `CALL MICROFLOW … IN QUEUE Module.Queue` (same clause on `CALL JAVA ACTION`).
+> **Status: supported.** `CREATE [OR MODIFY] TASK QUEUE`, and a call is bound to one with `CALL MICROFLOW … IN QUEUE Module.Queue` (same clause on `CALL JAVA ACTION`).
 
 **Impact**: Task queue definitions for asynchronous processing. Lightweight documents.
 

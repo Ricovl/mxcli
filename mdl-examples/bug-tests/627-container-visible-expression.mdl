@@ -32,24 +32,24 @@ create page MyFirstModule.P_Vis
 (
   Title: 'Conditional Visibility',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Customer: MyFirstModule.Customer }
+  Params: ( $Customer: MyFirstModule.Customer )
 )
 {
   dataview dv (datasource: $Customer) {
     -- bare attribute → rooted in $currentObject automatically
-    container ctnA (Visible: [Name != '']) {
+    container ctnA (Visible: $currentObject/Name != '') {
       dynamictext tA (content: 'shown when Name set')
     }
     -- bare boolean attribute
-    container ctnB (Visible: [Active]) {
+    container ctnB (Visible: $currentObject/Active) {
       dynamictext tB (content: 'shown when Active')
     }
     -- already-qualified path is passed through unchanged
-    container ctnC (Visible: [$currentObject/Name != empty]) {
+    container ctnC (Visible: $currentObject/Name != empty) {
       dynamictext tC (content: 'shown when Name not empty')
     }
     -- conditional editability uses the same rewrite
-    textbox tbName (label: 'Name', attribute: Name, Editable: [Active])
+    textbox tbName (label: 'Name', attribute: Name, Editable: $currentObject/Active)
     -- a plain container we'll make conditionally visible via ALTER below
     container ctnLater { dynamictext tL (content: 'shown via ALTER') }
   }
@@ -58,8 +58,8 @@ create page MyFirstModule.P_Vis
 -- ALTER PAGE sets conditional visibility/editability after the fact, with the
 -- same $currentObject rooting (issue #627 — previously a silent no-op).
 alter page MyFirstModule.P_Vis {
-  set Visible = [Active] on ctnLater;
-  set Editable = [Name != ''] on tbName;
+  set (Visible: $currentObject/Active) on ctnLater;
+  set (Editable: $currentObject/Name != '') on tbName;
 }
 
 describe page MyFirstModule.P_Vis;

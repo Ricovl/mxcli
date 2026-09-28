@@ -46,19 +46,19 @@ create enumeration CloudPortal.ENUM_EnvironmentType (
 /** A customer/company tenant in the cloud portal. */
 @position(100, 100)
 create persistent entity CloudPortal.Company (
-  Name: string(200) not null error 'Company name is required'
+  Name: string(200) not null error message 'Company name is required'
 );
 
 /** A Mendix app project, owned by a Company. */
 @position(100, 300)
 create persistent entity CloudPortal.Project (
-  Name: string(200) not null error 'Project name is required'
+  Name: string(200) not null error message 'Project name is required'
 );
 
 /** A deployment environment that belongs to a Project. */
 @position(100, 500)
 create persistent entity CloudPortal.Environment (
-  Name: string(200) not null error 'Environment name is required',
+  Name: string(200) not null error message 'Environment name is required',
   EnvironmentType: enumeration(CloudPortal.ENUM_EnvironmentType)
     default CloudPortal.ENUM_EnvironmentType.Test,
   Url: string(500)
@@ -68,13 +68,13 @@ create association CloudPortal.Project_Company
   from CloudPortal.Project to CloudPortal.Company
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 create association CloudPortal.Environment_Project
   from CloudPortal.Environment to CloudPortal.Project
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 -- -----------------------------------------------------------------------------
 -- Step 3: Category facets — Category + Value
@@ -89,20 +89,20 @@ create association CloudPortal.Environment_Project
 /** A facet, e.g. "Region" or "Compliance". */
 @position(400, 100)
 create persistent entity CloudPortal.Category (
-  Name: string(200) not null error 'Category name is required'
+  Name: string(200) not null error message 'Category name is required'
 );
 
 /** A facet option within a Category, e.g. "EU" within "Region". */
 @position(400, 300)
 create persistent entity CloudPortal.Value (
-  Name: string(200) not null error 'Value name is required'
+  Name: string(200) not null error message 'Value name is required'
 );
 
 create association CloudPortal.Value_Category
   from CloudPortal.Value to CloudPortal.Category
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 create association CloudPortal.Project_Value
   from CloudPortal.Project to CloudPortal.Value
@@ -133,7 +133,7 @@ create association CloudPortal.UserFacet_User
   from CloudPortal.UserFacet to System.User
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 create association CloudPortal.UserFacet_Value
   from CloudPortal.UserFacet to CloudPortal.Value
@@ -294,10 +294,9 @@ end;
 -- Set Selector to UserFacet_Value in Studio Pro.
 -- -----------------------------------------------------------------------------
 
-create page CloudPortal.FacetedSearch (
+create page CloudPortal.FacetedSearch folder 'Search' (
   title: 'Cloud Portal — Faceted Search',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'Search'
+  layout: Atlas_Core.Atlas_Default
 ) {
   datagrid dgResults (
     datasource: database from CloudPortal.ProjectEnvironmentView
@@ -305,27 +304,27 @@ create page CloudPortal.FacetedSearch (
     selection: Single,
     PageSize: 20
   ) {
-    column colCompany (attribute: CompanyName, caption: 'Company') {
+    column (attribute: CompanyName, caption: 'Company') {
       textfilter tfCompany
     }
-    column colProject (attribute: ProjectName, caption: 'Project') {
+    column (attribute: ProjectName, caption: 'Project') {
       textfilter tfProject
     }
-    column colEnv (attribute: EnvironmentName, caption: 'Environment') {
+    column (attribute: EnvironmentName, caption: 'Environment') {
       textfilter tfEnv
     }
-    column colType (attribute: EnvironmentType, caption: 'Type') {
+    column (attribute: EnvironmentType, caption: 'Type') {
       dropdownfilter ddfType
     }
   }
 }
 
-grant CloudPortal.User on CloudPortal.Company (read *);
-grant CloudPortal.User on CloudPortal.Project (read *);
-grant CloudPortal.User on CloudPortal.Environment (read *);
-grant CloudPortal.User on CloudPortal.Category (read *);
-grant CloudPortal.User on CloudPortal.Value (read *);
-grant CloudPortal.User on CloudPortal.UserFacet (create, read *, write *);
+grant read * on entity CloudPortal.Company to CloudPortal.User;
+grant read * on entity CloudPortal.Project to CloudPortal.User;
+grant read * on entity CloudPortal.Environment to CloudPortal.User;
+grant read * on entity CloudPortal.Category to CloudPortal.User;
+grant read * on entity CloudPortal.Value to CloudPortal.User;
+grant create, read *, write * on entity CloudPortal.UserFacet to CloudPortal.User;
 
 -- Halt here so the example leaves a populated project for Studio Pro to inspect.
 -- Flip the drops below on if you want to re-run the script idempotently.

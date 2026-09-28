@@ -8,7 +8,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 )
 
-func TestEnumSplitParsesCasesAndElse(t *testing.T) {
+func TestEnumSplitParsesCases(t *testing.T) {
 	input := `CREATE MICROFLOW Orders.RouteStatus ($Status: enum Orders.Status)
 RETURNS Boolean
 BEGIN
@@ -16,8 +16,6 @@ BEGIN
     WHEN Open, Pending THEN
       RETURN true;
     WHEN (empty) THEN
-      RETURN false;
-    ELSE
       RETURN false;
   END CASE;
 END;`
@@ -47,7 +45,9 @@ END;`
 	if split.Cases[1].Value != "(empty)" {
 		t.Fatalf("Second case value = %q, want (empty)", split.Cases[1].Value)
 	}
-	if len(split.ElseBody) != 1 {
-		t.Fatalf("Expected one ELSE statement, got %d", len(split.ElseBody))
+	// `else` is not grammar (ako/mxcli#756): an enumeration split has no
+	// default flow. TestDeadGrammarIsAParseErrorWithAHint pins the refusal.
+	if len(split.ElseBody) != 0 {
+		t.Fatalf("Expected no ELSE body, got %d", len(split.ElseBody))
 	}
 }

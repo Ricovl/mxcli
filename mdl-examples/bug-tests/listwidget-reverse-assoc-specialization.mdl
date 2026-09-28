@@ -36,12 +36,12 @@ create or modify page RA.SubDetail
   (
     Title: 'Sub detail',
     Layout: Atlas_Core.Atlas_Default,
-    Params: { $Sub: RA.Sub, $Base: RA.Base, $Note: RA.Note }
+    Params: ( $Sub: RA.Sub, $Base: RA.Base, $Note: RA.Note )
   )
   {
     LAYOUTGRID lgMain {
-      ROW rowMain {
-        COLUMN colMain (DesktopWidth: AutoFill) {
+      ROW {
+        COLUMN (DesktopWidth: AutoFill) {
 
           -- The reported case: the context is a SPECIALIZATION of the TO end,
           -- so the rows are Note and `Content` must resolve against Note.

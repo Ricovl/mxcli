@@ -271,7 +271,7 @@ mxcli oql -p app.mpr "select Name, Code from MfTest.Product where Code = 'TP-001
 For testing, set the project security to OFF to avoid needing access rules on every microflow:
 
 ```sql
-alter project security level off;
+alter app security ( SecurityLevel: off );
 ```
 
 This eliminates the need for module roles and access grants on MfTest microflows. Remember to

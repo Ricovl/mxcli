@@ -13,6 +13,7 @@ package ast
 // "not mentioned" stays distinguishable from "mentioned as 0" — 0 is a real
 // hour, minute and month offset.
 type CreateScheduledEventStmt struct {
+	CreateGuard             // `create … if not exists` (ako/mxcli#731)
 	Folder           string // Folder path within module (empty = leave placement alone)
 	Name             QualifiedName
 	Documentation    string

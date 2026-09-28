@@ -115,3 +115,24 @@ func TestIsTestFile(t *testing.T) {
 		}
 	}
 }
+
+// TestCheckSourceWrapperIsCanonical: the wrapper is mxcli's text, not the
+// author's, so it must not carry a deprecated spelling. It was `create or
+// replace microflow`, which put an MDL-DEPR001 warning on the doc comment of
+// every test in every checked file — found by the conformance gate
+// (ako/mxcli#756), where it made each test file look non-canonical.
+func TestCheckSourceWrapperIsCanonical(t *testing.T) {
+	src := "/**\n * @test canonical\n */\nDECLARE $result Boolean = true;\n/\n"
+	got, err := CheckSource(src, "x.test.mdl")
+	if err != nil {
+		t.Fatalf("CheckSource: %v", err)
+	}
+	prog, errs := visitor.Build(got.MDL)
+	if len(errs) > 0 {
+		t.Fatalf("does not parse: %v\n%s", errs, got.MDL)
+	}
+	if len(prog.Deprecations) != 0 {
+		t.Fatalf("the rendering records %d deprecated spelling(s), first %s on line %d:\n%s",
+			len(prog.Deprecations), prog.Deprecations[0].Code, prog.Deprecations[0].Line, got.MDL)
+	}
+}

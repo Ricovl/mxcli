@@ -19,10 +19,10 @@ func init() {
 		Path:    "workflow.show",
 		Summary: "List and describe existing workflows",
 		Keywords: []string{
-			"list workflows", "show workflows", "describe workflow",
+			"list workflows", "list workflows", "describe workflow",
 		},
-		Syntax:  "SHOW WORKFLOWS;\nSHOW WORKFLOWS IN <module>;\nDESCRIBE WORKFLOW Module.Name;",
-		Example: "SHOW WORKFLOWS IN HR;\nDESCRIBE WORKFLOW HR.LeaveApproval;",
+		Syntax:  "LIST WORKFLOWS;\nLIST WORKFLOWS IN <module>;\nDESCRIBE WORKFLOW Module.Name;",
+		Example: "LIST WORKFLOWS IN HR;\nDESCRIBE WORKFLOW HR.LeaveApproval;",
 	})
 
 	Register(SyntaxFeature{
@@ -39,7 +39,7 @@ func init() {
 			"  [DESCRIPTION '<text>']\n" +
 			"  [EXPORT LEVEL Hidden | API]\n" +
 			"  [OVERVIEW PAGE Module.OverviewPage]\n" +
-			"  [DUE DATE '<expression>']\n" +
+			"  [DUE DATE <expression>]\n" +
 			"  [ON WORKFLOW EVENTS (<type>, ...) MICROFLOW Module.Handler [AS '<description>']]...\n" +
 			"  [ON ANY WORKFLOW EVENT MICROFLOW Module.Handler [AS '<description>']]...\n" +
 			"BEGIN\n  <activities>\nEND WORKFLOW;\n\n" +
@@ -123,10 +123,10 @@ func init() {
 		// parameter PLUS others builds clean, so the help must not say "exactly".
 		Syntax: "[MULTI] USER TASK <name> '<caption>'\n" +
 			"  PAGE Module.TaskPage\n" +
-			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH '<xpath>']\n" +
+			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH [<xpath>]]\n" +
 			"  [ON CREATED MICROFLOW Module.MF]  -- (System.WorkflowUserTask, <context entity>), returns nothing\n" +
 			"  [ENTITY Module.Entity]\n" +
-			"  [DUE DATE '<expression>']\n" +
+			"  [DUE DATE <expression>]\n" +
 			"  [DESCRIPTION '<text>']\n" +
 			"  OUTCOMES '<outcome1>' { <activities> } '<outcome2>' { <activities> };\n\n" + "-- The clauses are a SET: write them in ANY order, each at most once\n" +
 			"-- (ako/mxcli#586). The two TARGETING spellings are ONE clause — a task\n" +
@@ -139,8 +139,8 @@ func init() {
 			"--   page without a WorkflowUserTask one  -> CE7412\n" +
 			"-- Other parameters may sit alongside it.",
 		Example: "-- The task page takes the task:\n" +
-			"CREATE PAGE HR.ReviewPage (\n  title: 'Review',\n  layout: Atlas_Core.Atlas_Default,\n  params: { $WorkflowUserTask: System.WorkflowUserTask }\n) { };\n\n" +
-			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING XPATH '[Module.Employee/Active = true()]'\n  OUTCOMES 'Approve' { } 'Reject' { };",
+			"CREATE PAGE HR.ReviewPage (\n  title: 'Review',\n  layout: Atlas_Core.Atlas_Default,\n  params: ( $WorkflowUserTask: System.WorkflowUserTask )\n) { };\n\n" +
+			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING USERS XPATH [Module.Employee/Active = true()]\n  OUTCOMES 'Approve' { } 'Reject' { };",
 		SeeAlso: []string{"workflow.user-task.targeting", "workflow.multi-user-task", "workflow.create"},
 	})
 
@@ -160,13 +160,16 @@ func init() {
 		// context entity but not a specialization. Users and groups share it.
 		Syntax: "TARGETING [USERS] MICROFLOW Module.MF    -- returns a List of System.User\n" +
 			"TARGETING GROUPS MICROFLOW Module.MF     -- returns a List of System.WorkflowGroup\n" +
-			"TARGETING [USERS | GROUPS] XPATH '<xpath-expression>'\n\n" +
+			"TARGETING [USERS | GROUPS] XPATH [<xpath-expression>]\n\n" +
+			"-- The XPath is written in brackets, as everywhere else, so quotes inside\n" +
+			"-- it are written once. The quoted form XPATH '[...]' still parses and\n" +
+			"-- warns MDL-DEPR031; `mxcli fmt --upgrade` rewrites it.\n\n" +
 			"-- A targeting microflow takes EXACTLY two parameters, in either order:\n" +
 			"--   System.Workflow\n" +
 			"--   the workflow's context entity, or a generalization of it\n" +
 			"-- One parameter, none, a third, or a specialization of the context\n" +
 			"-- entity is CE6677.",
-		Example: "-- XPath targeting: only active managers\nUSER TASK Approve 'Approve request'\n  TARGETING XPATH '[HR.Employee/Role = \"Manager\" and Active = true()]'\n  OUTCOMES 'Done' { };\n\n" +
+		Example: "-- XPath targeting: only active managers\nUSER TASK Approve 'Approve request'\n  TARGETING USERS XPATH [HR.Employee/Role = 'Manager' and Active = true()]\n  OUTCOMES 'Done' { };\n\n" +
 			"-- Microflow targeting: the microflow takes the workflow AND its context object\n" +
 			"CREATE MICROFLOW HR.GetApprovers ($Workflow: System.Workflow, $Request: HR.Request)\nRETURNS List of System.User AS $Approvers\nBEGIN\n  RETRIEVE $Approvers FROM System.User;\n  RETURN $Approvers;\nEND;\n\n" +
 			"USER TASK Approve 'Approve request'\n  TARGETING MICROFLOW HR.GetApprovers\n  OUTCOMES 'Done' { };",
@@ -190,10 +193,10 @@ func init() {
 		// task too) and the same targeting rule.
 		Syntax: "MULTI USER TASK <name> '<caption>'\n" +
 			"  PAGE Module.TaskPage\n" +
-			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH '<xpath>']\n" +
+			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH [<xpath>]]\n" +
 			"  [ON CREATED MICROFLOW Module.MF]  -- (System.WorkflowUserTask, <context entity>), returns nothing\n" +
 			"  [ENTITY Module.Entity]\n" +
-			"  [DUE DATE '<expression>']\n" +
+			"  [DUE DATE <expression>]\n" +
 			"  [DESCRIPTION '<text>']\n" +
 			"  [PARTICIPANTS ALL | <n> | <n> PERCENT]\n" +
 			"  [DECIDE BY <rule>]\n" +
@@ -234,12 +237,14 @@ func init() {
 		// cannot open. This entry taught 'Under 1000' / 'Over 1000' — both of
 		// which corrupt the model (ako/mxcli#1031, ako/mxcli#1065).
 		Syntax: "-- Boolean decision:\n" +
-			"DECISION [<name>] '<boolean-expression>' [COMMENT '<text>']\n  OUTCOMES TRUE -> { <activities> } FALSE -> { <activities> };\n\n" +
+			"DECISION [<name>] <boolean-expression> [CAPTION '<text>']\n  OUTCOMES TRUE -> { <activities> } FALSE -> { <activities> };\n\n" +
 			"-- Enumeration decision — each outcome is a QUALIFIED enum value,\n" +
 			"-- plus one '' outcome for 'none of the above' (without it: CE6686):\n" +
-			"DECISION [<name>] '<enum-expression>' [COMMENT '<text>']\n  OUTCOMES 'Module.Enumeration.Value' -> { <activities> } ... '' -> { };",
-		Example: "-- Boolean\nDECISION decision1 '$WorkflowContext/Amount > 1000'\n  OUTCOMES\n    TRUE -> {\n      USER TASK ManagerApproval 'Manager must approve'\n        OUTCOMES 'OK' { };\n    }\n    FALSE -> { };\n\n" +
-			"-- Enumeration: the value must be Module.Enumeration.Value.\n-- A bare 'Approved' makes the project UNLOADABLE, not merely invalid.\nDECISION decision2 '$WorkflowContext/Status'\n  OUTCOMES\n    'Sales.ENUM_Status.Approved' -> { }\n    'Sales.ENUM_Status.Rejected' -> { }\n    '' -> { };",
+			"DECISION [<name>] <enum-expression> [CAPTION '<text>']\n  OUTCOMES 'Module.Enumeration.Value' -> { <activities> } ... '' -> { };\n\n" +
+			"-- The expression is bare (R5). The older string form, DECISION '<expression>',\n" +
+			"-- is the deprecated alias MDL-DEPR080, as it is for timers and due dates.",
+		Example: "-- Boolean\nDECISION decision1 $WorkflowContext/Amount > 1000\n  OUTCOMES\n    TRUE -> {\n      USER TASK ManagerApproval 'Manager must approve'\n        OUTCOMES 'OK' { };\n    }\n    FALSE -> { };\n\n" +
+			"-- Enumeration: the value must be Module.Enumeration.Value.\n-- A bare 'Approved' makes the project UNLOADABLE, not merely invalid.\nDECISION decision2 $WorkflowContext/Status\n  OUTCOMES\n    'Sales.ENUM_Status.Approved' -> { }\n    'Sales.ENUM_Status.Rejected' -> { }\n    '' -> { };",
 		SeeAlso: []string{"workflow.create", "workflow.parallel-split"},
 	})
 
@@ -250,7 +255,7 @@ func init() {
 			"parallel", "concurrent", "split", "fork", "join",
 			"parallel gateway", "AND",
 		},
-		Syntax:  "PARALLEL SPLIT [<name>] [COMMENT '<text>']\n  PATH 1 { <activities> }\n  PATH 2 { <activities> };",
+		Syntax:  "PARALLEL SPLIT [<name>] [CAPTION '<text>']\n  PATH 1 { <activities> }\n  PATH 2 { <activities> };",
 		Example: "PARALLEL SPLIT\n  PATH 1 {\n    USER TASK LegalReview 'Legal review'\n      OUTCOMES 'Done' { };\n  }\n  PATH 2 {\n    USER TASK TechReview 'Technical review'\n      OUTCOMES 'Done' { };\n  };",
 		SeeAlso: []string{"workflow.decision", "workflow.create"},
 	})
@@ -262,11 +267,16 @@ func init() {
 			"call microflow", "microflow task", "automated step",
 			"system task",
 		},
-		// The WITH values are QUOTED — the grammar takes a string literal there,
-		// not a bare variable. Omitting the clause from this entry is how an
-		// author ends up writing the unquoted form (ako/mxcli#1023).
-		Syntax:  "CALL MICROFLOW Module.MF [AS <name>] [COMMENT '<text>']\n  [WITH (<Param> = '<expression>', ...)]\n  [OUTCOMES '<outcome>' -> { <activities> } ...];",
-		Example: "CALL MICROFLOW HR.SendNotification\n  COMMENT 'Notify manager';\n\n-- Parameter values are quoted, and named by their BARE parameter name:\nCALL MICROFLOW HR.Escalate AS callMicroflow1\n  WITH (Request = '$WorkflowContext');",
+		// R4 (ako/mxcli#751): arguments are bound as at every call site, right
+		// after the callee, the expression bare. The older `WITH (P = '<expr>')`
+		// after the caption is the deprecated alias MDL-DEPR008.
+		Syntax: "CALL MICROFLOW Module.MF[(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>']\n" +
+			"  [OUTCOMES '<outcome>' -> { <activities> } ...];\n\n" +
+			"-- WITH (<Param> = '<expression>'), the expression in a string, is the\n" +
+			"-- deprecated spelling of the argument list (MDL-DEPR008).\n" +
+			"-- CAPTION sets the caption the activity shows; COMMENT '<text>', its old\n" +
+			"-- spelling on every workflow activity, is a deprecated alias (MDL-DEPR104).",
+		Example: "CALL MICROFLOW HR.SendNotification\n  CAPTION 'Notify manager';\n\n-- Arguments are named by their BARE parameter name:\nCALL MICROFLOW HR.Escalate(Request = $WorkflowContext) AS callMicroflow1;",
 		SeeAlso: []string{"workflow.create", "workflow.call-workflow", "workflow.ai-agent-task"},
 	})
 
@@ -280,8 +290,7 @@ func init() {
 		// Measured on mxbuild 11.13.0 against the same activity written as a call
 		// microflow: the only difference in what builds is CE1590 for a microflow
 		// with no parameters.
-		Syntax: "CALL AGENT MICROFLOW Module.MF [AS <name>] [COMMENT '<text>']\n" +
-			"  [WITH (<Param> = '<expression>', ...)]\n" +
+		Syntax: "CALL AGENT MICROFLOW Module.MF[(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>']\n" +
 			"  [OUTCOMES <true|false|'Module.Enum.Value'|''> -> { <activities> } ...]\n" +
 			"  [BOUNDARY EVENT ...];\n\n" +
 			"-- The same statement as CALL MICROFLOW, stored as an AI agent task. The microflow\n" +
@@ -290,8 +299,8 @@ func init() {
 			"-- branch on the agent's answer with OUTCOMES. Needs Mendix 11.9+.",
 		Example: "CREATE MICROFLOW HR.ACT_ClassifyRequest ($Request: HR.LeaveRequest)\n" +
 			"RETURNS Boolean AS $Urgent\nBEGIN\n  -- call the agent here\n  RETURN false;\nEND;\n\n" +
-			"CALL AGENT MICROFLOW HR.ACT_ClassifyRequest AS aiAgentTask1 COMMENT 'Classify the request'\n" +
-			"  WITH (Request = '$WorkflowContext')\n" +
+			"CALL AGENT MICROFLOW HR.ACT_ClassifyRequest(Request = $WorkflowContext) AS aiAgentTask1\n" +
+			"  CAPTION 'Classify the request'\n" +
 			"  OUTCOMES true -> { USER TASK Expedite 'Expedite' PAGE HR.TaskPage OUTCOMES 'Done' { }; }\n" +
 			"           false -> { };",
 		SeeAlso: []string{"workflow.call-microflow", "agents"},
@@ -303,8 +312,8 @@ func init() {
 		Keywords: []string{
 			"call workflow", "sub-workflow", "nested workflow",
 		},
-		Syntax:  "CALL WORKFLOW Module.WF [AS <name>] [COMMENT '<text>']\n  [WITH (<Param> = '<expression>', ...)];",
-		Example: "CALL WORKFLOW HR.SubApproval COMMENT 'Delegate to sub-process';\n\n-- Parameter values are quoted:\nCALL WORKFLOW HR.SubApproval AS callWf1\n  WITH (Request = '$WorkflowContext');",
+		Syntax:  "CALL WORKFLOW Module.WF[(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>'];",
+		Example: "CALL WORKFLOW HR.SubApproval CAPTION 'Delegate to sub-process';\n\nCALL WORKFLOW HR.SubApproval(Request = $WorkflowContext) AS callWf1;",
 		SeeAlso: []string{"workflow.create", "workflow.call-microflow"},
 	})
 
@@ -319,12 +328,12 @@ func init() {
 		// activities by type and ordinal regardless of caption (decision1,
 		// split1, callMicroflow1); mxcli derives a name when none is given, which
 		// is why an explicit one matters when reproducing a stored workflow.
-		Syntax: "JUMP TO <activity-name> [COMMENT '<text>'];\n\n" +
+		Syntax: "JUMP TO <activity-name> [CAPTION '<text>'];\n\n" +
 			"-- name the target so the jump resolves:\n" +
 			"DECISION <name> ['<caption>'] ...\nPARALLEL SPLIT <name> ...\n" +
 			"WAIT FOR TIMER <name> ...\nWAIT FOR NOTIFICATION <name>\n" +
 			"CALL MICROFLOW Module.MF AS <name>\nCALL WORKFLOW Module.WF AS <name>",
-		Example: "DECISION decision1 '$WorkflowContext/Total > 1000'\n" +
+		Example: "DECISION decision1 $WorkflowContext/Total > 1000\n" +
 			"  OUTCOMES\n    true -> { }\n    false -> { };\n\n" +
 			"PARALLEL SPLIT split1\n  PATH 1 { JUMP TO decision1; }\n  PATH 2 { };",
 		SeeAlso: []string{"workflow.create", "workflow.decision", "workflow.parallel-split", "workflow.end"},
@@ -339,7 +348,7 @@ func init() {
 		},
 		// Every placement rule below is an mxbuild measurement (11.13.0), not a
 		// reading of the error text. See docs/11-proposals/PROPOSAL_workflow_end_activity.md.
-		Syntax: "end workflow [comment '<caption>'];\n\n" +
+		Syntax: "end workflow [caption '<caption>'];\n\n" +
 			"-- Legal as the LAST statement of a user-task outcome, a decision branch,\n" +
 			"-- a call-microflow outcome or an interrupting boundary-event path, at any depth.\n" +
 			"-- It ends the WHOLE workflow, not the block it is written in.\n" +
@@ -351,17 +360,17 @@ func init() {
 			"--   `return;` — a microflow's spelling                            MDL-WF11\n" +
 			"--\n" +
 			"-- The main flow needs none: the body's own closing `end workflow` is its End.\n" +
-			"-- `comment` sets the End's caption on the canvas. An End is not a jump target.",
+			"-- `caption` sets the End's caption on the canvas. An End is not a jump target.",
 		Example: "USER TASK Review 'Review the request'\n" +
 			"  PAGE HR.ReviewPage\n" +
 			"  OUTCOMES\n" +
 			"    'Approve' { }\n" +
 			"    'Reject' {\n" +
 			"      CALL MICROFLOW HR.ACT_NotifyRejected;\n" +
-			"      END WORKFLOW COMMENT 'Rejected';\n" +
+			"      END WORKFLOW CAPTION 'Rejected';\n" +
 			"    }\n" +
 			"  BOUNDARY EVENT INTERRUPTING TIMER 'addDays([%CurrentDateTime%], 5)' {\n" +
-			"    END WORKFLOW COMMENT 'Expired';\n" +
+			"    END WORKFLOW CAPTION 'Expired';\n" +
 			"  };",
 		SeeAlso: []string{"workflow.user-task", "workflow.decision", "workflow.boundary-event", "workflow.jump-to"},
 	})
@@ -384,7 +393,7 @@ func init() {
 			"catalog", "query workflows", "workflow metadata",
 			"cross-reference", "callers", "callees",
 		},
-		Syntax:  "REFRESH CATALOG FULL;\nSELECT * FROM CATALOG.WORKFLOWS;\nSHOW CALLERS OF Module.WorkflowName;\nSHOW REFERENCES TO Module.WorkflowName;",
+		Syntax:  "REFRESH CATALOG FULL;\nSELECT * FROM CATALOG.WORKFLOWS;\nLIST CALLERS OF Module.WorkflowName;\nLIST REFERENCES TO Module.WorkflowName;",
 		Example: "REFRESH CATALOG FULL;\nSELECT QualifiedName, ActivityCount, UserTaskCount\n  FROM CATALOG.WORKFLOWS WHERE UserTaskCount > 0;",
 		SeeAlso: []string{"workflow.show"},
 	})
@@ -402,8 +411,8 @@ func init() {
 		// 'Workflows$TimerBoundaryEvent' could not be found"). This entry showed
 		// the bare form, with 'P3D' — not a valid timer expression — as its delay.
 		// ako/view-entity-examples FINDINGS §7.
-		Syntax:     "-- inline, as a clause of a USER TASK (after OUTCOMES):\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER '<datetime-expression>' { <activities> }\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) NOTIFICATION <name> ['<caption>'] { <activities> }\n\n-- A notification boundary event (Mendix 11.11+) is triggered by `notify workflow`\n-- targeting its name, so the name is unique in the workflow. ALTER cannot insert\n-- one yet; restate the workflow instead.\n\n-- or add a timer to an existing task:\nALTER WORKFLOW <wf> INSERT BOUNDARY EVENT ON <task> (INTERRUPTING | NON INTERRUPTING) TIMER '<datetime-expression>' { <activities> }\n\n-- Name the kind: a bare TIMER is refused on Mendix 11 (MDL-WF07) — it writes a\n-- type the runtime cannot load. The delay is an expression that yields a\n-- DateTime, e.g. 'addDays([%CurrentDateTime%], 3)'. mxcli ends every boundary\n-- path with Mendix's end-of-path marker, so a path may end in a call; use\n-- JUMP TO to return to the task instead.",
-		Example:    "user task ReviewTask 'Review'\n  page Module.WF_Review\n  outcomes 'Done' { }\n  boundary event interrupting timer 'addDays([%CurrentDateTime%], 3)' {\n    call microflow Module.WF_Escalate;\n  };",
+		Syntax:     "-- inline, as a clause of a USER TASK (after OUTCOMES):\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> }\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) NOTIFICATION <name> ['<caption>'] { <activities> }\n\n-- A notification boundary event (Mendix 11.11+) is triggered by `notify workflow`\n-- targeting its name, so the name is unique in the workflow. ALTER cannot insert\n-- one yet; restate the workflow instead.\n\n-- or add a timer to an existing task:\nALTER WORKFLOW <wf> { INSERT INTO <task> { BOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> } } };\n\n-- Name the kind: a bare TIMER is refused on Mendix 11 (MDL-WF07) — it writes a\n-- type the runtime cannot load. The delay is an expression that yields a\n-- DateTime, e.g. addDays([%CurrentDateTime%], 3). mxcli ends every boundary\n-- path with Mendix's end-of-path marker, so a path may end in a call; use\n-- JUMP TO to return to the task instead.",
+		Example:    "user task ReviewTask 'Review'\n  page Module.WF_Review\n  outcomes 'Done' { }\n  boundary event interrupting timer addDays([%CurrentDateTime%], 3) {\n    call microflow Module.WF_Escalate;\n  };",
 		MinVersion: "10.6.0",
 		SeeAlso:    []string{"workflow.user-task", "workflow.notification", "workflow.event-subprocess"},
 	})
@@ -420,7 +429,7 @@ func init() {
 			"  ON (INTERRUPTING | NON INTERRUPTING) NOTIFICATION [<start>] ['<start caption>']\n" +
 			"  { <activities> };\n" +
 			"EVENT SUBPROCESS <name> ['<caption>']\n" +
-			"  ON (INTERRUPTING | NON INTERRUPTING) TIMER '<first-execution-time>' [AS <start>] [COMMENT '<start caption>']\n" +
+			"  ON (INTERRUPTING | NON INTERRUPTING) TIMER <first-execution-time> [AS <start>] [CAPTION '<start caption>']\n" +
 			"  { <activities> };\n\n" +
 			"-- Interrupting cancels every active path first; non-interrupting runs alongside.\n" +
 			"-- A notification start is what `notify workflow` targets. The body's End is\n" +
@@ -435,7 +444,7 @@ func init() {
 			"    call microflow HR.ACT_LogCancel;\n" +
 			"  };\n" +
 			"  event subprocess ESP_Reminder 'Daily reminder'\n" +
-			"    on non interrupting timer 'addDays([%CurrentDateTime%], 1)' as espReminderStart {\n" +
+			"    on non interrupting timer addDays([%CurrentDateTime%], 1) as espReminderStart {\n" +
 			"    call microflow HR.ACT_Remind;\n" +
 			"  };\n" +
 			"end workflow;",
@@ -449,11 +458,11 @@ func init() {
 		Keywords: []string{
 			"notification", "notification activity", "intermediate event", "notify",
 		},
-		Syntax: "NOTIFICATION [<name>] [COMMENT '<caption>'];\n\n" +
+		Syntax: "NOTIFICATION [<name>] [CAPTION '<caption>'];\n\n" +
 			"-- The point a `notify workflow` action reaches (Workflows$NotificationActivity,\n" +
 			"-- Mendix 11.11+). `wait for notification` is the older activity for the same\n" +
 			"-- purpose and works on every version.",
-		Example:    "notification DocumentsReceived comment 'Documents received';",
+		Example:    "notification DocumentsReceived caption 'Documents received';",
 		MinVersion: "11.11.0",
 		SeeAlso:    []string{"workflow.event-subprocess", "workflow.boundary-event", "workflow.notify"},
 	})
@@ -482,25 +491,46 @@ func init() {
 		Keywords: []string{
 			"alter workflow", "modify workflow", "update workflow",
 			"add activity", "drop activity", "replace activity",
+			"insert before", "insert into", "insert outcome", "insert path",
 		},
-		// SET properties are keyword-led phrases, not `name = value` assignments:
-		// `SET DUE DATE '<expr>'`, `SET DISPLAY '<text>'`, `SET OVERVIEW PAGE
-		// Module.Page`. The `= ` this entry used to show does not parse.
-		// INSERT names the anchor first and the activity second — INSERT AFTER
-		// <name> <activity> — and there is no BEFORE. DROP and REPLACE take the
-		// ACTIVITY keyword. This entry previously showed the operand order
-		// reversed, advertised a BEFORE that does not exist, and omitted
-		// ACTIVITY, so none of it parsed.
+		// The generic ALTER (ADR-0012, ako/mxcli#712): the operations go in
+		// { }, a target is an activity's name or 'caption' with @n to choose one
+		// of several matches (an ambiguous one is refused with the matches
+		// listed), and a fragment is written exactly as in CREATE WORKFLOW.
+		// The old per-action forms (`SET DISPLAY '…'`, `SET ACTIVITY X …`,
+		// `INSERT OUTCOME 'x' ON X { … }`, `DROP PATH 'Path 2' ON X`) still
+		// parse and warn MDL-DEPR140-149; `mxcli fmt --upgrade` rewrites them.
 		//
-		// The four INSERT ops that add to an activity's outcome list each write
-		// ONE outcome type, and the list is typed per activity kind — INSERT
-		// OUTCOME only on a user task, INSERT PATH only on a parallel split,
-		// INSERT CONDITION only on a decision or call microflow. Aiming one at
-		// the wrong kind used to produce a project Mendix could not LOAD
-		// (ako/mxcli#415); it is refused now, but the entry documented only two
-		// of the ops, which is how an author reached for the wrong one.
-		Syntax:  "ALTER WORKFLOW Module.Name SET DISPLAY '<text>';\nALTER WORKFLOW Module.Name SET DUE DATE '<expression>';\nALTER WORKFLOW Module.Name SET OVERVIEW PAGE Module.Page;\nALTER WORKFLOW Module.Name SET ACTIVITY <name> <property>;\nALTER WORKFLOW Module.Name INSERT AFTER <name> <activity>;\nALTER WORKFLOW Module.Name DROP ACTIVITY <name>;\nALTER WORKFLOW Module.Name REPLACE ACTIVITY <name> WITH <activity>;\nALTER WORKFLOW Module.Name INSERT OUTCOME '<name>' ON <user-task> { <activities> };\nALTER WORKFLOW Module.Name DROP OUTCOME '<name>' ON <activity>;\nALTER WORKFLOW Module.Name INSERT CONDITION '<Module.Enum.Value>' ON <decision|call-microflow> { <activities> };\nALTER WORKFLOW Module.Name INSERT PATH ON <parallel-split> { <activities> };\nALTER WORKFLOW Module.Name INSERT BOUNDARY EVENT ON <activity> (INTERRUPTING | NON INTERRUPTING) TIMER '<datetime-expression>' { <activities> };",
-		Example: "ALTER WORKFLOW HR.LeaveApproval SET DUE DATE 'addDays([%CurrentDateTime%], 7)';\nALTER WORKFLOW HR.LeaveApproval INSERT AFTER ReviewTask\n  CALL MICROFLOW HR.NotifyHR;\nALTER WORKFLOW HR.LeaveApproval DROP ACTIVITY ObsoleteStep;\n\n-- The INSERT op has to match the activity kind: an outcome list is typed,\n-- and the wrong one is refused (it would leave a project Mendix cannot open).\nALTER WORKFLOW HR.LeaveApproval INSERT OUTCOME 'Rejected' ON ReviewTask { };\nALTER WORKFLOW HR.LeaveApproval INSERT CONDITION 'HR.Status.Urgent' ON Triage { };\nALTER WORKFLOW HR.LeaveApproval INSERT PATH ON NotifyAll { };",
+		// What `insert into` adds must fit the activity: an outcome list is
+		// typed per activity kind — a user task takes `outcomes 'x' { … }`, a
+		// decision or call microflow `outcomes <value> -> { … }`, a parallel
+		// split `path { … }`. The wrong one is refused (it would leave a project
+		// Mendix cannot LOAD, ako/mxcli#415).
+		Syntax: "ALTER WORKFLOW Module.Name {\n" +
+			"  SET ( Display: '<text>', Description: '<text>', ExportLevel: API | Hidden,\n" +
+			"        DueDate: <expression>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity );\n" +
+			"  SET ( Page: Module.Page, Description: '<text>', DueDate: <expression>,\n" +
+			"        Targeting: microflow Module.Mf | Targeting: xpath [<xpath>] ) ON <activity>;\n" +
+			"  INSERT BEFORE | AFTER <activity> { <activities> }\n" +
+			"  INSERT INTO <user-task> { OUTCOMES '<name>' { <activities> } }\n" +
+			"  INSERT INTO <decision | call-microflow> { OUTCOMES true | false | default | '<value>' -> { <activities> } }\n" +
+			"  INSERT INTO <parallel-split> { PATH [<next number>] { <activities> } }\n" +
+			"  INSERT INTO <activity> { BOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> } }\n" +
+			"  REPLACE <activity> WITH { <activities> }\n" +
+			"  DROP <activity>, <activity> OUTCOME '<name>' | true | false | default,\n" +
+			"       <parallel-split> PATH <n>, <activity> BOUNDARY EVENT;\n" +
+			"};\n\n" +
+			"-- <activity> is a name (ReviewTask) or a caption ('Review the request'),\n" +
+			"-- optionally @n to choose one of several matches: describe workflow prints the names.",
+		Example: "alter workflow HR.LeaveApproval {\n" +
+			"  set (DueDate: addDays([%CurrentDateTime%], 7));\n" +
+			"  set (Page: HR.ReviewPage) on ReviewTask;\n" +
+			"  insert after ReviewTask { call microflow HR.NotifyHR; }\n" +
+			"  insert into ReviewTask { outcomes 'Rejected' { } }\n" +
+			"  insert into Triage { outcomes 'HR.Status.Urgent' -> { } }\n" +
+			"  insert into NotifyAll { path { } }\n" +
+			"  drop ObsoleteStep;\n" +
+			"};",
 		SeeAlso: []string{"workflow.create", "workflow.drop"},
 	})
 }

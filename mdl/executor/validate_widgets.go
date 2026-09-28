@@ -826,7 +826,7 @@ func validateDynamicTextFormatting(w *ast.WidgetV3, locationPrefix string) []lin
 					RuleID:   "MDL-WIDGET18",
 					Severity: linter.SeverityError,
 					Message: fmt.Sprintf(
-						"%s: widget `%s`: `%s` is a per-parameter format, not a widget property — put it in the ContentParams format block, e.g. `ContentParams: [{1} = Attr format (%s: <value>)]`. A widget-level `%s` is dropped on write.",
+						"%s: widget `%s`: `%s` is a per-parameter format, not a widget property — put it in the ContentParams format block, e.g. `ContentParams: ({1} = Attr format (%s: <value>))`. A widget-level `%s` is dropped on write.",
 						locationPrefix, w.Name, key, strings.ToLower(key), key,
 					),
 				})
@@ -1150,7 +1150,7 @@ func validateDynamicTextPlaceholders(w *ast.WidgetV3, locationPrefix string) *li
 		RuleID:   "MDL-WIDGET04",
 		Severity: linter.SeverityError,
 		Message: fmt.Sprintf(
-			"%s: widget `%s` (dynamictext) references template placeholder {%d} but only %d parameter(s) are bound — bind it with `Attribute: <attr>` or `ContentParams: [{%d} = <attr>]`. An orphaned placeholder crashes Studio Pro.",
+			"%s: widget `%s` (dynamictext) references template placeholder {%d} but only %d parameter(s) are bound — bind it with `Attribute: <attr>` or `ContentParams: ({%d} = <attr>)`. An orphaned placeholder crashes Studio Pro.",
 			locationPrefix, w.Name, maxIdx, params, maxIdx,
 		),
 	}
@@ -1176,7 +1176,7 @@ func validateButtonCaptionPlaceholders(w *ast.WidgetV3, locationPrefix string) *
 		RuleID:   "MDL-WIDGET04",
 		Severity: linter.SeverityError,
 		Message: fmt.Sprintf(
-			"%s: %s caption references template placeholder {%d} but only %d parameter(s) are bound — bind it with `CaptionParams: [{%d} = <attr>]`. An orphaned placeholder fails the build (CE0720).",
+			"%s: %s caption references template placeholder {%d} but only %d parameter(s) are bound — bind it with `CaptionParams: ({%d} = <attr>)`. An orphaned placeholder fails the build (CE0720).",
 			locationPrefix, widgetLabel(w.Name, strings.ToLower(w.Type)), maxIdx, params, maxIdx,
 		),
 	}

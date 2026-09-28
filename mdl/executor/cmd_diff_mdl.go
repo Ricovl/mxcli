@@ -52,13 +52,13 @@ func entityStmtToMDL(ctx *ExecContext, s *ast.CreateEntityStmt) string {
 		if attr.NotNull {
 			constraints += " not null"
 			if attr.NotNullError != "" {
-				constraints += fmt.Sprintf(" error '%s'", attr.NotNullError)
+				constraints += fmt.Sprintf(" error message '%s'", attr.NotNullError)
 			}
 		}
 		if attr.Unique {
 			constraints += " unique"
 			if attr.UniqueError != "" {
-				constraints += fmt.Sprintf(" error '%s'", attr.UniqueError)
+				constraints += fmt.Sprintf(" error message '%s'", attr.UniqueError)
 			}
 		}
 		if attr.HasDefault {
@@ -196,14 +196,14 @@ func associationStmtToMDL(ctx *ExecContext, s *ast.CreateAssociationStmt, stored
 		lines = append(lines, line)
 	}
 
-	deleteBehavior := "DELETE_BUT_KEEP_REFERENCES"
+	deleteBehavior := "set null"
 	switch s.DeleteBehavior {
 	case ast.DeleteCascade:
-		deleteBehavior = "DELETE_AND_REFERENCES"
+		deleteBehavior = "cascade"
 	case ast.DeleteIfNoReferences:
-		deleteBehavior = "DELETE_IF_NO_REFERENCES"
+		deleteBehavior = "restrict"
 	}
-	lines = append(lines, fmt.Sprintf("delete_behavior %s;", deleteBehavior))
+	lines = append(lines, fmt.Sprintf("on delete %s;", deleteBehavior))
 
 	return strings.Join(lines, "\n")
 }
@@ -267,13 +267,13 @@ func entityToMDL(ctx *ExecContext, moduleName string, entity *domainmodel.Entity
 			if vr.Type == "Required" {
 				constraints.WriteString(" not null")
 				if errMsg := pickTextTranslation(vr.ErrorMessage, lang); errMsg != "" {
-					constraints.WriteString(fmt.Sprintf(" error '%s'", errMsg))
+					constraints.WriteString(fmt.Sprintf(" error message '%s'", errMsg))
 				}
 			}
 			if vr.Type == "Unique" {
 				constraints.WriteString(" unique")
 				if errMsg := pickTextTranslation(vr.ErrorMessage, lang); errMsg != "" {
-					constraints.WriteString(fmt.Sprintf(" error '%s'", errMsg))
+					constraints.WriteString(fmt.Sprintf(" error message '%s'", errMsg))
 				}
 			}
 		}
@@ -424,16 +424,16 @@ func associationToMDL(ctx *ExecContext, moduleName string, assoc *domainmodel.As
 		lines = append(lines, line)
 	}
 
-	deleteBehavior := "DELETE_BUT_KEEP_REFERENCES"
+	deleteBehavior := "set null"
 	if assoc.ChildDeleteBehavior != nil {
 		switch assoc.ChildDeleteBehavior.Type {
 		case domainmodel.DeleteBehaviorTypeDeleteMeAndReferences:
-			deleteBehavior = "DELETE_AND_REFERENCES"
+			deleteBehavior = "cascade"
 		case domainmodel.DeleteBehaviorTypeDeleteMeIfNoReferences:
-			deleteBehavior = "DELETE_IF_NO_REFERENCES"
+			deleteBehavior = "restrict"
 		}
 	}
-	lines = append(lines, fmt.Sprintf("delete_behavior %s;", deleteBehavior))
+	lines = append(lines, fmt.Sprintf("on delete %s;", deleteBehavior))
 
 	return strings.Join(lines, "\n")
 }

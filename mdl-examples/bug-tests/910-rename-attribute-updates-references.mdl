@@ -43,11 +43,11 @@ create module RenameRefs;
 /
 create persistent entity RenameRefs.Person (
   FirstName: String(100),
-  LastName: String(100) not null error 'required'
+  LastName: String(100) not null error message 'required'
 );
 /
 -- A create and a change activity, each naming the attribute by qualified name.
-create or replace microflow RenameRefs.ACT_MakePerson ()
+create or modify microflow RenameRefs.ACT_MakePerson ()
 begin
   $P = create RenameRefs.Person (
     FirstName = 'Ada',

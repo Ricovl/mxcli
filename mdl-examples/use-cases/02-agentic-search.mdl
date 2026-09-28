@@ -56,7 +56,7 @@ create enumeration TaskMgmt.TaskPriority (
  */
 @position(100, 100)
 create persistent entity TaskMgmt.TaskProject (
-  Name: string(200) not null error 'Project name is required',
+  Name: string(200) not null error message 'Project name is required',
   description: string(2000),
   IsActive: boolean default true,
   CreatedDate: datetime
@@ -71,7 +71,7 @@ index (Name);
  */
 @position(400, 100)
 create persistent entity TaskMgmt.task (
-  TaskTitle: string(500) not null error 'Task title is required',
+  TaskTitle: string(500) not null error message 'Task title is required',
   description: string(4000),
   status: enumeration(TaskMgmt.TaskStatus) default TaskMgmt.TaskStatus.open,
   Priority: enumeration(TaskMgmt.TaskPriority) default TaskMgmt.TaskPriority.Medium,
@@ -90,7 +90,7 @@ index (DueDate);
  */
 @position(700, 100)
 create persistent entity TaskMgmt.TaskComment (
-  CommentBody: string(4000) not null error 'Comment body is required',
+  CommentBody: string(4000) not null error message 'Comment body is required',
   CreatedDate: datetime,
   Author: string(200)
 );
@@ -119,13 +119,13 @@ create association TaskMgmt.Task_TaskProject
   from TaskMgmt.task to TaskMgmt.TaskProject
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 create association TaskMgmt.TaskComment_Task
   from TaskMgmt.TaskComment to TaskMgmt.task
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 -- MARK: JAVA ACTIONS
 
@@ -342,7 +342,7 @@ begin
 
   log info node 'TaskProject' 'Generated report';
 
-  show page TaskMgmt.Project_Overview($TaskProject = $TaskProject);
+  show page TaskMgmt.Project_Overview(TaskProject = $TaskProject);
   return;
 end;
 
@@ -381,7 +381,7 @@ end;
  */
 create page TaskMgmt.Task_Detail
 (
-  params: { $task: TaskMgmt.task },
+  params: ( $task: TaskMgmt.task ),
   title: 'Task Detail',
   layout: Atlas_Core.PopupLayout
 )
@@ -395,8 +395,8 @@ create page TaskMgmt.Task_Detail
     textbox txtHours (label: 'Estimated Hours', attribute: EstimatedHours)
 
     footer footer1 {
-      actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-      actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+      actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+      actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
 }
@@ -408,20 +408,20 @@ create page TaskMgmt.Task_Detail
  */
 create page TaskMgmt.Project_Overview
 (
-  params: { $TaskProject: TaskMgmt.TaskProject },
+  params: ( $TaskProject: TaskMgmt.TaskProject ),
   title: 'Project Overview',
   layout: Atlas_Core.Atlas_Default
 )
 {
   dataview dvProject (datasource: $TaskProject) {
-    dynamictext dtName (content: '{1}', contentparams: [{1} = Name], rendermode: H2)
-    dynamictext dtDesc (content: '{1}', contentparams: [{1} = description])
+    dynamictext dtName (content: '{1}', contentparams: ({1} = Name), rendermode: H2)
+    dynamictext dtDesc (content: '{1}', contentparams: ({1} = description))
 
     container cTasks (class: 'mt-3') {
       datagrid dgProjectTasks (datasource: database TaskMgmt.task) {
-        column colTaskTitle (attribute: TaskTitle, caption: 'Task')
-        column colTaskStatus (attribute: status, caption: 'Status')
-        column colTaskPriority (attribute: Priority, caption: 'Priority')
+        column (attribute: TaskTitle, caption: 'Task')
+        column (attribute: status, caption: 'Status')
+        column (attribute: Priority, caption: 'Priority')
       }
     }
   }
@@ -440,27 +440,27 @@ create page TaskMgmt.Task_Overview
 )
 {
   layoutgrid lg1 {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         datagrid dgTasks (datasource: database TaskMgmt.task) {
-          column colTitle (attribute: TaskTitle, caption: 'Title')
-          column colStatus (attribute: status, caption: 'Status')
-          column colPriority (attribute: Priority, caption: 'Priority')
-          column colDue (attribute: DueDate, caption: 'Due Date')
+          column (attribute: TaskTitle, caption: 'Title')
+          column (attribute: status, caption: 'Status')
+          column (attribute: Priority, caption: 'Priority')
+          column (attribute: DueDate, caption: 'Due Date')
 
-          controlbar cb1 {
+          controlbar {
             actionbutton btnNew (
               caption: 'New Task',
-              action: show_page TaskMgmt.Task_Detail,
+              action: show page TaskMgmt.Task_Detail,
               buttonstyle: primary
             )
             actionbutton btnComplete (
               caption: 'Complete',
-              action: microflow TaskMgmt.ACT_Task_Complete
+              action: call microflow TaskMgmt.ACT_Task_Complete
             )
             actionbutton btnDelete (
               caption: 'Delete',
-              action: microflow TaskMgmt.ACT_Task_Delete
+              action: call microflow TaskMgmt.ACT_Task_Delete
             )
           }
         }
@@ -490,34 +490,34 @@ create page TaskMgmt.Task_Overview
 -- These commands list project elements. No catalog required.
 
 -- List all modules in the project
-show modules;
+list modules;
 
 -- List all entities (project-wide)
-show entities;
+list entities;
 
 -- List entities in a specific module
-show entities in TaskMgmt;
+list entities in TaskMgmt;
 
 -- List all microflows
-show microflows;
+list microflows;
 
 -- List microflows in a specific module
-show microflows in TaskMgmt;
+list microflows in TaskMgmt;
 
 -- List all pages
-show pages;
+list pages;
 
 -- List all nanoflows
-show nanoflows;
+list nanoflows;
 
 -- List all enumerations
-show enumerations;
+list enumerations;
 
 -- List all Java actions
-show java actions;
+list java actions;
 
 -- List Java actions in a specific module
-show java actions in TaskMgmt;
+list java actions in TaskMgmt;
 
 
 -- =============================================================================
@@ -550,8 +550,9 @@ describe microflow TaskMgmt.SUB_Task_Validate;
 -- The catalog indexes the project for advanced queries. Must be built before
 -- using callers, callees, impact, context, refs, or SQL queries.
 
--- Check if a catalog already exists and its freshness
-show catalog status;
+-- Check if a catalog already exists and its freshness: a session command,
+-- typed at the REPL rather than written in a script (R7):
+--   show catalog status
 
 -- Build the catalog (fast mode - entities, microflows, pages only)
 refresh catalog;
@@ -564,7 +565,7 @@ refresh catalog full;
 refresh catalog full force;
 
 -- List all available catalog tables
-show catalog tables;
+list catalog tables;
 
 
 -- =============================================================================
@@ -629,20 +630,20 @@ select *
 
 -- Who calls SUB_WriteAuditLog?
 -- Expected: ACT_Task_Create, ACT_Task_Complete, ACT_Task_Delete
-show callers of TaskMgmt.SUB_WriteAuditLog;
+list callers of TaskMgmt.SUB_WriteAuditLog;
 
 -- Who calls ACT_SendNotification?
 -- Expected: ACT_Task_Create, ACT_Task_Complete
-show callers of TaskMgmt.ACT_SendNotification;
+list callers of TaskMgmt.ACT_SendNotification;
 
 -- Who calls ACT_Task_Complete?
 -- Expected: Task_Overview page (action button)
-show callers of TaskMgmt.ACT_Task_Complete;
+list callers of TaskMgmt.ACT_Task_Complete;
 
 -- TRANSITIVE callers: follow the call chain recursively
 -- For SUB_WriteAuditLog, this includes not just direct callers (ACT_Task_Create,
 -- ACT_Task_Complete, ACT_Task_Delete) but also anything that calls THOSE.
-show callers of TaskMgmt.SUB_WriteAuditLog transitive;
+list callers of TaskMgmt.SUB_WriteAuditLog transitive;
 
 
 -- =============================================================================
@@ -653,22 +654,22 @@ show callers of TaskMgmt.SUB_WriteAuditLog transitive;
 -- What does ACT_Task_Create call?
 -- Expected: SUB_WriteAuditLog, ACT_SendNotification (microflows)
 --           Creates TaskMgmt.Task (entity)
-show callees of TaskMgmt.ACT_Task_Create;
+list callees of TaskMgmt.ACT_Task_Create;
 
 -- What does ACT_Project_Overview call?
 -- Expected: shows Project_Overview (page)
 -- Note: Java action calls (GenerateTaskReport) are NOT tracked in the catalog
-show callees of TaskMgmt.ACT_Project_Overview;
+list callees of TaskMgmt.ACT_Project_Overview;
 
 -- What does ACT_Task_Delete call?
 -- Expected: SUB_WriteAuditLog, retrieves/deletes TaskComment and Task
-show callees of TaskMgmt.ACT_Task_Delete;
+list callees of TaskMgmt.ACT_Task_Delete;
 
 -- Transitive callees: the full dependency tree
 -- ACT_Task_Create -> SUB_WriteAuditLog -> (creates AuditLog)
 -- ACT_Task_Create -> ACT_SendNotification -> (microflow call chain)
 -- Note: Java action calls are not tracked; use DESCRIBE MICROFLOW to see them
-show callees of TaskMgmt.ACT_Task_Create transitive;
+list callees of TaskMgmt.ACT_Task_Create transitive;
 
 
 -- =============================================================================
@@ -681,23 +682,23 @@ show callees of TaskMgmt.ACT_Task_Create transitive;
 -- Expected: created by ACT_Task_Create, retrieved by ACT_Task_Delete,
 --           page parameter in Task_Detail, datasource in Task_Overview,
 --           association targets from TaskComment_Task and Task_TaskProject
-show references to TaskMgmt.task;
+list references to TaskMgmt.task;
 
 -- All references to the TaskProject entity
 -- Expected: association from Task_TaskProject, page parameter in Project_Overview,
 --           parameter in ACT_Task_Create and ACT_Project_Overview
-show references to TaskMgmt.TaskProject;
+list references to TaskMgmt.TaskProject;
 
 -- All references to the AuditLog entity
 -- Expected: created by SUB_WriteAuditLog
-show references to TaskMgmt.AuditLog;
+list references to TaskMgmt.AuditLog;
 
 -- References to a page
 -- Expected: shown by ACT_Project_Overview
-show references to TaskMgmt.Project_Overview;
+list references to TaskMgmt.Project_Overview;
 
 -- References to a microflow
-show references to TaskMgmt.ACT_Task_Complete;
+list references to TaskMgmt.ACT_Task_Complete;
 
 
 -- =============================================================================
@@ -710,21 +711,21 @@ show references to TaskMgmt.ACT_Task_Complete;
 -- Affects: all microflows that create/retrieve/change Task, all pages that
 -- display Task, all associations involving Task, the TaskComment entity
 -- (via TaskComment_Task), the validation nanoflow
-show impact of TaskMgmt.task;
+list impact of TaskMgmt.task;
 
 -- Impact of changing SUB_WriteAuditLog
 -- Affects: every microflow that calls it (ACT_Task_Create, ACT_Task_Complete,
 -- ACT_Task_Delete) and transitively their callers
-show impact of TaskMgmt.SUB_WriteAuditLog;
+list impact of TaskMgmt.SUB_WriteAuditLog;
 
 -- Impact of changing the TaskProject entity
 -- Affects: Task_TaskProject association, Project_Overview page,
 -- ACT_Project_Overview microflow (Java action refs not tracked)
-show impact of TaskMgmt.TaskProject;
+list impact of TaskMgmt.TaskProject;
 
 -- Impact of changing a page
 -- Affects: any microflow that shows this page, navigation entries
-show impact of TaskMgmt.Task_Overview;
+list impact of TaskMgmt.Task_Overview;
 
 
 -- =============================================================================
@@ -738,21 +739,21 @@ show impact of TaskMgmt.Task_Overview;
 -- Shows: the microflow, its parameters (TaskProject, Task entities),
 --        callees (SUB_WriteAuditLog, ACT_SendNotification),
 --        entities it creates (Task), and their callers
-show context of TaskMgmt.ACT_Task_Create;
+describe context of TaskMgmt.ACT_Task_Create;
 
 -- Context with limited depth (1 hop = direct connections only)
-show context of TaskMgmt.ACT_Task_Create depth 1;
+describe context of TaskMgmt.ACT_Task_Create depth 1;
 
 -- Context with depth 2 (direct connections + their connections)
 -- Shows: ACT_Task_Create -> SUB_WriteAuditLog -> AuditLog entity
 --        ACT_Task_Create -> ACT_SendNotification -> SendEmailNotification
-show context of TaskMgmt.ACT_Task_Create depth 2;
+describe context of TaskMgmt.ACT_Task_Create depth 2;
 
 -- Context around an entity (shows all microflows, pages, associations)
-show context of TaskMgmt.task depth 2;
+describe context of TaskMgmt.task depth 2;
 
 -- Context around a page (shows data sources, action targets)
-show context of TaskMgmt.Task_Overview depth 1;
+describe context of TaskMgmt.Task_Overview depth 1;
 
 
 -- =============================================================================

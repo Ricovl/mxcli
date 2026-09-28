@@ -87,8 +87,10 @@ fourth — so "run it and see" is not a free experiment. `check` reports every
 conflict in the script before anything is written.
 
 Three spellings say "fine if it already exists", and none is reported:
-`create or modify`, `create or replace`, and `create … if not exists` (which
-leaves the stored element untouched rather than rewriting it). `create module M;`
+`create or modify`, `create or replace`, and `create <kind> if not exists <name>`
+(which leaves the stored element untouched rather than rewriting it; every
+`create` that names one element takes it, e.g. `create page if not exists M.P …`
+— `mxcli syntax create-if-not-exists`). `create module M;`
 is never reported either — it is a no-op when the module exists, which is what
 lets it open every script.
 
@@ -249,14 +251,14 @@ Before writing any MDL, verify these requirements:
 - `retrieve $Var from Module.Entity [where condition];`
 - `$Result = call microflow Module.Name (Param = $value);` (NOT `set $Result = ...`)
 - `$Result = call nanoflow Module.Name (Param = $value);`
-- `show page Module.PageName ($Param = $value);`
+- `show page Module.PageName (Param = $value);`
 - `close page;`
 - `validation feedback $entity/attribute message 'message';`
 - `log info|warning|error [node 'name'] 'message';`
 - `if condition then ... [else ...] end if;`
 - `loop $item in $list begin ... end loop;`
 - `return $value;`
-- `on error continue|rollback|{ handler };`
+- `on error continue|rollback|[without rollback] begin handler end error;`
 
 **Now Supported (previously not):**
 - `rollback $entity [refresh];` - Reverts uncommitted changes
@@ -311,7 +313,7 @@ Before writing any MDL, verify these requirements:
 > **Exception — never quote `$`-prefixed variable/parameter references.** The quote
 > rule is for *bare* names (entities, attributes, associations, declared parameter
 > names). Variable and parameter **references** in expressions and widget bindings
-> stay **unquoted**: `datasource: $X`, `params: { $X: MES."Order" }`, `$currentObject`.
+> stay **unquoted**: `datasource: $X`, `params: ( $X: MES."Order" )`, `$currentObject`.
 > Quoting them (`"$X"`) breaks resolution ("parameter … references '$X' but no such
 > parameter is declared").
 >
@@ -373,7 +375,7 @@ cleanly, and `mx check` then reported them:
 does. Measured on Mendix 11.13: the same role is **CE0156 at security level
 Prototype and no error at all at level Off**, where roles are stored but not
 validated. A blank project ships `Off`. So the rule warns by default and is an
-error only when the script itself contains `ALTER PROJECT SECURITY LEVEL` set to
+error only when the script itself contains `ALTER APP SECURITY LEVEL` set to
 something other than `Off` — at which point the author has said which world they
 are in.
 

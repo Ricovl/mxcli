@@ -31,5 +31,5 @@
 -- settings, with the microflow and constant created earlier in the same script,
 -- must still pass — a check that rejects everything is not a check.
 
-alter settings model AfterStartupMicroflow = 'Nope.MF_DoesNotExist';
-alter settings constant 'Nope.AlsoMissing' value 'x' in configuration 'Default';
+alter settings runtime ( AfterStartupMicroflow: 'Nope.MF_DoesNotExist' );
+alter settings constant @Nope.AlsoMissing value 'x' in configuration 'Default';

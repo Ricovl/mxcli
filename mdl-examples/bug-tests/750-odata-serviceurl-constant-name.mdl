@@ -14,26 +14,26 @@ type string
 default 'https://api.example.com/odata/v4/';
 /
 
-create odata client OdSvc.Bare (
+create consumed odata service OdSvc.Bare (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
   ServiceUrl: OdSvc.Location
 );
 /
 
-create odata client OdSvc.At (
+create consumed odata service OdSvc.At (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
   ServiceUrl: @OdSvc.Location
 );
 /
 
-create odata client OdSvc.QuotedAt (
+create consumed odata service OdSvc.QuotedAt (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
   ServiceUrl: '@OdSvc.Location'
 );
 /
 
-alter odata client OdSvc.QuotedAt set ServiceUrl = OdSvc.Location;
+alter consumed odata service OdSvc.QuotedAt set ( ServiceUrl: OdSvc.Location );
 /

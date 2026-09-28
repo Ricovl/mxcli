@@ -10,8 +10,8 @@ func init() {
 			"security", "access control", "roles", "permissions",
 			"grant", "revoke", "authentication", "authorization",
 		},
-		Syntax:  "SHOW PROJECT SECURITY;\nSHOW MODULE ROLES [IN <module>];\nSHOW USER ROLES;\nSHOW SECURITY MATRIX [IN <module>];",
-		Example: "SHOW PROJECT SECURITY;\nSHOW SECURITY MATRIX IN Shop;",
+		Syntax:  "DESCRIBE APP SECURITY;\nLIST MODULE ROLES [IN <module>];\nLIST USER ROLES;\nDESCRIBE SECURITY MATRIX [IN <module>];",
+		Example: "DESCRIBE APP SECURITY;\nDESCRIBE SECURITY MATRIX IN Shop;",
 		SeeAlso: []string{"security.module-role", "security.entity-access", "security.user-role"},
 	})
 
@@ -33,10 +33,16 @@ func init() {
 			"entity access", "grant", "revoke", "read", "write",
 			"create", "delete", "xpath", "row-level security",
 		},
-		Syntax: "GRANT <module>.<role> ON <module>.<entity> (<rights>) [WHERE '<xpath>'];\n" +
-			"REVOKE <module>.<role> ON <module>.<entity>;\n" +
-			"REVOKE <module>.<role> ON <module>.<entity> (<rights>);\n\n" +
+		Syntax: "GRANT <rights> ON ENTITY <module>.<entity> TO <module>.<role> [, ...] [WHERE [<xpath>]];\n" +
+			"REVOKE ALL ON ENTITY <module>.<entity> FROM <module>.<role> [, ...];       -- removes the rule\n" +
+			"REVOKE <rights> ON ENTITY <module>.<entity> FROM <module>.<role> [, ...];  -- takes rights away\n\n" +
 			"Rights: CREATE, DELETE, READ *, READ (<attr>,...), WRITE *, WRITE (<attr>,...)\n\n" +
+			"The XPath is written in [ ], as everywhere else, so quotes inside it are\n" +
+			"not doubled; sibling groups ([a][b]) are one constraint. The old order,\n" +
+			"GRANT <role> ON <entity> (<rights>) WHERE '<xpath>', still parses and\n" +
+			"warns MDL-DEPR030; `mxcli fmt --upgrade` rewrites it. The revoke mirrors\n" +
+			"the grant; its old order, REVOKE <role> ON <entity> [(<rights>)], warns\n" +
+			"MDL-DEPR082 and is rewritten the same way.\n\n" +
 			"A module role is always Module.Role. A bare role name parses but is\n" +
 			"refused (MDL-GRANT02) — mxcli cannot tell which module it belongs to.\n\n" +
 			"Members added later:\n" +
@@ -56,12 +62,15 @@ func init() {
 			"  Exception: entities extending System.User are user entities, whose\n" +
 			"  platform members (Name, Password, Blocked, ...) Mendix manages. Do not\n" +
 			"  grant those; mxcli leaves them out of the rule automatically.",
-		Example: "GRANT Shop.Admin ON Shop.Customer (CREATE, DELETE, READ *, WRITE *);\n" +
-			"GRANT Shop.User ON Shop.Customer (READ *) WHERE '[Active = true()]';\n\n" +
+		Example: "GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Customer TO Shop.Admin;\n" +
+			"GRANT READ * ON ENTITY Shop.Customer TO Shop.User WHERE [Active = true()];\n" +
+			"GRANT READ *, WRITE * ON ENTITY Shop.Order TO Shop.User WHERE [Status = 'Open'];\n\n" +
 			"-- Contract extends DocumentBase: DocName is inherited, ContractNumber is own\n" +
-			"GRANT Docs.Viewer ON Docs.Contract (READ (DocName, ContractNumber));\n\n" +
+			"GRANT READ (DocName, ContractNumber) ON ENTITY Docs.Contract TO Docs.Viewer;\n\n" +
 			"-- Attachment extends System.FileDocument: Name and Size are inherited\n" +
-			"GRANT Docs.Viewer ON Docs.Attachment (READ (Category, \"Name\", Size));",
+			"GRANT READ (Category, \"Name\", Size) ON ENTITY Docs.Attachment TO Docs.Viewer;\n\n" +
+			"REVOKE WRITE (Email) ON ENTITY Shop.Customer FROM Shop.User;\n" +
+			"REVOKE ALL ON ENTITY Shop.Order FROM Shop.User;",
 		SeeAlso: []string{"security.module-role", "security.microflow-access"},
 	})
 
@@ -124,8 +133,8 @@ func init() {
 			"user role", "application role", "manage roles",
 			"add module roles", "remove module roles",
 		},
-		Syntax:  "CREATE USER ROLE <name> (<role> [, ...]) [MANAGE ALL ROLES];\nALTER USER ROLE <name> ADD MODULE ROLES (<role> [, ...]);\nALTER USER ROLE <name> REMOVE MODULE ROLES (<role> [, ...]);\nDROP USER ROLE [IF EXISTS] <name>;",
-		Example: "CREATE USER ROLE AppAdmin (Shop.Admin, HR.Admin) MANAGE ALL ROLES;\nALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Viewer);",
+		Syntax:  "CREATE USER ROLE <name> [( ModuleRoles: (<role> [, ...]), Description: '<text>', ManageAllRoles: true|false, ManageableRoles: (<user role> [, ...]), ManageUsersWithoutRoles: true|false, CheckSecurity: true|false )];\nALTER USER ROLE <name> ADD MODULE ROLES (<role> [, ...]);\nALTER USER ROLE <name> DROP MODULE ROLES (<role> [, ...]);\nDROP USER ROLE [IF EXISTS] <name>;",
+		Example: "CREATE USER ROLE AppAdmin ( ModuleRoles: (Shop.Admin, HR.Admin), ManageAllRoles: true );\nALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Viewer);",
 		SeeAlso: []string{"security.module-role", "security.demo-user"},
 	})
 
@@ -133,15 +142,22 @@ func init() {
 		Path:    "security.project-security",
 		Summary: "Set project security level, strict mode, demo user and guest access toggles",
 		Keywords: []string{
-			"project security", "security level", "prototype",
+			"project security", "app security", "alter app security", "security level", "prototype",
 			"production", "off", "strict mode", "SEC005",
 		},
-		Syntax: "ALTER PROJECT SECURITY LEVEL OFF|PROTOTYPE|PRODUCTION;\n" +
-			"ALTER PROJECT SECURITY DEMO USERS ON|OFF;\n" +
-			"ALTER PROJECT SECURITY STRICT MODE ON|OFF;   -- clears lint rule SEC005",
-		Example: "ALTER PROJECT SECURITY LEVEL PRODUCTION;\n" +
-			"ALTER PROJECT SECURITY DEMO USERS OFF;\n" +
-			"ALTER PROJECT SECURITY STRICT MODE ON;",
+		Syntax: "ALTER APP SECURITY (\n" +
+			"  [SecurityLevel: OFF|PROTOTYPE|PRODUCTION,]\n" +
+			"  [EnableDemoUsers: TRUE|FALSE,]\n" +
+			"  [EnableGuestAccess: TRUE|FALSE,]\n" +
+			"  [GuestUserRole: <UserRole>,]\n" +
+			"  [StrictMode: TRUE|FALSE]          -- clears lint rule SEC005\n" +
+			");\n\n" +
+			"-- Set any subset of the properties, in create's ( Key: value ) list. The\n" +
+			"-- clause forms (LEVEL …, DEMO USERS ON|OFF, GUEST ACCESS ON [ROLE r]|OFF,\n" +
+			"-- STRICT MODE ON|OFF) still run and warn MDL-DEPR133.",
+		Example: "ALTER APP SECURITY ( SecurityLevel: PRODUCTION );\n" +
+			"ALTER APP SECURITY ( EnableDemoUsers: FALSE );\n" +
+			"ALTER APP SECURITY ( StrictMode: TRUE );",
 		SeeAlso: []string{"security.demo-user", "security.guest-access"},
 	})
 
@@ -152,18 +168,19 @@ func init() {
 			"guest access", "anonymous", "anonymous users", "public",
 			"unauthenticated", "guest user role", "CE0133",
 		},
-		Syntax: "ALTER PROJECT SECURITY GUEST ACCESS ON ROLE <UserRole>;\n" +
-			"ALTER PROJECT SECURITY GUEST ACCESS ON;   -- only when a role is already configured\n" +
-			"ALTER PROJECT SECURITY GUEST ACCESS OFF;  -- keeps the stored role\n" +
+		Syntax: "ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: <UserRole> );\n" +
+			"ALTER APP SECURITY ( EnableGuestAccess: TRUE );   -- only when a role is already configured\n" +
+			"ALTER APP SECURITY ( EnableGuestAccess: FALSE );  -- keeps the stored role\n" +
 			"\n" +
 			"-- The role is what anonymous visitors get, so its entity access IS the app's\n" +
 			"-- public surface. Mendix requires one: guest access with no role fails the\n" +
-			"-- build (CE0133), so ON is refused unless a role is given or already stored.\n" +
+			"-- build (CE0133), so TRUE is refused unless a role is given or already stored.\n" +
+			"-- GuestUserRole alone changes the role and keeps guest access on or off.\n" +
 			"-- Mendix does not check the role exists, so mxcli does — an unknown role\n" +
 			"-- would build cleanly and leave visitors with nothing.",
-		Example: "CREATE USER ROLE Anonymous (Shop.Viewer, System.User);\n" +
-			"ALTER PROJECT SECURITY GUEST ACCESS ON ROLE Anonymous;\n" +
-			"GRANT Anonymous ON Shop.Product (read *);",
+		Example: "CREATE USER ROLE Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );\n" +
+			"ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: Anonymous );\n" +
+			"GRANT READ * ON ENTITY Shop.Product TO Shop.Viewer;",
 		SeeAlso: []string{"security.user-role", "security.project-security"},
 	})
 

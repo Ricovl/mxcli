@@ -96,7 +96,7 @@ create entity KeywordTest.activity (
 
 -- MARK: Microflow using keyword-named enum values in CREATE
 
-create or replace microflow KeywordTest.TestKeywordEnumValues ()
+create or modify microflow KeywordTest.TestKeywordEnumValues ()
 returns nothing
 begin
   $Issue = create KeywordTest.data (

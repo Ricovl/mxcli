@@ -20,7 +20,7 @@ create persistent entity bug595.Customer (
   Email: string(200)
 );
 
-create odata service bug595.CustomerAPI (
+create published odata service bug595.CustomerAPI (
   path: 'odata/customers/',
   version: '1.0.0',
   ODataVersion: OData4,

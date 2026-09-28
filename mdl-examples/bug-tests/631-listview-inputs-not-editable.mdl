@@ -28,7 +28,7 @@ create or modify entity Lv631.Thing (
 );
 /
 
-create or replace page Lv631.P_Inputs
+create or modify page Lv631.P_Inputs
 ( title: 'List view inputs', layout: Atlas_Core.Atlas_Default )
 {
   -- WARNS: the reported case. The textbox's own `editable: Always` does not help.
@@ -55,7 +55,7 @@ create or replace page Lv631.P_Inputs
 
   -- No inputs at all: quiet.
   listview lvDisplay (datasource: database Lv631.Thing) {
-    dynamictext dtDisplay (content: '{1}', contentparams: [{1} = Name])
+    dynamictext dtDisplay (content: '{1}', contentparams: ({1} = Name))
   }
 }
 /

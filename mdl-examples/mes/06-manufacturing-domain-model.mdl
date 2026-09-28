@@ -99,7 +99,7 @@ create enumeration Manufacturing.ProductionPriority (
 @position(50, 50)
 create persistent entity Manufacturing.WorkstationGroup (
   /** Group name (e.g. 'Cutting', 'Assembly', 'Finishing') */
-  GroupName: string(200) not null error 'Group name is required',
+  GroupName: string(200) not null error message 'Group name is required',
   /** Description of capabilities */
   GroupDescription: string(1000),
   /** Sort order for display */
@@ -120,13 +120,13 @@ create persistent entity Manufacturing.WorkstationGroup (
 @position(50, 250)
 create persistent entity Manufacturing.Workstation (
   /** Unique workstation code */
-  WorkstationCode: string(50) not null error 'Workstation code is required' unique error 'Workstation code must be unique',
+  WorkstationCode: string(50) not null error message 'Workstation code is required' unique error message 'Workstation code must be unique',
   /** Workstation display name */
-  WorkstationName: string(200) not null error 'Workstation name is required',
+  WorkstationName: string(200) not null error message 'Workstation name is required',
   /** Description and capabilities */
   WorkstationDescription: string(1000),
   /** Current operational status */
-  CurrentStatus: enumeration(Manufacturing.WorkstationStatus) not null error 'Status is required',
+  CurrentStatus: enumeration(Manufacturing.WorkstationStatus) not null error message 'Status is required',
   /** Physical location on the shop floor */
   FloorLocation: string(100),
   /** Last maintenance date */
@@ -152,7 +152,7 @@ index (CurrentStatus);
 @position(350, 50)
 create persistent entity Manufacturing.ProductionTemplate (
   /** Template name */
-  TemplateName: string(200) not null error 'Template name is required',
+  TemplateName: string(200) not null error message 'Template name is required',
   /** Template description */
   TemplateDescription: string(2000),
   /** Estimated total production hours */
@@ -179,9 +179,9 @@ create persistent entity Manufacturing.ProductionTemplate (
 @position(350, 250)
 create persistent entity Manufacturing.TemplateStep (
   /** Step sequence number */
-  StepSequence: integer not null error 'Step sequence is required',
+  StepSequence: integer not null error message 'Step sequence is required',
   /** Step name */
-  StepName: string(200) not null error 'Step name is required',
+  StepName: string(200) not null error message 'Step name is required',
   /** Detailed work instructions */
   WorkInstructions: string(4000),
   /** Estimated duration in hours */
@@ -210,9 +210,9 @@ create persistent entity Manufacturing.WorkOrder (
   /** Auto-generated work order number */
   WorkOrderNumber: autonumber default 1,
   /** Current status */
-  WorkOrderStatus: enumeration(Manufacturing.WorkOrderStatus) not null error 'Work order status is required',
+  WorkOrderStatus: enumeration(Manufacturing.WorkOrderStatus) not null error message 'Work order status is required',
   /** Priority level */
-  Priority: enumeration(Manufacturing.ProductionPriority) not null error 'Priority is required' default Manufacturing.ProductionPriority.Normal,
+  Priority: enumeration(Manufacturing.ProductionPriority) not null error message 'Priority is required' default Manufacturing.ProductionPriority.Normal,
   /** Planned start date */
   PlannedStartDate: datetime,
   /** Planned completion date */
@@ -243,11 +243,11 @@ index (PlannedStartDate);
 @position(650, 250)
 create persistent entity Manufacturing.WorkOrderLine (
   /** Line number within the work order */
-  LineNumber: integer not null error 'Line number is required',
+  LineNumber: integer not null error message 'Line number is required',
   /** Item description */
-  ItemDescription: string(500) not null error 'Item description is required',
+  ItemDescription: string(500) not null error message 'Item description is required',
   /** Quantity to produce */
-  QuantityToProduce: integer not null error 'Quantity is required' default 1,
+  QuantityToProduce: integer not null error message 'Quantity is required' default 1,
   /** Quantity completed */
   QuantityCompleted: integer default 0,
   /** Whether this line is complete */
@@ -272,13 +272,13 @@ create persistent entity Manufacturing.WorkOrderLine (
 @position(950, 50)
 create persistent entity Manufacturing.ProductionStep (
   /** Step sequence number */
-  StepSequence: integer not null error 'Step sequence is required',
+  StepSequence: integer not null error message 'Step sequence is required',
   /** Step name */
-  StepName: string(200) not null error 'Step name is required',
+  StepName: string(200) not null error message 'Step name is required',
   /** Work instructions */
   WorkInstructions: string(4000),
   /** Current step status */
-  StepStatus: enumeration(Manufacturing.StepStatus) not null error 'Step status is required',
+  StepStatus: enumeration(Manufacturing.StepStatus) not null error message 'Step status is required',
   /** Planned start */
   PlannedStart: datetime,
   /** Planned end */
@@ -338,9 +338,9 @@ create persistent entity Manufacturing.BillOfMaterials (
 @position(1250, 250)
 create persistent entity Manufacturing.BOMLine (
   /** Line number */
-  LineNumber: integer not null error 'Line number is required',
+  LineNumber: integer not null error message 'Line number is required',
   /** Required quantity */
-  QuantityRequired: decimal not null error 'Required quantity is required',
+  QuantityRequired: decimal not null error message 'Required quantity is required',
   /** Quantity already consumed/issued */
   QuantityConsumed: decimal default 0,
   /** Unit cost at time of BOM creation */
@@ -365,7 +365,7 @@ create persistent entity Manufacturing.BOMLine (
 @position(1250, 50)
 create persistent entity Manufacturing.TimeRegistration (
   /** Start time of the work period */
-  StartTime: datetime not null error 'Start time is required',
+  StartTime: datetime not null error message 'Start time is required',
   /** End time of the work period */
   EndTime: datetime,
   /** Duration in hours (auto-calculated or manual) */
@@ -389,7 +389,7 @@ create persistent entity Manufacturing.TimeRegistration (
 @position(1250, 450)
 create persistent entity Manufacturing.ProductionNote (
   /** Note content */
-  NoteContent: string(4000) not null error 'Note content is required',
+  NoteContent: string(4000) not null error message 'Note content is required',
   /** Whether this note flags an issue */
   IsIssue: boolean default false,
   /** Whether the issue is resolved */
@@ -413,7 +413,7 @@ create association Manufacturing.Workstation_WorkstationGroup
   from Manufacturing.Workstation to Manufacturing.WorkstationGroup
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 -- MARK: - Template Associations
 
@@ -428,7 +428,7 @@ create association Manufacturing.TemplateStep_ProductionTemplate
   from Manufacturing.TemplateStep to Manufacturing.ProductionTemplate
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links template step to the required workstation group
@@ -441,7 +441,7 @@ create association Manufacturing.TemplateStep_WorkstationGroup
   from Manufacturing.TemplateStep to Manufacturing.WorkstationGroup
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links production template to a catalog product (optional)
@@ -454,7 +454,7 @@ create association Manufacturing.ProductionTemplate_CatalogProduct
   from Manufacturing.ProductionTemplate to ProductCatalog.CatalogProduct
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 -- MARK: - Work Order Associations
 
@@ -469,7 +469,7 @@ create association Manufacturing.WorkOrder_CustomerOrder
   from Manufacturing.WorkOrder to SalesOrder.CustomerOrder
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links work order line to its work order
@@ -482,7 +482,7 @@ create association Manufacturing.WorkOrderLine_WorkOrder
   from Manufacturing.WorkOrderLine to Manufacturing.WorkOrder
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links work order line to a sales order line
@@ -495,7 +495,7 @@ create association Manufacturing.WorkOrderLine_OrderLine
   from Manufacturing.WorkOrderLine to SalesOrder.OrderLine
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links work order line to a production template (optional)
@@ -508,7 +508,7 @@ create association Manufacturing.WorkOrderLine_ProductionTemplate
   from Manufacturing.WorkOrderLine to Manufacturing.ProductionTemplate
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 -- MARK: - Production Step Associations
 
@@ -523,7 +523,7 @@ create association Manufacturing.ProductionStep_WorkOrderLine
   from Manufacturing.ProductionStep to Manufacturing.WorkOrderLine
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links production step to the assigned workstation
@@ -536,7 +536,7 @@ create association Manufacturing.ProductionStep_Workstation
   from Manufacturing.ProductionStep to Manufacturing.Workstation
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 -- MARK: - BOM Associations
 
@@ -551,7 +551,7 @@ create association Manufacturing.BillOfMaterials_WorkOrderLine
   from Manufacturing.BillOfMaterials to Manufacturing.WorkOrderLine
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links BOM line to its BOM
@@ -564,7 +564,7 @@ create association Manufacturing.BOMLine_BillOfMaterials
   from Manufacturing.BOMLine to Manufacturing.BillOfMaterials
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links BOM line to the required material
@@ -577,7 +577,7 @@ create association Manufacturing.BOMLine_Material
   from Manufacturing.BOMLine to Materials.Material
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 -- MARK: - Time and Note Associations
 
@@ -592,7 +592,7 @@ create association Manufacturing.TimeRegistration_ProductionStep
   from Manufacturing.TimeRegistration to Manufacturing.ProductionStep
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links time registration to the worker
@@ -605,7 +605,7 @@ create association Manufacturing.TimeRegistration_Account
   from Manufacturing.TimeRegistration to Administration.Account
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links production note to a production step
@@ -618,7 +618,7 @@ create association Manufacturing.ProductionNote_ProductionStep
   from Manufacturing.ProductionNote to Manufacturing.ProductionStep
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links production note to the author
@@ -631,4 +631,4 @@ create association Manufacturing.ProductionNote_Account
   from Manufacturing.ProductionNote to Administration.Account
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;

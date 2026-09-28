@@ -358,7 +358,7 @@ Features with an MDL surface that does not yet cover the whole document type.
 | **Styling** | P | Y | P | N | N | Y | Y | Y | N | N | N | P | N | P | N | N | N | Class/Style/DesignProperties on widgets via ALTER STYLING (#631); `mxcli theme` covers the file side, the full theme system is not modelled |
 | **Icon collections** | Y | Y | N | N | N | N | N | Y | N | N | N | Y | Y | N | Y | Y | N | **Read-only by design** — collections ship with Atlas/the theme; DESCRIBE lists each icon's reference form for use in a widget's `icon:` |
 | **Module settings** | - | - | - | - | - | Y | N | Y | N | N | N | Y | Y | N | N | Y | N | `ALTER MODULE … ADD JAR DEPENDENCY` + `mxcli sync-java-deps`; other module-level settings are not modelled |
-| **REST consume** | Y | Y | Y | Y | Y | Y | 06 | Y | Y | P | Y | Y | Y | N | Y | Y | N | Consumed REST services via `CREATE REST CLIENT`; OpenAPI-driven generation is partial |
+| **REST consume** | Y | Y | Y | Y | Y | Y | 06 | Y | Y | P | Y | Y | Y | N | Y | Y | N | Consumed REST services via `CREATE CONSUMED REST SERVICE`; OpenAPI-driven generation is partial |
 | **Building blocks** | Y | N | N | N | N | N | N | Y | N | N | N | N | Y | N | Y | Y | N | **Read-only** — `show building blocks`; authoring one is not supported |
 
 ### Not Yet Implemented

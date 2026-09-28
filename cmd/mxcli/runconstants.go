@@ -17,7 +17,7 @@ import (
 // value, and that map is what the standalone runtime is handed as
 // MicroflowConstants — the configuration's overrides are not in it. So
 //
-//	alter settings constant 'Encryption.EncryptionKey' value '…' in configuration 'Default';
+//	alter settings constant @Encryption.EncryptionKey value '…' in configuration 'Default';
 //
 // executed, reported success, survived a round-trip through `describe settings`,
 // and then did nothing: the app ran with the constant's default. Measured in

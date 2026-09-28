@@ -45,17 +45,17 @@ CREATE OR MODIFY REGULAR EXPRESSION BugReexecIdentity.SerialPattern (
 -- this rule with it.
 CREATE VALIDATION RULE FOR BugReexecIdentity.LithoSystem.SerialNumber
   REGEX BugReexecIdentity.SerialPattern
-  FEEDBACK 'Serial must look like ABC-1234';
+  ERROR MESSAGE 'Serial must look like ABC-1234';
 
 -- Instance 2: a consumed REST client, rewritten in place rather than recreated.
-CREATE OR MODIFY REST CLIENT BugReexecIdentity.PartsAvailabilityAPI (
+CREATE OR MODIFY CONSUMED REST SERVICE BugReexecIdentity.PartsAvailabilityAPI (
   BaseUrl: 'https://parts.example.com/api',
   Authentication: NONE
 )
 {
-  OPERATION GetPart {
+  OPERATION GetPart (
     Method: GET,
     Path: '/parts/{id}',
     Parameters: ($id: String)
-  }
+  )
 };

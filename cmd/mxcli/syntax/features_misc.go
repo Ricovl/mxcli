@@ -29,8 +29,11 @@ func init() {
 			"-- every statement ends with ';' and '/' is not a terminator; '' is the\n" +
 			"-- only string escape, so a backslash is an ordinary character; and an\n" +
 			"-- unknown or mis-shaped property key in a REST, business event or agent\n" +
-			"-- property list is an error. A trailing comma is allowed in every\n" +
-			"-- bracketed list, with or without the header.\n" +
+			"-- property list is an error; a session command (connect, set format,\n" +
+			"-- status, show version, help, …) in a script is an error (MDL-V1-SESSION);\n" +
+			"-- and `show entity X` / `show association X`, which print a summary no\n" +
+			"-- statement prints any more, are an error (MDL-V1-SHOWSUMMARY). A trailing\n" +
+			"-- comma is allowed in every bracketed list, with or without the header.\n" +
 			"--\n" +
 			"-- A script's meaning never depends on which mxcli release runs it: a\n" +
 			"-- change of meaning applies only under the version that introduces it.\n" +
@@ -43,7 +46,9 @@ func init() {
 			"-- and writes list operations one statement per activity. It refuses, and\n" +
 			"-- says why, when a construct has no rewrite: an unknown or mis-shaped\n" +
 			"-- property (MDL-V1-PROP/PROPVALUE), `create or replace view entity`\n" +
-			"-- (MDL-V1-REPLACE01), a nested list operation, find/contains on a variable\n" +
+			"-- (MDL-V1-REPLACE01), a session command in a script (MDL-V1-SESSION),\n" +
+			"-- `show entity|association X` (MDL-V1-SHOWSUMMARY), a\n" +
+			"-- nested list operation, find/contains on a variable\n" +
 			"-- whose type the script does not state, and an escaped line break inside\n" +
 			"-- an expression.\n" +
 			"-- `mxcli fmt --upgrade` alone rewrites deprecated spellings (MDL-DEPRnnn).",
@@ -87,7 +92,7 @@ func init() {
 			"-- where it does not, DESCRIBE flags the gap as a comment rather than\n" +
 			"-- producing output that looks complete.",
 		Example: "CREATE OR REPLACE MICROFLOW MyModule.ACT_Recalculate ()\nBEGIN\n  RETURN;\nEND;\n\nCREATE OR MODIFY PERSISTENT ENTITY MyModule.Customer (\n  Name: String(200)\n);",
-		SeeAlso: []string{"microflow", "domain-model.entity", "page", "document-folder"},
+		SeeAlso: []string{"microflow", "domain-model.entity", "page", "document-folder", "create-if-not-exists"},
 	})
 
 	// IF EXISTS sits on every document-level alternative of dropStatement, so it
@@ -126,6 +131,41 @@ func init() {
 		SeeAlso: []string{"create-modifiers"},
 	})
 
+	// IF NOT EXISTS sits in every create rule that names one element, and is
+	// applied once in the visitor and once in the executor's dispatch, so it is
+	// documented once here too (ako/mxcli#731, ADR-0010 R1).
+	Register(SyntaxFeature{
+		Path:    "create-if-not-exists",
+		Summary: "CREATE … IF NOT EXISTS — create an element only when it is absent",
+		Keywords: []string{
+			"if not exists", "create if not exists", "re-run", "rerun",
+			"idempotent", "already exists", "leave alone", "skip",
+		},
+		Syntax: "CREATE <document type> IF NOT EXISTS Module.Name …;\n" +
+			"CREATE MODULE IF NOT EXISTS ModuleName;\n" +
+			"CREATE USER ROLE IF NOT EXISTS Name (…);\n" +
+			"CREATE DEMO USER IF NOT EXISTS 'name' PASSWORD '…' (…);\n" +
+			"CREATE CONFIGURATION IF NOT EXISTS 'Name' (…);\n\n" +
+			"-- IF NOT EXISTS goes after the kind's keywords, before the name. When the\n" +
+			"-- element already exists the statement is SKIPPED (and says so) and the\n" +
+			"-- stored element is left exactly as it is; otherwise it creates, like a\n" +
+			"-- plain CREATE.\n" +
+			"--\n" +
+			"-- It is not CREATE OR MODIFY, which makes the stored element match the\n" +
+			"-- statement. Writing both is refused as MDL067. DESCRIBE never emits it.\n" +
+			"--\n" +
+			"-- Every CREATE that names one element accepts it. Not accepted where\n" +
+			"-- there is no one named element to test: ANNOTATION, INDEX (use ALTER\n" +
+			"-- ENTITY … ADD INDEX IF NOT EXISTS), VALIDATION RULE, NAVIGATION,\n" +
+			"-- TRANSLATIONS and EXTERNAL ENTITIES.",
+		Example: "-- seed a module once; later runs leave hand edits alone\n" +
+			"CREATE MODULE IF NOT EXISTS Shop;\n" +
+			"CREATE ENUMERATION IF NOT EXISTS Shop.Status (Open 'Open', Closed 'Closed');\n" +
+			"CREATE CONSTANT IF NOT EXISTS Shop.ApiUrl TYPE String DEFAULT 'https://api.example.com';\n" +
+			"CREATE MICROFLOW IF NOT EXISTS Shop.ACT_Init ()\nBEGIN\n  RETURN;\nEND;",
+		SeeAlso: []string{"create-modifiers", "drop-if-exists"},
+	})
+
 	// The folder clause is the other cross-cutting CREATE modifier, and gets one
 	// topic for the same reason OR MODIFY does: it applies to every document
 	// type, so documenting it in all 27 places would guarantee 27 chances to
@@ -140,9 +180,12 @@ func init() {
 		},
 		Syntax: "-- Every document type takes a folder clause on CREATE. Where it goes\n" +
 			"-- depends on the statement's shape:\n" +
-			"--   Pages, snippets       Folder: 'path'   a property, inside the parentheses\n" +
-			"--   Microflows, nanoflows FOLDER 'path'    a keyword, before BEGIN\n" +
-			"--   Everything else       FOLDER 'path'    a keyword, after the qualified name\n" +
+			"--   Microflows, nanoflows FOLDER 'path'    after the signature, before BEGIN\n" +
+			"--   Everything else       FOLDER 'path'    after the qualified name\n" +
+			"--                                          (pages and snippets included)\n" +
+			"--\n" +
+			"-- The Folder: 'path' property that pages, snippets and REST/OData services\n" +
+			"-- also take is a deprecated alias (MDL-DEPR105); fmt --upgrade moves it.\n" +
 			"--\n" +
 			"-- Missing folders in the path are created. Nested paths use '/'.\n" +
 			"--\n" +
@@ -153,15 +196,14 @@ func init() {
 			"-- into the same folder.\n" +
 			"--\n" +
 			"-- To move a document without rewriting it, use MOVE.",
-		Example: "CREATE QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );\n\n" +
+		Example: "CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );\n\n" +
 			"CREATE IMPORT MAPPING MyModule.IMM_Order FOLDER 'Private/Import mappings'\n" +
 			"  WITH JSON STRUCTURE MyModule.JSON_Order {\n" +
 			"    CREATE MyModule.Order { Id = id }\n" +
 			"  };\n\n" +
-			"CREATE PAGE MyModule.OrderList\n" +
+			"CREATE PAGE MyModule.OrderList FOLDER 'Orders'\n" +
 			"  (\n" +
 			"    Title: 'Orders',\n" +
-			"    Folder: 'Orders',\n" +
 			"    Layout: Atlas_Core.Atlas_Default\n" +
 			"  )\n" +
 			"  {\n" +
@@ -171,11 +213,43 @@ func init() {
 		SeeAlso: []string{"move", "folders", "create-modifiers"},
 	})
 
+	// ── Session commands (R7, ako/mxcli#755) ───────────────────────────
+
+	Register(SyntaxFeature{
+		Path:    "session-commands",
+		Summary: "REPL commands that set up the session: connect, set format, status, help, … — not for scripts",
+		Keywords: []string{
+			"session", "session command", "repl", "repl command", "meta-command",
+			"connect", "disconnect", "use", "set format", "status", "check", "build",
+			"lint", "debug", "execute script", "execute runtime", "help", "introspect",
+			"show version", "show status", "show connections", "show catalog status",
+			"MDL-V1-SESSION",
+		},
+		Syntax: "CONNECT LOCAL '<app.mpr>';   DISCONNECT;   STATUS;\n" +
+			"SET format = json|table;       USE <session> | USE ALL;\n" +
+			"CHECK;  BUILD;  LINT [target];  DEBUG '<…>';  INTROSPECT API;\n" +
+			"EXECUTE SCRIPT '<file.mdl>';   EXECUTE RUNTIME '<command>';\n" +
+			"HELP [topic];\n" +
+			"SHOW VERSION;  SHOW STATUS;  SHOW CONNECTIONS;  SHOW CATALOG STATUS;\n\n" +
+			"-- A session command needs a session or an environment: a connection, an\n" +
+			"-- output format, a build, a running app. It is typed at the REPL, or given\n" +
+			"-- as a command-line flag. A .mdl script holds model statements only:\n" +
+			"--\n" +
+			"--   mxcli exec script.mdl -p app.mpr --json\n" +
+			"--\n" +
+			"-- Under `mdl 1;` a session command in a script is an error; without the\n" +
+			"-- header it runs as before and warns MDL-V1-SESSION. The REPL keeps\n" +
+			"-- accepting them. EXIT / QUIT end a script and are not session commands.",
+		Example: "-- at the REPL\nCONNECT LOCAL '/projects/MyApp/MyApp.mpr';\nSET format = json;\nSTATUS;\n\n" +
+			"-- from the shell, for a script\nmxcli exec changes.mdl -p /projects/MyApp/MyApp.mpr --json",
+		SeeAlso: []string{"connect", "disconnect", "status", "language-header"},
+	})
+
 	// ── Connection ──────────────────────────────────────────────────────
 
 	Register(SyntaxFeature{
 		Path:    "connect",
-		Summary: "Connect to a Mendix project (.mpr file) for the current session",
+		Summary: "Connect to a Mendix project (.mpr file) for the current REPL session",
 		Keywords: []string{
 			"connect", "connect local", "connect project",
 			"open project", "mpr", "connection",
@@ -183,15 +257,17 @@ func init() {
 		Syntax: `CONNECT LOCAL '<path/to/app.mpr>';
 CONNECT LOCAL '<path>' BRANCH '<branch>';
 
--- CLI flags (equivalent)
-mxcli -p <path/to/app.mpr> -c "<statement>"`,
-		Example: `CONNECT LOCAL '/projects/MyApp/MyApp.mpr';
+-- CLI flags (equivalent, and the form for a script)
+mxcli -p <path/to/app.mpr> -c "<statement>"
+mxcli exec script.mdl -p <path/to/app.mpr>
 
--- Read-write session
+-- A session command: typed at the REPL. In a script it is an error under
+-- mdl 1 and a warning (MDL-V1-SESSION) without the header.`,
+		Example: `-- at the REPL
 CONNECT LOCAL '/projects/MyApp/MyApp.mpr';
 CREATE ENTITY MyModule.Product ( Name: String(200) );
 DISCONNECT;`,
-		SeeAlso: []string{"disconnect", "status"},
+		SeeAlso: []string{"disconnect", "status", "session-commands"},
 	})
 
 	Register(SyntaxFeature{
@@ -200,9 +276,9 @@ DISCONNECT;`,
 		Keywords: []string{
 			"disconnect", "close", "close connection", "close project",
 		},
-		Syntax:  "DISCONNECT;",
+		Syntax:  "DISCONNECT;\n\n-- A session command, for the REPL (see session-commands).",
 		Example: "DISCONNECT;",
-		SeeAlso: []string{"connect", "status"},
+		SeeAlso: []string{"connect", "status", "session-commands"},
 	})
 
 	Register(SyntaxFeature{
@@ -212,9 +288,9 @@ DISCONNECT;`,
 			"status", "show status", "connection status",
 			"project info", "version", "connected",
 		},
-		Syntax:  "STATUS;\nSHOW STATUS;",
+		Syntax:  "STATUS;\nSHOW STATUS;\n\n-- A session command, for the REPL (see session-commands). In a script it\n-- warns MDL-V1-SESSION, and under `mdl 1;` it is an error.",
 		Example: "STATUS;\n-- Output: Connected to /projects/MyApp/MyApp.mpr (Mendix 10.24.0, 5 modules)",
-		SeeAlso: []string{"connect", "disconnect"},
+		SeeAlso: []string{"connect", "disconnect", "session-commands"},
 	})
 
 	// ── Navigation ──────────────────────────────────────────────────────
@@ -226,8 +302,8 @@ DISCONNECT;`,
 			"navigation", "nav", "profile", "responsive", "phone", "tablet",
 			"home page", "menu", "login page",
 		},
-		Syntax:  "SHOW NAVIGATION;\nDESCRIBE NAVIGATION [profile];\nCREATE OR REPLACE NAVIGATION <profile> ...;",
-		Example: "SHOW NAVIGATION;\nDESCRIBE NAVIGATION Responsive;",
+		Syntax:  "LIST NAVIGATION;\nDESCRIBE NAVIGATION [profile];\nCREATE OR MODIFY NAVIGATION <profile> ...;",
+		Example: "LIST NAVIGATION;\nDESCRIBE NAVIGATION Responsive;",
 		SeeAlso: []string{"navigation.show", "navigation.create", "navigation.alter"},
 	})
 
@@ -235,11 +311,13 @@ DISCONNECT;`,
 		Path:    "navigation.show",
 		Summary: "List navigation profiles, menus, and home page assignments",
 		Keywords: []string{
-			"show navigation", "describe navigation", "navigation menu",
+			"list navigation", "list navigation", "describe navigation", "navigation menu",
 			"navigation homes", "list profiles",
 		},
-		Syntax:  "SHOW NAVIGATION;\nSHOW NAVIGATION MENU;\nSHOW NAVIGATION MENU <profile>;\nSHOW NAVIGATION HOMES;\nDESCRIBE NAVIGATION;\nDESCRIBE NAVIGATION <profile>;",
-		Example: "SHOW NAVIGATION;\nSHOW NAVIGATION MENU Responsive;\nDESCRIBE NAVIGATION Responsive;",
+		Syntax: "LIST NAVIGATION;                  -- the profiles, one row each\nLIST NAVIGATION MENU [<profile>];  -- the menu tree\n" +
+			"LIST NAVIGATION HOMES;\nDESCRIBE NAVIGATION [<profile>];    -- the profile as MDL\n\n" +
+			"-- `list navigation [menu]` is a deprecated alias of the list form (MDL-DEPR002).",
+		Example: "LIST NAVIGATION;\nLIST NAVIGATION MENU Responsive;\nDESCRIBE NAVIGATION Responsive;",
 	})
 
 	Register(SyntaxFeature{
@@ -258,10 +336,6 @@ DISCONNECT;`,
   [HOME PAGE Module.Page FOR UserRole]
   [LOGIN PAGE Module.LoginPage]
   [NOT FOUND PAGE Module.Custom404]
-  [MENU (
-    MENU ITEM 'Label' PAGE Module.Page [ICON Module.IconCollection.Name];
-    MENU 'Group' [ICON Module.IconCollection.Name] ( ... );
-  )]
   [ON SYNC ERROR THROW|CONTINUE]
   [SYNC (
     SYNC Module.Entity ONLINE;
@@ -270,7 +344,18 @@ DISCONNECT;`,
     SYNC Module.Entity NEVER;
     SYNC Module.Entity NONE;
     SYNC Module.Entity NONE PRESERVE DATA;
-  )];
+  )]
+  [{
+    MENU ITEM 'Label' [( OnClick: SHOW PAGE Module.Page | CALL MICROFLOW Module.Flow | SIGN OUT
+                        [, Icon: Module.IconCollection.Name] )]
+    MENU 'Group' [( Icon: Module.IconCollection.Name )] { ... }
+  }];
+
+-- The menu items are the profile's CHILDREN, in { } after its clauses, like a
+-- page's widgets: no ; between them, since a child ends in ) or }. An item's
+-- action is OnClick: in the words a page action uses. The old spelling,
+-- MENU ( MENU ITEM 'Label' PAGE M.P ICON I; ... ), still parses and warns
+-- (MDL-DEPR121, MDL-DEPR122); mxcli fmt --upgrade rewrites it.
 
 -- FOR takes a USER role, written BARE (FOR Administrator). User roles are
 -- project-level and have no module part; a module role is a different thing
@@ -278,14 +363,14 @@ DISCONNECT;`,
 -- module roles called Administrator in three modules). A qualified name here
 -- gives a project Mendix cannot LOAD -- StorageLoadException "not a valid
 -- UserRoleIdentifier", raised before checking runs, so there is no error code
--- and no line number. List the real ones with SHOW USER ROLES.
+-- and no line number. List the real ones with LIST USER ROLES.
 --
--- ICON is a qualified name into an ICON COLLECTION (Atlas_Core.Atlas,
+-- Icon: is a qualified name into an ICON COLLECTION (Atlas_Core.Atlas,
 -- Atlas_Core.Atlas_Filled, Atlas_Core.Atlas_Styling, or your own) -- a model
 -- reference, not a string. Hyphenated Atlas names are double-quoted:
---   ICON Atlas_Core.Atlas."align-center"
+--   Icon: Atlas_Core.Atlas."align-center"
 -- Browse the available names with:
---   SHOW ICON COLLECTION  /  DESCRIBE ICON COLLECTION Module.Name
+--   LIST ICON COLLECTIONS  /  DESCRIBE ICON COLLECTION Module.Name
 --
 -- <profile> is one of Mendix's fixed web kinds, and the profile is CREATED if
 -- the project does not have it yet:
@@ -319,7 +404,7 @@ DISCONNECT;`,
 -- than a new keyword. OMITTING it leaves the stored value alone; DESCRIBE emits
 -- it only when it is not the default.
 --
--- The block REPLACES the stored list, the way MENU replaces the menu. An
+-- The block REPLACES the stored list, the way { } replaces the menu. An
 -- entity's compatibility-mode flag has no syntax and is preserved across the
 -- rewrite untouched; DESCRIBE NAVIGATION flags it rather than dropping it.
 -- An invented name ("Mobile") is an error: the runtime routes on User-Agent to
@@ -332,19 +417,20 @@ DISCONNECT;`,
   HOME PAGE MyModule.Home_Web
   HOME PAGE MyModule.AdminDashboard FOR Administrator
   LOGIN PAGE Administration.Login
-  MENU (
-    MENU ITEM 'Home' PAGE MyModule.Home_Web ICON Atlas_Core.Atlas.home;
-    MENU 'Orders' ICON Atlas_Core.Atlas."shopping-cart" (
-      MENU ITEM 'All Orders' PAGE Orders.Order_Overview ICON Atlas_Core.Atlas."list-bullets";
-      MENU ITEM 'New Order' PAGE Orders.Order_New ICON Atlas_Core.Atlas.add;
-    );
-  );
+  {
+    MENU ITEM 'Home' ( OnClick: SHOW PAGE MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )
+    MENU 'Orders' ( Icon: Atlas_Core.Atlas."shopping-cart" ) {
+      MENU ITEM 'All Orders' ( OnClick: SHOW PAGE Orders.Order_Overview, Icon: Atlas_Core.Atlas."list-bullets" )
+      MENU ITEM 'New Order' ( OnClick: SHOW PAGE Orders.Order_New, Icon: Atlas_Core.Atlas.add )
+    }
+    MENU ITEM 'Log out' ( OnClick: SIGN OUT, Icon: Atlas_Core.Atlas."log-out" )
+  };
 
 CREATE OR REPLACE NAVIGATION TabletOffline
   HOME PAGE Maintenance.Request_Overview
-  MENU (
-    MENU ITEM 'Requests' PAGE Maintenance.Request_Overview;
-  );`,
+  {
+    MENU ITEM 'Requests' ( OnClick: SHOW PAGE Maintenance.Request_Overview )
+  };`,
 		SeeAlso: []string{"navigation.show"},
 	})
 
@@ -369,8 +455,8 @@ CREATE OR REPLACE NAVIGATION TabletOffline
 			"settings", "project settings", "configuration",
 			"startup", "shutdown", "hash algorithm", "java version",
 		},
-		Syntax:  "SHOW SETTINGS;\nDESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION '<name>';   -- just one configuration\nALTER SETTINGS MODEL <key> = <value>;\nALTER SETTINGS CONFIGURATION '<name>' <key> = <value>;",
-		Example: "SHOW SETTINGS;\nALTER SETTINGS MODEL AfterStartupMicroflow = 'Module.MF_Startup';",
+		Syntax:  "DESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION '<name>';   -- just one configuration\nALTER SETTINGS RUNTIME (<key>: <value>, ...);   -- MODEL is a deprecated alias\nALTER SETTINGS CONFIGURATION '<name>' (<key>: <value>, ...);",
+		Example: "ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Module.MF_Startup');",
 		SeeAlso: []string{"settings.show", "settings.alter"},
 	})
 
@@ -427,7 +513,7 @@ translations out of the model:
 A translation for a language the project has not ENABLED is stored, passes
 mx check, and is DISCARDED at build time — no translations_<code>.properties
 is produced at all. The run warns; enable the language in project settings
-first. Note SHOW LANGUAGES lists languages that HAVE translations, not the
+first. Note LIST LANGUAGES lists languages that HAVE translations, not the
 enabled ones (8 vs 1 on a stock app); the enabled list is in DESCRIBE
 SETTINGS.`,
 		Example: `describe translations for nl_NL;
@@ -443,10 +529,11 @@ create or modify translations in Administration for nl_NL (
 		Path:    "settings.show",
 		Summary: "Show and describe project settings",
 		Keywords: []string{
-			"show settings", "describe settings", "list settings",
+			"list settings", "describe settings", "list settings",
 		},
-		Syntax:  "SHOW SETTINGS;\nDESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION '<name>';",
-		Example: "SHOW SETTINGS;\nDESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION 'Default';",
+		Syntax: "LIST SETTINGS;                              -- the sections, one row each\n" +
+			"DESCRIBE SETTINGS;                          -- the settings as MDL\nDESCRIBE SETTINGS CONFIGURATION '<name>';",
+		Example: "LIST SETTINGS;\nDESCRIBE SETTINGS;\nDESCRIBE SETTINGS CONFIGURATION 'Default';",
 	})
 
 	Register(SyntaxFeature{
@@ -460,33 +547,37 @@ create or modify translations in Administration for nl_NL (
 			"optimistic locking", "concurrency", "lost update",
 			"workflow group", "workflow groups", "add group", "task assignment",
 		},
-		Syntax: `ALTER SETTINGS MODEL <key> = <value>;
-ALTER SETTINGS CONFIGURATION '<name>' <key> = <value>, ...;
-ALTER SETTINGS CONSTANT '<qualifiedName>' VALUE '<value>' IN CONFIGURATION '<name>';
-ALTER SETTINGS DROP CONSTANT '<qualifiedName>' IN CONFIGURATION '<name>';
-ALTER SETTINGS LANGUAGE DefaultLanguageCode = '<code>';
+		Syntax: `ALTER SETTINGS RUNTIME (<key>: <value>, ...);
+ALTER SETTINGS CONFIGURATION '<name>' (<key>: <value>, ...);
+ALTER SETTINGS CONSTANT @<qualifiedName> VALUE '<value>' IN CONFIGURATION '<name>';
+ALTER SETTINGS DROP CONSTANT @<qualifiedName> IN CONFIGURATION '<name>';
+ALTER SETTINGS LANGUAGE (DefaultLanguageCode: '<code>');
 ALTER SETTINGS LANGUAGE ADD '<code>' [(CheckCompleteness: true, CustomDateFormat: '<fmt>')];
 ALTER SETTINGS LANGUAGE ADD OR MODIFY '<code>' [(...)];
 ALTER SETTINGS LANGUAGE MODIFY '<code>' (CheckCompleteness: true, ...);
-ALTER SETTINGS LANGUAGE REMOVE '<code>';
-ALTER SETTINGS WORKFLOWS UserEntity = '<qualifiedName>';
+ALTER SETTINGS LANGUAGE DROP '<code>';
+ALTER SETTINGS WORKFLOWS (UserEntity: '<qualifiedName>');
 ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP '<name>' [(Description: '<text>')];
 ALTER SETTINGS WORKFLOWS MODIFY GROUP '<name>' (Description: '<text>');
-ALTER SETTINGS WORKFLOWS REMOVE GROUP '<name>';
-CREATE [OR MODIFY] CONFIGURATION '<name>' [<key> = <value>, ...];
-DROP CONFIGURATION '<name>';`,
-		Example: `ALTER SETTINGS MODEL AfterStartupMicroflow = 'Module.MF_Startup';
-ALTER SETTINGS MODEL HashAlgorithm = 'BCrypt';
-ALTER SETTINGS MODEL EnableDataStorageOptimisticLocking = true;
-ALTER SETTINGS CONFIGURATION 'Default'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'localhost:5432',
-  DatabaseName = 'mydb';
-ALTER SETTINGS CONSTANT 'BusinessEvents.ServerUrl' VALUE 'kafka:9092'
+ALTER SETTINGS WORKFLOWS DROP GROUP '<name>';
+CREATE [OR MODIFY] CONFIGURATION '<name>' [(<key>: <value>, ...)];
+DROP CONFIGURATION '<name>';
+
+-- A property is Key: value in a ( … ) list, as everywhere else in MDL (R3).
+-- Key = value, … without the parentheses still runs and warns MDL-DEPR060.`,
+		Example: `ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Module.MF_Startup');
+ALTER SETTINGS RUNTIME (HashAlgorithm: 'BCrypt', EnableDataStorageOptimisticLocking: true);
+ALTER SETTINGS CONFIGURATION 'Default' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'localhost:5432',
+  DatabaseName: 'mydb'
+);
+ALTER SETTINGS CONSTANT @BusinessEvents.ServerUrl VALUE 'kafka:9092'
   IN CONFIGURATION 'Default';
-CREATE CONFIGURATION 'Production'
-  DatabaseType = 'PostgreSql',
-  HttpPortNumber = 8080;
+CREATE CONFIGURATION 'Production' (
+  DatabaseType: 'PostgreSql',
+  HttpPortNumber: 8080
+);
 
 -- LANGUAGE ADD/REMOVE change the ENABLED languages — the list under App
 -- Settings > Languages, and the only languages a build emits anything for. A
@@ -495,7 +586,7 @@ CREATE CONFIGURATION 'Production'
 ALTER SETTINGS LANGUAGE ADD 'de_DE';
 ALTER SETTINGS LANGUAGE ADD 'ar_SD' (CheckCompleteness: true);
 ALTER SETTINGS LANGUAGE MODIFY 'ar_SD' (CustomDateFormat: 'yyyy-MM-dd');
-ALTER SETTINGS LANGUAGE REMOVE 'de_DE';
+ALTER SETTINGS LANGUAGE DROP 'de_DE';
 
 -- ADD OR MODIFY is the upsert, and what DESCRIBE emits: it enables a language
 -- that is not there and changes one that is, so a described project replays onto
@@ -531,8 +622,8 @@ ALTER SETTINGS LANGUAGE REMOVE 'de_DE';
 ALTER SETTINGS WORKFLOWS ADD GROUP 'Approvers' (Description: 'Primary approval group');
 ALTER SETTINGS WORKFLOWS ADD GROUP 'Reviewers';
 ALTER SETTINGS WORKFLOWS MODIFY GROUP 'Reviewers' (Description: 'Second-line review');
-ALTER SETTINGS WORKFLOWS REMOVE GROUP 'Reviewers';
-SHOW WORKFLOW GROUPS;
+ALTER SETTINGS WORKFLOWS DROP GROUP 'Reviewers';
+LIST WORKFLOW GROUPS;
 
 -- Description is the ONLY option: a Settings$WorkflowGroup stores Name and
 -- Description and nothing else, so there is no identifier to set and the NAME is
@@ -577,15 +668,15 @@ SHOW WORKFLOW GROUPS;
 		Path:    "queue",
 		Summary: "Task queues — bound concurrency for queued microflow calls",
 		Keywords: []string{
-			"queue", "queues", "task queue", "create queue", "drop queue",
-			"describe queue", "show queues", "parallelism", "cluster wide",
+			"queue", "queues", "task queue", "create task queue", "create queue", "drop task queue",
+			"describe task queue", "list task queues", "parallelism", "cluster wide",
 			"background", "async microflow",
 		},
-		Syntax: `CREATE [OR MODIFY] QUEUE Module.Name [FOLDER 'path'] [( <property>: <value>, ... )];
-SHOW QUEUES [IN <module>];
-LIST QUEUES [IN <module>];
-DESCRIBE QUEUE Module.Name;
-DROP QUEUE Module.Name;
+		Syntax: `CREATE [OR MODIFY] TASK QUEUE Module.Name [FOLDER 'path'] [( <property>: <value>, ... )];
+LIST TASK QUEUES [IN <module>];
+LIST TASK QUEUES [IN <module>];
+DESCRIBE TASK QUEUE Module.Name;
+DROP TASK QUEUE Module.Name;
 
 Properties:
   Parallelism   how many tasks run at once. This is an EXPRESSION, not a
@@ -603,16 +694,16 @@ CALL JAVA ACTION (see: mxcli syntax microflow.call):
 A rewrite that does NOT restate a stored binding is refused, because it would
 drop it silently. A retry policy on a queued call has no MDL spelling and is
 also refused rather than reset — change those in Studio Pro.`,
-		Example: `CREATE QUEUE Ops.OrderProcessing (
+		Example: `CREATE TASK QUEUE Ops.OrderProcessing (
   Parallelism: 3,
   ClusterWide: true
 );
 
 -- Defaults: parallelism 1, per-instance.
-CREATE QUEUE Ops.Mail;
+CREATE TASK QUEUE Ops.Mail;
 
 -- An expression is legal wherever a number is.
-CREATE OR MODIFY QUEUE Ops.OrderProcessing (
+CREATE OR MODIFY TASK QUEUE Ops.OrderProcessing (
   Parallelism: '$MyModule.Workers',
   ClusterWide: true
 );
@@ -623,9 +714,9 @@ BEGIN
   CALL MICROFLOW Ops.ACT_Process(Order = $Order) IN QUEUE Ops.OrderProcessing;
 END;
 
-SHOW QUEUES IN Ops;
-DESCRIBE QUEUE Ops.OrderProcessing;
-DROP QUEUE Ops.Mail;`,
+LIST TASK QUEUES IN Ops;
+DESCRIBE TASK QUEUE Ops.OrderProcessing;
+DROP TASK QUEUE Ops.Mail;`,
 	})
 
 	// ── Regular expressions ─────────────────────────────────────────────
@@ -636,15 +727,18 @@ DROP QUEUE Ops.Mail;`,
 		Keywords: []string{
 			"regular expression", "regular expressions", "regex", "pattern", "validation",
 			"create regular expression", "drop regular expression", "describe regular expression",
-			"show regular expressions", "email regex", "match",
+			"list regular expressions", "email regex", "match",
 		},
-		Syntax: `CREATE [OR MODIFY] REGULAR EXPRESSION Module.Name [FOLDER 'path'] (
+		Syntax: `[/** <documentation> */]
+CREATE [OR MODIFY] REGULAR EXPRESSION Module.Name [FOLDER 'path'] (
   Expression: '<pattern>',
-  [Documentation: '<text>',]
   [ExportLevel: Hidden|Public,]
 );
 
-SHOW REGULAR EXPRESSIONS [IN <module>];
+-- Documentation is the doc comment; the Documentation: '<text>' property is
+-- its deprecated alias (MDL-DEPR106).
+
+LIST REGULAR EXPRESSIONS [IN <module>];
 LIST REGULAR EXPRESSIONS [IN <module>];
 DESCRIBE REGULAR EXPRESSION Module.Name;
 DROP REGULAR EXPRESSION Module.Name;
@@ -663,9 +757,9 @@ notes that it could not verify it — it does not call it invalid.
 
 Bind a pattern to an attribute with CREATE VALIDATION RULE — see
 'mxcli syntax validation-rule'.`,
-		Example: `CREATE REGULAR EXPRESSION Val.EmailAddress (
-  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+',
-  Documentation: 'A, not too restrictive, email address regular expression'
+		Example: `/** A, not too restrictive, email address regular expression */
+CREATE REGULAR EXPRESSION Val.EmailAddress (
+  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+'
 );
 
 CREATE REGULAR EXPRESSION Val.Identifier (
@@ -675,12 +769,12 @@ CREATE REGULAR EXPRESSION Val.Identifier (
 -- .NET lookbehind: legal in Mendix, not verifiable by mxcli
 CREATE REGULAR EXPRESSION Val.NoTrailingSlash ( Expression: '.*(?<!/)$' );
 
-SHOW REGULAR EXPRESSIONS IN Val;
+LIST REGULAR EXPRESSIONS IN Val;
 DESCRIBE REGULAR EXPRESSION Val.EmailAddress;
 DROP REGULAR EXPRESSION Val.Identifier;
 
 -- Which entities validate against a shared pattern
-SHOW REFERENCES TO Val.EmailAddress;`,
+LIST REFERENCES TO Val.EmailAddress;`,
 	})
 
 	// ── Validation rules ────────────────────────────────────────────────
@@ -690,16 +784,19 @@ SHOW REFERENCES TO Val.EmailAddress;`,
 		Summary: "Validation rules — constrain an attribute with a pattern or a range",
 		Keywords: []string{
 			"validation rule", "validation rules", "validate", "constraint",
-			"create validation rule", "regex rule", "range rule",
+			"create validation rule", "drop validation rule", "regex rule", "range rule",
 			"required", "unique", "not null", "feedback",
 		},
 		Syntax: `CREATE VALIDATION RULE FOR Module.Entity.Attribute
   REGEX Module.PatternName
-  FEEDBACK '<message>';
+  ERROR MESSAGE '<message>';
 
 CREATE VALIDATION RULE FOR Module.Entity.Attribute
   RANGE FROM <literal> TO <literal>
-  FEEDBACK '<message>';
+  ERROR MESSAGE '<message>';
+
+DROP VALIDATION RULE [IF EXISTS] FOR Module.Entity.Attribute [REGEX | RANGE];
+  -- without a kind, drops both the regex and the range rule on the attribute
 
 The bounds are inclusive and either may be omitted:
   RANGE FROM 1 TO 100   between 1 and 100
@@ -719,25 +816,25 @@ CE0135 "No regular expression specified" at build time.
 
 REQUIRED and UNIQUE rules are written as attribute constraints instead, on
 CREATE ENTITY or ALTER ENTITY:
-  ALTER ENTITY Shop.Product MODIFY ATTRIBUTE Email string(200)
-    NOT NULL ERROR 'Email is required';
-  ALTER ENTITY Shop.Product MODIFY ATTRIBUTE Code string(20)
-    UNIQUE ERROR 'Code must be unique';`,
+  ALTER ENTITY Shop.Product MODIFY ATTRIBUTE Email: string(200)
+    NOT NULL ERROR MESSAGE 'Email is required';
+  ALTER ENTITY Shop.Product MODIFY ATTRIBUTE Code: string(20)
+    UNIQUE ERROR MESSAGE 'Code must be unique';`,
 		Example: `CREATE REGULAR EXPRESSION Shop.EmailPattern (
   Expression: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
 );
 
 CREATE VALIDATION RULE FOR Shop.Customer.Email
   REGEX Shop.EmailPattern
-  FEEDBACK 'Enter a valid email address';
+  ERROR MESSAGE 'Enter a valid email address';
 
 CREATE VALIDATION RULE FOR Shop.Booking.Guests
   RANGE FROM 1 TO 100
-  FEEDBACK 'Between 1 and 100 guests are allowed';
+  ERROR MESSAGE 'Between 1 and 100 guests are allowed';
 
 CREATE VALIDATION RULE FOR Shop.Product.Price
   RANGE FROM 0
-  FEEDBACK 'Price cannot be negative';`,
+  ERROR MESSAGE 'Price cannot be negative';`,
 	})
 
 	// ── Scheduled events ────────────────────────────────────────────────
@@ -751,7 +848,7 @@ CREATE VALIDATION RULE FOR Shop.Product.Price
 			"repeat", "daily", "hourly", "weekly", "monthly", "yearly", "timer", "batch job",
 		},
 		Syntax: `CREATE [OR MODIFY] SCHEDULED EVENT Module.Name [FOLDER 'path'] ( <property>: <value>, ... );
-SHOW SCHEDULED EVENTS [IN <module>];
+LIST SCHEDULED EVENTS [IN <module>];
 LIST SCHEDULED EVENTS [IN <module>];
 DESCRIBE SCHEDULED EVENT Module.Name;
 DROP SCHEDULED EVENT Module.Name;
@@ -817,7 +914,7 @@ CREATE SCHEDULED EVENT Ops.QuarterEnd (
   HourOfDay: 18
 );
 
-SHOW SCHEDULED EVENTS IN Ops;
+LIST SCHEDULED EVENTS IN Ops;
 DESCRIBE SCHEDULED EVENT Ops.NightlyCleanup;
 DROP SCHEDULED EVENT Ops.HourlyPing;`,
 		SeeAlso: []string{"queue"},
@@ -827,26 +924,26 @@ DROP SCHEDULED EVENT Ops.HourlyPing;`,
 
 	Register(SyntaxFeature{
 		Path:    "structure",
-		Summary: "SHOW STRUCTURE — compact project overview at configurable depth",
+		Summary: "DESCRIBE STRUCTURE — compact project overview at configurable depth",
 		Keywords: []string{
-			"structure", "show structure", "project overview",
+			"structure", "describe structure", "project overview",
 			"repo map", "module summary", "depth",
 		},
-		Syntax: "SHOW STRUCTURE [DEPTH 1|2|3] [IN <module>] [ALL];",
+		Syntax: "DESCRIBE STRUCTURE [DEPTH 1|2|3] [IN <module>] [ALL];",
 		Example: `-- Module counts only
-SHOW STRUCTURE DEPTH 1;
+DESCRIBE STRUCTURE DEPTH 1;
 
 -- Elements with signatures (default)
-SHOW STRUCTURE;
+DESCRIBE STRUCTURE;
 
 -- Full types and parameter names
-SHOW STRUCTURE DEPTH 3;
+DESCRIBE STRUCTURE DEPTH 3;
 
 -- Focus on one module
-SHOW STRUCTURE IN MyModule;
+DESCRIBE STRUCTURE IN MyModule;
 
 -- Include system modules
-SHOW STRUCTURE DEPTH 1 ALL;`,
+DESCRIBE STRUCTURE DEPTH 1 ALL;`,
 	})
 
 	// ── Move ────────────────────────────────────────────────────────────
@@ -859,7 +956,7 @@ SHOW STRUCTURE DEPTH 1 ALL;`,
 			"move page", "move microflow", "move entity",
 			"move folder", "drop folder",
 			"move import mapping", "move export mapping", "move json structure",
-			"move queue", "move workflow", "move menu", "move layout",
+			"move task queue", "move workflow", "move menu", "move layout",
 		},
 		Syntax: `MOVE <doctype> Module.Name TO FOLDER 'Path';
 -- doctype: every top-level document, spelled as DESCRIBE spells it —
@@ -889,7 +986,7 @@ MOVE ENTITY OldModule.Customer TO NewModule;
 -- Many doctypes have no folder clause on CREATE, so MOVE is the only way to
 -- place them
 MOVE JAVA ACTION MyModule.ODataQuery TO FOLDER 'Support';
-MOVE ODATA SERVICE MyModule.PublicApi TO FOLDER 'Api/Published';
+MOVE PUBLISHED ODATA SERVICE MyModule.PublicApi TO FOLDER 'Api/Published';
 MOVE IMPORT MAPPING MyModule.IMM_Order TO FOLDER 'Private/Import mappings';
 MOVE JSON STRUCTURE MyModule.JSON_Order TO FOLDER 'Private/JSON structures';
 
@@ -898,13 +995,13 @@ MOVE JSON STRUCTURE MyModule.JSON_Order TO FOLDER 'Private/JSON structures';
 -- one; on most it goes straight after the qualified name
 CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Order
   FOLDER 'Private/JSON structures'
-  SNIPPET '{"id": 1}';
-CREATE QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
+  SAMPLE '{"id": 1}';
+CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
 CREATE IMPORT MAPPING MyModule.IMM_Order FOLDER 'Private/Import mappings'
   WITH JSON STRUCTURE MyModule.JSON_Order { CREATE MyModule.Order { Id = id } };
 
 -- Check impact before cross-module move
-SHOW IMPACT OF OldModule.CustomerPage;
+LIST IMPACT OF OldModule.CustomerPage;
 MOVE PAGE OldModule.CustomerPage TO NewModule;
 
 -- Drop empty folder
@@ -921,7 +1018,7 @@ LIST FOLDERS IN MyModule;`,
 		Path:    "folders",
 		Summary: "LIST FOLDERS — the folder layout of a module, with what is in each folder",
 		Keywords: []string{
-			"folders", "list folders", "show folders", "layout",
+			"folders", "list folders", "list folders", "layout",
 			"folder tree", "where is this document", "unfiled",
 		},
 		Syntax: "LIST FOLDERS [IN <module>];",
@@ -935,7 +1032,7 @@ LIST FOLDERS;
 mxcli -p app.mpr --json -c "LIST FOLDERS IN MyModule"
 
 -- Complements MOVE: MOVE places a document in a folder, LIST FOLDERS reads
--- the placement back. SHOW STRUCTURE is organised by document type at every
+-- the placement back. DESCRIBE STRUCTURE is organised by document type at every
 -- depth, so it never shows which folder a document sits in.
 --
 -- Empty folders are listed too (with [0]), and documents still at the module

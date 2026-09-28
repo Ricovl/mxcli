@@ -30,7 +30,7 @@ The simplest binding -- connects a DataView to a page parameter:
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )
@@ -144,7 +144,7 @@ Action buttons can pass the current data context to microflows and pages:
 DATAVIEW dvOrder (DataSource: $Order) {
   ACTIONBUTTON btnProcess (
     Caption: 'Process Order',
-    Action: MICROFLOW Sales.ACT_ProcessOrder(Order: $Order),
+    Action: MICROFLOW Sales.ACT_ProcessOrder(Order = $Order),
     ButtonStyle: Primary
   )
 

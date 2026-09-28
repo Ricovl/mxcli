@@ -11,8 +11,8 @@
 ## Discovering Available Widgets
 
 ```mdl
-SHOW WIDGETS
-DESCRIBE WIDGET DataGrid2
+LIST WIDGETS
+DESCRIBE WIDGET TYPE DataGrid2
 ```
 
 <!-- TODO: how mxcli discovers widget types present in the project -->

@@ -16,6 +16,6 @@
 -- Both spellings must describe the widget. The id form has to be QUOTED —
 -- the old error suggested it unquoted, which is a parse error.
 
-describe widget fieldset;
+describe widget type fieldset;
 
-describe widget 'com.mendix.widget.web.fieldset.Fieldset';
+describe widget type 'com.mendix.widget.web.fieldset.Fieldset';

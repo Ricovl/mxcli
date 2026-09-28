@@ -26,7 +26,7 @@ end;
 create page MyFirstModule.P_Conditional ( title: 'Conditional', layout: Atlas_Core.Atlas_Default )
 {
   dataview dv (datasource: microflow MyFirstModule.DS_GetCust) {
-    textbox txtName  (label: 'Name',  attribute: Name,  visible: [$currentObject/Name != empty])
+    textbox txtName  (label: 'Name',  attribute: Name,  visible: $currentObject/Name != empty)
     textbox txtPhone (label: 'Phone', attribute: Phone, editable: [true])
   }
 };

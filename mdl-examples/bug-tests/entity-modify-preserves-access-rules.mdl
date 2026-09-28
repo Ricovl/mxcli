@@ -100,7 +100,7 @@ create or modify persistent entity AccP.Order (
 );
 /
 
-grant AccP.Reader on AccP.Order (create, delete, read (Ref, Amount, Note), write (Ref, Amount));
+grant create, delete, read (Ref, Amount, Note), write (Ref, Amount) on entity AccP.Order to AccP.Reader;
 /
 
 -- THE REPORTED CASE. Restating the entity must leave the grant above untouched.
@@ -123,7 +123,7 @@ create or modify persistent entity AccP.Export extends System.FileDocument (
 );
 /
 
-grant AccP.Reader on AccP.Export (create, delete, read (Name, Contents), write (Name, Contents));
+grant create, delete, read (Name, Contents), write (Name, Contents) on entity AccP.Export to AccP.Reader;
 /
 
 create or modify persistent entity AccP.Export extends System.FileDocument (
@@ -154,7 +154,7 @@ create or modify persistent entity AccP.Wiped (
 -- every member right is None grants nothing at all, and Mendix says so — CE0004
 -- "No access rights granted". That is Mendix being right about a rule that has
 -- become pointless, not a defect, but it would mask the one under test.
-grant AccP.Reader on AccP.Wiped (create, delete, read (Gone, AlsoGone), write (Gone));
+grant create, delete, read (Gone, AlsoGone), write (Gone) on entity AccP.Wiped to AccP.Reader;
 /
 
 create or modify persistent entity AccP.Wiped (

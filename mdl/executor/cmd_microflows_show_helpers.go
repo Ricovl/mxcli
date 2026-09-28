@@ -302,11 +302,12 @@ func emitAnchorAnnotationWithActivityMap(
 	id := obj.GetID()
 
 	if _, isSplit := obj.(*microflows.ExclusiveSplit); isSplit {
-		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, false)
+		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, false,
+			mergeExitAnchor(id, flowsByOrigin, activityMap))
 		return
 	}
 	if _, isSplit := obj.(*microflows.InheritanceSplit); isSplit {
-		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, true)
+		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, true, "")
 		return
 	}
 	if loop, isLoop := obj.(*microflows.LoopedActivity); isLoop {
@@ -433,6 +434,22 @@ func emitMergeAnnotation(
 	*lines = append(*lines, indentStr+fmt.Sprintf("@merge(%d, %d)", p.X, p.Y))
 }
 
+// closingMergeID is the merge an ExclusiveSplit's description speaks for (its
+// @merge and the `from:` of its @anchor), or "" for anything else.
+func closingMergeID(
+	obj microflows.MicroflowObject,
+	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
+	activityMap map[model.ID]microflows.MicroflowObject,
+) model.ID {
+	if _, ok := obj.(*microflows.ExclusiveSplit); !ok || activityMap == nil {
+		return ""
+	}
+	if merge := commonMergeAfter(obj.GetID(), flowsByOrigin, activityMap); merge != nil {
+		return merge.GetID()
+	}
+	return ""
+}
+
 // commonMergeAfter returns the nearest ExclusiveMerge reachable from every
 // outgoing branch of splitID, or nil when the branches do not rejoin (each
 // returns, say).
@@ -552,6 +569,7 @@ func emitSplitAnchorAnnotation(
 	lines *[]string,
 	indentStr string,
 	preserveDefaultIncoming bool,
+	mergeExitFrom string,
 ) {
 	// Incoming flow anchor (where the previous activity's flow lands on the split).
 	var inTo string
@@ -571,11 +589,16 @@ func emitSplitAnchorAnnotation(
 		falseTo = anchorSideKeyword(falseFlow.DestinationConnectionIndex)
 	}
 
-	if inTo == "" && trueFrom == "" && trueTo == "" && falseFrom == "" && falseTo == "" {
+	if inTo == "" && trueFrom == "" && trueTo == "" && falseFrom == "" && falseTo == "" && mergeExitFrom == "" {
 		return
 	}
 
 	var parts []string
+	// `from:` on an if is the flow leaving the statement — out of its closing
+	// merge (#767). mergeExitAnchor has already dropped the default side.
+	if mergeExitFrom != "" {
+		parts = append(parts, "from: "+mergeExitFrom)
+	}
 	trueDefaultFroms := []string{anchorSideKeyword(AnchorRight), anchorSideKeyword(AnchorBottom)}
 	trueDefaultTos := []string{anchorSideKeyword(AnchorLeft)}
 	falseDefaultFroms := []string{anchorSideKeyword(AnchorBottom), anchorSideKeyword(AnchorRight)}
@@ -594,6 +617,44 @@ func emitSplitAnchorAnnotation(
 		return
 	}
 	*lines = append(*lines, indentStr+fmt.Sprintf("@anchor(%s)", strings.Join(parts, ", ")))
+}
+
+// mergeExitAnchor returns the side the flow LEAVING an if's closing merge
+// starts from, or "" when it is the default (right) or there is no such merge.
+//
+// The merge has no statement of its own, so this anchor is written as `from:`
+// on the if — the same slot `from:` has on any other statement: the flow
+// leaving it. Without it a merge-to-split flow that wraps onto a new row
+// (bottom of the merge to top of the next decision) re-executed as leaving the
+// merge's right side, back across the row above (ako/mxcli#767).
+//
+// Only an if (a split with true/false branches) has this slot; the merge is
+// found the way @merge finds it, so the two annotations name the same node.
+func mergeExitAnchor(
+	splitID model.ID,
+	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
+	activityMap map[model.ID]microflows.MicroflowObject,
+) string {
+	if activityMap == nil {
+		return ""
+	}
+	if trueFlow, falseFlow := findBranchFlows(flowsByOrigin[splitID]); trueFlow == nil && falseFlow == nil {
+		return ""
+	}
+	merge := commonMergeAfter(splitID, flowsByOrigin, activityMap)
+	if merge == nil {
+		return ""
+	}
+	for _, flow := range flowsByOrigin[merge.GetID()] {
+		if flow.IsErrorHandler {
+			continue
+		}
+		if flow.OriginConnectionIndex == AnchorRight {
+			return ""
+		}
+		return anchorSideKeyword(flow.OriginConnectionIndex)
+	}
+	return ""
 }
 
 // branchAnchorFragment builds a `key: (from: X, to: Y)` fragment for a branch
@@ -766,6 +827,17 @@ func emitLoopAnchorAnnotation(
 	*lines = append(*lines, indentStr+fmt.Sprintf("@anchor(%s)", strings.Join(parts, ", ")))
 }
 
+// captionIsCondition reports whether a decision's caption is its condition
+// text, which is what a decision gets when no @caption is written: the builder
+// stores one string as both the caption and the expression (addIfStatement,
+// the enum case). Printing it would repeat the line below it (R12, #748), and
+// leaving it out re-executes to the same caption, since the two are built from
+// the same text.
+func captionIsCondition(split *microflows.ExclusiveSplit) bool {
+	cond, ok := split.SplitCondition.(*microflows.ExpressionSplitCondition)
+	return ok && split.Caption == cond.Expression
+}
+
 // emitObjectAnnotations emits @position, @caption, @color, @annotation, and
 // @anchor lines for a microflow object before its statement.
 //
@@ -793,7 +865,9 @@ func emitObjectAnnotations(
 		// @anchor — emit whenever attached flows exist, for roundtrip fidelity.
 		// The emitter sorts out the right form (simple / split / loop) based on
 		// the object type.
-		if layout.keepsAnchor(currentID) {
+		// An if's anchor also carries the flow out of its closing merge, which
+		// has no statement of its own — so a pinned merge keeps the if's anchor.
+		if layout.keepsAnchor(currentID) || layout.keepsAnchor(closingMergeID(obj, flowsByOrigin, activityMap)) {
 			emitAnchorAnnotationWithActivityMap(obj, flowsByOrigin, flowsByDest, activityMap, lines, indentStr)
 		}
 		if layout.keepsCurve(currentID) {
@@ -814,7 +888,7 @@ func emitObjectAnnotations(
 		}
 	}
 
-	if split, ok := obj.(*microflows.ExclusiveSplit); ok && split.Caption != "" {
+	if split, ok := obj.(*microflows.ExclusiveSplit); ok && split.Caption != "" && !captionIsCondition(split) {
 		*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", mdlQuote(split.Caption)))
 	}
 	if split, ok := obj.(*microflows.InheritanceSplit); ok && split.Caption != "" {
@@ -863,7 +937,7 @@ func emitActivityStatement(
 		// The early return above used to end the function, which also skipped the
 		// error-handler traversal further down — so an activity the describer
 		// could not render lost its entire error branch without a word (#863).
-		// The branch cannot be emitted as live MDL (an `on error { … }` block has
+		// The branch cannot be emitted as live MDL (an `on error begin … end error` block has
 		// no statement to attach to here), but it must not disappear either:
 		// render it commented-out, so the artifact still shows what the model
 		// holds. Guard-don't-drop, in a path that cannot round-trip.
@@ -903,14 +977,14 @@ func emitActivityStatement(
 		}
 
 		if len(errStmts) == 0 {
-			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" { };")
+			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" begin end error;")
 		} else {
-			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" {")
+			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" begin")
 			recordErrorHandlerSpans(sourceMap, errSpans, len(*lines)+headerLineCount)
 			for _, errStmt := range errStmts {
 				*lines = append(*lines, indentStr+"  "+errStmt)
 			}
-			*lines = append(*lines, indentStr+"};")
+			*lines = append(*lines, indentStr+"end error;")
 		}
 	} else if suffix != "" {
 		stmtWithoutSemi := strings.TrimSuffix(strings.TrimSpace(stmt), ";")
@@ -922,7 +996,7 @@ func emitActivityStatement(
 
 // emitCommentedErrorHandler renders an activity's error branch as MDL line
 // comments. It is the fallback for activities the describer can only emit as a
-// comment: the branch has no live statement to hang an `on error { … }` block
+// comment: the branch has no live statement to hang an `on error begin … end error` block
 // off, so the choice is between showing it commented-out and losing it.
 //
 // Commenting is load-bearing, not cosmetic. Emitting these statements as live
@@ -960,15 +1034,15 @@ func emitCommentedErrorHandler(
 	errStmts, errSpans := collectErrorHandlerStatementSpans(
 		ctx, errorHandlerFlow.DestinationID, activityMap, flowsByOrigin, entityNames, microflowNames, annotationsByTarget, labels)
 	if len(errStmts) == 0 {
-		*lines = append(*lines, indentStr+"-- "+suffix+" { };")
+		*lines = append(*lines, indentStr+"-- "+suffix+" begin end error;")
 		return
 	}
-	*lines = append(*lines, indentStr+"-- "+suffix+" {")
+	*lines = append(*lines, indentStr+"-- "+suffix+" begin")
 	recordErrorHandlerSpans(sourceMap, errSpans, len(*lines)+headerLineCount)
 	for _, errStmt := range errStmts {
 		*lines = append(*lines, indentStr+"--   "+strings.TrimSpace(errStmt))
 	}
-	*lines = append(*lines, indentStr+"-- };")
+	*lines = append(*lines, indentStr+"-- end error;")
 }
 
 // activity narrows a MicroflowObject to *ActionActivity, or nil.
@@ -2302,7 +2376,7 @@ func hasCustomErrorHandler(errType microflows.ErrorHandlingType) bool {
 //
 // This gates far more than a suffix. emitActivityStatement only walks an
 // activity's error branch when hasCustomErrorHandler() agrees, so an action whose
-// type is not reported here loses its ENTIRE `on error { … }` block from DESCRIBE
+// type is not reported here loses its ENTIRE `on error begin … end error` block from DESCRIBE
 // — silently, and in valid-looking MDL, so a describe→edit→exec round-trip
 // deletes the handler from the model (mendixlabs/mxcli#1078).
 func getActionErrorHandlingType(activity *microflows.ActionActivity) microflows.ErrorHandlingType {
@@ -2407,7 +2481,7 @@ func collectErrorHandlerStatementSpans(
 
 	// A note on a handler-body activity is emitted here or nowhere: this
 	// traversal is a second, smaller describer and the main one never reaches
-	// inside an `on error { … }` block. Without it the write path attaches the
+	// inside an `on error begin … end error` block. Without it the write path attaches the
 	// note and the read path drops it, which is the same round-trip loss #1077
 	// is about, one nesting level down.
 	notes := func(obj microflows.MicroflowObject, indentStr string) {

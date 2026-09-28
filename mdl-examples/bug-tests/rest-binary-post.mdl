@@ -31,7 +31,7 @@ create microflow BinaryPost.ACT_PostBinary ()
 begin
   retrieve $Doc from BinaryPost.Upload
     limit 1;
-  rest call post 'https://httpbingo.org/post'
+  call rest service post 'https://httpbingo.org/post'
     header 'ContentType' = 'application/pdf'
     body binary $Doc/Contents
     timeout 300

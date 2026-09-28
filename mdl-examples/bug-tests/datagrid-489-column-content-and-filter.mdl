@@ -33,7 +33,7 @@ create entity BugTests.Customer (
   IsActive: boolean
 );
 
-create or replace page BugTests.P_489_ColumnContentAndFilter (
+create or modify page BugTests.P_489_ColumnContentAndFilter (
   Title: 'Column with content and filter',
   Layout: Atlas_Core.Atlas_Default
 ) {
@@ -41,11 +41,11 @@ create or replace page BugTests.P_489_ColumnContentAndFilter (
     DataSource: database from BugTests.Customer,
     Selection: None
   ) {
-    column Name (Attribute: Name, Caption: 'Name') {
+    column (Attribute: Name, Caption: 'Name') {
       textfilter tfName
     }
     -- The column under test: a custom-content cell AND a filter in one block.
-    column IsActive (Attribute: IsActive, Caption: 'Active') {
+    column (Attribute: IsActive, Caption: 'Active') {
       checkbox cbActive (Attribute: IsActive, Editable: Never, ReadOnlyStyle: Control)
       dropdownfilter ddfActive
     }

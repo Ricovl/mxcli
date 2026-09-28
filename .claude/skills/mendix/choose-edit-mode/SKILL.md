@@ -42,8 +42,8 @@ Not sure who owns it? Treat it as Studio Pro-owned.
 | Association | `alter association … set …` |
 | Enumeration | `alter enumeration` (add / rename / modify / drop value) |
 | Page, snippet, layout | `alter page` / `alter snippet` / `alter layout` { set / insert / drop / replace } |
-| Workflow | `alter workflow` (set, insert after, drop / replace activity, outcomes, paths) |
-| Settings, security | `alter settings`, `alter project security`, `grant` / `revoke` |
+| Workflow | `alter workflow` { set / insert before / after / into / drop / replace } — activities by name or 'caption' |
+| Settings, security | `alter settings`, `alter app security`, `grant` / `revoke` |
 | Many pages at once | `update widgets … where …` (see `bulk-widget-updates`) |
 | **Microflow, nanoflow** | **none yet** |
 | Menu, navigation profile, Java action | none (`alter navigation` replaces the whole profile) |

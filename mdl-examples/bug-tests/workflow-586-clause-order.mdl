@@ -38,11 +38,11 @@ create entity WF586.Request (
 create page WF586.TaskPage (
   title: 'Task',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Review the request', rendermode: H2)
       }
     }
@@ -55,8 +55,8 @@ create page WF586.Overview (
   layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Requests', rendermode: H2)
       }
     }
@@ -106,9 +106,9 @@ end;
 
 -- The header clauses in a deliberately different order from the one the old
 -- grammar demanded: the event handler first, `folder` last.
-create or replace workflow WF586.Review
+create or modify workflow WF586.Review
   on any workflow event microflow WF586.ACT_OnEvent as 'all events'
-  due date '${P2D}'
+  due date addDays([%CurrentDateTime%], 2)
   description 'Reviews a request'
   overview page WF586.Overview
   display 'Request review'
@@ -121,12 +121,12 @@ begin
   user task Review 'Review the request'
     on created microflow WF586.ACT_OnCreated
     description 'Check the request and decide'
-    boundary event interrupting timer '${PT8H}'
+    boundary event interrupting timer addHours([%CurrentDateTime%], 8)
     entity WF586.Request
     outcomes
       'Approve' { call microflow WF586.ACT_Audit; }
       'Reject'  { }
-    due date '${PT4H}'
+    due date addHours([%CurrentDateTime%], 4)
     page WF586.TaskPage
     targeting microflow WF586.ACT_GetUsers;
 
@@ -139,7 +139,7 @@ begin
     decide by majority more than half fallback 'Confirmed'
     page WF586.TaskPage
     participants 60 percent
-    targeting groups xpath '[Name = ''Administrator'']'
-    due date '${PT2H}';
+    targeting groups xpath [Name = 'Administrator']
+    due date addHours([%CurrentDateTime%], 2);
 end workflow;
 /

@@ -2,7 +2,8 @@
 
 ## Synopsis
 
-    CREATE [ OR MODIFY ] CONSTANT module.name TYPE data_type [ DEFAULT value ]
+    [ /** documentation */ ]
+    CREATE [ OR MODIFY ] CONSTANT module.name [ FOLDER 'path' ] TYPE data_type DEFAULT value [ EXPOSED TO CLIENT ]
 
 ## Description
 
@@ -15,6 +16,8 @@ The optional `DEFAULT` clause sets the constant's default value. This is the val
 If `OR MODIFY` is specified, the statement is idempotent. If the constant already exists, its type and default value are updated.
 
 Constant values can also be overridden per deployment configuration using `ALTER SETTINGS CONSTANT`.
+
+`FOLDER 'path'` goes right after the name, as on every document. A `FOLDER` after the default value is the old position: it still parses and warns `MDL-DEPR134`, and `mxcli fmt --upgrade` moves it.
 
 ## Parameters
 
@@ -72,7 +75,7 @@ CREATE CONSTANT MyModule.DatabasePassword TYPE String DEFAULT '';
 CREATE CONSTANT MyModule.ApiBaseUrl TYPE String DEFAULT 'https://api.example.com';
 
 -- Override in a specific runtime configuration
-ALTER SETTINGS CONSTANT 'MyModule.ApiBaseUrl' VALUE 'https://staging.example.com' IN CONFIGURATION 'Staging';
+ALTER SETTINGS CONSTANT @MyModule.ApiBaseUrl VALUE 'https://staging.example.com' IN CONFIGURATION 'Staging';
 ```
 
 ### Shared and private values
@@ -92,7 +95,7 @@ belongs to the constant, and configurations just respect it:
 |-----------|----------------------|
 | `ALTER SETTINGS CONSTANT … VALUE …` | **refused** — setting a value would convert it to shared and publish a deliberately-local value into version control |
 | `ALTER SETTINGS DROP CONSTANT …` | allowed — removes the whole override, which is what was asked for |
-| `SHOW CONSTANT VALUES` | reports `(private)` rather than a blank cell |
+| `LIST CONSTANT VALUES` | reports `(private)` rather than a blank cell |
 | `DESCRIBE SETTINGS` | emits a comment, not a re-executable statement |
 
 To make a private value shared (or the reverse), change it in Studio Pro.

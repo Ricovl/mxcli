@@ -23,7 +23,7 @@ func init() {
 			"offline first", "nanoflow",
 		},
 		Syntax:  "SYNCHRONIZE ALL [ON ERROR ...];\nSYNCHRONIZE UNSYNCHRONIZED [ON ERROR ...];   -- Mendix 9.4+\nSYNCHRONIZE $Var[, $Var...] [ON ERROR ...];\n\nNanoflow only: in a microflow this is MDL057 / CE0009.",
-		Example: "CREATE NANOFLOW MyModule.NF_Sync ($Order: MyModule.Order)\nBEGIN\n  SYNCHRONIZE ALL;\n  SYNCHRONIZE UNSYNCHRONIZED;\n  SYNCHRONIZE $Order;\n  SYNCHRONIZE ALL ON ERROR WITHOUT ROLLBACK {\n    LOG ERROR 'sync failed';\n  };\nEND;",
+		Example: "CREATE NANOFLOW MyModule.NF_Sync ($Order: MyModule.Order)\nBEGIN\n  SYNCHRONIZE ALL;\n  SYNCHRONIZE UNSYNCHRONIZED;\n  SYNCHRONIZE $Order;\n  SYNCHRONIZE ALL ON ERROR WITHOUT ROLLBACK BEGIN\n    LOG ERROR 'sync failed';\n  END ERROR;\nEND;",
 		SeeAlso: []string{"microflow.nanoflow", "microflow.error-handling"},
 	})
 
@@ -117,7 +117,10 @@ func init() {
 			"loop", "while", "break", "continue", "return",
 			"conditional", "branch", "iterate",
 		},
-		Syntax:  "IF condition THEN\n  ...\nELSIF condition THEN\n  ...\nELSE\n  ...\nEND IF;\n\nLOOP $Item IN $List BEGIN ... END LOOP;\nWHILE condition BEGIN ... END WHILE;\nRETURN $Value;\nRETURN empty;",
+		Syntax: "IF condition THEN\n  ...\nELSIF condition THEN\n  ...\nELSE\n  ...\nEND IF;\n\nLOOP $Item IN $List BEGIN ... END LOOP;\nWHILE condition BEGIN ... END WHILE;\nRETURN $Value;\nRETURN empty;\n\n" +
+			"-- WHILE takes BEGIN and END WHILE like LOOP. Without the `mdl 1;` header both\n" +
+			"-- may still be left out, with a warning (MDL-V1-WHILE); under `mdl 1;` that\n" +
+			"-- is an error. `mxcli fmt --upgrade --header` inserts them.",
 		Example: "IF $Customer = empty THEN\n  LOG ERROR NODE 'Svc' 'Not found';\n  RETURN empty;\nELSIF $Customer/Active = false THEN\n  LOG WARNING 'Inactive customer';\nELSE\n  CHANGE $Customer (LastAccess = [%CurrentDateTime%]);\nEND IF;\n\nLOOP $Item IN $OrderLines BEGIN\n  COMMIT $Item;\nEND LOOP;",
 		SeeAlso: []string{"microflow.variables", "microflow.error-handling", "microflow.splits"},
 	})
@@ -160,7 +163,11 @@ func init() {
 			"rollback", "throw", "exception", "try", "catch",
 		},
 		Syntax: "COMMIT $Obj ON ERROR CONTINUE;\nCOMMIT $Obj ON ERROR ROLLBACK;\n" +
-			"COMMIT $Obj ON ERROR { <statements> };\nCOMMIT $Obj ON ERROR WITHOUT ROLLBACK { <statements> };\n\n" +
+			"COMMIT $Obj ON ERROR BEGIN <statements> END ERROR;\nCOMMIT $Obj ON ERROR WITHOUT ROLLBACK BEGIN <statements> END ERROR;\n\n" +
+			"-- The handler is flow, so it is BEGIN ... END ERROR like IF, LOOP and WHILE.\n" +
+			"-- The brace form `ON ERROR { ... }` still parses and warns MDL-DEPR540;\n" +
+			"-- `mxcli fmt --upgrade` rewrites it.\n" +
+			"--\n" +
 			"-- The clause goes on the ACTIVITY that may fail. Most statements take it:\n" +
 			"-- DECLARE, SET, CREATE, CHANGE, COMMIT, DELETE, RETRIEVE, every CALL,\n" +
 			"-- LOG, SHOW PAGE, CLOSE PAGE, SHOW MESSAGE, VALIDATION FEEDBACK,\n" +
@@ -189,7 +196,7 @@ func init() {
 			"-- flow, so a variable created after the merge is out of scope on the error\n" +
 			"-- path (CE0108). End the handler, or expect that.\n" +
 			"--\n" +
-			"-- An EMPTY handler `{ }` is not a no-op: it means \"on error, do whatever\n" +
+			"-- An EMPTY handler `BEGIN END ERROR` is not a no-op: it means \"on error, do whatever\n" +
 			"-- the enclosing branch does next\". Say where the path goes with JOIN.\n" +
 			"--\n" +
 			"-- RAISE ERROR re-raises the error being handled, so it belongs INSIDE an\n" +
@@ -198,9 +205,9 @@ func init() {
 			"-- the shape, and mxbuild rejects it with CE0710 \"The main flow cannot\n" +
 			"-- join an error flow or end in an error event.\". To fail deliberately\n" +
 			"-- from the main flow, call a Java action that throws.",
-		Example: "COMMIT $Order ON ERROR {\n  LOG ERROR 'Failed to save order';\n  RAISE ERROR;\n};\n\n" +
-			"COMMIT $Batch ON ERROR WITHOUT ROLLBACK {\n  LOG WARNING 'Batch save failed, continuing';\n};\n\n" +
-			"DECLARE $Name String = 'default' ON ERROR {\n  RETURN 'could not initialise';\n};",
+		Example: "COMMIT $Order ON ERROR BEGIN\n  LOG ERROR 'Failed to save order';\n  RAISE ERROR;\nEND ERROR;\n\n" +
+			"COMMIT $Batch ON ERROR WITHOUT ROLLBACK BEGIN\n  LOG WARNING 'Batch save failed, continuing';\nEND ERROR;\n\n" +
+			"DECLARE $Name String = 'default' ON ERROR BEGIN\n  RETURN 'could not initialise';\nEND ERROR;",
 		SeeAlso: []string{"microflow.control-flow"},
 	})
 
@@ -295,14 +302,14 @@ func init() {
 			"-- Forward and backward references both resolve, so declaration order is\n" +
 			"-- free. A backward one is how a retry loop is written:\n" +
 			"--   MERGE attempt;\n" +
-			"--   $r = CALL MICROFLOW M.Post() ON ERROR WITHOUT ROLLBACK { JOIN attempt; };\n" +
+			"--   $r = CALL MICROFLOW M.Post() ON ERROR WITHOUT ROLLBACK BEGIN JOIN attempt; END ERROR;\n" +
 			"--\n" +
 			"-- What this is FOR. Nested IF can only describe a graph whose branches\n" +
 			"-- pair up. Two cases do not:\n" +
 			"--   1. An ERROR path that rejoins the normal one somewhere other than the\n" +
 			"--      enclosing branch's own continuation. Without JOIN the only\n" +
 			"--      spellings are \"terminate\" and \"fall through\", and DESCRIBE used to\n" +
-			"--      emit an empty `{ }` for anything else — MDL that re-executes to a\n" +
+			"--      emit an empty handler for anything else — MDL that re-executes to a\n" +
 			"--      DIFFERENT graph, with no warning.\n" +
 			"--   2. Crossed branches: an inner split's branch landing where an outer\n" +
 			"--      split's branch lands. No nesting of IF reproduces that.\n" +
@@ -326,11 +333,11 @@ func init() {
 		Example: "CREATE MICROFLOW M.Post (Payload: String) RETURNS String\n" +
 			"BEGIN\n" +
 			"  DECLARE $Status String = 'sent';\n" +
-			"  $r = CALL MICROFLOW M.Send(Payload = $Payload) ON ERROR WITHOUT ROLLBACK {\n" +
+			"  $r = CALL MICROFLOW M.Send(Payload = $Payload) ON ERROR WITHOUT ROLLBACK BEGIN\n" +
 			"    LOG WARNING NODE 'M' 'send failed, degrading';\n" +
 			"    SET $Status = 'degraded';\n" +
 			"    JOIN recovered;\n" +
-			"  };\n" +
+			"  END ERROR;\n" +
 			"  JOIN recovered;\n" +
 			"  MERGE recovered;\n" +
 			"  RETURN $Status;\n" +
@@ -455,7 +462,7 @@ func init() {
 			"log", "logging", "info", "warning", "error", "debug",
 			"trace", "critical", "node", "message template",
 		},
-		Syntax:  "LOG LEVEL [NODE 'Name'] 'message';\nLOG LEVEL 'template {1}' WITH ({1} = $value);\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL",
+		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.",
 		Example: "LOG INFO NODE 'OrderService' 'Order created successfully';\nLOG WARNING 'Customer not found';\nLOG ERROR 'Failed to process {1}' WITH (\n  {1} = $OrderNumber\n);",
 	})
 
@@ -467,8 +474,8 @@ func init() {
 			"replace", "drop activity", "patch microflow", "splice", "handle",
 		},
 		Syntax: "ALTER MICROFLOW|NANOFLOW Module.Name {\n" +
-			"  INSERT AFTER|BEFORE <target> { <statements> }\n" +
-			"  REPLACE <target> WITH { <statements> }\n" +
+			"  INSERT AFTER|BEFORE <target> BEGIN <statements> END;\n" +
+			"  REPLACE <target> WITH BEGIN <statements> END;\n" +
 			"  DROP <target>;\n" +
 			"};\n\n" +
 			"-- <target> addresses one activity by content, as `describe microflow ... with handles` prints it:\n" +
@@ -482,13 +489,15 @@ func init() {
 			"-- Refused: insert after a decision, insert before an activity several flows enter,\n" +
 			"-- drop/replace of a decision or of an activity with an error handler, anything inside\n" +
 			"-- a loop body, a fragment that returns, and a fragment variable that clashes with one\n" +
-			"-- the flow has or reads one not declared on the path. Over --mcp only insert is supported.",
+			"-- the flow has or reads one not declared on the path. Over --mcp only insert is supported.\n" +
+			"-- A fragment is imperative flow, written as the body of `create microflow` is: BEGIN … END.\n" +
+			"-- The brace fragment `{ <statements> }` is the deprecated spelling MDL-DEPR074.",
 		Example: "alter microflow FeedbackModule.VAL_Feedback {\n" +
-			"  insert after $IsValidEmail { log info node 'Feedback' 'Email checked'; }\n" +
-			"  replace set $ValidFeedback = false @3 with {\n" +
+			"  insert after $IsValidEmail begin log info node 'Feedback' 'Email checked'; end;\n" +
+			"  replace set $ValidFeedback = false @3 with begin\n" +
 			"    set $ValidFeedback = false;\n" +
 			"    log warning node 'Feedback' 'Email rejected';\n" +
-			"  }\n" +
+			"  end;\n" +
 			"  drop log debug node 'Feedback' *;\n" +
 			"};",
 		SeeAlso: []string{"microflow"},
@@ -501,8 +510,8 @@ func init() {
 			"show page", "open page", "close page", "display page",
 			"navigate", "page action",
 		},
-		Syntax:  "SHOW PAGE Module.Page;\nSHOW PAGE Module.Page ($Param = $value);\nCLOSE PAGE;",
-		Example: "SHOW PAGE MyModule.OrderDetail ($Order = $NewOrder);\nCLOSE PAGE;",
+		Syntax:  "SHOW PAGE Module.Page;\nSHOW PAGE Module.Page (Param = $value);\nCLOSE PAGE;",
+		Example: "SHOW PAGE MyModule.OrderDetail (Order = $NewOrder);\nCLOSE PAGE;",
 		SeeAlso: []string{"page"},
 	})
 
@@ -592,8 +601,8 @@ func init() {
 			"validation", "feedback", "validation feedback",
 			"error message", "field error", "form validation",
 		},
-		Syntax:  "VALIDATION FEEDBACK $Obj/Attr MESSAGE 'error text';\nVALIDATION FEEDBACK $Obj/Attr MESSAGE '{1} is invalid'\n  OBJECTS [$Value];",
-		Example: "VALIDATION FEEDBACK $Order/Quantity MESSAGE 'Quantity must be positive';\nVALIDATION FEEDBACK $Customer/Email MESSAGE '{1} is not valid'\n  OBJECTS [$Customer/Email];",
+		Syntax:  "VALIDATION FEEDBACK $Obj/Attr MESSAGE 'error text';\nVALIDATION FEEDBACK $Obj/Attr MESSAGE '{1} is invalid'\n  WITH ({1} = $Value);",
+		Example: "VALIDATION FEEDBACK $Order/Quantity MESSAGE 'Quantity must be positive';\nVALIDATION FEEDBACK $Customer/Email MESSAGE '{1} is not valid'\n  WITH ({1} = $Customer/Email);",
 		SeeAlso: []string{"microflow.error-handling"},
 	})
 
@@ -610,6 +619,8 @@ func init() {
 			"@anchor(from: right, to: left)        -- which SIDE each end of the outgoing flow attaches to\n" +
 			"@curve(from: (40, -90), to: (-40, 90))  -- the flow's bezier control vectors\n" +
 			"@merge(x, y)                          -- the implicit merge that closes a split\n" +
+			"@anchor(from: bottom, to: top, true: (…), false: (…))  -- on an IF: to = its incoming flow,\n" +
+			"                                      -- from = the flow leaving its closing merge\n" +
 			"@caption 'text'\n@color Green\n@annotation 'a note'\n@excluded\n" +
 			"@applyentityaccess | @applyentityaccess(false)  -- DOCUMENT-level, before CREATE MICROFLOW/RULE\n" +
 			"@annotation(id: n1, text: 'a note', position: (x, y), size: (w, h))\n" +

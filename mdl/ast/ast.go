@@ -225,20 +225,43 @@ var MoveDocumentTypeByKeyword = map[string]DocumentType{
 	"ODATASERVICE":         DocumentTypeODataService,
 	"BUSINESSEVENTSERVICE": DocumentTypeBusinessEventService,
 	"MODEL":                DocumentTypeModel,
+	"AIMODEL":              DocumentTypeModel,
 	"AGENT":                DocumentTypeAgent,
 	"KNOWLEDGEBASE":        DocumentTypeKnowledgeBase,
 	"CONSUMEDMCPSERVICE":   DocumentTypeConsumedMCPService,
+	// The Studio Pro names (R10); the old spellings above stay as aliases.
+	"TASKQUEUE":             DocumentTypeQueue,
+	"CONSUMEDRESTSERVICE":   DocumentTypeRestClient,
+	"CONSUMEDODATASERVICE":  DocumentTypeODataClient,
+	"PUBLISHEDODATASERVICE": DocumentTypeODataService,
 }
 
 // IsMoveDocumentType reports whether spelling (lower-cased, spaced, e.g.
 // "json structure") names a doctype MOVE accepts.
+// Both the canonical spelling and a deprecated alias count ("task queue" and
+// "queue").
 func IsMoveDocumentType(spelling string) bool {
-	for _, docType := range MoveDocumentTypeByKeyword {
-		if strings.EqualFold(string(docType), spelling) {
-			return true
-		}
+	_, ok := MoveDocumentTypeByKeyword[strings.ToUpper(strings.ReplaceAll(spelling, " ", ""))]
+	return ok
+}
+
+// documentTypeStudioProNames spells the document types R10 renamed
+// (ako/mxcli#755) as Studio Pro names them. The DocumentType values keep the
+// old words because they are internal keys; this is what a user is shown.
+var documentTypeStudioProNames = map[DocumentType]string{
+	DocumentTypeQueue:        "task queue",
+	DocumentTypeRestClient:   "consumed rest service",
+	DocumentTypeODataClient:  "consumed odata service",
+	DocumentTypeODataService: "published odata service",
+}
+
+// CanonicalSpelling is the lower-case canonical MDL spelling of a document
+// type, for messages and advice ("consumed rest service", "json structure").
+func (d DocumentType) CanonicalSpelling() string {
+	if name, ok := documentTypeStudioProNames[d]; ok {
+		return name
 	}
-	return false
+	return strings.ToLower(string(d))
 }
 
 // MoveStmt represents: MOVE PAGE/MICROFLOW/SNIPPET/NANOFLOW/ENTITY/ENUMERATION Module.Name TO FOLDER 'path' IN Module

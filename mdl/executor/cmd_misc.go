@@ -92,7 +92,7 @@ Domain Model - Enumerations:
   );
 
   drop enumeration Module.Name;
-  show enumerations [in Module];
+  list enumerations [in Module];
   describe enumeration Module.Name;
 
 Domain Model - Entities:
@@ -112,7 +112,7 @@ Domain Model - Entities:
   /
 
   drop entity Module.Name;
-  show entities [in Module];
+  list entities [in Module];
   describe entity Module.Name;
 
 Domain Model - Associations:
@@ -121,11 +121,11 @@ Domain Model - Associations:
     to Module.Child
     type Reference|ReferenceSet
     [owner Default|Both|Parent|Child]
-    [delete_behavior DELETE_BUT_KEEP_REFERENCES|DELETE_AND_REFERENCES|DELETE_IF_NO_REFERENCES];
+    [on delete set null|cascade|restrict [error message '...']];
   /
 
   drop association Module.Name;
-  show associations [in Module];
+  list associations [in Module];
   describe association Module.Name;
 
 Microflows:
@@ -146,8 +146,8 @@ Microflows:
     change $Object (attr = value);
     commit $Object [with events] [refresh];
     retrieve $List from Module.Entity where condition;
-    $Var = call microflow Module.Name($param = value);
-    $Var = call java action Module.Name($param = value);
+    $Var = call microflow Module.Name(param = value);
+    $Var = call java action Module.Name(param = value);
     validation feedback $Var/Attr message 'Error';  -- Show validation error
     close page [n];                      -- Close page(s)
     log info|warning|error [node 'name'] 'message';
@@ -161,8 +161,8 @@ Microflows:
   /
 
   drop microflow Module.Name;
-  show microflows [in Module];
-  show nanoflows [in Module];
+  list microflows [in Module];
+  list nanoflows [in Module];
   describe microflow Module.Name;
 
 Pages, Snippets, Layouts, Java Actions:
@@ -170,17 +170,17 @@ Pages, Snippets, Layouts, Java Actions:
   drop page Module.Name;
   create [or replace] snippet Module.Name (...) { ... };
   drop snippet Module.Name;
-  show pages [in Module];
-  show snippets [in Module];
-  show layouts [in Module];
-  show java actions [in Module];
+  list pages [in Module];
+  list snippets [in Module];
+  list layouts [in Module];
+  list java actions [in Module];
   describe page Module.Name;
   describe snippet Module.Name;
 
 Widget Discovery and Bulk Updates (requires refresh catalog full):
   *** EXPERIMENTAL: Untested proof-of-concept. Use dry run first! ***
 
-  show widgets [where condition] [in Module];
+  list widgets [where condition] [in Module];
     where conditions: WidgetType like '%pattern%', Name = 'value'
 
   update widgets
@@ -190,13 +190,13 @@ Widget Discovery and Bulk Updates (requires refresh catalog full):
     [dry run];
 
   Examples:
-    show widgets where WidgetType like '%combobox%';
+    list widgets where WidgetType like '%combobox%';
     update widgets set 'showLabel' = false where WidgetType like '%DataGrid%' dry run;
 
   Always backup your project before applying changes without dry RUN.
 
 Catalog Queries:
-  show catalog tables;
+  list catalog tables;
   show catalog status;             Show cache information
   describe CATALOG.tablename;      Show table columns and required mode
   refresh catalog;                 Rebuild catalog (uses cache if valid)
@@ -224,10 +224,10 @@ Catalog Queries:
   To drop back to a cheaper level, delete .mxcli/catalog.db and refresh.
 
 Code Search (requires refresh catalog full):
-  show callers of Module.Microflow [transitive];
-  show callees of Module.Microflow [transitive];
-  show references to Module.Element;
-  show impact of Module.Element;
+  list callers of Module.Microflow [transitive];
+  list callees of Module.Microflow [transitive];
+  list references to Module.Element;
+  list impact of Module.Element;
   show context of Module.Element [depth n];  -- Assemble context for LLM
 
 Security - Roles:
@@ -243,45 +243,45 @@ Security - Access Control:
   revoke execute on microflow Module.Name from Role [, Role...];
   grant view on page Module.Name to Role [, Role...];
   revoke view on page Module.Name from Role [, Role...];
-  grant Role on Module.Entity (create, delete, read *, write *) [where 'xpath'];
+  grant create, delete, read *, write * on entity Module.Entity to Role [, Role...] [where [xpath]];
   revoke Role on Module.Entity;
 
 Security - Project Settings:
-  alter project security level off|prototype|production;
-  alter project security demo users on|off;
-  alter project security guest access on role <UserRole>|off;
+  alter app security ( SecurityLevel: off|prototype|production );
+  alter app security ( EnableDemoUsers: true|false, StrictMode: true|false );
+  alter app security ( EnableGuestAccess: true|false [, GuestUserRole: <UserRole>] );
   create demo user 'name' password 'pass' (UserRole [, ...]);
   drop demo user 'name';
 
 Security - Queries:
   show project security;
-  show module roles [in Module];
-  show user roles;
-  show demo users;
-  show access on microflow Module.Name;
-  show access on page Module.Name;
-  show access on Module.Entity;
+  list module roles [in Module];
+  list user roles;
+  list demo users;
+  list access on microflow Module.Name;
+  list access on page Module.Name;
+  list access on Module.Entity;
   show security matrix [in Module];
   describe module role Module.Role;
   describe user role Name;
   describe demo user 'name';
 
 Navigation:
-  show navigation;
-  show navigation menu [Profile];
-  show navigation homes;
+  list navigation;
+  list navigation menu [Profile];
+  list navigation homes;
   describe navigation Profile;
   create or modify navigation Profile
     home page Module.Page
     [home page Module.Page for UserRole]
     [login page Module.Page]
     [not found page Module.Page]
-    [menu (
-      menu item 'Caption' page Module.Page;
-      menu 'SubMenu' (
-        menu item 'Child' microflow Module.Flow;
-      );
-    )];
+    [{
+      menu item 'Caption' ( OnClick: show page Module.Page )
+      menu 'SubMenu' {
+        menu item 'Child' ( OnClick: call microflow Module.Flow )
+      }
+    }];
 
 Data Types:
   String[(length)]  Integer  Long  Decimal[(p,s)]
@@ -294,7 +294,7 @@ Scripts:
 Modules:
   create module Name;
   drop module Name;                -- Cascade-deletes all contents
-  show modules;
+  list modules;
 
 External sql:
   sql connect <driver> '<dsn>' as <alias>;
@@ -338,11 +338,10 @@ Image Collections:
   create image collection Module.Name
     [export level 'Hidden'|'Public']
     [comment 'description']
-    [(image Name from file 'path', ...)];
-  /
+    [{ image Name ( File: 'path' ) ... }];
 
   drop image collection Module.Name;
-  show image collection [in Module];
+  list image collections [in Module];
   describe image collection Module.Name;
 
 Other:

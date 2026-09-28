@@ -44,9 +44,9 @@ create constant AgentTest."KBKey"
 -- LEVEL 1: Model (prerequisite for Agents)
 -- ============================================================================
 
-create model AgentTest."TestModel" (
+create ai model AgentTest."TestModel" (
   Provider: MxCloudGenAI,
-  key: AgentTest.ModelKey
+  key: @AgentTest.ModelKey
 );
 /
 
@@ -56,7 +56,7 @@ create model AgentTest."TestModel" (
 
 create knowledge base AgentTest."ProductDocs" (
   Provider: MxCloudGenAI,
-  key: AgentTest.KBKey
+  key: @AgentTest.KBKey
 );
 /
 
@@ -132,17 +132,17 @@ create agent AgentTest."ResearchAssistant" (
   UserPrompt: 'Find information about quantum computing.'
 )
 {
-  mcp service AgentTest.WebSearch {
+  mcp service AgentTest.WebSearch (
     Enabled: true
-  }
+  )
 
-  knowledge base ProductKB {
+  knowledge base ProductKB (
     source: AgentTest.ProductDocs,
     collection: 'product-docs',
     MaxResults: 5,
     description: 'Product documentation',
     Enabled: true
-  }
+  )
 };
 /
 
@@ -151,12 +151,12 @@ create agent AgentTest."ResearchAssistant" (
 -- ============================================================================
 
 list agents in AgentTest;
-list models in AgentTest;
+list ai models in AgentTest;
 list knowledge bases in AgentTest;
 list consumed mcp services in AgentTest;
 
 describe agent AgentTest.ResearchAssistant;
-describe model AgentTest.TestModel;
+describe ai model AgentTest.TestModel;
 describe knowledge base AgentTest.ProductDocs;
 describe consumed mcp service AgentTest.WebSearch;
 
@@ -168,16 +168,16 @@ describe consumed mcp service AgentTest.WebSearch;
 -- The existing document is updated in-place and its UUID is preserved.
 -- Re-run-safe: creates the document if absent, updates it if present.
 
-create or modify model AgentTest."TestModel" (
+create or modify ai model AgentTest."TestModel" (
   Provider: MxCloudGenAI,
-  key: AgentTest.ModelKey,
+  key: @AgentTest.ModelKey,
   DisplayName: 'Updated Model Name'
 );
 /
 
 create or modify knowledge base AgentTest."ProductDocs" (
   Provider: MxCloudGenAI,
-  key: AgentTest.KBKey
+  key: @AgentTest.KBKey
 );
 /
 
@@ -209,7 +209,7 @@ create or modify agent AgentTest."ResearchAssistant" (
 -- Agent additionally supports ADD/DROP for tools, MCP services, and KBs.
 
 -- SET scalar properties on Model.
-alter model AgentTest.TestModel
+alter ai model AgentTest.TestModel
     set DisplayName = 'GPT-4 Turbo', KeyName = 'OPENAI_KEY';
 
 -- SET scalar properties on Knowledge Base.
@@ -224,8 +224,8 @@ alter consumed mcp service AgentTest.WebSearch
 -- Add a TOOL (Microflow), MCP SERVICE, and KNOWLEDGE BASE in one statement.
 alter agent AgentTest.ResearchAssistant
     set SystemPrompt = 'Updated assistant prompt.', Temperature = 0.7, MaxTokens = 4096
-    add knowledge base ExtraDocs { Source: AgentTest.ProductDocs, Collection: 'extra', MaxResults: 3 }
-    add mcp service AgentTest.WebSearch { Description: 'web search', Enabled: true };
+    add knowledge base ExtraDocs ( Source: AgentTest.ProductDocs, Collection: 'extra', MaxResults: 3 )
+    add mcp service AgentTest.WebSearch ( Description: 'web search', Enabled: true );
 
 -- ALTER AGENT: drop collection entries (TOOL by name, MCP SERVICE by
 -- qualified name, KNOWLEDGE BASE by per-agent name).
@@ -243,5 +243,5 @@ drop agent AgentTest.Translator;
 drop agent AgentTest.Summarizer;
 drop consumed mcp service AgentTest.WebSearch;
 drop knowledge base AgentTest.ProductDocs;
-drop model AgentTest.TestModel;
+drop ai model AgentTest.TestModel;
 /

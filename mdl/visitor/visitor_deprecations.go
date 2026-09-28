@@ -131,58 +131,110 @@ func (b *Builder) recordCreateOrReplace(ctx *parser.CreateStatementContext) {
 	b.recordDeprecation(deprecation.CreateOrReplace, ctx.REPLACE().GetSymbol(), kind)
 }
 
-// showNotYetList lists the showStatement forms whose decided canonical form is
-// NOT `list` (PROPOSAL_mdl_beta_syntax_freeze.md §3, R6): a single thing
-// becomes `describe`, session state a REPL command. Keyed on the token after
-// `show` (CATALOG only with STATUS, see showCanonicalIsList). `list` builds the
-// same statement for these today, but it is not their canonical form, so
-// recommending it would name the wrong form and make `fmt --upgrade` rewrite
-// them twice. They get their own registry entries once the canonical forms
-// exist (plan item 3.5). Pinned by TestShowRecordsDeprecation.
-var showNotYetList = map[int]bool{
-	parser.MDLParserENTITY:      true, // show entity X      -> describe entity X
-	parser.MDLParserASSOCIATION: true, // show association X -> describe association X
-	parser.MDLParserPAGE:        true, // show page X        -> describe page X
-	parser.MDLParserNAVIGATION:  true, // show navigation …  -> describe navigation
-	parser.MDLParserSTRUCTURE:   true, // show structure     -> describe structure
-	parser.MDLParserCONTEXT:     true, // show context of X  -> describe context of X
-	parser.MDLParserPROJECT:     true, // show project security -> describe app security
-	parser.MDLParserSECURITY:    true, // show security matrix  -> describe security matrix
-	parser.MDLParserSETTINGS:    true, // show settings      -> describe (one thing)
-	parser.MDLParserVERSION:     true, // session state      -> REPL command (R7)
-	parser.MDLParserSTATUS:      true, // session state      -> REPL command (R7)
-	parser.MDLParserCONNECTIONS: true, // session state      -> REPL command (R7)
+// showKind is what the showStatement that follows `show` is, for R6
+// (PROPOSAL_mdl_beta_syntax_freeze.md §3): a plural, a relationship query or a
+// summary table, whose canonical verb is `list` (MDL-DEPR002); a single thing
+// whose describe is the same statement (MDL-DEPR090); a summary of one element
+// that no mdl 1 statement prints (MDL-V1-SHOWSUMMARY); or session state, a
+// session command (R7, MDL-V1-SESSION). Pinned by TestShowRecordsDeprecation,
+// TestR6OldVerbsAreAliases, TestR6ShowSummaryTablesAreListed,
+// TestR6ShowSummaryOfOneElementIsRemovedUnderMdl1 and
+// TestShowSessionStateIsASessionCommand.
+type showKind int
+
+const (
+	showIsList showKind = iota
+	showIsDescribe
+	showIsSummary
+	showIsSession
+)
+
+// showDescribeFirst lists the tokens after `show` that name one thing whose
+// describe is the same statement.
+var showDescribeFirst = map[int]bool{
+	parser.MDLParserPAGE:      true, // show page X          -> describe page X
+	parser.MDLParserSTRUCTURE: true, // show structure       -> describe structure
+	parser.MDLParserCONTEXT:   true, // show context of X    -> describe context of X
+	parser.MDLParserPROJECT:   true, // show project security -> describe app security
+	parser.MDLParserSECURITY:  true, // show security matrix -> describe security matrix
 }
 
-// showCanonicalIsList reports whether the showStatement that ctx starts is a
-// form whose canonical spelling is `list` (plurals and relationship queries).
-func showCanonicalIsList(ctx *parser.ShowOrListContext) bool {
+// showSummaryFirst lists the tokens after `show` that name one element and
+// print a summary of it. `describe` prints the definition as MDL instead, so
+// the summary is not an alias of it; it is removed under mdl 1.
+//
+// `show navigation [menu]` and `show settings` are not here: their tables list
+// the navigation profiles, the menu items and the settings sections, so their
+// canonical verb is `list`, the same statement (ako/mxcli#755).
+var showSummaryFirst = map[int]bool{
+	parser.MDLParserENTITY:      true,
+	parser.MDLParserASSOCIATION: true,
+}
+
+// showSession lists the session-state forms (R7).
+var showSession = map[int]bool{
+	parser.MDLParserVERSION:     true,
+	parser.MDLParserSTATUS:      true,
+	parser.MDLParserCONNECTIONS: true,
+}
+
+// showStatementKind classifies the showStatement that ctx starts.
+func showStatementKind(ctx *parser.ShowOrListContext) showKind {
 	stmt, ok := ctx.GetParent().(*parser.ShowStatementContext)
 	if !ok || stmt.GetChildCount() < 2 {
-		return true
+		return showIsList
 	}
-	next := func(i int) int {
-		if i >= stmt.GetChildCount() {
-			return antlr.TokenInvalidType
+	first := tokenTypeAt(stmt, 1)
+	switch {
+	case first == parser.MDLParserCATALOG:
+		if tokenTypeAt(stmt, 2) == parser.MDLParserSTATUS {
+			return showIsSession // catalog status is session state
 		}
-		if tn, ok := stmt.GetChild(i).(antlr.TerminalNode); ok {
-			return tn.GetSymbol().GetTokenType()
-		}
-		return antlr.TokenInvalidType
+		return showIsList
+	case showSession[first]:
+		return showIsSession
+	case showDescribeFirst[first]:
+		return showIsDescribe
+	case showSummaryFirst[first]:
+		return showIsSummary
 	}
-	first := next(1)
-	if first == parser.MDLParserCATALOG {
-		return next(2) != parser.MDLParserSTATUS // catalog status is session state
-	}
-	return !showNotYetList[first]
+	return showIsList
 }
 
-// ExitShowOrList records MDL-DEPR002 for `show` where its canonical form is
-// `list`. showOrList is used only by showStatement, where `show` and `list`
+// tokenTypeAt is the token type of stmt's i-th child, or TokenInvalidType when
+// it is not a terminal.
+func tokenTypeAt(stmt antlr.ParserRuleContext, i int) int {
+	if i >= stmt.GetChildCount() {
+		return antlr.TokenInvalidType
+	}
+	if tn, ok := stmt.GetChild(i).(antlr.TerminalNode); ok {
+		return tn.GetSymbol().GetTokenType()
+	}
+	return antlr.TokenInvalidType
+}
+
+// ExitShowOrList records the deprecated `show`: MDL-DEPR002 where its
+// canonical form is `list`, MDL-DEPR090 where it is `describe` (for `list`
+// as well: a single thing is described, not listed). A one-element summary
+// and session state are gated instead: they have no canonical spelling in the
+// language. showOrList is used only by showStatement, where `show` and `list`
 // build the same statement.
 func (b *Builder) ExitShowOrList(ctx *parser.ShowOrListContext) {
-	if ctx == nil || ctx.SHOW() == nil || !showCanonicalIsList(ctx) {
+	if ctx == nil {
 		return
 	}
-	b.recordDeprecation(deprecation.Show, ctx.SHOW().GetSymbol(), "")
+	switch showStatementKind(ctx) {
+	case showIsList:
+		if ctx.SHOW() != nil {
+			b.recordDeprecation(deprecation.Show, ctx.SHOW().GetSymbol(), "")
+		}
+		b.recordSingularCollection(ctx)
+	case showIsDescribe:
+		// `list page X` names one thing too, so it is reported with `show`.
+		b.recordShowSingleThing(ctx)
+	case showIsSummary:
+		b.gateShowSummary(ctx)
+	case showIsSession:
+		b.gateShowSession(ctx)
+	}
 }

@@ -37,12 +37,12 @@ begin
   show message 'hi';
 end;
 
-create or replace page MyFirstModule.OnClick (
+create or modify page MyFirstModule.OnClick (
   title: 'c', layout: 'Atlas_Core.Atlas_Default'
 ) {
   listview lvClick (
     DataSource: database from MyFirstModule.Thing,
-    Action: microflow MyFirstModule.ACT_Nothing
+    Action: call microflow MyFirstModule.ACT_Nothing
   ) {
     dynamictext dt (Content: 'x')
   }

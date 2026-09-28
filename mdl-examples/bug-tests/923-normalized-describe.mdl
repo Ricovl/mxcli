@@ -30,7 +30,7 @@
 
 CREATE MODULE Mode3;
 /
-CREATE OR REPLACE MICROFLOW Mode3.MF_Orig (A: Boolean, B: Boolean) RETURNS String
+CREATE OR MODIFY MICROFLOW Mode3.MF_Orig (A: Boolean, B: Boolean) RETURNS String
 BEGIN
   DECLARE $Result String = 'skipped';
   IF $A THEN

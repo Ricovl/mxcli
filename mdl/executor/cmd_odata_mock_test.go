@@ -95,8 +95,8 @@ func TestDescribeODataClient_Mock(t *testing.T) {
 	assertNoError(t, describeODataClient(ctx, ast.QualifiedName{Module: "MyModule", Name: "PetStoreClient"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create odata client")
-	assertNotContainsStr(t, out, "create or modify odata client") // safe refusal until its carry is proven (ADR-0012)
+	// The rewrite carries what describe cannot print, proven on ako/TestApp (#743).
+	assertContainsStr(t, out, "create or modify consumed odata service MyModule.PetStoreClient")
 	assertContainsStr(t, out, "MyModule.PetStoreClient")
 	assertContainsStr(t, out, "https://example.com/$metadata")
 	assertContainsStr(t, out, "2.0")
@@ -193,7 +193,7 @@ func TestDescribeODataService_Mock(t *testing.T) {
 
 	out := buf.String()
 	// The carry is proven by TestTestAppRoundTrip on ako/TestApp's services (#743).
-	assertContainsStr(t, out, "create or modify odata service")
+	assertContainsStr(t, out, "create or modify published odata service")
 	assertContainsStr(t, out, "MyModule.CatalogService")
 }
 

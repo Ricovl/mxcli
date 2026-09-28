@@ -4,6 +4,7 @@ package visitor
 
 import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
@@ -49,7 +50,10 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 				}
 
 				name := buildQualifiedName(qn)
-				ids := ctx.AllIDENTIFIER()
+				var ids []string
+				for _, v := range ctx.AllEnumValueName() {
+					ids = append(ids, unquoteIdentifier(v.GetText()))
+				}
 
 				if ctx.ADD() != nil && len(ids) >= 1 {
 					caption := ""
@@ -59,7 +63,7 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
 						Name:        name,
 						Operation:   ast.AlterEnumAdd,
-						ValueName:   ids[0].GetText(),
+						ValueName:   ids[0],
 						Caption:     caption,
 						IfNotExists: ctx.IfNotExists() != nil,
 					})
@@ -67,21 +71,32 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
 						Name:      name,
 						Operation: ast.AlterEnumDrop,
-						ValueName: ids[0].GetText(),
+						ValueName: ids[0],
 						IfExists:  ctx.IfExists() != nil,
 					})
 				} else if ctx.RENAME() != nil && ctx.VALUE() != nil && len(ids) >= 2 {
 					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
 						Name:      name,
 						Operation: ast.AlterEnumRename,
-						ValueName: ids[0].GetText(),
-						NewName:   ids[1].GetText(),
+						ValueName: ids[0],
+						NewName:   ids[1],
+					})
+				} else if ctx.SET() != nil && ctx.STRING_LITERAL() != nil && (ctx.DOCUMENTATION() != nil || ctx.COMMENT() != nil) {
+					// SET DOCUMENTATION; SET COMMENT is its deprecated spelling
+					// (R9, MDL-DEPR135). Neither built a statement before.
+					if ctx.COMMENT() != nil {
+						b.recordDeprecation(deprecation.SetComment, ctx.COMMENT().GetSymbol(), "")
+					}
+					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
+						Name:          name,
+						Operation:     ast.AlterEnumSetDocumentation,
+						Documentation: unquoteStringLit(ctx.STRING_LITERAL()),
 					})
 				} else if ctx.MODIFY() != nil && ctx.VALUE() != nil && ctx.CAPTION() != nil && len(ids) >= 1 && ctx.STRING_LITERAL() != nil {
 					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
 						Name:      name,
 						Operation: ast.AlterEnumModifyCaption,
-						ValueName: ids[0].GetText(),
+						ValueName: ids[0],
 						Caption:   unquoteStringLit(ctx.STRING_LITERAL()),
 					})
 				}
@@ -108,18 +123,30 @@ func (b *Builder) ExitCreateConstantStatement(ctx *parser.CreateConstantStatemen
 		stmt.DefaultValue = extractLiteralValue(lit)
 	}
 
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
+
+	// `folder '…'` after the name (R9); a trailing `folder` option is its old
+	// position and, being later, wins when both are written.
+	if lit := ctx.STRING_LITERAL(); lit != nil && ctx.FOLDER() != nil {
+		stmt.Folder = unquoteStringLit(lit)
+	}
+
 	// Handle options (COMMENT, FOLDER, EXPOSED TO CLIENT)
 	if opts := ctx.ConstantOptions(); opts != nil {
 		optsCtx := opts.(*parser.ConstantOptionsContext)
 		for _, opt := range optsCtx.AllConstantOption() {
 			optCtx := opt.(*parser.ConstantOptionContext)
-			if optCtx.COMMENT() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Comment = unquoteStringLit(optCtx.STRING_LITERAL())
+			if c := optCtx.COMMENT(); c != nil && optCtx.STRING_LITERAL() != nil {
+				// R9: `comment '…'` is the documentation, which a doc
+				// comment also states; the clause wins, as it always has.
+				text := unquoteStringLit(optCtx.STRING_LITERAL())
+				b.recordDocumentationClause(ctx, c.GetSymbol(), optCtx.STRING_LITERAL().GetSymbol(), text, true)
+				stmt.Documentation, stmt.DocumentationSet = text, true
 			}
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
 				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
-			} else if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
+				b.recordFolderClausePosition(ctx.QualifiedName(), optCtx.FOLDER().GetSymbol(),
+					optCtx.STRING_LITERAL().GetSymbol(), ctx.FOLDER() != nil || countFolderOptions(optsCtx) > 1)
 			} else if optCtx.EXPOSED() != nil {
 				stmt.ExposedToClient = true
 			}
@@ -133,7 +160,6 @@ func (b *Builder) ExitCreateConstantStatement(ctx *parser.CreateConstantStatemen
 			stmt.CreateOrModify = true
 		}
 	}
-	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 
 	b.statements = append(b.statements, stmt)
 }

@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"testing"
+
+	mdlast "github.com/mendixlabs/mxcli/mdl/ast"
 )
 
 // projectCheckExemptDocTypes lists the doc types stmtCreateInfo can return that
@@ -95,7 +97,7 @@ func docTypesFromSwitch(t *testing.T, funcName, kind string) map[string]bool {
 //
 // Nothing compared the two switches, so the gap was silent. This does.
 func TestEveryCreateDocTypeIsProjectChecked(t *testing.T) {
-	created := docTypesFromSwitch(t, "stmtCreateInfo", "return")
+	created := docTypesFromSwitch(t, "stmtCreateKind", "return")
 	checked := docTypesFromSwitch(t, "setFor", "case")
 
 	var missing []string
@@ -136,7 +138,7 @@ func TestEveryCreateDocTypeIsProjectChecked(t *testing.T) {
 // type DROP knows and CREATE does not is harmless, but the reverse means a
 // `drop X; create X;` pair reports a conflict the script already resolved.
 func TestEveryDropDocTypeIsCreatable(t *testing.T) {
-	created := docTypesFromSwitch(t, "stmtCreateInfo", "return")
+	created := docTypesFromSwitch(t, "stmtCreateKind", "return")
 	dropped := docTypesFromSwitch(t, "stmtDropInfo", "return")
 
 	var missing []string
@@ -161,93 +163,34 @@ func TestEveryDropDocTypeIsCreatable(t *testing.T) {
 // was told its `create entity if not exists` conflicted with the project, for
 // a statement exec skips with "already exists — skipped".
 //
-// The guard reads both sides out of source: every `case *ast.XStmt` in
-// stmtCreateInfo whose AST type declares an IfNotExists field must mention
-// IfNotExists in that case's return. Neither list is restated here.
+// Since #731 every document kind carries the guard (ast.CreateGuard), and
+// stmtCreateInfo reads it once for all of them. This walks every known
+// statement type rather than restating a list: each one that carries the guard
+// and is classified as a create must count as idempotent once guarded — and,
+// as the control, not before.
 func TestIfNotExistsCountsAsIdempotent(t *testing.T) {
-	// Which mdl/ast CREATE types declare an IfNotExists field.
-	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, "../ast", nil, 0)
-	if err != nil {
-		t.Fatalf("parse mdl/ast: %v", err)
-	}
-	hasIfNotExists := map[string]bool{}
-	for _, pkg := range pkgs {
-		for _, f := range pkg.Files {
-			ast.Inspect(f, func(n ast.Node) bool {
-				ts, ok := n.(*ast.TypeSpec)
-				if !ok {
-					return true
-				}
-				st, ok := ts.Type.(*ast.StructType)
-				if !ok || st.Fields == nil {
-					return true
-				}
-				for _, fld := range st.Fields.List {
-					for _, nm := range fld.Names {
-						if nm.Name == "IfNotExists" {
-							hasIfNotExists[ts.Name.Name] = true
-						}
-					}
-				}
-				return true
-			})
-		}
-	}
-	if len(hasIfNotExists) == 0 {
-		t.Fatal("found no mdl/ast type with an IfNotExists field — the guard would pass vacuously")
-	}
-
-	// Which of them stmtCreateInfo handles, and whether its case consults the field.
-	fset2 := token.NewFileSet()
-	f, err := parser.ParseFile(fset2, "validate_duplicates.go", nil, 0)
-	if err != nil {
-		t.Fatalf("parse validate_duplicates.go: %v", err)
-	}
-	var fn *ast.FuncDecl
-	for _, d := range f.Decls {
-		if fd, ok := d.(*ast.FuncDecl); ok && fd.Name.Name == "stmtCreateInfo" {
-			fn = fd
-			break
-		}
-	}
-	if fn == nil {
-		t.Fatal("stmtCreateInfo not found")
-	}
-
 	checked := 0
-	ast.Inspect(fn, func(n ast.Node) bool {
-		c, ok := n.(*ast.CaseClause)
+	for _, stmt := range allKnownStatements() {
+		g, ok := stmt.(mdlast.IfNotExistsCreate)
 		if !ok {
-			return true
+			continue
 		}
-		for _, e := range c.List {
-			star, ok := e.(*ast.StarExpr)
-			if !ok {
-				continue
-			}
-			sel, ok := star.X.(*ast.SelectorExpr)
-			if !ok || !hasIfNotExists[sel.Sel.Name] {
-				continue
-			}
-			checked++
-			consulted := false
-			ast.Inspect(c, func(m ast.Node) bool {
-				if id, ok := m.(*ast.Ident); ok && id.Name == "IfNotExists" {
-					consulted = true
-				}
-				return true
-			})
-			if !consulted {
-				t.Errorf("stmtCreateInfo case *ast.%s ignores its IfNotExists field: "+
-					"`create ... if not exists` on an element the project already has would be "+
-					"reported as a conflict, for a statement exec cleanly skips. "+
-					"Return `s.CreateOrModify || s.IfNotExists`.", sel.Sel.Name)
-			}
+		dt, _, before := stmtCreateInfo(stmt)
+		if dt == "" {
+			continue // not a create the duplicate checks track
 		}
-		return true
-	})
+		checked++
+		if before {
+			t.Errorf("%T counts as idempotent without any guard — the control is void", stmt)
+			continue
+		}
+		g.SetCreateIfNotExists(false)
+		if _, _, after := stmtCreateInfo(stmt); !after {
+			t.Errorf("%T: `create … if not exists` is not idempotent to stmtCreateInfo: "+
+				"it would be reported as a conflict for a statement exec cleanly skips", stmt)
+		}
+	}
 	if checked == 0 {
-		t.Fatal("stmtCreateInfo handles no type with an IfNotExists field — the guard would pass vacuously")
+		t.Fatal("no guarded create statement is classified by stmtCreateInfo — the guard would pass vacuously")
 	}
 }

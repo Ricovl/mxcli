@@ -11,7 +11,7 @@
 -- NF_ParamDerived emits none because its parameters sit exactly where the layout
 -- put them.
 
-create or replace nanoflow MyFirstModule.NF_ParamPos (
+create or modify nanoflow MyFirstModule.NF_ParamPos (
   @position(300, 100)
   $A: Integer,
   @position(200, 100)
@@ -29,7 +29,7 @@ end;
 -- 200;53 and 300;53. DESCRIBE must emit no @position for either, or every
 -- rewritten flow would come back with its parameters pinned to the grid they
 -- happened to be on (the #951 failure, one node family over).
-create or replace nanoflow MyFirstModule.NF_ParamDerived (
+create or modify nanoflow MyFirstModule.NF_ParamDerived (
   $A: Integer,
   $B: Integer
 )
@@ -42,7 +42,7 @@ begin
 end;
 
 -- Microflows and rules share the parameter grammar, so they take it too.
-create or replace microflow MyFirstModule.MF_ParamPos (
+create or modify microflow MyFirstModule.MF_ParamPos (
   @position(140, -60)
   $A: Integer
 )
@@ -54,7 +54,7 @@ begin
   return $R;
 end;
 
-create or replace rule MyFirstModule.RL_ParamPos (
+create or modify rule MyFirstModule.RL_ParamPos (
   @position(60, -40)
   $A: Integer
 )

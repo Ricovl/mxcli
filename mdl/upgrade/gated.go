@@ -33,6 +33,7 @@ var gatedRewriters = map[string]GatedRewriter{
 	"MDL-V1-SET":       visitorFix, // `$x = e` -> `set $x = e`
 	"MDL-V1-LIST":      visitorFix, // call form -> statement form, or `set` for the string function
 	"MDL-V1-REPLACE02": visitorFix, // `create or replace user role` (a plain create) -> `create user role`
+	"MDL-V1-WHILE":     visitorFix, // insert the missing `begin` and `while` after `end`
 }
 
 // unrewritable lists the changes with no mechanical rewrite at all, and why.
@@ -46,6 +47,12 @@ var unrewritable = map[string]string{
 	"MDL-V1-REPLACE01": "`create or replace view entity` drops and recreates the view entity under mdl 0, " +
 		"which no mdl 1 statement does: write `create or modify view entity` to keep its identity, or " +
 		"`drop entity` then `create view entity` to discard it",
+	"MDL-V1-SESSION": "a session command (`connect`, `set format`, `status`, `help`, …) is refused in an mdl 1 " +
+		"script, and no model statement does what it does: move it out of the script, to the command line " +
+		"(`-p app.mpr` to connect, `--json` for the output format) or the REPL",
+	"MDL-V1-SHOWSUMMARY": "`show entity X` / `show association X` print a summary no mdl 1 statement prints: " +
+		"`describe` prints the definition as MDL and `list entities` / `list associations` the summary columns, so " +
+		"either would change the script's output; choose one by hand",
 }
 
 // visitorFix applies the rewrite the visitor computed from the parse tree when

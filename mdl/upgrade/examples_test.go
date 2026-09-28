@@ -46,21 +46,20 @@ func exampleScripts(t *testing.T) []string {
 }
 
 // fmtUpgrade is what `mxcli fmt --upgrade` writes: the upgrade rewrites and
-// nothing else. It deliberately does not run formatter.Format, whose keyword
-// upper-casing changes identifiers (see TestFormatterChangesMeaning).
+// nothing else. It does not run formatter.Format, whose line normalisation is
+// a separate choice (`fmt` without --upgrade).
 func fmtUpgrade(src string, opts Options) (string, Result, error) {
 	res, err := Upgrade(src, opts)
 	return res.Source, res, err
 }
 
-// TestFormatterChangesMeaning records why `fmt --upgrade` does not compose with
-// the heuristic formatter: formatter.Format upper-cases every word on its
-// keyword list, identifiers included (`Issue64.User` becomes `Issue64.USER`),
-// so it changes what a script builds. Plan item 3.2 (lowercase canonical)
-// replaces it. When this test starts failing, the formatter is safe and
-// fmt --upgrade may format as well.
-func TestFormatterChangesMeaning(t *testing.T) {
-	changed := 0
+// TestFormatterKeepsMeaning: formatter.Format must build exactly what the
+// script built. It used to upper-case every word on a keyword list, names
+// included (`Issue64.User` became `Issue64.USER`), and changed what 50-odd
+// example scripts built; lowercase-canonical keywords from the parse tree
+// (R8, ako/mxcli#752) change only the case of syntax.
+func TestFormatterKeepsMeaning(t *testing.T) {
+	checked := 0
 	for _, path := range exampleScripts(t) {
 		b, err := os.ReadFile(path)
 		if err != nil {
@@ -70,14 +69,23 @@ func TestFormatterChangesMeaning(t *testing.T) {
 		if len(errs) > 0 {
 			continue
 		}
-		got, errs := visitor.Build(formatter.Format(string(b)))
-		if len(errs) > 0 || !reflect.DeepEqual(want.Statements, got.Statements) {
-			changed++
+		checked++
+		formatted := formatter.Format(string(b))
+		got, errs := visitor.Build(formatted)
+		if len(errs) > 0 {
+			t.Errorf("%s: formatted script does not parse: %v", path, errs[0])
+			continue
+		}
+		if !reflect.DeepEqual(want.Statements, got.Statements) {
+			t.Errorf("%s: formatter.Format changes what the script builds", path)
+			continue
+		}
+		if again := formatter.Format(formatted); again != formatted {
+			t.Errorf("%s: formatter.Format is not idempotent", path)
 		}
 	}
-	t.Logf("formatter.Format changes what %d example scripts build", changed)
-	if changed == 0 {
-		t.Error("formatter.Format no longer changes any example's statements: let fmt --upgrade format too, and drop this test")
+	if checked < 100 {
+		t.Fatalf("checked only %d scripts", checked)
 	}
 }
 
@@ -113,6 +121,12 @@ var keepsItsVersion = map[string][]string{
 	// parameter) instead of the template text. Measured by the execute-both
 	// test before this entry was made.
 	"bug-tests/264-log-node-expression-roundtrip.mdl": {"MDL-V1-ESCAPE"},
+	// Scripts that exercise session commands — `help <topic>` and `lint` —
+	// which are REPL commands under mdl 1 (R7, ako/mxcli#755). They test the
+	// commands, so they stay mdl 0 scripts rather than lose what they test.
+	"bug-tests/904-lint-rules-discovery.mdl":    {"MDL-V1-SESSION"},
+	"bug-tests/syntax-1025-topic-drilldown.mdl": {"MDL-V1-SESSION"},
+	"doctype-tests/20-help-examples.mdl":        {"MDL-V1-SESSION"},
 }
 
 // buildsTheSameModelNotTheSameAST lists the example scripts whose upgrade
@@ -204,9 +218,12 @@ func TestUpgrade_ExamplesKeepTheirStatements(t *testing.T) {
 				t.Errorf("%s (%+v): upgraded output does not parse: %v", path, opts, errs[0])
 				continue
 			}
-			if len(got.Deprecations) > 0 {
-				t.Errorf("%s (%+v): upgraded output still records %d deprecation(s), first %s at line %d",
-					path, opts, len(got.Deprecations), got.Deprecations[0].Code, got.Deprecations[0].Line)
+			// A use the upgrade reported as unrewritable (Result.Unrewritten) stays,
+			// by contract: it is reported, never guessed at. Anything beyond those
+			// is a rewrite that did not produce the canonical form.
+			if len(got.Deprecations) > len(res.Unrewritten) {
+				t.Errorf("%s (%+v): upgraded output still records %d deprecation(s) (%d reported unrewritable), first %s at line %d",
+					path, opts, len(got.Deprecations), len(res.Unrewritten), got.Deprecations[0].Code, got.Deprecations[0].Line)
 			}
 			want, _ := visitor.Build(src)
 			foldModeFlags(want.Statements)

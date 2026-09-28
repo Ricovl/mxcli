@@ -530,6 +530,9 @@ func formatAction(
 					// can pick the other one — a model that builds cleanly and sorts
 					// by the wrong thing (mendixlabs/mxcli#1152).
 					attrName := sortItem.AttributeQualifiedName
+					if len(sortItem.EntityRefSteps) == 0 {
+						attrName = shortSortAttribute(ctx, entityName, attrName)
+					}
 					for i := len(sortItem.EntityRefSteps) - 1; i >= 0; i-- {
 						if assoc := sortItem.EntityRefSteps[i].Association; assoc != "" {
 							attrName = assoc + "/" + attrName
@@ -606,7 +609,16 @@ func formatAction(
 			withClause = fmt.Sprintf(" with (%s)", strings.Join(params, ", "))
 		}
 
-		return fmt.Sprintf("log %s node %s %s%s;", strings.ToLower(level), node, message, withClause)
+		// Level info and node 'Application' are what an unstated level and node
+		// build (addLogMessageAction), so neither is printed (R12, #748).
+		head := "log"
+		if lvl := strings.ToLower(level); lvl != "info" {
+			head += " " + lvl
+		}
+		if node != defaultLogNodeExpression {
+			head += " node " + node
+		}
+		return fmt.Sprintf("%s %s%s;", head, message, withClause)
 
 	case *microflows.MicroflowCallAction:
 		mfName := ""
@@ -777,7 +789,7 @@ func formatAction(
 			// Extract just the parameter name from the qualified name
 			parts := strings.Split(pm.Parameter, ".")
 			paramName := parts[len(parts)-1]
-			params = append(params, fmt.Sprintf("$%s = %s", paramName, describeExpr(pm.Argument)))
+			params = append(params, fmt.Sprintf("%s = %s", paramName, describeExpr(pm.Argument)))
 		}
 
 		// Build the statement
@@ -807,11 +819,7 @@ func formatAction(
 		}
 		result := fmt.Sprintf("show message %s type %s", message, msgType)
 		if len(a.TemplateParameters) > 0 {
-			objs := make([]string, len(a.TemplateParameters))
-			for i, p := range a.TemplateParameters {
-				objs[i] = describeExpr(p)
-			}
-			result += " objects [" + strings.Join(objs, ", ") + "]"
+			result += templateArgsClause(a.TemplateParameters)
 		}
 		// Without this, a describe -> exec round trip turned a BLOCKING message
 		// box into a non-blocking one. The model carried Blocking on both
@@ -856,7 +864,7 @@ func formatAction(
 		} else if a.AssociationName != "" {
 			attrPath = varName + "/" + a.AssociationName
 		}
-		return fmt.Sprintf("validation feedback %s message %s;", attrPath, msgText)
+		return fmt.Sprintf("validation feedback %s message %s%s;", attrPath, msgText, templateArgsClause(a.TemplateParameters))
 
 	case *microflows.RestCallAction:
 		return formatRestCallAction(ctx, a)
@@ -1276,7 +1284,7 @@ func formatRestCallAction(ctx *ExecContext, a *microflows.RestCallAction) string
 		sb.WriteString(" = ")
 	}
 
-	sb.WriteString("rest call ")
+	sb.WriteString("call rest service ")
 
 	// HTTP method
 	method := "get"
@@ -1412,7 +1420,7 @@ func formatRestCallAction(ctx *ExecContext, a *microflows.RestCallAction) string
 			// reported nothing.
 			sb.WriteString(rh.EntityRef)
 		case *microflows.ResultHandlingNone:
-			sb.WriteString("Nothing")
+			sb.WriteString("nothing")
 		default:
 			// Refuse rather than guess. The previous "String" fallback here and
 			// below is what turned an unread result handling into a silent
@@ -1466,7 +1474,6 @@ func formatRestOperationCallAction(ctx *ExecContext, a *microflows.RestOperation
 			if i > 0 {
 				sb.WriteString(", ")
 			}
-			sb.WriteString("$")
 			sb.WriteString(p.name)
 			sb.WriteString(" = ")
 			sb.WriteString(p.value)
@@ -1970,6 +1977,33 @@ func canonicalBSONMap(m map[string]any) bson.D {
 	return canonicalBSONDocument(doc)
 }
 
+// shortSortAttribute returns the bare attribute name for a sort on the
+// retrieved entity's own (or inherited) attribute, and the qualified name
+// otherwise.
+//
+// A fully qualified `sort by M.Order.Name` is the default spelling of what
+// `sort by Name` already means (R12, #748): the builder qualifies a bare name
+// with the entity that DECLARES it, walking the generalization chain. So the
+// short form is printed exactly when that same walk, from the retrieved
+// entity, lands on the stored reference — then re-executing it writes the
+// same AttributeQualifiedName. Anything the walk does not confirm (no project,
+// a system member, an attribute of another entity) keeps the qualified name.
+func shortSortAttribute(ctx *ExecContext, entityQN, attrQN string) string {
+	if !ctx.Connected() || entityQN == "" {
+		return attrQN
+	}
+	dot := strings.LastIndex(attrQN, ".")
+	if dot <= 0 || strings.Count(attrQN, ".") != 2 {
+		return attrQN
+	}
+	bare := attrQN[dot+1:]
+	fb := &flowBuilder{backend: ctx.Backend}
+	if declared, ok := fb.resolveAttributeInEntityHierarchy(entityQN, bare); ok && declared == attrQN {
+		return bare
+	}
+	return attrQN
+}
+
 // enrichXPathConstraintForDescribe enriches the raw BSON XPathConstraint string for
 // DESCRIBE output. String-literal comparisons against enum attributes are replaced with
 // qualified enum value references (e.g. Status = 'Open' → Status = Module.OrderStatus.Open).
@@ -2060,4 +2094,18 @@ func mdlAggregateKeyword(fn microflows.AggregateFunction) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// templateArgsClause renders a text template's arguments as ` with ({1} = a,
+// {2} = b)` — R4's one text-template form (ako/mxcli#751) — or "" when there
+// are none.
+func templateArgsClause(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	parts := make([]string, len(args))
+	for i, a := range args {
+		parts[i] = fmt.Sprintf("{%d} = %s", i+1, describeExpr(a))
+	}
+	return " with (" + strings.Join(parts, ", ") + ")"
 }

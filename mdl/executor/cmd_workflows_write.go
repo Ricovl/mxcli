@@ -119,6 +119,7 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	existingExcluded := false
 	var existingDocumentation string
 	var existingHandlers []*workflows.WorkflowEventHandler
+	var existingWf *workflows.Workflow
 	haveExistingWf := false
 	if existing, ok := pickLive(existingWorkflows,
 		func(w *workflows.Workflow) bool {
@@ -127,17 +128,18 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 		func(w *workflows.Workflow) bool { return w.Excluded },
 	); ok {
 		if !s.CreateOrModify {
-			// Not "use create or modify": that rewrite does not yet carry what
-			// describe cannot print (event sub-processes, outcome flows, activity
-			// names) and would lose Studio Pro-authored content (#743).
-			return mdlerrors.NewAlreadyExistsMsg("workflow", s.Name.Module+"."+s.Name.Name, "workflow '"+s.Name.Module+"."+s.Name.Name+"' already exists — use 'alter workflow "+s.Name.Module+"."+s.Name.Name+" ...' to change it; "+
-				"'create or modify workflow' rewrites the whole workflow and does not yet keep everything Studio Pro stores (event sub-processes, outcome flows)")
+			// The rewrite carries what describe cannot print (#743), so it is the
+			// advice again, as for every other document type.
+			qn := s.Name.Module + "." + s.Name.Name
+			return mdlerrors.NewAlreadyExistsMsg("workflow", qn, "workflow '"+qn+"' already exists "+
+				"(use create or modify to update it, or 'alter workflow "+qn+" ...' to change one activity)")
 		}
 		existingID = existing.ID
 		existingExcluded = existing.Excluded
 		existingContainer = existing.ContainerID
 		existingDocumentation = existing.Documentation
 		existingHandlers = existing.EventHandlers
+		existingWf = existing
 		haveExistingWf = true
 
 		// Refuse a rewrite that would delete a stored construct this statement
@@ -178,6 +180,7 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	// Display metadata
 	wf.WorkflowName = s.DisplayName
 	wf.WorkflowDescription = s.Description
+	wf.Annotation = s.Annotation
 	if s.ExportLevel != "" {
 		wf.ExportLevel = s.ExportLevel
 	}
@@ -221,6 +224,17 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	for _, esp := range wf.EventSubProcesses {
 		autoBindWorkflowParameters(ctx, esp.Flow.Activities, s.ParameterVar)
 		named = append(named, esp.Flow.Activities...)
+	}
+
+	// Carry the stored names of the activities describe cannot name (the
+	// implicit start and ends, jumps) before deduplicating, so the carried names
+	// take part in it (#743).
+	if existingWf != nil {
+		mainFlow := append(append([]workflows.WorkflowActivity{startAct}, userActivities...), endAct)
+		if existingWf.Flow != nil {
+			carryWorkflowActivityNames(mainFlow, existingWf.Flow.Activities)
+		}
+		carryEventSubProcessActivityNames(wf.EventSubProcesses, existingWf.EventSubProcesses)
 	}
 
 	// Deduplicate activity names to avoid CE0495
@@ -343,8 +357,20 @@ func buildBoundaryEvents(nodes []ast.WorkflowBoundaryEventNode) []*workflows.Bou
 	return events
 }
 
-// buildWorkflowActivity converts a single AST activity node to an SDK workflow activity.
+// buildWorkflowActivity converts a single AST activity node to an SDK workflow
+// activity, with the note `@annotation '…'` attached to it (ako/mxcli#707).
 func buildWorkflowActivity(node ast.WorkflowActivityNode) workflows.WorkflowActivity {
+	act := buildWorkflowActivityCore(node)
+	if an, ok := node.(ast.AnnotatedWorkflowActivity); ok && an.ActivityAnnotation() != "" {
+		if a, ok := act.(interface{ SetAnnotation(string) }); ok {
+			a.SetAnnotation(an.ActivityAnnotation())
+		}
+	}
+	return act
+}
+
+// buildWorkflowActivityCore converts the activity itself.
+func buildWorkflowActivityCore(node ast.WorkflowActivityNode) workflows.WorkflowActivity {
 	switch n := node.(type) {
 	case *ast.WorkflowUserTaskNode:
 		return buildUserTask(n)
@@ -809,7 +835,7 @@ func buildNotificationActivity(n *ast.WorkflowNotificationNode) *workflows.Notif
 func buildEventSubProcesses(nodes []ast.WorkflowEventSubProcessNode) []*workflows.EventSubProcess {
 	var out []*workflows.EventSubProcess
 	for _, n := range nodes {
-		esp := &workflows.EventSubProcess{Name: n.Name, Caption: n.Caption}
+		esp := &workflows.EventSubProcess{Name: n.Name, Caption: n.Caption, Annotation: n.Annotation}
 		esp.ID = model.ID(generateWorkflowUUID())
 
 		start := &workflows.EventSubProcessStartActivity{

@@ -31,7 +31,7 @@
 create module ShortCircuit;
 /
 
-create or replace microflow ShortCircuit.MF_ScOr (Guard: Boolean, Zero: Integer) returns String
+create or modify microflow ShortCircuit.MF_ScOr (Guard: Boolean, Zero: Integer) returns String
 begin
   if $Guard or (1 div $Zero > 0) then
     return 'taken';
@@ -41,7 +41,7 @@ begin
 end;
 /
 
-create or replace microflow ShortCircuit.MF_ScAnd (Guard: Boolean, Zero: Integer) returns String
+create or modify microflow ShortCircuit.MF_ScAnd (Guard: Boolean, Zero: Integer) returns String
 begin
   if $Guard and (1 div $Zero > 0) then
     return 'taken';

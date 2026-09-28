@@ -25,8 +25,8 @@
 -- report no settings error. On an 11.6 project the same script stores 'Java21'.
 
 -- Both spellings are accepted; both land as the project's own dialect.
-alter settings model JavaVersion = 'Java21';
-alter settings model JavaVersion = '21';
+alter settings runtime ( JavaVersion: 'Java21' );
+alter settings runtime ( JavaVersion: '21' );
 
 -- Round-trip: describe emits the project's spelling, which must replay cleanly.
 describe settings;

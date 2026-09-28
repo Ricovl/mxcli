@@ -26,13 +26,13 @@
 
 -- MARK: Setup
 
-create or modify image collection IconProbe.Images (
-  image marker from file '../../docs/images/mxcli-cli.png'
-);
+create or modify image collection IconProbe.Images {
+  image marker ( File: '../../docs/images/mxcli-cli.png' )
+};
 
 -- MARK: The three icon elements
 
-create or replace page IconProbe.AllThreeIcons (
+create or modify page IconProbe.AllThreeIcons (
   Title: 'Icon probe',
   Layout: Atlas_Core.Atlas_Default
 ) {
@@ -62,7 +62,7 @@ create or replace page IconProbe.AllThreeIcons (
 -- A reference into the model may also be written unquoted, as every other
 -- reference is (ADR-0003). Atlas icon names are hyphenated and IDENTIFIER
 -- cannot lex a hyphen, so that segment is double-quoted on its own.
-create or replace page IconProbe.UnquotedIconNames (
+create or modify page IconProbe.UnquotedIconNames (
   Title: 'Unquoted icon names',
   Layout: Atlas_Core.Atlas_Default
 ) {

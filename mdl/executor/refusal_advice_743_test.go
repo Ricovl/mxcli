@@ -12,14 +12,15 @@ import (
 	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
 
-// A plain `create` of an existing workflow or OData client is refused, and the
-// refusal used to say "use create or modify". For these two types that is the
-// rewrite that loses Studio Pro-authored content (#743: event sub-processes and
-// outcome flows of a workflow; UseQuerySegment, the catalog, proxy and microflow
-// settings and the icon of an OData client). Until the carry lands the advice
-// points to `alter` and says why.
+// A plain `create` of an existing workflow or OData client is refused. While
+// `create or modify` lost Studio Pro-authored content for these two types (#743:
+// event sub-processes, outcome flows and activity names of a workflow;
+// UseQuerySegment, the catalog, proxy and microflow settings and the icon of an
+// OData client) the refusal pointed to `alter` instead. The rewrite now carries
+// them, so the refusal recommends it, as for every other type, and still names
+// `alter` for a one-part change.
 
-func assertSafeAdvice(t *testing.T, err error, alter string) {
+func assertCreateOrModifyAdvice(t *testing.T, err error, alter string) {
 	t.Helper()
 	if err == nil {
 		t.Fatal("a plain create of an existing document was not refused")
@@ -28,15 +29,15 @@ func assertSafeAdvice(t *testing.T, err error, alter string) {
 	if !strings.Contains(msg, "already exists") {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if !strings.Contains(msg, "use create or modify to update") {
+		t.Errorf("the refusal does not recommend create or modify: %s", msg)
+	}
 	if !strings.Contains(msg, alter) {
 		t.Errorf("the refusal does not point to %q: %s", alter, msg)
 	}
-	if strings.Contains(msg, "use create or modify to") {
-		t.Errorf("the refusal still recommends the lossy rewrite: %s", msg)
-	}
 }
 
-func TestCreateODataClient_ExistsAdvisesAlter(t *testing.T) {
+func TestCreateODataClient_ExistsAdvisesCreateOrModify(t *testing.T) {
 	mod := mkModule("MyModule")
 	existing := &model.ConsumedODataService{BaseElement: model.BaseElement{ID: nextID("cos")}, ContainerID: mod.ID, Name: "Api"}
 	h := mkHierarchy(mod)
@@ -50,11 +51,11 @@ func TestCreateODataClient_ExistsAdvisesAlter(t *testing.T) {
 		},
 	}
 	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(h))
-	prog := parseMDL(t, "create odata client MyModule.Api (\n  ODataVersion: OData4,\n  MetadataUrl: 'https://example.com/odata/$metadata'\n);")
-	assertSafeAdvice(t, createODataClient(ctx, prog.Statements[0].(*ast.CreateODataClientStmt)), "alter odata client")
+	prog := parseMDL(t, "create consumed odata service MyModule.Api (\n  ODataVersion: OData4,\n  MetadataUrl: 'https://example.com/odata/$metadata'\n);")
+	assertCreateOrModifyAdvice(t, createODataClient(ctx, prog.Statements[0].(*ast.CreateODataClientStmt)), "alter consumed odata service")
 }
 
-func TestCreateWorkflow_ExistsAdvisesAlter(t *testing.T) {
+func TestCreateWorkflow_ExistsAdvisesCreateOrModify(t *testing.T) {
 	mod := mkModule("MyModule")
 	existing := &workflows.Workflow{BaseElement: model.BaseElement{ID: nextID("wf")}, ContainerID: mod.ID, Name: "Approve"}
 	h := mkHierarchy(mod)
@@ -66,5 +67,5 @@ func TestCreateWorkflow_ExistsAdvisesAlter(t *testing.T) {
 	}
 	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(h))
 	prog := parseMDL(t, "create workflow MyModule.Approve\nbegin\nend workflow;")
-	assertSafeAdvice(t, execCreateWorkflow(ctx, prog.Statements[0].(*ast.CreateWorkflowStmt)), "alter workflow")
+	assertCreateOrModifyAdvice(t, execCreateWorkflow(ctx, prog.Statements[0].(*ast.CreateWorkflowStmt)), "alter workflow")
 }

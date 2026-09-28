@@ -31,8 +31,8 @@ create entity MyFirstModule.Member extends System.User (
 );
 /
 
-create or replace page MyFirstModule.Member_Edit
-( Title: 'Member', Layout: Atlas_Core.Atlas_Default, Params: { $Member: MyFirstModule.Member } )
+create or modify page MyFirstModule.Member_Edit
+( Title: 'Member', Layout: Atlas_Core.Atlas_Default, Params: ( $Member: MyFirstModule.Member ) )
 {
   dataview dv (datasource: $Member) {
     textbox txtName (label: 'Full name', attribute: FullName)

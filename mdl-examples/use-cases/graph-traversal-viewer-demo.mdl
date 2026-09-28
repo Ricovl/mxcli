@@ -57,13 +57,13 @@ create or modify persistent entity OntologyViewer.Graphmart (
 )
 index (Uri);
 
-grant OntologyViewer.User on OntologyViewer.Graphmart (read *);
+grant read * on entity OntologyViewer.Graphmart to OntologyViewer.User;
 /
 
 @Position(350, 50)
 create or modify persistent entity OntologyViewer.ChatbotSettings ();
 
-grant OntologyViewer.User on OntologyViewer.ChatbotSettings (read *);
+grant read * on entity OntologyViewer.ChatbotSettings to OntologyViewer.User;
 /
 
 -- Per-tool-call presentation metadata, attached 1:1 to a ConversationalUI.ToolMessage.
@@ -79,7 +79,7 @@ create or modify persistent entity OntologyViewer.ToolCallMetadata (
   IsExpanded: Boolean default false
 );
 
-grant OntologyViewer.User on OntologyViewer.ToolCallMetadata (read *);
+grant read * on entity OntologyViewer.ToolCallMetadata to OntologyViewer.User;
 /
 
 @Position(950, 50)
@@ -87,7 +87,7 @@ create or modify persistent entity OntologyViewer.SuggestedUserPrompt (
   Content: String(500)
 );
 
-grant OntologyViewer.User on OntologyViewer.SuggestedUserPrompt (read *);
+grant read * on entity OntologyViewer.SuggestedUserPrompt to OntologyViewer.User;
 /
 
 @Position(1300, 50)
@@ -119,7 +119,7 @@ create or modify persistent entity OntologyViewer.ChatContext_Control (
   StopRequested: Boolean default false
 );
 
-grant OntologyViewer.User on OntologyViewer.ChatContext_Control (read *);
+grant read * on entity OntologyViewer.ChatContext_Control to OntologyViewer.User;
 /
 
 @Position(2350, 50)
@@ -130,7 +130,7 @@ create or modify persistent entity OntologyViewer.GraphTraversalHelper (
 )
 index (PayloadHash);
 
-grant OntologyViewer.User on OntologyViewer.GraphTraversalHelper (read *);
+grant read * on entity OntologyViewer.GraphTraversalHelper to OntologyViewer.User;
 /
 
 -- ----------------------------------------------------------------------------
@@ -389,20 +389,20 @@ grant execute on nanoflow OntologyViewer.ACT_StopAwareSendMessage to OntologyVie
 -- 7. Input snippet — textarea + send/stop buttons + suggested prompts
 -- ----------------------------------------------------------------------------
 create snippet OntologyViewer.Snippet_ChatContext_Interaction (
-  params: { $ChatContext: ConversationalUI.ChatContext }
+  params: ( $ChatContext: ConversationalUI.ChatContext )
 ) {
   container container1 (class: 'chat-input-wrapper') {
     textarea textAreaUserPrompt (attribute: CurrentUserPrompt)
     container container16 (class: 'send-btn-container') {
       actionbutton btnSendMessage (
         caption: 'Send',
-        action: nanoflow OntologyViewer.ACT_StopAwareSendMessage,
+        action: call nanoflow OntologyViewer.ACT_StopAwareSendMessage,
         buttonstyle: primary,
         class: 'send-btn'
       )
       actionbutton btnStopMessage (
         caption: 'Stop',
-        action: microflow OntologyViewer.ACT_ChatContext_RequestStop,
+        action: call microflow OntologyViewer.ACT_ChatContext_RequestStop,
         buttonstyle: primary,
         class: 'stop-btn'
       )
@@ -415,7 +415,7 @@ create snippet OntologyViewer.Snippet_ChatContext_Interaction (
 -- 8. Chat page — embeds the custom graph widget + the tool-call cards
 -- ----------------------------------------------------------------------------
 create page OntologyViewer.ConversationalUI_FullScreenChat (
-  params: { $ChatContext: ConversationalUI.ChatContext },
+  params: ( $ChatContext: ConversationalUI.ChatContext ),
   title: 'Full Screen Chat',
   layout: Atlas_Core.Atlas_Default
 ) {

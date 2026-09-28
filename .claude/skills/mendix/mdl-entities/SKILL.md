@@ -164,7 +164,7 @@ the entity being referenced (the "one" / parent side). Name convention is `Child
  */
 create association Module.Product_Category
 from Module.Product to Module.Category
-type reference_set
+type ReferenceSet
 owner both;
 /
 ```
@@ -178,14 +178,14 @@ owner both;
 create association Module.Order_Customer
 from Module.Order to Module.Customer
 type reference
-delete_behavior DELETE_AND_REFERENCES;
+on delete cascade;
 /
 ```
 
 Delete behaviors (applied to the referenced `to` entity):
-- `delete_behavior DELETE_AND_REFERENCES` - delete the referencing objects too (cascade)
-- `delete_behavior DELETE_BUT_KEEP_REFERENCES` - delete, nullify the reference (default)
-- `delete_behavior DELETE_IF_NO_REFERENCES` - only delete when nothing references it
+- `on delete cascade` - delete the referencing objects too (cascade)
+- `on delete set null` - delete, nullify the reference (default)
+- `on delete restrict` - only delete when nothing references it
 
 ## Enumerations
 
@@ -330,7 +330,7 @@ type reference;
 create association Shop.OrderLine_Order
 from Shop.OrderLine to Shop.Order
 type reference
-delete_behavior DELETE_AND_REFERENCES;
+on delete cascade;
 /
 
 create association Shop.OrderLine_Product
@@ -347,7 +347,7 @@ not by re-running `describe` output:
 
 ```mdl
 alter entity Shop.Order add attribute Note: string(200);
-alter association Shop.Order_Customer set delete_behavior DELETE_BUT_KEEP_REFERENCES;
+alter association Shop.Order_Customer set on delete set null;
 alter enumeration Shop.OrderStatus add value Cancelled caption 'Cancelled';
 ```
 
@@ -374,11 +374,15 @@ attributename: type [(length)] [not null] [unique] [default value]
 ```mdl
 create association Module.Child_Parent
 from Module.ChildEntity to Module.ParentEntity
-[type reference | reference_set]
+[type reference | ReferenceSet]
 [owner default | both]
 [storage column | table]
-[delete_behavior DELETE_AND_REFERENCES | DELETE_BUT_KEEP_REFERENCES | DELETE_IF_NO_REFERENCES];
+[on delete cascade | restrict | set null [error message '...']];
 ```
+
+Every clause is optional; unstated means `type Reference owner Default storage column
+on delete set null`. `describe` prints only the clauses that differ, so a table
+association always shows `storage table`.
 
 ### Enumeration Syntax
 ```mdl

@@ -46,18 +46,18 @@ create entity ZKT38.Order ( Number: String );
 create association ZKT38.Order_Customer from ZKT38.Order to ZKT38.Customer;
 /
 
-create or replace page ZKT38.OrderList
+create or modify page ZKT38.OrderList
 ( Title: 'Orders', Layout: Atlas_Core.Atlas_Default )
 {
   datagrid dgOrders (datasource: database ZKT38.Order) {
-    column colNumber (attribute: Number, caption: 'Order')
+    column (attribute: Number, caption: 'Order')
 
     -- (1) SHOW a value from the associated object: traverse the reference.
     --     `attribute: Order_Customer` (the reference itself) is refused.
     -- (2) FILTER by the reference: association mode. The filter's `datasource:`
     --     is the OPTION list (Customer), not the grid's own datasource; the
     --     filter still lives in the column it filters.
-    column colCustomer (attribute: Order_Customer/Name, caption: 'Customer') {
+    column (attribute: Order_Customer/Name, caption: 'Customer') {
       dropdownfilter ddfCustomer (
         Association: ZKT38.Order_Customer,
         datasource: database ZKT38.Customer,

@@ -151,6 +151,17 @@ make grammar                          # Regenerate parser
 
 Add working examples in `mdl-examples/doctype-tests/` for any new syntax.
 
+Docs, skills, `mxcli syntax` examples and `mdl-examples/` are held to the
+canonical spelling by `make check-conformance` (part of `make lint`): a
+deprecated spelling (`MDL-DEPRnnn`) or a block that does not parse fails it
+unless `mdl/conformance/allowlist.txt` tolerates it, and that list may only
+shrink. When you replace an old spelling in the docs — for instance after
+adding a new canonical form with the old one as a deprecated alias — run
+`make conformance-shrink` to lower the list. A block that is deliberately not
+MDL (a counterexample, a template) goes in a ```` ```text ```` fence. Scripts that
+must keep an old spelling, to prove `fmt --upgrade` on it, live in
+`mdl-examples/deprecated-aliases/` (see its README).
+
 #### 5c. Mendix Studio Pro Validation
 
 **Required for any change that affects Mendix project behavior** (new MDL statements, BSON serialization, entity/microflow modifications).

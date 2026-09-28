@@ -14,7 +14,7 @@ mxcli is a command-line tool that lets you read, query, and modify Mendix projec
 
 ```mdl
 -- Explore your project
-SHOW ENTITIES IN CustomerModule
+LIST ENTITIES IN CustomerModule
 DESCRIBE CustomerModule.Customer
 
 -- Make changes

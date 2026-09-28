@@ -12,7 +12,7 @@ DROP SNIPPET module.Name
 
 Removes a page or snippet from the project. The page or snippet must exist; otherwise an error is raised.
 
-Dropping a page or snippet does not automatically update references to it from microflows (e.g., `SHOW PAGE`), navigation menus, other pages (`SNIPPETCALL`), or security rules. Use `SHOW IMPACT OF module.Name` before dropping to identify all references that will break.
+Dropping a page or snippet does not automatically update references to it from microflows (e.g., `SHOW PAGE`), navigation menus, other pages (`SNIPPETCALL`), or security rules. Use `LIST IMPACT OF module.Name` before dropping to identify all references that will break.
 
 ## Parameters
 
@@ -37,7 +37,7 @@ Check impact before dropping:
 
 ```sql
 -- See what references this page
-SHOW IMPACT OF Sales.Order_Edit;
+LIST IMPACT OF Sales.Order_Edit;
 
 -- Then drop if safe
 DROP PAGE Sales.Order_Edit;
@@ -45,4 +45,4 @@ DROP PAGE Sales.Order_Edit;
 
 ## See Also
 
-[CREATE PAGE](create-page.md), [CREATE SNIPPET](create-snippet.md), [ALTER PAGE](alter-page.md), [SHOW IMPACT](/reference/catalog/show-references-impact.md)
+[CREATE PAGE](create-page.md), [CREATE SNIPPET](create-snippet.md), [ALTER PAGE](alter-page.md), [LIST IMPACT](/reference/catalog/list-references-impact.md)

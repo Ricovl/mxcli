@@ -9,7 +9,7 @@ Supporting reference for [create-page](../SKILL.md).
 ```sql
 create or replace page CRM.CustomerEdit
 (
-  params: { $Customer: CRM.Customer },
+  params: ( $Customer: CRM.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -28,8 +28,8 @@ create or replace page CRM.CustomerEdit
           checkbox cbActive (label: 'Active', attribute: IsActive)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
         }
       }
@@ -82,8 +82,8 @@ create page CRM.Customer_MasterDetail
         dynamictext heading (content: 'Customers', rendermode: H3)
         gallery customerList (datasource: database from CRM.Customer sort by Name asc, selection: single) {
           template {
-            dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-            dynamictext email (content: '{1}', contentparams: [{1} = Email])
+            dynamictext name (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+            dynamictext email (content: '{1}', contentparams: ({1} = Email))
           }
         }
       }
@@ -97,8 +97,8 @@ create page CRM.Customer_MasterDetail
           textbox txtPhone (label: 'Phone', attribute: Phone)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
         }
       }

@@ -102,7 +102,7 @@ create or modify association XPathGen.Special_Bin
 
 -- Every constraint here RESOLVES and builds. These are the shapes that must not
 -- be reported.
-create or replace page XPathGen.P_List
+create or modify page XPathGen.P_List
 (
   Title: 'Specials',
   Layout: Atlas_Core.Atlas_Default
@@ -113,7 +113,7 @@ create or replace page XPathGen.P_List
   datagrid gridByCode (
     datasource: database from XPathGen.Special where [Code != '']
   ) {
-    column cNote (attribute: Note, caption: 'Note')
+    column (attribute: Note, caption: 'Note')
   }
 
   -- An INHERITED association inside not(), the shape the finding was reported
@@ -124,7 +124,7 @@ create or replace page XPathGen.P_List
     datasource: database from XPathGen.Special
       where [not(XPathGen.Base_Region/XPathGen.Region)]
   ) {
-    column cNote2 (attribute: Note, caption: 'Note')
+    column (attribute: Note, caption: 'Note')
   }
 
   -- An INHERITED association, then an attribute of the entity it reaches.
@@ -135,7 +135,7 @@ create or replace page XPathGen.P_List
     datasource: database from XPathGen.Special
       where [XPathGen.Base_Region/XPathGen.Region/Name = 'North']
   ) {
-    column cNote3 (attribute: Note, caption: 'Note')
+    column (attribute: Note, caption: 'Note')
   }
 
   -- A CROSS-MODULE association, then an attribute of the entity it reaches.
@@ -143,7 +143,7 @@ create or replace page XPathGen.P_List
     datasource: database from XPathGen.Special
       where [XPathGen.Special_Bin/XPathGenFar.Bin/BinCode = 'A1']
   ) {
-    column cNote4 (attribute: Note, caption: 'Note')
+    column (attribute: Note, caption: 'Note')
   }
 }
 /

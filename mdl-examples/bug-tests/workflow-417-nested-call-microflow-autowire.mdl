@@ -47,7 +47,7 @@ begin
   -- CONTROL: main-flow activity, auto-wired before this fix and after it.
   call microflow WF417.ACT_Noop as callMicroflowControl;
 
-  decision decision1 '$WorkflowContext/Status'
+  decision decision1 $WorkflowContext/Status
     outcomes
       'WF417.Status.OutcomeA' -> { call microflow WF417.ACT_Noop as callMicroflow1; }
       'WF417.Status.OutcomeB' -> { call microflow WF417.ACT_Noop as callMicroflow2; }

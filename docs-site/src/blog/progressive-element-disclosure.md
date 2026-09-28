@@ -10,11 +10,11 @@
 
 ## The Problem with Full Output
 
-<!-- TODO: why dumping everything at once (full DESCRIBE, full SHOW STRUCTURE) is overwhelming for AI and humans alike -->
+<!-- TODO: why dumping everything at once (full DESCRIBE, full DESCRIBE STRUCTURE) is overwhelming for AI and humans alike -->
 
 ## How mxcli Applies It
 
-<!-- TODO: SHOW vs DESCRIBE, DEPTH levels, SHOW CALLERS vs SHOW IMPACT — each command reveals the next layer on demand -->
+<!-- TODO: SHOW vs DESCRIBE, DEPTH levels, LIST CALLERS vs LIST IMPACT — each command reveals the next layer on demand -->
 
 ## Demo
 

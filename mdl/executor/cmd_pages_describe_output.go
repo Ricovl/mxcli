@@ -5,6 +5,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"io"
 	"regexp"
 	"strconv"
@@ -116,16 +117,28 @@ func appendDataGridPagingProps(props []string, w rawWidget) []string {
 	return props
 }
 
+// widgetConditionMDL writes a conditional Visible / Editable as the bare
+// expression it stores (R5, ako/mxcli#753). One that would not read back bare
+// as itself — `true`, a lone name, text the MDL expression grammar cannot
+// parse — is written in the deprecated bracketed form, as before.
+func widgetConditionMDL(key, expr string) string {
+	expr = describeExpr(expr)
+	if visitor.BareWidgetCondition(key, expr) {
+		return key + ": " + expr
+	}
+	return fmt.Sprintf("%s: [%s]", key, expr)
+}
+
 // appendConditionalProps appends VISIBLE IF and EDITABLE IF if present.
 func appendConditionalProps(props []string, w rawWidget) []string {
 	if w.VisibleIf != "" {
-		props = append(props, fmt.Sprintf("Visible: [%s]", describeExpr(w.VisibleIf)))
+		props = append(props, widgetConditionMDL("Visible", w.VisibleIf))
 	}
 	if prop := visibleWhenProp(w); prop != "" {
 		props = append(props, prop)
 	}
 	if w.EditableIf != "" {
-		props = append(props, fmt.Sprintf("Editable: [%s]", describeExpr(w.EditableIf)))
+		props = append(props, widgetConditionMDL("Editable", w.EditableIf))
 	}
 	return props
 }
@@ -187,13 +200,13 @@ func appendAppearanceProps(props []string, w rawWidget) []string {
 		props = append(props, formatDesignPropertiesMDL(w.DesignProperties))
 	}
 	if w.VisibleIf != "" {
-		props = append(props, fmt.Sprintf("Visible: [%s]", describeExpr(w.VisibleIf)))
+		props = append(props, widgetConditionMDL("Visible", w.VisibleIf))
 	}
 	if prop := visibleWhenProp(w); prop != "" {
 		props = append(props, prop)
 	}
 	if w.EditableIf != "" {
-		props = append(props, fmt.Sprintf("Editable: [%s]", describeExpr(w.EditableIf)))
+		props = append(props, widgetConditionMDL("Editable", w.EditableIf))
 	}
 	return props
 }
@@ -201,12 +214,12 @@ func appendAppearanceProps(props []string, w rawWidget) []string {
 // formatDesignPropertiesMDL formats design properties as MDL V3 syntax.
 // Toggle → 'Key': ON, Option → 'Key': 'Value'
 func formatDesignPropertiesMDL(dps []rawDesignProp) string {
-	return fmt.Sprintf("DesignProperties: [%s]", joinDesignPropertyEntries(dps))
+	return fmt.Sprintf("DesignProperties: (%s)", joinDesignPropertyEntries(dps))
 }
 
 // joinDesignPropertyEntries renders design-property entries as comma-separated
 // MDL. Compound properties recurse into a nested list (issue #668):
-// 'Spacing': ['margin-top': 'Large', 'margin-bottom': 'Medium'].
+// 'Spacing': ('margin-top': 'Large', 'margin-bottom': 'Medium').
 func joinDesignPropertyEntries(dps []rawDesignProp) string {
 	var entries []string
 	for _, dp := range dps {
@@ -216,7 +229,7 @@ func joinDesignPropertyEntries(dps []rawDesignProp) string {
 		case "option":
 			entries = append(entries, fmt.Sprintf("%s: %s", mdlQuote(dp.Key), mdlQuote(dp.Option)))
 		case "compound":
-			entries = append(entries, fmt.Sprintf("%s: [%s]", mdlQuote(dp.Key), joinDesignPropertyEntries(dp.Nested)))
+			entries = append(entries, fmt.Sprintf("%s: (%s)", mdlQuote(dp.Key), joinDesignPropertyEntries(dp.Nested)))
 		}
 	}
 	return strings.Join(entries, ", ")
@@ -485,7 +498,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = append(props, fmt.Sprintf("RenderMode: %s", w.RenderMode))
 		}
 		if len(w.Parameters) > 0 {
-			props = append(props, fmt.Sprintf("ContentParams: [%s]", strings.Join(formatParametersV3(w.Parameters), ", ")))
+			props = append(props, fmt.Sprintf("ContentParams: (%s)", strings.Join(formatParametersV3(w.Parameters), ", ")))
 		}
 		props = appendAppearanceProps(props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
@@ -502,7 +515,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(w.Caption)))
 		}
 		if len(w.Parameters) > 0 {
-			props = append(props, fmt.Sprintf("CaptionParams: [%s]", strings.Join(formatParametersV3(w.Parameters), ", ")))
+			props = append(props, fmt.Sprintf("CaptionParams: (%s)", strings.Join(formatParametersV3(w.Parameters), ", ")))
 		}
 		if w.Action != "" {
 			props = append(props, actionProp("Action", w.Action))
@@ -790,7 +803,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 				// A `{1}` re-executed without its parameter is CE0720, so the
 				// companion travels with the text it belongs to (#575).
 				if len(ep.Params) > 0 {
-					props = append(props, fmt.Sprintf("%sParams: [%s]",
+					props = append(props, fmt.Sprintf("%sParams: (%s)",
 						ep.Key, strings.Join(formatParametersV3(ep.Params), ", ")))
 				}
 			}
@@ -1108,7 +1121,7 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridCol
 		props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(col.Caption)))
 	}
 	if len(col.CaptionParams) > 0 {
-		props = append(props, fmt.Sprintf("CaptionParams: [%s]", strings.Join(formatParametersV3(col.CaptionParams), ", ")))
+		props = append(props, fmt.Sprintf("CaptionParams: (%s)", strings.Join(formatParametersV3(col.CaptionParams), ", ")))
 	}
 	// Add ShowContentAs if not default "attribute"
 	if col.ShowContentAs != "" && col.ShowContentAs != "attribute" {
@@ -1118,7 +1131,7 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridCol
 	if col.ShowContentAs == "dynamicText" && col.DynamicText != "" {
 		props = append(props, fmt.Sprintf("Content: %s", mdlQuote(col.DynamicText)))
 		if len(col.DynamicTextParams) > 0 {
-			props = append(props, fmt.Sprintf("ContentParams: [%s]", strings.Join(formatParametersV3(col.DynamicTextParams), ", ")))
+			props = append(props, fmt.Sprintf("ContentParams: (%s)", strings.Join(formatParametersV3(col.DynamicTextParams), ", ")))
 		}
 	}
 	// Add column styling properties if non-default
@@ -1353,7 +1366,7 @@ func actionMapForKey(w map[string]any, key string) map[string]any {
 }
 
 // renderClientActionMDL renders a client-action map (a Forms$*ClientAction) back
-// to its MDL form (microflow/nanoflow/show_page/save_changes/…). Returns "" for a
+// to its MDL form (call microflow/call nanoflow/show page/save changes/…). Returns "" for a
 // nil action or a NoClientAction.
 func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 	if action == nil {
@@ -1362,27 +1375,27 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 	typeName, _ := action["$Type"].(string)
 	switch typeName {
 	case "Forms$SaveChangesClientAction", "Pages$SaveChangesClientAction":
-		result := "save_changes"
+		result := "save changes"
 		if closePage, ok := action["ClosePage"].(bool); ok && closePage {
-			result += " close_page"
+			result += " close page"
 		}
 		return result
 	case "Forms$CancelChangesClientAction", "Pages$CancelChangesClientAction":
-		result := "cancel_changes"
+		result := "cancel changes"
 		if closePage, ok := action["ClosePage"].(bool); ok && closePage {
-			result += " close_page"
+			result += " close page"
 		}
 		return result
 	case "Forms$ClosePageClientAction", "Pages$ClosePageClientAction":
-		return "close_page"
+		return "close page"
 	case "Forms$DeleteClientAction", "Pages$DeleteClientAction":
-		result := "delete_object"
+		result := "delete"
 		if closePage, ok := action["ClosePage"].(bool); ok && closePage {
-			result += " close_page"
+			result += " close page"
 		}
 		return result
 	case "Forms$CreateObjectClientAction", "Pages$CreateObjectClientAction":
-		result := "create_object"
+		result := "create object"
 		// Extract entity reference
 		if entityRef, ok := action["EntityRef"].(map[string]any); ok {
 			if entityName, ok := entityRef["Entity"].(string); ok && entityName != "" {
@@ -1393,7 +1406,7 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 		if pageSettings, ok := action["PageSettings"].(map[string]any); ok {
 			// The page is stored in "Form" field as a qualified name string (BY_NAME_REFERENCE)
 			if pageName, ok := pageSettings["Form"].(string); ok && pageName != "" {
-				pageAction := "show_page " + pageName
+				pageAction := "show page " + pageName
 				// Extract page parameters
 				params := extractPageParameters(ctx, pageSettings)
 				if params != "" {
@@ -1408,7 +1421,7 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 		// or PageSettings.Form, or Page field (binary ID for legacy)
 		if formSettings, ok := action["FormSettings"].(map[string]any); ok {
 			if pageName, ok := formSettings["Form"].(string); ok && pageName != "" {
-				result := "show_page " + pageName
+				result := "show page " + pageName
 				params := pageActionParameters(ctx, formSettings, pageName)
 				if params != "" {
 					result += "(" + params + ")"
@@ -1418,7 +1431,7 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 		}
 		if pageSettings, ok := action["PageSettings"].(map[string]any); ok {
 			if pageName, ok := pageSettings["Form"].(string); ok && pageName != "" {
-				result := "show_page " + pageName
+				result := "show page " + pageName
 				params := pageActionParameters(ctx, pageSettings, pageName)
 				if params != "" {
 					result += "(" + params + ")"
@@ -1430,15 +1443,15 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 		if pageID := extractBinaryID(action["Page"]); pageID != "" {
 			pageName := getPageQualifiedName(ctx, model.ID(pageID))
 			if pageName != "" {
-				return "show_page " + pageName
+				return "show page " + pageName
 			}
 		}
-		return "show_page"
+		return "show page"
 	case "Forms$MicroflowAction", "Pages$MicroflowClientAction":
 		// Extract microflow reference from MicroflowSettings
 		if settings, ok := action["MicroflowSettings"].(map[string]any); ok {
 			if mfName, ok := settings["Microflow"].(string); ok && mfName != "" {
-				result := "microflow " + mfName
+				result := "call microflow " + mfName
 				// Extract parameter mappings
 				params := extractMicroflowParameters(ctx, settings)
 				if params != "" {
@@ -1447,10 +1460,10 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 				return result
 			}
 		}
-		return "microflow"
+		return "call microflow"
 	case "Forms$CallNanoflowClientAction", "Pages$CallNanoflowClientAction":
 		if nfName, ok := action["Nanoflow"].(string); ok && nfName != "" {
-			result := "nanoflow " + nfName
+			result := "call nanoflow " + nfName
 			// Extract parameter mappings (directly in the action)
 			params := extractNanoflowParameters(ctx, action)
 			if params != "" {
@@ -1458,21 +1471,21 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 			}
 			return result
 		}
-		return "nanoflow"
+		return "call nanoflow"
 	case "Forms$SetTaskOutcomeClientAction", "Pages$SetTaskOutcomeClientAction":
 		outcomeValue, _ := action["OutcomeValue"].(string)
-		return "complete_task '" + strings.ReplaceAll(outcomeValue, "'", "''") + "'"
+		return "complete task '" + strings.ReplaceAll(outcomeValue, "'", "''") + "'"
 	case "Forms$SignOutClientAction", "Pages$SignOutClientAction":
-		return "sign_out"
+		return "sign out"
 	case "Forms$OpenLinkClientAction", "Pages$OpenLinkClientAction":
 		// The address is a nested Forms$StaticOrDynamicString: a literal, or —
 		// DYNAMIC, 6 of the 31 Studio Pro references — an attribute read at
-		// runtime, spelled `open_link $currentObject/Attr`. It used to render
+		// runtime, spelled `open link $currentObject/Attr`. It used to render
 		// as an inline `--` note, which left `Action:` without a value and made
 		// the describe output unparseable.
 		addr := actionMapForKey(action, "Address")
 		if addr == nil {
-			return "open_link ''"
+			return "open link ''"
 		}
 		if isDynamic, _ := addr["IsDynamic"].(bool); isDynamic {
 			attr := ""
@@ -1482,16 +1495,16 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 				overAssociation = actionMapForKey(ref, "EntityRef") != nil
 			}
 			if attr != "" && !overAssociation {
-				return "open_link $currentObject/" + shortAttributeName(attr)
+				return "open link $currentObject/" + shortAttributeName(attr)
 			}
 			// No MDL spelling: a note, which actionProp puts on its own line.
 			// CREATE OR REPLACE PAGE rebuilds the page, so say plainly that
 			// re-running drops the action rather than implying it survives.
-			return "-- NOT re-executable: open_link with a dynamic address over an association (" +
+			return "-- NOT re-executable: open link with a dynamic address over an association (" +
 				attr + ") — re-running this script would drop the button's action"
 		}
 		value, _ := addr["Value"].(string)
-		return "open_link '" + strings.ReplaceAll(value, "'", "''") + "'"
+		return "open link '" + strings.ReplaceAll(value, "'", "''") + "'"
 	case "Forms$NoClientAction", "Pages$NoClientAction":
 		return ""
 	default:
@@ -1546,7 +1559,7 @@ func pageActionParameters(ctx *ExecContext, settings map[string]any, pageName st
 	// bound to the row object the enclosing widget supplies.
 	var params []string
 	for _, name := range targetPageParameterNames(ctx, pageName) {
-		params = append(params, mdlIdent(name)+": $currentObject")
+		params = append(params, visitor.ParameterNameSpelling(name)+" = $currentObject")
 	}
 	return strings.Join(params, ", ")
 }
@@ -1586,7 +1599,7 @@ func targetPageParameterNames(ctx *ExecContext, qualifiedName string) []string {
 }
 
 // extractPageParameters extracts page parameter mappings from a FormSettings/PageSettings object.
-// Returns formatted string like "Product: $currentObject" or empty string if no params.
+// Returns formatted string like "Product = $currentObject" or empty string if no params.
 func extractPageParameters(ctx *ExecContext, settings map[string]any) string {
 	mappings := getBsonArrayElements(settings["ParameterMappings"])
 	if len(mappings) == 0 {
@@ -1636,7 +1649,7 @@ func extractPageParameters(ctx *ExecContext, settings map[string]any) string {
 		}
 
 		if value != "" {
-			params = append(params, mdlIdent(paramName)+": "+value)
+			params = append(params, visitor.ParameterNameSpelling(paramName)+" = "+value)
 		}
 	}
 
@@ -1695,7 +1708,7 @@ func extractMicroflowParameters(ctx *ExecContext, settings map[string]any) strin
 		if value != "" {
 			// Canonical microflowArgV3 form is `Param: $value` (IDENTIFIER COLON expr);
 			// emitting `Param = $value` is IDENTIFIER EQUALS, which doesn't re-parse (#640).
-			params = append(params, mdlIdent(paramName)+": "+value)
+			params = append(params, visitor.ParameterNameSpelling(paramName)+" = "+value)
 		}
 	}
 
@@ -1754,7 +1767,7 @@ func extractNanoflowParameters(ctx *ExecContext, action map[string]any) string {
 		if value != "" {
 			// Canonical microflowArgV3 form is `Param: $value` (IDENTIFIER COLON expr);
 			// emitting `Param = $value` is IDENTIFIER EQUALS, which doesn't re-parse (#640).
-			params = append(params, mdlIdent(paramName)+": "+value)
+			params = append(params, visitor.ParameterNameSpelling(paramName)+" = "+value)
 		}
 	}
 
@@ -2006,14 +2019,14 @@ func describeImageWidgetProps(w rawWidget) []string {
 	if w.ImageUrl != "" {
 		props = append(props, fmt.Sprintf("ImageUrl: %s", mdlQuote(w.ImageUrl)))
 		if len(w.ImageUrlParams) > 0 {
-			props = append(props, fmt.Sprintf("ImageUrlParams: [%s]",
+			props = append(props, fmt.Sprintf("ImageUrlParams: (%s)",
 				strings.Join(formatParametersV3(w.ImageUrlParams), ", ")))
 		}
 	}
 	if w.AlternativeText != "" {
 		props = append(props, fmt.Sprintf("AlternativeText: %s", mdlQuote(w.AlternativeText)))
 		if len(w.AlternativeTextParams) > 0 {
-			props = append(props, fmt.Sprintf("AlternativeTextParams: [%s]",
+			props = append(props, fmt.Sprintf("AlternativeTextParams: (%s)",
 				strings.Join(formatParametersV3(w.AlternativeTextParams), ", ")))
 		}
 	}

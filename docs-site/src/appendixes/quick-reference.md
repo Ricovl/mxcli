@@ -25,14 +25,14 @@ CREATE PERSISTENT ENTITY Module.Photo (
 | Create entity | `CREATE [OR MODIFY] PERSISTENT\|NON-PERSISTENT ENTITY Module.Name (attrs);` | Persistent is default |
 | Create with extends | `CREATE PERSISTENT ENTITY Module.Name EXTENDS Parent.Entity (attrs);` | EXTENDS before `(` |
 | Create view entity | `CREATE VIEW ENTITY Module.Name (attrs) AS SELECT ...;` | OQL-backed; no storage, edit-in-memory, write back via source |
-| Create external entity | `CREATE EXTERNAL ENTITY Module.Name FROM ODATA CLIENT Module.Client (...) (attrs);` | From consumed OData |
+| Create external entity | `CREATE EXTERNAL ENTITY Module.Name FROM CONSUMED ODATA SERVICE Module.Client (...) (attrs);` | From consumed OData |
 | Create external entities | `CREATE [OR MODIFY] EXTERNAL ENTITIES FROM Module.Client [INTO Module] [ENTITIES (...)];` | Bulk from $metadata |
 | Drop entity | `DROP ENTITY Module.Name;` | |
 | Describe entity | `DESCRIBE ENTITY Module.Name;` | Full MDL output |
 | List entities | `LIST ENTITIES [IN Module];` | List all or filter by module |
 | Create enumeration | `CREATE [OR MODIFY] ENUMERATION Module.Name (Value1 'Caption', ...);` | |
 | Drop enumeration | `DROP ENUMERATION Module.Name;` | |
-| Create association | `CREATE ASSOCIATION Module.Name FROM Parent TO Child TYPE Reference\|ReferenceSet [OWNER Default\|Both] [DELETE_BEHAVIOR ...];` | |
+| Create association | `CREATE ASSOCIATION Module.Name FROM Parent TO Child TYPE Reference\|ReferenceSet [OWNER Default\|Both] [ON DELETE CASCADE\|RESTRICT\|SET NULL];` | |
 | Drop association | `DROP ASSOCIATION Module.Name;` | |
 
 ## ALTER ENTITY
@@ -80,22 +80,22 @@ CREATE CONSTANT MyModule.EnableLogging TYPE Boolean DEFAULT true;
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| List OData clients | `LIST ODATA CLIENTS [IN Module];` | Consumed OData services |
-| Describe OData client | `DESCRIBE ODATA CLIENT Module.Name;` | Full MDL output |
-| Create OData client | `CREATE [OR MODIFY] ODATA CLIENT Module.Name (...);` | Version, MetadataUrl, Timeout, etc. |
-| Alter OData client | `ALTER ODATA CLIENT Module.Name SET Key = Value;` | |
-| Drop OData client | `DROP ODATA CLIENT Module.Name;` | |
-| List OData services | `LIST ODATA SERVICES [IN Module];` | Published OData services |
-| Describe OData service | `DESCRIBE ODATA SERVICE Module.Name;` | Full MDL output |
-| Create OData service | `CREATE [OR MODIFY] ODATA SERVICE Module.Name (...) AUTHENTICATION ... { PUBLISH ENTITY ... };` | |
-| Alter OData service | `ALTER ODATA SERVICE Module.Name SET Key = Value;` | |
-| Drop OData service | `DROP ODATA SERVICE Module.Name;` | |
+| List consumed odata services | `LIST CONSUMED ODATA SERVICES [IN Module];` | Consumed OData services |
+| Describe consumed odata service | `DESCRIBE CONSUMED ODATA SERVICE Module.Name;` | Full MDL output |
+| Create consumed odata service | `CREATE [OR MODIFY] CONSUMED ODATA SERVICE Module.Name (...);` | Version, MetadataUrl, Timeout, etc. |
+| Alter consumed odata service | `ALTER CONSUMED ODATA SERVICE Module.Name SET (Key: Value, ...);` | |
+| Drop consumed odata service | `DROP CONSUMED ODATA SERVICE Module.Name;` | |
+| List published odata services | `LIST PUBLISHED ODATA SERVICES [IN Module];` | Published OData services |
+| Describe published odata service | `DESCRIBE PUBLISHED ODATA SERVICE Module.Name;` | Full MDL output |
+| Create published odata service | `CREATE [OR MODIFY] PUBLISHED ODATA SERVICE Module.Name (...) AUTHENTICATION ... { PUBLISH ENTITY ... };` | |
+| Alter published odata service | `ALTER PUBLISHED ODATA SERVICE Module.Name SET (Key: Value, ...);` | |
+| Drop published odata service | `DROP PUBLISHED ODATA SERVICE Module.Name;` | |
 | List external entities | `LIST EXTERNAL ENTITIES [IN Module];` | OData-backed entities |
 | List external actions | `LIST EXTERNAL ACTIONS [IN Module];` | Actions used in microflows |
-| Create external entity | `CREATE [OR MODIFY] EXTERNAL ENTITY Module.Name FROM ODATA CLIENT Module.Client (...) (attrs);` | |
+| Create external entity | `CREATE [OR MODIFY] EXTERNAL ENTITY Module.Name FROM CONSUMED ODATA SERVICE Module.Client (...) (attrs);` | |
 | Create external entities | `CREATE [OR MODIFY] EXTERNAL ENTITIES FROM Module.Client [INTO Module] [ENTITIES (...)];` | Bulk from $metadata |
-| Grant OData access | `GRANT ACCESS ON ODATA SERVICE Module.Name TO Module.Role, ...;` | |
-| Revoke OData access | `REVOKE ACCESS ON ODATA SERVICE Module.Name FROM Module.Role, ...;` | |
+| Grant OData access | `GRANT ACCESS ON PUBLISHED ODATA SERVICE Module.Name TO Module.Role, ...;` | |
+| Revoke OData access | `REVOKE ACCESS ON PUBLISHED ODATA SERVICE Module.Name FROM Module.Role, ...;` | |
 | List contract entities | `LIST CONTRACT ENTITIES FROM Module.Client;` | Browse cached $metadata |
 | List contract actions | `LIST CONTRACT ACTIONS FROM Module.Client;` | Browse cached $metadata |
 | Describe contract entity | `DESCRIBE CONTRACT ENTITY Module.Client.Entity [FORMAT mdl];` | Properties, types, keys |
@@ -109,7 +109,7 @@ CREATE CONSTANT MyModule.EnableLogging TYPE Boolean DEFAULT true;
 
 **OData Client Example:**
 ```sql
-CREATE ODATA CLIENT MyModule.ExternalAPI (
+CREATE CONSUMED ODATA SERVICE MyModule.ExternalAPI (
   Version: '1.0',
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
@@ -119,7 +119,7 @@ CREATE ODATA CLIENT MyModule.ExternalAPI (
 
 **OData Service Example:**
 ```sql
-CREATE ODATA SERVICE MyModule.CustomerAPI (
+CREATE PUBLISHED ODATA SERVICE MyModule.CustomerAPI (
   Path: '/odata/customers',
   Version: '1.0.0',
   ODataVersion: OData4,
@@ -156,7 +156,7 @@ AUTHENTICATION Basic, Session
 | Retrieve (Assoc) | `RETRIEVE $List FROM $Parent/Module.AssocName;` | Retrieve by association |
 | Call microflow | `$Result = CALL MICROFLOW Module.Name (Param = $value);` | |
 | Call nanoflow | `$Result = CALL NANOFLOW Module.Name (Param = $value);` | |
-| Show page | `LIST PAGE Module.PageName ($Param = $value);` | Also accepts `(Param: $value)` |
+| Show page | `SHOW PAGE Module.PageName (Param = $value);` | `($Param = …)` and `(Param: …)` are deprecated |
 | Close page | `CLOSE PAGE;` | |
 | Validation | `VALIDATION FEEDBACK $Entity/Attribute MESSAGE 'message';` | Requires attribute path + MESSAGE |
 | Log | `LOG INFO\|WARNING\|ERROR [NODE 'name'] 'message';` | |
@@ -170,14 +170,14 @@ AUTHENTICATION Basic, Session
 | WHILE | `WHILE condition BEGIN ... END WHILE;` | Condition-based loop |
 | Return | `RETURN $value;` | Required at end of every flow path |
 | Execute DB query | `$Result = EXECUTE DATABASE QUERY Module.Conn.Query;` | 3-part name; supports DYNAMIC, params, CONNECTION override |
-| Error handling | `... ON ERROR CONTINUE\|ROLLBACK\|{ handler };` | Not supported on EXECUTE DATABASE QUERY |
+| Error handling | `... ON ERROR CONTINUE\|ROLLBACK\|[WITHOUT ROLLBACK] BEGIN handler END ERROR;` | Not supported on EXECUTE DATABASE QUERY |
 
 ## Microflows - NOT Supported (Will Cause Parse Errors)
 
 | Unsupported | Use Instead | Notes |
 |-------------|-------------|-------|
 | `CASE ... WHEN 'String' ... ELSE ...` | Bare enum values, one branch per value | `CASE` itself IS supported for **enum splits**; what fails is quoted/qualified values, an `ELSE` branch (MDL008), and an `AS` alias |
-| `TRY ... CATCH ... END TRY` | `ON ERROR { ... }` blocks | Use error handlers on specific activities |
+| `TRY ... CATCH ... END TRY` | `ON ERROR BEGIN ... END ERROR` blocks | Use error handlers on specific activities |
 
 **Notes:**
 - `RETRIEVE ... FIRST` returns a single entity; `RETRIEVE ... LIMIT n [OFFSET n]` returns a list. A bare `LIMIT 1` is a list of one under `mdl 1;`, and without the header the single entity, with warning `MDL-V1-LIMIT1`.
@@ -188,10 +188,10 @@ AUTHENTICATION Basic, Session
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
 | Microflow folder | `FOLDER 'path'` (before BEGIN) | `CREATE MICROFLOW ... FOLDER 'ACT' BEGIN ... END;` |
-| Page folder | `Folder: 'path'` (in properties) | `CREATE PAGE ... (Folder: 'Pages/Detail') { ... }` |
+| Page folder | `FOLDER 'path'` (after the name) | `CREATE PAGE ... FOLDER 'Pages/Detail' (...) { ... }` |
 | Move to folder | `MOVE <doctype> Module.Name TO FOLDER 'path';` | Folders created automatically. Any top-level doctype, spelled as `DESCRIBE` spells it |
 | Move a mapping / structure | `MOVE IMPORT MAPPING\|EXPORT MAPPING\|JSON STRUCTURE Module.Name TO FOLDER 'path';` | |
-| Place while creating | `CREATE <doctype> Module.Name FOLDER 'path' ...` | Every doctype. Pages/snippets use `Folder: 'path'` as a property; microflows/nanoflows a keyword before `BEGIN` |
+| Place while creating | `CREATE <doctype> Module.Name FOLDER 'path' ...` | Every doctype: a clause after the name (after the signature on microflows/nanoflows, before `BEGIN`). The `Folder: 'path'` property on pages, snippets and REST/OData services is a deprecated alias (`MDL-DEPR105`) |
 | Place an existing document | `CREATE OR MODIFY ... FOLDER 'path' ...` | Moves it; omitting the clause leaves placement alone |
 | Move to module root | `MOVE PAGE Module.Name TO Module;` | Removes from folder |
 | Move across modules | `MOVE PAGE Old.Name TO NewModule;` | **Breaks by-name references** -- use `LIST IMPACT OF` first |
@@ -204,26 +204,26 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| List project security | `LIST PROJECT SECURITY;` | Displays security level, admin, demo users |
+| Describe app security | `DESCRIBE APP SECURITY;` | Displays security level, admin, demo users |
 | List module roles | `LIST MODULE ROLES [IN Module];` | All roles or filtered by module |
 | List user roles | `LIST USER ROLES;` | Project-level user roles |
 | List demo users | `LIST DEMO USERS;` | Configured demo users |
 | List access on element | `LIST ACCESS ON [ENTITY\|MICROFLOW\|PAGE\|NANOFLOW] Mod.Name;` | Which roles can access; a bare name means the entity |
-| List security matrix | `LIST SECURITY MATRIX [IN Module];` | Full access overview |
+| Describe security matrix | `DESCRIBE SECURITY MATRIX [IN Module];` | Full access overview |
 | Create module role | `CREATE MODULE ROLE Mod.Role [DESCRIPTION 'text'];` | |
 | Drop module role | `DROP MODULE ROLE Mod.Role;` | |
-| Create user role | `CREATE USER ROLE Name (Mod.Role, ...) [MANAGE ALL ROLES];` | Aggregates module roles |
-| Alter user role | `ALTER USER ROLE Name ADD\|REMOVE MODULE ROLES (Mod.Role, ...);` | |
+| Create user role | `CREATE USER ROLE Name ( ModuleRoles: (Mod.Role, ...), Description: '...', ManageAllRoles: true, CheckSecurity: true );` | Aggregates module roles; every property optional |
+| Alter user role | `ALTER USER ROLE Name ADD\|DROP MODULE ROLES (Mod.Role, ...);` | |
 | Drop user role | `DROP USER ROLE [IF EXISTS] Name;` | `IF EXISTS` makes a cleanup script re-runnable |
 | Grant microflow access | `GRANT EXECUTE ON MICROFLOW Mod.MF TO Mod.Role, ...;` | |
 | Revoke microflow access | `REVOKE EXECUTE ON MICROFLOW Mod.MF FROM Mod.Role, ...;` | |
 | Grant page access | `GRANT VIEW ON PAGE Mod.Page TO Mod.Role, ...;` | |
 | Revoke page access | `REVOKE VIEW ON PAGE Mod.Page FROM Mod.Role, ...;` | |
-| Grant entity access | `GRANT Mod.Role ON Mod.Entity (CREATE, DELETE, READ *, WRITE *);` | Supports member lists and WHERE |
-| Revoke entity access | `REVOKE Mod.Role ON Mod.Entity;` | |
-| Set security level | `ALTER PROJECT SECURITY LEVEL OFF\|PROTOTYPE\|PRODUCTION;` | |
-| Toggle demo users | `ALTER PROJECT SECURITY DEMO USERS ON\|OFF;` | |
-| Toggle guest access | `ALTER PROJECT SECURITY GUEST ACCESS ON ROLE UserRole\|OFF;` | Anonymous users; role required (CE0133) |
+| Grant entity access | `GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Mod.Entity TO Mod.Role;` | Supports member lists and WHERE |
+| Revoke entity access | `REVOKE ALL ON ENTITY Mod.Entity FROM Mod.Role;` | |
+| Set security level | `ALTER APP SECURITY ( SecurityLevel: OFF\|PROTOTYPE\|PRODUCTION );` | |
+| Toggle demo users | `ALTER APP SECURITY ( EnableDemoUsers: TRUE\|FALSE );` | |
+| Toggle guest access | `ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: UserRole );` / `( EnableGuestAccess: FALSE )` | Anonymous users; role required (CE0133) |
 | Create demo user | `CREATE DEMO USER 'name' PASSWORD 'pass' [ENTITY Module.Entity] (UserRole, ...);` | |
 | Drop demo user | `DROP DEMO USER [IF EXISTS] 'name';` | `IF EXISTS` makes a cleanup script re-runnable |
 
@@ -235,11 +235,12 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Describe workflow | `DESCRIBE WORKFLOW Module.Name;` | Full MDL output |
 | Create workflow | `CREATE [OR MODIFY] WORKFLOW Module.Name PARAMETER $Ctx: Module.Entity BEGIN ... END WORKFLOW;` | See activity types below |
 | Drop workflow | `DROP WORKFLOW Module.Name;` | |
+| Alter workflow | `ALTER WORKFLOW Module.Name { SET (Key: value, ...) [ON <activity>]; INSERT BEFORE\|AFTER <activity> { ... } INSERT INTO <activity> { OUTCOMES ... \| PATH { ... } \| BOUNDARY EVENT ... } REPLACE <activity> WITH { ... } DROP <activity> [OUTCOME '<x>' \| PATH <n> \| BOUNDARY EVENT]; };` | An activity is its name or `'caption'`, `@n` for one of several matches; the old per-action form warns MDL-DEPR140–149 |
 
 **Workflow Activity Types:**
 - `USER TASK <name> '<caption>' [PAGE Mod.Page] [TARGETING MICROFLOW Mod.MF] [OUTCOMES '<out>' { } ...];`
-- `CALL MICROFLOW Mod.MF [COMMENT '<text>'] [OUTCOMES '<out>' { } ...];`
-- `CALL WORKFLOW Mod.WF [COMMENT '<text>'];`
+- `CALL MICROFLOW Mod.MF [CAPTION '<text>'] [OUTCOMES '<out>' { } ...];`
+- `CALL WORKFLOW Mod.WF [CAPTION '<text>'];`
 - `DECISION ['<caption>'] OUTCOMES '<out>' { } ...;`
 - `PARALLEL SPLIT PATH 1 { } PATH 2 { };`
 - `JUMP TO <activity-name>;`
@@ -263,11 +264,11 @@ END WORKFLOW;
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| Structure overview | `LIST STRUCTURE;` | Depth 2 (elements with signatures), user modules only |
-| Module counts | `LIST STRUCTURE DEPTH 1;` | One line per module with element counts |
-| Full types | `LIST STRUCTURE DEPTH 3;` | Typed attributes, named parameters |
-| Filter by module | `LIST STRUCTURE IN ModuleName;` | Single module only |
-| Include all modules | `LIST STRUCTURE DEPTH 1 ALL;` | Include system/marketplace modules |
+| Structure overview | `DESCRIBE STRUCTURE;` | Depth 2 (elements with signatures), user modules only |
+| Module counts | `DESCRIBE STRUCTURE DEPTH 1;` | One line per module with element counts |
+| Full types | `DESCRIBE STRUCTURE DEPTH 3;` | Typed attributes, named parameters |
+| Filter by module | `DESCRIBE STRUCTURE IN ModuleName;` | Single module only |
+| Include all modules | `DESCRIBE STRUCTURE DEPTH 1 ALL;` | Include system/marketplace modules |
 
 ## Navigation
 
@@ -286,25 +287,25 @@ CREATE OR REPLACE NAVIGATION Responsive
   HOME PAGE MyModule.AdminHome FOR Administrator
   LOGIN PAGE Administration.Login
   NOT FOUND PAGE MyModule.Custom404
-  MENU (
-    MENU ITEM 'Home' PAGE MyModule.Home_Web;
-    MENU 'Admin' (
-      MENU ITEM 'Users' PAGE Administration.Account_Overview;
-    );
-  );
+  {
+    MENU ITEM 'Home' ( OnClick: SHOW PAGE MyModule.Home_Web )
+    MENU 'Admin' {
+      MENU ITEM 'Users' ( OnClick: SHOW PAGE Administration.Account_Overview )
+    }
+  };
 ```
 
 ## Project Settings
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| List settings | `LIST SETTINGS;` | Overview of all settings parts |
+| Describe settings | `DESCRIBE SETTINGS;` | All settings parts, as MDL |
 | Describe settings | `DESCRIBE SETTINGS;` | Full MDL output (round-trippable) |
-| Alter model settings | `ALTER SETTINGS MODEL Key = Value;` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
-| Alter configuration | `ALTER SETTINGS CONFIGURATION 'Name' Key = Value;` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
-| Alter constant | `ALTER SETTINGS CONSTANT 'Name' VALUE 'val' IN CONFIGURATION 'cfg';` | Override constant per configuration |
-| Alter language | `ALTER SETTINGS LANGUAGE Key = Value;` | DefaultLanguageCode |
-| Alter workflows | `ALTER SETTINGS WORKFLOWS Key = Value;` | UserEntity, DefaultTaskParallelism |
+| Alter runtime settings | `ALTER SETTINGS RUNTIME (Key: Value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
+| Alter configuration | `ALTER SETTINGS CONFIGURATION 'Name' (Key: Value, ...);` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
+| Alter constant | `ALTER SETTINGS CONSTANT @Module.Name VALUE 'val' IN CONFIGURATION 'cfg';` | Override constant per configuration |
+| Alter language | `ALTER SETTINGS LANGUAGE (Key: Value);` | DefaultLanguageCode |
+| Alter workflows | `ALTER SETTINGS WORKFLOWS (Key: Value, ...);` | UserEntity, DefaultTaskParallelism |
 
 ## Business Events
 
@@ -349,18 +350,18 @@ MDL uses explicit property declarations for pages:
 | Element | Syntax | Example |
 |---------|-----------|---------|
 | Page properties | `(Key: value, ...)` | `(Title: 'Edit', Layout: Atlas_Core.Atlas_Default)` |
-| Page variables | `Variables: { $name: Type = 'expr' }` | `Variables: { $show: Boolean = 'true' }` |
+| Page variables | `Variables: ( $name: Type = 'expr' )` | `Variables: ( $show: Boolean = 'true' )` |
 | Widget name | Required after type | `TEXTBOX txtName (...)` |
 | Attribute binding | `Attribute: AttrName` | `TEXTBOX txt (Label: 'Name', Attribute: Name)` |
 | Variable binding | `DataSource: $Var` | `DATAVIEW dv (DataSource: $Product) { ... }` |
-| Action binding | `Action: TYPE` | `ACTIONBUTTON btn (Caption: 'Save', Action: SAVE_CHANGES)` |
-| Microflow action | `Action: MICROFLOW Name(Param: val)` | `Action: MICROFLOW Mod.ACT_Process(Order: $Order)` |
+| Action binding | `Action: TYPE` | `ACTIONBUTTON btn (Caption: 'Save', Action: save changes)` |
+| Microflow action | `Action: MICROFLOW Name(Param = val)` | `Action: MICROFLOW Mod.ACT_Process(Order = $Order)` |
 | Database source | `DataSource: DATABASE Entity` | `DATAGRID dg (DataSource: DATABASE Module.Entity)` |
 | Selection binding | `DataSource: SELECTION widget` | `DATAVIEW dv (DataSource: SELECTION galleryList)` |
 | CSS class | `Class: 'classes'` | `CONTAINER c (Class: 'card mx-spacing-top-large')` |
 | Inline style | `Style: 'css'` | `CONTAINER c (Style: 'padding: 16px;')` |
 | Dynamic classes | `DynamicClasses: 'expr'` | `CONTAINER c (DynamicClasses: if $currentObject/IsActive then 'is-active' else '')` — runtime-computed; stacks on `Class` |
-| Design properties | `DesignProperties: [...]` | `CONTAINER c (DesignProperties: ['Spacing top': 'Large', 'Full width': ON])` |
+| Design properties | `DesignProperties: (...)` | `CONTAINER c (DesignProperties: ('Spacing top': 'Large', 'Full width': ON))` |
 | Width (pixels) | `Width: integer` | `IMAGE img (Width: 200)` |
 | Height (pixels) | `Height: integer` | `IMAGE img (Height: 150)` |
 | Page size | `PageSize: integer` | `DATAGRID dg (PageSize: 25)` |
@@ -390,7 +391,7 @@ MDL uses explicit property declarations for pages:
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )
@@ -401,8 +402,8 @@ CREATE PAGE MyModule.Customer_Edit
     COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
 
     FOOTER footer1 {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 }
@@ -421,15 +422,15 @@ Modify an existing page or snippet's widget tree in-place without full `CREATE O
 
 | Operation | Syntax | Notes |
 |-----------|--------|-------|
-| Set property | `SET Caption = 'New' ON widgetName` | Single property on a widget |
+| Set property | `SET (Caption: 'New') ON widgetName` | Single property on a widget |
 | Set multiple | `SET (Caption = 'Save', ButtonStyle = Success) ON btn` | Multiple properties at once |
-| Page-level set | `SET Title = 'New Title'` | No ON clause for page properties |
+| Page-level set | `SET (Title: 'New Title')` | No ON clause for page properties |
 | Insert after | `INSERT AFTER widgetName { widgets }` | Add widgets after target |
 | Insert before | `INSERT BEFORE widgetName { widgets }` | Add widgets before target |
 | Insert into | `INSERT INTO containerName { widgets }` | Append as the container's last child (fills an empty container) |
-| Drop widgets | `DROP WIDGET name1, name2` | Remove widgets by name |
+| Drop widgets | `DROP name1, name2` | Remove widgets by name |
 | Replace widget | `REPLACE widgetName WITH { widgets }` | Replace widget subtree |
-| Pluggable prop | `SET 'showLabel' = false ON cbStatus` | Quoted name for pluggable widgets |
+| Pluggable prop | `SET ('showLabel': false) ON cbStatus` | Quoted name for pluggable widgets |
 | Add variable | `ADD Variables $name: Type = 'expr'` | Add a page variable |
 | Drop variable | `DROP Variables $name` | Remove a page variable |
 
@@ -438,15 +439,15 @@ Modify an existing page or snippet's widget tree in-place without full `CREATE O
 **Example:**
 ```sql
 ALTER PAGE Module.EditPage {
-  SET (Caption = 'Save & Close', ButtonStyle = Success) ON btnSave;
-  DROP WIDGET txtUnused;
+  SET (Caption: 'Save & Close', ButtonStyle: Success) ON btnSave;
+  DROP txtUnused;
   INSERT AFTER txtEmail {
     TEXTBOX txtPhone (Label: 'Phone', Attribute: Phone)
   }
 };
 
 ALTER SNIPPET Module.NavMenu {
-  SET Caption = 'Dashboard' ON btnHome
+  SET (Caption: 'Dashboard') ON btnHome
 };
 ```
 
@@ -514,7 +515,7 @@ CLI subcommand: `mxcli sql --driver postgres --dsn '...' "SELECT 1"` (see `mxcli
 | List callees | `LIST CALLEES OF Module.Name;` | What this element calls |
 | List references | `LIST REFERENCES OF Module.Name;` | All references to/from |
 | List impact | `LIST IMPACT OF Module.Name;` | Impact analysis |
-| List context | `LIST CONTEXT OF Module.Name;` | Surrounding context |
+| Describe context | `DESCRIBE CONTEXT OF Module.Name;` | Surrounding context |
 | Full-text search | `SEARCH '<keyword>';` | Search across all strings and source |
 
 Cross-reference commands require `REFRESH CATALOG FULL` to populate reference data.

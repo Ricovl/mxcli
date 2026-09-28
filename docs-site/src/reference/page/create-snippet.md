@@ -3,11 +3,10 @@
 ## Synopsis
 
 ```sql
-CREATE [ OR REPLACE ] SNIPPET module.Name
-(
-    [ Params: { $param : Module.Entity | Type [, ...] } ]
-    [, Folder: 'path' ]
-)
+CREATE [ OR REPLACE ] SNIPPET module.Name [ FOLDER 'path' ]
+[(
+    Params: ( $param : Module.Entity | Type [, ...] )
+)]
 {
     widget_tree
 }
@@ -34,7 +33,7 @@ The optional `Folder` property places the snippet in a subfolder within the modu
 `module.Name`
 :   The qualified name of the snippet (`Module.SnippetName`). The module must already exist.
 
-`Params: { ... }`
+`Params: ( ... )`
 :   Optional snippet parameters. Each parameter has a `$`-prefixed name and an
     **entity** type (`Module.Entity`).
 
@@ -45,8 +44,8 @@ The optional `Folder` property places the snippet in a subfolder within the modu
     on a value, keep the primitive on the calling page's parameters, or pass an
     object and read the member inside the snippet.
 
-`Folder: 'path'`
-:   Optional folder path within the module.
+`FOLDER 'path'`
+:   Optional folder path within the module, as a clause after the name. The `Folder: 'path'` property is its deprecated alias (`MDL-DEPR105`).
 
 ## Examples
 
@@ -55,7 +54,7 @@ Simple snippet with a header:
 ```sql
 CREATE SNIPPET MyModule.CustomerHeader
 (
-    Params: { $Customer: MyModule.Customer }
+    Params: ( $Customer: MyModule.Customer )
 )
 {
     CONTAINER cntHeader (Class: 'card-header') {
@@ -70,7 +69,7 @@ Snippet with form fields:
 ```sql
 CREATE SNIPPET MyModule.AddressFields
 (
-    Params: { $Address: MyModule.Address }
+    Params: ( $Address: MyModule.Address )
 )
 {
     TEXTBOX txtStreet (Label: 'Street', Attribute: Street)
@@ -96,7 +95,7 @@ Embedding a snippet in a page:
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-    Params: { $Customer: MyModule.Customer },
+    Params: ( $Customer: MyModule.Customer ),
     Title: 'Edit Customer',
     Layout: Atlas_Core.PopupLayout
 )
@@ -104,7 +103,7 @@ CREATE PAGE MyModule.Customer_Edit
     DATAVIEW dvCustomer (DataSource: $Customer) {
         SNIPPETCALL snpAddress (Snippet: MyModule.AddressFields)
         FOOTER footer1 {
-            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
+            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
         }
     }
 };

@@ -36,7 +36,7 @@ type string
 default 'https://api.example.com/odata/v4/';
 /
 
-create odata client OdProxy.ProxiedApi (
+create consumed odata service OdProxy.ProxiedApi (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
   ServiceUrl: '@OdProxy.ApiLocation',
@@ -48,5 +48,5 @@ create odata client OdProxy.ProxiedApi (
 );
 /
 
-alter odata client OdProxy.ProxiedApi set ProxyHost = @OdProxy.ProxyHost;
+alter consumed odata service OdProxy.ProxiedApi set ( ProxyHost: @OdProxy.ProxyHost );
 /

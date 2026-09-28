@@ -134,7 +134,7 @@ func TestCleanupCommands(t *testing.T) {
 			state:   projectState{afterStartup: "MyFirstModule.ASU_Startup", createdMxTest: true},
 			present: true,
 			want: []string{
-				"ALTER SETTINGS MODEL AfterStartupMicroflow = 'MyFirstModule.ASU_Startup'",
+				"ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'MyFirstModule.ASU_Startup')",
 				"DROP MODULE MxTest",
 			},
 		},
@@ -143,7 +143,7 @@ func TestCleanupCommands(t *testing.T) {
 			state:   projectState{createdMxTest: true},
 			present: true,
 			want: []string{
-				"ALTER SETTINGS MODEL AfterStartupMicroflow = ''",
+				"ALTER SETTINGS RUNTIME (AfterStartupMicroflow: '')",
 				"DROP MODULE MxTest",
 			},
 		},
@@ -154,7 +154,7 @@ func TestCleanupCommands(t *testing.T) {
 			state:   projectState{afterStartup: "Mod.Flow"},
 			present: true,
 			want: []string{
-				"ALTER SETTINGS MODEL AfterStartupMicroflow = 'Mod.Flow'",
+				"ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Mod.Flow')",
 				"DROP MICROFLOW MxTest.TestRunner",
 			},
 		},
@@ -165,7 +165,7 @@ func TestCleanupCommands(t *testing.T) {
 			state:   projectState{afterStartup: "Mod.Flow", createdMxTest: true},
 			present: false,
 			want: []string{
-				"ALTER SETTINGS MODEL AfterStartupMicroflow = 'Mod.Flow'",
+				"ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Mod.Flow')",
 			},
 		},
 	}
@@ -189,7 +189,7 @@ func TestCleanupCommands(t *testing.T) {
 func TestCleanupCommands_RestoreIsWellFormed(t *testing.T) {
 	parsed := parseSettingValue("  AfterStartupMicroflow = 'MyFirstModule.ASU_Startup',")
 	restore := cleanupCommands(projectState{afterStartup: parsed}, true)[0]
-	want := "ALTER SETTINGS MODEL AfterStartupMicroflow = 'MyFirstModule.ASU_Startup'"
+	want := "ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'MyFirstModule.ASU_Startup')"
 	if restore != want {
 		t.Errorf("restore command = %q, want %q", restore, want)
 	}

@@ -30,7 +30,7 @@
 create module S868;
 create persistent entity S868.Order (Code: String(20));
 
-create snippet S868.OrderActions ( params: { $Order: S868.Order } ) {
+create snippet S868.OrderActions ( params: ( $Order: S868.Order ) ) {
   dataview dvInner (datasource: $Order) {
     textbox tbCode (attribute: Code, label: 'Code')
   }
@@ -38,9 +38,9 @@ create snippet S868.OrderActions ( params: { $Order: S868.Order } ) {
 
 -- A: Params omitted, call sits inside a DataView on the parameter's entity
 create page S868.PageOmitted (
-  params: { $Order: S868.Order }, title: 'A', layout: Atlas_Core.Atlas_Default
+  params: ( $Order: S868.Order ), title: 'A', layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     dataview dvOrder (datasource: $Order) {
       snippetcall scActions (snippet: S868.OrderActions)
     }
@@ -49,20 +49,20 @@ create page S868.PageOmitted (
 
 -- B: $currentObject named explicitly — same meaning, same output
 create page S868.PageCurrentObject (
-  params: { $Order: S868.Order }, title: 'B', layout: Atlas_Core.Atlas_Default
+  params: ( $Order: S868.Order ), title: 'B', layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     dataview dvOrder (datasource: $Order) {
-      snippetcall scActions (snippet: S868.OrderActions, params: {Order: $currentObject})
+      snippetcall scActions (snippet: S868.OrderActions, params: (Order = $currentObject))
     }
   } } }
 }
 
 -- C: a real page parameter — the form that already worked
 create page S868.PageRealParam (
-  params: { $Order: S868.Order }, title: 'C', layout: Atlas_Core.Atlas_Default
+  params: ( $Order: S868.Order ), title: 'C', layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
-    snippetcall scActions (snippet: S868.OrderActions, params: {Order: $Order})
+  layoutgrid g { row { column (desktopwidth: 12) {
+    snippetcall scActions (snippet: S868.OrderActions, params: (Order = $Order))
   } } }
 }

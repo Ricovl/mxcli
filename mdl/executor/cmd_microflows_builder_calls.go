@@ -130,7 +130,7 @@ func (fb *flowBuilder) buildQueueSettings(q *ast.QualifiedName, what string) *mi
 	}
 	qn := q.Module + "." + q.Name
 	if !fb.queueExists(q.Module, q.Name) {
-		fb.addError("%s ... IN QUEUE '%s': task queue not found in the project (create it with `CREATE QUEUE %s (Parallelism: 1)`)", what, qn, qn)
+		fb.addError("%s ... IN QUEUE '%s': task queue not found in the project (create it with `create task queue %s (Parallelism: 1)`)", what, qn, qn)
 	}
 	return &microflows.QueueSettings{
 		BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},

@@ -8,6 +8,6 @@ A basic `REFRESH CATALOG` populates tables for modules, entities, attributes, as
 |-----------|-------------|
 | [REFRESH CATALOG](refresh-catalog.md) | Rebuild the catalog from the current project state |
 | [SELECT FROM CATALOG](select-from-catalog.md) | Query catalog tables with SQL syntax |
-| [SHOW CATALOG TABLES](show-catalog-tables.md) | List available catalog tables and their columns |
-| [SHOW CALLERS / CALLEES](show-callers-callees.md) | Find what calls an element or what it calls |
-| [SHOW REFERENCES / IMPACT / CONTEXT](show-references-impact.md) | Cross-reference navigation and impact analysis |
+| [LIST CATALOG TABLES](list-catalog-tables.md) | List available catalog tables and their columns |
+| [LIST CALLERS / CALLEES](list-callers-callees.md) | Find what calls an element or what it calls |
+| [LIST REFERENCES / IMPACT / CONTEXT](list-references-impact.md) | Cross-reference navigation and impact analysis |

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
@@ -19,9 +20,14 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 	stmt := &ast.CreateRestClientStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	// `folder '…'` after the name (R9); `Folder:` in the list is its alias.
+	folderClause := ctx.STRING_LITERAL() != nil
+	if folderClause {
+		stmt.Folder = unquoteStringLit(ctx.STRING_LITERAL())
+	}
 
 	// Parse service-level properties (BaseUrl, Authentication, Folder)
-	for _, propCtx := range ctx.AllRestClientProperty() {
+	for i, propCtx := range ctx.AllRestClientProperty() {
 		pc, ok := propCtx.(*parser.RestClientPropertyContext)
 		if !ok || pc == nil {
 			continue
@@ -40,7 +46,11 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 			}
 		case "folder":
 			if sl := pc.STRING_LITERAL(); sl != nil {
-				stmt.Folder = unquoteStringLit(sl)
+				if !folderClause {
+					stmt.Folder = unquoteStringLit(sl)
+				}
+				b.recordFolderProperty(ctx.QualifiedName(), ruleContexts(ctx.AllRestClientProperty()), i,
+					unquoteStringLit(sl), folderClause, nil)
 			}
 		case "openapi":
 			if sl := pc.STRING_LITERAL(); sl != nil {
@@ -61,8 +71,10 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 					if sl := sp.STRING_LITERAL(); sl != nil {
 						val = unquoteStringLit(sl)
 					} else if v := sp.VARIABLE(); v != nil {
-						// $Constant reference (legacy) — keep $ prefix
-						val = v.GetText()
+						// $Constant (MDL-DEPR083): a constant of the service's own
+						// module, stored qualified as `@Module.Const` stores it.
+						val = "$" + dollarConstantName(stmt.Name.Module, v.GetText())
+						b.recordDollarConstant(v, stmt.Name.Module)
 					} else if sp.AT() != nil {
 						// @Module.Constant reference (preferred Mendix convention)
 						// Store with $ prefix so the writer serializes as Rest$ConstantValue
@@ -245,7 +257,7 @@ func parseRestClientOpProp(ctx *parser.RestClientOpPropContext, op *ast.RestOper
 		return
 	}
 
-	// Header list: ('Name' = 'Value', ...)
+	// Header list: ('Name': 'Value', ...) — or the old ('Name' = 'Value')
 	headerItems := ctx.AllRestClientHeaderItem()
 	if len(headerItems) > 0 {
 		for _, hi := range headerItems {
@@ -255,16 +267,14 @@ func parseRestClientOpProp(ctx *parser.RestClientOpPropContext, op *ast.RestOper
 			if len(allSL) >= 1 {
 				header.Name = unquoteStringLit(allSL[0])
 			}
-			if hic.PLUS() != nil {
-				// 'prefix' + $Variable
+			if v := hic.VARIABLE(); v != nil {
+				// `'prefix' + $P` / `$P` (MDL-DEPR711): the template
+				// `'prefix{P}'`. It used to store the prefix alone.
+				prefix := ""
 				if len(allSL) >= 2 {
-					header.Prefix = unquoteStringLit(allSL[1])
+					prefix = unquoteStringLit(allSL[1])
 				}
-				if v := hic.VARIABLE(); v != nil {
-					header.Variable = v.GetText()
-				}
-			} else if hic.VARIABLE() != nil {
-				header.Variable = hic.VARIABLE().GetText()
+				header.Value = prefix + "{" + strings.TrimPrefix(v.GetText(), "$") + "}"
 			} else if len(allSL) >= 2 {
 				header.Value = unquoteStringLit(allSL[1])
 			}
@@ -354,6 +364,11 @@ func (b *Builder) ExitCreatePublishedRestServiceStatement(ctx *parser.CreatePubl
 	stmt := &ast.CreatePublishedRestServiceStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	// `folder '…'` after the name (R9); `Folder:` in the list is its alias.
+	folderClause := ctx.STRING_LITERAL() != nil
+	if folderClause {
+		stmt.Folder = unquoteStringLit(ctx.STRING_LITERAL())
+	}
 
 	// Check for CREATE OR MODIFY (or OR REPLACE, treated identically)
 	createStmt := findParentCreateStatement(ctx)
@@ -364,7 +379,7 @@ func (b *Builder) ExitCreatePublishedRestServiceStatement(ctx *parser.CreatePubl
 	}
 
 	// Parse properties (Path, Version, ServiceName)
-	for _, propCtx := range ctx.AllPublishedRestProperty() {
+	for i, propCtx := range ctx.AllPublishedRestProperty() {
 		pc := propCtx.(*parser.PublishedRestPropertyContext)
 		key := identifierOrKeywordText(pc.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
 		b.checkProperty(pc, &publishedRestSchema, key, shapeString)
@@ -377,7 +392,10 @@ func (b *Builder) ExitCreatePublishedRestServiceStatement(ctx *parser.CreatePubl
 		case "servicename":
 			stmt.ServiceName = val
 		case "folder":
-			stmt.Folder = val
+			if !folderClause {
+				stmt.Folder = val
+			}
+			b.recordFolderProperty(ctx.QualifiedName(), ruleContexts(ctx.AllPublishedRestProperty()), i, val, folderClause, nil)
 		}
 	}
 
@@ -505,4 +523,45 @@ func (b *Builder) exitAlterPublishedRestServiceStatement(ctx *parser.AlterStatem
 	}
 
 	b.statements = append(b.statements, stmt)
+}
+
+// ExitRestClientHeaderItem records the expression form of a header value,
+// `'prefix' + $P` or `$P` (MDL-DEPR711).
+func (b *Builder) ExitRestClientHeaderItem(ctx *parser.RestClientHeaderItemContext) {
+	v := ctx.VARIABLE()
+	if v == nil {
+		return
+	}
+	prefix := ""
+	if sl := ctx.AllSTRING_LITERAL(); len(sl) >= 2 {
+		prefix = unquoteStringLit(sl[1])
+	}
+	b.recordDeprecation(deprecation.RestHeaderConcat, v.GetSymbol(), "")
+	fix, why := restHeaderConcatFix(ctx, prefix)
+	b.fixLastDeprecation(deprecation.RestHeaderConcat, fix, why)
+}
+
+// restHeaderConcatFix rewrites a header value written `'prefix' + $P` or `$P`
+// as the template `'prefix{P}'` (MDL-DEPR711). It returns the fix, or the
+// reason there is none: a prefix holding a brace, which the template would read
+// as a placeholder, or a backslash escape whose meaning depends on the version.
+func restHeaderConcatFix(hic *parser.RestClientHeaderItemContext, prefix string) (*ast.Fix, string) {
+	if strings.ContainsAny(prefix, "{}") {
+		return nil, "the text before `+` holds a brace, which a header template reads as a placeholder; write the value by hand"
+	}
+	allSL := hic.AllSTRING_LITERAL()
+	v := hic.VARIABLE().GetSymbol()
+	name := strings.TrimPrefix(v.GetText(), "$")
+	if len(allSL) < 2 {
+		// `'X-Key' = $Key` -> `'X-Key' = '{Key}'`
+		return &ast.Fix{Edits: []ast.TextEdit{replaceSpan(v, v, "'{"+name+"}'")}}, ""
+	}
+	lit := allSL[1]
+	if holdsInterpretedEscape(lit) {
+		return nil, "the text before `+` holds a backslash escape; write the value by hand"
+	}
+	// `'Bearer ' + $Token` -> `'Bearer {Token}'`: the literal keeps its text
+	// and its escapes, and the placeholder goes before its closing quote.
+	raw := lit.GetText()
+	return &ast.Fix{Edits: []ast.TextEdit{replaceSpan(lit.GetSymbol(), v, raw[:len(raw)-1]+"{"+name+"}'")}}, ""
 }

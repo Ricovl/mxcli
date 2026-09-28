@@ -31,12 +31,12 @@ The [Mendix Model SDK](https://docs.mendix.com/apidocs-mxsdk/mxsdk/) is Mendix's
 
 | TypeScript SDK | MDL Equivalent | Go Library |
 |---------------|----------------|------------|
-| `model.allDomainModels()` | `SHOW ENTITIES` | `reader.ListDomainModels()` |
-| `domainModel.entities` | `SHOW ENTITIES IN Module` | `reader.GetDomainModel(id)` |
+| `model.allDomainModels()` | `LIST ENTITIES` | `reader.ListDomainModels()` |
+| `domainModel.entities` | `LIST ENTITIES IN Module` | `reader.GetDomainModel(id)` |
 | `entity.attributes` | `DESCRIBE ENTITY Module.Name` | `dm.Entities[i].Attributes` |
-| `model.allMicroflows()` | `SHOW MICROFLOWS` | `reader.ListMicroflows()` |
-| `model.allPages()` | `SHOW PAGES` | `reader.ListPages()` |
-| `model.allEnumerations()` | `SHOW ENUMERATIONS` | `reader.ListEnumerations()` |
+| `model.allMicroflows()` | `LIST MICROFLOWS` | `reader.ListMicroflows()` |
+| `model.allPages()` | `LIST PAGES` | `reader.ListPages()` |
+| `model.allEnumerations()` | `LIST ENUMERATIONS` | `reader.ListEnumerations()` |
 
 ### Writing
 
@@ -56,7 +56,7 @@ The [Mendix Model SDK](https://docs.mendix.com/apidocs-mxsdk/mxsdk/) is Mendix's
 |---------------|----------------|
 | `security.ModuleRole.createIn(module)` | `CREATE MODULE ROLE Module.RoleName` |
 | Manual access rule construction | `GRANT role ON Entity (permissions)` |
-| Manual user role creation | `CREATE USER ROLE Name (ModuleRoles)` |
+| Manual user role creation | `CREATE USER ROLE Name ( ModuleRoles: (ModuleRoles) )` |
 
 ## Workflow Comparison
 

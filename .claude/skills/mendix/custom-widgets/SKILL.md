@@ -25,7 +25,7 @@ the **properties** (the widget's own spelling — `tagName`, not `TagName`), and
 the **body containers** — `attribute` is an object list (one entry per
 repetition), `tagcontentcontainer` a child slot (holds widgets).
 
-**Ask the widget rather than guessing.** `describe widget <name>` lists every
+**Ask the widget rather than guessing.** `describe widget type <name>` lists every
 property with its type, default and enumeration members; every body container
 and whether MDL can express it; and a complete example that parses AND checks as
 written:
@@ -94,7 +94,7 @@ form is reported only when the widget resolves, because without a definition
 matter because a required slot left empty is not a silent no-op at build time —
 it is `CE0642 "Property '…' is required."`, one per slot.
 
-`describe widget <name> -p <project.mpr>` lists a widget's container keywords
+`describe widget type <name> -p <project.mpr>` lists a widget's container keywords
 under **Body containers**, and — for an object list — the widgets-typed **slots
 inside one item**, with the widget types that route into each:
 
@@ -142,8 +142,8 @@ gallery galleryName (
   PhoneColumns: 1
 ) {
   template {
-    dynamictext title (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-    dynamictext info  (content: '{1}', contentparams: [{1} = Email])
+    dynamictext title (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+    dynamictext info  (content: '{1}', contentparams: ({1} = Email))
   }
   filter {
     textfilter   searchName  (attribute: Name)
@@ -368,8 +368,8 @@ object-list item mappings use:
 overlap with `dataSourceExprV3` and the datasource alternative has to win, or a
 chart series' `staticDataSource: microflow M.X` would become an action. The
 executor converts them, because the widget definition is the only layer that
-knows the slot is action-typed. Every other action form (`show_page`,
-`save_changes`, …) reaches the AST as an action directly.
+knows the slot is action-typed. Every other action form (`show page`,
+`save changes`, …) reaches the AST as an action directly.
 
 **A slot may be conditional, and writing into a pruned one is CE0463.** DataGrid 2's
 `onSelectionChange` is *hidden when `itemSelection` = None*, so it needs
@@ -456,7 +456,7 @@ Set `"templateFile": "mywidget.json"` in the .def.json. Project definitions over
 ```sql
 MYWIDGET myWidget1 (datasource: database Module.Entity, attribute: Name) {
   template content1 {
-    dynamictext label1 (content: '{1}', contentparams: [{1}=Name])
+    dynamictext label1 (content: '{1}', contentparams: ({1}=Name))
   }
 }
 ```
@@ -477,7 +477,7 @@ widgets take a different, simpler path than the MPR writer:
   selection, datasource, widgets (child slots), object lists, expression,
   texttemplate (including `{AttrName}` placeholders and `<Name>Params` /
   `contentparams` bindings -> template parameters),
-  and action (`microflow Module.Flow`, `show_page Module.Page`, or none).
+  and action (`microflow Module.Flow`, `show page Module.Page`, or none).
 - **Rejected loudly** (widget refused, nothing sent): actions *with argument
   mappings*, other action kinds (save/cancel/close/delete/create/open-link/
   nanoflow), and any operation the MCP builder does not translate. The error
@@ -559,7 +559,7 @@ A `texttemplate` takes **text**, so a bare value renders the same string on ever
 row. Bind it with the property's own `<Name>Params` companion, named for
 whichever spelling the template used (`ImageUrl:` pairs with `ImageUrlParams:`)
 and taking the same `format (...)` block a `dynamictext` does — e.g.
-`headerCaption: '{1}', headerCaptionParams: [{1} = Name]`, or a Timeline's
+`headerCaption: '{1}', headerCaptionParams: ({1} = Name)`, or a Timeline's
 `title` / `description` bound separately. `contentparams:` is ONE list shared by
 every template on the widget, so it only disambiguates a widget with a single
 one; `'{AttrName}'` is the short form for one attribute. A companion whose

@@ -30,7 +30,7 @@ Example output:
 ```sql
 CREATE PAGE Sales.Customer_Edit
 (
-  Params: { $Customer: Sales.Customer },
+  Params: ( $Customer: Sales.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )
@@ -39,8 +39,8 @@ CREATE PAGE Sales.Customer_Edit
     TEXTBOX txtName (Label: 'Name', Attribute: Name)
     TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
     FOOTER footer1 {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 }
@@ -54,4 +54,4 @@ DESCRIBE SNIPPET Common.NavigationMenu
 
 ## See Also
 
-[SHOW PAGES](show-pages.md), [SHOW WIDGETS](show-widgets.md), [DESCRIBE MICROFLOW](describe-microflow.md)
+[LIST PAGES](list-pages.md), [LIST WIDGETS](list-widgets.md), [DESCRIBE MICROFLOW](describe-microflow.md)

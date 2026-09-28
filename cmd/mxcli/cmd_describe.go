@@ -147,7 +147,7 @@ Example:
 		case "USERROLE", "USER ROLE":
 			mdlCmd = fmt.Sprintf("DESCRIBE USER ROLE '%s'", name)
 		case "PROJECTSECURITY", "PROJECT SECURITY":
-			mdlCmd = "SHOW PROJECT SECURITY"
+			mdlCmd = "DESCRIBE APP SECURITY"
 		case "SETTINGS":
 			mdlCmd = "DESCRIBE SETTINGS"
 		case "DEMOUSER", "DEMO USER":
@@ -163,17 +163,17 @@ Example:
 		case "EXPORTMAPPING", "EXPORT MAPPING":
 			mdlCmd = fmt.Sprintf("DESCRIBE EXPORT MAPPING %s", name)
 		case "RESTCLIENT", "REST CLIENT":
-			mdlCmd = fmt.Sprintf("DESCRIBE REST CLIENT %s", name)
+			mdlCmd = fmt.Sprintf("DESCRIBE CONSUMED REST SERVICE %s", name)
 		case "ODATACLIENT", "ODATA CLIENT":
-			mdlCmd = fmt.Sprintf("DESCRIBE ODATA CLIENT %s", name)
+			mdlCmd = fmt.Sprintf("DESCRIBE CONSUMED ODATA SERVICE %s", name)
 		case "ODATASERVICE", "ODATA SERVICE":
-			mdlCmd = fmt.Sprintf("DESCRIBE ODATA SERVICE %s", name)
+			mdlCmd = fmt.Sprintf("DESCRIBE PUBLISHED ODATA SERVICE %s", name)
 		case "IMAGECOLLECTION", "IMAGE COLLECTION":
 			mdlCmd = fmt.Sprintf("DESCRIBE IMAGE COLLECTION %s", name)
 		case "MENU":
 			mdlCmd = fmt.Sprintf("DESCRIBE MENU %s", name)
 		case "QUEUE":
-			mdlCmd = fmt.Sprintf("DESCRIBE QUEUE %s", name)
+			mdlCmd = fmt.Sprintf("DESCRIBE TASK QUEUE %s", name)
 		case "SCHEDULEDEVENT", "SCHEDULED EVENT":
 			mdlCmd = fmt.Sprintf("DESCRIBE SCHEDULED EVENT %s", name)
 		case "REGULAREXPRESSION", "REGULAR EXPRESSION", "REGEX":

@@ -21,13 +21,13 @@ create microflow Bug.AggregatesBare (
 )
 returns decimal as $Total
 begin
-  $Count = count($ProductList);
-  $Total = sum($ProductList.Price);
-  $Average = average($ProductList.Price);
-  $Lowest = minimum($ProductList.Price);
-  $Highest = maximum($ProductList.Price);
+  $Count = count $ProductList;
+  $Total = sum $ProductList by Price;
+  $Average = average $ProductList by Price;
+  $Lowest = minimum $ProductList by Price;
+  $Highest = maximum $ProductList by Price;
   -- Aggregate over a value computed per item.
-  $Tax = sum($ProductList, $currentObject/Price * 0.21);
+  $Tax = sum $ProductList of $currentObject/Price * 0.21;
   return $Total;
 end;
 /

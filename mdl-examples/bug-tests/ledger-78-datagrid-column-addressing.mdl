@@ -23,19 +23,19 @@
 
 create entity Ledger.Txn (Merchant: String, Amount: Decimal);
 
-create or replace page Ledger.Grid78 (Title: 'Grid', Layout: Atlas_Core.Atlas_Default) {
-  layoutgrid g { row r { column c (DesktopWidth: 12) {
+create or modify page Ledger.Grid78 (Title: 'Grid', Layout: Atlas_Core.Atlas_Default) {
+  layoutgrid g { row { column (DesktopWidth: 12) {
     datagrid dg (DataSource: DATABASE FROM Ledger.Txn) {
       -- attribute column → derived name is the attribute leaf: "Merchant"
-      column colMerchant (attribute: Merchant, caption: 'Store')
+      column (attribute: Merchant, caption: 'Store')
       -- dynamic-text column → derived name is the caption: "Who"
-      column colAmount (ShowContentAs: dynamicText, caption: 'Who', Content: '{1}', ContentParams: [{1} = Amount])
+      column (ShowContentAs: dynamicText, caption: 'Who', Content: '{1}', ContentParams: ({1} = Amount))
     }
   } } }
 }
 
 -- Address the columns by their DERIVED names (not the authored colMerchant/colAmount).
 alter page Ledger.Grid78 {
-  set Alignment = right ON Merchant;
-  set WrapText = true ON "Who";
+  set (Alignment: right) ON Merchant;
+  set (WrapText: true) ON "Who";
 };

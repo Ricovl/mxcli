@@ -39,11 +39,13 @@ showStatement
     | showOrList CONSTANTS (IN (qualifiedName | IDENTIFIER))?
     | showOrList CONSTANT VALUES (IN (qualifiedName | IDENTIFIER))?
     | showOrList LAYOUTS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList QUEUES (IN (qualifiedName | IDENTIFIER))?
+    | showOrList taskQueuesKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList SCHEDULED EVENTS (IN (qualifiedName | IDENTIFIER))?
     | showOrList REGULAR EXPRESSIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList JAVA ACTIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList JAVASCRIPT ACTIONS (IN (qualifiedName | IDENTIFIER))?
+    // COLLECTION also matches `collections` (lexer); the plural is canonical,
+    // the singular a deprecated alias (/* @alias MDL-DEPR130 */, R6).
     | showOrList IMAGE COLLECTION (IN (qualifiedName | IDENTIFIER))?
     | showOrList ICON COLLECTION (IN (qualifiedName | IDENTIFIER))?
     // A glyph is a character code in a FONT, not an element in the project, so
@@ -51,7 +53,7 @@ showStatement
     // LIKE filters on the name, which is the direction an author needs: they
     // know they want a star and not that a star is 57350.
     | showOrList GLYPHS (LIKE STRING_LITERAL)?
-    | showOrList MODELS (IN (qualifiedName | IDENTIFIER))?
+    | showOrList aiModelsKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList AGENTS (IN (qualifiedName | IDENTIFIER))?
     | showOrList KNOWLEDGE BASES (IN (qualifiedName | IDENTIFIER))?
     | showOrList CONSUMED MCP SERVICES (IN (qualifiedName | IDENTIFIER))?
@@ -59,9 +61,13 @@ showStatement
     | showOrList MESSAGE DEFINITION COLLECTION (IN (qualifiedName | IDENTIFIER))?
     | showOrList IMPORT MAPPINGS (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXPORT MAPPINGS (IN (qualifiedName | IDENTIFIER))?
+    // R6: a single thing is described, not shown. `show page X` is a
+    // deprecated alias of `describe page X` (MDL-DEPR090). The entity and
+    // association summaries have no mdl 1 statement: they keep their summary
+    // under mdl 0 and are refused under mdl 1 (MDL-V1-SHOWSUMMARY).
     | showOrList ENTITY qualifiedName
     | showOrList ASSOCIATION qualifiedName
-    | showOrList PAGE qualifiedName
+    | showOrList PAGE qualifiedName /* @alias MDL-DEPR090 */
     | showOrList CONNECTIONS
     | showOrList STATUS
     | showOrList VERSION
@@ -71,12 +77,12 @@ showStatement
     | showOrList CALLEES OF qualifiedName TRANSITIVE?
     | showOrList REFERENCES TO qualifiedName
     | showOrList IMPACT OF qualifiedName
-    | showOrList CONTEXT OF qualifiedName (DEPTH NUMBER_LITERAL)?
+    | showOrList CONTEXT OF qualifiedName (DEPTH NUMBER_LITERAL)? /* @alias MDL-DEPR090 */
     | showOrList COMMUNITY MEMBERS OF qualifiedName
     | showOrList COMMUNITY OF qualifiedName
     | showOrList COMMUNITIES
     | showOrList WIDGETS showWidgetsFilter?
-    | showOrList PROJECT SECURITY
+    | showOrList PROJECT SECURITY /* @alias MDL-DEPR090 */
     | showOrList MODULE ROLES (IN (qualifiedName | IDENTIFIER))?
     | showOrList USER ROLES
     | showOrList DEMO USERS
@@ -91,23 +97,24 @@ showStatement
     | showOrList ACCESS ON PAGE qualifiedName
     | showOrList ACCESS ON WORKFLOW qualifiedName
     | showOrList ACCESS ON NANOFLOW qualifiedName
-    | showOrList SECURITY MATRIX (IN (qualifiedName | IDENTIFIER))?
-    | showOrList ODATA CLIENTS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList ODATA SERVICES (IN (qualifiedName | IDENTIFIER))?
+    | showOrList SECURITY MATRIX (IN (qualifiedName | IDENTIFIER))? /* @alias MDL-DEPR090 */
+    | showOrList consumedODataServicesKw (IN (qualifiedName | IDENTIFIER))?
+    | showOrList publishedODataServicesKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXTERNAL ENTITIES (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXTERNAL ACTIONS (IN (qualifiedName | IDENTIFIER))?
+    // The profiles table and the menu tree are listings: `list navigation`.
     | showOrList NAVIGATION
     | showOrList NAVIGATION MENU_KW (qualifiedName | IDENTIFIER)?
     | showOrList NAVIGATION HOMES
     | showOrList DESIGN PROPERTIES (FOR widgetTypeKeyword)?
-    | showOrList STRUCTURE (DEPTH NUMBER_LITERAL)? (IN (qualifiedName | IDENTIFIER))? ALL?
+    | showOrList STRUCTURE (DEPTH NUMBER_LITERAL)? (IN (qualifiedName | IDENTIFIER))? ALL? /* @alias MDL-DEPR090 */
     | showOrList BUSINESS EVENT SERVICES (IN (qualifiedName | IDENTIFIER))?
     | showOrList BUSINESS EVENT CLIENTS (IN (qualifiedName | IDENTIFIER))?
     | showOrList BUSINESS EVENTS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList SETTINGS
+    | showOrList SETTINGS   // the settings sections, one row each: `list settings`
     | showOrList FRAGMENTS
     | showOrList DATABASE CONNECTIONS (IN (qualifiedName | IDENTIFIER))?
-    | showOrList REST CLIENTS (IN (qualifiedName | IDENTIFIER))?
+    | showOrList consumedRestServicesKw (IN (qualifiedName | IDENTIFIER))?
     | showOrList PUBLISHED REST SERVICES (IN (qualifiedName | IDENTIFIER))?
     | showOrList DATA TRANSFORMERS (IN (qualifiedName | IDENTIFIER))?
     | showOrList LANGUAGES
@@ -176,16 +183,19 @@ describeStatement
     | DESCRIBE MODULE ROLE qualifiedName        // DESCRIBE MODULE ROLE Module.RoleName
     | DESCRIBE USER ROLE (STRING_LITERAL | identifierOrKeyword)  // DESCRIBE USER ROLE 'Administrator' | Administrator
     | DESCRIBE DEMO USER STRING_LITERAL          // DESCRIBE DEMO USER 'demo_admin'
-    | DESCRIBE ODATA CLIENT qualifiedName       // DESCRIBE ODATA CLIENT Module.ServiceName
-    | DESCRIBE ODATA SERVICE qualifiedName      // DESCRIBE ODATA SERVICE Module.ServiceName
+    | DESCRIBE consumedODataServiceKw qualifiedName   // DESCRIBE CONSUMED ODATA SERVICE Module.ServiceName
+    | DESCRIBE publishedODataServiceKw qualifiedName  // DESCRIBE PUBLISHED ODATA SERVICE Module.ServiceName
     | DESCRIBE EXTERNAL ENTITY qualifiedName    // DESCRIBE EXTERNAL ENTITY Module.EntityName
     | DESCRIBE NAVIGATION (qualifiedName | IDENTIFIER)?  // DESCRIBE NAVIGATION [profile]
-    | DESCRIBE WIDGET identifierOrKeyword                                      // DESCRIBE WIDGET combobox | DESCRIBE WIDGET 'com.mendix…'
-    | DESCRIBE WIDGET STRING_LITERAL                                           // …by full widget id, which contains dots
+    // R6: `widget type` names the kind of widget, so it cannot be read as a
+    // widget on a page. `describe widget <name>` is a deprecated alias.
+    | DESCRIBE WIDGET TYPE (identifierOrKeyword | STRING_LITERAL)              // DESCRIBE WIDGET TYPE combobox | DESCRIBE WIDGET TYPE 'com.mendix…'
+    | DESCRIBE WIDGET identifierOrKeyword /* @alias MDL-DEPR095 */             // DESCRIBE WIDGET combobox
+    | DESCRIBE WIDGET STRING_LITERAL /* @alias MDL-DEPR095 */                  // …by full widget id, which contains dots
     | DESCRIBE STYLING ON (PAGE | SNIPPET) qualifiedName (WIDGET IDENTIFIER)?  // DESCRIBE STYLING ON PAGE Module.Page [WIDGET name]
     | DESCRIBE CATALOG DOT (catalogTableName)  // DESCRIBE CATALOG.ENTITIES
     | DESCRIBE BUSINESS EVENT SERVICE qualifiedName  // DESCRIBE BUSINESS EVENT SERVICE Module.Name
-    | DESCRIBE QUEUE qualifiedName                     // DESCRIBE QUEUE Module.Name
+    | DESCRIBE taskQueueKw qualifiedName               // DESCRIBE TASK QUEUE Module.Name
     | DESCRIBE SCHEDULED EVENT qualifiedName           // DESCRIBE SCHEDULED EVENT Module.Name
     | DESCRIBE REGULAR EXPRESSION qualifiedName        // DESCRIBE REGULAR EXPRESSION Module.Name
     | DESCRIBE DATABASE CONNECTION qualifiedName       // DESCRIBE DATABASE CONNECTION Module.Name
@@ -195,7 +205,7 @@ describeStatement
     | DESCRIBE IMAGE COLLECTION qualifiedName           // DESCRIBE IMAGE COLLECTION Module.Name
     | DESCRIBE ICON COLLECTION qualifiedName            // DESCRIBE ICON COLLECTION Module.Name
     | DESCRIBE GLYPH (NUMBER_LITERAL | STRING_LITERAL)  // DESCRIBE GLYPH 57350 | DESCRIBE GLYPH 'star' 
-    | DESCRIBE MODEL qualifiedName                      // DESCRIBE MODEL Module.Name (agent-editor)
+    | DESCRIBE aiModelKw qualifiedName                  // DESCRIBE AI MODEL Module.Name (agent-editor)
     | DESCRIBE AGENT qualifiedName                      // DESCRIBE AGENT Module.Name (agent-editor)
     | DESCRIBE KNOWLEDGE BASE qualifiedName             // DESCRIBE KNOWLEDGE BASE Module.Name
     | DESCRIBE CONSUMED MCP SERVICE qualifiedName       // DESCRIBE CONSUMED MCP SERVICE Module.Name
@@ -203,13 +213,19 @@ describeStatement
     | DESCRIBE MESSAGE DEFINITION COLLECTION qualifiedName
     | DESCRIBE IMPORT MAPPING qualifiedName             // DESCRIBE IMPORT MAPPING Module.Name
     | DESCRIBE EXPORT MAPPING qualifiedName             // DESCRIBE EXPORT MAPPING Module.Name
-    | DESCRIBE REST CLIENT qualifiedName                // DESCRIBE REST CLIENT Module.Name
+    | DESCRIBE consumedRestServiceKw qualifiedName      // DESCRIBE CONSUMED REST SERVICE Module.Name
     | DESCRIBE CONTRACT OPERATION FROM OPENAPI STRING_LITERAL   // DESCRIBE CONTRACT OPERATION FROM OPENAPI '/path/to/spec.json'
     | DESCRIBE PUBLISHED REST SERVICE qualifiedName    // DESCRIBE PUBLISHED REST SERVICE Module.Name
     | DESCRIBE DATA TRANSFORMER qualifiedName          // DESCRIBE DATA TRANSFORMER Module.Name
     | DESCRIBE FRAGMENT identifierOrKeyword            // DESCRIBE FRAGMENT Name
     | DESCRIBE JAR DEPENDENCY (qualifiedName | IDENTIFIER) STRING_LITERAL   // DESCRIBE JAR DEPENDENCY ModuleName 'group:artifact'
     | DESCRIBE TRANSLATIONS (IN identifierOrKeyword)? FOR identifierOrKeyword   // DESCRIBE TRANSLATIONS [IN Module] FOR nl_NL
+    // R6: the single-thing reports that were `show` forms. Each builds the
+    // same statement as its `show` spelling (MDL-DEPR090).
+    | DESCRIBE APP SECURITY                                                     // DESCRIBE APP SECURITY
+    | DESCRIBE SECURITY MATRIX (IN (qualifiedName | IDENTIFIER))?              // DESCRIBE SECURITY MATRIX [IN Module]
+    | DESCRIBE STRUCTURE (DEPTH NUMBER_LITERAL)? (IN (qualifiedName | IDENTIFIER))? ALL?  // DESCRIBE STRUCTURE [DEPTH n] [IN Module] [ALL]
+    | DESCRIBE CONTEXT OF qualifiedName (DEPTH NUMBER_LITERAL)?                // DESCRIBE CONTEXT OF Module.Name [DEPTH n]
     | DESCRIBE qualifiedName    // DESCRIBE Module.Name — type auto-detected at execution time (must be LAST so all typed forms above win)
     ;
 

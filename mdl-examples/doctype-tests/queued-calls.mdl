@@ -42,7 +42,7 @@
 
 create module Ops;
 /
-create queue Ops.RefreshQueue (Parallelism: 2, ClusterWide: true);
+create task queue Ops.RefreshQueue (Parallelism: 2, ClusterWide: true);
 /
 create microflow Ops.ACT_Work ($Note: String)
 begin

@@ -2,37 +2,37 @@
 
 ## Synopsis
 
-    ALTER SETTINGS MODEL key = value
+    ALTER SETTINGS RUNTIME ( key: value, ... )
 
-    ALTER SETTINGS CONFIGURATION 'name' key = value
+    ALTER SETTINGS CONFIGURATION 'name' ( key: value, ... )
 
-    ALTER SETTINGS CONSTANT 'name' VALUE 'value' IN CONFIGURATION 'config'
+    ALTER SETTINGS CONSTANT @Module.Name VALUE 'value' IN CONFIGURATION 'config'
 
-    ALTER SETTINGS DROP CONSTANT 'name' IN CONFIGURATION 'config'
+    ALTER SETTINGS DROP CONSTANT @Module.Name IN CONFIGURATION 'config'
 
-    CREATE CONFIGURATION 'name' [key = value, ...]
+    CREATE CONFIGURATION 'name' [( key: value, ... )]
 
     DROP CONFIGURATION 'name'
 
-    ALTER SETTINGS LANGUAGE key = value
+    ALTER SETTINGS LANGUAGE ( key: value, ... )
     ALTER SETTINGS LANGUAGE ADD [OR MODIFY] 'code' [( option: value, ... )]
     ALTER SETTINGS LANGUAGE MODIFY 'code' ( option: value, ... )
-    ALTER SETTINGS LANGUAGE REMOVE 'code' 
+    ALTER SETTINGS LANGUAGE DROP 'code' 
 
-    ALTER SETTINGS WORKFLOWS key = value
+    ALTER SETTINGS WORKFLOWS ( key: value, ... )
     ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP 'name' [( Description: 'text' )]
     ALTER SETTINGS WORKFLOWS MODIFY GROUP 'name' ( Description: 'text' )
-    ALTER SETTINGS WORKFLOWS REMOVE GROUP 'name'
+    ALTER SETTINGS WORKFLOWS DROP GROUP 'name'
 
 ## Description
 
-Modifies project settings by category. Each category has its own syntax and available keys.
+Modifies project settings by category. Each category has its own syntax and available keys. Properties are written `Key: value` in a parenthesised list, as in every other MDL statement; the older `key = value, ...` without parentheses still runs and warns `MDL-DEPR060`, and `mxcli fmt --upgrade` rewrites it.
 
 **MODEL** settings control application-level behavior such as the after-startup microflow, hashing algorithm, and Java version.
 
 **CONFIGURATION** settings control named runtime configurations. Each project can have multiple configurations (e.g., `default`, `staging`, `production`). Settings include database type, database URL, HTTP port number, and other runtime parameters. The configuration name must be enclosed in single quotes.
 
-**CONSTANT** settings override the default value of a project constant within a specific runtime configuration. Both the constant name and the configuration name must be enclosed in single quotes.
+**CONSTANT** settings override the default value of a project constant within a specific runtime configuration. The constant is named as MDL names a constant everywhere, `@Module.Name`; the configuration name is enclosed in single quotes. The older quoted constant name (`CONSTANT 'Module.Name'`) still parses and warns `MDL-DEPR085`; `mxcli fmt --upgrade` rewrites it.
 
 **LANGUAGE** settings control localization: the default language code, and the
 list of **enabled** languages — the only ones a build emits translations for.
@@ -50,8 +50,11 @@ task's group targeting selects from. Groups need Mendix **11.2** or later.
 **value**
 : The new value for the setting. String values must be enclosed in single quotes.
 
-**name** (CONFIGURATION, CONSTANT)
-: The name of the configuration or constant, enclosed in single quotes.
+**name** (CONFIGURATION)
+: The name of the configuration, enclosed in single quotes.
+
+**Module.Name** (CONSTANT)
+: The constant, written `@Module.Name`.
 
 **config** (CONSTANT only)
 : The name of the runtime configuration where the constant override applies, enclosed in single quotes.
@@ -61,7 +64,7 @@ task's group targeting selects from. Groups need Mendix **11.2** or later.
 ### Set the after-startup microflow
 
 ```sql
-ALTER SETTINGS MODEL AfterStartupMicroflow = 'MyModule.ACT_Startup';
+ALTER SETTINGS RUNTIME ( AfterStartupMicroflow: 'MyModule.ACT_Startup' );
 ```
 
 > **The after-startup microflow must return `Boolean`.** Mendix build fails with **CE0142**
@@ -71,19 +74,19 @@ ALTER SETTINGS MODEL AfterStartupMicroflow = 'MyModule.ACT_Startup';
 ### Configure database type
 
 ```sql
-ALTER SETTINGS CONFIGURATION 'default' DatabaseType = 'POSTGRESQL';
+ALTER SETTINGS CONFIGURATION 'default' ( DatabaseType: 'POSTGRESQL' );
 ```
 
 ### Set database URL for a configuration
 
 ```sql
-ALTER SETTINGS CONFIGURATION 'production' DatabaseUrl = 'jdbc:postgresql://dbhost:5432/myapp';
+ALTER SETTINGS CONFIGURATION 'production' ( DatabaseUrl: 'jdbc:postgresql://dbhost:5432/myapp' );
 ```
 
 ### Override a constant in a configuration
 
 ```sql
-ALTER SETTINGS CONSTANT 'MyModule.ApiBaseUrl' VALUE 'https://api.staging.example.com' IN CONFIGURATION 'staging';
+ALTER SETTINGS CONSTANT @MyModule.ApiBaseUrl VALUE 'https://api.staging.example.com' IN CONFIGURATION 'staging';
 ```
 
 An override's value is either **shared** — stored in the model, and so in version
@@ -104,7 +107,7 @@ The code must already be enabled; `ALTER SETTINGS LANGUAGE DefaultLanguageCode`
 is validated against the enabled list.
 
 ```sql
-ALTER SETTINGS LANGUAGE DefaultLanguageCode = 'en_US';
+ALTER SETTINGS LANGUAGE ( DefaultLanguageCode: 'en_US' );
 ```
 
 ### Enable, change and disable a language
@@ -114,7 +117,7 @@ ALTER SETTINGS LANGUAGE ADD 'de_DE';
 ALTER SETTINGS LANGUAGE ADD 'ar_SD' (CheckCompleteness: true, CustomDateFormat: 'yyyy-MM-dd');
 ALTER SETTINGS LANGUAGE ADD OR MODIFY 'de_DE' (CheckCompleteness: true);
 ALTER SETTINGS LANGUAGE MODIFY 'de_DE' (CustomDateFormat: 'dd.MM.yyyy');
-ALTER SETTINGS LANGUAGE REMOVE 'de_DE';
+ALTER SETTINGS LANGUAGE DROP 'de_DE';
 ```
 
 Options: `CheckCompleteness` (report errors for texts with no translation in this
@@ -132,7 +135,7 @@ the run reports how many source strings are affected.
 ### Configure workflow user entity
 
 ```sql
-ALTER SETTINGS WORKFLOWS UserEntity = 'Administration.Account';
+ALTER SETTINGS WORKFLOWS ( UserEntity: 'Administration.Account' );
 ```
 
 ### Manage workflow groups
@@ -147,7 +150,7 @@ ALTER SETTINGS WORKFLOWS ADD OR MODIFY GROUP 'Approvers' (Description: 'Approves
 -- changes only the options it names
 ALTER SETTINGS WORKFLOWS MODIFY GROUP 'Reviewers' (Description: 'Second-line review');
 
-ALTER SETTINGS WORKFLOWS REMOVE GROUP 'Reviewers';
+ALTER SETTINGS WORKFLOWS DROP GROUP 'Reviewers';
 ```
 
 `Description` is the only option, because a workflow group stores a name and a
@@ -165,27 +168,28 @@ settings group, since a user task targets groups through a microflow or an XPath
 returning `System.WorkflowGroup` objects. The coupling is at runtime, where the
 removed group's row simply stops being maintained.
 
-List the groups with [`SHOW WORKFLOW GROUPS`](show-settings.md).
+List the groups with [`LIST WORKFLOW GROUPS`](list-describe-settings.md).
 
 ### Set Java version
 
 ```sql
-ALTER SETTINGS MODEL JavaVersion = '17';
+ALTER SETTINGS RUNTIME ( JavaVersion: '17' );
 ```
 
 ### Remove a constant override from a configuration
 
 ```sql
-ALTER SETTINGS DROP CONSTANT 'MyModule.ApiBaseUrl' IN CONFIGURATION 'staging';
+ALTER SETTINGS DROP CONSTANT @MyModule.ApiBaseUrl IN CONFIGURATION 'staging';
 ```
 
 ### Create a new configuration
 
 ```sql
-CREATE CONFIGURATION 'Staging'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'staging-db:5432',
-  HttpPortNumber = 8080;
+CREATE CONFIGURATION 'Staging' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'staging-db:5432',
+  HttpPortNumber: 8080
+);
 ```
 
 `DatabaseType` must name a Mendix database type — `Db2`, `Hsqldb`, `MySql`,
@@ -202,4 +206,4 @@ DROP CONFIGURATION 'Staging';
 
 ## See Also
 
-[SHOW / DESCRIBE SETTINGS](show-settings.md)
+[SHOW / DESCRIBE SETTINGS](list-describe-settings.md)

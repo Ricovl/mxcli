@@ -202,7 +202,7 @@ When referencing a page parameter's attribute (e.g., `$Product.Name` where `$Pro
 MDL:
   content: '$Product.Name'
   -- or explicit --
-  content: 'Product: {1}', contentparams: [$Product.Name]
+  content: 'Product: {1}', contentparams: ({1} = $Product.Name)
 
 BSON:
   {

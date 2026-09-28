@@ -28,11 +28,11 @@ create or replace page MyFirstModule.ReportPage
 (
   Title: 'Report',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Report: MyFirstModule.Report }
+  Params: ( $Report: MyFirstModule.Report )
 )
 {
   dataview dv (datasource: $Report) {
     -- Expression in a data-binding slot → MDL-WIDGET14 (CE1613 in Studio Pro).
-    dynamictext dImport (content: 'Last import: {1}', contentparams: [{1} = formatDateTime($currentObject/LastImport, 'd MMM yyyy')])
+    dynamictext dImport (content: 'Last import: {1}', contentparams: ({1} = formatDateTime($currentObject/LastImport, 'd MMM yyyy')))
   }
 }

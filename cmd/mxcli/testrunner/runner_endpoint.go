@@ -211,9 +211,9 @@ func endpointReadyTimeout(suiteTimeout time.Duration) time.Duration {
 // when the module was already the user's, each generated document is named
 // explicitly so nothing of theirs is touched.
 func endpointCleanupCommands(st projectState, flows []string, mxTestPresent bool) []string {
-	restore := "ALTER SETTINGS MODEL AfterStartupMicroflow = ''"
+	restore := "ALTER SETTINGS RUNTIME (AfterStartupMicroflow: '')"
 	if st.afterStartup != "" {
-		restore = "ALTER SETTINGS MODEL AfterStartupMicroflow = " + quoteMDLString(st.afterStartup)
+		restore = "ALTER SETTINGS RUNTIME (AfterStartupMicroflow: " + quoteMDLString(st.afterStartup) + ")"
 	}
 	cmds := []string{restore}
 	if !mxTestPresent {

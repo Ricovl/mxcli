@@ -51,20 +51,20 @@ create microflow M956.ACT_Handler () begin log 'handled'; end;
 
 -- 1. Plain `onClick` storage key (DataGrid2). This one always worked; it is the
 --    control that separates "the lookup is too narrow" from "the lookup is broken".
-create or replace page M956.P_DataGrid (Title: 'DataGrid', Layout: Atlas_Core.Atlas_Default)
+create or modify page M956.P_DataGrid (Title: 'DataGrid', Layout: Atlas_Core.Atlas_Default)
 {
-  DATAGRID dg ( DataSource: DATABASE M956.Thing, onClick: microflow M956.ACT_Handler ) {
-    COLUMN c1 (Attribute: Name, Caption: 'Name')
+  DATAGRID dg ( DataSource: DATABASE M956.Thing, onClick: call microflow M956.ACT_Handler ) {
+    COLUMN (Attribute: Name, Caption: 'Name')
   }
 }
 describe page M956.P_DataGrid;
 
 -- 2. Suffixed storage key (`onClickEvent`). Expect `onClick: microflow
 --    M956.ACT_Handler` in the description — before the fix, no properties at all.
-create or replace page M956.P_Badge (Title: 'Badge', Layout: Atlas_Core.Atlas_Default)
+create or modify page M956.P_Badge (Title: 'Badge', Layout: Atlas_Core.Atlas_Default)
 {
   PLUGGABLEWIDGET 'com.mendix.widget.custom.badgebutton.BadgeButton' bb (
-    onClick: microflow M956.ACT_Handler
+    onClick: call microflow M956.ACT_Handler
   )
 }
 describe page M956.P_Badge;
@@ -79,12 +79,12 @@ describe page M956.P_Badge;
 --    template problem unrelated to action slots and would make this script fail
 --    for a reason it is not about. StarRating stores the same bare `onChange`
 --    and builds at 0 errors.
-create or replace page M956.P_Star (Title: 'Star', Layout: Atlas_Core.Atlas_Default)
+create or modify page M956.P_Star (Title: 'Star', Layout: Atlas_Core.Atlas_Default)
 {
   LISTVIEW lv (DataSource: DATABASE M956.Thing) {
     PLUGGABLEWIDGET 'com.mendix.widget.custom.starrating.StarRating' sr (
       Attribute: Score,
-      OnChange: microflow M956.ACT_Handler
+      OnChange: call microflow M956.ACT_Handler
     )
   }
 }

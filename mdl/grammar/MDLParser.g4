@@ -14,6 +14,36 @@ options {
     tokenVocab = MDLLexer;
 }
 
+// Hand-written parser helpers. In the Go target `@members` is package-level
+// code; the predicates in the imported grammars call it by name.
+@parser::members {
+// IsHelpWord reports whether word begins a help statement: `help`, `exit` or
+// `quit`, in any letter case. They are IDENTIFIERs rather than keywords, so
+// that reserving them does not take the words away as names; the predicate
+// on helpStatement is what keeps that rule from being the grammar's
+// catch-all, where a misspelt statement keyword (`craete entity …`) parsed
+// as a help topic and was silently dropped (ako/mxcli#755, R7).
+//
+// The generated file imports no strings package, so the letter case is folded
+// here by hand; the words are ASCII.
+func IsHelpWord(word string) bool {
+	if len(word) != 4 {
+		return false
+	}
+	folded := []byte(word)
+	for i, c := range folded {
+		if c >= 'A' && c <= 'Z' {
+			folded[i] = c + ('a' - 'A')
+		}
+	}
+	switch string(folded) {
+	case "help", "exit", "quit":
+		return true
+	}
+	return false
+}
+}
+
 import
     MDLDomainModel,
     MDLMicroflow,
@@ -54,7 +84,24 @@ languageHeader
 
 /** A statement can be DDL, DQL, or utility */
 statement
-    : docComment? (ddlStatement | dqlStatement | utilityStatement) SEMICOLON? SLASH?
+    : docComment? (reservedDocumentStatement | ddlStatement | dqlStatement | utilityStatement) SEMICOLON? SLASH?
+    ;
+
+/**
+ * R10 (ako/mxcli#755): Studio Pro document types MDL does not support yet.
+ * Their names are reserved, so a statement naming one is refused by name
+ * (the visitor reports it) rather than failing somewhere in its body, and no
+ * later syntax can give the words another meaning.
+ */
+reservedDocumentStatement
+    : (CREATE (OR MODIFY)? | ALTER | DROP | DESCRIBE | LIST_KW | SHOW) reservedDocumentName ~SEMICOLON*
+    ;
+
+reservedDocumentName
+    : CONSUMED WEB SERVICES?
+    | PUBLISHED WEB SERVICES?
+    | XML SCHEMA
+    | XML IDENTIFIER   // `xml schemas`: SCHEMA has no plural token
     ;
 
 // =============================================================================
@@ -163,8 +210,12 @@ alterStatement
     | alterEntitiesStatement
     | ALTER ASSOCIATION qualifiedName alterAssociationAction+
     | ALTER ENUMERATION qualifiedName alterEnumerationAction+
-    | ALTER ODATA CLIENT qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
-    | ALTER ODATA SERVICE qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
+    // R3 (ako/mxcli#751): `set ( Key: value, … )`, create's property list.
+    // The unparenthesised `set Key = value, …` is the old spelling.
+    | ALTER consumedODataServiceKw qualifiedName SET odataAlterPropertyList
+    | ALTER consumedODataServiceKw qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
+    | ALTER publishedODataServiceKw qualifiedName SET odataAlterPropertyList
+    | ALTER publishedODataServiceKw qualifiedName SET odataAlterAssignment (COMMA odataAlterAssignment)*
     | ALTER STYLING ON (PAGE | SNIPPET) qualifiedName WIDGET IDENTIFIER alterStylingAction+
     | ALTER SETTINGS alterSettingsClause
     // The generic ALTER (ADR-0012 decision 2): one patch grammar for every
@@ -183,11 +234,17 @@ alterStatement
     | ALTER (MICROFLOW | NANOFLOW) qualifiedName LBRACE alterFlowOperation* RBRACE
     | alterPagesLayoutStatement
     | alterPagesStylingStatement
+    // The generic ALTER on a workflow (ADR-0012 decision 2, ako/mxcli#712): its
+    // targets are activities (name, 'caption', @n) and its fragments are
+    // workflow activities, so it has its own operation rule, like microflows.
+    | ALTER WORKFLOW qualifiedName LBRACE alterWorkflowOperation+ RBRACE
+    // The old per-action form: each alternative of alterWorkflowAction is a
+    // registered alias (MDL-DEPR140-149).
     | ALTER WORKFLOW qualifiedName alterWorkflowAction+ SEMICOLON?
     | alterMessageDefinitionCollectionStatement
     | alterMessageDefinitionStatement
     | ALTER PUBLISHED REST SERVICE qualifiedName alterPublishedRestServiceAction (COMMA? alterPublishedRestServiceAction)*
-    | ALTER MODEL qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
+    | ALTER aiModelKw qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER KNOWLEDGE BASE qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER CONSUMED MCP SERVICE qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER AGENT qualifiedName alterAgentAction+
@@ -226,16 +283,24 @@ publishedRestAlterAssignment
  * ```
  */
 alterStylingAction
-    : SET alterStylingAssignment (COMMA alterStylingAssignment)*
+    : SET LPAREN alterStylingAssignment (COMMA alterStylingAssignment)* RPAREN  // set ( Class: 'x', 'Full width': on )
+    | SET alterStylingAssignment (COMMA alterStylingAssignment)*  /* @alias MDL-DEPR062 */  // set Class = 'x'
     | CLEAR DESIGN PROPERTIES
     ;
 
+// `Key: value` is canonical (R3: `:` sets a model property); `=` is the old
+// spelling, still accepted.
+alterStylingAssignOp
+    : COLON
+    | EQUALS   /* @alias MDL-DEPR062 */
+    ;
+
 alterStylingAssignment
-    : CLASS EQUALS STRING_LITERAL                  // Class = 'my-class'
-    | STYLE EQUALS STRING_LITERAL                  // Style = 'color: red;'
-    | STRING_LITERAL EQUALS STRING_LITERAL         // 'Spacing top' = 'Large'
-    | STRING_LITERAL EQUALS ON                     // 'Full width' = ON
-    | STRING_LITERAL EQUALS OFF                    // 'Full width' = OFF
+    : CLASS alterStylingAssignOp STRING_LITERAL                  // Class: 'my-class'
+    | STYLE alterStylingAssignOp STRING_LITERAL                  // Style: 'color: red;'
+    | STRING_LITERAL alterStylingAssignOp STRING_LITERAL         // 'Spacing top': 'Large'
+    | STRING_LITERAL alterStylingAssignOp ON                     // 'Full width': ON
+    | STRING_LITERAL alterStylingAssignOp OFF                    // 'Full width': OFF
     ;
 
 /**
@@ -282,7 +347,7 @@ alterOperation
 alterSet
     : SET LAYOUT EQUALS qualifiedName (MAP LPAREN alterLayoutMapping (COMMA alterLayoutMapping)* RPAREN)?  // SET Layout = Atlas_Core.TopBar MAP (Main AS Content)
     | SET LPAREN alterPageAssignment (COMMA alterPageAssignment)* RPAREN (ON alterTarget)?  // set (Caption: 'Save', ButtonStyle: Success) on btnSave
-    | SET alterPageAssignment (ON alterTarget)?     // alias: MDL-DEPR102 — set Caption: 'Save' on btnSave
+    | SET alterPageAssignment (ON alterTarget)?     /* @alias MDL-DEPR102 */  // set Caption: 'Save' on btnSave
     ;
 
 alterLayoutMapping
@@ -299,12 +364,11 @@ alterReplace
 
 alterDrop
     : DROP alterTarget (COMMA alterTarget)*
-    | DROP WIDGET alterTarget (COMMA alterTarget)*   // alias: MDL-DEPR103 — drop widget a, b
+    | DROP WIDGET /* @alias MDL-DEPR103 */ alterTarget (COMMA alterTarget)*   // drop widget a, b
     ;
 
-// A fragment is written exactly as `create` writes the same content. Only the
-// page family is on the generic path so far; a workflow's body joins here when
-// ALTER WORKFLOW is ported.
+// A fragment is written exactly as `create` writes the same content. A
+// workflow's fragment is a workflow body (alterWorkflowFragment).
 alterFragment
     : LBRACE pageBodyV3 RBRACE
     ;
@@ -334,9 +398,9 @@ alterTarget
  *
  * ```mdl
  * alter microflow FeedbackModule.VAL_Feedback {
- *   insert after $IsValidEmail { log info node 'Feedback' 'Email checked'; }
- *   insert before 'Email is Valid?' { … }
- *   replace commit $Order with { commit $Order with events; }
+ *   insert after $IsValidEmail begin log info node 'Feedback' 'Email checked'; end;
+ *   insert before 'Email is Valid?' begin … end;
+ *   replace commit $Order with begin commit $Order with events; end;
  *   drop log * node 'Debug' *;
  * }
  * ```
@@ -345,17 +409,29 @@ alterTarget
  * microflow`. A target is a content address, resolved by mfmutator: `$Var`
  * (the activity that outputs it), `'Caption'`, or a statement pattern with `*`
  * wildcards, each optionally followed by `@n`. A pattern is any run of tokens,
- * so the target is taken as raw text up to the `{`, `with` or `;` that ends it;
+ * so the target is taken as raw text up to the `begin`, `{`, `with` or `;` that ends it;
  * that is why `drop` needs its semicolon.
  */
 alterFlowOperation
-    : INSERT (AFTER | BEFORE) alterFlowTarget LBRACE microflowBody RBRACE SEMICOLON?
-    | REPLACE alterFlowTarget WITH LBRACE microflowBody RBRACE SEMICOLON?
+    : INSERT (AFTER | BEFORE) alterFlowTarget alterFlowFragment SEMICOLON?
+    | REPLACE alterFlowTarget WITH alterFlowFragment SEMICOLON?
     | DROP alterFlowTarget SEMICOLON
     ;
 
+// A fragment is imperative flow, so it is `begin … end` like the body of the
+// `create microflow` it is copied from (R2, ako/mxcli#754). The operations
+// around it are the alter's declarative children and stay in the alter's { }.
+// The brace fragment is the old spelling.
+alterFlowFragment
+    : BEGIN microflowBody END
+    | LBRACE /* @alias MDL-DEPR074 */ microflowBody RBRACE
+    ;
+
+// BEGIN ends a target as `{` does. describe's handles never contain it: a loop
+// prints `begin` on a line of its own, and an error handler's `begin` is
+// stripped from its activity's handle.
 alterFlowTarget
-    : ~(LBRACE | RBRACE | SEMICOLON | WITH)+
+    : ~(LBRACE | RBRACE | SEMICOLON | WITH | BEGIN)+
     ;
 
 // ALTER PAGES [IN <module>] SET LAYOUT = Module.Layout [MAP (...)] [WHERE LAYOUT = Module.Old]
@@ -408,14 +484,19 @@ alterPagesStylingAssignment
 // the old spelling, still accepted.
 alterAssignOp
     : COLON
-    | EQUALS   // alias: MDL-DEPR101 — set (Caption = 'Save') / set Caption = 'Save'
+    | EQUALS   /* @alias MDL-DEPR101 */  // set (Caption = 'Save') / set Caption = 'Save'
     ;
 
 alterPageAssignment
     : DATASOURCE alterAssignOp dataSourceExprV3               // DataSource: selection widgetName
     | ACTION alterAssignOp actionExprV3                       // Action: MICROFLOW Module.MF | SHOW_PAGE Module.Page | SAVE_CHANGES CLOSE_PAGE
-    | VISIBLE alterAssignOp xpathConstraint                   // Visible: [Name != ''] (conditional visibility)
-    | EDITABLE alterAssignOp xpathConstraint                  // Editable: [Status = 'Open'] (conditional editability)
+    // R5 (ako/mxcli#753): the condition is a bare expression; the bracketed
+    // form is the deprecated alias. The plain value keeps its reading, ahead of
+    // the expression, as in widgetPropertyV3.
+    | VISIBLE alterAssignOp xpathConstraint /* @alias MDL-DEPR081 */  // Visible: [Name != ''] (conditional visibility)
+    | EDITABLE alterAssignOp xpathConstraint /* @alias MDL-DEPR081 */ // Editable: [Status = 'Open'] (conditional editability)
+    | (VISIBLE | EDITABLE) alterAssignOp propertyValueV3      // Visible: false, Editable: Never
+    | (VISIBLE | EDITABLE) alterAssignOp expression           // Visible: $currentObject/Name != ''
     // A pluggable widget's NAMED action slot, addressed by the widget's own key:
     // `set 'createFileAction' = microflow M.F on fileUploader1`. The ALTER-level
     // twin of widgetPropertyV3's `key: actionExprV3` (#956); without it the value
@@ -459,7 +540,12 @@ navigationClause
     : HOME (PAGE | MICROFLOW) qualifiedName (FOR qualifiedName)?
     | LOGIN PAGE qualifiedName
     | NOT FOUND PAGE qualifiedName
-    | MENU_KW LPAREN navMenuItemDef* RPAREN
+    // The profile's menu items are its declarative children, in { } like a
+    // page's widgets and with no separators (R2, ako/mxcli#754). describe
+    // writes the block after every other clause; the clauses are order-free,
+    // so it parses anywhere among them. `menu ( item; … )` is the old spelling.
+    | navMenuChildren
+    | MENU_KW LPAREN /* @alias MDL-DEPR121 */ navMenuItemDef* RPAREN
     | SYNC LPAREN navSyncDef* RPAREN
     // Studio Pro's "Throw error when server rejects objects during
     // synchronization", stored as the profile-level ThrowPartialSyncError.
@@ -515,9 +601,48 @@ navSyncMode
 // the same Forms$SignOutClientAction a button uses (measured on ako/TestApp),
 // which is why it sits beside PAGE and MICROFLOW rather than in a syntax of its
 // own.
+//
+// R2 (ako/mxcli#754): a menu item is a child with the shape every child has,
+// `<kind> Caption ( props ) [ { children } ]`. Its action is `OnClick:` with the
+// words a page action uses (R8), and its icon is `Icon:` as on a widget:
+//   menu item 'Home' ( OnClick: show page Shop.Home, Icon: Atlas_Core.Atlas.home )
+//   menu 'Admin' ( Icon: glyph 57345 ) { menu item 'Users' ( OnClick: call microflow M.F ) }
+// A child ends in `)` or `}`, so no separator is needed.
+//
+// The old spelling is still read: the action and icon as clauses after the
+// caption (MDL-DEPR122), and a sub-menu's items in ( ) with `;` after each
+// item (MDL-DEPR121) — a `;` is read after either shape, so a half-converted
+// menu still parses. The canonical alternatives come first, so a bare
+// `menu item 'x'` is read as the canonical form.
 navMenuItemDef
-    : MENU_KW ITEM STRING_LITERAL ((PAGE qualifiedName) | (MICROFLOW qualifiedName) | SIGN_OUT)? navMenuIcon? SEMICOLON?
-    | MENU_KW STRING_LITERAL navMenuIcon? LPAREN navMenuItemDef* RPAREN SEMICOLON?
+    : MENU_KW ITEM STRING_LITERAL navMenuItemProps? (SEMICOLON /* @alias MDL-DEPR121 */)?
+    | MENU_KW STRING_LITERAL navMenuItemProps? navMenuChildren (SEMICOLON /* @alias MDL-DEPR121 */)?
+    | MENU_KW ITEM STRING_LITERAL
+      ((PAGE qualifiedName) | (MICROFLOW qualifiedName) | SIGN_OUT)? /* @alias MDL-DEPR122 */ navMenuIcon? SEMICOLON?
+    | MENU_KW STRING_LITERAL navMenuIcon? LPAREN /* @alias MDL-DEPR121 */ navMenuItemDef* RPAREN SEMICOLON?
+    // Half-converted: the items already in { }, the icon still a clause.
+    | MENU_KW STRING_LITERAL navMenuIcon /* @alias MDL-DEPR122 */ navMenuChildren SEMICOLON?
+    ;
+
+navMenuChildren
+    : LBRACE navMenuItemDef* RBRACE
+    ;
+
+navMenuItemProps
+    : LPAREN (navMenuItemProp (COMMA navMenuItemProp)* COMMA?)? RPAREN
+    ;
+
+// OnClick takes the three actions a menu item can carry, in the page-action
+// words (R8); Icon the three icon elements, as navMenuIcon.
+navMenuItemProp
+    : ONCLICK COLON navMenuAction
+    | ICON COLON navMenuIconValue
+    ;
+
+navMenuAction
+    : SHOW PAGE qualifiedName
+    | CALL MICROFLOW qualifiedName
+    | SIGN_OUT
     ;
 
 // Mendix stores three DIFFERENT icon elements, and they are not variants of one
@@ -537,9 +662,13 @@ navMenuItemDef
 // bare form with `image` read as the name; listing the specific alternatives
 // ahead of the general one is what settles it.
 navMenuIcon
-    : ICON GLYPH NUMBER_LITERAL
-    | ICON IMAGE qualifiedName
-    | ICON qualifiedName
+    : ICON navMenuIconValue
+    ;
+
+navMenuIconValue
+    : GLYPH NUMBER_LITERAL
+    | IMAGE qualifiedName
+    | qualifiedName
     ;
 
 // A standalone menu document (Menus$MenuDocument) — the reusable menu a menu
@@ -547,11 +676,21 @@ navMenuIcon
 // built from the same items, so this reuses navMenuItemDef rather than defining a
 // second item syntax.
 createMenuStatement
-    : MENU_KW qualifiedName (FOLDER STRING_LITERAL)? LPAREN navMenuItemDef* RPAREN
+    : MENU_KW ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? navMenuChildren
+    | MENU_KW ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? LPAREN /* @alias MDL-DEPR121 */ navMenuItemDef* RPAREN
     ;
 
 dropStatement
     : DROP ENTITY ifExists? qualifiedName
+    // R6 (ako/mxcli#755): every document that can be created can be dropped.
+    // An external entity is an entity; the word says which kind is meant, so a
+    // local entity named by mistake is refused rather than dropped.
+    | DROP EXTERNAL ENTITY ifExists? qualifiedName
+    | DROP DATABASE CONNECTION ifExists? qualifiedName
+    // A validation rule is anonymous and lives on its attribute, so the drop
+    // names the attribute, as `create validation rule for` does. Without a
+    // kind it drops both the regex and the range rule.
+    | DROP VALIDATION RULE ifExists? FOR qualifiedName (REGEX | RANGE)?
     | DROP ASSOCIATION ifExists? qualifiedName
     | DROP ENUMERATION ifExists? qualifiedName
     | DROP CONSTANT ifExists? qualifiedName
@@ -563,14 +702,14 @@ dropStatement
     | DROP SNIPPET ifExists? qualifiedName
     | DROP MENU_KW ifExists? qualifiedName
     | DROP MODULE ifExists? qualifiedName
-    | DROP QUEUE ifExists? qualifiedName
+    | DROP taskQueueKw ifExists? qualifiedName
     | DROP SCHEDULED EVENT ifExists? qualifiedName
     | DROP REGULAR EXPRESSION ifExists? qualifiedName
     | DROP JAVA ACTION ifExists? qualifiedName
     | DROP JAVASCRIPT ACTION ifExists? qualifiedName
     | DROP INDEX qualifiedName ON qualifiedName
-    | DROP ODATA CLIENT ifExists? qualifiedName
-    | DROP ODATA SERVICE ifExists? qualifiedName
+    | DROP consumedODataServiceKw ifExists? qualifiedName
+    | DROP publishedODataServiceKw ifExists? qualifiedName
     | DROP BUSINESS EVENT SERVICE ifExists? qualifiedName
     | DROP WORKFLOW ifExists? qualifiedName
     | DROP IMAGE COLLECTION ifExists? qualifiedName
@@ -580,10 +719,10 @@ dropStatement
     | DROP MESSAGE DEFINITION COLLECTION ifExists? qualifiedName
     | DROP IMPORT MAPPING ifExists? qualifiedName
     | DROP EXPORT MAPPING ifExists? qualifiedName
-    | DROP REST CLIENT ifExists? qualifiedName
+    | DROP consumedRestServiceKw ifExists? qualifiedName
     | DROP PUBLISHED REST SERVICE ifExists? qualifiedName
     | DROP DATA TRANSFORMER ifExists? qualifiedName
-    | DROP MODEL ifExists? qualifiedName                               // DROP MODEL Module.Name (agent-editor)
+    | DROP aiModelKw ifExists? qualifiedName                           // DROP AI MODEL Module.Name (agent-editor)
     | DROP CONSUMED MCP SERVICE ifExists? qualifiedName                // DROP CONSUMED MCP SERVICE Module.Name
     | DROP KNOWLEDGE BASE ifExists? qualifiedName                      // DROP KNOWLEDGE BASE Module.Name
     | DROP AGENT ifExists? qualifiedName                               // DROP AGENT Module.Name
@@ -669,7 +808,7 @@ moveDocumentType
     | ENUMERATION
     | CONSTANT
     | WORKFLOW
-    | QUEUE
+    | taskQueueKw
     | SCHEDULED EVENT
     | REGULAR EXPRESSION
     | JSON STRUCTURE
@@ -681,12 +820,12 @@ moveDocumentType
     | DATA TRANSFORMER
     | IMAGE COLLECTION
     | ICON COLLECTION
-    | REST CLIENT
+    | consumedRestServiceKw
     | PUBLISHED REST SERVICE
-    | ODATA CLIENT
-    | ODATA SERVICE
+    | consumedODataServiceKw
+    | publishedODataServiceKw
     | BUSINESS EVENT SERVICE
-    | MODEL
+    | aiModelKw
     | AGENT
     | KNOWLEDGE BASE
     | CONSUMED MCP SERVICE
@@ -708,8 +847,6 @@ securityStatement
     | revokeNanoflowAccessStatement
     | grantPageAccessStatement
     | revokePageAccessStatement
-    | grantWorkflowAccessStatement
-    | revokeWorkflowAccessStatement
     | grantODataServiceAccessStatement
     | revokeODataServiceAccessStatement
     | grantPublishedRestServiceAccessStatement

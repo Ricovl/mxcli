@@ -29,20 +29,20 @@
 
 create entity MyFirstModule.Item ( Name: String );
 
-create or replace microflow MyFirstModule.ACT_Select ($Source: MyFirstModule.Item)
+create or modify microflow MyFirstModule.ACT_Select ($Source: MyFirstModule.Item)
 begin
 end;
 
-create or replace page MyFirstModule.P_KwArg
+create or modify page MyFirstModule.P_KwArg
 (
   Title: 'Keyword Arg Names',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Item: MyFirstModule.Item }
+  Params: ( $Item: MyFirstModule.Item )
 )
 {
   dataview dv (datasource: $Item) {
     -- 'Source' is a lexer keyword; previously a parse error unless quoted.
-    container rowBox (OnClick: microflow MyFirstModule.ACT_Select(Source: $Item)) {
+    container rowBox (OnClick: call microflow MyFirstModule.ACT_Select(Source = $Item)) {
       dynamictext t (content: 'open')
     }
   }

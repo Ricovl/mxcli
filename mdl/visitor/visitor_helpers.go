@@ -191,14 +191,14 @@ func buildAttributes(ctx parser.IAttributeDefinitionListContext, b *Builder) []a
 			if c.NOT() != nil && c.NULL() != nil || c.NOT_NULL() != nil {
 				attr.NotNull = true
 				// Extract error message if present
-				if c.ERROR() != nil && c.STRING_LITERAL() != nil {
+				if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
 					attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 				}
 			}
 			if c.UNIQUE() != nil {
 				attr.Unique = true
 				// Extract error message if present
-				if c.ERROR() != nil && c.STRING_LITERAL() != nil {
+				if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
 					attr.UniqueError = unquoteStringLit(c.STRING_LITERAL())
 				}
 			}
@@ -214,7 +214,7 @@ func buildAttributes(ctx parser.IAttributeDefinitionListContext, b *Builder) []a
 			if c.REQUIRED() != nil {
 				attr.NotNull = true
 				// Extract error message if present
-				if c.ERROR() != nil && c.STRING_LITERAL() != nil {
+				if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
 					attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 				}
 			}
@@ -252,13 +252,13 @@ func buildSingleAttribute(a *parser.AttributeDefinitionContext) *ast.Attribute {
 		c := constraintCtx.(*parser.AttributeConstraintContext)
 		if c.NOT() != nil && c.NULL() != nil || c.NOT_NULL() != nil {
 			attr.NotNull = true
-			if c.ERROR() != nil && c.STRING_LITERAL() != nil {
+			if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
 				attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 			}
 		}
 		if c.UNIQUE() != nil {
 			attr.Unique = true
-			if c.ERROR() != nil && c.STRING_LITERAL() != nil {
+			if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
 				attr.UniqueError = unquoteStringLit(c.STRING_LITERAL())
 			}
 		}
@@ -272,7 +272,7 @@ func buildSingleAttribute(a *parser.AttributeDefinitionContext) *ast.Attribute {
 		}
 		if c.REQUIRED() != nil {
 			attr.NotNull = true
-			if c.ERROR() != nil && c.STRING_LITERAL() != nil {
+			if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
 				attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 			}
 		}

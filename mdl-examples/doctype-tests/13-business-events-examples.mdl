@@ -107,10 +107,10 @@ create or modify business event service BeTest.SimpleEvents
 -- ============================================================================
 
 
-show business event services;
-show business event services in BeTest;
+list business event services;
+list business event services in BeTest;
 describe business event service BeTest.SimpleEvents;
-show business events;
+list business events;
 
 -- ============================================================================
 -- PART 5: Drop Service

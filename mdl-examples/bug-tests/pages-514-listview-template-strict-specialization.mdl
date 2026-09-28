@@ -31,7 +31,7 @@ create persistent entity MyFirstModule.Car extends MyFirstModule.Vehicle ( Doors
 
 -- The control. A real specialization builds, and mxbuild reports 0 errors —
 -- without it a guard that refused everything would look like a fix.
-create or replace page MyFirstModule.TplOK (
+create or modify page MyFirstModule.TplOK (
   title: 'ok', layout: 'Atlas_Core.Atlas_Default'
 ) {
   listview lvV (DataSource: database from MyFirstModule.Vehicle) {

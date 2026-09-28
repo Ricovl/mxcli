@@ -1,14 +1,14 @@
--- Bug: `describe association` omitted the storage clause for a TABLE-stored
--- association, and `create or modify` defaulted an unstated storage to COLUMN —
--- so replaying unchanged describe output flipped Table → Column (a database
--- schema migration). `mxcli diff` reported "(no changes)" because neither side
--- of the script differ rendered storage.
+-- Bug: `mxcli diff` reported "(no changes)" for a script that changes an
+-- association's storage, because neither side of the script differ rendered
+-- storage. Storage is schema (junction table vs foreign-key column), so a
+-- missed flip is a database migration nobody was shown.
 --
--- Reproduce against a project, then compare before/after:
+-- Reproduce against a project:
 --   mxcli exec association-storage-table-roundtrip.mdl -p app.mpr
---   mxcli -p app.mpr -c "describe association BugTest.Order_Customer"
--- Expected after the fix: `storage table` in both describes, and the
--- create-or-modify without a storage clause leaves it Table.
+--   (edit the last statement to `storage column`)
+--   mxcli diff association-storage-table-roundtrip.mdl -p app.mpr
+-- Expected: describe shows `storage table`; the diff of the unchanged script is
+-- empty; the diff with `storage column` shows the storage hunk.
 
 create persistent entity BugTest.Customer (
   "Name": String(100)
@@ -20,14 +20,11 @@ create persistent entity BugTest.Order (
 
 create association BugTest.Order_Customer
 from BugTest.Order to BugTest.Customer
-type Reference
 storage table;
 
--- No storage clause: must carry the stored Table, not reset to Column.
+-- No storage clause: carries the stored Table rather than resetting to Column,
+-- and `mxcli diff` of it reports no change.
 create or modify association BugTest.Order_Customer
-from BugTest.Order to BugTest.Customer
-type Reference
-owner Default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+from BugTest.Order to BugTest.Customer;
 
 describe association BugTest.Order_Customer;

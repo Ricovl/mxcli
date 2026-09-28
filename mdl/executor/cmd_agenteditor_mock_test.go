@@ -344,10 +344,10 @@ func TestDescribeAgentEditorModel_Mock(t *testing.T) {
 	assertNoError(t, describeAgentEditorModel(ctx, ast.QualifiedName{Module: "M", Name: "GPT4"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create or modify model")
+	assertContainsStr(t, out, "create or modify ai model")
 	assertTerminated(t, out) // #744
 	assertContainsStr(t, out, "Provider")
-	assertContainsStr(t, out, "Key")
+	assertContainsStr(t, out, "Key: @M.APIKey") // R5: the one constant reference (ako/mxcli#753)
 }
 
 func TestShowAgentEditorAgents_Mock(t *testing.T) {
@@ -470,6 +470,7 @@ func TestDescribeAgentEditorKnowledgeBase_Mock(t *testing.T) {
 	assertContainsStr(t, out, "create or modify knowledge base")
 	assertTerminated(t, out) // #744
 	assertContainsStr(t, out, "Provider")
+	assertContainsStr(t, out, "Key: @M.KBKey") // R5: the one constant reference (ako/mxcli#753)
 }
 
 func TestShowAgentEditorConsumedMCPServices_Mock(t *testing.T) {

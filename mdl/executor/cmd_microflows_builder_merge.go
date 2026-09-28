@@ -15,7 +15,7 @@ package executor
 // a free graph of SequenceFlows, so it can express joins no nesting reproduces —
 // two branches landing on one point from different depths — and the commonest
 // real instance is an ERROR path rejoining the normal one. Before this, DESCRIBE
-// rendered such a graph as an empty `on error … { }` block and a describe → exec
+// rendered such a graph as an empty `on error … begin end error` block and a describe → exec
 // round trip silently rewrote it (measured: an error edge repointed from the
 // tail merge to an upstream one produced byte-identical MDL, and executing that
 // MDL reproduced the tail-merge graph). See

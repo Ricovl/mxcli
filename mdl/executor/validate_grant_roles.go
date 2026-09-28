@@ -71,8 +71,6 @@ func moduleRoleList(stmt ast.Statement) (roles []ast.QualifiedName, what string)
 		return s.Roles, "grant execute on nanoflow " + s.Nanoflow.String()
 	case *ast.GrantPageAccessStmt:
 		return s.Roles, "grant view on page " + s.Page.String()
-	case *ast.GrantWorkflowAccessStmt:
-		return s.Roles, "grant execute on workflow " + s.Workflow.String()
 	case *ast.GrantODataServiceAccessStmt:
 		return s.Roles, "grant access on OData service " + s.Service.String()
 	case *ast.GrantPublishedRestServiceAccessStmt:

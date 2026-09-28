@@ -40,19 +40,19 @@ create constant AuthTest.ApiPass type string default 'testpass123!';
 -- Basic auth credentials are sent, 401 otherwise.
 -- This is the definitive test: if we get 200, the header was sent.
 
-create rest client AuthTest.HttpBinAuthAPI (
+create consumed rest service AuthTest.HttpBinAuthAPI (
   BaseUrl: 'https://httpbin.org',
   authentication: basic (username: @AuthTest.ApiUser, password: @AuthTest.ApiPass)
 )
 {
   /** Calls /basic-auth/testuser/testpass123! — returns 200 if auth header sent */
-  operation CheckAuth {
+  operation CheckAuth (
     method: get,
     path: '/basic-auth/testuser/testpass123!',
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 30,
     response: none
-  }
+  )
 };
 
 -- ############################################################################
@@ -102,7 +102,7 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  $response = rest call get 'https://httpbin.org/basic-auth/testuser/testpass123!'
+  $response = call rest service get 'https://httpbin.org/basic-auth/testuser/testpass123!'
     header Accept = 'application/json'
     auth basic 'testuser' password 'testpass123!'
     timeout 30
@@ -132,25 +132,25 @@ create page AuthTest.AuthTestPage
 )
 {
   layoutgrid grid {
-    row rowTitle {
-      column col (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txtTitle (content: 'Bug #200: REST Client Basic Auth', rendermode: H2)
         dynamictext txtDesc (content: 'Click each button and check the console log. Both should show status 200.', rendermode: paragraph)
       }
     }
-    row rowButtons {
-      column colClient (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         actionbutton btnClient (
           caption: 'Test REST Client Auth',
-          action: microflow AuthTest.ACT_TestBasicAuth,
+          action: call microflow AuthTest.ACT_TestBasicAuth,
           buttonstyle: primary
         )
         dynamictext txtClient (content: 'Uses CREATE REST CLIENT with BASIC auth', rendermode: paragraph)
       }
-      column colInline (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         actionbutton btnInline (
           caption: 'Test Inline REST CALL Auth',
-          action: microflow AuthTest.ACT_TestBasicAuthInline,
+          action: call microflow AuthTest.ACT_TestBasicAuthInline,
           buttonstyle: default
         )
         dynamictext txtInline (content: 'Uses inline REST CALL ... AUTH BASIC (known working)', rendermode: paragraph)
@@ -163,6 +163,6 @@ create page AuthTest.AuthTestPage
 -- PART 5: VERIFICATION
 -- ############################################################################
 
-show rest clients in AuthTest;
-describe rest client AuthTest.HttpBinAuthAPI;
+list consumed rest services in AuthTest;
+describe consumed rest service AuthTest.HttpBinAuthAPI;
 describe microflow AuthTest.ACT_TestBasicAuth;
