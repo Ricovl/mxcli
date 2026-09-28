@@ -64,5 +64,5 @@ ALTER CONSUMED MCP SERVICE Bug464.MyMCP SET ConnectionTimeoutSeconds = 60, Versi
 -- ALTER AGENT — combines SET, ADD, and DROP in one statement.
 ALTER AGENT Bug464.MyAgent
     SET SystemPrompt = 'updated prompt', Temperature = 0.7, MaxTokens = 4096
-    ADD KNOWLEDGE BASE Docs { Source: Bug464.MyKB, Collection: 'docs', MaxResults: 5 }
-    ADD MCP SERVICE Bug464.MyMCP { Description: 'weather', Enabled: true };
+    ADD KNOWLEDGE BASE Docs ( Source: Bug464.MyKB, Collection: 'docs', MaxResults: 5 )
+    ADD MCP SERVICE Bug464.MyMCP ( Description: 'weather', Enabled: true );

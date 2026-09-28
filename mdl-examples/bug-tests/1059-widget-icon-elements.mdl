@@ -26,9 +26,9 @@
 
 -- MARK: Setup
 
-create or modify image collection IconProbe.Images (
-  image marker from file '../../docs/images/mxcli-cli.png'
-);
+create or modify image collection IconProbe.Images {
+  image marker ( File: '../../docs/images/mxcli-cli.png' )
+};
 
 -- MARK: The three icon elements
 

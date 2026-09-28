@@ -41,7 +41,7 @@ create rest client ZZB."MESSlice" (
   Authentication: none
 )
 {
-  operation "SearchRoutes" {
+  operation "SearchRoutes" (
     Method: get,
     Path: '/routes/{id}',
     Parameters: ($id: String),
@@ -55,5 +55,5 @@ create rest client ZZB."MESSlice" (
       RoutingCode = routing_code,
       RoutingName = routing_name
     }
-  }
+  )
 };

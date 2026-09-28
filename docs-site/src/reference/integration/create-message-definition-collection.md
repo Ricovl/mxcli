@@ -76,18 +76,18 @@ guesses.
 ```sql
 CREATE MESSAGE DEFINITION COLLECTION Sales.MD_Order
     FOLDER 'Messages'
-(
-    DEFINITION OrderMessage FOR Sales.Order AS 'Orders' (
+{
+    DEFINITION OrderMessage FOR Sales.Order AS 'Orders' {
         OrderId,
         TotalAmount AS 'Total',
-        Sales.OrderLine_Order/Sales.OrderLine AS 'Lines' ( Sku, Quantity ),
-        Sales.Order_Customer/Sales.Customer ( FirstName, LastName )
-    ),
-    DEFINITION CustomerOrders FOR Sales.Customer AS 'Customers' (
+        Sales.OrderLine_Order/Sales.OrderLine AS 'Lines' { Sku, Quantity },
+        Sales.Order_Customer/Sales.Customer { FirstName, LastName }
+    },
+    DEFINITION CustomerOrders FOR Sales.Customer AS 'Customers' {
         FirstName,
-        Sales.Order_Customer/Sales.Order AS 'Orders' ( OrderId )
-    )
-);
+        Sales.Order_Customer/Sales.Order AS 'Orders' { OrderId }
+    }
+};
 
 CREATE IMPORT MAPPING Sales.IMM_Order
     WITH MESSAGE DEFINITION Sales.MD_Order.OrderMessage
@@ -105,7 +105,7 @@ ALTER MESSAGE DEFINITION Sales.MD_Order.OrderMessage ADD MEMBER LastName IN Cust
 ALTER MESSAGE DEFINITION Sales.MD_Order.OrderMessage SET MEMBER TotalAmount AS 'GrandTotal';
 ALTER MESSAGE DEFINITION Sales.MD_Order.OrderMessage DROP MEMBER Sku IN Lines;
 
-ALTER MESSAGE DEFINITION COLLECTION Sales.MD_Order ADD DEFINITION Line FOR Sales.Line ( Sku );
+ALTER MESSAGE DEFINITION COLLECTION Sales.MD_Order ADD DEFINITION Line FOR Sales.Line { Sku };
 ALTER MESSAGE DEFINITION COLLECTION Sales.MD_Order RENAME DEFINITION Line TO OrderLine;
 ALTER MESSAGE DEFINITION COLLECTION Sales.MD_Order DROP DEFINITION IF EXISTS OrderLine;
 ```

@@ -99,7 +99,7 @@ var createOrReplaceCases = map[string]string{
 	"scheduledevent":              "scheduled event M.NightlyCleanup (Microflow: M.SE_Cleanup, Repeat: Daily, HourOfDay: 4, MinuteOfHour: 0, TimeZone: Server, Enabled: true);",
 	"regularexpression":           "regular expression M.Email (Expression: '.+@.+');",
 	"jsonstructure":               "json structure M.JSON_Pet snippet '{\"id\": 1}';",
-	"messagedefinitioncollection": "message definition collection M.MD_Order (definition OrderMessage for M.Order as 'Orders' (OrderId));",
+	"messagedefinitioncollection": "message definition collection M.MD_Order {definition OrderMessage for M.Order as 'Orders' {OrderId}};",
 	"importmapping":               "import mapping M.IMM_Order with json structure M.JSON_Order { create M.Order { Id = id } };",
 	"exportmapping":               "export mapping M.EMM_Order with json structure M.JSON_Order { M.Order { orderId = OrderId } };",
 	"configuration":               "configuration 'Default';",

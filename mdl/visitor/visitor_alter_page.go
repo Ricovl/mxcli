@@ -86,26 +86,14 @@ func (b *Builder) buildAlterSet(ctx *parser.AlterSetContext) ast.AlterPageOperat
 		}
 	}
 
-	usedEquals := false
 	for _, assignCtx := range ctx.AllAlterPageAssignment() {
 		assign := assignCtx.(*parser.AlterPageAssignmentContext)
-		if ao := assign.AlterAssignOp(); ao != nil && ao.(*parser.AlterAssignOpContext).EQUALS() != nil {
-			usedEquals = true
-		}
 		name, value := b.buildAlterPageAssignment(assign)
 		if name != "" {
 			op.Properties[name] = value
 		}
 	}
-
-	// Which alias, if any. `=` is reported first: its rewrite — the
-	// parenthesised, colon form — also fixes a missing parenthesis.
-	switch {
-	case usedEquals:
-		op.Legacy = ast.AlterAliasSetEquals
-	case ctx.LPAREN() == nil:
-		op.Legacy = ast.AlterAliasSetUnparenthesised
-	}
+	b.recordAlterPageSet(ctx)
 
 	return op
 }
@@ -237,9 +225,7 @@ func (b *Builder) buildAlterInsert(ctx *parser.AlterInsertContext) *ast.InsertWi
 // buildAlterDrop builds a DropWidgetOp from the parse tree.
 func (b *Builder) buildAlterDrop(ctx *parser.AlterDropContext) *ast.DropWidgetOp {
 	op := &ast.DropWidgetOp{}
-	if ctx.WIDGET() != nil {
-		op.Legacy = ast.AlterAliasDropWidget
-	}
+	b.recordAlterPageDropWidget(ctx)
 	for _, tr := range ctx.AllAlterTarget() {
 		op.Targets = append(op.Targets, b.buildAlterTarget(tr))
 	}

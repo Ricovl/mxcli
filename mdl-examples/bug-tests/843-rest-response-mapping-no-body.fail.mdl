@@ -41,11 +41,11 @@ create rest client ZZB."MESSlice" (
   Authentication: none
 )
 {
-  operation "SearchRoutes" {
+  operation "SearchRoutes" (
     Method: get,
     Path: '/routes',
     Query: ($page: String, $pageSize: String),
     Timeout: 300,
     Response: mapping ZZB."IMM_R10"
-  }
+  )
 };

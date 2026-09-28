@@ -49,10 +49,10 @@ a clause written where the type belongs is read *as* the type:
 
 ```mdl
 -- WRONG: `SET` is read as the type name, not as a keyword
-ALTER ENTITY Sales.Customer MODIFY ATTRIBUTE Discount SET DEFAULT 0;
+ALTER ENTITY Sales.Customer MODIFY ATTRIBUTE Discount: SET DEFAULT 0;
 
 -- Right: restate the type
-ALTER ENTITY Sales.Customer MODIFY ATTRIBUTE Discount Decimal DEFAULT 0;
+ALTER ENTITY Sales.Customer MODIFY ATTRIBUTE Discount: Decimal DEFAULT 0;
 ```
 
 mxcli refuses the first form and names the alternatives. Before it did, that

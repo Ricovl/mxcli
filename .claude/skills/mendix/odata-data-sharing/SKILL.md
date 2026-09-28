@@ -81,7 +81,7 @@ Then re-import: `CREATE OR MODIFY EXTERNAL ENTITIES FROM F1Now.NowApi` maps the
 new entity sets. Do **not** `DROP CONSUMED ODATA SERVICE` and recreate it to force a
 refresh — that invalidates the client ID the existing external entities point at.
 
-Note that `ALTER CONSUMED ODATA SERVICE SET MetadataUrl = …` does *not* re-fetch. Use
+Note that `ALTER CONSUMED ODATA SERVICE … SET ( MetadataUrl: … )` does *not* re-fetch. Use
 `CREATE OR MODIFY` when the contract is what changed.
 
 **Use Cases for Local Metadata:**

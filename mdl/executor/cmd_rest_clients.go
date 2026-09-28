@@ -145,13 +145,13 @@ func outputConsumedRestServiceMDL(ctx *ExecContext, svc *model.ConsumedRestServi
 	return nil
 }
 
-// outputRestOperation writes a single operation in the new { Key: Value } format.
+// outputRestOperation writes a single operation, its properties in ( ) (R2).
 func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 	if op.Documentation != "" {
 		outputJavadocIndented(w, op.Documentation, "  ")
 	}
 
-	fmt.Fprintf(w, "  operation %s {\n", op.Name)
+	fmt.Fprintf(w, "  operation %s (\n", op.Name)
 	fmt.Fprintf(w, "    Method: %s,\n", strings.ToLower(op.HttpMethod))
 	fmt.Fprintf(w, "    Path: %s,\n", mdlQuoted(op.Path))
 
@@ -235,7 +235,7 @@ func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 		fmt.Fprintln(w, "    Response: none")
 	}
 
-	fmt.Fprintln(w, "  }")
+	fmt.Fprintln(w, "  )")
 }
 
 // restParamTypeOrDefault supplies the type describe prints for a REST parameter.

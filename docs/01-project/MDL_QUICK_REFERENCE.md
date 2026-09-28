@@ -102,7 +102,7 @@ Modifies an existing entity without full replacement.
 |-----------|--------|-------|
 | Add attribute | `alter entity Module.Name add attribute [if not exists] attr: type [constraints];` | Comma-separate the whole action to add several: `add attribute A: integer, add attribute B: string(20)`. `if not exists` skips instead of erroring, so the script re-runs |
 | Drop attribute | `alter entity Module.Name drop attribute [if exists] AttrName;` | `if exists` skips when it is already gone |
-| Modify attributes | `alter entity Module.Name modify (attr: NewType [constraints]);` | Change type/constraints |
+| Modify attribute | `alter entity Module.Name modify attribute Attr: NewType [constraints];` | Change type/constraints. Always `Name: Type`; without the colon warns MDL-DEPR065 |
 | Rename attribute | `alter entity Module.Name rename attribute OldName to NewName;` | Also rewrites stored references (microflow members, page widgets, validation/access rules) and XPath constraints. Microflow expressions are free text and are **not** rewritten |
 | Add index | `alter entity Module.Name add index [if not exists] [name] [on] (Col1 [asc\|desc], ...);` | `on` is optional (SQL-like). **Without `if not exists`, re-running is an error** — a second identical index fails the build with CE0072 |
 | Document an association | `/** What it links. */`<br>`create association Mod.C_P from Mod.C to Mod.P;`<br>or `... to Mod.P comment 'What it links.';` | Both spellings work on create; the doc comment wins when both are present. `comment` survives here — and only here among the CREATE statements — because it is an association's **only inline** spelling |
@@ -256,7 +256,7 @@ expression specified".
 
 ```sql
 create entity Shop.Product ( Email: String(200) not null error message 'Required' );
-alter entity Shop.Product modify attribute Code String(20) unique error message 'Unique';
+alter entity Shop.Product modify attribute Code: String(20) unique error message 'Unique';
 ```
 
 A range bounded by another *attribute* cannot be authored in MDL, but survives a
@@ -337,18 +337,19 @@ create scheduled event Ops.WeeklyReport (
 | Show consumed odata services | `show consumed odata services [in module];` | Consumed OData services |
 | Describe consumed odata service | `describe consumed odata service Module.Name;` | Full MDL output |
 | Create consumed odata service | `create [or modify] consumed odata service Module.Name (...);` | Version, MetadataUrl, Timeout, etc. |
-| Alter consumed odata service | `alter consumed odata service Module.Name set key = value;` | |
+| Alter consumed odata service | `alter consumed odata service Module.Name set (Key: value, ...);` | |
 | Drop consumed odata service | `drop consumed odata service [if exists] Module.Name;` | |
 | Show published odata services | `show published odata services [in module];` | Published OData services |
 | Describe published odata service | `describe published odata service Module.Name;` | Full MDL output |
 | Create published odata service | `create [or modify] published odata service Module.Name (...) authentication ... { publish entity ... };` | |
 | Publish as GraphQL too | `create published odata service Module.Name (SupportsGraphQL: Yes) {...};` | Mendix 10.14+. Same location, clients POST a query. Exposed names must be unique beyond case (CE2881); query fields are camelCased |
-| Alter published odata service | `alter published odata service Module.Name set key = value;` | |
+| Alter published odata service | `alter published odata service Module.Name set (Key: value, ...);` | |
 | Drop published odata service | `drop published odata service [if exists] Module.Name;` | |
 | Show external entities | `show external entities [in module];` | OData-backed entities |
 | Show external actions | `show external actions [in module];` | Actions used in microflows |
 | Create external entity | `create [or modify] external entity Module.Name from consumed odata service Module.Client (...) (attrs);` | |
 | Create external entities | `create [or modify] external entities from Module.Client [into module] [entities (...)];` | Bulk from $metadata |
+| Allow local create/change | `alter entity Module.Name set (AllowCreateChangeLocally: true);` | `create external entity`'s key. `set allow_create_change_locally = true` warns MDL-DEPR063 |
 | Grant OData access | `grant access on published odata service Module.Name to Module.Role, ...;` | |
 | Revoke OData access | `revoke access on published odata service Module.Name from Module.Role, ...;` | |
 | Show contract entities | `show contract entities from Module.Client;` | Browse cached $metadata |
@@ -483,8 +484,8 @@ rather than updating the first.
 | Describe microflow | `describe microflow Module.Name;` | Full MDL with activities |
 | Describe microflow (normalized) | `describe microflow Module.Name normalized;` | Folds crossed branches into one condition instead of flattening them. Opt-in: the output re-executes to an equivalent graph with fewer nodes and a different layout |
 | Describe microflow (with handles) | `describe microflow Module.Name with handles;` | Prints `-- handle: <target>` above each activity: its content address for `alter microflow` — output `$Var`, `'Caption'`, or a statement pattern with `*` wildcards (anchored at both ends), plus `@n` when several match. Comments only; cannot be combined with `normalized` |
-| Insert into a stored microflow | `alter microflow Module.Name { insert after <target> { <statements> } };` | Also `insert before`, and `alter nanoflow`. A graph splice into the stored flow, not a rebuild: only the new activities, the two rewired flows and the objects moved to make room change; every other element keeps its `$ID`, position and curve. `<target>` is a handle from `describe … with handles`, resolved before any operation runs. Refused: after a decision, before an activity several flows enter, inside a loop body, a fragment that returns, a variable the flow already has or one not declared on the path |
-| Replace or drop an activity | `alter microflow Module.Name { replace <target> with { <statements> } drop <target>; };` | Flows into the activity are re-pointed at the replacement (or at its successor, for `drop`). Refused for a decision, an end event, an activity with an error handler, and an activity whose output variable is still read. Over `--mcp` only `insert` is supported |
+| Insert into a stored microflow | `alter microflow Module.Name { insert after <target> begin <statements> end; };` | Also `insert before`, and `alter nanoflow`. A graph splice into the stored flow, not a rebuild: only the new activities, the two rewired flows and the objects moved to make room change; every other element keeps its `$ID`, position and curve. `<target>` is a handle from `describe … with handles`, resolved before any operation runs. Refused: after a decision, before an activity several flows enter, inside a loop body, a fragment that returns, a variable the flow already has or one not declared on the path. The fragment is `begin … end` like a microflow body; `{ … }` is the deprecated spelling MDL-DEPR074 |
+| Replace or drop an activity | `alter microflow Module.Name { replace <target> with begin <statements> end; drop <target>; };` | Flows into the activity are re-pointed at the replacement (or at its successor, for `drop`). Refused for a decision, an end event, an activity with an error handler, and an activity whose output variable is still read. Over `--mcp` only `insert` is supported |
 | Describe nanoflow | `describe nanoflow Module.Name;` | Full MDL with activities |
 | Rename microflow | `rename microflow Module.Old to New;` | Updates all references |
 | Rename nanoflow | `rename nanoflow Module.Old to New;` | Updates all references |
@@ -973,19 +974,19 @@ still flagged rather than guessed at.
 |-----------|--------|-------|
 | Show settings | `show settings;` | Overview of all settings parts |
 | Describe settings | `describe settings;` | Full MDL output (round-trippable) |
-| Alter model settings | `alter settings runtime key = value;` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
-| Alter configuration | `alter settings configuration 'Name' key = value;` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
+| Alter model settings | `alter settings runtime (Key: value, ...);` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
+| Alter configuration | `alter settings configuration 'Name' (Key: value, ...);` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
 | Alter constant | `alter settings constant @Module.Name value 'val' in configuration 'cfg';` | Override constant per configuration |
 | Drop constant override | `alter settings drop constant @Module.Name in configuration 'cfg';` | Reset to default value |
 | Create or modify configuration | `create or modify configuration 'Name' [key = value, ...];` | Upsert — what `describe settings` emits, so a described project replays onto a target that already has `Default` |
 | Create configuration | `create configuration 'Name' [key = value, ...];` | New server configuration. `DatabaseType` must be `Db2`, `Hsqldb`, `MySql`, `Oracle`, `PostgreSql`, `SapHana` or `SqlServer` (case-insensitive) |
 | Drop configuration | `drop configuration [if exists] 'Name';` | Remove a configuration |
-| Alter language | `alter settings LANGUAGE key = value;` | DefaultLanguageCode (must already be enabled). Set it **before** creating pages — it decides what language their captions are stored in |
+| Alter language | `alter settings LANGUAGE (Key: value);` | DefaultLanguageCode (must already be enabled). Set it **before** creating pages — it decides what language their captions are stored in |
 | Enable a language | `alter settings LANGUAGE add 'de_DE' [(CheckCompleteness: true, CustomDateFormat: 'yyyy-MM-dd')];` | Adds to the enabled list — the only languages a build emits translations for. A language is identified by its code; Studio Pro's "German, Germany" is derived for display and not stored |
 | Enable or modify (upsert) | `alter settings LANGUAGE add or modify 'de_DE' (CheckCompleteness: true);` | What `describe settings` emits, so a described project replays onto itself or onto one that already has the language |
 | Modify a language | `alter settings LANGUAGE modify 'de_DE' (CheckCompleteness: true);` | Changes only the options it names. `CheckCompleteness` turns on error reporting for texts with no translation in that language (the default language is always checked regardless) |
 | Disable a language | `alter settings LANGUAGE remove 'de_DE';` | The **default** language is refused (every missing translation falls back on it). Translations are NOT deleted — they stay in the model and stop being built; the run reports how many |
-| Alter workflows | `alter settings workflows key = value;` | UserEntity, DefaultTaskParallelism, WorkflowEngineParallelism |
+| Alter workflows | `alter settings workflows (Key: value, ...);` | UserEntity, DefaultTaskParallelism, WorkflowEngineParallelism |
 | Add a workflow group | `alter settings workflows add group 'Approvers' [(Description: 'Primary approval group')];` | The buckets under App Settings > Workflows > Groups that a user task's group targeting selects from. Mendix **11.2+**. `Description` is the only option — a `Settings$WorkflowGroup` stores Name and Description and nothing else, so the **name is the identity** and a second group differing only in case is refused |
 | Add or modify (upsert) | `alter settings workflows add or modify group 'Approvers' (Description: '...');` | What `describe settings` emits, so a described project replays onto itself |
 | Modify a workflow group | `alter settings workflows modify group 'Approvers' (Description: '...');` | Changes only the options it names, and keeps the group's element id — which is the **runtime's identity** for it (Mendix materialises one `System.WorkflowGroup` row per entry, keyed on that id), so an edit updates the row instead of replacing it |
@@ -1061,22 +1062,22 @@ Respond in {{Language}}.$$,
   UserPrompt: 'Ask me anything.'
 )
 {
-  mcp service Module.WebSearch {
+  mcp service Module.WebSearch (
     Enabled: true
-  }
+  )
 
-  knowledge base KBAlias {
+  knowledge base KBAlias (
     source: Module.ProductDocs,
     collection: 'product-docs',
     MaxResults: 5,
     description: 'Product documentation',
     Enabled: true
-  }
+  )
 
-  tool MyMicroflowTool {
+  tool MyMicroflowTool (
     description: 'Fetch customer data',
     Enabled: true
-  }
+  )
 };
 ```
 
@@ -1092,7 +1093,7 @@ Respond in {{Language}}.$$,
 |-----------|--------|-------|
 | Show collections | `show image collection [in module];` | List all or filter by module |
 | Describe collection | `describe image collection Module.Name;` | Full MDL output with embedded images |
-| Create collection | `create image collection Module.Name [folder 'path'] [export level 'Hidden'\|'Public'] [comment 'text'] [(image Name from file 'path', ...)];` | With or without images |
+| Create collection | `create image collection Module.Name [folder 'path'] [export level 'Hidden'\|'Public'] [comment 'text'] [{ image Name ( File: 'path' ) ... }];` | With or without images |
 | Create or modify | `create or modify image collection Module.Name [...];` | Preserves UUID — preferred for AI agents |
 | Drop collection | `drop image collection [if exists] Module.Name;` | Removes collection and all embedded images |
 | Show an image on a page | `image imgLogo (Image: 'Module.Collection.ImageName');` | Three-part name, like an icon reference. `describe image collection` lists the names |
@@ -1153,7 +1154,7 @@ create consumed rest service Module.Api (
   authentication: none
 )
 {
-  operation GetItems {
+  operation GetItems (
     method: get,
     path: '/items/{id}',
     parameters: ($id: string),
@@ -1161,9 +1162,9 @@ create consumed rest service Module.Api (
     headers: ('Accept' = 'application/json'),
     timeout: 30,
     response: json as $Result
-  }
+  )
 
-  operation CreateItem {
+  operation CreateItem (
     method: post,
     path: '/items',
     headers: ('Content-Type' = 'application/json'),
@@ -1175,7 +1176,7 @@ create consumed rest service Module.Api (
       Id = id,
       status = status,
     }
-  }
+  )
 };
 ```
 
@@ -1490,6 +1491,7 @@ MDL uses explicit property declarations for pages:
 | Declare a placeholder | `placeholder Main` | **No body.** Exactly one must be named `Main` — mxbuild enforces it (**CE0848**/**CE0849**), and names must be unique (**CE0495**). `placeholder X { … }` is the page-side form and declares nothing (MDL083) |
 | Alter layout | `alter layout Module.Name { <alter-page operations> };` | Edits the stored document, so widgets MDL cannot spell survive. Refused for a Marketplace target |
 | Set a design property | `alter page Module.Page { set ('Row size': 'Small') on lvOrders; };` | An Atlas design property of that widget's **type** — quoted, case-sensitive; `show design properties for <type>` lists them. `on`/`off` for a toggle, where `off` removes the entry. Same document `alter styling` writes. A **multi-select** (`Hide on`) or **compound** (`Spacing`) property needs the inline `DesignProperties: [...]` form, since a `set` assignment carries one value |
+| Restyle one widget | `alter styling on page Module.Page widget w set (Class: 'card', 'Full width': on);` | `set Class = …, 'P' = on` (no parentheses, `=`) warns MDL-DEPR062 |
 | Repoint one page | `alter page Module.Page { set Layout = Module.Layout [map (Old as New, …)]; };` | Rewrites the layout reference **and** every placeholder binding |
 | Set a design property on every widget of a type | `alter pages [in <module>] set 'Compact' = on, 'Striped' = on where widgettype = datagrid [dry run];` | The house-style sweep. `widgettype` takes the **MDL keyword**, which resolves to exactly one widget id — a `like '%datagrid%'` predicate also matches the data grid's *filter* widgets. Never a widget **name**: a name is unique only within its page. `dry run` previews against a discardable copy. A sweep that matches widgets and writes none of them exits non-zero |
 | Repoint many pages | `alter pages [in <module>] set layout = Module.Layout [map (…)] [where layout = Module.Old];` | The migration form. Marketplace pages are skipped and named. A `where layout` that names no real layout is an error, not a 0-page success |
@@ -1816,7 +1818,7 @@ Bulk translation of every user-visible string, one file per language. Entries us
 | Replace | `create or replace translations ...` | The file is authoritative: a translation whose source it does not name is **REMOVED**, and the run says which. `in Module` **bounds** the deletion |
 | Remove a language's translations | `create or replace translations [in Module] for <lang> ( );` | An empty file is authoritative over nothing, so everything in scope goes — the only way to take a language's translations out of the model |
 | Show languages | `show languages;` | ⚠️ languages that **have translations**, not enabled ones — a stock app reports 8 while 1 is enabled. The enabled list is in `describe settings`. Needs `refresh catalog full` |
-| Default language | `alter settings LANGUAGE DefaultLanguageCode = 'en_US';` | The language a translation file's left column is written in — **and the language a new `Caption:`/`Title:` is stored under**, so set it before authoring content. Changing it later does not move existing text and nothing warns |
+| Default language | `alter settings LANGUAGE (DefaultLanguageCode: 'en_US');` | The language a translation file's left column is written in — **and the language a new `Caption:`/`Title:` is stored under**, so set it before authoring content. Changing it later does not move existing text and nothing warns |
 
 **A translation for a language the project has not enabled is discarded at build
 time** — it is stored in the model, passes `mx check`, and produces no

@@ -36,9 +36,9 @@ create rest client FileBody.RC_Upload (
   Authentication: NONE
 )
 {
-  OPERATION PostFile {
+  OPERATION PostFile (
     Method: POST,
     Path: '/post',
     Body: FILE FROM $Doc
-  }
+  )
 };
