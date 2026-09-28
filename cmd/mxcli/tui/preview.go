@@ -16,7 +16,7 @@ import (
 func buildDescribeCmd(nodeType, qualifiedName string) string {
 	switch strings.ToLower(nodeType) {
 	case "systemoverview":
-		return "SHOW STRUCTURE DEPTH 2"
+		return "DESCRIBE STRUCTURE DEPTH 2"
 	case "security", "category", "domainmodel", "navigation", "projectsecurity", "navprofile",
 		"nanoflow": // DESCRIBE NANOFLOW not implemented in executor
 		return ""

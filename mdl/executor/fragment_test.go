@@ -489,7 +489,7 @@ func TestExpandBareSlotErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error for a bare slot outside a fragment")
 	}
-	if !strings.Contains(err.Error(), "only valid inside a `define fragment`") {
+	if !strings.Contains(err.Error(), "only valid inside a `create fragment`") {
 		t.Errorf("Unexpected error: %v", err)
 	}
 }

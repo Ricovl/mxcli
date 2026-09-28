@@ -12,7 +12,7 @@
 
 ```mdl
 SHOW WIDGETS
-DESCRIBE WIDGET DataGrid2
+DESCRIBE WIDGET TYPE DataGrid2
 ```
 
 <!-- TODO: how mxcli discovers widget types present in the project -->

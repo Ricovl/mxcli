@@ -55,7 +55,7 @@ func alterSettingsLanguageAdd(ctx *ExecContext, ps *model.ProjectSettings, stmt 
 	for _, l := range ps.Language.Languages {
 		if strings.EqualFold(l.Code, code) {
 			return mdlerrors.NewValidationf(
-				"language %q is already enabled in this project — use `alter settings LANGUAGE remove '%s'` to disable it, "+
+				"language %q is already enabled in this project — use `alter settings language drop '%s'` to disable it, "+
 					"or `describe settings` to see the whole list", l.Code, l.Code)
 		}
 	}
