@@ -30,7 +30,7 @@ func TestPrintMenuMDL_RoundTripsAnIconCollectionIcon(t *testing.T) {
 		Icon:     "Atlas_Core.Atlas.align-center",
 		IconType: "Forms$IconCollectionIcon",
 	}})
-	want := "menu item 'Dashboard' page M.Dash icon Atlas_Core.Atlas.\"align-center\";\n"
+	want := "menu item 'Dashboard' ( OnClick: show page M.Dash, Icon: Atlas_Core.Atlas.\"align-center\" )\n"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -47,14 +47,14 @@ func TestPrintMenuMDL_LeavesAKeywordIconNameUnquoted(t *testing.T) {
 		Caption: "Home", Page: "M.Home",
 		Icon: "Atlas_Core.Atlas.home", IconType: "Forms$IconCollectionIcon",
 	}})
-	want := "menu item 'Home' page M.Home icon Atlas_Core.Atlas.home;\n"
+	want := "menu item 'Home' ( OnClick: show page M.Home, Icon: Atlas_Core.Atlas.home )\n"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
 
-// A sub-menu carries its icon before the parenthesised body, matching the
-// grammar's second alternative.
+// A sub-menu carries its icon in its property list, before the { } of its
+// items, matching the grammar's second alternative.
 func TestPrintMenuMDL_RoundTripsASubMenuIcon(t *testing.T) {
 	got := menuMDL([]*types.NavMenuItem{{
 		Caption:  "Reports",
@@ -62,10 +62,10 @@ func TestPrintMenuMDL_RoundTripsASubMenuIcon(t *testing.T) {
 		IconType: "Forms$IconCollectionIcon",
 		Items:    []*types.NavMenuItem{{Caption: "Monthly", Page: "M.Monthly"}},
 	}})
-	if !strings.HasPrefix(got, "menu 'Reports' icon Atlas_Core.Atlas.\"list-bullets\" (\n") {
+	if !strings.HasPrefix(got, "menu 'Reports' ( Icon: Atlas_Core.Atlas.\"list-bullets\" ) {\n") {
 		t.Errorf("sub-menu header lost its icon: %q", got)
 	}
-	if !strings.Contains(got, "menu item 'Monthly' page M.Monthly;") {
+	if !strings.Contains(got, "menu item 'Monthly' ( OnClick: show page M.Monthly )") {
 		t.Errorf("sub-items went missing: %q", got)
 	}
 }
@@ -76,13 +76,13 @@ func TestPrintMenuMDL_RoundTripsASubMenuIcon(t *testing.T) {
 // on testdata/expr-checker, a glyph icon destroyed at exit 0.
 //
 // Each form is emitted with its own keyword, so replay rebuilds the same
-// ELEMENT. Writing `icon System.Images.Close` for an ImageIcon would have
+// ELEMENT. Writing `Icon: System.Images.Close` for an ImageIcon would have
 // converted it to an IconCollectionIcon: a silent variant swap, which is why the
 // bare form was not simply widened to cover all three.
 func TestPrintMenuMDL_EmitsEachIconVariant(t *testing.T) {
 	for _, tc := range []struct{ name, iconType, icon, want string }{
-		{"collection icon", "Forms$IconCollectionIcon", "Atlas_Core.Atlas.home", " icon Atlas_Core.Atlas.home"},
-		{"image icon", "Forms$ImageIcon", "System.Images.Close", " icon image System.Images.Close"},
+		{"collection icon", "Forms$IconCollectionIcon", "Atlas_Core.Atlas.home", "Icon: Atlas_Core.Atlas.home"},
+		{"image icon", "Forms$ImageIcon", "System.Images.Close", "Icon: image System.Images.Close"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := menuMDL([]*types.NavMenuItem{{
@@ -101,8 +101,8 @@ func TestPrintMenuMDL_EmitsEachIconVariant(t *testing.T) {
 		got := menuMDL([]*types.NavMenuItem{{
 			Caption: "Close", Page: "M.Close", IconType: "Forms$GlyphIcon", IconCode: 57345,
 		}})
-		if !strings.Contains(got, " icon glyph 57345") {
-			t.Errorf("got %q, want it to contain ` icon glyph 57345`", got)
+		if !strings.Contains(got, "Icon: glyph 57345") {
+			t.Errorf("got %q, want it to contain `Icon: glyph 57345`", got)
 		}
 		if strings.Contains(got, "-- icon") {
 			t.Errorf("still flagged as unreproducible: %q", got)
@@ -127,7 +127,7 @@ func TestPrintMenuMDL_StillFlagsWhatItCannotRebuild(t *testing.T) {
 				Caption: "Close", Page: "M.Close", Icon: tc.icon, IconType: tc.iconType,
 			}})
 			stmt := strings.SplitN(got, "\n", 2)[0]
-			if strings.Contains(stmt, " icon ") {
+			if strings.Contains(stmt, "Icon:") {
 				t.Errorf("emitted a clause for %s, which replay could not rebuild: %q", tc.iconType, got)
 			}
 			if !strings.Contains(got, "-- icon") {
@@ -140,7 +140,7 @@ func TestPrintMenuMDL_StillFlagsWhatItCannotRebuild(t *testing.T) {
 // No icon means no clause and no note — the common case must stay clean.
 func TestPrintMenuMDL_SilentWhenThereIsNoIcon(t *testing.T) {
 	got := menuMDL([]*types.NavMenuItem{{Caption: "Dashboard", Page: "M.Dash"}})
-	if got != "menu item 'Dashboard' page M.Dash;\n" {
+	if got != "menu item 'Dashboard' ( OnClick: show page M.Dash )\n" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -160,7 +160,7 @@ func TestPrintMenuMDL_EmittedIconsReParse(t *testing.T) {
 			body := menuMDL([]*types.NavMenuItem{{
 				Caption: "X", Page: "M.P", Icon: icon, IconType: "Forms$IconCollectionIcon",
 			}})
-			script := "create or replace navigation Responsive menu (\n" + body + ");"
+			script := "create or modify navigation Responsive {\n" + body + "};"
 			prog, errs := visitor.Build(script)
 			if len(errs) > 0 {
 				t.Fatalf("DESCRIBE emitted output its own parser rejects:\n%s\nerrors: %v", script, errs)

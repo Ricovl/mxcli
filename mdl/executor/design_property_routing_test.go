@@ -144,7 +144,7 @@ func TestDesignPropertyAssignment(t *testing.T) {
 	if err == nil {
 		t.Fatal("a flat value on a multi-select property was accepted; mxbuild refuses it with CE6084")
 	}
-	if !strings.Contains(err.Error(), "['Phone': on]") {
+	if !strings.Contains(err.Error(), "('Phone': on)") {
 		t.Errorf("the message does not name the compound spelling: %v", err)
 	}
 }

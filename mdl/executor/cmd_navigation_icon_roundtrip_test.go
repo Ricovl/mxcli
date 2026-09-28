@@ -39,14 +39,14 @@ func TestMenuIconMDL_RoundTripsEveryVariant(t *testing.T) {
 		{
 			"collection",
 			types.NavMenuItem{IconType: "Forms$IconCollectionIcon", Icon: "Atlas_Core.Atlas.home"},
-			" icon Atlas_Core.Atlas.home",
+			"Atlas_Core.Atlas.home",
 		},
 		{
 			// The one that was being destroyed. The code IS the glyph's identity;
 			// reading only the $Type left DESCRIBE with nothing to say.
 			"glyph",
 			types.NavMenuItem{IconType: "Forms$GlyphIcon", IconCode: 57377},
-			" icon glyph 57377",
+			"glyph 57377",
 		},
 		{
 			// An image icon points into an IMAGE collection, a different document
@@ -54,7 +54,7 @@ func TestMenuIconMDL_RoundTripsEveryVariant(t *testing.T) {
 			// would rebuild it as the wrong element.
 			"image",
 			types.NavMenuItem{IconType: "Forms$ImageIcon", Icon: "System.Images.Close"},
-			" icon image System.Images.Close",
+			"image System.Images.Close",
 		},
 	}
 

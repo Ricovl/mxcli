@@ -941,7 +941,7 @@ func (sc *scriptContext) relaxExcludedWidgetRefs(kind, name string, widgets []*a
 // nested container with a data source of its own, which scopes its children.
 //
 // Covered: `Attribute:`, `CaptionAttribute:`, `Visible: Attr in (…)` and
-// template parameters (`…Params: [{1} = Attr]`). Anything else is caught by
+// template parameters (`…Params: ({1} = Attr)`). Anything else is caught by
 // the page writer's refusal of a bare attribute reference.
 func unscopedBindings(widgets []*ast.WidgetV3, ref string) []string {
 	var out []string
