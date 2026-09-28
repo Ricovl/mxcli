@@ -132,17 +132,17 @@ create agent AgentTest."ResearchAssistant" (
   UserPrompt: 'Find information about quantum computing.'
 )
 {
-  mcp service AgentTest.WebSearch {
+  mcp service AgentTest.WebSearch (
     Enabled: true
-  }
+  )
 
-  knowledge base ProductKB {
+  knowledge base ProductKB (
     source: AgentTest.ProductDocs,
     collection: 'product-docs',
     MaxResults: 5,
     description: 'Product documentation',
     Enabled: true
-  }
+  )
 };
 /
 
@@ -224,8 +224,8 @@ alter consumed mcp service AgentTest.WebSearch
 -- Add a TOOL (Microflow), MCP SERVICE, and KNOWLEDGE BASE in one statement.
 alter agent AgentTest.ResearchAssistant
     set SystemPrompt = 'Updated assistant prompt.', Temperature = 0.7, MaxTokens = 4096
-    add knowledge base ExtraDocs { Source: AgentTest.ProductDocs, Collection: 'extra', MaxResults: 3 }
-    add mcp service AgentTest.WebSearch { Description: 'web search', Enabled: true };
+    add knowledge base ExtraDocs ( Source: AgentTest.ProductDocs, Collection: 'extra', MaxResults: 3 )
+    add mcp service AgentTest.WebSearch ( Description: 'web search', Enabled: true );
 
 -- ALTER AGENT: drop collection entries (TOOL by name, MCP SERVICE by
 -- qualified name, KNOWLEDGE BASE by per-agent name).

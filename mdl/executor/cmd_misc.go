@@ -338,8 +338,7 @@ Image Collections:
   create image collection Module.Name
     [export level 'Hidden'|'Public']
     [comment 'description']
-    [(image Name from file 'path', ...)];
-  /
+    [{ image Name ( File: 'path' ) ... }];
 
   drop image collection Module.Name;
   show image collection [in Module];

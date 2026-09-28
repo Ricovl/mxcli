@@ -163,12 +163,12 @@ in the demo corpus (22.6%), and the only non-JSON source MDL can create. It
 holds nothing external: it is a **selection over the domain model**.
 
 ```sql
-create message definition collection Sales.MD_Order (
-  definition OrderMessage for Sales.Order as 'Orders' (
+create message definition collection Sales.MD_Order {
+  definition OrderMessage for Sales.Order as 'Orders' {
     OrderId,
-    Sales.Order_Customer/Sales.Customer ( FirstName )
-  )
-);
+    Sales.Order_Customer/Sales.Customer { FirstName }
+  }
+};
 ```
 
 A bare name is an attribute; `Assoc/Module.Entity` is an association. **Name the

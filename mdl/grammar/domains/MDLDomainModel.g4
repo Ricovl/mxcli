@@ -517,8 +517,23 @@ imageCollectionOption
     | COMMENT STRING_LITERAL
     ;
 
+// The images are the collection's children, so they are in { }, each with its
+// properties in ( ) (R2, ako/mxcli#754):
+//
+//   create image collection M.Icons { image Logo ( File: 'assets/logo.png' ) };
+//
+// The parenthesised list of `image X from file '…'` is the old spelling.
 imageCollectionBody
-    : LPAREN imageCollectionItem (COMMA imageCollectionItem)* RPAREN
+    : LBRACE imageCollectionChild* RBRACE
+    | LPAREN /* @alias MDL-DEPR072 */ imageCollectionItem (COMMA imageCollectionItem)* RPAREN
+    ;
+
+imageCollectionChild
+    : IMAGE imageName LPAREN imageProperty (COMMA imageProperty)* COMMA? RPAREN   // image Logo ( File: 'logo.png' )
+    ;
+
+imageProperty
+    : identifierOrKeyword COLON STRING_LITERAL
     ;
 
 imageCollectionItem
@@ -572,12 +587,12 @@ customNameMapping
 /**
  * CREATE [OR MODIFY] MESSAGE DEFINITION COLLECTION Module.Name
  *   FOLDER 'Private/Messages'
- * (
- *   definition Order for Sales.Order as 'Orders' (
+ * {
+ *   definition Order for Sales.Order as 'Orders' {
  *     OrderId,
- *     Sales.Order_Line/Sales.Line as 'Lines' ( Sku, Quantity )
- *   )
- * );
+ *     Sales.Order_Line/Sales.Line as 'Lines' { Sku, Quantity }
+ *   }
+ * };
  *
  * A message definition is a SELECTION OVER THE DOMAIN MODEL — every element
  * names an entity, an attribute or an association — which is what makes it
@@ -592,18 +607,27 @@ customNameMapping
 createMessageDefinitionCollectionStatement
     : MESSAGE DEFINITION COLLECTION qualifiedName
       (FOLDER STRING_LITERAL)?
-      LPAREN messageDefinitionDef (COMMA messageDefinitionDef)* COMMA? RPAREN
+      ( LBRACE messageDefinitionDef (COMMA? messageDefinitionDef)* COMMA? RBRACE
+      | LPAREN /* @alias MDL-DEPR073 */ messageDefinitionDef (COMMA messageDefinitionDef)* COMMA? RPAREN
+      )
     ;
 
 /**
- * `definition <Name> for <Module.Entity> [as '<ExposedName>'] ( members )`
+ * `definition <Name> for <Module.Entity> [as '<ExposedName>'] { members }`
  *
  * The definition's Name and its root element's exposed name are independent —
  * measured, 19 of 56 definitions are named something other than their entity.
  */
 messageDefinitionDef
-    : DEFINITION identifierOrKeyword FOR qualifiedName messageExposedName?
-      LPAREN messageMember (COMMA messageMember)* COMMA? RPAREN
+    : DEFINITION identifierOrKeyword FOR qualifiedName messageExposedName? messageMemberTree
+    ;
+
+// A member tree is children, so it is in { }, as in an import or export
+// mapping (R2, ako/mxcli#754). The parenthesised tree is the old spelling. An
+// association may select no member of its target.
+messageMemberTree
+    : LBRACE (messageMember (COMMA messageMember)* COMMA?)? RBRACE
+    | LPAREN /* @alias MDL-DEPR073 */ messageMember (COMMA messageMember)* COMMA? RPAREN
     ;
 
 /**
@@ -620,8 +644,7 @@ messageDefinitionDef
  * something a reader has to work out.
  */
 messageMember
-    : qualifiedName SLASH qualifiedName messageExposedName?
-      LPAREN messageMember (COMMA messageMember)* COMMA? RPAREN   // association
+    : qualifiedName SLASH qualifiedName messageExposedName? messageMemberTree   // association
     | identifierOrKeyword messageExposedName? messageExample?      // attribute
     ;
 
@@ -648,8 +671,7 @@ alterMessageDefinitionCollectionStatement
     ;
 
 alterMessageCollectionOperation
-    : ADD DEFINITION (IF NOT EXISTS)? identifierOrKeyword FOR qualifiedName messageExposedName?
-      LPAREN messageMember (COMMA messageMember)* COMMA? RPAREN
+    : ADD DEFINITION (IF NOT EXISTS)? identifierOrKeyword FOR qualifiedName messageExposedName? messageMemberTree
     | DROP DEFINITION (IF EXISTS)? identifierOrKeyword
     | RENAME DEFINITION identifierOrKeyword TO identifierOrKeyword
     ;

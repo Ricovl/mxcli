@@ -484,8 +484,8 @@ rather than updating the first.
 | Describe microflow | `describe microflow Module.Name;` | Full MDL with activities |
 | Describe microflow (normalized) | `describe microflow Module.Name normalized;` | Folds crossed branches into one condition instead of flattening them. Opt-in: the output re-executes to an equivalent graph with fewer nodes and a different layout |
 | Describe microflow (with handles) | `describe microflow Module.Name with handles;` | Prints `-- handle: <target>` above each activity: its content address for `alter microflow` — output `$Var`, `'Caption'`, or a statement pattern with `*` wildcards (anchored at both ends), plus `@n` when several match. Comments only; cannot be combined with `normalized` |
-| Insert into a stored microflow | `alter microflow Module.Name { insert after <target> { <statements> } };` | Also `insert before`, and `alter nanoflow`. A graph splice into the stored flow, not a rebuild: only the new activities, the two rewired flows and the objects moved to make room change; every other element keeps its `$ID`, position and curve. `<target>` is a handle from `describe … with handles`, resolved before any operation runs. Refused: after a decision, before an activity several flows enter, inside a loop body, a fragment that returns, a variable the flow already has or one not declared on the path |
-| Replace or drop an activity | `alter microflow Module.Name { replace <target> with { <statements> } drop <target>; };` | Flows into the activity are re-pointed at the replacement (or at its successor, for `drop`). Refused for a decision, an end event, an activity with an error handler, and an activity whose output variable is still read. Over `--mcp` only `insert` is supported |
+| Insert into a stored microflow | `alter microflow Module.Name { insert after <target> begin <statements> end; };` | Also `insert before`, and `alter nanoflow`. A graph splice into the stored flow, not a rebuild: only the new activities, the two rewired flows and the objects moved to make room change; every other element keeps its `$ID`, position and curve. `<target>` is a handle from `describe … with handles`, resolved before any operation runs. Refused: after a decision, before an activity several flows enter, inside a loop body, a fragment that returns, a variable the flow already has or one not declared on the path. The fragment is `begin … end` like a microflow body; `{ … }` is the deprecated spelling MDL-DEPR074 |
+| Replace or drop an activity | `alter microflow Module.Name { replace <target> with begin <statements> end; drop <target>; };` | Flows into the activity are re-pointed at the replacement (or at its successor, for `drop`). Refused for a decision, an end event, an activity with an error handler, and an activity whose output variable is still read. Over `--mcp` only `insert` is supported |
 | Describe nanoflow | `describe nanoflow Module.Name;` | Full MDL with activities |
 | Rename microflow | `rename microflow Module.Old to New;` | Updates all references |
 | Rename nanoflow | `rename nanoflow Module.Old to New;` | Updates all references |
@@ -1062,22 +1062,22 @@ Respond in {{Language}}.$$,
   UserPrompt: 'Ask me anything.'
 )
 {
-  mcp service Module.WebSearch {
+  mcp service Module.WebSearch (
     Enabled: true
-  }
+  )
 
-  knowledge base KBAlias {
+  knowledge base KBAlias (
     source: Module.ProductDocs,
     collection: 'product-docs',
     MaxResults: 5,
     description: 'Product documentation',
     Enabled: true
-  }
+  )
 
-  tool MyMicroflowTool {
+  tool MyMicroflowTool (
     description: 'Fetch customer data',
     Enabled: true
-  }
+  )
 };
 ```
 
@@ -1093,7 +1093,7 @@ Respond in {{Language}}.$$,
 |-----------|--------|-------|
 | Show collections | `show image collection [in module];` | List all or filter by module |
 | Describe collection | `describe image collection Module.Name;` | Full MDL output with embedded images |
-| Create collection | `create image collection Module.Name [folder 'path'] [export level 'Hidden'\|'Public'] [comment 'text'] [(image Name from file 'path', ...)];` | With or without images |
+| Create collection | `create image collection Module.Name [folder 'path'] [export level 'Hidden'\|'Public'] [comment 'text'] [{ image Name ( File: 'path' ) ... }];` | With or without images |
 | Create or modify | `create or modify image collection Module.Name [...];` | Preserves UUID — preferred for AI agents |
 | Drop collection | `drop image collection [if exists] Module.Name;` | Removes collection and all embedded images |
 | Show an image on a page | `image imgLogo (Image: 'Module.Collection.ImageName');` | Three-part name, like an icon reference. `describe image collection` lists the names |
@@ -1154,7 +1154,7 @@ create consumed rest service Module.Api (
   authentication: none
 )
 {
-  operation GetItems {
+  operation GetItems (
     method: get,
     path: '/items/{id}',
     parameters: ($id: string),
@@ -1162,9 +1162,9 @@ create consumed rest service Module.Api (
     headers: ('Accept' = 'application/json'),
     timeout: 30,
     response: json as $Result
-  }
+  )
 
-  operation CreateItem {
+  operation CreateItem (
     method: post,
     path: '/items',
     headers: ('Content-Type' = 'application/json'),
@@ -1176,7 +1176,7 @@ create consumed rest service Module.Api (
       Id = id,
       status = status,
     }
-  }
+  )
 };
 ```
 

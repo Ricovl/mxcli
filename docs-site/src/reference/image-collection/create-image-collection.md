@@ -5,10 +5,10 @@
     CREATE [OR MODIFY] IMAGE COLLECTION module.name
         [EXPORT LEVEL 'Hidden' | 'Public']
         [COMMENT 'description']
-        [(
-            IMAGE 'image_name' FROM FILE 'path',
+        [{
+            IMAGE image_name ( File: 'path' )
             ...
-        )];
+        }];
 
 ## Description
 
@@ -25,8 +25,10 @@ Creates a new image collection in the specified module. `OR MODIFY` updates an e
 **COMMENT**
 : Documentation text for the collection.
 
-**IMAGE 'name' FROM FILE 'path'**
-: Loads an image from a file on disk. The path is relative to the current working directory. Supported formats: PNG, SVG, GIF, JPEG, BMP, WebP.
+**IMAGE name ( File: 'path' )**
+: Loads an image from a file on disk. The path is relative to the current working directory. Supported formats: PNG, SVG, GIF, JPEG, BMP, WebP. A name that is not a plain identifier is written as a quoted identifier (`"logo-dark"`).
+
+The images are the collection's children, so they are in `{ }`, each with its properties in `( )`. The older form `( IMAGE name FROM FILE 'path', … )` still parses but warns (MDL-DEPR072); `mxcli fmt --upgrade` rewrites it.
 
 ## Examples
 
@@ -47,11 +49,11 @@ CREATE IMAGE COLLECTION MyModule.SharedIcons
 ### Collection with images
 
 ```sql
-CREATE IMAGE COLLECTION MyModule.NavigationIcons (
-    IMAGE 'home' FROM FILE 'assets/home.png',
-    IMAGE 'settings' FROM FILE 'assets/settings.svg',
-    IMAGE 'profile' FROM FILE 'assets/profile.png'
-);
+CREATE IMAGE COLLECTION MyModule.NavigationIcons {
+    IMAGE home ( File: 'assets/home.png' )
+    IMAGE settings ( File: 'assets/settings.svg' )
+    IMAGE profile ( File: 'assets/profile.png' )
+};
 ```
 
 ### All options combined
@@ -59,10 +61,10 @@ CREATE IMAGE COLLECTION MyModule.NavigationIcons (
 ```sql
 CREATE IMAGE COLLECTION MyModule.BrandAssets
     EXPORT LEVEL 'Public'
-    COMMENT 'Company branding assets' (
-    IMAGE 'logo-dark' FROM FILE 'assets/logo-dark.png',
-    IMAGE 'logo-light' FROM FILE 'assets/logo-light.png'
-);
+    COMMENT 'Company branding assets' {
+    IMAGE "logo-dark" ( File: 'assets/logo-dark.png' )
+    IMAGE "logo-light" ( File: 'assets/logo-light.png' )
+};
 ```
 
 ## See Also

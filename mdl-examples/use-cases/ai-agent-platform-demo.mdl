@@ -377,17 +377,17 @@ Guidelines:
   UserPrompt: 'What is the customer''s issue and how can I help?'
 )
 {
-  knowledge base SupportKB {
+  knowledge base SupportKB (
     source:      AICustSupport.SupportKnowledgeBase,
     collection:  'support-docs',
     MaxResults:  5,
     description: 'Internal knowledge base: product docs, known issues, runbooks',
     Enabled:     true
-  }
+  )
 
-  mcp service AICustSupport.WebSearchMCP {
+  mcp service AICustSupport.WebSearchMCP (
     Enabled: true
-  }
+  )
 };
 
 -- Guardrail agent: validates AI responses for safety and policy compliance
