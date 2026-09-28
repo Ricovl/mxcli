@@ -93,6 +93,22 @@ var r2Cases = []r2Case{
 		canonical: `alter message definition collection M.Msgs add definition X for M.X as 'Xs' { A, M.X_Y/M.Y { B } };`,
 	},
 	{
+		name: "alter microflow fragments",
+		code: deprecation.AlterFlowFragmentBraces,
+		old: `alter microflow M.F {
+  insert after $IsValid { log info node 'F' 'checked'; }
+  insert before 'Save order' { if $X then log info 'y'; end if; };
+  replace commit $Order with { commit $Order with events; }
+  drop log * node 'Debug' *;
+};`,
+		canonical: `alter microflow M.F {
+  insert after $IsValid begin log info node 'F' 'checked'; end
+  insert before 'Save order' begin if $X then log info 'y'; end if; end;
+  replace commit $Order with begin commit $Order with events; end;
+  drop log * node 'Debug' *;
+};`,
+	},
+	{
 		name:      "add member",
 		code:      deprecation.MessageTreeParens,
 		old:       `alter message definition M.Msgs.Order add member M.Order_Line/M.Line ( Sku );`,

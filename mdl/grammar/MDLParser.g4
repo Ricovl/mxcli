@@ -334,9 +334,9 @@ alterTarget
  *
  * ```mdl
  * alter microflow FeedbackModule.VAL_Feedback {
- *   insert after $IsValidEmail { log info node 'Feedback' 'Email checked'; }
- *   insert before 'Email is Valid?' { … }
- *   replace commit $Order with { commit $Order with events; }
+ *   insert after $IsValidEmail begin log info node 'Feedback' 'Email checked'; end;
+ *   insert before 'Email is Valid?' begin … end;
+ *   replace commit $Order with begin commit $Order with events; end;
  *   drop log * node 'Debug' *;
  * }
  * ```
@@ -345,17 +345,29 @@ alterTarget
  * microflow`. A target is a content address, resolved by mfmutator: `$Var`
  * (the activity that outputs it), `'Caption'`, or a statement pattern with `*`
  * wildcards, each optionally followed by `@n`. A pattern is any run of tokens,
- * so the target is taken as raw text up to the `{`, `with` or `;` that ends it;
+ * so the target is taken as raw text up to the `begin`, `{`, `with` or `;` that ends it;
  * that is why `drop` needs its semicolon.
  */
 alterFlowOperation
-    : INSERT (AFTER | BEFORE) alterFlowTarget LBRACE microflowBody RBRACE SEMICOLON?
-    | REPLACE alterFlowTarget WITH LBRACE microflowBody RBRACE SEMICOLON?
+    : INSERT (AFTER | BEFORE) alterFlowTarget alterFlowFragment SEMICOLON?
+    | REPLACE alterFlowTarget WITH alterFlowFragment SEMICOLON?
     | DROP alterFlowTarget SEMICOLON
     ;
 
+// A fragment is imperative flow, so it is `begin … end` like the body of the
+// `create microflow` it is copied from (R2, ako/mxcli#754). The operations
+// around it are the alter's declarative children and stay in the alter's { }.
+// The brace fragment is the old spelling.
+alterFlowFragment
+    : BEGIN microflowBody END
+    | LBRACE /* @alias MDL-DEPR074 */ microflowBody RBRACE
+    ;
+
+// BEGIN ends a target as `{` does. describe's handles never contain it: a loop
+// prints `begin` on a line of its own, and an error handler's `begin` is
+// stripped from its activity's handle.
 alterFlowTarget
-    : ~(LBRACE | RBRACE | SEMICOLON | WITH)+
+    : ~(LBRACE | RBRACE | SEMICOLON | WITH | BEGIN)+
     ;
 
 // ALTER PAGES [IN <module>] SET LAYOUT = Module.Layout [MAP (...)] [WHERE LAYOUT = Module.Old]

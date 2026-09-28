@@ -38,6 +38,12 @@ create message definition collection M.Msgs (
   )
 );
 alter message definition M.Msgs.Order add member M.Order_Tag/M.Tag ( Label );
+ALTER NANOFLOW M.N {
+  INSERT AFTER $X { LOG INFO 'x'; }
+  replace commit $O with {
+    commit $O with events;
+  };
+};
 `
 	want := `create consumed rest service M.Api (BaseUrl: 'https://x', Authentication: none)
 {
@@ -65,6 +71,12 @@ create message definition collection M.Msgs {
   }
 };
 alter message definition M.Msgs.Order add member M.Order_Tag/M.Tag { Label };
+ALTER NANOFLOW M.N {
+  INSERT AFTER $X BEGIN LOG INFO 'x'; END
+  replace commit $O with begin
+    commit $O with events;
+  end;
+};
 `
 	res := mustUpgrade(t, src, Options{})
 	if res.Source != want {
@@ -73,6 +85,7 @@ alter message definition M.Msgs.Order add member M.Order_Tag/M.Tag { Label };
 	for code, n := range map[string]int{
 		deprecation.RestOperationBraces: 1, deprecation.AgentAttachmentBraces: 2,
 		deprecation.ImageCollectionParens: 1, deprecation.MessageTreeParens: 2,
+		deprecation.AlterFlowFragmentBraces: 1,
 	} {
 		if res.Rewritten[code] != n {
 			t.Errorf("Rewritten[%s] = %d, want %d (all: %v)", code, res.Rewritten[code], n, res.Rewritten)

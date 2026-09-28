@@ -19,7 +19,9 @@ import (
 //   - an image collection put its images in parentheses, each written
 //     `image X from file '…'` (MDL-DEPR072);
 //   - a message definition collection put its definitions, and every member
-//     tree, in parentheses (MDL-DEPR073).
+//     tree, in parentheses (MDL-DEPR073);
+//   - an `alter microflow` fragment, which is imperative flow, was in braces
+//     rather than `begin … end` (MDL-DEPR074).
 //
 // Each old form is a respelling that builds the same statement, so it keeps
 // parsing under every language version, warns, and `fmt --upgrade` rewrites it.
@@ -57,6 +59,16 @@ func (b *Builder) EnterStatement(ctx *parser.StatementContext) {
 		case *parser.CreateMessageDefinitionCollectionStatementContext:
 			if x.LPAREN() != nil && x.RPAREN() != nil {
 				use(deprecation.MessageTreeParens, x.LPAREN().GetSymbol()).swap(x.LPAREN(), x.RPAREN(), "{", "}")
+			}
+		case *parser.AlterFlowFragmentContext:
+			if x.LBRACE() != nil && x.RBRACE() != nil {
+				// In the case of the operation's verb: `INSERT … BEGIN … END`.
+				like := "insert"
+				if op, ok := x.GetParent().(antlr.ParserRuleContext); ok && op.GetStart() != nil {
+					like = op.GetStart().GetText()
+				}
+				use(deprecation.AlterFlowFragmentBraces, x.LBRACE().GetSymbol()).swap(x.LBRACE(), x.RBRACE(),
+					keywordLike(like, "begin"), keywordLike(like, "end"))
 			}
 		case *parser.MessageMemberTreeContext:
 			if x.LPAREN() != nil && x.RPAREN() != nil {

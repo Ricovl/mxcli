@@ -29,8 +29,10 @@ func (b *Builder) exitAlterFlowStatement(ctx *parser.AlterStatementContext) {
 		default:
 			o.Op = ast.AlterFlowDrop
 		}
-		if body := op.MicroflowBody(); body != nil {
-			o.Body = buildMicroflowBody(body)
+		if frag, ok := op.AlterFlowFragment().(*parser.AlterFlowFragmentContext); ok && frag != nil {
+			if body := frag.MicroflowBody(); body != nil {
+				o.Body = buildMicroflowBody(body)
+			}
 		}
 		stmt.Operations = append(stmt.Operations, o)
 	}

@@ -173,6 +173,9 @@ const (
 	// MessageTreeParens is a message definition collection's definitions and
 	// member trees in parentheses.
 	MessageTreeParens = "MDL-DEPR073"
+	// AlterFlowFragmentBraces is an `alter microflow` / `alter nanoflow`
+	// fragment in braces: `insert after $X { … }`, `replace … with { … }`.
+	AlterFlowFragmentBraces = "MDL-DEPR074"
 )
 
 // entries is the registry. Append only: a code is never reused or renumbered,
@@ -442,6 +445,17 @@ var r2Entries = []Entry{
 			"`alter message definition … add member`. One warning per statement.",
 		Example:          "create message definition collection M.Msgs (definition Order for M.Order (Number, M.Order_Line/M.Line (Sku)));",
 		CanonicalExample: "create message definition collection M.Msgs {definition Order for M.Order {Number, M.Order_Line/M.Line {Sku}}};",
+	},
+	{
+		Code:      AlterFlowFragmentBraces,
+		Old:       "alter microflow M.F { insert after $X { … } }",
+		Canonical: "alter microflow M.F { insert after $X begin … end; }",
+		Rewrite:   Rewrite{Structural: "the fragment's `{` becomes `begin` and its `}` becomes `end`"},
+		RemovedIn: 2,
+		Note: "A fragment is imperative flow, written exactly as the body of `create microflow`, so it is " +
+			"`begin … end` (R2). The operations around it are the alter's children and stay in its { }.",
+		Example:          "alter microflow M.F { insert after $X { log info 'x'; } };",
+		CanonicalExample: "alter microflow M.F { insert after $X begin log info 'x'; end };",
 	},
 }
 
