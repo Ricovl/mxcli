@@ -75,8 +75,8 @@ The tables below show exactly which features are available on each Mendix versio
 | Basic pages | `CREATE PAGE ... { ... }` | Yes | Yes | Yes | Yes |
 | ALTER PAGE | `ALTER PAGE ... SET/INSERT/DROP` | -- | Yes | Yes | Yes |
 | Pluggable widgets | `DATAGRID`, `GALLERY`, `COMBOBOX`, `IMAGE` | -- | Yes | Yes | Yes |
-| Conditional visibility | `Visible: [xpath]` | -- | -- | -- | Yes |
-| Conditional editability | `Editable: [xpath]` | -- | -- | -- | Yes |
+| Conditional visibility | `Visible: <expression>` | -- | -- | -- | Yes |
+| Conditional editability | `Editable: <expression>` | -- | -- | -- | Yes |
 | Responsive column widths | `TabletWidth: 6, PhoneWidth: 12` | -- | -- | -- | Yes |
 | Page parameters (entity) | `Params: { $Item: Module.Entity }` | 9.4+ | Yes | Yes | Yes |
 | Page parameters (primitive) | `Params: { $Qty: Integer }` | -- | -- | -- | 11.6+ |

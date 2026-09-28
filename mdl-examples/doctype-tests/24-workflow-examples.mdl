@@ -158,7 +158,7 @@ begin
 
   call microflow WFTest.ACT_Validate;
 
-  decision '$WorkflowContext/Total > 1000'
+  decision $WorkflowContext/Total > 1000
     outcomes
       true -> { call microflow WFTest.ACT_Process; }
       false -> { call microflow WFTest.ACT_Notify; }
@@ -238,7 +238,7 @@ alter workflow WFTest.OrderApproval
 -- INSERT / DROP boundary event
 
 alter workflow WFTest.OrderApproval
-  insert boundary event on ReviewOrder interrupting timer 'addHours([%CurrentDateTime%], 2)' {
+  insert boundary event on ReviewOrder interrupting timer addHours([%CurrentDateTime%], 2) {
     call microflow WFTest.ACT_BoundaryHandler;
     jump to ReviewOrder;
   };
@@ -259,7 +259,7 @@ alter workflow WFTest.OrderApproval
 -- All remaining activity types
 
 alter workflow WFTest.OrderApproval
-  insert after ACT_Escalate@1 wait for timer 'addHours([%CurrentDateTime%], 1)' comment 'WaitOneHour';
+  insert after ACT_Escalate@1 wait for timer addHours([%CurrentDateTime%], 1) comment 'WaitOneHour';
 
 alter workflow WFTest.OrderApproval
   insert after WaitOneHour wait for notification comment 'WaitForApproval';
@@ -277,7 +277,7 @@ alter workflow WFTest.OrderApproval
 
 -- NON INTERRUPTING TIMER boundary event (compare with INTERRUPTING above)
 alter workflow WFTest.OrderApproval
-  insert boundary event on GroupApproval non interrupting timer 'addHours([%CurrentDateTime%], 48)' {
+  insert boundary event on GroupApproval non interrupting timer addHours([%CurrentDateTime%], 48) {
     call microflow WFTest.ACT_Notify;
   };
 
@@ -507,7 +507,7 @@ create workflow WFTest.NamedActivities
 begin
   call microflow WFTest.ACT_Validate as callMicroflow1;
 
-  decision decision1 '$WorkflowContext/Total > 1000'
+  decision decision1 $WorkflowContext/Total > 1000
     outcomes
       true -> {
         user task Rework 'Fix and resubmit'
@@ -525,7 +525,7 @@ begin
     path 2 { call microflow WFTest.ACT_Review as callMicroflow4; }
   ;
 
-  wait for timer timer1 'addHours([%CurrentDateTime%], 1)';
+  wait for timer timer1 addHours([%CurrentDateTime%], 1) ;
   wait for notification waitForNotification1;
 end workflow;
 /
@@ -544,7 +544,7 @@ end workflow;
 create workflow WFTest.EndInBranches
   parameter $OrderContext: WFTest.OrderContext
 begin
-  decision decision1 '$WorkflowContext/Total > 1000'
+  decision decision1 $WorkflowContext/Total > 1000
     outcomes
       true -> {
         user task ManagerReview 'Manager review'
@@ -560,11 +560,11 @@ begin
     outcomes
       'Cancel' { end workflow; }
       'Confirm' { }
-    boundary event interrupting timer 'addDays([%CurrentDateTime%], 3)' {
+    boundary event interrupting timer addDays([%CurrentDateTime%], 3) {
       end workflow comment 'Expired';
     };
 
-  wait for timer timer1 'addHours([%CurrentDateTime%], 1)';
+  wait for timer timer1 addHours([%CurrentDateTime%], 1) ;
 end workflow;
 /
 
@@ -783,11 +783,11 @@ begin
     outcomes 'Approve' { } 'Reject' { };
 
   event subprocess ESP_Expire 'Expire'
-    on interrupting timer 'addDays([%CurrentDateTime%], 30)' as ExpireStart comment 'After 30 days' {
+    on interrupting timer addDays([%CurrentDateTime%], 30) as ExpireStart comment 'After 30 days' {
   };
 
   event subprocess ESP_Remind 'Daily reminder'
-    on non interrupting timer 'addDays([%CurrentDateTime%], 1)' as RemindStart {
+    on non interrupting timer addDays([%CurrentDateTime%], 1) as RemindStart {
     call microflow WFTest.ACT_LogCancel with (OrderContext = '$WorkflowContext');
   };
 end workflow;

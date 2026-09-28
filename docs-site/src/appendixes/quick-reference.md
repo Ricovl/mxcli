@@ -220,7 +220,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Grant page access | `GRANT VIEW ON PAGE Mod.Page TO Mod.Role, ...;` | |
 | Revoke page access | `REVOKE VIEW ON PAGE Mod.Page FROM Mod.Role, ...;` | |
 | Grant entity access | `GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Mod.Entity TO Mod.Role;` | Supports member lists and WHERE |
-| Revoke entity access | `REVOKE Mod.Role ON Mod.Entity;` | |
+| Revoke entity access | `REVOKE ALL ON ENTITY Mod.Entity FROM Mod.Role;` | |
 | Set security level | `ALTER APP SECURITY LEVEL OFF\|PROTOTYPE\|PRODUCTION;` | |
 | Toggle demo users | `ALTER APP SECURITY DEMO USERS ON\|OFF;` | |
 | Toggle guest access | `ALTER APP SECURITY GUEST ACCESS ON ROLE UserRole\|OFF;` | Anonymous users; role required (CE0133) |
@@ -302,7 +302,7 @@ CREATE OR REPLACE NAVIGATION Responsive
 | Describe settings | `DESCRIBE SETTINGS;` | Full MDL output (round-trippable) |
 | Alter model settings | `ALTER SETTINGS RUNTIME Key = Value;` | AfterStartupMicroflow, HashAlgorithm, JavaVersion, etc. |
 | Alter configuration | `ALTER SETTINGS CONFIGURATION 'Name' Key = Value;` | DatabaseType, DatabaseUrl, HttpPortNumber, etc. |
-| Alter constant | `ALTER SETTINGS CONSTANT 'Name' VALUE 'val' IN CONFIGURATION 'cfg';` | Override constant per configuration |
+| Alter constant | `ALTER SETTINGS CONSTANT @Module.Name VALUE 'val' IN CONFIGURATION 'cfg';` | Override constant per configuration |
 | Alter language | `ALTER SETTINGS LANGUAGE Key = Value;` | DefaultLanguageCode |
 | Alter workflows | `ALTER SETTINGS WORKFLOWS Key = Value;` | UserEntity, DefaultTaskParallelism |
 

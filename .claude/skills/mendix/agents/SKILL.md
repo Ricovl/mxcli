@@ -39,7 +39,7 @@ register `ASU_AgentEditor` as an after-startup microflow.
 ```sql
 create model Module.MyModel (
   Provider: MxCloudGenAI,   -- default, can omit
-  key: Module.ApiKeyConst   -- must be a String constant
+  key: @Module.ApiKeyConst   -- must be a String constant
 );
 ```
 
@@ -64,7 +64,7 @@ document Studio Pro created**, rather than from memory or from this file.
 ```sql
 create knowledge base Module.ProductDocs (
   Provider: MxCloudGenAI,
-  key: Module.KBKeyConst
+  key: @Module.KBKeyConst
 );
 ```
 
@@ -173,7 +173,7 @@ The feature uses `CustomBlobDocument` BSON type with a `Contents` field holding 
 
 ### Minimal agent (no tools)
 ```sql
-create model Module.M (Provider: MxCloudGenAI, key: Module.K);
+create model Module.M (Provider: MxCloudGenAI, key: @Module.K);
 create agent Module.A (
   UsageType: task,
   model: Module.M,

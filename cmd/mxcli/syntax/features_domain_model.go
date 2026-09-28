@@ -418,7 +418,7 @@ func init() {
 			"show constants", "constant values", "modify constant",
 			"string constant", "integer constant", "boolean constant",
 		},
-		Syntax: "CREATE CONSTANT Module.Name\n  TYPE String|Integer|Long|Decimal|Boolean|DateTime\n  DEFAULT value\n  [COMMENT 'description'];\n\nCREATE OR MODIFY CONSTANT Module.Name\n  TYPE DataType DEFAULT value [COMMENT 'text'];\n\nSHOW CONSTANTS;\nSHOW CONSTANTS IN <module>;\nSHOW CONSTANT VALUES;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;\n\nRemove override:\n  ALTER SETTINGS DROP CONSTANT 'Module.Name' IN CONFIGURATION 'cfg';\n\n" +
+		Syntax: "CREATE CONSTANT Module.Name\n  TYPE String|Integer|Long|Decimal|Boolean|DateTime\n  DEFAULT value\n  [COMMENT 'description'];\n\nCREATE OR MODIFY CONSTANT Module.Name\n  TYPE DataType DEFAULT value [COMMENT 'text'];\n\nSHOW CONSTANTS;\nSHOW CONSTANTS IN <module>;\nSHOW CONSTANT VALUES;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;\n\nRemove override:\n  ALTER SETTINGS DROP CONSTANT @Module.Name IN CONFIGURATION 'cfg';\n\n" +
 			"Shared vs private values:\n" +
 			"  A per-configuration override holds either a SHARED value (stored in the\n" +
 			"  model, so in version control — every developer gets it) or a PRIVATE one\n" +

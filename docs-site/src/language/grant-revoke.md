@@ -61,16 +61,16 @@ Examples:
 
 ```sql
 -- Remove all access
-REVOKE Shop.Viewer ON Shop.Customer;
+REVOKE ALL ON ENTITY Shop.Customer FROM Shop.Viewer;
 
 -- Remove read access on a specific member
-REVOKE Shop.User ON Shop.Customer (READ (Notes));
+REVOKE READ (Notes) ON ENTITY Shop.Customer FROM Shop.User;
 
 -- Downgrade write to read-only
-REVOKE Shop.User ON Shop.Customer (WRITE (Email));
+REVOKE WRITE (Email) ON ENTITY Shop.Customer FROM Shop.User;
 
 -- Remove delete permission only
-REVOKE Shop.User ON Shop.Customer (DELETE);
+REVOKE DELETE ON ENTITY Shop.Customer FROM Shop.User;
 ```
 
 ## Microflow Access

@@ -46,7 +46,7 @@ create constant AgentTest."KBKey"
 
 create model AgentTest."TestModel" (
   Provider: MxCloudGenAI,
-  key: AgentTest.ModelKey
+  key: @AgentTest.ModelKey
 );
 /
 
@@ -56,7 +56,7 @@ create model AgentTest."TestModel" (
 
 create knowledge base AgentTest."ProductDocs" (
   Provider: MxCloudGenAI,
-  key: AgentTest.KBKey
+  key: @AgentTest.KBKey
 );
 /
 
@@ -170,14 +170,14 @@ describe consumed mcp service AgentTest.WebSearch;
 
 create or modify model AgentTest."TestModel" (
   Provider: MxCloudGenAI,
-  key: AgentTest.ModelKey,
+  key: @AgentTest.ModelKey,
   DisplayName: 'Updated Model Name'
 );
 /
 
 create or modify knowledge base AgentTest."ProductDocs" (
   Provider: MxCloudGenAI,
-  key: AgentTest.KBKey
+  key: @AgentTest.KBKey
 );
 /
 

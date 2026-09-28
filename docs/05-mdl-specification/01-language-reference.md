@@ -1121,13 +1121,13 @@ Partial revoke semantics: `revoke read (x)` sets member x to no access. `revoke 
 **Examples:**
 ```sql
 -- Remove all access
-revoke Shop.Viewer on Shop.Customer;
+revoke all on entity Shop.Customer from Shop.Viewer;
 
 -- Remove read on specific attribute
-revoke Shop.User on Shop.Customer (read (Phone));
+revoke read (Phone) on entity Shop.Customer from Shop.User;
 
 -- Downgrade write to read-only
-revoke Shop.User on Shop.Customer (write (Email));
+revoke write (Email) on entity Shop.Customer from Shop.User;
 ```
 
 ### CREATE USER ROLE
@@ -1272,8 +1272,8 @@ Displays one row per constant per configuration. Shows the default value followe
 ```sql
 alter settings runtime key = value;
 alter settings configuration 'Name' key = value;
-alter settings constant 'Name' value 'val' in configuration 'cfg';
-alter settings drop constant 'Name' in configuration 'cfg';
+alter settings constant @Module.Name value 'val' in configuration 'cfg';
+alter settings drop constant @Module.Name in configuration 'cfg';
 alter settings LANGUAGE key = value;
 alter settings workflows key = value;
 ```
@@ -1298,7 +1298,7 @@ show constant values;
 create configuration 'Staging' DatabaseType = 'POSTGRESQL', DatabaseUrl = 'staging-db:5432';
 
 -- Remove a constant override
-alter settings drop constant 'MyModule.ApiKey' in configuration 'Default';
+alter settings drop constant @MyModule.ApiKey in configuration 'Default';
 
 -- Drop a configuration
 drop configuration 'Staging';
