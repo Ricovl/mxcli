@@ -3,6 +3,8 @@
 package visitor
 
 import (
+	"strings"
+
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
@@ -67,7 +69,7 @@ func (b *Builder) EnterStatement(ctx *parser.StatementContext) {
 				if op, ok := x.GetParent().(antlr.ParserRuleContext); ok && op.GetStart() != nil {
 					like = op.GetStart().GetText()
 				}
-				use(deprecation.AlterFlowFragmentBraces, x.LBRACE().GetSymbol()).swap(x.LBRACE(), x.RBRACE(),
+				use(deprecation.AlterFlowFragmentBraces, x.LBRACE().GetSymbol()).swapWords(x.LBRACE(), x.RBRACE(),
 					keywordLike(like, "begin"), keywordLike(like, "end"))
 			}
 		case *parser.MessageMemberTreeContext:
@@ -98,6 +100,39 @@ type r2Use struct {
 func (u *r2Use) swap(open, closing antlr.TerminalNode, newOpen, newClose string) {
 	o, c := open.GetSymbol(), closing.GetSymbol()
 	u.edits = append(u.edits, replaceSpan(o, o, newOpen), replaceSpan(c, c, newClose))
+}
+
+// swapWords respells a brace pair as the words newOpen … newClose. A brace is
+// punctuation and may touch its neighbours (`$X{ … }drop`); a word may not, or
+// it lexes as part of them (`$Xbegin`, `enddrop`), so each word is set apart
+// by a space where the source has none.
+func (u *r2Use) swapWords(open, closing antlr.TerminalNode, newOpen, newClose string) {
+	o, c := open.GetSymbol(), closing.GetSymbol()
+	u.edits = append(u.edits,
+		replaceSpan(o, o, padWord(o, newOpen)),
+		replaceSpan(c, c, padWord(c, newClose)))
+}
+
+// padWord is word, with a space on each side where the text next to tok is
+// not whitespace. A `;` after it needs none: `end;` is the canonical spelling.
+func padWord(tok antlr.Token, word string) string {
+	in := tok.GetInputStream()
+	if in == nil {
+		return word
+	}
+	if start := tok.GetStart(); start > 0 && !isSpaceText(in.GetText(start-1, start-1)) {
+		word = " " + word
+	}
+	if stop := tok.GetStop(); stop+1 < in.Size() {
+		if next := in.GetText(stop+1, stop+1); next != ";" && !isSpaceText(next) {
+			word += " "
+		}
+	}
+	return word
+}
+
+func isSpaceText(s string) bool {
+	return s == "" || strings.TrimSpace(s) == ""
 }
 
 // imageItems rewrites `( image X from file '…', … )` as

@@ -95,3 +95,26 @@ ALTER NANOFLOW M.N {
 		t.Errorf("second upgrade changed the script again: %v", again.Rewritten)
 	}
 }
+
+// A brace touches the text around it: `$X{ … }drop`. The braces are
+// punctuation, `begin` and `end` are words, so the rewrite must not glue them
+// to their neighbours (`$Xbegin` is a variable name, `enddrop` an identifier).
+func TestUpgrade_R2AlterFragmentBracesTouchingTheirNeighbours(t *testing.T) {
+	src := `alter microflow M.F {
+  insert after $IsValid{log info node 'X' 'y';}drop log * node 'Debug' *;
+  replace 'Cap' with{log info node 'X' 'z';};
+};
+`
+	want := `alter microflow M.F {
+  insert after $IsValid begin log info node 'X' 'y'; end drop log * node 'Debug' *;
+  replace 'Cap' with begin log info node 'X' 'z'; end;
+};
+`
+	res := mustUpgrade(t, src, Options{})
+	if res.Source != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", res.Source, want)
+	}
+	if res.Rewritten[deprecation.AlterFlowFragmentBraces] != 1 {
+		t.Errorf("Rewritten = %v", res.Rewritten)
+	}
+}
