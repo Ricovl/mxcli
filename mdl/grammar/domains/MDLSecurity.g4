@@ -15,7 +15,7 @@ options { tokenVocab = MDLLexer; }
 // it, re-executing the script that sets up roles fails on the first role that
 // already exists), and a doc comment attaches to it (#731).
 createModuleRoleStatement
-    : MODULE ROLE qualifiedName (DESCRIPTION STRING_LITERAL)?
+    : MODULE ROLE ifNotExists? qualifiedName (DESCRIPTION STRING_LITERAL)?
     ;
 
 dropModuleRoleStatement
@@ -31,8 +31,8 @@ dropModuleRoleStatement
 // The positional form is the deprecated alias; both start `( <name>`, and the
 // `:` after the first name tells them apart.
 createUserRoleStatement
-    : USER ROLE identifierOrKeyword userRolePropertyList?
-    | USER ROLE identifierOrKeyword /* @alias MDL-DEPR710 */
+    : USER ROLE ifNotExists? identifierOrKeyword userRolePropertyList?
+    | USER ROLE ifNotExists? identifierOrKeyword /* @alias MDL-DEPR710 */
       LPAREN moduleRoleList RPAREN
       (MANAGE ALL ROLES)?
     ;
@@ -161,7 +161,7 @@ appSecurityKw
     ;
 
 createDemoUserStatement
-    : DEMO USER STRING_LITERAL PASSWORD STRING_LITERAL (ENTITY qualifiedName)?
+    : DEMO USER ifNotExists? STRING_LITERAL PASSWORD STRING_LITERAL (ENTITY qualifiedName)?
       LPAREN identifierOrKeyword (COMMA identifierOrKeyword)* RPAREN
     ;
 

@@ -73,6 +73,7 @@ type NavMenuItemDef struct {
 // Like CREATE NAVIGATION, this is a full replacement: the item list given is the
 // document's complete contents, so an omitted item is a removed item.
 type CreateMenuStmt struct {
+	CreateGuard             // `create … if not exists` (ako/mxcli#731)
 	Folder           string // Folder path within module (empty = leave placement alone)
 	Name             QualifiedName
 	Items            []NavMenuItemDef

@@ -8,6 +8,7 @@ package ast
 
 // CreateRestClientStmt represents: CREATE REST CLIENT Module.Name BASE URL '...' AUTHENTICATION ... BEGIN ... END
 type CreateRestClientStmt struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	BaseUrl          string
 	Authentication   *RestAuthDef // nil = AUTHENTICATION NONE
@@ -106,6 +107,7 @@ func (s *DescribeContractFromOpenAPIStmt) isStatement() {}
 //
 //	CREATE PUBLISHED REST SERVICE Module.Name (Path: '...', Version: '...') { RESOURCE ... };
 type CreatePublishedRestServiceStmt struct {
+	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	Name           QualifiedName
 	Path           string
 	Version        string

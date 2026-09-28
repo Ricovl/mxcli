@@ -18,6 +18,14 @@ func TestMDL067RejectsContradictoryGuards(t *testing.T) {
 	for _, src := range []string{
 		`create or modify entity if not exists M."Game" ("Level": string(20));`,
 		`create or modify association if not exists M.Move_Game from M.Move to M.Game;`,
+		// Every other document kind carries the same guard (ako/mxcli#731).
+		`create or modify page if not exists M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { dynamictext t (Content: 'x') };`,
+		`create or modify microflow if not exists M.MF () begin return; end;`,
+		`create or modify enumeration if not exists M.E (A 'A');`,
+		`create or replace constant if not exists M.C type String default 'a';`,
+		`create or modify module role if not exists M.User;`,
+		`create or modify configuration if not exists 'Default';`,
+		`create or modify view entity if not exists M.V (Name: String(100)) as (select c.Name as Name from M.C as c);`,
 	} {
 		prog, errs := visitor.Build(src)
 		if len(errs) > 0 {
@@ -48,6 +56,10 @@ func TestMDL067LeavesEitherGuardAlone(t *testing.T) {
 		`create association if not exists M.Move_Game from M.Move to M.Game;`,
 		`create or modify association M.Move_Game from M.Move to M.Game;`,
 		`create entity M."Game" ("Level": string(20));`,
+		`create page if not exists M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { dynamictext t (Content: 'x') };`,
+		`create or modify page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { dynamictext t (Content: 'x') };`,
+		`create microflow if not exists M.MF () begin return; end;`,
+		`create module role if not exists M.User;`,
 	} {
 		prog, errs := visitor.Build(src)
 		if len(errs) > 0 {
@@ -72,7 +84,7 @@ func TestCreateEntityIfNotExistsSkipsWithoutTouching(t *testing.T) {
 		Name:        ast.QualifiedName{Module: "Sudoku", Name: "Game"},
 		Kind:        ast.EntityPersistent,
 		Attributes:  []ast.Attribute{{Name: "OnlyThisOne", Type: ast.DataType{Kind: ast.TypeInteger}}},
-		IfNotExists: true,
+		CreateGuard: ast.CreateGuard{IfNotExists: true},
 	})
 	assertNoError(t, err)
 	if *updated {

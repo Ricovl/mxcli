@@ -13,7 +13,7 @@ options { tokenVocab = MDLLexer; }
  * Create a workflow with activities.
  */
 createWorkflowStatement
-    : WORKFLOW qualifiedName
+    : WORKFLOW ifNotExists? qualifiedName
       workflowHeaderClause*
       BEGIN workflowMainBody workflowEventSubProcess* END WORKFLOW SEMICOLON? SLASH?
     ;

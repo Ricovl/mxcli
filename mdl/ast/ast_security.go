@@ -8,6 +8,7 @@ package ast
 
 // CreateModuleRoleStmt represents: CREATE MODULE ROLE Module.RoleName [DESCRIPTION '...']
 type CreateModuleRoleStmt struct {
+	CreateGuard // `create … if not exists` (ako/mxcli#731)
 	Name        QualifiedName
 	Description string
 	// CreateOrModify makes the statement idempotent: an existing role has its
@@ -35,6 +36,7 @@ func (s *DropModuleRoleStmt) isStatement() {}
 // role then gets Mendix's default, and `create or modify` leaves the stored
 // value alone (ako/mxcli#707).
 type CreateUserRoleStmt struct {
+	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	Name           string
 	ModuleRoles    []QualifiedName
 	ManageAllRoles bool
@@ -230,6 +232,7 @@ func (s *AlterProjectSecurityStmt) isStatement() {}
 
 // CreateDemoUserStmt represents: CREATE [OR MODIFY] DEMO USER 'name' PASSWORD 'pw' [ENTITY Module.Entity] (Role1, Role2)
 type CreateDemoUserStmt struct {
+	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	UserName       string
 	Password       string
 	Entity         string // qualified name of user entity, e.g. "Administration.Account"

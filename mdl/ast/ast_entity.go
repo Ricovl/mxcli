@@ -33,6 +33,7 @@ func (k EntityKind) String() string {
 
 // CreateEntityStmt represents: CREATE [OR MODIFY] PERSISTENT|NON-PERSISTENT ENTITY Module.Name [EXTENDS Parent] (attributes) ...
 type CreateEntityStmt struct {
+	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	Name           QualifiedName
 	Kind           EntityKind
 	Generalization *QualifiedName // Parent entity for inheritance (e.g., System.Image)
@@ -47,10 +48,6 @@ type CreateEntityStmt struct {
 	// comment clears it (mendixlabs/mxcli#1018).
 	DocumentationSet bool
 	CreateOrModify   bool // true for CREATE OR MODIFY
-	// IfNotExists is CREATE ENTITY IF NOT EXISTS: skip entirely when the entity
-	// is already there. Unlike CreateOrModify it never touches an existing
-	// definition, so it is the safe way to make a domain script re-runnable.
-	IfNotExists bool
 }
 
 func (s *CreateEntityStmt) isStatement() {}
@@ -176,6 +173,7 @@ type OQLQuery struct {
 
 // CreateViewEntityStmt represents: CREATE [OR MODIFY|REPLACE] VIEW ENTITY Module.Name (attrs) AS SELECT ...
 type CreateViewEntityStmt struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	Attributes       []ViewAttribute
 	Query            OQLQuery

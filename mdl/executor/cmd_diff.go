@@ -106,6 +106,13 @@ func diffProgram(ctx *ExecContext, prog *ast.Program, opts DiffOptions) error {
 			continue
 		}
 		if result != nil {
+			// CREATE … IF NOT EXISTS on an element that is already there is
+			// skipped by exec and leaves the element untouched (#731), so what
+			// the script would leave behind is what is stored now.
+			if g, ok := stmt.(ast.IfNotExistsCreate); ok && g.CreateIfNotExists() && !result.IsNew {
+				result.Proposed = result.Current
+				result.Changes = nil
+			}
 			// Create unique key for deduplication
 			key := result.ObjectType + ":" + result.ObjectName.String()
 			if processed[key] {

@@ -4,6 +4,7 @@ package ast
 
 // CreateBusinessEventServiceStmt represents CREATE BUSINESS EVENT SERVICE.
 type CreateBusinessEventServiceStmt struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	ServiceName      string
 	EventNamePrefix  string
