@@ -89,7 +89,7 @@ Layout grid columns support responsive widths for desktop, tablet, and phone:
 COLUMN col1 (DesktopWidth: 8, TabletWidth: 6, PhoneWidth: 12) { ... }
 ```
 
-Values are 1-12 (grid units) or `AutoFill`. TabletWidth and PhoneWidth default to auto when omitted.
+Values are 1-12 (grid units), `AutoFill` or `AutoFit` (Studio Pro's "Auto-fit content"). TabletWidth and PhoneWidth default to `AutoFill` when omitted.
 
 ### Conditional Visibility
 

@@ -1577,9 +1577,9 @@ create page MyModule.Customer_Edit
 
 | Property | Syntax | Notes |
 |----------|--------|-------|
-| DesktopWidth | `column (desktopwidth: 8)` | 1-12 or AutoFill |
-| TabletWidth | `column (tabletwidth: 6)` | 1-12 or AutoFill (default: auto) |
-| PhoneWidth | `column (phonewidth: 12)` | 1-12 or AutoFill (default: auto) |
+| DesktopWidth | `column (desktopwidth: 8)` | 1-12, AutoFill or AutoFit (auto-fit content) |
+| TabletWidth | `column (tabletwidth: 6)` | 1-12, AutoFill or AutoFit (default: AutoFill) |
+| PhoneWidth | `column (phonewidth: 12)` | 1-12, AutoFill or AutoFit (default: AutoFill) |
 | Visible | `textbox txt (visible: $currentObject/IsActive)` | Conditional visibility: a client expression, stored as written; `visible: [IsActive]` warns MDL-DEPR081 |
 | Editable | `textbox txt (editable: $currentObject/Status != 'Closed')` | Conditional editability: a client expression, stored as written |
 | Image | `staticimage img (Image: 'Mod.Images.logo')` | Image-collection entry, `Module.Collection.Image`. Omitted → CE0436 "No image selected." |

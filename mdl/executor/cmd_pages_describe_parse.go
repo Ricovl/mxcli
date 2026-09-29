@@ -755,18 +755,17 @@ func parseLayoutGridRows(ctx *ExecContext, w map[string]any, entityContext ...st
 				continue
 			}
 			col := rawWidgetColumn{}
-			// Get width
-			if weight, ok := cMap["Weight"].(int32); ok {
-				col.Width = int(weight)
-			} else if weight, ok := cMap["DesktopWeight"].(int32); ok {
-				col.Width = int(weight)
+			// Widths: 1..12, -1 auto-fill, -2 auto-fit content. Studio Pro
+			// stores them as int64, so read them width-agnostically — an
+			// `.(int32)` here missed every stored width and describe printed
+			// AutoFill for all of them (ako/mxcli#721 L1).
+			if v, ok := cMap["Weight"]; ok {
+				col.Width = bsonInt(v)
+			} else if v, ok := cMap["DesktopWeight"]; ok {
+				col.Width = bsonInt(v)
 			}
-			if tw, ok := cMap["TabletWeight"].(int32); ok {
-				col.TabletWidth = int(tw)
-			}
-			if pw, ok := cMap["PhoneWeight"].(int32); ok {
-				col.PhoneWidth = int(pw)
-			}
+			col.TabletWidth = bsonInt(cMap["TabletWeight"])
+			col.PhoneWidth = bsonInt(cMap["PhoneWeight"])
 			// Get widgets
 			colWidgets := getBsonArrayElements(cMap["Widgets"])
 			for _, cw := range colWidgets {

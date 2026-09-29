@@ -1615,10 +1615,14 @@ func extractXpathText(xc parser.IXpathConstraintContext) string {
 	return text
 }
 
-// parseWidthValue parses a column width value: numeric (1-12) or "AutoFill".
+// parseWidthValue parses a column width value: numeric (1-12), "AutoFill" or
+// "AutoFit" (auto-fit content).
 func parseWidthValue(text string) any {
 	if strings.EqualFold(text, "AutoFill") {
 		return "AutoFill"
+	}
+	if strings.EqualFold(text, "AutoFit") {
+		return "AutoFit"
 	}
 	if n, err := strconv.Atoi(text); err == nil {
 		return n

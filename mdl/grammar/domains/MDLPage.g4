@@ -522,9 +522,9 @@ widgetPropertyV3
     | ICON COLON widgetIconV3                          // Icon: 'Atlas_Core.Atlas_Filled.pencil' | image Mod.Images.logo | glyph 57377
     | CLASS COLON STRING_LITERAL                       // Class: 'my-class'
     | STYLE COLON STRING_LITERAL                       // Style: 'color: red'
-    | DESKTOPWIDTH COLON desktopWidthV3               // DesktopWidth: 6 | AutoFill
-    | TABLETWIDTH COLON desktopWidthV3                // TabletWidth: 6 | AutoFill
-    | PHONEWIDTH COLON desktopWidthV3                 // PhoneWidth: 12 | AutoFill
+    | DESKTOPWIDTH COLON desktopWidthV3               // DesktopWidth: 6 | AutoFill | AutoFit
+    | TABLETWIDTH COLON desktopWidthV3                // TabletWidth: 6 | AutoFill | AutoFit
+    | PHONEWIDTH COLON desktopWidthV3                 // PhoneWidth: 12 | AutoFill | AutoFit
     | SELECTION COLON selectionModeV3                 // Selection: Single | Multiple
     | SNIPPET COLON qualifiedName                     // Snippet: Module.SnippetName
     | PARAMS COLON snippetCallParamListV3             // Params: (Asset = $var) — snippet call arguments
@@ -782,7 +782,7 @@ buttonStyleV3
 
 // V3 Desktop width
 desktopWidthV3
-    : NUMBER_LITERAL | AUTOFILL
+    : NUMBER_LITERAL | AUTOFILL | AUTOFIT   // AutoFit = "Auto-fit content" (-2)
     ;
 
 // V3 Selection mode
