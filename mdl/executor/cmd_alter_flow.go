@@ -107,6 +107,10 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		}
 		// A stated @position on the fragment is where it goes (ako/mxcli#818).
 		frag.Placed = firstStatementPlaced(op.Body)
+		if !frag.Placed && laterStatementPlaced(op.Body) {
+			return fail(fmt.Errorf("a later inserted statement states @position but the first does not; the " +
+				"inserted statements are placed as a whole, so state @position on the first one too, or on none"))
+		}
 		if err := a.checkFragmentScope(ctx, op, target, frag); err != nil {
 			return fail(err)
 		}

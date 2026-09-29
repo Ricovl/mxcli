@@ -395,6 +395,43 @@ func TestFlowModify_InsertHonoursStatedPosition(t *testing.T) {
 	}
 }
 
+// An insert that states @position on a later statement but not on its first
+// cannot be placed: the fragment is translated into the gap as a whole, so the
+// stated position was lost and the two logs were written on top of each other
+// (found reviewing ako/mxcli#824). It is refused under mdl 1 and nothing is
+// written; stated on every statement, both land where stated.
+func TestFlowModify_InsertPositionOnLaterStatementOnly(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+	described := h.mustDescribe(t, showPasswordForm)
+	edited := editDescribe(t, described,
+		"  @position(515, 200)\n",
+		"  log info node 'Pwd' 'one';\n  @position(390, 330)\n  log info node 'Pwd' 'two';\n  @position(515, 200)\n")
+	before := h.flowUnit(t, pwdForm)
+	err := h.exec("mdl 1;\n" + edited)
+	if err == nil || !strings.Contains(err.Error(), "@position") {
+		t.Fatalf("want a refusal naming @position, got %v", err)
+	}
+	if !bytes.Equal(h.flowUnit(t, pwdForm), before) {
+		t.Fatal("a refused insert wrote the unit")
+	}
+
+	both := editDescribe(t, described,
+		"  @position(515, 200)\n",
+		"  @position(390, 330)\n  log info node 'Pwd' 'one';\n  @position(390, 450)\n  log info node 'Pwd' 'two';\n  @position(515, 200)\n")
+	if err := h.exec("mdl 1;\n" + both); err != nil {
+		t.Fatalf("exec: %v", err)
+	}
+	again := h.mustDescribe(t, showPasswordForm)
+	for _, st := range []struct{ pos, log string }{
+		{"@position(390, 330)", "log node 'Pwd' 'one';"}, {"@position(390, 450)", "log node 'Pwd' 'two';"},
+	} {
+		if i, j := strings.Index(again, st.pos), strings.Index(again, st.log); i < 0 || j < i || strings.Contains(again[i:j], ";") {
+			t.Errorf("%s is not at %s:\n%s", st.log, st.pos, again)
+		}
+	}
+}
+
 // The same on TestApp (Studio Pro-authored), on a flow with a decision: a
 // canonical description — derived positions left out — edited in its header
 // and in three positions (the split, an activity in a branch, the end of the

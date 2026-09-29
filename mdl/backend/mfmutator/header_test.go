@@ -167,6 +167,44 @@ func TestSetHeader_RefusesRemovingAParameterInUse(t *testing.T) {
 	}
 }
 
+// Most actions name the variable they act on bare, without the `$` of an
+// expression: delete $A is stored as DeleteVariableName "A", and so are
+// commit, change, rollback, a retrieve over an association and a loop's list.
+// Such a use is a use too; removing the parameter would leave the action acting
+// on nothing (found reviewing ako/mxcli#824). A variable the flow declares with
+// the removed parameter's name is not a use of the parameter.
+func TestSetHeader_RefusesRemovingAParameterNamedBare(t *testing.T) {
+	for _, key := range []string{"DeleteVariableName", "CommitVariableName", "ChangeVariableName",
+		"StartVariableName", "IteratedListVariableName", "RollbackVariableName"} {
+		t.Run(key, func(t *testing.T) {
+			stored := headerUnit(param("A", "DataTypes$StringType", 200))
+			objs := dDoc(stored, "ObjectCollection")
+			list := dGet(objs, "Objects").(bson.A)
+			act := obj("uses", "Microflows$ActionActivity", 250, 400)
+			act = append(act, bson.E{Key: "Action", Value: bson.D{{Key: "$ID", Value: bin("uses-a")},
+				{Key: "$Type", Value: "Microflows$SomeAction"}, {Key: key, Value: "A"}}})
+			dSet(objs, "Objects", append(list, act))
+			m, _ := newMutator(t, stored)
+			_, err := m.SetHeader(declaredDoc("Hidden", "DataTypes$VoidType"))
+			if err == nil || !strings.Contains(err.Error(), "$A is removed, but the flow still uses it") {
+				t.Fatalf("want a refusal naming the use, got %v", err)
+			}
+		})
+	}
+	// The control: an action that declares a variable of that name.
+	stored := headerUnit(param("A", "DataTypes$StringType", 200))
+	objs := dDoc(stored, "ObjectCollection")
+	list := dGet(objs, "Objects").(bson.A)
+	act := obj("declares", "Microflows$ActionActivity", 250, 400)
+	act = append(act, bson.E{Key: "Action", Value: bson.D{{Key: "$ID", Value: bin("decl-a")},
+		{Key: "$Type", Value: "Microflows$CreateVariableAction"}, {Key: "VariableName", Value: "A"}}})
+	dSet(objs, "Objects", append(list, act))
+	m, _ := newMutator(t, stored)
+	if _, err := m.SetHeader(declaredDoc("Hidden", "DataTypes$VoidType")); err != nil {
+		t.Fatalf("a declaration of the same name is not a use: %v", err)
+	}
+}
+
 func TestSetHeader_RefusesAReorder(t *testing.T) {
 	stored := headerUnit(param("A", "DataTypes$StringType", 200), param("B", "DataTypes$StringType", 300))
 	m, _ := newMutator(t, stored)

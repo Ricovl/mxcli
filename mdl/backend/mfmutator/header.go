@@ -223,7 +223,7 @@ func (m *Mutator) setParameters(declared bson.D) ([]string, error) {
 		for _, name := range removed {
 			if where := m.usesVariable(name, drop); where != "" {
 				return nil, fmt.Errorf("parameter $%s is removed, but the flow still uses it (%s); an expression "+
-					"naming it would be left behind", name, where)
+					"or action naming it would be left behind", name, where)
 			}
 		}
 		var keep []any
@@ -282,7 +282,7 @@ func (m *Mutator) setParameters(declared bson.D) ([]string, error) {
 }
 
 // usesVariable returns where the flow still names $name in an expression, or
-// "". It looks at every string in the unit's objects and flows outside the
+// bare in an action's *VariableName property, or "". It looks at every string in the unit's objects and flows outside the
 // parameter objects being removed: a variable is referenced by name, in text,
 // so a text search finds every use without knowing which properties hold
 // expressions.
@@ -301,7 +301,7 @@ func (m *Mutator) usesVariable(name string, skip map[int]bool) string {
 				walk(el, key)
 			}
 		case string:
-			if re.MatchString(t) {
+			if re.MatchString(t) || (namesVariable(key) && strings.EqualFold(t, name)) {
 				hits = append(hits, fmt.Sprintf("%s %q", key, t))
 			}
 		}
@@ -320,6 +320,21 @@ func (m *Mutator) usesVariable(name string, skip map[int]bool) string {
 	}
 	sort.Strings(hits)
 	return hits[0]
+}
+
+// declaringKeys are the *VariableName properties that declare a variable (an
+// action's output, a loop's iterator) rather than name one in use.
+var declaringKeys = map[string]bool{
+	"VariableName": true, "OutputVariableName": true, "outputVariableName": true,
+	"ResultVariableName": true, "LoopVariableName": true, "ReturnVariableName": true,
+}
+
+// namesVariable reports whether a property names, bare and without the `$` of
+// an expression, a variable an action uses: delete $A is stored as
+// DeleteVariableName "A", and so are commit, change, rollback, a retrieve over
+// an association and a loop's list.
+func namesVariable(key string) bool {
+	return strings.HasSuffix(key, "VariableName") && !declaringKeys[key]
 }
 
 func lookup(d bson.D, key string) (any, bool) {

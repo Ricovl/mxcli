@@ -349,3 +349,16 @@ func unitLabel(typ string, contents []byte) string {
 func firstStatementPlaced(body []ast.MicroflowStatement) bool {
 	return len(body) > 0 && statedPosition(body[0]) != nil
 }
+
+// laterStatementPlaced reports whether a statement after a fragment's first
+// states where it is drawn. Unless the first does too, the fragment is
+// translated into the gap as a whole and that position would be lost, the
+// statements landing on top of each other.
+func laterStatementPlaced(body []ast.MicroflowStatement) bool {
+	for _, st := range body[min(1, len(body)):] {
+		if statedPosition(st) != nil {
+			return true
+		}
+	}
+	return false
+}
