@@ -179,9 +179,10 @@ func (b *Backend) UpdateEntity(domainModelID model.ID, entity *domainmodel.Entit
 	// those references (CE1613 — GitHub issue #657). Siblings are untouched (raw
 	// passthrough in the list rebuild below), so they already keep their GUID; this
 	// closes the same gap for the ALTER target itself.
-	if raw := orig.Raw(); raw != nil {
-		ge.SetRaw(raw)
-	}
+	//
+	// carryStoredEntity (below) does it, together with writing back what
+	// entityToGen resets to a constant: the export level, and the access rules the
+	// statement left alone (ako/mxcli#801).
 
 	// The same carry, one level down, for the entity's GUID-bearing CHILDREN.
 	// #657 closed this for the entity element and noted that siblings survive via
@@ -197,7 +198,7 @@ func (b *Backend) UpdateEntity(domainModelID model.ID, entity *domainmodel.Entit
 	// model stays valid, mx check is clean, and because the new GUID is derived
 	// from a now-stable $ID the damage is idempotent, so a second run is elided
 	// and reports "Unchanged".
-	carryChildIdentity(ge, orig, entity)
+	carryStoredEntity(ge, orig, entity)
 
 	// When an update empties a child list, the fresh (empty) list on ge is "clean"
 	// — entityToGen appended nothing to it — so the codec passes the STORED raw
@@ -324,6 +325,16 @@ func (b *Backend) UpdateDomainModel(dm *domainmodel.DomainModel) error {
 		gdm.RemoveEntities(i)
 	}
 	for _, e := range dm.Entities {
+		orig := storedEntities[string(e.ID)]
+		// An entity the statement did not change is not rebuilt: it passes through
+		// as its stored element, byte-for-byte. Rebuilding it reset everything the
+		// semantic model has no field for — every API entity in the module became
+		// Hidden and every access rule was rewritten, for a statement that named
+		// one association (ako/mxcli#801).
+		if entityUnchanged(e, orig) {
+			gdm.AddEntities(orig)
+			continue
+		}
 		ge := entityToGen(e, moduleName, major)
 		ge.SetID(element.ID(e.ID))
 		assignEntityIDs(ge)
@@ -332,12 +343,10 @@ func (b *Backend) UpdateDomainModel(dm *domainmodel.DomainModel) error {
 		// semantic model does not carry — the GUID above all — pass through verbatim.
 		// This is #657's carry (for the entity) and #1119's (for its attributes and
 		// indexes) applied to a path that had neither, because it rebuilds the whole
-		// list instead of swapping one member into it (#1169).
-		if orig := storedEntities[string(e.ID)]; orig != nil {
-			if raw := orig.Raw(); raw != nil {
-				ge.SetRaw(raw)
-			}
-			carryChildIdentity(ge, orig, e)
+		// list instead of swapping one member into it (#1169). carryStoredEntity also
+		// writes back what entityToGen SETS to a constant (#801).
+		if orig != nil {
+			carryStoredEntity(ge, orig, e)
 		}
 		gdm.AddEntities(ge)
 	}
@@ -346,6 +355,11 @@ func (b *Backend) UpdateDomainModel(dm *domainmodel.DomainModel) error {
 		gdm.RemoveAssociations(i)
 	}
 	for _, a := range dm.Associations {
+		orig := storedAssociations[string(a.ID)]
+		if assocUnchanged(a, orig) {
+			gdm.AddAssociations(orig) // byte-for-byte, as for entities (#801)
+			continue
+		}
 		ga := assocToGen(a)
 		if a.ID != "" {
 			ga.SetID(element.ID(a.ID))
@@ -360,10 +374,10 @@ func (b *Backend) UpdateDomainModel(dm *domainmodel.DomainModel) error {
 		// anchors: those were lost to this same "the rebuild only carries what the
 		// semantic model models" mechanism, and raw passthrough covers the whole
 		// class rather than one property of it.
-		if orig := storedAssociations[string(a.ID)]; orig != nil {
-			if raw := orig.Raw(); raw != nil {
-				ga.SetRaw(raw)
-			}
+		// carryStoredAssociation adds the export level assocToGen resets to
+		// "Hidden", and the stored delete behaviour when it is unchanged (#801).
+		if orig != nil {
+			carryStoredAssociation(ga, orig, a)
 		}
 		gdm.AddAssociations(ga)
 	}

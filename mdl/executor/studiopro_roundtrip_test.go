@@ -66,9 +66,6 @@ var studioProKnownLossy = map[string]string{
 	"page Administration.Account_Overview|document": "DataGrid2 object rebuilt from the " +
 		"widget template (property order, column texts, filter captions), layout-grid " +
 		"column weights 12 -> -1, tab-container nulls",
-
-	"association Administration.AccountPasswordData_Account|document": "the domain-model rewrite drops empty " +
-		"MemberAccess refs and NoGeneralization flags (the storage is carried since #704's flip became reachable)",
 }
 
 type studioProCase struct {
