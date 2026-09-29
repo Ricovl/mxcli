@@ -34,8 +34,7 @@ create module Issue801;
 create module role Issue801.User;
 
 create constant Issue801.ApiBaseUrl
-  type string
-  default 'https://example.invalid';
+  ( Type: string, DefaultValue: 'https://example.invalid' );
 
 -- Set an override, then touch an unrelated section. Before the fix the second
 -- statement was enough on its own to flatten the override written by the first.

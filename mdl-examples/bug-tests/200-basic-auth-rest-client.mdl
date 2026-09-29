@@ -29,8 +29,8 @@ create module AuthTest;
 -- Literal strings in Authentication: BASIC (...) are auto-promoted to
 -- constants by mxcli. For explicit control, create constants first:
 
-create constant AuthTest.ApiUser type string default 'testuser';
-create constant AuthTest.ApiPass type string default 'testpass123!';
+create constant AuthTest.ApiUser ( Type: string, DefaultValue: 'testuser' );
+create constant AuthTest.ApiPass ( Type: string, DefaultValue: 'testpass123!' );
 
 -- ############################################################################
 -- PART 2: REST CLIENT WITH BASIC AUTH

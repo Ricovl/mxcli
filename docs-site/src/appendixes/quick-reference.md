@@ -66,14 +66,14 @@ ALTER ENTITY Sales.Customer ADD INDEX (Email);
 |-----------|--------|-------|
 | List constants | `LIST CONSTANTS [IN Module];` | List all or filter by module |
 | Describe constant | `DESCRIBE CONSTANT Module.Name;` | Full MDL output |
-| Create constant | `CREATE [OR MODIFY] CONSTANT Module.Name TYPE DataType DEFAULT 'value';` | String, Integer, Boolean, etc. |
+| Create constant | `CREATE [OR MODIFY] CONSTANT Module.Name [FOLDER 'path'] ( Type: DataType, DefaultValue: 'value' [, ExposedToClient: true] );` | The clause form `TYPE … DEFAULT …` warns MDL-DEPR136 |
 | Drop constant | `DROP CONSTANT Module.Name;` | |
 
 **Example:**
 ```sql
-CREATE CONSTANT MyModule.ApiBaseUrl TYPE String DEFAULT 'https://api.example.com';
-CREATE CONSTANT MyModule.MaxRetries TYPE Integer DEFAULT 3;
-CREATE CONSTANT MyModule.EnableLogging TYPE Boolean DEFAULT true;
+CREATE CONSTANT MyModule.ApiBaseUrl ( Type: String, DefaultValue: 'https://api.example.com' );
+CREATE CONSTANT MyModule.MaxRetries ( Type: Integer, DefaultValue: 3 );
+CREATE CONSTANT MyModule.EnableLogging ( Type: Boolean, DefaultValue: true );
 ```
 
 ## OData Clients, Services & External Entities
@@ -224,7 +224,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Set security level | `ALTER APP SECURITY ( SecurityLevel: OFF\|PROTOTYPE\|PRODUCTION );` | |
 | Toggle demo users | `ALTER APP SECURITY ( EnableDemoUsers: TRUE\|FALSE );` | |
 | Toggle guest access | `ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: UserRole );` / `( EnableGuestAccess: FALSE )` | Anonymous users; role required (CE0133) |
-| Create demo user | `CREATE DEMO USER 'name' PASSWORD 'pass' [ENTITY Module.Entity] (UserRole, ...);` | |
+| Create demo user | `CREATE DEMO USER 'name' ( Password: 'pass', [Entity: Module.Entity,] UserRoles: (UserRole, ...) );` | The clause form `PASSWORD … (…)` warns MDL-DEPR137 |
 | Drop demo user | `DROP DEMO USER [IF EXISTS] 'name';` | `IF EXISTS` makes a cleanup script re-runnable |
 
 ## Workflows

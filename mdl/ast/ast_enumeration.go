@@ -109,7 +109,7 @@ func (s *DropEnumerationStmt) isStatement() {}
 // Constant Statements
 // ============================================================================
 
-// CreateConstantStmt represents: CREATE CONSTANT Module.Name TYPE type DEFAULT value [COMMENT '...']
+// CreateConstantStmt represents: CREATE CONSTANT Module.Name [FOLDER '…'] ( Type: type, DefaultValue: value [, ExposedToClient: true] )
 type CreateConstantStmt struct {
 	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName

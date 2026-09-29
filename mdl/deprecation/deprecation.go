@@ -218,6 +218,12 @@ const (
 	// SetComment is `alter entity|association|enumeration … set comment '…'`:
 	// it sets the element's documentation (R9).
 	SetComment = "MDL-DEPR135"
+	// ConstantClauses is a constant's `type T default v [exposed to client]`:
+	// the clause form of its property list (phase 3.6).
+	ConstantClauses = "MDL-DEPR136"
+	// DemoUserClauses is a demo user's `password 'p' [entity E] (Role, …)`:
+	// the clause form of its property list (phase 3.6).
+	DemoUserClauses = "MDL-DEPR137"
 
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
@@ -561,6 +567,39 @@ func init() {
 	entries = append(entries, r2RestEntries...)
 	entries = append(entries, r3Entries...)
 	entries = append(entries, issue707Entries...)
+	entries = append(entries, headerPropertyEntries...)
+}
+
+// headerPropertyEntries are phase 3.6's (ako/mxcli#755): a document header
+// written as clauses where every other header is a ( Key: value ) list, keyed
+// by Studio Pro's property names. The user role's is MDL-DEPR710 (#707).
+var headerPropertyEntries = []Entry{
+	{
+		Code:      ConstantClauses,
+		Old:       "create constant M.C type T default v [exposed to client]",
+		Canonical: "create constant M.C ( Type: T, DefaultValue: v, ExposedToClient: true )",
+		Rewrite: Rewrite{Structural: "constant properties: `type T default v exposed to client` becomes " +
+			"`( Type: T, DefaultValue: v, ExposedToClient: true )`"},
+		RemovedIn: 2,
+		Note: "The keys are Studio Pro's Constants$Constant property names. Type and DefaultValue are required, " +
+			"as the clauses were; ExposedToClient defaults to false. The folder stays a clause after the name " +
+			"and the documentation a doc comment (R9).",
+		Example:          "create constant M.ApiUrl type String default 'https://x' exposed to client;",
+		CanonicalExample: "create constant M.ApiUrl ( Type: String, DefaultValue: 'https://x', ExposedToClient: true );",
+	},
+	{
+		Code:      DemoUserClauses,
+		Old:       "create demo user 'u' password 'p' [entity M.E] (Role, …)",
+		Canonical: "create demo user 'u' ( Password: 'p', Entity: M.E, UserRoles: (Role, …) )",
+		Rewrite: Rewrite{Structural: "demo user properties: `password 'p' entity M.E (R1, R2)` becomes " +
+			"`( Password: 'p', Entity: M.E, UserRoles: (R1, R2) )`"},
+		RemovedIn: 2,
+		Note: "The keys are Studio Pro's Security$DemoUser property names. Password is required; UserRoles may be " +
+			"empty or left out, which the clause form could not say. Without Entity the user entity is detected " +
+			"from the project, as before.",
+		Example:          "create demo user 'demo_admin' password 'Admin1!' entity Administration.Account (Administrator, User);",
+		CanonicalExample: "create demo user 'demo_admin' ( Password: 'Admin1!', Entity: Administration.Account, UserRoles: (Administrator, User) );",
+	},
 }
 
 // issue707Entries are ako/mxcli#707's: forms describe could not write, so its
@@ -609,8 +648,8 @@ var r9Entries = []Entry{
 		Note: "Documentation is a doc comment on every document. A statement that has both is reported, " +
 			"not rewritten, and so is a text a doc comment cannot hold exactly (a `*/`, blank lines, " +
 			"or space at the start or end of a line).",
-		Example:          "create constant M.ApiUrl type string default 'https://x' comment 'Base URL';",
-		CanonicalExample: "/** Base URL */\ncreate constant M.ApiUrl type string default 'https://x';",
+		Example:          "create constant M.ApiUrl ( Type: string, DefaultValue: 'https://x' ) comment 'Base URL';",
+		CanonicalExample: "/** Base URL */\ncreate constant M.ApiUrl ( Type: string, DefaultValue: 'https://x' );",
 	},
 	{
 		Code:             WorkflowCommentCaption,
@@ -774,14 +813,14 @@ var r6Entries = []Entry{
 	},
 	{
 		Code:      FolderClausePosition,
-		Old:       "create constant M.C type … default … folder '…' / create snippet M.S (…) folder '…' { … }",
-		Canonical: "create constant M.C folder '…' type … default … / create snippet M.S folder '…' (…) { … }",
+		Old:       "create constant M.C ( … ) folder '…' / create snippet M.S (…) folder '…' { … }",
+		Canonical: "create constant M.C folder '…' ( … ) / create snippet M.S folder '…' (…) { … }",
 		Rewrite:   Rewrite{Structural: "clause moved: `folder '…'` goes right after the name"},
 		RemovedIn: 2,
 		Note: "The folder is a clause right after the name on every document (R9). A statement with the clause in " +
 			"both places is reported, not rewritten: the later one is what is stored.",
-		Example:          "create constant M.Url type String default 'x' folder 'Config';",
-		CanonicalExample: "create constant M.Url folder 'Config' type String default 'x';",
+		Example:          "create constant M.Url ( Type: String, DefaultValue: 'x' ) folder 'Config';",
+		CanonicalExample: "create constant M.Url folder 'Config' ( Type: String, DefaultValue: 'x' );",
 	},
 	{
 		Code:             SetComment,

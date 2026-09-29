@@ -53,7 +53,7 @@ create or modify entity MyFirstModule.Row (
 
 grant CREATE, DELETE, READ *, WRITE * on entity MyFirstModule.Row to MyFirstModule.User;
 
-create demo user 'probe' password 'ProbePassw0rd1!' (ApiUser);
+create demo user 'probe' ( Password: 'ProbePassw0rd1!', UserRoles: (ApiUser) );
 
 -- Seed one row, so a 200 over data can be told apart from a 200 over nothing.
 -- Returns Boolean because an after-startup microflow must (CE0142).

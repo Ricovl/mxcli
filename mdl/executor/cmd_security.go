@@ -827,15 +827,17 @@ func describeDemoUser(ctx *ExecContext, userName string) error {
 			// asterisks. The placeholder now stands for "the stored password":
 			// `create or modify` keeps it on a project that has this user, and
 			// refuses it on one that does not. See demoUserPasswordPlaceholder.
-			fmt.Fprintf(ctx.Output, "create or modify demo user %s password %s",
-				mdlQuoted(du.UserName), mdlQuoted(demoUserPasswordPlaceholder))
+			// The properties are a ( Key: value ) list with Studio Pro's
+			// names (phase 3.6, ako/mxcli#755).
+			props := []string{"Password: " + mdlQuoted(demoUserPasswordPlaceholder)}
 			if du.Entity != "" {
-				fmt.Fprintf(ctx.Output, " entity %s", du.Entity)
+				props = append(props, "Entity: "+du.Entity)
 			}
 			if len(du.UserRoles) > 0 {
-				fmt.Fprintf(ctx.Output, " (%s)", strings.Join(du.UserRoles, ", "))
+				props = append(props, "UserRoles: ("+strings.Join(du.UserRoles, ", ")+")")
 			}
-			fmt.Fprintln(ctx.Output, ";")
+			fmt.Fprintf(ctx.Output, "create or modify demo user %s ( %s );\n",
+				mdlQuoted(du.UserName), strings.Join(props, ", "))
 			return nil
 		}
 	}

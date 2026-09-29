@@ -191,8 +191,8 @@ func init() {
 			"demo user", "test user", "demo account",
 			"password", "login",
 		},
-		Syntax:  "CREATE DEMO USER '<name>' PASSWORD '<pass>' [ENTITY Module.Entity] (<userrole> [, ...]);\nDROP DEMO USER [IF EXISTS] '<name>';",
-		Example: "CREATE DEMO USER 'admin' PASSWORD 'Admin1!' (AppAdmin);\nCREATE DEMO USER 'user' PASSWORD 'User1!' (AppUser);",
+		Syntax:  "CREATE [OR MODIFY] DEMO USER '<name>' (\n  Password: '<pass>',\n  [Entity: Module.Entity,]\n  UserRoles: (<userrole> [, ...])\n);\nDROP DEMO USER [IF EXISTS] '<name>';\n\n-- The keys are Studio Pro's property names. Password is required; without\n-- Entity the user entity is detected from the project. The clause form\n-- PASSWORD 'p' [ENTITY E] (roles) is its deprecated alias (MDL-DEPR137).",
+		Example: "CREATE DEMO USER 'admin' ( Password: 'Admin1!', UserRoles: (AppAdmin) );\nCREATE DEMO USER 'user' ( Password: 'User1!', UserRoles: (AppUser) );",
 		SeeAlso: []string{"security.user-role", "security.project-security"},
 	})
 }

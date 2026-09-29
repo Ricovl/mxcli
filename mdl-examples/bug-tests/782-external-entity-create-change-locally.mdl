@@ -36,8 +36,7 @@ create module Issue782;
 create module role Issue782.User;
 
 create constant Issue782.SvcUrl
-  type string
-  default 'https://services.odata.org/V4/Northwind/Northwind.svc/';
+  ( Type: string, DefaultValue: 'https://services.odata.org/V4/Northwind/Northwind.svc/' );
 
 create consumed odata service Issue782.Sample (
   MetadataUrl: './mdl-examples/odata-local-metadata/sample-metadata.xml',

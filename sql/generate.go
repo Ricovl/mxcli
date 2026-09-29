@@ -93,17 +93,14 @@ func GenerateConnector(ctx context.Context, cfg *GenerateConfig) (*GenerateResul
 	dbType := driverToMendixType(cfg.Conn.Driver)
 
 	fmt.Fprintf(&exec, "-- Constants for %s connection (names must match Database Connector convention)\n", connName)
-	fmt.Fprintf(&exec, "CREATE CONSTANT %s.%s TYPE String\n", cfg.Module, constSource)
-	fmt.Fprintf(&exec, "  DEFAULT '%s'\n", escapeString(jdbcURL))
-	fmt.Fprintf(&exec, "  COMMENT 'JDBC connection string for %s';\n\n", connName)
+	fmt.Fprintf(&exec, "/** JDBC connection string for %s */\n", connName)
+	fmt.Fprintf(&exec, "CREATE CONSTANT %s.%s ( Type: String, DefaultValue: '%s' );\n\n", cfg.Module, constSource, escapeString(jdbcURL))
 
-	fmt.Fprintf(&exec, "CREATE CONSTANT %s.%s TYPE String\n", cfg.Module, constUsername)
-	fmt.Fprintf(&exec, "  DEFAULT ''\n")
-	fmt.Fprintf(&exec, "  COMMENT 'Database username for %s';\n\n", connName)
+	fmt.Fprintf(&exec, "/** Database username for %s */\n", connName)
+	fmt.Fprintf(&exec, "CREATE CONSTANT %s.%s ( Type: String, DefaultValue: '' );\n\n", cfg.Module, constUsername)
 
-	fmt.Fprintf(&exec, "CREATE CONSTANT %s.%s TYPE String\n", cfg.Module, constPassword)
-	fmt.Fprintf(&exec, "  DEFAULT ''\n")
-	fmt.Fprintf(&exec, "  COMMENT 'Database password for %s';\n\n", connName)
+	fmt.Fprintf(&exec, "/** Database password for %s */\n", connName)
+	fmt.Fprintf(&exec, "CREATE CONSTANT %s.%s ( Type: String, DefaultValue: '' );\n\n", cfg.Module, constPassword)
 
 	// Non-persistent entities
 	type entityInfo struct {

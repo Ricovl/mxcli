@@ -18,8 +18,7 @@ create module CoTest;
  * String constants are useful for configuration values like URLs and API keys.
  */
 create constant CoTest.ServiceEndpoint
-type string
-default 'https://api.example.com/v1';
+( Type: string, DefaultValue: 'https://api.example.com/v1' );
 /
 
 /*
@@ -28,8 +27,7 @@ default 'https://api.example.com/v1';
  */
 /** API key for external service. Configure per environment. */
 create constant CoTest.ApiKey
-type string
-default '';
+( Type: string, DefaultValue: '' );
 /
 
 /**
@@ -37,8 +35,7 @@ default '';
  * Integer constants are useful for configuration like timeouts and limits.
  */
 create constant CoTest.MaxRetries
-type integer
-default 3;
+( Type: integer, DefaultValue: 3 );
 /
 
 /*
@@ -47,8 +44,7 @@ default 3;
  */
 /** Maximum file upload size in bytes (default 10MB) */
 create constant CoTest.MaxFileSize
-type long
-default 10485760;
+( Type: long, DefaultValue: 10485760 );
 /
 
 /*
@@ -57,8 +53,7 @@ default 10485760;
  */
 /** Default tax rate (21%) */
 create constant CoTest.TaxRate
-type decimal
-default 0.21;
+( Type: decimal, DefaultValue: 0.21 );
 /
 
 /*
@@ -67,8 +62,7 @@ default 0.21;
  */
 /** Enable verbose debug logging */
 create constant CoTest.EnableDebugLogging
-type boolean
-default false;
+( Type: boolean, DefaultValue: false );
 /
 
 /**
@@ -76,8 +70,7 @@ default false;
  * DateTime constants for default timestamps.
  */
 create constant CoTest.LaunchDate
-type datetime
-default '[%BeginOfCurrentDay%]';
+( Type: datetime, DefaultValue: '[%BeginOfCurrentDay%]' );
 /
 
 -- MARK: - Show Constants
@@ -128,8 +121,7 @@ describe constant CoTest.ServiceEndpoint;
  */
 /** Updated endpoint for staging environment */
 create or modify constant CoTest.ServiceEndpoint
-type string
-default 'https://api.staging.example.com/v2';
+( Type: string, DefaultValue: 'https://api.staging.example.com/v2' );
 /
 
 /**
@@ -137,8 +129,7 @@ default 'https://api.staging.example.com/v2';
  * Useful for toggling feature flags idempotently in scripts.
  */
 create or modify constant CoTest.EnableDebugLogging
-type boolean
-default true;
+( Type: boolean, DefaultValue: true );
 /
 
 -- MARK: - Drop Constants

@@ -38,10 +38,9 @@
 
 create module DbType;
 
-create constant DbType.Dsn type string
-  default 'jdbc:postgresql://localhost:5432/demo';
-create constant DbType.User type string default 'demo';
-create constant DbType.Pass type string default '';
+create constant DbType.Dsn ( Type: string, DefaultValue: 'jdbc:postgresql://localhost:5432/demo' );
+create constant DbType.User ( Type: string, DefaultValue: 'demo' );
+create constant DbType.Pass ( Type: string, DefaultValue: '' );
 
 create database connection DbType.Warehouse (
   Type: 'PostgreSQL',

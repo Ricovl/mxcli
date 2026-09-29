@@ -38,8 +38,7 @@ If `OR MODIFY` is specified and the knowledge base already exists, its propertie
 
 ```sql
 CREATE CONSTANT MyModule."KBKey"
-    TYPE String
-    DEFAULT '';
+    ( Type: String, DefaultValue: '' );
 /
 
 CREATE KNOWLEDGE BASE MyModule."ProductDocs" (

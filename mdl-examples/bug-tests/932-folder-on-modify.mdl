@@ -31,7 +31,7 @@ end;
 create or modify enumeration Bug932.ENUM_Example (Draft 'Draft', Published 'Published');
 /
 
-create or modify constant Bug932.CONST_Example type string default 'x';
+create or modify constant Bug932.CONST_Example ( Type: string, DefaultValue: 'x' );
 /
 
 -- Now file each one away. Before the fix every one of these printed a success
@@ -54,7 +54,7 @@ create or modify enumeration Bug932.ENUM_Example (Draft 'Draft', Published 'Publ
   folder 'Private';
 /
 
-create or modify constant Bug932.CONST_Example folder 'Private' type string default 'x';
+create or modify constant Bug932.CONST_Example folder 'Private' ( Type: string, DefaultValue: 'x' );
 /
 
 -- Expected layout: nothing left at the module root, and no empty folders.

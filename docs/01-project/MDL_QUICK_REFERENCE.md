@@ -172,7 +172,7 @@ alter entity Sales.Customer
 | Show constants | `list constants [in module];` | List all or filter by module |
 | Show constant values | `list constant values [in module];` | Compare values across configurations |
 | Describe constant | `describe constant Module.Name;` | Full MDL output |
-| Create constant | `create [or modify] constant Module.Name [folder 'path'] type DataType default 'value' [exposed to client];` | `folder` after `default` warns MDL-DEPR134 |
+| Create constant | `create [or modify] constant Module.Name [folder 'path'] ( Type: DataType, DefaultValue: 'value' [, ExposedToClient: true] );` | The clause form `type … default … [exposed to client]` warns MDL-DEPR136; `folder` after the properties warns MDL-DEPR134 |
 | Drop constant | `drop constant [if exists] Module.Name;` | |
 
 A per-configuration override holds either a **shared** value (in the model, so in
@@ -184,9 +184,9 @@ is refused on a private override, `list constant values` reports it as `(private
 
 **Example:**
 ```sql
-create constant MyModule.ApiBaseUrl type string default 'https://api.example.com';
-create constant MyModule.MaxRetries type integer default 3;
-create constant MyModule.EnableLogging type boolean default true;
+create constant MyModule.ApiBaseUrl ( Type: string, DefaultValue: 'https://api.example.com' );
+create constant MyModule.MaxRetries ( Type: integer, DefaultValue: 3 );
+create constant MyModule.EnableLogging ( Type: boolean, DefaultValue: true );
 ```
 
 ## Task Queues
@@ -414,7 +414,7 @@ CREATE CONSUMED ODATA SERVICE MyModule.LocalService2 (
 
 **Important:** `ServiceUrl` must always be a constant reference starting with `@` (e.g., `@Module.ConstantName`). Create a constant first:
 ```sql
-CREATE CONSTANT MyModule.ServiceLocation TYPE String DEFAULT 'https://api.example.com/odata/v4/';
+CREATE CONSTANT MyModule.ServiceLocation ( Type: String, DefaultValue: 'https://api.example.com/odata/v4/' );
 ```
 
 **OData Service Example:**
@@ -696,7 +696,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Toggle demo users | `alter app security ( EnableDemoUsers: true\|false );` | Several keys may go in one list |
 | Enable guest access | `alter app security ( EnableGuestAccess: true, GuestUserRole: UserRole );` | Anonymous users. The role is what visitors get — its entity access is the public surface. Mendix fails the build without one (CE0133), so `on` is refused unless a role is given or already stored. mxcli validates the role exists; Mendix does not |
 | Disable guest access | `alter app security ( EnableGuestAccess: false );` | Keeps the stored role, so re-enabling needs no `GuestUserRole` |
-| Create demo user | `create demo user 'name' password 'pass' [entity Module.Entity] (UserRole, ...);` | |
+| Create demo user | `create demo user 'name' ( Password: 'pass', [Entity: Module.Entity,] UserRoles: (UserRole, ...) );` | The clause form `password … (…)` warns MDL-DEPR137 |
 | Drop demo user | `drop demo user [if exists] 'name';` | `if exists` makes a cleanup script re-runnable |
 | Update security | `update security [[in] Module];` | Re-syncs access rules with their domain model — Studio Pro's **Update security** button, headless. Repairs **CE0066** "Entity access is out of date", which a model authored elsewhere can carry (a module imported or updated outside Studio Pro). Not needed after mxcli's own writes: every write path reconciles as it writes. Writes nothing when the rules already match, and skips `System` |
 

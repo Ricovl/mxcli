@@ -15,10 +15,10 @@ import (
 // same clause (MDL-DEPR134) and build the same statement.
 func TestFolderClauseAfterTheName(t *testing.T) {
 	cases := []struct{ old, canonical string }{
-		{"create constant M.Url type String default 'x' folder 'Config';",
-			"create constant M.Url folder 'Config' type String default 'x';"},
-		{"create or modify constant M.Url type String default 'x' folder 'Config' exposed to client;",
-			"create or modify constant M.Url folder 'Config' type String default 'x' exposed to client;"},
+		{"create constant M.Url ( Type: String, DefaultValue: 'x' ) folder 'Config';",
+			"create constant M.Url folder 'Config' ( Type: String, DefaultValue: 'x' );"},
+		{"create or modify constant M.Url ( Type: String, DefaultValue: 'x', ExposedToClient: true ) folder 'Config';",
+			"create or modify constant M.Url folder 'Config' ( Type: String, DefaultValue: 'x', ExposedToClient: true );"},
 		{"create snippet M.S (Params: ( $C: M.E )) folder 'Common' { };",
 			"create snippet M.S folder 'Common' (Params: ( $C: M.E )) { };"},
 		{"create snippet M.S folder 'Common' { };", ""}, // control: already canonical
@@ -49,7 +49,7 @@ func TestFolderClauseAfterTheName(t *testing.T) {
 // Both positions on one statement: the later one is what is stored, as before,
 // and there is no rewrite (the author has to pick one).
 func TestFolderClauseInBothPositionsIsNotRewritten(t *testing.T) {
-	prog := mustBuild(t, "create constant M.Url folder 'A' type String default 'x' folder 'B';")
+	prog := mustBuild(t, "create constant M.Url folder 'A' ( Type: String, DefaultValue: 'x' ) folder 'B';")
 	if len(prog.Deprecations) != 1 || prog.Deprecations[0].Fix != nil || prog.Deprecations[0].NoFix == "" {
 		t.Fatalf("deprecations = %+v, want one with a reason and no fix", prog.Deprecations)
 	}

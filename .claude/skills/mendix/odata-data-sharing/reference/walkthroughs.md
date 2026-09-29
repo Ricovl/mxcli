@@ -173,8 +173,7 @@ create module role ProductClient.User;
 
 -- Location constant (configure per environment)
 create constant ProductClient.ProductDataApiLocation
-  type string
-  default 'http://localhost:8080/odata/productdataapi/v1/';
+  ( Type: string, DefaultValue: 'http://localhost:8080/odata/productdataapi/v1/' );
 
 -- OData client connection
 create consumed odata service ProductClient.ProductDataApiClient (

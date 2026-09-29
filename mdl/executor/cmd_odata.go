@@ -1196,7 +1196,7 @@ func createODataClient(ctx *ExecContext, stmt *ast.CreateODataClientStmt) error 
 			if err != nil {
 				return fmt.Errorf(`ServiceUrl must name a constant (e.g., Module.ApiLocation) — Studio Pro CE6825.
 Create a constant first:
-  CREATE CONSTANT Module.ApiLocation TYPE String DEFAULT 'https://api.example.com/';
+  CREATE CONSTANT Module.ApiLocation ( Type: String, DefaultValue: 'https://api.example.com/' );
 Then reference it:
   ServiceUrl: Module.ApiLocation
 Got: %s`, stmt.ServiceUrl)

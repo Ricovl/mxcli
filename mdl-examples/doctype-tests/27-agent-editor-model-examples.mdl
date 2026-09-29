@@ -38,13 +38,11 @@ create module ModelTest;
 -- ============================================================================
 
 create constant ModelTest."GPT4Key"
-  type string
-  default '';
+  ( Type: string, DefaultValue: '' );
 /
 
 create constant ModelTest."ClaudeKey"
-  type string
-  default '';
+  ( Type: string, DefaultValue: '' );
 /
 
 -- MARK: Create

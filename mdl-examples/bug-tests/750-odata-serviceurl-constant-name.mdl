@@ -10,8 +10,7 @@
 -- reference". A literal URL is still refused.
 
 create constant OdSvc.Location
-type string
-default 'https://api.example.com/odata/v4/';
+( Type: string, DefaultValue: 'https://api.example.com/odata/v4/' );
 /
 
 create consumed odata service OdSvc.Bare (
