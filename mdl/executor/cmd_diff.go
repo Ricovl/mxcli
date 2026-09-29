@@ -318,8 +318,13 @@ func diffEnumeration(ctx *ExecContext, s *ast.CreateEnumerationStmt) (*DiffResul
 		return result, nil
 	}
 
+	// ContainerID is a folder when the enumeration is filed in one, so walk up
+	// to the module before asking for its name; asking directly rendered the
+	// stored side as `create enumeration .Name` and made an untouched
+	// enumeration diff as modified (ako/mxcli#794). findEnumeration matched the
+	// statement's module through the same walk, so that is the module name.
 	h, _ := getHierarchy(ctx)
-	modName := h.GetModuleName(existingEnum.ContainerID)
+	modName := h.GetModuleName(h.FindModuleID(existingEnum.ContainerID))
 	result.Current = enumerationToMDL(ctx, modName, existingEnum)
 	result.Changes = compareEnumerations(ctx, result.Current, result.Proposed)
 
