@@ -52,8 +52,7 @@ If `OR MODIFY` is specified and the model already exists, its properties are upd
 
 ```sql
 CREATE CONSTANT MyModule."ModelKey"
-    TYPE String
-    DEFAULT '';
+    ( Type: String, DefaultValue: '' );
 /
 
 CREATE AI MODEL MyModule."GPT4Model" (

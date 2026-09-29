@@ -159,7 +159,11 @@ Example:
 		// CheckProjectConflicts is deliberately NOT run here, though `check`
 		// runs it alongside this pass: a plain CREATE over an existing document
 		// is worth reporting when validating a script, but it is ordinary for a
-		// re-run, and refusing it would break scripts that work today.
+		// re-run, and refusing it would break scripts that work today. Its one
+		// exception is: a create over a name ANOTHER kind already has in the
+		// module (ako/mxcli#793) is never a re-run — `or modify` of a kind that
+		// lacks the name still adds an element — and Mendix rejects the model
+		// (CE0122 / CE0065), so it is refused here, after the references.
 		if !skipCheck && projectPath != "" {
 			refErrs, refWarnings := exec.ValidateProgramWithWarnings(prog)
 			for _, w := range refWarnings {
@@ -176,6 +180,18 @@ Example:
 						"  is created rather than refused.\n"+
 						"  Fix them, or re-run with --no-check to apply the script anyway.\n",
 					len(refErrs))
+				os.Exit(1)
+			}
+			if clashes := exec.CheckProjectNameClashes(prog); len(clashes) > 0 {
+				for _, c := range clashes {
+					fmt.Fprintf(os.Stderr, "Name clash: %v\n", c)
+				}
+				fmt.Fprintf(os.Stderr,
+					"\nRefusing to execute: %d name clash(es) above. Nothing was written.\n"+
+						"  Mendix rejects the model (CE0122 / CE0065) however the script continues.\n"+
+						"  Rename, or re-run with --no-check to apply the script anyway (each clashing\n"+
+						"  create is still refused when it runs).\n",
+					len(clashes))
 				os.Exit(1)
 			}
 		}

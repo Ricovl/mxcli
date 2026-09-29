@@ -461,6 +461,12 @@ func (e *Executor) CheckProjectConflicts(prog *ast.Program) []error {
 	return CheckProjectConflicts(e.newExecContext(context.Background()), prog)
 }
 
+// CheckProjectNameClashes returns an error for every create that would give an
+// element a name another kind already has in its module (ako/mxcli#793).
+func (e *Executor) CheckProjectNameClashes(prog *ast.Program) []error {
+	return CheckProjectNameClashes(e.newExecContext(context.Background()), prog)
+}
+
 // validateWithContext validates a statement, considering objects defined in the script.
 func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext) error {
 	// Cross-module document-access grants (CE0148) are rejected at exec time by

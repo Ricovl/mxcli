@@ -988,12 +988,32 @@ validationRuleRange
 // CONSTANT CREATION
 // =============================================================================
 
+// A constant's properties are a ( Key: value ) list, named as Studio Pro's
+// Constants$Constant names them: Type, DefaultValue, ExposedToClient (phase 3.6
+// of PROPOSAL_mdl_beta_syntax_freeze.md, ako/mxcli#755). The clause form
+// `type T default v [exposed to client]` is the deprecated alias. The trailing
+// options after the list are the older aliases of the doc comment and the
+// folder clause, still read so that each rewrite can land on its own.
 createConstantStatement
     : CONSTANT ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?   // R9: the folder is a clause after the name
-      TYPE dataType
+      constantPropertyList
+      constantOptions?
+    | CONSTANT ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?
+      TYPE /* @alias MDL-DEPR136 */ dataType
       DEFAULT literal
       constantOptions?
+    ;
+
+constantPropertyList
+    : LPAREN (constantProperty (COMMA constantProperty)* COMMA?)? RPAREN
+    ;
+
+// Type takes a data type, DefaultValue a literal, ExposedToClient a boolean.
+// The visitor refuses any other key, and a value of the wrong shape.
+constantProperty
+    : identifierOrKeyword COLON (literal | dataType)
     ;
 
 constantOptions

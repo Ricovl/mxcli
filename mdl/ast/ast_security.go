@@ -214,7 +214,7 @@ type AlterProjectSecurityStmt struct {
 
 func (s *AlterProjectSecurityStmt) isStatement() {}
 
-// CreateDemoUserStmt represents: CREATE [OR MODIFY] DEMO USER 'name' PASSWORD 'pw' [ENTITY Module.Entity] (Role1, Role2)
+// CreateDemoUserStmt represents: CREATE [OR MODIFY] DEMO USER 'name' ( Password: 'pw', Entity: Module.Entity, UserRoles: (Role1, Role2) )
 type CreateDemoUserStmt struct {
 	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	UserName       string

@@ -267,9 +267,15 @@ func (b *Backend) UpdateEntity(domainModelID model.ID, entity *domainmodel.Entit
 // and RENAME). It rebuilds the Entities and Associations lists from the semantic
 // model via the byte-faithful converters, carrying each element's stored identity
 // — both its $ID and its storage GUID — onto the rebuild.
-// CrossAssociations and Annotations are NOT represented in domainmodel.DomainModel,
-// so they are left as gen passthrough rather than dropped (ADR-0005: guard
-// fidelity — the existing raw bytes carry forward unchanged).
+// Annotations are NOT represented in domainmodel.DomainModel, so they are left as
+// gen passthrough rather than dropped (ADR-0005: guard fidelity — the existing raw
+// bytes carry forward unchanged).
+//
+// CrossAssociations ARE represented (crossAssocFromGen fills them on every read),
+// and this used to treat them like Annotations anyway — so ALTER ASSOCIATION and
+// CREATE OR MODIFY ASSOCIATION on a cross-module association reported success and
+// wrote nothing (ako/mxcli#792). They are patched in place rather than rebuilt:
+// see patchCrossAssociations.
 //
 // The GUID half of that was missing until ako/mxcli#1169. Unlike UpdateEntity,
 // which swaps one entity into an otherwise raw-passthrough list, this rebuilds
@@ -362,7 +368,147 @@ func (b *Backend) UpdateDomainModel(dm *domainmodel.DomainModel) error {
 		gdm.AddAssociations(ga)
 	}
 
+	if err := patchCrossAssociations(gdm, dm.CrossAssociations); err != nil {
+		return err
+	}
+
 	return b.persistDM(dm.ID, gdm)
+}
+
+// patchCrossAssociations writes the semantic cross-module associations onto the
+// stored ones (ako/mxcli#792).
+//
+// Unlike the Entities and Associations lists above, this does not rebuild: each
+// stored element is edited in place, and a property is set only when the semantic
+// value differs from what is stored. Everything the semantic model does not carry
+// — the GUID above all, but also the export level, the capabilities and the
+// remote-source name — is never touched, so it cannot be lost, and an unchanged
+// element stays clean and passes through byte-for-byte.
+//
+// A semantic association with no stored counterpart is new and is appended. A
+// stored one missing from the semantic model is REFUSED rather than silently kept
+// or dropped: every caller deletes through DeleteCrossAssociation, so reaching this
+// would mean a caller expecting a removal that this function does not perform.
+func patchCrossAssociations(gdm *genDm.DomainModel, cas []*domainmodel.CrossModuleAssociation) error {
+	stored := make(map[string]*genDm.CrossAssociation, len(gdm.CrossAssociationsItems()))
+	for _, el := range gdm.CrossAssociationsItems() {
+		if gca, ok := el.(*genDm.CrossAssociation); ok {
+			stored[string(gca.ID())] = gca
+		}
+	}
+	seen := make(map[string]bool, len(cas))
+	for _, ca := range cas {
+		if ca == nil {
+			continue
+		}
+		gca := stored[string(ca.ID)]
+		if gca == nil {
+			gca = crossAssocToGen(ca)
+			assignCrossAssocIDs(gca)
+			if db, ok := gca.DeleteBehavior().(*genDm.AssociationDeleteBehavior); ok {
+				patchCrossDeleteErrorMessage(db, ca.ChildDeleteBehavior)
+			}
+			gdm.AddCrossAssociations(gca)
+			ca.ID = model.ID(gca.ID())
+			continue
+		}
+		seen[string(ca.ID)] = true
+		patchCrossAssociation(gca, ca)
+	}
+	for id, gca := range stored {
+		if !seen[id] {
+			return fmt.Errorf("UpdateDomainModel: cross-module association %s is stored but absent from the "+
+				"domain model being written; removing one goes through DeleteCrossAssociation", gca.Name())
+		}
+	}
+	return nil
+}
+
+// patchCrossAssociation sets on gca each property of ca that differs from it.
+func patchCrossAssociation(gca *genDm.CrossAssociation, ca *domainmodel.CrossModuleAssociation) {
+	if gca.Name() != ca.Name {
+		gca.SetName(ca.Name)
+	}
+	if gca.Documentation() != ca.Documentation {
+		gca.SetDocumentation(ca.Documentation)
+	}
+	if ca.ParentID != "" && string(gca.ParentRefID()) != string(ca.ParentID) {
+		gca.SetParentID(element.ID(string(ca.ParentID)))
+	}
+	if ca.ChildRef != "" && gca.ChildQualifiedName() != ca.ChildRef {
+		gca.SetChildQualifiedName(ca.ChildRef)
+	}
+	if ca.Type != "" && gca.Type() != string(ca.Type) {
+		gca.SetType(string(ca.Type))
+	}
+	if ca.Owner != "" && gca.Owner() != string(ca.Owner) {
+		gca.SetOwner(string(ca.Owner))
+	}
+	if ca.StorageFormat != "" && gca.StorageFormat() != string(ca.StorageFormat) {
+		gca.SetStorageFormat(string(ca.StorageFormat))
+	}
+
+	db, ok := gca.DeleteBehavior().(*genDm.AssociationDeleteBehavior)
+	if !ok || db == nil {
+		db = deleteBehaviorToGen(behaviorType(ca.ParentDeleteBehavior), behaviorType(ca.ChildDeleteBehavior))
+		assignID(db)
+		patchCrossDeleteErrorMessage(db, ca.ChildDeleteBehavior)
+		gca.SetDeleteBehavior(db)
+	} else {
+		// A nil semantic side is "not stated", not "reset to keep": leave it.
+		if ca.ParentDeleteBehavior != nil && ca.ParentDeleteBehavior.Type != "" &&
+			db.ParentDeleteBehavior() != string(ca.ParentDeleteBehavior.Type) {
+			db.SetParentDeleteBehavior(string(ca.ParentDeleteBehavior.Type))
+		}
+		if ca.ChildDeleteBehavior != nil && ca.ChildDeleteBehavior.Type != "" {
+			if db.ChildDeleteBehavior() != string(ca.ChildDeleteBehavior.Type) {
+				db.SetChildDeleteBehavior(string(ca.ChildDeleteBehavior.Type))
+			}
+			if ca.ChildDeleteBehavior.Type != domainmodel.DeleteBehaviorTypeDeleteMeIfNoReferences &&
+				db.ChildErrorMessage() != nil {
+				// Leaving restrict: the stored refusal message has to go, and
+				// Studio Pro writes the slot as null rather than omitting it. A
+				// cleared Part omits the key, while a FRESH delete behaviour gets
+				// the registered null defaults — so the element is rebuilt, under
+				// its stored $ID so nothing that points at it moves.
+				fresh := deleteBehaviorToGen(db.ParentDeleteBehavior(), db.ChildDeleteBehavior())
+				fresh.SetID(db.ID())
+				gca.SetDeleteBehavior(fresh)
+			} else {
+				patchCrossDeleteErrorMessage(db, ca.ChildDeleteBehavior)
+			}
+		}
+	}
+
+	if ca.Source == domainmodel.OqlViewAssociationSource {
+		if src, ok := gca.Source().(*genDm.OqlViewAssociationSource); ok && src != nil {
+			if src.Reference() != ca.ViewSourceReference {
+				src.SetReference(ca.ViewSourceReference)
+			}
+		} else {
+			gca.SetSource(oqlViewAssociationSourceToGen(ca.ViewSourceReference))
+		}
+	}
+}
+
+// patchCrossDeleteErrorMessage gives a "delete me if no references" child side
+// the refusal message Studio Pro writes there — without it the runtime does not
+// start (CapTrackV2 §1; see assocToGen for the census behind "only that side").
+// Any other behaviour carries no message (the census found every keep and cascade
+// side null); clearing one left over from a restrict is patchCrossAssociation's.
+func patchCrossDeleteErrorMessage(db *genDm.AssociationDeleteBehavior, child *domainmodel.DeleteBehavior) {
+	if child == nil || child.Type != domainmodel.DeleteBehaviorTypeDeleteMeIfNoReferences {
+		return
+	}
+	if db.ChildErrorMessage() != nil && deleteErrorMessageFromGen(db.ChildErrorMessage()) == child.ErrorMessage {
+		return
+	}
+	txt := textToGen(deleteErrorText(child))
+	assignID(txt)
+	for _, tr := range txt.TranslationsItems() {
+		assignID(tr)
+	}
+	db.SetChildErrorMessage(txt)
 }
 
 // DeleteAssociation removes an association from a domain model by ID. Used by

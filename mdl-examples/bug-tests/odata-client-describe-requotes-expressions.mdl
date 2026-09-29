@@ -23,12 +23,10 @@
 -- @Module.Const, 'Key ' + @Module.Const.
 
 create constant OdQuote.ApiLocation
-type string
-default 'https://api.example.com/odata/v4/';
+( Type: string, DefaultValue: 'https://api.example.com/odata/v4/' );
 
 create constant OdQuote.ApiKey
-type string
-default 'secret';
+( Type: string, DefaultValue: 'secret' );
 /
 
 create consumed odata service OdQuote.QuotedApi (

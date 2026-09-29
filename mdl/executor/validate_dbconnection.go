@@ -91,7 +91,7 @@ func ValidateDatabaseConnection(stmt *ast.CreateDatabaseConnectionStmt) []linter
 				"(StorageLoadException: \"is not a valid ConstantIdentifier\")",
 				stmt.Name.String(), p.label),
 			Suggestion: fmt.Sprintf("Declare a constant and reference it: "+
-				"`create constant %s.%s type String default '…';` then `%s: @%s.%s`. "+
+				"`create constant %s.%s ( Type: String, DefaultValue: '…' );` then `%s: @%s.%s`. "+
 				"The indirection is how Mendix keeps the value per-environment rather than in the model.",
 				module, p.sample, p.key, module, p.sample),
 			Location: loc,

@@ -111,5 +111,5 @@ create or modify navigation Responsive
 -- A, so a blank there is entity access and not a broken page.
 drop demo user if exists 'demo_user';
 drop demo user if exists 'demo_administrator';
-create demo user 'probe_admin' password 'Passw0rdProbe1' (Administrator);
-create demo user 'probe_viewer' password 'Passw0rdProbe1' (User);
+create demo user 'probe_admin' ( Password: 'Passw0rdProbe1', UserRoles: (Administrator) );
+create demo user 'probe_viewer' ( Password: 'Passw0rdProbe1', UserRoles: (User) );

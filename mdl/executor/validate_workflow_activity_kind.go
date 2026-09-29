@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
 
@@ -50,10 +51,16 @@ import (
 // changes nothing is the "no silent side effects" rule, and the honest answer
 // is that a decision has nowhere to put it.
 //
-// The DROP ops are NOT covered, and that is measured rather than assumed:
-// removing an element cannot write a wrong type. DROP OUTCOME and DROP PATH on
-// a decision each leave the project loadable at 1 ordinary build error, which
-// is the correct outcome of removing a branch.
+// The DROP ops cannot write a wrong type, but one of them can ADDRESS the wrong
+// thing. DROP PATH numbers "Path N" into the target's Outcomes list, whatever
+// the target is, so `drop userTask1 path 1` removed the user task's first
+// outcome and reported "Altered workflow" (ako/mxcli#791) — the project stays
+// loadable, which is what made it silent. It is refused here on anything that
+// is not a parallel split, as the mutators refuse it, and a path number the
+// split does not have is refused rather than left to a lookup miss. DROP
+// OUTCOME and DROP CONDITION address by value; the mutators match a value only
+// against an outcome that stores one (an empty value used to hit the first
+// path or void outcome), so they are not covered here.
 
 // workflowOutcomeSlot is the list an ALTER WORKFLOW op writes into.
 type workflowOutcomeSlot int
@@ -201,6 +208,28 @@ func validateAlterWorkflowActivityKinds(ctx *ExecContext, s *ast.AlterWorkflowSt
 						o.ActivityRef, o.PathNumber, o.ActivityRef, next-1, next, next))
 				}
 			}
+		case *ast.DropPathOp:
+			target := resolveStoredActivity(wf.Flow, o.ActivityRef, o.AtPosition)
+			if target == nil {
+				continue
+			}
+			split, ok := target.(*workflows.ParallelSplitActivity)
+			if !ok {
+				if !activityAcceptsSlot(target, slotParallelSplitOutcome) {
+					kind := describeActivityKind(target)
+					errs = append(errs, fmt.Sprintf(
+						"`drop %s path …` is refused: '%s' is %s, not a parallel split, so it has no paths — "+
+							"the number would pick one of its outcomes instead; drop an outcome by its value "+
+							"(`drop %s outcome '<value>'`)",
+						o.ActivityRef, o.ActivityRef, kind, o.ActivityRef))
+				}
+				continue
+			}
+			if _, err := backend.ParallelPathIndex(o.PathCaption, o.ActivityRef, len(split.Outcomes)+added[split]); err != nil {
+				errs = append(errs, err.Error())
+				continue
+			}
+			added[split]--
 		case *ast.InsertBranchOp:
 			check(o.ActivityRef, o.AtPosition, slotConditionOutcome)
 		case *ast.InsertBoundaryEventOp:

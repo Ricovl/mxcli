@@ -630,16 +630,16 @@ func (b *Builder) appSecurityProperties(stmt *ast.AlterProjectSecurityStmt, opts
 	}
 }
 
-// ExitCreateDemoUserStatement handles CREATE [OR MODIFY] DEMO USER 'name' PASSWORD 'pw' [ENTITY Module.Entity] (Role1, Role2)
+// ExitCreateDemoUserStatement handles CREATE [OR MODIFY] DEMO USER 'name' ( Password: 'pw', Entity: Module.Entity, UserRoles: (Role1, Role2) ),
+// and the clause form `password 'pw' [entity Module.Entity] (Role1, Role2)` it replaces (MDL-DEPR137).
 func (b *Builder) ExitCreateDemoUserStatement(ctx *parser.CreateDemoUserStatementContext) {
 	sls := ctx.AllSTRING_LITERAL()
-	if len(sls) < 2 {
+	if len(sls) == 0 {
 		return
 	}
 
 	stmt := &ast.CreateDemoUserStmt{
 		UserName: unquoteStringLit(sls[0]),
-		Password: unquoteStringLit(sls[1]),
 	}
 
 	// Check parent createStatement for OR MODIFY
@@ -650,15 +650,24 @@ func (b *Builder) ExitCreateDemoUserStatement(ctx *parser.CreateDemoUserStatemen
 		}
 	}
 
-	// Parse optional ENTITY clause
+	if pl, ok := ctx.DemoUserPropertyList().(*parser.DemoUserPropertyListContext); ok && pl != nil {
+		b.demoUserProperties(stmt, pl)
+		b.statements = append(b.statements, stmt)
+		return
+	}
+	if len(sls) < 2 {
+		return
+	}
+
+	// The clause form (MDL-DEPR137).
+	stmt.Password = unquoteStringLit(sls[1])
 	if qn := ctx.QualifiedName(); qn != nil {
 		stmt.Entity = buildQualifiedName(qn).String()
 	}
-
-	// Parse user role names from identifierOrKeyword list
 	for _, iok := range ctx.AllIdentifierOrKeyword() {
 		stmt.UserRoles = append(stmt.UserRoles, identifierOrKeywordText(iok))
 	}
+	b.recordDemoUserClauses(ctx)
 
 	b.statements = append(b.statements, stmt)
 }

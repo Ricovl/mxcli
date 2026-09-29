@@ -575,7 +575,7 @@ alter app security ( StrictMode: false );
 /**
  * Create a basic demo user with a single user role.
  */
-create or modify demo user 'sectest_user' password 'Password1!xx' (RegularUser);
+create or modify demo user 'sectest_user' ( Password: 'Password1!xx', UserRoles: (RegularUser) );
 /
 
 -- ============================================================================
@@ -585,7 +585,7 @@ create or modify demo user 'sectest_user' password 'Password1!xx' (RegularUser);
 /**
  * Create a demo user with multiple user roles.
  */
-create or modify demo user 'sectest_admin' password 'Admin12345!!' (RegularUser, SuperAdmin);
+create or modify demo user 'sectest_admin' ( Password: 'Admin12345!!', UserRoles: (RegularUser, SuperAdmin) );
 /
 
 -- Verify

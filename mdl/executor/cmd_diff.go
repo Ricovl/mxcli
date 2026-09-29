@@ -318,8 +318,13 @@ func diffEnumeration(ctx *ExecContext, s *ast.CreateEnumerationStmt) (*DiffResul
 		return result, nil
 	}
 
+	// ContainerID is a folder when the enumeration is filed in one, so walk up
+	// to the module before asking for its name; asking directly rendered the
+	// stored side as `create enumeration .Name` and made an untouched
+	// enumeration diff as modified (ako/mxcli#794). findEnumeration matched the
+	// statement's module through the same walk, so that is the module name.
 	h, _ := getHierarchy(ctx)
-	modName := h.GetModuleName(existingEnum.ContainerID)
+	modName := h.GetModuleName(h.FindModuleID(existingEnum.ContainerID))
 	result.Current = enumerationToMDL(ctx, modName, existingEnum)
 	result.Changes = compareEnumerations(ctx, result.Current, result.Proposed)
 
@@ -331,29 +336,41 @@ func diffAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) (*DiffResul
 	result := &DiffResult{
 		ObjectType: "Association",
 		ObjectName: s.Name,
-		Proposed:   associationStmtToMDL(ctx, s),
 	}
 
 	module, err := findModule(ctx, s.Name.Module)
 	if err != nil {
 		result.IsNew = true
+		result.Proposed = associationStmtToMDL(ctx, s, "")
 		return result, nil
 	}
 
 	dm, err := ctx.Backend.GetDomainModel(module.ID)
 	if err != nil {
 		result.IsNew = true
+		result.Proposed = associationStmtToMDL(ctx, s, "")
 		return result, nil
 	}
 
 	for _, assoc := range dm.Associations {
 		if assoc.Name == s.Name.Name {
 			result.Current = associationToMDL(ctx, module.Name, assoc, dm)
+			result.Proposed = associationStmtToMDL(ctx, s, assoc.StorageFormat)
+			return result, nil
+		}
+	}
+	// A cross-module association is stored apart, in CrossAssociations; without
+	// this lookup every existing one diffed as new.
+	for _, ca := range dm.CrossAssociations {
+		if ca.Name == s.Name.Name {
+			result.Current = crossAssociationToMDL(module.Name, ca, dm)
+			result.Proposed = associationStmtToMDL(ctx, s, ca.StorageFormat)
 			return result, nil
 		}
 	}
 
 	result.IsNew = true
+	result.Proposed = associationStmtToMDL(ctx, s, "")
 	return result, nil
 }
 

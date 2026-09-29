@@ -1185,15 +1185,15 @@ Creates a demo user for development/testing.
 
 **Syntax:**
 ```sql
-create demo user '<username>' password '<password>' [entity <Module.Entity>] (<userrole> [, ...])
+create demo user '<username>' ( Password: '<password>', [Entity: <Module.Entity>,] UserRoles: (<userrole> [, ...]) )
 ```
 
-The optional `entity` clause specifies the entity that generalizes `System.User` (e.g., `Administration.Account`). If omitted, the system auto-detects the unique `System.User` subtype.
+The optional `Entity` property specifies the entity that generalizes `System.User` (e.g., `Administration.Account`). If omitted, the system auto-detects the unique `System.User` subtype.
 
 **Example:**
 ```sql
-create demo user 'demo_admin' password 'Admin123!' (AppAdmin);
-create demo user 'demo_admin' password 'Admin123!' entity Administration.Account (AppAdmin);
+create demo user 'demo_admin' ( Password: 'Admin123!', UserRoles: (AppAdmin) );
+create demo user 'demo_admin' ( Password: 'Admin123!', Entity: Administration.Account, UserRoles: (AppAdmin) );
 ```
 
 ### DROP DEMO USER

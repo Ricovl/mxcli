@@ -79,7 +79,7 @@ func (d DeleteBehavior) String() string {
 type StorageType int
 
 const (
-	StorageDefault StorageType = iota // Not specified (defaults to Table)
+	StorageDefault StorageType = iota // Not specified: Column on create, stored value kept on OR MODIFY
 	StorageColumn
 	StorageTable
 )

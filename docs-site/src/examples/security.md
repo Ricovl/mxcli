@@ -65,9 +65,9 @@ CREATE OR MODIFY USER ROLE SalesManager ( ModuleRoles: (System.User, Sales.Admin
 Demo users are created for testing and development:
 
 ```sql
-CREATE OR MODIFY DEMO USER 'viewer' PASSWORD 'Password1!' (SalesViewer);
-CREATE OR MODIFY DEMO USER 'sales_rep' PASSWORD 'Password1!' (SalesRep);
-CREATE OR MODIFY DEMO USER 'manager' PASSWORD 'Password1!' (SalesManager);
+CREATE OR MODIFY DEMO USER 'viewer' ( Password: 'Password1!', UserRoles: (SalesViewer) );
+CREATE OR MODIFY DEMO USER 'sales_rep' ( Password: 'Password1!', UserRoles: (SalesRep) );
+CREATE OR MODIFY DEMO USER 'manager' ( Password: 'Password1!', UserRoles: (SalesManager) );
 
 -- Enable demo users in project security
 ALTER APP SECURITY ( EnableDemoUsers: TRUE );

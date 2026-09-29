@@ -175,8 +175,7 @@ select * from catalog.entities where IsExternal = 1;
  * so we declare the constant inline before the service.
  */
 create constant OdTest.TripPinAPIServiceUrl
-  type string
-  default 'https://services.odata.org/TripPinRESTierService/';
+  ( Type: string, DefaultValue: 'https://services.odata.org/TripPinRESTierService/' );
 
 create consumed odata service OdTest.TripPinAPI folder 'Integration/TripPin' (
   version: '1.0',
@@ -269,20 +268,16 @@ begin
 end;
 
 create constant OdTest.ProxyHostConst
-type string
-default 'proxy.example.com';
+( Type: string, DefaultValue: 'proxy.example.com' );
 
 create constant OdTest.ProxyPortConst
-type string
-default '8080';
+( Type: string, DefaultValue: '8080' );
 
 create constant OdTest.FullConfigAPIServiceUrl
-type string
-default 'https://api.example.com/odata/v4';
+( Type: string, DefaultValue: 'https://api.example.com/odata/v4' );
 
 create constant OdTest.HeadersConfigAPIServiceUrl
-type string
-default 'https://api.example.com/odata/v4';
+( Type: string, DefaultValue: 'https://api.example.com/odata/v4' );
 /
 
 -- ConfigurationMicroflow is mutually exclusive with constant-based ServiceUrl
@@ -576,8 +571,7 @@ create module role TripPinClient."user"
 /
 
 create constant TripPinClient."TripPinServiceUrl"
-  type string
-  default 'https://services.odata.org/TripPinRESTierService/';
+  ( Type: string, DefaultValue: 'https://services.odata.org/TripPinRESTierService/' );
 /
 
 /**

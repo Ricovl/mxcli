@@ -107,8 +107,7 @@ refused with nothing written; without the header it still writes, with warning
 **Correct:**
 ```sql
 CREATE CONSTANT ProductClient.ProductDataApiLocation
-  TYPE String
-  DEFAULT 'http://localhost:8080/odata/productdataapi/v1/';
+  ( Type: String, DefaultValue: 'http://localhost:8080/odata/productdataapi/v1/' );
 
 CREATE CONSUMED ODATA SERVICE ProductClient.ProductDataApiClient (
   ODataVersion: OData4,

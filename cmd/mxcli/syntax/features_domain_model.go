@@ -10,7 +10,7 @@ func init() {
 			"domain model", "entity", "attribute", "association",
 			"enumeration", "constant", "data model", "schema",
 		},
-		Syntax:  "CREATE PERSISTENT ENTITY Module.Name (...);\nCREATE ASSOCIATION Module.Name FROM ... TO ...;\nCREATE ENUMERATION Module.Name (...);\nCREATE CONSTANT Module.Name TYPE ... DEFAULT ...;",
+		Syntax:  "CREATE PERSISTENT ENTITY Module.Name (...);\nCREATE ASSOCIATION Module.Name FROM ... TO ...;\nCREATE ENUMERATION Module.Name (...);\nCREATE CONSTANT Module.Name ( Type: ..., DefaultValue: ... );",
 		Example: "CREATE PERSISTENT ENTITY Shop.Customer (\n  Name: String(100) NOT NULL\n);",
 		SeeAlso: []string{"domain-model.entity", "domain-model.association", "domain-model.enumeration", "domain-model.constant"},
 	})
@@ -405,8 +405,8 @@ func init() {
 			"constant", "configuration", "config value",
 			"create constant", "setting",
 		},
-		Syntax:  "[/** documentation */]\nCREATE CONSTANT Module.Name TYPE DataType DEFAULT value;\nCREATE OR MODIFY CONSTANT Module.Name TYPE DataType DEFAULT value;\n\nLIST CONSTANTS;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;",
-		Example: "CREATE CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.example.com/v1';\n\n/** Maximum API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries\n  TYPE Integer\n  DEFAULT 3;",
+		Syntax:  "[/** documentation */]\nCREATE CONSTANT Module.Name ( Type: DataType, DefaultValue: value );\nCREATE OR MODIFY CONSTANT Module.Name ( Type: DataType, DefaultValue: value );\n\nLIST CONSTANTS;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;",
+		Example: "CREATE CONSTANT MyModule.ApiBaseUrl (\n  Type: String,\n  DefaultValue: 'https://api.example.com/v1'\n);\n\n/** Maximum API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries ( Type: Integer, DefaultValue: 3 );",
 		SeeAlso: []string{"domain-model.constant.create"},
 	})
 
@@ -418,7 +418,7 @@ func init() {
 			"list constants", "constant values", "modify constant",
 			"string constant", "integer constant", "boolean constant",
 		},
-		Syntax: "[/** description */]\nCREATE CONSTANT Module.Name [FOLDER 'path']\n  TYPE String|Integer|Long|Decimal|Boolean|DateTime\n  DEFAULT value\n  [EXPOSED TO CLIENT];\n\nCREATE OR MODIFY CONSTANT Module.Name\n  TYPE DataType DEFAULT value;\n\n-- Documentation is the /** … */ doc comment; COMMENT 'text' is its\n-- deprecated alias (MDL-DEPR100). FOLDER goes right after the name; after\n-- DEFAULT it is its old position (MDL-DEPR134).\n\nLIST CONSTANTS;\nLIST CONSTANTS IN <module>;\nLIST CONSTANT VALUES;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;\n\nRemove override:\n  ALTER SETTINGS DROP CONSTANT @Module.Name IN CONFIGURATION 'cfg';\n\n" +
+		Syntax: "[/** description */]\nCREATE CONSTANT Module.Name [FOLDER 'path'] (\n  Type: String|Integer|Long|Decimal|Boolean|DateTime,\n  DefaultValue: value\n  [, ExposedToClient: true]\n);\n\nCREATE OR MODIFY CONSTANT Module.Name ( Type: DataType, DefaultValue: value );\n\n-- The keys are Studio Pro's property names. Type and DefaultValue are\n-- required; ExposedToClient defaults to false. The clause form\n-- TYPE t DEFAULT v [EXPOSED TO CLIENT] is its deprecated alias (MDL-DEPR136).\n-- Documentation is the /** … */ doc comment; COMMENT 'text' is its\n-- deprecated alias (MDL-DEPR100). FOLDER goes right after the name; after\n-- the properties it is its old position (MDL-DEPR134).\n\nLIST CONSTANTS;\nLIST CONSTANTS IN <module>;\nLIST CONSTANT VALUES;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;\n\nRemove override:\n  ALTER SETTINGS DROP CONSTANT @Module.Name IN CONFIGURATION 'cfg';\n\n" +
 			"Shared vs private values:\n" +
 			"  A per-configuration override holds either a SHARED value (stored in the\n" +
 			"  model, so in version control — every developer gets it) or a PRIVATE one\n" +
@@ -430,7 +430,7 @@ func init() {
 			"  LIST CONSTANT VALUES reports it as (private); DESCRIBE SETTINGS reports it\n" +
 			"  as a comment, not a re-executable statement. DROP CONSTANT still works.\n" +
 			"  Change a constant to a shared value in Studio Pro.",
-		Example: "CREATE CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.example.com/v1';\n\n/** Maximum number of API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries\n  TYPE Integer DEFAULT 3;\n\nCREATE CONSTANT MyModule.EnableDebug\n  TYPE Boolean DEFAULT false;\n\nCREATE OR MODIFY CONSTANT MyModule.ApiBaseUrl\n  TYPE String\n  DEFAULT 'https://api.staging.example.com/v2';",
+		Example: "CREATE CONSTANT MyModule.ApiBaseUrl (\n  Type: String,\n  DefaultValue: 'https://api.example.com/v1'\n);\n\n/** Maximum number of API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries ( Type: Integer, DefaultValue: 3 );\n\nCREATE CONSTANT MyModule.EnableDebug ( Type: Boolean, DefaultValue: false, ExposedToClient: true );\n\nCREATE OR MODIFY CONSTANT MyModule.ApiBaseUrl (\n  Type: String,\n  DefaultValue: 'https://api.staging.example.com/v2'\n);",
 		SeeAlso: []string{"domain-model.constant"},
 	})
 

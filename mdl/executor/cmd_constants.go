@@ -130,15 +130,18 @@ func outputConstantMDL(ctx *ExecContext, c *model.Constant, moduleName string) e
 			folder = fmt.Sprintf(" folder '%s'", strings.ReplaceAll(folderPath, "'", "''"))
 		}
 	}
-	fmt.Fprintf(ctx.Output, "create or modify constant %s.%s%s\n", moduleName, c.Name, folder)
-	fmt.Fprintf(ctx.Output, "  type %s\n", formatConstantTypeForMDL(c.Type))
-	fmt.Fprintf(ctx.Output, "  default %s", defaultValueStr)
+	// The properties are a ( Key: value ) list with Studio Pro's names
+	// (phase 3.6, ako/mxcli#755); ExposedToClient is omitted at its default.
+	fmt.Fprintf(ctx.Output, "create or modify constant %s.%s%s (\n", moduleName, c.Name, folder)
+	fmt.Fprintf(ctx.Output, "  Type: %s,\n", formatConstantTypeForMDL(c.Type))
+	fmt.Fprintf(ctx.Output, "  DefaultValue: %s", defaultValueStr)
+	if c.ExposedToClient {
+		fmt.Fprintf(ctx.Output, ",\n  ExposedToClient: true")
+	}
+	fmt.Fprint(ctx.Output, "\n)")
 
 	if docClause {
 		fmt.Fprintf(ctx.Output, "\n  comment '%s'", strings.ReplaceAll(c.Documentation, "'", "''"))
-	}
-	if c.ExposedToClient {
-		fmt.Fprintf(ctx.Output, "\n  exposed to client")
 	}
 
 	fmt.Fprintln(ctx.Output, ";")

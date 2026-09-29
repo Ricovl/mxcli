@@ -67,7 +67,7 @@ func init() {
 			"DROP EXTERNAL ENTITY [IF EXISTS] Module.Name;  -- refuses a local entity\n\n" +
 			"-- `SET Key = value, ...` (no parentheses) still runs and warns MDL-DEPR061;\n" +
 			"-- `SET allow_create_change_locally = true` warns MDL-DEPR063.",
-		Example: "CREATE CONSTANT MyModule.SvcUrl TYPE String DEFAULT 'https://api.example.com/odata/v4/';\n\nCREATE CONSUMED ODATA SERVICE MyModule.SalesforceAPI (\n  Version: '1.0',\n  ODataVersion: OData4,\n  MetadataUrl: 'https://api.example.com/odata/$metadata',\n  Timeout: 300,\n  ServiceUrl: MyModule.SvcUrl\n);\n\nCREATE EXTERNAL ENTITIES FROM MyModule.SalesforceAPI INTO Integration;",
+		Example: "CREATE CONSTANT MyModule.SvcUrl ( Type: String, DefaultValue: 'https://api.example.com/odata/v4/' );\n\nCREATE CONSUMED ODATA SERVICE MyModule.SalesforceAPI (\n  Version: '1.0',\n  ODataVersion: OData4,\n  MetadataUrl: 'https://api.example.com/odata/$metadata',\n  Timeout: 300,\n  ServiceUrl: MyModule.SvcUrl\n);\n\nCREATE EXTERNAL ENTITIES FROM MyModule.SalesforceAPI INTO Integration;",
 		SeeAlso: []string{"odata", "odata.publish", "odata.show"},
 	})
 
@@ -476,9 +476,9 @@ Three traps:
 The connector runtime is part of the platform — no marketplace module is
 needed in the project.`,
 		Example: `-- The three constants the connection points at.
-CREATE CONSTANT Ops.DbUrl  TYPE String DEFAULT 'jdbc:postgresql://localhost:5432/erp';
-CREATE CONSTANT Ops.DbUser TYPE String DEFAULT 'reader';
-CREATE CONSTANT Ops.DbPass TYPE String DEFAULT '';
+CREATE CONSTANT Ops.DbUrl  ( Type: String, DefaultValue: 'jdbc:postgresql://localhost:5432/erp' );
+CREATE CONSTANT Ops.DbUser ( Type: String, DefaultValue: 'reader' );
+CREATE CONSTANT Ops.DbPass ( Type: String, DefaultValue: '' );
 
 CREATE NON-PERSISTENT ENTITY Ops.EmployeeRow (
   EmployeeId: Integer,
