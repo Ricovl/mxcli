@@ -596,7 +596,7 @@ func formatAction(
 		}
 		message := "'Message'"
 		if text := pickTextTranslation(a.MessageTemplate, describeDefaultLanguage(ctx)); text != "" {
-			message = mdlQuote(text)
+			message = templateQuote(ctx, text)
 		}
 
 		// Build WITH clause if there are template parameters
@@ -815,7 +815,7 @@ func formatAction(
 		}
 		message := "'...'"
 		if text := pickTextTranslation(a.Template, describeDefaultLanguage(ctx)); text != "" {
-			message = mdlQuote(text)
+			message = templateQuote(ctx, text)
 		}
 		result := fmt.Sprintf("show message %s type %s", message, msgType)
 		if len(a.TemplateParameters) > 0 {
@@ -845,7 +845,7 @@ func formatAction(
 	case *microflows.ValidationFeedbackAction:
 		msgText := "'...'"
 		if text := pickTextTranslation(a.Template, describeDefaultLanguage(ctx)); text != "" {
-			msgText = mdlQuote(text)
+			msgText = templateQuote(ctx, text)
 		}
 		// Build attribute path from variable and attribute name
 		// AttributeName format: Module.Entity.Attribute

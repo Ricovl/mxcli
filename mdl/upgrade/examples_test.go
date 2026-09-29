@@ -116,11 +116,6 @@ var keepsItsVersion = map[string][]string{
 	// one activity takes a variable, so the inner call must become a statement
 	// of its own, which needs a variable name nobody chose.
 	"bug-tests/1101-nested-list-operand-dropped.fail.mdl": {"MDL-V1-LIST"},
-	// `log … 'line 1\nline 2'`: under mdl 1 the line break is written into the
-	// literal, which makes the message a stored expression (a `{1}` template
-	// parameter) instead of the template text. Measured by the execute-both
-	// test before this entry was made.
-	"bug-tests/264-log-node-expression-roundtrip.mdl": {"MDL-V1-ESCAPE"},
 	// Scripts that exercise session commands — `help <topic>` and `lint` —
 	// which are REPL commands under mdl 1 (R7, ako/mxcli#755). They test the
 	// commands, so they stay mdl 0 scripts rather than lose what they test.

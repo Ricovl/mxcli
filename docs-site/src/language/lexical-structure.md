@@ -62,6 +62,19 @@ The only escape sequence is `''` (two single quotes) to represent a literal sing
 
 A script without the header (`mdl 0`) still reads a backslash before `n`, `r`, `t`, `\` or `'` as an escape — `'C:\temp'` holds a tab — and `check` warns `MDL-V1-ESCAPE` for each literal whose value changes under `mdl 1`. Write the backslash-free form (`'it''s'`) to mean the same under both.
 
+A line break is written into the literal itself: a string may span lines, and the break is part of its value. This is also how a text template — the message of `log`, `show message` or `validation feedback` — holds a line break; under `mdl 1;` a template written as one literal is the template text whether or not it spans lines:
+
+```sql
+mdl 1;
+create microflow Shop.LogCleanup ($Count: Integer)
+begin
+  log info node 'Shop' 'Deleted {1} records.
+Run again tomorrow.' with ({1} = toString($Count));
+end;
+```
+
+Without the header a template literal that spans lines and has no parameters is an expression instead — the template is `{1}` and the literal its parameter — and `check` warns `MDL-V1-TEMPLATE`. With `with ({n} = …)` parameters it is the template text under both versions.
+
 ### Numeric Literals
 
 ```sql
