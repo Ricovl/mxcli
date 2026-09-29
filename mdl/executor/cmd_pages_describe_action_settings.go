@@ -38,14 +38,14 @@ func renderClientActionSettingsMDL(ctx *ExecContext, action map[string]any) stri
 			props = append(props, "ProgressBar: "+pb)
 		}
 		if msg := actionMapForKey(flow, "ProgressMessage"); msg != nil {
-			props = append(props, "ProgressMessage: "+mdlQuote(settingText(ctx, msg)))
+			props = append(props, "ProgressMessage: "+mdlQuote(ctx, settingText(ctx, msg)))
 		}
 		if ci := actionMapForKey(flow, "ConfirmationInfo"); ci != nil {
-			props = append(props, "Confirmation: "+mdlQuote(settingText(ctx, actionMapForKey(ci, "Question"))))
+			props = append(props, "Confirmation: "+mdlQuote(ctx, settingText(ctx, actionMapForKey(ci, "Question"))))
 			// Both captions always print: a confirmation written without them
 			// gets Studio Pro's defaults, which need not be what is stored.
-			props = append(props, "ProceedCaption: "+mdlQuote(settingText(ctx, actionMapForKey(ci, "ProceedButtonCaption"))))
-			props = append(props, "CancelCaption: "+mdlQuote(settingText(ctx, actionMapForKey(ci, "CancelButtonCaption"))))
+			props = append(props, "ProceedCaption: "+mdlQuote(ctx, settingText(ctx, actionMapForKey(ci, "ProceedButtonCaption"))))
+			props = append(props, "CancelCaption: "+mdlQuote(ctx, settingText(ctx, actionMapForKey(ci, "CancelButtonCaption"))))
 		}
 		if flow["$Type"] == "Forms$MicroflowSettings" {
 			if async, _ := flow["Asynchronous"].(bool); async {
@@ -97,7 +97,7 @@ func formatActionSettingsV3(s *ast.ActionSettingsV3) string {
 		{"ProceedCaption", s.ProceedCaption}, {"CancelCaption", s.CancelCaption},
 	} {
 		if kv.val != nil {
-			props = append(props, kv.key+": "+mdlQuote(*kv.val))
+			props = append(props, kv.key+": "+mdlQuote(nil, *kv.val))
 		}
 	}
 	if s.Asynchronous != nil {
