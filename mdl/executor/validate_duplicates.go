@@ -133,6 +133,8 @@ func stmtCreateKind(stmt ast.Statement) (docType, name string, idempotent bool) 
 		return "page", s.Name.String(), s.IsModify || s.IsReplace
 	case *ast.CreateSnippetStmtV3:
 		return "snippet", s.Name.String(), s.IsModify || s.IsReplace
+	case *ast.CreateLayoutStmt:
+		return "layout", s.Name.String(), s.IsModify || s.IsReplace
 	case *ast.CreateJavaActionStmt:
 		return "javaaction", s.Name.String(), s.CreateOrModify
 	case *ast.CreateJavaScriptActionStmt:
@@ -327,6 +329,12 @@ func CheckScriptDuplicates(prog *ast.Program) []linter.Violation {
 		if dt == "" {
 			continue
 		}
+		// A name another kind in the same name space holds (MDL-DUPNAME,
+		// ako/mxcli#793). Checked for every spelling: `or modify` of a kind
+		// that does not have the name still adds an element.
+		if v := checkScriptNameClash(reg, dt, name); v != nil {
+			violations = append(violations, *v)
+		}
 		if idempotent {
 			// OR MODIFY / OR REPLACE: add if absent, no error if present
 			if !reg.isAlive(dt, name) {
@@ -366,6 +374,7 @@ type projectNameSets struct {
 	nanoflows        map[string]bool
 	pages            map[string]bool
 	snippets         map[string]bool
+	layouts          map[string]bool
 	javaActions      map[string]bool
 	workflows        map[string]bool
 	businessEvents   map[string]bool
@@ -403,6 +412,8 @@ func (ps *projectNameSets) setFor(docType string) map[string]bool {
 		return ps.pages
 	case "snippet":
 		return ps.snippets
+	case "layout":
+		return ps.layouts
 	case "javaaction":
 		return ps.javaActions
 	case "workflow":
@@ -460,6 +471,7 @@ func loadProjectNameSets(ctx *ExecContext) *projectNameSets {
 	ps.nanoflows = buildNanoflowQualifiedNames(ctx)
 	ps.pages = buildPageQualifiedNames(ctx)
 	ps.snippets = buildSnippetQualifiedNames(ctx)
+	ps.layouts = buildLayoutQualifiedNames(ctx)
 	ps.javaActions = buildJavaActionQualifiedNames(ctx)
 
 	// Enumerations
@@ -668,5 +680,7 @@ func CheckProjectConflicts(ctx *ExecContext, prog *ast.Program) []error {
 		}
 	}
 
+	// A create over a name another kind already has (ako/mxcli#793).
+	errs = append(errs, CheckProjectNameClashes(ctx, prog)...)
 	return errs
 }

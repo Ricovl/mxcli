@@ -492,14 +492,8 @@ func TestWFDropPath(t *testing.T) {
 	if ops := wfUpdateOps(t, f); !strings.Contains(ops, `"path":"/flow/activities/2/outcomes"`) || !strings.Contains(ops, `"index":1`) {
 		t.Errorf("drop path 'Path 2' wrong: %s", ops)
 	}
-	// Empty caption drops the last path (index 2 of 3).
-	f2, m2 := wfMutatorFake(t)
-	if err := m2.DropPath("Parallel split", 0, ""); err != nil {
-		t.Fatal(err)
-	}
-	if ops := wfUpdateOps(t, f2); !strings.Contains(ops, `"index":2`) {
-		t.Errorf("drop last path wrong: %s", ops)
-	}
+	// An empty caption used to drop the last path; it names none, so it is
+	// refused now (TestWFDropPath_EmptyCaptionIsRefused).
 }
 
 func TestWFInsertBranch(t *testing.T) {
