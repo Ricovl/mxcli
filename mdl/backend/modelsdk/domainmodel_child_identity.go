@@ -84,6 +84,13 @@ func carryAttributeIdentity(ge, orig *genDm.Entity, entity *domainmodel.Entity) 
 	carry := func(ga, sa *genDm.Attribute) {
 		ga.SetID(sa.ID())
 		ga.SetRaw(sa.Raw())
+		// attributeToGen sets ExportLevel "Hidden", and a property the rebuild
+		// sets wins over the carried raw bytes — so without this an API attribute
+		// became Hidden on every rewrite of its entity (ako/mxcli#801). The
+		// semantic attribute has no export level to take it from.
+		if lvl := sa.ExportLevel(); lvl != "" {
+			ga.SetExportLevel(lvl)
+		}
 		claimed[string(sa.ID())] = true
 	}
 
