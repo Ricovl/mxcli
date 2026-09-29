@@ -95,6 +95,13 @@ func (r *Registry) Dispatch(ctx *ExecContext, stmt ast.Statement) error {
 	if skipped, err := skipExistingCreate(ctx, stmt); skipped || err != nil {
 		return err
 	}
+	// A create that would give an element a name another kind already has in
+	// its module — a nanoflow over a microflow, a snippet over a page, an
+	// enumeration over an entity — is refused before the handler writes it:
+	// Mendix rejects the model (CE0122 / CE0065, ako/mxcli#793).
+	if err := refuseNameClash(ctx, stmt); err != nil {
+		return err
+	}
 	err := h(ctx, stmt)
 	// DROP … IF EXISTS: a missing target is a skip, not a failure (#531). The
 	// guard lives here rather than in the ~35 drop handlers because every one
