@@ -78,3 +78,34 @@ func TestStringLiteralEnd(t *testing.T) {
 		}
 	}
 }
+
+// A retrieve's XPath constraint stored as written — one navigating an
+// association, one bracketed predicate, several — holds each string as its
+// value, as the rendered constraint does through QuoteLiteral; under mdl 1 the
+// source is the value already.
+func TestRetrieveXPathStoredAsWrittenStoresItsValue(t *testing.T) {
+	for _, c := range []struct {
+		name, header, where, stored string
+	}{
+		{"mdl 0 association path", "", `M.E_F/M.F/Name = 'C:\\x'`, `M.E_F/M.F/Name = 'C:\x'`},
+		{"mdl 0 escaped apostrophe", "", `M.E_F/M.F/Name = 'it\'s'`, `M.E_F/M.F/Name = 'it''s'`},
+		{"mdl 0 one predicate", "", `[Name = 'C:\\']`, `Name = 'C:\'`},
+		{"mdl 0 predicates", "", `[Name = 'a\\b'][Name != 'c']`, `[Name = 'a\b'][Name != 'c']`},
+		{"mdl 1 association path", "mdl 1;\n", `M.E_F/M.F/Name = 'C:\x'`, `M.E_F/M.F/Name = 'C:\x'`},
+		{"mdl 1 predicates", "mdl 1;\n", `[Name = 'C:\'][Name != 'c']`, `[Name = 'C:\'][Name != 'c']`},
+	} {
+		prog, errs := Build(c.header + "create microflow M.F () begin\n  retrieve $r from M.E where " + c.where + ";\nend;\n")
+		if len(errs) > 0 {
+			t.Fatalf("%s: does not parse: %v", c.name, errs[0])
+		}
+		mf := prog.Statements[len(prog.Statements)-1].(*ast.CreateMicroflowStmt)
+		se, ok := mf.Body[0].(*ast.RetrieveStmt).Where.(*ast.SourceExpr)
+		if !ok {
+			t.Errorf("%s: %s is not stored as written", c.name, c.where)
+			continue
+		}
+		if se.Source != c.stored {
+			t.Errorf("%s: %s stores %q, want %q", c.name, c.where, se.Source, c.stored)
+		}
+	}
+}

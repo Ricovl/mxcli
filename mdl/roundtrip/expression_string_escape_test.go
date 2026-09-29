@@ -220,3 +220,154 @@ func TestUpgradeOfExpressionStringEscapes(t *testing.T) {
 		t.Fatal("the script under the header alone built the same model — the comparison cannot fail")
 	}
 }
+
+// xpathSlots are the ways the builder stores a retrieve's XPath constraint:
+// rendered from its tree, and stored as written because it navigates an
+// association or holds more than one predicate. A constraint that spans lines
+// is left out: it is re-read with the mdl 0 string rule under either language,
+// which is its own defect.
+var xpathSlots = []struct {
+	name  string
+	write func(lit string) string
+}{
+	{"rendered", func(lit string) string { return "Name = " + lit }},
+	{"association path", func(lit string) string { return escapeModule + ".E_F/" + escapeModule + ".F/Name = " + lit }},
+	{"predicates", func(lit string) string { return "[Name = " + lit + "][Name != 'x']" }},
+}
+
+// xpathScript is a microflow retrieving once per case and slot, the literal in
+// the retrieve's XPath constraint.
+func xpathScript(header string, cases []escapeCase) string {
+	var b strings.Builder
+	b.WriteString(header)
+	fmt.Fprintf(&b, "create module %s;\ncreate entity %s.E (Name: String(200));\n", escapeModule, escapeModule)
+	fmt.Fprintf(&b, "create entity %s.F (Name: String(200));\n", escapeModule)
+	fmt.Fprintf(&b, "create association %s.E_F from %s.E to %s.F;\n", escapeModule, escapeModule, escapeModule)
+	fmt.Fprintf(&b, "create microflow %s.XP () begin\n", escapeModule)
+	for i, c := range cases {
+		for j, s := range xpathSlots {
+			fmt.Fprintf(&b, "  retrieve $r%d_%d from %s.E where %s;\n", i, j, escapeModule, s.write(c.lit))
+		}
+	}
+	b.WriteString("end;\n")
+	return b.String()
+}
+
+// storedXPaths maps each retrieve's output variable to its stored constraint.
+func storedXPaths(t *testing.T, unit []byte) map[string]string {
+	t.Helper()
+	var doc bson.D
+	if err := bson.Unmarshal(unit, &doc); err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]string{}
+	var find func(v any) (string, bool)
+	find = func(v any) (string, bool) {
+		switch x := v.(type) {
+		case bson.D:
+			for _, e := range x {
+				if e.Key == "XpathConstraint" {
+					if s, ok := e.Value.(string); ok {
+						return s, true
+					}
+				}
+				if s, ok := find(e.Value); ok {
+					return s, true
+				}
+			}
+		case bson.A:
+			for _, e := range x {
+				if s, ok := find(e); ok {
+					return s, true
+				}
+			}
+		}
+		return "", false
+	}
+	var walk func(v any)
+	walk = func(v any) {
+		switch x := v.(type) {
+		case bson.D:
+			for _, e := range x {
+				if e.Key == "ResultVariableName" {
+					if name, ok := e.Value.(string); ok && name != "" {
+						if s, ok := find(x); ok {
+							out[name] = s
+						}
+					}
+				}
+				walk(e.Value)
+			}
+		case bson.A:
+			for _, e := range x {
+				walk(e)
+			}
+		}
+	}
+	walk(doc)
+	return out
+}
+
+// A string in a retrieve's XPath constraint stores its value the way an
+// expression does, whether the constraint is rendered from its tree (through
+// the same QuoteLiteral) or stored as written, and describe in either language
+// writes it back so that it reads as that value: the description, executed,
+// writes nothing. Once QuoteLiteral stopped writing the mdl 0 escape into the
+// model, an mdl 0 describe that wrote the stored constraint as it stands did
+// not round-trip: `'C:\'` for `'C:\\'` did not parse, and `'a\nb'` for
+// `'a\\nb'` read back as a line break. A constraint stored as written kept the
+// mdl 0 escape in the model (`'C:\\x'`, `'it\'s'`), which Mendix reads as
+// another value or not at all.
+func TestRetrieveXPathStringEscapes(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+	const target = "microflow " + escapeModule + ".XP"
+	for _, lang := range []string{"mdl 0", "mdl 1"} {
+		t.Run(lang, func(t *testing.T) {
+			h.restore()
+			header := ""
+			if lang == "mdl 1" {
+				header = "mdl 1;\n"
+			}
+			describe := func() string {
+				if header == "" {
+					return h.mustDescribe(t, target)
+				}
+				return h.describeUnder(header, target)
+			}
+			cases := escapeCases[lang]
+			script := xpathScript(header, cases)
+			if err := h.exec(script); err != nil {
+				t.Fatalf("exec: %v\n%s", err, script)
+			}
+			stored := storedXPaths(t, h.flowUnit(t, "XP"))
+			for i, c := range cases {
+				for j, s := range xpathSlots {
+					got := stored[fmt.Sprintf("r%d_%d", i, j)]
+					if want := "Name = " + c.stored; !strings.Contains(got, want) {
+						t.Errorf("%s, %s: %s stored\n  %q\nwant it to hold\n  %q", c.name, s.name, s.write(c.lit), got, want)
+					}
+				}
+			}
+
+			first := describe()
+			before := h.flowUnit(t, "XP")
+			if err := h.exec(header + first); err != nil {
+				t.Fatalf("exec the description: %v\n%s", err, first)
+			}
+			if after := h.flowUnit(t, "XP"); !bytes.Equal(after, before) {
+				b, a := storedXPaths(t, before), storedXPaths(t, after)
+				var diff []string
+				for k, v := range b {
+					if a[k] != v {
+						diff = append(diff, fmt.Sprintf("  %s: %q -> %q", k, v, a[k]))
+					}
+				}
+				t.Errorf("describe -> exec wrote the flow:\n%s\n%s", strings.Join(diff, "\n"), first)
+			}
+			if again := describe(); again != first {
+				t.Errorf("describe -> exec -> describe changed it:\n%s", lineDiff(first, again))
+			}
+		})
+	}
+}

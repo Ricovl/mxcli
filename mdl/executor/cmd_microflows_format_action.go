@@ -565,6 +565,12 @@ func formatAction(
 						constraint = strings.TrimSuffix(strings.TrimPrefix(groups[0], "["), "]")
 					}
 				}
+				// A string in the constraint is stored as its value, as in an
+				// expression; under mdl 0 its backslashes are escaped so that it
+				// reads back as that value (mdl0ExpressionStrings).
+				if describeLanguage(ctx) < langver.V1 {
+					constraint = mdl0ExpressionStrings(constraint)
+				}
 				stmt += fmt.Sprintf("\n    where %s", constraint)
 			}
 

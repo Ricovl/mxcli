@@ -1361,6 +1361,7 @@ func buildRetrieveStatement(ctx parser.IRetrieveStatementContext) *ast.RetrieveS
 					andExprs = append(andExprs, buildXPathSourceExpression(xpathExpr))
 					if prc, ok := xpathExpr.(antlr.ParserRuleContext); ok {
 						if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
+							source = storedExpressionSource(source, lexedWithStrictEscapes(prc))
 							predicateSources = append(predicateSources, normalizeXPathTokens("["+source+"]"))
 						}
 					}
@@ -1709,6 +1710,9 @@ func buildXPathSourceExpression(ctx parser.IXpathExprContext) ast.Expression {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
 			// Requote any bare [%token%] so the stored constraint passes mx check
 			// (CE0161) — the original source preserves the unquoted form (#641).
+			// A string in it stores its value, as in an expression: Mendix XPath
+			// has no backslash escape either (storedExpressionSource).
+			source = storedExpressionSource(source, lexedWithStrictEscapes(prc))
 			return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(normalizeXPathTokens(source))}
 		}
 	}
@@ -1733,8 +1737,12 @@ func buildRetrieveWhereExpression(ctx parser.IExpressionContext) ast.Expression 
 	}
 	if prc, ok := ctx.(antlr.ParserRuleContext); ok {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
-			if shouldPreserveExpressionSource(source, lexedWithStrictEscapes(prc)) || strings.Contains(source, "/") {
-				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(source)}
+			strict := lexedWithStrictEscapes(prc)
+			if shouldPreserveExpressionSource(source, strict) || strings.Contains(source, "/") {
+				// Stored as written, each string spelled as its value — the
+				// rendered constraint stores the value through QuoteLiteral, and
+				// describe cannot tell the two apart.
+				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(storedExpressionSource(source, strict))}
 			}
 		}
 	}
