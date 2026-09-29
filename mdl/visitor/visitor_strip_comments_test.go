@@ -42,17 +42,38 @@ func TestStripMDLComments(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := stripMDLComments(tt.in); got != tt.want {
+			if got := stripMDLComments(tt.in, true); got != tt.want {
 				t.Errorf("stripMDLComments(%q)\n got: %q\nwant: %q", tt.in, got, tt.want)
 			}
 		})
 	}
 }
 
+// A literal is scanned by the string rule of the text's language. Under
+// mdl 0 a backslash escapes the next character, so `'it\'s'` is one literal
+// and the `--` in the next one is not a comment; under mdl 1 (strict) a
+// backslash is itself and `'C:\'` ends at its apostrophe (ako/mxcli#825).
+func TestStripMDLComments_StringRule(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		in     string
+		strict bool
+		want   string
+	}{
+		{"mdl 0 escaped apostrophe", `'it\'s' + '--x' -- c`, false, `'it\'s' + '--x' `},
+		{"mdl 0 escaped backslash", `'C:\\' + '--x' -- c`, false, `'C:\\' + '--x' `},
+		{"mdl 1 trailing backslash", `'C:\' + '--x' -- c`, true, `'C:\' + '--x' `},
+	} {
+		if got := stripMDLComments(tt.in, tt.strict); got != tt.want {
+			t.Errorf("%s: stripMDLComments(%q, %v)\n got: %q\nwant: %q", tt.name, tt.in, tt.strict, got, tt.want)
+		}
+	}
+}
+
 // An unterminated block comment is a parse error the parser reports; the
 // stripper must not emit half of it into the model.
 func TestStripMDLComments_UnterminatedBlock(t *testing.T) {
-	if got := stripMDLComments("$x + /* oops"); got != "$x + " {
+	if got := stripMDLComments("$x + /* oops", true); got != "$x + " {
 		t.Errorf("got %q", got)
 	}
 }

@@ -36,10 +36,11 @@ import (
 // mdl 0 escape — a backslash too many, or the mdl 0 `\'` escape, which
 // Mendix does not have (ako/mxcli#825).
 func bracketedXPathText(groups []parser.IXpathConstraintContext) string {
-	src := stripMDLComments(bracketedXPathSource(groups))
-	if len(groups) > 0 {
-		src = storedExpressionSource(src, lexedWithStrictEscapes(groups[0]))
+	if len(groups) == 0 {
+		return ""
 	}
+	strict := lexedWithStrictEscapes(groups[0])
+	src := storedExpressionSource(stripMDLComments(bracketedXPathSource(groups), strict), strict)
 	return normalizeXPathTokens(src)
 }
 
@@ -73,7 +74,7 @@ func IsBracketedXPath(s string) bool {
 	if !strings.HasPrefix(s, "[") || !strings.HasSuffix(s, "]") {
 		return false
 	}
-	if normalizeXPathTokens(stripMDLComments(s)) != s {
+	if normalizeXPathTokens(stripMDLComments(s, true)) != s {
 		return false
 	}
 	lexer := parser.NewMDLLexer(storedXPathStream(s))

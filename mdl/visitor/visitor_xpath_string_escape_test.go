@@ -30,6 +30,9 @@ var xpathEscapeCases = map[string][]xpathEscapeCase{
 		{"escaped apostrophe", `'it\'s'`, `'it''s'`},
 		{"doubled apostrophe", `'it''s'`, `'it''s'`},
 		{"escaped line break", `'a\nb'`, "'a\nb'"},
+		// `--` in a string after one holding `\'`: the comment stripper ended
+		// the first literal at `\'` and cut the constraint at the `--`.
+		{"escaped apostrophe, then a string holding --", `'it\'s' or Name = '--x'`, `'it''s' or Name = '--x'`},
 	},
 	"mdl 1": {
 		{"backslash", `'C:\temp'`, `'C:\temp'`},
@@ -38,6 +41,7 @@ var xpathEscapeCases = map[string][]xpathEscapeCase{
 		{"doubled apostrophe", `'it''s'`, `'it''s'`},
 		{"line break", "'a\nb'", "'a\nb'"},
 		{"backslash n", `'a\nb'`, `'a\nb'`},
+		{"trailing backslash, then a string holding --", `'C:\' or Name = '--x'`, `'C:\' or Name = '--x'`},
 	},
 }
 
