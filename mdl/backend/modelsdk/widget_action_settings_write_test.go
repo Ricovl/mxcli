@@ -13,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genPg "github.com/mendixlabs/mxcli/modelsdk/gen/pages"
 	genTexts "github.com/mendixlabs/mxcli/modelsdk/gen/texts"
@@ -212,5 +213,45 @@ func TestWidgetToGen_InputWidgetsWriteOnLeaveAction(t *testing.T) {
 		if _, ok := ol.OnLeaveAction().(*genPg.NoClientAction); !ok {
 			t.Errorf("%T: OnLeaveAction = %T, want the empty NoAction Studio Pro stores", w, ol.OnLeaveAction())
 		}
+	}
+}
+
+// A NoAction whose flag already equals the stored one is left alone. Setting
+// the equal value marked it dirty, and inside a pluggable widget's kept Object
+// that made the encoder rebuild the Object's lists with today's typed-array
+// markers where Studio Pro stored older ones, rewriting an unchanged widget
+// (#721 L4). The control is a slot whose flag differs, which is still carried.
+func TestCarryNoActionExecution_EqualFlagLeavesTheElementClean(t *testing.T) {
+	stored := bson.D{
+		{Key: "$Type", Value: "Forms$Page"},
+		{Key: "Widgets", Value: bson.A{int32(2), storedTextBox("tb1")}},
+	}
+	decode := func(d bson.D) element.Element {
+		raw, err := bson.Marshal(d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		el, err := codec.NewDecoder(codec.DefaultRegistry).Decode(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return el
+	}
+
+	// The stored widget itself, decoded as a kept Object's children are.
+	kept := decode(storedTextBox("tb1"))
+	carryNoActionExecutionFrom(stored, kept)
+	element.Walk(kept, func(e element.Element) bool {
+		if e.IsDirty() {
+			t.Errorf("%s: dirtied by carrying the value it already holds", e.TypeName())
+		}
+		return true
+	})
+
+	// Control: a slot holding true where the stored one holds false is carried.
+	g := builtTextBox("tb1")
+	carryNoActionExecutionFrom(stored, g)
+	if g.OnEnterAction().(*genPg.NoClientAction).DisabledDuringExecution() {
+		t.Error("OnEnterAction: the differing stored value was not carried")
 	}
 }

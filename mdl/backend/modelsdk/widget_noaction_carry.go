@@ -76,7 +76,11 @@ func carryNoActionExecutionFrom(stored bson.D, root element.Element) {
 			if slot == nil || bsonnav.DGetString(slot, "$Type") != "Forms$NoAction" {
 				continue
 			}
-			if v, ok := bsonnav.DGet(slot, "DisabledDuringExecution").(bool); ok {
+			// Setting an equal value still marks the action dirty, and a dirty
+			// element inside a pluggable widget's kept Object makes the encoder
+			// rebuild its lists with today's typed-array markers where Studio Pro
+			// stored older ones — a rewrite of an unchanged widget (#721 L4).
+			if v, ok := bsonnav.DGet(slot, "DisabledDuringExecution").(bool); ok && built.DisabledDuringExecution() != v {
 				built.SetDisabledDuringExecution(v)
 			}
 		}

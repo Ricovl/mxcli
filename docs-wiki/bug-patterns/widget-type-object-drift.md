@@ -90,6 +90,19 @@ set, the modelsdk set, and the project's own `.mxcli/widgets/`). A fix applied t
 one copy is latent in the others — the same [[duplicate-resolver-drift]] shape,
 here in data rather than code.
 
+**A rewrite must not rebuild a stored widget from the template.** The template
+is one package version in one configuration; a stored widget carries its own
+schema version, property order, translations and every value MDL does not map.
+Rebuilding it on `describe` → `exec` reset all of that on every Studio Pro
+data grid, combo box and image while `mx check` stayed green (#721 L4). The
+writer now keeps the stored Type and Object when the statement's widget equals
+what describe prints for it and binds nothing new, and rebuilds only a widget
+whose statement changed. Two measurement traps from that fix: diff a widget's
+properties **by key** (TypePointer → PropertyKey), never by index, or a pure
+reorder reads as a thousand value changes; and a carry that re-sets an equal
+value dirties the kept Object, which re-encodes its lists with today's
+typed-array markers where Studio Pro stored older ones.
+
 **`mx check` is the wrong gate for this class.** It is tolerant of both extra and
 missing properties; `mx diff` and Studio Pro are strict, and Studio Pro runs
 `mx diff` internally when opening a project with uncommitted changes. A green
