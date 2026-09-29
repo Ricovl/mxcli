@@ -56,6 +56,9 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 		return mdlerrors.NewValidationf("workflow '%s' has reference errors:\n  - %s",
 			s.Name.String(), strings.Join(refErrors, "\n  - "))
 	}
+	if err := checkBoundaryEventDrops(ctx, s); err != nil {
+		return err
+	}
 
 	h, err := getHierarchy(ctx)
 	if err != nil {

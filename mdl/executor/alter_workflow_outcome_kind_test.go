@@ -43,7 +43,8 @@ func wfKindFixture(t *testing.T) (*ExecContext, *mock.MockBackend) {
 			&workflows.ExclusiveSplitActivity{BaseWorkflowActivity: workflows.BaseWorkflowActivity{
 				BaseElement: model.BaseElement{ID: "a2"}, Name: "decision9"}},
 			&workflows.ParallelSplitActivity{BaseWorkflowActivity: workflows.BaseWorkflowActivity{
-				BaseElement: model.BaseElement{ID: "a3"}, Name: "split1"}},
+				BaseElement: model.BaseElement{ID: "a3"}, Name: "split1"},
+				Outcomes: []*workflows.ParallelSplitOutcome{{}, {}}},
 			&workflows.CallMicroflowTask{BaseWorkflowActivity: workflows.BaseWorkflowActivity{
 				BaseElement: model.BaseElement{ID: "a4"}, Name: "callMicroflow1"}},
 		},
