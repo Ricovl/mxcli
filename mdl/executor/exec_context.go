@@ -121,6 +121,12 @@ type ExecContext struct {
 	// activities by the @position printed above them.
 	describeFullLayout bool
 
+	// describeIn, when set, is the exact language DESCRIBE writes, in place of
+	// describeLanguage's default. create or modify pins it to the script's own
+	// version to describe the stored side of its diff, so both sides are read
+	// by the same rules and a value compares as the same AST (ako/mxcli#804).
+	describeIn *langver.Version
+
 	// describeID pins a describe to one stored document. A name is not a unique
 	// key — a module may hold an excluded twin (#914) — so the catalog's source
 	// build, which enumerates documents rather than names, sets it to describe

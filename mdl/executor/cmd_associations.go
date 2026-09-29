@@ -744,7 +744,7 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 		// parser accepts, and DELETE_CASCADE is not a token (upstream #901). The
 		// round-trip test in cmd_associations_delete_behavior_test.go feeds this
 		// back through the parser.
-		if del := describeDeleteClause(childDeleteBehavior); del != defaultDeleteClause {
+		if del := describeDeleteClause(ctx, childDeleteBehavior); del != defaultDeleteClause {
 			clauses = append(clauses, del)
 		}
 		for _, c := range clauses {
@@ -945,7 +945,7 @@ const defaultDeleteClause = "on delete set null"
 // describe -> exec round trip produce an association whose runtime does not
 // start, which is the failure this whole clause exists to prevent (CapTrackV2
 // §1) — and the round trip is exactly how these scripts get regenerated.
-func describeDeleteClause(db *domainmodel.DeleteBehavior) string {
+func describeDeleteClause(ctx *ExecContext, db *domainmodel.DeleteBehavior) string {
 	action := defaultDeleteClause
 	if db != nil {
 		switch db.Type {
@@ -956,7 +956,7 @@ func describeDeleteClause(db *domainmodel.DeleteBehavior) string {
 		}
 	}
 	if db != nil && db.ErrorMessage != "" {
-		return action + " error message " + mdlQuote(db.ErrorMessage)
+		return action + " error message " + mdlQuote(ctx, db.ErrorMessage)
 	}
 	return action
 }

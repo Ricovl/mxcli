@@ -133,8 +133,8 @@ func TestExplicitValueQuotingByDeclaredType(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		if got := explicitPropValue(tc.in); got != tc.want {
-			t.Errorf("%s: explicitPropValue(%q/%q) = %s, want %s",
+		if got := explicitPropValue(nil, tc.in); got != tc.want {
+			t.Errorf("%s: explicitPropValue(nil, %q/%q) = %s, want %s",
 				tc.name, tc.in.Value, tc.in.ValueType, got, tc.want)
 		}
 	}

@@ -7,6 +7,7 @@ import (
 
 	antlr "github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 )
 
 // mdlQuoted renders s as a complete MDL single-quoted string literal, doubling
@@ -27,6 +28,24 @@ import (
 // A companion test asserts no `'%s'` remains in the describers.
 func mdlQuoted(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+}
+
+// mdlQuote writes s as the string literal that reads back as s in the
+// language describe writes (describeLanguage): the one place that decides how
+// describe spells a string value, so that the freeze of mdl 1 (langver.Frozen)
+// switches every describer at once (ako/mxcli#804).
+//
+// Under mdl 1 a backslash is an ordinary character and a doubled apostrophe
+// the only escape (ADR-0010 R11), so the value is written as it is, a line
+// break included: mdlQuoted. Under mdl 0 a backslash escapes, so a backslash,
+// line break, carriage return and tab are written as `\\`, `\n`, `\r` and
+// `\t` (mdl0Quote); written as they are, the mdl 0 reader would turn a
+// stored `C:\temp` into a tab.
+func mdlQuote(ctx *ExecContext, s string) string {
+	if describeLanguage(ctx) >= langver.V1 {
+		return mdlQuoted(s)
+	}
+	return mdl0Quote(s)
 }
 
 // mdlIdent renders name as an MDL identifier suitable for DESCRIBE output,

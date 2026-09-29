@@ -90,17 +90,17 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 	header := fmt.Sprintf("create or modify page %s.%s", modName, foundPage.Name)
 	// The folder is a clause after the name (R9); `Folder:` is its alias.
 	if folderPath := h.BuildFolderPath(foundPage.ContainerID); folderPath != "" {
-		header += " folder " + mdlQuote(folderPath)
+		header += " folder " + mdlQuote(ctx, folderPath)
 	}
 	props := []string{}
 	if title != "" {
-		props = append(props, fmt.Sprintf("Title: %s", mdlQuote(title)))
+		props = append(props, fmt.Sprintf("Title: %s", mdlQuote(ctx, title)))
 	}
 	if layoutName != "" {
 		props = append(props, fmt.Sprintf("Layout: %s", layoutName))
 	}
 	if foundPage.URL != "" {
-		props = append(props, fmt.Sprintf("Url: %s", mdlQuote(foundPage.URL)))
+		props = append(props, fmt.Sprintf("Url: %s", mdlQuote(ctx, foundPage.URL)))
 	}
 	// Pop-up dimensions (issues #661, #713) — emit only non-default values so
 	// the CREATE PAGE header round-trips. Studio Pro's default is 0/0 (auto-size);
@@ -122,10 +122,10 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 		// only when set so the CREATE PAGE header round-trips.
 		if ap, ok := rawData["Appearance"].(map[string]any); ok {
 			if cls, _ := ap["Class"].(string); cls != "" {
-				props = append(props, fmt.Sprintf("Class: %s", mdlQuote(cls)))
+				props = append(props, fmt.Sprintf("Class: %s", mdlQuote(ctx, cls)))
 			}
 			if st, _ := ap["Style"].(string); st != "" {
-				props = append(props, fmt.Sprintf("Style: %s", mdlQuote(st)))
+				props = append(props, fmt.Sprintf("Style: %s", mdlQuote(ctx, st)))
 			}
 		}
 	}
@@ -155,7 +155,7 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 						varTypeName = pageVariableMDLType(vtType, enumQN)
 					}
 				}
-				varParts = append(varParts, fmt.Sprintf("$%s: %s = %s", varName, varTypeName, mdlQuote(defaultVal)))
+				varParts = append(varParts, fmt.Sprintf("$%s: %s = %s", varName, varTypeName, mdlQuote(ctx, defaultVal)))
 			}
 			props = append(props, fmt.Sprintf("Variables: ( %s )", strings.Join(varParts, ", ")))
 		}
@@ -274,7 +274,7 @@ func describeSnippet(ctx *ExecContext, name ast.QualifiedName) error {
 	fmt.Fprintf(ctx.Output, "create or modify snippet %s.%s", modName, foundSnippet.Name)
 	// The folder is a clause after the name (R9); `Folder:` is its alias.
 	if folderPath := h.BuildFolderPath(foundSnippet.ContainerID); folderPath != "" {
-		fmt.Fprintf(ctx.Output, " folder %s", mdlQuote(folderPath))
+		fmt.Fprintf(ctx.Output, " folder %s", mdlQuote(ctx, folderPath))
 	}
 	if len(params) > 0 {
 		snippetProps := []string{}
@@ -363,9 +363,9 @@ func describeLayout(ctx *ExecContext, name ast.QualifiedName) error {
 	// Re-executable MDL, not a comment dump: `create layout` exists now, so a
 	// describe that only narrated the tree would be the one document type whose
 	// output cannot be fed back in.
-	header := fmt.Sprintf("  layouttype: %s", mdlQuote(layoutTypeStr))
+	header := fmt.Sprintf("  layouttype: %s", mdlQuote(ctx, layoutTypeStr))
 	if foundLayout.Class != "" {
-		header += fmt.Sprintf(",\n  class: %s", mdlQuote(foundLayout.Class))
+		header += fmt.Sprintf(",\n  class: %s", mdlQuote(ctx, foundLayout.Class))
 	}
 	fmt.Fprintf(ctx.Output, "create or modify layout %s.%s (\n%s\n) {\n",
 		modName, mdlIdent(foundLayout.Name), header)

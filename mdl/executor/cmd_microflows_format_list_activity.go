@@ -19,12 +19,29 @@ import (
 // mdl 0 forms, because its output carries no header that would make the newer
 // forms mean what they say (ADR-0011). Inside an `mdl 1;` script it writes the
 // mdl 1 forms, which the same script can execute back.
+//
+// create or modify pins it to the script's version instead (describeIn).
 func describeLanguage(ctx *ExecContext) langver.Version {
+	if ctx != nil && ctx.describeIn != nil {
+		return *ctx.describeIn
+	}
 	v := langver.Frozen
 	if ctx != nil && ctx.LanguageVersion > v {
 		v = ctx.LanguageVersion
 	}
 	return v
+}
+
+// describedSource is a description ready to be parsed back: headed by the
+// language it was written in (describeLanguage), so the reader spells its
+// strings, templates and list activities the way describe did. A description
+// of an mdl 1 script read without the header would turn a backslash back into
+// an escape and misread a template spanning lines (ako/mxcli#804).
+func describedSource(ctx *ExecContext, src string) string {
+	if v := describeLanguage(ctx); v > langver.V0 && langver.ScanHeader(src) != v {
+		return v.String() + ";\n" + src
+	}
+	return src
 }
 
 // formatListActivity renders a List operation activity as the statement that
@@ -124,16 +141,4 @@ func formatAggregateActivity(ctx *ExecContext, a *microflows.AggregateListAction
 		return fmt.Sprintf("%s = %s %s of %s;", out, fn, list, describeExpr(a.Expression))
 	}
 	return fmt.Sprintf("%s = %s %s by %s;", out, fn, list, mdlIdent(attrName))
-}
-
-// templateQuote writes the text of a log, show message or validation feedback
-// template as the literal that reads back as that text (#746). Under mdl 1 a
-// backslash is an ordinary character and a doubled apostrophe the only escape, so a line break
-// is written into the literal as it is; the mdl 0 form writes it `\n`, which
-// under mdl 1 would be a backslash and an n.
-func templateQuote(ctx *ExecContext, text string) string {
-	if describeLanguage(ctx) >= langver.V1 {
-		return mdlQuoted(text)
-	}
-	return mdlQuote(text)
 }
