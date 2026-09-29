@@ -68,7 +68,8 @@ func TestDescribePage_NoSyntheticNames(t *testing.T) {
 	}
 	for _, want := range []string{
 		"row {",
-		"column (DesktopWidth: AutoFill) {",
+		// The stored widths (12/12/12), not AutoFill — ako/mxcli#721 L1.
+		"column (DesktopWidth: 12, TabletWidth: 12, PhoneWidth: 12) {",
 		"controlbar {",
 		"column (Attribute: FullName, Caption: 'Full name') {",
 		"column (Attribute: Name, Caption: 'Login') {",

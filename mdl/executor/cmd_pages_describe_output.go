@@ -468,17 +468,15 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			// row or column was inserted, and meant nothing on re-execution.
 			fmt.Fprintf(ctx.Output, "%s  row {\n", prefix)
 			for _, col := range row.Columns {
-				var colProps []string
-				widthStr := "AutoFill"
-				if col.Width > 0 && col.Width <= 12 {
-					widthStr = fmt.Sprintf("%d", col.Width)
+				// The desktop width is always printed. A tablet or phone width
+				// is printed unless it is auto-fill, which is what the builder
+				// writes when the property is left out.
+				colProps := []string{"DesktopWidth: " + layoutGridWidthMDL(col.Width)}
+				if w := layoutGridWidthMDL(col.TabletWidth); w != "AutoFill" {
+					colProps = append(colProps, "TabletWidth: "+w)
 				}
-				colProps = append(colProps, "DesktopWidth: "+widthStr)
-				if col.TabletWidth > 0 && col.TabletWidth <= 12 {
-					colProps = append(colProps, fmt.Sprintf("TabletWidth: %d", col.TabletWidth))
-				}
-				if col.PhoneWidth > 0 && col.PhoneWidth <= 12 {
-					colProps = append(colProps, fmt.Sprintf("PhoneWidth: %d", col.PhoneWidth))
+				if w := layoutGridWidthMDL(col.PhoneWidth); w != "AutoFill" {
+					colProps = append(colProps, "PhoneWidth: "+w)
 				}
 				fmt.Fprintf(ctx.Output, "%s    column (%s) {\n", prefix, strings.Join(colProps, ", "))
 				for _, cw := range col.Widgets {
@@ -2112,4 +2110,17 @@ func visibleWhenProp(w rawWidget) string {
 		attr = w.VisibleAttr
 	}
 	return fmt.Sprintf("Visible: %s in (%s)", attr, strings.Join(vals, ", "))
+}
+
+// layoutGridWidthMDL spells a stored layout-grid column weight: 1..12 is
+// printed as the number, -2 (auto-fit content) as AutoFit, and anything else —
+// -1, or absent on a model older than the property — as AutoFill.
+func layoutGridWidthMDL(weight int) string {
+	switch {
+	case weight > 0:
+		return fmt.Sprintf("%d", weight)
+	case weight == layoutGridWeightAutoFit:
+		return "AutoFit"
+	}
+	return "AutoFill"
 }
