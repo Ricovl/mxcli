@@ -356,7 +356,8 @@ func appendSourceExpressionSuffix(
 	expr ast.Expression,
 	suffix string,
 ) ast.Expression {
-	source := strings.TrimSpace(extractExpressionText(exprCtx.(antlr.ParserRuleContext)))
+	prc := exprCtx.(antlr.ParserRuleContext)
+	source := storedExpressionSource(strings.TrimSpace(extractExpressionText(prc)), lexedWithStrictEscapes(prc))
 	innerExpr := expr
 	if sourceExpr, ok := expr.(*ast.SourceExpr); ok {
 		source = sourceExpr.Source
@@ -1696,7 +1697,7 @@ func buildSendRestRequestStatement(ctx parser.ISendRestRequestStatementContext) 
 				param.Name = parameterNameText(pn)
 			}
 			if expr := pc.Expression(); expr != nil {
-				param.Expression = expressionSourceText(expr)
+				param.Expression = storedExpressionSource(expressionSourceText(expr), lexedWithStrictEscapes(expr))
 			}
 			stmt.Parameters = append(stmt.Parameters, param)
 		}

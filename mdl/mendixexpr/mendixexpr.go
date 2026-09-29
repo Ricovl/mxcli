@@ -113,91 +113,28 @@ func FunctionName(name string) string {
 	return name
 }
 
-// QuoteLiteral renders a Go string as a MENDIX expression literal.
+// QuoteLiteral renders a Go string as a MENDIX expression literal: the
+// characters of s between apostrophes, an apostrophe doubled. That is all.
 //
 // Its output goes into the stored document, so it must be what Mendix's
 // expression engine reads — and that engine has exactly ONE escape: an
 // apostrophe is doubled, SQL-style. There are no backslash escapes.
 // Measured against a running 11.13 runtime: a microflow storing 'a\tb'
 // (backslash, t) put FOUR bytes in the database, 61 5c 74 62 — a literal
-// backslash and a 't', not a tab. That is the bug this function used to have.
+// backslash and a 't', not a tab. A control character is therefore written as
+// itself, and so is a backslash: `C:\temp` is stored `'C:\temp'`, which is
+// what Studio Pro stores for that value.
 //
-// It escaped \n, \r and \t on the premise that "STRING_LITERAL does not accept
-// them raw and the describe output has to survive check". The premise is false
-// on both halves. The lexer rule is
-//
-//	STRING_LITERAL : '\'' ( ~['\\] | '\\' . | '\'\'' )* '\''
-//
-// and `~['\\]` admits every byte except an apostrophe and a backslash —
-// newline, tab and carriage return included. A raw newline already round-tripped
-// through describe → exec for exactly that reason, which is why only the tab
-// looked broken: the newline path never reached the escape.
-//
-// So the escaping bought nothing and cost the value. A raw control character is
-// now emitted as itself: correct in the document, and parseable on the way back.
-//
-// What IS still escaped, and must be:
-//
-//   - an apostrophe, doubled — the engine's only escape, and the MDL lexer's too;
-//   - a backslash whose NEXT byte is one of n/r/t/\/', doubled — otherwise
-//     unquoteString would decode the pair into a control character on reparse,
-//     turning a literal two-character `\t` into a tab. A backslash before any
-//     other byte passes through verbatim, so a regex literal like `^\d+$`
-//     survives (the engine reads `\d` literally and hands it to the regex
-//     compiler).
+// It used to double a backslash before n, r, t, a backslash or an apostrophe,
+// so that the mdl 0 reader would decode the pair back on re-reading describe
+// output. That put the MDL escape into the MODEL: under mdl 1, where a
+// backslash is an ordinary character, `'C:\temp'` was stored with two
+// backslashes (ako/mxcli#810), and under mdl 0 `'C:\\temp'` — one backslash
+// in MDL — was stored with two as well. Spelling a stored value in the
+// language describe writes is describe's job (describeExpr), not the
+// store's.
 func QuoteLiteral(s string) string {
-	var b strings.Builder
-	b.Grow(len(s) + 2)
-	b.WriteByte('\'')
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		switch c {
-		case '\'':
-			b.WriteString(`''`)
-		case '\\':
-			// Double the backslash only when the next byte would otherwise be
-			// interpreted as an escape by unquoteString — that is, n/r/t/\/'.
-			// For any other follower (letters like d/w, punctuation) the
-			// backslash can pass through verbatim so regex escape characters
-			// roundtrip without mutation.
-			if i+1 < len(s) {
-				switch s[i+1] {
-				case 'n', 'r', 't':
-					b.WriteString(`\\`)
-					b.WriteByte(s[i+1])
-					i++
-					continue
-				case '\\':
-					// Literal backslash-backslash in AST. To survive roundtrip
-					// it must be written as four backslashes: unquoteString
-					// decodes `\\` twice, producing two backslashes again.
-					b.WriteString(`\\\\`)
-					i++
-					continue
-				case '\'':
-					// Literal backslash-apostrophe: double the backslash and
-					// double the apostrophe, so the reparsed value stays
-					// [\, '].
-					b.WriteString(`\\`)
-					b.WriteString(`''`)
-					i++
-					continue
-				}
-				b.WriteByte('\\')
-				continue
-			}
-			// Trailing backslash at end-of-string: the lexer's `'\\' .` escape
-			// rule requires a following character, so emitting a bare `\'`
-			// terminator would be reinterpreted as an escape pair and never
-			// close the literal. Double the backslash — unquoteString decodes
-			// `\\` back to a single backslash.
-			b.WriteString(`\\`)
-		default:
-			b.WriteByte(c)
-		}
-	}
-	b.WriteByte('\'')
-	return b.String()
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 // String converts an AST Expression to a Mendix expression string.
