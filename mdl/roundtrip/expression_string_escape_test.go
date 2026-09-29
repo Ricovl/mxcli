@@ -222,10 +222,12 @@ func TestUpgradeOfExpressionStringEscapes(t *testing.T) {
 }
 
 // xpathSlots are the ways the builder stores a retrieve's XPath constraint:
-// rendered from its tree, and stored as written because it navigates an
-// association or holds more than one predicate. A constraint that spans lines
-// is left out: it is re-read with the mdl 0 string rule under either language,
-// which is its own defect.
+// rendered from its tree, stored as written because it navigates an
+// association or holds more than one predicate, and laid out again from a
+// re-parse of the stored text because it spans lines or does not fit on one
+// (visitor.FormatXPathConstraint). That re-parse read the stored constraint
+// with the mdl 0 string rule under either language, so `'C:\temp'` stored a
+// tab and `'C:\'` ran into the rest of the constraint (ako/mxcli#825).
 var xpathSlots = []struct {
 	name  string
 	write func(lit string) string
@@ -233,6 +235,10 @@ var xpathSlots = []struct {
 	{"rendered", func(lit string) string { return "Name = " + lit }},
 	{"association path", func(lit string) string { return escapeModule + ".E_F/" + escapeModule + ".F/Name = " + lit }},
 	{"predicates", func(lit string) string { return "[Name = " + lit + "][Name != 'x']" }},
+	{"spanning lines", func(lit string) string { return "[Name = " + lit + " or\n      Name = 'x']" }},
+	{"longer than a line", func(lit string) string {
+		return "Name = " + lit + " or Name = 'a value long enough to push the constraint past eighty columns'"
+	}},
 }
 
 // xpathScript is a microflow retrieving once per case and slot, the literal in

@@ -88,7 +88,7 @@ func TestAppendWidgetDataSources_PrefersNamed(t *testing.T) {
 		},
 	}
 
-	got := strings.Join(appendWidgetDataSources(nil, w), "\n")
+	got := strings.Join(appendWidgetDataSources(nil, nil, w), "\n")
 	for _, want := range []string{"linkedDs: database from Sales.Order", "refOptions: database from Sales.Customer"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
@@ -111,7 +111,7 @@ func TestAppendWidgetDataSources_GenericClauseLosesTheSecondSource(t *testing.T)
 			{Key: "refOptions", DataSource: &rawDataSource{Type: "database", Reference: "Sales.Customer"}},
 		},
 	}
-	got := strings.Join(appendDataSourceProp(nil, w.DataSource), "\n")
+	got := strings.Join(appendDataSourceProp(nil, nil, w.DataSource), "\n")
 	if strings.Contains(got, "Sales.Order") {
 		t.Fatalf("control did not reproduce the old behaviour — the generic clause "+
 			"should carry only one entity, got:\n%s", got)
@@ -121,7 +121,7 @@ func TestAppendWidgetDataSources_GenericClauseLosesTheSecondSource(t *testing.T)
 // A single-datasource widget is emitted exactly as before: one generic clause.
 func TestAppendWidgetDataSources_SingleSourceUnchanged(t *testing.T) {
 	w := rawWidget{DataSource: &rawDataSource{Type: "database", Reference: "Sales.Customer"}}
-	got := strings.Join(appendWidgetDataSources(nil, w), "\n")
+	got := strings.Join(appendWidgetDataSources(nil, nil, w), "\n")
 	if got != "DataSource: database from Sales.Customer" {
 		t.Errorf("single-source output changed: %q", got)
 	}
@@ -138,7 +138,7 @@ func TestAppendWidgetDataSources_UnresolvedKeyFallsBackNotDropped(t *testing.T) 
 			{Key: "refOptions", DataSource: &rawDataSource{Type: "database", Reference: "Sales.Customer"}},
 		},
 	}
-	got := strings.Join(appendWidgetDataSources(nil, w), "\n")
+	got := strings.Join(appendWidgetDataSources(nil, nil, w), "\n")
 	if !strings.Contains(got, "DataSource: database from Sales.Order") {
 		t.Errorf("an unresolved key must fall back to the unnamed spelling, got:\n%s", got)
 	}

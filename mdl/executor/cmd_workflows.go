@@ -234,10 +234,10 @@ func describeWorkflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	lines = append(lines, "begin")
 	// Activities
 	if targetWf.Flow != nil {
-		actLines := formatMainFlowActivities(targetWf.Flow, "  ")
+		actLines := formatMainFlowActivities(ctx, targetWf.Flow, "  ")
 		lines = append(lines, actLines...)
 	}
-	lines = append(lines, formatEventSubProcesses(targetWf.EventSubProcesses, "  ")...)
+	lines = append(lines, formatEventSubProcesses(ctx, targetWf.EventSubProcesses, "  ")...)
 
 	lines = append(lines, "end workflow;")
 
@@ -293,7 +293,7 @@ func boundaryEventKeyword(eventType string) string {
 }
 
 // formatBoundaryEvents formats boundary events for describe output.
-func formatBoundaryEvents(events []*workflows.BoundaryEvent, indent string) []string {
+func formatBoundaryEvents(ctx *ExecContext, events []*workflows.BoundaryEvent, indent string) []string {
 	if len(events) == 0 {
 		return nil
 	}
@@ -319,7 +319,7 @@ func formatBoundaryEvents(events []*workflows.BoundaryEvent, indent string) []st
 		}
 		if event.Flow != nil && len(event.Flow.Activities) > 0 {
 			lines = append(lines, fmt.Sprintf("%s{", indent))
-			subLines := formatWorkflowActivities(event.Flow, indent+"  ")
+			subLines := formatWorkflowActivities(ctx, event.Flow, indent+"  ")
 			lines = append(lines, subLines...)
 			lines = append(lines, fmt.Sprintf("%s}", indent))
 		}
@@ -331,7 +331,7 @@ func formatBoundaryEvents(events []*workflows.BoundaryEvent, indent string) []st
 // formatEventSubProcesses emits each event sub-process as a block after the main
 // body. Its flow's End is implicit, like the main flow's — the builder appends
 // one when the body does not already end — so it is formatted as a main flow.
-func formatEventSubProcesses(esps []*workflows.EventSubProcess, indent string) []string {
+func formatEventSubProcesses(ctx *ExecContext, esps []*workflows.EventSubProcess, indent string) []string {
 	var lines []string
 	for _, esp := range esps {
 		start := esp.Start()
@@ -369,7 +369,7 @@ func formatEventSubProcesses(esps []*workflows.EventSubProcess, indent string) [
 			lines = append(lines, formatAnnotation(esp.Annotation, indent))
 		}
 		lines = append(lines, header+" {")
-		lines = append(lines, formatMainFlowActivities(esp.Flow, indent+"  ")...)
+		lines = append(lines, formatMainFlowActivities(ctx, esp.Flow, indent+"  ")...)
 		lines = append(lines, indent+"};", "")
 	}
 	return lines
@@ -378,17 +378,17 @@ func formatEventSubProcesses(esps []*workflows.EventSubProcess, indent string) [
 // formatWorkflowActivities generates MDL-like output for workflow activities.
 // formatWorkflowActivities formats a nested flow — an outcome, a branch, a path,
 // a boundary-event path — where an End is an `end workflow` the author wrote.
-func formatWorkflowActivities(flow *workflows.Flow, indent string) []string {
-	return formatFlowActivities(flow, indent, false)
+func formatWorkflowActivities(ctx *ExecContext, flow *workflows.Flow, indent string) []string {
+	return formatFlowActivities(ctx, flow, indent, false)
 }
 
 // formatMainFlowActivities formats the top-level flow, whose Start and End are
 // implicit: the body's own `begin` and `end workflow` stand for them.
-func formatMainFlowActivities(flow *workflows.Flow, indent string) []string {
-	return formatFlowActivities(flow, indent, true)
+func formatMainFlowActivities(ctx *ExecContext, flow *workflows.Flow, indent string) []string {
+	return formatFlowActivities(ctx, flow, indent, true)
 }
 
-func formatFlowActivities(flow *workflows.Flow, indent string, mainFlow bool) []string {
+func formatFlowActivities(ctx *ExecContext, flow *workflows.Flow, indent string, mainFlow bool) []string {
 	if flow == nil {
 		return nil
 	}
@@ -399,17 +399,17 @@ func formatFlowActivities(flow *workflows.Flow, indent string, mainFlow bool) []
 		isComment := false
 		switch a := act.(type) {
 		case *workflows.UserTask:
-			actLines = formatUserTask(a, indent)
+			actLines = formatUserTask(ctx, a, indent)
 		case *workflows.CallMicroflowTask:
-			actLines = formatCallMicroflowTask(a, indent)
+			actLines = formatCallMicroflowTask(ctx, a, indent)
 		case *workflows.SystemTask:
-			actLines = formatSystemTask(a, indent)
+			actLines = formatSystemTask(ctx, a, indent)
 		case *workflows.CallWorkflowActivity:
-			actLines = formatCallWorkflowActivity(a, indent)
+			actLines = formatCallWorkflowActivity(ctx, a, indent)
 		case *workflows.ExclusiveSplitActivity:
-			actLines = formatExclusiveSplit(a, indent)
+			actLines = formatExclusiveSplit(ctx, a, indent)
 		case *workflows.ParallelSplitActivity:
-			actLines = formatParallelSplit(a, indent)
+			actLines = formatParallelSplit(ctx, a, indent)
 		case *workflows.JumpToActivity:
 			target := a.TargetActivity
 			if target == "" {
@@ -456,7 +456,7 @@ func formatFlowActivities(flow *workflows.Flow, indent string, mainFlow bool) []
 			actLines = append(actLines, fmt.Sprintf("%swait for notification%s -- %s", indent,
 				workflowActivityNameClause(a.Name, caption), caption))
 			// BoundaryEvents
-			actLines = append(actLines, formatBoundaryEvents(a.BoundaryEvents, indent+"  ")...)
+			actLines = append(actLines, formatBoundaryEvents(ctx, a.BoundaryEvents, indent+"  ")...)
 		case *workflows.NotificationActivity:
 			if a.Annotation != "" {
 				actLines = append(actLines, formatAnnotation(a.Annotation, indent))
@@ -534,7 +534,7 @@ func formatFlowActivities(flow *workflows.Flow, indent string, mainFlow bool) []
 }
 
 // formatUserTask formats a user task for describe output.
-func formatUserTask(a *workflows.UserTask, indent string) []string {
+func formatUserTask(ctx *ExecContext, a *workflows.UserTask, indent string) []string {
 	var lines []string
 
 	if a.Annotation != "" {
@@ -569,7 +569,7 @@ func formatUserTask(a *workflows.UserTask, indent string) []string {
 			}
 		case *workflows.XPathBasedUserSource:
 			if us.XPath != "" {
-				lines = append(lines, fmt.Sprintf("%s  targeting users xpath %s", indent, targetingXPathMDL(us.XPath)))
+				lines = append(lines, fmt.Sprintf("%s  targeting users xpath %s", indent, targetingXPathMDL(ctx, us.XPath)))
 			}
 		case *workflows.MicroflowGroupSource:
 			if us.Microflow != "" {
@@ -577,7 +577,7 @@ func formatUserTask(a *workflows.UserTask, indent string) []string {
 			}
 		case *workflows.XPathGroupSource:
 			if us.XPath != "" {
-				lines = append(lines, fmt.Sprintf("%s  targeting groups xpath %s", indent, targetingXPathMDL(us.XPath)))
+				lines = append(lines, fmt.Sprintf("%s  targeting groups xpath %s", indent, targetingXPathMDL(ctx, us.XPath)))
 			}
 		}
 	}
@@ -601,7 +601,7 @@ func formatUserTask(a *workflows.UserTask, indent string) []string {
 	}
 
 	if a.IsMulti {
-		lines = append(lines, formatMultiUserTaskCompletion(a, indent)...)
+		lines = append(lines, formatMultiUserTaskCompletion(ctx, a, indent)...)
 	}
 
 	// Outcomes
@@ -617,7 +617,7 @@ func formatUserTask(a *workflows.UserTask, indent string) []string {
 			}
 			if outcome.Flow != nil && len(outcome.Flow.Activities) > 0 {
 				lines = append(lines, fmt.Sprintf("%s    %s {", indent, mdlQuoted(outValue)))
-				subLines := formatWorkflowActivities(outcome.Flow, indent+"      ")
+				subLines := formatWorkflowActivities(ctx, outcome.Flow, indent+"      ")
 				lines = append(lines, subLines...)
 				lines = append(lines, fmt.Sprintf("%s    }", indent))
 			} else {
@@ -627,7 +627,7 @@ func formatUserTask(a *workflows.UserTask, indent string) []string {
 	}
 
 	// BoundaryEvents
-	lines = append(lines, formatBoundaryEvents(a.BoundaryEvents, indent+"  ")...)
+	lines = append(lines, formatBoundaryEvents(ctx, a.BoundaryEvents, indent+"  ")...)
 
 	return lines
 }
@@ -695,7 +695,7 @@ func sameStringSet(a, b []string) bool {
 // `decide by` and `await all users` clauses, in grammar order. What a rebuild
 // writes anyway — all participants, consensus falling back to the first outcome,
 // not waiting — is omitted, so a task that never had them describes as before.
-func formatMultiUserTaskCompletion(a *workflows.UserTask, indent string) []string {
+func formatMultiUserTaskCompletion(ctx *ExecContext, a *workflows.UserTask, indent string) []string {
 	var lines []string
 	if t := a.TargetUserInput; t != nil {
 		switch t.Kind {
@@ -747,7 +747,7 @@ func formatMultiUserTaskCompletion(a *workflows.UserTask, indent string) []strin
 }
 
 // formatCallMicroflowTask formats a call microflow task for describe output.
-func formatCallMicroflowTask(a *workflows.CallMicroflowTask, indent string) []string {
+func formatCallMicroflowTask(ctx *ExecContext, a *workflows.CallMicroflowTask, indent string) []string {
 	var lines []string
 
 	if a.Annotation != "" {
@@ -787,14 +787,14 @@ func formatCallMicroflowTask(a *workflows.CallMicroflowTask, indent string) []st
 	// the other way round produced DESCRIBE output that would not re-parse:
 	// "mismatched input 'outcomes' expecting ';'" (issue #948). It only showed
 	// once the default engine could read boundary events back at all.
-	lines = append(lines, formatConditionOutcomes(a.Outcomes, indent)...)
-	lines = append(lines, formatBoundaryEvents(a.BoundaryEvents, indent+"  ")...)
+	lines = append(lines, formatConditionOutcomes(ctx, a.Outcomes, indent)...)
+	lines = append(lines, formatBoundaryEvents(ctx, a.BoundaryEvents, indent+"  ")...)
 
 	return lines
 }
 
 // formatSystemTask formats a system task for describe output.
-func formatSystemTask(a *workflows.SystemTask, indent string) []string {
+func formatSystemTask(ctx *ExecContext, a *workflows.SystemTask, indent string) []string {
 	var lines []string
 
 	if a.Annotation != "" {
@@ -815,13 +815,13 @@ func formatSystemTask(a *workflows.SystemTask, indent string) []string {
 		workflowActivityAsClause(a.Name, shortDocName(mf)), caption))
 
 	// Outcomes
-	lines = append(lines, formatConditionOutcomes(a.Outcomes, indent)...)
+	lines = append(lines, formatConditionOutcomes(ctx, a.Outcomes, indent)...)
 
 	return lines
 }
 
 // formatCallWorkflowActivity formats a call workflow activity for describe output.
-func formatCallWorkflowActivity(a *workflows.CallWorkflowActivity, indent string) []string {
+func formatCallWorkflowActivity(ctx *ExecContext, a *workflows.CallWorkflowActivity, indent string) []string {
 	var lines []string
 
 	if a.Annotation != "" {
@@ -843,7 +843,7 @@ func formatCallWorkflowActivity(a *workflows.CallWorkflowActivity, indent string
 		workflowActivityAsClause(a.Name, shortDocName(wf)), mdlQuoted(caption), legacy))
 
 	// BoundaryEvents
-	lines = append(lines, formatBoundaryEvents(a.BoundaryEvents, indent+"  ")...)
+	lines = append(lines, formatBoundaryEvents(ctx, a.BoundaryEvents, indent+"  ")...)
 
 	return lines
 }
@@ -907,7 +907,7 @@ func workflowCaptionClauses(name, caption, defaultCaption string) (nameClause, c
 }
 
 // formatExclusiveSplit formats an exclusive split (decision) for describe output.
-func formatExclusiveSplit(a *workflows.ExclusiveSplitActivity, indent string) []string {
+func formatExclusiveSplit(ctx *ExecContext, a *workflows.ExclusiveSplitActivity, indent string) []string {
 	var lines []string
 
 	if a.Annotation != "" {
@@ -923,13 +923,13 @@ func formatExclusiveSplit(a *workflows.ExclusiveSplitActivity, indent string) []
 		lines = append(lines, fmt.Sprintf("%sdecision%s%s", indent, nameClause, captionClause))
 	}
 
-	lines = append(lines, formatConditionOutcomes(a.Outcomes, indent)...)
+	lines = append(lines, formatConditionOutcomes(ctx, a.Outcomes, indent)...)
 
 	return lines
 }
 
 // formatParallelSplit formats a parallel split for describe output.
-func formatParallelSplit(a *workflows.ParallelSplitActivity, indent string) []string {
+func formatParallelSplit(ctx *ExecContext, a *workflows.ParallelSplitActivity, indent string) []string {
 	var lines []string
 
 	if a.Annotation != "" {
@@ -941,7 +941,7 @@ func formatParallelSplit(a *workflows.ParallelSplitActivity, indent string) []st
 	for i, outcome := range a.Outcomes {
 		lines = append(lines, fmt.Sprintf("%s  path %d {", indent, i+1))
 		if outcome.Flow != nil && len(outcome.Flow.Activities) > 0 {
-			subLines := formatWorkflowActivities(outcome.Flow, indent+"    ")
+			subLines := formatWorkflowActivities(ctx, outcome.Flow, indent+"    ")
 			lines = append(lines, subLines...)
 		}
 		lines = append(lines, fmt.Sprintf("%s  }", indent))
@@ -951,7 +951,7 @@ func formatParallelSplit(a *workflows.ParallelSplitActivity, indent string) []st
 }
 
 // formatConditionOutcomes formats condition outcomes for describe output.
-func formatConditionOutcomes(outcomes []workflows.ConditionOutcome, indent string) []string {
+func formatConditionOutcomes(ctx *ExecContext, outcomes []workflows.ConditionOutcome, indent string) []string {
 	if len(outcomes) == 0 {
 		return nil
 	}
@@ -966,7 +966,7 @@ func formatConditionOutcomes(outcomes []workflows.ConditionOutcome, indent strin
 		flow := outcome.GetFlow()
 		if flow != nil && len(flow.Activities) > 0 {
 			lines = append(lines, fmt.Sprintf("%s    %s -> {", indent, name))
-			subLines := formatWorkflowActivities(flow, indent+"      ")
+			subLines := formatWorkflowActivities(ctx, flow, indent+"      ")
 			lines = append(lines, subLines...)
 			lines = append(lines, fmt.Sprintf("%s    }", indent))
 		} else {
@@ -982,11 +982,14 @@ func formatConditionOutcomes(outcomes []workflows.ConditionOutcome, indent strin
 // doubled. A stored value the bracketed grammar does not read is written in the
 // deprecated quoted form, which carries any string, so the output stays
 // re-executable.
-func targetingXPathMDL(xpath string) string {
+//
+// A string in it is spelled for the describe language (describeXPath,
+// ako/mxcli#825), as is the quoted form (mdlQuote).
+func targetingXPathMDL(ctx *ExecContext, xpath string) string {
 	if visitor.IsBracketedXPath(xpath) {
-		return xpath
+		return describeXPath(ctx, xpath)
 	}
-	return mdlQuoted(xpath)
+	return mdlQuote(ctx, xpath)
 }
 
 // workflowExpressionMDL writes a stored workflow expression — a due date, a

@@ -44,7 +44,7 @@ func TestDescribeWorkflow_MainFlowEndStaysImplicit(t *testing.T) {
 	start := &workflows.StartWorkflowActivity{}
 	end := &workflows.EndWorkflowActivity{}
 	end.Name, end.Caption = "End", "End"
-	out := strings.Join(formatMainFlowActivities(&workflows.Flow{Activities: []workflows.WorkflowActivity{start, end}}, "  "), "\n")
+	out := strings.Join(formatMainFlowActivities(nil, &workflows.Flow{Activities: []workflows.WorkflowActivity{start, end}}, "  "), "\n")
 	if strings.Contains(out, "end workflow") {
 		t.Errorf("the main flow's End must stay implicit, got:\n%s", out)
 	}
