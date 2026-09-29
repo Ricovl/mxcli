@@ -25,7 +25,6 @@ package roundtrip
 // so that whoever merges second strikes them.
 var knownFailures = map[string]knownFailure{
 	// Plain `create` where `create or modify` is needed (#705 item 5).
-	"association Administration.AccountPasswordData_Account": {laws: []law{lawGetPut}, issue: "#721", why: "domain-model rewrite drops empty MemberAccess keys (#721 B; the default-false HasChanged* flags are written since #743); storage now carried (#704/#705)"},
 
 	// #721 G: describe output that does not parse.
 	"building block Atlas_Web_Content.Alert":                              {laws: []law{lawParse}, issue: "#721", why: "read-only, but describe prints a widget body that does not parse (#721 G)"},
@@ -92,15 +91,6 @@ var knownFailures = map[string]knownFailure{
 	"javascript action NanoflowCommons.ShowProgress":                      {laws: []law{lawParse}, issue: "#721", why: "a parameter comma is printed after its -- comment (#721 G)"},
 	"javascript action NanoflowCommons.SignIn":                            {laws: []law{lawParse}, issue: "#721", why: "a parameter comma is printed after its -- comment (#721 G)"},
 	"javascript action WebActions.TakePicture":                            {laws: []law{lawParse}, issue: "#721", why: "a parameter comma is printed after its -- comment (#721 G)"},
-
-	// #721 B: entities.
-	"entity Administration.Account":             {laws: []law{lawGetPut}, issue: "#721", why: "access-rule member pointers dropped (#721 B); the generalization flags are written since #743"},
-	"entity Administration.AccountPasswordData": {laws: []law{lawGetPut}, issue: "#721", why: "access-rule member pointers dropped (#721 B); the generalization flags are written since #743"},
-	"entity Atlas_Web_Content.LoginContext":     {laws: []law{lawGetPut}, issue: "#721", why: "access-rule member pointers dropped (#721 B); the generalization flags are written since #743"},
-	"entity FeedbackModule.Feedback":            {laws: []law{lawGetPut}, issue: "#721", why: "access-rule member pointers dropped (#721 B); the generalization flags are written since #743"},
-	"entity FeedbackModule.ResponseHelper":      {laws: []law{lawGetPut}, issue: "#721", why: "access-rule member pointers dropped (#721 B); the generalization flags are written since #743"},
-	"entity NanoflowCommons.Geolocation":        {laws: []law{lawGetPut}, issue: "#721", why: "access-rule member pointers dropped (#721 B); the generalization flags are written since #743"},
-	"entity NanoflowCommons.Position":           {laws: []law{lawGetPut}, issue: "#721", why: "access-rule member pointers dropped (#721 B); the generalization flags are written since #743"},
 
 	// #721 E: menus.
 	"menu Atlas_Core.Phone_Menu":  {laws: []law{lawGetPut}, issue: "#721", why: "nested menu items dropped (#721 E)"},
