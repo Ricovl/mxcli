@@ -167,9 +167,13 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 // because the header alone once changed what they write: `create or modify`
 // on a flow that exists is diff-then-patch, and under mdl 1 a change the splice
 // could not make was refused where mdl 0 rebuilt (ako/mxcli#805 — an implicit
-// end, or a changed return value, was taken for a dropped end event).
+// end, or a changed return value, was taken for a dropped end event;
+// ako/mxcli#818 — a changed document property, and a node moved by a stated
+// @position or @start, were refused).
 var alwaysExecuted = map[string]bool{
-	"mdl-examples/bug-tests/914-excluded-document-preserved.mdl": true,
+	"mdl-examples/bug-tests/914-excluded-document-preserved.mdl":    true,
+	"mdl-examples/bug-tests/951-microflow-start-event-position.mdl": true,
+	"mdl-examples/doctype-tests/microflow-document-properties.mdl":  true,
 }
 
 // terminatorCodes are the gated rewrites that only add a `;` or delete a `/`

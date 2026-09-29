@@ -250,9 +250,10 @@ func TestFlowModify_BranchEditIsSpliced(t *testing.T) {
 	}
 }
 
-// A change the splice cannot make — here a node moved — is refused under
-// mdl 1 with nothing written, and under mdl 0 still rebuilds, with the
-// MDL-V1-REBUILD warning.
+// A change the splice cannot make — here a connector redrawn — is refused
+// under mdl 1 with nothing written, and under mdl 0 still rebuilds, with the
+// MDL-V1-REBUILD warning. (A moved node used to be the example; it is a patch
+// now, ako/mxcli#818.)
 func TestFlowModify_UnspliceableChange(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
@@ -261,14 +262,14 @@ func TestFlowModify_UnspliceableChange(t *testing.T) {
 	// description means under mdl 1 what it means under mdl 0; see
 	// UnchangedIsByteIdentical.)
 	described := h.mustDescribe(t, sendToServer)
-	const oldV1 = "@position(-730, -50)"
-	edited := strings.Replace(described, oldV1, "@position(-720, -50)", 1)
+	const oldV1 = "@position(-730, -50)\n  @curve(from: (30, 0), to: (-15, 0))"
+	edited := strings.Replace(described, oldV1, "@position(-730, -50)\n  @curve(from: (30, 0), to: (-15, 10))", 1)
 	if edited == described {
 		t.Fatalf("describe output has no %q:\n%s", oldV1, described)
 	}
 	err := h.exec("mdl 1;\n" + edited)
-	if err == nil || !strings.Contains(err.Error(), "cannot be spliced") || !strings.Contains(err.Error(), "moved") {
-		t.Fatalf("under mdl 1 want a refusal naming the move, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "cannot be spliced") || !strings.Contains(err.Error(), "redrawn") {
+		t.Fatalf("under mdl 1 want a refusal naming the redrawn connector, got %v", err)
 	}
 	if changed := h.orig.diff(h.snapshot()); len(changed) != 0 {
 		t.Fatalf("the refused statement wrote: %s", strings.Join(changed, "; "))
@@ -276,8 +277,8 @@ func TestFlowModify_UnspliceableChange(t *testing.T) {
 
 	// mdl 0: rebuilt, with the warning.
 	described = h.mustDescribe(t, valFeedback)
-	const old = "@position(-390, 200)"
-	edited = strings.Replace(described, old, "@position(-380, 200)", 1)
+	const old = "@position(-390, 200)\n  @curve(from: (30, 0), to: (-15, 0))"
+	edited = strings.Replace(described, old, "@position(-390, 200)\n  @curve(from: (30, 0), to: (-15, 10))", 1)
 	if edited == described {
 		t.Fatalf("describe output has no %q:\n%s", old, described)
 	}
@@ -287,8 +288,8 @@ func TestFlowModify_UnspliceableChange(t *testing.T) {
 	if !strings.Contains(h.out.String(), "Warning [MDL-V1-REBUILD]") {
 		t.Errorf("under mdl 0 want the MDL-V1-REBUILD warning, got:\n%s", h.out.String())
 	}
-	if !strings.Contains(h.mustDescribe(t, valFeedback), "@position(-380, 200)") {
-		t.Error("under mdl 0 the rebuild did not write the move")
+	if !strings.Contains(h.mustDescribe(t, valFeedback), "to: (-15, 10)") {
+		t.Error("under mdl 0 the rebuild did not write the redrawn connector")
 	}
 }
 
