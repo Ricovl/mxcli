@@ -60,6 +60,11 @@ func (b *Backend) UpdateRegularExpression(re *model.RegularExpression) error {
 	if err != nil {
 		return err
 	}
+	// An ExportLevel the statement did not author is kept (#816).
+	contents, err = b.keepStoredExportLevelUnlessSet(string(re.ID), re.ExportLevel, contents)
+	if err != nil {
+		return fmt.Errorf("UpdateRegularExpression: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(re.ID), contents)
 }
 

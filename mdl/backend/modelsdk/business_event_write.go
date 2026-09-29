@@ -66,6 +66,11 @@ func (b *Backend) UpdateBusinessEventService(svc *model.BusinessEventService) er
 	if err != nil {
 		return fmt.Errorf("UpdateBusinessEventService: encode: %w", err)
 	}
+	// MDL has no export-level spelling; the executor fills in "Hidden" (#816).
+	contents, err = b.keepStoredExportLevel(string(svc.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdateBusinessEventService: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(svc.ID), contents)
 }
 

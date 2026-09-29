@@ -106,6 +106,11 @@ func (b *Backend) UpdateDataTransformer(dt *model.DataTransformer) error {
 	if err != nil {
 		return fmt.Errorf("UpdateDataTransformer: encode: %w", err)
 	}
+	// dataTransformerToGen writes ExportLevel "Hidden" as a constant (#816).
+	contents, err = b.keepStoredExportLevel(string(dt.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdateDataTransformer: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(dt.ID), contents)
 }
 
