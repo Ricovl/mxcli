@@ -257,11 +257,11 @@ func init() {
 	})
 	codec.RegisterListMarker("Forms$NavigationList", 2)
 	codec.RegisterListMarker("Forms$NavigationListItem", 2)
-	// SnippetCallWidget: null visibility; the inner SnippetCall always emits its
-	// (empty) ParameterMappings array.
-	codec.RegisterTypeDefaults("Forms$SnippetCallWidget", codec.TypeDefaults{
-		NullFields: []string{"ConditionalVisibilitySettings"},
-	})
+	// SnippetCallWidget: NO ConditionalVisibilitySettings — the type has no such
+	// property, and none of the 139 snippet calls Studio Pro stored in PedApp and
+	// TestApp carries the key. Registering it as a null field added the key to
+	// every snippet call written (ako/mxcli#826). The inner SnippetCall always
+	// emits its (empty) ParameterMappings array.
 	codec.RegisterListMarker("Forms$SnippetCallWidget", 2)
 	// The three parameter-mapping child types. MandatoryListMarkers covers an
 	// EMPTY list; a populated one takes its marker from the child type, and all
