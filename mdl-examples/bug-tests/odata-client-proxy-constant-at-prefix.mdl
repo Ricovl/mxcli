@@ -16,24 +16,19 @@
 -- quoted-`@` spellings below all store the same bare name.
 
 create constant OdProxy.ProxyHost
-type string
-default 'proxy.example.com';
+( Type: string, DefaultValue: 'proxy.example.com' );
 
 create constant OdProxy.ProxyPort
-type integer
-default 8080;
+( Type: integer, DefaultValue: 8080 );
 
 create constant OdProxy.ProxyUsername
-type string
-default 'proxyuser';
+( Type: string, DefaultValue: 'proxyuser' );
 
 create constant OdProxy.ProxyPassword
-type string
-default 'proxypass';
+( Type: string, DefaultValue: 'proxypass' );
 
 create constant OdProxy.ApiLocation
-type string
-default 'https://api.example.com/odata/v4/';
+( Type: string, DefaultValue: 'https://api.example.com/odata/v4/' );
 /
 
 create consumed odata service OdProxy.ProxiedApi (

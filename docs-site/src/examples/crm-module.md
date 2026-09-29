@@ -184,7 +184,7 @@ CREATE OR MODIFY USER ROLE CRMUser ( ModuleRoles: (System.User, CRM.User) );
 CREATE OR MODIFY USER ROLE CRMAdmin ( ModuleRoles: (System.User, CRM.Admin) );
 
 -- Demo users for testing
-CREATE OR MODIFY DEMO USER 'crm_user' PASSWORD 'Password1!' (CRMUser);
-CREATE OR MODIFY DEMO USER 'crm_admin' PASSWORD 'Password1!' (CRMAdmin);
+CREATE OR MODIFY DEMO USER 'crm_user' ( Password: 'Password1!', UserRoles: (CRMUser) );
+CREATE OR MODIFY DEMO USER 'crm_admin' ( Password: 'Password1!', UserRoles: (CRMAdmin) );
 ALTER APP SECURITY ( EnableDemoUsers: TRUE );
 ```

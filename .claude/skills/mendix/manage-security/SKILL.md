@@ -464,10 +464,10 @@ internet (DIVD-2022-00019). Add an XPath constraint or do not grant it.
 
 ```sql
 -- Create demo user (auto-detects entity that generalizes System.User)
-create demo user 'demo_admin' password 'Admin123!' (Administrator, SuperAdmin);
+create demo user 'demo_admin' ( Password: 'Admin123!', UserRoles: (Administrator, SuperAdmin) );
 
 -- Create demo user with explicit entity
-create demo user 'demo_admin' password 'Admin123!' entity Administration.Account (Administrator, SuperAdmin);
+create demo user 'demo_admin' ( Password: 'Admin123!', Entity: Administration.Account, UserRoles: (Administrator, SuperAdmin) );
 
 -- Remove demo user
 drop demo user 'demo_admin';

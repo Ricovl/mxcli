@@ -53,7 +53,7 @@
 
 create module Ext;
 
-create constant Ext.SvcUrl type String default 'http://127.0.0.1:8899/';
+create constant Ext.SvcUrl ( Type: String, DefaultValue: 'http://127.0.0.1:8899/' );
 
 -- The contract must declare the actions as <Action> with an <ActionImport> in
 -- the EntityContainer. Mendix's `call external action` takes OData ACTIONS

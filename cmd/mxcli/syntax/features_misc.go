@@ -144,7 +144,7 @@ func init() {
 		Syntax: "CREATE <document type> IF NOT EXISTS Module.Name …;\n" +
 			"CREATE MODULE IF NOT EXISTS ModuleName;\n" +
 			"CREATE USER ROLE IF NOT EXISTS Name (…);\n" +
-			"CREATE DEMO USER IF NOT EXISTS 'name' PASSWORD '…' (…);\n" +
+			"CREATE DEMO USER IF NOT EXISTS 'name' ( Password: '…', UserRoles: (…) );\n" +
 			"CREATE CONFIGURATION IF NOT EXISTS 'Name' (…);\n\n" +
 			"-- IF NOT EXISTS goes after the kind's keywords, before the name. When the\n" +
 			"-- element already exists the statement is SKIPPED (and says so) and the\n" +
@@ -161,7 +161,7 @@ func init() {
 		Example: "-- seed a module once; later runs leave hand edits alone\n" +
 			"CREATE MODULE IF NOT EXISTS Shop;\n" +
 			"CREATE ENUMERATION IF NOT EXISTS Shop.Status (Open 'Open', Closed 'Closed');\n" +
-			"CREATE CONSTANT IF NOT EXISTS Shop.ApiUrl TYPE String DEFAULT 'https://api.example.com';\n" +
+			"CREATE CONSTANT IF NOT EXISTS Shop.ApiUrl ( Type: String, DefaultValue: 'https://api.example.com' );\n" +
 			"CREATE MICROFLOW IF NOT EXISTS Shop.ACT_Init ()\nBEGIN\n  RETURN;\nEND;",
 		SeeAlso: []string{"create-modifiers", "drop-if-exists"},
 	})

@@ -48,16 +48,13 @@ Connection credentials should be stored in constants:
 
 ```sql
 /** JDBC connection string for external database */
-create constant MyModule.DbConnectionString type string
-  default 'jdbc:oracle:thin:@//hostname:1521/SERVICENAME';
+create constant MyModule.DbConnectionString ( Type: string, DefaultValue: 'jdbc:oracle:thin:@//hostname:1521/SERVICENAME' );
 
 /** Database username */
-create constant MyModule.DbUsername type string
-  default 'app_user';
+create constant MyModule.DbUsername ( Type: string, DefaultValue: 'app_user' );
 
 /** Database password - inject via environment variable in production */
-create constant MyModule.DbPassword type string
-  default '';
+create constant MyModule.DbPassword ( Type: string, DefaultValue: '' );
 ```
 
 ## Database Connection Syntax
@@ -100,8 +97,8 @@ ConnectionString: 'jdbc:postgresql://localhost:5432/app',
 Username: 'app'
 
 -- RIGHT — declare the constant, then reference it
-create constant Module.DbUrl  type String default 'jdbc:postgresql://localhost:5432/app';
-create constant Module.DbUser type String default 'app';
+create constant Module.DbUrl  ( Type: String, DefaultValue: 'jdbc:postgresql://localhost:5432/app' );
+create constant Module.DbUser ( Type: String, DefaultValue: 'app' );
 
 ConnectionString: @Module.DbUrl,
 Username: @Module.DbUser
@@ -238,12 +235,11 @@ Parameters: ( optionalDate: datetime null )
 create module OracleDemo;
 
 -- Step 2: Create constants for connection
-create constant OracleDemo.OracleConnectionString type string
-  default 'jdbc:oracle:thin:@//10.211.55.2:1522/ORCLPDB1';
+create constant OracleDemo.OracleConnectionString ( Type: string, DefaultValue: 'jdbc:oracle:thin:@//10.211.55.2:1522/ORCLPDB1' );
 
-create constant OracleDemo.OracleUser type string default 'scott';
+create constant OracleDemo.OracleUser ( Type: string, DefaultValue: 'scott' );
 
-create constant OracleDemo.OraclePassword type string default 'tiger';
+create constant OracleDemo.OraclePassword ( Type: string, DefaultValue: 'tiger' );
 
 -- Step 3: Create non-persistent entity for results
 create non-persistent entity OracleDemo.EmpRecord (
@@ -283,11 +279,10 @@ create database connection OracleDemo.HRDatabase (
 ### Example 2: PostgreSQL Connection
 
 ```sql
-create constant Inventory.PgConnectionString type string
-  default 'jdbc:postgresql://localhost:5432/inventory_db';
+create constant Inventory.PgConnectionString ( Type: string, DefaultValue: 'jdbc:postgresql://localhost:5432/inventory_db' );
 
-create constant Inventory.PgUser type string default 'inventory_app';
-create constant Inventory.PgPassword type string default '';
+create constant Inventory.PgUser ( Type: string, DefaultValue: 'inventory_app' );
+create constant Inventory.PgPassword ( Type: string, DefaultValue: '' );
 
 create non-persistent entity Inventory.ProductRecord (
   ProductId: integer,
@@ -350,7 +345,7 @@ drop database connection [if exists] MyModule.MyDatabase;
 - Use `MX_Module_ConstantName` environment variables in production
 
 ### 2. Credential Security
-- Leave a password constant's default empty (`default ''`) and set the value per environment; MDL has no private flag, and a trailing `PRIVATE` was never read
+- Leave a password constant's default empty (`DefaultValue: ''`) and set the value per environment; MDL has no private flag, and a trailing `PRIVATE` was never read
 - Never commit real passwords to version control
 - Inject credentials via CI/CD pipelines in production
 
@@ -382,7 +377,7 @@ drop database connection [if exists] MyModule.MyDatabase;
 
 ```sql
 -- Constants for configuration
-create constant Module.Name type string default 'value';
+create constant Module.Name ( Type: string, DefaultValue: 'value' );
 list constants in module;
 
 -- Non-persistent entities for results
@@ -481,9 +476,9 @@ create non-persistent entity HR.EmployeeRecord (
   Department: string(50)
 );
 
-create constant HR.DbUrl type string default 'jdbc:postgresql://localhost:5432/hrdb';
-create constant HR.DbUser type string default 'app';
-create constant HR.DbPass type string default '';
+create constant HR.DbUrl ( Type: string, DefaultValue: 'jdbc:postgresql://localhost:5432/hrdb' );
+create constant HR.DbUser ( Type: string, DefaultValue: 'app' );
+create constant HR.DbPass ( Type: string, DefaultValue: '' );
 
 create database connection HR.MainDB (
   Type: 'PostgreSQL',

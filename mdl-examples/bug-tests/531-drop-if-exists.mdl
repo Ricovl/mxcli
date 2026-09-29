@@ -15,7 +15,7 @@ create or modify module M531;
 
 create or modify persistent entity M531.Scratch ( Name: string(50) );
 create or modify enumeration M531.OldStatus ( Open 'Open' );
-create or modify constant M531.OldLimit type integer default 5;
+create or modify constant M531.OldLimit ( Type: integer, DefaultValue: 5 );
 create or modify microflow M531.ACT_Old () begin log 'old'; end;
 
 -- the drops a replayable script would carry after the documents above are gone

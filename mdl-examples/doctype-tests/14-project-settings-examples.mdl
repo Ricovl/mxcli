@@ -151,7 +151,7 @@ alter settings configuration 'Default' (
 /**
  * Example 3.1: Override a constant value in a specific configuration
  */
-create constant MyModule.ServerUrl type string default 'localhost:9092';
+create constant MyModule.ServerUrl ( Type: string, DefaultValue: 'localhost:9092' );
 alter settings constant @MyModule.ServerUrl value 'kafka:9092'
   in configuration 'Default';
 

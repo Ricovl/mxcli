@@ -326,12 +326,10 @@ alter workflow AICustSupport.CaseResolution {
 -- ############################################################################
 
 create constant AICustSupport."LLMKey"
-  type string
-  default '';
+  ( Type: string, DefaultValue: '' );
 
 create constant AICustSupport."KBKey"
-  type string
-  default '';
+  ( Type: string, DefaultValue: '' );
 
 -- Model document (visible in Studio Pro Agent Editor — developer UX)
 create ai model AICustSupport."GPT4TurboModel" (
@@ -556,10 +554,10 @@ create or modify user role PlatformAdmin     ( ModuleRoles: (System.Administrato
 -- Enable demo users (disable in production — use SSO)
 alter app security ( EnableDemoUsers: true );
 
-create or modify demo user 'customer@demo'   password 'Customer1!xx' (EndCustomer);
-create or modify demo user 'agent@demo'      password 'Agent1!xxxx'  (SupportAgent);
-create or modify demo user 'supervisor@demo' password 'Super1!xxxx'  (SupportSupervisor);
-create or modify demo user 'admin@demo'      password 'Admin1!xxxx'  (PlatformAdmin);
+create or modify demo user 'customer@demo' ( Password: 'Customer1!xx', UserRoles: (EndCustomer) );
+create or modify demo user 'agent@demo' ( Password: 'Agent1!xxxx', UserRoles: (SupportAgent) );
+create or modify demo user 'supervisor@demo' ( Password: 'Super1!xxxx', UserRoles: (SupportSupervisor) );
+create or modify demo user 'admin@demo' ( Password: 'Admin1!xxxx', UserRoles: (PlatformAdmin) );
 
 -- ############################################################################
 -- ENTERPRISE INTEGRATION: PUBLISHED REST API

@@ -179,8 +179,8 @@ GRANT VIEW ON PAGE Shop.Order_Edit TO Shop.User, Shop.Admin;
 GRANT VIEW ON PAGE Shop.Admin_Dashboard TO Shop.Admin;
 
 -- Demo users
-CREATE DEMO USER 'demo_admin' PASSWORD 'Admin123!' (Administrator);
-CREATE DEMO USER 'demo_user' PASSWORD 'User123!' (Employee);
+CREATE DEMO USER 'demo_admin' ( Password: 'Admin123!', UserRoles: (Administrator) );
+CREATE DEMO USER 'demo_user' ( Password: 'User123!', UserRoles: (Employee) );
 
 -- Enable demo users
 ALTER APP SECURITY ( EnableDemoUsers: TRUE );

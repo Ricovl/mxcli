@@ -33,18 +33,15 @@ create module DbTest;
 
 /* JDBC connection string for F1 database */
 /** JDBC connection string for F1 database */
-create constant DbTest.F1Database_DBSource type string
-  default 'jdbc:sqlserver://host.docker.internal:1433;databaseName=F1;encrypt=false';
+create constant DbTest.F1Database_DBSource ( Type: string, DefaultValue: 'jdbc:sqlserver://host.docker.internal:1433;databaseName=F1;encrypt=false' );
 
 /* Database username */
 /** Database username for F1 database */
-create constant DbTest.F1Database_DBUsername type string
-  default 'sa';
+create constant DbTest.F1Database_DBUsername ( Type: string, DefaultValue: 'sa' );
 
 /* Database password */
 /** Database password for F1 database */
-create constant DbTest.F1Database_DBPassword type string
-  default '';
+create constant DbTest.F1Database_DBPassword ( Type: string, DefaultValue: '' );
 
 -- ============================================================================
 -- Non-Persistent Entities for Query Results

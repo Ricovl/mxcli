@@ -9,8 +9,7 @@
 
 -- First, create constants for service locations (required for ServiceUrl)
 CREATE CONSTANT TestModule.NorthwindLocation
-  TYPE String
-  DEFAULT 'https://services.odata.org/V4/Northwind/Northwind.svc/';
+  ( Type: String, DefaultValue: 'https://services.odata.org/V4/Northwind/Northwind.svc/' );
 
 -- Method 1: Absolute file:// URI (stored as-is in model)
 -- Useful when the metadata file is in a fixed location

@@ -45,7 +45,7 @@ A `REST CALL` URL is an **expression**, so it can be assembled from a constant
 (`@Module.Constant` is Mendix's constant reference — `$Name` is a *variable*):
 
 ```sql
-create constant MyModule.ApiBaseUrl type String default 'https://api.example.com/v1';
+create constant MyModule.ApiBaseUrl ( Type: String, DefaultValue: 'https://api.example.com/v1' );
 
 create microflow MyModule.CallApi() returns string
 begin

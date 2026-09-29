@@ -31,13 +31,11 @@ create module AgentTest;
 -- ============================================================================
 
 create constant AgentTest."ModelKey"
-  type string
-  default '';
+  ( Type: string, DefaultValue: '' );
 /
 
 create constant AgentTest."KBKey"
-  type string
-  default '';
+  ( Type: string, DefaultValue: '' );
 /
 
 -- ============================================================================
