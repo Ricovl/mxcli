@@ -1424,7 +1424,9 @@ func retrieveRangeExpressionSource(exprCtx parser.IExpressionContext) string {
 	}
 	if prc, ok := exprCtx.(antlr.ParserRuleContext); ok {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
-			return source
+			// Stored as written: a string in it stores its value, as in any
+			// other expression (storedExpressionSource, #825).
+			return storedExpressionSource(source, lexedWithStrictEscapes(prc))
 		}
 	}
 	return exprCtx.GetText()

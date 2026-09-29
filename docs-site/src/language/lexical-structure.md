@@ -64,6 +64,8 @@ A script without the header (`mdl 0`) still reads a backslash before `n`, `r`, `
 
 A string in a microflow or nanoflow expression is read by the same rule as any other string, and the expression stores its value the way Studio Pro does: an apostrophe doubled, a backslash and a line break as themselves. Under `mdl 1;` `'C:\temp'` stores `'C:\temp'`; without the header `'C:\\temp'` stores `'C:\temp'` and `'it\'s'` stores `'it''s'` — whether the builder renders the expression or stores it as written.
 
+A string in an XPath constraint follows the same rule, wherever the XPath is written: a retrieve's `where`, an entity access rule, a page datasource, a workflow user task's `targeting xpath`, and a navigation sync constraint. So do the Mendix expressions a statement stores as written beside them — a retrieve's `limit` and `offset`, a database query's `dynamic` expression. `describe` writes each back in its own language: a plain `describe` doubles a backslash inside a string, `describe` in an `mdl 1;` script writes the constraint as stored.
+
 A line break is written into the literal itself: a string may span lines, and the break is part of its value. This is also how a text template — the message of `log`, `show message` or `validation feedback` — holds a line break; under `mdl 1;` a template written as one literal is the template text whether or not it spans lines:
 
 ```sql

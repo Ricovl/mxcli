@@ -46,7 +46,7 @@ func TestWorkflowUserTask_QuotesReservedName(t *testing.T) {
 	task.Name = "Value"
 	task.Caption = "Approve"
 
-	output := strings.Join(formatUserTask(task, ""), "\n")
+	output := strings.Join(formatUserTask(nil, task, ""), "\n")
 
 	if !strings.Contains(output, `user task "Value" 'Approve'`) {
 		t.Errorf("expected reserved user-task name to be quoted, got:\n%s", output)

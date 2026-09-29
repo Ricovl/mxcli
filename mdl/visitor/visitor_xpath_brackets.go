@@ -26,8 +26,22 @@ import (
 // (retrieve, navigation): an MDL comment, which the source span drags along
 // from the hidden channel, and the missing quotes around a bare [%Token%]
 // value (#641). Stored, either fails the build with CE0161.
+//
+// A string in it is read by the script's string rule and stored as its value
+// in Mendix's spelling, as in an expression (storedExpressionSource): under
+// mdl 1 that is the text as written; under mdl 0 `'C:\\temp'` stores
+// `'C:\temp'` and `'it\'s'` stores it with the apostrophe doubled. A
+// retrieve and a page datasource already stored the value, while an access
+// rule, a workflow targeting and a navigation sync constraint stored the
+// mdl 0 escape — a backslash too many, or the mdl 0 `\'` escape, which
+// Mendix does not have (ako/mxcli#825).
 func bracketedXPathText(groups []parser.IXpathConstraintContext) string {
-	return normalizeXPathTokens(stripMDLComments(bracketedXPathSource(groups)))
+	if len(groups) == 0 {
+		return ""
+	}
+	strict := lexedWithStrictEscapes(groups[0])
+	src := storedExpressionSource(stripMDLComments(bracketedXPathSource(groups), strict), strict)
+	return normalizeXPathTokens(src)
 }
 
 // bracketedXPathSource is the raw source span of a run of xpathConstraint
@@ -54,15 +68,16 @@ func bracketedXPathSource(groups []parser.IXpathConstraintContext) string {
 // or quotes on the way in (a comment, a bare [%Token%]) is not one. Describe
 // asks it before writing a stored constraint in [ ]; a stored value that does
 // not parse is written in the deprecated quoted form instead, which keeps the
-// output re-executable. The rewrite of the quoted form asks it too.
+// output re-executable. The rewrite of the quoted form asks it too. s is a
+// stored value, so its strings are read the Mendix way (storedXPathStream).
 func IsBracketedXPath(s string) bool {
 	if !strings.HasPrefix(s, "[") || !strings.HasSuffix(s, "]") {
 		return false
 	}
-	if normalizeXPathTokens(stripMDLComments(s)) != s {
+	if normalizeXPathTokens(stripMDLComments(s, true)) != s {
 		return false
 	}
-	lexer := parser.NewMDLLexer(antlr.NewInputStream(s))
+	lexer := parser.NewMDLLexer(storedXPathStream(s))
 	lexer.RemoveErrorListeners()
 	errs := &countingErrorListener{}
 	lexer.AddErrorListener(errs)

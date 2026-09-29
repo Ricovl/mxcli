@@ -1478,6 +1478,7 @@ MDL uses explicit property declarations for pages:
 | Database source | `datasource: database entity` | `datagrid dg (datasource: database Module.Entity)` |
 | Database source, constrained and sorted | `datasource: database entity where [...] sort by Attr asc` | `listview lv (datasource: database from Mod.Vehicle where [Brand != ''] sort by Brand asc)` |
 | List view search bar | `... search by Attr, Attr2` | `listview lv (datasource: database from Mod.Vehicle search by Brand, Model)` — **list view only**; mirrors `sort by` and takes no direction |
+| Database source over an association | `datasource: database from $ctx/Assoc/Entity [where …] [sort by …] [search by …]` | `listview lv (datasource: database from $Task/System.WorkflowUserTask_Assignees/Administration.Account sort by FullName asc)` — **list view only**; a database retrieve of what the association reaches, keeping XPath, sort and search. Not the same as the association source `$Task/System.WorkflowUserTask_Assignees` (in memory, none of the three). Name each hop's entity: Studio Pro may store a specialization of the association's end (ako/mxcli#721 L5) |
 | Selection binding | `datasource: selection widget` | `dataview dv (datasource: selection galleryList)` |
 | Association source ("data from context") | `datasource: $currentObject/Module.Assoc` | nested `dataview dvCust (datasource: $currentObject/Order_Customer)` shows the to-one referenced object; a list widget shows the to-many collection |
 | CSS class | `class: 'classes'` | `container c (class: 'card mx-spacing-top-large')` |

@@ -143,13 +143,14 @@ func buildNavSyncDef(ctx parser.INavSyncDefContext) ast.NavSyncDef {
 		// alternative so they cannot disagree.
 		def.Mode = "Constrained"
 		if xc := mc.XpathConstraint(); xc != nil {
-			// First-class form. The source text is taken verbatim and stored
-			// bracketed, exactly as a RETRIEVE's multi-predicate WHERE does —
-			// no unescaping, because nothing was escaped.
+			// First-class form. The source text is stored bracketed, exactly as
+			// a RETRIEVE's multi-predicate WHERE does: a string in it stores its
+			// value in Mendix's spelling (storedExpressionSource, #825).
 			xcCtx := xc.(*parser.XpathConstraintContext)
 			if xe := xcCtx.XpathExpr(); xe != nil {
 				if prc, ok := xe.(antlr.ParserRuleContext); ok {
 					if src := strings.TrimSpace(extractExpressionText(prc)); src != "" {
+						src = storedExpressionSource(src, lexedWithStrictEscapes(prc))
 						def.Constraint = normalizeXPathTokens("[" + src + "]")
 					}
 				}

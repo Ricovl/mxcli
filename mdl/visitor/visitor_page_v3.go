@@ -645,6 +645,21 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	if propCtx.ATTRIBUTE() != nil {
 		if pathCtx := propCtx.AttributePathV3(); pathCtx != nil {
 			widget.Properties["Attribute"] = buildAttributePathV3(pathCtx)
+		} else if refCtx := propCtx.WidgetAttributeRefV3(); refCtx != nil {
+			// `$dataView1.Name`: kept as written; the builder resolves the name
+			// to the data view it reads through (ako/mxcli#826). Only the input
+			// builders read it — any other widget resolved the `$…` string to no
+			// attribute and was written without one, so it stays refused there.
+			ref := buildWidgetAttributeRefV3(refCtx)
+			if !widgetAttributeRefKinds[strings.ToLower(widget.Type)] {
+				_, attr, _ := strings.Cut(ref, ".")
+				b.addError(fmt.Errorf("%s `%s`: `Attribute: %s` — reading an attribute through a data view "+
+					"is supported on textbox, textarea, checkbox, datepicker, radiobuttons and dropdown; "+
+					"bind the attribute by name inside the data view instead (`Attribute: %s`)",
+					widget.Type, widget.Name, refCtx.GetText(), attr))
+				return
+			}
+			widget.Properties["Attribute"] = ref
 		}
 		return
 	}
@@ -1031,7 +1046,9 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 	dsCtx := ctx.(*parser.DataSourceExprV3Context)
 	ds := &ast.DataSourceV3{}
 
-	if v := dsCtx.VARIABLE(); v != nil && dsCtx.SLASH() != nil {
+	if dsCtx.DATABASE() != nil {
+		buildDatabaseSourceV3(dsCtx, ds)
+	} else if v := dsCtx.VARIABLE(); v != nil && dsCtx.SLASH() != nil {
 		// $currentObject/Module.Assoc — ByAssociation data source (sugar for ASSOCIATION Path)
 		ds.Type = "association"
 		ds.ContextVariable = strings.TrimPrefix(v.GetText(), "$")
@@ -1042,39 +1059,6 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 		// $ParamName
 		ds.Type = "parameter"
 		ds.Reference = v.GetText()
-	} else if dsCtx.DATABASE() != nil {
-		// DATABASE [FROM] Entity [WHERE ...] [SORT BY ...]
-		ds.Type = "database"
-		if qn := dsCtx.QualifiedName(); qn != nil {
-			ds.Reference = getQualifiedNameText(qn)
-		}
-
-		// Inline WHERE clause
-		if dsCtx.WHERE() != nil {
-			xpathConstraints := dsCtx.AllXpathConstraint()
-			if len(xpathConstraints) > 0 {
-				ds.Where = normalizeXPathTokens(buildXPathString(xpathConstraints, dsCtx.AllAndOrXpath()))
-			} else if expr := dsCtx.Expression(); expr != nil {
-				ds.Where = bracketedXPathFromExpr(buildExpression(expr))
-			}
-		}
-
-		// Inline SORT BY clause
-		if dsCtx.SORT_BY() != nil {
-			for _, sc := range dsCtx.AllSortColumn() {
-				ds.OrderBy = append(ds.OrderBy, buildSortColumnAsOrderBy(sc))
-			}
-		}
-
-		// Inline SEARCH BY clause — a List View's search bar
-		// (Forms$ListViewSearch.SearchRefs). Names only, no direction.
-		if dsCtx.SEARCH_BY() != nil {
-			for _, sa := range dsCtx.AllSearchAttribute() {
-				if name := strings.TrimSpace(sa.GetText()); name != "" {
-					ds.SearchAttributes = append(ds.SearchAttributes, name)
-				}
-			}
-		}
 	} else if dsCtx.MICROFLOW() != nil {
 		// MICROFLOW Module.Flow
 		ds.Type = "microflow"
@@ -1111,6 +1095,49 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 	}
 
 	return ds
+}
+
+// buildDatabaseSourceV3 fills a DATABASE source: its entity, or — for
+// `database from $ctx/Assoc/Entity` — the context variable and association path
+// it is reached over (ako/mxcli#721 L5), then the WHERE, SORT BY and SEARCH BY
+// clauses both forms share.
+func buildDatabaseSourceV3(dsCtx *parser.DataSourceExprV3Context, ds *ast.DataSourceV3) {
+	ds.Type = "database"
+	if v := dsCtx.VARIABLE(); v != nil {
+		ds.ContextVariable = strings.TrimPrefix(v.GetText(), "$")
+		if pathCtx := dsCtx.AssociationPathV3(); pathCtx != nil {
+			ds.AssociationPath = buildAssociationPathV3(pathCtx)
+		}
+	} else if qn := dsCtx.QualifiedName(); qn != nil {
+		ds.Reference = getQualifiedNameText(qn)
+	}
+
+	// Inline WHERE clause
+	if dsCtx.WHERE() != nil {
+		xpathConstraints := dsCtx.AllXpathConstraint()
+		if len(xpathConstraints) > 0 {
+			ds.Where = normalizeXPathTokens(buildXPathString(xpathConstraints, dsCtx.AllAndOrXpath()))
+		} else if expr := dsCtx.Expression(); expr != nil {
+			ds.Where = bracketedXPathFromExpr(buildExpression(expr))
+		}
+	}
+
+	// Inline SORT BY clause
+	if dsCtx.SORT_BY() != nil {
+		for _, sc := range dsCtx.AllSortColumn() {
+			ds.OrderBy = append(ds.OrderBy, buildSortColumnAsOrderBy(sc))
+		}
+	}
+
+	// Inline SEARCH BY clause — a List View's search bar
+	// (Forms$ListViewSearch.SearchRefs). Names only, no direction.
+	if dsCtx.SEARCH_BY() != nil {
+		for _, sa := range dsCtx.AllSearchAttribute() {
+			if name := strings.TrimSpace(sa.GetText()); name != "" {
+				ds.SearchAttributes = append(ds.SearchAttributes, name)
+			}
+		}
+	}
 }
 
 // buildActionV3 builds an Action from the parse context.
@@ -1281,6 +1308,25 @@ func buildAssociationPathV3(ctx parser.IAssociationPathV3Context) string {
 		parts = append(parts, getQualifiedNameText(qn))
 	}
 	return strings.Join(parts, "/")
+}
+
+// widgetAttributeRefKinds are the widgets whose builder resolves `Attribute:
+// $dataView1.Name` (resolveInputBinding) — ako/mxcli#826.
+var widgetAttributeRefKinds = map[string]bool{
+	"textbox": true, "textarea": true, "checkbox": true,
+	"datepicker": true, "radiobuttons": true, "dropdown": true,
+}
+
+// buildWidgetAttributeRefV3 renders `$name.Attr` with a quoted attribute name
+// unquoted, the form resolveInputAttribute reads.
+func buildWidgetAttributeRefV3(ctx parser.IWidgetAttributeRefV3Context) string {
+	c, ok := ctx.(*parser.WidgetAttributeRefV3Context)
+	if !ok || c.VARIABLE() == nil {
+		return ""
+	}
+	text := c.GetText()
+	_, attr, _ := strings.Cut(text, ".")
+	return c.VARIABLE().GetText() + "." + unquoteIdentifier(attr)
 }
 
 // buildAttributePathV3 builds an attribute path string.

@@ -78,7 +78,12 @@ func refreshModifier(refresh bool) string {
 // Widget and workflow expressions are not microflow expressions: they are
 // stored as written in both languages, so their describers only trim.
 func describeExpr(ctx *ExecContext, v string) string {
-	v = strings.TrimSpace(v)
+	return describeExprText(ctx, strings.TrimSpace(v))
+}
+
+// describeExprText is describeExpr keeping the stored text's surrounding
+// whitespace, for a field whose round trip carries it (a retrieve's limit).
+func describeExprText(ctx *ExecContext, v string) string {
 	if describeLanguage(ctx) >= langver.V1 {
 		return v
 	}
@@ -111,6 +116,19 @@ func mdl0ExpressionStrings(v string) string {
 		}
 	}
 	return b.String()
+}
+
+// describeXPath writes a stored XPath constraint for describe output in the
+// language describe writes. A string in a stored constraint is spelled the
+// Mendix way, a backslash as itself, and a bracketed XPath in a script reads
+// its strings by the script's rule and stores their values (ako/mxcli#825):
+// under mdl 1 the constraint is written as stored, under mdl 0 with every
+// backslash in a string doubled (mdl0ExpressionStrings) so that it reads back
+// as the stored value. Every describer of a bracketed XPath — retrieve, access
+// rule, page datasource, workflow targeting, navigation sync — goes through
+// here.
+func describeXPath(ctx *ExecContext, x string) string {
+	return describeExprText(ctx, x)
 }
 
 // escapeExpressionValue writes a stored Mendix expression for describe output
@@ -567,10 +585,8 @@ func formatAction(
 				}
 				// A string in the constraint is stored as its value, as in an
 				// expression; under mdl 0 its backslashes are escaped so that it
-				// reads back as that value (mdl0ExpressionStrings).
-				if describeLanguage(ctx) < langver.V1 {
-					constraint = mdl0ExpressionStrings(constraint)
-				}
+				// reads back as that value.
+				constraint = describeXPath(ctx, constraint)
 				stmt += fmt.Sprintf("\n    where %s", constraint)
 			}
 
@@ -611,11 +627,13 @@ func formatAction(
 					// header (ako/mxcli#734).
 					stmt += "\n    first"
 				case microflows.RangeTypeCustom:
+					// Limit and offset are Mendix expressions, spelled for the
+					// describe language like any other (ako/mxcli#825).
 					if dbSource.Range.Limit != "" {
-						stmt += fmt.Sprintf("\n    limit %s", dbSource.Range.Limit)
+						stmt += fmt.Sprintf("\n    limit %s", describeExprText(ctx, dbSource.Range.Limit))
 					}
 					if dbSource.Range.Offset != "" {
-						stmt += fmt.Sprintf("\n    offset %s", dbSource.Range.Offset)
+						stmt += fmt.Sprintf("\n    offset %s", describeExprText(ctx, dbSource.Range.Offset))
 					}
 				}
 			}
@@ -1561,7 +1579,10 @@ func formatExecuteDatabaseQueryAction(ctx *ExecContext, a *microflows.ExecuteDat
 
 	// Dynamic query override
 	if a.DynamicQuery != "" {
-		sb.WriteString(fmt.Sprintf(" dynamic %s", a.DynamicQuery))
+		// A Mendix expression, spelled for the describe language like any other
+		// (ako/mxcli#825): written as stored, `'C:\temp'` read back under
+		// mdl 0 as a tab.
+		sb.WriteString(fmt.Sprintf(" dynamic %s", describeExpr(ctx, a.DynamicQuery)))
 	}
 
 	// Parameter mappings

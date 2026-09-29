@@ -499,6 +499,7 @@ widgetPropertiesV3
 widgetPropertyV3
     : DATASOURCE COLON dataSourceExprV3               // DataSource: $var | DATABASE Entity | MICROFLOW ...
     | ATTRIBUTE COLON attributePathV3                 // Attribute: Name | Product/Category
+    | ATTRIBUTE COLON widgetAttributeRefV3            // Attribute: $dataView1.Name — read through a data view (#826)
     | BINDS COLON attributePathV3                     // Binds: (deprecated, use Attribute:)
     | ACTION COLON actionExprV3                       // Action: SAVE_CHANGES | SHOW_PAGE ...
     | ONCLICK COLON actionExprV3                      // OnClick: MICROFLOW ... (alias of Action: — e.g. clickable CONTAINER, issue #603)
@@ -642,10 +643,16 @@ attributeListV3
     ;
 
 // V3 DataSource expressions
+//
+// `database from $ctx/Assoc/Entity` is a DATABASE retrieve reached over an
+// association from a context object (a Forms$ListViewXPathSource whose EntityRef
+// is an IndirectEntityRef): it keeps its XPath, sort and search. The bare
+// `$ctx/Assoc` is an ASSOCIATION source, an in-memory retrieve with none of them.
+// Studio Pro distinguishes the two, so MDL does (ako/mxcli#721 L5).
 dataSourceExprV3
     : VARIABLE SLASH associationPathV3                // $currentObject/Module.Assoc (ByAssociation — sugar for ASSOCIATION)
     | VARIABLE                                        // $ParamName
-    | DATABASE FROM? qualifiedName                    // DATABASE [FROM] Entity [WHERE ...] [SORT BY ...]
+    | DATABASE FROM? (qualifiedName | VARIABLE SLASH associationPathV3) // DATABASE [FROM] Entity|$ctx/Assoc/Entity [WHERE ...] [SORT BY ...]
       (WHERE (xpathConstraint (andOrXpath? xpathConstraint)* | expression))?
       (SORT_BY sortColumn (COMMA sortColumn)*)?
       (SEARCH_BY searchAttribute (COMMA searchAttribute)*)?
@@ -754,6 +761,13 @@ visibleValueV3
 // V3 Attribute path: Name, Product/Category, "Order" (quoted to escape reserved words)
 attributePathV3
     : (IDENTIFIER | QUOTED_IDENTIFIER | keyword) (SLASH (IDENTIFIER | QUOTED_IDENTIFIER | keyword))*
+    ;
+
+// An input widget's attribute read through a named data view: Studio Pro's
+// widget-scoped SourceVariable {Widget: dataView1, …} (ako/mxcli#826). The same
+// `$name.Attr` spelling a text template parameter uses.
+widgetAttributeRefV3
+    : VARIABLE DOT (IDENTIFIER | QUOTED_IDENTIFIER | keyword)
     ;
 
 // V3 String expression (may include template placeholders or attribute binding)

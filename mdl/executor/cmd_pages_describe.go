@@ -546,6 +546,12 @@ type rawDataSource struct {
 	// are rendered, since both re-parse against the source's own entity.
 	SearchAttributes []string
 	ContextVariable  string // association source: context variable name (empty → $currentObject)
+	// EntitySteps is set on a database source reached over associations from a
+	// context object: a Forms$ListViewXPathSource whose EntityRef is an
+	// IndirectEntityRef. Each hop keeps its stored DestinationEntity, which may
+	// be a specialization of the association's own end and so cannot be
+	// re-derived (ako/mxcli#721 L5). ContextVariable names the start object.
+	EntitySteps []rawEntityStep
 	// Args carries a flow datasource's argument bindings, in stored order. A
 	// microflow used as a datasource needs an argument for every parameter,
 	// exactly as a call action does (#835) — describing it without them yields
@@ -556,6 +562,13 @@ type rawDataSource struct {
 	// comment, so the binding is visible in the output without producing a
 	// statement that cannot be re-executed (#941).
 	Unsupported string
+}
+
+// rawEntityStep is one DomainModels$EntityRefStep: the association crossed and
+// the entity it arrives at.
+type rawEntityStep struct {
+	Association       string
+	DestinationEntity string
 }
 
 // rawDataSourceArg is one argument bound to a flow datasource's parameter.
@@ -631,13 +644,16 @@ type rawDataGridColumn struct {
 
 // rawWidget represents a widget from raw BSON data for MDL output.
 type rawWidget struct {
-	Type        string
-	Name        string
-	Content     string
-	Caption     string
-	RenderMode  string
-	Action      string
-	ButtonStyle string
+	Type    string
+	Name    string
+	Content string
+	// SnippetParams is a snippet call's argument list, `P = $v, …`, printed as
+	// `Params: ( … )` (ako/mxcli#826).
+	SnippetParams string
+	Caption       string
+	RenderMode    string
+	Action        string
+	ButtonStyle   string
 	// Icon is the qualified name an icon-collection or image icon points at.
 	// Empty for no icon and for a glyph icon, which carries a numeric Code
 	// instead. IconType keeps the storage $Type so the emitter can tell the

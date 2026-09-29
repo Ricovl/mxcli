@@ -18,7 +18,7 @@ func TestDescribeOmitsEndOfPathMarkers(t *testing.T) {
 	flow := workflows.EndParallelSplitPath(&workflows.Flow{Activities: []workflows.WorkflowActivity{call}}, newWorkflowID)
 	flow.Activities = append(flow.Activities, &workflows.EndOfBoundaryEventPathActivity{})
 
-	out := strings.Join(formatWorkflowActivities(flow, "  "), "\n")
+	out := strings.Join(formatWorkflowActivities(nil, flow, "  "), "\n")
 	for _, leak := range []string{"EndOfParallelSplitPath", "EndOfBoundaryEventPath", "End of parallel split path", "[Workflows$"} {
 		if strings.Contains(out, leak) {
 			t.Errorf("describe output leaks %q:\n%s", leak, out)

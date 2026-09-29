@@ -97,8 +97,8 @@ end workflow;`)
 // Describe → re-parse → describe is stable for every new construct.
 func TestWorkflowESP_DescribeRoundTrips(t *testing.T) {
 	format := func(stmt *ast.CreateWorkflowStmt) string {
-		lines := formatMainFlowActivities(&workflows.Flow{Activities: buildWorkflowActivities(stmt.Activities)}, "  ")
-		lines = append(lines, formatEventSubProcesses(buildEventSubProcesses(stmt.EventSubProcesses), "  ")...)
+		lines := formatMainFlowActivities(nil, &workflows.Flow{Activities: buildWorkflowActivities(stmt.Activities)}, "  ")
+		lines = append(lines, formatEventSubProcesses(nil, buildEventSubProcesses(stmt.EventSubProcesses), "  ")...)
 		return strings.Join(lines, "\n")
 	}
 	first := format(parseWorkflowStmt(t, espWorkflow))

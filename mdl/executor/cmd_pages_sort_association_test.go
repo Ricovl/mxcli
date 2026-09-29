@@ -85,7 +85,7 @@ func TestDataSourceExpr_EmitsSortAssociationPath(t *testing.T) {
 			{Attribute: "OrderNo", Order: "desc"},
 		},
 	}
-	got := dataSourceExpr(ds)
+	got := dataSourceExpr(nil, ds)
 	want := "database from Sales.Order sort by Sales.Order_BillTo/City asc, OrderNo desc"
 	if got != want {
 		t.Errorf("dataSourceExpr =\n  %q\nwant\n  %q", got, want)

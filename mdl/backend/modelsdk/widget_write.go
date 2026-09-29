@@ -82,6 +82,11 @@ func init() {
 	codec.RegisterTypeDefaults("Forms$GridSortBar", codec.TypeDefaults{
 		MandatoryListMarkers: map[string]int32{"SortItems": 2},
 	})
+	// Populated too: 164 of 164 GridSortBar.SortItems in the Studio Pro-authored
+	// fixtures (TestApp, PedApp) are marker 2, empty or not. The child type's
+	// default was 3, so every sorted list view described and re-executed was
+	// rewritten (ako/mxcli#721 L5).
+	codec.RegisterPropertyListMarker("Forms$GridSortBar", "SortItems", 2)
 	// A native ListView's Search (Forms$ListViewSearch) always carries a (usually
 	// empty) SearchRefs list — Studio Pro serializes it even with search disabled.
 	// The codec encoder omits an empty, never-Set PartList on a freshly-created
@@ -92,7 +97,16 @@ func init() {
 	// retrieveByXPath/processResult once search is exercised. (searchPaths was
 	// removed in 7.11.0; searchRefs is the valid list on 11.x.)
 	codec.RegisterTypeDefaults("Forms$ListViewSearch", codec.TypeDefaults{
-		MandatoryLists: []string{"SearchRefs"},
+		MandatoryListMarkers: map[string]int32{"SearchRefs": 2},
+	})
+	// Marker 2, empty or not: 44 of 44 in the Studio Pro-authored fixtures; the
+	// empty list used to take the encoder's default 3 (ako/mxcli#721 L5).
+	codec.RegisterPropertyListMarker("Forms$ListViewSearch", "SearchRefs", 2)
+	// A List View's XPath source always carries its SourceVariable key, null
+	// when the source is not reached from a parameter: 44 of 44 in the
+	// fixtures, as on the pluggable XPath source above (ako/mxcli#721 L5).
+	codec.RegisterTypeDefaults("Forms$ListViewXPathSource", codec.TypeDefaults{
+		NullFields: []string{"SourceVariable"},
 	})
 	// LayoutGrid and its rows carry a null ConditionalVisibilitySettings; the grid,
 	// rows, and columns all use the typed-array marker 2 in their parent lists.
@@ -257,11 +271,11 @@ func init() {
 	})
 	codec.RegisterListMarker("Forms$NavigationList", 2)
 	codec.RegisterListMarker("Forms$NavigationListItem", 2)
-	// SnippetCallWidget: null visibility; the inner SnippetCall always emits its
-	// (empty) ParameterMappings array.
-	codec.RegisterTypeDefaults("Forms$SnippetCallWidget", codec.TypeDefaults{
-		NullFields: []string{"ConditionalVisibilitySettings"},
-	})
+	// SnippetCallWidget: NO ConditionalVisibilitySettings — the type has no such
+	// property, and none of the 139 snippet calls Studio Pro stored in PedApp and
+	// TestApp carries the key. Registering it as a null field added the key to
+	// every snippet call written (ako/mxcli#826). The inner SnippetCall always
+	// emits its (empty) ParameterMappings array.
 	codec.RegisterListMarker("Forms$SnippetCallWidget", 2)
 	// The three parameter-mapping child types. MandatoryListMarkers covers an
 	// EMPTY list; a populated one takes its marker from the child type, and all
@@ -274,10 +288,13 @@ func init() {
 	})
 	// ListView: null visibility; always emits its Templates list; marker 2.
 	codec.RegisterTypeDefaults("Forms$ListView", codec.TypeDefaults{
-		NullFields:     []string{"ConditionalVisibilitySettings"},
-		MandatoryLists: []string{"Templates"},
+		NullFields:           []string{"ConditionalVisibilitySettings"},
+		MandatoryListMarkers: map[string]int32{"Templates": 2},
 	})
 	codec.RegisterListMarker("Forms$ListView", 2)
+	// Templates is marker 2, empty or not — 45 of 45 in the fixtures; the empty
+	// list used to take the encoder's default 3 (ako/mxcli#721 L5).
+	codec.RegisterPropertyListMarker("Forms$ListView", "Templates", 2)
 	codec.RegisterListMarker("Forms$ListViewTemplate", 2)
 	// GroupBox: container with caption/header; null visibility; marker 2.
 	codec.RegisterTypeDefaults("Forms$GroupBox", codec.TypeDefaults{
@@ -462,6 +479,9 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if ref := inputAttributeRefToGen(x.AttributePath, x.AttributeRefSteps); ref != nil {
 			g.SetAttributeRef(ref)
 		}
+		if sv := inputSourceVariableToGen(x.SourceVariable); sv != nil {
+			g.SetSourceVariable(sv)
+		}
 		g.SetEditable(pages.WidgetEditability(&x.BaseWidget))
 		g.SetFormattingInfo(newFormattingInfo())
 		g.SetInputMask("")
@@ -527,6 +547,9 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if ref := inputAttributeRefToGen(x.AttributePath, x.AttributeRefSteps); ref != nil {
 			g.SetAttributeRef(ref)
 		}
+		if sv := inputSourceVariableToGen(x.SourceVariable); sv != nil {
+			g.SetSourceVariable(sv)
+		}
 		g.SetEditable(pages.WidgetEditability(&x.BaseWidget))
 		if x.Label != "" {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
@@ -552,6 +575,9 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetAutoFocus(false)
 		if ref := inputAttributeRefToGen(x.AttributePath, x.AttributeRefSteps); ref != nil {
 			g.SetAttributeRef(ref)
+		}
+		if sv := inputSourceVariableToGen(x.SourceVariable); sv != nil {
+			g.SetSourceVariable(sv)
 		}
 		g.SetCounterMessage(captionToGen(x.CounterMessage))
 		g.SetEditable(pages.WidgetEditability(&x.BaseWidget))
@@ -589,6 +615,9 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if ref := inputAttributeRefToGen(x.AttributePath, x.AttributeRefSteps); ref != nil {
 			g.SetAttributeRef(ref)
 		}
+		if sv := inputSourceVariableToGen(x.SourceVariable); sv != nil {
+			g.SetSourceVariable(sv)
+		}
 		g.SetEditable(pages.WidgetEditability(&x.BaseWidget))
 		g.SetFormattingInfo(newFormattingInfo())
 		if x.Label != "" {
@@ -612,6 +641,9 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetAriaRequired(false)
 		if ref := inputAttributeRefToGen(x.AttributePath, x.AttributeRefSteps); ref != nil {
 			g.SetAttributeRef(ref)
+		}
+		if sv := inputSourceVariableToGen(x.SourceVariable); sv != nil {
+			g.SetSourceVariable(sv)
 		}
 		g.SetEditable(pages.WidgetEditability(&x.BaseWidget))
 		if x.Label != "" {
@@ -797,9 +829,13 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			m.SetArgument("")
 			// A snippet's own parameter, passed on from inside that snippet,
 			// fills the SnippetParameter slot (ako/mxcli#721 L3).
+			// A page `Variables:` entry fills LocalVariable (ako/mxcli#826).
 			kind := ""
-			if pm.IsSnippetParameter {
+			switch {
+			case pm.IsSnippetParameter:
 				kind = "snippet"
+			case pm.IsLocalVariable:
+				kind = "local"
 			}
 			m.SetVariable(sourceVariableToGen(strings.TrimPrefix(pm.Argument, "$"), kind))
 			call.AddParameterMappings(m)
@@ -1216,8 +1252,8 @@ func clientTemplateParameterToGen(p *pages.ClientTemplateParameter) element.Elem
 	// MUST be emitted as a Forms$PageVariable. Without it Studio Pro can't resolve
 	// the attribute's data context → CE1365 "move into a data container" + CE7006
 	// "selected value is not valid for attribute". Matches the legacy serializer.
-	if p.SourceVariable != "" {
-		g.SetSourceVariable(sourceVariableToGen(p.SourceVariable, p.SourceVariableKind))
+	if p.SourceVariable != "" || p.SourceWidget != "" {
+		g.SetSourceVariable(pageVariableToGen(p.SourceWidget, p.SourceVariable, p.SourceVariableKind))
 	}
 	g.SetFormattingInfo(formattingInfoToGen(p.FormattingInfo))
 	return g
@@ -1228,17 +1264,41 @@ func clientTemplateParameterToGen(p *pages.ClientTemplateParameter) element.Elem
 // name fills: "" = page parameter, "local" = page-level Variables entry,
 // "snippet" = snippet parameter.
 func sourceVariableToGen(name, kind string) element.Element {
+	return pageVariableToGen("", name, kind)
+}
+
+// pageVariableToGen is sourceVariableToGen with the Widget slot: a binding read
+// through a data view names the data view in Widget and, beside it, the data
+// view's own variable in the slot kind selects. That pair is what Studio Pro
+// stores — given only {widget}, its model fills in the data view's page
+// parameter (ako/mxcli#826). An empty name leaves every name slot empty.
+func pageVariableToGen(widget, name, kind string) element.Element {
 	pv := genPg.NewPageVariable()
 	assignID(pv)
-	switch kind {
-	case "local":
-		pv.SetLocalVariableQualifiedName(name)
-	case "snippet":
-		pv.SetSnippetParameterQualifiedName(name)
-	default:
-		pv.SetPageParameterQualifiedName(name)
+	if name != "" {
+		switch kind {
+		case "local":
+			pv.SetLocalVariableQualifiedName(name)
+		case "snippet":
+			pv.SetSnippetParameterQualifiedName(name)
+		default:
+			pv.SetPageParameterQualifiedName(name)
+		}
+	}
+	if widget != "" {
+		pv.SetWidgetQualifiedName(widget)
 	}
 	return pv
+}
+
+// inputSourceVariableToGen writes an input widget's widget-scoped
+// SourceVariable, or nil — the null Studio Pro stores on an input bound to its
+// enclosing data context.
+func inputSourceVariableToGen(sv *pages.WidgetVariable) element.Element {
+	if sv == nil || (sv.Widget == "" && sv.Variable == "") {
+		return nil
+	}
+	return pageVariableToGen(sv.Widget, sv.Variable, sv.Kind)
 }
 
 // newFormattingInfo builds the default Forms$FormattingInfo (matches the legacy
@@ -1331,12 +1391,19 @@ func attributeRefWithStepsToGen(attrQN string, steps []pages.AttributeRefStep) e
 	r := genDm.NewAttributeRef()
 	assignID(r)
 	r.SetAttributeQualifiedName(attrQN)
+	r.SetEntityRef(pageEntityRefToGen(steps))
+	return r
+}
+
+// pageEntityRefToGen builds the DomainModels$IndirectEntityRef for page-side
+// association hops through entityRefToGen, so a sort binding and a List View
+// source cannot store the same path two ways.
+func pageEntityRefToGen(steps []pages.AttributeRefStep) element.Element {
 	mSteps := make([]microflows.EntityRefStep, len(steps))
 	for i, s := range steps {
 		mSteps[i] = microflows.EntityRefStep{Association: s.Association, DestinationEntity: s.DestinationEntity}
 	}
-	r.SetEntityRef(entityRefToGen(mSteps))
-	return r
+	return entityRefToGen(mSteps)
 }
 
 // widgetValidationToGen builds the default empty Forms$WidgetValidation.
@@ -1502,7 +1569,21 @@ func listViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		assignID(src)
 		src.SetForceFullObjects(false)
 		src.SetXPathConstraint(d.XPathConstraint)
-		if d.EntityName != "" {
+		switch {
+		case len(d.EntitySteps) > 0:
+			// Reached over associations from a context object: the same
+			// IndirectEntityRef an association source holds, but inside the
+			// XPath source, so the retrieve stays a database one with its
+			// constraint, sort and search (ako/mxcli#721 L5).
+			src.SetEntityRef(pageEntityRefToGen(d.EntitySteps))
+			if d.ContextVariable != "" {
+				kind := ""
+				if d.IsSnippetParameter {
+					kind = "snippet"
+				}
+				src.SetSourceVariable(sourceVariableToGen(d.ContextVariable, kind))
+			}
+		case d.EntityName != "":
 			ref := genDm.NewDirectEntityRef()
 			assignID(ref)
 			ref.SetEntityQualifiedName(d.EntityName)

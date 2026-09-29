@@ -651,7 +651,7 @@ func stripExpressionIdentifierQuotes(s string) string {
 // expression. OQL keeps extractOriginalText: `--` is a legitimate SQL comment
 // there, and stripping it would change a different language's meaning.
 func extractExpressionText(ctx antlr.ParserRuleContext) string {
-	return stripMDLComments(extractOriginalText(ctx))
+	return stripMDLComments(extractOriginalText(ctx), lexedWithStrictEscapes(ctx))
 }
 
 // stripMDLComments removes MDL comments from text lifted out of the input stream.
@@ -672,8 +672,13 @@ func extractExpressionText(ctx antlr.ParserRuleContext) string {
 // weld into one token.
 //
 // Single-quoted string literals are respected: a Mendix string may legitimately
-// contain `--` or `/*`, and removing those would corrupt the value.
-func stripMDLComments(s string) string {
+// contain `--` or `/*`, and removing those would corrupt the value. A literal
+// is scanned by the string rule of the text's language (strict: ADR-0010 R11,
+// where a backslash is itself; otherwise mdl 0's, where a backslash escapes
+// the next character). Scanned the strict way, the mdl 0 `'it\'s'` ended at
+// `\'`, so a `--` inside the NEXT string was taken for a comment and the rest
+// of the line was dropped from the stored expression or XPath (ako/mxcli#825).
+func stripMDLComments(s string, strict bool) string {
 	if !strings.Contains(s, "--") && !strings.Contains(s, "/*") {
 		return s
 	}
@@ -682,6 +687,12 @@ func stripMDLComments(s string) string {
 	inString := false
 	for i := 0; i < len(s); i++ {
 		c := s[i]
+		if inString && c == '\\' && !strict && i+1 < len(s) {
+			b.WriteByte(c)
+			b.WriteByte(s[i+1])
+			i++
+			continue
+		}
 		if c == '\'' {
 			if inString && i+1 < len(s) && s[i+1] == '\'' {
 				b.WriteByte(c)
