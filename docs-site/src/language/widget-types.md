@@ -158,6 +158,33 @@ LISTVIEW lvProducts (DataSource: DATABASE MyModule.Product) {
 }
 ```
 
+#### Database source over an association
+
+Inside a data container, a list view can retrieve **from the database** the
+objects an association of the context object points to. Studio Pro calls it a
+Database source with an entity path; it keeps an XPath constraint, a sort order
+and a search bar:
+
+```sql
+create snippet MyModule.TaskAssignees (Params: ($Task: System.WorkflowUserTask)) {
+  listview lvAssignees (
+    DataSource: database from $Task/System.WorkflowUserTask_Assignees/Administration.Account
+      where [Active = true()] sort by FullName asc search by FullName
+  ) {
+    dynamictext txtName (Content: '{1}', ContentParams: ({1} = FullName))
+  }
+};
+```
+
+The path pairs each association with the entity it arrives at. Name the entity:
+it may be a specialization of the association's own end (here
+`Administration.Account` for `System.User`), and `DESCRIBE` always prints it. A
+trailing association with no entity gets the end opposite the context.
+
+It is a different source from `$Task/System.WorkflowUserTask_Assignees` — an
+**association** source, which follows the association in memory and has no
+XPath, sort or search. List views only; on any other widget it is refused.
+
 #### Specialization templates
 
 When the list view's entity is a **generalization**, it can render a different

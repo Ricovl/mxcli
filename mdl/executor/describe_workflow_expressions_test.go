@@ -18,7 +18,7 @@ import (
 
 func describedWorkflowActivity(t *testing.T, act workflows.WorkflowActivity) (string, *ast.Program) {
 	t.Helper()
-	out := strings.Join(formatWorkflowActivities(&workflows.Flow{Activities: []workflows.WorkflowActivity{act}}, "  "), "\n")
+	out := strings.Join(formatWorkflowActivities(nil, &workflows.Flow{Activities: []workflows.WorkflowActivity{act}}, "  "), "\n")
 	prog, errs := visitor.Build("create workflow M.WF\n  parameter $WorkflowContext: M.E\nbegin\n" + out + "\nend workflow;")
 	if len(errs) > 0 {
 		t.Fatalf("does not re-parse: %v\n%s", errs, out)

@@ -96,7 +96,7 @@ func TestWorkflowHandlers_DescribeOnCreated(t *testing.T) {
 	}
 	task.Name = "Review"
 	task.Caption = "Review"
-	out := strings.Join(formatUserTask(task, "  "), "\n")
+	out := strings.Join(formatUserTask(nil, task, "  "), "\n")
 	targeting := strings.Index(out, "targeting users microflow M.Targets")
 	onCreated := strings.Index(out, "on created microflow M.Assign")
 	outcomes := strings.Index(out, "outcomes")

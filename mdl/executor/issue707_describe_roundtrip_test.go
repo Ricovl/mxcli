@@ -280,7 +280,7 @@ func TestIssue707_WorkflowDecisionAndSplitCaptionsSurvive(t *testing.T) {
 	split.Caption = "Check stock and credit"
 	split.Outcomes = []*workflows.ParallelSplitOutcome{{Flow: &workflows.Flow{}}, {Flow: &workflows.Flow{}}}
 
-	lines := formatWorkflowActivities(&workflows.Flow{Activities: []workflows.WorkflowActivity{dec, split}}, "  ")
+	lines := formatWorkflowActivities(nil, &workflows.Flow{Activities: []workflows.WorkflowActivity{dec, split}}, "  ")
 	src := "create workflow M.WF\n  parameter $WorkflowContext: M.E\nbegin\n" +
 		strings.Join(lines, "\n") + "\nend workflow;"
 	stmt := findStmt[*ast.CreateWorkflowStmt](t, reparse(t, src), src)
@@ -309,7 +309,7 @@ func TestIssue707_WorkflowDefaultCaptionStaysImplicit(t *testing.T) {
 	dec.Outcomes = []workflows.ConditionOutcome{
 		&workflows.BooleanConditionOutcome{Value: true, Flow: &workflows.Flow{}},
 	}
-	lines := formatWorkflowActivities(&workflows.Flow{Activities: []workflows.WorkflowActivity{dec}}, "  ")
+	lines := formatWorkflowActivities(nil, &workflows.Flow{Activities: []workflows.WorkflowActivity{dec}}, "  ")
 	src := "create workflow M.WF\n  parameter $WorkflowContext: M.E\nbegin\n" +
 		strings.Join(lines, "\n") + "\nend workflow;"
 	if strings.Contains(src, "comment 'Decision'") {

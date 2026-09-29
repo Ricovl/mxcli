@@ -301,6 +301,13 @@ func mapListViewSource(ds pages.DataSource) (map[string]any, error) {
 		if db.EntityName == "" {
 			return nil, fmt.Errorf("list view database source has no entity")
 		}
+		if len(db.EntitySteps) > 0 {
+			// Writing the entity alone would retrieve every row instead of the
+			// context's; refused until the pg shape of the path is pinned
+			// (ako/mxcli#721 L5).
+			return nil, fmt.Errorf("list view database source over an association " +
+				"(`database from $ctx/Assoc/Entity`) is not supported by the MCP backend yet")
+		}
 		src := map[string]any{
 			"$Type":     "Pages$ListViewXPathSource",
 			"entityRef": map[string]any{"$Type": "DomainModels$DirectEntityRef", "entity": db.EntityName},

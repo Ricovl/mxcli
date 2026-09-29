@@ -45,11 +45,16 @@ func TestExpressionStringLiteralStoresItsValue(t *testing.T) {
 		{"mdl 0 escaped line break, as written", "", "'a\\nb'\n + 'x'", "'a\nb'\n + 'x'", true},
 		{"mdl 0 regex, as written", "", "'^\\d+$'\n + 'x'", "'^\\d+$'\n + 'x'", true},
 		{"mdl 0 trailing backslash, unspaced", "", `'C:\\'+'x'`, `'C:\'+'x'`, true},
+		// The comment stripper ran before the transcription and ended the
+		// literal at `\'`, so the `--` inside the next string was taken for a
+		// comment and the rest of the line dropped: `'it''s'\n + '` (#825).
+		{"mdl 0 escaped apostrophe before a string holding --, as written", "", "'it\\'s'\n + '--x'", "'it''s'\n + '--x'", true},
 		// mdl 1: a backslash is itself; `''` is the only escape.
 		{"mdl 1 backslash, rendered", "mdl 1;\n", `'C:\temp\new'`, `'C:\temp\new'`, false},
 		{"mdl 1 doubled backslash, rendered", "mdl 1;\n", `'C:\\temp'`, `'C:\\temp'`, false},
 		{"mdl 1 trailing backslash, unspaced", "mdl 1;\n", `'C:\'+'x'`, `'C:\'+'x'`, true},
 		{"mdl 1 backslash n, as written", "mdl 1;\n", "'a\\nb'\n + 'x'", "'a\\nb'\n + 'x'", true},
+		{"mdl 1 trailing backslash before a string holding --, as written", "mdl 1;\n", "'C:\\'\n + '--x'", "'C:\\'\n + '--x'", true},
 	} {
 		got, asWritten := declaredExpression(t, c.header, c.expr)
 		if got != c.stored || asWritten != c.asWritten {

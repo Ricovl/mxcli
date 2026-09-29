@@ -36,6 +36,17 @@ type DatabaseSource struct {
 	// Only a List View source has one: Forms$ListViewXPathSource declares Search,
 	// and the grid sources do not (ako/mxcli#512).
 	SearchAttributes []string `json:"searchAttributes,omitempty"`
+	// EntitySteps, when set, reach EntityName from a context object over
+	// associations: Studio Pro's "Database" source on a List View inside a data
+	// container, stored as a Forms$ListViewXPathSource whose EntityRef is an
+	// IndirectEntityRef of these hops. It is still a database retrieve, with
+	// XPath, sort and search — not a Forms$AssociationSource (ako/mxcli#721 L5).
+	// Only the List View source is written this way.
+	EntitySteps []AttributeRefStep `json:"entitySteps,omitempty"`
+	// ContextVariable names the page or snippet parameter the steps start from
+	// (without $); empty means the enclosing container's object.
+	ContextVariable    string `json:"contextVariable,omitempty"`
+	IsSnippetParameter bool   `json:"isSnippetParameter,omitempty"`
 }
 
 func (DatabaseSource) isDataSource() {}
