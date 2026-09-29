@@ -86,6 +86,13 @@ func (m *mcpFlowMutator) SetReturnValue(model.ID, string) error {
 	return fmt.Errorf("changing a return value is not supported by the MCP backend yet; run without --mcp to alter %s in the .mpr", m.qn)
 }
 
+// SetHeader is refused like SetReturnValue: the patch Save sends carries
+// positions, pointers and added or removed flow elements only, so a changed
+// document property would not reach Studio Pro.
+func (m *mcpFlowMutator) SetHeader(any) ([]string, error) {
+	return nil, fmt.Errorf("changing a document property or a parameter is not supported by the MCP backend yet; run without --mcp to modify %s in the .mpr", m.qn)
+}
+
 func (b *Backend) flowQualifiedName(id model.ID, docType, name string) (string, error) {
 	var container model.ID
 	switch docType {
@@ -175,6 +182,11 @@ func (d *mcpFlowDeps) SerializeAnnotationFlow(f *microflows.AnnotationFlow) (bso
 		{Key: "DestinationPointer", Value: binaryOf(f.DestinationID)},
 		{Key: "OriginPointer", Value: binaryOf(f.OriginID)},
 	}, nil
+}
+
+// SerializeDocument is never reached: mcpFlowMutator refuses SetHeader.
+func (d *mcpFlowDeps) SerializeDocument(any) (bson.D, error) {
+	return nil, fmt.Errorf("%s: document properties are not patched over MCP", d.qn)
 }
 
 // SaveUnit sends the difference between the stored and the spliced document.

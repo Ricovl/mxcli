@@ -28,13 +28,14 @@ Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode
   output also works as a patch: an unchanged definition writes nothing, and an inserted,
   replaced or dropped statement (at the top level or in an `if` branch) is spliced in,
   leaving every other node, merge and curve as stored; a changed `return` value is set on
-  the stored end event, and a body without a trailing `return` means the stored end. A
-  change it cannot splice — the header, anything inside a loop body or error handler, a
-  moved node or `@start`, a `return` added or taken away — rebuilds the
-  whole nanoflow under mdl 0
+  the stored end event, and a body without a trailing `return` means the stored end. The
+  header (documentation, return type, parameters added, retyped or — when unused —
+  removed) is set on the stored document, and a stated `@position` or `@start` moves the
+  stored node, keeping its flows. A change it cannot patch — anything inside a loop body
+  or error handler, a redrawn `@anchor`/`@curve`, a `return` added or taken away —
+  rebuilds the whole nanoflow under mdl 0
   (warning `MDL-V1-REBUILD`: element IDs renumbered, merges removed, curves reset) and
-  is refused under `mdl 1;` (header and loop-body changes have no splice yet; move
-  nodes in Studio Pro).
+  is refused under `mdl 1;`.
 
 ## When to Use a Nanoflow vs a Microflow
 

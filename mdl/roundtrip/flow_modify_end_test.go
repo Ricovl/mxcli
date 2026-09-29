@@ -6,8 +6,12 @@ package roundtrip
 
 import (
 	"bytes"
+	"fmt"
+	"sort"
 	"strings"
 	"testing"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ako/mxcli#805: the end event under diff-then-patch. `describe` prints the
@@ -194,18 +198,18 @@ func TestFlowModify_DroppedBranchReturnIsRefused(t *testing.T) {
 	}
 }
 
-// Once the end event no longer stops it, a run of statements that are stored
-// ones redrawn must not go through as a replace and drops: that writes new
-// nodes where the splice places them and loses every position the script
-// states (the rewrite in mdl-examples/bug-tests/951 moved three activities and
-// none of them moved). It is a move, refused under mdl 1 like a single moved
-// node, and rebuilt with the warning under mdl 0 — which writes the positions.
-// So is a @start that moves the start event. The flow is mxcli-authored: this
-// is about what is refused, not about identity.
-func TestFlowModify_MovedRunIsNotSpliced(t *testing.T) {
-	h := newHarness(t)
-	defer h.close()
-
+// A run of statements that are stored ones redrawn elsewhere is a run of
+// moves (ako/mxcli#818). It used to be refused under mdl 1 and rebuilt under
+// mdl 0; as a replace and drops it would have written new nodes and lost every
+// position the script states (the rewrite in mdl-examples/bug-tests/951 moved
+// three activities and none of them moved). Now each stored node moves where
+// the script says — its $ID, its flows and their curves stay — and a start
+// event mxcli's layout placed follows the first statement, as does the end the
+// body falls through to. A @start stated on a new first statement moves the
+// start event. The flow is mxcli-authored: this is about what is written, not
+// about identity, which the Studio Pro tests in flow_modify_header_test.go
+// cover.
+func TestFlowModify_MovedRunIsMoved(t *testing.T) {
 	const create = `create or modify microflow MyFirstModule.Moved ()
 begin
   @position(200, 200)
@@ -214,34 +218,77 @@ begin
   log 'two';
 end;`
 	moved := strings.NewReplacer("(200, 200)", "(360, 340)", "(360, 200)", "(520, 340)").Replace(create)
-	// A new first statement stating @start: inserted, it would leave the start
-	// event where it is.
-	started := strings.Replace(create, "begin\n", "begin\n  @start(-10, 200)\n  log 'zero';\n", 1)
-	for _, c := range []struct{ name, script, want, position string }{
-		{"moved run", moved, "moved", "@position(360, 340)"},
-		{"moved start", started, "@start(-10, 200)", "@start(-10, 200)"},
-	} {
-		if err := h.exec(create); err != nil {
-			t.Fatalf("%s: create: %v", c.name, err)
-		}
-		before := h.flowUnit(t, "Moved")
-		err := h.exec("mdl 1;\n" + c.script)
-		if err == nil || !strings.Contains(err.Error(), "cannot be spliced") || !strings.Contains(err.Error(), c.want) {
-			t.Fatalf("%s: under mdl 1 want a refusal naming %q, got %v", c.name, c.want, err)
-		}
-		if !bytes.Equal(h.flowUnit(t, "Moved"), before) {
-			t.Fatalf("%s: the refused statement wrote", c.name)
-		}
-		if err := h.exec(c.script); err != nil {
-			t.Fatalf("%s: under mdl 0: %v", c.name, err)
-		}
-		if !strings.Contains(h.out.String(), "Warning [MDL-V1-REBUILD]") {
-			t.Errorf("%s: under mdl 0 want the MDL-V1-REBUILD warning, got:\n%s", c.name, h.out.String())
-		}
-		if got := h.mustDescribe(t, "microflow MyFirstModule.Moved"); !strings.Contains(got, c.position) {
-			t.Errorf("%s: under mdl 0 the rebuild did not write %s:\n%s", c.name, c.position, got)
+	// A new first statement stating @start: inserted, with the start event
+	// moved where the script says.
+	started := strings.Replace(create, "begin\n", "begin\n  @start(-10, 200)\n  @position(40, 200)\n  log 'zero';\n", 1)
+	for _, header := range []string{"mdl 1;\n", ""} {
+		for _, c := range []struct {
+			name, script string
+			want         []string
+		}{
+			// The start (40;200) and the end (600;200) were where the layout
+			// derives them, so they follow the activities.
+			{"moved run", moved, []string{"StartEvent 200;340", "ActionActivity 360;340", "ActionActivity 520;340", "EndEvent 760;340"}},
+			{"moved start", started, []string{"StartEvent -10;200", "ActionActivity 40;200", "ActionActivity 200;200",
+				"ActionActivity 360;200", "EndEvent 600;200"}},
+		} {
+			t.Run(fmt.Sprintf("%s %q", c.name, header), func(t *testing.T) {
+				h := newHarness(t)
+				defer h.close()
+				if err := h.exec(create); err != nil {
+					t.Fatalf("create: %v", err)
+				}
+				before := h.flowUnit(t, "Moved")
+				if err := h.exec(header + c.script); err != nil {
+					t.Fatalf("exec: %v", err)
+				}
+				if strings.Contains(h.out.String(), "MDL-V1-REBUILD") {
+					t.Fatalf("fell back to the rebuild:\n%s", h.out.String())
+				}
+				after := h.flowUnit(t, "Moved")
+				requireKept(t, before, after, "")
+				sort.Strings(c.want)
+				if got := objectPositions(t, after); strings.Join(got, ", ") != strings.Join(c.want, ", ") {
+					t.Errorf("drawn at %v, want %v", got, c.want)
+				}
+			})
 		}
 	}
+}
+
+// objectPositions lists a unit's top-level objects as "Type x;y", sorted.
+func objectPositions(t *testing.T, raw []byte) []string {
+	t.Helper()
+	var doc bson.D
+	if err := bson.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, e := range doc {
+		if e.Key != "ObjectCollection" {
+			continue
+		}
+		oc, _ := e.Value.(bson.D)
+		for _, f := range oc {
+			if f.Key != "Objects" {
+				continue
+			}
+			list, _ := f.Value.(bson.A)
+			for _, el := range list {
+				if d, ok := el.(bson.D); ok {
+					var p string
+					for _, g := range d {
+						if g.Key == "RelativeMiddlePoint" {
+							p, _ = g.Value.(string)
+						}
+					}
+					out = append(out, typeOf(d)+" "+p)
+				}
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // `alter microflow … { replace return … }` goes the same way: a single return

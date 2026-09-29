@@ -1,0 +1,364 @@
+// SPDX-License-Identifier: Apache-2.0
+
+package executor
+
+import (
+	"bytes"
+	"fmt"
+	"strings"
+
+	"go.mongodb.org/mongo-driver/bson"
+
+	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
+	"github.com/mendixlabs/mxcli/mdl/backend/mfmutator"
+	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/microflows"
+)
+
+// # What describe states besides the activities (ako/mxcli#818)
+//
+// A description states a flow's header, its document properties and where
+// every node is drawn. `create or modify` patched the activities only, so under
+// `mdl 1` — where the fallback is a refusal — re-running an edited description
+// failed the moment the edit touched any of the rest, and `describe` could not
+// emit the header. The rest is patched now, and the rules are the patch's own:
+//
+//   - a document property or return type the statement changes is set on the
+//     stored document (mfmutator SetHeader), a parameter is added, retyped or
+//     removed in place, and a parameter the flow or another document still
+//     uses is not removed;
+//   - a stated @position or @start that is not where the stored node is drawn
+//     moves that node, and only it: its flows keep their ends, sides and
+//     curves (no reconnection), and nothing around it moves. A position the
+//     script leaves out keeps what is stored, as before;
+//   - two nodes nobody placed follow the node they were derived from, because
+//     mxcli's own layout put them there and nothing else says where they go:
+//     a start event where the layout derives it follows the first statement
+//     (#951's rule for a rewrite), and a trailing end event the script does
+//     not place follows the statement before it;
+//   - a redrawn connector (@anchor, @curve, @merge) and a node moved inside a
+//     loop body or an error handler are refused: they would need the flows
+//     rerouted, which the patch does not do.
+
+// flowMove is a stored node the declared statement draws somewhere else.
+type flowMove struct {
+	id   model.ID
+	to   model.Point
+	what string
+}
+
+// endSpacing is how far right of the statement before it the builder draws the
+// end event a body falls through to: one spacing unit to the next slot, half a
+// unit more to the end event (flowBuilder.buildFlowGraph).
+const endSpacing = HorizontalSpacing + HorizontalSpacing/2
+
+// patch opens the stored flow and applies the moves and the splice
+// operations. The moves go first, so a fragment the script places next to a
+// moved node is joined to it where it now is, and again after the operations,
+// so a node an insert shifted to make room is still drawn where the script
+// says (a move sets a position, so applying it twice is applying it once).
+func patch(ctx *ExecContext, a *alterFlowContext, ops []*ast.AlterFlowOperation, targets []mfmutator.Candidate,
+	moves []flowMove) (backend.MicroflowMutator, error) {
+	mut, err := ctx.Backend.OpenMicroflowForMutation(a.mf.ID)
+	if err != nil {
+		return nil, err
+	}
+	move := func() error {
+		for _, mv := range moves {
+			if err := mut.Move(mv.id, mv.to); err != nil {
+				return fmt.Errorf("move the %s: %w", mv.what, err)
+			}
+		}
+		return nil
+	}
+	if err := move(); err != nil {
+		return nil, err
+	}
+	if err := a.applyTo(ctx, mut, ops, targets); err != nil {
+		return nil, err
+	}
+	if err := move(); err != nil {
+		return nil, err
+	}
+	return mut, nil
+}
+
+// moved records the moves that draw a stored statement where the declared one
+// says, the two being the same statement but for where their nodes are drawn:
+// the statement's own node, and the nodes of an `if`'s branches, which are
+// nodes of the flow like any other. A node moved inside anything else — a loop
+// body, whose coordinates are relative to the loop box, or an error handler —
+// is refused.
+func (pd *patchDiff) moved(d, s ast.MicroflowStatement) error {
+	if err := pd.movedNode(d, s); err != nil {
+		return err
+	}
+	di, ok1 := d.(*ast.IfStmt)
+	si, ok2 := s.(*ast.IfStmt)
+	if ok1 && ok2 {
+		for _, br := range [][2][]ast.MicroflowStatement{{di.ThenBody, si.ThenBody}, {di.ElseBody, si.ElseBody}} {
+			if len(br[0]) != len(br[1]) {
+				return redrawn(s)
+			}
+			for i := range br[0] {
+				if declaredMatches(br[0][i], br[1][i]) {
+					continue
+				}
+				if err := pd.moved(br[0][i], br[1][i]); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	clear := func(a *ast.ActivityAnnotations) { a.Position = nil }
+	if !declaredMatches(withAnnotations(d, clear), withAnnotations(s, clear)) {
+		return cannotSplice("a node inside the %s is moved; the splice moves the nodes of the flow and of an if's branches, "+
+			"not those inside a loop body or an error handler", describeAt(s))
+	}
+	return nil
+}
+
+// movedNode records a move of the stored statement's own node when the
+// declared one states a position it is not drawn at.
+func (pd *patchDiff) movedNode(d, s ast.MicroflowStatement) error {
+	da, sa := statementAnnotations(d), statementAnnotations(s)
+	if da == nil || da.Position == nil {
+		return nil
+	}
+	if sa != nil && sa.Position != nil && *sa.Position == *da.Position {
+		return nil
+	}
+	c, err := pd.loc.locate(s)
+	if err != nil {
+		return err
+	}
+	pd.moves = append(pd.moves, flowMove{id: c.ID, to: model.Point{X: da.Position.X, Y: da.Position.Y}, what: describeAt(s)})
+	return nil
+}
+
+// redrawn is the refusal for a statement whose connectors the script draws
+// differently: the patch moves nodes, and does not reroute flows.
+func redrawn(st ast.MicroflowStatement) error {
+	return cannotSplice("the connectors of the %s are redrawn (its @anchor, @curve or @merge); the splice moves nodes "+
+		"but does not reroute or redraw the flows between them", describeAt(st))
+}
+
+// withoutStart returns the statements with their @start taken off (as copies),
+// and the first one stated.
+func withoutStart(stmts []ast.MicroflowStatement) ([]ast.MicroflowStatement, *ast.Position) {
+	var start *ast.Position
+	out := make([]ast.MicroflowStatement, len(stmts))
+	for i, st := range stmts {
+		out[i] = st
+		if ann := statementAnnotations(st); ann != nil && ann.Start != nil {
+			if start == nil {
+				p := *ann.Start
+				start = &p
+			}
+			out[i] = withAnnotations(st, func(a *ast.ActivityAnnotations) { a.Start = nil })
+		}
+	}
+	return out, start
+}
+
+// startEvent records the move of the start event: to a stated @start, or —
+// when none is stated and the start is where mxcli's layout derives it — along
+// with a first statement the script places (#951).
+func (pd *patchDiff) startEvent(a *alterFlowContext, declared []ast.MicroflowStatement, stated *ast.Position) {
+	oc := a.mf.ObjectCollection
+	var start microflows.MicroflowObject
+	for _, o := range oc.Objects {
+		if _, ok := o.(*microflows.StartEvent); ok {
+			start = o
+		}
+	}
+	if start == nil {
+		return
+	}
+	cur := start.GetPosition()
+	var to *model.Point
+	switch {
+	case stated != nil:
+		to = &model.Point{X: stated.X, Y: stated.Y}
+	case len(declared) > 0:
+		derived, ok := derivedStartPosition(oc)
+		ann := statementAnnotations(declared[0])
+		if ok && derived == cur && ann != nil && ann.Position != nil {
+			to = &model.Point{X: ann.Position.X - HorizontalSpacing, Y: ann.Position.Y}
+		}
+	}
+	if to != nil && *to != cur {
+		pd.moves = append(pd.moves, flowMove{id: start.GetID(), to: *to, what: "start event"})
+	}
+}
+
+// followingEnd records the move of the end event a body ends at when the
+// script does not place it and mxcli's layout drew it — endSpacing right of the
+// statement before it, on its line — and the statement before it is now drawn
+// elsewhere: the end follows, as it would in a build of the script, rather
+// than being left across the canvas (the end-event half of #951).
+func (pd *patchDiff) followingEnd(declared, stored []ast.MicroflowStatement) error {
+	n, m := len(declared), len(stored)
+	if n < 2 || m < 2 {
+		return nil
+	}
+	dr, ok1 := declared[n-1].(*ast.ReturnStmt)
+	sr, ok2 := stored[m-1].(*ast.ReturnStmt)
+	if !ok1 || !ok2 || (dr.Annotations != nil && dr.Annotations.Position != nil) {
+		return nil
+	}
+	if branches(declared[n-2]) || branches(stored[m-2]) {
+		return nil
+	}
+	e, p, q := statedPosition(sr), statedPosition(stored[m-2]), statedPosition(declared[n-2])
+	if e == nil || p == nil || q == nil || *e != (ast.Position{X: p.X + endSpacing, Y: p.Y}) {
+		return nil
+	}
+	to := ast.Position{X: q.X + endSpacing, Y: q.Y}
+	if to == *e {
+		return nil
+	}
+	c, err := pd.loc.locate(sr)
+	if err != nil {
+		return err
+	}
+	pd.moves = append(pd.moves, flowMove{id: c.ID, to: model.Point{X: to.X, Y: to.Y}, what: describeAt(sr)})
+	return nil
+}
+
+// branches reports whether the node a statement is drawn as is not the one a
+// following statement's flow leaves from: an if joins its branches in a merge
+// or ends them, and a loop's flow leaves the loop box.
+func branches(st ast.MicroflowStatement) bool {
+	switch st.(type) {
+	case *ast.IfStmt, *ast.LoopStmt, *ast.WhileStmt:
+		return true
+	}
+	return false
+}
+
+func statedPosition(st ast.MicroflowStatement) *ast.Position {
+	if ann := statementAnnotations(st); ann != nil {
+		return ann.Position
+	}
+	return nil
+}
+
+// withoutParameterPositions returns params with their positions cleared (as a
+// copy): a parameter drawn elsewhere is a move, not a header change.
+func withoutParameterPositions(params []ast.MicroflowParam) []ast.MicroflowParam {
+	if len(params) == 0 {
+		return params
+	}
+	out := append([]ast.MicroflowParam(nil), params...)
+	for i := range out {
+		out[i].Position = nil
+	}
+	return out
+}
+
+// parameterMoves records the moves of the stored parameters the script draws
+// somewhere else. A parameter without @position keeps where it is.
+func parameterMoves(d *flowDecl, stored []*microflows.MicroflowParameter) []flowMove {
+	var out []flowMove
+	for _, p := range d.params {
+		if p.Position == nil {
+			continue
+		}
+		for i, sp := range stored {
+			if sp.Name != p.Name {
+				continue
+			}
+			cur := microflows.DerivedParameterPosition(i)
+			if sp.Position != nil {
+				cur = *sp.Position
+			}
+			if to := (model.Point{X: p.Position.X, Y: p.Position.Y}); to != cur {
+				out = append(out, flowMove{id: sp.ID, to: to, what: "parameter $" + p.Name})
+			}
+		}
+	}
+	return out
+}
+
+// checkRemovedParameters refuses to remove a parameter another document still
+// passes an argument to. A call names the parameter it binds by qualified name
+// (Module.Flow.Parameter), in a microflow's call action, a page's button or
+// data source, a workflow's call, a published service; the patch cannot update
+// them, and each would be left binding a parameter that no longer exists. The
+// flow's own uses are the mutator's to check (SetHeader), since those are in
+// the document it writes.
+func checkRemovedParameters(ctx *ExecContext, d *flowDecl, a *alterFlowContext) error {
+	declared := map[string]bool{}
+	for _, p := range d.params {
+		declared[p.Name] = true
+	}
+	var removed []string
+	for _, p := range a.mf.Parameters {
+		if !declared[p.Name] {
+			removed = append(removed, p.Name)
+		}
+	}
+	if len(removed) == 0 {
+		return nil
+	}
+	units, err := ctx.Backend.ListRawUnitsByType("")
+	if err != nil {
+		return cannotSplice("parameter $%s is removed, and the documents that might pass it an argument cannot be read: %v", removed[0], err)
+	}
+	for _, name := range removed {
+		qn := []byte(d.name.Module + "." + d.name.Name + "." + name)
+		var users []string
+		for _, u := range units {
+			if u.ID == a.mf.ID || !bytes.Contains(u.Contents, qn) {
+				continue
+			}
+			users = append(users, unitLabel(u.Type, u.Contents))
+		}
+		if len(users) > 0 {
+			if len(users) > 3 {
+				users = append(users[:3], fmt.Sprintf("%d more", len(users)-3))
+			}
+			return cannotSplice("parameter $%s is removed, but %s still pass(es) an argument to it; the patch does not "+
+				"change the callers — remove the argument there first", name, strings.Join(users, ", "))
+		}
+	}
+	return nil
+}
+
+// unitLabel names a unit for a message: its type and its name.
+func unitLabel(typ string, contents []byte) string {
+	var head struct {
+		Name string `bson:"Name"`
+	}
+	_ = bson.Unmarshal(contents, &head)
+	kind := typ
+	if i := strings.LastIndex(kind, "$"); i >= 0 {
+		kind = kind[i+1:]
+	}
+	if head.Name == "" {
+		return "a " + kind
+	}
+	return "the " + strings.ToLower(kind) + " " + head.Name
+}
+
+// firstStatementPlaced reports whether a fragment's first statement states
+// where it is drawn, which makes the fragment placed (backend.MicroflowFragment).
+func firstStatementPlaced(body []ast.MicroflowStatement) bool {
+	return len(body) > 0 && statedPosition(body[0]) != nil
+}
+
+// laterStatementPlaced reports whether a statement after a fragment's first
+// states where it is drawn. Unless the first does too, the fragment is
+// translated into the gap as a whole and that position would be lost, the
+// statements landing on top of each other.
+func laterStatementPlaced(body []ast.MicroflowStatement) bool {
+	for _, st := range body[min(1, len(body)):] {
+		if statedPosition(st) != nil {
+			return true
+		}
+	}
+	return false
+}

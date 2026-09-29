@@ -105,3 +105,66 @@ func TestLCSStatements_PairsTheUnchangedRuns(t *testing.T) {
 		}
 	}
 }
+
+// ako/mxcli#818: a statement drawn elsewhere is the stored node moved — it
+// matches once positions are ignored — but a redrawn connector is not.
+func TestSameExceptPositions_PositionsOnly(t *testing.T) {
+	stored := parseFlowBody(t, storedFlowBody)
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"a node and a nested node moved", `  @position(210, 260)
+  @curve(from: (30, 0), to: (-15, 0))
+  @caption 'Say hello'
+  log info node 'N' 'hello';
+  @position(400, 200)
+  if $In = 'x' then
+    @position(420, 330)
+    @anchor(from: bottom, to: top)
+    log info node 'N' 'x';
+  end if;`, true},
+		{"a start stated", `  @start(10, 10)
+  @caption 'Say hello'
+  log info node 'N' 'hello';
+  if $In = 'x' then
+    log info node 'N' 'x';
+  end if;`, true},
+		{"a curve redrawn", `  @curve(from: (30, 0), to: (-15, 20))
+  @caption 'Say hello'
+  log info node 'N' 'hello';
+  if $In = 'x' then
+    log info node 'N' 'x';
+  end if;`, false},
+		{"an anchor redrawn", `  @caption 'Say hello'
+  log info node 'N' 'hello';
+  if $In = 'x' then
+    @anchor(from: right, to: top)
+    log info node 'N' 'x';
+  end if;`, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			d := parseFlowBody(t, c.body)
+			if got := sameExceptPositions(d.Body, stored.Body); got != c.want {
+				t.Errorf("sameExceptPositions = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// Of two alike stored statements, the one the script leaves in place keeps
+// its node; the moved one pairs with the other.
+func TestLCSStatements_ExactMatchWinsOverAMove(t *testing.T) {
+	stored := parseFlowBody(t, `  @position(200, 200)
+  log info node 'N' 'same';
+  @position(400, 200)
+  log info node 'N' 'same';`).Body
+	declared := parseFlowBody(t, `  @position(400, 200)
+  log info node 'N' 'same';`).Body
+	pairs := lcsStatements(declared, stored)
+	if len(pairs) != 1 || pairs[0] != [2]int{0, 1} {
+		t.Fatalf("pairs %v, want the declared statement paired with the stored one it matches exactly", pairs)
+	}
+}

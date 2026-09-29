@@ -130,6 +130,14 @@ func (d *fakeDeps) SerializeAnnotationFlow(f *microflows.AnnotationFlow) (bson.D
 	}, nil
 }
 
+func (d *fakeDeps) SerializeDocument(declared any) (bson.D, error) {
+	doc, ok := declared.(bson.D)
+	if !ok {
+		return nil, fmt.Errorf("fakeDeps encodes a bson.D, not a %T", declared)
+	}
+	return doc, nil
+}
+
 func (d *fakeDeps) SaveUnit(_ string, contents []byte) error {
 	d.saved = contents
 	return nil
