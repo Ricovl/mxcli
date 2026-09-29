@@ -19,12 +19,12 @@ func TestUpgrade_MetadataPlacement(t *testing.T) {
 		name, src, want, code string
 	}{
 		{"constant comment clause",
-			"create constant M.Url type string default 'https://x'\n  comment 'Base URL';\n",
-			"/** Base URL */\ncreate constant M.Url type string default 'https://x';\n",
+			"create constant M.Url ( Type: string, DefaultValue: 'https://x' )\n  comment 'Base URL';\n",
+			"/** Base URL */\ncreate constant M.Url ( Type: string, DefaultValue: 'https://x' );\n",
 			deprecation.DocumentationClause},
 		{"indented statement keeps its indent",
-			"  create constant M.Url type string default 'x' comment 'It''s the URL' exposed to client;\n",
-			"  /** It's the URL */\n  create constant M.Url type string default 'x' exposed to client;\n",
+			"  create constant M.Url ( Type: string, DefaultValue: 'x', ExposedToClient: true ) comment 'It''s the URL';\n",
+			"  /** It's the URL */\n  create constant M.Url ( Type: string, DefaultValue: 'x', ExposedToClient: true );\n",
 			deprecation.DocumentationClause},
 		{"association comment clause",
 			"CREATE ASSOCIATION M.A_B FROM M.A TO M.B TYPE Reference COMMENT 'Links';\n",
@@ -43,8 +43,8 @@ func TestUpgrade_MetadataPlacement(t *testing.T) {
 		// plain comment and the clause becomes the doc comment; on an
 		// association the doc comment wins, so the clause is deleted.
 		{"constant with both, the clause wins",
-			"/**\n * Level 1: a constant\n */\ncreate constant M.Url type string default 'x'\ncomment 'Clause';\n",
-			"/*\n * Level 1: a constant\n */\n/** Clause */\ncreate constant M.Url type string default 'x';\n",
+			"/**\n * Level 1: a constant\n */\ncreate constant M.Url ( Type: string, DefaultValue: 'x' )\ncomment 'Clause';\n",
+			"/*\n * Level 1: a constant\n */\n/** Clause */\ncreate constant M.Url ( Type: string, DefaultValue: 'x' );\n",
 			deprecation.DocumentationClause},
 		{"association with both, the doc comment wins",
 			"/** Doc */\ncreate association M.A_B from M.A to M.B comment 'Clause';\n",
@@ -119,9 +119,9 @@ func TestUpgrade_MetadataPlacement(t *testing.T) {
 // list that may not be empty.
 func TestUpgrade_MetadataPlacementUnrewritable(t *testing.T) {
 	for _, src := range []string{
-		"/*** Doc */\ncreate constant M.Url type string default 'x' comment 'Clause';\n",
-		"create constant M.Url type string default 'x' comment 'ends with a space ';\n",
-		"create constant M.Url type string default 'x' comment 'has */ in it';\n",
+		"/*** Doc */\ncreate constant M.Url ( Type: string, DefaultValue: 'x' ) comment 'Clause';\n",
+		"create constant M.Url ( Type: string, DefaultValue: 'x' ) comment 'ends with a space ';\n",
+		"create constant M.Url ( Type: string, DefaultValue: 'x' ) comment 'has */ in it';\n",
 		"create page M.P folder 'A' (Title: 'P', Layout: Atlas_Core.Atlas_Default, Folder: 'B') { };\n",
 		"create task queue M.Q (Documentation: 'Only');\n",
 	} {
@@ -137,9 +137,9 @@ func TestUpgrade_MetadataPlacementUnrewritable(t *testing.T) {
 
 // R9 (ako/mxcli#755): the folder moves to right after the name.
 func TestUpgrade_FolderClausePosition(t *testing.T) {
-	src := "CREATE CONSTANT M.Url TYPE String DEFAULT 'x' FOLDER 'Config' EXPOSED TO CLIENT;\n" +
+	src := "CREATE CONSTANT M.Url ( Type: String, DefaultValue: 'x', ExposedToClient: TRUE ) FOLDER 'Config';\n" +
 		"create snippet M.S (Params: ( $C: M.E )) folder 'Common' { };\n"
-	want := "CREATE CONSTANT M.Url FOLDER 'Config' TYPE String DEFAULT 'x' EXPOSED TO CLIENT;\n" +
+	want := "CREATE CONSTANT M.Url FOLDER 'Config' ( Type: String, DefaultValue: 'x', ExposedToClient: TRUE );\n" +
 		"create snippet M.S folder 'Common' (Params: ( $C: M.E )) { };\n"
 	res := mustUpgrade(t, src, Options{})
 	if res.Source != want {

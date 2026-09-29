@@ -80,6 +80,9 @@ var r8Codes = map[string]bool{
 	deprecation.JSONStructureSample: true,
 	// R9's folder position (#755): right after the name.
 	deprecation.FolderClausePosition: true,
+	// Phase 3.6 (#755): a constant's and a demo user's header is a property list.
+	deprecation.ConstantClauses: true,
+	deprecation.DemoUserClauses: true,
 }
 
 func firstDifferentLine(a, b string) string {

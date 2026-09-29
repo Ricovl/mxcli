@@ -250,7 +250,7 @@ Security - Project Settings:
   alter app security ( SecurityLevel: off|prototype|production );
   alter app security ( EnableDemoUsers: true|false, StrictMode: true|false );
   alter app security ( EnableGuestAccess: true|false [, GuestUserRole: <UserRole>] );
-  create demo user 'name' password 'pass' (UserRole [, ...]);
+  create demo user 'name' ( Password: 'pass', UserRoles: (UserRole [, ...]) );
   drop demo user 'name';
 
 Security - Queries:

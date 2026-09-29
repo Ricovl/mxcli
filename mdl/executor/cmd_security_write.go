@@ -1284,7 +1284,7 @@ func applyGuestAccess(ctx *ExecContext, ps *security.ProjectSecurity, s *ast.Alt
 // so scripts described before the fix get the safe meaning too.
 const demoUserPasswordPlaceholder = "***"
 
-// execCreateDemoUser handles CREATE [OR MODIFY] DEMO USER 'name' PASSWORD 'pw' [ENTITY Module.Entity] (Roles).
+// execCreateDemoUser handles CREATE [OR MODIFY] DEMO USER 'name' ( Password: 'pw', Entity: Module.Entity, UserRoles: (Roles) ).
 func execCreateDemoUser(ctx *ExecContext, s *ast.CreateDemoUserStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()

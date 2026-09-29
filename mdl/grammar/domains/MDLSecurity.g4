@@ -163,9 +163,26 @@ appSecurityKw
     | PROJECT SECURITY /* @alias MDL-DEPR554 */
     ;
 
+// A demo user's properties are a ( Key: value ) list, named as Studio Pro's
+// Security$DemoUser names them: Password, Entity, UserRoles (phase 3.6 of
+// PROPOSAL_mdl_beta_syntax_freeze.md, ako/mxcli#755). The clause form
+// `password 'p' [entity E] (Role, …)` is the deprecated alias.
 createDemoUserStatement
-    : DEMO USER ifNotExists? STRING_LITERAL PASSWORD STRING_LITERAL (ENTITY qualifiedName)?
+    : DEMO USER ifNotExists? STRING_LITERAL demoUserPropertyList
+    | DEMO USER ifNotExists? STRING_LITERAL PASSWORD /* @alias MDL-DEPR137 */ STRING_LITERAL (ENTITY qualifiedName)?
       LPAREN identifierOrKeyword (COMMA identifierOrKeyword)* RPAREN
+    ;
+
+demoUserPropertyList
+    : LPAREN (demoUserProperty (COMMA demoUserProperty)* COMMA?)? RPAREN
+    ;
+
+// UserRoles: (Role, …) takes a list of user roles; Password a string; Entity
+// the user entity. The visitor refuses any other key.
+demoUserProperty
+    : identifierOrKeyword COLON LPAREN (identifierOrKeyword (COMMA identifierOrKeyword)*)? RPAREN
+    | identifierOrKeyword COLON STRING_LITERAL
+    | identifierOrKeyword COLON qualifiedName
     ;
 
 dropDemoUserStatement

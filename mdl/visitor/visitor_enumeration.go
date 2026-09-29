@@ -3,6 +3,8 @@
 package visitor
 
 import (
+	"fmt"
+
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
@@ -114,13 +116,19 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 // ExitCreateConstantStatement is called when exiting the createConstantStatement production.
 func (b *Builder) ExitCreateConstantStatement(ctx *parser.CreateConstantStatementContext) {
 	stmt := &ast.CreateConstantStmt{
-		Name:     buildQualifiedName(ctx.QualifiedName()),
-		DataType: buildDataType(ctx.DataType()),
+		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
 
-	// Extract default value from literal
-	if lit := ctx.Literal(); lit != nil {
-		stmt.DefaultValue = extractLiteralValue(lit)
+	if pl, ok := ctx.ConstantPropertyList().(*parser.ConstantPropertyListContext); ok && pl != nil {
+		b.constantProperties(stmt, pl)
+	} else if ctx.DataType() != nil {
+		// The clause form (MDL-DEPR136).
+		stmt.DataType = buildDataType(ctx.DataType())
+		if lit := ctx.Literal(); lit != nil {
+			stmt.DefaultValue = extractLiteralValue(lit)
+		}
+		b.recordDeprecation(deprecation.ConstantClauses, ctx.TYPE().GetSymbol(), "")
+		b.fixLastDeprecation(deprecation.ConstantClauses, constantClausesFix(ctx), "")
 	}
 
 	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
@@ -148,6 +156,12 @@ func (b *Builder) ExitCreateConstantStatement(ctx *parser.CreateConstantStatemen
 				b.recordFolderClausePosition(ctx.QualifiedName(), optCtx.FOLDER().GetSymbol(),
 					optCtx.STRING_LITERAL().GetSymbol(), ctx.FOLDER() != nil || countFolderOptions(optsCtx) > 1)
 			} else if optCtx.EXPOSED() != nil {
+				if ctx.ConstantPropertyList() != nil {
+					// Not a legacy spelling: the property list is new, and
+					// says this as ExposedToClient: true.
+					b.addError(fmt.Errorf("line %d: constant %s: `exposed to client` is the property ExposedToClient: true in the list",
+						optCtx.GetStart().GetLine(), stmt.Name))
+				}
 				stmt.ExposedToClient = true
 			}
 		}
