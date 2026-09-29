@@ -150,6 +150,10 @@ const (
 type SnippetParamMapping struct {
 	ParamName string // Snippet parameter name without leading $ (e.g. "Asset")
 	Argument  string // Variable being passed, includes leading $ (e.g. "$asset")
+	// IsSnippetParameter puts Argument in the SnippetParameter slot of the
+	// mapping's Forms$PageVariable instead of PageParameter: the call sits in a
+	// snippet and passes that snippet's own parameter (ako/mxcli#721 L3).
+	IsSnippetParameter bool
 }
 
 // SnippetCallWidget represents a snippet call widget.

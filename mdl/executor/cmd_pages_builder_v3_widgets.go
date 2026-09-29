@@ -1244,9 +1244,14 @@ func (pb *pageBuilder) buildSnippetCallParams(sc *pages.SnippetCallWidget, snipp
 				snippetQName, declared.Name, declared.Name, orDefaultStr(declared.EntityName, "the parameter's entity"),
 			)
 		}
+		// Inside a snippet, passing that snippet's own parameter names it in the
+		// SnippetParameter slot; the PageParameter slot names a page parameter
+		// the snippet does not have — CE0115 (ako/mxcli#721 L3).
+		_, kind := pb.classifyFlowArgValue(argument)
 		sc.ParameterMappings = append(sc.ParameterMappings, pages.SnippetParamMapping{
-			ParamName: declared.Name,
-			Argument:  argument,
+			ParamName:          declared.Name,
+			Argument:           argument,
+			IsSnippetParameter: kind == "snippet",
 		})
 	}
 

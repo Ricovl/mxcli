@@ -795,10 +795,13 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			assignID(m)
 			m.SetParameterQualifiedName(x.SnippetName + "." + pm.ParamName)
 			m.SetArgument("")
-			pv := genPg.NewPageVariable()
-			assignID(pv)
-			pv.SetPageParameterQualifiedName(strings.TrimPrefix(pm.Argument, "$"))
-			m.SetVariable(pv)
+			// A snippet's own parameter, passed on from inside that snippet,
+			// fills the SnippetParameter slot (ako/mxcli#721 L3).
+			kind := ""
+			if pm.IsSnippetParameter {
+				kind = "snippet"
+			}
+			m.SetVariable(sourceVariableToGen(strings.TrimPrefix(pm.Argument, "$"), kind))
 			call.AddParameterMappings(m)
 		}
 		g.SetSnippetCall(call)
