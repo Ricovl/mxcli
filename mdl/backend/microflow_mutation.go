@@ -21,6 +21,11 @@ type MicroflowFragment struct {
 	Flows           []*microflows.SequenceFlow
 	AnnotationFlows []*microflows.AnnotationFlow
 	Entry, Exit     model.ID
+	// Placed says the script stated where the fragment goes (an @position on
+	// its first statement): it is written where the builder put it, and
+	// nothing around it is moved to make room (ako/mxcli#818). Unset, the
+	// mutator translates it into the gap it is spliced into.
+	Placed bool
 }
 
 // MicroflowMutator splices into one stored microflow or nanoflow (ADR-0012
@@ -40,6 +45,17 @@ type MicroflowMutator interface {
 	// SetReturnValue sets the expression the end event target returns, in
 	// place; "" is no value.
 	SetReturnValue(target model.ID, value string) error
+	// Move sets where the top-level node target is drawn, and nothing else:
+	// its flows keep their ends, sides and curves (ako/mxcli#818).
+	Move(target model.ID, to model.Point) error
+	// SetHeader writes the document properties of declared — a
+	// *microflows.Microflow or *microflows.Nanoflow built from the statement,
+	// with every property it does not state carried from the stored one — onto
+	// the stored document: the header (return type, URL, export level,
+	// concurrency, documentation, …) and the parameters (added, retyped or
+	// removed). Nothing else is touched, and an unchanged property is not
+	// rewritten. It returns what it changed, for the report.
+	SetHeader(declared any) ([]string, error)
 	// Save writes the patched unit.
 	Save() error
 }

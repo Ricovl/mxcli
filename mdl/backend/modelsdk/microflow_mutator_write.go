@@ -71,6 +71,40 @@ func (d codecMicroflowDeps) SerializeAnnotationFlow(f *microflows.AnnotationFlow
 	return encodeFlowElementToD(el)
 }
 
+// SerializeDocument encodes a declared microflow or nanoflow exactly as
+// UpdateMicroflow / UpdateNanoflow would, for SetHeader to copy its header
+// from (ako/mxcli#818).
+func (d codecMicroflowDeps) SerializeDocument(declared any) (bson.D, error) {
+	var el element.Element
+	switch doc := declared.(type) {
+	case *microflows.Microflow:
+		gm := microflowToGen(doc, d.b.majorVersion())
+		gm.SetID(element.ID(doc.ID))
+		assignMicroflowIDs(gm)
+		contents, err := (&codec.Encoder{}).Encode(gm)
+		if err != nil {
+			return nil, err
+		}
+		if contents, err = patchMicroflowToolboxEntries(contents, doc); err != nil {
+			return nil, err
+		}
+		var out bson.D
+		if err := bson.Unmarshal(contents, &out); err != nil {
+			return nil, err
+		}
+		return out, nil
+	case *microflows.Nanoflow:
+		g := nanoflowToGen(doc, d.b.majorVersion())
+		g.SetID(element.ID(doc.ID))
+		assignNanoflowIDs(g)
+		d.b.carryStoredNanoflowHeader(doc, g)
+		el = g
+	default:
+		return nil, fmt.Errorf("cannot encode a %T as a flow document", declared)
+	}
+	return encodeFlowElementToD(el)
+}
+
 // SaveUnit writes the spliced unit as a patch: the reconciling writer elides
 // an unchanged unit and guards storage GUIDs as for every write, but does not
 // re-pair element $IDs the splice deliberately kept (canon.ContentsOwnElementIDs).
