@@ -358,7 +358,7 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 	if len(p.OfflineEntities) > 0 {
 		fmt.Fprintln(ctx.Output, "  sync (")
 		for _, oe := range p.OfflineEntities {
-			fmt.Fprintf(ctx.Output, "    sync %s %s;\n", oe.Entity, syncModeMDL(oe.SyncMode, oe.Constraint))
+			fmt.Fprintf(ctx.Output, "    sync %s %s;\n", oe.Entity, syncModeMDL(ctx, oe.SyncMode, oe.Constraint))
 		}
 		fmt.Fprintln(ctx.Output, "  )")
 		// CompatibilityMode has no syntax: it is carried through a rewrite
@@ -571,7 +571,7 @@ func singleLine(s string) string {
 // round-trips: emitting the stored member verbatim would produce `sync X
 // Constrained`, which is not MDL, and emitting a Studio Pro caption would
 // produce a document mxbuild refuses.
-func syncModeMDL(mode, constraint string) string {
+func syncModeMDL(ctx *ExecContext, mode, constraint string) string {
 	switch mode {
 	case "Online":
 		return "online"

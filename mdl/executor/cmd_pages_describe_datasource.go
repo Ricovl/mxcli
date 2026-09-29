@@ -266,7 +266,7 @@ func sortColumnPath(col rawSortColumn) string {
 // wherever it appears. The six hand-written switches this replaces disagreed:
 // the object-list one had no switch at all and labelled everything `database`,
 // and two others omitted the WHERE and SORT they had read (#941).
-func dataSourceExpr(ds *rawDataSource) string {
+func dataSourceExpr(ctx *ExecContext, ds *rawDataSource) string {
 	if ds == nil || ds.Unsupported != "" {
 		return ""
 	}
@@ -278,7 +278,7 @@ func dataSourceExpr(ds *rawDataSource) string {
 			return ""
 		}
 		expr := "database from " + ds.Reference
-		if clause := xpathConstraintClause(ds.XPathConstraint); clause != "" {
+		if clause := xpathConstraintClause(ctx, ds.XPathConstraint); clause != "" {
 			expr += " where " + clause
 		}
 		if len(ds.SortColumns) > 0 {
@@ -335,8 +335,8 @@ func dataSourceExpr(ds *rawDataSource) string {
 
 // dataSourceProp renders the whole `DataSource: …` property, or "" when the
 // datasource cannot be expressed.
-func dataSourceProp(ds *rawDataSource) string {
-	expr := dataSourceExpr(ds)
+func dataSourceProp(ctx *ExecContext, ds *rawDataSource) string {
+	expr := dataSourceExpr(ctx, ds)
 	if expr == "" {
 		return ""
 	}
@@ -346,14 +346,14 @@ func dataSourceProp(ds *rawDataSource) string {
 // dataSourceComment describes a datasource MDL cannot express, so a reader of
 // the output learns the binding exists rather than silently losing it. Returns
 // "" for a datasource that renders normally.
-func dataSourceComment(ds *rawDataSource) string {
+func dataSourceComment(ctx *ExecContext, ds *rawDataSource) string {
 	if ds == nil {
 		return ""
 	}
 	if ds.Unsupported != "" {
 		return fmt.Sprintf("-- DataSource (%s) has no MDL spelling and is not reproduced here", ds.Unsupported)
 	}
-	if dataSourceExpr(ds) == "" && ds.Type != "" {
+	if dataSourceExpr(ctx, ds) == "" && ds.Type != "" {
 		return fmt.Sprintf("-- DataSource (%s) is incomplete in the model and is not reproduced here", ds.Type)
 	}
 	return ""
@@ -364,11 +364,11 @@ func dataSourceComment(ds *rawDataSource) string {
 //
 // Every widget goes through this, so a datasource cannot be rendered one way in
 // a DataView and another in a Gallery, which is the drift #941 was.
-func appendDataSourceProp(props []string, ds *rawDataSource) []string {
-	if prop := dataSourceProp(ds); prop != "" {
+func appendDataSourceProp(ctx *ExecContext, props []string, ds *rawDataSource) []string {
+	if prop := dataSourceProp(ctx, ds); prop != "" {
 		return append(props, prop)
 	}
-	if comment := dataSourceComment(ds); comment != "" {
+	if comment := dataSourceComment(ctx, ds); comment != "" {
 		return append(props, comment)
 	}
 	return props
@@ -382,11 +382,11 @@ func appendDataSourceProp(props []string, ds *rawDataSource) []string {
 // DataView and another in a Gallery, which is the drift #941 was. A branch that
 // read w.DataSource directly would silently keep describing a multi-source
 // widget as single-source.
-func appendWidgetDataSources(props []string, w rawWidget) []string {
+func appendWidgetDataSources(ctx *ExecContext, props []string, w rawWidget) []string {
 	if len(w.NamedDataSources) > 0 {
-		return appendNamedDataSourceProps(props, w.NamedDataSources)
+		return appendNamedDataSourceProps(ctx, props, w.NamedDataSources)
 	}
-	return appendDataSourceProp(props, w.DataSource)
+	return appendDataSourceProp(ctx, props, w.DataSource)
 }
 
 // appendNamedDataSourceProps adds one `<schemaKey>: <datasource>` property per
@@ -396,19 +396,19 @@ func appendWidgetDataSources(props []string, w rawWidget) []string {
 // A source whose schema key did not resolve falls back to the unnamed
 // `DataSource:` spelling — the output it would have had before there was a key
 // to print. Losing it instead would be #956 with extra steps.
-func appendNamedDataSourceProps(props []string, sources []rawNamedDataSource) []string {
+func appendNamedDataSourceProps(ctx *ExecContext, props []string, sources []rawNamedDataSource) []string {
 	for _, src := range sources {
 		if src.Key == "" {
-			props = appendDataSourceProp(props, src.DataSource)
+			props = appendDataSourceProp(ctx, props, src.DataSource)
 			continue
 		}
-		if expr := dataSourceExpr(src.DataSource); expr != "" {
+		if expr := dataSourceExpr(ctx, src.DataSource); expr != "" {
 			props = append(props, fmt.Sprintf("%s: %s", src.Key, expr))
 			continue
 		}
 		// Not spellable in MDL — say so under this key, so a reader learns which
 		// of the widget's bindings is the one that did not come through.
-		if comment := dataSourceComment(src.DataSource); comment != "" {
+		if comment := dataSourceComment(ctx, src.DataSource); comment != "" {
 			props = append(props, strings.Replace(comment, "-- DataSource ", "-- "+src.Key+" ", 1))
 		}
 	}
@@ -433,7 +433,7 @@ func appendNamedDataSourceProps(props []string, sources []rawNamedDataSource) []
 // emitter uses (#772) rather than a second copy: the previous code here took
 // the outer brackets off by testing the first and last byte, which turns
 // `[a][b]` into the mangled `a][b`.
-func xpathConstraintClause(constraint string) string {
+func xpathConstraintClause(ctx *ExecContext, constraint string) string {
 	xpath := strings.TrimSpace(constraint)
 	if xpath == "" {
 		return ""

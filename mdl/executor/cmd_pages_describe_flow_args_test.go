@@ -110,7 +110,7 @@ func TestDataSourceArgsReadPageVariableBinding(t *testing.T) {
 			if got == nil {
 				t.Fatal("datasource not read")
 			}
-			if expr := dataSourceExpr(got); expr != tc.want {
+			if expr := dataSourceExpr(nil, got); expr != tc.want {
 				t.Errorf("rendered %q, want %q", expr, tc.want)
 			}
 		})

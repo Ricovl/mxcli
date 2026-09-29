@@ -25,7 +25,7 @@ import (
 // validator's rule IDs.
 func describeAndValidate(t *testing.T, acts ...workflows.WorkflowActivity) (src string, parseErrs []string, ruleIDs []string) {
 	t.Helper()
-	lines := formatWorkflowActivities(&workflows.Flow{Activities: acts}, "  ")
+	lines := formatWorkflowActivities(nil, &workflows.Flow{Activities: acts}, "  ")
 	src = "create workflow M.WF\n  parameter $WorkflowContext: M.E\nbegin\n" +
 		strings.Join(lines, "\n") + "\nend workflow;"
 	prog, errs := visitor.Build(src)

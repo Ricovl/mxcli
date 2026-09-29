@@ -43,7 +43,7 @@ func outputEntityAccessGrants(ctx *ExecContext, entity *domainmodel.Entity, modu
 			continue
 		}
 
-		fmt.Fprintln(ctx.Output, "\n"+entityGrantMDL(rightsStr, moduleName+"."+entityName, roleStrs, rule.XPathConstraint))
+		fmt.Fprintln(ctx.Output, "\n"+entityGrantMDL(ctx, rightsStr, moduleName+"."+entityName, roleStrs, rule.XPathConstraint))
 	}
 }
 
@@ -60,7 +60,7 @@ func outputEntityAccessGrants(ctx *ExecContext, entity *domainmodel.Entity, modu
 // written in the deprecated quoted form instead, which carries any string:
 // describe must stay re-executable over whatever a project holds, and a
 // deprecation warning is better than output that does not parse.
-func entityGrantMDL(rights, entity string, roles []string, xpath string) string {
+func entityGrantMDL(ctx *ExecContext, rights, entity string, roles []string, xpath string) string {
 	x := visitor.FlattenXPathConstraint(xpath)
 	if x == "" || visitor.IsBracketedXPath(x) {
 		line := fmt.Sprintf("grant %s on entity %s to %s", rights, entity, strings.Join(roles, ", "))
