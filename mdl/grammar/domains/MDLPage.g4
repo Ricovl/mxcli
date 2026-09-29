@@ -642,10 +642,16 @@ attributeListV3
     ;
 
 // V3 DataSource expressions
+//
+// `database from $ctx/Assoc/Entity` is a DATABASE retrieve reached over an
+// association from a context object (a Forms$ListViewXPathSource whose EntityRef
+// is an IndirectEntityRef): it keeps its XPath, sort and search. The bare
+// `$ctx/Assoc` is an ASSOCIATION source, an in-memory retrieve with none of them.
+// Studio Pro distinguishes the two, so MDL does (ako/mxcli#721 L5).
 dataSourceExprV3
     : VARIABLE SLASH associationPathV3                // $currentObject/Module.Assoc (ByAssociation — sugar for ASSOCIATION)
     | VARIABLE                                        // $ParamName
-    | DATABASE FROM? qualifiedName                    // DATABASE [FROM] Entity [WHERE ...] [SORT BY ...]
+    | DATABASE FROM? (qualifiedName | VARIABLE SLASH associationPathV3) // DATABASE [FROM] Entity|$ctx/Assoc/Entity [WHERE ...] [SORT BY ...]
       (WHERE (xpathConstraint (andOrXpath? xpathConstraint)* | expression))?
       (SORT_BY sortColumn (COMMA sortColumn)*)?
       (SEARCH_BY searchAttribute (COMMA searchAttribute)*)?

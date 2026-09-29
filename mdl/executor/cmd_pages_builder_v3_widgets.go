@@ -83,7 +83,7 @@ func (pb *pageBuilder) buildDataViewV3(w *ast.WidgetV3) (*pages.DataView, error)
 		if ds.Type == "database" {
 			return nil, mdlerrors.NewValidationf(
 				"dataview %q cannot use a database data source (from %s) — a data view shows one object; use a microflow/nanoflow source (or a page parameter), or a list widget (listview/datagrid/gallery) for a collection [MDL-WIDGET09]",
-				w.Name, ds.Reference)
+				w.Name, databaseSourceFrom(ds))
 		}
 		dataSource, entityName, err := pb.buildDataSourceV3(ds)
 		if err != nil {

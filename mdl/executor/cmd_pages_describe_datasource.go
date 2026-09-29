@@ -107,6 +107,17 @@ func parseDataSource(ds map[string]any) *rawDataSource {
 		if got := parseEntitySource(ds); got != nil {
 			return got
 		}
+		// A List View's database source reached over an association from a
+		// context object. It is still a database retrieve — XPath, sort bar and
+		// search bar included — so it must not fall through to the association
+		// reading below, whose spelling executes as a Forms$AssociationSource
+		// and drops all three (ako/mxcli#721 L5). Only the List View source is
+		// known to mean this; the pluggable XPath source keeps the #941 reading.
+		if dsType == dsTypeListViewXPath {
+			if got := parseEntityPathSource(ds); got != nil {
+				return got
+			}
+		}
 		// An entity-backed source with no entity is really a context source:
 		// Studio Pro stores a pluggable list bound over an association or to a
 		// page parameter as an XPath source whose EntityRef is empty and whose
@@ -147,6 +158,61 @@ func parseEntitySource(ds map[string]any) *rawDataSource {
 		SearchAttributes: parseSearchAttributes(ds),
 	}
 	return result
+}
+
+// parseEntityPathSource reads a database source whose EntityRef is an
+// IndirectEntityRef: the association hops from the context object, each with
+// its stored destination, plus the XPath, sort and search a database source
+// carries. Returns nil when any hop is incomplete — a half-read path would
+// write a different retrieve.
+func parseEntityPathSource(ds map[string]any) *rawDataSource {
+	entityRef, ok := ds["EntityRef"].(map[string]any)
+	if !ok || entityRef == nil {
+		return nil
+	}
+	var steps []rawEntityStep
+	for _, raw := range getBsonArrayElements(entityRef["Steps"]) {
+		sm, ok := raw.(map[string]any)
+		if !ok {
+			return nil
+		}
+		step := rawEntityStep{
+			Association:       extractString(sm["Association"]),
+			DestinationEntity: extractString(sm["DestinationEntity"]),
+		}
+		if step.Association == "" || step.DestinationEntity == "" {
+			return nil
+		}
+		steps = append(steps, step)
+	}
+	if len(steps) == 0 {
+		return nil
+	}
+	_, ctxVar := associationSourcePath(ds)
+	last := steps[len(steps)-1].DestinationEntity
+	return &rawDataSource{
+		Type:             "database",
+		Reference:        last,
+		EntitySteps:      steps,
+		ContextVariable:  ctxVar,
+		XPathConstraint:  extractString(ds["XPathConstraint"]),
+		SortColumns:      parseSortColumns(ds),
+		SearchAttributes: parseSearchAttributes(ds),
+	}
+}
+
+// entityPathExpr renders a database source's association hops as
+// `$ctx/Assoc/Entity[/Assoc/Entity…]`, every destination spelled out.
+func entityPathExpr(ds *rawDataSource) string {
+	ctx := ds.ContextVariable
+	if ctx == "" {
+		ctx = "currentObject"
+	}
+	parts := []string{"$" + ctx}
+	for _, st := range ds.EntitySteps {
+		parts = append(parts, st.Association, st.DestinationEntity)
+	}
+	return strings.Join(parts, "/")
 }
 
 // parseContextSource reads the "data from context" forms: over an association,
@@ -277,7 +343,11 @@ func dataSourceExpr(ds *rawDataSource) string {
 		if ds.Reference == "" {
 			return ""
 		}
-		expr := "database from " + ds.Reference
+		from := ds.Reference
+		if len(ds.EntitySteps) > 0 {
+			from = entityPathExpr(ds)
+		}
+		expr := "database from " + from
 		if clause := xpathConstraintClause(ds.XPathConstraint); clause != "" {
 			expr += " where " + clause
 		}

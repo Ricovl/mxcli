@@ -114,3 +114,56 @@ func TestListViewSourceToGen_Microflow(t *testing.T) {
 		t.Fatalf("type = %T, want *genPg.MicroflowSource", el)
 	}
 }
+
+// ako/mxcli#721 L5: a List View database source reached over an association
+// from a snippet parameter is a Forms$ListViewXPathSource whose EntityRef is an
+// IndirectEntityRef and whose SourceVariable names the snippet parameter — the
+// shape Studio Pro stores in TestApp's WorkflowCommons snippets. It is not a
+// Forms$AssociationSource: the XPath source keeps its sort and search bars.
+func TestListViewSourceToGen_DatabaseOverAssociation(t *testing.T) {
+	el, err := listViewSourceToGen(&pages.DatabaseSource{
+		EntityName: "Administration.Account",
+		EntitySteps: []pages.AttributeRefStep{{
+			Association: "System.WorkflowUserTask_Assignees", DestinationEntity: "Administration.Account",
+		}},
+		ContextVariable:    "WorkflowUserTask",
+		IsSnippetParameter: true,
+		Sorting:            []*pages.GridSort{{AttributePath: "Administration.Account.FullName", Direction: "Ascending"}},
+	})
+	if err != nil {
+		t.Fatalf("listViewSourceToGen: %v", err)
+	}
+	raw, err := (&codec.Encoder{}).Encode(el)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	var d bson.D
+	if err := bson.Unmarshal(raw, &d); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got := lookup(d, "$Type"); got != "Forms$ListViewXPathSource" {
+		t.Fatalf("$Type = %v, want Forms$ListViewXPathSource", got)
+	}
+	ref, ok := lookup(d, "EntityRef").(bson.D)
+	if !ok {
+		t.Fatalf("EntityRef = %T", lookup(d, "EntityRef"))
+	}
+	if got := lookup(ref, "$Type"); got != "DomainModels$IndirectEntityRef" {
+		t.Errorf("EntityRef $Type = %v, want DomainModels$IndirectEntityRef", got)
+	}
+	steps, _ := lookup(ref, "Steps").(bson.A)
+	if len(steps) != 2 {
+		t.Fatalf("Steps = %v, want a marker and one step", steps)
+	}
+	step := steps[1].(bson.D)
+	if lookup(step, "Association") != "System.WorkflowUserTask_Assignees" || lookup(step, "DestinationEntity") != "Administration.Account" {
+		t.Errorf("step = %v", step)
+	}
+	sv, ok := lookup(d, "SourceVariable").(bson.D)
+	if !ok || lookup(sv, "SnippetParameter") != "WorkflowUserTask" {
+		t.Errorf("SourceVariable = %v, want the snippet parameter WorkflowUserTask", lookup(d, "SourceVariable"))
+	}
+	if lookup(d, "SortBar") == nil || lookup(d, "Search") == nil {
+		t.Errorf("SortBar/Search dropped; keys %v", dKeys(d))
+	}
+}

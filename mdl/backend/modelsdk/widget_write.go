@@ -1331,12 +1331,19 @@ func attributeRefWithStepsToGen(attrQN string, steps []pages.AttributeRefStep) e
 	r := genDm.NewAttributeRef()
 	assignID(r)
 	r.SetAttributeQualifiedName(attrQN)
+	r.SetEntityRef(pageEntityRefToGen(steps))
+	return r
+}
+
+// pageEntityRefToGen builds the DomainModels$IndirectEntityRef for page-side
+// association hops through entityRefToGen, so a sort binding and a List View
+// source cannot store the same path two ways.
+func pageEntityRefToGen(steps []pages.AttributeRefStep) element.Element {
 	mSteps := make([]microflows.EntityRefStep, len(steps))
 	for i, s := range steps {
 		mSteps[i] = microflows.EntityRefStep{Association: s.Association, DestinationEntity: s.DestinationEntity}
 	}
-	r.SetEntityRef(entityRefToGen(mSteps))
-	return r
+	return entityRefToGen(mSteps)
 }
 
 // widgetValidationToGen builds the default empty Forms$WidgetValidation.
@@ -1502,7 +1509,21 @@ func listViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		assignID(src)
 		src.SetForceFullObjects(false)
 		src.SetXPathConstraint(d.XPathConstraint)
-		if d.EntityName != "" {
+		switch {
+		case len(d.EntitySteps) > 0:
+			// Reached over associations from a context object: the same
+			// IndirectEntityRef an association source holds, but inside the
+			// XPath source, so the retrieve stays a database one with its
+			// constraint, sort and search (ako/mxcli#721 L5).
+			src.SetEntityRef(pageEntityRefToGen(d.EntitySteps))
+			if d.ContextVariable != "" {
+				kind := ""
+				if d.IsSnippetParameter {
+					kind = "snippet"
+				}
+				src.SetSourceVariable(sourceVariableToGen(d.ContextVariable, kind))
+			}
+		case d.EntityName != "":
 			ref := genDm.NewDirectEntityRef()
 			assignID(ref)
 			ref.SetEntityQualifiedName(d.EntityName)

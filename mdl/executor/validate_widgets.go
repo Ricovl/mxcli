@@ -999,7 +999,7 @@ func validateStaticWidget(w *ast.WidgetV3, locationPrefix string) []linter.Viola
 				Severity: linter.SeverityError,
 				Message: fmt.Sprintf(
 					"%s: dataview `%s` cannot use a database data source (`from %s`) — a data view shows one object; use a microflow/nanoflow source (or a page parameter), or a list widget (listview/datagrid/gallery) for a collection",
-					locationPrefix, w.Name, ds.Reference,
+					locationPrefix, w.Name, databaseSourceFrom(ds),
 				),
 			})
 		}

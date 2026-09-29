@@ -351,6 +351,9 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 	if err := checkSearchByIsOnAListView(w); err != nil {
 		return nil, err
 	}
+	if err := checkDatabaseOverAssociationIsOnAListView(w); err != nil {
+		return nil, err
+	}
 	if err := checkWidgetHasName(w); err != nil {
 		return nil, err
 	}
@@ -795,6 +798,27 @@ func checkSearchByIsOnAListView(w *ast.WidgetV3) error {
 		w.Name, strings.ToLower(w.Type), strings.ToLower(w.Type)))
 }
 
+// checkDatabaseOverAssociationIsOnAListView refuses `database from $ctx/Assoc/…`
+// on a widget other than a list view. Only the List View writer stores a
+// database source reached over an association (a Forms$ListViewXPathSource with
+// an IndirectEntityRef); every other writer would store the entity alone and
+// drop the path — a retrieve of every row instead of the context's
+// (ako/mxcli#721 L5). A data view is refused by MDL-WIDGET09 whatever the form.
+func checkDatabaseOverAssociationIsOnAListView(w *ast.WidgetV3) error {
+	if w == nil || strings.EqualFold(w.Type, "listview") || strings.EqualFold(w.Type, "dataview") {
+		return nil
+	}
+	ds := w.GetDataSource()
+	if ds == nil || ds.Type != "database" || ds.AssociationPath == "" {
+		return nil
+	}
+	return mdlerrors.NewValidation(fmt.Sprintf(
+		"widget %q (%s): `database from $%s/%s` is a LIST VIEW source reached over an association, "+
+			"and %s cannot store one — use the association source `$%s/%s`, or a `listview`.",
+		w.Name, strings.ToLower(w.Type), ds.ContextVariable, ds.AssociationPath,
+		strings.ToLower(w.Type), ds.ContextVariable, ds.AssociationPath))
+}
+
 // buildDataSourceV3 converts a V3 DataSource AST to a pages.DataSource.
 // Returns the datasource, the entity name for context, and any error.
 func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource, string, error) {
@@ -838,6 +862,9 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 		}, entityName, nil
 
 	case "database":
+		if ds.AssociationPath != "" {
+			return pb.buildDatabaseOverAssociationV3(ds)
+		}
 		// Database source: DATABASE Entity
 		entityID, err := pb.resolveEntity(ast.QualifiedName{
 			Module: pb.extractModule(ds.Reference),
@@ -856,63 +883,9 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 			EntityName: ds.Reference,
 		}
 
-		// Handle WHERE clause. Expand association-only paths to the Assoc/Entity/Assoc
-		// form Mendix requires (see expandXPathAssociationPath), so the shorthand
-		// `[Mod.Assoc1/Mod.Assoc2 = $x]` doesn't trip CE1613 at build time.
-		// Formatting comes last, after the expansion above has settled the text:
-		// a constraint too long to read on one line is broken at its boolean
-		// joints (upstream #979). One that already fits is returned unchanged, so
-		// this does not churn existing pages.
-		if ds.Where != "" {
-			dbSource.XPathConstraint = visitor.FormatXPathConstraint(
-				pb.expandXPathAssociationPath(ds.Where, ds.Reference))
+		if err := pb.applyDatabaseClausesV3(dbSource, ds, ds.Reference); err != nil {
+			return nil, "", err
 		}
-
-		// Handle ORDER BY
-		for _, ob := range ds.OrderBy {
-			direction := pages.SortDirectionAscending
-			if strings.ToLower(ob.Direction) == "desc" {
-				direction = pages.SortDirectionDescending
-			}
-			attrPath := pb.resolveAttributePathForEntity(ob.Attribute, ds.Reference)
-			var steps []pages.AttributeRefStep
-			if len(ob.Associations) > 0 {
-				// A sort that navigates associations. Resolved through the same
-				// walker DataGrid2 columns and dynamictext params use, so the two
-				// cannot disagree about a path that means the same thing in both.
-				// Refused rather than flattened: an attribute of a far entity with
-				// no EntityRef beside it is CE7247 at build time
-				// (mendixlabs/mxcli#1152).
-				path := strings.Join(append(append([]string{}, ob.Associations...), ob.Attribute), "/")
-				finalQN, hops, ok := pb.resolveAssociationAttributePathForEntity(path, ds.Reference)
-				if !ok {
-					return nil, "", mdlerrors.NewValidation(fmt.Sprintf(
-						"sort by %s: the association path could not be resolved from %s",
-						path, ds.Reference))
-				}
-				attrPath, steps = finalQN, hops
-			}
-			sortItem := &pages.GridSort{
-				BaseElement: model.BaseElement{
-					ID:       model.ID(types.GenerateID()),
-					TypeName: "Forms$GridSort",
-				},
-				AttributePath:     attrPath,
-				AttributeRefSteps: steps,
-				Direction:         direction,
-			}
-			dbSource.Sorting = append(dbSource.Sorting, sortItem)
-		}
-
-		// Handle SEARCH BY — the List View search bar's attributes. Resolved to
-		// the same fully-qualified Module.Entity.Attribute form a sort column
-		// uses, because both are stored as a DomainModels$AttributeRef and a
-		// bare name in one would be a bare name in the other (ako/mxcli#512).
-		for _, attr := range ds.SearchAttributes {
-			dbSource.SearchAttributes = append(dbSource.SearchAttributes,
-				pb.resolveAttributePathForEntity(attr, ds.Reference))
-		}
-
 		return dbSource, ds.Reference, nil
 
 	case "microflow":
@@ -1083,6 +1056,150 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 	default:
 		return nil, "", mdlerrors.NewUnsupported("unsupported datasource type: " + ds.Type)
 	}
+}
+
+// applyDatabaseClausesV3 applies a database source's WHERE, SORT BY and SEARCH BY
+// clauses, resolved against entity — the source's own entity, or for
+// `database from $ctx/Assoc/Entity` the entity the path arrives at.
+func (pb *pageBuilder) applyDatabaseClausesV3(dbSource *pages.DatabaseSource, ds *ast.DataSourceV3, entity string) error {
+	// Handle WHERE clause. Expand association-only paths to the Assoc/Entity/Assoc
+	// form Mendix requires (see expandXPathAssociationPath), so the shorthand
+	// `[Mod.Assoc1/Mod.Assoc2 = $x]` doesn't trip CE1613 at build time.
+	// Formatting comes last, after the expansion above has settled the text:
+	// a constraint too long to read on one line is broken at its boolean
+	// joints (upstream #979). One that already fits is returned unchanged, so
+	// this does not churn existing pages.
+	if ds.Where != "" {
+		dbSource.XPathConstraint = visitor.FormatXPathConstraint(
+			pb.expandXPathAssociationPath(ds.Where, entity))
+	}
+
+	// Handle ORDER BY
+	for _, ob := range ds.OrderBy {
+		direction := pages.SortDirectionAscending
+		if strings.ToLower(ob.Direction) == "desc" {
+			direction = pages.SortDirectionDescending
+		}
+		attrPath := pb.resolveAttributePathForEntity(ob.Attribute, entity)
+		var steps []pages.AttributeRefStep
+		if len(ob.Associations) > 0 {
+			// A sort that navigates associations. Resolved through the same
+			// walker DataGrid2 columns and dynamictext params use, so the two
+			// cannot disagree about a path that means the same thing in both.
+			// Refused rather than flattened: an attribute of a far entity with
+			// no EntityRef beside it is CE7247 at build time
+			// (mendixlabs/mxcli#1152).
+			path := strings.Join(append(append([]string{}, ob.Associations...), ob.Attribute), "/")
+			finalQN, hops, ok := pb.resolveAssociationAttributePathForEntity(path, entity)
+			if !ok {
+				return mdlerrors.NewValidation(fmt.Sprintf(
+					"sort by %s: the association path could not be resolved from %s",
+					path, entity))
+			}
+			attrPath, steps = finalQN, hops
+		}
+		sortItem := &pages.GridSort{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$GridSort",
+			},
+			AttributePath:     attrPath,
+			AttributeRefSteps: steps,
+			Direction:         direction,
+		}
+		dbSource.Sorting = append(dbSource.Sorting, sortItem)
+	}
+
+	// Handle SEARCH BY — the List View search bar's attributes. Resolved to
+	// the same fully-qualified Module.Entity.Attribute form a sort column
+	// uses, because both are stored as a DomainModels$AttributeRef and a
+	// bare name in one would be a bare name in the other (ako/mxcli#512).
+	for _, attr := range ds.SearchAttributes {
+		dbSource.SearchAttributes = append(dbSource.SearchAttributes,
+			pb.resolveAttributePathForEntity(attr, entity))
+	}
+
+	return nil
+}
+
+// buildDatabaseOverAssociationV3 builds `database from $ctx/Assoc/Entity …`: a
+// database retrieve reached from a context object over associations, which a
+// List View stores as a Forms$ListViewXPathSource whose EntityRef is an
+// IndirectEntityRef (ako/mxcli#721 L5). It keeps the XPath, sort and search an
+// association source (`$ctx/Assoc`) does not have.
+//
+// The path's segments pair up as association/destination. Describe prints every
+// destination, because Studio Pro may store a specialization of the
+// association's own end (Administration.Account over System.User's
+// WorkflowUserTask_Assignees) and re-deriving it would write a different entity.
+// A trailing association with no destination is resolved as an association
+// source's is.
+func (pb *pageBuilder) buildDatabaseOverAssociationV3(ds *ast.DataSourceV3) (pages.DataSource, string, error) {
+	ctxVar := ds.ContextVariable
+	if ctxVar == "currentObject" {
+		ctxVar = "" // the enclosing container's object — no SourceVariable in BSON
+	}
+	fromEntity := pb.entityContext
+	if ctxVar != "" {
+		name := strings.TrimPrefix(ctxVar, "$")
+		if qn := pb.paramEntityNames[name]; qn != "" {
+			fromEntity = qn
+		} else if qn := pb.paramEntityNames["$"+name]; qn != "" {
+			fromEntity = qn
+		}
+	}
+
+	segs := strings.Split(ds.AssociationPath, "/")
+	var steps []pages.AttributeRefStep
+	at := fromEntity
+	for i := 0; i < len(segs); i += 2 {
+		assoc := pb.resolveAssociationPathIn(segs[i], at)
+		if _, _, ok := pb.associationEndpoints(assoc); !ok {
+			return nil, "", mdlerrors.NewValidationf(
+				"association %q in datasource `database from $%s/%s` does not exist — "+
+					"writing it would produce a project Mendix cannot open",
+				assoc, ds.ContextVariable, ds.AssociationPath)
+		}
+		dest := ""
+		if i+1 < len(segs) {
+			dest = segs[i+1]
+			if _, err := pb.resolveEntity(ast.QualifiedName{Module: pb.extractModule(dest), Name: pb.extractName(dest)}); err != nil {
+				return nil, "", mdlerrors.NewValidationf(
+					"entity %q in datasource `database from $%s/%s` does not exist",
+					dest, ds.ContextVariable, ds.AssociationPath)
+			}
+		} else {
+			dest = pb.resolveAssociationDestination(assoc, at)
+		}
+		if dest == "" {
+			return nil, "", mdlerrors.NewValidationf(
+				"cannot resolve the entity association %q arrives at in datasource `database from $%s/%s` — "+
+					"name it after the association, e.g. `%s/Module.Entity`",
+				assoc, ds.ContextVariable, ds.AssociationPath, assoc)
+		}
+		steps = append(steps, pages.AttributeRefStep{Association: assoc, DestinationEntity: dest})
+		at = dest
+	}
+
+	entityID, err := pb.resolveEntity(ast.QualifiedName{Module: pb.extractModule(at), Name: pb.extractName(at)})
+	if err != nil {
+		return nil, "", mdlerrors.NewBackend("resolve entity", err)
+	}
+	dbSource := &pages.DatabaseSource{
+		BaseElement: model.BaseElement{
+			ID:       model.ID(types.GenerateID()),
+			TypeName: "Forms$DatabaseSource",
+		},
+		EntityID:           entityID,
+		EntityName:         at,
+		EntitySteps:        steps,
+		ContextVariable:    ctxVar,
+		IsSnippetParameter: ctxVar != "" && pb.parameterSlotKind(strings.TrimPrefix(ctxVar, "$")) == "snippet",
+	}
+	if err := pb.applyDatabaseClausesV3(dbSource, ds, at); err != nil {
+		return nil, "", err
+	}
+	return dbSource, at, nil
 }
 
 // resolveAssociationDestination looks up an association by qualified name and returns

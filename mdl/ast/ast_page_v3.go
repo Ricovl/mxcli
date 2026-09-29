@@ -202,6 +202,15 @@ type DataSourceV3 struct {
 	// (Forms$ListViewSearch.SearchRefs). Names only — a search attribute has no
 	// direction, which is why this is []string and not []OrderByItemV3.
 	SearchAttributes []string
+	// AssociationPath is set on a database source that is reached from a context
+	// object over associations — `database from $Ctx/Mod.Assoc/Mod.Entity …`,
+	// stored as a Forms$ListViewXPathSource whose EntityRef is an
+	// IndirectEntityRef. ContextVariable names the object ("currentObject" for
+	// the enclosing container), and Reference is empty until the builder
+	// resolves the destination entity. Distinct from an association source
+	// (`$Ctx/Mod.Assoc`), which is an in-memory retrieve with no XPath, sort or
+	// search (ako/mxcli#721 L5).
+	AssociationPath string
 }
 
 // FlowArgV3 represents an argument for microflow/nanoflow/page calls.
