@@ -1468,12 +1468,21 @@ func dataViewContextAssociationSourceToGen(d *pages.AssociationSource) element.E
 	ref.AddSteps(step)
 	src.SetEntityRef(ref)
 	if d.ContextVariable != "" {
-		pv := genPg.NewPageVariable()
-		assignID(pv)
-		pv.SetPageParameterQualifiedName(d.ContextVariable)
-		src.SetSourceVariable(pv)
+		src.SetSourceVariable(associationContextVariableToGen(d))
 	}
 	return src
+}
+
+// associationContextVariableToGen builds the Forms$PageVariable an association
+// source is traversed from. A snippet parameter fills the SnippetParameter slot:
+// the PageParameter slot would name a page parameter the snippet does not have
+// (ako/mxcli#721 L3). Shared by both association writers so they cannot diverge.
+func associationContextVariableToGen(d *pages.AssociationSource) element.Element {
+	kind := ""
+	if d.IsSnippetParameter {
+		kind = "snippet"
+	}
+	return sourceVariableToGen(d.ContextVariable, kind)
 }
 
 // listViewSourceToGen builds a ListView data source. A database source becomes a
@@ -1640,10 +1649,7 @@ func associationSourceToGen(d *pages.AssociationSource) element.Element {
 	ref.AddSteps(step)
 	src.SetEntityRef(ref)
 	if d.ContextVariable != "" {
-		pv := genPg.NewPageVariable()
-		assignID(pv)
-		pv.SetPageParameterQualifiedName(d.ContextVariable)
-		src.SetSourceVariable(pv)
+		src.SetSourceVariable(associationContextVariableToGen(d))
 	}
 	return src
 }

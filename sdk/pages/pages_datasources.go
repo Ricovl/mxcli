@@ -99,7 +99,10 @@ func (ListenToWidgetSource) isDataSource() {}
 type AssociationSource struct {
 	model.BaseElement
 	EntityPath      string `json:"entityPath"`                // "Module.Assoc" or "Module.Assoc/Module.DestEntity"
-	ContextVariable string `json:"contextVariable,omitempty"` // page parameter name (without $) — empty for $currentObject
+	ContextVariable string `json:"contextVariable,omitempty"` // page or snippet parameter name (without $) — empty for $currentObject
+	// IsSnippetParameter puts ContextVariable in the SnippetParameter slot of
+	// the source's Forms$PageVariable instead of PageParameter.
+	IsSnippetParameter bool `json:"isSnippetParameter,omitempty"`
 }
 
 func (AssociationSource) isDataSource() {}

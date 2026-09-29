@@ -569,7 +569,7 @@ type rawDataSourceArg struct {
 // associationSourcePath reconstructs the association navigation of a
 // Forms$AssociationSource (EntityRef = IndirectEntityRef of association steps)
 // into its path ("Module.Assoc" or "Module.Assoc/…") plus the context variable
-// ("currentObject" when the source has no page-parameter SourceVariable).
+// ("currentObject" when the source has no page- or snippet-parameter SourceVariable).
 func associationSourcePath(ds map[string]any) (path, contextVar string) {
 	entityRef, ok := ds["EntityRef"].(map[string]any)
 	if !ok || entityRef == nil {
@@ -593,8 +593,13 @@ func associationSourcePath(ds map[string]any) (path, contextVar string) {
 	}
 	contextVar = "currentObject"
 	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
+		// Inside a snippet the variable is a snippet parameter, in its own slot;
+		// reading PageParameter alone printed `$currentObject/…` and executing
+		// that dropped the binding (ako/mxcli#721 L3).
 		if pp := extractString(sv["PageParameter"]); pp != "" {
 			contextVar = pp
+		} else if sp := extractString(sv["SnippetParameter"]); sp != "" {
+			contextVar = sp
 		}
 	}
 	return strings.Join(assocs, "/"), contextVar

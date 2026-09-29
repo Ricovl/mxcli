@@ -14,7 +14,6 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
-	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 	"github.com/mendixlabs/mxcli/sdk/widgets/mpk"
@@ -1056,8 +1055,9 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "Forms$AssociationSource",
 			},
-			EntityPath:      path + "/" + destEntity,
-			ContextVariable: ctxVar,
+			EntityPath:         path + "/" + destEntity,
+			ContextVariable:    ctxVar,
+			IsSnippetParameter: ctxVar != "" && pb.parameterSlotKind(strings.TrimPrefix(ctxVar, "$")) == "snippet",
 		}, destEntity, nil
 
 	case "selection":
@@ -2019,26 +2019,23 @@ func (pb *pageBuilder) resolveTemplateAttributePathFull(attrRef string, param *p
 			paramName := parts[0]
 			attrName := parts[1]
 
-			// Check if this is a page/snippet parameter (not a widget reference)
-			if entityName, ok := pb.paramEntityNames[paramName]; ok {
-				fullPath := entityName + "." + attrName
-				if pb.isNonStringAttribute(fullPath) {
-					param.Expression = "toString($" + paramName + "/" + attrName + ")"
-					return
+			// Check if this is a page/snippet parameter (not a widget reference).
+			//
+			// A non-String attribute binds exactly like a String one: Studio Pro
+			// stores `$Task.State` (an enumeration) as AttributeRef + SourceVariable,
+			// and the runtime renders it through the parameter's FormattingInfo.
+			// This path used to wrap it in `toString($Task/State)` — an Expression
+			// that bypasses FormattingInfo and the enumeration caption, and that
+			// describe prints back as the expression (ledger #76 fixed the bare
+			// attribute; ako/mxcli#721 L3 this one).
+			for _, key := range []string{paramName, "$" + paramName} {
+				entityName, ok := pb.paramEntityNames[key]
+				if !ok {
+					continue
 				}
 				param.SourceVariable = paramName
-				param.AttributeRef = fullPath
-				return
-			}
-			// Try with $ prefix (for snippet parameters)
-			if entityName, ok := pb.paramEntityNames["$"+paramName]; ok {
-				fullPath := entityName + "." + attrName
-				if pb.isNonStringAttribute(fullPath) {
-					param.Expression = "toString($" + paramName + "/" + attrName + ")"
-					return
-				}
-				param.SourceVariable = paramName
-				param.AttributeRef = fullPath
+				param.SourceVariableKind = pb.parameterSlotKind(paramName)
+				param.AttributeRef = entityName + "." + attrName
 				return
 			}
 		}
@@ -2332,15 +2329,24 @@ func (pb *pageBuilder) associationEndpoints(assocQN string) (fromEntity, toEntit
 	return "", "", false
 }
 
-// isNonStringAttribute checks if an attribute path refers to a non-String type.
-// Returns false if the type can't be determined (fail-open to preserve existing behavior).
-func (pb *pageBuilder) isNonStringAttribute(attrPath string) bool {
-	attrType := pb.findAttributeType(attrPath)
-	if attrType == nil {
-		return false // can't determine type, assume String
+// parameterSlotKind names the Forms$PageVariable slot a `$name` reference (a
+// template parameter, an association source) fills. Inside a snippet an
+// entity-typed parameter is a snippet parameter: Studio Pro writes it to
+// SnippetParameter, and the PageParameter slot would name a page parameter the
+// snippet does not have (ako/mxcli#721 L3). Only names in paramScope — the
+// declared entity-typed parameters — are parameters; paramEntityNames also holds
+// data-container widget names, which keep the slot they were written to before.
+func (pb *pageBuilder) parameterSlotKind(name string) string {
+	if !pb.isSnippet {
+		return ""
 	}
-	_, isString := attrType.(*domainmodel.StringAttributeType)
-	return !isString
+	if _, isParam := pb.paramScope[name]; isParam {
+		return "snippet"
+	}
+	if _, isParam := pb.paramScope["$"+name]; isParam {
+		return "snippet"
+	}
+	return ""
 }
 
 // ============================================================================
