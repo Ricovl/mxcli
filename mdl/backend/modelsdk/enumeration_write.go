@@ -64,6 +64,11 @@ func (b *Backend) UpdateEnumeration(enum *model.Enumeration) error {
 	if err != nil {
 		return fmt.Errorf("UpdateEnumeration: encode: %w", err)
 	}
+	// enumToGen writes ExportLevel "Hidden" as a constant (#816).
+	contents, err = b.keepStoredExportLevel(string(enum.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdateEnumeration: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(enum.ID), contents)
 }
 

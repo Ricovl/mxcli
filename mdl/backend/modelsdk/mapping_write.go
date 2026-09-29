@@ -87,6 +87,11 @@ func (b *Backend) UpdateImportMapping(im *model.ImportMapping) error {
 	if err != nil {
 		return fmt.Errorf("UpdateImportMapping: encode: %w", err)
 	}
+	// MDL has no export-level spelling; the executor fills in "Hidden" (#816).
+	contents, err = b.keepStoredExportLevel(string(im.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdateImportMapping: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(im.ID), contents)
 }
 
@@ -293,6 +298,11 @@ func (b *Backend) UpdateExportMapping(em *model.ExportMapping) error {
 	contents, err := (&codec.Encoder{}).Encode(exportMappingToGen(em))
 	if err != nil {
 		return fmt.Errorf("UpdateExportMapping: encode: %w", err)
+	}
+	// MDL has no export-level spelling; the executor fills in "Hidden" (#816).
+	contents, err = b.keepStoredExportLevel(string(em.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdateExportMapping: %w", err)
 	}
 	return b.writer.UpdateRawUnit(string(em.ID), contents)
 }

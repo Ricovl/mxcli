@@ -113,6 +113,15 @@ Studio Pro chose otherwise can show it. The durable fix for the whole-list shape
 not a longer carry list: an element whose semantic form equals its stored form
 read back is passed through as stored, and only the named element is rebuilt.
 
+**A round-trip harness is blind to a constant that equals every fixture value.**
+The same export-level constant sat in the document-level converters too, and the
+round trip passed on every document because every fixture document already held
+the constant. The measurement that found it patched each subject to the
+non-default value first and ran two variants: the describe output as printed, and
+one edit that forces the write — an unchanged statement is elided, and an elided
+write passes a converter that still writes the constant. Ten kinds failed where
+the harness had reported nothing.
+
 **The statement in the report is rarely the whole blast radius; the call site is.**
 The reported symptom named one command. What actually shared the defective rebuild
 were six, and the costliest of them was a `RENAME`, which nobody connects to

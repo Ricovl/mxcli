@@ -179,6 +179,10 @@ func (b *Backend) WriteViewEntitySourceDocument(moduleID model.ID, moduleName, d
 	if err != nil {
 		return "", err
 	}
+	// encodeViewEntitySourceDocument writes ExportLevel "Hidden" as a constant (#816).
+	if contents, err = b.keepStoredExportLevel(string(docID), contents); err != nil {
+		return "", fmt.Errorf("WriteViewEntitySourceDocument: %w", err)
+	}
 	if err := b.writer.UpdateRawUnit(string(docID), contents); err != nil {
 		return "", fmt.Errorf("WriteViewEntitySourceDocument: update: %w", err)
 	}

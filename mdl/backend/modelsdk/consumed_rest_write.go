@@ -62,6 +62,11 @@ func (b *Backend) UpdateConsumedRestService(svc *model.ConsumedRestService) erro
 	if err != nil {
 		return fmt.Errorf("UpdateConsumedRestService: encode: %w", err)
 	}
+	// consumedRestServiceToGen writes ExportLevel "Hidden" as a constant (#816).
+	contents, err = b.keepStoredExportLevel(string(svc.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdateConsumedRestService: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(svc.ID), contents)
 }
 

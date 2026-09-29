@@ -140,11 +140,11 @@ func BareExpression(expr string) bool {
 }
 
 // bareArgumentText is the expression a bare workflow argument stores: its
-// source text, as the Mendix expression editor would hold it.
+// source text, as the Mendix expression editor would hold it. Unlike a
+// microflow expression stored as written (buildSourceExpression), a string in
+// it is not respelled under mdl 0: workflow and widget expressions are stored
+// as written in either language, and describe writes them back as stored.
 func bareArgumentText(expr parser.IExpressionContext) string {
-	if se, ok := buildSourceExpression(expr).(*ast.SourceExpr); ok {
-		return se.Source
-	}
 	return stripExpressionIdentifierQuotes(expressionSourceText(expr))
 }
 

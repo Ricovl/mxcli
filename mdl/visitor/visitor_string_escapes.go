@@ -114,12 +114,14 @@ func (b *Builder) VisitTerminal(node antlr.TerminalNode) {
 // escapeFix is the rewrite that keeps an mdl 0 string literal's meaning under
 // mdl 1, where a backslash is an ordinary character.
 //
-// What the literal means under mdl 0 depends on where it is. On its own (a
-// name, a caption) and in an expression the builder re-renders, it is its
-// unescaped value, so the rewrite writes that value with a doubled apostrophe
-// as the only escape. In an expression the builder stores as written — one
-// that spans lines (shouldPreserveExpressionSource) — mdl 0 already passes the
-// backslash through to Mendix, exactly as mdl 1 does, so nothing changes.
+// A string literal means its unescaped value under mdl 0 wherever it is — on
+// its own (a name, a caption), in an expression the builder re-renders, and in
+// one it stores as written (storedExpressionSource) — so the rewrite writes
+// that value with a doubled apostrophe as the only escape. In an expression
+// stored as written that is also the text mdl 0 stores for the literal, and
+// under mdl 1 the text is stored as written: the same expression. Leaving such
+// a literal alone, as this did while mdl 0 passed its escapes through to the
+// model, left `\'` in it, and the mdl 1 script did not parse (ako/mxcli#820).
 //
 // An escaped line break in a re-rendered expression cannot be requoted in
 // place: writing the break into the source makes the builder store the
@@ -148,13 +150,12 @@ func (b *Builder) escapeFix(t antlr.Token) (*ast.Fix, string) {
 	if top == nil {
 		return rewrite, ""
 	}
-	template, hasParams := templateMessageOf(top)
+	template, _ := templateMessageOf(top)
 	source := strings.TrimSpace(extractExpressionText(top))
-	// A template literal with parameters is the template text under both
-	// versions even when it spans lines (templateLineBreak): its escapes were
-	// interpreted, so it is requoted rather than passed through.
-	if shouldPreserveExpressionSource(source) && !(template && hasParams) {
-		return &ast.Fix{}, ""
+	// Stored as written: requoted in place. A line break the requote writes
+	// into it keeps it stored as written under mdl 1.
+	if shouldPreserveExpressionSource(source, false) {
+		return rewrite, ""
 	}
 	if !template && b.holdsEscapedLineBreak(top) {
 		return b.storedExpressionFix(top), ""
@@ -192,6 +193,61 @@ func (b *Builder) storedExpressionFix(expr antlr.ParserRuleContext) *ast.Fix {
 	b.storedExprs[start] = true
 	stored := mendixexpr.String(buildExpression(expr.(parser.IExpressionContext)))
 	return &ast.Fix{Edits: []ast.TextEdit{replaceSpan(expr.GetStart(), expr.GetStop(), stored)}}
+}
+
+// stringLiteralEnd is the index just past the string literal whose opening
+// apostrophe is at s[i], read under the string rule strict names: a doubled
+// apostrophe is an apostrophe under both, and under mdl 0 (strict false) a
+// backslash also takes the next character with it, so `\'` does not end the
+// literal. An unterminated literal ends at len(s).
+func stringLiteralEnd(s string, i int, strict bool) int {
+	for j := i + 1; j < len(s); j++ {
+		switch s[j] {
+		case '\\':
+			if !strict {
+				j++
+			}
+		case '\'':
+			if j+1 < len(s) && s[j+1] == '\'' {
+				j++
+				continue
+			}
+			return j + 1
+		}
+	}
+	return len(s)
+}
+
+// storedExpressionSource is the Mendix expression an expression stored as
+// written stores: its source text, each string literal in it spelled the way
+// Mendix spells the literal's value — an apostrophe doubled, a backslash and a
+// control character as themselves, which is what Studio Pro stores.
+//
+// Under mdl 1 that is the source itself (ADR-0010 R11). Under mdl 0 a literal
+// holding a backslash escape means its unescaped value here as everywhere
+// else, so it is rewritten: `'C:\\temp'` is stored `'C:\temp'`, `'it\'s'`
+// with a doubled apostrophe and `'a\nb'` with the line break in it. It used to
+// be stored as written, so the mdl 0 escape reached the model: a backslash too
+// many, an expression Mendix reads as another one, or one that does not parse
+// (ako/mxcli#820). An expression the builder renders from its tree stores the
+// same value through mendixexpr.QuoteLiteral.
+func storedExpressionSource(source string, strict bool) string {
+	if strict || !strings.Contains(source, `\`) {
+		return source
+	}
+	var b strings.Builder
+	b.Grow(len(source))
+	for i := 0; i < len(source); {
+		if source[i] != '\'' {
+			b.WriteByte(source[i])
+			i++
+			continue
+		}
+		end := stringLiteralEnd(source, i, false)
+		b.WriteString(mendixexpr.QuoteLiteral(unquoteString(source[i:end])))
+		i = end
+	}
+	return b.String()
 }
 
 // requoteForV1 writes an mdl 0 string literal so that it has the same value

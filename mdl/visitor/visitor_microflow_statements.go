@@ -1361,6 +1361,7 @@ func buildRetrieveStatement(ctx parser.IRetrieveStatementContext) *ast.RetrieveS
 					andExprs = append(andExprs, buildXPathSourceExpression(xpathExpr))
 					if prc, ok := xpathExpr.(antlr.ParserRuleContext); ok {
 						if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
+							source = storedExpressionSource(source, lexedWithStrictEscapes(prc))
 							predicateSources = append(predicateSources, normalizeXPathTokens("["+source+"]"))
 						}
 					}
@@ -1691,8 +1692,9 @@ func buildSourceExpression(ctx parser.IExpressionContext) ast.Expression {
 	expr := buildExpression(ctx)
 	if prc, ok := ctx.(antlr.ParserRuleContext); ok {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
-			if shouldPreserveExpressionSource(source) {
-				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(source)}
+			strict := lexedWithStrictEscapes(prc)
+			if shouldPreserveExpressionSource(source, strict) {
+				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(storedExpressionSource(source, strict))}
 			}
 		}
 	}
@@ -1708,6 +1710,9 @@ func buildXPathSourceExpression(ctx parser.IXpathExprContext) ast.Expression {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
 			// Requote any bare [%token%] so the stored constraint passes mx check
 			// (CE0161) — the original source preserves the unquoted form (#641).
+			// A string in it stores its value, as in an expression: Mendix XPath
+			// has no backslash escape either (storedExpressionSource).
+			source = storedExpressionSource(source, lexedWithStrictEscapes(prc))
 			return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(normalizeXPathTokens(source))}
 		}
 	}
@@ -1732,8 +1737,12 @@ func buildRetrieveWhereExpression(ctx parser.IExpressionContext) ast.Expression 
 	}
 	if prc, ok := ctx.(antlr.ParserRuleContext); ok {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
-			if shouldPreserveExpressionSource(source) || strings.Contains(source, "/") {
-				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(source)}
+			strict := lexedWithStrictEscapes(prc)
+			if shouldPreserveExpressionSource(source, strict) || strings.Contains(source, "/") {
+				// Stored as written, each string spelled as its value — the
+				// rendered constraint stores the value through QuoteLiteral, and
+				// describe cannot tell the two apart.
+				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(storedExpressionSource(source, strict))}
 			}
 		}
 	}
@@ -1766,21 +1775,20 @@ func dotIsQualifiedNameSeparator(source string, i int) bool {
 	return false
 }
 
-func shouldPreserveExpressionSource(source string) bool {
+// shouldPreserveExpressionSource reports whether an expression is stored as
+// written rather than rendered from its tree. strict is the string rule the
+// source was lexed with (lexedWithStrictEscapes): a string literal is skipped
+// whole, so an operator or a `.` inside one never counts — and under mdl 0 a
+// `\'` inside one does not end it. Reading `'it\'s'+$x` as the string `'it\'`
+// and a second string opening at `s'` made the decision on the wrong
+// characters (ako/mxcli#820).
+func shouldPreserveExpressionSource(source string, strict bool) bool {
 	if strings.ContainsAny(source, "\r\n") {
 		return true
 	}
-	inString := false
 	for i := 0; i < len(source); i++ {
 		if source[i] == '\'' {
-			if inString && i+1 < len(source) && source[i+1] == '\'' {
-				i++
-				continue
-			}
-			inString = !inString
-			continue
-		}
-		if inString {
+			i = stringLiteralEnd(source, i, strict) - 1
 			continue
 		}
 		// A `/` used as division with a variable right operand (`$a / $b`) parses
