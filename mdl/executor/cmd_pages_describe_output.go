@@ -1369,6 +1369,16 @@ func actionMapForKey(w map[string]any, key string) map[string]any {
 // to its MDL form (call microflow/call nanoflow/show page/save changes/…). Returns "" for a
 // nil action or a NoClientAction.
 func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
+	out := renderClientActionBaseMDL(ctx, action)
+	if out == "" || strings.HasPrefix(out, "--") {
+		return out
+	}
+	return out + renderClientActionSettingsMDL(ctx, action)
+}
+
+// renderClientActionBaseMDL renders the action itself; renderClientActionMDL
+// adds its `with ( … )` settings.
+func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 	if action == nil {
 		return ""
 	}

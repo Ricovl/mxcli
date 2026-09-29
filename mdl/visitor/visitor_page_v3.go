@@ -1201,6 +1201,15 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 			action.OutcomeValue = unquoteStringLit(str)
 		}
 	}
+	if sc := actCtx.ActionSettingsV3(); sc != nil {
+		action.Settings = buildActionSettingsV3(sc)
+	}
+	// `create object E then show page P with (…)`: the settings belong to the
+	// one stored action, the create — the page it opens is part of it.
+	if action.Type == "create" && action.ThenAction != nil && action.ThenAction.Settings != nil {
+		action.Settings = action.ThenAction.Settings
+		action.ThenAction.Settings = nil
+	}
 
 	return action
 }

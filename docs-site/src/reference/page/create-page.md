@@ -138,6 +138,33 @@ mistake.
 
 The same values serve `OnClick:` (an alias of `Action:`) and `OnChange:`.
 
+#### Action settings
+
+Any action but `NOTHING` takes a `with ( … )` list of the settings Studio Pro
+shows under the event:
+
+| Setting | Applies to | Default |
+|---------|-----------|---------|
+| `DisabledDuringExecution: true\|false` | every action | `true` |
+| `ProgressBar: None\|NonBlocking\|Blocking` | microflow and nanoflow calls | `None` |
+| `ProgressMessage: 'text'` | microflow and nanoflow calls | none |
+| `Confirmation: 'question'` | microflow and nanoflow calls | no confirmation |
+| `ProceedCaption: 'text'`, `CancelCaption: 'text'` | a confirmation's buttons | `Proceed`, `Cancel` |
+| `Asynchronous: true\|false` | microflow calls | `false` |
+| `FormValidations: All\|Widget\|None` | microflow calls | `All` |
+
+```sql
+ACTIONBUTTON btnDelete (Caption: 'Delete',
+  Action: CALL MICROFLOW Shop.ACT_Order_Delete(Order = $currentObject) with (
+    ProgressBar: Blocking, ProgressMessage: 'Deleting…',
+    Confirmation: 'Delete this order?', ProceedCaption: 'Delete', CancelCaption: 'Keep'))
+```
+
+A setting left out keeps its default, and `DESCRIBE` prints only the settings
+that differ from it. An unknown key, or a setting the action does not have, is
+an error. For `CREATE OBJECT … THEN SHOW PAGE …` the list goes at the end and
+belongs to the create action.
+
 A microflow or nanoflow action is a **call**: every parameter the flow declares
 needs an argument, or Mendix rejects the page with **CE1571**. An enclosing data
 container of the parameter's type supplies it without one — but a data grid's

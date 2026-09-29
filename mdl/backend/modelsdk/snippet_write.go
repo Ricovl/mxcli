@@ -97,6 +97,7 @@ func (b *Backend) UpdateSnippet(snippet *pages.Snippet) error {
 	}
 	contents, err := encodeSnippet(snippet, b.ProjectVersion(), func(g *genPg.Snippet) {
 		b.carryStoredSnippetHeader(snippet.ID, g)
+		b.carryNoActionExecution(snippet.ID, g)
 	})
 	if err != nil {
 		return fmt.Errorf("UpdateSnippet: encode: %w", err)
