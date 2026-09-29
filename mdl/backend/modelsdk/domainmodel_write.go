@@ -48,6 +48,14 @@ func init() {
 	codec.RegisterTypeDefaults("DomainModels$IndexedAttribute", codec.TypeDefaults{
 		ZeroGUIDFields: []string{"AssociationPointer"},
 	})
+	// A member access names either an attribute or an association, and Studio
+	// Pro writes BOTH keys, the unused one as "" — all 361 member accesses in
+	// PedApp (11.13) and ako/TestApp (11.14). The writers set only the one in
+	// use, so every rebuilt access rule differed from its stored self by the
+	// missing key, which is how an unchanged rule still churned (ako/mxcli#801).
+	codec.RegisterTypeDefaults("DomainModels$MemberAccess", codec.TypeDefaults{
+		EmptyStringFields: []string{"Attribute", "Association"},
+	})
 	// The index's IndexedAttribute list uses typed-array marker 2, not the
 	// domain-model default of 3 (verified in the same reference project).
 	codec.RegisterListMarker("DomainModels$IndexedAttribute", 2)
