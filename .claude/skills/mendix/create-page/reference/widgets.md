@@ -126,6 +126,7 @@ describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference
 - `action: call microflow Module.MicroflowName(Param = $value)` - Call microflow with parameters
 - `action: call nanoflow Module.NanoflowName` - Call nanoflow (client-side)
 - `action: call nanoflow Module.NanoflowName(Param = $value)` - Call nanoflow with parameters
+- `action: call microflow Module.Delete(Obj = $currentObject) with (Confirmation: 'Delete this?', ProgressBar: Blocking)` - Ask for confirmation and show a progress bar. The `with ( … )` settings: `DisabledDuringExecution` (any action, default `true`), `ProgressBar` (`None`/`NonBlocking`/`Blocking`), `ProgressMessage`, `Confirmation`, `ProceedCaption`, `CancelCaption` (flow calls), `Asynchronous`, `FormValidations` (`All`/`Widget`/`None`, microflow calls only)
 - `action: open link 'https://example.com'` - Open a fixed web address
 - `action: open link $currentObject/URL` - Open the address held in an attribute of the enclosing data container's object (inside a data container only; not over an association)
 - **Every parameter needs an argument, or an enclosing data container of its

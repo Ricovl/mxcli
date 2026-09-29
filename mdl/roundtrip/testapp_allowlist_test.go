@@ -21,6 +21,8 @@ package roundtrip
 // association in the module: API entities came back Hidden and every access
 // rule lost the empty member-access key Studio Pro writes. Untouched elements
 // now pass through as stored and a rebuilt member access writes both keys.
+// #721 L2 (client action settings: confirmations, progress bars,
+// DisabledDuringExecution) struck four pages whose only loss it was.
 var testAppKnownFailures = map[string]knownFailure{
 	"association ViewAssociations.persistent_order":                                   {laws: []law{lawExec}, issue: "#721", why: "association: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"association WorkflowCommons.ConflictedWorkflowDefinitionView_WorkflowDefinition": {laws: []law{lawExec}, issue: "#721", why: "association: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -129,8 +131,6 @@ var testAppKnownFailures = map[string]knownFailure{
 	"page Administration.Account_New":                                                 {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Administration.Account_Overview":                                            {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Administration.ActiveSessions":                                              {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"page Administration.ChangeMyPasswordForm":                                        {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"page Administration.ChangePasswordForm":                                          {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Administration.MyAccount":                                                   {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Administration.RuntimeInstances":                                            {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Administration.ScheduledEvents":                                             {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -176,9 +176,7 @@ var testAppKnownFailures = map[string]knownFailure{
 	"page WorkflowCommons.WorkflowComment_Edit_Admin":                                 {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowDefinition_CleanUp":                                 {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowDefinition_CleanUp_Preview":                         {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"page WorkflowCommons.WorkflowDefinition_Lock":                                    {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowDefinition_Overview":                                {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"page WorkflowCommons.WorkflowDefinition_Unlock":                                  {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowDefinition_View":                                    {laws: []law{lawExec}, issue: "#721", why: "page: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowEndedUserTask":                                      {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowGroup_Edit":                                         {laws: []law{lawExec}, issue: "#721", why: "page: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},

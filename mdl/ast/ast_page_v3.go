@@ -240,6 +240,23 @@ type ActionV3 struct {
 	LinkVariable  string
 	LinkAttribute string
 	OutcomeValue  string // For COMPLETE_TASK
+	// Settings is the action's `with ( … )` list, nil when none was written.
+	Settings *ActionSettingsV3
+}
+
+// ActionSettingsV3 holds the client-action settings Studio Pro shows under an
+// event: `with (DisabledDuringExecution: false, ProgressBar: Blocking, …)`.
+// Every field is optional; nil / "" means "not written", which keeps the
+// writer's default (ako/mxcli#721 L2).
+type ActionSettingsV3 struct {
+	DisabledDuringExecution *bool
+	ProgressBar             string  // None | NonBlocking | Blocking (canonical casing)
+	ProgressMessage         *string // progress message text
+	Confirmation            *string // the confirmation question; its presence turns confirmation on
+	ProceedCaption          *string
+	CancelCaption           *string
+	Asynchronous            *bool  // call microflow only
+	FormValidations         string // call microflow only: All | Widget | None
 }
 
 // ColumnV3 represents a V3 datagrid column.

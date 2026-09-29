@@ -150,6 +150,46 @@ type ClientAction interface {
 	isClientAction()
 }
 
+// ActionExecution is what every client action but NoAction stores about its
+// own execution. Nil means "not written": the writer's default, true, which is
+// what Studio Pro stores on all but a few actions (ako/mxcli#721 L2).
+type ActionExecution struct {
+	DisabledDuringExecution *bool `json:"disabledDuringExecution,omitempty"`
+}
+
+// Execution returns the action's execution settings.
+func (e *ActionExecution) Execution() *ActionExecution { return e }
+
+// ExecutionOf returns a client action's execution settings, or nil for an
+// action that has none (NoClientAction).
+func ExecutionOf(a ClientAction) *ActionExecution {
+	if x, ok := a.(interface{ Execution() *ActionExecution }); ok {
+		return x.Execution()
+	}
+	return nil
+}
+
+// FlowCallSettings are the settings Studio Pro shows on a microflow or nanoflow
+// call: the progress bar, its message, and a confirmation asked before the call
+// runs. The zero value is Mendix's default: no progress bar, no message, no
+// confirmation. Asynchronous and FormValidations exist on a microflow call only
+// (they live on its Forms$MicroflowSettings).
+type FlowCallSettings struct {
+	ProgressBar     string            `json:"progressBar,omitempty"` // "" (None) | None | NonBlocking | Blocking
+	ProgressMessage *model.Text       `json:"progressMessage,omitempty"`
+	Confirmation    *ConfirmationInfo `json:"confirmation,omitempty"`
+	Asynchronous    bool              `json:"asynchronous,omitempty"`    // microflow only
+	FormValidations string            `json:"formValidations,omitempty"` // microflow only: "" (All) | All | Widget | None
+}
+
+// ConfirmationInfo is Forms$ConfirmationInfo: the question asked before a flow
+// call runs, and the captions of its two buttons.
+type ConfirmationInfo struct {
+	Question       *model.Text `json:"question,omitempty"`
+	ProceedCaption *model.Text `json:"proceedCaption,omitempty"`
+	CancelCaption  *model.Text `json:"cancelCaption,omitempty"`
+}
+
 // NoClientAction represents no action.
 type NoClientAction struct {
 	model.BaseElement
@@ -160,6 +200,7 @@ func (NoClientAction) isClientAction() {}
 // PageClientAction opens a page.
 type PageClientAction struct {
 	model.BaseElement
+	ActionExecution
 	PageID            model.ID                      `json:"pageId"`
 	PageName          string                        `json:"pageName,omitempty"` // Qualified name for by-name reference
 	PageSettings      *PageSettings                 `json:"pageSettings,omitempty"`
@@ -217,6 +258,8 @@ type MicroflowParameterMapping struct {
 // MicroflowClientAction calls a microflow.
 type MicroflowClientAction struct {
 	model.BaseElement
+	ActionExecution
+	FlowCallSettings
 	MicroflowID       model.ID                     `json:"microflowId"`
 	MicroflowName     string                       `json:"microflowName,omitempty"` // Qualified name for BSON serialization
 	ParameterMappings []*MicroflowParameterMapping `json:"parameterMappings,omitempty"`
@@ -240,6 +283,8 @@ type NanoflowParameterMapping struct {
 // NanoflowClientAction calls a nanoflow.
 type NanoflowClientAction struct {
 	model.BaseElement
+	ActionExecution
+	FlowCallSettings
 	NanoflowID        model.ID                    `json:"nanoflowId"`
 	NanoflowName      string                      `json:"nanoflowName,omitempty"` // Qualified name for BSON serialization
 	ParameterMappings []*NanoflowParameterMapping `json:"parameterMappings,omitempty"`
@@ -250,6 +295,7 @@ func (NanoflowClientAction) isClientAction() {}
 // ClosePageClientAction closes the current page.
 type ClosePageClientAction struct {
 	model.BaseElement
+	ActionExecution
 }
 
 func (ClosePageClientAction) isClientAction() {}
@@ -257,6 +303,7 @@ func (ClosePageClientAction) isClientAction() {}
 // SaveChangesClientAction saves changes.
 type SaveChangesClientAction struct {
 	model.BaseElement
+	ActionExecution
 	ClosePage bool `json:"closePage"`
 }
 
@@ -265,6 +312,7 @@ func (SaveChangesClientAction) isClientAction() {}
 // CancelChangesClientAction cancels changes.
 type CancelChangesClientAction struct {
 	model.BaseElement
+	ActionExecution
 	ClosePage bool `json:"closePage"`
 }
 
@@ -273,6 +321,7 @@ func (CancelChangesClientAction) isClientAction() {}
 // CreateObjectClientAction creates an object.
 type CreateObjectClientAction struct {
 	model.BaseElement
+	ActionExecution
 	EntityID   model.ID `json:"entityId"`
 	EntityName string   `json:"entityName,omitempty"` // Qualified name e.g. "Module.Entity"
 	PageID     model.ID `json:"pageId,omitempty"`
@@ -284,6 +333,7 @@ func (CreateObjectClientAction) isClientAction() {}
 // DeleteClientAction deletes an object.
 type DeleteClientAction struct {
 	model.BaseElement
+	ActionExecution
 	ClosePage bool `json:"closePage"`
 }
 
@@ -292,6 +342,7 @@ func (DeleteClientAction) isClientAction() {}
 // SignOutClientAction signs out the user.
 type SignOutClientAction struct {
 	model.BaseElement
+	ActionExecution
 }
 
 func (SignOutClientAction) isClientAction() {}
@@ -306,6 +357,7 @@ func (ShowHomePageClientAction) isClientAction() {}
 // LinkClientAction opens a link.
 type LinkClientAction struct {
 	model.BaseElement
+	ActionExecution
 	LinkType LinkType `json:"linkType"`
 	Address  string   `json:"address,omitempty"`
 	// AddressAttribute, when set, makes the address dynamic: the runtime reads
@@ -318,6 +370,7 @@ func (LinkClientAction) isClientAction() {}
 // SetTaskOutcomeClientAction completes a workflow user task with a named outcome.
 type SetTaskOutcomeClientAction struct {
 	model.BaseElement
+	ActionExecution
 	ClosePage    bool   `json:"closePage,omitempty"`
 	Commit       bool   `json:"commit,omitempty"`
 	OutcomeValue string `json:"outcomeValue,omitempty"`
