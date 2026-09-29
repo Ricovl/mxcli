@@ -242,7 +242,7 @@ func formatASTPropertyValue(v interface{}) string {
 	case *ast.DataSourceV3:
 		return formatDataSourceV3(val)
 	case *ast.ActionV3:
-		return formatActionV3(val)
+		return formatActionV3(val) + formatActionSettingsV3(val.Settings)
 	default:
 		return fmt.Sprintf("%v", val)
 	}

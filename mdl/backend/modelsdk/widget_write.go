@@ -537,6 +537,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		}
 		g.SetOnChangeAction(onChangeCB)
 		g.SetOnEnterAction(noActionGen())
+		g.SetOnLeaveAction(noActionGen())
 		// Unset keeps Mendix's default; an authored Control/Text is what decides
 		// whether a read-only check box renders as the glyph or as "Yes"/"No"
 		// text (ako/mxcli#490). The value is canonicalised at build time.
@@ -599,6 +600,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		}
 		g.SetOnChangeAction(onChangeDP)
 		g.SetOnEnterAction(noActionGen())
+		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle("Inherit")
 		g.SetValidation(widgetValidationToGen())
@@ -623,6 +625,10 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		}
 		g.SetOnChangeAction(onChange)
 		g.SetOnEnterAction(noActionGen())
+		// Studio Pro stores all three event slots on every check box, date
+		// picker and radio button group (PedApp and ako/TestApp: 16, 76 and 4
+		// of 4). Without OnLeaveAction a rewrite deleted the slot (#721 L2).
+		g.SetOnLeaveAction(noActionGen())
 		g.SetValidation(widgetValidationToGen())
 		return g, nil
 
@@ -1414,7 +1420,7 @@ func dataViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1528,7 +1534,7 @@ func listViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1593,7 +1599,7 @@ func customWidgetDataSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1691,13 +1697,25 @@ func bindParameterMappingValue(m parameterMappingTarget, variable, kind, express
 // source microflow, which Mendix requires arguments for just the same; dropping them
 // left a parameterized button/row invoking its microflow with no argument — the
 // widget no-ops at runtime yet mx check passes clean (Bug 1).
-func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowParameterMapping) element.Element {
+//
+// settings carries what a call-microflow action's `with ( … )` says; nil (the
+// data-source case, which has no MDL spelling for them) writes Mendix's defaults.
+func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowParameterMapping, settings *pages.FlowCallSettings) element.Element {
+	if settings == nil {
+		settings = &pages.FlowCallSettings{}
+	}
 	s := genPg.NewMicroflowSettings()
 	assignID(s)
-	s.SetAsynchronous(false)
-	s.SetFormValidations("All")
+	s.SetAsynchronous(settings.Asynchronous)
+	s.SetFormValidations(orDefaultStr(settings.FormValidations, "All"))
 	s.SetMicroflowQualifiedName(microflowName)
-	s.SetProgressBar("None")
+	s.SetProgressBar(progressBarOrNone(settings.ProgressBar))
+	if settings.ProgressMessage != nil {
+		s.SetProgressMessage(textToGen(settings.ProgressMessage))
+	}
+	if settings.Confirmation != nil {
+		s.SetConfirmationInfo(confirmationInfoToGen(settings.Confirmation))
+	}
 	for _, pm := range mappings {
 		gm := genPg.NewMicroflowParameterMapping()
 		assignID(gm)
@@ -1779,7 +1797,7 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 		g := genPg.NewSaveChangesClientAction()
 		assignID(g)
 		g.SetClosePage(x.ClosePage)
-		g.SetDisabledDuringExecution(true)
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		// false, not true: all eight Studio Pro SaveChanges actions in that
 		// same sweep store false. Writing true turned a describe → exec of any
 		// page with a Save button into a change nobody asked for.
@@ -1789,18 +1807,18 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 		g := genPg.NewCancelChangesClientAction()
 		assignID(g)
 		g.SetClosePage(x.ClosePage)
-		g.SetDisabledDuringExecution(true)
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		return g, nil
 	case *pages.ClosePageClientAction:
 		g := genPg.NewClosePageClientAction()
 		assignID(g)
-		g.SetDisabledDuringExecution(true)
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		return g, nil
 	case *pages.DeleteClientAction:
 		g := genPg.NewDeleteClientAction()
 		assignID(g)
 		g.SetClosePage(x.ClosePage)
-		g.SetDisabledDuringExecution(true)
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		return g, nil
 	case *pages.PageClientAction:
 		// show_page → Forms$FormAction with a Forms$FormSettings (PageSettings).
@@ -1809,7 +1827,7 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 			g.SetID(element.ID(x.ID))
 		}
 		assignID(g)
-		g.SetDisabledDuringExecution(true)
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		g.SetNumberOfPagesToClose2("")
 		g.SetPageSettings(formSettingsToGen(x.PageName))
 		return g, nil
@@ -1828,7 +1846,7 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 			g.SetID(element.ID(x.ID))
 		}
 		assignID(g)
-		g.SetDisabledDuringExecution(true)
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		linkType := string(x.LinkType)
 		if linkType == "" {
 			linkType = "Web"
@@ -1855,7 +1873,7 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 			g.SetID(element.ID(x.ID))
 		}
 		assignID(g)
-		g.SetDisabledDuringExecution(true)
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		return g, nil
 	case *pages.SetTaskOutcomeClientAction:
 		g := genPg.NewSetTaskOutcomeClientAction()
@@ -1865,7 +1883,7 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 		assignID(g)
 		g.SetClosePage(x.ClosePage)
 		g.SetCommit(x.Commit)
-		g.SetDisabledDuringExecution(true)
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		g.SetOutcomeValue(x.OutcomeValue)
 		return g, nil
 	case *pages.MicroflowClientAction:
@@ -1875,8 +1893,8 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 			g.SetID(element.ID(x.ID))
 		}
 		assignID(g)
-		g.SetDisabledDuringExecution(true)
-		g.SetMicroflowSettings(microflowSettingsToGen(x.MicroflowName, x.ParameterMappings))
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
+		g.SetMicroflowSettings(microflowSettingsToGen(x.MicroflowName, x.ParameterMappings, &x.FlowCallSettings))
 		return g, nil
 	case *pages.NanoflowClientAction:
 		// call_nanoflow → Forms$CallNanoflowClientAction. Unlike the microflow
@@ -1888,9 +1906,15 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 			g.SetID(element.ID(x.ID))
 		}
 		assignID(g)
-		g.SetDisabledDuringExecution(true)
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		g.SetNanoflowQualifiedName(x.NanoflowName)
-		g.SetProgressBar("None")
+		g.SetProgressBar(progressBarOrNone(x.ProgressBar))
+		if x.ProgressMessage != nil {
+			g.SetProgressMessage(textToGen(x.ProgressMessage))
+		}
+		if x.Confirmation != nil {
+			g.SetConfirmationInfo(confirmationInfoToGen(x.Confirmation))
+		}
 		for _, pm := range x.ParameterMappings {
 			m := genPg.NewNanoflowParameterMapping()
 			assignID(m)
@@ -1907,7 +1931,7 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 			g.SetID(element.ID(x.ID))
 		}
 		assignID(g)
-		g.SetDisabledDuringExecution(true)
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		g.SetNumberOfPagesToClose2("")
 		if x.EntityName != "" {
 			ref := genDm.NewDirectEntityRef()
@@ -1920,6 +1944,28 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 	default:
 		return nil, fmt.Errorf("CreatePage: client action %T is not supported by either engine — please file an issue", a)
 	}
+}
+
+// actionDisabledDuringExecution is an action's "Disabled during action": what the
+// script says, else true — Studio Pro's value on all but a few stored actions.
+func actionDisabledDuringExecution(e pages.ActionExecution) bool {
+	if e.DisabledDuringExecution != nil {
+		return *e.DisabledDuringExecution
+	}
+	return true
+}
+
+func progressBarOrNone(v string) string { return orDefaultStr(v, "None") }
+
+// confirmationInfoToGen builds the Forms$ConfirmationInfo a flow call asks
+// before it runs. Studio Pro writes all three texts (ako/TestApp, 21 of 21).
+func confirmationInfoToGen(c *pages.ConfirmationInfo) element.Element {
+	ci := genPg.NewConfirmationInfo()
+	assignID(ci)
+	ci.SetQuestion(captionToGen(c.Question))
+	ci.SetProceedButtonCaption(captionToGen(c.ProceedCaption))
+	ci.SetCancelButtonCaption(captionToGen(c.CancelCaption))
+	return ci
 }
 
 // orDefaultStr returns s, or def when s is empty.

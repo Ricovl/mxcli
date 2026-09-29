@@ -241,9 +241,16 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 
 	// Reconcile MemberAccesses immediately — existing access rules on entities
 	// in this DM need MemberAccess entries for the new association (CE0066).
+	// Under OWNER Both a cross-module association is a member of the TO entity
+	// too, whose rules live in the other module (ako/mxcli#802).
 	if freshDM, err := ctx.Backend.GetDomainModel(module.ID); err == nil {
 		if count, err := ctx.Backend.ReconcileMemberAccesses(freshDM.ID, module.Name); err == nil && count > 0 {
 			fmt.Fprintf(ctx.Output, "Reconciled %d access rule(s) for new association\n", count)
+		}
+	}
+	if childModule != module.Name {
+		if err := reconcileModuleAccess(ctx, childModule, "for new association"); err != nil {
+			return err
 		}
 	}
 
@@ -296,6 +303,9 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 			if err := verifyAssociationAltered(ctx, module.ID, s, want); err != nil {
 				return err
 			}
+			if err := reconcileAfterAssociationAlter(ctx, s, module.Name); err != nil {
+				return err
+			}
 			fmt.Fprintf(ctx.Output, "Altered association: %s\n", s.Name)
 			return nil
 		}
@@ -334,12 +344,72 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 			if err := verifyAssociationAltered(ctx, module.ID, s, want); err != nil {
 				return err
 			}
+			toModule := ""
+			if i := strings.LastIndex(ca.ChildRef, "."); i > 0 {
+				toModule = ca.ChildRef[:i]
+			}
+			if err := reconcileAfterAssociationAlter(ctx, s, module.Name, toModule); err != nil {
+				return err
+			}
 			fmt.Fprintf(ctx.Output, "Altered association: %s\n", s.Name)
 			return nil
 		}
 	}
 
 	return mdlerrors.NewNotFound("association", s.Name.String())
+}
+
+// reconcileAfterAssociationAlter brings the access rules of every module an end
+// of the association lives in back in line with its members, when the alter
+// changed who the members are.
+//
+// ako/mxcli#802: `OWNER Both` makes the association a member of the TO entity as
+// well, so `set owner` adds (or, back to Default, removes) an entry on that
+// entity's rules. The alter wrote the owner and reconciled nothing, and mx check
+// reported CE0066 "Entity access is out of date" — at the TO entity's module,
+// which for a cross-module association is not the module altered. The other
+// operations (delete behaviour, storage, comment, anchors) do not change
+// membership and leave the rules alone.
+func reconcileAfterAssociationAlter(ctx *ExecContext, s *ast.AlterAssociationStmt, modules ...string) error {
+	if s.Operation != ast.AlterAssociationSetOwner {
+		return nil
+	}
+	invalidateHierarchy(ctx)
+	invalidateDomainModelsCache(ctx)
+	seen := map[string]bool{}
+	for _, name := range modules {
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		if err := reconcileModuleAccess(ctx, name, "after changing the owner"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reconcileModuleAccess reconciles one module's entity access rules and tracks
+// its domain model as modified. A module that cannot be found (the TO end of a
+// cross-module association named by a stale reference) has nothing to fix.
+func reconcileModuleAccess(ctx *ExecContext, moduleName, why string) error {
+	mod, err := findModule(ctx, moduleName)
+	if err != nil || mod == nil {
+		return nil
+	}
+	dm, err := ctx.Backend.GetDomainModel(mod.ID)
+	if err != nil || dm == nil {
+		return nil
+	}
+	count, err := ctx.Backend.ReconcileMemberAccesses(dm.ID, mod.Name)
+	if err != nil {
+		return mdlerrors.NewBackend(fmt.Sprintf("reconcile access rules of module %s", mod.Name), err)
+	}
+	if count > 0 {
+		fmt.Fprintf(ctx.Output, "Reconciled %d access rule(s) in module %s %s\n", count, mod.Name, why)
+	}
+	ctx.trackModifiedDomainModel(mod.ID, mod.Name)
+	return nil
 }
 
 // assocAlterView is the part of an association ALTER ASSOCIATION can change,
@@ -674,7 +744,7 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 		// parser accepts, and DELETE_CASCADE is not a token (upstream #901). The
 		// round-trip test in cmd_associations_delete_behavior_test.go feeds this
 		// back through the parser.
-		if del := describeDeleteClause(childDeleteBehavior); del != defaultDeleteClause {
+		if del := describeDeleteClause(ctx, childDeleteBehavior); del != defaultDeleteClause {
 			clauses = append(clauses, del)
 		}
 		for _, c := range clauses {
@@ -875,7 +945,7 @@ const defaultDeleteClause = "on delete set null"
 // describe -> exec round trip produce an association whose runtime does not
 // start, which is the failure this whole clause exists to prevent (CapTrackV2
 // §1) — and the round trip is exactly how these scripts get regenerated.
-func describeDeleteClause(db *domainmodel.DeleteBehavior) string {
+func describeDeleteClause(ctx *ExecContext, db *domainmodel.DeleteBehavior) string {
 	action := defaultDeleteClause
 	if db != nil {
 		switch db.Type {
@@ -886,7 +956,7 @@ func describeDeleteClause(db *domainmodel.DeleteBehavior) string {
 		}
 	}
 	if db != nil && db.ErrorMessage != "" {
-		return action + " error message " + mdlQuote(db.ErrorMessage)
+		return action + " error message " + mdlQuote(ctx, db.ErrorMessage)
 	}
 	return action
 }

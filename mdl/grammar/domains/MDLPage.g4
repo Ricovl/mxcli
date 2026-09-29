@@ -678,23 +678,42 @@ associationPathV3
 actionExprV3
     : VARIABLE                                        // $handler — a fragment action parameter (see fragmentParam)
     | NOTHING                                         // NOTHING — an explicitly inert widget (Forms$NoAction)
-    | SAVE_CHANGES closePageV3?                       // save changes [close page]
-    | CANCEL_CHANGES closePageV3?                     // cancel changes [close page]
-    | closePageV3                                     // close page
-    | DELETE closePageV3?                             // delete [close page]
-    | DELETE_OBJECT /* @alias MDL-DEPR020 */ closePageV3?
-    | CREATE OBJECT qualifiedName (THEN actionExprV3)? // create object Entity then show page ...
-    | CREATE_OBJECT /* @alias MDL-DEPR020 */ qualifiedName (THEN actionExprV3)?
-    | SHOW PAGE qualifiedName microflowArgsV3?        // show page Module.Page (Param: val)
-    | SHOW_PAGE /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3?
-    | CALL MICROFLOW qualifiedName microflowArgsV3?   // call microflow Module.Flow
-    | MICROFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3?
-    | CALL NANOFLOW qualifiedName microflowArgsV3?    // call nanoflow Module.Flow
-    | NANOFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3?
-    | openLinkV3 STRING_LITERAL                       // open link 'https://...'
-    | openLinkV3 VARIABLE SLASH attributePathV3       // open link $currentObject/URL (address read from an attribute)
-    | SIGN_OUT                                        // sign out
-    | COMPLETE_TASK STRING_LITERAL                    // complete task 'OutcomeName'
+    | SAVE_CHANGES closePageV3? actionSettingsV3?     // save changes [close page]
+    | CANCEL_CHANGES closePageV3? actionSettingsV3?   // cancel changes [close page]
+    | closePageV3 actionSettingsV3?                   // close page
+    | DELETE closePageV3? actionSettingsV3?           // delete [close page]
+    | DELETE_OBJECT /* @alias MDL-DEPR020 */ closePageV3? actionSettingsV3?
+    | CREATE OBJECT qualifiedName (THEN actionExprV3 | actionSettingsV3)? // create object Entity then show page ...
+    | CREATE_OBJECT /* @alias MDL-DEPR020 */ qualifiedName (THEN actionExprV3 | actionSettingsV3)?
+    | SHOW PAGE qualifiedName microflowArgsV3? actionSettingsV3?        // show page Module.Page (Param: val)
+    | SHOW_PAGE /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
+    | CALL MICROFLOW qualifiedName microflowArgsV3? actionSettingsV3?   // call microflow Module.Flow
+    | MICROFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
+    | CALL NANOFLOW qualifiedName microflowArgsV3? actionSettingsV3?    // call nanoflow Module.Flow
+    | NANOFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
+    | openLinkV3 STRING_LITERAL actionSettingsV3?                       // open link 'https://...'
+    | openLinkV3 VARIABLE SLASH attributePathV3 actionSettingsV3?       // open link $currentObject/URL (address read from an attribute)
+    | SIGN_OUT actionSettingsV3?                                        // sign out
+    | COMPLETE_TASK STRING_LITERAL actionSettingsV3?                    // complete task 'OutcomeName'
+    ;
+
+// The client-action settings Studio Pro shows under an event: "Disabled during
+// action", and for a microflow or nanoflow call its progress bar, progress
+// message and confirmation (ako/mxcli#721 L2). They are the action's own model
+// properties, so they are a `( Key: value )` list (R2, R3), introduced by `with`
+// because a bare `( … )` after `call microflow M.F` would read as its argument
+// list. The keys are checked by the visitor, not here: an unknown key or one
+// the action does not have is an error (R11).
+//
+//   call microflow M.Delete(Order = $currentObject) with (
+//     ProgressBar: blocking, ProgressMessage: 'Deleting…',
+//     Confirmation: 'Delete this order?', ProceedCaption: 'Delete', CancelCaption: 'Keep')
+actionSettingsV3
+    : WITH LPAREN actionSettingV3 (COMMA actionSettingV3)* COMMA? RPAREN
+    ;
+
+actionSettingV3
+    : identifierOrKeyword COLON (STRING_LITERAL | NONE | identifierOrKeyword)
     ;
 
 // The page actions are the words a microflow uses (R8, ako/mxcli#752):

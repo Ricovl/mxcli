@@ -1437,6 +1437,19 @@ func (pb *pageBuilder) getNanoflowReturnEntityName(qualifiedName string) string 
 
 // buildClientActionV3 converts a V3 Action AST to a pages.ClientAction.
 func (pb *pageBuilder) buildClientActionV3(action *ast.ActionV3) (pages.ClientAction, error) {
+	a, err := pb.buildClientActionV3Base(action)
+	if err != nil || a == nil || action.Settings == nil {
+		return a, err
+	}
+	if err := applyActionSettings(a, action.Settings); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+// buildClientActionV3Base builds the action itself; buildClientActionV3 adds
+// its `with ( … )` settings.
+func (pb *pageBuilder) buildClientActionV3Base(action *ast.ActionV3) (pages.ClientAction, error) {
 	switch action.Type {
 	case "none":
 		// `Action: NOTHING` — deliberately inert. The same Forms$NoAction the
@@ -2608,7 +2621,7 @@ func (pb *pageBuilder) expandBuildingBlockRef(w *ast.WidgetV3) ([]*ast.WidgetV3,
 
 	// Re-parse via a `create fragment` wrapper to obtain []*ast.WidgetV3.
 	src := "create fragment __bbtmp as {\n" + sb.String() + "\n};"
-	prog, errs := visitor.Build(src)
+	prog, errs := visitor.Build(describedSource(&renderCtx, src))
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("use building block %s: could not expand widget tree: %v", w.Name, errs)
 	}

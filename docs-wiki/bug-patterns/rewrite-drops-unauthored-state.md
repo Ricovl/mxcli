@@ -103,6 +103,16 @@ association re-minted the identity of every entity, attribute, index and associa
 in the module — hundreds of elements for a one-word edit. The second shape is the
 more dangerous by a wide margin and looked like the same bug already fixed.
 
+**A raw carry saves only what the converter does not set.** Carrying the stored
+bytes onto a rebuild keeps every unmodelled key, and still loses every property
+the converter writes as a constant — the constant is dirty and wins. The identity
+carries fixed the GUID and left an export level that every rebuild set to
+`Hidden`, so a whole-unit rewrite hid every exported entity in the module. On
+mxcli-authored content the stored value *is* the constant, so only a fixture where
+Studio Pro chose otherwise can show it. The durable fix for the whole-list shape is
+not a longer carry list: an element whose semantic form equals its stored form
+read back is passed through as stored, and only the named element is rebuilt.
+
 **The statement in the report is rarely the whole blast radius; the call site is.**
 The reported symptom named one command. What actually shared the defective rebuild
 were six, and the costliest of them was a `RENAME`, which nobody connects to
