@@ -87,13 +87,12 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 	deleteBehavior := storageDeleteBehavior(s.DeleteBehavior)
 	deleteMessage := s.DeleteErrorMessage
 
-	// Convert storage type (default: Column = foreign key in parent table)
-	storageFormat := domainmodel.StorageFormatColumn
-	switch s.Storage {
-	case ast.StorageColumn:
+	// Convert storage type. A new association defaults to Column (foreign key on
+	// the FROM entity's table); on OR MODIFY an unstated storage keeps what is
+	// stored — see statedStorageFormat.
+	storageFormat, storageStated := statedStorageFormat(s.Storage)
+	if !storageStated {
 		storageFormat = domainmodel.StorageFormatColumn
-	case ast.StorageTable:
-		storageFormat = domainmodel.StorageFormatTable
 	}
 
 	// Create association
@@ -719,6 +718,33 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	return mdlerrors.NewNotFound("association", name.String())
+}
+
+// statedStorageFormat maps an authored storage clause onto the stored value, and
+// reports whether the statement stated one. An unstated storage is not a request
+// for the default: on `create or modify` it means "leave it", because the
+// storage format decides the database schema and flipping it migrates data.
+func statedStorageFormat(s ast.StorageType) (domainmodel.AssociationStorageFormat, bool) {
+	switch s {
+	case ast.StorageColumn:
+		return domainmodel.StorageFormatColumn, true
+	case ast.StorageTable:
+		return domainmodel.StorageFormatTable, true
+	}
+	return "", false
+}
+
+// storageClause renders a stored storage format as the MDL clause that
+// reproduces it. Empty for an empty or unrecognised value, which an unstated
+// storage then carries unchanged on replay.
+func storageClause(f domainmodel.AssociationStorageFormat) string {
+	switch f {
+	case domainmodel.StorageFormatColumn:
+		return "storage column"
+	case domainmodel.StorageFormatTable:
+		return "storage table"
+	}
+	return ""
 }
 
 // storageDeleteBehavior maps an authored delete behaviour onto the value Mendix
