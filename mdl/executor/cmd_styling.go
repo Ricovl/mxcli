@@ -214,7 +214,7 @@ func execDescribeStyling(ctx *ExecContext, s *ast.DescribeStylingStmt) error {
 		if len(w.DesignProperties) > 0 {
 			// Reuse the DESCRIBE PAGE formatter so toggle/option/compound render
 			// identically across both describe paths (compound = issue #668).
-			fmt.Fprintf(ctx.Output, "  DesignProperties: (%s)\n", joinDesignPropertyEntries(w.DesignProperties))
+			fmt.Fprintf(ctx.Output, "  DesignProperties: (%s)\n", joinDesignPropertyEntries(ctx, w.DesignProperties))
 		}
 	}
 

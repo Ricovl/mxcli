@@ -190,33 +190,38 @@ func reportUnchanged(ctx *ExecContext, what string) {
 	fmt.Fprint(ctx.Output, line)
 }
 
-// describedFlowStmt describes the stored flow and parses the description as
-// mdl 0, the language describe writes, whatever the script's own header: the
-// AST holds values (a string literal's text, not its spelling), so the stored
-// side read by the rules it was written in compares with a declared side read
-// by the script's. Re-parsing the description under the script's header
-// instead misreads it wherever the two versions spell a value differently — a
-// stored line break described as `\n` would read as a backslash and an n under
-// mdl 1, agree with a script stating exactly that, and let the change pass as
-// Unchanged. See correctAmbiguousRanges for the one stored state mdl 0 cannot
-// state at all.
+// describedFlowStmt describes the stored flow in the script's own language
+// and parses the description under that language's header, so the stored side
+// and the declared side are read by the same rules and a value the two state
+// alike compares as the same AST.
+//
+// Describing in any other language misreads one side. Under mdl 1 an mdl 0
+// description spells a stored line break `\n`, which the mdl 1 reader takes
+// as a backslash and an n, so a script stating exactly that reported Unchanged
+// (#747); and a stored expression whose string holds a line break is
+// re-rendered from `'…\n…'` but stored as written from the mdl 1 literal that
+// spans lines, so an unchanged mdl 1 description rewrote the activity
+// (ako/mxcli#804). See correctAmbiguousRanges for the one stored state mdl 0
+// cannot state at all.
 func describedFlowStmt(ctx *ExecContext, d *flowDecl, a *alterFlowContext) (ast.Statement, error) {
 	var buf bytes.Buffer
 	// Full layout: stored activities are located by the @position printed above
 	// them, which the canonical describe leaves out when the engine derives it (#748).
-	prevOut, prevVer, prevFull := ctx.Output, ctx.LanguageVersion, ctx.describeFullLayout
-	ctx.Output, ctx.LanguageVersion, ctx.describeFullLayout = &buf, langver.V0, true
+	prevOut, prevIn, prevFull := ctx.Output, ctx.describeIn, ctx.describeFullLayout
+	script := ctx.LanguageVersion
+	ctx.Output, ctx.describeIn, ctx.describeFullLayout = &buf, &script, true
 	var err error
 	if d.nanoflow {
 		err = describeNanoflow(ctx, d.name)
 	} else {
 		err = describeMicroflow(ctx, d.name)
 	}
-	ctx.Output, ctx.LanguageVersion, ctx.describeFullLayout = prevOut, prevVer, prevFull
+	src := describedSource(ctx, buf.String())
+	ctx.Output, ctx.describeIn, ctx.describeFullLayout = prevOut, prevIn, prevFull
 	if err != nil {
 		return nil, err
 	}
-	prog, errs := visitor.Build(buf.String())
+	prog, errs := visitor.Build(src)
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("the description does not parse: %v", errs[0])
 	}
