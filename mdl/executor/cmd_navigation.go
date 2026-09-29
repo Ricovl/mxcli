@@ -593,11 +593,14 @@ func syncModeMDL(ctx *ExecContext, mode, constraint string) string {
 		// Studio Pro stores the constraint bracketed, so the folded value is
 		// normally already `[...]`; one without them is wrapped rather than
 		// assumed to have them.
+		//
+		// A string in it is spelled for the describe language (describeXPath,
+		// ako/mxcli#825).
 		x := singleLine(constraint)
 		if !strings.HasPrefix(x, "[") || !strings.HasSuffix(x, "]") {
 			x = "[" + x + "]"
 		}
-		return "where " + x
+		return "where " + describeXPath(ctx, x)
 	default:
 		// An unknown member is not guessed at. Emitting a mode MDL cannot spell
 		// would produce a script that fails at check; saying so is honest and

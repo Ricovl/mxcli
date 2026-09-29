@@ -48,8 +48,9 @@ func outputEntityAccessGrants(ctx *ExecContext, entity *domainmodel.Entity, modu
 }
 
 // entityGrantMDL is one access rule as the canonical grant (R5, ako/mxcli#753):
-// rights first, the roles after `to`, and the XPath constraint in [ ] exactly
-// as stored, so no quote inside it is doubled.
+// rights first, the roles after `to`, and the XPath constraint in [ ] as
+// stored, so no quote inside it is doubled; under mdl 0 a backslash in a
+// string is (describeXPath, ako/mxcli#825).
 //
 // A long constraint is stored broken across lines so it can be read in Studio
 // Pro's editor (upstream #979); MDL keeps it on one line, and the executor
@@ -65,12 +66,12 @@ func entityGrantMDL(ctx *ExecContext, rights, entity string, roles []string, xpa
 	if x == "" || visitor.IsBracketedXPath(x) {
 		line := fmt.Sprintf("grant %s on entity %s to %s", rights, entity, strings.Join(roles, ", "))
 		if x != "" {
-			line += " where " + x
+			line += " where " + describeXPath(ctx, x)
 		}
 		return line + ";"
 	}
-	return fmt.Sprintf("grant %s on %s (%s) where '%s';",
-		strings.Join(roles, ", "), entity, rights, strings.ReplaceAll(x, "'", "''"))
+	return fmt.Sprintf("grant %s on %s (%s) where %s;",
+		strings.Join(roles, ", "), entity, rights, mdlQuote(ctx, x))
 }
 
 // resolveEntityMemberAccess determines per-member READ/WRITE access.

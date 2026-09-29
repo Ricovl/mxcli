@@ -63,6 +63,13 @@ trip stayed green while the model held a backslash too many (#810, #820). The
 rule that closed both: the store writes the Mendix spelling of the value on
 every path, and only describe spells it for the reader's language.
 
+The corollary is about re-reading: once text is in Mendix spelling — read from
+the model, or already transcribed by the visitor — it is read with Mendix's
+string rule whatever the script's header says. The XPath layout pass re-parsed
+stored constraints with the mdl 0 lexer, so a multi-line `'C:\'` corrupted the
+constraint under *both* languages (#825); asking "which language is the script"
+would have fixed only one. Ask "whose spelling is this text".
+
 **Quoting is the other systematic leak.** The guidance to quote identifiers is
 about the MDL *parser*; a quote that survives into the stored expression produces
 `Mod."Entity".Attr`, which Mendix rejects. The tell is a **half-stripped** name in

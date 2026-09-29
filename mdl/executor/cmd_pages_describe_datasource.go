@@ -443,11 +443,14 @@ func xpathConstraintClause(ctx *ExecContext, constraint string) string {
 	// done the same by hand (upstream #979). MDL keeps it on one line: the
 	// datasource is one property among several on a widget, and the executor
 	// re-derives the stored layout from the expression anyway.
+	//
+	// A string in it is spelled for the describe language (describeXPath,
+	// ako/mxcli#825).
 	xpath = visitor.FlattenXPathConstraint(xpath)
 	if groups := visitor.SplitXPathPredicateGroups(xpath); len(groups) > 0 {
-		return strings.Join(groups, " ")
+		return describeXPath(ctx, strings.Join(groups, " "))
 	}
-	return "[" + xpath + "]"
+	return describeXPath(ctx, "["+xpath+"]")
 }
 
 // flowSourceArgs reads the argument bindings of a microflow or nanoflow

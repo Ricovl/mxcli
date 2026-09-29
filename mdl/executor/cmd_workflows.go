@@ -982,11 +982,14 @@ func formatConditionOutcomes(ctx *ExecContext, outcomes []workflows.ConditionOut
 // doubled. A stored value the bracketed grammar does not read is written in the
 // deprecated quoted form, which carries any string, so the output stays
 // re-executable.
+//
+// A string in it is spelled for the describe language (describeXPath,
+// ako/mxcli#825), as is the quoted form (mdlQuote).
 func targetingXPathMDL(ctx *ExecContext, xpath string) string {
 	if visitor.IsBracketedXPath(xpath) {
-		return xpath
+		return describeXPath(ctx, xpath)
 	}
-	return mdlQuoted(xpath)
+	return mdlQuote(ctx, xpath)
 }
 
 // workflowExpressionMDL writes a stored workflow expression — a due date, a
