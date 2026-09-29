@@ -863,7 +863,15 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 
 	case "database":
 		if ds.AssociationPath != "" {
-			return pb.buildDatabaseOverAssociationV3(ds)
+			// Only buildListViewDataSourceV3 may build this form. Every other
+			// caller — a widget-engine datasource under its own key, a chart
+			// series, a dynamic image — hands the result to a writer that stores
+			// the entity alone, a retrieve of every row instead of the context's
+			// (ako/mxcli#721 L5).
+			return nil, "", mdlerrors.NewValidationf(
+				"`database from $%s/%s` is a LIST VIEW source reached over an association; "+
+					"only a `listview` DataSource can store one — use the association source `$%s/%s` here",
+				ds.ContextVariable, ds.AssociationPath, ds.ContextVariable, ds.AssociationPath)
 		}
 		// Database source: DATABASE Entity
 		entityID, err := pb.resolveEntity(ast.QualifiedName{
@@ -1120,6 +1128,16 @@ func (pb *pageBuilder) applyDatabaseClausesV3(dbSource *pages.DatabaseSource, ds
 	}
 
 	return nil
+}
+
+// buildListViewDataSourceV3 builds a List View's DataSource: everything
+// buildDataSourceV3 builds, plus `database from $ctx/Assoc/Entity`, which only the
+// List View writer stores (ako/mxcli#721 L5).
+func (pb *pageBuilder) buildListViewDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource, string, error) {
+	if ds != nil && ds.Type == "database" && ds.AssociationPath != "" {
+		return pb.buildDatabaseOverAssociationV3(ds)
+	}
+	return pb.buildDataSourceV3(ds)
 }
 
 // buildDatabaseOverAssociationV3 builds `database from $ctx/Assoc/Entity …`: a

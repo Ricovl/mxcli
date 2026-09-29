@@ -317,7 +317,7 @@ func (pb *pageBuilder) buildListViewV3(w *ast.WidgetV3) (*pages.ListView, error)
 	// Handle DataSource
 	var listEntity string
 	if ds := w.GetDataSource(); ds != nil {
-		dataSource, entityName, err := pb.buildDataSourceV3(ds)
+		dataSource, entityName, err := pb.buildListViewDataSourceV3(ds)
 		if err != nil {
 			return nil, mdlerrors.NewBackend("build datasource", err)
 		}

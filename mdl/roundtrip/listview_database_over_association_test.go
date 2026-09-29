@@ -162,3 +162,37 @@ func firstListViewSource(t *testing.T, unit []byte) []byte {
 	}
 	return ds
 }
+
+// Only the List View writer stores the path. A datasource property the widget
+// engine reaches under its own key — here a combo box's
+// optionsSourceAssociationDataSource — bypassed the `DataSource:` guard: exec
+// reported "Created page" and the pluggable writer stored the entity alone, a
+// retrieve of every row instead of the context's (describe read it back as
+// `database from Rules.BusinessRule`). Every non-List View call site of the
+// datasource builder must refuse it.
+func TestDatabaseOverAssociationRefusedUnderANamedDatasourceKey(t *testing.T) {
+	h := newFixtureHarness(t, testApp)
+	defer h.close()
+	h.restore()
+	err := h.exec(`create page Rules.L5NamedKeyProbe (
+  Title: 'Probe',
+  Layout: Atlas_Core.PopupLayout,
+  Params: ( $RuleCategory: Rules.RuleCategory, $Rule: Rules.RuleAction )
+) {
+  dataview dv1 (DataSource: $Rule) {
+    combobox cb1 (
+      Label: 'Business rule',
+      Attribute: Rules.RuleAction_BusinessRule,
+      optionsSourceAssociationDataSource: database from $RuleCategory/Rules.BusinessRule_RuleCategory/Rules.BusinessRule,
+      CaptionAttribute: Name
+    )
+  }
+};`)
+	if err == nil {
+		t.Fatal("a combo box's named datasource accepted `database from $ctx/Assoc/Entity` — " +
+			"its writer stores the entity alone, so every row would be retrieved")
+	}
+	if !strings.Contains(err.Error(), "list view") && !strings.Contains(err.Error(), "LIST VIEW") {
+		t.Errorf("refused for another reason: %v", err)
+	}
+}
