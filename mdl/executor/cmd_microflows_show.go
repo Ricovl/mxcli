@@ -318,7 +318,7 @@ func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, opts descri
 
 	// Folder
 	if folderPath := h.BuildFolderPath(targetMf.ContainerID); folderPath != "" {
-		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(folderPath)))
+		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(ctx, folderPath)))
 	}
 
 	lines = append(lines, exposeClauseLines(targetMf)...)
@@ -353,7 +353,7 @@ func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, opts descri
 		} else {
 			activityLines = formatMicroflowActivities(ctx, targetMf, entityNames, microflowNames)
 		}
-		activityLines = prependFreeAnnotationLines(targetMf.ObjectCollection, activityLines)
+		activityLines = prependFreeAnnotationLines(ctx, targetMf.ObjectCollection, activityLines)
 		for _, line := range activityLines {
 			lines = append(lines, "  "+line)
 		}
@@ -478,7 +478,7 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 
 	// Folder
 	if folderPath := h.BuildFolderPath(targetNf.ContainerID); folderPath != "" {
-		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(folderPath)))
+		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(ctx, folderPath)))
 	}
 
 	// BEGIN block with activities
@@ -710,7 +710,7 @@ func renderMicroflowMDL(
 		} else {
 			activityLines = formatMicroflowActivities(ctx, mf, entityNames, microflowNames)
 		}
-		activityLines = prependFreeAnnotationLines(mf.ObjectCollection, activityLines)
+		activityLines = prependFreeAnnotationLines(ctx, mf.ObjectCollection, activityLines)
 		for _, line := range activityLines {
 			lines = append(lines, "  "+line)
 		}
@@ -854,6 +854,7 @@ func formatMicroflowActivities(
 	// Build annotation map for @annotation emission
 	annotationsByTarget := buildAnnotationsByTarget(mf.ObjectCollection)
 	annotationsByTarget.layout = describeLayoutOf(ctx)
+	annotationsByTarget.ctx = ctx
 
 	lines = append(lines, annotationsByTarget.layout.startLines(mf.ObjectCollection)...)
 
@@ -1109,6 +1110,7 @@ func formatMicroflowBodyWithSourceMap(
 	// Build annotation map for @annotation emission
 	annotationsByTarget := buildAnnotationsByTarget(mf.ObjectCollection)
 	annotationsByTarget.layout = describeLayoutOf(ctx)
+	annotationsByTarget.ctx = ctx
 
 	lines = append(lines, annotationsByTarget.layout.startLines(mf.ObjectCollection)...)
 
@@ -1671,7 +1673,7 @@ func describeRule(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	if folderPath := h.BuildFolderPath(target.ContainerID); folderPath != "" {
-		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(folderPath)))
+		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(ctx, folderPath)))
 	}
 
 	lines = append(lines, "begin")

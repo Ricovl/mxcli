@@ -2621,7 +2621,7 @@ func (pb *pageBuilder) expandBuildingBlockRef(w *ast.WidgetV3) ([]*ast.WidgetV3,
 
 	// Re-parse via a `create fragment` wrapper to obtain []*ast.WidgetV3.
 	src := "create fragment __bbtmp as {\n" + sb.String() + "\n};"
-	prog, errs := visitor.Build(src)
+	prog, errs := visitor.Build(describedSource(&renderCtx, src))
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("use building block %s: could not expand widget tree: %v", w.Name, errs)
 	}

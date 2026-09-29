@@ -11,6 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	genDm "github.com/mendixlabs/mxcli/modelsdk/gen/domainmodels"
+	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 )
 
 // AddEntityAccessRule adds (or upserts by matching module-role set) an entity
@@ -367,6 +368,14 @@ func (b *Backend) ReconcileMemberAccesses(unitID model.ID, moduleName string) (i
 
 	byName := entitiesByName(dm)
 
+	// Cross-module associations declared ELSEWHERE whose TO end is an entity of
+	// this module. Under `OWNER Both` such an association is a member of that
+	// entity too, and nothing in this domain model says so (ako/mxcli#802).
+	incoming, err := b.incomingCrossAssociations(moduleName)
+	if err != nil {
+		return 0, err
+	}
+
 	modified := 0
 	for _, el := range dm.EntitiesItems() {
 		ent, ok := el.(*genDm.Entity)
@@ -489,6 +498,32 @@ func (b *Backend) ReconcileMemberAccesses(unitID model.ID, moduleName string) (i
 				addAssoc(ca.Name())
 			}
 		}
+		// The TO side of another module's cross-module associations: an entry
+		// under `OWNER Both`, and none otherwise. The reference is qualified by
+		// the DECLARING module, so it is foreign here and the preserve branch
+		// below would keep a stale one forever — which is why the non-Both ones
+		// are collected too, as the entries to remove. An association declared
+		// by a generalization in that same module may reach this entity through
+		// inheritance instead, and cannot be judged from here, so it is left to
+		// the preserve branch as before.
+		foreignAnc := foreignAncestorModule(ent, ancestors, moduleName)
+		staleForeign := map[string]bool{}
+		for _, name := range append([]string{entityName}, entityNames(ancestors)...) {
+			for _, in := range incoming[name] {
+				switch {
+				case in.both:
+					if !assocSet[in.qn] {
+						assocSet[in.qn] = true
+						assocQNs = append(assocQNs, in.qn)
+					}
+				case !strings.EqualFold(in.module, foreignAnc):
+					staleForeign[in.qn] = true
+				}
+			}
+		}
+		for qn := range assocSet {
+			delete(staleForeign, qn)
+		}
 
 		// NO MemberAccess is written for an audit member, of either kind.
 		//
@@ -577,6 +612,11 @@ func (b *Backend) ReconcileMemberAccesses(unitID model.ID, moduleName string) (i
 						changed = true
 					case assocSet[assocRef]:
 						covAssoc[assocRef] = true
+					case staleForeign[assocRef]:
+						// Another module's cross-module association to this entity
+						// whose owner is no longer Both (ako/mxcli#802).
+						rule.RemoveMemberAccesses(i)
+						changed = true
 					case !assocRefBelongsTo(assocRef, moduleName):
 						// An association is qualified by the module that DECLARES it, so
 						// one inherited from a generalization in another module names
@@ -682,6 +722,83 @@ func sameModuleAncestors(ent *genDm.Entity, byName map[string]*genDm.Entity, mod
 		out = append(out, anc)
 		cur = anc
 	}
+}
+
+// incomingCross is a cross-module association declared in another module whose
+// TO end is an entity of the module being reconciled.
+type incomingCross struct {
+	qn     string // "DeclaringModule.Association", as a MemberAccess names it
+	module string // the declaring module
+	both   bool   // OWNER Both: a member of the TO entity as well
+}
+
+// incomingCrossAssociations maps each entity name of moduleName to the
+// cross-module associations other modules declare TO it. A CrossAssociation
+// names its TO entity by qualified name, so this is a scan of every other
+// domain model — the only place the fact is stored.
+func (b *Backend) incomingCrossAssociations(moduleName string) (map[string][]incomingCross, error) {
+	units, err := mprread.ListUnitsWithContainer[*genDm.DomainModel](b.reader)
+	if err != nil {
+		return nil, fmt.Errorf("list domain models: %w", err)
+	}
+	prefix := moduleName + "."
+	out := map[string][]incomingCross{}
+	for _, u := range units {
+		var declaring string
+		for _, ce := range u.Element.CrossAssociationsItems() {
+			ca, ok := ce.(*genDm.CrossAssociation)
+			if !ok || ca.Name() == "" {
+				continue
+			}
+			child := ca.ChildQualifiedName()
+			if len(child) <= len(prefix) || !strings.EqualFold(child[:len(prefix)], prefix) {
+				continue
+			}
+			if declaring == "" {
+				mi, err := b.reader.GetModule(string(u.ContainerID))
+				if err != nil || mi == nil {
+					break // an orphaned domain model declares nothing reachable
+				}
+				declaring = mi.Name
+			}
+			if strings.EqualFold(declaring, moduleName) {
+				break
+			}
+			name := child[len(prefix):]
+			out[name] = append(out[name], incomingCross{
+				qn: declaring + "." + ca.Name(), module: declaring, both: ca.Owner() == "Both",
+			})
+		}
+	}
+	return out, nil
+}
+
+// foreignAncestorModule returns the module of the first generalization in ent's
+// chain that lies outside moduleName, or "" when the chain stays inside it.
+// ancestors is sameModuleAncestors(ent, …), nearest first.
+func foreignAncestorModule(ent *genDm.Entity, ancestors []*genDm.Entity, moduleName string) string {
+	last := ent
+	if len(ancestors) > 0 {
+		last = ancestors[len(ancestors)-1]
+	}
+	gen, ok := last.Generalization().(*genDm.Generalization)
+	if !ok {
+		return ""
+	}
+	qn := gen.GeneralizationQualifiedName()
+	idx := strings.LastIndex(qn, ".")
+	if idx < 0 || strings.EqualFold(qn[:idx], moduleName) {
+		return ""
+	}
+	return qn[:idx]
+}
+
+func entityNames(es []*genDm.Entity) []string {
+	out := make([]string, 0, len(es))
+	for _, e := range es {
+		out = append(out, e.Name())
+	}
+	return out
 }
 
 // assocRefBelongsTo reports whether a MemberAccess association reference

@@ -425,16 +425,15 @@ func (b *Backend) MoveEntity(entity *domainmodel.Entity, sourceDMID, targetDMID 
 	// unmodeled, so without this carry a move silently drops an entity's
 	// domain-model image as well as its GUID.
 	// Everything that does need rewriting is modeled and therefore dirty:
-	// `MaybeGeneralization`, `Location`, `ExportLevel` and the member lists are all
+	// `MaybeGeneralization`, `Location` and the member lists are all
 	// re-encoded from the rebuild, and `Source`/`ValidationRules` were re-pointed on
 	// `entity` just above.
 	ge := entityToGen(entity, targetModuleName, b.majorVersion())
 	ge.SetID(element.ID(entity.ID))
 	assignEntityIDs(ge)
-	if raw := orig.Raw(); raw != nil {
-		ge.SetRaw(raw)
-	}
-	carryChildIdentity(ge, orig, entity)
+	// carryStoredEntity also keeps the export level entityToGen resets to Hidden,
+	// and the access rules' captions (ako/mxcli#801).
+	carryStoredEntity(ge, orig, entity)
 	targetDM.AddEntities(ge)
 	if err := b.persistDM(targetDMID, targetDM); err != nil {
 		return nil, fmt.Errorf("MoveEntity: persist target: %w", err)

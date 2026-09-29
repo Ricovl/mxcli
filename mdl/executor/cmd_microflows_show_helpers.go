@@ -52,6 +52,18 @@ type annotationEmitter struct {
 	// derivedFlowLayout). nil keeps every one, which is what the tools that
 	// read geometry back — `layout flows`, the ELK view, diff — rely on.
 	layout *flowLayoutKeep
+
+	// ctx is the describe's context, for the language its text is quoted in
+	// (mdlQuote). nil quotes in the frozen language.
+	ctx *ExecContext
+}
+
+// quote writes a note's or caption's text as a string literal (mdlQuote).
+func (e *annotationEmitter) quote(s string) string {
+	if e == nil {
+		return mdlQuote(nil, s)
+	}
+	return mdlQuote(e.ctx, s)
 }
 
 // buildAnnotationsByTarget joins AnnotationFlows (destination → activity) with
@@ -122,7 +134,7 @@ func (e *annotationEmitter) withOverlay(overlay *annotationEmitter) *annotationE
 	if overlay == nil || len(overlay.byTarget) == 0 {
 		return e
 	}
-	out := &annotationEmitter{labels: e.labels, nextLabel: e.nextLabel, layout: e.layout}
+	out := &annotationEmitter{labels: e.labels, nextLabel: e.nextLabel, layout: e.layout, ctx: e.ctx}
 	if len(e.byTarget) == 0 {
 		out.byTarget = overlay.byTarget
 		return out
@@ -180,7 +192,7 @@ func (e *annotationEmitter) lines(target model.ID, activityPos model.Point, targ
 			// depends on which mention created it, and pinning that down would
 			// couple the two sides far more tightly than it is worth.
 			out = append(out, indentStr+fmt.Sprintf("@annotation(id: %s, text: %s, position: (%d, %d), size: (%d, %d))",
-				label, mdlQuote(note.Caption), note.Position.X, note.Position.Y, note.Size.Width, note.Size.Height))
+				label, e.quote(note.Caption), note.Position.X, note.Position.Y, note.Size.Width, note.Size.Height))
 			continue
 		}
 
@@ -193,11 +205,11 @@ func (e *annotationEmitter) lines(target model.ID, activityPos model.Point, targ
 			params = append(params, fmt.Sprintf("size: (%d, %d)", note.Size.Width, note.Size.Height))
 		}
 		if len(params) == 0 {
-			out = append(out, indentStr+fmt.Sprintf("@annotation %s", mdlQuote(note.Caption)))
+			out = append(out, indentStr+fmt.Sprintf("@annotation %s", e.quote(note.Caption)))
 			continue
 		}
 		out = append(out, indentStr+fmt.Sprintf("@annotation(text: %s, %s)",
-			mdlQuote(note.Caption), strings.Join(params, ", ")))
+			e.quote(note.Caption), strings.Join(params, ", ")))
 	}
 	return out
 }
@@ -228,7 +240,7 @@ func collectFreeAnnotations(oc *microflows.MicroflowObjectCollection) []describe
 	return result
 }
 
-func prependFreeAnnotationLines(oc *microflows.MicroflowObjectCollection, activityLines []string) []string {
+func prependFreeAnnotationLines(ctx *ExecContext, oc *microflows.MicroflowObjectCollection, activityLines []string) []string {
 	freeAnnots := collectFreeAnnotations(oc)
 	if len(freeAnnots) == 0 || len(activityLines) == 0 {
 		return activityLines
@@ -239,7 +251,7 @@ func prependFreeAnnotationLines(oc *microflows.MicroflowObjectCollection, activi
 		// A free note is attached to nothing, so there is no activity position
 		// to derive its default from — the writer places it from wherever the
 		// cursor happens to be. Its geometry is therefore always spelled out.
-		line := fmt.Sprintf("@annotation(text: %s, position: (%d, %d)", mdlQuote(note.Caption), note.Position.X, note.Position.Y)
+		line := fmt.Sprintf("@annotation(text: %s, position: (%d, %d)", mdlQuote(ctx, note.Caption), note.Position.X, note.Position.Y)
 		if note.Size != (model.Size{}) {
 			line += fmt.Sprintf(", size: (%d, %d)", note.Size.Width, note.Size.Height)
 		}
@@ -881,7 +893,7 @@ func emitObjectAnnotations(
 			*lines = append(*lines, indentStr+"@excluded")
 		}
 		if !activity.AutoGenerateCaption && activity.Caption != "" {
-			*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", mdlQuote(activity.Caption)))
+			*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", annotationsByTarget.quote(activity.Caption)))
 		}
 		if activity.BackgroundColor != "" && activity.BackgroundColor != "Default" {
 			*lines = append(*lines, indentStr+fmt.Sprintf("@color %s", activity.BackgroundColor))
@@ -889,10 +901,10 @@ func emitObjectAnnotations(
 	}
 
 	if split, ok := obj.(*microflows.ExclusiveSplit); ok && split.Caption != "" && !captionIsCondition(split) {
-		*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", mdlQuote(split.Caption)))
+		*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", annotationsByTarget.quote(split.Caption)))
 	}
 	if split, ok := obj.(*microflows.InheritanceSplit); ok && split.Caption != "" {
-		*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", mdlQuote(split.Caption)))
+		*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", annotationsByTarget.quote(split.Caption)))
 	}
 	// No @caption for a LoopedActivity: the metamodel declares none on it, so a
 	// stored loop never carries one and this only ever emitted MDL that check

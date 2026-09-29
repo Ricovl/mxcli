@@ -71,7 +71,7 @@ func TestFormatDesignPropertiesMDL_Compound(t *testing.T) {
 		}},
 		{Key: "Show divider", ValueType: "toggle"},
 	}
-	got := formatDesignPropertiesMDL(dps)
+	got := formatDesignPropertiesMDL(nil, dps)
 	want := "DesignProperties: ('Column gap': 'Medium', 'Spacing': ('margin-top': 'Large', 'margin-bottom': 'Medium'), 'Show divider': on)"
 	if got != want {
 		t.Errorf("formatDesignPropertiesMDL:\n got  %s\n want %s", got, want)

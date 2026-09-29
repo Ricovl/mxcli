@@ -148,7 +148,7 @@ func TestMDLWIDGET33_LegacyQuotedExpressionOnAlter(t *testing.T) {
 // describe prints the stored expression as-is, and that output re-stores it.
 func TestDescribeWidgetExpressionProps_RoundTrip(t *testing.T) {
 	const expr = "if $currentObject/Featured then 'is-featured' else ''"
-	props := appendAppearanceProps(nil, rawWidget{DynamicClasses: expr})
+	props := appendAppearanceProps(nil, nil, rawWidget{DynamicClasses: expr})
 	var line string
 	for _, p := range props {
 		if strings.HasPrefix(p, "DynamicClasses:") {

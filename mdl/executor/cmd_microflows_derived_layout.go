@@ -188,7 +188,7 @@ func derivedFlowLayout(ctx *ExecContext, flowType string, mf *microflows.Microfl
 // rebuildDescribedFlow builds the flow a description defines, the way `create
 // or modify` would build it, and returns its objects. Nothing is written.
 func rebuildDescribedFlow(ctx *ExecContext, flowType, src string) (*microflows.MicroflowObjectCollection, error) {
-	prog, errs := visitor.Build(src)
+	prog, errs := visitor.Build(describedSource(ctx, src))
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("description does not parse back: %v", errs[0])
 	}

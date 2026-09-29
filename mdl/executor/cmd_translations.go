@@ -82,7 +82,7 @@ func execDescribeTranslations(ctx *ExecContext, s *ast.DescribeTranslationsStmt)
 		if t != "" {
 			translated++
 		}
-		fmt.Fprintf(ctx.Output, "    %s as %s,\n", mdlQuote(e.Source), mdlQuote(t))
+		fmt.Fprintf(ctx.Output, "    %s as %s,\n", mdlQuote(ctx, e.Source), mdlQuote(ctx, t))
 	}
 	fmt.Fprintln(ctx.Output, ");")
 
@@ -93,7 +93,7 @@ func execDescribeTranslations(ctx *ExecContext, s *ast.DescribeTranslationsStmt)
 			"-- %d source string(s) occur with DIFFERENT translations and cannot be\n"+
 				"-- described by one entry; the first is shown. Scope with `in <Module>`\n"+
 				"-- to separate them: %s\n",
-			len(conflicts), strings.Join(quoteAll(conflicts), ", "))
+			len(conflicts), strings.Join(quoteAll(ctx, conflicts), ", "))
 	}
 	return nil
 }
@@ -196,7 +196,7 @@ func reportTranslationStats(ctx *ExecContext, s *ast.CreateTranslationsStmt, sta
 		fmt.Fprintf(ctx.Output,
 			"\nRemoved because the file does not name them (create or replace):\n")
 		for _, srcStr := range stats.RemovedSources {
-			fmt.Fprintf(ctx.Output, "  %s\n", mdlQuote(srcStr))
+			fmt.Fprintf(ctx.Output, "  %s\n", mdlQuote(ctx, srcStr))
 		}
 	}
 
@@ -260,17 +260,17 @@ func reportOutOfScopeEntries(ctx *ExecContext, s *ast.CreateTranslationsStmt, mi
 			"and `in %s` did not reach them. The navigation is a project-level document, so a\n"+
 			"scoped run leaves the menu in the source language while the pages switch:\n\n",
 		len(missed), s.Module, s.Module)
-	for _, srcStr := range quoteAll(missed) {
+	for _, srcStr := range quoteAll(ctx, missed) {
 		fmt.Fprintf(ctx.Output, "  %s\n", srcStr)
 	}
 	fmt.Fprintf(ctx.Output,
 		"\nRe-run the same file without `in %s` to land these as well.\n", s.Module)
 }
 
-func quoteAll(ss []string) []string {
+func quoteAll(ctx *ExecContext, ss []string) []string {
 	out := make([]string, 0, len(ss))
 	for _, s := range ss {
-		out = append(out, mdlQuote(s))
+		out = append(out, mdlQuote(ctx, s))
 	}
 	sort.Strings(out)
 	return out

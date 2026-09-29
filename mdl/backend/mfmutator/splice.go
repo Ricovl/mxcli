@@ -422,6 +422,27 @@ func (m *Mutator) Drop(target model.ID) error {
 	return m.removeObject(x)
 }
 
+// SetReturnValue sets the value an end event returns, in place: the end event
+// keeps its $ID, its position, the flows into it and the notes attached to
+// it, and no other element changes. It is how a changed `return` is written
+// (ako/mxcli#805): an end event cannot be dropped or replaced like an activity,
+// because it ends a path, but its value is a property like an activity's
+// caption.
+func (m *Mutator) SetReturnValue(target model.ID, value string) error {
+	g := m.graph()
+	x, err := g.node(target)
+	if err != nil {
+		return err
+	}
+	if x.typ != "Microflows$EndEvent" {
+		return fmt.Errorf("cannot set the return value of %s: only an end event returns one", describeNode(x))
+	}
+	if !dSet(x.doc, "ReturnValue", value) {
+		return fmt.Errorf("%s stores no ReturnValue", describeNode(x))
+	}
+	return nil
+}
+
 // bodyFlows returns the flows that run inside loop's body, at any depth. They
 // are stored in the unit's Flows list, not in the loop, so taking the loop out
 // has to take them too; left behind they would point at removed objects.

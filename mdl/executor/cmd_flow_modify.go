@@ -62,6 +62,9 @@ type flowDecl struct {
 	name     ast.QualifiedName
 	body     []ast.MicroflowStatement
 	folder   string
+	// returnVar is the `returns … as $Var` variable, which the end a body
+	// falls through to returns; "" when there is none.
+	returnVar string
 	// header returns the declared and the stored statement with body, folder
 	// and name cleared, after the rules by which an absent clause keeps what
 	// is stored have been applied, ready for declaredMatches.
@@ -112,7 +115,7 @@ func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) 
 			"the splice edits the flow's activities only"))
 	}
 
-	ops, targets, err := diffFlowBody(a, d.body, storedBody(stored))
+	ops, targets, err := diffFlowBody(a, d.body, storedBody(stored), d.returnVar)
 	if err != nil {
 		return fallBack(ctx, d, err)
 	}
@@ -190,33 +193,38 @@ func reportUnchanged(ctx *ExecContext, what string) {
 	fmt.Fprint(ctx.Output, line)
 }
 
-// describedFlowStmt describes the stored flow and parses the description as
-// mdl 0, the language describe writes, whatever the script's own header: the
-// AST holds values (a string literal's text, not its spelling), so the stored
-// side read by the rules it was written in compares with a declared side read
-// by the script's. Re-parsing the description under the script's header
-// instead misreads it wherever the two versions spell a value differently — a
-// stored line break described as `\n` would read as a backslash and an n under
-// mdl 1, agree with a script stating exactly that, and let the change pass as
-// Unchanged. See correctAmbiguousRanges for the one stored state mdl 0 cannot
-// state at all.
+// describedFlowStmt describes the stored flow in the script's own language
+// and parses the description under that language's header, so the stored side
+// and the declared side are read by the same rules and a value the two state
+// alike compares as the same AST.
+//
+// Describing in any other language misreads one side. Under mdl 1 an mdl 0
+// description spells a stored line break `\n`, which the mdl 1 reader takes
+// as a backslash and an n, so a script stating exactly that reported Unchanged
+// (#747); and a stored expression whose string holds a line break is
+// re-rendered from `'…\n…'` but stored as written from the mdl 1 literal that
+// spans lines, so an unchanged mdl 1 description rewrote the activity
+// (ako/mxcli#804). See correctAmbiguousRanges for the one stored state mdl 0
+// cannot state at all.
 func describedFlowStmt(ctx *ExecContext, d *flowDecl, a *alterFlowContext) (ast.Statement, error) {
 	var buf bytes.Buffer
 	// Full layout: stored activities are located by the @position printed above
 	// them, which the canonical describe leaves out when the engine derives it (#748).
-	prevOut, prevVer, prevFull := ctx.Output, ctx.LanguageVersion, ctx.describeFullLayout
-	ctx.Output, ctx.LanguageVersion, ctx.describeFullLayout = &buf, langver.V0, true
+	prevOut, prevIn, prevFull := ctx.Output, ctx.describeIn, ctx.describeFullLayout
+	script := ctx.LanguageVersion
+	ctx.Output, ctx.describeIn, ctx.describeFullLayout = &buf, &script, true
 	var err error
 	if d.nanoflow {
 		err = describeNanoflow(ctx, d.name)
 	} else {
 		err = describeMicroflow(ctx, d.name)
 	}
-	ctx.Output, ctx.LanguageVersion, ctx.describeFullLayout = prevOut, prevVer, prevFull
+	src := describedSource(ctx, buf.String())
+	ctx.Output, ctx.describeIn, ctx.describeFullLayout = prevOut, prevIn, prevFull
 	if err != nil {
 		return nil, err
 	}
-	prog, errs := visitor.Build(buf.String())
+	prog, errs := visitor.Build(src)
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("the description does not parse: %v", errs[0])
 	}
@@ -351,7 +359,7 @@ func storedFolderOf(st ast.Statement) string {
 // microflowDecl adapts a CREATE MICROFLOW statement.
 func microflowDecl(s *ast.CreateMicroflowStmt) *flowDecl {
 	return &flowDecl{
-		name: s.Name, body: s.Body, folder: s.Folder,
+		name: s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType),
 		header: func(stored ast.Statement) (any, any) {
 			st, _ := stored.(*ast.CreateMicroflowStmt)
 			if st == nil {
@@ -393,10 +401,17 @@ func microflowDecl(s *ast.CreateMicroflowStmt) *flowDecl {
 	}
 }
 
+func returnVariable(rt *ast.MicroflowReturnType) string {
+	if rt == nil {
+		return ""
+	}
+	return rt.Variable
+}
+
 // nanoflowDecl adapts a CREATE NANOFLOW statement.
 func nanoflowDecl(s *ast.CreateNanoflowStmt) *flowDecl {
 	return &flowDecl{
-		nanoflow: true, name: s.Name, body: s.Body, folder: s.Folder,
+		nanoflow: true, name: s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType),
 		header: func(stored ast.Statement) (any, any) {
 			st, _ := stored.(*ast.CreateNanoflowStmt)
 			if st == nil {
@@ -433,7 +448,7 @@ func nanoflowDecl(s *ast.CreateNanoflowStmt) *flowDecl {
 // Targets are the stored activities, located by the @position describe printed
 // for each statement. A run whose stored end cannot be located, or that the
 // splice cannot express, is a notSpliceable error.
-func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement) ([]*ast.AlterFlowOperation, []mfmutator.Candidate, error) {
+func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement, returnVar string) ([]*ast.AlterFlowOperation, []mfmutator.Candidate, error) {
 	// Free annotations — notes wired to nothing — belong to the flow, not to
 	// the statement describe happens to print them above (the first one), so
 	// they are compared as a whole and kept out of the statement match: an
@@ -445,7 +460,9 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 		return nil, nil, cannotSplice("the free annotations change; the splice edits activities only")
 	}
 
-	pd := &patchDiff{loc: newStoredLocator(a)}
+	declared = withImplicitEnd(declared, stored, returnVar)
+
+	pd := &patchDiff{loc: newStoredLocator(a), start: storedStart(stored)}
 	if err := pd.statements(declared, stored); err != nil {
 		return nil, nil, err
 	}
@@ -467,9 +484,38 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 	return ops, targets, nil
 }
 
+// withImplicitEnd states the end a declared body falls through to as the
+// `return` it stands for, when the stored flow's description spells its end
+// that way (ako/mxcli#805).
+//
+// A body whose last statement does not end the flow ends at an end event the
+// builder draws, returning the `returns … as $Var` variable if there is one.
+// describe prints that end event as a trailing `@position(x, y) return;`
+// whenever it keeps layout — which the stored side of the diff always does —
+// so without this the stored end looks like a statement the script dropped,
+// and an end event cannot be dropped. Stated, the two match as any statement
+// does: a declared return without @position matches the stored end wherever it
+// is drawn, so the end event stays where it is.
+func withImplicitEnd(declared, stored []ast.MicroflowStatement, returnVar string) []ast.MicroflowStatement {
+	if len(stored) == 0 || lastStmtIsReturn(declared) {
+		return declared
+	}
+	if _, ok := stored[len(stored)-1].(*ast.ReturnStmt); !ok {
+		return declared
+	}
+	end := &ast.ReturnStmt{}
+	if returnVar != "" {
+		end.Value = &ast.VariableExpr{Name: returnVar}
+	}
+	return append(append([]ast.MicroflowStatement(nil), declared...), end)
+}
+
 // patchDiff accumulates the operations of one diff.
 type patchDiff struct {
-	loc     *storedLocator
+	loc *storedLocator
+	// start is where the stored start event is drawn: a declared @start
+	// elsewhere moves it.
+	start   *ast.Position
 	ops     []*ast.AlterFlowOperation
 	targets []mfmutator.Candidate
 }
@@ -504,10 +550,39 @@ func (pd *patchDiff) statements(declared, stored []ast.MicroflowStatement) error
 // is stored — into operations.
 func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowStatement, si, sEnd int) error {
 	del := stored[si:sEnd]
-	switch {
-	case len(ins) == 0 && len(del) == 0:
+	if len(ins) == 0 && len(del) == 0 {
 		return nil
-	case len(del) == 0:
+	}
+	// A run that ends a path on both sides: the returns are the same end
+	// event, whatever else changes before it (ako/mxcli#805).
+	if len(ins) > 0 && len(del) > 0 {
+		dr, ok1 := ins[len(ins)-1].(*ast.ReturnStmt)
+		sr, ok2 := del[len(del)-1].(*ast.ReturnStmt)
+		if ok1 && ok2 {
+			if err := pd.endEvent(dr, sr); err != nil {
+				return err
+			}
+			return pd.gap(ins[:len(ins)-1], stored, si, sEnd-1)
+		}
+	}
+	// Any other return added or taken away moves where a path ends.
+	for _, st := range del {
+		if _, ok := st.(*ast.ReturnStmt); ok {
+			return cannotSplice("the %s is taken out, so the path it ended would go on; where a path ends is the shape "+
+				"of the flow, and the splice changes a return's value only", describeAt(st))
+		}
+	}
+	for _, st := range ins {
+		if ann := statementAnnotations(st); ann != nil && ann.Start != nil && (pd.start == nil || *pd.start != *ann.Start) {
+			return cannotSplice("@start(%d, %d) moves the start event; the splice places new nodes only and does not move stored ones",
+				ann.Start.X, ann.Start.Y)
+		}
+		if _, ok := st.(*ast.ReturnStmt); ok {
+			return cannotSplice("a return is added where the stored flow does not end a path; where a path ends is the " +
+				"shape of the flow, and the splice changes a return's value only")
+		}
+	}
+	if len(del) == 0 {
 		op, c, err := insertAnchor(pd.loc, stored, si, sEnd)
 		if err != nil {
 			return err
@@ -536,6 +611,19 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 				describeAt(del[0]))
 		}
 	}
+	// A declared statement that is a stored one of the same run redrawn is a
+	// moved node, whichever other statements change around it. As a replace
+	// and a drop it would be written as a new node where the splice places it,
+	// and the position the script states would be silently lost (ako/mxcli#805:
+	// a rewrite that moved every activity came out with none of them moved).
+	for _, d := range ins {
+		for _, st := range del {
+			if sameIgnoringLayout(d, st) {
+				return cannotSplice("the %s is moved or its connectors are redrawn; the splice places new nodes only and does not move stored ones",
+					describeAt(st))
+			}
+		}
+	}
 	cands := make([]mfmutator.Candidate, len(del))
 	for i, st := range del {
 		c, err := pd.loc.locate(st)
@@ -560,6 +648,47 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 		}
 		pd.add(ast.AlterFlowDrop, c, nil)
 	}
+	return nil
+}
+
+// storedStart is the start event's position as the stored description
+// states it (on the first statement, whichever that is), or nil.
+func storedStart(stored []ast.MicroflowStatement) *ast.Position {
+	for _, st := range stored {
+		if ann := statementAnnotations(st); ann != nil && ann.Start != nil {
+			return ann.Start
+		}
+	}
+	return nil
+}
+
+// endEvent diffs a declared return against the stored one it stands for: the
+// same end event, so a changed value is set in place — its $ID, the flows into
+// it and the notes on it stay. A moved end event, or one with other notes, is
+// refused like any moved or re-annotated node.
+func (pd *patchDiff) endEvent(declared, stored *ast.ReturnStmt) error {
+	if declaredMatches(declared, stored) {
+		return nil
+	}
+	c, err := pd.loc.locate(stored)
+	if err != nil {
+		return err
+	}
+	if _, ok := c.Object.(*microflows.EndEvent); !ok {
+		return cannotSplice("the stored %s is not drawn as an end event", describeAt(stored))
+	}
+	if ann := declared.Annotations; ann != nil && ann.Position != nil {
+		if sp := stored.Annotations; sp == nil || sp.Position == nil || *sp.Position != *ann.Position {
+			return cannotSplice("the %s is moved; the splice places new nodes only and does not move stored ones",
+				describeAt(stored))
+		}
+	}
+	shell := *declared
+	shell.Value = stored.Value
+	if !sameIgnoringLayout(&shell, stored) {
+		return cannotSplice("the annotations on the %s change; the splice changes a return's value only", describeAt(stored))
+	}
+	pd.add(ast.AlterFlowReplace, c, []ast.MicroflowStatement{&ast.ReturnStmt{Value: declared.Value}})
 	return nil
 }
 

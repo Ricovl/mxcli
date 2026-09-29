@@ -37,6 +37,9 @@ type MicroflowMutator interface {
 	Replace(target model.ID, frag *MicroflowFragment) error
 	// Drop removes target and joins its incoming flows to its successor.
 	Drop(target model.ID) error
+	// SetReturnValue sets the expression the end event target returns, in
+	// place; "" is no value.
+	SetReturnValue(target model.ID, value string) error
 	// Save writes the patched unit.
 	Save() error
 }

@@ -73,6 +73,8 @@ Run again tomorrow.' with ({1} = toString($Count));
 end;
 ```
 
+`describe` inside an `mdl 1;` script writes every string this way — a caption, an annotation, a widget property, a string in an expression: `''` is its only escape and a stored line break is a line break in the literal. A plain `describe` keeps the `mdl 0` escapes (`\n`, `\\`) while `mdl 1` is a preview. `mxcli fmt --upgrade --header` rewrites an `mdl 0` script's escaped strings the same way. An expression whose string holds an escaped line break is written as the expression Mendix stores for it, since an expression that spans lines is stored exactly as written.
+
 Without the header a template literal that spans lines and has no parameters is an expression instead — the template is `{1}` and the literal its parameter — and `check` warns `MDL-V1-TEMPLATE`. With `with ({n} = …)` parameters it is the template text under both versions.
 
 ### Numeric Literals
