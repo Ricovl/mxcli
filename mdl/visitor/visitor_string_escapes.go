@@ -142,11 +142,15 @@ func (b *Builder) escapeFix(t antlr.Token) (*ast.Fix, string) {
 	if top == nil {
 		return rewrite, ""
 	}
+	template, hasParams := templateMessageOf(top)
 	source := strings.TrimSpace(extractExpressionText(top))
-	if shouldPreserveExpressionSource(source) {
+	// A template literal with parameters is the template text under both
+	// versions even when it spans lines (templateLineBreak): its escapes were
+	// interpreted, so it is requoted rather than passed through.
+	if shouldPreserveExpressionSource(source) && !(template && hasParams) {
 		return &ast.Fix{}, ""
 	}
-	if strings.ContainsAny(requoted, "\r\n") && !isTemplateMessage(top) {
+	if strings.ContainsAny(requoted, "\r\n") && !template {
 		return nil, "under mdl 1 the line break is written into the string itself, which makes the expression " +
 			"one that is stored as written rather than re-rendered, and that can change what it builds; " +
 			"rewrite it by hand"
@@ -161,21 +165,22 @@ func requoteForV1(lit string) string {
 	return "'" + strings.ReplaceAll(unquoteString(lit), "'", "''") + "'"
 }
 
-// isTemplateMessage reports whether expr is, in full, the message of a log,
+// templateMessageOf reports whether expr is, in full, the message of a log,
 // show message or validation feedback and one string literal: the text of a
 // template, which a line break does not turn into an expression under mdl 1.
-func isTemplateMessage(expr antlr.ParserRuleContext) bool {
+// hasParams reports whether the statement binds template parameters.
+func templateMessageOf(expr antlr.ParserRuleContext) (template, hasParams bool) {
 	e, ok := expr.(*parser.ExpressionContext)
 	if !ok || loneStringLiteral(e) == nil {
-		return false
+		return false, false
 	}
 	switch p := e.GetParent().(type) {
 	case *parser.LogStatementContext:
-		return logMessageExpression(p) == e
+		return logMessageExpression(p) == e, p.LogTemplateParams() != nil
 	case *parser.ShowMessageStatementContext:
-		return p.Expression() == e
+		return p.Expression() == e, p.TemplateParams() != nil || p.OBJECTS() != nil
 	case *parser.ValidationFeedbackStatementContext:
-		return p.Expression() == e
+		return p.Expression() == e, p.TemplateParams() != nil || p.OBJECTS() != nil
 	}
-	return false
+	return false, false
 }
