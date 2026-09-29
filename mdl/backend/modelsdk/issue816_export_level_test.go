@@ -33,7 +33,7 @@ import (
 // does: with ExportLevel "Hidden" where the executor hardcodes it or the kind
 // has no MDL spelling, and "" — unauthored — where the statement can spell it.
 // A kind with a spelling also checks the other half: an authored level is
-// written as authored, over the stored one.
+// written as authored, over the stored one, in both directions.
 func TestUpdatePaths_KeepStoredExportLevel(t *testing.T) {
 	src := filepath.Join("..", "..", "..", "testdata", "testapp", "TestApp")
 	if _, err := os.Stat(filepath.Join(src, "TestApp.mpr")); err != nil {
@@ -67,6 +67,18 @@ func TestUpdatePaths_KeepStoredExportLevel(t *testing.T) {
 			}
 			if got := storedExportLevel(t, b, id); got != "Hidden" {
 				t.Errorf("the statement authored ExportLevel Hidden, the rewrite wrote %q", got)
+			}
+
+			// The other direction: an authored API over a stored Hidden. Hidden
+			// over API alone cannot tell a converter that honours the clause from
+			// one that writes the "Hidden" constant — workflowToGen did the
+			// latter, which made `export level API` a no-op.
+			setStoredExportLevel(t, b, id, "Hidden")
+			if err := tc.rewrite(t, b, id, "API"); err != nil {
+				t.Fatalf("authored rewrite: %v", err)
+			}
+			if got := storedExportLevel(t, b, id); got != "API" {
+				t.Errorf("the statement authored ExportLevel API, the rewrite wrote %q", got)
 			}
 		})
 	}
