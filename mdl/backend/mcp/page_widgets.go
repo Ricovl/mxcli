@@ -236,15 +236,15 @@ func (b *Backend) mapPageWidgetBody(w pages.Widget) (map[string]any, error) {
 	case *pages.DataGrid:
 		return nil, fmt.Errorf("legacy DataGrid is not supported by the MCP backend — pg_patch_page has no Pages$DataGrid type (use a ListView, or DataGrid 2 which is a pluggable widget)")
 	case *pages.TextBox:
-		return inputWidget("Pages$TextBox", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style), nil
+		return inputWidget("Pages$TextBox", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
 	case *pages.CheckBox:
-		return inputWidget("Pages$CheckBox", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style), nil
+		return inputWidget("Pages$CheckBox", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
 	case *pages.DatePicker:
-		return inputWidget("Pages$DatePicker", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style), nil
+		return inputWidget("Pages$DatePicker", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
 	case *pages.TextArea:
-		return inputWidget("Pages$TextArea", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style), nil
+		return inputWidget("Pages$TextArea", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
 	case *pages.RadioButtons:
-		return inputWidget("Pages$RadioButtonGroup", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style), nil
+		return inputWidget("Pages$RadioButtonGroup", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
 	default:
 		return nil, fmt.Errorf("page widget type %s is not yet supported by the MCP backend", w.GetTypeName())
 	}
@@ -253,8 +253,11 @@ func (b *Backend) mapPageWidgetBody(w pages.Widget) (map[string]any, error) {
 // inputWidget builds a label+attribute input widget (TextBox/CheckBox/DatePicker).
 // The executor already resolves AttributePath to a fully-qualified
 // "Module.Entity.Attribute", which is exactly what pg's attributeRef wants.
-func inputWidget(typ, name, label, attribute, class, style string) map[string]any {
-	return map[string]any{
+//
+// sv is the widget-scoped variable an attribute read through a data view
+// carries (`Attribute: $dataView1.Name`, ako/mxcli#826), or nil.
+func inputWidget(typ, name, label, attribute, class, style string, sv *pages.WidgetVariable) map[string]any {
+	w := map[string]any{
 		"$Type":            typ,
 		"name":             name,
 		"appearance":       pageAppearance(class, style),
@@ -264,6 +267,28 @@ func inputWidget(typ, name, label, attribute, class, style string) map[string]an
 			"attribute": attribute,
 		},
 	}
+	if sv != nil && sv.Widget != "" {
+		w["sourceVariable"] = pageVariable(sv.Widget, sv.Variable, sv.Kind)
+	}
+	return w
+}
+
+// pageVariable builds a Pages$PageVariable naming a data view and, beside it,
+// the data view's own variable. Studio Pro 11.14 fills that variable in itself
+// when given only the widget, so sending it is the same document either way.
+func pageVariable(widget, name, kind string) map[string]any {
+	pv := map[string]any{"$Type": "Pages$PageVariable", "widget": widget, "useAllPages": false}
+	if name != "" {
+		switch kind {
+		case "snippet":
+			pv["snippetParameter"] = name
+		case "local":
+			pv["localVariable"] = name
+		default:
+			pv["pageParameter"] = name
+		}
+	}
+	return pv
 }
 
 // mapListViewSource maps a list-view data source. A database source becomes a
@@ -540,6 +565,10 @@ func clientTemplateParam(p *pages.ClientTemplateParameter) map[string]any {
 	switch {
 	case p.AttributeRef != "":
 		param["attributeRef"] = map[string]any{"$Type": "DomainModels$AttributeRef", "attribute": p.AttributeRef}
+		if p.SourceWidget != "" {
+			// `{1} = $dataView1.Attr` reads through the data view (#826).
+			param["sourceVariable"] = pageVariable(p.SourceWidget, p.SourceVariable, p.SourceVariableKind)
+		}
 	case p.Expression != "":
 		param["expression"] = p.Expression
 	case p.SourceVariable != "":

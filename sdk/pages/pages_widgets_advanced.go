@@ -154,6 +154,9 @@ type SnippetParamMapping struct {
 	// mapping's Forms$PageVariable instead of PageParameter: the call sits in a
 	// snippet and passes that snippet's own parameter (ako/mxcli#721 L3).
 	IsSnippetParameter bool
+	// IsLocalVariable puts Argument in the LocalVariable slot: the call passes a
+	// page `Variables:` entry, not a parameter (ako/mxcli#826).
+	IsLocalVariable bool
 }
 
 // SnippetCallWidget represents a snippet call widget.

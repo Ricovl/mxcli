@@ -583,6 +583,12 @@ func sourceVariableBinding(param map[string]any) (name string, isLocal bool) {
 	if !ok || srcVar == nil {
 		return "", false
 	}
+	// Read through a data view: Widget names it, and the data view's own
+	// variable sits beside it. `$dataView1.Attr` is what re-executes into that
+	// pair; the parameter alone would drop the Widget (ako/mxcli#826).
+	if v, ok := srcVar["Widget"].(string); ok && v != "" {
+		return v, false
+	}
 	if v, ok := srcVar["LocalVariable"].(string); ok && v != "" {
 		return v, true
 	}

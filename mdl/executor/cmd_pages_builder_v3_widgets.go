@@ -105,6 +105,7 @@ func (pb *pageBuilder) buildDataViewV3(w *ast.WidgetV3) (*pages.DataView, error)
 		// can be resolved to Entity.Attr
 		if w.Name != "" && entityName != "" {
 			pb.paramEntityNames[w.Name] = entityName
+			pb.registerDataViewVariable(w.Name, dataSource)
 		}
 	}
 
@@ -454,7 +455,11 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 
 	// Handle Attribute (attribute path)
 	if attr := w.GetAttribute(); attr != "" {
-		tb.AttributePath, tb.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		tb.AttributePath, tb.AttributeRefSteps, tb.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -517,7 +522,11 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 
 	// Handle Attribute
 	if attr := w.GetAttribute(); attr != "" {
-		ta.AttributePath, ta.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		ta.AttributePath, ta.AttributeRefSteps, ta.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -564,7 +573,11 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 
 	// Handle Attribute
 	if attr := w.GetAttribute(); attr != "" {
-		dp.AttributePath, dp.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		dp.AttributePath, dp.AttributeRefSteps, dp.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -600,7 +613,11 @@ func (pb *pageBuilder) buildDropdownV3(w *ast.WidgetV3) (*pages.DropDown, error)
 
 	// Handle Attribute
 	if attr := w.GetAttribute(); attr != "" {
-		dd.AttributePath, dd.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		dd.AttributePath, dd.AttributeRefSteps, dd.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -636,7 +653,11 @@ func (pb *pageBuilder) buildCheckBoxV3(w *ast.WidgetV3) (*pages.CheckBox, error)
 
 	// Handle Attribute
 	if attr := w.GetAttribute(); attr != "" {
-		cb.AttributePath, cb.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		cb.AttributePath, cb.AttributeRefSteps, cb.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -707,7 +728,11 @@ func (pb *pageBuilder) buildRadioButtonsV3(w *ast.WidgetV3) (*pages.RadioButtons
 
 	// Get attribute path from Attribute property
 	if attr := w.GetAttribute(); attr != "" {
-		rb.AttributePath, rb.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		rb.AttributePath, rb.AttributeRefSteps, rb.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -1247,11 +1272,13 @@ func (pb *pageBuilder) buildSnippetCallParams(sc *pages.SnippetCallWidget, snipp
 		// Inside a snippet, passing that snippet's own parameter names it in the
 		// SnippetParameter slot; the PageParameter slot names a page parameter
 		// the snippet does not have — CE0115 (ako/mxcli#721 L3).
+		// A page `Variables:` entry is named in LocalVariable (ako/mxcli#826).
 		_, kind := pb.classifyFlowArgValue(argument)
 		sc.ParameterMappings = append(sc.ParameterMappings, pages.SnippetParamMapping{
 			ParamName:          declared.Name,
 			Argument:           argument,
 			IsSnippetParameter: kind == "snippet",
+			IsLocalVariable:    kind == "local",
 		})
 	}
 

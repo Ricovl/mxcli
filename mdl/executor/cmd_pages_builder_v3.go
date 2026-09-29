@@ -2028,6 +2028,17 @@ func (pb *pageBuilder) resolveTemplateAttributePathFull(attrRef string, param *p
 			// that bypasses FormattingInfo and the enumeration caption, and that
 			// describe prints back as the expression (ledger #76 fixed the bare
 			// attribute; ako/mxcli#721 L3 this one).
+			// `$dataView1.Attr` reads through a data view (or another data
+			// container): the Widget slot, beside the data view's own variable.
+			// It used to fill the PageParameter slot with the widget's name —
+			// a page parameter that does not exist (ako/mxcli#826).
+			if wv, ok := pb.widgetVariableFor(paramName); ok {
+				param.SourceWidget = wv.Widget
+				param.SourceVariable = wv.Variable
+				param.SourceVariableKind = wv.Kind
+				param.AttributeRef = pb.paramEntityNames[paramName] + "." + attrName
+				return
+			}
 			for _, key := range []string{paramName, "$" + paramName} {
 				entityName, ok := pb.paramEntityNames[key]
 				if !ok {
@@ -2327,6 +2338,75 @@ func (pb *pageBuilder) associationEndpoints(assocQN string) (fromEntity, toEntit
 		}
 	}
 	return "", "", false
+}
+
+// registerDataViewVariable records the Forms$PageVariable a binding read
+// through data view name stores: {Widget: name} plus, when the data view shows a
+// page or snippet parameter, that parameter in its slot. Studio Pro stores the
+// pair — given only the widget through its MCP server, Studio Pro 11.14 filled
+// in the data view's page parameter itself (ako/mxcli#826).
+func (pb *pageBuilder) registerDataViewVariable(name string, ds pages.DataSource) {
+	wv := pages.WidgetVariable{Widget: name}
+	if src, ok := ds.(*pages.DataViewSource); ok && src.ParameterName != "" {
+		wv.Variable = src.ParameterName
+		if src.IsSnippetParameter {
+			wv.Kind = "snippet"
+		}
+	}
+	if pb.dataViewVariables == nil {
+		pb.dataViewVariables = map[string]pages.WidgetVariable{}
+	}
+	pb.dataViewVariables[name] = wv
+}
+
+// isDeclaredParameter reports whether name is one of the document's entity-typed
+// parameters — which win over a widget of the same name, as before.
+func (pb *pageBuilder) isDeclaredParameter(name string) bool {
+	if _, ok := pb.paramScope[name]; ok {
+		return true
+	}
+	_, ok := pb.paramScope["$"+name]
+	return ok
+}
+
+// widgetVariableFor returns the variable a `$name.Attr` binding stores when name
+// is a data container on this document rather than a parameter: a data view's
+// recorded pair, or {Widget: name} for another container.
+func (pb *pageBuilder) widgetVariableFor(name string) (pages.WidgetVariable, bool) {
+	if name == "" || pb.isDeclaredParameter(name) {
+		return pages.WidgetVariable{}, false
+	}
+	if wv, ok := pb.dataViewVariables[name]; ok {
+		return wv, true
+	}
+	if _, ok := pb.paramEntityNames[name]; ok {
+		return pages.WidgetVariable{Widget: name}, true
+	}
+	return pages.WidgetVariable{}, false
+}
+
+// resolveInputBinding resolves an input widget's `Attribute:`. A bare or
+// association path binds against the enclosing data context, as before.
+// `$dataView1.Attr` reads through the named data view: Studio Pro's
+// widget-scoped SourceVariable {Widget: dataView1, PageParameter: …}, which
+// describe prints in that form (ako/mxcli#826). Any other `$name` — a
+// parameter, an unknown name — is refused: nothing else is measured, and the
+// writer would otherwise store a binding that reads nothing.
+func (pb *pageBuilder) resolveInputBinding(w *ast.WidgetV3, attr string) (string, []pages.AttributeRefStep, *pages.WidgetVariable, error) {
+	name, attrName, ok := strings.Cut(strings.TrimPrefix(attr, "$"), ".")
+	if !strings.HasPrefix(attr, "$") {
+		path, steps := pb.resolveInputAttribute(attr)
+		return path, steps, nil, nil
+	}
+	wv, known := pb.dataViewVariables[name]
+	if !ok || attrName == "" || !known || pb.isDeclaredParameter(name) {
+		return "", nil, nil, mdlerrors.NewValidationf(
+			"%s `%s`: `Attribute: %s` — `$name.Attr` on an input reads through a data view, and `$%s` is not a data view "+
+				"on this document. Bind the attribute by name inside the data view (`Attribute: %s`), or name an enclosing data view",
+			strings.ToLower(w.Type), w.Name, attr, name, attrName)
+	}
+	path := pb.resolveAttributePathForEntity(attrName, pb.paramEntityNames[name])
+	return path, nil, &wv, nil
 }
 
 // parameterSlotKind names the Forms$PageVariable slot a `$name` reference (a

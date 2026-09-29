@@ -645,6 +645,10 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	if propCtx.ATTRIBUTE() != nil {
 		if pathCtx := propCtx.AttributePathV3(); pathCtx != nil {
 			widget.Properties["Attribute"] = buildAttributePathV3(pathCtx)
+		} else if refCtx := propCtx.WidgetAttributeRefV3(); refCtx != nil {
+			// `$dataView1.Name`: kept as written; the builder resolves the name
+			// to the data view it reads through (ako/mxcli#826).
+			widget.Properties["Attribute"] = buildWidgetAttributeRefV3(refCtx)
 		}
 		return
 	}
@@ -1281,6 +1285,18 @@ func buildAssociationPathV3(ctx parser.IAssociationPathV3Context) string {
 		parts = append(parts, getQualifiedNameText(qn))
 	}
 	return strings.Join(parts, "/")
+}
+
+// buildWidgetAttributeRefV3 renders `$name.Attr` with a quoted attribute name
+// unquoted, the form resolveInputAttribute reads.
+func buildWidgetAttributeRefV3(ctx parser.IWidgetAttributeRefV3Context) string {
+	c, ok := ctx.(*parser.WidgetAttributeRefV3Context)
+	if !ok || c.VARIABLE() == nil {
+		return ""
+	}
+	text := c.GetText()
+	_, attr, _ := strings.Cut(text, ".")
+	return c.VARIABLE().GetText() + "." + unquoteIdentifier(attr)
 }
 
 // buildAttributePathV3 builds an attribute path string.

@@ -8,12 +8,26 @@ import (
 
 // Input Widgets
 
+// WidgetVariable is an input widget's SourceVariable: the Forms$PageVariable
+// that names which object the widget's attribute is read from when that is not
+// simply the enclosing data context. Studio Pro stores a widget-scoped one —
+// Widget names a data view, and the data view's own variable fills the slot
+// Kind selects ("" page parameter, "snippet", "local") — on
+// Administration.Account_Edit/Account_New and WorkflowCommons'
+// WorkflowComment_Edit_Admin (ako/mxcli#826).
+type WidgetVariable struct {
+	Widget   string `json:"widget,omitempty"`
+	Variable string `json:"variable,omitempty"`
+	Kind     string `json:"kind,omitempty"`
+}
+
 // TextBox represents a text input widget.
 type TextBox struct {
 	BaseWidget
 	Label             string             `json:"label,omitempty"`
 	AttributePath     string             `json:"attributePath,omitempty"`
 	AttributeRefSteps []AttributeRefStep `json:"attributeRefSteps,omitempty"` // association hops when the attribute is reached over associations (AttributeRef.EntityRef)
+	SourceVariable    *WidgetVariable    `json:"sourceVariable,omitempty"`    // widget-scoped variable the attribute is read from (#826)
 	FormattingInfo    *FormattingInfo    `json:"formattingInfo,omitempty"`
 	Placeholder       *model.Text        `json:"placeholder,omitempty"`
 	MaxLength         int                `json:"maxLength,omitempty"`
@@ -34,6 +48,7 @@ type TextArea struct {
 	Label             string             `json:"label,omitempty"`
 	AttributePath     string             `json:"attributePath,omitempty"`
 	AttributeRefSteps []AttributeRefStep `json:"attributeRefSteps,omitempty"` // association hops when the attribute is reached over associations (AttributeRef.EntityRef)
+	SourceVariable    *WidgetVariable    `json:"sourceVariable,omitempty"`    // widget-scoped variable the attribute is read from (#826)
 	Placeholder       *model.Text        `json:"placeholder,omitempty"`
 	MaxLength         int                `json:"maxLength,omitempty"`
 	CounterMessage    *model.Text        `json:"counterMessage,omitempty"`
@@ -59,6 +74,7 @@ type DatePicker struct {
 	Label             string             `json:"label,omitempty"`
 	AttributePath     string             `json:"attributePath,omitempty"`
 	AttributeRefSteps []AttributeRefStep `json:"attributeRefSteps,omitempty"` // association hops when the attribute is reached over associations (AttributeRef.EntityRef)
+	SourceVariable    *WidgetVariable    `json:"sourceVariable,omitempty"`    // widget-scoped variable the attribute is read from (#826)
 	Placeholder       *model.Text        `json:"placeholder,omitempty"`
 	DateFormat        string             `json:"dateFormat,omitempty"`
 	ReadOnly          bool               `json:"readOnly,omitempty"`
@@ -71,6 +87,7 @@ type DropDown struct {
 	Label             string             `json:"label,omitempty"`
 	AttributePath     string             `json:"attributePath,omitempty"`
 	AttributeRefSteps []AttributeRefStep `json:"attributeRefSteps,omitempty"` // association hops when the attribute is reached over associations (AttributeRef.EntityRef)
+	SourceVariable    *WidgetVariable    `json:"sourceVariable,omitempty"`    // widget-scoped variable the attribute is read from (#826)
 	EmptyOption       *model.Text        `json:"emptyOption,omitempty"`
 	ReadOnly          bool               `json:"readOnly,omitempty"`
 	OnChangeAction    ClientAction       `json:"onChangeAction,omitempty"`
@@ -124,6 +141,7 @@ type CheckBox struct {
 	Label             string             `json:"label,omitempty"`
 	AttributePath     string             `json:"attributePath,omitempty"`
 	AttributeRefSteps []AttributeRefStep `json:"attributeRefSteps,omitempty"` // association hops when the attribute is reached over associations (AttributeRef.EntityRef)
+	SourceVariable    *WidgetVariable    `json:"sourceVariable,omitempty"`    // widget-scoped variable the attribute is read from (#826)
 	ReadOnly          bool               `json:"readOnly,omitempty"`
 	// ReadOnlyStyle is Mendix's "Read-only style": Inherit, Control or Text.
 	// Empty means unset — the writer keeps the stored default (Inherit), so a
@@ -143,6 +161,7 @@ type RadioButtons struct {
 	Label             string             `json:"label,omitempty"`
 	AttributePath     string             `json:"attributePath,omitempty"`
 	AttributeRefSteps []AttributeRefStep `json:"attributeRefSteps,omitempty"` // association hops when the attribute is reached over associations (AttributeRef.EntityRef)
+	SourceVariable    *WidgetVariable    `json:"sourceVariable,omitempty"`    // widget-scoped variable the attribute is read from (#826)
 	RenderDirection   RenderDirection    `json:"renderDirection,omitempty"`
 	ReadOnly          bool               `json:"readOnly,omitempty"`
 	OnChangeAction    ClientAction       `json:"onChangeAction,omitempty"`

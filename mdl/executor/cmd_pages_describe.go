@@ -631,13 +631,16 @@ type rawDataGridColumn struct {
 
 // rawWidget represents a widget from raw BSON data for MDL output.
 type rawWidget struct {
-	Type        string
-	Name        string
-	Content     string
-	Caption     string
-	RenderMode  string
-	Action      string
-	ButtonStyle string
+	Type    string
+	Name    string
+	Content string
+	// SnippetParams is a snippet call's argument list, `P = $v, …`, printed as
+	// `Params: ( … )` (ako/mxcli#826).
+	SnippetParams string
+	Caption       string
+	RenderMode    string
+	Action        string
+	ButtonStyle   string
 	// Icon is the qualified name an icon-collection or image icon points at.
 	// Empty for no icon and for a glyph icon, which carries a numeric Code
 	// instead. IconType keeps the storage $Type so the emitter can tell the

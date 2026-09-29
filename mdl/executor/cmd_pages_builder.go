@@ -46,6 +46,10 @@ type pageBuilder struct {
 	themeRegistry    *ThemeRegistry                     // Theme design property definitions (may be nil)
 	widgetBackend    backend.WidgetBuilderBackend       // Backend for pluggable widget construction
 
+	// dataViewVariables: data view name -> the Forms$PageVariable a binding read
+	// through it (`$dataView1.Attr`) stores. Lazily made (ako/mxcli#826).
+	dataViewVariables map[string]pages.WidgetVariable
+
 	// Pluggable widget engine (lazily initialized)
 	widgetRegistry     *WidgetRegistry
 	pluggableEngine    *PluggableWidgetEngine
