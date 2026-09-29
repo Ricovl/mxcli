@@ -81,6 +81,18 @@ func (a *alterFlowContext) apply(ctx *ExecContext, ops []*ast.AlterFlowOperation
 			a.noteRemoved(target, nil)
 			continue
 		}
+		if ret, ok := returnValueEdit(op, target); ok {
+			// A return replacing an end event is a new value for it, set in
+			// place (ako/mxcli#805): the end event, its flows and its notes stay.
+			value, err := a.returnValue(ctx, ret)
+			if err == nil {
+				err = mut.SetReturnValue(target.ID, value)
+			}
+			if err != nil {
+				return nil, fail(err)
+			}
+			continue
+		}
 		frag, err := a.buildFragment(ctx, op.Body)
 		if err != nil {
 			return nil, fail(err)
@@ -231,17 +243,42 @@ func loadAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) (*alterFlowContext, e
 	return a, nil
 }
 
-// buildFragment builds a fragment's statements with the builder `create
-// microflow` uses, seeded with the variables the stored flow declares, and
-// cuts it out of the start and end events the builder wraps it in.
-func (a *alterFlowContext) buildFragment(ctx *ExecContext, body []ast.MicroflowStatement) (*backend.MicroflowFragment, error) {
-	if len(body) == 0 {
-		return nil, fmt.Errorf("the fragment is empty; use drop to remove an activity")
+// returnValueEdit reports whether op replaces an end event with a single
+// return, which is an edit of the value the end event returns rather than a
+// fragment: an end event ends its path, so nothing could lead on from a
+// fragment put in its place.
+func returnValueEdit(op *ast.AlterFlowOperation, target mfmutator.Candidate) (*ast.ReturnStmt, bool) {
+	if op.Op != ast.AlterFlowReplace || len(op.Body) != 1 {
+		return nil, false
 	}
+	if _, ok := target.Object.(*microflows.EndEvent); !ok {
+		return nil, false
+	}
+	ret, ok := op.Body[0].(*ast.ReturnStmt)
+	return ret, ok
+}
+
+// returnValue renders a return's value as the expression the end event
+// stores, the way the builder writes it for `create microflow`.
+func (a *alterFlowContext) returnValue(ctx *ExecContext, ret *ast.ReturnStmt) (string, error) {
+	if ret.Value == nil {
+		return "", nil
+	}
+	fb := a.fragmentBuilder(ctx)
+	value := fb.exprToString(ret.Value)
+	if errs := fb.GetErrors(); len(errs) > 0 {
+		return "", fmt.Errorf("the return value has errors:\n  - %s", strings.Join(errs, "\n  - "))
+	}
+	return value, nil
+}
+
+// fragmentBuilder is the builder `create microflow` uses, seeded with the
+// variables the stored flow declares.
+func (a *alterFlowContext) fragmentBuilder(ctx *ExecContext) *flowBuilder {
 	varTypes, declared := a.storedVariables(ctx)
 	hierarchy, _ := getHierarchy(ctx)
 	restServices, _ := loadRestServices(ctx)
-	fb := &flowBuilder{
+	return &flowBuilder{
 		textLang:     authoringLanguage(ctx),
 		posX:         200,
 		posY:         200,
@@ -255,6 +292,16 @@ func (a *alterFlowContext) buildFragment(ctx *ExecContext, body []ast.MicroflowS
 		restServices: restServices,
 		isNanoflow:   a.stmt.Nanoflow,
 	}
+}
+
+// buildFragment builds a fragment's statements with the builder `create
+// microflow` uses, seeded with the variables the stored flow declares, and
+// cuts it out of the start and end events the builder wraps it in.
+func (a *alterFlowContext) buildFragment(ctx *ExecContext, body []ast.MicroflowStatement) (*backend.MicroflowFragment, error) {
+	if len(body) == 0 {
+		return nil, fmt.Errorf("the fragment is empty; use drop to remove an activity")
+	}
+	fb := a.fragmentBuilder(ctx)
 	oc := fb.buildFlowGraph(body, nil)
 	if errs := fb.GetErrors(); len(errs) > 0 {
 		return nil, fmt.Errorf("the fragment has errors:\n  - %s", strings.Join(errs, "\n  - "))

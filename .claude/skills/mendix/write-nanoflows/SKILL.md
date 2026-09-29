@@ -27,8 +27,10 @@ Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode
   (targets by output variable, caption or statement pattern). `create or modify` of `describe`
   output also works as a patch: an unchanged definition writes nothing, and an inserted,
   replaced or dropped statement (at the top level or in an `if` branch) is spliced in,
-  leaving every other node, merge and curve as stored. A change it cannot splice — the
-  header, anything inside a loop body or error handler, a moved node — rebuilds the
+  leaving every other node, merge and curve as stored; a changed `return` value is set on
+  the stored end event, and a body without a trailing `return` means the stored end. A
+  change it cannot splice — the header, anything inside a loop body or error handler, a
+  moved node or `@start`, a `return` added or taken away — rebuilds the
   whole nanoflow under mdl 0
   (warning `MDL-V1-REBUILD`: element IDs renumbered, merges removed, curves reset) and
   is refused under `mdl 1;` (header and loop-body changes have no splice yet; move
