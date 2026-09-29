@@ -51,6 +51,11 @@ type Deps interface {
 	SerializeObject(obj microflows.MicroflowObject) (bson.D, error)
 	SerializeSequenceFlow(f *microflows.SequenceFlow) (bson.D, error)
 	SerializeAnnotationFlow(f *microflows.AnnotationFlow) (bson.D, error)
+	// SerializeDocument encodes a whole declared document — a
+	// *microflows.Microflow or *microflows.Nanoflow — exactly as the rebuild
+	// would write it, with every element given an $ID. SetHeader copies its
+	// header properties and parameters from it.
+	SerializeDocument(declared any) (bson.D, error)
 	// SaveUnit writes the patched unit. The implementation must go through the
 	// storage engine's reconciling write (canon.Reconcile), like every write.
 	SaveUnit(unitID string, contents []byte) error
@@ -285,9 +290,44 @@ func (m *Mutator) spliceOnFlow(g *graph, f flowRef, frag *backend.MicroflowFragm
 	if err != nil {
 		return err
 	}
+	var entrySide, exitSide int
+	if frag.Placed {
+		// The script stated where the fragment goes: it stays where the
+		// builder put it, nothing is moved to make room, and each new end
+		// faces the node it connects to.
+		if entrySide, exitSide, err = placedSides(frag, x, y); err != nil {
+			return err
+		}
+	} else if entrySide, exitSide, err = m.makeRoom(g, fb, x, y); err != nil {
+		return err
+	}
+	destIdx, destVec := flowEnd(f.doc, "Destination")
+	if err := m.addFragment(frag); err != nil {
+		return err
+	}
+	// f now enters the fragment.
+	setPointer(f.doc, "DestinationPointer", frag.Entry)
+	setInt(f.doc, "DestinationConnectionIndex", entrySide)
+	setVector(f.doc, "DestinationControlVector", sideVector(entrySide))
+	// And a new flow carries on from the fragment to Y.
+	return m.addFlow(&microflows.SequenceFlow{
+		BaseElement:                model.BaseElement{ID: model.ID(types.GenerateID())},
+		OriginID:                   frag.Exit,
+		DestinationID:              model.ID(y.id),
+		OriginConnectionIndex:      exitSide,
+		DestinationConnectionIndex: destIdx,
+		OriginControlVector:        sideVector(exitSide),
+		DestinationControlVector:   destVec,
+	})
+}
+
+// makeRoom places the fragment in the gap between x and y, moving everything
+// past the gap along when it does not fit, and returns the sides its new ends
+// connect at.
+func (m *Mutator) makeRoom(g *graph, fb *fragmentBox, x, y *node) (entrySide, exitSide int, err error) {
 	ax, s, err := flowAxis(x, y)
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 
 	// Make room: the fragment plus a gap on either side has to fit between
@@ -308,28 +348,40 @@ func (m *Mutator) spliceOnFlow(g *graph, f flowRef, frag *backend.MicroflowFragm
 	mid = mid.set(cross, (x.pos.get(cross)+y.pos.get(cross))/2)
 	fb.placeCentred(ax, mid)
 	if err := fb.checkRoom(g, ""); err != nil {
-		return err
+		return 0, 0, err
 	}
+	return side(ax, -s), side(ax, s), nil
+}
 
-	entrySide, exitSide := side(ax, -s), side(ax, s)
-	destIdx, destVec := flowEnd(f.doc, "Destination")
-	if err := m.addFragment(frag); err != nil {
-		return err
+// placedSides returns the sides a placed fragment's new flow ends connect at:
+// its entry's side facing x, which the flow into it comes from, and its exit's
+// side facing y, which the flow out of it goes to.
+func placedSides(frag *backend.MicroflowFragment, x, y *node) (entrySide, exitSide int, err error) {
+	entry, exit := fragmentNode(frag, frag.Entry), fragmentNode(frag, frag.Exit)
+	if entry == nil || exit == nil {
+		return 0, 0, fmt.Errorf("the fragment's entry or exit is not one of its objects")
 	}
-	// f now enters the fragment.
-	setPointer(f.doc, "DestinationPointer", frag.Entry)
-	setInt(f.doc, "DestinationConnectionIndex", entrySide)
-	setVector(f.doc, "DestinationControlVector", sideVector(entrySide))
-	// And a new flow carries on from the fragment to Y.
-	return m.addFlow(&microflows.SequenceFlow{
-		BaseElement:                model.BaseElement{ID: model.ID(types.GenerateID())},
-		OriginID:                   frag.Exit,
-		DestinationID:              model.ID(y.id),
-		OriginConnectionIndex:      exitSide,
-		DestinationConnectionIndex: destIdx,
-		OriginControlVector:        sideVector(exitSide),
-		DestinationControlVector:   destVec,
-	})
+	ax, s, err := flowAxis(x, entry)
+	if err != nil {
+		return 0, 0, err
+	}
+	ax2, s2, err := flowAxis(exit, y)
+	if err != nil {
+		return 0, 0, err
+	}
+	return side(ax, -s), side(ax2, s2), nil
+}
+
+// fragmentNode is a fragment object seen as a node of the graph, for geometry.
+func fragmentNode(frag *backend.MicroflowFragment, id model.ID) *node {
+	for _, obj := range frag.Objects {
+		if obj.GetID() == id {
+			p := obj.GetPosition()
+			return &node{id: string(id), typ: strings.TrimPrefix(fmt.Sprintf("%T", obj), "*microflows."),
+				pos: point{p.X, p.Y}, size: objectSize(obj)}
+		}
+	}
+	return nil
 }
 
 // Replace puts frag where target is: every flow that entered target enters
@@ -353,22 +405,25 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 	if err != nil {
 		return err
 	}
-	ax, s, err := flowAxis(x, y)
-	if err != nil {
-		return err
-	}
-	// The fragment starts where target started; if it is longer, everything
-	// past target moves along by the difference.
-	near := x.pos.get(ax) - s*x.size.get(ax)/2
-	if extra := fb.length(ax) - x.size.get(ax); extra > 0 {
-		m.shift(g, ax, s, float64(x.pos.get(ax)), s*extra, x.id)
-	}
-	centre := point{}
-	centre = centre.set(ax, near+s*fb.length(ax)/2)
-	centre = centre.set(ax.other(), x.pos.get(ax.other()))
-	fb.placeCentred(ax, centre)
-	if err := fb.checkRoom(g, x.id); err != nil {
-		return err
+	// A placed fragment stays where the script stated (ako/mxcli#818).
+	if !frag.Placed {
+		ax, s, err := flowAxis(x, y)
+		if err != nil {
+			return err
+		}
+		// The fragment starts where target started; if it is longer, everything
+		// past target moves along by the difference.
+		near := x.pos.get(ax) - s*x.size.get(ax)/2
+		if extra := fb.length(ax) - x.size.get(ax); extra > 0 {
+			m.shift(g, ax, s, float64(x.pos.get(ax)), s*extra, x.id)
+		}
+		centre := point{}
+		centre = centre.set(ax, near+s*fb.length(ax)/2)
+		centre = centre.set(ax.other(), x.pos.get(ax.other()))
+		fb.placeCentred(ax, centre)
+		if err := fb.checkRoom(g, x.id); err != nil {
+			return err
+		}
 	}
 
 	if err := m.addFragment(frag); err != nil {
@@ -439,6 +494,24 @@ func (m *Mutator) SetReturnValue(target model.ID, value string) error {
 	}
 	if !dSet(x.doc, "ReturnValue", value) {
 		return fmt.Errorf("%s stores no ReturnValue", describeNode(x))
+	}
+	return nil
+}
+
+// Move sets where target is drawn (ako/mxcli#818): a stated @position or
+// @start that differs from the stored one. Only the node's RelativeMiddlePoint
+// changes. Its flows keep their ends, sides and control vectors — a control
+// vector is relative to its end, so a curve keeps its shape — and no other
+// node moves. A node inside a loop body is refused: its coordinates are
+// relative to the loop box, and alter does not edit inside a loop yet.
+func (m *Mutator) Move(target model.ID, to model.Point) error {
+	g := m.graph()
+	x, err := g.node(target)
+	if err != nil {
+		return err
+	}
+	if !dSet(x.doc, "RelativeMiddlePoint", point{to.X, to.Y}.String()) {
+		return fmt.Errorf("%s stores no position", describeNode(x))
 	}
 	return nil
 }

@@ -36,8 +36,15 @@ import (
 // alterFlowContext an `alter` statement uses. An `if` that differs only inside
 // its branches is diffed branch by branch.
 //
-// What the splice cannot express — a changed header, a change inside a loop
-// body or an error handler, a moved node — is not rebuilt under `mdl 1`: the whole-document rebuild is what reset curves, dropped merges and
+// The rest of what describe states is patched too (ako/mxcli#818): a changed
+// header or document property is set on the stored document, a parameter is
+// added, retyped or removed in place, and a stated @position or @start that
+// differs from the stored one moves the stored node — its position only, its
+// flows keep their ends and curves (cmd_flow_modify_patch.go).
+//
+// What the patch cannot express — a change inside a loop body or an error
+// handler, a redrawn connector, a reordered parameter — is not rebuilt under
+// `mdl 1`: the whole-document rebuild is what reset curves, dropped merges and
 // moved element IDs on Studio Pro-authored flows (#721 class A). It is refused
 // with the reason instead. Under mdl 0 the rebuild still runs, with the
 // MDL-V1-REBUILD warning (ADR-0011: a new refusal applies only under the
@@ -65,10 +72,16 @@ type flowDecl struct {
 	// returnVar is the `returns … as $Var` variable, which the end a body
 	// falls through to returns; "" when there is none.
 	returnVar string
-	// header returns the declared and the stored statement with body, folder
-	// and name cleared, after the rules by which an absent clause keeps what
-	// is stored have been applied, ready for declaredMatches.
+	// params are the declared parameters, with the positions they state.
+	params []ast.MicroflowParam
+	// header returns the declared and the stored statement with body, folder,
+	// name and parameter positions cleared, after the rules by which an absent
+	// clause keeps what is stored have been applied, ready for declaredMatches.
 	header func(stored ast.Statement) (declared, storedHeader any)
+	// build builds the declared document the way `create` would, without
+	// writing it: the header SetHeader copies (a *microflows.Microflow or
+	// *microflows.Nanoflow), and its parameters.
+	build func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, error)
 }
 
 func (d *flowDecl) kind() string {
@@ -110,21 +123,48 @@ func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) 
 		return fallBack(ctx, d, cannotSplice("its description cannot be compared: %v", err))
 	}
 	decl, storedHeader := d.header(stored)
-	if !declaredMatches(decl, storedHeader) {
-		return fallBack(ctx, d, cannotSplice("the header changes (parameters, return type or document properties); "+
-			"the splice edits the flow's activities only"))
+	headerChanged := !declaredMatches(decl, storedHeader)
+	storedParams := a.mf.Parameters
+	var declared any
+	if headerChanged {
+		if err := checkRemovedParameters(ctx, d, a); err != nil {
+			return fallBack(ctx, d, err)
+		}
+		var params []*microflows.MicroflowParameter
+		if declared, params, err = d.build(ctx); err != nil {
+			return true, err
+		}
+		// The fragments are built and scope-checked against the parameters
+		// the flow will have, not the ones it had, and the flow is tracked
+		// with the return type it will have.
+		mf := *a.mf
+		mf.Parameters = params
+		switch built := declared.(type) {
+		case *microflows.Microflow:
+			mf.ReturnType = built.ReturnType
+		case *microflows.Nanoflow:
+			mf.ReturnType = built.ReturnType
+		}
+		a.mf = &mf
 	}
 
-	ops, targets, err := diffFlowBody(a, d.body, storedBody(stored), d.returnVar)
+	ops, targets, moves, err := diffFlowBody(a, d.body, storedBody(stored), d.returnVar)
 	if err != nil {
 		return fallBack(ctx, d, err)
 	}
+	moves = append(moves, parameterMoves(d, storedParams)...)
 
+	var set []string
 	storedFolder := storedFolderOf(stored)
-	if len(ops) > 0 {
-		mut, err := a.apply(ctx, ops, targets)
+	if len(ops) > 0 || len(moves) > 0 || headerChanged {
+		mut, err := patch(ctx, a, ops, targets, moves)
 		if err != nil {
 			return fallBack(ctx, d, cannotSplice("%v", err))
+		}
+		if headerChanged {
+			if set, err = mut.SetHeader(declared); err != nil {
+				return fallBack(ctx, d, cannotSplice("%v", err))
+			}
 		}
 		if err := mut.Save(); err != nil {
 			return true, mdlerrors.NewBackend("save modified "+d.kind(), err)
@@ -148,9 +188,9 @@ func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) 
 		containerID = to
 	}
 
-	switch {
-	case len(ops) > 0:
-		ctx.ReportMutation("Modified", "%s: %s (%s)", d.kind(), d.name, patchSummary(ops))
+	switch summary := patchSummary(ops, moves, set); {
+	case summary != "":
+		ctx.ReportMutation("Modified", "%s: %s (%s)", d.kind(), d.name, summary)
 	case d.folder != storedFolder:
 		ctx.ReportMutation("Moved", "%s: %s", d.kind(), d.name)
 	default:
@@ -359,7 +399,14 @@ func storedFolderOf(st ast.Statement) string {
 // microflowDecl adapts a CREATE MICROFLOW statement.
 func microflowDecl(s *ast.CreateMicroflowStmt) *flowDecl {
 	return &flowDecl{
-		name: s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType),
+		name: s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType), params: s.Parameters,
+		build: func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, error) {
+			built, err := buildMicroflowFromStmt(ctx, s, buildFlowOpts{Quiet: true})
+			if err != nil {
+				return nil, nil, err
+			}
+			return built.Microflow, built.Microflow.Parameters, nil
+		},
 		header: func(stored ast.Statement) (any, any) {
 			st, _ := stored.(*ast.CreateMicroflowStmt)
 			if st == nil {
@@ -368,6 +415,7 @@ func microflowDecl(s *ast.CreateMicroflowStmt) *flowDecl {
 			dh, sh := *s, *st
 			for _, h := range []*ast.CreateMicroflowStmt{&dh, &sh} {
 				h.Body, h.Folder, h.Name, h.CreateOrModify = nil, "", ast.QualifiedName{}, false
+				h.Parameters = withoutParameterPositions(h.Parameters)
 			}
 			// Absent means "keep what is stored" for these (see the field
 			// comments on CreateMicroflowStmt), so absent is not a difference.
@@ -411,7 +459,14 @@ func returnVariable(rt *ast.MicroflowReturnType) string {
 // nanoflowDecl adapts a CREATE NANOFLOW statement.
 func nanoflowDecl(s *ast.CreateNanoflowStmt) *flowDecl {
 	return &flowDecl{
-		nanoflow: true, name: s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType),
+		nanoflow: true, name: s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType), params: s.Parameters,
+		build: func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, error) {
+			built, err := buildNanoflowFromStmt(ctx, s, buildFlowOpts{Quiet: true})
+			if err != nil {
+				return nil, nil, err
+			}
+			return built.Nanoflow, built.Nanoflow.Parameters, nil
+		},
 		header: func(stored ast.Statement) (any, any) {
 			st, _ := stored.(*ast.CreateNanoflowStmt)
 			if st == nil {
@@ -420,6 +475,7 @@ func nanoflowDecl(s *ast.CreateNanoflowStmt) *flowDecl {
 			dh, sh := *s, *st
 			for _, h := range []*ast.CreateNanoflowStmt{&dh, &sh} {
 				h.Body, h.Folder, h.Name, h.CreateOrModify = nil, "", ast.QualifiedName{}, false
+				h.Parameters = withoutParameterPositions(h.Parameters)
 			}
 			if !dh.DocumentationSet {
 				dh.Documentation = sh.Documentation
@@ -445,10 +501,14 @@ func nanoflowDecl(s *ast.CreateNanoflowStmt) *flowDecl {
 //   - stored statements where none are declared: drop each;
 //   - both: replace the first stored one with the declared run, drop the rest.
 //
+// A statement that matches a stored one except where it is drawn is the stored
+// node moved: a move, not an operation (ako/mxcli#818). So is a stated @start
+// that is not where the start event is.
+//
 // Targets are the stored activities, located by the @position describe printed
 // for each statement. A run whose stored end cannot be located, or that the
 // splice cannot express, is a notSpliceable error.
-func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement, returnVar string) ([]*ast.AlterFlowOperation, []mfmutator.Candidate, error) {
+func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement, returnVar string) ([]*ast.AlterFlowOperation, []mfmutator.Candidate, []flowMove, error) {
 	// Free annotations — notes wired to nothing — belong to the flow, not to
 	// the statement describe happens to print them above (the first one), so
 	// they are compared as a whole and kept out of the statement match: an
@@ -457,14 +517,22 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 	declared, declaredFree := withoutFreeNotes(declared)
 	stored, storedFree := withoutFreeNotes(stored)
 	if !declaredMatches(declaredFree, storedFree) {
-		return nil, nil, cannotSplice("the free annotations change; the splice edits activities only")
+		return nil, nil, nil, cannotSplice("the free annotations change; the splice edits activities only")
 	}
 
 	declared = withImplicitEnd(declared, stored, returnVar)
+	// @start is where the start event is drawn, which describe prints on the
+	// first statement: it belongs to the start event, not to the statement.
+	declared, declaredStart := withoutStart(declared)
+	stored, _ = withoutStart(stored)
 
-	pd := &patchDiff{loc: newStoredLocator(a), start: storedStart(stored)}
+	pd := &patchDiff{loc: newStoredLocator(a)}
 	if err := pd.statements(declared, stored); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	pd.startEvent(a, declared, declaredStart)
+	if err := pd.followingEnd(declared, stored); err != nil {
+		return nil, nil, nil, err
 	}
 	// Drops go last. Each operation's scope check runs against the flow as the
 	// earlier operations left it, so a stored activity whose output only a
@@ -481,7 +549,7 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 			}
 		}
 	}
-	return ops, targets, nil
+	return ops, targets, pd.moves, nil
 }
 
 // withImplicitEnd states the end a declared body falls through to as the
@@ -512,12 +580,10 @@ func withImplicitEnd(declared, stored []ast.MicroflowStatement, returnVar string
 
 // patchDiff accumulates the operations of one diff.
 type patchDiff struct {
-	loc *storedLocator
-	// start is where the stored start event is drawn: a declared @start
-	// elsewhere moves it.
-	start   *ast.Position
+	loc     *storedLocator
 	ops     []*ast.AlterFlowOperation
 	targets []mfmutator.Candidate
+	moves   []flowMove
 }
 
 func (pd *patchDiff) add(op ast.AlterFlowOpKind, c mfmutator.Candidate, body []ast.MicroflowStatement) {
@@ -540,6 +606,13 @@ func (pd *patchDiff) statements(declared, stored []ast.MicroflowStatement) error
 			return err
 		}
 		if p < len(pairs) {
+			// A pair matched only once positions are ignored is the stored
+			// statement drawn somewhere else.
+			if d, st := declared[pairs[p][0]], stored[pairs[p][1]]; !declaredMatches(d, st) {
+				if err := pd.moved(d, st); err != nil {
+					return err
+				}
+			}
 			di, si = pairs[p][0]+1, pairs[p][1]+1
 		}
 	}
@@ -573,10 +646,6 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 		}
 	}
 	for _, st := range ins {
-		if ann := statementAnnotations(st); ann != nil && ann.Start != nil && (pd.start == nil || *pd.start != *ann.Start) {
-			return cannotSplice("@start(%d, %d) moves the start event; the splice places new nodes only and does not move stored ones",
-				ann.Start.X, ann.Start.Y)
-		}
 		if _, ok := st.(*ast.ReturnStmt); ok {
 			return cannotSplice("a return is added where the stored flow does not end a path; where a path ends is the " +
 				"shape of the flow, and the splice changes a return's value only")
@@ -592,7 +661,11 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 	}
 	if len(ins) == 1 && len(del) == 1 {
 		if d, s, ok := sameIfShell(ins[0], del[0]); ok {
-			// The same `if` with a change in a branch: splice the branches.
+			// The same `if` with a change in a branch: splice the branches,
+			// and move the split if the script draws it elsewhere.
+			if err := pd.movedNode(d, s); err != nil {
+				return err
+			}
 			if err := pd.statements(d.ThenBody, s.ThenBody); err != nil {
 				return err
 			}
@@ -607,20 +680,18 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 				"and replacing the whole loop would rebuild every node it holds", describeAt(del[0]))
 		}
 		if sameIgnoringLayout(ins[0], del[0]) {
-			return cannotSplice("the %s is moved or its connectors are redrawn; the splice places new nodes only and does not move stored ones",
-				describeAt(del[0]))
+			return redrawn(del[0])
 		}
 	}
-	// A declared statement that is a stored one of the same run redrawn is a
-	// moved node, whichever other statements change around it. As a replace
-	// and a drop it would be written as a new node where the splice places it,
-	// and the position the script states would be silently lost (ako/mxcli#805:
-	// a rewrite that moved every activity came out with none of them moved).
+	// A declared statement that is a stored one of the same run with its
+	// connectors redrawn, whichever other statements change around it. As a
+	// replace and a drop it would be written as a new node, and the geometry
+	// the script states would be silently lost (ako/mxcli#805). A stored one
+	// that is only moved has matched already (lcsStatements).
 	for _, d := range ins {
 		for _, st := range del {
 			if sameIgnoringLayout(d, st) {
-				return cannotSplice("the %s is moved or its connectors are redrawn; the splice places new nodes only and does not move stored ones",
-					describeAt(st))
+				return redrawn(st)
 			}
 		}
 	}
@@ -651,21 +722,10 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 	return nil
 }
 
-// storedStart is the start event's position as the stored description
-// states it (on the first statement, whichever that is), or nil.
-func storedStart(stored []ast.MicroflowStatement) *ast.Position {
-	for _, st := range stored {
-		if ann := statementAnnotations(st); ann != nil && ann.Start != nil {
-			return ann.Start
-		}
-	}
-	return nil
-}
-
 // endEvent diffs a declared return against the stored one it stands for: the
 // same end event, so a changed value is set in place — its $ID, the flows into
-// it and the notes on it stay. A moved end event, or one with other notes, is
-// refused like any moved or re-annotated node.
+// it and the notes on it stay. A moved end event is moved; one with other notes
+// is refused like any re-annotated node.
 func (pd *patchDiff) endEvent(declared, stored *ast.ReturnStmt) error {
 	if declaredMatches(declared, stored) {
 		return nil
@@ -677,23 +737,23 @@ func (pd *patchDiff) endEvent(declared, stored *ast.ReturnStmt) error {
 	if _, ok := c.Object.(*microflows.EndEvent); !ok {
 		return cannotSplice("the stored %s is not drawn as an end event", describeAt(stored))
 	}
-	if ann := declared.Annotations; ann != nil && ann.Position != nil {
-		if sp := stored.Annotations; sp == nil || sp.Position == nil || *sp.Position != *ann.Position {
-			return cannotSplice("the %s is moved; the splice places new nodes only and does not move stored ones",
-				describeAt(stored))
-		}
-	}
 	shell := *declared
 	shell.Value = stored.Value
 	if !sameIgnoringLayout(&shell, stored) {
 		return cannotSplice("the annotations on the %s change; the splice changes a return's value only", describeAt(stored))
+	}
+	if !declaredMatches(&shell, stored) {
+		if err := pd.moved(&shell, stored); err != nil {
+			return err
+		}
 	}
 	pd.add(ast.AlterFlowReplace, c, []ast.MicroflowStatement{&ast.ReturnStmt{Value: declared.Value}})
 	return nil
 }
 
 // sameIfShell reports whether two statements are the same `if` — condition,
-// annotations, whether it has an else — differing at most inside its branches.
+// annotations, whether it has an else — differing at most inside its branches
+// and in where the split is drawn.
 func sameIfShell(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfStmt, bool) {
 	d, ok1 := declared.(*ast.IfStmt)
 	s, ok2 := stored.(*ast.IfStmt)
@@ -702,7 +762,7 @@ func sameIfShell(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfS
 	}
 	dShell, sShell := *d, *s
 	dShell.ThenBody, dShell.ElseBody, sShell.ThenBody, sShell.ElseBody = nil, nil, nil, nil
-	if !declaredMatches(&dShell, &sShell) {
+	if !sameExceptPositions(&dShell, &sShell) {
 		return nil, nil, false
 	}
 	return d, s, true
@@ -840,36 +900,43 @@ func insertAnchor(loc *storedLocator, stored []ast.MicroflowStatement, gapStart,
 
 // lcsStatements pairs declared and stored statements that match, as a longest
 // common subsequence; each pair is {declared index, stored index}, ascending.
+//
+// A statement that matches a stored one except where it is drawn pairs with
+// it too — it is that node, moved (ako/mxcli#818) — but an exact match weighs
+// more, so of two alike statements the one the script left in place keeps its
+// node.
 func lcsStatements(declared, stored []ast.MicroflowStatement) [][2]int {
 	n, m := len(declared), len(stored)
-	eq := make([][]bool, n)
+	w := make([][]int, n)
 	for i := range declared {
-		eq[i] = make([]bool, m)
+		w[i] = make([]int, m)
 		for j := range stored {
-			eq[i][j] = declaredMatches(declared[i], stored[j])
+			switch {
+			case declaredMatches(declared[i], stored[j]):
+				w[i][j] = 2
+			case sameExceptPositions(declared[i], stored[j]):
+				w[i][j] = 1
+			}
 		}
 	}
-	// l[i][j] is the LCS length of declared[i:] and stored[j:].
+	// l[i][j] is the best weight of declared[i:] and stored[j:].
 	l := make([][]int, n+1)
 	for i := range l {
 		l[i] = make([]int, m+1)
 	}
 	for i := n - 1; i >= 0; i-- {
 		for j := m - 1; j >= 0; j-- {
-			switch {
-			case eq[i][j]:
-				l[i][j] = l[i+1][j+1] + 1
-			case l[i+1][j] >= l[i][j+1]:
-				l[i][j] = l[i+1][j]
-			default:
-				l[i][j] = l[i][j+1]
+			best := max(l[i+1][j], l[i][j+1])
+			if w[i][j] > 0 {
+				best = max(best, w[i][j]+l[i+1][j+1])
 			}
+			l[i][j] = best
 		}
 	}
 	var pairs [][2]int
 	for i, j := 0, 0; i < n && j < m; {
 		switch {
-		case eq[i][j] && l[i][j] == l[i+1][j+1]+1:
+		case w[i][j] > 0 && l[i][j] == w[i][j]+l[i+1][j+1]:
 			pairs = append(pairs, [2]int{i, j})
 			i++
 			j++
@@ -952,8 +1019,9 @@ func targetLabel(c mfmutator.Candidate) string {
 	return string(c.ID)
 }
 
-// patchSummary says what a patch did, e.g. "1 replaced, 2 inserted".
-func patchSummary(ops []*ast.AlterFlowOperation) string {
+// patchSummary says what a patch did, e.g. "spliced: 1 inserted, 2 moved;
+// set: ExportLevel", or "" when it did nothing.
+func patchSummary(ops []*ast.AlterFlowOperation, moves []flowMove, set []string) string {
 	var ins, rep, drop int
 	for _, op := range ops {
 		switch op.Op {
@@ -969,10 +1037,17 @@ func patchSummary(ops []*ast.AlterFlowOperation) string {
 	for _, p := range []struct {
 		n    int
 		verb string
-	}{{ins, "inserted"}, {rep, "replaced"}, {drop, "dropped"}} {
+	}{{ins, "inserted"}, {rep, "replaced"}, {drop, "dropped"}, {len(moves), "moved"}} {
 		if p.n > 0 {
 			parts = append(parts, fmt.Sprintf("%d %s", p.n, p.verb))
 		}
 	}
-	return "spliced: " + strings.Join(parts, ", ")
+	var out []string
+	if len(parts) > 0 {
+		out = append(out, "spliced: "+strings.Join(parts, ", "))
+	}
+	if len(set) > 0 {
+		out = append(out, "set: "+strings.Join(set, ", "))
+	}
+	return strings.Join(out, "; ")
 }

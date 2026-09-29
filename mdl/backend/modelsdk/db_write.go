@@ -73,6 +73,11 @@ func (b *Backend) UpdateDatabaseConnection(conn *model.DatabaseConnection) error
 	if err != nil {
 		return fmt.Errorf("UpdateDatabaseConnection: encode: %w", err)
 	}
+	// databaseConnectionToGen writes ExportLevel "Hidden" as a constant (#816).
+	contents, err = b.keepStoredExportLevel(string(conn.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdateDatabaseConnection: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(conn.ID), contents)
 }
 

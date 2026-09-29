@@ -25,15 +25,39 @@ import (
 // Everything else is compared exactly, including captions, colours and notes,
 // which are content Studio Pro shows rather than layout.
 func declaredMatches(declared, stored any) bool {
-	return matchValue(reflect.ValueOf(declared), reflect.ValueOf(stored), false)
+	return matchValue(reflect.ValueOf(declared), reflect.ValueOf(stored), matchDeclared)
 }
 
 // sameIgnoringLayout reports whether two statements differ in canvas geometry
-// at most — a node moved, a connector redrawn — which is a change the splice
-// does not make.
+// at most — a node moved, a connector redrawn.
 func sameIgnoringLayout(declared, stored any) bool {
-	return matchValue(reflect.ValueOf(declared), reflect.ValueOf(stored), true)
+	return matchValue(reflect.ValueOf(declared), reflect.ValueOf(stored), matchAnyLayout)
 }
+
+// sameExceptPositions reports whether two statements differ at most in where
+// their nodes are drawn (@position, @start) — which the patch makes by moving
+// the stored nodes (ako/mxcli#818) — and not in how their flows are drawn.
+func sameExceptPositions(declared, stored any) bool {
+	return matchValue(reflect.ValueOf(declared), reflect.ValueOf(stored), matchAnyPosition)
+}
+
+// matchMode is how matchValue treats geometry.
+type matchMode int
+
+const (
+	// matchDeclared: geometry the declared side leaves out is not a
+	// difference; geometry it states must be the stored one.
+	matchDeclared matchMode = iota
+	// matchAnyLayout: no geometry is a difference.
+	matchAnyLayout
+	// matchAnyPosition: a node's position is not a difference; the rest of
+	// the geometry is compared as for matchDeclared.
+	matchAnyPosition
+)
+
+// positionFields are the geometry fields of a statement's annotations that
+// say where its node is drawn, as opposed to how its flows are.
+var positionFields = map[string]bool{"Position": true, "Start": true}
 
 // The geometry is what stripFlowLayout clears for `mxcli layout flows`; a
 // note's size is included here because the writer defaults it when absent.
@@ -54,7 +78,7 @@ var geometryFields = map[reflect.Type]map[string]bool{
 	paramStructType: {"Position": true},
 }
 
-func matchValue(d, s reflect.Value, anyLayout bool) bool {
+func matchValue(d, s reflect.Value, mode matchMode) bool {
 	if !d.IsValid() || !s.IsValid() {
 		return d.IsValid() == s.IsValid()
 	}
@@ -79,20 +103,23 @@ func matchValue(d, s reflect.Value, anyLayout bool) bool {
 		if d.IsNil() || s.IsNil() {
 			return false
 		}
-		return matchValue(d.Elem(), s.Elem(), anyLayout)
+		return matchValue(d.Elem(), s.Elem(), mode)
 	case reflect.Interface:
 		if d.IsNil() || s.IsNil() {
 			return d.IsNil() == s.IsNil()
 		}
-		return matchValue(d.Elem(), s.Elem(), anyLayout)
+		return matchValue(d.Elem(), s.Elem(), mode)
 	case reflect.Struct:
 		geo := geometryFields[d.Type()]
 		for i := 0; i < d.NumField(); i++ {
 			df := d.Field(i)
-			if geo[d.Type().Field(i).Name] && df.Kind() == reflect.Pointer && (anyLayout || df.IsNil()) {
+			name := d.Type().Field(i).Name
+			skip := mode == matchAnyLayout ||
+				(mode == matchAnyPosition && d.Type() == annotationsStructType && positionFields[name])
+			if geo[name] && df.Kind() == reflect.Pointer && (skip || df.IsNil()) {
 				continue
 			}
-			if !matchValue(df, s.Field(i), anyLayout) {
+			if !matchValue(df, s.Field(i), mode) {
 				return false
 			}
 		}
@@ -103,7 +130,7 @@ func matchValue(d, s reflect.Value, anyLayout bool) bool {
 			return false
 		}
 		for i := 0; i < d.Len(); i++ {
-			if !matchValue(d.Index(i), s.Index(i), anyLayout) {
+			if !matchValue(d.Index(i), s.Index(i), mode) {
 				return false
 			}
 		}
@@ -114,7 +141,7 @@ func matchValue(d, s reflect.Value, anyLayout bool) bool {
 		}
 		for _, k := range d.MapKeys() {
 			sv := s.MapIndex(k)
-			if !sv.IsValid() || !matchValue(d.MapIndex(k), sv, anyLayout) {
+			if !sv.IsValid() || !matchValue(d.MapIndex(k), sv, mode) {
 				return false
 			}
 		}

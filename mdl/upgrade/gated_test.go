@@ -53,8 +53,14 @@ func TestUpgrade_GatedRewrites(t *testing.T) {
 			"create enumeration M.C (A 'it''s\ta\\b');\n", true},
 		{"escaped line break outside an expression", "create enumeration M.C (A 'a\\nb');\n",
 			"create enumeration M.C (A 'a\nb');\n", true},
+		// An expression stored as written stores each literal's value under mdl 0
+		// too, so the literal is requoted in place (ako/mxcli#820); `\'` left in
+		// place would not parse under mdl 1.
 		{"escape in an expression stored as written", mf + "  declare $s String = 'a' +\n    '\\n';\nend;\n",
-			mf + "  declare $s String = 'a' +\n    '\\n';\nend;\n", true},
+			mf + "  declare $s String = 'a' +\n    '\n';\nend;\n", true},
+		{"escaped apostrophe and backslash in an expression stored as written",
+			mf + "  declare $s String = 'it\\'s'+'C:\\\\new';\nend;\n",
+			mf + "  declare $s String = 'it''s'+'C:\\new';\nend;\n", true},
 		{"escaped line break in a log template", mf + "  log info node 'N' 'line 1\\nline 2';\nend;\n",
 			mf + "  log info node 'N' 'line 1\nline 2';\nend;\n", true},
 		{"escaped line break in a message template", mf + "  show message 'it\\'s\\n{1}' type Error with ({1} = $S);\nend;\n",
@@ -75,7 +81,7 @@ func TestUpgrade_GatedRewrites(t *testing.T) {
 			mf + "  declare $s String = 'a\nb';\nend;\n", false},
 		{"escaped line break in a compound expression is written as stored",
 			mf + "  declare $s String = 'it''s\\r\\n' + TOSTRING( $S ) + 'C:\\\\new';\nend;\n",
-			mf + "  declare $s String = 'it''s\r\n' + toString($S) + 'C:\\\\new';\nend;\n", false},
+			mf + "  declare $s String = 'it''s\r\n' + toString($S) + 'C:\\new';\nend;\n", false},
 		{"escaped line break in a change member", mf + "  change $o (Name = '{\\n  1\\n}', Code = 'x');\nend;\n",
 			mf + "  change $o (Name = '{\n  1\n}', Code = 'x');\nend;\n", false},
 		{"escaped tab in an expression", mf + "  declare $s String = 'a\\tb';\nend;\n",

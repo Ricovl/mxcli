@@ -61,6 +61,11 @@ func (b *Backend) UpdateJsonStructure(js *types.JsonStructure) error {
 	if err != nil {
 		return fmt.Errorf("UpdateJsonStructure: encode: %w", err)
 	}
+	// MDL has no export-level spelling for a JSON structure (#816).
+	contents, err = b.keepStoredExportLevel(string(js.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdateJsonStructure: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(js.ID), contents)
 }
 

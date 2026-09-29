@@ -44,6 +44,10 @@ func (b *Backend) writeCustomBlob(unitID, containerID, name, documentation, expo
 		return fmt.Errorf("encode custom blob: %w", err)
 	}
 	if update {
+		// MDL has no export-level spelling for these documents (#816).
+		if raw, err = b.keepStoredExportLevel(unitID, raw); err != nil {
+			return err
+		}
 		return b.writer.UpdateRawUnit(unitID, raw)
 	}
 	return b.writer.InsertUnit(unitID, containerID, "Documents", customBlobDocType, raw)

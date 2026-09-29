@@ -65,6 +65,11 @@ func (b *Backend) UpdateRule(rule *microflows.Rule) error {
 	if err != nil {
 		return fmt.Errorf("UpdateRule: encode: %w", err)
 	}
+	// ruleToGen writes ExportLevel "Hidden" as a constant (#816).
+	contents, err = b.keepStoredExportLevel(string(rule.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdateRule: %w", err)
+	}
 	if err := b.writer.UpdateRawUnit(string(rule.ID), contents); err != nil {
 		return fmt.Errorf("UpdateRule: update: %w", err)
 	}

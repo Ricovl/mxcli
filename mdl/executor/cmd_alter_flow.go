@@ -61,11 +61,19 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 // It returns the mutator unsaved: the caller saves, or discards it on error so
 // nothing is written.
 func (a *alterFlowContext) apply(ctx *ExecContext, ops []*ast.AlterFlowOperation, targets []mfmutator.Candidate) (backend.MicroflowMutator, error) {
-	s := a.stmt
 	mut, err := ctx.Backend.OpenMicroflowForMutation(a.mf.ID)
 	if err != nil {
-		return nil, mdlerrors.NewBackend("open "+s.Kind()+" for alter", err)
+		return nil, mdlerrors.NewBackend("open "+a.stmt.Kind()+" for alter", err)
 	}
+	if err := a.applyTo(ctx, mut, ops, targets); err != nil {
+		return nil, err
+	}
+	return mut, nil
+}
+
+// applyTo applies ops to an open mutator, as apply does.
+func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutator, ops []*ast.AlterFlowOperation, targets []mfmutator.Candidate) error {
+	s := a.stmt
 	for i, op := range ops {
 		target := targets[i]
 		fail := func(err error) error {
@@ -73,10 +81,10 @@ func (a *alterFlowContext) apply(ctx *ExecContext, ops []*ast.AlterFlowOperation
 		}
 		if op.Op == ast.AlterFlowDrop {
 			if err := a.checkOutputUnused(target, nil); err != nil {
-				return nil, fail(err)
+				return fail(err)
 			}
 			if err := mut.Drop(target.ID); err != nil {
-				return nil, fail(err)
+				return fail(err)
 			}
 			a.noteRemoved(target, nil)
 			continue
@@ -89,16 +97,22 @@ func (a *alterFlowContext) apply(ctx *ExecContext, ops []*ast.AlterFlowOperation
 				err = mut.SetReturnValue(target.ID, value)
 			}
 			if err != nil {
-				return nil, fail(err)
+				return fail(err)
 			}
 			continue
 		}
 		frag, err := a.buildFragment(ctx, op.Body)
 		if err != nil {
-			return nil, fail(err)
+			return fail(err)
+		}
+		// A stated @position on the fragment is where it goes (ako/mxcli#818).
+		frag.Placed = firstStatementPlaced(op.Body)
+		if !frag.Placed && laterStatementPlaced(op.Body) {
+			return fail(fmt.Errorf("a later inserted statement states @position but the first does not; the " +
+				"inserted statements are placed as a whole, so state @position on the first one too, or on none"))
 		}
 		if err := a.checkFragmentScope(ctx, op, target, frag); err != nil {
-			return nil, fail(err)
+			return fail(err)
 		}
 		switch op.Op {
 		case ast.AlterFlowInsertAfter:
@@ -113,14 +127,14 @@ func (a *alterFlowContext) apply(ctx *ExecContext, ops []*ast.AlterFlowOperation
 			err = fmt.Errorf("unknown operation")
 		}
 		if err != nil {
-			return nil, fail(err)
+			return fail(err)
 		}
 		if op.Op == ast.AlterFlowReplace {
 			a.noteRemoved(target, frag)
 		}
 		a.noteFragment(ctx, frag)
 	}
-	return mut, nil
+	return nil
 }
 
 // alterFlowContext is what the operations of one statement share: the stored
