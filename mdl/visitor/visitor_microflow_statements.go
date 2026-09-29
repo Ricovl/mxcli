@@ -1691,8 +1691,9 @@ func buildSourceExpression(ctx parser.IExpressionContext) ast.Expression {
 	expr := buildExpression(ctx)
 	if prc, ok := ctx.(antlr.ParserRuleContext); ok {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
-			if shouldPreserveExpressionSource(source) {
-				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(source)}
+			strict := lexedWithStrictEscapes(prc)
+			if shouldPreserveExpressionSource(source, strict) {
+				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(storedExpressionSource(source, strict))}
 			}
 		}
 	}
@@ -1732,7 +1733,7 @@ func buildRetrieveWhereExpression(ctx parser.IExpressionContext) ast.Expression 
 	}
 	if prc, ok := ctx.(antlr.ParserRuleContext); ok {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
-			if shouldPreserveExpressionSource(source) || strings.Contains(source, "/") {
+			if shouldPreserveExpressionSource(source, lexedWithStrictEscapes(prc)) || strings.Contains(source, "/") {
 				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(source)}
 			}
 		}
@@ -1766,21 +1767,20 @@ func dotIsQualifiedNameSeparator(source string, i int) bool {
 	return false
 }
 
-func shouldPreserveExpressionSource(source string) bool {
+// shouldPreserveExpressionSource reports whether an expression is stored as
+// written rather than rendered from its tree. strict is the string rule the
+// source was lexed with (lexedWithStrictEscapes): a string literal is skipped
+// whole, so an operator or a `.` inside one never counts — and under mdl 0 a
+// `\'` inside one does not end it. Reading `'it\'s'+$x` as the string `'it\'`
+// and a second string opening at `s'` made the decision on the wrong
+// characters (ako/mxcli#820).
+func shouldPreserveExpressionSource(source string, strict bool) bool {
 	if strings.ContainsAny(source, "\r\n") {
 		return true
 	}
-	inString := false
 	for i := 0; i < len(source); i++ {
 		if source[i] == '\'' {
-			if inString && i+1 < len(source) && source[i+1] == '\'' {
-				i++
-				continue
-			}
-			inString = !inString
-			continue
-		}
-		if inString {
+			i = stringLiteralEnd(source, i, strict) - 1
 			continue
 		}
 		// A `/` used as division with a variable right operand (`$a / $b`) parses

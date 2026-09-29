@@ -48,7 +48,7 @@ func describedSource(ctx *ExecContext, src string) string {
 // mirrors it (PROPOSAL_mdl_beta_syntax_freeze.md §4, #733). It returns false
 // for an activity the statement form cannot express, which then falls back to
 // the call form.
-func formatListActivity(op microflows.ListOperation, outputVar string) (string, bool) {
+func formatListActivity(ctx *ExecContext, op microflows.ListOperation, outputVar string) (string, bool) {
 	out := "$" + outputVar
 	switch o := op.(type) {
 	case *microflows.HeadOperation:
@@ -56,13 +56,13 @@ func formatListActivity(op microflows.ListOperation, outputVar string) (string, 
 	case *microflows.TailOperation:
 		return fmt.Sprintf("%s = tail $%s;", out, o.ListVariable), true
 	case *microflows.FindOperation:
-		return fmt.Sprintf("%s = find $%s where %s;", out, o.ListVariable, describeExpr(o.Expression)), true
+		return fmt.Sprintf("%s = find $%s where %s;", out, o.ListVariable, describeExpr(ctx, o.Expression)), true
 	case *microflows.FilterOperation:
-		return fmt.Sprintf("%s = filter $%s where %s;", out, o.ListVariable, describeExpr(o.Expression)), true
+		return fmt.Sprintf("%s = filter $%s where %s;", out, o.ListVariable, describeExpr(ctx, o.Expression)), true
 	case *microflows.FindByAttributeOperation:
-		return formatMemberListActivity("find", out, o.ListVariable, o.Attribute, o.Association, o.Expression)
+		return formatMemberListActivity(ctx, "find", out, o.ListVariable, o.Attribute, o.Association, o.Expression)
 	case *microflows.FilterByAttributeOperation:
-		return formatMemberListActivity("filter", out, o.ListVariable, o.Attribute, o.Association, o.Expression)
+		return formatMemberListActivity(ctx, "filter", out, o.ListVariable, o.Attribute, o.Association, o.Expression)
 	case *microflows.SortOperation:
 		if len(o.Sorting) == 0 {
 			return "", false
@@ -97,10 +97,10 @@ func formatListActivity(op microflows.ListOperation, outputVar string) (string, 
 	case *microflows.ListRangeOperation:
 		stmt := fmt.Sprintf("%s = range $%s", out, o.ListVariable)
 		if o.OffsetExpression != "" {
-			stmt += " offset " + describeExpr(o.OffsetExpression)
+			stmt += " offset " + describeExpr(ctx, o.OffsetExpression)
 		}
 		if o.LimitExpression != "" {
-			stmt += " limit " + describeExpr(o.LimitExpression)
+			stmt += " limit " + describeExpr(ctx, o.LimitExpression)
 		}
 		return stmt + ";", true
 	}
@@ -108,15 +108,15 @@ func formatListActivity(op microflows.ListOperation, outputVar string) (string, 
 }
 
 // formatMemberListActivity renders Find / Filter by member: `by Member = value`.
-func formatMemberListActivity(verb, out, list, attribute, association, value string) (string, bool) {
+func formatMemberListActivity(ctx *ExecContext, verb, out, list, attribute, association, value string) (string, bool) {
 	field := extractFieldName(attribute, association)
 	if value == "" {
 		return "", false
 	}
 	if field == "" {
-		return fmt.Sprintf("%s = %s $%s where %s;", out, verb, list, describeExpr(value)), true
+		return fmt.Sprintf("%s = %s $%s where %s;", out, verb, list, describeExpr(ctx, value)), true
 	}
-	return fmt.Sprintf("%s = %s $%s by %s = %s;", out, verb, list, field, describeExpr(value)), true
+	return fmt.Sprintf("%s = %s $%s by %s = %s;", out, verb, list, field, describeExpr(ctx, value)), true
 }
 
 // formatAggregateActivity renders an Aggregate list activity as the statement
@@ -128,17 +128,17 @@ func formatAggregateActivity(ctx *ExecContext, a *microflows.AggregateListAction
 	case microflows.AggregateFunctionCount:
 		return fmt.Sprintf("%s = count %s;", out, list)
 	case microflows.AggregateFunctionReduce:
-		initial := describeExpr(a.ReduceInitialValue)
+		initial := describeExpr(ctx, a.ReduceInitialValue)
 		if initial == "" {
 			initial = "empty"
 		}
 		return fmt.Sprintf("%s = reduce %s from %s as %s using %s;", out, list, initial,
-			formatMicroflowDataType(ctx, a.ReduceReturnType, entityNames), describeExpr(a.Expression))
+			formatMicroflowDataType(ctx, a.ReduceReturnType, entityNames), describeExpr(ctx, a.Expression))
 	case microflows.AggregateFunctionAll, microflows.AggregateFunctionAny:
-		return fmt.Sprintf("%s = %s %s where %s;", out, fn, list, describeExpr(a.Expression))
+		return fmt.Sprintf("%s = %s %s where %s;", out, fn, list, describeExpr(ctx, a.Expression))
 	}
 	if a.UseExpression && a.Expression != "" {
-		return fmt.Sprintf("%s = %s %s of %s;", out, fn, list, describeExpr(a.Expression))
+		return fmt.Sprintf("%s = %s %s of %s;", out, fn, list, describeExpr(ctx, a.Expression))
 	}
 	return fmt.Sprintf("%s = %s %s by %s;", out, fn, list, mdlIdent(attrName))
 }

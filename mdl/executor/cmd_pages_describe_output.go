@@ -124,7 +124,7 @@ func appendDataGridPagingProps(props []string, w rawWidget) []string {
 // as itself — `true`, a lone name, text the MDL expression grammar cannot
 // parse — is written in the deprecated bracketed form, as before.
 func widgetConditionMDL(key, expr string) string {
-	expr = describeExpr(expr)
+	expr = strings.TrimSpace(expr)
 	if visitor.BareWidgetCondition(key, expr) {
 		return key + ": " + expr
 	}
@@ -1649,7 +1649,7 @@ func extractPageParameters(ctx *ExecContext, settings map[string]any) string {
 		// Check for Argument (variable reference or expression stored as string)
 		if value == "" {
 			if arg := extractString(mappingMap["Argument"]); arg != "" {
-				value = describeExpr(arg) // e.g., "$Product" or an expression
+				value = strings.TrimSpace(arg) // e.g., "$Product" or an expression
 			}
 		}
 
@@ -1706,7 +1706,7 @@ func extractMicroflowParameters(ctx *ExecContext, settings map[string]any) strin
 		// Check for Expression (used in Pages$MicroflowParameterMapping)
 		if value == "" {
 			if expr := extractString(mappingMap["Expression"]); expr != "" {
-				value = describeExpr(expr) // e.g., "$Product" or an expression
+				value = strings.TrimSpace(expr) // e.g., "$Product" or an expression
 			}
 		}
 
@@ -1765,7 +1765,7 @@ func extractNanoflowParameters(ctx *ExecContext, action map[string]any) string {
 		// Check for Expression (used in Pages$NanoflowParameterMapping)
 		if value == "" {
 			if expr := extractString(mappingMap["Expression"]); expr != "" {
-				value = describeExpr(expr) // e.g., "$Product" or an expression
+				value = strings.TrimSpace(expr) // e.g., "$Product" or an expression
 			}
 		}
 
@@ -1840,7 +1840,7 @@ func extractClientTemplateParameters(ctx *ExecContext, w map[string]any, fieldNa
 		suffixes = append(suffixes, formatParamFormatSuffix(pMap))
 		// Check for Expression first (literal value)
 		if expr, ok := pMap["Expression"].(string); ok && expr != "" {
-			expr = describeExpr(expr)
+			expr = strings.TrimSpace(expr)
 			// A non-String attribute binding (Integer/DateTime/…) is written as
 			// `toString($currentObject/Attr)` / `toString($param/Attr)` — see
 			// resolveTemplateAttributePathFull. Emit it back as the bare attribute

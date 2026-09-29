@@ -54,6 +54,15 @@ comment in that span, and a `--` comment between two operands ends up inside the
 Mendix expression. Replacing a comment with whitespace rather than with nothing
 matters for the same reason: `1 --c\n+ 2` must not become `1+ 2`.
 
+It carries the *language's* string escapes too. Under `mdl 0` a backslash
+escapes, so the tree holds a literal's unescaped value while the preserved text
+still spells `\'` or `\\` — two storage paths for one literal, storing
+different bytes. The same leak ran the other way in the renderer, which
+pre-escaped values so that describe's verbatim output would re-read: the round
+trip stayed green while the model held a backslash too many (#810, #820). The
+rule that closed both: the store writes the Mendix spelling of the value on
+every path, and only describe spells it for the reader's language.
+
 **Quoting is the other systematic leak.** The guidance to quote identifiers is
 about the MDL *parser*; a quote that survives into the stored expression produces
 `Mod."Entity".Attr`, which Mendix rejects. The tell is a **half-stripped** name in
