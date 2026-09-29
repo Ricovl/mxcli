@@ -109,7 +109,7 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 				t.Fatalf("upgraded script still has %d deprecated spelling(s) (%d reported unrewritable), first %s at line %d",
 					n, len(res.Unrewritten), prog.Deprecations[0].Code, prog.Deprecations[0].Line)
 			}
-			if !all && onlyTerminatorsAndHeader(res) {
+			if !all && onlyTerminatorsAndHeader(res) && !alwaysExecuted[filepath.ToSlash(rel)] {
 				headerOnly = append(headerOnly, rel)
 				return
 			}
@@ -161,6 +161,15 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 		t.Errorf("only %d scripts executed cleanly (shard %s) — the harness is not exercising the property",
 			len(same), sh)
 	}
+}
+
+// alwaysExecuted are header-only scripts executed on every run anyway,
+// because the header alone once changed what they write: `create or modify`
+// on a flow that exists is diff-then-patch, and under mdl 1 a change the splice
+// could not make was refused where mdl 0 rebuilt (ako/mxcli#805 — an implicit
+// end, or a changed return value, was taken for a dropped end event).
+var alwaysExecuted = map[string]bool{
+	"mdl-examples/bug-tests/914-excluded-document-preserved.mdl": true,
 }
 
 // terminatorCodes are the gated rewrites that only add a `;` or delete a `/`

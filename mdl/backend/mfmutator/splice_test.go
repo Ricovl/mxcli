@@ -402,3 +402,28 @@ func TestSplice_DropOrReplaceALoopTakesItsBodyFlows(t *testing.T) {
 		})
 	}
 }
+
+// A changed return value is set on the stored end event in place (#805): the
+// value changes and nothing else in the unit does. Only an end event takes
+// one.
+func TestSplice_SetReturnValueEditsTheEndEventOnly(t *testing.T) {
+	objs := line()
+	objs[3] = append(objs[3], bson.E{Key: "ReturnValue", Value: "7"})
+	m, deps := newMutator(t, unit(objs, lineFlows()))
+	if err := m.SetReturnValue(model.ID(uid("end")), "8"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Save(); err != nil {
+		t.Fatal(err)
+	}
+	want := line()
+	want[3] = append(want[3], bson.E{Key: "ReturnValue", Value: "8"})
+	raw, _ := bson.Marshal(unit(want, lineFlows()))
+	if !bytes.Equal(deps.saved, raw) {
+		t.Error("setting the return value changed more than the end event's ReturnValue")
+	}
+
+	if err := m.SetReturnValue(model.ID(uid("a")), "8"); err == nil || !strings.Contains(err.Error(), "only an end event") {
+		t.Errorf("want a refusal for an activity, got %v", err)
+	}
+}
