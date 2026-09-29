@@ -43,13 +43,14 @@ func outputEntityAccessGrants(ctx *ExecContext, entity *domainmodel.Entity, modu
 			continue
 		}
 
-		fmt.Fprintln(ctx.Output, "\n"+entityGrantMDL(rightsStr, moduleName+"."+entityName, roleStrs, rule.XPathConstraint))
+		fmt.Fprintln(ctx.Output, "\n"+entityGrantMDL(ctx, rightsStr, moduleName+"."+entityName, roleStrs, rule.XPathConstraint))
 	}
 }
 
 // entityGrantMDL is one access rule as the canonical grant (R5, ako/mxcli#753):
-// rights first, the roles after `to`, and the XPath constraint in [ ] exactly
-// as stored, so no quote inside it is doubled.
+// rights first, the roles after `to`, and the XPath constraint in [ ] as
+// stored, so no quote inside it is doubled; under mdl 0 a backslash in a
+// string is (describeXPath, ako/mxcli#825).
 //
 // A long constraint is stored broken across lines so it can be read in Studio
 // Pro's editor (upstream #979); MDL keeps it on one line, and the executor
@@ -60,17 +61,17 @@ func outputEntityAccessGrants(ctx *ExecContext, entity *domainmodel.Entity, modu
 // written in the deprecated quoted form instead, which carries any string:
 // describe must stay re-executable over whatever a project holds, and a
 // deprecation warning is better than output that does not parse.
-func entityGrantMDL(rights, entity string, roles []string, xpath string) string {
+func entityGrantMDL(ctx *ExecContext, rights, entity string, roles []string, xpath string) string {
 	x := visitor.FlattenXPathConstraint(xpath)
 	if x == "" || visitor.IsBracketedXPath(x) {
 		line := fmt.Sprintf("grant %s on entity %s to %s", rights, entity, strings.Join(roles, ", "))
 		if x != "" {
-			line += " where " + x
+			line += " where " + describeXPath(ctx, x)
 		}
 		return line + ";"
 	}
-	return fmt.Sprintf("grant %s on %s (%s) where '%s';",
-		strings.Join(roles, ", "), entity, rights, strings.ReplaceAll(x, "'", "''"))
+	return fmt.Sprintf("grant %s on %s (%s) where %s;",
+		strings.Join(roles, ", "), entity, rights, mdlQuote(ctx, x))
 }
 
 // resolveEntityMemberAccess determines per-member READ/WRITE access.

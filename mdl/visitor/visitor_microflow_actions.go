@@ -625,7 +625,9 @@ func buildExecuteDatabaseQueryStatement(ctx parser.IExecuteDatabaseQueryStatemen
 		} else if ds := execCtx.DOLLAR_STRING(); ds != nil {
 			stmt.DynamicQuery = unquoteDollarString(ds.GetText())
 		} else if expr := execCtx.Expression(); expr != nil {
-			stmt.DynamicQuery = expressionSourceText(expr)
+			// A Mendix expression stored as written: a string in it stores
+			// its value, as in any other (storedExpressionSource, #825).
+			stmt.DynamicQuery = storedExpressionSource(expressionSourceText(expr), lexedWithStrictEscapes(expr))
 			stmt.DynamicQueryIsExpression = true
 		}
 	}

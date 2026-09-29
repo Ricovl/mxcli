@@ -44,7 +44,7 @@ func storedListViewXPathOverAssociation() map[string]any {
 }
 
 func TestDescribeListViewDatabaseOverAssociationKeepsItsKind(t *testing.T) {
-	got := dataSourceExpr(parseDataSource(storedListViewXPathOverAssociation()))
+	got := dataSourceExpr(nil, parseDataSource(storedListViewXPathOverAssociation()))
 	want := "database from $WorkflowUserTask/System.WorkflowUserTask_Assignees/Administration.Account" +
 		" where [Active = true()] sort by FullName asc search by FullName"
 	if got != want {
@@ -58,7 +58,7 @@ func TestDescribeListViewDatabaseOverAssociationKeepsItsKind(t *testing.T) {
 func TestDescribeAssociationSourceIsUnchanged(t *testing.T) {
 	ds := storedListViewXPathOverAssociation()
 	ds["$Type"] = dsTypeAssociation
-	if got, want := dataSourceExpr(parseDataSource(ds)), "$WorkflowUserTask/System.WorkflowUserTask_Assignees"; got != want {
+	if got, want := dataSourceExpr(nil, parseDataSource(ds)), "$WorkflowUserTask/System.WorkflowUserTask_Assignees"; got != want {
 		t.Errorf("association source printed %q, want %q", got, want)
 	}
 }
@@ -71,7 +71,7 @@ func TestDescribeListViewDatabaseOverAssociationFromCurrentObject(t *testing.T) 
 	delete(ds, "XPathConstraint")
 	delete(ds, "Search")
 	delete(ds, "SortBar")
-	got := dataSourceExpr(parseDataSource(ds))
+	got := dataSourceExpr(nil, parseDataSource(ds))
 	if want := "database from $currentObject/System.WorkflowUserTask_Assignees/Administration.Account"; got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}

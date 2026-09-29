@@ -26,7 +26,7 @@ import (
 // parse errors if any.
 func parsesAsWorkflowBody(t *testing.T, acts ...workflows.WorkflowActivity) []string {
 	t.Helper()
-	lines := formatWorkflowActivities(&workflows.Flow{Activities: acts}, "  ")
+	lines := formatWorkflowActivities(nil, &workflows.Flow{Activities: acts}, "  ")
 	src := "create workflow M.WF\n  parameter $WorkflowContext: M.E\nbegin\n" +
 		strings.Join(lines, "\n") + "\nend workflow;"
 	_, errs := visitor.Build(src)
@@ -161,7 +161,7 @@ func TestDescribeWorkflow_TargetingXPathIsBracketed(t *testing.T) {
 		task.Name = "Review"
 		task.Caption = "Review"
 		task.UserSource = tc.src
-		out := strings.Join(formatWorkflowActivities(&workflows.Flow{Activities: []workflows.WorkflowActivity{task}}, "  "), "\n")
+		out := strings.Join(formatWorkflowActivities(nil, &workflows.Flow{Activities: []workflows.WorkflowActivity{task}}, "  "), "\n")
 		if !strings.Contains(out, tc.want) {
 			t.Errorf("describe wrote:\n%s\nwant a line %q", out, tc.want)
 		}

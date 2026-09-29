@@ -85,11 +85,11 @@ func TestWorkflowCompletion_DefaultsAreNotDescribed(t *testing.T) {
 		CompletionCriteria: &workflows.CompletionCriteria{Kind: "Consensus", FallbackOutcome: "Approve"},
 		TargetUserInput:    &workflows.TargetUserInput{Kind: "All"},
 	}
-	if lines := formatMultiUserTaskCompletion(task, "  "); len(lines) != 0 {
+	if lines := formatMultiUserTaskCompletion(nil, task, "  "); len(lines) != 0 {
 		t.Errorf("defaults described as %v", lines)
 	}
 	task.CompletionCriteria.FallbackOutcome = "Reject"
-	if lines := formatMultiUserTaskCompletion(task, "  "); len(lines) != 1 || !strings.Contains(lines[0], "decide by consensus fallback 'Reject'") {
+	if lines := formatMultiUserTaskCompletion(nil, task, "  "); len(lines) != 1 || !strings.Contains(lines[0], "decide by consensus fallback 'Reject'") {
 		t.Errorf("a consensus falling back to another outcome must be described, got %v", lines)
 	}
 }

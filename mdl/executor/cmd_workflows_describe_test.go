@@ -17,7 +17,7 @@ func formatSingleActivity(act workflows.WorkflowActivity, indent string) []strin
 	flow := &workflows.Flow{
 		Activities: []workflows.WorkflowActivity{act},
 	}
-	return formatWorkflowActivities(flow, indent)
+	return formatWorkflowActivities(nil, flow, indent)
 }
 
 // --- P0: strip Module.Microflow prefix from parameter names ---
@@ -56,7 +56,7 @@ func TestFormatCallMicroflowTask_ParameterNameStripping(t *testing.T) {
 			task.Name = "callMfTask"
 			task.Caption = "Call MF"
 
-			lines := formatCallMicroflowTask(task, "  ")
+			lines := formatCallMicroflowTask(nil, task, "  ")
 			output := strings.Join(lines, "\n")
 
 			wantFragment := tc.wantParamName + " = "
@@ -208,7 +208,7 @@ func TestFormatCallWorkflowActivity_CaptionCommentFormat(t *testing.T) {
 			activity.Name = tc.actName
 			activity.Caption = tc.caption
 
-			lines := formatCallWorkflowActivity(activity, "")
+			lines := formatCallWorkflowActivity(nil, activity, "")
 			output := strings.Join(lines, "\n")
 
 			if !strings.Contains(output, tc.want) {
