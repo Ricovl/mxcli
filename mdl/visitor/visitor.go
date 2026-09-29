@@ -539,6 +539,10 @@ type Builder struct {
 	// stringLits are the string literals of the parse tree, by token index,
 	// for the string-escape rewrite to find the expression each is in.
 	stringLits map[int]antlr.TerminalNode
+	// storedExprs are the expressions, by start token index, the string-escape
+	// rewrite already replaced as a whole (storedExpressionFix), so a second
+	// escaped literal in one of them adds no overlapping edit.
+	storedExprs map[int]bool
 	// createStart is len(statements) when the current createStatement was
 	// entered, so ExitCreateStatement can tell which statement it built — see
 	// applyCreateGuard.

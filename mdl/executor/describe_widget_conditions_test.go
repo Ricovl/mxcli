@@ -23,7 +23,7 @@ func TestDescribePage_WidgetConditionIsBare(t *testing.T) {
 			t.Errorf("widgetConditionMDL(%q, %q) = %q, want %q", tc.key, tc.expr, got, tc.want)
 		}
 	}
-	props := appendAppearanceProps(nil, rawWidget{VisibleIf: "$currentObject/A and $currentObject/B", EditableIf: "$currentObject/C"})
+	props := appendAppearanceProps(nil, nil, rawWidget{VisibleIf: "$currentObject/A and $currentObject/B", EditableIf: "$currentObject/C"})
 	src := "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { dataview dv (DataSource: $E) { textbox t (Attribute: Name, " +
 		strings.Join(props, ", ") + ") } };"
 	prog, errs := visitor.Build(src)

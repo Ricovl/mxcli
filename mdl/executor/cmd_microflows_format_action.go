@@ -69,13 +69,18 @@ func describeExpr(v string) string {
 	return strings.TrimSpace(v)
 }
 
-// escapeExpressionValue escapes raw control characters inside string literals
-// of a Mendix expression value so it can be safely embedded in MDL output.
-// The lexer's STRING_LITERAL rule forbids raw \r and \n inside single-quoted
-// strings. Only characters inside '...' regions are escaped; characters
+// escapeExpressionValue writes a stored Mendix expression for describe output
+// in the language describe writes (describeLanguage).
+//
+// Under mdl 1 a Mendix expression is MDL as it stands — a string literal's
+// only escape is `”` in both — so it is written as stored, a line break in a
+// literal included; the reader stores such an expression as written, which is
+// the stored expression (ako/mxcli#804). Under mdl 0 a control character
+// inside a string literal is written as its backslash escape (`\n`, `\r`,
+// `\t`), which the mdl 0 reader turns back into the character; characters
 // outside string literals (structural whitespace) are preserved as-is.
-func escapeExpressionValue(v string) string {
-	if !strings.ContainsAny(v, "\n\r\t") {
+func escapeExpressionValue(ctx *ExecContext, v string) string {
+	if describeLanguage(ctx) >= langver.V1 || !strings.ContainsAny(v, "\n\r\t") {
 		return v
 	}
 	var b strings.Builder
@@ -331,7 +336,7 @@ func formatAction(
 						memberName = parts[len(parts)-1]
 					}
 				}
-				members = append(members, fmt.Sprintf("%s = %s", memberName, escapeExpressionValue(describeExpr(m.Value))))
+				members = append(members, fmt.Sprintf("%s = %s", memberName, escapeExpressionValue(ctx, describeExpr(m.Value))))
 			}
 			return fmt.Sprintf("$%s = create %s (%s)%s%s;", outputVar, entityName, strings.Join(members, ", "), commitModifier(a.Commit), refreshModifier(a.RefreshInClient))
 		}
@@ -361,7 +366,7 @@ func formatAction(
 						memberName = parts[len(parts)-1]
 					}
 				}
-				members = append(members, fmt.Sprintf("%s = %s", memberName, escapeExpressionValue(describeExpr(m.Value))))
+				members = append(members, fmt.Sprintf("%s = %s", memberName, escapeExpressionValue(ctx, describeExpr(m.Value))))
 			}
 			return fmt.Sprintf("change $%s (%s)%s%s;", varName, strings.Join(members, ", "), commitModifier(a.Commit), refreshModifier(a.RefreshInClient))
 		}
@@ -596,7 +601,7 @@ func formatAction(
 		}
 		message := "'Message'"
 		if text := pickTextTranslation(a.MessageTemplate, describeDefaultLanguage(ctx)); text != "" {
-			message = templateQuote(ctx, text)
+			message = mdlQuote(ctx, text)
 		}
 
 		// Build WITH clause if there are template parameters
@@ -701,7 +706,7 @@ func formatAction(
 			switch v := pm.Value.(type) {
 			case *microflows.StringTemplateParameterValue:
 				if v.TypedTemplate != nil {
-					valueStr = mdlQuote(v.TypedTemplate.Text)
+					valueStr = mdlQuote(ctx, v.TypedTemplate.Text)
 				}
 			case *microflows.ExpressionBasedCodeActionParameterValue:
 				valueStr = describeExpr(v.Expression)
@@ -713,13 +718,13 @@ func formatAction(
 				}
 			case *microflows.MicroflowParameterValue:
 				if v.Microflow != "" {
-					valueStr = mdlQuote(v.Microflow)
+					valueStr = mdlQuote(ctx, v.Microflow)
 				} else {
 					valueStr = "empty"
 				}
 			case *microflows.EntityTypeCodeActionParameterValue:
 				if v.Entity != "" {
-					valueStr = mdlQuote(v.Entity)
+					valueStr = mdlQuote(ctx, v.Entity)
 				}
 			}
 			if valueStr != "" {
@@ -815,7 +820,7 @@ func formatAction(
 		}
 		message := "'...'"
 		if text := pickTextTranslation(a.Template, describeDefaultLanguage(ctx)); text != "" {
-			message = templateQuote(ctx, text)
+			message = mdlQuote(ctx, text)
 		}
 		result := fmt.Sprintf("show message %s type %s", message, msgType)
 		if len(a.TemplateParameters) > 0 {
@@ -845,7 +850,7 @@ func formatAction(
 	case *microflows.ValidationFeedbackAction:
 		msgText := "'...'"
 		if text := pickTextTranslation(a.Template, describeDefaultLanguage(ctx)); text != "" {
-			msgText = templateQuote(ctx, text)
+			msgText = mdlQuote(ctx, text)
 		}
 		// Build attribute path from variable and attribute name
 		// AttributeName format: Module.Entity.Attribute
@@ -913,7 +918,7 @@ func formatAction(
 		return formatWorkflowOperationAction(ctx, a)
 
 	case *microflows.SetTaskOutcomeAction:
-		return fmt.Sprintf("set task outcome $%s %s;", a.WorkflowTaskVariable, mdlQuote(a.OutcomeValue))
+		return fmt.Sprintf("set task outcome $%s %s;", a.WorkflowTaskVariable, mdlQuote(ctx, a.OutcomeValue))
 
 	case *microflows.OpenUserTaskAction:
 		return fmt.Sprintf("open user task $%s;", a.UserTaskVariable)
@@ -977,7 +982,7 @@ func formatAction(
 				switch v := pm.Value.(type) {
 				case *microflows.StringTemplateParameterValue:
 					if v.TypedTemplate != nil {
-						valueStr = mdlQuote(v.TypedTemplate.Text)
+						valueStr = mdlQuote(ctx, v.TypedTemplate.Text)
 					}
 				case *microflows.ExpressionBasedCodeActionParameterValue:
 					valueStr = describeExpr(v.Expression)
@@ -1021,7 +1026,7 @@ func formatWorkflowOperationAction(ctx *ExecContext, a *microflows.WorkflowOpera
 	switch op := a.Operation.(type) {
 	case *microflows.AbortOperation:
 		if op.Reason != "" {
-			return fmt.Sprintf("workflow operation abort $%s reason %s;", op.WorkflowVariable, mdlQuote(op.Reason))
+			return fmt.Sprintf("workflow operation abort $%s reason %s;", op.WorkflowVariable, mdlQuote(ctx, op.Reason))
 		}
 		return fmt.Sprintf("workflow operation abort $%s;", op.WorkflowVariable)
 	case *microflows.ContinueOperation:
@@ -1046,16 +1051,16 @@ func formatWebServiceCallAction(ctx *ExecContext, a *microflows.WebServiceCallAc
 	}
 	if len(a.RawBSON) > 0 {
 		raw := base64.StdEncoding.EncodeToString(canonicalRawBSON(a.RawBSON))
-		return prefix + "call web service raw " + mdlQuote(raw) + ";"
+		return prefix + "call web service raw " + mdlQuote(ctx, raw) + ";"
 	}
 
 	// The service and the two mappings are BY_NAME_REFERENCE properties: what is
 	// stored IS the qualified name, so there is nothing to resolve. See
 	// TestFormatAction_WebServiceCallRendersStoredQualifiedNames for what the
 	// three resolvers that used to stand here actually did.
-	parts := []string{prefix + "call web service " + formatWebServiceReference(string(a.ServiceID))}
+	parts := []string{prefix + "call web service " + formatWebServiceReference(ctx, string(a.ServiceID))}
 	if a.OperationName != "" {
-		op := "operation " + formatWebServiceReference(a.OperationName)
+		op := "operation " + formatWebServiceReference(ctx, a.OperationName)
 		// The arguments carry the stored ParameterPath, but only its last
 		// segment is spelled in MDL — the rest is rebuilt from the operation
 		// document on the way back in.
@@ -1065,14 +1070,14 @@ func formatWebServiceCallAction(ctx *ExecContext, a *microflows.WebServiceCallAc
 		parts = append(parts, op)
 	}
 	if a.SendMappingID != "" {
-		send := "send mapping " + formatWebServiceReference(string(a.SendMappingID))
+		send := "send mapping " + formatWebServiceReference(ctx, string(a.SendMappingID))
 		if a.SendMappingVariable != "" {
 			send += " from $" + a.SendMappingVariable
 		}
 		parts = append(parts, send)
 	}
 	if a.ReceiveMappingID != "" {
-		parts = append(parts, "receive mapping "+formatWebServiceReference(string(a.ReceiveMappingID)))
+		parts = append(parts, "receive mapping "+formatWebServiceReference(ctx, string(a.ReceiveMappingID)))
 	}
 	if a.TimeoutExpression != "" {
 		parts = append(parts, "timeout "+describeExpr(a.TimeoutExpression))
@@ -1101,11 +1106,11 @@ func formatWebServiceArguments(args []microflows.WebServiceArgument) string {
 	return strings.Join(parts, ", ")
 }
 
-func formatWebServiceReference(ref string) string {
+func formatWebServiceReference(ctx *ExecContext, ref string) string {
 	if isBareQualifiedReference(ref) {
 		return ref
 	}
-	return mdlQuote(ref)
+	return mdlQuote(ctx, ref)
 }
 
 func isBareQualifiedReference(ref string) bool {
@@ -1308,7 +1313,7 @@ func formatRestCallAction(ctx *ExecContext, a *microflows.RestCallAction) string
 	// URL
 	url := "''"
 	if a.HttpConfiguration != nil && a.HttpConfiguration.LocationTemplate != "" {
-		url = mdlQuote(a.HttpConfiguration.LocationTemplate)
+		url = mdlQuote(ctx, a.HttpConfiguration.LocationTemplate)
 	}
 	sb.WriteString(url)
 
@@ -1328,7 +1333,7 @@ func formatRestCallAction(ctx *ExecContext, a *microflows.RestCallAction) string
 	if a.HttpConfiguration != nil && len(a.HttpConfiguration.CustomHeaders) > 0 {
 		for _, h := range a.HttpConfiguration.CustomHeaders {
 			sb.WriteString("\n    header ")
-			sb.WriteString(mdlQuote(h.Name))
+			sb.WriteString(mdlQuote(ctx, h.Name))
 			sb.WriteString(" = ")
 			sb.WriteString(describeExpr(h.Value))
 		}
@@ -1348,7 +1353,7 @@ func formatRestCallAction(ctx *ExecContext, a *microflows.RestCallAction) string
 		case *microflows.CustomRequestHandling:
 			if rh.Template != "" {
 				sb.WriteString("\n    body ")
-				sb.WriteString(mdlQuote(rh.Template))
+				sb.WriteString(mdlQuote(ctx, rh.Template))
 				// Add template parameters if present
 				if len(rh.TemplateParams) > 0 {
 					sb.WriteString(" with (")

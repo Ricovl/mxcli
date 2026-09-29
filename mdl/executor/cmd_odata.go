@@ -140,19 +140,19 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 	// The folder is a clause after the name (R9); `Folder:` is its alias.
 	folder := ""
 	if folderPath != "" {
-		folder = " folder " + mdlQuote(folderPath)
+		folder = " folder " + mdlQuote(ctx, folderPath)
 	}
 	fmt.Fprintf(ctx.Output, "create or modify consumed odata service %s.%s%s (\n", moduleName, svc.Name, folder)
 
 	var props []string
 	if svc.Version != "" {
-		props = append(props, fmt.Sprintf("  Version: %s", mdlQuote(svc.Version)))
+		props = append(props, fmt.Sprintf("  Version: %s", mdlQuote(ctx, svc.Version)))
 	}
 	if svc.ODataVersion != "" {
 		props = append(props, fmt.Sprintf("  ODataVersion: %s", svc.ODataVersion))
 	}
 	if svc.MetadataUrl != "" {
-		props = append(props, fmt.Sprintf("  MetadataUrl: %s", mdlQuote(svc.MetadataUrl)))
+		props = append(props, fmt.Sprintf("  MetadataUrl: %s", mdlQuote(ctx, svc.MetadataUrl)))
 	}
 	if svc.TimeoutExpression != "" {
 		props = append(props, fmt.Sprintf("  Timeout: %s", svc.TimeoutExpression))
@@ -169,7 +169,7 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 			if ref := strings.TrimPrefix(cfg.CustomLocation, "@"); strings.HasPrefix(cfg.CustomLocation, "@") && qualifiedConstantName.MatchString(ref) {
 				props = append(props, fmt.Sprintf("  ServiceUrl: %s", ref))
 			} else {
-				props = append(props, fmt.Sprintf("  ServiceUrl: %s", formatExprValue(cfg.CustomLocation)))
+				props = append(props, fmt.Sprintf("  ServiceUrl: %s", formatExprValue(ctx, cfg.CustomLocation)))
 			}
 		}
 		// HttpUsername / HttpPassword / ClientCertificate and header values are
@@ -228,7 +228,7 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 			if i == len(cfg.HeaderEntries)-1 {
 				comma = ""
 			}
-			fmt.Fprintf(ctx.Output, "  %s: %s%s\n", mdlQuote(h.Key), h.Value, comma)
+			fmt.Fprintf(ctx.Output, "  %s: %s%s\n", mdlQuote(ctx, h.Key), h.Value, comma)
 		}
 		fmt.Fprintln(ctx.Output, ");")
 	} else {
@@ -1908,8 +1908,8 @@ func validateODataClientExists(ctx *ExecContext, ref ast.QualifiedName) error {
 // unchanged made a re-exec of DESCRIBE store `abc` — an identifier, not a
 // string (ako/TestApp Odata.Bug1073). mdlQuote is the inverse of the visitor's
 // unquoteString, backslashes included.
-func formatExprValue(val string) string {
-	return mdlQuote(val)
+func formatExprValue(ctx *ExecContext, val string) string {
+	return mdlQuote(ctx, val)
 }
 
 // extractConstantRef strips a leading "@" from a constant reference. The proxy

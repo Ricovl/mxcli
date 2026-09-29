@@ -227,7 +227,7 @@ func TestIssue575_DescribeEmitsTheParamsCompanion(t *testing.T) {
 		AlternativeText:       "{1}",
 		AlternativeTextParams: []string{"Bug575.Product.Name"},
 	}
-	got := strings.Join(describeImageWidgetProps(w), ", ")
+	got := strings.Join(describeImageWidgetProps(nil, w), ", ")
 	for _, want := range []string{
 		"ImageUrlParams: ({1} = Bug575.Product.PictureUrl)",
 		"AlternativeTextParams: ({1} = Bug575.Product.Name)",
@@ -242,7 +242,7 @@ func TestIssue575_DescribeEmitsTheParamsCompanion(t *testing.T) {
 // back, and a companion on a literal caption is what MDL-WIDGET21 warns about.
 func TestIssue575_DescribeOmitsAnAbsentParamsCompanion(t *testing.T) {
 	w := rawWidget{Name: "cardImage", ImageType: "imageUrl", ImageUrl: "https://example.com/x.png"}
-	for _, p := range describeImageWidgetProps(w) {
+	for _, p := range describeImageWidgetProps(nil, w) {
 		if strings.HasSuffix(strings.SplitN(p, ":", 2)[0], "Params") {
 			t.Errorf("emitted %q for a template with no parameters", p)
 		}

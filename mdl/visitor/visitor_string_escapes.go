@@ -10,6 +10,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 	"github.com/mendixlabs/mxcli/mdl/langver"
+	"github.com/mendixlabs/mxcli/mdl/mendixexpr"
 )
 
 // backslashIsLiteral is ADR-0010 R11's string rule: a doubled apostrophe is the only escape in
@@ -115,17 +116,22 @@ func (b *Builder) VisitTerminal(node antlr.TerminalNode) {
 //
 // What the literal means under mdl 0 depends on where it is. On its own (a
 // name, a caption) and in an expression the builder re-renders, it is its
-// unescaped value, so the rewrite writes that value with a doubled apostrophe as the only
-// escape. In an expression the builder stores as written — one that spans
-// lines (shouldPreserveExpressionSource) — mdl 0 already passes the backslash
-// through to Mendix, exactly as mdl 1 does, so nothing changes.
+// unescaped value, so the rewrite writes that value with a doubled apostrophe
+// as the only escape. In an expression the builder stores as written — one
+// that spans lines (shouldPreserveExpressionSource) — mdl 0 already passes the
+// backslash through to Mendix, exactly as mdl 1 does, so nothing changes.
 //
-// An escaped line break in a re-rendered expression has no rewrite: writing the
-// break into the source makes the builder store the expression as written,
-// which is not always what it wrote before. The exception is a text template
-// written as one literal (mdl-examples/bug-tests/264-log-node-expression-roundtrip.mdl):
+// An escaped line break in a re-rendered expression cannot be requoted in
+// place: writing the break into the source makes the builder store the
+// expression as written instead of re-rendering it, which is not what it
+// stored before when the source is not already spelled the way the renderer
+// spells it. So the whole expression is replaced by what mdl 0 stored — its
+// rendering (storedExpressionFix), which stored as written under mdl 1 is the
+// same expression (ako/mxcli#804). The exception is a text template written as
+// one literal (mdl-examples/bug-tests/264-log-node-expression-roundtrip.mdl):
 // under mdl 1 that literal is the template text whether or not it spans lines
-// (templateLineBreak, #746), which is what the one-line literal was under mdl 0.
+// (templateLineBreak, #746), which is what the one-line literal was under
+// mdl 0, so it is requoted in place.
 func (b *Builder) escapeFix(t antlr.Token) (*ast.Fix, string) {
 	requoted := requoteForV1(t.GetText())
 	rewrite := &ast.Fix{Edits: []ast.TextEdit{replaceSpan(t, t, requoted)}}
@@ -150,12 +156,42 @@ func (b *Builder) escapeFix(t antlr.Token) (*ast.Fix, string) {
 	if shouldPreserveExpressionSource(source) && !(template && hasParams) {
 		return &ast.Fix{}, ""
 	}
-	if strings.ContainsAny(requoted, "\r\n") && !template {
-		return nil, "under mdl 1 the line break is written into the string itself, which makes the expression " +
-			"one that is stored as written rather than re-rendered, and that can change what it builds; " +
-			"rewrite it by hand"
+	if !template && b.holdsEscapedLineBreak(top) {
+		return b.storedExpressionFix(top), ""
 	}
 	return rewrite, ""
+}
+
+// holdsEscapedLineBreak reports whether a string literal of expr spells a line
+// break with an mdl 0 escape. Such an expression is rewritten as a whole, so
+// none of its literals may also be requoted in place.
+func (b *Builder) holdsEscapedLineBreak(expr antlr.ParserRuleContext) bool {
+	for i := expr.GetStart().GetTokenIndex(); i <= expr.GetStop().GetTokenIndex(); i++ {
+		if lit := b.stringLits[i]; lit != nil && strings.ContainsAny(unquoteString(lit.GetText()), "\r\n") &&
+			hasInterpretedEscape(lit.GetText()) {
+			return true
+		}
+	}
+	return false
+}
+
+// storedExpressionFix replaces a re-rendered expression holding an escaped
+// line break by the Mendix expression mdl 0 stores for it: the renderer's
+// output, whose string literals hold the line break itself. Under mdl 1 that
+// source spans lines, so it is stored as written, and what is written is what
+// mdl 0 stored. A second escaped literal in the same expression is covered by
+// the first one's edit and adds none.
+func (b *Builder) storedExpressionFix(expr antlr.ParserRuleContext) *ast.Fix {
+	start := expr.GetStart().GetTokenIndex()
+	if b.storedExprs[start] {
+		return &ast.Fix{}
+	}
+	if b.storedExprs == nil {
+		b.storedExprs = map[int]bool{}
+	}
+	b.storedExprs[start] = true
+	stored := mendixexpr.String(buildExpression(expr.(parser.IExpressionContext)))
+	return &ast.Fix{Edits: []ast.TextEdit{replaceSpan(expr.GetStart(), expr.GetStop(), stored)}}
 }
 
 // requoteForV1 writes an mdl 0 string literal so that it has the same value

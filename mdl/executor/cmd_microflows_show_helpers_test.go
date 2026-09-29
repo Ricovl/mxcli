@@ -215,7 +215,7 @@ func TestPrependFreeAnnotationLines_ModelAnnotationsStayFree(t *testing.T) {
 		"log info 'Synthetic' 'message';",
 	}
 
-	gotLines := prependFreeAnnotationLines(oc, activityLines)
+	gotLines := prependFreeAnnotationLines(nil, oc, activityLines)
 	got := strings.Join(gotLines, "\n")
 
 	want := strings.Join([]string{
