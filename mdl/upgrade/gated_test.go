@@ -67,6 +67,17 @@ func TestUpgrade_GatedRewrites(t *testing.T) {
 			mf + "  log info 'x\ty\nz {1}' with ({1} = $S);\nend;\n", true},
 		{"escape in a message template over two lines, with parameters", mf + "  show message 'it\\'s\\\\\n{1}' type Error with ({1} = $S);\nend;\n",
 			mf + "  show message 'it''s\\\n{1}' type Error with ({1} = $S);\nend;\n", true},
+		// An escaped line break in an expression the builder re-renders: the
+		// line break goes into the literal, and the expression becomes the one
+		// mdl 0 stored, since under mdl 1 a source over lines is stored as
+		// written (ako/mxcli#804). sameAST is false: mdl 1 keeps the source.
+		{"escaped line break in an expression", mf + "  declare $s String = 'a\\nb';\nend;\n",
+			mf + "  declare $s String = 'a\nb';\nend;\n", false},
+		{"escaped line break in a compound expression is written as stored",
+			mf + "  declare $s String = 'it''s\\r\\n' + TOSTRING( $S ) + 'C:\\\\new';\nend;\n",
+			mf + "  declare $s String = 'it''s\r\n' + toString($S) + 'C:\\\\new';\nend;\n", false},
+		{"escaped line break in a change member", mf + "  change $o (Name = '{\\n  1\\n}', Code = 'x');\nend;\n",
+			mf + "  change $o (Name = '{\n  1\n}', Code = 'x');\nend;\n", false},
 		{"escaped tab in an expression", mf + "  declare $s String = 'a\\tb';\nend;\n",
 			mf + "  declare $s String = 'a\tb';\nend;\n", true},
 		{"limit 1 is an object", mf + "  retrieve $X from M.E where Name = 'a' limit 1;\nend;\n",
@@ -125,8 +136,6 @@ func TestUpgrade_UnrewritableBlocksTheHeader(t *testing.T) {
 		{"nested list operation", mf + "  $n = count(filter($L, Name = 'x'));\nend;\n", "MDL-V1-LIST", "nested call"},
 		{"find on a call's result", mf + "  $R = call microflow M.G();\n  $F = find($R, Name = 'x');\nend;\n",
 			"MDL-V1-LIST", "does not state"},
-		{"escaped line break in an expression", mf + "  declare $s String = 'a\\nb';\nend;\n",
-			"MDL-V1-ESCAPE", "line break"},
 		{"view entity replace", "create or replace view entity M.V (Name: String(100)) as (select c.Name as Name from M.Customer as c);\n",
 			"MDL-V1-REPLACE01", "drops and recreates"},
 		{"unknown property", "create rest client M.Api (BaseUrl: 'https://x', Authentication: none) " +
