@@ -105,7 +105,10 @@ func (pb *pageBuilder) buildDataViewV3(w *ast.WidgetV3) (*pages.DataView, error)
 		// can be resolved to Entity.Attr
 		if w.Name != "" && entityName != "" {
 			pb.paramEntityNames[w.Name] = entityName
-			pb.registerDataViewVariable(w.Name, dataSource)
+			// Only while its own children are built: a data view is a source
+			// for the widgets inside it, and a sibling reading through it is
+			// CE7001 "Widget should be placed inside Data view" (#826).
+			defer pb.registerDataViewVariable(w.Name, dataSource)()
 		}
 	}
 

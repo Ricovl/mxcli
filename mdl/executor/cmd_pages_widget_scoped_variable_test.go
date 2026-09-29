@@ -160,3 +160,32 @@ func TestSnippetCallLocalVariableArgument(t *testing.T) {
 		}
 	}
 }
+
+// A data view is a source only for the widgets inside it. Reading through one
+// that is closed — a sibling built earlier on the same page — was accepted and
+// written, and mx check 11.13.0 rejected the page: CE7001 "Widget should be
+// placed inside Data view 'dv1' to use it as a source widget."
+func TestInputAttributeThroughClosedDataView(t *testing.T) {
+	pb := scopedPB(false)
+	dataView := func(name string, children ...*ast.WidgetV3) *ast.WidgetV3 {
+		return &ast.WidgetV3{
+			Name: name, Type: "dataview",
+			Properties: map[string]any{"DataSource": &ast.DataSourceV3{Type: "parameter", Reference: "$Task"}},
+			Children:   children,
+		}
+	}
+	input := func(name, attr string) *ast.WidgetV3 {
+		return &ast.WidgetV3{Name: name, Type: "textbox", Properties: map[string]any{"Attribute": attr}}
+	}
+	if _, err := pb.buildDataViewV3(dataView("dv1", input("tb1", "Title"))); err != nil {
+		t.Fatalf("dv1: %v", err)
+	}
+	_, err := pb.buildDataViewV3(dataView("dv2", input("tb2", "$dv1.Title")))
+	if err == nil || !strings.Contains(err.Error(), "data view") {
+		t.Errorf("reading through a closed data view: err = %v, want a refusal", err)
+	}
+	// Control: an enclosing data view, one level out, still resolves.
+	if _, err := pb.buildDataViewV3(dataView("dv3", dataView("dv4", input("tb3", "$dv3.Title")))); err != nil {
+		t.Errorf("reading through an enclosing data view: %v", err)
+	}
+}

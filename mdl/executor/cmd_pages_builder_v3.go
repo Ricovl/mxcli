@@ -2345,7 +2345,10 @@ func (pb *pageBuilder) associationEndpoints(assocQN string) (fromEntity, toEntit
 // page or snippet parameter, that parameter in its slot. Studio Pro stores the
 // pair — given only the widget through its MCP server, Studio Pro 11.14 filled
 // in the data view's page parameter itself (ako/mxcli#826).
-func (pb *pageBuilder) registerDataViewVariable(name string, ds pages.DataSource) {
+//
+// The returned func unregisters it again — called when the data view's own
+// children are built, since only they may read through it.
+func (pb *pageBuilder) registerDataViewVariable(name string, ds pages.DataSource) (unregister func()) {
 	wv := pages.WidgetVariable{Widget: name}
 	if src, ok := ds.(*pages.DataViewSource); ok && src.ParameterName != "" {
 		wv.Variable = src.ParameterName
@@ -2356,7 +2359,15 @@ func (pb *pageBuilder) registerDataViewVariable(name string, ds pages.DataSource
 	if pb.dataViewVariables == nil {
 		pb.dataViewVariables = map[string]pages.WidgetVariable{}
 	}
+	outer, shadowed := pb.dataViewVariables[name]
 	pb.dataViewVariables[name] = wv
+	return func() {
+		if shadowed {
+			pb.dataViewVariables[name] = outer
+		} else {
+			delete(pb.dataViewVariables, name)
+		}
+	}
 }
 
 // isDeclaredParameter reports whether name is one of the document's entity-typed
@@ -2387,11 +2398,12 @@ func (pb *pageBuilder) widgetVariableFor(name string) (pages.WidgetVariable, boo
 
 // resolveInputBinding resolves an input widget's `Attribute:`. A bare or
 // association path binds against the enclosing data context, as before.
-// `$dataView1.Attr` reads through the named data view: Studio Pro's
+// `$dataView1.Attr` reads through the named enclosing data view: Studio Pro's
 // widget-scoped SourceVariable {Widget: dataView1, PageParameter: …}, which
 // describe prints in that form (ako/mxcli#826). Any other `$name` — a
-// parameter, an unknown name — is refused: nothing else is measured, and the
-// writer would otherwise store a binding that reads nothing.
+// parameter, an unknown name, a data view the input is not inside (CE7001) —
+// is refused: nothing else is measured, and the writer would otherwise store a
+// binding that reads nothing.
 func (pb *pageBuilder) resolveInputBinding(w *ast.WidgetV3, attr string) (string, []pages.AttributeRefStep, *pages.WidgetVariable, error) {
 	name, attrName, ok := strings.Cut(strings.TrimPrefix(attr, "$"), ".")
 	if !strings.HasPrefix(attr, "$") {
@@ -2402,7 +2414,7 @@ func (pb *pageBuilder) resolveInputBinding(w *ast.WidgetV3, attr string) (string
 	if !ok || attrName == "" || !known || pb.isDeclaredParameter(name) {
 		return "", nil, nil, mdlerrors.NewValidationf(
 			"%s `%s`: `Attribute: %s` — `$name.Attr` on an input reads through a data view, and `$%s` is not a data view "+
-				"on this document. Bind the attribute by name inside the data view (`Attribute: %s`), or name an enclosing data view",
+				"enclosing it. Bind the attribute by name inside the data view (`Attribute: %s`), or name an enclosing data view",
 			strings.ToLower(w.Type), w.Name, attr, name, attrName)
 	}
 	path := pb.resolveAttributePathForEntity(attrName, pb.paramEntityNames[name])

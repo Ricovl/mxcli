@@ -33,3 +33,27 @@ func TestWidgetAttributeThroughDataViewParses(t *testing.T) {
 		}
 	}
 }
+
+// The `$name.Attr` form is read only by the six built-in input builders. Every
+// other widget that takes `Attribute:` — a combo box, a dynamic text, a data
+// grid column — has no Widget slot to fill and resolved the `$…` string to no
+// attribute at all: `combobox cb (Attribute: $dataView1.Name)` executed as
+// "Created page" with the attribute silently gone, where it used to be a parse
+// error. It stays one for them.
+func TestWidgetAttributeThroughDataViewRefusedOnOtherWidgets(t *testing.T) {
+	for _, w := range []string{"combobox cb", "dynamictext dt", "image img"} {
+		src := "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: ($A: M.A)) {\n" +
+			"  dataview dataView1 (DataSource: $A) { " + w + " (Attribute: $dataView1.Name) }\n};"
+		if _, errs := Build(src); len(errs) == 0 {
+			t.Errorf("%s (Attribute: $dataView1.Name): parsed; want a refusal", w)
+		}
+	}
+	// Control: every input the builder resolves the form for still parses.
+	for _, w := range []string{"textbox", "textarea", "checkbox", "datepicker", "radiobuttons", "dropdown"} {
+		src := "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: ($A: M.A)) {\n" +
+			"  dataview dataView1 (DataSource: $A) { " + w + " w1 (Attribute: $dataView1.Name) }\n};"
+		if _, errs := Build(src); len(errs) > 0 {
+			t.Errorf("%s (Attribute: $dataView1.Name): %v", w, errs[0])
+		}
+	}
+}
