@@ -82,6 +82,11 @@ func init() {
 	codec.RegisterTypeDefaults("Forms$GridSortBar", codec.TypeDefaults{
 		MandatoryListMarkers: map[string]int32{"SortItems": 2},
 	})
+	// Populated too: 164 of 164 GridSortBar.SortItems in the Studio Pro-authored
+	// fixtures (TestApp, PedApp) are marker 2, empty or not. The child type's
+	// default was 3, so every sorted list view described and re-executed was
+	// rewritten (ako/mxcli#721 L5).
+	codec.RegisterPropertyListMarker("Forms$GridSortBar", "SortItems", 2)
 	// A native ListView's Search (Forms$ListViewSearch) always carries a (usually
 	// empty) SearchRefs list — Studio Pro serializes it even with search disabled.
 	// The codec encoder omits an empty, never-Set PartList on a freshly-created
@@ -92,7 +97,16 @@ func init() {
 	// retrieveByXPath/processResult once search is exercised. (searchPaths was
 	// removed in 7.11.0; searchRefs is the valid list on 11.x.)
 	codec.RegisterTypeDefaults("Forms$ListViewSearch", codec.TypeDefaults{
-		MandatoryLists: []string{"SearchRefs"},
+		MandatoryListMarkers: map[string]int32{"SearchRefs": 2},
+	})
+	// Marker 2, empty or not: 44 of 44 in the Studio Pro-authored fixtures; the
+	// empty list used to take the encoder's default 3 (ako/mxcli#721 L5).
+	codec.RegisterPropertyListMarker("Forms$ListViewSearch", "SearchRefs", 2)
+	// A List View's XPath source always carries its SourceVariable key, null
+	// when the source is not reached from a parameter: 44 of 44 in the
+	// fixtures, as on the pluggable XPath source above (ako/mxcli#721 L5).
+	codec.RegisterTypeDefaults("Forms$ListViewXPathSource", codec.TypeDefaults{
+		NullFields: []string{"SourceVariable"},
 	})
 	// LayoutGrid and its rows carry a null ConditionalVisibilitySettings; the grid,
 	// rows, and columns all use the typed-array marker 2 in their parent lists.
@@ -274,10 +288,13 @@ func init() {
 	})
 	// ListView: null visibility; always emits its Templates list; marker 2.
 	codec.RegisterTypeDefaults("Forms$ListView", codec.TypeDefaults{
-		NullFields:     []string{"ConditionalVisibilitySettings"},
-		MandatoryLists: []string{"Templates"},
+		NullFields:           []string{"ConditionalVisibilitySettings"},
+		MandatoryListMarkers: map[string]int32{"Templates": 2},
 	})
 	codec.RegisterListMarker("Forms$ListView", 2)
+	// Templates is marker 2, empty or not — 45 of 45 in the fixtures; the empty
+	// list used to take the encoder's default 3 (ako/mxcli#721 L5).
+	codec.RegisterPropertyListMarker("Forms$ListView", "Templates", 2)
 	codec.RegisterListMarker("Forms$ListViewTemplate", 2)
 	// GroupBox: container with caption/header; null visibility; marker 2.
 	codec.RegisterTypeDefaults("Forms$GroupBox", codec.TypeDefaults{
