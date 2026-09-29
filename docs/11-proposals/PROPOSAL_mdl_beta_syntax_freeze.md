@@ -977,6 +977,8 @@ See the implementation plan in §9, which supersedes the short list that was her
 
 10. **Drift detection is optimistic locking, and is optional** (§8.2). A `@base '<fingerprint>'` annotation on the statement is emitted by `describe`, checked by `create or modify`, and updated by `exec`. Projects driven entirely by MDL skip it and instead require a dry run of all scripts to report no changes. There is no sidecar state file.
 
+11. **A line break in a text template is written into the literal** (ako/mxcli#746, decided 2026-09-29). Under `mdl 1` the message of `log`, `show message` and `validation feedback`, written as one string literal, is the template text whether or not the literal spans lines; `describe` under the header writes the stored break as a break. Without the header a lone literal that spans lines keeps its alpha meaning — an expression, stored as the template `{1}` with the literal as its parameter — and warns `MDL-V1-TEMPLATE`; `fmt --upgrade` rewrites it to `'{1}' with ({1} = …)`, and rewrites the alpha `'a\nb'` to the literal with the break in it. Alternatives rejected: `$$…$$` (for foreign content, R11/§4; a template is MDL text, and a second literal kind in one position would be a second spelling of the same value), a `\n` escape kept for templates only (R11: `''` is the only escape), and a template-only newline function or keyword (new grammar for one character, and not what Studio Pro stores or shows).
+
 ### Still open
 
 None. All decisions needed to start are recorded above.

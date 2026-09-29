@@ -253,6 +253,13 @@ func workflowStringArgumentsFix(ctx workflowCallCtx) (*ast.Fix, string) {
 func (b *Builder) ExitShowMessageStatement(ctx *parser.ShowMessageStatementContext) {
 	b.recordObjectsList(ctx.OBJECTS(), ctx.LBRACKET(), ctx.ExpressionList(), ctx.RBRACKET())
 	b.checkTemplateNumbering(ctx.TemplateParams())
+	if msg := ctx.Expression(); msg != nil {
+		after := msg.(antlr.ParserRuleContext).GetStop()
+		if t := ctx.IdentifierOrKeyword(); t != nil {
+			after = t.GetStop()
+		}
+		b.noteTemplateLineBreak(msg, ctx.TemplateParams() != nil || ctx.OBJECTS() != nil, after, ctx.SHOW().GetSymbol())
+	}
 }
 
 // ExitValidationFeedbackStatement is ExitShowMessageStatement for validation
@@ -260,6 +267,10 @@ func (b *Builder) ExitShowMessageStatement(ctx *parser.ShowMessageStatementConte
 func (b *Builder) ExitValidationFeedbackStatement(ctx *parser.ValidationFeedbackStatementContext) {
 	b.recordObjectsList(ctx.OBJECTS(), ctx.LBRACKET(), ctx.ExpressionList(), ctx.RBRACKET())
 	b.checkTemplateNumbering(ctx.TemplateParams())
+	if msg := ctx.Expression(); msg != nil {
+		b.noteTemplateLineBreak(msg, ctx.TemplateParams() != nil || ctx.OBJECTS() != nil,
+			msg.(antlr.ParserRuleContext).GetStop(), ctx.VALIDATION().GetSymbol())
+	}
 }
 
 func (b *Builder) recordObjectsList(objects, lbracket antlr.TerminalNode, list parser.IExpressionListContext, rbracket antlr.TerminalNode) {

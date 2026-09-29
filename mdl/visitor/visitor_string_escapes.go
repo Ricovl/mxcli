@@ -122,9 +122,10 @@ func (b *Builder) VisitTerminal(node antlr.TerminalNode) {
 //
 // An escaped line break in a re-rendered expression has no rewrite: writing the
 // break into the source makes the builder store the expression as written,
-// which is not always what it wrote before. A log message is the measured case
-// (mdl-examples/bug-tests/264-log-node-expression-roundtrip.mdl): a lone
-// literal is the message template, the stored expression a `{1}` parameter.
+// which is not always what it wrote before. The exception is a text template
+// written as one literal (mdl-examples/bug-tests/264-log-node-expression-roundtrip.mdl):
+// under mdl 1 that literal is the template text whether or not it spans lines
+// (templateLineBreak, #746), which is what the one-line literal was under mdl 0.
 func (b *Builder) escapeFix(t antlr.Token) (*ast.Fix, string) {
 	requoted := requoteForV1(t.GetText())
 	rewrite := &ast.Fix{Edits: []ast.TextEdit{replaceSpan(t, t, requoted)}}
@@ -145,10 +146,10 @@ func (b *Builder) escapeFix(t antlr.Token) (*ast.Fix, string) {
 	if shouldPreserveExpressionSource(source) {
 		return &ast.Fix{}, ""
 	}
-	if strings.ContainsAny(requoted, "\r\n") {
+	if strings.ContainsAny(requoted, "\r\n") && !isTemplateMessage(top) {
 		return nil, "under mdl 1 the line break is written into the string itself, which makes the expression " +
-			"one that is stored as written rather than re-rendered, and that can change what it builds " +
-			"(a log message becomes a `{1}` parameter); rewrite it by hand"
+			"one that is stored as written rather than re-rendered, and that can change what it builds; " +
+			"rewrite it by hand"
 	}
 	return rewrite, ""
 }
@@ -158,4 +159,23 @@ func (b *Builder) escapeFix(t antlr.Token) (*ast.Fix, string) {
 // escape.
 func requoteForV1(lit string) string {
 	return "'" + strings.ReplaceAll(unquoteString(lit), "'", "''") + "'"
+}
+
+// isTemplateMessage reports whether expr is, in full, the message of a log,
+// show message or validation feedback and one string literal: the text of a
+// template, which a line break does not turn into an expression under mdl 1.
+func isTemplateMessage(expr antlr.ParserRuleContext) bool {
+	e, ok := expr.(*parser.ExpressionContext)
+	if !ok || loneStringLiteral(e) == nil {
+		return false
+	}
+	switch p := e.GetParent().(type) {
+	case *parser.LogStatementContext:
+		return logMessageExpression(p) == e
+	case *parser.ShowMessageStatementContext:
+		return p.Expression() == e
+	case *parser.ValidationFeedbackStatementContext:
+		return p.Expression() == e
+	}
+	return false
 }

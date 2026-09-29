@@ -125,3 +125,15 @@ func formatAggregateActivity(ctx *ExecContext, a *microflows.AggregateListAction
 	}
 	return fmt.Sprintf("%s = %s %s by %s;", out, fn, list, mdlIdent(attrName))
 }
+
+// templateQuote writes the text of a log, show message or validation feedback
+// template as the literal that reads back as that text (#746). Under mdl 1 a
+// backslash is an ordinary character and a doubled apostrophe the only escape, so a line break
+// is written into the literal as it is; the mdl 0 form writes it `\n`, which
+// under mdl 1 would be a backslash and an n.
+func templateQuote(ctx *ExecContext, text string) string {
+	if describeLanguage(ctx) >= langver.V1 {
+		return mdlQuoted(text)
+	}
+	return mdlQuote(text)
+}

@@ -53,9 +53,9 @@ func buildLogStatement(ctx parser.ILogStatementContext) *ast.LogStmt {
 	if logCtx.NODE() != nil && len(exprs) > 1 {
 		stmt.Node = buildSourceExpression(exprs[0])
 		stmt.Node = appendLogNodeTrailingWhitespace(exprs[0], exprs[1], stmt.Node)
-		stmt.Message = buildSourceExpression(exprs[1])
+		stmt.Message = buildTemplateMessage(exprs[1], logCtx.LogTemplateParams() != nil)
 	} else if len(exprs) > 0 {
-		stmt.Message = buildSourceExpression(exprs[0])
+		stmt.Message = buildTemplateMessage(exprs[0], logCtx.LogTemplateParams() != nil)
 	}
 
 	// Parse template parameters: WITH ({1} = expr, {2} = expr, ...)
@@ -1285,7 +1285,7 @@ func buildShowMessageStatement(ctx parser.IShowMessageStatementContext) *ast.Sho
 	}
 
 	if expr := smCtx.Expression(); expr != nil {
-		stmt.Message = buildSourceExpression(expr)
+		stmt.Message = buildTemplateMessage(expr, smCtx.TemplateParams() != nil || smCtx.OBJECTS() != nil)
 	}
 
 	if id := smCtx.IdentifierOrKeyword(); id != nil {
@@ -1387,7 +1387,7 @@ func buildValidationFeedbackStatement(ctx parser.IValidationFeedbackStatementCon
 
 	// Build message expression
 	if msgExpr := vfCtx.Expression(); msgExpr != nil {
-		stmt.Message = buildSourceExpression(msgExpr)
+		stmt.Message = buildTemplateMessage(msgExpr, vfCtx.TemplateParams() != nil || vfCtx.OBJECTS() != nil)
 	}
 
 	// Build template arguments (optional): `with ({1} = e)`, or the deprecated
