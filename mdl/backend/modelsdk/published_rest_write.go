@@ -68,6 +68,11 @@ func (b *Backend) UpdatePublishedRestService(svc *model.PublishedRestService) er
 	if err != nil {
 		return fmt.Errorf("UpdatePublishedRestService: encode: %w", err)
 	}
+	// publishedRestServiceToGen writes ExportLevel "Hidden" as a constant (#816).
+	contents, err = b.keepStoredExportLevel(string(svc.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdatePublishedRestService: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(svc.ID), contents)
 }
 

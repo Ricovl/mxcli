@@ -80,6 +80,11 @@ func (b *Backend) UpdateScheduledEvent(ev *model.ScheduledEvent) error {
 	if err != nil {
 		return err
 	}
+	// describe prints no ExportLevel property, so an unauthored one is kept (#816).
+	contents, err = b.keepStoredExportLevelUnlessSet(string(ev.ID), ev.ExportLevel, contents)
+	if err != nil {
+		return fmt.Errorf("UpdateScheduledEvent: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(ev.ID), contents)
 }
 

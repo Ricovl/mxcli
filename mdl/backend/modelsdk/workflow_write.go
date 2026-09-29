@@ -190,6 +190,11 @@ func (b *Backend) UpdateWorkflow(wf *workflows.Workflow) error {
 	if err != nil {
 		return fmt.Errorf("UpdateWorkflow: encode: %w", err)
 	}
+	// A rewrite without an `export level` clause keeps the stored level (#816).
+	contents, err = b.keepStoredExportLevelUnlessSet(string(wf.ID), wf.ExportLevel, contents)
+	if err != nil {
+		return fmt.Errorf("UpdateWorkflow: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(wf.ID), contents)
 }
 
@@ -261,7 +266,9 @@ func workflowToGen(wf *workflows.Workflow) element.Element {
 		addPartList(g, "EventSubProcesses", esps)
 	}
 	addBool(g, "Excluded", wf.Excluded)
-	addStr(g, "ExportLevel", "Hidden")
+	// The statement's `export level`, when it has one (#816): the constant this
+	// wrote made the clause a no-op on create and on every rewrite.
+	addStr(g, "ExportLevel", orDefault(wf.ExportLevel, "Hidden"))
 	flow := wf.Flow
 	if flow == nil {
 		flow = &workflows.Flow{}
