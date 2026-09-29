@@ -309,6 +309,14 @@ func convertASTDataSource(value interface{}) (pages.DataSource, error) {
 	case "selection":
 		return &pages.ListenToWidgetSource{WidgetName: ds.Reference}, nil
 	case "database":
+		if ds.AssociationPath != "" {
+			// The entity it arrives at and the SourceVariable slot are resolved by
+			// the CREATE PAGE builder, which REPLACE reaches (ako/mxcli#721 L5).
+			return nil, mdlerrors.NewUnsupported(
+				"alter page set DataSource = database from $" + ds.ContextVariable + "/" + ds.AssociationPath +
+					" is not supported — use `replace <widget> with …`, which rebuilds the widget " +
+					"through the CREATE PAGE path")
+		}
 		return &pages.DatabaseSource{EntityName: ds.Reference}, nil
 	case "microflow":
 		return &pages.MicroflowSource{Microflow: ds.Reference}, nil

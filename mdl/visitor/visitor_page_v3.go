@@ -1031,7 +1031,9 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 	dsCtx := ctx.(*parser.DataSourceExprV3Context)
 	ds := &ast.DataSourceV3{}
 
-	if v := dsCtx.VARIABLE(); v != nil && dsCtx.SLASH() != nil {
+	if dsCtx.DATABASE() != nil {
+		buildDatabaseSourceV3(dsCtx, ds)
+	} else if v := dsCtx.VARIABLE(); v != nil && dsCtx.SLASH() != nil {
 		// $currentObject/Module.Assoc — ByAssociation data source (sugar for ASSOCIATION Path)
 		ds.Type = "association"
 		ds.ContextVariable = strings.TrimPrefix(v.GetText(), "$")
@@ -1042,39 +1044,6 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 		// $ParamName
 		ds.Type = "parameter"
 		ds.Reference = v.GetText()
-	} else if dsCtx.DATABASE() != nil {
-		// DATABASE [FROM] Entity [WHERE ...] [SORT BY ...]
-		ds.Type = "database"
-		if qn := dsCtx.QualifiedName(); qn != nil {
-			ds.Reference = getQualifiedNameText(qn)
-		}
-
-		// Inline WHERE clause
-		if dsCtx.WHERE() != nil {
-			xpathConstraints := dsCtx.AllXpathConstraint()
-			if len(xpathConstraints) > 0 {
-				ds.Where = normalizeXPathTokens(buildXPathString(xpathConstraints, dsCtx.AllAndOrXpath()))
-			} else if expr := dsCtx.Expression(); expr != nil {
-				ds.Where = bracketedXPathFromExpr(buildExpression(expr))
-			}
-		}
-
-		// Inline SORT BY clause
-		if dsCtx.SORT_BY() != nil {
-			for _, sc := range dsCtx.AllSortColumn() {
-				ds.OrderBy = append(ds.OrderBy, buildSortColumnAsOrderBy(sc))
-			}
-		}
-
-		// Inline SEARCH BY clause — a List View's search bar
-		// (Forms$ListViewSearch.SearchRefs). Names only, no direction.
-		if dsCtx.SEARCH_BY() != nil {
-			for _, sa := range dsCtx.AllSearchAttribute() {
-				if name := strings.TrimSpace(sa.GetText()); name != "" {
-					ds.SearchAttributes = append(ds.SearchAttributes, name)
-				}
-			}
-		}
 	} else if dsCtx.MICROFLOW() != nil {
 		// MICROFLOW Module.Flow
 		ds.Type = "microflow"
@@ -1111,6 +1080,49 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 	}
 
 	return ds
+}
+
+// buildDatabaseSourceV3 fills a DATABASE source: its entity, or — for
+// `database from $ctx/Assoc/Entity` — the context variable and association path
+// it is reached over (ako/mxcli#721 L5), then the WHERE, SORT BY and SEARCH BY
+// clauses both forms share.
+func buildDatabaseSourceV3(dsCtx *parser.DataSourceExprV3Context, ds *ast.DataSourceV3) {
+	ds.Type = "database"
+	if v := dsCtx.VARIABLE(); v != nil {
+		ds.ContextVariable = strings.TrimPrefix(v.GetText(), "$")
+		if pathCtx := dsCtx.AssociationPathV3(); pathCtx != nil {
+			ds.AssociationPath = buildAssociationPathV3(pathCtx)
+		}
+	} else if qn := dsCtx.QualifiedName(); qn != nil {
+		ds.Reference = getQualifiedNameText(qn)
+	}
+
+	// Inline WHERE clause
+	if dsCtx.WHERE() != nil {
+		xpathConstraints := dsCtx.AllXpathConstraint()
+		if len(xpathConstraints) > 0 {
+			ds.Where = normalizeXPathTokens(buildXPathString(xpathConstraints, dsCtx.AllAndOrXpath()))
+		} else if expr := dsCtx.Expression(); expr != nil {
+			ds.Where = bracketedXPathFromExpr(buildExpression(expr))
+		}
+	}
+
+	// Inline SORT BY clause
+	if dsCtx.SORT_BY() != nil {
+		for _, sc := range dsCtx.AllSortColumn() {
+			ds.OrderBy = append(ds.OrderBy, buildSortColumnAsOrderBy(sc))
+		}
+	}
+
+	// Inline SEARCH BY clause — a List View's search bar
+	// (Forms$ListViewSearch.SearchRefs). Names only, no direction.
+	if dsCtx.SEARCH_BY() != nil {
+		for _, sa := range dsCtx.AllSearchAttribute() {
+			if name := strings.TrimSpace(sa.GetText()); name != "" {
+				ds.SearchAttributes = append(ds.SearchAttributes, name)
+			}
+		}
+	}
 }
 
 // buildActionV3 builds an Action from the parse context.

@@ -248,12 +248,22 @@ func formatASTPropertyValue(v interface{}) string {
 	}
 }
 
+// databaseSourceFrom is what follows `database from`: the entity, or the
+// `$ctx/Assoc/Entity` path of a source reached over an association
+// (ako/mxcli#721 L5).
+func databaseSourceFrom(ds *ast.DataSourceV3) string {
+	if ds.AssociationPath != "" {
+		return "$" + ds.ContextVariable + "/" + ds.AssociationPath
+	}
+	return ds.Reference
+}
+
 func formatDataSourceV3(ds *ast.DataSourceV3) string {
 	switch ds.Type {
 	case "parameter":
 		return ds.Reference
 	case "database":
-		return "database " + ds.Reference
+		return "database " + databaseSourceFrom(ds)
 	case "microflow":
 		return "microflow " + ds.Reference
 	case "nanoflow":
