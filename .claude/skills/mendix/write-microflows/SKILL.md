@@ -45,11 +45,10 @@ Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mod
 - **Authored in Studio Pro:** prefer `alter microflow X { insert/replace/drop … }`
   (targets from `describe microflow X with handles`). `create or modify` of `describe`
   output patches too: unchanged writes nothing; a top-level or `if`-branch statement
-  change is spliced in, and so is a changed `return` value (set on the stored end
-  event); a body without a trailing `return` means the stored end. Other changes
-  (header, loop body, error handler, moved node or `@start`, a `return` added or
-  taken away) rebuild the flow under mdl 0 (`MDL-V1-REBUILD`: IDs renumbered, merges and curves
-  lost) and are refused under `mdl 1;`.
+  change is spliced in, and so is a changed `return` value (no trailing `return` means the
+  stored end). Other changes (header, loop body, error handler, moved node or `@start`, a
+  `return` added or taken away) rebuild the flow under mdl 0 (`MDL-V1-REBUILD`: IDs
+  renumbered, merges and curves lost) and are refused under `mdl 1;`.
 
 ## When to Use a Microflow vs a Nanoflow
 
