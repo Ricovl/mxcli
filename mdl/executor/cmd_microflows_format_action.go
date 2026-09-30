@@ -577,11 +577,16 @@ func formatAction(
 				if groups := visitor.SplitXPathPredicateGroups(constraint); len(groups) > 0 {
 					if len(groups) > 1 {
 						constraint = strings.Join(groups, "\n    ")
-					} else {
+					} else if inner := strings.TrimSuffix(strings.TrimPrefix(groups[0], "["), "]"); !xpathHasNestedPredicate(inner) {
 						// A lone group renders without its outer brackets, matching
 						// the `where <expr>` form the MDL grammar expects.
-						constraint = strings.TrimSuffix(strings.TrimPrefix(groups[0], "["), "]")
+						constraint = inner
 					}
+					// A group holding a nested predicate (`A/B[Name = empty]`)
+					// keeps its outer brackets: the bare `where <expr>` form is
+					// read as an expression, which has no `[`, so its own parser
+					// rejected the description and create or modify could not
+					// compare the stored flow at all (ako/mxcli#859).
 				}
 				// A string in the constraint is stored as its value, as in an
 				// expression; under mdl 0 its backslashes are escaped so that it
@@ -2078,6 +2083,30 @@ func shortSortAttribute(ctx *ExecContext, entityQN, attrQN string) string {
 		return bare
 	}
 	return attrQN
+}
+
+// xpathHasNestedPredicate reports whether an XPath constraint, without its
+// outer brackets, holds a `[` outside a string literal — a predicate on a path
+// step, which only the bracketed `where [ … ]` form can state.
+func xpathHasNestedPredicate(xpath string) bool {
+	for i := 0; i < len(xpath); i++ {
+		switch xpath[i] {
+		case '\'':
+			// Skip the literal; a doubled quote is an escaped one.
+			for i++; i < len(xpath); i++ {
+				if xpath[i] == '\'' {
+					if i+1 < len(xpath) && xpath[i+1] == '\'' {
+						i++
+						continue
+					}
+					break
+				}
+			}
+		case '[':
+			return true
+		}
+	}
+	return false
 }
 
 // enrichXPathConstraintForDescribe enriches the raw BSON XPathConstraint string for

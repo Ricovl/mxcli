@@ -18,6 +18,8 @@ func runFmt(t *testing.T, args ...string) (string, error) {
 		_ = fmtCmd.Flags().Set(f, "false")
 		fmtCmd.Flags().Lookup(f).Changed = false
 	}
+	_ = rootCmd.PersistentFlags().Set("project", "")
+	rootCmd.PersistentFlags().Lookup("project").Changed = false
 	var out bytes.Buffer
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&out)
@@ -122,4 +124,72 @@ func TestFmtUpgrade_TestFile(t *testing.T) {
 	if _, err := runFmt(t, path); err == nil || !strings.Contains(err.Error(), "--upgrade") {
 		t.Fatalf("plain fmt on a test file: %v", err)
 	}
+}
+
+// `find(…)` over a flow call's result: without a project fmt cannot tell the
+// string function from the List operation and refuses the header, saying to
+// pass the project; with -p it reads what the called flow returns there and
+// rewrites (ako/mxcli#860). PedApp's flows are Studio Pro-authored.
+func TestFmtUpgrade_FindOnACallResultReadsTheProject(t *testing.T) {
+	src := filepath.Join("..", "..", "testdata", "pedapp")
+	if _, err := os.Stat(filepath.Join(src, "PedApp.mpr")); err != nil {
+		t.Skipf("PedApp fixture not found: %v", err)
+	}
+	dir := t.TempDir()
+	if err := copyTree(src, dir); err != nil {
+		t.Fatal(err)
+	}
+	mpr := filepath.Join(dir, "PedApp.mpr")
+
+	path := filepath.Join(t.TempDir(), "s.mdl")
+	const script = "create microflow MyFirstModule.F ($o: Administration.Account) begin\n" +
+		"  declare $Pos Integer = 0;\n" +
+		"  $Url = call microflow FeedbackModule.ConvertUUIDToURL(uuid = 'x');\n" +
+		"  $Pos = find($Url, 'x');\n" +
+		"  $Ctx = call nanoflow Atlas_Web_Content.DS_LoginContext();\n" +
+		"  $Hit = find($Ctx, $currentObject = $o);\n" +
+		"end;\n"
+	if err := os.WriteFile(path, []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runFmt(t, "--upgrade", "--header", "-w", path)
+	if err == nil || !strings.Contains(err.Error(), "pass the project") {
+		t.Fatalf("without -p: want the header refused, asking for the project; got %v\n%s", err, out)
+	}
+	if got, _ := os.ReadFile(path); string(got) != script {
+		t.Fatalf("a refused upgrade wrote the file:\n%s", got)
+	}
+
+	if out, err := runFmt(t, "--upgrade", "--header", "-w", "-p", mpr, path); err != nil {
+		t.Fatalf("with -p: %v\n%s", err, out)
+	}
+	got, _ := os.ReadFile(path)
+	for _, want := range []string{
+		"mdl 1;\n",
+		"\n  set $Pos = find($Url, 'x');\n", // ConvertUUIDToURL returns a String
+		"\n  $Hit = find $Ctx where $currentObject = $o;\n", // DS_LoginContext does not
+	} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("want %q in:\n%s", want, got)
+		}
+	}
+}
+
+func copyTree(src, dst string) error {
+	return filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, p)
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
 }

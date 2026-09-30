@@ -107,6 +107,42 @@ type LanguageNote struct {
 	// meaning under the new version.
 	Fix   *Fix
 	NoFix string
+	// Operand is set on an MDL-V1-LIST note for `find(…)` / `contains(…)`
+	// whose Fix is nil only because the operand holds the result of a
+	// microflow or nanoflow call the script does not define: which activity
+	// mdl 0 builds depends on that flow's return type, which the project
+	// knows (ako/mxcli#860). An upgrade given the project resolves it and
+	// applies one of its two fixes; without one, NoFix stands.
+	Operand *OperandChoice
+}
+
+// OperandChoice is an overloaded list call — `find`, `contains` — whose
+// reading waits on the return type of the flows its operand is assigned from.
+// mdl 0 builds the String function when the operand is a String and the List
+// operation otherwise, and a call's result is a String exactly when the called
+// flow returns one (the flow builder's registerResultVariableType).
+type OperandChoice struct {
+	Variable string // the operand, `$Name`
+	Function string // `find` or `contains`, as written
+	// Flows are the calls the operand is assigned from whose flow the script
+	// does not define before the statement; each resolves in the project.
+	Flows []FlowRef
+	// Known are the readings the script already fixes for the operand's other
+	// definitions: false for a retrieve, a list statement, a loop, and for a
+	// call to a flow the script creates earlier that returns no String; true
+	// for one that returns a String.
+	Known []bool
+	// StringFix is the rewrite when the operand is a String, ListFix the one
+	// when it is not (nil with ListNoFix saying why there is none).
+	StringFix *Fix
+	ListFix   *Fix
+	ListNoFix string
+}
+
+// FlowRef names a called microflow, or nanoflow when Nanoflow is set.
+type FlowRef struct {
+	Nanoflow bool
+	Name     QualifiedName
 }
 
 // Fix is a mechanical source rewrite: edits in the coordinates the parser read

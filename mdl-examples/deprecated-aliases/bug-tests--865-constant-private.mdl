@@ -1,0 +1,14 @@
+-- ako/mxcli#865: `private` on a constant (MDL-DEPR138). The database-connections
+-- skill taught it for credentials, but Mendix has no such property and it was
+-- never stored: up to v0.24.0 the word parsed only as a help statement of its
+-- own, which built nothing. `fmt --upgrade` deletes it; the model it writes is
+-- the same with and without it. A secret belongs in `mxcli constant set`, not
+-- in the model.
+
+create module Sec865;
+
+create constant Sec865.DbUser type string default '';
+create or modify constant Sec865.DbPassword type string default '' PRIVATE;
+create constant Sec865.ApiKey type string
+  default 'dev-key' exposed to client private;
+create constant Sec865.Token ( Type: String, DefaultValue: '' ) Private;

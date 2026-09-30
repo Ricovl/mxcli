@@ -242,14 +242,19 @@ func (b *Builder) ExitListOperationStatement(ctx *parser.ListOperationStatementC
 			// string function: `set` says so under mdl 1. Any other operand
 			// is the List operation, the statement form.
 			fn := strings.ToLower(op.GetStart().GetText())
-			switch isString, known := operandKind(ctx, op.VARIABLE(0).GetText()); {
+			stringFix := &ast.Fix{Edits: []ast.TextEdit{insertAt(ctx.GetStart().GetStart(), "set ")}}
+			listFix, listWhy := fixOrReason(callFormFix(op, byExpression))
+			switch isString, known, pending, why := b.operandReading(ctx, op.VARIABLE(0).GetText(), fn); {
 			case !known:
-				b.fixLastNote(listCallForm.Code, nil, operandKindUnknown(op.VARIABLE(0).GetText(), fn))
+				b.fixLastNote(listCallForm.Code, nil, why)
+				if pending != nil {
+					pending.StringFix, pending.ListFix, pending.ListNoFix = stringFix, listFix, listWhy
+					b.chooseLastNote(listCallForm.Code, pending)
+				}
 			case isString:
-				b.fixLastNote(listCallForm.Code, &ast.Fix{Edits: []ast.TextEdit{insertAt(ctx.GetStart().GetStart(), "set ")}}, "")
+				b.fixLastNote(listCallForm.Code, stringFix, "")
 			default:
-				fix, why := fixOrReason(callFormFix(op, byExpression))
-				b.fixLastNote(listCallForm.Code, fix, why)
+				b.fixLastNote(listCallForm.Code, listFix, listWhy)
 			}
 			return
 		}
@@ -332,16 +337,18 @@ func (b *Builder) ExitSetStatement(ctx *parser.SetStatementContext) {
 				line, target, valueText, target, strings.ToLower(name)))
 			return
 		}
-		fix, why := setCallFix(ctx, value, isStringOverload(name))
+		fix, why, pending := b.setCallFix(ctx, value, isStringOverload(name))
 		b.fixLastNote(listCallForm.Code, fix, why)
+		b.chooseLastNote(listCallForm.Code, pending)
 		return
 	case name != "" && ctx.SET() != nil:
 		// `set $x = find(…)` / `contains(…)`: under mdl 1 always the string
 		// function; under mdl 0 an activity when the arguments look like one.
 		if call, ok := unwrapSource(value).(*ast.FunctionCallExpr); ok &&
 			buildListOrAggregateStatement(strings.TrimPrefix(target, "$"), call) != nil && !b.gate(listCallForm, ctx) {
-			fix, why := setCallFix(ctx, value, true)
+			fix, why, pending := b.setCallFix(ctx, value, true)
 			b.fixLastNote(listCallForm.Code, fix, why)
+			b.chooseLastNote(listCallForm.Code, pending)
 		}
 		return
 	}
@@ -361,42 +368,54 @@ func (b *Builder) ExitSetStatement(ctx *parser.SetStatementContext) {
 // form, without `set`. For find and contains the activity is what mdl 0 builds
 // only when the operand is not a String; for a String it is the string
 // function, which is what `set $x = find(…)` means under mdl 1, so a script
-// already written that way needs no edit.
-func setCallFix(ctx *parser.SetStatementContext, value ast.Expression, overloaded bool) (*ast.Fix, string) {
+// already written that way needs no edit. When the operand's type waits on
+// the project, the choice between the two is returned instead of a fix.
+func (b *Builder) setCallFix(ctx *parser.SetStatementContext, value ast.Expression, overloaded bool) (*ast.Fix, string, *ast.OperandChoice) {
 	op := singleListCall(ctx.Expression())
 	if op == nil {
 		return nil, "the operand is not a variable (a nested call or an expression), and one activity takes a " +
-			"variable: write each inner call as a statement of its own"
+			"variable: write each inner call as a statement of its own", nil
 	}
-	if overloaded {
-		lo, ok := op.(*parser.ListOperationContext)
-		if !ok || lo.VARIABLE(0) == nil {
-			return nil, "the call has no list operand"
-		}
-		v, fn := lo.VARIABLE(0), strings.ToLower(op.GetStart().GetText())
-		isString, known := operandKind(ctx, v.GetText())
-		if !known {
-			return nil, operandKindUnknown(v.GetText(), fn)
-		}
-		if isString {
-			if ctx.SET() == nil {
-				return &ast.Fix{Edits: []ast.TextEdit{insertAt(ctx.GetStart().GetStart(), "set ")}}, ""
+	listFix := func() (*ast.Fix, string) {
+		byExpression := false
+		if call, ok := unwrapSource(value).(*ast.FunctionCallExpr); ok {
+			if lo, ok := buildListOrAggregateStatement(strings.TrimPrefix(ctx.VARIABLE().GetText(), "$"), call).(*ast.ListOperationStmt); ok {
+				byExpression = lo.ByExpression
 			}
-			return &ast.Fix{}, ""
 		}
-	}
-	byExpression := false
-	if call, ok := unwrapSource(value).(*ast.FunctionCallExpr); ok {
-		if lo, ok := buildListOrAggregateStatement(strings.TrimPrefix(ctx.VARIABLE().GetText(), "$"), call).(*ast.ListOperationStmt); ok {
-			byExpression = lo.ByExpression
+		edits, why := callFormFix(op, byExpression)
+		if why != "" {
+			return nil, why
 		}
+		if set := ctx.SET(); set != nil {
+			edits = append(edits, ast.TextEdit{Start: set.GetSymbol().GetStart(), Stop: ctx.VARIABLE().GetSymbol().GetStart()})
+		}
+		return &ast.Fix{Edits: edits}, ""
 	}
-	edits, why := callFormFix(op, byExpression)
-	if why != "" {
-		return nil, why
+	if !overloaded {
+		fix, why := listFix()
+		return fix, why, nil
 	}
-	if set := ctx.SET(); set != nil {
-		edits = append(edits, ast.TextEdit{Start: set.GetSymbol().GetStart(), Stop: ctx.VARIABLE().GetSymbol().GetStart()})
+	lo, ok := op.(*parser.ListOperationContext)
+	if !ok || lo.VARIABLE(0) == nil {
+		return nil, "the call has no list operand", nil
 	}
-	return &ast.Fix{Edits: edits}, ""
+	stringFix := &ast.Fix{}
+	if ctx.SET() == nil {
+		stringFix.Edits = []ast.TextEdit{insertAt(ctx.GetStart().GetStart(), "set ")}
+	}
+	v, fn := lo.VARIABLE(0), strings.ToLower(op.GetStart().GetText())
+	isString, known, pending, why := b.operandReading(ctx, v.GetText(), fn)
+	switch {
+	case !known:
+		if pending != nil {
+			pending.StringFix = stringFix
+			pending.ListFix, pending.ListNoFix = listFix()
+		}
+		return nil, why, pending
+	case isString:
+		return stringFix, "", nil
+	}
+	fix, why := listFix()
+	return fix, why, nil
 }

@@ -180,7 +180,7 @@ func (a *alterFlowContext) noteFragment(ctx *ExecContext, frag *backend.Microflo
 			}
 		}
 		text := formatActivity(ctx, obj, a.entityNames, a.microflowNames)
-		for _, m := range variableRef.FindAllStringSubmatch(text, -1) {
+		for _, m := range variableRef.FindAllStringSubmatch(withoutStringLiterals(text), -1) {
 			a.readByOps[m[1]] = append(a.readByOps[m[1]], text)
 		}
 	}
@@ -449,6 +449,27 @@ var systemVariables = map[string]bool{
 
 var variableRef = regexp.MustCompile(`\$([A-Za-z_][A-Za-z0-9_]*)`)
 
+// withoutStringLiterals blanks the contents of every '…' string literal in an
+// activity's MDL text, so a `$` inside one — `'/odata?$filter='` — is not read
+// as a variable reference by the scope checks below (ako/mxcli#859, rehearsal
+// M4). describe doubles a quote inside a string in both language versions.
+func withoutStringLiterals(text string) string {
+	b := []byte(text)
+	in := false
+	for i := 0; i < len(b); i++ {
+		switch {
+		case b[i] == '\'' && in && i+1 < len(b) && b[i+1] == '\'':
+			b[i], b[i+1] = ' ', ' '
+			i++
+		case b[i] == '\'':
+			in = !in
+		case in:
+			b[i] = ' '
+		}
+	}
+	return string(b)
+}
+
 // checkFragmentScope is plan item 4.2d: the fragment is checked in the scope
 // of its insertion point. A variable it declares that the flow already has is
 // an error (it would shadow or clash with the stored one); a variable it uses
@@ -507,7 +528,7 @@ func (a *alterFlowContext) checkFragmentScope(ctx *ExecContext, op *ast.AlterFlo
 	var missing []string
 	seen := map[string]bool{}
 	for _, obj := range frag.Objects {
-		for _, m := range variableRef.FindAllStringSubmatch(formatActivity(ctx, obj, a.entityNames, a.microflowNames), -1) {
+		for _, m := range variableRef.FindAllStringSubmatch(withoutStringLiterals(formatActivity(ctx, obj, a.entityNames, a.microflowNames)), -1) {
 			v := m[1]
 			if seen[v] || systemVariables[v] || own[v] || (inScope[v] && !a.removedByOps[v]) {
 				continue
@@ -570,7 +591,7 @@ func (a *alterFlowContext) checkOutputUnused(target mfmutator.Candidate, replace
 			continue
 		}
 		for _, text := range append([]string{c.Statement}, c.Alternates...) {
-			if ref.MatchString(text) {
+			if ref.MatchString(withoutStringLiterals(text)) {
 				users = append(users, c.Statement)
 				break
 			}

@@ -87,8 +87,9 @@ type flowDecl struct {
 	header func(stored ast.Statement) (declared, storedHeader any)
 	// build builds the declared document the way `create` would, without
 	// writing it: the header SetHeader copies (a *microflows.Microflow or
-	// *microflows.Nanoflow), and its parameters.
-	build func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, error)
+	// *microflows.Nanoflow), its parameters, and the entity each object or
+	// list variable of the body holds as the builder resolved it.
+	build func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, map[string]string, error)
 }
 
 func (d *flowDecl) kind() string {
@@ -208,12 +209,13 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	headerChanged := !declaredMatches(decl, storedHeader)
 	storedParams := a.mf.Parameters
 	var declared any
+	var varTypes map[string]string
 	if headerChanged {
 		if err := checkRemovedParameters(ctx, d, a); err != nil {
 			return nil, asNotSpliceable(err)
 		}
 		var params []*microflows.MicroflowParameter
-		if declared, params, err = d.build(ctx); err != nil {
+		if declared, params, varTypes, err = d.build(ctx); err != nil {
 			return nil, err
 		}
 		// The fragments are built and scope-checked against the parameters
@@ -234,7 +236,19 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	var targets []mfmutator.Candidate
 	var moves []flowMove
 	if !builtAsStored(ctx, d, a, declared) {
-		if ops, targets, moves, err = diffFlowBody(a, d.body, storedBody(stored), d.returnVar); err != nil {
+		// Members are compared in the spelling describe prints them in, or a
+		// script naming one another way never matches its own stored activity.
+		// Which entity a variable holds is the builder's to say where the
+		// statement declaring it does not name one (a call's result, a retrieve
+		// over an association). A body that does not build leaves the spellings
+		// to what the statements state; its errors are reported by the patch.
+		if varTypes == nil {
+			if _, _, vt, berr := d.build(ctx); berr == nil {
+				varTypes = vt
+			}
+		}
+		body := describedMemberSpellings(ctx, d.params, d.body, varTypes)
+		if ops, targets, moves, err = diffFlowBody(a, body, storedBody(stored), d.returnVar); err != nil {
 			return nil, asNotSpliceable(err)
 		}
 	}
@@ -264,7 +278,7 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 func builtAsStored(ctx *ExecContext, d *flowDecl, a *alterFlowContext, built any) bool {
 	if built == nil {
 		var err error
-		if built, _, err = d.build(ctx); err != nil {
+		if built, _, _, err = d.build(ctx); err != nil {
 			return false
 		}
 	}
@@ -495,12 +509,12 @@ func storedFolderOf(st ast.Statement) string {
 func microflowDecl(s *ast.CreateMicroflowStmt) *flowDecl {
 	return &flowDecl{
 		name: s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType), params: s.Parameters,
-		build: func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, error) {
+		build: func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, map[string]string, error) {
 			built, err := buildMicroflowFromStmt(ctx, s, buildFlowOpts{Quiet: true})
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
-			return built.Microflow, built.Microflow.Parameters, nil
+			return built.Microflow, built.Microflow.Parameters, built.VarTypes, nil
 		},
 		header: func(stored ast.Statement) (any, any) {
 			st, _ := stored.(*ast.CreateMicroflowStmt)
@@ -555,12 +569,12 @@ func returnVariable(rt *ast.MicroflowReturnType) string {
 func nanoflowDecl(s *ast.CreateNanoflowStmt) *flowDecl {
 	return &flowDecl{
 		nanoflow: true, name: s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType), params: s.Parameters,
-		build: func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, error) {
+		build: func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, map[string]string, error) {
 			built, err := buildNanoflowFromStmt(ctx, s, buildFlowOpts{Quiet: true})
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
-			return built.Nanoflow, built.Nanoflow.Parameters, nil
+			return built.Nanoflow, built.Nanoflow.Parameters, built.VarTypes, nil
 		},
 		header: func(stored ast.Statement) (any, any) {
 			st, _ := stored.(*ast.CreateNanoflowStmt)
