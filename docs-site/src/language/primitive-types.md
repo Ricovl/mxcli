@@ -107,9 +107,14 @@ DateTime values include both date and time components. To show only the date, fo
 
 Mendix has no date-only attribute type: a date is a `DateTime`, and showing only
 its date part is a formatting choice on the widget. `Float` and `Currency` were
-removed in Mendix 7 in favour of `Decimal`. MDL refuses all three with the type to
-write instead — earlier versions accepted them and silently stored a `DateTime`
-(for `date`) or a `String` (for `float` and `currency`).
+removed in Mendix 7 in favour of `Decimal`. MDL refuses `float` and `currency` with
+the type to write instead — earlier versions accepted them and silently stored a
+`String`.
+
+`date` was always stored as a `DateTime`, so in a script without the `mdl 1;`
+header it is a deprecated spelling of `DateTime`: it builds a `DateTime` and warns
+`MDL-DEPR160`, and `mxcli fmt --upgrade` rewrites it to `DateTime`. Under `mdl 1;`
+it is an error.
 
 ## AutoNumber
 
