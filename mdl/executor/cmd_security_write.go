@@ -595,7 +595,7 @@ func execGrantEntityAccess(ctx *ExecContext, s *ast.GrantEntityAccessStmt) error
 	// ONCE, here, because the stored text is also what identifies the rule: a rule
 	// is keyed by role plus constraint (#936), so echoing the result back with the
 	// unformatted spelling would look for a rule that is not there.
-	xpathConstraint := visitor.FormatXPathConstraint(s.XPathConstraint)
+	xpathConstraint := accessRuleXPathConstraint(s.XPathConstraint, s.Entity.String())
 
 	if err := ctx.Backend.AddEntityAccessRule(backend.EntityAccessRuleParams{
 		UnitID:              dm.ID,
@@ -2008,4 +2008,12 @@ func refuseSystemEntityGrant(moduleName, entityName string) error {
 			"  For a per-person assignment, grant on Administration.Account, or target a user ROLE and "+
 			"record who acted when they act.",
 		moduleName, entityName)
+}
+
+// accessRuleXPathConstraint is the constraint an access rule on entity stores:
+// a qualified attribute of entity bare and an enumeration value as a string
+// literal (storedXPathConstraint, ako/mxcli#874), laid out for Studio Pro's
+// editor.
+func accessRuleXPathConstraint(xpath, entity string) string {
+	return visitor.FormatXPathConstraint(storedXPathConstraint(xpath, entity))
 }

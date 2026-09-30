@@ -523,8 +523,10 @@ func buildUserTask(n *ast.WorkflowUserTaskNode) *workflows.UserTask {
 			Microflow: n.Targeting.Microflow.Module + "." + n.Targeting.Microflow.Name,
 		}
 	case "xpath":
+		// Targeting XPath is evaluated on System.User, group targeting on
+		// System.WorkflowGroup (ako/mxcli#874).
 		task.UserSource = &workflows.XPathBasedUserSource{
-			XPath: n.Targeting.XPath,
+			XPath: storedXPathConstraint(n.Targeting.XPath, "System.User"),
 		}
 	case "group_microflow":
 		task.UserSource = &workflows.MicroflowGroupSource{
@@ -532,7 +534,7 @@ func buildUserTask(n *ast.WorkflowUserTaskNode) *workflows.UserTask {
 		}
 	case "group_xpath":
 		task.UserSource = &workflows.XPathGroupSource{
-			XPath: n.Targeting.XPath,
+			XPath: storedXPathConstraint(n.Targeting.XPath, "System.WorkflowGroup"),
 		}
 	}
 
