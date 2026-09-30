@@ -3,6 +3,7 @@
 package modelsdkbackend
 
 import (
+	"strings"
 	"testing"
 
 	bsonv1 "go.mongodb.org/mongo-driver/bson"
@@ -562,6 +563,18 @@ func TestWebServiceActionRequiresRawBSON_AgreesWithLegacy(t *testing.T) {
 			pms[1].(bsonv2.M)["ParameterPath"] = "http%3A//www.example.com/:GetOrder"
 		}},
 		{"unknown key entirely", func(m bsonv2.M) { m["SomethingNew"] = int32(1) }},
+		// A key the structured form writes but the stored call lacks: written
+		// back, the call would gain it — the ErrorHandlingType mdl-examples'
+		// raw payload leaves out reads back as Rollback, so describe -> exec
+		// changed it, and a re-run re-spliced the call (ako/mxcli#861).
+		{"ErrorHandlingType absent", func(m bsonv2.M) { delete(m, "ErrorHandlingType") }},
+		{"IsValidationRequired absent", func(m bsonv2.M) { delete(m, "IsValidationRequired") }},
+		{"HttpConfiguration absent", func(m bsonv2.M) { delete(m, "HttpConfiguration") }},
+		{"NewResultHandling absent", func(m bsonv2.M) { delete(m, "NewResultHandling") }},
+		// A by-ID service reference: the structured form prints it as ''.
+		{"ImportedService is not a name", func(m bsonv2.M) {
+			m["ImportedService"] = bsonv2.Binary{Subtype: 0, Data: make([]byte, 16)}
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := referenceSoapActionMap()
@@ -570,5 +583,21 @@ func TestWebServiceActionRequiresRawBSON_AgreesWithLegacy(t *testing.T) {
 				t.Error("describes structurally, so a round trip would silently rewrite it")
 			}
 		})
+	}
+}
+
+// webServiceWrittenKeys is what the structured writer emits: a key it adds or
+// drops without the list following makes the raw decision wrong one way or the
+// other.
+func TestWebServiceWrittenKeys_AreTheWritersKeys(t *testing.T) {
+	doc := encodeMicroflowAction(t, &microflows.WebServiceCallAction{ServiceID: "M.S", OperationName: "Op"})
+	var got []string
+	for _, e := range doc {
+		if e.Key != "$ID" && e.Key != "$Type" {
+			got = append(got, e.Key)
+		}
+	}
+	if strings.Join(got, ",") != strings.Join(webServiceWrittenKeys, ",") {
+		t.Errorf("the writer emits %v; webServiceWrittenKeys lists %v", got, webServiceWrittenKeys)
 	}
 }

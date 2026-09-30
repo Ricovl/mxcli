@@ -952,6 +952,15 @@ func readMappingCall(doc, imc bson.Raw) (h *microflows.ResultHandlingMapping, fo
 //
 // So each of those six is admitted only AT that value. Anything else keeps the
 // raw fallback, which round-trips byte for byte.
+// webServiceWrittenKeys are the keys webServiceCallActionToGen writes, beside
+// $ID and $Type.
+var webServiceWrittenKeys = []string{
+	"ErrorHandlingType", "HttpConfiguration", "ImportedService", "IsValidationRequired",
+	"NewResultHandling", "OperationName", "ProxyConfiguration", "RequestBodyHandling",
+	"RequestHeaderHandling", "RequestProxyType", "ServiceName", "TimeOutExpression",
+	"UseRequestTimeOut",
+}
+
 func webServiceActionRequiresRawBSON(raw bson.Raw) bool {
 	// Keys the structured form carries in full, whatever their value.
 	represented := map[string]bool{
@@ -970,6 +979,20 @@ func webServiceActionRequiresRawBSON(raw bson.Raw) bool {
 	}
 	els, err := raw.Elements()
 	if err != nil {
+		return true
+	}
+	// Every key the structured writer emits must be stored: one it adds is a
+	// change the round trip makes. A stored call without ErrorHandlingType
+	// reads back as Rollback and was rewritten on every re-run
+	// (ako/mxcli#861).
+	for _, key := range webServiceWrittenKeys {
+		if raw.Lookup(key).Type == 0 {
+			return true
+		}
+	}
+	// A by-ID service reference has no structured spelling: describe would
+	// print it as '' and exec write that.
+	if raw.Lookup("ImportedService").Type != bson.TypeString {
 		return true
 	}
 	for _, el := range els {

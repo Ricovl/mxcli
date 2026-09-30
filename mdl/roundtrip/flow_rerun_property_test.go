@@ -152,9 +152,7 @@ func TestFlowRerunProperty(t *testing.T) {
 // rerunKnownFailures are scripts whose flows do not re-run clean yet, each with
 // the issue that tracks it. The list may only shrink: a listed script that
 // re-runs clean fails the test until it is taken off.
-var rerunKnownFailures = map[string]string{
-	"mdl-examples/doctype-tests/06b-soap-examples.mdl": "ako/mxcli#861: a call web service activity is re-spliced on every run",
-}
+var rerunKnownFailures = map[string]string{}
 
 // flowRerun is the second execution of a script: its flow statements, each as
 // `create or modify`, under the script's language header — the last definition
