@@ -4,6 +4,7 @@ package executor
 
 import (
 	"reflect"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 )
@@ -65,6 +66,8 @@ var (
 	annotationsStructType = reflect.TypeOf(ast.ActivityAnnotations{})
 	noteStructType        = reflect.TypeOf(ast.MicroflowAnnotation{})
 	paramStructType       = reflect.TypeOf(ast.MicroflowParam{})
+	retrieveStructType    = reflect.TypeOf(ast.RetrieveStmt{})
+	sourceExprStructType  = reflect.TypeOf(ast.SourceExpr{})
 )
 
 // geometryFields names, per AST type, the fields that hold canvas geometry and
@@ -119,6 +122,21 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 			if geo[name] && df.Kind() == reflect.Pointer && (skip || df.IsNil()) {
 				continue
 			}
+			if d.Type() == sourceExprStructType && name == "Source" {
+				// Whitespace around an expression is not part of it: the
+				// writer stores it as written, describe drops it
+				// (describeExpr), so the stored side never has it.
+				if strings.TrimSpace(df.String()) != strings.TrimSpace(s.Field(i).String()) {
+					return false
+				}
+				continue
+			}
+			if d.Type() == retrieveStructType && name == "Where" {
+				if !sameStoredConstraint(df, s.Field(i)) {
+					return false
+				}
+				continue
+			}
 			if !matchValue(df, s.Field(i), mode) {
 				return false
 			}
@@ -161,4 +179,53 @@ func reflectElem(v any) reflect.Value {
 		return reflect.Value{}
 	}
 	return rv.Elem()
+}
+
+// sameStoredConstraint compares two retrieve where clauses as the XPath
+// constraint each stores (ako/mxcli#839).
+//
+// The AST is the wrong measure here: the bracketed form an author writes,
+// `where [a and b]`, is read as XPath and keeps its source text, while the bare
+// form describe prints, `where a and b`, is read as an expression, so one
+// constraint parses to two different trees — different node types, `and`
+// against `AND`, the author's line breaks in one and not the other. What a
+// retrieve means is the constraint it stores, so that is what is compared,
+// with whitespace between tokens ignored: the writer lays a long constraint
+// out over several lines itself (FormatXPathConstraint), and a line break
+// between two tokens states nothing. Whitespace inside a string literal is
+// data and is compared as written.
+func sameStoredConstraint(d, s reflect.Value) bool {
+	de, _ := d.Interface().(ast.Expression)
+	se, _ := s.Interface().(ast.Expression)
+	return xpathTokens(retrieveXPathConstraint(de)) == xpathTokens(retrieveXPathConstraint(se))
+}
+
+// xpathTokens is an XPath constraint with the whitespace between its tokens
+// normalised: a run of it becomes one space, and none is kept inside a
+// bracket or parenthesis. String literals are copied as they are.
+func xpathTokens(xpath string) string {
+	var b strings.Builder
+	var last byte // the last byte written
+	space := false
+	for i := 0; i < len(xpath); {
+		c := xpath[i]
+		switch c {
+		case ' ', '\t', '\n', '\r':
+			space = true
+			i++
+			continue
+		}
+		if space && last != 0 && last != '[' && last != '(' && c != ']' && c != ')' {
+			b.WriteByte(' ')
+		}
+		space = false
+		end := i + 1
+		if c == '\'' {
+			end = xpathLiteralEnd(xpath, i)
+		}
+		b.WriteString(xpath[i:end])
+		last = xpath[end-1]
+		i = end
+	}
+	return b.String()
 }

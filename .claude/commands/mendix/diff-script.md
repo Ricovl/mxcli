@@ -85,6 +85,10 @@ Every diff ends with a summary:
 Summary: 2 new, 3 modified, 5 unchanged
 ```
 
+When a `create or modify` of an existing microflow or nanoflow would be refused
+by `exec` (under `mdl 1;`, a change the splice cannot make), diff lists it as
+`Refused: …` with the reason and adds `, N refused` to the summary.
+
 ## Use Cases
 
 1. **Preview changes** before executing a script
