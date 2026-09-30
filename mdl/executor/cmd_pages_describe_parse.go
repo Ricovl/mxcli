@@ -487,6 +487,25 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 				return extractGalleryContent(ctx, w, widget.EntityContext)
 			})
 			widget.FilterWidgets = extractGalleryFilters(ctx, w)
+			// The row click and the other two action slots, read the way the
+			// data grid's are: the click by SOURCE, the rest by the widget's own
+			// key. Without them the write fix for #842 was one-way — describe →
+			// exec deleted the row action — and the pluggable passthrough
+			// (#721 L4), which keeps a stored widget whose statement equals its
+			// description, could not tell a statement that removed the action
+			// from one that kept it.
+			widget.OnClick = renderClientActionMDL(ctx, customWidgetActionForSource(ctx, w, "OnClick"))
+			widget.NamedActions = namedActionSlotsOf(ctx, w)
+			// The two settings that make a row click legal (MDL-WIDGET36): a
+			// selection of None, which extractGallerySelection reads as unset
+			// while exec's default is Single, and a double-click trigger, which
+			// exec writes as single unless told otherwise.
+			if widget.Selection == "" && gallerySelectionIsNone(w) {
+				widget.Selection = "None"
+			}
+			if trig := extractCustomWidgetPropertyString(ctx, w, "onClickTrigger"); trig != "" && trig != "single" {
+				widget.OnClickTrigger = trig
+			}
 		}
 		// For filter widgets, extract filter attributes and expression
 		if widget.RenderMode == "textfilter" || widget.RenderMode == "numberfilter" || widget.RenderMode == "dropdownfilter" || widget.RenderMode == "datefilter" {

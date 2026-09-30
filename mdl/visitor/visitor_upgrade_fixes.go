@@ -32,6 +32,7 @@ func LanguageChanges() []langver.Change {
 		semicolonRequired, slashIsNotATerminator, backslashIsLiteral, limitOneIsAList,
 		listCallForm, setIsMandatory, viewEntityReplaceIsModify, roleReplaceIsModify, whileBlockRequired,
 		unknownPropertyKey, misshapedPropertyValue, sessionCommandInScript, showSummaryRemoved, templateLineBreak,
+		quotedExpressionText,
 	}
 }
 
@@ -140,6 +141,9 @@ var simpleAttribute = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 // condition the call form built: `where` (an expression) or `by` (a member).
 // It returns the edits, or the reason there are none.
 func callFormFix(op antlr.ParserRuleContext, byExpression bool) ([]ast.TextEdit, string) {
+	if af, ok := op.(*parser.AggregateFunctionContext); ok {
+		return aggregateFunctionFix(af)
+	}
 	n := op.GetChildCount()
 	if n < 4 {
 		return nil, "the call is incomplete"
@@ -269,6 +273,8 @@ func singleListCall(e antlr.Tree) antlr.ParserRuleContext {
 			return x
 		case *parser.ListAggregateOperationContext:
 			return x
+		case *parser.AggregateFunctionContext:
+			return x
 		}
 		if e.GetChildCount() != 1 {
 			return nil
@@ -396,4 +402,75 @@ func slashLineFix(slash antlr.Token) ast.TextEdit {
 		return ast.TextEdit{Start: ls, Stop: le}
 	}
 	return ast.TextEdit{Start: start, Stop: stop}
+}
+
+// aggregateFunctionNames maps the SQL aggregate spellings (`min(…)`, `avg(…)`)
+// to the Aggregate list statement mdl 0 builds from them
+// (buildAggregateFunctionAsCall): the spelling describe writes back.
+var aggregateFunctionNames = map[int]string{
+	parser.MDLParserCOUNT: "count",
+	parser.MDLParserSUM:   "sum",
+	parser.MDLParserAVG:   "average",
+	parser.MDLParserMIN:   "minimum",
+	parser.MDLParserMAX:   "maximum",
+}
+
+// aggregateFunctionFix rewrites `$x = min($List.Attr)` — the SQL aggregate
+// spelling, which mdl 0 turns into an Aggregate list activity through
+// buildSetAggregate — to the statement form of that activity,
+// `$x = minimum $List by Attr` (ako/mxcli#838). The edit covers the keyword
+// too, since min/max/avg are not the activity's names.
+//
+// It mirrors buildSetAggregate's reading of the operand: an attribute path
+// aggregates its last segment, and a bare variable only counts.
+func aggregateFunctionFix(af *parser.AggregateFunctionContext) ([]ast.TextEdit, string) {
+	kwNode, ok := af.GetChild(0).(antlr.TerminalNode)
+	if !ok || af.RPAREN() == nil {
+		return nil, "the call is incomplete"
+	}
+	kw := kwNode.GetSymbol()
+	name, ok := aggregateFunctionNames[kw.GetTokenType()]
+	if !ok {
+		return nil, "there is no statement form for `" + kw.GetText() + "`"
+	}
+	if af.STAR() != nil || af.Expression() == nil {
+		return nil, "`" + kw.GetText() + "(*)` names no list, so the activity mdl 0 builds from it has none: " +
+			"write `$x = count $List;`"
+	}
+	if af.DISTINCT() != nil {
+		return nil, "`distinct` has no Aggregate list equivalent, and mdl 0 drops it: write the statement form " +
+			"without it if that is what was meant"
+	}
+	word := func(w string) string { return keywordLike(kw.GetText(), w) }
+	variable, attr := "", ""
+	switch e := buildExpression(af.Expression()).(type) {
+	case *ast.AttributePathExpr:
+		variable = e.Variable
+		if len(e.Path) > 0 {
+			attr = e.Path[len(e.Path)-1]
+		}
+	case *ast.VariableExpr:
+		variable = e.Name
+		if list, a, cut := strings.Cut(e.Name, "."); cut {
+			variable, attr = list, a
+		}
+	default:
+		return nil, "the operand is not a variable (a nested call or an expression), and one activity takes a " +
+			"variable: write each inner call as a statement of its own"
+	}
+	rp := af.RPAREN().GetSymbol()
+	text := ""
+	switch {
+	case name == "count" && attr == "":
+		text = word(name) + " $" + variable
+	case name == "count":
+		return nil, "`count` takes a list, not an attribute: write `$x = count $List;`"
+	case attr == "":
+		return nil, "the operand names no attribute to aggregate: write `$x = " + name + " $List by Attr;`"
+	case !simpleAttribute.MatchString(attr):
+		return nil, fmt.Sprintf("the attribute `%s` is not a plain name, which is all the statement form's `by` takes", attr)
+	default:
+		text = word(name) + " $" + variable + " " + word("by") + " " + attr
+	}
+	return []ast.TextEdit{{Start: kw.GetStart(), Stop: rp.GetStop() + 1, Text: text}}, ""
 }

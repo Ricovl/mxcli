@@ -94,6 +94,14 @@ func TestUpgrade_GatedRewrites(t *testing.T) {
 			mf + "  declare $n Integer = 1;\n  set $n = 2;\nend;\n", true},
 		{"set with a list call", mf + "  set $T = head($L);\nend;\n", mf + "  $T = head $L;\nend;\n", true},
 		{"set with an aggregate", mf + "  set $N = sum($L.Amount);\nend;\n", mf + "  $N = sum $L by Amount;\nend;\n", true},
+		// min/max/avg are the SQL aggregate spellings: under mdl 0 a set of one
+		// over a list attribute builds the Aggregate list activity describe
+		// writes as minimum/maximum/average (ako/mxcli#838).
+		{"min is the minimum aggregate", mf + "  $R = min($L.Amount);\nend;\n", mf + "  $R = minimum $L by Amount;\nend;\n", true},
+		{"MAX in upper case", mf + "  $R = MAX($L.Amount);\nend;\n", mf + "  $R = MAXIMUM $L BY Amount;\nend;\n", true},
+		{"avg over a slash path", mf + "  $R = avg($L/Amount);\nend;\n", mf + "  $R = average $L by Amount;\nend;\n", true},
+		{"set with min", mf + "  set $R = min($L.Amount);\nend;\n", mf + "  $R = minimum $L by Amount;\nend;\n", true},
+		{"Max capitalised, spaced", mf + "  $R = Max( $L.Amount );\nend;\n", mf + "  $R = maximum $L by Amount;\nend;\n", true},
 		{"find on a list, by member", mf + "  $F = find($L, Name = 'x');\nend;\n", mf + "  $F = find $L by Name = 'x';\nend;\n", true},
 		{"find on a list, by expression", mf + "  $F = FIND($L, $currentObject/Name = 'x');\nend;\n",
 			mf + "  $F = FIND $L WHERE $currentObject/Name = 'x';\nend;\n", true},
@@ -142,6 +150,8 @@ func TestUpgrade_UnrewritableBlocksTheHeader(t *testing.T) {
 		{"nested list operation", mf + "  $n = count(filter($L, Name = 'x'));\nend;\n", "MDL-V1-LIST", "nested call"},
 		{"find on a call's result", mf + "  $R = call microflow M.G();\n  $F = find($R, Name = 'x');\nend;\n",
 			"MDL-V1-LIST", "does not state"},
+		{"min over a bare list", mf + "  $R = min($L);\nend;\n", "MDL-V1-LIST", "no attribute"},
+		{"count star", mf + "  $R = count(*);\nend;\n", "MDL-V1-LIST", "no list"},
 		{"view entity replace", "create or replace view entity M.V (Name: String(100)) as (select c.Name as Name from M.Customer as c);\n",
 			"MDL-V1-REPLACE01", "drops and recreates"},
 		{"unknown property", "create rest client M.Api (BaseUrl: 'https://x', Authentication: none) " +

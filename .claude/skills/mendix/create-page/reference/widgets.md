@@ -329,7 +329,7 @@ datagrid gridName (datasource: database from Module.Entity) {
 }
 ```
 
-The `format (...)` block accepts `decimalPrecision`, `groupDigits`, `dateFormat` (`Date` / `DateTime` / `Time` / `Custom`), `customDateFormat`, and `enumFormat` (`Text` / `Image`). Formatting is applied by Mendix only to **attribute-bound** parameters — bind the bare attribute (`Amount`), not `toString(...)`.
+The `format (...)` block accepts `decimalPrecision`, `groupDigits`, `dateFormat` (`Date` / `DateTime` / `Time` / `Custom`), `customDateFormat`, and `enumFormat` (`Text` / `Image`). Formatting is applied by Mendix only to **attribute-bound** parameters — bind the bare attribute (`Amount`), not `toString(...)`. A parameter or data view attribute (`{1} = $Order.Total`) binds the same way. mxcli releases before #823 stored it as `toString($Order/Total)`, and an mdl 0 script warns MDL-V1-TEMPLATEATTR where the output changed. Write `{1} = toString($Order/Total)` to keep the unformatted text: any expression is stored as written.
 
 ```sql
 column (
@@ -569,6 +569,25 @@ gallery productGallery (datasource: database Module.Product, selection: single) 
   }
 }
 ```
+
+**With a row action** — a click on a card runs an action. The Gallery calls a
+row click *ambiguous* when the gallery also selects on a single click (its
+default), and `mx check` fails the page; `check` reports that as MDL-WIDGET36
+under `mdl 1;` (warning MDL-V1-GALLERYCLICK without the header). Say which one
+the click means:
+```sql
+-- the click is the action; nothing is selected
+gallery cards (datasource: database Module.Product, selection: None,
+  onClick: call nanoflow Module.ACT_OpenProduct(Product = $currentObject)) {
+  template { dynamictext name (content: '{1}', contentparams: ({1} = Name)) }
+}
+-- keep the selection, run the action on a double click
+gallery cards (datasource: database Module.Product, selection: Single, onClickTrigger: double,
+  onClick: call nanoflow Module.ACT_OpenProduct(Product = $currentObject)) {
+  template { dynamictext name (content: '{1}', contentparams: ({1} = Name)) }
+}
+```
+`onSelectionChange:` and `onConfigurationChange:` take an action the same way.
 
 ### Filter Widgets
 

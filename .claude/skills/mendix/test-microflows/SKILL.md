@@ -410,6 +410,11 @@ the `mdl 1;` header — binds a **single object**, not a one-element list, so
 `head($x)` is `CE0097` at build time and `MDL-RETRIEVE01` at check time. Drop the
 range to get a list, or use the variable as the object it is.
 
+`mxcli fmt --upgrade -w suite.test.mdl` reads the file the same way: it rewrites
+deprecated spellings in the blocks and keeps every doc comment, `--` comment and
+`/` separator byte for byte. A test file takes **no `mdl 1;` header** yet — check
+and the runner read its blocks as mdl 0 — so `--header` adds none to it and says so.
+
 ---
 
 ## Writing Good Tests

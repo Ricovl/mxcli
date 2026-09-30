@@ -125,10 +125,8 @@ func ValidateOfflineAttributePaths(prog *ast.Program, projectPath string) []lint
 		var label string
 		var widgets []*ast.WidgetV3
 		switch s := stmt.(type) {
-		case *ast.CreatePageStmtV3:
-			label, widgets = "page "+s.Name.String(), s.Widgets
-		case *ast.CreateSnippetStmtV3:
-			label, widgets = "snippet "+s.Name.String(), s.Widgets
+		case *ast.CreatePageStmtV3, *ast.CreateSnippetStmtV3:
+			label, widgets, _ = documentWidgets(s)
 		case *ast.AlterPageStmt:
 			label = "alter " + s.PageName.String()
 			for _, op := range s.Operations {

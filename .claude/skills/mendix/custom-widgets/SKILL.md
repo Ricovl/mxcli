@@ -218,6 +218,11 @@ particular and is **refused**, with the keys to use instead -- neither guess is
 defensible: feeding it to every mapping duplicates one binding across unrelated
 slots, and feeding it to the first leaves the others unset (CE0642 again).
 
+**An unqualified attribute binds where the widget says.** A property widget.xml
+links to a datasource (`dataSource="parts"`) binds to its items; one linked to
+none binds to the enclosing data container's object, not the widget's own data.
+A name of another entity in scope is refused, naming the candidates (#647).
+
 `describe page` emits the named keys back when a widget has several configured
 sources, so describe -> exec keeps each binding on its own mapping. A widget with
 ONE source keeps the generic `DataSource:` clause it has always been described

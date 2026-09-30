@@ -43,9 +43,18 @@ func ruleSourceText(ctx antlr.ParserRuleContext) string {
 // odataExpressionValue returns the expression an OData client expression
 // property holds, exactly as written, whichever grammar alternative matched it,
 // and whether it is a single string literal.
-func odataExpressionValue(valueCtx parser.IOdataPropertyValueContext, exprCtx parser.IExpressionContext) (string, bool) {
+//
+// Under mdl 0 the old quoted spelling of an expression — the doubled-quote string,
+// `'@Mod.C'` — keeps its meaning: the literal's content is the expression
+// (quotedExpressionText, ako/mxcli#836). b notes it when it is the script's
+// builder, and may be nil.
+func (b *Builder) odataExpressionValue(valueCtx parser.IOdataPropertyValueContext, exprCtx parser.IExpressionContext) (string, bool) {
 	if valueCtx != nil {
 		vc := valueCtx.(*parser.OdataPropertyValueContext)
+		if content, lit, ok := legacyQuotedExpression(vc, IsLegacyODataExpressionText); ok {
+			b.noteQuotedExpression(vc, lit, content, func() bool { return odataExpressionReadsBack(content) })
+			return content, isOneStringLiteral(content)
+		}
 		return ruleSourceText(vc), vc.STRING_LITERAL() != nil
 	}
 	if exprCtx != nil {

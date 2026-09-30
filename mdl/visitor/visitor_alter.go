@@ -73,7 +73,7 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 	set := func(name string, value parser.IOdataPropertyValueContext, expr parser.IExpressionContext) {
 		if ctx.ConsumedODataServiceKw() != nil && isODataClientExpressionProp(name) {
 			// Expression-typed: the expression as written (see visitor_odata_expression.go).
-			changes[name], _ = odataExpressionValue(value, expr)
+			changes[name], _ = b.odataExpressionValue(value, expr)
 			return
 		}
 		if value != nil {
