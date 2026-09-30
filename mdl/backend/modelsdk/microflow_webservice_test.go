@@ -35,19 +35,36 @@ func TestActionFromGen_WebServiceCall_Raw(t *testing.T) {
 	}
 }
 
-// TestActionFromGen_WebServiceCall_NoRaw confirms a fully-structured action (only
-// describable fields) does NOT set RawBSON, so the renderer uses the readable
-// `call web service …` form, matching legacy's supported-key set.
+// TestActionFromGen_WebServiceCall_NoRaw confirms an action carrying exactly
+// what the structured writer emits does NOT set RawBSON, so the renderer uses
+// the readable `call web service …` form.
 func TestActionFromGen_WebServiceCall_NoRaw(t *testing.T) {
+	raw, err := bson.Marshal(referenceSoapActionMap())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc bson.D
+	if err := bson.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	ws := decodeAction(t, doc).(*microflows.WebServiceCallAction)
+	if len(ws.RawBSON) != 0 {
+		t.Errorf("RawBSON set, want empty (the writer's own form → structured form)")
+	}
+}
+
+// TestActionFromGen_WebServiceCall_MissingKeysRaw: an action without the keys
+// the structured writer adds keeps RawBSON, since writing its structured form
+// back would add them — ErrorHandlingType among them, which reads back as
+// Rollback when absent (ako/mxcli#861).
+func TestActionFromGen_WebServiceCall_MissingKeysRaw(t *testing.T) {
 	act := decodeAction(t, bson.D{
 		{Key: "$ID", Value: "ws-2"},
 		{Key: "$Type", Value: "Microflows$CallWebServiceAction"},
-		{Key: "ErrorHandlingType", Value: "Rollback"},
 		{Key: "ImportedService", Value: "Mod.Service"},
 		{Key: "OperationName", Value: "Op"},
 	})
-	ws := act.(*microflows.WebServiceCallAction)
-	if len(ws.RawBSON) != 0 {
-		t.Errorf("RawBSON set, want empty (all fields are supported → structured form)")
+	if ws := act.(*microflows.WebServiceCallAction); len(ws.RawBSON) == 0 {
+		t.Errorf("RawBSON empty, want set (the structured form would write a different document)")
 	}
 }

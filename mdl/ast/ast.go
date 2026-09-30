@@ -74,6 +74,27 @@ type Program struct {
 	// LanguageNotes are the constructs kept at their older meaning because of
 	// LanguageVersion, one per occurrence, for check and exec to warn on.
 	LanguageNotes []LanguageNote
+	// FlowCommits are the `commit` statements written in the body of a
+	// `create or modify microflow|nanoflow`, in source order, for
+	// `fmt --upgrade -p` to pin a bare one to what the stored flow holds
+	// (ako/mxcli#873). A bare `commit $X;` means WITH events since #895; a
+	// flow an older mxcli stored from the same script has it without.
+	FlowCommits []FlowCommit
+}
+
+// FlowCommit is one `commit $X` in a `create or modify` flow.
+type FlowCommit struct {
+	Line     int           // 1-based source line of the `commit`
+	Flow     QualifiedName // the flow being created or modified
+	Nanoflow bool
+	Variable string // committed variable, without the `$`
+	// Bare is set when neither `with events` nor `without events` is written.
+	// Otherwise WithoutEvents says which.
+	Bare          bool
+	WithoutEvents bool
+	// PinWithoutEvents inserts ` without events` after the variable, in the
+	// letter case of the `commit` keyword. Set only on a bare commit.
+	PinWithoutEvents *Fix
 }
 
 // DeprecatedSpelling is one use of a deprecated spelling in the source.

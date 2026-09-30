@@ -3,6 +3,7 @@
 package executor
 
 import (
+	"go.mongodb.org/mongo-driver/bson"
 	"strings"
 	"testing"
 
@@ -102,5 +103,54 @@ func TestSameBuiltFlow_CollidingPositionsNeverMatch(t *testing.T) {
 	}
 	if same, why := sameBuiltFlow(built, stored); same || !strings.Contains(why, "two objects") {
 		t.Fatalf("same=%v why=%q, want a refusal to pair colliding nodes", same, why)
+	}
+}
+
+// soapGraph is guardGraph with a call web service activity whose raw document
+// carries the element IDs of its own build, as the reader keeps it whenever the
+// call is not one the structured form reproduces.
+func soapGraph(t *testing.T, prefix, timeout string) *microflows.MicroflowObjectCollection {
+	t.Helper()
+	oc := guardGraph(prefix)
+	raw, err := bson.Marshal(bson.D{
+		{Key: "$ID", Value: prefix + "action"},
+		{Key: "$Type", Value: "Microflows$CallWebServiceAction"},
+		{Key: "NewResultHandling", Value: bson.D{
+			{Key: "$ID", Value: prefix + "rh"},
+			{Key: "$Type", Value: "Microflows$ResultHandling"},
+			{Key: "VariableType", Value: bson.D{{Key: "$ID", Value: prefix + "vt"}, {Key: "$Type", Value: "DataTypes$VoidType"}}},
+		}},
+		{Key: "RequestHeaderHandling", Value: bson.D{
+			{Key: "$ID", Value: prefix + "hh"},
+			{Key: "ParameterMappings", Value: bson.A{int32(2), bson.D{{Key: "$ID", Value: prefix + "pm"}, {Key: "Expression", Value: "1"}}}},
+		}},
+		{Key: "TimeOutExpression", Value: timeout},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	oc.Objects = append(oc.Objects, &microflows.ActionActivity{
+		BaseActivity: microflows.BaseActivity{BaseMicroflowObject: microflows.BaseMicroflowObject{
+			BaseElement: model.BaseElement{ID: model.ID(prefix + "act")}, Position: model.Point{X: 700, Y: 200}}},
+		Action: &microflows.WebServiceCallAction{BaseElement: model.BaseElement{ID: model.ID(prefix + "action")},
+			TimeoutExpression: timeout, RawBSON: raw},
+	})
+	return oc
+}
+
+// A call web service activity's raw document holds the element IDs its build
+// minted, so two builds of one statement never had equal bytes, and every
+// re-run re-spliced the call (ako/mxcli#861). The IDs are no difference; the
+// document's content is.
+func TestSameBuiltFlow_WebServiceRawIDsAreNotADifference(t *testing.T) {
+	if same, why := sameBuiltFlow(soapGraph(t, "b-", "300"), soapGraph(t, "s-", "300")); !same {
+		t.Fatalf("two builds of the same call web service differ: %s", why)
+	}
+	// Control: a changed value inside the raw document is a difference.
+	built, stored := soapGraph(t, "b-", "300"), soapGraph(t, "s-", "300")
+	act := built.Objects[len(built.Objects)-1].(*microflows.ActionActivity).Action.(*microflows.WebServiceCallAction)
+	act.RawBSON = soapGraph(t, "b-", "30").Objects[4].(*microflows.ActionActivity).Action.(*microflows.WebServiceCallAction).RawBSON
+	if same, why := sameBuiltFlow(built, stored); same || !strings.Contains(why, "RawBSON") {
+		t.Fatalf("same=%v why=%q: a changed raw call compared as the stored one", same, why)
 	}
 }

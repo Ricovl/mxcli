@@ -1079,8 +1079,8 @@ func (pb *pageBuilder) applyDatabaseClausesV3(dbSource *pages.DatabaseSource, ds
 	// joints (upstream #979). One that already fits is returned unchanged, so
 	// this does not churn existing pages.
 	if ds.Where != "" {
-		dbSource.XPathConstraint = visitor.FormatXPathConstraint(
-			pb.expandXPathAssociationPath(ds.Where, entity))
+		dbSource.XPathConstraint = visitor.FormatXPathConstraint(storedXPathConstraint(
+			pb.expandXPathAssociationPath(ds.Where, entity), entity))
 	}
 
 	// Handle ORDER BY

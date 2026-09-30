@@ -195,6 +195,10 @@ func TestValidateXPathMembers_AcceptsWhatResolves(t *testing.T) {
 		{"an association hop, then the target's attribute",
 			"Shop.Order", "[Shop.Order_Customer/Shop.Customer/Name = 'x']"},
 		{"no constraint at all", "Shop.Order", ""},
+		// ako/mxcli#874: stored as `Status`, so it is checked as `Status`.
+		// Checked as written it was a step that resolves to nothing, and the
+		// re-run of a script that had just created the page was refused.
+		{"an attribute qualified with the entity", "Shop.Order", "[Shop.Order.Status = 'Open']"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if errs := validateXPathMembers(ctx, pageWith(

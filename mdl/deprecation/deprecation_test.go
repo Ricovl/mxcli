@@ -79,4 +79,5 @@ func TestParsePolicy(t *testing.T) {
 // refusedFromMdl1 are the entries whose old form mdl 1 never accepted.
 var refusedFromMdl1 = map[string]bool{
 	ConstantPrivate: true, // a no-op the old catch-all swallowed (ako/mxcli#865)
+	DateType:        true, // refused in every version by #706 before mdl 1 existed (rehearsal U1)
 }

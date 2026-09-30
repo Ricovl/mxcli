@@ -269,11 +269,15 @@ func TestFlowModify_PropertyEditsAreWritten(t *testing.T) {
 			{"a changed page title override",
 				"show page Administration.Account_Overview with title = 'First';",
 				"show page Administration.Account_Overview with title = 'Second';"},
-			// Taking an override out is not seen on main either: neither the
-			// reader nor describe carries TitleOverride, so no side holds it.
 			{"a page title override added",
 				"show page Administration.Account_Overview;",
 				"show page Administration.Account_Overview with title = 'First';"},
+			// Taken out, the override is seen only once describe prints it:
+			// the statement diff compares against the description
+			// (ako/mxcli#869).
+			{"a page title override taken out",
+				"show page Administration.Account_Overview with title = 'First';",
+				"show page Administration.Account_Overview;"},
 		} {
 			name := "mdl 0"
 			if header != "" {
@@ -302,5 +306,52 @@ func TestFlowModify_PropertyEditsAreWritten(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// A call web service activity the structured form does not reproduce keeps its
+// raw document, which carries the element IDs of its own build: re-running the
+// statement unchanged re-spliced it on every run (ako/mxcli#861). A dangling
+// receive mapping is such a call — its result type stays Void. The control: a
+// changed timeout is still written.
+func TestFlowModify_WebServiceCallRerunsClean(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	const setup = "create module SampleSOAP;\ncreate entity SampleSOAP.OrderResponse (Status : string(50));\n"
+	const flow = `create or modify microflow SampleSOAP.Idem_Soap ()
+returns SampleSOAP.OrderResponse as $Root
+begin
+  $Root = call web service SampleSOAP.OrderService
+  operation FetchSampleItems
+  receive mapping SampleSOAP.OrderResponse
+  timeout %s;
+  return $Root;
+end;
+`
+	for _, header := range []string{"mdl 1;\n", ""} {
+		name := "mdl 0"
+		if header != "" {
+			name = "mdl 1"
+		}
+		t.Run(name, func(t *testing.T) {
+			h.restore()
+			if err := h.exec(header + setup + fmt.Sprintf(flow, "30")); err != nil {
+				t.Fatalf("create: %v\n%s", err, h.out.String())
+			}
+			before := h.snapshot()
+			if err := h.exec(header + fmt.Sprintf(flow, "30")); err != nil {
+				t.Fatalf("re-run: %v\n%s", err, h.out.String())
+			}
+			if changed := before.diff(h.snapshot()); len(changed) != 0 {
+				t.Errorf("an identical re-run wrote:\n  %s\n%s", strings.Join(changed, "\n  "), h.out.String())
+			}
+			if err := h.exec(header + fmt.Sprintf(flow, "60")); err != nil {
+				t.Fatalf("the edit was refused: %v\n%s", err, h.out.String())
+			}
+			if strings.Contains(h.out.String(), "Unchanged ") || len(before.diff(h.snapshot())) == 0 {
+				t.Errorf("a changed timeout wrote nothing:\n%s", h.out.String())
+			}
+		})
 	}
 }

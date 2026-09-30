@@ -77,8 +77,13 @@ func (m *Mutator) SetHeader(declared any) ([]string, error) {
 			if isZero(nv) {
 				continue
 			}
-			return nil, fmt.Errorf("the stored document has no %s property, so the value the statement gives it cannot be "+
-				"patched in; set it in Studio Pro", key)
+			if !m.declares(key) {
+				return nil, fmt.Errorf("the stored document has no %s property, so the value the statement gives it cannot be "+
+					"patched in; set it in Studio Pro", key)
+			}
+			m.doc = insertAfterPredecessor(m.doc, d, key, nv)
+			changed = append(changed, strings.Replace(key, "Concurreny", "Concurrency", 1))
+			continue
 		}
 		carried, same, err := carryValue(key, nv, ov)
 		if err != nil {
@@ -96,6 +101,55 @@ func (m *Mutator) SetHeader(declared any) ([]string, error) {
 		return nil, err
 	}
 	return append(changed, params...), nil
+}
+
+// PropertyDeclarer is implemented by a Deps that can tell whether the
+// project's metamodel declares a document property. SetHeader adds a stated
+// header property the stored document lacks only when it does: the key is
+// then simply one the writer of the stored document left out — mxcli's own
+// nanoflow writer omits ReturnVariableName when the statement has no
+// `as $Var`, and so did older builds (#843) — while a key the project's
+// version does not declare makes the document unopenable, so without an
+// answer the absence is refused as before.
+type PropertyDeclarer interface {
+	DeclaresProperty(docType, key string) bool
+}
+
+func (m *Mutator) declares(key string) bool {
+	pd, ok := m.deps.(PropertyDeclarer)
+	return ok && pd.DeclaresProperty(dString(m.doc, "$Type"), key)
+}
+
+// insertAfterPredecessor adds key to stored after the nearest property that
+// precedes it in the declared encoding and is stored too, so the key lands
+// where the writer puts it; with none, it is appended.
+func insertAfterPredecessor(stored, declared bson.D, key string, v any) bson.D {
+	at := len(stored)
+	for i := range declared {
+		if declared[i].Key != key {
+			continue
+		}
+		for j := i - 1; j >= 0; j-- {
+			if k := indexOf(stored, declared[j].Key); k >= 0 {
+				at = k + 1
+				break
+			}
+		}
+		break
+	}
+	out := make(bson.D, 0, len(stored)+1)
+	out = append(out, stored[:at]...)
+	out = append(out, bson.E{Key: key, Value: v})
+	return append(out, stored[at:]...)
+}
+
+func indexOf(d bson.D, key string) int {
+	for i := range d {
+		if d[i].Key == key {
+			return i
+		}
+	}
+	return -1
 }
 
 // carryValue prepares a declared property value for the stored document: the

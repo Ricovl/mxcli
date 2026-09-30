@@ -875,7 +875,15 @@ func formatAction(
 		if len(params) > 0 {
 			paramStr = "(" + strings.Join(params, ", ") + ")"
 		}
-		return fmt.Sprintf("show page %s%s;", pageName, paramStr)
+		// The page title override. Left out, describe -> exec dropped it, and
+		// taking it out of a create or modify compared as no change
+		// (ako/mxcli#869). An override without text has no statement form:
+		// `with title = ''` builds none.
+		titleStr := ""
+		if title := pickTextTranslation(a.OverridePageTitle, describeDefaultLanguage(ctx)); title != "" {
+			titleStr = " with title = " + mdlQuote(ctx, title)
+		}
+		return fmt.Sprintf("show page %s%s%s;", pageName, paramStr, titleStr)
 
 	case *microflows.ClosePageAction:
 		if a.NumberOfPages > 1 {

@@ -95,6 +95,10 @@ type flowBuilder struct {
 	nanoflowsCacheLoaded  bool
 	manualLoopBackTarget  model.ID
 	isNanoflow            bool // true when building a nanoflow — default error handling is "" not "Rollback"
+	// self is the flow the statement creates. A call to it resolves to the
+	// statement itself, not the project: on a first create the document does
+	// not exist yet, so a recursive flow was refused "not found" (#843).
+	self *selfFlow
 	// Pending custom error-handler routing uses two representations: the
 	// currently active handler lives in the flat fields below, while handlers
 	// postponed across branch boundaries are queued in pendingErrorHandlers.
@@ -255,7 +259,23 @@ func (fb *flowBuilder) registerResultVariableType(varName string, dt microflows.
 
 // lookupMicroflowReturnType resolves the return type of a called microflow by
 // qualified name so downstream activities can infer variable types.
+// selfFlow names the flow a create statement builds and what it returns.
+type selfFlow struct {
+	qualifiedName string
+	nanoflow      bool
+	returnType    microflows.DataType
+}
+
+// isSelf reports whether qualifiedName is the flow being built, of the kind
+// the call names: a nanoflow never calls a microflow of its own name.
+func (fb *flowBuilder) isSelf(qualifiedName string, nanoflow bool) bool {
+	return fb.self != nil && fb.self.nanoflow == nanoflow && fb.self.qualifiedName == qualifiedName
+}
+
 func (fb *flowBuilder) lookupMicroflowReturnType(qualifiedName string) microflows.DataType {
+	if fb.isSelf(qualifiedName, false) {
+		return fb.self.returnType
+	}
 	if fb.backend == nil || qualifiedName == "" {
 		return nil
 	}
@@ -304,6 +324,9 @@ func (fb *flowBuilder) lookupMicroflowReturnType(qualifiedName string) microflow
 }
 
 func (fb *flowBuilder) lookupNanoflowReturnType(qualifiedName string) microflows.DataType {
+	if fb.isSelf(qualifiedName, true) {
+		return fb.self.returnType
+	}
 	if fb.backend == nil || qualifiedName == "" {
 		return nil
 	}
@@ -355,7 +378,7 @@ func (fb *flowBuilder) lookupNanoflowReturnType(qualifiedName string) microflows
 // in the connected project. Returns true (no error) when no backend is available
 // or when backend calls fail, so offline / syntax-check mode is unaffected.
 func (fb *flowBuilder) microflowExists(qualifiedName string) bool {
-	if fb.backend == nil {
+	if fb.backend == nil || fb.isSelf(qualifiedName, false) {
 		return true
 	}
 	// Fast path: name-indexed lookup; succeeds without loading the full list.
@@ -397,7 +420,7 @@ func (fb *flowBuilder) microflowExists(qualifiedName string) bool {
 // nanoflowExists returns true if qualifiedName refers to a nanoflow present
 // in the connected project. Same fallback-to-true semantics as microflowExists.
 func (fb *flowBuilder) nanoflowExists(qualifiedName string) bool {
-	if fb.backend == nil {
+	if fb.backend == nil || fb.isSelf(qualifiedName, true) {
 		return true
 	}
 	if rawUnit, err := fb.backend.GetRawUnitByName("nanoflow", qualifiedName); err == nil && rawUnit != nil {
