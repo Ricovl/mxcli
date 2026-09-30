@@ -682,6 +682,12 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			return mdlerrors.NewValidationf("page '%s' has argument errors:\n  - %s",
 				s.Name.String(), strings.Join(argErrors, "\n  - "))
 		}
+		// A pluggable widget attribute of another entity than the one its
+		// property binds to — the rule exec writes by (ako/mxcli#647).
+		if scopeErrors := validatePluggableAttributeScopes(ctx, s.Parameters, pageWidgets, sc); len(scopeErrors) > 0 {
+			return mdlerrors.NewValidationf("page '%s' has attribute binding errors:\n  - %s",
+				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
+		}
 	case *ast.CreateLayoutStmt:
 		// A layout's widgets name things too — a menu widget's menu document
 		// above all, since layouts are where menu widgets live. Before
@@ -721,6 +727,10 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if ctxErrors := validatePageContextTree(ctx, s.Parameters, s.Widgets); len(ctxErrors) > 0 {
 			return mdlerrors.NewValidationf("snippet '%s' has context errors:\n  - %s",
 				s.Name.String(), strings.Join(ctxErrors, "\n  - "))
+		}
+		if scopeErrors := validatePluggableAttributeScopes(ctx, s.Parameters, s.Widgets, sc); len(scopeErrors) > 0 {
+			return mdlerrors.NewValidationf("snippet '%s' has attribute binding errors:\n  - %s",
+				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
 		}
 	case *ast.CreateWorkflowStmt:
 		// Two reference passes. Missing targets first: a name that resolves to

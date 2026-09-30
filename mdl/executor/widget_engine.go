@@ -619,14 +619,21 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 				builder.SetTextTemplateWithClientParams(propName, strVal, params)
 				break
 			}
-			entityCtx := e.pageBuilder.entityContext
-			builder.SetTextTemplateWithParams(propName, strVal, entityCtx)
+			builder.SetTextTemplateWithParams(propName, strVal, e.entityContextFor(propName))
 		case "Attribute":
+			// The property's own scope, as the mapping pass uses — this pass
+			// re-applies a property authored by its schema key AFTER every
+			// datasource has run, so the shared context here is always the LAST
+			// datasource's entity, which is what #647 wrote for every name.
 			attrPath := ""
+			scope := e.bindingScopeFor(propName)
 			if strings.Count(strVal, ".") >= 2 {
 				attrPath = strVal
-			} else if e.pageBuilder.entityContext != "" {
-				attrPath = e.pageBuilder.resolveAttributePath(strVal)
+			} else if scope.Entity != "" {
+				if err := e.refuseMisboundAttribute(w, propName, strVal, scope); err != nil {
+					return nil, err
+				}
+				attrPath = e.pageBuilder.resolveAttributePathForEntity(strVal, scope.Entity)
 			}
 			if attrPath != "" {
 				builder.SetAttribute(propName, attrPath)
@@ -915,7 +922,7 @@ func (e *PluggableWidgetEngine) applyOperation(builder backend.WidgetObjectBuild
 		case len(ctx.ClientParams) > 0 && numericTemplatePlaceholderRe.MatchString(ctx.PrimitiveVal):
 			builder.SetTextTemplateWithClientParams(propKey, ctx.PrimitiveVal, ctx.ClientParams)
 		case templateAttrPlaceholderRe.MatchString(ctx.PrimitiveVal):
-			builder.SetTextTemplateWithParams(propKey, ctx.PrimitiveVal, e.pageBuilder.entityContext)
+			builder.SetTextTemplateWithParams(propKey, ctx.PrimitiveVal, e.entityContextFor(propKey))
 		default:
 			builder.SetTextTemplate(propKey, ctx.PrimitiveVal)
 		}
@@ -1199,19 +1206,50 @@ func refuseAmbiguousGenericDataSource(def *WidgetDefinition, w *ast.WidgetV3, ds
 }
 
 // entityContextFor returns the entity that propertyKey's value binds against.
-//
-// The template says so directly when the property declares a DataSourceProperty
-// (widget.xml `dataSource="…"`): a DatagridDropdownFilter's `refCaption` names
-// an attribute of `refOptions`' entity, never of `linkedDs`'. Everything else —
-// which is every single-datasource widget — falls back to the one shared
-// entityContext, so the fallback branch is today's behaviour unchanged.
+// See bindingScopeFor.
 func (e *PluggableWidgetEngine) entityContextFor(propertyKey string) string {
+	return e.bindingScopeFor(propertyKey).Entity
+}
+
+// bindingScopeFor applies the widget's own binding rule (resolveBindingScope,
+// shared with check) to one of its properties.
+//
+// The template says which datasource a property belongs to when it declares a
+// DataSourceProperty (widget.xml `dataSource="…"`): a DatagridDropdownFilter's
+// `refCaption` names an attribute of `refOptions`' entity, never of `linkedDs`'.
+// A property the template declares WITHOUT one binds to the context object —
+// the enclosing data container, which is what the build started in — not to
+// whichever of the widget's own datasources was applied last (#647). A key the
+// template does not declare, or a build with no enclosing context, falls back to
+// the one shared entityContext, as before.
+func (e *PluggableWidgetEngine) bindingScopeFor(propertyKey string) bindingScope {
+	entry, declared := e.currentPropertyTypeIDs[propertyKey]
+	return resolveBindingScope(entry.DataSourceProperty, declared, e.outerEntityContext,
+		e.dataSourceEntities, e.pageBuilder.entityContext)
+}
+
+// associationTargetFor returns the entity an association property leads to: its
+// linked datasource's entity when the template declares one, else the widget's
+// own (last-applied) datasource entity — the pre-#647 answer, which is right for
+// an association, whose far end is the option list rather than the context.
+func (e *PluggableWidgetEngine) associationTargetFor(propertyKey string) string {
 	if key := e.currentPropertyTypeIDs[propertyKey].DataSourceProperty; key != "" {
 		if entity := e.dataSourceEntities[key]; entity != "" {
 			return entity
 		}
 	}
 	return e.pageBuilder.entityContext
+}
+
+// refuseMisboundAttribute is the executor's half of misboundAttributeError: the
+// same refusal check makes, over the engine's live state.
+func (e *PluggableWidgetEngine) refuseMisboundAttribute(w *ast.WidgetV3, propertyKey, attr string, scope bindingScope) error {
+	if scope.Kind == scopeShared {
+		return nil
+	}
+	return misboundAttributeError(
+		fmt.Sprintf("widget `%s` property `%s`", w.Name, propertyKey),
+		attr, scope, e.outerEntityContext, e.dataSourceEntities, e.pageBuilder.attributeIndex())
 }
 
 // itemEntityContextFor returns the entity an object-list item property binds
@@ -1309,22 +1347,27 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			// Bound against the enclosing object rather than a source of the
 			// widget's own: with none, the binding is written empty (a combo
 			// box's CE0642 "Property 'Attribute' is required").
-			if entity := e.entityContextFor(mapping.PropertyKey); entity == e.pageBuilder.entityContext {
-				if err := e.pageBuilder.checkInputBinding(w, entity); err != nil {
+			if scope := e.bindingScopeFor(mapping.PropertyKey); scope.Kind != scopeDataSource {
+				if err := e.pageBuilder.checkInputBinding(w, scope.Entity); err != nil {
 					return nil, err
 				}
 			}
 		}
 		if attr != "" {
-			// Against THIS property's datasource entity, which is the shared
-			// entityContext unless the template links it to a specific one.
-			entity := e.entityContextFor(mapping.PropertyKey)
+			// Against THIS property's scope: its own datasource's entity when the
+			// template links it to one, the enclosing object when it links it to
+			// none (#647).
+			scope := e.bindingScopeFor(mapping.PropertyKey)
+			entity := scope.Entity
 			// An association named where an attribute belongs cannot be stored;
 			// refuse it here rather than writing a dangling AttributeRef (#830).
 			if err := e.pageBuilder.rejectAssociationAsAttribute(
 				attr, entity,
 				fmt.Sprintf("widget `%s` property `%s`", w.Name, mapping.PropertyKey),
 			); err != nil {
+				return nil, err
+			}
+			if err := e.refuseMisboundAttribute(w, mapping.PropertyKey, attr, scope); err != nil {
 				return nil, err
 			}
 			ctx.AttributePath = e.pageBuilder.resolveAttributePathForEntity(attr, entity)
@@ -1419,7 +1462,12 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			}
 			ctx.AssocPath = e.pageBuilder.resolveAssociationPathIn(attr, outer)
 		}
-		ctx.EntityName = e.entityContextFor(mapping.PropertyKey)
+		// The entity the association LEADS TO — the widget's option list, i.e.
+		// its datasource — not the entity the property is bound on. The
+		// association starts at the enclosing object (outer, above), so the
+		// binding scope of #647 would name the wrong end: CE8812 "Association
+		// … does not lead to entity …".
+		ctx.EntityName = e.associationTargetFor(mapping.PropertyKey)
 		if ctx.AssocPath != "" && ctx.EntityName == "" {
 			return nil, mdlerrors.NewValidationf("association %q requires an entity context (add a DataSource mapping before Association)", ctx.AssocPath)
 		}
