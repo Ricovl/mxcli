@@ -28,7 +28,12 @@ import (
 // original does: it can be built instead of it, and a real change of member —
 // another attribute, or a same-named association of another module — still
 // compares as a change.
-func describedMemberSpellings(ctx *ExecContext, params []ast.MicroflowParam, body []ast.MicroflowStatement) []ast.MicroflowStatement {
+//
+// varTypes, when given, is the entity each variable holds as the builder
+// resolved it ("Module.Entity" or "List of Module.Entity"); it types the
+// variables whose declaring statement names no entity — a microflow call's
+// result, a retrieve over an association, a loop over such a list.
+func describedMemberSpellings(ctx *ExecContext, params []ast.MicroflowParam, body []ast.MicroflowStatement, varTypes map[string]string) []ast.MicroflowStatement {
 	if !ctx.Connected() || len(body) == 0 {
 		return body
 	}
@@ -40,6 +45,9 @@ func describedMemberSpellings(ctx *ExecContext, params []ast.MicroflowParam, bod
 		}
 	}
 	eachFlowStatement(body, s.collect)
+	for v, t := range varTypes {
+		s.bind(v, strings.TrimPrefix(t, "List of "))
+	}
 	eachFlowStatement(body, s.respell)
 	return body
 }

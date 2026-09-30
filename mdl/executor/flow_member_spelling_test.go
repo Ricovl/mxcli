@@ -68,7 +68,7 @@ end;
 	}
 	f := prog.Statements[0].(*ast.CreateMicroflowStmt)
 	before := cloneAST(reflect.ValueOf(f.Body)).Interface().([]ast.MicroflowStatement)
-	got := describedMemberSpellings(ctx, f.Parameters, f.Body)
+	got := describedMemberSpellings(ctx, f.Parameters, f.Body, nil)
 
 	if !declaredMatches(before, f.Body) {
 		t.Fatal("the declared body was rewritten in place; only the copy may be")
@@ -106,5 +106,28 @@ end;
 	inLoop := got[5].(*ast.LoopStmt).Body[0].(*ast.ChangeObjectStmt)
 	if a := inLoop.Changes[0].Attribute; a != "HR.Emp_Dept" {
 		t.Errorf("change of a loop variable: %q, want HR.Emp_Dept", a)
+	}
+
+	// A variable whose declaring statement names no entity (a call's result)
+	// is typed by the builder's variable types.
+	prog, errs = visitor.Build(`create microflow HR.G ()
+begin
+  $Made = call microflow HR.NewEmp();
+  change $Made (HR.Emp.Name = 'y');
+end;
+`)
+	if len(errs) > 0 {
+		t.Fatalf("parse: %v", errs[0])
+	}
+	g := prog.Statements[0].(*ast.CreateMicroflowStmt)
+	typed := describedMemberSpellings(ctx, g.Parameters, g.Body, map[string]string{"Made": "HR.Emp"})
+	if a := typed[1].(*ast.ChangeObjectStmt).Changes[0].Attribute; a != "Name" {
+		t.Errorf("change of a call's result typed by the builder: %q, want Name", a)
+	}
+	// Control: without the builder's types the entity is unknown, so the
+	// member stays as written.
+	untyped := describedMemberSpellings(ctx, g.Parameters, g.Body, nil)
+	if a := untyped[1].(*ast.ChangeObjectStmt).Changes[0].Attribute; a != "HR.Emp.Name" {
+		t.Errorf("change of an untyped variable: %q, want it as written", a)
 	}
 }

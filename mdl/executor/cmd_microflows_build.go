@@ -49,6 +49,9 @@ type builtFlow struct {
 	// the project yet — which is how diff decides a statement is an addition.
 	ExistingID          model.ID
 	ExistingContainerID model.ID
+	// VarTypes is the entity each object or list variable of the body holds
+	// ("Module.Entity" or "List of Module.Entity"), as the builder resolved it.
+	VarTypes map[string]string
 }
 
 // builtNanoflow is builtFlow for the distinct Nanoflow document type.
@@ -57,6 +60,7 @@ type builtNanoflow struct {
 	ContainerID         model.ID
 	ExistingID          model.ID
 	ExistingContainerID model.ID
+	VarTypes            map[string]string
 }
 
 // buildMicroflowFromStmt assembles a Microflow from a CREATE MICROFLOW
@@ -441,6 +445,7 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 		ContainerID:         containerID,
 		ExistingID:          existingID,
 		ExistingContainerID: existingContainerID,
+		VarTypes:            builder.varTypes,
 	}, nil
 }
 
@@ -736,6 +741,7 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		ContainerID:         containerID,
 		ExistingID:          existingID,
 		ExistingContainerID: existingContainerID,
+		VarTypes:            builder.varTypes,
 	}, nil
 }
 

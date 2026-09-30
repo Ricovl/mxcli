@@ -102,6 +102,36 @@ end;
 		from: "find $Emps by MyFirstModule.Emp_Dept = $Dept", to: "find $Emps by MyFirstModule.Emp.Name = $Dept/Name",
 	},
 	{
+		// The statement that declares the variable does not name its entity:
+		// a microflow call's result, a retrieve over an association, a loop
+		// over that list. Only the builder knows what they hold.
+		name:   "S3 qualified members of variables whose entity is not stated",
+		target: "MyFirstModule.Rerun_Unstated",
+		flow: `create or modify microflow MyFirstModule.Rerun_NewEmp ()
+returns MyFirstModule.Emp as $E
+begin
+  $E = create MyFirstModule.Emp (Name = 'a');
+  return $E;
+end;
+create or modify microflow MyFirstModule.Rerun_Unstated ($Start: MyFirstModule.Emp)
+returns Boolean
+begin
+  $Made = call microflow MyFirstModule.Rerun_NewEmp();
+  change $Made (MyFirstModule.Emp.Rank = 3);
+  retrieve $Dept from $Start/MyFirstModule.Emp_Dept;
+  change $Dept (MyFirstModule.Dept.SortOrder = 1);
+  retrieve $Colleagues from $Dept/MyFirstModule.Emp_Dept;
+  $Named = find $Colleagues by MyFirstModule.Emp.Name = 'x';
+  loop $Colleague in $Colleagues
+  begin
+    change $Colleague (MyFirstModule.Emp.Rank = 2);
+  end loop;
+  return true;
+end;
+`,
+		from: "change $Made (MyFirstModule.Emp.Rank = 3)", to: "change $Made (MyFirstModule.Emp.Name = 'y')",
+	},
+	{
 		name:   "S5 qualified sort and create around a declaration",
 		target: "MyFirstModule.Rerun_SortThenCreate",
 		flow: `create or modify microflow MyFirstModule.Rerun_SortThenCreate ()
