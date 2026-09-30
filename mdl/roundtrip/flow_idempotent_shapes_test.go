@@ -5,6 +5,7 @@
 package roundtrip
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -248,4 +249,58 @@ func (h *harness) describeFlow(script string) string {
 		return out
 	}
 	return ""
+}
+
+// Controls for the built comparison (builtAsStored): a change to a property
+// the reader does not read back is still a change, and is written. The built
+// comparison reads both sides back through the codec, so whatever the reader
+// drops would compare equal on both sides; a flow whose build does not
+// survive its own read back must not be matched that way. A changed page
+// title override was reported Unchanged and silently not written.
+func TestFlowModify_PropertyEditsAreWritten(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	for _, header := range []string{"mdl 1;\n", ""} {
+		for _, c := range []struct {
+			name     string
+			from, to string
+		}{
+			{"a changed page title override",
+				"show page Administration.Account_Overview with title = 'First';",
+				"show page Administration.Account_Overview with title = 'Second';"},
+			// Taking an override out is not seen on main either: neither the
+			// reader nor describe carries TitleOverride, so no side holds it.
+			{"a page title override added",
+				"show page Administration.Account_Overview;",
+				"show page Administration.Account_Overview with title = 'First';"},
+		} {
+			name := "mdl 0"
+			if header != "" {
+				name = "mdl 1"
+			}
+			t.Run(name+"/"+c.name, func(t *testing.T) {
+				h.restore()
+				const flow = "create or modify microflow MyFirstModule.Idem_PropEdit ()\nbegin\n  %s\nend;\n"
+				if err := h.exec(header + fmt.Sprintf(flow, c.from)); err != nil {
+					t.Fatalf("create: %v\n%s", err, h.out.String())
+				}
+				before := h.snapshot()
+				if err := h.exec(header + fmt.Sprintf(flow, c.to)); err != nil {
+					t.Fatalf("the edit was refused: %v\n%s", err, h.out.String())
+				}
+				if strings.Contains(h.out.String(), "Unchanged ") || len(before.diff(h.snapshot())) == 0 {
+					t.Errorf("the edit wrote nothing:\n%s", h.out.String())
+				}
+				// And an identical run of the edited flow still writes nothing.
+				after := h.snapshot()
+				if err := h.exec(header + fmt.Sprintf(flow, c.to)); err != nil {
+					t.Fatalf("re-run of the edit: %v", err)
+				}
+				if changed := after.diff(h.snapshot()); len(changed) != 0 {
+					t.Errorf("re-run of the edit wrote:\n  %s\n%s", strings.Join(changed, "\n  "), h.out.String())
+				}
+			})
+		}
+	}
 }

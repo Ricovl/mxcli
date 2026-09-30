@@ -258,8 +258,9 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 // stored (sameBuiltFlow), in which case there is nothing to patch in it,
 // whatever describe prints for it (ako/mxcli#859). built is the declared flow
 // when the header diff has built it already, else nil. A body that does not
-// build, or a backend that cannot say how a flow reads back, leaves it to the
-// statement diff.
+// build, or a backend that cannot say how a flow reads back — including a
+// flow the reader would not read back whole, where both sides would compare
+// equal in what it drops — leaves it to the statement diff.
 func builtAsStored(ctx *ExecContext, d *flowDecl, a *alterFlowContext, built any) bool {
 	if built == nil {
 		var err error

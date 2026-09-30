@@ -5,6 +5,7 @@ last-synced: ced830e0
 sources:
   - .claude/skills/fix-issue/findings/mdl-grammar.jsonl
   - .claude/skills/fix-issue/findings/mdl-executor.jsonl
+  - .claude/skills/fix-issue/findings/mdl-backend.jsonl
   - mdl/grammar/domains/MDLDomainModel.g4
   - docs/13-decisions/0003-mdl-is-sql-shaped.md
 ---
@@ -84,7 +85,12 @@ statement *builds* with what is stored (read back through the codec, element
 IDs aside): the builder is deterministic, so an identical re-run matches by
 construction. The property that catches the class runs **authored** scripts
 twice (`TestFlowRerunProperty`); a describe → exec property cannot, because it
-only ever feeds describe's own spelling back.
+only ever feeds describe's own spelling back. The comparison is only as
+good as the reader both sides pass through: a property the reader drops
+compares equal on both sides, so an edit to it was reported Unchanged (a
+`show page … with title` override). The read back therefore proves itself
+lossless — written again, it must be the document first written — and falls
+back to the statement diff when it is not.
 
 ## See also
 

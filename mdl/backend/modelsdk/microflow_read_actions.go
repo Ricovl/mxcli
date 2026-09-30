@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genDb "github.com/mendixlabs/mxcli/modelsdk/gen/databaseconnector"
 	genMf "github.com/mendixlabs/mxcli/modelsdk/gen/microflows"
@@ -287,6 +288,17 @@ func actionFromGen(el element.Element) microflows.MicroflowAction {
 					out.PageParameterMappings = append(out.PageParameterMappings, pm)
 				}
 			}
+			// A `with title` override: without it a changed or added override
+			// read back as none, and compared as no change (ako/mxcli#859).
+			if to, ok := fs.Lookup("TitleOverride").DocumentOK(); ok {
+				if el, err := codec.NewDecoder(codec.DefaultRegistry).Decode(to); err == nil {
+					text, _ := textTemplateFromGen(el)
+					if text == nil {
+						text = &model.Text{}
+					}
+					out.OverridePageTitle = text
+				}
+			}
 		}
 		return out
 
@@ -343,6 +355,11 @@ func actionFromGen(el element.Element) microflows.MicroflowAction {
 		}
 		if rh, ok := raw.Lookup("ResultHandling").DocumentOK(); ok {
 			out.ResultHandling = restResultHandlingFromRaw(rh, rawStr(raw, "ResultHandlingType"))
+			// The writer binds the output variable from OutputVariable
+			// (restResultHandlingToGen); read it back from where it went.
+			if bind, ok := rh.Lookup("Bind").BooleanOK(); ok && bind {
+				out.OutputVariable = rawStr(rh, "ResultVariableName")
+			}
 		}
 		return out
 

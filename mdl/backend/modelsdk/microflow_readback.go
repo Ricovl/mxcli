@@ -3,7 +3,9 @@
 package modelsdkbackend
 
 import (
+	"bytes"
 	"fmt"
+	"sort"
 
 	bsonv2 "go.mongodb.org/mongo-driver/v2/bson"
 
@@ -20,22 +22,43 @@ import (
 // same reader, and nothing written. What the writer defaults, and what the
 // document has no property for, reads back as it would from the project, so
 // the result compares with a stored microflow like for like (ako/mxcli#859).
+//
+// It fails when the reader does not read back everything the writer wrote —
+// when the result, written again, is not the document mf was written as. A
+// comparison of two read-back flows cannot see a property the reader drops:
+// both sides hold nothing there, whatever was written, so a change to it
+// would compare as no change and never be written.
 func (b *Backend) ReadBackMicroflow(mf *microflows.Microflow) (*microflows.Microflow, error) {
 	if mf == nil {
 		return nil, fmt.Errorf("ReadBackMicroflow: nil microflow")
 	}
-	gm := microflowToGen(mf, b.majorVersion())
-	gm.SetID(element.ID(readBackID(mf.ID)))
-	assignMicroflowIDs(gm)
-	el, err := readBack(gm)
+	encode := func(m *microflows.Microflow) ([]byte, error) {
+		gm := microflowToGen(m, b.majorVersion())
+		gm.SetID(element.ID(readBackID(m.ID)))
+		assignMicroflowIDs(gm)
+		return (&codec.Encoder{}).Encode(gm)
+	}
+	written, err := encode(mf)
 	if err != nil {
-		return nil, fmt.Errorf("ReadBackMicroflow: %w", err)
+		return nil, fmt.Errorf("ReadBackMicroflow: encode: %w", err)
+	}
+	el, err := codec.NewDecoder(codec.DefaultRegistry).Decode(bsonv2.Raw(written))
+	if err != nil {
+		return nil, fmt.Errorf("ReadBackMicroflow: decode: %w", err)
 	}
 	g, ok := el.(*genMf.Microflow)
 	if !ok {
 		return nil, fmt.Errorf("ReadBackMicroflow: decoded a %T", el)
 	}
-	return microflowFromGen(g, mf.ContainerID), nil
+	rb := microflowFromGen(g, mf.ContainerID)
+	again, err := encode(rb)
+	if err != nil {
+		return nil, fmt.Errorf("ReadBackMicroflow: encode the read back: %w", err)
+	}
+	if err := sameWritten(written, again); err != nil {
+		return nil, fmt.Errorf("ReadBackMicroflow: the reader does not read back %w", err)
+	}
+	return rb, nil
 }
 
 // ReadBackNanoflow is ReadBackMicroflow for a nanoflow (CreateNanoflow).
@@ -43,18 +66,33 @@ func (b *Backend) ReadBackNanoflow(nf *microflows.Nanoflow) (*microflows.Nanoflo
 	if nf == nil {
 		return nil, fmt.Errorf("ReadBackNanoflow: nil nanoflow")
 	}
-	g := nanoflowToGen(nf, b.majorVersion())
-	g.SetID(element.ID(readBackID(nf.ID)))
-	assignNanoflowIDs(g)
-	el, err := readBack(g)
+	encode := func(n *microflows.Nanoflow) ([]byte, error) {
+		g := nanoflowToGen(n, b.majorVersion())
+		g.SetID(element.ID(readBackID(n.ID)))
+		assignNanoflowIDs(g)
+		return (&codec.Encoder{}).Encode(g)
+	}
+	written, err := encode(nf)
 	if err != nil {
-		return nil, fmt.Errorf("ReadBackNanoflow: %w", err)
+		return nil, fmt.Errorf("ReadBackNanoflow: encode: %w", err)
+	}
+	el, err := codec.NewDecoder(codec.DefaultRegistry).Decode(bsonv2.Raw(written))
+	if err != nil {
+		return nil, fmt.Errorf("ReadBackNanoflow: decode: %w", err)
 	}
 	gn, ok := el.(*genMf.Nanoflow)
 	if !ok {
 		return nil, fmt.Errorf("ReadBackNanoflow: decoded a %T", el)
 	}
-	return nanoflowFromGen(gn, nf.ContainerID), nil
+	rb := nanoflowFromGen(gn, nf.ContainerID)
+	again, err := encode(rb)
+	if err != nil {
+		return nil, fmt.Errorf("ReadBackNanoflow: encode the read back: %w", err)
+	}
+	if err := sameWritten(written, again); err != nil {
+		return nil, fmt.Errorf("ReadBackNanoflow: the reader does not read back %w", err)
+	}
+	return rb, nil
 }
 
 func readBackID(id model.ID) model.ID {
@@ -64,10 +102,98 @@ func readBackID(id model.ID) model.ID {
 	return id
 }
 
-func readBack(el element.Element) (element.Element, error) {
-	contents, err := (&codec.Encoder{}).Encode(el)
-	if err != nil {
-		return nil, fmt.Errorf("encode: %w", err)
+// sameWritten reports where two encodings of one flow differ, other than in
+// the element IDs ($ID) a sub-element the model does not keep an ID for is
+// minted afresh with on every write.
+func sameWritten(a, b []byte) error {
+	var x, y any
+	if err := bsonv2.Unmarshal(a, &x); err != nil {
+		return err
 	}
-	return codec.NewDecoder(codec.DefaultRegistry).Decode(bsonv2.Raw(contents))
+	if err := bsonv2.Unmarshal(b, &y); err != nil {
+		return err
+	}
+	return sameWrittenValue("", x, y)
+}
+
+func sameWrittenValue(path string, a, b any) error {
+	a, b = writtenValue(a), writtenValue(b)
+	switch x := a.(type) {
+	case map[string]any:
+		y, ok := b.(map[string]any)
+		if !ok {
+			return fmt.Errorf("%s (a document written, %T read back)", path, b)
+		}
+		if t, ok := x["$Type"].(string); ok {
+			path += "<" + t + ">"
+		}
+		keys := map[string]bool{}
+		for k := range x {
+			keys[k] = true
+		}
+		for k := range y {
+			keys[k] = true
+		}
+		ks := make([]string, 0, len(keys))
+		for k := range keys {
+			ks = append(ks, k)
+		}
+		sort.Strings(ks)
+		for _, k := range ks {
+			if k == "$ID" {
+				continue
+			}
+			if err := sameWrittenValue(path+"."+k, x[k], y[k]); err != nil {
+				return err
+			}
+		}
+		return nil
+	case []any:
+		y, ok := b.([]any)
+		if !ok || len(x) != len(y) {
+			return fmt.Errorf("%s (a list of %d written, %v read back)", path, len(x), b)
+		}
+		for i := range x {
+			if err := sameWrittenValue(fmt.Sprintf("%s[%d]", path, i), x[i], y[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	case bsonv2.Binary:
+		// An ID or a pointer to one: pointers to objects keep their IDs; a
+		// pointer to a sub-element minted afresh is compared by presence.
+		if _, ok := b.(bsonv2.Binary); !ok {
+			return fmt.Errorf("%s (written, %v read back)", path, b)
+		}
+		return nil
+	default:
+		if !writtenEqual(a, b) {
+			return fmt.Errorf("%s (%v written, %v read back)", path, a, b)
+		}
+		return nil
+	}
+}
+
+func writtenValue(v any) any {
+	switch x := v.(type) {
+	case bsonv2.D:
+		m := make(map[string]any, len(x))
+		for _, e := range x {
+			m[e.Key] = e.Value
+		}
+		return m
+	case bsonv2.M:
+		return map[string]any(x)
+	case bsonv2.A:
+		return []any(x)
+	}
+	return v
+}
+
+func writtenEqual(a, b any) bool {
+	if ab, ok := a.([]byte); ok {
+		bb, ok := b.([]byte)
+		return ok && bytes.Equal(ab, bb)
+	}
+	return fmt.Sprintf("%T:%v", a, a) == fmt.Sprintf("%T:%v", b, b)
 }
