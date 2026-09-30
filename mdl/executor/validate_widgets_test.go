@@ -266,9 +266,10 @@ func TestValidateWidgetExpressionAssociations(t *testing.T) {
 	}
 }
 
-// TestValidateTemplateParamExpressions — MDL-WIDGET14 flags a client expression
-// supplied to a contentparams/captionparams slot (a data binding). An attribute
-// path or quoted string literal is fine. (ledger finding #26)
+// TestValidateTemplateParamExpressions — MDL-WIDGET14 is retired: an expression
+// in a contentparams/captionparams slot is stored as the parameter's
+// Expression (ako/mxcli#823 option C), so no value is refused. Before, the
+// function call and the arithmetic below were errors. (ledger finding #26)
 func TestValidateTemplateParamExpressions(t *testing.T) {
 	cp := func(vals ...any) *ast.WidgetV3 {
 		params := make([]ast.ParamAssignmentV3, len(vals))
@@ -277,30 +278,17 @@ func TestValidateTemplateParamExpressions(t *testing.T) {
 		}
 		return &ast.WidgetV3{Type: "dynamictext", Name: "d", Properties: map[string]any{"ContentParams": params}}
 	}
-	cases := []struct {
-		name   string
-		widget *ast.WidgetV3
-		want   bool // expect an MDL-WIDGET14 violation
-	}{
-		{"function call → rejected", cp("formatDateTime($currentObject/LastImport,'d MMM yyyy')"), true},
-		{"arithmetic expression → rejected", cp("$currentObject/Qty * $currentObject/Price"), true},
-		{"attribute path → ok", cp("$currentObject/Name"), false},
-		{"association-navigated attribute path → ok", cp("MyMod.A_B/Name"), false},
-		{"quoted string literal → ok", cp("'literal text'"), false},
-		{"quoted string with parens → ok", cp("'formatDateTime(x)'"), false},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			got := false
-			for _, v := range validateStaticWidget(c.widget, "page X") {
-				if v.RuleID == "MDL-WIDGET14" {
-					got = true
-				}
+	for _, w := range []*ast.WidgetV3{
+		cp("formatDateTime($currentObject/LastImport,'d MMM yyyy')"),
+		cp("$currentObject/Qty * $currentObject/Price"),
+		cp("$currentObject/Name"),
+		cp("'literal text'"),
+	} {
+		for _, v := range validateStaticWidget(w, "page X") {
+			if v.RuleID == "MDL-WIDGET14" {
+				t.Errorf("MDL-WIDGET14 reported: %s", v.Message)
 			}
-			if got != c.want {
-				t.Errorf("MDL-WIDGET14 present = %v, want %v", got, c.want)
-			}
-		})
+		}
 	}
 }
 
