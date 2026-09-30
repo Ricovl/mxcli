@@ -24,12 +24,12 @@ it.
 | Group | Types |
 |-------|-------|
 | Pages | `PAGE`, `SNIPPET`, `BUILDING BLOCK`, `LAYOUT`, `MENU` |
-| Logic | `MICROFLOW`, `NANOFLOW`, `WORKFLOW`, `QUEUE`, `SCHEDULED EVENT` |
+| Logic | `MICROFLOW`, `NANOFLOW`, `WORKFLOW`, `TASK QUEUE`, `SCHEDULED EVENT` |
 | Domain | `ENUMERATION`, `CONSTANT`, `REGULAR EXPRESSION`, `ENTITY` |
 | Mappings | `JSON STRUCTURE`, `IMPORT MAPPING`, `EXPORT MAPPING` |
 | Code | `JAVA ACTION`, `JAVASCRIPT ACTION`, `DATABASE CONNECTION`, `DATA TRANSFORMER` |
 | Resources | `IMAGE COLLECTION`, `ICON COLLECTION` |
-| Integration | `REST CLIENT`, `PUBLISHED REST SERVICE`, `ODATA CLIENT`, `ODATA SERVICE`, `BUSINESS EVENT SERVICE` |
+| Integration | `CONSUMED REST SERVICE`, `PUBLISHED REST SERVICE`, `CONSUMED ODATA SERVICE`, `PUBLISHED ODATA SERVICE`, `BUSINESS EVENT SERVICE` |
 | AI | `MODEL`, `AGENT`, `KNOWLEDGE BASE`, `CONSUMED MCP SERVICE` |
 
 `FOLDER` moves a folder rather than a document — see the example below.
@@ -89,16 +89,17 @@ MOVE JSON STRUCTURE MyModule.JSON_Order TO FOLDER 'Private/JSON structures';
 ### Place a document while creating it
 
 Every document type takes a `FOLDER` clause on `CREATE`, so a document can be
-placed by the statement that creates it. On pages and snippets it is a property
-(`Folder: 'path'`); on microflows and nanoflows a keyword before `BEGIN`; on
-everything else a keyword straight after the qualified name:
+placed by the statement that creates it. On microflows and nanoflows it follows
+the signature, before `BEGIN`; on everything else, pages and snippets included, it
+follows the qualified name straight away. The `Folder: 'path'` property that pages,
+snippets and REST/OData services also take is a deprecated alias (`MDL-DEPR105`):
 
 ```sql
 CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Order
   FOLDER 'Private/JSON structures'
-  SNIPPET '{"id": 1}';
+  SAMPLE '{"id": 1}';
 
-CREATE QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
+CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );
 
 CREATE JAVA ACTION MyModule.JA_Sync FOLDER 'Private/Java' ()
   RETURNS String AS $$return null;$$;
@@ -119,7 +120,7 @@ MOVE FOLDER MyModule.OldName TO FOLDER 'Archive';
 ### Check impact before a cross-module move
 
 ```sql
-SHOW IMPACT OF OldModule.Customer;
+LIST IMPACT OF OldModule.Customer;
 MOVE ENTITY OldModule.Customer TO NewModule;
 ```
 

@@ -28,7 +28,7 @@
 -- ============================================================================
 
 create persistent entity MyFirstModule.BugContact (
-  Name: string(100) not null error 'Name is required'
+  Name: string(100) not null error message 'Name is required'
 );
 /
 
@@ -44,5 +44,5 @@ create association MyFirstModule.BugContact_BugAddress
 from MyFirstModule.BugContact to MyFirstModule.BugAddress
 type reference
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /

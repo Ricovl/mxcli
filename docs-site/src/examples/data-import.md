@@ -80,18 +80,19 @@ CREATE NON-PERSISTENT ENTITY Integration.Customer (
 /
 
 -- Database connection with parameterized query
-CREATE DATABASE CONNECTION Integration.LegacyDatabase
-TYPE 'PostgreSQL'
-CONNECTION STRING @Integration.LegacyDatabase_DBSource
-USERNAME @Integration.LegacyDatabase_DBUsername
-PASSWORD @Integration.LegacyDatabase_DBPassword
-BEGIN
-  QUERY SearchCustomers
-    SQL 'SELECT name, email, balance FROM customers WHERE name ILIKE {search}'
-    PARAMETER search: String DEFAULT '%'
-    RETURNS Integration.Customer
-    MAP (name AS Name, email AS Email, balance AS Balance);
-END;
+CREATE DATABASE CONNECTION Integration.LegacyDatabase (
+  Type: 'PostgreSQL',
+  ConnectionString: @Integration.LegacyDatabase_DBSource,
+  Username: @Integration.LegacyDatabase_DBUsername,
+  Password: @Integration.LegacyDatabase_DBPassword
+) {
+  QUERY SearchCustomers (
+    Sql: 'SELECT name, email, balance FROM customers WHERE name ILIKE {search}',
+    Parameters: ( search: String DEFAULT '%' ),
+    Returns: Integration.Customer,
+    Map: (Name = name, Email = email, Balance = balance)
+  )
+};
 /
 
 -- Microflow that executes the query

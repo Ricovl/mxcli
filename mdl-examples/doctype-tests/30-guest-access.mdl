@@ -32,21 +32,21 @@ create module role Catalog.Editor description 'Maintains the product catalogue';
 
 -- The role anonymous visitors are given. System.User is what lets an
 -- unauthenticated session exist at all.
-create user role Anonymous (Catalog.Visitor, System.User);
-create user role CatalogAdmin (Catalog.Editor, System.User);
+create user role Anonymous ( ModuleRoles: (Catalog.Visitor, System.User) );
+create user role CatalogAdmin ( ModuleRoles: (Catalog.Editor, System.User) );
 
-alter project security level production;
-alter project security guest access on role Anonymous;
+alter app security ( SecurityLevel: production );
+alter app security ( EnableGuestAccess: true, GuestUserRole: Anonymous );
 
 -- Grant exactly what should be public, and nothing else. The XPath constraint
 -- is the difference between "the catalogue is public" and "every row is
 -- public" — see lint rule SEC004 / DIVD-2022-00019.
-grant Catalog.Visitor on Catalog.Product (read *) where '[Published = true()]';
-grant Catalog.Editor on Catalog.Product (create, delete, read *, write *);
+grant read * on entity Catalog.Product to Catalog.Visitor where [Published = true()];
+grant create, delete, read *, write * on entity Catalog.Product to Catalog.Editor;
 
 -- Toggling access off keeps the stored role, so switching it back on needs no
 -- ROLE clause. Both statements are no-ops on a project already in that state.
-alter project security guest access off;
-alter project security guest access on;
+alter app security ( EnableGuestAccess: false );
+alter app security ( EnableGuestAccess: true );
 
-show project security;
+describe app security;

@@ -47,6 +47,9 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 				assocStmt.CreateOrModify, assocStmt.IfNotExists, "association", assocStmt.Name.String())...)
 			violations = append(violations, ValidateAssociationModules(assocStmt)...)
 		}
+		// Every other guarded create carries the same contradiction (#731).
+		// Entities and associations report it above, from their own flags.
+		violations = append(violations, validateCreateGuardContradiction(stmt)...)
 		// A user role with no System module role cannot sign in (CE0156) — but
 		// only once security is on, which the script may say itself.
 		if roleStmt, ok := stmt.(*ast.CreateUserRoleStmt); ok {
@@ -55,6 +58,11 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		// A navigation menu item with no icon is unreadable once the sidebar is
 		// collapsed to its icon rail (MDL077). Covers both statements that carry
 		// menu items, which share one AST node so they cannot diverge.
+		// Text accepted and not stored: an index name (a Mendix index is
+		// anonymous, MDL-IDX01) and a doc comment on an enumeration value
+		// (MDL-ENUMDOC01). Warnings — the model itself is right (ako/mxcli#706).
+		violations = append(violations, validateIndexNames(stmt)...)
+		violations = append(violations, validateEnumValueDocs(stmt)...)
 		violations = append(violations, validateMenuItemIcons(stmt)...)
 		violations = append(violations, validateGlyphCodes(stmt)...)
 		// A layout must declare exactly one placeholder named `Main`, with unique
@@ -105,6 +113,9 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		if awfStmt, ok := stmt.(*ast.AlterWorkflowStmt); ok {
 			violations = append(violations, ValidateAlterWorkflow(awfStmt)...)
 		}
+		// A page element is addressed by name; a caption or @n target is
+		// refused before exec would stop on it (MDL-ALTER01).
+		violations = append(violations, validateAlterPageAddresses(stmt)...)
 		// Check GRANT for member rights Mendix cannot store
 		if grantStmt, ok := stmt.(*ast.GrantEntityAccessStmt); ok {
 			violations = append(violations, ValidateGrantEntityAccess(grantStmt)...)
@@ -289,6 +300,15 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// annotation on every create statement while only six read one, so these
 	// parsed and did nothing (MDL059, the same rule statements already have).
 	violations = append(violations, ValidateDocumentAnnotations(prog)...)
+
+	// Warn on every deprecated spelling (MDL-DEPRnnn): an alias left over from
+	// consolidating MDL onto one canonical form (ADR-0010/0011). The registry
+	// is mdl/deprecation.
+	violations = append(violations, ValidateDeprecations(prog)...)
+
+	// The `mdl <n>;` header: a preview version warns that it may still change,
+	// and every construct kept at an older meaning warns (ADR-0011).
+	violations = append(violations, ValidateLanguageVersion(prog)...)
 
 	return violations
 }

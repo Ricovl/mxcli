@@ -100,8 +100,15 @@ func (b *Backend) WriteJavaSourceFile(moduleName, actionName string, javaCode st
 	if err := os.MkdirAll(javaDir, 0o755); err != nil {
 		return fmt.Errorf("WriteJavaSourceFile: create dir: %w", err)
 	}
+	path := filepath.Join(javaDir, actionName+".java")
+	// Regenerate the way Studio Pro does: the existing file's import list and
+	// EXTRA CODE section are retained, since MDL cannot express either. Keeping
+	// only the user code turned an action that calls a helper in its extra code
+	// into Java that does not compile (ako/mxcli#705).
+	existing, _ := os.ReadFile(path)
+	extraImports, extraCode = javaactions.RetainSections(string(existing), extraImports, extraCode)
 	source := javaactions.GenerateSource(moduleName, actionName, javaCode, params, returnType, extraImports, extraCode)
-	changed, err := javaactions.WriteSourceIfChanged(filepath.Join(javaDir, actionName+".java"), source)
+	changed, err := javaactions.WriteSourceIfChanged(path, source)
 	b.noteFileWrite(changed)
 	if err != nil {
 		return fmt.Errorf("WriteJavaSourceFile: write: %w", err)

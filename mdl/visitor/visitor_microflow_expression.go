@@ -256,6 +256,9 @@ func buildMultiplicativeExpression(ctx parser.IMultiplicativeExpressionContext) 
 				result = pathExpr
 				continue
 			}
+			if attachPathToLastOperand(result, right) {
+				continue
+			}
 		}
 
 		result = &ast.BinaryExpr{
@@ -266,6 +269,32 @@ func buildMultiplicativeExpression(ctx parser.IMultiplicativeExpressionContext) 
 	}
 
 	return result
+}
+
+// attachPathToLastOperand makes `/ Member` a member step of the operand it
+// belongs to when a multiplicative operator came first. `/` shares a precedence
+// level with `*`, `div` and `mod`, so `$a/X * $b/Y` is parsed left to right as
+// `(($a/X) * $b) / Y`: by the time the `/` is seen, `$b` is already the right
+// operand of the product, and tryBuildAttributePath (which looks at the whole left
+// side) cannot reach it. Mendix has no `/` division — it is always navigation
+// when a member name follows — so the step moves onto `$b`, giving
+// `$a/X * ($b/Y)`, the tree the source means. Reports whether the step was
+// attached.
+func attachPathToLastOperand(left ast.Expression, right ast.Expression) bool {
+	bin, ok := left.(*ast.BinaryExpr)
+	if !ok {
+		return false
+	}
+	switch bin.Operator {
+	case "*", "div", "mod", "%", ":":
+	default:
+		return false
+	}
+	if pathExpr := tryBuildAttributePath(bin.Right, right); pathExpr != nil {
+		bin.Right = pathExpr
+		return true
+	}
+	return false
 }
 
 // tryBuildAttributePath attempts to build an AttributePathExpr from a left expression
@@ -706,7 +735,7 @@ func buildLiteralExpression(ctx parser.ILiteralContext) *ast.LiteralExpr {
 	// String literal
 	if str := litCtx.STRING_LITERAL(); str != nil {
 		return &ast.LiteralExpr{
-			Value: unquoteString(str.GetText()),
+			Value: unquoteStringLit(str),
 			Kind:  ast.LiteralString,
 		}
 	}

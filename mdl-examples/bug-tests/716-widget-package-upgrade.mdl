@@ -66,9 +66,9 @@ create page W716.Overview
   gallery galCustomers (
     DataSource: database from W716.Customer sort by Name asc
   ) {
-    template tpl1 {
+    template {
       container ctnCard (Class: 'card') {
-        dynamictext txtName (Content: '{1}', ContentParams: [{1} = Name])
+        dynamictext txtName (Content: '{1}', ContentParams: ({1} = Name))
       }
     }
   }

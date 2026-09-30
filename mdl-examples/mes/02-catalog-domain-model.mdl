@@ -64,7 +64,7 @@ create enumeration ProductCatalog.FinishType (
 @position(50, 50)
 create persistent entity ProductCatalog.ProductCategory (
   /** Category display name */
-  CategoryName: string(200) not null error 'Category name is required',
+  CategoryName: string(200) not null error message 'Category name is required',
   /** Brief description of this category */
   CategoryDescription: string(1000),
   /** Sort position for display ordering */
@@ -87,9 +87,9 @@ create persistent entity ProductCatalog.ProductCategory (
 @position(350, 50)
 create persistent entity ProductCatalog.CatalogProduct (
   /** Unique product code / SKU prefix */
-  ProductCode: string(50) not null error 'Product code is required' unique error 'Product code must be unique',
+  ProductCode: string(50) not null error message 'Product code is required' unique error message 'Product code must be unique',
   /** Product display name */
-  ProductName: string(200) not null error 'Product name is required',
+  ProductName: string(200) not null error message 'Product name is required',
   /** Detailed product description */
   ProductDescription: string(4000),
   /** Base price before variant adjustments */
@@ -103,7 +103,7 @@ create persistent entity ProductCatalog.CatalogProduct (
   /** Weight in kilograms */
   WeightKg: decimal,
   /** Lifecycle status */
-  ProductStatus: enumeration(ProductCatalog.ProductStatus) not null error 'Product status is required',
+  ProductStatus: enumeration(ProductCatalog.ProductStatus) not null error message 'Product status is required',
   /** Date when product was first made available */
   LaunchDate: datetime
 )
@@ -122,9 +122,9 @@ index (ProductCode);
 @position(650, 50)
 create persistent entity ProductCatalog.ProductVariant (
   /** Full SKU for this variant */
-  SKU: string(50) not null error 'SKU is required' unique error 'SKU must be unique',
+  SKU: string(50) not null error message 'SKU is required' unique error message 'SKU must be unique',
   /** Variant label (e.g. 'Large Oak Natural') */
-  VariantLabel: string(200) not null error 'Variant label is required',
+  VariantLabel: string(200) not null error message 'Variant label is required',
   /** Size descriptor (e.g. 'Small', 'Medium', 'Large', '120x80cm') */
   SizeDescription: string(100),
   /** Material used for this variant */
@@ -186,7 +186,7 @@ create association ProductCatalog.CatalogProduct_ProductCategory
   from ProductCatalog.CatalogProduct to ProductCatalog.ProductCategory
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links variants to their parent product
@@ -199,7 +199,7 @@ create association ProductCatalog.ProductVariant_CatalogProduct
   from ProductCatalog.ProductVariant to ProductCatalog.CatalogProduct
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links images to their product
@@ -212,4 +212,4 @@ create association ProductCatalog.ProductImage_CatalogProduct
   from ProductCatalog.ProductImage to ProductCatalog.CatalogProduct
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;

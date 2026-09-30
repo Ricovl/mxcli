@@ -14,7 +14,7 @@ options { tokenVocab = MDLLexer; }
  * Creates a new microflow with parameters, return type, and activity body.
  */
 createMicroflowStatement
-    : MICROFLOW qualifiedName
+    : MICROFLOW ifNotExists? qualifiedName
       LPAREN microflowParameterList? RPAREN
       microflowReturnType?
       microflowOptions?
@@ -25,7 +25,7 @@ createMicroflowStatement
  * Nanoflow creation — mirrors microflow syntax but targets client-side execution.
  */
 createNanoflowStatement
-    : NANOFLOW qualifiedName
+    : NANOFLOW ifNotExists? qualifiedName
       LPAREN microflowParameterList? RPAREN
       microflowReturnType?
       microflowOptions?
@@ -41,7 +41,7 @@ createNanoflowStatement
  * no explanation.
  */
 createRuleStatement
-    : RULE qualifiedName
+    : RULE ifNotExists? qualifiedName
       LPAREN microflowParameterList? RPAREN
       microflowReturnType?
       microflowOptions?
@@ -52,7 +52,7 @@ createRuleStatement
  * Java Action creation with inline Java source code.
  */
 createJavaActionStatement
-    : JAVA ACTION qualifiedName
+    : JAVA ACTION ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN javaActionParameterList? RPAREN
       javaActionReturnType?
@@ -108,7 +108,7 @@ exposeBitmapClause
  * defaults to Web). Reuses the javaAction parameter/return/exposed sub-rules.
  */
 createJavaScriptActionStatement
-    : JAVASCRIPT ACTION qualifiedName
+    : JAVASCRIPT ACTION ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN javaActionParameterList? RPAREN
       javaActionReturnType?
@@ -209,7 +209,8 @@ microflowConcurrencyClause
 
 // ERROR_MESSAGE is one token, not ERROR + MESSAGE — it already exists for an
 // association's delete behaviour, and re-splitting it here would make the lexer
-// ambiguous. It accepts `error message`, `error_message` and `errormessage`.
+// ambiguous. `error message` is its spelling; `error_message` and
+// `errormessage` still lex as deprecated aliases (MDL-DEPR021).
 microflowConcurrencyError
     : ERROR_MESSAGE STRING_LITERAL
     | ERROR MICROFLOW qualifiedName
@@ -315,7 +316,10 @@ declareStatement
 caseStatement
     : CASE enumSplitSource
       (WHEN enumSplitCaseValue (COMMA enumSplitCaseValue)* THEN microflowBody)+
-      (ELSE microflowBody)?
+      // No ELSE: an enumeration split has an outgoing flow per value and one for
+      // (empty), and no default flow. `else` parsed, check refused it (MDL008)
+      // and mxbuild rejected what exec wrote (CE0079/CE0773); it was removed as
+      // dead grammar (ako/mxcli#756). Write `when (empty) then`.
       END CASE
     ;
 
@@ -419,13 +423,21 @@ rollbackStatement
     : ROLLBACK VARIABLE REFRESH?
     ;
 
-// RETRIEVE $ProductList FROM MfTest.Product WHERE Code = $SearchCode SORT BY Name ASC LIMIT 1;
+// RETRIEVE $Product FROM MfTest.Product WHERE Code = $SearchCode SORT BY Name ASC FIRST;
+// RETRIEVE $Top FROM MfTest.Product SORT BY Price DESC LIMIT 10 OFFSET 20;
+//
+// FIRST is Mendix's "First object" range: it binds ONE object, and Mendix gives
+// it no offset. LIMIT/OFFSET is the Custom range and always binds a list.
+// `LIMIT 1` without OFFSET is version-gated (ako/mxcli#734): under `mdl 1;` it is
+// a list of one, without the header it keeps its alpha meaning, the object, and
+// warns MDL-V1-LIMIT1. The same split as `import from mapping … first | limit n`.
 retrieveStatement
     : RETRIEVE VARIABLE FROM retrieveSource
       (WHERE (xpathConstraint (andOrXpath? xpathConstraint)* | expression))?
       (SORT_BY sortColumn (COMMA sortColumn)*)?
-      (LIMIT limitExpr=expression)?
-      (OFFSET offsetExpr=expression)?
+      ( FIRST
+      | (LIMIT limitExpr=expression)? (OFFSET offsetExpr=expression)?
+      )
       onErrorClause?
     ;
 
@@ -436,18 +448,27 @@ retrieveSource
     | DATABASE STRING_LITERAL                // External DB
     ;
 
-// ON ERROR clause for microflow error handling
+// ON ERROR clause for microflow error handling.
+//
+// A custom handler is imperative flow, so it is `begin … end error` like every
+// other flow block (R2, ako/mxcli#754). The brace form is its deprecated
+// spelling: braces hold declarative children.
 onErrorClause
     : ON ERROR CONTINUE                                    // Ignore error, continue
     | ON ERROR ROLLBACK                                    // Rollback and abort (default)
-    | ON ERROR LBRACE microflowBody RBRACE                 // Custom error handler with rollback
-    | ON ERROR WITHOUT ROLLBACK LBRACE microflowBody RBRACE // Custom error handler without rollback
+    | ON ERROR (WITHOUT ROLLBACK)? BEGIN microflowBody END ERROR // Custom error handler
+    | ON ERROR (WITHOUT ROLLBACK)? LBRACE microflowBody RBRACE /* @alias MDL-DEPR540 */
     ;
 
 // IF ... THEN ... END IF;
+//
+// An ELSIF arm is a decision of its own on the canvas (the visitor lowers it into
+// a nested IF in the ELSE branch), so it takes the annotations that nested IF
+// would carry — @position, @caption, @merge, @anchor — written before the
+// keyword, as every statement's are (#750).
 ifStatement
     : IF expression THEN microflowBody
-      (ELSIF expression THEN microflowBody)*
+      (annotation* ELSIF expression THEN microflowBody)*
       (ELSE microflowBody)?
       END IF
     ;
@@ -458,6 +479,10 @@ loopStatement
       BEGIN microflowBody END LOOP
     ;
 
+// WHILE condition BEGIN ... END WHILE;
+//
+// `begin` and the `while` after `end` stay optional here so a headerless script
+// parses as before; under `mdl 1` the visitor requires both (MDL-V1-WHILE).
 whileStatement
     : WHILE expression
       BEGIN? microflowBody END WHILE?
@@ -513,7 +538,7 @@ logLevel
 // Template parameters: WITH ({1} = expr, {2} = expr) or PARAMETERS [expr, expr]
 templateParams
     : WITH LPAREN templateParam (COMMA templateParam)* RPAREN    // WITH ({1} = $var)
-    | PARAMETERS arrayLiteral                                     // PARAMETERS ['val'] (deprecated)
+    | PARAMETERS /* @alias MDL-DEPR009 */ arrayLiteral            // PARAMETERS ['val'] (deprecated)
     ;
 
 templateParam
@@ -673,9 +698,11 @@ callArgumentList
     : callArgument (COMMA callArgument)*
     ;
 
-// Named arguments: $FirstName = 'Hello' or Level = 'INFO' or OqlStatement = '...'
+// Named arguments: FirstName = 'Hello' or Level = 'INFO' or OqlStatement = '...'
+// (R4: `Param = expression`, no `$` on the parameter name). `$FirstName = …` is
+// the deprecated spelling of the same argument.
 callArgument
-    : (VARIABLE | parameterName) EQUALS expression
+    : (VARIABLE /* @alias MDL-DEPR006 */ | parameterName) EQUALS expression
     ;
 
 showPageStatement
@@ -686,9 +713,12 @@ showPageArgList
     : showPageArg (COMMA showPageArg)*
     ;
 
+// R4: `Param = expression`, the argument form of every call site. `$Param = …`
+// and `Param: …` are deprecated spellings of the same argument.
 showPageArg
-    : VARIABLE EQUALS (VARIABLE | expression)       // $Param = $value (canonical)
-    | identifierOrKeyword COLON expression           // Param: $value (widget-style, also accepted)
+    : parameterName EQUALS expression                                  // Param = $value (canonical)
+    | VARIABLE /* @alias MDL-DEPR006 */ EQUALS (VARIABLE | expression) // $Param = $value
+    | identifierOrKeyword COLON /* @alias MDL-DEPR007 */ expression    // Param: $value
     ;
 
 closePageStatement
@@ -699,15 +729,18 @@ showHomePageStatement
     : SHOW HOME PAGE
     ;
 
-// SHOW MESSAGE 'Hello {1}' TYPE Information OBJECTS [$Name];
+// SHOW MESSAGE 'Hello {1}' TYPE Information WITH ({1} = $Name);
+// `OBJECTS [$Name]` is the deprecated positional spelling of the same list.
 showMessageStatement
-    : SHOW MESSAGE expression (TYPE identifierOrKeyword)? (OBJECTS LBRACKET expressionList RBRACKET)? BLOCKING? onErrorClause?
+    : SHOW MESSAGE expression (TYPE identifierOrKeyword)?
+      (OBJECTS /* @alias MDL-DEPR009 */ LBRACKET expressionList RBRACKET | templateParams)?
+      BLOCKING? onErrorClause?
     ;
 
 // SYNCHRONIZE ALL;
 // SYNCHRONIZE UNSYNCHRONIZED;
 // SYNCHRONIZE $Order, $Lines;              -- Specific mode
-// SYNCHRONIZE ALL ON ERROR WITHOUT ROLLBACK { ... };
+// SYNCHRONIZE ALL ON ERROR WITHOUT ROLLBACK BEGIN ... END ERROR;
 //
 // Nanoflow-only: Mendix rejects a synchronize in a microflow, which is
 // server-side. The bare `SYNCHRONIZE;` form is deliberately absent — the mode is
@@ -727,7 +760,8 @@ throwStatement
 
 // VALIDATION FEEDBACK $Product/Code MESSAGE 'Product code cannot be empty';
 validationFeedbackStatement
-    : VALIDATION FEEDBACK (attributePath | VARIABLE) MESSAGE expression (OBJECTS LBRACKET expressionList RBRACKET)? onErrorClause?
+    : VALIDATION FEEDBACK (attributePath | VARIABLE) MESSAGE expression
+      (OBJECTS /* @alias MDL-DEPR009 */ LBRACKET expressionList RBRACKET | templateParams)? onErrorClause?
     ;
 
 // =============================================================================
@@ -738,13 +772,21 @@ validationFeedbackStatement
  * REST call statement for making HTTP requests to external APIs.
  */
 restCallStatement
-    : (VARIABLE EQUALS)? REST CALL httpMethod restCallUrl restCallUrlParams?
+    : (VARIABLE EQUALS)? restCallKw httpMethod restCallUrl restCallUrlParams?
       restCallHeaderClause*
       restCallAuthClause?
       restCallBodyClause?
       restCallTimeoutClause?
       restCallReturnsClause
       onErrorClause?
+    ;
+
+// R6: `call rest service`, Studio Pro's name for the activity, in the
+// `call <kind>` pattern every other call follows. `rest call` is a deprecated
+// alias (MDL-DEPR094).
+restCallKw
+    : CALL REST SERVICE
+    | REST CALL /* @alias MDL-DEPR094 */
     ;
 
 httpMethod
@@ -795,8 +837,8 @@ restCallReturnsClause
     | RETURNS RESPONSE                                          // Return HttpResponse object
     | RETURNS MAPPING qualifiedName AS LIST_OF qualifiedName    // Import mapping → list result
     | RETURNS MAPPING qualifiedName AS qualifiedName            // Import mapping → single object
-    | RETURNS NONE                                              // Ignore response
-    | RETURNS NOTHING                                           // Ignore response (alias)
+    | RETURNS NOTHING                                           // Ignore response
+    | RETURNS NONE /* @alias MDL-DEPR024 */                     // Ignore response (old second spelling)
     | RETURNS qualifiedName                                     // Store in file document (a System.FileDocument specialization)
     ;
 
@@ -815,7 +857,7 @@ sendRestRequestWithClause
     ;
 
 sendRestRequestParam
-    : VARIABLE EQUALS expression
+    : (VARIABLE /* @alias MDL-DEPR006 */ | parameterName) EQUALS expression
     ;
 
 sendRestRequestBodyClause
@@ -878,10 +920,46 @@ transformJsonStatement
 // =============================================================================
 
 /**
- * List operations that return a single item or a modified list.
+ * List operations that return a single item or a modified list: one statement
+ * per Studio Pro "List operation" activity (PROPOSAL_mdl_beta_syntax_freeze.md
+ * §4, #733). The operand is always a variable, as it is in the activity's
+ * dialog, so one activity cannot be nested inside another.
  */
 listOperationStatement
-    : VARIABLE EQUALS listOperation
+    : VARIABLE EQUALS listOperationActivity
+    // The call form. A respelling for every operation but find and contains,
+    // whose call form is also the string function: the visitor version-gates
+    // those instead (MDL-V1-LIST), since no rewrite can know which was meant.
+    | VARIABLE EQUALS listOperation /* @alias MDL-DEPR003 */
+    ;
+
+listOperationActivity
+    : HEAD VARIABLE                                                    // $x = head $L
+    | TAIL VARIABLE                                                    // $x = tail $L
+    | FIND VARIABLE listOperationCondition                             // $x = find $L by Number = 3
+    | FILTER VARIABLE listOperationCondition                           // $x = filter $L where $currentObject/Paid
+    | SORT VARIABLE BY listSortItem (COMMA listSortItem)*              // $x = sort $L by Date desc, Number
+    | UNION VARIABLE WITH VARIABLE                                     // $x = union $A with $B
+    | INTERSECT VARIABLE WITH VARIABLE                                 // $x = intersect $A with $B
+    | SUBTRACT VARIABLE FROM VARIABLE                                  // $x = subtract $B from $A  (A minus B)
+    | CONTAINS VARIABLE IN VARIABLE                                    // $b = contains $Object in $L
+    | EQUALS_OP VARIABLE AND VARIABLE                                  // $b = equals $A and $B
+    | RANGE VARIABLE (OFFSET expression)? (LIMIT expression)?          // $x = range $L offset 20 limit 10
+    ;
+
+// `by` picks a member (Studio Pro's Find / Filter: an attribute or association
+// and the value it must have), written `Member = value`; the visitor refuses
+// any other shape. `where` takes an expression over $currentObject (Find by
+// expression / Filter by expression).
+listOperationCondition
+    : BY expression
+    | WHERE expression
+    ;
+
+// A sort attribute may be any word, so an attribute called Count or Date needs
+// no quotes here.
+listSortItem
+    : identifierOrKeyword (ASC | DESC)?
     ;
 
 listOperation
@@ -910,7 +988,19 @@ sortSpec
  * Aggregate operations on lists.
  */
 aggregateListStatement
-    : VARIABLE EQUALS listAggregateOperation
+    : VARIABLE EQUALS aggregateListActivity
+    | VARIABLE EQUALS listAggregateOperation /* @alias MDL-DEPR004 */
+    ;
+
+/**
+ * One Studio Pro "Aggregate list" activity. `by` aggregates an attribute and
+ * `of` an expression (the dialog's "Aggregate with: Attribute / Expression").
+ */
+aggregateListActivity
+    : COUNT VARIABLE                                                           // $n = count $L
+    | (SUM | AVERAGE | MINIMUM | MAXIMUM) VARIABLE (BY identifierOrKeyword | OF expression) // $t = sum $L by Amount
+    | (ALL | ANY) VARIABLE WHERE expression                                    // $b = all $L where $currentObject/Paid
+    | REDUCE VARIABLE FROM expression AS dataType USING expression             // $s = reduce $L from '' as String using …
     ;
 
 listAggregateOperation

@@ -52,13 +52,13 @@ func entityStmtToMDL(ctx *ExecContext, s *ast.CreateEntityStmt) string {
 		if attr.NotNull {
 			constraints += " not null"
 			if attr.NotNullError != "" {
-				constraints += fmt.Sprintf(" error '%s'", attr.NotNullError)
+				constraints += fmt.Sprintf(" error message '%s'", attr.NotNullError)
 			}
 		}
 		if attr.Unique {
 			constraints += " unique"
 			if attr.UniqueError != "" {
-				constraints += fmt.Sprintf(" error '%s'", attr.UniqueError)
+				constraints += fmt.Sprintf(" error message '%s'", attr.UniqueError)
 			}
 		}
 		if attr.HasDefault {
@@ -92,7 +92,6 @@ func entityStmtToMDL(ctx *ExecContext, s *ast.CreateEntityStmt) string {
 	}
 
 	lines = append(lines, ";")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -128,7 +127,6 @@ func viewEntityStmtToMDL(ctx *ExecContext, s *ast.CreateViewEntityStmt) string {
 		lines = append(lines, "  "+line)
 	}
 	lines = append(lines, ");")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -154,13 +152,16 @@ func enumerationStmtToMDL(ctx *ExecContext, s *ast.CreateEnumerationStmt) string
 	}
 
 	lines = append(lines, ");")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
 
 // associationStmtToMDL converts a CreateAssociationStmt to MDL text
-func associationStmtToMDL(ctx *ExecContext, s *ast.CreateAssociationStmt) string {
+//
+// stored is the existing association's storage format ("" when there is none),
+// so an unstated storage renders as what exec would leave in place rather than
+// as a change.
+func associationStmtToMDL(ctx *ExecContext, s *ast.CreateAssociationStmt, stored domainmodel.AssociationStorageFormat) string {
 	var lines []string
 
 	if s.Documentation != "" {
@@ -184,15 +185,25 @@ func associationStmtToMDL(ctx *ExecContext, s *ast.CreateAssociationStmt) string
 	}
 	lines = append(lines, fmt.Sprintf("owner %s", owner))
 
-	deleteBehavior := "DELETE_BUT_KEEP_REFERENCES"
+	storage, stated := statedStorageFormat(s.Storage)
+	if !stated {
+		storage = stored
+		if storage == "" {
+			storage = domainmodel.StorageFormatColumn
+		}
+	}
+	if line := storageClause(storage); line != "" {
+		lines = append(lines, line)
+	}
+
+	deleteBehavior := "set null"
 	switch s.DeleteBehavior {
 	case ast.DeleteCascade:
-		deleteBehavior = "DELETE_AND_REFERENCES"
+		deleteBehavior = "cascade"
 	case ast.DeleteIfNoReferences:
-		deleteBehavior = "DELETE_IF_NO_REFERENCES"
+		deleteBehavior = "restrict"
 	}
-	lines = append(lines, fmt.Sprintf("delete_behavior %s;", deleteBehavior))
-	lines = append(lines, "/")
+	lines = append(lines, fmt.Sprintf("on delete %s;", deleteBehavior))
 
 	return strings.Join(lines, "\n")
 }
@@ -256,13 +267,13 @@ func entityToMDL(ctx *ExecContext, moduleName string, entity *domainmodel.Entity
 			if vr.Type == "Required" {
 				constraints.WriteString(" not null")
 				if errMsg := pickTextTranslation(vr.ErrorMessage, lang); errMsg != "" {
-					constraints.WriteString(fmt.Sprintf(" error '%s'", errMsg))
+					constraints.WriteString(fmt.Sprintf(" error message '%s'", errMsg))
 				}
 			}
 			if vr.Type == "Unique" {
 				constraints.WriteString(" unique")
 				if errMsg := pickTextTranslation(vr.ErrorMessage, lang); errMsg != "" {
-					constraints.WriteString(fmt.Sprintf(" error '%s'", errMsg))
+					constraints.WriteString(fmt.Sprintf(" error message '%s'", errMsg))
 				}
 			}
 		}
@@ -307,7 +318,6 @@ func entityToMDL(ctx *ExecContext, moduleName string, entity *domainmodel.Entity
 	}
 
 	lines = append(lines, ";")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -341,7 +351,6 @@ func viewEntityFromProjectToMDL(ctx *ExecContext, moduleName string, entity *dom
 		}
 	}
 	lines = append(lines, ");")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -373,56 +382,79 @@ func enumerationToMDL(ctx *ExecContext, moduleName string, enum *model.Enumerati
 	}
 
 	lines = append(lines, ");")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
 
 // associationToMDL converts a project association to MDL text
 func associationToMDL(ctx *ExecContext, moduleName string, assoc *domainmodel.Association, dm *domainmodel.DomainModel) string {
-	var lines []string
-
 	// Build entity name map
 	entityNames := make(map[model.ID]string)
 	for _, entity := range dm.Entities {
 		entityNames[entity.ID] = entity.Name
 	}
+	return storedAssociationToMDL(moduleName, assoc.Name, assoc.Documentation,
+		moduleName+"."+entityNames[assoc.ParentID], moduleName+"."+entityNames[assoc.ChildID],
+		assoc.Type, assoc.Owner, assoc.StorageFormat, assoc.ChildDeleteBehavior)
+}
 
-	if assoc.Documentation != "" {
+// crossAssociationToMDL converts a project cross-module association (FROM an
+// entity of this module, TO one named in another) to MDL text.
+func crossAssociationToMDL(moduleName string, ca *domainmodel.CrossModuleAssociation, dm *domainmodel.DomainModel) string {
+	fromEntity := ""
+	for _, entity := range dm.Entities {
+		if entity.ID == ca.ParentID {
+			fromEntity = entity.Name
+			break
+		}
+	}
+	return storedAssociationToMDL(moduleName, ca.Name, ca.Documentation,
+		moduleName+"."+fromEntity, ca.ChildRef,
+		ca.Type, ca.Owner, ca.StorageFormat, ca.ChildDeleteBehavior)
+}
+
+// storedAssociationToMDL renders the parts both association kinds share, in the
+// shape associationStmtToMDL renders the script side.
+func storedAssociationToMDL(moduleName, name, documentation, from, to string,
+	typ domainmodel.AssociationType, own domainmodel.AssociationOwner,
+	storage domainmodel.AssociationStorageFormat, childDelete *domainmodel.DeleteBehavior) string {
+	var lines []string
+
+	if documentation != "" {
 		lines = append(lines, "/**")
-		lines = append(lines, " * "+assoc.Documentation)
+		lines = append(lines, " * "+documentation)
 		lines = append(lines, " */")
 	}
 
-	fromEntity := entityNames[assoc.ParentID]
-	toEntity := entityNames[assoc.ChildID]
-
-	lines = append(lines, fmt.Sprintf("create association %s.%s", moduleName, assoc.Name))
-	lines = append(lines, fmt.Sprintf("from %s.%s to %s.%s", moduleName, fromEntity, moduleName, toEntity))
+	lines = append(lines, fmt.Sprintf("create association %s.%s", moduleName, name))
+	lines = append(lines, fmt.Sprintf("from %s to %s", from, to))
 
 	assocType := "Reference"
-	if assoc.Type == domainmodel.AssociationTypeReferenceSet {
+	if typ == domainmodel.AssociationTypeReferenceSet {
 		assocType = "ReferenceSet"
 	}
 	lines = append(lines, fmt.Sprintf("type %s", assocType))
 
 	owner := "Default"
-	if assoc.Owner == domainmodel.AssociationOwnerBoth {
+	if own == domainmodel.AssociationOwnerBoth {
 		owner = "Both"
 	}
 	lines = append(lines, fmt.Sprintf("owner %s", owner))
 
-	deleteBehavior := "DELETE_BUT_KEEP_REFERENCES"
-	if assoc.ChildDeleteBehavior != nil {
-		switch assoc.ChildDeleteBehavior.Type {
+	if line := storageClause(storage); line != "" {
+		lines = append(lines, line)
+	}
+
+	deleteBehavior := "set null"
+	if childDelete != nil {
+		switch childDelete.Type {
 		case domainmodel.DeleteBehaviorTypeDeleteMeAndReferences:
-			deleteBehavior = "DELETE_AND_REFERENCES"
+			deleteBehavior = "cascade"
 		case domainmodel.DeleteBehaviorTypeDeleteMeIfNoReferences:
-			deleteBehavior = "DELETE_IF_NO_REFERENCES"
+			deleteBehavior = "restrict"
 		}
 	}
-	lines = append(lines, fmt.Sprintf("delete_behavior %s;", deleteBehavior))
-	lines = append(lines, "/")
+	lines = append(lines, fmt.Sprintf("on delete %s;", deleteBehavior))
 
 	return strings.Join(lines, "\n")
 }

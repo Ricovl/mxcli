@@ -17,28 +17,28 @@
 
 CREATE MODULE Bug714;
 
-CREATE OR REPLACE PAGE Bug714.PageWithClass (
+CREATE OR MODIFY PAGE Bug714.PageWithClass (
   Title: 'Page with a CSS class',
   Layout: Atlas_Core.Atlas_Default,
   Class: 'container-fluid bg-light',
   Style: 'min-height: 100vh'
 ) {
   layoutgrid g {
-    row r {
-      column c (desktopwidth: autofill) {
+    row {
+      column (desktopwidth: autofill) {
         dynamictext heading (content: 'Styled page', rendermode: H2)
       }
     }
   }
 }
 
-CREATE OR REPLACE PAGE Bug714.PageAltered (
+CREATE OR MODIFY PAGE Bug714.PageAltered (
   Title: 'Page altered',
   Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid g {
-    row r {
-      column c (desktopwidth: autofill) {
+    row {
+      column (desktopwidth: autofill) {
         dynamictext heading (content: 'Altered page', rendermode: H2)
       }
     }
@@ -47,6 +47,6 @@ CREATE OR REPLACE PAGE Bug714.PageAltered (
 
 -- Page-level SET applies the class/style to an existing page.
 ALTER PAGE Bug714.PageAltered {
-  SET Class = 'updated';
-  SET Style = 'color: red';
+  SET (Class: 'updated');
+  SET (Style: 'color: red');
 }

@@ -10,11 +10,58 @@ options { tokenVocab = MDLLexer; }
 // DATABASE / REST CLIENT
 // =============================================================================
 
+// R2 (ako/mxcli#754): a declarative document has its properties in ( ) and
+// its children in { }. The database connection was the one declarative
+// document written as clauses with a begin … end block of queries:
+//
+//   create database connection M.Db (
+//     Type: 'PostgreSQL', ConnectionString: @M.Url, Username: @M.User, Password: @M.Pass,
+//   ) {
+//     query GetCustomers (
+//       Sql: $$select id, name from customer where id > {minId}$$,
+//       Parameters: ( minId: Integer default '0' ),
+//       Returns: M.Customer,
+//       Map: ( CustomerId = id, Name = name ),
+//     )
+//   };
+//
+// A query's column map binds an attribute to a column, `Attr = column`, the way
+// a REST mapping binds `Attr = jsonField` (R3: `=` for a mapping side). The
+// clause form is the old spelling (MDL-DEPR127), and builds the same statement.
 createDatabaseConnectionStatement
-    : DATABASE CONNECTION qualifiedName
+    : DATABASE CONNECTION ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
-      databaseConnectionOption+
+      LPAREN databaseConnectionProp (COMMA databaseConnectionProp)* COMMA? RPAREN
+      (LBRACE databaseQueryDef* RBRACE)?
+    | DATABASE CONNECTION ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?
+      databaseConnectionOption+ /* @alias MDL-DEPR127 */
       (BEGIN databaseQuery* END)?
+    ;
+
+databaseConnectionProp
+    : identifierOrKeyword COLON (STRING_LITERAL | NUMBER_LITERAL | AT qualifiedName)
+    ;
+
+databaseQueryDef
+    : QUERY identifierOrKeyword LPAREN databaseQueryProp (COMMA databaseQueryProp)* COMMA? RPAREN
+    ;
+
+databaseQueryProp
+    : identifierOrKeyword COLON (STRING_LITERAL | DOLLAR_STRING)                     // Sql: $$…$$
+    | identifierOrKeyword COLON LPAREN
+      databaseQueryParam (COMMA databaseQueryParam)* COMMA? RPAREN                  // Parameters: ( p: Integer default '0' )
+    | identifierOrKeyword COLON LPAREN
+      databaseQueryColumn (COMMA databaseQueryColumn)* COMMA? RPAREN                // Map: ( Attr = column )
+    | identifierOrKeyword COLON qualifiedName                                       // Returns: M.Entity
+    ;
+
+databaseQueryParam
+    : identifierOrKeyword COLON dataType (DEFAULT STRING_LITERAL | NULL)?
+    ;
+
+databaseQueryColumn
+    : identifierOrKeyword EQUALS identifierOrKeyword
     ;
 
 databaseConnectionOption
@@ -42,31 +89,40 @@ databaseQueryMapping
     ;
 
 createConfigurationStatement
-    : CONFIGURATION STRING_LITERAL
-      (settingsAssignment (COMMA settingsAssignment)*)?
+    : CONFIGURATION ifNotExists? STRING_LITERAL settingsItemOptions?          // configuration 'X' ( Key: value, … )
+    | CONFIGURATION ifNotExists? STRING_LITERAL
+      settingsAssignment (COMMA settingsAssignment)*             // old spelling: Key = value, … (MDL-DEPR060)
     ;
 
 /**
- * CREATE REST CLIENT — property-based syntax with { } blocks.
+ * CREATE CONSUMED REST SERVICE — property-based syntax with { } blocks.
  */
+// R9: the folder is a clause after the name. `Folder: '…'` in the property
+// list is a registered alias /* @alias MDL-DEPR105 */, here and in the
+// published REST and OData property lists; the visitor reports it by key.
 createRestClientStatement
-    : REST CLIENT qualifiedName
+    : consumedRestServiceKw ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN restClientProperty (COMMA restClientProperty)* RPAREN
       (LBRACE restClientOperation* RBRACE)?
     ;
 
 restClientProperty
     : identifierOrKeyword COLON STRING_LITERAL                       // BaseUrl: '...', Username: '...'
-    | identifierOrKeyword COLON VARIABLE                             // Username: $Constant (legacy, stored as Rest$ConstantValue)
-    | identifierOrKeyword COLON AT qualifiedName                     // Username: @Module.Constant (preferred Mendix convention)
+    | identifierOrKeyword COLON VARIABLE /* @alias MDL-DEPR083 */    // Username: $Constant (a constant of the client's own module)
+    | identifierOrKeyword COLON AT qualifiedName                     // Username: @Module.Constant (the one constant reference, R5)
     | identifierOrKeyword COLON NONE                                 // Authentication: NONE
     | identifierOrKeyword COLON BASIC LPAREN restClientProperty (COMMA restClientProperty)* RPAREN
     ;
 
+// An operation is a child of the service, so its properties are in ( ) like
+// every other child's (R2, ako/mxcli#754). The brace form is the old spelling.
 restClientOperation
     : docComment?
       OPERATION (identifierOrKeyword | STRING_LITERAL)
-      LBRACE restClientOpProp (COMMA restClientOpProp)* RBRACE
+      ( LPAREN restClientOpProp (COMMA restClientOpProp)* COMMA? RPAREN
+      | LBRACE /* @alias MDL-DEPR070 */ restClientOpProp (COMMA restClientOpProp)* COMMA? RBRACE
+      )
     ;
 
 restClientOpProp
@@ -85,8 +141,16 @@ restClientParamItem
     : VARIABLE COLON dataType
     ;
 
+// A header list is a map, so it is `( 'Name': value, … )` like every other
+// property map (R2/R3, ako/mxcli#754); `'Name' = value` is the old spelling.
+// A header value is a template: `{Name}` is replaced by the operation
+// parameter Name, as in the path (ako/mxcli#707). `'Bearer ' + $Token` and
+// `$Token` are the old spellings of `'Bearer {Token}'` and `'{Token}'`; they
+// used to store only the text before the `+`.
 restClientHeaderItem
-    : STRING_LITERAL EQUALS (STRING_LITERAL | VARIABLE | STRING_LITERAL PLUS VARIABLE)
+    : STRING_LITERAL (COLON | EQUALS /* @alias MDL-DEPR120 */) STRING_LITERAL
+    | STRING_LITERAL (COLON | EQUALS /* @alias MDL-DEPR120 */) /* @alias MDL-DEPR711 */ VARIABLE
+    | STRING_LITERAL (COLON | EQUALS /* @alias MDL-DEPR120 */) /* @alias MDL-DEPR711 */ STRING_LITERAL PLUS VARIABLE
     ;
 
 restClientMappingEntry
@@ -104,7 +168,8 @@ restHttpMethod
 // =============================================================================
 
 createPublishedRestServiceStatement
-    : PUBLISHED REST SERVICE qualifiedName
+    : PUBLISHED REST SERVICE ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN publishedRestProperty (COMMA publishedRestProperty)* RPAREN
       LBRACE publishedRestResource* RBRACE
     ;
@@ -136,14 +201,60 @@ publishedRestOpPath
 // ODATA CLIENT / SERVICE
 // =============================================================================
 
+// R10 (ADR-0010): a document type is named as Studio Pro names it. Each rule
+// below is the one place its name is spelt, the canonical form first; the old
+// mxcli name is a registered deprecated alias (mdl/deprecation) that the
+// visitor reports and `fmt --upgrade` rewrites.
+consumedRestServiceKw
+    : CONSUMED REST SERVICE
+    | REST CLIENT /* @alias MDL-DEPR550 */
+    ;
+
+consumedRestServicesKw
+    : CONSUMED REST SERVICES
+    | REST CLIENTS /* @alias MDL-DEPR550 */
+    ;
+
+consumedODataServiceKw
+    : CONSUMED ODATA SERVICE
+    | ODATA CLIENT /* @alias MDL-DEPR551 */
+    ;
+
+consumedODataServicesKw
+    : CONSUMED ODATA SERVICES
+    | ODATA CLIENTS /* @alias MDL-DEPR551 */
+    ;
+
+publishedODataServiceKw
+    : PUBLISHED ODATA SERVICE
+    | ODATA SERVICE /* @alias MDL-DEPR552 */
+    ;
+
+publishedODataServicesKw
+    : PUBLISHED ODATA SERVICES
+    | ODATA SERVICES /* @alias MDL-DEPR552 */
+    ;
+
+taskQueueKw
+    : TASK QUEUE
+    | QUEUE /* @alias MDL-DEPR553 */
+    ;
+
+taskQueuesKw
+    : TASK QUEUES
+    | QUEUES /* @alias MDL-DEPR553 */
+    ;
+
 createODataClientStatement
-    : ODATA CLIENT qualifiedName
+    : consumedODataServiceKw ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       odataHeadersClause?
     ;
 
 createODataServiceStatement
-    : ODATA SERVICE qualifiedName
+    : publishedODataServiceKw ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       odataAuthenticationClause?
       (LBRACE (publishEntityBlock | publishMicroflowBlock)* RBRACE)?
@@ -171,9 +282,15 @@ odataPropertyAssignment
     | identifierOrKeyword COLON expression
     ;
 
+// ALTER … SET ( Key: value, … ): exactly create's property list (R3).
+odataAlterPropertyList
+    : LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
+    ;
+
+// The old spelling of the alter list: `set Key = value, …` (R3).
 odataAlterAssignment
-    : identifierOrKeyword EQUALS odataPropertyValue
-    | identifierOrKeyword EQUALS expression
+    : identifierOrKeyword EQUALS /* @alias MDL-DEPR061 */ odataPropertyValue
+    | identifierOrKeyword EQUALS /* @alias MDL-DEPR061 */ expression
     ;
 
 odataAuthenticationClause
@@ -221,8 +338,8 @@ exposeMemberOptions
     ;
 
 createExternalEntityStatement
-    : EXTERNAL ENTITY qualifiedName
-      FROM ODATA CLIENT qualifiedName
+    : EXTERNAL ENTITY ifNotExists? qualifiedName
+      FROM consumedODataServiceKw qualifiedName
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       (LPAREN attributeDefinitionList? RPAREN)?
     ;
@@ -251,7 +368,7 @@ odataHeaderEntry
 // =============================================================================
 
 createBusinessEventServiceStatement
-    : BUSINESS EVENT SERVICE qualifiedName
+    : BUSINESS EVENT SERVICE ifNotExists? qualifiedName
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
       LBRACE businessEventMessageDef+ RBRACE
     ;

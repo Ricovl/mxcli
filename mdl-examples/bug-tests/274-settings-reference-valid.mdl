@@ -14,10 +14,10 @@ create microflow SR.MF_Startup() returns Boolean begin
   return true;
 end
 
-create constant SR.ApiUrl type string default 'https://example.test';
+create constant SR.ApiUrl ( Type: string, DefaultValue: 'https://example.test' );
 
-alter settings model AfterStartupMicroflow = 'SR.MF_Startup';
-alter settings constant 'SR.ApiUrl' value 'https://acc.example.test' in configuration 'Default';
+alter settings runtime ( AfterStartupMicroflow: 'SR.MF_Startup' );
+alter settings constant @SR.ApiUrl value 'https://acc.example.test' in configuration 'Default';
 
 -- Clearing a setting is not a reference and must stay legal.
-alter settings model BeforeShutdownMicroflow = '';
+alter settings runtime ( BeforeShutdownMicroflow: '' );

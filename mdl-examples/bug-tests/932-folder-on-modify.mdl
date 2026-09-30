@@ -17,7 +17,7 @@ create module Bug932;
 -- Everything is created at the module root first, so the folder clauses below
 -- are genuinely moves rather than initial placements.
 create or modify json structure Bug932.JSON_Example
-  snippet '{"result": [{"id": 1}]}';
+  sample '{"result": [{"id": 1}]}';
 /
 
 create or modify microflow Bug932.ACT_Example()
@@ -31,14 +31,14 @@ end;
 create or modify enumeration Bug932.ENUM_Example (Draft 'Draft', Published 'Published');
 /
 
-create or modify constant Bug932.CONST_Example type string default 'x';
+create or modify constant Bug932.CONST_Example ( Type: string, DefaultValue: 'x' );
 /
 
 -- Now file each one away. Before the fix every one of these printed a success
 -- and moved nothing.
 create or modify json structure Bug932.JSON_Example
   folder 'Private/JSON Structures'
-  snippet '{"result": [{"id": 1}]}';
+  sample '{"result": [{"id": 1}]}';
 /
 
 create or modify microflow Bug932.ACT_Example()
@@ -54,14 +54,13 @@ create or modify enumeration Bug932.ENUM_Example (Draft 'Draft', Published 'Publ
   folder 'Private';
 /
 
-create or modify constant Bug932.CONST_Example type string default 'x'
-  folder 'Private';
+create or modify constant Bug932.CONST_Example folder 'Private' ( Type: string, DefaultValue: 'x' );
 /
 
 -- Expected layout: nothing left at the module root, and no empty folders.
 -- Doctypes that had no folder clause at all before #932: they could only ever
 -- be created at the module root, and MOVE did not name them either.
-create queue Bug932.Q_Example folder 'Private/Queues' ( Parallelism: 3 );
+create task queue Bug932.Q_Example folder 'Private/Queues' ( Parallelism: 3 );
 /
 
 create regular expression Bug932.RE_Digits folder 'Private/Patterns' ( Expression: '[0-9]+' );
@@ -71,7 +70,7 @@ create java action Bug932.JA_Example folder 'Private/Java' ()
   returns string as $$return null;$$;
 /
 
-show folders in Bug932;
+list folders in Bug932;
 /
 
 -- The control for the fix, and the one that decides whether it is a fix or a
@@ -79,8 +78,8 @@ show folders in Bug932;
 -- alone. If this filed JSON_Example back into the module root, every
 -- CREATE OR MODIFY in every existing script would unfile its document.
 create or modify json structure Bug932.JSON_Example
-  snippet '{"result": [{"id": 1}, {"id": 2}]}';
+  sample '{"result": [{"id": 1}, {"id": 2}]}';
 /
 
-show folders in Bug932;
+list folders in Bug932;
 /

@@ -54,7 +54,7 @@ create association BugTest262.Item_Root
   type Reference;
 
 create json structure BugTest262.JSON_Payload
-  snippet $${"name": "n", "items": [{"code": "c"}]}$$;
+  sample $${"name": "n", "items": [{"code": "c"}]}$$;
 
 -- One declaration, two stored elements: a bare Array container plus the item.
 create or modify export mapping BugTest262.EXM_Payload
@@ -71,7 +71,7 @@ create or modify export mapping BugTest262.EXM_Payload
 
 -- An entity-less grouping node. Object children only.
 create json structure BugTest262.JSON_Wrapped
-  snippet $${"name": "n", "wrapper": {"items": [{"code": "c"}]}}$$;
+  sample $${"name": "n", "wrapper": {"items": [{"code": "c"}]}}$$;
 
 create or modify export mapping BugTest262.EXM_Wrapped
   folder 'Mappings'

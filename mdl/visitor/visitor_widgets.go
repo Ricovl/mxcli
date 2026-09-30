@@ -32,7 +32,7 @@ func parseWidgetConditions(conditions []parser.IWidgetConditionContext) []ast.Wi
 
 		// Get value
 		if cond.STRING_LITERAL() != nil {
-			filter.Value = unquoteString(cond.STRING_LITERAL().GetText())
+			filter.Value = unquoteStringLit(cond.STRING_LITERAL())
 		}
 
 		filters = append(filters, filter)
@@ -53,7 +53,7 @@ func (b *Builder) ExitUpdateWidgetsStatement(ctx *parser.UpdateWidgetsStatementC
 
 		// Get property path (the first STRING_LITERAL)
 		if assignCtx.STRING_LITERAL() != nil {
-			assignment.PropertyPath = unquoteString(assignCtx.STRING_LITERAL().GetText())
+			assignment.PropertyPath = unquoteStringLit(assignCtx.STRING_LITERAL())
 		}
 
 		// Get value from widgetPropertyValue
@@ -85,7 +85,7 @@ func (b *Builder) ExitUpdateWidgetsStatement(ctx *parser.UpdateWidgetsStatementC
 // parseWidgetPropertyValue parses a widget property value (string, number, bool, null).
 func parseWidgetPropertyValue(ctx parser.IWidgetPropertyValueContext) any {
 	if ctx.STRING_LITERAL() != nil {
-		return unquoteString(ctx.STRING_LITERAL().GetText())
+		return unquoteStringLit(ctx.STRING_LITERAL())
 	}
 	if ctx.NUMBER_LITERAL() != nil {
 		numStr := ctx.NUMBER_LITERAL().GetText()

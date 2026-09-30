@@ -17,8 +17,8 @@ For immediate, transactional logic, use [microflows](./microflows.md) instead. S
 
 ```sql
 -- List all workflows
-SHOW WORKFLOWS;
-SHOW WORKFLOWS IN MyModule;
+LIST WORKFLOWS;
+LIST WORKFLOWS IN MyModule;
 
 -- View full definition
 DESCRIBE WORKFLOW MyModule.ApprovalFlow;

@@ -212,7 +212,7 @@ func rebuildFlowLayout(ctx *ExecContext, kind string, name ast.QualifiedName) (*
 		return nil, err
 	}
 
-	prog, errs := visitor.Build(mdl)
+	prog, errs := visitor.Build(describedSource(ctx, mdl))
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("its description does not parse back (%v), so it does not round-trip through MDL", errs[0])
 	}

@@ -70,7 +70,7 @@ CONTAINER cCard (Class: 'card mx-spacing-top-large') {
 | `Class` | CSS class names | `Class: 'card p-3'` |
 | `Style` | Inline CSS styles | `Style: 'padding: 16px;'` |
 | `DynamicClasses` | Runtime-computed CSS classes (expression; stacks on `Class`) | `DynamicClasses: if $currentObject/IsActive then 'is-active' else ''` |
-| `DesignProperties` | Design property values | `DesignProperties: ['Spacing top': 'Large']` |
+| `DesignProperties` | Design property values | `DesignProperties: ('Spacing top': 'Large')` |
 
 ### CUSTOMCONTAINER
 
@@ -88,8 +88,8 @@ DATAVIEW dvCustomer (DataSource: $Customer) {
   TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
   COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
   FOOTER footer1 {
-    ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-    ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+    ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+    ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
   }
 }
 ```
@@ -112,7 +112,7 @@ DATAGRID dgOrders (DataSource: DATABASE Sales.Order, PageSize: 20) {
   COLUMN colAmount (Attribute: Amount, Caption: 'Amount', Alignment: right)
   COLUMN colStatus (Attribute: Status, Caption: 'Status')
   CONTROLBAR bar1 {
-    ACTIONBUTTON btnNew (Caption: 'New', Action: MICROFLOW Sales.ACT_CreateOrder, ButtonStyle: Primary)
+    ACTIONBUTTON btnNew (Caption: 'New', Action: CALL MICROFLOW Sales.ACT_CreateOrder, ButtonStyle: Primary)
   }
 }
 ```
@@ -158,6 +158,33 @@ LISTVIEW lvProducts (DataSource: DATABASE MyModule.Product) {
 }
 ```
 
+#### Database source over an association
+
+Inside a data container, a list view can retrieve **from the database** the
+objects an association of the context object points to. Studio Pro calls it a
+Database source with an entity path; it keeps an XPath constraint, a sort order
+and a search bar:
+
+```sql
+create snippet MyModule.TaskAssignees (Params: ($Task: System.WorkflowUserTask)) {
+  listview lvAssignees (
+    DataSource: database from $Task/System.WorkflowUserTask_Assignees/Administration.Account
+      where [Active = true()] sort by FullName asc search by FullName
+  ) {
+    dynamictext txtName (Content: '{1}', ContentParams: ({1} = FullName))
+  }
+};
+```
+
+The path pairs each association with the entity it arrives at. Name the entity:
+it may be a specialization of the association's own end (here
+`Administration.Account` for `System.User`), and `DESCRIBE` always prints it. A
+trailing association with no entity gets the end opposite the context.
+
+It is a different source from `$Task/System.WorkflowUserTask_Assignees` — an
+**association** source, which follows the association in memory and has no
+XPath, sort or search. List views only; on any other widget it is refused.
+
 #### Specialization templates
 
 When the list view's entity is a **generalization**, it can render a different
@@ -167,13 +194,13 @@ has no name, hence `TEMPLATE FOR <entity>`:
 ```sql
 LISTVIEW vehicleListView (DataSource: DATABASE Pages.Vehicle) {
   -- the default body, used for an object no template matches
-  DYNAMICTEXT defaultVehicle (Content: '{1} {2}', ContentParams: [{1} = Brand, {2} = Model])
+  DYNAMICTEXT defaultVehicle (Content: '{1} {2}', ContentParams: ({1} = Brand, {2} = Model))
 
   TEMPLATE FOR Pages.Bus {
-    DYNAMICTEXT busLabel (Content: 'Bus, capacity {1}', ContentParams: [{1} = PassengerCapacity])
+    DYNAMICTEXT busLabel (Content: 'Bus, capacity {1}', ContentParams: ({1} = PassengerCapacity))
   }
   TEMPLATE FOR Pages.Truck {
-    DYNAMICTEXT truckLabel (Content: 'Truck, max load {1} kg', ContentParams: [{1} = MaxLoadKg])
+    DYNAMICTEXT truckLabel (Content: 'Truck, max load {1} kg', ContentParams: ({1} = MaxLoadKg))
   }
 }
 ```
@@ -331,8 +358,8 @@ IMAGE imgBanner (Width: 800, Height: 200)
 A button that triggers an action. The primary interactive element:
 
 ```sql
-ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
 ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
 ```
 
@@ -340,13 +367,19 @@ ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
 
 | Action | Description |
 |--------|-------------|
-| `SAVE_CHANGES` | Commit and close the page |
-| `CANCEL_CHANGES` | Roll back and close the page |
+| `SAVE CHANGES` | Commit and close the page |
+| `CANCEL CHANGES` | Roll back and close the page |
 | `DELETE` | Delete the current object |
-| `CLOSE_PAGE` | Close the page without saving |
-| `MICROFLOW Module.MF_Name` | Call a microflow |
-| `NANOFLOW Module.NF_Name` | Call a nanoflow |
-| `PAGE Module.PageName` | Open a page |
+| `CLOSE PAGE` | Close the page without saving |
+| `CALL MICROFLOW Module.MF_Name` | Call a microflow |
+| `CALL NANOFLOW Module.NF_Name` | Call a nanoflow |
+| `SHOW PAGE Module.PageName` | Open a page |
+| `CREATE OBJECT Module.Entity THEN SHOW PAGE Module.PageName` | Create an object and open a page for it |
+| `OPEN LINK 'https://…'` | Open a web address |
+| `SIGN OUT` | Sign the user out |
+| `COMPLETE TASK 'Outcome'` | Complete a workflow user task |
+
+The snake-case spellings (`SAVE_CHANGES`, `SHOW_PAGE`, …) and `MICROFLOW …` without `CALL` are deprecated aliases (MDL-DEPR020).
 
 **Button styles:**
 
@@ -364,7 +397,7 @@ ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
 ```sql
 ACTIONBUTTON btnProcess (
   Caption: 'Process',
-  Action: MICROFLOW Sales.ACT_ProcessOrder(Order: $Order),
+  Action: MICROFLOW Sales.ACT_ProcessOrder(Order = $Order),
   ButtonStyle: Primary
 )
 ```
@@ -410,8 +443,8 @@ Footer section of a DataView. Typically contains save/cancel buttons:
 
 ```sql
 FOOTER footer1 {
-  ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-  ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+  ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+  ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
 }
 ```
 
@@ -421,7 +454,7 @@ Control bar for DataGrid widgets. Contains action buttons for the grid:
 
 ```sql
 CONTROLBAR bar1 {
-  ACTIONBUTTON btnNew (Caption: 'New', Action: MICROFLOW Module.ACT_Create, ButtonStyle: Primary)
+  ACTIONBUTTON btnNew (Caption: 'New', Action: CALL MICROFLOW Module.ACT_Create, ButtonStyle: Primary)
   ACTIONBUTTON btnEdit (Caption: 'Edit', Action: PAGE Module.Entity_Edit)
   ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
 }
@@ -478,7 +511,7 @@ list in mxcli:
 Ask the widget:
 
 ```sql
-DESCRIBE WIDGET htmlelement;
+DESCRIBE WIDGET TYPE htmlelement;
 ```
 
 It lists every property with its type, default and enumeration members, every
@@ -534,8 +567,8 @@ Bind one with the property's own `<Name>Params` companion:
 ```sql
 image cardImage (
   ImageType: imageUrl,
-  ImageUrl: '{1}',        ImageUrlParams: [{1} = PictureUrl],
-  AlternativeText: '{1}', AlternativeTextParams: [{1} = Name]
+  ImageUrl: '{1}',        ImageUrlParams: ({1} = PictureUrl),
+  AlternativeText: '{1}', AlternativeTextParams: ({1} = Name)
 )
 ```
 
@@ -552,7 +585,7 @@ Two shorter spellings remain:
 | Spelling | Use it for |
 |----------|-----------|
 | `'{AttrName}'` | one attribute, no formatting block |
-| `contentparams: [...]` | a widget with a **single** text template — it is one list shared by every template on the widget |
+| `contentparams: (...)` | a widget with a **single** text template — it is one list shared by every template on the widget |
 
 Every `{N}` needs a matching parameter (Mendix rejects a shortfall with
 `CE0720`), and parameters with no `{N}` to fill are reported as MDL-WIDGET21
@@ -567,7 +600,7 @@ These properties are shared across many widget types:
 | `Class` | CSS class names | `Class: 'card p-3'` |
 | `Style` | Inline CSS styles | `Style: 'margin-top: 8px;'` |
 | `DynamicClasses` | Runtime-computed CSS classes (expression; stacks on `Class`) | `DynamicClasses: if $currentObject/IsActive then 'is-active' else ''` |
-| `DesignProperties` | Atlas design properties | `DesignProperties: ['Spacing top': 'Large', 'Full width': ON]` |
+| `DesignProperties` | Atlas design properties | `DesignProperties: ('Spacing top': 'Large', 'Full width': ON)` |
 | `Visible` | Visibility expression | `Visible: '$showSection'` |
 | `Editable` | Editability mode | `Editable: ReadOnly` |
 

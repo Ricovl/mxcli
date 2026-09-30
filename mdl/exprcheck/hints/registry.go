@@ -60,8 +60,8 @@ var Registry = &registry{byCode: map[string]Entry{
 				Note:  "IF condition",
 			},
 			{
-				Wrong: "CALL Mf($Status = 'Validated')",
-				Right: "CALL Mf($Status = FraudDetection.AlertStatus.Validated)",
+				Wrong: "CALL Mf(Status = 'Validated')",
+				Right: "CALL Mf(Status = FraudDetection.AlertStatus.Validated)",
 				Note:  "CALL parameter",
 			},
 		},

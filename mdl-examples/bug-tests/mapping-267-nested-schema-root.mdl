@@ -35,7 +35,7 @@ create persistent entity BugTest267.Message ( Content: String(500) );
 
 -- `choices` is an array of objects; `message` is a member of its item.
 create json structure BugTest267.JSON_Response
-  snippet $${"id": "x", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}}]}$$;
+  sample $${"id": "x", "choices": [{"index": 0, "message": {"role": "assistant", "content": "hi"}}]}$$;
 
 create or modify import mapping BugTest267.IMM_Message
   folder 'Mappings'

@@ -416,10 +416,10 @@ begin
         ClientSecret = $ClientSecret,
         RedirectUri  = $RedirectUri,
         UseBasicAuth = false
-      ) on error without rollback {
+      ) on error without rollback begin
         log error node 'Auth' 'Token exchange failed (client_secret_post): ' + $ClientId;
         return false;
-      };
+      end error;
 
       if $PostResponse = empty then
         log error node 'Auth' 'Empty token response (client_secret_post): ' + $ClientId;
@@ -458,10 +458,10 @@ begin
         ClientSecret = $ClientSecret,
         RedirectUri  = $RedirectUri,
         UseBasicAuth = true
-      ) on error without rollback {
+      ) on error without rollback begin
         log error node 'Auth' 'Token exchange failed (client_secret_basic): ' + $ClientId;
         return false;
-      };
+      end error;
 
       if $BasicResponse = empty then
         log error node 'Auth' 'Empty token response (client_secret_basic): ' + $ClientId;
@@ -739,7 +739,7 @@ begin
     ClientSecret = 'telemetry-secret',
     RedirectUri  = 'https://telemetry.example.com/callback',
     UseBasicAuth = false
-  ) on error without rollback {
+  ) on error without rollback begin
     log warning node 'Telemetry' 'Telemetry call failed for ' + $Factory/Name
       + ' (attempt ' + toString($Attempts) + ')';
     if $Attempts < $MaxAttempts then
@@ -749,7 +749,7 @@ begin
         + ' after ' + toString($Attempts) + ' attempts';
       join degraded;
     end if;
-  };
+  end error;
 
   -- The main flow reaches `degraded` as well, for a call that returned nothing.
   if $RawResponse = empty then
@@ -764,10 +764,10 @@ begin
     IssuedAt    = [%CurrentDateTime%]
   );
 
-  commit $Token with events on error {
+  commit $Token with events on error begin
     log error node 'Telemetry' 'Could not store the telemetry token';
     join degraded;
-  };
+  end error;
 
   -- ---- crossed branches: two splits, three arms, two landing points -----
   if $Factory/Availability > 80 then
@@ -800,9 +800,9 @@ begin
   merge degraded;
   set $Outcome = 'degraded';
   change $Factory (Status = CxLayout.FactoryStatus.Offline);
-  commit $Factory with events on error {
+  commit $Factory with events on error begin
     log error node 'Telemetry' 'Degraded write failed for ' + $Factory/Name;
-  };
+  end error;
   join finish;
 
   merge finish;

@@ -10,11 +10,11 @@ create page TypedDP.Home (
   title: 'Home',
   layout: Atlas_Core.Atlas_Default
 ) {
-  container hero (designproperties: [
+  container hero (designproperties: (
     'Background color': 'Brand Primary',
     'Card style': on,
-    'Spacing': ['margin-bottom': 'Large']
-  ]) {
+    'Spacing': ('margin-bottom': 'Large')
+  )) {
     dynamictext t1 (content: 'Welcome', rendermode: H2)
   }
 }

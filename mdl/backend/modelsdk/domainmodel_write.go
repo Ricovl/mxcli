@@ -48,6 +48,14 @@ func init() {
 	codec.RegisterTypeDefaults("DomainModels$IndexedAttribute", codec.TypeDefaults{
 		ZeroGUIDFields: []string{"AssociationPointer"},
 	})
+	// A member access names either an attribute or an association, and Studio
+	// Pro writes BOTH keys, the unused one as "" — all 361 member accesses in
+	// PedApp (11.13) and ako/TestApp (11.14). The writers set only the one in
+	// use, so every rebuilt access rule differed from its stored self by the
+	// missing key, which is how an unchanged rule still churned (ako/mxcli#801).
+	codec.RegisterTypeDefaults("DomainModels$MemberAccess", codec.TypeDefaults{
+		EmptyStringFields: []string{"Attribute", "Association"},
+	})
 	// The index's IndexedAttribute list uses typed-array marker 2, not the
 	// domain-model default of 3 (verified in the same reference project).
 	codec.RegisterListMarker("DomainModels$IndexedAttribute", 2)
@@ -268,20 +276,14 @@ func entityToGen(e *domainmodel.Entity, moduleName string, major int) *genDm.Ent
 	} else {
 		ng := genDm.NewNoGeneralization()
 		ng.SetPersistable(e.Persistable)
-		// Legacy omits the system-attribute flags when false, so only set the
-		// true ones to keep the BSON in parity.
-		if e.HasOwner {
-			ng.SetHasOwner(true)
-		}
-		if e.HasChangedBy {
-			ng.SetHasChangedBy(true)
-		}
-		if e.HasCreatedDate {
-			ng.SetHasCreatedDate(true)
-		}
-		if e.HasChangedDate {
-			ng.SetHasChangedDate(true)
-		}
+		// All four system-attribute flags, false ones included: Studio Pro stores
+		// every one (ako/TestApp 11.14.0, PedApp 11.13.0). Writing only the true
+		// ones, as the legacy serializer did, deleted the false flags on every
+		// rewrite of a Studio Pro domain model (#721 B, #743).
+		ng.SetHasOwner(e.HasOwner)
+		ng.SetHasChangedBy(e.HasChangedBy)
+		ng.SetHasCreatedDate(e.HasCreatedDate)
+		ng.SetHasChangedDate(e.HasChangedDate)
 		out.SetGeneralization(ng)
 	}
 
@@ -699,7 +701,15 @@ func attributeTypeToGen(t domainmodel.AttributeType) element.Element {
 		return genDm.NewDecimalAttributeType()
 	case *domainmodel.BooleanAttributeType:
 		return genDm.NewBooleanAttributeType()
-	case *domainmodel.DateTimeAttributeType, *domainmodel.DateAttributeType:
+	case *domainmodel.DateTimeAttributeType:
+		// Always written: a domain-model write re-serializes every entity in the
+		// unit, so leaving it out dropped a Studio Pro-authored LocalizeDate on
+		// every rewrite (#743). Producers that do not know it set true, Mendix's
+		// default and what an absent property meant before.
+		g := genDm.NewDateTimeAttributeType()
+		g.SetLocalizeDate(at.LocalizeDate)
+		return g
+	case *domainmodel.DateAttributeType:
 		return genDm.NewDateTimeAttributeType()
 	case *domainmodel.AutoNumberAttributeType:
 		return genDm.NewAutoNumberAttributeType()
@@ -755,6 +765,13 @@ func externalEntitySourceToGen(e *domainmodel.Entity) element.Element {
 		return src
 	}
 	return nil
+}
+
+func init() {
+	// An external entity's Rest$ODataKey Parts list is marker 2 in Studio Pro's
+	// BSON (measured on ako/TestApp, Clients.Orders); the default 3 rewrote the
+	// key on every domain-model write (#743).
+	codec.RegisterListMarker("Rest$ODataKeyPart", 2)
 }
 
 // odataKeyToGen builds a Rest$ODataKey from the entity's remote key parts, or nil

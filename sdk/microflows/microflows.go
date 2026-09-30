@@ -128,6 +128,9 @@ type Nanoflow struct {
 
 	// Return type
 	ReturnType DataType `json:"returnType,omitempty"`
+	// ReturnVariableName is the `as $Var` of `returns T as $Var`. Empty on a
+	// write means "not authored": the backend then carries the stored value.
+	ReturnVariableName string `json:"returnVariableName,omitempty"`
 
 	// Parameters
 	Parameters []*MicroflowParameter `json:"parameters,omitempty"`

@@ -123,8 +123,8 @@ describe published rest service PrsTest.CrmAPI;
 -- PART 5: SHOW AND LIST
 -- ############################################################################
 
-show published rest services;
-show published rest services in PrsTest;
+list published rest services;
+list published rest services in PrsTest;
 
 -- ############################################################################
 -- PART 6: GRANT / REVOKE ACCESS
@@ -166,7 +166,7 @@ alter published rest service PrsTest.OrderAPI drop resource 'shipments';
 
 drop published rest service PrsTest.OrderAPI;
 
-show published rest services in PrsTest;
+list published rest services in PrsTest;
 
 -- ============================================================================
 -- END OF PUBLISHED REST SERVICE EXAMPLES

@@ -9,19 +9,18 @@ Pages define the user interface of a Mendix application. Each page consists of a
 | **Layout** | A reusable page template that defines content regions (e.g., header, sidebar, main content) |
 | **Widget tree** | A hierarchical structure of widgets that defines the page's visual content |
 | **Data source** | Determines how a widget obtains its data (page parameter, database query, microflow, etc.) |
-| **Widget name** | Every widget has a unique name within the page, used for ALTER PAGE operations |
+| **Widget name** | Every widget has a unique name within the page, used for ALTER PAGE operations. Layout-grid rows and columns, data-grid columns, and slot blocks such as a gallery's `template` have none (Mendix stores none); a data-grid column is addressed as `grid column(Attr)` |
 
 ## CREATE PAGE
 
 The basic syntax for creating a page:
 
 ```sql
-CREATE [OR REPLACE] PAGE <Module>.<Name>
+CREATE [OR REPLACE] PAGE <Module>.<Name> [FOLDER '<path>']
 (
-  [Params: { $Param: Module.Entity | Type [, ...] },]
+  [Params: ( $Param: Module.Entity | Type [, ...] ),]
   Title: '<title>',
   Layout: <Module.LayoutName>
-  [, Folder: '<path>']
   [, Class: '<css-class>', Style: '<css: rule>']
 )
 {
@@ -51,7 +50,7 @@ Pages can receive entity objects or primitive values as parameters from the call
 ```sql
 CREATE PAGE MyModule.Customer_Edit
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )
@@ -60,8 +59,8 @@ CREATE PAGE MyModule.Customer_Edit
     TEXTBOX txtName (Label: 'Name', Attribute: Name)
     TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
     FOOTER footer1 {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 }
@@ -71,13 +70,14 @@ CREATE PAGE MyModule.Customer_Edit
 
 | Property | Description | Example |
 |----------|-------------|---------|
-| `Params` | Page parameters (entity objects or primitives) | `Params: { $Order: Sales.Order, $Qty: Integer }` |
+| `Params` | Page parameters (entity objects or primitives) | `Params: ( $Order: Sales.Order, $Qty: Integer )` |
 | `Title` | Page title shown in the browser/tab | `Title: 'Edit Customer'` |
 | `Layout` | Layout to use for the page | `Layout: Atlas_Core.PopupLayout` |
-| `Folder` | Organizational folder within the module | `Folder: 'Pages/Customers'` |
-| `Variables` | Page-level variables for conditional logic | `Variables: { $show: Boolean = 'true' }` |
+| `Variables` | Page-level variables for conditional logic | `Variables: ( $show: Boolean = 'true' )` |
 | `Class` | CSS class applied to the page (Forms$Appearance) | `Class: 'container-fluid bg-light'` |
 | `Style` | Inline CSS style applied to the page | `Style: 'min-height: 100vh'` |
+
+The folder is a clause after the name, not a property: `CREATE PAGE MyModule.Customer_Edit FOLDER 'Pages/Customers' (…)`. The `Folder: '…'` property still parses as a deprecated alias (`MDL-DEPR105`); `mxcli fmt --upgrade` moves it.
 
 ## Widget Properties
 
@@ -89,17 +89,19 @@ Layout grid columns support responsive widths for desktop, tablet, and phone:
 COLUMN col1 (DesktopWidth: 8, TabletWidth: 6, PhoneWidth: 12) { ... }
 ```
 
-Values are 1-12 (grid units) or `AutoFill`. TabletWidth and PhoneWidth default to auto when omitted.
+Values are 1-12 (grid units), `AutoFill` or `AutoFit` (Studio Pro's "Auto-fit content"). TabletWidth and PhoneWidth default to `AutoFill` when omitted.
 
 ### Conditional Visibility
 
-Any widget can be conditionally visible using an XPath expression in brackets:
+Any widget can be conditionally visible. The condition is a Mendix client expression, written bare and stored as written, so an attribute of the context object is `$currentObject/Attr`:
 
 ```sql
-TEXTBOX txtName (Label: 'Name', Attribute: Name, Visible: [IsActive])
+TEXTBOX txtName (Label: 'Name', Attribute: Name, Visible: $currentObject/IsActive)
 ```
 
 Static values also work: `Visible: false` hides the widget unconditionally.
+
+The older bracketed form, `Visible: [IsActive]`, still parses — it roots a bare attribute in `$currentObject` — and warns `MDL-DEPR081`; `mxcli fmt --upgrade` rewrites it to the expression it stores. A constant condition such as `Editable: [false]` has no bare spelling and keeps its brackets.
 
 Studio Pro's **"based on attribute value"** form lists the values of a Boolean or
 enumeration attribute (of the enclosing data container's entity) that show the
@@ -119,7 +121,7 @@ set up that way in Studio Pro.
 Input widgets can be conditionally editable:
 
 ```sql
-TEXTBOX txtStatus (Label: 'Status', Attribute: Status, Editable: [Status != 'Closed'])
+TEXTBOX txtStatus (Label: 'Status', Attribute: Status, Editable: $currentObject/Status != 'Closed')
 ```
 
 Static values: `Editable: Never`, `Editable: Always`.
@@ -148,7 +150,7 @@ Use `SHOW` and `DESCRIBE` to examine existing pages:
 
 ```sql
 -- List all pages in a module
-SHOW PAGES IN MyModule;
+LIST PAGES IN MyModule;
 
 -- Show the full MDL definition of a page (round-trippable)
 DESCRIBE PAGE MyModule.Customer_Edit;

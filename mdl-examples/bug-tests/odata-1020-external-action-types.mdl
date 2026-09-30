@@ -53,13 +53,13 @@
 
 create module Ext;
 
-create constant Ext.SvcUrl type String default 'http://127.0.0.1:8899/';
+create constant Ext.SvcUrl ( Type: String, DefaultValue: 'http://127.0.0.1:8899/' );
 
 -- The contract must declare the actions as <Action> with an <ActionImport> in
 -- the EntityContainer. Mendix's `call external action` takes OData ACTIONS
 -- only, not Functions (CE7251), and an unbound action with no ActionImport is
 -- not part of the service's callable surface.
-create odata client Ext.TripPin (
+create consumed odata service Ext.TripPin (
   Version: '1.0',
   ODataVersion: OData4,
   MetadataUrl: 'http://127.0.0.1:8899/$metadata',

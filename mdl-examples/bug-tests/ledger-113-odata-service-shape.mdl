@@ -36,11 +36,11 @@
 --   mxcli check ledger-113-odata-service-shape.mdl   # clean; this is the good shape
 --   mx check <app>.mpr                               # 0 errors
 
-create or replace entity MyFirstModule.Cat (
-  Label: string(100) unique error 'must be unique'
+create or modify entity MyFirstModule.Cat (
+  Label: string(100) unique error message 'must be unique'
 );
 
-create or replace odata service MyFirstModule.Svc (
+create or modify published odata service MyFirstModule.Svc (
   Path: 'odata/cat/',
   ServiceName: 'cat',
   Namespace: 'cat',

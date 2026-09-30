@@ -13,7 +13,7 @@ options { tokenVocab = MDLLexer; }
  * Create a workflow with activities.
  */
 createWorkflowStatement
-    : WORKFLOW qualifiedName
+    : WORKFLOW ifNotExists? qualifiedName
       workflowHeaderClause*
       BEGIN workflowMainBody workflowEventSubProcess* END WORKFLOW SEMICOLON? SLASH?
     ;
@@ -41,7 +41,10 @@ workflowHeaderClause
     // rule bypasses by taking IDENTIFIER directly.
     | EXPORT LEVEL (IDENTIFIER | API | HIDDEN_KW)
     | OVERVIEW PAGE qualifiedName
-    | DUE DATE_TYPE dueDate=STRING_LITERAL
+    | DUE DATE_TYPE dueDate=workflowExpression
+    // The note attached to the workflow's start (ako/mxcli#707); an activity's
+    // is `@annotation '…'` before it.
+    | ANNOTATION annotationText=STRING_LITERAL
     | workflowEventHandlerClause
     ;
 
@@ -56,7 +59,7 @@ workflowHeaderClause
  * the body does not already end (in an End, a jump, or branches that all end).
  */
 workflowEventSubProcess
-    : EVENT SUBPROCESS workflowActivityName STRING_LITERAL?
+    : annotation* EVENT SUBPROCESS workflowActivityName STRING_LITERAL?
       ON (INTERRUPTING | NON INTERRUPTING) workflowEventSubProcessTrigger
       LBRACE workflowBody RBRACE SEMICOLON
     ;
@@ -68,7 +71,7 @@ workflowEventSubProcess
  */
 workflowEventSubProcessTrigger
     : NOTIFICATION workflowActivityName? STRING_LITERAL?
-    | TIMER STRING_LITERAL (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
+    | TIMER workflowExpression (AS workflowActivityName)? workflowCaption?
     ;
 
 /**
@@ -104,9 +107,19 @@ workflowBody
     : (workflowActivityStmt | workflowEndStmt SEMICOLON | workflowReturnStmt SEMICOLON)*
     ;
 
-/** Ends the whole workflow from inside a branch; `comment` sets the End's caption. */
+/**
+ * An activity's caption, the text Studio Pro shows on it (R9). `comment` was
+ * the first spelling: it set the caption, not a comment, which misled the
+ * reader into taking it for an annotation, so it is a registered alias.
+ */
+workflowCaption
+    : CAPTION STRING_LITERAL
+    | COMMENT /* @alias MDL-DEPR104 */ STRING_LITERAL
+    ;
+
+/** Ends the whole workflow from inside a branch; `caption` sets the End's caption. */
 workflowEndStmt
-    : END WORKFLOW (COMMENT STRING_LITERAL)?
+    : END WORKFLOW workflowCaption?
     ;
 
 /**
@@ -118,16 +131,19 @@ workflowReturnStmt
     : RETURN
     ;
 
+// `@annotation '…'` before an activity is the note Studio Pro attaches to it,
+// as it is before a microflow activity (ako/mxcli#707). The standalone
+// `annotation '…';` is a different thing, a sticky note, and MDL-WF04 refuses it.
 workflowActivityStmt
-    : workflowUserTaskStmt SEMICOLON
-    | workflowCallMicroflowStmt SEMICOLON
-    | workflowCallWorkflowStmt SEMICOLON
-    | workflowDecisionStmt SEMICOLON
-    | workflowParallelSplitStmt SEMICOLON
-    | workflowJumpToStmt SEMICOLON
-    | workflowWaitForTimerStmt SEMICOLON
-    | workflowWaitForNotificationStmt SEMICOLON
-    | workflowNotificationStmt SEMICOLON
+    : annotation* workflowUserTaskStmt SEMICOLON
+    | annotation* workflowCallMicroflowStmt SEMICOLON
+    | annotation* workflowCallWorkflowStmt SEMICOLON
+    | annotation* workflowDecisionStmt SEMICOLON
+    | annotation* workflowParallelSplitStmt SEMICOLON
+    | annotation* workflowJumpToStmt SEMICOLON
+    | annotation* workflowWaitForTimerStmt SEMICOLON
+    | annotation* workflowWaitForNotificationStmt SEMICOLON
+    | annotation* workflowNotificationStmt SEMICOLON
     | workflowAnnotationStmt SEMICOLON
     ;
 
@@ -141,6 +157,35 @@ workflowActivityStmt
 workflowActivityName
     : IDENTIFIER
     | QUOTED_IDENTIFIER
+    ;
+
+/**
+ * A Mendix expression a workflow stores: a decision's condition, a timer's
+ * delay or first execution time, a due date. R5 (ako/mxcli#753): written bare,
+ * like every other expression in MDL — `decision $WorkflowContext/Total > 1000`.
+ *
+ * The string form (`decision '$WorkflowContext/Total > 1000'`) is the
+ * deprecated spelling of the same thing: its CONTENT is the expression, as it
+ * always was. It is listed first so a lone string keeps that reading; no slot
+ * here takes a string-valued expression (a condition is Boolean or an
+ * enumeration, a timer or due date a DateTime), so nothing written bare means
+ * a string either.
+ */
+workflowExpression
+    : STRING_LITERAL /* @alias MDL-DEPR080 */
+    | expression
+    ;
+
+/**
+ * A timer boundary event's delay. The delay is optional and the next boundary
+ * event may follow without repeating `boundary event`, so a bare delay must not
+ * start with the `non` of `non interrupting timer`, a word the expression
+ * grammar admits as a name: `interrupting timer non interrupting timer 'x'` is
+ * two events, the first without a delay, as it was when only a string could be
+ * the delay (ako/mxcli#753).
+ */
+workflowTimerDelay
+    : {p.GetTokenStream().LA(1) != MDLParserNON}? workflowExpression
     ;
 
 /**
@@ -163,10 +208,11 @@ workflowUserTaskStmt
 workflowUserTaskClause
     : PAGE qualifiedName
     | TARGETING (USERS | GROUPS)? MICROFLOW qualifiedName
-    | TARGETING (USERS | GROUPS)? XPATH STRING_LITERAL
+    | TARGETING (USERS | GROUPS)? XPATH xpathConstraint+
+    | TARGETING (USERS | GROUPS)? XPATH STRING_LITERAL /* @alias MDL-DEPR031 */
     | ON CREATED MICROFLOW qualifiedName
     | ENTITY qualifiedName
-    | DUE DATE_TYPE STRING_LITERAL
+    | DUE DATE_TYPE workflowExpression
     | DESCRIPTION STRING_LITERAL
     | OUTCOMES workflowUserTaskOutcome+
     | BOUNDARY EVENT workflowBoundaryEventClause ((BOUNDARY EVENT)? workflowBoundaryEventClause)*
@@ -217,9 +263,9 @@ workflowFallbackClause
  * with two boundary events did not parse.
  */
 workflowBoundaryEventClause
-    : INTERRUPTING TIMER STRING_LITERAL? (LBRACE workflowBody RBRACE)?
-    | NON INTERRUPTING TIMER STRING_LITERAL? (LBRACE workflowBody RBRACE)?
-    | TIMER STRING_LITERAL? (LBRACE workflowBody RBRACE)?
+    : INTERRUPTING TIMER workflowTimerDelay? (LBRACE workflowBody RBRACE)?
+    | NON INTERRUPTING TIMER workflowTimerDelay? (LBRACE workflowBody RBRACE)?
+    | TIMER workflowTimerDelay? (LBRACE workflowBody RBRACE)?
     // A notification boundary event is triggered by `notify workflow … target
     // <name>`, so its name is what matters; the string is its caption.
     | INTERRUPTING NOTIFICATION workflowActivityName? STRING_LITERAL? (LBRACE workflowBody RBRACE)?
@@ -237,10 +283,22 @@ workflowUserTaskOutcome
  * invoked.
  */
 workflowCallMicroflowStmt
-    : CALL AGENT? MICROFLOW qualifiedName (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
-      (WITH LPAREN workflowParameterMapping (COMMA workflowParameterMapping)* RPAREN)?
+    : CALL AGENT? MICROFLOW qualifiedName workflowCallArguments? (AS workflowActivityName)? workflowCaption?
+      (WITH /* @alias MDL-DEPR008 */ LPAREN workflowParameterMapping (COMMA workflowParameterMapping)* RPAREN)?
       (OUTCOMES workflowConditionOutcome+)?
       (BOUNDARY EVENT workflowBoundaryEventClause ((BOUNDARY EVENT)? workflowBoundaryEventClause)*)?
+    ;
+
+// R4: a workflow call binds its arguments like every other call site,
+// `(Param = expression)` right after the callee, the expression bare.
+// `with (Param = '<expression>')`, the expression in a string, is the
+// deprecated spelling of the same mapping.
+workflowCallArguments
+    : LPAREN (workflowCallArgument (COMMA workflowCallArgument)*)? RPAREN
+    ;
+
+workflowCallArgument
+    : parameterName EQUALS expression
     ;
 
 workflowParameterMapping
@@ -248,12 +306,12 @@ workflowParameterMapping
     ;
 
 workflowCallWorkflowStmt
-    : CALL WORKFLOW qualifiedName (AS workflowActivityName)? (COMMENT STRING_LITERAL)?
-      (WITH LPAREN workflowParameterMapping (COMMA workflowParameterMapping)* RPAREN)?
+    : CALL WORKFLOW qualifiedName workflowCallArguments? (AS workflowActivityName)? workflowCaption?
+      (WITH /* @alias MDL-DEPR008 */ LPAREN workflowParameterMapping (COMMA workflowParameterMapping)* RPAREN)?
     ;
 
 workflowDecisionStmt
-    : DECISION workflowActivityName? STRING_LITERAL? (COMMENT STRING_LITERAL)?
+    : DECISION workflowActivityName? workflowExpression? workflowCaption?
       (OUTCOMES workflowConditionOutcome+)?
     ;
 
@@ -262,7 +320,7 @@ workflowConditionOutcome
     ;
 
 workflowParallelSplitStmt
-    : PARALLEL SPLIT workflowActivityName? (COMMENT STRING_LITERAL)?
+    : PARALLEL SPLIT workflowActivityName? workflowCaption?
       workflowParallelPath+
     ;
 
@@ -271,15 +329,15 @@ workflowParallelPath
     ;
 
 workflowJumpToStmt
-    : JUMP TO (IDENTIFIER | QUOTED_IDENTIFIER) (COMMENT STRING_LITERAL)?
+    : JUMP TO (IDENTIFIER | QUOTED_IDENTIFIER) workflowCaption?
     ;
 
 workflowWaitForTimerStmt
-    : WAIT FOR TIMER workflowActivityName? STRING_LITERAL? (COMMENT STRING_LITERAL)?
+    : WAIT FOR TIMER workflowActivityName? workflowExpression? workflowCaption?
     ;
 
 workflowWaitForNotificationStmt
-    : WAIT FOR NOTIFICATION workflowActivityName? (COMMENT STRING_LITERAL)?
+    : WAIT FOR NOTIFICATION workflowActivityName? workflowCaption?
       (BOUNDARY EVENT workflowBoundaryEventClause ((BOUNDARY EVENT)? workflowBoundaryEventClause)*)?
     ;
 
@@ -288,7 +346,7 @@ workflowWaitForNotificationStmt
  * the point a `notify workflow … target <name>` reaches.
  */
 workflowNotificationStmt
-    : NOTIFICATION workflowActivityName? (COMMENT STRING_LITERAL)?
+    : NOTIFICATION workflowActivityName? workflowCaption?
     ;
 
 workflowAnnotationStmt
@@ -299,27 +357,106 @@ workflowAnnotationStmt
 // ALTER WORKFLOW
 // =============================================================================
 
+/**
+ * `alter workflow` operations: the generic ALTER (ADR-0012 decision 2,
+ * ako/mxcli#712).
+ *
+ * ```mdl
+ * alter workflow Shop.OrderApproval {
+ *   set (Display: 'Order approval', DueDate: addDays([%CurrentDateTime%], 3));
+ *   set (Page: Shop.TaskPage, Targeting: xpath [Active = true()]) on ReviewOrder;
+ *   insert after ReviewOrder { call microflow Shop.ACT_Notify; }
+ *   insert before 'Review the order'@2 { wait for notification Ready; }
+ *   insert into ReviewOrder { outcomes 'Escalate' { call microflow Shop.ACT_Escalate; } }
+ *   insert into decision1 { outcomes default -> { } }
+ *   insert into split1 { path { call microflow Shop.ACT_Log; } }
+ *   insert into ReviewOrder { boundary event interrupting timer addHours([%CurrentDateTime%], 4) { } }
+ *   replace ReviewOrder with { user task ReviewOrder caption 'Review' outcomes 'Done' { }; }
+ *   drop ReviewOrder outcome 'Reject', split1 path 2, ReviewOrder boundary event;
+ *   drop callMicroflow1;
+ * }
+ * ```
+ *
+ * A target is an activity's name or its quoted caption, with `@n` to choose
+ * one of several matches; the workflow's resolver (wfmutator) refuses an
+ * ambiguous one and lists the matches. A fragment is written exactly as
+ * `create workflow` writes it: activities in `{ }`, and for `insert into` the
+ * activity's own `outcomes`, `path` or `boundary event` clause.
+ */
+alterWorkflowOperation
+    : SET LPAREN alterWorkflowAssignment (COMMA alterWorkflowAssignment)* RPAREN (ON alterTarget)? SEMICOLON?
+    | INSERT (AFTER | BEFORE) alterTarget alterWorkflowFragment SEMICOLON?
+    | INSERT INTO alterTarget LBRACE alterWorkflowMember+ RBRACE SEMICOLON?
+    | REPLACE alterTarget WITH alterWorkflowFragment SEMICOLON?
+    | DROP alterWorkflowTarget (COMMA alterWorkflowTarget)* SEMICOLON?
+    ;
+
+// Activities, as the body of an outcome in `create workflow` writes them.
+alterWorkflowFragment
+    : LBRACE workflowBody RBRACE
+    ;
+
+// What `insert into <activity>` adds: the activity's own clause, as `create
+// workflow` writes it. A path's number may be left out; when written it must
+// be the next one.
+alterWorkflowMember
+    : OUTCOMES (workflowUserTaskOutcome | workflowConditionOutcome)+
+    | PATH NUMBER_LITERAL? LBRACE workflowBody RBRACE
+    | BOUNDARY EVENT workflowBoundaryEventClause
+    ;
+
+// A drop target: an activity, or one member of it — a user task's or a
+// decision's outcome, a parallel split's path, the activity's boundary event.
+alterWorkflowTarget
+    : alterTarget alterWorkflowTargetMember?
+    ;
+
+alterWorkflowTargetMember
+    : OUTCOME (STRING_LITERAL | TRUE | FALSE | DEFAULT)
+    | PATH NUMBER_LITERAL
+    | BOUNDARY EVENT
+    ;
+
+// `Key: value`, the key naming a workflow property (Display, Description,
+// ExportLevel, DueDate, OverviewPage, Parameter) or, with `on <activity>`, an
+// activity property (Page, Description, Targeting, DueDate). Which keys exist
+// is the visitor's call, so an unknown key is refused with the list.
+alterWorkflowAssignment
+    : identifierOrKeyword COLON alterWorkflowValue
+    ;
+
+alterWorkflowValue
+    : VARIABLE COLON qualifiedName                  // Parameter: $WorkflowContext: M.Ctx
+    | MICROFLOW qualifiedName                       // Targeting: microflow M.Target
+    | XPATH xpathConstraint+                        // Targeting: xpath [Active = true()]
+    | XPATH STRING_LITERAL /* @alias MDL-DEPR031 */ // Targeting: xpath '[Active = true()]'
+    | qualifiedName                                 // Page: M.P, ExportLevel: API
+    | workflowExpression                            // Display: 'x', DueDate: addDays(…)
+    ;
+
+// The old per-action forms, each a registered alias of the generic operation
+// it spells (MDL-DEPR140-149); `fmt --upgrade` rewrites them.
 alterWorkflowAction
-    : SET workflowSetProperty
-    | SET ACTIVITY alterActivityRef activitySetProperty
-    | INSERT AFTER alterActivityRef workflowActivityStmt
-    | DROP ACTIVITY alterActivityRef
-    | REPLACE ACTIVITY alterActivityRef WITH workflowActivityStmt
-    | INSERT OUTCOME STRING_LITERAL ON alterActivityRef LBRACE workflowBody RBRACE
-    | INSERT PATH ON alterActivityRef LBRACE workflowBody RBRACE
-    | DROP OUTCOME STRING_LITERAL ON alterActivityRef
-    | DROP PATH STRING_LITERAL ON alterActivityRef
-    | INSERT BOUNDARY EVENT ON alterActivityRef workflowBoundaryEventClause
-    | DROP BOUNDARY EVENT ON alterActivityRef
-    | INSERT CONDITION STRING_LITERAL ON alterActivityRef LBRACE workflowBody RBRACE
-    | DROP CONDITION STRING_LITERAL ON alterActivityRef
+    : SET /* @alias MDL-DEPR140 */ workflowSetProperty
+    | SET ACTIVITY /* @alias MDL-DEPR141 */ alterActivityRef activitySetProperty
+    | INSERT AFTER /* @alias MDL-DEPR142 */ alterActivityRef workflowActivityStmt
+    | DROP ACTIVITY /* @alias MDL-DEPR143 */ alterActivityRef
+    | REPLACE ACTIVITY /* @alias MDL-DEPR144 */ alterActivityRef WITH workflowActivityStmt
+    | INSERT OUTCOME /* @alias MDL-DEPR145 */ STRING_LITERAL ON alterActivityRef LBRACE workflowBody RBRACE
+    | INSERT PATH /* @alias MDL-DEPR146 */ ON alterActivityRef LBRACE workflowBody RBRACE
+    | DROP OUTCOME /* @alias MDL-DEPR149 */ STRING_LITERAL ON alterActivityRef
+    | DROP PATH /* @alias MDL-DEPR149 */ STRING_LITERAL ON alterActivityRef
+    | INSERT BOUNDARY EVENT /* @alias MDL-DEPR148 */ ON alterActivityRef workflowBoundaryEventClause
+    | DROP BOUNDARY EVENT /* @alias MDL-DEPR149 */ ON alterActivityRef
+    | INSERT CONDITION /* @alias MDL-DEPR147 */ STRING_LITERAL ON alterActivityRef LBRACE workflowBody RBRACE
+    | DROP CONDITION /* @alias MDL-DEPR149 */ STRING_LITERAL ON alterActivityRef
     ;
 
 workflowSetProperty
     : DISPLAY STRING_LITERAL
     | DESCRIPTION STRING_LITERAL
     | EXPORT LEVEL (IDENTIFIER | API | HIDDEN_KW)
-    | DUE DATE_TYPE STRING_LITERAL
+    | DUE DATE_TYPE workflowExpression
     | OVERVIEW PAGE qualifiedName
     | PARAMETER VARIABLE COLON qualifiedName
     ;
@@ -328,8 +465,9 @@ activitySetProperty
     : PAGE qualifiedName
     | DESCRIPTION STRING_LITERAL
     | TARGETING MICROFLOW qualifiedName
-    | TARGETING XPATH STRING_LITERAL
-    | DUE DATE_TYPE STRING_LITERAL
+    | TARGETING XPATH xpathConstraint+
+    | TARGETING XPATH STRING_LITERAL /* @alias MDL-DEPR031 */
+    | DUE DATE_TYPE workflowExpression
     ;
 
 alterActivityRef

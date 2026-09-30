@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"strings"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
-	"github.com/mendixlabs/mxcli/modelsdk/property"
 )
 
 func init() {
@@ -80,7 +81,142 @@ func (b *Backend) UpdateConsumedODataService(svc *model.ConsumedODataService) er
 	if err != nil {
 		return fmt.Errorf("UpdateConsumedODataService: encode: %w", err)
 	}
+	stored, err := b.GetRawUnitBytes(svc.ID)
+	if err != nil {
+		return fmt.Errorf("UpdateConsumedODataService: read stored service: %w", err)
+	}
+	if len(stored) > 0 {
+		configKey, headersKey := b.microflowKeys()
+		contents, err = carryStoredConsumedODataService(stored, contents, consumedODataOptionalKeys(configKey, headersKey))
+		if err != nil {
+			return fmt.Errorf("UpdateConsumedODataService: carry stored properties: %w", err)
+		}
+	}
 	return b.writer.UpdateRawUnit(string(svc.ID), contents)
+}
+
+// consumedODataStoredWins are the keys consumedODataServiceToGen writes as fixed
+// placeholders rather than from the model: the stored value is kept. Studio Pro
+// stores UseQuerySegment true on a client it creates (ako/TestApp), and a
+// rewrite reset it to false (#743).
+var consumedODataStoredWins = map[string]bool{
+	"UseQuerySegment":      true,
+	"ExportLevel":          true,
+	"LastUpdated":          true,
+	"MinimumMxVersion":     true,
+	"RecommendedMxVersion": true,
+	"MetadataReferences":   true,
+	"ValidatedEntities":    true,
+}
+
+// consumedODataOptionalKeys are the keys the writer emits only when the model
+// holds a value (addStrIf). Studio Pro stores them as "" when unset, so a key
+// the fresh document omits is written "" when it is stored — which also keeps a
+// value the statement cleared cleared, where carrying the stored one would undo
+// the change.
+func consumedODataOptionalKeys(configKey, headersKey string) map[string]bool {
+	return map[string]bool{
+		configKey: true, headersKey: true, "ErrorHandlingMicroflow": true,
+		"ProxyHost": true, "ProxyPort": true, "ProxyUsername": true, "ProxyPassword": true,
+		"ApplicationId": true, "EndpointId": true, "CatalogUrl": true, "EnvironmentType": true,
+	}
+}
+
+// carryStoredConsumedODataService lays the freshly encoded service over the
+// stored one (ADR-0012: carry or refuse). The model holds only part of what
+// Studio Pro stores on a Rest$ConsumedODataService — the Icon, UseQuerySegment,
+// the empty catalog and proxy keys, the HttpConfiguration's
+// CustomLocationTemplate — and the document is written wholesale, so a key the
+// writer does not produce was deleted by every rewrite (#743).
+//
+// The result is the stored document with each key the fresh one writes set to
+// the fresh value, except:
+//   - consumedODataStoredWins keys keep the stored value;
+//   - an optional key the fresh document omits is written "" when stored;
+//   - the HttpConfiguration part is laid over the stored part the same way;
+//   - a list keeps the stored marker, with the fresh elements.
+//
+// Keys the fresh document adds are appended after the stored ones.
+func carryStoredConsumedODataService(stored, fresh []byte, optional map[string]bool) ([]byte, error) {
+	var s, f bson.D
+	if err := bson.Unmarshal(stored, &s); err != nil {
+		return nil, fmt.Errorf("decode stored: %w", err)
+	}
+	if err := bson.Unmarshal(fresh, &f); err != nil {
+		return nil, fmt.Errorf("decode fresh: %w", err)
+	}
+	out := overlayStoredDoc(s, f, func(key string) bool { return consumedODataStoredWins[key] })
+	for i, e := range out {
+		if optional[e.Key] && !docHasKey(f, e.Key) {
+			if _, isString := e.Value.(string); isString {
+				out[i].Value = ""
+			}
+		}
+		if e.Key == "HttpConfiguration" {
+			sp, sok := docValue(s, e.Key).(bson.D)
+			fp, fok := docValue(f, e.Key).(bson.D)
+			if sok && fok {
+				out[i].Value = overlayStoredDoc(sp, fp, func(string) bool { return false })
+			}
+		}
+	}
+	return bson.Marshal(out)
+}
+
+// overlayStoredDoc returns stored with every key of fresh laid over it, except
+// the keys storedWins keeps. A list takes the fresh elements after the stored
+// marker: the marker is how Studio Pro types the array, and an empty list the
+// writer re-marks is a change nothing asked for.
+func overlayStoredDoc(stored, fresh bson.D, storedWins func(string) bool) bson.D {
+	out := make(bson.D, 0, len(stored)+len(fresh))
+	for _, e := range stored {
+		if storedWins(e.Key) || !docHasKey(fresh, e.Key) {
+			out = append(out, e)
+			continue
+		}
+		out = append(out, bson.E{Key: e.Key, Value: keepListMarker(e.Value, docValue(fresh, e.Key))})
+	}
+	for _, e := range fresh {
+		if !docHasKey(stored, e.Key) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// keepListMarker returns fresh with the stored list's leading marker when both
+// are lists that start with one; any other value is fresh unchanged.
+func keepListMarker(stored, fresh any) any {
+	sa, ok1 := stored.(bson.A)
+	fa, ok2 := fresh.(bson.A)
+	if !ok1 || !ok2 || len(sa) == 0 || len(fa) == 0 {
+		return fresh
+	}
+	sm, ok1 := sa[0].(int32)
+	_, ok2 = fa[0].(int32)
+	if !ok1 || !ok2 {
+		return fresh
+	}
+	out := append(bson.A{sm}, fa[1:]...)
+	return out
+}
+
+func docHasKey(d bson.D, key string) bool {
+	for _, e := range d {
+		if e.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
+func docValue(d bson.D, key string) any {
+	for _, e := range d {
+		if e.Key == key {
+			return e.Value
+		}
+	}
+	return nil
 }
 
 func (b *Backend) DeleteConsumedODataService(id model.ID) error {
@@ -255,8 +391,14 @@ func publishedODataServiceToGen(svc *model.PublishedODataService) element.Elemen
 	// suite (mxcli-formula1 §41).
 	addByNameRefList(g, "AllowedModuleRoles", "", svc.AllowedModuleRoles)
 	if len(svc.AuthenticationTypes) > 0 {
-		addByNameRefListV3(g, "AuthenticationTypes", svc.AuthenticationTypes)
+		// Marker 1: what Studio Pro writes on all three published services of
+		// ako/TestApp. The 3 this used matched the legacy writer, not Studio Pro,
+		// and churned every rewrite (#743).
+		addByNameRefList(g, "AuthenticationTypes", "", svc.AuthenticationTypes)
 	}
+	// Carried when stored, so a rewrite does not delete it; a service mxcli
+	// creates is written as before (#743).
+	addStrIf(g, "ExportLevel", svc.ExportLevel)
 
 	// Pre-assign entity-type IDs so entity sets can point at them by ID.
 	entityTypeIDByName := make(map[string]string, len(svc.EntityTypes))
@@ -419,7 +561,7 @@ func publishedMemberToGen(m *model.PublishedMember, ownerQN string) element.Elem
 	case "association":
 		g := newElem("ODataPublish$PublishedAssociationEnd", memberID)
 		addStr(g, "ExposedName", m.ExposedName)
-		addBool(g, "CanBeEmpty", !m.IsPartOfKey)
+		addBool(g, "CanBeEmpty", memberCanBeEmpty(m))
 		addStr(g, "Description", "")
 		addStr(g, "Summary", "")
 		addStr(g, "Association", qualifyAssociationName(m.Name, ownerQN))
@@ -432,7 +574,7 @@ func publishedMemberToGen(m *model.PublishedMember, ownerQN string) element.Elem
 	case "id":
 		g := newElem("ODataPublish$PublishedId", memberID)
 		addStr(g, "ExposedName", m.ExposedName)
-		addBool(g, "CanBeEmpty", !m.IsPartOfKey)
+		addBool(g, "CanBeEmpty", memberCanBeEmpty(m))
 		addStr(g, "Description", "")
 		addStr(g, "Summary", "")
 		addStr(g, "Attribute", qualifyMemberName(m.Name, ownerQN))
@@ -443,7 +585,7 @@ func publishedMemberToGen(m *model.PublishedMember, ownerQN string) element.Elem
 	default: // attribute
 		g := newElem("ODataPublish$PublishedAttribute", memberID)
 		addStr(g, "ExposedName", m.ExposedName)
-		addBool(g, "CanBeEmpty", !m.IsPartOfKey)
+		addBool(g, "CanBeEmpty", memberCanBeEmpty(m))
 		addStr(g, "Description", "")
 		addStr(g, "Summary", "")
 		addStr(g, "Attribute", qualifyMemberName(m.Name, ownerQN))
@@ -519,20 +661,19 @@ func addStrIf(b *element.Base, name, val string) {
 	}
 }
 
-// addByNameRefListV3 adds a marker-3 reference-string list (qualified names),
-// the form Mendix uses for a published OData service's AuthenticationTypes.
-func addByNameRefListV3(b *element.Base, name string, qnames []string) {
-	p := property.NewByNameRefListV3[element.Element](name, "")
-	b.AddProperty(p, uint(len(b.Properties())))
-	for _, qn := range qnames {
-		p.Append(qn)
-	}
-}
-
 // boolOrDefault resolves an optional bool: nil means "not specified".
 func boolOrDefault(v *bool, def bool) bool {
 	if v == nil {
 		return def
 	}
 	return *v
+}
+
+// memberCanBeEmpty is the stored CanBeEmpty when there is one (#743), else the
+// value derived from the key: a key member cannot be empty.
+func memberCanBeEmpty(m *model.PublishedMember) bool {
+	if m.CanBeEmpty != nil {
+		return *m.CanBeEmpty
+	}
+	return !m.IsPartOfKey
 }

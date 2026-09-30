@@ -44,23 +44,23 @@ create or modify page DerivedNames.Overview
     -- contain a `row1` and a `col1` — which is what describe emits for any page
     -- with more than one grid.
     LAYOUTGRID lgFirst {
-      ROW row1 {
-        COLUMN col1 (DesktopWidth: AutoFill) {
+      ROW {
+        COLUMN (DesktopWidth: AutoFill) {
           DYNAMICTEXT stFirst (Content: 'First grid')
         }
       }
     }
 
     LAYOUTGRID lgSecond {
-      ROW row1 {
-        COLUMN col1 (DesktopWidth: AutoFill) {
+      ROW {
+        COLUMN (DesktopWidth: AutoFill) {
           -- Two columns bound to the same attribute derive the same name. Real
           -- pages do this (one visible, one for export), and no renaming fixes
           -- it without breaking `ON gridName.FullName` addressing.
           DATAGRID dgAccounts (DataSource: DATABASE DerivedNames.Account) {
-            COLUMN FullName (Attribute: FullName, Caption: 'Full name')
-            COLUMN FullNameAgain (Attribute: FullName, Caption: 'Full name (sortable)')
-            COLUMN Login (Attribute: Login, Caption: 'Login')
+            COLUMN (Attribute: FullName, Caption: 'Full name')
+            COLUMN (Attribute: FullName, Caption: 'Full name (sortable)')
+            COLUMN (Attribute: Login, Caption: 'Login')
           }
         }
       }

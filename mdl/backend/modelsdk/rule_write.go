@@ -65,6 +65,11 @@ func (b *Backend) UpdateRule(rule *microflows.Rule) error {
 	if err != nil {
 		return fmt.Errorf("UpdateRule: encode: %w", err)
 	}
+	// ruleToGen writes ExportLevel "Hidden" as a constant (#816).
+	contents, err = b.keepStoredExportLevel(string(rule.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdateRule: %w", err)
+	}
 	if err := b.writer.UpdateRawUnit(string(rule.ID), contents); err != nil {
 		return fmt.Errorf("UpdateRule: update: %w", err)
 	}
@@ -127,6 +132,11 @@ func ruleToGen(rule *microflows.Rule, major int) *genMf.Rule {
 	if rule.ObjectCollection != nil {
 		for _, f := range rule.ObjectCollection.Flows {
 			out.AddFlows(sequenceFlowToGen(f, major))
+		}
+		// Omitted like the nanoflow's, and for the same effect: a rewrite
+		// detached every note (ako/mxcli#705).
+		for _, af := range rule.ObjectCollection.AnnotationFlows {
+			out.AddFlows(annotationFlowToGen(af, major))
 		}
 	}
 	return out

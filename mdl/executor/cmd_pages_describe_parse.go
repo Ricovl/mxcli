@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -358,7 +359,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 
 	case "Forms$TextBox", "Pages$TextBox":
 		widget.Caption = extractLabelText(ctx, w)
-		widget.Content = extractAttributeRef(ctx, w)
+		widget.Content = extractInputAttribute(ctx, w)
 		widget.Placeholder = extractPlaceholderText(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
 		widget.IsPassword, _ = w["IsPasswordBox"].(bool)
@@ -368,14 +369,17 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 
 	case "Forms$TextArea", "Pages$TextArea":
 		widget.Caption = extractLabelText(ctx, w)
-		widget.Content = extractAttributeRef(ctx, w)
+		widget.Content = extractInputAttribute(ctx, w)
+		// Read like the textbox's; it was not, so describe -> exec deleted a
+		// textarea's placeholder with all its translations (ako/mxcli#705).
+		widget.Placeholder = extractPlaceholderText(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
 		return []rawWidget{widget}
 
 	case "Forms$DatePicker", "Pages$DatePicker":
 		widget.Caption = extractLabelText(ctx, w)
-		widget.Content = extractAttributeRef(ctx, w)
+		widget.Content = extractInputAttribute(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
 		return []rawWidget{widget}
@@ -383,14 +387,14 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 	case "Forms$RadioButtons", "Pages$RadioButtons", "Forms$RadioButtonGroup", "Pages$RadioButtonGroup":
 		widget.Type = "Forms$RadioButtons" // Normalize type
 		widget.Caption = extractLabelText(ctx, w)
-		widget.Content = extractAttributeRef(ctx, w)
+		widget.Content = extractInputAttribute(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
 		return []rawWidget{widget}
 
 	case "Forms$CheckBox", "Pages$CheckBox":
 		widget.Caption = extractLabelText(ctx, w)
-		widget.Content = extractAttributeRef(ctx, w)
+		widget.Content = extractInputAttribute(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
 		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w)
 		widget.ShowLabel = extractShowLabel(ctx, w)
@@ -483,6 +487,25 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 				return extractGalleryContent(ctx, w, widget.EntityContext)
 			})
 			widget.FilterWidgets = extractGalleryFilters(ctx, w)
+			// The row click and the other two action slots, read the way the
+			// data grid's are: the click by SOURCE, the rest by the widget's own
+			// key. Without them the write fix for #842 was one-way — describe →
+			// exec deleted the row action — and the pluggable passthrough
+			// (#721 L4), which keeps a stored widget whose statement equals its
+			// description, could not tell a statement that removed the action
+			// from one that kept it.
+			widget.OnClick = renderClientActionMDL(ctx, customWidgetActionForSource(ctx, w, "OnClick"))
+			widget.NamedActions = namedActionSlotsOf(ctx, w)
+			// The two settings that make a row click legal (MDL-WIDGET36): a
+			// selection of None, which extractGallerySelection reads as unset
+			// while exec's default is Single, and a double-click trigger, which
+			// exec writes as single unless told otherwise.
+			if widget.Selection == "" && gallerySelectionIsNone(w) {
+				widget.Selection = "None"
+			}
+			if trig := extractCustomWidgetPropertyString(ctx, w, "onClickTrigger"); trig != "" && trig != "single" {
+				widget.OnClickTrigger = trig
+			}
 		}
 		// For filter widgets, extract filter attributes and expression
 		if widget.RenderMode == "textfilter" || widget.RenderMode == "numberfilter" || widget.RenderMode == "dropdownfilter" || widget.RenderMode == "datefilter" {
@@ -684,6 +707,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 
 	case "Forms$SnippetCallWidget", "Pages$SnippetCallWidget":
 		widget.Content = extractSnippetRef(ctx, w)
+		widget.SnippetParams = extractSnippetCallParams(w)
 		return []rawWidget{widget}
 
 	case "Forms$ListView", "Pages$ListView":
@@ -752,18 +776,17 @@ func parseLayoutGridRows(ctx *ExecContext, w map[string]any, entityContext ...st
 				continue
 			}
 			col := rawWidgetColumn{}
-			// Get width
-			if weight, ok := cMap["Weight"].(int32); ok {
-				col.Width = int(weight)
-			} else if weight, ok := cMap["DesktopWeight"].(int32); ok {
-				col.Width = int(weight)
+			// Widths: 1..12, -1 auto-fill, -2 auto-fit content. Studio Pro
+			// stores them as int64, so read them width-agnostically — an
+			// `.(int32)` here missed every stored width and describe printed
+			// AutoFill for all of them (ako/mxcli#721 L1).
+			if v, ok := cMap["Weight"]; ok {
+				col.Width = bsonInt(v)
+			} else if v, ok := cMap["DesktopWeight"]; ok {
+				col.Width = bsonInt(v)
 			}
-			if tw, ok := cMap["TabletWeight"].(int32); ok {
-				col.TabletWidth = int(tw)
-			}
-			if pw, ok := cMap["PhoneWeight"].(int32); ok {
-				col.PhoneWidth = int(pw)
-			}
+			col.TabletWidth = bsonInt(cMap["TabletWeight"])
+			col.PhoneWidth = bsonInt(cMap["PhoneWeight"])
 			// Get widgets
 			colWidgets := getBsonArrayElements(cMap["Widgets"])
 			for _, cw := range colWidgets {
@@ -1138,6 +1161,60 @@ func extractListViewDataSource(ctx *ExecContext, w map[string]any) *rawDataSourc
 		return nil
 	}
 	return parseDataSource(ds)
+}
+
+// extractSnippetCallParams renders a snippet call's stored
+// Forms$SnippetParameterMapping list as `Param = $variable, …`, or "" when the
+// call has none (it is then bound by its data context). Describe printed
+// nothing for them, so describe → exec lost every mapping — or refused the call
+// outright, the parameter being required: TestApp's WorkflowCommons has 27
+// passing a snippet parameter on and 5 passing a page parameter (#826).
+//
+// A mapping whose variable is only a Widget is left out: MDL has no argument
+// syntax for it, and no Studio Pro-authored mapping measured has one.
+func extractSnippetCallParams(w map[string]any) string {
+	formCall, ok := w["FormCall"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	var params []string
+	for _, m := range getBsonArrayElements(formCall["ParameterMappings"]) {
+		mm, ok := m.(map[string]any)
+		if !ok {
+			continue
+		}
+		ref := extractString(mm["Parameter"])
+		name := ref[strings.LastIndex(ref, ".")+1:]
+		value := pageVariableArgValue(mm["Variable"])
+		if value == "" {
+			value = strings.TrimSpace(extractString(mm["Argument"]))
+		}
+		if name == "" || value == "" {
+			continue
+		}
+		params = append(params, visitor.ParameterNameSpelling(name)+" = "+value)
+	}
+	return strings.Join(params, ", ")
+}
+
+// extractInputAttribute is an input widget's `Attribute:` value. A binding read
+// through a named data view — Studio Pro's SourceVariable {Widget: dataView1,
+// PageParameter: Account} (PedApp Administration.Account_Edit) — prints as
+// `$dataView1.FullName`, which the builder resolves back to the same pair;
+// describe used to print the bare attribute and exec dropped the variable
+// (ako/mxcli#826). Every other binding reads as before.
+func extractInputAttribute(ctx *ExecContext, w map[string]any) string {
+	sv, _ := w["SourceVariable"].(map[string]any)
+	widget := extractString(sv["Widget"])
+	attrRef, _ := w["AttributeRef"].(map[string]any)
+	if widget == "" || attrRef == nil {
+		return extractAttributeRef(ctx, w)
+	}
+	path := columnAttributeFromRef(attrRef)
+	if path == "" || strings.Contains(path, "/") {
+		return extractAttributeRef(ctx, w)
+	}
+	return "$" + widget + "." + path
 }
 
 func extractSnippetRef(ctx *ExecContext, w map[string]any) string {

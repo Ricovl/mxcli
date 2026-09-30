@@ -16,10 +16,13 @@ Associations define relationships between entities. They determine how objects r
 CREATE ASSOCIATION <Module>.<Name>
   FROM <ParentEntity>
   TO <ChildEntity>
-  TYPE <Reference|ReferenceSet>
+  [TYPE <Reference|ReferenceSet>]
   [OWNER <Default|Both|Parent|Child>]
-  [DELETE_BEHAVIOR <behavior>]
+  [STORAGE <COLUMN|TABLE>]
+  [ON DELETE <CASCADE|RESTRICT|SET NULL> [ERROR MESSAGE '<text>']]
 ```
+
+Every clause after `TO` is optional. Left out, they mean `TYPE Reference OWNER Default STORAGE COLUMN ON DELETE SET NULL`, and `DESCRIBE ASSOCIATION` prints only the clauses that differ from that. `STORAGE TABLE` is therefore always printed: re-running a description without it would store the association as a column.
 
 ### Reference (Many-to-One)
 
@@ -32,7 +35,7 @@ CREATE ASSOCIATION Sales.Order_Customer
   TO Sales.Order
   TYPE Reference
   OWNER Default
-  DELETE_BEHAVIOR DELETE_BUT_KEEP_REFERENCES;
+  ON DELETE SET NULL;
 ```
 
 ### ReferenceSet (Many-to-Many)
@@ -65,8 +68,11 @@ Controls what happens when an associated object is deleted.
 
 | Behavior | MDL Keyword | Description |
 |----------|-------------|-------------|
-| Keep references | `DELETE_BUT_KEEP_REFERENCES` | Delete the object, set references to null |
-| Cascade | `DELETE_AND_REFERENCES` | Delete associated objects as well |
+| Keep references | `ON DELETE SET NULL` | Delete the object, set references to null (the default) |
+| Cascade | `ON DELETE CASCADE` | Delete associated objects as well |
+| Restrict | `ON DELETE RESTRICT [ERROR MESSAGE '…']` | Refuse the delete while references exist |
+
+The older `DELETE_BEHAVIOR <behavior>` clause still parses with the same meaning, but is deprecated (MDL-DEPR022).
 
 ```sql
 /** Invoice must be deleted with Order */
@@ -74,7 +80,7 @@ CREATE ASSOCIATION Sales.Order_Invoice
   FROM Sales.Order
   TO Sales.Invoice
   TYPE Reference
-  DELETE_BEHAVIOR DELETE_AND_REFERENCES;
+  ON DELETE CASCADE;
 ```
 
 ## Naming Convention

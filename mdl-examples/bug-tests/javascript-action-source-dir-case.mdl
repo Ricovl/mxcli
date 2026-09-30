@@ -45,7 +45,7 @@ as $$
 return Promise.resolve(Value);
 $$;
 
-create or replace nanoflow JsDirCase.ACT_Echo()
+create or modify nanoflow JsDirCase.ACT_Echo()
 returns String as $Echoed
 begin
   $Echoed = call javascript action JsDirCase.JsDirCase_Echo(Value = 'ok');

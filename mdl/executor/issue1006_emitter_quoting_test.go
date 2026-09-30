@@ -26,7 +26,7 @@ import (
 // parse errors if any.
 func parsesAsWorkflowBody(t *testing.T, acts ...workflows.WorkflowActivity) []string {
 	t.Helper()
-	lines := formatWorkflowActivities(&workflows.Flow{Activities: acts}, "  ")
+	lines := formatWorkflowActivities(nil, &workflows.Flow{Activities: acts}, "  ")
 	src := "create workflow M.WF\n  parameter $WorkflowContext: M.E\nbegin\n" +
 		strings.Join(lines, "\n") + "\nend workflow;"
 	_, errs := visitor.Build(src)
@@ -117,16 +117,60 @@ func TestMDLQuoted(t *testing.T) {
 // files is by construction a site that is not using it.
 func TestDescribers_HaveNoHandRolledStringLiterals(t *testing.T) {
 	pattern := regexp.MustCompile(`'%s'`)
-	for _, f := range []string{"cmd_workflows.go"} {
+	// ako/mxcli#707 found the same omission in these describers. Error
+	// messages are prose, not MDL, and are skipped.
+	for _, f := range []string{
+		"cmd_workflows.go",
+		"cmd_entities_describe.go",
+		"cmd_security.go",
+		"cmd_odata.go",
+		"cmd_published_rest.go",
+		"cmd_rest_clients.go",
+		"cmd_agenteditor_agents.go",
+	} {
 		src, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for i, line := range strings.Split(string(src), "\n") {
-			if pattern.MatchString(line) {
+			if pattern.MatchString(line) && !strings.Contains(line, "mdlerrors.") {
 				t.Errorf("%s:%d emits a hand-rolled MDL string literal — use mdlQuoted:\n\t%s",
 					f, i+1, strings.TrimSpace(line))
 			}
+		}
+	}
+}
+
+// R5 (ako/mxcli#753): the targeting XPath is written in [ ], as stored, and the
+// output re-parses to the same XPath with no deprecated spelling. A stored
+// value the bracketed grammar does not read keeps the quoted form.
+func TestDescribeWorkflow_TargetingXPathIsBracketed(t *testing.T) {
+	for _, tc := range []struct {
+		src     workflows.UserSource
+		want    string
+		deprecd bool
+	}{
+		{&workflows.XPathBasedUserSource{XPath: `[System.UserRoles = '[%UserRole_Banker%]']`},
+			`targeting users xpath [System.UserRoles = '[%UserRole_Banker%]']`, false},
+		{&workflows.XPathGroupSource{XPath: `[Name = 'Admin']`},
+			`targeting groups xpath [Name = 'Admin']`, false},
+		{&workflows.XPathBasedUserSource{XPath: `Name = 'x'`},
+			`targeting users xpath 'Name = ''x'''`, true},
+	} {
+		task := &workflows.UserTask{}
+		task.Name = "Review"
+		task.Caption = "Review"
+		task.UserSource = tc.src
+		out := strings.Join(formatWorkflowActivities(nil, &workflows.Flow{Activities: []workflows.WorkflowActivity{task}}, "  "), "\n")
+		if !strings.Contains(out, tc.want) {
+			t.Errorf("describe wrote:\n%s\nwant a line %q", out, tc.want)
+		}
+		prog, errs := visitor.Build("create workflow M.WF\n  parameter $WorkflowContext: M.E\nbegin\n" + out + "\nend workflow;")
+		if len(errs) > 0 {
+			t.Fatalf("does not re-parse: %v\n%s", errs, out)
+		}
+		if got := len(prog.Deprecations) > 0; got != tc.deprecd {
+			t.Errorf("%s: deprecations = %v", tc.want, prog.Deprecations)
 		}
 	}
 }

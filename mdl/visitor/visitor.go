@@ -12,6 +12,7 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/types"
 )
 
@@ -34,10 +35,13 @@ func newErrorListener() *errorListener {
 }
 
 // SyntaxError is called by ANTLR when a syntax error is encountered.
-func (l *errorListener) SyntaxError(_ antlr.Recognizer, _ any, line, column int, msg string, _ antlr.RecognitionException) {
+func (l *errorListener) SyntaxError(rec antlr.Recognizer, sym any, line, column int, msg string, _ antlr.RecognitionException) {
 	offending := ""
 	if line >= 1 && line <= len(l.source) {
 		offending = l.source[line-1]
+	}
+	if word, ok := unknownStatementWord(rec, sym, msg); ok {
+		msg = unknownStatementMessage(word)
 	}
 	enhancedMsg := l.deduplicateHint(enhanceErrorMessage(msg, offending), line)
 	l.errors = append(l.errors, fmt.Errorf("line %d:%d %s", line, column, enhancedMsg))
@@ -112,6 +116,43 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 	// branch below (and the fall-through) shows the tamer form.
 	msg = simplifyExpecting(msg)
 
+	// A language header anywhere but first. It declares the rules the whole
+	// script is read under, so it cannot switch them part-way (ADR-0011).
+	if langver.IsHeaderLine(offendingLine) {
+		return fmt.Sprintf("%s\n\n  The language header `mdl <n>;` must be the first statement of a script:\n"+
+			"  it declares the language version the whole script is written in.\n"+
+			"    mdl 1;\n"+
+			"    create entity Shop.Customer ( Name: String(200) );   (correct)", msg)
+	}
+	// Grammar removed as dead (ako/mxcli#756): it parsed, and could never
+	// succeed. The parse error is where the explanation now has to live.
+	if workflowAccessRe.MatchString(offendingLine) {
+		return fmt.Sprintf("%s\n\n  A Mendix workflow has no allowed roles of its own, so there is nothing to\n"+
+			"  grant or revoke on it. Who may start a workflow is decided by the microflow\n"+
+			"  that calls it, and who may act on it by each user task's targeting:\n"+
+			"    grant execute on microflow Mod.ACT_StartApproval to Mod.Manager;   (correct)\n"+
+			"    grant execute on workflow Mod.Approval to Mod.Manager;             (removed)", msg)
+	}
+	if strings.Contains(msg, "'else' expecting {WHEN, END}") {
+		return fmt.Sprintf("%s\n\n  An enumeration split (`case`) has no default branch: Mendix gives it one\n"+
+			"  outgoing flow per value plus one for (empty), and no `else` flow. Write a\n"+
+			"  `when` for every value, and `when (empty)` for an unset one:\n"+
+			"    case $Order/Status\n"+
+			"      when Open then …\n"+
+			"      when Closed, Cancelled then …\n"+
+			"      when (empty) then …\n"+
+			"    end case;", msg)
+	}
+	// A `\'` in a string literal under mdl 1, where a backslash no longer
+	// escapes: the literal ends at the quote, and the rest of the line is read
+	// as MDL. Under mdl 0 the same text parses, so the hint only fires on an
+	// error. (#732)
+	if strings.Contains(offendingLine, `\'`) {
+		return fmt.Sprintf("%s\n\n  Under mdl 1 a backslash is an ordinary character, so `\\'` ends the string\n"+
+			"  literal. Double the apostrophe instead, as in a Mendix expression:\n"+
+			"    default 'it''s'    (correct)\n"+
+			"    default 'it\\'s'    (mdl 0 only)", msg)
+	}
 	// A bare `not $x` — Mendix requires `not(expr)`. The parse error surfaces
 	// downstream (e.g. "missing THEN at '$x'"), so key off the source line, which
 	// is unambiguous for `not $…`. (sudoku findings #3)
@@ -127,8 +168,8 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 	if looksLikeQuotedGrantAttribute(msg) {
 		return fmt.Sprintf("%s\n\n  Attribute-level GRANT uses unquoted identifiers inside parentheses,\n"+
 			"  not quoted strings. Comma-separate multiple attributes:\n"+
-			"    GRANT Mod.Role ON Mod.Entity (READ (Attr1, Attr2), WRITE (Attr1));  (correct)\n"+
-			"    GRANT Mod.Role ON Mod.Entity (READ \"Attr1\", \"Attr2\");            (wrong — causes parse error)", msg)
+			"    GRANT READ (Attr1, Attr2), WRITE (Attr1) ON ENTITY Mod.Entity TO Mod.Role;  (correct)\n"+
+			"    GRANT READ \"Attr1\", \"Attr2\" ON ENTITY Mod.Entity TO Mod.Role;            (wrong — causes parse error)", msg)
 	}
 
 	// Check for an `=` between an enumeration value name and its caption. Users
@@ -201,10 +242,11 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 	if misplacedIndexRe.MatchString(offendingLine) {
 		return fmt.Sprintf("%s\n\n  An INDEX belongs AFTER the attribute parentheses, not inside them:\n"+
 			"    create entity Mod.Cell (Row: Integer, Col: Integer)\n"+
-			"      index \"IdxRowCol\" on (Row, Col);                     (correct)\n"+
+			"      index (Row, Col);                                     (correct)\n"+
 			"    create entity Mod.Cell (Row: Integer, Col: Integer,\n"+
-			"      index \"IdxRowCol\" on (Row, Col));                    (wrong — causes parse error)\n"+
-			"  On an existing entity: alter entity Mod.Cell add index \"IdxRowCol\" on (Row, Col);", msg)
+			"      index (Row, Col));                                    (wrong — causes parse error)\n"+
+			"  On an existing entity: alter entity Mod.Cell add index (Row, Col);\n"+
+			"  A Mendix index has no name; one written here is not stored (MDL-IDX01).", msg)
 	}
 
 	// Check for a misplaced EXTENDS / GENERALIZATION clause. It must precede the
@@ -279,6 +321,9 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 	// command away. (Kept to one line since it can repeat across cascading errors.)
 	return msg + "  [see: mxcli syntax <topic>, e.g. entity | microflow | page]"
 }
+
+// workflowAccessRe matches the removed `grant|revoke execute on workflow`.
+var workflowAccessRe = regexp.MustCompile(`(?i)^\s*(grant|revoke)\s+execute\s+on\s+workflow\b`)
 
 // addMissingAttributeRe matches `add <name>:` on a source line — the shape of an
 // ALTER ENTITY add-attribute clause missing its `attribute` keyword. The captured
@@ -467,6 +512,13 @@ type Builder struct {
 	// documentAnnotations collects every `@name` written before a CREATE, with
 	// the kind of document it was on — see ExitCreateStatement.
 	documentAnnotations []ast.DocumentAnnotation
+	// deprecations collects every use of a deprecated spelling — see
+	// visitor_deprecations.go.
+	deprecations []ast.DeprecatedSpelling
+	// widgetNameSpans remembers where each widget's name was written, until its
+	// parent decides whether the model stores it — see
+	// visitor_unstored_widget_name.go.
+	widgetNameSpans map[*ast.WidgetV3]widgetNameSpan
 
 	// inLayout is set while a CREATE LAYOUT body is being built. The page body
 	// builder serves both documents and cannot otherwise tell which it is in,
@@ -477,6 +529,24 @@ type Builder struct {
 	// layoutBracedPlaceholders collects the braced placeholder names seen while
 	// inLayout, at any depth, for the checker to report.
 	layoutBracedPlaceholders []string
+
+	// langVersion is the script's `mdl <n>;` header, mdl 0 without one. The
+	// header can only be the first statement, so it is set before any
+	// construct that depends on it is visited. See gate.
+	langVersion    langver.Version
+	langHeaderLine int
+	langNotes      []ast.LanguageNote
+	// stringLits are the string literals of the parse tree, by token index,
+	// for the string-escape rewrite to find the expression each is in.
+	stringLits map[int]antlr.TerminalNode
+	// storedExprs are the expressions, by start token index, the string-escape
+	// rewrite already replaced as a whole (storedExpressionFix), so a second
+	// escaped literal in one of them adds no overlapping edit.
+	storedExprs map[int]bool
+	// createStart is len(statements) when the current createStatement was
+	// entered, so ExitCreateStatement can tell which statement it built — see
+	// applyCreateGuard.
+	createStart int
 }
 
 // NewBuilder creates a new AST builder.
@@ -511,13 +581,18 @@ func collectLeafTokens(tree antlr.Tree, tokens *[]string) {
 
 // Build parses the input and returns the AST program.
 func Build(input string) (*ast.Program, []error) {
+	return build(input, func(b *Builder) antlr.ParseTreeListener { return b })
+}
+
+// build is Build with the tree walked by listen(builder) instead of the
+// builder itself, so a test can observe the walk through a wrapper.
+func build(input string, listen func(*Builder) antlr.ParseTreeListener) (*ast.Program, []error) {
 	// Create custom error listener to capture syntax errors
 	errListener := newErrorListener()
 	errListener.source = strings.Split(input, "\n")
 
 	// Create lexer with custom error listener
-	is := antlr.NewInputStream(input)
-	lexer := parser.NewMDLLexer(is)
+	lexer := parser.NewMDLLexer(newScriptStream(input))
 	lexer.RemoveErrorListeners()
 	lexer.AddErrorListener(errListener)
 
@@ -530,13 +605,18 @@ func Build(input string) (*ast.Program, []error) {
 	// Create builder and walk the tree
 	builder := NewBuilder()
 	tree := p.Program()
-	antlr.ParseTreeWalkerDefault.Walk(builder, tree)
+	antlr.ParseTreeWalkerDefault.Walk(listen(builder), tree)
+	builder.noteBackslashEscapes(stream.GetAllTokens())
 
 	// Combine syntax errors and builder errors
 	allErrors := append(errListener.errors, builder.errors...)
 	return &ast.Program{
 		Statements:          builder.statements,
 		DocumentAnnotations: builder.documentAnnotations,
+		Deprecations:        builder.deprecations,
+		LanguageVersion:     builder.langVersion,
+		LanguageHeaderLine:  builder.langHeaderLine,
+		LanguageNotes:       builder.langNotes,
 	}, allErrors
 }
 

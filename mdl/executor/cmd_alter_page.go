@@ -57,6 +57,13 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 	modName := h.GetModuleName(containerID)
 
 	for _, op := range s.Operations {
+		// Every target resolves through the document type's resolver before the
+		// operation runs (ADR-0012): what an address means is answered once,
+		// per document type, and a miss or an ambiguity stops the statement
+		// before anything changes.
+		if err := resolveAlterPageTargets(mutator, op); err != nil {
+			return mdlerrors.NewBackend("resolve "+strings.ToLower(containerType)+" target", err)
+		}
 		switch o := op.(type) {
 		case *ast.SetPropertyOp:
 			if err := applySetPropertyMutator(ctx, mutator, o, modName, containerID); err != nil {
@@ -108,6 +115,69 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 	}
 
 	fmt.Fprintf(ctx.Output, "Altered %s %s\n", strings.ToLower(containerType), s.PageName.String())
+	return nil
+}
+
+// alterTargetOf converts an operation's target, as the visitor recorded it,
+// into the backend's document-independent address.
+func alterTargetOf(r ast.WidgetRef) backend.AlterTarget {
+	if r.IsColumnAddress() {
+		// The @n belongs to the column address, which carries it to the
+		// mutator; on the target itself it would mean a choice among widgets.
+		return backend.AlterTarget{Path: []string{r.Widget, columnRefOf(r)}}
+	}
+	t := backend.AlterTarget{Caption: r.Caption, Ordinal: r.Ordinal}
+	if r.Caption == "" {
+		t.Path = []string{r.Widget}
+		if r.Column != "" {
+			t.Path = append(t.Path, r.Column)
+		}
+	}
+	return t
+}
+
+// columnRefOf is the columnRef the PageMutator takes for a target's member: the
+// derived column name or region of `grid.Member`, or the explicit column
+// address `grid column(…)[@n]` spelled as backend.ColumnSelector (#749). Empty
+// for a plain widget target.
+func columnRefOf(r ast.WidgetRef) string {
+	if r.IsColumnAddress() {
+		return backend.ColumnSelector{Attribute: r.ColumnAttribute, Caption: r.ColumnCaption, Ordinal: r.Ordinal}.String()
+	}
+	return r.Column
+}
+
+// alterPageOperationTargets lists the targets an operation addresses, in the
+// order it names them. A page-level SET and the variable and layout operations
+// address the document itself and have none.
+func alterPageOperationTargets(op ast.AlterPageOperation) []ast.WidgetRef {
+	switch o := op.(type) {
+	case *ast.SetPropertyOp:
+		if o.Target.Widget == "" && o.Target.Caption == "" {
+			return nil
+		}
+		return []ast.WidgetRef{o.Target}
+	case *ast.InsertWidgetOp:
+		return []ast.WidgetRef{o.Target}
+	case *ast.ReplaceWidgetOp:
+		return []ast.WidgetRef{o.Target}
+	case *ast.DropWidgetOp:
+		return o.Targets
+	case *ast.DropListViewTemplateOp:
+		return []ast.WidgetRef{{Widget: o.ListView}}
+	}
+	return nil
+}
+
+// resolveAlterPageTargets resolves every target of one operation. A drop's
+// targets are resolved together up front: an unresolvable second target then
+// refuses the whole drop instead of leaving the first one dropped.
+func resolveAlterPageTargets(resolver backend.AlterTargetResolver, op ast.AlterPageOperation) error {
+	for _, ref := range alterPageOperationTargets(op) {
+		if _, err := resolver.ResolveAlterTarget(alterTargetOf(ref)); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -169,7 +239,7 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 				propName, propName)
 		}
 		if op.Target.IsColumn() {
-			if err := mutator.SetColumnProperty(op.Target.Widget, op.Target.Column, propName, value); err != nil {
+			if err := mutator.SetColumnProperty(op.Target.Widget, columnRefOf(op.Target), propName, value); err != nil {
 				return mdlerrors.NewBackend("set "+propName+" on "+op.Target.Name(), err)
 			}
 		} else if propName == "DataSource" {
@@ -239,6 +309,14 @@ func convertASTDataSource(value interface{}) (pages.DataSource, error) {
 	case "selection":
 		return &pages.ListenToWidgetSource{WidgetName: ds.Reference}, nil
 	case "database":
+		if ds.AssociationPath != "" {
+			// The entity it arrives at and the SourceVariable slot are resolved by
+			// the CREATE PAGE builder, which REPLACE reaches (ako/mxcli#721 L5).
+			return nil, mdlerrors.NewUnsupported(
+				"alter page set DataSource = database from $" + ds.ContextVariable + "/" + ds.AssociationPath +
+					" is not supported — use `replace <widget> with …`, which rebuilds the widget " +
+					"through the CREATE PAGE path")
+		}
 		return &pages.DatabaseSource{EntityName: ds.Reference}, nil
 	case "microflow":
 		return &pages.MicroflowSource{Microflow: ds.Reference}, nil
@@ -272,7 +350,7 @@ func convertASTAction(ctx *ExecContext, value any, moduleName string, moduleID m
 	action, ok := value.(*ast.ActionV3)
 	if !ok {
 		return nil, mdlerrors.NewValidation("Action value must be an action expression, " +
-			"for example `set Action = microflow Module.MF on btnSave`")
+			"for example `set (Action: microflow Module.MF) on btnSave`")
 	}
 	pb := &pageBuilder{
 		ctx:           ctx,
@@ -317,7 +395,7 @@ func applyInsertWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op 
 		if err != nil {
 			return mdlerrors.NewBackend("build column specs", err)
 		}
-		return mutator.InsertColumns(op.Target.Widget, op.Target.Column, backend.InsertPosition(op.Position), specs)
+		return mutator.InsertColumns(op.Target.Widget, columnRefOf(op.Target), backend.InsertPosition(op.Position), specs)
 	}
 
 	// Special path: inserting specialization templates into a List View. A
@@ -357,7 +435,7 @@ func applyInsertWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op 
 		return mdlerrors.NewBackend("build widgets", err)
 	}
 
-	return mutator.InsertWidget(op.Target.Widget, op.Target.Column, backend.InsertPosition(op.Position), widgets)
+	return mutator.InsertWidget(op.Target.Widget, columnRefOf(op.Target), backend.InsertPosition(op.Position), widgets)
 }
 
 // expandAlterFragments expands `use fragment` / `use building block` sentinels
@@ -385,7 +463,7 @@ func expandAlterFragments(ctx *ExecContext, widgets []*ast.WidgetV3, moduleName 
 func applyDropWidgetMutator(mutator backend.PageMutator, op *ast.DropWidgetOp) error {
 	refs := make([]backend.WidgetRef, len(op.Targets))
 	for i, t := range op.Targets {
-		refs[i] = backend.WidgetRef{Widget: t.Widget, Column: t.Column}
+		refs[i] = backend.WidgetRef{Widget: t.Widget, Column: columnRefOf(t)}
 	}
 	return mutator.DropWidget(refs)
 }
@@ -405,7 +483,7 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 
 	// Check for duplicate widget names (skip the widget being replaced)
 	for _, w := range op.NewWidgets {
-		if w.Name != "" && w.Name != op.Target.Widget && w.Name != op.Target.Column && mutator.FindWidget(w.Name) {
+		if w.Name != "" && w.Name != op.Target.Widget && w.Name != columnRefOf(op.Target) && mutator.FindWidget(w.Name) {
 			return mdlerrors.NewAlreadyExistsMsg("widget", w.Name, fmt.Sprintf("duplicate widget name '%s': a widget with this name already exists on the page", w.Name))
 		}
 	}
@@ -415,11 +493,11 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 	// the grid's data source entity as their entity context.
 	if op.Target.IsColumn() && allColumns(op.NewWidgets) {
 		entityCtx := mutator.EnclosingEntityForChildren(op.Target.Widget)
-		specs, err := buildColumnSpecsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, op.Target.Column)
+		specs, err := buildColumnSpecsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, columnRefOf(op.Target))
 		if err != nil {
 			return mdlerrors.NewBackend("build replacement column specs", err)
 		}
-		return mutator.ReplaceColumn(op.Target.Widget, op.Target.Column, specs)
+		return mutator.ReplaceColumn(op.Target.Widget, columnRefOf(op.Target), specs)
 	}
 
 	// Find entity context from enclosing DataView/DataGrid/ListView for regular widget replace.
@@ -427,12 +505,12 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 
 	// Build new widgets from AST, excluding the target widget/column from the
 	// duplicate-name scope so a same-name replacement is allowed.
-	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, op.Target.Column)
+	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, columnRefOf(op.Target))
 	if err != nil {
 		return mdlerrors.NewBackend("build replacement widgets", err)
 	}
 
-	return mutator.ReplaceWidget(op.Target.Widget, op.Target.Column, widgets)
+	return mutator.ReplaceWidget(op.Target.Widget, columnRefOf(op.Target), widgets)
 }
 
 // allColumns returns true if all widgets in the slice have type "column".

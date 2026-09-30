@@ -32,7 +32,7 @@ end;
 /**
  * Example 1.1: Set after-startup microflow
  */
-alter settings model AfterStartupMicroflow = 'MyModule.ASU_Startup';
+alter settings runtime ( AfterStartupMicroflow: 'MyModule.ASU_Startup' );
 
 /**
  * Example 1.2: Configure hash algorithm and Java version
@@ -41,15 +41,16 @@ alter settings model AfterStartupMicroflow = 'MyModule.ASU_Startup';
  * stores it as "JavaVersion" = "Java21" up to 11.6 and as "JavaMajorVersion" =
  * "21" from 11.12; mxcli writes whichever dialect the project already uses.
  */
-alter settings model HashAlgorithm = 'BCrypt', JavaVersion = 'Java21';
+alter settings runtime ( HashAlgorithm: 'BCrypt', JavaVersion: 'Java21' );
 
 /**
  * Example 1.3: Multiple model settings at once
  */
-alter settings model
-  RoundingMode = 'HalfUp',
-  BcryptCost = 12,
-  AllowUserMultipleSessions = true;
+alter settings runtime (
+  RoundingMode: 'HalfUp',
+  BcryptCost: 12,
+  AllowUserMultipleSessions: true
+);
 
 /**
  * Example 1.4: Enable optimistic locking
@@ -68,7 +69,7 @@ alter settings model
  * It detects rather than retries -- the handler must catch, reload the object,
  * re-apply and re-commit.
  */
-alter settings model EnableDataStorageOptimisticLocking = true;
+alter settings runtime ( EnableDataStorageOptimisticLocking: true );
 
 /**
  * Example 1.5: The remaining runtime model settings
@@ -88,12 +89,13 @@ alter settings model EnableDataStorageOptimisticLocking = true;
  * These five are stored by every version in the test matrix (measured on a blank
  * 10.24: all five present, and each accepted on its own).
  */
-alter settings model
-  FirstDayOfWeek = 'Monday',
-  UseDatabaseForeignKeyConstraints = true,
-  UseOQLVersion2 = true,
-  SslCertificateAlgorithm = 'PKIX',
-  DefaultTimeZoneCode = 'Europe/Amsterdam';
+alter settings runtime (
+  FirstDayOfWeek: 'Monday',
+  UseDatabaseForeignKeyConstraints: true,
+  UseOQLVersion2: true,
+  SslCertificateAlgorithm: 'PKIX',
+  DefaultTimeZoneCode: 'Europe/Amsterdam'
+);
 
 -- The @version directive opens the gated section, and everything up to the next
 -- directive is removed on a version that does not match. The `/** */` block
@@ -115,7 +117,7 @@ alter settings model
  * refusal covers the whole statement, which is why this is its own alter rather
  * than one more line in the block above.
  */
-alter settings model DecimalScale = 8;
+alter settings runtime ( DecimalScale: 8 );
 -- @version: any
 
 -- Note: UseSystemContextForBackgroundTasks is read and preserved but NOT
@@ -131,13 +133,14 @@ alter settings model DecimalScale = 8;
 /**
  * Example 2.1: Configure PostgreSQL database connection
  */
-alter settings configuration 'Default'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'localhost:5432',
-  DatabaseName = 'myapp',
-  DatabaseUserName = 'mendix',
-  DatabasePassword = 'mendix',
-  HttpPortNumber = 8080;
+alter settings configuration 'Default' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'localhost:5432',
+  DatabaseName: 'myapp',
+  DatabaseUserName: 'mendix',
+  DatabasePassword: 'mendix',
+  HttpPortNumber: 8080
+);
 
 -- MARK: Constant Overrides
 
@@ -148,22 +151,22 @@ alter settings configuration 'Default'
 /**
  * Example 3.1: Override a constant value in a specific configuration
  */
-create constant MyModule.ServerUrl type string default 'localhost:9092';
-alter settings constant 'MyModule.ServerUrl' value 'kafka:9092'
+create constant MyModule.ServerUrl ( Type: string, DefaultValue: 'localhost:9092' );
+alter settings constant @MyModule.ServerUrl value 'kafka:9092'
   in configuration 'Default';
 
 /**
  * Example 3.2: Remove a constant override (reset to default)
  */
-alter settings drop constant 'MyModule.ServerUrl' in configuration 'Default';
+alter settings drop constant @MyModule.ServerUrl in configuration 'Default';
 
 /**
  * Example 3.3: Alternative syntax for removing a constant override
  * (Re-set the value first so there is something to drop)
  */
-alter settings constant 'MyModule.ServerUrl' value 'kafka:9092'
+alter settings constant @MyModule.ServerUrl value 'kafka:9092'
   in configuration 'Default';
-alter settings constant 'MyModule.ServerUrl' drop in configuration 'Default';
+alter settings constant @MyModule.ServerUrl drop in configuration 'Default';
 
 -- MARK: Create / Drop Configuration
 
@@ -179,11 +182,12 @@ create configuration 'Staging';
 /**
  * Example 3B.2: Create a configuration with properties
  */
-create configuration 'Production'
-  DatabaseType = 'POSTGRESQL',
-  DatabaseUrl = 'prod-db:5432',
-  DatabaseName = 'myapp_prod',
-  HttpPortNumber = 8080;
+create configuration 'Production' (
+  DatabaseType: 'POSTGRESQL',
+  DatabaseUrl: 'prod-db:5432',
+  DatabaseName: 'myapp_prod',
+  HttpPortNumber: 8080
+);
 
 /**
  * Example 3B.3: Drop a configuration
@@ -199,12 +203,12 @@ drop configuration 'Staging';
 /**
  * Example 4.1: Set default language
  */
-alter settings language DefaultLanguageCode = 'en_US';
+alter settings language ( DefaultLanguageCode: 'en_US' );
 
 /**
  * Example 4.2: Configure workflow settings
  */
-alter settings workflows UserEntity = 'System.User';
+alter settings workflows ( UserEntity: 'System.User' );
 
 -- Workflow groups (Settings$WorkflowGroup) are 11.2+ metamodel; mxcli refuses
 -- them on an older project, so Examples 4.3-4.7 are gated. Ungated, they
@@ -240,7 +244,7 @@ alter settings workflows add or modify group 'Approvers' (Description: 'Approves
 /**
  * Example 4.6: List the groups
  */
-show workflow groups;
+list workflow groups;
 
 /**
  * Example 4.7: Remove a group
@@ -250,7 +254,7 @@ show workflow groups;
  * there is nothing to dangle. The coupling is at runtime, where Mendix
  * materialises one System.WorkflowGroup row per entry.
  */
-alter settings workflows remove group 'Reviewers';
+alter settings workflows drop group 'Reviewers';
 -- @version: any
 
 -- ============================================================================

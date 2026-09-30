@@ -4,6 +4,8 @@ package catalog
 
 import (
 	"testing"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 func TestExtractReferencedEntities(t *testing.T) {
@@ -92,6 +94,42 @@ func TestResolveEntityRefFromBSON(t *testing.T) {
 				"EntityRef": map[string]any{"QualifiedName": "Module.Entity"},
 			},
 			"Module.Entity",
+		},
+		// The shapes Studio Pro stores, as buildXPathExpressions decodes them
+		// (the v1 driver, so nested documents are bson.D). Only QualifiedName was read, which no
+		// stored EntityRef carries, so every page/snippet XPath constraint was
+		// recorded with an empty TargetEntity (Evora: 52 of 52) and the bare
+		// attribute names in it could not be resolved.
+		{
+			"stored DirectEntityRef",
+			map[string]any{
+				"EntityRef": bson.D{
+					{Key: "$Type", Value: "DomainModels$DirectEntityRef"},
+					{Key: "Entity", Value: "Module.Entity"},
+				},
+			},
+			"Module.Entity",
+		},
+		{
+			"stored IndirectEntityRef ends on the last step's entity",
+			map[string]any{
+				"EntityRef": bson.D{
+					{Key: "$Type", Value: "DomainModels$IndirectEntityRef"},
+					{Key: "Steps", Value: bson.A{int32(2),
+						bson.D{
+							{Key: "$Type", Value: "DomainModels$EntityRefStep"},
+							{Key: "Association", Value: "Module.A_B"},
+							{Key: "DestinationEntity", Value: "Module.B"},
+						},
+						bson.D{
+							{Key: "$Type", Value: "DomainModels$EntityRefStep"},
+							{Key: "Association", Value: "Module.B_C"},
+							{Key: "DestinationEntity", Value: "Module.C"},
+						},
+					}},
+				},
+			},
+			"Module.C",
 		},
 		{
 			"no EntityRef",

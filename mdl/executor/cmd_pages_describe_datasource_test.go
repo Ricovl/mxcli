@@ -109,7 +109,7 @@ func TestDataSourceExprNeverEmitsAnEmptyEntitySlot(t *testing.T) {
 		{Type: "association", Reference: ""},
 		{Unsupported: "Forms$SomethingNew"},
 	} {
-		if expr := dataSourceExpr(ds); expr != "" {
+		if expr := dataSourceExpr(nil, ds); expr != "" {
 			t.Errorf("%+v rendered as %q, want nothing", ds, expr)
 		}
 	}
@@ -149,7 +149,7 @@ func TestDataSourceExprKeepsTheType(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			if got := dataSourceExpr(tc.ds); got != tc.want {
+			if got := dataSourceExpr(nil, tc.ds); got != tc.want {
 				t.Errorf("got %q, want %q", got, tc.want)
 			}
 		})
@@ -168,11 +168,11 @@ func TestParseDataSourceReportsWhatItCannotSpell(t *testing.T) {
 	if got.Unsupported != "Forms$SomeFutureSource" {
 		t.Errorf("Unsupported = %q, want the stored $Type", got.Unsupported)
 	}
-	comment := dataSourceComment(got)
+	comment := dataSourceComment(nil, got)
 	if !strings.Contains(comment, "Forms$SomeFutureSource") {
 		t.Errorf("comment %q does not name the stored type", comment)
 	}
-	if dataSourceExpr(got) != "" {
+	if dataSourceExpr(nil, got) != "" {
 		t.Error("an unspellable datasource still rendered an expression")
 	}
 }
@@ -224,7 +224,7 @@ func TestXPathConstraintClauseParses(t *testing.T) {
 	}
 	for name, stored := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := xpathConstraintClause(stored)
+			got := xpathConstraintClause(nil, stored)
 			if got == "" {
 				t.Fatalf("rendered nothing for %q", stored)
 			}
@@ -241,7 +241,7 @@ func TestXPathConstraintClauseParses(t *testing.T) {
 // microflow emitter, which is why this reuses that fix's splitter rather than
 // keeping a second, simpler copy of the logic.
 func TestXPathConstraintClauseKeepsGroupsIntact(t *testing.T) {
-	got := xpathConstraintClause("[Active = true][Qty > 5]")
+	got := xpathConstraintClause(nil, "[Active = true][Qty > 5]")
 	if strings.Contains(got, "a][b") || strings.Count(got, "[") != 2 {
 		t.Errorf("rendered %q — want both predicate groups preserved", got)
 	}
@@ -252,8 +252,8 @@ func TestXPathConstraintClauseKeepsGroupsIntact(t *testing.T) {
 // whitespace-only constraint passed the != "" test and emitted a bare `where`.
 func TestXPathConstraintClauseIgnoresBlank(t *testing.T) {
 	for _, blank := range []string{"", "   ", "\t\n"} {
-		if got := xpathConstraintClause(blank); got != "" {
-			t.Errorf("xpathConstraintClause(%q) = %q, want empty", blank, got)
+		if got := xpathConstraintClause(nil, blank); got != "" {
+			t.Errorf("xpathConstraintClause(nil, %q) = %q, want empty", blank, got)
 		}
 	}
 }
@@ -299,8 +299,8 @@ func TestDataSourceArgsRoundTrip(t *testing.T) {
 		t.Errorf("second arg = %+v, want {Limit 10}", got.Args[1])
 	}
 
-	want := "microflow Mod.DS_Filtered(Term: $Term, Limit: 10)"
-	if expr := dataSourceExpr(got); expr != want {
+	want := "microflow Mod.DS_Filtered(Term = $Term, Limit = 10)"
+	if expr := dataSourceExpr(nil, got); expr != want {
 		t.Errorf("rendered %q, want %q", expr, want)
 	}
 }
@@ -321,7 +321,7 @@ func TestDataSourceArgsOmittedWhenThereAreNone(t *testing.T) {
 			if got == nil {
 				t.Fatal("datasource not read")
 			}
-			if expr := dataSourceExpr(got); expr != "microflow Mod.DS" {
+			if expr := dataSourceExpr(nil, got); expr != "microflow Mod.DS" {
 				t.Errorf("rendered %q, want the bare form", expr)
 			}
 		})
@@ -345,8 +345,8 @@ func TestDataSourceArgsNanoflowFlat(t *testing.T) {
 	if got == nil {
 		t.Fatal("nanoflow datasource not read")
 	}
-	want := "nanoflow Mod.NF_Rows(Ctx: $currentObject)"
-	if expr := dataSourceExpr(got); expr != want {
+	want := "nanoflow Mod.NF_Rows(Ctx = $currentObject)"
+	if expr := dataSourceExpr(nil, got); expr != want {
 		t.Errorf("rendered %q, want %q", expr, want)
 	}
 }
@@ -369,8 +369,8 @@ func TestDataSourceArgsNanoflow(t *testing.T) {
 	if got == nil {
 		t.Fatal("nanoflow datasource not read")
 	}
-	want := "nanoflow Mod.NF_Rows(Ctx: $currentObject)"
-	if expr := dataSourceExpr(got); expr != want {
+	want := "nanoflow Mod.NF_Rows(Ctx = $currentObject)"
+	if expr := dataSourceExpr(nil, got); expr != want {
 		t.Errorf("rendered %q, want %q", expr, want)
 	}
 }

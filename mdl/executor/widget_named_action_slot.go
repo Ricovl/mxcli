@@ -65,7 +65,7 @@ func actionFromFlowDataSource(ds *ast.DataSourceV3, propertyKey string) (*ast.Ac
 		return nil, mdlerrors.NewValidationf(
 			"property %q is an action slot and cannot hold a %s data source — "+
 				"write a microflow, nanoflow or one of the client actions "+
-				"(show_page, save_changes, close_page, …)",
+				"(show page, save changes, close page, …)",
 			propertyKey, ds.Type)
 	}
 }

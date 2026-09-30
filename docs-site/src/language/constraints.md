@@ -25,7 +25,7 @@ Name: String(200) NOT NULL
 With a custom error message displayed to the user:
 
 ```sql
-Name: String(200) NOT NULL ERROR 'Name is required'
+Name: String(200) NOT NULL ERROR MESSAGE 'Name is required'
 ```
 
 ## UNIQUE
@@ -39,7 +39,7 @@ Email: String(200) UNIQUE
 With a custom error message:
 
 ```sql
-Email: String(200) UNIQUE ERROR 'Email already exists'
+Email: String(200) UNIQUE ERROR MESSAGE 'Email already exists'
 ```
 
 ## DEFAULT
@@ -76,8 +76,8 @@ OptionalField: String(200)
 All three constraints can be used together:
 
 ```sql
-Email: String(200) NOT NULL ERROR 'Email is required'
-                   UNIQUE ERROR 'Email already exists'
+Email: String(200) NOT NULL ERROR MESSAGE 'Email is required'
+                   UNIQUE ERROR MESSAGE 'Email already exists'
                    DEFAULT ''
 ```
 
@@ -89,14 +89,14 @@ CREATE PERSISTENT ENTITY Sales.Product (
   Name: String(200) NOT NULL,
 
   -- Required with custom error
-  SKU: String(50) NOT NULL ERROR 'SKU is required for all products',
+  SKU: String(50) NOT NULL ERROR MESSAGE 'SKU is required for all products',
 
   -- Unique only
   Barcode: String(50) UNIQUE,
 
   -- Required and unique with custom errors
-  ProductCode: String(20) NOT NULL ERROR 'Product code required'
-                          UNIQUE ERROR 'Product code must be unique',
+  ProductCode: String(20) NOT NULL ERROR MESSAGE 'Product code required'
+                          UNIQUE ERROR MESSAGE 'Product code must be unique',
 
   -- Default only
   Quantity: Integer DEFAULT 0,

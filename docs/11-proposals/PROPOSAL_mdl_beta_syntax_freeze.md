@@ -150,6 +150,8 @@ What would change:
 - `on error { … }` is the only brace block inside a microflow. It becomes `on error [without rollback] begin … end error;`.
 - `while` makes both `begin` and `end while` optional. Make both required, the same as `loop`.
 - The `split type` body becomes mandatory.
+- *Decided in ako/mxcli#754:* an `alter microflow` / `alter nanoflow` fragment is imperative content, so it is `begin … end`, not `{ … }`: `insert after $X begin … end;`, `replace <target> with begin … end;`. The fragment is written exactly as the body of `create microflow` is (ADR-0012). The operations around it are the alter's declarative children and stay in the alter's `{ }`. The brace fragment is a deprecated alias (MDL-DEPR074).
+- *Decided in ako/mxcli#754:* the remaining brackets. Menu items are `{ }` children with no separator, and an item's action and icon are its properties, `menu item 'X' ( OnClick: show page M.P, Icon: I )`; a navigation profile's items are its own `{ }` children after its clauses. The profile's clauses (`home page … for …`, `login page`, `sync ( … )`) stay clauses for now. A map's separator is the one R3/R4 gives its entries: `Params: ( $P: M.E )` and `DesignProperties: ( 'k': 'v' )` set properties with `:`, while text-template parameters `ContentParams: ({1} = e)` and a snippet call's arguments `Params: (P = $v)` bind values with `=`. A database connection is `( Type: '…', ConnectionString: @M.C, … ) { query Q ( Sql: …, Parameters: ( p: T [default '…' | null] ), Returns: M.E, Map: ( Attr = column ) ) }` — the column map binds an attribute like a mapping side. Old spellings: MDL-DEPR120–127.
 
 **Before** — properties in braces, children in parentheses, menu items separated by `;`, braces inside a microflow:
 
@@ -974,6 +976,8 @@ See the implementation plan in §9, which supersedes the short list that was her
 9. **Cadence: one release per week; beta in about four weeks** (around 2026-10-24). Because changes of meaning are tied to the header, no change needs a warning release. Beta is a single release, cut when `mdl 1` is complete. The schedule is in §9.
 
 10. **Drift detection is optimistic locking, and is optional** (§8.2). A `@base '<fingerprint>'` annotation on the statement is emitted by `describe`, checked by `create or modify`, and updated by `exec`. Projects driven entirely by MDL skip it and instead require a dry run of all scripts to report no changes. There is no sidecar state file.
+
+11. **A line break in a text template is written into the literal** (ako/mxcli#746, decided 2026-09-29). Under `mdl 1` the message of `log`, `show message` and `validation feedback`, written as one string literal, is the template text whether or not the literal spans lines; `describe` under the header writes the stored break as a break. Without the header a lone literal that spans lines keeps its alpha meaning — an expression, stored as the template `{1}` with the literal as its parameter — and warns `MDL-V1-TEMPLATE`; `fmt --upgrade` rewrites it to `'{1}' with ({1} = …)`, and rewrites the alpha `'a\nb'` to the literal with the break in it. Alternatives rejected: `$$…$$` (for foreign content, R11/§4; a template is MDL text, and a second literal kind in one position would be a second spelling of the same value), a `\n` escape kept for templates only (R11: `''` is the only escape), and a template-only newline function or keyword (new grammar for one character, and not what Studio Pro stores or shows).
 
 ### Still open
 

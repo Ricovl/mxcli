@@ -861,45 +861,17 @@ func TestWorkflowMutator_DropPath_ByCaption(t *testing.T) {
 	}
 }
 
-func TestWorkflowMutator_DropPath_EmptyCaption_DropsLast(t *testing.T) {
-	path1 := bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
-		{Key: "$Type", Value: "Workflows$ParallelSplitOutcome"},
-		{Key: "Tag", Value: "first"},
-	}
-	path2 := bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
-		{Key: "$Type", Value: "Workflows$ParallelSplitOutcome"},
-		{Key: "Tag", Value: "second"},
-	}
-	act := makeWfActivityWithOutcomes("Split", "split1", path1, path2)
-	m := newMutator(makeWorkflowDoc(act))
-
-	if err := m.DropPath("Split", 0, ""); err != nil {
-		t.Fatalf("DropPath empty caption failed: %v", err)
-	}
-
-	actDoc, _ := m.findActivityByCaption("Split", 0)
-	outcomes := bsonnav.DGetArrayElements(bsonnav.DGet(actDoc, "Outcomes"))
-	if len(outcomes) != 1 {
-		t.Fatalf("Expected 1 remaining path, got %d", len(outcomes))
-	}
-	oDoc := outcomes[0].(bson.D)
-	if got := bsonnav.DGetString(oDoc, "Tag"); got != "first" {
-		t.Errorf("Remaining path Tag = %q, want first", got)
-	}
-}
-
 func TestWorkflowMutator_DropPath_NotFound(t *testing.T) {
 	act := makeWfActivityWithOutcomes("Split", "split1")
+	act[1] = bson.E{Key: "$Type", Value: "Workflows$ParallelSplitActivity"}
 	m := newMutator(makeWorkflowDoc(act))
 
 	err := m.DropPath("Split", 0, "Path 99")
 	if err == nil {
 		t.Fatal("Expected error for missing path")
 	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("Error = %q, want 'not found'", err.Error())
+	if !strings.Contains(err.Error(), "no path 99") {
+		t.Errorf("Error = %q, want 'no path 99'", err.Error())
 	}
 }
 
@@ -932,6 +904,7 @@ func TestWorkflowMutator_InsertBranch_True(t *testing.T) {
 
 func TestWorkflowMutator_InsertBranch_False(t *testing.T) {
 	act := makeWfActivityWithOutcomes("Decision", "dec1")
+	act[1] = bson.E{Key: "$Type", Value: "Workflows$ExclusiveSplitActivity"}
 	m := newMutator(makeWorkflowDoc(act))
 
 	if err := m.InsertBranch("Decision", 0, "false", nil); err != nil {
@@ -948,6 +921,7 @@ func TestWorkflowMutator_InsertBranch_False(t *testing.T) {
 
 func TestWorkflowMutator_InsertBranch_Default(t *testing.T) {
 	act := makeWfActivityWithOutcomes("Decision", "dec1")
+	act[1] = bson.E{Key: "$Type", Value: "Workflows$ExclusiveSplitActivity"}
 	m := newMutator(makeWorkflowDoc(act))
 
 	if err := m.InsertBranch("Decision", 0, "default", nil); err != nil {
@@ -964,6 +938,7 @@ func TestWorkflowMutator_InsertBranch_Default(t *testing.T) {
 
 func TestWorkflowMutator_InsertBranch_Enum(t *testing.T) {
 	act := makeWfActivityWithOutcomes("Decision", "dec1")
+	act[1] = bson.E{Key: "$Type", Value: "Workflows$ExclusiveSplitActivity"}
 	m := newMutator(makeWorkflowDoc(act))
 
 	if err := m.InsertBranch("Decision", 0, "MyModule.Status.Active", nil); err != nil {
@@ -983,6 +958,7 @@ func TestWorkflowMutator_InsertBranch_Enum(t *testing.T) {
 
 func TestWorkflowMutator_InsertBranch_WithActivities(t *testing.T) {
 	act := makeWfActivityWithOutcomes("Decision", "dec1")
+	act[1] = bson.E{Key: "$Type", Value: "Workflows$ExclusiveSplitActivity"}
 	m := newMutator(makeWorkflowDoc(act))
 
 	subAct := makeTestWorkflowActivity("branch_act", "BranchAct")

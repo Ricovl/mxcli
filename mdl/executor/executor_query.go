@@ -3,6 +3,9 @@
 package executor
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 )
@@ -202,7 +205,14 @@ func execDescribe(ctx *ExecContext, s *ast.DescribeStmt) error {
 	objectType := describeObjectTypeLabel(s.ObjectType)
 	name := s.Name.String()
 
-	return writeDescribeJSON(ctx, name, objectType, func() error {
+	// A definition or lookup is a report, not MDL: its first line says so, and
+	// the JSON form marks it not executable (R6).
+	report, isReport := definitionReportKind(s)
+	if isReport && ctx.Format != FormatJSON {
+		fmt.Fprintf(ctx.Output, "-- %s definition (not executable)\n", report)
+	}
+
+	return writeDescribeJSONAs(ctx, name, objectType, !isReport, func() error {
 		switch s.ObjectType {
 		case ast.DescribeEnumeration:
 			return describeEnumeration(ctx, s.Name)
@@ -211,7 +221,7 @@ func execDescribe(ctx *ExecContext, s *ast.DescribeStmt) error {
 		case ast.DescribeAssociation:
 			return describeAssociation(ctx, s.Name)
 		case ast.DescribeMicroflow:
-			return describeMicroflowMode(ctx, s.Name, s.Normalized)
+			return describeMicroflowMode(ctx, s.Name, describeMicroflowOptions{Normalized: s.Normalized, Handles: s.WithHandles})
 		case ast.DescribeNanoflow:
 			return describeNanoflow(ctx, s.Name)
 		case ast.DescribeRule:
@@ -312,6 +322,26 @@ func execDescribe(ctx *ExecContext, s *ast.DescribeStmt) error {
 			return mdlerrors.NewUnsupported("unknown describe object type")
 		}
 	})
+}
+
+// definitionReportKind names the kind of definition a describe reports on, when
+// its answer is a report rather than runnable MDL: a widget type, a glyph, an
+// OData or AsyncAPI contract's entity, action or message (unless asked for as
+// MDL with `format mdl`). A model element's describe is MDL and is not one.
+func definitionReportKind(s *ast.DescribeStmt) (string, bool) {
+	switch s.ObjectType {
+	case ast.DescribeWidget:
+		return "widget type", true
+	case ast.DescribeGlyph:
+		return "glyph", true
+	case ast.DescribeContractEntity:
+		return "contract entity", !strings.EqualFold(s.Format, "mdl")
+	case ast.DescribeContractAction:
+		return "contract action", !strings.EqualFold(s.Format, "mdl")
+	case ast.DescribeContractMessage:
+		return "contract message", true
+	}
+	return "", false
 }
 
 // describeObjectTypeLabel returns a human-readable label for a describe object type.

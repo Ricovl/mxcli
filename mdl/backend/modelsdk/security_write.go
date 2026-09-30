@@ -6,11 +6,23 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genSec "github.com/mendixlabs/mxcli/modelsdk/gen/security"
 )
+
+// Studio Pro writes Security$ProjectSecurity's UserRoles and DemoUsers lists
+// with typed-array marker 2, not the encoder's default 3 (measured on PedApp
+// 11.13.0, TestApp 11.14.0 and the expr-checker fixture: every document
+// agrees). Without these, rewriting a user role or demo user with an unchanged
+// definition changed the marker, so running `describe user role` output wrote
+// the unit (#731).
+func init() {
+	codec.RegisterPropertyListMarker("Security$ProjectSecurity", "UserRoles", 2)
+	codec.RegisterPropertyListMarker("Security$ProjectSecurity", "DemoUsers", 2)
+}
 
 // loadModuleSecurityGen decodes a Security$ModuleSecurity unit by ID.
 func (b *Backend) loadModuleSecurityGen(unitID model.ID) (*genSec.ModuleSecurity, error) {
@@ -255,6 +267,41 @@ func (b *Backend) AlterUserRoleModuleRoles(unitID model.ID, userRoleName string,
 		return b.persistUnit(unitID, ps)
 	}
 	return fmt.Errorf("AlterUserRoleModuleRoles: user role not found: %s", userRoleName)
+}
+
+// SetUserRoleProperties sets the properties props states on a project user
+// role (by name); a nil property is left as stored.
+func (b *Backend) SetUserRoleProperties(unitID model.ID, userRoleName string, props backend.UserRoleProperties) error {
+	if b.writer == nil {
+		return fmt.Errorf("SetUserRoleProperties: not connected for writing")
+	}
+	ps, err := b.loadProjectSecurityGen(unitID)
+	if err != nil {
+		return err
+	}
+	for _, el := range ps.UserRolesItems() {
+		r, ok := el.(*genSec.UserRole)
+		if !ok || !strings.EqualFold(r.Name(), userRoleName) {
+			continue
+		}
+		if props.Description != nil {
+			r.SetDescription(*props.Description)
+		}
+		if props.ManageAllRoles != nil {
+			r.SetManageAllRoles(*props.ManageAllRoles)
+		}
+		if props.ManageUsersWithoutRoles != nil {
+			r.SetManageUsersWithoutRoles(*props.ManageUsersWithoutRoles)
+		}
+		if props.CheckSecurity != nil {
+			r.SetCheckSecurity(*props.CheckSecurity)
+		}
+		if props.ManageableRoles != nil {
+			r.SetManageableRolesQualifiedNames(props.ManageableRoles)
+		}
+		return b.persistUnit(unitID, ps)
+	}
+	return fmt.Errorf("SetUserRoleProperties: user role not found: %s", userRoleName)
 }
 
 // RemoveDemoUser removes a demo user by (case-insensitive) username.

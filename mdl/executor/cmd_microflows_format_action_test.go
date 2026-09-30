@@ -8,6 +8,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/backend/mock"
 	mdltypes "github.com/mendixlabs/mxcli/mdl/types"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
@@ -525,7 +526,7 @@ func TestFormatAction_ShowPage_WithParams(t *testing.T) {
 		},
 	}
 	got := e.formatAction(action, nil, nil)
-	want := "show page MyModule.OrderDetail($Order = $Order);"
+	want := "show page MyModule.OrderDetail(Order = $Order);"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -692,7 +693,7 @@ func TestFormatAction_LogMessage_WithTemplateParams(t *testing.T) {
 		TemplateParameters: []string{"$OrderNumber", "$CustomerName"},
 	}
 	got := e.formatAction(action, nil, nil)
-	want := "log info node 'App' 'Order {1} for {2}' with ({1} = $OrderNumber, {2} = $CustomerName);"
+	want := "log node 'App' 'Order {1} for {2}' with ({1} = $OrderNumber, {2} = $CustomerName);"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -708,7 +709,7 @@ func TestFormatAction_LogMessage_EscapesMultiline(t *testing.T) {
 		},
 	}
 	got := e.formatAction(action, nil, nil)
-	want := "log info node 'App' 'Line 1\\nLine 2';"
+	want := "log node 'App' 'Line 1\\nLine 2';"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -724,7 +725,7 @@ func TestFormatAction_LogMessage_NodeExpression(t *testing.T) {
 		},
 	}
 	got := e.formatAction(action, nil, nil)
-	want := "log info node @MyModule.SecurityLogNode 'User added';"
+	want := "log node @MyModule.SecurityLogNode 'User added';"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -791,7 +792,7 @@ func TestFormatAction_Retrieve_WithLimit(t *testing.T) {
 		},
 	}
 	got := e.formatAction(action, nil, nil)
-	want := "retrieve $First from MyModule.Customer\n    limit 1;"
+	want := "retrieve $First from MyModule.Customer\n    first;" // the object range (#734)
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -868,7 +869,7 @@ func TestFormatAction_Retrieve_ReverseAssociationRequiresSimpleAllRange(t *testi
 	}
 
 	got := e.formatAction(action, nil, nil)
-	want := "retrieve $Domains from SampleRuntime.Domain\n    where SampleRuntime.Domain_Runtime = $Runtime\n    limit 1;"
+	want := "retrieve $Domains from SampleRuntime.Domain\n    where SampleRuntime.Domain_Runtime = $Runtime\n    first;"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -1444,5 +1445,39 @@ func TestFormatAction_ShowMessageBlocking(t *testing.T) {
 	}
 	if got := e.formatAction(msg(false), nil, nil); got != "show message 'Saved.' type Information;" {
 		t.Errorf("non-blocking message = %q", got)
+	}
+}
+
+// ako/mxcli#859 (rehearsal S8): a lone XPath group with a predicate on a path
+// step was described without its outer brackets, `where A/B[Name = empty]`,
+// which describe's own parser rejects — so create or modify could not compare
+// the stored flow and refused it under mdl 1 on an identical re-run. Such a
+// group keeps its brackets; one without a nested predicate still does not.
+func TestFormatAction_Retrieve_NestedPredicateReparses(t *testing.T) {
+	for _, c := range []struct{ xpath, where string }{
+		{"[M.Timeline_Emp/M.Timeline[Name = empty]]", "where [M.Timeline_Emp/M.Timeline[Name = empty]]"},
+		{"[M.A_B/M.B[Name = 'x[1]'] and Active = true()]", "where [M.A_B/M.B[Name = 'x[1]'] and Active = true()]"},
+		// Controls: brackets only inside a string, and no brackets at all.
+		{"[Name = 'x[1]']", "where Name = 'x[1]'"},
+		{"[IsActive = true()]", "where IsActive = true()"},
+	} {
+		e := newTestExecutor()
+		action := &microflows.RetrieveAction{
+			OutputVariable: "Rows",
+			Source: &microflows.DatabaseRetrieveSource{
+				EntityQualifiedName: "M.Emp",
+				XPathConstraint:     c.xpath,
+			},
+		}
+		got := e.formatAction(action, nil, nil)
+		if !strings.Contains(got, "\n    "+c.where+";") {
+			t.Errorf("%s: got %q, want %q", c.xpath, got, c.where)
+		}
+		for _, header := range []string{"", "mdl 1;\n"} {
+			src := header + "create microflow M.F ()\nbegin\n  " + got + "\nend;\n"
+			if _, errs := visitor.Build(src); len(errs) > 0 {
+				t.Errorf("%s: the description does not parse (header %q): %v\n%s", c.xpath, header, errs[0], src)
+			}
+		}
 	}
 }

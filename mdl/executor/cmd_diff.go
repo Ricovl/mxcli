@@ -57,6 +57,13 @@ type DiffResult struct {
 	IsNew      bool
 	IsDeleted  bool
 	Changes    []StructuralChange
+	// Refused is why exec would refuse the statement, writing nothing, when
+	// it would (ako/mxcli#839); "" otherwise.
+	Refused string
+	// Writes is what exec would write when the two renderings are the same
+	// but exec still writes (a patch the rendering does not show, a move to
+	// another folder); "" otherwise. It makes the statement modified.
+	Writes string
 }
 
 // ANSI color codes
@@ -83,7 +90,7 @@ func diffProgram(ctx *ExecContext, prog *ast.Program, opts DiffOptions) error {
 	}
 
 	var results []DiffResult
-	var newCount, modifiedCount, unchangedCount int
+	var newCount, modifiedCount, unchangedCount, refusedCount int
 
 	// Track processed objects to avoid duplicates (script may have multiple statements for same object)
 	processed := make(map[string]bool)
@@ -106,6 +113,13 @@ func diffProgram(ctx *ExecContext, prog *ast.Program, opts DiffOptions) error {
 			continue
 		}
 		if result != nil {
+			// CREATE … IF NOT EXISTS on an element that is already there is
+			// skipped by exec and leaves the element untouched (#731), so what
+			// the script would leave behind is what is stored now.
+			if g, ok := stmt.(ast.IfNotExistsCreate); ok && g.CreateIfNotExists() && !result.IsNew {
+				result.Proposed = result.Current
+				result.Changes = nil
+			}
 			// Create unique key for deduplication
 			key := result.ObjectType + ":" + result.ObjectName.String()
 			if processed[key] {
@@ -115,9 +129,11 @@ func diffProgram(ctx *ExecContext, prog *ast.Program, opts DiffOptions) error {
 			processed[key] = true
 
 			results = append(results, *result)
-			if result.IsNew {
+			if result.Refused != "" {
+				refusedCount++
+			} else if result.IsNew {
 				newCount++
-			} else if result.Current != result.Proposed {
+			} else if result.Current != result.Proposed || result.Writes != "" {
 				modifiedCount++
 			} else {
 				unchangedCount++
@@ -127,6 +143,16 @@ func diffProgram(ctx *ExecContext, prog *ast.Program, opts DiffOptions) error {
 
 	// Output results based on format
 	for _, result := range results {
+		if result.Refused != "" {
+			fmt.Fprintf(ctx.Output, "Refused: %s %s: exec would refuse this statement and write nothing: %s\n",
+				result.ObjectType, result.ObjectName, result.Refused)
+			continue
+		}
+		if result.Writes != "" && result.Current == result.Proposed {
+			fmt.Fprintf(ctx.Output, "Modified: %s %s: its MDL renders as stored, but exec would write it: %s\n",
+				result.ObjectType, result.ObjectName, result.Writes)
+			continue
+		}
 		if result.Current == result.Proposed && !result.IsNew {
 			// Skip unchanged objects unless showing structural
 			if opts.Format != DiffFormatStructural {
@@ -145,8 +171,11 @@ func diffProgram(ctx *ExecContext, prog *ast.Program, opts DiffOptions) error {
 	}
 
 	// Output summary
-	fmt.Fprintf(ctx.Output, "\nSummary: %d new, %d modified, %d unchanged\n",
-		newCount, modifiedCount, unchangedCount)
+	summary := fmt.Sprintf("\nSummary: %d new, %d modified, %d unchanged", newCount, modifiedCount, unchangedCount)
+	if refusedCount > 0 {
+		summary += fmt.Sprintf(", %d refused", refusedCount)
+	}
+	fmt.Fprintln(ctx.Output, summary)
 	reportUndiffed(ctx, skipped, failures)
 
 	return nil
@@ -181,7 +210,11 @@ func reportUndiffed(ctx *ExecContext, skipped map[string]int, failures []string)
 }
 
 // DiffProgram is a method wrapper for external callers.
+//
+// The program runs under its own language header, as exec runs it: what a
+// statement means, and whether exec would refuse it, depends on it.
 func (e *Executor) DiffProgram(prog *ast.Program, opts DiffOptions) error {
+	defer e.enterLanguage(prog.LanguageVersion)()
 	return diffProgram(e.newExecContext(context.Background()), prog, opts)
 }
 
@@ -311,8 +344,13 @@ func diffEnumeration(ctx *ExecContext, s *ast.CreateEnumerationStmt) (*DiffResul
 		return result, nil
 	}
 
+	// ContainerID is a folder when the enumeration is filed in one, so walk up
+	// to the module before asking for its name; asking directly rendered the
+	// stored side as `create enumeration .Name` and made an untouched
+	// enumeration diff as modified (ako/mxcli#794). findEnumeration matched the
+	// statement's module through the same walk, so that is the module name.
 	h, _ := getHierarchy(ctx)
-	modName := h.GetModuleName(existingEnum.ContainerID)
+	modName := h.GetModuleName(h.FindModuleID(existingEnum.ContainerID))
 	result.Current = enumerationToMDL(ctx, modName, existingEnum)
 	result.Changes = compareEnumerations(ctx, result.Current, result.Proposed)
 
@@ -324,29 +362,41 @@ func diffAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) (*DiffResul
 	result := &DiffResult{
 		ObjectType: "Association",
 		ObjectName: s.Name,
-		Proposed:   associationStmtToMDL(ctx, s),
 	}
 
 	module, err := findModule(ctx, s.Name.Module)
 	if err != nil {
 		result.IsNew = true
+		result.Proposed = associationStmtToMDL(ctx, s, "")
 		return result, nil
 	}
 
 	dm, err := ctx.Backend.GetDomainModel(module.ID)
 	if err != nil {
 		result.IsNew = true
+		result.Proposed = associationStmtToMDL(ctx, s, "")
 		return result, nil
 	}
 
 	for _, assoc := range dm.Associations {
 		if assoc.Name == s.Name.Name {
 			result.Current = associationToMDL(ctx, module.Name, assoc, dm)
+			result.Proposed = associationStmtToMDL(ctx, s, assoc.StorageFormat)
+			return result, nil
+		}
+	}
+	// A cross-module association is stored apart, in CrossAssociations; without
+	// this lookup every existing one diffed as new.
+	for _, ca := range dm.CrossAssociations {
+		if ca.Name == s.Name.Name {
+			result.Current = crossAssociationToMDL(module.Name, ca, dm)
+			result.Proposed = associationStmtToMDL(ctx, s, ca.StorageFormat)
 			return result, nil
 		}
 	}
 
 	result.IsNew = true
+	result.Proposed = associationStmtToMDL(ctx, s, "")
 	return result, nil
 }
 
@@ -384,6 +434,9 @@ func diffMicroflow(ctx *ExecContext, s *ast.CreateMicroflowStmt) (*DiffResult, e
 	}
 	result.Current = current
 	result.Changes = compareMicroflows(ctx, result.Current, result.Proposed)
+	if s.CreateOrModify {
+		spliceVerdict(ctx, microflowDecl(s), result)
+	}
 	return result, nil
 }
 
@@ -417,7 +470,57 @@ func diffNanoflow(ctx *ExecContext, s *ast.CreateNanoflowStmt) (*DiffResult, err
 	}
 	result.Current = current
 	result.Changes = compareMicroflows(ctx, result.Current, result.Proposed)
+	if s.CreateOrModify {
+		spliceVerdict(ctx, nanoflowDecl(s), result)
+	}
 	return result, nil
+}
+
+// spliceVerdict brings the diff of a `create or modify` of a stored flow to the
+// verdict exec reaches, which is not the rendered comparison above: exec
+// patches the stored flow (diff-then-patch, planFlowModify), and it is the
+// patch that decides whether anything is written (ako/mxcli#839, where diff
+// said unchanged for a statement exec refused).
+//
+//   - A change the splice cannot make is refused under mdl 1, and diff says
+//     so; under mdl 0 exec rebuilds the flow, which the rendered comparison
+//     already shows.
+//   - An empty patch in the same folder writes nothing, whatever the two
+//     renderings say, so it is unchanged.
+//   - A patch to make, or a move to another folder, is a write whatever the
+//     two renderings say: when they are the same (the rendering leaves the
+//     folder out), what exec would write is stated instead.
+//
+// An error exec would report itself leaves the rendered comparison as it is.
+func spliceVerdict(ctx *ExecContext, d *flowDecl, result *DiffResult) {
+	p, err := planFlowModify(ctx, d)
+	var why *notSpliceable
+	switch {
+	case errors.As(err, &why):
+		if flowRebuildRefused.Applies(ctx.LanguageVersion) {
+			result.Refused = why.reason
+		}
+	case err != nil || p == nil:
+	case p.mut == nil && d.folder == p.storedFolder:
+		result.Proposed = result.Current
+		result.Changes = nil
+	case result.Current == result.Proposed:
+		var what []string
+		if s := patchSummary(p.ops, p.moves, p.set); s != "" {
+			what = append(what, s)
+		}
+		switch {
+		case d.folder == p.storedFolder:
+		case d.folder == "":
+			what = append(what, "moved to the module root")
+		default:
+			what = append(what, fmt.Sprintf("moved to folder '%s'", d.folder))
+		}
+		if len(what) == 0 {
+			what = append(what, "patched")
+		}
+		result.Writes = strings.Join(what, "; ")
+	}
 }
 
 // ============================================================================

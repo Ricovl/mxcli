@@ -44,18 +44,18 @@ create page DSArgs."P_Requests" (
   Layout: Atlas_Core.Atlas_Default
 ) {
   datagrid dgAll (datasource: microflow DSArgs.DS_AllReqs) {
-    column c1 (attribute: Code, caption: 'Code')
+    column (attribute: Code, caption: 'Code')
   }
 };
 
 create page DSArgs."P_TaskRequests" (
-  params: { $Task: DSArgs.Task },
+  params: ( $Task: DSArgs.Task ),
   Title: 'Task requests',
   Layout: Atlas_Core.Atlas_Default
 ) {
   -- One argument per parameter. Writing `microflow DSArgs.DS_ReqForTask` here
   -- is refused by `mxcli check` instead of building to CE1571.
-  datagrid dgForTask (datasource: microflow DSArgs.DS_ReqForTask(Task: $Task)) {
-    column c1 (attribute: Code, caption: 'Code')
+  datagrid dgForTask (datasource: microflow DSArgs.DS_ReqForTask(Task = $Task)) {
+    column (attribute: Code, caption: 'Code')
   }
 };

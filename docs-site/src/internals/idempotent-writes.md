@@ -154,7 +154,7 @@ so comparing bytes would skip nothing. The policy lives in `modelsdk/canon`
 hides. Several `create or modify` handlers are implemented as delete + create
 under the preserved unit ID rather than as an update, and an insert has nothing
 stored to reconcile against, so the rebuild's fresh `$ID`s went straight to disk:
-`create or modify rest client` rewrote 9 element `$ID`s in a 1,128-byte unit on
+`create or modify consumed rest service` rewrote 9 element `$ID`s in a 1,128-byte unit on
 every run, forever. `deleteUnit` now remembers what it removed and `insertUnit`
 reconciles a re-insert against it (`carryIdentityFromRemovedUnit`). That carry
 cannot *elide* — the row and the file are already gone — so a no-op recreate also

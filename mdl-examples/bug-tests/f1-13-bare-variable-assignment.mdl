@@ -37,5 +37,5 @@ begin
   $Item/Qty = 3;
   $New = create F1ASSIGN.Item (Name = 'x');
   retrieve $Items from F1ASSIGN.Item;
-  $First = HEAD($Items);
+  $First = HEAD $Items;
 end;

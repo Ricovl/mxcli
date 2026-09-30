@@ -20,6 +20,7 @@ func (b *Builder) ExitCreateBusinessEventServiceStatement(ctx *parser.CreateBusi
 		prop := propCtx.(*parser.OdataPropertyAssignmentContext)
 		name := identifierOrKeywordText(prop.IdentifierOrKeyword())
 		value := odataAssignmentValueText(prop)
+		b.checkProperty(prop, &businessEventServiceSchema, name, odataPropertyShape(prop))
 
 		switch strings.ToLower(name) {
 		case "servicename":

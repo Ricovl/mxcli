@@ -33,7 +33,7 @@ mxcli -p MyApp.mpr
 
 ## Your First MDL Commands
 
-<!-- TODO: SHOW MODULES, SHOW ENTITIES, DESCRIBE — annotated output -->
+<!-- TODO: LIST MODULES, LIST ENTITIES, DESCRIBE — annotated output -->
 
 ## Next Steps
 

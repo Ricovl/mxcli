@@ -63,7 +63,7 @@ create persistent entity BugTest277.Report (
 -- A string member and two numeric ones: the structure stores MaxLength 0 for
 -- the first and -1 for the others, and the export mapping must mirror each.
 create json structure BugTest277.JSON_Report
-  snippet $${"title": "t", "width": 1, "height": 2}$$;
+  sample $${"title": "t", "width": 1, "height": 2}$$;
 
 create or modify export mapping BugTest277.EXM_Report
   folder 'Mappings'

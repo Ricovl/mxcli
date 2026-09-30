@@ -39,4 +39,4 @@ CREATE ENUMERATION Sales.OrderStatus (
 
 ## See Also
 
-[SHOW ENUMERATIONS](show-enumerations.md), [DESCRIBE ENTITY](describe-entity.md), [SHOW MODULES](show-modules.md)
+[LIST ENUMERATIONS](list-enumerations.md), [DESCRIBE ENTITY](describe-entity.md), [LIST MODULES](list-modules.md)

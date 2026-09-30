@@ -7,11 +7,10 @@ This page collects frequently used page patterns: overview/list pages, edit page
 An overview page displays a list of entities with a control bar for creating, editing, and deleting records. Clicking a row opens the edit page.
 
 ```sql
-CREATE PAGE MyModule.Customer_Overview
+CREATE PAGE MyModule.Customer_Overview FOLDER 'Customers'
 (
   Title: 'Customers',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Customers'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   DATAGRID dgCustomers (DataSource: DATABASE MyModule.Customer, PageSize: 20) {
@@ -22,10 +21,10 @@ CREATE PAGE MyModule.Customer_Overview
     CONTROLBAR bar1 {
       ACTIONBUTTON btnNew (
         Caption: 'New Customer',
-        Action: MICROFLOW MyModule.ACT_Customer_New,
+        Action: CALL MICROFLOW MyModule.ACT_Customer_New,
         ButtonStyle: Primary
       )
-      ACTIONBUTTON btnEdit (Caption: 'Edit', Action: SHOW_PAGE MyModule.Customer_Edit)
+      ACTIONBUTTON btnEdit (Caption: 'Edit', Action: SHOW PAGE MyModule.Customer_Edit)
       ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
     }
   }
@@ -41,7 +40,7 @@ BEGIN
   $Customer = CREATE MyModule.Customer (
     IsActive = true
   );
-  SHOW PAGE MyModule.Customer_Edit ($Customer = $Customer);
+  SHOW PAGE MyModule.Customer_Edit (Customer = $Customer);
   RETURN $Customer;
 END;
 ```
@@ -51,12 +50,11 @@ END;
 An edit page displayed as a popup dialog. Receives the entity as a page parameter:
 
 ```sql
-CREATE PAGE MyModule.Customer_Edit
+CREATE PAGE MyModule.Customer_Edit FOLDER 'Customers'
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Edit Customer',
-  Layout: Atlas_Core.PopupLayout,
-  Folder: 'Customers'
+  Layout: Atlas_Core.PopupLayout
 )
 {
   DATAVIEW dvCustomer (DataSource: $Customer) {
@@ -66,8 +64,8 @@ CREATE PAGE MyModule.Customer_Edit
     COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
     CHECKBOX cbActive (Label: 'Active', Attribute: IsActive)
     FOOTER footer1 {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 }
@@ -78,12 +76,11 @@ CREATE PAGE MyModule.Customer_Edit
 A full-page detail view with sections organized using layout grids:
 
 ```sql
-CREATE PAGE MyModule.Customer_Detail
+CREATE PAGE MyModule.Customer_Detail FOLDER 'Customers'
 (
-  Params: { $Customer: MyModule.Customer },
+  Params: ( $Customer: MyModule.Customer ),
   Title: 'Customer Detail',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Customers'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   DATAVIEW dvCustomer (DataSource: $Customer) {
@@ -107,10 +104,10 @@ CREATE PAGE MyModule.Customer_Detail
     FOOTER footer1 {
       ACTIONBUTTON btnEdit (
         Caption: 'Edit',
-        Action: SHOW_PAGE MyModule.Customer_Edit,
+        Action: SHOW PAGE MyModule.Customer_Edit,
         ButtonStyle: Primary
       )
-      ACTIONBUTTON btnBack (Caption: 'Back', Action: CLOSE_PAGE)
+      ACTIONBUTTON btnBack (Caption: 'Back', Action: CLOSE PAGE)
     }
   }
 }
@@ -123,11 +120,10 @@ A master-detail page shows a list on one side and the selected item's details on
 ### Side-by-Side Layout
 
 ```sql
-CREATE PAGE MyModule.Product_MasterDetail
+CREATE PAGE MyModule.Product_MasterDetail FOLDER 'Products'
 (
   Title: 'Products',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Products'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   LAYOUTGRID gridMain {
@@ -140,7 +136,7 @@ CREATE PAGE MyModule.Product_MasterDetail
           CONTROLBAR bar1 {
             ACTIONBUTTON btnNew (
               Caption: 'New',
-              Action: MICROFLOW MyModule.ACT_Product_New,
+              Action: CALL MICROFLOW MyModule.ACT_Product_New,
               ButtonStyle: Primary
             )
           }
@@ -153,7 +149,7 @@ CREATE PAGE MyModule.Product_MasterDetail
           TEXTBOX txtPrice (Label: 'Price', Attribute: Price)
           COMBOBOX cbCategory (Label: 'Category', Attribute: Category)
           FOOTER footer1 {
-            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
+            ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
           }
         }
       }
@@ -167,11 +163,10 @@ CREATE PAGE MyModule.Product_MasterDetail
 A master-detail pattern where selecting an entity also shows its related child entities via an association:
 
 ```sql
-CREATE PAGE MyModule.Order_MasterDetail
+CREATE PAGE MyModule.Order_MasterDetail FOLDER 'Orders'
 (
   Title: 'Orders',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Orders'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   LAYOUTGRID gridMain {
@@ -199,7 +194,7 @@ CREATE PAGE MyModule.Order_MasterDetail
           FOOTER footer1 {
             ACTIONBUTTON btnEdit (
               Caption: 'Edit Order',
-              Action: SHOW_PAGE MyModule.Order_Edit,
+              Action: SHOW PAGE MyModule.Order_Edit,
               ButtonStyle: Primary
             )
           }
@@ -222,11 +217,10 @@ Here is a concise CRUD set for an `Employee` entity:
 
 ```sql
 -- 1. Overview page
-CREATE PAGE HR.Employee_Overview
+CREATE PAGE HR.Employee_Overview FOLDER 'Employees'
 (
   Title: 'Employees',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Employees'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   DATAGRID dgEmployees (DataSource: DATABASE HR.Employee, PageSize: 20) {
@@ -236,22 +230,21 @@ CREATE PAGE HR.Employee_Overview
     CONTROLBAR bar1 {
       ACTIONBUTTON btnNew (
         Caption: 'New Employee',
-        Action: MICROFLOW HR.ACT_Employee_New,
+        Action: CALL MICROFLOW HR.ACT_Employee_New,
         ButtonStyle: Primary
       )
-      ACTIONBUTTON btnEdit (Caption: 'Edit', Action: SHOW_PAGE HR.Employee_Edit)
+      ACTIONBUTTON btnEdit (Caption: 'Edit', Action: SHOW PAGE HR.Employee_Edit)
       ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
     }
   }
 }
 
 -- 2. Edit page (popup)
-CREATE PAGE HR.Employee_Edit
+CREATE PAGE HR.Employee_Edit FOLDER 'Employees'
 (
-  Params: { $Employee: HR.Employee },
+  Params: ( $Employee: HR.Employee ),
   Title: 'Edit Employee',
-  Layout: Atlas_Core.PopupLayout,
-  Folder: 'Employees'
+  Layout: Atlas_Core.PopupLayout
 )
 {
   DATAVIEW dvEmployee (DataSource: $Employee) {
@@ -260,8 +253,8 @@ CREATE PAGE HR.Employee_Edit
     DATEPICKER dpHireDate (Label: 'Hire Date', Attribute: HireDate)
     TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
     FOOTER footer1 {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 }
@@ -273,7 +266,7 @@ BEGIN
   $Employee = CREATE HR.Employee (
     HireDate = [%CurrentDateTime%]
   );
-  SHOW PAGE HR.Employee_Edit ($Employee = $Employee);
+  SHOW PAGE HR.Employee_Edit (Employee = $Employee);
   RETURN $Employee;
 END;
 ```
@@ -283,11 +276,10 @@ END;
 A dashboard page using layout grids to arrange multiple data sections:
 
 ```sql
-CREATE PAGE MyModule.Dashboard
+CREATE PAGE MyModule.Dashboard FOLDER 'Dashboard'
 (
   Title: 'Dashboard',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'Dashboard'
+  Layout: Atlas_Core.Atlas_Default
 )
 {
   LAYOUTGRID gridDash {

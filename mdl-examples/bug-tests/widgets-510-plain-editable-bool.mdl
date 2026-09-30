@@ -27,7 +27,7 @@
 
 create entity MyFirstModule.Thing ( Name: string(200) );
 
-create or replace page MyFirstModule.EditableListView (
+create or modify page MyFirstModule.EditableListView (
   title: 'Editable', layout: 'Atlas_Core.Atlas_Default'
 ) {
   listview lvThings (
@@ -38,7 +38,7 @@ create or replace page MyFirstModule.EditableListView (
   }
 };
 
-create or replace page MyFirstModule.EditableColumn (
+create or modify page MyFirstModule.EditableColumn (
   title: 'Column', layout: 'Atlas_Core.Atlas_Default'
 ) {
   legacydatagrid dgThings (DataSource: database from MyFirstModule.Thing) {

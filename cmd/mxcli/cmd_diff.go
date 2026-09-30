@@ -44,6 +44,7 @@ Examples:
 		format, _ := cmd.Flags().GetString("format")
 		useColor, _ := cmd.Flags().GetBool("color")
 		width, _ := cmd.Flags().GetInt("width")
+		refuseJSONFlag("diff", "--format unified|side|struct")
 
 		if projectPath == "" {
 			fmt.Fprintln(os.Stderr, "Error: --project (-p) is required")
@@ -129,6 +130,7 @@ Examples:
 		format, _ := cmd.Flags().GetString("format")
 		useColor, _ := cmd.Flags().GetBool("color")
 		width, _ := cmd.Flags().GetInt("width")
+		refuseJSONFlag("diff-local", "--format unified|side|struct")
 
 		if projectPath == "" {
 			fmt.Fprintln(os.Stderr, "Error: --project (-p) is required")

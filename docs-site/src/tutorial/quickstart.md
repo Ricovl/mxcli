@@ -57,7 +57,7 @@ LIST MODULES;
 LIST ENTITIES IN MyFirstModule;
 
 -- See the full structure at a glance
-LIST STRUCTURE;
+DESCRIBE STRUCTURE;
 ```
 
 ## 4. Create something
@@ -86,10 +86,10 @@ DESCRIBE ENTITY MyFirstModule.Customer;
 Output:
 ```
 @Position(100, 100)
-CREATE OR REPLACE PERSISTENT ENTITY MyFirstModule.Customer (
-  Name: String(200) NOT NULL,
+create or modify persistent entity MyFirstModule.Customer (
+  Name: String(200) not null,
   Email: String(200),
-  IsActive: Boolean DEFAULT true
+  IsActive: Boolean default true
 );
 ```
 
@@ -120,7 +120,7 @@ No errors? You're done. Open in Studio Pro and everything is there.
 
 | I want to... | Read... |
 |---|---|
-| Explore my project deeper | [SHOW Commands](show-commands.md) |
+| Explore my project deeper | [SHOW Commands](list-commands.md) |
 | Create pages with widgets | [Creating a Page](create-page.md) |
 | Use AI to generate code | [Claude Code Integration](claude-code.md) |
 | Set up for a team | [Skills and CLAUDE.md](skills.md) |

@@ -667,7 +667,7 @@ func moduleExists(projectPath, name string) (bool, error) {
 // changing projects that run at another level (mendixlabs/mxcli#802).
 func setupCommands(startupFlow string) []string {
 	return []string{
-		"ALTER SETTINGS MODEL AfterStartupMicroflow = " + quoteMDLString(startupFlow),
+		"ALTER SETTINGS RUNTIME (AfterStartupMicroflow: " + quoteMDLString(startupFlow) + ")",
 	}
 }
 
@@ -714,9 +714,9 @@ func execMDLScript(projectPath, mdl, namePattern string) error {
 // injection landed does not report a spurious cleanup failure.
 func cleanupCommands(st projectState, mxTestPresent bool) []string {
 	// Restore the original after-startup microflow, or clear it if there was none.
-	restore := "ALTER SETTINGS MODEL AfterStartupMicroflow = ''"
+	restore := "ALTER SETTINGS RUNTIME (AfterStartupMicroflow: '')"
 	if st.afterStartup != "" {
-		restore = "ALTER SETTINGS MODEL AfterStartupMicroflow = " + quoteMDLString(st.afterStartup)
+		restore = "ALTER SETTINGS RUNTIME (AfterStartupMicroflow: " + quoteMDLString(st.afterStartup) + ")"
 	}
 	cmds := []string{restore}
 	if !mxTestPresent {

@@ -138,12 +138,14 @@ func buildEnumValues(ctx parser.IEnumerationValueListContext, b *Builder) []ast.
 		enumVal := ast.EnumValue{
 			Name: unquoteIdentifier(ev.EnumValueName().GetText()),
 		}
-		// Extract documentation if present
+		// A doc comment on a value is not stored — Enumerations$EnumerationValue
+		// has no documentation property. It is carried on the AST only so
+		// `check` can say so (MDL-ENUMDOC01, ako/mxcli#706).
 		if docCtx := ev.DocComment(); docCtx != nil {
 			enumVal.Documentation = extractDocComment(docCtx.GetText())
 		}
 		if ev.STRING_LITERAL() != nil {
-			enumVal.Caption = unquoteString(ev.STRING_LITERAL().GetText())
+			enumVal.Caption = unquoteStringLit(ev.STRING_LITERAL())
 		}
 		values = append(values, enumVal)
 	}
@@ -189,15 +191,15 @@ func buildAttributes(ctx parser.IAttributeDefinitionListContext, b *Builder) []a
 			if c.NOT() != nil && c.NULL() != nil || c.NOT_NULL() != nil {
 				attr.NotNull = true
 				// Extract error message if present
-				if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-					attr.NotNullError = unquoteString(c.STRING_LITERAL().GetText())
+				if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
+					attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 				}
 			}
 			if c.UNIQUE() != nil {
 				attr.Unique = true
 				// Extract error message if present
-				if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-					attr.UniqueError = unquoteString(c.STRING_LITERAL().GetText())
+				if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
+					attr.UniqueError = unquoteStringLit(c.STRING_LITERAL())
 				}
 			}
 			if c.DEFAULT() != nil {
@@ -212,8 +214,8 @@ func buildAttributes(ctx parser.IAttributeDefinitionListContext, b *Builder) []a
 			if c.REQUIRED() != nil {
 				attr.NotNull = true
 				// Extract error message if present
-				if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-					attr.NotNullError = unquoteString(c.STRING_LITERAL().GetText())
+				if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
+					attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 				}
 			}
 			if c.CALCULATED() != nil {
@@ -250,14 +252,14 @@ func buildSingleAttribute(a *parser.AttributeDefinitionContext) *ast.Attribute {
 		c := constraintCtx.(*parser.AttributeConstraintContext)
 		if c.NOT() != nil && c.NULL() != nil || c.NOT_NULL() != nil {
 			attr.NotNull = true
-			if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-				attr.NotNullError = unquoteString(c.STRING_LITERAL().GetText())
+			if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
+				attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 			}
 		}
 		if c.UNIQUE() != nil {
 			attr.Unique = true
-			if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-				attr.UniqueError = unquoteString(c.STRING_LITERAL().GetText())
+			if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
+				attr.UniqueError = unquoteStringLit(c.STRING_LITERAL())
 			}
 		}
 		if c.DEFAULT() != nil {
@@ -270,8 +272,8 @@ func buildSingleAttribute(a *parser.AttributeDefinitionContext) *ast.Attribute {
 		}
 		if c.REQUIRED() != nil {
 			attr.NotNull = true
-			if c.ERROR() != nil && c.STRING_LITERAL() != nil {
-				attr.NotNullError = unquoteString(c.STRING_LITERAL().GetText())
+			if c.ConstraintErrorKeyword() != nil && c.STRING_LITERAL() != nil {
+				attr.NotNullError = unquoteStringLit(c.STRING_LITERAL())
 			}
 		}
 		if c.CALCULATED() != nil {
@@ -291,7 +293,15 @@ func buildIndex(ctx parser.IIndexDefinitionContext) ast.Index {
 		return ast.Index{}
 	}
 	idxDef := ctx.(*parser.IndexDefinitionContext)
-	return ast.Index{Columns: buildIndexColumns(idxDef.IndexAttributeList())}
+	idx := ast.Index{Columns: buildIndexColumns(idxDef.IndexAttributeList())}
+	// The name is not stored (a Mendix index is anonymous); it is carried only
+	// for the MDL-IDX01 warning.
+	if n := idxDef.IDENTIFIER(); n != nil {
+		idx.Name = n.GetText()
+	} else if n := idxDef.QUOTED_IDENTIFIER(); n != nil {
+		idx.Name = unquoteIdentifier(n.GetText())
+	}
+	return idx
 }
 
 // buildIndexColumns reads an index's column list. It is shared by the two
@@ -512,7 +522,7 @@ func extractLiteralValue(ctx parser.ILiteralContext) any {
 
 	// Check for different literal types
 	if lit.STRING_LITERAL() != nil {
-		return unquoteString(lit.STRING_LITERAL().GetText())
+		return unquoteStringLit(lit.STRING_LITERAL())
 	}
 	if lit.NUMBER_LITERAL() != nil {
 		text := lit.NUMBER_LITERAL().GetText()
@@ -641,7 +651,7 @@ func stripExpressionIdentifierQuotes(s string) string {
 // expression. OQL keeps extractOriginalText: `--` is a legitimate SQL comment
 // there, and stripping it would change a different language's meaning.
 func extractExpressionText(ctx antlr.ParserRuleContext) string {
-	return stripMDLComments(extractOriginalText(ctx))
+	return stripMDLComments(extractOriginalText(ctx), lexedWithStrictEscapes(ctx))
 }
 
 // stripMDLComments removes MDL comments from text lifted out of the input stream.
@@ -662,8 +672,13 @@ func extractExpressionText(ctx antlr.ParserRuleContext) string {
 // weld into one token.
 //
 // Single-quoted string literals are respected: a Mendix string may legitimately
-// contain `--` or `/*`, and removing those would corrupt the value.
-func stripMDLComments(s string) string {
+// contain `--` or `/*`, and removing those would corrupt the value. A literal
+// is scanned by the string rule of the text's language (strict: ADR-0010 R11,
+// where a backslash is itself; otherwise mdl 0's, where a backslash escapes
+// the next character). Scanned the strict way, the mdl 0 `'it\'s'` ended at
+// `\'`, so a `--` inside the NEXT string was taken for a comment and the rest
+// of the line was dropped from the stored expression or XPath (ako/mxcli#825).
+func stripMDLComments(s string, strict bool) string {
 	if !strings.Contains(s, "--") && !strings.Contains(s, "/*") {
 		return s
 	}
@@ -672,6 +687,12 @@ func stripMDLComments(s string) string {
 	inString := false
 	for i := 0; i < len(s); i++ {
 		c := s[i]
+		if inString && c == '\\' && !strict && i+1 < len(s) {
+			b.WriteByte(c)
+			b.WriteByte(s[i+1])
+			i++
+			continue
+		}
 		if c == '\'' {
 			if inString && i+1 < len(s) && s[i+1] == '\'' {
 				b.WriteByte(c)
@@ -755,7 +776,7 @@ func buildErrorMessage(ctx parser.IErrorMessageClauseContext) string {
 	if !ok || emc.STRING_LITERAL() == nil {
 		return ""
 	}
-	return unquoteString(emc.STRING_LITERAL().GetText())
+	return unquoteStringLit(emc.STRING_LITERAL())
 }
 
 // expressionSourceText is an expression as the author wrote it — whitespace kept,

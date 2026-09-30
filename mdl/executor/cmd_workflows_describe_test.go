@@ -17,7 +17,7 @@ func formatSingleActivity(act workflows.WorkflowActivity, indent string) []strin
 	flow := &workflows.Flow{
 		Activities: []workflows.WorkflowActivity{act},
 	}
-	return formatWorkflowActivities(flow, indent)
+	return formatWorkflowActivities(nil, flow, indent)
 }
 
 // --- P0: strip Module.Microflow prefix from parameter names ---
@@ -56,7 +56,7 @@ func TestFormatCallMicroflowTask_ParameterNameStripping(t *testing.T) {
 			task.Name = "callMfTask"
 			task.Caption = "Call MF"
 
-			lines := formatCallMicroflowTask(task, "  ")
+			lines := formatCallMicroflowTask(nil, task, "  ")
 			output := strings.Join(lines, "\n")
 
 			wantFragment := tc.wantParamName + " = "
@@ -85,12 +85,12 @@ func TestFormatJumpTo_CaptionCommentFormat(t *testing.T) {
 			name:    "caption used over name",
 			caption: "Go Back to Review",
 			actName: "jumpAct1",
-			want:    "jump to target1 comment 'Go Back to Review'",
+			want:    "jump to target1 caption 'Go Back to Review'",
 		},
 		{
 			// Was: fell back to the activity name and rendered
-			// `comment 'jumpAct1'`. That comment was never authored — echoing it
-			// made a plain `jump to X;` round-trip as `jump to X comment '…'`
+			// `caption 'jumpAct1'`. That comment was never authored — echoing it
+			// made a plain `jump to X;` round-trip as `jump to X caption '…'`
 			// (issuetracker #16). An absent caption must emit no comment clause.
 			name:    "no comment clause when caption empty",
 			caption: "",
@@ -110,7 +110,7 @@ func TestFormatJumpTo_CaptionCommentFormat(t *testing.T) {
 			name:    "caption with single quote escaped",
 			caption: "it's done",
 			actName: "jumpAct1",
-			want:    "jump to target1 comment 'it''s done'",
+			want:    "jump to target1 caption 'it''s done'",
 		},
 	}
 
@@ -147,7 +147,7 @@ func TestFormatWaitForTimer_CaptionCommentFormat(t *testing.T) {
 			delay:   "${PT2H}",
 			// The stored name is not derivable from the caption, so describe
 			// emits it — dropping it is what broke `jump to` (ako/mxcli#408).
-			want: "wait for timer waitAct1 '${PT2H}' comment 'Wait 2 Hours'",
+			want: "wait for timer waitAct1 '${PT2H}' caption 'Wait 2 Hours'",
 		},
 		{
 			name:    "name fallback no delay",
@@ -156,7 +156,7 @@ func TestFormatWaitForTimer_CaptionCommentFormat(t *testing.T) {
 			delay:   "",
 			// Caption falls back to the name here, so the name is derivable and
 			// the clause is suppressed: unchanged output.
-			want: "wait for timer comment 'waitAct1'",
+			want: "wait for timer caption 'waitAct1'",
 		},
 	}
 
@@ -190,13 +190,13 @@ func TestFormatCallWorkflowActivity_CaptionCommentFormat(t *testing.T) {
 			caption: "Run Sub-Workflow",
 			actName: "callWf1",
 			// callWf1 is not the called workflow's name, so it is emitted.
-			want: "call workflow Module.SubFlow as callWf1 comment 'Run Sub-Workflow'",
+			want: "call workflow Module.SubFlow as callWf1 caption 'Run Sub-Workflow'",
 		},
 		{
 			name:    "name fallback",
 			caption: "",
 			actName: "callWf1",
-			want:    "call workflow Module.SubFlow as callWf1 comment 'callWf1'",
+			want:    "call workflow Module.SubFlow as callWf1 caption 'callWf1'",
 		},
 	}
 
@@ -208,7 +208,7 @@ func TestFormatCallWorkflowActivity_CaptionCommentFormat(t *testing.T) {
 			activity.Name = tc.actName
 			activity.Caption = tc.caption
 
-			lines := formatCallWorkflowActivity(activity, "")
+			lines := formatCallWorkflowActivity(nil, activity, "")
 			output := strings.Join(lines, "\n")
 
 			if !strings.Contains(output, tc.want) {
@@ -360,8 +360,8 @@ func TestDescribeWorkflow_NestedEndIsEmitted(t *testing.T) {
 	}
 
 	out := strings.Join(formatSingleActivity(decision, "  "), "\n")
-	if !strings.Contains(out, "end workflow comment 'Rejected';") {
-		t.Errorf("a captioned nested End must describe as `end workflow comment 'Rejected';`, got:\n%s", out)
+	if !strings.Contains(out, "end workflow caption 'Rejected';") {
+		t.Errorf("a captioned nested End must describe as `end workflow caption 'Rejected';`, got:\n%s", out)
 	}
 	if strings.Count(out, "end workflow") != 2 || !strings.Contains(out, "end workflow;") {
 		t.Errorf("a nested End with the default caption must describe as a bare `end workflow;`, got:\n%s", out)

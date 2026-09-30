@@ -107,6 +107,17 @@ func parseDataSource(ds map[string]any) *rawDataSource {
 		if got := parseEntitySource(ds); got != nil {
 			return got
 		}
+		// A List View's database source reached over an association from a
+		// context object. It is still a database retrieve — XPath, sort bar and
+		// search bar included — so it must not fall through to the association
+		// reading below, whose spelling executes as a Forms$AssociationSource
+		// and drops all three (ako/mxcli#721 L5). Only the List View source is
+		// known to mean this; the pluggable XPath source keeps the #941 reading.
+		if dsType == dsTypeListViewXPath {
+			if got := parseEntityPathSource(ds); got != nil {
+				return got
+			}
+		}
 		// An entity-backed source with no entity is really a context source:
 		// Studio Pro stores a pluggable list bound over an association or to a
 		// page parameter as an XPath source whose EntityRef is empty and whose
@@ -147,6 +158,61 @@ func parseEntitySource(ds map[string]any) *rawDataSource {
 		SearchAttributes: parseSearchAttributes(ds),
 	}
 	return result
+}
+
+// parseEntityPathSource reads a database source whose EntityRef is an
+// IndirectEntityRef: the association hops from the context object, each with
+// its stored destination, plus the XPath, sort and search a database source
+// carries. Returns nil when any hop is incomplete — a half-read path would
+// write a different retrieve.
+func parseEntityPathSource(ds map[string]any) *rawDataSource {
+	entityRef, ok := ds["EntityRef"].(map[string]any)
+	if !ok || entityRef == nil {
+		return nil
+	}
+	var steps []rawEntityStep
+	for _, raw := range getBsonArrayElements(entityRef["Steps"]) {
+		sm, ok := raw.(map[string]any)
+		if !ok {
+			return nil
+		}
+		step := rawEntityStep{
+			Association:       extractString(sm["Association"]),
+			DestinationEntity: extractString(sm["DestinationEntity"]),
+		}
+		if step.Association == "" || step.DestinationEntity == "" {
+			return nil
+		}
+		steps = append(steps, step)
+	}
+	if len(steps) == 0 {
+		return nil
+	}
+	_, ctxVar := associationSourcePath(ds)
+	last := steps[len(steps)-1].DestinationEntity
+	return &rawDataSource{
+		Type:             "database",
+		Reference:        last,
+		EntitySteps:      steps,
+		ContextVariable:  ctxVar,
+		XPathConstraint:  extractString(ds["XPathConstraint"]),
+		SortColumns:      parseSortColumns(ds),
+		SearchAttributes: parseSearchAttributes(ds),
+	}
+}
+
+// entityPathExpr renders a database source's association hops as
+// `$ctx/Assoc/Entity[/Assoc/Entity…]`, every destination spelled out.
+func entityPathExpr(ds *rawDataSource) string {
+	ctx := ds.ContextVariable
+	if ctx == "" {
+		ctx = "currentObject"
+	}
+	parts := []string{"$" + ctx}
+	for _, st := range ds.EntitySteps {
+		parts = append(parts, st.Association, st.DestinationEntity)
+	}
+	return strings.Join(parts, "/")
 }
 
 // parseContextSource reads the "data from context" forms: over an association,
@@ -266,7 +332,7 @@ func sortColumnPath(col rawSortColumn) string {
 // wherever it appears. The six hand-written switches this replaces disagreed:
 // the object-list one had no switch at all and labelled everything `database`,
 // and two others omitted the WHERE and SORT they had read (#941).
-func dataSourceExpr(ds *rawDataSource) string {
+func dataSourceExpr(ctx *ExecContext, ds *rawDataSource) string {
 	if ds == nil || ds.Unsupported != "" {
 		return ""
 	}
@@ -277,8 +343,12 @@ func dataSourceExpr(ds *rawDataSource) string {
 		if ds.Reference == "" {
 			return ""
 		}
-		expr := "database from " + ds.Reference
-		if clause := xpathConstraintClause(ds.XPathConstraint); clause != "" {
+		from := ds.Reference
+		if len(ds.EntitySteps) > 0 {
+			from = entityPathExpr(ds)
+		}
+		expr := "database from " + from
+		if clause := xpathConstraintClause(ctx, ds.XPathConstraint); clause != "" {
 			expr += " where " + clause
 		}
 		if len(ds.SortColumns) > 0 {
@@ -302,7 +372,7 @@ func dataSourceExpr(ds *rawDataSource) string {
 		if len(ds.Args) > 0 {
 			parts := make([]string, 0, len(ds.Args))
 			for _, arg := range ds.Args {
-				parts = append(parts, arg.Name+": "+arg.Value)
+				parts = append(parts, visitor.ParameterNameSpelling(arg.Name)+" = "+arg.Value)
 			}
 			expr += "(" + strings.Join(parts, ", ") + ")"
 		}
@@ -335,8 +405,8 @@ func dataSourceExpr(ds *rawDataSource) string {
 
 // dataSourceProp renders the whole `DataSource: …` property, or "" when the
 // datasource cannot be expressed.
-func dataSourceProp(ds *rawDataSource) string {
-	expr := dataSourceExpr(ds)
+func dataSourceProp(ctx *ExecContext, ds *rawDataSource) string {
+	expr := dataSourceExpr(ctx, ds)
 	if expr == "" {
 		return ""
 	}
@@ -346,14 +416,14 @@ func dataSourceProp(ds *rawDataSource) string {
 // dataSourceComment describes a datasource MDL cannot express, so a reader of
 // the output learns the binding exists rather than silently losing it. Returns
 // "" for a datasource that renders normally.
-func dataSourceComment(ds *rawDataSource) string {
+func dataSourceComment(ctx *ExecContext, ds *rawDataSource) string {
 	if ds == nil {
 		return ""
 	}
 	if ds.Unsupported != "" {
 		return fmt.Sprintf("-- DataSource (%s) has no MDL spelling and is not reproduced here", ds.Unsupported)
 	}
-	if dataSourceExpr(ds) == "" && ds.Type != "" {
+	if dataSourceExpr(ctx, ds) == "" && ds.Type != "" {
 		return fmt.Sprintf("-- DataSource (%s) is incomplete in the model and is not reproduced here", ds.Type)
 	}
 	return ""
@@ -364,11 +434,11 @@ func dataSourceComment(ds *rawDataSource) string {
 //
 // Every widget goes through this, so a datasource cannot be rendered one way in
 // a DataView and another in a Gallery, which is the drift #941 was.
-func appendDataSourceProp(props []string, ds *rawDataSource) []string {
-	if prop := dataSourceProp(ds); prop != "" {
+func appendDataSourceProp(ctx *ExecContext, props []string, ds *rawDataSource) []string {
+	if prop := dataSourceProp(ctx, ds); prop != "" {
 		return append(props, prop)
 	}
-	if comment := dataSourceComment(ds); comment != "" {
+	if comment := dataSourceComment(ctx, ds); comment != "" {
 		return append(props, comment)
 	}
 	return props
@@ -382,11 +452,11 @@ func appendDataSourceProp(props []string, ds *rawDataSource) []string {
 // DataView and another in a Gallery, which is the drift #941 was. A branch that
 // read w.DataSource directly would silently keep describing a multi-source
 // widget as single-source.
-func appendWidgetDataSources(props []string, w rawWidget) []string {
+func appendWidgetDataSources(ctx *ExecContext, props []string, w rawWidget) []string {
 	if len(w.NamedDataSources) > 0 {
-		return appendNamedDataSourceProps(props, w.NamedDataSources)
+		return appendNamedDataSourceProps(ctx, props, w.NamedDataSources)
 	}
-	return appendDataSourceProp(props, w.DataSource)
+	return appendDataSourceProp(ctx, props, w.DataSource)
 }
 
 // appendNamedDataSourceProps adds one `<schemaKey>: <datasource>` property per
@@ -396,19 +466,19 @@ func appendWidgetDataSources(props []string, w rawWidget) []string {
 // A source whose schema key did not resolve falls back to the unnamed
 // `DataSource:` spelling — the output it would have had before there was a key
 // to print. Losing it instead would be #956 with extra steps.
-func appendNamedDataSourceProps(props []string, sources []rawNamedDataSource) []string {
+func appendNamedDataSourceProps(ctx *ExecContext, props []string, sources []rawNamedDataSource) []string {
 	for _, src := range sources {
 		if src.Key == "" {
-			props = appendDataSourceProp(props, src.DataSource)
+			props = appendDataSourceProp(ctx, props, src.DataSource)
 			continue
 		}
-		if expr := dataSourceExpr(src.DataSource); expr != "" {
+		if expr := dataSourceExpr(ctx, src.DataSource); expr != "" {
 			props = append(props, fmt.Sprintf("%s: %s", src.Key, expr))
 			continue
 		}
 		// Not spellable in MDL — say so under this key, so a reader learns which
 		// of the widget's bindings is the one that did not come through.
-		if comment := dataSourceComment(src.DataSource); comment != "" {
+		if comment := dataSourceComment(ctx, src.DataSource); comment != "" {
 			props = append(props, strings.Replace(comment, "-- DataSource ", "-- "+src.Key+" ", 1))
 		}
 	}
@@ -433,7 +503,7 @@ func appendNamedDataSourceProps(props []string, sources []rawNamedDataSource) []
 // emitter uses (#772) rather than a second copy: the previous code here took
 // the outer brackets off by testing the first and last byte, which turns
 // `[a][b]` into the mangled `a][b`.
-func xpathConstraintClause(constraint string) string {
+func xpathConstraintClause(ctx *ExecContext, constraint string) string {
 	xpath := strings.TrimSpace(constraint)
 	if xpath == "" {
 		return ""
@@ -443,11 +513,14 @@ func xpathConstraintClause(constraint string) string {
 	// done the same by hand (upstream #979). MDL keeps it on one line: the
 	// datasource is one property among several on a widget, and the executor
 	// re-derives the stored layout from the expression anyway.
+	//
+	// A string in it is spelled for the describe language (describeXPath,
+	// ako/mxcli#825).
 	xpath = visitor.FlattenXPathConstraint(xpath)
 	if groups := visitor.SplitXPathPredicateGroups(xpath); len(groups) > 0 {
-		return strings.Join(groups, " ")
+		return describeXPath(ctx, strings.Join(groups, " "))
 	}
-	return "[" + xpath + "]"
+	return describeXPath(ctx, "["+xpath+"]")
 }
 
 // flowSourceArgs reads the argument bindings of a microflow or nanoflow
@@ -489,7 +562,7 @@ func flowSourceArgs(ds map[string]any, settingsKey, flowName string) []rawDataSo
 		if name == "" {
 			continue
 		}
-		value := extractString(mapping["Expression"])
+		value := strings.TrimSpace(extractString(mapping["Expression"]))
 		if value == "" {
 			value = pageVariableArgValue(mapping["Variable"])
 		}

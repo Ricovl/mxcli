@@ -224,6 +224,7 @@ func TestSkillDocumentsRealRefKinds(t *testing.T) {
 		RefKindMenuItem, RefKindChange, RefKindDelete, RefKindCalculate,
 		RefKindReturn, RefKindSchedule, RefKindValidate, RefKindSettings,
 		RefKindWidget, RefKindSync, RefKindPublish, RefKindEvent,
+		RefKindMember, RefKindXPath, RefKindType, RefKindValue, RefKindMapping,
 	} {
 		real[k] = true
 	}

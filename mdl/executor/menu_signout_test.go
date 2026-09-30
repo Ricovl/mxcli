@@ -103,11 +103,11 @@ func TestPrintMenuMDL_RendersSignOut(t *testing.T) {
 	}, 0, "CREATE NAVIGATION")
 
 	out := b.String()
-	if !strings.Contains(out, "menu item 'Sign out' sign_out;") {
+	if !strings.Contains(out, "menu item 'Sign out' ( OnClick: sign out )") {
 		t.Errorf("describe output does not round-trip the sign-out item:\n%s", out)
 	}
 	// CONTROL: a plain item must not gain an action.
-	if strings.Contains(out, "'Plain' sign_out") {
+	if strings.Contains(out, "'Plain' (") {
 		t.Errorf("a plain item was rendered as sign-out:\n%s", out)
 	}
 }
@@ -120,7 +120,7 @@ func TestMenuItem_SignOutRoundTripsThroughDescribe(t *testing.T) {
 	printMenuMDL(&b, []*types.NavMenuItem{{Caption: "Sign out", ActionType: "SignOutAction"}},
 		0, "CREATE NAVIGATION")
 
-	stmt := signOutMenuStmt(t, "create or modify menu M.Main (\n"+b.String()+");")
+	stmt := signOutMenuStmt(t, "create or modify menu M.Main {\n"+b.String()+"};")
 	if !stmt.Items[0].SignOut {
 		t.Errorf("describe emitted %q, which does not parse back as a sign-out item", b.String())
 	}

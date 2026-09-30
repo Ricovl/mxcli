@@ -7,7 +7,7 @@ The MDL parser translates SQL-like MDL (Mendix Definition Language) syntax into 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         MDL Input String                            │
-│              "SHOW ENTITIES IN MyModule"                            │
+│              "LIST ENTITIES IN MyModule"                            │
 └─────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼

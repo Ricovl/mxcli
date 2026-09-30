@@ -4,9 +4,11 @@ package executor
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
@@ -54,6 +56,9 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 		return mdlerrors.NewValidationf("workflow '%s' has reference errors:\n  - %s",
 			s.Name.String(), strings.Join(refErrors, "\n  - "))
 	}
+	if err := checkBoundaryEventDrops(ctx, s); err != nil {
+		return err
+	}
 
 	h, err := getHierarchy(ctx)
 	if err != nil {
@@ -83,6 +88,13 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 	mutator, err := ctx.Backend.OpenWorkflowForMutation(wfID)
 	if err != nil {
 		return mdlerrors.NewBackend("open workflow for mutation", err)
+	}
+
+	// Resolve every operation's target before changing anything (the generic
+	// ALTER, ADR-0012): a miss or an ambiguity refuses the statement, listing
+	// the matches, instead of leaving the operations before it applied.
+	if err := resolveAlterWorkflowTargets(mutator, s); err != nil {
+		return err
 	}
 
 	// Apply operations sequentially
@@ -127,12 +139,21 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 			}
 
 		case *ast.InsertAfterOp:
-			acts := buildAndBindActivities(ctx, []ast.WorkflowActivityNode{o.NewActivity})
+			acts := buildAndBindActivities(ctx, o.NewActivities)
 			if len(acts) == 0 {
 				return mdlerrors.NewValidation("failed to build new activity")
 			}
 			if err := mutator.InsertAfterActivity(o.ActivityRef, o.AtPosition, acts); err != nil {
 				return mdlerrors.NewBackend("insert after", err)
+			}
+
+		case *ast.InsertBeforeOp:
+			acts := buildAndBindActivities(ctx, o.NewActivities)
+			if len(acts) == 0 {
+				return mdlerrors.NewValidation("failed to build new activity")
+			}
+			if err := mutator.InsertBeforeActivity(o.ActivityRef, o.AtPosition, acts); err != nil {
+				return mdlerrors.NewBackend("insert before", err)
 			}
 
 		case *ast.DropActivityOp:
@@ -141,7 +162,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 			}
 
 		case *ast.ReplaceActivityOp:
-			acts := buildAndBindActivities(ctx, []ast.WorkflowActivityNode{o.NewActivity})
+			acts := buildAndBindActivities(ctx, o.NewActivities)
 			if len(acts) == 0 {
 				return mdlerrors.NewValidation("failed to build replacement activity")
 			}
@@ -214,6 +235,93 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 	return nil
 }
 
+// alterWorkflowOpTarget returns the activity an operation addresses, as the
+// generic target it was written as; ok is false for a workflow-level SET.
+func alterWorkflowOpTarget(op ast.AlterWorkflowOp) (backend.AlterTarget, bool) {
+	var ref string
+	var pos int
+	switch o := op.(type) {
+	case *ast.SetActivityPropertyOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.InsertAfterOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.InsertBeforeOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.DropActivityOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.ReplaceActivityOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.InsertOutcomeOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.DropOutcomeOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.InsertPathOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.DropPathOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.InsertBranchOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.DropBranchOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.InsertBoundaryEventOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	case *ast.DropBoundaryEventOp:
+		ref, pos = o.ActivityRef, o.AtPosition
+	default:
+		return backend.AlterTarget{}, false
+	}
+	// A name and a caption are compared alike (a name wins); the target
+	// carries the text as a name so the resolver's messages print it bare.
+	return backend.AlterTarget{Path: []string{ref}, Ordinal: pos}, true
+}
+
+// resolveAlterWorkflowTargets resolves every operation's target against the
+// stored workflow as it stands before the statement. An operation that targets
+// an activity an earlier operation of the same statement inserted is resolved
+// when it is applied instead, by the mutator's own lookup.
+func resolveAlterWorkflowTargets(resolver backend.AlterTargetResolver, s *ast.AlterWorkflowStmt) error {
+	inserted := map[string]bool{}
+	for _, op := range s.Operations {
+		if t, ok := alterWorkflowOpTarget(op); ok && !inserted[backend.WorkflowTargetText(t)] {
+			if _, err := resolver.ResolveAlterTarget(t); err != nil {
+				return mdlerrors.NewValidationf("alter workflow %s: %v", s.Name.String(), err)
+			}
+		}
+		for _, n := range alterWorkflowOpNewNames(op) {
+			inserted[n] = true
+		}
+	}
+	return nil
+}
+
+// alterWorkflowOpNewNames lists the names and captions of the activities an
+// operation adds at the top of its fragment.
+func alterWorkflowOpNewNames(op ast.AlterWorkflowOp) []string {
+	var acts []ast.WorkflowActivityNode
+	switch o := op.(type) {
+	case *ast.InsertAfterOp:
+		acts = o.NewActivities
+	case *ast.InsertBeforeOp:
+		acts = o.NewActivities
+	case *ast.ReplaceActivityOp:
+		acts = o.NewActivities
+	case *ast.InsertOutcomeOp:
+		acts = o.Activities
+	case *ast.InsertPathOp:
+		acts = o.Activities
+	case *ast.InsertBranchOp:
+		acts = o.Activities
+	case *ast.InsertBoundaryEventOp:
+		acts = o.Activities
+	}
+	var out []string
+	for _, a := range acts {
+		name, caption := workflowActivityNodeLabels(a)
+		out = append(out, name, caption)
+	}
+	return out
+}
+
 // buildAndBindActivities builds workflow activities from AST nodes and auto-binds parameters.
 func buildAndBindActivities(ctx *ExecContext, nodes []ast.WorkflowActivityNode) []workflows.WorkflowActivity {
 	acts := buildWorkflowActivities(nodes)
@@ -221,4 +329,24 @@ func buildAndBindActivities(ctx *ExecContext, nodes []ast.WorkflowActivityNode) 
 	// alias to honour — casing normalization only.
 	autoBindActivitiesInFlow(ctx, acts, contextExprNormalizer{})
 	return acts
+}
+
+// workflowActivityNodeLabels reads an activity node's Name and Caption, the
+// two texts a target can match. Every activity node carries them under those
+// field names; a node without one yields "".
+func workflowActivityNodeLabels(a ast.WorkflowActivityNode) (name, caption string) {
+	v := reflect.ValueOf(a)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return "", ""
+	}
+	if f := v.FieldByName("Name"); f.IsValid() && f.Kind() == reflect.String {
+		name = f.String()
+	}
+	if f := v.FieldByName("Caption"); f.IsValid() && f.Kind() == reflect.String {
+		caption = f.String()
+	}
+	return name, caption
 }

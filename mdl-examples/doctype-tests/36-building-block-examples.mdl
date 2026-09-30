@@ -18,10 +18,10 @@
 -- MARK: List building blocks
 
 -- List every building block in the project (empty on a project with none).
-show building blocks;
+list building blocks;
 
 -- Filter building blocks by module.
-show building blocks in MyModule;
+list building blocks in MyModule;
 
 -- MARK: Describe a building block
 --

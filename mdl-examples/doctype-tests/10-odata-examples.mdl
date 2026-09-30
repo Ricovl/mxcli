@@ -22,13 +22,13 @@ create module OdTest;
 -- would yield a row Mendix can't address via /Service/Entity('key').
 create persistent entity OdTest.Customer (
   Name: string(200),
-  Email: string(200) unique error 'Email must be unique' required error 'Email is required',
+  Email: string(200) unique error message 'Email must be unique' required error message 'Email is required',
   Phone: string(50),
   IsActive: boolean default true
 );
 
 create persistent entity OdTest.Order (
-  OrderNumber: string(50) unique error 'OrderNumber must be unique' required error 'OrderNumber is required',
+  OrderNumber: string(50) unique error message 'OrderNumber must be unique' required error message 'OrderNumber is required',
   OrderDate: datetime,
   TotalAmount: decimal,
   Status: string(50)
@@ -48,14 +48,14 @@ owner default;
  * Lists all consumed OData services across all modules.
  * Output columns: Module, QualifiedName, Version, OData, MetadataUrl, Validated
  */
-list odata clients;
+list consumed odata services;
 /
 
 /**
  * Level 1.2: Show OData clients in a specific module
  * Lists only consumed OData services in the specified module.
  */
-list odata clients in OdTest;
+list consumed odata services in OdTest;
 /
 
 -- ############################################################################
@@ -77,14 +77,14 @@ list odata clients in OdTest;
  * Lists all published OData services across all modules.
  * Output columns: Module, QualifiedName, Path, Version, OData, EntitySets, AuthTypes
  */
-list odata services;
+list published odata services;
 /
 
 /**
  * Level 3.2: Show OData services in a specific module
  * Lists only published OData services in the specified module.
  */
-list odata services in OdTest;
+list published odata services in OdTest;
 /
 
 -- ############################################################################
@@ -175,17 +175,15 @@ select * from catalog.entities where IsExternal = 1;
  * so we declare the constant inline before the service.
  */
 create constant OdTest.TripPinAPIServiceUrl
-  type string
-  default 'https://services.odata.org/TripPinRESTierService/';
+  ( Type: string, DefaultValue: 'https://services.odata.org/TripPinRESTierService/' );
 
-create odata client OdTest.TripPinAPI (
+create consumed odata service OdTest.TripPinAPI folder 'Integration/TripPin' (
   version: '1.0',
   ODataVersion: OData4,
   MetadataUrl: 'https://services.odata.org/TripPinRESTierService/$metadata',
   timeout: 300,
   ServiceUrl: @OdTest.TripPinAPIServiceUrl,
-  ProxyType: DefaultProxy,
-  folder: 'Integration/TripPin'
+  ProxyType: DefaultProxy
 );
 /
 
@@ -193,15 +191,14 @@ create odata client OdTest.TripPinAPI (
  * Level 8.2: Create a published OData service
  * Exposes domain model entities as OData endpoints with authentication and CRUD modes.
  */
-create odata service OdTest.CustomerAPI (
+create published odata service OdTest.CustomerAPI folder 'Integration/APIs' (
   path: 'odata/customers/',
   version: '1.0.0',
   ODataVersion: OData4,
   namespace: 'OdTest.Customers',
   ServiceName: 'Customer Service',
   Summary: 'API for managing customers',
-  PublishAssociations: Yes,
-  folder: 'Integration/APIs'
+  PublishAssociations: Yes
 )
 authentication basic, session
 {
@@ -271,27 +268,23 @@ begin
 end;
 
 create constant OdTest.ProxyHostConst
-type string
-default 'proxy.example.com';
+( Type: string, DefaultValue: 'proxy.example.com' );
 
 create constant OdTest.ProxyPortConst
-type string
-default '8080';
+( Type: string, DefaultValue: '8080' );
 
 create constant OdTest.FullConfigAPIServiceUrl
-type string
-default 'https://api.example.com/odata/v4';
+( Type: string, DefaultValue: 'https://api.example.com/odata/v4' );
 
 create constant OdTest.HeadersConfigAPIServiceUrl
-type string
-default 'https://api.example.com/odata/v4';
+( Type: string, DefaultValue: 'https://api.example.com/odata/v4' );
 /
 
 -- ConfigurationMicroflow is mutually exclusive with constant-based ServiceUrl
 -- and proxy settings (CE0783, CE1135). FullConfigAPI demonstrates the
 -- constant-based path; for the microflow path see how it's exposed in the
 -- Mendix System module's ConsumedODataConfiguration entity.
-create odata client OdTest.FullConfigAPI (
+create consumed odata service OdTest.FullConfigAPI (
   version: '3.0',
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
@@ -336,7 +329,7 @@ headers (
  * list of System.HttpHeader; the call site provides the service URL itself via
  * the constant ServiceUrl above.
  */
-create odata client OdTest.HeadersConfigAPI (
+create consumed odata service OdTest.HeadersConfigAPI (
   version: '3.0',
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
@@ -363,7 +356,7 @@ create odata client OdTest.HeadersConfigAPI (
  * project) stays green; tracked as a separate 11.11 OData-config issue.
  */
 -- @version: ..11.10
-create odata client OdTest.MicroflowConfigAPI (
+create consumed odata service OdTest.MicroflowConfigAPI (
   version: '3.0',
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
@@ -377,7 +370,7 @@ create odata client OdTest.MicroflowConfigAPI (
 /**
  * Level 8.3: Create or modify (idempotent) - updates if it already exists
  */
-create or modify odata client OdTest.TripPinAPI (
+create or modify consumed odata service OdTest.TripPinAPI (
   version: '2.0',
   ODataVersion: OData4,
   MetadataUrl: 'https://services.odata.org/TripPinRESTierService/$metadata',
@@ -388,15 +381,15 @@ create or modify odata client OdTest.TripPinAPI (
 /**
  * Level 8.4: Alter an OData client property
  */
-alter odata client OdTest.TripPinAPI
-  set timeout = 600;
+alter consumed odata service OdTest.TripPinAPI
+  set ( timeout: 600 );
 /
 
 /**
  * Level 8.5: Alter an OData service property
  */
-alter odata service OdTest.CustomerAPI
-  set version = '2.0.0';
+alter published odata service OdTest.CustomerAPI
+  set ( version: '2.0.0' );
 /
 
 -- ############################################################################
@@ -422,13 +415,13 @@ alter odata service OdTest.CustomerAPI
  */
 create module role OdTest.Admin;
 create module role OdTest.user;
-grant access on odata service OdTest.CustomerAPI to OdTest.Admin, OdTest.user;
+grant access on published odata service OdTest.CustomerAPI to OdTest.Admin, OdTest.user;
 /
 
 /**
  * Level 8.7b: Revoke access on a published OData service
  */
-revoke access on odata service OdTest.CustomerAPI from OdTest.user;
+revoke access on published odata service OdTest.CustomerAPI from OdTest.user;
 /
 
 /**
@@ -453,7 +446,7 @@ BEGIN
 END;
 /
 
-create or modify odata service OdTest.ActionApi (
+create or modify published odata service OdTest.ActionApi (
   path: 'odata/actions/',
   version: '1.0.0',
   ODataVersion: OData4,
@@ -469,7 +462,7 @@ authentication basic
 /
 
 -- DESCRIBE round-trips the block, so this output is re-executable.
-describe odata service OdTest.ActionApi;
+describe published odata service OdTest.ActionApi;
 /
 
 /**
@@ -487,7 +480,7 @@ describe odata service OdTest.ActionApi;
  * TestODataService_EngineWriteParity, which reads the stored BSON and compares
  * the two engines directly (mxcli-formula1 §26, §41).
  */
-create or modify odata service OdTest.CustomerAPI (
+create or modify published odata service OdTest.CustomerAPI (
   path: 'odata/customers/',
   version: '1.0.1',
   ODataVersion: OData4,
@@ -531,7 +524,7 @@ authentication basic, session
 /
 
 -- The grant made in 8.7a must still be there.
-describe odata service OdTest.CustomerAPI;
+describe published odata service OdTest.CustomerAPI;
 /
 
 -- ############################################################################
@@ -549,9 +542,9 @@ describe odata service OdTest.CustomerAPI;
 /**
  * Level 9.2: Show external actions discovered from microflow usage
  */
-show external actions;
+list external actions;
 /
-show external actions in OdTest;
+list external actions in OdTest;
 /
 
 -- ############################################################################
@@ -578,8 +571,7 @@ create module role TripPinClient."user"
 /
 
 create constant TripPinClient."TripPinServiceUrl"
-  type string
-  default 'https://services.odata.org/TripPinRESTierService/';
+  ( Type: string, DefaultValue: 'https://services.odata.org/TripPinRESTierService/' );
 /
 
 /**
@@ -587,7 +579,7 @@ create constant TripPinClient."TripPinServiceUrl"
  * CREATE ODATA CLIENT fetches and caches $metadata from MetadataUrl.
  * ServiceUrl must reference a constant (CE6825).
  */
-create odata client TripPinClient."TripPinApiClient" (
+create consumed odata service TripPinClient."TripPinApiClient" (
   ODataVersion: OData4,
   MetadataUrl: 'https://services.odata.org/TripPinRESTierService/$metadata',
   timeout: 300,
@@ -690,7 +682,7 @@ begin
 end;
 /
 
-create odata service OdTest.LiveAPI (
+create published odata service OdTest.LiveAPI (
   path: 'odata/live/',
   version: '1.0.0',
   ODataVersion: OData4,
@@ -711,7 +703,7 @@ create odata service OdTest.LiveAPI (
 -- "Published entity 'X' must have a key defined."), so "drop the KEY" is not an
 -- available remedy — a resource whose rows a client can hold must answer the
 -- key lookup, full stop. What you CAN decline is the query options.
-create odata service OdTest.BulkAPI (
+create published odata service OdTest.BulkAPI (
   path: 'odata/bulk/',
   version: '1.0.0',
   ODataVersion: OData4,

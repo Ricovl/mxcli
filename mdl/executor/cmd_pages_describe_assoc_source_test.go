@@ -46,3 +46,21 @@ func TestAssociationSourcePath(t *testing.T) {
 		})
 	}
 }
+
+// ako/mxcli#721 L3. Inside a snippet the context variable is a snippet
+// parameter, stored in the SnippetParameter slot. Describe read PageParameter
+// alone and printed `$currentObject/…`, so executing its output dropped the
+// binding (TestApp's WorkflowCommons.Snip_UserTask_TaskTimeline).
+func TestAssociationSourcePath_SnippetParameter(t *testing.T) {
+	ds := map[string]any{
+		"$Type": "Forms$DataViewSource",
+		"EntityRef": map[string]any{"$Type": "DomainModels$IndirectEntityRef", "Steps": []any{
+			map[string]any{"$Type": "DomainModels$EntityRefStep", "Association": "System.WorkflowUserTask_Workflow", "DestinationEntity": "System.Workflow"},
+		}},
+		"SourceVariable": map[string]any{"$Type": "Forms$PageVariable", "PageParameter": "", "SnippetParameter": "WorkflowUserTask"},
+	}
+	path, ctx := associationSourcePath(ds)
+	if path != "System.WorkflowUserTask_Workflow" || ctx != "WorkflowUserTask" {
+		t.Errorf("associationSourcePath = (%q, %q), want (System.WorkflowUserTask_Workflow, WorkflowUserTask)", path, ctx)
+	}
+}

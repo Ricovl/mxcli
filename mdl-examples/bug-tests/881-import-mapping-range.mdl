@@ -27,7 +27,7 @@
 -- `limit` without `offset`; adding one is the way to reproduce CE6100.
 
 create json structure MyFirstModule.JSON_881
-snippet '{"items": [{"total": 5, "name": "a"}]}';
+sample '{"items": [{"total": 5, "name": "a"}]}';
 
 create non-persistent entity MyFirstModule.Item881 ( Total: integer, Name: string );
 /

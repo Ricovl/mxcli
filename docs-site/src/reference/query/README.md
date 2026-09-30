@@ -6,17 +6,17 @@ Statements for browsing and inspecting project elements. Query statements are re
 
 | Statement | Description |
 |-----------|-------------|
-| [SHOW MODULES](show-modules.md) | List all modules in the project |
-| [SHOW ENTITIES](show-entities.md) | List entities, optionally filtered by module |
-| [SHOW ASSOCIATIONS](show-associations.md) | List associations, optionally filtered by module |
-| [SHOW ENUMERATIONS](show-enumerations.md) | List enumerations, optionally filtered by module |
-| [SHOW MICROFLOWS](show-microflows.md) | List microflows or nanoflows |
-| [SHOW PAGES](show-pages.md) | List pages or snippets |
-| [SHOW CONSTANTS](show-constants.md) | List constants, optionally filtered by module |
-| [SHOW WORKFLOWS](show-workflows.md) | List workflows, optionally filtered by module |
-| [SHOW BUSINESS EVENTS](show-business-events.md) | List business event services |
-| [SHOW STRUCTURE](show-structure.md) | Hierarchical project overview at configurable depth |
-| [SHOW WIDGETS](show-widgets.md) | List widgets across pages with optional filtering |
+| [LIST MODULES](list-modules.md) | List all modules in the project |
+| [LIST ENTITIES](list-entities.md) | List entities, optionally filtered by module |
+| [LIST ASSOCIATIONS](list-associations.md) | List associations, optionally filtered by module |
+| [LIST ENUMERATIONS](list-enumerations.md) | List enumerations, optionally filtered by module |
+| [LIST MICROFLOWS](list-microflows.md) | List microflows or nanoflows |
+| [LIST PAGES](list-pages.md) | List pages or snippets |
+| [LIST CONSTANTS](list-constants.md) | List constants, optionally filtered by module |
+| [LIST WORKFLOWS](list-workflows.md) | List workflows, optionally filtered by module |
+| [LIST BUSINESS EVENTS](list-business-events.md) | List business event services |
+| [DESCRIBE STRUCTURE](describe-structure.md) | Hierarchical project overview at configurable depth |
+| [LIST WIDGETS](list-widgets.md) | List widgets across pages with optional filtering |
 
 ## DESCRIBE Statements
 

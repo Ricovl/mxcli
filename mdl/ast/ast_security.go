@@ -8,6 +8,7 @@ package ast
 
 // CreateModuleRoleStmt represents: CREATE MODULE ROLE Module.RoleName [DESCRIPTION '...']
 type CreateModuleRoleStmt struct {
+	CreateGuard // `create … if not exists` (ako/mxcli#731)
 	Name        QualifiedName
 	Description string
 	// CreateOrModify makes the statement idempotent: an existing role has its
@@ -18,19 +19,39 @@ type CreateModuleRoleStmt struct {
 
 func (s *CreateModuleRoleStmt) isStatement() {}
 
-// DropModuleRoleStmt represents: DROP MODULE ROLE Module.RoleName
+// DropModuleRoleStmt represents: DROP MODULE ROLE [IF EXISTS] Module.RoleName
 type DropModuleRoleStmt struct {
-	Name QualifiedName
+	// IfExists downgrades "not found" to a no-op; see DropUserRoleStmt.
+	IfExists bool
+	Name     QualifiedName
 }
 
 func (s *DropModuleRoleStmt) isStatement() {}
 
-// CreateUserRoleStmt represents: CREATE [OR MODIFY] USER ROLE Name (ModuleRole, ...) [MANAGE ALL ROLES]
+// CreateUserRoleStmt represents
+// CREATE [OR MODIFY] USER ROLE Name [( ModuleRoles: (…), Description: '…', … )],
+// and the old positional form CREATE USER ROLE Name (ModuleRole, …) [MANAGE ALL ROLES].
+//
+// The pointer properties are nil when the statement does not state them: a new
+// role then gets Mendix's default, and `create or modify` leaves the stored
+// value alone (ako/mxcli#707).
 type CreateUserRoleStmt struct {
+	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	Name           string
 	ModuleRoles    []QualifiedName
 	ManageAllRoles bool
 	CreateOrModify bool // If true, adds module roles to existing role instead of failing
+
+	Description             *string
+	CheckSecurity           *bool
+	ManageUsersWithoutRoles *bool
+	// ManageableRoles names the user roles this role may manage; nil when the
+	// statement does not say. Only meaningful when ManageAllRoles is false.
+	ManageableRoles []string
+	ManageableSet   bool
+	// ManageAllRolesSet is true when the statement states ManageAllRoles, so
+	// `create or modify` can set it to false as well as to true.
+	ManageAllRolesSet bool
 }
 
 func (s *CreateUserRoleStmt) isStatement() {}
@@ -141,22 +162,6 @@ type RevokePageAccessStmt struct {
 
 func (s *RevokePageAccessStmt) isStatement() {}
 
-// GrantWorkflowAccessStmt represents: GRANT EXECUTE ON WORKFLOW Module.WF TO role1, role2
-type GrantWorkflowAccessStmt struct {
-	Workflow QualifiedName
-	Roles    []QualifiedName
-}
-
-func (s *GrantWorkflowAccessStmt) isStatement() {}
-
-// RevokeWorkflowAccessStmt represents: REVOKE EXECUTE ON WORKFLOW Module.WF FROM role1, role2
-type RevokeWorkflowAccessStmt struct {
-	Workflow QualifiedName
-	Roles    []QualifiedName
-}
-
-func (s *RevokeWorkflowAccessStmt) isStatement() {}
-
 // GrantODataServiceAccessStmt represents: GRANT ACCESS ON ODATA SERVICE Module.Svc TO role1, role2
 type GrantODataServiceAccessStmt struct {
 	Service QualifiedName
@@ -209,8 +214,9 @@ type AlterProjectSecurityStmt struct {
 
 func (s *AlterProjectSecurityStmt) isStatement() {}
 
-// CreateDemoUserStmt represents: CREATE [OR MODIFY] DEMO USER 'name' PASSWORD 'pw' [ENTITY Module.Entity] (Role1, Role2)
+// CreateDemoUserStmt represents: CREATE [OR MODIFY] DEMO USER 'name' ( Password: 'pw', Entity: Module.Entity, UserRoles: (Role1, Role2) )
 type CreateDemoUserStmt struct {
+	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	UserName       string
 	Password       string
 	Entity         string // qualified name of user entity, e.g. "Administration.Account"

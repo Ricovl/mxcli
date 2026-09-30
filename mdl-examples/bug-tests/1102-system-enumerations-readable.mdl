@@ -41,4 +41,4 @@ DESCRIBE ENUMERATION System.WorkflowActivityState;
 -- System enumerations are also listed now, so an attribute typed against one
 -- resolves under `mxcli check --references` instead of being reported missing
 -- (the #1071 direction of the same gap).
-SHOW ENUMERATIONS;
+LIST ENUMERATIONS;

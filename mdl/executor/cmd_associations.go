@@ -87,13 +87,12 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 	deleteBehavior := storageDeleteBehavior(s.DeleteBehavior)
 	deleteMessage := s.DeleteErrorMessage
 
-	// Convert storage type (default: Column = foreign key in parent table)
-	storageFormat := domainmodel.StorageFormatColumn
-	switch s.Storage {
-	case ast.StorageColumn:
+	// Convert storage type. A new association defaults to Column (foreign key on
+	// the FROM entity's table); on OR MODIFY an unstated storage keeps what is
+	// stored — see statedStorageFormat.
+	storageFormat, storageStated := statedStorageFormat(s.Storage)
+	if !storageStated {
 		storageFormat = domainmodel.StorageFormatColumn
-	case ast.StorageTable:
-		storageFormat = domainmodel.StorageFormatTable
 	}
 
 	// Create association
@@ -109,7 +108,13 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 				if assoc.Name == s.Name.Name {
 					assoc.Type = assocType
 					assoc.Owner = owner
-					assoc.StorageFormat = storageFormat
+					// Unstated storage keeps the stored one: describe omits the
+					// clause for table storage, so the column default would flip
+					// a table association on re-executing unchanged describe
+					// output — a database schema change nobody asked for (#704).
+					if s.Storage != ast.StorageDefault {
+						assoc.StorageFormat = storageFormat
+					}
 					assoc.ChildDeleteBehavior = &domainmodel.DeleteBehavior{Type: deleteBehavior, ErrorMessage: deleteMessage}
 					assoc.Documentation = carriedDocumentation(
 						associationDocumentationStated(s), associationDocumentation(s), assoc.Documentation)
@@ -133,7 +138,9 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 				if ca.Name == s.Name.Name {
 					ca.Type = assocType
 					ca.Owner = owner
-					ca.StorageFormat = storageFormat
+					if s.Storage != ast.StorageDefault { // as above (#704)
+						ca.StorageFormat = storageFormat
+					}
 					ca.ChildDeleteBehavior = &domainmodel.DeleteBehavior{Type: deleteBehavior, ErrorMessage: deleteMessage}
 					ca.ChildRef = childRef
 					ca.Documentation = carriedDocumentation(
@@ -234,9 +241,16 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 
 	// Reconcile MemberAccesses immediately — existing access rules on entities
 	// in this DM need MemberAccess entries for the new association (CE0066).
+	// Under OWNER Both a cross-module association is a member of the TO entity
+	// too, whose rules live in the other module (ako/mxcli#802).
 	if freshDM, err := ctx.Backend.GetDomainModel(module.ID); err == nil {
 		if count, err := ctx.Backend.ReconcileMemberAccesses(freshDM.ID, module.Name); err == nil && count > 0 {
 			fmt.Fprintf(ctx.Output, "Reconciled %d access rule(s) for new association\n", count)
+		}
+	}
+	if childModule != module.Name {
+		if err := reconcileModuleAccess(ctx, childModule, "for new association"); err != nil {
+			return err
 		}
 	}
 
@@ -279,8 +293,18 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 			case ast.AlterAssociationSetAnchor:
 				applyAnchors(assoc, s.FromAnchor, s.ToAnchor)
 			}
+			want := alteredAssociationValue(s.Operation, assocAlterView{
+				del: assoc.ChildDeleteBehavior, owner: string(assoc.Owner), storage: string(assoc.StorageFormat),
+				doc: assoc.Documentation, anchors: associationAnchors(assoc),
+			})
 			if err := ctx.Backend.UpdateDomainModel(dm); err != nil {
 				return mdlerrors.NewBackend("update association", err)
+			}
+			if err := verifyAssociationAltered(ctx, module.ID, s, want); err != nil {
+				return err
+			}
+			if err := reconcileAfterAssociationAlter(ctx, s, module.Name); err != nil {
+				return err
 			}
 			fmt.Fprintf(ctx.Output, "Altered association: %s\n", s.Name)
 			return nil
@@ -310,8 +334,22 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 					"association %s is cross-module, and Mendix stores no line anchors for those — "+
 						"the connector is routed automatically", s.Name.String())
 			}
+			want := alteredAssociationValue(s.Operation, assocAlterView{
+				del: ca.ChildDeleteBehavior, owner: string(ca.Owner), storage: string(ca.StorageFormat),
+				doc: ca.Documentation,
+			})
 			if err := ctx.Backend.UpdateDomainModel(dm); err != nil {
 				return mdlerrors.NewBackend("update cross-module association", err)
+			}
+			if err := verifyAssociationAltered(ctx, module.ID, s, want); err != nil {
+				return err
+			}
+			toModule := ""
+			if i := strings.LastIndex(ca.ChildRef, "."); i > 0 {
+				toModule = ca.ChildRef[:i]
+			}
+			if err := reconcileAfterAssociationAlter(ctx, s, module.Name, toModule); err != nil {
+				return err
 			}
 			fmt.Fprintf(ctx.Output, "Altered association: %s\n", s.Name)
 			return nil
@@ -319,6 +357,142 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 	}
 
 	return mdlerrors.NewNotFound("association", s.Name.String())
+}
+
+// reconcileAfterAssociationAlter brings the access rules of every module an end
+// of the association lives in back in line with its members, when the alter
+// changed who the members are.
+//
+// ako/mxcli#802: `OWNER Both` makes the association a member of the TO entity as
+// well, so `set owner` adds (or, back to Default, removes) an entry on that
+// entity's rules. The alter wrote the owner and reconciled nothing, and mx check
+// reported CE0066 "Entity access is out of date" — at the TO entity's module,
+// which for a cross-module association is not the module altered. The other
+// operations (delete behaviour, storage, comment, anchors) do not change
+// membership and leave the rules alone.
+func reconcileAfterAssociationAlter(ctx *ExecContext, s *ast.AlterAssociationStmt, modules ...string) error {
+	if s.Operation != ast.AlterAssociationSetOwner {
+		return nil
+	}
+	invalidateHierarchy(ctx)
+	invalidateDomainModelsCache(ctx)
+	seen := map[string]bool{}
+	for _, name := range modules {
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		if err := reconcileModuleAccess(ctx, name, "after changing the owner"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reconcileModuleAccess reconciles one module's entity access rules and tracks
+// its domain model as modified. A module that cannot be found (the TO end of a
+// cross-module association named by a stale reference) has nothing to fix.
+func reconcileModuleAccess(ctx *ExecContext, moduleName, why string) error {
+	mod, err := findModule(ctx, moduleName)
+	if err != nil || mod == nil {
+		return nil
+	}
+	dm, err := ctx.Backend.GetDomainModel(mod.ID)
+	if err != nil || dm == nil {
+		return nil
+	}
+	count, err := ctx.Backend.ReconcileMemberAccesses(dm.ID, mod.Name)
+	if err != nil {
+		return mdlerrors.NewBackend(fmt.Sprintf("reconcile access rules of module %s", mod.Name), err)
+	}
+	if count > 0 {
+		fmt.Fprintf(ctx.Output, "Reconciled %d access rule(s) in module %s %s\n", count, mod.Name, why)
+	}
+	ctx.trackModifiedDomainModel(mod.ID, mod.Name)
+	return nil
+}
+
+// assocAlterView is the part of an association ALTER ASSOCIATION can change,
+// common to the same-module and the cross-module kind.
+type assocAlterView struct {
+	del                          *domainmodel.DeleteBehavior
+	owner, storage, doc, anchors string
+}
+
+// alteredAssociationValue renders the one property op changes, so the value the
+// statement asked for can be compared with the value read back from storage.
+func alteredAssociationValue(op ast.AlterAssociationOperation, v assocAlterView) string {
+	switch op {
+	case ast.AlterAssociationSetDeleteBehavior:
+		if v.del == nil {
+			return ""
+		}
+		// The message is stored only on the restrict side (assocToGen), so it is
+		// only part of the comparison there.
+		if v.del.Type == domainmodel.DeleteBehaviorTypeDeleteMeIfNoReferences {
+			return string(v.del.Type) + "|" + v.del.ErrorMessage
+		}
+		return string(v.del.Type)
+	case ast.AlterAssociationSetOwner:
+		return v.owner
+	case ast.AlterAssociationSetStorage:
+		return v.storage
+	case ast.AlterAssociationSetComment:
+		return v.doc
+	case ast.AlterAssociationSetAnchor:
+		return v.anchors
+	}
+	return ""
+}
+
+func associationAnchors(a *domainmodel.Association) string {
+	return domainmodel.FormatConnectionPoint(a.ParentConnection, domainmodel.DefaultParentConnection) + " " +
+		domainmodel.FormatConnectionPoint(a.ChildConnection, domainmodel.DefaultChildConnection)
+}
+
+// verifyAssociationAltered reads the association back after an ALTER and refuses
+// to report success unless storage holds what the statement asked for.
+//
+// ako/mxcli#792: on a cross-module association the backend dropped every edit
+// and "Altered association" was printed anyway. The backend is fixed; this is the
+// backstop for the class — a statement that reports success must have written.
+func verifyAssociationAltered(ctx *ExecContext, moduleID model.ID, s *ast.AlterAssociationStmt, want string) error {
+	dm, err := ctx.Backend.GetDomainModel(moduleID)
+	if err != nil {
+		return mdlerrors.NewBackend("re-read domain model after alter association", err)
+	}
+	got, found := "", false
+	if dm != nil {
+		for _, a := range dm.Associations {
+			if a.Name == s.Name.Name {
+				got, found = alteredAssociationValue(s.Operation, assocAlterView{
+					del: a.ChildDeleteBehavior, owner: string(a.Owner), storage: string(a.StorageFormat),
+					doc: a.Documentation, anchors: associationAnchors(a),
+				}), true
+				break
+			}
+		}
+		if !found {
+			for _, ca := range dm.CrossAssociations {
+				if ca.Name == s.Name.Name {
+					got, found = alteredAssociationValue(s.Operation, assocAlterView{
+						del: ca.ChildDeleteBehavior, owner: string(ca.Owner), storage: string(ca.StorageFormat),
+						doc: ca.Documentation,
+					}), true
+					break
+				}
+			}
+		}
+	}
+	if !found {
+		return mdlerrors.NewValidationf("alter association %s: change not persisted — the association "+
+			"is no longer found in module %s after the write", s.Name.String(), s.Name.Module)
+	}
+	if got != want {
+		return mdlerrors.NewValidationf("alter association %s: change not persisted — storage holds %q "+
+			"where the statement set %q", s.Name.String(), got, want)
+	}
+	return nil
 }
 
 // execDropAssociation handles DROP ASSOCIATION statements.
@@ -545,32 +719,38 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 		}
 	}
 
-	// Helper to format association type, owner, storage, and delete behavior
+	// formatAssocDetails prints the clauses after `from … to …` and the
+	// terminator. A clause is printed only when it differs from what the
+	// statement defaults to (R12, #748): type Reference, owner Default, storage
+	// column and on delete set null are what an unstated clause means, so
+	// printing them is noise that says nothing a reader or a re-execution needs.
+	//
+	// Storage is the asymmetric one. Column is the create default, so it is
+	// omitted; Table is not, so it is always printed — omitting it made a table
+	// association come back as column wherever the description was replayed
+	// (#704).
 	formatAssocDetails := func(assocType domainmodel.AssociationType, assocOwner domainmodel.AssociationOwner, storageFormat domainmodel.AssociationStorageFormat, childDeleteBehavior *domainmodel.DeleteBehavior) {
-		typeName := "Reference"
+		var clauses []string
 		if assocType == domainmodel.AssociationTypeReferenceSet {
-			typeName = "ReferenceSet"
+			clauses = append(clauses, "type ReferenceSet")
 		}
-		fmt.Fprintf(ctx.Output, "type %s\n", typeName)
-
-		owner := "Default"
 		if assocOwner == domainmodel.AssociationOwnerBoth {
-			owner = "Both"
+			clauses = append(clauses, "owner Both")
 		}
-		fmt.Fprintf(ctx.Output, "owner %s\n", owner)
-
-		// Only output STORAGE when it's not the default (Table)
-		if storageFormat == domainmodel.StorageFormatColumn {
-			fmt.Fprintf(ctx.Output, "storage column\n")
+		if storageFormat == domainmodel.StorageFormatTable {
+			clauses = append(clauses, "storage table")
 		}
-
 		// DELETE_AND_REFERENCES, not DELETE_CASCADE: DESCRIBE has to emit MDL the
-		// parser accepts, and DELETE_CASCADE is not a token — only CASCADE and the
-		// three canonical names are. The other two arms already spell the
-		// canonical name, so cascade was the odd one out and a describe → edit →
-		// exec loop died on it (upstream #901). The round-trip test in
-		// cmd_associations_delete_behavior_test.go feeds this back through the parser.
-		fmt.Fprintf(ctx.Output, "%s;\n", describeDeleteClause(childDeleteBehavior))
+		// parser accepts, and DELETE_CASCADE is not a token (upstream #901). The
+		// round-trip test in cmd_associations_delete_behavior_test.go feeds this
+		// back through the parser.
+		if del := describeDeleteClause(ctx, childDeleteBehavior); del != defaultDeleteClause {
+			clauses = append(clauses, del)
+		}
+		for _, c := range clauses {
+			fmt.Fprintf(ctx.Output, "\n%s", c)
+		}
+		fmt.Fprint(ctx.Output, ";\n")
 	}
 
 	for _, assoc := range dm.Associations {
@@ -583,10 +763,9 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 			}
 
 			describeConnectionPoints(ctx, assoc)
-			fmt.Fprintf(ctx.Output, "create association %s.%s\n", module.Name, assoc.Name)
-			fmt.Fprintf(ctx.Output, "from %s to %s\n", fromEntity, toEntity)
+			fmt.Fprintf(ctx.Output, "create or modify association %s.%s\n", module.Name, assoc.Name)
+			fmt.Fprintf(ctx.Output, "from %s to %s", fromEntity, toEntity)
 			formatAssocDetails(assoc.Type, assoc.Owner, assoc.StorageFormat, assoc.ChildDeleteBehavior)
-			fmt.Fprintln(ctx.Output, "/")
 			return nil
 		}
 	}
@@ -601,15 +780,41 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 				fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", ca.Documentation)
 			}
 
-			fmt.Fprintf(ctx.Output, "create association %s.%s\n", module.Name, ca.Name)
-			fmt.Fprintf(ctx.Output, "from %s to %s\n", fromEntity, ca.ChildRef)
+			fmt.Fprintf(ctx.Output, "create or modify association %s.%s\n", module.Name, ca.Name)
+			fmt.Fprintf(ctx.Output, "from %s to %s", fromEntity, ca.ChildRef)
 			formatAssocDetails(ca.Type, ca.Owner, ca.StorageFormat, ca.ChildDeleteBehavior)
-			fmt.Fprintln(ctx.Output, "/")
 			return nil
 		}
 	}
 
 	return mdlerrors.NewNotFound("association", name.String())
+}
+
+// statedStorageFormat maps an authored storage clause onto the stored value, and
+// reports whether the statement stated one. An unstated storage is not a request
+// for the default: on `create or modify` it means "leave it", because the
+// storage format decides the database schema and flipping it migrates data.
+func statedStorageFormat(s ast.StorageType) (domainmodel.AssociationStorageFormat, bool) {
+	switch s {
+	case ast.StorageColumn:
+		return domainmodel.StorageFormatColumn, true
+	case ast.StorageTable:
+		return domainmodel.StorageFormatTable, true
+	}
+	return "", false
+}
+
+// storageClause renders a stored storage format as the MDL clause that
+// reproduces it. Empty for an empty or unrecognised value, which an unstated
+// storage then carries unchanged on replay.
+func storageClause(f domainmodel.AssociationStorageFormat) string {
+	switch f {
+	case domainmodel.StorageFormatColumn:
+		return "storage column"
+	case domainmodel.StorageFormatTable:
+		return "storage table"
+	}
+	return ""
 }
 
 // storageDeleteBehavior maps an authored delete behaviour onto the value Mendix
@@ -710,34 +915,23 @@ func associationExists(dm *domainmodel.DomainModel, name string) bool {
 	return false
 }
 
-// associationDocumentation resolves the documentation a CREATE ASSOCIATION
-// carries, from either spelling.
-//
-// An association was the one domain-model element with no way to document it on
-// create: `comment 'text'` was accepted and dropped, and the `/** … */` doc
-// comment was dropped too — the plain-CREATE branches built the association
-// without Documentation at all, while the OR MODIFY branches beside them set it.
-// `mx check` passed, because an undocumented association is valid.
-//
-// The doc comment wins when both are present, matching the precedence the entity
-// path already uses. `comment` survives here — and only here among the CREATE
-// statements — because it is an association's only inline spelling; everywhere
-// else the doc comment already worked, so the dead option was removed instead.
 // associationDocumentationStated reports whether the statement said anything
-// about documentation — a doc comment (even an empty one) or a COMMENT clause.
-// The OR MODIFY path used `if doc != ""`, which preserved the stored value but
-// also made it unclearable; #1018's rule is that an explicitly empty comment
-// clears while an absent one preserves.
+// about documentation — a doc comment, even an empty one. The OR MODIFY path
+// used `if doc != ""`, which preserved the stored value but also made it
+// unclearable; #1018's rule is that an explicitly empty comment clears while
+// an absent one preserves. The `comment '…'` clause is folded into the doc
+// comment by the visitor (R9, where it is a deprecated alias).
 func associationDocumentationStated(s *ast.CreateAssociationStmt) bool {
-	return s.DocumentationSet || s.Comment != ""
+	return s.DocumentationSet
 }
 
 func associationDocumentation(s *ast.CreateAssociationStmt) string {
-	if s.Documentation != "" {
-		return s.Documentation
-	}
-	return s.Comment
+	return s.Documentation
 }
+
+// defaultDeleteClause is the delete behaviour an association statement with no
+// delete clause writes (storageDeleteBehavior's default arm).
+const defaultDeleteClause = "on delete set null"
 
 // describeDeleteClause renders a child delete behaviour as MDL.
 //
@@ -751,8 +945,8 @@ func associationDocumentation(s *ast.CreateAssociationStmt) string {
 // describe -> exec round trip produce an association whose runtime does not
 // start, which is the failure this whole clause exists to prevent (CapTrackV2
 // §1) — and the round trip is exactly how these scripts get regenerated.
-func describeDeleteClause(db *domainmodel.DeleteBehavior) string {
-	action := "on delete set null"
+func describeDeleteClause(ctx *ExecContext, db *domainmodel.DeleteBehavior) string {
+	action := defaultDeleteClause
 	if db != nil {
 		switch db.Type {
 		case domainmodel.DeleteBehaviorTypeDeleteMeAndReferences:
@@ -762,7 +956,7 @@ func describeDeleteClause(db *domainmodel.DeleteBehavior) string {
 		}
 	}
 	if db != nil && db.ErrorMessage != "" {
-		return action + " error_message " + mdlQuote(db.ErrorMessage)
+		return action + " error message " + mdlQuote(ctx, db.ErrorMessage)
 	}
 	return action
 }

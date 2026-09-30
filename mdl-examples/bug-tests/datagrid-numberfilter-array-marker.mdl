@@ -23,7 +23,7 @@
 
 CREATE ENTITY MyFirstModule.Repro ( Name: String, Qty: Integer );
 
-CREATE OR REPLACE PAGE MyFirstModule.Repro_Overview
+CREATE OR MODIFY PAGE MyFirstModule.Repro_Overview
 (
   Title: 'Repro Overview',
   Layout: Atlas_Core.Atlas_Default,
@@ -31,18 +31,18 @@ CREATE OR REPLACE PAGE MyFirstModule.Repro_Overview
 )
 {
   LAYOUTGRID mainGrid {
-    ROW row1 {
-      COLUMN colContent (DesktopWidth: 12) {
+    ROW {
+      COLUMN (DesktopWidth: 12) {
         DATAGRID ReproGrid (
           DataSource: DATABASE FROM MyFirstModule.Repro,
           Selection: Single,
           PageSize: 50,
           Pagination: virtualScrolling
         ) {
-          COLUMN colName (Attribute: Name, Caption: 'Name', Tooltip: 'Name') {
+          COLUMN (Attribute: Name, Caption: 'Name', Tooltip: 'Name') {
             TEXTFILTER fName
           }
-          COLUMN colQty (Attribute: Qty, Caption: 'Qty', Tooltip: 'Qty') {
+          COLUMN (Attribute: Qty, Caption: 'Qty', Tooltip: 'Qty') {
             NUMBERFILTER fQty
           }
         }

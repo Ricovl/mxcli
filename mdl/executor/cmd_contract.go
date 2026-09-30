@@ -293,7 +293,7 @@ func outputContractEntityMDL(ctx *ExecContext, et *types.EdmEntityType, svcQN st
 	}
 
 	fmt.Fprintf(ctx.Output, "create external entity %s.%s\n", module, et.Name)
-	fmt.Fprintf(ctx.Output, "from odata client %s (\n", svcQN)
+	fmt.Fprintf(ctx.Output, "from consumed odata service %s (\n", svcQN)
 	fmt.Fprintf(ctx.Output, "    EntitySet: '%s',\n", entitySetName)
 	fmt.Fprintf(ctx.Output, "    RemoteName: '%s',\n", et.Name)
 	fmt.Fprintf(ctx.Output, "    Countable: Yes\n")
@@ -331,7 +331,6 @@ func outputContractEntityMDL(ctx *ExecContext, et *types.EdmEntityType, svcQN st
 	}
 
 	fmt.Fprintln(ctx.Output, ");")
-	fmt.Fprintln(ctx.Output, "/")
 
 	return nil
 }
@@ -1467,7 +1466,10 @@ func edmToDomainModelAttrType(p *types.EdmProperty, isKey bool) domainmodel.Attr
 	case "Edm.Boolean":
 		return &domainmodel.BooleanAttributeType{}
 	case "Edm.DateTime", "Edm.DateTimeOffset", "Edm.Date":
-		return &domainmodel.DateTimeAttributeType{}
+		// LocalizeDate true is what the writer emitted before it wrote the
+		// property at all (#743), and what Studio Pro stores for an imported
+		// Edm.DateTimeOffset.
+		return &domainmodel.DateTimeAttributeType{LocalizeDate: true}
 	case "Edm.Guid":
 		return &domainmodel.StringAttributeType{Length: 36}
 	case "Edm.Binary":

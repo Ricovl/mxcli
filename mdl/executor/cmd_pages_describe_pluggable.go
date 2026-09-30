@@ -583,6 +583,12 @@ func sourceVariableBinding(param map[string]any) (name string, isLocal bool) {
 	if !ok || srcVar == nil {
 		return "", false
 	}
+	// Read through a data view: Widget names it, and the data view's own
+	// variable sits beside it. `$dataView1.Attr` is what re-executes into that
+	// pair; the parameter alone would drop the Widget (ako/mxcli#826).
+	if v, ok := srcVar["Widget"].(string); ok && v != "" {
+		return v, false
+	}
 	if v, ok := srcVar["LocalVariable"].(string); ok && v != "" {
 		return v, true
 	}
@@ -854,6 +860,32 @@ func extractGallerySelection(ctx *ExecContext, w map[string]any) string {
 		}
 	}
 	return ""
+}
+
+// gallerySelectionIsNone reports whether a Gallery's stored itemSelection is
+// "None". extractGallerySelection reads None as unset, which is right for a
+// widget whose default is None and wrong for the Gallery, whose MDL default is
+// Single: a Studio Pro gallery with no selection described without one, and
+// describe → exec gave it a single selection (#842).
+func gallerySelectionIsNone(w map[string]any) bool {
+	obj, ok := w["Object"].(map[string]any)
+	if !ok {
+		return false
+	}
+	propTypeKeyMap := buildPropertyTypeKeyMap(w, true)
+	for _, prop := range getBsonArrayElements(obj["Properties"]) {
+		propMap, ok := prop.(map[string]any)
+		if !ok || propTypeKeyMap[extractBinaryID(propMap["TypePointer"])] != "itemSelection" {
+			continue
+		}
+		value, ok := propMap["Value"].(map[string]any)
+		if !ok {
+			return false
+		}
+		sel, _ := value["Selection"].(string)
+		return sel == "None"
+	}
+	return false
 }
 
 // extractFilterAttributes extracts the filter attributes from a TextFilter/NumberFilter widget.
@@ -1246,8 +1278,8 @@ func extractImageProperties(ctx *ExecContext, w map[string]any, widget *rawWidge
 // property of a CustomWidget, together with the `{N}` parameters bound to it.
 //
 // The parameters are returned separately rather than folded into the text
-// because MDL spells them separately: `imageUrl: '{1}', imageUrlParams: [{1} =
-// PictureUrl]` (#575).
+// because MDL spells them separately: `imageUrl: '{1}', imageUrlParams: ({1} =
+// PictureUrl)` (#575).
 func extractCustomWidgetPropertyTextTemplate(ctx *ExecContext, w map[string]any, propertyKey string) (string, []string) {
 	obj, ok := w["Object"].(map[string]any)
 	if !ok {
@@ -1360,7 +1392,7 @@ func customWidgetActionForSource(ctx *ExecContext, w map[string]any, source stri
 }
 
 // extractCustomWidgetPropertyAction extracts an action description from a CustomWidget property.
-// Returns a formatted string like "CALL_MICROFLOW Module.Flow" or "SHOW_PAGE Module.Page".
+// Returns a formatted string like "call microflow Module.Flow" or "show page Module.Page".
 func extractCustomWidgetPropertyAction(ctx *ExecContext, w map[string]any, propertyKey string) string {
 	obj, ok := w["Object"].(map[string]any)
 	if !ok {
@@ -1393,19 +1425,19 @@ func extractCustomWidgetPropertyAction(ctx *ExecContext, w map[string]any, prope
 		case "Forms$MicroflowAction", "Pages$MicroflowClientAction":
 			if settings, ok := action["MicroflowSettings"].(map[string]any); ok {
 				if mf := extractString(settings["Microflow"]); mf != "" {
-					return "microflow " + mf
+					return "call microflow " + mf
 				}
 			}
 		case "Forms$CallNanoflowClientAction", "Pages$CallNanoflowClientAction":
 			if settings, ok := action["NanoflowSettings"].(map[string]any); ok {
 				if nf := extractString(settings["Nanoflow"]); nf != "" {
-					return "nanoflow " + nf
+					return "call nanoflow " + nf
 				}
 			}
 		case "Forms$FormAction", "Pages$FormAction":
 			if settings, ok := action["PageSettings"].(map[string]any); ok {
 				if page := extractString(settings["Page"]); page != "" {
-					return "show_page " + page
+					return "show page " + page
 				}
 			}
 		case "Forms$NoAction", "Pages$NoAction":

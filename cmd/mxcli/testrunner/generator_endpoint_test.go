@@ -94,7 +94,7 @@ func TestGenerateTestFlowsWrapsCallsWithErrorHandling(t *testing.T) {
 	}}}
 	mdl := GenerateTestFlows(suite)
 
-	if !strings.Contains(mdl, "ON ERROR {") {
+	if !strings.Contains(mdl, "ON ERROR BEGIN") {
 		t.Errorf("the CALL was not wrapped in ON ERROR:\n%s", mdl)
 	}
 	if !strings.Contains(mdl, verdictFailPrefix+"exception during execution") {
@@ -113,7 +113,7 @@ func TestGenerateTestFlowsThrowsTestStartsFailed(t *testing.T) {
 	mdl := GenerateTestFlows(suite)
 
 	failIdx := strings.Index(mdl, verdictFailPrefix+"expected an exception")
-	handlerIdx := strings.Index(mdl, "ON ERROR {")
+	handlerIdx := strings.Index(mdl, "ON ERROR BEGIN")
 	if failIdx < 0 {
 		t.Fatalf("no pre-set failure verdict:\n%s", mdl)
 	}
@@ -135,10 +135,10 @@ func TestGenerateTestFlowsMultiLineCall(t *testing.T) {
 	}}}
 	mdl := GenerateTestFlows(suite)
 
-	if !strings.Contains(mdl, ") ON ERROR {") {
+	if !strings.Contains(mdl, ") ON ERROR BEGIN") {
 		t.Errorf("a statement spanning lines was not joined before ON ERROR was attached:\n%s", mdl)
 	}
-	if strings.Count(mdl, "ON ERROR {") != 1 {
+	if strings.Count(mdl, "ON ERROR BEGIN") != 1 {
 		t.Errorf("expected exactly one handler for one call:\n%s", mdl)
 	}
 }
@@ -171,7 +171,7 @@ func TestEndpointCleanupCommands(t *testing.T) {
 			state:   projectState{afterStartup: "Mod.ASU", createdMxTest: true},
 			present: true,
 			want: []string{
-				"ALTER SETTINGS MODEL AfterStartupMicroflow = 'Mod.ASU'",
+				"ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Mod.ASU')",
 				"DROP MODULE MxTest",
 			},
 		},
@@ -180,7 +180,7 @@ func TestEndpointCleanupCommands(t *testing.T) {
 			state:   projectState{createdMxTest: false},
 			present: true,
 			want: []string{
-				"ALTER SETTINGS MODEL AfterStartupMicroflow = ''",
+				"ALTER SETTINGS RUNTIME (AfterStartupMicroflow: '')",
 				"DROP MICROFLOW MxTest.Test_test_1",
 				"DROP MICROFLOW MxTest.Test_test_2",
 				"DROP MICROFLOW " + endpointStartupFlow,
@@ -191,7 +191,7 @@ func TestEndpointCleanupCommands(t *testing.T) {
 			name:    "drops nothing when the module never landed",
 			state:   projectState{afterStartup: "Mod.ASU", createdMxTest: true},
 			present: false,
-			want:    []string{"ALTER SETTINGS MODEL AfterStartupMicroflow = 'Mod.ASU'"},
+			want:    []string{"ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Mod.ASU')"},
 		},
 	}
 
@@ -220,7 +220,7 @@ func TestEndpointCleanupRestoreIsAlwaysFirst(t *testing.T) {
 		{afterStartup: "Mod.ASU", createdMxTest: true},
 	} {
 		cmds := endpointCleanupCommands(st, suiteTestFlowNames(suite), true)
-		if !strings.HasPrefix(cmds[0], "ALTER SETTINGS MODEL AfterStartupMicroflow") {
+		if !strings.HasPrefix(cmds[0], "ALTER SETTINGS RUNTIME (AfterStartupMicroflow") {
 			t.Errorf("state %+v: first command is %q, want the after-startup restore", st, cmds[0])
 		}
 	}

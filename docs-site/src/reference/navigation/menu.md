@@ -3,7 +3,7 @@
 ## Synopsis
 
 ```sql
-CREATE [ OR MODIFY ] MENU module.name [ FOLDER 'folder_path' ] ( menu_item [ menu_item ... ] )
+CREATE [ OR MODIFY ] MENU module.name [ FOLDER 'folder_path' ] { menu_item [ menu_item ... ] }
 DESCRIBE MENU module.name
 DROP MENU module.name
 ```
@@ -11,8 +11,8 @@ DROP MENU module.name
 Where each `menu_item` is one of:
 
 ```sql
-MENU ITEM 'caption' [ PAGE module.page | MICROFLOW module.microflow ] [ ICON module.collection.icon ] ;
-MENU 'caption' [ ICON module.collection.icon ] ( nested_items ) ;
+MENU ITEM 'caption' [ ( [ OnClick: SHOW PAGE module.page | CALL MICROFLOW module.microflow | SIGN OUT ] [, Icon: module.collection.icon ] ) ]
+MENU 'caption' [ ( Icon: module.collection.icon ) ] { nested_items }
 ```
 
 ## Description
@@ -23,7 +23,7 @@ menu widget on a page points at. Atlas_Core ships two of them, `Phone_Menu` and
 
 A menu document is **not** the menu inside a navigation profile, although the two
 are easy to confuse: both are built from the same menu items, which is why the item
-syntax here is identical to the `MENU (...)` block of
+syntax here is identical to the `{ ... }` menu block of
 [ALTER NAVIGATION](alter-navigation.md). They differ in where they live and how they
 are read:
 
@@ -31,7 +31,7 @@ are read:
 |---|---|---|
 | Lives in | a navigation profile | its own document |
 | Used by | the app's navigation | a menu widget you place on a page |
-| Read with | `SHOW NAVIGATION MENU` | `DESCRIBE MENU module.name` |
+| Read with | `LIST NAVIGATION MENU` | `DESCRIBE MENU module.name` |
 | Written with | `CREATE OR REPLACE NAVIGATION` | `CREATE OR MODIFY MENU` |
 
 `OR MODIFY` replaces the item list **wholesale**, exactly as `CREATE OR REPLACE
@@ -54,37 +54,44 @@ a fixed point.
 `'caption'`
 :   The item's label, in single quotes.
 
-`PAGE` / `MICROFLOW`
-:   Optional target opened when the item is clicked. An item with neither is inert
-    (stored as `Forms$NoAction`), which is normal for an item that only groups
-    sub-items.
+`OnClick:`
+:   Optional action run when the item is clicked, in the words a page action uses:
+    `show page M.P`, `call microflow M.F` or `sign out`. An item without one is
+    inert (stored as `Forms$NoAction`), which is normal for an item that only
+    groups sub-items.
 
-`ICON`
+`Icon:`
 :   Optional icon, given as a qualified name into an icon collection — not a string.
     Hyphenated segments are double-quoted: `Atlas_Core.Atlas."layout-2"`.
+    `glyph <code>` and `image Module.Images.name` write the other two icon kinds.
+
+The items are children, in `{ }` with no separator between them (R2). The old
+spelling — items in `( )`, each ending in `;`, with `PAGE`/`MICROFLOW`/`ICON`
+clauses after the caption — still parses and warns (MDL-DEPR121, MDL-DEPR122);
+`mxcli fmt --upgrade` rewrites it.
 
 ## Examples
 
 Create a menu with a nested sub-menu:
 
 ```sql
-CREATE MENU MyModule.Main_Menu (
-  menu item 'Home' page MyModule.Home_Web icon Atlas_Core.Atlas.home;
-  menu item 'Run' microflow MyModule.DoThing;
-  menu 'Admin' (
-    menu item 'Accounts' page Administration.Account_Overview;
-  );
-  menu item 'Plain';
-);
+CREATE MENU MyModule.Main_Menu {
+  menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )
+  menu item 'Run' ( OnClick: call microflow MyModule.DoThing )
+  menu 'Admin' {
+    menu item 'Accounts' ( OnClick: show page Administration.Account_Overview )
+  }
+  menu item 'Plain'
+};
 ```
 
 Replace its contents (the two omitted items are removed):
 
 ```sql
-CREATE OR MODIFY MENU MyModule.Main_Menu (
-  menu item 'Home' page MyModule.Home_Web icon Atlas_Core.Atlas.home;
-  menu item 'Run' microflow MyModule.DoThing;
-);
+CREATE OR MODIFY MENU MyModule.Main_Menu {
+  menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )
+  menu item 'Run' ( OnClick: call microflow MyModule.DoThing )
+};
 ```
 
 Read one back — including Atlas's own:
@@ -127,4 +134,4 @@ Re-running such output therefore loses that icon — visibly, not silently.
 ## See Also
 
 - [ALTER NAVIGATION](alter-navigation.md) — the menu inside a navigation profile
-- [SHOW NAVIGATION](show-navigation.md) — read profile menus and home pages
+- [LIST NAVIGATION](list-navigation.md) — read profile menus and home pages

@@ -5,6 +5,7 @@ package executor
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
@@ -54,6 +55,16 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	var existingActionInfo *types.MicroflowActionInfo
 	var existingJSDoc string
 	haveExistingJS := false
+	// A parameter's Description and Category have no MDL spelling — DESCRIBE
+	// prints the description as a comment — so a rewrite carries them from the
+	// stored parameter of the same name, as the Java twin does (#731).
+	storedParams := map[string]*types.JavaActionParameter{}
+	// The stored parameter names in order, for sourceUnchanged below.
+	var storedParamNames []string
+	// No MDL spelling for either, so a rewrite carries them; the defaults are
+	// Studio Pro's. "Public", which this hardcoded, is not a member of
+	// JavaScriptActionsExportLevel (API | Hidden) — see the Java twin.
+	exportLevel, defaultReturnName := "Hidden", "ReturnValueName"
 	if ex, ok := pickLive(existing,
 		func(a *types.JavaScriptAction) bool {
 			return h.GetModuleName(h.FindModuleID(a.ContainerID)) == s.Name.Module && a.Name == s.Name.Name
@@ -71,6 +82,21 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		existingActionInfo = ex.MicroflowActionInfo
 		existingJSDoc = ex.Documentation
 		haveExistingJS = true
+		if ex.ExportLevel != "" {
+			exportLevel = ex.ExportLevel
+		}
+		defaultReturnName = ex.ActionDefaultReturnName
+		// The list read may not carry parameter details; the full read does.
+		full := ex
+		if r, err := ctx.Backend.ReadJavaScriptActionByName(s.Name.Module + "." + s.Name.Name); err == nil && r != nil {
+			full = r
+		}
+		for _, p := range full.Parameters {
+			if p != nil {
+				storedParams[p.Name] = p
+				storedParamNames = append(storedParamNames, p.Name)
+			}
+		}
 	}
 
 	moduleID := containerID
@@ -90,8 +116,8 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		Name:                    s.Name.Name,
 		Documentation:           s.Documentation,
 		Excluded:                existingExcluded,
-		ExportLevel:             "Public",
-		ActionDefaultReturnName: "ReturnValueName",
+		ExportLevel:             exportLevel,
+		ActionDefaultReturnName: defaultReturnName,
 		Platform:                platformOrDefault(s.Platform),
 	}
 	// A rewrite that carried no doc comment keeps the stored one (#1018).
@@ -139,6 +165,10 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		default:
 			p.ParameterType = astDataTypeToJavaActionParamType(param.Type)
 		}
+		if sp := storedParams[param.Name]; sp != nil {
+			p.Description = sp.Description
+			p.Category = sp.Category
+		}
 		jsa.Parameters = append(jsa.Parameters, p)
 	}
 
@@ -172,8 +202,22 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		}
 	}
 
-	if err := ctx.Backend.WriteJavaScriptSourceFile(moduleName, s.Name.Name, s.JavaScriptCode, jsa.Parameters, jsa.ReturnType); err != nil {
-		return mdlerrors.NewBackend("write javascript source file", err)
+	// The placeholder DESCRIBE prints when it could not read the source is not
+	// code: writing it would overwrite the real implementation, or add a stub
+	// file to a project that ships none. The statement says nothing about the
+	// code, so the file is left alone (#731; the Java twin is #637).
+	//
+	// Likewise when the statement restates the stored user code with the stored
+	// parameters, as unchanged describe output does: regenerating the file from
+	// it drops the import list, the EXTRA CODE section and Studio Pro's
+	// signature, none of which MDL can print, so user code that calls an EXTRA
+	// CODE helper stops working (#731).
+	keep := strings.TrimSpace(s.JavaScriptCode) == jsSourceOmittedBody ||
+		(existingID != "" && jsSourceUnchanged(ctx, s, storedParamNames))
+	if !keep {
+		if err := ctx.Backend.WriteJavaScriptSourceFile(moduleName, s.Name.Name, s.JavaScriptCode, jsa.Parameters, jsa.ReturnType); err != nil {
+			return mdlerrors.NewBackend("write javascript source file", err)
+		}
 	}
 
 	ctx.InvalidateCache()
@@ -223,4 +267,20 @@ func platformOrDefault(p string) string {
 		return "Web"
 	}
 	return p
+}
+
+// jsSourceUnchanged reports whether s restates the existing action's .js source:
+// the same user code (as DESCRIBE reads it) and the same parameter names in
+// order, so a regenerated file would differ only in what MDL cannot carry.
+func jsSourceUnchanged(ctx *ExecContext, s *ast.CreateJavaScriptActionStmt, storedParamNames []string) bool {
+	if len(s.Parameters) != len(storedParamNames) {
+		return false
+	}
+	for i, p := range s.Parameters {
+		if p.Name != storedParamNames[i] {
+			return false
+		}
+	}
+	stored, _ := readJavaScriptActionSource(ctx.MprPath, s.Name.Module, s.Name.Name)
+	return stored != "" && strings.TrimSpace(stored) == strings.TrimSpace(s.JavaScriptCode)
 }

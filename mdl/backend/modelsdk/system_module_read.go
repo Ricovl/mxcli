@@ -75,7 +75,7 @@ func systemAttrType(a meta.SystemAttrDef) domainmodel.AttributeType {
 	case "Boolean":
 		return &domainmodel.BooleanAttributeType{}
 	case "DateTime":
-		return &domainmodel.DateTimeAttributeType{}
+		return &domainmodel.DateTimeAttributeType{LocalizeDate: true}
 	case "Enumeration":
 		return &domainmodel.EnumerationAttributeType{EnumerationRef: a.EnumQN}
 	case "AutoNumber":

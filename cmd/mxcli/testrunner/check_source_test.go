@@ -115,3 +115,47 @@ func TestIsTestFile(t *testing.T) {
 		}
 	}
 }
+
+// TestCheckSourceWrapperIsCanonical: the wrapper is mxcli's text, not the
+// author's, so it must not carry a deprecated spelling. It was `create or
+// replace microflow`, which put an MDL-DEPR001 warning on the doc comment of
+// every test in every checked file — found by the conformance gate
+// (ako/mxcli#756), where it made each test file look non-canonical.
+func TestCheckSourceWrapperIsCanonical(t *testing.T) {
+	src := "/**\n * @test canonical\n */\nDECLARE $result Boolean = true;\n/\n"
+	got, err := CheckSource(src, "x.test.mdl")
+	if err != nil {
+		t.Fatalf("CheckSource: %v", err)
+	}
+	prog, errs := visitor.Build(got.MDL)
+	if len(errs) > 0 {
+		t.Fatalf("does not parse: %v\n%s", errs, got.MDL)
+	}
+	if len(prog.Deprecations) != 0 {
+		t.Fatalf("the rendering records %d deprecated spelling(s), first %s on line %d:\n%s",
+			len(prog.Deprecations), prog.Deprecations[0].Code, prog.Deprecations[0].Line, got.MDL)
+	}
+}
+
+// A .test.md block's body sits on the line after its doc comment, as in a
+// .test.mdl. The chunk handed to extractDocAndBody starts on the line after
+// the ```mdl-test fence; counting it from the fence put every body one line
+// early, so the rendering overwrote the doc comment's last line with the body's
+// first and `check x.test.md` reported a syntax error on a valid file.
+func TestCheckSourceMarkdownBodyLine(t *testing.T) {
+	src := "# Tests\n\n```mdl-test\n/**\n * @test md\n */\ndeclare $x Integer = 1;\n```\n"
+	tests, err := parseMarkdownTests(src, "x.test.md")
+	if err != nil || len(tests) != 1 {
+		t.Fatalf("parse: %v %d", err, len(tests))
+	}
+	if tests[0].BodyLine != 7 {
+		t.Errorf("BodyLine = %d, want 7 (the declare's line)", tests[0].BodyLine)
+	}
+	got, err := CheckSource(src, "x.test.md")
+	if err != nil {
+		t.Fatalf("CheckSource: %v", err)
+	}
+	if _, errs := visitor.Build(got.MDL); len(errs) > 0 {
+		t.Fatalf("a valid .test.md does not parse: %v\n--- rendered ---\n%s", errs, got.MDL)
+	}
+}

@@ -48,7 +48,6 @@ Each attribute definition specifies a name, a data type, and optional constraint
 | Decimal | `Decimal` | Arbitrary-precision decimal |
 | Boolean | `Boolean` | `TRUE` or `FALSE`; defaults to `FALSE` when no `DEFAULT` is given |
 | DateTime | `DateTime` | Date and time combined |
-| Date | `Date` | Date only |
 | AutoNumber | `AutoNumber` | Auto-incrementing integer (persistent entities only) |
 | Binary | `Binary` | Binary data |
 | HashedString | `HashedString` | One-way hashed string (for passwords) |
@@ -117,9 +116,9 @@ CREATE PERSISTENT ENTITY Sales.Customer (
     CustomerId: AutoNumber NOT NULL UNIQUE DEFAULT 1,
 
     /** Customer full name */
-    Name: String(200) NOT NULL ERROR 'Name is required',
+    Name: String(200) NOT NULL ERROR MESSAGE 'Name is required',
 
-    Email: String(200) UNIQUE ERROR 'Email must be unique',
+    Email: String(200) UNIQUE ERROR MESSAGE 'Email must be unique',
 
     Balance: Decimal DEFAULT 0,
 
@@ -140,7 +139,7 @@ INDEX (Email);
 CREATE PERSISTENT ENTITY HR.Employee EXTENDS System.User (
     EmployeeNumber: String(20) NOT NULL UNIQUE,
     Department: String(100),
-    HireDate: Date
+    HireDate: DateTime
 );
 ```
 

@@ -522,9 +522,9 @@ create page XpathTest.OrderOverviewPage (
   datagrid dgOrders (
     datasource: database from XpathTest.Order where [State != 'Cancelled'] sort by OrderDate desc
   ) {
-    column colNumber (attribute: OrderNumber, caption: 'Order #')
-    column colAmount (attribute: TotalAmount, caption: 'Amount')
-    column colState (attribute: State, caption: 'Status')
+    column (attribute: OrderNumber, caption: 'Order #')
+    column (attribute: TotalAmount, caption: 'Amount')
+    column (attribute: State, caption: 'Status')
   }
 };
 
@@ -538,8 +538,8 @@ create page XpathTest.ActiveCustomerPage (
   datagrid dgCustomers (
     datasource: database from XpathTest.Customer where [IsActive = true] and [Name != empty] sort by Name asc
   ) {
-    column colName (attribute: Name, caption: 'Name')
-    column colEmail (attribute: Email, caption: 'Email')
+    column (attribute: Name, caption: 'Name')
+    column (attribute: Email, caption: 'Email')
   }
 };
 
@@ -553,11 +553,11 @@ create page XpathTest.ActiveCustomerPage (
 -- the domain model as out of date. Needs investigation with Studio Pro.
 --
 -- CREATE MODULE ROLE XpathTest.User;
--- GRANT XpathTest.User ON XpathTest.Customer (READ *, WRITE *);
--- GRANT XpathTest.User ON XpathTest.OrderLine (READ *, WRITE *);
--- GRANT XpathTest.User ON XpathTest.Category (READ *, WRITE *);
--- GRANT XpathTest.User ON XpathTest.Order (READ *, WRITE *)
---   WHERE '[System.owner = ''[%CurrentUser%]'']';
+-- GRANT READ *, WRITE * ON ENTITY XpathTest.Customer TO XpathTest.User;
+-- GRANT READ *, WRITE * ON ENTITY XpathTest.OrderLine TO XpathTest.User;
+-- GRANT READ *, WRITE * ON ENTITY XpathTest.Category TO XpathTest.User;
+-- GRANT READ *, WRITE * ON ENTITY XpathTest.Order TO XpathTest.User
+--   WHERE [System.owner = '[%CurrentUser%]'];
 
 -- ============================================================================
 -- MARK: Cleanup

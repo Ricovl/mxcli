@@ -68,12 +68,12 @@ create entity Paging.Message (
 -- range takes the OFFSET first and the AMOUNT second. Before the fix this
 -- described as `range($Sorted)`.
 
-create or replace microflow Paging.MF_GetPage ($Offset: Integer, $Amount: Integer)
+create or modify microflow Paging.MF_GetPage ($Offset: Integer, $Amount: Integer)
 returns list of Paging.Message
 begin
   retrieve $All from Paging.Message;
-  $Sorted = sort($All, Received desc);
-  $Page = range($Sorted, $Offset, $Amount);
+  $Sorted = sort $All by Received desc;
+  $Page = range $Sorted offset $Offset limit $Amount;
   return $Page;
 end;
 
@@ -81,19 +81,19 @@ end;
 -- One bound is enough — Mendix requires at least one, not both
 -- ============================================================================
 
-create or replace microflow Paging.MF_FirstN ($Amount: Integer)
+create or modify microflow Paging.MF_FirstN ($Amount: Integer)
 returns list of Paging.Message
 begin
   retrieve $All from Paging.Message;
-  $First = range($All, 0, $Amount);
+  $First = range $All offset 0 limit $Amount;
   return $First;
 end;
 
-create or replace microflow Paging.MF_Skip ($Offset: Integer)
+create or modify microflow Paging.MF_Skip ($Offset: Integer)
 returns list of Paging.Message
 begin
   retrieve $All from Paging.Message;
-  $Rest = range($All, $Offset);
+  $Rest = range $All offset $Offset;
   return $Rest;
 end;
 
@@ -122,7 +122,7 @@ end;
 -- on the retrieve keep them in the database. Note the clause order is the
 -- REVERSE of range's arguments — each mirrors the Mendix editor it comes from.
 
-create or replace microflow Paging.MF_GetPageFromDatabase ($Offset: Integer, $Amount: Integer)
+create or modify microflow Paging.MF_GetPageFromDatabase ($Offset: Integer, $Amount: Integer)
 returns list of Paging.Message
 begin
   retrieve $Page from Paging.Message sort by Received desc limit $Amount offset $Offset;

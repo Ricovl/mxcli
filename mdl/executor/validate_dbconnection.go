@@ -32,25 +32,29 @@ import (
 // `password` it would bake a secret into the model as a design-time default —
 // exactly what the constant indirection exists to avoid.
 var dbConnectionConstantProps = []struct {
-	label  string // the MDL keyword, so the message points at what was typed
+	label  string // the property in words, so the message names what was set
+	key    string // the canonical property key the suggestion writes (R2)
 	value  func(*ast.CreateDatabaseConnectionStmt) string
 	isRef  func(*ast.CreateDatabaseConnectionStmt) bool
 	sample string
 }{
 	{
 		label:  "connection string",
+		key:    "ConnectionString",
 		value:  func(s *ast.CreateDatabaseConnectionStmt) string { return s.ConnectionString },
 		isRef:  func(s *ast.CreateDatabaseConnectionStmt) bool { return s.ConnectionStringIsRef },
 		sample: "DbUrl",
 	},
 	{
 		label:  "username",
+		key:    "Username",
 		value:  func(s *ast.CreateDatabaseConnectionStmt) string { return s.UserName },
 		isRef:  func(s *ast.CreateDatabaseConnectionStmt) bool { return s.UserNameIsRef },
 		sample: "DbUser",
 	},
 	{
 		label:  "password",
+		key:    "Password",
 		value:  func(s *ast.CreateDatabaseConnectionStmt) string { return s.Password },
 		isRef:  func(s *ast.CreateDatabaseConnectionStmt) bool { return s.PasswordIsRef },
 		sample: "DbPassword",
@@ -87,9 +91,9 @@ func ValidateDatabaseConnection(stmt *ast.CreateDatabaseConnectionStmt) []linter
 				"(StorageLoadException: \"is not a valid ConstantIdentifier\")",
 				stmt.Name.String(), p.label),
 			Suggestion: fmt.Sprintf("Declare a constant and reference it: "+
-				"`create constant %s.%s type String default '…';` then `%s @%s.%s`. "+
+				"`create constant %s.%s ( Type: String, DefaultValue: '…' );` then `%s: @%s.%s`. "+
 				"The indirection is how Mendix keeps the value per-environment rather than in the model.",
-				module, p.sample, p.label, module, p.sample),
+				module, p.sample, p.key, module, p.sample),
 			Location: loc,
 		})
 	}

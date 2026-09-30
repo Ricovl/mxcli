@@ -91,8 +91,8 @@ func TestRoundtripMicroflow_LogWithTemplate(t *testing.T) {
 	}
 
 	// Verify LOG statement with WITH clause
-	if !containsProperty(output, "log info node") {
-		t.Error("Expected log info node in output")
+	if !containsProperty(output, "log node") {
+		t.Error("Expected log node in output (the default level info is not printed, R12)")
 	}
 	if !containsProperty(output, "Processing order {1}") {
 		t.Error("Expected template text 'Processing order {1}' in output")
@@ -148,7 +148,7 @@ func TestRoundtripMicroflow_LogWithNodeExpression(t *testing.T) {
 		t.Fatalf("Failed to describe microflow: %v", err)
 	}
 
-	if !containsProperty(output, "log info node @"+testModule+".SecurityLogNode") {
+	if !containsProperty(output, "log node @"+testModule+".SecurityLogNode") {
 		t.Fatalf("Expected constant node expression in output, got:\n%s", output)
 	}
 
@@ -278,7 +278,7 @@ begin
 end;`
 
 	assertMicroflowContains(t, env, mfName, createMDL,
-		[]string{"if", "end if", "log info", "return"},
+		[]string{"if", "end if", "log node", "return"},
 		nil,
 	)
 }
@@ -369,7 +369,9 @@ begin
 end;`
 
 	assertMicroflowContains(t, env, mfName, createMDL,
-		[]string{"retrieve", "RoundtripTest.MfTestItem", "limit 1", "return"},
+		// No header, so `limit 1` is the object range, which describe
+		// prints as `first` (ako/mxcli#734).
+		[]string{"retrieve", "RoundtripTest.MfTestItem", "first", "return"},
 		nil,
 	)
 }
@@ -477,7 +479,7 @@ begin
 end;`
 
 	assertMicroflowContains(t, env, mfName, createMDL,
-		[]string{"loop", "$Items", "log info", "end loop", "return"},
+		[]string{"loop", "$Items", "log node", "end loop", "return"},
 		nil,
 	)
 }
@@ -507,7 +509,7 @@ begin
 end;`
 
 	assertMicroflowContains(t, env, mfName, createMDL,
-		[]string{"if", "retrieve", "loop", "log info", "In loop", "end loop", "else", "No items", "end if", "return"},
+		[]string{"if", "retrieve", "loop", "log node", "In loop", "end loop", "else", "No items", "end if", "return"},
 		nil,
 	)
 }
@@ -703,7 +705,7 @@ begin
 end;`
 
 	assertMicroflowContains(t, env, mfName, createMDL,
-		[]string{"@annotation", "test annotation", "log info", "return"},
+		[]string{"@annotation", "test annotation", "log node", "return"},
 		nil,
 	)
 }
@@ -723,7 +725,7 @@ begin
 end;`
 
 	assertMicroflowContains(t, env, mfName, createMDL,
-		[]string{"@caption 'Custom Caption'", "@color Green", "log info", "return"},
+		[]string{"@caption 'Custom Caption'", "@color Green", "log node", "return"},
 		nil,
 	)
 }
@@ -770,7 +772,7 @@ end;`
 	// @position is always emitted but the exact coordinates depend on the BSON roundtrip
 	// (RelativeMiddle vs RelativeMiddlePoint key mismatch). Verify @position appears.
 	assertMicroflowContains(t, env, mfName, createMDL,
-		[]string{"@position(", "log info", "return"},
+		[]string{"@position(", "log node", "return"},
 		nil,
 	)
 }

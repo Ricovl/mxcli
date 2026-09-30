@@ -113,11 +113,11 @@ end;
 -- sequence flows only — so the note arrived detached, floating on the canvas.
 create or modify microflow MyFirstModule.ACT_1077_InHandler () returns String
 begin
-  declare $name String = 'value' on error {
+  declare $name String = 'value' on error begin
     @annotation 'this is where it goes wrong'
     log error node 'Bug1077' 'boom';
     return 'failed';
-  };
+  end error;
   return $name;
 end;
 

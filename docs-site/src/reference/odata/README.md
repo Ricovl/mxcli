@@ -8,17 +8,17 @@ Mendix supports consuming and publishing OData services. Consumed services (ODat
 
 | Statement | Description |
 |-----------|-------------|
-| [CREATE ODATA CLIENT](create-odata-client.md) | Create a consumed OData service (auto-fetches $metadata) |
-| [ALTER ODATA CLIENT](alter-odata-client.md) | Modify OData client properties |
-| [DROP ODATA CLIENT](drop-odata-client.md) | Remove a consumed OData service |
+| [CREATE CONSUMED ODATA SERVICE](create-odata-client.md) | Create a consumed OData service (auto-fetches $metadata) |
+| [ALTER CONSUMED ODATA SERVICE](alter-odata-client.md) | Modify OData client properties |
+| [DROP CONSUMED ODATA SERVICE](drop-odata-client.md) | Remove a consumed OData service |
 
 ## OData Service Statements (Published)
 
 | Statement | Description |
 |-----------|-------------|
-| [CREATE ODATA SERVICE](create-odata-service.md) | Publish entities as an OData endpoint |
-| [ALTER ODATA SERVICE](alter-odata-service.md) | Modify published service properties |
-| [DROP ODATA SERVICE](drop-odata-service.md) | Remove a published OData service |
+| [CREATE PUBLISHED ODATA SERVICE](create-odata-service.md) | Publish entities as an OData endpoint |
+| [ALTER PUBLISHED ODATA SERVICE](alter-odata-service.md) | Modify published service properties |
+| [DROP PUBLISHED ODATA SERVICE](drop-odata-service.md) | Remove a published OData service |
 
 ## External Entity Statements
 
@@ -85,25 +85,25 @@ Browse available assets from cached service contracts without network access.
 
 | Statement | Description |
 |-----------|-------------|
-| `SHOW CONTRACT ENTITIES FROM Module.Service` | List entity types from cached $metadata |
-| `SHOW CONTRACT ACTIONS FROM Module.Service` | List actions/functions from cached $metadata |
+| `LIST CONTRACT ENTITIES FROM Module.Service` | List entity types from cached $metadata |
+| `LIST CONTRACT ACTIONS FROM Module.Service` | List actions/functions from cached $metadata |
 | `DESCRIBE CONTRACT ENTITY Module.Service.Entity` | Show entity properties, types, keys |
 | `DESCRIBE CONTRACT ENTITY Module.Service.Entity FORMAT mdl` | Generate CREATE EXTERNAL ENTITY |
 | `DESCRIBE CONTRACT ACTION Module.Service.Action` | Show action parameters and return type |
-| `SHOW CONTRACT CHANNELS FROM Module.Service` | List channels from cached AsyncAPI |
-| `SHOW CONTRACT MESSAGES FROM Module.Service` | List messages from cached AsyncAPI |
+| `LIST CONTRACT CHANNELS FROM Module.Service` | List channels from cached AsyncAPI |
+| `LIST CONTRACT MESSAGES FROM Module.Service` | List messages from cached AsyncAPI |
 | `DESCRIBE CONTRACT MESSAGE Module.Service.Message` | Show message payload properties |
 
 ## Related Show/Describe Statements
 
 | Statement | Syntax |
 |-----------|--------|
-| Show OData clients | `SHOW ODATA CLIENTS [IN module]` |
-| Show OData services | `SHOW ODATA SERVICES [IN module]` |
-| Show external entities | `SHOW EXTERNAL ENTITIES [IN module]` |
-| Show external actions | `SHOW EXTERNAL ACTIONS [IN module]` |
-| Describe OData client | `DESCRIBE ODATA CLIENT Module.Name` |
-| Describe OData service | `DESCRIBE ODATA SERVICE Module.Name` |
+| Show consumed odata services | `LIST CONSUMED ODATA SERVICES [IN module]` |
+| Show published odata services | `LIST PUBLISHED ODATA SERVICES [IN module]` |
+| Show external entities | `LIST EXTERNAL ENTITIES [IN module]` |
+| Show external actions | `LIST EXTERNAL ACTIONS [IN module]` |
+| Describe consumed odata service | `DESCRIBE CONSUMED ODATA SERVICE Module.Name` |
+| Describe published odata service | `DESCRIBE PUBLISHED ODATA SERVICE Module.Name` |
 | Describe external entity | `DESCRIBE EXTERNAL ENTITY Module.Name` |
 
 ## Catalog Tables

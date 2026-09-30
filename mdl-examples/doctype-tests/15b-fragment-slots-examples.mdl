@@ -40,7 +40,7 @@ create persistent entity SlotTest.Order (
  * The reusable Atlas card shell. `slot content` marks where each page's
  * widgets are spliced in.
  */
-define fragment Card as {
+create fragment Card as {
   -- Card styling via the Atlas `card` class (works on every Mendix version). The
   -- v3 `'Card style'` design property is intentionally NOT used here: it doesn't
   -- exist in the 10.x Atlas (CE6083) and this example is about content slots, not
@@ -107,8 +107,8 @@ create page SlotTest.P003_Dual_Cards
     use fragment Card as right_ {
       dynamictext rightTitle (content: 'Orders', rendermode: H4, class: 'card-title')
       datagrid ordGrid (datasource: database SlotTest.Order) {
-        column colNum (attribute: OrderNumber, caption: 'Order #')
-        column colTotal (attribute: TotalAmount, caption: 'Total')
+        column (attribute: OrderNumber, caption: 'Order #')
+        column (attribute: TotalAmount, caption: 'Total')
       }
     }
   }

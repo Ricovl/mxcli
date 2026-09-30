@@ -78,6 +78,7 @@ func (b *Backend) UpdatePage(page *pages.Page) error {
 	pv := b.ProjectVersion()
 	contents, err := encodePage(page, pv, func(g *genPg.Page) {
 		b.carryStoredPageHeader(page.ID, g, pv)
+		b.carryNoActionExecution(page.ID, g)
 	})
 	if err != nil {
 		return fmt.Errorf("UpdatePage: encode: %w", err)
@@ -152,6 +153,11 @@ func (b *Backend) carryStoredPageHeader(id model.ID, g *genPg.Page, pv *types.Pr
 	}
 	if v := bsonInt(bsonnav.DGet(stored, "CanvasHeight")); v > 0 {
 		g.SetCanvasHeight(int32(v))
+	}
+	// pageToGen writes ExportLevel "Hidden" as a constant, and MDL has no
+	// spelling for a page's export level, so an API page came back Hidden (#816).
+	if v := bsonnav.DGetString(stored, "ExportLevel"); v != "" {
+		g.SetExportLevel(v)
 	}
 }
 

@@ -112,7 +112,7 @@ func TestMoveRefusesAMistypedDoctype(t *testing.T) {
 		Folder:       "Private",
 	})
 	assertError(t, err)
-	assertContainsStr(t, err.Error(), "is a json structure, not a queue")
+	assertContainsStr(t, err.Error(), "is a json structure, not a task queue")
 	if probe.moved {
 		t.Error("a refused statement still reparented the document")
 	}

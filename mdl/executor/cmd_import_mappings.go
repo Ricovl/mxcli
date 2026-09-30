@@ -57,7 +57,7 @@ func listImportMappings(ctx *ExecContext, inModule string) error {
 		rows = append(rows, row{qualifiedName: qn, name: im.Name, schemaSource: src, elementCount: len(im.Elements)})
 	}
 
-	if len(rows) == 0 {
+	if len(rows) == 0 && ctx.Format != FormatJSON {
 		if inModule != "" {
 			fmt.Fprintf(ctx.Output, "No import mappings found in module %s\n", inModule)
 		} else {

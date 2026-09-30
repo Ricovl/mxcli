@@ -47,19 +47,18 @@ end;
  * there is no MCP-specific whitelist (Phase 1). Its def.json maps
  * attribute: -> the pg object key `datasource` (a String attribute).
  */
-create page MCPWidgetTest.P_BarcodeScanner
+create page MCPWidgetTest.P_BarcodeScanner folder 'MCPWidgets'
 (
-  params: {
+  params: (
     $Item: MCPWidgetTest.Item
-  },
+  ),
   title: 'Scan Barcode',
-  layout: Atlas_Core.PopupLayout,
-  folder: 'MCPWidgets'
+  layout: Atlas_Core.PopupLayout
 )
 {
   layoutgrid lg1 {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dataview dvItem (datasource: $Item) {
           textbox txtName (label: 'Name', attribute: Name)
           pluggablewidget 'com.mendix.widget.web.barcodescanner.BarcodeScanner' scanner1 (attribute: Barcode)
@@ -79,25 +78,24 @@ create page MCPWidgetTest.P_BarcodeScanner
  * (selector-primitive pruning). The {Name} placeholder becomes a {1} template
  * parameter bound to the entity-context attribute.
  */
-create page MCPWidgetTest.P_ImageActions
+create page MCPWidgetTest.P_ImageActions folder 'MCPWidgets'
 (
-  params: {
+  params: (
     $Item: MCPWidgetTest.Item
-  },
+  ),
   title: 'Item Image',
-  layout: Atlas_Core.PopupLayout,
-  folder: 'MCPWidgets'
+  layout: Atlas_Core.PopupLayout
 )
 {
   layoutgrid lg1 {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dataview dvItem (datasource: $Item) {
           pluggablewidget 'com.mendix.widget.web.image.Image' img1 (
             ImageType: 'imageUrl',
             imageUrl: 'https://example.com/item.png',
             alternativeText: 'Image of {Name}',
-            onClick: microflow MCPWidgetTest.ACT_Item_OnClick
+            onClick: call microflow MCPWidgetTest.ACT_Item_OnClick
           )
         }
       }

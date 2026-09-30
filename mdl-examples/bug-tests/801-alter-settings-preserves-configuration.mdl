@@ -34,19 +34,20 @@ create module Issue801;
 create module role Issue801.User;
 
 create constant Issue801.ApiBaseUrl
-  type string
-  default 'https://example.invalid';
+  ( Type: string, DefaultValue: 'https://example.invalid' );
 
 -- Set an override, then touch an unrelated section. Before the fix the second
 -- statement was enough on its own to flatten the override written by the first.
-alter settings constant 'Issue801.ApiBaseUrl' value 'https://acceptance.example.invalid'
+alter settings constant @Issue801.ApiBaseUrl value 'https://acceptance.example.invalid'
   in configuration 'Default';
 
-alter settings configuration 'Default'
-  HttpPortNumber = 8080;
+alter settings configuration 'Default' (
+  HttpPortNumber: 8080
+);
 
-alter settings model
-  BcryptCost = 10;
+alter settings runtime (
+  BcryptCost: 10
+);
 
 -- The override survives both writes and still reports its value.
 describe settings;

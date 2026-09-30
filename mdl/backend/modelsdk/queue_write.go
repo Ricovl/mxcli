@@ -67,7 +67,12 @@ func (b *Backend) UpdateQueue(q *types.Queue) error {
 	if b.writer == nil {
 		return fmt.Errorf("UpdateQueue: not connected for writing")
 	}
-	return b.writer.UpdateRawUnit(string(q.ID), serializeQueue(q))
+	// An ExportLevel the statement did not author is kept (#816).
+	contents, err := b.keepStoredExportLevelUnlessSet(string(q.ID), q.ExportLevel, serializeQueue(q))
+	if err != nil {
+		return fmt.Errorf("UpdateQueue: %w", err)
+	}
+	return b.writer.UpdateRawUnit(string(q.ID), contents)
 }
 
 // DeleteQueue removes a queue unit by ID.

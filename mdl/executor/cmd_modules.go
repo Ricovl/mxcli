@@ -612,7 +612,7 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 	}
 
 	// Output basic CREATE MODULE statement
-	fmt.Fprintf(ctx.Output, "create module %s;\n", targetModule.Name)
+	fmt.Fprintf(ctx.Output, "create or modify module %s;\n", targetModule.Name)
 
 	// Module roles live in the module's own Security$ModuleSecurity unit rather
 	// than in any document, so a sweep that describes every document in a module
@@ -621,7 +621,6 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 	describeModuleRoles(ctx, targetModule)
 
 	if !withAll {
-		fmt.Fprintln(ctx.Output, "/")
 		return nil
 	}
 
@@ -832,7 +831,6 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 		}
 	}
 
-	fmt.Fprintln(ctx.Output, "/")
 	return nil
 }
 
@@ -1240,7 +1238,7 @@ func describeModuleRoles(ctx *ExecContext, mod *model.Module) {
 
 	for _, r := range roles {
 		// Same shape DESCRIBE MODULE ROLE emits, so the two agree.
-		fmt.Fprintf(ctx.Output, "create module role %s.%s", mod.Name, r.Name)
+		fmt.Fprintf(ctx.Output, "create or modify module role %s.%s", mod.Name, r.Name)
 		if r.Description != "" {
 			// Double embedded quotes; a description containing one would
 			// otherwise terminate the literal and produce unparseable output.

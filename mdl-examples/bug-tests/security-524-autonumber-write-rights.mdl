@@ -40,9 +40,9 @@ begin
 end
 
 -- The reported statement: blanket write, no REVOKE narrowing it.
-grant Issue524.Coordinator on Issue524.ServiceRequest (read *, write *);
+grant read *, write * on entity Issue524.ServiceRequest to Issue524.Coordinator;
 
 -- RequestNumber must come back ReadOnly, Summary ReadOnly, Description ReadWrite.
 -- A blanket downgrade would also make Description ReadOnly, which is why the
 -- plain attribute is part of the check and not just decoration.
-show access on entity Issue524.ServiceRequest;
+list access on entity Issue524.ServiceRequest;

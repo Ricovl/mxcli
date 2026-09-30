@@ -24,8 +24,7 @@ create or modify persistent entity BusinessEvents.PublishedBusinessEvent (
   EventId: long
 );
 create or modify constant BusinessEvents.ServerUrl
-type string
-default 'localhost:9092';
+( Type: string, DefaultValue: 'localhost:9092' );
 /
 
 -- MARK: Supporting Entities
@@ -107,10 +106,10 @@ create or modify business event service BeTest.SimpleEvents
 -- ============================================================================
 
 
-show business event services;
-show business event services in BeTest;
+list business event services;
+list business event services in BeTest;
 describe business event service BeTest.SimpleEvents;
-show business events;
+list business events;
 
 -- ============================================================================
 -- PART 5: Drop Service

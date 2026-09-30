@@ -134,20 +134,25 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 		outputJavadoc(ctx.Output, svc.Description)
 	}
 
-	fmt.Fprintf(ctx.Output, "create odata client %s.%s (\n", moduleName, svc.Name)
+	// `create or modify`: the rewrite carries what describe cannot print (the icon,
+	// UseQuerySegment, the catalog and proxy keys, see carryStoredConsumedODataService),
+	// proven on ako/TestApp's clients by the round-trip harness (#743).
+	// The folder is a clause after the name (R9); `Folder:` is its alias.
+	folder := ""
+	if folderPath != "" {
+		folder = " folder " + mdlQuote(ctx, folderPath)
+	}
+	fmt.Fprintf(ctx.Output, "create or modify consumed odata service %s.%s%s (\n", moduleName, svc.Name, folder)
 
 	var props []string
-	if folderPath != "" {
-		props = append(props, fmt.Sprintf("  Folder: %s", mdlQuote(folderPath)))
-	}
 	if svc.Version != "" {
-		props = append(props, fmt.Sprintf("  Version: %s", mdlQuote(svc.Version)))
+		props = append(props, fmt.Sprintf("  Version: %s", mdlQuote(ctx, svc.Version)))
 	}
 	if svc.ODataVersion != "" {
 		props = append(props, fmt.Sprintf("  ODataVersion: %s", svc.ODataVersion))
 	}
 	if svc.MetadataUrl != "" {
-		props = append(props, fmt.Sprintf("  MetadataUrl: %s", mdlQuote(svc.MetadataUrl)))
+		props = append(props, fmt.Sprintf("  MetadataUrl: %s", mdlQuote(ctx, svc.MetadataUrl)))
 	}
 	if svc.TimeoutExpression != "" {
 		props = append(props, fmt.Sprintf("  Timeout: %s", svc.TimeoutExpression))
@@ -164,7 +169,7 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 			if ref := strings.TrimPrefix(cfg.CustomLocation, "@"); strings.HasPrefix(cfg.CustomLocation, "@") && qualifiedConstantName.MatchString(ref) {
 				props = append(props, fmt.Sprintf("  ServiceUrl: %s", ref))
 			} else {
-				props = append(props, fmt.Sprintf("  ServiceUrl: %s", formatExprValue(cfg.CustomLocation)))
+				props = append(props, fmt.Sprintf("  ServiceUrl: %s", formatExprValue(ctx, cfg.CustomLocation)))
 			}
 		}
 		// HttpUsername / HttpPassword / ClientCertificate and header values are
@@ -223,14 +228,12 @@ func outputConsumedODataServiceMDL(ctx *ExecContext, svc *model.ConsumedODataSer
 			if i == len(cfg.HeaderEntries)-1 {
 				comma = ""
 			}
-			fmt.Fprintf(ctx.Output, "  %s: %s%s\n", mdlQuote(h.Key), h.Value, comma)
+			fmt.Fprintf(ctx.Output, "  %s: %s%s\n", mdlQuote(ctx, h.Key), h.Value, comma)
 		}
 		fmt.Fprintln(ctx.Output, ");")
 	} else {
 		fmt.Fprintln(ctx.Output, ");")
 	}
-
-	fmt.Fprintln(ctx.Output, "/")
 
 	return nil
 }
@@ -328,29 +331,35 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 		outputJavadoc(ctx.Output, svc.Description)
 	}
 
-	fmt.Fprintf(ctx.Output, "create odata service %s.%s (\n", moduleName, svc.Name)
+	// `create or modify`: the rewrite carries what this output cannot print
+	// (ExportLevel, PageSize without paging, entity-set order, CanBeEmpty), and
+	// TestTestAppRoundTrip holds it to both round-trip laws on the Studio
+	// Pro-authored services of ako/TestApp (#743).
+	// The folder is a clause after the name (R9); `Folder:` is its alias.
+	folder := ""
+	if folderPath != "" {
+		folder = " folder " + mdlQuoted(folderPath)
+	}
+	fmt.Fprintf(ctx.Output, "create or modify published odata service %s.%s%s (\n", moduleName, svc.Name, folder)
 
 	var props []string
-	if folderPath != "" {
-		props = append(props, fmt.Sprintf("  Folder: '%s'", folderPath))
-	}
 	if svc.Path != "" {
-		props = append(props, fmt.Sprintf("  Path: '%s'", svc.Path))
+		props = append(props, "  Path: "+mdlQuoted(svc.Path))
 	}
 	if svc.Version != "" {
-		props = append(props, fmt.Sprintf("  Version: '%s'", svc.Version))
+		props = append(props, "  Version: "+mdlQuoted(svc.Version))
 	}
 	if svc.ODataVersion != "" {
 		props = append(props, fmt.Sprintf("  ODataVersion: %s", svc.ODataVersion))
 	}
 	if svc.Namespace != "" {
-		props = append(props, fmt.Sprintf("  Namespace: '%s'", svc.Namespace))
+		props = append(props, "  Namespace: "+mdlQuoted(svc.Namespace))
 	}
 	if svc.ServiceName != "" {
-		props = append(props, fmt.Sprintf("  ServiceName: '%s'", svc.ServiceName))
+		props = append(props, "  ServiceName: "+mdlQuoted(svc.ServiceName))
 	}
 	if svc.Summary != "" {
-		props = append(props, fmt.Sprintf("  Summary: '%s'", svc.Summary))
+		props = append(props, "  Summary: "+mdlQuoted(svc.Summary))
 	}
 	if svc.PublishAssociations {
 		props = append(props, "  PublishAssociations: Yes")
@@ -362,21 +371,34 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 	}
 	fmt.Fprintln(ctx.Output, strings.Join(props, ",\n"))
 
-	fmt.Fprintln(ctx.Output, ")")
+	// The statement ends with `;` after whichever clause comes last: the
+	// property list, the authentication clause or the entity block (ADR-0010
+	// R11).
+	hasBlock := len(svc.EntityTypes) > 0 || len(svc.EntitySets) > 0 || len(svc.Microflows) > 0
+	hasAuth := len(svc.AuthenticationTypes) > 0 || svc.AuthMicroflow != ""
+	if hasBlock || hasAuth {
+		fmt.Fprintln(ctx.Output, ")")
+	} else {
+		fmt.Fprintln(ctx.Output, ");")
+	}
 
 	// Authentication types. The custom-authentication microflow is part of the
 	// clause, not a comment beside it: emitted as a comment the output looked
 	// complete but replayed into a service Mendix rejects with CE0333
 	// (mxcli-formula1 §40).
+	authEnd := "\n"
+	if !hasBlock {
+		authEnd = ";\n"
+	}
 	if len(svc.AuthenticationTypes) > 0 {
-		fmt.Fprintf(ctx.Output, "authentication %s\n", odataAuthClause(svc))
+		fmt.Fprintf(ctx.Output, "authentication %s%s", odataAuthClause(svc), authEnd)
 	} else if svc.AuthMicroflow != "" {
 		// A microflow with no type recorded still has to survive the round trip.
-		fmt.Fprintf(ctx.Output, "authentication microflow %s\n", svc.AuthMicroflow)
+		fmt.Fprintf(ctx.Output, "authentication microflow %s%s", svc.AuthMicroflow, authEnd)
 	}
 
 	// Published entities block
-	if len(svc.EntityTypes) > 0 || len(svc.EntitySets) > 0 || len(svc.Microflows) > 0 {
+	if hasBlock {
 		fmt.Fprintln(ctx.Output, "{")
 
 		// Build entity set lookup by exposed name and entity type name for merging
@@ -422,7 +444,7 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 			if es != nil && es.ExposedName != "" {
 				exposedName = es.ExposedName
 			}
-			fmt.Fprintf(ctx.Output, "  publish entity %s as '%s'", et.Entity, exposedName)
+			fmt.Fprintf(ctx.Output, "  publish entity %s as %s", et.Entity, mdlQuoted(exposedName))
 			if es != nil {
 				var modeProps []string
 				if es.ReadMode != "" {
@@ -480,7 +502,7 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 					// (Module.Entity.Member), while `expose (...)` takes a bare
 					// member name — so emitting the stored form produced MDL
 					// that does not parse (mxcli-formula1 findings #10.5).
-					line := fmt.Sprintf("    %s as '%s'", bareMemberName(m.Name), m.ExposedName)
+					line := fmt.Sprintf("    %s as %s", bareMemberName(m.Name), mdlQuoted(m.ExposedName))
 					if len(modifiers) > 0 {
 						line += fmt.Sprintf(" (%s)", strings.Join(modifiers, ", "))
 					}
@@ -501,17 +523,15 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 			printPublishedMicroflowMDL(ctx.Output, pm)
 		}
 
-		fmt.Fprintln(ctx.Output, "}")
+		fmt.Fprintln(ctx.Output, "};")
 	}
 
 	// Output GRANT statements for allowed module roles
 	if len(svc.AllowedModuleRoles) > 0 {
 		fmt.Fprintln(ctx.Output)
-		fmt.Fprintf(ctx.Output, "grant access on odata service %s.%s to %s;\n",
+		fmt.Fprintf(ctx.Output, "grant access on published odata service %s.%s to %s;\n",
 			moduleName, svc.Name, strings.Join(svc.AllowedModuleRoles, ", "))
 	}
-
-	fmt.Fprintln(ctx.Output, "/")
 
 	return nil
 }
@@ -757,16 +777,18 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 		outputJavadoc(ctx.Output, entity.Documentation)
 	}
 
-	fmt.Fprintf(ctx.Output, "create external entity %s.%s\n", moduleName, entity.Name)
-	fmt.Fprintf(ctx.Output, "from odata client %s\n", entity.RemoteServiceName)
+	// `create or modify`: the rewrite keeps each stored attribute's identity and
+	// OData mapping by name (#743), proven on ako/TestApp by the round-trip harness.
+	fmt.Fprintf(ctx.Output, "create or modify external entity %s.%s\n", moduleName, entity.Name)
+	fmt.Fprintf(ctx.Output, "from consumed odata service %s\n", entity.RemoteServiceName)
 	fmt.Fprintln(ctx.Output, "(")
 
 	var props []string
 	if entity.RemoteEntitySet != "" {
-		props = append(props, fmt.Sprintf("  EntitySet: '%s'", entity.RemoteEntitySet))
+		props = append(props, "  EntitySet: "+mdlQuoted(entity.RemoteEntitySet))
 	}
 	if entity.RemoteEntityName != "" {
-		props = append(props, fmt.Sprintf("  RemoteName: '%s'", entity.RemoteEntityName))
+		props = append(props, "  RemoteName: "+mdlQuoted(entity.RemoteEntityName))
 	}
 	boolStr := func(b bool) string {
 		if b {
@@ -781,27 +803,28 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 	props = append(props, fmt.Sprintf("  AllowCreateChangeLocally: %s", boolStr(entity.CreateChangeLocally)))
 	fmt.Fprintln(ctx.Output, strings.Join(props, ",\n"))
 
-	fmt.Fprintln(ctx.Output, ")")
-
-	// Output attributes
-	if len(entity.Attributes) > 0 {
-		fmt.Fprintln(ctx.Output, "(")
-		for i, attr := range entity.Attributes {
-			typeName := "Unknown"
-			if attr.Type != nil {
-				typeName = attr.Type.GetTypeName()
-			}
-			comma := ","
-			if i == len(entity.Attributes)-1 {
-				comma = ""
-			}
-			fmt.Fprintf(ctx.Output, "  %s: %s%s\n", attr.Name, typeName, comma)
-		}
+	// Output attributes. Without them the statement ends at the property list,
+	// and still ends with `;` (ADR-0010 R11).
+	if len(entity.Attributes) == 0 {
 		fmt.Fprintln(ctx.Output, ");")
+		return nil
 	}
-
-	fmt.Fprintln(ctx.Output, "/")
-
+	fmt.Fprintln(ctx.Output, ")")
+	fmt.Fprintln(ctx.Output, "(")
+	for i, attr := range entity.Attributes {
+		// formatAttributeType, not GetTypeName: the bare `String` executes as
+		// unlimited and rewrote a stored String(36) (#743).
+		typeName := "Unknown"
+		if attr.Type != nil {
+			typeName = formatAttributeType(attr.Type)
+		}
+		comma := ","
+		if i == len(entity.Attributes)-1 {
+			comma = ""
+		}
+		fmt.Fprintf(ctx.Output, "  %s: %s%s\n", attr.Name, typeName, comma)
+	}
+	fmt.Fprintln(ctx.Output, ");")
 	return nil
 }
 
@@ -817,7 +840,7 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 	}
 
 	if s.Name.Module == "" {
-		return mdlerrors.NewValidation("module name required: use create external entity Module.Name from odata client ...")
+		return mdlerrors.NewValidation("module name required: use create external entity Module.Name from consumed odata service ...")
 	}
 
 	// Find module
@@ -894,6 +917,22 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 			existingEntity.CreateChangeLocally = *s.AllowCreateChangeLocally
 		}
 		if len(attrs) > 0 {
+			// The rebuilt attributes keep each stored attribute's identity and
+			// what the statement cannot spell (the OData mapping, LocalizeDate),
+			// by name; a fresh $ID and a plain StoredValue made the rewrite an
+			// unmapped attribute (#743).
+			for _, a := range attrs {
+				for _, old := range existingEntity.Attributes {
+					if old.Name == a.Name {
+						a.ID = old.ID
+						break
+					}
+				}
+			}
+			if err := checkRemoteTypes(ctx, s.Name.String(), existingEntity, attrs); err != nil {
+				return err
+			}
+			carryStoredAttributeState(existingEntity, attrs)
 			existingEntity.Attributes = attrs
 		}
 		// A rewrite that carried no doc comment keeps the stored one; an
@@ -967,7 +1006,7 @@ func createODataClient(ctx *ExecContext, stmt *ast.CreateODataClientStmt) error 
 	}
 
 	if stmt.Name.Module == "" {
-		return mdlerrors.NewValidation("module name required: use create odata client Module.Name (...)")
+		return mdlerrors.NewValidation("module name required: use create consumed odata service Module.Name (...)")
 	}
 
 	if err := validateMetadataURL(stmt.MetadataUrl); err != nil {
@@ -1099,7 +1138,11 @@ func createODataClient(ctx *ExecContext, stmt *ast.CreateODataClientStmt) error 
 					}
 					return nil
 				}
-				return mdlerrors.NewAlreadyExistsMsg("OData client", modName+"."+svc.Name, fmt.Sprintf("OData client already exists: %s.%s (use create or modify to update)", modName, svc.Name))
+				// The rewrite carries what describe cannot print (#743), so it is
+				// the advice again, as for every other document type.
+				return mdlerrors.NewAlreadyExistsMsg("OData client", modName+"."+svc.Name, fmt.Sprintf(
+					"OData client already exists: %s.%s (use create or modify to update it, or "+
+						"'alter consumed odata service %s.%s set ...' to change one property)", modName, svc.Name, modName, svc.Name))
 			}
 		}
 	}
@@ -1153,7 +1196,7 @@ func createODataClient(ctx *ExecContext, stmt *ast.CreateODataClientStmt) error 
 			if err != nil {
 				return fmt.Errorf(`ServiceUrl must name a constant (e.g., Module.ApiLocation) — Studio Pro CE6825.
 Create a constant first:
-  CREATE CONSTANT Module.ApiLocation TYPE String DEFAULT 'https://api.example.com/';
+  CREATE CONSTANT Module.ApiLocation ( Type: String, DefaultValue: 'https://api.example.com/' );
 Then reference it:
   ServiceUrl: Module.ApiLocation
 Got: %s`, stmt.ServiceUrl)
@@ -1429,7 +1472,7 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 	}
 
 	if stmt.Name.Module == "" {
-		return mdlerrors.NewValidation("module name required: use create odata service Module.Name (...)")
+		return mdlerrors.NewValidation("module name required: use create published odata service Module.Name (...)")
 	}
 
 	// Gate before the write, not after: a property the project's Mendix version
@@ -1534,6 +1577,7 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 					// service — a member removed from the script is removed from
 					// the service, which merging could never express.
 					if len(stmt.Entities) > 0 {
+						storedTypes, storedSets := svc.EntityTypes, svc.EntitySets
 						svc.EntityTypes = nil
 						svc.EntitySets = nil
 						for _, entityDef := range stmt.Entities {
@@ -1541,6 +1585,7 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 							svc.EntityTypes = append(svc.EntityTypes, entityType)
 							svc.EntitySets = append(svc.EntitySets, entitySet)
 						}
+						carryPublishedEntityState(storedTypes, storedSets, svc)
 					}
 					// AllowedModuleRoles is granted by a separate statement
 					// (`grant access on odata service …`) and cannot be expressed
@@ -1652,6 +1697,53 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 	invalidateHierarchy(ctx)
 	fmt.Fprintf(ctx.Output, "Created OData service: %s.%s\n", stmt.Name.Module, stmt.Name.Name)
 	return nil
+}
+
+// carryPublishedEntityState carries onto a service's rebuilt entity types and
+// sets what the `publish entity` block has no spelling for, from the stored
+// ones (#743):
+//   - an entity set's PageSize when the statement does not page (describe prints
+//     PageSize only with UsePaging, and Studio Pro stores 10000 either way);
+//   - the stored order of the entity sets, which describe prints in entity-type
+//     order; sets the stored service did not have follow, in statement order;
+//   - each member's CanBeEmpty, matched by entity and member name.
+func carryPublishedEntityState(storedTypes []*model.PublishedEntityType, storedSets []*model.PublishedEntitySet, svc *model.PublishedODataService) {
+	setIndex := make(map[string]int, len(storedSets))
+	setByEntity := make(map[string]*model.PublishedEntitySet, len(storedSets))
+	for i, es := range storedSets {
+		setIndex[es.EntityTypeName] = i
+		setByEntity[es.EntityTypeName] = es
+	}
+	for _, es := range svc.EntitySets {
+		if old, ok := setByEntity[es.EntityTypeName]; ok && !es.UsePaging && es.PageSize == 0 {
+			es.PageSize = old.PageSize
+		}
+	}
+	sort.SliceStable(svc.EntitySets, func(i, j int) bool {
+		a, aok := setIndex[svc.EntitySets[i].EntityTypeName]
+		b, bok := setIndex[svc.EntitySets[j].EntityTypeName]
+		switch {
+		case aok && bok:
+			return a < b
+		default:
+			return aok && !bok
+		}
+	})
+
+	members := map[string]*model.PublishedMember{} // entity + "/" + bare member name
+	for _, et := range storedTypes {
+		for _, m := range et.Members {
+			members[et.Entity+"/"+bareMemberName(m.Name)] = m
+		}
+	}
+	for _, et := range svc.EntityTypes {
+		for _, m := range et.Members {
+			if old, ok := members[et.Entity+"/"+bareMemberName(m.Name)]; ok && old.CanBeEmpty != nil {
+				v := *old.CanBeEmpty
+				m.CanBeEmpty = &v
+			}
+		}
+	}
 }
 
 // alterODataService handles ALTER ODATA SERVICE command.
@@ -1816,8 +1908,8 @@ func validateODataClientExists(ctx *ExecContext, ref ast.QualifiedName) error {
 // unchanged made a re-exec of DESCRIBE store `abc` — an identifier, not a
 // string (ako/TestApp Odata.Bug1073). mdlQuote is the inverse of the visitor's
 // unquoteString, backslashes included.
-func formatExprValue(val string) string {
-	return mdlQuote(val)
+func formatExprValue(ctx *ExecContext, val string) string {
+	return mdlQuote(ctx, val)
 }
 
 // extractConstantRef strips a leading "@" from a constant reference. The proxy
@@ -2409,7 +2501,7 @@ func odataAuthClause(svc *model.PublishedODataService) string {
 func printPublishedMicroflowMDL(w io.Writer, pm *model.PublishedMicroflow) {
 	head := "  publish microflow " + pm.Microflow
 	if pm.ExposedName != "" {
-		head += fmt.Sprintf(" as '%s'", pm.ExposedName)
+		head += " as " + mdlQuoted(pm.ExposedName)
 	}
 	if len(pm.Parameters) == 0 {
 		fmt.Fprintln(w, head+";")
@@ -2426,7 +2518,7 @@ func printPublishedMicroflowMDL(w io.Writer, pm *model.PublishedMicroflow) {
 		}
 		part := name
 		if p.ExposedName != "" && p.ExposedName != name {
-			part += fmt.Sprintf(" as '%s'", p.ExposedName)
+			part += " as " + mdlQuoted(p.ExposedName)
 		}
 		if p.CanBeEmpty {
 			part += " (CanBeEmpty)"

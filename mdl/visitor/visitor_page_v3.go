@@ -65,6 +65,11 @@ func (b *Builder) buildPageV3(ctx *parser.CreatePageStatementContext) *ast.Creat
 		}
 	}
 
+	// `folder '…'` after the name (R9); the header's `Folder:` is its alias.
+	if lit := ctx.STRING_LITERAL(); lit != nil {
+		stmt.Folder = unquoteStringLit(lit)
+	}
+
 	// Parse V3 header
 	if headerCtx := ctx.PageHeaderV3(); headerCtx != nil {
 		b.parsePageHeaderV3(headerCtx, stmt)
@@ -86,51 +91,58 @@ func (b *Builder) parsePageHeaderV3(ctx parser.IPageHeaderV3Context, stmt *ast.C
 		return
 	}
 	headerCtx := ctx.(*parser.PageHeaderV3Context)
+	page, _ := headerCtx.GetParent().(*parser.CreatePageStatementContext)
 
-	for _, propCtx := range headerCtx.AllPageHeaderPropertyV3() {
+	for i, propCtx := range headerCtx.AllPageHeaderPropertyV3() {
 		prop := propCtx.(*parser.PageHeaderPropertyV3Context)
 
 		if prop.PARAMS() != nil {
-			// Params: { $Order: Entity, ... }
+			// Params: ( $Order: Entity, ... )
 			if paramList := prop.PageParameterList(); paramList != nil {
 				stmt.Parameters = buildPageParameters(paramList)
 			}
 		} else if prop.VARIABLES_KW() != nil {
-			// Variables: { $showStock: Boolean = 'true', ... }
+			// Variables: ( $showStock: Boolean = 'true', ... )
 			if varList := prop.VariableDeclarationList(); varList != nil {
 				stmt.Variables = buildVariableDeclarations(varList)
 			}
 		} else if prop.TITLE() != nil {
 			// Title: 'My Page'
 			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Title = unquoteString(str.GetText())
+				stmt.Title = unquoteStringLit(str)
 			}
 		} else if prop.LAYOUT() != nil {
 			// Layout: Atlas_Core.Atlas_Default or 'Layout Name'
 			if qn := prop.QualifiedName(); qn != nil {
 				stmt.Layout = getQualifiedNameText(qn)
 			} else if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Layout = unquoteString(str.GetText())
+				stmt.Layout = unquoteStringLit(str)
 			}
 		} else if prop.URL() != nil {
 			// Url: 'my-page'
 			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.URL = unquoteString(str.GetText())
+				stmt.URL = unquoteStringLit(str)
 			}
 		} else if prop.FOLDER() != nil {
-			// Folder: 'Pages/Admin'
-			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Folder = unquoteString(str.GetText())
+			// Folder: 'Pages/Admin' — the alias of `folder '…'` after the name
+			// (R9, MDL-DEPR105). The clause wins when both are written.
+			if str := prop.STRING_LITERAL(); str != nil && page != nil {
+				clause := page.STRING_LITERAL() != nil
+				if !clause {
+					stmt.Folder = unquoteStringLit(str)
+				}
+				b.recordFolderProperty(page.QualifiedName(), ruleContexts(headerCtx.AllPageHeaderPropertyV3()), i,
+					unquoteStringLit(str), clause, nil)
 			}
 		} else if prop.CLASS() != nil {
 			// Class: 'my-page' — page-level CSS class (issue #714)
 			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Class = unquoteString(str.GetText())
+				stmt.Class = unquoteStringLit(str)
 			}
 		} else if prop.STYLE() != nil {
 			// Style: 'padding: 10px' — page-level inline CSS (issue #714)
 			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Style = unquoteString(str.GetText())
+				stmt.Style = unquoteStringLit(str)
 			}
 		} else if id := prop.IDENTIFIER(); id != nil {
 			// Generic page header property (e.g. PopupWidth: 800). Only the
@@ -216,6 +228,11 @@ func (b *Builder) buildSnippetV3(ctx *parser.CreateSnippetStatementContext) *ast
 		stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	}
 
+	// `folder '…'` after the name (R9); the header's `Folder:` is its alias.
+	if lit := ctx.STRING_LITERAL(); lit != nil {
+		stmt.Folder = unquoteStringLit(lit)
+	}
+
 	// Parse V3 header
 	if headerCtx := ctx.SnippetHeaderV3(); headerCtx != nil {
 		b.parseSnippetHeaderV3(headerCtx, stmt)
@@ -224,10 +241,13 @@ func (b *Builder) buildSnippetV3(ctx *parser.CreateSnippetStatementContext) *ast
 	// Parse options (FOLDER)
 	if opts := ctx.SnippetOptions(); opts != nil {
 		optsCtx := opts.(*parser.SnippetOptionsContext)
-		for _, opt := range optsCtx.AllSnippetOption() {
+		all := optsCtx.AllSnippetOption()
+		for _, opt := range all {
 			optCtx := opt.(*parser.SnippetOptionContext)
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Folder = unquoteString(optCtx.STRING_LITERAL().GetText())
+				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
+				b.recordFolderClausePosition(ctx.QualifiedName(), optCtx.FOLDER().GetSymbol(),
+					optCtx.STRING_LITERAL().GetSymbol(), ctx.STRING_LITERAL() != nil || len(all) > 1 || snippetHeaderHasFolder(ctx))
 			}
 		}
 	}
@@ -246,24 +266,32 @@ func (b *Builder) parseSnippetHeaderV3(ctx parser.ISnippetHeaderV3Context, stmt 
 		return
 	}
 	headerCtx := ctx.(*parser.SnippetHeaderV3Context)
+	snippet, _ := headerCtx.GetParent().(*parser.CreateSnippetStatementContext)
 
-	for _, propCtx := range headerCtx.AllSnippetHeaderPropertyV3() {
+	for i, propCtx := range headerCtx.AllSnippetHeaderPropertyV3() {
 		prop := propCtx.(*parser.SnippetHeaderPropertyV3Context)
 
 		if prop.PARAMS() != nil {
-			// Params: { $Customer: Entity, ... }
+			// Params: ( $Customer: Entity, ... )
 			if paramList := prop.PageParameterList(); paramList != nil {
 				stmt.Parameters = buildPageParameters(paramList)
 			}
 		} else if prop.VARIABLES_KW() != nil {
-			// Variables: { $showStock: Boolean = 'true', ... }
+			// Variables: ( $showStock: Boolean = 'true', ... )
 			if varList := prop.VariableDeclarationList(); varList != nil {
 				stmt.Variables = buildVariableDeclarations(varList)
 			}
 		} else if prop.FOLDER() != nil {
-			// Folder: 'Snippets/Common'
-			if str := prop.STRING_LITERAL(); str != nil {
-				stmt.Folder = unquoteString(str.GetText())
+			// Folder: 'Snippets/Common' — the alias of `folder '…'` after the
+			// name (R9, MDL-DEPR105). The clause wins when both are written.
+			if str := prop.STRING_LITERAL(); str != nil && snippet != nil {
+				clause := snippet.STRING_LITERAL() != nil
+				if !clause {
+					stmt.Folder = unquoteStringLit(str)
+				}
+				// The snippet header is optional, so an only `Folder:` goes with it.
+				b.recordFolderProperty(snippet.QualifiedName(), ruleContexts(headerCtx.AllSnippetHeaderPropertyV3()), i,
+					unquoteStringLit(str), clause, headerCtx)
 			}
 		}
 	}
@@ -305,7 +333,7 @@ func buildSingleVariableDeclaration(vdCtx *parser.VariableDeclarationContext) as
 	}
 
 	if str := vdCtx.STRING_LITERAL(); str != nil {
-		v.DefaultValue = unquoteString(str.GetText())
+		v.DefaultValue = unquoteStringLit(str)
 	}
 
 	return v
@@ -536,10 +564,10 @@ func buildWidgetV3(ctx parser.IWidgetV3Context, b *Builder) *ast.WidgetV3 {
 	// Get widget type
 	if wCtx.PLUGGABLEWIDGET() != nil {
 		widget.Type = "pluggablewidget"
-		widget.Properties["WidgetType"] = unquoteString(wCtx.STRING_LITERAL().GetText())
+		widget.Properties["WidgetType"] = unquoteStringLit(wCtx.STRING_LITERAL())
 	} else if wCtx.CUSTOMWIDGET() != nil {
 		widget.Type = "customwidget"
-		widget.Properties["WidgetType"] = unquoteString(wCtx.STRING_LITERAL().GetText())
+		widget.Properties["WidgetType"] = unquoteStringLit(wCtx.STRING_LITERAL())
 	} else if typeCtx := wCtx.WidgetTypeV3(); typeCtx != nil {
 		widget.Type = strings.ToLower(typeCtx.GetText())
 		// Which alternative matched, taken from the parse tree rather than by
@@ -563,10 +591,13 @@ func buildWidgetV3(ctx parser.IWidgetV3Context, b *Builder) *ast.WidgetV3 {
 	// (traceops #12).
 	if id := wCtx.IDENTIFIER(); id != nil {
 		widget.Name = id.GetText()
+		b.rememberWidgetName(widget, wCtx, id.GetSymbol())
 	} else if qid := wCtx.QUOTED_IDENTIFIER(); qid != nil {
 		widget.Name = unquoteIdentifier(qid.GetText())
+		b.rememberWidgetName(widget, wCtx, qid.GetSymbol())
 	} else if kw := wCtx.Keyword(); kw != nil {
 		widget.Name = kw.GetText()
+		b.rememberWidgetName(widget, wCtx, kw.GetStop())
 	}
 
 	// Parse properties
@@ -578,6 +609,7 @@ func buildWidgetV3(ctx parser.IWidgetV3Context, b *Builder) *ast.WidgetV3 {
 	if bodyCtx := wCtx.WidgetBodyV3(); bodyCtx != nil {
 		widget.Children = buildWidgetBodyV3(bodyCtx, b)
 	}
+	b.dropUnstoredChildNames(widget)
 
 	return widget
 }
@@ -613,6 +645,21 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	if propCtx.ATTRIBUTE() != nil {
 		if pathCtx := propCtx.AttributePathV3(); pathCtx != nil {
 			widget.Properties["Attribute"] = buildAttributePathV3(pathCtx)
+		} else if refCtx := propCtx.WidgetAttributeRefV3(); refCtx != nil {
+			// `$dataView1.Name`: kept as written; the builder resolves the name
+			// to the data view it reads through (ako/mxcli#826). Only the input
+			// builders read it — any other widget resolved the `$…` string to no
+			// attribute and was written without one, so it stays refused there.
+			ref := buildWidgetAttributeRefV3(refCtx)
+			if !widgetAttributeRefKinds[strings.ToLower(widget.Type)] {
+				_, attr, _ := strings.Cut(ref, ".")
+				b.addError(fmt.Errorf("%s `%s`: `Attribute: %s` — reading an attribute through a data view "+
+					"is supported on textbox, textarea, checkbox, datepicker, radiobuttons and dropdown; "+
+					"bind the attribute by name inside the data view instead (`Attribute: %s`)",
+					widget.Type, widget.Name, refCtx.GetText(), attr))
+				return
+			}
+			widget.Properties["Attribute"] = ref
 		}
 		return
 	}
@@ -643,7 +690,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	// Placeholder: 'text' (input widgets)
 	if propCtx.PLACEHOLDER() != nil {
 		if str := propCtx.STRING_LITERAL(); str != nil {
-			widget.Properties["Placeholder"] = unquoteString(str.GetText())
+			widget.Properties["Placeholder"] = unquoteStringLit(str)
 		}
 		return
 	}
@@ -659,7 +706,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	// Label: ...
 	if propCtx.LABEL() != nil {
 		if str := propCtx.STRING_LITERAL(); str != nil {
-			widget.Properties["Label"] = unquoteString(str.GetText())
+			widget.Properties["Label"] = unquoteStringLit(str)
 		}
 		return
 	}
@@ -687,7 +734,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		return
 	}
 
-	// ContentParams: [...]
+	// ContentParams: (...)
 	if propCtx.CONTENTPARAMS() != nil {
 		if plCtx := propCtx.ParamListV3(); plCtx != nil {
 			widget.Properties["ContentParams"] = buildParamListV3(plCtx)
@@ -695,7 +742,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		return
 	}
 
-	// CaptionParams: [...]
+	// CaptionParams: (...)
 	if propCtx.CAPTIONPARAMS() != nil {
 		if plCtx := propCtx.ParamListV3(); plCtx != nil {
 			widget.Properties["CaptionParams"] = buildParamListV3(plCtx)
@@ -722,7 +769,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	// Class: ...
 	if propCtx.CLASS() != nil {
 		if str := propCtx.STRING_LITERAL(); str != nil {
-			widget.Properties["Class"] = unquoteString(str.GetText())
+			widget.Properties["Class"] = unquoteStringLit(str)
 		}
 		return
 	}
@@ -730,7 +777,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	// Style: ...
 	if propCtx.STYLE() != nil {
 		if str := propCtx.STRING_LITERAL(); str != nil {
-			widget.Properties["Style"] = unquoteString(str.GetText())
+			widget.Properties["Style"] = unquoteStringLit(str)
 		}
 		return
 	}
@@ -777,7 +824,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		return
 	}
 
-	// Params: {$Asset: $var} — snippet call parameter mappings
+	// Params: (Asset = $var) — snippet call arguments
 	if propCtx.PARAMS() != nil {
 		if plCtx := propCtx.SnippetCallParamListV3(); plCtx != nil {
 			widget.Properties["Params"] = buildSnippetCallParamListV3(plCtx)
@@ -821,7 +868,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		return
 	}
 
-	// DesignProperties: [...]
+	// DesignProperties: (...)
 	if propCtx.DESIGNPROPERTIES() != nil {
 		if dpCtx := propCtx.DesignPropertyListV3(); dpCtx != nil {
 			widget.Properties["DesignProperties"] = buildDesignPropertyListV3(dpCtx)
@@ -841,7 +888,9 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 			return
 		}
 		if xc := propCtx.XpathConstraint(); xc != nil {
-			widget.Properties["VisibleIf"] = buildConditionalExpression(xc)
+			widget.Properties["VisibleIf"] = buildConditionalExpression(xc) // MDL-DEPR081
+		} else if e := propCtx.Expression(); e != nil {
+			widget.Properties["VisibleIf"] = bareArgumentText(e)
 		} else if valCtx := propCtx.PropertyValueV3(); valCtx != nil {
 			widget.Properties["Visible"] = buildPropertyValueV3(valCtx)
 		}
@@ -851,7 +900,9 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	// Editable: [expression] (conditional editability) or Editable: Never (static)
 	if propCtx.EDITABLE() != nil {
 		if xc := propCtx.XpathConstraint(); xc != nil {
-			widget.Properties["EditableIf"] = buildConditionalExpression(xc)
+			widget.Properties["EditableIf"] = buildConditionalExpression(xc) // MDL-DEPR081
+		} else if e := propCtx.Expression(); e != nil {
+			widget.Properties["EditableIf"] = bareArgumentText(e)
 		} else if valCtx := propCtx.PropertyValueV3(); valCtx != nil {
 			widget.Properties["Editable"] = buildPropertyValueV3(valCtx)
 		}
@@ -872,7 +923,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		// whichever value alternative matched (visitor_widget_expression.go).
 		if isWidgetExpressionProp(id.GetText()) {
 			if v := lastRuleChild(propCtx); v != nil {
-				widget.Properties[id.GetText()] = widgetExpressionValue(v)
+				widget.Properties[id.GetText()] = b.widgetExpressionPropValue(id.GetText(), v)
 			}
 			return
 		}
@@ -882,7 +933,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 			}
 			return
 		}
-		// `<Name>Params: [{1} = Attr]` — the parameters of a text-template
+		// `<Name>Params: ({1} = Attr)` — the parameters of a text-template
 		// sub-property whose name belongs to the WIDGET rather than to MDL (a
 		// File Uploader custom button's ButtonCaptionParams). ContentParams and
 		// CaptionParams have their own tokens and are handled above; every other
@@ -917,7 +968,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	if kw := propCtx.Keyword(); kw != nil {
 		if isWidgetExpressionProp(kw.GetText()) {
 			if v := lastRuleChild(propCtx); v != nil {
-				widget.Properties[kw.GetText()] = widgetExpressionValue(v)
+				widget.Properties[kw.GetText()] = b.widgetExpressionPropValue(kw.GetText(), v)
 			}
 			return
 		}
@@ -995,7 +1046,9 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 	dsCtx := ctx.(*parser.DataSourceExprV3Context)
 	ds := &ast.DataSourceV3{}
 
-	if v := dsCtx.VARIABLE(); v != nil && dsCtx.SLASH() != nil {
+	if dsCtx.DATABASE() != nil {
+		buildDatabaseSourceV3(dsCtx, ds)
+	} else if v := dsCtx.VARIABLE(); v != nil && dsCtx.SLASH() != nil {
 		// $currentObject/Module.Assoc — ByAssociation data source (sugar for ASSOCIATION Path)
 		ds.Type = "association"
 		ds.ContextVariable = strings.TrimPrefix(v.GetText(), "$")
@@ -1006,39 +1059,6 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 		// $ParamName
 		ds.Type = "parameter"
 		ds.Reference = v.GetText()
-	} else if dsCtx.DATABASE() != nil {
-		// DATABASE [FROM] Entity [WHERE ...] [SORT BY ...]
-		ds.Type = "database"
-		if qn := dsCtx.QualifiedName(); qn != nil {
-			ds.Reference = getQualifiedNameText(qn)
-		}
-
-		// Inline WHERE clause
-		if dsCtx.WHERE() != nil {
-			xpathConstraints := dsCtx.AllXpathConstraint()
-			if len(xpathConstraints) > 0 {
-				ds.Where = normalizeXPathTokens(buildXPathString(xpathConstraints, dsCtx.AllAndOrXpath()))
-			} else if expr := dsCtx.Expression(); expr != nil {
-				ds.Where = bracketedXPathFromExpr(buildExpression(expr))
-			}
-		}
-
-		// Inline SORT BY clause
-		if dsCtx.SORT_BY() != nil {
-			for _, sc := range dsCtx.AllSortColumn() {
-				ds.OrderBy = append(ds.OrderBy, buildSortColumnAsOrderBy(sc))
-			}
-		}
-
-		// Inline SEARCH BY clause — a List View's search bar
-		// (Forms$ListViewSearch.SearchRefs). Names only, no direction.
-		if dsCtx.SEARCH_BY() != nil {
-			for _, sa := range dsCtx.AllSearchAttribute() {
-				if name := strings.TrimSpace(sa.GetText()); name != "" {
-					ds.SearchAttributes = append(ds.SearchAttributes, name)
-				}
-			}
-		}
 	} else if dsCtx.MICROFLOW() != nil {
 		// MICROFLOW Module.Flow
 		ds.Type = "microflow"
@@ -1077,6 +1097,49 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 	return ds
 }
 
+// buildDatabaseSourceV3 fills a DATABASE source: its entity, or — for
+// `database from $ctx/Assoc/Entity` — the context variable and association path
+// it is reached over (ako/mxcli#721 L5), then the WHERE, SORT BY and SEARCH BY
+// clauses both forms share.
+func buildDatabaseSourceV3(dsCtx *parser.DataSourceExprV3Context, ds *ast.DataSourceV3) {
+	ds.Type = "database"
+	if v := dsCtx.VARIABLE(); v != nil {
+		ds.ContextVariable = strings.TrimPrefix(v.GetText(), "$")
+		if pathCtx := dsCtx.AssociationPathV3(); pathCtx != nil {
+			ds.AssociationPath = buildAssociationPathV3(pathCtx)
+		}
+	} else if qn := dsCtx.QualifiedName(); qn != nil {
+		ds.Reference = getQualifiedNameText(qn)
+	}
+
+	// Inline WHERE clause
+	if dsCtx.WHERE() != nil {
+		xpathConstraints := dsCtx.AllXpathConstraint()
+		if len(xpathConstraints) > 0 {
+			ds.Where = normalizeXPathTokens(buildXPathString(xpathConstraints, dsCtx.AllAndOrXpath()))
+		} else if expr := dsCtx.Expression(); expr != nil {
+			ds.Where = bracketedXPathFromExpr(buildExpression(expr))
+		}
+	}
+
+	// Inline SORT BY clause
+	if dsCtx.SORT_BY() != nil {
+		for _, sc := range dsCtx.AllSortColumn() {
+			ds.OrderBy = append(ds.OrderBy, buildSortColumnAsOrderBy(sc))
+		}
+	}
+
+	// Inline SEARCH BY clause — a List View's search bar
+	// (Forms$ListViewSearch.SearchRefs). Names only, no direction.
+	if dsCtx.SEARCH_BY() != nil {
+		for _, sa := range dsCtx.AllSearchAttribute() {
+			if name := strings.TrimSpace(sa.GetText()); name != "" {
+				ds.SearchAttributes = append(ds.SearchAttributes, name)
+			}
+		}
+	}
+}
+
 // buildActionV3 builds an Action from the parse context.
 func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 	if ctx == nil {
@@ -1085,9 +1148,13 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 	actCtx := ctx.(*parser.ActionExprV3Context)
 	action := &ast.ActionV3{}
 
-	if v := actCtx.VARIABLE(); v != nil && actCtx.OPEN_LINK() == nil {
+	// Each page action has a canonical spelling in words and a deprecated
+	// snake-case one (R8, ako/mxcli#752); both build the same action, and
+	// ExitActionExprV3 reports the old one.
+	closePage := actCtx.ClosePageV3() != nil
+	if v := actCtx.VARIABLE(); v != nil && actCtx.OpenLinkV3() == nil {
 		// $handler — a fragment action parameter; resolved at expansion.
-		// (OPEN_LINK $currentObject/Attr also carries a VARIABLE.)
+		// (open link $currentObject/Attr also carries a VARIABLE.)
 		action.Type = "param"
 		action.Target = strings.TrimPrefix(v.GetText(), "$")
 	} else if actCtx.NOTHING() != nil {
@@ -1099,18 +1166,16 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 		action.Type = "none"
 	} else if actCtx.SAVE_CHANGES() != nil {
 		action.Type = "save"
-		action.ClosePage = actCtx.CLOSE_PAGE() != nil
+		action.ClosePage = closePage
 	} else if actCtx.CANCEL_CHANGES() != nil {
 		action.Type = "cancel"
-		action.ClosePage = actCtx.CLOSE_PAGE() != nil
-	} else if actCtx.CLOSE_PAGE() != nil && actCtx.SAVE_CHANGES() == nil && actCtx.CANCEL_CHANGES() == nil {
+		action.ClosePage = closePage
+	} else if actCtx.DELETE_OBJECT() != nil || actCtx.DELETE() != nil {
+		action.Type = "delete"
+		action.ClosePage = closePage
+	} else if closePage {
 		action.Type = "close"
-	} else if actCtx.DELETE_OBJECT() != nil {
-		action.Type = "delete"
-	} else if actCtx.DELETE() != nil {
-		action.Type = "delete"
-		action.ClosePage = actCtx.CLOSE_PAGE() != nil
-	} else if actCtx.CREATE_OBJECT() != nil {
+	} else if actCtx.CREATE_OBJECT() != nil || actCtx.CREATE() != nil {
 		action.Type = "create"
 		if qn := actCtx.QualifiedName(); qn != nil {
 			action.Target = getQualifiedNameText(qn)
@@ -1119,7 +1184,7 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 		if thenCtx := actCtx.ActionExprV3(); thenCtx != nil {
 			action.ThenAction = buildActionV3(thenCtx)
 		}
-	} else if actCtx.SHOW_PAGE() != nil {
+	} else if actCtx.SHOW_PAGE() != nil || actCtx.SHOW() != nil {
 		action.Type = "showPage"
 		if qn := actCtx.QualifiedName(); qn != nil {
 			action.Target = getQualifiedNameText(qn)
@@ -1143,12 +1208,12 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 		if argsCtx := actCtx.MicroflowArgsV3(); argsCtx != nil {
 			action.Args = buildMicroflowArgsV3(argsCtx)
 		}
-	} else if actCtx.OPEN_LINK() != nil {
+	} else if actCtx.OpenLinkV3() != nil {
 		action.Type = "openLink"
 		if str := actCtx.STRING_LITERAL(); str != nil {
-			action.LinkURL = unquoteString(str.GetText())
+			action.LinkURL = unquoteStringLit(str)
 		}
-		// A dynamic address: `open_link $currentObject/URL`.
+		// A dynamic address: `open link $currentObject/URL`.
 		if v := actCtx.VARIABLE(); v != nil {
 			action.LinkVariable = v.GetText()
 			if pathCtx := actCtx.AttributePathV3(); pathCtx != nil {
@@ -1160,8 +1225,17 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 	} else if actCtx.COMPLETE_TASK() != nil {
 		action.Type = "completeTask"
 		if str := actCtx.STRING_LITERAL(); str != nil {
-			action.OutcomeValue = unquoteString(str.GetText())
+			action.OutcomeValue = unquoteStringLit(str)
 		}
+	}
+	if sc := actCtx.ActionSettingsV3(); sc != nil {
+		action.Settings = buildActionSettingsV3(sc)
+	}
+	// `create object E then show page P with (…)`: the settings belong to the
+	// one stored action, the create — the page it opens is part of it.
+	if action.Type == "create" && action.ThenAction != nil && action.ThenAction.Settings != nil {
+		action.Settings = action.ThenAction.Settings
+		action.ThenAction.Settings = nil
 	}
 
 	return action
@@ -1188,11 +1262,14 @@ func buildMicroflowArgV3(ctx parser.IMicroflowArgV3Context) ast.FlowArgV3 {
 	argCtx := ctx.(*parser.MicroflowArgV3Context)
 	arg := ast.FlowArgV3{}
 
-	if v := argCtx.VARIABLE(); v != nil {
-		// Microflow-style: $Param = $value
+	if pn := argCtx.ParameterName(); pn != nil {
+		// Canonical (R4): Param = $value
+		arg.Name = parameterNameText(pn)
+	} else if v := argCtx.VARIABLE(); v != nil {
+		// Deprecated (MDL-DEPR006): $Param = $value
 		arg.Name = strings.TrimPrefix(v.GetText(), "$")
 	} else if iok := argCtx.IdentifierOrKeyword(); iok != nil {
-		// Widget-style: Param: $value. identifierOrKeyword accepts a bare
+		// Deprecated (MDL-DEPR007): Param: $value. identifierOrKeyword accepts a bare
 		// keyword (View/Source/Item/Page/Entity) or a "quoted" name;
 		// identifierOrKeywordText unquotes as needed.
 		arg.Name = identifierOrKeywordText(iok)
@@ -1233,6 +1310,25 @@ func buildAssociationPathV3(ctx parser.IAssociationPathV3Context) string {
 	return strings.Join(parts, "/")
 }
 
+// widgetAttributeRefKinds are the widgets whose builder resolves `Attribute:
+// $dataView1.Name` (resolveInputBinding) — ako/mxcli#826.
+var widgetAttributeRefKinds = map[string]bool{
+	"textbox": true, "textarea": true, "checkbox": true,
+	"datepicker": true, "radiobuttons": true, "dropdown": true,
+}
+
+// buildWidgetAttributeRefV3 renders `$name.Attr` with a quoted attribute name
+// unquoted, the form resolveInputAttribute reads.
+func buildWidgetAttributeRefV3(ctx parser.IWidgetAttributeRefV3Context) string {
+	c, ok := ctx.(*parser.WidgetAttributeRefV3Context)
+	if !ok || c.VARIABLE() == nil {
+		return ""
+	}
+	text := c.GetText()
+	_, attr, _ := strings.Cut(text, ".")
+	return c.VARIABLE().GetText() + "." + unquoteIdentifier(attr)
+}
+
 // buildAttributePathV3 builds an attribute path string.
 // Handles quoted identifiers (e.g., "Order") by stripping quotes.
 func buildAttributePathV3(ctx parser.IAttributePathV3Context) string {
@@ -1261,7 +1357,7 @@ func buildStringExprV3(ctx parser.IStringExprV3Context) string {
 
 	// String literal: 'Hello {1}'
 	if str := strCtx.STRING_LITERAL(); str != nil {
-		return unquoteString(str.GetText())
+		return unquoteStringLit(str)
 	}
 
 	// Attribute path: Name or Entity/Attr
@@ -1574,10 +1670,14 @@ func extractXpathText(xc parser.IXpathConstraintContext) string {
 	return text
 }
 
-// parseWidthValue parses a column width value: numeric (1-12) or "AutoFill".
+// parseWidthValue parses a column width value: numeric (1-12), "AutoFill" or
+// "AutoFit" (auto-fit content).
 func parseWidthValue(text string) any {
 	if strings.EqualFold(text, "AutoFill") {
 		return "AutoFill"
+	}
+	if strings.EqualFold(text, "AutoFit") {
+		return "AutoFit"
 	}
 	if n, err := strconv.Atoi(text); err == nil {
 		return n
@@ -1592,7 +1692,7 @@ func buildPropertyValueV3(ctx parser.IPropertyValueV3Context) any {
 	pvCtx := ctx.(*parser.PropertyValueV3Context)
 
 	if str := pvCtx.STRING_LITERAL(); str != nil {
-		return unquoteString(str.GetText())
+		return unquoteStringLit(str)
 	}
 	// "AttrName" — a double-quoted value, used for pluggable-widget attribute
 	// sub-properties like chart series `staticXAttribute: "StatusValue"`. Strip
@@ -1679,7 +1779,7 @@ func buildDesignPropertyEntryV3(ctx parser.IDesignPropertyEntryV3Context) *ast.D
 		return nil
 	}
 
-	key := unquoteString(allStrings[0].GetText())
+	key := unquoteStringLit(allStrings[0])
 
 	// Compound (nested): 'Spacing': ['margin-top': 'Large', 'margin-bottom': 'Medium']
 	if listCtx := entryCtx.DesignPropertyListV3(); listCtx != nil {
@@ -1694,7 +1794,7 @@ func buildDesignPropertyEntryV3(ctx parser.IDesignPropertyEntryV3Context) *ast.D
 		return &ast.DesignPropertyEntryV3{Key: key, Value: "off"}
 	}
 	if len(allStrings) >= 2 {
-		return &ast.DesignPropertyEntryV3{Key: key, Value: unquoteString(allStrings[1].GetText())}
+		return &ast.DesignPropertyEntryV3{Key: key, Value: unquoteStringLit(allStrings[1])}
 	}
 
 	return nil
@@ -1880,8 +1980,21 @@ func xpathPathToString(path *ast.XPathPathExpr) string {
 
 // buildSnippetCallParamListV3 converts a parsed snippetCallParamListV3 context
 // into a slice of SnippetCallParam AST nodes.
+//
+// The canonical form binds `Param = $var` (R4) in ( ); the old brace map
+// `{$Param: $var}` / `{Param: $var}` builds the same params. The parameter name
+// is stored without its `$`, which the builder strips either way.
 func buildSnippetCallParamListV3(ctx parser.ISnippetCallParamListV3Context) []ast.SnippetCallParam {
 	var params []ast.SnippetCallParam
+	for _, argCtx := range ctx.AllSnippetCallArgV3() {
+		param := ast.SnippetCallParam{ParamName: parameterNameText(argCtx.ParameterName())}
+		if v := argCtx.VARIABLE(); v != nil {
+			param.Variable = v.GetText()
+		}
+		if param.ParamName != "" && param.Variable != "" {
+			params = append(params, param)
+		}
+	}
 	for _, mappingCtx := range ctx.AllSnippetCallParamMappingV3() {
 		param := ast.SnippetCallParam{}
 		if iok := mappingCtx.IdentifierOrKeyword(); iok != nil {
@@ -1894,7 +2007,7 @@ func buildSnippetCallParamListV3(ctx parser.ISnippetCallParamListV3Context) []as
 			// Param name written with $: $Asset: $someVar
 			vars := mappingCtx.AllVARIABLE()
 			if len(vars) >= 2 {
-				param.ParamName = vars[0].GetText()
+				param.ParamName = strings.TrimPrefix(vars[0].GetText(), "$")
 				param.Variable = vars[1].GetText()
 			}
 		}
@@ -2024,7 +2137,7 @@ func widgetIconName(c *parser.WidgetIconV3Context) string {
 		return buildQualifiedName(qn).String()
 	}
 	if str := c.STRING_LITERAL(); str != nil {
-		return unquoteString(str.GetText())
+		return unquoteStringLit(str)
 	}
 	return ""
 }

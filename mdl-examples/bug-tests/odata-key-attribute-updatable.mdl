@@ -87,10 +87,9 @@
 create or modify module OdataKeyUpd;
 
 create or modify constant OdataKeyUpd.SvcUrl
-  type string
-  default 'https://example.com/odata/v4/App/';
+  ( Type: string, DefaultValue: 'https://example.com/odata/v4/App/' );
 
-create or modify odata client OdataKeyUpd.App (
+create or modify consumed odata service OdataKeyUpd.App (
   ODataVersion: 'OData4',
   MetadataUrl: './key-updatable-metadata.xml',
   ServiceUrl: '@OdataKeyUpd.SvcUrl'

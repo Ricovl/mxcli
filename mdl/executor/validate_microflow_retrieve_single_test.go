@@ -27,6 +27,16 @@ func mfWith(body ...ast.MicroflowStatement) *ast.CreateMicroflowStmt {
 	}
 }
 
+// retrieveFirst is the object range: `first`, or `limit 1` in an mdl 0 script
+// (the visitor resolves both to First, ako/mxcli#734).
+func retrieveFirst(variable string) *ast.RetrieveStmt {
+	return &ast.RetrieveStmt{
+		Variable: variable,
+		Source:   ast.QualifiedName{Module: "Probe", Name: "Request"},
+		First:    true,
+	}
+}
+
 func retrieveLimit(variable, limit, offset string) *ast.RetrieveStmt {
 	return &ast.RetrieveStmt{
 		Variable: variable,
@@ -47,13 +57,13 @@ func retrieveLimit(variable, limit, offset string) *ast.RetrieveStmt {
 func TestRetrieveLimitOneUsedAsList(t *testing.T) {
 	t.Run("HEAD of a LIMIT 1 retrieve is flagged", func(t *testing.T) {
 		got := retrieveSingleViolations(t, mfWith(
-			retrieveLimit("reqs", "1", ""),
+			retrieveFirst("reqs"),
 			&ast.ListOperationStmt{Operation: ast.ListOpHead, InputVariable: "reqs", OutputVariable: "req"},
 		))
 		if len(got) != 1 {
 			t.Fatalf("got %d violations %q, want 1", len(got), got)
 		}
-		for _, want := range []string{"$reqs", "LIMIT 1", "CE0097"} {
+		for _, want := range []string{"$reqs", "`first`", "CE0097"} {
 			if !strings.Contains(got[0], want) {
 				t.Errorf("message %q does not mention %q", got[0], want)
 			}
@@ -62,17 +72,21 @@ func TestRetrieveLimitOneUsedAsList(t *testing.T) {
 
 	t.Run("looping over a LIMIT 1 retrieve is flagged", func(t *testing.T) {
 		got := retrieveSingleViolations(t, mfWith(
-			retrieveLimit("reqs", "1", ""),
+			retrieveFirst("reqs"),
 			&ast.LoopStmt{LoopVariable: "r", ListVariable: "reqs"},
 		))
 		if len(got) != 1 {
 			t.Fatalf("got %d violations %q, want 1", len(got), got)
 		}
+		// mxbuild 11.13 reports a loop over an object as CE0100, not CE0097.
+		if !strings.Contains(got[0], "CE0100") {
+			t.Errorf("message %q should name CE0100, what mxbuild reports for a loop", got[0])
+		}
 	})
 
 	t.Run("aggregating a LIMIT 1 retrieve is flagged", func(t *testing.T) {
 		got := retrieveSingleViolations(t, mfWith(
-			retrieveLimit("reqs", "1", ""),
+			retrieveFirst("reqs"),
 			&ast.AggregateListStmt{Operation: ast.AggregateCount, InputVariable: "reqs", OutputVariable: "n"},
 		))
 		if len(got) != 1 {
@@ -104,13 +118,19 @@ func TestRetrieveLimitOneControls(t *testing.T) {
 			&ast.ListOperationStmt{Operation: ast.ListOpHead, InputVariable: "reqs", OutputVariable: "req"},
 		),
 		// Using it as an object is exactly right and must stay silent.
+		// `limit 1` under mdl 1: the visitor leaves it a Custom range, a list
+		// of one, so every list use is right.
+		"limit 1 under mdl 1": mfWith(
+			retrieveLimit("reqs", "1", ""),
+			&ast.ListOperationStmt{Operation: ast.ListOpHead, InputVariable: "reqs", OutputVariable: "req"},
+		),
 		"used as an object": mfWith(
-			retrieveLimit("req", "1", ""),
+			retrieveFirst("req"),
 			&ast.MfCommitStmt{Variable: "req"},
 		),
 		// Rebound to a real list before the list use.
 		"rebound to a list": mfWith(
-			retrieveLimit("reqs", "1", ""),
+			retrieveFirst("reqs"),
 			&ast.CreateListStmt{Variable: "reqs", EntityType: ast.QualifiedName{Module: "Probe", Name: "Request"}},
 			&ast.ListOperationStmt{Operation: ast.ListOpHead, InputVariable: "reqs", OutputVariable: "req"},
 		),

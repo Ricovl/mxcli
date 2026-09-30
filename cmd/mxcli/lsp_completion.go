@@ -477,7 +477,7 @@ func (s *mdlServer) variableCompletionItems(docText string, linePrefix string, c
 		}
 	}
 
-	// Extract page parameter names from CREATE PAGE ... Params: { $Name: Type, ... }
+	// Extract page parameter names from CREATE PAGE ... Params: ( $Name: Type, ... )
 	paramNames := extractPageParamNames(docText)
 	for _, name := range paramNames {
 		if partial == "" || strings.HasPrefix(strings.ToUpper(name), partial) {

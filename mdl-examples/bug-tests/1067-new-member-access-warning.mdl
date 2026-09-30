@@ -33,10 +33,10 @@ create entity Zz1067c.Doc (
 );
 
 -- Default ReadWrite: sees new members.
-grant Zz1067c.Wide on Zz1067c.Doc (create, delete, read *, write *);
+grant create, delete, read *, write * on entity Zz1067c.Doc to Zz1067c.Wide;
 
 -- Default ReadOnly: sees new members, despite the narrower write list.
-grant Zz1067c.Mid on Zz1067c.Doc (read *, write (Subject));
+grant read *, write (Subject) on entity Zz1067c.Doc to Zz1067c.Mid;
 
 -- Default None: does NOT see new members. This is the one reported.
-grant Zz1067c.Narrow on Zz1067c.Doc (read (Subject));
+grant read (Subject) on entity Zz1067c.Doc to Zz1067c.Narrow;

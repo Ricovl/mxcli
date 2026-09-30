@@ -918,3 +918,66 @@ func TestDescribeNanoflow_Mock_Excluded(t *testing.T) {
 	out := buf.String()
 	assertContainsStr(t, out, "@excluded")
 }
+
+// ako/mxcli#705: DESCRIBE must print a nanoflow's return variable (`as $Var`)
+// the way it does a microflow's, or re-executing the output drops it. Both
+// describe paths are checked — describe and the source-mapped variant behind
+// diff-local — since they render the header separately.
+func TestDescribeNanoflow_PrintsReturnVariable(t *testing.T) {
+	mod := mkModule("MyModule")
+	nf := mkNanoflow(mod.ID, "NF_Get")
+	nf.ReturnType = &microflows.StringType{}
+	nf.ReturnVariableName = "Feedback"
+
+	h := mkHierarchy(mod)
+	withContainer(h, nf.ContainerID, mod.ID)
+	mb := &mock.MockBackend{
+		IsConnectedFunc:      func() bool { return true },
+		ListNanoflowsFunc:    func() ([]*microflows.Nanoflow, error) { return []*microflows.Nanoflow{nf}, nil },
+		ListMicroflowsFunc:   func() ([]*microflows.Microflow, error) { return nil, nil },
+		ListDomainModelsFunc: func() ([]*domainmodel.DomainModel, error) { return nil, nil },
+		ListModulesFunc:      func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+	}
+	ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	name := ast.QualifiedName{Module: "MyModule", Name: "NF_Get"}
+	assertNoError(t, describeNanoflow(ctx, name))
+	assertContainsStr(t, buf.String(), "returns String as $Feedback")
+
+	mdl, _, err := describeNanoflowToString(ctx, name)
+	assertNoError(t, err)
+	assertContainsStr(t, mdl, "returns String as $Feedback")
+}
+
+// The rebuild takes the return variable from the statement, and carries
+// MarkAsUsed — which it hardcoded to false, clearing Studio Pro's "Mark as used"
+// on every rewrite.
+func TestBuildNanoflow_ReturnVariableAndMarkAsUsed(t *testing.T) {
+	mod := mkModule("MyModule")
+	stored := mkNanoflow(mod.ID, "NF_Get")
+	stored.MarkAsUsed = true
+
+	h := mkHierarchy(mod)
+	withContainer(h, stored.ContainerID, mod.ID)
+	mb := &mock.MockBackend{
+		IsConnectedFunc:      func() bool { return true },
+		ListNanoflowsFunc:    func() ([]*microflows.Nanoflow, error) { return []*microflows.Nanoflow{stored}, nil },
+		ListMicroflowsFunc:   func() ([]*microflows.Microflow, error) { return nil, nil },
+		ListDomainModelsFunc: func() ([]*domainmodel.DomainModel, error) { return nil, nil },
+		ListModulesFunc:      func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+	}
+	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(h))
+
+	stmt := firstStatement[*ast.CreateNanoflowStmt](t, `create or modify nanoflow MyModule.NF_Get ()
+returns String as $Result
+begin
+  return 'x';
+end;`)
+	built, err := buildNanoflowFromStmt(ctx, stmt, buildFlowOpts{})
+	assertNoError(t, err)
+	if got := built.Nanoflow.ReturnVariableName; got != "Result" {
+		t.Errorf("ReturnVariableName = %q, want the authored Result", got)
+	}
+	if !built.Nanoflow.MarkAsUsed {
+		t.Error("MarkAsUsed = false — the stored true was cleared by the rewrite")
+	}
+}

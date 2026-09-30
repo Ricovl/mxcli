@@ -1,10 +1,10 @@
-# DESCRIBE WIDGET
+# DESCRIBE WIDGET TYPE
 
 ## Synopsis
 
-    DESCRIBE WIDGET <keyword>
+    DESCRIBE WIDGET TYPE <keyword>
 
-    DESCRIBE WIDGET '<widget id>'
+    DESCRIBE WIDGET TYPE '<widget id>'
 
 ## Description
 
@@ -12,6 +12,12 @@ Shows the format mxcli has discovered for a pluggable or custom widget: its
 properties (key, type, caption, category, required, default, enumeration
 members), the **body containers** it accepts, the editor rules that hide a
 property under some configurations, and a complete MDL example.
+
+The answer is a report on the widget package installed in this project, not
+MDL: its first line is `-- widget type definition (not executable)`, and with
+`--json` the document carries `"executable": false`. `DESCRIBE GLYPH`,
+`DESCRIBE CONTRACT …` and `DESCRIBE CATALOG.<table>` are marked the same way.
+`DESCRIBE WIDGET <name>` without `TYPE` is the old spelling (`MDL-DEPR095`).
 
 A widget was the only MDL extension point without a `DESCRIBE`. That is why
 `mxcli widget init` writes markdown documentation at all — and why the two could
@@ -38,7 +44,7 @@ widget appears at all. Without it, they come from mxcli's embedded template.
 ## Examples
 
 ```sql
-DESCRIBE WIDGET htmlelement;
+DESCRIBE WIDGET TYPE htmlelement;
 ```
 
 Example output, abbreviated:
@@ -82,7 +88,7 @@ MDL example (parses as written):
 By widget id:
 
 ```sql
-DESCRIBE WIDGET 'com.mendix.widget.web.htmlelement.HTMLElement';
+DESCRIBE WIDGET TYPE 'com.mendix.widget.web.htmlelement.HTMLElement';
 ```
 
 ## Notes
@@ -127,11 +133,11 @@ more often than it is, so every term is shown and every term must hold before a
 binding is pruned. A rule with one indeterminable term prunes nothing: the
 binding is listed and you decide.
 
-**`LIST WIDGETS` does not exist**, deliberately. `SHOW WIDGETS` already means
+**`LIST WIDGETS` does not exist**, deliberately. `LIST WIDGETS` already means
 widget *instances placed on pages*, and the definitions are
 `SELECT * FROM CATALOG.WIDGET_DEFINITIONS`.
 
 ## See Also
 
-[SHOW WIDGETS](show-widgets.md), [DESCRIBE PAGE](describe-page.md),
+[LIST WIDGETS](list-widgets.md), [DESCRIBE PAGE](describe-page.md),
 [Pluggable Widgets Across Versions](../../guides/pluggable-widgets.md)

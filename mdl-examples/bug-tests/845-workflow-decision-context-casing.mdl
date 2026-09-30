@@ -40,7 +40,7 @@ create persistent entity Issue845.Ctx (
 create workflow Issue845."WF_DecisionCasing"
   parameter $WorkflowContext: Issue845.Ctx
 begin
-  decision '$workflowContext/IsExclusive'
+  decision $workflowContext/IsExclusive
     outcomes
       true  -> { }
       false -> { };

@@ -1041,8 +1041,11 @@ END;`
 		t.Fatal("Expected to find RETRIEVE statement")
 	}
 
-	if retrieveStmt.Limit != "1" {
-		t.Errorf("Expected Limit '1', got %q", retrieveStmt.Limit)
+	// Without the `mdl 1;` header `limit 1` keeps its alpha meaning, the object
+	// range (ako/mxcli#734); retrieve_first_test.go covers both versions.
+	if !retrieveStmt.First || retrieveStmt.Limit != "" {
+		t.Errorf("Expected the object range (First) for an mdl 0 `limit 1`, got First=%v Limit=%q",
+			retrieveStmt.First, retrieveStmt.Limit)
 	}
 
 	t.Log("RETRIEVE with LIMIT parsed correctly")
@@ -2360,19 +2363,19 @@ END;`
 }
 
 func TestShouldPreserveExpressionSourceIgnoresStringLiteralPunctuation(t *testing.T) {
-	if shouldPreserveExpressionSource("'Processed {1} items!'") {
+	if shouldPreserveExpressionSource("'Processed {1} items!'", false) {
 		t.Fatal("plain string literal punctuation should not force SourceExpr preservation")
 	}
-	if shouldPreserveExpressionSource("'Owner''s item: {1}'") {
+	if shouldPreserveExpressionSource("'Owner''s item: {1}'", false) {
 		t.Fatal("escaped quotes and colon inside a string literal should not force SourceExpr preservation")
 	}
-	if !shouldPreserveExpressionSource("$Token!=empty") {
+	if !shouldPreserveExpressionSource("$Token!=empty", false) {
 		t.Fatal("compact operators outside string literals should preserve source")
 	}
-	if !shouldPreserveExpressionSource("substring($Text,0,find($Text, '.'))") {
+	if !shouldPreserveExpressionSource("substring($Text,0,find($Text, '.'))", false) {
 		t.Fatal("compact comma-separated arguments should preserve source")
 	}
-	if !shouldPreserveExpressionSource("not($Object/Flag)") {
+	if !shouldPreserveExpressionSource("not($Object/Flag)", false) {
 		t.Fatal("compact not() expressions should preserve source")
 	}
 }
@@ -2393,7 +2396,7 @@ func TestShouldPreserveExpressionSource_Decimals(t *testing.T) {
 		"$Dec/$Dec2",                // #17: no-space division misuse
 	}
 	for _, s := range mustPreserve {
-		if !shouldPreserveExpressionSource(s) {
+		if !shouldPreserveExpressionSource(s, false) {
 			t.Errorf("expected source preservation for %q (decimal would be corrupted)", s)
 		}
 	}
@@ -2415,7 +2418,7 @@ func TestShouldPreserveExpressionSource_Decimals(t *testing.T) {
 		"L48.Transaction",                 // bare qualified name, digit module
 	}
 	for _, s := range mustNotPreserve {
-		if shouldPreserveExpressionSource(s) {
+		if shouldPreserveExpressionSource(s, false) {
 			t.Errorf("did not expect source preservation for %q", s)
 		}
 	}

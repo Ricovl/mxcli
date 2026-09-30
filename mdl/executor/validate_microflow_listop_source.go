@@ -39,6 +39,11 @@ import (
 // The control for all of them is the reporter's own workaround, which builds
 // the same two activities explicitly and passes at 0 errors.
 //
+// Retired for `mdl 1;` scripts (#733): there a list operation is one statement
+// per activity whose operand is a VARIABLE, so a nested call does not parse and
+// the visitor refuses the call forms that could nest (MDL-V1-LIST). This rule is
+// reachable only from mdl 0 scripts, and goes with them.
+//
 // Why refuse rather than materialise an implicit variable: the refusal covers
 // every spelling from one rule, including the literal operand, which no amount
 // of materialising would fix. And it needs no project — the answer is in the

@@ -279,27 +279,50 @@ func scanBSONArray(v any, fn func(map[string]any)) {
 
 // resolveEntityRefFromBSON extracts a qualified entity name from a BSON node
 // that has an EntityRef field (common in data source nodes).
+//
+// Studio Pro stores a DomainModels$DirectEntityRef with the name under
+// `Entity`, and a DomainModels$IndirectEntityRef (a data source over an
+// association path) as `Steps` ending on the entity the constraint applies to.
+// `QualifiedName` is kept for the synthetic shape older callers pass; no stored
+// EntityRef carries it, which is why every page XPath used to be recorded with
+// no target entity.
 func resolveEntityRefFromBSON(raw map[string]any) string {
-	// Try EntityRef (used by most data sources)
-	if entityRef, ok := raw["EntityRef"].(map[string]any); ok {
-		if name, ok := entityRef["QualifiedName"].(string); ok {
+	ref := bsonAsMap(raw["EntityRef"])
+	if ref == nil {
+		return ""
+	}
+	for _, key := range []string{"Entity", "QualifiedName"} {
+		if name, ok := ref[key].(string); ok && name != "" {
 			return name
 		}
 	}
-	// Try bson.D format
-	if entityRef, ok := raw["EntityRef"].(bson.D); ok {
-		for _, elem := range entityRef {
-			if elem.Key == "QualifiedName" {
-				if name, ok := elem.Value.(string); ok {
-					return name
-				}
-			}
+	last := ""
+	scanBSONArray(ref["Steps"], func(step map[string]any) {
+		if dest, ok := step["DestinationEntity"].(string); ok && dest != "" {
+			last = dest
 		}
-	}
-	return ""
+	})
+	return last
 }
 
-// extractBsonIDString extracts a BSON ID as a string from various formats.
+// bsonAsMap returns a decoded sub-document as a map, whichever shape the
+// decoder produced it in; nil when v is not a document.
+func bsonAsMap(v any) map[string]any {
+	switch d := v.(type) {
+	case map[string]any:
+		return d
+	case bson.M:
+		return d
+	case bson.D:
+		m := make(map[string]any, len(d))
+		for _, e := range d {
+			m[e.Key] = e.Value
+		}
+		return m
+	}
+	return nil
+}
+
 func extractBsonIDString(v any) string {
 	if v == nil {
 		return ""

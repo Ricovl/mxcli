@@ -37,15 +37,23 @@ mxcli search -p app.mpr "validation" -q
 mxcli search -p app.mpr "validation" -q --format names
 
 # Output as JSON array
-mxcli search -p app.mpr "validation" -q --format json
+mxcli search -p app.mpr "validation" --json
 ```
 
 ## Output Formats
 
-| Format | Description |
-|--------|-------------|
-| `names` (default) | `type<TAB>name` per line, suitable for piping |
-| `json` | JSON array of search results |
+| Flag | Description |
+|------|-------------|
+| `--format table` (default) | Human-readable tables of string and source matches |
+| `--format names` | `type<TAB>name` per line, suitable for piping |
+| `--json` | JSON array of search results |
+
+`--json` is the same flag every query command takes (`refs`, `callers`,
+`callees`, `impact`, `context`, `show`, `describe`, `-c "select …"`). With it,
+stdout carries the JSON document and nothing else — connection and catalog
+progress go to stderr, an empty result is `[]`, and an error is a message on
+stderr with a non-zero exit. `--format json` is still accepted as a deprecated
+spelling of `--json`.
 
 The `-q` (quiet) flag suppresses headers and formatting, making output suitable for piping to other commands.
 

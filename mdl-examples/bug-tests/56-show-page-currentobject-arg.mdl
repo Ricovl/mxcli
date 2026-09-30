@@ -38,16 +38,16 @@
 
 create entity MyFirstModule.Entry ( Label: String );
 /
-create or replace page MyFirstModule.EditEntry
-( Title: 'Edit', Layout: Atlas_Core.Atlas_Default, Params: { $Entry: MyFirstModule.Entry } )
+create or modify page MyFirstModule.EditEntry
+( Title: 'Edit', Layout: Atlas_Core.Atlas_Default, Params: ( $Entry: MyFirstModule.Entry ) )
 {
   dataview dv (datasource: $Entry) { dynamictext t (content: 'Edit') }
 }
 /
-create or replace page MyFirstModule.EntryList ( Title: 'List', Layout: Atlas_Core.Atlas_Default )
+create or modify page MyFirstModule.EntryList ( Title: 'List', Layout: Atlas_Core.Atlas_Default )
 {
   listview lv (datasource: database MyFirstModule.Entry) {
-    actionbutton weEdit (caption: 'Edit', action: show_page MyFirstModule.EditEntry($Entry = $currentObject))
+    actionbutton weEdit (caption: 'Edit', action: show page MyFirstModule.EditEntry(Entry = $currentObject))
   }
 }
 /

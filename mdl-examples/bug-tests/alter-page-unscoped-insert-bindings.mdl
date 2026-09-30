@@ -39,14 +39,14 @@ create persistent entity BugTestAlterScope.Draft (
 @excluded
 create or modify page BugTestAlterScope.Draft_Example
 ( Title: 'Draft (example)', Layout: Atlas_Core.Atlas_Default,
-  Params: { $Draft: BugTestAlterScope.Draft } )
+  Params: ( $Draft: BugTestAlterScope.Draft ) )
 {
   container ctTop {
     dynamictext txtIntro (Content: 'Example')
   }
   layoutgrid lg {
-    row r {
-      column c (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
         dataview dvFlow (DataSource: nanoflow BugTestAlterScope.DS_MissingForm) {
           textbox txtSubject (Label: 'Subject', Attribute: BugTestAlterScope.Draft.Subject)
         }
@@ -62,7 +62,7 @@ create or modify page BugTestAlterScope.Draft_Example
 -- Inside the data view whose flow is missing: the binding must be qualified.
 alter page BugTestAlterScope.Draft_Example {
   insert after txtSubject {
-    dynamictext txtEcho (Content: 'About: {1}', ContentParams: [{1} = BugTestAlterScope.Draft.Subject])
+    dynamictext txtEcho (Content: 'About: {1}', ContentParams: ({1} = BugTestAlterScope.Draft.Subject))
   }
 };
 /
@@ -70,7 +70,7 @@ alter page BugTestAlterScope.Draft_Example {
 -- Inside a data view whose entity is known: a bare name is fine.
 alter page BugTestAlterScope.Draft_Example {
   insert after txtSubject2 {
-    dynamictext txtEcho2 (Content: 'About: {1}', ContentParams: [{1} = Subject])
+    dynamictext txtEcho2 (Content: 'About: {1}', ContentParams: ({1} = Subject))
   }
 };
 /

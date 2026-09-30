@@ -19,7 +19,7 @@ import (
 // *ast.AlterStylingStmt is not among them, so an unsupported key was silent
 // until mxbuild:
 //
-//	alter styling on page … widget lvThings set 'Remove empty text' = on;
+//	alter styling on page … widget lvThings set ( 'Remove empty text': on );
 //	  mxcli check --references -> Check passed!
 //	  mxcli exec               -> Updated styling on widget "lvThings"
 //	  mxcli docker check       -> [CE6083] "Design property Remove empty text is
@@ -98,7 +98,7 @@ func validateAlterStylingDesignProps(prog *ast.Program, reg *ThemeRegistry) []li
 							"and ALTER STYLING can only write one value — mxbuild refuses the result "+
 							"with CE6084", label, a.Property, s.WidgetName),
 						Location: linter.Location{DocumentType: "page", DocumentName: s.ContainerName.String()},
-						Suggestion: fmt.Sprintf("Set it inline instead: `DesignProperties: ['%s': ['%s': on]]` "+
+						Suggestion: fmt.Sprintf("Set it inline instead: `DesignProperties: ('%s': ('%s': on))` "+
 							"on the widget in CREATE PAGE, or in an ALTER PAGE REPLACE.",
 							a.Property, firstOptionName(multi, a.Value)),
 					})
@@ -241,11 +241,11 @@ func renamedStylingSuggestion(r *designPropRename, value string) string {
 	}
 	if strings.Contains(r.Replacement, "[") {
 		return fmt.Sprintf("ALTER STYLING cannot write its current form, which is a compound: set "+
-			"`DesignProperties: [%s]` on the widget in CREATE PAGE, or in an ALTER PAGE REPLACE.", r.Replacement)
+			"`DesignProperties: (%s)` on the widget in CREATE PAGE, or in an ALTER PAGE REPLACE.", r.Replacement)
 	}
-	// 'Key': 'Value'  →  set 'Key' = 'Value'
-	if i := strings.Index(r.Replacement, "': "); i > 0 {
-		return fmt.Sprintf("Write it as `set %s' = %s`.", r.Replacement[:i], r.Replacement[i+3:])
+	// 'Key': 'Value'  →  set ( 'Key': 'Value' ), the canonical list (R3)
+	if strings.Contains(r.Replacement, "': ") {
+		return fmt.Sprintf("Write it as `set ( %s )`.", r.Replacement)
 	}
 	return renamedDesignPropSuggestion(r, value)
 }

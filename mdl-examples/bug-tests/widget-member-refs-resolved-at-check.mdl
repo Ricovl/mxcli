@@ -76,7 +76,7 @@ create or modify association WidgetRefs.Order_Customer
 
 -- Every constraint here RESOLVES, which is the point: these are the shapes that
 -- must not be reported.
-create or replace page WidgetRefs.P_List
+create or modify page WidgetRefs.P_List
 (
   Title: 'Orders',
   Layout: Atlas_Core.Atlas_Default
@@ -84,7 +84,7 @@ create or replace page WidgetRefs.P_List
 {
   -- A bare attribute of the constrained entity.
   datagrid gridOrders (datasource: database from WidgetRefs.Order where [Status = 'Open']) {
-    column cNo (attribute: OrderNo, caption: 'No')
+    column (attribute: OrderNo, caption: 'No')
   }
 
   -- An ASSOCIATION HOP and then an attribute of the entity it reaches. The walk
@@ -94,22 +94,22 @@ create or replace page WidgetRefs.P_List
     datasource: database from WidgetRefs.Order
       where [WidgetRefs.Order_Customer/WidgetRefs.Customer/Name = 'Acme']
   ) {
-    column cNo2 (attribute: OrderNo, caption: 'No')
+    column (attribute: OrderNo, caption: 'No')
   }
 }
 /
 
 -- ContentParams written the way the position wants: the attribute name, or an
 -- association path to one. No `$variable/` root.
-create or replace page WidgetRefs.P_Detail
+create or modify page WidgetRefs.P_Detail
 (
-  params: { $Order: WidgetRefs.Order },
+  params: ( $Order: WidgetRefs.Order ),
   title: 'Order',
   layout: Atlas_Core.Atlas_Default
 )
 {
   dataview dvOrder (datasource: $Order) {
-    dynamictext dtNo (Content: 'Order {1}', ContentParams: [{1} = OrderNo])
+    dynamictext dtNo (Content: 'Order {1}', ContentParams: ({1} = OrderNo))
 
     -- An association path is LEGAL here — it is an attribute reached over an
     -- association, stored as AttributeRef plus steps. Two segments, not three:
@@ -119,7 +119,7 @@ create or replace page WidgetRefs.P_Detail
     -- assumed.
     dynamictext dtCust (
       Content: 'for {1}',
-      ContentParams: [{1} = WidgetRefs.Order_Customer/Name]
+      ContentParams: ({1} = WidgetRefs.Order_Customer/Name)
     )
 
     -- And `$currentObject/` IS stripped when an association path follows, so
@@ -127,7 +127,7 @@ create or replace page WidgetRefs.P_Detail
     -- report it — the control that keeps MDL-WIDGET24 honest.
     dynamictext dtCust2 (
       Content: 'also {1}',
-      ContentParams: [{1} = $currentObject/WidgetRefs.Order_Customer/Name]
+      ContentParams: ({1} = $currentObject/WidgetRefs.Order_Customer/Name)
     )
   }
 }

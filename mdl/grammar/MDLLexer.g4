@@ -8,6 +8,70 @@
  */
 lexer grammar MDLLexer;
 
+// Hand-written lexer helpers. In the Go target `@members` is package-level
+// code, so these are methods on the generated lexer; the predicates below call
+// them through the receiver `p` the generator names.
+@lexer::members {
+// StrictEscapeStream is the character stream of a script written in mdl 1 or
+// later, where `''` is the only escape in a string literal and a backslash is
+// an ordinary character (ADR-0010 R11). The escape rule changes where a
+// literal ENDS — `'C:\'` is complete under mdl 1 and unterminated under mdl
+// 0 — so it has to be decided before lexing, from the `mdl <n>;` header, and
+// travel with the stream: every token keeps its stream, which is how the
+// visitor reads a literal's value under the same rule it was lexed with.
+type StrictEscapeStream struct{ antlr.CharStream }
+
+// HasStrictEscapes reports whether in is lexed under mdl 1's string rules.
+func HasStrictEscapes(in antlr.CharStream) bool {
+	_, ok := in.(*StrictEscapeStream)
+	return ok
+}
+
+// isTrailingComma reports whether the ',' just matched ends a bracketed list:
+// the next significant character closes a (), {} or [] (whitespace and
+// comments skipped), and the one before it neither opens a list nor is another
+// comma, so `()` stays the only spelling of an empty list and `(a,,)` stays an
+// error.
+func (l *MDLLexer) isTrailingComma() bool {
+	in := l.GetInputStream()
+	// The predicate runs with the comma consumed: LA(1) is the character
+	// after it and LA(-1) the comma itself.
+	for i := 1; ; i++ {
+		switch c := in.LA(i); c {
+		case ' ', '\t', '\r', '\n', '\v', '\f':
+		case '-':
+			if in.LA(i+1) != '-' {
+				return false
+			}
+			for i++; in.LA(i+1) != '\n' && in.LA(i+1) != antlr.TokenEOF; i++ {
+			}
+		case '/':
+			if in.LA(i+1) != '*' {
+				return false
+			}
+			for i += 2; !(in.LA(i) == '*' && in.LA(i+1) == '/'); i++ {
+				if in.LA(i) == antlr.TokenEOF {
+					return false
+				}
+			}
+			i++
+		case ')', '}', ']':
+			for j := -2; ; j-- {
+				switch in.LA(j) {
+				case ' ', '\t', '\r', '\n', '\v', '\f':
+					continue
+				case '(', '{', '[', ',', antlr.TokenEOF, 0:
+					return false
+				}
+				return true
+			}
+		default:
+			return false
+		}
+	}
+}
+}
+
 // =============================================================================
 // WHITESPACE AND COMMENTS
 // =============================================================================
@@ -34,7 +98,10 @@ SORT_BY: S O R T WS+ B Y;
 // deliberately: same position, same comma list, so one example teaches both.
 SEARCH_BY: S E A R C H WS+ B Y;
 NON_PERSISTENT: N O N '-' P E R S I S T E N T;
-REFERENCE_SET: R E F E R E N C E '_'? S E T;
+// `ReferenceSet`, the Mendix type name describe writes; `reference_set` is the
+// old second spelling (R8, ako/mxcli#752).
+REFERENCE_SET: R E F E R E N C E S E T
+             | R E F E R E N C E '_' S E T /* @alias MDL-DEPR023 */;
 LIST_OF: L I S T WS+ O F;
 
 // Delete behavior compound keywords
@@ -69,6 +136,10 @@ MERGE: M E R G E;
 // a word people already use as a name, so it goes in `keyword` too and an
 // entity or variable called "normalized" still parses.
 NORMALIZED: N O R M A L I Z E D;
+
+// `describe microflow X with handles` prints the content address of each
+// activity (ADR-0012). In `keyword` too, so "handles" still parses as a name.
+HANDLES: H A N D L E S;
 
 ENTITY: E N T I T Y;
 PERSISTENT: P E R S I S T E N T;
@@ -120,9 +191,12 @@ DELETE_BEHAVIOR: D E L E T E '_'? B E H A V I O R;
 // deleted"). SQL's RESTRICT has no custom message, so this clause is a Mendix
 // extension rather than something borrowed.
 RESTRICT: R E S T R I C T;
+//
+// `error message` is the one spelling (R8, ako/mxcli#752); the other two are
+// aliases, and so are `error`, `feedback` where a rule takes a message.
 ERROR_MESSAGE: E R R O R WS+ M E S S A G E
-             | E R R O R '_' M E S S A G E
-             | E R R O R M E S S A G E;
+             | E R R O R '_' M E S S A G E /* @alias MDL-DEPR021 */
+             | E R R O R M E S S A G E /* @alias MDL-DEPR021 */;
 CASCADE: C A S C A D E;
 PREVENT: P R E V E N T;
 
@@ -253,6 +327,8 @@ MAXIMUM: M A X I M U M;
 REDUCE: R E D U C E;
 ANY: A N Y;
 INITIAL: I N I T I A L;
+// reduce $L from <initial> as <type> using <expression> (#733).
+USING: U S I N G;
 LIST: L I S T;
 REMOVE: R E M O V E;
 EQUALS_OP: E Q U A L S;
@@ -393,6 +469,7 @@ CLEAR: C L E A R;
 WIDTH: W I D T H;
 HEIGHT: H E I G H T;
 AUTOFILL: A U T O F I L L;
+AUTOFIT: A U T O F I T;
 URL: U R L;
 FOLDER: F O L D E R;
 FOLDERS: F O L D E R S;
@@ -436,8 +513,15 @@ TABPAGE: T A B P A G E;
 GROUPBOX: G R O U P B O X;
 VISIBLE: V I S I B L E;
 SAVECHANGES: S A V E C H A N G E S;
-SAVE_CHANGES: S A V E '_' C H A N G E S;
-CANCEL_CHANGES: C A N C E L '_' C H A N G E S;
+// Page actions are the words a microflow uses (R8, ako/mxcli#752). The
+// two-word actions whose words are not tokens of their own are one token that
+// admits both spellings; the snake-case one is the deprecated alias, told
+// apart by its underscore. The rest (show page, close page, create object,
+// open link, call microflow) are token sequences in actionExprV3.
+SAVE_CHANGES: S A V E WS+ C H A N G E S
+            | S A V E '_' C H A N G E S /* @alias MDL-DEPR020 */;
+CANCEL_CHANGES: C A N C E L WS+ C H A N G E S
+              | C A N C E L '_' C H A N G E S /* @alias MDL-DEPR020 */;
 CLOSE_PAGE: C L O S E '_' P A G E;
 SHOW_PAGE: S H O W '_' P A G E;
 DELETE_ACTION: D E L E T E '_' A C T I O N;
@@ -446,7 +530,8 @@ CREATE_OBJECT: C R E A T E '_' O B J E C T;
 CALL_MICROFLOW: C A L L '_' M I C R O F L O W;
 CALL_NANOFLOW: C A L L '_' N A N O F L O W;
 OPEN_LINK: O P E N '_' L I N K;
-SIGN_OUT: S I G N '_' O U T;
+SIGN_OUT: S I G N WS+ O U T
+        | S I G N '_' O U T /* @alias MDL-DEPR020 */;
 CANCEL: C A N C E L;
 
 // Button styles
@@ -758,6 +843,9 @@ PROTOTYPE: P R O T O T Y P E;
 MANAGE: M A N A G E;
 DEMO: D E M O;
 MATRIX: M A T R I X;
+APP: A P P;  // `alter app security` (R10: Studio Pro's name for project security)
+AI: A I;     // `ai model` (R10: Studio Pro's name for the agent editor's model document)
+SAMPLE: S A M P L E;  // `create json structure … sample '…'` (R10)
 APPLY: A P P L Y;
 ACCESS: A C C E S S;
 LEVEL: L E V E L;
@@ -838,7 +926,8 @@ LOCK: L O C K;
 UNLOCK: U N L O C K;
 REASON: R E A S O N;
 OPEN: O P E N;
-COMPLETE_TASK: C O M P L E T E '_' T A S K;
+COMPLETE_TASK: C O M P L E T E WS+ T A S K
+             | C O M P L E T E '_' T A S K /* @alias MDL-DEPR020 */;
 
 // =============================================================================
 // COMPARISON OPERATORS (multi-char before single-char)
@@ -868,6 +957,13 @@ DIV: D I V;
 // =============================================================================
 
 SEMICOLON: ';';
+// A trailing comma is allowed in every bracketed list, under every language
+// version (ADR-0010 R11): `(A: String(200),)`, `{ Method: get, }`. It is
+// dropped here rather than written into each list rule, so it is one rule for
+// every list, and so a list's error messages stay LL(1): with `(COMMA x)*
+// COMMA?` in the parser, an unknown item after a comma is reported as "no
+// viable alternative" instead of naming what the list expects.
+TRAILING_COMMA: ',' {p.isTrailingComma()}? -> skip;
 COMMA: ',';
 DOT: '.';
 LPAREN: '(';
@@ -891,9 +987,14 @@ HASH: '#';
 // Mendix token: [%TokenName%] or [%'literal'%]
 MENDIX_TOKEN: '[%' .*? '%]';
 
-// String literals (single-quoted, with escape support)
+// String literals, single-quoted. `''` is an apostrophe under every language
+// version. Under mdl 0 a backslash also escapes the next character (`\'`,
+// `\n`, `\\`, …); from mdl 1 it is an ordinary character, as in a Mendix
+// expression, so `'C:\temp'` is the path it looks like (ADR-0010 R11). Which
+// rule applies is fixed by the stream the script is lexed from: see
+// StrictEscapeStream.
 STRING_LITERAL
-    : '\'' ( ~['\\] | '\\' . | '\'\'' )* '\''
+    : '\'' ( ~['\\] | '\'\'' | '\\' {!HasStrictEscapes(p.GetInputStream())}? . | '\\' {HasStrictEscapes(p.GetInputStream())}? )* '\''
     ;
 
 // Dollar-quoted string literal (PostgreSQL style) for embedding code blocks

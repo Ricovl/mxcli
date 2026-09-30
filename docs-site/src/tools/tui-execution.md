@@ -20,7 +20,7 @@ From the browser mode, press `x` to switch to the MDL execution view. A full-scr
 The textarea supports standard text editing. Type or paste any MDL statements:
 
 ```sql
-SHOW MODULES;
+LIST MODULES;
 
 CREATE PERSISTENT ENTITY MyModule.Customer (
   Name: String(100),
@@ -61,7 +61,7 @@ The execution view accepts any valid MDL statement, including:
 
 | Category | Examples |
 |----------|---------|
-| **Query** | `SHOW MODULES`, `SHOW ENTITIES`, `DESCRIBE ENTITY MyModule.Customer` |
+| **Query** | `LIST MODULES`, `LIST ENTITIES`, `DESCRIBE ENTITY MyModule.Customer` |
 | **Create** | `CREATE ENTITY`, `CREATE MICROFLOW`, `CREATE PAGE` |
 | **Modify** | `ALTER ENTITY`, `ALTER PAGE`, `ALTER NAVIGATION` |
 | **Delete** | `DROP ENTITY`, `DROP MICROFLOW`, `DROP PAGE` |

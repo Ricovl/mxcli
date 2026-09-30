@@ -32,11 +32,11 @@ create entity WF408.Order (
 create page WF408.ReworkPage (
   title: 'Rework',
   layout: Atlas_Core.Atlas_Default,
-  params: { $WorkflowUserTask: System.WorkflowUserTask }
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 {
-    row r1 {
-      column c1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext txt1 (content: 'Rework the request', rendermode: H2)
       }
     }
@@ -61,7 +61,7 @@ end;
 create workflow WF408.QualifiedEnumOutcome
   parameter $WorkflowContext: WF408.Order
 begin
-  decision '$WorkflowContext/Kind'
+  decision $WorkflowContext/Kind
     outcomes
       'WF408.Kind.Standard' -> { }
       'WF408.Kind.Priority' -> { }
@@ -80,7 +80,7 @@ end workflow;
 create workflow WF408.NamedJumpTargets
   parameter $WorkflowContext: WF408.Order
 begin
-  decision decision1 '$WorkflowContext/Total > 1000'
+  decision decision1 $WorkflowContext/Total > 1000
     outcomes
       true -> {
         user task Rework 'Fix and resubmit'
@@ -98,7 +98,7 @@ begin
     path 2 { }
   ;
 
-  wait for timer timer1 'addHours([%CurrentDateTime%], 1)';
+  wait for timer timer1 addHours([%CurrentDateTime%], 1);
   wait for notification waitForNotification1;
 end workflow;
 /

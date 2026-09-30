@@ -53,9 +53,9 @@ func buildLogStatement(ctx parser.ILogStatementContext) *ast.LogStmt {
 	if logCtx.NODE() != nil && len(exprs) > 1 {
 		stmt.Node = buildSourceExpression(exprs[0])
 		stmt.Node = appendLogNodeTrailingWhitespace(exprs[0], exprs[1], stmt.Node)
-		stmt.Message = buildSourceExpression(exprs[1])
+		stmt.Message = buildTemplateMessage(exprs[1], logCtx.LogTemplateParams() != nil)
 	} else if len(exprs) > 0 {
-		stmt.Message = buildSourceExpression(exprs[0])
+		stmt.Message = buildTemplateMessage(exprs[0], logCtx.LogTemplateParams() != nil)
 	}
 
 	// Parse template parameters: WITH ({1} = expr, {2} = expr, ...)
@@ -356,7 +356,8 @@ func appendSourceExpressionSuffix(
 	expr ast.Expression,
 	suffix string,
 ) ast.Expression {
-	source := strings.TrimSpace(extractExpressionText(exprCtx.(antlr.ParserRuleContext)))
+	prc := exprCtx.(antlr.ParserRuleContext)
+	source := storedExpressionSource(strings.TrimSpace(extractExpressionText(prc)), lexedWithStrictEscapes(prc))
 	innerExpr := expr
 	if sourceExpr, ok := expr.(*ast.SourceExpr); ok {
 		source = sourceExpr.Source
@@ -543,7 +544,7 @@ func buildCallWebServiceStatement(ctx parser.ICallWebServiceStatementContext) *a
 
 	if callCtx.RAW() != nil {
 		if lit := callCtx.STRING_LITERAL(); lit != nil {
-			stmt.RawBSONBase64 = unquoteString(lit.GetText())
+			stmt.RawBSONBase64 = unquoteStringLit(lit)
 		}
 		if errClause := callCtx.OnErrorClause(); errClause != nil {
 			stmt.ErrorHandling = buildOnErrorClause(errClause)
@@ -593,7 +594,7 @@ func webServiceReferenceText(ctx parser.IWebServiceReferenceContext) string {
 	}
 	refCtx := ctx.(*parser.WebServiceReferenceContext)
 	if lit := refCtx.STRING_LITERAL(); lit != nil {
-		return unquoteString(lit.GetText())
+		return unquoteStringLit(lit)
 	}
 	return getQualifiedNameText(refCtx.QualifiedName())
 }
@@ -620,11 +621,13 @@ func buildExecuteDatabaseQueryStatement(ctx parser.IExecuteDatabaseQueryStatemen
 	// Get dynamic query if present
 	if execCtx.DYNAMIC() != nil {
 		if sl := execCtx.STRING_LITERAL(); sl != nil {
-			stmt.DynamicQuery = unquoteString(sl.GetText())
+			stmt.DynamicQuery = unquoteStringLit(sl)
 		} else if ds := execCtx.DOLLAR_STRING(); ds != nil {
 			stmt.DynamicQuery = unquoteDollarString(ds.GetText())
 		} else if expr := execCtx.Expression(); expr != nil {
-			stmt.DynamicQuery = expressionSourceText(expr)
+			// A Mendix expression stored as written: a string in it stores
+			// its value, as in any other (storedExpressionSource, #825).
+			stmt.DynamicQuery = storedExpressionSource(expressionSourceText(expr), lexedWithStrictEscapes(expr))
 			stmt.DynamicQueryIsExpression = true
 		}
 	}
@@ -803,7 +806,20 @@ func buildListOperationStatement(ctx parser.IListOperationStatementContext) *ast
 		stmt.OutputVariable = strings.TrimPrefix(v.GetText(), "$")
 	}
 
-	// Get the list operation
+	// The statement form: one Studio Pro activity (#733).
+	if act, ok := listOpCtx.ListOperationActivity().(*parser.ListOperationActivityContext); ok && act != nil {
+		buildListOperationActivity(act, stmt)
+		return stmt
+	}
+
+	// The call form. For find/filter it is a respelling of `by` when the
+	// condition reads `Member = value` and of `where` otherwise, so it records
+	// which, exactly as the flow builder has always decided (ast.IsMemberEquality).
+	defer func() {
+		if stmt.Operation == ast.ListOpFind || stmt.Operation == ast.ListOpFilter {
+			stmt.ByExpression = !ast.IsMemberEquality(stmt.Condition)
+		}
+	}()
 	if opCtx := listOpCtx.ListOperation(); opCtx != nil {
 		op := opCtx.(*parser.ListOperationContext)
 
@@ -947,7 +963,13 @@ func buildAggregateListStatement(ctx parser.IAggregateListStatementContext) *ast
 		stmt.OutputVariable = strings.TrimPrefix(v.GetText(), "$")
 	}
 
-	// Get the aggregate operation
+	// The statement form: one Studio Pro Aggregate list activity (#733).
+	if act, ok := aggrCtx.AggregateListActivity().(*parser.AggregateListActivityContext); ok && act != nil {
+		buildAggregateListActivity(act, stmt)
+		return stmt
+	}
+
+	// The call form, a deprecated alias of the above.
 	if opCtx := aggrCtx.ListAggregateOperation(); opCtx != nil {
 		op := opCtx.(*parser.ListAggregateOperationContext)
 
@@ -1222,14 +1244,20 @@ func buildShowPageArgList(ctx parser.IShowPageArgListContext) []ast.ShowPageArg 
 		arg := argCtx.(*parser.ShowPageArgContext)
 		spa := ast.ShowPageArg{}
 
-		if iok := arg.IdentifierOrKeyword(); iok != nil {
-			// Widget-style: Param: $value
+		if pn := arg.ParameterName(); pn != nil {
+			// Canonical (R4): Param = $value
+			spa.ParamName = parameterNameText(pn)
+			if expr := arg.Expression(); expr != nil {
+				spa.Value = buildSourceExpression(expr)
+			}
+		} else if iok := arg.IdentifierOrKeyword(); iok != nil {
+			// Deprecated (MDL-DEPR007): Param: $value
 			spa.ParamName = identifierOrKeywordText(iok)
 			if expr := arg.Expression(); expr != nil {
 				spa.Value = buildSourceExpression(expr)
 			}
 		} else {
-			// Canonical: $Param = $value
+			// Deprecated (MDL-DEPR006): $Param = $value
 			vars := arg.AllVARIABLE()
 			if len(vars) >= 1 {
 				spa.ParamName = strings.TrimPrefix(vars[0].GetText(), "$")
@@ -1260,14 +1288,18 @@ func buildShowMessageStatement(ctx parser.IShowMessageStatementContext) *ast.Sho
 	}
 
 	if expr := smCtx.Expression(); expr != nil {
-		stmt.Message = buildSourceExpression(expr)
+		stmt.Message = buildTemplateMessage(expr, smCtx.TemplateParams() != nil || smCtx.OBJECTS() != nil)
 	}
 
 	if id := smCtx.IdentifierOrKeyword(); id != nil {
 		stmt.Type = id.GetText()
 	}
 
-	// Build template arguments (optional)
+	// Build template arguments (optional): `with ({1} = e)`, or the deprecated
+	// positional `objects [e]` (MDL-DEPR009).
+	if tp := smCtx.TemplateParams(); tp != nil {
+		stmt.TemplateArgs = templateArgsByNumber(buildTemplateParams(tp))
+	}
 	if exprList := smCtx.ExpressionList(); exprList != nil {
 		listCtx := exprList.(*parser.ExpressionListContext)
 		allExprs := listCtx.AllExpression()
@@ -1358,10 +1390,14 @@ func buildValidationFeedbackStatement(ctx parser.IValidationFeedbackStatementCon
 
 	// Build message expression
 	if msgExpr := vfCtx.Expression(); msgExpr != nil {
-		stmt.Message = buildSourceExpression(msgExpr)
+		stmt.Message = buildTemplateMessage(msgExpr, vfCtx.TemplateParams() != nil || vfCtx.OBJECTS() != nil)
 	}
 
-	// Build template arguments (optional)
+	// Build template arguments (optional): `with ({1} = e)`, or the deprecated
+	// positional `objects [e]` (MDL-DEPR009).
+	if tp := vfCtx.TemplateParams(); tp != nil {
+		stmt.TemplateArgs = templateArgsByNumber(buildTemplateParams(tp))
+	}
 	if exprList := vfCtx.ExpressionList(); exprList != nil {
 		listCtx := exprList.(*parser.ExpressionListContext)
 		allExprs := listCtx.AllExpression()
@@ -1493,7 +1529,7 @@ func buildRestCallStatement(ctx parser.IRestCallStatementContext) *ast.RestCallS
 		if strLit := urlC.STRING_LITERAL(); strLit != nil {
 			stmt.URL = &ast.LiteralExpr{
 				Kind:  ast.LiteralString,
-				Value: unquoteString(strLit.GetText()),
+				Value: unquoteStringLit(strLit),
 			}
 		} else if expr := urlC.Expression(); expr != nil {
 			stmt.URL = buildSourceExpression(expr)
@@ -1516,7 +1552,7 @@ func buildRestCallStatement(ctx parser.IRestCallStatementContext) *ast.RestCallS
 			header.Name = id.GetText()
 		} else if strLit := hdrCtx.STRING_LITERAL(); strLit != nil {
 			// Handle quoted header names like 'Content-Type'
-			header.Name = unquoteString(strLit.GetText())
+			header.Name = unquoteStringLit(strLit)
 		}
 		if expr := hdrCtx.Expression(); expr != nil {
 			header.Value = buildSourceExpression(expr)
@@ -1564,7 +1600,7 @@ func buildRestCallStatement(ctx parser.IRestCallStatementContext) *ast.RestCallS
 			if strLit := bodyCtx.STRING_LITERAL(); strLit != nil {
 				body.Template = &ast.LiteralExpr{
 					Kind:  ast.LiteralString,
-					Value: unquoteString(strLit.GetText()),
+					Value: unquoteStringLit(strLit),
 				}
 			} else if expr := bodyCtx.Expression(); expr != nil {
 				body.Template = buildSourceExpression(expr)
@@ -1659,9 +1695,11 @@ func buildSendRestRequestStatement(ctx parser.ISendRestRequestStatementContext) 
 			param := ast.SendRestParamDef{}
 			if v := pc.VARIABLE(); v != nil {
 				param.Name = strings.TrimPrefix(v.GetText(), "$")
+			} else if pn := pc.ParameterName(); pn != nil {
+				param.Name = parameterNameText(pn)
 			}
 			if expr := pc.Expression(); expr != nil {
-				param.Expression = expressionSourceText(expr)
+				param.Expression = storedExpressionSource(expressionSourceText(expr), lexedWithStrictEscapes(expr))
 			}
 			stmt.Parameters = append(stmt.Parameters, param)
 		}

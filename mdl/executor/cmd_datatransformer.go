@@ -41,7 +41,7 @@ func listDataTransformers(ctx *ExecContext, moduleName string) error {
 		rows = append(rows, []any{qn, modName, dt.Name, dt.SourceType, steps})
 	}
 
-	if len(rows) == 0 {
+	if len(rows) == 0 && ctx.Format != FormatJSON {
 		fmt.Fprintln(ctx.Output, "No data transformers found.")
 		return nil
 	}
@@ -76,7 +76,7 @@ func describeDataTransformer(ctx *ExecContext, name ast.QualifiedName) error {
 		w := ctx.Output
 
 		// Emit re-executable MDL
-		fmt.Fprintf(w, "create data transformer %s.%s%s\n", modName, dt.Name, describeFolderClause(ctx, dt.ContainerID))
+		fmt.Fprintf(w, "create or modify data transformer %s.%s%s\n", modName, dt.Name, describeFolderClause(ctx, dt.ContainerID))
 
 		// Source — collapse newlines into spaces for single-line string
 		sourceContent := strings.ReplaceAll(dt.SourceJSON, "\n", " ")

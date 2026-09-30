@@ -197,12 +197,26 @@ func calculateNanoflowComplexity(nf *microflows.Nanoflow) int {
 // describeMicroflow renders a microflow as MDL (Mode 1 / Mode 2). It keeps this
 // exact signature because the catalog dispatches on it by name.
 func describeMicroflow(ctx *ExecContext, name ast.QualifiedName) error {
-	return describeMicroflowMode(ctx, name, false)
+	return describeMicroflowMode(ctx, name, describeMicroflowOptions{})
 }
 
-// describeMicroflowMode adds Mode 3: with normalized set, a recombinable
-// irreducible split is folded into a single condition rather than flattened.
-func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, normalized bool) error {
+// describeMicroflowOptions selects the optional renderings of DESCRIBE MICROFLOW.
+type describeMicroflowOptions struct {
+	// Normalized is Mode 3: a recombinable irreducible split is folded into a
+	// single condition rather than flattened.
+	Normalized bool
+	// Handles prints each activity's `alter microflow` target above it.
+	Handles bool
+}
+
+// describeMicroflowMode renders DESCRIBE MICROFLOW with the given options.
+func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, opts describeMicroflowOptions) error {
+	normalized := opts.Normalized
+	if opts.Normalized && opts.Handles {
+		// A handle addresses an activity of the STORED flow; a normalized
+		// description shows a different graph, with guards that exist nowhere.
+		return mdlerrors.NewValidation("describe microflow: 'normalized' and 'with handles' cannot be combined; handles address the stored flow, which 'normalized' does not show")
+	}
 	// Get hierarchy for module/folder resolution
 	h, err := getHierarchy(ctx)
 	if err != nil {
@@ -304,7 +318,7 @@ func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, normalized 
 
 	// Folder
 	if folderPath := h.BuildFolderPath(targetMf.ContainerID); folderPath != "" {
-		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(folderPath)))
+		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(ctx, folderPath)))
 	}
 
 	lines = append(lines, exposeClauseLines(targetMf)...)
@@ -327,8 +341,19 @@ func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, normalized 
 
 	// Generate activities
 	if targetMf.ObjectCollection != nil && len(targetMf.ObjectCollection.Objects) > 0 {
-		activityLines := formatMicroflowActivities(ctx, targetMf, entityNames, microflowNames)
-		activityLines = prependFreeAnnotationLines(targetMf.ObjectCollection, activityLines)
+		// Canonical: layout the engine derives on its own is left out (#748).
+		// Not with handles, which address the stored flow as it is drawn, and
+		// not normalized, whose graph is not the stored one to compare with.
+		if !opts.Handles && !normalized && !ctx.describeFullLayout {
+			defer useDerivedFlowLayout(ctx, "microflow", targetMf, name, entityNames, microflowNames)()
+		}
+		var activityLines []string
+		if opts.Handles {
+			activityLines = formatMicroflowActivitiesWithHandles(ctx, targetMf, entityNames, microflowNames)
+		} else {
+			activityLines = formatMicroflowActivities(ctx, targetMf, entityNames, microflowNames)
+		}
+		activityLines = prependFreeAnnotationLines(ctx, targetMf.ObjectCollection, activityLines)
 		for _, line := range activityLines {
 			lines = append(lines, "  "+line)
 		}
@@ -348,8 +373,6 @@ func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, normalized 
 		lines = append(lines, fmt.Sprintf("grant execute on microflow %s.%s to %s;",
 			name.Module, name.Name, strings.Join(roles, ", ")))
 	}
-
-	lines = append(lines, "/")
 
 	// Output
 	fmt.Fprintln(ctx.Output, strings.Join(lines, "\n"))
@@ -443,13 +466,19 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 	if targetNf.ReturnType != nil {
 		returnType := formatMicroflowDataType(ctx, targetNf.ReturnType, entityNames)
 		if returnType != "Void" && returnType != "" {
-			lines = append(lines, fmt.Sprintf("returns %s", returnType))
+			returnLine := fmt.Sprintf("returns %s", returnType)
+			// Same rule as a microflow's: without it the variable is lost on a
+			// describe -> exec round trip (ako/mxcli#705).
+			if targetNf.ReturnVariableName != "" && targetNf.ReturnVariableName != "Variable" {
+				returnLine += fmt.Sprintf(" as $%s", targetNf.ReturnVariableName)
+			}
+			lines = append(lines, returnLine)
 		}
 	}
 
 	// Folder
 	if folderPath := h.BuildFolderPath(targetNf.ContainerID); folderPath != "" {
-		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(folderPath)))
+		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(ctx, folderPath)))
 	}
 
 	// BEGIN block with activities
@@ -467,6 +496,16 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 	}()
 
 	if targetNf.ObjectCollection != nil && len(targetNf.ObjectCollection.Objects) > 0 {
+		// Canonical: layout the engine derives on its own is left out (#748).
+		if !ctx.describeFullLayout {
+			// The check rebuilds the whole nanoflow, so it needs the header too.
+			defer useDerivedFlowLayout(ctx, "nanoflow", &microflows.Microflow{
+				Parameters:         targetNf.Parameters,
+				ReturnType:         targetNf.ReturnType,
+				ReturnVariableName: targetNf.ReturnVariableName,
+				ObjectCollection:   targetNf.ObjectCollection,
+			}, name, entityNames, microflowNames)()
+		}
 		activityLines := formatMicroflowActivities(ctx, wrapperMf, entityNames, microflowNames)
 		for _, line := range activityLines {
 			lines = append(lines, "  "+line)
@@ -476,7 +515,6 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	lines = append(lines, "end;")
-	lines = append(lines, "/")
 
 	fmt.Fprintln(ctx.Output, strings.Join(lines, "\n"))
 	return nil
@@ -581,6 +619,7 @@ func describeNanoflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 		Excluded:           targetNf.Excluded,
 		Parameters:         targetNf.Parameters,
 		ReturnType:         targetNf.ReturnType,
+		ReturnVariableName: targetNf.ReturnVariableName,
 		ObjectCollection:   targetNf.ObjectCollection,
 		AllowedModuleRoles: targetNf.AllowedModuleRoles,
 	}
@@ -671,7 +710,7 @@ func renderMicroflowMDL(
 		} else {
 			activityLines = formatMicroflowActivities(ctx, mf, entityNames, microflowNames)
 		}
-		activityLines = prependFreeAnnotationLines(mf.ObjectCollection, activityLines)
+		activityLines = prependFreeAnnotationLines(ctx, mf.ObjectCollection, activityLines)
 		for _, line := range activityLines {
 			lines = append(lines, "  "+line)
 		}
@@ -690,8 +729,6 @@ func renderMicroflowMDL(
 		lines = append(lines, fmt.Sprintf("grant execute on %s %s.%s to %s;",
 			flowType, name.Module, name.Name, strings.Join(roles, ", ")))
 	}
-
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -816,8 +853,10 @@ func formatMicroflowActivities(
 
 	// Build annotation map for @annotation emission
 	annotationsByTarget := buildAnnotationsByTarget(mf.ObjectCollection)
+	annotationsByTarget.layout = describeLayoutOf(ctx)
+	annotationsByTarget.ctx = ctx
 
-	lines = append(lines, startAnnotationLines(mf.ObjectCollection)...)
+	lines = append(lines, annotationsByTarget.layout.startLines(mf.ObjectCollection)...)
 
 	// flowsByOrigin / flowsByDest are threaded into traverseFlow so @anchor
 	// emission is per-call — no package-level globals, safe under concurrent
@@ -1009,8 +1048,25 @@ func formatMicroflowActivitiesWithSourceMap(
 	sourceMap map[string]elkSourceRange,
 	headerLineCount int,
 ) []string {
+	warnings, body := formatMicroflowBodyWithSourceMap(ctx, mf, entityNames, microflowNames, sourceMap, headerLineCount)
+	return append(warnings, body...)
+}
+
+// formatMicroflowBodyWithSourceMap is formatMicroflowActivitiesWithSourceMap
+// with the warnings kept apart from the body. The source map is recorded while
+// the body is emitted, before the warnings are prepended, so its line numbers
+// index the body alone; a caller that needs them exact (describe … with
+// handles) takes the two separately.
+func formatMicroflowBodyWithSourceMap(
+	ctx *ExecContext,
+	mf *microflows.Microflow,
+	entityNames map[model.ID]string,
+	microflowNames map[model.ID]string,
+	sourceMap map[string]elkSourceRange,
+	headerLineCount int,
+) (warnings, body []string) {
 	if mf.ObjectCollection == nil {
-		return []string{"-- debug: ObjectCollection is nil"}
+		return nil, []string{"-- debug: ObjectCollection is nil"}
 	}
 
 	activityMap := make(map[model.ID]microflows.MicroflowObject)
@@ -1053,14 +1109,15 @@ func formatMicroflowActivitiesWithSourceMap(
 
 	// Build annotation map for @annotation emission
 	annotationsByTarget := buildAnnotationsByTarget(mf.ObjectCollection)
+	annotationsByTarget.layout = describeLayoutOf(ctx)
+	annotationsByTarget.ctx = ctx
 
-	lines = append(lines, startAnnotationLines(mf.ObjectCollection)...)
+	lines = append(lines, annotationsByTarget.layout.startLines(mf.ObjectCollection)...)
 
 	traverseFlow(ctx, startID, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, &lines, 0, sourceMap, headerLineCount, annotationsByTarget, labels)
 	declaredCrossed := emitCrossedMergeSections(ctx, mf.ObjectCollection, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, &lines, sourceMap, headerLineCount, annotationsByTarget, labels)
-	lines = append(microflowBodyWarnings(ctx, mf, labels, declaredCrossed), lines...)
 
-	return lines
+	return microflowBodyWarnings(ctx, mf, labels, declaredCrossed), lines
 }
 
 // findSplitMergePoints finds the corresponding merge point for each exclusive split.
@@ -1616,7 +1673,7 @@ func describeRule(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	if folderPath := h.BuildFolderPath(target.ContainerID); folderPath != "" {
-		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(folderPath)))
+		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(ctx, folderPath)))
 	}
 
 	lines = append(lines, "begin")
@@ -1640,7 +1697,6 @@ func describeRule(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	lines = append(lines, "end;")
-	lines = append(lines, "/")
 
 	fmt.Fprintln(ctx.Output, strings.Join(lines, "\n"))
 	return nil

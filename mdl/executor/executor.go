@@ -18,6 +18,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/catalog"
 	"github.com/mendixlabs/mxcli/mdl/diaglog"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
@@ -26,6 +27,9 @@ import (
 
 // executorCache holds cached data for performance across multiple operations.
 type executorCache struct {
+	// modulesMu guards modules, the one cache a parallel describe fills
+	// lazily (see getModulesFromCache, ako/mxcli#765).
+	modulesMu    sync.Mutex
 	modules      []*model.Module
 	units        []*types.UnitInfo
 	folders      []*types.FolderInfo
@@ -245,7 +249,8 @@ type Executor struct {
 	output         io.Writer
 	guard          *outputGuard // line-limit wrapper around output
 	mprPath        string
-	scriptDir      string // directory of the .mdl file being executed (see SetScriptDir)
+	scriptDir      string          // directory of the .mdl file being executed (see SetScriptDir)
+	langVersion    langver.Version // `mdl <n>;` of the program being run (see enterLanguage)
 	settings       map[string]any
 	cache          *executorCache
 	catalog        *catalog.Catalog
@@ -365,6 +370,7 @@ func (e *Executor) ExecuteProgram(prog *ast.Program) error {
 	if e.beginTally() {
 		defer e.flushTally()
 	}
+	defer e.enterLanguage(prog.LanguageVersion)()
 
 	// Collect all names defined in the script for forward-reference hints.
 	allDefined := newScriptContext()
@@ -380,6 +386,17 @@ func (e *Executor) ExecuteProgram(prog *ast.Program) error {
 		created.collectSingle(stmt)
 	}
 	return e.finalizeProgramExecution()
+}
+
+// enterLanguage runs the following statements under a program's language
+// version and returns the function that restores the previous one. The version
+// belongs to the script, so a nested EXECUTE SCRIPT runs under its own header
+// and its caller's is back afterwards. A statement run outside a program (the
+// REPL, a -c one-liner) is mdl 0, the same as a headerless script.
+func (e *Executor) enterLanguage(v langver.Version) func() {
+	prev := e.langVersion
+	e.langVersion = v
+	return func() { e.langVersion = prev }
 }
 
 // ExecuteProgramResult reports the outcome of a continue-on-error run.
@@ -401,6 +418,7 @@ func (e *Executor) ExecuteProgramContinueOnError(prog *ast.Program, w io.Writer)
 	if e.beginTally() {
 		defer e.flushTally()
 	}
+	defer e.enterLanguage(prog.LanguageVersion)()
 
 	allDefined := newScriptContext()
 	allDefined.collectDefinitions(prog)

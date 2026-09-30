@@ -762,7 +762,7 @@ Creates a page with a widget tree.
 ```sql
 create [or replace] page <qualified-name>
 (
-  [params: { $Param: Module.Entity | type [, ...] },]
+  [params: ( $Param: Module.Entity | type [, ...] ),]
   title: '<title>',
   layout: <Module.LayoutName>
   [, folder: '<path>']
@@ -788,7 +788,7 @@ WIDGET_TYPE widgetName (Property: value, ...) [{ children }]
 ```sql
 create page MyModule.Customer_Edit
 (
-  params: { $Customer: MyModule.Customer },
+  params: ( $Customer: MyModule.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -988,8 +988,11 @@ Creates a new module role within a module.
 
 **Syntax:**
 ```sql
-create module role <module>.<role> [description '<text>']
+create [or modify] module role <module>.<role> [description '<text>']
 ```
+
+`or modify` updates the description of a role that already exists instead of
+failing.
 
 **Example:**
 ```sql
@@ -1003,8 +1006,10 @@ Removes a module role.
 
 **Syntax:**
 ```sql
-drop module role <module>.<role>
+drop module role [if exists] <module>.<role>
 ```
+
+`if exists` makes dropping a role that is not there a no-op.
 
 ### GRANT EXECUTE ON MICROFLOW
 
@@ -1071,7 +1076,7 @@ Creates or updates an access rule on an entity for one or more module roles with
 
 **Syntax:**
 ```sql
-grant <module>.<role> on <module>.<entity> (<rights>) [where '<xpath>']
+grant <rights> on entity <module>.<entity> to <module>.<role> [, ...] [where [<xpath>]]
 ```
 
 Where `<rights>` is a comma-separated list of:
@@ -1083,19 +1088,19 @@ Where `<rights>` is a comma-separated list of:
 **Examples:**
 ```sql
 -- Full access
-grant Shop.Admin on Shop.Customer (create, delete, read *, write *);
+grant create, delete, read *, write * on entity Shop.Customer to Shop.Admin;
 
 -- Read-only
-grant Shop.Viewer on Shop.Customer (read *);
+grant read * on entity Shop.Customer to Shop.Viewer;
 
 -- Selective member access
-grant Shop.User on Shop.Customer (read (Name, Email), write (Email));
+grant read (Name, Email), write (Email) on entity Shop.Customer to Shop.User;
 
 -- With XPath constraint
-grant Shop.User on Shop.Order (read *, write *) where '[Status = ''Open'']';
+grant read *, write * on entity Shop.Order to Shop.User where [Status = 'Open'];
 
 -- Additive: adds Phone to existing read access (Name, Email preserved)
-grant Shop.User on Shop.Customer (read (Phone));
+grant read (Phone) on entity Shop.Customer to Shop.User;
 ```
 
 ### REVOKE (Entity Access)
@@ -1116,13 +1121,13 @@ Partial revoke semantics: `revoke read (x)` sets member x to no access. `revoke 
 **Examples:**
 ```sql
 -- Remove all access
-revoke Shop.Viewer on Shop.Customer;
+revoke all on entity Shop.Customer from Shop.Viewer;
 
 -- Remove read on specific attribute
-revoke Shop.User on Shop.Customer (read (Phone));
+revoke read (Phone) on entity Shop.Customer from Shop.User;
 
 -- Downgrade write to read-only
-revoke Shop.User on Shop.Customer (write (Email));
+revoke write (Email) on entity Shop.Customer from Shop.User;
 ```
 
 ### CREATE USER ROLE
@@ -1159,14 +1164,19 @@ Removes a project-level user role.
 drop user role <name>
 ```
 
-### ALTER PROJECT SECURITY
+### ALTER APP SECURITY
 
 Changes project-wide security settings.
 
 **Syntax:**
 ```sql
-alter project security level off | prototype | production
-alter project security demo users on | off
+alter app security (
+  [SecurityLevel: off | prototype | production,]
+  [EnableDemoUsers: true | false,]
+  [EnableGuestAccess: true | false,]
+  [GuestUserRole: <UserRole>,]
+  [StrictMode: true | false]
+)
 ```
 
 ### CREATE DEMO USER
@@ -1175,15 +1185,15 @@ Creates a demo user for development/testing.
 
 **Syntax:**
 ```sql
-create demo user '<username>' password '<password>' [entity <Module.Entity>] (<userrole> [, ...])
+create demo user '<username>' ( Password: '<password>', [Entity: <Module.Entity>,] UserRoles: (<userrole> [, ...]) )
 ```
 
-The optional `entity` clause specifies the entity that generalizes `System.User` (e.g., `Administration.Account`). If omitted, the system auto-detects the unique `System.User` subtype.
+The optional `Entity` property specifies the entity that generalizes `System.User` (e.g., `Administration.Account`). If omitted, the system auto-detects the unique `System.User` subtype.
 
 **Example:**
 ```sql
-create demo user 'demo_admin' password 'Admin123!' (AppAdmin);
-create demo user 'demo_admin' password 'Admin123!' entity Administration.Account (AppAdmin);
+create demo user 'demo_admin' ( Password: 'Admin123!', UserRoles: (AppAdmin) );
+create demo user 'demo_admin' ( Password: 'Admin123!', Entity: Administration.Account, UserRoles: (AppAdmin) );
 ```
 
 ### DROP DEMO USER
@@ -1221,13 +1231,17 @@ create or replace navigation <profile>
   [home page Module.AdminHome for AdminUserRole]
   [login page Module.LoginPage]
   [not found page Module.Custom404]
-  [menu (
-    menu item 'Label' page Module.Page;
-    menu 'Submenu' (
-      menu item 'Label' page Module.Page;
-    );
-  )]
+  [{
+    menu item 'Label' ( OnClick: show page Module.Page [, Icon: <icon>] )
+    menu 'Submenu' [( Icon: <icon> )] {
+      menu item 'Label' ( OnClick: call microflow Module.Flow )
+    }
+  }]
 ```
+
+Menu items are the profile's children, in `{ }` with no separator. `OnClick` is
+`show page`, `call microflow` or `sign out`. The old `menu ( menu item 'Label' page
+Module.Page; )` still parses and warns (MDL-DEPR121, MDL-DEPR122).
 
 **Example:**
 ```sql
@@ -1235,12 +1249,12 @@ create or replace navigation Responsive
   home page MyModule.Home_Web
   home page MyModule.AdminHome for Administrator
   login page Administration.Login
-  menu (
-    menu item 'Home' page MyModule.Home_Web;
-    menu 'Admin' (
-      menu item 'Users' page Administration.Account_Overview;
-    );
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyModule.Home_Web )
+    menu 'Admin' {
+      menu item 'Users' ( OnClick: show page Administration.Account_Overview )
+    }
+  };
 ```
 
 ---
@@ -1265,26 +1279,26 @@ Displays one row per constant per configuration. Shows the default value followe
 ### ALTER SETTINGS
 
 ```sql
-alter settings model key = value;
-alter settings configuration 'Name' key = value;
-alter settings constant 'Name' value 'val' in configuration 'cfg';
-alter settings drop constant 'Name' in configuration 'cfg';
-alter settings LANGUAGE key = value;
-alter settings workflows key = value;
+alter settings runtime ( key: value, ... );
+alter settings configuration 'Name' ( key: value, ... );
+alter settings constant @Module.Name value 'val' in configuration 'cfg';
+alter settings drop constant @Module.Name in configuration 'cfg';
+alter settings language ( key: value, ... );
+alter settings workflows ( key: value, ... );
 ```
 
 ### CREATE / DROP CONFIGURATION
 
 ```sql
-create configuration 'Name' [key = value, ...];
+create configuration 'Name' [( key: value, ... )];
 drop configuration 'Name';
 ```
 
 **Example:**
 ```sql
-alter settings model AfterStartupMicroflow = 'MyModule.ACT_Startup';
-alter settings configuration 'default' DatabaseType = 'POSTGRESQL';
-alter settings LANGUAGE DefaultLanguageCode = 'en_US';
+alter settings runtime ( AfterStartupMicroflow: 'MyModule.ACT_Startup' );
+alter settings configuration 'default' ( DatabaseType: 'POSTGRESQL' );
+alter settings language ( DefaultLanguageCode: 'en_US' );
 
 -- View constant values across all configurations
 show constant values;
@@ -1293,7 +1307,7 @@ show constant values;
 create configuration 'Staging' DatabaseType = 'POSTGRESQL', DatabaseUrl = 'staging-db:5432';
 
 -- Remove a constant override
-alter settings drop constant 'MyModule.ApiKey' in configuration 'Default';
+alter settings drop constant @MyModule.ApiKey in configuration 'Default';
 
 -- Drop a configuration
 drop configuration 'Staging';

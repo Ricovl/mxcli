@@ -83,7 +83,7 @@ func (pb *pageBuilder) buildDataViewV3(w *ast.WidgetV3) (*pages.DataView, error)
 		if ds.Type == "database" {
 			return nil, mdlerrors.NewValidationf(
 				"dataview %q cannot use a database data source (from %s) — a data view shows one object; use a microflow/nanoflow source (or a page parameter), or a list widget (listview/datagrid/gallery) for a collection [MDL-WIDGET09]",
-				w.Name, ds.Reference)
+				w.Name, databaseSourceFrom(ds))
 		}
 		dataSource, entityName, err := pb.buildDataSourceV3(ds)
 		if err != nil {
@@ -105,6 +105,10 @@ func (pb *pageBuilder) buildDataViewV3(w *ast.WidgetV3) (*pages.DataView, error)
 		// can be resolved to Entity.Attr
 		if w.Name != "" && entityName != "" {
 			pb.paramEntityNames[w.Name] = entityName
+			// Only while its own children are built: a data view is a source
+			// for the widgets inside it, and a sibling reading through it is
+			// CE7001 "Widget should be placed inside Data view" (#826).
+			defer pb.registerDataViewVariable(w.Name, dataSource)()
 		}
 	}
 
@@ -179,8 +183,9 @@ func (pb *pageBuilder) buildClientTemplateParams(astParams []ast.ParamAssignment
 			out = append(out, param)
 			continue
 		}
-		if strings.HasPrefix(strVal, "'") || strings.HasPrefix(strVal, "\"") {
-			// Already a quoted string literal — use as-is.
+		if isTemplateExpression(strVal) {
+			// A quoted string literal or any other expression
+			// (`toString($Order/Total)`) — stored as written.
 			param.Expression = strVal
 		} else {
 			// Attribute reference (with or without $ prefix) or bare attribute name.
@@ -317,7 +322,7 @@ func (pb *pageBuilder) buildListViewV3(w *ast.WidgetV3) (*pages.ListView, error)
 	// Handle DataSource
 	var listEntity string
 	if ds := w.GetDataSource(); ds != nil {
-		dataSource, entityName, err := pb.buildDataSourceV3(ds)
+		dataSource, entityName, err := pb.buildListViewDataSourceV3(ds)
 		if err != nil {
 			return nil, mdlerrors.NewBackend("build datasource", err)
 		}
@@ -454,7 +459,11 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 
 	// Handle Attribute (attribute path)
 	if attr := w.GetAttribute(); attr != "" {
-		tb.AttributePath, tb.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		tb.AttributePath, tb.AttributeRefSteps, tb.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -517,7 +526,11 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 
 	// Handle Attribute
 	if attr := w.GetAttribute(); attr != "" {
-		ta.AttributePath, ta.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		ta.AttributePath, ta.AttributeRefSteps, ta.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -526,6 +539,17 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 	// Handle Label
 	if label := w.GetLabel(); label != "" {
 		ta.Label = label
+	}
+
+	// Placeholder, as for a textbox (ako/mxcli#705).
+	if ph := w.GetPlaceholder(); ph != "" {
+		ta.Placeholder = &model.Text{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Texts$Text",
+			},
+			Translations: map[string]string{pb.textLang(): ph},
+		}
 	}
 
 	// Handle OnChange (the "On change" client action)
@@ -553,7 +577,11 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 
 	// Handle Attribute
 	if attr := w.GetAttribute(); attr != "" {
-		dp.AttributePath, dp.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		dp.AttributePath, dp.AttributeRefSteps, dp.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -589,7 +617,11 @@ func (pb *pageBuilder) buildDropdownV3(w *ast.WidgetV3) (*pages.DropDown, error)
 
 	// Handle Attribute
 	if attr := w.GetAttribute(); attr != "" {
-		dd.AttributePath, dd.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		dd.AttributePath, dd.AttributeRefSteps, dd.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -625,7 +657,11 @@ func (pb *pageBuilder) buildCheckBoxV3(w *ast.WidgetV3) (*pages.CheckBox, error)
 
 	// Handle Attribute
 	if attr := w.GetAttribute(); attr != "" {
-		cb.AttributePath, cb.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		cb.AttributePath, cb.AttributeRefSteps, cb.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -696,7 +732,11 @@ func (pb *pageBuilder) buildRadioButtonsV3(w *ast.WidgetV3) (*pages.RadioButtons
 
 	// Get attribute path from Attribute property
 	if attr := w.GetAttribute(); attr != "" {
-		rb.AttributePath, rb.AttributeRefSteps = pb.resolveInputAttribute(attr)
+		path, steps, sv, err := pb.resolveInputBinding(w, attr)
+		if err != nil {
+			return nil, err
+		}
+		rb.AttributePath, rb.AttributeRefSteps, rb.SourceVariable = path, steps, sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -771,7 +811,7 @@ func (pb *pageBuilder) buildDynamicTextV3(w *ast.WidgetV3) (*pages.DynamicText, 
 	//   Content: $widget.Name            -> auto-generate {1} with $widget.Name as param
 	//   Content: Entity.Attribute        -> auto-generate {1} with Entity.Attribute as param
 	//   Content: SomeStaticText          -> literal string, no params (no dot, no $)
-	//   Content: 'Name: {1}', ContentParams: [Name] -> use explicit template and params
+	//   Content: 'Name: {1}', ContentParams: (Name) -> use explicit template and params
 	var autoGeneratedParams []string
 	if content != "" && explicitParams == nil {
 		// Only auto-generate for:
@@ -796,7 +836,7 @@ func (pb *pageBuilder) buildDynamicTextV3(w *ast.WidgetV3) (*pages.DynamicText, 
 	}
 
 	// Attribute: X binds the dynamic text to an attribute (issue #650), equivalent
-	// to `ContentParams: [{1} = X]`. Without this the Attribute was dropped, leaving
+	// to `ContentParams: ({1} = X)`. Without this the Attribute was dropped, leaving
 	// an orphaned `{1}` template with no parameter — which Studio Pro can't open
 	// (NullReferenceException in ClientTemplateFormPart.CollectControls).
 	// Outside a data container that parameter binds nothing (CE0402).
@@ -858,8 +898,9 @@ func (pb *pageBuilder) buildDynamicTextV3(w *ast.WidgetV3) (*pages.DynamicText, 
 			}
 			// Check if it's an attribute reference or literal
 			if strVal, ok := p.Value.(string); ok {
-				if strings.HasPrefix(strVal, "'") || strings.HasPrefix(strVal, "\"") {
-					// Already a quoted string literal - use as-is
+				if isTemplateExpression(strVal) {
+					// A quoted string literal or any other expression
+					// (`toString($Order/Total)`) - stored as written
 					param.Expression = strVal
 				} else if strings.HasPrefix(strVal, "$") || strings.Contains(strVal, ".") {
 					// Attribute reference - resolve widget references to entity paths
@@ -1228,14 +1269,21 @@ func (pb *pageBuilder) buildSnippetCallParams(sc *pages.SnippetCallWidget, snipp
 				continue
 			}
 			return mdlerrors.NewValidationf(
-				"snippet %s requires parameter $%s — add Params: {%s: $<variable>} to the SNIPPETCALL, "+
+				"snippet %s requires parameter $%s — add Params: (%s = $<variable>) to the SNIPPETCALL, "+
 					"or place the call inside a data context of %s so the parameter is satisfied from it",
 				snippetQName, declared.Name, declared.Name, orDefaultStr(declared.EntityName, "the parameter's entity"),
 			)
 		}
+		// Inside a snippet, passing that snippet's own parameter names it in the
+		// SnippetParameter slot; the PageParameter slot names a page parameter
+		// the snippet does not have — CE0115 (ako/mxcli#721 L3).
+		// A page `Variables:` entry is named in LocalVariable (ako/mxcli#826).
+		_, kind := pb.classifyFlowArgValue(argument)
 		sc.ParameterMappings = append(sc.ParameterMappings, pages.SnippetParamMapping{
-			ParamName: declared.Name,
-			Argument:  argument,
+			ParamName:          declared.Name,
+			Argument:           argument,
+			IsSnippetParameter: kind == "snippet",
+			IsLocalVariable:    kind == "local",
 		})
 	}
 

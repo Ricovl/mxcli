@@ -19,9 +19,14 @@ func (b *Builder) ExitCreateODataClientStatement(ctx *parser.CreateODataClientSt
 	stmt := &ast.CreateODataClientStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	// `folder '…'` after the name (R9); `Folder:` in the list is its alias.
+	folderClause := ctx.STRING_LITERAL() != nil
+	if folderClause {
+		stmt.Folder = unquoteStringLit(ctx.STRING_LITERAL())
+	}
 
 	// Parse property assignments
-	for _, propCtx := range ctx.AllOdataPropertyAssignment() {
+	for i, propCtx := range ctx.AllOdataPropertyAssignment() {
 		prop := propCtx.(*parser.OdataPropertyAssignmentContext)
 		name := identifierOrKeywordText(prop.IdentifierOrKeyword())
 		value := odataAssignmentValueText(prop)
@@ -45,11 +50,11 @@ func (b *Builder) ExitCreateODataClientStatement(ctx *parser.CreateODataClientSt
 			stmt.UseAuthentication = strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
 		// Expression-typed: the expression as written, not an unquoted value.
 		case "httpusername":
-			stmt.HttpUsername, stmt.HttpUsernameIsLiteral = odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
+			stmt.HttpUsername, stmt.HttpUsernameIsLiteral = b.odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
 		case "httppassword":
-			stmt.HttpPassword, stmt.HttpPasswordIsLiteral = odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
+			stmt.HttpPassword, stmt.HttpPasswordIsLiteral = b.odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
 		case "clientcertificate":
-			stmt.ClientCertificate, _ = odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
+			stmt.ClientCertificate, _ = b.odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
 		case "configurationmicroflow":
 			// "Configuration microflow" — returns System.ConsumedODataConfiguration.
 			stmt.ConfigurationMicroflow = value
@@ -70,7 +75,10 @@ func (b *Builder) ExitCreateODataClientStatement(ctx *parser.CreateODataClientSt
 		case "proxypassword":
 			stmt.ProxyPassword = value
 		case "folder":
-			stmt.Folder = value
+			if !folderClause {
+				stmt.Folder = value
+			}
+			b.recordFolderProperty(ctx.QualifiedName(), ruleContexts(ctx.AllOdataPropertyAssignment()), i, value, folderClause, nil)
 		default:
 			stmt.UnknownProperties = append(stmt.UnknownProperties, name)
 		}
@@ -78,7 +86,7 @@ func (b *Builder) ExitCreateODataClientStatement(ctx *parser.CreateODataClientSt
 
 	// Parse HEADERS clause
 	if headersCtx := ctx.OdataHeadersClause(); headersCtx != nil {
-		stmt.Headers = parseODataHeaders(headersCtx)
+		stmt.Headers = b.parseODataHeaders(headersCtx)
 	}
 
 	// Check for CREATE OR MODIFY
@@ -98,9 +106,14 @@ func (b *Builder) ExitCreateODataServiceStatement(ctx *parser.CreateODataService
 	stmt := &ast.CreateODataServiceStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	// `folder '…'` after the name (R9); `Folder:` in the list is its alias.
+	folderClause := ctx.STRING_LITERAL() != nil
+	if folderClause {
+		stmt.Folder = unquoteStringLit(ctx.STRING_LITERAL())
+	}
 
 	// Parse property assignments
-	for _, propCtx := range ctx.AllOdataPropertyAssignment() {
+	for i, propCtx := range ctx.AllOdataPropertyAssignment() {
 		prop := propCtx.(*parser.OdataPropertyAssignmentContext)
 		name := identifierOrKeywordText(prop.IdentifierOrKeyword())
 		value := odataAssignmentValueText(prop)
@@ -127,7 +140,10 @@ func (b *Builder) ExitCreateODataServiceStatement(ctx *parser.CreateODataService
 			stmt.SupportsGraphQL = strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
 			stmt.SupportsGraphQLSet = true
 		case "folder":
-			stmt.Folder = value
+			if !folderClause {
+				stmt.Folder = value
+			}
+			b.recordFolderProperty(ctx.QualifiedName(), ruleContexts(ctx.AllOdataPropertyAssignment()), i, value, folderClause, nil)
 		default:
 			stmt.UnknownProperties = append(stmt.UnknownProperties, name)
 		}
@@ -279,7 +295,7 @@ func (b *Builder) ExitCreateExternalEntitiesStatement(ctx *parser.CreateExternal
 // odataValueText extracts the string value from an OData property value context.
 func odataValueText(val *parser.OdataPropertyValueContext) string {
 	if sl := val.STRING_LITERAL(); sl != nil {
-		return unquoteString(sl.GetText())
+		return unquoteStringLit(sl)
 	}
 	if nl := val.NUMBER_LITERAL(); nl != nil {
 		return nl.GetText()
@@ -357,7 +373,7 @@ func parsePublishEntityBlock(ctx parser.IPublishEntityBlockContext) *ast.Publish
 
 	// Optional AS 'ExposedName'
 	if sl := block.STRING_LITERAL(); sl != nil {
-		entity.ExposedName = unquoteString(sl.GetText())
+		entity.ExposedName = unquoteStringLit(sl)
 	}
 
 	// Parse entity-level properties (ReadMode, InsertMode, etc.)
@@ -401,15 +417,15 @@ func parsePublishEntityBlock(ctx parser.IPublishEntityBlockContext) *ast.Publish
 }
 
 // parseODataHeaders converts a HEADERS clause into header definitions.
-func parseODataHeaders(ctx parser.IOdataHeadersClauseContext) []ast.HeaderDef {
+func (b *Builder) parseODataHeaders(ctx parser.IOdataHeadersClauseContext) []ast.HeaderDef {
 	clause := ctx.(*parser.OdataHeadersClauseContext)
 	var headers []ast.HeaderDef
 
 	for _, entryCtx := range clause.AllOdataHeaderEntry() {
 		entry := entryCtx.(*parser.OdataHeaderEntryContext)
-		key := unquoteString(entry.STRING_LITERAL().GetText())
+		key := unquoteStringLit(entry.STRING_LITERAL())
 		// A header value is a Mendix expression, kept as written.
-		value, isLiteral := odataExpressionValue(entry.OdataPropertyValue(), entry.Expression())
+		value, isLiteral := b.odataExpressionValue(entry.OdataPropertyValue(), entry.Expression())
 		headers = append(headers, ast.HeaderDef{Key: key, Value: value, ValueIsLiteral: isLiteral})
 	}
 
@@ -428,7 +444,7 @@ func parsePublishMicroflowBlock(ctx parser.IPublishMicroflowBlockContext) *ast.P
 		Microflow: buildQualifiedName(block.QualifiedName()),
 	}
 	if sl := block.STRING_LITERAL(); sl != nil {
-		def.ExposedName = unquoteString(sl.GetText())
+		def.ExposedName = unquoteStringLit(sl)
 	}
 	if exposeCtx := block.ExposeClause(); exposeCtx != nil {
 		expose := exposeCtx.(*parser.ExposeClauseContext)
@@ -442,7 +458,7 @@ func parsePublishMicroflowBlock(ctx parser.IPublishMicroflowBlockContext) *ast.P
 			}
 			p := &ast.PublishedParamDef{Name: member.IdentifierOrKeyword().GetText()}
 			if sl := member.STRING_LITERAL(); sl != nil {
-				p.ExposedName = unquoteString(sl.GetText())
+				p.ExposedName = unquoteStringLit(sl)
 			}
 			if opts := member.ExposeMemberOptions(); opts != nil {
 				optsCtx := opts.(*parser.ExposeMemberOptionsContext)
@@ -486,7 +502,7 @@ func parseExposeMembers(ctx parser.IExposeClauseContext) []*ast.PublishedMemberD
 
 		// Optional AS 'ExposedName'
 		if sl := member.STRING_LITERAL(); sl != nil {
-			m.ExposedName = unquoteString(sl.GetText())
+			m.ExposedName = unquoteStringLit(sl)
 		}
 
 		// Optional options (Filterable, Sortable, IsPartOfKey)

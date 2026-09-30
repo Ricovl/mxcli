@@ -23,14 +23,14 @@
 --   then open <project>.mpr in Studio Pro and confirm the Integration Pane renders.
 create module bug594;
 
-create odata client bug594.SalesforceAPI (
+create consumed odata service bug594.SalesforceAPI (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.salesforce.com/odata/v4/$metadata',
   timeout: 300
 );
 
 create external entity bug594.RemoteAccount
-from odata client bug594.SalesforceAPI
+from consumed odata service bug594.SalesforceAPI
 (
   EntitySet: 'Accounts',
   RemoteName: 'Account',
@@ -48,7 +48,7 @@ from odata client bug594.SalesforceAPI
 -- fix, every omitted property was overwritten with its zero value and the
 -- entity ended up unusable. After the fix, all of them are preserved.
 create or modify external entity bug594.RemoteAccount
-from odata client bug594.SalesforceAPI
+from consumed odata service bug594.SalesforceAPI
 (
   EntitySet: 'Accounts',
   AllowCreateChangeLocally: Yes

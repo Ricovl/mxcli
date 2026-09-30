@@ -37,8 +37,8 @@ create entity Travel.Activity ( Name: String, StartTime: DateTime );
 create association Travel.Trip_Day from Travel.Day to Travel.Trip;
 create association Travel.Day_Activity from Travel.Activity to Travel.Day;
 /
-create or replace page Travel.Trip_Detail (
-  params: { $Trip: Travel.Trip },
+create or modify page Travel.Trip_Detail (
+  params: ( $Trip: Travel.Trip ),
   layout: Atlas_Core.Atlas_Default
 ) {
   -- one-hop reverse association (already worked; must stay working)

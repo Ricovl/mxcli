@@ -16,12 +16,12 @@ CREATE PAGE CRM.Customer_MasterDetail (
           TEMPLATE template1 {
             DYNAMICTEXT name (
               Content: '{1}',
-              ContentParams: [{1} = Name],
+              ContentParams: ({1} = Name),
               RenderMode: H4
             )
             DYNAMICTEXT email (
               Content: '{1}',
-              ContentParams: [{1} = Email]
+              ContentParams: ({1} = Email)
             )
           }
         }
@@ -38,10 +38,10 @@ CREATE PAGE CRM.Customer_MasterDetail (
           FOOTER footer1 {
             ACTIONBUTTON btnSave (
               Caption: 'Save',
-              Action: SAVE_CHANGES,
+              Action: SAVE CHANGES,
               ButtonStyle: Success
             )
-            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
           }
         }
       }

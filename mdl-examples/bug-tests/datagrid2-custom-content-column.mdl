@@ -32,18 +32,18 @@ create entity MyFirstModule.Expense ( Description: String );
 create association MyFirstModule.Expense_Employee
   from MyFirstModule.Expense to MyFirstModule.Employee;
 
-create or replace page MyFirstModule.DGOverview
+create or modify page MyFirstModule.DGOverview
 ( Title: 'DG Overview', Layout: Atlas_Core.Atlas_Default )
 {
   datagrid dgExp (datasource: database from MyFirstModule.Expense) {
     -- plain attribute column
-    column colDesc (caption: 'Description', attribute: Description)
+    column (caption: 'Description', attribute: Description)
     -- custom content: a dynamictext binding an attribute over an association
-    column colEmployee (caption: 'Submitted by') {
-      dynamictext dtEmp (content: '{1}', contentparams: [{1} = MyFirstModule.Expense_Employee/Name])
+    column (caption: 'Submitted by') {
+      dynamictext dtEmp (content: '{1}', contentparams: ({1} = MyFirstModule.Expense_Employee/Name))
     }
     -- custom content: an action button
-    column colOpen (caption: 'Actions') {
+    column (caption: 'Actions') {
       actionbutton btnOpen (caption: 'Open', action: nothing)
     }
   }

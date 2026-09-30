@@ -16,7 +16,7 @@ create persistent entity Probe1029Ok.Item (
 );
 
 create page Probe1029Ok.Detail (
-  params: { $Item: Probe1029Ok.Item },
+  params: ( $Item: Probe1029Ok.Item ),
   title: 'Detail',
   layout: Atlas_Core.Atlas_Default
 ) {
@@ -32,25 +32,25 @@ create page Probe1029Ok.Plain (
 ) {
   actionbutton btnNoArgs (
     caption: 'Open',
-    action: show_page Probe1029Ok.Plain
+    action: show page Probe1029Ok.Plain
   )
 };
 
 -- Inside a data view: the argument names the context object, under either
 -- spelling. This is the documented form in create-page.md.
 create page Probe1029Ok.Ok (
-  params: { $SomeRef: Probe1029Ok.Item },
+  params: ( $SomeRef: Probe1029Ok.Item ),
   title: 'Ok',
   layout: Atlas_Core.Atlas_Default
 ) {
   dataview dv (datasource: $SomeRef) {
     actionbutton btnCurrent (
       caption: 'Open (currentObject)',
-      action: show_page Probe1029Ok.Detail(Item: $currentObject)
+      action: show page Probe1029Ok.Detail(Item = $currentObject)
     )
     actionbutton btnByName (
       caption: 'Open (by name)',
-      action: show_page Probe1029Ok.Detail(Item: $SomeRef)
+      action: show page Probe1029Ok.Detail(Item = $SomeRef)
     )
   }
 };
@@ -64,7 +64,7 @@ create page Probe1029Ok.Listing (
   listview lv (datasource: database Probe1029Ok.Item) {
     actionbutton btnRow (
       caption: 'Open row',
-      action: show_page Probe1029Ok.Detail(Item: $currentObject)
+      action: show page Probe1029Ok.Detail(Item = $currentObject)
     )
   }
 };

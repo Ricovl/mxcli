@@ -1,11 +1,11 @@
 -- mendixlabs/mxcli#1103 — `retrieve … limit 1` binds a single OBJECT.
 --
--- The executor maps `limit 1` with no offset to Mendix's "First object" range,
--- so $Requests is an object and head() cannot take it. Nothing said so before
--- the build: `mxcli check --references` passed and `describe` re-emits
--- `limit 1`, so an object retrieve and a list retrieve are identical text.
--- mxbuild rejected it as CE0097 at the far end of a build — and inside a
--- .test.mdl file, not even that: the injected test simply failed to build.
+-- This script has no `mdl 1;` header, so `limit 1` with no offset keeps its
+-- alpha meaning, Mendix's "First object" range (and warns MDL-V1-LIMIT1,
+-- ako/mxcli#734): $Requests is an object and head() cannot take it. mxbuild
+-- rejects that as CE0097 — and inside a .test.mdl file, not even that: the
+-- injected test simply failed to build. `describe` now prints the object
+-- range as `first`; under `mdl 1;` `limit 1` is a list of one.
 --
 -- MDL-RETRIEVE01 reports it at check time. This script must FAIL check.
 create module Probe;

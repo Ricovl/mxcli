@@ -60,11 +60,11 @@ create or modify association IT19.Issue_Project  from IT19.Issue to IT19.Project
 create or modify association IT19.Issue_Approver from IT19.Issue to IT19B.Approver;
 create or modify association IT19.Issue_Assignee from IT19.Issue to System.User;
 
-create or replace page IT19.IssuePage
+create or modify page IT19.IssuePage
 (
   Title: 'Issue',
   Layout: Atlas_Core.Atlas_Default,
-  Params: { $Issue: IT19.Issue }
+  Params: ( $Issue: IT19.Issue )
 )
 {
   DATAVIEW dvIssue (DataSource: $Issue) {

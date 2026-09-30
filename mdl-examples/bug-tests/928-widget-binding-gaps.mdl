@@ -46,12 +46,12 @@ create or modify page BugTest928.Catalogue (
 
     -- The control: a built-in widget with the same syntax. This always worked,
     -- and is what showed the defect was specific to the pluggable path.
-    DYNAMICTEXT dt ( Content: '{1}', ContentParams: [{1} = PictureUrl] )
+    DYNAMICTEXT dt ( Content: '{1}', ContentParams: ({1} = PictureUrl) )
 
     -- Bug 1, the reported form: numeric placeholder + explicit contentparams.
     PLUGGABLEWIDGET 'com.mendix.widget.web.image.Image' cardImage (
       datasource: imageUrl,
-      imageUrl: '{1}', contentparams: [{1} = PictureUrl]
+      imageUrl: '{1}', contentparams: ({1} = PictureUrl)
     )
 
     -- The same binding in the `{AttrName}` spelling, which already worked and

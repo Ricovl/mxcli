@@ -40,7 +40,7 @@ create microflow Issue573.SetHeaders () returns void
 begin
 end;
 
-create odata client Issue573.ConfigMicroflowSvc (
+create consumed odata service Issue573.ConfigMicroflowSvc (
   ODataVersion: OData4,
   MetadataUrl: 'https://example.com/odata/$metadata',
   Timeout: 300,
@@ -48,7 +48,7 @@ create odata client Issue573.ConfigMicroflowSvc (
   ErrorHandlingMicroflow: microflow Issue573.HandleError
 );
 
-create odata client Issue573.HeadersMicroflowSvc (
+create consumed odata service Issue573.HeadersMicroflowSvc (
   ODataVersion: OData4,
   MetadataUrl: 'https://example.com/odata/$metadata',
   Timeout: 300,
@@ -71,5 +71,5 @@ create odata client Issue573.HeadersMicroflowSvc (
 -- no errors at all. Producing a green mx check would require giving the
 -- stubs the real signatures (HttpResponse→String, etc.), which is out of
 -- scope for a regression reproduction.
-describe odata client Issue573.ConfigMicroflowSvc;
-describe odata client Issue573.HeadersMicroflowSvc;
+describe consumed odata service Issue573.ConfigMicroflowSvc;
+describe consumed odata service Issue573.HeadersMicroflowSvc;

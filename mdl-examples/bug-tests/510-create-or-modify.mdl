@@ -19,11 +19,11 @@ create module BugTest510;
 -- ============================================================================
 
 create json structure BugTest510.JS_Order
-  snippet '{"orderId": 1, "status": "pending"}';
+  sample '{"orderId": 1, "status": "pending"}';
 
 -- Modify in-place: UUID must be preserved after this call.
 create or modify json structure BugTest510.JS_Order
-  snippet '{"orderId": 1, "status": "pending", "total": 0.0}';
+  sample '{"orderId": 1, "status": "pending", "total": 0.0}';
 
 describe json structure BugTest510.JS_Order;
 -- Expected: "create or modify json structure ..." (not "create or replace ...")
@@ -35,8 +35,8 @@ describe json structure BugTest510.JS_Order;
 create image collection BugTest510.TestIcons;
 
 -- Modify in-place
-create or modify image collection BugTest510.TestIcons
-  comment 'Updated comment';
+/** Updated comment */
+create or modify image collection BugTest510.TestIcons;
 
 describe image collection BugTest510.TestIcons;
 -- Expected: "create or modify image collection ..." (not "create or replace ...")

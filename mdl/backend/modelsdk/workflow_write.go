@@ -5,6 +5,7 @@ package modelsdkbackend
 import (
 	"fmt"
 
+	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
@@ -53,8 +54,11 @@ func init() {
 
 	// Mandatory empty-list markers + null PartProperties, keyed per $Type. Empty
 	// marker-2 lists rely on these (an empty addPartList would default to marker 3).
+	// EventSubProcesses empties as [2]: Studio Pro 11.14 stores it on a workflow
+	// that has none (ako/TestApp). encodeWorkflow suppresses the empty list for a
+	// project that does not declare the property (before 11.8.0).
 	codec.RegisterTypeDefaults("Workflows$Workflow", codec.TypeDefaults{
-		MandatoryListMarkers: map[string]int32{"OnWorkflowEvent": 2},
+		MandatoryListMarkers: map[string]int32{"OnWorkflowEvent": 2, "EventSubProcesses": 2},
 		NullFields:           []string{"WorkflowMetaData", "Annotation", "AdminPage"},
 	})
 	codec.RegisterTypeDefaults("Workflows$Flow", codec.TypeDefaults{
@@ -130,7 +134,10 @@ const (
 // useCallMicroflowActivityName reports whether the target project is Mendix 11.9+
 // and therefore expects the CallMicroflowActivity storage name.
 func (b *Backend) useCallMicroflowActivityName() bool {
-	pv := b.ProjectVersion()
+	return usesCallMicroflowActivityName(b.ProjectVersion())
+}
+
+func usesCallMicroflowActivityName(pv *types.ProjectVersion) bool {
 	return pv != nil && pv.IsAtLeast(11, 9)
 }
 
@@ -163,9 +170,7 @@ func (b *Backend) CreateWorkflow(wf *workflows.Workflow) error {
 		wf.ID = model.ID(mmpr.GenerateID())
 	}
 	wf.TypeName = "Workflows$Workflow"
-	g := workflowToGen(wf)
-	applyCallMicroflowStorageName(g, b.useCallMicroflowActivityName())
-	contents, err := (&codec.Encoder{}).Encode(g)
+	contents, err := encodeWorkflow(wf, b.ProjectVersion())
 	if err != nil {
 		return fmt.Errorf("CreateWorkflow: encode: %w", err)
 	}
@@ -181,13 +186,50 @@ func (b *Backend) UpdateWorkflow(wf *workflows.Workflow) error {
 		return fmt.Errorf("UpdateWorkflow: not connected for writing")
 	}
 	wf.TypeName = "Workflows$Workflow"
-	g := workflowToGen(wf)
-	applyCallMicroflowStorageName(g, b.useCallMicroflowActivityName())
-	contents, err := (&codec.Encoder{}).Encode(g)
+	contents, err := encodeWorkflow(wf, b.ProjectVersion())
 	if err != nil {
 		return fmt.Errorf("UpdateWorkflow: encode: %w", err)
 	}
+	// A rewrite without an `export level` clause keeps the stored level (#816).
+	contents, err = b.keepStoredExportLevelUnlessSet(string(wf.ID), wf.ExportLevel, contents)
+	if err != nil {
+		return fmt.Errorf("UpdateWorkflow: %w", err)
+	}
 	return b.writer.UpdateRawUnit(string(wf.ID), contents)
+}
+
+// workflowEventSubProcessesMajor/Minor is the version that introduced
+// Workflows$Workflow.eventSubProcesses (modelsdk/gen/workflows/version.go).
+const workflowEventSubProcessesMajor, workflowEventSubProcessesMinor = 11, 8
+
+// encodeWorkflow builds and serializes a workflow for a project of this
+// version. CreateWorkflow and UpdateWorkflow both go through it, so a version
+// guard cannot be applied on one path and forgotten on the other.
+//
+// An empty EventSubProcesses list is what Studio Pro stores on a workflow with
+// none (ako/TestApp, 11.14.0); omitting it made every rewrite of a Studio Pro
+// workflow delete the key (#743). It is written only when the project declares
+// the property: a key the project's metamodel does not know makes the document
+// unopenable in Studio Pro, and mxbuild does not catch it (see
+// codec.Encoder.OmitKeys). An unreadable version omits it, like the page guards.
+func encodeWorkflow(wf *workflows.Workflow, pv *types.ProjectVersion) ([]byte, error) {
+	g := workflowToGen(wf)
+	applyCallMicroflowStorageName(g, usesCallMicroflowActivityName(pv))
+	enc := &codec.Encoder{}
+	if len(wf.EventSubProcesses) == 0 && !workflowSupportsEventSubProcesses(pv) {
+		// Only the empty default is suppressed: event sub-processes the script
+		// declares are written whatever the version (the feature check refuses
+		// them on an older project before this is reached).
+		enc.OmitKeys = map[string]map[string]bool{"Workflows$Workflow": {"EventSubProcesses": true}}
+	}
+	return enc.Encode(g)
+}
+
+// workflowSupportsEventSubProcesses reports whether the project declares
+// Workflows$Workflow.eventSubProcesses, introduced in 11.8.0
+// (modelsdk/gen/workflows/version.go).
+func workflowSupportsEventSubProcesses(pv *types.ProjectVersion) bool {
+	return pv != nil && pv.IsAtLeast(11, 8)
 }
 
 // DeleteWorkflow removes a workflow unit by ID.
@@ -214,8 +256,8 @@ func workflowToGen(wf *workflows.Workflow) element.Element {
 	}
 	addStr(g, "Documentation", wf.Documentation)
 	addStr(g, "DueDate", wf.DueDate)
-	// EventSubProcesses: a marker-2 list. Studio Pro 11.14 writes it empty too,
-	// but the property only exists from 11.8, so an empty one is not invented.
+	// EventSubProcesses: a marker-2 list, written empty through the Studio Pro
+	// defaults when there are none; workflowEncoder omits it before 11.8.
 	if len(wf.EventSubProcesses) > 0 {
 		esps := make([]element.Element, 0, len(wf.EventSubProcesses))
 		for _, esp := range wf.EventSubProcesses {
@@ -224,7 +266,9 @@ func workflowToGen(wf *workflows.Workflow) element.Element {
 		addPartList(g, "EventSubProcesses", esps)
 	}
 	addBool(g, "Excluded", wf.Excluded)
-	addStr(g, "ExportLevel", "Hidden")
+	// The statement's `export level`, when it has one (#816): the constant this
+	// wrote made the clause a no-op on create and on every rewrite.
+	addStr(g, "ExportLevel", orDefault(wf.ExportLevel, "Hidden"))
 	flow := wf.Flow
 	if flow == nil {
 		flow = &workflows.Flow{}
@@ -396,8 +440,8 @@ func userTaskToGen(a *workflows.UserTask) element.Element {
 		addPartList(g, "Outcomes", outcomes)
 	}
 	addFreshPersistentID(g)
-	addStr(g, "RelativeMiddlePoint", "")
-	addStr(g, "Size", "")
+	addStr(g, "RelativeMiddlePoint", workflowZeroPoint)
+	addStr(g, "Size", workflowZeroPoint)
 	addPart(g, "TaskDescription", workflowStringTemplate(a.TaskDescription))
 	taskName := a.TaskName
 	if taskName == "" {
@@ -519,8 +563,8 @@ func callMicroflowTaskToGen(a *workflows.CallMicroflowTask) element.Element {
 		addPartList(g, "ParameterMappings", mappings)
 	}
 	addFreshPersistentID(g)
-	addStr(g, "RelativeMiddlePoint", "")
-	addStr(g, "Size", "")
+	addStr(g, "RelativeMiddlePoint", workflowZeroPoint)
+	addStr(g, "Size", workflowZeroPoint)
 	return g
 }
 
@@ -539,8 +583,8 @@ func callWorkflowActivityToGen(a *workflows.CallWorkflowActivity) element.Elemen
 		addPartList(g, "ParameterMappings", mappings)
 	}
 	addFreshPersistentID(g)
-	addStr(g, "RelativeMiddlePoint", "")
-	addStr(g, "Size", "")
+	addStr(g, "RelativeMiddlePoint", workflowZeroPoint)
+	addStr(g, "Size", workflowZeroPoint)
 	addStr(g, "Workflow", a.Workflow)
 	return g
 }
@@ -571,10 +615,7 @@ func parallelSplitToGen(a *workflows.ParallelSplitActivity) element.Element {
 	outcomes := make([]element.Element, 0, len(a.Outcomes))
 	for _, o := range a.Outcomes {
 		oc := newElem("Workflows$ParallelSplitOutcome", string(o.ID))
-		if o.Flow != nil {
-			flow := flowToGen(o.Flow)
-			addPart(oc, "Flow", flow)
-		}
+		addPart(oc, "Flow", outcomeFlowToGen(o.Flow))
 		addFreshPersistentID(oc)
 		outcomes = append(outcomes, oc)
 	}
@@ -613,8 +654,8 @@ func waitForNotificationToGen(a *workflows.WaitForNotificationActivity) element.
 	addStr(g, "Caption", a.Caption)
 	addStr(g, "Name", a.Name)
 	addFreshPersistentID(g)
-	addStr(g, "RelativeMiddlePoint", "")
-	addStr(g, "Size", "")
+	addStr(g, "RelativeMiddlePoint", workflowZeroPoint)
+	addStr(g, "Size", workflowZeroPoint)
 	return g
 }
 
@@ -631,16 +672,14 @@ func annotationActivityToGen(a *workflows.WorkflowAnnotationActivity) element.El
 	g := newElem("Workflows$Annotation", activityID(&a.BaseWorkflowActivity))
 	addStr(g, "Description", a.Description)
 	addFreshPersistentID(g)
-	addStr(g, "RelativeMiddlePoint", "")
-	addStr(g, "Size", "")
+	addStr(g, "RelativeMiddlePoint", workflowZeroPoint)
+	addStr(g, "Size", workflowZeroPoint)
 	return g
 }
 
 func userTaskOutcomeToGen(o *workflows.UserTaskOutcome) element.Element {
 	g := newElem("Workflows$UserTaskOutcome", string(o.ID))
-	if o.Flow != nil {
-		addPart(g, "Flow", flowToGen(o.Flow))
-	}
+	addPart(g, "Flow", outcomeFlowToGen(o.Flow))
 	addFreshPersistentID(g)
 	addStr(g, "Value", o.Value)
 	return g
@@ -650,23 +689,21 @@ func conditionOutcomeToGen(outcome workflows.ConditionOutcome) element.Element {
 	switch o := outcome.(type) {
 	case *workflows.BooleanConditionOutcome:
 		g := newElem("Workflows$BooleanConditionOutcome", outcomeID(o.ID))
+		addPart(g, "Flow", outcomeFlowToGen(o.Flow))
+		addFreshPersistentID(g)
 		addBool(g, "Value", o.Value)
-		if o.Flow != nil {
-			addPart(g, "Flow", flowToGen(o.Flow))
-		}
 		return g
 	case *workflows.EnumerationValueConditionOutcome:
 		g := newElem("Workflows$EnumerationValueConditionOutcome", outcomeID(o.ID))
+		addPart(g, "Flow", outcomeFlowToGen(o.Flow))
+		addFreshPersistentID(g)
 		addStr(g, "Value", o.Value)
-		if o.Flow != nil {
-			addPart(g, "Flow", flowToGen(o.Flow))
-		}
 		return g
 	case *workflows.VoidConditionOutcome:
 		g := newElem("Workflows$VoidConditionOutcome", outcomeID(o.ID))
-		if o.Flow != nil {
-			addPart(g, "Flow", flowToGen(o.Flow))
-		}
+		addPart(g, "Flow", outcomeFlowToGen(o.Flow))
+		// Workflows$Outcome.persistentId (10.21.0), as on every other outcome.
+		addFreshPersistentID(g)
 		return g
 	default:
 		return nil
@@ -769,8 +806,24 @@ func addActivityBaseFields(g *element.Base, annotation string) {
 		addPart(g, "Annotation", annotationElem(annotation))
 	}
 	addFreshPersistentID(g)
-	addStr(g, "RelativeMiddlePoint", "")
-	addStr(g, "Size", "")
+	addStr(g, "RelativeMiddlePoint", workflowZeroPoint)
+	addStr(g, "Size", workflowZeroPoint)
+}
+
+// workflowZeroPoint is the RelativeMiddlePoint and Size Studio Pro stores on
+// every workflow activity (measured on ako/TestApp, 11.14.0: 14 of 14). The
+// workflow editor lays activities out itself; an empty string is not a point.
+const workflowZeroPoint = "0;0"
+
+// outcomeFlowToGen is an outcome's Flow. Workflows$Outcome.flow is Required, and
+// Studio Pro stores an empty Flow on an outcome that leads nowhere (ako/TestApp,
+// 11.14.0, every UserTaskOutcome and VoidConditionOutcome); omitting it made
+// every rewrite of a Studio Pro workflow drop them (#743).
+func outcomeFlowToGen(flow *workflows.Flow) element.Element {
+	if flow == nil {
+		flow = &workflows.Flow{}
+	}
+	return flowToGen(flow)
 }
 
 // addFreshPersistentID emits PersistentId as a fresh binary-UUID value (the

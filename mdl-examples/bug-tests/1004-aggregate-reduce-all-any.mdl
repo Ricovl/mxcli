@@ -65,28 +65,23 @@ create or modify microflow BugTest1004.MF_Aggregates (
 begin
   -- The five functions that always round-tripped, as the control: if these
   -- break, the change broke aggregates generally rather than the new three.
-  $Count = count($Orders);
-  $Total = sum($Orders.Amount);
-  $Avg = average($Orders.Amount);
-  $Min = minimum($Orders.Amount);
-  $Max = maximum($Orders.Amount);
+  $Count = count $Orders;
+  $Total = sum $Orders by Amount;
+  $Avg = average $Orders by Amount;
+  $Min = minimum $Orders by Amount;
+  $Max = maximum $Orders by Amount;
 
   -- Boolean predicates over every item. No seed, always Boolean.
-  $AllPaid = all($Orders, $currentObject/Paid);
-  $AnyUnpaid = any($Orders, not($currentObject/Paid));
+  $AllPaid = all $Orders where $currentObject/Paid;
+  $AnyUnpaid = any $Orders where not($currentObject/Paid);
 
   -- The fold. $currentResult is the accumulator; both extra inputs are
   -- required, and dropping either is the silent half of this bug.
-  $Discounted = reduce(
-    $Orders,
-    $currentResult + $currentObject/Amount * 0.9,
-    initial: 0,
-    returns: Decimal
-  );
+  $Discounted = reduce $Orders from 0 as Decimal using $currentResult + $currentObject/Amount * 0.9;
 
   -- An expression-form aggregate, to pin that the older functions still take
   -- one and did not get folded into the reduce path.
-  $WithVat = sum($Orders, $currentObject/Amount * 1.21);
+  $WithVat = sum $Orders of $currentObject/Amount * 1.21;
 
   return;
 end;

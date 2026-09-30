@@ -992,6 +992,11 @@ func (unsupportedBackend) MoveViewEntitySourceDocument(_ string, _ model.ID, _ s
 	return
 }
 
+func (unsupportedBackend) OpenMicroflowForMutation(_ model.ID) (r0 backend.MicroflowMutator, err1 error) {
+	err1 = errUnsupported("OpenMicroflowForMutation")
+	return
+}
+
 func (unsupportedBackend) OpenPageForMutation(_ model.ID) (r0 backend.PageMutator, err1 error) {
 	err1 = errUnsupported("OpenPageForMutation")
 	return
@@ -1021,6 +1026,16 @@ func (unsupportedBackend) Path() (r0 string) {
 }
 
 func (unsupportedBackend) ProjectVersion() (r0 *types.ProjectVersion) {
+	return
+}
+
+func (unsupportedBackend) ReadBackMicroflow(_ *microflows.Microflow) (r0 *microflows.Microflow, err1 error) {
+	err1 = errUnsupported("ReadBackMicroflow")
+	return
+}
+
+func (unsupportedBackend) ReadBackNanoflow(_ *microflows.Nanoflow) (r0 *microflows.Nanoflow, err1 error) {
+	err1 = errUnsupported("ReadBackNanoflow")
 	return
 }
 
@@ -1134,6 +1149,11 @@ func (unsupportedBackend) SetProjectSecurityLevel(_ model.ID, _ string) (err0 er
 
 func (unsupportedBackend) SetProjectStrictMode(_ model.ID, _ bool) (err0 error) {
 	err0 = errUnsupported("SetProjectStrictMode")
+	return
+}
+
+func (unsupportedBackend) SetUserRoleProperties(_ model.ID, _ string, _ backend.UserRoleProperties) (err0 error) {
+	err0 = errUnsupported("SetUserRoleProperties")
 	return
 }
 

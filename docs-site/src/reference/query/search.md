@@ -34,9 +34,9 @@ Search using the CLI:
 ```sql
 -- From the command line:
 -- mxcli search -p app.mpr "Customer" --format names
--- mxcli search -p app.mpr "Customer" --format json
+-- mxcli search -p app.mpr "Customer" --json
 ```
 
 ## See Also
 
-[SHOW STRUCTURE](show-structure.md), [SHOW ENTITIES](show-entities.md), [SHOW MICROFLOWS](show-microflows.md)
+[DESCRIBE STRUCTURE](describe-structure.md), [LIST ENTITIES](list-entities.md), [LIST MICROFLOWS](list-microflows.md)

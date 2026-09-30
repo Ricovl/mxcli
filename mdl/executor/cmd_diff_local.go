@@ -393,7 +393,6 @@ func entityBsonToMDL(ctx *ExecContext, raw map[string]any, qualifiedName string)
 	}
 
 	lines = append(lines, ");")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -573,7 +572,6 @@ func nanoflowBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName string)
 	lines = append(lines, "begin")
 	lines = append(lines, "  -- (nanoflow body)")
 	lines = append(lines, "end;")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -607,7 +605,6 @@ func enumerationBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName stri
 	}
 
 	lines = append(lines, ");")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -638,7 +635,6 @@ func pageBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName string) str
 	lines = append(lines, "begin")
 	lines = append(lines, "  -- (page widgets)")
 	lines = append(lines, "end;")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -657,7 +653,6 @@ func snippetBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName string) 
 	lines = append(lines, "begin")
 	lines = append(lines, "  -- (snippet widgets)")
 	lines = append(lines, "end;")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -676,7 +671,6 @@ func layoutBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName string) s
 	lines = append(lines, "begin")
 	lines = append(lines, "  -- (layout structure)")
 	lines = append(lines, "end;")
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }
@@ -693,7 +687,6 @@ func moduleBsonToMDL(_ *ExecContext, raw map[string]any) string {
 	}
 
 	lines = append(lines, fmt.Sprintf("create module %s;", name))
-	lines = append(lines, "/")
 
 	return strings.Join(lines, "\n")
 }

@@ -186,7 +186,7 @@ func buildCaseStatement(ctx parser.ICaseStatementContext) *ast.EnumSplitStmt {
 	}
 
 	// Reconstruct per-WHEN groups from the flat child list.
-	// Grammar: (WHEN caseValue (, caseValue)* THEN microflowBody)+ (ELSE microflowBody)?
+	// Grammar: (WHEN caseValue (, caseValue)* THEN microflowBody)+ — no ELSE (#756).
 	// AllEnumSplitCaseValue() is flat across all WHEN clauses, so we walk children
 	// and bucket values by their nearest preceding WHEN token.
 	type whenGroup struct{ values []string }
@@ -216,10 +216,6 @@ func buildCaseStatement(ctx parser.ICaseStatementContext) *ast.EnumSplitStmt {
 			Values: g.values,
 			Body:   buildMicroflowBody(bodies[i]),
 		})
-	}
-
-	if caseCtx.ELSE() != nil && len(bodies) > len(groups) {
-		stmt.ElseBody = buildMicroflowBody(bodies[len(bodies)-1])
 	}
 
 	return stmt
@@ -598,14 +594,14 @@ func extractAnnotationValueString(ctx parser.IAnnotationValueContext) string {
 	if lit := valCtx.Literal(); lit != nil {
 		litCtx := lit.(*parser.LiteralContext)
 		if litCtx.STRING_LITERAL() != nil {
-			return unquoteString(litCtx.STRING_LITERAL().GetText())
+			return unquoteStringLit(litCtx.STRING_LITERAL())
 		}
 	}
 	// Also try expression — it might be a string literal parsed as expression
 	if expr := valCtx.Expression(); expr != nil {
 		text := expr.GetText()
 		if len(text) >= 2 && text[0] == '\'' && text[len(text)-1] == '\'' {
-			return unquoteString(text)
+			return unquoteStringLit(expr)
 		}
 	}
 	return ""
@@ -648,10 +644,13 @@ func buildOnErrorClause(ctx parser.IOnErrorClauseContext) *ast.ErrorHandlingClau
 	if errCtx.CONTINUE() != nil {
 		return &ast.ErrorHandlingClause{Type: ast.ErrorHandlingContinue}
 	}
-	if errCtx.ROLLBACK() != nil && errCtx.LBRACE() == nil {
+	custom := errCtx.BEGIN() != nil || errCtx.LBRACE() != nil
+	if errCtx.ROLLBACK() != nil && !custom {
 		return &ast.ErrorHandlingClause{Type: ast.ErrorHandlingRollback}
 	}
-	if errCtx.LBRACE() != nil {
+	// `begin … end error` and its deprecated brace spelling (MDL-DEPR540,
+	// recorded by ExitOnErrorClause) build the same handler.
+	if custom {
 		body := buildMicroflowBody(errCtx.MicroflowBody())
 		if errCtx.WITHOUT() != nil {
 			return &ast.ErrorHandlingClause{Type: ast.ErrorHandlingCustomWithoutRollback, Body: body}
@@ -802,8 +801,10 @@ func buildSetStatementNode(ctx parser.ISetStatementContext) ast.MicroflowStateme
 		valueExpr = buildExpression(expr)
 	}
 
-	// Check if the expression is a list operation or aggregate function.
-	if funcCall, ok := valueExpr.(*ast.FunctionCallExpr); ok {
+	// Check if the expression is a list operation or aggregate function. Under
+	// mdl 1 `set` always assigns an expression: a list-operation call there is
+	// refused (ExitSetStatement), and find/contains are the string functions.
+	if funcCall, ok := valueExpr.(*ast.FunctionCallExpr); ok && !listCallForm.Applies(scriptLanguageVersion(setCtx)) {
 		if stmt := buildListOrAggregateStatement(targetVar, funcCall); stmt != nil {
 			return recordUnresolvedOperands(stmt, funcCall.Arguments)
 		}
@@ -857,20 +858,24 @@ func buildListOrAggregateStatement(targetVar string, funcCall *ast.FunctionCallE
 		// (CE0111). Ledger #63. When both arguments are plain variables the kind
 		// is ambiguous here; the flow builder disambiguates String-typed inputs.
 		if !isStringLiteralArg(funcCall.Arguments, 1) {
+			cond := getArgumentExpression(funcCall.Arguments, 1)
 			return &ast.ListOperationStmt{
 				OutputVariable: targetVar,
 				Operation:      ast.ListOpFind,
 				InputVariable:  extractVariableName(funcCall.Arguments, 0),
-				Condition:      getArgumentExpression(funcCall.Arguments, 1),
+				Condition:      cond,
+				ByExpression:   !ast.IsMemberEquality(cond),
 			}
 		}
 		// Falls through to the default MfSetStmt (string find expression).
 	case "FILTER":
+		cond := getArgumentExpression(funcCall.Arguments, 1)
 		return &ast.ListOperationStmt{
 			OutputVariable: targetVar,
 			Operation:      ast.ListOpFilter,
 			InputVariable:  extractVariableName(funcCall.Arguments, 0),
-			Condition:      getArgumentExpression(funcCall.Arguments, 1),
+			Condition:      cond,
+			ByExpression:   !ast.IsMemberEquality(cond),
 		}
 	case "SORT":
 		stmt := &ast.ListOperationStmt{
@@ -1356,6 +1361,7 @@ func buildRetrieveStatement(ctx parser.IRetrieveStatementContext) *ast.RetrieveS
 					andExprs = append(andExprs, buildXPathSourceExpression(xpathExpr))
 					if prc, ok := xpathExpr.(antlr.ParserRuleContext); ok {
 						if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
+							source = storedExpressionSource(source, lexedWithStrictEscapes(prc))
 							predicateSources = append(predicateSources, normalizeXPathTokens("["+source+"]"))
 						}
 					}
@@ -1392,8 +1398,12 @@ func buildRetrieveStatement(ctx parser.IRetrieveStatementContext) *ast.RetrieveS
 		}
 	}
 
-	// Get LIMIT and OFFSET expressions
-	if limitExpr := retrCtx.GetLimitExpr(); limitExpr != nil {
+	// The range. `first` is the object range in every version; a bare
+	// `limit 1` is too in an mdl 0 script, and a list of one under mdl 1
+	// (limitOneIsAList). Resolved here so nothing downstream reads limit text.
+	if retrCtx.FIRST() != nil || retrieveLimitOneIsObject(retrCtx) {
+		stmt.First = true
+	} else if limitExpr := retrCtx.GetLimitExpr(); limitExpr != nil {
 		stmt.Limit = retrieveRangeExpressionSource(limitExpr) + retrieveLimitTrailingWhitespace(retrCtx, limitExpr)
 	}
 	if offsetExpr := retrCtx.GetOffsetExpr(); offsetExpr != nil {
@@ -1414,7 +1424,9 @@ func retrieveRangeExpressionSource(exprCtx parser.IExpressionContext) string {
 	}
 	if prc, ok := exprCtx.(antlr.ParserRuleContext); ok {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
-			return source
+			// Stored as written: a string in it stores its value, as in any
+			// other expression (storedExpressionSource, #825).
+			return storedExpressionSource(source, lexedWithStrictEscapes(prc))
 		}
 	}
 	return exprCtx.GetText()
@@ -1582,9 +1594,13 @@ func buildIfStatement(ctx parser.IIfStatementContext) *ast.IfStmt {
 	// nested IfStmt in the ELSE branch of the arm before it (built innermost
 	// first). Previously only exprs[0]/bodies[0] and the trailing ELSE were
 	// read, silently dropping every ELSIF arm from the written model.
+	armAnnotations := elsifArmAnnotations(ifCtx)
 	var stmt *ast.IfStmt
 	for i := len(exprs) - 1; i >= 0; i-- {
 		s := &ast.IfStmt{}
+		if i > 0 && i-1 < len(armAnnotations) && armAnnotations[i-1] != nil {
+			s.Annotations = armAnnotations[i-1]
+		}
 		s.Condition = buildSourceExpression(exprs[i])
 		if i < len(bodies) {
 			s.ThenBody = buildMicroflowBody(bodies[i])
@@ -1600,6 +1616,27 @@ func buildIfStatement(ctx parser.IIfStatementContext) *ast.IfStmt {
 	}
 
 	return stmt
+}
+
+// elsifArmAnnotations returns, per ELSIF arm in source order, the annotations
+// written directly before its keyword (nil when there are none). They are
+// direct children of the ifStatement, so each run is closed by the ELSIF token
+// that follows it.
+func elsifArmAnnotations(ifCtx *parser.IfStatementContext) []*ast.ActivityAnnotations {
+	var out []*ast.ActivityAnnotations
+	var pending []parser.IAnnotationContext
+	for _, child := range ifCtx.GetChildren() {
+		switch c := child.(type) {
+		case parser.IAnnotationContext:
+			pending = append(pending, c)
+		case antlr.TerminalNode:
+			if c.GetSymbol().GetTokenType() == parser.MDLParserELSIF {
+				out = append(out, extractMicroflowAnnotations(pending))
+				pending = nil
+			}
+		}
+	}
+	return out
 }
 
 // buildLoopStatement converts LOOP statement context to LoopStmt.
@@ -1657,8 +1694,9 @@ func buildSourceExpression(ctx parser.IExpressionContext) ast.Expression {
 	expr := buildExpression(ctx)
 	if prc, ok := ctx.(antlr.ParserRuleContext); ok {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
-			if shouldPreserveExpressionSource(source) {
-				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(source)}
+			strict := lexedWithStrictEscapes(prc)
+			if shouldPreserveExpressionSource(source, strict) {
+				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(storedExpressionSource(source, strict))}
 			}
 		}
 	}
@@ -1674,6 +1712,9 @@ func buildXPathSourceExpression(ctx parser.IXpathExprContext) ast.Expression {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
 			// Requote any bare [%token%] so the stored constraint passes mx check
 			// (CE0161) — the original source preserves the unquoted form (#641).
+			// A string in it stores its value, as in an expression: Mendix XPath
+			// has no backslash escape either (storedExpressionSource).
+			source = storedExpressionSource(source, lexedWithStrictEscapes(prc))
 			return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(normalizeXPathTokens(source))}
 		}
 	}
@@ -1698,8 +1739,12 @@ func buildRetrieveWhereExpression(ctx parser.IExpressionContext) ast.Expression 
 	}
 	if prc, ok := ctx.(antlr.ParserRuleContext); ok {
 		if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
-			if shouldPreserveExpressionSource(source) || strings.Contains(source, "/") {
-				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(source)}
+			strict := lexedWithStrictEscapes(prc)
+			if shouldPreserveExpressionSource(source, strict) || strings.Contains(source, "/") {
+				// Stored as written, each string spelled as its value — the
+				// rendered constraint stores the value through QuoteLiteral, and
+				// describe cannot tell the two apart.
+				return &ast.SourceExpr{Expression: expr, Source: stripExpressionIdentifierQuotes(storedExpressionSource(source, strict))}
 			}
 		}
 	}
@@ -1732,21 +1777,20 @@ func dotIsQualifiedNameSeparator(source string, i int) bool {
 	return false
 }
 
-func shouldPreserveExpressionSource(source string) bool {
+// shouldPreserveExpressionSource reports whether an expression is stored as
+// written rather than rendered from its tree. strict is the string rule the
+// source was lexed with (lexedWithStrictEscapes): a string literal is skipped
+// whole, so an operator or a `.` inside one never counts — and under mdl 0 a
+// `\'` inside one does not end it. Reading `'it\'s'+$x` as the string `'it\'`
+// and a second string opening at `s'` made the decision on the wrong
+// characters (ako/mxcli#820).
+func shouldPreserveExpressionSource(source string, strict bool) bool {
 	if strings.ContainsAny(source, "\r\n") {
 		return true
 	}
-	inString := false
 	for i := 0; i < len(source); i++ {
 		if source[i] == '\'' {
-			if inString && i+1 < len(source) && source[i+1] == '\'' {
-				i++
-				continue
-			}
-			inString = !inString
-			continue
-		}
-		if inString {
+			i = stringLiteralEnd(source, i, strict) - 1
 			continue
 		}
 		// A `/` used as division with a variable right operand (`$a / $b`) parses

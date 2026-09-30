@@ -8,10 +8,10 @@
 --
 -- It is NOT the menu inside a navigation profile. The two are easy to confuse
 -- because both are built from the same Menus$MenuItem elements — which is why
--- the item syntax below is identical to the MENU (...) block of
+-- the item syntax below is identical to the { ... } children of
 -- CREATE NAVIGATION:
 --
---   create or modify menu MenuTest.Main_Menu ( ... );  -- this file
+--   create or modify menu MenuTest.Main_Menu { ... };  -- this file
 --   show navigation menu;                              -- profile menu
 --
 -- This script is self-contained: it creates the module, and the page and
@@ -51,29 +51,29 @@ end;
 -- Create
 -- ----------------------------------------------------------------------------
 -- Item forms:
---   * page target      -> menu item '<caption>' page <Module.Page>
---   * microflow target -> menu item '<caption>' microflow <Module.Microflow>
+--   * page target      -> menu item '<caption>' ( OnClick: show page <Module.Page> )
+--   * microflow target -> menu item '<caption>' ( OnClick: call microflow <Module.Microflow> )
 --   * no action        -> menu item '<caption>'
---   * sub-menu         -> menu '<caption>' ( ...nested items... )
+--   * sub-menu         -> menu '<caption>' { ...nested items... }
 --
--- ICON names an entry in an icon collection. It is optional on every form.
-create menu MenuTest.Main_Menu (
-  menu item 'Home' page MenuTest.Landing icon Atlas_Core.Atlas_Filled.home;
-  menu item 'Rebuild' microflow MenuTest.Rebuild;
-  menu 'Admin' (
-    menu item 'Reports' page MenuTest.Reports;
-  );
-  menu item 'Plain';
-);
+-- Icon: names an entry in an icon collection. It is optional on every form.
+create menu MenuTest.Main_Menu {
+  menu item 'Home' ( OnClick: show page MenuTest.Landing, Icon: Atlas_Core.Atlas_Filled.home )
+  menu item 'Rebuild' ( OnClick: call microflow MenuTest.Rebuild )
+  menu 'Admin' {
+    menu item 'Reports' ( OnClick: show page MenuTest.Reports )
+  }
+  menu item 'Plain'
+};
 
 -- OR MODIFY replaces the item list wholesale, exactly like CREATE NAVIGATION:
 -- the list given is the document's complete contents, so an omitted item is a
 -- removed item. The document's identity and its export level are preserved, so
 -- menu widgets pointing at it keep working.
-create or modify menu MenuTest.Main_Menu (
-  menu item 'Home' page MenuTest.Landing icon Atlas_Core.Atlas_Filled.home;
-  menu item 'Rebuild' microflow MenuTest.Rebuild;
-);
+create or modify menu MenuTest.Main_Menu {
+  menu item 'Home' ( OnClick: show page MenuTest.Landing, Icon: Atlas_Core.Atlas_Filled.home )
+  menu item 'Rebuild' ( OnClick: call microflow MenuTest.Rebuild )
+};
 
 -- ----------------------------------------------------------------------------
 -- Describe
@@ -99,7 +99,7 @@ drop menu MenuTest.Main_Menu;
 --    selected for parameter ..."), which `mx check` reports at "Menu item".
 --    Point the item at a parameterless page, or open the page from a microflow.
 --
--- 2. Only Forms$IconCollectionIcon can be expressed by the ICON clause. A glyph
+-- 2. Only Forms$IconCollectionIcon can be expressed by the Icon: property. A glyph
 --    icon (numeric code) or an image icon is reported by DESCRIBE on its own
 --    comment line rather than dropped silently:
 --

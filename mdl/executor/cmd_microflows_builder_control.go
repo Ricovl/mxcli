@@ -497,6 +497,10 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 		fb.posX = mergeX + MergeSize + HorizontalSpacing/2
 		fb.posY = centerY
 		fb.nextConnectionPoint = mergeID
+		// `@anchor(from: X)` on an if is the flow leaving it, which is the flow
+		// out of its merge (#767). Only the origin side: the if's `to:` is its
+		// incoming flow and must not become the next statement's.
+		fb.nextFlowAnchor = mergeExitFlowAnchor(s)
 	} else {
 		// No merge: the split's continuing branch connects directly to the next activity.
 		// Position after the split, past the downward branch's horizontal extent.
@@ -527,6 +531,16 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 	}
 
 	return splitID
+}
+
+// mergeExitFlowAnchor is the origin anchor an if's own `@anchor(from: X)` gives
+// the flow leaving its closing merge, or nil when it sets none.
+func mergeExitFlowAnchor(s *ast.IfStmt) *ast.FlowAnchors {
+	own := stmtOwnAnchor(s)
+	if own == nil || own.From == ast.AnchorSideUnset {
+		return nil
+	}
+	return &ast.FlowAnchors{From: own.From, To: ast.AnchorSideUnset}
 }
 
 // firstElseIsLeafActivity reports whether the ELSE body's first statement is
@@ -641,6 +655,7 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 		declaredVars: fb.declaredVars, // Share declared vars (fixes nil map panic)
 		measurer:     fb.measurer,     // Share measurer
 		backend:      fb.backend,      // Share backend
+		quiet:        fb.quiet,
 		hierarchy:    fb.hierarchy,    // Share hierarchy
 		restServices: fb.restServices, // Share REST services for parameter classification
 		isNanoflow:   fb.isNanoflow,
@@ -997,6 +1012,7 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 		declaredVars: fb.declaredVars,
 		measurer:     fb.measurer,
 		backend:      fb.backend,
+		quiet:        fb.quiet,
 		hierarchy:    fb.hierarchy,
 		restServices: fb.restServices,
 		isNanoflow:   fb.isNanoflow,

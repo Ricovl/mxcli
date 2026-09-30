@@ -14,7 +14,6 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
-	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 	"github.com/mendixlabs/mxcli/sdk/widgets/mpk"
@@ -352,6 +351,12 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 	if err := checkSearchByIsOnAListView(w); err != nil {
 		return nil, err
 	}
+	if err := checkDatabaseOverAssociationIsOnAListView(w); err != nil {
+		return nil, err
+	}
+	if err := checkWidgetHasName(w); err != nil {
+		return nil, err
+	}
 
 	switch strings.ToLower(w.Type) {
 	case "dataview":
@@ -383,7 +388,7 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 		// A slot that reaches the builder was written somewhere the fragment
 		// expander doesn't reach (e.g. nested in a page container rather than a
 		// `define fragment` body). Slots are resolved during fragment expansion.
-		return nil, mdlerrors.NewValidation("`slot` is only valid inside a `define fragment` body")
+		return nil, mdlerrors.NewValidation("`slot` is only valid inside a `create fragment` body")
 	case "textbox":
 		widget, err = pb.buildTextBoxV3(w)
 	case "textarea":
@@ -518,6 +523,7 @@ func (pb *pageBuilder) buildPluggable(def *WidgetDefinition, w *ast.WidgetV3) (p
 	if err != nil {
 		return nil, err
 	}
+	pb.storedPluggables.passStoredThrough(def, w, widget)
 	if err := applyWidgetAppearance(widget, w, pb.themeRegistry); err != nil {
 		return nil, err
 	}
@@ -793,6 +799,27 @@ func checkSearchByIsOnAListView(w *ast.WidgetV3) error {
 		w.Name, strings.ToLower(w.Type), strings.ToLower(w.Type)))
 }
 
+// checkDatabaseOverAssociationIsOnAListView refuses `database from $ctx/Assoc/…`
+// on a widget other than a list view. Only the List View writer stores a
+// database source reached over an association (a Forms$ListViewXPathSource with
+// an IndirectEntityRef); every other writer would store the entity alone and
+// drop the path — a retrieve of every row instead of the context's
+// (ako/mxcli#721 L5). A data view is refused by MDL-WIDGET09 whatever the form.
+func checkDatabaseOverAssociationIsOnAListView(w *ast.WidgetV3) error {
+	if w == nil || strings.EqualFold(w.Type, "listview") || strings.EqualFold(w.Type, "dataview") {
+		return nil
+	}
+	ds := w.GetDataSource()
+	if ds == nil || ds.Type != "database" || ds.AssociationPath == "" {
+		return nil
+	}
+	return mdlerrors.NewValidation(fmt.Sprintf(
+		"widget %q (%s): `database from $%s/%s` is a LIST VIEW source reached over an association, "+
+			"and %s cannot store one — use the association source `$%s/%s`, or a `listview`.",
+		w.Name, strings.ToLower(w.Type), ds.ContextVariable, ds.AssociationPath,
+		strings.ToLower(w.Type), ds.ContextVariable, ds.AssociationPath))
+}
+
 // buildDataSourceV3 converts a V3 DataSource AST to a pages.DataSource.
 // Returns the datasource, the entity name for context, and any error.
 func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource, string, error) {
@@ -836,6 +863,17 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 		}, entityName, nil
 
 	case "database":
+		if ds.AssociationPath != "" {
+			// Only buildListViewDataSourceV3 may build this form. Every other
+			// caller — a widget-engine datasource under its own key, a chart
+			// series, a dynamic image — hands the result to a writer that stores
+			// the entity alone, a retrieve of every row instead of the context's
+			// (ako/mxcli#721 L5).
+			return nil, "", mdlerrors.NewValidationf(
+				"`database from $%s/%s` is a LIST VIEW source reached over an association; "+
+					"only a `listview` DataSource can store one — use the association source `$%s/%s` here",
+				ds.ContextVariable, ds.AssociationPath, ds.ContextVariable, ds.AssociationPath)
+		}
 		// Database source: DATABASE Entity
 		entityID, err := pb.resolveEntity(ast.QualifiedName{
 			Module: pb.extractModule(ds.Reference),
@@ -854,63 +892,9 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 			EntityName: ds.Reference,
 		}
 
-		// Handle WHERE clause. Expand association-only paths to the Assoc/Entity/Assoc
-		// form Mendix requires (see expandXPathAssociationPath), so the shorthand
-		// `[Mod.Assoc1/Mod.Assoc2 = $x]` doesn't trip CE1613 at build time.
-		// Formatting comes last, after the expansion above has settled the text:
-		// a constraint too long to read on one line is broken at its boolean
-		// joints (upstream #979). One that already fits is returned unchanged, so
-		// this does not churn existing pages.
-		if ds.Where != "" {
-			dbSource.XPathConstraint = visitor.FormatXPathConstraint(
-				pb.expandXPathAssociationPath(ds.Where, ds.Reference))
+		if err := pb.applyDatabaseClausesV3(dbSource, ds, ds.Reference); err != nil {
+			return nil, "", err
 		}
-
-		// Handle ORDER BY
-		for _, ob := range ds.OrderBy {
-			direction := pages.SortDirectionAscending
-			if strings.ToLower(ob.Direction) == "desc" {
-				direction = pages.SortDirectionDescending
-			}
-			attrPath := pb.resolveAttributePathForEntity(ob.Attribute, ds.Reference)
-			var steps []pages.AttributeRefStep
-			if len(ob.Associations) > 0 {
-				// A sort that navigates associations. Resolved through the same
-				// walker DataGrid2 columns and dynamictext params use, so the two
-				// cannot disagree about a path that means the same thing in both.
-				// Refused rather than flattened: an attribute of a far entity with
-				// no EntityRef beside it is CE7247 at build time
-				// (mendixlabs/mxcli#1152).
-				path := strings.Join(append(append([]string{}, ob.Associations...), ob.Attribute), "/")
-				finalQN, hops, ok := pb.resolveAssociationAttributePathForEntity(path, ds.Reference)
-				if !ok {
-					return nil, "", mdlerrors.NewValidation(fmt.Sprintf(
-						"sort by %s: the association path could not be resolved from %s",
-						path, ds.Reference))
-				}
-				attrPath, steps = finalQN, hops
-			}
-			sortItem := &pages.GridSort{
-				BaseElement: model.BaseElement{
-					ID:       model.ID(types.GenerateID()),
-					TypeName: "Forms$GridSort",
-				},
-				AttributePath:     attrPath,
-				AttributeRefSteps: steps,
-				Direction:         direction,
-			}
-			dbSource.Sorting = append(dbSource.Sorting, sortItem)
-		}
-
-		// Handle SEARCH BY — the List View search bar's attributes. Resolved to
-		// the same fully-qualified Module.Entity.Attribute form a sort column
-		// uses, because both are stored as a DomainModels$AttributeRef and a
-		// bare name in one would be a bare name in the other (ako/mxcli#512).
-		for _, attr := range ds.SearchAttributes {
-			dbSource.SearchAttributes = append(dbSource.SearchAttributes,
-				pb.resolveAttributePathForEntity(attr, ds.Reference))
-		}
-
 		return dbSource, ds.Reference, nil
 
 	case "microflow":
@@ -1053,8 +1037,9 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "Forms$AssociationSource",
 			},
-			EntityPath:      path + "/" + destEntity,
-			ContextVariable: ctxVar,
+			EntityPath:         path + "/" + destEntity,
+			ContextVariable:    ctxVar,
+			IsSnippetParameter: ctxVar != "" && pb.parameterSlotKind(strings.TrimPrefix(ctxVar, "$")) == "snippet",
 		}, destEntity, nil
 
 	case "selection":
@@ -1080,6 +1065,160 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 	default:
 		return nil, "", mdlerrors.NewUnsupported("unsupported datasource type: " + ds.Type)
 	}
+}
+
+// applyDatabaseClausesV3 applies a database source's WHERE, SORT BY and SEARCH BY
+// clauses, resolved against entity — the source's own entity, or for
+// `database from $ctx/Assoc/Entity` the entity the path arrives at.
+func (pb *pageBuilder) applyDatabaseClausesV3(dbSource *pages.DatabaseSource, ds *ast.DataSourceV3, entity string) error {
+	// Handle WHERE clause. Expand association-only paths to the Assoc/Entity/Assoc
+	// form Mendix requires (see expandXPathAssociationPath), so the shorthand
+	// `[Mod.Assoc1/Mod.Assoc2 = $x]` doesn't trip CE1613 at build time.
+	// Formatting comes last, after the expansion above has settled the text:
+	// a constraint too long to read on one line is broken at its boolean
+	// joints (upstream #979). One that already fits is returned unchanged, so
+	// this does not churn existing pages.
+	if ds.Where != "" {
+		dbSource.XPathConstraint = visitor.FormatXPathConstraint(
+			pb.expandXPathAssociationPath(ds.Where, entity))
+	}
+
+	// Handle ORDER BY
+	for _, ob := range ds.OrderBy {
+		direction := pages.SortDirectionAscending
+		if strings.ToLower(ob.Direction) == "desc" {
+			direction = pages.SortDirectionDescending
+		}
+		attrPath := pb.resolveAttributePathForEntity(ob.Attribute, entity)
+		var steps []pages.AttributeRefStep
+		if len(ob.Associations) > 0 {
+			// A sort that navigates associations. Resolved through the same
+			// walker DataGrid2 columns and dynamictext params use, so the two
+			// cannot disagree about a path that means the same thing in both.
+			// Refused rather than flattened: an attribute of a far entity with
+			// no EntityRef beside it is CE7247 at build time
+			// (mendixlabs/mxcli#1152).
+			path := strings.Join(append(append([]string{}, ob.Associations...), ob.Attribute), "/")
+			finalQN, hops, ok := pb.resolveAssociationAttributePathForEntity(path, entity)
+			if !ok {
+				return mdlerrors.NewValidation(fmt.Sprintf(
+					"sort by %s: the association path could not be resolved from %s",
+					path, entity))
+			}
+			attrPath, steps = finalQN, hops
+		}
+		sortItem := &pages.GridSort{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$GridSort",
+			},
+			AttributePath:     attrPath,
+			AttributeRefSteps: steps,
+			Direction:         direction,
+		}
+		dbSource.Sorting = append(dbSource.Sorting, sortItem)
+	}
+
+	// Handle SEARCH BY — the List View search bar's attributes. Resolved to
+	// the same fully-qualified Module.Entity.Attribute form a sort column
+	// uses, because both are stored as a DomainModels$AttributeRef and a
+	// bare name in one would be a bare name in the other (ako/mxcli#512).
+	for _, attr := range ds.SearchAttributes {
+		dbSource.SearchAttributes = append(dbSource.SearchAttributes,
+			pb.resolveAttributePathForEntity(attr, entity))
+	}
+
+	return nil
+}
+
+// buildListViewDataSourceV3 builds a List View's DataSource: everything
+// buildDataSourceV3 builds, plus `database from $ctx/Assoc/Entity`, which only the
+// List View writer stores (ako/mxcli#721 L5).
+func (pb *pageBuilder) buildListViewDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource, string, error) {
+	if ds != nil && ds.Type == "database" && ds.AssociationPath != "" {
+		return pb.buildDatabaseOverAssociationV3(ds)
+	}
+	return pb.buildDataSourceV3(ds)
+}
+
+// buildDatabaseOverAssociationV3 builds `database from $ctx/Assoc/Entity …`: a
+// database retrieve reached from a context object over associations, which a
+// List View stores as a Forms$ListViewXPathSource whose EntityRef is an
+// IndirectEntityRef (ako/mxcli#721 L5). It keeps the XPath, sort and search an
+// association source (`$ctx/Assoc`) does not have.
+//
+// The path's segments pair up as association/destination. Describe prints every
+// destination, because Studio Pro may store a specialization of the
+// association's own end (Administration.Account over System.User's
+// WorkflowUserTask_Assignees) and re-deriving it would write a different entity.
+// A trailing association with no destination is resolved as an association
+// source's is.
+func (pb *pageBuilder) buildDatabaseOverAssociationV3(ds *ast.DataSourceV3) (pages.DataSource, string, error) {
+	ctxVar := ds.ContextVariable
+	if ctxVar == "currentObject" {
+		ctxVar = "" // the enclosing container's object — no SourceVariable in BSON
+	}
+	fromEntity := pb.entityContext
+	if ctxVar != "" {
+		name := strings.TrimPrefix(ctxVar, "$")
+		if qn := pb.paramEntityNames[name]; qn != "" {
+			fromEntity = qn
+		} else if qn := pb.paramEntityNames["$"+name]; qn != "" {
+			fromEntity = qn
+		}
+	}
+
+	segs := strings.Split(ds.AssociationPath, "/")
+	var steps []pages.AttributeRefStep
+	at := fromEntity
+	for i := 0; i < len(segs); i += 2 {
+		assoc := pb.resolveAssociationPathIn(segs[i], at)
+		if _, _, ok := pb.associationEndpoints(assoc); !ok {
+			return nil, "", mdlerrors.NewValidationf(
+				"association %q in datasource `database from $%s/%s` does not exist — "+
+					"writing it would produce a project Mendix cannot open",
+				assoc, ds.ContextVariable, ds.AssociationPath)
+		}
+		dest := ""
+		if i+1 < len(segs) {
+			dest = segs[i+1]
+			if _, err := pb.resolveEntity(ast.QualifiedName{Module: pb.extractModule(dest), Name: pb.extractName(dest)}); err != nil {
+				return nil, "", mdlerrors.NewValidationf(
+					"entity %q in datasource `database from $%s/%s` does not exist",
+					dest, ds.ContextVariable, ds.AssociationPath)
+			}
+		} else {
+			dest = pb.resolveAssociationDestination(assoc, at)
+		}
+		if dest == "" {
+			return nil, "", mdlerrors.NewValidationf(
+				"cannot resolve the entity association %q arrives at in datasource `database from $%s/%s` — "+
+					"name it after the association, e.g. `%s/Module.Entity`",
+				assoc, ds.ContextVariable, ds.AssociationPath, assoc)
+		}
+		steps = append(steps, pages.AttributeRefStep{Association: assoc, DestinationEntity: dest})
+		at = dest
+	}
+
+	entityID, err := pb.resolveEntity(ast.QualifiedName{Module: pb.extractModule(at), Name: pb.extractName(at)})
+	if err != nil {
+		return nil, "", mdlerrors.NewBackend("resolve entity", err)
+	}
+	dbSource := &pages.DatabaseSource{
+		BaseElement: model.BaseElement{
+			ID:       model.ID(types.GenerateID()),
+			TypeName: "Forms$DatabaseSource",
+		},
+		EntityID:           entityID,
+		EntityName:         at,
+		EntitySteps:        steps,
+		ContextVariable:    ctxVar,
+		IsSnippetParameter: ctxVar != "" && pb.parameterSlotKind(strings.TrimPrefix(ctxVar, "$")) == "snippet",
+	}
+	if err := pb.applyDatabaseClausesV3(dbSource, ds, at); err != nil {
+		return nil, "", err
+	}
+	return dbSource, at, nil
 }
 
 // resolveAssociationDestination looks up an association by qualified name and returns
@@ -1434,6 +1573,19 @@ func (pb *pageBuilder) getNanoflowReturnEntityName(qualifiedName string) string 
 
 // buildClientActionV3 converts a V3 Action AST to a pages.ClientAction.
 func (pb *pageBuilder) buildClientActionV3(action *ast.ActionV3) (pages.ClientAction, error) {
+	a, err := pb.buildClientActionV3Base(action)
+	if err != nil || a == nil || action.Settings == nil {
+		return a, err
+	}
+	if err := applyActionSettings(a, action.Settings); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+// buildClientActionV3Base builds the action itself; buildClientActionV3 adds
+// its `with ( … )` settings.
+func (pb *pageBuilder) buildClientActionV3Base(action *ast.ActionV3) (pages.ClientAction, error) {
 	switch action.Type {
 	case "none":
 		// `Action: NOTHING` — deliberately inert. The same Forms$NoAction the
@@ -1662,17 +1814,17 @@ func (pb *pageBuilder) buildClientActionV3(action *ast.ActionV3) (pages.ClientAc
 			// the only variable Studio Pro's "Address: attribute" choice binds.
 			if !strings.EqualFold(action.LinkVariable, "$currentObject") {
 				return nil, mdlerrors.NewValidationf(
-					"open_link %s/%s: a dynamic link address is read from $currentObject — write `open_link $currentObject/%s` inside the data container that holds it",
+					"open link %s/%s: a dynamic link address is read from $currentObject — write `open link $currentObject/%s` inside the data container that holds it",
 					action.LinkVariable, action.LinkAttribute, action.LinkAttribute)
 			}
 			if strings.Contains(action.LinkAttribute, "/") {
 				return nil, mdlerrors.NewValidationf(
-					"open_link $currentObject/%s: an address over an association path is not supported yet — bind an attribute of the data container's own entity",
+					"open link $currentObject/%s: an address over an association path is not supported yet — bind an attribute of the data container's own entity",
 					action.LinkAttribute)
 			}
 			if pb.entityContext == "" {
 				return nil, mdlerrors.NewValidationf(
-					"open_link $currentObject/%s: a dynamic link address needs an object to read it from — place the button inside a data container",
+					"open link $currentObject/%s: a dynamic link address needs an object to read it from — place the button inside a data container",
 					action.LinkAttribute)
 			}
 			addressAttr = pb.resolveAttributePath(action.LinkAttribute)
@@ -2002,27 +2154,36 @@ func (pb *pageBuilder) resolveTemplateAttributePathFull(attrRef string, param *p
 		if len(parts) == 2 {
 			paramName := parts[0]
 			attrName := parts[1]
+			pb.warnTemplateAttrBinding(paramName, attrName) // MDL-V1-TEMPLATEATTR, mdl 0 only
 
-			// Check if this is a page/snippet parameter (not a widget reference)
-			if entityName, ok := pb.paramEntityNames[paramName]; ok {
-				fullPath := entityName + "." + attrName
-				if pb.isNonStringAttribute(fullPath) {
-					param.Expression = "toString($" + paramName + "/" + attrName + ")"
-					return
-				}
-				param.SourceVariable = paramName
-				param.AttributeRef = fullPath
+			// Check if this is a page/snippet parameter (not a widget reference).
+			//
+			// A non-String attribute binds exactly like a String one: Studio Pro
+			// stores `$Task.State` (an enumeration) as AttributeRef + SourceVariable,
+			// and the runtime renders it through the parameter's FormattingInfo.
+			// This path used to wrap it in `toString($Task/State)` — an Expression
+			// that bypasses FormattingInfo and the enumeration caption, and that
+			// describe prints back as the expression (ledger #76 fixed the bare
+			// attribute; ako/mxcli#721 L3 this one).
+			// `$dataView1.Attr` reads through a data view (or another data
+			// container): the Widget slot, beside the data view's own variable.
+			// It used to fill the PageParameter slot with the widget's name —
+			// a page parameter that does not exist (ako/mxcli#826).
+			if wv, ok := pb.widgetVariableFor(paramName); ok {
+				param.SourceWidget = wv.Widget
+				param.SourceVariable = wv.Variable
+				param.SourceVariableKind = wv.Kind
+				param.AttributeRef = pb.paramEntityNames[paramName] + "." + attrName
 				return
 			}
-			// Try with $ prefix (for snippet parameters)
-			if entityName, ok := pb.paramEntityNames["$"+paramName]; ok {
-				fullPath := entityName + "." + attrName
-				if pb.isNonStringAttribute(fullPath) {
-					param.Expression = "toString($" + paramName + "/" + attrName + ")"
-					return
+			for _, key := range []string{paramName, "$" + paramName} {
+				entityName, ok := pb.paramEntityNames[key]
+				if !ok {
+					continue
 				}
 				param.SourceVariable = paramName
-				param.AttributeRef = fullPath
+				param.SourceVariableKind = pb.parameterSlotKind(paramName)
+				param.AttributeRef = entityName + "." + attrName
 				return
 			}
 		}
@@ -2316,15 +2477,105 @@ func (pb *pageBuilder) associationEndpoints(assocQN string) (fromEntity, toEntit
 	return "", "", false
 }
 
-// isNonStringAttribute checks if an attribute path refers to a non-String type.
-// Returns false if the type can't be determined (fail-open to preserve existing behavior).
-func (pb *pageBuilder) isNonStringAttribute(attrPath string) bool {
-	attrType := pb.findAttributeType(attrPath)
-	if attrType == nil {
-		return false // can't determine type, assume String
+// registerDataViewVariable records the Forms$PageVariable a binding read
+// through data view name stores: {Widget: name} plus, when the data view shows a
+// page or snippet parameter, that parameter in its slot. Studio Pro stores the
+// pair — given only the widget through its MCP server, Studio Pro 11.14 filled
+// in the data view's page parameter itself (ako/mxcli#826).
+//
+// The returned func unregisters it again — called when the data view's own
+// children are built, since only they may read through it.
+func (pb *pageBuilder) registerDataViewVariable(name string, ds pages.DataSource) (unregister func()) {
+	wv := pages.WidgetVariable{Widget: name}
+	if src, ok := ds.(*pages.DataViewSource); ok && src.ParameterName != "" {
+		wv.Variable = src.ParameterName
+		if src.IsSnippetParameter {
+			wv.Kind = "snippet"
+		}
 	}
-	_, isString := attrType.(*domainmodel.StringAttributeType)
-	return !isString
+	if pb.dataViewVariables == nil {
+		pb.dataViewVariables = map[string]pages.WidgetVariable{}
+	}
+	outer, shadowed := pb.dataViewVariables[name]
+	pb.dataViewVariables[name] = wv
+	return func() {
+		if shadowed {
+			pb.dataViewVariables[name] = outer
+		} else {
+			delete(pb.dataViewVariables, name)
+		}
+	}
+}
+
+// isDeclaredParameter reports whether name is one of the document's entity-typed
+// parameters — which win over a widget of the same name, as before.
+func (pb *pageBuilder) isDeclaredParameter(name string) bool {
+	if _, ok := pb.paramScope[name]; ok {
+		return true
+	}
+	_, ok := pb.paramScope["$"+name]
+	return ok
+}
+
+// widgetVariableFor returns the variable a `$name.Attr` binding stores when name
+// is a data container on this document rather than a parameter: a data view's
+// recorded pair, or {Widget: name} for another container.
+func (pb *pageBuilder) widgetVariableFor(name string) (pages.WidgetVariable, bool) {
+	if name == "" || pb.isDeclaredParameter(name) {
+		return pages.WidgetVariable{}, false
+	}
+	if wv, ok := pb.dataViewVariables[name]; ok {
+		return wv, true
+	}
+	if _, ok := pb.paramEntityNames[name]; ok {
+		return pages.WidgetVariable{Widget: name}, true
+	}
+	return pages.WidgetVariable{}, false
+}
+
+// resolveInputBinding resolves an input widget's `Attribute:`. A bare or
+// association path binds against the enclosing data context, as before.
+// `$dataView1.Attr` reads through the named enclosing data view: Studio Pro's
+// widget-scoped SourceVariable {Widget: dataView1, PageParameter: …}, which
+// describe prints in that form (ako/mxcli#826). Any other `$name` — a
+// parameter, an unknown name, a data view the input is not inside (CE7001) —
+// is refused: nothing else is measured, and the writer would otherwise store a
+// binding that reads nothing.
+func (pb *pageBuilder) resolveInputBinding(w *ast.WidgetV3, attr string) (string, []pages.AttributeRefStep, *pages.WidgetVariable, error) {
+	name, attrName, ok := strings.Cut(strings.TrimPrefix(attr, "$"), ".")
+	if !strings.HasPrefix(attr, "$") {
+		path, steps := pb.resolveInputAttribute(attr)
+		return path, steps, nil, nil
+	}
+	wv, known := pb.dataViewVariables[name]
+	if !ok || attrName == "" || !known || pb.isDeclaredParameter(name) {
+		return "", nil, nil, mdlerrors.NewValidationf(
+			"%s `%s`: `Attribute: %s` — `$name.Attr` on an input reads through a data view, and `$%s` is not a data view "+
+				"enclosing it. Bind the attribute by name inside the data view (`Attribute: %s`), or name an enclosing data view",
+			strings.ToLower(w.Type), w.Name, attr, name, attrName)
+	}
+	path := pb.resolveAttributePathForEntity(attrName, pb.paramEntityNames[name])
+	return path, nil, &wv, nil
+}
+
+// parameterSlotKind names the Forms$PageVariable slot a `$name` reference (a
+// template parameter, an association source) fills. Inside a snippet an
+// entity-typed parameter is a snippet parameter: Studio Pro writes it to
+// SnippetParameter, and the PageParameter slot would name a page parameter the
+// snippet does not have (ako/mxcli#721 L3). Only names in paramScope — the
+// declared entity-typed parameters — are parameters; paramEntityNames also holds
+// data-container widget names, which keep the slot they were written to before.
+func (pb *pageBuilder) parameterSlotKind(name string) string {
+	if !pb.isSnippet {
+		return ""
+	}
+	if _, isParam := pb.paramScope[name]; isParam {
+		return "snippet"
+	}
+	if _, isParam := pb.paramScope["$"+name]; isParam {
+		return "snippet"
+	}
+	return ""
 }
 
 // ============================================================================
@@ -2370,7 +2621,7 @@ func (pb *pageBuilder) expandIfFragment(w *ast.WidgetV3) ([]*ast.WidgetV3, error
 		// A slot marker is only meaningful inside a `define fragment` body, where
 		// it is resolved during expandFragmentRef. Reaching here means a bare
 		// `slot` was written directly in a page/snippet body.
-		return nil, mdlerrors.NewValidation("`slot` is only valid inside a `define fragment` body")
+		return nil, mdlerrors.NewValidation("`slot` is only valid inside a `create fragment` body")
 	default:
 		return []*ast.WidgetV3{w}, nil
 	}
@@ -2508,7 +2759,7 @@ func substituteFragmentParams(fragName string, params []ast.FragmentParam, rawAr
 			}
 			if act == nil {
 				return mdlerrors.NewValidation(fmt.Sprintf(
-					"fragment %q: parameter $%s expects an action (e.g. a microflow, show_page, save)", fragName, p.Name))
+					"fragment %q: parameter $%s expects an action (e.g. call microflow, show page, save changes)", fragName, p.Name))
 			}
 			actSubst[p.Name] = act
 		}
@@ -2603,9 +2854,9 @@ func (pb *pageBuilder) expandBuildingBlockRef(w *ast.WidgetV3) ([]*ast.WidgetV3,
 		outputWidgetMDLV3(&renderCtx, rw, 1)
 	}
 
-	// Re-parse via a `define fragment` wrapper to obtain []*ast.WidgetV3.
-	src := "define fragment __bbtmp as {\n" + sb.String() + "\n};"
-	prog, errs := visitor.Build(src)
+	// Re-parse via a `create fragment` wrapper to obtain []*ast.WidgetV3.
+	src := "create fragment __bbtmp as {\n" + sb.String() + "\n};"
+	prog, errs := visitor.Build(describedSource(&renderCtx, src))
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("use building block %s: could not expand widget tree: %v", w.Name, errs)
 	}
@@ -2967,4 +3218,31 @@ func missingWidgetMessage(projectDir, widgetID string) string {
 		" 'mxcli widget init' cannot help: it scans widgets/, and the package is not there." +
 		" Install the widget or its module from the Marketplace; that puts the .mpk in widgets/," +
 		" after which mxcli picks it up automatically."
+}
+
+// kindsWithOwnNameRule are the widget kinds buildWidgetV3 refuses or routes
+// with a message of their own, so a missing name is left to that message.
+var kindsWithOwnNameRule = map[string]bool{
+	"slot": true, "region": true, "placeholder": true, "item": true, "tabpage": true,
+}
+
+// checkWidgetHasName refuses a widget written without a name where Mendix
+// stores one (ako/mxcli#749).
+//
+// The name is optional in the grammar because Mendix stores none on a
+// layout-grid row or column, a DataGrid 2 column or a slot block such as a
+// gallery's `template` — and none of those reach this function: their parent's
+// builder builds them. Everything that does reach it is written as a widget
+// with a Name, so an empty one would be stored as-is and turn up in Studio Pro
+// as a nameless widget. A standalone `row` or `column` is such a widget too: it
+// is built as a container.
+func checkWidgetHasName(w *ast.WidgetV3) error {
+	kind := strings.ToLower(w.Type)
+	if w.Name != "" || w.Specialization != "" || kindsWithOwnNameRule[kind] {
+		return nil
+	}
+	return mdlerrors.NewValidation(fmt.Sprintf(
+		"%s needs a name: Mendix stores one for it (`%s %sName …`). Only a layout grid's rows and "+
+			"columns, a data grid's columns and control bar, and a gallery's template and filter are "+
+			"written without one", kind, kind, kind))
 }

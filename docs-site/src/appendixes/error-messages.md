@@ -100,7 +100,7 @@ page MyModule.OrderList: widget `cb1` (combobox) has no property
 **Cause:** The property key written on a pluggable widget is not declared in the widget's `.def.json` (the extracted schema from its `.mpk`). Usually a typo; sometimes a property that exists in a different widget but not this one.
 
 **Solution:**
-1. Compare the key against the widget's known properties — `mxcli widget describe <name>` lists them (or `describe widget <name>;` in MDL).
+1. Compare the key against the widget's known properties — `mxcli widget describe <name>` lists them (or `describe widget type <name>;` in MDL).
 2. Use the suggested replacement if one is offered (Levenshtein-nearest match).
 3. If the property genuinely doesn't exist on this widget version, check that `.mxcli/widgets/` has the latest schema: `mxcli refresh catalog -p app.mpr` re-extracts any `.mpk` whose mtime changed.
 4. If the property was just added by a `.mpk` upgrade, make sure `mxcli init` or `widget init` was run after the upgrade.
@@ -141,6 +141,21 @@ iterator name exists, so mxbuild rejects this with CE0109 "Undefined variable
 2. Or write the attribute bare — `filter($L, Amount > 0)` — and mxcli resolves it against the list's entity and stores `$currentObject/Amount`.
 
 The rule keys on **scope, not on the name**. `$item` is perfectly valid in a predicate when it is the enclosing loop's iterator, which is how the O(N) lookup idiom is written — inside `loop $item in $L`, `find($Others, Key = $item/Key)` navigates the loop's variable and is not flagged.
+
+### MDL-DEPRnnn: Deprecated spelling
+
+```
+line 1: `create or replace …` (enumeration) is deprecated; write `create or modify …`
+— same meaning. Refused from `mdl 2`. [MDL-DEPR001]
+```
+
+**Cause:** The script uses an alias that MDL is consolidating away (ADR-0010). The alias means exactly what the canonical form means, so the statement runs unchanged. The warning names the canonical form, and the language version whose header (`mdl <n>;`) will refuse the alias (ADR-0011).
+
+**Solution:** Write the canonical form the warning names. The rewrite is a mechanical keyword swap, and the suggestion line says which one.
+
+`check` and `exec` report these as **warnings**. To fail the run on one, for example in CI over documentation and examples, pass `--deprecations=error`.
+
+The registry of deprecated spellings is `mdl/deprecation/deprecation.go`. It holds the code, old form, canonical form, rewrite and removal version of each entry. A spelling is only registered where it means exactly the same as its canonical form. `create or replace view entity`, for example, drops and recreates the view entity, so it is not reported. Likewise `show` is reported as `MDL-DEPR002` only where its canonical form is `list` (plurals, relationship queries and the summary tables), and as `MDL-DEPR090` where it is `describe` with the same output. `show entity X` and `show version` are neither: the first has no mdl 1 statement (`MDL-V1-SHOWSUMMARY`), the second is a session command (`MDL-V1-SESSION`).
 
 ## mxcli Parser Errors
 
@@ -207,7 +222,7 @@ Error: module 'MyModule' not found in project
 
 **Cause:** The referenced module does not exist in the `.mpr` file.
 
-**Solution:** Check the module name with `SHOW MODULES` and verify the spelling. Module names are case-sensitive.
+**Solution:** Check the module name with `LIST MODULES` and verify the spelling. Module names are case-sensitive.
 
 ### Entity not found
 
@@ -217,7 +232,7 @@ Error: entity 'MyModule.Customer' not found
 
 **Cause:** The referenced entity does not exist in the specified module.
 
-**Solution:** Check with `SHOW ENTITIES IN MyModule`. If the entity was just created, ensure the create statement executed successfully before referencing it.
+**Solution:** Check with `LIST ENTITIES IN MyModule`. If the entity was just created, ensure the create statement executed successfully before referencing it.
 
 ### Reference validation failed
 

@@ -50,7 +50,7 @@ create association BugTest268.Tag_Product
   type Reference;
 
 create json structure BugTest268.JSON_Product
-  snippet $${"name": "n", "tags": ["a", "b"]}$$;
+  sample $${"name": "n", "tags": ["a", "b"]}$$;
 
 create or modify import mapping BugTest268.IMM_Product
   folder 'Mappings'

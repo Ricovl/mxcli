@@ -103,16 +103,16 @@ func validateWidgetOnClick(w *ast.WidgetV3, locationPrefix string) []linter.Viol
 	var message, suggestion string
 	if clickCapableInMendix[typ] {
 		message = fmt.Sprintf(
-			"%s: widget `%s` (%s) has an on-click action, and Mendix does model one on %s — "+
+			"%s: %s has an on-click action, and Mendix does model one on %s — "+
 				"but mxcli has no writer for it, so the value is dropped and the widget does nothing",
-			locationPrefix, w.Name, w.Type, w.Type)
+			locationPrefix, widgetLabel(w.Name, w.Type), w.Type)
 		suggestion = "Wrap the clickable part in a `container` and put the action there — a container's " +
 			"on-click IS written (Pages$DivContainer.OnClickAction)"
 	} else {
 		message = fmt.Sprintf(
-			"%s: widget `%s` (%s) has an on-click action, but Mendix models no click action on %s at all — "+
+			"%s: %s has an on-click action, but Mendix models no click action on %s at all — "+
 				"the value is dropped on write and the rendered element has no handler",
-			locationPrefix, w.Name, w.Type, w.Type)
+			locationPrefix, widgetLabel(w.Name, w.Type), w.Type)
 		suggestion = "Put the action on a `container` inside this widget (a container renders with " +
 			"tabindex/role=\"button\" and its on-click is written), or use an `actionbutton`/`linkbutton`"
 	}

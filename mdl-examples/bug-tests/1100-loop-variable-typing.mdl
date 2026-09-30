@@ -61,7 +61,7 @@ create association Probe.Request_Reporter
 
 -- The reported microflow, written correctly. Before the fix the toString() was
 -- optional as far as mxcli was concerned; now leaving it out is E004.
-create or replace microflow Probe.SUB_LoopNormal ()
+create or modify microflow Probe.SUB_LoopNormal ()
 returns String
 begin
   declare $out String = '';
@@ -74,7 +74,7 @@ end;
 
 -- The control from the report: the same expression on a parameter. It was
 -- refused before the fix and must stay refused after it.
-create or replace microflow Probe.SUB_Param ($Req: Probe.Request)
+create or modify microflow Probe.SUB_Param ($Req: Probe.Request)
 returns String
 begin
   declare $out String = '';
@@ -85,7 +85,7 @@ end;
 -- A loop over an association retrieve. The iterator is typed from the entity at
 -- the far end of Request_Reporter, which is resolved rather than read off the
 -- statement — an expression path does not spell its intermediate entity.
-create or replace microflow Probe.SUB_LoopAssoc ($Req: Probe.Request)
+create or modify microflow Probe.SUB_LoopAssoc ($Req: Probe.Request)
 returns String
 begin
   declare $emails String = '';
@@ -98,12 +98,12 @@ end;
 
 -- A loop over a filtered list: FILTER carries the element type through, so the
 -- iterator is still a Request.
-create or replace microflow Probe.SUB_LoopFiltered ()
+create or modify microflow Probe.SUB_LoopFiltered ()
 returns String
 begin
   declare $codes String = '';
   retrieve $reqs from Probe.Request;
-  $open = FILTER($reqs, $currentObject/Status = Probe.ENUM_Status.Open);
+  $open = FILTER $reqs WHERE $currentObject/Status = Probe.ENUM_Status.Open;
   loop $r in $open begin
     $codes = $codes + $r/Code;
   end loop;
@@ -112,13 +112,13 @@ end;
 
 -- An ON ERROR handler body was not walked at all, so moving a statement into
 -- one exempted it from every rule.
-create or replace microflow Probe.SUB_Handler ()
+create or modify microflow Probe.SUB_Handler ()
 returns String
 begin
   declare $out String = '';
   retrieve $reqs from Probe.Request
-    on error {
+    on error begin
       $out = $out + 'retrieve failed';
-    };
+    end error;
   return $out;
 end;

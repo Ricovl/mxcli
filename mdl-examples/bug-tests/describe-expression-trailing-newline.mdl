@@ -1,0 +1,49 @@
+-- describe: a stored expression's trailing newline put `)` / `;` on its own line
+--
+-- Studio Pro stores an expression exactly as typed, and a newline left at the
+-- end of the expression editor is common (Evora Factory Management: every
+-- member of one create, dozens of change/call arguments). `describe microflow`
+-- interpolated the stored text verbatim:
+--
+--   change $Ticket (TicketState = BugTestNewline.TicketStatus.Open
+--   );
+--
+-- The statements below store exactly that shape: the visitor keeps an
+-- argument's trailing whitespace, so each value below is written with a
+-- trailing "\n", as Studio Pro would have written it.
+--
+-- Verify after exec:
+--   ./bin/mxcli -p app.mpr -c "describe microflow BugTestNewline.ACT_Newline"
+-- every `)` and `;` must follow its expression on the same line, e.g.
+--   change $Ticket (TicketState = BugTestNewline.TicketStatus.Open);
+-- and the multi-line `find` keeps its interior line break.
+--
+-- Re-executing that describe output writes the expressions back WITHOUT the
+-- newline, which is a real change to the document: the first re-exec reports
+-- `Replaced microflow`, every one after it `Unchanged microflow`.
+
+create module BugTestNewline;
+
+create enumeration BugTestNewline.TicketStatus (Open 'Open', Closed 'Closed');
+
+create persistent entity BugTestNewline.Ticket (
+  Title: string(200),
+  TicketState: enumeration(BugTestNewline.TicketStatus)
+);
+
+create or modify microflow BugTestNewline.ACT_Newline ()
+begin
+  $Ticket = create BugTestNewline.Ticket (Title = 'First'
+, TicketState = BugTestNewline.TicketStatus.Closed
+);
+  change $Ticket (TicketState = BugTestNewline.TicketStatus.Open
+);
+  $List = create list of BugTestNewline.Ticket;
+  add $Ticket to $List;
+  $Found = find($List, $currentObject/Title = 'First'
+and $currentObject/TicketState = BugTestNewline.TicketStatus.Open
+);
+  log info node 'BugTest' 'Title {1}' with ({1} = $Ticket/Title
+);
+  return;
+end;

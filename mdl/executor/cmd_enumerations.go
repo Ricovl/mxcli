@@ -264,6 +264,9 @@ func execAlterEnumeration(ctx *ExecContext, s *ast.AlterEnumerationStmt) error {
 		}
 		enum.Values[idx].Caption.Translations[authoringLanguage(ctx)] = s.Caption
 
+	case ast.AlterEnumSetDocumentation:
+		enum.Documentation = s.Documentation
+
 	default:
 		return mdlerrors.NewUnsupported("unknown ALTER ENUMERATION operation")
 	}
@@ -451,10 +454,9 @@ func describeEnumeration(ctx *ExecContext, name ast.QualifiedName) error {
 			// folder path when the enum lives in a folder.
 			folderClause := ""
 			if fp := h.BuildFolderPath(enum.ContainerID); fp != "" && fp != modName {
-				folderClause = fmt.Sprintf(" FOLDER '%s'", fp)
+				folderClause = fmt.Sprintf(" folder '%s'", fp)
 			}
 			fmt.Fprintf(ctx.Output, ")%s;\n", folderClause)
-			fmt.Fprintln(ctx.Output, "/")
 			return nil
 		}
 	}

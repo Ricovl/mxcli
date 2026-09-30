@@ -87,7 +87,7 @@ func describeAgentEditorModel(ctx *ExecContext, name ast.QualifiedName) error {
 		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", m.Documentation)
 	}
 
-	fmt.Fprintf(ctx.Output, "create model %s%s (\n", qualifiedName, describeFolderClause(ctx, m.ContainerID))
+	fmt.Fprintf(ctx.Output, "create or modify ai model %s%s (\n", qualifiedName, describeFolderClause(ctx, m.ContainerID))
 
 	// Emit properties in stable order. User-set properties (Provider, Key)
 	// come first; Portal-populated metadata comes last and only if non-empty.
@@ -96,7 +96,7 @@ func describeAgentEditorModel(ctx *ExecContext, name ast.QualifiedName) error {
 		lines = append(lines, fmt.Sprintf("  Provider: %s", m.Provider))
 	}
 	if m.Key != nil && m.Key.QualifiedName != "" {
-		lines = append(lines, fmt.Sprintf("  Key: %s", m.Key.QualifiedName))
+		lines = append(lines, fmt.Sprintf("  Key: @%s", m.Key.QualifiedName))
 	}
 	// Portal-populated fields — round-tripped but flagged read-only in MDL.
 	if m.DisplayName != "" {
@@ -127,7 +127,6 @@ func describeAgentEditorModel(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	fmt.Fprintln(ctx.Output, ");")
-	fmt.Fprintln(ctx.Output, "/")
 	return nil
 }
 

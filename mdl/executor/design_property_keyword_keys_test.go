@@ -161,10 +161,13 @@ func TestValidateDesignProperties_SlotDesignPropsAreReportedDropped(t *testing.T
     footer ft (DesignProperties: ['Card style': on]) { dynamictext f (Content: 'x') }
   }
 }`, reg)
-	for _, name := range []string{"nestedRow", "nestedCol", "topRowCol", "ft"} {
+	// A layout grid's rows and columns have no stored name, so the visitor
+	// drops the one written here (MDL-DEPR005, #749); the message names them
+	// by kind and parent instead.
+	for _, name := range []string{`row inside layoutgrid "lg"`, `column inside row sets`, `column inside row "topRow"`, `footer "ft"`} {
 		var found bool
 		for _, v := range vs {
-			if v.RuleID == "MDL-WIDGET07" && strings.Contains(v.Message, `"`+name+`"`) &&
+			if v.RuleID == "MDL-WIDGET07" && strings.Contains(v.Message, name) &&
 				strings.Contains(v.Message, "dropped") {
 				found = true
 			}

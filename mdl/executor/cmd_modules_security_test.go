@@ -41,8 +41,8 @@ func TestDescribeModule_EmitsModuleRoles(t *testing.T) {
 	assertNoError(t, describeModule(ctx, "Administration", false))
 	out := buf.String()
 
-	assertContainsStr(t, out, "create module role Administration.Administrator description 'Full access';")
-	assertContainsStr(t, out, "create module role Administration.User;")
+	assertContainsStr(t, out, "create or modify module role Administration.Administrator description 'Full access';")
+	assertContainsStr(t, out, "create or modify module role Administration.User;")
 
 	if strings.Index(out, "Administration.Administrator") > strings.Index(out, "Administration.User") {
 		t.Errorf("module roles must be emitted in a stable sorted order, got:\n%s", out)
@@ -81,5 +81,5 @@ func TestDescribeModule_SurvivesUnreadableSecurity(t *testing.T) {
 
 	ctx, buf := newMockCtx(t, withBackend(mb))
 	assertNoError(t, describeModule(ctx, "Administration", false))
-	assertContainsStr(t, buf.String(), "create module Administration;")
+	assertContainsStr(t, buf.String(), "create or modify module Administration;")
 }

@@ -8,7 +8,7 @@ Calling external APIs from microflows -- GET, POST, authentication, and error ha
 CREATE MICROFLOW Integration.FetchWebpage ()
 RETURNS String AS $Content
 BEGIN
-  $Content = REST CALL GET 'https://example.com/api/status'
+  $Content = CALL REST SERVICE GET 'https://example.com/api/status'
     HEADER Accept = 'application/json'
     TIMEOUT 30
     RETURNS String;
@@ -26,7 +26,7 @@ CREATE MICROFLOW Integration.SearchProducts (
 )
 RETURNS String AS $Response
 BEGIN
-  $Response = REST CALL GET 'https://api.example.com/search?q={1}&page={2}' WITH (
+  $Response = CALL REST SERVICE GET 'https://api.example.com/search?q={1}&page={2}' WITH (
     {1} = urlEncode($Query),
     {2} = toString($Page)
   )
@@ -47,7 +47,7 @@ CREATE MICROFLOW Integration.CreateCustomer (
 )
 RETURNS String AS $Response
 BEGIN
-  $Response = REST CALL POST 'https://api.example.com/customers'
+  $Response = CALL REST SERVICE POST 'https://api.example.com/customers'
     HEADER 'Content-Type' = 'application/json'
     BODY '{{"name": "{1}", "email": "{2}"}' WITH (
       {1} = $Name,
@@ -73,7 +73,7 @@ CREATE MICROFLOW Integration.UploadDocument (
 RETURNS Boolean AS $Ok
 BEGIN
   DECLARE $Ok Boolean = false;
-  $Response = REST CALL POST 'https://api.example.com/documents'
+  $Response = CALL REST SERVICE POST 'https://api.example.com/documents'
     HEADER 'ContentType' = 'application/pdf'
     BODY BINARY $Doc/Contents
     TIMEOUT 300
@@ -92,7 +92,7 @@ type must match what you do with it — returning `$Response` from a
 
 A consumed REST **client document** has no binary body — its three body types
 (`Rest$JsonBody`, `Rest$StringBody`, `Rest$ImplicitMappingBody`) are all textual
-— so `Body: file from $Doc` in a `CREATE REST CLIENT` operation is refused as
+— so `Body: file from $Doc` in a `CREATE CONSUMED REST SERVICE` operation is refused as
 **MDL-REST02**. Downloading is unaffected: `Response: file as $Doc` works.
 
 ## Basic Authentication
@@ -104,7 +104,7 @@ CREATE MICROFLOW Integration.FetchSecureData (
 )
 RETURNS String AS $Response
 BEGIN
-  $Response = REST CALL GET 'https://api.example.com/secure/data'
+  $Response = CALL REST SERVICE GET 'https://api.example.com/secure/data'
     HEADER Accept = 'application/json'
     AUTH BASIC $Username PASSWORD $Password
     TIMEOUT 30
@@ -126,14 +126,14 @@ RETURNS Boolean AS $Success
 BEGIN
   DECLARE $Success Boolean = false;
 
-  $Response = REST CALL GET $Url
+  $Response = CALL REST SERVICE GET $Url
     HEADER Accept = 'application/json'
     TIMEOUT 30
     RETURNS String
-    ON ERROR WITHOUT ROLLBACK {
+    ON ERROR WITHOUT ROLLBACK BEGIN
       LOG ERROR NODE 'Integration' 'API call failed: ' + $Url;
       RETURN false;
-    };
+    END ERROR;
 
   SET $Success = true;
   RETURN $Success;
@@ -148,7 +148,7 @@ Map a JSON response to Mendix entities using a JSON structure and import mapping
 ```sql
 -- Step 1: Define the JSON structure
 CREATE JSON STRUCTURE Integration.JSON_Pet
-  SNIPPET '{"id": 1, "name": "Fido", "status": "available"}';
+  SAMPLE '{"id": 1, "name": "Fido", "status": "available"}';
 
 -- Step 2: Create a non-persistent entity to hold the data
 CREATE NON-PERSISTENT ENTITY Integration.PetResponse (
@@ -223,12 +223,12 @@ If the API has an OpenAPI 3.0 spec (JSON or YAML), generate the REST client in o
 
 ```sql
 -- From a local file (relative to the .mpr file)
-CREATE OR MODIFY REST CLIENT CapitalModule.CapitalAPI (
+CREATE OR MODIFY CONSUMED REST SERVICE CapitalModule.CapitalAPI (
   OpenAPI: 'specs/capital.json'
 );
 
 -- From a URL
-CREATE OR MODIFY REST CLIENT PetStoreModule.PetStoreAPI (
+CREATE OR MODIFY CONSUMED REST SERVICE PetStoreModule.PetStoreAPI (
   OpenAPI: 'https://petstore3.swagger.io/api/v3/openapi.json'
 );
 ```
@@ -242,28 +242,28 @@ DESCRIBE CONTRACT OPERATION FROM OPENAPI 'specs/capital.json';
 
 ### Manual Definition
 
-Define a reusable REST client with typed operations using `CREATE REST CLIENT`. Each operation declares its method, path, optional parameters, headers, body, and response mapping.
+Define a reusable REST client with typed operations using `CREATE CONSUMED REST SERVICE`. Each operation declares its method, path, optional parameters, headers, body, and response mapping.
 
 ```sql
 -- Define a client for the orders API
-CREATE REST CLIENT Integration.OrdersApi (
+CREATE CONSUMED REST SERVICE Integration.OrdersApi (
   BaseUrl: 'https://api.example.com/v1',
   Authentication: NONE
 )
 {
-  OPERATION GetOrder {
+  OPERATION GetOrder (
     Method: GET,
     Path: '/orders/{id}',
     Parameters: ($id: String),
-    Headers: ('Accept' = 'application/json'),
+    Headers: ('Accept': 'application/json'),
     Timeout: 30,
     Response: JSON AS $Result
-  }
+  )
 
-  OPERATION CreateOrder {
+  OPERATION CreateOrder (
     Method: POST,
     Path: '/orders',
-    Headers: ('Content-Type' = 'application/json'),
+    Headers: ('Content-Type': 'application/json'),
     Body: MAPPING Integration.OrderRequest {
       customerId = CustomerId,
       totalAmount = TotalAmount,
@@ -274,26 +274,28 @@ CREATE REST CLIENT Integration.OrdersApi (
       Status = status,
       CreatedAt = createdAt,
     }
-  }
+  )
 };
 ```
 
-Use `CREATE OR MODIFY REST CLIENT` to update an existing client without dropping it first:
+A header value is a template, like the path: `{Token}` is the operation parameter `Token`, which the operation must declare (`Parameters: ($Token: String)`, else CE7056). An authorization header is `Headers: ('Authorization': 'Bearer {Token}')`. The expression spelling `'Bearer ' + $Token` is deprecated (MDL-DEPR711) and `mxcli fmt --upgrade` rewrites it; it used to store only `Bearer `.
+
+Use `CREATE OR MODIFY CONSUMED REST SERVICE` to update an existing client without dropping it first:
 
 ```sql
-CREATE OR MODIFY REST CLIENT Integration.OrdersApi (
+CREATE OR MODIFY CONSUMED REST SERVICE Integration.OrdersApi (
   BaseUrl: 'https://api.example.com/v2',
   Authentication: BASIC (Username: 'apiuser', Password: 'secret')
 )
 {
-  OPERATION GetOrder {
+  OPERATION GetOrder (
     Method: GET,
     Path: '/orders/{id}',
     Parameters: ($id: String),
-    Headers: ('Accept' = 'application/json'),
+    Headers: ('Accept': 'application/json'),
     Timeout: 60,
     Response: JSON AS $Result
-  }
+  )
 };
 ```
 
@@ -405,4 +407,4 @@ DROP DATA TRANSFORMER Integration.WeatherTransform;
 - Steps execute in order; the output of each step feeds the next.
 - `JSLT '...'` for short single-line expressions; `JSLT $$ ... $$` for multi-line.
 - `XSLT $$ ... $$` is also supported for XML-to-XML transformations.
-- Requires Mendix 11.9+. Use `SHOW FEATURES` to confirm support before using.
+- Requires Mendix 11.9+. Use `LIST FEATURES` to confirm support before using.

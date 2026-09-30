@@ -31,45 +31,14 @@ func execCreateValidationRule(ctx *ExecContext, s *ast.CreateValidationRuleStmt)
 		return mdlerrors.NewNotConnectedWrite()
 	}
 
-	moduleName, entityName, attrName, err := splitAttributeQN(s.Attribute)
-	if err != nil {
-		return err
-	}
 	if s.Feedback == "" {
 		return mdlerrors.NewValidation("validation rule: FEEDBACK message is required")
 	}
-
-	module, err := findModule(ctx, moduleName)
+	t, err := findRuleTarget(ctx, s.Attribute)
 	if err != nil {
 		return err
 	}
-	dm, err := ctx.Backend.GetDomainModel(module.ID)
-	if err != nil {
-		return mdlerrors.NewBackend("get domain model", err)
-	}
-
-	var entity *domainmodel.Entity
-	for _, ent := range dm.Entities {
-		if strings.EqualFold(ent.Name, entityName) {
-			entity = ent
-			break
-		}
-	}
-	if entity == nil {
-		return mdlerrors.NewNotFound("entity", moduleName+"."+entityName)
-	}
-
-	var attr *domainmodel.Attribute
-	for _, a := range entity.Attributes {
-		if strings.EqualFold(a.Name, attrName) {
-			attr = a
-			break
-		}
-	}
-	if attr == nil {
-		return mdlerrors.NewNotFoundMsg("attribute", attrName,
-			fmt.Sprintf("attribute '%s' not found on entity %s.%s", attrName, moduleName, entityName))
-	}
+	dm, entity, attr, moduleName := t.dm, t.entity, t.attr, t.module
 
 	info, ruleType, err := validationRuleInfoFor(ctx, s)
 	if err != nil {
@@ -91,6 +60,92 @@ func execCreateValidationRule(ctx *ExecContext, s *ast.CreateValidationRuleStmt)
 	// had stopped moving. The verb is only downgraded on positive evidence —
 	// writes offered, none landed.
 	ctx.ReportMutation("Created", "%s validation rule on %s", ruleType, attrQN)
+	return nil
+}
+
+// ruleTarget is the attribute a validation rule statement names, with the
+// entity and domain model that hold its rules.
+type ruleTarget struct {
+	dm     *domainmodel.DomainModel
+	entity *domainmodel.Entity
+	attr   *domainmodel.Attribute
+	module string
+}
+
+// findRuleTarget resolves Module.Entity.Attribute.
+func findRuleTarget(ctx *ExecContext, qn ast.QualifiedName) (ruleTarget, error) {
+	moduleName, entityName, attrName, err := splitAttributeQN(qn)
+	if err != nil {
+		return ruleTarget{}, err
+	}
+	module, err := findModule(ctx, moduleName)
+	if err != nil {
+		return ruleTarget{}, err
+	}
+	dm, err := ctx.Backend.GetDomainModel(module.ID)
+	if err != nil {
+		return ruleTarget{}, mdlerrors.NewBackend("get domain model", err)
+	}
+	var entity *domainmodel.Entity
+	for _, ent := range dm.Entities {
+		if strings.EqualFold(ent.Name, entityName) {
+			entity = ent
+			break
+		}
+	}
+	if entity == nil {
+		return ruleTarget{}, mdlerrors.NewNotFound("entity", moduleName+"."+entityName)
+	}
+	for _, a := range entity.Attributes {
+		if strings.EqualFold(a.Name, attrName) {
+			return ruleTarget{dm: dm, entity: entity, attr: a, module: moduleName}, nil
+		}
+	}
+	return ruleTarget{}, mdlerrors.NewNotFoundMsg("attribute", attrName,
+		fmt.Sprintf("attribute '%s' not found on entity %s.%s", attrName, moduleName, entityName))
+}
+
+// execDropValidationRule handles DROP VALIDATION RULE FOR Module.Entity.Attribute
+// [REGEX | RANGE]. Without a kind it drops both the regex and the range rule;
+// Required and Unique are attribute constraints and are left alone.
+func execDropValidationRule(ctx *ExecContext, s *ast.DropValidationRuleStmt) error {
+	if !ctx.ConnectedForWrite() {
+		return mdlerrors.NewNotConnectedWrite()
+	}
+	t, err := findRuleTarget(ctx, s.Attribute)
+	if err != nil {
+		return err
+	}
+	drops := func(ruleType string) bool {
+		if s.Kind != "" {
+			return ruleType == string(s.Kind)
+		}
+		return ruleType == string(ast.ValidationRuleRegEx) || ruleType == string(ast.ValidationRuleRange)
+	}
+	var kept []*domainmodel.ValidationRule
+	var dropped []string
+	for _, vr := range t.entity.ValidationRules {
+		if vr != nil && drops(vr.Type) && ruleTargetsAttribute(string(vr.AttributeID), t.attr) {
+			dropped = append(dropped, vr.Type)
+			continue
+		}
+		kept = append(kept, vr)
+	}
+	attrQN := fmt.Sprintf("%s.%s.%s", t.module, t.entity.Name, t.attr.Name)
+	if len(dropped) == 0 {
+		what := "regex or range validation rule"
+		if s.Kind != "" {
+			what = string(s.Kind) + " validation rule"
+		}
+		return mdlerrors.NewNotFoundMsg("validation rule", attrQN, fmt.Sprintf("no %s found on %s", what, attrQN))
+	}
+	t.entity.ValidationRules = kept
+	if err := ctx.Backend.UpdateEntity(t.dm.ID, t.entity); err != nil {
+		return mdlerrors.NewBackend("drop validation rule", err)
+	}
+	invalidateHierarchy(ctx)
+	invalidateDomainModelsCache(ctx)
+	ctx.ReportMutation("Dropped", "%s validation rule on %s", strings.Join(dropped, " and "), attrQN)
 	return nil
 }
 
@@ -165,7 +220,7 @@ func outputEntityValidationRules(ctx *ExecContext, entity *domainmodel.Entity, m
 		}
 
 		feedback := pickTextTranslation(vr.ErrorMessage, lang)
-		fmt.Fprintf(ctx.Output, "\ncreate validation rule for %s\n    %s\n    feedback '%s';\n",
+		fmt.Fprintf(ctx.Output, "\ncreate or modify validation rule for %s\n    %s\n    error message '%s';\n",
 			target, constraint, escapeMDLString(feedback))
 	}
 }

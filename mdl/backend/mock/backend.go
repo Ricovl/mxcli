@@ -91,6 +91,7 @@ type MockBackend struct {
 	GetMicroflowFunc          func(id model.ID) (*microflows.Microflow, error)
 	CreateMicroflowFunc       func(mf *microflows.Microflow) error
 	UpdateMicroflowFunc       func(mf *microflows.Microflow) error
+	ReadBackMicroflowFunc     func(mf *microflows.Microflow) (*microflows.Microflow, error)
 	DeleteMicroflowFunc       func(id model.ID) error
 	MoveMicroflowFunc         func(mf *microflows.Microflow) error
 	ParseMicroflowFromRawFunc func(raw map[string]any, unitID, containerID model.ID) *microflows.Microflow
@@ -105,6 +106,7 @@ type MockBackend struct {
 	GetNanoflowFunc           func(id model.ID) (*microflows.Nanoflow, error)
 	CreateNanoflowFunc        func(nf *microflows.Nanoflow) error
 	UpdateNanoflowFunc        func(nf *microflows.Nanoflow) error
+	ReadBackNanoflowFunc      func(nf *microflows.Nanoflow) (*microflows.Nanoflow, error)
 	DeleteNanoflowFunc        func(id model.ID) error
 	MoveNanoflowFunc          func(nf *microflows.Nanoflow) error
 	IsRuleFunc                func(qualifiedName string) (bool, error)
@@ -155,6 +157,7 @@ type MockBackend struct {
 	SetProjectGuestAccessFunc            func(unitID model.ID, enabled bool, guestUserRole string) error
 	AddUserRoleFunc                      func(unitID model.ID, name string, moduleRoles []string, manageAllRoles bool) error
 	AlterUserRoleModuleRolesFunc         func(unitID model.ID, userRoleName string, add bool, moduleRoles []string) error
+	SetUserRolePropertiesFunc            func(unitID model.ID, userRoleName string, props backend.UserRoleProperties) error
 	RemoveUserRoleFunc                   func(unitID model.ID, name string) error
 	AddDemoUserFunc                      func(unitID model.ID, userName, password, entity string, userRoles []string) error
 	RemoveDemoUserFunc                   func(unitID model.ID, userName string) error
@@ -340,6 +343,9 @@ type MockBackend struct {
 
 	// WorkflowMutationBackend
 	OpenWorkflowForMutationFunc func(unitID model.ID) (backend.WorkflowMutator, error)
+
+	// MicroflowMutationBackend
+	OpenMicroflowForMutationFunc func(unitID model.ID) (backend.MicroflowMutator, error)
 
 	// WidgetSerializationBackend
 

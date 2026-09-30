@@ -19,7 +19,7 @@
 -- Every `$R = ...` line below must come back verbatim. Before the fix, four of
 -- them did not.
 
-create or replace microflow MyFirstModule.ACT_AdditiveOrder ($A: integer, $B: integer, $C: integer)
+create or modify microflow MyFirstModule.ACT_AdditiveOrder ($A: integer, $B: integer, $C: integer)
 returns integer as $R
 begin
   declare $R integer = 0;

@@ -4,4 +4,4 @@
 
 -- Requires a connected project with widgets named *button* (e.g. actionButton1).
 -- With the bug, this would return "No widgets found" even for existing widgets.
-SHOW WIDGETS WHERE Name LIKE '%button%';
+LIST WIDGETS WHERE Name LIKE '%button%';

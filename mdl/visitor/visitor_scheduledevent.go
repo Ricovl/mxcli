@@ -19,11 +19,11 @@ import (
 // distinguishable from an omitted one.
 func (b *Builder) ExitCreateScheduledEventStatement(ctx *parser.CreateScheduledEventStatementContext) {
 	stmt := &ast.CreateScheduledEventStmt{
-		Name:          buildQualifiedName(ctx.QualifiedName()),
-		Documentation: findDocCommentText(ctx),
+		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 	if lit := ctx.STRING_LITERAL(); lit != nil {
-		stmt.Folder = unquoteString(lit.GetText())
+		stmt.Folder = unquoteStringLit(lit)
 	}
 	if createStmt := findParentCreateStatement(ctx); createStmt != nil {
 		if createStmt.OR() != nil && (createStmt.MODIFY() != nil || createStmt.REPLACE() != nil) {
@@ -33,7 +33,7 @@ func (b *Builder) ExitCreateScheduledEventStatement(ctx *parser.CreateScheduledE
 
 	if body := ctx.ScheduledEventBody(); body != nil {
 		bodyCtx := body.(*parser.ScheduledEventBodyContext)
-		for _, prop := range bodyCtx.AllScheduledEventProperty() {
+		for i, prop := range bodyCtx.AllScheduledEventProperty() {
 			pc, ok := prop.(*parser.ScheduledEventPropertyContext)
 			if !ok || pc == nil {
 				continue
@@ -82,7 +82,9 @@ func (b *Builder) ExitCreateScheduledEventStatement(ctx *parser.CreateScheduledE
 			case "exportlevel":
 				stmt.ExportLevel = val
 			case "documentation":
-				stmt.Documentation = val
+				// R9: an alias of the doc comment, which it overrides.
+				stmt.Documentation, stmt.DocumentationSet = val, true
+				b.recordDocumentationProperty(ctx, ruleContexts(bodyCtx.AllScheduledEventProperty()), i, stmt.Documentation)
 			}
 		}
 	}
@@ -102,7 +104,7 @@ func scheduledEventPropertyText(pc *parser.ScheduledEventPropertyContext) string
 		return n.GetText()
 	}
 	if s := pc.STRING_LITERAL(); s != nil {
-		return unquoteString(s.GetText())
+		return unquoteStringLit(s)
 	}
 	if bl := pc.BooleanLiteral(); bl != nil {
 		return bl.GetText()

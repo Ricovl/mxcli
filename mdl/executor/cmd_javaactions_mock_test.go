@@ -55,7 +55,7 @@ func TestDescribeJavaAction_Mock(t *testing.T) {
 	assertNoError(t, describeJavaAction(ctx, ast.QualifiedName{Module: "MyModule", Name: "DoSomething"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create java action")
+	assertContainsStr(t, out, "create or modify java action")
 }
 
 // TestDescribeJavaAction_AlwaysEmitsBody is a regression test for issue #637:

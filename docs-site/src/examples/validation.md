@@ -54,7 +54,7 @@ The action microflow calls validation, and only saves if it passes:
 CREATE MICROFLOW Sales.ACT_Order_Save ($Order: Sales.Order)
 RETURNS Boolean AS $IsValid
 BEGIN
-  $IsValid = CALL MICROFLOW Sales.VAL_Order($param = $Order);
+  $IsValid = CALL MICROFLOW Sales.VAL_Order(param = $Order);
 
   IF $IsValid THEN
     COMMIT $Order;
@@ -72,7 +72,7 @@ The page's Save button calls the action microflow (not the validation microflow 
 
 ```sql
 CREATE PAGE Sales.Order_Edit (
-  Params: { $Order: Sales.Order },
+  Params: ( $Order: Sales.Order ),
   Title: 'Order',
   Layout: Atlas_Core.PopupLayout
 ) {
@@ -87,10 +87,10 @@ CREATE PAGE Sales.Order_Edit (
           FOOTER footer1 {
             ACTIONBUTTON btnSave (
               Caption: 'Save',
-              Action: MICROFLOW Sales.ACT_Order_Save,
+              Action: CALL MICROFLOW Sales.ACT_Order_Save,
               ButtonStyle: Success
             )
-            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+            ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
           }
         }
       }

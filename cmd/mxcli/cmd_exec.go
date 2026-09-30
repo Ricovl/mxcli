@@ -25,6 +25,9 @@ applies statements one at a time and cannot roll back, so running a script with
 a known error leaves the model partly updated. Warnings are printed and do not
 stop the run. Use --no-check to apply a script anyway.
 
+A deprecated MDL spelling (MDL-DEPRnnn, e.g. "create or replace" for "create or
+modify") is a warning; --deprecations=error makes it an error.
+
 By default execution stops at the first error. With --continue-on-error, every
 statement is attempted; each failure is reported (prefixed with its statement
 number) and execution continues, exiting non-zero if any statement failed. This
@@ -50,6 +53,7 @@ Example:
 		projectPath, _ := cmd.Flags().GetString("project")
 		continueOnError, _ := cmd.Flags().GetBool("continue-on-error")
 		skipCheck, _ := cmd.Flags().GetBool("no-check")
+		depPolicy := deprecationPolicy(cmd)
 
 		// Read the script (a path, or "-" for stdin)
 		content, err := readMDLSource(filePath)
@@ -103,7 +107,7 @@ Example:
 		// exec is not transactional, so "run it and see" means a half-applied
 		// model. Warnings are printed and do not stop the run.
 		if !skipCheck {
-			violations := executor.ValidateProgram(prog, projectPath)
+			violations := executor.ApplyDeprecationPolicy(executor.ValidateProgram(prog, projectPath), depPolicy)
 			if len(violations) > 0 {
 				formatter := linter.GetFormatter(linter.OutputFormatText, true)
 				formatter.Format(violations, os.Stderr)
@@ -155,7 +159,11 @@ Example:
 		// CheckProjectConflicts is deliberately NOT run here, though `check`
 		// runs it alongside this pass: a plain CREATE over an existing document
 		// is worth reporting when validating a script, but it is ordinary for a
-		// re-run, and refusing it would break scripts that work today.
+		// re-run, and refusing it would break scripts that work today. Its one
+		// exception is: a create over a name ANOTHER kind already has in the
+		// module (ako/mxcli#793) is never a re-run — `or modify` of a kind that
+		// lacks the name still adds an element — and Mendix rejects the model
+		// (CE0122 / CE0065), so it is refused here, after the references.
 		if !skipCheck && projectPath != "" {
 			refErrs, refWarnings := exec.ValidateProgramWithWarnings(prog)
 			for _, w := range refWarnings {
@@ -172,6 +180,18 @@ Example:
 						"  is created rather than refused.\n"+
 						"  Fix them, or re-run with --no-check to apply the script anyway.\n",
 					len(refErrs))
+				os.Exit(1)
+			}
+			if clashes := exec.CheckProjectNameClashes(prog); len(clashes) > 0 {
+				for _, c := range clashes {
+					fmt.Fprintf(os.Stderr, "Name clash: %v\n", c)
+				}
+				fmt.Fprintf(os.Stderr,
+					"\nRefusing to execute: %d name clash(es) above. Nothing was written.\n"+
+						"  Mendix rejects the model (CE0122 / CE0065) however the script continues.\n"+
+						"  Rename, or re-run with --no-check to apply the script anyway (each clashing\n"+
+						"  create is still refused when it runs).\n",
+					len(clashes))
 				os.Exit(1)
 			}
 		}

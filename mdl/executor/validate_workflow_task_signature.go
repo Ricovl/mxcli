@@ -146,7 +146,7 @@ func (c *workflowTaskSignatureChecker) checkPage(label, pageQN string) string {
 	if len(params) == 0 {
 		return fmt.Sprintf(
 			"%s: page %s takes no parameters — a task page is opened with the task, so it must take a %s parameter; "+
-				"the build fails CE7410 (add `params: { $WorkflowUserTask: %s }`)",
+				"the build fails CE7410 (add `params: ( $WorkflowUserTask: %s )`)",
 			label, pageQN, workflowUserTaskEntity, workflowUserTaskEntity)
 	}
 	for _, e := range params {

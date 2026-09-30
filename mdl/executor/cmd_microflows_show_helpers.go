@@ -46,6 +46,24 @@ type annotationEmitter struct {
 	// collection and referenced from inside a loop body.
 	labels    map[model.ID]string
 	nextLabel *int
+
+	// layout selects the layout annotations a canonical DESCRIBE keeps: the
+	// authored ones, never the ones the layout engine would derive anyway (see
+	// derivedFlowLayout). nil keeps every one, which is what the tools that
+	// read geometry back — `layout flows`, the ELK view, diff — rely on.
+	layout *flowLayoutKeep
+
+	// ctx is the describe's context, for the language its text is quoted in
+	// (mdlQuote). nil quotes in the frozen language.
+	ctx *ExecContext
+}
+
+// quote writes a note's or caption's text as a string literal (mdlQuote).
+func (e *annotationEmitter) quote(s string) string {
+	if e == nil {
+		return mdlQuote(nil, s)
+	}
+	return mdlQuote(e.ctx, s)
 }
 
 // buildAnnotationsByTarget joins AnnotationFlows (destination → activity) with
@@ -116,7 +134,7 @@ func (e *annotationEmitter) withOverlay(overlay *annotationEmitter) *annotationE
 	if overlay == nil || len(overlay.byTarget) == 0 {
 		return e
 	}
-	out := &annotationEmitter{labels: e.labels, nextLabel: e.nextLabel}
+	out := &annotationEmitter{labels: e.labels, nextLabel: e.nextLabel, layout: e.layout, ctx: e.ctx}
 	if len(e.byTarget) == 0 {
 		out.byTarget = overlay.byTarget
 		return out
@@ -174,7 +192,7 @@ func (e *annotationEmitter) lines(target model.ID, activityPos model.Point, targ
 			// depends on which mention created it, and pinning that down would
 			// couple the two sides far more tightly than it is worth.
 			out = append(out, indentStr+fmt.Sprintf("@annotation(id: %s, text: %s, position: (%d, %d), size: (%d, %d))",
-				label, mdlQuote(note.Caption), note.Position.X, note.Position.Y, note.Size.Width, note.Size.Height))
+				label, e.quote(note.Caption), note.Position.X, note.Position.Y, note.Size.Width, note.Size.Height))
 			continue
 		}
 
@@ -187,11 +205,11 @@ func (e *annotationEmitter) lines(target model.ID, activityPos model.Point, targ
 			params = append(params, fmt.Sprintf("size: (%d, %d)", note.Size.Width, note.Size.Height))
 		}
 		if len(params) == 0 {
-			out = append(out, indentStr+fmt.Sprintf("@annotation %s", mdlQuote(note.Caption)))
+			out = append(out, indentStr+fmt.Sprintf("@annotation %s", e.quote(note.Caption)))
 			continue
 		}
 		out = append(out, indentStr+fmt.Sprintf("@annotation(text: %s, %s)",
-			mdlQuote(note.Caption), strings.Join(params, ", ")))
+			e.quote(note.Caption), strings.Join(params, ", ")))
 	}
 	return out
 }
@@ -222,7 +240,7 @@ func collectFreeAnnotations(oc *microflows.MicroflowObjectCollection) []describe
 	return result
 }
 
-func prependFreeAnnotationLines(oc *microflows.MicroflowObjectCollection, activityLines []string) []string {
+func prependFreeAnnotationLines(ctx *ExecContext, oc *microflows.MicroflowObjectCollection, activityLines []string) []string {
 	freeAnnots := collectFreeAnnotations(oc)
 	if len(freeAnnots) == 0 || len(activityLines) == 0 {
 		return activityLines
@@ -233,7 +251,7 @@ func prependFreeAnnotationLines(oc *microflows.MicroflowObjectCollection, activi
 		// A free note is attached to nothing, so there is no activity position
 		// to derive its default from — the writer places it from wherever the
 		// cursor happens to be. Its geometry is therefore always spelled out.
-		line := fmt.Sprintf("@annotation(text: %s, position: (%d, %d)", mdlQuote(note.Caption), note.Position.X, note.Position.Y)
+		line := fmt.Sprintf("@annotation(text: %s, position: (%d, %d)", mdlQuote(ctx, note.Caption), note.Position.X, note.Position.Y)
 		if note.Size != (model.Size{}) {
 			line += fmt.Sprintf(", size: (%d, %d)", note.Size.Width, note.Size.Height)
 		}
@@ -296,11 +314,12 @@ func emitAnchorAnnotationWithActivityMap(
 	id := obj.GetID()
 
 	if _, isSplit := obj.(*microflows.ExclusiveSplit); isSplit {
-		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, false)
+		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, false,
+			mergeExitAnchor(id, flowsByOrigin, activityMap))
 		return
 	}
 	if _, isSplit := obj.(*microflows.InheritanceSplit); isSplit {
-		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, true)
+		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, true, "")
 		return
 	}
 	if loop, isLoop := obj.(*microflows.LoopedActivity); isLoop {
@@ -398,6 +417,7 @@ func emitMergeAnnotation(
 	obj microflows.MicroflowObject,
 	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
 	activityMap map[model.ID]microflows.MicroflowObject,
+	layout *flowLayoutKeep,
 	lines *[]string,
 	indentStr string,
 ) {
@@ -406,15 +426,40 @@ func emitMergeAnnotation(
 	}
 	switch obj.(type) {
 	case *microflows.ExclusiveSplit, *microflows.InheritanceSplit:
+	case *microflows.ActionActivity:
+		// An activity has a merge of its own only when its error handler falls
+		// through: the description drops the merge's label, so its position
+		// rides on the activity (#750).
+		if m := fallThroughRejoinMerge(obj.GetID(), flowsByOrigin, activityMap); m != "" {
+			p := activityMap[m].GetPosition()
+			*lines = append(*lines, indentStr+fmt.Sprintf("@merge(%d, %d)", p.X, p.Y))
+		}
+		return
 	default:
 		return
 	}
 	merge := commonMergeAfter(obj.GetID(), flowsByOrigin, activityMap)
-	if merge == nil {
+	if merge == nil || !layout.keepsPosition(merge.GetID()) {
 		return
 	}
 	p := merge.GetPosition()
 	*lines = append(*lines, indentStr+fmt.Sprintf("@merge(%d, %d)", p.X, p.Y))
+}
+
+// closingMergeID is the merge an ExclusiveSplit's description speaks for (its
+// @merge and the `from:` of its @anchor), or "" for anything else.
+func closingMergeID(
+	obj microflows.MicroflowObject,
+	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
+	activityMap map[model.ID]microflows.MicroflowObject,
+) model.ID {
+	if _, ok := obj.(*microflows.ExclusiveSplit); !ok || activityMap == nil {
+		return ""
+	}
+	if merge := commonMergeAfter(obj.GetID(), flowsByOrigin, activityMap); merge != nil {
+		return merge.GetID()
+	}
+	return ""
 }
 
 // commonMergeAfter returns the nearest ExclusiveMerge reachable from every
@@ -536,6 +581,7 @@ func emitSplitAnchorAnnotation(
 	lines *[]string,
 	indentStr string,
 	preserveDefaultIncoming bool,
+	mergeExitFrom string,
 ) {
 	// Incoming flow anchor (where the previous activity's flow lands on the split).
 	var inTo string
@@ -555,11 +601,16 @@ func emitSplitAnchorAnnotation(
 		falseTo = anchorSideKeyword(falseFlow.DestinationConnectionIndex)
 	}
 
-	if inTo == "" && trueFrom == "" && trueTo == "" && falseFrom == "" && falseTo == "" {
+	if inTo == "" && trueFrom == "" && trueTo == "" && falseFrom == "" && falseTo == "" && mergeExitFrom == "" {
 		return
 	}
 
 	var parts []string
+	// `from:` on an if is the flow leaving the statement — out of its closing
+	// merge (#767). mergeExitAnchor has already dropped the default side.
+	if mergeExitFrom != "" {
+		parts = append(parts, "from: "+mergeExitFrom)
+	}
 	trueDefaultFroms := []string{anchorSideKeyword(AnchorRight), anchorSideKeyword(AnchorBottom)}
 	trueDefaultTos := []string{anchorSideKeyword(AnchorLeft)}
 	falseDefaultFroms := []string{anchorSideKeyword(AnchorBottom), anchorSideKeyword(AnchorRight)}
@@ -578,6 +629,44 @@ func emitSplitAnchorAnnotation(
 		return
 	}
 	*lines = append(*lines, indentStr+fmt.Sprintf("@anchor(%s)", strings.Join(parts, ", ")))
+}
+
+// mergeExitAnchor returns the side the flow LEAVING an if's closing merge
+// starts from, or "" when it is the default (right) or there is no such merge.
+//
+// The merge has no statement of its own, so this anchor is written as `from:`
+// on the if — the same slot `from:` has on any other statement: the flow
+// leaving it. Without it a merge-to-split flow that wraps onto a new row
+// (bottom of the merge to top of the next decision) re-executed as leaving the
+// merge's right side, back across the row above (ako/mxcli#767).
+//
+// Only an if (a split with true/false branches) has this slot; the merge is
+// found the way @merge finds it, so the two annotations name the same node.
+func mergeExitAnchor(
+	splitID model.ID,
+	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
+	activityMap map[model.ID]microflows.MicroflowObject,
+) string {
+	if activityMap == nil {
+		return ""
+	}
+	if trueFlow, falseFlow := findBranchFlows(flowsByOrigin[splitID]); trueFlow == nil && falseFlow == nil {
+		return ""
+	}
+	merge := commonMergeAfter(splitID, flowsByOrigin, activityMap)
+	if merge == nil {
+		return ""
+	}
+	for _, flow := range flowsByOrigin[merge.GetID()] {
+		if flow.IsErrorHandler {
+			continue
+		}
+		if flow.OriginConnectionIndex == AnchorRight {
+			return ""
+		}
+		return anchorSideKeyword(flow.OriginConnectionIndex)
+	}
+	return ""
 }
 
 // branchAnchorFragment builds a `key: (from: X, to: Y)` fragment for a branch
@@ -750,6 +839,17 @@ func emitLoopAnchorAnnotation(
 	*lines = append(*lines, indentStr+fmt.Sprintf("@anchor(%s)", strings.Join(parts, ", ")))
 }
 
+// captionIsCondition reports whether a decision's caption is its condition
+// text, which is what a decision gets when no @caption is written: the builder
+// stores one string as both the caption and the expression (addIfStatement,
+// the enum case). Printing it would repeat the line below it (R12, #748), and
+// leaving it out re-executes to the same caption, since the two are built from
+// the same text.
+func captionIsCondition(split *microflows.ExclusiveSplit) bool {
+	cond, ok := split.SplitCondition.(*microflows.ExpressionSplitCondition)
+	return ok && split.Caption == cond.Expression
+}
+
 // emitObjectAnnotations emits @position, @caption, @color, @annotation, and
 // @anchor lines for a microflow object before its statement.
 //
@@ -768,15 +868,24 @@ func emitObjectAnnotations(
 	currentID := obj.GetID()
 
 	pos := obj.GetPosition()
-	*lines = append(*lines, indentStr+fmt.Sprintf("@position(%d, %d)", pos.X, pos.Y))
+	layout := annotationsByTarget.layoutKeep()
+	if layout.keepsPosition(currentID) {
+		*lines = append(*lines, indentStr+fmt.Sprintf("@position(%d, %d)", pos.X, pos.Y))
+	}
 
 	if flowsByOrigin != nil && flowsByDest != nil {
 		// @anchor — emit whenever attached flows exist, for roundtrip fidelity.
 		// The emitter sorts out the right form (simple / split / loop) based on
 		// the object type.
-		emitAnchorAnnotationWithActivityMap(obj, flowsByOrigin, flowsByDest, activityMap, lines, indentStr)
-		emitCurveAnnotation(obj, flowsByOrigin, activityMap, lines, indentStr)
-		emitMergeAnnotation(obj, flowsByOrigin, activityMap, lines, indentStr)
+		// An if's anchor also carries the flow out of its closing merge, which
+		// has no statement of its own — so a pinned merge keeps the if's anchor.
+		if layout.keepsAnchor(currentID) || layout.keepsAnchor(closingMergeID(obj, flowsByOrigin, activityMap)) {
+			emitAnchorAnnotationWithActivityMap(obj, flowsByOrigin, flowsByDest, activityMap, lines, indentStr)
+		}
+		if layout.keepsCurve(currentID) {
+			emitCurveAnnotation(obj, flowsByOrigin, activityMap, lines, indentStr)
+		}
+		emitMergeAnnotation(obj, flowsByOrigin, activityMap, layout, lines, indentStr)
 	}
 
 	if activity, ok := obj.(*microflows.ActionActivity); ok {
@@ -784,18 +893,18 @@ func emitObjectAnnotations(
 			*lines = append(*lines, indentStr+"@excluded")
 		}
 		if !activity.AutoGenerateCaption && activity.Caption != "" {
-			*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", mdlQuote(activity.Caption)))
+			*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", annotationsByTarget.quote(activity.Caption)))
 		}
 		if activity.BackgroundColor != "" && activity.BackgroundColor != "Default" {
 			*lines = append(*lines, indentStr+fmt.Sprintf("@color %s", activity.BackgroundColor))
 		}
 	}
 
-	if split, ok := obj.(*microflows.ExclusiveSplit); ok && split.Caption != "" {
-		*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", mdlQuote(split.Caption)))
+	if split, ok := obj.(*microflows.ExclusiveSplit); ok && split.Caption != "" && !captionIsCondition(split) {
+		*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", annotationsByTarget.quote(split.Caption)))
 	}
 	if split, ok := obj.(*microflows.InheritanceSplit); ok && split.Caption != "" {
-		*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", mdlQuote(split.Caption)))
+		*lines = append(*lines, indentStr+fmt.Sprintf("@caption %s", annotationsByTarget.quote(split.Caption)))
 	}
 	// No @caption for a LoopedActivity: the metamodel declares none on it, so a
 	// stored loop never carries one and this only ever emitted MDL that check
@@ -821,6 +930,8 @@ func emitActivityStatement(
 	indentStr string,
 	annotationsByTarget *annotationEmitter,
 	labels mergeLabels,
+	sourceMap map[string]elkSourceRange,
+	headerLineCount int,
 ) {
 	if stmt == "" {
 		return
@@ -838,12 +949,12 @@ func emitActivityStatement(
 		// The early return above used to end the function, which also skipped the
 		// error-handler traversal further down — so an activity the describer
 		// could not render lost its entire error branch without a word (#863).
-		// The branch cannot be emitted as live MDL (an `on error { … }` block has
+		// The branch cannot be emitted as live MDL (an `on error begin … end error` block has
 		// no statement to attach to here), but it must not disappear either:
 		// render it commented-out, so the artifact still shows what the model
 		// holds. Guard-don't-drop, in a path that cannot round-trip.
 		emitCommentedErrorHandler(
-			ctx, obj, flowsByOrigin, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels)
+			ctx, obj, flowsByOrigin, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels, sourceMap, headerLineCount)
 		return
 	}
 
@@ -864,7 +975,7 @@ func emitActivityStatement(
 	suffix := formatErrorHandlingSuffix(errType)
 
 	if errorHandlerFlow != nil && hasCustomErrorHandler(errType) {
-		errStmts := collectErrorHandlerStatements(
+		errStmts, errSpans := collectErrorHandlerStatementSpans(
 			ctx,
 			errorHandlerFlow.DestinationID,
 			activityMap, flowsByOrigin, entityNames, microflowNames, annotationsByTarget, labels,
@@ -878,13 +989,14 @@ func emitActivityStatement(
 		}
 
 		if len(errStmts) == 0 {
-			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" { };")
+			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" begin end error;")
 		} else {
-			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" {")
+			*lines = append(*lines, indentStr+stmtWithoutSemi+errorSuffix+" begin")
+			recordErrorHandlerSpans(sourceMap, errSpans, len(*lines)+headerLineCount)
 			for _, errStmt := range errStmts {
 				*lines = append(*lines, indentStr+"  "+errStmt)
 			}
-			*lines = append(*lines, indentStr+"};")
+			*lines = append(*lines, indentStr+"end error;")
 		}
 	} else if suffix != "" {
 		stmtWithoutSemi := strings.TrimSuffix(strings.TrimSpace(stmt), ";")
@@ -896,7 +1008,7 @@ func emitActivityStatement(
 
 // emitCommentedErrorHandler renders an activity's error branch as MDL line
 // comments. It is the fallback for activities the describer can only emit as a
-// comment: the branch has no live statement to hang an `on error { … }` block
+// comment: the branch has no live statement to hang an `on error begin … end error` block
 // off, so the choice is between showing it commented-out and losing it.
 //
 // Commenting is load-bearing, not cosmetic. Emitting these statements as live
@@ -914,6 +1026,8 @@ func emitCommentedErrorHandler(
 	indentStr string,
 	annotationsByTarget *annotationEmitter,
 	labels mergeLabels,
+	sourceMap map[string]elkSourceRange,
+	headerLineCount int,
 ) {
 	errorHandlerFlow := findErrorHandlerFlow(flowsByOrigin[obj.GetID()])
 	if errorHandlerFlow == nil {
@@ -929,17 +1043,18 @@ func emitCommentedErrorHandler(
 		suffix = "on error without rollback"
 	}
 
-	errStmts := collectErrorHandlerStatements(
+	errStmts, errSpans := collectErrorHandlerStatementSpans(
 		ctx, errorHandlerFlow.DestinationID, activityMap, flowsByOrigin, entityNames, microflowNames, annotationsByTarget, labels)
 	if len(errStmts) == 0 {
-		*lines = append(*lines, indentStr+"-- "+suffix+" { };")
+		*lines = append(*lines, indentStr+"-- "+suffix+" begin end error;")
 		return
 	}
-	*lines = append(*lines, indentStr+"-- "+suffix+" {")
+	*lines = append(*lines, indentStr+"-- "+suffix+" begin")
+	recordErrorHandlerSpans(sourceMap, errSpans, len(*lines)+headerLineCount)
 	for _, errStmt := range errStmts {
 		*lines = append(*lines, indentStr+"--   "+strings.TrimSpace(errStmt))
 	}
-	*lines = append(*lines, indentStr+"-- };")
+	*lines = append(*lines, indentStr+"-- end error;")
 }
 
 // activity narrows a MicroflowObject to *ActionActivity, or nil.
@@ -1025,7 +1140,7 @@ func traverseFlow(
 		// declaration lands whichever way the merge is reached.
 		if label, ok := labels.of(currentID); ok && !visited[currentID] {
 			visited[currentID] = true
-			*lines = append(*lines, mergeDeclarationLines(indent, label, obj)...)
+			*lines = append(*lines, mergeDeclarationLines(indent, label, obj, annotationsByTarget.layoutKeep())...)
 			for _, flow := range findNormalFlows(flowsByOrigin[currentID]) {
 				traverseFlow(ctx, flow.DestinationID, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels)
 			}
@@ -1139,6 +1254,8 @@ func traverseFlow(
 				// only falseFlow.DestinationID != mergeID is not enough.
 				if len(*lines) == elseLineIdx+1 {
 					*lines = (*lines)[:elseLineIdx]
+				} else {
+					foldElseIntoElsif(lines, elseLineIdx, indent, sourceMap, headerLineCount)
 				}
 			}
 
@@ -1175,7 +1292,7 @@ func traverseFlow(
 	// Regular activity
 	startLine := len(*lines) + headerLineCount
 	normalFlows := findNormalFlows(flowsByOrigin[currentID])
-	emitActivityStatement(ctx, obj, stmt, flowsByOrigin, flowsByDest, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels)
+	emitActivityStatement(ctx, obj, stmt, flowsByOrigin, flowsByDest, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels, sourceMap, headerLineCount)
 	recordSourceMap(sourceMap, currentID, startLine, len(*lines)+headerLineCount-1)
 
 	// Follow normal (non-error-handler) outgoing flows
@@ -1228,7 +1345,7 @@ func traverseFlowUntilMerge(
 		}
 		if label, ok := labels.of(currentID); ok && !visited[currentID] {
 			visited[currentID] = true
-			*lines = append(*lines, mergeDeclarationLines(indent, label, obj)...)
+			*lines = append(*lines, mergeDeclarationLines(indent, label, obj, annotationsByTarget.layoutKeep())...)
 		}
 		flows := flowsByOrigin[currentID]
 		for _, flow := range flows {
@@ -1327,6 +1444,8 @@ func traverseFlowUntilMerge(
 				// Remove empty else block
 				if len(*lines) == elseLineIdx+1 {
 					*lines = (*lines)[:elseLineIdx]
+				} else {
+					foldElseIntoElsif(lines, elseLineIdx, indent, sourceMap, headerLineCount)
 				}
 			}
 
@@ -1363,7 +1482,7 @@ func traverseFlowUntilMerge(
 	// Regular activity
 	startLine := len(*lines) + headerLineCount
 	normalFlows := findNormalFlows(flowsByOrigin[currentID])
-	emitActivityStatement(ctx, obj, stmt, flowsByOrigin, flowsByDest, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels)
+	emitActivityStatement(ctx, obj, stmt, flowsByOrigin, flowsByDest, activityMap, entityNames, microflowNames, lines, indentStr, annotationsByTarget, labels, sourceMap, headerLineCount)
 	recordSourceMap(sourceMap, currentID, startLine, len(*lines)+headerLineCount-1)
 
 	// Follow normal (non-error-handler) outgoing flows until merge
@@ -1403,7 +1522,7 @@ func continueAfterSplitJoin(
 			}
 		}
 		if label, ok := labels.of(joinID); ok && !visited[joinID] {
-			*lines = append(*lines, mergeDeclarationLines(indent, label, activityMap[joinID])...)
+			*lines = append(*lines, mergeDeclarationLines(indent, label, activityMap[joinID], annotationsByTarget.layoutKeep())...)
 		}
 		visited[joinID] = true
 		for _, flow := range flowsByOrigin[joinID] {
@@ -2269,7 +2388,7 @@ func hasCustomErrorHandler(errType microflows.ErrorHandlingType) bool {
 //
 // This gates far more than a suffix. emitActivityStatement only walks an
 // activity's error branch when hasCustomErrorHandler() agrees, so an action whose
-// type is not reported here loses its ENTIRE `on error { … }` block from DESCRIBE
+// type is not reported here loses its ENTIRE `on error begin … end error` block from DESCRIBE
 // — silently, and in valid-looking MDL, so a describe→edit→exec round-trip
 // deletes the handler from the model (mendixlabs/mxcli#1078).
 func getActionErrorHandlingType(activity *microflows.ActionActivity) microflows.ErrorHandlingType {
@@ -2333,13 +2452,48 @@ func collectErrorHandlerStatements(
 	annotationsByTarget *annotationEmitter,
 	labels mergeLabels,
 ) []string {
+	statements, _ := collectErrorHandlerStatementSpans(ctx, startID, activityMap, flowsByOrigin, entityNames, microflowNames, annotationsByTarget, labels)
+	return statements
+}
+
+// errorHandlerSpan is where, among the statements of an error handler block,
+// one handler-body object is printed: its notes and its statement.
+type errorHandlerSpan struct {
+	id         model.ID
+	start, end int
+}
+
+// recordErrorHandlerSpans enters the handler-body objects into the source map,
+// base being the absolute line of the block's first statement. Without them a
+// handler-body activity has no line at all, so `describe … with handles`
+// printed no handle for it and ranked it after every other activity — making
+// an `@n` ordinal count differently from the order describe prints in.
+func recordErrorHandlerSpans(sourceMap map[string]elkSourceRange, spans []errorHandlerSpan, base int) {
+	for _, sp := range spans {
+		recordSourceMap(sourceMap, sp.id, base+sp.start, base+sp.end)
+	}
+}
+
+// collectErrorHandlerStatementSpans is collectErrorHandlerStatements that also
+// reports, per object printed, which statements it occupies.
+func collectErrorHandlerStatementSpans(
+	ctx *ExecContext,
+	startID model.ID,
+	activityMap map[model.ID]microflows.MicroflowObject,
+	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
+	entityNames map[model.ID]string,
+	microflowNames map[model.ID]string,
+	annotationsByTarget *annotationEmitter,
+	labels mergeLabels,
+) ([]string, []errorHandlerSpan) {
 	var statements []string
+	var spans []errorHandlerSpan
 	visited := make(map[model.ID]bool)
 	stopID := firstReachableErrorHandlerMerge(startID, activityMap, flowsByOrigin)
 
 	// A note on a handler-body activity is emitted here or nowhere: this
 	// traversal is a second, smaller describer and the main one never reaches
-	// inside an `on error { … }` block. Without it the write path attaches the
+	// inside an `on error begin … end error` block. Without it the write path attaches the
 	// note and the read path drops it, which is the same round-trip loss #1077
 	// is about, one nesting level down.
 	notes := func(obj microflows.MicroflowObject, indentStr string) {
@@ -2382,8 +2536,10 @@ func collectErrorHandlerStatements(
 		if _, isSplit := obj.(*microflows.ExclusiveSplit); isSplit {
 			stmt := formatActivity(ctx, obj, entityNames, microflowNames)
 			if stmt != "" {
+				start := len(statements)
 				notes(obj, indentStr)
 				statements = append(statements, indentStr+stmt)
+				spans = append(spans, errorHandlerSpan{id: id, start: start, end: len(statements) - 1})
 			}
 			nestedMergeID := splitMergeMap[id]
 			trueFlow, falseFlow := findBranchFlows(flowsByOrigin[id])
@@ -2391,9 +2547,17 @@ func collectErrorHandlerStatements(
 				traverse(trueFlow.DestinationID, nestedMergeID, indent+1)
 			}
 			if falseFlow != nil {
+				elseIdx := len(statements)
 				statements = append(statements, indentStr+"else")
 				if falseFlow.DestinationID != nestedMergeID {
 					traverse(falseFlow.DestinationID, nestedMergeID, indent+1)
+				}
+				if remap := foldElseIntoElsifLines(&statements, elseIdx, indent); remap != nil {
+					for i := range spans {
+						if spans[i].end >= elseIdx {
+							spans[i].start, spans[i].end = remap(spans[i].start), remap(spans[i].end)
+						}
+					}
 				}
 			}
 			if stmt != "" {
@@ -2409,8 +2573,10 @@ func collectErrorHandlerStatements(
 		}
 
 		if stmt := formatActivity(ctx, obj, entityNames, microflowNames); stmt != "" {
+			start := len(statements)
 			notes(obj, indentStr)
 			statements = append(statements, indentStr+stmt)
+			spans = append(spans, errorHandlerSpan{id: id, start: start, end: len(statements) - 1})
 		}
 		for _, flow := range findNormalFlows(flowsByOrigin[id]) {
 			traverse(flow.DestinationID, boundary, indent)
@@ -2418,7 +2584,7 @@ func collectErrorHandlerStatements(
 	}
 
 	traverse(startID, stopID, 0)
-	return statements
+	return statements, spans
 }
 
 func findErrorHandlerSplitMergePoints(

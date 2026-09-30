@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
 
@@ -50,10 +51,16 @@ import (
 // changes nothing is the "no silent side effects" rule, and the honest answer
 // is that a decision has nowhere to put it.
 //
-// The DROP ops are NOT covered, and that is measured rather than assumed:
-// removing an element cannot write a wrong type. DROP OUTCOME and DROP PATH on
-// a decision each leave the project loadable at 1 ordinary build error, which
-// is the correct outcome of removing a branch.
+// The DROP ops cannot write a wrong type, but one of them can ADDRESS the wrong
+// thing. DROP PATH numbers "Path N" into the target's Outcomes list, whatever
+// the target is, so `drop userTask1 path 1` removed the user task's first
+// outcome and reported "Altered workflow" (ako/mxcli#791) — the project stays
+// loadable, which is what made it silent. It is refused here on anything that
+// is not a parallel split, as the mutators refuse it, and a path number the
+// split does not have is refused rather than left to a lookup miss. DROP
+// OUTCOME and DROP CONDITION address by value; the mutators match a value only
+// against an outcome that stores one (an empty value used to hit the first
+// path or void outcome), so they are not covered here.
 
 // workflowOutcomeSlot is the list an ALTER WORKFLOW op writes into.
 type workflowOutcomeSlot int
@@ -67,7 +74,7 @@ const (
 
 // workflowOpSlot describes one inserting op for the diagnostic.
 type workflowOpSlot struct {
-	op      string              // the MDL keywords, as the author wrote them
+	op      string              // the fragment `insert into` takes, in its canonical spelling
 	slot    workflowOutcomeSlot // which typed list it writes into
 	writes  string              // the BSON $Type it writes
 	accepts string              // the activity kinds whose list holds that type
@@ -75,19 +82,19 @@ type workflowOpSlot struct {
 
 var workflowOpSlots = map[workflowOutcomeSlot]workflowOpSlot{
 	slotUserTaskOutcome: {
-		op: "INSERT OUTCOME", slot: slotUserTaskOutcome,
+		op: "outcomes '<name>' { … }", slot: slotUserTaskOutcome,
 		writes: "Workflows$UserTaskOutcome", accepts: "a user task",
 	},
 	slotParallelSplitOutcome: {
-		op: "INSERT PATH", slot: slotParallelSplitOutcome,
+		op: "path { … }", slot: slotParallelSplitOutcome,
 		writes: "Workflows$ParallelSplitOutcome", accepts: "a parallel split",
 	},
 	slotConditionOutcome: {
-		op: "INSERT CONDITION", slot: slotConditionOutcome,
+		op: "outcomes <value> -> { … }", slot: slotConditionOutcome,
 		writes: "Workflows$…ConditionOutcome", accepts: "a decision or a call microflow",
 	},
 	slotBoundaryEvent: {
-		op: "INSERT BOUNDARY EVENT", slot: slotBoundaryEvent,
+		op: "boundary event …", slot: slotBoundaryEvent,
 		writes: "a boundary event", accepts: "a user task, call microflow, call workflow or wait for notification",
 	},
 }
@@ -121,11 +128,11 @@ func activityAcceptsSlot(a workflows.WorkflowActivity, slot workflowOutcomeSlot)
 func opForActivity(a workflows.WorkflowActivity) string {
 	switch a.(type) {
 	case *workflows.UserTask:
-		return "INSERT OUTCOME '<value>'"
+		return "outcomes '<name>' { … }"
 	case *workflows.ExclusiveSplitActivity, *workflows.CallMicroflowTask, *workflows.SystemTask:
-		return "INSERT CONDITION '<Module.Enumeration.Value>'"
+		return "outcomes '<Module.Enumeration.Value>' -> { … }"
 	case *workflows.ParallelSplitActivity:
-		return "INSERT PATH"
+		return "path { … }"
 	}
 	return ""
 }
@@ -175,25 +182,67 @@ func validateAlterWorkflowActivityKinds(ctx *ExecContext, s *ast.AlterWorkflowSt
 		kind := describeActivityKind(target)
 		remedy := fmt.Sprintf("%s takes %s", spec.op, spec.accepts)
 		if alt := opForActivity(target); alt != "" && slot != slotBoundaryEvent {
-			remedy = fmt.Sprintf("use `%s ON %s { … }` to add a branch to %s (%s takes %s)",
-				alt, ref, kind, spec.op, spec.accepts)
+			remedy = fmt.Sprintf("use `insert into %s { %s }` to add a branch to %s (%s takes %s)",
+				ref, alt, kind, spec.op, spec.accepts)
 		}
 		errs = append(errs, fmt.Sprintf(
-			"%s on '%s' is refused: it writes %s, and %s cannot hold one — the project would not LOAD "+
+			"`insert into %s { %s }` is refused: it writes %s, and %s cannot hold one — the project would not LOAD "+
 				"(Studio Pro will not open it and `mx check` dies before validating anything); %s",
-			spec.op, ref, spec.writes, kind, remedy))
+			ref, spec.op, spec.writes, kind, remedy))
 	}
 
+	added := map[workflows.WorkflowActivity]int{} // paths this statement already added, per split
 	for _, op := range s.Operations {
 		switch o := op.(type) {
 		case *ast.InsertOutcomeOp:
 			check(o.ActivityRef, o.AtPosition, slotUserTaskOutcome)
 		case *ast.InsertPathOp:
 			check(o.ActivityRef, o.AtPosition, slotParallelSplitOutcome)
+			if split, ok := resolveStoredActivity(wf.Flow, o.ActivityRef, o.AtPosition).(*workflows.ParallelSplitActivity); ok {
+				next := len(split.Outcomes) + added[split] + 1
+				added[split]++
+				if o.PathNumber > 0 && o.PathNumber != next {
+					errs = append(errs, fmt.Sprintf(
+						"insert into '%s' { path %d { … } } is refused: '%s' has %d paths, so a path added here is path %d — "+
+							"write `path %d`, or leave the number out to append one",
+						o.ActivityRef, o.PathNumber, o.ActivityRef, next-1, next, next))
+				}
+			}
+		case *ast.DropPathOp:
+			target := resolveStoredActivity(wf.Flow, o.ActivityRef, o.AtPosition)
+			if target == nil {
+				continue
+			}
+			split, ok := target.(*workflows.ParallelSplitActivity)
+			if !ok {
+				if !activityAcceptsSlot(target, slotParallelSplitOutcome) {
+					kind := describeActivityKind(target)
+					errs = append(errs, fmt.Sprintf(
+						"`drop %s path …` is refused: '%s' is %s, not a parallel split, so it has no paths — "+
+							"the number would pick one of its outcomes instead; drop an outcome by its value "+
+							"(`drop %s outcome '<value>'`)",
+						o.ActivityRef, o.ActivityRef, kind, o.ActivityRef))
+				}
+				continue
+			}
+			if _, err := backend.ParallelPathIndex(o.PathCaption, o.ActivityRef, len(split.Outcomes)+added[split]); err != nil {
+				errs = append(errs, err.Error())
+				continue
+			}
+			added[split]--
 		case *ast.InsertBranchOp:
 			check(o.ActivityRef, o.AtPosition, slotConditionOutcome)
 		case *ast.InsertBoundaryEventOp:
 			check(o.ActivityRef, o.AtPosition, slotBoundaryEvent)
+		case *ast.InsertBeforeOp:
+			// A flow begins with its start activity; anything before it is
+			// CE9526 "Main process in workflow should start with a start event".
+			if _, ok := resolveStoredActivity(wf.Flow, o.ActivityRef, o.AtPosition).(*workflows.StartWorkflowActivity); ok {
+				errs = append(errs, fmt.Sprintf(
+					"`insert before %s` is refused: '%s' is the workflow's start activity, and a flow must begin with it "+
+						"(mx check CE9526); use `insert after %s { … }` to add activities at the start of the flow",
+					o.ActivityRef, o.ActivityRef, o.ActivityRef))
+			}
 		}
 	}
 	return errs

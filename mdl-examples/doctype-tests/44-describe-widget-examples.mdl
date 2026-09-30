@@ -11,11 +11,11 @@
 -- (executor.DescribeWidget), so they cannot disagree.
 
 -- By MDL keyword.
-describe widget combobox;
+describe widget type combobox;
 
 -- By full widget id — what a widget package, a page's BSON and the generated
 -- docs all carry, and the only name a widget without a keyword has.
-describe widget 'com.mendix.widget.web.htmlelement.HTMLElement';
+describe widget type 'com.mendix.widget.web.htmlelement.HTMLElement';
 
 -- Unlike every other DESCRIBE there is no qualified name: a widget definition
 -- is not a document in the model. It comes from a package in the project, or

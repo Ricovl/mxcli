@@ -484,6 +484,7 @@ func mergeDeclaredOntoStoredEntity(stored, declared *domainmodel.Entity, s *ast.
 	merged.Persistable = declared.Persistable
 	merged.Location = declared.Location
 	merged.Attributes = declared.Attributes
+	carryStoredAttributeState(stored, merged.Attributes)
 	merged.ValidationRules = mergeValidationRules(stored, declared)
 	merged.Indexes = declared.Indexes
 	merged.EventHandlers = declared.EventHandlers
@@ -510,6 +511,50 @@ func mergeDeclaredOntoStoredEntity(stored, declared *domainmodel.Entity, s *ast.
 		merged.Documentation = declared.Documentation
 	}
 	return &merged
+}
+
+// carryStoredAttributeState carries, by attribute name, what the entity body
+// has no spelling for onto the attributes the statement rebuilt: an external
+// entity attribute's OData mapping (without it the writer emits a plain
+// StoredValue and the attribute is no longer mapped to the remote property), and
+// a DateTime's LocalizeDate. The attribute set and each declared type stay the
+// statement's; LocalizeDate carries only onto a DateTime that stays one (#743).
+func carryStoredAttributeState(stored *domainmodel.Entity, declared []*domainmodel.Attribute) {
+	byName := make(map[string]*domainmodel.Attribute, len(stored.Attributes))
+	for _, a := range stored.Attributes {
+		if a != nil {
+			byName[a.Name] = a
+		}
+	}
+	for _, a := range declared {
+		if a == nil {
+			continue
+		}
+		old, ok := byName[a.Name]
+		if !ok {
+			continue
+		}
+		if old.RemoteName != "" || old.IsPrimitiveCollection {
+			a.RemoteName = old.RemoteName
+			a.RemoteType = old.RemoteType
+			a.Filterable = old.Filterable
+			a.Sortable = old.Sortable
+			a.Creatable = old.Creatable
+			a.Updatable = old.Updatable
+			a.IsPrimitiveCollection = old.IsPrimitiveCollection
+			// A mapped attribute's design-time default has no spelling in the
+			// `from odata client` form, so an undeclared one keeps the stored.
+			if a.Value == nil && old.Value != nil {
+				v := *old.Value
+				a.Value = &v
+			}
+		}
+		if dt, ok := a.Type.(*domainmodel.DateTimeAttributeType); ok {
+			if odt, ok := old.Type.(*domainmodel.DateTimeAttributeType); ok {
+				dt.LocalizeDate = odt.LocalizeDate
+			}
+		}
+	}
 }
 
 // entityFieldsDeclaredByStatement names the domainmodel.Entity fields that
@@ -1003,12 +1048,29 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 
 	created := entity
 	if s.CreateOrModify && existingEntity != nil {
-		// Update existing entity — preserve Source object ID to avoid CE-6770
-		entity.ID = existingEntity.ID
-		entity.SourceObjectID = existingEntity.SourceObjectID
+		// Modify IN PLACE, as a persistent entity is (mergeDeclaredOntoStoredEntity):
+		// start from what is stored and overwrite what the statement declares.
+		// Rebuilding the entity from the statement alone dropped everything
+		// the statement has no words for — its access rules first, so every
+		// re-run wrote the domain model and a following `grant` re-added them,
+		// and a script without that grant silently lost the entity's access
+		// (ako/mxcli#859, rehearsal W1).
+		merged := *existingEntity
+		merged.Name = entity.Name
+		merged.Location = entity.Location
+		merged.Persistable = entity.Persistable
+		merged.Attributes = entity.Attributes
+		merged.Source = entity.Source
+		merged.SourceDocumentRef = entity.SourceDocumentRef
+		merged.OqlQuery = entity.OqlQuery
 		// A rewrite that carried no doc comment keeps the stored one (#1018).
-		entity.Documentation = carriedDocumentation(
+		merged.Documentation = carriedDocumentation(
 			s.DocumentationSet, s.Documentation, existingEntity.Documentation)
+		// The ID and the Source object ID (CE-6770) are the stored ones.
+		entity = &merged
+		created = entity
+		// An attribute the statement dropped loses its member access too.
+		pruneMemberAccessesForDroppedAttributes(entity, existingEntity)
 		if err := ctx.Backend.UpdateEntity(dm.ID, entity); err != nil {
 			return mdlerrors.NewBackend("update view entity", err)
 		}
@@ -1520,7 +1582,7 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 			return mdlerrors.NewBackend("set comment", err)
 		}
 		invalidateDomainModelsCache(ctx)
-		fmt.Fprintf(ctx.Output, "Set comment on entity %s\n", s.Name)
+		fmt.Fprintf(ctx.Output, "Set documentation on entity %s\n", s.Name)
 
 	case ast.AlterEntitySetPosition:
 		if s.Position == nil {
@@ -1781,6 +1843,11 @@ func execDropEntity(ctx *ExecContext, s *ast.DropEntityStmt) error {
 
 	for _, entity := range dm.Entities {
 		if entity.Name == s.Name.Name {
+			// `drop external entity` names the kind: a local entity is refused,
+			// not dropped (R6, ako/mxcli#755).
+			if s.External && !strings.HasPrefix(entity.Source, "Rest$OData") {
+				return mdlerrors.NewValidationf("%s is not an external entity: use `drop entity %s` to drop it", s.Name, s.Name)
+			}
 			// Warn about references before deleting (best-effort)
 			warnEntityReferences(ctx, s.Name.String())
 

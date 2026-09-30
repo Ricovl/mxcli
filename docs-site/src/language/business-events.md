@@ -8,8 +8,8 @@ Business events are organized into **event services**, each of which defines one
 
 ```sql
 -- List all business event services
-SHOW BUSINESS EVENTS;
-SHOW BUSINESS EVENTS IN MyModule;
+LIST BUSINESS EVENTS;
+LIST BUSINESS EVENTS IN MyModule;
 
 -- View full definition
 DESCRIBE BUSINESS EVENT SERVICE MyModule.OrderEvents;

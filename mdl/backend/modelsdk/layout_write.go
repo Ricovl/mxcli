@@ -261,6 +261,11 @@ func (b *Backend) UpdateLayout(layout *pages.Layout) error {
 	if err != nil {
 		return fmt.Errorf("UpdateLayout: encode: %w", err)
 	}
+	// layoutToGen writes ExportLevel "Hidden" as a constant (#816).
+	contents, err = b.keepStoredExportLevel(string(layout.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdateLayout: %w", err)
+	}
 	if err := b.writer.UpdateRawUnit(string(layout.ID), contents); err != nil {
 		return fmt.Errorf("UpdateLayout: update: %w", err)
 	}

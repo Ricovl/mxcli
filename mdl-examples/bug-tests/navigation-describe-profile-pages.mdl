@@ -52,13 +52,13 @@ create page NavRT.SignIn  (title: 'Sign In', Layout: Atlas_Core.Atlas_Default) {
 create page NavRT.Missing (title: 'Missing', Layout: Atlas_Core.Atlas_Default) { container c1 { } }
 /
 
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page NavRT.Home
   login page NavRT.SignIn
   not found page NavRT.Missing
-  menu (
-    menu item 'Home' page NavRT.Home;
-  );
+  {
+    menu item 'Home' ( OnClick: show page NavRT.Home )
+  };
 
 -- Must print all three clauses. Before the fix, on the default engine, only
 -- `home page` came back.

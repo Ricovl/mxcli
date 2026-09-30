@@ -110,11 +110,13 @@ func (b *Backend) GetNanoflow(id model.ID) (*microflows.Nanoflow, error) {
 // flow-object, and return-type structures, so the same helpers apply.
 func nanoflowFromGen(nf *genMf.Nanoflow, containerID model.ID) *microflows.Nanoflow {
 	out := &microflows.Nanoflow{
-		ContainerID:   containerID,
-		Name:          nf.Name(),
-		Documentation: nf.Documentation(),
-		Excluded:      nf.Excluded(),
-		ReturnType:    dataTypeFromGen(nf.MicroflowReturnType()),
+		ContainerID:        containerID,
+		Name:               nf.Name(),
+		Documentation:      nf.Documentation(),
+		Excluded:           nf.Excluded(),
+		MarkAsUsed:         nf.MarkAsUsed(),
+		ReturnType:         dataTypeFromGen(nf.MicroflowReturnType()),
+		ReturnVariableName: nf.ReturnVariableName(),
 	}
 	out.ID = model.ID(nf.ID())
 	for _, qn := range nf.AllowedModuleRolesQualifiedNames() {
@@ -520,6 +522,7 @@ func flowObjectFromGen(el element.Element) microflows.MicroflowObject {
 		if g, ok := el.(*genMf.ExclusiveSplit); ok {
 			o.Caption = g.Caption()
 			o.SplitCondition = splitConditionFromGen(g.SplitCondition())
+			o.ErrorHandlingType = microflows.ErrorHandlingType(g.ErrorHandlingType())
 		}
 		return o
 	case "Microflows$InheritanceSplit":
@@ -570,6 +573,7 @@ func flowObjectFromGen(el element.Element) microflows.MicroflowObject {
 		la.Position = pos
 		if g, ok := el.(*genMf.LoopedActivity); ok {
 			la.LoopSource = loopSourceFromGen(g.LoopSource())
+			la.ErrorHandlingType = microflows.ErrorHandlingType(g.ErrorHandlingType())
 			if _, objs := splitFlowObjects(g.ObjectCollection()); objs != nil {
 				la.ObjectCollection = &microflows.MicroflowObjectCollection{Objects: objs}
 			}

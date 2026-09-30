@@ -7,7 +7,7 @@
 -- rather than the block it is written in.
 
 create persistent entity WFEND.Ctx ( Title: string(50) );
-create page WFEND.TaskPage ( title: 'T', layout: Atlas_Core.Atlas_Default, params: { $WorkflowUserTask: System.WorkflowUserTask } ) { };
+create page WFEND.TaskPage ( title: 'T', layout: Atlas_Core.Atlas_Default, params: ( $WorkflowUserTask: System.WorkflowUserTask ) ) { };
 
 create workflow WFEND.ReturnInWorkflow parameter $Ctx: WFEND.Ctx
 begin

@@ -16,11 +16,11 @@ This populates the reference data needed for callers, callees, references, impac
 
 | Command | Purpose |
 |---------|---------|
-| `SHOW CALLERS OF` | Find what calls a given element |
-| `SHOW CALLEES OF` | Find what a given element calls |
-| `SHOW REFERENCES OF` | Find all references to and from an element |
-| `SHOW IMPACT OF` | Analyze the impact of changing an element |
-| `SHOW CONTEXT OF` | Show the surrounding context of an element |
+| `LIST CALLERS OF` | Find what calls a given element |
+| `LIST CALLEES OF` | Find what a given element calls |
+| `LIST REFERENCES TO` | Find all references to and from an element |
+| `LIST IMPACT OF` | Analyze the impact of changing an element |
+| `DESCRIBE CONTEXT OF` | Show the surrounding context of an element |
 | `SEARCH` | Full-text search across all strings and source |
 
 ## CLI Subcommands
@@ -48,20 +48,20 @@ mxcli search -p app.mpr "validation"
 REFRESH CATALOG FULL;
 
 -- Step 2: Understand what uses a microflow
-SHOW CALLERS OF Sales.ACT_ProcessOrder;
+LIST CALLERS OF Sales.ACT_ProcessOrder;
 
 -- Step 3: Check impact before renaming an entity
-SHOW IMPACT OF Sales.Customer;
+LIST IMPACT OF Sales.Customer;
 
 -- Step 4: Gather context for AI consumption
-SHOW CONTEXT OF Sales.SubmitOrder;
+DESCRIBE CONTEXT OF Sales.SubmitOrder;
 ```
 
 ## How AI Assistants Use This
 
 When you ask an AI assistant to modify an element, it uses these commands to:
 
-1. **Discover dependencies** with `SHOW CALLERS` and `SHOW REFERENCES`
-2. **Assess risk** with `SHOW IMPACT` before making changes
-3. **Gather context** with `SHOW CONTEXT` for informed code generation
+1. **Discover dependencies** with `LIST CALLERS` and `LIST REFERENCES`
+2. **Assess risk** with `LIST IMPACT` before making changes
+3. **Gather context** with `DESCRIBE CONTEXT` for informed code generation
 4. **Find related elements** with `SEARCH` to understand patterns

@@ -223,3 +223,65 @@ func walkWidgetsWithContext(widgets []*ast.WidgetV3, paramNames map[string]bool,
 		walkWidgetsWithContext(w.Children, paramNames, widgetNames, childHasContext, errors)
 	}
 }
+
+// alwaysNamedKinds are the built-in widget kinds Mendix stores a Name for
+// wherever they appear. A missing name on one is refused at check time with no
+// project needed; the page builder refuses the rest (checkWidgetHasName), where
+// the parent's widget definition is known.
+var alwaysNamedKinds = map[string]bool{
+	"textbox": true, "textarea": true, "datepicker": true, "dropdown": true, "combobox": true,
+	"checkbox": true, "radiobuttons": true, "referenceselector": true, "actionbutton": true,
+	"linkbutton": true, "title": true, "label": true, "dynamictext": true, "statictext": true,
+	"snippetcall": true, "dataview": true, "listview": true, "datagrid": true, "gallery": true,
+	"container": true, "customcontainer": true, "groupbox": true, "tabcontainer": true,
+	"layoutgrid": true, "navigationlist": true, "staticimage": true, "dynamicimage": true,
+	"image": true, "scrollcontainer": true, "navigationtree": true, "menubar": true,
+	"simplemenubar": true, "textfilter": true, "numberfilter": true, "dropdownfilter": true,
+	"datefilter": true, "dropdownsort": true,
+}
+
+// checkMissingWidgetNames refuses a widget written without a name where Mendix
+// stores one (ako/mxcli#749). The name is optional in the grammar because a
+// layout grid's rows and columns, a data grid's columns and control bar, and a
+// gallery's template and filter have none; a `row` or `column` anywhere else
+// is built as a container, which does.
+func checkMissingWidgetNames(widgets []*ast.WidgetV3) []string {
+	var errs []string
+	var walk func(ws []*ast.WidgetV3, parent string)
+	walk = func(ws []*ast.WidgetV3, parent string) {
+		for _, w := range ws {
+			kind := strings.ToLower(w.Type)
+			if w.Name == "" && w.Specialization == "" && !w.TypeIsGeneric {
+				nameless := false
+				switch kind {
+				case "row":
+					nameless = parent == "layoutgrid"
+				case "column":
+					// A row's columns are layout grid columns, standalone row
+					// or not (buildContainerWithRowV3).
+					nameless = parent == "row" || parent == "datagrid"
+				default:
+					nameless = !alwaysNamedKinds[kind]
+				}
+				if !nameless {
+					errs = append(errs, fmt.Sprintf(
+						"%s needs a name: Mendix stores one for it (`%s %sName …`). Only a layout grid's rows and "+
+							"columns, a data grid's columns and control bar, and a gallery's template and filter "+
+							"are written without one (ako/mxcli#749)", kind, kind, kind))
+				}
+			}
+			walk(w.Children, kind)
+		}
+	}
+	walk(widgets, "")
+	return errs
+}
+
+// widgetLabel names a widget in a message: "widget `name` (kind)", or "a kind"
+// for an element Mendix stores no name for, such as a DataGrid 2 column (#749).
+func widgetLabel(name, kind string) string {
+	if name == "" {
+		return "a " + strings.ToLower(kind)
+	}
+	return fmt.Sprintf("widget `%s` (%s)", name, kind)
+}

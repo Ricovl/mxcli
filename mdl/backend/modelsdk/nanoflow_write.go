@@ -5,6 +5,8 @@ package modelsdkbackend
 import (
 	"fmt"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
@@ -51,6 +53,7 @@ func (b *Backend) UpdateNanoflow(nf *microflows.Nanoflow) error {
 	g := nanoflowToGen(nf, b.majorVersion())
 	g.SetID(element.ID(nf.ID))
 	assignNanoflowIDs(g)
+	b.carryStoredNanoflowHeader(nf, g)
 	contents, err := (&codec.Encoder{}).Encode(g)
 	if err != nil {
 		return fmt.Errorf("UpdateNanoflow: encode: %w", err)
@@ -83,6 +86,10 @@ func nanoflowToGen(nf *microflows.Nanoflow, major int) *genMf.Nanoflow {
 	if nf.ReturnType != nil {
 		out.SetMicroflowReturnType(microflowDataTypeToGen(nf.ReturnType))
 	}
+	// Only when authored; UpdateNanoflow carries a stored one otherwise.
+	if nf.ReturnVariableName != "" {
+		out.SetReturnVariableName(nf.ReturnVariableName)
+	}
 
 	oc := genMf.NewMicroflowObjectCollection()
 	for i, p := range nf.Parameters {
@@ -97,12 +104,59 @@ func nanoflowToGen(nf *microflows.Nanoflow, major int) *genMf.Nanoflow {
 	}
 	out.SetObjectCollection(oc)
 
+	// Sequence flows and annotation flows share the Flows list, as on a
+	// microflow. The annotation flows were not written at all, so every
+	// rewrite detached each note from the activity it documents
+	// (ako/mxcli#705).
 	if nf.ObjectCollection != nil {
 		for _, f := range nf.ObjectCollection.Flows {
 			out.AddFlows(sequenceFlowToGen(f, major))
 		}
+		for _, af := range nf.ObjectCollection.AnnotationFlows {
+			out.AddFlows(annotationFlowToGen(af, major))
+		}
 	}
 	return out
+}
+
+// carryStoredNanoflowHeader copies onto a rebuilt nanoflow the header keys the
+// statement did not author: ExportLevel and UseListParameterByReference, which
+// MDL has no spelling for, and ReturnVariableName unless the statement gave
+// `returns T as $Var`. A rebuild used to omit all three, so describe -> exec
+// deleted them (ako/mxcli#705).
+//
+// Only a key the stored document carries is written. The nanoflow writer has
+// never emitted these on a new document, and Studio Pro fills an absent one on
+// load — while a key the project's metamodel does not declare makes the
+// document unopenable. Carrying what is there is safe at every version.
+func (b *Backend) carryStoredNanoflowHeader(nf *microflows.Nanoflow, g *genMf.Nanoflow) {
+	if b.reader == nil || nf.ID == "" {
+		return
+	}
+	raw, err := b.reader.GetRawUnitBytes(string(nf.ID))
+	if err != nil {
+		return
+	}
+	var stored bson.D
+	if err := bson.Unmarshal(raw, &stored); err != nil {
+		return
+	}
+	for _, e := range stored {
+		switch e.Key {
+		case "ExportLevel":
+			if v, ok := e.Value.(string); ok && v != "" {
+				g.SetExportLevel(v)
+			}
+		case "UseListParameterByReference":
+			if v, ok := e.Value.(bool); ok {
+				g.SetUseListParameterByReference(v)
+			}
+		case "ReturnVariableName":
+			if v, ok := e.Value.(string); ok && nf.ReturnVariableName == "" {
+				g.SetReturnVariableName(v)
+			}
+		}
+	}
 }
 
 // assignNanoflowIDs assigns fresh IDs to the nanoflow's return type, object

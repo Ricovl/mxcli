@@ -41,8 +41,9 @@ func (s *AlterSettingsStmt) isStatement() {}
 
 // CreateConfigurationStmt represents CREATE CONFIGURATION 'name' [properties...].
 type CreateConfigurationStmt struct {
-	Name       string
-	Properties map[string]any
+	CreateGuard // `create … if not exists` (ako/mxcli#731)
+	Name        string
+	Properties  map[string]any
 	// CreateOrModify is CREATE OR MODIFY: update the configuration when it is
 	// already there instead of refusing. The grammar has always accepted the
 	// prefix — `CREATE (OR (MODIFY|REPLACE))?` is generic — so without this the

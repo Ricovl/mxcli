@@ -47,10 +47,9 @@ create module Issue1118;
 create module role Issue1118.User;
 
 create constant Issue1118.SvcUrl
-  type string
-  default 'https://example.com/odata/v4/App/';
+  ( Type: string, DefaultValue: 'https://example.com/odata/v4/App/' );
 
-create odata client Issue1118.App (
+create consumed odata service Issue1118.App (
   ODataVersion: 'OData4',
   MetadataUrl: './complextype-metadata.xml',
   ServiceUrl: '@Issue1118.SvcUrl'

@@ -46,36 +46,36 @@ create association M854A.Order_Note from M854A.Order to M854A.Note type Referenc
 create association M854A.Order_Line from M854A.Order to M854B.Line type ReferenceSet;
 
 create page M854A.OrderDetail (
-  Params: { $Order: M854A.Order },
+  Params: ( $Order: M854A.Order ),
   Title: 'Order Detail',
   Layout: Atlas_Core.Atlas_Default
 ) {
-  layoutgrid g { row r { column c (DesktopWidth: 12) {
+  layoutgrid g { row { column (DesktopWidth: 12) {
     dataview dvOrder (datasource: $Order) {
       textbox tbNumber (attribute: OrderNumber, label: 'Order #')
 
       -- bare name, same module
       datagrid dgNotes (datasource: association Order_Note) {
-        column colBody (attribute: Body, caption: 'Note')
+        column (attribute: Body, caption: 'Note')
       }
 
       -- bare name, destination in another module
       datagrid dgLines (datasource: association Order_Line) {
-        column colProduct (attribute: Product, caption: 'Product')
+        column (attribute: Product, caption: 'Product')
       }
 
       -- bare name + explicit destination: the guard's own suggested spelling,
       -- and the form that used to crash the loader
       datagrid dgLines2 (datasource: association Order_Line/M854B.Line) {
-        column colProduct2 (attribute: Product, caption: 'Product')
+        column (attribute: Product, caption: 'Product')
       }
 
       -- fully qualified, with and without an explicit destination
       datagrid dgLines3 (datasource: association M854A.Order_Line) {
-        column colProduct3 (attribute: Product, caption: 'Product')
+        column (attribute: Product, caption: 'Product')
       }
       datagrid dgLines4 (datasource: association M854A.Order_Line/M854B.Line) {
-        column colProduct4 (attribute: Product, caption: 'Product')
+        column (attribute: Product, caption: 'Product')
       }
     }
   } } }

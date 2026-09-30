@@ -74,8 +74,8 @@ func hiddenPropertyViolation(locationPrefix, widgetName, mdlName, itemLabel stri
 		RuleID:   "MDL-WIDGET10",
 		Severity: severity,
 		Message: fmt.Sprintf(
-			"%s: widget `%s` (%s)%s property `%s` is hidden when %s`%s` %s — %s",
-			locationPrefix, widgetName, mdlName, where, rule.PropertyKey,
+			"%s: %s%s property `%s` is hidden when %s`%s` %s — %s",
+			locationPrefix, widgetLabel(widgetName, mdlName), where, rule.PropertyKey,
 			scope, rule.HiddenWhen.PropertyKey, visibilityCondWord(rule.HiddenWhen), consequence,
 		),
 	}

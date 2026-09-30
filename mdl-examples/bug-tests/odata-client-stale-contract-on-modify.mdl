@@ -45,12 +45,11 @@
 create or modify module F1Now;
 
 create or modify constant F1Now.ApiLocation
-  type String
-  default 'http://localhost:8080/odata/livenow/';
+  ( Type: String, DefaultValue: 'http://localhost:8080/odata/livenow/' );
 
 -- Live timing feed. Re-run this statement after refreshing
 -- contracts/live-now-metadata.xml and the cached contract follows it.
-create or modify odata client F1Now.NowApi (
+create or modify consumed odata service F1Now.NowApi (
   Version: '1.0.0',
   ODataVersion: OData4,
   MetadataUrl: './contracts/live-now-metadata.xml',

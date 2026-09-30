@@ -65,13 +65,13 @@ Every one of these modifiers is optional, and leaving one out always means Mendi
 
 ```sql
 -- Database retrieve with optional XPath constraint
-RETRIEVE $Var FROM Module.Entity [ WHERE condition ] [ LIMIT n ];
+RETRIEVE $Var FROM Module.Entity [ WHERE condition ] [ FIRST | [ LIMIT n ] [ OFFSET n ] ];
 
 -- Retrieve by association
 RETRIEVE $List FROM $Parent/Module.AssocName;
 ```
 
-`RETRIEVE ... LIMIT 1` returns a single entity. Without `LIMIT` or with `LIMIT` greater than 1, it returns a list. Retrieve by association traverses an association from a known object.
+`RETRIEVE ... FIRST` returns a single entity. Without a range, or with `LIMIT`/`OFFSET`, it returns a list. A bare `LIMIT 1` is a list of one under `mdl 1;`; without the header it keeps its old meaning, a single entity, and warns `MDL-V1-LIMIT1`. Retrieve by association traverses an association from a known object.
 
 **Calls**
 
@@ -86,7 +86,7 @@ Call another microflow, nanoflow, or Java action. Parameters are passed by name.
 **UI Actions**
 
 ```sql
-SHOW PAGE Module.PageName ( $Param = $value );
+SHOW PAGE Module.PageName ( Param = $value );
 CLOSE PAGE;
 ```
 
@@ -137,12 +137,12 @@ RETURN $value;
 -- Suffix on any activity (except EXECUTE DATABASE QUERY)
 activity ON ERROR CONTINUE;
 activity ON ERROR ROLLBACK;
-activity ON ERROR {
+activity ON ERROR BEGIN
     handler_statements
-};
+END ERROR;
 ```
 
-Error handling is attached as a suffix to an individual activity. `ON ERROR CONTINUE` suppresses the error and continues. `ON ERROR ROLLBACK` rolls back the current transaction. `ON ERROR { ... }` executes custom error-handling logic.
+Error handling is attached as a suffix to an individual activity. `ON ERROR CONTINUE` suppresses the error and continues. `ON ERROR ROLLBACK` rolls back the current transaction. `ON ERROR BEGIN ... END ERROR` executes custom error-handling logic.
 
 ### Annotations
 
@@ -199,7 +199,7 @@ BEGIN
         Status = 'Draft'
     );
     COMMIT $Order;
-    SHOW PAGE Sales.Order_Edit ($Order = $Order);
+    SHOW PAGE Sales.Order_Edit (Order = $Order);
     RETURN $Order;
 END;
 ```
@@ -257,11 +257,11 @@ BEGIN
 
     $Result = CALL MICROFLOW Integration.SUB_FetchExternalData (
         SyncResult = $Result
-    ) ON ERROR {
+    ) ON ERROR BEGIN
         CHANGE $Result (Status = 'Failed');
         COMMIT $Result;
         LOG ERROR NODE 'Integration' 'Sync failed';
-    };
+    END ERROR;
 
     CHANGE $Result (
         Status = 'Completed',

@@ -61,7 +61,7 @@ The final page, [Validating with mxcli check](validation.md), covers the full va
 Every MDL statement references a **module**. In these examples we use `MyModule` -- replace it with whatever module exists in your project. You can check available modules with:
 
 ```bash
-mxcli -p app.mpr -c "SHOW MODULES"
+mxcli -p app.mpr -c "LIST MODULES"
 ```
 
 ## Idempotent scripts with OR MODIFY

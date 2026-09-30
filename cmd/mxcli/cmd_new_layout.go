@@ -57,12 +57,12 @@ const scaffoldLayoutMDL = `create or replace layout {{.Module}}.{{.Layout}} (
     region top (class: 'region-topbar') {
       container topbarContent (
         class: 'topbar-content',
-        designproperties: [
+        designproperties: (
           'Flex container': 'Horizontal (row)',
           'Align items Y': 'Center',
           'Disable row wrap': on,
           'Grow / shrink (self)': 'Fill container (only grow)'
-        ]
+        )
       ) {
         menubar mainMenu (profile: '{{.Profile}}')
         snippetcall languageSelector (snippet: Atlas_Core.LanguageSelectorWidget)

@@ -24,7 +24,7 @@ create persistent entity Probe1029.Item (
 );
 
 create page Probe1029.Detail (
-  params: { $Item: Probe1029.Item },
+  params: ( $Item: Probe1029.Item ),
   title: 'Detail',
   layout: Atlas_Core.Atlas_Default
 ) {
@@ -34,7 +34,7 @@ create page Probe1029.Detail (
 };
 
 create page Probe1029.List (
-  params: { $SomeRef: Probe1029.Item },
+  params: ( $SomeRef: Probe1029.Item ),
   title: 'List',
   layout: Atlas_Core.Atlas_Default
 ) {

@@ -364,7 +364,7 @@ Access rules control entity-level security. They are managed via `grant` and `re
 
 ```sql
 -- Grant entity access to a module role
-grant <module>.<role> on <module>.<entity> (<rights>) [where '<xpath>'];
+grant <rights> on entity <module>.<entity> to <module>.<role> [, ...] [where [<xpath>]];
 
 -- Revoke entity access
 revoke <module>.<role> on <module>.<entity>;
@@ -386,19 +386,19 @@ Where `<rights>` is a comma-separated list of:
 
 ```sql
 -- Full access
-grant Sales.Admin on Sales.Customer (create, delete, read *, write *);
+grant create, delete, read *, write * on entity Sales.Customer to Sales.Admin;
 
 -- Read-only
-grant Sales.Viewer on Sales.Customer (read *);
+grant read * on entity Sales.Customer to Sales.Viewer;
 
 -- Selective member access
-grant Sales.User on Sales.Customer (read (Name, Email), write (Email));
+grant read (Name, Email), write (Email) on entity Sales.Customer to Sales.User;
 
 -- With XPath constraint
-grant Sales.User on Sales.Order (read *, write *) where '[Status = ''Open'']';
+grant read *, write * on entity Sales.Order to Sales.User where [Status = 'Open'];
 
 -- Revoke
-revoke Sales.User on Sales.Order;
+revoke all on entity Sales.Order from Sales.User;
 ```
 
 ### Access Rule Properties

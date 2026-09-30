@@ -19,8 +19,8 @@ These document types support moving data between Mendix entities and external da
 | Statement | Syntax |
 |-----------|--------|
 | List JSON structures | `LIST JSON STRUCTURES [IN module]` |
-| List import mappings | `LIST IMPORT MAPPINGS [IN module]` or `SHOW IMPORT MAPPINGS [IN module]` |
-| List export mappings | `LIST EXPORT MAPPINGS [IN module]` or `SHOW EXPORT MAPPINGS [IN module]` |
+| List import mappings | `LIST IMPORT MAPPINGS [IN module]` or `LIST IMPORT MAPPINGS [IN module]` |
+| List export mappings | `LIST EXPORT MAPPINGS [IN module]` or `LIST EXPORT MAPPINGS [IN module]` |
 | List data transformers | `LIST DATA TRANSFORMERS [IN module]` |
 | Describe JSON structure | `DESCRIBE JSON STRUCTURE module.Name` |
 | Describe import mapping | `DESCRIBE IMPORT MAPPING module.Name` |

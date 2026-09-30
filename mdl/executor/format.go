@@ -36,6 +36,20 @@ func writeResult(ctx *ExecContext, r *TableResult) error {
 	return nil
 }
 
+// writeEmptyResult reports a query that matched nothing. In text mode that is
+// the sentence a person expects ("(no references found)"); in JSON mode it is
+// an empty array, with the sentence moved to the progress stream. An empty
+// answer is exactly the case a caller must be able to parse — a sentence there
+// reads as a corrupt payload rather than as "no".
+func writeEmptyResult(ctx *ExecContext, columns []string, message string) error {
+	if ctx.Format != FormatJSON {
+		fmt.Fprintln(ctx.Output, message)
+		return nil
+	}
+	fmt.Fprintln(ctx.progress(), message)
+	return writeResultJSON(ctx, &TableResult{Columns: columns})
+}
+
 // writeResultTable renders a TableResult as a pipe-delimited markdown table.
 func writeResultTable(ctx *ExecContext, r *TableResult) {
 	if len(r.Columns) == 0 {
@@ -114,6 +128,13 @@ func writeResultJSON(ctx *ExecContext, r *TableResult) error {
 // In table/text mode it calls fn directly. In JSON mode it captures fn's output
 // and wraps it as {"name": ..., "type": ..., "mdl": ...}.
 func writeDescribeJSON(ctx *ExecContext, name, objectType string, fn func() error) error {
+	return writeDescribeJSONAs(ctx, name, objectType, true, fn)
+}
+
+// writeDescribeJSONAs is writeDescribeJSON for an answer that may not be MDL:
+// executable false marks a definition report (a widget type, a glyph, a
+// contract), whose text is under "mdl" like every describe but is not runnable.
+func writeDescribeJSONAs(ctx *ExecContext, name, objectType string, executable bool, fn func() error) error {
 	if ctx.Format != FormatJSON {
 		return fn()
 	}
@@ -130,9 +151,10 @@ func writeDescribeJSON(ctx *ExecContext, name, objectType string, fn func() erro
 	}
 
 	result := map[string]any{
-		"name": name,
-		"type": objectType,
-		"mdl":  buf.String(),
+		"name":       name,
+		"type":       objectType,
+		"mdl":        buf.String(),
+		"executable": executable,
 	}
 	enc := json.NewEncoder(ctx.Output)
 	enc.SetIndent("", "  ")

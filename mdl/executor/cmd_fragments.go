@@ -59,7 +59,7 @@ func describeFragment(ctx *ExecContext, name ast.QualifiedName) error {
 		return mdlerrors.NewNotFound("fragment", name.Name)
 	}
 
-	fmt.Fprintf(ctx.Output, "define fragment %s as {\n", frag.Name)
+	fmt.Fprintf(ctx.Output, "create fragment %s as {\n", frag.Name)
 	for _, w := range frag.Widgets {
 		outputASTWidgetMDL(ctx.Output, w, 1)
 	}
@@ -81,7 +81,13 @@ func describeFragmentFrom(ctx *ExecContext, s *ast.DescribeFragmentFromStmt) err
 
 	var rawWidgets []rawWidget
 
-	switch s.ContainerType {
+	// The visitor stores ContainerType uppercase ("PAGE"/"SNIPPET"), as it
+	// does for DESCRIBE/ALTER STYLING and ALTER PAGE. Normalise here, and make
+	// an unrecognised value an error: falling through the switch leaves no
+	// widgets, which then reads as "widget not found" — the disguise this
+	// casing mismatch wore here and in cmd_styling.go before it.
+	containerType := strings.ToLower(s.ContainerType)
+	switch containerType {
 	case "page":
 		allPages, err := ctx.Backend.ListPages()
 		if err != nil {
@@ -119,12 +125,15 @@ func describeFragmentFrom(ctx *ExecContext, s *ast.DescribeFragmentFromStmt) err
 			return mdlerrors.NewNotFound("snippet", s.ContainerName.String())
 		}
 		rawWidgets = getSnippetWidgetsFromRaw(ctx, foundSnippet.ID)
+
+	default:
+		return mdlerrors.NewUnsupported("describe fragment from: unsupported container type " + s.ContainerType)
 	}
 
 	// Find the widget by name
 	target := findRawWidgetByName(rawWidgets, s.WidgetName)
 	if target == nil {
-		return mdlerrors.NewNotFoundMsg("widget", s.WidgetName, fmt.Sprintf("not found in %s %s", strings.ToLower(s.ContainerType), s.ContainerName.String()))
+		return mdlerrors.NewNotFoundMsg("widget", s.WidgetName, fmt.Sprintf("widget %s not found in %s %s", s.WidgetName, containerType, s.ContainerName.String()))
 	}
 
 	// Output as MDL
@@ -233,10 +242,20 @@ func formatASTPropertyValue(v interface{}) string {
 	case *ast.DataSourceV3:
 		return formatDataSourceV3(val)
 	case *ast.ActionV3:
-		return formatActionV3(val)
+		return formatActionV3(val) + formatActionSettingsV3(val.Settings)
 	default:
 		return fmt.Sprintf("%v", val)
 	}
+}
+
+// databaseSourceFrom is what follows `database from`: the entity, or the
+// `$ctx/Assoc/Entity` path of a source reached over an association
+// (ako/mxcli#721 L5).
+func databaseSourceFrom(ds *ast.DataSourceV3) string {
+	if ds.AssociationPath != "" {
+		return "$" + ds.ContextVariable + "/" + ds.AssociationPath
+	}
+	return ds.Reference
 }
 
 func formatDataSourceV3(ds *ast.DataSourceV3) string {
@@ -244,7 +263,7 @@ func formatDataSourceV3(ds *ast.DataSourceV3) string {
 	case "parameter":
 		return ds.Reference
 	case "database":
-		return "database " + ds.Reference
+		return "database " + databaseSourceFrom(ds)
 	case "microflow":
 		return "microflow " + ds.Reference
 	case "nanoflow":
@@ -264,28 +283,31 @@ func formatActionV3(a *ast.ActionV3) string {
 		return "nothing"
 	case "save":
 		if a.ClosePage {
-			return "save_changes close_page"
+			return "save changes close page"
 		}
-		return "save_changes"
+		return "save changes"
 	case "cancel":
 		if a.ClosePage {
-			return "cancel_changes close_page"
+			return "cancel changes close page"
 		}
-		return "cancel_changes"
+		return "cancel changes"
 	case "close":
-		return "close_page"
+		return "close page"
 	case "delete":
-		return "delete_object"
+		if a.ClosePage {
+			return "delete close page"
+		}
+		return "delete"
 	case "showPage":
-		return "show_page " + a.Target
+		return "show page " + a.Target
 	case "microflow":
-		return "microflow " + a.Target
+		return "call microflow " + a.Target
 	case "nanoflow":
-		return "nanoflow " + a.Target
+		return "call nanoflow " + a.Target
 	case "signOut":
-		return "sign_out"
+		return "sign out"
 	case "completeTask":
-		return "complete_task '" + strings.ReplaceAll(a.OutcomeValue, "'", "''") + "'"
+		return "complete task '" + strings.ReplaceAll(a.OutcomeValue, "'", "''") + "'"
 	default:
 		return a.Type
 	}

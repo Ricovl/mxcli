@@ -58,7 +58,28 @@ String literals use single quotes:
 'it''s here'            -- doubled single quote to escape
 ```
 
-The only escape sequence is `''` (two single quotes) to represent a literal single quote. Backslash escaping is **not** supported.
+The only escape sequence is `''` (two single quotes) to represent a literal single quote, as in a Mendix expression. Under `mdl 1;` a backslash is an ordinary character: `'C:\temp'` is that path.
+
+A script without the header (`mdl 0`) still reads a backslash before `n`, `r`, `t`, `\` or `'` as an escape — `'C:\temp'` holds a tab — and `check` warns `MDL-V1-ESCAPE` for each literal whose value changes under `mdl 1`. Write the backslash-free form (`'it''s'`) to mean the same under both.
+
+A string in a microflow or nanoflow expression is read by the same rule as any other string, and the expression stores its value the way Studio Pro does: an apostrophe doubled, a backslash and a line break as themselves. Under `mdl 1;` `'C:\temp'` stores `'C:\temp'`; without the header `'C:\\temp'` stores `'C:\temp'` and `'it\'s'` stores `'it''s'` — whether the builder renders the expression or stores it as written.
+
+A string in an XPath constraint follows the same rule, wherever the XPath is written: a retrieve's `where`, an entity access rule, a page datasource, a workflow user task's `targeting xpath`, and a navigation sync constraint. So do the Mendix expressions a statement stores as written beside them — a retrieve's `limit` and `offset`, a database query's `dynamic` expression. `describe` writes each back in its own language: a plain `describe` doubles a backslash inside a string, `describe` in an `mdl 1;` script writes the constraint as stored.
+
+A line break is written into the literal itself: a string may span lines, and the break is part of its value. This is also how a text template — the message of `log`, `show message` or `validation feedback` — holds a line break; under `mdl 1;` a template written as one literal is the template text whether or not it spans lines:
+
+```sql
+mdl 1;
+create microflow Shop.LogCleanup ($Count: Integer)
+begin
+  log info node 'Shop' 'Deleted {1} records.
+Run again tomorrow.' with ({1} = toString($Count));
+end;
+```
+
+`describe` inside an `mdl 1;` script writes every string this way — a caption, an annotation, a widget property, a string in an expression: `''` is its only escape and a stored line break is a line break in the literal. A plain `describe` keeps the `mdl 0` escapes (`\n`, `\\`) while `mdl 1` is a preview; in a flow's expression it writes a stored backslash as `\\`, so the description reads back as the stored value. `mxcli fmt --upgrade --header` rewrites an `mdl 0` script's escaped strings the same way. An expression whose string holds an escaped line break is written as the expression Mendix stores for it, since an expression that spans lines is stored exactly as written.
+
+Without the header a template literal that spans lines and has no parameters is an expression instead — the template is `{1}` and the literal its parameter — and `check` warns `MDL-V1-TEMPLATE`. With `with ({n} = …)` parameters it is the template text under both versions.
 
 ### Numeric Literals
 

@@ -37,7 +37,7 @@ create persistent entity Shop.Order (
 index (OrderId)
 index (OrderDate);
 
-grant Shop.ShopUser, Shop.UserRole on Shop.Order (delete, read *, write *);
+grant delete, read *, write * on entity Shop.Order to Shop.ShopUser, Shop.UserRole;
 /
 
 /**
@@ -62,7 +62,7 @@ create persistent entity Shop.OrderLine (
 index (OrderLineId)
 index (Note);
 
-grant Shop.ShopUser on Shop.OrderLine (delete, read *, write *);
+grant delete, read *, write * on entity Shop.OrderLine to Shop.ShopUser;
 /
 
 /**
@@ -117,7 +117,7 @@ create persistent entity Shop.Customer (
 index (CustomerId)
 index (LastName);
 
-grant Shop.ShopUser on Shop.Customer (delete, read *, write *);
+grant delete, read *, write * on entity Shop.Customer to Shop.ShopUser;
 /
 
 /**
@@ -148,7 +148,7 @@ index (AddressId)
 index (City)
 index (Country);
 
-grant Shop.ShopUser on Shop.Address (delete, read *, write *);
+grant delete, read *, write * on entity Shop.Address to Shop.ShopUser;
 /
 
 /**
@@ -197,7 +197,7 @@ index (ProductId)
 index (Name)
 index (IsActive);
 
-grant Shop.ShopUser on Shop.Product (delete, read *, write *);
+grant delete, read *, write * on entity Shop.Product to Shop.ShopUser;
 /
 
 /**
@@ -224,7 +224,7 @@ index (PriceId)
 index (StartDate)
 index (PriceInEuro);
 
-grant Shop.ShopUser on Shop.Price (delete, read *, write *);
+grant delete, read *, write * on entity Shop.Price to Shop.ShopUser;
 /
 
 /**
@@ -250,7 +250,7 @@ index (CategoryId)
 index (Name)
 index (ParentCategoryId);
 
-grant Shop.ShopUser on Shop.Category (delete, read *, write *);
+grant delete, read *, write * on entity Shop.Category to Shop.ShopUser;
 /
 
 /**
@@ -274,7 +274,7 @@ create persistent entity Shop.ProductTranslations (
   description: string
 );
 
-grant Shop.ShopUser on Shop.ProductTranslations (create, delete, read *, write *);
+grant create, delete, read *, write * on entity Shop.ProductTranslations to Shop.ShopUser;
 /
 
 -- MARK: TAGGING SYSTEM
@@ -300,7 +300,7 @@ create persistent entity Shop.Tag (
 )
 index (TagId);
 
-grant Shop.ShopUser on Shop.Tag (delete, read *, write *);
+grant delete, read *, write * on entity Shop.Tag to Shop.ShopUser;
 /
 
 /**
@@ -327,7 +327,7 @@ create persistent entity Shop.TagValue (
 index (TagValueId)
 index (TagId);
 
-grant Shop.ShopUser on Shop.TagValue (delete, read *, write *);
+grant delete, read *, write * on entity Shop.TagValue to Shop.ShopUser;
 /
 
 -- MARK: PAYMENT AND DELIVERY ENTITIES
@@ -352,7 +352,7 @@ create persistent entity Shop.Payment (
 )
 index (PaymentId);
 
-grant Shop.ShopUser on Shop.Payment (delete, read *, write *);
+grant delete, read *, write * on entity Shop.Payment to Shop.ShopUser;
 /
 
 /**
@@ -376,7 +376,7 @@ create persistent entity Shop.DeliveryStatus (
   Location: string
 );
 
-grant Shop.ShopUser on Shop.DeliveryStatus (delete, read *, write *);
+grant delete, read *, write * on entity Shop.DeliveryStatus to Shop.ShopUser;
 /
 
 -- MARK: VIEW ENTITIES
@@ -439,7 +439,7 @@ create view entity Shop.TaskQueue (
   , datediff(SECOND, qt.Started, '[%CurrentDateTime%]') as Duration
 );
 
-grant Shop.ShopUser on Shop.TaskQueue (read *, write *);
+grant read *, write * on entity Shop.TaskQueue to Shop.ShopUser;
 /
 
 /**
@@ -511,7 +511,7 @@ create association Shop.OrderLine_Order
 from Shop.OrderLine to Shop.Order
 type reference
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -526,7 +526,7 @@ create association Shop.Order_Customer
 from Shop.Order to Shop.Customer
 type reference
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -541,7 +541,7 @@ create association Shop.OrderLine_Product
 from Shop.OrderLine to Shop.Product
 type reference
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -556,7 +556,7 @@ create association Shop.Payment_Order
 from Shop.Payment to Shop.Order
 type reference
 owner both
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -571,7 +571,7 @@ create association Shop.DeliveryStatus_Order
 from Shop.DeliveryStatus to Shop.Order
 type reference
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -586,7 +586,7 @@ create association Shop.Price_Product
 from Shop.Price to Shop.Product
 type reference
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -601,7 +601,7 @@ create association Shop.BillingAddress_Customer
 from Shop.Address to Shop.Customer
 type reference
 owner both
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -616,7 +616,7 @@ create association Shop.DeliveryAddress_Customer
 from Shop.Address to Shop.Customer
 type reference
 owner both
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -631,7 +631,7 @@ create association Shop.Product_TagValue
 from Shop.Product to Shop.TagValue
 type ReferenceSet
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -646,7 +646,7 @@ create association Shop.TagValue_Tag
 from Shop.TagValue to Shop.Tag
 type reference
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -661,7 +661,7 @@ create association Shop.Product_Category
 from Shop.Product to Shop.Category
 type reference
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /
 
 /**
@@ -676,5 +676,5 @@ create association Shop.ProductTranslations_Product
 from Shop.ProductTranslations to Shop.Product
 type reference
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES;
+on delete set null;
 /

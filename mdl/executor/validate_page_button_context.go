@@ -22,11 +22,8 @@ import (
 func ValidatePageButtonContext(prog *ast.Program) []linter.Violation {
 	var out []linter.Violation
 	for _, stmt := range prog.Statements {
-		switch s := stmt.(type) {
-		case *ast.CreatePageStmtV3:
-			out = append(out, checkButtonContextTree(s.Widgets, "", "page "+s.Name.String())...)
-		case *ast.CreateSnippetStmtV3:
-			out = append(out, checkButtonContextTree(s.Widgets, "", "snippet "+s.Name.String())...)
+		if label, widgets, ok := documentWidgets(stmt); ok {
+			out = append(out, checkButtonContextTree(widgets, "", label)...)
 		}
 	}
 	return out
@@ -94,7 +91,7 @@ func controlBarSuggestion(controlBarOf string) string {
 		return "Move the button into a grid column (row-scoped) so it has a current row, or pass a page parameter instead of $currentObject."
 	}
 	return fmt.Sprintf(
-		"Pass the selection of `%s` instead — `Action: microflow M.F($Param = $%s)`, with `Selection:` set on the widget. "+
+		"Pass the selection of `%s` instead — `Action: microflow M.F(Param = $%s)`, with `Selection:` set on the widget. "+
 			"Or move the button into a grid column (row-scoped) so it has a current row, or pass a page parameter.",
 		controlBarOf, controlBarOf)
 }

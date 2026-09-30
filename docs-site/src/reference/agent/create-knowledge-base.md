@@ -5,7 +5,7 @@
 ```sql
 CREATE [ OR MODIFY ] KNOWLEDGE BASE module.Name (
     Provider: MxCloudGenAI,
-    key: module.KeyConstant
+    key: @module.KeyConstant
 );
 
 DROP KNOWLEDGE BASE module.Name
@@ -38,13 +38,12 @@ If `OR MODIFY` is specified and the knowledge base already exists, its propertie
 
 ```sql
 CREATE CONSTANT MyModule."KBKey"
-    TYPE String
-    DEFAULT '';
+    ( Type: String, DefaultValue: '' );
 /
 
 CREATE KNOWLEDGE BASE MyModule."ProductDocs" (
     Provider: MxCloudGenAI,
-    key: MyModule.KBKey
+    key: @MyModule.KBKey
 );
 /
 ```
@@ -54,11 +53,11 @@ CREATE KNOWLEDGE BASE MyModule."ProductDocs" (
 ```sql
 CREATE OR MODIFY KNOWLEDGE BASE MyModule."ProductDocs" (
     Provider: MxCloudGenAI,
-    key: MyModule.KBKey
+    key: @MyModule.KBKey
 );
 /
 ```
 
 ## See Also
 
-[CREATE AGENT](create-agent.md), [CREATE MODEL](create-model.md)
+[CREATE AGENT](create-agent.md), [CREATE AI MODEL](create-model.md)

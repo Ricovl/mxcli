@@ -20,7 +20,7 @@ func TestDocumentKindDerivesTheCommonCase(t *testing.T) {
 		"Forms$BuildingBlock":                  "building block",
 		"Enumerations$Enumeration":             "enumeration",
 		"Constants$Constant":                   "constant",
-		"Queues$Queue":                         "queue",
+		"Queues$Queue":                         "task queue",
 		"ScheduledEvents$ScheduledEvent":       "scheduled event",
 		"RegularExpressions$RegularExpression": "regular expression",
 		"Workflows$Workflow":                   "workflow",
@@ -43,11 +43,11 @@ func TestDocumentKindDerivesTheCommonCase(t *testing.T) {
 func TestDocumentKindOverridesTheDerivationsBlindSpots(t *testing.T) {
 	cases := map[string]string{
 		"Menus$MenuDocument":                 "menu",
-		"Rest$ConsumedRestService":           "rest client",
+		"Rest$ConsumedRestService":           "consumed rest service",
 		"Rest$PublishedRestService":          "published rest service",
 		"CustomIcons$CustomIconCollection":   "icon collection",
-		"Rest$ConsumedODataService":          "odata client",
-		"ODataPublish$PublishedODataService": "odata service",
+		"Rest$ConsumedODataService":          "consumed odata service",
+		"ODataPublish$PublishedODataService": "published odata service",
 		"JavaScriptActions$JavaScriptAction": "javascript action",
 	}
 	for unitType, want := range cases {

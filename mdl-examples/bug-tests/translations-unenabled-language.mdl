@@ -30,10 +30,10 @@ create module LG;
 create module role LG.User;
 create persistent entity LG.Thing ( Name: string(100) );
 
-create or replace page LG.P_Things (Title: 'Zebra Widgets', Layout: Atlas_Core.Atlas_Default)
+create or modify page LG.P_Things (Title: 'Zebra Widgets', Layout: Atlas_Core.Atlas_Default)
 {
   DATAGRID dg (DataSource: DATABASE LG.Thing) {
-    COLUMN c1 (Attribute: Name, Caption: 'Zebra Column')
+    COLUMN (Attribute: Name, Caption: 'Zebra Column')
   }
 }
 

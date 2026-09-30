@@ -6,7 +6,7 @@
 
 ```sql
 ALTER PAGE CRM.Customer_Edit {
-  SET (Caption = 'Save & Close', ButtonStyle = Success) ON btnSave
+  SET (Caption: 'Save & Close', ButtonStyle: Success) ON btnSave
 };
 ```
 
@@ -36,7 +36,7 @@ ALTER PAGE CRM.Customer_Overview {
 
 ```sql
 ALTER PAGE CRM.Customer_Edit {
-  DROP WIDGET txtLegacyField, lblOldNote
+  DROP txtLegacyField, lblOldNote
 };
 ```
 
@@ -46,9 +46,9 @@ ALTER PAGE CRM.Customer_Edit {
 ALTER PAGE CRM.Customer_Edit {
   REPLACE footer1 WITH {
     FOOTER newFooter {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Success)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Success)
       ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 };
@@ -58,12 +58,12 @@ ALTER PAGE CRM.Customer_Edit {
 
 ```sql
 ALTER PAGE CRM.Customer_Edit {
-  SET Title = 'Edit Customer Details';
-  SET Label = 'Email Address' ON txtEmail;
+  SET (Title: 'Edit Customer Details');
+  SET (Label: 'Email Address') ON txtEmail;
   INSERT AFTER txtPhone {
     TEXTBOX txtWebsite (Label: 'Website', Attribute: Website)
   };
-  DROP WIDGET lblInternalRef
+  DROP lblInternalRef
 };
 ```
 
@@ -108,12 +108,12 @@ ALTER PAGE CRM.Customer_List {
 
 -- Remove a column
 ALTER PAGE CRM.Customer_List {
-  DROP WIDGET dgCustomers.OldNotes
+  DROP dgCustomers.OldNotes
 };
 
 -- Rename a column header
 ALTER PAGE CRM.Customer_List {
-  SET Caption = 'E-mail Address' ON dgCustomers.Email
+  SET (Caption: 'E-mail Address') ON dgCustomers.Email
 };
 ```
 
@@ -123,11 +123,11 @@ Use `DESCRIBE PAGE CRM.Customer_List` to discover column names.
 
 ```sql
 ALTER SNIPPET CRM.NavigationMenu {
-  SET Caption = 'Dashboard' ON btnHome;
+  SET (Caption: 'Dashboard') ON btnHome;
   INSERT AFTER btnHome {
     ACTIONBUTTON btnReports (
       Caption: 'Reports',
-      Action: SHOW_PAGE CRM.Reports_Overview
+      Action: SHOW PAGE CRM.Reports_Overview
     )
   }
 };

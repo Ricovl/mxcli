@@ -53,9 +53,9 @@ create page BugTest661.P_PopupAlter
 }
 
 alter page BugTest661.P_PopupAlter {
-  set PopupWidth = 800;
-  set PopupHeight = 480;
-  set PopupResizable = true;
+  set (PopupWidth: 800);
+  set (PopupHeight: 480);
+  set (PopupResizable: true);
 }
 
 -- Read back — both pages should report their pop-up dimensions in the header.

@@ -10,15 +10,15 @@
 
 ## Getting the Lay of the Land
 
-<!-- TODO: SHOW STRUCTURE, SHOW MODULES — reading the output -->
+<!-- TODO: DESCRIBE STRUCTURE, LIST MODULES — reading the output -->
 
 ## Exploring Entities and Associations
 
-<!-- TODO: SHOW ENTITIES, DESCRIBE ENTITY, SHOW ASSOCIATIONS -->
+<!-- TODO: LIST ENTITIES, DESCRIBE ENTITY, LIST ASSOCIATIONS -->
 
 ## Following the Logic
 
-<!-- TODO: SHOW MICROFLOWS, DESCRIBE MICROFLOW, SHOW CALLERS / CALLEES -->
+<!-- TODO: LIST MICROFLOWS, DESCRIBE MICROFLOW, LIST CALLERS / CALLEES -->
 
 ## Demo
 

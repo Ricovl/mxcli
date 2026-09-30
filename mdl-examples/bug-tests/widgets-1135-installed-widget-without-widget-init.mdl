@@ -31,7 +31,7 @@
 -- `describe page` on the result of this script emits these same three keywords,
 -- so before the fix `describe -> check` did not round-trip.
 
-create or replace page MyFirstModule.HtmlDemo (
+create or modify page MyFirstModule.HtmlDemo (
   title: 'Html',
   layout: 'Atlas_Core.Atlas_Default'
 ) {
@@ -88,4 +88,4 @@ create or replace page MyFirstModule.HtmlDemo (
 -- Until it does, an unsupported key here is silent until mxbuild says CE6083.
 
 alter styling on page MyFirstModule.ThingList widget lvThings
-  set 'Row size' = 'Small';
+  set ( 'Row size': 'Small' );

@@ -42,28 +42,28 @@ begin
 end;
 /
 
-create or replace page Clicks.P_Clicks
+create or modify page Clicks.P_Clicks
   (Title: 'Clicks', Layout: Atlas_Core.Atlas_Default)
 {
   -- CONTROL: the one shape that works, and the remedy the rule points at.
-  container cClickable (OnClick: show_page Clicks.P_Clicks) {
+  container cClickable (OnClick: show page Clicks.P_Clicks) {
     dynamictext tIn (Content: 'this one really is clickable')
   }
 
   -- CONTROL: a button's action is written too.
-  actionbutton btnGo (Caption: 'Go', Action: show_page Clicks.P_Clicks)
+  actionbutton btnGo (Caption: 'Go', Action: show page Clicks.P_Clicks)
 
   -- Reported (no slot in Mendix at all).
-  dataview dvDropped (DataSource: microflow Clicks.DS_OneThing, OnClick: show_page Clicks.P_Clicks) {
+  dataview dvDropped (DataSource: microflow Clicks.DS_OneThing, OnClick: show page Clicks.P_Clicks) {
     dynamictext tDv (Content: 'inside the data view')
   }
 
   -- Reported (no slot in Mendix at all).
-  dynamictext txtDropped (Content: 'bare text', OnClick: show_page Clicks.P_Clicks)
+  dynamictext txtDropped (Content: 'bare text', OnClick: show page Clicks.P_Clicks)
 
   -- Reported, with the OTHER message: Mendix models ListView.ClickAction,
   -- mxcli has no writer for it.
-  listview lvDropped (DataSource: database from Clicks.Thing, OnClick: show_page Clicks.P_Clicks) {
+  listview lvDropped (DataSource: database from Clicks.Thing, OnClick: show page Clicks.P_Clicks) {
     dynamictext tLv (Content: 'a row')
   }
 }

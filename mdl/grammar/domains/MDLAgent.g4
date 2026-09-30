@@ -11,18 +11,33 @@ options { tokenVocab = MDLLexer; }
 // =============================================================================
 // CREATE MODEL Module.Name (
 //   Provider: MxCloudGenAI,
-//   Key: Module.SomeConstant
+//   Key: @Module.SomeConstant
 //   [, DisplayName: '...', KeyName: '...', etc. — Portal-populated metadata]
 // );
 createModelStatement
-    : MODEL qualifiedName
+    : aiModelKw ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
     ;
 
+// R10: Studio Pro calls the agent editor's model document an AI model; `model`
+// alone is too generic (it is also the old `alter settings model`).
+aiModelKw
+    : AI MODEL
+    | MODEL /* @alias MDL-DEPR131 */
+    ;
+
+aiModelsKw
+    : AI MODELS
+    | MODELS /* @alias MDL-DEPR131 */
+    ;
+
 modelProperty
     : identifierOrKeyword COLON identifierOrKeyword       // Provider: MxCloudGenAI
-    | identifierOrKeyword COLON qualifiedName             // Key: Module.Constant
+    | identifierOrKeyword COLON AT qualifiedName          // Key: @Module.Constant (the one constant reference, R5)
+    // A document name (Model: Module.Model). For Key, a constant, the bare name
+    // is the deprecated spelling of Key: @Module.Constant.
+    | identifierOrKeyword COLON qualifiedName /* @alias MDL-DEPR084 */
     | identifierOrKeyword COLON STRING_LITERAL            // DisplayName: 'GPT-4 Turbo' etc.
     | identifierOrKeyword COLON NUMBER_LITERAL            // ConnectionTimeoutSeconds: 30
     | identifierOrKeyword COLON booleanLiteral            // Enabled: true
@@ -48,7 +63,7 @@ variableDef
 //   Documentation: '...'
 // );
 createConsumedMCPServiceStatement
-    : CONSUMED MCP SERVICE qualifiedName
+    : CONSUMED MCP SERVICE ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
     ;
@@ -58,10 +73,10 @@ createConsumedMCPServiceStatement
 // =============================================================================
 // CREATE KNOWLEDGE BASE Module.Name (
 //   Provider: MxCloudGenAI,
-//   Key: Module.SomeConstant
+//   Key: @Module.SomeConstant
 // );
 createKnowledgeBaseStatement
-    : KNOWLEDGE BASE qualifiedName
+    : KNOWLEDGE BASE ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
     ;
@@ -75,10 +90,10 @@ createKnowledgeBaseStatement
 //   SystemPrompt: '...',
 //   ...
 // )
-// [ { TOOL ... | MCP SERVICE ... | KNOWLEDGE BASE ... } ]
+// [ { tool X ( ... ) | mcp service M.X ( ... ) | knowledge base KB ( ... ) } ]
 // ;
 createAgentStatement
-    : AGENT qualifiedName
+    : AGENT ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN modelProperty (COMMA modelProperty)* RPAREN
       agentBody?
@@ -88,10 +103,21 @@ agentBody
     : LBRACE agentBodyBlock* RBRACE
     ;
 
+// An attachment is a child of the agent, so its properties are in ( ) like
+// every other child's (R2, ako/mxcli#754). The brace form is the old spelling.
 agentBodyBlock
-    : MCP SERVICE qualifiedName LBRACE modelProperty (COMMA modelProperty)* RBRACE       // MCP SERVICE Mod.Name { ... }
-    | KNOWLEDGE BASE identifierOrKeyword LBRACE modelProperty (COMMA modelProperty)* RBRACE // KNOWLEDGE BASE MyKB { ... }
-    | TOOL identifierOrKeyword LBRACE modelProperty (COMMA modelProperty)* RBRACE        // TOOL ToolName { ... }
+    : MCP SERVICE qualifiedName
+      ( LPAREN modelProperty (COMMA modelProperty)* COMMA? RPAREN                       // mcp service Mod.Name ( ... )
+      | LBRACE /* @alias MDL-DEPR071 */ modelProperty (COMMA modelProperty)* COMMA? RBRACE
+      )
+    | KNOWLEDGE BASE identifierOrKeyword
+      ( LPAREN modelProperty (COMMA modelProperty)* COMMA? RPAREN                       // knowledge base MyKB ( ... )
+      | LBRACE /* @alias MDL-DEPR071 */ modelProperty (COMMA modelProperty)* COMMA? RBRACE
+      )
+    | TOOL identifierOrKeyword
+      ( LPAREN modelProperty (COMMA modelProperty)* COMMA? RPAREN                       // tool ToolName ( ... )
+      | LBRACE /* @alias MDL-DEPR071 */ modelProperty (COMMA modelProperty)* COMMA? RBRACE
+      )
     ;
 
 // =============================================================================
@@ -109,6 +135,7 @@ agentEditorAlterValue
     | NUMBER_LITERAL
     | DOLLAR_STRING
     | booleanLiteral
+    | AT qualifiedName   // Key = @Module.Constant
     | qualifiedName
     | identifierOrKeyword
     ;
@@ -120,8 +147,8 @@ agentEditorAlterValue
 // ```mdl
 // ALTER AGENT MyModule.Helper
 //   SET SystemPrompt = 'New prompt', Temperature = 0.5
-//   ADD TOOL DoSomething { Description: '...', Enabled: true }
-//   ADD MCP SERVICE MyModule.Weather { Description: '...', Enabled: true }
+//   ADD TOOL DoSomething ( Description: '...', Enabled: true )
+//   ADD MCP SERVICE MyModule.Weather ( Description: '...', Enabled: true )
 //   DROP KNOWLEDGE BASE OldKB
 // ;
 // ```

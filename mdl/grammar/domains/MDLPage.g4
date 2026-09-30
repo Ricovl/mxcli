@@ -13,8 +13,11 @@ options { tokenVocab = MDLLexer; }
 /**
  * Creates a new page with layout, parameters, and widget content.
  */
+// R9: the folder is a clause after the name, as on every document; the
+// `Folder:` header property is a registered alias.
 createPageStatement
-    : PAGE qualifiedName
+    : PAGE ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?
       pageHeaderV3
       LBRACE pageBodyV3 RBRACE
     ;
@@ -28,7 +31,7 @@ createPageStatement
 // wrapper, not on the layout element — and which placeholder a page's content
 // goes into.
 createLayoutStatement
-    : LAYOUT qualifiedName
+    : LAYOUT ifNotExists? qualifiedName
       widgetPropertiesV3?
       LBRACE pageBodyV3 RBRACE
     ;
@@ -38,14 +41,16 @@ createLayoutStatement
 // =============================================================================
 
 createSnippetStatement
-    : SNIPPET qualifiedName
+    : SNIPPET ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?
       snippetHeaderV3?
       snippetOptions?
       LBRACE pageBodyV3 RBRACE
     ;
 
 snippetOptions: snippetOption+ ;
-snippetOption: FOLDER STRING_LITERAL ;
+// R9: the folder is a clause after the name; after the header is its old place.
+snippetOption: FOLDER STRING_LITERAL /* @alias MDL-DEPR134 */ ;
 
 // =============================================================================
 // SHARED PAGE/SNIPPET RULES
@@ -239,12 +244,15 @@ pageHeaderV3
     ;
 
 pageHeaderPropertyV3
-    : PARAMS COLON LBRACE pageParameterList RBRACE                   // Params: { $Order: Entity }
-    | VARIABLES_KW COLON LBRACE variableDeclarationList RBRACE       // Variables: { $show: Boolean = 'true' }
+    // A map is a property list, so it is in ( ) (R2, ako/mxcli#754).
+    : PARAMS COLON LPAREN pageParameterList COMMA? RPAREN                         // Params: ( $Order: Entity )
+    | PARAMS COLON LBRACE /* @alias MDL-DEPR123 */ pageParameterList RBRACE       // Params: { $Order: Entity }
+    | VARIABLES_KW COLON LPAREN variableDeclarationList COMMA? RPAREN             // Variables: ( $show: Boolean = 'true' )
+    | VARIABLES_KW COLON LBRACE /* @alias MDL-DEPR123 */ variableDeclarationList RBRACE
     | TITLE COLON STRING_LITERAL                                     // Title: 'My Page'
     | LAYOUT COLON (qualifiedName | STRING_LITERAL)                  // Layout: Atlas_Core.Atlas_Default
     | URL COLON STRING_LITERAL                                       // Url: 'my-page'
-    | FOLDER COLON STRING_LITERAL                                    // Folder: 'Pages/Admin'
+    | FOLDER COLON /* @alias MDL-DEPR105 */ STRING_LITERAL          // Folder: 'Pages/Admin'
     | CLASS COLON STRING_LITERAL                                     // Class: 'my-page bg-primary'
     | STYLE COLON STRING_LITERAL                                     // Style: 'padding: 10px'
     | IDENTIFIER COLON propertyValueV3                               // Generic page property: PopupWidth: 800, PopupResizable: true
@@ -256,9 +264,11 @@ snippetHeaderV3
     ;
 
 snippetHeaderPropertyV3
-    : PARAMS COLON LBRACE pageParameterList RBRACE                 // Params: { $Customer: Module.Entity } — entities only (MDL087)
-    | VARIABLES_KW COLON LBRACE variableDeclarationList RBRACE     // Variables: { $show: Boolean = 'true' }
-    | FOLDER COLON STRING_LITERAL                                  // Folder: 'Snippets/Common'
+    : PARAMS COLON LPAREN pageParameterList COMMA? RPAREN                         // Params: ( $Customer: Module.Entity ) — entities only (MDL087)
+    | PARAMS COLON LBRACE /* @alias MDL-DEPR123 */ pageParameterList RBRACE
+    | VARIABLES_KW COLON LPAREN variableDeclarationList COMMA? RPAREN             // Variables: ( $show: Boolean = 'true' )
+    | VARIABLES_KW COLON LBRACE /* @alias MDL-DEPR123 */ variableDeclarationList RBRACE
+    | FOLDER COLON /* @alias MDL-DEPR105 */ STRING_LITERAL        // Folder: 'Snippets/Common'
     ;
 
 // V3 Page body. Bare widgets bind to the layout's Main placeholder; a
@@ -364,9 +374,20 @@ widgetV3
     // (`template "for" { }`), the same escape hatch reserved names already use
     // (issue #619).
     : TEMPLATE FOR qualifiedName widgetBodyV3
-    | widgetTypeV3 (IDENTIFIER | QUOTED_IDENTIFIER | keyword) widgetPropertiesV3? widgetBodyV3?
-    | PLUGGABLEWIDGET STRING_LITERAL (IDENTIFIER | QUOTED_IDENTIFIER | keyword) widgetPropertiesV3? widgetBodyV3?  // PLUGGABLEWIDGET 'widget.id' name
-    | CUSTOMWIDGET STRING_LITERAL (IDENTIFIER | QUOTED_IDENTIFIER | keyword) widgetPropertiesV3? widgetBodyV3?     // CUSTOMWIDGET 'widget.id' name (legacy)
+    //
+    // The NAME is optional (R12, ako/mxcli#749). Mendix stores no name on a
+    // layout-grid row or column, a DataGrid 2 column, or a slot block such as a
+    // gallery's `template`, so describe no longer invents one (`row1`, `col3`)
+    // and the author need not either: `row { column (DesktopWidth: 6) { … } }`.
+    // Where Mendix DOES store a name, a missing one is refused when the widget
+    // is built (pageBuilder.buildWidgetV3), not here: whether the model keeps a
+    // name depends on the element's parent, which the grammar cannot see.
+    // A name written where the parent shows it is not stored is the old
+    // spelling (the visitor drops it and reports it):
+    //   /* @alias MDL-DEPR005 */
+    | widgetTypeV3 (IDENTIFIER | QUOTED_IDENTIFIER | keyword)? widgetPropertiesV3? widgetBodyV3?
+    | PLUGGABLEWIDGET STRING_LITERAL (IDENTIFIER | QUOTED_IDENTIFIER | keyword)? widgetPropertiesV3? widgetBodyV3?  // PLUGGABLEWIDGET 'widget.id' [name]
+    | CUSTOMWIDGET STRING_LITERAL (IDENTIFIER | QUOTED_IDENTIFIER | keyword)? widgetPropertiesV3? widgetBodyV3?     // CUSTOMWIDGET 'widget.id' [name] (legacy)
     ;
 
 // V3 Widget types (same as V2)
@@ -478,6 +499,7 @@ widgetPropertiesV3
 widgetPropertyV3
     : DATASOURCE COLON dataSourceExprV3               // DataSource: $var | DATABASE Entity | MICROFLOW ...
     | ATTRIBUTE COLON attributePathV3                 // Attribute: Name | Product/Category
+    | ATTRIBUTE COLON widgetAttributeRefV3            // Attribute: $dataView1.Name — read through a data view (#826)
     | BINDS COLON attributePathV3                     // Binds: (deprecated, use Attribute:)
     | ACTION COLON actionExprV3                       // Action: SAVE_CHANGES | SHOW_PAGE ...
     | ONCLICK COLON actionExprV3                      // OnClick: MICROFLOW ... (alias of Action: — e.g. clickable CONTAINER, issue #603)
@@ -488,35 +510,43 @@ widgetPropertyV3
     | ATTR COLON attributePathV3                      // Attr: (deprecated, use Attribute:)
     | CONTENT COLON stringExprV3                      // Content: 'Hello {1}'
     | RENDERMODE COLON renderModeV3                   // RenderMode: H3
-    | CONTENTPARAMS COLON paramListV3                 // ContentParams: [{1} = $var.Name]
-    | CAPTIONPARAMS COLON paramListV3                 // CaptionParams: [{1} = 'hello']
+    | CONTENTPARAMS COLON paramListV3                 // ContentParams: ({1} = $var.Name)
+    | CAPTIONPARAMS COLON paramListV3                 // CaptionParams: ({1} = 'hello')
     // A text-template sub-property of an object-list ITEM carries its
     // parameters under `<Name>Params`, and those names are the widget's own
     // (a File Uploader custom button's `ButtonCaptionParams`), so they cannot
     // each have a token. Placed before the generic propertyValueV3
     // alternatives, which also admit a `[...]` array — `{N} = expr` inside is
     // what separates them (#956).
-    | (IDENTIFIER | keyword) COLON paramListV3        // <Name>Params: [{1} = Attr]
+    | (IDENTIFIER | keyword) COLON paramListV3        // <Name>Params: ({1} = Attr)
     | BUTTONSTYLE COLON buttonStyleV3                  // ButtonStyle: Primary
     | ICON COLON widgetIconV3                          // Icon: 'Atlas_Core.Atlas_Filled.pencil' | image Mod.Images.logo | glyph 57377
     | CLASS COLON STRING_LITERAL                       // Class: 'my-class'
     | STYLE COLON STRING_LITERAL                       // Style: 'color: red'
-    | DESKTOPWIDTH COLON desktopWidthV3               // DesktopWidth: 6 | AutoFill
-    | TABLETWIDTH COLON desktopWidthV3                // TabletWidth: 6 | AutoFill
-    | PHONEWIDTH COLON desktopWidthV3                 // PhoneWidth: 12 | AutoFill
+    | DESKTOPWIDTH COLON desktopWidthV3               // DesktopWidth: 6 | AutoFill | AutoFit
+    | TABLETWIDTH COLON desktopWidthV3                // TabletWidth: 6 | AutoFill | AutoFit
+    | PHONEWIDTH COLON desktopWidthV3                 // PhoneWidth: 12 | AutoFill | AutoFit
     | SELECTION COLON selectionModeV3                 // Selection: Single | Multiple
     | SNIPPET COLON qualifiedName                     // Snippet: Module.SnippetName
-    | PARAMS COLON snippetCallParamListV3             // Params: {$Asset: $var} — snippet call parameter mappings
+    | PARAMS COLON snippetCallParamListV3             // Params: (Asset = $var) — snippet call arguments
     | ATTRIBUTES COLON attributeListV3                // Attributes: [Entity.Attr1, Entity.Attr2]
     | FILTERTYPE COLON filterTypeValue                // FilterType: startsWith | contains | equal
-    | DESIGNPROPERTIES COLON designPropertyListV3       // DesignProperties: [...]
+    | DESIGNPROPERTIES COLON designPropertyListV3       // DesignProperties: ( 'Key': 'Value', … )
     | WIDTH COLON NUMBER_LITERAL                        // Width: 200
     | HEIGHT COLON NUMBER_LITERAL                      // Height: 100
-    | VISIBLE COLON xpathConstraint                    // Visible: [IsActive = true]
+    // R5 (ako/mxcli#753): a conditional Visible / Editable is a client
+    // expression, written bare like every other expression and stored as
+    // written. The bracketed form is the deprecated alias; it roots a bare
+    // attribute in $currentObject on the way in. The plain values keep their
+    // alternative, ahead of the expression, so `Visible: false` and `Editable:
+    // Never` mean what they did.
+    | VISIBLE COLON xpathConstraint /* @alias MDL-DEPR081 */  // Visible: [IsActive = true]
     | VISIBLE COLON qualifiedName IN LPAREN visibleValueV3 (COMMA visibleValueV3)* RPAREN  // Visible: Status in (Running, empty) | Mod.Entity.Attr in (…)
     | VISIBLE COLON propertyValueV3                   // Visible: false
-    | EDITABLE COLON xpathConstraint                  // Editable: [Status != 'Closed']
+    | VISIBLE COLON expression                        // Visible: $currentObject/Status = 'Open'
+    | EDITABLE COLON xpathConstraint /* @alias MDL-DEPR081 */ // Editable: [Status != 'Closed']
     | EDITABLE COLON propertyValueV3                  // Editable: Never | Always
+    | EDITABLE COLON expression                       // Editable: $currentObject/Status != 'Closed'
     | TOOLTIP COLON propertyValueV3                   // Tooltip: 'text'
     // Generic datasource-typed property (e.g. chart series `staticDataSource:
     // database Module.View`, `dynamicDataSource: $var`). Placed before the
@@ -590,9 +620,17 @@ filterTypeValue
     | IDENTIFIER    // startsWith, endsWith, greater, greaterEqual, equal, notEqual, smaller, smallerEqual, notEmpty
     ;
 
-// Snippet call parameter mappings: {$Asset: $var, $Other: $other}
+// Snippet call arguments: (Asset = $var, Other = $other). A snippet call is a
+// call site, so it binds its arguments the way every call does, `Param = value`
+// (R4), in the ( ) of a property map (R2, ako/mxcli#754). The old spelling was
+// a brace map `{$Asset: $var}`.
 snippetCallParamListV3
-    : LBRACE snippetCallParamMappingV3 (COMMA snippetCallParamMappingV3)* RBRACE
+    : LPAREN snippetCallArgV3 (COMMA snippetCallArgV3)* COMMA? RPAREN
+    | LBRACE /* @alias MDL-DEPR126 */ snippetCallParamMappingV3 (COMMA snippetCallParamMappingV3)* RBRACE
+    ;
+
+snippetCallArgV3
+    : parameterName EQUALS VARIABLE
     ;
 
 snippetCallParamMappingV3
@@ -605,10 +643,16 @@ attributeListV3
     ;
 
 // V3 DataSource expressions
+//
+// `database from $ctx/Assoc/Entity` is a DATABASE retrieve reached over an
+// association from a context object (a Forms$ListViewXPathSource whose EntityRef
+// is an IndirectEntityRef): it keeps its XPath, sort and search. The bare
+// `$ctx/Assoc` is an ASSOCIATION source, an in-memory retrieve with none of them.
+// Studio Pro distinguishes the two, so MDL does (ako/mxcli#721 L5).
 dataSourceExprV3
     : VARIABLE SLASH associationPathV3                // $currentObject/Module.Assoc (ByAssociation — sugar for ASSOCIATION)
     | VARIABLE                                        // $ParamName
-    | DATABASE FROM? qualifiedName                    // DATABASE [FROM] Entity [WHERE ...] [SORT BY ...]
+    | DATABASE FROM? (qualifiedName | VARIABLE SLASH associationPathV3) // DATABASE [FROM] Entity|$ctx/Assoc/Entity [WHERE ...] [SORT BY ...]
       (WHERE (xpathConstraint (andOrXpath? xpathConstraint)* | expression))?
       (SORT_BY sortColumn (COMMA sortColumn)*)?
       (SEARCH_BY searchAttribute (COMMA searchAttribute)*)?
@@ -641,31 +685,71 @@ associationPathV3
 actionExprV3
     : VARIABLE                                        // $handler — a fragment action parameter (see fragmentParam)
     | NOTHING                                         // NOTHING — an explicitly inert widget (Forms$NoAction)
-    | SAVE_CHANGES (CLOSE_PAGE)?                      // SAVE_CHANGES or SAVE_CHANGES CLOSE_PAGE
-    | CANCEL_CHANGES (CLOSE_PAGE)?                    // CANCEL_CHANGES
-    | CLOSE_PAGE                                      // CLOSE_PAGE
-    | DELETE_OBJECT                                   // DELETE_OBJECT
-    | DELETE (CLOSE_PAGE)?                            // DELETE (legacy)
-    | CREATE_OBJECT qualifiedName (THEN actionExprV3)? // CREATE_OBJECT Entity THEN SHOW_PAGE ...
-    | SHOW_PAGE qualifiedName microflowArgsV3?        // SHOW_PAGE Module.Page (Param: val)
-    | MICROFLOW qualifiedName microflowArgsV3?        // MICROFLOW Module.Flow
-    | NANOFLOW qualifiedName microflowArgsV3?         // NANOFLOW Module.Flow
-    | OPEN_LINK STRING_LITERAL                        // OPEN_LINK 'https://...'
-    | OPEN_LINK VARIABLE SLASH attributePathV3        // OPEN_LINK $currentObject/URL (address read from an attribute)
-    | SIGN_OUT                                        // SIGN_OUT
-    | COMPLETE_TASK STRING_LITERAL                    // COMPLETE_TASK 'OutcomeName'
+    | SAVE_CHANGES closePageV3? actionSettingsV3?     // save changes [close page]
+    | CANCEL_CHANGES closePageV3? actionSettingsV3?   // cancel changes [close page]
+    | closePageV3 actionSettingsV3?                   // close page
+    | DELETE closePageV3? actionSettingsV3?           // delete [close page]
+    | DELETE_OBJECT /* @alias MDL-DEPR020 */ closePageV3? actionSettingsV3?
+    | CREATE OBJECT qualifiedName (THEN actionExprV3 | actionSettingsV3)? // create object Entity then show page ...
+    | CREATE_OBJECT /* @alias MDL-DEPR020 */ qualifiedName (THEN actionExprV3 | actionSettingsV3)?
+    | SHOW PAGE qualifiedName microflowArgsV3? actionSettingsV3?        // show page Module.Page (Param: val)
+    | SHOW_PAGE /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
+    | CALL MICROFLOW qualifiedName microflowArgsV3? actionSettingsV3?   // call microflow Module.Flow
+    | MICROFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
+    | CALL NANOFLOW qualifiedName microflowArgsV3? actionSettingsV3?    // call nanoflow Module.Flow
+    | NANOFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
+    | openLinkV3 STRING_LITERAL actionSettingsV3?                       // open link 'https://...'
+    | openLinkV3 VARIABLE SLASH attributePathV3 actionSettingsV3?       // open link $currentObject/URL (address read from an attribute)
+    | SIGN_OUT actionSettingsV3?                                        // sign out
+    | COMPLETE_TASK STRING_LITERAL actionSettingsV3?                    // complete task 'OutcomeName'
     ;
 
-// V3 Microflow arguments: (Param: value, ...)
+// The client-action settings Studio Pro shows under an event: "Disabled during
+// action", and for a microflow or nanoflow call its progress bar, progress
+// message and confirmation (ako/mxcli#721 L2). They are the action's own model
+// properties, so they are a `( Key: value )` list (R2, R3), introduced by `with`
+// because a bare `( … )` after `call microflow M.F` would read as its argument
+// list. The keys are checked by the visitor, not here: an unknown key or one
+// the action does not have is an error (R11).
+//
+//   call microflow M.Delete(Order = $currentObject) with (
+//     ProgressBar: blocking, ProgressMessage: 'Deleting…',
+//     Confirmation: 'Delete this order?', ProceedCaption: 'Delete', CancelCaption: 'Keep')
+actionSettingsV3
+    : WITH LPAREN actionSettingV3 (COMMA actionSettingV3)* COMMA? RPAREN
+    ;
+
+actionSettingV3
+    : identifierOrKeyword COLON (STRING_LITERAL | NONE | identifierOrKeyword)
+    ;
+
+// The page actions are the words a microflow uses (R8, ako/mxcli#752):
+// `show page`, `close page`, `create object`, `call microflow`, `open link`.
+// The snake-case tokens are the deprecated second spellings; `save changes`,
+// `cancel changes`, `sign out` and `complete task` are single lexer tokens that
+// admit both (MDLLexer.g4).
+closePageV3
+    : CLOSE PAGE
+    | CLOSE_PAGE /* @alias MDL-DEPR020 */
+    ;
+
+openLinkV3
+    : OPEN LINK
+    | OPEN_LINK /* @alias MDL-DEPR020 */
+    ;
+
+// V3 Microflow arguments: (Param = value, ...) — R4, the argument form of every
+// call site. `Param: value` and `$Param = value` are deprecated spellings.
 microflowArgsV3
     : LPAREN microflowArgV3 (COMMA microflowArgV3)* RPAREN
     ;
 
 microflowArgV3
-    : identifierOrKeyword COLON expression            // Param: $value (identifierOrKeyword so a param
-                                                      // named after a keyword — View/Source/Item/Page/
-                                                      // Entity — works unquoted, matching callArgument)
-    | VARIABLE EQUALS expression                     // $Param = $value (microflow-style, also accepted)
+    : parameterName EQUALS expression                 // Param = $value (parameterName so a param named
+                                                      // after a keyword — View/Source/Item/Page/Entity —
+                                                      // works unquoted, matching callArgument)
+    | identifierOrKeyword COLON /* @alias MDL-DEPR007 */ expression // Param: $value
+    | VARIABLE /* @alias MDL-DEPR006 */ EQUALS expression           // $Param = $value
     ;
 
 // A value in `Visible: Attr in (…)`: an enumeration value name, true/false,
@@ -679,6 +763,13 @@ attributePathV3
     : (IDENTIFIER | QUOTED_IDENTIFIER | keyword) (SLASH (IDENTIFIER | QUOTED_IDENTIFIER | keyword))*
     ;
 
+// An input widget's attribute read through a named data view: Studio Pro's
+// widget-scoped SourceVariable {Widget: dataView1, …} (ako/mxcli#826). The same
+// `$name.Attr` spelling a text template parameter uses.
+widgetAttributeRefV3
+    : VARIABLE DOT (IDENTIFIER | QUOTED_IDENTIFIER | keyword)
+    ;
+
 // V3 String expression (may include template placeholders or attribute binding)
 stringExprV3
     : STRING_LITERAL
@@ -686,9 +777,12 @@ stringExprV3
     | VARIABLE (DOT (IDENTIFIER | keyword))?
     ;
 
-// V3 Parameter list: [{1} = value, {2} = value]
+// V3 Parameter list: ({1} = value, {2} = value). The parameters of a text
+// template are a map, so they are in ( ) (R2, ako/mxcli#754), and each binds a
+// runtime value with `=` (R4, `with ({1} = …)`). `[…]` is the old spelling.
 paramListV3
-    : LBRACKET paramAssignmentV3 (COMMA paramAssignmentV3)* RBRACKET
+    : LPAREN paramAssignmentV3 (COMMA paramAssignmentV3)* COMMA? RPAREN
+    | LBRACKET /* @alias MDL-DEPR124 */ paramAssignmentV3 (COMMA paramAssignmentV3)* RBRACKET
     ;
 
 paramAssignmentV3
@@ -721,7 +815,7 @@ buttonStyleV3
 
 // V3 Desktop width
 desktopWidthV3
-    : NUMBER_LITERAL | AUTOFILL
+    : NUMBER_LITERAL | AUTOFILL | AUTOFIT   // AutoFit = "Auto-fit content" (-2)
     ;
 
 // V3 Selection mode
@@ -778,17 +872,19 @@ objectEntryFieldV3
     : identifierOrKeyword COLON propertyValueV3
     ;
 
-// V3 Design property list: ['Key': 'Value', 'Key': ON]
+// V3 Design property list: ('Key': 'Value', 'Key': on). A map of properties, so
+// it is in ( ) (R2, ako/mxcli#754); `['Key': 'Value']` is the old spelling.
 designPropertyListV3
-    : LBRACKET designPropertyEntryV3 (COMMA designPropertyEntryV3)* RBRACKET
-    | LBRACKET RBRACKET
+    : LPAREN (designPropertyEntryV3 (COMMA designPropertyEntryV3)* COMMA?)? RPAREN
+    | LBRACKET /* @alias MDL-DEPR125 */ designPropertyEntryV3 (COMMA designPropertyEntryV3)* RBRACKET
+    | LBRACKET /* @alias MDL-DEPR125 */ RBRACKET
     ;
 
 designPropertyEntryV3
     : STRING_LITERAL COLON STRING_LITERAL
     | STRING_LITERAL COLON ON
     | STRING_LITERAL COLON OFF
-    | STRING_LITERAL COLON designPropertyListV3   // compound: 'Spacing': ['margin-top': 'Large', ...]
+    | STRING_LITERAL COLON designPropertyListV3   // compound: 'Spacing': ('margin-top': 'Large', ...)
     ;
 
 // V3 Widget body: { children }

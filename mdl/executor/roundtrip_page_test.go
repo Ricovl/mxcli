@@ -597,7 +597,7 @@ func TestRoundtripPage_MicroflowButtonWithParams(t *testing.T) {
 	) {
 		dataview dv (DataSource: $Product) {
 			textbox txt (Label: 'Name', Attribute: Name)
-			actionbutton btnProcess (Caption: 'Process', Action: microflow ` + mfName + `(Product: $Product))
+			actionbutton btnProcess (Caption: 'Process', Action: microflow ` + mfName + `(Product = $Product))
 		}
 	}`
 
@@ -619,8 +619,8 @@ func TestRoundtripPage_MicroflowButtonWithParams(t *testing.T) {
 	if !strings.Contains(output, mfName) {
 		t.Errorf("Expected microflow name '%s' in describe output.\nOutput:\n%s", mfName, output)
 	}
-	if !strings.Contains(output, "Product: $Product") {
-		t.Errorf("Expected 'Product: $Product' parameter mapping in describe output.\nOutput:\n%s", output)
+	if !strings.Contains(output, "Product = $Product") {
+		t.Errorf("Expected 'Product = $Product' parameter mapping in describe output.\nOutput:\n%s", output)
 	}
 
 	t.Logf("Microflow button with params roundtrip successful:\n%s", output)
@@ -670,7 +670,7 @@ func TestRoundtripPage_MicroflowButtonWithCurrentObject(t *testing.T) {
 		datagrid dg (DataSource: database ` + entityName + `) {
 			column colName (Attribute: Name, Caption: 'Name')
 			column colActions (Attribute: Name, Caption: 'Actions', ShowContentAs: customContent) {
-				actionbutton btnProcess (Caption: 'Process', Action: microflow ` + mfName + `(Target: $currentObject))
+				actionbutton btnProcess (Caption: 'Process', Action: microflow ` + mfName + `(Target = $currentObject))
 			}
 		}
 	}`
@@ -702,9 +702,9 @@ func TestRoundtripPage_MicroflowButtonWithCurrentObject(t *testing.T) {
 	// Both forms re-parse here (TARGET is non-reserved, so the unquoted spelling
 	// this test's own input uses is still accepted); what the assertion is for is
 	// the MAPPING surviving the roundtrip, which is independent of the quoting.
-	if !strings.Contains(output, "Target: $currentObject") &&
-		!strings.Contains(output, `"Target": $currentObject`) {
-		t.Errorf("Expected a 'Target: $currentObject' parameter mapping (quoted or not) "+
+	if !strings.Contains(output, "Target = $currentObject") &&
+		!strings.Contains(output, `"Target" = $currentObject`) {
+		t.Errorf("Expected a 'Target = $currentObject' parameter mapping (quoted or not) "+
 			"in describe output.\nOutput:\n%s", output)
 	}
 

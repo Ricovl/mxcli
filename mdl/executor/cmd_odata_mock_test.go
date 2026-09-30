@@ -95,7 +95,8 @@ func TestDescribeODataClient_Mock(t *testing.T) {
 	assertNoError(t, describeODataClient(ctx, ast.QualifiedName{Module: "MyModule", Name: "PetStoreClient"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create odata client")
+	// The rewrite carries what describe cannot print, proven on ako/TestApp (#743).
+	assertContainsStr(t, out, "create or modify consumed odata service MyModule.PetStoreClient")
 	assertContainsStr(t, out, "MyModule.PetStoreClient")
 	assertContainsStr(t, out, "https://example.com/$metadata")
 	assertContainsStr(t, out, "2.0")
@@ -191,7 +192,8 @@ func TestDescribeODataService_Mock(t *testing.T) {
 	assertNoError(t, describeODataService(ctx, ast.QualifiedName{Module: "MyModule", Name: "CatalogService"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create odata service")
+	// The carry is proven by TestTestAppRoundTrip on ako/TestApp's services (#743).
+	assertContainsStr(t, out, "create or modify published odata service")
 	assertContainsStr(t, out, "MyModule.CatalogService")
 }
 
@@ -675,5 +677,64 @@ func TestCreateODataClient_HeadersMicroflow(t *testing.T) {
 	}
 	if captured.ConfigurationMicroflow != "" {
 		t.Errorf("ConfigurationMicroflow = %q, want empty (headers keyword must not populate the config slot)", captured.ConfigurationMicroflow)
+	}
+}
+
+// `create or modify external entity … from odata client … (attrs)` rebuilt each
+// attribute with a fresh $ID and no OData mapping, so rerunning `describe
+// external entity` output turned every Rest$ODataMappedValue into a plain
+// StoredValue (#743).
+func TestCreateOrModifyExternalEntity_KeepsAttributeIdentityAndMapping(t *testing.T) {
+	mod := mkModule("Clients")
+	h := mkHierarchy(mod)
+	svc := &model.ConsumedODataService{BaseElement: model.BaseElement{ID: nextID("cos")}, ContainerID: mod.ID, Name: "OrderODataClient"}
+	withContainer(h, svc.ContainerID, mod.ID)
+	existing := &domainmodel.Entity{
+		BaseElement:       model.BaseElement{ID: nextID("ent")},
+		Name:              "Orders",
+		Source:            "Rest$ODataRemoteEntitySource",
+		RemoteServiceName: "Clients.OrderODataClient",
+		RemoteEntitySet:   "Orders",
+		Attributes: []*domainmodel.Attribute{{
+			BaseElement: model.BaseElement{ID: "stored-attr-id"},
+			Name:        "OrderDate",
+			Type:        &domainmodel.DateTimeAttributeType{LocalizeDate: false},
+			RemoteName:  "OrderDate", RemoteType: "Edm.DateTimeOffset", Filterable: true, Sortable: true,
+		}},
+	}
+	dm := &domainmodel.DomainModel{BaseElement: model.BaseElement{ID: nextID("dm")}, ContainerID: mod.ID, Entities: []*domainmodel.Entity{existing}}
+	var updated *domainmodel.Entity
+	mb := &mock.MockBackend{
+		IsConnectedFunc:               func() bool { return true },
+		ListModulesFunc:               func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+		GetDomainModelFunc:            func(model.ID) (*domainmodel.DomainModel, error) { return dm, nil },
+		ListConsumedODataServicesFunc: func() ([]*model.ConsumedODataService, error) { return []*model.ConsumedODataService{svc}, nil },
+		UpdateEntityFunc:              func(_ model.ID, e *domainmodel.Entity) error { updated = e; return nil },
+	}
+	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	stmt := &ast.CreateExternalEntityStmt{
+		Name:           ast.QualifiedName{Module: "Clients", Name: "Orders"},
+		ServiceRef:     ast.QualifiedName{Module: "Clients", Name: "OrderODataClient"},
+		EntitySet:      strPtr("Orders"),
+		Attributes:     []ast.Attribute{{Name: "OrderDate", Type: ast.DataType{Kind: ast.TypeDateTime}}, {Name: "Added", Type: ast.DataType{Kind: ast.TypeLong}}},
+		CreateOrModify: true,
+	}
+	assertNoError(t, execCreateExternalEntity(ctx, stmt))
+	if updated == nil || len(updated.Attributes) != 2 {
+		t.Fatalf("expected an update with two attributes, got %+v", updated)
+	}
+	a := updated.Attributes[0]
+	if a.ID != "stored-attr-id" {
+		t.Errorf("OrderDate $ID = %q, want the stored one", a.ID)
+	}
+	if a.RemoteName != "OrderDate" || a.RemoteType != "Edm.DateTimeOffset" || !a.Filterable || !a.Sortable {
+		t.Errorf("OrderDate lost its OData mapping: %+v", a)
+	}
+	if dt, ok := a.Type.(*domainmodel.DateTimeAttributeType); !ok || dt.LocalizeDate {
+		t.Errorf("OrderDate LocalizeDate not carried: %+v", a.Type)
+	}
+	// Control: a new attribute gets a fresh identity and no mapping.
+	if b := updated.Attributes[1]; b.ID == "" || b.ID == "stored-attr-id" || b.RemoteName != "" {
+		t.Errorf("new attribute Added = %+v", b)
 	}
 }

@@ -4,10 +4,10 @@
 
 ```sql
 -- Entity access (full -- removes entire rule)
-REVOKE module.Role ON module.Entity
+REVOKE ALL ON ENTITY module.Entity FROM module.Role [, ...]
 
 -- Entity access (partial -- downgrades specific rights)
-REVOKE module.Role ON module.Entity ( rights )
+REVOKE rights ON ENTITY module.Entity FROM module.Role [, ...]
 
 -- Microflow access
 REVOKE EXECUTE ON MICROFLOW module.Name FROM module.Role [, ...]
@@ -25,7 +25,7 @@ Removes previously granted access rights from module roles. Each form is the cou
 
 ### Entity Access
 
-Without a rights list, removes the entire entity access rule for the specified module role on the entity.
+The entity revoke mirrors the entity grant: rights first, then `ON ENTITY`, then the roles after `FROM`. `REVOKE ALL` removes the entire entity access rule for the specified module roles on the entity. The older form with the role first, `REVOKE module.Role ON module.Entity [( rights )]`, still parses and warns `MDL-DEPR082`; `mxcli fmt --upgrade` rewrites it.
 
 With a rights list, performs a **partial revoke**: `REVOKE READ (x)` sets member x to no access. `REVOKE WRITE (x)` downgrades member x from ReadWrite to ReadOnly. `REVOKE CREATE` and `REVOKE DELETE` remove the structural permission. The access rule itself is preserved.
 
@@ -69,25 +69,25 @@ Removes execute permission on a nanoflow from one or more module roles.
 Remove all entity access for a role:
 
 ```sql
-REVOKE Shop.Viewer ON Shop.Customer;
+REVOKE ALL ON ENTITY Shop.Customer FROM Shop.Viewer;
 ```
 
 Partial revoke -- remove read access on a specific attribute:
 
 ```sql
-REVOKE Shop.User ON Shop.Customer (READ (Notes));
+REVOKE READ (Notes) ON ENTITY Shop.Customer FROM Shop.User;
 ```
 
 Partial revoke -- downgrade write to read-only:
 
 ```sql
-REVOKE Shop.User ON Shop.Customer (WRITE (Email));
+REVOKE WRITE (Email) ON ENTITY Shop.Customer FROM Shop.User;
 ```
 
 Partial revoke -- remove structural permission:
 
 ```sql
-REVOKE Shop.User ON Shop.Customer (DELETE);
+REVOKE DELETE ON ENTITY Shop.Customer FROM Shop.User;
 ```
 
 Remove microflow execution from multiple roles:

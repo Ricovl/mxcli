@@ -50,7 +50,7 @@ create module ImgProbe;
 
 -- The reported shape: an image with no dimensions given, so every dimension
 -- property is left to the writer.
-create or replace page ImgProbe.P_Image
+create or modify page ImgProbe.P_Image
 (
   title: 'One image',
   layout: Atlas_Core.Atlas_Default
@@ -68,7 +68,7 @@ create or replace page ImgProbe.P_Image
 -- consults the template, and a value the script gave must still outrank it.
 -- Both `heightUnit`/`height` and `widthUnit`/`width` are mapped and named here,
 -- and both must be stored as written rather than reset to 100/auto.
-create or replace page ImgProbe.P_ImageSized
+create or modify page ImgProbe.P_ImageSized
 (
   title: 'A sized image',
   layout: Atlas_Core.Atlas_Default

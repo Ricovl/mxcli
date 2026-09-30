@@ -75,7 +75,7 @@ create persistent entity BespokeDesign.DesignRequest (
   /** Auto-generated request number */
   RequestNumber: autonumber default 1,
   /** Brief title for the request */
-  RequestTitle: string(200) not null error 'Request title is required',
+  RequestTitle: string(200) not null error message 'Request title is required',
   /** Detailed description of what the customer wants */
   RequestDescription: string(4000),
   /** Preferred furniture style */
@@ -85,7 +85,7 @@ create persistent entity BespokeDesign.DesignRequest (
   /** Customer's desired delivery date */
   DesiredDeliveryDate: datetime,
   /** Current lifecycle status */
-  RequestStatus: enumeration(BespokeDesign.DesignRequestStatus) not null error 'Request status is required',
+  RequestStatus: enumeration(BespokeDesign.DesignRequestStatus) not null error message 'Request status is required',
   /** Date when the request was submitted */
   SubmittedDate: datetime,
   /** Date when the request was last updated */
@@ -109,9 +109,9 @@ index (RequestStatus);
 @position(350, 50)
 create persistent entity BespokeDesign.DesignDraft (
   /** Draft version number */
-  VersionNumber: integer not null error 'Version number is required' default 1,
+  VersionNumber: integer not null error message 'Version number is required' default 1,
   /** Draft title or summary */
-  DraftTitle: string(200) not null error 'Draft title is required',
+  DraftTitle: string(200) not null error message 'Draft title is required',
   /** Detailed design description */
   DesignDescription: string(4000),
   /** Proposed price for this design */
@@ -173,9 +173,9 @@ create persistent entity BespokeDesign.DesignSpecification (
 @position(650, 50)
 create persistent entity BespokeDesign.DesignRevision (
   /** Revision number within this draft */
-  RevisionNumber: integer not null error 'Revision number is required',
+  RevisionNumber: integer not null error message 'Revision number is required',
   /** Summary of what changed */
-  ChangeDescription: string(2000) not null error 'Change description is required',
+  ChangeDescription: string(2000) not null error message 'Change description is required',
   /** Who requested this change */
   RequestedBy: string(200),
   /** Date of this revision */
@@ -218,7 +218,7 @@ create association BespokeDesign.DesignRequest_Customer
   from BespokeDesign.DesignRequest to CRM.Customer
   type reference
   owner default
-  delete_behavior DELETE_BUT_KEEP_REFERENCES;
+  on delete set null;
 
 /**
  * Links design draft to its request
@@ -232,7 +232,7 @@ create association BespokeDesign.DesignDraft_DesignRequest
   from BespokeDesign.DesignDraft to BespokeDesign.DesignRequest
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links specification to its draft
@@ -245,7 +245,7 @@ create association BespokeDesign.DesignSpecification_DesignDraft
   from BespokeDesign.DesignSpecification to BespokeDesign.DesignDraft
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links revisions to their draft
@@ -258,7 +258,7 @@ create association BespokeDesign.DesignRevision_DesignDraft
   from BespokeDesign.DesignRevision to BespokeDesign.DesignDraft
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 /**
  * Links documents to their draft
@@ -271,4 +271,4 @@ create association BespokeDesign.DesignDocument_DesignDraft
   from BespokeDesign.DesignDocument to BespokeDesign.DesignDraft
   type reference
   owner default
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;

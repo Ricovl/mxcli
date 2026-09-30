@@ -79,13 +79,20 @@ attributeName
     ;
 
 attributeConstraint
-    : NOT_NULL (ERROR STRING_LITERAL)?
-    | NOT NULL (ERROR STRING_LITERAL)?
+    : NOT_NULL (constraintErrorKeyword STRING_LITERAL)?
+    | NOT NULL (constraintErrorKeyword STRING_LITERAL)?
     | NULLABLE                              // explicit: clear NOT NULL (MODIFY ATTRIBUTE, Bug 12a)
-    | UNIQUE (ERROR STRING_LITERAL)?
+    | UNIQUE (constraintErrorKeyword STRING_LITERAL)?
     | DEFAULT (literal | expression)
-    | REQUIRED (ERROR STRING_LITERAL)?
+    | REQUIRED (constraintErrorKeyword STRING_LITERAL)?
     | CALCULATED (BY? qualifiedName)?
+    ;
+
+// `error message '…'` is the one spelling of a rule's user-facing message
+// (R8, ako/mxcli#752); a bare `error` is the old one.
+constraintErrorKeyword
+    : ERROR_MESSAGE
+    | ERROR /* @alias MDL-DEPR021 */
     ;
 
 /**
@@ -182,12 +189,14 @@ associationOptions
     ;
 
 associationOption
-    : TYPE COLON? (REFERENCE | REFERENCE_SET)
-    | OWNER COLON? (DEFAULT | BOTH)
-    | STORAGE COLON? (COLUMN | TABLE)
-    | DELETE_BEHAVIOR deleteBehavior errorMessageClause?
+    // A clause takes no colon (R3): `type Reference`. The colon is an alias.
+    : TYPE (COLON /* @alias MDL-DEPR064 */)? (REFERENCE | REFERENCE_SET)
+    | OWNER (COLON /* @alias MDL-DEPR064 */)? (DEFAULT | BOTH)
+    | STORAGE (COLON /* @alias MDL-DEPR064 */)? (COLUMN | TABLE)
+    | DELETE_BEHAVIOR /* @alias MDL-DEPR022 */ deleteBehavior errorMessageClause?
     | onDeleteClause
-    | COMMENT STRING_LITERAL
+    // R9: documentation is a `/** … */` doc comment before the statement.
+    | COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL
     ;
 
 // The SQL spelling. Mendix's three delete behaviours ARE SQL's referential
@@ -251,25 +260,30 @@ alterEntitiesAction
     : docComment? ADD ATTRIBUTE ifNotExists? attributeDefinition
     ;
 
+attributeKw
+    : ATTRIBUTE
+    | COLUMN /* @alias MDL-DEPR093 */
+    ;
+
 entityPersistenceFilter
     : PERSISTENT
     | NON_PERSISTENT
     ;
 
 alterEntityAction
-    : docComment? ADD ATTRIBUTE ifNotExists? attributeDefinition
-    | docComment? ADD COLUMN ifNotExists? attributeDefinition
-    | RENAME ATTRIBUTE attributeName TO attributeName
-    | RENAME COLUMN attributeName TO attributeName
-    | MODIFY ATTRIBUTE attributeName COLON? dataType attributeConstraint*
-    | MODIFY COLUMN attributeName COLON? dataType attributeConstraint*
-    | DROP ATTRIBUTE ifExists? attributeName
-    | DROP COLUMN ifExists? attributeName
+    // R6: `column` is a deprecated synonym for `attribute` (MDL-DEPR093).
+    : docComment? ADD attributeKw ifNotExists? attributeDefinition
+    | RENAME attributeKw attributeName TO attributeName
+    // An attribute definition is always `Name: Type` (R3). The colon is
+    // optional only so the old spelling keeps parsing: its ABSENCE is the alias.
+    | MODIFY attributeKw attributeName COLON? /* @alias MDL-DEPR065 */ dataType attributeConstraint*
+    | DROP attributeKw ifExists? attributeName
     | DROP DEFAULT ON ATTRIBUTE attributeName   // clear an attribute's default value
     | SET DOCUMENTATION STRING_LITERAL
-    | SET COMMENT STRING_LITERAL
+    | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     | SET POSITION LPAREN NUMBER_LITERAL COMMA NUMBER_LITERAL RPAREN
-    | SET ALLOW_CREATE_CHANGE_LOCALLY EQUALS (TRUE | FALSE)
+    | SET LPAREN ALLOW_CREATE_CHANGE_LOCALLY COLON (TRUE | FALSE) RPAREN    // set ( AllowCreateChangeLocally: true )
+    | SET ALLOW_CREATE_CHANGE_LOCALLY EQUALS /* @alias MDL-DEPR063 */ (TRUE | FALSE)
     | ADD INDEX ifNotExists? indexDefinition
     | DROP INDEX ifExists? indexDefinition
     | DROP INDEX ifExists? IDENTIFIER
@@ -280,8 +294,13 @@ alterEntityAction
 // Idempotency guards for a re-runnable domain script: ADD ... IF NOT EXISTS
 // skips (with a notice) when the member is already present, and DROP ... IF
 // EXISTS skips when it is already gone — instead of erroring and halting the
-// run. Accepted on ATTRIBUTE, EVENT HANDLER and INDEX, and on CREATE ENTITY /
-// CREATE ASSOCIATION.
+// run. Accepted on ATTRIBUTE, EVENT HANDLER and INDEX.
+//
+// On a document-level CREATE it sits after the kind's keywords and before the
+// name (`create page if not exists M.P …`) on every kind that names one element
+// (ako/mxcli#731, ADR-0010 R1): leave an existing element untouched, create it
+// otherwise. The visitor applies it once, in ExitCreateStatement, and the
+// executor's dispatch honours it, so a create rule only has to accept it.
 //
 // EVENT HANDLER and INDEX have no other way to be re-run: a defensive
 // drop-then-add fails on the drop when the member is absent, and on the add
@@ -297,11 +316,12 @@ ifExists
     ;
 
 alterAssociationAction
-    : SET DELETE_BEHAVIOR deleteBehavior errorMessageClause?
+    : SET DELETE_BEHAVIOR /* @alias MDL-DEPR022 */ deleteBehavior errorMessageClause?
     | SET onDeleteClause
     | SET OWNER (DEFAULT | BOTH)
     | SET STORAGE (COLUMN | TABLE)
-    | SET COMMENT STRING_LITERAL
+    | SET DOCUMENTATION STRING_LITERAL
+    | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     // Line anchors: where the connector attaches to each entity box, as a
     // PERCENTAGE of the box (0..100). Both ends together — the pair is one
     // visual decision, and `from`/`to` are the association's own words for its
@@ -320,11 +340,14 @@ anchorPoint
 // unapplied — so one already-present value silently truncates the script.
 // (ako/mxcli-rest FINDINGS #60)
 alterEnumerationAction
-    : ADD VALUE ifNotExists? IDENTIFIER (CAPTION STRING_LITERAL)?
-    | RENAME VALUE IDENTIFIER TO IDENTIFIER
-    | MODIFY VALUE IDENTIFIER CAPTION STRING_LITERAL
-    | DROP VALUE ifExists? IDENTIFIER
-    | SET COMMENT STRING_LITERAL
+    // A value is named as `create enumeration` names it (enumValueName), so a
+    // value spelled like a keyword (Sample, AI, Model) can be altered too.
+    : ADD VALUE ifNotExists? enumValueName (CAPTION STRING_LITERAL)?
+    | RENAME VALUE enumValueName TO enumValueName
+    | MODIFY VALUE enumValueName CAPTION STRING_LITERAL
+    | DROP VALUE ifExists? enumValueName
+    | SET DOCUMENTATION STRING_LITERAL
+    | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     ;
 
 // =============================================================================
@@ -332,7 +355,7 @@ alterEnumerationAction
 // =============================================================================
 
 createModuleStatement
-    : MODULE identifierOrKeyword moduleOptions?
+    : MODULE ifNotExists? identifierOrKeyword moduleOptions?
     ;
 
 // =============================================================================
@@ -372,7 +395,7 @@ moduleOption
 // =============================================================================
 
 createEnumerationStatement
-    : ENUMERATION qualifiedName
+    : ENUMERATION ifNotExists? qualifiedName
       LPAREN enumerationValueList RPAREN
       enumerationOptions?
     ;
@@ -407,14 +430,14 @@ enumerationOption
 // =============================================================================
 
 /**
- * CREATE [OR REPLACE|MODIFY] QUEUE Module.Name ( Parallelism: 3, ClusterWide: true );
+ * CREATE [OR MODIFY] TASK QUEUE Module.Name ( Parallelism: 3, ClusterWide: true );
  *
  * Parallelism is stored by Mendix as an EXPRESSION string
  * (Queues$BasicQueueConfig.ParallelismExpression), so it accepts a number or a
  * quoted expression.
  */
 createQueueStatement
-    : QUEUE qualifiedName (FOLDER STRING_LITERAL)? queueBody?
+    : taskQueueKw ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? queueBody?
     ;
 
 queueBody
@@ -434,13 +457,16 @@ queueProperty
 // document rather than a string on the rule.
 
 createRegularExpressionStatement
-    : REGULAR EXPRESSION qualifiedName (FOLDER STRING_LITERAL)? regularExpressionBody?
+    : REGULAR EXPRESSION ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? regularExpressionBody?
     ;
 
 regularExpressionBody
     : LPAREN (regularExpressionProperty (COMMA regularExpressionProperty)* COMMA?)? RPAREN
     ;
 
+// `Documentation: '…'` is a registered alias of the `/** … */` doc comment
+// (R9) /* @alias MDL-DEPR106 */, here and in the task queue and scheduled
+// event property lists; the visitor reports it by key.
 regularExpressionProperty
     : identifierOrKeyword COLON (STRING_LITERAL | booleanLiteral | identifierOrKeyword)
     ;
@@ -456,7 +482,7 @@ regularExpressionProperty
 // not belong to the chosen repeat.
 
 createScheduledEventStatement
-    : SCHEDULED EVENT qualifiedName (FOLDER STRING_LITERAL)? scheduledEventBody?
+    : SCHEDULED EVENT ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? scheduledEventBody?
     ;
 
 scheduledEventBody
@@ -472,7 +498,7 @@ scheduledEventProperty
 // =============================================================================
 
 createImageCollectionStatement
-    : IMAGE COLLECTION qualifiedName (FOLDER STRING_LITERAL)? imageCollectionOptions? imageCollectionBody?
+    : IMAGE COLLECTION ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? imageCollectionOptions? imageCollectionBody?
     ;
 
 // CREATE [OR MODIFY] ANNOTATION IN Module ( Caption: '…', Position: (x, y), Width: n )
@@ -503,11 +529,30 @@ imageCollectionOptions
 
 imageCollectionOption
     : EXPORT LEVEL STRING_LITERAL   // e.g. EXPORT LEVEL 'Public'
-    | COMMENT STRING_LITERAL
+    | COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL   // R9: a `/** … */` doc comment
     ;
 
+// The images are the collection's children, so they are in { }, each with its
+// properties in ( ) (R2, ako/mxcli#754):
+//
+//   create image collection M.Icons { image Logo ( File: 'assets/logo.png' ) };
+//
+// The parenthesised list of `image X from file '…'` is the old spelling.
 imageCollectionBody
-    : LPAREN imageCollectionItem (COMMA imageCollectionItem)* RPAREN
+    : LBRACE imageCollectionChild* RBRACE
+    | LPAREN /* @alias MDL-DEPR072 */ imageCollectionItem (COMMA imageCollectionItem)* RPAREN
+    ;
+
+imageCollectionChild
+    : IMAGE imageName LPAREN imageProperty (COMMA imageProperty)* COMMA? RPAREN   // image Logo ( File: 'logo.png' )
+    ;
+
+// File: '<path>' reads the image from a file; Data: '<base64>' carries the
+// bytes in the script, which is what describe writes (ako/mxcli#707), with
+// Format: <png|jpg|gif|svg|bmp|webp> when the bytes do not say it themselves.
+imageProperty
+    : identifierOrKeyword COLON STRING_LITERAL
+    | identifierOrKeyword COLON identifierOrKeyword
     ;
 
 imageCollectionItem
@@ -525,8 +570,15 @@ imageName
 // =============================================================================
 
 createJsonStructureStatement
-    : JSON STRUCTURE qualifiedName (FOLDER STRING_LITERAL)? (COMMENT STRING_LITERAL)? SNIPPET (STRING_LITERAL | DOLLAR_STRING)
+    : JSON STRUCTURE ifNotExists? qualifiedName (FOLDER STRING_LITERAL)? (COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL)? jsonSampleKw (STRING_LITERAL | DOLLAR_STRING)
       (CUSTOM_NAME_MAP LPAREN customNameMapping (COMMA customNameMapping)* RPAREN)?
+    ;
+
+// R10: the example JSON a structure is derived from is its sample; `snippet`
+// is a page document type.
+jsonSampleKw
+    : SAMPLE
+    | SNIPPET /* @alias MDL-DEPR132 */
     ;
 
 /**
@@ -561,12 +613,12 @@ customNameMapping
 /**
  * CREATE [OR MODIFY] MESSAGE DEFINITION COLLECTION Module.Name
  *   FOLDER 'Private/Messages'
- * (
- *   definition Order for Sales.Order as 'Orders' (
+ * {
+ *   definition Order for Sales.Order as 'Orders' {
  *     OrderId,
- *     Sales.Order_Line/Sales.Line as 'Lines' ( Sku, Quantity )
- *   )
- * );
+ *     Sales.Order_Line/Sales.Line as 'Lines' { Sku, Quantity }
+ *   }
+ * };
  *
  * A message definition is a SELECTION OVER THE DOMAIN MODEL — every element
  * names an entity, an attribute or an association — which is what makes it
@@ -579,20 +631,29 @@ customNameMapping
  * (Module.Collection.Definition), so the collection is never implicit.
  */
 createMessageDefinitionCollectionStatement
-    : MESSAGE DEFINITION COLLECTION qualifiedName
+    : MESSAGE DEFINITION COLLECTION ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
-      LPAREN messageDefinitionDef (COMMA messageDefinitionDef)* COMMA? RPAREN
+      ( LBRACE messageDefinitionDef (COMMA? messageDefinitionDef)* COMMA? RBRACE
+      | LPAREN /* @alias MDL-DEPR073 */ messageDefinitionDef (COMMA messageDefinitionDef)* COMMA? RPAREN
+      )
     ;
 
 /**
- * `definition <Name> for <Module.Entity> [as '<ExposedName>'] ( members )`
+ * `definition <Name> for <Module.Entity> [as '<ExposedName>'] { members }`
  *
  * The definition's Name and its root element's exposed name are independent —
  * measured, 19 of 56 definitions are named something other than their entity.
  */
 messageDefinitionDef
-    : DEFINITION identifierOrKeyword FOR qualifiedName messageExposedName?
-      LPAREN messageMember (COMMA messageMember)* COMMA? RPAREN
+    : DEFINITION identifierOrKeyword FOR qualifiedName messageExposedName? messageMemberTree
+    ;
+
+// A member tree is children, so it is in { }, as in an import or export
+// mapping (R2, ako/mxcli#754). The parenthesised tree is the old spelling. An
+// association may select no member of its target.
+messageMemberTree
+    : LBRACE (messageMember (COMMA messageMember)* COMMA?)? RBRACE
+    | LPAREN /* @alias MDL-DEPR073 */ messageMember (COMMA messageMember)* COMMA? RPAREN
     ;
 
 /**
@@ -609,8 +670,7 @@ messageDefinitionDef
  * something a reader has to work out.
  */
 messageMember
-    : qualifiedName SLASH qualifiedName messageExposedName?
-      LPAREN messageMember (COMMA messageMember)* COMMA? RPAREN   // association
+    : qualifiedName SLASH qualifiedName messageExposedName? messageMemberTree   // association
     | identifierOrKeyword messageExposedName? messageExample?      // attribute
     ;
 
@@ -637,8 +697,7 @@ alterMessageDefinitionCollectionStatement
     ;
 
 alterMessageCollectionOperation
-    : ADD DEFINITION (IF NOT EXISTS)? identifierOrKeyword FOR qualifiedName messageExposedName?
-      LPAREN messageMember (COMMA messageMember)* COMMA? RPAREN
+    : ADD DEFINITION (IF NOT EXISTS)? identifierOrKeyword FOR qualifiedName messageExposedName? messageMemberTree
     | DROP DEFINITION (IF EXISTS)? identifierOrKeyword
     | RENAME DEFINITION identifierOrKeyword TO identifierOrKeyword
     ;
@@ -688,7 +747,7 @@ messageMemberPath
  * };
  */
 createImportMappingStatement
-    : IMPORT MAPPING qualifiedName
+    : IMPORT MAPPING ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       importMappingWithClause?
       importMappingParameterClause?
@@ -830,7 +889,7 @@ importMappingObjectHandling
  * };
  */
 createExportMappingStatement
-    : EXPORT MAPPING qualifiedName
+    : EXPORT MAPPING ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       exportMappingWithClause?
       exportMappingNullValuesClause?
@@ -908,7 +967,7 @@ exportMappingChild
 createValidationRuleStatement
     : VALIDATION RULE FOR qualifiedName
       validationRuleConstraint
-      FEEDBACK STRING_LITERAL
+      (ERROR_MESSAGE | FEEDBACK /* @alias MDL-DEPR021 */) STRING_LITERAL
     ;
 
 validationRuleConstraint
@@ -929,11 +988,32 @@ validationRuleRange
 // CONSTANT CREATION
 // =============================================================================
 
+// A constant's properties are a ( Key: value ) list, named as Studio Pro's
+// Constants$Constant names them: Type, DefaultValue, ExposedToClient (phase 3.6
+// of PROPOSAL_mdl_beta_syntax_freeze.md, ako/mxcli#755). The clause form
+// `type T default v [exposed to client]` is the deprecated alias. The trailing
+// options after the list are the older aliases of the doc comment and the
+// folder clause, still read so that each rewrite can land on its own.
 createConstantStatement
-    : CONSTANT qualifiedName
-      TYPE dataType
+    : CONSTANT ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?   // R9: the folder is a clause after the name
+      constantPropertyList
+      constantOptions?
+    | CONSTANT ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?
+      TYPE /* @alias MDL-DEPR136 */ dataType
       DEFAULT literal
       constantOptions?
+    ;
+
+constantPropertyList
+    : LPAREN (constantProperty (COMMA constantProperty)* COMMA?)? RPAREN
+    ;
+
+// Type takes a data type, DefaultValue a literal, ExposedToClient a boolean.
+// The visitor refuses any other key, and a value of the wrong shape.
+constantProperty
+    : identifierOrKeyword COLON (literal | dataType)
     ;
 
 constantOptions
@@ -941,9 +1021,14 @@ constantOptions
     ;
 
 constantOption
-    : COMMENT STRING_LITERAL
-    | FOLDER STRING_LITERAL
+    : COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL   // R9: a `/** … */` doc comment
+    | FOLDER STRING_LITERAL /* @alias MDL-DEPR134 */   // R9: after the name
     | EXPOSED TO CLIENT
+    // `private`, any case: a no-op Mendix never stored (ako/mxcli#865). Up to
+    // v0.24.0 it parsed only because the trailing word became a help statement
+    // of its own, which built nothing; R7 closed that catch-all. It is matched
+    // here by predicate, not as a keyword, so `private` stays a usable name.
+    | {IsPrivateWord(p.GetTokenStream().LT(1).GetText())}? IDENTIFIER /* @alias MDL-DEPR138 */
     ;
 
 // =============================================================================
@@ -966,7 +1051,7 @@ createIndexStatement
  * };
  */
 createDataTransformerStatement
-    : DATA TRANSFORMER qualifiedName
+    : DATA TRANSFORMER ifNotExists? qualifiedName
       (FOLDER folder=STRING_LITERAL)?
       SOURCE_KW (JSON | XML) source=STRING_LITERAL
       LBRACE dataTransformerStep* RBRACE

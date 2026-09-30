@@ -24,8 +24,8 @@ func TestAlterStyling_RenamedKey_NamesTheCurrentProperty(t *testing.T) {
 	}{
 		{
 			name:    "renamed property, value mapped through old option names",
-			set:     `set 'Align content' = 'Left align as column'`,
-			want:    []string{"renamed", "Align content (deprecated)", "CE6087", `set 'Align content (deprecated)' = 'Left align as a column'`},
+			set:     `set ( 'Align content': 'Left align as column' )`,
+			want:    []string{"renamed", "Align content (deprecated)", "CE6087", `set ( 'Align content (deprecated)': 'Left align as a column' )`},
 			wantNot: []string{"CE6083"},
 		},
 		{
@@ -33,13 +33,13 @@ func TestAlterStyling_RenamedKey_NamesTheCurrentProperty(t *testing.T) {
 			// cannot write (one flat value — the MDL-WIDGET12 limit): point at
 			// the inline form instead.
 			name:    "spacing side renamed into a compound",
-			set:     `set 'Spacing bottom' = 'Outer medium'`,
+			set:     `set ( 'Spacing bottom': 'Outer medium' )`,
 			want:    []string{"renamed", "CE6087", "'Spacing': ['margin-bottom': 'M']", "DesignProperties"},
 			wantNot: []string{"CE6083"},
 		},
 		{
 			name:    "multi-select toggle renamed into an option",
-			set:     `set 'Hide on phone' = on`,
+			set:     `set ( 'Hide on phone': on )`,
 			want:    []string{"renamed", "CE6087", "'Hide on': ['Phone': on]", "DesignProperties"},
 			wantNot: []string{"CE6083"},
 		},

@@ -44,28 +44,28 @@ create microflow M956.ACT_Selected () begin log 'selection changed'; end;
 --    datasource alternative has to win, or a chart series' `staticDataSource:
 --    microflow M.X` would become an action. The executor converts it, because
 --    the widget definition is the only layer that knows the slot is an action.
-create or replace page M956.P_NamedMicroflow (Title: 'Named', Layout: Atlas_Core.Atlas_Default)
+create or modify page M956.P_NamedMicroflow (Title: 'Named', Layout: Atlas_Core.Atlas_Default)
 {
   DATAGRID dg (
     DataSource: DATABASE M956.Thing,
     Selection: Multiple,
     onSelectionChange: microflow M956.ACT_Selected
   ) {
-    COLUMN c1 (Attribute: Name, Caption: 'Name')
+    COLUMN (Attribute: Name, Caption: 'Name')
   }
 }
 describe page M956.P_NamedMicroflow;
 
 -- 2. A named slot holding a client action. These forms do not also parse as a
 --    data source, so they reach the AST as an action directly.
-create or replace page M956.P_NamedShowPage (Title: 'Named 2', Layout: Atlas_Core.Atlas_Default)
+create or modify page M956.P_NamedShowPage (Title: 'Named 2', Layout: Atlas_Core.Atlas_Default)
 {
   DATAGRID dg (
     DataSource: DATABASE M956.Thing,
     Selection: Multiple,
-    onSelectionChange: show_page M956.P_NamedMicroflow
+    onSelectionChange: show page M956.P_NamedMicroflow
   ) {
-    COLUMN c1 (Attribute: Name, Caption: 'Name')
+    COLUMN (Attribute: Name, Caption: 'Name')
   }
 }
 describe page M956.P_NamedShowPage;

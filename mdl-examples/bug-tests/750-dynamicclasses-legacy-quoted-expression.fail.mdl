@@ -9,8 +9,14 @@
 -- doubled — still parses, and would now store that text as a class name. check
 -- and exec refuse it as MDL-WIDGET33 and name the unquoted expression.
 --
+-- Refused only under the mdl 1 header (ako/mxcli#836): without it the old
+-- spelling keeps its meaning and warns MDL-V1-QUOTEDEXPR — see
+-- 836-quoted-expression-mdl0.mdl.
+--
 -- This file must FAIL `mxcli check`.
+
+mdl 1;
 
 create page Legacy.P (title: 'P', layout: Atlas_Core.Atlas_Default) {
   container c1 (dynamicclasses: 'if $currentObject/Featured then ''is-featured'' else ''''') { }
-}
+};

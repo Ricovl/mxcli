@@ -5,7 +5,11 @@
 // associations, enumerations, and view entities.
 package ast
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/langver"
+)
 
 // Statement represents any MDL statement that can be executed.
 type Statement interface {
@@ -53,6 +57,107 @@ type Program struct {
 	// next to knownActivityAnnotations, instead of being spread across the seven
 	// visitor sites that read them.
 	DocumentAnnotations []DocumentAnnotation
+	// Deprecations records every use of a deprecated spelling registered in
+	// mdl/deprecation, in source order. Both spellings build the same
+	// statements, so this is the only trace of which one the source used; it
+	// drives the MDL-DEPRnnn warnings and nothing else may branch on it.
+	Deprecations []DeprecatedSpelling
+
+	// LanguageVersion is the MDL language version the script is written in:
+	// the number in its `mdl <n>;` header, or mdl 0 when it has none
+	// (ADR-0011). A construct whose meaning differs between versions reads it
+	// through langver.Change; nothing may assume the latest.
+	LanguageVersion langver.Version
+	// LanguageHeaderLine is the 1-based line of the header, 0 when the script
+	// has none.
+	LanguageHeaderLine int
+	// LanguageNotes are the constructs kept at their older meaning because of
+	// LanguageVersion, one per occurrence, for check and exec to warn on.
+	LanguageNotes []LanguageNote
+}
+
+// DeprecatedSpelling is one use of a deprecated spelling in the source.
+type DeprecatedSpelling struct {
+	// Code is the registry code, MDL-DEPRnnn.
+	Code string
+	// Line and Column locate the deprecated token (1-based line, 0-based
+	// column, as ANTLR reports them).
+	Line   int
+	Column int
+	// Subject says what the spelling was used on, in MDL's own words ("entity",
+	// "microflow", …); empty when there is nothing more specific to say.
+	Subject string
+	// Fix is the structural rewrite of this use to the canonical form, for an
+	// entry whose rewrite is not a keyword swap (deprecation.Rewrite.Structural).
+	// Nil when this use has none; NoFix then says why.
+	Fix   *Fix
+	NoFix string
+}
+
+// LanguageNote is one construct whose meaning depends on the language version,
+// kept at the meaning of the version the script is written in.
+type LanguageNote struct {
+	Line    int    // 1-based source line of the construct
+	Code    string // the langver.Change's rule ID
+	Message string
+	// Fix rewrites the construct so that under the new version it still means
+	// what it means here — what `fmt --upgrade --header` applies before adding
+	// the header. Nil when there is no mechanical rewrite; NoFix then says why.
+	// A Fix with no edits is a construct already spelled so that it keeps its
+	// meaning under the new version.
+	Fix   *Fix
+	NoFix string
+	// Operand is set on an MDL-V1-LIST note for `find(…)` / `contains(…)`
+	// whose Fix is nil only because the operand holds the result of a
+	// microflow or nanoflow call the script does not define: which activity
+	// mdl 0 builds depends on that flow's return type, which the project
+	// knows (ako/mxcli#860). An upgrade given the project resolves it and
+	// applies one of its two fixes; without one, NoFix stands.
+	Operand *OperandChoice
+}
+
+// OperandChoice is an overloaded list call — `find`, `contains` — whose
+// reading waits on the return type of the flows its operand is assigned from.
+// mdl 0 builds the String function when the operand is a String and the List
+// operation otherwise, and a call's result is a String exactly when the called
+// flow returns one (the flow builder's registerResultVariableType).
+type OperandChoice struct {
+	Variable string // the operand, `$Name`
+	Function string // `find` or `contains`, as written
+	// Flows are the calls the operand is assigned from whose flow the script
+	// does not define before the statement; each resolves in the project.
+	Flows []FlowRef
+	// Known are the readings the script already fixes for the operand's other
+	// definitions: false for a retrieve, a list statement, a loop, and for a
+	// call to a flow the script creates earlier that returns no String; true
+	// for one that returns a String.
+	Known []bool
+	// StringFix is the rewrite when the operand is a String, ListFix the one
+	// when it is not (nil with ListNoFix saying why there is none).
+	StringFix *Fix
+	ListFix   *Fix
+	ListNoFix string
+}
+
+// FlowRef names a called microflow, or nanoflow when Nanoflow is set.
+type FlowRef struct {
+	Nanoflow bool
+	Name     QualifiedName
+}
+
+// Fix is a mechanical source rewrite: edits in the coordinates the parser read
+// the script in, computed from the parse tree by the visitor that recorded the
+// construct. Edits may not overlap.
+type Fix struct {
+	Edits []TextEdit
+}
+
+// TextEdit replaces the runes [Start, Stop) of the script with Text. Offsets
+// count runes (code points) from the start of the script, as ANTLR's character
+// stream does; Start == Stop is an insertion.
+type TextEdit struct {
+	Start, Stop int
+	Text        string
 }
 
 // DocumentAnnotation is one annotation written before a CREATE statement.
@@ -156,20 +261,43 @@ var MoveDocumentTypeByKeyword = map[string]DocumentType{
 	"ODATASERVICE":         DocumentTypeODataService,
 	"BUSINESSEVENTSERVICE": DocumentTypeBusinessEventService,
 	"MODEL":                DocumentTypeModel,
+	"AIMODEL":              DocumentTypeModel,
 	"AGENT":                DocumentTypeAgent,
 	"KNOWLEDGEBASE":        DocumentTypeKnowledgeBase,
 	"CONSUMEDMCPSERVICE":   DocumentTypeConsumedMCPService,
+	// The Studio Pro names (R10); the old spellings above stay as aliases.
+	"TASKQUEUE":             DocumentTypeQueue,
+	"CONSUMEDRESTSERVICE":   DocumentTypeRestClient,
+	"CONSUMEDODATASERVICE":  DocumentTypeODataClient,
+	"PUBLISHEDODATASERVICE": DocumentTypeODataService,
 }
 
 // IsMoveDocumentType reports whether spelling (lower-cased, spaced, e.g.
 // "json structure") names a doctype MOVE accepts.
+// Both the canonical spelling and a deprecated alias count ("task queue" and
+// "queue").
 func IsMoveDocumentType(spelling string) bool {
-	for _, docType := range MoveDocumentTypeByKeyword {
-		if strings.EqualFold(string(docType), spelling) {
-			return true
-		}
+	_, ok := MoveDocumentTypeByKeyword[strings.ToUpper(strings.ReplaceAll(spelling, " ", ""))]
+	return ok
+}
+
+// documentTypeStudioProNames spells the document types R10 renamed
+// (ako/mxcli#755) as Studio Pro names them. The DocumentType values keep the
+// old words because they are internal keys; this is what a user is shown.
+var documentTypeStudioProNames = map[DocumentType]string{
+	DocumentTypeQueue:        "task queue",
+	DocumentTypeRestClient:   "consumed rest service",
+	DocumentTypeODataClient:  "consumed odata service",
+	DocumentTypeODataService: "published odata service",
+}
+
+// CanonicalSpelling is the lower-case canonical MDL spelling of a document
+// type, for messages and advice ("consumed rest service", "json structure").
+func (d DocumentType) CanonicalSpelling() string {
+	if name, ok := documentTypeStudioProNames[d]; ok {
+		return name
 	}
-	return false
+	return strings.ToLower(string(d))
 }
 
 // MoveStmt represents: MOVE PAGE/MICROFLOW/SNIPPET/NANOFLOW/ENTITY/ENUMERATION Module.Name TO FOLDER 'path' IN Module

@@ -114,8 +114,9 @@ func TestCreateConstant(t *testing.T) {
 	if stmt.Name.Name != "MaxRetries" {
 		t.Errorf("Got name %s", stmt.Name.Name)
 	}
-	if stmt.Comment != "Max retry count" {
-		t.Errorf("Got Comment %q", stmt.Comment)
+	// `comment '…'` is the documentation (R9, a deprecated alias of the doc comment).
+	if stmt.Documentation != "Max retry count" || !stmt.DocumentationSet {
+		t.Errorf("Got Documentation %q (set %v)", stmt.Documentation, stmt.DocumentationSet)
 	}
 }
 

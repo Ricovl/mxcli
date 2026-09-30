@@ -32,14 +32,8 @@ func ValidateScriptPageOrder(prog *ast.Program) []linter.Violation {
 
 	var out []linter.Violation
 	for i, stmt := range prog.Statements {
-		var widgets []*ast.WidgetV3
-		var label string
-		switch s := stmt.(type) {
-		case *ast.CreatePageStmtV3:
-			widgets, label = s.Widgets, "page "+s.Name.String()
-		case *ast.CreateSnippetStmtV3:
-			widgets, label = s.Widgets, "snippet "+s.Name.String()
-		default:
+		label, widgets, ok := documentWidgets(stmt)
+		if !ok {
 			continue
 		}
 

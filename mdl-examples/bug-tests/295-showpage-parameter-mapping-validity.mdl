@@ -36,9 +36,9 @@ create entity BugTest295.Product (
 
 create page BugTest295.Product_Detail
 (
-  params: {
+  params: (
     $Product: BugTest295.Product
-  },
+  ),
   title: 'Product Detail',
   layout: Atlas_Core.Atlas_Default
 )
@@ -51,6 +51,6 @@ create microflow BugTest295.ACT_OpenProductPage (
   $Product: BugTest295.Product
 )
 begin
-  show page BugTest295.Product_Detail (Product: $Product);
+  show page BugTest295.Product_Detail (Product = $Product);
 end;
 /

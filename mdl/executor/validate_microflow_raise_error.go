@@ -38,7 +38,7 @@ import (
 
 // mainFlowRaiseErrors counts the `raise error;` statements reachable on a flow's
 // MAIN path — every RaiseErrorStmt in the body, in branches, splits and loop
-// bodies, but NOT inside an `on error … { … }` handler, where an error event is
+// bodies, but NOT inside an `on error … begin … end error` handler, where an error event is
 // legal and expected.
 //
 // Skipping handler bodies is the whole content of the rule, so the walk cannot
@@ -89,7 +89,7 @@ func (v *microflowValidator) checkRaiseErrorOutsideHandler(body []ast.MicroflowS
 			"one is only legal where an error is in scope. mxbuild rejects it with CE0710 \"The "+
 			"main flow cannot join an error flow or end in an error event\", and Studio Pro will "+
 			"not draw the shape at all.",
-		"Put the `raise error;` inside the `on error { … }` handler of the activity whose failure "+
+		"Put the `raise error;` inside the `on error begin … end error` handler of the activity whose failure "+
 			"you are re-raising. To fail deliberately from the main flow, call a Java action that "+
 			"throws — Mendix has no main-flow \"throw\" activity.")
 }

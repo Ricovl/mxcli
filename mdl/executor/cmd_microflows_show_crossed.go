@@ -207,7 +207,7 @@ func emitCrossedMergeSections(
 		}
 		visited[id] = true
 		declared[id] = true
-		*lines = append(*lines, mergeDeclarationLines(0, label, activityMap[id])...)
+		*lines = append(*lines, mergeDeclarationLines(0, label, activityMap[id], annotationsByTarget.layoutKeep())...)
 		for _, flow := range flowsByOrigin[id] {
 			traverseFlow(ctx, flow.DestinationID, activityMap, flowsByOrigin, flowsByDest,
 				splitMergeMap, visited, entityNames, microflowNames, lines, 0,

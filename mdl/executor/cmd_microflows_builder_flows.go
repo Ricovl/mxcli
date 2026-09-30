@@ -73,6 +73,19 @@ func explicitErrorHandling(fb *flowBuilder, eh *ast.ErrorHandlingClause) microfl
 	return fb.ehType(eh)
 }
 
+func isCustomErrorHandling(eh *ast.ErrorHandlingClause) bool {
+	return eh != nil && (eh.Type == ast.ErrorHandlingCustom || eh.Type == ast.ErrorHandlingCustomWithoutRollback)
+}
+
+// rejoinMergePosition is where the merge a fall-through handler of source
+// rejoins at goes: the @merge written on the source, or the computed fallback.
+func (fb *flowBuilder) rejoinMergePosition(source model.ID, computed model.Point) model.Point {
+	if p := fb.rejoinMergeAt[source]; p != nil {
+		return model.Point{X: p.X, Y: p.Y}
+	}
+	return computed
+}
+
 func isEmptyCustomErrorHandler(eh *ast.ErrorHandlingClause) bool {
 	if eh == nil || len(eh.Body) != 0 {
 		return false
@@ -83,6 +96,14 @@ func isEmptyCustomErrorHandler(eh *ast.ErrorHandlingClause) bool {
 func (fb *flowBuilder) finishCustomErrorHandler(activityID model.ID, activityX int, eh *ast.ErrorHandlingClause, outputVar string) {
 	if eh == nil {
 		return
+	}
+	// The statement's own annotations are still pending while it is built, so a
+	// @merge on it — the rejoin merge's position (#750) — is read here.
+	if ann := fb.pendingAnnotations; ann != nil && ann.Merge != nil && isCustomErrorHandling(eh) {
+		if fb.rejoinMergeAt == nil {
+			fb.rejoinMergeAt = map[model.ID]*ast.Position{}
+		}
+		fb.rejoinMergeAt[activityID] = ann.Merge
 	}
 	if len(eh.Body) > 0 {
 		// Retry-loop pattern: error body ends with an IF whose non-terminating
@@ -371,7 +392,7 @@ func (fb *flowBuilder) addEmptyErrorHandlerRejoinFlowFrom(normalOriginID, errorO
 	merge := &microflows.ExclusiveMerge{
 		BaseMicroflowObject: microflows.BaseMicroflowObject{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-			Position:    model.Point{X: fb.posX - HorizontalSpacing/2, Y: fb.baseY},
+			Position:    fb.rejoinMergePosition(errorOriginID, model.Point{X: fb.posX - HorizontalSpacing/2, Y: fb.baseY}),
 			Size:        model.Size{Width: MergeSize, Height: MergeSize},
 		},
 	}
@@ -424,7 +445,7 @@ func (fb *flowBuilder) addErrorHandlerRejoinFlowForState(state pendingErrorHandl
 	merge := &microflows.ExclusiveMerge{
 		BaseMicroflowObject: microflows.BaseMicroflowObject{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-			Position:    model.Point{X: fb.posX - HorizontalSpacing/2, Y: fb.baseY},
+			Position:    fb.rejoinMergePosition(state.source, model.Point{X: fb.posX - HorizontalSpacing/2, Y: fb.baseY}),
 			Size:        model.Size{Width: MergeSize, Height: MergeSize},
 		},
 	}
@@ -718,6 +739,7 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 		declaredVars: fb.declaredVars,
 		measurer:     fb.measurer,
 		backend:      fb.backend,
+		quiet:        fb.quiet,
 		hierarchy:    fb.hierarchy,
 		restServices: fb.restServices,
 		isNanoflow:   fb.isNanoflow,
@@ -782,7 +804,7 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 	// Append error handler objects and flows to the main builder.
 	//
 	// annotationFlows and errors are part of that: without them a note written
-	// inside `on error { … }` arrived as an Annotation with no edge — a
+	// inside `on error begin … end error` arrived as an Annotation with no edge — a
 	// free-floating sticky note instead of one attached to the activity — and a
 	// refusal raised in the handler body never reached the caller (#1077).
 	fb.objects = append(fb.objects, errBuilder.objects...)
@@ -1065,11 +1087,11 @@ func containsTerminalStmt(stmts []ast.MicroflowStatement) bool {
 // still opens, which is how this survived a describe → exec round trip of a
 // whole project with everything else green.
 //
-// The shape that produced it is an empty `on error … { }` handler inside a
+// The shape that produced it is an empty `on error … begin end error` handler inside a
 // branch whose sibling also returns:
 //
 //	if … then
-//	  $r = call microflow M.Sub() on error without rollback { };
+//	  $r = call microflow M.Sub() on error without rollback begin end error;
 //	  return $r;          -- the normal path reaches the end event
 //	else
 //	  return 'no';        -- and so does this one

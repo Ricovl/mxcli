@@ -48,7 +48,7 @@ func ValidateWidgetProperties(prog *ast.Program, projectPath string) []linter.Vi
 	for _, stmt := range prog.Statements {
 		violations = append(violations, ValidateWidgetPropertiesForStatement(stmt, registry)...)
 	}
-	return violations
+	return GateWidgetViolations(violations, prog.LanguageVersion)
 }
 
 // LoadWidgetRegistry returns a widget registry loaded with both the built-in
@@ -111,11 +111,10 @@ func ValidateWidgetPropertiesForStatement(stmt ast.Statement, registry *WidgetRe
 	if registry == nil {
 		return nil
 	}
+	if label, widgets, ok := documentWidgets(stmt); ok {
+		return validateWidgetTree(widgets, registry, label)
+	}
 	switch s := stmt.(type) {
-	case *ast.CreatePageStmtV3:
-		return validateWidgetTree(s.Widgets, registry, "page "+s.Name.String())
-	case *ast.CreateSnippetStmtV3:
-		return validateWidgetTree(s.Widgets, registry, "snippet "+s.Name.String())
 	case *ast.AlterPageStmt:
 		var out []linter.Violation
 		for _, op := range s.Operations {
@@ -141,7 +140,18 @@ func ValidateWidgetPropertiesForStatement(stmt ast.Statement, registry *WidgetRe
 // $currentObject is unbound there. That is a fact this pass can state, unlike
 // validateWidgetSubtree below, and MDL-PAGEARG01 needs it (#1029).
 func validateWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string) []linter.Violation {
-	return validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot())
+	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot())
+	// Only a whole document: an ALTER fragment's parent is out of sight, and
+	// whether a row or column stores a name depends on it (#749).
+	for _, msg := range checkMissingWidgetNames(widgets) {
+		out = append(out, linter.Violation{
+			RuleID:     "MDL-WIDGET35",
+			Severity:   linter.SeverityError,
+			Message:    locationPrefix + ": " + msg,
+			Suggestion: "Give the widget a name, unique on the page.",
+		})
+	}
+	return out
 }
 
 // validateWidgetSubtree is validateWidgetTree for widgets that will be grafted
@@ -191,6 +201,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// every widget kind and needs no definition, for the same reason as the
 		// rule above: the SHAPE of the value is wrong whatever the widget is.
 		out = append(out, validateWidgetActionSlot(w, locationPrefix)...)
+		// #842: a Gallery row click the widget itself calls ambiguous.
+		out = append(out, validateGalleryClickAmbiguity(w, locationPrefix)...)
 		// #928: contentparams with no `{N}` placeholder to consume them.
 		if lookupWidgetDef(w, registry) != nil {
 			out = append(out, validatePluggableContentParams(w, locationPrefix)...)
@@ -248,8 +260,6 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			// default; a non-default value there is CE0463.
 			out = append(out, validateWidgetItemVisibility(parent, w, mapping, registry, locationPrefix)...)
 		}
-		// Reported once per grid, not once per column — see the rule's comment.
-		out = append(out, validateDataGrid2ColumnNames(w, locationPrefix)...)
 		if len(w.Children) > 0 {
 			out = append(out, validateWidgetTreeIn(w.Children, registry, locationPrefix, objectListMappingSet(def), w, argContextForChildren(w, argCtx))...)
 		}
@@ -620,8 +630,8 @@ func validateObjectListItemEnums(w *ast.WidgetV3, mapping *ObjectListMapping, lo
 			RuleID:   "MDL-WIDGET08",
 			Severity: linter.SeverityError,
 			Message: fmt.Sprintf(
-				"%s: widget `%s` (%s) property `%s` has invalid value `%s` — valid values are %s",
-				locationPrefix, w.Name, w.Type, ip.PropertyKey, val, strings.Join(ip.EnumValues, ", "),
+				"%s: %s property `%s` has invalid value `%s` — valid values are %s",
+				locationPrefix, widgetLabel(w.Name, w.Type), ip.PropertyKey, val, strings.Join(ip.EnumValues, ", "),
 			),
 		})
 	}
@@ -776,8 +786,8 @@ func validateStaticWidgetUnknownProps(w *ast.WidgetV3, locationPrefix string) []
 			RuleID:   "MDL-WIDGET07",
 			Severity: linter.SeverityWarning,
 			Message: fmt.Sprintf(
-				"%s: widget `%s` (%s) property `%s` is not recognized and will be silently dropped on write%s",
-				locationPrefix, w.Name, w.Type, key, hint,
+				"%s: %s property `%s` is not recognized and will be silently dropped on write%s",
+				locationPrefix, widgetLabel(w.Name, w.Type), key, hint,
 			),
 		})
 	}
@@ -817,7 +827,7 @@ func validateDynamicTextFormatting(w *ast.WidgetV3, locationPrefix string) []lin
 					RuleID:   "MDL-WIDGET18",
 					Severity: linter.SeverityError,
 					Message: fmt.Sprintf(
-						"%s: widget `%s`: `%s` is a per-parameter format, not a widget property — put it in the ContentParams format block, e.g. `ContentParams: [{1} = Attr format (%s: <value>)]`. A widget-level `%s` is dropped on write.",
+						"%s: widget `%s`: `%s` is a per-parameter format, not a widget property — put it in the ContentParams format block, e.g. `ContentParams: ({1} = Attr format (%s: <value>))`. A widget-level `%s` is dropped on write.",
 						locationPrefix, w.Name, key, strings.ToLower(key), key,
 					),
 				})
@@ -921,10 +931,10 @@ func validateConsumableConditional(w *ast.WidgetV3, locationPrefix string) []lin
 			RuleID:   "MDL-WIDGET19",
 			Severity: linter.SeverityError,
 			Message: fmt.Sprintf(
-				"%s: widget `%s` (%s) has a `%s` value that could not be parsed as a conditional expression "+
+				"%s: %s has a `%s` value that could not be parsed as a conditional expression "+
 					"and would be dropped on write (leaving the widget unconditionally %s) — "+
 					"check the expression inside `%s: [ ... ]`",
-				locationPrefix, w.Name, w.Type, strings.ToLower(p.plain),
+				locationPrefix, widgetLabel(w.Name, w.Type), strings.ToLower(p.plain),
 				map[string]string{"Visible": "visible", "Editable": "editable"}[p.plain],
 				strings.ToLower(p.plain),
 			),
@@ -990,7 +1000,7 @@ func validateStaticWidget(w *ast.WidgetV3, locationPrefix string) []linter.Viola
 				Severity: linter.SeverityError,
 				Message: fmt.Sprintf(
 					"%s: dataview `%s` cannot use a database data source (`from %s`) — a data view shows one object; use a microflow/nanoflow source (or a page parameter), or a list widget (listview/datagrid/gallery) for a collection",
-					locationPrefix, w.Name, ds.Reference,
+					locationPrefix, w.Name, databaseSourceFrom(ds),
 				),
 			})
 		}
@@ -1009,7 +1019,6 @@ func validateStaticWidget(w *ast.WidgetV3, locationPrefix string) []linter.Viola
 	// name, so a function call like `formatDateTime($obj/Date, 'd MMM')` is written
 	// as a bogus attribute and Studio Pro rejects the page with CE1613 "attribute
 	// no longer exists". Catch it at check time. (ledger finding #26)
-	out = append(out, validateTemplateParamExpressions(w, locationPrefix)...)
 
 	return out
 }
@@ -1049,62 +1058,13 @@ func validateWidgetExpressionAssociations(w *ast.WidgetV3, locationPrefix string
 	return out
 }
 
-// templateParamExprRe detects a client-side expression where an attribute-path
-// data binding is expected. A binding is a path of identifier segments joined by
-// `/` or `.` (optionally `$`-prefixed): `$obj/Date`, `Order_Customer/Name`. An
-// expression carries a function call `foo(` or an arithmetic/comparison operator,
-// none of which can appear in an attribute path.
-var templateParamExprRe = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*\s*\(|[+\-*<>=!]`)
-
-// validateTemplateParamExpressions flags a client expression supplied to a
-// contentparams/captionparams slot (MDL-WIDGET14). mxcli stores an unquoted
-// value as an attribute path, so an expression like
-// `formatDateTime($obj/Date, 'd MMM')` would be written as a bogus attribute
-// name and Studio Pro rejects the page. A quoted value is a legal string literal
-// and is left alone.
-//
-// The refusal is right; the reason this rule used to give was not. It said a
-// template parameter "is a data binding … not an expression", which is a claim
-// about MENDIX and it is false: Studio Pro's Edit Template Parameter dialog
-// offers "Parameter type: Value | Expression", and the Expression form has its
-// own editor, variable list and wizard —
-// `formatDecimal($currentObject/Score)` is a perfectly valid parameter there.
-// The metamodel agrees: Pages$ClientTemplateParameter carries Expression beside
-// AttributeRef and SourceVariable.
-//
-// So the honest message is that MXCLI cannot author that form yet, not that the
-// platform forbids it. Telling a user to precompute a calculated attribute when
-// Studio Pro offers the thing they asked for sends them to do unnecessary
-// modelling. Authoring syntax for it is tracked separately.
-func validateTemplateParamExpressions(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
-	var out []linter.Violation
-	check := func(slot string, params []ast.ParamAssignmentV3) {
-		for _, p := range params {
-			val, ok := p.Value.(string)
-			if !ok || val == "" {
-				continue
-			}
-			// A quoted string literal is a valid contentparams value.
-			if strings.HasPrefix(val, "'") || strings.HasPrefix(val, "\"") {
-				continue
-			}
-			if !templateParamExprRe.MatchString(val) {
-				continue
-			}
-			out = append(out, linter.Violation{
-				RuleID:   "MDL-WIDGET14",
-				Severity: linter.SeverityError,
-				Message: fmt.Sprintf(
-					"%s: widget `%s` %s value `%s` looks like an expression, and MDL cannot author an expression-typed template parameter yet — an unquoted value is stored as an attribute path, so this would be written as a bogus attribute name. Mendix DOES support it: Studio Pro's Edit Template Parameter dialog has a `Value | Expression` choice. Set it there, or bind an attribute path (`$obj/Attr`) or a quoted string literal here.",
-					locationPrefix, w.Name, slot, val,
-				),
-			})
-		}
-	}
-	check("contentparams", w.GetContentParams())
-	check("captionparams", w.GetCaptionParams())
-	return out
-}
+// MDL-WIDGET14 refused an expression in a contentparams / captionparams slot,
+// because mxcli stored any unquoted value as an attribute path and the
+// expression became a bogus attribute name (ledger finding #26). The writer now
+// stores a value that is not an attribute reference as the parameter's
+// Expression — Studio Pro's "Parameter type: Expression" — so there is nothing
+// left to refuse (isTemplateExpression, ako/mxcli#823 option C). The code is
+// not reused.
 
 var templatePlaceholderRe = regexp.MustCompile(`\{(\d+)\}`)
 
@@ -1141,7 +1101,7 @@ func validateDynamicTextPlaceholders(w *ast.WidgetV3, locationPrefix string) *li
 		RuleID:   "MDL-WIDGET04",
 		Severity: linter.SeverityError,
 		Message: fmt.Sprintf(
-			"%s: widget `%s` (dynamictext) references template placeholder {%d} but only %d parameter(s) are bound — bind it with `Attribute: <attr>` or `ContentParams: [{%d} = <attr>]`. An orphaned placeholder crashes Studio Pro.",
+			"%s: widget `%s` (dynamictext) references template placeholder {%d} but only %d parameter(s) are bound — bind it with `Attribute: <attr>` or `ContentParams: ({%d} = <attr>)`. An orphaned placeholder crashes Studio Pro.",
 			locationPrefix, w.Name, maxIdx, params, maxIdx,
 		),
 	}
@@ -1167,8 +1127,8 @@ func validateButtonCaptionPlaceholders(w *ast.WidgetV3, locationPrefix string) *
 		RuleID:   "MDL-WIDGET04",
 		Severity: linter.SeverityError,
 		Message: fmt.Sprintf(
-			"%s: widget `%s` (%s) caption references template placeholder {%d} but only %d parameter(s) are bound — bind it with `CaptionParams: [{%d} = <attr>]`. An orphaned placeholder fails the build (CE0720).",
-			locationPrefix, w.Name, strings.ToLower(w.Type), maxIdx, params, maxIdx,
+			"%s: %s caption references template placeholder {%d} but only %d parameter(s) are bound — bind it with `CaptionParams: ({%d} = <attr>)`. An orphaned placeholder fails the build (CE0720).",
+			locationPrefix, widgetLabel(w.Name, strings.ToLower(w.Type)), maxIdx, params, maxIdx,
 		),
 	}
 }
@@ -1212,9 +1172,28 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 				RuleID:   "MDL-WIDGET17",
 				Severity: linter.SeverityError,
 				Message: fmt.Sprintf(
-					"%s: widget `%s` (%s) has no `%s` property — the value is dropped on write and "+
+					"%s: %s has no `%s` property — the value is dropped on write and "+
 						"MxBuild then reports the property as missing. Use `%s:` instead",
-					locationPrefix, w.Name, def.MDLName, key, right),
+					locationPrefix, widgetLabel(w.Name, def.MDLName), key, right),
+			})
+			continue
+		}
+		// `onClick:` and `OnChange:` are builtin names too, but unlike Label or
+		// Class the engine routes them only through a mapping sourced from them.
+		// A widget whose definition has none — a Gallery until #842, a combo
+		// box's click, a data grid filter's change — stored nothing, and a
+		// re-execution that changed only the action reported "Unchanged".
+		// Gated on the language version (validate_widget_language.go).
+		if src, ok := actionKeywordSource(key); ok && !defRoutesActionSource(def, src) {
+			out = append(out, linter.Violation{
+				RuleID:   actionSlotRefused.Code,
+				Severity: linter.SeverityError,
+				Message: fmt.Sprintf(
+					"%s: %s has no action slot `%s:` writes to — the action is dropped on write, "+
+						"and nothing in the widget would run it",
+					locationPrefix, widgetLabel(w.Name, def.MDLName), actionKeywordSpelling(src)),
+				Suggestion: "Put the action on a `container` or `actionbutton` inside the widget, " +
+					"or set it in Studio Pro",
 			})
 			continue
 		}
@@ -1243,8 +1222,8 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 				RuleID:   "MDL-WIDGET05",
 				Severity: linter.SeverityError,
 				Message: fmt.Sprintf(
-					"%s: widget `%s` (%s) property `%s` is datasource-typed — give it a datasource (e.g. `%s: database from Module.Entity`) or use the widget `datasource:` clause; the value written here names an entity but is not a datasource, and is not persisted",
-					locationPrefix, w.Name, def.MDLName, key, key,
+					"%s: %s property `%s` is datasource-typed — give it a datasource (e.g. `%s: database from Module.Entity`) or use the widget `datasource:` clause; the value written here names an entity but is not a datasource, and is not persisted",
+					locationPrefix, widgetLabel(w.Name, def.MDLName), key, key,
 				),
 			})
 			continue
@@ -1257,8 +1236,8 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 				RuleID:   "MDL-WIDGET01",
 				Severity: linter.SeverityError,
 				Message: fmt.Sprintf(
-					"%s: widget `%s` (%s) property `%s` is the widget's internal storage name and is not written from MDL — use `%s:` instead",
-					locationPrefix, w.Name, def.MDLName, key, src,
+					"%s: %s property `%s` is the widget's internal storage name and is not written from MDL — use `%s:` instead",
+					locationPrefix, widgetLabel(w.Name, def.MDLName), key, src,
 				),
 			})
 			continue
@@ -1279,8 +1258,8 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 				RuleID:   "MDL-WIDGET06",
 				Severity: linter.SeverityWarning,
 				Message: fmt.Sprintf(
-					"%s: widget `%s` (%s) property `%s` is recognized but not yet persisted by mxcli — a non-default value will be dropped; set it in Studio Pro if needed",
-					locationPrefix, w.Name, def.MDLName, key,
+					"%s: %s property `%s` is recognized but not yet persisted by mxcli — a non-default value will be dropped; set it in Studio Pro if needed",
+					locationPrefix, widgetLabel(w.Name, def.MDLName), key,
 				),
 			})
 			continue
@@ -1295,8 +1274,8 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 			RuleID:   "MDL-WIDGET01",
 			Severity: linter.SeverityError,
 			Message: fmt.Sprintf(
-				"%s: widget `%s` (%s) has no property `%s`%s",
-				locationPrefix, w.Name, def.MDLName, key, hint,
+				"%s: %s has no property `%s`%s",
+				locationPrefix, widgetLabel(w.Name, def.MDLName), key, hint,
 			),
 		})
 	}
@@ -1588,83 +1567,6 @@ func min3(a, b, c int) int {
 		return b
 	}
 	return c
-}
-
-// validateDataGrid2ColumnNames warns (MDL-WIDGET16) that the names written on a
-// pluggable DataGrid 2's columns are discarded, and says what each column will
-// actually be addressable as.
-//
-// Mendix stores no name on a DataGrid 2 column. Its schema has no name or
-// identifier key at column level — the only human-facing label is `header`, the
-// caption — so the name in `column colLabel (attribute: Label, …)` reaches
-// DataGridColumnSpec, which has no field for it, and is dropped. Everything
-// downstream then addresses the column by a *derived* name: the bound attribute
-// for an attribute column, the sanitized caption otherwise, `colN` as a last
-// resort.
-//
-// The consequence is not obvious from the MDL. An author who wrote `colLabel`
-// reaches for `ALTER PAGE … ON dg1.colLabel` and gets "column not found" for a
-// column they just named, while `describe page` shows a name they never wrote.
-//
-// **One violation per grid, listing its columns.** The first version emitted one
-// per column, which a real project (mxcli-dbreplication, finding F6) reported as
-// 44 infos saying the same thing. It is one fact about the grid; repeating it
-// per column buries the rest of the report without adding information.
-//
-// It warns rather than rejects: the name is harmless, it reads as documentation
-// in the source, and rejecting it would break every existing script — mxcli's
-// own doctype tests name every column. What the author needs is to know which
-// name addresses it.
-func validateDataGrid2ColumnNames(grid *ast.WidgetV3, locationPrefix string) []linter.Violation {
-	if grid == nil || !strings.EqualFold(grid.Type, "DATAGRID") {
-		return nil
-	}
-	var renamed []string
-	for _, child := range grid.Children {
-		if child == nil || !strings.EqualFold(child.Type, "COLUMN") || child.Name == "" {
-			continue
-		}
-		addressable := derivedDataGrid2ColumnName(child)
-		if addressable == "" || strings.EqualFold(addressable, child.Name) {
-			continue
-		}
-		renamed = append(renamed, fmt.Sprintf("%s → %s", child.Name, addressable))
-	}
-	if len(renamed) == 0 {
-		return nil
-	}
-	return []linter.Violation{{
-		RuleID:   "MDL-WIDGET16",
-		Severity: linter.SeverityInfo,
-		Message: fmt.Sprintf(
-			"%s: DataGrid 2 stores no column names, so the names on %s are dropped on write. "+
-				"Address these columns by their derived name in ALTER PAGE (attribute columns "+
-				"key on the bound attribute, others on the caption), and expect DESCRIBE to "+
-				"show it: %s.",
-			locationPrefix, grid.Name, strings.Join(renamed, ", ")),
-	}}
-}
-
-// derivedDataGrid2ColumnName mirrors the name derivation the writer and the page
-// mutator apply, so the warning names the same string ALTER will accept.
-// Deliberately conservative: when it cannot tell (no attribute, no caption — the
-// colN case, which depends on position) it returns "" and nothing is reported,
-// because a wrong name in the message would be worse than none.
-func derivedDataGrid2ColumnName(w *ast.WidgetV3) string {
-	if attr := w.GetAttribute(); attr != "" {
-		parts := strings.Split(attr, ".")
-		return parts[len(parts)-1]
-	}
-	if caption := w.GetCaption(); caption != "" {
-		sanitized := strings.Map(func(r rune) rune {
-			if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' {
-				return r
-			}
-			return '_'
-		}, caption)
-		return strings.Trim(sanitized, "_")
-	}
-	return ""
 }
 
 // builtinPropertyMisuse names builtin MDL properties that are wrong on a

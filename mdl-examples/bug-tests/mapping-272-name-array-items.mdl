@@ -58,7 +58,7 @@ create persistent entity BugTest272.Line ( Sku: String(50) );
 -- `item of` names the item; the two clauses are independent, so naming an item
 -- does not require renaming its array.
 create or modify json structure BugTest272.JSON_Invoice
-  snippet $${"lines": [{"sku": "A1"}], "tags": ["urgent"]}$$
+  sample $${"lines": [{"sku": "A1"}], "tags": ["urgent"]}$$
   custom name map (
     'lines' as 'OrderLines',
     item of 'lines' as 'OrderLine',
@@ -68,10 +68,10 @@ create or modify json structure BugTest272.JSON_Invoice
 -- A ROOT-level array has no key either. `item of 'Root'` names its item — the
 -- element every mapping over an array-rooted structure binds (#248).
 create or modify json structure BugTest272.JSON_Feed
-  snippet $$[{"id": 1}]$$
+  sample $$[{"id": 1}]$$
   custom name map (item of 'Root' as 'Entry');
 
 -- Left unnamed, an item keeps its generated name. This is the control: the new
 -- clause must change nothing for a structure that does not use it.
 create or modify json structure BugTest272.JSON_Plain
-  snippet $${"rows": [{"sku": "A1"}]}$$;
+  sample $${"rows": [{"sku": "A1"}]}$$;

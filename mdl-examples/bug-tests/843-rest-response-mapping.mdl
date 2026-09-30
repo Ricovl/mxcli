@@ -36,17 +36,17 @@ create non-persistent entity ZZB."Routing" (
   "RoutingName": String(200)
 );
 
-create rest client ZZB."MESSlice" (
+create consumed rest service ZZB."MESSlice" (
   BaseUrl: 'http://localhost:3001/api/mes/core/v1',
   Authentication: none
 )
 {
-  operation "SearchRoutes" {
+  operation "SearchRoutes" (
     Method: get,
     Path: '/routes/{id}',
     Parameters: ($id: String),
     Query: ($page: String, $pageSize: String),
-    Headers: ('X-Tenant-Id' = 'demo-tenant-01'),
+    Headers: ('X-Tenant-Id': 'demo-tenant-01'),
     Timeout: 300,
     -- The clause names the target ENTITY and maps JSON fields onto it. Mendix
     -- stores this inline on the operation; it is not a reference to an import
@@ -55,5 +55,5 @@ create rest client ZZB."MESSlice" (
       RoutingCode = routing_code,
       RoutingName = routing_name
     }
-  }
+  )
 };

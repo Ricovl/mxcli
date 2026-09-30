@@ -28,9 +28,14 @@ import (
 // ResetLayout is for `mxcli layout flows`, which rebuilds a stored flow only for
 // its geometry: nothing is carried over from the flow being replaced, not even a
 // hand-placed StartEvent, so every position is the layout engine's own.
+//
+// Quiet is for DESCRIBE's layout check (derivedFlowLayout), which rebuilds the
+// flow it is describing to learn which positions the engine derives: nothing is
+// written and nothing the build would warn about is printed.
 type buildFlowOpts struct {
 	AllowCreate bool
 	ResetLayout bool
+	Quiet       bool
 }
 
 // builtFlow is a Microflow assembled from a statement, plus what the write
@@ -44,6 +49,9 @@ type builtFlow struct {
 	// the project yet — which is how diff decides a statement is an addition.
 	ExistingID          model.ID
 	ExistingContainerID model.ID
+	// VarTypes is the entity each object or list variable of the body holds
+	// ("Module.Entity" or "List of Module.Entity"), as the builder resolved it.
+	VarTypes map[string]string
 }
 
 // builtNanoflow is builtFlow for the distinct Nanoflow document type.
@@ -52,6 +60,7 @@ type builtNanoflow struct {
 	ContainerID         model.ID
 	ExistingID          model.ID
 	ExistingContainerID model.ID
+	VarTypes            map[string]string
 }
 
 // buildMicroflowFromStmt assembles a Microflow from a CREATE MICROFLOW
@@ -414,6 +423,7 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 		measurer:      &layoutMeasurer{varTypes: varTypes},
 		allowWrap:     true,
 		backend:       ctx.Backend,
+		quiet:         opts.Quiet,
 		hierarchy:     hierarchy,
 		restServices:  restServices,
 	}
@@ -435,6 +445,7 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 		ContainerID:         containerID,
 		ExistingID:          existingID,
 		ExistingContainerID: existingContainerID,
+		VarTypes:            builder.varTypes,
 	}, nil
 }
 
@@ -501,6 +512,9 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 	existingExcluded := false
 	var existingDocumentation string
 	preserveDocumentation := false
+	// "Mark as used" has no MDL spelling; the rebuild hardcoded false, so a
+	// rewrite cleared it. A new nanoflow still starts unmarked.
+	existingMarkAsUsed := false
 	existingNanoflows, err := ctx.Backend.ListNanoflows()
 	if err != nil {
 		return nil, mdlerrors.NewBackend("check existing nanoflows", err)
@@ -521,6 +535,7 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		existingAllowedRoles = cloneRoleIDs(existing.AllowedModuleRoles)
 		preserveAllowedRoles = true
 		existingExcluded = existing.Excluded
+		existingMarkAsUsed = existing.MarkAsUsed
 		// A rewrite that carried no doc comment keeps the stored one (#1018).
 		existingDocumentation = existing.Documentation
 		preserveDocumentation = true
@@ -553,7 +568,7 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		ContainerID:   containerID,
 		Name:          s.Name.Name,
 		Documentation: s.Documentation,
-		MarkAsUsed:    false,
+		MarkAsUsed:    existingMarkAsUsed,
 		Excluded:      s.Excluded || existingExcluded,
 	}
 	if preserveDocumentation {
@@ -649,6 +664,9 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 			}
 		}
 		nf.ReturnType = convertASTToMicroflowDataType(s.ReturnType.Type, entityResolver)
+		// `returns T as $Var`. Left empty when not authored, and the backend
+		// then carries the stored one (ako/mxcli#705).
+		nf.ReturnVariableName = s.ReturnType.Variable
 	} else {
 		nf.ReturnType = &microflows.VoidType{}
 	}
@@ -704,6 +722,7 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		hierarchy:    hierarchy,
 		restServices: restServices,
 		isNanoflow:   true,
+		quiet:        opts.Quiet,
 	}
 
 	nf.ObjectCollection = builder.buildFlowGraph(s.Body, s.ReturnType)
@@ -722,6 +741,7 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		ContainerID:         containerID,
 		ExistingID:          existingID,
 		ExistingContainerID: existingContainerID,
+		VarTypes:            builder.varTypes,
 	}, nil
 }
 

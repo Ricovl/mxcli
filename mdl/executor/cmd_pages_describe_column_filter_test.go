@@ -185,7 +185,7 @@ func TestDataGrid2Column_EmitsContentAndFilterWidgets(t *testing.T) {
 			"deletes the filter (ako/mxcli#489):\n%s", out)
 	}
 	// A body, not a bare column line, or the output cannot re-parse.
-	if !strings.Contains(out, "column Active") || !strings.Contains(out, "{") {
+	if !strings.Contains(out, "column (Caption: 'Active', ShowContentAs: customContent) {") {
 		t.Errorf("column should be emitted with a body:\n%s", out)
 	}
 }

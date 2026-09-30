@@ -39,10 +39,7 @@ CREATE PERSISTENT ENTITY MyFirstModule.Order (
 );
 
 CREATE ASSOCIATION MyFirstModule.Order_Customer
-  FROM MyFirstModule.Order TO MyFirstModule.Customer
-  TYPE Reference
-  OWNER Default
-  DELETE_BEHAVIOR DELETE_BUT_KEEP_REFERENCES;
+  FROM MyFirstModule.Order TO MyFirstModule.Customer;
 ```
 
 ## DESCRIBE MICROFLOW
@@ -85,7 +82,7 @@ Example output:
 ```sql
 CREATE PAGE MyFirstModule.Customer_Edit
 (
-  Params: { $Customer: MyFirstModule.Customer },
+  Params: ( $Customer: MyFirstModule.Customer ),
   Title: 'Edit Customer',
   Layout: Atlas_Core.PopupLayout
 )
@@ -96,8 +93,8 @@ CREATE PAGE MyFirstModule.Customer_Edit
     TEXTBOX txtPhone (Label: 'Phone', Attribute: Phone)
 
     FOOTER footer1 {
-      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
-      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
+      ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
+      ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
 };
@@ -127,12 +124,11 @@ Each value is followed by its caption (the display label shown to end users).
 DESCRIBE ASSOCIATION MyFirstModule.Order_Customer;
 ```
 
+DESCRIBE prints only the clauses that differ from the defaults (`TYPE Reference`, `OWNER Default`, `STORAGE COLUMN`, `ON DELETE SET NULL`), so an association that uses all of them comes back as just its ends:
+
 ```sql
 CREATE ASSOCIATION MyFirstModule.Order_Customer
-  FROM MyFirstModule.Order TO MyFirstModule.Customer
-  TYPE Reference
-  OWNER Default
-  DELETE_BEHAVIOR DELETE_BUT_KEEP_REFERENCES;
+  FROM MyFirstModule.Order TO MyFirstModule.Customer;
 ```
 
 ## DESCRIBE MODULE
@@ -161,7 +157,7 @@ DESCRIBE CONSTANT MyFirstModule.ApiBaseUrl;
 DESCRIBE JSON STRUCTURE MyFirstModule.CustomerResponse;
 DESCRIBE IMPORT MAPPING MyFirstModule.IMM_Customer;
 DESCRIBE EXPORT MAPPING MyFirstModule.EMM_Customer;
-DESCRIBE REST CLIENT MyFirstModule.PetStoreAPI;
+DESCRIBE CONSUMED REST SERVICE MyFirstModule.PetStoreAPI;
 DESCRIBE IMAGE COLLECTION MyFirstModule.Icons;
 DESCRIBE NAVIGATION;
 DESCRIBE SETTINGS;
@@ -201,8 +197,9 @@ mxcli search -p app.mpr "validation"
 # Show only element names (no context)
 mxcli search -p app.mpr "validation" --format names
 
-# JSON output for programmatic use
-mxcli search -p app.mpr "validation" --format json
+# JSON output for programmatic use (stdout is only the JSON array;
+# progress goes to stderr, and no matches is [])
+mxcli search -p app.mpr "validation" --json
 ```
 
 The `--format names` option is useful for piping into other commands:
@@ -220,8 +217,8 @@ A typical exploration workflow looks like this:
 
 1. **Start broad** with SHOW to see what exists:
    ```sql
-   SHOW MODULES;
-   SHOW ENTITIES IN Sales;
+   LIST MODULES;
+   LIST ENTITIES IN Sales;
    ```
 
 2. **Zoom in** with DESCRIBE on interesting elements:
@@ -237,4 +234,4 @@ A typical exploration workflow looks like this:
 
 This workflow mirrors how you would explore a project in Mendix Studio Pro -- browsing the project explorer, opening documents, and using Find to locate things.
 
-Next, learn how to get a compact overview of the entire project with [SHOW STRUCTURE](show-structure.md).
+Next, learn how to get a compact overview of the entire project with [DESCRIBE STRUCTURE](describe-structure.md).

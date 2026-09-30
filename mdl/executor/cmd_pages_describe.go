@@ -86,20 +86,21 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 		fmt.Fprintln(ctx.Output, "@excluded")
 	}
 
-	// V3 syntax: CREATE PAGE Module.Page (Title: '...', Layout: ..., Params: { })
+	// V3 syntax: CREATE PAGE Module.Page (Title: '...', Layout: ..., Params: ( ))
 	header := fmt.Sprintf("create or modify page %s.%s", modName, foundPage.Name)
+	// The folder is a clause after the name (R9); `Folder:` is its alias.
+	if folderPath := h.BuildFolderPath(foundPage.ContainerID); folderPath != "" {
+		header += " folder " + mdlQuote(ctx, folderPath)
+	}
 	props := []string{}
 	if title != "" {
-		props = append(props, fmt.Sprintf("Title: %s", mdlQuote(title)))
+		props = append(props, fmt.Sprintf("Title: %s", mdlQuote(ctx, title)))
 	}
 	if layoutName != "" {
 		props = append(props, fmt.Sprintf("Layout: %s", layoutName))
 	}
 	if foundPage.URL != "" {
-		props = append(props, fmt.Sprintf("Url: %s", mdlQuote(foundPage.URL)))
-	}
-	if folderPath := h.BuildFolderPath(foundPage.ContainerID); folderPath != "" {
-		props = append(props, fmt.Sprintf("Folder: %s", mdlQuote(folderPath)))
+		props = append(props, fmt.Sprintf("Url: %s", mdlQuote(ctx, foundPage.URL)))
 	}
 	// Pop-up dimensions (issues #661, #713) — emit only non-default values so
 	// the CREATE PAGE header round-trips. Studio Pro's default is 0/0 (auto-size);
@@ -121,10 +122,10 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 		// only when set so the CREATE PAGE header round-trips.
 		if ap, ok := rawData["Appearance"].(map[string]any); ok {
 			if cls, _ := ap["Class"].(string); cls != "" {
-				props = append(props, fmt.Sprintf("Class: %s", mdlQuote(cls)))
+				props = append(props, fmt.Sprintf("Class: %s", mdlQuote(ctx, cls)))
 			}
 			if st, _ := ap["Style"].(string); st != "" {
-				props = append(props, fmt.Sprintf("Style: %s", mdlQuote(st)))
+				props = append(props, fmt.Sprintf("Style: %s", mdlQuote(ctx, st)))
 			}
 		}
 	}
@@ -134,7 +135,7 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 			typeName := pageParamTypeMDL(p)
 			params = append(params, fmt.Sprintf("$%s: %s", p.Name, typeName))
 		}
-		props = append(props, fmt.Sprintf("Params: { %s }", strings.Join(params, ", ")))
+		props = append(props, fmt.Sprintf("Params: ( %s )", strings.Join(params, ", ")))
 	}
 	// Output page variables from raw BSON
 	if rawData != nil {
@@ -154,9 +155,9 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 						varTypeName = pageVariableMDLType(vtType, enumQN)
 					}
 				}
-				varParts = append(varParts, fmt.Sprintf("$%s: %s = %s", varName, varTypeName, mdlQuote(defaultVal)))
+				varParts = append(varParts, fmt.Sprintf("$%s: %s = %s", varName, varTypeName, mdlQuote(ctx, defaultVal)))
 			}
-			props = append(props, fmt.Sprintf("Variables: { %s }", strings.Join(varParts, ", ")))
+			props = append(props, fmt.Sprintf("Variables: ( %s )", strings.Join(varParts, ", ")))
 		}
 	}
 
@@ -190,7 +191,7 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 			fmt.Fprint(ctx.Output, "  }\n")
 		}
 	}
-	fmt.Fprint(ctx.Output, "}")
+	fmt.Fprint(ctx.Output, "};")
 
 	// Add GRANT VIEW if roles are assigned
 	if len(foundPage.AllowedRoles) > 0 {
@@ -271,8 +272,11 @@ func describeSnippet(ctx *ExecContext, name ast.QualifiedName) error {
 
 	// Output CREATE SNIPPET statement (V3 syntax)
 	fmt.Fprintf(ctx.Output, "create or modify snippet %s.%s", modName, foundSnippet.Name)
-	folderPath := h.BuildFolderPath(foundSnippet.ContainerID)
-	if len(params) > 0 || folderPath != "" {
+	// The folder is a clause after the name (R9); `Folder:` is its alias.
+	if folderPath := h.BuildFolderPath(foundSnippet.ContainerID); folderPath != "" {
+		fmt.Fprintf(ctx.Output, " folder %s", mdlQuote(ctx, folderPath))
+	}
+	if len(params) > 0 {
 		snippetProps := []string{}
 		if len(params) > 0 {
 			paramParts := []string{}
@@ -280,10 +284,7 @@ func describeSnippet(ctx *ExecContext, name ast.QualifiedName) error {
 				paramName, _ := p["Name"].(string)
 				paramParts = append(paramParts, fmt.Sprintf("$%s: %s", paramName, snippetParamTypeMDL(p["ParameterType"])))
 			}
-			snippetProps = append(snippetProps, fmt.Sprintf("Params: { %s }", strings.Join(paramParts, ", ")))
-		}
-		if folderPath != "" {
-			snippetProps = append(snippetProps, fmt.Sprintf("Folder: %s", mdlQuote(folderPath)))
+			snippetProps = append(snippetProps, fmt.Sprintf("Params: ( %s )", strings.Join(paramParts, ", ")))
 		}
 		fmt.Fprintf(ctx.Output, " (%s)", strings.Join(snippetProps, ", "))
 	}
@@ -295,10 +296,10 @@ func describeSnippet(ctx *ExecContext, name ast.QualifiedName) error {
 		for _, w := range rawWidgets {
 			outputWidgetMDLV3(ctx, w, 1)
 		}
-		fmt.Fprint(ctx.Output, "}")
+		fmt.Fprint(ctx.Output, "};")
 	} else {
 		// A widget-less snippet still needs an (empty) body block to re-parse (#626).
-		fmt.Fprint(ctx.Output, " {\n}")
+		fmt.Fprint(ctx.Output, " {\n};")
 	}
 
 	fmt.Fprint(ctx.Output, "\n")
@@ -362,18 +363,18 @@ func describeLayout(ctx *ExecContext, name ast.QualifiedName) error {
 	// Re-executable MDL, not a comment dump: `create layout` exists now, so a
 	// describe that only narrated the tree would be the one document type whose
 	// output cannot be fed back in.
-	header := fmt.Sprintf("  layouttype: %s", mdlQuote(layoutTypeStr))
+	header := fmt.Sprintf("  layouttype: %s", mdlQuote(ctx, layoutTypeStr))
 	if foundLayout.Class != "" {
-		header += fmt.Sprintf(",\n  class: %s", mdlQuote(foundLayout.Class))
+		header += fmt.Sprintf(",\n  class: %s", mdlQuote(ctx, foundLayout.Class))
 	}
-	fmt.Fprintf(ctx.Output, "create layout %s.%s (\n%s\n) {\n",
+	fmt.Fprintf(ctx.Output, "create or modify layout %s.%s (\n%s\n) {\n",
 		modName, mdlIdent(foundLayout.Name), header)
 
 	for _, w := range getLayoutWidgetsFromRaw(ctx, foundLayout.ID) {
 		outputWidgetMDLV3(ctx, w, 1)
 	}
 
-	fmt.Fprint(ctx.Output, "}\n\n")
+	fmt.Fprint(ctx.Output, "};\n\n")
 	return nil
 }
 
@@ -545,6 +546,12 @@ type rawDataSource struct {
 	// are rendered, since both re-parse against the source's own entity.
 	SearchAttributes []string
 	ContextVariable  string // association source: context variable name (empty → $currentObject)
+	// EntitySteps is set on a database source reached over associations from a
+	// context object: a Forms$ListViewXPathSource whose EntityRef is an
+	// IndirectEntityRef. Each hop keeps its stored DestinationEntity, which may
+	// be a specialization of the association's own end and so cannot be
+	// re-derived (ako/mxcli#721 L5). ContextVariable names the start object.
+	EntitySteps []rawEntityStep
 	// Args carries a flow datasource's argument bindings, in stored order. A
 	// microflow used as a datasource needs an argument for every parameter,
 	// exactly as a call action does (#835) — describing it without them yields
@@ -555,6 +562,13 @@ type rawDataSource struct {
 	// comment, so the binding is visible in the output without producing a
 	// statement that cannot be re-executed (#941).
 	Unsupported string
+}
+
+// rawEntityStep is one DomainModels$EntityRefStep: the association crossed and
+// the entity it arrives at.
+type rawEntityStep struct {
+	Association       string
+	DestinationEntity string
 }
 
 // rawDataSourceArg is one argument bound to a flow datasource's parameter.
@@ -568,7 +582,7 @@ type rawDataSourceArg struct {
 // associationSourcePath reconstructs the association navigation of a
 // Forms$AssociationSource (EntityRef = IndirectEntityRef of association steps)
 // into its path ("Module.Assoc" or "Module.Assoc/…") plus the context variable
-// ("currentObject" when the source has no page-parameter SourceVariable).
+// ("currentObject" when the source has no page- or snippet-parameter SourceVariable).
 func associationSourcePath(ds map[string]any) (path, contextVar string) {
 	entityRef, ok := ds["EntityRef"].(map[string]any)
 	if !ok || entityRef == nil {
@@ -592,8 +606,13 @@ func associationSourcePath(ds map[string]any) (path, contextVar string) {
 	}
 	contextVar = "currentObject"
 	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
+		// Inside a snippet the variable is a snippet parameter, in its own slot;
+		// reading PageParameter alone printed `$currentObject/…` and executing
+		// that dropped the binding (ako/mxcli#721 L3).
 		if pp := extractString(sv["PageParameter"]); pp != "" {
 			contextVar = pp
+		} else if sp := extractString(sv["SnippetParameter"]); sp != "" {
+			contextVar = sp
 		}
 	}
 	return strings.Join(assocs, "/"), contextVar
@@ -625,13 +644,16 @@ type rawDataGridColumn struct {
 
 // rawWidget represents a widget from raw BSON data for MDL output.
 type rawWidget struct {
-	Type        string
-	Name        string
-	Content     string
-	Caption     string
-	RenderMode  string
-	Action      string
-	ButtonStyle string
+	Type    string
+	Name    string
+	Content string
+	// SnippetParams is a snippet call's argument list, `P = $v, …`, printed as
+	// `Params: ( … )` (ako/mxcli#826).
+	SnippetParams string
+	Caption       string
+	RenderMode    string
+	Action        string
+	ButtonStyle   string
 	// Icon is the qualified name an icon-collection or image icon points at.
 	// Empty for no icon and for a glyph icon, which carries a numeric Code
 	// instead. IconType keeps the storage $Type so the emitter can tell the
@@ -675,6 +697,7 @@ type rawWidget struct {
 	ValidationMessage    string
 	OnChange             string // MDL rendering of the OnChangeAction client action
 	OnClick              string // MDL rendering of a pluggable widget's onClick action (e.g. DataGrid2)
+	OnClickTrigger       string // Gallery's onClickTrigger when not the default "single" (#842)
 	// Filter widget properties
 	FilterAttributes []string // Attributes to filter on
 	FilterExpression string   // Default filter expression (contains, startsWith, etc.)

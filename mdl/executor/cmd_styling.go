@@ -214,7 +214,7 @@ func execDescribeStyling(ctx *ExecContext, s *ast.DescribeStylingStmt) error {
 		if len(w.DesignProperties) > 0 {
 			// Reuse the DESCRIBE PAGE formatter so toggle/option/compound render
 			// identically across both describe paths (compound = issue #668).
-			fmt.Fprintf(ctx.Output, "  DesignProperties: [%s]\n", joinDesignPropertyEntries(w.DesignProperties))
+			fmt.Fprintf(ctx.Output, "  DesignProperties: (%s)\n", joinDesignPropertyEntries(ctx, w.DesignProperties))
 		}
 	}
 
@@ -337,7 +337,7 @@ func applyStylingMutator(mutator backend.PageMutator, s *ast.AlterStylingStmt, t
 			return mdlerrors.NewUnsupported(fmt.Sprintf(
 				"design property %q takes a SET of options, and `alter styling` writes one value — "+
 					"mxbuild refuses that with CE6084. Set it inline instead: "+
-					"`DesignProperties: ['%s': ['%s': on]]` on the widget, in CREATE PAGE or an "+
+					"`DesignProperties: ('%s': ('%s': on))` on the widget, in CREATE PAGE or an "+
 					"ALTER PAGE REPLACE.",
 				a.Property, a.Property, firstOptionName(multi, a.Value)))
 		}

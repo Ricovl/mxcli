@@ -162,7 +162,7 @@ func listNavigation(ctx *ExecContext) error {
 		return mdlerrors.NewBackend("get navigation", err)
 	}
 
-	if len(nav.Profiles) == 0 {
+	if len(nav.Profiles) == 0 && ctx.Format != FormatJSON {
 		fmt.Fprintln(ctx.Output, "No navigation profiles found.")
 		return nil
 	}
@@ -314,7 +314,7 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 		fmt.Fprintf(ctx.Output, "--   Native: Yes\n")
 	}
 
-	fmt.Fprintf(ctx.Output, "create or replace navigation %s\n", p.Name)
+	fmt.Fprintf(ctx.Output, "create or modify navigation %s\n", p.Name)
 
 	// Home page
 	if p.HomePage != nil {
@@ -344,13 +344,6 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 		fmt.Fprintf(ctx.Output, "  not found page %s\n", p.NotFoundPage)
 	}
 
-	// Menu items
-	if len(p.MenuItems) > 0 {
-		fmt.Fprintln(ctx.Output, "  menu (")
-		printMenuMDL(ctx.Output, p.MenuItems, 2, "CREATE NAVIGATION")
-		fmt.Fprintln(ctx.Output, "  )")
-	}
-
 	// Only emitted when it differs from the platform default, so the clause
 	// appears exactly when it carries information. Describing every profile
 	// with `on sync error throw` would add a line to every navigation script
@@ -365,7 +358,7 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 	if len(p.OfflineEntities) > 0 {
 		fmt.Fprintln(ctx.Output, "  sync (")
 		for _, oe := range p.OfflineEntities {
-			fmt.Fprintf(ctx.Output, "    sync %s %s;\n", oe.Entity, syncModeMDL(oe.SyncMode, oe.Constraint))
+			fmt.Fprintf(ctx.Output, "    sync %s %s;\n", oe.Entity, syncModeMDL(ctx, oe.SyncMode, oe.Constraint))
 		}
 		fmt.Fprintln(ctx.Output, "  )")
 		// CompatibilityMode has no syntax: it is carried through a rewrite
@@ -379,7 +372,14 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 		}
 	}
 
-	fmt.Fprintln(ctx.Output, ";")
+	// Menu items: the profile's children, in { } after its clauses (R2).
+	if len(p.MenuItems) > 0 {
+		fmt.Fprintln(ctx.Output, "{")
+		printMenuMDL(ctx.Output, p.MenuItems, 1, "CREATE NAVIGATION")
+		fmt.Fprintln(ctx.Output, "};")
+	} else {
+		fmt.Fprintln(ctx.Output, ";")
+	}
 	fmt.Fprintln(ctx.Output)
 }
 
@@ -421,23 +421,39 @@ func menuItemTarget(item *types.NavMenuItem) string {
 // printMenuMDL prints menu items in MDL-style format. reproducer names the
 // construct an icon note should point at — navigation menus are authored by
 // CREATE NAVIGATION, while a standalone menu document cannot be authored at all.
+//
+// Each item is a child with the shape every child has (R2, ako/mxcli#754):
+// `menu item 'X' ( OnClick: show page M.P, Icon: I )`, and a sub-menu
+// `menu 'X' ( Icon: I ) { … }`. A child ends in `)` or `}`, or in its caption
+// when it has no properties, so no separator is written.
 func printMenuMDL(w io.Writer, items []*types.NavMenuItem, depth int, reproducer string) {
 	indent := strings.Repeat("  ", depth)
 	for _, item := range items {
-		icon := menuItemIconMDL(item)
+		var props []string
+		if len(item.Items) == 0 {
+			switch {
+			case item.Page != "":
+				props = append(props, "OnClick: show page "+item.Page)
+			case item.Microflow != "":
+				props = append(props, "OnClick: call microflow "+item.Microflow)
+			case item.ActionType == "SignOutAction":
+				props = append(props, "OnClick: sign out")
+			}
+		}
+		if icon := menuItemIconMDL(item); icon != "" {
+			props = append(props, "Icon: "+icon)
+		}
+		propList := ""
+		if len(props) > 0 {
+			propList = " ( " + strings.Join(props, ", ") + " )"
+		}
 		if len(item.Items) > 0 {
 			// Sub-menu container
-			fmt.Fprintf(w, "%smenu '%s'%s (\n", indent, item.Caption, icon)
+			fmt.Fprintf(w, "%smenu '%s'%s {\n", indent, item.Caption, propList)
 			printMenuMDL(w, item.Items, depth+1, reproducer)
-			fmt.Fprintf(w, "%s);\n", indent)
-		} else if item.Page != "" {
-			fmt.Fprintf(w, "%smenu item '%s' page %s%s;\n", indent, item.Caption, item.Page, icon)
-		} else if item.Microflow != "" {
-			fmt.Fprintf(w, "%smenu item '%s' microflow %s%s;\n", indent, item.Caption, item.Microflow, icon)
-		} else if item.ActionType == "SignOutAction" {
-			fmt.Fprintf(w, "%smenu item '%s' sign_out%s;\n", indent, item.Caption, icon)
+			fmt.Fprintf(w, "%s}\n", indent)
 		} else {
-			fmt.Fprintf(w, "%smenu item '%s'%s;\n", indent, item.Caption, icon)
+			fmt.Fprintf(w, "%smenu item '%s'%s\n", indent, item.Caption, propList)
 		}
 		if note := menuItemIconNote(item, reproducer); note != "" {
 			fmt.Fprintf(w, "%s%s\n", indent, note)
@@ -445,7 +461,7 @@ func printMenuMDL(w io.Writer, items []*types.NavMenuItem, depth int, reproducer
 	}
 }
 
-// menuItemIconMDL renders the ICON clause for a menu item, or "" when there is
+// menuItemIconMDL renders a menu item's `Icon:` value, or "" when there is
 // nothing CREATE NAVIGATION can reproduce.
 //
 // All three of Mendix's icon elements have a form now. Only the collection one
@@ -460,17 +476,17 @@ func menuItemIconMDL(item *types.NavMenuItem) string {
 		if item.IconCode == 0 {
 			return ""
 		}
-		return fmt.Sprintf(" icon glyph %d", item.IconCode)
+		return fmt.Sprintf("glyph %d", item.IconCode)
 	case types.MenuIconImage:
 		if item.Icon == "" {
 			return ""
 		}
-		return " icon image " + quoteQualifiedName(item.Icon)
+		return "image " + quoteQualifiedName(item.Icon)
 	case types.MenuIconCollection:
 		if item.Icon == "" {
 			return ""
 		}
-		return " icon " + quoteQualifiedName(item.Icon)
+		return quoteQualifiedName(item.Icon)
 	}
 	return ""
 }
@@ -555,7 +571,7 @@ func singleLine(s string) string {
 // round-trips: emitting the stored member verbatim would produce `sync X
 // Constrained`, which is not MDL, and emitting a Studio Pro caption would
 // produce a document mxbuild refuses.
-func syncModeMDL(mode, constraint string) string {
+func syncModeMDL(ctx *ExecContext, mode, constraint string) string {
 	switch mode {
 	case "Online":
 		return "online"
@@ -577,11 +593,14 @@ func syncModeMDL(mode, constraint string) string {
 		// Studio Pro stores the constraint bracketed, so the folded value is
 		// normally already `[...]`; one without them is wrapped rather than
 		// assumed to have them.
+		//
+		// A string in it is spelled for the describe language (describeXPath,
+		// ako/mxcli#825).
 		x := singleLine(constraint)
 		if !strings.HasPrefix(x, "[") || !strings.HasSuffix(x, "]") {
 			x = "[" + x + "]"
 		}
-		return "where " + x
+		return "where " + describeXPath(ctx, x)
 	default:
 		// An unknown member is not guessed at. Emitting a mode MDL cannot spell
 		// would produce a script that fails at check; saying so is honest and

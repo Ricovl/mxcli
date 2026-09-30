@@ -3,45 +3,49 @@
 package visitor
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
-// exitAlterPageStatement handles ALTER PAGE/SNIPPET Module.Name { operations }
-func (b *Builder) exitAlterPageStatement(ctx *parser.AlterStatementContext) {
+// exitAlterDocumentStatement handles the generic
+// ALTER <type> Module.Name { set / insert / replace / drop } (ADR-0012
+// decision 2). The page family — page, snippet, layout — is the first set of
+// document types on it, and builds the AlterPageStmt every page validator and
+// the executor already speak.
+func (b *Builder) exitAlterDocumentStatement(ctx *parser.AlterStatementContext) {
 	stmt := &ast.AlterPageStmt{}
 
-	// Container type
+	docType := ctx.AlterDocumentType().(*parser.AlterDocumentTypeContext)
 	switch {
-	case ctx.SNIPPET() != nil:
+	case docType.SNIPPET() != nil:
 		stmt.ContainerType = "SNIPPET"
-	case ctx.LAYOUT() != nil:
+	case docType.LAYOUT() != nil:
 		stmt.ContainerType = "LAYOUT"
 	default:
 		stmt.ContainerType = "PAGE"
 	}
 
-	// Page/snippet name
 	if qn := ctx.QualifiedName(); qn != nil {
 		stmt.PageName = buildQualifiedName(qn)
 	}
 
-	// Parse operations
-	for _, opCtx := range ctx.AllAlterPageOperation() {
-		op := opCtx.(*parser.AlterPageOperationContext)
+	for _, opCtx := range ctx.AllAlterOperation() {
+		op := opCtx.(*parser.AlterOperationContext)
 
-		if setCtx := op.AlterPageSet(); setCtx != nil {
-			stmt.Operations = append(stmt.Operations, b.buildAlterPageSet(setCtx.(*parser.AlterPageSetContext)))
-		} else if insertCtx := op.AlterPageInsert(); insertCtx != nil {
-			stmt.Operations = append(stmt.Operations, b.buildAlterPageInsert(insertCtx.(*parser.AlterPageInsertContext)))
-		} else if dropCtx := op.AlterPageDrop(); dropCtx != nil {
-			stmt.Operations = append(stmt.Operations, b.buildAlterPageDrop(dropCtx.(*parser.AlterPageDropContext)))
+		if setCtx := op.AlterSet(); setCtx != nil {
+			stmt.Operations = append(stmt.Operations, b.buildAlterSet(setCtx.(*parser.AlterSetContext)))
+		} else if insertCtx := op.AlterInsert(); insertCtx != nil {
+			stmt.Operations = append(stmt.Operations, b.buildAlterInsert(insertCtx.(*parser.AlterInsertContext)))
+		} else if dropCtx := op.AlterDrop(); dropCtx != nil {
+			stmt.Operations = append(stmt.Operations, b.buildAlterDrop(dropCtx.(*parser.AlterDropContext)))
 		} else if dropTplCtx := op.AlterPageDropTemplate(); dropTplCtx != nil {
 			stmt.Operations = append(stmt.Operations, b.buildAlterPageDropTemplate(dropTplCtx.(*parser.AlterPageDropTemplateContext)))
-		} else if replaceCtx := op.AlterPageReplace(); replaceCtx != nil {
-			stmt.Operations = append(stmt.Operations, b.buildAlterPageReplace(replaceCtx.(*parser.AlterPageReplaceContext)))
+		} else if replaceCtx := op.AlterReplace(); replaceCtx != nil {
+			stmt.Operations = append(stmt.Operations, b.buildAlterReplace(replaceCtx.(*parser.AlterReplaceContext)))
 		} else if addVarCtx := op.AlterPageAddVariable(); addVarCtx != nil {
 			stmt.Operations = append(stmt.Operations, b.buildAlterPageAddVariable(addVarCtx.(*parser.AlterPageAddVariableContext)))
 		} else if dropVarCtx := op.AlterPageDropVariable(); dropVarCtx != nil {
@@ -59,31 +63,29 @@ func (b *Builder) buildAlterPageDropTemplate(ctx *parser.AlterPageDropTemplateCo
 	if qn := ctx.QualifiedName(); qn != nil {
 		op.Specialization = qn.GetText()
 	}
-	if wr := ctx.WidgetRef(); wr != nil {
-		op.ListView = buildWidgetRef(wr).Widget
+	if tr := ctx.AlterTarget(); tr != nil {
+		op.ListView = b.buildAlterTarget(tr).Widget
 	}
 	return op
 }
 
-// buildAlterPageSet builds a SetPropertyOp or SetLayoutOp from the parse tree.
-func (b *Builder) buildAlterPageSet(ctx *parser.AlterPageSetContext) ast.AlterPageOperation {
+// buildAlterSet builds a SetPropertyOp or SetLayoutOp from the parse tree.
+func (b *Builder) buildAlterSet(ctx *parser.AlterSetContext) ast.AlterPageOperation {
 	// SET Layout = Module.LayoutName [MAP (...)]
 	if ctx.LAYOUT() != nil {
-		return b.buildAlterPageSetLayout(ctx)
+		return b.buildAlterSetLayout(ctx)
 	}
 
 	op := &ast.SetPropertyOp{
 		Properties: make(map[string]interface{}),
 	}
 
-	// Widget ref (if ON widgetRef is present)
 	if ctx.ON() != nil {
-		if wr := ctx.WidgetRef(); wr != nil {
-			op.Target = buildWidgetRef(wr)
+		if tr := ctx.AlterTarget(); tr != nil {
+			op.Target = b.buildAlterTarget(tr)
 		}
 	}
 
-	// Parse assignments
 	for _, assignCtx := range ctx.AllAlterPageAssignment() {
 		assign := assignCtx.(*parser.AlterPageAssignmentContext)
 		name, value := b.buildAlterPageAssignment(assign)
@@ -91,12 +93,13 @@ func (b *Builder) buildAlterPageSet(ctx *parser.AlterPageSetContext) ast.AlterPa
 			op.Properties[name] = value
 		}
 	}
+	b.recordAlterPageSet(ctx)
 
 	return op
 }
 
-// buildAlterPageSetLayout builds a SetLayoutOp from: SET Layout = QN [MAP (old -> new, ...)]
-func (b *Builder) buildAlterPageSetLayout(ctx *parser.AlterPageSetContext) *ast.SetLayoutOp {
+// buildAlterSetLayout builds a SetLayoutOp from: SET Layout = QN [MAP (old -> new, ...)]
+func (b *Builder) buildAlterSetLayout(ctx *parser.AlterSetContext) *ast.SetLayoutOp {
 	op := &ast.SetLayoutOp{}
 
 	// Layout qualified name
@@ -130,7 +133,7 @@ func (b *Builder) buildAlterPageAssignment(ctx *parser.AlterPageAssignmentContex
 		name := identifierOrKeywordText(id)
 		if isWidgetExpressionProp(name) {
 			if v := lastRuleChild(ctx); v != nil {
-				return name, widgetExpressionValue(v)
+				return name, b.widgetExpressionPropValue(name, v)
 			}
 		}
 		if expr := ctx.Expression(); expr != nil {
@@ -156,7 +159,7 @@ func (b *Builder) buildAlterPageAssignment(ctx *parser.AlterPageAssignmentContex
 			return identifierOrKeywordText(id), buildActionV3(acCtx)
 		}
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			return unquoteString(sl.GetText()), buildActionV3(acCtx)
+			return unquoteStringLit(sl), buildActionV3(acCtx)
 		}
 		return "Action", buildActionV3(acCtx)
 	}
@@ -173,13 +176,25 @@ func (b *Builder) buildAlterPageAssignment(ctx *parser.AlterPageAssignmentContex
 			return "EditableIf", buildConditionalExpression(xc)
 		}
 	}
+	// Visible: <expression> / Editable: <expression> — the canonical form, the
+	// expression stored as written (R5); a plain value keeps the key it had
+	// when it reached the generic alternative below.
+	if kw := visibleOrEditable(ctx.VISIBLE(), ctx.EDITABLE()); kw != nil {
+		if e := ctx.Expression(); e != nil {
+			if ctx.VISIBLE() != nil {
+				return "VisibleIf", bareArgumentText(e)
+			}
+			return "EditableIf", bareArgumentText(e)
+		}
+		return kw.GetText(), buildPropertyValueV3(ctx.PropertyValueV3())
+	}
 
 	var name string
 
 	if id := ctx.IdentifierOrKeyword(); id != nil {
 		name = identifierOrKeywordText(id)
 	} else if sl := ctx.STRING_LITERAL(); sl != nil {
-		name = unquoteString(sl.GetText())
+		name = unquoteStringLit(sl)
 	}
 
 	value := buildPropertyValueV3(ctx.PropertyValueV3())
@@ -187,8 +202,8 @@ func (b *Builder) buildAlterPageAssignment(ctx *parser.AlterPageAssignmentContex
 	return name, value
 }
 
-// buildAlterPageInsert builds an InsertWidgetOp from the parse tree.
-func (b *Builder) buildAlterPageInsert(ctx *parser.AlterPageInsertContext) *ast.InsertWidgetOp {
+// buildAlterInsert builds an InsertWidgetOp from the parse tree.
+func (b *Builder) buildAlterInsert(ctx *parser.AlterInsertContext) *ast.InsertWidgetOp {
 	op := &ast.InsertWidgetOp{}
 
 	if ctx.AFTER() != nil {
@@ -199,58 +214,86 @@ func (b *Builder) buildAlterPageInsert(ctx *parser.AlterPageInsertContext) *ast.
 		op.Position = "INTO"
 	}
 
-	if wr := ctx.WidgetRef(); wr != nil {
-		op.Target = buildWidgetRef(wr)
+	if tr := ctx.AlterTarget(); tr != nil {
+		op.Target = b.buildAlterTarget(tr)
 	}
 
-	if body := ctx.PageBodyV3(); body != nil {
-		op.Widgets = buildPageBodyV3(body, b)
-	}
-
+	op.Widgets = b.buildAlterFragment(ctx.AlterFragment())
 	return op
 }
 
-// buildAlterPageDrop builds a DropWidgetOp from the parse tree.
-func (b *Builder) buildAlterPageDrop(ctx *parser.AlterPageDropContext) *ast.DropWidgetOp {
+// buildAlterDrop builds a DropWidgetOp from the parse tree.
+func (b *Builder) buildAlterDrop(ctx *parser.AlterDropContext) *ast.DropWidgetOp {
 	op := &ast.DropWidgetOp{}
-
-	for _, wr := range ctx.AllWidgetRef() {
-		op.Targets = append(op.Targets, buildWidgetRef(wr))
+	b.recordAlterPageDropWidget(ctx)
+	for _, tr := range ctx.AllAlterTarget() {
+		op.Targets = append(op.Targets, b.buildAlterTarget(tr))
 	}
-
 	return op
 }
 
-// buildAlterPageReplace builds a ReplaceWidgetOp from the parse tree.
-func (b *Builder) buildAlterPageReplace(ctx *parser.AlterPageReplaceContext) *ast.ReplaceWidgetOp {
+// buildAlterReplace builds a ReplaceWidgetOp from the parse tree.
+func (b *Builder) buildAlterReplace(ctx *parser.AlterReplaceContext) *ast.ReplaceWidgetOp {
 	op := &ast.ReplaceWidgetOp{}
 
-	if wr := ctx.WidgetRef(); wr != nil {
-		op.Target = buildWidgetRef(wr)
+	if tr := ctx.AlterTarget(); tr != nil {
+		op.Target = b.buildAlterTarget(tr)
 	}
 
-	if body := ctx.PageBodyV3(); body != nil {
-		op.NewWidgets = buildPageBodyV3(body, b)
-	}
-
+	op.NewWidgets = b.buildAlterFragment(ctx.AlterFragment())
 	return op
 }
 
-// buildWidgetRef extracts a WidgetRef from a widgetRef grammar context.
-// Supports both plain "btnSave" and dotted "dgProducts.Name" references.
-func buildWidgetRef(ctx parser.IWidgetRefContext) ast.WidgetRef {
-	wrCtx := ctx.(*parser.WidgetRefContext)
-	ids := wrCtx.AllIdentifierOrKeyword()
-	if len(ids) == 2 {
-		return ast.WidgetRef{
-			Widget: identifierOrKeywordText(ids[0]),
-			Column: identifierOrKeywordText(ids[1]),
+// buildAlterFragment builds the widgets of an INSERT / REPLACE fragment, which
+// is written exactly as CREATE PAGE writes its body.
+func (b *Builder) buildAlterFragment(ctx parser.IAlterFragmentContext) []*ast.WidgetV3 {
+	if ctx == nil {
+		return nil
+	}
+	if body := ctx.(*parser.AlterFragmentContext).PageBodyV3(); body != nil {
+		return buildPageBodyV3(body, b)
+	}
+	return nil
+}
+
+// buildAlterTarget extracts the generic ALTER address — a name, a dotted
+// name.member, or a quoted caption, each with an optional @n. What an address
+// means is the document type's call (backend.AlterTargetResolver); this only
+// records what was written.
+func (b *Builder) buildAlterTarget(ctx parser.IAlterTargetContext) ast.WidgetRef {
+	tc := ctx.(*parser.AlterTargetContext)
+	var ref ast.WidgetRef
+	if n := tc.NUMBER_LITERAL(); n != nil {
+		// @n counts matches from 1, as the ambiguity error lists them.
+		if v, err := strconv.Atoi(n.GetText()); err == nil && v >= 1 {
+			ref.Ordinal = v
+		} else {
+			b.addError(fmt.Errorf("alter target %s: @%s is not a match number — matches are counted from @1",
+				tc.GetText(), n.GetText()))
 		}
 	}
-	if len(ids) == 1 {
-		return ast.WidgetRef{Widget: identifierOrKeywordText(ids[0])}
+	if tc.COLUMN() != nil {
+		// `grid column(Attr)` / `grid column('Caption')` (#749).
+		ref.Widget = identifierOrKeywordText(tc.IdentifierOrKeyword(0))
+		if sl := tc.STRING_LITERAL(); sl != nil {
+			ref.ColumnCaption = unquoteStringLit(sl)
+		} else if ap := tc.AttributePathV3(); ap != nil {
+			ref.ColumnAttribute = buildAttributePathV3(ap)
+		}
+		return ref
 	}
-	return ast.WidgetRef{}
+	if sl := tc.STRING_LITERAL(); sl != nil {
+		ref.Caption = unquoteStringLit(sl)
+		return ref
+	}
+	ids := tc.AllIdentifierOrKeyword()
+	if len(ids) >= 1 {
+		ref.Widget = identifierOrKeywordText(ids[0])
+	}
+	if len(ids) == 2 {
+		ref.Column = identifierOrKeywordText(ids[1])
+	}
+	return ref
 }
 
 // buildAlterPageAddVariable builds an AddVariableOp from the parse tree.
@@ -322,7 +365,7 @@ func (b *Builder) exitAlterPagesStylingStatement(ctx *parser.AlterPagesStylingSt
 	}
 	if lit := ctx.STRING_LITERAL(); lit != nil {
 		// The WHERE value as a quoted string — a full widget id.
-		stmt.WidgetType = unquoteString(lit.GetText())
+		stmt.WidgetType = unquoteStringLit(lit)
 	} else if len(ids) > 0 {
 		stmt.WidgetType = identifierOrKeywordText(ids[0])
 	}
@@ -333,14 +376,14 @@ func (b *Builder) exitAlterPagesStylingStatement(ctx *parser.AlterPagesStylingSt
 		if len(lits) == 0 {
 			continue
 		}
-		assignment := ast.StylingAssignment{Property: unquoteString(lits[0].GetText())}
+		assignment := ast.StylingAssignment{Property: unquoteStringLit(lits[0])}
 		switch {
 		case ac.ON() != nil:
 			assignment.IsToggle, assignment.ToggleOn = true, true
 		case ac.OFF() != nil:
 			assignment.IsToggle, assignment.ToggleOn = true, false
 		case len(lits) > 1:
-			assignment.Value = unquoteString(lits[1].GetText())
+			assignment.Value = unquoteStringLit(lits[1])
 		}
 		stmt.Assignments = append(stmt.Assignments, assignment)
 	}

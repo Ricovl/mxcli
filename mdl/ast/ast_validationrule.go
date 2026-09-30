@@ -45,3 +45,18 @@ type CreateValidationRuleStmt struct {
 }
 
 func (s *CreateValidationRuleStmt) isStatement() {}
+
+// DropValidationRuleStmt represents:
+//
+//	DROP VALIDATION RULE [IF EXISTS] FOR Module.Entity.Attribute [REGEX | RANGE]
+//
+// A rule is anonymous and keyed by its attribute, so the statement names the
+// attribute. Kind "" drops both the regex and the range rule; Required and
+// Unique are attribute constraints (`not null`, `unique`) and are not touched.
+type DropValidationRuleStmt struct {
+	DropGuard
+	Attribute QualifiedName
+	Kind      ValidationRuleKind
+}
+
+func (s *DropValidationRuleStmt) isStatement() {}

@@ -5,11 +5,10 @@ Snippets are reusable page fragments that can be embedded in multiple pages. The
 ## CREATE SNIPPET
 
 ```sql
-CREATE [OR REPLACE] SNIPPET <Module>.<Name>
-(
-  [Params: { $Param: Module.Entity [, ...] },]
-  [Folder: '<path>']
-)
+CREATE [OR REPLACE] SNIPPET <Module>.<Name> [FOLDER '<path>']
+[(
+  Params: ( $Param: Module.Entity [, ...] )
+)]
 {
   <widget-tree>
 }
@@ -20,10 +19,7 @@ CREATE [OR REPLACE] SNIPPET <Module>.<Name>
 A snippet without parameters:
 
 ```sql
-CREATE SNIPPET MyModule.Footer
-(
-  Folder: 'Snippets'
-)
+CREATE SNIPPET MyModule.Footer FOLDER 'Snippets'
 {
   CONTAINER cFooter (Class: 'app-footer') {
     DYNAMICTEXT txtCopyright (Content: '2024 My Company. All rights reserved.')
@@ -38,7 +34,7 @@ Snippets can accept entity parameters, similar to pages:
 ```sql
 CREATE SNIPPET MyModule.CustomerCard
 (
-  Params: { $Customer: MyModule.Customer }
+  Params: ( $Customer: MyModule.Customer )
 )
 {
   CONTAINER cCard (Class: 'card') {
@@ -47,7 +43,7 @@ CREATE SNIPPET MyModule.CustomerCard
       DYNAMICTEXT txtEmail (Content: '{1}', Attribute: Email)
       ACTIONBUTTON btnEdit (
         Caption: 'Edit',
-        Action: SHOW_PAGE MyModule.Customer_Edit,
+        Action: SHOW PAGE MyModule.Customer_Edit,
         ButtonStyle: Primary
       )
     }
@@ -72,11 +68,23 @@ CREATE PAGE MyModule.Home
 }
 ```
 
+A snippet with parameters takes its arguments in `Params:`, one `Param = $variable`
+each. The variable is a parameter of the calling page, or — for a call inside
+another snippet — a parameter of that snippet. A parameter the enclosing data
+context satisfies is left out:
+
+```sql
+SNIPPETCALL scCard (Snippet: MyModule.CustomerCard, Params: (Customer = $Customer))
+```
+
+`DESCRIBE` prints the arguments in this form, so a snippet call keeps its
+mappings through describe and exec.
+
 ## Inspecting Snippets
 
 ```sql
 -- List all snippets in a module
-SHOW SNIPPETS IN MyModule;
+LIST SNIPPETS IN MyModule;
 
 -- View full MDL definition
 DESCRIBE SNIPPET MyModule.CustomerCard;
@@ -94,7 +102,7 @@ Snippets support the same in-place modification operations as pages. See [ALTER 
 
 ```sql
 ALTER SNIPPET MyModule.CustomerCard {
-  SET Caption = 'View Details' ON btnEdit;
+  SET (Caption: 'View Details') ON btnEdit;
   INSERT AFTER txtEmail {
     DYNAMICTEXT txtPhone (Content: '{1}', Attribute: Phone)
   };

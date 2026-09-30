@@ -29,7 +29,7 @@ import (
 //     (mendixlabs/mxcli#1046). The writer put the whole string in the attribute
 //     name, so the model came out naming an attribute that could never exist:
 //
-//     ContentParams: [{1} = $Customer/Name]
+//     ContentParams: ({1} = $Customer/Name)
 //     mx check -> [CE1613] "The selected attribute
 //     'Bench.Customer.$Customer/Name' no longer exists."
 //
@@ -383,12 +383,7 @@ func forEachWidget(stmt ast.Statement, fn func(w *ast.WidgetV3, where string)) {
 	switch s := stmt.(type) {
 	case *ast.CreatePageStmtV3:
 		doc = "page " + s.Name.String()
-		roots = append(roots, s.Widgets...)
-		for _, ph := range s.Placeholders {
-			if ph != nil {
-				roots = append(roots, ph.Widgets...)
-			}
-		}
+		roots = allPageWidgets(s)
 	case *ast.CreateSnippetStmtV3:
 		doc = "snippet " + s.Name.String()
 		roots = append(roots, s.Widgets...)

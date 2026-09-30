@@ -48,7 +48,9 @@ func TestDescribeWorkflow_Mock(t *testing.T) {
 	assertNoError(t, describeWorkflow(ctx, ast.QualifiedName{Module: "Sales", Name: "ApproveOrder"}))
 
 	out := buf.String()
-	assertContainsStr(t, out, "create workflow")
+	assertTerminated(t, out) // #744
+	// The rewrite carries what describe cannot print, proven on ako/TestApp (#743).
+	assertContainsStr(t, out, "create or modify workflow")
 	assertContainsStr(t, out, "Sales.ApproveOrder")
 
 	// Roundtrip: DESCRIBE output must be parseable as valid MDL (issue #478)

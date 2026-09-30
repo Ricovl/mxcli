@@ -21,7 +21,7 @@
 -- about.
 
 create entity MyMod.SalesOrder (
-  "Order": String(20) not null error 'Order number is required',
+  "Order": String(20) not null error message 'Order number is required',
   "Status": String(20)
 );
 
@@ -30,10 +30,8 @@ create entity MyMod.SalesOrder (
 -- when it applies the grant, so the original order failed partway through a run
 -- even though every statement in it was individually valid. The quoted reserved
 -- word this test is about is unaffected by the position.
-grant MyMod.Administrator on MyMod.SalesOrder (
-  read ("Order", "Status", LineTotal),
-  write ("Order")
-);
+grant read ("Order", "Status", LineTotal),
+  write ("Order") on entity MyMod.SalesOrder to MyMod.Administrator;
 
 create regular expression MyMod.OrderNumber (
   Expression: '^[0-9]+$'
@@ -41,4 +39,4 @@ create regular expression MyMod.OrderNumber (
 
 create validation rule for MyMod.SalesOrder."Order"
   regex MyMod.OrderNumber
-  feedback 'Order number must be numeric';
+  error message 'Order number must be numeric';

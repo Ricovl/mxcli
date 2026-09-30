@@ -257,7 +257,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.QUEUES() != nil {
+	} else if ctx.TaskQueuesKw() != nil {
 		stmt := &ast.ShowQueuesStmt{}
 		if ctx.IN() != nil {
 			if qn := ctx.QualifiedName(); qn != nil {
@@ -462,7 +462,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 				})
 			}
 		}
-	} else if ctx.ODATA() != nil && ctx.CLIENTS() != nil {
+	} else if ctx.ConsumedODataServicesKw() != nil {
 		// SHOW ODATA CLIENTS [IN module]
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowODataClients}
 		if ctx.IN() != nil {
@@ -473,7 +473,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.ODATA() != nil && ctx.SERVICES() != nil {
+	} else if ctx.PublishedODataServicesKw() != nil {
 		// SHOW ODATA SERVICES [IN module]
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowODataServices}
 		if ctx.IN() != nil {
@@ -597,7 +597,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 		// document, so there is no IN clause.
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowGlyphs}
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			stmt.Like = unquoteString(sl.GetText())
+			stmt.Like = unquoteStringLit(sl)
 		}
 		b.statements = append(b.statements, stmt)
 	} else if ctx.ICON() != nil && ctx.COLLECTION() != nil {
@@ -611,7 +611,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.MODELS() != nil {
+	} else if ctx.AiModelsKw() != nil {
 		// SHOW MODELS [IN module] (agent-editor Model documents)
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowModels}
 		if ctx.IN() != nil {
@@ -677,7 +677,7 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.REST() != nil && ctx.CLIENTS() != nil {
+	} else if ctx.ConsumedRestServicesKw() != nil {
 		// SHOW REST CLIENTS [IN module]
 		stmt := &ast.ShowStmt{ObjectType: ast.ShowRestClients}
 		if ctx.IN() != nil {
@@ -817,6 +817,14 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		return
 	}
 
+	// R6: the single-thing reports that were `show` forms. Each builds the
+	// statement its `show` spelling builds, so the two are one statement and
+	// `show` is a pure alias (MDL-DEPR090).
+	if stmt := describeReport(ctx); stmt != nil {
+		b.statements = append(b.statements, stmt)
+		return
+	}
+
 	// DESCRIBE GLYPH 57350 | DESCRIBE GLYPH 'star'. Placed with the other
 	// no-document statements: a glyph is a character code in a font, so it has no
 	// qualified name for the chain below to build.
@@ -825,7 +833,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		if n := ctx.NUMBER_LITERAL(); n != nil {
 			stmt.Qualifier = n.GetText()
 		} else if sl := ctx.STRING_LITERAL(); sl != nil {
-			stmt.Qualifier = unquoteString(sl.GetText())
+			stmt.Qualifier = unquoteStringLit(sl)
 		}
 		if stmt.Qualifier != "" {
 			b.statements = append(b.statements, stmt)
@@ -834,7 +842,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	}
 
 	// DESCRIBE QUEUE Module.Name
-	if ctx.QUEUE() != nil {
+	if ctx.TaskQueueKw() != nil {
 		if qn := ctx.QualifiedName(); qn != nil {
 			b.statements = append(b.statements, &ast.DescribeQueueStmt{Name: buildQualifiedName(qn)})
 		}
@@ -872,7 +880,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	// Handle DESCRIBE DEMO USER 'name' (uses STRING_LITERAL)
 	if ctx.DEMO() != nil && ctx.USER() != nil {
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			userName := unquoteString(sl.GetText())
+			userName := unquoteStringLit(sl)
 			b.statements = append(b.statements, &ast.DescribeStmt{
 				ObjectType: ast.DescribeDemoUser,
 				Name:       ast.QualifiedName{Name: userName},
@@ -886,7 +894,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	if ctx.USER() != nil && ctx.ROLE() != nil {
 		roleName := ""
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			roleName = unquoteString(sl.GetText())
+			roleName = unquoteStringLit(sl)
 		} else if iok := ctx.IdentifierOrKeyword(0); iok != nil {
 			roleName = identifierOrKeywordText(iok)
 		}
@@ -918,7 +926,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	}
 
 	// Handle DESCRIBE ODATA CLIENT/SERVICE and DESCRIBE EXTERNAL ENTITY
-	if ctx.ODATA() != nil && ctx.CLIENT() != nil {
+	if ctx.ConsumedODataServiceKw() != nil {
 		if qn := ctx.QualifiedName(); qn != nil {
 			name := buildQualifiedName(qn)
 			b.statements = append(b.statements, &ast.DescribeStmt{
@@ -928,7 +936,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		}
 		return
 	}
-	if ctx.ODATA() != nil && ctx.SERVICE() != nil {
+	if ctx.PublishedODataServiceKw() != nil {
 		if qn := ctx.QualifiedName(); qn != nil {
 			name := buildQualifiedName(qn)
 			b.statements = append(b.statements, &ast.DescribeStmt{
@@ -981,7 +989,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		// parse error is the wrong lesson (mxcli-formula1 findings #8).
 		if ctx.CONFIGURATION() != nil {
 			if sl := ctx.STRING_LITERAL(); sl != nil {
-				stmt.Qualifier = unquoteString(sl.GetText())
+				stmt.Qualifier = unquoteStringLit(sl)
 			}
 		}
 		b.statements = append(b.statements, stmt)
@@ -1045,7 +1053,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	if ctx.WIDGET() != nil && ctx.STYLING() == nil {
 		name := ""
 		if lit := ctx.STRING_LITERAL(); lit != nil {
-			name = unquoteString(lit.GetText())
+			name = unquoteStringLit(lit)
 		} else if id := ctx.IdentifierOrKeyword(0); id != nil {
 			name = id.GetText()
 		}
@@ -1095,7 +1103,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		}
 		coordinate := ""
 		if sl := ctx.STRING_LITERAL(); sl != nil {
-			coordinate = unquoteString(sl.GetText())
+			coordinate = unquoteStringLit(sl)
 		}
 		b.statements = append(b.statements, &ast.DescribeStmt{
 			ObjectType: ast.DescribeJarDependency,
@@ -1110,7 +1118,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 	if ctx.CONTRACT() != nil && ctx.OPERATION() != nil && ctx.FROM() != nil && ctx.OPENAPI() != nil {
 		if sl := ctx.STRING_LITERAL(); sl != nil {
 			b.statements = append(b.statements, &ast.DescribeContractFromOpenAPIStmt{
-				SpecPath: unquoteString(sl.GetText()),
+				SpecPath: unquoteStringLit(sl),
 			})
 		}
 		return
@@ -1168,9 +1176,10 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		})
 	} else if ctx.MICROFLOW() != nil {
 		b.statements = append(b.statements, &ast.DescribeStmt{
-			ObjectType: ast.DescribeMicroflow,
-			Name:       name,
-			Normalized: ctx.NORMALIZED() != nil,
+			ObjectType:  ast.DescribeMicroflow,
+			Name:        name,
+			Normalized:  ctx.NORMALIZED() != nil,
+			WithHandles: ctx.HANDLES() != nil,
 		})
 	} else if ctx.NANOFLOW() != nil {
 		b.statements = append(b.statements, &ast.DescribeStmt{
@@ -1232,8 +1241,8 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 			ObjectType: ast.DescribeIconCollection,
 			Name:       name,
 		})
-	} else if ctx.MODEL() != nil {
-		// DESCRIBE MODEL Module.Name (agent-editor Model document)
+	} else if ctx.AiModelKw() != nil {
+		// DESCRIBE AI MODEL Module.Name (agent-editor Model document)
 		b.statements = append(b.statements, &ast.DescribeStmt{
 			ObjectType: ast.DescribeModel,
 			Name:       name,
@@ -1256,7 +1265,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 			ObjectType: ast.DescribeConsumedMCPService,
 			Name:       name,
 		})
-	} else if ctx.REST() != nil && ctx.CLIENT() != nil {
+	} else if ctx.ConsumedRestServiceKw() != nil {
 		b.statements = append(b.statements, &ast.DescribeStmt{
 			ObjectType: ast.DescribeRestClient,
 			Name:       name,
@@ -1305,7 +1314,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 func (b *Builder) ExitSearchStatement(ctx *parser.SearchStatementContext) {
 	if ctx.STRING_LITERAL() != nil {
 		b.statements = append(b.statements, &ast.SearchStmt{
-			Query: unquoteString(ctx.STRING_LITERAL().GetText()),
+			Query: unquoteStringLit(ctx.STRING_LITERAL()),
 		})
 	}
 }
@@ -1318,7 +1327,7 @@ func (b *Builder) ExitSearchStatement(ctx *parser.SearchStatementContext) {
 func (b *Builder) ExitExecuteScriptStatement(ctx *parser.ExecuteScriptStatementContext) {
 	if ctx.STRING_LITERAL() != nil {
 		b.statements = append(b.statements, &ast.ExecuteScriptStmt{
-			Path: unquoteString(ctx.STRING_LITERAL().GetText()),
+			Path: unquoteStringLit(ctx.STRING_LITERAL()),
 		})
 	}
 }
@@ -1345,7 +1354,7 @@ func (b *Builder) ExitSessionSetStatement(ctx *parser.SessionSetStatementContext
 			value = valCtx.NUMBER_LITERAL().GetText()
 		}
 	case valCtx.STRING_LITERAL() != nil:
-		value = unquoteString(valCtx.STRING_LITERAL().GetText())
+		value = unquoteStringLit(valCtx.STRING_LITERAL())
 	case valCtx.IdentifierOrKeyword() != nil:
 		value = valCtx.IdentifierOrKeyword().GetText()
 	}
@@ -1402,3 +1411,47 @@ func (b *Builder) ExitUpdateStatement(ctx *parser.UpdateStatementContext) {
 // ----------------------------------------------------------------------------
 // Helper Functions
 // ----------------------------------------------------------------------------
+
+// describeReport builds `describe app security`, `describe security matrix`,
+// `describe structure` and `describe context of`: the same statements as their
+// `show` spellings (see ExitShowStatement). Nil for every other describe.
+func describeReport(ctx *parser.DescribeStatementContext) ast.Statement {
+	inModule := func() string {
+		if ctx.IN() == nil {
+			return ""
+		}
+		if qn := ctx.QualifiedName(); qn != nil {
+			return getQualifiedNameText(qn)
+		}
+		if id := ctx.IDENTIFIER(); id != nil {
+			return id.GetText()
+		}
+		return ""
+	}
+	depth := func() int {
+		if ctx.DEPTH() != nil {
+			if n := ctx.NUMBER_LITERAL(); n != nil {
+				if d, err := strconv.Atoi(n.GetText()); err == nil {
+					return d
+				}
+			}
+		}
+		return 2
+	}
+	switch {
+	case ctx.APP() != nil && ctx.SECURITY() != nil:
+		return &ast.ShowStmt{ObjectType: ast.ShowProjectSecurity}
+	case ctx.SECURITY() != nil && ctx.MATRIX() != nil:
+		return &ast.ShowStmt{ObjectType: ast.ShowSecurityMatrix, InModule: inModule()}
+	case ctx.STRUCTURE() != nil && ctx.JSON() == nil:
+		return &ast.ShowStmt{ObjectType: ast.ShowStructure, Depth: depth(), All: ctx.ALL() != nil, InModule: inModule()}
+	case ctx.CONTEXT() != nil && ctx.OF() != nil:
+		qn := ctx.QualifiedName()
+		if qn == nil {
+			return nil
+		}
+		name := buildQualifiedName(qn)
+		return &ast.ShowStmt{ObjectType: ast.ShowContext, Name: &name, Depth: depth()}
+	}
+	return nil
+}

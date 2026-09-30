@@ -43,15 +43,15 @@ BEGIN
     };
 
   -- After both paths complete, manager reviews
-  DECISION 'Manager approval required?'
-    OUTCOMES 'Yes' {
+  DECISION $WorkflowContext/NeedsManagerApproval COMMENT 'Manager approval required?'
+    OUTCOMES TRUE -> {
       USER TASK ManagerReview 'Review onboarding'
         PAGE HR.ManagerReviewPage
         OUTCOMES 'Approve' { } 'Reject' {
           CALL MICROFLOW HR.ACT_RejectOnboarding;
           END WORKFLOW;
         };
-    } 'No' { };
+    } FALSE -> { };
 
   CALL MICROFLOW HR.ACT_CompleteOnboarding;
 END WORKFLOW;

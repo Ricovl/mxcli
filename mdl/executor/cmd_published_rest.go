@@ -99,24 +99,25 @@ func describePublishedRestService(ctx *ExecContext, name ast.QualifiedName) erro
 		}
 
 		// Output as re-executable MDL
-		fmt.Fprintf(ctx.Output, "create or modify published rest service %s (\n", qualifiedName)
-		fmt.Fprintf(ctx.Output, "  Path: '%s'", svc.Path)
+		// The folder is a clause after the name (R9); `Folder:` is its alias.
+		folder := ""
+		if folderPath := h.BuildFolderPath(svc.ContainerID); folderPath != "" {
+			folder = " folder " + mdlQuoted(folderPath)
+		}
+		fmt.Fprintf(ctx.Output, "create or modify published rest service %s%s (\n", qualifiedName, folder)
+		fmt.Fprintf(ctx.Output, "  Path: %s", mdlQuoted(svc.Path))
 		if svc.Version != "" {
-			fmt.Fprintf(ctx.Output, ",\n  Version: '%s'", svc.Version)
+			fmt.Fprintf(ctx.Output, ",\n  Version: %s", mdlQuoted(svc.Version))
 		}
 		if svc.ServiceName != "" {
-			fmt.Fprintf(ctx.Output, ",\n  ServiceName: '%s'", svc.ServiceName)
-		}
-		folderPath := h.BuildFolderPath(svc.ContainerID)
-		if folderPath != "" {
-			fmt.Fprintf(ctx.Output, ",\n  Folder: '%s'", folderPath)
+			fmt.Fprintf(ctx.Output, ",\n  ServiceName: %s", mdlQuoted(svc.ServiceName))
 		}
 		fmt.Fprintln(ctx.Output, "\n)")
 
 		if len(svc.Resources) > 0 {
 			fmt.Fprintln(ctx.Output, "{")
 			for _, res := range svc.Resources {
-				fmt.Fprintf(ctx.Output, "  resource '%s' {\n", res.Name)
+				fmt.Fprintf(ctx.Output, "  resource %s {\n", mdlQuoted(res.Name))
 				for _, op := range res.Operations {
 					deprecated := ""
 					if op.Deprecated {
@@ -132,18 +133,19 @@ func describePublishedRestService(ctx *ExecContext, name ast.QualifiedName) erro
 					}
 					opPath := ""
 					if op.Path != "" {
-						opPath = fmt.Sprintf(" '%s'", op.Path)
+						opPath = " " + mdlQuoted(op.Path)
 					}
 					fmt.Fprintf(ctx.Output, "    %s%s%s%s;%s\n",
-						strings.ToUpper(op.HTTPMethod), opPath, mf, deprecated, summary)
+						strings.ToLower(op.HTTPMethod), opPath, mf, deprecated, summary)
 				}
 				fmt.Fprintln(ctx.Output, "  }")
 			}
 			fmt.Fprintln(ctx.Output, "};")
 		} else {
-			fmt.Fprintln(ctx.Output, ";")
+			// The resource block is not optional in the grammar: a service
+			// with no resources still needs an empty one to re-parse (#744).
+			fmt.Fprintln(ctx.Output, "{\n};")
 		}
-		fmt.Fprintln(ctx.Output, "/")
 
 		// Emit GRANT statements for any module roles with access.
 		if len(svc.AllowedRoles) > 0 {

@@ -89,8 +89,20 @@ func (r *nameRegistry) renameModule(oldMod, newMod string) {
 // re-runnable domain scripts use it. Missing it makes the check disagree with
 // what exec does, and the check is wrong: a `create entity if not exists` was
 // reported as a conflict for a statement exec cleanly skips.
-// TestIfNotExistsCountsAsIdempotent guards the mapping.
+// TestIfNotExistsCountsAsIdempotent guards the mapping. The guard is read once,
+// here, for every document kind that carries it (ako/mxcli#731).
 func stmtCreateInfo(stmt ast.Statement) (docType, name string, idempotent bool) {
+	docType, name, idempotent = stmtCreateKind(stmt)
+	if g, ok := stmt.(ast.IfNotExistsCreate); ok && g.CreateIfNotExists() {
+		idempotent = true
+	}
+	return docType, name, idempotent
+}
+
+// stmtCreateKind is stmtCreateInfo without the `if not exists` guard: the
+// doc-type key, the qualified name, and whether `or modify` / `or replace`
+// makes the create idempotent.
+func stmtCreateKind(stmt ast.Statement) (docType, name string, idempotent bool) {
 	switch s := stmt.(type) {
 	case *ast.CreateModuleStmt:
 		return "module", s.Name, false
@@ -100,7 +112,7 @@ func stmtCreateInfo(stmt ast.Statement) (docType, name string, idempotent bool) 
 		// existing role, so check has to as well.
 		return "module-role", s.Name.String(), s.CreateOrModify
 	case *ast.CreateEntityStmt:
-		return "entity", s.Name.String(), s.CreateOrModify || s.IfNotExists
+		return "entity", s.Name.String(), s.CreateOrModify
 	case *ast.CreateViewEntityStmt:
 		return "entity", s.Name.String(), s.CreateOrModify || s.CreateOrReplace
 	case *ast.CreateExternalEntityStmt:
@@ -108,7 +120,7 @@ func stmtCreateInfo(stmt ast.Statement) (docType, name string, idempotent bool) 
 	case *ast.CreateEnumerationStmt:
 		return "enumeration", s.Name.String(), s.CreateOrModify
 	case *ast.CreateAssociationStmt:
-		return "association", s.Name.String(), s.CreateOrModify || s.IfNotExists
+		return "association", s.Name.String(), s.CreateOrModify
 	case *ast.CreateConstantStmt:
 		return "constant", s.Name.String(), s.CreateOrModify
 	case *ast.CreateMicroflowStmt:
@@ -121,6 +133,8 @@ func stmtCreateInfo(stmt ast.Statement) (docType, name string, idempotent bool) 
 		return "page", s.Name.String(), s.IsModify || s.IsReplace
 	case *ast.CreateSnippetStmtV3:
 		return "snippet", s.Name.String(), s.IsModify || s.IsReplace
+	case *ast.CreateLayoutStmt:
+		return "layout", s.Name.String(), s.IsModify || s.IsReplace
 	case *ast.CreateJavaActionStmt:
 		return "javaaction", s.Name.String(), s.CreateOrModify
 	case *ast.CreateJavaScriptActionStmt:
@@ -315,6 +329,12 @@ func CheckScriptDuplicates(prog *ast.Program) []linter.Violation {
 		if dt == "" {
 			continue
 		}
+		// A name another kind in the same name space holds (MDL-DUPNAME,
+		// ako/mxcli#793). Checked for every spelling: `or modify` of a kind
+		// that does not have the name still adds an element.
+		if v := checkScriptNameClash(reg, dt, name); v != nil {
+			violations = append(violations, *v)
+		}
 		if idempotent {
 			// OR MODIFY / OR REPLACE: add if absent, no error if present
 			if !reg.isAlive(dt, name) {
@@ -354,6 +374,7 @@ type projectNameSets struct {
 	nanoflows        map[string]bool
 	pages            map[string]bool
 	snippets         map[string]bool
+	layouts          map[string]bool
 	javaActions      map[string]bool
 	workflows        map[string]bool
 	businessEvents   map[string]bool
@@ -391,6 +412,8 @@ func (ps *projectNameSets) setFor(docType string) map[string]bool {
 		return ps.pages
 	case "snippet":
 		return ps.snippets
+	case "layout":
+		return ps.layouts
 	case "javaaction":
 		return ps.javaActions
 	case "workflow":
@@ -448,6 +471,7 @@ func loadProjectNameSets(ctx *ExecContext) *projectNameSets {
 	ps.nanoflows = buildNanoflowQualifiedNames(ctx)
 	ps.pages = buildPageQualifiedNames(ctx)
 	ps.snippets = buildSnippetQualifiedNames(ctx)
+	ps.layouts = buildLayoutQualifiedNames(ctx)
 	ps.javaActions = buildJavaActionQualifiedNames(ctx)
 
 	// Enumerations
@@ -656,5 +680,7 @@ func CheckProjectConflicts(ctx *ExecContext, prog *ast.Program) []error {
 		}
 	}
 
+	// A create over a name another kind already has (ako/mxcli#793).
+	errs = append(errs, CheckProjectNameClashes(ctx, prog)...)
 	return errs
 }

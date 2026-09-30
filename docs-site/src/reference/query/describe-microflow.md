@@ -37,7 +37,7 @@ BEGIN
     Status = 'Draft'
   );
   COMMIT $Order;
-  SHOW PAGE Sales.Order_Edit ($Order = $Order);
+  SHOW PAGE Sales.Order_Edit (Order = $Order);
   RETURN $Order;
 END;
 ```
@@ -50,4 +50,4 @@ DESCRIBE NANOFLOW MyModule.NAV_ValidateInput
 
 ## See Also
 
-[SHOW MICROFLOWS](show-microflows.md), [DESCRIBE PAGE](describe-page.md), [DESCRIBE ENTITY](describe-entity.md)
+[LIST MICROFLOWS](list-microflows.md), [DESCRIBE PAGE](describe-page.md), [DESCRIBE ENTITY](describe-entity.md)

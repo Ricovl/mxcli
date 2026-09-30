@@ -119,6 +119,19 @@ func execCreatePageV3(ctx *ExecContext, s *ast.CreatePageStmtV3) error {
 		tolerateDanglingRefs: s.Excluded || existingExcluded,
 	}
 
+	// A rewrite of one stored page keeps the pluggable widgets the statement
+	// did not change (#721 L4). Duplicates are skipped: which one describe
+	// would print is then not the one being rewritten.
+	if len(pagesToDelete) == 1 {
+		id := pagesToDelete[0]
+		pb.storedPluggables = loadPluggablePassthrough(ctx, id, func() error {
+			prev := ctx.describeID
+			ctx.describeID = id
+			defer func() { ctx.describeID = prev }()
+			return describePage(ctx, s.Name)
+		})
+	}
+
 	page, err := pb.buildPageV3(s)
 	if err != nil {
 		return mdlerrors.NewBackend("build page", err)
@@ -259,6 +272,14 @@ func execCreateSnippetV3(ctx *ExecContext, s *ast.CreateSnippetStmtV3) error {
 		// A snippet has no @excluded of its own; it stays excluded through the
 		// carry, and an excluded one may name documents that do not exist.
 		tolerateDanglingRefs: existingExcluded,
+	}
+
+	// As for pages (#721 L4). describe finds a snippet by name, so only a name
+	// with a single stored document is described.
+	if matches == 1 && len(snippetsToDelete) == 1 {
+		pb.storedPluggables = loadPluggablePassthrough(ctx, snippetsToDelete[0], func() error {
+			return describeSnippet(ctx, s.Name)
+		})
 	}
 
 	snippet, err := pb.buildSnippetV3(s)

@@ -49,6 +49,41 @@ covered 18 of 43 activity types and silently emitted nothing for the rest, so a
 java-action call, a `download file` or a canvas annotation appeared as a
 deletion in a script that changed nothing at all.
 
+### `create or modify` of a flow: diff reaches exec's verdict
+
+`exec` applies `create or modify microflow|nanoflow` on a flow that exists as a
+patch spliced into the stored flow, and under `mdl 1;` it refuses a change the
+splice cannot make (a change inside a loop body, a redrawn connector) rather
+than rebuild the flow. `diff` runs the same patch planning, under the script's
+own language header, without writing, so the two agree:
+
+- a statement `exec` would refuse is listed as **Refused**, with the reason,
+  and counted as refused in the summary;
+- a statement whose patch is empty — nothing `exec` would write — is
+  **unchanged**, whatever the two renderings differ in (surrounding whitespace,
+  a bracketed `where [ … ]` against the bare form describe prints). A statement
+  that builds the flow that is stored is unchanged however that flow is
+  described: a guard clause `if … then return …; end if; return …;` that
+  describe prints as `if … then … else … end if`, a nested guard it prints with
+  a `join`/`merge` pair, a long flow it prints as crossed branches
+  (ako/mxcli#859);
+- a statement `exec` would write although its MDL renders as stored — a
+  `folder` clause naming another folder, which `exec` applies as a move — is
+  **modified**, with what `exec` would write:
+
+  ```
+  Modified: Microflow Shop.ACT_Apply: its MDL renders as stored, but exec would write it: moved to folder 'Archive'
+  ```
+
+```
+Refused: Microflow Shop.ACT_Apply: exec would refuse this statement and write nothing: the Loop at (700, 200) changes inside its body; …
+
+Summary: 0 new, 0 modified, 0 unchanged, 1 refused
+```
+
+Before this, `diff` compared renderings only and said "unchanged" for a
+statement `exec` then refused (ako/mxcli#839).
+
 ## mxcli diff-local
 
 Compares local changes against a git reference for MPR v2 projects. MPR v2 (Mendix >= 10.18) stores documents as individual files in an `mprcontents/` folder, making git diff feasible.

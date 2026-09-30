@@ -121,8 +121,15 @@ func outputConsumedRestServiceMDL(ctx *ExecContext, svc *model.ConsumedRestServi
 		outputJavadoc(w, svc.Documentation)
 	}
 
-	fmt.Fprintf(w, "create rest client %s.%s (\n", moduleName, svc.Name)
-	fmt.Fprintf(w, "  BaseUrl: '%s',\n", svc.BaseUrl)
+	// The folder is a clause after the name (R9).
+	folder := ""
+	if h, err := getHierarchy(ctx); err == nil && h != nil {
+		if folderPath := h.BuildFolderPath(svc.ContainerID); folderPath != "" {
+			folder = " folder " + mdlQuoted(folderPath)
+		}
+	}
+	fmt.Fprintf(w, "create or modify consumed rest service %s.%s%s (\n", moduleName, svc.Name, folder)
+	fmt.Fprintf(w, "  BaseUrl: %s,\n", mdlQuoted(svc.BaseUrl))
 	if svc.Authentication == nil {
 		fmt.Fprintln(w, "  Authentication: none")
 	} else {
@@ -145,15 +152,15 @@ func outputConsumedRestServiceMDL(ctx *ExecContext, svc *model.ConsumedRestServi
 	return nil
 }
 
-// outputRestOperation writes a single operation in the new { Key: Value } format.
+// outputRestOperation writes a single operation, its properties in ( ) (R2).
 func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 	if op.Documentation != "" {
 		outputJavadocIndented(w, op.Documentation, "  ")
 	}
 
-	fmt.Fprintf(w, "  operation %s {\n", op.Name)
+	fmt.Fprintf(w, "  operation %s (\n", op.Name)
 	fmt.Fprintf(w, "    Method: %s,\n", strings.ToLower(op.HttpMethod))
-	fmt.Fprintf(w, "    Path: '%s',\n", op.Path)
+	fmt.Fprintf(w, "    Path: %s,\n", mdlQuoted(op.Path))
 
 	// Parameters: ($var: Type, ...)
 	if len(op.Parameters) > 0 {
@@ -173,11 +180,11 @@ func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 		fmt.Fprintf(w, "    Query: (%s),\n", strings.Join(params, ", "))
 	}
 
-	// Headers: ('Name' = 'Value', ...)
+	// Headers: ('Name': 'Value', ...) — a map, `key: value` (R2/R3)
 	if len(op.Headers) > 0 {
 		var hdrs []string
 		for _, h := range op.Headers {
-			hdrs = append(hdrs, fmt.Sprintf("'%s' = '%s'", h.Name, h.Value))
+			hdrs = append(hdrs, mdlQuoted(h.Name)+": "+mdlQuoted(h.Value))
 		}
 		fmt.Fprintf(w, "    Headers: (%s),\n", strings.Join(hdrs, ", "))
 	}
@@ -186,7 +193,7 @@ func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 	if op.BodyType != "" {
 		switch strings.ToLower(op.BodyType) {
 		case "template":
-			fmt.Fprintf(w, "    Body: template '%s',\n", strings.ReplaceAll(op.BodyVariable, "'", "''"))
+			fmt.Fprintf(w, "    Body: template %s,\n", mdlQuoted(op.BodyVariable))
 		case "export_mapping":
 			if op.BodyVariable != "" && len(op.BodyMappings) > 0 {
 				fmt.Fprintf(w, "    Body: mapping %s {\n", op.BodyVariable)
@@ -235,7 +242,7 @@ func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 		fmt.Fprintln(w, "    Response: none")
 	}
 
-	fmt.Fprintln(w, "  }")
+	fmt.Fprintln(w, "  )")
 }
 
 // restParamTypeOrDefault supplies the type describe prints for a REST parameter.
@@ -581,19 +588,11 @@ func buildRestClientOperation(opDef *ast.RestOperationDef) (*model.RestClientOpe
 
 	// Headers
 	for _, h := range opDef.Headers {
-		header := &model.RestClientHeader{
-			Name: h.Name,
-		}
-		if h.Variable != "" {
-			// Dynamic headers: store static prefix only.
-			// Mendix consumed REST services don't support dynamic header values
-			// in the service definition; dynamic values must be set through the
-			// calling microflow.
-			header.Value = h.Prefix
-		} else {
-			header.Value = h.Value
-		}
-		op.Headers = append(op.Headers, header)
+		// The value is a template: `{P}` is the operation parameter P, as in
+		// the path. `'Bearer ' + $Token` used to store "Bearer " alone, which
+		// dropped the token and described back as a literal (ako/mxcli#707);
+		// the visitor now builds `Bearer {Token}` from it.
+		op.Headers = append(op.Headers, &model.RestClientHeader{Name: h.Name, Value: h.Value})
 	}
 
 	return op, nil
@@ -674,7 +673,7 @@ func checkFileRequestBody(opDef *ast.RestOperationDef) error {
 			"  write a string body holding the literal text %q, which sends %d bytes and\n"+
 			"  still returns 200.\n"+
 			"  Binary POST lives on the microflow activity, not the client document:\n"+
-			"    rest call post '<url>' header 'ContentType' = '<type>' body binary %s/Contents\n"+
+			"    call rest service post '<url>' header 'ContentType' = '<type>' body binary %s/Contents\n"+
 			"  (Microflows$BinaryRequestHandling — the shape Studio Pro writes).",
 		target, target, len(target), target)
 }

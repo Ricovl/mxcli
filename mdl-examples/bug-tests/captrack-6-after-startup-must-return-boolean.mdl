@@ -26,5 +26,5 @@ begin
 end;
 /
 
-alter settings model AfterStartupMicroflow = 'StartupOk.MF_SeedData';
+alter settings runtime ( AfterStartupMicroflow: 'StartupOk.MF_SeedData' );
 /

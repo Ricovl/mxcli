@@ -144,7 +144,7 @@ func TestObjectListItem_EmitsNestedChildWidgets(t *testing.T) {
 		t.Errorf("nested widget missing from DESCRIBE output:\n%s", out)
 	}
 	// A body, not a bare item line — otherwise the output cannot re-parse.
-	if !strings.Contains(out, "group group1") || !strings.Contains(out, "{") {
+	if !strings.Contains(out, "group (header: 'Group one') {") {
 		t.Errorf("group should be emitted with a body:\n%s", out)
 	}
 }

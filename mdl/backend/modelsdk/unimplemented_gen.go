@@ -891,6 +891,11 @@ func (unimplemented) MoveViewEntitySourceDocument(_ string, _ model.ID, _ string
 	return errUnimplemented("MoveViewEntitySourceDocument")
 }
 
+func (unimplemented) OpenMicroflowForMutation(_ model.ID) (backend.MicroflowMutator, error) {
+	var r0 backend.MicroflowMutator
+	return r0, errUnimplemented("OpenMicroflowForMutation")
+}
+
 func (unimplemented) OpenPageForMutation(_ model.ID) (backend.PageMutator, error) {
 	var r0 backend.PageMutator
 	return r0, errUnimplemented("OpenPageForMutation")
@@ -924,6 +929,16 @@ func (unimplemented) Path() string {
 func (unimplemented) ProjectVersion() *types.ProjectVersion {
 	var r0 *types.ProjectVersion
 	return r0
+}
+
+func (unimplemented) ReadBackMicroflow(_ *microflows.Microflow) (*microflows.Microflow, error) {
+	var r0 *microflows.Microflow
+	return r0, errUnimplemented("ReadBackMicroflow")
+}
+
+func (unimplemented) ReadBackNanoflow(_ *microflows.Nanoflow) (*microflows.Nanoflow, error) {
+	var r0 *microflows.Nanoflow
+	return r0, errUnimplemented("ReadBackNanoflow")
 }
 
 func (unimplemented) ReadJavaActionByName(_ string) (*javaactions.JavaAction, error) {
@@ -1030,6 +1045,10 @@ func (unimplemented) SetProjectStrictMode(_ model.ID, _ bool) error {
 	return errUnimplemented("SetProjectStrictMode")
 }
 
+func (unimplemented) SetUserRoleProperties(_ model.ID, _ string, _ backend.UserRoleProperties) error {
+	return errUnimplemented("SetUserRoleProperties")
+}
+
 func (unimplemented) UpdateAgentEditorAgent(_ *agenteditor.Agent) error {
 	return errUnimplemented("UpdateAgentEditorAgent")
 }
@@ -1116,6 +1135,10 @@ func (unimplemented) UpdateJavaScriptAction(_ *types.JavaScriptAction) error {
 
 func (unimplemented) UpdateJsonStructure(_ *types.JsonStructure) error {
 	return errUnimplemented("UpdateJsonStructure")
+}
+
+func (unimplemented) UpdateLayout(_ *pages.Layout) error {
+	return errUnimplemented("UpdateLayout")
 }
 
 func (unimplemented) UpdateMenuDocument(_ *types.MenuDocument) error {
@@ -1223,4 +1246,9 @@ func (unimplemented) WriteJavaScriptSourceFile(_ string, _ string, _ string, _ [
 
 func (unimplemented) WriteJavaSourceFile(_ string, _ string, _ string, _ []*types.JavaActionParameter, _ types.CodeActionReturnType, _ []string, _ string) error {
 	return errUnimplemented("WriteJavaSourceFile")
+}
+
+func (unimplemented) WriteViewEntitySourceDocument(_ model.ID, _ string, _ string, _ string, _ string) (model.ID, error) {
+	var r0 model.ID
+	return r0, errUnimplemented("WriteViewEntitySourceDocument")
 }

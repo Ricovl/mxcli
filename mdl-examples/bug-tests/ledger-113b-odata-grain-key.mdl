@@ -28,20 +28,20 @@
 --   mxcli check ledger-113b-odata-grain-key.mdl
 --   mx check <app>.mpr        # 0 errors
 
-create or replace non-persistent entity MyFirstModule.VMonthCategory (
+create or modify non-persistent entity MyFirstModule.VMonthCategory (
   Period:   string(7),
   Category: string(60),
   Total:    decimal
 );
 
-create or replace microflow MyFirstModule.Read_MonthCategory ()
+create or modify microflow MyFirstModule.Read_MonthCategory ()
   returns List of MyFirstModule.VMonthCategory as $Rows
 begin
   $Rows = create list of MyFirstModule.VMonthCategory;
   return $Rows;
 end;
 
-create or replace odata service MyFirstModule.ChartApi (
+create or modify published odata service MyFirstModule.ChartApi (
   Path: 'odata/charts/',
   ServiceName: 'ChartApi',
   Namespace: 'MyFirstModule.Charts',

@@ -79,7 +79,7 @@ func (d DeleteBehavior) String() string {
 type StorageType int
 
 const (
-	StorageDefault StorageType = iota // Not specified (defaults to Table)
+	StorageDefault StorageType = iota // Not specified: Column on create, stored value kept on OR MODIFY
 	StorageColumn
 	StorageTable
 )
@@ -97,6 +97,7 @@ func (s StorageType) String() string {
 
 // CreateAssociationStmt represents: CREATE ASSOCIATION Module.Name FROM ... TO ... TYPE ...
 type CreateAssociationStmt struct {
+	CreateGuard    // `create … if not exists` (ako/mxcli#731)
 	Name           QualifiedName
 	Parent         QualifiedName
 	Child          QualifiedName
@@ -111,11 +112,7 @@ type CreateAssociationStmt struct {
 	DeleteErrorMessage string
 	Documentation      string
 	DocumentationSet   bool // see mendixlabs/mxcli#1018: absent preserves, empty clears
-	Comment            string
 	CreateOrModify     bool // true for CREATE OR MODIFY / CREATE OR REPLACE
-	// IfNotExists is CREATE ASSOCIATION IF NOT EXISTS: skip when it already
-	// exists, leaving the stored definition untouched.
-	IfNotExists bool
 
 	// Line anchors from `@anchor(from: (x, y), to: (x, y))` — where the
 	// connector attaches to the FROM and TO entity boxes, as a PERCENTAGE of the

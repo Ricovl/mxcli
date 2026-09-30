@@ -111,6 +111,10 @@ func execDropModuleRole(ctx *ExecContext, s *ast.DropModuleRoleStmt) error {
 		}
 	}
 	if !found {
+		if s.IfExists {
+			fmt.Fprintf(ctx.Output, "Module role '%s' does not exist, skipping\n", s.Name)
+			return nil
+		}
 		return mdlerrors.NewNotFound("module role", s.Name.Module+"."+s.Name.Name)
 	}
 
@@ -230,13 +234,21 @@ func execCreateUserRole(ctx *ExecContext, s *ast.CreateUserRoleStmt) error {
 				// exist and filed it as missing MDL surface; it exists, and its
 				// module-role list is required.
 				return mdlerrors.NewAlreadyExistsMsg("user role", s.Name, fmt.Sprintf(
-					"user role already exists: %s — use 'create or modify user role %s (Module.Role, ...)' "+
-						"to add module roles to it and keep the script re-runnable "+
-						"(the parenthesised module-role list is required)", s.Name, s.Name))
+					"user role already exists: %s — use 'create or modify user role %s ( ModuleRoles: (Module.Role, ...) )' "+
+						"to add module roles to it and keep the script re-runnable", s.Name, s.Name))
 			}
 			// Additive: ensure specified module roles are present
-			if err := ctx.Backend.AlterUserRoleModuleRoles(ps.ID, s.Name, true, moduleRoleNames); err != nil {
-				return mdlerrors.NewBackend("update user role", err)
+			if len(moduleRoleNames) > 0 {
+				if err := ctx.Backend.AlterUserRoleModuleRoles(ps.ID, s.Name, true, moduleRoleNames); err != nil {
+					return mdlerrors.NewBackend("update user role", err)
+				}
+			}
+			// The properties the statement states; the rest keep their stored
+			// values, as a module role's missing description does.
+			if props := userRoleProperties(s); !props.IsZero() {
+				if err := ctx.Backend.SetUserRoleProperties(ps.ID, s.Name, props); err != nil {
+					return mdlerrors.NewBackend("update user role", err)
+				}
 			}
 			ctx.ReportMutation("Modified", "user role: %s", s.Name)
 			return nil
@@ -246,9 +258,36 @@ func execCreateUserRole(ctx *ExecContext, s *ast.CreateUserRoleStmt) error {
 	if err := ctx.Backend.AddUserRole(ps.ID, s.Name, moduleRoleNames, s.ManageAllRoles); err != nil {
 		return mdlerrors.NewBackend("create user role", err)
 	}
+	// Description, CheckSecurity and the manageable roles: a positional role
+	// list had no slot for them, so describe → exec lost them (ako/mxcli#707).
+	props := userRoleProperties(s)
+	props.ManageAllRoles = nil // AddUserRole set it
+	if !props.IsZero() {
+		if err := ctx.Backend.SetUserRoleProperties(ps.ID, s.Name, props); err != nil {
+			return mdlerrors.NewBackend("create user role", err)
+		}
+	}
 
 	fmt.Fprintf(ctx.Output, "Created user role: %s\n", s.Name)
 	return nil
+}
+
+// userRoleProperties is what a create user role statement states beyond the
+// name and the module roles.
+func userRoleProperties(s *ast.CreateUserRoleStmt) backend.UserRoleProperties {
+	p := backend.UserRoleProperties{
+		Description:             s.Description,
+		CheckSecurity:           s.CheckSecurity,
+		ManageUsersWithoutRoles: s.ManageUsersWithoutRoles,
+	}
+	if s.ManageAllRolesSet {
+		v := s.ManageAllRoles
+		p.ManageAllRoles = &v
+	}
+	if s.ManageableSet {
+		p.ManageableRoles = append([]string{}, s.ManageableRoles...)
+	}
+	return p
 }
 
 // execAlterUserRole handles ALTER USER ROLE Name ADD/REMOVE MODULE ROLES (...).
@@ -1046,20 +1085,6 @@ func execRevokePageAccess(ctx *ExecContext, s *ast.RevokePageAccessStmt) error {
 	return mdlerrors.NewNotFound("page", s.Page.Module+"."+s.Page.Name)
 }
 
-// execGrantWorkflowAccess handles GRANT EXECUTE ON WORKFLOW Module.WF TO roles.
-// Mendix workflows do not have a document-level AllowedModuleRoles field (unlike
-// microflows and pages), so this operation is not supported.
-func execGrantWorkflowAccess(ctx *ExecContext, s *ast.GrantWorkflowAccessStmt) error {
-	return mdlerrors.NewUnsupported("grant execute on workflow is not supported: Mendix workflows do not have document-level AllowedModuleRoles (unlike microflows and pages). Workflow access is controlled through the microflow that triggers the workflow and UserTask targeting")
-}
-
-// execRevokeWorkflowAccess handles REVOKE EXECUTE ON WORKFLOW Module.WF FROM roles.
-// Mendix workflows do not have a document-level AllowedModuleRoles field (unlike
-// microflows and pages), so this operation is not supported.
-func execRevokeWorkflowAccess(ctx *ExecContext, s *ast.RevokeWorkflowAccessStmt) error {
-	return mdlerrors.NewUnsupported("revoke execute on workflow is not supported: Mendix workflows do not have document-level AllowedModuleRoles (unlike microflows and pages). Workflow access is controlled through the microflow that triggers the workflow and UserTask targeting")
-}
-
 // validateModuleRole checks that a module role exists in the project.
 // qualifiedModuleRoleNames renders a statement's module-role list as
 // "Module.Role" strings, refusing any entry that has no module.
@@ -1162,7 +1187,7 @@ func execAlterProjectSecurity(ctx *ExecContext, s *ast.AlterProjectSecurityStmt)
 		fmt.Fprintf(ctx.Output, "Demo users %s\n", state)
 	}
 
-	if s.GuestAccessEnabled != nil {
+	if s.GuestAccessEnabled != nil || s.GuestUserRole != "" {
 		if err := applyGuestAccess(ctx, ps, s); err != nil {
 			return err
 		}
@@ -1196,7 +1221,11 @@ func execAlterProjectSecurity(ctx *ExecContext, s *ast.AlterProjectSecurityStmt)
 //   - OFF leaves the stored role in place. Guest access off with a role set is
 //     valid, and dropping it would lose the operator's choice on a toggle.
 func applyGuestAccess(ctx *ExecContext, ps *security.ProjectSecurity, s *ast.AlterProjectSecurityStmt) error {
-	enabled := *s.GuestAccessEnabled
+	// `( GuestUserRole: R )` alone changes the role and keeps the stored state.
+	enabled := ps.EnableGuestAccess
+	if s.GuestAccessEnabled != nil {
+		enabled = *s.GuestAccessEnabled
+	}
 	role := s.GuestUserRole
 
 	if role != "" {
@@ -1219,15 +1248,24 @@ func applyGuestAccess(ctx *ExecContext, ps *security.ProjectSecurity, s *ast.Alt
 		role = match
 	} else if enabled && ps.GuestUserRole == "" {
 		return mdlerrors.NewValidation(
-			"GUEST ACCESS ON requires a role: no anonymous user role is configured, and Mendix " +
-				"rejects anonymous access without one (CE0133). Use ALTER PROJECT SECURITY " +
-				"GUEST ACCESS ON ROLE <UserRole>")
+			"EnableGuestAccess: true requires a role: no anonymous user role is configured, and Mendix " +
+				"rejects anonymous access without one (CE0133). Use alter app security " +
+				"( EnableGuestAccess: true, GuestUserRole: <UserRole> )")
 	}
 
 	if err := ctx.Backend.SetProjectGuestAccess(ps.ID, enabled, role); err != nil {
 		return mdlerrors.NewBackend("set guest access", err)
 	}
 
+	if s.GuestAccessEnabled == nil {
+		// The role alone: report the role, not a state the statement never set.
+		state := "off"
+		if enabled {
+			state = "on"
+		}
+		fmt.Fprintf(ctx.Output, "Guest user role set to %s (guest access stays %s)\n", role, state)
+		return nil
+	}
 	if !enabled {
 		fmt.Fprintf(ctx.Output, "Guest access disabled\n")
 		return nil
@@ -1239,7 +1277,14 @@ func applyGuestAccess(ctx *ExecContext, ps *security.ProjectSecurity, s *ast.Alt
 	return nil
 }
 
-// execCreateDemoUser handles CREATE [OR MODIFY] DEMO USER 'name' PASSWORD 'pw' [ENTITY Module.Entity] (Roles).
+// demoUserPasswordPlaceholder is what DESCRIBE DEMO USER prints in place of the
+// password. Executing it keeps the stored password of an existing user and is
+// refused for a new one, so a described script can neither leak a password nor
+// silently set one (ako/mxcli#707). It is the string describe always printed,
+// so scripts described before the fix get the safe meaning too.
+const demoUserPasswordPlaceholder = "***"
+
+// execCreateDemoUser handles CREATE [OR MODIFY] DEMO USER 'name' ( Password: 'pw', Entity: Module.Entity, UserRoles: (Roles) ).
 func execCreateDemoUser(ctx *ExecContext, s *ast.CreateDemoUserStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
@@ -1250,8 +1295,29 @@ func execCreateDemoUser(ctx *ExecContext, s *ast.CreateDemoUserStmt) error {
 		return mdlerrors.NewBackend("read project security", err)
 	}
 
-	// Validate password against project password policy
-	if err := ps.PasswordPolicy.ValidatePassword(s.Password); err != nil {
+	// The placeholder DESCRIBE prints instead of the password. It means "keep
+	// the stored password", which exists only for a user that already exists.
+	password := s.Password
+	keepPassword := password == demoUserPasswordPlaceholder
+	if keepPassword {
+		var existing *security.DemoUser
+		for _, du := range ps.DemoUsers {
+			if du.UserName == s.UserName {
+				existing = du
+			}
+		}
+		if existing == nil {
+			return mdlerrors.NewValidationf("demo user '%s': password %s is the placeholder describe prints "+
+				"in place of the stored password, and there is no stored password to keep here\n"+
+				"hint: replace it with the real password", s.UserName, mdlQuoted(demoUserPasswordPlaceholder))
+		}
+		password = existing.Password
+	}
+
+	// Validate password against project password policy. A kept password was
+	// accepted when it was set; re-checking it against today's policy would make
+	// replaying a describe fail for a reason the script does not mention.
+	if err := ps.PasswordPolicy.ValidatePassword(password); err != nil && !keepPassword {
 		return mdlerrors.NewValidationf("password policy violation for demo user '%s': %v\nhint: check your project's password policy with show project security", s.UserName, err)
 	}
 
@@ -1276,10 +1342,18 @@ func execCreateDemoUser(ctx *ExecContext, s *ast.CreateDemoUserStmt) error {
 			if s.Entity != "" {
 				entity = s.Entity
 			}
+			// A demo user that already holds what the statement states is
+			// left alone. Removing and re-adding it gave the element a new
+			// $ID, so project security was written on every re-run of the
+			// script (ako/mxcli#859, rehearsal W2).
+			if password == du.Password && entity == du.Entity && len(mergedRoles) == len(du.UserRoles) {
+				reportUnchanged(ctx, "demo user: "+s.UserName)
+				return nil
+			}
 			if err := ctx.Backend.RemoveDemoUser(ps.ID, s.UserName); err != nil {
 				return mdlerrors.NewBackend("update demo user", err)
 			}
-			if err := ctx.Backend.AddDemoUser(ps.ID, s.UserName, s.Password, entity, mergedRoles); err != nil {
+			if err := ctx.Backend.AddDemoUser(ps.ID, s.UserName, password, entity, mergedRoles); err != nil {
 				return mdlerrors.NewBackend("update demo user", err)
 			}
 			ctx.ReportMutation("Modified", "demo user: %s", s.UserName)
@@ -1297,7 +1371,7 @@ func execCreateDemoUser(ctx *ExecContext, s *ast.CreateDemoUserStmt) error {
 		entity = detected
 	}
 
-	if err := ctx.Backend.AddDemoUser(ps.ID, s.UserName, s.Password, entity, s.UserRoles); err != nil {
+	if err := ctx.Backend.AddDemoUser(ps.ID, s.UserName, password, entity, s.UserRoles); err != nil {
 		return mdlerrors.NewBackend("create demo user", err)
 	}
 
@@ -1320,7 +1394,7 @@ func warnDemoUsersInert(ctx *ExecContext, level string) {
 	}
 	fmt.Fprintf(ctx.Output, "  Note: project security level is Off, so the runtime creates no accounts "+
 		"and this demo user will not appear in the app.\n"+
-		"  Raise it first: alter project security level prototype;\n")
+		"  Raise it first: alter app security ( SecurityLevel: prototype );\n")
 }
 
 // detectUserEntity finds the entity that generalizes System.User.

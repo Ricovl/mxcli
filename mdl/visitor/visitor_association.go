@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
@@ -16,20 +17,24 @@ func (b *Builder) ExitCreateAssociationStatement(ctx *parser.CreateAssociationSt
 	if len(names) < 3 {
 		return
 	}
+	if ctx.LPAREN() != nil {
+		b.rejectParenthesisedAssociation(ctx)
+		return
+	}
 
 	stmt := &ast.CreateAssociationStmt{
-		// The doc comment, the same spelling every other document type uses. It
-		// was never captured here, so an association was the one domain-model
-		// element with no working way to document it on create.
-		Documentation:  findDocCommentText(ctx),
 		Name:           buildQualifiedName(names[0]),
 		Parent:         buildQualifiedName(names[1]),
 		Child:          buildQualifiedName(names[2]),
 		Type:           ast.AssocReference, // Default
 		Owner:          ast.OwnerDefault,
 		DeleteBehavior: ast.DeleteKeepReferences,
-		IfNotExists:    ctx.IfNotExists() != nil,
 	}
+	// The doc comment, the same spelling every other document type uses. It
+	// was never captured here, so an association was the one domain-model
+	// element with no working way to document it on create. Whether one was
+	// written at all is what lets `create or modify` clear or keep (#1018).
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 
 	// Association options
 	if opts := ctx.AssociationOptions(); opts != nil {
@@ -80,9 +85,14 @@ func (b *Builder) ExitCreateAssociationStatement(ctx *parser.CreateAssociationSt
 				stmt.DeleteErrorMessage = buildErrorMessage(msg)
 			}
 
-			// COMMENT
-			if optCtx.COMMENT() != nil && optCtx.STRING_LITERAL() != nil {
-				stmt.Comment = unquoteString(optCtx.STRING_LITERAL().GetText())
+			// R9: `comment '…'` is the documentation, which a doc comment
+			// also states; the doc comment wins, as it always has.
+			if c := optCtx.COMMENT(); c != nil && optCtx.STRING_LITERAL() != nil {
+				text := unquoteStringLit(optCtx.STRING_LITERAL())
+				b.recordDocumentationClause(ctx, c.GetSymbol(), optCtx.STRING_LITERAL().GetSymbol(), text, false)
+				if !stmt.DocumentationSet {
+					stmt.Documentation, stmt.DocumentationSet = text, true
+				}
 			}
 		}
 	}
@@ -191,6 +201,7 @@ func anchorCoord(text string) (int, bool) {
 
 // ExitAlterAssociationAction handles ALTER ASSOCIATION ... SET ... actions.
 func (b *Builder) ExitAlterAssociationAction(ctx *parser.AlterAssociationActionContext) {
+	b.recordDeleteBehavior(ctx.DELETE_BEHAVIOR(), ctx.DeleteBehavior())
 	// Walk up to the parent AlterStatement to get the association's qualified name
 	parent := ctx.GetParent()
 	for parent != nil {
@@ -274,12 +285,16 @@ func (b *Builder) ExitAlterAssociationAction(ctx *parser.AlterAssociationActionC
 				return
 			}
 
-			// SET COMMENT
+			// SET DOCUMENTATION; SET COMMENT is its deprecated spelling (R9,
+			// MDL-DEPR135).
 			if ctx.COMMENT() != nil && ctx.STRING_LITERAL() != nil {
+				b.recordDeprecation(deprecation.SetComment, ctx.COMMENT().GetSymbol(), "")
+			}
+			if (ctx.COMMENT() != nil || ctx.DOCUMENTATION() != nil) && ctx.STRING_LITERAL() != nil {
 				b.statements = append(b.statements, &ast.AlterAssociationStmt{
 					Name:      name,
 					Operation: ast.AlterAssociationSetComment,
-					Comment:   unquoteString(ctx.STRING_LITERAL().GetText()),
+					Comment:   unquoteStringLit(ctx.STRING_LITERAL()),
 				})
 				return
 			}

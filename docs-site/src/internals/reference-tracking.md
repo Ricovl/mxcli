@@ -10,7 +10,7 @@ During a full catalog refresh, every document is analyzed for outgoing reference
 |--------------|-------------------|
 | **Microflows** | CALL MICROFLOW actions, RETRIEVE data sources, entity parameters, SHOW PAGE actions, association traversals |
 | **Nanoflows** | Same as microflows (client-side) |
-| **Pages** | Data source entities, microflow data sources, SHOW_PAGE actions, association paths, snippet calls |
+| **Pages** | Data source entities, microflow data sources, SHOW PAGE actions, association paths, snippet calls |
 | **Snippets** | Same as pages |
 | **Domain Models** | Generalization references, association endpoints |
 
@@ -28,7 +28,7 @@ VALUES ('Sales.ProcessOrder', 'Microflow', 'Sales.Customer', 'Entity', 'Retrieve
 Find what calls a given element:
 
 ```sql
-SHOW CALLERS OF Sales.ProcessOrder;
+LIST CALLERS OF Sales.ProcessOrder;
 ```
 
 Returns all microflows, nanoflows, and pages that reference `Sales.ProcessOrder`.
@@ -36,7 +36,7 @@ Returns all microflows, nanoflows, and pages that reference `Sales.ProcessOrder`
 **Transitive callers** follow the call chain recursively:
 
 ```sql
-SHOW CALLERS OF Sales.ProcessOrder TRANSITIVE;
+LIST CALLERS OF Sales.ProcessOrder TRANSITIVE;
 ```
 
 ### SHOW CALLEES
@@ -44,7 +44,7 @@ SHOW CALLERS OF Sales.ProcessOrder TRANSITIVE;
 Find what a microflow calls:
 
 ```sql
-SHOW CALLEES OF Sales.ProcessOrder;
+LIST CALLEES OF Sales.ProcessOrder;
 ```
 
 Returns all microflows, entities, and pages referenced by `Sales.ProcessOrder`.
@@ -54,7 +54,7 @@ Returns all microflows, entities, and pages referenced by `Sales.ProcessOrder`.
 Find all references to an element:
 
 ```sql
-SHOW REFERENCES TO Sales.Customer;
+LIST REFERENCES TO Sales.Customer;
 ```
 
 Returns every document that references `Sales.Customer` in any way (data source, parameter, association, etc.).
@@ -64,7 +64,7 @@ Returns every document that references `Sales.Customer` in any way (data source,
 Analyze the impact of changing an element:
 
 ```sql
-SHOW IMPACT OF Sales.Customer;
+LIST IMPACT OF Sales.Customer;
 ```
 
 Returns all direct and transitive dependents -- everything that would potentially be affected by changing or removing the element.
@@ -74,7 +74,7 @@ Returns all direct and transitive dependents -- everything that would potentiall
 Assemble context for understanding a document:
 
 ```sql
-SHOW CONTEXT OF Sales.ProcessOrder DEPTH 3;
+DESCRIBE CONTEXT OF Sales.ProcessOrder DEPTH 3;
 ```
 
 Returns the element itself plus its callers and callees up to the specified depth, providing a focused view of the element's neighborhood in the dependency graph.

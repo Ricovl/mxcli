@@ -22,7 +22,7 @@ defer reader.Close()
 Shell commands use `bash` code fencing:
 
 ```bash
-mxcli -p app.mpr -c "SHOW MODULES"
+mxcli -p app.mpr -c "LIST MODULES"
 ```
 
 ## Syntax Notation

@@ -78,7 +78,7 @@ Retrieves objects from the database using an optional XPath-style WHERE clause:
 -- Retrieve a single object
 RETRIEVE $Customer FROM Sales.Customer
   WHERE Email = $InputEmail
-  LIMIT 1;
+  FIRST;
 
 -- Retrieve a list of objects
 RETRIEVE $ActiveOrders FROM Sales.Order
@@ -94,7 +94,7 @@ RETRIEVE $RecentOrders FROM Sales.Order
   LIMIT 50;
 ```
 
-When `LIMIT 1` is specified, the result is a single entity object. Otherwise, the result is a list.
+With `FIRST` the result is a single entity object (Mendix's "First object" range). Otherwise the result is a list, including with `LIMIT`/`OFFSET`. A bare `LIMIT 1` depends on the language version: a list of one under `mdl 1;`, and without the header the object, with warning `MDL-V1-LIMIT1`. `describe` prints the object range as `FIRST`.
 
 ### RETRIEVE by Association
 
@@ -171,23 +171,20 @@ Java action parameters follow the same `Name = value` syntax.
 Opens a page, passing parameters:
 
 ```sql
-SHOW PAGE Sales.Order_Edit ($Order = $Order);
+SHOW PAGE Sales.Order_Edit (Order = $Order);
 ```
 
-The parameter syntax uses `$PageParam = $MicroflowVar`. Multiple parameters are comma-separated:
+The parameter syntax is `PageParam = $MicroflowVar`, with no `$` on the page's parameter name. Multiple parameters are comma-separated:
 
 ```sql
 SHOW PAGE Sales.OrderDetail (
-  $Order = $Order,
-  $Customer = $Customer
+  Order = $Order,
+  Customer = $Customer
 );
 ```
 
-An alternate syntax using colon notation is also supported:
-
-```sql
-SHOW PAGE Sales.Order_Edit (Order: $Order);
-```
+The older spellings `($Order = $Order)` and `(Order: $Order)` still parse but are
+deprecated (MDL-DEPR006, MDL-DEPR007); `mxcli fmt --upgrade` rewrites them.
 
 ### CLOSE PAGE
 
@@ -246,8 +243,7 @@ $Result = EXECUTE DATABASE QUERY MyModule.MyConn.SearchQuery
   DYNAMIC 'SELECT * FROM customers WHERE name LIKE ?';
 
 -- With parameters
-$Result = EXECUTE DATABASE QUERY MyModule.MyConn.GetByEmail
-  PARAMETERS ($EmailParam = $Email);
+$Result = EXECUTE DATABASE QUERY MyModule.MyConn.GetByEmail (EmailParam = $Email);
 
 -- With runtime connection override
 $Result = EXECUTE DATABASE QUERY MyModule.MyConn.GetData
@@ -272,7 +268,7 @@ The query name follows a three-part naming convention: `Module.ConnectionName.Qu
 | Call microflow | `$Var = CALL MICROFLOW Module.Name (Param = $val);` | Any type |
 | Call nanoflow | `$Var = CALL NANOFLOW Module.Name (Param = $val);` | Any type |
 | Call Java action | `$Var = CALL JAVA ACTION Module.Name (Param = val);` | Any type |
-| Show page | `SHOW PAGE Module.Page ($Param = $val);` | -- |
+| Show page | `SHOW PAGE Module.Page (Param = $val);` | -- |
 | Close page | `CLOSE PAGE;` | -- |
 | Validation | `VALIDATION FEEDBACK $Var/Attr MESSAGE 'msg';` | -- |
 | Log | `LOG INFO\|WARNING\|ERROR [NODE 'name'] 'msg';` | -- |

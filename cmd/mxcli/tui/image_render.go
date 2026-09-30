@@ -1,10 +1,13 @@
 package tui
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -115,23 +118,62 @@ func renderImagesWithSize(paths []string, width, perImgHeight int) string {
 	return sb.String()
 }
 
-// extractImagePaths parses DESCRIBE IMAGE COLLECTION output and extracts
-// file paths from lines matching: IMAGE "name" FROM FILE '/path/to/file'
+// extractImagePaths parses DESCRIBE IMAGE COLLECTION output and returns a
+// file path per image it shows. Describe writes each image into the statement,
+// `image Name ( Data: '<base64>' )`, rather than naming a file it wrote itself
+// (ako/mxcli#707), so the preview decodes the data into its own cache file; a
+// script's `File: '<path>'` (or the old `FROM FILE '<path>'`) is used as is.
 func extractImagePaths(output string) []string {
 	var paths []string
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
-		idx := strings.Index(line, "FROM FILE '")
-		if idx == -1 {
-			continue
+		for _, marker := range []string{"File: '", "FROM FILE '"} {
+			if v, ok := quotedAfter(line, marker); ok {
+				paths = append(paths, v)
+			}
 		}
-		rest := line[idx+len("FROM FILE '"):]
-		// Strip trailing quote and optional comma/semicolon
-		end := strings.Index(rest, "'")
-		if end == -1 {
-			continue
+		if v, ok := quotedAfter(line, "Data: '"); ok {
+			if path := previewImageFile(v); path != "" {
+				paths = append(paths, path)
+			}
 		}
-		paths = append(paths, rest[:end])
 	}
 	return paths
+}
+
+// quotedAfter returns the text between marker and the next quote in line.
+func quotedAfter(line, marker string) (string, bool) {
+	idx := strings.Index(line, marker)
+	if idx == -1 {
+		return "", false
+	}
+	rest := line[idx+len(marker):]
+	end := strings.Index(rest, "'")
+	if end == -1 {
+		return "", false
+	}
+	return rest[:end], true
+}
+
+// previewImageFile writes base64 image data to a file in the preview cache,
+// named by its content so an unchanged image is written once, and returns the
+// path; "" when the data does not decode or cannot be written.
+func previewImageFile(b64 string) string {
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil || len(data) == 0 {
+		return ""
+	}
+	dir := filepath.Join(os.TempDir(), "mxcli-preview")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	path := filepath.Join(dir, hex.EncodeToString(sum[:8]))
+	if _, err := os.Stat(path); err == nil {
+		return path
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return ""
+	}
+	return path
 }

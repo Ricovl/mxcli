@@ -78,10 +78,10 @@ end;
 -- The other two constraint writers go through the same choke point, and were
 -- broken in the same way (measured: both stored `AND` before the fix).
 create module role AndCase.User;
-GRANT AndCase.User ON AndCase.Forecast (READ *) WHERE '[AtLap = 1 AND SessionKey = ''x'']';
+GRANT READ * ON ENTITY AndCase.Forecast TO AndCase.User WHERE [AtLap = 1 AND SessionKey = 'x'];
 
 create or modify page AndCase.P ( Title: 'p', Layout: Atlas_Core.Atlas_Default ) {
   datagrid dg (DataSource: DATABASE AndCase.Forecast where '[AtLap = 1 AND SessionKey = ''x'']') {
-    column c (Attribute: SessionKey)
+    column (Attribute: SessionKey)
   }
 };

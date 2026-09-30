@@ -8,9 +8,9 @@
 -- read back with a nil Action:
 --
 --   -- Unsupported action: DatabaseConnector$ExecuteDatabaseQueryAction
---   -- on error without rollback {
+--   -- on error without rollback begin
 --   --   log error node 'Application' 'query failed';
---   -- };
+--   -- end error;
 --
 -- (That output is itself the #863 fix working — before it, the same activity
 -- said "-- Empty action" and the error handler was gone entirely.)
@@ -38,25 +38,26 @@
 create module DbQ863;
 create persistent entity DbQ863.Row (N: Integer);
 
-create constant DbQ863.DbUrl  type String default 'jdbc:postgresql://localhost:5432/app';
-create constant DbQ863.DbUser type String default 'app';
-create constant DbQ863.DbPass type String default 'secret';
+create constant DbQ863.DbUrl  ( Type: String, DefaultValue: 'jdbc:postgresql://localhost:5432/app' );
+create constant DbQ863.DbUser ( Type: String, DefaultValue: 'app' );
+create constant DbQ863.DbPass ( Type: String, DefaultValue: 'secret' );
 
-create database connection DbQ863.Conn
-  type 'PostgreSQL'
-  connection string @DbQ863.DbUrl
-  username @DbQ863.DbUser
-  password @DbQ863.DbPass
-begin
-  query GetRows
-    sql 'select n from rows where status = $Status'
-    parameter Status: String
-    returns DbQ863.Row map (n as N);
-end;
+create database connection DbQ863.Conn (
+  Type: 'PostgreSQL',
+  ConnectionString: @DbQ863.DbUrl,
+  Username: @DbQ863.DbUser,
+  Password: @DbQ863.DbPass
+) {
+  query GetRows (
+    Sql: 'select n from rows where status = $Status',
+    Parameters: ( Status: String ),
+    Returns: DbQ863.Row, Map: (N = n)
+  )
+};
 
 create microflow DbQ863.MF_Query ($Status: String)
 begin
-  $Rows = execute database query DbQ863.Conn.GetRows (Status = $Status) on error without rollback {
+  $Rows = execute database query DbQ863.Conn.GetRows (Status = $Status) on error without rollback begin
     log error 'query failed';
-  };
+  end error;
 end;

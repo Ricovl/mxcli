@@ -351,7 +351,7 @@ func init() {
 	describeCmd.Flags().StringP("format", "f", "mdl", "Output format: mdl, json, mermaid, elk")
 
 	// Search command flags
-	searchCmd.Flags().StringP("format", "f", "table", "Output format: table, names, json")
+	searchCmd.Flags().StringP("format", "f", "table", "Output format: table, names (for JSON use --json; \"json\" is accepted as a deprecated alias)")
 	searchCmd.Flags().BoolP("quiet", "q", false, "Suppress connection and status messages (for piping)")
 
 	// Callers/callees command flags

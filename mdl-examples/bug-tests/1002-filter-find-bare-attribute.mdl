@@ -38,14 +38,14 @@ create or modify persistent entity FilterProbe.Order (
 -- === CONTROLS: the '=' form, which bug #343 reroutes to filter-by-attribute. ===
 -- These built before the fix too and must keep building — a regression here
 -- means the #343 reroute was lost.
-create or replace microflow FilterProbe.A_BareEqualsReroute () returns Boolean
+create or modify microflow FilterProbe.A_BareEqualsReroute () returns Boolean
 begin
   retrieve $L from FilterProbe.Order;
-  $R = FILTER($L, Status = 'Pending');
+  $R = FILTER $L BY Status = 'Pending';
   return true;
 end;
 
-create or replace microflow FilterProbe.B_FindBareEqualsReroute () returns Boolean
+create or modify microflow FilterProbe.B_FindBareEqualsReroute () returns Boolean
 begin
   retrieve $L from FilterProbe.Order;
   $R = FIND($L, Status = 'Pending');
@@ -53,28 +53,28 @@ begin
 end;
 
 -- === THE BUG: a bare attribute with any other operator. CE0117 before the fix. ===
-create or replace microflow FilterProbe.C_BareDecimalGreater () returns Boolean
+create or modify microflow FilterProbe.C_BareDecimalGreater () returns Boolean
 begin
   retrieve $L from FilterProbe.Order;
-  $R = FILTER($L, Amount > 0);
+  $R = FILTER $L WHERE Amount > 0;
   return true;
 end;
 
-create or replace microflow FilterProbe.D_BareIntegerGreater () returns Boolean
+create or modify microflow FilterProbe.D_BareIntegerGreater () returns Boolean
 begin
   retrieve $L from FilterProbe.Order;
-  $R = FILTER($L, Qty > 0);
+  $R = FILTER $L WHERE Qty > 0;
   return true;
 end;
 
-create or replace microflow FilterProbe.E_BareStringNotEquals () returns Boolean
+create or modify microflow FilterProbe.E_BareStringNotEquals () returns Boolean
 begin
   retrieve $L from FilterProbe.Order;
-  $R = FILTER($L, Status != 'Pending');
+  $R = FILTER $L WHERE Status != 'Pending';
   return true;
 end;
 
-create or replace microflow FilterProbe.F_FindBareGreater () returns Boolean
+create or modify microflow FilterProbe.F_FindBareGreater () returns Boolean
 begin
   retrieve $L from FilterProbe.Order;
   $R = FIND($L, Qty > 0);
@@ -83,22 +83,22 @@ end;
 
 -- A compound predicate: several bare names, and a string literal that must NOT
 -- be rewritten even though it spells an attribute name.
-create or replace microflow FilterProbe.G_CompoundPredicate () returns Boolean
+create or modify microflow FilterProbe.G_CompoundPredicate () returns Boolean
 begin
   retrieve $L from FilterProbe.Order;
-  $R = FILTER($L, Qty > 0 and Status != 'Amount');
+  $R = FILTER $L WHERE Qty > 0 and Status != 'Amount';
   return true;
 end;
 
 -- === The explicit form keeps working unchanged. ===
-create or replace microflow FilterProbe.H_CurrentObjectGreater () returns Boolean
+create or modify microflow FilterProbe.H_CurrentObjectGreater () returns Boolean
 begin
   retrieve $L from FilterProbe.Order;
-  $R = FILTER($L, $currentObject/Amount > 0);
+  $R = FILTER $L WHERE $currentObject/Amount > 0;
   return true;
 end;
 
-create or replace microflow FilterProbe.I_FindCurrentObject () returns Boolean
+create or modify microflow FilterProbe.I_FindCurrentObject () returns Boolean
 begin
   retrieve $L from FilterProbe.Order;
   $R = FIND($L, $currentObject/Amount > 0);
@@ -107,29 +107,29 @@ end;
 
 -- === SORT is a different mechanism (SortItem, not an expression), so a bare
 -- === attribute is correct there and must be left alone.
-create or replace microflow FilterProbe.J_SortBare () returns Boolean
+create or modify microflow FilterProbe.J_SortBare () returns Boolean
 begin
   retrieve $L from FilterProbe.Order;
-  $R = SORT($L, Amount DESC);
+  $R = SORT $L BY Amount DESC;
   return true;
 end;
 
 -- === The element entity is resolved through a parameter and through a call. ===
-create or replace microflow FilterProbe.K_ParamListBare ($Orders: List of FilterProbe.Order) returns Boolean
+create or modify microflow FilterProbe.K_ParamListBare ($Orders: List of FilterProbe.Order) returns Boolean
 begin
-  $R = FILTER($Orders, Qty > 0);
+  $R = FILTER $Orders WHERE Qty > 0;
   return true;
 end;
 
-create or replace microflow FilterProbe.GetOrders () returns List of FilterProbe.Order
+create or modify microflow FilterProbe.GetOrders () returns List of FilterProbe.Order
 begin
   retrieve $L from FilterProbe.Order;
   return $L;
 end;
 
-create or replace microflow FilterProbe.L_CallListBare () returns Boolean
+create or modify microflow FilterProbe.L_CallListBare () returns Boolean
 begin
   $Orders = CALL MICROFLOW FilterProbe.GetOrders ();
-  $R = FILTER($Orders, Qty > 0);
+  $R = FILTER $Orders WHERE Qty > 0;
   return true;
 end;

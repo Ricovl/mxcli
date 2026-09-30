@@ -79,7 +79,7 @@ $HasNetwork = CALL JAVASCRIPT ACTION NanoflowCommons.HasConnectivity();
 
 ```sql
 -- Show a page
-SHOW PAGE Sales.CartDetail ($Cart = $Cart);
+SHOW PAGE Sales.CartDetail (Cart = $Cart);
 
 -- Close the current page
 CLOSE PAGE;
@@ -104,7 +104,7 @@ IF $Cart/ItemCount = 0 THEN
   VALIDATION FEEDBACK $Cart/ItemCount MESSAGE 'Cart is empty';
   RETURN false;
 ELSE
-  SHOW PAGE Sales.Checkout ($Cart = $Cart);
+  SHOW PAGE Sales.Checkout (Cart = $Cart);
   RETURN true;
 END IF;
 ```
@@ -129,8 +129,8 @@ The following activities are server-only and cannot be used in nanoflows:
 ## SHOW and DESCRIBE
 
 ```sql
-SHOW NANOFLOWS
-SHOW NANOFLOWS IN MyModule
+LIST NANOFLOWS
+LIST NANOFLOWS IN MyModule
 DESCRIBE NANOFLOW MyModule.NAV_ShowDetails
 ```
 
@@ -184,7 +184,7 @@ CREATE NANOFLOW Sales.NAV_GoToOrderDetail
 BEGIN
   DECLARE $Order Sales.Order;
 
-  SHOW PAGE Sales.Order_Detail ($Order = $Order);
+  SHOW PAGE Sales.Order_Detail (Order = $Order);
 END;
 ```
 

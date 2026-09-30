@@ -5,34 +5,36 @@ Demo users are test accounts created for development and testing. They appear on
 ## CREATE DEMO USER
 
 ```sql
-CREATE DEMO USER '<username>' PASSWORD '<password>'
-  [ENTITY <Module>.<Entity>]
-  (<UserRole> [, ...]);
+CREATE DEMO USER '<username>' (
+  Password: '<password>',
+  [Entity: <Module>.<Entity>,]
+  UserRoles: (<UserRole> [, ...])
+);
 ```
 
 | Parameter | Description |
 |-----------|-------------|
 | `<username>` | Login name for the demo user |
-| `<password>` | Password (visible in development only) |
-| `ENTITY` | Optional. The entity that generalizes `System.User` (e.g., `Administration.Account`). If omitted, the system auto-detects the unique `System.User` subtype. |
-| `<UserRole>` | One or more project-level user roles to assign |
+| `Password` | Password (visible in development only) |
+| `Entity` | Optional. The entity that generalizes `System.User` (e.g., `Administration.Account`). If omitted, the system auto-detects the unique `System.User` subtype. |
+| `UserRoles` | The project-level user roles to assign |
+
+The keys are Studio Pro's property names. The clause form `PASSWORD '<password>' [ENTITY <Module>.<Entity>] (<UserRole>, …)` is the deprecated alias of the list (`MDL-DEPR137`); `mxcli fmt --upgrade` rewrites it.
 
 ### Examples
 
 ```sql
 -- Basic demo user
-CREATE DEMO USER 'demo_admin' PASSWORD 'Admin123!' (Administrator);
+CREATE DEMO USER 'demo_admin' ( Password: 'Admin123!', UserRoles: (Administrator) );
 
 -- With explicit entity
-CREATE DEMO USER 'demo_admin' PASSWORD 'Admin123!'
-  ENTITY Administration.Account (Administrator);
+CREATE DEMO USER 'demo_admin' ( Password: 'Admin123!', Entity: Administration.Account, UserRoles: (Administrator) );
 
 -- Multiple roles
-CREATE DEMO USER 'demo_manager' PASSWORD 'Manager1!'
-  (Manager, Reporting);
+CREATE DEMO USER 'demo_manager' ( Password: 'Manager1!', UserRoles: (Manager, Reporting) );
 
 -- Standard user
-CREATE DEMO USER 'demo_user' PASSWORD 'User1234!' (Employee);
+CREATE DEMO USER 'demo_user' ( Password: 'User1234!', UserRoles: (Employee) );
 ```
 
 ## DROP DEMO USER
@@ -52,35 +54,32 @@ DROP DEMO USER 'demo_admin';
 Demo users only appear on the login screen when enabled in project security:
 
 ```sql
-ALTER PROJECT SECURITY DEMO USERS ON;
+ALTER APP SECURITY ( EnableDemoUsers: TRUE );
 ```
 
 To hide them:
 
 ```sql
-ALTER PROJECT SECURITY DEMO USERS OFF;
+ALTER APP SECURITY ( EnableDemoUsers: FALSE );
 ```
 
 ## Listing Demo Users
 
 ```sql
-SHOW DEMO USERS;
+LIST DEMO USERS;
 ```
 
 ## Typical Setup
 
 ```sql
 -- Enable demo users and set prototype security
-ALTER PROJECT SECURITY LEVEL PROTOTYPE;
-ALTER PROJECT SECURITY DEMO USERS ON;
+ALTER APP SECURITY ( SecurityLevel: PROTOTYPE );
+ALTER APP SECURITY ( EnableDemoUsers: TRUE );
 
 -- Create demo accounts for each role
-CREATE DEMO USER 'demo_admin' PASSWORD 'Admin123!'
-  ENTITY Administration.Account (Administrator);
-CREATE DEMO USER 'demo_user' PASSWORD 'User1234!'
-  ENTITY Administration.Account (Employee);
-CREATE DEMO USER 'demo_guest' PASSWORD 'Guest123!'
-  ENTITY Administration.Account (Guest);
+CREATE DEMO USER 'demo_admin' ( Password: 'Admin123!', Entity: Administration.Account, UserRoles: (Administrator) );
+CREATE DEMO USER 'demo_user' ( Password: 'User1234!', Entity: Administration.Account, UserRoles: (Employee) );
+CREATE DEMO USER 'demo_guest' ( Password: 'Guest123!', Entity: Administration.Account, UserRoles: (Guest) );
 ```
 
 ## See Also

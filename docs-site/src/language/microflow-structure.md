@@ -170,6 +170,43 @@ was placed on purpose — in Studio Pro or with `@start` — so it survives a re
 that does not mention it, and `DESCRIBE` emits an `@start` line for it. An
 explicit `@start` overrides both.
 
+### Anchors
+
+`@anchor(from: X, to: Y)` picks the side (`top`, `right`, `bottom`, `left`) each
+end of a flow attaches to: `to` is the flow arriving at the statement, `from` the
+flow leaving it. On an `if`, `true: (from: …, to: …)` and `false: (…)` are its
+branches, and `from` is the flow leaving its closing merge — the merge has no
+statement of its own, just as its position rides on the `if` as `@merge`:
+
+```sql
+create microflow Sales.ACT_CheckFactory ($Factory: Sales.Factory)
+begin
+  @anchor(from: bottom, to: top)
+  @merge(2650, 200)
+  if $Factory/Latitude = empty then
+    log warning node 'Factory' 'No location';
+  end if;
+end;
+```
+
+This is how `DESCRIBE` writes a decision whose merge drops onto the next row.
+
+### Layout in `DESCRIBE` output
+
+`DESCRIBE MICROFLOW` and `DESCRIBE NANOFLOW` print a layout annotation —
+`@position`, `@merge`, `@anchor`, `@curve`, `@start` — only where the layout
+would not produce it on its own. A flow written without annotations describes
+without them. A statement placed by hand keeps its `@position`, and the
+statements the layout places after it follow from it without one.
+
+Whether an annotation is needed is not guessed from the coordinates. `DESCRIBE`
+builds the flow again from its own output, exactly as `CREATE OR MODIFY` would
+(nothing is written), and every node that lands elsewhere keeps its annotation.
+So re-executing a description never moves a node: a flow drawn in Studio Pro
+comes back with its layout, because Studio Pro positions are not ones the layout
+produces. `DESCRIBE … WITH HANDLES` and `DESCRIBE … NORMALIZED` still print every
+annotation.
+
 ### Caption
 
 Set a custom caption displayed on the activity in the canvas:

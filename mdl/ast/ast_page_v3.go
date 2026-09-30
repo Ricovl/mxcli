@@ -25,13 +25,14 @@ import (
 // CreatePageStmtV3 represents a V3 page creation statement.
 // V3 syntax: CREATE PAGE Module.Page (Title: '...', Layout: ...) { widgets }
 type CreatePageStmtV3 struct {
-	Name       QualifiedName
-	Parameters []PageParameter // From Params: { } block
-	Variables  []PageVariable  // From Variables: { } block
-	Title      string
-	Layout     string
-	URL        string
-	Folder     string
+	CreateGuard // `create … if not exists` (ako/mxcli#731)
+	Name        QualifiedName
+	Parameters  []PageParameter // From the Params: ( ) map
+	Variables   []PageVariable  // From Variables: { } block
+	Title       string
+	Layout      string
+	URL         string
+	Folder      string
 	// Class / Style set the page's Forms$Appearance CSS class and inline style
 	// (issue #714). Empty means "not specified".
 	Class   string
@@ -71,8 +72,9 @@ type PagePlaceholderV3 struct {
 
 // CreateSnippetStmtV3 represents a V3 snippet creation statement.
 type CreateSnippetStmtV3 struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
-	Parameters       []PageParameter // From Params: { } block
+	Parameters       []PageParameter // From the Params: ( ) map
 	Variables        []PageVariable  // From Variables: { } block
 	Folder           string
 	Widgets          []*WidgetV3
@@ -90,6 +92,7 @@ func (s *CreateSnippetStmtV3) isStatement() {}
 // on the content wrapper rather than on the layout element — and which
 // placeholder a page's content goes into.
 type CreateLayoutStmt struct {
+	CreateGuard      // `create … if not exists` (ako/mxcli#731)
 	Name             QualifiedName
 	Properties       map[string]any
 	Widgets          []*WidgetV3
@@ -199,6 +202,15 @@ type DataSourceV3 struct {
 	// (Forms$ListViewSearch.SearchRefs). Names only — a search attribute has no
 	// direction, which is why this is []string and not []OrderByItemV3.
 	SearchAttributes []string
+	// AssociationPath is set on a database source that is reached from a context
+	// object over associations — `database from $Ctx/Mod.Assoc/Mod.Entity …`,
+	// stored as a Forms$ListViewXPathSource whose EntityRef is an
+	// IndirectEntityRef. ContextVariable names the object ("currentObject" for
+	// the enclosing container), and Reference is empty until the builder
+	// resolves the destination entity. Distinct from an association source
+	// (`$Ctx/Mod.Assoc`), which is an in-memory retrieve with no XPath, sort or
+	// search (ako/mxcli#721 L5).
+	AssociationPath string
 }
 
 // FlowArgV3 represents an argument for microflow/nanoflow/page calls.
@@ -237,6 +249,23 @@ type ActionV3 struct {
 	LinkVariable  string
 	LinkAttribute string
 	OutcomeValue  string // For COMPLETE_TASK
+	// Settings is the action's `with ( … )` list, nil when none was written.
+	Settings *ActionSettingsV3
+}
+
+// ActionSettingsV3 holds the client-action settings Studio Pro shows under an
+// event: `with (DisabledDuringExecution: false, ProgressBar: Blocking, …)`.
+// Every field is optional; nil / "" means "not written", which keeps the
+// writer's default (ako/mxcli#721 L2).
+type ActionSettingsV3 struct {
+	DisabledDuringExecution *bool
+	ProgressBar             string  // None | NonBlocking | Blocking (canonical casing)
+	ProgressMessage         *string // progress message text
+	Confirmation            *string // the confirmation question; its presence turns confirmation on
+	ProceedCaption          *string
+	CancelCaption           *string
+	Asynchronous            *bool  // call microflow only
+	FormValidations         string // call microflow only: All | Widget | None
 }
 
 // ColumnV3 represents a V3 datagrid column.

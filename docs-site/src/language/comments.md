@@ -8,10 +8,10 @@ Use `--` (SQL style) or `//` (C style) for single-line comments:
 
 ```sql
 -- This is a single-line comment
-SHOW MODULES
+LIST MODULES
 
 // This is also a single-line comment
-SHOW ENTITIES IN Sales
+LIST ENTITIES IN Sales
 ```
 
 Everything after the comment marker to the end of the line is ignored.
@@ -56,6 +56,10 @@ Documentation comments can be placed before:
 - Attribute definitions (becomes attribute documentation)
 - Enumeration definitions (becomes enumeration documentation)
 - Association definitions (becomes association documentation)
+
+Not before an **enumeration value** or an **index**: Mendix stores no documentation
+on a value and no name on an index, so `check` warns that the text is not kept
+(`MDL-ENUMDOC01`, `MDL-IDX01`). Use an ordinary `--` comment for a note there.
 
 ### Updating Documentation
 

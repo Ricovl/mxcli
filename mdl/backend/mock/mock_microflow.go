@@ -155,3 +155,20 @@ func (m *MockBackend) IsRule(qualifiedName string) (bool, error) {
 	}
 	return false, nil
 }
+
+// ReadBackMicroflow errors unless stubbed: without a codec the mock cannot say
+// how a microflow reads back, and the caller then compares statements.
+func (m *MockBackend) ReadBackMicroflow(mf *microflows.Microflow) (*microflows.Microflow, error) {
+	if m.ReadBackMicroflowFunc != nil {
+		return m.ReadBackMicroflowFunc(mf)
+	}
+	return nil, fmt.Errorf("MockBackend.ReadBackMicroflow not configured")
+}
+
+// ReadBackNanoflow errors unless stubbed, like ReadBackMicroflow.
+func (m *MockBackend) ReadBackNanoflow(nf *microflows.Nanoflow) (*microflows.Nanoflow, error) {
+	if m.ReadBackNanoflowFunc != nil {
+		return m.ReadBackNanoflowFunc(nf)
+	}
+	return nil, fmt.Errorf("MockBackend.ReadBackNanoflow not configured")
+}

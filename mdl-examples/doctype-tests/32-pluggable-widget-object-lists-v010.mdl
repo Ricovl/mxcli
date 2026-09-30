@@ -84,14 +84,13 @@ create persistent entity ObjListV10.SalesData (
 -- MARK: OL01 — Accordion with simple text-header groups
 -- ============================================================================
 
-create page ObjListV10.P_OL01_AccordionGroups (
+create page ObjListV10.P_OL01_AccordionGroups folder 'ObjectLists/Accordion' (
   Title: 'FAQ Accordion',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'ObjectLists/Accordion'
+  Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         pluggablewidget 'com.mendix.widget.web.accordion.Accordion' acc1 (
           collapsible: true,
           expandBehavior: 'singleExpanded',
@@ -126,14 +125,13 @@ create page ObjListV10.P_OL01_AccordionGroups (
 -- MARK: OL02 — Accordion with custom-widget headers
 -- ============================================================================
 
-create page ObjListV10.P_OL02_AccordionCustomHeader (
+create page ObjListV10.P_OL02_AccordionCustomHeader folder 'ObjectLists/Accordion' (
   Title: 'Custom Header Accordion',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'ObjectLists/Accordion'
+  Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         pluggablewidget 'com.mendix.widget.web.accordion.Accordion' acc2 (
           expandBehavior: 'multipleExpanded',
           showIcon: 'left'
@@ -163,14 +161,13 @@ create page ObjListV10.P_OL02_AccordionCustomHeader (
 -- MARK: OL03 — PopupMenu with basicItems (simple caption + action)
 -- ============================================================================
 
-create page ObjListV10.P_OL03_PopupMenuBasic (
+create page ObjListV10.P_OL03_PopupMenuBasic folder 'ObjectLists/PopupMenu' (
   Title: 'Popup Menu — Basic',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'ObjectLists/PopupMenu'
+  Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         -- TODO(grammar): PopupMenu requires its MENUTRIGGER child slot
         -- (CE0642). Slot keyword not in MDLPage.g4 widgetTypeV3 yet.
         -- ITEM keyword syntax (object list) is shown in the comment.
@@ -196,14 +193,13 @@ create page ObjListV10.P_OL03_PopupMenuBasic (
 -- MARK: OL04 — PopupMenu with customItems (widget content)
 -- ============================================================================
 
-create page ObjListV10.P_OL04_PopupMenuCustom (
+create page ObjListV10.P_OL04_PopupMenuCustom folder 'ObjectLists/PopupMenu' (
   Title: 'Popup Menu — Custom Items',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'ObjectLists/PopupMenu'
+  Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         -- TODO(grammar): Same MENUTRIGGER blocker as OL03. CUSTOMITEM
         -- keyword syntax (object list with widget content) is shown below.
         --
@@ -242,14 +238,13 @@ create page ObjListV10.P_OL04_PopupMenuCustom (
 -- the series' OWN datasource, not the page. (Bug 9a — datasource + attribute
 -- sub-properties inside object-list items.)
 
-create page ObjListV10.P_OL05_AreaChartSeries (
+create page ObjListV10.P_OL05_AreaChartSeries folder 'ObjectLists/Chart' (
   Title: 'Sales Trends',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'ObjectLists/Chart'
+  Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         pluggablewidget 'com.mendix.widget.web.areachart.AreaChart' chart1 {
           series seriesRevenue (
             DataSet: 'static',
@@ -269,14 +264,13 @@ create page ObjListV10.P_OL05_AreaChartSeries (
 -- MARK: OL06 — Maps with static markers
 -- ============================================================================
 
-create page ObjListV10.P_OL06_MapsStatic (
+create page ObjListV10.P_OL06_MapsStatic folder 'ObjectLists/Maps' (
   Title: 'Office Locations',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'ObjectLists/Maps'
+  Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         -- geodecodeApiKey is required when any marker uses LocationType:'address'
         -- (the Maps widget translates addresses to coordinates at render time).
         pluggablewidget 'com.mendix.widget.custom.Maps.Maps' map1 (
@@ -320,14 +314,13 @@ create page ObjListV10.P_OL06_MapsStatic (
 -- coordinate-based mode (valid enum values are address / latlng — `check` now
 -- flags an invalid value via MDL-WIDGET08).
 
-create page ObjListV10.P_OL07_MapsDynamic (
+create page ObjListV10.P_OL07_MapsDynamic folder 'ObjectLists/Maps' (
   Title: 'Customer Locations',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'ObjectLists/Maps'
+  Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         pluggablewidget 'com.mendix.widget.custom.Maps.Maps' map2 (
           apiKey: 'demo-key',
           geodecodeApiKey: 'demo-key',
@@ -355,14 +348,13 @@ create page ObjListV10.P_OL07_MapsDynamic (
 -- keyword. A line binds its own datasource and X/Y attributes, exactly like a
 -- SERIES; `Interpolation:` picks the curve style.
 
-create page ObjListV10.P_OL08_LineChart (
+create page ObjListV10.P_OL08_LineChart folder 'ObjectLists/Chart' (
   Title: 'Revenue Trend',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'ObjectLists/Chart'
+  Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         pluggablewidget 'com.mendix.widget.web.linechart.LineChart' lineChart1 {
           line lRevenue (
             DataSet: 'static',
@@ -392,14 +384,13 @@ create page ObjListV10.P_OL08_LineChart (
 -- `VerticalAxisAttribute:` pick the two category axes. The SCALECOLOR entries
 -- then layer the colour scale over that grid.
 
-create page ObjListV10.P_OL09_HeatMap (
+create page ObjListV10.P_OL09_HeatMap folder 'ObjectLists/Chart' (
   Title: 'Sales Heat Map',
-  Layout: Atlas_Core.Atlas_Default,
-  Folder: 'ObjectLists/Chart'
+  Layout: Atlas_Core.Atlas_Default
 ) {
   layoutgrid lg1 {
-    row r1 {
-      column c1 (DesktopWidth: 12) {
+    row {
+      column (DesktopWidth: 12) {
         pluggablewidget 'com.mendix.widget.web.heatmap.HeatMap' heatMap1 (
           DataSource: database from ObjListV10.SalesData,
           HorizontalAxisAttribute: Region,

@@ -39,7 +39,7 @@ create persistent entity Del901.Child ( Title: String(100) );
 create association Del901.Child_Parent
   from Del901.Child to Del901.Parent
   type Reference owner Default storage column
-  delete_behavior CASCADE;
+  on delete cascade;
 
 describe association Del901.Child_Parent;
 -- expect: delete_behavior DELETE_AND_REFERENCES
@@ -49,7 +49,7 @@ describe association Del901.Child_Parent;
 create or modify association Del901.Child_Parent
   from Del901.Child to Del901.Parent
   type Reference owner Default storage column
-  delete_behavior PREVENT;
+  on delete restrict;
 
 describe association Del901.Child_Parent;
 -- expect: delete_behavior DELETE_IF_NO_REFERENCES
@@ -59,19 +59,19 @@ describe association Del901.Child_Parent;
 create or modify association Del901.Child_Parent
   from Del901.Child to Del901.Parent
   type Reference owner Default storage column
-  delete_behavior DELETE_AND_REFERENCES;
+  on delete cascade;
 
 describe association Del901.Child_Parent;
 -- expect: delete_behavior DELETE_AND_REFERENCES
 
 -- The ALTER path, where bug (2) lives. Before the fix this stored the
 -- out-of-domain string "DeleteIfNoReferences".
-alter association Del901.Child_Parent set delete_behavior PREVENT;
+alter association Del901.Child_Parent set on delete restrict;
 
 describe association Del901.Child_Parent;
 -- expect: delete_behavior DELETE_IF_NO_REFERENCES
 
-alter association Del901.Child_Parent set delete_behavior DELETE_BUT_KEEP_REFERENCES;
+alter association Del901.Child_Parent set on delete set null;
 
 describe association Del901.Child_Parent;
 -- expect: delete_behavior DELETE_BUT_KEEP_REFERENCES

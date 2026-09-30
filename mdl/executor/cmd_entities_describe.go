@@ -293,13 +293,13 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 					if vr.Type == "Required" {
 						constraints.WriteString(" not null")
 						if errMsg := pickTextTranslation(vr.ErrorMessage, lang); errMsg != "" {
-							constraints.WriteString(fmt.Sprintf(" error '%s'", errMsg))
+							constraints.WriteString(" error message " + mdlQuoted(errMsg))
 						}
 					}
 					if vr.Type == "Unique" {
 						constraints.WriteString(" unique")
 						if errMsg := pickTextTranslation(vr.ErrorMessage, lang); errMsg != "" {
-							constraints.WriteString(fmt.Sprintf(" error '%s'", errMsg))
+							constraints.WriteString(" error message " + mdlQuoted(errMsg))
 						}
 					}
 				}
@@ -318,7 +318,7 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 					defaultVal := attr.Value.DefaultValue
 					// Quote string defaults
 					if _, ok := attr.Type.(*domainmodel.StringAttributeType); ok {
-						defaultVal = fmt.Sprintf("'%s'", defaultVal)
+						defaultVal = mdlQuoted(defaultVal)
 					}
 					// Re-qualify enum defaults for MDL syntax (BSON stores just the value name)
 					if enumType, ok := attr.Type.(*domainmodel.EnumerationAttributeType); ok {
@@ -422,7 +422,6 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 			// Output access rule GRANT statements
 			outputEntityAccessGrants(ctx, entity, name.Module, name.Name)
 
-			fmt.Fprintln(ctx.Output, "/")
 			return nil
 		}
 	}

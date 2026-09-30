@@ -90,7 +90,7 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	// Build CREATE JAVA ACTION statement
-	sb.WriteString("create java action ")
+	sb.WriteString("create or modify java action ")
 	sb.WriteString(qualifiedName)
 	sb.WriteString(describeFolderClause(ctx, ja.ContainerID))
 	sb.WriteString("(")
@@ -165,7 +165,7 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 	if javaCode != "" {
 		sb.WriteString(javaCode)
 	} else {
-		sb.WriteString("// Java source not available from this project; body omitted by DESCRIBE.")
+		sb.WriteString(javaSourceOmittedBody)
 	}
 	sb.WriteString("\n$$;")
 
@@ -182,6 +182,10 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 
 	return nil
 }
+
+// javaSourceOmittedBody is the body DESCRIBE prints for an action whose source it
+// cannot read (#637). exec recognises it and writes no source file.
+const javaSourceOmittedBody = "// Java source not available from this project; body omitted by DESCRIBE."
 
 // readJavaActionUserCode reads the Java source file and extracts the user code section.
 func readJavaActionUserCode(mprPath, moduleName, actionName string) string {
@@ -200,26 +204,51 @@ func readJavaActionUserCode(mprPath, moduleName, actionName string) string {
 		return ""
 	}
 
-	// Extract user code between BEGIN USER CODE and END USER CODE markers
-	source := string(content)
-	beginMarker := "// begin user CODE"
-	endMarker := "// end user CODE"
-
-	beginIdx := strings.Index(source, beginMarker)
-	endIdx := strings.Index(source, endMarker)
-
-	if beginIdx == -1 || endIdx == -1 || endIdx <= beginIdx {
-		// No markers found, return empty (or could return raw code)
+	// Extract user code between the BEGIN USER CODE and END USER CODE markers.
+	// Matched case-insensitively, as for JavaScript actions: a sweep that
+	// lowercased MDL keywords in output also lowercased these literals, so no
+	// Studio Pro file matched, DESCRIBE always printed the placeholder body, and
+	// re-executing that output replaced the action's code with it (#705).
+	userCode, ok := sliceBetweenFold(string(content), "// BEGIN USER CODE", "// END USER CODE")
+	if !ok {
 		return ""
 	}
+	return normalizeJavaSection(userCode)
+}
 
-	// Extract code between markers (skip the marker line itself)
-	userCode := source[beginIdx+len(beginMarker) : endIdx]
-	userCode = strings.TrimPrefix(userCode, "\n")
-	userCode = strings.TrimSuffix(userCode, "\n")
-	userCode = strings.TrimRight(userCode, " \t")
-
-	return userCode
+// normalizeJavaSection makes a marker section's text a fixed point of
+// describe -> exec: line endings to LF (Studio Pro writes CRLF), the blank lines
+// around it dropped, and the indentation common to every line removed.
+// GenerateSource re-indents each line uniformly, so without this every rewrite
+// shifted the code further right and a second DESCRIBE never matched the first.
+func normalizeJavaSection(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	lines := strings.Split(s, "\n")
+	for len(lines) > 0 && strings.TrimSpace(lines[0]) == "" {
+		lines = lines[1:]
+	}
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	indent := ""
+	first := true
+	for _, l := range lines {
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		lead := l[:len(l)-len(strings.TrimLeft(l, " \t"))]
+		if first {
+			indent, first = lead, false
+			continue
+		}
+		for !strings.HasPrefix(lead, indent) {
+			indent = indent[:len(indent)-1]
+		}
+	}
+	for i, l := range lines {
+		lines[i] = strings.TrimRight(strings.TrimPrefix(l, indent), " \t")
+	}
+	return strings.Join(lines, "\n")
 }
 
 // formatJavaActionType formats a Java action parameter type for MDL output.
@@ -343,6 +372,15 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	var existingJADoc string
 	haveExistingJA := false
 	var existingActionInfo *javaactions.MicroflowActionInfo
+	// A parameter's Description and Category have no MDL spelling either —
+	// DESCRIBE prints the description as a comment — so a rewrite carries them
+	// from the stored parameter of the same name.
+	storedParams := map[string]*javaactions.JavaActionParameter{}
+	// Neither has an MDL spelling, so a rewrite carries them. The defaults are
+	// what Studio Pro writes on a new action; "Public" — what this used to
+	// hardcode — is not a member of JavaActionsExportLevel (API | Hidden), and
+	// every rewrite turned a Hidden action into it (ako/mxcli#705).
+	exportLevel, defaultReturnName := "Hidden", "ReturnValueName"
 	if existing, ok := pickLive(jas,
 		func(ja *types.JavaAction) bool {
 			return h.GetModuleName(h.FindModuleID(ja.ContainerID)) == s.Name.Module && ja.Name == s.Name.Name
@@ -361,6 +399,15 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 		// stored one has to be read before the rewrite can carry them.
 		if full, err := ctx.Backend.ReadJavaActionByName(s.Name.Module + "." + s.Name.Name); err == nil && full != nil {
 			existingActionInfo = full.MicroflowActionInfo
+			if full.ExportLevel != "" {
+				exportLevel = full.ExportLevel
+			}
+			defaultReturnName = full.ActionDefaultReturnName
+			for _, p := range full.Parameters {
+				if p != nil {
+					storedParams[p.Name] = p
+				}
+			}
 		}
 	}
 
@@ -381,11 +428,12 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 			ID:       newID,
 			TypeName: "JavaActions$JavaAction",
 		},
-		Excluded:      existingExcluded,
-		ContainerID:   containerID,
-		Name:          s.Name.Name,
-		Documentation: s.Documentation,
-		ExportLevel:   "Public",
+		Excluded:                existingExcluded,
+		ContainerID:             containerID,
+		Name:                    s.Name.Name,
+		Documentation:           s.Documentation,
+		ExportLevel:             exportLevel,
+		ActionDefaultReturnName: defaultReturnName,
 	}
 	// A rewrite that carried no doc comment keeps the stored one (#1018).
 	if haveExistingJA {
@@ -445,6 +493,10 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 		} else {
 			jaParam.ParameterType = astDataTypeToJavaActionParamType(param.Type)
 		}
+		if sp := storedParams[param.Name]; sp != nil {
+			jaParam.Description = sp.Description
+			jaParam.Category = sp.Category
+		}
 		ja.Parameters = append(ja.Parameters, jaParam)
 	}
 
@@ -484,8 +536,12 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 		}
 	}
 
-	// Write Java source file if code is provided
-	if s.JavaCode != "" {
+	// Write Java source file if code is provided. The placeholder DESCRIBE
+	// prints when it could not read the source is not code: executing it would
+	// overwrite the real implementation, or put a stub beside an add-on
+	// module's compiled one. The statement says nothing about the code, so the
+	// file is left alone.
+	if s.JavaCode != "" && strings.TrimSpace(s.JavaCode) != javaSourceOmittedBody {
 		if err := ctx.Backend.WriteJavaSourceFile(moduleName, s.Name.Name, s.JavaCode, ja.Parameters, ja.ReturnType, s.Imports, s.ExtraCode); err != nil {
 			return mdlerrors.NewBackend("write java source file", err)
 		}

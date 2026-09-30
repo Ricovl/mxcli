@@ -46,6 +46,11 @@ type pageBuilder struct {
 	themeRegistry    *ThemeRegistry                     // Theme design property definitions (may be nil)
 	widgetBackend    backend.WidgetBuilderBackend       // Backend for pluggable widget construction
 
+	// dataViewVariables: enclosing data view name -> the Forms$PageVariable a
+	// binding read through it (`$dataView1.Attr`) stores. Holds only the data
+	// views around the widget being built (ako/mxcli#826).
+	dataViewVariables map[string]pages.WidgetVariable
+
 	// Pluggable widget engine (lazily initialized)
 	widgetRegistry     *WidgetRegistry
 	pluggableEngine    *PluggableWidgetEngine
@@ -90,11 +95,17 @@ type pageBuilder struct {
 	// reference as a last line, ALTER included (canon.BareAttributeRefError).
 	tolerateDanglingRefs bool
 
-	// Local page/snippet variables (Variables: { $name: Type = 'default' }).
+	// Local page/snippet variables (Variables: ( $name: Type = 'default' )).
 	// Used to distinguish a $localVar reference from a page parameter when
 	// resolving TextTemplate parameters — local variables must be stored as
 	// Forms$PageVariable.LocalVariable in BSON, not as a literal Expression.
 	localVariables map[string]bool
+
+	// storedPluggables are the pluggable widgets of the stored document a
+	// `create or replace`/`create or modify` rewrites; nil for a new document.
+	// A widget the statement did not change keeps its stored Type and Object
+	// (ako/mxcli#721 L4, see cmd_pages_pluggable_passthrough.go).
+	storedPluggables *pluggablePassthrough
 }
 
 // initPluggableEngine lazily initializes the pluggable widget engine.
@@ -150,13 +161,11 @@ func (pb *pageBuilder) registerWidgetName(name string, id model.ID) error {
 
 // getModules returns cached modules or loads them.
 func (pb *pageBuilder) getModules() []*model.Module {
-	if pb.execCache != nil && pb.execCache.modules != nil {
-		return pb.execCache.modules
+	if pb.execCache == nil {
+		modules, _ := pb.backend.ListModules()
+		return modules
 	}
-	modules, _ := pb.backend.ListModules()
-	if pb.execCache != nil {
-		pb.execCache.modules = modules
-	}
+	modules, _ := pb.execCache.cachedModules(pb.backend.ListModules)
 	return modules
 }
 

@@ -43,7 +43,8 @@ func wfKindFixture(t *testing.T) (*ExecContext, *mock.MockBackend) {
 			&workflows.ExclusiveSplitActivity{BaseWorkflowActivity: workflows.BaseWorkflowActivity{
 				BaseElement: model.BaseElement{ID: "a2"}, Name: "decision9"}},
 			&workflows.ParallelSplitActivity{BaseWorkflowActivity: workflows.BaseWorkflowActivity{
-				BaseElement: model.BaseElement{ID: "a3"}, Name: "split1"}},
+				BaseElement: model.BaseElement{ID: "a3"}, Name: "split1"},
+				Outcomes: []*workflows.ParallelSplitOutcome{{}, {}}},
 			&workflows.CallMicroflowTask{BaseWorkflowActivity: workflows.BaseWorkflowActivity{
 				BaseElement: model.BaseElement{ID: "a4"}, Name: "callMicroflow1"}},
 		},
@@ -130,7 +131,7 @@ func TestAlterWorkflow_RefusalNamesTheRightOp(t *testing.T) {
 		t.Fatal("expected a refusal")
 	}
 	joined := strings.Join(errs, "\n")
-	for _, want := range []string{"INSERT CONDITION", "decision"} {
+	for _, want := range []string{"insert into decision9 { outcomes '<Module.Enumeration.Value>' -> { … } }", "decision"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("refusal does not mention %q: %s", want, joined)
 		}

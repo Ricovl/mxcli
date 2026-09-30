@@ -95,7 +95,7 @@ create association Anchors.Order_Customer
 
 -- The write that used to destroy the anchors. Says nothing about them, so they
 -- survive.
-alter association Anchors.Order_Customer set comment 'touched';
+alter association Anchors.Order_Customer set documentation 'touched';
 /
 
 -- Retuning just the line, without restating the association.

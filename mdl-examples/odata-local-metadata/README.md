@@ -18,7 +18,7 @@ This example demonstrates how to create consumed OData services using local meta
 
 ### 1. Absolute `file://` URI
 ```mdl
-CREATE ODATA CLIENT MyModule.Service (
+CREATE CONSUMED ODATA SERVICE MyModule.Service (
   MetadataUrl: 'file:///absolute/path/to/metadata.xml'
 );
 ```
@@ -27,12 +27,12 @@ CREATE ODATA CLIENT MyModule.Service (
 ```mdl
 -- Resolved relative to the .mpr file's directory, then normalized to absolute file://
 -- Example: './metadata/service.xml' → 'file:///absolute/path/to/project/metadata/service.xml'
-CREATE ODATA CLIENT MyModule.Service (
+CREATE CONSUMED ODATA SERVICE MyModule.Service (
   MetadataUrl: './metadata/service.xml',
   ServiceUrl: '@MyModule.ServiceLocation'
 );
 
-CREATE ODATA CLIENT MyModule.Service2 (
+CREATE CONSUMED ODATA SERVICE MyModule.Service2 (
   MetadataUrl: 'metadata/service.xml',
   ServiceUrl: '@MyModule.ServiceLocation'
 );
@@ -40,7 +40,7 @@ CREATE ODATA CLIENT MyModule.Service2 (
 
 ### 3. HTTP(S) URL (existing behavior)
 ```mdl
-CREATE ODATA CLIENT MyModule.Service (
+CREATE CONSUMED ODATA SERVICE MyModule.Service (
   MetadataUrl: 'https://api.example.com/$metadata'
 );
 ```

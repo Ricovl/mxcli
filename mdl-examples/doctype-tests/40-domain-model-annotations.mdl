@@ -93,7 +93,7 @@ Everything about an order lives here.$$,
 -- unambiguous DROP form takes, so both are printed rather than left to be
 -- derived.
 
-show annotations in Notes;
+list annotations in Notes;
 
 -- =============================================================================
 -- PART 5 — removing
@@ -131,4 +131,4 @@ drop annotation 'Reference data — lookup tables only.' in Notes;
 --   create annotation in Notes ( Position: (10, 10) );
 --   -- Error: an annotation needs a Caption
 
-show annotations in Notes;
+list annotations in Notes;

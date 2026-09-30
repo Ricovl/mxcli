@@ -106,14 +106,14 @@ $$;
 
 -- MARK: Nanoflows a button can call
 
-create or replace nanoflow ThemeSwitchTest.ACT_ToggleTheme()
+create or modify nanoflow ThemeSwitchTest.ACT_ToggleTheme()
 returns String as $Theme
 begin
   $Theme = call javascript action ThemeSwitchTest.ToggleAppTheme();
   return $Theme;
 end;
 
-create or replace nanoflow ThemeSwitchTest.ACT_ApplyStoredTheme()
+create or modify nanoflow ThemeSwitchTest.ACT_ApplyStoredTheme()
 returns Boolean as $Applied
 begin
   $Applied = call javascript action ThemeSwitchTest.ApplyStoredTheme();

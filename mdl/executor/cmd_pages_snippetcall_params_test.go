@@ -8,6 +8,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend/mock"
+	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
@@ -119,5 +120,42 @@ func TestSnippetCallParams_MismatchedContextRequiresParams(t *testing.T) {
 	sc := &pages.SnippetCallWidget{}
 	if err := pb.buildSnippetCallParams(sc, "S868.OrderActions", nil); err == nil {
 		t.Fatal("a context of a different entity was accepted as satisfying the parameter")
+	}
+}
+
+// ako/mxcli#721 L3, the snippet-call sibling. A SNIPPETCALL inside a snippet
+// that passes the enclosing snippet's own parameter names it in the
+// SnippetParameter slot of the mapping's Forms$PageVariable (27 such mappings in
+// TestApp's WorkflowCommons). mxcli wrote every mapping as a page parameter;
+// measured with mx 11.14.0 on a TestApp copy, `snippetcall sc1 (Snippet:
+// WorkflowCommons.Snip_UserTask_TaskTimeline, Params: {WorkflowUserTask: $Task})`
+// inside a snippet declaring $Task is CE0115 "The arguments that are passed to
+// snippet … do not match the expected parameters and need to be refreshed."
+func TestSnippetCallParams_SnippetParameterSlot(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		isSnippet bool
+		want      string
+	}{
+		{"inside a snippet", true, "snippet"},
+		{"on a page", false, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pb := newSnippetCallTestBuilder(t, "")
+			pb.isSnippet = tc.isSnippet
+			pb.paramScope = map[string]model.ID{"Order": "e-order"}
+			sc := &pages.SnippetCallWidget{}
+			err := pb.buildSnippetCallParams(sc, "S868.OrderActions",
+				[]ast.SnippetCallParam{{ParamName: "Order", Variable: "$Order"}})
+			if err != nil {
+				t.Fatalf("buildSnippetCallParams: %v", err)
+			}
+			if len(sc.ParameterMappings) != 1 {
+				t.Fatalf("ParameterMappings = %+v, want exactly one", sc.ParameterMappings)
+			}
+			if got := sc.ParameterMappings[0].IsSnippetParameter; got != (tc.want == "snippet") {
+				t.Errorf("IsSnippetParameter = %v, want %v", got, tc.want == "snippet")
+			}
+		})
 	}
 }

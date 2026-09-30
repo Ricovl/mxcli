@@ -85,7 +85,7 @@ func describeAgentEditorAgent(ctx *ExecContext, name ast.QualifiedName) error {
 		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", a.Documentation)
 	}
 
-	fmt.Fprintf(ctx.Output, "create agent %s%s (\n", qualifiedName, describeFolderClause(ctx, a.ContainerID))
+	fmt.Fprintf(ctx.Output, "create or modify agent %s%s (\n", qualifiedName, describeFolderClause(ctx, a.ContainerID))
 
 	// Build property lines. User-set properties are emitted in a stable
 	// order; empty values are omitted.
@@ -94,7 +94,7 @@ func describeAgentEditorAgent(ctx *ExecContext, name ast.QualifiedName) error {
 		lines = append(lines, fmt.Sprintf("  UsageType: %s", a.UsageType))
 	}
 	if a.Description != "" {
-		lines = append(lines, fmt.Sprintf("  Description: '%s'", escapeSQLString(a.Description)))
+		lines = append(lines, "  Description: "+mdlQuoted(a.Description))
 	}
 	if a.Model != nil && a.Model.QualifiedName != "" {
 		lines = append(lines, fmt.Sprintf("  Model: %s", a.Model.QualifiedName))
@@ -163,11 +163,11 @@ func describeAgentEditorAgent(ctx *ExecContext, name ast.QualifiedName) error {
 	} else {
 		fmt.Fprintln(ctx.Output, ");")
 	}
-	fmt.Fprintln(ctx.Output, "/")
 	return nil
 }
 
-// emitToolBlock writes one TOOL or MCP SERVICE block for the agent body.
+// emitToolBlock writes one tool or mcp service child of the agent body, its
+// properties in ( ) (R2).
 func emitToolBlock(ctx *ExecContext, t agenteditor.AgentTool) {
 	switch t.ToolType {
 	case "mcp":
@@ -175,19 +175,25 @@ func emitToolBlock(ctx *ExecContext, t agenteditor.AgentTool) {
 			// malformed — skip
 			return
 		}
-		fmt.Fprintf(ctx.Output, "  mcp service %s {\n", t.Document.QualifiedName)
-		fmt.Fprintf(ctx.Output, "    Enabled: %t\n", t.Enabled)
+		fmt.Fprintf(ctx.Output, "  mcp service %s (\n", t.Document.QualifiedName)
+		// The comma belongs to Enabled when a Description follows it; without
+		// it the block was a parse error (ako/mxcli#707). Same shape as the
+		// generic tool block below.
+		fmt.Fprintf(ctx.Output, "    Enabled: %t", t.Enabled)
 		if t.Description != "" {
-			fmt.Fprintf(ctx.Output, "    Description: '%s'\n", escapeSQLString(t.Description))
+			fmt.Fprintln(ctx.Output, ",")
+			fmt.Fprintf(ctx.Output, "    Description: %s\n", mdlQuoted(t.Description))
+		} else {
+			fmt.Fprintln(ctx.Output)
 		}
-		fmt.Fprintln(ctx.Output, "  }")
+		fmt.Fprintln(ctx.Output, "  )")
 	default:
 		// Microflow or unknown tool type — emit generic TOOL block.
 		name := t.Name
 		if name == "" {
 			name = "Tool_" + strings.ReplaceAll(t.ID, "-", "")[:8]
 		}
-		fmt.Fprintf(ctx.Output, "  tool %s {\n", name)
+		fmt.Fprintf(ctx.Output, "  tool %s (\n", name)
 		if t.ToolType != "" {
 			fmt.Fprintf(ctx.Output, "    ToolType: %s,\n", t.ToolType)
 		}
@@ -197,35 +203,36 @@ func emitToolBlock(ctx *ExecContext, t agenteditor.AgentTool) {
 		fmt.Fprintf(ctx.Output, "    Enabled: %t", t.Enabled)
 		if t.Description != "" {
 			fmt.Fprintln(ctx.Output, ",")
-			fmt.Fprintf(ctx.Output, "    Description: '%s'\n", escapeSQLString(t.Description))
+			fmt.Fprintf(ctx.Output, "    Description: %s\n", mdlQuoted(t.Description))
 		} else {
 			fmt.Fprintln(ctx.Output)
 		}
-		fmt.Fprintln(ctx.Output, "  }")
+		fmt.Fprintln(ctx.Output, "  )")
 	}
 }
 
-// emitKBBlock writes one KNOWLEDGE BASE block for the agent body.
+// emitKBBlock writes one knowledge base child of the agent body, its
+// properties in ( ) (R2).
 func emitKBBlock(ctx *ExecContext, kb agenteditor.AgentKBTool) {
 	name := kb.Name
 	if name == "" {
 		name = "KB_" + strings.ReplaceAll(kb.ID, "-", "")[:8]
 	}
-	fmt.Fprintf(ctx.Output, "  knowledge base %s {\n", name)
+	fmt.Fprintf(ctx.Output, "  knowledge base %s (\n", name)
 	if kb.Document != nil && kb.Document.QualifiedName != "" {
 		fmt.Fprintf(ctx.Output, "    Source: %s,\n", kb.Document.QualifiedName)
 	}
 	if kb.CollectionIdentifier != "" {
-		fmt.Fprintf(ctx.Output, "    Collection: '%s',\n", escapeSQLString(kb.CollectionIdentifier))
+		fmt.Fprintf(ctx.Output, "    Collection: %s,\n", mdlQuoted(kb.CollectionIdentifier))
 	}
 	if kb.MaxResults != 0 {
 		fmt.Fprintf(ctx.Output, "    MaxResults: %d,\n", kb.MaxResults)
 	}
 	if kb.Description != "" {
-		fmt.Fprintf(ctx.Output, "    Description: '%s',\n", escapeSQLString(kb.Description))
+		fmt.Fprintf(ctx.Output, "    Description: %s,\n", mdlQuoted(kb.Description))
 	}
 	fmt.Fprintf(ctx.Output, "    Enabled: %t\n", kb.Enabled)
-	fmt.Fprintln(ctx.Output, "  }")
+	fmt.Fprintln(ctx.Output, "  )")
 }
 
 // findAgentEditorAgent looks up an agent by module and name.

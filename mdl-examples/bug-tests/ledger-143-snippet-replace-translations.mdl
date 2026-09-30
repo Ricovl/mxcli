@@ -19,11 +19,11 @@
 
 alter settings LANGUAGE ADD 'nl_NL';
 
-create or replace page MyFirstModule.L143Page
+create or modify page MyFirstModule.L143Page
   ( Title: 'Ledger Alpha', Layout: Atlas_Core.Atlas_Default )
   { CONTAINER c { DYNAMICTEXT t (Content: 'Ledger Beta') } }
 
-create or replace snippet MyFirstModule.SNIPPET_L143
+create or modify snippet MyFirstModule.SNIPPET_L143
   { CONTAINER c { DYNAMICTEXT t (Content: 'Ledger Gamma') } }
 
 create or modify translations for nl_NL (

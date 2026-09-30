@@ -64,6 +64,11 @@ func listJavaScriptActions(ctx *ExecContext, moduleName string) error {
 	return writeResult(ctx, result)
 }
 
+// jsSourceOmittedBody is the body DESCRIBE prints for an action whose .js source
+// it cannot read. exec recognises it and writes no source file (#731), as it
+// does for the Java twin, javaSourceOmittedBody.
+const jsSourceOmittedBody = "// JavaScript source not available from this project; body omitted by DESCRIBE."
+
 // describeJavaScriptAction handles DESCRIBE JAVASCRIPT ACTION command.
 func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 	qualifiedName := name.Module + "." + name.Name
@@ -88,7 +93,7 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	// Type parameters
-	sb.WriteString("create javascript action ")
+	sb.WriteString("create or modify javascript action ")
 	sb.WriteString(qualifiedName)
 	if len(jsa.TypeParameters) > 0 {
 		sb.WriteString("<")
@@ -176,7 +181,7 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 	if userCode != "" {
 		sb.WriteString(userCode)
 	} else {
-		sb.WriteString("// JavaScript source not available from this project; body omitted by DESCRIBE.")
+		sb.WriteString(jsSourceOmittedBody)
 	}
 	sb.WriteString("\n$$;")
 
@@ -244,14 +249,19 @@ func readJavaScriptActionSource(mprPath, moduleName, actionName string) (userCod
 
 // sliceBetweenFold returns the substring of s between the first case-insensitive
 // occurrence of begin and the following case-insensitive occurrence of end.
+//
+// Only ASCII letters are folded. strings.ToLower changes the byte length of some
+// characters ("İ" 2 -> 3 bytes, the Kelvin sign 3 -> 1), so an index into its
+// result is not an index into s, and one such character above the markers cut
+// the section a byte off — the markers are ASCII, so nothing else needs folding.
 func sliceBetweenFold(s, begin, end string) (string, bool) {
-	lower := strings.ToLower(s)
-	bi := strings.Index(lower, strings.ToLower(begin))
+	lower := asciiLower(s)
+	bi := strings.Index(lower, asciiLower(begin))
 	if bi == -1 {
 		return "", false
 	}
 	rest := bi + len(begin)
-	ei := strings.Index(lower[rest:], strings.ToLower(end))
+	ei := strings.Index(lower[rest:], asciiLower(end))
 	if ei == -1 {
 		return "", false
 	}
@@ -267,4 +277,15 @@ func formatJavaScriptActionType(t javaactions.CodeActionParameterType) string {
 		return s
 	}
 	return t.TypeString()
+}
+
+// asciiLower lower-cases ASCII letters only, so the result has s's byte offsets.
+func asciiLower(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			b[i] = c + ('a' - 'A')
+		}
+	}
+	return string(b)
 }

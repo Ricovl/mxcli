@@ -25,14 +25,14 @@ CREATE PERSISTENT ENTITY KeyTest.Item (
   Name: String(200)
 );
 
-CREATE OR REPLACE PAGE KeyTest.Item_Edit (
+CREATE OR MODIFY PAGE KeyTest.Item_Edit (
   Title: 'Edit item',
   Layout: Atlas_Core.PopupLayout,
-  Params: { $Item: KeyTest.Item }
+  Params: ( $Item: KeyTest.Item )
 ) {
   layoutgrid lg {
-    row r {
-      column c (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
         dataview dv (DataSource: $Item) {
           textbox txtName (Label: 'Name', Attribute: Name)
         }
@@ -41,10 +41,10 @@ CREATE OR REPLACE PAGE KeyTest.Item_Edit (
   }
 }
 
-CREATE OR REPLACE SNIPPET KeyTest.Sn_Item {
+CREATE OR MODIFY SNIPPET KeyTest.Sn_Item {
   layoutgrid lg2 {
-    row r2 {
-      column c2 (DesktopWidth: AutoFill) {
+    row {
+      column (DesktopWidth: AutoFill) {
         dynamictext st (Content: 'hello')
       }
     }

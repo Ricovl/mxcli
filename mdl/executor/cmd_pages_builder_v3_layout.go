@@ -67,40 +67,14 @@ func (pb *pageBuilder) buildLayoutGridColumnV3(w *ast.WidgetV3) (*pages.LayoutGr
 		Weight: 1,
 	}
 
-	// Handle DesktopWidth
 	if dw := w.GetDesktopWidth(); dw != nil {
-		switch v := dw.(type) {
-		case int:
-			col.Weight = v
-		case string:
-			if strings.EqualFold(v, "autofill") {
-				col.Weight = -1 // Auto
-			}
-		}
+		col.Weight = layoutGridWeight(dw, col.Weight)
 	}
-
-	// Handle TabletWidth
 	if tw := w.Properties["TabletWidth"]; tw != nil {
-		switch v := tw.(type) {
-		case int:
-			col.TabletWeight = v
-		case string:
-			if strings.EqualFold(v, "autofill") {
-				col.TabletWeight = -1
-			}
-		}
+		col.TabletWeight = layoutGridWeight(tw, col.TabletWeight)
 	}
-
-	// Handle PhoneWidth
 	if pw := w.Properties["PhoneWidth"]; pw != nil {
-		switch v := pw.(type) {
-		case int:
-			col.PhoneWeight = v
-		case string:
-			if strings.EqualFold(v, "autofill") {
-				col.PhoneWeight = -1
-			}
-		}
+		col.PhoneWeight = layoutGridWeight(pw, col.PhoneWeight)
 	}
 
 	// Build child widgets
@@ -113,6 +87,30 @@ func (pb *pageBuilder) buildLayoutGridColumnV3(w *ast.WidgetV3) (*pages.LayoutGr
 	}
 
 	return col, nil
+}
+
+// Stored layout-grid column weights besides 1..12.
+const (
+	layoutGridWeightAutoFill = -1
+	layoutGridWeightAutoFit  = -2 // "Auto-fit content" in Studio Pro
+)
+
+// layoutGridWeight maps a DesktopWidth / TabletWidth / PhoneWidth value to the
+// stored weight: a number as-is, AutoFill to -1, AutoFit to -2. Any other value
+// keeps current.
+func layoutGridWeight(v any, current int) int {
+	switch v := v.(type) {
+	case int:
+		return v
+	case string:
+		switch {
+		case strings.EqualFold(v, "autofill"):
+			return layoutGridWeightAutoFill
+		case strings.EqualFold(v, "autofit"):
+			return layoutGridWeightAutoFit
+		}
+	}
+	return current
 }
 
 // buildContainerWithRowV3 creates a Container holding a LayoutGrid with one row.

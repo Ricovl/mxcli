@@ -94,7 +94,7 @@ func TestDescribeImageWidget_EmitsTheImageReference(t *testing.T) {
 	w := rawWidget{Name: "imgLogo"}
 	w.ImageObject = "MyFirstModule.Images._1"
 
-	out := describeImageWidgetProps(w)
+	out := describeImageWidgetProps(nil, w)
 	if !strings.Contains(strings.Join(out, ", "), "Image: 'MyFirstModule.Images._1'") {
 		t.Errorf("describe did not emit the image reference: %v", out)
 	}
@@ -105,7 +105,7 @@ func TestDescribeImageWidget_EmitsTheImageReference(t *testing.T) {
 func TestDescribeImageWidget_OmitsAnAbsentReference(t *testing.T) {
 	w := rawWidget{Name: "imgLogo"}
 
-	for _, p := range describeImageWidgetProps(w) {
+	for _, p := range describeImageWidgetProps(nil, w) {
 		if strings.HasPrefix(p, "Image:") {
 			t.Errorf("emitted %q for a widget with no image", p)
 		}
