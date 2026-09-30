@@ -155,6 +155,18 @@ func (b *Builder) ExitCreateConstantStatement(ctx *parser.CreateConstantStatemen
 				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
 				b.recordFolderClausePosition(ctx.QualifiedName(), optCtx.FOLDER().GetSymbol(),
 					optCtx.STRING_LITERAL().GetSymbol(), ctx.FOLDER() != nil || countFolderOptions(optsCtx) > 1)
+			} else if id := optCtx.IDENTIFIER(); id != nil {
+				// `private` (MDL-DEPR138, ako/mxcli#865): never stored, so it
+				// builds nothing; fmt --upgrade deletes it with the blanks before it.
+				// One divergence from v0.24.0, where the word began a help
+				// statement that swallowed the words after it: `private exposed
+				// to client` now exposes the constant, as it plainly says. No
+				// script in the repo's corpus or mxcli-formula1 writes that order.
+				tok := id.GetSymbol()
+				b.recordDeprecation(deprecation.ConstantPrivate, tok, stmt.Name.String())
+				b.fixLastDeprecation(deprecation.ConstantPrivate, &ast.Fix{Edits: []ast.TextEdit{
+					{Start: startAfterSpace(tok), Stop: tok.GetStop() + 1},
+				}}, "")
 			} else if optCtx.EXPOSED() != nil {
 				if ctx.ConstantPropertyList() != nil {
 					// Not a legacy spelling: the property list is new, and

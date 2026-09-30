@@ -42,6 +42,24 @@ func IsHelpWord(word string) bool {
 	}
 	return false
 }
+
+// IsPrivateWord reports whether word is `private`, in any letter case: the
+// no-op modifier older scripts wrote on a constant (ako/mxcli#865). Like the
+// help words it is an IDENTIFIER, so reserving it takes no name away.
+func IsPrivateWord(word string) bool {
+	if len(word) != 7 {
+		return false
+	}
+	for i, c := range []byte(word) {
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		if c != "private"[i] {
+			return false
+		}
+	}
+	return true
+}
 }
 
 import
