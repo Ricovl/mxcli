@@ -158,3 +158,24 @@ func findWidget(ws []*ast.WidgetV3, name string) *ast.WidgetV3 {
 	}
 	return nil
 }
+
+// ako/mxcli#874. The visitor does not know which entity a datasource
+// constraint is on, so it must not decide what a three-part name is: it read
+// `M.Expense.Status` as an enumeration value and made it the string literal
+// 'Status', so the constraint compared two constants. The name is handed to the
+// executor as written; the page writer resolves it (storedXPathConstraint).
+func TestDatasourceWhere_KeepsThreePartNamesForTheWriter(t *testing.T) {
+	prog, errs := Build(`create page M.P (title: 'T', layout: Atlas_Core.Atlas_Default) {
+  gallery g (datasource: database from M.Expense where [M.Expense.Status = M.ExpenseStatus.Submitted]) {
+    dynamictext t (content: 'x')
+  }
+}`)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	page := prog.Statements[0].(*ast.CreatePageStmtV3)
+	ds := findWidget(page.Widgets, "g").Properties["DataSource"].(*ast.DataSourceV3)
+	if want := "[M.Expense.Status = M.ExpenseStatus.Submitted]"; ds.Where != want {
+		t.Errorf("datasource Where = %q, want %q", ds.Where, want)
+	}
+}
