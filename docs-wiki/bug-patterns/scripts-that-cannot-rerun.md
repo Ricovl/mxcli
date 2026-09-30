@@ -92,6 +92,17 @@ compares equal on both sides, so an edit to it was reported Unchanged (a
 lossless — written again, it must be the document first written — and falls
 back to the statement diff when it is not.
 
+**The statement diff still decides every flow that does change**, and there
+two more ways to be unrunnable showed up (#859). A default describe omits —
+`on error rollback` — has to be read as absent on the declared side too, or the
+activity is re-spliced with every sibling edit; the built-graph match hides that
+on an identical re-run, so the probe is a sibling edit and the splice summary.
+And a refusal of a *legitimate* change is, to someone re-running a script,
+indistinguishable from non-idempotence: re-annotating an activity was refused on
+every run until the splice could replace an activity's notes. The header-only
+upgrade (a mdl 0 description under `mdl 1;`) is where both surface on Studio
+Pro content, because a backslash escape in a note is a real change under mdl 1.
+
 **Some re-runs only reach a no-op across two statements.** `revoke all` followed
 by the grant that should hold ends with the rules it started with, but each
 statement is a real write of its own. The grant's write was compared with a unit

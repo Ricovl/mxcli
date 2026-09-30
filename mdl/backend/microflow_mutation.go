@@ -42,6 +42,11 @@ type MicroflowMutator interface {
 	Replace(target model.ID, frag *MicroflowFragment) error
 	// Drop removes target and joins its incoming flows to its successor.
 	Drop(target model.ID) error
+	// RemoveNotes removes the annotations attached to target, with their
+	// lines, so that a Replace or Drop after it does not keep them
+	// (ako/mxcli#859: a `create or modify` states an activity's notes). A
+	// note also attached to another object is refused.
+	RemoveNotes(target model.ID) error
 	// SetReturnValue sets the expression the end event target returns, in
 	// place; "" is no value.
 	SetReturnValue(target model.ID, value string) error

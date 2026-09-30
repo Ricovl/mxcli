@@ -79,6 +79,13 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		fail := func(err error) error {
 			return mdlerrors.NewValidation(fmt.Sprintf("alter %s %s: %s %s: %v", s.Kind(), s.Name, op.Op, op.Target, err))
 		}
+		if op.ReplaceNotes {
+			// The statement states the activity's notes, so the stored ones
+			// go with it rather than stay (ako/mxcli#859).
+			if err := mut.RemoveNotes(target.ID); err != nil {
+				return fail(err)
+			}
+		}
 		if op.Op == ast.AlterFlowDrop {
 			if err := a.checkOutputUnused(target, nil); err != nil {
 				return fail(err)

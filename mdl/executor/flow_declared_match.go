@@ -90,6 +90,13 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 	}
 	switch d.Kind() {
 	case reflect.Pointer:
+		if d.Type() == errorHandlingPtrType {
+			// `on error rollback` is what an activity with no clause stores,
+			// so describe never prints it (formatErrorHandlingSuffix): the
+			// stored side never has it, and a declared one that states it is
+			// the same activity (ako/mxcli#859).
+			d, s = withoutDefaultErrorHandling(d), withoutDefaultErrorHandling(s)
+		}
 		if d.IsNil() && s.IsNil() {
 			return true
 		}
@@ -169,6 +176,21 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 	default:
 		return d.Equal(s)
 	}
+}
+
+var errorHandlingPtrType = reflect.TypeOf((*ast.ErrorHandlingClause)(nil))
+
+// withoutDefaultErrorHandling returns v, an *ast.ErrorHandlingClause, as nil
+// when it is a bare `on error rollback`. In a microflow that is the stored
+// default; in a nanoflow, whose default is Abort, describe prints neither
+// (both emit nothing), so no comparison with a described flow can tell them
+// apart either way.
+func withoutDefaultErrorHandling(v reflect.Value) reflect.Value {
+	if eh, ok := v.Interface().(*ast.ErrorHandlingClause); ok && eh != nil &&
+		eh.Type == ast.ErrorHandlingRollback && len(eh.Body) == 0 {
+		return reflect.Zero(v.Type())
+	}
+	return v
 }
 
 // reflectElem returns the struct a statement pointer points at, or the zero
