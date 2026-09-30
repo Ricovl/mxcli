@@ -923,7 +923,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		// whichever value alternative matched (visitor_widget_expression.go).
 		if isWidgetExpressionProp(id.GetText()) {
 			if v := lastRuleChild(propCtx); v != nil {
-				widget.Properties[id.GetText()] = widgetExpressionValue(v)
+				widget.Properties[id.GetText()] = b.widgetExpressionPropValue(id.GetText(), v)
 			}
 			return
 		}
@@ -968,7 +968,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	if kw := propCtx.Keyword(); kw != nil {
 		if isWidgetExpressionProp(kw.GetText()) {
 			if v := lastRuleChild(propCtx); v != nil {
-				widget.Properties[kw.GetText()] = widgetExpressionValue(v)
+				widget.Properties[kw.GetText()] = b.widgetExpressionPropValue(kw.GetText(), v)
 			}
 			return
 		}
