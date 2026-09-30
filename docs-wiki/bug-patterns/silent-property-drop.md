@@ -68,6 +68,23 @@ lists are deliberately explicit rather than inferred, because inferring them
 would mean reimplementing the engine's dispatch and getting it wrong in the other
 direction.
 
+**Except where the engine's dispatch *is* the definition — then refuse.** The
+action keywords are the case: `onClick:` and `OnChange:` are builtin names,
+accepted on every widget, but the engine reads them only through a mapping
+sourced from them. Whether a widget routes them is therefore a lookup, not an
+inference, and a refusal cannot be false — though as a new rejection it still
+waits for the `mdl 1;` header, and warns without it (ADR-0011). The Gallery held a hand-written
+definition with no action mapping at all, so its row click passed `check`, was
+dropped, and a re-execution that changed only the action reported "Unchanged"
+(#842) — a year after the generator learnt the same mapping for the data grid
+beside it. When a hand-written definition is the reason, audit every other
+hand-written one: the same diff (template action keys minus mapped keys) found
+the filters' `onChange` and the barcode scanner's `onDetect` in the same state.
+And a fix that makes a property *persist* can surface a rule the widget itself
+enforces on it — once the row click was written, the Gallery's own editor check
+failed the build for the defaults mxcli writes (a selection on a single-click
+trigger), so the fix had to carry that rule into `check` too.
+
 **Wire the read at the same time as the write.** DESCRIBE is how a dropped
 property gets *found*, so a write fix without its describe counterpart leaves the
 model holding a value that the tool reports as absent — the same lossy round trip

@@ -570,6 +570,25 @@ gallery productGallery (datasource: database Module.Product, selection: single) 
 }
 ```
 
+**With a row action** — a click on a card runs an action. The Gallery calls a
+row click *ambiguous* when the gallery also selects on a single click (its
+default), and `mx check` fails the page; `check` reports that as MDL-WIDGET36
+under `mdl 1;` (warning MDL-V1-GALLERYCLICK without the header). Say which one
+the click means:
+```sql
+-- the click is the action; nothing is selected
+gallery cards (datasource: database Module.Product, selection: None,
+  onClick: call nanoflow Module.ACT_OpenProduct(Product = $currentObject)) {
+  template { dynamictext name (content: '{1}', contentparams: ({1} = Name)) }
+}
+-- keep the selection, run the action on a double click
+gallery cards (datasource: database Module.Product, selection: Single, onClickTrigger: double,
+  onClick: call nanoflow Module.ACT_OpenProduct(Product = $currentObject)) {
+  template { dynamictext name (content: '{1}', contentparams: ({1} = Name)) }
+}
+```
+`onSelectionChange:` and `onConfigurationChange:` take an action the same way.
+
 ### Filter Widgets
 
 A filter widget lives in one of two places: **inside a DATA GRID column's own braces**,

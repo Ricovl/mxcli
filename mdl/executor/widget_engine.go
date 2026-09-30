@@ -11,6 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -347,6 +348,14 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 	// 2. Select mode and get mappings/slots
 	mappings, slots, err := e.selectMappings(def, w)
 	if err != nil {
+		return nil, err
+	}
+	// An `onClick:`/`OnChange:` no selected mapping reads: resolveMapping reads
+	// those keywords only for a mapping sourced from them, so without one the
+	// engine writes the widget without the action (#842 — a Gallery's row
+	// click). Refused under mdl 1, dropped with the MDL-V1-ACTIONSLOT warning
+	// under mdl 0 — the same gate `check` applies, here for `exec --no-check`.
+	if err := e.refuseUnroutedActionKeywords(def, mappings, w); err != nil {
 		return nil, err
 	}
 	e.currentDataSourceKeys = dataSourceMappingKeys(mappings)
@@ -2221,4 +2230,46 @@ func isBuiltinPropName(name string) bool {
 		return true
 	}
 	return false
+}
+
+// refuseUnroutedActionKeywords handles a widget that carries an action under
+// MDL's `onClick:` or `OnChange:` keyword when none of the selected mappings
+// reads that keyword: an error under mdl 1, a warning under mdl 0 (the action
+// is then dropped, as it always was). See validatePluggableWidgetProperties
+// for the check-time twin.
+func (e *PluggableWidgetEngine) refuseUnroutedActionKeywords(def *WidgetDefinition, mappings []PropertyMapping, w *ast.WidgetV3) error {
+	var ctx *ExecContext
+	if e.pageBuilder != nil {
+		ctx = e.pageBuilder.ctx
+	}
+	return refuseUnroutedActionKeywords(ctx, def, mappings, w)
+}
+
+func refuseUnroutedActionKeywords(ctx *ExecContext, def *WidgetDefinition, mappings []PropertyMapping, w *ast.WidgetV3) error {
+	version := langver.V0
+	if ctx != nil {
+		version = ctx.LanguageVersion
+	}
+	for _, c := range []struct {
+		src string
+		set bool
+	}{
+		{"OnClick", w.GetAction() != nil},
+		{"OnChange", w.GetOnChange() != nil},
+	} {
+		if !c.set || mappingsRouteActionSource(mappings, c.src) {
+			continue
+		}
+		what := fmt.Sprintf("%s %s has no action slot `%s:` writes to",
+			strings.ToLower(def.MDLName), w.Name, actionKeywordSpelling(c.src))
+		if actionSlotRefused.Applies(version) {
+			return mdlerrors.NewValidationf("%s — the action would be dropped on write, so nothing was written "+
+				"[MDL-WIDGET37]", what)
+		}
+		if ctx != nil {
+			fmt.Fprintf(ctx.progress(), "Warning [%s]: %s; the action is not written. %s\n",
+				actionSlotRefused.Code, what, actionSlotRefused.Warning(version))
+		}
+	}
+	return nil
 }

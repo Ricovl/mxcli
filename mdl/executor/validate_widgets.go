@@ -48,7 +48,7 @@ func ValidateWidgetProperties(prog *ast.Program, projectPath string) []linter.Vi
 	for _, stmt := range prog.Statements {
 		violations = append(violations, ValidateWidgetPropertiesForStatement(stmt, registry)...)
 	}
-	return violations
+	return GateWidgetViolations(violations, prog.LanguageVersion)
 }
 
 // LoadWidgetRegistry returns a widget registry loaded with both the built-in
@@ -201,6 +201,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// every widget kind and needs no definition, for the same reason as the
 		// rule above: the SHAPE of the value is wrong whatever the widget is.
 		out = append(out, validateWidgetActionSlot(w, locationPrefix)...)
+		// #842: a Gallery row click the widget itself calls ambiguous.
+		out = append(out, validateGalleryClickAmbiguity(w, locationPrefix)...)
 		// #928: contentparams with no `{N}` placeholder to consume them.
 		if lookupWidgetDef(w, registry) != nil {
 			out = append(out, validatePluggableContentParams(w, locationPrefix)...)
@@ -1173,6 +1175,25 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 					"%s: %s has no `%s` property — the value is dropped on write and "+
 						"MxBuild then reports the property as missing. Use `%s:` instead",
 					locationPrefix, widgetLabel(w.Name, def.MDLName), key, right),
+			})
+			continue
+		}
+		// `onClick:` and `OnChange:` are builtin names too, but unlike Label or
+		// Class the engine routes them only through a mapping sourced from them.
+		// A widget whose definition has none — a Gallery until #842, a combo
+		// box's click, a data grid filter's change — stored nothing, and a
+		// re-execution that changed only the action reported "Unchanged".
+		// Gated on the language version (validate_widget_language.go).
+		if src, ok := actionKeywordSource(key); ok && !defRoutesActionSource(def, src) {
+			out = append(out, linter.Violation{
+				RuleID:   actionSlotRefused.Code,
+				Severity: linter.SeverityError,
+				Message: fmt.Sprintf(
+					"%s: %s has no action slot `%s:` writes to — the action is dropped on write, "+
+						"and nothing in the widget would run it",
+					locationPrefix, widgetLabel(w.Name, def.MDLName), actionKeywordSpelling(src)),
+				Suggestion: "Put the action on a `container` or `actionbutton` inside the widget, " +
+					"or set it in Studio Pro",
 			})
 			continue
 		}

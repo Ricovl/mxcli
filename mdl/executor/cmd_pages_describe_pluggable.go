@@ -862,6 +862,32 @@ func extractGallerySelection(ctx *ExecContext, w map[string]any) string {
 	return ""
 }
 
+// gallerySelectionIsNone reports whether a Gallery's stored itemSelection is
+// "None". extractGallerySelection reads None as unset, which is right for a
+// widget whose default is None and wrong for the Gallery, whose MDL default is
+// Single: a Studio Pro gallery with no selection described without one, and
+// describe → exec gave it a single selection (#842).
+func gallerySelectionIsNone(w map[string]any) bool {
+	obj, ok := w["Object"].(map[string]any)
+	if !ok {
+		return false
+	}
+	propTypeKeyMap := buildPropertyTypeKeyMap(w, true)
+	for _, prop := range getBsonArrayElements(obj["Properties"]) {
+		propMap, ok := prop.(map[string]any)
+		if !ok || propTypeKeyMap[extractBinaryID(propMap["TypePointer"])] != "itemSelection" {
+			continue
+		}
+		value, ok := propMap["Value"].(map[string]any)
+		if !ok {
+			return false
+		}
+		sel, _ := value["Selection"].(string)
+		return sel == "None"
+	}
+	return false
+}
+
 // extractFilterAttributes extracts the filter attributes from a TextFilter/NumberFilter widget.
 func extractFilterAttributes(ctx *ExecContext, w map[string]any) []string {
 	// Use the generic property extraction helper
