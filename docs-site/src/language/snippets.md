@@ -68,6 +68,18 @@ CREATE PAGE MyModule.Home
 }
 ```
 
+A snippet with parameters takes its arguments in `Params:`, one `Param = $variable`
+each. The variable is a parameter of the calling page, or — for a call inside
+another snippet — a parameter of that snippet. A parameter the enclosing data
+context satisfies is left out:
+
+```sql
+SNIPPETCALL scCard (Snippet: MyModule.CustomerCard, Params: (Customer = $Customer))
+```
+
+`DESCRIBE` prints the arguments in this form, so a snippet call keeps its
+mappings through describe and exec.
+
 ## Inspecting Snippets
 
 ```sql

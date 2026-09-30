@@ -645,6 +645,21 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	if propCtx.ATTRIBUTE() != nil {
 		if pathCtx := propCtx.AttributePathV3(); pathCtx != nil {
 			widget.Properties["Attribute"] = buildAttributePathV3(pathCtx)
+		} else if refCtx := propCtx.WidgetAttributeRefV3(); refCtx != nil {
+			// `$dataView1.Name`: kept as written; the builder resolves the name
+			// to the data view it reads through (ako/mxcli#826). Only the input
+			// builders read it — any other widget resolved the `$…` string to no
+			// attribute and was written without one, so it stays refused there.
+			ref := buildWidgetAttributeRefV3(refCtx)
+			if !widgetAttributeRefKinds[strings.ToLower(widget.Type)] {
+				_, attr, _ := strings.Cut(ref, ".")
+				b.addError(fmt.Errorf("%s `%s`: `Attribute: %s` — reading an attribute through a data view "+
+					"is supported on textbox, textarea, checkbox, datepicker, radiobuttons and dropdown; "+
+					"bind the attribute by name inside the data view instead (`Attribute: %s`)",
+					widget.Type, widget.Name, refCtx.GetText(), attr))
+				return
+			}
+			widget.Properties["Attribute"] = ref
 		}
 		return
 	}
@@ -1293,6 +1308,25 @@ func buildAssociationPathV3(ctx parser.IAssociationPathV3Context) string {
 		parts = append(parts, getQualifiedNameText(qn))
 	}
 	return strings.Join(parts, "/")
+}
+
+// widgetAttributeRefKinds are the widgets whose builder resolves `Attribute:
+// $dataView1.Name` (resolveInputBinding) — ako/mxcli#826.
+var widgetAttributeRefKinds = map[string]bool{
+	"textbox": true, "textarea": true, "checkbox": true,
+	"datepicker": true, "radiobuttons": true, "dropdown": true,
+}
+
+// buildWidgetAttributeRefV3 renders `$name.Attr` with a quoted attribute name
+// unquoted, the form resolveInputAttribute reads.
+func buildWidgetAttributeRefV3(ctx parser.IWidgetAttributeRefV3Context) string {
+	c, ok := ctx.(*parser.WidgetAttributeRefV3Context)
+	if !ok || c.VARIABLE() == nil {
+		return ""
+	}
+	text := c.GetText()
+	_, attr, _ := strings.Cut(text, ".")
+	return c.VARIABLE().GetText() + "." + unquoteIdentifier(attr)
 }
 
 // buildAttributePathV3 builds an attribute path string.

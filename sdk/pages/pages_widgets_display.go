@@ -56,7 +56,12 @@ type ClientTemplateParameter struct {
 	Expression         string             `json:"expression,omitempty"`         // Literal expression like "'Hello'"
 	SourceVariable     string             `json:"sourceVariable,omitempty"`     // Variable name (no $ prefix)
 	SourceVariableKind string             `json:"sourceVariableKind,omitempty"` // "" (default = page parameter), "local" (page-level Variables entry), or "snippet"
-	FormattingInfo     *FormattingInfo    `json:"formattingInfo,omitempty"`
+	// SourceWidget names the data view whose object the parameter reads
+	// (`{1} = $dataView1.Name`): the Widget slot of the Forms$PageVariable.
+	// SourceVariable/SourceVariableKind then hold that data view's own variable,
+	// which Studio Pro stores beside it (ako/mxcli#826).
+	SourceWidget   string          `json:"sourceWidget,omitempty"`
+	FormattingInfo *FormattingInfo `json:"formattingInfo,omitempty"`
 }
 
 // DynamicText represents dynamic text based on an attribute.

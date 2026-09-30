@@ -128,6 +128,22 @@ DATAVIEW dvOrder (DataSource: $Order) {
 }
 ```
 
+An input can name the data view it reads through: `Attribute: $dvOrder.OrderId`.
+Studio Pro stores that as a widget-scoped variable (the data view, plus the
+parameter the data view shows), and `DESCRIBE` prints it back in this form. A
+dynamic-text parameter reads through a data view the same way,
+`ContentParams: ({1} = $dvOrder.OrderId)`. The `$name` must be a data view that
+encloses the widget (Studio Pro reports CE7001 for any other), and the input must be
+a textbox, textarea, checkbox, datepicker, radiobuttons or dropdown — other widgets
+bind by attribute name:
+
+```sql
+DATAVIEW dvOrder (DataSource: $Order) {
+  TEXTBOX txtOrderId (Label: 'Order #', Attribute: $dvOrder.OrderId)
+  DYNAMICTEXT txtHeader (Content: 'Order {1}', ContentParams: ({1} = $dvOrder.OrderId))
+}
+```
+
 ## Dynamic Text Content
 
 The `DYNAMICTEXT` widget uses `{1}`, `{2}`, etc. as placeholders for attribute values in the `Content` property. The `Attribute` property specifies which attribute fills the first placeholder:

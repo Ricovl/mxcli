@@ -76,6 +76,9 @@ func dropDownToGen(dd *pages.DropDown) (element.Element, error) {
 	if ref := inputAttributeRefToGen(dd.AttributePath, dd.AttributeRefSteps); ref != nil {
 		g.SetAttributeRef(ref)
 	}
+	if sv := inputSourceVariableToGen(dd.SourceVariable); sv != nil {
+		g.SetSourceVariable(sv)
+	}
 	g.SetEditable(pages.WidgetEditability(&dd.BaseWidget))
 	// An empty Texts$Text, not a null: the property is the caption of the blank
 	// option and Studio Pro always writes the holder.

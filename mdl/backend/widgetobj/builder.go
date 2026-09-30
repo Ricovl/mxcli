@@ -1709,7 +1709,7 @@ func SerializeColumnClientTemplateParameter(param *pages.ClientTemplateParameter
 	}
 
 	var sourceVariable any
-	if param.SourceVariable != "" {
+	if param.SourceVariable != "" || param.SourceWidget != "" {
 		// Studio Pro distinguishes between three Forms$PageVariable bindings:
 		//   - LocalVariable     → page-level Variables entry (Kind="local")
 		//   - SnippetParameter  → snippet parameter            (Kind="snippet")
@@ -1743,7 +1743,9 @@ func SerializeColumnClientTemplateParameter(param *pages.ClientTemplateParameter
 		fields = append(fields,
 			bson.E{Key: "SubKey", Value: ""},
 			bson.E{Key: "UseAllPages", Value: false},
-			bson.E{Key: "Widget", Value: ""},
+			// `$dataView1.Attr`: the data view in Widget, its own variable in
+			// the slot above — Studio Pro's pair (ako/mxcli#826).
+			bson.E{Key: "Widget", Value: param.SourceWidget},
 		)
 		sourceVariable = fields
 	}

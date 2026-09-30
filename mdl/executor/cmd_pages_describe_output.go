@@ -1048,6 +1048,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Snippet: %s", w.Content))
 		}
+		if w.SnippetParams != "" {
+			props = append(props, fmt.Sprintf("Params: (%s)", w.SnippetParams))
+		}
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 

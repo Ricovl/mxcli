@@ -499,6 +499,7 @@ widgetPropertiesV3
 widgetPropertyV3
     : DATASOURCE COLON dataSourceExprV3               // DataSource: $var | DATABASE Entity | MICROFLOW ...
     | ATTRIBUTE COLON attributePathV3                 // Attribute: Name | Product/Category
+    | ATTRIBUTE COLON widgetAttributeRefV3            // Attribute: $dataView1.Name — read through a data view (#826)
     | BINDS COLON attributePathV3                     // Binds: (deprecated, use Attribute:)
     | ACTION COLON actionExprV3                       // Action: SAVE_CHANGES | SHOW_PAGE ...
     | ONCLICK COLON actionExprV3                      // OnClick: MICROFLOW ... (alias of Action: — e.g. clickable CONTAINER, issue #603)
@@ -760,6 +761,13 @@ visibleValueV3
 // V3 Attribute path: Name, Product/Category, "Order" (quoted to escape reserved words)
 attributePathV3
     : (IDENTIFIER | QUOTED_IDENTIFIER | keyword) (SLASH (IDENTIFIER | QUOTED_IDENTIFIER | keyword))*
+    ;
+
+// An input widget's attribute read through a named data view: Studio Pro's
+// widget-scoped SourceVariable {Widget: dataView1, …} (ako/mxcli#826). The same
+// `$name.Attr` spelling a text template parameter uses.
+widgetAttributeRefV3
+    : VARIABLE DOT (IDENTIFIER | QUOTED_IDENTIFIER | keyword)
     ;
 
 // V3 String expression (may include template placeholders or attribute binding)
