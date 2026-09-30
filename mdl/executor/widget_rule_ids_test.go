@@ -127,8 +127,16 @@ func TestWidgetRuleIDsHaveNoGaps(t *testing.T) {
 			}
 		}
 	}
+	// Retired numbers, never reused: a report or script naming one must not
+	// start meaning a different rule.
+	retired := map[int]string{
+		14: "an expression in contentparams/captionparams; stored as the parameter's Expression since ako/mxcli#823 option C",
+	}
 	var missing []int
 	for i := 1; i < max; i++ {
+		if _, gone := retired[i]; gone {
+			continue
+		}
 		if !seen[i] {
 			missing = append(missing, i)
 		}

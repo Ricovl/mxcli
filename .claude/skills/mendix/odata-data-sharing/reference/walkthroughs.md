@@ -184,7 +184,7 @@ create consumed odata service ProductClient.ProductDataApiClient (
   UseAuthentication: Yes,
   -- HttpUsername/HttpPassword hold a Mendix expression, written as-is:
   -- 'MxAdmin' is the string, @ProductClient.ApiPassword (no quotes) reads a
-  -- constant. The old doubled-quote form '''MxAdmin''' is refused (MDL-ODATA07).
+  -- constant. The old doubled-quote form '''MxAdmin''' is refused under mdl 1 (MDL-ODATA07).
   HttpUsername: 'MxAdmin',
   HttpPassword: '1'
 );

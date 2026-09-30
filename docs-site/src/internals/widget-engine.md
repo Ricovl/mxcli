@@ -127,6 +127,32 @@ All operations are registered in an `OperationRegistry`. Custom operations can b
 
 Therefore, in any mode using both, **datasource must come before association** in the mappings array. This is enforced at definition load time -- a validation error is raised if an `association` mapping appears before any `datasource` mapping.
 
+## Which Entity an Attribute Binds To
+
+An attribute property's entity is **not** a side effect of mapping order. It is
+decided per property by the widget's own schema, the same rule Studio Pro uses
+(`resolveBindingScope` in `mdl/executor/widget_attribute_scope.go`):
+
+- a property widget.xml links to a datasource (`dataSource="parts"`) binds to
+  that datasource's entity;
+- a property linked to **no** datasource binds to the context object — the
+  enclosing data container's entity — even when the widget has datasources of
+  its own;
+- a property the template does not declare, or a widget with no enclosing
+  context, falls back to the shared `entityContext`.
+
+Both passes use it: the mapping pass and the explicit-key pass, which re-applies
+a property authored by its schema key after every datasource has run. Before
+ako/mxcli#647 that second pass bound every name to the **last** datasource's
+entity, so a two-datasource widget inside a data view failed `mx check` with
+CE1613 on each attribute.
+
+An unqualified name that is not an attribute of the entity its property binds
+to, but is one of another entity in the widget's scope (the enclosing
+container's or one of its datasources'), is refused by `exec` and by
+`check --references` with the same message, naming the candidates
+(`misboundAttributeError`, shared by both).
+
 ## Source/Operation Compatibility
 
 Not all source/operation combinations are valid. These are rejected at load time:

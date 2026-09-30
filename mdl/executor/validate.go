@@ -392,14 +392,8 @@ func validateForwardPageRefs(ctx *ExecContext, prog *ast.Program) []error {
 
 	var errors []error
 	for i, stmt := range prog.Statements {
-		var widgets []*ast.WidgetV3
-		var label string
-		switch s := stmt.(type) {
-		case *ast.CreatePageStmtV3:
-			widgets, label = s.Widgets, "page "+s.Name.String()
-		case *ast.CreateSnippetStmtV3:
-			widgets, label = s.Widgets, "snippet "+s.Name.String()
-		default:
+		label, widgets, ok := documentWidgets(stmt)
+		if !ok {
 			continue
 		}
 
@@ -688,6 +682,12 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			return mdlerrors.NewValidationf("page '%s' has argument errors:\n  - %s",
 				s.Name.String(), strings.Join(argErrors, "\n  - "))
 		}
+		// A pluggable widget attribute of another entity than the one its
+		// property binds to — the rule exec writes by (ako/mxcli#647).
+		if scopeErrors := validatePluggableAttributeScopes(ctx, s.Parameters, pageWidgets, sc); len(scopeErrors) > 0 {
+			return mdlerrors.NewValidationf("page '%s' has attribute binding errors:\n  - %s",
+				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
+		}
 	case *ast.CreateLayoutStmt:
 		// A layout's widgets name things too — a menu widget's menu document
 		// above all, since layouts are where menu widgets live. Before
@@ -727,6 +727,10 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if ctxErrors := validatePageContextTree(ctx, s.Parameters, s.Widgets); len(ctxErrors) > 0 {
 			return mdlerrors.NewValidationf("snippet '%s' has context errors:\n  - %s",
 				s.Name.String(), strings.Join(ctxErrors, "\n  - "))
+		}
+		if scopeErrors := validatePluggableAttributeScopes(ctx, s.Parameters, s.Widgets, sc); len(scopeErrors) > 0 {
+			return mdlerrors.NewValidationf("snippet '%s' has attribute binding errors:\n  - %s",
+				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
 		}
 	case *ast.CreateWorkflowStmt:
 		// Two reference passes. Missing targets first: a name that resolves to
@@ -1635,6 +1639,11 @@ func (sc *scriptContext) recordFlowParams(qualifiedName string, params []ast.Mic
 // neighbourhood: validateIconRefs (mendixlabs/mxcli#1008) and forEachWidget
 // both had to grow the placeholder arm separately. Collecting the roots once,
 // here, is what stops the fourth.
+//
+// Every other page walker reaches it through documentWidgets below; the
+// check-time validators that took `s.Widgets` directly were the fourth miss
+// (ako/mxcli#841): MDL-WIDGET33 and MDL-WIDGET31 among them, so placeholder
+// content stored a legacy DynamicClasses as its text, silently.
 func allPageWidgets(s *ast.CreatePageStmtV3) []*ast.WidgetV3 {
 	if len(s.Placeholders) == 0 {
 		return s.Widgets
@@ -1648,6 +1657,21 @@ func allPageWidgets(s *ast.CreatePageStmtV3) []*ast.WidgetV3 {
 		out = append(out, ph.Widgets...)
 	}
 	return out
+}
+
+// documentWidgets returns the root widgets of a CREATE PAGE or CREATE SNIPPET
+// statement — for a page, the bare body AND every `placeholder X { … }` block —
+// and the label diagnostics about them are prefixed with. ok is false for any
+// other statement. A page walker that needs "the page's widgets" takes them from
+// here, never from `s.Widgets`, which is the bare body only (ako/mxcli#841).
+func documentWidgets(stmt ast.Statement) (label string, widgets []*ast.WidgetV3, ok bool) {
+	switch s := stmt.(type) {
+	case *ast.CreatePageStmtV3:
+		return "page " + s.Name.String(), allPageWidgets(s), true
+	case *ast.CreateSnippetStmtV3:
+		return "snippet " + s.Name.String(), s.Widgets, true
+	}
+	return "", nil, false
 }
 
 // validateViewEntityAttributeSet reports an ADD/DROP ATTRIBUTE whose target is a

@@ -149,7 +149,9 @@ dynamictext ovChip (
 Not in brackets: `dynamicclasses: [ … ]` (and a column's `DynamicCellClass: [ … ]`)
 parses as a list, which no writer reads — `check` reports it as MDL-WIDGET32. And
 not the old quoted spelling `'if … then ''a'' else '''''`, which would now store
-the expression's text as a class name — `check` reports it as MDL-WIDGET33.
+the expression's text as a class name — under `mdl 1;` `check` refuses it as MDL-WIDGET33;
+without the header it keeps its old meaning and warns MDL-V1-QUOTEDEXPR, and
+`mxcli fmt --upgrade` writes it bare.
 
 **All can be combined on a single widget:**
 ```sql
