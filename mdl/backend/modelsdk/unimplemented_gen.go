@@ -931,6 +931,16 @@ func (unimplemented) ProjectVersion() *types.ProjectVersion {
 	return r0
 }
 
+func (unimplemented) ReadBackMicroflow(_ *microflows.Microflow) (*microflows.Microflow, error) {
+	var r0 *microflows.Microflow
+	return r0, errUnimplemented("ReadBackMicroflow")
+}
+
+func (unimplemented) ReadBackNanoflow(_ *microflows.Nanoflow) (*microflows.Nanoflow, error) {
+	var r0 *microflows.Nanoflow
+	return r0, errUnimplemented("ReadBackNanoflow")
+}
+
 func (unimplemented) ReadJavaActionByName(_ string) (*javaactions.JavaAction, error) {
 	var r0 *javaactions.JavaAction
 	return r0, errUnimplemented("ReadJavaActionByName")

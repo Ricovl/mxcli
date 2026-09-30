@@ -1029,6 +1029,16 @@ func (unsupportedBackend) ProjectVersion() (r0 *types.ProjectVersion) {
 	return
 }
 
+func (unsupportedBackend) ReadBackMicroflow(_ *microflows.Microflow) (r0 *microflows.Microflow, err1 error) {
+	err1 = errUnsupported("ReadBackMicroflow")
+	return
+}
+
+func (unsupportedBackend) ReadBackNanoflow(_ *microflows.Nanoflow) (r0 *microflows.Nanoflow, err1 error) {
+	err1 = errUnsupported("ReadBackNanoflow")
+	return
+}
+
 func (unsupportedBackend) ReadJavaActionByName(_ string) (r0 *javaactions.JavaAction, err1 error) {
 	err1 = errUnsupported("ReadJavaActionByName")
 	return

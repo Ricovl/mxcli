@@ -26,12 +26,19 @@ type MicroflowBackend interface {
 	// type from its raw unit).
 	ParseMicroflowBSON(contents []byte, unitID, containerID model.ID) (*microflows.Microflow, error)
 
+	// ReadBackMicroflow returns a microflow as it reads back once stored —
+	// through the writer CreateMicroflow uses and the reader, writing nothing —
+	// so a built microflow compares like for like with a stored one.
+	ReadBackMicroflow(mf *microflows.Microflow) (*microflows.Microflow, error)
+
 	ListNanoflows() ([]*microflows.Nanoflow, error)
 	GetNanoflow(id model.ID) (*microflows.Nanoflow, error)
 	CreateNanoflow(nf *microflows.Nanoflow) error
 	UpdateNanoflow(nf *microflows.Nanoflow) error
 	DeleteNanoflow(id model.ID) error
 	MoveNanoflow(nf *microflows.Nanoflow) error
+	// ReadBackNanoflow is ReadBackMicroflow for a nanoflow.
+	ReadBackNanoflow(nf *microflows.Nanoflow) (*microflows.Nanoflow, error)
 
 	// ListRules / GetRule read rule documents (Microflows$Rule). A rule is its
 	// own doctype, not a microflow variant: ListMicroflows does not return them,

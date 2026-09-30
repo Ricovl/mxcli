@@ -91,6 +91,7 @@ type MockBackend struct {
 	GetMicroflowFunc          func(id model.ID) (*microflows.Microflow, error)
 	CreateMicroflowFunc       func(mf *microflows.Microflow) error
 	UpdateMicroflowFunc       func(mf *microflows.Microflow) error
+	ReadBackMicroflowFunc     func(mf *microflows.Microflow) (*microflows.Microflow, error)
 	DeleteMicroflowFunc       func(id model.ID) error
 	MoveMicroflowFunc         func(mf *microflows.Microflow) error
 	ParseMicroflowFromRawFunc func(raw map[string]any, unitID, containerID model.ID) *microflows.Microflow
@@ -105,6 +106,7 @@ type MockBackend struct {
 	GetNanoflowFunc           func(id model.ID) (*microflows.Nanoflow, error)
 	CreateNanoflowFunc        func(nf *microflows.Nanoflow) error
 	UpdateNanoflowFunc        func(nf *microflows.Nanoflow) error
+	ReadBackNanoflowFunc      func(nf *microflows.Nanoflow) (*microflows.Nanoflow, error)
 	DeleteNanoflowFunc        func(id model.ID) error
 	MoveNanoflowFunc          func(nf *microflows.Nanoflow) error
 	IsRuleFunc                func(qualifiedName string) (bool, error)

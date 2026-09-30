@@ -37,6 +37,12 @@ import (
 // alterFlowContext an `alter` statement uses. An `if` that differs only inside
 // its branches is diffed branch by branch.
 //
+// Before any statement is matched, the declared body is built and compared
+// with the stored graph itself (builtAsStored, flow_built_match.go): the same
+// graph is nothing to patch, whichever of MDL's spellings of it describe
+// prints (ako/mxcli#859). The statement match, for a body that does change,
+// runs on one canonical control-flow form of both sides (flow_canonical.go).
+//
 // The rest of what describe states is patched too (ako/mxcli#818): a changed
 // header or document property is set on the stored document, a parameter is
 // added, retyped or removed in place, and a stated @position or @start that
@@ -226,21 +232,25 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 		a.mf = &mf
 	}
 
-	// Members are compared in the spelling describe prints them in, or a
-	// script naming one another way never matches its own stored activity.
-	// Which entity a variable holds is the builder's to say where the
-	// statement declaring it does not name one (a call's result, a retrieve
-	// over an association). A body that does not build leaves the spellings
-	// to what the statements state; its errors are reported by the patch.
-	if varTypes == nil {
-		if _, _, vt, err := d.build(ctx); err == nil {
-			varTypes = vt
+	var ops []*ast.AlterFlowOperation
+	var targets []mfmutator.Candidate
+	var moves []flowMove
+	if !builtAsStored(ctx, d, a, declared) {
+		// Members are compared in the spelling describe prints them in, or a
+		// script naming one another way never matches its own stored activity.
+		// Which entity a variable holds is the builder's to say where the
+		// statement declaring it does not name one (a call's result, a retrieve
+		// over an association). A body that does not build leaves the spellings
+		// to what the statements state; its errors are reported by the patch.
+		if varTypes == nil {
+			if _, _, vt, berr := d.build(ctx); berr == nil {
+				varTypes = vt
+			}
 		}
-	}
-	body := describedMemberSpellings(ctx, d.params, d.body, varTypes)
-	ops, targets, moves, err := diffFlowBody(a, body, storedBody(stored), d.returnVar)
-	if err != nil {
-		return nil, asNotSpliceable(err)
+		body := describedMemberSpellings(ctx, d.params, d.body, varTypes)
+		if ops, targets, moves, err = diffFlowBody(a, body, storedBody(stored), d.returnVar); err != nil {
+			return nil, asNotSpliceable(err)
+		}
 	}
 	moves = append(moves, parameterMoves(d, storedParams)...)
 
@@ -256,6 +266,44 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 		}
 	}
 	return p, nil
+}
+
+// builtAsStored reports whether the declared body builds the graph that is
+// stored (sameBuiltFlow), in which case there is nothing to patch in it,
+// whatever describe prints for it (ako/mxcli#859). built is the declared flow
+// when the header diff has built it already, else nil. A body that does not
+// build, or a backend that cannot say how a flow reads back — including a
+// flow the reader would not read back whole, where both sides would compare
+// equal in what it drops — leaves it to the statement diff.
+func builtAsStored(ctx *ExecContext, d *flowDecl, a *alterFlowContext, built any) bool {
+	if built == nil {
+		var err error
+		if built, _, _, err = d.build(ctx); err != nil {
+			return false
+		}
+	}
+	// Compared as it would read back once stored: what the writer defaults,
+	// or has no property for, reads back as it does from the project.
+	var oc *microflows.MicroflowObjectCollection
+	switch f := built.(type) {
+	case *microflows.Microflow:
+		rb, err := ctx.Backend.ReadBackMicroflow(f)
+		if err != nil || rb == nil {
+			return false
+		}
+		oc = rb.ObjectCollection
+	case *microflows.Nanoflow:
+		rb, err := ctx.Backend.ReadBackNanoflow(f)
+		if err != nil || rb == nil {
+			return false
+		}
+		oc = rb.ObjectCollection
+	}
+	if oc == nil || a.mf.ObjectCollection == nil {
+		return false
+	}
+	same, _ := sameBuiltFlow(oc, a.mf.ObjectCollection)
+	return same
 }
 
 // asNotSpliceable marks err as a change the splice cannot make, keeping its
@@ -586,6 +634,9 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 	// first statement: it belongs to the start event, not to the statement.
 	declared, declaredStart := withoutStart(declared)
 	stored, _ = withoutStart(stored)
+	// One spelling of each control-flow shape on both sides, so a script
+	// matches the flow built from it however describe prints it (#859).
+	declared, stored = canonicalFlow(declared), canonicalFlow(stored)
 
 	pd := &patchDiff{loc: newStoredLocator(a)}
 	if err := pd.statements(declared, stored); err != nil {
@@ -668,9 +719,14 @@ func (pd *patchDiff) statements(declared, stored []ast.MicroflowStatement) error
 		}
 		if p < len(pairs) {
 			// A pair matched only once positions are ignored is the stored
-			// statement drawn somewhere else.
+			// statement drawn somewhere else; one matched by its shell is the
+			// same if with a change inside, diffed as its own run.
 			if d, st := declared[pairs[p][0]], stored[pairs[p][1]]; !declaredMatches(d, st) {
-				if err := pd.moved(d, st); err != nil {
+				if !sameExceptPositions(d, st) {
+					if err := pd.gap([]ast.MicroflowStatement{d}, stored, pairs[p][1], pairs[p][1]+1); err != nil {
+						return err
+					}
+				} else if err := pd.moved(d, st); err != nil {
 					return err
 				}
 			}
@@ -829,6 +885,19 @@ func sameIfShell(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfS
 	return d, s, true
 }
 
+// sameBlockShell reports whether two statements are the same `if`, differing
+// inside its branches. Such a pair is matched as a pair (lcsStatements) and
+// diffed branch by branch, rather than left to merge with the changes around
+// it into one run: a change before a guard and one inside its then-branch were
+// one replace whose fragment held the guard's return, which the splice cannot
+// insert (#859). Loops are not paired this way: a change inside a loop is
+// refused either way, and pairing one would turn a replace that spans it into
+// that refusal.
+func sameBlockShell(declared, stored ast.MicroflowStatement) bool {
+	_, _, ok := sameIfShell(declared, stored)
+	return ok
+}
+
 // sameLoopShell reports whether two statements are the same loop — the same
 // kind and iteration — differing at most in its body and its geometry. (A loop
 // moved as well as edited inside is still a change inside the loop.)
@@ -976,6 +1045,8 @@ func lcsStatements(declared, stored []ast.MicroflowStatement) [][2]int {
 			case declaredMatches(declared[i], stored[j]):
 				w[i][j] = 2
 			case sameExceptPositions(declared[i], stored[j]):
+				w[i][j] = 1
+			case sameBlockShell(declared[i], stored[j]):
 				w[i][j] = 1
 			}
 		}
