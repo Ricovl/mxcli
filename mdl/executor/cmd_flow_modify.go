@@ -224,7 +224,10 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 		a.mf = &mf
 	}
 
-	ops, targets, moves, err := diffFlowBody(a, d.body, storedBody(stored), d.returnVar)
+	// Members are compared in the spelling describe prints them in, or a
+	// script naming one another way never matches its own stored activity.
+	body := describedMemberSpellings(ctx, d.params, d.body)
+	ops, targets, moves, err := diffFlowBody(a, body, storedBody(stored), d.returnVar)
 	if err != nil {
 		return nil, asNotSpliceable(err)
 	}
