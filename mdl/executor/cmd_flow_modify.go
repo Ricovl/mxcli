@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/mfmutator"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/langver"
@@ -105,68 +106,19 @@ func cannotSplice(format string, args ...any) error {
 // such flow yet, or a change the splice cannot make under mdl 0 — and the
 // caller then runs the create / rebuild path.
 func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) {
-	if _, err := findModule(ctx, d.name.Module); err != nil {
-		return false, nil // the create path makes the module
-	}
-	alter := &ast.AlterFlowStmt{Nanoflow: d.nanoflow, Name: d.name}
-	a, err := loadAlterFlow(ctx, alter)
-	if err != nil {
-		var nf *mdlerrors.NotFoundError
-		if errors.As(err, &nf) {
-			return false, nil // a create
-		}
-		return fallBack(ctx, d, cannotSplice("the stored %s cannot be read for splicing: %v", d.kind(), err))
-	}
-
-	stored, err := describedFlowStmt(ctx, d, a)
-	if err != nil {
-		return fallBack(ctx, d, cannotSplice("its description cannot be compared: %v", err))
-	}
-	decl, storedHeader := d.header(stored)
-	headerChanged := !declaredMatches(decl, storedHeader)
-	storedParams := a.mf.Parameters
-	var declared any
-	if headerChanged {
-		if err := checkRemovedParameters(ctx, d, a); err != nil {
-			return fallBack(ctx, d, err)
-		}
-		var params []*microflows.MicroflowParameter
-		if declared, params, err = d.build(ctx); err != nil {
-			return true, err
-		}
-		// The fragments are built and scope-checked against the parameters
-		// the flow will have, not the ones it had, and the flow is tracked
-		// with the return type it will have.
-		mf := *a.mf
-		mf.Parameters = params
-		switch built := declared.(type) {
-		case *microflows.Microflow:
-			mf.ReturnType = built.ReturnType
-		case *microflows.Nanoflow:
-			mf.ReturnType = built.ReturnType
-		}
-		a.mf = &mf
-	}
-
-	ops, targets, moves, err := diffFlowBody(a, d.body, storedBody(stored), d.returnVar)
-	if err != nil {
+	p, err := planFlowModify(ctx, d)
+	var why *notSpliceable
+	switch {
+	case errors.As(err, &why):
 		return fallBack(ctx, d, err)
+	case err != nil:
+		return true, err
+	case p == nil:
+		return false, nil // a create
 	}
-	moves = append(moves, parameterMoves(d, storedParams)...)
-
-	var set []string
-	storedFolder := storedFolderOf(stored)
-	if len(ops) > 0 || len(moves) > 0 || headerChanged {
-		mut, err := patch(ctx, a, ops, targets, moves)
-		if err != nil {
-			return fallBack(ctx, d, cannotSplice("%v", err))
-		}
-		if headerChanged {
-			if set, err = mut.SetHeader(declared); err != nil {
-				return fallBack(ctx, d, cannotSplice("%v", err))
-			}
-		}
-		if err := mut.Save(); err != nil {
+	a, ops, moves, set, storedFolder := p.a, p.ops, p.moves, p.set, p.storedFolder
+	if p.mut != nil {
+		if err := p.mut.Save(); err != nil {
 			return true, mdlerrors.NewBackend("save modified "+d.kind(), err)
 		}
 	}
@@ -205,6 +157,101 @@ func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) 
 	}
 	invalidateHierarchy(ctx)
 	return true, nil
+}
+
+// flowPlan is a `create or modify` of a stored flow worked out as far as it
+// goes without writing: the patch applied to the stored flow in memory, ready
+// to save.
+type flowPlan struct {
+	a            *alterFlowContext
+	ops          []*ast.AlterFlowOperation
+	moves        []flowMove
+	set          []string // the header properties the patch sets
+	storedFolder string
+	// mut holds the patched flow, unsaved; nil when there is nothing to
+	// patch (the folder may still differ).
+	mut backend.MicroflowMutator
+}
+
+// planFlowModify derives the patch for a `create or modify` of a stored flow
+// and applies it in memory, writing nothing. It returns nil and no error when
+// the statement is not a modify (no such module or flow: a create), and a
+// *notSpliceable error for a change the splice cannot make — which exec
+// refuses under mdl 1 and rebuilds under mdl 0 (fallBack), and diff reports
+// (ako/mxcli#839: the two must reach the same verdict). Any other error is the
+// statement's own.
+func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
+	if _, err := findModule(ctx, d.name.Module); err != nil {
+		return nil, nil // the create path makes the module
+	}
+	alter := &ast.AlterFlowStmt{Nanoflow: d.nanoflow, Name: d.name}
+	a, err := loadAlterFlow(ctx, alter)
+	if err != nil {
+		var nf *mdlerrors.NotFoundError
+		if errors.As(err, &nf) {
+			return nil, nil // a create
+		}
+		return nil, cannotSplice("the stored %s cannot be read for splicing: %v", d.kind(), err)
+	}
+
+	stored, err := describedFlowStmt(ctx, d, a)
+	if err != nil {
+		return nil, cannotSplice("its description cannot be compared: %v", err)
+	}
+	decl, storedHeader := d.header(stored)
+	headerChanged := !declaredMatches(decl, storedHeader)
+	storedParams := a.mf.Parameters
+	var declared any
+	if headerChanged {
+		if err := checkRemovedParameters(ctx, d, a); err != nil {
+			return nil, asNotSpliceable(err)
+		}
+		var params []*microflows.MicroflowParameter
+		if declared, params, err = d.build(ctx); err != nil {
+			return nil, err
+		}
+		// The fragments are built and scope-checked against the parameters
+		// the flow will have, not the ones it had, and the flow is tracked
+		// with the return type it will have.
+		mf := *a.mf
+		mf.Parameters = params
+		switch built := declared.(type) {
+		case *microflows.Microflow:
+			mf.ReturnType = built.ReturnType
+		case *microflows.Nanoflow:
+			mf.ReturnType = built.ReturnType
+		}
+		a.mf = &mf
+	}
+
+	ops, targets, moves, err := diffFlowBody(a, d.body, storedBody(stored), d.returnVar)
+	if err != nil {
+		return nil, asNotSpliceable(err)
+	}
+	moves = append(moves, parameterMoves(d, storedParams)...)
+
+	p := &flowPlan{a: a, ops: ops, moves: moves, storedFolder: storedFolderOf(stored)}
+	if len(ops) > 0 || len(moves) > 0 || headerChanged {
+		if p.mut, err = patch(ctx, a, ops, targets, moves); err != nil {
+			return nil, cannotSplice("%v", err)
+		}
+		if headerChanged {
+			if p.set, err = p.mut.SetHeader(declared); err != nil {
+				return nil, cannotSplice("%v", err)
+			}
+		}
+	}
+	return p, nil
+}
+
+// asNotSpliceable marks err as a change the splice cannot make, keeping its
+// text.
+func asNotSpliceable(err error) error {
+	var ns *notSpliceable
+	if errors.As(err, &ns) {
+		return err
+	}
+	return cannotSplice("%v", err)
 }
 
 // fallBack decides what a change the splice cannot make does: refused under

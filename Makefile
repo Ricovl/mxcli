@@ -35,7 +35,7 @@ GO_BUILD_FLAGS = -trimpath
 # Clean version for VS Code extension (must be valid semver: major.minor.patch)
 VSCE_VERSION = $(shell echo "$(VERSION)" | sed 's/^v//; s/-.*//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$$' || echo "0.0.0")
 
-.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-conformance conformance-shrink check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
+.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-conformance conformance-shrink check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-parity test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
 
 # Helper: copy file only if content differs (avoids mtime updates that invalidate go build cache)
 # Usage: $(call copy-if-changed,src,dst)
@@ -353,13 +353,19 @@ INTEGRATION_PKGS = $(shell grep -rl --include='*_test.go' --exclude-dir='.?*' --
 	'^//go:build.*integration' . | xargs -n1 dirname | sed 's|^\./||; s|^|./|' | sort -u)
 INTEGRATION_SPLIT = ./mdl/executor ./mdl/roundtrip
 UPGRADE_PROPERTY = ^TestUpgradeExecutesToTheSameModel$$
+# The TestApp splice-parity property (#839) runs describe → exec on every
+# TestApp flow under both language versions (~7 min): its own CI suite.
+SPLICE_PARITY = ^TestTestAppFlowSpliceParity$$
 INTEGRATION_GO_TEST = CGO_ENABLED=0 go test -tags integration -count=1
 
 test-integration-executor:
 	$(INTEGRATION_GO_TEST) -timeout 40m ./mdl/executor/
 
 test-integration-roundtrip:
-	$(INTEGRATION_GO_TEST) -timeout 40m -skip '$(UPGRADE_PROPERTY)' ./mdl/roundtrip/
+	$(INTEGRATION_GO_TEST) -timeout 40m -skip '$(UPGRADE_PROPERTY)|$(SPLICE_PARITY)' ./mdl/roundtrip/
+
+test-integration-parity:
+	$(INTEGRATION_GO_TEST) -timeout 40m -run '$(SPLICE_PARITY)' ./mdl/roundtrip/
 
 test-integration-upgrade:
 	$(INTEGRATION_GO_TEST) -timeout 40m -run '$(UPGRADE_PROPERTY)' ./mdl/roundtrip/
