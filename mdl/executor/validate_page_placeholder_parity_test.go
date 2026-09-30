@@ -320,3 +320,38 @@ func TestPlaceholderContent_ProjectValidatorsSeeIt(t *testing.T) {
 		}
 	})
 }
+
+// MDL-OFFLINE01 is the one page validator that needs a project with an offline
+// navigation profile before it says anything, so ValidateProgram without a
+// project never reaches it and the table above cannot cover it. Seeded here the
+// same way TestOfflineProfilesIn_FindsASeededOfflineProfile does; the bare body
+// reporting the rule is the control.
+func TestPlaceholderContent_OfflinePathsSeeIt(t *testing.T) {
+	p := projectFixture(t)
+	execAgainst(t, p, `create or replace navigation "PhoneOffline"
+  home page "MyFirstModule"."Home_Web";`)
+
+	c := placeholderParityCase{body: `dataview dv (datasource: $Thing) {
+      textbox tb (label: 'Far', attribute: A_B/B_C/Name)
+    }`, params: `params: ( $Thing: M.Thing ),`}
+	var runs []string
+	for _, position := range []string{"bare", "Main", "Sidebar"} {
+		prog, errs := visitor.Build(placeholderParityPage(c, position))
+		if len(errs) > 0 {
+			t.Fatalf("parse: %v", errs)
+		}
+		var got []string
+		for _, v := range ValidateOfflineAttributePaths(prog, p) {
+			got = append(got, diagnosticKey(v))
+		}
+		runs = append(runs, strings.Join(got, "\n"))
+	}
+	if !strings.Contains(runs[0], "MDL-OFFLINE01") {
+		t.Fatalf("control failed: the bare body reported no MDL-OFFLINE01; got %q", runs[0])
+	}
+	for i, position := range []string{"Main", "Sidebar"} {
+		if runs[i+1] != runs[0] {
+			t.Errorf("placeholder %s: got %q, body reported %q", position, runs[i+1], runs[0])
+		}
+	}
+}
