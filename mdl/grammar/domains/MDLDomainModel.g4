@@ -1024,6 +1024,11 @@ constantOption
     : COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL   // R9: a `/** … */` doc comment
     | FOLDER STRING_LITERAL /* @alias MDL-DEPR134 */   // R9: after the name
     | EXPOSED TO CLIENT
+    // `private`, any case: a no-op Mendix never stored (ako/mxcli#865). Up to
+    // v0.24.0 it parsed only because the trailing word became a help statement
+    // of its own, which built nothing; R7 closed that catch-all. It is matched
+    // here by predicate, not as a keyword, so `private` stays a usable name.
+    | {IsPrivateWord(p.GetTokenStream().LT(1).GetText())}? IDENTIFIER /* @alias MDL-DEPR138 */
     ;
 
 // =============================================================================
