@@ -60,11 +60,10 @@ func ValidateDesignPropertiesForStatement(stmt ast.Statement, reg *ThemeRegistry
 	if reg == nil {
 		return nil
 	}
+	if label, widgets, ok := documentWidgets(stmt); ok {
+		return validateDesignPropsTree(widgets, reg, label)
+	}
 	switch s := stmt.(type) {
-	case *ast.CreatePageStmtV3:
-		return validateDesignPropsTree(s.Widgets, reg, "page "+s.Name.String())
-	case *ast.CreateSnippetStmtV3:
-		return validateDesignPropsTree(s.Widgets, reg, "snippet "+s.Name.String())
 	case *ast.AlterPageStmt:
 		var out []linter.Violation
 		for _, op := range s.Operations {

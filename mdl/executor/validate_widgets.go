@@ -111,11 +111,10 @@ func ValidateWidgetPropertiesForStatement(stmt ast.Statement, registry *WidgetRe
 	if registry == nil {
 		return nil
 	}
+	if label, widgets, ok := documentWidgets(stmt); ok {
+		return validateWidgetTree(widgets, registry, label)
+	}
 	switch s := stmt.(type) {
-	case *ast.CreatePageStmtV3:
-		return validateWidgetTree(s.Widgets, registry, "page "+s.Name.String())
-	case *ast.CreateSnippetStmtV3:
-		return validateWidgetTree(s.Widgets, registry, "snippet "+s.Name.String())
 	case *ast.AlterPageStmt:
 		var out []linter.Violation
 		for _, op := range s.Operations {
