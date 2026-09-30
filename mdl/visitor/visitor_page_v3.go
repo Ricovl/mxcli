@@ -1953,11 +1953,13 @@ func xpathExprToString(expr ast.Expression) string {
 	case *ast.IdentifierExpr:
 		return e.Name
 	case *ast.QualifiedNameExpr:
-		// XPath constraints run at the database level; enum values must be string literals.
-		// 3-part names (Module.EnumName.Value) → 'Value'; 2-part names pass through.
-		if dotIdx := strings.LastIndex(e.QualifiedName.Name, "."); dotIdx >= 0 {
-			return "'" + e.QualifiedName.Name[dotIdx+1:] + "'"
-		}
+		// Written as it is. A three-part name is either an attribute of the
+		// constrained entity (stored bare) or an enumeration value (stored as a
+		// string literal), and only the writer knows which entity the
+		// constraint is on — so the executor decides (storedXPathConstraint).
+		// Deciding here made `M.Emp.Name` the literal 'Name', in page
+		// datasources and in every constraint this formatter re-laid out
+		// (ako/mxcli#874).
 		return e.QualifiedName.String()
 	default:
 		return ""

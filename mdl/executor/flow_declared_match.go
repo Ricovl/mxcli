@@ -132,7 +132,7 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 				continue
 			}
 			if d.Type() == retrieveStructType && name == "Where" {
-				if !sameStoredConstraint(df, s.Field(i)) {
+				if !sameStoredConstraint(df, s.Field(i), retrieveEntity(d), retrieveEntity(s)) {
 					return false
 				}
 				continue
@@ -194,10 +194,22 @@ func reflectElem(v any) reflect.Value {
 // out over several lines itself (FormatXPathConstraint), and a line break
 // between two tokens states nothing. Whitespace inside a string literal is
 // data and is compared as written.
-func sameStoredConstraint(d, s reflect.Value) bool {
+//
+// Each side is resolved against its own retrieve's entity, as the writer does,
+// so `[M.Emp.Name = 'y']` is the `Name = 'y'` describe prints for what it
+// stored (ako/mxcli#874).
+func sameStoredConstraint(d, s reflect.Value, dEntity, sEntity string) bool {
 	de, _ := d.Interface().(ast.Expression)
 	se, _ := s.Interface().(ast.Expression)
-	return xpathTokens(retrieveXPathConstraint(de)) == xpathTokens(retrieveXPathConstraint(se))
+	return xpathTokens(retrieveXPathConstraint(de, dEntity)) == xpathTokens(retrieveXPathConstraint(se, sEntity))
+}
+
+// retrieveEntity is the entity a retrieve statement's struct value reads from.
+func retrieveEntity(retrieve reflect.Value) string {
+	if q, ok := retrieve.FieldByName("Source").Interface().(ast.QualifiedName); ok {
+		return q.String()
+	}
+	return ""
 }
 
 // xpathTokens is an XPath constraint with the whitespace between its tokens

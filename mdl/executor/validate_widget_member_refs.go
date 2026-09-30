@@ -185,7 +185,9 @@ func validateXPathMembers(ctx *ExecContext, prog *ast.Program) []error {
 			if entityQN == "" || !strings.Contains(entityQN, ".") {
 				return
 			}
-			for _, bad := range unresolvableXPathSteps(ctx, m, ds.Where, entityQN) {
+			// Checked as it is stored: a qualified attribute of the entity is
+			// the attribute, not a step to resolve (ako/mxcli#874).
+			for _, bad := range unresolvableXPathSteps(ctx, m, storedXPathConstraint(ds.Where, entityQN), entityQN) {
 				errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf(
 					"%s: the constraint on %s names %q, which is neither an attribute nor an "+
 						"association of it — mxbuild reports this as CE1613 \"The selected %s "+
