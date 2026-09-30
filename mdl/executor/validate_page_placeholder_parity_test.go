@@ -58,9 +58,9 @@ type placeholderParityCase struct {
 
 var placeholderParityCases = []placeholderParityCase{
 	{
-		name: "MDL-WIDGET33 legacy quoted DynamicClasses (reported)",
+		name: "MDL-V1-QUOTEDEXPR legacy quoted DynamicClasses (reported; mdl 1 refuses it as MDL-WIDGET33, #836)",
 		body: `container c1 (dynamicclasses: 'if $currentObject/Featured then ''on'' else ''''') { }`,
-		want: "MDL-WIDGET33",
+		want: "MDL-V1-QUOTEDEXPR",
 	},
 	{
 		name: "MDL-WIDGET31 list view holding an editable text box (reported)",
