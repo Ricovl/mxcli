@@ -426,6 +426,7 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 		quiet:         opts.Quiet,
 		hierarchy:     hierarchy,
 		restServices:  restServices,
+		self:          &selfFlow{qualifiedName: s.Name.Module + "." + s.Name.Name, returnType: mf.ReturnType},
 	}
 
 	mf.ObjectCollection = builder.buildFlowGraph(s.Body, s.ReturnType)
@@ -723,6 +724,7 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		restServices: restServices,
 		isNanoflow:   true,
 		quiet:        opts.Quiet,
+		self:         &selfFlow{qualifiedName: s.Name.Module + "." + s.Name.Name, nanoflow: true, returnType: nf.ReturnType},
 	}
 
 	nf.ObjectCollection = builder.buildFlowGraph(s.Body, s.ReturnType)
