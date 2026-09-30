@@ -1048,12 +1048,29 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 
 	created := entity
 	if s.CreateOrModify && existingEntity != nil {
-		// Update existing entity — preserve Source object ID to avoid CE-6770
-		entity.ID = existingEntity.ID
-		entity.SourceObjectID = existingEntity.SourceObjectID
+		// Modify IN PLACE, as a persistent entity is (mergeDeclaredOntoStoredEntity):
+		// start from what is stored and overwrite what the statement declares.
+		// Rebuilding the entity from the statement alone dropped everything
+		// the statement has no words for — its access rules first, so every
+		// re-run wrote the domain model and a following `grant` re-added them,
+		// and a script without that grant silently lost the entity's access
+		// (ako/mxcli#859, rehearsal W1).
+		merged := *existingEntity
+		merged.Name = entity.Name
+		merged.Location = entity.Location
+		merged.Persistable = entity.Persistable
+		merged.Attributes = entity.Attributes
+		merged.Source = entity.Source
+		merged.SourceDocumentRef = entity.SourceDocumentRef
+		merged.OqlQuery = entity.OqlQuery
 		// A rewrite that carried no doc comment keeps the stored one (#1018).
-		entity.Documentation = carriedDocumentation(
+		merged.Documentation = carriedDocumentation(
 			s.DocumentationSet, s.Documentation, existingEntity.Documentation)
+		// The ID and the Source object ID (CE-6770) are the stored ones.
+		entity = &merged
+		created = entity
+		// An attribute the statement dropped loses its member access too.
+		pruneMemberAccessesForDroppedAttributes(entity, existingEntity)
 		if err := ctx.Backend.UpdateEntity(dm.ID, entity); err != nil {
 			return mdlerrors.NewBackend("update view entity", err)
 		}

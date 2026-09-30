@@ -223,3 +223,27 @@ func TestValidateOQLTypesDerivedString(t *testing.T) {
 		})
 	}
 }
+
+// ako/mxcli#859 (rehearsal V1): a view attribute over an AutoNumber column is
+// a Long (mx check accepts it; declared AutoNumber is CE6770). Declared
+// AutoNumber stays accepted as it was; another type is still a mismatch.
+func TestTypesCompatible_AutoNumberColumn(t *testing.T) {
+	auto := ast.DataType{Kind: ast.TypeAutoNumber}
+	for _, c := range []struct {
+		declared ast.DataTypeKind
+		want     bool
+	}{
+		{ast.TypeLong, true},
+		{ast.TypeAutoNumber, true},
+		{ast.TypeDecimal, true},
+		{ast.TypeBoolean, false},
+		{ast.TypeString, false},
+	} {
+		if got := typesCompatible(ast.DataType{Kind: c.declared}, auto); got != c.want {
+			t.Errorf("declared %v over an AutoNumber column: %v, want %v", c.declared, got, c.want)
+		}
+	}
+	if got := formatDataTypeForMDL(viewColumnType(auto)); got != "Long" {
+		t.Errorf("the suggested type for an AutoNumber column: %q, want Long", got)
+	}
+}

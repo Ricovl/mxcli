@@ -248,6 +248,11 @@ func runFlowSpliceParity(t *testing.T, fx fixture) {
 				out := h.out.String()
 				changed := h.orig.diff(h.snapshot())
 				switch {
+				case err != nil && strings.Contains(err.Error(), "description does not parse"):
+					// The splice compares against the stored flow's own
+					// description; one its parser rejects makes every re-run
+					// of the flow a refusal (ako/mxcli#859).
+					t.Errorf("%s: the stored flow's description does not re-parse: %v", name, err)
 				case err != nil && len(changed) == 0 && isRefusal(err):
 					t.Logf("%s: refused, nothing written: %v", name, err)
 				case err != nil:

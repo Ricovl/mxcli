@@ -8,6 +8,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/backend/mock"
 	mdltypes "github.com/mendixlabs/mxcli/mdl/types"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
@@ -1444,5 +1445,39 @@ func TestFormatAction_ShowMessageBlocking(t *testing.T) {
 	}
 	if got := e.formatAction(msg(false), nil, nil); got != "show message 'Saved.' type Information;" {
 		t.Errorf("non-blocking message = %q", got)
+	}
+}
+
+// ako/mxcli#859 (rehearsal S8): a lone XPath group with a predicate on a path
+// step was described without its outer brackets, `where A/B[Name = empty]`,
+// which describe's own parser rejects — so create or modify could not compare
+// the stored flow and refused it under mdl 1 on an identical re-run. Such a
+// group keeps its brackets; one without a nested predicate still does not.
+func TestFormatAction_Retrieve_NestedPredicateReparses(t *testing.T) {
+	for _, c := range []struct{ xpath, where string }{
+		{"[M.Timeline_Emp/M.Timeline[Name = empty]]", "where [M.Timeline_Emp/M.Timeline[Name = empty]]"},
+		{"[M.A_B/M.B[Name = 'x[1]'] and Active = true()]", "where [M.A_B/M.B[Name = 'x[1]'] and Active = true()]"},
+		// Controls: brackets only inside a string, and no brackets at all.
+		{"[Name = 'x[1]']", "where Name = 'x[1]'"},
+		{"[IsActive = true()]", "where IsActive = true()"},
+	} {
+		e := newTestExecutor()
+		action := &microflows.RetrieveAction{
+			OutputVariable: "Rows",
+			Source: &microflows.DatabaseRetrieveSource{
+				EntityQualifiedName: "M.Emp",
+				XPathConstraint:     c.xpath,
+			},
+		}
+		got := e.formatAction(action, nil, nil)
+		if !strings.Contains(got, "\n    "+c.where+";") {
+			t.Errorf("%s: got %q, want %q", c.xpath, got, c.where)
+		}
+		for _, header := range []string{"", "mdl 1;\n"} {
+			src := header + "create microflow M.F ()\nbegin\n  " + got + "\nend;\n"
+			if _, errs := visitor.Build(src); len(errs) > 0 {
+				t.Errorf("%s: the description does not parse (header %q): %v\n%s", c.xpath, header, errs[0], src)
+			}
+		}
 	}
 }
