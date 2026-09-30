@@ -507,8 +507,10 @@ alter page Mod.P { SET (DynamicCellClass: highlight) ON dg1 column(Label) }
 ```
 
 The old spelling — the expression's text in quotes, `'if … then ''a'' else '''''`
-— is refused as MDL-WIDGET33, because it would now store that text as a class
-name. This applies equally to `create page`; the two paths behave identically.
+— is refused under `mdl 1;` as MDL-WIDGET33, because there it stores that text
+as a class name. A script without the header keeps its old meaning and warns
+MDL-V1-QUOTEDEXPR; `mxcli fmt --upgrade` writes it bare. This applies equally to
+`create page`; the two paths behave identically.
 
 A column's pluggable `Visible` expression is not converted yet: there a quoted
 value is still the expression's text, so a literal needs the doubled quotes.
