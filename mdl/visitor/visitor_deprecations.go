@@ -3,6 +3,8 @@
 package visitor
 
 import (
+	"fmt"
+
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
@@ -17,8 +19,18 @@ import (
 // grammar alias is marked, is in mdl/deprecation.
 
 // recordDeprecation appends one use of a deprecated spelling at tok.
+//
+// Under the language version that removes the spelling (the entry's
+// RemovedIn) it is refused instead (ADR-0011: an alias warns under the version
+// that deprecates it and is refused from a later one, and only the header
+// refuses).
 func (b *Builder) recordDeprecation(code string, tok antlr.Token, subject string) {
 	if tok == nil {
+		return
+	}
+	if e, ok := deprecation.Lookup(code); ok && int(b.langVersion) >= e.RemovedIn {
+		b.addError(fmt.Errorf("line %d: `%s` is refused under %s (%s): write `%s` instead. %s",
+			tok.GetLine(), e.Old, b.langVersion, e.Code, e.Canonical, e.Note))
 		return
 	}
 	b.deprecations = append(b.deprecations, ast.DeprecatedSpelling{

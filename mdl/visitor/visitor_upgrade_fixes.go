@@ -44,6 +44,15 @@ func (b *Builder) fixLastNote(code string, fix *ast.Fix, noFix string) {
 	}
 }
 
+// chooseLastNote attaches the choice an upgrade with the project resolves
+// (ako/mxcli#860) to the note gate just recorded for code. A nil choice is
+// no-op.
+func (b *Builder) chooseLastNote(code string, choice *ast.OperandChoice) {
+	if n := len(b.langNotes); choice != nil && n > 0 && b.langNotes[n-1].Code == code {
+		b.langNotes[n-1].Operand = choice
+	}
+}
+
 // fixLastDeprecation attaches a structural rewrite, or the reason there is
 // none, to the deprecated use just recorded for code.
 func (b *Builder) fixLastDeprecation(code string, fix *ast.Fix, noFix string) {
@@ -284,12 +293,19 @@ func singleListCall(e antlr.Tree) antlr.ParserRuleContext {
 	return nil
 }
 
-// operandKind says whether a find/contains operand is a String (the call is
-// the string function) or not (the List operation), as the mdl 0 flow builder
-// decides it from the variable's declared type. known is false when the script
-// does not say, e.g. the variable holds a call's result, whose type only the
-// project knows.
-func operandKind(at antlr.Tree, variable string) (isString, known bool) {
+// operandDefs are the definitions of a find/contains operand within its flow,
+// by what they tell about its type.
+type operandDefs struct {
+	inFlow   bool
+	declared []bool        // a parameter's or declare's type: String or not
+	listDefs int           // retrieve, create list, list statement, loop: never a String
+	calls    []ast.FlowRef // `$x = call microflow|nanoflow …`: the flow's return type decides
+	unknown  int           // any other `$x = …`, whose type the script does not state
+}
+
+// collectOperandDefs finds every definition of variable in the flow that
+// encloses at.
+func collectOperandDefs(at antlr.Tree, variable string) operandDefs {
 	name := strings.TrimPrefix(variable, "$")
 	var flow antlr.Tree
 	for t := at; t != nil && flow == nil; t = t.GetParent() {
@@ -298,12 +314,11 @@ func operandKind(at antlr.Tree, variable string) (isString, known bool) {
 			flow = t
 		}
 	}
+	var d operandDefs
 	if flow == nil {
-		return false, false
+		return d
 	}
-	// A parameter's or declare's type is authoritative: a variable keeps its type.
-	var declared []bool
-	var otherDefs, unknownDefs int
+	d.inFlow = true
 	var walk func(antlr.Tree)
 	walk = func(t antlr.Tree) {
 		switch x := t.(type) {
@@ -317,39 +332,49 @@ func operandKind(at antlr.Tree, variable string) (isString, known bool) {
 				pname = strings.TrimPrefix(v.GetText(), "$")
 			}
 			if pname == name && x.DataType() != nil {
-				declared = append(declared, buildMicroflowDataType(x.DataType()).Kind == ast.TypeString)
+				d.declared = append(d.declared, buildMicroflowDataType(x.DataType()).Kind == ast.TypeString)
 			}
 			return
 		case *parser.DeclareStatementContext:
 			if v := x.VARIABLE(); v != nil && v.GetText() == variable && x.DataType() != nil {
-				declared = append(declared, buildMicroflowDataType(x.DataType()).Kind == ast.TypeString)
+				d.declared = append(d.declared, buildMicroflowDataType(x.DataType()).Kind == ast.TypeString)
 			}
 		case *parser.RetrieveStatementContext:
 			if v := x.VARIABLE(); v != nil && v.GetText() == variable {
-				otherDefs++
+				d.listDefs++
 			}
 		case *parser.CreateListStatementContext:
 			if v := x.VARIABLE(); v != nil && v.GetText() == variable {
-				otherDefs++
+				d.listDefs++
 			}
 		case *parser.ListOperationStatementContext:
 			if v := x.VARIABLE(); v != nil && v.GetText() == variable {
-				otherDefs++
+				d.listDefs++
 			}
 		case *parser.LoopStatementContext:
 			if v := x.VARIABLE(0); v != nil && v.GetText() == variable {
-				otherDefs++
+				d.listDefs++
+			}
+		case *parser.CallMicroflowStatementContext:
+			// The flow builder types a call's result by the called flow's
+			// return type (registerResultVariableType).
+			if v := x.VARIABLE(); v != nil && v.GetText() == variable {
+				d.calls = append(d.calls, ast.FlowRef{Name: buildQualifiedName(x.QualifiedName())})
+			}
+		case *parser.CallNanoflowStatementContext:
+			if v := x.VARIABLE(); v != nil && v.GetText() == variable {
+				d.calls = append(d.calls, ast.FlowRef{Nanoflow: true, Name: buildQualifiedName(x.QualifiedName())})
 			}
 		default:
 			// Any other `$name = …` gives it a type the script may not state
-			// (a call's result, a REST response, an aggregate). A set only
-			// reassigns.
+			// (a Java action's result, a REST response, an aggregate). A set
+			// only reassigns.
 			if prc, ok := t.(antlr.ParserRuleContext); ok && prc.GetChildCount() >= 2 {
 				if _, isSet := prc.(*parser.SetStatementContext); !isSet {
 					v, ok1 := prc.GetChild(0).(antlr.TerminalNode)
 					eq, ok2 := prc.GetChild(1).(antlr.TerminalNode)
 					if ok1 && ok2 && v.GetText() == variable && eq.GetSymbol().GetTokenType() == parser.MDLParserEQUALS {
-						unknownDefs++
+						d.unknown++
 					}
 				}
 			}
@@ -359,21 +384,157 @@ func operandKind(at antlr.Tree, variable string) (isString, known bool) {
 		}
 	}
 	walk(flow)
-	if len(declared) > 0 {
-		for _, d := range declared[1:] {
-			if d != declared[0] {
-				return false, false
+	return d
+}
+
+// operandReading says whether a find/contains operand is a String (the call
+// is the string function) or not (the List operation), as the mdl 0 flow
+// builder decides it from the variable's type when it builds the flow.
+//
+// A parameter's or declare's type is authoritative. A call's result has the
+// called flow's return type, which the builder reads from a flow an earlier
+// statement of the script created, else from the project. The first is
+// answered here; the second cannot be without the project, so the reading is
+// returned pending — the choice the upgrade resolves when it has one
+// (ako/mxcli#860) — with the reason there is no fix yet. Any other definition
+// whose type the script does not state leaves the reading unknown, with
+// pending nil.
+func (b *Builder) operandReading(at antlr.Tree, variable, fn string) (isString, known bool, pending *ast.OperandChoice, reason string) {
+	d := collectOperandDefs(at, variable)
+	if len(d.declared) > 0 {
+		for _, k := range d.declared[1:] {
+			if k != d.declared[0] {
+				return false, false, nil, operandKindUnknown(variable, fn)
 			}
 		}
-		return declared[0], true
+		return d.declared[0], true, nil, ""
 	}
-	return false, otherDefs > 0 && unknownDefs == 0
+	if !d.inFlow || d.unknown > 0 || d.listDefs+len(d.calls) == 0 {
+		return false, false, nil, operandKindUnknown(variable, fn)
+	}
+	var kinds []bool
+	if d.listDefs > 0 {
+		kinds = append(kinds, false)
+	}
+	var flows []ast.FlowRef
+	for _, c := range d.calls {
+		switch isStr, state := b.scriptFlowReturn(c); state {
+		case scriptDefines:
+			kinds = append(kinds, isStr)
+		case scriptObscures:
+			return false, false, nil, fmt.Sprintf("whether %s is a String (the string function %s) or a list "+
+				"(the List operation) depends on what %s returns, and an earlier statement of the script "+
+				"drops, renames or moves it or creates it `if not exists`; write `set $x = %s(…);` or "+
+				"`$x = %s %s …;` by hand", variable, fn, flowRefText(c), fn, fn, variable)
+		default:
+			flows = append(flows, c)
+		}
+	}
+	if len(flows) > 0 {
+		return false, false, &ast.OperandChoice{Variable: variable, Function: fn, Flows: flows, Known: kinds},
+			operandFromProject(variable, fn, flows)
+	}
+	for _, k := range kinds[1:] {
+		if k != kinds[0] {
+			return false, false, nil, OperandReadingsDisagree(variable, fn)
+		}
+	}
+	return kinds[0], true, nil, ""
+}
+
+// How an earlier statement of the script bears on a called flow.
+const (
+	scriptSilent   = iota // no earlier statement names it: the project answers
+	scriptDefines         // an earlier create says what it returns
+	scriptObscures        // an earlier statement leaves it unknowable
+)
+
+// scriptFlowReturn reads a called flow's return type from the statements the
+// script runs before the current one, which are the ones built so far: the
+// flow builder resolves a call against the model as those statements left
+// it. The last statement naming the flow decides.
+func (b *Builder) scriptFlowReturn(ref ast.FlowRef) (isString bool, state int) {
+	returnsString := func(rt *ast.MicroflowReturnType) bool {
+		return rt != nil && rt.Type.Kind == ast.TypeString
+	}
+	for i := len(b.statements) - 1; i >= 0; i-- {
+		st := b.statements[i]
+		if g, ok := st.(ast.IfNotExistsCreate); ok && g.CreateIfNotExists() {
+			// Skipped when the flow exists: either reading may hold.
+			switch s := st.(type) {
+			case *ast.CreateMicroflowStmt:
+				if !ref.Nanoflow && s.Name == ref.Name {
+					return false, scriptObscures
+				}
+			case *ast.CreateNanoflowStmt:
+				if ref.Nanoflow && s.Name == ref.Name {
+					return false, scriptObscures
+				}
+			}
+			continue
+		}
+		switch s := st.(type) {
+		case *ast.CreateMicroflowStmt:
+			if !ref.Nanoflow && s.Name == ref.Name {
+				return returnsString(s.ReturnType), scriptDefines
+			}
+		case *ast.CreateNanoflowStmt:
+			if ref.Nanoflow && s.Name == ref.Name {
+				return returnsString(s.ReturnType), scriptDefines
+			}
+		case *ast.DropMicroflowStmt:
+			if !ref.Nanoflow && s.Name == ref.Name {
+				return false, scriptObscures
+			}
+		case *ast.DropNanoflowStmt:
+			if ref.Nanoflow && s.Name == ref.Name {
+				return false, scriptObscures
+			}
+		case *ast.RenameStmt:
+			// A rename of the flow, of another document to its name, or of
+			// its module.
+			if s.Name.Module == ref.Name.Module || (s.Name.Module == "" && s.Name.Name == ref.Name.Module) {
+				return false, scriptObscures
+			}
+		case *ast.MoveStmt:
+			if s.Name == ref.Name || s.TargetModule == ref.Name.Module {
+				return false, scriptObscures
+			}
+		}
+	}
+	return false, scriptSilent
+}
+
+func flowRefText(r ast.FlowRef) string {
+	if r.Nanoflow {
+		return "nanoflow " + r.Name.String()
+	}
+	return "microflow " + r.Name.String()
 }
 
 func operandKindUnknown(variable, fn string) string {
 	return fmt.Sprintf("whether %s is a String (the string function %s) or a list (the List operation) "+
 		"depends on a type the script does not state; write `set $x = %s(…);` or `$x = %s %s …;` by hand",
 		variable, fn, fn, fn, variable)
+}
+
+func operandFromProject(variable, fn string, flows []ast.FlowRef) string {
+	names := make([]string, len(flows))
+	for i, f := range flows {
+		names[i] = flowRefText(f)
+	}
+	return fmt.Sprintf("whether %s is a String (the string function %s) or a list (the List operation) "+
+		"depends on what %s returns, which the script does not state: pass the project to "+
+		"`fmt --upgrade` (-p app.mpr) to read it there, or write `set $x = %s(…);` or `$x = %s %s …;` by hand",
+		variable, fn, strings.Join(names, " and "), fn, fn, variable)
+}
+
+// OperandReadingsDisagree is the reason a find/contains call has no rewrite
+// when its operand's definitions give it a String on one path and a list on
+// another.
+func OperandReadingsDisagree(variable, fn string) string {
+	return fmt.Sprintf("%s is a String on one path and a list on another, so `%s(…)` is the string function "+
+		"on one and the List operation on the other; write each by hand", variable, fn)
 }
 
 // ---------------------------------------------------------------------------

@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/cmd/mxcli/testrunner"
+	modelsdkbackend "github.com/mendixlabs/mxcli/mdl/backend/modelsdk"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
+	"github.com/mendixlabs/mxcli/mdl/executor"
 	"github.com/mendixlabs/mxcli/mdl/formatter"
 	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/upgrade"
@@ -57,6 +59,13 @@ Upgrading (--upgrade):
   rewrite blocks the header, and fmt fails rather than change the script's
   meaning. While mdl 1 is a preview the header is added only when asked.
 
+  With -p app.mpr, the project the script runs against answers what the
+  script cannot: find(…) / contains(…) over the result of a microflow or
+  nanoflow call is the string function when the called flow returns a String
+  and the List operation otherwise, and a flow the script does not create
+  before the call is looked up in the project. Without a project such a call
+  blocks the header and fmt says so. The project is only read.
+
   A test file (.test.mdl, .test.md) is upgraded the way check reads it: the
   statements in its blocks are rewritten, and its doc comments (@test,
   @expect, …), separators and prose are kept byte for byte. It takes no
@@ -65,6 +74,7 @@ Upgrading (--upgrade):
   # Upgrade in place
   mxcli fmt --upgrade -w script.mdl
   mxcli fmt --upgrade --header -w script.mdl
+  mxcli fmt --upgrade --header -w -p app.mpr script.mdl
 `,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -150,6 +160,14 @@ Upgrading (--upgrade):
 			if cmd.Flags().Changed("header") {
 				opts.AddHeader = addHeader
 			}
+			if opts.AddHeader {
+				flows, closeProject, err := openUpgradeProject(cmd)
+				if err != nil {
+					return err
+				}
+				defer closeProject()
+				opts.Flows = flows
+			}
 			res, err := upgrade.Upgrade(string(data), opts)
 			if err != nil {
 				return fmt.Errorf("%s: %w", label, err)
@@ -162,6 +180,21 @@ Upgrading (--upgrade):
 
 		return writeFmtResult(cmd, filePath, writeInPlace, string(data), formatted, doUpgrade)
 	},
+}
+
+// openUpgradeProject opens the -p project read-only for the upgrade to read
+// flow return types from (ako/mxcli#860). With no project it returns nil, and
+// the constructs that need one block the header as before.
+func openUpgradeProject(cmd *cobra.Command) (upgrade.FlowTypes, func(), error) {
+	projectPath, _ := cmd.Flags().GetString("project")
+	if projectPath == "" {
+		return nil, func() {}, nil
+	}
+	b := modelsdkbackend.New()
+	if err := b.ConnectReadOnly(projectPath); err != nil {
+		return nil, nil, fmt.Errorf("cannot read the project %s, which --upgrade reads flow return types from: %w", projectPath, err)
+	}
+	return executor.NewFlowReturnTypes(b), func() { _ = b.Disconnect() }, nil
 }
 
 // writeFmtResult writes fmt's output: in place with -w, else to stdout. An
