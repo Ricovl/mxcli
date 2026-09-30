@@ -1,0 +1,40 @@
+-- ============================================================================
+-- ako/mxcli#836: a headerless script keeps the pre-#750 quoted expressions
+-- ============================================================================
+--
+-- Before #750, DynamicClasses / DynamicCellClass (and an OData client's
+-- credentials) took the expression's TEXT in a string, its own quotes doubled.
+-- #750 made them first-class expressions and refused the old spelling in every
+-- script (MDL-WIDGET33), which broke committed projects (mxcli-demo-2: 15
+-- widgets, CapTrackV6: 22). ADR-0011: a script without the `mdl 1;` header
+-- keeps its meaning.
+--
+-- This script has no header, so the quoted values below are the expressions
+-- they hold, as they always were: `check` passes with one MDL-V1-QUOTEDEXPR
+-- warning per value, and `mxcli fmt --upgrade` writes each one bare. Under
+-- `mdl 1;` the same values are refused — see
+-- 750-dynamicclasses-legacy-quoted-expression.fail.mdl.
+--
+-- Usage:
+--   mxcli check mdl-examples/bug-tests/836-quoted-expression-mdl0.mdl
+--   mxcli fmt --upgrade mdl-examples/bug-tests/836-quoted-expression-mdl0.mdl
+-- ============================================================================
+
+create entity MyFirstModule.Bug836Item ( Name: String, X: Boolean );
+
+create or modify page MyFirstModule.P_Bug836
+(
+  Title: 'Quoted expressions',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Item: MyFirstModule.Bug836Item )
+)
+{
+  dataview dv (datasource: $Item) {
+    container c1 (dynamicclasses: 'if $currentObject/X then ''on'' else ''''') {
+      dynamictext t1 (content: 'Hello')
+    }
+  }
+  datagrid dg (datasource: database MyFirstModule.Bug836Item) {
+    column (attribute: Name, caption: 'Name', DynamicCellClass: 'if $currentObject/X then ''on'' else ''''')
+  }
+};

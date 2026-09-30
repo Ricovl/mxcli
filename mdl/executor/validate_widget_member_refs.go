@@ -383,12 +383,7 @@ func forEachWidget(stmt ast.Statement, fn func(w *ast.WidgetV3, where string)) {
 	switch s := stmt.(type) {
 	case *ast.CreatePageStmtV3:
 		doc = "page " + s.Name.String()
-		roots = append(roots, s.Widgets...)
-		for _, ph := range s.Placeholders {
-			if ph != nil {
-				roots = append(roots, ph.Widgets...)
-			}
-		}
+		roots = allPageWidgets(s)
 	case *ast.CreateSnippetStmtV3:
 		doc = "snippet " + s.Name.String()
 		roots = append(roots, s.Widgets...)

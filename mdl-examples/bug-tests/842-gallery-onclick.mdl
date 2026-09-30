@@ -1,0 +1,61 @@
+-- ============================================================================
+-- ako/mxcli#842 — a Gallery's onClick was silently dropped
+-- ============================================================================
+--
+-- Symptom (before fix): `gallery g (…, onClick: call nanoflow …)` passed
+-- `check`, `exec` printed "Created page", and nothing was stored; describe
+-- showed no action, and re-executing the page with only the onClick changed
+-- reported "Unchanged". onSelectionChange / onConfigurationChange: warned
+-- MDL-WIDGET06 "not yet persisted".
+--
+-- Root cause: the Gallery's definition is hand-written and embedded, and had no
+-- action mappings — only GENERATED definitions (the data grid's) had learnt to
+-- map action slots (ledger #67). `onClick:` is a builtin MDL name, so the
+-- validator never asked whether this widget routes it.
+--
+-- After fix: all three slots are written and described. Under `mdl 1;` an
+-- `onClick:` / `OnChange:` on a widget whose definition has no slot for it is
+-- refused (MDL-WIDGET37) rather than dropped, and a gallery whose row click the
+-- widget itself calls ambiguous (a selection + the single-click trigger) is
+-- refused as MDL-WIDGET36 — `mx check` fails that page otherwise. Without the
+-- header both warn (MDL-V1-ACTIONSLOT, MDL-V1-GALLERYCLICK).
+--
+-- Verify (Mendix 11.14, ako/TestApp copy):
+--   mxcli check 842-gallery-onclick.mdl -p app.mpr --references
+--   mxcli exec  842-gallery-onclick.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe page MyFirstModule.Bug842Cards"
+--   mxcli docker check -p app.mpr        -- no new errors
+-- ============================================================================
+
+create persistent entity MyFirstModule.Bug842Card (Name: string(100));
+
+create nanoflow MyFirstModule.Bug842Open ($Card: MyFirstModule.Bug842Card) begin end;
+create nanoflow MyFirstModule.Bug842Changed () begin end;
+grant execute on nanoflow MyFirstModule.Bug842Open to MyFirstModule.User;
+grant execute on nanoflow MyFirstModule.Bug842Changed to MyFirstModule.User;
+
+create page MyFirstModule.Bug842Cards (
+  title: 'Cards',
+  layout: Atlas_Core.Atlas_Default
+) {
+  -- The click is the action; nothing is selected.
+  gallery clickCards (
+    datasource: database from MyFirstModule.Bug842Card,
+    selection: None,
+    onClick: call nanoflow MyFirstModule.Bug842Open(Card = $currentObject)
+  ) {
+    template { dynamictext name1 (content: '{1}', contentparams: ({1} = Name)) }
+  }
+  -- Keep the selection; the action runs on a double click.
+  gallery selectCards (
+    datasource: database from MyFirstModule.Bug842Card,
+    selection: Single,
+    onClickTrigger: double,
+    onClick: call nanoflow MyFirstModule.Bug842Open(Card = $currentObject),
+    onSelectionChange: call nanoflow MyFirstModule.Bug842Changed
+  ) {
+    template { dynamictext name2 (content: '{1}', contentparams: ({1} = Name)) }
+  }
+};
+
+grant view on page MyFirstModule.Bug842Cards to MyFirstModule.User;

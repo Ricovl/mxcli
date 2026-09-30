@@ -183,8 +183,9 @@ func (pb *pageBuilder) buildClientTemplateParams(astParams []ast.ParamAssignment
 			out = append(out, param)
 			continue
 		}
-		if strings.HasPrefix(strVal, "'") || strings.HasPrefix(strVal, "\"") {
-			// Already a quoted string literal — use as-is.
+		if isTemplateExpression(strVal) {
+			// A quoted string literal or any other expression
+			// (`toString($Order/Total)`) — stored as written.
 			param.Expression = strVal
 		} else {
 			// Attribute reference (with or without $ prefix) or bare attribute name.
@@ -897,8 +898,9 @@ func (pb *pageBuilder) buildDynamicTextV3(w *ast.WidgetV3) (*pages.DynamicText, 
 			}
 			// Check if it's an attribute reference or literal
 			if strVal, ok := p.Value.(string); ok {
-				if strings.HasPrefix(strVal, "'") || strings.HasPrefix(strVal, "\"") {
-					// Already a quoted string literal - use as-is
+				if isTemplateExpression(strVal) {
+					// A quoted string literal or any other expression
+					// (`toString($Order/Total)`) - stored as written
 					param.Expression = strVal
 				} else if strings.HasPrefix(strVal, "$") || strings.Contains(strVal, ".") {
 					// Attribute reference - resolve widget references to entity paths

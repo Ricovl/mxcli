@@ -64,6 +64,19 @@
       "propertyKey": "onClickTrigger",
       "value": "single",
       "operation": "primitive"
+    },
+    {
+      "propertyKey": "onClick",
+      "source": "OnClick",
+      "operation": "action"
+    },
+    {
+      "propertyKey": "onSelectionChange",
+      "operation": "action"
+    },
+    {
+      "propertyKey": "onConfigurationChange",
+      "operation": "action"
     }
   ],
   "childSlots": [
