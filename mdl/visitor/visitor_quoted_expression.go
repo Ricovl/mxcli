@@ -47,8 +47,19 @@ var quotedExpressionText = langver.Change{
 		"write the expression itself, without the outer quotes and with its own quotes single",
 }
 
-// quotedConstantRefRe matches the content of a quoted `'@Module.Const'`.
-var quotedConstantRefRe = regexp.MustCompile(`^@[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$`)
+// quotedConstantRefRe matches a constant reference `@Module.Const` anywhere in
+// the content of a quoted value: the whole `'@Module.Const'`, and the compound
+// text the old describe printed for a stored expression. It quoted every
+// expression (formatExprValue), so a header holding `'Bearer ' + @Module.Token`
+// came out doubled at the start only, which the doubled-outer-quotes test
+// misses:
+//
+//	'''Bearer '' + @Module.Token'
+//
+// The `@` must not follow a word character, a dot or another `@`, so an
+// e-mail address (`user@example.com`) holds no constant, and a Tailwind
+// `@container` has no dot.
+var quotedConstantRefRe = regexp.MustCompile(`(^|[^A-Za-z0-9_.@])@[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+`)
 
 // widgetExpressionTextRe is MDL-WIDGET33's test for the content of the old
 // spelling: a class name or class list never holds a `$` or a quote, and does
@@ -63,8 +74,8 @@ func IsLegacyWidgetExpressionText(content string) bool {
 }
 
 // IsLegacyODataExpressionText is the same question for an OData client's
-// credential or header value (MDL-ODATA07): doubled outer quotes, or a quoted
-// constant reference.
+// credential or header value (MDL-ODATA07): doubled outer quotes, or a
+// constant reference in the quoted text.
 func IsLegacyODataExpressionText(content string) bool {
 	return (len(content) >= 2 && strings.HasPrefix(content, "'") && strings.HasSuffix(content, "'")) ||
 		quotedConstantRefRe.MatchString(content)

@@ -19,6 +19,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/mdl/suggest"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
 // Known property names, in the spelling the syntax help uses. These are for the
@@ -147,6 +148,10 @@ func isODataClientExpressionName(name string) bool {
 // password. So they are errors that name the new spelling. The false positive
 // is a real credential that begins and ends with a quote, or is shaped exactly
 // like a qualified name after an @; the message says how to write either.
+// A third spelling is the old describe's quoting of a compound expression that
+// reads a constant — `'Bearer ' + @M.Token` printed whole in quotes, its own
+// quotes doubled: it too now stores its own text. Which content counts is
+// visitor.IsLegacyODataExpressionText, the test the mdl 0 reading uses.
 //
 // Only under mdl 1 (ako/mxcli#836): in a script without the header the visitor
 // keeps the old meaning of both spellings — the literal's content is the
@@ -168,6 +173,12 @@ func legacyODataExpression(location, prop, expr string) []linter.Violation {
 		msg = fmt.Sprintf("%s: %s is written %s — a quoted @-name used to mean the constant %s, "+
 			"and now stores the literal text %s", location, prop, expr, content[1:], content)
 		fix = fmt.Sprintf("Write %s: %s (no quotes) to read the constant.", prop, content)
+	case visitor.IsLegacyODataExpressionText(content):
+		// A compound expression reading a constant, quoted whole as the old
+		// describe printed it: `'''Bearer '' + @M.Token'` (ako/mxcli#836).
+		msg = fmt.Sprintf("%s: %s is written %s — the quoted text is the old spelling of the expression %s, "+
+			"and now stores that text as the value", location, prop, expr, content)
+		fix = fmt.Sprintf("Write %s: %s (the expression itself, without the outer quotes).", prop, content)
 	default:
 		return nil
 	}

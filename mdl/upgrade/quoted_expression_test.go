@@ -27,6 +27,9 @@ func TestUpgrade_QuotedExpressionIsWrittenBare(t *testing.T) {
 		{"alter page set", `alter page M.P { set (DynamicClasses: '$currentObject/Style + '' card''') on c1 };`,
 			`alter page M.P { set (DynamicClasses: $currentObject/Style + ' card') on c1 };`},
 		{"odata client", odata(`'''admin'''`, `'@M.ApiPassword'`), odata(`'admin'`, `@M.ApiPassword`)},
+		// The old describe quoted a stored compound expression whole.
+		{"compound header", odata(`'user@example.com'`, `'''Bearer '' + @M.Token'`), odata(`'user@example.com'`, `'Bearer ' + @M.Token`)},
+		{"constant in a call", page(`'toLowerCase(@M.Theme)'`), page(`toLowerCase(@M.Theme)`)},
 		{"alter odata client", `alter consumed odata service M.Api set (HttpPassword: '@M.ApiPassword');`,
 			`alter consumed odata service M.Api set (HttpPassword: @M.ApiPassword);`},
 	} {

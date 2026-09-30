@@ -191,3 +191,44 @@ func TestQuotedODataExpression_Alter(t *testing.T) {
 		t.Errorf("notes = %+v, want one", prog.LanguageNotes)
 	}
 }
+
+// The old describe quoted every stored expression (formatExprValue), so a
+// Studio Pro header value holding `'Bearer ' + @M.Token` came out doubled at
+// the START only, not at both ends:
+//
+//	'''Bearer '' + @M.Token'
+//
+// Under mdl 0 that is still the expression, not the string of its text.
+// Likewise an expression with no `$`, quote or `if` in DynamicClasses — a
+// constant in a function call or a concatenation of constants.
+func TestQuotedExpression_Mdl0KeepsCompoundOldSpellings(t *testing.T) {
+	prog := mustBuild(t, odataClient("", `'''Basic '' + @M.Creds'`, `'@M.A + @M.B'`, `'''Bearer '' + @M.Token'`))
+	s := prog.Statements[0].(*ast.CreateODataClientStmt)
+	if s.HttpUsername != `'Basic ' + @M.Creds` || s.HttpUsernameIsLiteral {
+		t.Errorf("HttpUsername = %q (literal %v), want the expression", s.HttpUsername, s.HttpUsernameIsLiteral)
+	}
+	if s.HttpPassword != `@M.A + @M.B` {
+		t.Errorf("HttpPassword = %q, want the expression", s.HttpPassword)
+	}
+	if len(s.Headers) != 1 || s.Headers[0].Value != `'Bearer ' + @M.Token` || s.Headers[0].ValueIsLiteral {
+		t.Errorf("header = %+v, want the expression", s.Headers)
+	}
+	for _, v := range []string{`'toLowerCase(@M.Theme)'`, `'@M.Base + @M.Extra'`} {
+		p := mustBuild(t, dynamicClassPage("", v))
+		if cls, _ := dynamicClassValues(t, p); cls != v[1:len(v)-1] {
+			t.Errorf("dynamicclasses %s stored %#v, want the expression", v, cls)
+		}
+	}
+	// Controls: an e-mail user name, a password with @ and parentheses, and
+	// Tailwind-style class names stay strings.
+	plain := mustBuild(t, odataClient("", `'user@example.com'`, `'p@ss(w0rd)'`, `'k'`))
+	if n := quotedExprNotes(plain); len(n) != 0 {
+		t.Errorf("a plain credential noted %+v", n)
+	}
+	for _, v := range []string{`'@container md:flex'`, `'bg-[url(/a.png)] min-h-[calc(100vh-1rem)]'`, `'bg-(--brand)'`} {
+		p := mustBuild(t, dynamicClassPage("", v))
+		if cls, _ := dynamicClassValues(t, p); cls != v {
+			t.Errorf("class list %s stored %#v, want the string", v, cls)
+		}
+	}
+}

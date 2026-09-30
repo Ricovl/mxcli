@@ -111,6 +111,8 @@ func TestMDLWIDGET33_LegacyQuotedExpression(t *testing.T) {
 		{"legacy if-expression", `'if $currentObject/Featured then ''is-featured'' else '''''`, 1},
 		{"legacy attribute concatenation", `'$currentObject/Style + '' card'''`, 1},
 		{"legacy quoted constant reference", `'@M.CardClass'`, 1},
+		{"legacy constant in a call", `'toLowerCase(@M.Theme)'`, 1},
+		{"control: a Tailwind container query", `'@container md:flex'`, 0},
 		{"control: a class-name string", `'is-featured'`, 0},
 		{"control: a class list", `'btn btn-lg'`, 0},
 		{"control: the unquoted expression", `if $currentObject/Featured then 'is-featured' else ''`, 0},
@@ -129,7 +131,8 @@ create page M.P (title: 'P', layout: Atlas_Core.Atlas_Default) {
 				t.Fatalf("MDL-WIDGET33: got %d, want %d: %#v", len(got), 2*tc.want, got)
 			}
 			if tc.want > 0 && !strings.Contains(got[0].Suggestion, "if $currentObject") &&
-				!strings.Contains(got[0].Suggestion, "$currentObject/Style") && !strings.Contains(got[0].Suggestion, ": @M.CardClass") {
+				!strings.Contains(got[0].Suggestion, "$currentObject/Style") && !strings.Contains(got[0].Suggestion, ": @M.CardClass") &&
+				!strings.Contains(got[0].Suggestion, "toLowerCase(@M.Theme)") {
 				t.Errorf("suggestion should give the unquoted expression: %s", got[0].Suggestion)
 			}
 		})

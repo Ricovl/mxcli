@@ -108,6 +108,9 @@ func TestMDLODATA07_LegacyCredentialSpelling(t *testing.T) {
 		{"control: a compound expression", `'Bearer ' + @M.Token`, 0},
 		// A literal that merely starts with @ is a legitimate string.
 		{"control: an @ that is not a qualified name", `'@home'`, 0},
+		// The old describe's quoting of a stored compound expression (#836).
+		{"quoted compound expression", `'''Bearer '' + @M.Token'`, 1},
+		{"control: an e-mail address", `'user@example.com'`, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
