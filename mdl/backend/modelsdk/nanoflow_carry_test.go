@@ -235,3 +235,65 @@ func TestUpdateNanoflow_WritesNoKeyTheStoredDocumentLacks(t *testing.T) {
 		}
 	}
 }
+
+// #843 (rehearsal M2): a nanoflow the writer stored without ReturnVariableName
+// (created from `returns Boolean`, no `as $Var`) takes the one a later
+// `create or modify … returns Boolean as $Done` states, through the header
+// patch — which refused it ("set it in Studio Pro"), so no mdl 1 script could
+// ever name the return variable of such a nanoflow.
+func TestSetHeader_AddsReturnVariableToAStoredNanoflow(t *testing.T) {
+	b, nf := nanoflowFixture(t)
+	if _, ok := storedKeys(t, b, nf.ID)["ReturnVariableName"]; ok {
+		t.Fatal("precondition: the fixture nanoflow already stores ReturnVariableName")
+	}
+	if pv := b.ProjectVersion(); pv == nil || !pv.IsAtLeast(10, 12) {
+		t.Fatalf("precondition: the fixture must be 10.12+, where Nanoflow declares ReturnVariableName; got %+v", pv)
+	}
+
+	declared := *nf
+	declared.ReturnVariableName = "Done"
+	m, err := b.OpenMicroflowForMutation(nf.ID)
+	if err != nil {
+		t.Fatalf("OpenMicroflowForMutation: %v", err)
+	}
+	changed, err := m.SetHeader(&declared)
+	if err != nil {
+		t.Fatalf("SetHeader: %v", err)
+	}
+	if len(changed) != 1 || changed[0] != "ReturnVariableName" {
+		t.Fatalf("changed %v, want [ReturnVariableName]", changed)
+	}
+	if err := m.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if got := storedKeys(t, b, nf.ID)["ReturnVariableName"]; got != "Done" {
+		t.Fatalf("stored ReturnVariableName = %#v, want Done", got)
+	}
+
+	// The second statement finds it stored: nothing to patch.
+	m, err = b.OpenMicroflowForMutation(nf.ID)
+	if err != nil {
+		t.Fatalf("OpenMicroflowForMutation: %v", err)
+	}
+	if changed, err := m.SetHeader(&declared); err != nil || len(changed) != 0 {
+		t.Fatalf("second run: changed %v, err %v; want nothing", changed, err)
+	}
+}
+
+// DeclaresProperty follows the metamodel's version data: ReturnVariableName
+// (Microflows$MicroflowBase, 10.12) is declared on the fixture's version, a
+// property with no version data is declared, and without a project version
+// nothing is.
+func TestDeclaresProperty_FollowsTheProjectVersion(t *testing.T) {
+	b, _ := nanoflowFixture(t)
+	d := codecMicroflowDeps{b: b}
+	if !d.DeclaresProperty("Microflows$Nanoflow", "ReturnVariableName") {
+		t.Error("ReturnVariableName is not declared on a 10.12+ project")
+	}
+	if !d.DeclaresProperty("Microflows$Nanoflow", "Documentation") {
+		t.Error("Documentation, which has no version data, is not declared")
+	}
+	if (codecMicroflowDeps{b: New()}).DeclaresProperty("Microflows$Nanoflow", "ReturnVariableName") {
+		t.Error("a backend with no project version declares a property")
+	}
+}
