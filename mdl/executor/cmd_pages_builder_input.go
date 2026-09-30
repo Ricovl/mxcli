@@ -93,6 +93,19 @@ func (pb *pageBuilder) declaringEntityFor(entityQN, attrName string) (string, bo
 	return "", false
 }
 
+// attributeIndex is entityAttributeOwners as the index misboundAttributeError
+// consults; empty (every answer "unknown") when the model cannot be read.
+func (pb *pageBuilder) attributeIndex() attributeIndex {
+	if pb.backend == nil && (pb.execCache == nil || pb.execCache.domainModels == nil) {
+		return attributeIndex{}
+	}
+	owners, parents, err := pb.entityAttributeOwners()
+	if err != nil {
+		return attributeIndex{}
+	}
+	return attributeIndex{owners: owners, parents: parents}
+}
+
 // entityAttributeOwners indexes, for every entity in the project, the set of
 // attribute names it declares itself, plus each entity's direct parent.
 func (pb *pageBuilder) entityAttributeOwners() (owners map[string]map[string]bool, parents map[string]string, err error) {
