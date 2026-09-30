@@ -61,7 +61,12 @@ own language header, without writing, so the two agree:
   and counted as refused in the summary;
 - a statement whose patch is empty — nothing `exec` would write — is
   **unchanged**, whatever the two renderings differ in (surrounding whitespace,
-  a bracketed `where [ … ]` against the bare form describe prints);
+  a bracketed `where [ … ]` against the bare form describe prints). A statement
+  that builds the flow that is stored is unchanged however that flow is
+  described: a guard clause `if … then return …; end if; return …;` that
+  describe prints as `if … then … else … end if`, a nested guard it prints with
+  a `join`/`merge` pair, a long flow it prints as crossed branches
+  (ako/mxcli#859);
 - a statement `exec` would write although its MDL renders as stored — a
   `folder` clause naming another folder, which `exec` applies as a move — is
   **modified**, with what `exec` would write:

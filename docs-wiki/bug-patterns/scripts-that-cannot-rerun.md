@@ -4,6 +4,7 @@ category: bug-pattern
 last-synced: ced830e0
 sources:
   - .claude/skills/fix-issue/findings/mdl-grammar.jsonl
+  - .claude/skills/fix-issue/findings/mdl-executor.jsonl
   - mdl/grammar/domains/MDLDomainModel.g4
   - docs/13-decisions/0003-mdl-is-sql-shaped.md
 ---
@@ -69,6 +70,21 @@ failures in this area were reported against the *value* in the second item of a
 list — `add attribute A: integer default 9, add attribute B: …` — when the list
 rule simply had no comma alternative. When a parse error names something that is
 plainly valid in the first position, suspect the list before the value.
+
+**`create or modify` of a flow is re-runnable only if it matches its own
+output.** A flow statement is diff-then-patch: it is compared with the stored
+flow, and under `mdl 1` a difference the splice cannot make is refused rather
+than rebuilt. So every way the comparison can fail to recognise *the flow the
+same statement built* turns into a script that cannot be run twice (#839,
+#859: 36 refused statements in one project's second pass). Comparing statements
+with describe's rendering of the stored graph kept failing on spellings — a
+guard clause printed as if/else, a shared merge printed as `join`/`merge`, a
+wrapped row printed as crossed sections. What settled it was comparing what the
+statement *builds* with what is stored (read back through the codec, element
+IDs aside): the builder is deterministic, so an identical re-run matches by
+construction. The property that catches the class runs **authored** scripts
+twice (`TestFlowRerunProperty`); a describe → exec property cannot, because it
+only ever feeds describe's own spelling back.
 
 ## See also
 
