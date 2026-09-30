@@ -329,7 +329,7 @@ datagrid gridName (datasource: database from Module.Entity) {
 }
 ```
 
-The `format (...)` block accepts `decimalPrecision`, `groupDigits`, `dateFormat` (`Date` / `DateTime` / `Time` / `Custom`), `customDateFormat`, and `enumFormat` (`Text` / `Image`). Formatting is applied by Mendix only to **attribute-bound** parameters — bind the bare attribute (`Amount`), not `toString(...)`.
+The `format (...)` block accepts `decimalPrecision`, `groupDigits`, `dateFormat` (`Date` / `DateTime` / `Time` / `Custom`), `customDateFormat`, and `enumFormat` (`Text` / `Image`). Formatting is applied by Mendix only to **attribute-bound** parameters — bind the bare attribute (`Amount`), not `toString(...)`. A parameter or data view attribute (`{1} = $Order.Total`) binds the same way. mxcli releases before #823 stored it as `toString($Order/Total)`, and an mdl 0 script warns MDL-V1-TEMPLATEATTR where the output changed. Write `{1} = toString($Order/Total)` to keep the unformatted text: any expression is stored as written.
 
 ```sql
 column (

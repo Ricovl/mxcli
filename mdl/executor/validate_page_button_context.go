@@ -22,11 +22,8 @@ import (
 func ValidatePageButtonContext(prog *ast.Program) []linter.Violation {
 	var out []linter.Violation
 	for _, stmt := range prog.Statements {
-		switch s := stmt.(type) {
-		case *ast.CreatePageStmtV3:
-			out = append(out, checkButtonContextTree(s.Widgets, "", "page "+s.Name.String())...)
-		case *ast.CreateSnippetStmtV3:
-			out = append(out, checkButtonContextTree(s.Widgets, "", "snippet "+s.Name.String())...)
+		if label, widgets, ok := documentWidgets(stmt); ok {
+			out = append(out, checkButtonContextTree(widgets, "", label)...)
 		}
 	}
 	return out

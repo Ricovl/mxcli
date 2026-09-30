@@ -2154,6 +2154,7 @@ func (pb *pageBuilder) resolveTemplateAttributePathFull(attrRef string, param *p
 		if len(parts) == 2 {
 			paramName := parts[0]
 			attrName := parts[1]
+			pb.warnTemplateAttrBinding(paramName, attrName) // MDL-V1-TEMPLATEATTR, mdl 0 only
 
 			// Check if this is a page/snippet parameter (not a widget reference).
 			//

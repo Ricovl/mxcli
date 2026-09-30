@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
@@ -98,9 +99,10 @@ func TestWidgetExpressionInAPlainProperty_IsAnError(t *testing.T) {
 	}
 }
 
-// MDL-WIDGET33: the old spelling — a quoted string holding the expression's
-// text — now stores a string, so it is refused and the message names the
-// unquoted expression.
+// MDL-WIDGET33: under mdl 1 the old spelling — a quoted string holding the
+// expression's text — is a string, so it is refused and the message names the
+// unquoted expression. Under mdl 0 it keeps its meaning (ako/mxcli#836; see
+// TestMDLWIDGET33_Mdl0KeepsTheOldMeaning).
 func TestMDLWIDGET33_LegacyQuotedExpression(t *testing.T) {
 	cases := []struct {
 		name, value string
@@ -108,24 +110,29 @@ func TestMDLWIDGET33_LegacyQuotedExpression(t *testing.T) {
 	}{
 		{"legacy if-expression", `'if $currentObject/Featured then ''is-featured'' else '''''`, 1},
 		{"legacy attribute concatenation", `'$currentObject/Style + '' card'''`, 1},
+		{"legacy quoted constant reference", `'@M.CardClass'`, 1},
+		{"legacy constant in a call", `'toLowerCase(@M.Theme)'`, 1},
+		{"control: a Tailwind container query", `'@container md:flex'`, 0},
 		{"control: a class-name string", `'is-featured'`, 0},
 		{"control: a class list", `'btn btn-lg'`, 0},
 		{"control: the unquoted expression", `if $currentObject/Featured then 'is-featured' else ''`, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			src := `create page M.P (title: 'P', layout: Atlas_Core.Atlas_Default) {
+			src := `mdl 1;
+create page M.P (title: 'P', layout: Atlas_Core.Atlas_Default) {
   container c1 (dynamicclasses: ` + tc.value + `) { }
   datagrid dg (datasource: database M.Thing) {
     column col1 (attribute: Name, caption: 'N', DynamicCellClass: ` + tc.value + `)
   }
-}`
+};`
 			got := widgetViolations(t, src, "MDL-WIDGET33")
 			if len(got) != 2*tc.want {
 				t.Fatalf("MDL-WIDGET33: got %d, want %d: %#v", len(got), 2*tc.want, got)
 			}
 			if tc.want > 0 && !strings.Contains(got[0].Suggestion, "if $currentObject") &&
-				!strings.Contains(got[0].Suggestion, "$currentObject/Style") {
+				!strings.Contains(got[0].Suggestion, "$currentObject/Style") && !strings.Contains(got[0].Suggestion, ": @M.CardClass") &&
+				!strings.Contains(got[0].Suggestion, "toLowerCase(@M.Theme)") {
 				t.Errorf("suggestion should give the unquoted expression: %s", got[0].Suggestion)
 			}
 		})
@@ -133,7 +140,7 @@ func TestMDLWIDGET33_LegacyQuotedExpression(t *testing.T) {
 }
 
 func TestMDLWIDGET33_LegacyQuotedExpressionOnAlter(t *testing.T) {
-	prog := parseMDL(t, `alter page M.P { set DynamicClasses = 'if $currentObject/F then ''a'' else ''b''' on c1 };`)
+	prog := parseMDL(t, "mdl 1;\n"+`alter page M.P { set DynamicClasses = 'if $currentObject/F then ''a'' else ''b''' on c1 };`)
 	var got []string
 	for _, v := range ValidateWidgetProperties(prog, "") {
 		if v.RuleID == "MDL-WIDGET33" {
@@ -169,5 +176,38 @@ func TestDescribeWidgetExpressionProps_RoundTrip(t *testing.T) {
 	outputDataGrid2ColumnV3(&ExecContext{Output: &out}, "", rawDataGridColumn{DynamicCellClass: expr})
 	if !strings.Contains(out.String(), "DynamicCellClass: "+expr) {
 		t.Errorf("column describe should print the expression unquoted, got:\n%s", out.String())
+	}
+}
+
+// ako/mxcli#836 (beta blocker): a script without the header keeps the old
+// meaning of the quoted spelling, as mxcli-demo-2 and CapTrackV6 were written.
+// No MDL-WIDGET33 error — the value is the expression — and one
+// MDL-V1-QUOTEDEXPR warning per use. The control is the same script under
+// mdl 1, which is refused.
+func TestMDLWIDGET33_Mdl0KeepsTheOldMeaning(t *testing.T) {
+	const body = `create page M.P (title: 'P', layout: Atlas_Core.Atlas_Default) {
+  container c1 (dynamicclasses: 'if $currentObject/X then ''on'' else ''''') { }
+  datagrid dg (datasource: database M.Thing) {
+    column col1 (attribute: Name, caption: 'N', DynamicCellClass: 'if $currentObject/X then ''on'' else ''''')
+  }
+};`
+	if got := widgetViolations(t, body, "MDL-WIDGET33"); len(got) != 0 {
+		t.Errorf("mdl 0: MDL-WIDGET33 refused the old spelling: %v", got)
+	}
+	ws := pageWidgets(t, body)
+	if got := ws["c1"].GetDynamicClasses(); got != "if $currentObject/X then 'on' else ''" {
+		t.Errorf("mdl 0 stored %q, want the expression", got)
+	}
+	var warned []linter.Violation
+	for _, v := range ValidateLanguageVersion(parseMDL(t, body)) {
+		if v.RuleID == "MDL-V1-QUOTEDEXPR" {
+			warned = append(warned, v)
+		}
+	}
+	if len(warned) != 2 || warned[0].Severity != linter.SeverityWarning {
+		t.Errorf("mdl 0: want two MDL-V1-QUOTEDEXPR warnings, got %v", warned)
+	}
+	if got := widgetViolations(t, "mdl 1;\n"+body, "MDL-WIDGET33"); len(got) != 2 {
+		t.Errorf("control, mdl 1: MDL-WIDGET33 = %v, want two errors", got)
 	}
 }
