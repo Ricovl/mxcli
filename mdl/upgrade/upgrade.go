@@ -4,7 +4,7 @@
 // behind `mxcli fmt --upgrade` (ADR-0011 decision 1, plan item 1.3 of
 // PROPOSAL_mdl_beta_syntax_freeze.md).
 //
-// It does two kinds of rewrite, and nothing else:
+// It does three kinds of rewrite, and nothing else:
 //
 //   - Every use of a deprecated spelling registered in mdl/deprecation becomes
 //     its canonical spelling. A deprecated spelling is a respelling, so the
@@ -15,6 +15,10 @@
 //     langver.Change) is rewritten to the spelling that keeps its OLD meaning
 //     under the new header, and `mdl <n>;` is added. The rewrites live in
 //     gatedRewriters (gated.go); the changes with none, in unrewritable.
+//   - When the caller passes the project (Options.Commits), a bare `commit`
+//     in a `create or modify` flow whose stored flow commits without events is
+//     given that flag, so the upgraded script builds what is stored
+//     (commit_events.go, ako/mxcli#873).
 //
 // A rewrite that is more than a keyword swap — a structural deprecation such as
 // a list operation's call form, or a header-gated construct — is computed from
@@ -61,6 +65,12 @@ type Options struct {
 	// a call's result, ako/mxcli#860). Nil when no project is given: such a
 	// construct then blocks the header, as before.
 	Flows FlowTypes
+	// Commits answers what the project's stored flows commit, for the bare
+	// `commit $X;` whose meaning #895 changed (ako/mxcli#873): where the
+	// stored flow commits without events, the upgrade says so. Nil when no
+	// project is given: each such flow is then reported in Notes instead.
+	// It applies with and without the header — the change is not gated.
+	Commits StoredCommits
 }
 
 // FlowTypes is the project a script runs against, as far as the upgrade needs
@@ -91,11 +101,16 @@ type Result struct {
 	// Unrewritten lists the deprecated uses left in place because their
 	// registry entry carries no rewrite.
 	Unrewritten []ast.DeprecatedSpelling
+	// CommitsPinned counts the bare commits given the stored flow's
+	// `without events` (ako/mxcli#873).
+	CommitsPinned int
+	// Notes are what the upgrade left and the author should know.
+	Notes []Note
 }
 
 // Changed reports whether the upgrade rewrote anything.
 func (r Result) Changed() bool {
-	return r.HeaderAdded || len(r.Rewritten) > 0 || len(r.GatedRewritten) > 0
+	return r.HeaderAdded || len(r.Rewritten) > 0 || len(r.GatedRewritten) > 0 || r.CommitsPinned > 0
 }
 
 // Upgrade rewrites src to the canonical language. It returns an error when src
@@ -194,6 +209,10 @@ func (u upgrader) upgradeProg(src string, opts Options, parse func(string) (*ast
 			return res, &HeaderBlockedError{From: prog.LanguageVersion, Constructs: blocked}
 		}
 	}
+
+	pins, pinned, notes := pinCommitEvents(prog, opts.Commits)
+	edits = append(edits, pins...)
+	res.CommitsPinned, res.Notes = pinned, notes
 
 	out, err := text.apply(edits)
 	if err != nil {
