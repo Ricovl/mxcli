@@ -56,6 +56,11 @@ type Writer struct {
 	// RE-INSERTED under the same ID can be reconciled against what it replaced.
 	// See carryIdentityFromRemovedUnit.
 	removedUnits map[string]removedUnit
+
+	// deferred holds unit updates while a run of statements is judged by its
+	// net result (writer_deferred.go); nil when no run is open.
+	deferred      map[string]deferredWrite
+	deferredOrder []string
 }
 
 // removedUnit is everything about a deleted unit that a re-insert has to be
@@ -126,9 +131,13 @@ func NewWriterWithReader(r *Reader) *Writer {
 	return &Writer{reader: r}
 }
 
-// Close closes the writer.
+// Close closes the writer, writing any update a deferred run still holds.
 func (w *Writer) Close() error {
-	return w.reader.Close()
+	flushErr := w.FlushDeferredWrites()
+	if err := w.reader.Close(); err != nil {
+		return err
+	}
+	return flushErr
 }
 
 // Reader returns the underlying reader as a UnitReader interface.
@@ -625,6 +634,11 @@ func (w *Writer) updateUnit(unitID string, contents []byte, opts ...canon.Option
 	if w.sessionBuf != nil {
 		return w.sessionBuf(unitID, contents)
 	}
+	// A run whose writes are judged by its net result holds the update; the
+	// run's flush reconciles it against what was stored before the run.
+	if w.holdDeferred(unitID, contents, opts) {
+		return nil
+	}
 
 	contents, unchanged, err := w.reconcileWithStored(unitID, contents, opts...)
 	if err != nil {
@@ -905,6 +919,7 @@ func (w *Writer) deleteUnit(unitID string) error {
 	if unitIDBlob == nil {
 		return fmt.Errorf("invalid unit ID: %s", unitID)
 	}
+	w.dropDeferred(unitID)
 	w.rememberRemovedUnit(unitID)
 
 	if w.reader.version == MPRVersionV2 {
