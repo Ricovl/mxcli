@@ -366,7 +366,7 @@ func (e *Executor) Execute(stmt ast.Statement) error {
 }
 
 // ExecuteProgram runs all statements in a program.
-func (e *Executor) ExecuteProgram(prog *ast.Program) error {
+func (e *Executor) ExecuteProgram(prog *ast.Program) (err error) {
 	if e.beginTally() {
 		defer e.flushTally()
 	}
@@ -381,9 +381,15 @@ func (e *Executor) ExecuteProgram(prog *ast.Program) error {
 
 	// A run of access-rule statements is written once, at its end (#872). The
 	// deferred end also covers a statement that fails mid-run: what the run's
-	// earlier statements did still lands, as it did when each wrote itself.
+	// earlier statements did still lands, as it did when each wrote itself. If
+	// it cannot land, that is returned with the statement's error — those
+	// statements already reported success.
 	var rules accessRuleRun
-	defer func() { _ = rules.end() }()
+	defer func() {
+		if ferr := rules.end(); ferr != nil {
+			err = errors.Join(err, ferr)
+		}
+	}()
 
 	for _, stmt := range prog.Statements {
 		if err := rules.step(e, stmt); err != nil {

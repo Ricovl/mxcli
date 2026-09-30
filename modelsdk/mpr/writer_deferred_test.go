@@ -136,3 +136,33 @@ func TestDeferredWriteIsDroppedWithItsUnit(t *testing.T) {
 		t.Errorf("the flush wrote back a deleted unit (stat err %v)", err)
 	}
 }
+
+// The v1 listing reads contents inline from the Unit table, not through
+// readMprContents, so it needs the overlay check of its own. Without it a v1
+// project's GetDomainModel reads what was on disk before the run while
+// GetRawUnitBytes reads the run's writes — two views of one unit in one run.
+func TestDeferredWriteIsSeenByTheV1Listing(t *testing.T) {
+	stored := ruleDoc(t, true, "33333333-3333-3333-3333-333333333333", "https://a.test")
+	r := newTestReaderV1WithUnit(t, deferredUnitID, stored)
+	if _, err := r.db.Exec(`UPDATE Unit SET ContainerID = ?, ContainmentName = 'Documents' WHERE UnitID = ?`,
+		uuidToBlob("22222222-2222-2222-2222-222222222222"), uuidToBlob(deferredUnitID)); err != nil {
+		t.Fatalf("seed unit row: %v", err)
+	}
+
+	held := ruleDoc(t, false, "", "")
+	r.SetOverlay(deferredUnitID, held)
+	refs, err := r.ListUnitsByType("Rest$ConsumedRestService")
+	if err != nil || len(refs) != 1 {
+		t.Fatalf("listing: err %v, %d units", err, len(refs))
+	}
+	if string(refs[0].Contents) != string(held) {
+		t.Error("the v1 unit listing does not see the held write")
+	}
+
+	// Control: with the overlay cleared the listing reads the stored row again.
+	r.ClearOverlay(deferredUnitID)
+	refs, err = r.ListUnitsByType("Rest$ConsumedRestService")
+	if err != nil || len(refs) != 1 || string(refs[0].Contents) != string(stored) {
+		t.Errorf("after ClearOverlay the v1 listing does not read the stored row (err %v)", err)
+	}
+}
