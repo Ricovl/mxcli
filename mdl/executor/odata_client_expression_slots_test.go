@@ -108,23 +108,34 @@ func TestMDLODATA07_LegacyCredentialSpelling(t *testing.T) {
 		{"control: a compound expression", `'Bearer ' + @M.Token`, 0},
 		// A literal that merely starts with @ is a legitimate string.
 		{"control: an @ that is not a qualified name", `'@home'`, 0},
+		// The old describe's quoting of a stored compound expression (#836).
+		{"quoted compound expression", `'''Bearer '' + @M.Token'`, 1},
+		{"control: an e-mail address", `'user@example.com'`, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			prog := parseMDL(t, `create odata client M.Api (
+			src := `create odata client M.Api (
   ODataVersion: OData4, MetadataUrl: 'https://x/$metadata',
-  UseAuthentication: Yes, HttpUsername: `+tc.value+`
+  UseAuthentication: Yes, HttpUsername: ` + tc.value + `
 )
-headers ('X-Token': `+tc.value+`);`)
-			var got []string
-			for _, v := range ValidateODataProperties(prog) {
-				if v.RuleID == "MDL-ODATA07" {
-					got = append(got, v.Message)
+headers ('X-Token': ` + tc.value + `);`
+			count := func(src string) []string {
+				var got []string
+				for _, v := range ValidateODataProperties(parseMDL(t, src)) {
+					if v.RuleID == "MDL-ODATA07" {
+						got = append(got, v.Message)
+					}
 				}
+				return got
 			}
-			// One for HttpUsername, one for the header.
-			if len(got) != 2*tc.want {
+			// Under mdl 1, one for HttpUsername, one for the header.
+			if got := count("mdl 1;\n" + src); len(got) != 2*tc.want {
 				t.Fatalf("MDL-ODATA07: got %d, want %d: %v", len(got), 2*tc.want, got)
+			}
+			// Under mdl 0 the old spelling keeps its meaning and only warns
+			// MDL-V1-QUOTEDEXPR (ako/mxcli#836).
+			if got := count(src); len(got) != 0 {
+				t.Fatalf("mdl 0: MDL-ODATA07 refused %v", got)
 			}
 		})
 	}

@@ -50,11 +50,11 @@ func (b *Builder) ExitCreateODataClientStatement(ctx *parser.CreateODataClientSt
 			stmt.UseAuthentication = strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
 		// Expression-typed: the expression as written, not an unquoted value.
 		case "httpusername":
-			stmt.HttpUsername, stmt.HttpUsernameIsLiteral = odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
+			stmt.HttpUsername, stmt.HttpUsernameIsLiteral = b.odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
 		case "httppassword":
-			stmt.HttpPassword, stmt.HttpPasswordIsLiteral = odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
+			stmt.HttpPassword, stmt.HttpPasswordIsLiteral = b.odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
 		case "clientcertificate":
-			stmt.ClientCertificate, _ = odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
+			stmt.ClientCertificate, _ = b.odataExpressionValue(prop.OdataPropertyValue(), prop.Expression())
 		case "configurationmicroflow":
 			// "Configuration microflow" — returns System.ConsumedODataConfiguration.
 			stmt.ConfigurationMicroflow = value
@@ -86,7 +86,7 @@ func (b *Builder) ExitCreateODataClientStatement(ctx *parser.CreateODataClientSt
 
 	// Parse HEADERS clause
 	if headersCtx := ctx.OdataHeadersClause(); headersCtx != nil {
-		stmt.Headers = parseODataHeaders(headersCtx)
+		stmt.Headers = b.parseODataHeaders(headersCtx)
 	}
 
 	// Check for CREATE OR MODIFY
@@ -417,7 +417,7 @@ func parsePublishEntityBlock(ctx parser.IPublishEntityBlockContext) *ast.Publish
 }
 
 // parseODataHeaders converts a HEADERS clause into header definitions.
-func parseODataHeaders(ctx parser.IOdataHeadersClauseContext) []ast.HeaderDef {
+func (b *Builder) parseODataHeaders(ctx parser.IOdataHeadersClauseContext) []ast.HeaderDef {
 	clause := ctx.(*parser.OdataHeadersClauseContext)
 	var headers []ast.HeaderDef
 
@@ -425,7 +425,7 @@ func parseODataHeaders(ctx parser.IOdataHeadersClauseContext) []ast.HeaderDef {
 		entry := entryCtx.(*parser.OdataHeaderEntryContext)
 		key := unquoteStringLit(entry.STRING_LITERAL())
 		// A header value is a Mendix expression, kept as written.
-		value, isLiteral := odataExpressionValue(entry.OdataPropertyValue(), entry.Expression())
+		value, isLiteral := b.odataExpressionValue(entry.OdataPropertyValue(), entry.Expression())
 		headers = append(headers, ast.HeaderDef{Key: key, Value: value, ValueIsLiteral: isLiteral})
 	}
 

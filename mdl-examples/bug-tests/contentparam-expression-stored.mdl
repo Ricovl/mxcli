@@ -1,0 +1,37 @@
+-- ============================================================================
+-- contentparams / captionparams take a client expression (ledger finding #26,
+-- ako/mxcli#823 option C)
+-- ============================================================================
+--
+-- A template parameter written as an expression —
+--   dynamictext dImport (content: 'Last import: {1}',
+--     contentparams: ({1} = formatDateTime($currentObject/LastImport, 'd MMM yyyy')))
+-- used to be stored as an ATTRIBUTE PATH, so the whole expression became a
+-- bogus attribute name (CE1613 in Studio Pro), and `mxcli check` refused it as
+-- MDL-WIDGET14. It is now stored as the parameter's Expression — Studio Pro's
+-- "Parameter type: Expression" — and describe prints it back as written.
+-- `{1} = toString($Report/Count)` is the explicit spelling that keeps the
+-- output mxcli releases before #823 gave a non-String attribute binding.
+--
+-- Usage:
+--   mxcli check mdl-examples/bug-tests/contentparam-expression-stored.mdl
+-- ============================================================================
+
+create entity MyFirstModule.Report (
+  LastImport: DateTime,
+  Count: Integer
+);
+
+create or modify page MyFirstModule.ReportPage
+(
+  Title: 'Report',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Report: MyFirstModule.Report )
+)
+{
+  dataview dv (datasource: $Report) {
+    -- An expression parameter, stored as written.
+    dynamictext dImport (content: 'Last import: {1}', contentparams: ({1} = formatDateTime($currentObject/LastImport, 'd MMM yyyy')))
+    dynamictext dCount (content: 'Rows: {1}', contentparams: ({1} = toString($Report/Count)))
+  }
+};

@@ -35,6 +35,23 @@ var gatedRewriters = map[string]GatedRewriter{
 	"MDL-V1-REPLACE02": visitorFix, // `create or replace user role` (a plain create) -> `create user role`
 	"MDL-V1-WHILE":     visitorFix, // insert the missing `begin` and `while` after `end`
 	"MDL-V1-TEMPLATE":  visitorFix, // a template literal over lines -> `'{1}' with ({1} = literal)`
+	// a quoted expression property value (`'if $x then ''a'' else '''''`) -> the expression bare
+	"MDL-V1-QUOTEDEXPR": visitorFix,
+}
+
+// versionNeutral lists the header-gated changes whose rewrite means the same
+// under EVERY version: the rewritten spelling is read identically with and
+// without the header. `fmt --upgrade` applies these even when it adds no
+// header, the way it rewrites a deprecated alias, so a script moves off the
+// old spelling while mdl 1 is still a preview.
+//
+// MDL-V1-QUOTEDEXPR (ako/mxcli#836): the bare expression is the canonical
+// spelling since #750 under mdl 0 as well; only the quoted one is read
+// differently. A change may be listed only when its rewritten spelling builds
+// the same AST with and without the header; the others stay with the header
+// step, which is where their meaning changes.
+var versionNeutral = map[string]bool{
+	"MDL-V1-QUOTEDEXPR": true,
 }
 
 // unrewritable lists the changes with no mechanical rewrite at all, and why.
