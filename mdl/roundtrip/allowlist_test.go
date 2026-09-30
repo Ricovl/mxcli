@@ -23,7 +23,9 @@ package roundtrip
 // The initial list was measured on 2026-09-26: 42 of 223 documents keep both
 // laws. #704 and #705 were being fixed in parallel; their entries are here
 // so that whoever merges second strikes them. #721 L2 (client-action settings)
-// struck the two password pages.
+// struck the two password pages. #721 L4 (a pluggable widget rebuilt from its
+// template instead of kept as stored) struck six pages and a snippet whose data
+// grids, images and language selector were its only loss.
 var knownFailures = map[string]knownFailure{
 	// Plain `create` where `create or modify` is needed (#705 item 5).
 
@@ -101,20 +103,13 @@ var knownFailures = map[string]knownFailure{
 	"page Administration.Account_Edit":       {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
 	"page Administration.Account_New":        {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
 	"page Administration.Account_Overview":   {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-	"page Administration.ActiveSessions":     {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-	"page Administration.MyAccount":          {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-	"page Administration.RuntimeInstances":   {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-	"page Administration.ScheduledEvents":    {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
 	"page FeedbackModule.PopupFailure":       {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-	"page FeedbackModule.PopupFailure_Logo":  {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
 	"page FeedbackModule.PopupSuccess":       {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-	"page FeedbackModule.PopupSuccess_Logo":  {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
 	"page FeedbackModule.ShareFeedback":      {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
 	"page FeedbackModule.ShareFeedback_Logo": {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
 	"page MyFirstModule.Home_Web":            {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
 
 	// Snippets: #705 item 4 plus #721 D.
-	"snippet Administration.ReadMe":             {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
-	"snippet Atlas_Core.FeedbackWidget":         {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
-	"snippet Atlas_Core.LanguageSelectorWidget": {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
+	"snippet Administration.ReadMe":     {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
+	"snippet Atlas_Core.FeedbackWidget": {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
 }

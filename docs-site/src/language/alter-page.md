@@ -203,7 +203,7 @@ ALTER PAGE Module.Customer_Edit {
 
 1. **Discover widget names first** -- Run `DESCRIBE PAGE Module.PageName` to see the current widget tree with all widget names.
 
-2. **Use ALTER for small changes** -- For adding a field or changing a caption, ALTER is faster and safer than `CREATE OR REPLACE`, because it preserves widgets that MDL cannot round-trip (pluggable widgets with complex configurations).
+2. **Use ALTER for small changes** -- For adding a field or changing a caption, ALTER is faster and safer than `CREATE OR REPLACE`, because it preserves widgets that MDL cannot round-trip (pluggable widgets with complex configurations). `CREATE OR REPLACE` / `CREATE OR MODIFY` keeps a pluggable widget exactly as stored only while its statement is unchanged from what `DESCRIBE` prints for it; editing any property of that widget rebuilds it from its template, and resets what MDL cannot express (translations, unmapped properties).
 
 3. **Use CREATE OR REPLACE for major rewrites** -- When restructuring the entire page layout, a full replacement is cleaner.
 

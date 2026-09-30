@@ -100,6 +100,12 @@ type pageBuilder struct {
 	// resolving TextTemplate parameters — local variables must be stored as
 	// Forms$PageVariable.LocalVariable in BSON, not as a literal Expression.
 	localVariables map[string]bool
+
+	// storedPluggables are the pluggable widgets of the stored document a
+	// `create or replace`/`create or modify` rewrites; nil for a new document.
+	// A widget the statement did not change keeps its stored Type and Object
+	// (ako/mxcli#721 L4, see cmd_pages_pluggable_passthrough.go).
+	storedPluggables *pluggablePassthrough
 }
 
 // initPluggableEngine lazily initializes the pluggable widget engine.
