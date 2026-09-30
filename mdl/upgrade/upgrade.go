@@ -56,6 +56,22 @@ type Options struct {
 	// mdl 1 is a preview this is opt-in (`fmt --upgrade --header`); at beta it
 	// becomes the default (langver.Frozen is the single switch).
 	AddHeader bool
+	// Flows answers what the project's microflows and nanoflows return, for
+	// the header-gated constructs whose meaning depends on it (`find(…)` over
+	// a call's result, ako/mxcli#860). Nil when no project is given: such a
+	// construct then blocks the header, as before.
+	Flows FlowTypes
+}
+
+// FlowTypes is the project a script runs against, as far as the upgrade needs
+// it: whether a called flow returns a String. `fmt --upgrade -p app.mpr`
+// passes one backed by the project (the flow builder's own lookup, so the two
+// cannot disagree); tests pass a map.
+type FlowTypes interface {
+	// ReturnsString reports whether the microflow (the nanoflow when nanoflow
+	// is set) named qualifiedName returns a String. found is false when the
+	// project has no such flow.
+	ReturnsString(nanoflow bool, qualifiedName string) (isString, found bool)
 }
 
 // DefaultOptions is what `fmt --upgrade` does when no header flag is given:
@@ -156,6 +172,7 @@ func (u upgrader) upgradeProg(src string, opts Options, parse func(string) (*ast
 	if addHeader {
 		var blocked []Blocked
 		for _, n := range prog.LanguageNotes {
+			n = resolveOperand(n, opts.Flows)
 			rw, ok := u.gated[n.Code]
 			if !ok {
 				reason := unrewritable[n.Code]
@@ -358,4 +375,44 @@ func matchCase(like, word string) string {
 	default:
 		return strings.ToLower(word)
 	}
+}
+
+// resolveOperand settles a note whose rewrite waits on what a called flow
+// returns (ast.OperandChoice, ako/mxcli#860) by asking the project, the way
+// the mdl 0 flow builder reads the call's result type when it builds the
+// flow: a String makes `find(…)` / `contains(…)` the string function, anything
+// else the List operation. Without a project, or when the project cannot
+// answer, the note keeps no fix and says why.
+func resolveOperand(n ast.LanguageNote, flows FlowTypes) ast.LanguageNote {
+	c := n.Operand
+	if n.Fix != nil || c == nil || flows == nil {
+		return n
+	}
+	kinds := append([]bool(nil), c.Known...)
+	for _, f := range c.Flows {
+		isString, found := flows.ReturnsString(f.Nanoflow, f.Name.String())
+		if !found {
+			kind := "microflow"
+			if f.Nanoflow {
+				kind = "nanoflow"
+			}
+			n.NoFix = fmt.Sprintf("%s is assigned the result of %s %s, and the project has no %s %s, so whether "+
+				"`%s(…)` is the string function or the List operation cannot be read from it; write `set $x = %s(…);` "+
+				"or `$x = %s %s …;` by hand", c.Variable, kind, f.Name, kind, f.Name, c.Function, c.Function, c.Function, c.Variable)
+			return n
+		}
+		kinds = append(kinds, isString)
+	}
+	for _, k := range kinds[1:] {
+		if k != kinds[0] {
+			n.NoFix = visitor.OperandReadingsDisagree(c.Variable, c.Function)
+			return n
+		}
+	}
+	if kinds[0] {
+		n.Fix, n.NoFix = c.StringFix, ""
+	} else {
+		n.Fix, n.NoFix = c.ListFix, c.ListNoFix
+	}
+	return n
 }
