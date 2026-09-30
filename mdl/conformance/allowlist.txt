@@ -231,7 +231,6 @@
 1	MDL-DEPR003	mdl-examples/bug-tests/1103-test-file-checks-as-microflow-bodies.test.mdl
 1	MDL-DEPR004	mdl-examples/bug-tests/1103-test-file-checks-as-microflow-bodies.test.mdl
 1	syntax	mdl-examples/bug-tests/116-datagrid2-column-name-mismatch.mdl
-1	syntax	mdl-examples/doctype-tests/microflow-spec.test.md
 1	MDL-DEPR001	syntax:create-modifiers
 2	MDL-DEPR001	syntax:layout
 1	MDL-DEPR001	syntax:microflow

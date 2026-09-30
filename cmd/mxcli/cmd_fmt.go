@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/cmd/mxcli/testrunner"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/formatter"
 	"github.com/mendixlabs/mxcli/mdl/langver"
@@ -56,6 +57,11 @@ Upgrading (--upgrade):
   rewrite blocks the header, and fmt fails rather than change the script's
   meaning. While mdl 1 is a preview the header is added only when asked.
 
+  A test file (.test.mdl, .test.md) is upgraded the way check reads it: the
+  statements in its blocks are rewritten, and its doc comments (@test,
+  @expect, …), separators and prose are kept byte for byte. It takes no
+  language header yet, so --header adds none to it and says so.
+
   # Upgrade in place
   mxcli fmt --upgrade -w script.mdl
   mxcli fmt --upgrade --header -w script.mdl
@@ -96,6 +102,31 @@ Upgrading (--upgrade):
 			label = "<stdin>"
 		}
 
+		// A .test.mdl / .test.md file is not top-level MDL: its blocks are
+		// microflow bodies behind `/** @test … */` doc comments. --upgrade reads
+		// it the way check does (ako/mxcli#837); the layout formatter does not
+		// know the format, so it is not let loose on one.
+		if !fromStdin && testrunner.IsTestFile(filePath) {
+			if !doUpgrade {
+				return fmt.Errorf("%s is a test file: fmt formats top-level MDL scripts, and would not keep a test "+
+					"file's doc comments and separators; use `mxcli fmt --upgrade` to upgrade its statements", label)
+			}
+			opts := upgrade.DefaultOptions()
+			if cmd.Flags().Changed("header") {
+				opts.AddHeader = addHeader
+			}
+			res, headerSkipped, err := testrunner.UpgradeSource(string(data), filePath, opts)
+			if err != nil {
+				return fmt.Errorf("%s: %w", label, err)
+			}
+			reportUpgrade(cmd.ErrOrStderr(), label, res)
+			if headerSkipped {
+				fmt.Fprintf(cmd.ErrOrStderr(), "%s: no language header added: a test file takes no language header yet "+
+					"(check and the test runner read its blocks as mdl 0), so its header-gated constructs were left as they are\n", label)
+			}
+			return writeFmtResult(cmd, filePath, writeInPlace, string(data), res.Source, true)
+		}
+
 		// Reject unparseable input so automation scripts can detect failures.
 		// Two failure modes:
 		//   1. ANTLR reports explicit parse errors (structural violations).
@@ -123,30 +154,35 @@ Upgrading (--upgrade):
 			if err != nil {
 				return fmt.Errorf("%s: %w", label, err)
 			}
-			reportUpgrade(os.Stderr, label, res)
+			reportUpgrade(cmd.ErrOrStderr(), label, res)
 			formatted = res.Source
 		} else {
 			formatted = formatter.Format(string(data))
 		}
 
-		if writeInPlace {
-			if doUpgrade && formatted == string(data) {
-				return nil // nothing to upgrade: leave the file untouched
-			}
-			if err := os.WriteFile(filePath, []byte(formatted), 0644); err != nil {
-				return fmt.Errorf("failed to write file: %w", err)
-			}
-			verb := "Formatted"
-			if doUpgrade {
-				verb = "Upgraded"
-			}
-			fmt.Fprintf(os.Stderr, "%s %s\n", verb, filePath)
-		} else {
-			fmt.Print(formatted)
-		}
-
-		return nil
+		return writeFmtResult(cmd, filePath, writeInPlace, string(data), formatted, doUpgrade)
 	},
+}
+
+// writeFmtResult writes fmt's output: in place with -w, else to stdout. An
+// upgrade that changed nothing leaves the file untouched.
+func writeFmtResult(cmd *cobra.Command, filePath string, writeInPlace bool, original, formatted string, upgraded bool) error {
+	if !writeInPlace {
+		fmt.Print(formatted)
+		return nil
+	}
+	if upgraded && formatted == original {
+		return nil // nothing to upgrade: leave the file untouched
+	}
+	if err := os.WriteFile(filePath, []byte(formatted), 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+	verb := "Formatted"
+	if upgraded {
+		verb = "Upgraded"
+	}
+	fmt.Fprintf(cmd.ErrOrStderr(), "%s %s\n", verb, filePath)
+	return nil
 }
 
 func init() {
