@@ -298,3 +298,41 @@ create or modify persistent entity MyFirstModule.RerunTx (
 		t.Errorf("an edited view entity: want the new query and the rule kept:\n%s", got)
 	}
 }
+
+// ako/mxcli#859 (rehearsal W2): `create or modify demo user` for a demo user
+// that already holds exactly what the statement states removed and re-added
+// it, so project security was written and "Modified demo user" reported on
+// every run.
+func TestDemoUserRerun_WritesNothing(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	const user = "mdl 1;\ncreate or modify demo user 'rerun_a' ( Password: 'Rerun2027!pw', Entity: Administration.Account, UserRoles: (User) );\n"
+	if err := h.exec(user); err != nil {
+		t.Fatalf("first run: %v\n%s", err, h.out.String())
+	}
+	first := h.snapshot()
+	if err := h.exec(user); err != nil {
+		t.Fatalf("second run: %v\n%s", err, h.out.String())
+	}
+	if !strings.Contains(h.out.String(), "Unchanged demo user: rerun_a") {
+		t.Errorf("the identical second run did not report Unchanged:\n%s", h.out.String())
+	}
+	if changed := first.diff(h.snapshot()); len(changed) != 0 {
+		t.Errorf("the identical second run wrote %d unit(s):\n  %s", len(changed), strings.Join(changed, "\n  "))
+	}
+
+	// Controls: another password, and another role, are each a change.
+	for _, edit := range [][2]string{{"Rerun2027!pw", "Rerun2028!pw"}, {"(User)", "(User, Administrator)"}} {
+		if err := h.exec(strings.Replace(user, edit[0], edit[1], 1)); err != nil {
+			t.Fatalf("edited %s: %v\n%s", edit[1], err, h.out.String())
+		}
+		if !strings.Contains(h.out.String(), "Modified demo user: rerun_a") {
+			t.Errorf("edited %s: want Modified:\n%s", edit[1], h.out.String())
+		}
+		if len(first.diff(h.snapshot())) == 0 {
+			t.Errorf("edited %s: nothing written", edit[1])
+		}
+		first = h.snapshot()
+	}
+}

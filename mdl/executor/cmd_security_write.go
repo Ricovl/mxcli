@@ -1342,6 +1342,14 @@ func execCreateDemoUser(ctx *ExecContext, s *ast.CreateDemoUserStmt) error {
 			if s.Entity != "" {
 				entity = s.Entity
 			}
+			// A demo user that already holds what the statement states is
+			// left alone. Removing and re-adding it gave the element a new
+			// $ID, so project security was written on every re-run of the
+			// script (ako/mxcli#859, rehearsal W2).
+			if password == du.Password && entity == du.Entity && len(mergedRoles) == len(du.UserRoles) {
+				reportUnchanged(ctx, "demo user: "+s.UserName)
+				return nil
+			}
 			if err := ctx.Backend.RemoveDemoUser(ps.ID, s.UserName); err != nil {
 				return mdlerrors.NewBackend("update demo user", err)
 			}
