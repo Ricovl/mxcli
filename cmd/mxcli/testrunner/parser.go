@@ -254,8 +254,9 @@ func parseMarkdownTests(content string, sourcePath string) ([]TestCase, error) {
 				inCodeBlock = false
 				blockContent := strings.Join(blockLines, "\n")
 
-				// Parse the block as a single test
-				doc, body, _, bodyLine, err := extractDocAndBody(testBlock{Text: blockContent, Line: blockStart})
+				// Parse the block as a single test. Its text starts on the
+				// line after the fence, which is the line its lines count from.
+				doc, body, _, bodyLine, err := extractDocAndBody(testBlock{Text: blockContent, Line: blockStart + 1})
 				if err != nil {
 					return nil, fmt.Errorf("%s: %w", sourcePath, err)
 				}
