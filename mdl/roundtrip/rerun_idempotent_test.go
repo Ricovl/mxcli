@@ -232,3 +232,69 @@ func TestFlowRerun_IdenticalScriptWritesNothing(t *testing.T) {
 		}
 	}
 }
+
+// ako/mxcli#859 (rehearsal W1): `create or modify view entity` on an existing
+// view entity rebuilt it from the statement alone and dropped its access
+// rules. Every re-run of a script wrote the domain model and its `grant` wrote
+// the rule back; a re-run without the grant silently left the entity with no
+// access at all.
+func TestViewEntityRerun_KeepsAccessRules(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	const view = `create or modify view entity MyFirstModule.RerunYear (
+  Yr: Integer,
+  TxCount: Integer
+) as (
+  select
+    datepart(YEAR, t.TxDate) as Yr,
+    count(*) as TxCount
+  from MyFirstModule.RerunTx as t
+  group by datepart(YEAR, t.TxDate)
+);
+`
+	const grant = "grant read * on entity MyFirstModule.RerunYear to MyFirstModule.User;\n"
+	const script = `mdl 1;
+create or modify persistent entity MyFirstModule.RerunTx (
+  TxDate: DateTime,
+  Amount: Decimal
+);
+` + view + grant
+	if err := h.exec(script); err != nil {
+		t.Fatalf("first run: %v\n%s", err, h.out.String())
+	}
+	first := h.snapshot()
+	if err := h.exec(script); err != nil {
+		t.Fatalf("second run: %v\n%s", err, h.out.String())
+	}
+	if strings.Contains(h.out.String(), "Modified view entity") {
+		t.Errorf("the identical second run modified the view entity:\n%s", h.out.String())
+	}
+	if changed := first.diff(h.snapshot()); len(changed) != 0 {
+		t.Errorf("the identical second run wrote %d unit(s):\n  %s", len(changed), strings.Join(changed, "\n  "))
+	}
+
+	// The view entity alone, without the grant, keeps the rule.
+	if err := h.exec("mdl 1;\n" + view); err != nil {
+		t.Fatalf("the view entity alone: %v\n%s", err, h.out.String())
+	}
+	if changed := first.diff(h.snapshot()); len(changed) != 0 {
+		t.Errorf("the unchanged view entity wrote %d unit(s):\n  %s", len(changed), strings.Join(changed, "\n  "))
+	}
+	if got := h.mustDescribe(t, "entity MyFirstModule.RerunYear"); !strings.Contains(got, strings.TrimSpace(grant)) {
+		t.Errorf("the access rule is gone:\n%s", got)
+	}
+
+	// Control: a changed view entity is written, and keeps its rule too.
+	edited := strings.Replace(view, "count(*) as TxCount", "count(t.Amount) as TxCount", 1)
+	if err := h.exec("mdl 1;\n" + edited); err != nil {
+		t.Fatalf("an edited view entity: %v\n%s", err, h.out.String())
+	}
+	if len(first.diff(h.snapshot())) == 0 {
+		t.Error("an edited view entity wrote nothing")
+	}
+	if got := h.mustDescribe(t, "entity MyFirstModule.RerunYear"); !strings.Contains(got, "count(t.Amount)") ||
+		!strings.Contains(got, strings.TrimSpace(grant)) {
+		t.Errorf("an edited view entity: want the new query and the rule kept:\n%s", got)
+	}
+}
