@@ -224,6 +224,10 @@ const (
 	// DemoUserClauses is a demo user's `password 'p' [entity E] (Role, …)`:
 	// the clause form of its property list (phase 3.6).
 	DemoUserClauses = "MDL-DEPR137"
+	// ConstantPrivate is `create constant … private`: a modifier Mendix has no
+	// property for, which was never stored (ako/mxcli#865). The one entry
+	// refused from mdl 1 rather than 2, because mdl 1 never had it.
+	ConstantPrivate = "MDL-DEPR138"
 
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
@@ -586,6 +590,18 @@ var headerPropertyEntries = []Entry{
 			"and the documentation a doc comment (R9).",
 		Example:          "create constant M.ApiUrl type String default 'https://x' exposed to client;",
 		CanonicalExample: "create constant M.ApiUrl ( Type: String, DefaultValue: 'https://x', ExposedToClient: true );",
+	},
+	{
+		Code:      ConstantPrivate,
+		Old:       "create constant M.C … private",
+		Canonical: "create constant M.C …",
+		Rewrite:   Rewrite{Structural: "constant's `private` modifier away: it is deleted"},
+		RemovedIn: 1,
+		Note: "`private` was never stored: a Mendix constant has no such property, so it did nothing and " +
+			"protected nothing. Keep a secret out of the model with `mxcli constant set Module.Name <value>`, " +
+			"which stores the value on this machine only (gitignored), and leave DefaultValue empty.",
+		Example:          "create constant M.ApiKey ( Type: String, DefaultValue: '' ) private;",
+		CanonicalExample: "create constant M.ApiKey ( Type: String, DefaultValue: '' );",
 	},
 	{
 		Code:      DemoUserClauses,

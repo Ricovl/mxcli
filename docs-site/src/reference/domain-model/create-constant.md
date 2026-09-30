@@ -25,6 +25,8 @@ Constant values can also be overridden per deployment configuration using `ALTER
 
 `FOLDER 'path'` goes right after the name, as on every document. A `FOLDER` after the properties is the old position: it still parses and warns `MDL-DEPR134`, and `mxcli fmt --upgrade` moves it.
 
+There is no `PRIVATE` modifier. Older scripts wrote one after the value; it was never stored and protected nothing. Without the `mdl 1;` header it still parses, does nothing and warns `MDL-DEPR138`, and `mxcli fmt --upgrade` deletes it; under `mdl 1;` it is an error. To keep a secret out of the model, leave `DefaultValue` empty and set the value per machine with `mxcli constant set Module.Name <value>`.
+
 ## Parameters
 
 **OR MODIFY**

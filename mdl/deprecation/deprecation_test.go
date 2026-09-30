@@ -42,6 +42,12 @@ func TestRegistryEntriesAreWellFormed(t *testing.T) {
 		}
 		// ADR-0011: an alias warns under the version that deprecates it (1)
 		// and is refused from a later one.
+		// The exception is a form mdl 1 never had: a no-op that parsed under
+		// mdl 0 only by accident, refused from mdl 1 (ADR-0011: only the
+		// header refuses). Listed by code, so a new one is a decision.
+		if e.RemovedIn == 1 && refusedFromMdl1[e.Code] {
+			continue
+		}
 		if e.RemovedIn < 2 {
 			t.Errorf("%s RemovedIn = %d, want >= 2", e.Code, e.RemovedIn)
 		}
@@ -68,4 +74,9 @@ func TestParsePolicy(t *testing.T) {
 			t.Errorf("ParsePolicy(%q) accepted an unknown value", in)
 		}
 	}
+}
+
+// refusedFromMdl1 are the entries whose old form mdl 1 never accepted.
+var refusedFromMdl1 = map[string]bool{
+	ConstantPrivate: true, // a no-op the old catch-all swallowed (ako/mxcli#865)
 }
