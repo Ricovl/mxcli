@@ -39,15 +39,57 @@ func storedXPathConstraint(xpath, entity string) string {
 	return normalizeXPathEnumRefs(resolveXPathMemberNames(xpath, entity))
 }
 
+// storedModelXPathConstraint is storedXPathConstraint for a writer that has the
+// project in hand, and it places the names storedXPathConstraint has to guess
+// at: an attribute qualified with a generalization of entity is the attribute
+// too, and a name qualified with any other entity of the model is left as
+// written rather than read as an enumeration value.
+//
+// Guessing there turned a constraint that failed loudly into a silent one. An
+// access rule stored a short constraint verbatim, so
+// `grant … on Administration.Account … where [System.User.Name = 'x']` was
+// CE0161; the enumeration reading made it ['Name' = 'x'], which compares two
+// constants and passes mx check (measured, 11.14.0).
+//
+// Without a project it is storedXPathConstraint.
+func storedModelXPathConstraint(ctx *ExecContext, xpath, entity string) string {
+	if ctx == nil || !ctx.Connected() {
+		return storedXPathConstraint(xpath, entity)
+	}
+	b, _ := ctx.Backend.(entityLookupBackend)
+	owners, _ := generalizationChain(ctx, entity)
+	if len(owners) == 0 {
+		owners = []string{entity}
+	}
+	return rewriteXPathNames(resolveXPathMemberNamesOf(xpath, owners), func(name string) string {
+		if strings.Count(name, ".") != 2 {
+			return name
+		}
+		dot := strings.LastIndex(name, ".")
+		if _, isEntity := findEntityByQN(b, name[:dot]); isEntity {
+			return name
+		}
+		return enumRefToLiteral(name)
+	})
+}
+
 // resolveXPathMemberNames rewrites each Module.Entity.Attribute whose
 // Module.Entity is entity, or an entity step of the constraint, to Attribute.
 func resolveXPathMemberNames(xpath, entity string) string {
+	return resolveXPathMemberNamesOf(xpath, []string{entity})
+}
+
+// resolveXPathMemberNamesOf is resolveXPathMemberNames for a constraint
+// evaluated on any of entities (an entity and its generalizations).
+func resolveXPathMemberNamesOf(xpath string, entities []string) string {
 	if !strings.Contains(xpath, ".") {
 		return xpath
 	}
 	owners := map[string]bool{}
-	if entity != "" {
-		owners[entity] = true
+	for _, entity := range entities {
+		if entity != "" {
+			owners[entity] = true
+		}
 	}
 	forEachXPathName(xpath, func(name string) {
 		if strings.Count(name, ".") == 1 {
