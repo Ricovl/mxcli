@@ -444,6 +444,47 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 	return m.removeObject(x)
 }
 
+// RemoveNotes takes out the annotations attached to target, with their
+// lines. A note also attached to another object is refused: it would be taken
+// from that object too.
+func (m *Mutator) RemoveNotes(target model.ID) error {
+	g := m.graph()
+	x, err := g.node(target)
+	if err != nil {
+		return err
+	}
+	drop, seen := map[string]bool{}, map[string]bool{}
+	var notes []*node
+	for _, af := range g.annotationFlows(x.id) {
+		other := af.origin
+		if other == x.id {
+			other = af.dest
+		}
+		n := g.nodes[other]
+		if n == nil || n.typ != "Microflows$Annotation" {
+			return fmt.Errorf("the annotation line %s of %s does not lead to an annotation", af.id, describeNode(x))
+		}
+		for _, f := range g.annotationFlows(n.id) {
+			if f.origin != x.id && f.dest != x.id {
+				return fmt.Errorf("a note on %s is also attached to another object; changing it here would change it there too — "+
+					"edit that note in Studio Pro", describeNode(x))
+			}
+			drop[f.id] = true
+		}
+		if !seen[n.id] {
+			seen[n.id] = true
+			notes = append(notes, n)
+		}
+	}
+	m.removeFlows(drop)
+	for _, n := range notes {
+		if err := m.removeObject(n); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Drop removes target and joins the flows that entered it to the object it
 // led to. Annotation lines attached to it go with it; the annotations stay.
 func (m *Mutator) Drop(target model.ID) error {

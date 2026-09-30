@@ -822,19 +822,31 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 	}
 	rest, restStmts := cands, del
 	if len(ins) > 0 {
-		body, err := keepStoredNotes(del[0], ins)
+		body, replaceNotes, err := keepStoredNotes(del[0], ins)
 		if err != nil {
 			return err
 		}
 		pd.add(ast.AlterFlowReplace, cands[0], body)
+		pd.ops[len(pd.ops)-1].ReplaceNotes = replaceNotes
 		rest, restStmts = cands[1:], del[1:]
 	}
 	for i, c := range rest {
-		if ann := statementAnnotations(restStmts[i]); ann != nil && len(ann.Notes) > 0 {
-			return cannotSplice("the %s dropped at (%d, %d) carries an annotation, which would be left behind unattached",
-				statementKind(restStmts[i]), c.Object.GetPosition().X, c.Object.GetPosition().Y)
+		// A dropped activity's notes go with it: the declared statements
+		// state every note they keep, and draw it (ako/mxcli#859). One shared
+		// with another activity would go from there too.
+		var notes []ast.MicroflowAnnotation
+		if ann := statementAnnotations(restStmts[i]); ann != nil {
+			notes = ann.Notes
+		}
+		for _, n := range notes {
+			if n.Label != "" {
+				return cannotSplice("the %s dropped at (%d, %d) carries an annotation shared with another activity (id: %s), "+
+					"which dropping it would take from that activity too",
+					statementKind(restStmts[i]), c.Object.GetPosition().X, c.Object.GetPosition().Y, n.Label)
+			}
 		}
 		pd.add(ast.AlterFlowDrop, c, nil)
+		pd.ops[len(pd.ops)-1].ReplaceNotes = len(notes) > 0
 	}
 	return nil
 }
@@ -932,30 +944,42 @@ func describeAt(st ast.MicroflowStatement) string {
 }
 
 // keepStoredNotes prepares the declared statements that replace a stored one.
-// The splice keeps the stored activity's annotation notes and attaches them to
-// the replacement's first activity, so the declared statement must carry the
-// same notes — and they are taken off it, or the builder would draw each one a
-// second time. A replaced statement with other notes than the stored one is a
-// change of annotations, which the splice does not make.
-func keepStoredNotes(stored ast.MicroflowStatement, declared []ast.MicroflowStatement) ([]ast.MicroflowStatement, error) {
+// When the declared statement carries the stored activity's notes, the splice
+// keeps the stored notes and attaches them to the replacement's first
+// activity, so they are taken off the declared statement — or the builder
+// would draw each one a second time.
+//
+// When it carries other notes — one added, reworded or taken off — the
+// declared statement keeps them, the builder draws them, and replaceNotes says
+// the stored notes go out with the activity (ako/mxcli#859): the statement
+// states the activity's notes, like the rest of it. A note the stored flow
+// shares with another activity (describe gives it an id) is refused: changing
+// it here would change it there too.
+func keepStoredNotes(stored ast.MicroflowStatement, declared []ast.MicroflowStatement) (out []ast.MicroflowStatement, replaceNotes bool, err error) {
 	var storedNotes []ast.MicroflowAnnotation
 	if ann := statementAnnotations(stored); ann != nil {
 		storedNotes = ann.Notes
 	}
 	if len(storedNotes) == 0 {
-		return declared, nil
+		return declared, false, nil
 	}
 	var declaredNotes []ast.MicroflowAnnotation
 	if ann := statementAnnotations(declared[0]); ann != nil {
 		declaredNotes = ann.Notes
 	}
 	if !declaredMatches(declaredNotes, storedNotes) {
-		return nil, cannotSplice("the annotations on the replaced %s change; the splice keeps a replaced activity's notes as stored",
-			statementKind(stored))
+		for _, n := range append(append([]ast.MicroflowAnnotation(nil), storedNotes...), declaredNotes...) {
+			if n.Label != "" {
+				return nil, false, cannotSplice("the annotations on the replaced %s change, and one of them is shared "+
+					"with another activity (id: %s); the splice changes the notes of one activity only",
+					statementKind(stored), n.Label)
+			}
+		}
+		return declared, true, nil
 	}
-	out := append([]ast.MicroflowStatement(nil), declared...)
+	out = append([]ast.MicroflowStatement(nil), declared...)
 	out[0] = withAnnotations(declared[0], func(a *ast.ActivityAnnotations) { a.Notes = nil })
-	return out, nil
+	return out, false, nil
 }
 
 // withoutFreeNotes returns the statements with their free annotations taken
