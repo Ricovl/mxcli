@@ -229,6 +229,14 @@ const (
 	// refused from mdl 1 rather than 2, because mdl 1 never had it.
 	ConstantPrivate = "MDL-DEPR138"
 
+	// Codes 160-169 are the migration aliases the beta dress rehearsal found
+	// (ako/mxcli#714), numbered apart so the parallel fixes do not collide.
+
+	// DateType is `date` as a type: Mendix has no date-only type, and mxcli
+	// always stored it as a DateTime (ako/mxcli#706, rehearsal U1). Refused
+	// from mdl 1 rather than 2, because mdl 1 never had it.
+	DateType = "MDL-DEPR160"
+
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
 
@@ -1260,6 +1268,17 @@ var r8Entries = []Entry{
 		RemovedIn:        2,
 		Example:          "create microflow M.F () begin call rest service get 'https://example.com' returns none; end;",
 		CanonicalExample: "create microflow M.F () begin call rest service get 'https://example.com' returns nothing; end;",
+	},
+	{
+		Code:      DateType,
+		Old:       "date",
+		Canonical: "DateTime",
+		Rewrite:   Rewrite{Structural: "type `date` as the type it was stored as: `DateTime`"},
+		RemovedIn: 1,
+		Note: "Mendix has no date-only type: `date` was always stored as a DateTime, and still is. " +
+			"To show only the date, give the widget a date format.",
+		Example:          "create persistent entity M.Account ( LastImport: date );",
+		CanonicalExample: "create persistent entity M.Account ( LastImport: DateTime );",
 	},
 }
 

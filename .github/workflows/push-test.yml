@@ -260,7 +260,10 @@ jobs:
         run: make test-integration-${{ matrix.suite }}
         env:
           MXCLI_UPGRADE_SHARD: ${{ matrix.shard }}
-        timeout-minutes: 30
+        # Below the job's 45: the roundtrip suite reached 29m57s once #863/#864
+        # built each declared flow during create or modify (see the issue on
+        # that cost); a step timeout is a hang guard, not a budget.
+        timeout-minutes: 40
 
   # One stable check name for "every integration suite passed", whatever the
   # matrix above becomes — a branch rule can require this instead of each leg.

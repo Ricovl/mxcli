@@ -7,11 +7,14 @@ import (
 	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
+	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
 // Forms that parsed, passed `check`, and were then dropped or stored as
-// something else (ako/mxcli#706). Each is refused here, where the parse tree
+// something else (ako/mxcli#706). Each is refused here (`date` excepted, see
+// recordDateType), where the parse tree
 // says exactly what was written, rather than removed from the grammar: the
 // words involved are also keywords-as-identifiers (`Currency`, `Date`, `throw`),
 // so deleting the alternative would let several of them re-parse as something
@@ -44,17 +47,14 @@ func (b *Builder) ExitThrowStatement(ctx *parser.ThrowStatementContext) {
 // have, or "" when the token is a real type.
 //
 // float and currency were Mendix 6 attribute types, removed in Mendix 7 in
-// favour of Decimal. There is no date-only attribute type — Date is a DateTime.
-// mxcli mapped float/currency to String(unlimited) on an attribute (Void in a
-// microflow) and date to DateTime, all without a word.
-func removedPrimitiveType(floatTok, currencyTok, dateTok antlr.TerminalNode) (word, replacement string) {
+// favour of Decimal. mxcli mapped them to String(unlimited) on an attribute
+// (Void in a microflow) without a word, so they are refused.
+func removedPrimitiveType(floatTok, currencyTok antlr.TerminalNode) (word, replacement string) {
 	switch {
 	case floatTok != nil:
 		return floatTok.GetText(), "Decimal"
 	case currencyTok != nil:
 		return currencyTok.GetText(), "Decimal"
-	case dateTok != nil:
-		return dateTok.GetText(), "DateTime"
 	}
 	return "", ""
 }
@@ -63,25 +63,45 @@ func (b *Builder) rejectRemovedPrimitiveType(ctx antlr.ParserRuleContext, word, 
 	if word == "" {
 		return
 	}
-	why := "Mendix has no " + word + " type; it was removed in Mendix 7 and mxcli stored it as the wrong type"
-	if replacement == "DateTime" {
-		why = "Mendix has no date-only type; mxcli silently stored it as DateTime"
+	b.addError(fmt.Errorf("%s: type `%s` is not supported — Mendix has no %s type; it was removed in Mendix 7 "+
+		"and mxcli stored it as the wrong type.\n  Write `%s` instead.",
+		ctxPos(ctx), word, word, replacement))
+}
+
+// recordDateType records `date` as a type (MDL-DEPR160). There is no date-only
+// type in Mendix: `date` was always stored as a DateTime, so it is a
+// respelling of DateTime and builds exactly what DateTime builds. #706 refused
+// it in every version, which stopped scripts that ran; it now warns without
+// the header, fmt --upgrade writes DateTime, and mdl 1 refuses it
+// (recordDeprecation, RemovedIn 1).
+func (b *Builder) recordDateType(dateTok antlr.TerminalNode, subject string) {
+	if dateTok == nil {
+		return
 	}
-	b.addError(fmt.Errorf("%s: type `%s` is not supported — %s.\n  Write `%s` instead.",
-		ctxPos(ctx), word, why, replacement))
+	tok := dateTok.GetSymbol()
+	b.recordDeprecation(deprecation.DateType, tok, subject)
+	repl := "DateTime"
+	if w := tok.GetText(); w == strings.ToUpper(w) {
+		repl = "DATETIME"
+	}
+	b.fixLastDeprecation(deprecation.DateType, &ast.Fix{Edits: []ast.TextEdit{
+		{Start: tok.GetStart(), Stop: tok.GetStop() + 1, Text: repl},
+	}}, "")
 }
 
 // EnterDataType covers every place a type is written: attributes, microflow
 // parameters and return types, declare, constants, and the service rules.
 func (b *Builder) EnterDataType(ctx *parser.DataTypeContext) {
-	word, repl := removedPrimitiveType(ctx.FLOAT_TYPE(), ctx.CURRENCY_TYPE(), ctx.DATE_TYPE())
+	word, repl := removedPrimitiveType(ctx.FLOAT_TYPE(), ctx.CURRENCY_TYPE())
 	b.rejectRemovedPrimitiveType(ctx, word, repl)
+	b.recordDateType(ctx.DATE_TYPE(), "")
 }
 
 // EnterNonListDataType is the same check for the create-object type slot.
 func (b *Builder) EnterNonListDataType(ctx *parser.NonListDataTypeContext) {
-	word, repl := removedPrimitiveType(ctx.FLOAT_TYPE(), ctx.CURRENCY_TYPE(), ctx.DATE_TYPE())
+	word, repl := removedPrimitiveType(ctx.FLOAT_TYPE(), ctx.CURRENCY_TYPE())
 	b.rejectRemovedPrimitiveType(ctx, word, repl)
+	b.recordDateType(ctx.DATE_TYPE(), "")
 }
 
 // rejectParenthesisedAssociation refuses `association X (from … to …, opt, …)`.

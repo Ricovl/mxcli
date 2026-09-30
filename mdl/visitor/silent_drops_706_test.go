@@ -61,18 +61,19 @@ func TestRaiseErrorStillParses(t *testing.T) {
 	buildOK(t, "create microflow M.MF () begin raise error; end;")
 }
 
-// --- 2. float / currency / date ---------------------------------------------
+// --- 2. float / currency ----------------------------------------------------
 
 // `float` and `currency` fell through buildDataType to String(unlimited) on an
-// attribute and to Void in a microflow; `date` was written as DateTime.
+// attribute and to Void in a microflow. `date` was written as DateTime, which
+// is what it now means again: a deprecated alias, refused only under mdl 1
+// (visitor_date_alias_test.go, rehearsal U1).
 func TestRemovedPrimitiveTypesAreRejected(t *testing.T) {
 	for _, tc := range []struct{ name, script, hint string }{
 		{"float attribute", "create persistent entity M.E ( Amount: float );", "Decimal"},
 		{"currency attribute", "create persistent entity M.E ( Amount: currency );", "Decimal"},
-		{"date attribute", "create persistent entity M.E ( Born: date );", "DateTime"},
 		{"alter add attribute", "alter entity M.E add attribute Amount: Float;", "Decimal"},
 		{"microflow parameter", "create microflow M.MF ($A: currency) begin log 'x'; end;", "Decimal"},
-		{"microflow return", "create microflow M.MF () returns Date begin return empty; end;", "DateTime"},
+		{"microflow return", "create microflow M.MF () returns Currency begin return empty; end;", "Decimal"},
 		{"declare", "create microflow M.MF () begin declare $d Float = 1; end;", "Decimal"},
 		{"constant", "create constant M.C type float default 1;", "Decimal"},
 	} {
