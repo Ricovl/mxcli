@@ -330,3 +330,44 @@ func TestValidateGalleryClickAmbiguity(t *testing.T) {
 		t.Errorf("a data grid was reported: %v", got)
 	}
 }
+
+// The two refusals end to end, through the path `check` and `exec` take:
+// parse → ValidateWidgetProperties → the language gate. The unit tests above
+// call each validator directly, so removing its call from the widget-tree walk
+// — or the gate from ValidateWidgetProperties — left them green while `check`
+// stopped reporting anything.
+func TestWidgetActionRefusalsThroughCheck(t *testing.T) {
+	const page = `create page W.P ( Title: 'P' )
+{
+  gallery g (DataSource: database from W.Card, onClick: call nanoflow W.Open) {
+    template { dynamictext t (Content: 'x') }
+  }
+  combobox cb (Attribute: Name, onClick: call nanoflow W.Open)
+};`
+	cases := []struct {
+		header       string
+		galleryRule  string
+		actionRule   string
+		wantSeverity linter.Severity
+	}{
+		{"mdl 1;\n", "MDL-WIDGET36", "MDL-WIDGET37", linter.SeverityError},
+		{"", galleryClickRefused.Code, actionSlotRefused.Code, linter.SeverityWarning},
+	}
+	for _, c := range cases {
+		name := "mdl 0"
+		if c.header != "" {
+			name = "mdl 1"
+		}
+		t.Run(name, func(t *testing.T) {
+			for _, rule := range []string{c.galleryRule, c.actionRule} {
+				vs := widgetViolations(t, c.header+page, rule)
+				if len(vs) != 1 {
+					t.Fatalf("%s: got %d violations, want 1", rule, len(vs))
+				}
+				if vs[0].Severity != c.wantSeverity {
+					t.Errorf("%s: severity %v, want %v", rule, vs[0].Severity, c.wantSeverity)
+				}
+			}
+		})
+	}
+}

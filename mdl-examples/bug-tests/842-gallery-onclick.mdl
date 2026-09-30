@@ -56,6 +56,6 @@ create page MyFirstModule.Bug842Cards (
   ) {
     template { dynamictext name2 (content: '{1}', contentparams: ({1} = Name)) }
   }
-}
+};
 
 grant view on page MyFirstModule.Bug842Cards to MyFirstModule.User;
