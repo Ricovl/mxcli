@@ -108,6 +108,7 @@ func dataTypeSimpleName(ctx parser.IDataTypeContext) string {
 	canonical := map[string]string{
 		"string": "String", "integer": "Integer", "long": "Long",
 		"decimal": "Decimal", "boolean": "Boolean", "datetime": "DateTime",
+		"date":   "DateTime", // MDL-DEPR160: Mendix has no date-only type
 		"binary": "Binary",
 	}
 	if c, ok := canonical[strings.ToLower(text)]; ok {

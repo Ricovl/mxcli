@@ -227,7 +227,9 @@ func buildMicroflowDataType(ctx parser.IDataTypeContext) ast.DataType {
 		return ast.DataType{Kind: ast.TypeDateTime}
 	}
 	if strings.HasPrefix(text, "DATE") {
-		return ast.DataType{Kind: ast.TypeDate}
+		// `date` (MDL-DEPR160): Mendix has no date-only type, and a `date`
+		// was always stored as a DateTime.
+		return ast.DataType{Kind: ast.TypeDateTime}
 	}
 	if strings.HasPrefix(text, "BINARY") {
 		return ast.DataType{Kind: ast.TypeBinary}
@@ -283,7 +285,9 @@ func buildNonListDataType(ctx parser.INonListDataTypeContext) ast.DataType {
 		return ast.DataType{Kind: ast.TypeDateTime}
 	}
 	if strings.HasPrefix(text, "DATE") {
-		return ast.DataType{Kind: ast.TypeDate}
+		// `date` (MDL-DEPR160): Mendix has no date-only type, and a `date`
+		// was always stored as a DateTime.
+		return ast.DataType{Kind: ast.TypeDateTime}
 	}
 	if strings.HasPrefix(text, "BINARY") {
 		return ast.DataType{Kind: ast.TypeBinary}

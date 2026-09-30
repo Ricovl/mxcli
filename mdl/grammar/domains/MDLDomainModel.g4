@@ -105,7 +105,7 @@ dataType
     | DECIMAL_TYPE
     | BOOLEAN_TYPE
     | DATETIME_TYPE
-    | DATE_TYPE
+    | DATE_TYPE /* @alias MDL-DEPR160 */  // stored as DateTime: Mendix has no date-only type
     | AUTONUMBER_TYPE
     | AUTOOWNER_TYPE
     | AUTOCHANGEDBY_TYPE
@@ -137,7 +137,7 @@ nonListDataType
     | DECIMAL_TYPE
     | BOOLEAN_TYPE
     | DATETIME_TYPE
-    | DATE_TYPE
+    | DATE_TYPE /* @alias MDL-DEPR160 */  // stored as DateTime: Mendix has no date-only type
     | AUTONUMBER_TYPE
     | AUTOOWNER_TYPE
     | AUTOCHANGEDBY_TYPE

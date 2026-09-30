@@ -7,6 +7,16 @@ package catalog
 //
 // History:
 //
+//	16 — permissions_data.DefaultMemberAccessRights, and the belated bump for
+//	    activities_data.UseRequestTimeout / TimeoutExpression. Both columns
+//	    were added without a bump. The activity pair happened to be rescued by
+//	    14, which landed after it for an unrelated reason; the permissions
+//	    column landed after 14 and so is still unreachable on any cache built
+//	    at 14. PermissionsFor and Permissions both SELECT it, so on such a
+//	    cache every permissions query fails with "no such column" — mxcli lint
+//	    says so via QueryErrors, mxcli report builds the same LintContext,
+//	    never calls it, and silently scores the project with every entity
+//	    access rule finding nothing.
 //	15 — refs gains ATTRIBUTE, ENUMERATION and ENUMERATION_VALUE targets (kinds
 //	    member / xpath / type / value), IMPORT_MAPPING / EXPORT_MAPPING sources
 //	    (kind mapping), and the microflow -> workflow `call` edge; graph_god_nodes

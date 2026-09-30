@@ -515,6 +515,8 @@ type Builder struct {
 	// deprecations collects every use of a deprecated spelling — see
 	// visitor_deprecations.go.
 	deprecations []ast.DeprecatedSpelling
+	// flowCommits are the commits in create-or-modify flows (visitor_flow_commits.go).
+	flowCommits []ast.FlowCommit
 	// widgetNameSpans remembers where each widget's name was written, until its
 	// parent decides whether the model stores it — see
 	// visitor_unstored_widget_name.go.
@@ -617,6 +619,7 @@ func build(input string, listen func(*Builder) antlr.ParseTreeListener) (*ast.Pr
 		LanguageVersion:     builder.langVersion,
 		LanguageHeaderLine:  builder.langHeaderLine,
 		LanguageNotes:       builder.langNotes,
+		FlowCommits:         builder.flowCommits,
 	}, allErrors
 }
 

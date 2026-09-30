@@ -66,6 +66,14 @@ Upgrading (--upgrade):
   before the call is looked up in the project. Without a project such a call
   blocks the header and fmt says so. The project is only read.
 
+  The project also settles a bare commit (with or without --header): since
+  #895 "commit $X;" means WITH events, and an older mxcli stored the same
+  statement without events. In a "create or modify" flow whose stored flow
+  commits the variable without events, --upgrade -p writes
+  "commit $X without events;" so that re-running the script keeps what is
+  stored. Without -p the script is left as written and fmt prints a note
+  (MDL067) for each flow with a bare commit.
+
   A test file (.test.mdl, .test.md) is upgraded the way check reads it: the
   statements in its blocks are rewritten, and its doc comments (@test,
   @expect, …), separators and prose are kept byte for byte. It takes no
@@ -160,14 +168,11 @@ Upgrading (--upgrade):
 			if cmd.Flags().Changed("header") {
 				opts.AddHeader = addHeader
 			}
-			if opts.AddHeader {
-				flows, closeProject, err := openUpgradeProject(cmd)
-				if err != nil {
-					return err
-				}
-				defer closeProject()
-				opts.Flows = flows
+			closeProject, err := openUpgradeProject(cmd, &opts)
+			if err != nil {
+				return err
 			}
+			defer closeProject()
 			res, err := upgrade.Upgrade(string(data), opts)
 			if err != nil {
 				return fmt.Errorf("%s: %w", label, err)
@@ -183,18 +188,24 @@ Upgrading (--upgrade):
 }
 
 // openUpgradeProject opens the -p project read-only for the upgrade to read
-// flow return types from (ako/mxcli#860). With no project it returns nil, and
-// the constructs that need one block the header as before.
-func openUpgradeProject(cmd *cobra.Command) (upgrade.FlowTypes, func(), error) {
+// from: the flow return types a header-gated `find(…)` depends on
+// (ako/mxcli#860), and the stored commit flags a bare `commit` is pinned to
+// (ako/mxcli#873). With no project it sets neither, and the constructs that
+// need one block the header or are reported, as before.
+func openUpgradeProject(cmd *cobra.Command, opts *upgrade.Options) (func(), error) {
 	projectPath, _ := cmd.Flags().GetString("project")
 	if projectPath == "" {
-		return nil, func() {}, nil
+		return func() {}, nil
 	}
 	b := modelsdkbackend.New()
 	if err := b.ConnectReadOnly(projectPath); err != nil {
-		return nil, nil, fmt.Errorf("cannot read the project %s, which --upgrade reads flow return types from: %w", projectPath, err)
+		return nil, fmt.Errorf("cannot read the project %s, which --upgrade reads flows from: %w", projectPath, err)
 	}
-	return executor.NewFlowReturnTypes(b), func() { _ = b.Disconnect() }, nil
+	if opts.AddHeader {
+		opts.Flows = executor.NewFlowReturnTypes(b)
+	}
+	opts.Commits = executor.NewStoredCommitEvents(b)
+	return func() { _ = b.Disconnect() }, nil
 }
 
 // writeFmtResult writes fmt's output: in place with -w, else to stdout. An
@@ -242,6 +253,13 @@ func reportUpgrade(w io.Writer, label string, res upgrade.Result) {
 	}
 	if res.HeaderAdded {
 		fmt.Fprintf(w, "%s: added the language header\n", label)
+	}
+	if res.CommitsPinned > 0 {
+		fmt.Fprintf(w, "%s: stated `without events` on %d bare commit(s), as the project's stored flows have them (MDL067)\n",
+			label, res.CommitsPinned)
+	}
+	for _, n := range res.Notes {
+		fmt.Fprintf(w, "%s:%d: note: %s\n", label, n.Line, n.Message)
 	}
 	for _, d := range res.Unrewritten {
 		msg := d.Code

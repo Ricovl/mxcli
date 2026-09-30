@@ -84,6 +84,18 @@ func isWordByte(c byte) bool                        { return mendixexpr.IsWordBy
 // Unlike expressionToString (for Mendix expressions), XPath requires Mendix
 // tokens like [%CurrentDateTime%] to be quoted: '[%CurrentDateTime%]'.
 func expressionToXPath(expr ast.Expression) string {
+	return xpathOf(expr, false)
+}
+
+// expressionToXPathNames is expressionToXPath with every qualified name left as
+// written, for a writer that decides what a three-part name is itself — an
+// attribute of the constrained entity or an enumeration value — with
+// storedXPathConstraint (ako/mxcli#874).
+func expressionToXPathNames(expr ast.Expression) string {
+	return xpathOf(expr, true)
+}
+
+func xpathOf(expr ast.Expression, keepNames bool) string {
 	if expr == nil {
 		return ""
 	}
@@ -95,29 +107,29 @@ func expressionToXPath(expr ast.Expression) string {
 	case *ast.TokenExpr:
 		return "'[%" + e.Token + "%]'"
 	case *ast.BinaryExpr:
-		left := expressionToXPath(e.Left)
-		right := expressionToXPath(e.Right)
+		left := xpathOf(e.Left, keepNames)
+		right := xpathOf(e.Right, keepNames)
 		op := strings.ToLower(e.Operator)
 		return left + " " + op + " " + right
 	case *ast.UnaryExpr:
-		operand := expressionToXPath(e.Operand)
+		operand := xpathOf(e.Operand, keepNames)
 		op := strings.ToLower(e.Operator)
 		// For 'not' with parenthesized operand, output as not(expr)
 		if op == "not" {
 			if p, ok := e.Operand.(*ast.ParenExpr); ok {
-				return "not(" + expressionToXPath(p.Inner) + ")"
+				return "not(" + xpathOf(p.Inner, keepNames) + ")"
 			}
 			return "not(" + operand + ")"
 		}
 		return op + " " + operand
 	case *ast.ParenExpr:
-		return "(" + expressionToXPath(e.Inner) + ")"
+		return "(" + xpathOf(e.Inner, keepNames) + ")"
 	case *ast.XPathPathExpr:
-		return xpathPathExprToString(e)
+		return xpathPathOf(e, keepNames)
 	case *ast.FunctionCallExpr:
 		var args []string
 		for _, arg := range e.Arguments {
-			args = append(args, expressionToXPath(arg))
+			args = append(args, xpathOf(arg, keepNames))
 		}
 		return mendixFunctionName(e.Name) + "(" + strings.Join(args, ", ") + ")"
 	case *ast.LiteralExpr:
@@ -126,12 +138,15 @@ func expressionToXPath(expr ast.Expression) string {
 		}
 		return expressionToString(expr)
 	case *ast.QualifiedNameExpr:
+		if keepNames {
+			return e.QualifiedName.String()
+		}
 		return qualifiedNameToXPath(e)
 	case *ast.SourceExpr:
 		if e.Source != "" {
 			return e.Source
 		}
-		return expressionToXPath(e.Expression)
+		return xpathOf(e.Expression, keepNames)
 	default:
 		// For all other expression types, the standard serialization is correct
 		return expressionToString(expr)
@@ -412,11 +427,15 @@ func xpathExprToMDLString(expr ast.Expression) string {
 
 // xpathPathExprToString serializes an XPathPathExpr to an XPath path string.
 func xpathPathExprToString(path *ast.XPathPathExpr) string {
+	return xpathPathOf(path, false)
+}
+
+func xpathPathOf(path *ast.XPathPathExpr, keepNames bool) string {
 	var parts []string
 	for _, step := range path.Steps {
-		s := expressionToXPath(step.Expr)
+		s := xpathOf(step.Expr, keepNames)
 		if step.Predicate != nil {
-			s += "[" + expressionToXPath(step.Predicate) + "]"
+			s += "[" + xpathOf(step.Predicate, keepNames) + "]"
 		}
 		parts = append(parts, s)
 	}

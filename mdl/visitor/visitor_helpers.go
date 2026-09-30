@@ -408,7 +408,9 @@ func buildDataType(ctx parser.IDataTypeContext) ast.DataType {
 		return ast.DataType{Kind: ast.TypeDateTime}
 	}
 	if strings.HasPrefix(text, "DATE") {
-		return ast.DataType{Kind: ast.TypeDate}
+		// `date` (MDL-DEPR160): Mendix has no date-only type, and a `date`
+		// was always stored as a DateTime.
+		return ast.DataType{Kind: ast.TypeDateTime}
 	}
 	if strings.HasPrefix(text, "AUTONUMBER") {
 		return ast.DataType{Kind: ast.TypeAutoNumber}
