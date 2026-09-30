@@ -516,7 +516,7 @@ func validateViewEntityTypes(ctx *ExecContext, stmt *ast.CreateViewEntityStmt) [
 				col.Expression,
 				formatDataTypeForError(col.InferredType),
 				attr.Name,
-				formatDataTypeForMDL(col.InferredType)))
+				formatDataTypeForMDL(viewColumnType(col.InferredType))))
 		}
 	}
 
@@ -1053,10 +1053,34 @@ func typesStrictlyCompatible(declared, inferred ast.DataType) bool {
 }
 
 // typesCompatible checks if declared and inferred types are compatible.
+// viewColumnType is the type a view entity attribute over a column of type t
+// is declared with: an AutoNumber column is a Long there (see typesCompatible).
+func viewColumnType(t ast.DataType) ast.DataType {
+	if t.Kind == ast.TypeAutoNumber {
+		t.Kind = ast.TypeLong
+	}
+	return t
+}
+
 func typesCompatible(declared, inferred ast.DataType) bool {
 	// If inferred is unknown, we can't validate
 	if inferred.Kind == ast.TypeUnknown {
 		return true
+	}
+
+	// An AutoNumber source column is a Long in the view: the database fills
+	// it, and the view entity only reads it. Mendix accepts the view attribute
+	// declared Long, and reports CE6770 "View Entity is out of sync with the
+	// OQL Query" for one declared AutoNumber (measured, mx check 11.13). Long
+	// used to be refused here once the source entity existed — accepted on the
+	// run that created it, refused on every run after (ako/mxcli#859,
+	// rehearsal V1). A declared AutoNumber stays accepted as before: refusing
+	// it is a new rejection, which ADR-0011 reserves for the mdl 1 header.
+	if inferred.Kind == ast.TypeAutoNumber {
+		if declared.Kind == ast.TypeAutoNumber {
+			return true
+		}
+		inferred = viewColumnType(inferred)
 	}
 
 	// Same kind is always compatible

@@ -7,6 +7,8 @@ package roundtrip
 import (
 	"strings"
 	"testing"
+
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
 // ako/mxcli#859: under mdl 1, executing a script a second time must write
@@ -335,4 +337,49 @@ func TestDemoUserRerun_WritesNothing(t *testing.T) {
 		}
 		first = h.snapshot()
 	}
+}
+
+// ako/mxcli#859 (rehearsal V1): a view entity attribute declared Long over an
+// AutoNumber source column was accepted when the source entity was created in
+// the same run (its type could not be inferred yet) and refused on every run
+// after, as a reference error — so the script could never be re-run. An
+// AutoNumber is a Long the database fills; the model mx check accepts states
+// the view attribute as Long.
+func TestViewEntityRerun_LongOverAutoNumber(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	const script = `create or modify persistent entity MyFirstModule.RerunLine (
+  LineNo: AutoNumber default 1
+);
+create or modify view entity MyFirstModule.RerunVLine (
+  LineNo: Long
+) as (
+  select l.LineNo as LineNo
+  from MyFirstModule.RerunLine as l
+);
+`
+	for _, header := range []string{"", "mdl 1;\n"} {
+		if err := h.exec(header + script); err != nil {
+			t.Fatalf("run under %q: %v\n%s", header, err, h.out.String())
+		}
+		if errs := h.checkReferences(header + script); len(errs) > 0 {
+			t.Errorf("check --references under %q once the source exists: %v", header, errs)
+		}
+	}
+	// Control: a type an AutoNumber is not is still a mismatch.
+	if errs := h.checkReferences(strings.Replace(script, "LineNo: Long", "LineNo: Boolean", 1)); len(errs) == 0 {
+		t.Error("a Boolean over an AutoNumber column was accepted")
+	}
+}
+
+// checkReferences runs the reference validation `mxcli exec` runs before it
+// executes a script (`check --references`), against the working copy.
+func (h *harness) checkReferences(script string) []error {
+	h.t.Helper()
+	prog, errs := visitor.Build(script)
+	if len(errs) > 0 {
+		h.t.Fatalf("parse: %v", errs[0])
+	}
+	return h.exe.ValidateProgram(prog)
 }
