@@ -349,7 +349,8 @@ func (s *mdlServer) runSemanticValidation(text string) []protocol.Diagnostic {
 			}
 		}
 		if s.widgetRegistry != nil {
-			violations = append(violations, executor.ValidateWidgetPropertiesForStatement(stmt, s.widgetRegistry)...)
+			violations = append(violations, executor.GateWidgetViolations(
+				executor.ValidateWidgetPropertiesForStatement(stmt, s.widgetRegistry), prog.LanguageVersion)...)
 		}
 		if s.themeRegistry != nil {
 			violations = append(violations, executor.ValidateDesignPropertiesForStatement(stmt, s.themeRegistry)...)
