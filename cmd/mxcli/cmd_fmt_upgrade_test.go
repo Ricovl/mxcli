@@ -193,3 +193,26 @@ func copyTree(src, dst string) error {
 		return os.WriteFile(target, data, 0o644)
 	})
 }
+
+// ako/mxcli#873: without a project, a bare commit in a `create or modify`
+// flow is left as written and reported — its meaning changed with #895, and
+// only the stored flow says which one the script should keep.
+func TestFmtUpgrade_BareCommitWithoutProjectIsANote(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.mdl")
+	src := "create or modify microflow M.F ($A: M.E)\nbegin\n  commit $A;\nend;\n"
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runFmt(t, "--upgrade", "-w", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != src {
+		t.Fatalf("the file changed without a project:\n%s", got)
+	}
+	for _, want := range []string{"s.mdl:3: note: M.F:", "MDL067", "-p app.mpr"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output does not mention %q:\n%s", want, out)
+		}
+	}
+}
