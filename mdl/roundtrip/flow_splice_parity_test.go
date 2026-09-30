@@ -165,6 +165,44 @@ func TestPedAppSpliceParity_AuthoredSpellings(t *testing.T) {
 	})
 }
 
+// The other direction of #839's diff/exec agreement: a statement whose MDL
+// renders the same as the stored flow's but which exec still writes. A
+// `create or modify` stating another folder is one: exec moves the flow
+// ("Moved microflow"), and diff, comparing renderings that leave the folder
+// out, said unchanged.
+func TestPedAppSpliceParity_DiffReportsTheWriteExecMakes(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+	if err := h.exec(spliceParityDomain + spliceParityFlow); err != nil {
+		t.Fatalf("create the flow: %v\n%s", err, h.out.String())
+	}
+	moved := strings.Replace(spliceParityFlow, "returns Boolean as $Done\nbegin", "returns Boolean as $Done\nfolder 'Moved'\nbegin", 1)
+	if moved == spliceParityFlow {
+		t.Fatal("the folder clause was not added")
+	}
+	for _, header := range []string{"", "mdl 1;\n"} {
+		name := map[string]string{"": "mdl 0", "mdl 1;\n": "mdl 1"}[header]
+		// Control: the same statement in the stored folder is unchanged.
+		if out := h.diff(header + spliceParityFlow); !strings.Contains(out, "0 new, 0 modified, 1 unchanged") {
+			t.Errorf("diff of the unchanged source under %s:\n%s", name, out)
+		}
+		if out := h.diff(header + moved); !strings.Contains(out, "0 new, 1 modified, 0 unchanged") ||
+			!strings.Contains(out, "moved to folder 'Moved'") {
+			t.Errorf("diff of a statement exec moves, under %s:\n%s", name, out)
+		}
+	}
+	before := h.snapshot()
+	if err := h.exec("mdl 1;\n" + moved); err != nil {
+		t.Fatalf("exec the moved statement: %v\n%s", err, h.out.String())
+	}
+	if !strings.Contains(h.out.String(), "Moved microflow: MyFirstModule.SpliceParity") {
+		t.Errorf("exec of the moved statement:\n%s", h.out.String())
+	}
+	if len(before.diff(h.snapshot())) == 0 {
+		t.Error("exec of the moved statement wrote nothing, so diff's modified is the wrong verdict")
+	}
+}
+
 // TestPedAppFlowSpliceParity / TestTestAppFlowSpliceParity: the property
 // #839 broke, over every Studio Pro-authored microflow and nanoflow. A flow's
 // description, executed back, is matched statement for statement by the

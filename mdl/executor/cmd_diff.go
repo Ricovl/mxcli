@@ -60,6 +60,10 @@ type DiffResult struct {
 	// Refused is why exec would refuse the statement, writing nothing, when
 	// it would (ako/mxcli#839); "" otherwise.
 	Refused string
+	// Writes is what exec would write when the two renderings are the same
+	// but exec still writes (a patch the rendering does not show, a move to
+	// another folder); "" otherwise. It makes the statement modified.
+	Writes string
 }
 
 // ANSI color codes
@@ -129,7 +133,7 @@ func diffProgram(ctx *ExecContext, prog *ast.Program, opts DiffOptions) error {
 				refusedCount++
 			} else if result.IsNew {
 				newCount++
-			} else if result.Current != result.Proposed {
+			} else if result.Current != result.Proposed || result.Writes != "" {
 				modifiedCount++
 			} else {
 				unchangedCount++
@@ -142,6 +146,11 @@ func diffProgram(ctx *ExecContext, prog *ast.Program, opts DiffOptions) error {
 		if result.Refused != "" {
 			fmt.Fprintf(ctx.Output, "Refused: %s %s: exec would refuse this statement and write nothing: %s\n",
 				result.ObjectType, result.ObjectName, result.Refused)
+			continue
+		}
+		if result.Writes != "" && result.Current == result.Proposed {
+			fmt.Fprintf(ctx.Output, "Modified: %s %s: its MDL renders as stored, but exec would write it: %s\n",
+				result.ObjectType, result.ObjectName, result.Writes)
 			continue
 		}
 		if result.Current == result.Proposed && !result.IsNew {
@@ -478,9 +487,11 @@ func diffNanoflow(ctx *ExecContext, s *ast.CreateNanoflowStmt) (*DiffResult, err
 //     already shows.
 //   - An empty patch in the same folder writes nothing, whatever the two
 //     renderings say, so it is unchanged.
+//   - A patch to make, or a move to another folder, is a write whatever the
+//     two renderings say: when they are the same (the rendering leaves the
+//     folder out), what exec would write is stated instead.
 //
-// Anything else — a patch to make, or an error exec would report itself —
-// leaves the rendered comparison as it is.
+// An error exec would report itself leaves the rendered comparison as it is.
 func spliceVerdict(ctx *ExecContext, d *flowDecl, result *DiffResult) {
 	p, err := planFlowModify(ctx, d)
 	var why *notSpliceable
@@ -493,6 +504,22 @@ func spliceVerdict(ctx *ExecContext, d *flowDecl, result *DiffResult) {
 	case p.mut == nil && d.folder == p.storedFolder:
 		result.Proposed = result.Current
 		result.Changes = nil
+	case result.Current == result.Proposed:
+		var what []string
+		if s := patchSummary(p.ops, p.moves, p.set); s != "" {
+			what = append(what, s)
+		}
+		switch {
+		case d.folder == p.storedFolder:
+		case d.folder == "":
+			what = append(what, "moved to the module root")
+		default:
+			what = append(what, fmt.Sprintf("moved to folder '%s'", d.folder))
+		}
+		if len(what) == 0 {
+			what = append(what, "patched")
+		}
+		result.Writes = strings.Join(what, "; ")
 	}
 }
 

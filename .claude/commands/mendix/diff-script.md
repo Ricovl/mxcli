@@ -88,6 +88,9 @@ Summary: 2 new, 3 modified, 5 unchanged
 When a `create or modify` of an existing microflow or nanoflow would be refused
 by `exec` (under `mdl 1;`, a change the splice cannot make), diff lists it as
 `Refused: …` with the reason and adds `, N refused` to the summary.
+One `exec` would write although its MDL renders as stored (a `folder` clause
+naming another folder, applied as a move) is counted as modified and listed as
+`Modified: … exec would write it: …`.
 
 ## Use Cases
 

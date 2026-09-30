@@ -61,7 +61,14 @@ own language header, without writing, so the two agree:
   and counted as refused in the summary;
 - a statement whose patch is empty — nothing `exec` would write — is
   **unchanged**, whatever the two renderings differ in (surrounding whitespace,
-  a bracketed `where [ … ]` against the bare form describe prints).
+  a bracketed `where [ … ]` against the bare form describe prints);
+- a statement `exec` would write although its MDL renders as stored — a
+  `folder` clause naming another folder, which `exec` applies as a move — is
+  **modified**, with what `exec` would write:
+
+  ```
+  Modified: Microflow Shop.ACT_Apply: its MDL renders as stored, but exec would write it: moved to folder 'Archive'
+  ```
 
 ```
 Refused: Microflow Shop.ACT_Apply: exec would refuse this statement and write nothing: the Loop at (700, 200) changes inside its body; …
