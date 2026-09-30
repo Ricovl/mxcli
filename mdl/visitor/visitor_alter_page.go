@@ -133,7 +133,7 @@ func (b *Builder) buildAlterPageAssignment(ctx *parser.AlterPageAssignmentContex
 		name := identifierOrKeywordText(id)
 		if isWidgetExpressionProp(name) {
 			if v := lastRuleChild(ctx); v != nil {
-				return name, widgetExpressionValue(v)
+				return name, b.widgetExpressionPropValue(name, v)
 			}
 		}
 		if expr := ctx.Expression(); expr != nil {

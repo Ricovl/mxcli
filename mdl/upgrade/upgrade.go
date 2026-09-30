@@ -142,6 +142,17 @@ func (u upgrader) upgradeProg(src string, opts Options, parse func(string) (*ast
 	}
 
 	addHeader := opts.AddHeader && prog.LanguageHeaderLine == 0
+	if !addHeader {
+		// A version-neutral gated rewrite applies without the header too: its
+		// output means the same under the script's own version.
+		for _, n := range prog.LanguageNotes {
+			if !versionNeutral[n.Code] || n.Fix == nil {
+				continue
+			}
+			edits = append(edits, n.Fix.Edits...)
+			res.GatedRewritten[n.Code]++
+		}
+	}
 	if addHeader {
 		var blocked []Blocked
 		for _, n := range prog.LanguageNotes {

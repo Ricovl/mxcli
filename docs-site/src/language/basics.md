@@ -121,6 +121,7 @@ What `mdl 1` makes strict (each is a warning without the header, with the code s
 | A `while` loop is `while <condition> begin … end while;`; leaving out `begin`, or the `while` after `end`, is an error. | Accepted; `MDL-V1-WHILE`. |
 | `show entity X` / `show association X` is an error: `describe entity X` prints the definition, `list entities in M` the summary columns. | Prints the summary; `MDL-V1-SHOWSUMMARY`. |
 | A session command — `connect`, `disconnect`, `use`, `set format = …`, `status`, `show version`, `show status`, `show connections`, `show catalog status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help`, `introspect api` — is an error in a script. Type it at the REPL, or use the command-line flag (`mxcli exec script.mdl -p app.mpr --json`). The REPL keeps accepting them. | Runs as before; `MDL-V1-SESSION`. |
+| A quoted value of `DynamicClasses`, `DynamicCellClass` or an OData client's credential or header value is a Mendix string, so the pre-#750 spelling — the expression's text in quotes, `'if $currentObject/X then ''on'' else '''''`, `'''admin'''`, `'@Mod.C'` — is an error (MDL-WIDGET33, MDL-ODATA07). Write the expression bare. | The quoted text is the expression it holds; `MDL-V1-QUOTEDEXPR`. A quoted class name or plain credential is the string under both. |
 
 ### Upgrading a script: `mxcli fmt --upgrade`
 
@@ -147,6 +148,7 @@ mxcli fmt --upgrade --header -w script.mdl  # also add `mdl 1;`
 | `MDL-V1-REPLACE02` | `create or replace user role` / `demo user` becomes a plain `create` |
 | `MDL-V1-WHILE` | inserts the missing `begin` after a `while` condition and `while` after its `end` |
 | `MDL-V1-TEMPLATE` | a template literal spanning lines becomes the parameter it was: `log info 'a⏎b';` becomes `log info '{1}' with ({1} = 'a⏎b');` |
+| `MDL-V1-QUOTEDEXPR` | a quoted expression becomes the expression bare: `dynamicclasses: 'if $currentObject/X then ''on'' else '''''` becomes `dynamicclasses: if $currentObject/X then 'on' else ''`. The bare form means the same without the header, so `fmt --upgrade` applies this one without `--header` too |
 
 A construct with no mechanical rewrite is reported with the reason, and `fmt` refuses to add the header rather than change the script's meaning: an unknown or mis-shaped property (`MDL-V1-PROP`, `MDL-V1-PROPVALUE`), `create or replace view entity` (`MDL-V1-REPLACE01`), a session command in a script (`MDL-V1-SESSION`: move it to the command line or the REPL), a nested list operation such as `count(filter(…))`, `find`/`contains` on a variable whose type the script does not state, and an escaped line break (`\n`) inside an expression. An escaped line break in a text template's literal is rewritten: the break is written into the literal, which under `mdl 1` is still the template text. While `mdl 1` is a preview, the header is added only when asked. Running `fmt --upgrade` on its own output changes nothing.
 

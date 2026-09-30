@@ -147,6 +147,10 @@ func isODataClientExpressionName(name string) bool {
 // password. So they are errors that name the new spelling. The false positive
 // is a real credential that begins and ends with a quote, or is shaped exactly
 // like a qualified name after an @; the message says how to write either.
+//
+// Only under mdl 1 (ako/mxcli#836): in a script without the header the visitor
+// keeps the old meaning of both spellings — the literal's content is the
+// expression — and warns MDL-V1-QUOTEDEXPR, so no literal reaches this check.
 func legacyODataExpression(location, prop, expr string) []linter.Violation {
 	content, isLiteral := mendixStringLiteral(expr)
 	if !isLiteral {
