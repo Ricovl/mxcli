@@ -67,6 +67,12 @@ func TestSpliceRerun_ReannotatedActivity(t *testing.T) {
 		{"a note put on another activity",
 			strings.Replace(strings.Replace(notesFlow, "  "+note, "", 1), "  log info", "  @annotation 'Logged once.'\n  log info", 1),
 			[]string{"Logged once."}, []string{"so it can be escaped."}},
+		// The drop path: the annotated activity goes, and its note with it.
+		// Left behind, the note became a free annotation the second run
+		// refused ("the free annotations change").
+		{"the annotated activity dropped",
+			strings.Replace(notesFlow, "  "+note+"  set $Url = '/odata/v1?$filter=' + $Filter;\n", "", 1),
+			nil, []string{"so it can be escaped."}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
