@@ -383,3 +383,43 @@ func (h *harness) checkReferences(script string) []error {
 	}
 	return h.exe.ValidateProgram(prog)
 }
+
+// ako/mxcli#859 (rehearsal M4): the splice's scope checks found variables by
+// matching `$name` in an activity's text, string literals included, so
+// replacing `set $Url = '…?$filter=' + $F` was refused under mdl 1 as "the
+// fragment uses $filter, which is not declared". A `$` inside a string is text.
+func TestFlowModify_DollarInsideAStringIsNotAVariable(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	const flow = `create or modify microflow MyFirstModule.Rerun_StringDollar ($Filter: String)
+returns String as $Url
+begin
+  declare $Url String = '';
+  set $Url = '/odata/v1?$filter=' + $Filter;
+  return $Url;
+end;
+`
+	if err := h.exec(flow); err != nil {
+		t.Fatalf("create: %v\n%s", err, h.out.String())
+	}
+	edited := "mdl 1;\n" + strings.Replace(flow, "/odata/v1", "/odata/v2", 1)
+	for run := 1; run <= 2; run++ {
+		before := h.snapshot()
+		if err := h.exec(edited); err != nil {
+			t.Fatalf("run %d of the edited flow: %v\n%s", run, err, h.out.String())
+		}
+		written := len(before.diff(h.snapshot()))
+		switch {
+		case run == 1 && (written == 0 || !strings.Contains(h.out.String(), "(spliced: 1 replaced)")):
+			t.Errorf("run 1: want the edited set spliced in, %d unit(s) written:\n%s", written, h.out.String())
+		case run == 2 && written != 0:
+			t.Errorf("run 2 of the same script wrote %d unit(s):\n%s", written, h.out.String())
+		}
+	}
+	// Control: a `$name` outside a string that is not declared is refused.
+	undeclared := "mdl 1;\n" + strings.Replace(flow, "'/odata/v1?$filter=' + $Filter", "'/odata/v3?' + $Missing", 1)
+	if err := h.exec(undeclared); err == nil || !strings.Contains(err.Error(), "$Missing") {
+		t.Errorf("an undeclared variable outside a string: got %v, want a refusal naming $Missing", err)
+	}
+}
