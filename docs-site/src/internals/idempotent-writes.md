@@ -74,6 +74,26 @@ write choke point of **both** the default `modelsdk` engine and the `legacy`
 engine. Which engine ran is an `--engine` flag, and it must not be visible in
 your diff.
 
+## A run of grants is compared as a whole
+
+Most statements write the document they change, and that write is compared with
+what is on disk at that moment. A sequence of entity `grant` / `revoke`
+statements works differently. The run is held in memory and written once, when
+the next statement of another kind starts or the script ends, and the write is
+compared with what was stored before the run. This matters for a "reset, then
+grant" section:
+
+```sql
+revoke all on entity Shop.Order from Shop.User;
+grant read *, write * on entity Shop.Order to Shop.User;
+```
+
+Written one statement at a time, the grant would be compared with a domain model
+the revoke had already emptied. It would get a new access rule every run. Judged
+as one run, a reset that grants back what was there writes nothing, and a reset
+that changes a rule keeps the identity of every rule it grants back (#872).
+Statements inside the run read the run's own writes.
+
 ## Turning it off
 
 ```bash

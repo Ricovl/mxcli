@@ -92,6 +92,17 @@ compares equal on both sides, so an edit to it was reported Unchanged (a
 lossless — written again, it must be the document first written — and falls
 back to the statement diff when it is not.
 
+**Some re-runs only reach a no-op across two statements.** `revoke all` followed
+by the grant that should hold ends with the rules it started with, but each
+statement is a real write of its own. The grant's write was compared with a unit
+the revoke had already emptied, so it had no stored rule to carry an identity
+from, and the rule was minted again on every run (#872). Making each statement
+more idempotent does not help here. What fixed it was judging the run by where
+it ends: the writes are held, and they are reconciled once against the state
+from before the run. Read the transaction id as well as the unit bytes to see
+that a run wrote nothing. Check the identity carry on a Studio Pro-authored rule,
+because an mxcli-created one has whatever `$ID` the previous run minted.
+
 ## See also
 
 - [fix-issue findings](../../.claude/skills/fix-issue/findings/) — the guards, the

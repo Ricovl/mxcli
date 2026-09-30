@@ -350,9 +350,12 @@ func TestXPath_EnumValueReference(t *testing.T) {
 		want  string
 	}{
 		{
-			"3-part enum value becomes string literal for database XPath",
+			// The serializer does not know the constrained entity, so it cannot
+			// tell an enumeration value from a qualified attribute; the writer
+			// makes the value 'Rectified' (storedXPathConstraint, #874).
+			"3-part name kept for the writer to resolve",
 			"[Status = BST.ComplianceStatus.Rectified]",
-			"[Status = 'Rectified']",
+			"[Status = BST.ComplianceStatus.Rectified]",
 		},
 		{
 			"2-part qualified name preserved",

@@ -130,14 +130,38 @@ func (b *Backend) ConnectReadOnly(path string) error {
 	return nil
 }
 
-// Disconnect closes the modelsdk reader.
+// Disconnect closes the modelsdk reader, writing first any unit update a
+// deferred run still holds.
 func (b *Backend) Disconnect() error {
 	if b.reader == nil {
 		return nil
 	}
+	flushErr := b.FlushDeferredWrites()
 	err := b.reader.Close()
 	b.reader = nil
-	return err
+	if err != nil {
+		return err
+	}
+	return flushErr
+}
+
+// DeferUnitWrites holds unit updates in memory until FlushDeferredWrites, so a
+// run of statements is written once and judged by its net result
+// (mmpr.Writer.DeferUnitWrites, ako/mxcli#872). Reads during the run see the
+// held bytes. A no-op on a read-only connection.
+func (b *Backend) DeferUnitWrites() {
+	if b.writer != nil {
+		b.writer.DeferUnitWrites()
+	}
+}
+
+// FlushDeferredWrites writes what a deferred run holds, each unit once and
+// reconciled against what was stored before the run.
+func (b *Backend) FlushDeferredWrites() error {
+	if b.writer == nil {
+		return nil
+	}
+	return b.writer.FlushDeferredWrites()
 }
 
 // Commit is a no-op for the read-only slice.

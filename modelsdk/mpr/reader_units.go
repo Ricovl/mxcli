@@ -109,6 +109,9 @@ func (r *Reader) listUnitsByTypeV1(typeName string) ([]rawUnit, error) {
 			return nil, fmt.Errorf("failed to scan unit row: %w", err)
 		}
 
+		if held, ok := r.overlaid(blobToUUID(unitID)); ok {
+			contents = held
+		}
 		unitType := getTypeFromContents(contents)
 		if typeName == "" || unitType == typeName {
 			units = append(units, rawUnit{
@@ -221,6 +224,13 @@ func (r *Reader) EnableContentCache() {
 func (r *Reader) readMprContents(unitUUID string) ([]byte, error) {
 	if len(unitUUID) < 4 {
 		return nil, fmt.Errorf("invalid unit UUID: %s", unitUUID)
+	}
+
+	// Bytes held in memory (an import buffer, or a deferred run of writes) are
+	// what the unit currently is; the listings read through here too, so a
+	// held write is seen by every read, not only by GetRawUnitBytes.
+	if data, ok := r.overlaid(unitUUID); ok {
+		return data, nil
 	}
 
 	// Fast path: content cache hit (persistent daemon only).
