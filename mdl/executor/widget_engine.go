@@ -1219,6 +1219,19 @@ func (e *PluggableWidgetEngine) bindingScopeFor(propertyKey string) bindingScope
 		e.dataSourceEntities, e.pageBuilder.entityContext)
 }
 
+// associationTargetFor returns the entity an association property leads to: its
+// linked datasource's entity when the template declares one, else the widget's
+// own (last-applied) datasource entity — the pre-#647 answer, which is right for
+// an association, whose far end is the option list rather than the context.
+func (e *PluggableWidgetEngine) associationTargetFor(propertyKey string) string {
+	if key := e.currentPropertyTypeIDs[propertyKey].DataSourceProperty; key != "" {
+		if entity := e.dataSourceEntities[key]; entity != "" {
+			return entity
+		}
+	}
+	return e.pageBuilder.entityContext
+}
+
 // refuseMisboundAttribute is the executor's half of misboundAttributeError: the
 // same refusal check makes, over the engine's live state.
 func (e *PluggableWidgetEngine) refuseMisboundAttribute(w *ast.WidgetV3, propertyKey, attr string, scope bindingScope) error {
@@ -1440,7 +1453,12 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			}
 			ctx.AssocPath = e.pageBuilder.resolveAssociationPathIn(attr, outer)
 		}
-		ctx.EntityName = e.entityContextFor(mapping.PropertyKey)
+		// The entity the association LEADS TO — the widget's option list, i.e.
+		// its datasource — not the entity the property is bound on. The
+		// association starts at the enclosing object (outer, above), so the
+		// binding scope of #647 would name the wrong end: CE8812 "Association
+		// … does not lead to entity …".
+		ctx.EntityName = e.associationTargetFor(mapping.PropertyKey)
 		if ctx.AssocPath != "" && ctx.EntityName == "" {
 			return nil, mdlerrors.NewValidationf("association %q requires an entity context (add a DataSource mapping before Association)", ctx.AssocPath)
 		}

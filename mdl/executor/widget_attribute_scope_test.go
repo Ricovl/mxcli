@@ -166,3 +166,31 @@ func TestBuild_AttributeOnEveryCandidateBindsByTheRule(t *testing.T) {
 		t.Errorf("`Label` should bind to the enclosing Sales.Invoice")
 	}
 }
+
+// The scope rule is for what a property is BOUND ON. An association property's
+// entity is the one it LEADS TO — the widget's option list — and giving it the
+// enclosing object instead is CE8812 "Association … does not lead to entity …"
+// (caught by TestMxCheck_ComboBoxWithAssociation while this fix was written).
+func TestResolveMapping_AssociationTargetIsTheOptionListNotTheContext(t *testing.T) {
+	e := scopeEngine(t)
+	builder, err := e.backend.LoadWidgetTemplate("com.mendix.widget.web.combobox.Combobox", "")
+	if err != nil || builder == nil {
+		t.Fatalf("load ComboBox template: %v", err)
+	}
+	e.currentPropertyTypeIDs = builder.PropertyTypeIDs()
+	if _, declared := e.currentPropertyTypeIDs["attributeAssociation"]; !declared {
+		t.Fatal("precondition: the template declares attributeAssociation")
+	}
+	e.outerEntityContext = "Sales.Invoice"         // the enclosing data view
+	e.pageBuilder.entityContext = "Sales.Customer" // the option list's datasource
+
+	mapping := PropertyMapping{PropertyKey: "attributeAssociation", Source: "Association", Operation: "association"}
+	w := &ast.WidgetV3{Name: "cb", Properties: map[string]any{"Association": "Sales.Invoice_Customer"}}
+	ctx, err := e.resolveMapping(mapping, w)
+	if err != nil {
+		t.Fatalf("resolveMapping: %v", err)
+	}
+	if ctx.EntityName != "Sales.Customer" {
+		t.Errorf("association target = %q, want the option list's Sales.Customer", ctx.EntityName)
+	}
+}
