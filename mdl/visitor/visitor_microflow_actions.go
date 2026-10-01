@@ -933,11 +933,7 @@ func buildSortSpecList(ctx parser.ISortSpecListContext) []ast.SortSpec {
 			Ascending: true, // Default to ascending
 		}
 
-		if id := spec.IDENTIFIER(); id != nil {
-			ss.Attribute = id.GetText()
-		} else if qid := spec.QUOTED_IDENTIFIER(); qid != nil {
-			ss.Attribute = unquoteIdentifier(qid.GetText())
-		}
+		ss.Attribute = identifierOrKeywordText(spec.IdentifierOrKeyword())
 		if spec.DESC() != nil {
 			ss.Ascending = false
 		}

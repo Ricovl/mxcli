@@ -253,3 +253,41 @@ func TestGatedRegistryIsComplete(t *testing.T) {
 		}
 	}
 }
+
+// An attribute whose name is an MDL keyword (Position, Status, Type, Date,
+// Value, Title, Caption, Content, Index …) is still an attribute in the call
+// form, so the call form becomes the statement form under the header like any
+// other: the header is not blocked, the rewrite builds the same activity, and
+// the result is a fixed point (ako/mxcli#889).
+func TestUpgrade_KeywordAttributeNames(t *testing.T) {
+	for _, c := range [][2]string{
+		{"$X = sort($L, Position);", "$X = sort $L by Position;"},
+		{"$X = sort($L, Status desc, Date asc);", "$X = sort $L by Status desc, Date asc;"},
+		{"$X = sort($L, Index, Name desc);", "$X = sort $L by Index, Name desc;"},
+		{"$X = SORT($L, Value DESC);", "$X = SORT $L BY Value DESC;"},
+		{"$X = sort($L, Title, Caption, Content);", "$X = sort $L by Title, Caption, Content;"},
+		{"$X = find($L, Position = 3);", "$X = find $L by Position = 3;"},
+		{"$X = filter($L, Status = 'x');", "$X = filter $L by Status = 'x';"},
+		{"$X = sum($L.Position);", "$X = sum $L by Position;"},
+		{"$X = average($L/Value);", "$X = average $L by Value;"},
+		{"$X = min($L.Index);", "$X = minimum $L by Index;"},
+		{"$X = max($L/Position);", "$X = maximum $L by Position;"},
+	} {
+		src := mf + "  " + c[0] + "\nend;\n"
+		want := "mdl 1;\n" + mf + "  " + c[1] + "\nend;\n"
+		t.Run(c[0], func(t *testing.T) {
+			res, err := Upgrade(src, Options{AddHeader: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Source != want {
+				t.Fatalf("got:\n%s\nwant:\n%s", res.Source, want)
+			}
+			sameStatements(t, src, res.Source)
+			again, err := Upgrade(res.Source, Options{AddHeader: true})
+			if err != nil || again.Source != res.Source || again.Changed() {
+				t.Errorf("not idempotent: %v %q", err, again.Source)
+			}
+		})
+	}
+}

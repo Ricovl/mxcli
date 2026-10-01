@@ -706,19 +706,15 @@ func (h *harness) documents() []document {
 }
 
 func typeAndName(b []byte) (string, string) {
-	var doc bson.D
-	if err := bson.Unmarshal(b, &doc); err != nil {
+	// Looked up in the raw document: the snapshot labels every unit of the
+	// fixture after every round trip, and decoding each whole unit to read two
+	// top-level strings was a sixth of the suite's CPU (ako/mxcli#870).
+	raw := bson.Raw(b)
+	if raw.Validate() != nil {
 		return "", ""
 	}
-	var typ, name string
-	for _, e := range doc {
-		switch e.Key {
-		case "$Type":
-			typ, _ = e.Value.(string)
-		case "Name":
-			name, _ = e.Value.(string)
-		}
-	}
+	typ, _ := raw.Lookup("$Type").StringValueOK()
+	name, _ := raw.Lookup("Name").StringValueOK()
 	return typ, name
 }
 
