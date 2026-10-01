@@ -150,25 +150,15 @@ func (u upgrader) upgradeProg(src string, opts Options, parse func(string) (*ast
 
 	var edits []Edit
 	for _, d := range prog.Deprecations {
-		e, ok := u.lookup(d.Code)
-		if !ok {
-			return res, fmt.Errorf("line %d: the visitor recorded %s, which is not in the deprecation registry", d.Line, d.Code)
+		ed, ok, err := u.deprecationEdits(text, d)
+		if err != nil {
+			return res, err
 		}
-		switch {
-		case e.Rewrite.Token != "":
-			ed, err := tokenSwap(text, d, e.Rewrite)
-			if err != nil {
-				return res, err
-			}
-			edits = append(edits, ed)
-		case e.Rewrite.Structural != "" && d.Fix != nil:
-			// A structural rewrite is computed from the parse tree by the
-			// visitor that recorded the use (mdl/visitor/visitor_upgrade_fixes.go).
-			edits = append(edits, d.Fix.Edits...)
-		default:
+		if !ok {
 			res.Unrewritten = append(res.Unrewritten, d)
 			continue
 		}
+		edits = append(edits, ed...)
 		res.Rewritten[d.Code]++
 	}
 
@@ -227,6 +217,28 @@ func (u upgrader) upgradeProg(src string, opts Options, parse func(string) (*ast
 	}
 	res.Source = out
 	return res, nil
+}
+
+// deprecationEdits is the rewrite of one deprecated use: the keyword swap its
+// registry entry names, or the structural rewrite the visitor computed from the
+// parse tree when it recorded the use (mdl/visitor/visitor_upgrade_fixes.go).
+// ok is false when there is none; the use is then reported, never guessed at.
+func (u upgrader) deprecationEdits(text *Source, d ast.DeprecatedSpelling) (edits []Edit, ok bool, err error) {
+	e, found := u.lookup(d.Code)
+	if !found {
+		return nil, false, fmt.Errorf("line %d: the visitor recorded %s, which is not in the deprecation registry", d.Line, d.Code)
+	}
+	switch {
+	case e.Rewrite.Token != "":
+		ed, err := tokenSwap(text, d, e.Rewrite)
+		if err != nil {
+			return nil, false, err
+		}
+		return []Edit{ed}, true, nil
+	case e.Rewrite.Structural != "" && d.Fix != nil:
+		return d.Fix.Edits, true, nil
+	}
+	return nil, false, nil
 }
 
 // Blocked is one construct that keeps a script from taking the header: its

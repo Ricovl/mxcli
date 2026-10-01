@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Command gen-completions parses MDLLexer.g4 and generates Go source with
-// LSP completion items derived from the grammar's keyword tokens.
+// LSP completion items derived from the grammar's keyword tokens. A token the
+// parser grammar beside it accepts only as a deprecated alias is left out
+// (aliases.go).
 //
 // Usage:
 //
@@ -37,6 +39,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("parsing lexer grammar: %v", err)
 	}
+	sources, err := parserGrammarSources(*lexerPath)
+	if err != nil {
+		log.Fatalf("reading parser grammar: %v", err)
+	}
+	entries = withoutTokens(entries, aliasOnlyTokens(sources))
 
 	src, err := generateSource(entries)
 	if err != nil {
@@ -48,6 +55,17 @@ func main() {
 	}
 
 	fmt.Fprintf(os.Stderr, "Generated %s with %d keyword entries\n", *outputPath, len(entries))
+}
+
+// withoutTokens drops the entries for the named tokens.
+func withoutTokens(entries []tokenEntry, drop map[string]bool) []tokenEntry {
+	out := entries[:0:0]
+	for _, e := range entries {
+		if !drop[e.Name] {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 // Tokens to exclude from completions — not keywords the user would type.

@@ -84,7 +84,15 @@ func (s *mdlServer) mdlCompletionItems(linePrefixUpper string) []protocol.Comple
 		return items
 	}
 
-	// After SHOW, suggest showable objects
+	// After LIST, suggest the listings. They were offered after SHOW, which is
+	// the deprecated spelling of `list` (MDL-DEPR002); completion offers mdl 1
+	// spellings only (ako/mxcli#714 decision 5).
+	if strings.HasPrefix(linePrefixUpper, "LIST ") || linePrefixUpper == "LIST" {
+		items = append(items, mdlListContextKeywords...)
+		return items
+	}
+
+	// After SHOW, what `show` still starts in mdl 1: the flow activities.
 	if strings.HasPrefix(linePrefixUpper, "SHOW ") || linePrefixUpper == "SHOW" {
 		items = append(items, mdlShowContextKeywords...)
 		return items
@@ -168,8 +176,10 @@ var mdlCreateContextKeywords = []protocol.CompletionItem{
 	kw("JAVA ACTION", "Java action type"),
 }
 
-// mdlShowContextKeywords are items suggested after SHOW.
-var mdlShowContextKeywords = []protocol.CompletionItem{
+// mdlListContextKeywords are items suggested after LIST. `context of` is not
+// among them: `list context of` is a deprecated spelling of `describe context
+// of` (MDL-DEPR090).
+var mdlListContextKeywords = []protocol.CompletionItem{
 	kw("ENTITIES", "List entities"),
 	kw("MICROFLOWS", "List microflows"),
 	kw("NANOFLOWS", "List nanoflows"),
@@ -181,13 +191,20 @@ var mdlShowContextKeywords = []protocol.CompletionItem{
 	kw("ASSOCIATIONS", "List associations"),
 	kw("CONSTANTS", "List constants"),
 	kw("WIDGETS", "List widgets"),
-	kw("CALLERS", "Show callers of element"),
-	kw("CALLEES", "Show callees of element"),
-	kw("REFERENCES", "Show references to element"),
-	kw("IMPACT", "Show impact analysis"),
-	kw("CONTEXT", "Show context of element"),
-	kw("CATALOG", "Show catalog info"),
+	kw("CALLERS", "List callers of element"),
+	kw("CALLEES", "List callees of element"),
+	kw("REFERENCES", "List references to element"),
+	kw("IMPACT", "List impact analysis"),
+	kw("CATALOG", "List catalog tables"),
 	kw("DATABASE CONNECTIONS", "List database connections"),
+}
+
+// mdlShowContextKeywords are items suggested after SHOW: the microflow and
+// nanoflow activities `show` starts.
+var mdlShowContextKeywords = []protocol.CompletionItem{
+	kw("PAGE", "Show page activity"),
+	kw("MESSAGE", "Show message activity"),
+	kw("HOME PAGE", "Show home page activity"),
 }
 
 func kw(label string, detail string) protocol.CompletionItem {
@@ -212,14 +229,14 @@ var mdlCreateSnippets = []protocol.CompletionItem{
 	snippet("CREATE ENTITY", "CREATE ENTITY ${1:Module}.${2:EntityName}\n(\n\t${3:AttributeName} : ${4:String}\n);", "Create a new entity"),
 	snippet("CREATE PERSISTENT ENTITY", "CREATE PERSISTENT ENTITY ${1:Module}.${2:EntityName}\n(\n\t${3:AttributeName} : ${4:String}\n);", "Create a persistent entity"),
 	snippet("CREATE NON-PERSISTENT ENTITY", "CREATE NON-PERSISTENT ENTITY ${1:Module}.${2:EntityName}\n(\n\t${3:AttributeName} : ${4:String}\n);", "Create a non-persistent entity"),
-	snippet("CREATE MICROFLOW", "CREATE MICROFLOW ${1:Module}.${2:MicroflowName}\nBEGIN\n\t$0\nEND;", "Create a new microflow"),
+	snippet("CREATE MICROFLOW", "CREATE MICROFLOW ${1:Module}.${2:MicroflowName} ()\nBEGIN\n\t$0\nEND;", "Create a new microflow"),
 	snippet("CREATE MICROFLOW (with params)", "CREATE MICROFLOW ${1:Module}.${2:MicroflowName}\n(\n\t$$${3:Param}: ${4:Module.Entity}\n)\nRETURNS ${5:Boolean} AS $$${6:Result}\nBEGIN\n\t$0\nEND;", "Create microflow with parameters"),
-	snippet("CREATE NANOFLOW", "CREATE NANOFLOW ${1:Module}.${2:NanoflowName}\nBEGIN\n\t$0\nEND;", "Create a new nanoflow"),
+	snippet("CREATE NANOFLOW", "CREATE NANOFLOW ${1:Module}.${2:NanoflowName} ()\nBEGIN\n\t$0\nEND;", "Create a new nanoflow"),
 	snippet("CREATE NANOFLOW (with params)", "CREATE NANOFLOW ${1:Module}.${2:NanoflowName}\n(\n\t$$${3:Param}: ${4:Module.Entity}\n)\nRETURNS ${5:Boolean} AS $$${6:Result}\nBEGIN\n\t$0\nEND;", "Create nanoflow with parameters"),
-	snippet("CREATE ENUMERATION", "CREATE ENUMERATION ${1:Module}.${2:EnumName}\n(\n\t'${3:Value1}' '${4:Caption1}',\n\t'${5:Value2}' '${6:Caption2}'\n);", "Create a new enumeration"),
-	snippet("CREATE CONSTANT", "CREATE CONSTANT ${1:Module}.${2:ConstantName}\nTYPE ${3|String,Integer,Long,Decimal,Boolean,DateTime|}\nDEFAULT ${4:'value'};", "Create a new constant"),
-	snippet("CREATE PAGE", "CREATE PAGE ${1:Module}.${2:PageName}\n(\n\tTitle: '${3:Page Title}',\n\tLayout: ${4:Atlas_Core.Atlas_Default}\n)\n{\n\t$0\n}", "Create a new page"),
-	snippet("CREATE SNIPPET", "CREATE SNIPPET ${1:Module}.${2:SnippetName}\n{\n\t$0\n}", "Create a new snippet"),
+	snippet("CREATE ENUMERATION", "CREATE ENUMERATION ${1:Module}.${2:EnumName}\n(\n\t${3:Value1} '${4:Caption1}',\n\t${5:Value2} '${6:Caption2}'\n);", "Create a new enumeration"),
+	snippet("CREATE CONSTANT", "CREATE CONSTANT ${1:Module}.${2:ConstantName}\n(\n\tType: ${3|String,Integer,Long,Decimal,Boolean,DateTime|},\n\tDefaultValue: ${4:'value'}\n);", "Create a new constant"),
+	snippet("CREATE PAGE", "CREATE PAGE ${1:Module}.${2:PageName}\n(\n\tTitle: '${3:Page Title}',\n\tLayout: ${4:Atlas_Core.Atlas_Default}\n)\n{\n\t$0\n};", "Create a new page"),
+	snippet("CREATE SNIPPET", "CREATE SNIPPET ${1:Module}.${2:SnippetName}\n{\n\t$0\n};", "Create a new snippet"),
 	snippet("CREATE ASSOCIATION", "CREATE ASSOCIATION ${1:Module}.${2:AssocName}\nFROM ${1:Module}.${3:ChildEntity}\nTO ${1:Module}.${4:ParentEntity}\nTYPE ${5|Reference,ReferenceSet|};", "Create a new association"),
 	snippet("CREATE MODULE", "CREATE MODULE ${1:ModuleName};", "Create a new module"),
 }

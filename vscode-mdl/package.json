@@ -194,6 +194,12 @@
         "path": "./syntaxes/mdl.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "mdl",
+        "path": "./snippets/mdl.json"
+      }
+    ],
     "configuration": {
       "title": "MDL",
       "properties": {
