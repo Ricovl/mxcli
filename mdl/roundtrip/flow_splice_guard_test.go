@@ -409,3 +409,50 @@ end;
 		t.Errorf("the second run wrote: %s", strings.Join(changed, "; "))
 	}
 }
+
+// A guard inserted at the start of an `if` branch is spliced onto the flow
+// from the decision into that branch. That flow is the one the fragment goes
+// on, so it is not a stored flow its return branch could be drawn across: it
+// runs to the fragment's entry afterwards. Checked against its old course, it
+// refused the grow ("would be drawn across the flow from the ExclusiveSplit")
+// although nothing would cross.
+func TestSpliceRerun_GrowBranchByGuard(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+
+	const flow = `create or modify microflow MyFirstModule.Grow_Branch ($N: Integer)
+returns Boolean as $Done
+begin
+  if $N > 5 then
+    log info node 'B' 'big';
+  end if;
+  log info node 'B' 'a';
+  return false;
+end;
+`
+	if err := h.exec("mdl 1;\n" + flow); err != nil {
+		t.Fatalf("create: %v\n%s", err, h.out.String())
+	}
+	before := h.flowUnit(t, "Grow_Branch")
+	grown := strings.Replace(flow, "    log info node 'B' 'big';\n",
+		"    if $N > 10 then\n      return true;\n    end if;\n    log info node 'B' 'big';\n", 1)
+	if err := h.exec("mdl 1;\n" + grown); err != nil {
+		t.Fatalf("grow: %v\n%s", err, h.out.String())
+	}
+	if !strings.Contains(h.out.String(), "(spliced: 1 inserted)") {
+		t.Errorf("want one insert, got:\n%s", h.out.String())
+	}
+	after := h.flowUnit(t, "Grow_Branch")
+	requireKept(t, before, after, "")
+	requireDecisionCases(t, after)
+	if got := countType(t, after, "Microflows$EndEvent"); got != 2 {
+		t.Errorf("%d end events after the grow, want 2", got)
+	}
+	settled := h.snapshot()
+	if err := h.exec("mdl 1;\n" + grown); err != nil {
+		t.Fatalf("second run: %v\n%s", err, h.out.String())
+	}
+	if changed := settled.diff(h.snapshot()); len(changed) != 0 {
+		t.Errorf("the second run wrote: %s", strings.Join(changed, "; "))
+	}
+}

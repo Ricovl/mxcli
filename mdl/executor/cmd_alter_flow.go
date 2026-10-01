@@ -411,8 +411,8 @@ func (a *alterFlowContext) buildFragment(ctx *ExecContext, body []ast.MicroflowS
 // fragment: a guard clause's return ends its own path, which branches off the
 // rest of the flow, and is written as a new end event of the flow where the
 // builder drew it relative to the fragment (ako/mxcli#888). Any other end event
-// — one the builder adds to end an error handler at the fragment's end — would
-// end the flow where the script does not say so, and is refused.
+// is one the builder adds to end an error handler at the fragment's end —
+// with the handler's own return, or the flow's default value — and is refused.
 func cutFragment(oc *microflows.MicroflowObjectCollection, fallThrough model.ID, returns map[model.ID]bool) (*backend.MicroflowFragment, error) {
 	var start, end microflows.MicroflowObject
 	for _, obj := range oc.Objects {
@@ -424,8 +424,10 @@ func cutFragment(oc *microflows.MicroflowObjectCollection, fallThrough model.ID,
 			case obj.GetID() == fallThrough:
 				end = obj
 			case !returns[obj.GetID()]:
-				return nil, fmt.Errorf("the fragment ends a path where it states no return (an error handler that " +
-					"ends at the end of the fragment); end that path with a return, or rejoin the rest of the flow")
+				// A handler's return draws this end event too, so the
+				// refusal must not ask for one.
+				return nil, fmt.Errorf("an error handler in the fragment ends at an end event of its own; an inserted " +
+					"error handler has to rejoin the rest of the flow (a return inside an error handler is not spliced yet)")
 			}
 		}
 	}

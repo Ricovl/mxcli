@@ -298,7 +298,7 @@ func (m *Mutator) spliceOnFlow(g *graph, f flowRef, frag *backend.MicroflowFragm
 		if entrySide, exitSide, err = placedSides(frag, x, y); err != nil {
 			return err
 		}
-	} else if entrySide, exitSide, err = m.makeRoom(g, fb, x, y); err != nil {
+	} else if entrySide, exitSide, err = m.makeRoom(g, fb, f, x, y); err != nil {
 		return err
 	}
 	destIdx, destVec := flowEnd(f.doc, "Destination")
@@ -325,7 +325,7 @@ func (m *Mutator) spliceOnFlow(g *graph, f flowRef, frag *backend.MicroflowFragm
 // makeRoom places the fragment in the gap between x and y, moving everything
 // past the gap along when it does not fit, and returns the sides its new ends
 // connect at.
-func (m *Mutator) makeRoom(g *graph, fb *fragmentBox, x, y *node) (entrySide, exitSide int, err error) {
+func (m *Mutator) makeRoom(g *graph, fb *fragmentBox, f flowRef, x, y *node) (entrySide, exitSide int, err error) {
 	ax, s, err := flowAxis(x, y)
 	if err != nil {
 		return 0, 0, err
@@ -348,7 +348,7 @@ func (m *Mutator) makeRoom(g *graph, fb *fragmentBox, x, y *node) (entrySide, ex
 	mid = mid.set(ax, (a+b)/2)
 	mid = mid.set(cross, (x.pos.get(cross)+y.pos.get(cross))/2)
 	fb.placeCentred(ax, mid)
-	if err := fb.checkRoom(g, ""); err != nil {
+	if err := fb.checkRoom(g, "", f.id); err != nil {
 		return 0, 0, err
 	}
 	return side(ax, -s), side(ax, s), nil
@@ -422,7 +422,7 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 		centre = centre.set(ax, near+s*fb.length(ax)/2)
 		centre = centre.set(ax.other(), x.pos.get(ax.other()))
 		fb.placeCentred(ax, centre)
-		if err := fb.checkRoom(g, x.id); err != nil {
+		if err := fb.checkRoom(g, x.id, ""); err != nil {
 			return err
 		}
 	}
@@ -986,8 +986,9 @@ func (fb *fragmentBox) placeCentred(ax axis, c point) {
 // that stays where it is. The shift clears the space past the cut; an object
 // that already sat inside the gap (a branch drawn below the main line, say)
 // is not moved, and drawing over it would hide it in Studio Pro. skip is the
-// object a replace removes.
-func (fb *fragmentBox) checkRoom(g *graph, skip string) error {
+// object a replace removes; onFlow the flow an insert goes on, which runs to
+// the fragment's entry afterwards rather than across it.
+func (fb *fragmentBox) checkRoom(g *graph, skip, onFlow string) error {
 	for _, n := range g.order {
 		if n.loop != "" || n.id == skip {
 			continue
@@ -999,7 +1000,7 @@ func (fb *fragmentBox) checkRoom(g *graph, skip string) error {
 				"move that object aside in Studio Pro first", fb.min.X, fb.min.Y, fb.max.X, fb.max.Y, describeNode(n))
 		}
 	}
-	return fb.checkBranches(g, skip)
+	return fb.checkBranches(g, skip, onFlow)
 }
 
 // checkBranches refuses a placement whose return branches would be drawn
@@ -1012,7 +1013,7 @@ func (fb *fragmentBox) checkRoom(g *graph, skip string) error {
 // stretched across it. Such a flow is approximated by the straight line
 // between the centres of its ends, which is how a flow between two aligned
 // nodes is drawn.
-func (fb *fragmentBox) checkBranches(g *graph, skip string) error {
+func (fb *fragmentBox) checkBranches(g *graph, skip, onFlow string) error {
 	objs := map[model.ID]microflows.MicroflowObject{}
 	for _, obj := range fb.frag.Objects {
 		objs[obj.GetID()] = obj
@@ -1024,7 +1025,7 @@ func (fb *fragmentBox) checkBranches(g *graph, skip string) error {
 		}
 		r := branchArea(objs[f.OriginID], end)
 		for _, sf := range g.flows {
-			if !sf.isSequence() || sf.origin == skip || sf.dest == skip {
+			if !sf.isSequence() || sf.id == onFlow || sf.origin == skip || sf.dest == skip {
 				continue
 			}
 			a, b := g.nodes[sf.origin], g.nodes[sf.dest]
