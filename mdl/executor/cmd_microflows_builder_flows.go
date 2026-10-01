@@ -815,6 +815,17 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 	if fb.annotationsByLabel == nil {
 		fb.annotationsByLabel = errBuilder.annotationsByLabel
 	}
+	// A `return` in the handler drew its end event into this collection too,
+	// so it is one of this builder's returns: the splice keeps it as a new end
+	// event of the flow rather than refusing it as an end the builder added
+	// (ako/mxcli#905). lastReturnEndID is left alone — it is the fallback
+	// target of the main path's own handlers.
+	for id := range errBuilder.returnEndIDs {
+		if fb.returnEndIDs == nil {
+			fb.returnEndIDs = map[model.ID]bool{}
+		}
+		fb.returnEndIDs[id] = true
+	}
 
 	// If the error handler ends with RAISE ERROR or RETURN, it terminates there.
 	// Otherwise, return the last activity ID so caller can create a merge.
