@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Rules (Microflows$Rule)
 -- ============================================================================
@@ -26,19 +27,16 @@
 -- ============================================================================
 
 create module RuleDocs;
-/
 
 create or modify enumeration RuleDocs.Outcome (
   Approved 'Approved',
   Rejected 'Rejected'
-)
-/
+);
 
 create or modify entity RuleDocs.Customer (
   Name: String(100),
   Balance: Decimal
-)
-/
+);
 
 -- A Boolean rule, the common case: a decision calls it and branches on true/false.
 create or modify rule RuleDocs.Rule_IsSolvent ($pCustomer: RuleDocs.Customer)
@@ -46,8 +44,7 @@ returns Boolean
 folder 'Rules'
 begin
   return $pCustomer/Balance >= 0;
-end
-/
+end;
 
 -- An enumeration rule: the decision branches on the enumeration's values.
 create or modify rule RuleDocs.Rule_Outcome ($pCustomer: RuleDocs.Customer)
@@ -58,8 +55,7 @@ begin
   else
     return RuleDocs.Outcome.Rejected;
   end if;
-end
-/
+end;
 
 -- A rule is called from a decision, and only from a decision. The reference
 -- edge this produces is what makes `show callers of RuleDocs.Rule_IsSolvent`
@@ -71,5 +67,4 @@ begin
   else
     return;
   end if;
-end
-/
+end;

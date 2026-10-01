@@ -113,6 +113,7 @@ ALTER LAYOUT MyModule.App_Default {
 Change it, then remove it:
 
 ```sql
+mdl 1;
 ALTER LAYOUT MyModule.App_Default {
     SET (Content: 'Renamed') ON brand;
 };

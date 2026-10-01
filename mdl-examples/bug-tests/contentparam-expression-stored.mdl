@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- contentparams / captionparams take a client expression (ledger finding #26,
 -- ako/mxcli#823 option C)

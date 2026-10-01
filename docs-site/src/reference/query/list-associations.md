@@ -25,19 +25,19 @@ The `SHOW ASSOCIATION` variant displays a summary of a single association by its
 List all associations in the project:
 
 ```sql
-LIST ASSOCIATIONS
+LIST ASSOCIATIONS;
 ```
 
 List associations in a specific module:
 
 ```sql
-LIST ASSOCIATIONS IN Sales
+LIST ASSOCIATIONS IN Sales;
 ```
 
 Show a single association:
 
 ```sql
-DESCRIBE ASSOCIATION Sales.Order_Customer
+DESCRIBE ASSOCIATION Sales.Order_Customer;
 ```
 
 ## See Also

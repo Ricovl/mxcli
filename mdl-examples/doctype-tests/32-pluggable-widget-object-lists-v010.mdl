@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- v0.10.0 MILESTONE: Object-list child blocks for pluggable widgets (Phase 1)
@@ -119,7 +120,7 @@ create page ObjListV10.P_OL01_AccordionGroups folder 'ObjectLists/Accordion' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: OL02 — Accordion with custom-widget headers
@@ -155,7 +156,7 @@ create page ObjListV10.P_OL02_AccordionCustomHeader folder 'ObjectLists/Accordio
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: OL03 — PopupMenu with basicItems (simple caption + action)
@@ -187,7 +188,7 @@ create page ObjListV10.P_OL03_PopupMenuBasic folder 'ObjectLists/PopupMenu' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: OL04 — PopupMenu with customItems (widget content)
@@ -226,7 +227,7 @@ create page ObjListV10.P_OL04_PopupMenuCustom folder 'ObjectLists/PopupMenu' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: OL05 — AreaChart with multiple series (simplified)
@@ -258,7 +259,7 @@ create page ObjListV10.P_OL05_AreaChartSeries folder 'ObjectLists/Chart' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: OL06 — Maps with static markers
@@ -302,7 +303,7 @@ create page ObjListV10.P_OL06_MapsStatic folder 'ObjectLists/Maps' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: OL07 — Maps with dynamicMarkers (datasource-driven)
@@ -338,7 +339,7 @@ create page ObjListV10.P_OL07_MapsDynamic folder 'ObjectLists/Maps' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: OL08 — LineChart with a data-bound line
@@ -368,7 +369,7 @@ create page ObjListV10.P_OL08_LineChart folder 'ObjectLists/Chart' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: OL09 — HeatMap with scale colours
@@ -403,7 +404,7 @@ create page ObjListV10.P_OL09_HeatMap folder 'ObjectLists/Chart' (
       }
     }
   }
-}
+};
 
 grant view on page ObjListV10.P_OL01_AccordionGroups to ObjListV10.User;
 grant view on page ObjListV10.P_OL02_AccordionCustomHeader to ObjListV10.User;

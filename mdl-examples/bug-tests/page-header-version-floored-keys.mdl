@@ -1,3 +1,4 @@
+mdl 1;
 -- Version-floored keys in the page and snippet HEADER (follow-up to
 -- mendixlabs/mxcli#1121, which fixed the same defect in a page's parameters).
 --
@@ -39,7 +40,7 @@ CREATE OR MODIFY PAGE KeyTest.Item_Edit (
       }
     }
   }
-}
+};
 
 CREATE OR MODIFY SNIPPET KeyTest.Sn_Item {
   layoutgrid lg2 {
@@ -49,4 +50,4 @@ CREATE OR MODIFY SNIPPET KeyTest.Sn_Item {
       }
     }
   }
-}
+};

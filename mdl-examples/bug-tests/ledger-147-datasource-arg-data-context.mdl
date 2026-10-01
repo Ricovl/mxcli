@@ -1,3 +1,4 @@
+mdl 1;
 -- ledger #147 — the CE1571 data source check called a working page an error.
 --
 -- `mxcli check --references` refused a page that mxbuild builds at 0 errors:

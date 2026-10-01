@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug: textTemplate content silently dropped for generated-def pluggable widgets
 -- ============================================================================
@@ -29,13 +30,11 @@
 -- ============================================================================
 
 create module TTContent;
-/
 create entity TTContent.DemoItem (
   Title: String,
   Description: String,
   Status: String
 );
-/
 -- Timeline: title / description are textTemplate captions (default visualization).
 create or modify page TTContent.Home ( layout: Atlas_Core.Atlas_Default ) {
   pluggablewidget 'com.mendix.widget.web.timeline.Timeline' tl (
@@ -53,8 +52,7 @@ create or modify page TTContent.Home ( layout: Atlas_Core.Atlas_Default ) {
     hasChildren: false,
     showIcon: 'no'
   )
-}
-/
+};
 -- Badge: value is a textTemplate (rendered inside a data view context).
 create or modify page TTContent.Detail (
   params: ( $Item: TTContent.DemoItem ),
@@ -66,4 +64,4 @@ create or modify page TTContent.Detail (
       value: '{Status}'
     )
   }
-}
+};

@@ -15,6 +15,7 @@ CREATE MODULE ROLE <Module>.<Role> [DESCRIPTION '<text>'];
 Examples:
 
 ```sql
+mdl 1;
 CREATE MODULE ROLE Shop.Admin DESCRIPTION 'Full administrative access';
 CREATE MODULE ROLE Shop.User DESCRIPTION 'Standard customer-facing role';
 CREATE MODULE ROLE Shop.Viewer;
@@ -50,6 +51,7 @@ The `MANAGE ALL ROLES` option allows users with this role to assign any user rol
 Examples:
 
 ```sql
+mdl 1;
 -- Administrator with management rights
 CREATE USER ROLE AppAdmin ( ModuleRoles: (Shop.Admin, System.Administrator), ManageAllRoles: true );
 
@@ -65,6 +67,7 @@ CREATE USER ROLE AppViewer ( ModuleRoles: (Shop.Viewer) );
 Add or drop module roles from an existing user role:
 
 ```sql
+mdl 1;
 ALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Admin);
 ALTER USER ROLE AppUser DROP MODULE ROLES (Shop.Viewer);
 ```
@@ -86,6 +89,7 @@ LIST USER ROLES;
 A common pattern is to create module roles first, then compose them into user roles:
 
 ```sql
+mdl 1;
 -- 1. Module roles
 CREATE MODULE ROLE Shop.Admin DESCRIPTION 'Full shop access';
 CREATE MODULE ROLE Shop.User DESCRIPTION 'Standard shop access';

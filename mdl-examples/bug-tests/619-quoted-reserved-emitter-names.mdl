@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #619: DESCRIBE emitters must quote reserved-word identifiers
 -- (mdlIdent-only slice: positions whose grammar already accepts quoting)
@@ -37,7 +38,7 @@ create page BugTest619b.P_Nav
       dynamictext text1 (content: 'Lists')
     }
   }
-}
+};
 
 -- 2. fragment widget named after a reserved keyword
 create fragment ReservedFragment as {

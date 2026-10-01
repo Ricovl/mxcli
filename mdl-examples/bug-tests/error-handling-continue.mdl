@@ -1,3 +1,4 @@
+mdl 1;
 -- `ON ERROR CONTINUE` was dropped on most statements and written INVALID on the
 -- rest (ako/CapTrackV3 FINDINGS §11).
 --
@@ -69,16 +70,13 @@
 --     MDL076 at check time. Before the rule: check passed and mx check gave CE6035.
 
 create module ErrH;
-/
 
 create or modify entity ErrH.Thing ( Code: String(20) );
-/
 
 create or modify microflow ErrH.SUB_Noop ()
 begin
   LOG INFO 'noop';
 end;
-/
 
 -- The three statements Mendix accepts Continue on. All three must round-trip.
 create or modify microflow ErrH.ACT_Handled ()
@@ -88,7 +86,6 @@ begin
   DELETE $T ON ERROR CONTINUE;
   CALL MICROFLOW ErrH.SUB_Noop () ON ERROR CONTINUE;
 end;
-/
 
 -- CONTROL: the same statements with NO clause. These must keep the document they
 -- have always had — the writers' literal — because the builder's value for "no
@@ -101,7 +98,6 @@ begin
   DELETE $T;
   CALL MICROFLOW ErrH.SUB_Noop ();
 end;
-/
 
 -- CONTROL: a NANOFLOW, whose no-clause default is Abort — the value that would
 -- have broken the build had it been serialized. An explicit clause on a nanoflow
@@ -111,7 +107,6 @@ begin
   RETRIEVE $Rows FROM ErrH.Thing;
   LOG INFO 'from a nanoflow';
 end;
-/
 
 -- CONTROL for MDL076: a CUSTOM handler is accepted on every action type measured,
 -- including the two the rule refuses Continue on. A rule that flagged the clause
@@ -126,4 +121,3 @@ begin
     LOG ERROR 'commit failed';
   END ERROR;
 end;
-/

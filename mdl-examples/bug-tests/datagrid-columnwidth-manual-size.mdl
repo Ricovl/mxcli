@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- Regression — DataGrid column `ColumnWidth: manual` + `Size: N` → CE0463.
@@ -37,6 +38,6 @@ create or modify page DgWidth.CustomerGrid (
     column (Attribute: Name, Caption: 'Name', ColumnWidth: manual, Size: 8)
     column (Attribute: City, Caption: 'City', ColumnWidth: manual, Size: 6)
   }
-}
+};
 
 grant view on page DgWidth.CustomerGrid to DgWidth.User;

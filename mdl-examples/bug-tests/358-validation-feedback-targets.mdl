@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #358: Validation feedback object and association targets
 -- ============================================================================
@@ -48,7 +49,6 @@ create module BugTest358;
 create entity BugTest358.Customer (
   Email : string(200)
 );
-/
 
 -- Attribute-target validation feedback — must round-trip cleanly under
 -- describe → exec → describe and pass `mx check`.
@@ -64,4 +64,3 @@ begin
   end if;
   return $Valid;
 end;
-/

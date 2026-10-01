@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #328: DESCRIBE MICROFLOW omitted nested loop body continuation flows
 -- ============================================================================
@@ -34,12 +35,10 @@ create module BugTest328;
 create entity BugTest328.Item (
   Name : string(100)
 );
-/
 
 create entity BugTest328.Role (
   Name : string(100)
 );
-/
 
 create microflow BugTest328.MF_NestedLoops (
   $Items: list of BugTest328.Item,
@@ -63,4 +62,3 @@ begin
 
   log info node 'BugTest328' 'after outer';
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#583 — `CREATE OR MODIFY VIEW ENTITY` that changes ONLY the OQL
 -- printed `Unchanged view entity: …` while the new query WAS stored.
 --

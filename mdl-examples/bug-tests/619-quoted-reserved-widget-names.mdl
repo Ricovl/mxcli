@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #619: DESCRIBE emits unquoted reserved-word identifiers that fail check
 -- ============================================================================
@@ -34,4 +35,4 @@ create page BugTest619.P_ReservedNames
       dynamictext "Template" (content: 'Reserved-word widget names, quoted')
     }
   }
-}
+};

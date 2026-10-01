@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- DESCRIBE PAGE did not round-trip a non-string attribute binding
 -- ============================================================================
@@ -40,6 +41,6 @@ create or modify page MyFirstModule.P_NonStringRT
     dynamictext num (attribute: CountAll)    -- Integer → written as toString(...)
     dynamictext str (attribute: ListTitle)   -- String
   }
-}
+};
 
 describe page MyFirstModule.P_NonStringRT;

@@ -1,3 +1,4 @@
+mdl 1;
 -- Regression: a literal tab in an MDL string reached the model as the two
 -- characters `\t`, so a tab-delimited export came out as one cell per row and
 -- the failure looked like a Java bug. (ako/mxcli-captrack register #5)
@@ -53,7 +54,7 @@ line2';
   -- stores a tab too -- it is the same case as the first one, spelled
   -- differently. (It read as "a literal backslash-t" at first glance; the
   -- stored bytes say otherwise.)
-  declare $alsoTab String = 'also a tab: \t';
+  declare $alsoTab String = 'also a tab: 	';
 
   -- Regex escapes must pass through untouched: Mendix hands `\d` to the regex
   -- compiler verbatim.
@@ -61,4 +62,4 @@ line2';
 
   -- The engine's only real escape.
   declare $quoted String = 'it''s here';
-end
+end;

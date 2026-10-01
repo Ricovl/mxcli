@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- SPIKE: custom request handler as a re-invokable test entry point
 -- ============================================================================
@@ -111,7 +112,6 @@ com.mendix.core.Core.addRequestHandler("mxtest/", new com.mendix.externalinterfa
 log.info("MxTest request handler registered at /mxtest/");
 return true;
 $$;
-/
 
 -- ----------------------------------------------------------------------------
 -- Boot hook: the ONLY thing that runs at startup. Registration, not tests.
@@ -123,7 +123,6 @@ begin
   $Registered = call java action MxTest.RegisterTestEndpoint();
   return $Registered;
 end;
-/
 
 alter settings runtime ( AfterStartupMicroflow: 'MxTest.AfterStartup' );
 
@@ -136,7 +135,6 @@ create persistent entity MxTest.Widget (
   Label: string(100),
   Amount: integer
 );
-/
 
 /** Passing test: creates and reads back an object. */
 create microflow MxTest.Test_CreateWidget ()
@@ -150,7 +148,6 @@ begin
   end if;
   return $Outcome;
 end;
-/
 
 /** Passing test: pure arithmetic, no database. */
 create microflow MxTest.Test_Arithmetic ()
@@ -166,14 +163,12 @@ begin
   end if;
   return $Outcome;
 end;
-/
 
 /** Throws, to prove a failing test is reported not fatal. */
 create java action MxTest.Boom() returns string
 as $$
 throw new com.mendix.systemwideinterfaces.MendixRuntimeException("deliberate failure from Test_Failing");
 $$;
-/
 
 /** Failing test: propagates a Java exception out of the microflow. */
 create microflow MxTest.Test_Failing ()
@@ -182,4 +177,3 @@ begin
   $Outcome = call java action MxTest.Boom();
   return $Outcome;
 end;
-/

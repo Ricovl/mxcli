@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test: `create or modify external entity` must preserve fields the
 -- statement omits rather than overwriting them with zero values.
 --

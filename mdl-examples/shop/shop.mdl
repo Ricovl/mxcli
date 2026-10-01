@@ -1,3 +1,4 @@
+mdl 1;
 -- =============================================================================
 -- Shop Module - E-commerce Domain Model Example
 -- =============================================================================
@@ -38,7 +39,6 @@ index (OrderId)
 index (OrderDate);
 
 grant delete, read *, write * on entity Shop.Order to Shop.ShopUser, Shop.UserRole;
-/
 
 /**
  * Order line item
@@ -63,7 +63,6 @@ index (OrderLineId)
 index (Note);
 
 grant delete, read *, write * on entity Shop.OrderLine to Shop.ShopUser;
-/
 
 /**
  * Archived orders
@@ -85,7 +84,6 @@ create persistent entity Shop.OrdersArchived (
   TotalPrice: decimal default 0
 )
 index (OrderId);
-/
 
 -- MARK: CUSTOMER ENTITIES
 
@@ -118,7 +116,6 @@ index (CustomerId)
 index (LastName);
 
 grant delete, read *, write * on entity Shop.Customer to Shop.ShopUser;
-/
 
 /**
  * Customer address
@@ -149,7 +146,6 @@ index (City)
 index (Country);
 
 grant delete, read *, write * on entity Shop.Address to Shop.ShopUser;
-/
 
 /**
  * User tenant
@@ -166,7 +162,6 @@ create persistent entity Shop.UserTenant (
   /** Display name of the tenant organization. */
   TenantName: string
 );
-/
 
 -- MARK: PRODUCT CATALOG ENTITIES
 
@@ -198,7 +193,6 @@ index (Name)
 index (IsActive);
 
 grant delete, read *, write * on entity Shop.Product to Shop.ShopUser;
-/
 
 /**
  * Product price
@@ -225,7 +219,6 @@ index (StartDate)
 index (PriceInEuro);
 
 grant delete, read *, write * on entity Shop.Price to Shop.ShopUser;
-/
 
 /**
  * Product category
@@ -251,7 +244,6 @@ index (Name)
 index (ParentCategoryId);
 
 grant delete, read *, write * on entity Shop.Category to Shop.ShopUser;
-/
 
 /**
  * Product translations
@@ -275,7 +267,6 @@ create persistent entity Shop.ProductTranslations (
 );
 
 grant create, delete, read *, write * on entity Shop.ProductTranslations to Shop.ShopUser;
-/
 
 -- MARK: TAGGING SYSTEM
 
@@ -301,7 +292,6 @@ create persistent entity Shop.Tag (
 index (TagId);
 
 grant delete, read *, write * on entity Shop.Tag to Shop.ShopUser;
-/
 
 /**
  * Tag value
@@ -328,7 +318,6 @@ index (TagValueId)
 index (TagId);
 
 grant delete, read *, write * on entity Shop.TagValue to Shop.ShopUser;
-/
 
 -- MARK: PAYMENT AND DELIVERY ENTITIES
 
@@ -353,7 +342,6 @@ create persistent entity Shop.Payment (
 index (PaymentId);
 
 grant delete, read *, write * on entity Shop.Payment to Shop.ShopUser;
-/
 
 /**
  * Delivery status
@@ -377,7 +365,6 @@ create persistent entity Shop.DeliveryStatus (
 );
 
 grant delete, read *, write * on entity Shop.DeliveryStatus to Shop.ShopUser;
-/
 
 -- MARK: VIEW ENTITIES
 
@@ -440,7 +427,6 @@ create view entity Shop.TaskQueue (
 );
 
 grant read *, write * on entity Shop.TaskQueue to Shop.ShopUser;
-/
 
 /**
  * EU customer count by country
@@ -465,7 +451,6 @@ create view entity Shop.OrderTotalsVE (
          count(c.CustomerId) as CustomerCount
   order by CustomerCount desc limit 1000
 );
-/
 
 /**
  * Key European markets customer count
@@ -495,7 +480,6 @@ create view entity Shop.EuropeanCountryCustomerCountVe (
   GROUP by
     a.Country
 );
-/
 
 -- MARK: ASSOCIATIONS
 
@@ -512,7 +496,6 @@ from Shop.OrderLine to Shop.Order
 type reference
 owner default
 on delete set null;
-/
 
 /**
  * Order to customer
@@ -527,7 +510,6 @@ from Shop.Order to Shop.Customer
 type reference
 owner default
 on delete set null;
-/
 
 /**
  * Order line to product
@@ -542,7 +524,6 @@ from Shop.OrderLine to Shop.Product
 type reference
 owner default
 on delete set null;
-/
 
 /**
  * Payment to order
@@ -557,7 +538,6 @@ from Shop.Payment to Shop.Order
 type reference
 owner both
 on delete set null;
-/
 
 /**
  * Delivery status to order
@@ -572,7 +552,6 @@ from Shop.DeliveryStatus to Shop.Order
 type reference
 owner default
 on delete set null;
-/
 
 /**
  * Price to product
@@ -587,7 +566,6 @@ from Shop.Price to Shop.Product
 type reference
 owner default
 on delete set null;
-/
 
 /**
  * Billing address to customer
@@ -602,7 +580,6 @@ from Shop.Address to Shop.Customer
 type reference
 owner both
 on delete set null;
-/
 
 /**
  * Delivery address to customer
@@ -617,7 +594,6 @@ from Shop.Address to Shop.Customer
 type reference
 owner both
 on delete set null;
-/
 
 /**
  * Product to tag values
@@ -632,7 +608,6 @@ from Shop.Product to Shop.TagValue
 type ReferenceSet
 owner default
 on delete set null;
-/
 
 /**
  * Tag value to tag
@@ -647,7 +622,6 @@ from Shop.TagValue to Shop.Tag
 type reference
 owner default
 on delete set null;
-/
 
 /**
  * Product to category
@@ -662,7 +636,6 @@ from Shop.Product to Shop.Category
 type reference
 owner default
 on delete set null;
-/
 
 /**
  * Product translations to product
@@ -677,4 +650,3 @@ from Shop.ProductTranslations to Shop.Product
 type reference
 owner default
 on delete set null;
-/

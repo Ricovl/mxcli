@@ -31,6 +31,7 @@ The Mendix Agent Editor introduces four document types that must be set up in de
 ## Drop Statements
 
 ```sql
+mdl 1;
 DROP AI MODEL module.Name;
 DROP KNOWLEDGE BASE module.Name;
 DROP CONSUMED MCP SERVICE module.Name;

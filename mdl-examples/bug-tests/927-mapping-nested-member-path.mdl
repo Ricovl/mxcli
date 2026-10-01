@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue #927: reaching a nested JSON leaf without an entity per level
 -- ============================================================================
@@ -28,14 +29,12 @@ create module BugTest927;
 
 create json structure BugTest927.JSON_Order
 sample '{"orderId": 100, "customer": {"name": "Alice", "contact": {"email": "a@b.c"}}, "items": [{"sku": "A1"}]}';
-/
 
 create non-persistent entity BugTest927.Order (
   OrderId: integer,
   CustomerName: string,
   Email: string
 );
-/
 
 -- One entity, values pulled from three depths. Without the `/` form this needs
 -- an entity for `customer` AND one for `contact`, each holding nothing but an
@@ -49,7 +48,6 @@ create or modify import mapping BugTest927.IMM_Order
     Email         = customer/contact/email
   }
 };
-/
 
 -- Control: an export mapping over the same structure. Collapsing is an IMPORT
 -- capability only -- an export mapping has to PRODUCE the customer node, so
@@ -61,4 +59,3 @@ create or modify export mapping BugTest927.EMM_Order
     orderId = OrderId
   }
 };
-/

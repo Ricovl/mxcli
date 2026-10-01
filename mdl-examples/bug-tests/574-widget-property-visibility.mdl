@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- Bug #574 — pluggable widget property conditional visibility.
@@ -42,7 +43,7 @@ create or modify page Issue574.VideoExpression (
     type: 'expression',
     urlExpression: '''https://example.com/demo.mp4'''
   )
-}
+};
 
 -- Timeline with custom visualization: title/description/timeIndication are
 -- hidden in favour of the customTitle/customDescription slots, so they must
@@ -63,7 +64,7 @@ create or modify page Issue574.TimelineCustom (
       dynamictext tlDesc (content: '{1}', contentparams: ({1} = Description))
     }
   }
-}
+};
 
 grant view on page Issue574.VideoExpression to Issue574.User;
 grant view on page Issue574.TimelineCustom to Issue574.User;

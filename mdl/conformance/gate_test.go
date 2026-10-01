@@ -13,6 +13,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/cmd/mxcli/syntax"
 	"github.com/mendixlabs/mxcli/cmd/mxcli/testrunner"
+	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/conformance"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
@@ -29,10 +30,31 @@ const allowlistPath = "allowlist.txt"
 // mdl-examples the gate does not hold to the canonical form.
 const aliasExamplesDir = "mdl-examples/deprecated-aliases"
 
+// keepsMdl0 are the example scripts outside the alias corpus that stay
+// headerless on purpose, because mdl 0 is what they test. They are held to the
+// canonical spellings but not to mdl 1 (no header, no MDL-V1-* refusals).
+// The list may only shrink; TestKeepsMdl0StillNeedsIt drops a stale entry.
+var keepsMdl0 = map[string]string{
+	// ADR-0011: a headerless script keeps the pre-#750 quoted expressions.
+	// Its mdl 1 twin is 750-dynamicclasses-legacy-quoted-expression.fail.mdl.
+	"mdl-examples/bug-tests/836-quoted-expression-mdl0.mdl": "a headerless script keeps quoted expressions",
+	// Session commands (R7): `lint` and `help <topic>` are REPL commands under
+	// mdl 1, refused in a script. These scripts test the commands, so they stay
+	// mdl 0 (mdl/upgrade's keepsItsVersion lists them for the same reason).
+	"mdl-examples/bug-tests/904-lint-rules-discovery.mdl":    "runs `lint`, a session command",
+	"mdl-examples/bug-tests/syntax-1025-topic-drilldown.mdl": "runs `help <topic>`, a session command",
+	"mdl-examples/doctype-tests/20-help-examples.mdl":        "runs `help <topic>`, a session command",
+}
+
 // markdownRoots are the documents the gate reads MDL fences from. The skills
 // are the user-facing ones — .claude/skills/mendix is what `make sync-skills`
 // copies into cmd/mxcli/skills and every project, packs ship with the binary —
 // not the contributor skills, which quote old and wrong spellings on purpose.
+//
+// TODO(feature/skills-mdl1): the skills move to mdl 1 on that branch (wave 10b,
+// ako/mxcli#714 decision 4). Their `header` and MDL-V1-* lines in allowlist.txt
+// were measured when this gate started parsing everything as mdl 1, before the
+// skills had been upgraded; that branch's `make conformance-shrink` drops them.
 var markdownRoots = []string{
 	".claude/skills/mendix",
 	".claude/skills/packs",
@@ -42,8 +64,9 @@ var markdownRoots = []string{
 }
 
 // TestConformanceGate is plan item 1.4 of PROPOSAL_mdl_beta_syntax_freeze.md:
-// everything the project teaches is parsed with deprecations as errors, against
-// an allowlist that may only shrink. `make check-conformance` runs it;
+// everything the project teaches is parsed as mdl 1, with deprecations, mdl 1
+// refusals and a complete script without the header as errors (ako/mxcli#714
+// decision 1), against an allowlist that may only shrink. `make check-conformance` runs it;
 // MXCLI_CONFORMANCE_SHRINK=1 (`make conformance-shrink`) lowers the allowlist
 // to what it measures instead of failing on a count that fell.
 func TestConformanceGate(t *testing.T) {
@@ -64,8 +87,9 @@ func TestConformanceGate(t *testing.T) {
 	}
 	for _, k := range drift.Grown {
 		t.Errorf("%s in %s: %d found, the allowlist tolerates %d. Write the canonical form "+
-			"(`mxcli fmt --upgrade` rewrites a deprecated spelling; `mxcli check --deprecations=error` "+
-			"shows it), or fence a block that is not MDL as ```text:\n%s",
+			"(`mxcli fmt --upgrade --header` rewrites a deprecated spelling and an mdl 0 construct and adds "+
+			"the `mdl 1;` header; `mxcli check --deprecations=error` shows a deprecation), or fence a block "+
+			"that is not MDL as ```text:\n%s",
 			k.Class, k.Source, measured[k], allowed[k], indent(bySource[k]))
 	}
 
@@ -120,9 +144,11 @@ func TestConformanceGateReadsEverySource(t *testing.T) {
 	}
 }
 
-// TestAliasExamplesExerciseAliases: every script kept in the deprecated-alias
-// corpus parses and uses at least one deprecated spelling. One that no longer
-// does has lost its reason to be exempt from the gate.
+// TestAliasExamplesExerciseAliases: every script kept in the old-spelling
+// corpus parses and uses at least one deprecated spelling or one construct the
+// `mdl 1;` header changes (an MDL-V1-* note other than a statement terminator,
+// which every headerless script has). One that does neither has lost its
+// reason to be exempt from the gate.
 func TestAliasExamplesExerciseAliases(t *testing.T) {
 	paths := walk(t, aliasExamplesDir, ".mdl")
 	if len(paths) == 0 {
@@ -138,10 +164,48 @@ func TestAliasExamplesExerciseAliases(t *testing.T) {
 			t.Errorf("%s does not parse: %v", p, errs[0])
 			continue
 		}
-		if len(prog.Deprecations) == 0 {
-			t.Errorf("%s uses no deprecated spelling: move it back to the canonical examples", p)
+		if len(prog.Deprecations) == 0 && len(gatedConstructs(prog)) == 0 {
+			t.Errorf("%s uses no deprecated spelling and no construct the mdl 1 header changes: "+
+				"move it back to the canonical examples", p)
 		}
 	}
+}
+
+// TestKeepsMdl0StillNeedsIt: every keepsMdl0 script exists, is still
+// headerless, and still uses a construct the header changes — otherwise it
+// can take the header and leave the list.
+func TestKeepsMdl0StillNeedsIt(t *testing.T) {
+	for p := range keepsMdl0 {
+		b, err := os.ReadFile(filepath.Join(repoRoot, p))
+		if err != nil {
+			t.Errorf("%s: %v — drop it from keepsMdl0", p, err)
+			continue
+		}
+		prog, errs := visitor.Build(string(b))
+		if len(errs) > 0 {
+			t.Errorf("%s does not parse: %v", p, errs[0])
+			continue
+		}
+		if prog.LanguageHeaderLine != 0 {
+			t.Errorf("%s has a language header: drop it from keepsMdl0", p)
+		}
+		if len(gatedConstructs(prog)) == 0 {
+			t.Errorf("%s uses no construct the mdl 1 header changes: upgrade it with "+
+				"`mxcli fmt --upgrade --header` and drop it from keepsMdl0", p)
+		}
+	}
+}
+
+// gatedConstructs are the program's MDL-V1-* notes other than the statement
+// terminators.
+func gatedConstructs(prog *ast.Program) []string {
+	var codes []string
+	for _, n := range prog.LanguageNotes {
+		if n.Code != "MDL-V1-SEMI" && n.Code != "MDL-V1-SLASH" {
+			codes = append(codes, n.Code)
+		}
+	}
+	return codes
 }
 
 func readAllowlist(t *testing.T) conformance.Tally {
@@ -195,7 +259,7 @@ func gatherUnits(t *testing.T) []conformance.Unit {
 			units = append(units, testFileUnit(t, p, string(b)))
 			continue
 		}
-		units = append(units, conformance.Unit{Source: p, Line: 1, Text: string(b), Script: true})
+		units = append(units, conformance.Unit{Source: p, Line: 1, Text: string(b), Script: true, KeepsMdl0: keepsMdl0[p] != ""})
 	}
 
 	// A skill pack ships real .mdl files. They carry {{MODULE}}-style
@@ -221,9 +285,9 @@ func testFileUnit(t *testing.T, path, content string) conformance.Unit {
 	if err != nil {
 		// Not a well-formed test file: parse it as it stands, which fails and
 		// is counted as syntax.
-		return conformance.Unit{Source: path, Line: 1, Text: content, Script: true}
+		return conformance.Unit{Source: path, Line: 1, Text: content, Script: true, KeepsMdl0: true}
 	}
-	return conformance.Unit{Source: path, Line: 1, Text: checked.MDL, Script: true}
+	return conformance.Unit{Source: path, Line: 1, Text: checked.MDL, Script: true, KeepsMdl0: true}
 }
 
 // isNegativeTest reports a script that is meant to fail `mxcli check`.

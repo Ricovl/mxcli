@@ -30,10 +30,10 @@ CREATE PAGE MyModule.CustomerList
 {
   -- Widgets here fill the main content area of Atlas_Default
   DATAGRID dgCustomers (DataSource: DATABASE MyModule.Customer) {
-    COLUMN colName (Attribute: Name, Caption: 'Name')
-    COLUMN colEmail (Attribute: Email, Caption: 'Email')
+    COLUMN (Attribute: Name, Caption: 'Name')
+    COLUMN (Attribute: Email, Caption: 'Email')
   }
-}
+};
 ```
 
 Popup layouts are typically used for edit and detail pages:
@@ -53,7 +53,7 @@ CREATE PAGE MyModule.Customer_Edit
       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
-}
+};
 ```
 
 ## Page Parameters
@@ -110,8 +110,8 @@ Retrieves entities directly from the database. Optionally includes an XPath cons
 
 ```sql
 DATAGRID dgOrders (DataSource: DATABASE Sales.Order) {
-  COLUMN colId (Attribute: OrderId, Caption: 'Order #')
-  COLUMN colDate (Attribute: OrderDate, Caption: 'Date')
+  COLUMN (Attribute: OrderId, Caption: 'Order #')
+  COLUMN (Attribute: OrderDate, Caption: 'Date')
 }
 ```
 
@@ -153,7 +153,7 @@ Binds to the currently selected item in another list widget:
 
 ```sql
 DATAGRID dgProducts (DataSource: DATABASE MyModule.Product) {
-  COLUMN colName (Attribute: Name)
+  COLUMN (Attribute: Name)
 }
 
 DATAVIEW dvDetail (DataSource: SELECTION dgProducts) {

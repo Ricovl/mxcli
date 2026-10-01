@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- TraceOps #11, #12, #16: string/identifier ergonomics
 -- ============================================================================
@@ -20,12 +21,10 @@
 -- ============================================================================
 
 create entity MyFirstModule.Note ( Name: String );
-/
 
 -- #16: the correct ALTER ENTITY form (with the `attribute` keyword).
 alter entity MyFirstModule.Note
   add attribute Body: string(200);
-/
 
 -- #12: keyword widget names (body, content) used unquoted.
 create page MyFirstModule.NoteView ( Title: 'Note', Layout: Atlas_Core.Atlas_Default ) {
@@ -34,8 +33,7 @@ create page MyFirstModule.NoteView ( Title: 'Note', Layout: Atlas_Core.Atlas_Def
       dynamictext search (Content: 'Type to search')
     }
   }
-}
-/
+};
 
 -- #11: a multi-line string literal in a microflow.
 create microflow MyFirstModule.Banner () returns String as $out
@@ -45,4 +43,3 @@ Line two
 Line three';
   return $S;
 end;
-/

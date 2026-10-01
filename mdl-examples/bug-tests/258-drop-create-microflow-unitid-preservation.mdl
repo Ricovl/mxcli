@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #258: DROP + CREATE OR MODIFY microflow UnitID preservation
 -- ============================================================================
@@ -30,7 +31,6 @@ begin
   declare $result string = 'original';
   return $result;
 end;
-/
 
 -- Drop + recreate in the same session. Before the fix, this produced a
 -- dangling Unit row with a fresh UUID and the project became unopenable in
@@ -43,7 +43,6 @@ begin
   declare $result string = 'replaced';
   return $result;
 end;
-/
 
 -- DESCRIBE must round-trip cleanly (no placeholder UUIDs leaking).
 describe microflow BugTest258.MF_Original;

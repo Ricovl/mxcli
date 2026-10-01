@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Task queues: authorable in MDL, and never silently dropped by a rewrite
 -- ============================================================================
@@ -32,30 +33,25 @@
 -- ============================================================================
 
 create module Ops;
-/
 -- Parallelism is an EXPRESSION, not a number. A bare integer is the common case;
 -- quote anything else.
 create task queue Ops.OrderProcessing (
   Parallelism: 3,
   ClusterWide: true
 );
-/
 -- No properties: the defaults ("1", not cluster-wide) match a queue created in
 -- Studio Pro with nothing changed.
 create task queue Ops.Mail;
-/
 -- Re-running is idempotent with OR MODIFY, and the stored $ID is reused so any
 -- call already bound to the queue keeps pointing at it.
 create or modify task queue Ops.OrderProcessing (
   Parallelism: 8,
   ClusterWide: true
 );
-/
 -- "queue" is a plausible attribute name; adding the keyword must not take it
 -- away (it is listed in the `keyword` rule, so it still parses as an identifier).
 create entity Ops.Job (
   queue: String(100),
   Status: String(50)
 );
-/
 drop task queue Ops.Mail;

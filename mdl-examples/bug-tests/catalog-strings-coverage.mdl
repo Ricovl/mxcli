@@ -1,3 +1,4 @@
+mdl 1;
 -- CATALOG.strings reached five hand-written sites, so most of a project's
 -- translatable text was never indexed — and a language present only on an
 -- unindexed site was INVISIBLE rather than undercounted.

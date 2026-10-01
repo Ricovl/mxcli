@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Gallery CE0463 "the definition of this widget has changed" on a non-default
 -- pagination  (mendixlabs/mxcli#1035)
@@ -59,7 +60,7 @@ create or modify page Bug1035.P_LoadMore (
   gallery gLoadMore ( DataSource: database from Bug1035.Item, pagination: 'loadMore' ) {
     template { dynamictext d (Content: '{1}', ContentParams: ({1} = Name)) }
   }
-}
+};
 
 create or modify page Bug1035.P_VirtualScrolling (
   Title: 'Virtual scrolling',
@@ -68,7 +69,7 @@ create or modify page Bug1035.P_VirtualScrolling (
   gallery gVirtual ( DataSource: database from Bug1035.Item, pagination: 'virtualScrolling' ) {
     template { dynamictext d (Content: '{1}', ContentParams: ({1} = Name)) }
   }
-}
+};
 
 -- The control: the default pagination was clean before the fix too, so a run
 -- that only checks this page proves nothing.
@@ -79,4 +80,4 @@ create or modify page Bug1035.P_Buttons (
   gallery gButtons ( DataSource: database from Bug1035.Item, pagination: 'buttons' ) {
     template { dynamictext d (Content: '{1}', ContentParams: ({1} = Name)) }
   }
-}
+};

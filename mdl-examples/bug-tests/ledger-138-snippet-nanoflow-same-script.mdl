@@ -1,3 +1,4 @@
+mdl 1;
 -- ledger #138 — the same-script exemption did not cover a snippet's nanoflow.
 --
 -- `mxcli check` printed the exemption and then failed on exactly that:
@@ -58,4 +59,4 @@ create or modify snippet Ledger138.SNIPPET_ThemeBar
       Class: 'ledger-themebar-btn'
     )
   }
-}
+};

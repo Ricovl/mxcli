@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Published OData service: attributes need EdmType (CE5016), association ends
 -- need IsMany (CE5022)

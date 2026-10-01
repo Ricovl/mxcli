@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue #936: GRANT shrank an access rule instead of widening it
 -- ============================================================================
@@ -58,7 +59,6 @@ create persistent entity BugTest936.Customer (
   Email: string(200),
   Phone: string(50)
 );
-/
 
 create module role BugTest936.Viewer;
 create module role BugTest936.Reader;

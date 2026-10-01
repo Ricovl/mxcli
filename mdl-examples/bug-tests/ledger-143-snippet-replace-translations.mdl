@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli-ledger #143 — `create or replace snippet` must keep its translations.
 --
 -- Replaying one snippet file reset a translated label to its source language in
@@ -21,10 +22,10 @@ alter settings LANGUAGE ADD 'nl_NL';
 
 create or modify page MyFirstModule.L143Page
   ( Title: 'Ledger Alpha', Layout: Atlas_Core.Atlas_Default )
-  { CONTAINER c { DYNAMICTEXT t (Content: 'Ledger Beta') } }
+  { CONTAINER c { DYNAMICTEXT t (Content: 'Ledger Beta') } };
 
 create or modify snippet MyFirstModule.SNIPPET_L143
-  { CONTAINER c { DYNAMICTEXT t (Content: 'Ledger Gamma') } }
+  { CONTAINER c { DYNAMICTEXT t (Content: 'Ledger Gamma') } };
 
 create or modify translations for nl_NL (
   'Ledger Alpha' AS 'Ledger Alfa',

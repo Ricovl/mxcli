@@ -3,7 +3,7 @@
 ## Synopsis
 
 ```sql
-DROP BUSINESS EVENT SERVICE module.Name
+DROP BUSINESS EVENT SERVICE module.Name;
 ```
 
 ## Description

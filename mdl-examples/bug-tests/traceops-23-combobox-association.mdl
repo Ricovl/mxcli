@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- TraceOps #23: combobox could not bind an association via `Association:`
 -- ============================================================================
@@ -24,7 +25,6 @@ create entity MyFirstModule.Customer ( Name: String );
 create entity MyFirstModule.Order ( Number: String );
 create association MyFirstModule.Order_Customer
   from MyFirstModule.Order to MyFirstModule.Customer;
-/
 
 create or modify page MyFirstModule.OrderEdit
 ( Title: 'Order', Layout: Atlas_Core.Atlas_Default, Params: ( $Order: MyFirstModule.Order ) )
@@ -38,7 +38,6 @@ create or modify page MyFirstModule.OrderEdit
       CaptionAttribute: Name
     )
   }
-}
-/
+};
 
 describe page MyFirstModule.OrderEdit;

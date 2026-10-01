@@ -81,6 +81,7 @@ role to pick up future members automatically, give its rule a `READ *` or
 Limit which objects a role can see or modify using an XPath expression in the `WHERE` clause:
 
 ```sql
+mdl 1;
 -- Users can only access their own orders
 GRANT READ *, WRITE * ON ENTITY Shop.Order TO Shop.User
   WHERE [Sales.Order_Customer/Sales.Customer/Name = $currentUser];
@@ -97,6 +98,7 @@ Note that single quotes inside XPath expressions must be doubled (`''`), since t
 GRANT is **additive**. If a role already has an access rule on the entity, the new rights are merged in without removing existing permissions:
 
 ```sql
+mdl 1;
 -- Initial grant
 GRANT READ (Name, Email) ON ENTITY Shop.Customer TO Shop.User;
 
@@ -120,6 +122,7 @@ The constraint is part of a rule's identity. Two GRANTs for the same role with t
 which is how row-level security is normally written:
 
 ```sql
+mdl 1;
 -- Two separate rules for one role
 GRANT READ * ON ENTITY Shop.Order TO Shop.User WHERE [Status = 'Open'];
 GRANT READ (Total) ON ENTITY Shop.Order TO Shop.User WHERE [Owner = $currentUser];
@@ -136,6 +139,7 @@ updates the same rules instead of accumulating new ones.
 Each GRANT creates a separate access rule. An entity can have rules for multiple roles:
 
 ```sql
+mdl 1;
 GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Order TO Shop.Admin;
 GRANT READ *, WRITE * ON ENTITY Shop.Order TO Shop.User WHERE [Status = 'Open'];
 GRANT READ * ON ENTITY Shop.Order TO Shop.Viewer;
@@ -156,6 +160,7 @@ REVOKE <Module>.<Role> ON <Module>.<Entity> (<rights>);
 Examples:
 
 ```sql
+mdl 1;
 -- Remove all access for Viewer
 REVOKE ALL ON ENTITY Shop.Customer FROM Shop.Viewer;
 

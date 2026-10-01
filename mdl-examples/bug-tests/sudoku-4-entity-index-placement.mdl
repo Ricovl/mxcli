@@ -1,3 +1,4 @@
+mdl 1;
 -- Sudoku finding #4: `index … on (…)` inside `create entity` "does not parse".
 --
 -- The syntax was never missing — an INDEX belongs after the closing parenthesis

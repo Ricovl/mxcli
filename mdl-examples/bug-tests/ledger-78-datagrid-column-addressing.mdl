@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger finding #78: DataGrid2 column addressing
 -- ============================================================================
@@ -32,7 +33,7 @@ create or modify page Ledger.Grid78 (Title: 'Grid', Layout: Atlas_Core.Atlas_Def
       column (ShowContentAs: dynamicText, caption: 'Who', Content: '{1}', ContentParams: ({1} = Amount))
     }
   } } }
-}
+};
 
 -- Address the columns by their DERIVED names (not the authored colMerchant/colAmount).
 alter page Ledger.Grid78 {

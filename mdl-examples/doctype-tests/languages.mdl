@@ -1,3 +1,4 @@
+mdl 1;
 -- ALTER SETTINGS LANGUAGE ADD / REMOVE — the project's ENABLED languages.
 --
 -- The enabled list is what App Settings > Languages shows, and the only thing a

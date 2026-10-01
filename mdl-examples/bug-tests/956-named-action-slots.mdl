@@ -1,3 +1,4 @@
+mdl 1;
 -- Feature: named pluggable-widget action slots. Upstream #956.
 --
 -- mxcli could author exactly two action slots — `onClick:` and `OnChange:`,
@@ -53,7 +54,7 @@ create or modify page M956.P_NamedMicroflow (Title: 'Named', Layout: Atlas_Core.
   ) {
     COLUMN (Attribute: Name, Caption: 'Name')
   }
-}
+};
 describe page M956.P_NamedMicroflow;
 
 -- 2. A named slot holding a client action. These forms do not also parse as a
@@ -67,5 +68,5 @@ create or modify page M956.P_NamedShowPage (Title: 'Named 2', Layout: Atlas_Core
   ) {
     COLUMN (Attribute: Name, Caption: 'Name')
   }
-}
+};
 describe page M956.P_NamedShowPage;

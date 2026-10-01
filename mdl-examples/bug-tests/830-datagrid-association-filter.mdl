@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue #830 — filtering a datagrid by an association
 -- ============================================================================
@@ -40,11 +41,9 @@
 -- ============================================================================
 
 create module ZKT38;
-/
 create entity ZKT38.Customer ( Name: String );
 create entity ZKT38.Order ( Number: String );
 create association ZKT38.Order_Customer from ZKT38.Order to ZKT38.Customer;
-/
 
 create or modify page ZKT38.OrderList
 ( Title: 'Orders', Layout: Atlas_Core.Atlas_Default )
@@ -65,7 +64,6 @@ create or modify page ZKT38.OrderList
       )
     }
   }
-}
-/
+};
 
 describe page ZKT38.OrderList;

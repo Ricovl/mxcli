@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #675: quoted identifiers must be accepted in entity-access member lists
 -- and validation-rule attribute references.
 --

@@ -35,6 +35,7 @@ DROP FOLDER 'Orders/Archive' IN MyModule;
 ### Move contents out first, then drop
 
 ```sql
+mdl 1;
 -- Move all documents to module root
 MOVE MICROFLOW MyModule.ACT_Process TO MyModule;
 MOVE PAGE MyModule.ProcessDetail TO MyModule;

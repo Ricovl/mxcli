@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1152 — "roundtrip for retrieve DB with sorting over
 -- association does not work".
 --

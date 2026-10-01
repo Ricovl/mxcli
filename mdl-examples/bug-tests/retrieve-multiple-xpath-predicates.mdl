@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Retrieve with multiple XPath predicates
 -- ============================================================================
@@ -25,14 +26,12 @@ create entity BugTestXPathPredicates.Token (
   CreatedAt : datetime,
   ItemId : string(100)
 );
-/
 
 create entity BugTestXPathPredicates.Item (
   CreatedAt : datetime,
   ItemId : string(100),
   ExternalId : string(100)
 );
-/
 
 create microflow BugTestXPathPredicates.MF_RetrieveWithPredicates (
   $Token: BugTestXPathPredicates.Token
@@ -45,4 +44,3 @@ begin
     [ExternalId != empty];
   return $Items;
 end;
-/

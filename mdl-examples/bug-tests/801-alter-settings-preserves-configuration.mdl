@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #801: ALTER SETTINGS silently corrupted every server configuration
 --
 -- Symptom: any ALTER SETTINGS — not just the CONFIGURATION section — rebuilt each

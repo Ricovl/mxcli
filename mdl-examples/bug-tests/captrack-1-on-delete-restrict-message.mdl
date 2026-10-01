@@ -1,3 +1,4 @@
+mdl 1;
 -- CapTrackV2 FINDINGS §1 — `DELETE_BEHAVIOR PREVENT` wrote an app whose RUNTIME
 -- WILL NOT START. Not a build error; `mx check` reports 0 errors either way.
 --
@@ -35,11 +36,8 @@
 --   mxcli run --local -p app.mpr      -- boots; before the fix, None.get at startup
 
 create module ODR;
-/
 create persistent entity ODR.Customer (Name: string(200));
-/
 create persistent entity ODR.Order (OrderNo: string(50));
-/
 
 -- The reported case. Deleting a CUSTOMER is refused while Orders reference it.
 create association ODR.Order_Customer
@@ -47,7 +45,6 @@ create association ODR.Order_Customer
   type Reference
   on delete restrict
     error message 'A customer with orders cannot be deleted';
-/
 
 -- CONTROL: the other two actions must NOT get a message element — Studio Pro
 -- leaves both null, as all 423 behaviours in the wild are.
@@ -55,12 +52,10 @@ create association ODR.Order_Cascade
   from ODR.Order to ODR.Customer
   type Reference
   on delete cascade;
-/
 create association ODR.Order_SetNull
   from ODR.Order to ODR.Customer
   type Reference
   on delete set null;
-/
 
 -- CONTROL: the older spelling still parses and still means the same thing, and
 -- can carry the message too, so an existing script gains the fix without being
@@ -70,4 +65,3 @@ create association ODR.Order_Legacy
   type Reference
   on delete restrict
     error message 'still referenced';
-/

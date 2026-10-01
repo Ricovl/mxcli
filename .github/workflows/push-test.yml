@@ -173,8 +173,10 @@ jobs:
         run: ./scripts/check-skill-mdl.sh ./bin/mxcli docs-site/src
       - name: Check MDL conformance
         # Every MDL block in `mxcli syntax`, the skills, docs-site, the quick
-        # reference and mdl-examples, with deprecated spellings as failures,
-        # against an allowlist that may only shrink (ako/mxcli#756).
+        # reference and mdl-examples, parsed as mdl 1, with deprecated
+        # spellings, mdl 1 refusals and a complete script without the header
+        # as failures, against an allowlist that may only shrink
+        # (ako/mxcli#756, ako/mxcli#714 decision 1).
         run: make check-conformance
       - name: Check the migration reference is current
         # The tables on docs-site/src/language/versions.md are generated from

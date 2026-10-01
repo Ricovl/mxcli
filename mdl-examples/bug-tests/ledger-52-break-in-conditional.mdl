@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger finding #52: `break`/`continue` inside a conditional in a loop
 -- ============================================================================
@@ -35,7 +36,7 @@ begin
     end if;
   end loop;
   return true;
-end
+end;
 
 -- continue in a conditional
 create microflow Ledger52.SkipInactive ($Rules: list of Ledger52.Rule) returns Boolean
@@ -47,4 +48,4 @@ begin
     commit $R;
   end loop;
   return true;
-end
+end;

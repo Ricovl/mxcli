@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- SPLIT TYPE stacked the element after END SPLIT on top of its own merge.
 --
@@ -51,11 +52,11 @@ BEGIN
   declare $result string = 'none';
   split type $Animal
     when Bug953.Dog then
-      $result = 'dog';
+      set $result = 'dog';
     when Bug953.Animal then
-      $result = 'animal';
+      set $result = 'animal';
     when (empty) then
-      $result = 'empty';
+      set $result = 'empty';
   end split;
   return $result;
 END;
@@ -67,13 +68,13 @@ BEGIN
   declare $result string = 'none';
   split type $Animal
     when Bug953.Dog then
-      $result = 'dog';
+      set $result = 'dog';
     when Bug953.Cat then
-      $result = 'cat';
+      set $result = 'cat';
     when Bug953.Animal then
-      $result = 'animal';
+      set $result = 'animal';
     when (empty) then
-      $result = 'empty';
+      set $result = 'empty';
   end split;
   return $result;
 END;
@@ -87,12 +88,12 @@ BEGIN
   declare $result string = 'none';
   split type $Animal
     when Bug953.Dog then
-      $result = 'dog';
-      $result = 'dog again';
+      set $result = 'dog';
+      set $result = 'dog again';
     when Bug953.Animal then
-      $result = 'animal';
+      set $result = 'animal';
     when (empty) then
-      $result = 'empty';
+      set $result = 'empty';
   end split;
   return $result;
 END;
@@ -104,11 +105,11 @@ BEGIN
   declare $result string = 'none';
   case $Kind
     when Dog then
-      $result = 'dog';
+      set $result = 'dog';
     when Other then
-      $result = 'other';
+      set $result = 'other';
     when (empty) then
-      $result = 'none';
+      set $result = 'none';
   end case;
   return $result;
 END;

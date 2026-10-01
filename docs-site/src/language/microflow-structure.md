@@ -89,7 +89,7 @@ Activities like CREATE and RETRIEVE produce result variables:
 
 ```sql
 $Order = CREATE Sales.Order (Status = 'New');
-RETRIEVE $Customer FROM Sales.Customer WHERE Email = $Email LIMIT 1;
+RETRIEVE $Customer FROM Sales.Customer WHERE Email = $Email FIRST;
 $Result = CALL MICROFLOW Sales.CalculateTotal (Order = $Order);
 ```
 

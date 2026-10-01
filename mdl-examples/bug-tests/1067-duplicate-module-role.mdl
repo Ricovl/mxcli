@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1067, follow-up: a duplicate CREATE MODULE ROLE.
 --
 -- The last survivor of the under-reporting class dbe5cc2a closed for documents.

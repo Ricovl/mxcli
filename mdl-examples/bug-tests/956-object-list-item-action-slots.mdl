@@ -1,3 +1,4 @@
+mdl 1;
 -- Feature: action slots on object-list ITEMS. The remaining half of upstream
 -- #956; the top-level slots became authorable in PR #230 (named action slots).
 --
@@ -70,7 +71,7 @@ create or modify page M956Item.P_SeriesMicroflow (
       StaticOnClickAction: microflow M956Item.ACT_SeriesClicked
     )
   }
-}
+};
 describe page M956Item.P_SeriesMicroflow;
 
 -- 2. A client-action form, which reaches the AST as an action directly.
@@ -87,5 +88,5 @@ create or modify page M956Item.P_SeriesShowPage (
       StaticOnClickAction: show page M956Item.P_SeriesMicroflow
     )
   }
-}
+};
 describe page M956Item.P_SeriesShowPage;

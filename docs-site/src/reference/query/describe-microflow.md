@@ -22,7 +22,7 @@ This is useful for understanding existing logic before modifying it, or for extr
 Describe a microflow:
 
 ```sql
-DESCRIBE MICROFLOW Sales.ACT_CreateOrder
+DESCRIBE MICROFLOW Sales.ACT_CreateOrder;
 ```
 
 Example output:
@@ -45,7 +45,7 @@ END;
 Describe a nanoflow:
 
 ```sql
-DESCRIBE NANOFLOW MyModule.NAV_ValidateInput
+DESCRIBE NANOFLOW MyModule.NAV_ValidateInput;
 ```
 
 ## See Also

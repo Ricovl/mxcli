@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue #713 — PopupWidth / PopupHeight = 0 must be allowed
 -- ============================================================================
@@ -39,7 +40,7 @@ CREATE OR MODIFY PAGE Bug713.ThingPopupAuto (
   dataview dv (DataSource: $Thing) {
     textbox tb (Label: 'Name', Attribute: Name)
   }
-}
+};
 
 -- Pop-up page with explicit non-zero dimensions — must still round-trip.
 CREATE OR MODIFY PAGE Bug713.ThingPopupFixed (
@@ -52,10 +53,10 @@ CREATE OR MODIFY PAGE Bug713.ThingPopupFixed (
   dataview dv (DataSource: $Thing) {
     textbox tb (Label: 'Name', Attribute: Name)
   }
-}
+};
 
 -- ALTER must accept SET PopupWidth = 0 (auto-size) too.
 ALTER PAGE Bug713.ThingPopupFixed {
   SET (PopupWidth: 0);
   SET (PopupHeight: 0);
-}
+};

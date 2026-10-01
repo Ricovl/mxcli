@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug 978 — DESCRIBE PAGE output rejected by mxcli's own check --references
 -- ============================================================================
@@ -42,4 +43,4 @@ create page MyFirstModule.Bug978Galleries (
   gallery g4 (datasource: database MyFirstModule.Bug978Item) {
     template { dynamictext t4 (content: '{1}', contentparams: ({1} = Name)) }
   }
-}
+};

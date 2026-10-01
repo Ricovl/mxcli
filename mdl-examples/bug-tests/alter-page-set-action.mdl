@@ -1,3 +1,4 @@
+mdl 1;
 -- ALTER PAGE … SET Action = <action> ON <widget>
 --
 -- Reported from a contact-management app built with mxcli: "SET Action =

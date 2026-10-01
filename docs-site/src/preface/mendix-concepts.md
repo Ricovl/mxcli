@@ -132,11 +132,11 @@ CREATE PAGE Sales.CustomerOverview
 )
 {
     DATAGRID dgCustomers (DataSource: DATABASE Sales.Customer) {
-        COLUMN colName (Attribute: Name, Caption: 'Name')
-        COLUMN colEmail (Attribute: Email, Caption: 'Email')
-        COLUMN colActive (Attribute: IsActive, Caption: 'Active')
+        COLUMN (Attribute: Name, Caption: 'Name')
+        COLUMN (Attribute: Email, Caption: 'Email')
+        COLUMN (Attribute: IsActive, Caption: 'Active')
     }
-}
+};
 ```
 
 ### Snippets

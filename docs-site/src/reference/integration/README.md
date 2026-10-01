@@ -30,6 +30,7 @@ These document types support moving data between Mendix entities and external da
 ## Drop Statements
 
 ```sql
+mdl 1;
 DROP JSON STRUCTURE module.Name;
 DROP IMPORT MAPPING module.Name;
 DROP EXPORT MAPPING module.Name;

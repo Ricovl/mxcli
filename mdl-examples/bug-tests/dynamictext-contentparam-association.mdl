@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- DynamicText contentparam over an association silently persisted no value
 -- ============================================================================
@@ -54,7 +55,7 @@ create or modify page MyFirstModule.ExpensePage
     -- Association-navigated template parameter (the fixed case).
     dynamictext dEmp (content: 'Submitted by {1}', contentparams: ({1} = MyFirstModule.Expense_Employee/Name))
   }
-}
+};
 
 -- Should round-trip to contentparams: [{1} = MyFirstModule.Expense_Employee/Name]
 describe page MyFirstModule.ExpensePage;

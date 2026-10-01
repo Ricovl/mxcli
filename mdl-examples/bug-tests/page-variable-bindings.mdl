@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#977 — page variables, two separate faults with different
 -- diagnoses. Both reported as "silently dropped"; only one of them was.
 --

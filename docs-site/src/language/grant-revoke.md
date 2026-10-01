@@ -26,6 +26,7 @@ GRANT is **additive**: if the role already has an access rule on the entity, new
 Examples:
 
 ```sql
+mdl 1;
 -- Full access
 GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Customer TO Shop.Admin;
 
@@ -60,6 +61,7 @@ For partial revoke, `REVOKE READ (x)` sets member x access to None. `REVOKE WRIT
 Examples:
 
 ```sql
+mdl 1;
 -- Remove all access
 REVOKE ALL ON ENTITY Shop.Customer FROM Shop.Viewer;
 
@@ -148,6 +150,7 @@ REVOKE ACCESS ON PUBLISHED ODATA SERVICE <Module>.<Name> FROM <Module>.<Role> [,
 A typical security setup script:
 
 ```sql
+mdl 1;
 -- Module roles
 CREATE MODULE ROLE Shop.Admin DESCRIPTION 'Full access';
 CREATE MODULE ROLE Shop.User DESCRIPTION 'Standard access';

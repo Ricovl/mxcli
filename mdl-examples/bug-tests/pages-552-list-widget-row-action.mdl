@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#552 — MDL-PAGEARG01 refused a list widget's OWN row action.
 --
 -- `onClick` on a data grid, list view or gallery fires per row, so the row the

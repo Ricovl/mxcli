@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Upstream #863: DESCRIBE rendered SynchronizeAction as `-- Empty action`, and
 -- the fallback comment silently dropped the activity's entire error handler

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Regression (v0.13.0): enum literal in a `visible:` expression mangled to a
 -- string, failing MxBuild with CE0117 "Error(s) in expression."
@@ -50,11 +51,11 @@ create page BugTest680.Dashboard
   listview lvRunning (datasource: database BugTest680.Equip where [Status = BugTest680.EquipmentStatus.Running]) {
     dynamictext lt (Attribute: Name)
   }
-}
+};
 
 -- ALTER uses the same serializer — enum literal preserved here too.
 alter page BugTest680.Dashboard {
   set (Visible: $currentObject/Status = BugTest680.EquipmentStatus.Stopped) on pillRunning;
-}
+};
 
 describe page BugTest680.Dashboard;

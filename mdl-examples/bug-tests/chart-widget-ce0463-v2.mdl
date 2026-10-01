@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug: Chart widgets (Pie / Column / …) trip CE0463 in MPR v2 projects
 -- ============================================================================
@@ -33,9 +34,7 @@
 -- ============================================================================
 
 create module ChartBug;
-/
 create entity ChartBug.Sales ( Region: String, Total: Decimal );
-/
 create or modify page ChartBug.Home ( layout: Atlas_Core.Atlas_Default ) {
   -- Pie chart: single implicit series (widget-level DataSource/ValueAttribute).
   pluggablewidget 'com.mendix.widget.web.piechart.PieChart' pie1 (
@@ -53,4 +52,4 @@ create or modify page ChartBug.Home ( layout: Atlas_Core.Atlas_Default ) {
       StaticName: 'Revenue'
     )
   }
-}
+};

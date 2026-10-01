@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1032 — `SET DataSource = DATABASE …` silently wiped a
 -- DataView's datasource
 --
@@ -45,7 +46,7 @@ create persistent entity P1032.Customer (Name: String(200));
 
 create microflow P1032.MF_GetCustomer () returns P1032.Customer as $Result
 begin
-  retrieve $Result from P1032.Customer limit 1;
+  retrieve $Result from P1032.Customer first;
 end;
 
 create page P1032.CustomerPage (
@@ -64,22 +65,22 @@ create page P1032.CustomerPage (
       textbox tbName (attribute: Name, label: 'Name')
     }
   } } }
-}
+};
 
 -- The sources a DataView really takes still retype through SET, unchanged by
 -- the refusal — the control that says this fixes #1032 rather than replacing it
 -- with a blanket "no".
 alter page P1032.CustomerPage {
   set (DataSource: $Customer) on dvCust;
-}
+};
 
 alter page P1032.CustomerPage {
   set (DataSource: microflow P1032.MF_GetCustomer) on dvCust;
-}
+};
 
 alter page P1032.CustomerPage {
   set (DataSource: selection lvCustomers) on dvCust;
-}
+};
 
 -- REFUSED, both by `check -p --references` and by `exec` (uncomment to see):
 --

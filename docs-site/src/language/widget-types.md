@@ -28,16 +28,16 @@ Creates a responsive grid with rows and columns. The primary layout mechanism fo
 
 ```sql
 LAYOUTGRID grid1 {
-  ROW row1 {
-    COLUMN col1 {
+  ROW {
+    COLUMN {
       TEXTBOX txtName (Label: 'Name', Attribute: Name)
     }
-    COLUMN col2 {
+    COLUMN {
       TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
     }
   }
-  ROW row2 {
-    COLUMN colFull {
+  ROW {
+    COLUMN {
       TEXTAREA txtNotes (Label: 'Notes', Attribute: Notes)
     }
   }
@@ -107,11 +107,11 @@ Displays a list of objects in a tabular format with columns, sorting, and pagina
 
 ```sql
 DATAGRID dgOrders (DataSource: DATABASE Sales.Order, PageSize: 20) {
-  COLUMN colId (Attribute: OrderId, Caption: 'Order #')
-  COLUMN colDate (Attribute: OrderDate, Caption: 'Date')
-  COLUMN colAmount (Attribute: Amount, Caption: 'Amount', Alignment: right)
-  COLUMN colStatus (Attribute: Status, Caption: 'Status')
-  CONTROLBAR bar1 {
+  COLUMN (Attribute: OrderId, Caption: 'Order #')
+  COLUMN (Attribute: OrderDate, Caption: 'Date')
+  COLUMN (Attribute: Amount, Caption: 'Amount', Alignment: right)
+  COLUMN (Attribute: Status, Caption: 'Status')
+  CONTROLBAR {
     ACTIONBUTTON btnNew (Caption: 'New', Action: CALL MICROFLOW Sales.ACT_CreateOrder, ButtonStyle: Primary)
   }
 }
@@ -397,7 +397,7 @@ The snake-case spellings (`SAVE_CHANGES`, `SHOW_PAGE`, …) and `MICROFLOW …` 
 ```sql
 ACTIONBUTTON btnProcess (
   Caption: 'Process',
-  Action: MICROFLOW Sales.ACT_ProcessOrder(Order = $Order),
+  Action: CALL MICROFLOW Sales.ACT_ProcessOrder(Order = $Order),
   ButtonStyle: Primary
 )
 ```

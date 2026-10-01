@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- TRANSFORM JSON was dropped at write time on the default engine (CE0008)
 -- ============================================================================
@@ -31,7 +32,7 @@ create data transformer T.MyTransform
   source json '{"name": "example"}'
 {
   jslt '{"label": .name}'
-}
+};
 
 create microflow T.MF_Transform ($In: String)
 begin

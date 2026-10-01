@@ -58,6 +58,7 @@ LIST DEMO USERS;
 Toggle the security level and demo user visibility:
 
 ```sql
+mdl 1;
 ALTER APP SECURITY ( SecurityLevel: PRODUCTION );
 ALTER APP SECURITY ( EnableDemoUsers: TRUE );
 ALTER APP SECURITY ( EnableDemoUsers: FALSE );
@@ -70,6 +71,7 @@ the app without signing in. It is a flag plus a user role, and the role carries
 the weight -- **whatever it can read is public**.
 
 ```sql
+mdl 1;
 -- The role anonymous visitors are given. System.User is what lets an
 -- unauthenticated session exist at all.
 CREATE USER ROLE Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );
@@ -84,6 +86,7 @@ Turning it off keeps the stored role, so switching it back on needs no `ROLE`
 clause:
 
 ```sql
+mdl 1;
 ALTER APP SECURITY ( EnableGuestAccess: FALSE );
 ALTER APP SECURITY ( EnableGuestAccess: TRUE );
 ```

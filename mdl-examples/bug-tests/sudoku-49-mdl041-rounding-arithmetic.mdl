@@ -1,3 +1,4 @@
+mdl 1;
 -- Sudoku finding #49: MDL041 refused integer arithmetic that Mendix accepts.
 --
 -- `round()`, `floor()` and `ceil()` were exempted from the Decimal check only

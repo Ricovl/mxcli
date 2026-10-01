@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test: `import from mapping` with NO range keyword built a document the
 -- Mendix RUNTIME refuses, while every static check passed.
 --
@@ -59,7 +60,6 @@ begin
   end if;
   return $out;
 end;
-/
 
 -- The control that always worked: an explicit range. If this one passes at
 -- runtime and the bare form above does not, the regression is back.
@@ -72,7 +72,6 @@ begin
   set $out = 'ok';
   return $out;
 end;
-/
 
 -- `first` keeps Studio Pro's First semantics — both flags true — and is
 -- deliberately NOT changed by the fix.
@@ -85,6 +84,5 @@ begin
   set $out = 'ok';
   return $out;
 end;
-/
 
 describe microflow ImportSingle.ACT_ImportFlat;

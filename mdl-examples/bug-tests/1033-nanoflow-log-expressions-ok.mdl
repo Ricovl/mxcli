@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue #1033 — the accepted counterpart: real functions in nanoflow logs
 -- ============================================================================
@@ -19,10 +20,8 @@ create nanoflow MyFirstModule.NF_LogTemplate ($x: String)
 begin
   log info 'x: {1}' with ({1} = toUpperCase($x));
 end;
-/
 
 create nanoflow MyFirstModule.NF_LogToken ()
 begin
   log info 'now: ' + toString([%CurrentDateTime%]);
 end;
-/

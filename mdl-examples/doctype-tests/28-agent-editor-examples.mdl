@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.9+
 -- ============================================================================
 -- Agent Editor Document Examples
@@ -32,11 +33,9 @@ create module AgentTest;
 
 create constant AgentTest."ModelKey"
   ( Type: string, DefaultValue: '' );
-/
 
 create constant AgentTest."KBKey"
   ( Type: string, DefaultValue: '' );
-/
 
 -- ============================================================================
 -- LEVEL 1: Model (prerequisite for Agents)
@@ -46,7 +45,6 @@ create ai model AgentTest."TestModel" (
   Provider: MxCloudGenAI,
   key: @AgentTest.ModelKey
 );
-/
 
 -- ============================================================================
 -- LEVEL 2: Knowledge Base
@@ -56,7 +54,6 @@ create knowledge base AgentTest."ProductDocs" (
   Provider: MxCloudGenAI,
   key: @AgentTest.KBKey
 );
-/
 
 -- ============================================================================
 -- LEVEL 3: Consumed MCP Service
@@ -68,7 +65,6 @@ create consumed mcp service AgentTest."WebSearch" (
   ConnectionTimeoutSeconds: 30,
   documentation: 'Web search MCP server for research tasks'
 );
-/
 
 -- ============================================================================
 -- LEVEL 4: Simple Agent (no tools, no body)
@@ -80,7 +76,6 @@ create agent AgentTest."Summarizer" (
   SystemPrompt: 'Summarize the given text in 3 sentences.',
   UserPrompt: 'Enter text to summarize.'
 );
-/
 
 -- ============================================================================
 -- LEVEL 5: Agent with Variables
@@ -93,7 +88,6 @@ create agent AgentTest."Translator" (
   SystemPrompt: 'Translate the text into {{Language}}.',
   UserPrompt: 'Hello world'
 );
-/
 
 -- ============================================================================
 -- LEVEL 6: Agent with dollar-quoted multi-line prompts
@@ -114,7 +108,6 @@ Provide specific, actionable feedback.$$,
     fmt.Println("Hello, World!")
 }$$
 );
-/
 
 -- ============================================================================
 -- LEVEL 7: Agent with body blocks (MCP SERVICE + KNOWLEDGE BASE)
@@ -142,7 +135,6 @@ create agent AgentTest."ResearchAssistant" (
     Enabled: true
   )
 };
-/
 
 -- ============================================================================
 -- LEVEL 8: List and Describe
@@ -171,13 +163,11 @@ create or modify ai model AgentTest."TestModel" (
   key: @AgentTest.ModelKey,
   DisplayName: 'Updated Model Name'
 );
-/
 
 create or modify knowledge base AgentTest."ProductDocs" (
   Provider: MxCloudGenAI,
   key: @AgentTest.KBKey
 );
-/
 
 create or modify consumed mcp service AgentTest."WebSearch" (
   ProtocolVersion: v2025_03_26,
@@ -185,7 +175,6 @@ create or modify consumed mcp service AgentTest."WebSearch" (
   ConnectionTimeoutSeconds: 60,
   documentation: 'Updated web search MCP service'
 );
-/
 
 create or modify agent AgentTest."ResearchAssistant" (
   UsageType: task,
@@ -195,7 +184,6 @@ create or modify agent AgentTest."ResearchAssistant" (
   SystemPrompt: $$You are an updated research assistant.$$,
   UserPrompt: 'How can I help you today?'
 );
-/
 
 -- ============================================================================
 -- LEVEL 10: ALTER (targeted partial updates)
@@ -242,4 +230,3 @@ drop agent AgentTest.Summarizer;
 drop consumed mcp service AgentTest.WebSearch;
 drop knowledge base AgentTest.ProductDocs;
 drop ai model AgentTest.TestModel;
-/

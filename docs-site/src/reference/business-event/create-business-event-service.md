@@ -108,7 +108,7 @@ CREATE BUSINESS EVENT SERVICE Inventory.StockUpdates
 Replace an existing service:
 
 ```sql
-CREATE OR REPLACE BUSINESS EVENT SERVICE Shop.OrderEvents
+CREATE OR MODIFY BUSINESS EVENT SERVICE Shop.OrderEvents
 (
     ServiceName: 'com.example.shop.orders',
     EventNamePrefix: 'shop'

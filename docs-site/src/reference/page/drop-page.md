@@ -3,9 +3,10 @@
 ## Synopsis
 
 ```sql
-DROP PAGE module.Name
+mdl 1;
+DROP PAGE module.Name;
 
-DROP SNIPPET module.Name
+DROP SNIPPET module.Name;
 ```
 
 ## Description
@@ -36,6 +37,7 @@ DROP SNIPPET MyModule.CustomerHeader;
 Check impact before dropping:
 
 ```sql
+mdl 1;
 -- See what references this page
 LIST IMPACT OF Sales.Order_Edit;
 

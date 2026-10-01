@@ -1,3 +1,4 @@
+mdl 1;
 -- CREATE OR MODIFY WORKFLOW and ALTER WORKFLOW over MCP scrambled the flow.
 --
 -- Symptom (mxcli exec --mcp …, Studio Pro 11.14; read back with ped_read_document):

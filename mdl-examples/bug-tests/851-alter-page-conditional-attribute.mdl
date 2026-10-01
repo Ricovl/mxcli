@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue #851 — `alter page … set Editable = [expr]` produced an unopenable project
 -- ============================================================================
@@ -44,7 +45,7 @@ CREATE OR MODIFY PAGE Bug851.PageCreated (
       visible: $currentObject/Slug != ''
     )
   }
-}
+};
 
 -- The regression: the same two settings applied through ALTER.
 CREATE OR MODIFY PAGE Bug851.PageAltered (
@@ -55,7 +56,7 @@ CREATE OR MODIFY PAGE Bug851.PageAltered (
   dataview dv (datasource: $currentObject) {
     textbox txtAltered (label: 'Slug', attribute: Slug)
   }
-}
+};
 
 ALTER PAGE Bug851.PageAltered {
   set (Editable: $currentObject/Slug != '') on txtAltered;

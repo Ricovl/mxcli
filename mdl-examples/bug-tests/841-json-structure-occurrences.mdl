@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #841: `create json structure` wrote every element's occurrence as `0..0`.
 --
 -- Mendix reads MaxOccurs=0 literally as "never occurs", so every import mapping

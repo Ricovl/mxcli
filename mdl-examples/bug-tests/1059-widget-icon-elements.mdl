@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- mendixlabs/mxcli#1059 — a widget's three icon ELEMENTS
 -- ============================================================================
@@ -57,7 +58,7 @@ create or modify page IconProbe.AllThreeIcons (
       Action: NOTHING,
       Icon: glyph 57377)
   }
-}
+};
 
 -- A reference into the model may also be written unquoted, as every other
 -- reference is (ADR-0003). Atlas icon names are hyphenated and IDENTIFIER
@@ -74,4 +75,4 @@ create or modify page IconProbe.UnquotedIconNames (
       Action: NOTHING,
       Icon: Atlas_Core.Atlas."align-center")
   }
-}
+};

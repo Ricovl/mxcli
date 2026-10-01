@@ -3,7 +3,7 @@
 ## Synopsis
 
 ```sql
-DROP WORKFLOW module.Name
+DROP WORKFLOW module.Name;
 ```
 
 ## Description

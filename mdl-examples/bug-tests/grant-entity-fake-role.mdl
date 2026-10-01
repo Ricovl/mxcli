@@ -1,3 +1,4 @@
+mdl 1;
 -- Issue #399: GRANT ... ON ENTITY must reject non-existent module roles.
 -- This script should fail on the GRANT line with "module role not found".
 -- Previously it silently created a phantom access rule.

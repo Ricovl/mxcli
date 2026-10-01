@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #360: Import-from-mapping result variable type was not registered
 -- ============================================================================
@@ -37,7 +38,6 @@ create non-persistent entity BugTest360.PetResponse (
   Name : string,
   Status : string
 );
-/
 
 create import mapping BugTest360.IMM_Pet
   with json structure BugTest360.JSON_Pet
@@ -63,4 +63,3 @@ begin
     change $Pet (Status = $Pet/Status + ' (processed)');
   end if;
 end;
-/

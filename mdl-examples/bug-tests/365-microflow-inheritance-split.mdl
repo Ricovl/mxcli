@@ -1,14 +1,13 @@
+mdl 1;
 create module InheritanceSplitExample;
 
 create persistent entity InheritanceSplitExample.BaseInput (
   Name: String(200)
 );
-/
 
 create persistent entity InheritanceSplitExample.SpecializedInput extends InheritanceSplitExample.BaseInput (
   Code: String(50)
 );
-/
 
 -- An object-type decision needs an outgoing flow for EVERY listed type,
 -- including the base entity. This example used `case Specialized` + `else`,
@@ -35,4 +34,3 @@ begin
   end split;
   return $IsSpecialized;
 end;
-/

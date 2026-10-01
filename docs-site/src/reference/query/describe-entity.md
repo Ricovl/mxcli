@@ -20,7 +20,7 @@ This is the primary way to inspect the full definition of an entity before modif
 Describe a customer entity:
 
 ```sql
-DESCRIBE ENTITY Sales.Customer
+DESCRIBE ENTITY Sales.Customer;
 ```
 
 Example output:
@@ -43,7 +43,7 @@ INDEX (Name);
 Describe a non-persistent entity:
 
 ```sql
-DESCRIBE ENTITY Sales.CustomerFilter
+DESCRIBE ENTITY Sales.CustomerFilter;
 ```
 
 ## See Also

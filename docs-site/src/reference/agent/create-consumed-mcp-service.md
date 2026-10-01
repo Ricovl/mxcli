@@ -10,7 +10,7 @@ CREATE [ OR MODIFY ] CONSUMED MCP SERVICE module.Name (
     [, documentation: 'description' ]
 );
 
-DROP CONSUMED MCP SERVICE module.Name
+DROP CONSUMED MCP SERVICE module.Name;
 ```
 
 Requires Mendix 11.9+.
@@ -51,7 +51,7 @@ CREATE CONSUMED MCP SERVICE MyModule."WebSearch" (
     ConnectionTimeoutSeconds: 30,
     documentation: 'Web search MCP server for research tasks'
 );
-/
+
 ```
 
 ### Idempotent upsert
@@ -63,7 +63,7 @@ CREATE OR MODIFY CONSUMED MCP SERVICE MyModule."WebSearch" (
     ConnectionTimeoutSeconds: 60,
     documentation: 'Updated web search MCP service'
 );
-/
+
 ```
 
 ## See Also

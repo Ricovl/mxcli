@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#750: an OData client's ServiceUrl names a constant, the same
 -- way ProxyHost does. Studio Pro picks the service URL as a constant (CE6825:
 -- "'Service url' must be a constant") and stores the reference in
@@ -11,28 +12,23 @@
 
 create constant OdSvc.Location
 ( Type: string, DefaultValue: 'https://api.example.com/odata/v4/' );
-/
 
 create consumed odata service OdSvc.Bare (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
   ServiceUrl: OdSvc.Location
 );
-/
 
 create consumed odata service OdSvc.At (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
   ServiceUrl: @OdSvc.Location
 );
-/
 
 create consumed odata service OdSvc.QuotedAt (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
   ServiceUrl: '@OdSvc.Location'
 );
-/
 
 alter consumed odata service OdSvc.QuotedAt set ( ServiceUrl: OdSvc.Location );
-/

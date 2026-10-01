@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #642: quoted `where '<xpath>'` mis-stores every constraint (CE0161)
 -- ============================================================================
@@ -55,6 +56,6 @@ create page BugTest642.PgQuoted
   listview lv (datasource: database BugTest642.MxfQ where '[Title=''abc'']') {
     dynamictext t (Attribute: Title)
   }
-}
+};
 
 describe microflow BugTest642.Mf_Quoted;

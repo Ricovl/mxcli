@@ -1,3 +1,4 @@
+mdl 1;
 -- ############################################################################
 -- FOLDER EXAMPLES
 -- ############################################################################
@@ -26,7 +27,6 @@ folder 'Processing'
 begin
   return true;
 end;
-/
 
 /**
  * Level 1.2: Create another microflow in a nested folder
@@ -37,7 +37,6 @@ folder 'Processing/Archive'
 begin
   return true;
 end;
-/
 
 -- MARK: - Move Documents Between Folders
 
@@ -45,13 +44,11 @@ end;
  * Level 2.1: Move a microflow to a different folder (auto-creates target)
  */
 move microflow FolderTest.ACT_Process to folder 'Resources';
-/
 
 /**
  * Level 2.2: Move a microflow to module root (out of folder)
  */
 move microflow FolderTest.ACT_Archive to FolderTest;
-/
 
 -- MARK: - Move Folders
 
@@ -59,13 +56,11 @@ move microflow FolderTest.ACT_Archive to FolderTest;
  * Level 2.3: Move a folder into another folder
  */
 move folder FolderTest.Resources to folder 'Processing';
-/
 
 /**
  * Level 2.4: Move a nested folder to module root (use quotes for paths with /)
  */
 move folder FolderTest."Processing/Resources" to FolderTest;
-/
 
 -- MARK: - Drop Folders
 
@@ -73,20 +68,17 @@ move folder FolderTest."Processing/Resources" to FolderTest;
  * Level 3.1: Drop an empty nested folder
  */
 drop folder 'Processing/Archive' in FolderTest;
-/
 
 /**
  * Level 3.2: Drop the now-empty parent folder
  */
 drop folder 'Processing' in FolderTest;
-/
 
 /**
  * Level 3.3: Move contents out, then drop folder
  */
 move microflow FolderTest.ACT_Process to FolderTest;
 drop folder 'Resources' in FolderTest;
-/
 
 -- cleanup
 -- ============================================================================
@@ -158,17 +150,14 @@ drop module FolderTest;
 -- ---------------------------------------------------------------------------
 
 create module FolderMove932;
-/
 
 create entity FolderMove932.Order (
   OrderId: integer,
   OrderName: string(200)
 );
-/
 
 create json structure FolderMove932.JSON_Order
   sample '{"id": 1, "name": "Widget"}';
-/
 
 create import mapping FolderMove932.IMM_Order
   with json structure FolderMove932.JSON_Order
@@ -178,24 +167,18 @@ create import mapping FolderMove932.IMM_Order
     OrderName = name
   }
 };
-/
 
 -- Doctypes that MOVE could not name before: the statement was a parse error
 -- ("no viable alternative at input 'MOVEIMPORT'").
 move json structure FolderMove932.JSON_Order to folder 'Private/JSON structures';
-/
 move import mapping FolderMove932.IMM_Order to folder 'Private/Import mappings';
-/
 
 -- A folder clause on CREATE OR MODIFY is the other way to place a document,
 -- and re-running it must be a no-op rather than a second move.
 create or modify json structure FolderMove932.JSON_Order
   folder 'Private/JSON structures'
   sample '{"id": 1, "name": "Widget"}';
-/
 
 list folders in FolderMove932;
-/
 
 drop module FolderMove932;
-/

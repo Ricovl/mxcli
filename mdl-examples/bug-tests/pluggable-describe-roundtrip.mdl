@@ -1,3 +1,4 @@
+mdl 1;
 -- Ledger #104: DESCRIBE PAGE must round-trip a pluggable widget.
 --
 -- Before the fix, describing this page emitted every property with no quotes
@@ -35,5 +36,4 @@ create or modify page MyFirstModule.BT_PluggableRoundTrip (
     showLabel: true,
     labelType: 'percentage'
   )
-}
-/
+};

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger finding #54 (round 2): custom-content column with empty/absent caption
 -- ============================================================================
@@ -50,6 +51,6 @@ create or modify page L54c.Grid (
       actionbutton btnB (Caption: 'Go2', Action: call microflow L54c.RowAction(Thing = $currentObject))
     }
   }
-}
+};
 
 grant view on page L54c.Grid to L54c.User;

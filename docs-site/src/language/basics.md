@@ -21,6 +21,7 @@ INDEX (Name);
 Every statement ends with a semicolon (`;`):
 
 ```sql
+mdl 1;
 CREATE MODULE OrderManagement;
 
 CREATE PERSISTENT ENTITY Sales.Order (

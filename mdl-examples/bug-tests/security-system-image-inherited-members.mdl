@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#972 — GRANT on a System.Image specialization wrote a member
 -- access for System.Thumbnail_Image, and mxbuild rejected the rule:
 --

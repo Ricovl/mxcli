@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- FINDINGS #52 & #53: two microflow-check false positives that blocked valid,
 -- build-clean Mendix expressions
@@ -22,15 +23,13 @@
 -- ============================================================================
 
 create entity MyFirstModule.Matter ( BudgetHours: Decimal );
-/
 
 -- #53: current-user id token — must NOT trip MDL048.
 create or modify microflow MyFirstModule.BT_CurrentUser () returns String as $out
 begin
-  retrieve $me from System.User where [id = '[%CurrentUser%]'] limit 1;
+  retrieve $me from System.User where [id = '[%CurrentUser%]'] first;
   return 'ok';
 end;
-/
 
 -- #52: division by an association-attribute path — must NOT trip MDL045.
 create or modify microflow MyFirstModule.BT_DivByAssocAttr
@@ -40,4 +39,3 @@ begin
   set $budgetPct = round($matterHours div $matter/BudgetHours * 100);
   return $budgetPct;
 end;
-/

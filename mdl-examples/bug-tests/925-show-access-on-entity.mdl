@@ -1,3 +1,4 @@
+mdl 1;
 -- upstream #925 — `SHOW ACCESS ON ENTITY Mod.Entity` was a parse error, while
 -- the MICROFLOW and PAGE spellings parsed.
 --
@@ -34,24 +35,18 @@
 
 -- The regression: this line is the whole issue.
 list access on entity Administration.Account;
-/
 
 -- Its synonym, which always worked. The two must print the same report.
 list access on Administration.Account;
-/
 
 -- LIST is the other half of showOrList, so it must reach the same statement.
 list access on entity Administration.Account;
-/
 
 -- The second defect: this printed the page's widget tree before the fix.
 list access on page Administration.Account_Overview;
-/
 
 -- Controls — the guards must not steal the plain spellings, which still
 -- describe the document rather than reporting access.
 describe entity Administration.Account;
-/
 
 describe page Administration.Account_Overview;
-/

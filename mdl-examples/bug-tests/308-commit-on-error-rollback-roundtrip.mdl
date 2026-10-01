@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #308: `commit ... on error rollback` lost during describe → exec → describe
 -- ============================================================================
@@ -33,7 +34,6 @@ create module BugTest308;
 create entity BugTest308.Item (
   Name : string(100)
 );
-/
 
 create microflow BugTest308.MF_CommitRollback (
   $Item: BugTest308.Item
@@ -41,7 +41,6 @@ create microflow BugTest308.MF_CommitRollback (
 begin
   commit $Item on error rollback;
 end;
-/
 
 -- The `on error continue` case that used to sit here has been REMOVED, because
 -- it asserted something that does not build. Measured on 11.14.0: the statement

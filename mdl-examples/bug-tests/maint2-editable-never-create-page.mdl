@@ -1,3 +1,4 @@
+mdl 1;
 -- `editable: Never` in CREATE PAGE was written as "Always" (ako/mxcli-maintenance-2).
 --
 -- The property parsed, passed `mxcli check`, passed `mxcli exec`, and passed
@@ -47,7 +48,7 @@ create or modify page MaintTwo.WorkOrder_View (
       }
     }
   }
-}
+};
 
 -- Round-trip: DESCRIBE now emits `Editable: Never`, so re-executing its output
 -- reproduces the same document instead of silently widening it to Always.

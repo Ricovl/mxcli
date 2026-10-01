@@ -1,3 +1,4 @@
+mdl 1;
 -- Repro: `create translations` mints `Texts$Translation` element ids as 16 raw
 -- random bytes, where Mendix stores every element id as a .NET Guid — a UUID in
 -- mixed-endian byte order.
@@ -46,7 +47,7 @@ create or modify page TrId.P_Widgets (Title: 'Widgets', Layout: Atlas_Core.Atlas
   DATAGRID dg (DataSource: DATABASE TrId.Widget) {
     COLUMN (Attribute: Label, Caption: 'Label')
   }
-}
+};
 
 grant view on page TrId.P_Widgets to TrId.User;
 

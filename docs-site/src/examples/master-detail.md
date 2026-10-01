@@ -8,12 +8,12 @@ CREATE PAGE CRM.Customer_MasterDetail (
   Layout: Atlas_Core.Atlas_Default
 ) {
   LAYOUTGRID mainGrid {
-    ROW row1 {
+    ROW {
       -- Master list (left panel)
-      COLUMN colMaster (DesktopWidth: 4) {
+      COLUMN (DesktopWidth: 4) {
         DYNAMICTEXT heading (Content: 'Customers', RenderMode: H3)
         GALLERY customerList (DataSource: DATABASE CRM.Customer, Selection: Single) {
-          TEMPLATE template1 {
+          TEMPLATE {
             DYNAMICTEXT name (
               Content: '{1}',
               ContentParams: ({1} = Name),
@@ -28,7 +28,7 @@ CREATE PAGE CRM.Customer_MasterDetail (
       }
 
       -- Detail form (right panel, bound to gallery selection)
-      COLUMN colDetail (DesktopWidth: 8) {
+      COLUMN (DesktopWidth: 8) {
         DYNAMICTEXT detailHeading (Content: 'Details', RenderMode: H3)
         DATAVIEW customerDetail (DataSource: SELECTION customerList) {
           TEXTBOX txtName (Label: 'Name', Attribute: Name)
@@ -48,7 +48,7 @@ CREATE PAGE CRM.Customer_MasterDetail (
     }
   }
 };
-/
+
 ```
 
 The key pattern is `DataSource: SELECTION customerList` -- the data view automatically displays whichever item is selected in the gallery. No event handlers, no microflow calls, no state management.

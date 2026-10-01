@@ -1,3 +1,4 @@
+mdl 1;
 -- #1200: a pluggable widget built from its .mpk (no embedded template) lost the
 -- `<actionVariables>` its action properties declare. The action's ValueType
 -- was written with an empty ActionVariables list, so the stored widget Type
@@ -21,4 +22,4 @@ create or modify page Sig.Sign_Edit (Title: 'Sign', Layout: Atlas_Core.Atlas_Def
   DATAVIEW dv (DataSource: $Request) {
     pluggablewidget 'com.mendix.widget.web.signature.Signature' sig1 ()
   }
-}
+};

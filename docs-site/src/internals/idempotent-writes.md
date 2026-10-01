@@ -84,6 +84,7 @@ compared with what was stored before the run. This matters for a "reset, then
 grant" section:
 
 ```sql
+mdl 1;
 revoke all on entity Shop.Order from Shop.User;
 grant read *, write * on entity Shop.Order to Shop.User;
 ```

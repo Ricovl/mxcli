@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test for upstream issue #882: JSON member names in import/export mappings.
 --
 -- A JSON structure element carries TWO names, and for any lowercase-initial key
@@ -30,21 +31,14 @@
 -- Verified on mxbuild 11.6.6, both engines.
 
 create module B882;
-/
 create non-persistent entity B882.Root ( Total: integer, Camel: string(200) );
-/
 create non-persistent entity B882.Inner ( Cnt: integer );
-/
 create non-persistent entity B882.Item ( Nm: string(200) );
-/
 create association B882.Root_Inner from B882.Root to B882.Inner;
-/
 create association B882.Inner_Item from B882.Item to B882.Inner;
-/
 
 create json structure B882.JS
   sample $${ "total": 1, "camelCase": "x", "entityInstances": { "__returnedCount": 2, "__Value": [ { "name": "a" } ] } }$$;
-/
 
 -- Authored with the RAW JSON keys, as hand-written MDL spells them.
 create import mapping B882.IM_RawKeys with json structure B882.JS
@@ -60,7 +54,6 @@ create import mapping B882.IM_RawKeys with json structure B882.JS
     }
   }
 };
-/
 
 -- Authored with the EXPOSED names, as `describe import mapping` emits them.
 -- Must produce byte-identical JsonPaths to IM_RawKeys — this is the statement
@@ -78,13 +71,10 @@ create import mapping B882.IM_ExposedNames with json structure B882.JS
     }
   }
 };
-/
 
 -- Export mappings carry the same two names and had the same defect.
 create non-persistent entity B882.ExRoot ( Total: integer, Camel: string(200) );
-/
 create json structure B882.JSX sample '{ "total": 1, "camelCase": "x" }';
-/
 create export mapping B882.EM_RawKeys with json structure B882.JSX
 {
   B882.ExRoot {
@@ -92,7 +82,6 @@ create export mapping B882.EM_RawKeys with json structure B882.JSX
     camelCase = Camel
   }
 };
-/
 create export mapping B882.EM_ExposedNames with json structure B882.JSX
 {
   B882.ExRoot {
@@ -100,7 +89,6 @@ create export mapping B882.EM_ExposedNames with json structure B882.JSX
     CamelCase = Camel
   }
 };
-/
 
 -- Third divergence from Studio Pro, and the one a side-by-side comparison shows
 -- first: mxcli copied the JSON structure's OriginalValue — the SAMPLE value

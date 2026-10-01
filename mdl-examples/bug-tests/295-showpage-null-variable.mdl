@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test: SHOW_PAGE inside a widget action must not produce null PageParameterMapping.Variable.
 -- Issue #295: buttons calling SHOW_PAGE with a variable argument serialized
 -- Variable: null in BSON (Forms$PageParameterMapping), causing Studio Pro to throw:

@@ -1,3 +1,4 @@
+mdl 1;
 -- WidgetDemo Showcase: comprehensive baseline for all MDL-supported widget types
 -- Uses WidgetDemo.DemoItem + WidgetDemo.Helper (no external dependencies)
 -- Every widget is fully configured with realistic properties
@@ -450,6 +451,6 @@ create or modify page WidgetDemo.WidgetDemo_Showcase (
       }
     }
   }
-}
+};
 
 grant view on page WidgetDemo.WidgetDemo_Showcase to WidgetDemo.user;

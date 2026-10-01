@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #728 — Consumed OData service ConfigurationMicroflow ignored on 11.10+
 -- ============================================================================
@@ -42,7 +43,6 @@ begin
   $Headers = create list of System.HttpHeader;
   return $Headers;
 end;
-/
 
 -- Configuration microflow → BSON ConfigurationEntityMicroflow (11.10+).
 create consumed odata service BugTest728.ConfigSvc (

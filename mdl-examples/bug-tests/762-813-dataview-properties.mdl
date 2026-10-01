@@ -1,3 +1,4 @@
+mdl 1;
 -- Bugs #762 and #813: two DataView properties that parsed, passed `check`, and were
 -- then silently discarded.
 --
@@ -71,5 +72,4 @@ create or modify page Issue762.DVTest (
       }
     }
   }
-}
-/
+};

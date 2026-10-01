@@ -68,6 +68,7 @@ SQL legacy GENERATE CONNECTOR INTO Integration
 Once a database connection is defined, microflows can execute queries at runtime:
 
 ```sql
+mdl 1;
 -- Non-persistent entity for query results
 CREATE NON-PERSISTENT ENTITY Integration.Customer (
   /** Customer name from external system */
@@ -77,7 +78,6 @@ CREATE NON-PERSISTENT ENTITY Integration.Customer (
   /** Account balance */
   Balance: Decimal
 );
-/
 
 -- Database connection with parameterized query
 CREATE DATABASE CONNECTION Integration.LegacyDatabase (
@@ -93,7 +93,6 @@ CREATE DATABASE CONNECTION Integration.LegacyDatabase (
     Map: (Name = name, Email = email, Balance = balance)
   )
 };
-/
 
 -- Microflow that executes the query
 CREATE MICROFLOW Integration.SearchLegacyCustomers ($SearchTerm: String)
@@ -103,5 +102,5 @@ BEGIN
     (search = '%' + $SearchTerm + '%');
   RETURN $Results;
 END;
-/
+
 ```

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Feature: @anchor annotation for sequence flow endpoints
 -- ============================================================================
@@ -57,7 +58,6 @@ begin
   set $result = 'done';
   return $result;
 end;
-/
 
 create microflow BugTestAnchor.MF_IfBranchAnchors ()
 returns string as $result
@@ -73,7 +73,6 @@ begin
 
   return $result;
 end;
-/
 
 -- ============================================================================
 -- Section B — parse-only forward-compatibility examples (LOOP / WHILE)
@@ -102,7 +101,6 @@ begin
     log info node 'App' 'step';
   end loop;
 end;
-/
 
 create microflow BugTestAnchor.MF_WhileAnchors ()
 begin
@@ -111,4 +109,3 @@ begin
     log info node 'App' 'tick';
   end while;
 end;
-/

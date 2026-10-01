@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger finding #48 (root cause): association navigation in a microflow
 -- expression dropped its target-entity step → CE0117

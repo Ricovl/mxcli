@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- FINDINGS #54: `describe microflow` rendered `set task outcome` as
 -- "-- Empty action" under the default (modelsdk) engine
@@ -31,6 +32,5 @@ begin
   set task outcome $UserTask 'Approve';
   return;
 end;
-/
 
 describe microflow MyFirstModule.BT_SetOutcome;

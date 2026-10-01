@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- ako/mxcli#550 — `describe page` → `exec` over a Studio Pro page silently
@@ -50,7 +51,7 @@ returns boolean
 begin
   commit $Account;
   return true;
-end
+end;
 
 create or modify page Issue550.ChangePasswordForm (
   title: 'Change Password',
@@ -87,7 +88,7 @@ create or modify page Issue550.ChangePasswordForm (
       }
     }
   }
-}
+};
 
 -- Emitted so the round trip can be inspected by hand; see the NOTE above about
 -- what this does and does not prove.

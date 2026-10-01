@@ -39,6 +39,7 @@ CREATE MODULE ROLE Shop.Admin DESCRIPTION 'Full administrative access to shop mo
 Create multiple roles for a module:
 
 ```sql
+mdl 1;
 CREATE MODULE ROLE HR.Manager DESCRIPTION 'Can manage employees';
 CREATE MODULE ROLE HR.Employee DESCRIPTION 'Self-service access';
 CREATE MODULE ROLE HR.Viewer DESCRIPTION 'Read-only access';

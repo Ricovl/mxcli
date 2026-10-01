@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Widget action argument names that are keywords required quoting; call microflow
 -- did not
@@ -46,6 +47,6 @@ create or modify page MyFirstModule.P_KwArg
       dynamictext t (content: 'open')
     }
   }
-}
+};
 
 describe page MyFirstModule.P_KwArg;

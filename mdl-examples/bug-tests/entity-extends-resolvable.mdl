@@ -1,3 +1,4 @@
+mdl 1;
 -- The positive controls for the EXTENDS validation added alongside
 -- mendixlabs/mxcli#972. Its negative half is entity-extends-unresolvable.fail.mdl.
 --

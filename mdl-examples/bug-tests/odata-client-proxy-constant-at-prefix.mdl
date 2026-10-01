@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: an OData client's proxy constant written as `@Module.Const` was stored
 -- with the `@`.
 --
@@ -29,7 +30,6 @@ create constant OdProxy.ProxyPassword
 
 create constant OdProxy.ApiLocation
 ( Type: string, DefaultValue: 'https://api.example.com/odata/v4/' );
-/
 
 create consumed odata service OdProxy.ProxiedApi (
   ODataVersion: OData4,
@@ -41,7 +41,5 @@ create consumed odata service OdProxy.ProxiedApi (
   ProxyUsername: OdProxy.ProxyUsername,
   ProxyPassword: @OdProxy.ProxyPassword
 );
-/
 
 alter consumed odata service OdProxy.ProxiedApi set ( ProxyHost: @OdProxy.ProxyHost );
-/

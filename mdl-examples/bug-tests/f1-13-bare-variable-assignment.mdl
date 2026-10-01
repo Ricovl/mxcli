@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- mxcli-formula1 finding #13: `$N = 0;` did not parse
 -- ============================================================================
@@ -30,9 +31,9 @@ create persistent entity F1ASSIGN.Item (Name: string(50), Qty: integer);
 create microflow F1ASSIGN.MF ($Item: F1ASSIGN.Item)
 begin
   declare $Total integer = 0;
-  $Total = 5;
-  $Total = -1;
-  $Total = $Total + 1;
+  set $Total = 5;
+  set $Total = -1;
+  set $Total = $Total + 1;
   set $Total = 7;
   $Item/Qty = 3;
   $New = create F1ASSIGN.Item (Name = 'x');

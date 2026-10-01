@@ -22,6 +22,7 @@ DROP IMAGE COLLECTION MyModule.StatusIcons;
 ### Check references before dropping
 
 ```sql
+mdl 1;
 LIST REFERENCES TO MyModule.AppIcons;
 DROP IMAGE COLLECTION MyModule.AppIcons;
 ```

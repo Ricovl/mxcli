@@ -1,9 +1,9 @@
+mdl 1;
 create module ChangeRefreshExample;
 
 create persistent entity ChangeRefreshExample.Customer (
   Name: string
 );
-/
 
 create microflow ChangeRefreshExample.RefreshChangedCustomer (
   $Customer: ChangeRefreshExample.Customer
@@ -14,4 +14,3 @@ begin
   change $Customer refresh;
   return true;
 end;
-/

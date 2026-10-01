@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1121 — CREATE PAGE with Params: was refused on every Mendix 10
 -- project, so no parameterised page could be authored from MDL there at all.
 --
@@ -50,7 +51,7 @@ CREATE OR MODIFY PAGE Bug1121.Item_Edit (
       }
     }
   }
-}
+};
 
 -- 2. Passing the argument from a microflow. Without this half a parameterised
 --    page is unreachable, which is the other thing the report calls out.
@@ -58,4 +59,4 @@ CREATE OR MODIFY MICROFLOW Bug1121.ACT_EditItem (
   $Item: Bug1121.Item
 ) BEGIN
   SHOW PAGE Bug1121.Item_Edit (Item = $Item);
-END
+END;

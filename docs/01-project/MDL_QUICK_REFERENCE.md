@@ -150,6 +150,7 @@ Modifies an existing entity without full replacement.
 
 **Example:**
 ```sql
+mdl 1;
 alter entity Sales.Customer
   add attribute Phone: string(50),
   add attribute Notes: string(unlimited);
@@ -184,6 +185,7 @@ is refused on a private override, `list constant values` reports it as `(private
 
 **Example:**
 ```sql
+mdl 1;
 create constant MyModule.ApiBaseUrl ( Type: string, DefaultValue: 'https://api.example.com' );
 create constant MyModule.MaxRetries ( Type: integer, DefaultValue: 3 );
 create constant MyModule.EnableLogging ( Type: boolean, DefaultValue: true );
@@ -211,6 +213,7 @@ was gone.)
 
 **Example:**
 ```sql
+mdl 1;
 create task queue Ops.OrderProcessing ( Parallelism: 3, ClusterWide: true );
 create task queue Ops.Mail;
 create or modify task queue Ops.OrderProcessing ( Parallelism: '$MyModule.Workers' );
@@ -270,6 +273,7 @@ expression specified".
 **Required and Unique are attribute constraints, not this statement:**
 
 ```sql
+mdl 1;
 create entity Shop.Product ( Email: String(200) not null error message 'Required' );
 alter entity Shop.Product modify attribute Code: String(20) unique error message 'Unique';
 ```
@@ -282,6 +286,7 @@ Required rule.
 
 **Example:**
 ```sql
+mdl 1;
 /** A, not too restrictive, email address regular expression */
 create regular expression Val.EmailAddress (
   Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+'
@@ -327,6 +332,7 @@ Optional on any repeat: `Enabled` (default false), `OnOverlap`
 
 **Example:**
 ```sql
+mdl 1;
 create scheduled event Ops.NightlyCleanup (
   Microflow: Ops.SE_Cleanup,
   Repeat: Daily,
@@ -381,6 +387,7 @@ create scheduled event Ops.WeeklyReport (
 
 **OData Client Example:**
 ```sql
+mdl 1;
 -- HTTP(S) URL (fetches metadata from remote service)
 create consumed odata service MyModule.ExternalAPI (
   Version: '1.0',
@@ -905,7 +912,7 @@ spelling still parses and warns (MDL-DEPR121, MDL-DEPR122).
 
 **Navigation Example:**
 ```sql
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page MyModule.Home_Web
   home page MyModule.AdminHome for Administrator
   login page Administration.Login
@@ -1197,6 +1204,7 @@ create consumed rest service Module.Api (
 Generate a consumed REST service document directly from an OpenAPI 3.0 spec (JSON or YAML):
 
 ```sql
+mdl 1;
 -- From a local file (relative to the .mpr file)
 create or modify consumed rest service CapitalModule.CapitalAPI (
   OpenAPI: 'specs/capital.json'
@@ -1572,7 +1580,7 @@ create page MyModule.Customer_Edit
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
-}
+};
 ```
 
 **Widget Properties:**
@@ -1696,6 +1704,7 @@ This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <t
 
 **Example:**
 ```sql
+mdl 1;
 alter page Module.EditPage {
   set (caption: 'Save & Close', buttonstyle: success) on btnSave;
   drop txtUnused;
@@ -1719,6 +1728,7 @@ Only structural MDL keywords require quoting: `create`, `delete`, `begin`, `end`
 
 **Quoted identifiers** escape any reserved word (double-quotes or backticks):
 ```sql
+mdl 1;
 describe entity "combobox"."CategoryTreeVE";
 list entities in "combobox";
 create persistent entity Module.VATRate ("create": datetime, Rate: decimal);

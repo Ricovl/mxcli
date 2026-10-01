@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Business Event Examples - Comprehensive Parser Feature Showcase
 -- ============================================================================
@@ -25,7 +26,6 @@ create or modify persistent entity BusinessEvents.PublishedBusinessEvent (
 );
 create or modify constant BusinessEvents.ServerUrl
 ( Type: string, DefaultValue: 'localhost:9092' );
-/
 
 -- MARK: Supporting Entities
 

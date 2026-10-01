@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Inline REST mapping: multi-segment paths, and the export body that made the
 -- project unloadable

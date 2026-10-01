@@ -6,13 +6,13 @@ The `REFRESH CATALOG` command builds or rebuilds the catalog index from the curr
 
 ```sql
 -- Basic refresh: builds metadata tables
-REFRESH CATALOG
+REFRESH CATALOG;
 
 -- Full refresh: builds metadata + cross-references + source
-REFRESH CATALOG FULL
+REFRESH CATALOG FULL;
 
 -- Force rebuild: ignores cached catalog
-REFRESH CATALOG FULL FORCE
+REFRESH CATALOG FULL FORCE;
 ```
 
 ## Refresh Levels

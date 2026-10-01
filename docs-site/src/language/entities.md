@@ -141,6 +141,7 @@ CREATE PERSISTENT ENTITY Sales.Order (
 Toggle on existing entities with ALTER ENTITY:
 
 ```sql
+mdl 1;
 ALTER ENTITY Sales.Order ADD ATTRIBUTE Owner: AutoOwner;
 ALTER ENTITY Sales.Order DROP ATTRIBUTE ChangedDate;
 ```
@@ -209,6 +210,7 @@ ON AFTER CREATE CALL Sales.ACT_InitDefaults;
 Event handlers can also be added or removed via `ALTER ENTITY`:
 
 ```sql
+mdl 1;
 -- Add a handler to an existing entity
 ALTER ENTITY Sales.Order
   ADD EVENT HANDLER ON BEFORE DELETE CALL Sales.ACT_CheckCanDelete RAISE ERROR;

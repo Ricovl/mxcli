@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #262: Treat terminal nested IF as returning in flow builder
 -- ============================================================================
@@ -33,7 +34,6 @@ begin
     return 'not a';
   end if;
 end;
-/
 
 create microflow BugTest262.MF_ElseIfChainAllReturn (
   $input: string
@@ -50,4 +50,3 @@ begin
     return 'other';
   end if;
 end;
-/

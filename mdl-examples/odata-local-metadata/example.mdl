@@ -1,3 +1,4 @@
+mdl 1;
 -- Example: Using local OData metadata files
 --
 -- This demonstrates three ways to specify local metadata files for OData clients:

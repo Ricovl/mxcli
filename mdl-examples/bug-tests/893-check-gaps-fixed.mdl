@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #893 (items 1, 2 and 6): the passing counterpart
 -- ============================================================================
@@ -20,14 +21,12 @@ create module BugTest893Fixed;
 create entity BugTest893Fixed.Part (
   Name : string
 );
-/
 
 create microflow BugTest893Fixed.Helper ()
 returns string
 begin
   return 'hello';
 end;
-/
 
 -- Item 1 fixed: give the variable a starting value. Mendix has no
 -- uninitialized variable — every one is created with a value.
@@ -36,7 +35,6 @@ begin
   declare $X string = '';
   log info node 'x' 'y';
 end;
-/
 
 -- Item 2 fixed: `break` leaves the loop without placing an End event in it.
 -- To return a value, assign it inside the loop and return once after it.
@@ -48,7 +46,6 @@ begin
     break;
   end loop;
 end;
-/
 
 -- Item 6 fixed: drop the declare. The call activity creates '$Session' itself;
 -- there is no form in which it writes into an existing variable.
@@ -57,4 +54,3 @@ begin
   $Session = call microflow BugTest893Fixed.Helper();
   log info node 'x' $Session;
 end;
-/

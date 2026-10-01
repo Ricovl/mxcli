@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #760: every mxcli-authored page gained a container nobody asked for.
 --
 -- The builder wrapped each non-empty layout placeholder in a synthetic
@@ -32,8 +33,7 @@ create or modify page Issue760.OneWidget (
 )
 {
   actionbutton btnOnly (caption: 'Only widget', action: close page)
-}
-/
+};
 
 -- The case the wrapper was introduced for: several top-level widgets go into the
 -- placeholder's Widgets array side by side, not inside a container.
@@ -47,5 +47,4 @@ create or modify page Issue760.SeveralWidgets (
   container cAuthored {
     dynamictext dtNested (content: 'A container the author DID write — must survive')
   }
-}
-/
+};

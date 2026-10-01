@@ -1,3 +1,4 @@
+mdl 1;
 -- Findings #4: `index name on (cols)` (the SQL-like form documented for entity
 -- indexes) failed to parse with "extraneous input 'on' expecting '('". The ON
 -- keyword is now optional in an index definition, so both forms parse.

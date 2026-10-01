@@ -1,3 +1,4 @@
+mdl 1;
 create microflow SampleAnnotations.ACT_FreeAnnotation ()
 returns Void
 begin
@@ -11,4 +12,3 @@ begin
 
   return;
 end;
-/

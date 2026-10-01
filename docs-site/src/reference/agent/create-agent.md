@@ -28,7 +28,7 @@ CREATE [ OR MODIFY ] AGENT module.Name (
 } ]
 ;
 
-DROP AGENT module.Name
+DROP AGENT module.Name;
 ```
 
 Requires Mendix 11.9+.
@@ -114,7 +114,7 @@ CREATE AGENT MyModule."Summarizer" (
     SystemPrompt: 'Summarize the given text in 3 sentences.',
     UserPrompt: 'Enter text to summarize.'
 );
-/
+
 ```
 
 ### Agent with variable substitution
@@ -127,7 +127,7 @@ CREATE AGENT MyModule."Translator" (
     SystemPrompt: 'Translate the text into {{Language}}.',
     UserPrompt: 'Hello world'
 );
-/
+
 ```
 
 ### Agent with multi-line dollar-quoted prompt
@@ -148,7 +148,7 @@ Provide specific, actionable feedback.$$,
     fmt.Println("Hello, World!")
 }$$
 );
-/
+
 ```
 
 ### Conversational agent with MCP service and knowledge base
@@ -176,7 +176,7 @@ CREATE AGENT MyModule."ResearchAssistant" (
         Enabled: true
     )
 };
-/
+
 ```
 
 ### Idempotent upsert
@@ -190,7 +190,7 @@ CREATE OR MODIFY AGENT MyModule."ResearchAssistant" (
     SystemPrompt: $$You are an updated research assistant.$$,
     UserPrompt: 'How can I help you today?'
 );
-/
+
 ```
 
 ## Notes

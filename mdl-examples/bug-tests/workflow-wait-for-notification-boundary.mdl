@@ -1,3 +1,4 @@
+mdl 1;
 -- describe dropped the boundary events of a wait for notification on the default
 -- engine.
 --
@@ -21,7 +22,6 @@
 create module WFWN;
 
 create persistent entity WFWN.Request ( Title: string(100) );
-/
 
 create page WFWN.TaskPage (
   title: 'Task',
@@ -29,8 +29,7 @@ create page WFWN.TaskPage (
   params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 { row { column (desktopwidth: 12) { dynamictext t1 (content: 'Task') } } }
-}
-/
+};
 
 create workflow WFWN.AwaitReply
   parameter $Request: WFWN.Request
@@ -56,4 +55,3 @@ begin
     page WFWN.TaskPage
     outcomes 'Done' { } 'Reject' { };
 end workflow;
-/

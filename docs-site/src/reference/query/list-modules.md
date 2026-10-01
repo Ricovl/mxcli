@@ -19,14 +19,14 @@ This statement takes no parameters.
 List all modules in the project:
 
 ```sql
-LIST MODULES
+LIST MODULES;
 ```
 
 Use the result to explore a specific module:
 
 ```sql
-LIST MODULES
-LIST ENTITIES IN MyFirstModule
+LIST MODULES;
+LIST ENTITIES IN MyFirstModule;
 ```
 
 ## See Also

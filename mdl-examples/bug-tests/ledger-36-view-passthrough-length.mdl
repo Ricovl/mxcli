@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger finding #36: view-entity pass-through string column length must match
 -- the source attribute exactly

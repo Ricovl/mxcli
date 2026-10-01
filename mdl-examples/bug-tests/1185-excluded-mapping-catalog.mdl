@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test for upstream issue #1185: "documents with same [name] not
 -- discernable in catalog" (mxcli 0.24, mx 11.12.3).
 --
@@ -31,7 +32,6 @@ create json structure MyFirstModule.JSON_1185
 sample '{"id": 1, "name": "x"}';
 
 create non-persistent entity MyFirstModule.Order1185 ( OrderId: integer, Name: string(200) );
-/
 
 create import mapping MyFirstModule.IMM_1185
   with json structure MyFirstModule.JSON_1185

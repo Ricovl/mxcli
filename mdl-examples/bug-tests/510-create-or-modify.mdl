@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test for issue #510:
 -- Standardise on CREATE OR MODIFY — remove/deprecate CREATE OR REPLACE variants
 --
@@ -84,7 +85,6 @@ begin
   declare $Result string = '[]';
   return $Result;
 end;
-/
 
 create published rest service BugTest510.OrderAPI (
   path: 'rest/orders/v1',

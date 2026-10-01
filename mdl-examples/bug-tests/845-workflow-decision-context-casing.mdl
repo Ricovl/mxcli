@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #845: workflow DECISION expressions were not case-normalized.
 --
 -- The workflow context parameter is stored as "WorkflowContext". Mendix

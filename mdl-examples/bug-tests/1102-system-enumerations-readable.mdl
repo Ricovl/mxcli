@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1102 — System enumerations are invisible to show/describe/search
 --
 -- `describe entity` printed attributes typed against System enumerations while

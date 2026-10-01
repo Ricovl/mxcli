@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1067 (c): a member added later is invisible to a role whose
 -- access rule was granted per member.
 --

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue mendixlabs/mxcli#931 — a hidden pluggable-widget property fails the build
 -- ============================================================================
@@ -46,7 +47,6 @@
 -- ============================================================================
 
 create module M931;
-/
 
 -- The reporter's page, corrected: `collapsible: true` shows the State group, so
 -- the same group values are legal. This is the statement that must execute and
@@ -65,8 +65,7 @@ create or modify page M931.AccordionOK (
                   LoadContent: 'always', InitialCollapsedState: 'expanded',
                   InitiallyCollapsed: 'true')
   }
-}
-/
+};
 
 -- The failing shapes, kept as documentation. Uncomment either one and re-run
 -- `mxcli check ... -p app.mpr` to see the error; `mx check` reports CE0463 on
@@ -142,8 +141,7 @@ create or modify page M931.StylingOK (
       }
     }
   }
-}
-/
+};
 
 ALTER STYLING ON PAGE M931.StylingOK WIDGET lg1
   SET ( 'Row gap': 'Large' );

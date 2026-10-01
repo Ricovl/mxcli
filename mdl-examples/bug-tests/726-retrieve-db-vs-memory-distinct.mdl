@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #726 — database and memory (association) retrieves indistinguishable
 -- ============================================================================
@@ -36,7 +37,6 @@ create persistent entity TestBug726.OrderLine ( LineNo: integer );
 create association TestBug726.OrderLine_Order
   from TestBug726.OrderLine to TestBug726.Order
   type reference owner default;
-/
 
 create microflow TestBug726.ACT_get_test ( $Order: TestBug726.Order )
 begin
@@ -47,4 +47,3 @@ begin
     where TestBug726.OrderLine_Order = $Order;
   return;
 end;
-/

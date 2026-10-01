@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug 11b: DESCRIBE WORKFLOW rendered jump/wait/start/end as comments
 -- ============================================================================
@@ -42,14 +43,12 @@ create microflow WF11.ACT_Noop ()
 begin
   return true;
 end;
-/
 
 create microflow WF11.ACT_Check ()
   returns boolean as $Result
 begin
   return true;
 end;
-/
 
 create or modify workflow WF11.WF_RoundTrip
   parameter $Context: WF11.Request
@@ -67,4 +66,3 @@ begin
       true -> { }
       false -> { jump to ACT_Noop; };
 end workflow;
-/

@@ -13,6 +13,7 @@ GRANT EXECUTE ON MICROFLOW <Module>.<Name> TO <Module>.<Role> [, ...];
 Examples:
 
 ```sql
+mdl 1;
 -- Single role
 GRANT EXECUTE ON MICROFLOW Shop.ACT_ProcessOrder TO Shop.Admin;
 
@@ -43,6 +44,7 @@ GRANT VIEW ON PAGE <Module>.<Name> TO <Module>.<Role> [, ...];
 Examples:
 
 ```sql
+mdl 1;
 GRANT VIEW ON PAGE Shop.Order_Overview TO Shop.User, Shop.Admin;
 GRANT VIEW ON PAGE Shop.Admin_Dashboard TO Shop.Admin;
 ```
@@ -64,6 +66,7 @@ REVOKE VIEW ON PAGE Shop.Admin_Dashboard FROM Shop.User;
 Nanoflow access uses the same syntax as microflow access:
 
 ```sql
+mdl 1;
 GRANT EXECUTE ON NANOFLOW Shop.NAV_Filter TO Shop.User, Shop.Admin;
 REVOKE EXECUTE ON NANOFLOW Shop.NAV_Filter FROM Shop.User;
 ```

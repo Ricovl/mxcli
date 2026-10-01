@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #418: SHOW WIDGETS WHERE Name LIKE returns no results
 -- Root cause: visitor set Operator="LIKE" (upper) but executor checked "like" (lower)
 -- Fix: use strings.EqualFold for operator comparison in cmd_widgets.go

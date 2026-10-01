@@ -91,6 +91,7 @@ LIST IMPACT OF Sales.Customer;
 Moving elements across modules changes their qualified name and can break references:
 
 ```sql
+mdl 1;
 -- Check impact before moving
 LIST IMPACT OF OldModule.Customer;
 

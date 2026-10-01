@@ -1,3 +1,4 @@
+mdl 1;
 -- Issue #932: a FOLDER clause on a document that already exists was accepted,
 -- reported as a success, and silently dropped.
 --
@@ -12,13 +13,11 @@
 -- already occupies is not a write.
 
 create module Bug932;
-/
 
 -- Everything is created at the module root first, so the folder clauses below
 -- are genuinely moves rather than initial placements.
 create or modify json structure Bug932.JSON_Example
   sample '{"result": [{"id": 1}]}';
-/
 
 create or modify microflow Bug932.ACT_Example()
 returns boolean as $ok
@@ -26,20 +25,16 @@ begin
   declare $ok boolean = true;
   return $ok;
 end;
-/
 
 create or modify enumeration Bug932.ENUM_Example (Draft 'Draft', Published 'Published');
-/
 
 create or modify constant Bug932.CONST_Example ( Type: string, DefaultValue: 'x' );
-/
 
 -- Now file each one away. Before the fix every one of these printed a success
 -- and moved nothing.
 create or modify json structure Bug932.JSON_Example
   folder 'Private/JSON Structures'
   sample '{"result": [{"id": 1}]}';
-/
 
 create or modify microflow Bug932.ACT_Example()
 returns boolean as $ok
@@ -48,30 +43,23 @@ begin
   declare $ok boolean = true;
   return $ok;
 end;
-/
 
 create or modify enumeration Bug932.ENUM_Example (Draft 'Draft', Published 'Published')
   folder 'Private';
-/
 
 create or modify constant Bug932.CONST_Example folder 'Private' ( Type: string, DefaultValue: 'x' );
-/
 
 -- Expected layout: nothing left at the module root, and no empty folders.
 -- Doctypes that had no folder clause at all before #932: they could only ever
 -- be created at the module root, and MOVE did not name them either.
 create task queue Bug932.Q_Example folder 'Private/Queues' ( Parallelism: 3 );
-/
 
 create regular expression Bug932.RE_Digits folder 'Private/Patterns' ( Expression: '[0-9]+' );
-/
 
 create java action Bug932.JA_Example folder 'Private/Java' ()
   returns string as $$return null;$$;
-/
 
 list folders in Bug932;
-/
 
 -- The control for the fix, and the one that decides whether it is a fix or a
 -- new bug: a statement that says nothing about folders must leave placement
@@ -79,7 +67,5 @@ list folders in Bug932;
 -- CREATE OR MODIFY in every existing script would unfile its document.
 create or modify json structure Bug932.JSON_Example
   sample '{"result": [{"id": 1}, {"id": 2}]}';
-/
 
 list folders in Bug932;
-/

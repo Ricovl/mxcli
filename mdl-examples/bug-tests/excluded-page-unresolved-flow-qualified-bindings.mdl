@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- An excluded page over a flow the project lacks: bindings kept qualified
 -- ============================================================================
@@ -27,7 +28,6 @@ create entity MyFirstModule.FeedbackDraft (
   ShowEmail: Boolean default false,
   Email: String(200)
 );
-/
 
 @excluded
 create or modify page MyFirstModule.FeedbackDraft_Example
@@ -42,5 +42,4 @@ create or modify page MyFirstModule.FeedbackDraft_Example
       Visible: MyFirstModule.FeedbackDraft.ShowEmail in (true)
     )
   }
-}
-/
+};

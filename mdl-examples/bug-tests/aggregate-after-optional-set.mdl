@@ -1,3 +1,4 @@
+mdl 1;
 -- Aggregates must survive SET becoming optional.
 --
 -- `$Sum = sum($List.Price)` used to reach the dedicated aggregateListStatement
@@ -30,7 +31,6 @@ begin
   $Tax = sum $ProductList of $currentObject/Price * 0.21;
   return $Total;
 end;
-/
 
 -- The SET keyword must produce exactly the same activities. It routes through a
 -- different conversion in the visitor, and that one was wrong even before the
@@ -40,23 +40,21 @@ create microflow Bug.AggregatesWithSetKeyword (
 )
 returns decimal as $Total
 begin
-  set $Count = count($ProductList);
-  set $Total = sum($ProductList.Price);
-  set $Average = average($ProductList.Price);
-  set $Lowest = minimum($ProductList.Price);
-  set $Highest = maximum($ProductList.Price);
-  set $Tax = sum($ProductList, $currentObject/Price * 0.21);
+  $Count = count $ProductList;
+  $Total = sum $ProductList by Price;
+  $Average = average $ProductList by Price;
+  $Lowest = minimum $ProductList by Price;
+  $Highest = maximum $ProductList by Price;
+  $Tax = sum $ProductList of $currentObject/Price * 0.21;
   return $Total;
 end;
-/
 
 -- A plain value assignment must still be a Change Variable, not an aggregate.
 create microflow Bug.PlainAssignment ()
 returns integer as $N
 begin
   declare $N integer = 0;
-  $N = 5;
-  $N = $N + 1;
+  set $N = 5;
+  set $N = $N + 1;
   return $N;
 end;
-/

@@ -97,7 +97,7 @@ func init() {
 			"-- DESCRIBE emits it and the copy is faithful (see microflow.create);\n" +
 			"-- where it does not, DESCRIBE flags the gap as a comment rather than\n" +
 			"-- producing output that looks complete.",
-		Example: "CREATE OR REPLACE MICROFLOW MyModule.ACT_Recalculate ()\nBEGIN\n  RETURN;\nEND;\n\nCREATE OR MODIFY PERSISTENT ENTITY MyModule.Customer (\n  Name: String(200)\n);",
+		Example: "mdl 1;\nCREATE OR MODIFY MICROFLOW MyModule.ACT_Recalculate ()\nBEGIN\n  RETURN;\nEND;\n\nCREATE OR MODIFY PERSISTENT ENTITY MyModule.Customer (\n  Name: String(200)\n);",
 		SeeAlso: []string{"microflow", "domain-model.entity", "page", "document-folder", "create-if-not-exists"},
 	})
 
@@ -130,7 +130,8 @@ func init() {
 			"-- Sub-document drops have their own guard: ALTER ENTITY … DROP ATTRIBUTE\n" +
 			"-- IF EXISTS, DROP INDEX IF EXISTS, ALTER ENUMERATION … DROP VALUE IF\n" +
 			"-- EXISTS, DROP USER ROLE IF EXISTS, DROP DEMO USER IF EXISTS.",
-		Example: "-- a stub that broke a page/workflow cycle, dropped once the real page exists\n" +
+		Example: "mdl 1;\n" +
+			"-- a stub that broke a page/workflow cycle, dropped once the real page exists\n" +
 			"DROP PAGE IF EXISTS FieldService.Stub;\n" +
 			"DROP MICROFLOW IF EXISTS FieldService.ACT_Old;\n" +
 			"DROP FOLDER IF EXISTS 'Scratch' IN FieldService;",
@@ -164,7 +165,8 @@ func init() {
 			"-- there is no one named element to test: ANNOTATION, INDEX (use ALTER\n" +
 			"-- ENTITY … ADD INDEX IF NOT EXISTS), VALIDATION RULE, NAVIGATION,\n" +
 			"-- TRANSLATIONS and EXTERNAL ENTITIES.",
-		Example: "-- seed a module once; later runs leave hand edits alone\n" +
+		Example: "mdl 1;\n" +
+			"-- seed a module once; later runs leave hand edits alone\n" +
 			"CREATE MODULE IF NOT EXISTS Shop;\n" +
 			"CREATE ENUMERATION IF NOT EXISTS Shop.Status (Open 'Open', Closed 'Closed');\n" +
 			"CREATE CONSTANT IF NOT EXISTS Shop.ApiUrl ( Type: String, DefaultValue: 'https://api.example.com' );\n" +
@@ -202,7 +204,8 @@ func init() {
 			"-- into the same folder.\n" +
 			"--\n" +
 			"-- To move a document without rewriting it, use MOVE.",
-		Example: "CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );\n\n" +
+		Example: "mdl 1;\n" +
+			"CREATE TASK QUEUE MyModule.Q_Orders FOLDER 'Private/Queues' ( Parallelism: 3 );\n\n" +
 			"CREATE IMPORT MAPPING MyModule.IMM_Order FOLDER 'Private/Import mappings'\n" +
 			"  WITH JSON STRUCTURE MyModule.JSON_Order {\n" +
 			"    CREATE MyModule.Order { Id = id }\n" +
@@ -419,7 +422,8 @@ DISCONNECT;`,
 -- An OFFLINE profile restricts every page it can reach -- an attribute may be
 -- bound across at most ONE association hop (CE6206). Creating one reports the
 -- documents in the project that already exceed that.`,
-		Example: `CREATE OR REPLACE NAVIGATION Responsive
+		Example: `mdl 1;
+CREATE OR MODIFY NAVIGATION Responsive
   HOME PAGE MyModule.Home_Web
   HOME PAGE MyModule.AdminDashboard FOR Administrator
   LOGIN PAGE Administration.Login
@@ -432,7 +436,7 @@ DISCONNECT;`,
     MENU ITEM 'Log out' ( OnClick: SIGN OUT, Icon: Atlas_Core.Atlas."log-out" )
   };
 
-CREATE OR REPLACE NAVIGATION TabletOffline
+CREATE OR MODIFY NAVIGATION TabletOffline
   HOME PAGE Maintenance.Request_Overview
   {
     MENU ITEM 'Requests' ( OnClick: SHOW PAGE Maintenance.Request_Overview )
@@ -522,7 +526,8 @@ is produced at all. The run warns; enable the language in project settings
 first. Note LIST LANGUAGES lists languages that HAVE translations, not the
 enabled ones (8 vs 1 on a stock app); the enabled list is in DESCRIBE
 SETTINGS.`,
-		Example: `describe translations for nl_NL;
+		Example: `mdl 1;
+describe translations for nl_NL;
 
 create or modify translations in Administration for nl_NL (
     'Save'            as 'Opslaan',
@@ -571,7 +576,8 @@ DROP CONFIGURATION '<name>';
 
 -- A property is Key: value in a ( … ) list, as everywhere else in MDL (R3).
 -- Key = value, … without the parentheses still runs and warns MDL-DEPR060.`,
-		Example: `ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Module.MF_Startup');
+		Example: `mdl 1;
+ALTER SETTINGS RUNTIME (AfterStartupMicroflow: 'Module.MF_Startup');
 ALTER SETTINGS RUNTIME (HashAlgorithm: 'BCrypt', EnableDataStorageOptimisticLocking: true);
 ALTER SETTINGS CONFIGURATION 'Default' (
   DatabaseType: 'PostgreSql',
@@ -700,7 +706,8 @@ CALL JAVA ACTION (see: mxcli syntax microflow.call):
 A rewrite that does NOT restate a stored binding is refused, because it would
 drop it silently. A retry policy on a queued call has no MDL spelling and is
 also refused rather than reset — change those in Studio Pro.`,
-		Example: `CREATE TASK QUEUE Ops.OrderProcessing (
+		Example: `mdl 1;
+CREATE TASK QUEUE Ops.OrderProcessing (
   Parallelism: 3,
   ClusterWide: true
 );
@@ -763,7 +770,8 @@ notes that it could not verify it — it does not call it invalid.
 
 Bind a pattern to an attribute with CREATE VALIDATION RULE — see
 'mxcli syntax validation-rule'.`,
-		Example: `/** A, not too restrictive, email address regular expression */
+		Example: `mdl 1;
+/** A, not too restrictive, email address regular expression */
 CREATE REGULAR EXPRESSION Val.EmailAddress (
   Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+'
 );
@@ -826,7 +834,8 @@ CREATE ENTITY or ALTER ENTITY:
     NOT NULL ERROR MESSAGE 'Email is required';
   ALTER ENTITY Shop.Product MODIFY ATTRIBUTE Code: string(20)
     UNIQUE ERROR MESSAGE 'Code must be unique';`,
-		Example: `CREATE REGULAR EXPRESSION Shop.EmailPattern (
+		Example: `mdl 1;
+CREATE REGULAR EXPRESSION Shop.EmailPattern (
   Expression: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
 );
 
@@ -886,7 +895,8 @@ Optional on any repeat:
   TimeZone      UTC (default) or Server
   StartDateTime an RFC 3339 timestamp; the event does not run before it
   Documentation free text`,
-		Example: `CREATE SCHEDULED EVENT Ops.NightlyCleanup (
+		Example: `mdl 1;
+CREATE SCHEDULED EVENT Ops.NightlyCleanup (
   Microflow: Ops.SE_Cleanup,
   Repeat: Daily,
   HourOfDay: 4,
@@ -980,7 +990,8 @@ MOVE <doctype> Module.Name TO TargetModule;
 MOVE <doctype> OldModule.Name TO FOLDER 'Path' IN NewModule;
 MOVE FOLDER Module.FolderName TO FOLDER 'Path';
 DROP FOLDER 'Path' IN Module;`,
-		Example: `-- Move page to a folder
+		Example: `mdl 1;
+-- Move page to a folder
 MOVE PAGE MyModule.CustomerEdit TO FOLDER 'Customers';
 
 -- Move microflow to nested folder
@@ -1269,7 +1280,8 @@ ALTER MODULE <name> SET JAR DEPENDENCY '<group:artifact>' INCLUDED true|false;
 ALTER MODULE <name> SET JAR DEPENDENCY '<group:artifact>' ADD EXCLUSION '<group:artifact>';
 ALTER MODULE <name> SET JAR DEPENDENCY '<group:artifact>' DROP EXCLUSION '<group:artifact>';
 ALTER MODULE <name> DROP JAR DEPENDENCY '<group:artifact>';`,
-		Example: `-- Add a new JAR dependency to a module
+		Example: `mdl 1;
+-- Add a new JAR dependency to a module
 ALTER MODULE MyModule
   ADD JAR DEPENDENCY (
     group    = 'org.duckdb',

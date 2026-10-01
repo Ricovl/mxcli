@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- The XPath constraint checker called two real associations missing
 -- (ako/mxcli-sudoku FINDINGS #57)
@@ -60,45 +61,37 @@
 --     ✗ … names "XPathGen.Special_Bin" …
 
 create module XPathGen;
-/
 
 create module XPathGenFar;
-/
 
 create or modify persistent entity XPathGen.Region (
   Name: String(200)
 );
-/
 
 -- The association below is declared on THIS entity. Everything that extends it
 -- inherits it, and that inheritance is the whole subject of the file.
 create or modify persistent entity XPathGen.Base (
   Code: String(50)
 );
-/
 
 create or modify persistent entity XPathGen.Special extends XPathGen.Base (
   Note: String(200)
 );
-/
 
 create or modify persistent entity XPathGenFar.Bin (
   BinCode: String(50)
 );
-/
 
 -- Declared FROM the generalization. XPathGen.Special has it, and only through
 -- the chain — an exact-name comparison against the two ends does not find it.
 create or modify association XPathGen.Base_Region
   from XPathGen.Base to XPathGen.Region type reference;
-/
 
 -- Leaves its module, so it is stored in XPathGen's CrossAssociations with
 -- `XPathGenFar.Bin` held by name. A lookup that reads only dm.Associations
 -- misses it, and at a reporting call site calls it missing.
 create or modify association XPathGen.Special_Bin
   from XPathGen.Special to XPathGenFar.Bin type reference;
-/
 
 -- Every constraint here RESOLVES and builds. These are the shapes that must not
 -- be reported.
@@ -145,5 +138,4 @@ create or modify page XPathGen.P_List
   ) {
     column (attribute: Note, caption: 'Note')
   }
-}
-/
+};

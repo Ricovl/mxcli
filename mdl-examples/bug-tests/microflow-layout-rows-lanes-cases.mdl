@@ -1,3 +1,4 @@
+mdl 1;
 -- Auto-layout of a microflow written with no @position: long main lines, guards
 -- and wide enumeration splits.
 --
@@ -64,7 +65,6 @@ BEGIN
   LOG INFO 'step 39';
   LOG INFO 'step 40';
 END;
-/
 
 CREATE MICROFLOW MyFirstModule.MF_LayoutGuards ($Amount: Integer, $Limit: Integer)
 RETURNS Boolean AS $IsAccepted
@@ -85,7 +85,6 @@ BEGIN
   LOG INFO 'accepted';
   RETURN true;
 END;
-/
 
 CREATE MICROFLOW MyFirstModule.MF_LayoutCases ($Status: MyFirstModule.LayoutStatus)
 RETURNS String AS $Next
@@ -109,4 +108,3 @@ BEGIN
   END CASE;
   RETURN $Next;
 END;
-/

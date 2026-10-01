@@ -51,6 +51,7 @@ CREATE DEMO USER 'demo_admin' ( Password: 'Admin123!', Entity: Administration.Ac
 Create multiple demo users for different roles:
 
 ```sql
+mdl 1;
 CREATE DEMO USER 'admin' ( Password: '1', Entity: Administration.Account, UserRoles: (AppAdmin) );
 CREATE DEMO USER 'user' ( Password: '1', Entity: Administration.Account, UserRoles: (AppUser) );
 CREATE DEMO USER 'viewer' ( Password: '1', Entity: Administration.Account, UserRoles: (AppViewer) );

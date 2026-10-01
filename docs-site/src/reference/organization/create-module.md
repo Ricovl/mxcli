@@ -24,6 +24,7 @@ CREATE MODULE OrderManagement;
 ### Create multiple modules for a layered architecture
 
 ```sql
+mdl 1;
 CREATE MODULE Sales;
 CREATE MODULE Inventory;
 CREATE MODULE Reporting;

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Navigation Examples
 -- ============================================================================
@@ -24,7 +25,7 @@ create page NavTest.NavTest_Home
   container ctnMain {
     dynamictext txtWelcome (content: 'Welcome to the Navigation Test page.')
   }
-}
+};
 
 -- MARK: Show Commands
 

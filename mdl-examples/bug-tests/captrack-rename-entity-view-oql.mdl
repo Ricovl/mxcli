@@ -1,3 +1,4 @@
+mdl 1;
 -- Regression: renaming an entity (or a module) left every view entity's OQL
 -- pointing at the old name, and said nothing about it.
 --
@@ -25,20 +26,15 @@
 --                    after an OQL reserved word)
 
 create persistent entity MyFirstModule.Period ( Label: String(50), Amount: Integer );
-/
 -- CONTROL: renaming Period must leave this alone.
 create persistent entity MyFirstModule.PeriodDetail ( Note: String(50) );
-/
 create view entity MyFirstModule.PeriodSummary ( Label: string(50), Total: integer ) as
   select p.Label as Label, sum(p.Amount) as Total
   from MyFirstModule.Period as p
   group by p.Label;
-/
 
 -- CONTROL: quoted reference. `Year` is an OQL reserved word, so a view has to
 -- quote it -- and a rename must return it quoted, not bare.
 create persistent entity MyFirstModule.Year ( Label: String(50) );
-/
 create view entity MyFirstModule.YearSummary ( Label: string(50) ) as
   select y.Label as Label from MyFirstModule."Year" as y;
-/

@@ -62,6 +62,7 @@ verbatim, so without it the package's rules reach the project unchecked
 ## Examples
 
 ```sql
+mdl 1;
 -- After a headless module install or update
 UPDATE SECURITY UserCommons;
 

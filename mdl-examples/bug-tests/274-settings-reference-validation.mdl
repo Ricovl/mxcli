@@ -1,3 +1,4 @@
+mdl 1;
 -- Repro: ALTER SETTINGS wrote a qualified name into the model without resolving
 -- it. Both statements below reported success, `mxcli check --references` said
 -- "All references valid", and mxbuild answered one build later:

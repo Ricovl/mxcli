@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#509 and #511 — two ways a design property reached mxbuild instead of
 -- `mxcli check`. Both measured on a blank Mendix 11.12.2 project, plain Atlas.
 --

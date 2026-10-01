@@ -42,7 +42,7 @@ func TestCheck_DeprecatedSpellingAgainstCanonicalControl(t *testing.T) {
 
 // A line number points into the source, whichever context the block parsed in.
 func TestCheck_LineMapsThroughTheWrapper(t *testing.T) {
-	block := "-- a comment\n$A = 1;\n$H = head($L);"
+	block := "-- a comment\nset $A = 1;\n$H = head($L);"
 	got := Check(Unit{Source: "doc.md", Line: 40, Text: block})
 	if len(got) != 1 || got[0].Line != 42 {
 		t.Fatalf("got %v, want one finding on line 42", got)
@@ -68,8 +68,106 @@ func TestCheck_ScriptIsNotWrapped(t *testing.T) {
 	if !reflect.DeepEqual(classes(got), []string{ClassSyntax}) {
 		t.Fatalf("got %v, want a syntax finding: a microflow activity is not a script", got)
 	}
-	if got := Check(Unit{Source: "x.mdl", Line: 1, Text: "show entities in M;\n", Script: true}); !reflect.DeepEqual(classes(got), []string{"MDL-DEPR002"}) {
+	if got := Check(Unit{Source: "x.mdl", Line: 1, Text: "mdl 1;\nshow entities in M;\n", Script: true}); !reflect.DeepEqual(classes(got), []string{"MDL-DEPR002"}) {
 		t.Fatalf("got %v, want [MDL-DEPR002]", got)
+	}
+}
+
+// Decision 1 on ako/mxcli#714: everything is parsed as mdl 1, and what the
+// header refuses is reported under the rule that names the construct — each
+// against a control that is the same text written for mdl 1.
+func TestCheck_MdlOneRefusalNamedByItsRule(t *testing.T) {
+	for _, tc := range []struct {
+		name, old, canonical, code string
+		line                       int
+	}{
+		{"reassignment without set (microflow activity)", "declare $A Integer = 0;\n$A = 1;",
+			"declare $A Integer = 0;\nset $A = 1;", "MDL-V1-SET", 11},
+		{"missing terminator (statement)", "list modules\nlist entities;", "list modules;\nlist entities;", "MDL-V1-SEMI", 10},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Check(Unit{Source: "doc.md", Line: 10, Text: tc.old})
+			if !reflect.DeepEqual(classes(got), []string{tc.code}) {
+				t.Fatalf("headerless text %q: findings %v, want [%s]", tc.old, got, tc.code)
+			}
+			if got[0].Line < tc.line {
+				t.Errorf("finding on line %d, want at or after %d", got[0].Line, tc.line)
+			}
+			if got := Check(Unit{Source: "doc.md", Line: 10, Text: tc.canonical}); len(got) != 0 {
+				t.Errorf("mdl 1 control %q: findings %v, want none", tc.canonical, got)
+			}
+		})
+	}
+}
+
+// `/` after a statement with no `;` is two refusals, each named: the missing
+// `;` and the `/`.
+func TestCheck_SlashIsTwoRefusals(t *testing.T) {
+	got := Check(Unit{Source: "doc.md", Line: 10, Text: "create module M\n/"})
+	if want := []string{"MDL-V1-SEMI", "MDL-V1-SLASH"}; !reflect.DeepEqual(classes(got), want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	if got[1].Line != 11 {
+		t.Errorf("the `/` reported on line %d, want 11", got[1].Line)
+	}
+}
+
+// A construct that only changes MEANING under the header is not a finding:
+// the docs are mdl 1, where it has the mdl 1 meaning. `limit 1` is a list of
+// one there (MDL-V1-LIMIT1 warns only on a headerless script).
+func TestCheck_MeaningChangeIsNotAFinding(t *testing.T) {
+	block := "retrieve $L from M.E\n  limit 1;"
+	if got := Check(Unit{Source: "doc.md", Line: 1, Text: block}); len(got) != 0 {
+		t.Errorf("got %v, want none", got)
+	}
+}
+
+// A complete script starts with the header; a fragment carries none.
+func TestCheck_CompleteScriptNeedsTheHeader(t *testing.T) {
+	two := "create module M;\ncreate entity M.E (Name: String(20));"
+	for _, tc := range []struct {
+		name, text string
+		want       []string
+	}{
+		{"two statements that write the model", two, []string{ClassHeader}},
+		{"the same with the header", "mdl 1;\n" + two, []string{}},
+		{"one statement is a fragment", "create entity M.E (Name: String(20));", []string{}},
+		{"queries are a fragment", "list entities in M;\ndescribe entity M.E;", []string{}},
+		// REPL input: a session command is legal there, and takes no header.
+		{"a REPL transcript", "connect local 'app.mpr';\n" + two, []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := classes(Check(Unit{Source: "doc.md", Line: 1, Text: tc.text})); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+	// A script file always needs the header, and may not hold a session command.
+	got := classes(Check(Unit{Source: "x.mdl", Line: 1, Text: "connect local 'app.mpr';\n" + two, Script: true}))
+	if !reflect.DeepEqual(got, []string{"MDL-V1-SESSION", ClassHeader}) {
+		t.Errorf("script: got %v, want [MDL-V1-SESSION header]", got)
+	}
+}
+
+// A headed block is a script, held to mdl 1 as it stands.
+func TestCheck_HeadedBlockIsHeldToMdlOne(t *testing.T) {
+	got := Check(Unit{Source: "doc.md", Line: 1, Text: "mdl 1;\ncreate module M\n/"})
+	if want := []string{"MDL-V1-SEMI", "MDL-V1-SLASH"}; !reflect.DeepEqual(classes(got), want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+// A script that stays mdl 0 (a test file, ako/mxcli#847) is held to the
+// canonical spellings only — against a control without the flag.
+func TestCheck_KeepsMdl0(t *testing.T) {
+	text := "create module M\n/\nshow entities in M;"
+	got := classes(Check(Unit{Source: "x.test.mdl", Line: 1, Text: text, Script: true, KeepsMdl0: true}))
+	if !reflect.DeepEqual(got, []string{"MDL-DEPR002"}) {
+		t.Errorf("KeepsMdl0: got %v, want [MDL-DEPR002]", got)
+	}
+	got = classes(Check(Unit{Source: "x.mdl", Line: 1, Text: text, Script: true}))
+	if want := []string{"MDL-DEPR002", "MDL-V1-SEMI", "MDL-V1-SLASH", ClassHeader}; !reflect.DeepEqual(got, want) {
+		t.Errorf("control: got %v, want %v", got, want)
 	}
 }
 

@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.9+
 -- =============================================================================
 -- Graph Traversal Viewer — MCP chat app build script
@@ -29,14 +30,12 @@ create or modify enumeration OntologyViewer.ENUM_GraphmartOperationalState (
   ONLINE 'Online',
   OFFLINE 'Offline'
 );
-/
 
 create or modify enumeration OntologyViewer.ENUM_GraphmartPageState (
   READY 'Ready',
   NEEDS_PICKER 'Needs picker',
   NEEDS_REFRESH_THEN_PICKER 'Needs refresh then picker'
 );
-/
 
 -- ----------------------------------------------------------------------------
 -- 2. Domain model — entities
@@ -58,13 +57,11 @@ create or modify persistent entity OntologyViewer.Graphmart (
 index (Uri);
 
 grant read * on entity OntologyViewer.Graphmart to OntologyViewer.User;
-/
 
 @Position(350, 50)
 create or modify persistent entity OntologyViewer.ChatbotSettings ();
 
 grant read * on entity OntologyViewer.ChatbotSettings to OntologyViewer.User;
-/
 
 -- Per-tool-call presentation metadata, attached 1:1 to a ConversationalUI.ToolMessage.
 -- This is what powers the custom tool-call cards (row counts, preview, expand/collapse).
@@ -80,7 +77,6 @@ create or modify persistent entity OntologyViewer.ToolCallMetadata (
 );
 
 grant read * on entity OntologyViewer.ToolCallMetadata to OntologyViewer.User;
-/
 
 @Position(950, 50)
 create or modify persistent entity OntologyViewer.SuggestedUserPrompt (
@@ -88,20 +84,17 @@ create or modify persistent entity OntologyViewer.SuggestedUserPrompt (
 );
 
 grant read * on entity OntologyViewer.SuggestedUserPrompt to OntologyViewer.User;
-/
 
 @Position(1300, 50)
 create or modify persistent entity OntologyViewer.UserPreferences (
   DefaultGraphmartUri: String(500)
 );
-/
 
 @Position(1550, 50)
 create or modify persistent entity OntologyViewer.ChatContextGraphmart (
   SelectedGraphmartUri: String(500),
   ConsecutiveNoOpCount: Integer default 0
 );
-/
 
 @Position(1800, 50)
 create or modify persistent entity OntologyViewer.LineageDeltaResult (
@@ -112,7 +105,6 @@ create or modify persistent entity OntologyViewer.LineageDeltaResult (
   AddedEdges: Integer default 0,
   PayloadHash: String(200)
 );
-/
 
 @Position(2050, 50)
 create or modify persistent entity OntologyViewer.ChatContext_Control (
@@ -120,7 +112,6 @@ create or modify persistent entity OntologyViewer.ChatContext_Control (
 );
 
 grant read * on entity OntologyViewer.ChatContext_Control to OntologyViewer.User;
-/
 
 @Position(2350, 50)
 create or modify persistent entity OntologyViewer.GraphTraversalHelper (
@@ -131,29 +122,22 @@ create or modify persistent entity OntologyViewer.GraphTraversalHelper (
 index (PayloadHash);
 
 grant read * on entity OntologyViewer.GraphTraversalHelper to OntologyViewer.User;
-/
 
 -- ----------------------------------------------------------------------------
 -- 3. Associations (intra-module + to marketplace entities)
 -- ----------------------------------------------------------------------------
 create association OntologyViewer.ChatContext_Control_ChatContext
   from OntologyViewer.ChatContext_Control to ConversationalUI.ChatContext;
-/
 create association OntologyViewer.ChatbotSettings_Agent
   from OntologyViewer.ChatbotSettings to AgentCommons.Agent;
-/
 create association OntologyViewer.ChatContextGraphmart_ChatContext
   from OntologyViewer.ChatContextGraphmart to ConversationalUI.ChatContext;
-/
 create association OntologyViewer.ToolCallMetadata_ToolMessage
   from OntologyViewer.ToolCallMetadata to ConversationalUI.ToolMessage;
-/
 create association OntologyViewer.GraphTraversalHelper_Message
   from OntologyViewer.GraphTraversalHelper to ConversationalUI.Message;
-/
 create association OntologyViewer.GraphTraversalHelper_ChatContext
   from OntologyViewer.GraphTraversalHelper to ConversationalUI.ChatContext;
-/
 
 -- ----------------------------------------------------------------------------
 -- 4. Java actions  (signature + generated javasource/.../*.java stub)
@@ -164,27 +148,22 @@ as $$
 // TODO: open MCP transport to EndpointUrl, invoke ToolName with ArgumentsJson, return result
 return "";
 $$;
-/
 create java action OntologyViewer.Graphmart_UpsertFromJson(RawJson: string not null, SyncTimestamp: datetime not null) returns integer
 as $$
 return 0L;
 $$;
-/
 create java action OntologyViewer.Json_ExtractErrorCode(JsonString: string not null) returns string
 as $$
 return "";
 $$;
-/
 create java action OntologyViewer.LineageDelta_Merge(PriorJSON: string, DeltaJSON: string) returns string
 as $$
 return PriorJSON;
 $$;
-/
 create java action OntologyViewer.LineageDelta_MergeWithStats(PriorJSON: string not null, DeltaJSON: string not null) returns OntologyViewer.LineageDeltaResult
 as $$
 return null;
 $$;
-/
 
 -- ----------------------------------------------------------------------------
 -- 5. Microflows — the chat + MCP wiring (representative core set)
@@ -207,7 +186,7 @@ begin
   @position(700, 100)
   retrieve $MCP from AgentCommons.MCP
     where AgentCommons.Tool_Version = $Version
-    limit 1;
+    first;
   @position(900, 100)
   if $MCP = empty then
     @position(900, 280)
@@ -226,7 +205,6 @@ begin
 end;
 
 grant execute on microflow OntologyViewer.SUB_Agent_GetMCPEndpoint to OntologyViewer.User;
-/
 
 -- THE integration point: build the GenAI request, attach the agent (whose tools
 -- come from its Consumed MCP Service), call the agentic loop, post-process.
@@ -241,11 +219,11 @@ begin
   @position(50, 100)
   retrieve $Agent from AgentCommons.Agent
     where OntologyViewer.ChatbotSettings_Agent/OntologyViewer.ChatbotSettings
-    limit 1;
+    first;
   @position(250, 100)
   retrieve $ChatContextGraphmart from OntologyViewer.ChatContextGraphmart
     where OntologyViewer.ChatContextGraphmart_ChatContext = $ChatContext
-    limit 1;
+    first;
   @position(450, 100)
   $Response = call java action AgentCommons.Agent_Call_WithHistory(Agent = $Agent, Request = $Request, OptionalContextObject = $ChatContextGraphmart) on error rollback;
   @position(700, 100)
@@ -261,7 +239,6 @@ begin
 end;
 
 grant execute on microflow OntologyViewer.ChatContext_MCPClient_ActionMicroflow_custom to OntologyViewer.User;
-/
 
 -- Write the model's reply back into the ConversationalUI message thread.
 create or modify microflow OntologyViewer.ChatContext_UpdateAssistantResponse_custom (
@@ -278,7 +255,7 @@ begin
       and Role = GenAICommons.ENUM_MessageRole.assistant
       and Status = ConversationalUI.ENUM_MessageStatus.Loading
     sort by createdDate desc
-    limit 1;
+    first;
   @position(350, 100)
   call microflow ConversationalUI.Message_SetContent(Message = $Message, Response = $Response) on error rollback;
   @position(600, 100)
@@ -288,7 +265,6 @@ begin
   @position(1100, 100)
   return $Message;
 end;
-/
 
 -- Create/refresh the 1:1 ToolCallMetadata for a tool message (row count = newlines).
 create or modify microflow OntologyViewer.ACT_ToolMessage_AttachMetadata (
@@ -307,7 +283,8 @@ begin
   @position(500, 100)
   $New = create OntologyViewer.ToolCallMetadata (
     ToolCallMetadata_ToolMessage = $ToolMessage,
-    RowCount = if $ToolMessage/Content = '' then 0 else length(replaceAll($ToolMessage/Content, '[^\n]', '')),
+    RowCount = if $ToolMessage/Content = '' then 0 else length(replaceAll($ToolMessage/Content, '[^
+]', '')),
     OutputPreview = if length($ToolMessage/Content) > 1024 then substring($ToolMessage/Content, 0, 1024) else $ToolMessage/Content,
     InputText = if $ToolMessage/Input = empty then '' else $ToolMessage/Input,
     IsErrorCached = $ToolMessage/IsError
@@ -317,7 +294,6 @@ begin
 end;
 
 grant execute on microflow OntologyViewer.ACT_ToolMessage_AttachMetadata to OntologyViewer.User;
-/
 
 -- Toggle expand/collapse on a tool-call card.
 create or modify microflow OntologyViewer.ACT_ToolCallMetadata_Toggle (
@@ -332,7 +308,6 @@ begin
 end;
 
 grant execute on microflow OntologyViewer.ACT_ToolCallMetadata_Toggle to OntologyViewer.User;
-/
 
 -- User pressed Stop: flag the control object; the loop checks it between turns.
 create or modify microflow OntologyViewer.ACT_ChatContext_RequestStop (
@@ -343,7 +318,7 @@ begin
   @position(100, 100)
   retrieve $Control from OntologyViewer.ChatContext_Control
     where OntologyViewer.ChatContext_Control_ChatContext = $ChatContext
-    limit 1;
+    first;
   @position(350, 100)
   change $Control (StopRequested = true) refresh;
   @position(600, 100)
@@ -351,7 +326,6 @@ begin
 end;
 
 grant execute on microflow OntologyViewer.ACT_ChatContext_RequestStop to OntologyViewer.User;
-/
 
 -- Kick off one inference turn (delegates the agentic loop to ConversationalUI).
 create or modify microflow OntologyViewer.SUB_ChatContext_Inference (
@@ -366,7 +340,6 @@ begin
 end;
 
 grant execute on microflow OntologyViewer.SUB_ChatContext_Inference to OntologyViewer.User;
-/
 
 -- ----------------------------------------------------------------------------
 -- 6. Nanoflow — stop-aware send button (used by the input snippet)
@@ -383,7 +356,6 @@ begin
 end;
 
 grant execute on nanoflow OntologyViewer.ACT_StopAwareSendMessage to OntologyViewer.User;
-/
 
 -- ----------------------------------------------------------------------------
 -- 7. Input snippet — textarea + send/stop buttons + suggested prompts
@@ -408,8 +380,7 @@ create snippet OntologyViewer.Snippet_ChatContext_Interaction (
       )
     }
   }
-}
-/
+};
 
 -- ----------------------------------------------------------------------------
 -- 8. Chat page — embeds the custom graph widget + the tool-call cards
@@ -446,10 +417,9 @@ create page OntologyViewer.ConversationalUI_FullScreenChat (
     }
     snippetcall snippetCall1 (snippet: OntologyViewer.Snippet_ChatContext_Interaction)
   }
-}
+};
 
 grant view on page OntologyViewer.ConversationalUI_FullScreenChat to OntologyViewer.User;
-/
 
 -- ----------------------------------------------------------------------------
 -- 9. Datasource microflow referenced by the chat page
@@ -461,7 +431,7 @@ begin
   @position(100, 100)
   retrieve $Agent from AgentCommons.Agent
     where OntologyViewer.ChatbotSettings_Agent/OntologyViewer.ChatbotSettings
-    limit 1;
+    first;
   @position(350, 100)
   $ChatContext = create ConversationalUI.ChatContext ();
   @position(600, 100)
@@ -469,4 +439,3 @@ begin
 end;
 
 grant execute on microflow OntologyViewer.DS_ChatContext_CreateForAgent to OntologyViewer.User;
-/

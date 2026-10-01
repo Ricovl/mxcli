@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Regular expressions — named patterns shared by validation rules
 -- ============================================================================
@@ -20,33 +21,27 @@
 -- ============================================================================
 
 create module Val;
-/
 -- Backslashes are NOT escape characters in an MDL string: write the regex
 -- exactly as Mendix should see it.
 /** A, not too restrictive, email address regular expression */
 create regular expression Val.EmailAddress (
   Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+'
 );
-/
 /** Alphanumeric and underscore, not starting with a number */
 create regular expression Val.Identifier (
   Expression: '^[a-zA-Z_]+[a-zA-Z0-9_]*$'
 );
-/
 -- .NET lookbehind. Legal in Mendix (this is the Email Connector's own pattern),
 -- but Go's RE2 cannot compile it — DESCRIBE says "not verifiable", not "invalid".
 create regular expression Val.NoTrailingSlash ( Expression: '.*(?<!/)$' );
-/
 -- A single quote inside the pattern is doubled, like any MDL string.
 create regular expression Val.Apostrophe ( Expression: '^it''s$' );
-/
 -- Re-running with OR MODIFY reuses the stored $ID, so a validation rule's
 -- by-name reference keeps pointing at the same document.
 /** Tightened: exactly one leading letter or underscore */
 create or modify regular expression Val.Identifier (
   Expression: '^[a-zA-Z_][a-zA-Z0-9_]*$'
 );
-/
 -- "expression", "expressions" and "regular" stay usable as ordinary names:
 -- all three are in the grammar's `keyword` rule, so adding the tokens did not
 -- take them away.
@@ -55,5 +50,4 @@ create entity Val.Rule (
   regular: Boolean,
   expressions: Integer
 );
-/
 drop regular expression Val.Apostrophe;

@@ -1,3 +1,4 @@
+mdl 1;
 -- Issue #941: DESCRIBE PAGE emitted invalid MDL for non-database datasources.
 --
 -- Three defects, one cause: the datasource switch was copied per widget family
@@ -17,16 +18,12 @@
 -- output: every datasource must come back with the kind it went in with.
 
 create module Bug941;
-/
 
 create entity Bug941.Item ( Title: string(200), Qty: integer );
-/
 
 create entity Bug941.Bucket ( Label: string(100) );
-/
 
 create association Bug941.Item_Bucket from Bug941.Item to Bug941.Bucket;
-/
 
 create microflow Bug941.DS_GetItems ()
 returns list of Bug941.Item as $Items
@@ -34,7 +31,6 @@ begin
   retrieve $Items from Bug941.Item;
   return $Items;
 end;
-/
 
 -- Defect 3: the gallery's association source used to be dropped on describe,
 -- the listview's survived. Both are in one page so the asymmetry is visible.
@@ -51,7 +47,6 @@ create or modify page Bug941.PgContext
     }
   }
 };
-/
 
 -- Defect 1: the second series is bound to a microflow. Before the fix DESCRIBE
 -- rendered BOTH series as `database from`, and the microflow one then failed
@@ -76,7 +71,6 @@ create or modify page Bug941.PgChart
     )
   }
 };
-/
 
 -- The kinds that always worked, kept as the control: a fix that broke these
 -- while fixing the others would not be a fix.
@@ -93,11 +87,7 @@ create or modify page Bug941.PgOther
     textbox tbE (Label: 'Title', Attribute: Title)
   }
 };
-/
 
 describe page Bug941.PgContext;
-/
 describe page Bug941.PgChart;
-/
 describe page Bug941.PgOther;
-/

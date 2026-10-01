@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug: pluggable widget child-slot dropped when authored as `container <slot>`
 -- ============================================================================
@@ -28,12 +29,10 @@
 -- ============================================================================
 
 create module ChildSlot;
-/
 create entity ChildSlot.DemoItem (
   Title: String,
   Score: Integer
 );
-/
 create or modify page ChildSlot.Home ( layout: Atlas_Core.Atlas_Default ) {
   pluggablewidget 'com.mendix.widget.web.treenode.TreeNode' treeNested (
     datasource: database from ChildSlot.DemoItem,
@@ -47,4 +46,4 @@ create or modify page ChildSlot.Home ( layout: Atlas_Core.Atlas_Default ) {
       dynamictext treeChildText (content: 'Score: {1}', contentparams: ({1} = Score))
     }
   }
-}
+};

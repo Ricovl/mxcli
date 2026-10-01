@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- ako/mxcli#600 — CREATE OR REPLACE LAYOUT replaced the unit under a new GUID
 -- ============================================================================
@@ -49,4 +50,4 @@ CREATE OR MODIFY LAYOUT BugLayoutRewrite.Probe_Layout (
       placeholder Main
     }
   }
-}
+};

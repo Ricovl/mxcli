@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#1031 + ako/mxcli#1065 — a decision outcome that is not a qualified
 -- enumeration value identifier makes the project UNLOADABLE, and
 -- ako/mxcli#1023 — an unquoted `with (...)` value crashed the binary.
@@ -39,19 +40,16 @@ create enumeration WF1031.Status (
   OutcomeA 'Outcome A',
   OutcomeB 'Outcome B'
 );
-/
 
 create persistent entity WF1031.Ctx (
   Title: string(50),
   Status: WF1031.Status
 );
-/
 
 create microflow WF1031.ACT_Noop ($Ctx: WF1031.Ctx)
 begin
   @position(200,200) return;
 end;
-/
 
 -- The qualified form: this is what Studio Pro stores, and the only form that
 -- loads. The trailing '' outcome is the "none of the above" branch every
@@ -74,7 +72,6 @@ begin
       '' -> { }
   ;
 end workflow;
-/
 
 -- ============================================================================
 -- #1023: an unquoted `with (...)` value crashed the process
@@ -98,4 +95,3 @@ create workflow WF1031.Call
 begin
   call microflow WF1031.ACT_Noop(Ctx = $WorkflowContext) as callMicroflow1;
 end workflow;
-/

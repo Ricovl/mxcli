@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #650: DYNAMICTEXT Attribute binding inside LISTVIEW silently dropped
 -- ============================================================================
@@ -38,6 +39,6 @@ create page BugTest650.TaskList
     -- Integer attribute → toString() binding
     dynamictext txtCount (Attribute: Count)
   }
-}
+};
 
 describe page BugTest650.TaskList;

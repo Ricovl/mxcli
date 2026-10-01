@@ -1,3 +1,4 @@
+mdl 1;
 -- Guest (anonymous) access (issue mendixlabs/mxcli#924)
 --
 -- Studio Pro's "Anonymous users" setting: part of the app is usable without

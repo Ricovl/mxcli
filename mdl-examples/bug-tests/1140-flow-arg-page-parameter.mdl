@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1140 — a page parameter passed as a nanoflow argument was not
 -- wired, so Studio Pro reported CE1571 on opening the page.
 --
@@ -66,7 +67,7 @@ create or modify layout CustomModule.App_Default (
       placeholder Main
     }
   }
-}
+};
 
 create or modify nanoflow CustomModule.ACT_BufferDefinition_SaveEdit_NF
   ($Dto: CustomModule.UpdateBufferDefinition,
@@ -96,7 +97,7 @@ create or modify page CustomModule.PANEL_BufferDefinition_Edit (
       }
     }
   }
-}
+};
 
 -- CONTROL 1 — a literal argument must stay an Expression. A fix that routed
 -- everything through Variable would clear the report and break this, which is the
@@ -135,4 +136,4 @@ create or modify page CustomModule.PANEL_Controls (
       }
     }
   }
-}
+};

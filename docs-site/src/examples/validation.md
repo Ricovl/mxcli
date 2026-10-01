@@ -43,7 +43,7 @@ BEGIN
 
   RETURN $IsValid;
 END;
-/
+
 ```
 
 ## The Action Microflow
@@ -63,7 +63,7 @@ BEGIN
 
   RETURN $IsValid;
 END;
-/
+
 ```
 
 ## Wiring It Up
@@ -77,8 +77,8 @@ CREATE PAGE Sales.Order_Edit (
   Layout: Atlas_Core.PopupLayout
 ) {
   LAYOUTGRID mainGrid {
-    ROW row1 {
-      COLUMN col1 (DesktopWidth: AutoFill) {
+    ROW {
+      COLUMN (DesktopWidth: AutoFill) {
         DATAVIEW dv (DataSource: $Order) {
           TEXTBOX txtOrderNumber (Label: 'Order Number', Attribute: OrderNumber)
           DATEPICKER dpDelivery (Label: 'Delivery Date', Attribute: DeliveryDate)
@@ -97,5 +97,5 @@ CREATE PAGE Sales.Order_Edit (
     }
   }
 };
-/
+
 ```

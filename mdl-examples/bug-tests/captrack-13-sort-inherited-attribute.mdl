@@ -1,3 +1,4 @@
+mdl 1;
 -- CapTrackV2 FINDINGS §13 — sorting on an INHERITED attribute was not
 -- expressible in either direction.
 --
@@ -24,11 +25,9 @@
 --   mx check -p app.mpr        -- 0 errors; before the fix, CE1613
 
 create module SortInh;
-/
 create persistent entity SortInh.AppUser extends System.User (
   FullName: string(200)
 );
-/
 
 -- The reported case: a BARE inherited name.
 create microflow SortInh.MF_SortInherited ()
@@ -36,7 +35,6 @@ returns list of SortInh.AppUser as $Users
 begin
   retrieve $Users from SortInh.AppUser sort by Name asc;
 end;
-/
 
 -- The other half: naming the declaring entity outright, which was refused.
 create microflow SortInh.MF_SortQualified ()
@@ -44,7 +42,6 @@ returns list of SortInh.AppUser as $Users
 begin
   retrieve $Users from SortInh.AppUser sort by System.User.Name asc;
 end;
-/
 
 -- CONTROL: an attribute the entity declares ITSELF must still be qualified with
 -- it. A fix that always walked to the base would break every ordinary sort.
@@ -53,4 +50,3 @@ returns list of SortInh.AppUser as $Users
 begin
   retrieve $Users from SortInh.AppUser sort by FullName asc;
 end;
-/

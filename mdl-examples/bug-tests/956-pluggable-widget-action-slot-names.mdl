@@ -1,3 +1,4 @@
+mdl 1;
 -- Repro: a pluggable widget's action slot is addressed by the wrong name in
 -- three places, so `onClick:` / `OnChange:` are one-way writes on most widgets.
 -- Found while investigating upstream #956. Each is a bug, not the feature that
@@ -56,7 +57,7 @@ create or modify page M956.P_DataGrid (Title: 'DataGrid', Layout: Atlas_Core.Atl
   DATAGRID dg ( DataSource: DATABASE M956.Thing, onClick: call microflow M956.ACT_Handler ) {
     COLUMN (Attribute: Name, Caption: 'Name')
   }
-}
+};
 describe page M956.P_DataGrid;
 
 -- 2. Suffixed storage key (`onClickEvent`). Expect `onClick: microflow
@@ -66,7 +67,7 @@ create or modify page M956.P_Badge (Title: 'Badge', Layout: Atlas_Core.Atlas_Def
   PLUGGABLEWIDGET 'com.mendix.widget.custom.badgebutton.BadgeButton' bb (
     onClick: call microflow M956.ACT_Handler
   )
-}
+};
 describe page M956.P_Badge;
 
 -- 3. Storage key spelled exactly as MDL's name (`onChange`). Before the fix this
@@ -87,5 +88,5 @@ create or modify page M956.P_Star (Title: 'Star', Layout: Atlas_Core.Atlas_Defau
       OnChange: call microflow M956.ACT_Handler
     )
   }
-}
+};
 describe page M956.P_Star;

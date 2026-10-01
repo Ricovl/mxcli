@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #114: Reserved words can't be used as page/snippet parameter names
 -- ============================================================================
@@ -34,7 +35,7 @@ create page BugTest114.P_Edit
   container c {
     dynamictext t (content: 'x')
   }
-}
+};
 
 -- Snippet with a reserved-keyword parameter name, quoted.
 create snippet BugTest114.Snip
@@ -45,7 +46,7 @@ create snippet BugTest114.Snip
   container c2 {
     dynamictext t2 (content: 'y')
   }
-}
+};
 
 -- SHOW PAGE with a reserved-keyword argument name (already worked; pinned here).
 create microflow BugTest114.ACT_Open (Obj : BugTest114.Order) returns Nothing

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #727: Retrieve "sort by" clause lost on the modelsdk engine
 -- ============================================================================
@@ -27,13 +28,11 @@
 -- ============================================================================
 
 create module BugTest727;
-/
 
 create entity BugTest727.Ticket (
   Name: String,
   Priority: Integer
 );
-/
 
 -- Same-entity sort on two attributes, mixed directions. Before the fix the
 -- entire "sort by" line was dropped from the DESCRIBE output.
@@ -44,4 +43,3 @@ begin
     sort by Priority desc, Name asc;
   return $Tickets;
 end;
-/

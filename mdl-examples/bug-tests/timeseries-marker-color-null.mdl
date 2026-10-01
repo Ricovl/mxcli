@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug: TimeSeries/LineChart series markerColor emitted as empty ClientTemplate
 -- ============================================================================
@@ -27,9 +28,7 @@
 -- ============================================================================
 
 create module TSMarker;
-/
 create entity TSMarker.Sale ( SaleDate: DateTime, Total: Decimal );
-/
 create or modify page TSMarker.Home ( layout: Atlas_Core.Atlas_Default ) {
   -- default line style: markerColor is hidden -> must be null (not empty ClientTemplate)
   pluggablewidget 'com.mendix.widget.web.timeseries.TimeSeries' tsPlain {
@@ -42,4 +41,4 @@ create or modify page TSMarker.Home ( layout: Atlas_Core.Atlas_Default ) {
                  DataSource: database from TSMarker.Sale,
                  StaticXAttribute: SaleDate, StaticYAttribute: Total, StaticName: 'Revenue' )
   }
-}
+};

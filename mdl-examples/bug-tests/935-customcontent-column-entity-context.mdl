@@ -1,3 +1,4 @@
+mdl 1;
 -- upstream #935 (defect 2) — a widget inserted INTO a DataGrid2 customContent
 -- cell bound its association path to nothing.
 --
