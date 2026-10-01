@@ -1,0 +1,33 @@
+{
+  "MDL language header": {
+    "prefix": ["mdl", "mdl 1"],
+    "description": "The `mdl 1;` header every new script starts with: the MDL language version it is written in",
+    "body": ["mdl 1;", "", "$0"]
+  },
+  "New MDL script": {
+    "prefix": ["script", "new script"],
+    "description": "A new MDL script on mdl 1, with a module and an entity",
+    "body": [
+      "mdl 1;",
+      "",
+      "create module if not exists ${1:MyModule};",
+      "",
+      "create or modify persistent entity ${1:MyModule}.${2:Entity} (",
+      "  ${3:Name}: String(${4:200})",
+      ");",
+      "$0"
+    ]
+  },
+  "New MDL microflow script": {
+    "prefix": ["script microflow", "new microflow script"],
+    "description": "A new MDL script on mdl 1 with one microflow",
+    "body": [
+      "mdl 1;",
+      "",
+      "create or modify microflow ${1:MyModule}.${2:ACT_DoSomething} ()",
+      "begin",
+      "  $0",
+      "end;"
+    ]
+  }
+}

@@ -3,6 +3,7 @@
   "name": "MDL",
   "scopeName": "source.mdl",
   "patterns": [
+    { "include": "#language-header" },
     { "include": "#comments" },
     { "include": "#strings" },
     { "include": "#variables" },
@@ -16,6 +17,16 @@
     { "include": "#operators" }
   ],
   "repository": {
+    "language-header": {
+      "comment": "The `mdl <n>;` header: the MDL language version the script is written in (ADR-0011). It starts a line; a trailing `--` comment is matched by #comments.",
+      "match": "(?i)^\\s*(mdl)\\s+([0-9]+)\\s*(;)",
+      "name": "meta.preprocessor.language-version.mdl",
+      "captures": {
+        "1": { "name": "keyword.control.directive.language-version.mdl" },
+        "2": { "name": "constant.numeric.language-version.mdl" },
+        "3": { "name": "punctuation.terminator.statement.mdl" }
+      }
+    },
     "comments": {
       "patterns": [
         {
