@@ -81,7 +81,8 @@ a longer prompt.
    template's, with nothing to subtract. See [mxcli report](mxcli-report.md) for how to
    read the six category scores.
 7. **Proposes the model in MDL and waits** — module, entities, roles, pages — before
-   building anything. Two of those choices it makes deliberately rather than by
+   building anything. Every script it writes, from the first, starts with `mdl 1;`, so
+   the project never holds a headerless (`mdl 0`) script to upgrade. Two of those choices it makes deliberately rather than by
    default: a process with steps someone has to act on becomes a **workflow** (state
    machine, user-task inbox, timers, a definition the business can read) rather than
    a status attribute and some microflows, and a total or count across records
