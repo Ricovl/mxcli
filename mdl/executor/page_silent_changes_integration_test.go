@@ -112,3 +112,42 @@ func TestAlterPage_DataViewFooterRegion(t *testing.T) {
 		t.Errorf("describe changed after re-executing its own output:\n--- before\n%s\n--- after\n%s", out, again)
 	}
 }
+
+// mendixlabs/mxcli#1235: an input bound to a page variable is written, read
+// back by describe in the same spelling, and describe's output re-executes
+// onto the same page.
+func TestPageVariableInputBinding_RoundTrip(t *testing.T) {
+	env := setupTestEnv(t)
+	defer env.teardown()
+	env.requireMinVersion(t, 11, 0)
+
+	page := testModule + ".VarBoundPage"
+	if err := env.executeMDL(`create page ` + page + ` (
+		Title: 'Orders', Layout: Atlas_Core.Atlas_Default,
+		Variables: { $ShowAll: Boolean = 'true', $Filter: String = '''x''' }
+	) {
+		checkbox cbShowAll (Label: 'Show all', Attribute: $ShowAll)
+		textbox tbFilter (Label: 'Filter', Attribute: $Filter)
+	}`); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	out, err := env.describeMDL(`describe page ` + page + `;`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Attribute: $ShowAll", "Attribute: $Filter"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("describe dropped the page-variable binding %q:\n%s", want, out)
+		}
+	}
+	if err := env.executeMDL(stripDescribeArtifacts(out)); err != nil {
+		t.Fatalf("re-executing describe output: %v\n%s", err, out)
+	}
+	again, err := env.describeMDL(`describe page ` + page + `;`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again != out {
+		t.Errorf("describe changed after re-executing its own output:\n--- before\n%s\n--- after\n%s", out, again)
+	}
+}

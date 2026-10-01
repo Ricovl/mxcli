@@ -45,7 +45,12 @@ invalid document.
 positionally (`layoutContainer.top`), reusing the dotted reference that also
 serves columns and disambiguated the same way. Only `INSERT INTO` accepts one:
 BEFORE and AFTER position a widget among siblings, and treating them as INTO
-would silently put widgets somewhere the script did not ask for.
+would silently put widgets somewhere the script did not ask for. A data view's
+footer is the same thing (`dvMain.footer`); it went unaddressable for months
+because the builder accepted a name for it and dropped it, and the grammar's
+own example used describe's invented `footer1` — a name nothing resolved. A
+name written where the model keeps none should be refused or deprecated at
+parse time (MDL-DEPR005), not silently discarded by the builder.
 
 **Property lookup is per-shape, and the shapes differ.** A button's text is a
 `CaptionTemplate`, not a `Caption`. A column's value kind comes from the

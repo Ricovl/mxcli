@@ -167,6 +167,13 @@ rebuilds the widget from what the statement says, so any property you do not
 restate — `ButtonStyle`, `Class`, design properties, tooltip — is dropped. `set`
 edits the one property and leaves the rest of the widget alone.
 
+The exception is a **pluggable widget replaced by one of the same kind** (a combo
+box by a combo box): there `replace` keeps every stored property the statement
+does not change — a translated placeholder, `readOnlyStyle`, anything MDL has no
+word for — and writes only what differs from the widget as `describe` prints it.
+So a sort can be added to a combo box's options by restating its `describe`
+line with `sort by` appended.
+
 `set Action` is refused on a widget that has no action (a plain container, say),
 rather than writing a property the widget type does not define — Studio Pro
 refuses to open a document with an unknown property while MxBuild tolerates it,
@@ -313,18 +320,16 @@ Removes widgets and their entire subtree from the page.
 ### REPLACE - Replace Widget Subtree
 
 ```sql
--- Replace a single widget with new content
-replace btnSave with {
-  actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
-}
-
--- A data view's footer has no name: address it by its data view
-replace dvMain.footer with {
-  footer {
-    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
+mdl 1;
+-- Replace a data view's footer (it has no name: address it by its data view)
+alter page MyModule.Customer_Edit {
+  replace dvMain.footer with {
+    footer {
+      actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+      actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
+    }
   }
-}
+};
 ```
 
 Replaces the target widget with one or more new widgets. The new widgets use the same syntax as `create page`, and may reuse the names of the widgets the replace removes. `insert into dvMain.footer { … }` appends to a footer and `drop dvMain.footer` empties it.
