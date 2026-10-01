@@ -72,25 +72,31 @@ Entity: MyModule.Order
 
 ## What Gets Compared
 
-- **Entities**: Attributes, constraints, indexes, documentation
-- **Enumerations**: Values and captions
-- **Associations**: Type, owner, delete behavior
-- **Microflows**: Parameters, return type, body statements
+`mxcli diff` runs the script with exec's own code on a scratch copy of the
+project, then compares the copy with the project unit by unit. It reports
+exactly the units exec would write — every document kind (domain model per
+entity and association, pages, snippets, layouts, flows, security, navigation,
+settings, folders) and every statement kind — each shown as its `describe`
+before and after. The project itself is not changed.
+
+A unit exec would rewrite although its description does not change is listed
+on one line with the properties that change (`Modified: Page X: changed:
+CanvasHeight`), or the folder it moves to.
 
 ## Summary Output
 
 Every diff ends with a summary:
 
 ```
-Summary: 2 new, 3 modified, 5 unchanged
+Summary: 2 new, 3 modified, 0 removed — exec would write 4 unit(s)
 ```
 
-When a `create or modify` of an existing microflow or nanoflow would be refused
-by `exec` (under `mdl 1;`, a change the splice cannot make), diff lists it as
-`Refused: …` with the reason and adds `, N refused` to the summary.
-One `exec` would write although its MDL renders as stored (a `folder` clause
-naming another folder, applied as a move) is counted as modified and listed as
-`Modified: … exec would write it: …`.
+A script exec has already applied reports `exec would write nothing`.
+
+A script exec would refuse (its pre-flight checks) or a statement exec would
+stop at (a plain `create` of an existing document; a flow change the splice
+cannot make under `mdl 1;`) is reported as `Refused: …` with exec's message.
+`--no-check` and `--continue-on-error` behave as they do for exec.
 
 ## Use Cases
 
@@ -104,4 +110,6 @@ naming another folder, applied as a move) is counted as modified and listed as
 - Use `--color` for terminal output to easily spot changes
 - Use `--format struct` for a quick overview of what changes
 - Use `--format side` when comparing large objects
-- Combine with `mxcli check` to validate syntax first
+- Run it before `exec` on a Studio Pro-authored project: a write you did not
+  intend (a rewrite of a document you only meant to read back) shows up as a
+  modified unit

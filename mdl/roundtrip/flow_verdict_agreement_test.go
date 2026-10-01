@@ -23,7 +23,7 @@ import (
 type verdicts struct {
 	checkError   bool // check -p: an MDL-V1-REBUILD error
 	checkWarning bool // check -p: the MDL-V1-REBUILD warning
-	diffRefused  bool // diff: "Refused:"
+	diffRefused  bool // diff: "Refused:" with the splice's refusal
 	execRefused  bool // exec: the splice refusal, nothing written
 	execRebuilt  bool // exec: the MDL-V1-REBUILD warning, the flow rebuilt
 	checkMessage string
@@ -51,7 +51,10 @@ func (h *harness) verdictsOf(script string) verdicts {
 			v.checkWarning = true
 		}
 	}
-	v.diffRefused = strings.Contains(h.diff(script), "Refused:")
+	// diff runs exec on a scratch copy, so it reports whatever exec stops
+	// at; the refusal compared here is the splice's.
+	out := h.diff(script)
+	v.diffRefused = strings.Contains(out, "Refused:") && strings.Contains(out, "cannot be spliced into the stored flow")
 	before := h.snapshot()
 	err := h.exec(script)
 	changed := before.diff(h.snapshot())

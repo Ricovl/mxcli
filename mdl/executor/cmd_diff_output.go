@@ -41,11 +41,16 @@ func outputUnifiedDiff(ctx *ExecContext, result DiffResult, useColor bool) {
 	}
 
 	// Use difflib for unified diff
+	from := fmt.Sprintf("%s.%s (current)", result.ObjectType, result.ObjectName)
+	to := fmt.Sprintf("%s.%s (script)", result.ObjectType, result.ObjectName)
+	if result.IsDeleted {
+		to = "/dev/null"
+	}
 	diff := difflib.UnifiedDiff{
 		A:        difflib.SplitLines(result.Current),
 		B:        difflib.SplitLines(result.Proposed),
-		FromFile: fmt.Sprintf("%s.%s (current)", result.ObjectType, result.ObjectName),
-		ToFile:   fmt.Sprintf("%s.%s (script)", result.ObjectType, result.ObjectName),
+		FromFile: from,
+		ToFile:   to,
 		Context:  3,
 	}
 
@@ -86,6 +91,9 @@ func outputSideBySideDiff(ctx *ExecContext, result DiffResult, width int, useCol
 	rightHeader := "Script"
 	if result.IsNew {
 		leftHeader = "(new)"
+	}
+	if result.IsDeleted {
+		rightHeader = "(removed)"
 	}
 	fmt.Fprintf(ctx.Output, "%-*s │ %s\n", colWidth, leftHeader, rightHeader)
 	fmt.Fprintln(ctx.Output, strings.Repeat("─", width))
@@ -147,6 +155,12 @@ func outputStructuralDiff(ctx *ExecContext, result DiffResult, useColor bool) {
 			fmt.Fprintf(ctx.Output, "  %s+ New%s\n", colorGreen, colorReset)
 		} else {
 			fmt.Fprintln(ctx.Output, "  + New")
+		}
+	} else if result.IsDeleted {
+		if useColor {
+			fmt.Fprintf(ctx.Output, "  %s- Removed%s\n", colorRed, colorReset)
+		} else {
+			fmt.Fprintln(ctx.Output, "  - Removed")
 		}
 	} else if result.Current == result.Proposed {
 		fmt.Fprintln(ctx.Output, "  (no changes)")
