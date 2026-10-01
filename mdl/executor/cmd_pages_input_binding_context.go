@@ -66,7 +66,7 @@ func inputBindingProblem(w *ast.WidgetV3, c pageArgContext, noEntity bool, isPag
 	if !isString {
 		if name, ok := bareVariableReference(raw); ok {
 			return fmt.Sprintf("%s `%s`: `Attribute: $%s` — `$%s` is not a page variable of this document, so the "+
-				"widget would be written with no binding at all. Declare it (`Variables: { $%s: Boolean = 'true' }`) to "+
+				"widget would be written with no binding at all. Declare it (`Variables: ( $%s: Boolean = 'true' )`) to "+
 				"bind the input to it, or bind an attribute by name inside a data container",
 				kind, w.Name, name, name, name)
 		}
@@ -223,7 +223,7 @@ func validatePageVariableBindings(widgets []*ast.WidgetV3, variables []ast.PageV
 						RuleID:     "MDL-WIDGET34",
 						Severity:   linter.SeverityError,
 						Message:    locationPrefix + ": " + msg,
-						Suggestion: "Bind an input to a page variable by declaring it: `Variables: { $name: Boolean = 'true' }`, then `Attribute: $name`.",
+						Suggestion: "Bind an input to a page variable by declaring it: `Variables: ( $name: Boolean = 'true' )`, then `Attribute: $name`.",
 					})
 				}
 			}
