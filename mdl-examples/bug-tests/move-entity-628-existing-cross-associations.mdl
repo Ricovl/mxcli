@@ -1,0 +1,58 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#628 — MOVE ENTITY must see the cross-associations that already exist
+-- ============================================================================
+--
+-- MoveEntity converted the plain associations of the moved entity and never
+-- looked at existing cross-associations. Moving the SECOND endpoint of an
+-- association to another module — the normal way to reorganise a module one
+-- entity at a time — left a cross-association whose ParentPointer named an
+-- element absent from its unit, and Studio Pro could no longer open the project:
+--
+--   System.AggregateException: The given key '<guid>' was not present in the dictionary.
+--
+-- Three shapes, each below:
+--   1. both endpoints end up in one module -> a plain association again;
+--   2. the FROM end moves on               -> the cross-association travels with it;
+--   3. the TO end moves on                 -> the cross-association elsewhere is re-pointed.
+--
+--   mxcli exec move-entity-628-existing-cross-associations.mdl -p app.mpr
+--   mxcli docker check -p app.mpr
+--
+-- Expected: every statement succeeds and the project checks clean. Afterwards
+--   describe association Bug628B.Child_Parent;   -> from Bug628B.Child to Bug628B.Parent
+--   describe association Bug628E.C2_P2;          -> from Bug628E.C2 to Bug628D.P2
+--   describe association Bug628C.C3_P3;          -> from Bug628C.C3 to Bug628E.P3
+--
+-- The storage GUID carry through each conversion is asserted on Studio
+-- Pro-authored content in mdl/backend/modelsdk/issue628_move_cross_assoc_test.go;
+-- in a script like this one every element is mxcli-created (GUID == $ID), so a
+-- lost GUID is not observable here.
+-- ============================================================================
+
+create module Bug628A;
+create module Bug628B;
+create module Bug628C;
+create module Bug628D;
+create module Bug628E;
+
+-- Shape 1 (the issue's reproduction).
+create or modify persistent entity Bug628A.Parent ( Code: String(50) );
+create or modify persistent entity Bug628A.Child ( Descr: String(100) );
+create or modify association Bug628A.Child_Parent from Bug628A.Child to Bug628A.Parent type Reference;
+move entity Bug628A.Parent to Bug628B;
+move entity Bug628A.Child to Bug628B;
+
+-- Shape 2.
+create or modify persistent entity Bug628C.P2 ( Code: String(50) );
+create or modify persistent entity Bug628C.C2 ( Descr: String(100) );
+create or modify association Bug628C.C2_P2 from Bug628C.C2 to Bug628C.P2 type Reference;
+move entity Bug628C.P2 to Bug628D;
+move entity Bug628C.C2 to Bug628E;
+
+-- Shape 3.
+create or modify persistent entity Bug628C.P3 ( Code: String(50) );
+create or modify persistent entity Bug628C.C3 ( Descr: String(100) );
+create or modify association Bug628C.C3_P3 from Bug628C.C3 to Bug628C.P3 type Reference;
+move entity Bug628C.P3 to Bug628D;
+move entity Bug628D.P3 to Bug628E;
