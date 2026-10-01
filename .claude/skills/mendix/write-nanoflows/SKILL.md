@@ -27,12 +27,13 @@ Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode
   (targets by output variable, caption or statement pattern). `create or modify` of `describe`
   output also works as a patch: an unchanged definition writes nothing, and an inserted,
   replaced or dropped statement (at the top level or in an `if` branch) is spliced in,
-  leaving every other node, merge and curve as stored; a changed `return` value is set on
-  the stored end event, and a body without a trailing `return` means the stored end. The
+  leaving every other node, merge and curve as stored — a guard clause (`if … then return;
+  end if;`) too, its return a new end event; a changed `return` value or `if` condition is set on
+  the stored end event or decision, and a body without a trailing `return` means the stored end. The
   header (documentation, return type, parameters added, retyped or — when unused —
   removed) is set on the stored document, and a stated `@position` or `@start` moves the
   stored node, keeping its flows. A change it cannot patch — anything inside a loop body
-  or error handler, a redrawn `@anchor`/`@curve`, a `return` added or taken away —
+  or error handler, a redrawn `@anchor`/`@curve`, any other `return` added or taken away —
   rebuilds the whole nanoflow under mdl 0
   (warning `MDL-V1-REBUILD`: element IDs renumbered, merges removed, curves reset) and
   is refused under `mdl 1;`.

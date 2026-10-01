@@ -635,7 +635,6 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 		return nil, nil, nil, cannotSplice("the free annotations change; the splice edits activities only")
 	}
 
-	declared = withImplicitEnd(declared, stored, returnVar)
 	// @start is where the start event is drawn, which describe prints on the
 	// first statement: it belongs to the start event, not to the statement.
 	declared, declaredStart := withoutStart(declared)
@@ -643,6 +642,11 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 	// One spelling of each control-flow shape on both sides, so a script
 	// matches the flow built from it however describe prints it (#859).
 	declared, stored = canonicalFlow(declared), canonicalFlow(stored)
+	// The implicit end is stated against the canonical stored flow: a guard
+	// directly before the final end is described as an if/else whose else
+	// returns, which only the canonical form ends with that return
+	// (ako/mxcli#888).
+	declared = withImplicitEnd(declared, stored, returnVar)
 
 	pd := &patchDiff{loc: newStoredLocator(a)}
 	if err := pd.statements(declared, stored); err != nil {
@@ -783,6 +787,9 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 		return nil
 	}
 	if len(ins) == 1 && len(del) == 1 {
+		if d, s, ok := ifConditionChanged(ins[0], del[0]); ok {
+			return pd.conditionEdit(d, s)
+		}
 		if d, s, ok := sameIfShell(ins[0], del[0]); ok {
 			// The same `if` with a change in a branch: splice the branches,
 			// and move the split if the script draws it elsewhere.
@@ -903,6 +910,48 @@ func sameIfShell(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfS
 	return d, s, true
 }
 
+// ifConditionChanged reports whether two statements are the same `if` but for
+// its condition — the same annotations, the same else — differing besides at
+// most inside its branches and in where the split is drawn (ako/mxcli#888).
+func ifConditionChanged(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfStmt, bool) {
+	d, ok1 := declared.(*ast.IfStmt)
+	s, ok2 := stored.(*ast.IfStmt)
+	if !ok1 || !ok2 || declaredMatches(d.Condition, s.Condition) {
+		return nil, nil, false
+	}
+	dShell, sShell := *d, *s
+	dShell.ThenBody, dShell.ElseBody, sShell.ThenBody, sShell.ElseBody = nil, nil, nil, nil
+	dShell.Condition = s.Condition
+	if !sameExceptPositions(&dShell, &sShell) {
+		return nil, nil, false
+	}
+	return d, s, true
+}
+
+// conditionEdit diffs an `if` whose condition changes against the stored
+// one: the decision is the same node, so the new condition is set on it in
+// place — its $ID, its flows and both of its paths stay — and its branches
+// are diffed like any other statement list. Replacing the decision instead
+// would take out what both of its paths hold, which the splice refuses.
+func (pd *patchDiff) conditionEdit(declared, stored *ast.IfStmt) error {
+	c, err := pd.loc.locate(stored)
+	if err != nil {
+		return err
+	}
+	if _, ok := c.Object.(*microflows.ExclusiveSplit); !ok {
+		return cannotSplice("the stored %s is not drawn as a decision", describeAt(stored))
+	}
+	pd.add(ast.AlterFlowReplace, c, []ast.MicroflowStatement{&ast.IfStmt{Condition: declared.Condition}})
+	pd.ops[len(pd.ops)-1].SetCondition = true
+	if err := pd.movedNode(declared, stored); err != nil {
+		return err
+	}
+	if err := pd.statements(declared.ThenBody, stored.ThenBody); err != nil {
+		return err
+	}
+	return pd.statements(declared.ElseBody, stored.ElseBody)
+}
+
 // sameBlockShell reports whether two statements are the same `if`, differing
 // inside its branches. Such a pair is matched as a pair (lcsStatements) and
 // diffed branch by branch, rather than left to merge with the changes around
@@ -911,8 +960,15 @@ func sameIfShell(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfS
 // insert (#859). Loops are not paired this way: a change inside a loop is
 // refused either way, and pairing one would turn a replace that spans it into
 // that refusal.
+//
+// An `if` whose condition changes is paired the same way (ako/mxcli#888): the
+// condition is set on the stored decision, and a change around it must not
+// merge with it into a replace of the decision.
 func sameBlockShell(declared, stored ast.MicroflowStatement) bool {
-	_, _, ok := sameIfShell(declared, stored)
+	if _, _, ok := sameIfShell(declared, stored); ok {
+		return true
+	}
+	_, _, ok := ifConditionChanged(declared, stored)
 	return ok
 }
 

@@ -57,4 +57,10 @@ type AlterFlowOperation struct {
 	// `create or modify`, whose declared statements state every activity's
 	// notes (ako/mxcli#859); an `alter` replace keeps them.
 	ReplaceNotes bool
+	// SetCondition, on a replace of a decision, says Body is a single `if`
+	// whose condition is the decision's new one, set in place: the decision,
+	// its flows and both of its paths stay (ako/mxcli#888). Set only by
+	// `create or modify`, for an `if` that differs from the stored one in its
+	// condition; the branches are diffed by operations of their own.
+	SetCondition bool
 }

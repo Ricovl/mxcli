@@ -21,6 +21,10 @@ type MicroflowFragment struct {
 	Flows           []*microflows.SequenceFlow
 	AnnotationFlows []*microflows.AnnotationFlow
 	Entry, Exit     model.ID
+	// ExitCase is the case value the flow leaving Exit carries, when Exit is
+	// a decision — a guard clause last in the fragment, whose other path
+	// returns (ako/mxcli#888). nil when the flow out of Exit has no case.
+	ExitCase microflows.CaseValue
 	// Placed says the script stated where the fragment goes (an @position on
 	// its first statement): it is written where the builder put it, and
 	// nothing around it is moved to make room (ako/mxcli#818). Unset, the
@@ -50,6 +54,10 @@ type MicroflowMutator interface {
 	// SetReturnValue sets the expression the end event target returns, in
 	// place; "" is no value.
 	SetReturnValue(target model.ID, value string) error
+	// SetCondition sets the expression the decision target branches on, and
+	// its caption, in place; the decision and its flows stay. A decision that
+	// calls a rule is refused.
+	SetCondition(target model.ID, expression, caption string) error
 	// Move sets where the top-level node target is drawn, and nothing else:
 	// its flows keep their ends, sides and curves (ako/mxcli#818).
 	Move(target model.ID, to model.Point) error
