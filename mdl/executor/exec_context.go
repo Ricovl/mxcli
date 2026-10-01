@@ -145,6 +145,10 @@ type ExecContext struct {
 	// per-statement contexts) and nil outside a program run.
 	tally *mutationTally
 
+	// accessRun is the open run of access-rule statements this statement is
+	// part of, which holds its report until the run is written; nil otherwise.
+	accessRun *accessRuleRun
+
 	// ScriptDepth tracks the current EXECUTE SCRIPT nesting level.
 	// Incremented on each recursive call; execExecuteScript rejects calls
 	// that exceed maxScriptDepth to prevent infinite self-referencing scripts.

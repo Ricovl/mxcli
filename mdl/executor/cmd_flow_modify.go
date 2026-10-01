@@ -130,16 +130,15 @@ func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) 
 		}
 	}
 	containerID := a.mf.ContainerID
-	if d.folder != storedFolder {
+	moved := movesFolder(d.folder, storedFolder)
+	if moved {
 		mod, err := findModule(ctx, d.name.Module)
 		if err != nil {
 			return true, err
 		}
-		to := mod.ID
-		if d.folder != "" {
-			if to, err = resolveFolder(ctx, mod.ID, d.folder); err != nil {
-				return true, mdlerrors.NewBackend("resolve folder "+d.folder, err)
-			}
+		to, err := resolveRequestedFolder(ctx, mod.ID, d.folder)
+		if err != nil {
+			return true, err
 		}
 		if _, err := applyDocumentFolder(ctx, a.mf.ID, a.mf.ContainerID, to); err != nil {
 			return true, err
@@ -150,7 +149,7 @@ func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) 
 	switch summary := patchSummary(ops, moves, set); {
 	case summary != "":
 		ctx.ReportMutation("Modified", "%s: %s (%s)", d.kind(), d.name, summary)
-	case d.folder != storedFolder:
+	case moved:
 		ctx.ReportMutation("Moved", "%s: %s", d.kind(), d.name)
 	default:
 		reportUnchanged(ctx, fmt.Sprintf("%s: %s", d.kind(), d.name))
@@ -164,6 +163,16 @@ func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) 
 	}
 	invalidateHierarchy(ctx)
 	return true, nil
+}
+
+// movesFolder reports whether a declared folder clause moves a stored flow.
+// No clause is not "the module root": it leaves the flow where it is, the rule
+// every create-or-modify path follows (document_placement.go). The splice
+// compared the two paths and moved on any difference, so a script that said
+// nothing about folders unfiled every foldered flow it touched, and an organise
+// step filing them again made each run write (ako/mxcli#887).
+func movesFolder(declared, stored string) bool {
+	return declared != "" && declared != stored
 }
 
 // flowPlan is a `create or modify` of a stored flow worked out as far as it

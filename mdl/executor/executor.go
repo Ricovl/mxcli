@@ -256,6 +256,7 @@ type Executor struct {
 	catalog        *catalog.Catalog
 	quiet          bool                               // suppress connection and status messages
 	tally          *mutationTally                     // collapses a program run's "Unchanged" reports into one line
+	accessRun      *accessRuleRun                     // the open run of access-rule statements, if any (#872, #890)
 	format         OutputFormat                       // output format (table, json)
 	logger         *diaglog.Logger                    // session diagnostics logger (nil = no logging)
 	tracer         *backend.Tracer                    // MCP tool-call tracer (--mcp-trace; nil = off)

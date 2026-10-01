@@ -268,3 +268,17 @@ Measured on a settled 40-statement script: 41 lines / 1,604 B became 2 lines /
    statement, so a one-liner collapsed to a count of one.
 
 `mutationTally` (`mdl/executor/mutation_tally.go`), active only inside a program run.
+
+**Every statement that writes is judged this way, not only the ones that report
+a document.** Security and settings statements report a sentence ("Granted access
+on …", "Set project security level to …", "Updated configuration …") and used to
+print it unconditionally, so a settled re-run announced writes that never reached
+disk (#890). They go through `ExecContext.reportWrite`, the same rule with a
+sentence for the write and `Unchanged <subject>` for the elision. A `move` to the
+container the document already has writes nothing and says Unchanged.
+
+A run of access-rule statements is the one case where a statement cannot know at
+the time: its domain model is held until the run ends (#872). Its reports are held
+with it (`accessRuleRun`, `mdl/executor/access_rule_run.go`) and printed at the
+flush — as written, or as Unchanged when the flush was elided. A
+`revoke` + `grant` reset that nets to nothing therefore reports nothing written.

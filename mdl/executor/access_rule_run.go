@@ -3,6 +3,8 @@
 package executor
 
 import (
+	"fmt"
+
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 )
@@ -31,8 +33,29 @@ type unitWriteDeferrer interface {
 // one path and read it back through the reader, which serves the held bytes; any
 // other statement ends the run first, so nothing that writes another way ever
 // sees — or is shadowed by — a held unit.
+//
+// The run's statements report only when it ends, because only then is it known
+// whether they wrote: a grant that is already in force reported "Granted access
+// …" on every re-run although nothing reached disk (ako/mxcli#890). Their
+// reports are held and printed at the flush — as written, or as Unchanged when
+// the flush offered the domain model and storage elided it.
 type accessRuleRun struct {
 	open unitWriteDeferrer
+	e    *Executor
+	held []heldReport
+}
+
+// heldReport is one statement's report in an open access-rule run.
+type heldReport struct {
+	// text is what the statement prints when the run wrote.
+	text string
+	// unchanged is the "Unchanged …" subject when the run wrote nothing; empty
+	// drops the text instead (a "Reconciled N rules" line about a rewrite that
+	// did not happen).
+	unchanged string
+	// notice is printed whatever the run wrote: it reports no write ("No access
+	// rules found …"), so there is nothing to downgrade.
+	notice bool
 }
 
 func isAccessRuleStmt(stmt ast.Statement) bool {
@@ -54,20 +77,62 @@ func (r *accessRuleRun) step(e *Executor, stmt ast.Statement) error {
 	}
 	if d, ok := e.backend.(unitWriteDeferrer); ok {
 		d.DeferUnitWrites()
-		r.open = d
+		r.open, r.e, r.held = d, e, nil
+		e.accessRun = r
 	}
 	return nil
 }
+
+// hold records a report of a statement in the run, to be printed at its end.
+func (r *accessRuleRun) hold(h heldReport) { r.held = append(r.held, h) }
 
 // end writes what the run holds. Safe to call with no run open.
 func (r *accessRuleRun) end() error {
 	if r.open == nil {
 		return nil
 	}
-	d := r.open
-	r.open = nil
-	if err := d.FlushDeferredWrites(); err != nil {
+	d, e, held := r.open, r.e, r.held
+	r.open, r.e, r.held = nil, nil, nil
+	if e.accessRun == r {
+		e.accessRun = nil
+	}
+	before := currentWriteStats(e.backend)
+	err := d.FlushDeferredWrites()
+	after := currentWriteStats(e.backend)
+	// The same evidence rule as ReportMutation: offered, and none landed.
+	elided := err == nil && after.Offered > before.Offered && after.Written == before.Written
+	for _, h := range held {
+		switch {
+		case !elided || h.notice:
+			fmt.Fprint(e.output, h.text)
+		case h.unchanged != "":
+			line := fmt.Sprintf("Unchanged %s\n", h.unchanged)
+			if !e.tally.countUnchanged(line) {
+				fmt.Fprint(e.output, line)
+			}
+		}
+	}
+	if err != nil {
 		return mdlerrors.NewBackend("write access rules", err)
 	}
 	return nil
+}
+
+// reportAccessRule reports an access-rule statement: held until the run it is
+// part of ends, or — outside a run — judged at once like any other write.
+func (ctx *ExecContext) reportAccessRule(h heldReport) {
+	if ctx.accessRun != nil {
+		ctx.accessRun.hold(h)
+		return
+	}
+	switch {
+	case h.notice:
+		fmt.Fprint(ctx.Output, h.text)
+	case ctx.mutationWasElided():
+		if h.unchanged != "" {
+			reportUnchanged(ctx, h.unchanged)
+		}
+	default:
+		fmt.Fprint(ctx.Output, h.text)
+	}
 }
