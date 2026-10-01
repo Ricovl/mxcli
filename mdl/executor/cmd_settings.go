@@ -608,7 +608,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 		return mdlerrors.NewBackend("update project settings", err)
 	}
 
-	fmt.Fprintf(ctx.Output, "Updated %s settings\n", section)
+	ctx.reportWrite(section+" settings", "Updated %s settings", section)
 	return nil
 }
 
@@ -692,7 +692,7 @@ func alterSettingsConfiguration(ctx *ExecContext, ps *model.ProjectSettings, stm
 		return mdlerrors.NewBackend("update project settings", err)
 	}
 
-	fmt.Fprintf(ctx.Output, "Updated configuration '%s'\n", stmt.ConfigName)
+	ctx.reportWrite(fmt.Sprintf("configuration '%s'", stmt.ConfigName), "Updated configuration '%s'", stmt.ConfigName)
 	return nil
 }
 
@@ -773,8 +773,8 @@ func alterSettingsConstant(ctx *ExecContext, ps *model.ProjectSettings, stmt *as
 		return mdlerrors.NewBackend("update project settings", err)
 	}
 
-	fmt.Fprintf(ctx.Output, "Updated constant '%s' = '%s' in configuration '%s'\n",
-		stmt.ConstantId, stmt.Value, targetConfig)
+	ctx.reportWrite(fmt.Sprintf("constant '%s' in configuration '%s'", stmt.ConstantId, targetConfig),
+		"Updated constant '%s' = '%s' in configuration '%s'", stmt.ConstantId, stmt.Value, targetConfig)
 	return nil
 }
 
