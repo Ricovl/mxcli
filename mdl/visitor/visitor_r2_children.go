@@ -32,6 +32,7 @@ import (
 // a service with twenty operations in braces is one warning, not twenty. The
 // rewrite of that one record respells every old bracket pair in the statement.
 func (b *Builder) EnterStatement(ctx *parser.StatementContext) {
+	b.enterStatementDocs(ctx)
 	uses := map[string]*r2Use{}
 	var order []string
 	use := func(code string, at antlr.Token) *r2Use {

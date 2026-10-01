@@ -113,16 +113,16 @@ func cannotSplice(format string, args ...any) error {
 // such flow yet, or a change the splice cannot make under mdl 0 — and the
 // caller then runs the create / rebuild path.
 func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) {
-	p, err := planFlowModify(ctx, d)
-	var why *notSpliceable
+	v := decideFlowModify(ctx, d)
 	switch {
-	case errors.As(err, &why):
-		return fallBack(ctx, d, err)
-	case err != nil:
-		return true, err
-	case p == nil:
+	case v.why != nil:
+		return fallBack(ctx, d, v)
+	case v.err != nil:
+		return true, v.err
+	case v.plan == nil:
 		return false, nil // a create
 	}
+	p := v.plan
 	a, ops, moves, set, storedFolder := p.a, p.ops, p.moves, p.set, p.storedFolder
 	if p.mut != nil {
 		if err := p.mut.Save(); err != nil {
@@ -332,18 +332,13 @@ func asNotSpliceable(err error) error {
 }
 
 // fallBack decides what a change the splice cannot make does: refused under
-// mdl 1, the whole-document rebuild with a warning under mdl 0.
-func fallBack(ctx *ExecContext, d *flowDecl, why error) (bool, error) {
-	if flowRebuildRefused.Applies(ctx.LanguageVersion) {
-		return true, mdlerrors.NewValidation(fmt.Sprintf(
-			"create or modify %s %s: this change cannot be spliced into the stored flow: %v. "+
-				"Nothing was written: rebuilding the whole flow instead would reset what Studio Pro drew "+
-				"(curves, merges, element IDs). Change activities with `alter %s %s { … }`; "+
-				"to rebuild the flow deliberately, drop the %s and create it",
-			d.kind(), d.name, why, d.kind(), d.name, d.kind()))
+// mdl 1, the whole-document rebuild with a warning under mdl 0. The verdict
+// and its wording are shared with diff and check (flow_verdict.go).
+func fallBack(ctx *ExecContext, d *flowDecl, v flowVerdict) (bool, error) {
+	if v.refused {
+		return true, flowRefusal(d, v.why)
 	}
-	fmt.Fprintf(ctx.progress(), "Warning [%s]: %s %s is rebuilt as a whole: %v. %s\n",
-		flowRebuildRefused.Code, d.kind(), d.name, why, flowRebuildRefused.Warning(ctx.LanguageVersion))
+	fmt.Fprintf(ctx.progress(), "Warning [%s]: %s\n", flowRebuildRefused.Code, flowRebuildWarning(ctx, d, v.why))
 	return false, nil
 }
 

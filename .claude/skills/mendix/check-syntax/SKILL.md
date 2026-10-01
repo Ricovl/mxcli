@@ -144,6 +144,27 @@ still exits 0. The defect was the silence, not the behaviour. It also covers the
 members that are not attributes — the four audit system fields and an omitted
 `extends` — because those drop the same way.
 
+### It reports the flow changes `exec` would refuse
+
+`create or modify microflow|nanoflow` on a stored flow is a patch. A change the
+patch cannot make (inside a loop body or error handler, a redrawn connector, a
+`return` added) is refused by `exec` under `mdl 1;`, and rebuilt (IDs, merges and
+curves lost) without the header. With `-p`, `check` runs the same verdict `exec`
+and `diff` run: an **MDL-V1-REBUILD** error quoting exec's refusal under `mdl 1`,
+the MDL-V1-REBUILD warning without the header, and **MDL090** for an `alter
+microflow|nanoflow` exec would refuse. Use `alter` for the change, or drop and
+create the flow. A flow an earlier statement of the script touches is not
+predicted (exec sees that statement's result), and `fmt --upgrade --header -p`
+keeps the header off a file it would make refuse (ako/mxcli#876).
+
+### It reports a doc comment that is lost
+
+A `/** … */` doc comment documents the statement right after it, and only a
+`create` of something with documentation stores one. Above a `drop`, `grant`,
+`revoke`, `set`, `alter` or `create module` it is ignored, so **MDL089** warns
+and names the next statement that could have taken it. In drop-then-create, put
+the comment between the `drop` and the `create` (ako/mxcli#877).
+
 ### It resolves MEMBER names too, where it can establish the entity
 
 Resolution does not stop at the entity. An attribute named in a **create** or

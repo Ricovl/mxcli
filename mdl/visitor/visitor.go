@@ -517,6 +517,13 @@ type Builder struct {
 	deprecations []ast.DeprecatedSpelling
 	// flowCommits are the commits in create-or-modify flows (visitor_flow_commits.go).
 	flowCommits []ast.FlowCommit
+	// detachedDocs are the doc comments on statements that do not store them,
+	// and docsAwaitingNext the first of them still waiting for the next
+	// statement that would; docStmtStart is where the current statement's
+	// built statements begin (visitor_doc_comment_placement.go).
+	detachedDocs     []*ast.DetachedDocComment
+	docsAwaitingNext int
+	docStmtStart     int
 	// widgetNameSpans remembers where each widget's name was written, until its
 	// parent decides whether the model stores it — see
 	// visitor_unstored_widget_name.go.
@@ -620,6 +627,7 @@ func build(input string, listen func(*Builder) antlr.ParseTreeListener) (*ast.Pr
 		LanguageHeaderLine:  builder.langHeaderLine,
 		LanguageNotes:       builder.langNotes,
 		FlowCommits:         builder.flowCommits,
+		DetachedDocComments: builder.detachedDocComments(),
 	}, allErrors
 }
 

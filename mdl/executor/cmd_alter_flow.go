@@ -35,17 +35,7 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 	if err != nil {
 		return err
 	}
-
-	targets := make([]mfmutator.Candidate, len(s.Operations))
-	for i, op := range s.Operations {
-		c, err := mfmutator.ResolveText(a.cands, op.Target)
-		if err != nil {
-			return mdlerrors.NewValidation(fmt.Sprintf("alter %s %s: %s %s: %v", s.Kind(), s.Name, op.Op, op.Target, err))
-		}
-		targets[i] = c
-	}
-
-	mut, err := a.apply(ctx, s.Operations, targets)
+	mut, err := a.plan(ctx)
 	if err != nil {
 		return err
 	}
@@ -54,6 +44,22 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 	}
 	fmt.Fprintf(ctx.Output, "Altered %s %s\n", s.Kind(), s.Name)
 	return nil
+}
+
+// plan resolves every target of the statement against the flow as stored and
+// applies its operations in memory, writing nothing: exec saves the result,
+// and check reports the error exec would (ako/mxcli#876).
+func (a *alterFlowContext) plan(ctx *ExecContext) (backend.MicroflowMutator, error) {
+	s := a.stmt
+	targets := make([]mfmutator.Candidate, len(s.Operations))
+	for i, op := range s.Operations {
+		c, err := mfmutator.ResolveText(a.cands, op.Target)
+		if err != nil {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf("alter %s %s: %s %s: %v", s.Kind(), s.Name, op.Op, op.Target, err))
+		}
+		targets[i] = c
+	}
+	return a.apply(ctx, s.Operations, targets)
 }
 
 // apply opens the stored flow for splicing and applies ops, each aimed at the
