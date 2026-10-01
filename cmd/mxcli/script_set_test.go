@@ -213,3 +213,55 @@ func TestFmtUpgrade_ScriptSetDecidesStubThenRealHeaderTogether(t *testing.T) {
 		}
 	}
 }
+
+// ako/mxcli#905 (review): a written header is the file's version, not a
+// header it has already taken. A stub pinned `mdl 0;` keeps mdl 0 under
+// --upgrade, so its real flow's file must be declined the header as well —
+// it was counted as "can take it" and the pair came out split, mdl 0 stub
+// before mdl 1 real. Control: a written `mdl 1;` stub does not hold the real
+// file back.
+func TestFmtUpgrade_ScriptSetPinnedMdl0StubHoldsTheRealFileBack(t *testing.T) {
+	dir := t.TempDir()
+	stub := writeScript(t, dir, "1-stub.mdl", "mdl 0;\n"+setStub)
+	real := writeScript(t, dir, "2-real.mdl", setReal)
+	out, err := runFmt(t, "--upgrade", "-w", stub, real)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if got, _ := os.ReadFile(real); string(got) != setReal {
+		t.Errorf("the pair was split: the real file took the header its mdl 0 stub keeps off:\n%s\n%s", got, out)
+	}
+	if !strings.Contains(out, "decided for the files together") {
+		t.Errorf("want the decline reported:\n%s", out)
+	}
+
+	cdir := t.TempDir()
+	cstub := writeScript(t, cdir, "1-stub.mdl", "mdl 1;\n"+setStub)
+	creal := writeScript(t, cdir, "2-real.mdl", setReal)
+	if out, err := runFmt(t, "--upgrade", "-w", cstub, creal); err != nil {
+		t.Fatalf("control: %v\n%s", err, out)
+	}
+	if got, _ := os.ReadFile(creal); !strings.HasPrefix(string(got), "mdl 1;\n") {
+		t.Errorf("control: a written mdl 1 stub held the real file back:\n%s", got)
+	}
+}
+
+// ako/mxcli#905 (review): fmt never removes a written header, so a file of
+// the group that already carries `mdl 1;` cannot be "declined" it. fmt said
+// "no language header added" about it while the pair stayed split; it must
+// say the pair stays under different headers instead.
+func TestFmtUpgrade_ScriptSetAlreadySplitPairIsReportedAsSplit(t *testing.T) {
+	dir := t.TempDir()
+	stub := writeScript(t, dir, "1-stub.mdl", "mdl 0;\n"+setStub)
+	real := writeScript(t, dir, "2-real.mdl", "mdl 1;\n"+setReal)
+	out, err := runFmt(t, "--upgrade", "-w", stub, real)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if strings.Contains(out, real+": no language header added") {
+		t.Errorf("fmt claims it kept the header off a file that already has it:\n%s", out)
+	}
+	if !strings.Contains(out, real+": already has the mdl 1 header") {
+		t.Errorf("want the split pair named:\n%s", out)
+	}
+}

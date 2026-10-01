@@ -475,6 +475,15 @@ func decideSetHeaders(cmd *cobra.Command, scripts []setScript, redecls []flowRed
 			continue
 		}
 		for _, f := range can {
+			// fmt never removes a written header: a file already under it
+			// cannot be held back, and the pair stays split until the stub
+			// goes or the header is taken off by hand.
+			if v, written := langver.ScanWrittenHeader(src[f]); written {
+				fmt.Fprintf(cmd.ErrOrStderr(), "%s: already has the %s header, which fmt does not remove, while %s "+
+					"cannot take it: the stub-then-real pair stays under different headers (%s); drop the stub, "+
+					"or take the header off this file\n", f, v, strings.Join(cannot, ", "), StubThenRealRule)
+				continue
+			}
 			decline[f] = fmt.Sprintf("it declares a flow that %s also declares, and that file cannot take the "+
 				"header; a stub-then-real pair under different headers lets the mdl 0 statement rebuild the flow "+
 				"on every run while the mdl 1 one is refused, so the header is decided for the files together "+
@@ -485,12 +494,14 @@ func decideSetHeaders(cmd *cobra.Command, scripts []setScript, redecls []flowRed
 }
 
 // canTakeHeader reports whether fmt --upgrade, run on src alone, would leave
-// it under the language header: it has one already, or the upgrade can add
+// it under the language header: it has it written already, or the upgrade can add
 // one (no construct blocks it) and, with -p, exec would refuse none of its
 // statements under it (or --force-header overrides that).
 func canTakeHeader(cmd *cobra.Command, src string) bool {
-	if _, written := langver.ScanWrittenHeader(src); written {
-		return true
+	// A written header is the file's version: `mdl 0;` pins it, and
+	// --upgrade leaves it there.
+	if v, written := langver.ScanWrittenHeader(src); written {
+		return v == langver.Latest
 	}
 	opts := upgrade.DefaultOptions()
 	opts.AddHeader = true
