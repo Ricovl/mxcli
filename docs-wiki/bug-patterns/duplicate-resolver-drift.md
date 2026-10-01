@@ -66,6 +66,15 @@ interface already exposed the accessor the switches were standing in for
 (`GetFlow`), which is the tell for this variant: a hand-written switch over an
 interface's implementations answers a question the interface answers already.
 
+*A preview versus the command it previews.* `mxcli diff` predicted exec by
+rendering each statement as MDL and comparing it with the stored document's
+description. Every normalisation exec applies — implicit defaults, positions,
+the splice verdict, write elision — had to be re-derived by that renderer, and
+each round of fixes (#997, #794, #839) synchronised one more spot while the
+next rehearsal found phantoms on 66 scripts (#907). The remedy was the general
+one taken literally: diff now runs exec itself on a scratch copy and compares
+units, so there is no second answer left to drift.
+
 **The tell is that the fix for the reported instance is obviously incomplete.**
 When a symptom's cause is "this switch was missing a case", the next question is
 how many other switches answer the same question — the answer has repeatedly been
