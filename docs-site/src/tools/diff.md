@@ -61,7 +61,12 @@ own language header, without writing, so the two agree:
   and counted as refused in the summary;
 - a statement whose patch is empty — nothing `exec` would write — is
   **unchanged**, whatever the two renderings differ in (surrounding whitespace,
-  a bracketed `where [ … ]` against the bare form describe prints). A statement
+  a bracketed `where [ … ]` against the bare form describe prints). An
+  expression is compared by its tokens: the case of a keyword (`AND`, `and`)
+  and the whitespace and line breaks between tokens — a member list laid out
+  over several lines — are not a change, and neither is `Long` for the one
+  Integer/Long type a flow stores (ako/mxcli#886); what is inside a string
+  literal is compared as written. A statement
   that builds the flow that is stored is unchanged however that flow is
   described: a guard clause `if … then return …; end if; return …;` that
   describe prints as `if … then … else … end if`, a nested guard it prints with
