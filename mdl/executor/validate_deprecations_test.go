@@ -79,3 +79,29 @@ func mustProgram(t *testing.T, src string) *ast.Program {
 	}
 	return prog
 }
+
+// Every deprecation warning ends by pointing at the code's registry entry, so
+// the reader is one command from the old form, the new form, the rewrite and
+// the version that refuses it (ako/mxcli#714 decision 3). Driven by every
+// registry entry's own example, so an entry added later is covered.
+func TestDeprecationWarningsEndWithHelpPointer(t *testing.T) {
+	for _, e := range deprecation.All() {
+		if e.RemovedIn <= 0 {
+			continue
+		}
+		got := deprecationViolations(t, e.Example, deprecation.Warn)
+		found := false
+		for _, v := range got {
+			if v.RuleID != e.Code {
+				continue
+			}
+			found = true
+			if want := "(mxcli help " + e.Code + ")"; !strings.HasSuffix(v.Message, want) {
+				t.Errorf("%s: warning does not end with %s: %q", e.Code, want, v.Message)
+			}
+		}
+		if !found {
+			t.Errorf("%s: its example recorded no warning under its own code: %+v", e.Code, got)
+		}
+	}
+}

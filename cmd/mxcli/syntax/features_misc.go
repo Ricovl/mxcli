@@ -51,7 +51,13 @@ func init() {
 			"-- nested list operation, find/contains on a variable\n" +
 			"-- whose type the script does not state, and an escaped line break inside\n" +
 			"-- an expression.\n" +
-			"-- `mxcli fmt --upgrade` alone rewrites deprecated spellings (MDL-DEPRnnn).",
+			"-- `mxcli fmt --upgrade` alone rewrites deprecated spellings (MDL-DEPRnnn).\n" +
+			"--\n" +
+			"-- Every warning with an MDL-V1-* or MDL-DEPRnnn code ends with\n" +
+			"-- `(mxcli help <code>)`, which prints its entry: old form, new form,\n" +
+			"-- whether fmt --upgrade rewrites it, and the version that refuses it.\n" +
+			"-- `mxcli syntax <topic> --deprecated` lists a topic's old spellings; the\n" +
+			"-- docs page \"Language versions and migration\" tabulates every code.",
 		Example: "mdl 1;\n\ncreate persistent entity MyModule.Customer (\n  Name: String(200)\n);",
 		SeeAlso: []string{"create-modifiers"},
 	})

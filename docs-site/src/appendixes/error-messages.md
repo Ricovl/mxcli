@@ -146,7 +146,7 @@ The rule keys on **scope, not on the name**. `$item` is perfectly valid in a pre
 
 ```
 line 1: `create or replace …` (enumeration) is deprecated; write `create or modify …`
-— same meaning. Refused from `mdl 2`. [MDL-DEPR001]
+— same meaning. Refused from `mdl 2`. (mxcli help MDL-DEPR001) [MDL-DEPR001]
 ```
 
 **Cause:** The script uses an alias that MDL is consolidating away (ADR-0010). The alias means exactly what the canonical form means, so the statement runs unchanged. The warning names the canonical form, and the language version whose header (`mdl <n>;`) will refuse the alias (ADR-0011).
@@ -154,6 +154,8 @@ line 1: `create or replace …` (enumeration) is deprecated; write `create or mo
 **Solution:** Write the canonical form the warning names. The rewrite is a mechanical keyword swap, and the suggestion line says which one.
 
 `check` and `exec` report these as **warnings**. To fail the run on one, for example in CI over documentation and examples, pass `--deprecations=error`.
+
+`mxcli help <code>` prints the entry for any `MDL-DEPRnnn` or `MDL-V1-*` code, `mxcli syntax <topic> --deprecated` lists a topic's old spellings, and [Language Versions and Migration](../language/versions.md) tabulates them all.
 
 The registry of deprecated spellings is `mdl/deprecation/deprecation.go`. It holds the code, old form, canonical form, rewrite and removal version of each entry. A spelling is only registered where it means exactly the same as its canonical form. `create or replace view entity`, for example, drops and recreates the view entity, so it is not reported. Likewise `show` is reported as `MDL-DEPR002` only where its canonical form is `list` (plurals, relationship queries and the summary tables), and as `MDL-DEPR090` where it is `describe` with the same output. `show entity X` and `show version` are neither: the first has no mdl 1 statement (`MDL-V1-SHOWSUMMARY`), the second is a session command (`MDL-V1-SESSION`).
 

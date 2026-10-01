@@ -178,6 +178,10 @@ jobs:
         # as failures, against an allowlist that may only shrink
         # (ako/mxcli#756, ako/mxcli#714 decision 1).
         run: make check-conformance
+      - name: Check the migration reference is current
+        # The tables on docs-site/src/language/versions.md are generated from
+        # the language-change and deprecation registries (ako/mxcli#714).
+        run: make check-migration-reference
       # The integration tests are the `integration` job below.
       - name: Lint Go
         run: make lint-go
