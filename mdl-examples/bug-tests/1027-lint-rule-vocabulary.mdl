@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1027 — the bundled `write-lint-rules` skill documented
 -- `action_type` / `source_type` values the lint API never returns, so a rule
 -- written from the guide's own examples matched nothing and reported a clean
@@ -57,7 +58,7 @@ create or modify layout Sales.App_Default (
       placeholder Main
     }
   }
-}
+};
 
 create page Sales.Customer_Overview (
   Title: 'Customers',
@@ -65,7 +66,7 @@ create page Sales.Customer_Overview (
 ) {
   container box {
   }
-}
+};
 
 create or modify microflow Sales.SUB_Helper ()
 begin

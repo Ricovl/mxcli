@@ -1,3 +1,4 @@
+mdl 1;
 -- #1201: `ALTER PAGE … SET ImageUrl = … ON <image>` printed "Altered page"
 -- and changed nothing.
 --

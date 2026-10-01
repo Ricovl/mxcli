@@ -7,6 +7,7 @@ A complete security setup: module roles, entity access with XPath row-level cons
 Module roles define what actions are available within a module:
 
 ```sql
+mdl 1;
 CREATE MODULE ROLE Sales.Viewer DESCRIPTION 'Read-only access to sales data';
 CREATE MODULE ROLE Sales.User DESCRIPTION 'Can create and edit orders';
 CREATE MODULE ROLE Sales.Admin DESCRIPTION 'Full access including delete';
@@ -17,6 +18,7 @@ CREATE MODULE ROLE Sales.Admin DESCRIPTION 'Full access including delete';
 GRANT controls which CRUD operations a role can perform. XPath constraints in `WHERE` filter which rows are visible:
 
 ```sql
+mdl 1;
 -- Admin: full access to all customers
 GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Sales.Customer TO Sales.Admin;
 
@@ -39,6 +41,7 @@ GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Sales.Order TO Sales.Admin;
 ## Microflow and Page Access
 
 ```sql
+mdl 1;
 -- Microflow access
 GRANT EXECUTE ON MICROFLOW Sales.ACT_Order_Save TO Sales.User;
 GRANT EXECUTE ON MICROFLOW Sales.ACT_Order_Delete TO Sales.Admin;
@@ -55,6 +58,7 @@ GRANT VIEW ON PAGE Sales.Admin_Dashboard TO Sales.Admin;
 User roles combine module roles from different modules into a single assignable role:
 
 ```sql
+mdl 1;
 CREATE OR MODIFY USER ROLE SalesViewer ( ModuleRoles: (System.User, Sales.Viewer) );
 CREATE OR MODIFY USER ROLE SalesRep ( ModuleRoles: (System.User, Sales.User) );
 CREATE OR MODIFY USER ROLE SalesManager ( ModuleRoles: (System.User, Sales.Admin), ManageAllRoles: true );
@@ -65,6 +69,7 @@ CREATE OR MODIFY USER ROLE SalesManager ( ModuleRoles: (System.User, Sales.Admin
 Demo users are created for testing and development:
 
 ```sql
+mdl 1;
 CREATE OR MODIFY DEMO USER 'viewer' ( Password: 'Password1!', UserRoles: (SalesViewer) );
 CREATE OR MODIFY DEMO USER 'sales_rep' ( Password: 'Password1!', UserRoles: (SalesRep) );
 CREATE OR MODIFY DEMO USER 'manager' ( Password: 'Password1!', UserRoles: (SalesManager) );
@@ -86,6 +91,7 @@ GRANT READ (Phone) ON ENTITY Sales.Customer TO Sales.Viewer;
 ## Revoking Access
 
 ```sql
+mdl 1;
 -- Remove all access for a role
 REVOKE ALL ON ENTITY Sales.Customer FROM Sales.Viewer;
 

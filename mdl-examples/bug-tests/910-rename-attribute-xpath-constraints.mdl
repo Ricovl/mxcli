@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #910 (problem 2, XPath half): RENAME ATTRIBUTE left XPath constraints
 -- ============================================================================
@@ -29,13 +30,10 @@
 -- ============================================================================
 
 create module XPathRn;
-/
 create persistent entity XPathRn.Person ( FirstName: String(100), LastName: String(100) );
 -- Order carries an attribute of the SAME name. It must not move.
 create persistent entity XPathRn.Order ( FirstName: String(100), Total: Decimal );
-/
 create association XPathRn.Order_Person from XPathRn.Order to XPathRn.Person;
-/
 create or modify microflow XPathRn.ACT_FindPeople ()
 begin
   -- (1) bare step on the renamed entity itself
@@ -47,12 +45,9 @@ begin
   retrieve $Theirs from XPathRn.Order
     where [XPathRn.Order_Person/XPathRn.Person/FirstName = 'Ada'];
 end;
-/
 create module role XPathRn.User;
 grant read * on entity XPathRn.Person to XPathRn.User where [FirstName != ''];
-/
 alter entity XPathRn.Person rename attribute FirstName to GivenName;
-/
 -- Expected afterwards (describe entity / describe microflow):
 --   (1) [GivenName = 'Ada']
 --   (2) [FirstName = 'Ada']                        <- untouched, it is Order's

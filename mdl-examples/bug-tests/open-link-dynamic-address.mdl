@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- open_link with a DYNAMIC address (read from an attribute at runtime)
 -- ============================================================================
@@ -30,7 +31,6 @@ create entity MyFirstModule.LinkTarget (
   Title: String(200),
   URL: String(2000)
 );
-/
 
 create or modify page MyFirstModule.LinkTarget_View
 ( Title: 'Link', Layout: Atlas_Core.Atlas_Default, Params: ( $LinkTarget: MyFirstModule.LinkTarget ) )
@@ -40,7 +40,6 @@ create or modify page MyFirstModule.LinkTarget_View
     actionbutton btnDynamic (Caption: 'Open', Action: open link $currentObject/URL, ButtonStyle: Primary)
     linkbutton lnkDynamic (Caption: 'Open as link', Action: open link $currentObject/URL)
   }
-}
-/
+};
 
 describe page MyFirstModule.LinkTarget_View;

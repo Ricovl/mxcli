@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- DataGrid2 Examples
 -- ============================================================================
@@ -102,7 +103,6 @@ begin
   retrieve $Products from DgTest.Product where [IsActive = true()] sort by Name asc;
   return $Products;
 end;
-/
 
 -- Helper microflow for DG12 (row action)
 create microflow DgTest.ACT_ActivateProduct (
@@ -113,7 +113,6 @@ begin
   change $Product (IsActive = true, Status = DgTest.Status.Active);
   commit $Product;
 end;
-/
 
 -- ============================================================================
 -- DG01: Basic DataGrid — database datasource, minimal config

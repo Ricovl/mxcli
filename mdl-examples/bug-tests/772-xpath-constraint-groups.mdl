@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #772: describe silently dropped trailing XPath constraint groups
 --
 -- Mendix stores sibling predicate groups concatenated in one XPathConstraint field:
@@ -65,4 +66,3 @@ begin
     where '[Bug772.Task_TaskGroup/Bug772.TaskGroup[EndDate = $EndDateLimit]][Status != Bug772.TaskStatus.Completed][CompletionDate = empty]';
   return $Tasks;
 end;
-/

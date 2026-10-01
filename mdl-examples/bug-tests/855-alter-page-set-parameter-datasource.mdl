@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Upstream #855: ALTER PAGE ... SET rejected a parameter datasource
 -- ============================================================================
@@ -48,9 +49,9 @@ create page P855.OrderPage (
       textbox tbCode (attribute: Code, label: 'Code')
     }
   } } }
-}
+};
 
 -- The reported operation: retype the datasource from microflow to parameter.
 alter page P855.OrderPage {
   set (DataSource: $Order) on dvOrder;
-}
+};

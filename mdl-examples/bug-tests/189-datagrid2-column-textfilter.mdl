@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #189: TEXTFILTER inside DATAGRID COLUMN was added as custom content
 -- instead of wired into the column's filter slot, causing:
 --   1. "Upgrade Widgets" prompt in Studio Pro (wrong widget structure)
@@ -41,4 +42,4 @@ CREATE OR MODIFY PAGE Bug189.MyEntity_Overview
       }
     }
   }
-}
+};

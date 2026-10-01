@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- FINDINGS #40: workflow call-microflow with an unmapped required parameter
 -- ============================================================================
@@ -24,7 +25,6 @@ create or modify workflow "Demo"."WF_Ok"
 begin
   call microflow "Demo"."ACT_Need"(Item = $workflowContext);
 end workflow;
-/
 
 -- Unmapped required param — flagged by `check --references` (uncomment to verify):
 -- create or modify workflow "Demo"."WF_Bad"

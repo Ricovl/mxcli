@@ -133,7 +133,7 @@ are alternatives for the same slot, and naming both is refused. With neither, th
 A topbar layout, which is the shape `mxcli new` scaffolds:
 
 ```sql
-CREATE OR REPLACE LAYOUT MyModule.App_Default
+CREATE OR MODIFY LAYOUT MyModule.App_Default
 (
     layouttype: 'Responsive',
     class: 'layout-atlas layout-atlas-responsive-topbar'

@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.9+
 -- ============================================================================
 -- Agent Editor: Model Document Examples
@@ -39,11 +40,9 @@ create module ModelTest;
 
 create constant ModelTest."GPT4Key"
   ( Type: string, DefaultValue: '' );
-/
 
 create constant ModelTest."ClaudeKey"
   ( Type: string, DefaultValue: '' );
-/
 
 -- MARK: Create
 
@@ -65,7 +64,6 @@ create ai model ModelTest."GPT4Model" (
   Provider: MxCloudGenAI,
   key: @ModelTest.GPT4Key
 );
-/
 
 /**
  * Level 1.2: Second model referencing a different key
@@ -77,7 +75,6 @@ create ai model ModelTest."ClaudeModel" (
   Provider: MxCloudGenAI,
   key: @ModelTest.ClaudeKey
 );
-/
 
 -- ============================================================================
 -- LEVEL 2: Model with Portal-Populated Metadata
@@ -98,7 +95,6 @@ create ai model ModelTest."ConfiguredModel" (
   KeyName: 'prod-gpt4-turbo',
   Environment: 'production'
 );
-/
 
 -- MARK: List
 
@@ -108,15 +104,12 @@ create ai model ModelTest."ConfiguredModel" (
 
 -- List all models across all modules
 list ai models;
-/
 
 -- List models in a specific module
 list ai models in ModelTest;
-/
 
 -- SHOW also works (deprecated alias for LIST)
 list ai models in ModelTest;
-/
 
 -- MARK: Describe
 
@@ -138,11 +131,9 @@ describe ai model ModelTest.ConfiguredModel;
 -- Drop a model by qualified name.
 -- The underlying CustomBlobDocument is removed from the project.
 drop ai model ModelTest.ConfiguredModel;
-/
 
 -- Verify it's gone
 list ai models in ModelTest;
-/
 
 -- ============================================================================
 -- LEVEL 6: Error Cases
@@ -177,7 +168,6 @@ create or modify ai model ModelTest."GPT4Model" (
   key: @ModelTest.GPT4Key,
   DisplayName: 'GPT-4 Turbo (Updated)'
 );
-/
 
 -- ============================================================================
 -- Cleanup
@@ -185,4 +175,3 @@ create or modify ai model ModelTest."GPT4Model" (
 
 drop ai model ModelTest.GPT4Model;
 drop ai model ModelTest.ClaudeModel;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #316: Synthetic trailing newline appended to EndEvent ReturnValue
 -- ============================================================================
@@ -34,11 +35,9 @@ returns boolean as $isPositive
 begin
   return $value > 0;
 end;
-/
 
 -- Microflow with no return value (procedure): EndEvent ReturnValue stays empty.
 create microflow BugTest316.MF_NoReturn ()
 begin
   log info node 'BugTest316' 'side effect only';
 end;
-/

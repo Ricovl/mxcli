@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: `mxcli diff` reported "(no changes)" for a script that changes an
 -- association's storage, because neither side of the script differ rendered
 -- storage. Storage is schema (junction table vs foreign-key column), so a

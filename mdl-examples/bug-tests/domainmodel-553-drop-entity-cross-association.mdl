@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#553 — DROP ENTITY left CROSS-MODULE associations pointing at the
 -- deleted entity, and mxbuild could then not LOAD the project:
 --

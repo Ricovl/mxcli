@@ -43,7 +43,7 @@ BEGIN
     };
 
   -- After both paths complete, manager reviews
-  DECISION $WorkflowContext/NeedsManagerApproval COMMENT 'Manager approval required?'
+  DECISION $WorkflowContext/NeedsManagerApproval CAPTION 'Manager approval required?'
     OUTCOMES TRUE -> {
       USER TASK ManagerReview 'Review onboarding'
         PAGE HR.ManagerReviewPage
@@ -64,6 +64,7 @@ starting or ending, the workflow completing, failing or being aborted. Use one t
 audit a process or react to it without adding activities to the flow.
 
 ```sql
+mdl 1;
 CREATE MICROFLOW HR.ACT_AuditTask (
   $WorkflowEvent: System.WorkflowEvent,
   $WorkflowRecord: System.WorkflowRecord,

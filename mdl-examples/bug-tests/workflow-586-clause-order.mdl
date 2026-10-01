@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#586 — CREATE WORKFLOW clause order was load-bearing, and the parse
 -- error did not say so.
 --
@@ -47,8 +48,7 @@ create page WF586.TaskPage (
       }
     }
   }
-}
-/
+};
 
 create page WF586.Overview (
   title: 'Overview',
@@ -61,8 +61,7 @@ create page WF586.Overview (
       }
     }
   }
-}
-/
+};
 
 -- Targeting microflow: (System.Workflow, context) -> List of System.User
 create microflow WF586.ACT_GetUsers (
@@ -75,7 +74,6 @@ begin
   retrieve $Users from System.User;
   @position(400,200) return $Users;
 end;
-/
 
 create microflow WF586.ACT_OnCreated (
   $WorkflowUserTask : System.WorkflowUserTask,
@@ -84,7 +82,6 @@ create microflow WF586.ACT_OnCreated (
 begin
   @position(200,200) declare $Message String = 'task created';
 end;
-/
 
 create microflow WF586.ACT_OnEvent (
   $WorkflowEvent            : System.WorkflowEvent,
@@ -94,7 +91,6 @@ create microflow WF586.ACT_OnEvent (
 begin
   @position(200,200) declare $Message String = 'workflow event';
 end;
-/
 
 create microflow WF586.ACT_Audit (
   $WorkflowContext : WF586.Request
@@ -102,7 +98,6 @@ create microflow WF586.ACT_Audit (
 begin
   @position(200,200) declare $Message String = 'audited';
 end;
-/
 
 -- The header clauses in a deliberately different order from the one the old
 -- grammar demanded: the event handler first, `folder` last.
@@ -142,4 +137,3 @@ begin
     targeting groups xpath [Name = 'Administrator']
     due date addHours([%CurrentDateTime%], 2);
 end workflow;
-/

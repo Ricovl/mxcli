@@ -1,3 +1,4 @@
+mdl 1;
 -- Two properties mxcli accepted, wrote wrong, and reported nothing about.
 -- Both from ako/CapTrackV3 FINDINGS, both with every gate green.
 --
@@ -68,20 +69,16 @@
 --     verbatim and rejected as CE0161, which is the honest failure.
 
 create module LvXp;
-/
 
 create or modify enumeration LvXp.Status ( Confirmed 'Confirmed', Draft 'Draft' );
-/
 
 create or modify enumeration LvXp.Kind ( Addition 'Addition', Removal 'Removal' );
-/
 
 create or modify entity LvXp.Movement (
   Code: String(50),
   Status: LvXp.Status,
   Kind: LvXp.Kind
 );
-/
 
 -- §6: the reported case. Every input inside this list view must be a field.
 create or modify page LvXp.P_Editable
@@ -90,8 +87,7 @@ create or modify page LvXp.P_Editable
   listview lvRows (datasource: DATABASE LvXp.Movement, Editable: true) {
     textbox tCode (label: 'Code', attribute: Code)
   }
-}
-/
+};
 
 -- CONTROL for §6: Mendix's default is No, and a list view that does not ask for
 -- it must stay read-only. Without this, a fix that set Editable unconditionally
@@ -102,8 +98,7 @@ create or modify page LvXp.P_ReadOnly
   listview lvPlain (datasource: DATABASE LvXp.Movement) {
     textbox tCode2 (label: 'Code', attribute: Code)
   }
-}
-/
+};
 
 -- §29: the bracket form, which takes enum values unquoted and has always worked.
 -- This is the spelling to write.
@@ -113,7 +108,6 @@ begin
     WHERE [Status = LvXp.Status.Confirmed and Kind = LvXp.Kind.Addition];
   LOG INFO 'done';
 end;
-/
 
 -- CONTROL for §29: the UNQUOTED ref inside a STRING constraint. This is what
 -- normalizeXPathEnumRefs exists for and must keep working — it is stored as
@@ -124,7 +118,6 @@ begin
     WHERE 'Status = LvXp.Status.Confirmed and Kind = LvXp.Kind.Addition';
   LOG INFO 'done';
 end;
-/
 
 -- CONTROL for §29, the half that was never reported: an ordinary literal with
 -- two dots is DATA. This was stored as `Code = ''c''` — a different constraint,
@@ -134,4 +127,3 @@ begin
   RETRIEVE $Rows FROM LvXp.Movement WHERE 'Code = ''a.b.c''';
   LOG INFO 'done';
 end;
-/

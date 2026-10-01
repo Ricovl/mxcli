@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Import & Export Mapping Examples
 -- ============================================================================
@@ -48,7 +49,6 @@ create non-persistent entity MapTest.PetResponse (
   Name: string,
   status: string
 );
-/
 
 -- The upsert example below needs a PERSISTENT entity. `find` and `find or
 -- create` search the database, which a non-persistent entity does not have —
@@ -62,7 +62,6 @@ create entity MapTest.PetRecord (
   Name: string,
   status: string
 );
-/
 
 -- ============================================================================
 -- Level 1.1: Simple Import Mapping
@@ -157,31 +156,26 @@ describe export mapping MapTest.EMM_PetNullable;
 create non-persistent entity MapTest.OrderResponse (
   OrderId: integer
 );
-/
 
 create non-persistent entity MapTest.CustomerInfo (
   Name: string,
   Email: string
 );
-/
 
 create non-persistent entity MapTest.OrderItem (
   Sku: string,
   Quantity: integer,
   Price: decimal
 );
-/
 
 -- Associations: child entity FROM, parent entity TO
 create association MapTest.CustomerInfo_OrderResponse
   from MapTest.CustomerInfo
   to MapTest.OrderResponse;
-/
 
 create association MapTest.OrderItem_OrderResponse
   from MapTest.OrderItem
   to MapTest.OrderResponse;
-/
 
 -- ============================================================================
 -- Level 2.1: Nested Import Mapping
@@ -227,17 +221,14 @@ describe import mapping MapTest.IMM_Order;
 create non-persistent entity MapTest.ExRoot (
   OrderId: integer
 );
-/
 
 create non-persistent entity MapTest.ExCustomer (
   Name: string,
   Email: string
 );
-/
 
 -- Container entity for the "items" array (no attributes)
 create non-persistent entity MapTest.ExItems;
-/
 
 -- Item entity for each element in the "items" array
 create non-persistent entity MapTest.ExItemsItem (
@@ -245,23 +236,19 @@ create non-persistent entity MapTest.ExItemsItem (
   Quantity: integer,
   Price: decimal
 );
-/
 
 create association MapTest.ExCustomer_ExRoot
   from MapTest.ExCustomer
   to MapTest.ExRoot
   owner both;
-/
 
 create association MapTest.ExItems_ExRoot
   from MapTest.ExItems
   to MapTest.ExRoot;
-/
 
 create association MapTest.ExItemsItem_ExItems
   from MapTest.ExItemsItem
   to MapTest.ExItems;
-/
 
 -- ============================================================================
 -- Level 3.1: Nested Export Mapping
@@ -330,7 +317,6 @@ begin
 
   return $success;
 end;
-/
 
 -- ============================================================================
 -- Level 6.2: Export to mapping (entity → JSON string)
@@ -343,7 +329,6 @@ begin
   log info node 'MapTest' 'Exported: ' + $JsonOutput;
   return $JsonOutput;
 end;
-/
 
 -- ============================================================================
 -- Level 6.3: Import → Process → Export pipeline
@@ -356,7 +341,6 @@ begin
   $Output = export to mapping MapTest.EMM_Pet($Pet);
   log info node 'MapTest' 'Round-trip result: ' + $Output;
 end;
-/
 
 -- ############################################################################
 -- PART 7: CREATE OR MODIFY (idempotent upsert)

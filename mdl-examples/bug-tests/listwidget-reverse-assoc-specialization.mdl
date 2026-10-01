@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#975 — a list widget navigating a REVERSE association typed
 -- its rows as the wrong end when the page's context object was a specialization:
 --

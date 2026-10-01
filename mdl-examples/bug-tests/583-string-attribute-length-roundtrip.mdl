@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test: String attribute length must roundtrip through write -> read -> describe.
 -- Issue #583: describe entity and CATALOG.ATTRIBUTES reported every String attribute
 -- as String(unlimited) / Length: 0, even when a finite length was set. Root cause was

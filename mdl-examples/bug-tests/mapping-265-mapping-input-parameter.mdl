@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug ako/mxcli#265: an import mapping could not declare its input object
 -- ============================================================================
@@ -71,7 +72,6 @@ begin
   @position(400, 200)
   return empty;
 end;
-/
 
 -- The input object, bound by the handler's `Collection: parameter`.
 create or modify import mapping BugTest265.IMM_Embed

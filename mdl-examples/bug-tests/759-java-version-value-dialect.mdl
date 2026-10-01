@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #759 (follow-up): the Java version *value* format is version-specific too
 --
 -- Symptom: on Mendix 11.12 an `alter settings model JavaVersion = 'Java21'`

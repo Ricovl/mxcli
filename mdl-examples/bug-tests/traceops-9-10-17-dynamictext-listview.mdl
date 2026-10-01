@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- TraceOps findings #9, #10, #17: DYNAMICTEXT content + ListView PageSize
 -- silently produced broken or dropped output
@@ -22,7 +23,6 @@
 -- ============================================================================
 
 create entity MyFirstModule.Item ( Label: String );
-/
 
 create or modify page MyFirstModule.TraceOpsWidgets ( Title: 'W', Layout: Atlas_Core.Atlas_Default )
 {
@@ -31,7 +31,6 @@ create or modify page MyFirstModule.TraceOpsWidgets ( Title: 'W', Layout: Atlas_
     dynamictext s4v (Content: '$318')   -- #10: dollar+digits → literal text
     dynamictext lbl (Content: Label)    -- control: real attribute still binds
   }
-}
-/
+};
 
 describe page MyFirstModule.TraceOpsWidgets;

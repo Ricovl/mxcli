@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#417: a `call microflow` nested in a decision branch was not auto-wired
 --
 -- Symptom: `mxcli check` passed and `exec` reported success, but mxbuild gave

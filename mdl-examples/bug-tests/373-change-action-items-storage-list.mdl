@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #373: Writer emitted invalid ChangeActionItem list markers
 -- ============================================================================
@@ -34,7 +35,6 @@ create entity BugTest373.Order (
   Name : string(100),
   Status : string(50)
 );
-/
 
 -- Create-with-members and change-with-members both exercise the
 -- ChangeActionItem storage list. After exec, the MPR must load cleanly
@@ -47,4 +47,3 @@ begin
   $Order = create BugTest373.Order (Name = $Name);
   change $Order (Status = 'Processed');
 end;
-/

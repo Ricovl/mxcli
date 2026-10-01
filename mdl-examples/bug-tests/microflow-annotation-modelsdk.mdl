@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Microflow @annotation dropped on the modelsdk engine
 -- ============================================================================
@@ -25,7 +26,6 @@
 
 create module AnnTest;
 create persistent entity AnnTest.Thing ( Name: string(50) );
-/
 
 create microflow AnnTest.MF_Loop ( $Things: list of AnnTest.Thing )
 returns integer as $count
@@ -38,4 +38,3 @@ begin
   end loop;
   return $count;
 end;
-/

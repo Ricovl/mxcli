@@ -22,25 +22,25 @@ Pages are the user interface screens of a Mendix application. Snippets are reusa
 List all pages in the project:
 
 ```sql
-LIST PAGES
+LIST PAGES;
 ```
 
 List pages in a specific module:
 
 ```sql
-LIST PAGES IN Sales
+LIST PAGES IN Sales;
 ```
 
 List all snippets:
 
 ```sql
-LIST SNIPPETS
+LIST SNIPPETS;
 ```
 
 List snippets in a specific module:
 
 ```sql
-LIST SNIPPETS IN Common
+LIST SNIPPETS IN Common;
 ```
 
 ## See Also

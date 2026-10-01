@@ -1,3 +1,4 @@
+mdl 1;
 -- Binary POST: `rest call ... body binary <expression>`.
 --
 -- Mendix models a binary request body on the microflow REST CALL activity, as
@@ -30,7 +31,7 @@ create entity BinaryPost.Upload extends System.FileDocument (
 create microflow BinaryPost.ACT_PostBinary ()
 begin
   retrieve $Doc from BinaryPost.Upload
-    limit 1;
+    first;
   call rest service post 'https://httpbingo.org/post'
     header 'ContentType' = 'application/pdf'
     body binary $Doc/Contents
@@ -38,7 +39,6 @@ begin
     returns response;
   return;
 end;
-/
 
 -- Round-trip: DESCRIBE must emit the body clause, or re-executing its own
 -- output silently drops the payload.

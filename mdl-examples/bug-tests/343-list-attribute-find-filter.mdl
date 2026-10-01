@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #343: Attribute-based find/filter list operations rebuilt as expressions
 -- ============================================================================
@@ -30,7 +31,6 @@ create entity BugTest343.Item (
   Name : string(100),
   Active : boolean
 );
-/
 
 -- find by attribute equality — rebuild must emit Microflows$Find with
 -- attribute-operation shape, not FindByExpression.
@@ -40,9 +40,8 @@ create microflow BugTest343.MF_FindByAttribute (
 )
 returns BugTest343.Item as $Found
 begin
-  $Found = find($Items, Name = $Target);
+  $Found = find $Items by Name = $Target;
 end;
-/
 
 -- filter by attribute equality — rebuild must emit Microflows$Filter
 -- with attribute-operation shape, not FilterByExpression.
@@ -53,4 +52,3 @@ returns list of BugTest343.Item as $Active
 begin
   $Active = filter $Items by Active = true;
 end;
-/

@@ -14,7 +14,7 @@ BEGIN
     RETURNS String;
   RETURN $Content;
 END;
-/
+
 ```
 
 ## GET with URL Parameters
@@ -35,7 +35,7 @@ BEGIN
     RETURNS String;
   RETURN $Response;
 END;
-/
+
 ```
 
 ## POST with JSON Body
@@ -57,7 +57,7 @@ BEGIN
     RETURNS String;
   RETURN $Response;
 END;
-/
+
 ```
 
 ## POST a Binary Body (File Upload)
@@ -81,7 +81,7 @@ BEGIN
   SET $Ok = $Response/StatusCode = 200;
   RETURN $Ok;
 END;
-/
+
 ```
 
 `RETURNS response` binds a `System.HttpResponse`, so the microflow's own return
@@ -111,7 +111,7 @@ BEGIN
     RETURNS String;
   RETURN $Response;
 END;
-/
+
 ```
 
 ## Error Handling
@@ -138,7 +138,7 @@ BEGIN
   SET $Success = true;
   RETURN $Success;
 END;
-/
+
 ```
 
 ## JSON Structure + Import Mapping
@@ -146,6 +146,7 @@ END;
 Map a JSON response to Mendix entities using a JSON structure and import mapping.
 
 ```sql
+mdl 1;
 -- Step 1: Define the JSON structure
 CREATE JSON STRUCTURE Integration.JSON_Pet
   SAMPLE '{"id": 1, "name": "Fido", "status": "available"}';
@@ -156,7 +157,6 @@ CREATE NON-PERSISTENT ENTITY Integration.PetResponse (
   Name: String,
   Status: String
 );
-/
 
 -- Step 3: Create the import mapping
 CREATE IMPORT MAPPING Integration.IMM_Pet
@@ -222,6 +222,7 @@ CREATE IMPORT MAPPING Integration.IMM_Order
 If the API has an OpenAPI 3.0 spec (JSON or YAML), generate the REST client in one command:
 
 ```sql
+mdl 1;
 -- From a local file (relative to the .mpr file)
 CREATE OR MODIFY CONSUMED REST SERVICE CapitalModule.CapitalAPI (
   OpenAPI: 'specs/capital.json'
@@ -366,6 +367,7 @@ DROP PUBLISHED REST SERVICE Module.OrderAPI;
 Data Transformers apply transformation steps (JSLT or XSLT) to JSON or XML payloads. Useful for reshaping API responses before import mapping, or normalising data from third-party sources. Requires Mendix 11.9+.
 
 ```sql
+mdl 1;
 -- Create a transformer that extracts key fields from a weather API response.
 -- The SOURCE JSON defines a sample payload used for schema inference and testing.
 CREATE DATA TRANSFORMER Integration.WeatherTransform

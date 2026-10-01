@@ -32,6 +32,7 @@ Mendix supports consuming and publishing OData services. Consumed services (ODat
 Bulk-create external entities from a consumed OData service's cached `$metadata`.
 
 ```sql
+mdl 1;
 -- Create all entity types from the contract
 CREATE EXTERNAL ENTITIES FROM Module.Service;
 

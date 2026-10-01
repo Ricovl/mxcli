@@ -1,3 +1,4 @@
+mdl 1;
 -- `mxcli check --references` under-reported project conflicts.
 --
 -- stmtCreateInfo classified 24 document types; projectNameSets.setFor knew 20.

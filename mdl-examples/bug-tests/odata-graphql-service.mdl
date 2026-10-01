@@ -1,3 +1,4 @@
+mdl 1;
 -- Publishing the same resources over GraphQL as well as OData.
 --
 -- One boolean: `SupportsGraphQL: Yes`. The OData surface is unchanged, and the
@@ -68,5 +69,4 @@ create or modify published odata service MyFirstModule.ChartApi (
     Category (KEY, Filterable, Sortable),
     Total (Filterable, Sortable)
   )
-}
-/
+};

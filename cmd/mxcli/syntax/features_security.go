@@ -22,7 +22,7 @@ func init() {
 			"module role", "create role", "drop role",
 		},
 		Syntax:  "CREATE [OR MODIFY] MODULE ROLE <module>.<role> [DESCRIPTION '<text>'];\nDROP MODULE ROLE <module>.<role>;",
-		Example: "CREATE MODULE ROLE Shop.Admin DESCRIPTION 'Full access';\n-- OR MODIFY makes a security script re-runnable:\nCREATE OR MODIFY MODULE ROLE Shop.User DESCRIPTION 'Read-only access';",
+		Example: "mdl 1;\nCREATE MODULE ROLE Shop.Admin DESCRIPTION 'Full access';\n-- OR MODIFY makes a security script re-runnable:\nCREATE OR MODIFY MODULE ROLE Shop.User DESCRIPTION 'Read-only access';",
 		SeeAlso: []string{"security.user-role", "security.entity-access"},
 	})
 
@@ -62,7 +62,8 @@ func init() {
 			"  Exception: entities extending System.User are user entities, whose\n" +
 			"  platform members (Name, Password, Blocked, ...) Mendix manages. Do not\n" +
 			"  grant those; mxcli leaves them out of the rule automatically.",
-		Example: "GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Customer TO Shop.Admin;\n" +
+		Example: "mdl 1;\n" +
+			"GRANT CREATE, DELETE, READ *, WRITE * ON ENTITY Shop.Customer TO Shop.Admin;\n" +
 			"GRANT READ * ON ENTITY Shop.Customer TO Shop.User WHERE [Active = true()];\n" +
 			"GRANT READ *, WRITE * ON ENTITY Shop.Order TO Shop.User WHERE [Status = 'Open'];\n\n" +
 			"-- Contract extends DocumentBase: DocName is inherited, ContractNumber is own\n" +
@@ -96,7 +97,8 @@ func init() {
 			"A project whose rules are already complete is not written to; the\n" +
 			"command says 'All entity access rules are up to date'. System is\n" +
 			"skipped — its access rules are the platform's.",
-		Example: "-- After a headless module install or update:\n" +
+		Example: "mdl 1;\n" +
+			"-- After a headless module install or update:\n" +
 			"UPDATE SECURITY UserCommons;\n\n" +
 			"-- Every module in the project:\n" +
 			"UPDATE SECURITY;",
@@ -111,7 +113,7 @@ func init() {
 			"revoke microflow",
 		},
 		Syntax:  "GRANT EXECUTE ON MICROFLOW <module>.<name> TO <role> [, <role>...];\nREVOKE EXECUTE ON MICROFLOW <module>.<name> FROM <role> [, <role>...];",
-		Example: "GRANT EXECUTE ON MICROFLOW Shop.ProcessOrder TO Shop.Admin, Shop.User;\nREVOKE EXECUTE ON MICROFLOW Shop.ProcessOrder FROM Shop.User;",
+		Example: "mdl 1;\nGRANT EXECUTE ON MICROFLOW Shop.ProcessOrder TO Shop.Admin, Shop.User;\nREVOKE EXECUTE ON MICROFLOW Shop.ProcessOrder FROM Shop.User;",
 		SeeAlso: []string{"security.page-access", "security.entity-access"},
 	})
 
@@ -134,7 +136,7 @@ func init() {
 			"add module roles", "remove module roles",
 		},
 		Syntax:  "CREATE USER ROLE <name> [( ModuleRoles: (<role> [, ...]), Description: '<text>', ManageAllRoles: true|false, ManageableRoles: (<user role> [, ...]), ManageUsersWithoutRoles: true|false, CheckSecurity: true|false )];\nALTER USER ROLE <name> ADD MODULE ROLES (<role> [, ...]);\nALTER USER ROLE <name> DROP MODULE ROLES (<role> [, ...]);\nDROP USER ROLE [IF EXISTS] <name>;",
-		Example: "CREATE USER ROLE AppAdmin ( ModuleRoles: (Shop.Admin, HR.Admin), ManageAllRoles: true );\nALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Viewer);",
+		Example: "mdl 1;\nCREATE USER ROLE AppAdmin ( ModuleRoles: (Shop.Admin, HR.Admin), ManageAllRoles: true );\nALTER USER ROLE AppAdmin ADD MODULE ROLES (Reporting.Viewer);",
 		SeeAlso: []string{"security.module-role", "security.demo-user"},
 	})
 
@@ -155,7 +157,8 @@ func init() {
 			"-- Set any subset of the properties, in create's ( Key: value ) list. The\n" +
 			"-- clause forms (LEVEL …, DEMO USERS ON|OFF, GUEST ACCESS ON [ROLE r]|OFF,\n" +
 			"-- STRICT MODE ON|OFF) still run and warn MDL-DEPR133.",
-		Example: "ALTER APP SECURITY ( SecurityLevel: PRODUCTION );\n" +
+		Example: "mdl 1;\n" +
+			"ALTER APP SECURITY ( SecurityLevel: PRODUCTION );\n" +
 			"ALTER APP SECURITY ( EnableDemoUsers: FALSE );\n" +
 			"ALTER APP SECURITY ( StrictMode: TRUE );",
 		SeeAlso: []string{"security.demo-user", "security.guest-access"},
@@ -178,7 +181,8 @@ func init() {
 			"-- GuestUserRole alone changes the role and keeps guest access on or off.\n" +
 			"-- Mendix does not check the role exists, so mxcli does — an unknown role\n" +
 			"-- would build cleanly and leave visitors with nothing.",
-		Example: "CREATE USER ROLE Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );\n" +
+		Example: "mdl 1;\n" +
+			"CREATE USER ROLE Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );\n" +
 			"ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: Anonymous );\n" +
 			"GRANT READ * ON ENTITY Shop.Product TO Shop.Viewer;",
 		SeeAlso: []string{"security.user-role", "security.project-security"},
@@ -192,7 +196,7 @@ func init() {
 			"password", "login",
 		},
 		Syntax:  "CREATE [OR MODIFY] DEMO USER '<name>' (\n  Password: '<pass>',\n  [Entity: Module.Entity,]\n  UserRoles: (<userrole> [, ...])\n);\nDROP DEMO USER [IF EXISTS] '<name>';\n\n-- The keys are Studio Pro's property names. Password is required; without\n-- Entity the user entity is detected from the project. The clause form\n-- PASSWORD 'p' [ENTITY E] (roles) is its deprecated alias (MDL-DEPR137).",
-		Example: "CREATE DEMO USER 'admin' ( Password: 'Admin1!', UserRoles: (AppAdmin) );\nCREATE DEMO USER 'user' ( Password: 'User1!', UserRoles: (AppUser) );",
+		Example: "mdl 1;\nCREATE DEMO USER 'admin' ( Password: 'Admin1!', UserRoles: (AppAdmin) );\nCREATE DEMO USER 'user' ( Password: 'User1!', UserRoles: (AppUser) );",
 		SeeAlso: []string{"security.user-role", "security.project-security"},
 	})
 }

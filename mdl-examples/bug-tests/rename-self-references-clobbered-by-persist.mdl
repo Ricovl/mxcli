@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- RENAME ENTITY / RENAME ASSOCIATION left the renamed element's own member
 -- references stale — the project-wide sweep was CLOBBERED by the persist

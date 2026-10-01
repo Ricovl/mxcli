@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Unknown properties on a built-in widget are silently dropped (now warned)
 -- ============================================================================
@@ -33,4 +34,4 @@ create or modify page MyFirstModule.P_UnknownProp
   -- describe-vocabulary props on a native image → no warning
   image img ( ImageType: imageUrl, ImageUrl: 'https://example.com/x.png',
               WidthUnit: pixels, Width: 36, HeightUnit: pixels, Height: 36 )
-}
+};

@@ -1,3 +1,4 @@
+mdl 1;
 -- upstream #892 — DROP FOLDER orphaned every document inside the folder.
 --
 -- Reproduces on a STOCK blank app: FeedbackModule ships a folder

@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#997 — `mxcli diff` reported false deletions on an UNMODIFIED
 -- `mxcli describe` dump, and leaked a Go struct pointer into retrieve
 -- constraints.
@@ -28,7 +29,7 @@ begin
   @position(200, 200)
   retrieve $Cars from MyFirstModule.Car
     where Brand = 'Ford'
-    limit 1;
+    first;
   @position(400, 200)
   $Ok = call java action FeedbackModule.ValidateEmail(EmailAddress = $Email);
   @position(600, 200)

@@ -1,3 +1,4 @@
+mdl 1;
 -- A navigation menu can carry a LOG-OUT item, and mxcli could neither author
 -- one nor read one back. This is the menu half of CapTrackV2 FINDINGS §10; the
 -- button half is captrack-10-sign-out-action.mdl.
@@ -30,12 +31,10 @@
 --   mx check -p app.mpr        -- 0 errors
 
 create module SignOutMenu;
-/
 create or modify page SignOutMenu.Home (Title: 'Home', Layout: Atlas_Core.Atlas_Default)
 {
   dynamictext t (Content: 'home')
-}
-/
+};
 
 create or modify menu SignOutMenu.Account_Menu {
   menu item 'Home' ( OnClick: show page SignOutMenu.Home )
@@ -51,4 +50,3 @@ create or modify menu SignOutMenu.Account_Menu {
   -- stamped every actionless item as sign-out would look correct above.
   menu item 'Plain'
 };
-/

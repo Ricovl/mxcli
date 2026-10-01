@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1100 — a LOOP variable was untyped, so every expression rule
 -- was silently off inside the construct where list processing happens.
 --
@@ -67,7 +68,7 @@ begin
   declare $out String = '';
   retrieve $reqs from Probe.Request;
   loop $r in $reqs begin
-    $out = $out + toString($r/Status);
+    set $out = $out + toString($r/Status);
   end loop;
   return $out;
 end;
@@ -78,7 +79,7 @@ create or modify microflow Probe.SUB_Param ($Req: Probe.Request)
 returns String
 begin
   declare $out String = '';
-  $out = 'status=' + toString($Req/Status);
+  set $out = 'status=' + toString($Req/Status);
   return $out;
 end;
 
@@ -91,7 +92,7 @@ begin
   declare $emails String = '';
   retrieve $reps from $Req/Probe.Request_Reporter;
   loop $rep in $reps begin
-    $emails = $emails + $rep/Email;
+    set $emails = $emails + $rep/Email;
   end loop;
   return $emails;
 end;
@@ -105,7 +106,7 @@ begin
   retrieve $reqs from Probe.Request;
   $open = FILTER $reqs WHERE $currentObject/Status = Probe.ENUM_Status.Open;
   loop $r in $open begin
-    $codes = $codes + $r/Code;
+    set $codes = $codes + $r/Code;
   end loop;
   return $codes;
 end;
@@ -118,7 +119,7 @@ begin
   declare $out String = '';
   retrieve $reqs from Probe.Request
     on error begin
-      $out = $out + 'retrieve failed';
+      set $out = $out + 'retrieve failed';
     end error;
   return $out;
 end;

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue #872 — association line anchors survive an mxcli write
 -- ============================================================================
@@ -91,15 +92,12 @@ create entity Anchors.Order ( Number: String );
 @anchor(from: (11, 99), to: (9, 0))
 create association Anchors.Order_Customer
   from Anchors.Order to Anchors.Customer;
-/
 
 -- The write that used to destroy the anchors. Says nothing about them, so they
 -- survive.
 alter association Anchors.Order_Customer set documentation 'touched';
-/
 
 -- Retuning just the line, without restating the association.
 alter association Anchors.Order_Customer set anchor from (0, 54) to (100, 54);
-/
 
 describe association Anchors.Order_Customer;

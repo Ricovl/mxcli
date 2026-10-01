@@ -5,12 +5,12 @@ View entities are backed by an OQL query. They appear in the domain model but ha
 ## Sales Summary by Category
 
 ```sql
+mdl 1;
 -- Source entities
 CREATE PERSISTENT ENTITY Reports.ProductCategory (
   /** Category display name */
   CategoryName: String(200) NOT NULL
 );
-/
 
 CREATE PERSISTENT ENTITY Reports.SaleTransaction (
   /** Transaction amount */
@@ -18,12 +18,10 @@ CREATE PERSISTENT ENTITY Reports.SaleTransaction (
   /** Date of the sale */
   SaleDate: DateTime NOT NULL
 );
-/
 
 CREATE ASSOCIATION Reports.SaleTransaction_ProductCategory
   FROM Reports.ProductCategory TO Reports.SaleTransaction
   TYPE Reference OWNER Default;
-/
 
 -- View entity: aggregates sales by category
 CREATE VIEW ENTITY Reports.SalesTotalByCategory (
@@ -39,7 +37,7 @@ CREATE VIEW ENTITY Reports.SalesTotalByCategory (
   INNER JOIN s/Reports.SaleTransaction_ProductCategory/Reports.ProductCategory AS c
   GROUP BY c.CategoryName
 );
-/
+
 ```
 
 ## Querying a View Entity in a Microflow
@@ -56,7 +54,7 @@ BEGIN
 
   RETRIEVE $Summary FROM Reports.SalesTotalByCategory
     WHERE CategoryName = $Category/CategoryName
-    LIMIT 1;
+    FIRST;
 
   IF $Summary != empty THEN
     SET $TotalAmount = $Summary/TotalAmount;
@@ -64,7 +62,7 @@ BEGIN
 
   RETURN $TotalAmount;
 END;
-/
+
 ```
 
 ## Displaying in a Page
@@ -77,10 +75,10 @@ CREATE PAGE Reports.SalesByCategory_Overview (
   Layout: Atlas_Core.Atlas_Default
 ) {
   DATAGRID dgSales (DataSource: DATABASE Reports.SalesTotalByCategory) {
-    COLUMN colCategory (Attribute: CategoryName, Caption: 'Category')
-    COLUMN colTotal (Attribute: TotalAmount, Caption: 'Total Sales')
-    COLUMN colCount (Attribute: TransactionCount, Caption: 'Transactions')
+    COLUMN (Attribute: CategoryName, Caption: 'Category')
+    COLUMN (Attribute: TotalAmount, Caption: 'Total Sales')
+    COLUMN (Attribute: TransactionCount, Caption: 'Transactions')
   }
 };
-/
+
 ```

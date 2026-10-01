@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #759: CREATE CONFIGURATION produced a settings document Studio Pro cannot open
 --
 -- Symptom: the configuration is created and `mx check` reports no errors, but

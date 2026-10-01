@@ -1,3 +1,4 @@
+mdl 1;
 -- A user task hands work to two documents — its task page and its targeting
 -- microflow — and both have a signature the platform enforces. `check
 -- --references` resolved them by name only, so a wrong signature passed check,
@@ -37,10 +38,8 @@
 create module WFSIG;
 
 create persistent entity WFSIG.Request ( Title: string(50) );
-/
 
 create persistent entity WFSIG.UrgentRequest extends WFSIG.Request ( Reason: string(200) );
-/
 
 -- A task page may take parameters besides the task.
 create page WFSIG.ReviewPage (
@@ -49,8 +48,7 @@ create page WFSIG.ReviewPage (
   params: ( $WorkflowUserTask: System.WorkflowUserTask, $Request: WFSIG.Request )
 ) {
   layoutgrid g1 { row { column (desktopwidth: 12) { dynamictext t1 (content: 'Review') } } }
-}
-/
+};
 
 -- Parameters in the reverse order, and typed to a GENERALIZATION of the
 -- workflow's context entity (the workflow below runs on UrgentRequest).
@@ -60,7 +58,6 @@ begin
   @position(200,200) retrieve $Reviewers from System.User;
   @position(400,200) return $Reviewers;
 end;
-/
 
 -- Groups targeting takes the same two parameters.
 create microflow WFSIG.ACT_GetReviewGroups ( $Workflow: System.Workflow, $Request: WFSIG.UrgentRequest )
@@ -69,7 +66,6 @@ begin
   @position(200,200) retrieve $Groups from System.WorkflowGroup;
   @position(400,200) return $Groups;
 end;
-/
 
 create workflow WFSIG.UrgentReview
   parameter $Request: WFSIG.UrgentRequest
@@ -84,4 +80,3 @@ begin
     targeting groups microflow WFSIG.ACT_GetReviewGroups
     outcomes 'Approve' { } 'Reject' { };
 end workflow;
-/

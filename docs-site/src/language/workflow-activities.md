@@ -156,7 +156,7 @@ DECISION [<name>] <expression> [COMMENT '<caption>']
 Example:
 
 ```sql
-DECISION $WorkflowContext/Total > 1000 COMMENT 'Order value over $1000?'
+DECISION $WorkflowContext/Total > 1000 CAPTION 'Order value over $1000?'
   OUTCOMES TRUE -> {
     USER TASK ManagerApproval 'Manager must approve'
       PAGE Shop.ApprovalPage

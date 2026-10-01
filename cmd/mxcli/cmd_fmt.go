@@ -15,6 +15,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/executor"
 	"github.com/mendixlabs/mxcli/mdl/formatter"
 	"github.com/mendixlabs/mxcli/mdl/langver"
+	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/mdl/upgrade"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/spf13/cobra"
@@ -66,6 +67,14 @@ Upgrading (--upgrade):
   before the call is looked up in the project. Without a project such a call
   blocks the header and fmt says so. The project is only read.
 
+  The project also says which statements exec would refuse once the header
+  is there: a "create or modify" of a stored flow whose change cannot be
+  spliced in is refused under mdl 1 (MDL-V1-REBUILD), where the headerless
+  script rebuilt the flow. No rewrite keeps that meaning, so fmt names each
+  such statement and declines the header for the file, applying the rest of
+  the upgrade; --force-header adds it anyway. "check -p" reports the same
+  statements, computed by the same code.
+
   The project also settles a bare commit (with or without --header): since
   #895 "commit $X;" means WITH events, and an older mxcli stored the same
   statement without events. In a "create or modify" flow whose stored flow
@@ -91,6 +100,9 @@ Upgrading (--upgrade):
 		addHeader, _ := cmd.Flags().GetBool("header")
 		if cmd.Flags().Changed("header") && !doUpgrade {
 			return fmt.Errorf("--header needs --upgrade")
+		}
+		if force, _ := cmd.Flags().GetBool("force-header"); force && !addHeader {
+			return fmt.Errorf("--force-header needs --upgrade --header")
 		}
 
 		// Determine source: stdin when no arg or "-" is passed.
@@ -177,6 +189,11 @@ Upgrading (--upgrade):
 			if err != nil {
 				return fmt.Errorf("%s: %w", label, err)
 			}
+			if res.HeaderAdded {
+				if res, err = declineRefusedHeader(cmd, label, string(data), opts, res); err != nil {
+					return err
+				}
+			}
 			reportUpgrade(cmd.ErrOrStderr(), label, res)
 			formatted = res.Source
 		} else {
@@ -208,6 +225,73 @@ func openUpgradeProject(cmd *cobra.Command, opts *upgrade.Options) (func(), erro
 	return func() { _ = b.Disconnect() }, nil
 }
 
+// declineRefusedHeader keeps the language header off a script that exec would
+// stop executing once it has one (ako/mxcli#876). Under mdl 1 a `create or
+// modify` of a stored flow whose change cannot be spliced in is refused, where
+// mdl 0 rebuilt the flow; no rewrite of the script can say "rebuild", so the
+// upgrade cannot keep its meaning. With -p the upgraded script is checked
+// against the project the way `check -p` does, by the verdict exec acts on;
+// each refusal is reported and the header is declined for the file — the rest
+// of the upgrade still applies. --force-header adds it anyway. Without -p the
+// project is unknown and nothing is predicted.
+func declineRefusedHeader(cmd *cobra.Command, label, src string, opts upgrade.Options, res upgrade.Result) (upgrade.Result, error) {
+	projectPath, _ := cmd.Flags().GetString("project")
+	if projectPath == "" {
+		return res, nil
+	}
+	refusals, err := headerRefusals(projectPath, res.Source)
+	if err != nil {
+		return res, fmt.Errorf("%s: cannot check the upgraded script against %s: %w", label, projectPath, err)
+	}
+	if len(refusals) == 0 {
+		return res, nil
+	}
+	w := cmd.ErrOrStderr()
+	force, _ := cmd.Flags().GetBool("force-header")
+	verb := "no language header added"
+	if force {
+		verb = "language header added anyway (--force-header)"
+	}
+	fmt.Fprintf(w, "%s: %s: under mdl 1 exec would refuse %d statement(s), writing nothing, where the script "+
+		"without the header rebuilds the flow (MDL-V1-REBUILD):\n", label, verb, len(refusals))
+	for _, v := range refusals {
+		fmt.Fprintf(w, "  %s %s: %s\n", v.Location.DocumentType, v.Location.QualifiedName(), v.Message)
+	}
+	if force {
+		return res, nil
+	}
+	fmt.Fprintf(w, "%s: change those flows with `alter`, or drop and create them, then upgrade again; "+
+		"--force-header adds the header regardless\n", label)
+	opts.AddHeader = false
+	return upgrade.Upgrade(src, opts)
+}
+
+// headerRefusals returns what exec would refuse in the upgraded script src
+// because of its header: the MDL-V1-REBUILD errors check reports for it
+// against the project (executor.CheckFlowVerdicts).
+func headerRefusals(projectPath, src string) ([]linter.Violation, error) {
+	prog, errs := visitor.Build(src)
+	if len(errs) > 0 {
+		return nil, errs[0]
+	}
+	exec := executor.New(io.Discard)
+	exec.SetBackendFactory(newBackendFactory())
+	defer exec.Close()
+	connectProg, _ := visitor.Build(fmt.Sprintf("CONNECT LOCAL '%s'", visitor.QuoteString(projectPath)))
+	for _, stmt := range connectProg.Statements {
+		if err := exec.Execute(stmt); err != nil {
+			return nil, err
+		}
+	}
+	var out []linter.Violation
+	for _, v := range exec.CheckFlowVerdicts(prog) {
+		if v.RuleID == executor.FlowRebuildRule && v.Severity == linter.SeverityError {
+			out = append(out, v)
+		}
+	}
+	return out, nil
+}
+
 // writeFmtResult writes fmt's output: in place with -w, else to stdout. An
 // upgrade that changed nothing leaves the file untouched.
 func writeFmtResult(cmd *cobra.Command, filePath string, writeInPlace bool, original, formatted string, upgraded bool) error {
@@ -233,6 +317,7 @@ func init() {
 	fmtCmd.Flags().BoolP("write", "w", false, "Write result to source file instead of stdout")
 	fmtCmd.Flags().Bool("upgrade", false, "Rewrite deprecated spellings to their canonical form, changing nothing else")
 	fmtCmd.Flags().Bool("header", false, "With --upgrade: add the mdl 1 language header (opt-in while mdl 1 is a preview)")
+	fmtCmd.Flags().Bool("force-header", false, "With --header -p: add the header even where exec would then refuse a statement")
 }
 
 // reportUpgrade prints what an upgrade did, and what it left, on w.
@@ -269,6 +354,7 @@ func reportUpgrade(w io.Writer, label string, res upgrade.Result) {
 		if d.NoFix != "" {
 			msg += ": " + d.NoFix
 		}
+		msg += " " + langver.HelpHint(d.Code)
 		fmt.Fprintf(w, "%s:%d:%d: not upgraded, no mechanical rewrite: %s\n", label, d.Line, d.Column+1, msg)
 	}
 }

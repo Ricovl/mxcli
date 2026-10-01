@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#586 (follow-up) — `create workflow … overview page X` reported
 -- success and stored NOTHING.
 --
@@ -57,8 +58,7 @@ create page WF586B.Overview (
       }
     }
   }
-}
-/
+};
 
 create page WF586B.TaskPage (
   title: 'Task',
@@ -72,8 +72,7 @@ create page WF586B.TaskPage (
       }
     }
   }
-}
-/
+};
 
 -- The clause under test. Before the fix this workflow was written with no
 -- overview page at all.
@@ -87,7 +86,6 @@ begin
       'Approve' { }
       'Reject'  { };
 end workflow;
-/
 
 -- The ALTER path has always written AdminPage correctly; it is here because
 -- until the READ was fixed it, too, described back as absent.

@@ -47,17 +47,17 @@ END;
 List microflows and nanoflows in the project:
 
 ```sql
-LIST MICROFLOWS
-LIST MICROFLOWS IN MyModule
-LIST NANOFLOWS
-LIST NANOFLOWS IN MyModule
+LIST MICROFLOWS;
+LIST MICROFLOWS IN MyModule;
+LIST NANOFLOWS;
+LIST NANOFLOWS IN MyModule;
 ```
 
 View the full MDL definition of an existing microflow or nanoflow (round-trippable output):
 
 ```sql
-DESCRIBE MICROFLOW MyModule.ACT_CreateOrder
-DESCRIBE NANOFLOW MyModule.NAV_ShowDetails
+DESCRIBE MICROFLOW MyModule.ACT_CreateOrder;
+DESCRIBE NANOFLOW MyModule.NAV_ShowDetails;
 ```
 
 ## DROP
@@ -65,6 +65,7 @@ DESCRIBE NANOFLOW MyModule.NAV_ShowDetails
 Remove a microflow or nanoflow:
 
 ```sql
+mdl 1;
 DROP MICROFLOW MyModule.ACT_CreateOrder;
 DROP NANOFLOW MyModule.NAV_ShowDetails;
 ```
@@ -153,6 +154,7 @@ END;
 Move an existing microflow to a different folder:
 
 ```sql
+mdl 1;
 MOVE MICROFLOW Sales.ACT_CreateOrder TO FOLDER 'Orders/Actions';
 MOVE NANOFLOW Sales.NAV_ShowDetail TO FOLDER 'Navigation';
 ```

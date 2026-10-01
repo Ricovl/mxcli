@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue-tracker finding #19: a widget could not bind through a CROSS-MODULE
 -- association
@@ -87,4 +88,4 @@ create or modify page IT19.IssuePage
       CaptionAttribute: Name
     )
   }
-}
+};

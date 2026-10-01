@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: a CLOSE PAGE microflow/nanoflow activity failed `mx check` on Mendix 11.12
 -- with CE0117 "Error(s) in expression" at the Close page activity (the 11.12
 -- nightly failed 02-microflow / 02b-nanoflow on the legacy engine this way).

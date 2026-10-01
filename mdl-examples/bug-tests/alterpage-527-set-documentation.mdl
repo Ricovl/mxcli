@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- ako/mxcli#527 — ALTER PAGE could not set Documentation:
@@ -36,23 +37,23 @@ create or modify page Issue527.ServiceRequest_Triage (
   dataview dvMain (datasource: $Request) {
     text txtDescription (content: 'Triage this request.')
   }
-}
+};
 
 -- The statement that was refused. It replaces the doc comment's text in place,
 -- with no need to restate the page.
 alter page Issue527.ServiceRequest_Triage {
   set (Documentation: 'Coordinator triage step: set priority, then accept or reject.');
-}
+};
 
 -- An empty string clears it — removing a doc comment from a script has to be
 -- expressible, and the property is a bare string with no unset value.
 alter page Issue527.ServiceRequest_Triage {
   set (Documentation: '');
-}
+};
 
 -- Back to a real value, so the file leaves the page documented.
 alter page Issue527.ServiceRequest_Triage {
   set (Documentation: 'Coordinator triage step: set priority, then accept or reject.');
-}
+};
 
 describe page Issue527.ServiceRequest_Triage;

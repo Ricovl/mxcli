@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Upstream #863 (follow-up): EXECUTE DATABASE QUERY described as
 -- `-- Empty action` — write-only, on the default engine

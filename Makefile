@@ -35,7 +35,7 @@ GO_BUILD_FLAGS = -trimpath
 # Clean version for VS Code extension (must be valid semver: major.minor.patch)
 VSCE_VERSION = $(shell echo "$(VERSION)" | sed 's/^v//; s/-.*//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$$' || echo "0.0.0")
 
-.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-conformance conformance-shrink check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-parity test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
+.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-conformance conformance-shrink gen-migration-reference check-migration-reference check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-parity test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
 
 # Helper: copy file only if content differs (avoids mtime updates that invalidate go build cache)
 # Usage: $(call copy-if-changed,src,dst)
@@ -267,15 +267,25 @@ check-skill-mdl: build
 
 # Canonical-form conformance gate (ako/mxcli#756, plan item 1.4 of
 # PROPOSAL_mdl_beta_syntax_freeze.md). Parses every MDL block in `mxcli syntax`,
-# the user-facing skills, docs-site, the quick reference and mdl-examples, with
-# a deprecated spelling (MDL-DEPRnnn) counted as a failure, against the
-# allowlist in mdl/conformance/allowlist.txt, which may only shrink: a count
+# the user-facing skills, docs-site, the quick reference and mdl-examples as
+# mdl 1 (decision 1 on ako/mxcli#714), with a deprecated spelling (MDL-DEPRnnn),
+# a construct the header refuses (MDL-V1-*) and a complete script without the
+# `mdl 1;` header counted as failures, against the allowlist in mdl/conformance/allowlist.txt, which may only shrink: a count
 # above its ceiling fails, and so does one below it. After fixing docs, run
 # `make conformance-shrink`, which lowers the list and never raises it.
 # mdl-examples/deprecated-aliases/ is exempt: it is the old-spelling corpus
 # `fmt --upgrade` is proven on (see its README).
 check-conformance:
 	@go test ./mdl/conformance -count=1
+
+# The "Language versions and migration" page's tables are generated from the
+# language-change and deprecation registries (mdl/migration). check- is the CI
+# staleness check: it writes nothing and fails when the page is behind.
+gen-migration-reference:
+	@go run ./cmd/gen-migration-reference
+
+check-migration-reference:
+	@go run ./cmd/gen-migration-reference -check
 
 conformance-shrink:
 	@MXCLI_CONFORMANCE_SHRINK=1 go test ./mdl/conformance -run 'TestConformanceGate$$' -count=1
@@ -357,7 +367,7 @@ UPGRADE_PROPERTY = ^TestUpgradeExecutesToTheSameModel$$
 # TestApp flow under both language versions (~7 min): its own CI suite. The
 # TestSpliceRerun_ tests (#859) run there too, to keep the roundtrip suite
 # under its time limit (#870).
-SPLICE_PARITY = ^(TestTestAppFlowSpliceParity|TestSpliceRerun_.*)$$
+SPLICE_PARITY = ^(TestTestAppFlowSpliceParity|TestSpliceRerun_.*|TestFlowVerdictAgreement_.*)$$
 INTEGRATION_GO_TEST = CGO_ENABLED=0 go test -tags integration -count=1
 
 test-integration-executor:

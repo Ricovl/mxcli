@@ -193,6 +193,7 @@ ALTER PAGE Sales.Order_Edit {
 Add and drop page variables:
 
 ```sql
+mdl 1;
 ALTER PAGE Sales.Order_Edit {
     ADD Variables $showAdvanced : Boolean = 'false';
 };

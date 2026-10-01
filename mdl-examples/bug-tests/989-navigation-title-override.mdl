@@ -1,3 +1,4 @@
+mdl 1;
 -- PR #989: navigation page actions got an empty TitleOverride instead of null,
 -- blanking the page title on every mxcli-authored menu item.
 --
@@ -85,8 +86,7 @@ create page Issue989.NavHome (
 )
 {
   container c1 { }
-}
-/
+};
 
 create page Issue989.NavReports (
   title: 'Reports Page Title',
@@ -94,8 +94,7 @@ create page Issue989.NavReports (
 )
 {
   container c1 { }
-}
-/
+};
 
 create page Issue989.NavSettings (
   title: 'Settings Page Title',
@@ -103,8 +102,7 @@ create page Issue989.NavSettings (
 )
 {
   container c1 { }
-}
-/
+};
 
 create page Issue989.NavLogin (
   title: 'Sign In Page Title',
@@ -112,8 +110,7 @@ create page Issue989.NavLogin (
 )
 {
   container c1 { }
-}
-/
+};
 
 -- Three page menu items (one of them nested, to cover the recursive sub-item
 -- build) and a login page: four Forms$FormSettings, four TitleOverrides that
@@ -136,7 +133,6 @@ create microflow Issue989.DoNothing ()
 begin
   return;
 end;
-/
 
 create or modify navigation Responsive
   home page Issue989.NavHome

@@ -92,6 +92,25 @@ type flowDecl struct {
 	build func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, map[string]string, error)
 }
 
+// buildOnce returns d.build memoised: the first call builds, later calls
+// return the same result.
+func (d *flowDecl) buildOnce(ctx *ExecContext) func() (any, []*microflows.MicroflowParameter, map[string]string, error) {
+	var (
+		done     bool
+		built    any
+		params   []*microflows.MicroflowParameter
+		varTypes map[string]string
+		err      error
+	)
+	return func() (any, []*microflows.MicroflowParameter, map[string]string, error) {
+		if !done {
+			built, params, varTypes, err = d.build(ctx)
+			done = true
+		}
+		return built, params, varTypes, err
+	}
+}
+
 func (d *flowDecl) kind() string {
 	if d.nanoflow {
 		return "nanoflow"
@@ -113,16 +132,16 @@ func cannotSplice(format string, args ...any) error {
 // such flow yet, or a change the splice cannot make under mdl 0 — and the
 // caller then runs the create / rebuild path.
 func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) {
-	p, err := planFlowModify(ctx, d)
-	var why *notSpliceable
+	v := decideFlowModify(ctx, d)
 	switch {
-	case errors.As(err, &why):
-		return fallBack(ctx, d, err)
-	case err != nil:
-		return true, err
-	case p == nil:
+	case v.why != nil:
+		return fallBack(ctx, d, v)
+	case v.err != nil:
+		return true, v.err
+	case v.plan == nil:
 		return false, nil // a create
 	}
+	p := v.plan
 	a, ops, moves, set, storedFolder := p.a, p.ops, p.moves, p.set, p.storedFolder
 	if p.mut != nil {
 		if err := p.mut.Save(); err != nil {
@@ -130,16 +149,15 @@ func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) 
 		}
 	}
 	containerID := a.mf.ContainerID
-	if d.folder != storedFolder {
+	moved := movesFolder(d.folder, storedFolder)
+	if moved {
 		mod, err := findModule(ctx, d.name.Module)
 		if err != nil {
 			return true, err
 		}
-		to := mod.ID
-		if d.folder != "" {
-			if to, err = resolveFolder(ctx, mod.ID, d.folder); err != nil {
-				return true, mdlerrors.NewBackend("resolve folder "+d.folder, err)
-			}
+		to, err := resolveRequestedFolder(ctx, mod.ID, d.folder)
+		if err != nil {
+			return true, err
 		}
 		if _, err := applyDocumentFolder(ctx, a.mf.ID, a.mf.ContainerID, to); err != nil {
 			return true, err
@@ -150,7 +168,7 @@ func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) 
 	switch summary := patchSummary(ops, moves, set); {
 	case summary != "":
 		ctx.ReportMutation("Modified", "%s: %s (%s)", d.kind(), d.name, summary)
-	case d.folder != storedFolder:
+	case moved:
 		ctx.ReportMutation("Moved", "%s: %s", d.kind(), d.name)
 	default:
 		reportUnchanged(ctx, fmt.Sprintf("%s: %s", d.kind(), d.name))
@@ -164,6 +182,16 @@ func modifyFlowInPlace(ctx *ExecContext, d *flowDecl) (handled bool, err error) 
 	}
 	invalidateHierarchy(ctx)
 	return true, nil
+}
+
+// movesFolder reports whether a declared folder clause moves a stored flow.
+// No clause is not "the module root": it leaves the flow where it is, the rule
+// every create-or-modify path follows (document_placement.go). The splice
+// compared the two paths and moved on any difference, so a script that said
+// nothing about folders unfiled every foldered flow it touched, and an organise
+// step filing them again made each run write (ako/mxcli#887).
+func movesFolder(declared, stored string) bool {
+	return declared != "" && declared != stored
 }
 
 // flowPlan is a `create or modify` of a stored flow worked out as far as it
@@ -208,6 +236,10 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	decl, storedHeader := d.header(stored)
 	headerChanged := !declaredMatches(decl, storedHeader)
 	storedParams := a.mf.Parameters
+	// Building the declared flow is the expensive step of a modify, and the
+	// header diff, builtAsStored and the member spellings all need it: it is
+	// built at most once (ako/mxcli#870).
+	build := d.buildOnce(ctx)
 	var declared any
 	var varTypes map[string]string
 	if headerChanged {
@@ -215,7 +247,7 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 			return nil, asNotSpliceable(err)
 		}
 		var params []*microflows.MicroflowParameter
-		if declared, params, varTypes, err = d.build(ctx); err != nil {
+		if declared, params, varTypes, err = build(); err != nil {
 			return nil, err
 		}
 		// The fragments are built and scope-checked against the parameters
@@ -235,7 +267,13 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	var ops []*ast.AlterFlowOperation
 	var targets []mfmutator.Candidate
 	var moves []flowMove
-	if !builtAsStored(ctx, d, a, declared) {
+	// A body that states what describe prints for the stored one — the
+	// statement re-run unchanged, or a describe executed back — has nothing to
+	// patch, and needs no build to say so (ako/mxcli#870): every statement
+	// matches its stored one, so neither builtAsStored nor the statement diff
+	// could find a change.
+	sameBody := !headerChanged && declaredMatches(d.body, storedBody(stored))
+	if !sameBody && !builtAsStored(ctx, a, build) {
 		// Members are compared in the spelling describe prints them in, or a
 		// script naming one another way never matches its own stored activity.
 		// Which entity a variable holds is the builder's to say where the
@@ -243,7 +281,7 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 		// over an association). A body that does not build leaves the spellings
 		// to what the statements state; its errors are reported by the patch.
 		if varTypes == nil {
-			if _, _, vt, berr := d.build(ctx); berr == nil {
+			if _, _, vt, berr := build(); berr == nil {
 				varTypes = vt
 			}
 		}
@@ -276,17 +314,15 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 
 // builtAsStored reports whether the declared body builds the graph that is
 // stored (sameBuiltFlow), in which case there is nothing to patch in it,
-// whatever describe prints for it (ako/mxcli#859). built is the declared flow
-// when the header diff has built it already, else nil. A body that does not
+// whatever describe prints for it (ako/mxcli#859). build is the declared
+// flow's build, memoised by planFlowModify. A body that does not
 // build, or a backend that cannot say how a flow reads back — including a
 // flow the reader would not read back whole, where both sides would compare
 // equal in what it drops — leaves it to the statement diff.
-func builtAsStored(ctx *ExecContext, d *flowDecl, a *alterFlowContext, built any) bool {
-	if built == nil {
-		var err error
-		if built, _, _, err = d.build(ctx); err != nil {
-			return false
-		}
+func builtAsStored(ctx *ExecContext, a *alterFlowContext, build func() (any, []*microflows.MicroflowParameter, map[string]string, error)) bool {
+	built, _, _, err := build()
+	if err != nil {
+		return false
 	}
 	// Compared as it would read back once stored: what the writer defaults,
 	// or has no property for, reads back as it does from the project.
@@ -323,18 +359,13 @@ func asNotSpliceable(err error) error {
 }
 
 // fallBack decides what a change the splice cannot make does: refused under
-// mdl 1, the whole-document rebuild with a warning under mdl 0.
-func fallBack(ctx *ExecContext, d *flowDecl, why error) (bool, error) {
-	if flowRebuildRefused.Applies(ctx.LanguageVersion) {
-		return true, mdlerrors.NewValidation(fmt.Sprintf(
-			"create or modify %s %s: this change cannot be spliced into the stored flow: %v. "+
-				"Nothing was written: rebuilding the whole flow instead would reset what Studio Pro drew "+
-				"(curves, merges, element IDs). Change activities with `alter %s %s { … }`; "+
-				"to rebuild the flow deliberately, drop the %s and create it",
-			d.kind(), d.name, why, d.kind(), d.name, d.kind()))
+// mdl 1, the whole-document rebuild with a warning under mdl 0. The verdict
+// and its wording are shared with diff and check (flow_verdict.go).
+func fallBack(ctx *ExecContext, d *flowDecl, v flowVerdict) (bool, error) {
+	if v.refused {
+		return true, flowRefusal(d, v.why)
 	}
-	fmt.Fprintf(ctx.progress(), "Warning [%s]: %s %s is rebuilt as a whole: %v. %s\n",
-		flowRebuildRefused.Code, d.kind(), d.name, why, flowRebuildRefused.Warning(ctx.LanguageVersion))
+	fmt.Fprintf(ctx.progress(), "Warning [%s]: %s\n", flowRebuildRefused.Code, flowRebuildWarning(ctx, d, v.why))
 	return false, nil
 }
 
@@ -635,7 +666,6 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 		return nil, nil, nil, cannotSplice("the free annotations change; the splice edits activities only")
 	}
 
-	declared = withImplicitEnd(declared, stored, returnVar)
 	// @start is where the start event is drawn, which describe prints on the
 	// first statement: it belongs to the start event, not to the statement.
 	declared, declaredStart := withoutStart(declared)
@@ -643,6 +673,11 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 	// One spelling of each control-flow shape on both sides, so a script
 	// matches the flow built from it however describe prints it (#859).
 	declared, stored = canonicalFlow(declared), canonicalFlow(stored)
+	// The implicit end is stated against the canonical stored flow: a guard
+	// directly before the final end is described as an if/else whose else
+	// returns, which only the canonical form ends with that return
+	// (ako/mxcli#888).
+	declared = withImplicitEnd(declared, stored, returnVar)
 
 	pd := &patchDiff{loc: newStoredLocator(a)}
 	if err := pd.statements(declared, stored); err != nil {
@@ -783,6 +818,9 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 		return nil
 	}
 	if len(ins) == 1 && len(del) == 1 {
+		if d, s, ok := ifConditionChanged(ins[0], del[0]); ok {
+			return pd.conditionEdit(d, s)
+		}
 		if d, s, ok := sameIfShell(ins[0], del[0]); ok {
 			// The same `if` with a change in a branch: splice the branches,
 			// and move the split if the script draws it elsewhere.
@@ -815,6 +853,23 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 		for _, st := range del {
 			if sameIgnoringLayout(d, st) {
 				return redrawn(st)
+			}
+		}
+	}
+	// A stored `if` declared again with its condition but neither as the same
+	// shell nor with only its condition changed has its else or a branch's
+	// return added or taken away: where its paths end or meet changes, which
+	// a replace of the decision cannot express (it would take out both of its
+	// paths).
+	for _, st := range del {
+		si, ok := st.(*ast.IfStmt)
+		if !ok {
+			continue
+		}
+		for _, d := range ins {
+			if di, ok := d.(*ast.IfStmt); ok && declaredMatches(di.Condition, si.Condition) {
+				return cannotSplice("the %s changes where its paths end or meet — a branch's return, or its else, is "+
+					"added or taken away; that is the shape of the flow, and the splice changes a return's value only", describeAt(st))
 			}
 		}
 	}
@@ -903,6 +958,48 @@ func sameIfShell(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfS
 	return d, s, true
 }
 
+// ifConditionChanged reports whether two statements are the same `if` but for
+// its condition — the same annotations, the same else — differing besides at
+// most inside its branches and in where the split is drawn (ako/mxcli#888).
+func ifConditionChanged(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfStmt, bool) {
+	d, ok1 := declared.(*ast.IfStmt)
+	s, ok2 := stored.(*ast.IfStmt)
+	if !ok1 || !ok2 || declaredMatches(d.Condition, s.Condition) {
+		return nil, nil, false
+	}
+	dShell, sShell := *d, *s
+	dShell.ThenBody, dShell.ElseBody, sShell.ThenBody, sShell.ElseBody = nil, nil, nil, nil
+	dShell.Condition = s.Condition
+	if !sameExceptPositions(&dShell, &sShell) {
+		return nil, nil, false
+	}
+	return d, s, true
+}
+
+// conditionEdit diffs an `if` whose condition changes against the stored
+// one: the decision is the same node, so the new condition is set on it in
+// place — its $ID, its flows and both of its paths stay — and its branches
+// are diffed like any other statement list. Replacing the decision instead
+// would take out what both of its paths hold, which the splice refuses.
+func (pd *patchDiff) conditionEdit(declared, stored *ast.IfStmt) error {
+	c, err := pd.loc.locate(stored)
+	if err != nil {
+		return err
+	}
+	if _, ok := c.Object.(*microflows.ExclusiveSplit); !ok {
+		return cannotSplice("the stored %s is not drawn as a decision", describeAt(stored))
+	}
+	pd.add(ast.AlterFlowReplace, c, []ast.MicroflowStatement{&ast.IfStmt{Condition: declared.Condition}})
+	pd.ops[len(pd.ops)-1].SetCondition = true
+	if err := pd.movedNode(declared, stored); err != nil {
+		return err
+	}
+	if err := pd.statements(declared.ThenBody, stored.ThenBody); err != nil {
+		return err
+	}
+	return pd.statements(declared.ElseBody, stored.ElseBody)
+}
+
 // sameBlockShell reports whether two statements are the same `if`, differing
 // inside its branches. Such a pair is matched as a pair (lcsStatements) and
 // diffed branch by branch, rather than left to merge with the changes around
@@ -911,8 +1008,15 @@ func sameIfShell(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfS
 // insert (#859). Loops are not paired this way: a change inside a loop is
 // refused either way, and pairing one would turn a replace that spans it into
 // that refusal.
+//
+// An `if` whose condition changes is paired the same way (ako/mxcli#888): the
+// condition is set on the stored decision, and a change around it must not
+// merge with it into a replace of the decision.
 func sameBlockShell(declared, stored ast.MicroflowStatement) bool {
-	_, _, ok := sameIfShell(declared, stored)
+	if _, _, ok := sameIfShell(declared, stored); ok {
+		return true
+	}
+	_, _, ok := ifConditionChanged(declared, stored)
 	return ok
 }
 

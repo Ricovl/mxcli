@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1082 — a CONTAINER action calling a flow with a parameter.
 --
 -- POSITIVE test (plain .mdl): this script must PASS `mxcli check`. The rule it
@@ -92,4 +93,4 @@ create or modify page BugTest1082.MaterialsOverview
       }
     }
   }
-}
+};

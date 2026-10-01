@@ -27,6 +27,7 @@ ALTER SETTINGS RUNTIME ( <Key>: <Value>, ... );
 Examples:
 
 ```sql
+mdl 1;
 ALTER SETTINGS RUNTIME ( AfterStartupMicroflow: 'MyModule.ACT_Startup' );
 ALTER SETTINGS RUNTIME ( HashAlgorithm: 'BCrypt' );
 ALTER SETTINGS RUNTIME ( JavaVersion: '17' );
@@ -48,6 +49,7 @@ ALTER SETTINGS CONFIGURATION '<Name>' ( <Key>: <Value>, ... );
 Examples:
 
 ```sql
+mdl 1;
 ALTER SETTINGS CONFIGURATION 'default' ( DatabaseType: 'POSTGRESQL' );
 ALTER SETTINGS CONFIGURATION 'default' ( DatabaseUrl: 'jdbc:postgresql://localhost:5432/myapp' );
 ALTER SETTINGS CONFIGURATION 'default' ( HttpPortNumber: '8080' );
@@ -82,6 +84,7 @@ ALTER SETTINGS LANGUAGE DROP '<code>';
 ```
 
 ```sql
+mdl 1;
 -- enable a language; the defaults match Studio Pro's Add Language dialog
 ALTER SETTINGS LANGUAGE ADD 'de_DE';
 
@@ -173,6 +176,7 @@ ALTER SETTINGS WORKFLOWS ( <Key>: <Value>, ... );
 Examples:
 
 ```sql
+mdl 1;
 ALTER SETTINGS WORKFLOWS ( UserEntity: 'Administration.Account' );
 ALTER SETTINGS WORKFLOWS ( DefaultTaskParallelism: '5' );
 ```

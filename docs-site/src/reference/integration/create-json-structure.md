@@ -105,7 +105,7 @@ entry applied to nothing and reported nothing.
 ### Idempotent replacement
 
 ```sql
-CREATE OR REPLACE JSON STRUCTURE MyModule.JSON_Pet
+CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Pet
     SAMPLE '{"id": 1, "name": "Fido", "status": "available", "tags": []}';
 ```
 

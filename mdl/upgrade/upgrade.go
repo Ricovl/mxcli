@@ -248,7 +248,7 @@ type HeaderBlockedError struct {
 func (e *HeaderBlockedError) Error() string {
 	lines := make([]string, len(e.Constructs))
 	for i, c := range e.Constructs {
-		lines[i] = fmt.Sprintf("line %d: %s: %s", c.Line, c.Code, c.Reason)
+		lines[i] = fmt.Sprintf("line %d: %s: %s %s", c.Line, c.Code, c.Reason, langver.HelpHint(c.Code))
 	}
 	return fmt.Sprintf("cannot add the `%s;` header: %d construct(s) would change meaning under it "+
 		"and have no mechanical rewrite, so the script is left at %s:\n  %s",

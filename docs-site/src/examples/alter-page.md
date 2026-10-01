@@ -99,6 +99,7 @@ ALTER PAGE CRM.Customer_Edit {
 Target columns using dotted notation `gridName.columnName`:
 
 ```sql
+mdl 1;
 -- Add a column
 ALTER PAGE CRM.Customer_List {
   INSERT AFTER dgCustomers.Email {

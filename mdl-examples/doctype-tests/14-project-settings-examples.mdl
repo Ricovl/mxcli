@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Project Settings Examples - Comprehensive Parser Feature Showcase
 -- ============================================================================
@@ -27,7 +28,6 @@ create microflow MyModule.ASU_Startup() returns boolean
 begin
   return true;
 end;
-/
 
 /**
  * Example 1.1: Set after-startup microflow

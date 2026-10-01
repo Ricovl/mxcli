@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #572: `use fragment` inside ALTER PAGE … INSERT / REPLACE passed `check`
 -- and failed in exec with
 --   "failed to build widget SaveCancelFooter: unsupported widget type: USE_FRAGMENT".

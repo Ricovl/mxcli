@@ -32,6 +32,7 @@ mxcli -p app.mpr
 ## Example: Domain Model
 
 ```sql
+mdl 1;
 -- Enumerations first (referenced by entities)
 CREATE ENUMERATION Sales.OrderStatus (
   Draft 'Draft',
@@ -53,7 +54,6 @@ CREATE PERSISTENT ENTITY CRM.Customer (
 )
 INDEX (Name)
 INDEX (Email);
-/
 
 /** Sales order */
 @Position(300, 100)
@@ -65,13 +65,12 @@ CREATE PERSISTENT ENTITY Sales.Order (
 )
 INDEX (OrderNumber)
 INDEX (OrderDate DESC);
-/
 
 -- Associations
 CREATE ASSOCIATION Sales.Order_Customer
   FROM Sales.Order TO CRM.Customer
   TYPE Reference OWNER Default;
-/
+
 ```
 
 ## Example: Microflow
@@ -101,16 +100,16 @@ CREATE PAGE CRM.Customer_Overview (
   Layout: Atlas_Core.Atlas_Default
 ) {
   DATAGRID dgCustomers (DataSource: DATABASE CRM.Customer, Selection: Single) {
-    COLUMN colName (Attribute: Name, Caption: 'Name') { TEXTFILTER fName }
-    COLUMN colEmail (Attribute: Email, Caption: 'Email') { TEXTFILTER fEmail }
-    COLUMN colPhone (Attribute: Phone, Caption: 'Phone')
-    COLUMN colActive (Attribute: IsActive, Caption: 'Active')
-    CONTROLBAR cb1 {
+    COLUMN (Attribute: Name, Caption: 'Name') { TEXTFILTER fName }
+    COLUMN (Attribute: Email, Caption: 'Email') { TEXTFILTER fEmail }
+    COLUMN (Attribute: Phone, Caption: 'Phone')
+    COLUMN (Attribute: IsActive, Caption: 'Active')
+    CONTROLBAR {
       ACTIONBUTTON btnNew (Caption: 'New', Action: SHOW PAGE CRM.Customer_NewEdit, ButtonStyle: Primary)
     }
   }
 };
-/
+
 ```
 
 ## Validation Between Steps

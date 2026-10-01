@@ -85,3 +85,20 @@ func visitorFix(_ *Source, _ *ast.Program, n ast.LanguageNote) ([]Edit, error) {
 	}
 	return n.Fix.Edits, nil
 }
+
+// GatedRewrite reports what `fmt --upgrade --header` does with a construct
+// gated by the language change code: rewritable when it has a mechanical
+// rewrite that keeps the old meaning under the header, versionNeutral when
+// that rewrite is applied without --header too, and otherwise the reason there
+// is none. known is false for a code the upgrade does not handle at all (a
+// change decided at exec time, against the project). It is what the migration
+// reference and `mxcli help <code>` print.
+func GatedRewrite(code string) (rewritable, neutral bool, reason string, known bool) {
+	if _, ok := gatedRewriters[code]; ok {
+		return true, versionNeutral[code], "", true
+	}
+	if r, ok := unrewritable[code]; ok {
+		return false, false, r, true
+	}
+	return false, false, "", false
+}

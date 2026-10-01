@@ -1,3 +1,4 @@
+mdl 1;
 -- Offline synchronization on a navigation profile.
 --
 -- An offline profile downloads NOTHING until its entities are given a sync
@@ -44,7 +45,7 @@ create page "OfflineSync"."Mobile_Home"
 )
 {
   dynamictext home_text (content: 'Offline home', rendermode: H2)
-}
+};
 
 -- PhoneOffline is created if the project does not already have it: Mendix's
 -- web profile kinds are a closed set, and the offline ones are the online

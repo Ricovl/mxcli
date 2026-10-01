@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #910 (problem 2): RENAME ATTRIBUTE left every reference dangling
 -- ============================================================================
@@ -40,12 +41,10 @@
 -- ============================================================================
 
 create module RenameRefs;
-/
 create persistent entity RenameRefs.Person (
   FirstName: String(100),
   LastName: String(100) not null error message 'required'
 );
-/
 -- A create and a change activity, each naming the attribute by qualified name.
 create or modify microflow RenameRefs.ACT_MakePerson ()
 begin
@@ -56,11 +55,9 @@ begin
   commit $P;
   change $P (LastName = 'King');
 end;
-/
 -- The rename must carry all of it: both microflow members and the entity's own
 -- "required" validation rule, which stores "RenameRefs.Person.LastName".
 alter entity RenameRefs.Person rename attribute LastName to Surname;
-/
 -- Renaming onto a name the entity already uses is refused rather than creating
 -- two attributes that no reference can tell apart.
 -- alter entity RenameRefs.Person rename attribute Surname to FirstName;

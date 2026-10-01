@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Visible (conditional-visibility) via the string / static-boolean form was
 -- silently dropped by the MDL page builder
@@ -46,12 +47,12 @@ create or modify page MyFirstModule.P_VisString
     -- a plain widget we make conditionally visible via ALTER below
     dynamictext ovLater ( Content: 'later' )
   }
-}
+};
 
 -- ALTER PAGE ... SET Visible = "<expr>" (quoted string) — previously a silent
 -- no-op; now writes ConditionalVisibilitySettings.
 alter page MyFirstModule.P_VisString {
   set (Visible: "$currentObject/Active") on ovLater;
-}
+};
 
 describe page MyFirstModule.P_VisString;

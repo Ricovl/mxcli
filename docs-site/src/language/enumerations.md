@@ -51,6 +51,7 @@ Status: Enumeration(Sales.OrderStatus) DEFAULT 'Draft'
 Add, rename, re-caption, or remove values on an existing enumeration:
 
 ```sql
+mdl 1;
 -- Add a new value (the CAPTION keyword is required for ALTER, unlike CREATE)
 ALTER ENUMERATION Sales.OrderStatus
   ADD VALUE OnHold CAPTION 'On Hold';

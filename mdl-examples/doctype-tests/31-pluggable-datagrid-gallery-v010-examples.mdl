@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- v0.10.0 MILESTONE: Pluggable DataGrid + Gallery for Mendix 11
@@ -104,7 +105,7 @@ create page PluggableV10.P_PD01_BasicGrid folder 'PluggableDataGrid' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: PD02 — DataGrid with controlbar (action buttons above grid)
@@ -136,7 +137,7 @@ create page PluggableV10.P_PD02_ControlBar folder 'PluggableDataGrid' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: PD03 — All four filter types in one grid
@@ -169,7 +170,7 @@ create page PluggableV10.P_PD03_AllFilters folder 'PluggableDataGrid' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: PD04 — Custom content column with action button (trailing actions)
@@ -209,7 +210,7 @@ create page PluggableV10.P_PD04_CustomActionColumn folder 'PluggableDataGrid' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: PD05 — Custom content column with container + dynamictext (rich cells)
@@ -256,7 +257,7 @@ create page PluggableV10.P_PD05_CustomCellContent folder 'PluggableDataGrid' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: PD06 — Templated caption + ShowContentAs: dynamicText
@@ -314,7 +315,7 @@ create page PluggableV10.P_PD06_DynamicCaption folder 'PluggableDataGrid' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: PG01 — Basic Gallery with template
@@ -344,7 +345,7 @@ create page PluggableV10.P_PG01_BasicGallery folder 'PluggableGallery' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: PG02 — Gallery with filter bar (container-wrapped textfilter)
@@ -379,7 +380,7 @@ create page PluggableV10.P_PG02_GalleryFilter folder 'PluggableGallery' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: PG03 — Gallery with rich card layout (layoutgrid + multiple texts)
@@ -423,7 +424,7 @@ create page PluggableV10.P_PG03_RichGallery folder 'PluggableGallery' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: MX01 — Page combining DataGrid + Gallery in tabs (integration)
@@ -472,7 +473,7 @@ create page PluggableV10.P_MX01_GridAndGallery folder 'PluggableMixed' (
       }
     }
   }
-}
+};
 
 grant view on page PluggableV10.P_PD01_BasicGrid to PluggableV10.User;
 grant view on page PluggableV10.P_PD02_ControlBar to PluggableV10.User;

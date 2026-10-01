@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Layout Examples - CREATE LAYOUT
 -- ============================================================================
@@ -27,7 +28,7 @@ create or modify layout LayoutTest.Minimal (
       placeholder Main
     }
   }
-}
+};
 
 -- ----------------------------------------------------------------------------
 -- The usual app frame: a topbar, a navigation sidebar and a content region.
@@ -59,7 +60,7 @@ create or modify layout LayoutTest.App_Default (
       placeholder Main
     }
   }
-}
+};
 
 -- ----------------------------------------------------------------------------
 -- More than one placeholder. A page binds to each by name — the name is API,
@@ -81,7 +82,7 @@ create or modify layout LayoutTest.SplitHeader (
       placeholder Main
     }
   }
-}
+};
 
 -- ----------------------------------------------------------------------------
 -- A page over one of them. Bare widgets go into Main; `placeholder <Name> { }`
@@ -93,7 +94,7 @@ create or modify page LayoutTest.Home (
   layout: LayoutTest.App_Default
 ) {
   dynamictext welcome (content: 'Hello from the content region')
-}
+};
 
 create or modify page LayoutTest.Split (
   title: 'Split',
@@ -105,7 +106,7 @@ create or modify page LayoutTest.Split (
   placeholder Main {
     dynamictext body (content: 'the page body')
   }
-}
+};
 
 -- ----------------------------------------------------------------------------
 -- Repointing pages.
@@ -169,7 +170,7 @@ create or modify layout LayoutTest.Phone_Bottom (
       placeholder Main
     }
   }
-}
+};
 
 -- ----------------------------------------------------------------------------
 -- DESCRIBE emits re-executable MDL, which is how a layout is copied: describe

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Import Mapping USAGE Examples
 -- ============================================================================
@@ -58,7 +59,6 @@ create non-persistent entity MapUse.PetResponse (
   Name : string,
   Status : string
 );
-/
 
 @position(400, 100)
 create persistent entity MapUse.PetRecord (
@@ -66,7 +66,6 @@ create persistent entity MapUse.PetRecord (
   Name : string,
   Status : string
 );
-/
 
 create json structure MapUse.JSON_Pet
   sample '{"id": 1, "name": "Fido", "status": "available"}';
@@ -169,7 +168,6 @@ begin
   end if;
   return $out;
 end;
-/
 
 -- ============================================================================
 -- Level 2.2: ALL — the range, written explicitly
@@ -194,7 +192,6 @@ begin
   end if;
   return $out;
 end;
-/
 
 -- ============================================================================
 -- Level 2.3: LIMIT / OFFSET — Studio Pro's Custom range
@@ -212,7 +209,6 @@ begin
   set $out = 'ok';
   return $out;
 end;
-/
 
 -- ============================================================================
 -- Level 2.4: FIRST and OFFSET — list-rooted mappings only
@@ -258,7 +254,6 @@ begin
   end if;
   return $out;
 end;
-/
 
 -- ############################################################################
 -- PART 4: REST CALL — the mapping as a response handler
@@ -293,7 +288,6 @@ begin
     on error rollback;
   return $Pet;
 end;
-/
 
 -- ============================================================================
 -- Level 4.2: returns mapping ... as list of Module.Entity
@@ -333,7 +327,6 @@ begin
   $Pet = import from mapping MapUse.IMM_Pet($Body);
   return $Pet;
 end;
-/
 
 -- ############################################################################
 -- PART 5: DESCRIBE ROUND-TRIP

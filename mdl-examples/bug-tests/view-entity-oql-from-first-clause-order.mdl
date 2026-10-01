@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: Mendix OQL has two clause orders, and mxcli's view-entity checker could
 -- read only one of them.
 --

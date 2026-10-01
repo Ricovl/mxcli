@@ -184,6 +184,7 @@ attribute exactly like one of the entity's own; mxcli resolves each to the entit
 that **declares** it.
 
 ```sql
+mdl 1;
 CREATE PERSISTENT ENTITY Docs.DocumentBase (DocName: String(200), Confidential: Boolean);
 CREATE PERSISTENT ENTITY Docs.Contract EXTENDS Docs.DocumentBase (ContractNumber: String(50));
 

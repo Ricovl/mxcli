@@ -61,8 +61,8 @@ func (pb *pageBuilder) warnTemplateAttrBinding(name, attr string) {
 	fmt.Fprintf(pb.ctx.progress(),
 		"Warning [%s]: text-template parameter $%s.%s is bound to the attribute: it renders with the "+
 			"attribute's formatting, as in Studio Pro. mxcli releases before #823 stored toString($%s/%s); "+
-			"write `{n} = toString($%s/%s)` to keep that output.\n",
-		templateAttrBinding.Code, name, attr, name, attr, name, attr)
+			"write `{n} = toString($%s/%s)` to keep that output. %s\n",
+		templateAttrBinding.Code, name, attr, name, attr, name, attr, langver.HelpHint(templateAttrBinding.Code))
 }
 
 // templateAttributeRefRe matches what a text-template parameter binds as an

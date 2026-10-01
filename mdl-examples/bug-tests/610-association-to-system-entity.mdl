@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #610: create association to a System-module entity fails at exec
 --
 -- Symptom: `create [or modify] association ... to System.User` passed

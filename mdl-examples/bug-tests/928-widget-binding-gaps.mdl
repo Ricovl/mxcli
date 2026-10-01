@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue #928: two widget property bindings that passed check and wrote nothing
 -- ============================================================================
@@ -35,7 +36,6 @@ create persistent entity BugTest928.Product (
   Name: string(200),
   PictureUrl: string(500)
 );
-/
 
 create or modify page BugTest928.Catalogue (
   Title: 'Catalogue',
@@ -65,5 +65,4 @@ create or modify page BugTest928.Catalogue (
     -- fire here, or the documented idiom would be flagged).
     TEXTBOX tbName ( Attribute: Name, editable: [false] )
   }
-}
-/
+};

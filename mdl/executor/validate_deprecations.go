@@ -7,6 +7,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 )
 
@@ -32,7 +33,7 @@ func ValidateDeprecations(prog *ast.Program) []linter.Violation {
 			RuleID:   e.Code,
 			Severity: linter.SeverityWarning,
 			Message: fmt.Sprintf("line %d: `%s`%s is deprecated; write `%s` — same meaning. "+
-				"Refused from `mdl %d`.", d.Line, e.Old, on, e.Canonical, e.RemovedIn),
+				"Refused from `mdl %d`. %s", d.Line, e.Old, on, e.Canonical, e.RemovedIn, langver.HelpHint(e.Code)),
 			Suggestion: deprecationSuggestion(e),
 		})
 	}

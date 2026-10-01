@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: any settings write corrupted a PRIVATE constant override
 --
 -- A constant override's value is stored one of two ways:

@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test: `DataSource: Module.Entity` on a data grid was silently dropped.
 -- Issue ako/mxcli#576.
 --

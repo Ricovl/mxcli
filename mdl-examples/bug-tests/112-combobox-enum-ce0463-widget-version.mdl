@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #112: COMBOBOX bound to an enum triggers CE0463 "widget definition changed"
 -- ============================================================================
@@ -47,19 +48,16 @@
 -- ============================================================================
 
 create module CBBug112;
-/
 
 create enumeration CBBug112.VesselClass (
   Sailboat 'Sailboat',
   Motorboat 'Motorboat'
 );
-/
 
 create entity CBBug112.Boat (
   Name: String,
   VesselClass: enum CBBug112.VesselClass
 );
-/
 
 create or modify page CBBug112.Boat_NewEdit (
   params: ( $Boat: CBBug112.Boat ),
@@ -68,5 +66,4 @@ create or modify page CBBug112.Boat_NewEdit (
   dataview boatDV (DataSource: $Boat) {
     combobox cbClass (Label: 'Class', Attribute: VesselClass)
   }
-}
-/
+};

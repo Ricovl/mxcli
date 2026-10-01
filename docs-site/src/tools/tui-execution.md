@@ -20,6 +20,7 @@ From the browser mode, press `x` to switch to the MDL execution view. A full-scr
 The textarea supports standard text editing. Type or paste any MDL statements:
 
 ```sql
+mdl 1;
 LIST MODULES;
 
 CREATE PERSISTENT ENTITY MyModule.Customer (

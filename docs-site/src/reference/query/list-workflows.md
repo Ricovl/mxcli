@@ -20,13 +20,13 @@ Workflows model multi-step business processes with user tasks, decisions, parall
 List all workflows in the project:
 
 ```sql
-LIST WORKFLOWS
+LIST WORKFLOWS;
 ```
 
 List workflows in a specific module:
 
 ```sql
-LIST WORKFLOWS IN Approvals
+LIST WORKFLOWS IN Approvals;
 ```
 
 ## See Also

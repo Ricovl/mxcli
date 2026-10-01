@@ -1,3 +1,4 @@
+mdl 1;
 -- Slice 1 of PROPOSAL_def_driven_widget_bodies.md — the parts of
 -- mendixlabs/mxcli#1036 that need no design work.
 --
@@ -36,4 +37,4 @@ create page Bug1036.EmptyProps folder 'Bug1036' (
     }
     dynamictext empty ()
   }
-}
+};

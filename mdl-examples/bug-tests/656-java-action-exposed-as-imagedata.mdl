@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #656: Java action `exposed as` wrote a legacy MicroflowActionInfo with a
 -- null ImageData, crashing Studio Pro export/upgrade/Save-As

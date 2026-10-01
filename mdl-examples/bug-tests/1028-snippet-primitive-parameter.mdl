@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Upstream #1028: a primitive-typed SNIPPET parameter was taken for an entity
 -- ============================================================================
@@ -48,7 +49,7 @@ create snippet S1028.SNIPPET_Label ( params: ( $Order: S1028.Order ) ) {
       textbox tbLabel (attribute: Label, label: 'Label')
     }
   } } }
-}
+};
 
 -- The primitives belong on the calling PAGE, which accepts every one of them.
 -- Long is stored as DataTypes$IntegerType (storage has no LongType; Studio
@@ -69,4 +70,4 @@ create page S1028.PagePrimitives (
   layoutgrid g { row { column (desktopwidth: 12) {
     snippetcall scLabel (snippet: S1028.SNIPPET_Label, params: (Order = $Order))
   } } }
-}
+};

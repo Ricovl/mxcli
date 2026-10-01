@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #350: Manual `while true` retry-loop roundtrip
 -- ============================================================================
@@ -41,7 +42,6 @@ create module BugTest350;
 create entity BugTest350.Item (
   IsDone : boolean
 );
-/
 
 -- Manual while-true retry loop. The graph rebuild must use an
 -- ExclusiveMerge back-edge — not a LoopedActivity and not a fallthrough
@@ -59,4 +59,3 @@ begin
     continue;
   end while;
 end;
-/

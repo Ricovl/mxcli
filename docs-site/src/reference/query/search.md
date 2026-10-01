@@ -20,13 +20,13 @@ This command requires the catalog to be populated. If search returns no results,
 Search for a keyword:
 
 ```sql
-SEARCH 'Customer'
+SEARCH 'Customer';
 ```
 
 Search for an error message:
 
 ```sql
-SEARCH 'is required'
+SEARCH 'is required';
 ```
 
 Search using the CLI:

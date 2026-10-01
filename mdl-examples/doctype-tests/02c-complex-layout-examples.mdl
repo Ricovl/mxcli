@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Complex Layout Examples — Real-World Microflow Complexity Showcase
 -- ============================================================================
@@ -45,7 +46,6 @@ create enumeration CxLayout.AuthMethod (
   ClientSecretBasic 'Client Secret (Basic Auth)',
   None              'None'
 );
-/
 
 create enumeration CxLayout.FactoryStatus (
   Active           'Active',
@@ -53,7 +53,6 @@ create enumeration CxLayout.FactoryStatus (
   Offline          'Offline',
   Decommissioned   'Decommissioned'
 );
-/
 
 @position(100, 100)
 create persistent entity CxLayout.Factory (
@@ -127,7 +126,6 @@ as $$
 /* Placeholder — implement with RestCallAction or HttpClient in production */
 return null;
 $$;
-/
 
 -- ============================================================================
 -- PATTERN 1: Multi-Field Range Validation with Error Accumulator
@@ -260,7 +258,6 @@ begin
 
   return $IsValid;
 end;
-/
 
 -- ============================================================================
 -- PATTERN 2: Sequential Guard-Chain (Conditional Waterfall)
@@ -302,7 +299,7 @@ begin
   -- Guard 2: survey tracker must exist
   retrieve $Tracker from CxLayout.SurveyTracker
     where TrackerId = $TrackerId
-    limit 1;
+    first;
 
   if $Tracker = empty then
     log warning node 'Survey' 'Tracker not found: ' + $TrackerId;
@@ -320,7 +317,7 @@ begin
   -- Guard 4: check for an existing submission
   retrieve $ExistingSubmission from CxLayout.SurveySubmission
     where TrackerId = $TrackerId
-    limit 1;
+    first;
 
   if $ExistingSubmission != empty then
     -- Guard 4a: already completed?
@@ -358,7 +355,6 @@ begin
   set $ResponseBody = '{"status":"ok","code":201,"message":"Submission created"}';
   return $ResponseBody;
 end;
-/
 
 -- ============================================================================
 -- PATTERN 3: Enum Split with Parallel Nested Logic per Branch
@@ -428,7 +424,7 @@ begin
 
       retrieve $PostToken from CxLayout.AuthToken
         where ClientId = $ClientId
-        limit 1;
+        first;
 
       if $PostToken = empty then
         $NewPostToken = create CxLayout.AuthToken (
@@ -470,7 +466,7 @@ begin
 
       retrieve $BasicToken from CxLayout.AuthToken
         where ClientId = $ClientId
-        limit 1;
+        first;
 
       if $BasicToken = empty then
         $NewBasicToken = create CxLayout.AuthToken (
@@ -504,7 +500,6 @@ begin
 
   return $Success;
 end;
-/
 
 -- ============================================================================
 -- PATTERN 4: Optional-Field Validation with Per-Field Format Guards
@@ -603,7 +598,6 @@ begin
 
   return $IsValid;
 end;
-/
 
 -- ============================================================================
 -- PATTERN 5: Batch Loop with CASE + Nested-If Body
@@ -684,7 +678,6 @@ begin
 
   return $ProcessedCount;
 end;
-/
 
 -- ============================================================================
 -- PATTERN 6: Jumps and Merges — retry, error rejoin, crossed branches
@@ -810,4 +803,3 @@ begin
     + ' with outcome ' + $Outcome;
   return $Outcome;
 end;
-/

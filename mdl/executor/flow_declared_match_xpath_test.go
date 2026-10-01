@@ -109,12 +109,15 @@ func TestDeclaredMatches_WhitespaceAroundAnExpressionIsNotADifference(t *testing
     Name = 'a' + 'b'
       + 'c'
   ) refresh;`, true},
-		// Control: the interior line break is the author's formatting, and is
-		// stored and described as written.
+		// An interior line break is the author's formatting too: stored as
+		// written, but the same expression wherever it falls, so moving one
+		// is not a change to write (ako/mxcli#886 — it was, on every run,
+		// wherever describe's layout of a stored value differed from the
+		// script's).
 		{"an interior line break moved", `  change $In (
     Name = 'a'
       + 'b' + 'c'
-  ) refresh;`, false},
+  ) refresh;`, true},
 		{"a changed value", `  change $In (
     Name = 'a' + 'b'
       + 'd'

@@ -128,12 +128,19 @@ type Change struct {
 func (c Change) Applies(v Version) bool { return v >= c.Since }
 
 // Warning is the message for a construct kept at its old meaning because the
-// script is written in a version before Since.
+// script is written in a version before Since. It ends with HelpHint, so the
+// reader is one command away from the change's full entry.
 func (c Change) Warning(v Version) string {
 	return fmt.Sprintf("%s under %s; under %s it means %s. "+
-		"Start the script with `%s;` to opt in, or keep this meaning explicitly.",
-		c.Old, v, c.Since, c.New, c.Since)
+		"Start the script with `%s;` to opt in, or keep this meaning explicitly. %s",
+		c.Old, v, c.Since, c.New, c.Since, HelpHint(c.Code))
 }
+
+// HelpHint is the pointer every warning carrying a language-change or
+// deprecation code ends with: "(mxcli help MDL-V1-LIMIT1)". `mxcli help <code>`
+// prints the code's entry — old form, new form, whether `fmt --upgrade`
+// rewrites it, and the version that refuses it.
+func HelpHint(code string) string { return "(mxcli help " + code + ")" }
 
 // ScanHeader reads the language version from the `mdl <n>;` header src starts
 // with, before it is parsed. It is for the one decision that has to be made

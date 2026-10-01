@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Security Examples - Comprehensive Security Feature Showcase
 -- ============================================================================
@@ -108,7 +109,6 @@ create page SecTest.Order_Overview
 
 -- Show overall project security settings
 describe app security;
-/
 
 -- ============================================================================
 -- Level 1.2: Show Module Roles
@@ -116,11 +116,9 @@ describe app security;
 
 -- Show all module roles across all modules
 list module roles;
-/
 
 -- Show module roles for a specific module
 list module roles in SecTest;
-/
 
 -- ============================================================================
 -- Level 1.3: Show User Roles
@@ -128,7 +126,6 @@ list module roles in SecTest;
 
 -- Show all user roles defined at project level
 list user roles;
-/
 
 -- ============================================================================
 -- Level 1.4: Show Demo Users
@@ -136,7 +133,6 @@ list user roles;
 
 -- Show configured demo users (if enabled)
 list demo users;
-/
 
 -- ============================================================================
 -- Level 1.5: Show Access on Specific Elements
@@ -144,19 +140,15 @@ list demo users;
 
 -- Show which roles can execute a specific microflow
 list access on microflow SecTest.ACT_Customer_Create;
-/
 
 -- Show which roles can view a specific page
 list access on page SecTest.Customer_Overview;
-/
 
 -- Show access rules on a specific entity (CRUD permissions). The bare name and
 -- the explicit ENTITY spelling are synonyms; #925 had only the bare one.
 list access on SecTest.Customer;
-/
 
 list access on entity SecTest.Customer;
-/
 
 -- ============================================================================
 -- Level 1.6: Security Matrix
@@ -164,11 +156,9 @@ list access on entity SecTest.Customer;
 
 -- Show full security matrix for all modules
 describe security matrix;
-/
 
 -- Show security matrix for a specific module
 describe security matrix in SecTest;
-/
 
 -- ============================================================================
 -- Level 1.7: Describe Security Elements
@@ -197,7 +187,6 @@ describe user role 'Administrator';
  * Create a simple module role without description.
  */
 create module role SecTest.User;
-/
 
 -- Describe a specific module role (shows DDL + which user roles include it)
 describe module role SecTest.User;
@@ -210,13 +199,11 @@ describe module role SecTest.User;
  * Create a module role with a description explaining its purpose.
  */
 create module role SecTest.Administrator description 'Full administrative access to SecTest module';
-/
 
 /**
  * Create a read-only role for reporting purposes.
  */
 create module role SecTest.Viewer description 'Read-only access for viewing data';
-/
 
 -- ============================================================================
 -- Level 2.3: Drop Module Role
@@ -241,11 +228,9 @@ create module role SecTest.Viewer description 'Read-only access for viewing data
  * Allow the User role to execute the customer creation microflow.
  */
 grant execute on microflow SecTest.ACT_Customer_Create to SecTest.User;
-/
 
 -- Verify the grant
 list access on microflow SecTest.ACT_Customer_Create;
-/
 
 -- ============================================================================
 -- Level 3.2: Grant Multiple Roles to Microflow
@@ -255,7 +240,6 @@ list access on microflow SecTest.ACT_Customer_Create;
  * Allow both User and Administrator roles to process orders.
  */
 grant execute on microflow SecTest.ACT_Order_Process to SecTest.User, SecTest.Administrator;
-/
 
 -- ============================================================================
 -- Level 3.3: Grant Administrator-Only Access
@@ -265,7 +249,6 @@ grant execute on microflow SecTest.ACT_Order_Process to SecTest.User, SecTest.Ad
  * Only administrators can delete customers.
  */
 grant execute on microflow SecTest.ACT_Customer_Delete to SecTest.Administrator;
-/
 
 -- ============================================================================
 -- Level 3.4: Revoke Access from Single Role
@@ -275,11 +258,9 @@ grant execute on microflow SecTest.ACT_Customer_Delete to SecTest.Administrator;
  * Remove User's ability to process orders (admin-only now).
  */
 revoke execute on microflow SecTest.ACT_Order_Process from SecTest.User;
-/
 
 -- Verify the revoke
 list access on microflow SecTest.ACT_Order_Process;
-/
 
 -- ============================================================================
 -- Level 3.5: Revoke All Access
@@ -296,7 +277,6 @@ revoke execute on microflow SecTest.ACT_Customer_Delete from SecTest.Administrat
  * Granting a role that already has access is a no-op (safe to repeat).
  */
 grant execute on microflow SecTest.ACT_Customer_Create to SecTest.User;
-/
 
 
 -- ############################################################################
@@ -314,11 +294,9 @@ grant execute on microflow SecTest.ACT_Customer_Create to SecTest.User;
  * Allow users to view the customer overview page.
  */
 grant view on page SecTest.Customer_Overview to SecTest.User;
-/
 
 -- Verify
 list access on page SecTest.Customer_Overview;
-/
 
 -- ============================================================================
 -- Level 4.2: Grant Multiple Roles to Page
@@ -328,7 +306,6 @@ list access on page SecTest.Customer_Overview;
  * Allow both users and administrators to view orders.
  */
 grant view on page SecTest.Order_Overview to SecTest.User, SecTest.Administrator;
-/
 
 -- ============================================================================
 -- Level 4.3: Revoke Page Access from Single Role
@@ -338,11 +315,9 @@ grant view on page SecTest.Order_Overview to SecTest.User, SecTest.Administrator
  * Remove User's view access on order overview (admin-only now).
  */
 revoke view on page SecTest.Order_Overview from SecTest.User;
-/
 
 -- Verify - should only show Administrator
 list access on page SecTest.Order_Overview;
-/
 
 
 -- ############################################################################
@@ -360,7 +335,6 @@ list access on page SecTest.Order_Overview;
  * Grant full access to an entity for administrators.
  */
 grant create, delete, read *, write * on entity SecTest.Customer to SecTest.Administrator;
-/
 
 -- ============================================================================
 -- Level 5.2: Read-Only Access
@@ -370,7 +344,6 @@ grant create, delete, read *, write * on entity SecTest.Customer to SecTest.Admi
  * Grant read-only access to all members for the Viewer role.
  */
 grant read * on entity SecTest.Customer to SecTest.Viewer;
-/
 
 -- ============================================================================
 -- Level 5.3: Selective Member Access
@@ -380,7 +353,6 @@ grant read * on entity SecTest.Customer to SecTest.Viewer;
  * Grant read access to specific attributes, write to a subset.
  */
 grant read (Name, Email), write (Email) on entity SecTest.Customer to SecTest.User;
-/
 
 -- ============================================================================
 -- Level 5.4: Access with XPath Constraint
@@ -390,11 +362,9 @@ grant read (Name, Email), write (Email) on entity SecTest.Customer to SecTest.Us
  * Grant access only to active customers using an XPath constraint.
  */
 grant read *, write * on entity SecTest.Order to SecTest.User where [Status = 'Open'];
-/
 
 -- Verify entity access
 list access on SecTest.Customer;
-/
 
 -- ============================================================================
 -- Level 5.5: Additive GRANT
@@ -404,7 +374,6 @@ list access on SecTest.Customer;
  * GRANT is additive: adding Notes access preserves existing Name and Email.
  */
 grant read (Notes) on entity SecTest.Customer to SecTest.User;
-/
 
 -- ============================================================================
 -- Level 5.6: Partial REVOKE
@@ -415,13 +384,11 @@ grant read (Notes) on entity SecTest.Customer to SecTest.User;
  * Other permissions are preserved.
  */
 revoke read (Notes) on entity SecTest.Customer from SecTest.User;
-/
 
 /**
  * Downgrade write to read-only on Email.
  */
 revoke write (Email) on entity SecTest.Customer from SecTest.User;
-/
 
 -- ============================================================================
 -- Level 5.7: Full Revoke Entity Access
@@ -431,11 +398,9 @@ revoke write (Email) on entity SecTest.Customer from SecTest.User;
  * Remove the Viewer role's access rule from Customer entirely.
  */
 revoke all on entity SecTest.Customer from SecTest.Viewer;
-/
 
 -- Verify after revoke
 list access on SecTest.Customer;
-/
 
 -- ############################################################################
 -- PART 6: USER ROLES (CREATE/ALTER/DROP)
@@ -452,7 +417,6 @@ list access on SecTest.Customer;
  * Create a user role and assign a single module role.
  */
 create or modify user role RegularUser ( ModuleRoles: (System.User, SecTest.User) );
-/
 
 -- ============================================================================
 -- Level 6.2: Create User Role with Multiple Module Roles
@@ -462,7 +426,6 @@ create or modify user role RegularUser ( ModuleRoles: (System.User, SecTest.User
  * A user role can include roles from multiple modules.
  */
 create or modify user role PowerUser ( ModuleRoles: (System.User, SecTest.User, SecTest.Administrator) );
-/
 
 -- ============================================================================
 -- Level 6.3: Create User Role with Manage All Roles
@@ -472,11 +435,9 @@ create or modify user role PowerUser ( ModuleRoles: (System.User, SecTest.User, 
  * Admin user role that can manage all roles.
  */
 create or modify user role SuperAdmin ( ModuleRoles: (System.Administrator, SecTest.Administrator), ManageAllRoles: true );
-/
 
 -- Verify
 list user roles;
-/
 
 -- ============================================================================
 -- Level 6.4: Alter User Role - Add Module Roles
@@ -486,7 +447,6 @@ list user roles;
  * Add the Viewer module role to the RegularUser user role.
  */
 alter user role RegularUser add module roles (SecTest.Viewer);
-/
 
 -- ============================================================================
 -- Level 6.5: Alter User Role - Remove Module Roles
@@ -496,7 +456,6 @@ alter user role RegularUser add module roles (SecTest.Viewer);
  * Remove the Viewer module role from the RegularUser user role.
  */
 alter user role RegularUser drop module roles (SecTest.Viewer);
-/
 
 -- ============================================================================
 -- Level 6.6: Drop User Role
@@ -506,7 +465,6 @@ alter user role RegularUser drop module roles (SecTest.Viewer);
  * Remove the PowerUser role (no longer needed).
  */
 drop user role PowerUser;
-/
 
 
 -- ############################################################################
@@ -526,7 +484,6 @@ drop user role PowerUser;
 -- so we leave security level at OFF to avoid CE0066 errors.
 -- To demonstrate level changes without breaking validation:
 describe app security;
-/
 
 -- ============================================================================
 -- Level 7.2: Enable/Disable Demo Users
@@ -536,11 +493,9 @@ describe app security;
  * Enable demo users for development/testing.
  */
 alter app security ( EnableDemoUsers: true );
-/
 
 -- Verify
 list demo users;
-/
 
 -- ============================================================================
 -- Level 7.3: Strict Mode
@@ -554,11 +509,9 @@ list demo users;
  * be turned on before the level is raised.
  */
 alter app security ( StrictMode: true );
-/
 
 -- And back off, so this script leaves the fixture as it found it.
 alter app security ( StrictMode: false );
-/
 
 
 -- ############################################################################
@@ -576,7 +529,6 @@ alter app security ( StrictMode: false );
  * Create a basic demo user with a single user role.
  */
 create or modify demo user 'sectest_user' ( Password: 'Password1!xx', UserRoles: (RegularUser) );
-/
 
 -- ============================================================================
 -- Level 8.2: Create Demo User with Multiple Roles
@@ -586,11 +538,9 @@ create or modify demo user 'sectest_user' ( Password: 'Password1!xx', UserRoles:
  * Create a demo user with multiple user roles.
  */
 create or modify demo user 'sectest_admin' ( Password: 'Admin12345!!', UserRoles: (RegularUser, SuperAdmin) );
-/
 
 -- Verify
 list demo users;
-/
 
 -- ============================================================================
 -- Level 8.3: Drop Demo User
@@ -600,11 +550,9 @@ list demo users;
  * Remove a demo user that is no longer needed.
  */
 drop demo user 'sectest_user';
-/
 
 -- Verify after drop
 list demo users;
-/
 
 
 -- ############################################################################
@@ -624,7 +572,6 @@ list demo users;
  * Define the permission levels needed for this module.
  */
 create module role SecTest.Manager description 'Can manage customers and orders';
-/
 
 /**
  * Step 2: Grant microflow access based on roles.
@@ -633,7 +580,6 @@ create module role SecTest.Manager description 'Can manage customers and orders'
 grant execute on microflow SecTest.ACT_Customer_Create to SecTest.User, SecTest.Manager;
 grant execute on microflow SecTest.ACT_Customer_Delete to SecTest.Manager, SecTest.Administrator;
 grant execute on microflow SecTest.ACT_Order_Process to SecTest.Manager, SecTest.Administrator;
-/
 
 /**
  * Step 3: Grant page access based on roles.
@@ -641,13 +587,11 @@ grant execute on microflow SecTest.ACT_Order_Process to SecTest.Manager, SecTest
  */
 grant view on page SecTest.Customer_Overview to SecTest.User, SecTest.Manager, SecTest.Administrator;
 grant view on page SecTest.Order_Overview to SecTest.Manager, SecTest.Administrator;
-/
 
 /**
  * Step 4: Verify the setup.
  */
 describe security matrix in SecTest;
-/
 
 -- ============================================================================
 -- Level 9.2: Verify Individual Access
@@ -657,12 +601,10 @@ describe security matrix in SecTest;
 list access on microflow SecTest.ACT_Customer_Create;
 list access on microflow SecTest.ACT_Customer_Delete;
 list access on microflow SecTest.ACT_Order_Process;
-/
 
 -- Check what each page allows
 list access on page SecTest.Customer_Overview;
 list access on page SecTest.Order_Overview;
-/
 
 -- ############################################################################
 -- PART 10: CLEANUP

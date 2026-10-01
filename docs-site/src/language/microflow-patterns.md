@@ -102,7 +102,7 @@ BEGIN
   IF $IsValid THEN
     RETRIEVE $Existing FROM Sales.Customer
       WHERE Email = $Customer/Email
-      LIMIT 1;
+      FIRST;
     IF $Existing != empty THEN
       VALIDATION FEEDBACK $Customer/Email MESSAGE 'A customer with this email already exists';
       SET $IsValid = false;
@@ -261,7 +261,7 @@ BEGIN
   DECLARE $Config Integration.SyncConfig;
   DECLARE $Success Boolean = false;
 
-  RETRIEVE $Config FROM Integration.SyncConfig LIMIT 1;
+  RETRIEVE $Config FROM Integration.SyncConfig FIRST;
 
   @caption 'Call external API'
   $Response = CALL MICROFLOW Integration.SUB_CallExternalAPI (
@@ -363,7 +363,8 @@ CHANGE $Customer (Notes = $NewNotes);
 ```sql
 -- CORRECT: append with guard
 IF $NewNotes != empty THEN
-  CHANGE $Customer (Notes = $Customer/Notes + '\n' + $NewNotes);
+  CHANGE $Customer (Notes = $Customer/Notes + '
+' + $NewNotes);
 END IF;
 ```
 

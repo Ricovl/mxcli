@@ -1,3 +1,4 @@
+mdl 1;
 -- Cross-version pluggable-widget smoke fixture.
 -- Creates DataGrid2 and Gallery (the two database-sourced bundled pluggable
 -- widgets) in a self-contained module, so scripts/widget-version-matrix.sh can
@@ -42,4 +43,4 @@ create page WMatrix.Pg
       dynamictext dt (content: '{1}', contentparams: ({1} = Name))
     }
   }
-}
+};

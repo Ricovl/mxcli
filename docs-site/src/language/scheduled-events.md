@@ -91,6 +91,7 @@ until the previous one finishes.
 ### Examples
 
 ```sql
+mdl 1;
 -- Every night at 04:00 in the server's timezone
 CREATE SCHEDULED EVENT Ops.NightlyCleanup (
   Microflow: Ops.SE_Cleanup,
@@ -166,6 +167,7 @@ Mendix stores parallelism as an expression string, so a bare integer and a quote
 one mean the same thing and an arbitrary expression is legal:
 
 ```sql
+mdl 1;
 CREATE TASK QUEUE Ops.OrderProcessing ( Parallelism: 3, ClusterWide: true );
 CREATE TASK QUEUE Ops.Mail;                      -- defaults: 1, per-instance
 CREATE OR MODIFY TASK QUEUE Ops.OrderProcessing ( Parallelism: '$MyModule.Workers' );

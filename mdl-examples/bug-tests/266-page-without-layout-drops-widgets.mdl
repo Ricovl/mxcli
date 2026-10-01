@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Follow-up finding: a page created WITHOUT a `Layout:` clause silently drops
 -- all its widgets
@@ -30,5 +31,4 @@ create or modify page "MyFirstModule"."WithLayout" (
   container c1 {
     dynamictext dt (Content: 'Hello')
   }
-}
-/
+};

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #627: CONTAINER (and any widget) Visible/Editable expression → CE0117
 -- ============================================================================
@@ -53,13 +54,13 @@ create page MyFirstModule.P_Vis
     -- a plain container we'll make conditionally visible via ALTER below
     container ctnLater { dynamictext tL (content: 'shown via ALTER') }
   }
-}
+};
 
 -- ALTER PAGE sets conditional visibility/editability after the fact, with the
 -- same $currentObject rooting (issue #627 — previously a silent no-op).
 alter page MyFirstModule.P_Vis {
   set (Visible: $currentObject/Active) on ctnLater;
   set (Editable: $currentObject/Name != '') on tbName;
-}
+};
 
 describe page MyFirstModule.P_Vis;

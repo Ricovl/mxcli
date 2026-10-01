@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger finding #27: consecutive dynamictext widgets render inline
 -- ============================================================================
@@ -61,4 +62,4 @@ create or modify page MyModule.SummaryPage
       dynamictext hSub (content: 'as of {1}', contentparams: ({1} = LastImport))
     }
   }
-}
+};

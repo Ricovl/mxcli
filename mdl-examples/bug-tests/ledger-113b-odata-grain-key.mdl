@@ -1,3 +1,4 @@
+mdl 1;
 -- ledger #113, the follow-on: what to key an aggregate resource on.
 --
 -- A summary resource — an OQL view entity, or a non-persistable row filled by a
@@ -58,5 +59,4 @@ create or modify published odata service MyFirstModule.ChartApi (
     Category (KEY, Filterable, Sortable),
     Total (Filterable, Sortable)
   )
-}
-/
+};

@@ -980,8 +980,10 @@ sortSpecList
     : sortSpec (COMMA sortSpec)*
     ;
 
+// Any word, as in listSortItem: an attribute called Position or Status is an
+// attribute here too (ako/mxcli#889).
 sortSpec
-    : (IDENTIFIER | QUOTED_IDENTIFIER) (ASC | DESC)?  // "attr" if reserved
+    : identifierOrKeyword (ASC | DESC)?
     ;
 
 /**

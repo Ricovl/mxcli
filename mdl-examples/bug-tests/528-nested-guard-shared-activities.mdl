@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test for issue #528:
 -- Microflow MDL extraction is faulty — shared activities after an outer
 -- if/merge are incorrectly placed inside the then-block when a nested guard

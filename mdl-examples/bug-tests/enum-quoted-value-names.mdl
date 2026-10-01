@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Feedback: "Cannot quote enumeration value identifiers" — actually a misread.
 --
@@ -15,14 +16,12 @@ create enumeration MyFirstModule.ENUM_SkillLevel (
   "Grade1" 'Grade 1',
   "Grade2" 'Grade 2'
 );
-/
 
 -- Unquoted value name + caption.
 create enumeration MyFirstModule.ENUM_Status (
   Draft 'Draft',
   Active 'Active'
 );
-/
 
 -- Explicit CAPTION keyword, quoted name, and a bare value (no caption) mixed.
 create enumeration MyFirstModule.ENUM_Mixed (
@@ -30,4 +29,3 @@ create enumeration MyFirstModule.ENUM_Mixed (
   Second 'Second value',
   Third
 );
-/

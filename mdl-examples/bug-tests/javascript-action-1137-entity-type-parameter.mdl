@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1137
 -- CALL JAVASCRIPT ACTION with an entity-type parameter produced the wrong BSON
 -- type: Microflows$BasicCodeActionParameterValue { Argument: "<entity>" } where

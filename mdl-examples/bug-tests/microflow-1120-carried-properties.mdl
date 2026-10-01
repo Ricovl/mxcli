@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- mendixlabs/mxcli#1120 — a rewrite keeps the microflow properties MDL cannot
 -- author: the deep-link URL, the export level, and the concurrency settings
@@ -62,7 +63,7 @@ BEGIN
   -- A microflow that, in a real project, would carry Url = 'item/{Key}' with
   -- $Filter (NOT $Key — CE5612) as its search parameter, ExportLevel = 'API',
   -- and concurrent execution disallowed with an error message.
-  $Result = $Key + '/' + $Filter;
+  set $Result = $Key + '/' + $Filter;
   RETURN $Result;
 END;
 
@@ -72,6 +73,6 @@ END;
 CREATE OR MODIFY MICROFLOW Bug1120.ACT_Item ($Key: String, $Filter: String)
 RETURNS String AS $Result
 BEGIN
-  $Result = $Filter + '/' + $Key;
+  set $Result = $Filter + '/' + $Key;
   RETURN $Result;
 END;

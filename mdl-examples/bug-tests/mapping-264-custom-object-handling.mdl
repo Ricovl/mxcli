@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug ako/mxcli#264: custom object handling (a microflow resolves the object)
 -- ============================================================================
@@ -63,7 +64,6 @@ begin
   @position(400, 200)
   return empty;
 end;
-/
 
 create microflow BugTest264.GetRoot ()
 returns BugTest264.Root
@@ -72,7 +72,6 @@ begin
   @position(400, 200)
   return empty;
 end;
-/
 
 -- A value from the payload as the parameter: the path is relative to the
 -- element being resolved, so `idx` is the item's own field.

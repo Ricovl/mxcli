@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- Pluggable Widget Examples — PLUGGABLEWIDGET syntax
@@ -84,7 +85,7 @@ create page PW.P_PW01_Minimal (
       }
     }
   }
-}
+};
 
 -- MARK: PW02 — Primitive properties
 
@@ -124,7 +125,7 @@ create page PW.P_PW02_Properties (
       }
     }
   }
-}
+};
 
 -- MARK: PW03 — DataSource property
 
@@ -160,7 +161,7 @@ create page PW.P_PW03_DataSource (
       }
     }
   }
-}
+};
 
 -- MARK: PW04 — Child content slot
 
@@ -191,7 +192,7 @@ create page PW.P_PW04_ChildSlot (
       }
     }
   }
-}
+};
 
 -- MARK: PW05 — Attribute-bound inside DataView
 
@@ -225,7 +226,7 @@ create page PW.P_PW05_Attribute (
       }
     }
   }
-}
+};
 
 -- MARK: PW06 — Inside Gallery FILTER block
 
@@ -255,7 +256,7 @@ create page PW.P_PW06_GalleryFilter (
       }
     }
   }
-}
+};
 
 -- MARK: PW07 — TextTemplate properties
 
@@ -282,7 +283,7 @@ create page PW.P_PW07_TextTemplate (
       }
     }
   }
-}
+};
 
 -- MARK: PW08 — Multiple named child slots
 
@@ -313,7 +314,7 @@ create page PW.P_PW08_MultiSlot (
       }
     }
   }
-}
+};
 
 -- MARK: PW09 — Nested pluggable widgets
 
@@ -342,7 +343,7 @@ create page PW.P_PW09_Nested (
       }
     }
   }
-}
+};
 
 -- MARK: PW10 — Inline trigger pattern
 
@@ -386,4 +387,4 @@ create page PW.P_PW10_Trigger (
       }
     }
   }
-}
+};

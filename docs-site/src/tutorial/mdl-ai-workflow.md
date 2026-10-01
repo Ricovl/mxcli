@@ -72,6 +72,7 @@ This exploration step is important. The AI needs to know what entities, associat
 Guided by the skill files and its exploration, the AI writes an MDL script:
 
 ```sql
+mdl 1;
 /** Product catalog item */
 @Position(300, 100)
 CREATE PERSISTENT ENTITY Sales.Product (

@@ -1,3 +1,4 @@
+mdl 1;
 -- List View specialization templates (issue mendixlabs/mxcli#940)
 --
 -- A List View over a generalization can render a different body per

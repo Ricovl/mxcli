@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- #914 — an excluded document survives a rewrite, and a name is not unique
 -- ============================================================================
@@ -68,4 +69,4 @@ create or modify page Bug914.LegacyPage
 )
 {
   -- empty
-}
+};

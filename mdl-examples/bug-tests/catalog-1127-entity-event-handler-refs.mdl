@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue mendixlabs/mxcli#1127 — entity event handler microflows read as dead
 -- ============================================================================
@@ -51,20 +52,17 @@
 create entity Sample.EvOrder (
   "Amount": decimal
 );
-/
 
 create microflow Sample.ACT_EvOrder_Validate ($Order: Sample.EvOrder)
 returns boolean
 begin
   return true;
 end;
-/
 
 create microflow Sample.ACT_EvOrder_Notify ($Order: Sample.EvOrder)
 begin
   log info 'committed';
 end;
-/
 
 -- The Before handler can veto the commit; the After one only observes it.
 alter entity Sample.EvOrder

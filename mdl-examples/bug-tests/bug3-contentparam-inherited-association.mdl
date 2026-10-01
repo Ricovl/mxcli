@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug 3 (unsolved case) — contentparam over an association declared on a BASE
 -- entity, from a widget bound to a SUBCLASS, silently persisted no value.
@@ -47,4 +48,4 @@ create or modify page MyFirstModule.InheritedAssocPage
       }
     }
   }
-}
+};

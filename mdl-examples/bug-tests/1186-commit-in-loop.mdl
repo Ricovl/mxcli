@@ -1,3 +1,4 @@
+mdl 1;
 -- upstream mendixlabs/mxcli#1186: `mxcli check` passed a commit inside a loop
 -- that `lint` already knew as CONV011.
 --
@@ -34,7 +35,7 @@ BEGIN
     CHANGE $Row (Done = true);
     COMMIT $Row;
   END LOOP;
-END
+END;
 
 -- The fix the rule suggests, and the control that it clears the warning:
 -- change inside the loop, commit the list once after it.
@@ -44,4 +45,4 @@ BEGIN
     CHANGE $Row (Done = true);
   END LOOP;
   COMMIT $Rows;
-END
+END;

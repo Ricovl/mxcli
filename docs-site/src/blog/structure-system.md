@@ -11,9 +11,9 @@
 ## The Three Depth Levels
 
 ```mdl
-DESCRIBE STRUCTURE
-DESCRIBE STRUCTURE DEPTH 2
-DESCRIBE STRUCTURE DEPTH 3
+DESCRIBE STRUCTURE;
+DESCRIBE STRUCTURE DEPTH 2;
+DESCRIBE STRUCTURE DEPTH 3;
 ```
 
 <!-- TODO: annotated output at each depth level, what each level reveals -->
@@ -21,7 +21,7 @@ DESCRIBE STRUCTURE DEPTH 3
 ## Scoping to a Module
 
 ```mdl
-DESCRIBE STRUCTURE IN CustomerModule
+DESCRIBE STRUCTURE IN CustomerModule;
 ```
 
 <!-- TODO: when scoping is useful, combining with DEPTH -->

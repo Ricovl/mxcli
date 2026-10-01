@@ -1,3 +1,4 @@
+mdl 1;
 -- Creating a navigation profile (ako/mxcli-maintenance §7).
 --
 -- Mendix routes a phone to a Phone PROFILE on the User-Agent, not on viewport

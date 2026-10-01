@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- DataGrid2 column bound to an ASSOCIATED attribute (Assoc/Attr)
 -- ============================================================================
@@ -39,6 +40,6 @@ create or modify page MyFirstModule.DGAssocCol
     -- associated attribute: the Employee's Name via the Expense_Employee association
     column (caption: 'Submitted by', attribute: Expense_Employee/Name)
   }
-}
+};
 
 describe page MyFirstModule.DGAssocCol;

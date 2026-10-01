@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- ako/mxcli#573 — Forms$SimpleMenuBar is authorable
 -- ============================================================================
@@ -39,7 +40,7 @@ create or modify layout Bug573.Phone_Bottom (
       placeholder Main
     }
   }
-}
+};
 
 -- The other source, the other orientation, and the two sibling menu widgets
 -- pointed at a menu document.
@@ -59,4 +60,4 @@ create or modify layout Bug573.Responsive_Menus (
       placeholder Main
     }
   }
-}
+};

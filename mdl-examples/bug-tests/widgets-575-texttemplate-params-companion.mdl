@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- ako/mxcli#575: a pluggable widget's textTemplate property took only literal
 -- text, so it rendered the same string on every row.
@@ -66,7 +67,6 @@ create persistent entity Bug575.Product (
   Name: string(200),
   PictureUrl: string(500)
 );
-/
 
 create or modify page Bug575.Catalogue (
   Title: 'Catalogue',
@@ -104,8 +104,7 @@ create or modify page Bug575.Catalogue (
       imageUrl: '{1}', contentparams: ({1} = PictureUrl)
     )
   }
-}
-/
+};
 
 -- The widgets the issue was filed against, both bundled in a blank app. Neither
 -- has a dedicated DESCRIBE extractor, so they also cover the generic read path:
@@ -130,5 +129,4 @@ create or modify page Bug575.Tree (
     title: '{1}',       titleParams: ({1} = Name),
     description: '{1}', descriptionParams: ({1} = PictureUrl)
   )
-}
-/
+};

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Widget keywords whose design properties were neither checked nor typed
 -- ============================================================================
@@ -57,7 +58,6 @@ create or modify page MyFirstModule.DesignPropKeywords_Test
       dynamictext t5 (Content: 'k')
     }
   }
-}
-/
+};
 
 describe page MyFirstModule.DesignPropKeywords_Test;

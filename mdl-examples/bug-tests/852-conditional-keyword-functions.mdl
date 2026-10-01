@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue #852 — `trim()` / `length()` in a widget conditional silently dropped it
 -- ============================================================================
@@ -55,7 +56,7 @@ CREATE OR MODIFY PAGE Bug852.PageConditionals (
     -- context, exactly as it is outside one.
     textbox txtEditable (label: 'Slug', attribute: Slug, editable: trim($currentObject/Slug) != '')
   }
-}
+};
 
 -- ============================================================================
 -- Runtime verification page (issue #852)
@@ -100,4 +101,4 @@ CREATE OR MODIFY PAGE Bug852.Verify (
     dynamictext tNoTrimVisible (content: 'NOTRIM_VISIBLE_MARKER', visible: $currentObject/Slug != '')
     dynamictext tBeacon        (content: 'PAGE_RENDERED_BEACON')
   }
-}
+};

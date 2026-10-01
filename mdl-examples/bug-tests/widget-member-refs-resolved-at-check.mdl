@@ -1,3 +1,4 @@
+mdl 1;
 -- Two member positions inside a widget that reference checking walked past.
 -- Both passed `check --references`, passed `exec`, and failed the build.
 --
@@ -57,22 +58,18 @@
 --   $Order/Name                                   CE1613
 
 create module WidgetRefs;
-/
 
 create or modify entity WidgetRefs.Customer (
   Name: String(200)
 );
-/
 
 create or modify entity WidgetRefs.Order (
   OrderNo: String(50),
   Status: String(50)
 );
-/
 
 create or modify association WidgetRefs.Order_Customer
   from WidgetRefs.Order to WidgetRefs.Customer type reference;
-/
 
 -- Every constraint here RESOLVES, which is the point: these are the shapes that
 -- must not be reported.
@@ -96,8 +93,7 @@ create or modify page WidgetRefs.P_List
   ) {
     column (attribute: OrderNo, caption: 'No')
   }
-}
-/
+};
 
 -- ContentParams written the way the position wants: the attribute name, or an
 -- association path to one. No `$variable/` root.
@@ -130,5 +126,4 @@ create or modify page WidgetRefs.P_Detail
       ContentParams: ({1} = $currentObject/WidgetRefs.Order_Customer/Name)
     )
   }
-}
-/
+};

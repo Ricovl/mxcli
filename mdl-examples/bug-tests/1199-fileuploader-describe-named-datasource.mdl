@@ -1,3 +1,4 @@
+mdl 1;
 -- #1199: DESCRIBE of a File Uploader page did not re-execute.
 --
 -- Reported (mxcli 0.24.0, Mendix 11.12.2, File Uploader 2.5.0): the output of
@@ -24,7 +25,7 @@ create persistent entity Uploads.UploadRequest ( Title: string(100) );
 create persistent entity Uploads.UploadedFile extends System.FileDocument ();
 create association Uploads.UploadedFile_UploadRequest from Uploads.UploadedFile to Uploads.UploadRequest;
 
-create nanoflow Uploads.NF_CreateFile ( $Request: Uploads.UploadRequest ) begin end
+create nanoflow Uploads.NF_CreateFile ( $Request: Uploads.UploadRequest ) begin end;
 
 create or modify page Uploads.UploadRequest_NewEdit (Title: 'Upload', Layout: Atlas_Core.Atlas_Default,
   Params: ( $Request: Uploads.UploadRequest ))
@@ -36,7 +37,7 @@ create or modify page Uploads.UploadRequest_NewEdit (Title: 'Upload', Layout: At
       createFileAction: nanoflow Uploads.NF_CreateFile(Request = $Request)
     )
   }
-}
+};
 
 grant view on page Uploads.UploadRequest_NewEdit to Uploads.User;
 

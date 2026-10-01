@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #322: Multiline source expression whitespace lost on roundtrip
 -- ============================================================================
@@ -44,7 +45,6 @@ begin
 
   return $Endpoint;
 end;
-/
 
 -- LOG template parameters separated by a blank line. The newline-only
 -- whitespace between `{1} = toString($Count)` and the next parameter must
@@ -58,4 +58,3 @@ begin
 
 , {2} = $Endpoint);
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: NUMBERFILTER in a DataGrid column corrupted the .mpr — it passed
 -- `mxcli check` but failed MxBuild / Studio Pro load on Mendix 11.12 with:
 --
@@ -49,4 +50,4 @@ CREATE OR MODIFY PAGE MyFirstModule.Repro_Overview
       }
     }
   }
-}
+};

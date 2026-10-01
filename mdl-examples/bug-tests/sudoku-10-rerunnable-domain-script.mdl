@@ -1,3 +1,4 @@
+mdl 1;
 -- Sudoku finding #10: a domain script cannot be re-run.
 --
 -- Two halves of #10 already worked before this: `add attribute if not exists`

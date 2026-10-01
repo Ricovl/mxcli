@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #320: DESCRIBE emitted default anchor fragments redundantly
 -- ============================================================================
@@ -40,7 +41,6 @@ begin
   log info node 'BugTest320' 'b';
   log info node 'BugTest320' 'c';
 end;
-/
 
 -- One non-default `to: top` on the return — describe must keep that fragment.
 create microflow BugTest320.MF_NonDefaultReturn (
@@ -52,4 +52,3 @@ begin
   @anchor(to: top)
   return $value > 0;
 end;
-/

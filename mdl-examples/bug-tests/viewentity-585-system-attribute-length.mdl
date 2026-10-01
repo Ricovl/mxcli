@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#585 — MDL031's pass-through length rule refused EVERY declaration
 -- of a column taken from a System.* string attribute, including the one that
 -- builds, and suggested the one that does not.

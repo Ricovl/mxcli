@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#512 — "On click" on a List View (and on the two legacy image
 -- widgets) was parsed, accepted, and dropped on write.
 --

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger finding #67: a pluggable widget's action property was silently dropped
 -- ============================================================================
@@ -49,6 +50,6 @@ create or modify page L67.Grid (
   ) {
     column c1 (Attribute: Name, Caption: 'Name')
   }
-}
+};
 
 grant view on page L67.Grid to L67.User;

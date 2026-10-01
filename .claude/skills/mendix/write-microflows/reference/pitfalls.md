@@ -614,3 +614,21 @@ none of these unless the script restates them. Use `create or modify` to edit a
 microflow that carries any of them — and note that `describe` now emits all
 four clauses, so **describe → rename → exec copies them faithfully**. Give the
 copy a different `url`, though: two microflows may not share one (CE0570).
+
+The flow's `/** … */` doc comment goes directly above the `create`, **after** the
+`drop`. A doc comment belongs to the statement right after it, and a `drop` (like
+a `grant`, `revoke`, `set` or `alter`) cannot store one, so a comment above the
+drop is silently lost — mxcli-rest lost six flows' documentation that way.
+`check` warns **MDL089** and names the statement that would have taken it:
+
+```sql
+drop microflow if exists Sales.ACT_CreateOrder;
+
+/** Creates an order for the current customer. */
+create microflow Sales.ACT_CreateOrder ($Customer: Sales.Customer)
+returns Boolean as $Created
+begin
+  declare $Created Boolean = true;
+  return $Created;
+end;
+```

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Do Mendix `and` / `or` short-circuit? Measured, not reasoned about.
 -- ============================================================================
@@ -29,7 +30,6 @@
 -- rather than an assumption -- see the header there.
 
 create module ShortCircuit;
-/
 
 create or modify microflow ShortCircuit.MF_ScOr (Guard: Boolean, Zero: Integer) returns String
 begin
@@ -39,7 +39,6 @@ begin
     return 'not taken';
   end if;
 end;
-/
 
 create or modify microflow ShortCircuit.MF_ScAnd (Guard: Boolean, Zero: Integer) returns String
 begin
@@ -49,4 +48,3 @@ begin
     return 'not taken';
   end if;
 end;
-/

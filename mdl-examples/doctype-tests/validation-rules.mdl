@@ -1,3 +1,4 @@
+mdl 1;
 -- Validation rules: constrain an attribute with a shared pattern or a range.
 --
 -- Verified end-to-end against mxbuild 11.13.0: authored into a blank project,

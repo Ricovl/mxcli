@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- ako/mxcli#541 — `describe page` → `exec` over a Studio Pro page reported
@@ -98,7 +99,7 @@ create or modify page Issue541.RuleAction_NewEdit (
       }
     }
   }
-}
+};
 
 -- Emitted so the round trip can be inspected by hand. Note the caveat above:
 -- re-executing this output reports "Unchanged" on an unfixed build too.

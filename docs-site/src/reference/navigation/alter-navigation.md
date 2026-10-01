@@ -134,14 +134,14 @@ dropped.
 Minimal navigation with just a home page:
 
 ```sql
-CREATE OR REPLACE NAVIGATION Responsive
+CREATE OR MODIFY NAVIGATION Responsive
     HOME PAGE MyModule.Home_Web;
 ```
 
 Full navigation with role-specific homes and menus:
 
 ```sql
-CREATE OR REPLACE NAVIGATION Responsive
+CREATE OR MODIFY NAVIGATION Responsive
     HOME PAGE MyModule.Home_Web
     HOME PAGE MyModule.AdminHome FOR Administrator
     LOGIN PAGE Administration.Login
@@ -159,7 +159,7 @@ CREATE OR REPLACE NAVIGATION Responsive
 Native mobile navigation:
 
 ```sql
-CREATE OR REPLACE NAVIGATION NativePhone
+CREATE OR MODIFY NAVIGATION NativePhone
     HOME PAGE Mobile.Dashboard
     {
         MENU ITEM 'Home' ( OnClick: SHOW PAGE Mobile.Dashboard )

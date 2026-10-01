@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #1004: DESCRIBE emitted `reduce(...)`, which mxcli's own checker rejected
 -- ============================================================================
@@ -57,7 +58,6 @@ create or modify entity BugTest1004.Order (
   Amount : decimal,
   Paid   : boolean
 );
-/
 
 create or modify microflow BugTest1004.MF_Aggregates (
   $Orders: list of BugTest1004.Order
@@ -85,4 +85,3 @@ begin
 
   return;
 end;
-/

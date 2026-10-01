@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #304: Empty `else` branch emitted by DESCRIBE MICROFLOW
 -- ============================================================================
@@ -38,7 +39,6 @@ begin
 
   log info node 'BugTest304' 'always logged';
 end;
-/
 
 -- Negative control: explicit else body MUST still be preserved.
 create microflow BugTest304.MF_IfWithElse (
@@ -54,4 +54,3 @@ begin
     return 'non-positive';
   end if;
 end;
-/
