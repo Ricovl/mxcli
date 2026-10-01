@@ -80,6 +80,9 @@ while IFS= read -r md; do
 			SKIPPED=$((SKIPPED + 1)); continue
 		fi
 
+		# The block's language header (`mdl 1;`), if it has one.
+		HEADER="$(grep -m1 -iE '^[[:space:]]*mdl[[:space:]]+[0-9]+[[:space:]]*;[[:space:]]*$' "$blk" || true)"
+
 		# Split the block into individual statements so a bad statement inside a larger
 		# multi-document example is still caught. DDL and page/snippet statements
 		# terminate differently: DDL ends at a top-level `;`, but a `create page … { … }`
@@ -139,6 +142,12 @@ while IFS= read -r md; do
 			grep -qE 'NON_PERSISTENT\)' "$stmt" && { SKIPPED=$((SKIPPED + 1)); continue; }
 
 			CHECKED=$((CHECKED + 1))
+			# A block that starts with the language header is mdl 1, and so is
+			# each statement split out of it: check it under that header, not as
+			# the mdl 0 a headerless file means.
+			if [ -n "$HEADER" ]; then
+				{ printf '%s\n' "$HEADER"; cat "$stmt"; } > "$stmt.v" && mv "$stmt.v" "$stmt"
+			fi
 			out="$("$MXCLI" check "$stmt" 2>&1)"
 			# Fail only on SYNTAX/parse errors — the drift this guard exists to
 			# catch. Semantic validation (reserved attribute names, cross-references,

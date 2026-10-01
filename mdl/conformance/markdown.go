@@ -20,23 +20,41 @@ var MarkdownLanguages = map[string]bool{"mdl": true, "sql": true, "mdl-test": tr
 // enough that a deprecated spelling in one must be seen, and something else (a
 // transcript, a file tree) often enough that one that does not parse is not a
 // finding.
+//
+// A fence inside a blockquote ("> ```mdl", the example in a callout) is read
+// like any other: the quote marker is removed from its lines, which are the
+// lines up to the matching quoted closing fence.
 func MarkdownUnits(source, content string) []Unit {
 	var out []Unit
 	lines := strings.Split(content, "\n")
 	for i := 0; i < len(lines); i++ {
+		quoted := false
 		indent, marker, lang, ok := openFence(lines[i])
+		if !ok {
+			if q, isQuote := unquote(lines[i]); isQuote {
+				indent, marker, lang, ok = openFence(q)
+				quoted = ok
+			}
+		}
 		if !ok {
 			continue
 		}
+		at := func(n int) string {
+			if quoted {
+				q, _ := unquote(lines[n])
+				return q
+			}
+			return lines[n]
+		}
 		start := i + 1
 		end := start
-		for end < len(lines) && !closesFence(lines[end], marker) {
+		for end < len(lines) && !closesFence(at(end), marker) {
 			end++
 		}
 		if MarkdownLanguages[lang] || lang == "" {
 			body := make([]string, 0, end-start)
-			for _, l := range lines[start:min(end, len(lines))] {
-				body = append(body, dedent(l, indent))
+			for n := start; n < min(end, len(lines)); n++ {
+				body = append(body, dedent(at(n), indent))
 			}
 			out = append(out, Unit{Source: source, Line: start + 1, Text: strings.Join(body, "\n"), Lenient: lang == ""})
 		}
@@ -82,4 +100,18 @@ func dedent(line string, n int) string {
 		i++
 	}
 	return line[i:]
+}
+
+// unquote removes a blockquote marker — optional indentation, `>`, and one
+// optional space — from a line, and reports whether the line had one.
+func unquote(line string) (string, bool) {
+	t := strings.TrimLeft(line, " \t")
+	if !strings.HasPrefix(t, ">") {
+		return line, false
+	}
+	t = t[1:]
+	if strings.HasPrefix(t, " ") {
+		t = t[1:]
+	}
+	return t, true
 }

@@ -67,22 +67,22 @@ Found 1 error(s) and 1 warning(s)
 
 ## Workflow
 
-1. Make changes with mxcli:
+1. Make changes with an mxcli script that starts with `mdl 1;`, and execute it
+   (`./mxcli exec changes.mdl -p MyApp.mpr`). `exec` writes the project as it
+   runs; there is nothing to save or disconnect afterwards.
    ```sql
-   CREATE ENTITY Sales.Product (...);
+   mdl 1;
+   create persistent entity Sales.Product (
+     Name: string(200)
+   );
    ```
 
-2. Disconnect to save changes:
-   ```sql
-   DISCONNECT;
-   ```
-
-3. Validate with mx check:
+2. Validate with mx check:
    ```bash
    mx check MyApp.mpr
    ```
 
-4. Fix any errors and repeat
+3. Fix any errors and repeat
 
 ## Tips
 

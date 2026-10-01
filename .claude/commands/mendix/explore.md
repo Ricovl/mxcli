@@ -12,22 +12,22 @@ All element names in the output are fully qualified (`Module.Element`). In VS Co
 
 ```sql
 -- Get a compact overview of the entire project (best first command)
-SHOW STRUCTURE;
+DESCRIBE STRUCTURE;
 
 -- Module-level summary with element counts
-SHOW STRUCTURE DEPTH 1;
+DESCRIBE STRUCTURE DEPTH 1;
 
 -- Elements with signatures (default) — entities, microflows, pages, etc.
-SHOW STRUCTURE DEPTH 2;
+DESCRIBE STRUCTURE DEPTH 2;
 
 -- Full types and parameter names
-SHOW STRUCTURE DEPTH 3;
+DESCRIBE STRUCTURE DEPTH 3;
 
 -- Focus on a single module
-SHOW STRUCTURE IN ModuleName;
+DESCRIBE STRUCTURE IN ModuleName;
 
 -- Include system/marketplace modules
-SHOW STRUCTURE DEPTH 1 ALL;
+DESCRIBE STRUCTURE DEPTH 1 ALL;
 ```
 
 CLI equivalent:
@@ -43,25 +43,25 @@ mxcli structure -p app.mpr -d 1 --all       # include system modules
 
 ```sql
 -- List all modules
-SHOW MODULES;
+LIST MODULES;
 
 -- List entities in a module
-SHOW ENTITIES IN ModuleName;
+LIST ENTITIES IN ModuleName;
 
 -- Show entity definition
 DESCRIBE ENTITY Module.EntityName;
 
 -- List microflows
-SHOW MICROFLOWS IN ModuleName;
+LIST MICROFLOWS IN ModuleName;
 
 -- Show microflow logic
 DESCRIBE MICROFLOW Module.MicroflowName;
 
 -- List pages
-SHOW PAGES IN ModuleName;
+LIST PAGES IN ModuleName;
 
 -- List workflows
-SHOW WORKFLOWS IN ModuleName;
+LIST WORKFLOWS IN ModuleName;
 
 -- Show workflow definition
 DESCRIBE WORKFLOW Module.WorkflowName;
@@ -94,20 +94,20 @@ For deeper code navigation (requires `REFRESH CATALOG FULL`). Like structure out
 REFRESH CATALOG FULL;
 
 -- Find what calls a microflow
-SHOW CALLERS OF Module.MyMicroflow;
-SHOW CALLERS OF Module.MyMicroflow TRANSITIVE;
+LIST CALLERS OF Module.MyMicroflow;
+LIST CALLERS OF Module.MyMicroflow TRANSITIVE;
 
 -- Find what a microflow calls
-SHOW CALLEES OF Module.MyMicroflow;
+LIST CALLEES OF Module.MyMicroflow;
 
 -- Find all references to an element
-SHOW REFERENCES TO Module.Customer;
+LIST REFERENCES TO Module.Customer;
 
 -- Analyze impact of changes
-SHOW IMPACT OF Module.Customer;
+LIST IMPACT OF Module.Customer;
 
 -- Get context for understanding code
-SHOW CONTEXT OF Module.MyMicroflow DEPTH 2;
+DESCRIBE CONTEXT OF Module.MyMicroflow DEPTH 2;
 
 -- Full-text search across strings and source
 SEARCH 'validation';

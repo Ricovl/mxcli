@@ -134,6 +134,7 @@ end if;
 **Warning**: CW0094 - "Variable 'X' is never used"
 
 ```mdl
+mdl 1;
 -- Studio Pro will warn if parameters/variables are declared but never used
 create microflow Test.Example (
   $ProductCode: string  -- ← Warning if never referenced
@@ -484,6 +485,7 @@ end loop;
 > (`"$Customer"`) breaks resolution.
 
 ```mdl
+mdl 1;
 create persistent entity Module."item" (
   "check": boolean default false,
   "text": string(500),
@@ -496,6 +498,7 @@ create persistent entity Module."item" (
 
 Quoted identifiers also work for microflow parameter names:
 ```mdl
+mdl 1;
 create microflow Module."Process" ("select": string, "type": integer)
 begin
   log info 'Processing';
@@ -521,6 +524,7 @@ Pro's **"Apply entity access"** checkbox: the flow runs under the **current
 user's** entity access rules instead of with full access.
 
 ```mdl
+mdl 1;
 @applyentityaccess
 create microflow MyModule.ReadOwnOrders ()
 returns list of MyModule.Order
@@ -622,6 +626,7 @@ drop is silently lost — mxcli-rest lost six flows' documentation that way.
 `check` warns **MDL089** and names the statement that would have taken it:
 
 ```sql
+mdl 1;
 drop microflow if exists Sales.ACT_CreateOrder;
 
 /** Creates an order for the current customer. */
