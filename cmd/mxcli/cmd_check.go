@@ -15,7 +15,7 @@ import (
 )
 
 var checkCmd = &cobra.Command{
-	Use:   "check <file|->",
+	Use:   "check <file|-> [file...]",
 	Short: "Check an MDL script for errors without executing it",
 	Long: `Check an MDL script file for syntax errors and optionally validate references.
 
@@ -73,6 +73,16 @@ This is the verdict "mxcli diff" reports as "Refused:", computed by the same
 code. A statement on a flow an earlier statement of the script changes, or
 whose flow does not build until an earlier statement has run, is not predicted.
 
+Several files are checked as one script set, run in the order given: each
+file is checked as it would be alone, and the set is first read as a whole for
+two "create or modify" statements declaring the same flow — a placeholder
+("stub") followed by the real flow. That is reported as an MDL-STUB01 warning
+naming both statements: run in order, the stub replaces the real flow before
+the real statement restores it, on every run, and with the two under different
+language headers the real statement can be refused while the stub's rebuild
+goes through. Since #843 a self-recursive flow is created in one statement, so
+the stub can be dropped. One file alone is not read this way.
+
 Output includes structured rule IDs (MDL prefix for reference and script rules,
 E0xx for expression type rules) for each validation issue.
 
@@ -100,12 +110,15 @@ Examples:
   mxcli check script.mdl --format json
   mxcli check script.mdl -p app.mpr --format sarif > results.sarif
 
+  # Check a script set, run in this order
+  mxcli check 10-domain.mdl 20-flows.mdl 30-pages.mdl -p app.mpr
+
   # Read the script from stdin
   cat script.mdl | mxcli check -
 `,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if code := runCheckFile(cmd, args[0]); code != 0 {
+		if code := runCheckFiles(cmd, args); code != 0 {
 			os.Exit(code)
 		}
 	},
@@ -419,3 +432,57 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 	return 0
 }
 
+// runCheckFiles checks each script of a run and returns the worst exit code.
+// One file is checked exactly as before. Several files are a script set run
+// in order (ako/mxcli#905): before the files are checked one by one, the set
+// is read as a whole for what no single file shows — a flow two of its
+// `create or modify` statements declare, the stub-then-real pattern
+// (MDL-STUB01, a warning).
+func runCheckFiles(cmd *cobra.Command, files []string) int {
+	if len(files) == 1 {
+		return runCheckFile(cmd, files[0])
+	}
+	for _, f := range files {
+		if f == stdinPath {
+			fmt.Fprintln(os.Stderr, "Error: '-' (stdin) checks one script; it cannot be one of several files")
+			return 1
+		}
+	}
+	if format := resolveFormat(cmd, "text"); format != "" && format != "text" {
+		fmt.Fprintf(os.Stderr, "Error: --format %s writes one document for one script; check the files one at a time\n", format)
+		return 1
+	}
+	if v := stubThenRealViolations(findFlowRedeclarations(parseScriptSet(files))); len(v) > 0 {
+		fmt.Printf("Checking the script set: %d files\n", len(files))
+		linter.GetFormatter(linter.OutputFormat("text"), true).Format(v, os.Stderr)
+		fmt.Fprintln(os.Stderr)
+	}
+	worst := 0
+	for i, f := range files {
+		if i > 0 {
+			fmt.Println()
+		}
+		if code := runCheckFile(cmd, f); code > worst {
+			worst = code
+		}
+	}
+	return worst
+}
+
+// parseScriptSet reads and parses each file for the set-level checks. A file
+// that cannot be read or parsed is left out (Prog nil): its own check reports
+// that.
+func parseScriptSet(files []string) []setScript {
+	var out []setScript
+	for _, f := range files {
+		sc := setScript{Path: f}
+		if data, err := os.ReadFile(f); err == nil && !testrunner.IsTestFile(f) {
+			sc.Source = string(data)
+			if prog, errs := visitor.Build(sc.Source); len(errs) == 0 {
+				sc.Prog = prog
+			}
+		}
+		out = append(out, sc)
+	}
+	return out
+}
