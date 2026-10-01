@@ -267,9 +267,10 @@ check-skill-mdl: build
 
 # Canonical-form conformance gate (ako/mxcli#756, plan item 1.4 of
 # PROPOSAL_mdl_beta_syntax_freeze.md). Parses every MDL block in `mxcli syntax`,
-# the user-facing skills, docs-site, the quick reference and mdl-examples, with
-# a deprecated spelling (MDL-DEPRnnn) counted as a failure, against the
-# allowlist in mdl/conformance/allowlist.txt, which may only shrink: a count
+# the user-facing skills, docs-site, the quick reference and mdl-examples as
+# mdl 1 (decision 1 on ako/mxcli#714), with a deprecated spelling (MDL-DEPRnnn),
+# a construct the header refuses (MDL-V1-*) and a complete script without the
+# `mdl 1;` header counted as failures, against the allowlist in mdl/conformance/allowlist.txt, which may only shrink: a count
 # above its ceiling fails, and so does one below it. After fixing docs, run
 # `make conformance-shrink`, which lowers the list and never raises it.
 # mdl-examples/deprecated-aliases/ is exempt: it is the old-spelling corpus

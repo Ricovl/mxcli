@@ -7,10 +7,17 @@
 // left in them is re-taught faster than `fmt --upgrade` can remove it from
 // scripts. The gate parses every MDL block in the sources it is given — the
 // `mxcli syntax` examples, the user-facing skills, docs-site, the quick
-// reference and mdl-examples — and reports two classes of finding per source:
+// reference and mdl-examples — as mdl 1 (decision 1 on ako/mxcli#714: only
+// mdl 1 is documented), and reports these classes of finding per source:
 //
 //   - a registered deprecated spelling (MDL-DEPRnnn), exactly what `mxcli check
 //     --deprecations=error` fails on; every use is counted;
+//   - a construct the `mdl 1;` header refuses, under the rule that names it
+//     (MDL-V1-*: a `/` terminator, a missing `;`, a reassignment without
+//     `set`, …), or ClassMdl1 when no rule names it;
+//   - a complete script without the `mdl 1;` header (ClassHeader). A fragment
+//     — one statement, a microflow activity, a widget, a run of queries, REPL
+//     input — carries none;
 //   - a block that parses in no context at all ("syntax"). Docs legitimately
 //     hold templates (`<Name>`, `...`), so these are counted per source rather
 //     than treated as a defect each, and the count may not grow.
@@ -25,15 +32,30 @@ package conformance
 
 import (
 	"fmt"
+	"reflect"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
 // ClassSyntax is the class of a block that parses in no known context.
 const ClassSyntax = "syntax"
+
+// ClassHeader is the class of a complete script that does not start with the
+// `mdl 1;` language header (decision 1 on ako/mxcli#714: every complete-script
+// example is written in mdl 1, and says so).
+const ClassHeader = "header"
+
+// ClassMdl1 is the class of MDL that parses headerless but is refused under
+// `mdl 1;` without a recorded MDL-V1-* note explaining why. It should not occur
+// — every new rejection goes through a langver.Change — and is counted rather
+// than lost if it does.
+const ClassMdl1 = "mdl1"
 
 // Unit is one piece of MDL to check.
 type Unit struct {
@@ -48,6 +70,11 @@ type Unit struct {
 	// a documentation block, which may be a fragment and is tried in each
 	// context a fragment is written for (Contexts).
 	Script bool
+	// KeepsMdl0 says Text is a whole script that stays mdl 0: a test file,
+	// whose `/` separators and bodies the runner reads as mdl 0 until it reads
+	// a header (ako/mxcli#847), or an example kept headerless because mdl 0 is
+	// what it tests. Only its deprecated spellings are reported.
+	KeepsMdl0 bool
 	// Lenient says Text may not be MDL at all (an untagged markdown fence): its
 	// deprecated spellings are reported, but not failing to parse.
 	Lenient bool
@@ -58,7 +85,8 @@ type Finding struct {
 	Source string
 	// Line is the 1-based line in Source, as near as the unit allows.
 	Line int
-	// Class is ClassSyntax or a registry code (MDL-DEPRnnn).
+	// Class is ClassSyntax, ClassHeader, ClassMdl1, a deprecated spelling's
+	// registry code (MDL-DEPRnnn) or a language change's rule ID (MDL-V1-*).
 	Class string
 	// Detail is the parse error or the deprecated spelling's subject.
 	Detail string
@@ -100,10 +128,36 @@ var Contexts = []Context{
 	}, 3},
 }
 
+// sessionCode is the rule ID of a session command in a script (R7). A session
+// command is legal REPL input under every version, so a documentation
+// fragment showing one — a REPL transcript — is not held to it; a script is.
+const sessionCode = "MDL-V1-SESSION"
+
+// header is the language header every unit is parsed under.
+var header = langver.Latest.String() + ";\n"
+
 // Check returns the findings for one unit.
+//
+// Everything is held to mdl 1 (decision 1 on ako/mxcli#714): a unit is parsed
+// with the `mdl 1;` header, in the first context it parses in, and what that
+// parse refuses is reported. A refusal is classed by the construct's rule ID
+// (MDL-V1-*), which the same text parsed headerless names, so a docs author
+// sees `MDL-V1-SLASH` rather than a bare parse error; one no rule names is
+// ClassMdl1. Deprecated spellings (MDL-DEPRnnn) are reported as before.
+//
+// A construct that only changes meaning under the header (`limit 1`, a call
+// after `set`) is not a finding: the docs are written in mdl 1, where it has
+// the mdl 1 meaning. Moving a text to mdl 1 is `fmt --upgrade --header`'s job,
+// which rewrites such a construct so that it keeps the meaning it was written
+// with.
+//
+// A complete script must start with the header (ClassHeader); a fragment
+// carries none (IsCompleteScript says which is which).
 func Check(u Unit) []Finding {
-	if u.Script {
-		return checkScript(u)
+	text, hasHeader := stripHeader(u.Text)
+	u.Text = text
+	if u.Script || hasHeader {
+		return checkScript(u, hasHeader)
 	}
 	findings := checkBlock(u)
 	if !u.Lenient {
@@ -118,12 +172,220 @@ func Check(u Unit) []Finding {
 	return kept
 }
 
-func checkScript(u Unit) []Finding {
-	prog, errs := build(u.Text)
-	if len(errs) > 0 {
+func checkScript(u Unit, hasHeader bool) []Finding {
+	if u.KeepsMdl0 {
+		prog, errs := build(u.Text)
+		if len(errs) > 0 {
+			return []Finding{{Source: u.Source, Line: u.Line, Class: ClassSyntax, Detail: firstLine(errs[0].Error())}}
+		}
+		return deprecationFindings(u, prog.Deprecations, 0)
+	}
+	r, ok := parseIn(Contexts[0], u.Text)
+	if !ok {
+		_, errs := build(header + u.Text)
 		return []Finding{{Source: u.Source, Line: u.Line, Class: ClassSyntax, Detail: firstLine(errs[0].Error())}}
 	}
-	return deprecationFindings(u, prog.Deprecations, 0)
+	out := r.findings(u, true)
+	if !hasHeader {
+		out = append(out, Finding{Source: u.Source, Line: u.Line, Class: ClassHeader,
+			Detail: "a complete script starts with `mdl 1;` (`mxcli fmt --upgrade --header` adds it)"})
+	}
+	return out
+}
+
+// parsed is a text parsed in one context, under the header and headerless.
+type parsed struct {
+	ctx Context
+	// v1 is the parse under the header, nil when it failed with v1Errs.
+	v1     *ast.Program
+	v1Errs []error
+	// v0 is the headerless parse, set when v1 failed: its notes name the
+	// constructs the header refused.
+	v0 *ast.Program
+}
+
+// program is the parse that succeeded.
+func (p parsed) program() *ast.Program {
+	if p.v1 != nil {
+		return p.v1
+	}
+	return p.v0
+}
+
+// parseIn parses text in one context. It succeeds when the text parses there
+// under the header, or headerless — then the header's refusals are findings.
+func parseIn(c Context, text string) (parsed, bool) {
+	w := c.Wrap(text)
+	if prog, errs := build(header + w); len(errs) == 0 {
+		return parsed{ctx: c, v1: prog}, true
+	} else if prog0, errs0 := build(w); len(errs0) == 0 {
+		return parsed{ctx: c, v1Errs: errs, v0: prog0}, true
+	}
+	return parsed{}, false
+}
+
+// ParseInSomeContext parses a documentation fragment in the first context it
+// parses in under the `mdl 1;` header, or failing that, the first it parses in
+// headerless. It returns the headerless program, the context, and the wrapped
+// text that was parsed.
+func ParseInSomeContext(text string) (*ast.Program, Context, string, bool) {
+	p, ok := parseInSomeContext(text)
+	if !ok {
+		return nil, Context{}, "", false
+	}
+	w := p.ctx.Wrap(text)
+	prog, errs := build(w)
+	if len(errs) > 0 {
+		return nil, Context{}, "", false
+	}
+	return prog, p.ctx, w, true
+}
+
+func parseInSomeContext(text string) (parsed, bool) {
+	for _, c := range Contexts {
+		w := c.Wrap(text)
+		if prog, errs := build(header + w); len(errs) == 0 {
+			return parsed{ctx: c, v1: prog}, true
+		}
+	}
+	for _, c := range Contexts {
+		if p, ok := parseIn(c, text); ok {
+			return p, true
+		}
+	}
+	return parsed{}, false
+}
+
+// errLine is the line an error message starts with ("line 12:4 …").
+var errLine = regexp.MustCompile(`^line (\d+)`)
+
+// codeRe finds a rule ID or registry code in an error message.
+var codeRe = regexp.MustCompile(`MDL-(?:V1-[A-Z0-9]+|DEPR\d+)`)
+
+// findings are the unit's deprecated spellings and the header's refusals.
+// script says the unit is a script, where a session command is a finding.
+func (p parsed) findings(u Unit, script bool) []Finding {
+	if p.v1 != nil {
+		// Lines in the header-prefixed parse are one further down.
+		return deprecationFindings(u, p.v1.Deprecations, p.ctx.Prefix+1)
+	}
+	out := deprecationFindings(u, p.v0.Deprecations, p.ctx.Prefix)
+	notes := append([]ast.LanguageNote(nil), p.v0.LanguageNotes...)
+	for _, e := range p.v1Errs {
+		msg := firstLine(e.Error())
+		line := 0
+		if m := errLine.FindStringSubmatch(msg); m != nil {
+			line, _ = strconv.Atoi(m[1])
+			line-- // the header
+		}
+		var class string
+		class, notes = takeNearestNote(notes, line)
+		if class == "" {
+			class = codeRe.FindString(msg)
+		}
+		if class == "" {
+			class = ClassMdl1
+		}
+		if class == sessionCode && !script {
+			continue
+		}
+		if strings.HasPrefix(class, "MDL-DEPR") {
+			continue // refused under the header, and already counted as used
+		}
+		out = append(out, Finding{Source: u.Source, Line: mapLine(u, line, p.ctx.Prefix), Class: class, Detail: msg})
+	}
+	return out
+}
+
+// takeNearestNote takes the note nearest to line off notes and returns its
+// rule ID. A refusal is reported where the parser noticed it (the `/` after a
+// statement, the token after a missing `;`), the note where the construct is;
+// each note explains one refusal, so `create module M` + `/` is one missing `;`
+// and one `/`.
+func takeNearestNote(notes []ast.LanguageNote, line int) (string, []ast.LanguageNote) {
+	best, dist := -1, -1
+	for i, n := range notes {
+		d := n.Line - line
+		if d < 0 {
+			d = -d
+		}
+		if dist < 0 || d < dist {
+			best, dist = i, d
+		}
+	}
+	if best < 0 {
+		return "", notes
+	}
+	code := notes[best].Code
+	return code, append(notes[:best], notes[best+1:]...)
+}
+
+// mapLine maps a 1-based line of the wrapped text back to the source.
+func mapLine(u Unit, line, prefix int) int {
+	if line <= 0 {
+		return u.Line
+	}
+	l := u.Line + line - 1 - prefix
+	if l < u.Line {
+		return u.Line
+	}
+	return l
+}
+
+// stripHeader blanks a leading `mdl <n>;` header line, keeping line numbers,
+// and reports whether there was one. Only `--` comments and blank lines may
+// precede it, as in langver.ScanHeader.
+func stripHeader(s string) (string, bool) {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		t := strings.TrimSpace(l)
+		if t == "" || strings.HasPrefix(t, "--") {
+			continue
+		}
+		if langver.IsHeaderLine(l) {
+			lines[i] = ""
+			return strings.Join(lines, "\n"), true
+		}
+		break
+	}
+	return s, false
+}
+
+// IsCompleteScript reports whether a block parsed as top-level statements is a
+// complete script — one that is meant to be run as a file and so starts with
+// the language header — rather than a fragment: it holds at least two
+// statements, at least one of which writes the model, and no session command
+// (that makes it REPL input, which takes no header). A single statement, or a
+// run of queries (`show`, `describe`), is a fragment.
+func IsCompleteScript(prog *ast.Program) bool {
+	if prog == nil || len(prog.Statements) < 2 {
+		return false
+	}
+	for _, n := range prog.LanguageNotes {
+		if n.Code == sessionCode {
+			return false
+		}
+	}
+	for _, s := range prog.Statements {
+		if writesModel(s) {
+			return true
+		}
+	}
+	return false
+}
+
+// modelVerbs are the statement type prefixes that write the model.
+var modelVerbs = []string{"Create", "Alter", "Drop", "Grant", "Revoke", "Rename", "Move", "Update"}
+
+func writesModel(s ast.Statement) bool {
+	name := reflect.TypeOf(s).String()
+	name = name[strings.LastIndexByte(name, '.')+1:]
+	for _, v := range modelVerbs {
+		if strings.HasPrefix(name, v) {
+			return true
+		}
+	}
+	return false
 }
 
 // checkBlock tries the whole block in each context; when none parses, the block
@@ -136,8 +398,8 @@ func checkBlock(u Unit) []Finding {
 	if strings.TrimSpace(stripComments(text)) == "" {
 		return nil
 	}
-	if deps, prefix, ok := parseInSomeContext(text); ok {
-		return deprecationFindings(u, deps, prefix)
+	if out, ok := findingsInSomeContext(u, text, true); ok {
+		return out
 	}
 	chunks := splitChunks(text)
 	if len(chunks) <= 1 {
@@ -147,8 +409,8 @@ func checkBlock(u Unit) []Finding {
 	for _, c := range chunks {
 		cu := u
 		cu.Line = u.Line + c.offset
-		if deps, prefix, ok := parseInSomeContext(c.text); ok {
-			out = append(out, deprecationFindings(cu, deps, prefix)...)
+		if f, ok := findingsInSomeContext(cu, c.text, false); ok {
+			out = append(out, f...)
 			continue
 		}
 		out = append(out, syntaxFinding(cu, c.text))
@@ -156,52 +418,41 @@ func checkBlock(u Unit) []Finding {
 	return out
 }
 
-// perLine marks deprecations whose Line is already relative to the block.
-const perLine = -1
-
-// parseInSomeContext reports the deprecations of the first context the text
-// parses in, and that context's line prefix.
-func parseInSomeContext(text string) ([]ast.DeprecatedSpelling, int, bool) {
-	for _, c := range Contexts {
-		if prog, errs := build(c.Wrap(text)); len(errs) == 0 {
-			return prog.Deprecations, c.Prefix, true
+// findingsInSomeContext reports the findings of the first context the text
+// parses in. whole says text is a whole documentation block, which may then
+// be a complete script that must carry the header.
+func findingsInSomeContext(u Unit, text string, whole bool) ([]Finding, bool) {
+	if p, ok := parseInSomeContext(text); ok {
+		out := p.findings(u, false)
+		if whole && p.ctx.Prefix == 0 && IsCompleteScript(p.program()) {
+			out = append(out, Finding{Source: u.Source, Line: u.Line, Class: ClassHeader,
+				Detail: "a complete script example starts with `mdl 1;` (`mxcli fmt --upgrade --header` adds it)"})
 		}
+		return out, true
 	}
 	// A block may list alternative clauses one per line (the XPath function
 	// reference does): accept it when every line parses on its own.
 	lines := nonEmptyLines(text)
 	if len(lines) < 2 {
-		return nil, 0, false
+		return nil, false
 	}
-	var deps []ast.DeprecatedSpelling
+	var out []Finding
 	for _, l := range lines {
-		d, _, ok := parseInSomeContext(l.text)
+		p, ok := parseInSomeContext(l.text)
 		if !ok {
-			return nil, 0, false
+			return nil, false
 		}
-		for _, x := range d {
-			x.Line = l.index + 1
-			deps = append(deps, x)
-		}
+		lu := u
+		lu.Line = u.Line + l.index
+		out = append(out, p.findings(lu, false)...)
 	}
-	return deps, perLine, true
+	return out, true
 }
 
 func deprecationFindings(u Unit, deps []ast.DeprecatedSpelling, prefix int) []Finding {
 	out := make([]Finding, 0, len(deps))
 	for _, d := range deps {
-		line := u.Line
-		if d.Line > 0 {
-			if prefix == perLine {
-				line = u.Line + d.Line - 1
-			} else {
-				line = u.Line + d.Line - 1 - prefix
-			}
-		}
-		if line < u.Line {
-			line = u.Line
-		}
-		out = append(out, Finding{Source: u.Source, Line: line, Class: d.Code, Detail: d.Subject})
+		out = append(out, Finding{Source: u.Source, Line: mapLine(u, d.Line, prefix), Class: d.Code, Detail: d.Subject})
 	}
 	return out
 }
@@ -298,8 +549,9 @@ func stripComments(s string) string {
 }
 
 // stripNonMDL blanks the lines of a documentation block that are not MDL: a
-// shell command shown next to the statement it runs, MDL's lone `/` separator
-// and the `@test` annotations of a test file. Lines are blanked rather than
+// shell command shown next to the statement it runs and the `@test`
+// annotations of a test file. MDL's lone `/` separator is not blanked: it is
+// refused under mdl 1 (MDL-V1-SLASH). Lines are blanked rather than
 // removed, so line numbers still point into the source.
 func stripNonMDL(s string) string {
 	lines := strings.Split(s, "\n")
@@ -316,8 +568,6 @@ func stripNonMDL(s string) string {
 			inTestDoc = !strings.Contains(t, "*/")
 			lines[i] = ""
 		case strings.HasPrefix(t, "mxcli ") || strings.HasPrefix(t, "./bin/mxcli ") || strings.HasPrefix(t, "$ "):
-			lines[i] = ""
-		case t == "/":
 			lines[i] = ""
 		}
 	}
