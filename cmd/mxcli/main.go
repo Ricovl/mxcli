@@ -327,6 +327,9 @@ func init() {
 	diffCmd.Flags().StringP("format", "f", "unified", "Output format: unified, side, struct")
 	diffCmd.Flags().BoolP("color", "", false, "Use colored output")
 	diffCmd.Flags().IntP("width", "w", 120, "Terminal width for side-by-side format")
+	diffCmd.Flags().Bool("no-check", false, "Skip exec's pre-flight checks, as exec --no-check does")
+	diffCmd.Flags().Bool("continue-on-error", false, "Run every statement, as exec --continue-on-error does, instead of stopping at the first error")
+	diffCmd.Flags().Bool("exec-output", false, "Also print what exec reports while it runs the script on the scratch copy")
 
 	// Diff-local command flags
 	diffLocalCmd.Flags().StringP("ref", "r", "HEAD", "Git ref or range (e.g., HEAD, main, main..feature)")

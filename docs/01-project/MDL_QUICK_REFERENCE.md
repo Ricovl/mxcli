@@ -1575,7 +1575,7 @@ create page MyModule.Customer_Edit
     textbox txtEmail (label: 'Email', attribute: Email)
     combobox cbStatus (label: 'Status', attribute: status)
 
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }

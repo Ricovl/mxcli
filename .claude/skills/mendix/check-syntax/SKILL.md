@@ -625,7 +625,9 @@ does not hot-reload when an external process changes the file. So after `mxcli e
 - `ped_read_document` / `ped_check_errors` will show the **stale** pre-exec model until
   Studio Pro re-scans — call `refresh_project` first (or reload the project in the UI).
 - **Hazard:** if Studio Pro later saves on its own, it overwrites mxcli's disk write with
-  its in-memory copy, silently discarding your MDL changes.
+  its in-memory copy, silently discarding your MDL changes. So a file-based write is
+  **refused** while Studio Pro's `<project>.mpr.lock` is beside the `.mpr`; `exec --force`
+  (or `MXCLI_ALLOW_STUDIO_PRO_OPEN=1`) overrides it, e.g. for a lock left by a crash.
 
 **Safest practice:** don't keep the same project open-and-saving in Studio Pro while
 mxcli writes it. Either close (or don't save in) Studio Pro during MDL authoring, or

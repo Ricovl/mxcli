@@ -569,7 +569,11 @@ annotationParams
     ;
 
 annotationParam
-    : annotationParamName COLON (annotationValue | annotationParenValue)   // Named parameter
+    // annotationParenValue FIRST: `(to: top)` is also an expression — `:` is
+    // Mendix's division operator — and ANTLR takes the first alternative that
+    // matches, so with annotationValue first `@anchor(true: (to: top))` parsed
+    // as `true: to ÷ top` and set no anchor (mendixlabs/mxcli#992).
+    : annotationParamName COLON (annotationParenValue | annotationValue)   // Named parameter
     | annotationValue                                                      // Positional parameter
     ;
 

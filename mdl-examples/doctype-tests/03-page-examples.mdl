@@ -280,7 +280,7 @@ create page PgTest.P006_DataForm folder 'Forms'
           radiobuttons radioButtons1 (label: 'Is active', attribute: IsActive)
           datepicker datePicker1 (label: 'Create date', attribute: CreateDate)
 
-          footer footer1 {
+          footer {
             actionbutton actionButton1 (caption: 'Save', action: save changes, buttonstyle: primary)
             actionbutton actionButton2 (caption: 'Cancel', action: cancel changes, buttonstyle: default)
           }
@@ -387,7 +387,7 @@ create page PgTest.P007_DataForm_2 folder 'Forms'
           textbox txtName (label: 'Name', attribute: Name)
           textbox txtEmail (label: 'Email', attribute: Email)
 
-          footer footer1 {
+          footer {
             actionbutton actionButton1 (caption: 'Save', action: save changes, buttonstyle: primary)
             actionbutton actionButton2 (caption: 'Cancel', action: cancel changes, buttonstyle: default)
           }
@@ -716,7 +716,7 @@ create page PgTest.P012_Product_Manage_Edit folder 'DataGrid'
           textbox txtCode (label: 'Product Code', attribute: Code)
           textarea txtDescription (label: 'Description', attribute: description)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes close page, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
           }
@@ -1009,7 +1009,7 @@ create or modify page PgTest.P014_Product_Edit folder 'DataView' (
         }
       }
     }
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
@@ -1044,7 +1044,7 @@ create page PgTest.P015_Product_EditFull folder 'DataView'
         }
       }
     }
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes, buttonstyle: default)
     }
@@ -1083,7 +1083,7 @@ create or modify page PgTest.P018_DataView_FormOrientation_Vertical folder 'Data
   dataview ProductForm (datasource: $Product, FormOrientation: Vertical) {
     textbox txtName (label: 'Product Name', attribute: Name)
     textbox txtCode (label: 'Product Code', attribute: Code)
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
@@ -1103,7 +1103,7 @@ create or modify page PgTest.P018_DataView_FormOrientation_Horizontal folder 'Da
   dataview ProductForm (datasource: $Product, FormOrientation: Horizontal) {
     textbox txtName (label: 'Product Name', attribute: Name)
     textbox txtCode (label: 'Product Code', attribute: Code)
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
@@ -1123,7 +1123,7 @@ create or modify page PgTest.P018_DataView_LabelWidth folder 'DataView' (
   dataview ProductForm (datasource: $Product, LabelWidth: 5) {
     textbox txtName (label: 'Product Name', attribute: Name)
     textbox txtCode (label: 'Product Code', attribute: Code)
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
@@ -1477,7 +1477,7 @@ create page PgTest.P020_Master_Detail folder 'MasterDetail'
           textbox txtAddress (label: 'Address', attribute: Address)
           textbox txtCity (label: 'City', attribute: City)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes, buttonstyle: default)
           }
@@ -1820,7 +1820,7 @@ create page PgTest.P023c_Detail_MicroflowAction folder 'MicroflowActions'
     textbox txtPrice (label: 'Price', attribute: Price)
     textbox txtStock (label: 'Stock', attribute: Stock)
 
-    footer footer1 {
+    footer {
       -- Microflow action with page parameter passes the DataView's object
       actionbutton btnProcess (
         caption: 'Process Product',
@@ -1942,7 +1942,7 @@ create page PgTest.StyledPage folder 'Styling'
         dynamictext dtCity (content: 'City: {1}', contentparams: ({1} = City), class: 'text-muted')
       }
 
-      footer footer1 {
+      footer {
         actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary, class: 'btn-block')
         actionbutton btnCancel (caption: 'Cancel', action: cancel changes, class: 'btn-outline')
       }
@@ -2299,7 +2299,7 @@ create page PgTest.P034_ComboBox_Enum folder 'ComboBox'
     -- ComboBox (pluggable widget) selecting from the Country enumeration
     combobox cmbCountry (label: 'Country (ComboBox)', attribute: Country)
       }}}
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes close page, buttonstyle: success)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }
@@ -2332,7 +2332,7 @@ create page PgTest.P035_Order_Edit folder 'ComboBox'
 --    TEXTBOX txtStatus (Label: 'Status', Attribute: Status)
     textarea txtNotes (label: 'Notes', attribute: Notes)
       }}}
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes close page, buttonstyle: success)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }
@@ -2422,7 +2422,7 @@ create page PgTest.P037_GroupBox_Example folder 'GroupBox'
       datepicker dpCreateDate (label: 'Created On', attribute: CreateDate)
     }
 
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes close page, buttonstyle: success)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }
@@ -2460,7 +2460,7 @@ create page PgTest.P036_ComboBox_Association folder 'ComboBox'
 
     textbox txtTotal (label: 'Total Amount', attribute: TotalAmount)
 
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes close page, buttonstyle: success)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }

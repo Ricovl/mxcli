@@ -13,7 +13,7 @@ func init() {
 			"widget", "layout", "screen",
 		},
 		Syntax:  "CREATE PAGE Module.Name [FOLDER 'FolderPath']\n  (\n    Title: 'Page Title',\n    Layout: Module.LayoutName\n    [, Params: ( $Param: Module.Entity )]\n    [, Url: 'page-url']\n    [, Variables: ( $var: Boolean = 'true' )]\n    [, PopupWidth: 800, PopupHeight: 480, PopupResizable: true]\n    [, PopupCloseAction: cancelButton1]\n    [, Class: 'css-class', Style: 'css: rule']\n  )\n  {\n    -- widgets\n  }",
-		Example: "CREATE PAGE MyModule.EditCustomer\n  (\n    Params: ( $Customer: MyModule.Customer ),\n    Title: 'Edit Customer',\n    Layout: Atlas_Core.PopupLayout,\n    Class: 'container-fluid'\n  )\n  {\n    DATAVIEW dvCustomer (DataSource: $Customer) {\n      TEXTBOX txtName (Label: 'Name', Attribute: Name)\n      FOOTER footer1 {\n        ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)\n        ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)\n      }\n    }\n  };",
+		Example: "CREATE PAGE MyModule.EditCustomer\n  (\n    Params: ( $Customer: MyModule.Customer ),\n    Title: 'Edit Customer',\n    Layout: Atlas_Core.PopupLayout,\n    Class: 'container-fluid'\n  )\n  {\n    DATAVIEW dvCustomer (DataSource: $Customer) {\n      TEXTBOX txtName (Label: 'Name', Attribute: Name)\n      FOOTER {\n        ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)\n        ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)\n      }\n    }\n  };",
 		SeeAlso: []string{"page.create", "page.widgets", "page.alter", "snippet"},
 	})
 
@@ -129,7 +129,7 @@ LIST IMPACT OF htmlelement;
 			"legacydatagrid", "visible", "editable", "conditional visibility",
 		},
 		Syntax: "-- Containers\nLAYOUTGRID name { ROW r { COLUMN c (DesktopWidth: 6) { ... } } }\nCONTAINER name (Class: 'cls') { ... }\nCONTAINER name (OnClick: CALL MICROFLOW Module.MF) { ... }   -- clickable container\nCUSTOMCONTAINER name (Class: 'cls') { ... }\nGROUPBOX name (Caption: 'C') { ... }\nTABCONTAINER name { TABPAGE tp (Caption: 'One') { ... } TABPAGE tp2 (Caption: 'Two') { ... } }\n\n" +
-			"-- Data widgets\nDATAVIEW name (DataSource: $Param) { ... FOOTER f { ... } }\nDATAGRID name (DataSource: DATABASE Module.Entity) { COLUMN c (Attribute: A) }\nGALLERY name (DataSource: DATABASE Module.Entity, DesktopColumns: 3) { ... }\nLISTVIEW name (DataSource: DATABASE Module.Entity) { ... }\nLISTVIEW name (...) { ... TEMPLATE FOR Module.Specialization { ... } }\n\n" +
+			"-- Data widgets\nDATAVIEW name (DataSource: $Param) { ... FOOTER { ... } }\nDATAGRID name (DataSource: DATABASE Module.Entity) { COLUMN c (Attribute: A) }\nGALLERY name (DataSource: DATABASE Module.Entity, DesktopColumns: 3) { ... }\nLISTVIEW name (DataSource: DATABASE Module.Entity) { ... }\nLISTVIEW name (...) { ... TEMPLATE FOR Module.Specialization { ... } }\n\n" +
 			"-- Data grid 2 column filters go INSIDE the column's own braces\nDATAGRID dg (...) { COLUMN c (Attribute: A) { TEXTFILTER tf (Attribute: A) } }\nTEXTFILTER | NUMBERFILTER | DATEFILTER | DROPDOWNFILTER | DROPDOWNSORT\n" +
 			"--   Match the filter to the column's type, or MxBuild refuses it: String ->\n" +
 			"--   TEXTFILTER, Integer/Long/Decimal -> NUMBERFILTER, Date and time -> DATEFILTER,\n" +
@@ -199,7 +199,7 @@ LIST IMPACT OF htmlelement;
 			"--                       Use DYNAMICTEXT with a literal Content.)\n" +
 			"--   REFERENCESELECTOR  (unsupported widget type)\n" +
 			"--   LEGACYDATAGRID     (use DATAGRID for the pluggable equivalent on Mendix 11+)",
-		Example: "DATAVIEW dvCustomer (DataSource: $Customer) {\n  TEXTBOX txtName (Label: 'Name', Attribute: Name)\n  COMBOBOX cbStatus (Label: 'Status', Attribute: Status)\n  FOOTER footer1 {\n    ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)\n    ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)\n  }\n}",
+		Example: "DATAVIEW dvCustomer (DataSource: $Customer) {\n  TEXTBOX txtName (Label: 'Name', Attribute: Name)\n  COMBOBOX cbStatus (Label: 'Status', Attribute: Status)\n  FOOTER {\n    ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)\n    ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)\n  }\n}",
 		SeeAlso: []string{"page.create", "page.datasource"},
 	})
 

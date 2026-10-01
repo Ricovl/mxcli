@@ -337,15 +337,22 @@ func emitAnchorAnnotationWithActivityMap(
 			break
 		}
 	}
+	defaultTo := anchorSideKeyword(AnchorLeft)
 	if incoming := flowsByDest[id]; len(incoming) > 0 {
 		to = anchorSideKeyword(incoming[0].DestinationConnectionIndex)
+		// An error handler's first activity is entered by the error edge, which
+		// the builder draws into its TOP (newErrorHandlerFlow). Judged against
+		// the left side, `to: left` there read as the default and was left out,
+		// and the rebuild entered the top (mendixlabs/mxcli#991).
+		if len(incoming) == 1 && incoming[0].IsErrorHandler {
+			defaultTo = anchorSideKeyword(AnchorTop)
+		}
 	}
 
 	if from == "" && to == "" {
 		return
 	}
 	defaultFrom := anchorSideKeyword(AnchorRight)
-	defaultTo := anchorSideKeyword(AnchorLeft)
 	var parts []string
 	if from != "" && from != defaultFrom {
 		parts = append(parts, "from: "+from)
@@ -2491,13 +2498,21 @@ func collectErrorHandlerStatementSpans(
 	visited := make(map[model.ID]bool)
 	stopID := firstReachableErrorHandlerMerge(startID, activityMap, flowsByOrigin)
 
-	// A note on a handler-body activity is emitted here or nowhere: this
+	// A handler-body activity's annotations are emitted here or nowhere: this
 	// traversal is a second, smaller describer and the main one never reaches
-	// inside an `on error begin … end error` block. Without it the write path attaches the
-	// note and the read path drops it, which is the same round-trip loss #1077
-	// is about, one nesting level down.
+	// inside an `on error begin … end error` block. It used to emit the notes
+	// alone (#1077) — so @position, @anchor, @curve, @caption, @color and
+	// @excluded, all of which the builder honours in a handler, came back
+	// missing and describe → exec put a laid-out handler back on
+	// auto-placement (mendixlabs/mxcli#991). Same emitter as the main path.
+	flowsByDest := map[model.ID][]*microflows.SequenceFlow{}
+	for _, flows := range flowsByOrigin {
+		for _, f := range flows {
+			flowsByDest[f.DestinationID] = append(flowsByDest[f.DestinationID], f)
+		}
+	}
 	notes := func(obj microflows.MicroflowObject, indentStr string) {
-		statements = append(statements, annotationsByTarget.lines(obj.GetID(), obj.GetPosition(), objectHeight(obj), indentStr)...)
+		emitObjectAnnotations(obj, &statements, indentStr, annotationsByTarget, flowsByOrigin, flowsByDest, activityMap)
 	}
 	splitMergeMap := findErrorHandlerSplitMergePoints(ctx, activityMap, flowsByOrigin)
 

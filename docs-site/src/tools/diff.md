@@ -4,7 +4,8 @@ mxcli provides two diff commands for comparing MDL scripts against project state
 
 ## mxcli diff
 
-Compares an MDL script against the current project state, showing what would change if the script were executed. This is a dry-run preview.
+Shows what `mxcli exec` would change in the project if it ran the script, without
+changing the project.
 
 **Usage:**
 
@@ -12,82 +13,89 @@ Compares an MDL script against the current project state, showing what would cha
 mxcli diff -p app.mpr changes.mdl
 ```
 
-This shows:
-- Elements that would be created (new entities, microflows, pages)
-- Elements that would be modified (changed attributes, altered properties)
-- Elements that would be removed (DROP statements)
+### How it works: diff runs exec
 
-Use `mxcli diff` to review changes before applying them, especially when working with AI-generated scripts.
+`diff` copies the project to a scratch folder, runs the script there with exec's
+own code — the same pre-flight checks, the statements in order, under the
+script's language header — and then compares the copy with the project unit by
+unit. What it reports is therefore exactly what `exec` would write: there is no
+second judgement to disagree with exec's. The project itself is only read, and
+the scratch copy is deleted afterwards (it leaves out `.git`, `deployment`,
+`releases` and `node_modules`).
 
-### What diff does not compare
-
-`diff` compares entities, view entities, enumerations, associations, microflows
-and nanoflows. Every other statement — `grant`, `create constant`, pages,
-navigation, settings — is listed under **Not compared** after the summary:
-
-```
-Summary: 0 new, 0 modified, 1 unchanged
-
-Not compared (2 statement(s)) — diff has no comparison for these,
-so they are absent from the summary above, not unchanged:
-  create constant x1
-  grant microflow access x1
-```
-
-Read that list. The counts describe only the statements diff understands, so a
-script made entirely of the others summarises as all zeros — which means "not
-examined", not "no change". Those statements were previously skipped without a
-word, so the summary looked like a clean bill of health for a script that would
-add documents (#997).
-
-### Both sides go through one renderer
-
-The project side and the script side are rendered by the same describer
-`describe microflow` uses, so an unmodified `describe` dump diffs as
-**unchanged**. Before this, the script side had a renderer of its own that
-covered 18 of 43 activity types and silently emitted nothing for the rest, so a
-java-action call, a `download file` or a canvas annotation appeared as a
-deletion in a script that changed nothing at all.
-
-### `create or modify` of a flow: diff reaches exec's verdict
-
-`exec` applies `create or modify microflow|nanoflow` on a flow that exists as a
-patch spliced into the stored flow, and under `mdl 1;` it refuses a change the
-splice cannot make (a change inside a loop body, a redrawn connector) rather
-than rebuild the flow. `diff` runs the same patch planning, under the script's
-own language header, without writing, so the two agree:
-
-- a statement `exec` would refuse is listed as **Refused**, with the reason,
-  and counted as refused in the summary;
-- a statement whose patch is empty — nothing `exec` would write — is
-  **unchanged**, whatever the two renderings differ in (surrounding whitespace,
-  a bracketed `where [ … ]` against the bare form describe prints). An
-  expression is compared by its tokens: the case of a keyword (`AND`, `and`)
-  and the whitespace and line breaks between tokens — a member list laid out
-  over several lines — are not a change, and neither is `Long` for the one
-  Integer/Long type a flow stores (ako/mxcli#886); what is inside a string
-  literal is compared as written. A statement
-  that builds the flow that is stored is unchanged however that flow is
-  described: a guard clause `if … then return …; end if; return …;` that
-  describe prints as `if … then … else … end if`, a nested guard it prints with
-  a `join`/`merge` pair, a long flow it prints as crossed branches
-  (ako/mxcli#859);
-- a statement `exec` would write although its MDL renders as stored — a
-  `folder` clause naming another folder, which `exec` applies as a move — is
-  **modified**, with what `exec` would write:
-
-  ```
-  Modified: Microflow Shop.ACT_Apply: its MDL renders as stored, but exec would write it: moved to folder 'Archive'
-  ```
+Each unit exec would add, rewrite, move or remove is shown as the `describe` of
+the document before and after. A domain model is shown per entity and
+association, module security per module role, and project security per user
+role and demo user. This covers every document kind — pages, snippets,
+layouts, navigation, settings, security, folders — and statements of every
+kind, including `grant`, `alter`, `move` and `drop`.
 
 ```
-Refused: Microflow Shop.ACT_Apply: exec would refuse this statement and write nothing: the Loop at (700, 200) changes inside its body; …
+--- Page.MyFirstModule.Home_Web (current)
++++ Page.MyFirstModule.Home_Web (script)
+@@ -1,6 +1,6 @@
+ create or modify page MyFirstModule.Home_Web (
+   Title: 'Homepage',
+-  Layout: Atlas_Core.Atlas_TopBar,
++  Layout: Atlas_Core.Atlas_Default,
+   PopupResizable: true
+ ) {
 
-Summary: 0 new, 0 modified, 0 unchanged, 1 refused
+Summary: 0 new, 1 modified, 0 removed — exec would write 1 unit(s)
 ```
 
-Before this, `diff` compared renderings only and said "unchanged" for a
-statement `exec` then refused (ako/mxcli#839).
+A unit exec rewrites although its description does not change — a property
+`describe` does not print, a translation, a move to another folder — is listed
+on one line with what changes, so a write is never hidden behind identical MDL:
+
+```
+Modified: Page MyFirstModule.Home_Web: changed: CanvasHeight, CanvasWidth
+Modified: Microflow Shop.ACT_Apply: moved to 'Shop/Archive'
+```
+
+Files exec writes next to the model (Java sources, theme files) are listed as
+`New file:` / `Modified file:`.
+
+### What diff no longer reports
+
+Because the verdict is exec's own, a script exec has already applied diffs as
+`exec would write nothing`. Before (ako/mxcli#907), diff compared the script's
+text with the stored document's description and reported phantom changes
+exec never makes — `Boolean` against the stored `Boolean default false`,
+`String` against `String(unlimited)`, a position, a re-laid-out flow — and
+did not compare pages, translations or layouts at all.
+
+### Refusals and errors
+
+- A script exec's pre-flight refuses (a `check` error, an unresolved
+  reference, a name clash) is reported as **Refused**, with the same report
+  exec prints, and nothing is written. `--no-check` skips the pre-flight, as
+  it does for exec.
+- A statement exec stops at — a plain `create` of a document that exists
+  (ako/mxcli#807), a `create or modify` of a flow the splice cannot make
+  under `mdl 1;` — is reported as **Refused** with exec's error, after the
+  changes exec makes before it. `--continue-on-error` runs every statement,
+  as it does for exec.
+- Statements that depend on earlier ones (a flow calling a microflow the
+  script creates first) are diffed like any other, because the earlier ones
+  run first (ako/mxcli#856).
+
+```
+Refused: exec would stop at this error, having written nothing: entity already exists: Shop.Order — …
+
+Summary: 0 new, 0 modified, 0 removed — exec would write nothing
+```
+
+`diff` always runs the script with the file engine on the scratch copy, also
+under `--mcp`: the script is executed for real, and only the copy may receive
+it. `--exec-output` prints what exec reports while it runs.
+
+For the same reason a script may not reach past the copy. A `connect` to the
+`-p` project (a headerless script may hold one, and so may a script it runs
+with `execute script`) is followed on the copy; a `connect` to any other
+project, a `sql <alias> <query>` and an `import from` are refused with an error,
+because diff has no copy of that project or database and does not run them for
+real.
 
 ## mxcli diff-local
 

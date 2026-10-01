@@ -121,3 +121,36 @@ func sameMultiset(a, b []string) bool {
 	}
 	return true
 }
+
+// ako/mxcli#528: a data view's footer is a region — its widgets are stored in
+// the data view's FooterWidgets and the footer has no Name — so `footer
+// footerButtons { … }` inside a data view named nothing ALTER could find. It is
+// the same deprecated spelling; a footer anywhere else is a container that
+// keeps its name.
+func TestDataViewFooterNameIsDeprecated(t *testing.T) {
+	old := mustBuild(t, `create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: ( $E: M.E )) {
+  dataview dvMain (DataSource: $E) {
+    footer footerButtons { actionbutton btnSave (Caption: 'Save', Action: save changes) }
+  }
+  footer pageFooter { dynamictext t (Content: 'x') }
+};`)
+	canon := mustBuild(t, `create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, Params: ( $E: M.E )) {
+  dataview dvMain (DataSource: $E) {
+    footer { actionbutton btnSave (Caption: 'Save', Action: save changes) }
+  }
+  footer pageFooter { dynamictext t (Content: 'x') }
+};`)
+	if got := deprecationCodes(old); !reflect.DeepEqual(got, []string{deprecation.UnstoredWidgetName}) {
+		t.Errorf("recorded %v, want one %s for the data view's footer", got, deprecation.UnstoredWidgetName)
+	}
+	if got := deprecationCodes(canon); len(got) != 0 {
+		t.Errorf("the canonical spelling recorded %v", got)
+	}
+	if !reflect.DeepEqual(old.Statements, canon.Statements) {
+		t.Errorf("the two spellings build different pages")
+	}
+	page := canon.Statements[0].(*ast.CreatePageStmtV3)
+	if got := page.Widgets[1].Name; got != "pageFooter" {
+		t.Errorf("a footer outside a data view lost its stored name: %q", got)
+	}
+}

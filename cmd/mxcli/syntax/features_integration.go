@@ -318,9 +318,18 @@ func init() {
 		Keywords: []string{
 			"create published rest", "publish rest", "rest resource",
 			"rest operation", "microflow", "path parameter",
+			"query parameter", "body parameter", "import mapping", "export mapping", "commit",
 			"grant access", "revoke access",
 		},
-		Syntax:  "CREATE [OR MODIFY] PUBLISHED REST SERVICE Module.Name (\n  Path: 'rest/api/v1',\n  Version: '1.0.0',\n  ServiceName: 'My API'\n)\n{\n  RESOURCE 'name' {\n    GET '' MICROFLOW Module.GetAll;\n    GET '{id}' MICROFLOW Module.GetById;\n    POST '' MICROFLOW Module.Create;\n  }\n};\n\nALTER PUBLISHED REST SERVICE Module.Name SET Version = '2.0.0';\nALTER PUBLISHED REST SERVICE Module.Name ADD RESOURCE 'items' { ... };\nALTER PUBLISHED REST SERVICE Module.Name DROP RESOURCE 'legacy';\nDROP PUBLISHED REST SERVICE Module.Name;",
+		Syntax: "CREATE [OR MODIFY] PUBLISHED REST SERVICE Module.Name (\n  Path: 'rest/api/v1',\n  Version: '1.0.0',\n  ServiceName: 'My API'\n)\n{\n  RESOURCE 'name' {\n    GET '' MICROFLOW Module.GetAll;\n    GET '{id}' MICROFLOW Module.GetById;\n    POST '' MICROFLOW Module.Create\n      [IMPORT MAPPING Module.IMM] [EXPORT MAPPING Module.EMM]\n      [COMMIT Yes | YesWithoutEvents | No];   -- no COMMIT clause: Yes\n  }\n};\n\n" +
+			"-- Operation parameters come from the microflow, as Studio Pro derives them:\n" +
+			"--   a parameter named in the path ('{id}')  -> path parameter\n" +
+			"--   an object or a list                     -> the body\n" +
+			"--   System.HttpRequest / HttpResponse       -> none (the request and response)\n" +
+			"--   anything else                           -> query parameter\n" +
+			"-- each with the microflow parameter's type. Create the microflow first.\n" +
+			"-- A header parameter, a renamed one or a description set in Studio Pro has\n" +
+			"-- no MDL spelling: describe notes it, CREATE OR MODIFY / ALTER keep it.\n\nALTER PUBLISHED REST SERVICE Module.Name SET Version = '2.0.0';\nALTER PUBLISHED REST SERVICE Module.Name ADD RESOURCE 'items' { ... };\nALTER PUBLISHED REST SERVICE Module.Name DROP RESOURCE 'legacy';\nDROP PUBLISHED REST SERVICE Module.Name;",
 		Example: "mdl 1;\nCREATE PUBLISHED REST SERVICE Module.OrderAPI (\n  Path: 'rest/orders/v1',\n  Version: '1.0.0',\n  ServiceName: 'Order API'\n)\n{\n  RESOURCE 'orders' {\n    GET '' MICROFLOW Module.GetAllOrders;\n    GET '{id}' MICROFLOW Module.GetOrderById;\n    POST '' MICROFLOW Module.CreateOrder;\n    DELETE '{id}' MICROFLOW Module.DeleteOrder;\n  }\n};\n\nGRANT ACCESS ON PUBLISHED REST SERVICE Module.OrderAPI\n  TO Module.User, Module.Admin;",
 		SeeAlso: []string{"rest", "rest.consumed"},
 	})

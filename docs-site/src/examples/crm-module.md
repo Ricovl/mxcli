@@ -142,7 +142,7 @@ CREATE PAGE CRM.Customer_NewEdit (
           TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
           TEXTBOX txtPhone (Label: 'Phone', Attribute: Phone)
           TEXTAREA txtNotes (Label: 'Notes', Attribute: Notes)
-          FOOTER footer1 {
+          FOOTER {
             ACTIONBUTTON btnSave (
               Caption: 'Save',
               Action: CALL MICROFLOW CRM.ACT_Customer_Save,

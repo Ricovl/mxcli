@@ -28,7 +28,58 @@ func ValidateNanoflow(stmt *ast.CreateNanoflowStmt) []linter.Violation {
 		varKinds:   map[string]exprcheck.TypeKind{},
 	}
 	v.walkExprFunctions(stmt.Body)
+	v.walkAnnotations(stmt.Body)
+	// The nanoflow restrictions exec's build refuses (validateNanoflow): an
+	// action a nanoflow cannot hold, an error-handling clause its activity
+	// rejects (CE6035), a Binary return. They ran only inside exec, so `check`
+	// passed what exec then refused (mendixlabs/mxcli#591).
+	for _, msg := range validateNanoflowBody(stmt.Body) {
+		v.addViolation(nanoflowActivityRule, linter.SeverityError, msg, "")
+	}
+	if msg := validateNanoflowReturnType(stmt.ReturnType); msg != "" {
+		v.addViolation(nanoflowActivityRule, linter.SeverityError, msg, "")
+	}
 	return v.violations
+}
+
+// nanoflowActivityRule reports what a nanoflow cannot hold — the messages of
+// validateNanoflow, which exec refuses in its build. A check-side ID for them.
+const nanoflowActivityRule = "MDL091"
+
+// walkAnnotations applies checkUnknownAnnotations (MDL059, MDL060,
+// MDL079) to every statement of a body, nested ones and error-handler bodies
+// included. A nanoflow runs it over its whole body; a microflow's walkBody
+// covers its own statements and hands it the handler bodies, which walkBody
+// does not enter. A nanoflow is where layout annotations matter most — Studio Pro's
+// PED API does not write nanoflows, so MDL is their only scripted writer — and
+// an annotation that parsed but was dropped there passed check AND exec
+// (mendixlabs/mxcli#992).
+func (v *microflowValidator) walkAnnotations(body []ast.MicroflowStatement) {
+	for _, s := range body {
+		v.checkUnknownAnnotations(s)
+		switch stmt := s.(type) {
+		case *ast.IfStmt:
+			v.walkAnnotations(stmt.ThenBody)
+			v.walkAnnotations(stmt.ElseBody)
+		case *ast.EnumSplitStmt:
+			for _, c := range stmt.Cases {
+				v.walkAnnotations(c.Body)
+			}
+			v.walkAnnotations(stmt.ElseBody)
+		case *ast.InheritanceSplitStmt:
+			for _, c := range stmt.Cases {
+				v.walkAnnotations(c.Body)
+			}
+			v.walkAnnotations(stmt.ElseBody)
+		case *ast.LoopStmt:
+			v.walkAnnotations(stmt.Body)
+		case *ast.WhileStmt:
+			v.walkAnnotations(stmt.Body)
+		}
+		if eh := stmtErrorHandling(s); eh != nil {
+			v.walkAnnotations(eh.Body)
+		}
+	}
 }
 
 // walkExprFunctions applies checkStmtExprFunctions to every statement in the

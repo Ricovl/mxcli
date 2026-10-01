@@ -155,7 +155,9 @@ func TestValidateInputBindingWithoutDataContext(t *testing.T) {
 	varRooted := []*ast.WidgetV3{{
 		Type: "dataview", Name: "dv",
 		Properties: map[string]any{"DataSource": &ast.DataSourceV3{Type: "parameter", Reference: "$P"}},
-		Children:   []*ast.WidgetV3{inputWidget("textbox", "t", &ast.DataSourceV3{Type: "parameter", Reference: "$P"})},
+		// The shape the visitor builds for `$P/Name` (a bare `$P` is a page
+		// variable reference, judged against the document's Variables).
+		Children: []*ast.WidgetV3{inputWidget("textbox", "t", &ast.DataSourceV3{Type: "association", ContextVariable: "P", Reference: "Name"})},
 	}}
 	if n, _ := hits(varRooted, false); n != 1 {
 		t.Errorf("`Attribute: $P/…` inside a data view: MDL-WIDGET34 = %d, want 1", n)

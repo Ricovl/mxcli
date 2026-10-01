@@ -368,6 +368,15 @@ func (b *Backend) MoveEntity(entity *domainmodel.Entity, sourceDMID, targetDMID 
 		sourceDM.RemoveAssociations(removeIdx[i])
 	}
 
+	// The cross-associations that already exist (ako/mxcli#628): the ones the moved
+	// entity is the FROM end of travel with it — or become plain associations again
+	// when their TO entity is already in the target — and the ones in the target
+	// that point at it become plain associations there. See association_move_cross.go.
+	oldEntityQN := sourceModuleName + "." + entity.Name
+	newEntityQN := targetModuleName + "." + entity.Name
+	converted = append(converted, moveOwnCrossAssociations(sourceDM, targetDM, entity.ID, sourceModuleName, targetModuleName)...)
+	converted = append(converted, convertIncomingCrossAssociations(targetDM, entity.ID, oldEntityQN, targetModuleName)...)
+
 	// Rewrite the moved entity's module-qualified refs (view source + validations).
 	oldPrefix, newPrefix := sourceModuleName+".", targetModuleName+"."
 	if entity.Source == "DomainModels$OqlViewEntitySource" && strings.HasPrefix(entity.SourceDocumentRef, oldPrefix) {
@@ -390,9 +399,9 @@ func (b *Backend) MoveEntity(entity *domainmodel.Entity, sourceDMID, targetDMID 
 	//
 	// An ATTRIBUTE reference always follows the entity, so its module prefix is
 	// rewritten unconditionally. An ASSOCIATION reference is rewritten only for the
-	// associations this move actually sent to the target module: a pre-existing
-	// cross-association whose parent is the moved entity is not in the conversion
-	// list and does not travel, so a blanket prefix swap would break it.
+	// associations this move actually sent to the target module — a converted one,
+	// or a pre-existing cross-association the moved entity is the FROM end of
+	// (#628) — never by a blanket prefix swap.
 	assocRenames := make(map[string]string, len(converted))
 	for _, m := range converted {
 		if m.Moved() {
@@ -437,6 +446,11 @@ func (b *Backend) MoveEntity(entity *domainmodel.Entity, sourceDMID, targetDMID 
 	targetDM.AddEntities(ge)
 	if err := b.persistDM(targetDMID, targetDM); err != nil {
 		return nil, fmt.Errorf("MoveEntity: persist target: %w", err)
+	}
+	// A cross-association in any OTHER module that names the moved entity is
+	// re-pointed; nothing else in the move rewrites that module's unit (#628).
+	if err := b.repointCrossAssociationsElsewhere(sourceDMID, targetDMID, oldEntityQN, newEntityQN); err != nil {
+		return nil, fmt.Errorf("MoveEntity: re-point cross-associations: %w", err)
 	}
 	return converted, nil
 }

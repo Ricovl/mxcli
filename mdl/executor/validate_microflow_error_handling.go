@@ -58,6 +58,10 @@ var continueUnsupportedOn = map[string]string{
 	"close page":          "Close page activity",
 	"show message":        "Show message activity",
 	"validation feedback": "Validation feedback activity",
+	// mendixlabs/mxcli#175, measured on 11.14.0 in ako/TestApp: continue is
+	// CE6035 on a Call workflow activity; no clause, rollback and both custom
+	// handlers build.
+	"call workflow": "Call workflow activity",
 }
 
 // checkErrorHandlingContinueSupported reports `ON ERROR CONTINUE` on a statement
@@ -114,6 +118,8 @@ func continueUnsupportedStatement(stmt ast.MicroflowStatement) (keyword, activit
 		keyword = "show message"
 	case *ast.ValidationFeedbackStmt:
 		keyword = "validation feedback"
+	case *ast.CallWorkflowStmt:
+		keyword = "call workflow"
 	default:
 		// DeclareStmt and MfSetStmt are deliberately absent: create-variable and
 		// change-variable accept Continue on 11.14.0.

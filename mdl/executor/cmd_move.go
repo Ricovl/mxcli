@@ -410,9 +410,25 @@ func moveEntity(ctx *ExecContext, name ast.QualifiedName, sourceModule, targetMo
 	}
 
 	fmt.Fprintf(ctx.Output, "Moved entity %s to %s\n", name.String(), targetModule.Name)
-	if len(convertedAssocs) > 0 {
-		fmt.Fprintf(ctx.Output, "Converted %d association(s) to cross-module associations:\n", len(convertedAssocs))
-		for _, assocName := range types.MovedAssociationNames(convertedAssocs) {
+	// A move that brings both endpoints of a cross-association into one module turns
+	// it back into a plain association (ako/mxcli#628); report the two apart.
+	var toCross, toPlain []types.MovedAssociation
+	for _, a := range convertedAssocs {
+		if a.SameModule {
+			toPlain = append(toPlain, a)
+		} else {
+			toCross = append(toCross, a)
+		}
+	}
+	if len(toCross) > 0 {
+		fmt.Fprintf(ctx.Output, "Converted %d association(s) to cross-module associations:\n", len(toCross))
+		for _, assocName := range types.MovedAssociationNames(toCross) {
+			fmt.Fprintf(ctx.Output, "  - %s\n", assocName)
+		}
+	}
+	if len(toPlain) > 0 {
+		fmt.Fprintf(ctx.Output, "Converted %d cross-module association(s) to associations within %s:\n", len(toPlain), targetModule.Name)
+		for _, assocName := range types.MovedAssociationNames(toPlain) {
 			fmt.Fprintf(ctx.Output, "  - %s\n", assocName)
 		}
 	}

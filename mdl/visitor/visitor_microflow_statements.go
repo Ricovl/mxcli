@@ -472,45 +472,61 @@ func hasLaterActivityAnnotation(annotations []parser.IAnnotationContext, start i
 
 // parseAnchorAnnotation populates Anchor / TrueBranchAnchor / FalseBranchAnchor /
 // IteratorAnchor / BodyTailAnchor fields on result from the @anchor(...) params.
+// A parameter it cannot use is recorded in InvalidAnchors, never skipped: a
+// skipped one left the edge on its default sides with nothing said
+// (mendixlabs/mxcli#992).
 func parseAnchorAnnotation(params *parser.AnnotationParamsContext, result *ast.ActivityAnnotations) {
 	flat := &ast.FlowAnchors{From: ast.AnchorSideUnset, To: ast.AnchorSideUnset}
 	flatSet := false
+	invalid := func(pCtx *parser.AnnotationParamContext) {
+		result.InvalidAnchors = append(result.InvalidAnchors, strings.TrimSpace(pCtx.GetText()))
+	}
 
 	for _, p := range params.AllAnnotationParam() {
 		pCtx := p.(*parser.AnnotationParamContext)
 		nameCtx := pCtx.AnnotationParamName()
 		if nameCtx == nil {
-			continue // positional form not supported for @anchor
+			invalid(pCtx) // positional form not supported for @anchor
+			continue
 		}
 		key := strings.ToLower(nameCtx.GetText())
 
 		switch key {
-		case "from":
-			if side, ok := parseAnchorSideFromValue(pCtx.AnnotationValue()); ok {
+		case "from", "to":
+			side, ok := parseAnchorSideFromValue(pCtx.AnnotationValue())
+			if !ok {
+				invalid(pCtx)
+				continue
+			}
+			if key == "from" {
 				flat.From = side
-				flatSet = true
-			}
-		case "to":
-			if side, ok := parseAnchorSideFromValue(pCtx.AnnotationValue()); ok {
+			} else {
 				flat.To = side
-				flatSet = true
 			}
-		case "true":
-			if nested := pCtx.AnnotationParenValue(); nested != nil {
-				result.TrueBranchAnchor = parseNestedFlowAnchors(nested.(*parser.AnnotationParenValueContext))
+			flatSet = true
+		case "true", "false", "iterator", "tail":
+			nested := pCtx.AnnotationParenValue()
+			if nested == nil {
+				invalid(pCtx)
+				continue
 			}
-		case "false":
-			if nested := pCtx.AnnotationParenValue(); nested != nil {
-				result.FalseBranchAnchor = parseNestedFlowAnchors(nested.(*parser.AnnotationParenValueContext))
+			fa, ok := parseNestedFlowAnchors(nested.(*parser.AnnotationParenValueContext))
+			if !ok {
+				invalid(pCtx)
+				continue
 			}
-		case "iterator":
-			if nested := pCtx.AnnotationParenValue(); nested != nil {
-				result.IteratorAnchor = parseNestedFlowAnchors(nested.(*parser.AnnotationParenValueContext))
+			switch key {
+			case "true":
+				result.TrueBranchAnchor = fa
+			case "false":
+				result.FalseBranchAnchor = fa
+			case "iterator":
+				result.IteratorAnchor = fa
+			case "tail":
+				result.BodyTailAnchor = fa
 			}
-		case "tail":
-			if nested := pCtx.AnnotationParenValue(); nested != nil {
-				result.BodyTailAnchor = parseNestedFlowAnchors(nested.(*parser.AnnotationParenValueContext))
-			}
+		default:
+			invalid(pCtx)
 		}
 	}
 
@@ -519,11 +535,13 @@ func parseAnchorAnnotation(params *parser.AnnotationParamsContext, result *ast.A
 	}
 }
 
-// parseNestedFlowAnchors parses a `(from: X, to: Y)` sub-expression into FlowAnchors.
-func parseNestedFlowAnchors(p *parser.AnnotationParenValueContext) *ast.FlowAnchors {
+// parseNestedFlowAnchors parses a `(from: X, to: Y)` sub-expression into
+// FlowAnchors. Either side may be omitted; ok is false when the pair holds
+// anything else, or nothing.
+func parseNestedFlowAnchors(p *parser.AnnotationParenValueContext) (*ast.FlowAnchors, bool) {
 	inner := p.AnnotationParams()
 	if inner == nil {
-		return nil
+		return nil, false
 	}
 	fa := &ast.FlowAnchors{From: ast.AnchorSideUnset, To: ast.AnchorSideUnset}
 	set := false
@@ -531,26 +549,23 @@ func parseNestedFlowAnchors(p *parser.AnnotationParenValueContext) *ast.FlowAnch
 		ppCtx := pp.(*parser.AnnotationParamContext)
 		nameCtx := ppCtx.AnnotationParamName()
 		if nameCtx == nil {
-			continue
+			return nil, false
 		}
-		key := strings.ToLower(nameCtx.GetText())
 		side, ok := parseAnchorSideFromValue(ppCtx.AnnotationValue())
 		if !ok {
-			continue
+			return nil, false
 		}
-		switch key {
+		switch strings.ToLower(nameCtx.GetText()) {
 		case "from":
 			fa.From = side
-			set = true
 		case "to":
 			fa.To = side
-			set = true
+		default:
+			return nil, false
 		}
+		set = true
 	}
-	if !set {
-		return nil
-	}
-	return fa
+	return fa, set
 }
 
 // parseAnchorSideFromValue extracts a side keyword from an annotationValue.

@@ -210,6 +210,7 @@ func (fb *flowBuilder) addLockWorkflowAction(s *ast.LockWorkflowStmt) model.ID {
 		ErrorHandlingType: convertErrorHandlingType(s.ErrorHandling),
 		PauseAllWorkflows: s.PauseAllWorkflows,
 		WorkflowVariable:  s.WorkflowVariable,
+		Workflow:          s.Workflow,
 	}
 	return fb.wrapAction(action, s.ErrorHandling)
 }
@@ -220,6 +221,7 @@ func (fb *flowBuilder) addUnlockWorkflowAction(s *ast.UnlockWorkflowStmt) model.
 		ErrorHandlingType:        convertErrorHandlingType(s.ErrorHandling),
 		ResumeAllPausedWorkflows: s.ResumeAllPausedWorkflows,
 		WorkflowVariable:         s.WorkflowVariable,
+		Workflow:                 s.Workflow,
 	}
 	return fb.wrapAction(action, s.ErrorHandling)
 }

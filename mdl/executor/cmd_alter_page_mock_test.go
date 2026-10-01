@@ -436,7 +436,7 @@ func TestApplyReplaceWidgetMutator_SameNameAllowed(t *testing.T) {
 	}
 	ctx, _ := newMockCtx(t, withBackend(mb))
 
-	err := applyReplaceWidgetMutator(ctx, mutator, op, "MyModule", model.ID("mod-id"))
+	err := applyReplaceWidgetMutator(ctx, mutator, op, "MyModule", model.ID("mod-id"), nil)
 	if err != nil {
 		t.Errorf("same-name replacement should be allowed, got: %v", err)
 	}

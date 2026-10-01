@@ -173,7 +173,7 @@ Before executing, you can preview what a script would change:
 mxcli diff -p app.mpr changes.mdl
 ```
 
-This compares the script against the current project state and shows what would be created, modified, or left unchanged. It does not modify the project.
+This runs the script with exec's own code on a scratch copy of the project and shows every document exec would create, modify or remove, each as its `describe` before and after. It does not modify the project.
 
 ## What mxcli check catches automatically
 

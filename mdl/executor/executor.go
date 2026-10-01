@@ -255,12 +255,13 @@ type Executor struct {
 	settings       map[string]any
 	cache          *executorCache
 	catalog        *catalog.Catalog
-	quiet          bool                               // suppress connection and status messages
-	tally          *mutationTally                     // collapses a program run's "Unchanged" reports into one line
-	accessRun      *accessRuleRun                     // the open run of access-rule statements, if any (#872, #890)
-	format         OutputFormat                       // output format (table, json)
-	logger         *diaglog.Logger                    // session diagnostics logger (nil = no logging)
-	tracer         *backend.Tracer                    // MCP tool-call tracer (--mcp-trace; nil = off)
+	quiet          bool            // suppress connection and status messages
+	tally          *mutationTally  // collapses a program run's "Unchanged" reports into one line
+	accessRun      *accessRuleRun  // the open run of access-rule statements, if any (#872, #890)
+	format         OutputFormat    // output format (table, json)
+	logger         *diaglog.Logger // session diagnostics logger (nil = no logging)
+	tracer         *backend.Tracer // MCP tool-call tracer (--mcp-trace; nil = off)
+	stmtGuard      func(ast.Statement) (ast.Statement, error)
 	fragments      map[string]*ast.DefineFragmentStmt // script-scoped fragment definitions
 	sqlMgr         *sqllib.Manager                    // external SQL connection manager (lazy init)
 	themeRegistry  *ThemeRegistry                     // cached theme design property definitions (lazy init)
@@ -326,11 +327,28 @@ func (e *Executor) SetTracer(t *backend.Tracer) {
 	e.tracer = t
 }
 
+// SetStatementGuard installs a function every statement passes through before
+// it runs — including the statements of a nested EXECUTE SCRIPT, which are
+// dispatched through Execute too. It returns the statement to run in its place,
+// or an error to refuse it. `mxcli diff` uses it to keep a script it runs on a
+// scratch copy from reaching anything but the copy.
+func (e *Executor) SetStatementGuard(g func(ast.Statement) (ast.Statement, error)) {
+	e.stmtGuard = g
+}
+
 // Execute runs a single MDL statement with output-line and wall-clock guards.
 // Each statement gets a fresh line budget. If the statement exceeds maxOutputLines
 // lines of output or runs longer than the configured timeout, it is aborted with an error.
 func (e *Executor) Execute(stmt ast.Statement) error {
 	start := time.Now()
+
+	if e.stmtGuard != nil {
+		s, err := e.stmtGuard(stmt)
+		if err != nil {
+			return err
+		}
+		stmt = s
+	}
 
 	// Announce the MDL command so the PED calls it triggers (reported by the MCP
 	// client) group under it (--mcp-trace, level 2; no-op otherwise).

@@ -229,10 +229,14 @@ func buildLockWorkflowStatement(ctx parser.ILockWorkflowStatementContext) *ast.L
 	c := ctx.(*parser.LockWorkflowStatementContext)
 	stmt := &ast.LockWorkflowStmt{}
 
-	if c.ALL() != nil {
-		stmt.PauseAllWorkflows = true
-	} else if v := c.VARIABLE(); v != nil {
+	if v := c.VARIABLE(); v != nil {
 		stmt.WorkflowVariable = strings.TrimPrefix(v.GetText(), "$")
+	} else if qn := c.QualifiedName(); qn != nil {
+		stmt.Workflow = getQualifiedNameText(qn)
+	}
+	// `pause all` after a workflow, or the bare `lock workflow all`.
+	if c.PAUSE() != nil || len(c.AllALL()) > 0 {
+		stmt.PauseAllWorkflows = true
 	}
 	if errClause := c.OnErrorClause(); errClause != nil {
 		stmt.ErrorHandling = buildOnErrorClause(errClause)
@@ -247,10 +251,13 @@ func buildUnlockWorkflowStatement(ctx parser.IUnlockWorkflowStatementContext) *a
 	c := ctx.(*parser.UnlockWorkflowStatementContext)
 	stmt := &ast.UnlockWorkflowStmt{}
 
-	if c.ALL() != nil {
-		stmt.ResumeAllPausedWorkflows = true
-	} else if v := c.VARIABLE(); v != nil {
+	if v := c.VARIABLE(); v != nil {
 		stmt.WorkflowVariable = strings.TrimPrefix(v.GetText(), "$")
+	} else if qn := c.QualifiedName(); qn != nil {
+		stmt.Workflow = getQualifiedNameText(qn)
+	}
+	if c.UNPAUSE() != nil || len(c.AllALL()) > 0 {
+		stmt.ResumeAllPausedWorkflows = true
 	}
 	if errClause := c.OnErrorClause(); errClause != nil {
 		stmt.ErrorHandling = buildOnErrorClause(errClause)

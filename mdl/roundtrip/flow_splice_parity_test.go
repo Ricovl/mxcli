@@ -5,11 +5,15 @@
 package roundtrip
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
+	"github.com/mendixlabs/mxcli/mdl/backend"
+	modelsdkbackend "github.com/mendixlabs/mxcli/mdl/backend/modelsdk"
 	"github.com/mendixlabs/mxcli/mdl/executor"
 	"github.com/mendixlabs/mxcli/mdl/langver"
+	"github.com/mendixlabs/mxcli/mdl/scriptdiff"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
@@ -103,8 +107,8 @@ func TestPedAppSpliceParity_AuthoredSpellings(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			script := header + spliceParityFlow
 			// diff first: it must reach exec's verdict, and it writes nothing.
-			if out := h.diff(script); !strings.Contains(out, "0 new, 0 modified, 1 unchanged") ||
-				strings.Contains(out, "refused") {
+			if out := h.diff(script); !strings.Contains(out, "exec would write nothing") ||
+				strings.Contains(out, "Refused") {
 				t.Errorf("diff of the unchanged source under %s:\n%s", name, out)
 			}
 			if err := h.exec(script); err != nil {
@@ -127,7 +131,7 @@ func TestPedAppSpliceParity_AuthoredSpellings(t *testing.T) {
 	// spliced in — the comparison is not blind to the where clause.
 	t.Run("an edited constraint writes", func(t *testing.T) {
 		edited := strings.Replace(spliceParityFlow, "MonthKey >= $Context/FromKey", "MonthKey > $Context/FromKey", 1)
-		if out := h.diff("mdl 1;\n" + edited); !strings.Contains(out, "0 new, 1 modified, 0 unchanged") {
+		if out := h.diff("mdl 1;\n" + edited); !strings.Contains(out, "0 new, 1 modified, 0 removed") {
 			t.Errorf("diff of an edited constraint:\n%s", out)
 		}
 		if err := h.exec("mdl 1;\n" + edited); err != nil {
@@ -149,7 +153,7 @@ func TestPedAppSpliceParity_AuthoredSpellings(t *testing.T) {
 		inLoop := strings.Replace(spliceParityFlow, "$Total + $R/MonthKey", "$Total + $R/MonthKey + 1", 1)
 		before := h.snapshot()
 		out := h.diff("mdl 1;\n" + inLoop)
-		if !strings.Contains(out, "Refused: Microflow MyFirstModule.SpliceParity") || !strings.Contains(out, "1 refused") {
+		if !strings.Contains(out, "Refused: exec would stop at this error, having written nothing") || !strings.Contains(out, "cannot be spliced") {
 			t.Errorf("diff of a change exec refuses:\n%s", out)
 		}
 		err := h.exec("mdl 1;\n" + inLoop)
@@ -160,7 +164,7 @@ func TestPedAppSpliceParity_AuthoredSpellings(t *testing.T) {
 			t.Errorf("a refused statement wrote %d unit(s)", len(changed))
 		}
 		// Under mdl 0 the same change is rebuilt, and diff shows the change.
-		if out := h.diff(inLoop); !strings.Contains(out, "0 new, 1 modified, 0 unchanged") {
+		if out := h.diff(inLoop); !strings.Contains(out, "0 new, 1 modified, 0 removed") {
 			t.Errorf("diff of the same change under mdl 0:\n%s", out)
 		}
 	})
@@ -184,11 +188,12 @@ func TestPedAppSpliceParity_DiffReportsTheWriteExecMakes(t *testing.T) {
 	for _, header := range []string{"", "mdl 1;\n"} {
 		name := map[string]string{"": "mdl 0", "mdl 1;\n": "mdl 1"}[header]
 		// Control: the same statement in the stored folder is unchanged.
-		if out := h.diff(header + spliceParityFlow); !strings.Contains(out, "0 new, 0 modified, 1 unchanged") {
+		if out := h.diff(header + spliceParityFlow); !strings.Contains(out, "exec would write nothing") {
 			t.Errorf("diff of the unchanged source under %s:\n%s", name, out)
 		}
-		if out := h.diff(header + moved); !strings.Contains(out, "0 new, 1 modified, 0 unchanged") ||
-			!strings.Contains(out, "moved to folder 'Moved'") {
+		// The folder is new, and the flow is moved into it.
+		if out := h.diff(header + moved); !strings.Contains(out, "1 new, 1 modified, 0 removed") ||
+			!strings.Contains(out, "moved to 'MyFirstModule/Moved'") {
 			t.Errorf("diff of a statement exec moves, under %s:\n%s", name, out)
 		}
 	}
@@ -276,16 +281,21 @@ func runFlowSpliceParity(t *testing.T, fx fixture) {
 	t.Logf("%d flows checked under mdl 0 and mdl 1", flows)
 }
 
-// diff runs `mxcli diff` on a script and returns what it printed.
+// diff runs `mxcli diff` on a script and returns what it printed: the script
+// executed on a scratch copy of the working copy, compared unit by unit.
 func (h *harness) diff(script string) string {
 	h.t.Helper()
-	h.out.Reset()
 	prog, errs := visitor.Build(script)
 	if len(errs) > 0 {
 		h.t.Fatalf("parse: %v", errs[0])
 	}
-	if err := h.exe.DiffProgram(prog, executor.DiffOptions{}); err != nil {
+	rep, err := scriptdiff.Run(h.mpr, prog, scriptdiff.Options{
+		NewBackend: func() backend.FullBackend { return modelsdkbackend.New() },
+	})
+	if err != nil {
 		h.t.Fatalf("diff: %v", err)
 	}
-	return h.out.String()
+	var out bytes.Buffer
+	rep.Write(&out, executor.DiffOptions{}, false)
+	return out.String()
 }

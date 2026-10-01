@@ -39,7 +39,7 @@ end;
 create microflow BugWfPos.Mixed ( $Workflow: System.Workflow ) returns boolean as $Ok
 begin
   lock workflow $Workflow;
-  unlock workflow all;
+  unlock workflow $Workflow unpause all;
   workflow operation pause $Workflow;
   return true;
 end;

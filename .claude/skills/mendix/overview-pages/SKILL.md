@@ -253,7 +253,7 @@ create page Module.Entity_NewEdit folder 'OverviewPages'
           datepicker dpDueDate (label: 'Due Date', attribute: DueDate)
           combobox cbStatus (label: 'Status', attribute: status)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
@@ -370,7 +370,7 @@ create page MdlTemplates.Store_NewEdit folder 'OverviewPages'
           textbox txtName (label: 'Name', attribute: Name)
           textbox txtLocation (label: 'Location', attribute: Location)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
@@ -428,7 +428,7 @@ create page MdlTemplates.Car_NewEdit folder 'OverviewPages'
           datepicker dpDate (label: 'Purchase date', attribute: PurchaseDate)
           radiobuttons rbType (label: 'Car type', attribute: CarType)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }

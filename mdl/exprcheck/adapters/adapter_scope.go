@@ -3,6 +3,7 @@
 package adapters
 
 import (
+	"reflect"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -239,7 +240,27 @@ func StatementErrorHandling(stmt ast.MicroflowStatement) *ast.ErrorHandlingClaus
 	case *ast.AggregateListStmt:
 		return s.ErrorHandling
 	}
-	return nil
+	return reflectedErrorHandling(stmt)
+}
+
+var errorHandlingClauseType = reflect.TypeOf(&ast.ErrorHandlingClause{})
+
+// reflectedErrorHandling reads the clause off any other statement that carries
+// one in an `ErrorHandling` field. The switch above is a list, and a list
+// drifts: `call workflow`, the REST statements and the other workflow
+// statements all take an onErrorClause and were missing from it, so the rules
+// that ask for the clause — MDL076 for one (mendixlabs/mxcli#175) — could not
+// see it, and their handler bodies were never walked.
+func reflectedErrorHandling(stmt ast.MicroflowStatement) *ast.ErrorHandlingClause {
+	v := reflect.ValueOf(stmt)
+	if v.Kind() != reflect.Ptr || v.IsNil() || v.Elem().Kind() != reflect.Struct {
+		return nil
+	}
+	f := v.Elem().FieldByName("ErrorHandling")
+	if !f.IsValid() || f.Type() != errorHandlingClauseType || f.IsNil() {
+		return nil
+	}
+	return f.Interface().(*ast.ErrorHandlingClause)
 }
 
 // errorHandlerBody returns a statement's custom ON ERROR body, or nil when it

@@ -97,7 +97,8 @@ const (
 	AggregateFunctionForm = "MDL-DEPR004"
 	// UnstoredWidgetName is a name written on a page element Mendix stores no
 	// name for: a layout grid's rows and columns, a data grid's columns and
-	// control bar, a gallery's template and filter (R12, ako/mxcli#749).
+	// control bar, a gallery's template and filter (R12, ako/mxcli#749), a
+	// data view's footer (ako/mxcli#528).
 	UnstoredWidgetName = "MDL-DEPR005"
 
 	// R10: document types named as Studio Pro names them (ako/mxcli#755). The
@@ -419,8 +420,8 @@ var entries = []Entry{
 		Rewrite:   Rewrite{Structural: "name out of the element: `row row1 {` becomes `row {`"},
 		RemovedIn: 2,
 		Note: "Mendix stores no name on a layout grid's row, a row's column, a data grid's column or control bar, " +
-			"or a gallery's template or filter, so the name was never written and describe no longer invents one. " +
-			"A data grid column is addressed as `grid column(Attr)` or `grid column('Caption')`.",
+			"a gallery's template or filter, or a data view's footer, so the name was never written and describe no longer invents one. " +
+			"A data grid column is addressed as `grid column(Attr)` or `grid column('Caption')`, a data view's footer as `dv.footer`.",
 		Example:          "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column Name (Attribute: Name) } };",
 		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { datagrid dg (DataSource: database from M.E) { column (Attribute: Name) } };",
 	},
