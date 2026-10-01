@@ -5,16 +5,21 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/mendixlabs/mxcli/mdl/executor"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
 func runFmt(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	// cobra keeps flag values between runs in one process.
-	for _, f := range []string{"write", "upgrade", "header"} {
+	for _, f := range []string{"write", "upgrade", "header", "force-header"} {
 		_ = fmtCmd.Flags().Set(f, "false")
 		fmtCmd.Flags().Lookup(f).Changed = false
 	}
@@ -214,5 +219,75 @@ func TestFmtUpgrade_BareCommitWithoutProjectIsANote(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("output does not mention %q:\n%s", want, out)
 		}
+	}
+}
+
+// ako/mxcli#876: `fmt --upgrade --header` migrated mxcli-rest's scripts with no
+// warning, and exec then refused three of them under the header it had added.
+// With -p, a `create or modify` of a stored flow whose change cannot be
+// spliced in — refused under mdl 1, rebuilt under mdl 0, and no rewrite says
+// "rebuild" — keeps the file off the header, and fmt says which statement and
+// why; --force-header adds it anyway. Control: the stored flow restated as it
+// is takes the header.
+func TestFmtUpgrade_HeaderDeclinedWhereExecWouldRefuse(t *testing.T) {
+	src := filepath.Join("..", "..", "testdata", "pedapp")
+	if _, err := os.Stat(filepath.Join(src, "PedApp.mpr")); err != nil {
+		t.Skipf("PedApp fixture not found: %v", err)
+	}
+	dir := t.TempDir()
+	if err := copyTree(src, dir); err != nil {
+		t.Fatal(err)
+	}
+	mpr := filepath.Join(dir, "PedApp.mpr")
+	const stub = "create or modify microflow MyFirstModule.Grow ($N: Integer)\nreturns Boolean as $Done\nbegin\n  return false;\nend;\n"
+	const grown = "create or modify microflow MyFirstModule.Grow ($N: Integer)\nreturns Boolean as $Done\nbegin\n" +
+		"  if $N <= 0 then\n    return true;\n  end if;\n  return false;\nend;\n"
+	exe := executor.New(io.Discard)
+	exe.SetBackendFactory(newBackendFactory())
+	prog, errs := visitor.Build(fmt.Sprintf("connect local '%s';\n%s", visitor.QuoteString(mpr), stub))
+	if len(errs) > 0 {
+		t.Fatal(errs[0])
+	}
+	if err := exe.ExecuteProgram(prog); err != nil {
+		t.Fatalf("store the stub: %v", err)
+	}
+	_ = exe.Close()
+
+	write := func(script string) string {
+		path := filepath.Join(t.TempDir(), "s.mdl")
+		if err := os.WriteFile(path, []byte(script), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	// Control: the stored flow as it is takes the header.
+	path := write(stub)
+	if out, err := runFmt(t, "--upgrade", "--header", "-w", "-p", mpr, path); err != nil {
+		t.Fatalf("the unchanged flow: %v\n%s", err, out)
+	}
+	if got, _ := os.ReadFile(path); !strings.HasPrefix(string(got), "mdl 1;\n") {
+		t.Fatalf("the unchanged flow did not take the header:\n%s", got)
+	}
+
+	path = write(grown)
+	out, err := runFmt(t, "--upgrade", "--header", "-w", "-p", mpr, path)
+	if err != nil {
+		t.Fatalf("the grown flow: %v\n%s", err, out)
+	}
+	if got, _ := os.ReadFile(path); string(got) != grown {
+		t.Errorf("the header was added to a script exec would then refuse:\n%s", got)
+	}
+	for _, want := range []string{"no language header added", "MyFirstModule.Grow", "cannot be spliced", "--force-header"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("want %q in fmt's report:\n%s", want, out)
+		}
+	}
+
+	if out, err := runFmt(t, "--upgrade", "--header", "--force-header", "-w", "-p", mpr, path); err != nil {
+		t.Fatalf("--force-header: %v\n%s", err, out)
+	}
+	if got, _ := os.ReadFile(path); !strings.HasPrefix(string(got), "mdl 1;\n") {
+		t.Errorf("--force-header did not add the header:\n%s", got)
 	}
 }

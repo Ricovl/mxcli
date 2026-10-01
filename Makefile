@@ -357,7 +357,7 @@ UPGRADE_PROPERTY = ^TestUpgradeExecutesToTheSameModel$$
 # TestApp flow under both language versions (~7 min): its own CI suite. The
 # TestSpliceRerun_ tests (#859) run there too, to keep the roundtrip suite
 # under its time limit (#870).
-SPLICE_PARITY = ^(TestTestAppFlowSpliceParity|TestSpliceRerun_.*)$$
+SPLICE_PARITY = ^(TestTestAppFlowSpliceParity|TestSpliceRerun_.*|TestFlowVerdictAgreement_.*)$$
 INTEGRATION_GO_TEST = CGO_ENABLED=0 go test -tags integration -count=1
 
 test-integration-executor:

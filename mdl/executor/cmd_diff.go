@@ -493,14 +493,14 @@ func diffNanoflow(ctx *ExecContext, s *ast.CreateNanoflowStmt) (*DiffResult, err
 //
 // An error exec would report itself leaves the rendered comparison as it is.
 func spliceVerdict(ctx *ExecContext, d *flowDecl, result *DiffResult) {
-	p, err := planFlowModify(ctx, d)
-	var why *notSpliceable
+	v := decideFlowModify(ctx, d)
+	p := v.plan
 	switch {
-	case errors.As(err, &why):
-		if flowRebuildRefused.Applies(ctx.LanguageVersion) {
-			result.Refused = why.reason
+	case v.why != nil:
+		if v.refused {
+			result.Refused = v.why.reason
 		}
-	case err != nil || p == nil:
+	case v.err != nil || p == nil:
 	case p.mut == nil && d.folder == p.storedFolder:
 		result.Proposed = result.Current
 		result.Changes = nil
