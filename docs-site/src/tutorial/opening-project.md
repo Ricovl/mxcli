@@ -14,6 +14,8 @@ mxcli -p /path/to/app.mpr -c "LIST MODULES"
 
 This opens the project in read-only mode, runs the command, and exits. The `-p` flag works with all mxcli subcommands.
 
+`-c` takes several statements separated by `;`. Like `mxcli exec`, it stops at the first statement that fails, prints `statement 2 of 3: …` and how many later statements were not run, and exits non-zero; add `--continue-on-error` to run every statement and report each failure. An empty `-c ""` is an error: it never opens the interactive REPL, so a script that generates an empty command list cannot hang waiting on input.
+
 ## Opening in the REPL
 
 You can also open a project from inside the interactive REPL:

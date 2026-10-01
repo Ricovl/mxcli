@@ -148,9 +148,9 @@ func fmtFile(cmd *cobra.Command, args []string, declineHeader string) error {
 	var data []byte
 	var err error
 	if fromStdin {
-		data, err = io.ReadAll(os.Stdin)
+		data, err = readMDLSource(stdinPath)
 	} else {
-		data, err = os.ReadFile(filePath)
+		data, err = readMDLSource(filePath)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to read input: %w", err)

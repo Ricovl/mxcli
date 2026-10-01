@@ -317,7 +317,9 @@ func (b *Builder) ExitShowStatement(ctx *parser.ShowStatementContext) {
 			}
 		}
 		b.statements = append(b.statements, stmt)
-	} else if ctx.VERSION() != nil {
+	} else if ctx.VERSION() != nil && ctx.FEATURES() == nil {
+		// `show features for version x.y` also carries VERSION; it belongs to
+		// the FEATURES branch below (ako/mxcli#910).
 		b.statements = append(b.statements, &ast.ShowStmt{ObjectType: ast.ShowVersion})
 	} else if ctx.CATALOG() != nil {
 		// SHOW CATALOG STATUS or SHOW CATALOG TABLES

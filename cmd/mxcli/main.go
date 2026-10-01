@@ -13,7 +13,6 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/diaglog"
 	"github.com/mendixlabs/mxcli/mdl/executor"
-	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/repl"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/spf13/cobra"
@@ -143,51 +142,13 @@ beta language; --mdl 0 starts them in the alpha language, and in the REPL an
 		commands, _ := cmd.Flags().GetString("command")
 		projectPath, _ := cmd.Flags().GetString("project")
 
-		if commands != "" {
-			// Execute commands from -c flag
-			exec, logger := newLoggedExecutor("batch")
-			defer logger.Close()
-			defer exec.Close()
-
-			// Suppress status messages when stdout is a pipe so that
-			// output can be piped directly to other tools (e.g. mxcli fmt).
-			if fi, statErr := os.Stdout.Stat(); statErr == nil && (fi.Mode()&os.ModeCharDevice) == 0 {
-				exec.SetQuiet(true)
-			}
-
-			// The one-liner's language (freeze decision 6): mdl 1 unless
-			// --mdl 0, or a header the commands state themselves. It is what
-			// headerless input is read as and what describe writes.
-			lang := mdlFlag(cmd)
-			if v, written := langver.ScanWrittenHeader(commands); written {
-				lang = v
-			}
-			exec.SetDescribeLanguage(lang)
-
-			// Auto-connect if project specified. CONNECT runs on its own so
-			// that a header in the commands stays their first statement.
-			if projectPath != "" {
-				connectProg, _ := visitor.Build(fmt.Sprintf("CONNECT LOCAL '%s';", visitor.QuoteString(projectPath)))
-				if err := exec.ExecuteProgram(connectProg); err != nil {
-					fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-					os.Exit(1)
-				}
-			}
-
-			prog, errs := visitor.BuildSession(commands, lang)
-			if len(errs) > 0 {
-				for _, err := range errs {
-					fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
-				}
-				os.Exit(1)
-			}
-
-			if err := exec.ExecuteProgram(prog); err != nil {
-				if errors.Is(err, executor.ErrExit) {
-					return
-				}
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
+		// -c given at all — even empty — is a one-liner run, never the REPL:
+		// an empty -c from a generator used to open the interactive prompt and
+		// hang its caller (mendixlabs/mxcli#1218).
+		if cmd.Flags().Changed("command") {
+			continueOnError, _ := cmd.Flags().GetBool("continue-on-error")
+			if code := runCommandLine(cmd, commands, projectPath, continueOnError, os.Stderr); code != 0 {
+				os.Exit(code)
 			}
 		} else {
 			// Start interactive REPL
@@ -353,7 +314,9 @@ func init() {
 	rootCmd.PersistentFlags().Bool("mcp-verbose", false, "Print each PED tool call the MCP backend makes (requires --mcp)")
 	rootCmd.PersistentFlags().Bool("mcp-trace", false, "Print each MDL command with the PED tool calls it makes (implies --mcp-verbose; requires --mcp)")
 	rootCmd.PersistentFlags().String("engine", "", "Deprecated and ignored: there is one model engine. Kept so scripts pinning the old one keep running.")
-	rootCmd.Flags().StringP("command", "c", "", "Execute MDL command(s) and exit")
+	rootCmd.Flags().StringP("command", "c", "", "Execute MDL command(s) and exit (an empty value is an error, never the REPL)")
+	rootCmd.Flags().Bool("continue-on-error", false,
+		"With -c: run every statement, reporting each failure instead of stopping at the first (exits non-zero if any failed)")
 
 	// Check command flags
 	checkCmd.Flags().BoolP("references", "r", false, "Validate references against the project (implied by -p; kept for compatibility)")

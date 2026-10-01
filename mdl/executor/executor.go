@@ -394,7 +394,20 @@ func (e *Executor) Execute(stmt ast.Statement) error {
 }
 
 // ExecuteProgram runs all statements in a program.
-func (e *Executor) ExecuteProgram(prog *ast.Program) (err error) {
+func (e *Executor) ExecuteProgram(prog *ast.Program) error {
+	_, err := e.ExecuteProgramReportingStop(prog)
+	return err
+}
+
+// ExecuteProgramReportingStop is ExecuteProgram that also says where it
+// stopped: the 0-based index of the statement whose error ended the run, or
+// -1 when no statement failed (an error from the run's end-of-program work —
+// the access-rule flush, reconciliation — is not one statement's). A caller
+// running several statements uses it to say which one failed and how many
+// were not run, rather than leaving the rest silently skipped
+// (mendixlabs/mxcli#1218).
+func (e *Executor) ExecuteProgramReportingStop(prog *ast.Program) (stoppedAt int, err error) {
+	stoppedAt = -1
 	if e.beginTally() {
 		defer e.flushTally()
 	}
@@ -419,19 +432,19 @@ func (e *Executor) ExecuteProgram(prog *ast.Program) (err error) {
 		}
 	}()
 
-	for _, stmt := range prog.Statements {
+	for i, stmt := range prog.Statements {
 		if err := rules.step(e, stmt); err != nil {
-			return err
+			return -1, err
 		}
 		if err := e.Execute(stmt); err != nil {
-			return annotateForwardRef(err, stmt, created, allDefined)
+			return i, annotateForwardRef(err, stmt, created, allDefined)
 		}
 		created.collectSingle(stmt)
 	}
 	if err := rules.end(); err != nil {
-		return err
+		return -1, err
 	}
-	return e.finalizeProgramExecution()
+	return -1, e.finalizeProgramExecution()
 }
 
 // enterLanguage runs the following statements under a program's language

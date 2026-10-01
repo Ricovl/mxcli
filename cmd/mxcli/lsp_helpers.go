@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.lsp.dev/uri"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -219,4 +221,30 @@ func parseTableOutput(output string) []projectElement {
 		}
 	}
 	return elems
+}
+
+// documentPath is the path a document's URI names, for deciding what kind of
+// document it is (a `.test.mdl` file, say). uri.URI.Filename panics on any
+// scheme but file, and the VS Code extension opens describe previews as
+// `mendix-mdl:` virtual documents, so calling it directly took the server down
+// on every didOpen (mendixlabs/mxcli#1245). A non-file URI yields its path
+// component; it is a name, not a file on disk.
+func documentPath(docURI uri.URI) string {
+	if isFileURI(docURI) {
+		return docURI.Filename()
+	}
+	if u, err := url.Parse(string(docURI)); err == nil {
+		if u.Path != "" {
+			return u.Path
+		}
+		return u.Opaque
+	}
+	return ""
+}
+
+// isFileURI reports whether a document lives on disk. Only such a document can
+// be handed to `mxcli check` by path.
+func isFileURI(docURI uri.URI) bool {
+	u, err := url.Parse(string(docURI))
+	return err == nil && u.Scheme == uri.FileScheme
 }

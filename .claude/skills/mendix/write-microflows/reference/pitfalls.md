@@ -484,6 +484,11 @@ end loop;
 > `$Customer/Name`, `$currentObject`, `retrieve … from $List`. Quoting the `$` token
 > (`"$Customer"`) breaks resolution.
 
+> **In an XPath, quote names, never values.** `["Status" = 'Accepted']` is fine — the
+> quotes come off the name, in a retrieve, a grant and a workflow targeting alike. A
+> string is always single-quoted: `[Name = "Admin"]` is refused, because a name can
+> never be the right-hand side of an XPath comparison (write `[Name = 'Admin']`).
+
 ```mdl
 mdl 1;
 create persistent entity Module."item" (

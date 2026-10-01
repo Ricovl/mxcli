@@ -245,7 +245,13 @@ func (b *Builder) ExitGrantEntityAccessStatement(ctx *parser.GrantEntityAccessSt
 			stmt.XPathConstraint = bracketedXPathText(groups)
 		} else if sl := ctx.STRING_LITERAL(); sl != nil {
 			stmt.XPathConstraint = unquoteStringLit(sl)
+			b.refuseQuotedXPathStringValues(sl.GetSymbol())
 		}
+		// A double-quoted name is a name, as in a retrieve's XPath: stored
+		// verbatim it is a string literal there, `"Status" = 'Accepted'` is
+		// always false, and the rule silently grants no rows
+		// (mendixlabs/mxcli#1243).
+		stmt.XPathConstraint = stripExpressionIdentifierQuotes(stmt.XPathConstraint)
 	}
 	if ctx.ENTITY() == nil {
 		b.recordReversedEntityGrant(ctx)
