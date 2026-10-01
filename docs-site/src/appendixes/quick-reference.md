@@ -555,6 +555,7 @@ Cross-reference commands require `REFRESH CATALOG FULL` to populate reference da
 | External SQL | `mxcli sql --driver postgres --dsn '...' "SELECT 1"` | Direct database query |
 | Docker build | `mxcli docker build -p app.mpr` | Build with PAD patching |
 | Docker check | `mxcli docker check -p app.mpr` | Validate with `mx check` |
+| Version | `mxcli version` (or `--version`) | Build version and build time |
 | Diagnostics | `mxcli diag [--bundle]` | Session logs, version info |
 | Loop report | `mxcli diag loop-report [--json]` | Which mxcli commands a session actually ran, how often, how long |
 | New project | `mxcli new <name> --version X.Y.Z` | Create project from scratch with all tooling |
