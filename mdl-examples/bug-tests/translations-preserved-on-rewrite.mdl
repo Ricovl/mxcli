@@ -1,3 +1,4 @@
+mdl 1;
 -- Repro: rewriting a document DELETED every language but the one MDL carries.
 -- Slice 1 of PROPOSAL_translations.md.
 --
@@ -45,7 +46,7 @@ create or modify page TrPreserve.P_Single (Title: 'Things', Layout: Atlas_Core.A
   DATAGRID dg (DataSource: DATABASE TrPreserve.Thing) {
     COLUMN (Attribute: Name, Caption: 'Name')
   }
-}
+};
 
 -- Re-running this page must report `Unchanged`: a single-language document has
 -- nothing to carry, and the carry must not perturb it. Run the page statement

@@ -1,0 +1,46 @@
+-- ============================================================================
+-- Bug #264: Log node expressions and microflow describe roundtrip
+-- ============================================================================
+--
+-- Three related regressions surfaced together while exercising real .mpr files:
+--
+-- 1. Legacy `NewCaseValue` on sequence flows (Mx 9) was being dropped by the
+--    parser, so re-describing a Mx 9 project silently lost decision labels.
+-- 2. The describer bailed or emitted malformed MDL when it hit partially
+--    understood activity shapes — a single unknown subfield broke the entire
+--    microflow roundtrip.
+-- 3. The MDL grammar didn't accept the `log` activity's expression-typed NODE
+--    parameter, so any microflow containing a log node with a variable or
+--    constant reference failed to re-parse after describe.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/264-log-node-expression-roundtrip.mdl -p app.mpr
+--   Then: mxcli describe microflow BugTest264.MF_LogWithNode -p app.mpr
+--   The output must re-execute cleanly against the same project.
+-- ============================================================================
+
+create module BugTest264;
+
+-- String-literal node (backwards-compatible shape)
+create microflow BugTest264.MF_LogWithLiteralNode ()
+begin
+  log info node 'BugTest264' 'started';
+end;
+/
+
+-- Variable-ref node — exercises Node expression path
+create microflow BugTest264.MF_LogWithNode (
+  $nodeName: string
+)
+begin
+  log info node $nodeName 'hello';
+end;
+/
+
+-- Multi-line message with embedded newline — exercises the mdlQuote escape
+-- round-trip (`\n` is decoded on parse, re-encoded on describe).
+create microflow BugTest264.MF_LogMultilineMessage ()
+begin
+  log info node 'BugTest264' 'line 1\nline 2\nline 3';
+end;
+/

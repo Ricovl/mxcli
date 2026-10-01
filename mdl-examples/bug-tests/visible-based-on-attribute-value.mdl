@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Conditional visibility "based on attribute value" was dropped on round trip
 -- ============================================================================
@@ -21,14 +22,12 @@
 -- ============================================================================
 
 create enumeration MyFirstModule.JobStatus ( Queued 'Queued', Running 'Running', Done 'Done' );
-/
 
 create entity MyFirstModule.Job (
   Title: String(200),
   Status: Enumeration(MyFirstModule.JobStatus),
   IsUrgent: Boolean default false
 );
-/
 
 create or modify page MyFirstModule.Job_View
 ( Title: 'Job', Layout: Atlas_Core.Atlas_Default, Params: ( $Job: MyFirstModule.Job ) )
@@ -42,7 +41,6 @@ create or modify page MyFirstModule.Job_View
       dynamictext txtDone (Content: 'Finished')
     }
   }
-}
-/
+};
 
 describe page MyFirstModule.Job_View;

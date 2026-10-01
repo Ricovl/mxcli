@@ -1,3 +1,4 @@
+mdl 1;
 -- A message definition's association cardinality was direction-only, and that
 -- is the right rule for a Reference and the wrong one for a ReferenceSet
 -- (ako/mxcli-rest FINDINGS #60).
@@ -36,33 +37,27 @@
 -- object. A fix that returned -1 unconditionally clears CE6524 too.
 
 create module MsgCard;
-/
 
 create or modify entity MsgCard.Customer (
   Name: String(200)
 );
-/
 
 create or modify entity MsgCard.Tag (
   Label: String(100)
 );
-/
 
 create or modify entity MsgCard.Order (
   OrderNo: String(50)
 );
-/
 
 -- The control: a plain Reference. One Order has one Customer, so reaching
 -- Customer from Order is a single object (MaxOccurs 1).
 create or modify association MsgCard.Order_Customer
   from MsgCard.Order to MsgCard.Customer type reference;
-/
 
 -- The bug: a set is many in BOTH directions.
 create or modify association MsgCard.Order_Tag
   from MsgCard.Order to MsgCard.Tag type referenceset;
-/
 
 create or modify message definition collection MsgCard.MD_Orders
 {
@@ -85,7 +80,6 @@ create or modify message definition collection MsgCard.MD_Orders
     }
   }
 };
-/
 
 -- The mapping is where CE0295 lands: an object mapping element bound to an
 -- association whose occurrence disagrees with the domain model is refused.
@@ -102,7 +96,6 @@ create or modify export mapping MsgCard.EXM_Order
     }
   }
 };
-/
 
 -- The second half of the same report: dropping an association a definition
 -- still exposes was accepted silently, and `describe` went on emitting the

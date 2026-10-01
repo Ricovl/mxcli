@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test for ako/mxcli#562:
 -- CREATE OR MODIFY ENTITY drops attributes added by a later ALTER without
 -- saying so.
@@ -52,7 +53,6 @@ begin
   declare $Result Integer = 0;
   return $Result;
 end;
-/
 
 alter entity BugTest562.LithoSystem
   add attribute if not exists OpenRequestCount: Integer

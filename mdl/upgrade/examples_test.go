@@ -133,8 +133,11 @@ var buildsTheSameModelNotTheSameAST = map[string]string{
 	// a List operation statement, which the flow builder turns into a Change
 	// variable with the string function because $Hay is declared String; under
 	// mdl 1 it is that Change variable directly.
-	"bug-tests/ledger-53-string-contains.mdl": "string contains: a List operation turned into the string function",
-	"bug-tests/ledger-63-string-find.mdl":     "string find: a List operation turned into the string function",
+	//
+	// The mdl-0 copies in the alias corpus: the originals were upgraded to
+	// `mdl 1;` with the rest of mdl-examples.
+	"deprecated-aliases/bug-tests--ledger-53-string-contains.mdl": "string contains: a List operation turned into the string function",
+	"deprecated-aliases/bug-tests--ledger-63-string-find.mdl":     "string find: a List operation turned into the string function",
 }
 
 // foldSourceText erases the one part of an ast.SourceExpr the executor never

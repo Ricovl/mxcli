@@ -146,6 +146,7 @@ CREATE PERSISTENT ENTITY HR.Employee EXTENDS System.User (
 ### File and image entities
 
 ```sql
+mdl 1;
 CREATE PERSISTENT ENTITY Catalog.ProductPhoto EXTENDS System.Image (
     Caption: String(200),
     SortOrder: Integer DEFAULT 0
@@ -254,7 +255,7 @@ INDEX (OrderDate DESC);
 - Boolean attributes without an explicit `DEFAULT` automatically default to `FALSE`.
 - `AutoNumber` attributes are only valid on persistent entities.
 - The `@Position` annotation is optional and only affects the visual layout in Mendix Studio Pro.
-- Statements can be terminated with `;` or `/` (Oracle-style).
+- Every statement ends with `;`.
 
 ## See Also
 

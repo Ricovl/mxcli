@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #955, the other half: forward references the executor TOLERATES.
 --
 -- POSITIVE TEST — this script is EXPECTED to PASS `mxcli check`.

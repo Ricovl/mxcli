@@ -91,7 +91,8 @@ func init() {
 			"-- A user task's on-created microflow (see workflow.user-task) takes exactly\n" +
 			"-- System.WorkflowUserTask and the context entity, in either order (else CE6683),\n" +
 			"-- and returns nothing (else CE5012).",
-		Example: "CREATE MICROFLOW HR.ACT_AuditTask (\n" +
+		Example: "mdl 1;\n" +
+			"CREATE MICROFLOW HR.ACT_AuditTask (\n" +
 			"  $WorkflowEvent: System.WorkflowEvent,\n" +
 			"  $WorkflowRecord: System.WorkflowRecord,\n" +
 			"  $WorkflowActivityRecord: System.WorkflowActivityRecord\n" +
@@ -369,7 +370,7 @@ func init() {
 			"      CALL MICROFLOW HR.ACT_NotifyRejected;\n" +
 			"      END WORKFLOW CAPTION 'Rejected';\n" +
 			"    }\n" +
-			"  BOUNDARY EVENT INTERRUPTING TIMER 'addDays([%CurrentDateTime%], 5)' {\n" +
+			"  BOUNDARY EVENT INTERRUPTING TIMER addDays([%CurrentDateTime%], 5) {\n" +
 			"    END WORKFLOW CAPTION 'Expired';\n" +
 			"  };",
 		SeeAlso: []string{"workflow.user-task", "workflow.decision", "workflow.boundary-event", "workflow.jump-to"},

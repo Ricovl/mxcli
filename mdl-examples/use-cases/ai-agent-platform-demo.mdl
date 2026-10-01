@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.9+
 -- ============================================================================
 -- AI Agent Platform Demo
@@ -268,7 +269,7 @@ create page AICustSupport.WF_AgentReview (
       }
     }
   }
-}
+};
 
 create page AICustSupport.WF_Overview (
   title:  'Case Workflow Overview',
@@ -282,7 +283,7 @@ create page AICustSupport.WF_Overview (
       }
     }
   }
-}
+};
 
 create workflow AICustSupport.CaseResolution
   parameter $WorkflowContext: AICustSupport.SupportCase
@@ -431,7 +432,7 @@ create page AICustSupport.Customer_Portal (
       }
     }
   }
-}
+};
 
 create page AICustSupport.Agent_Workspace (
   title:  'Agent Workspace',
@@ -454,7 +455,7 @@ create page AICustSupport.Agent_Workspace (
       }
     }
   }
-}
+};
 
 -- Monitoring page: admins and supervisors can inspect every AI interaction
 create page AICustSupport.Admin_AuditLog (
@@ -481,7 +482,7 @@ create page AICustSupport.Admin_AuditLog (
       }
     }
   }
-}
+};
 
 -- ############################################################################
 -- RBAC: ENTITY ACCESS RULES

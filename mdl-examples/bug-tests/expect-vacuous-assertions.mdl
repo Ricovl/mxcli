@@ -1,3 +1,4 @@
+mdl 1;
 -- FINDINGS #46 (mxcli-sudoku): `mxcli test` silently passed any @expect it could
 -- not evaluate.
 --
@@ -65,7 +66,6 @@ BEGIN
   END IF;
   RETURN $Verdict;
 END;
-/
 
 -- `<>` in the annotation, `!=` in the model. The other spelling is CE0117.
 CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Inequality ()
@@ -79,7 +79,6 @@ BEGIN
   END IF;
   RETURN $Verdict;
 END;
-/
 
 -- length() returns Integer, so the observed value is wrapped in toString().
 CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Length ()
@@ -93,7 +92,6 @@ BEGIN
   END IF;
   RETURN $Verdict;
 END;
-/
 
 CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Find ()
 RETURNS String AS $Verdict
@@ -106,7 +104,6 @@ BEGIN
   END IF;
   RETURN $Verdict;
 END;
-/
 
 -- substring() returns String, so no wrapping. The observed side is the left one.
 CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Substring ()
@@ -120,7 +117,6 @@ BEGIN
   END IF;
   RETURN $Verdict;
 END;
-/
 
 -- The contradiction from the finding: it passed as one expression, and must not.
 CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Contradiction ()
@@ -134,7 +130,6 @@ BEGIN
   END IF;
   RETURN $Verdict;
 END;
-/
 
 -- Neither side is observed, so no actual value is reported.
 CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Falsehood ()
@@ -147,7 +142,6 @@ BEGIN
   END IF;
   RETURN $Verdict;
 END;
-/
 
 -- A Boolean literal on the right pins the left side's type.
 CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Boolean ()
@@ -161,7 +155,6 @@ BEGIN
   END IF;
   RETURN $Verdict;
 END;
-/
 
 CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_Not ()
 RETURNS String AS $Verdict
@@ -174,7 +167,6 @@ BEGIN
   END IF;
   RETURN $Verdict;
 END;
-/
 
 CREATE OR MODIFY MICROFLOW MxExpectRepro.Canary_NestedCalls ()
 RETURNS String AS $Verdict
@@ -187,4 +179,3 @@ BEGIN
   END IF;
   RETURN $Verdict;
 END;
-/

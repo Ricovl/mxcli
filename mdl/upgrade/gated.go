@@ -43,7 +43,8 @@ var gatedRewriters = map[string]GatedRewriter{
 // under EVERY version: the rewritten spelling is read identically with and
 // without the header. `fmt --upgrade` applies these even when it adds no
 // header, the way it rewrites a deprecated alias, so a script moves off the
-// old spelling while mdl 1 is still a preview.
+// old spelling when the header is declined (`--header=false`, or a construct
+// that blocks it).
 //
 // MDL-V1-QUOTEDEXPR (ako/mxcli#836): the bare expression is the canonical
 // spelling since #750 under mdl 0 as well; only the quoted one is read
@@ -84,4 +85,21 @@ func visitorFix(_ *Source, _ *ast.Program, n ast.LanguageNote) ([]Edit, error) {
 		return nil, errors.New("no mechanical rewrite for this occurrence")
 	}
 	return n.Fix.Edits, nil
+}
+
+// GatedRewrite reports what `fmt --upgrade --header` does with a construct
+// gated by the language change code: rewritable when it has a mechanical
+// rewrite that keeps the old meaning under the header, versionNeutral when
+// that rewrite is applied without --header too, and otherwise the reason there
+// is none. known is false for a code the upgrade does not handle at all (a
+// change decided at exec time, against the project). It is what the migration
+// reference and `mxcli help <code>` print.
+func GatedRewrite(code string) (rewritable, neutral bool, reason string, known bool) {
+	if _, ok := gatedRewriters[code]; ok {
+		return true, versionNeutral[code], "", true
+	}
+	if r, ok := unrewritable[code]; ok {
+		return false, false, r, true
+	}
+	return false, false, "", false
 }

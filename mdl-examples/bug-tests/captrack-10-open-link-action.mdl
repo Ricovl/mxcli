@@ -1,3 +1,4 @@
+mdl 1;
 -- The other half of the same defect as SIGN_OUT (CapTrackV2 FINDINGS §10):
 -- `ACTIONBUTTON … (Action: OPEN_LINK '…')` was written by NEITHER engine.
 --
@@ -35,7 +36,6 @@
 --   mx check -p app.mpr        -- 0 errors
 
 create module OpenLink;
-/
 
 create or modify page OpenLink.P_Links
   (Title: 'Links', Layout: Atlas_Core.Atlas_Default)
@@ -49,5 +49,4 @@ create or modify page OpenLink.P_Links
     -- CONTROL: the actions that already worked are untouched.
     actionbutton btnClose (Caption: 'Close', Action: close page)
   }
-}
-/
+};

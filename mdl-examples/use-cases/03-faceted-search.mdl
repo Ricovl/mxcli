@@ -1,3 +1,4 @@
+mdl 1;
 -- =============================================================================
 -- Faceted Search — Mendix Cloud Portal style (per-user, multi-value)
 --
@@ -268,7 +269,7 @@ begin
   -- and Create trips CE0111), so the two paths use distinct names.
   retrieve $Existing from CloudPortal.UserFacet
     where CloudPortal.UserFacet_User = '[%CurrentUser%]'
-    limit 1;
+    first;
 
   if $Existing = empty then
     $Created = create CloudPortal.UserFacet (
@@ -281,7 +282,6 @@ begin
 
   return $Existing;
 end;
-/
 
 -- -----------------------------------------------------------------------------
 -- Step 7: Results grid (UI kept intentionally minimal)
@@ -317,7 +317,7 @@ create page CloudPortal.FacetedSearch folder 'Search' (
       dropdownfilter ddfType
     }
   }
-}
+};
 
 grant read * on entity CloudPortal.Company to CloudPortal.User;
 grant read * on entity CloudPortal.Project to CloudPortal.User;

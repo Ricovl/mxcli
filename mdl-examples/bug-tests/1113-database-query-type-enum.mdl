@@ -1,3 +1,4 @@
+mdl 1;
 -- Mendix 11.13: DatabaseQuery.QueryType became the `Type` string enum
 --
 -- Symptom (on an 11.13 project only): every microflow using EXECUTE DATABASE

@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1057 — a Selection helper with renderStyle 'custom' has three
 -- MANDATORY child slots, and Studio Pro fills each with a Forms$StaticImageViewer.
 -- DESCRIBE PAGE could not spell that widget, so it emitted a note instead:

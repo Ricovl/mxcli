@@ -1,3 +1,4 @@
+mdl 1;
 -- #910 — a one-line change must not re-mint every element identity.
 --
 -- Reported as "Studio Pro shows the entire nanoflow as changed": editing one
@@ -44,7 +45,6 @@ BEGIN
   );
   RETURN $Config;
 END;
-/
 
 CREATE OR MODIFY JAVASCRIPT ACTION Bug910."JS_LoadAdvisor" (
   "apiUrl": String,

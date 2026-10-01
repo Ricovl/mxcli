@@ -8,7 +8,7 @@ CREATE [ OR MODIFY ] KNOWLEDGE BASE module.Name (
     key: @module.KeyConstant
 );
 
-DROP KNOWLEDGE BASE module.Name
+DROP KNOWLEDGE BASE module.Name;
 ```
 
 Requires Mendix 11.9+.
@@ -37,15 +37,15 @@ If `OR MODIFY` is specified and the knowledge base already exists, its propertie
 ### Create a knowledge base
 
 ```sql
+mdl 1;
 CREATE CONSTANT MyModule."KBKey"
     ( Type: String, DefaultValue: '' );
-/
 
 CREATE KNOWLEDGE BASE MyModule."ProductDocs" (
     Provider: MxCloudGenAI,
     key: @MyModule.KBKey
 );
-/
+
 ```
 
 ### Idempotent upsert
@@ -55,7 +55,7 @@ CREATE OR MODIFY KNOWLEDGE BASE MyModule."ProductDocs" (
     Provider: MxCloudGenAI,
     key: @MyModule.KBKey
 );
-/
+
 ```
 
 ## See Also

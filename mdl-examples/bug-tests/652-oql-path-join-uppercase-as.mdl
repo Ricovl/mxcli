@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test for issue #652: an uppercase `AS` on an association-path join left
 -- its alias unresolved, switching off type checks for its columns.
 --

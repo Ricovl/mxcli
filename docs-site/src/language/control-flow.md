@@ -170,7 +170,7 @@ END WHILE;
 
 > **Caution:** Ensure the condition will eventually become false to avoid infinite loops.
 
-`BEGIN` and `END WHILE` are required under the `mdl 1;` header, as they are for `LOOP`. A script without the header may still leave either out, and `check` warns `MDL-V1-WHILE`.
+`BEGIN` and `END WHILE` are required, as they are for `LOOP`.
 
 ## Error Handling
 
@@ -220,7 +220,7 @@ that closes it. A handler that rejoins somewhere else names that point with
 
 ```sql
 -- Continue despite retrieval failure
-RETRIEVE $Config FROM Admin.SystemConfig LIMIT 1 ON ERROR CONTINUE;
+RETRIEVE $Config FROM Admin.SystemConfig FIRST ON ERROR CONTINUE;
 
 -- Custom error handler for external call
 $Response = CALL MICROFLOW Integration.CallExternalAPI (

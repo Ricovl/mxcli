@@ -1,3 +1,4 @@
+mdl 1;
 -- Two statements `mxcli check` passed, `exec` wrote without complaint, and only
 -- mxbuild refused — one of them by refusing to LOAD the project at all.
 -- ako/CapTrackV3 FINDINGS §9 and §46.
@@ -76,7 +77,6 @@
 --        longer be opened by mxbuild or Studio Pro.
 
 create module CrSort;
-/
 
 -- The entity must STORE createdDate for a sort on it to resolve — that is what
 -- the AutoCreatedDate pseudo-type sets.
@@ -84,10 +84,8 @@ create or modify persistent entity CrSort.Item (
   Code: String(20),
   CreatedDate: AutoCreatedDate
 );
-/
 
 create or modify entity CrSort.Region ( Name: String(50) );
-/
 
 -- §9: the reported case, twice over. Two unassigned creates of the SAME entity
 -- must not end up sharing an output variable — Mendix reports that as CE0119, so
@@ -97,7 +95,6 @@ begin
   CREATE CrSort.Region ( Name = 'North' ) COMMIT;
   CREATE CrSort.Region ( Name = 'South' ) COMMIT;
 end;
-/
 
 -- CONTROL for §9: an assigned create keeps the AUTHOR's name, and that name is
 -- still referenceable afterwards. Without this a fix that always generated a name
@@ -108,7 +105,6 @@ begin
   CHANGE $R ( Name = 'West' );
   COMMIT $R;
 end;
-/
 
 -- §46: the spelling that works. A bare system member on an entity that stores it.
 create or modify microflow CrSort.ACT_SortBare ()
@@ -116,7 +112,6 @@ begin
   RETRIEVE $Rows FROM CrSort.Item SORT BY createdDate ASC;
   LOG INFO 'done';
 end;
-/
 
 -- CONTROL for §46: an ordinary attribute, and a fully qualified three-part path.
 -- The existing belongs-to-the-entity check owns the three-part case and must stay
@@ -127,4 +122,3 @@ begin
   RETRIEVE $Rows2 FROM CrSort.Item SORT BY CrSort.Item.Code ASC;
   LOG INFO 'done';
 end;
-/

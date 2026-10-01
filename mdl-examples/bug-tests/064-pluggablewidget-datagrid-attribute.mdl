@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- Bug #64 — PLUGGABLEWIDGET 'com.mendix.widget.web.datagrid.Datagrid' with
@@ -36,6 +37,6 @@ create or modify page Issue64.UoM_TestDG2 (
     column colDimension (Attribute: UoMDimension_Id, Caption: 'Dimension')
     column colHidden (Attribute: IsHidden, Caption: 'Hidden')
   }
-}
+};
 
 grant view on page Issue64.UoM_TestDG2 to Issue64.User;

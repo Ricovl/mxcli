@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1036 — slices 2 and 3 of PROPOSAL_def_driven_widget_bodies.md
 --
 -- `mxcli widget init` generates widget documentation for agents to follow. Fed
@@ -51,7 +52,7 @@ create page DefDriven.HtmlElementBody (
       dynamictext greeting (Content: 'Hello from inside an HTML Element')
     }
   }
-}
+};
 
 -- A pluggable widget with no properties at all. `()` on a def-driven widget
 -- parses for the same reason it does on a built-in (slice 1).
@@ -60,7 +61,7 @@ create page DefDriven.BareWidget (
   Layout: Atlas_Core.Atlas_Default
 ) {
   htmlelement plain ()
-}
+};
 
 -- Containers on widgets that already had keywords keep working unchanged —
 -- the enumerated alternatives are still tried first, so nothing about an
@@ -77,4 +78,4 @@ create page DefDriven.StillWorks (
   container plain (Class: 'row') {
     dynamictext t2 (Content: 'inside a container')
   }
-}
+};

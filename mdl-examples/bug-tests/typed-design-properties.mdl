@@ -1,3 +1,4 @@
+mdl 1;
 -- Typed design properties: with `mxcli check -p app.mpr`, design-property keys
 -- and values are validated against the project's theme registry
 -- (themesource/*/web/design-properties.json):
@@ -17,4 +18,4 @@ create page TypedDP.Home (
   )) {
     dynamictext t1 (content: 'Welcome', rendermode: H2)
   }
-}
+};

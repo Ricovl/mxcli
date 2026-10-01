@@ -21,7 +21,7 @@ func TestTestAppAlterWorkflow_DropPathOnUserTaskIsRefused(t *testing.T) {
 	h := newFixtureHarness(t, testApp)
 	defer h.close()
 
-	before := h.mustDescribe(t, testAppWorkflow)
+	before := h.mustDescribeMdl0(t, testAppWorkflow)
 	for _, want := range []string{"'Good' { }", "'Bad' { }", "'Ugly' { }"} {
 		if !strings.Contains(before, want) {
 			t.Fatalf("fixture changed: describe has no %s:\n%s", want, before)
@@ -48,7 +48,7 @@ func TestTestAppAlterWorkflow_DropPathOnUserTaskIsRefused(t *testing.T) {
 			t.Fatalf("%s\n  the refused statement wrote: %s", tc.script, strings.Join(changed, "; "))
 		}
 	}
-	if after := h.mustDescribe(t, testAppWorkflow); after != before {
+	if after := h.mustDescribeMdl0(t, testAppWorkflow); after != before {
 		t.Errorf("describe changed:\n--- before\n%s\n--- after\n%s", before, after)
 	}
 
@@ -57,7 +57,7 @@ func TestTestAppAlterWorkflow_DropPathOnUserTaskIsRefused(t *testing.T) {
 	if err := h.exec("alter workflow workflow.Workflow1 { drop userTask1 outcome 'Good' };"); err != nil {
 		t.Fatalf("control: %v", err)
 	}
-	after := h.mustDescribe(t, testAppWorkflow)
+	after := h.mustDescribeMdl0(t, testAppWorkflow)
 	if strings.Contains(after, "'Good' { }") || !strings.Contains(after, "'Bad' { }") || !strings.Contains(after, "'Ugly' { }") {
 		t.Errorf("control: want only 'Good' dropped:\n%s", after)
 	}

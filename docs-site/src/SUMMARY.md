@@ -68,6 +68,7 @@
   - [Qualified Names](language/qualified-names.md)
   - [Comments and Documentation](language/comments.md)
   - [Script Files](language/script-files.md)
+  - [Language Versions and Migration](language/versions.md)
 - [Data Types](language/data-types.md)
   - [Primitive Types](language/primitive-types.md)
   - [Constraints](language/constraints.md)

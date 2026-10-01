@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Regression: free microflow annotations remain free after roundtrip
 -- ============================================================================
@@ -28,4 +29,3 @@ begin
   @annotation 'attached activity note'
   log info node 'Synthetic' 'message';
 end;
-/

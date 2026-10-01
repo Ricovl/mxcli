@@ -43,7 +43,7 @@ func TestFlowModify_ImplicitEndIsTheStoredEnd(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
 
-	implicit := withoutTrailingReturn(t, h.mustDescribe(t, showPasswordForm), "@position(695, 200)")
+	implicit := withoutTrailingReturn(t, h.mustDescribeMdl0(t, showPasswordForm), "@position(695, 200)")
 	for _, header := range []string{"", "mdl 1;\n"} {
 		before := h.flowUnit(t, "ShowPasswordForm")
 		if err := h.exec(header + implicit); err != nil {
@@ -67,7 +67,7 @@ func TestFlowModify_AppendBeforeImplicitEnd(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
 
-	implicit := withoutTrailingReturn(t, h.mustDescribe(t, showPasswordForm), "@position(695, 200)")
+	implicit := withoutTrailingReturn(t, h.mustDescribeMdl0(t, showPasswordForm), "@position(695, 200)")
 	edited := strings.Replace(implicit, "\nend;", "\n  log info node 'Pwd' 'shown';\nend;", 1)
 	before := h.flowUnit(t, "ShowPasswordForm")
 	if err := h.exec("mdl 1;\n" + edited); err != nil {
@@ -90,7 +90,7 @@ func TestFlowModify_ReturnValueIsSetInPlace(t *testing.T) {
 	defer h.close()
 
 	const target = "microflow FeedbackModule.ConvertUUIDToURL"
-	described := h.mustDescribe(t, target)
+	described := h.mustDescribeMdl0(t, target)
 	const old = "return 'https://appinsights.mendix.com/link/showfeedback/'+$uuid;"
 	edited := strings.Replace(described, old, "return 'https://example.com/feedback/'+$uuid;", 1)
 	if edited == described {
@@ -108,7 +108,7 @@ func TestFlowModify_ReturnValueIsSetInPlace(t *testing.T) {
 	if len(elementIDs(t, after)) != len(elementIDs(t, before)) {
 		t.Errorf("%d elements after, %d before: the edit added or removed one", len(elementIDs(t, after)), len(elementIDs(t, before)))
 	}
-	again := h.mustDescribe(t, target)
+	again := h.mustDescribeMdl0(t, target)
 	if !strings.Contains(again, "return 'https://example.com/feedback/'+$uuid;") {
 		t.Errorf("describe does not show the new value:\n%s", again)
 	}
@@ -129,7 +129,7 @@ func TestFlowModify_InsertBeforeChangedReturn(t *testing.T) {
 	defer h.close()
 
 	const target = "microflow FeedbackModule.ConvertUUIDToURL"
-	described := h.mustDescribe(t, target)
+	described := h.mustDescribeMdl0(t, target)
 	const old = "  @position(700, 200)\n"
 	edited := strings.Replace(described, old, "  log info node 'Url' $uuid;\n"+old, 1)
 	edited = strings.Replace(edited, "+$uuid;\nend;", "+$uuid+'/';\nend;", 1)
@@ -144,7 +144,7 @@ func TestFlowModify_InsertBeforeChangedReturn(t *testing.T) {
 		t.Errorf("want a splice report, got:\n%s", h.out.String())
 	}
 	requireKept(t, before, h.flowUnit(t, "ConvertUUIDToURL"), "")
-	again := h.mustDescribe(t, target)
+	again := h.mustDescribeMdl0(t, target)
 	if !strings.Contains(again, "log node 'Url'") || !strings.Contains(again, "+$uuid+'/';") {
 		t.Errorf("describe does not show both changes:\n%s", again)
 	}
@@ -157,7 +157,7 @@ func TestFlowModify_BranchReturnValueIsSetInPlace(t *testing.T) {
 	defer h.close()
 
 	const target = "microflow FeedbackModule.ConvertBase64String"
-	described := h.mustDescribe(t, target)
+	described := h.mustDescribeMdl0(t, target)
 	edited := strings.Replace(described, "    return empty;\n", "    return '';\n", 1)
 	if edited == described {
 		t.Fatalf("describe output has no `return empty;`:\n%s", described)
@@ -168,7 +168,7 @@ func TestFlowModify_BranchReturnValueIsSetInPlace(t *testing.T) {
 	}
 	after := h.flowUnit(t, "ConvertBase64String")
 	requireKept(t, before, after, "")
-	if !strings.Contains(h.mustDescribe(t, target), "    return '';\n") {
+	if !strings.Contains(h.mustDescribeMdl0(t, target), "    return '';\n") {
 		t.Error("describe does not show the new value")
 	}
 }
@@ -181,7 +181,7 @@ func TestFlowModify_DroppedBranchReturnIsRefused(t *testing.T) {
 	defer h.close()
 
 	const target = "microflow FeedbackModule.ConvertBase64String"
-	described := h.mustDescribe(t, target)
+	described := h.mustDescribeMdl0(t, target)
 	// The then-branch no longer returns: it falls through to a new trailing
 	// return after the if.
 	edited := strings.Replace(described, "    return substring(", "    declare $X String = substring(", 1)
@@ -306,7 +306,7 @@ func TestAlterFlow_ReplaceReturnSetsTheValue(t *testing.T) {
 	if len(elementIDs(t, after)) != len(elementIDs(t, before)) {
 		t.Error("the alter added or removed an element")
 	}
-	if !strings.Contains(h.mustDescribe(t, "microflow FeedbackModule.ConvertUUIDToURL"), "return 'x'+$uuid;") {
+	if !strings.Contains(h.mustDescribeMdl0(t, "microflow FeedbackModule.ConvertUUIDToURL"), "return 'x'+$uuid;") {
 		t.Error("describe does not show the new value")
 	}
 }

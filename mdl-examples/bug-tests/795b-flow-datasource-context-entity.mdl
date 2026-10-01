@@ -1,3 +1,4 @@
+mdl 1;
 -- Two follow-ups to #795, both found while verifying that fix.
 --
 -- (1) A nanoflow datasource on a pluggable widget was DROPPED AT WRITE TIME and
@@ -53,7 +54,7 @@ create or modify page Issue795b.Probe (
   datagrid gMicroflow (datasource: microflow Issue795b.GetBuckets) {
     column (attribute: BucketKey, caption: 'Key')
   }
-}
+};
 
 describe page Issue795b.Probe;
 

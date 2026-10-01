@@ -202,7 +202,7 @@ func execUnchanged(t *testing.T, h *harness, described string) {
 // write nothing, or the patch left something describe does not state.
 func requireFixedPoint(t *testing.T, h *harness) string {
 	t.Helper()
-	again := h.mustDescribe(t, showPasswordForm)
+	again := h.mustDescribeMdl0(t, showPasswordForm)
 	settled := h.flowUnit(t, pwdForm)
 	if err := h.exec("mdl 1;\n" + again); err != nil {
 		t.Fatalf("re-exec of the new description: %v", err)
@@ -222,7 +222,7 @@ func TestFlowModify_DocumentPropertiesArePatched(t *testing.T) {
 		t.Run(fmt.Sprintf("header %q", header), func(t *testing.T) {
 			h := newHarness(t)
 			defer h.close()
-			described := h.mustDescribe(t, showPasswordForm)
+			described := h.mustDescribeMdl0(t, showPasswordForm)
 			execUnchanged(t, h, described)
 
 			edited := "/** Shows the change-password form. */\n" + editDescribe(t, described,
@@ -261,7 +261,7 @@ func TestFlowModify_DocumentPropertiesArePatched(t *testing.T) {
 func TestFlowModify_ParametersArePatched(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
-	described := h.mustDescribe(t, showPasswordForm)
+	described := h.mustDescribeMdl0(t, showPasswordForm)
 	execUnchanged(t, h, described)
 	orig := h.flowUnit(t, pwdForm)
 
@@ -313,7 +313,7 @@ func TestFlowModify_StatedPositionsMoveStoredNodes(t *testing.T) {
 		t.Run(fmt.Sprintf("header %q", header), func(t *testing.T) {
 			h := newHarness(t)
 			defer h.close()
-			described := h.mustDescribe(t, showPasswordForm)
+			described := h.mustDescribeMdl0(t, showPasswordForm)
 			execUnchanged(t, h, described)
 
 			edited := editDescribe(t, described,
@@ -351,7 +351,7 @@ func TestFlowModify_StatedPositionsMoveStoredNodes(t *testing.T) {
 func TestFlowModify_RedrawnConnectorIsRefused(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
-	described := h.mustDescribe(t, showPasswordForm)
+	described := h.mustDescribeMdl0(t, showPasswordForm)
 	edited := editDescribe(t, described, "@curve(from: (30, 0), to: (-15, 0))", "@curve(from: (30, 0), to: (-15, 20))")
 	before := h.flowUnit(t, pwdForm)
 	err := h.exec("mdl 1;\n" + edited)
@@ -371,7 +371,7 @@ func TestFlowModify_InsertHonoursStatedPosition(t *testing.T) {
 		t.Run(fmt.Sprintf("header %q", header), func(t *testing.T) {
 			h := newHarness(t)
 			defer h.close()
-			described := h.mustDescribe(t, showPasswordForm)
+			described := h.mustDescribeMdl0(t, showPasswordForm)
 			edited := editDescribe(t, described,
 				"  @position(515, 200)\n",
 				"  @position(390, 330)\n  log info node 'Pwd' 'shown';\n  @position(515, 200)\n")
@@ -381,7 +381,7 @@ func TestFlowModify_InsertHonoursStatedPosition(t *testing.T) {
 			}
 			after := h.flowUnit(t, pwdForm)
 			requireKept(t, before, after, "")
-			again := h.mustDescribe(t, showPasswordForm)
+			again := h.mustDescribeMdl0(t, showPasswordForm)
 			if i, j := strings.Index(again, "@position(390, 330)"), strings.Index(again, "log node 'Pwd' 'shown';"); i < 0 || j < i ||
 				strings.Contains(again[i:j], ";") {
 				t.Errorf("the inserted log is not where the script put it:\n%s", again)
@@ -403,7 +403,7 @@ func TestFlowModify_InsertHonoursStatedPosition(t *testing.T) {
 func TestFlowModify_InsertPositionOnLaterStatementOnly(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
-	described := h.mustDescribe(t, showPasswordForm)
+	described := h.mustDescribeMdl0(t, showPasswordForm)
 	edited := editDescribe(t, described,
 		"  @position(515, 200)\n",
 		"  log info node 'Pwd' 'one';\n  @position(390, 330)\n  log info node 'Pwd' 'two';\n  @position(515, 200)\n")
@@ -422,7 +422,7 @@ func TestFlowModify_InsertPositionOnLaterStatementOnly(t *testing.T) {
 	if err := h.exec("mdl 1;\n" + both); err != nil {
 		t.Fatalf("exec: %v", err)
 	}
-	again := h.mustDescribe(t, showPasswordForm)
+	again := h.mustDescribeMdl0(t, showPasswordForm)
 	for _, st := range []struct{ pos, log string }{
 		{"@position(390, 330)", "log node 'Pwd' 'one';"}, {"@position(390, 450)", "log node 'Pwd' 'two';"},
 	} {
@@ -440,7 +440,7 @@ func TestFlowModify_TestAppHeaderAndPositions(t *testing.T) {
 	h := newFixtureHarness(t, testApp)
 	defer h.close()
 	const target = "microflow Administration.ChangePassword"
-	described := h.mustDescribe(t, target)
+	described := h.mustDescribeMdl0(t, target)
 	before := h.flowUnit(t, "ChangePassword")
 	if err := h.exec("mdl 1;\n" + described); err != nil {
 		t.Fatalf("control: %v", err)
@@ -466,7 +466,7 @@ func TestFlowModify_TestAppHeaderAndPositions(t *testing.T) {
 		"/ObjectCollection/Objects/ExclusiveSplit/RelativeMiddlePoint: changed",
 	)
 	settled := h.flowUnit(t, "ChangePassword")
-	again := h.mustDescribe(t, target)
+	again := h.mustDescribeMdl0(t, target)
 	for _, want := range []string{"export level api", "@position(425, 230)", "@position(960, 320)", "@position(500, -15)"} {
 		if !strings.Contains(again, want) {
 			t.Errorf("describe does not show %s:\n%s", want, again)

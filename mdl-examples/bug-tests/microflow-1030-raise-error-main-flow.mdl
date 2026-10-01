@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1030 (the legal form): `raise error;` inside an ON ERROR
 -- handler, which is the only place Mendix allows an error event.
 --
@@ -15,7 +16,6 @@ create or modify microflow RaiseProbe.MF_Inner ()
 begin
   log info node 'RaiseProbe' 'inner';
 end;
-/
 
 -- The error flow out of the call ends in the error event: an error IS in scope,
 -- so re-raising it is exactly what the event is for.
@@ -27,7 +27,6 @@ begin
     raise error;
   end error;
 end;
-/
 
 -- Nested a branch deeper inside the handler — still an error flow.
 create or modify microflow RaiseProbe.MF_HandledIf ($Retry: Boolean)
@@ -41,4 +40,3 @@ begin
     end if;
   end error;
 end;
-/

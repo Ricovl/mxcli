@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #264: Log node expressions and microflow describe roundtrip
 -- ============================================================================
@@ -26,7 +27,6 @@ create microflow BugTest264.MF_LogWithLiteralNode ()
 begin
   log info node 'BugTest264' 'started';
 end;
-/
 
 -- Variable-ref node — exercises Node expression path
 create microflow BugTest264.MF_LogWithNode (
@@ -35,12 +35,12 @@ create microflow BugTest264.MF_LogWithNode (
 begin
   log info node $nodeName 'hello';
 end;
-/
 
 -- Multi-line message with embedded newline — exercises the mdlQuote escape
 -- round-trip (`\n` is decoded on parse, re-encoded on describe).
 create microflow BugTest264.MF_LogMultilineMessage ()
 begin
-  log info node 'BugTest264' 'line 1\nline 2\nline 3';
+  log info node 'BugTest264' 'line 1
+line 2
+line 3';
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Microflow Examples - Comprehensive Parser Feature Showcase
 -- ============================================================================
@@ -38,7 +39,6 @@ create enumeration MfTest.Country (
   -- Australia
   AU 'Australia'
 );
-/
 
 -- Create entities used by microflow examples
 @position(100,100)
@@ -129,7 +129,6 @@ begin
   declare $success boolean = true;
   return $success;
 end;
-/
 
 /**
  * Example 1.1: Simplest possible microflow
@@ -142,7 +141,6 @@ begin
   log trace node 'TEST' 'List received ';
   return $success;
 end;
-/
 
 /**
  * Example 1.1: Simplest possible microflow
@@ -154,7 +152,6 @@ begin
   call microflow MfTest.M001_HelloWorld();
   return true;
 end;
-/
 
 /**
  * Example 1.1: Simplest possible microflow
@@ -168,7 +165,6 @@ begin
   log trace node 'TEST' '< After';
   return $success;
 end;
-/
 
 /**
  * Example 1.1.1: Simplest possible microflow
@@ -181,7 +177,6 @@ begin
   declare $success boolean = true;
   return $success;
 end;
-/
 
 /**
  * Demonstrates variable declaration and arithmetic
@@ -198,7 +193,6 @@ begin
 
   return $Result;
 end;
-/
 
 /**
  * String concatenation and manipulation
@@ -212,7 +206,6 @@ begin
   declare $FullName string = $FirstName + ' ' + $LastName;
   return $FullName;
 end;
-/
 
 /**
  * Example 1.4: Boolean logic
@@ -228,7 +221,6 @@ begin
   declare $CanProceed boolean = $IsActive and $IsValid;
   return $CanProceed;
 end;
-/
 
 /**
  * Demonstrates list of entity parameter type
@@ -241,7 +233,6 @@ create microflow MfTest.M005_1_LogParameter (
 begin
   log info node 'TEST' 'List received';
 end;
-/
 
 /**
  * Demonstrates list of entity parameter type
@@ -254,7 +245,6 @@ create microflow MfTest.M005_2_LogParameter (
 begin
   log info node 'TEST' 'List received ' + 'abc';
 end;
-/
 
 /**
  * Demonstrates list of entity parameter type
@@ -272,7 +262,6 @@ begin
   log error node 'TEST' 'List received ' + 'abc' + 'def';
   log critical node 'TEST' 'List received ' + 'abc' + 'def';
 end;
-/
 
 -- ============================================================================
 -- LEVEL 2: Control Flow
@@ -294,7 +283,6 @@ begin
 
   return $message;
 end;
-/
 
 /**
  * Example 2.2: IF/THEN/ELSE
@@ -316,7 +304,6 @@ begin
 
   return $Category;
 end;
-/
 
 /**
  * Example 2.3: Nested IF statements
@@ -349,7 +336,6 @@ begin
 
   return $Grade;
 end;
-/
 
 -- ============================================================================
 -- LEVEL 3: Logging and Expressions
@@ -371,7 +357,6 @@ begin
   log warning node 'TEST' 'This is a warning message';
   return $success;
 end;
-/
 
 /**
  * Example 3.2: LOG with String template parameters
@@ -415,7 +400,6 @@ begin
 
   return $success;
 end;
-/
 
 /**
  * Example 3.3: Arithmetic expressions with div
@@ -432,7 +416,6 @@ begin
   set $average = $Total div $count;
   return $average;
 end;
-/
 
 /**
  * Example 3.4: Complex arithmetic
@@ -450,7 +433,6 @@ begin
   declare $Interest decimal = $Principal * $RateDecimal * $Time;
   return $Interest;
 end;
-/
 
 -- MARK: Object Ops
 
@@ -477,7 +459,6 @@ begin
 
   return $NewProduct;
 end;
-/
 
 /**
  * Example 4.2: COMMIT operations
@@ -496,7 +477,6 @@ begin
   declare $success boolean = true;
   return $success;
 end;
-/
 
 /**
  * Example 4.3: COMMIT WITH EVENTS
@@ -514,7 +494,6 @@ begin
   declare $success boolean = true;
   return $success;
 end;
-/
 
 /**
  * Example 4.4: CHANGE object
@@ -536,7 +515,6 @@ begin
   declare $success boolean = true;
   return $success;
 end;
-/
 
 /**
  * Creates a new entity object
@@ -559,7 +537,6 @@ begin
 
   return $NewProduct;
 end;
-/
 
 -- MARK: XPath
 
@@ -580,7 +557,6 @@ begin
   declare $ProductName string = $Product/Name;
   return $ProductName;
 end;
-/
 
 /**
  * Example 5.2: CHANGE object attributes
@@ -600,7 +576,6 @@ begin
   declare $success boolean = true;
   return $success;
 end;
-/
 
 /**
  * Example 5.3: XPath association navigation
@@ -615,7 +590,6 @@ begin
   declare $CustomerName string = $Order/MfTest.Order_Customer/MfTest.Customer/Name;
   return $CustomerName;
 end;
-/
 
 /**
  * Example 5.4: CHANGE association
@@ -634,7 +608,6 @@ begin
   declare $success boolean = true;
   return $success;
 end;
-/
 
 /**
  * Example 5.5: XPath in expressions with div
@@ -650,7 +623,6 @@ begin
   declare $DailyAverage decimal = $MonthlyTotal div 30;
   return $DailyAverage;
 end;
-/
 -- MARK: loops
 
 -- ============================================================================
@@ -676,7 +648,6 @@ begin
 
   return $count;
 end;
-/
 
 /**
  * Example 6.1b: LOOP with an annotation note
@@ -702,7 +673,6 @@ begin
 
   return $count;
 end;
-/
 
 /**
  * Example 6.2: LOOP with object modification
@@ -725,7 +695,6 @@ begin
 
   return $UpdatedCount;
 end;
-/
 
 /**
  * Example 6.3: LOOP with conditional logic
@@ -749,7 +718,6 @@ begin
 
   return $ActiveCount;
 end;
-/
 
 /**
  * Example 6.4: Nested loops
@@ -777,7 +745,6 @@ begin
 
   return $TotalLineItems;
 end;
-/
 
 /**
  * Example 6.5: DECLARE inside LOOP body
@@ -802,7 +769,6 @@ begin
 
   return $TotalDiscounted;
 end;
-/
 
 /**
  * Example 6.6: WHILE loop - condition-based iteration
@@ -827,7 +793,6 @@ begin
 
   return $sum;
 end;
-/
 
 /**
  * Example 6.7: WHILE loop with nested IF
@@ -858,7 +823,6 @@ begin
 
   return $IsPrime;
 end;
-/
 
 -- ============================================================================
 -- LEVEL 7: RETRIEVE (Database Queries)
@@ -875,7 +839,6 @@ begin
   retrieve $ProductList from MfTest.Product;
   return $ProductList;
 end;
-/
 
 /**
  * Example 7.2: RETRIEVE with WHERE clause
@@ -891,7 +854,6 @@ begin
     where Code = $SearchCode;
   return $ProductList;
 end;
-/
 
 /**
  * Example 7.3: RETRIEVE with multiple conditions
@@ -907,7 +869,6 @@ begin
 
   return $ProductList;
 end;
-/
 
 /**
  * Example 7.3b: RETRIEVE with multiple conditions
@@ -930,7 +891,6 @@ begin
 
   return $ProductList;
 end;
-/
 
 /**
  * Example 7.4: RETRIEVE single object
@@ -944,10 +904,9 @@ returns MfTest.Product as $Product
 begin
   retrieve $Product from MfTest.Product
     where Code = $ProductCode
-    limit 1;
+    first;
   return $Product;
 end;
-/
 
 create microflow MfTest.M028_DataForm_Getter_2 ()
 returns MfTest.Customer as $FirstCustomer
@@ -955,10 +914,9 @@ begin
   retrieve $CustomerList from MfTest.Customer
     where ( starts-with(Name, 'a') )
     limit 2 offset 3;
-  set $FirstCustomer = head($CustomerList);
+  $FirstCustomer = head $CustomerList;
   return $FirstCustomer;
 end;
-/
 
 create microflow MfTest.M028_DataForm_Getter_3 ()
 returns MfTest.Customer as $FirstCustomer
@@ -971,7 +929,6 @@ begin
   $FirstCustomer = head $CustomerList;
   return $FirstCustomer;
 end;
-/
 
 create microflow MfTest.M028_DataForm_Getter_4 ()
 returns MfTest.Customer as $FirstCustomer
@@ -986,7 +943,6 @@ begin
   $FirstCustomer = head $CustomerList;
   return $FirstCustomer;
 end;
-/
 
 /**
  * Example 7.5: RETRIEVE with [%CurrentDateTime%] token in WHERE
@@ -1001,7 +957,6 @@ begin
     where OrderDate < [%CurrentDateTime%];
   return $OverdueOrders;
 end;
-/
 
 -- ============================================================================
 -- LEVEL 7b: RETRIEVE by Association
@@ -1028,7 +983,6 @@ begin
 
   return;
 end;
-/
 
 /**
  * Example 7.7: RETRIEVE by association (non-persistent entities / NPEs)
@@ -1058,7 +1012,6 @@ begin
 
   return $ValidCount;
 end;
-/
 
 -- MARK: Real World
 
@@ -1081,7 +1034,7 @@ begin
   -- Find the order
   retrieve $Order from MfTest.Order
     where OrderNumber = $OrderNumber
-    limit 1;
+    first;
 
   -- Validate order exists
   if $Order = empty then
@@ -1100,7 +1053,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 /**
  * Example 8.2: Batch processing with counter
@@ -1134,7 +1086,6 @@ begin
 
   return $ProcessedCount;
 end;
-/
 
 /**
  * Example 8.3: Calculation with XPath and div
@@ -1165,7 +1116,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 /**
  * Example 8.4: Multi-step workflow with validation
@@ -1187,7 +1137,7 @@ begin
   -- Step 1: Find customer
   retrieve $Customer from MfTest.Customer
     where Code = $CustomerCode
-    limit 1;
+    first;
 
   if $Customer = empty then
     log error node 'OrderService' 'Customer not found: ' + $CustomerCode;
@@ -1197,7 +1147,7 @@ begin
   -- Step 2: Find product
   retrieve $Product from MfTest.Product
     where Code = $ProductCode
-    limit 1;
+    first;
 
   if $Product = empty then
     log error node 'OrderService' 'Product not found: ' + $ProductCode;
@@ -1227,7 +1177,6 @@ begin
   log info node 'OrderService' 'Order created successfully';
   return $NewOrder;
 end;
-/
 
 /**
  * Example 8.5: Aggregation and reporting
@@ -1265,7 +1214,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 -- ============================================================================
 -- LEVEL 9: Edge Cases and Advanced Patterns
@@ -1294,7 +1242,6 @@ begin
 
   return $count;
 end;
-/
 
 /**
  * Example 9.2: Multiple return paths
@@ -1321,7 +1268,6 @@ begin
   set $Result = 'positive';
   return $Result;
 end;
-/
 
 /**
  * Example 9.3: Empty value comparisons
@@ -1350,7 +1296,6 @@ begin
 
   return $IsValid;
 end;
-/
 
 /**
  * Example 9.4: Complex boolean expressions
@@ -1373,7 +1318,6 @@ begin
 
   return $CanProcess;
 end;
-/
 
 -- MARK: CALL JAVA
 
@@ -1388,7 +1332,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 /**
  * Call submicroflow with result
@@ -1401,7 +1344,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 /** Converts a string to uppercase. */
 create java action MfTest.M038_ExecuteOQLStatement(OqlStatement: string not null) returns boolean
@@ -1409,7 +1351,6 @@ as $$
 /* Unimplemented Java action body - for illustration only */
 return true;
 $$;
-/
 
 /** Converts a string to uppercase. */
 create java action MfTest.M038_ExecuteOQLStatement_2(OqlStatement: stringtemplate(sql) not null) returns boolean
@@ -1417,7 +1358,6 @@ as $$
 /* Unimplemented Java action body - for illustration only */
 return true;
 $$;
-/
 
 /**
  */
@@ -1438,7 +1378,6 @@ begin
   log info node 'Test' 'Update complete';
   return $success;
 end;
-/
 
 
 /**
@@ -1453,7 +1392,6 @@ begin
   log info node 'Test' 'Update complete';
   return $success;
 end;
-/
 
 -- MARK: LIST OPS
 
@@ -1474,7 +1412,6 @@ begin
   $FirstProduct = head $ProductList;
   return $FirstProduct;
 end;
-/
 
 /**
  * Example 10.2: TAIL - Get all but first element
@@ -1489,7 +1426,6 @@ begin
   $RemainingProducts = tail $ProductList;
   return $RemainingProducts;
 end;
-/
 
 /**
  * Example 10.3: FIND - Find single element by expression
@@ -1502,10 +1438,9 @@ create microflow MfTest.M042_ListFind (
 )
 returns MfTest.Product as $FoundProduct
 begin
-  $FoundProduct = find($ProductList, $currentObject/Code = $SearchCode);
+  $FoundProduct = find $ProductList where $currentObject/Code = $SearchCode;
   return $FoundProduct;
 end;
-/
 
 /**
  * Example 10.4: FILTER - Filter list by expression
@@ -1520,7 +1455,6 @@ begin
   $ActiveProducts = filter $ProductList where $currentObject/IsActive = true;
   return $ActiveProducts;
 end;
-/
 
 /**
  * Example 10.5: SORT - Sort list by attribute
@@ -1535,7 +1469,6 @@ begin
   $SortedProducts = sort $ProductList by Name asc;
   return $SortedProducts;
 end;
-/
 
 /**
  * Example 10.6: SORT descending with multiple columns
@@ -1550,7 +1483,6 @@ begin
   $SortedProducts = sort $ProductList by Price desc, Name asc;
   return $SortedProducts;
 end;
-/
 
 /**
  * Example 10.7: UNION - Combine two lists
@@ -1566,7 +1498,6 @@ begin
   $CombinedList = union $ProductList1 with $ProductList2;
   return $CombinedList;
 end;
-/
 
 /**
  * Example 10.8: INTERSECT - Common elements
@@ -1582,7 +1513,6 @@ begin
   $CommonProducts = intersect $ProductList1 with $ProductList2;
   return $CommonProducts;
 end;
-/
 
 /**
  * Example 10.9: SUBTRACT - Remove elements
@@ -1598,7 +1528,6 @@ begin
   $DifferenceList = subtract $ProductList2 from $ProductList1;
   return $DifferenceList;
 end;
-/
 
 /**
  * Example 10.10: CONTAINS - Check if element in list
@@ -1611,10 +1540,9 @@ create microflow MfTest.M049_ListContains (
 )
 returns boolean as $IsInList
 begin
-  $IsInList = contains($ProductList, $Product);
+  $IsInList = contains $Product in $ProductList;
   return $IsInList;
 end;
-/
 
 /**
  * Example 10.11: EQUALS - Compare two lists
@@ -1630,7 +1558,6 @@ begin
   $AreEqual = equals $ProductList1 and $ProductList2;
   return $AreEqual;
 end;
-/
 
 -- MARK: AGGREGATES
 
@@ -1651,7 +1578,6 @@ begin
   $ProductCount = count $ProductList;
   return $ProductCount;
 end;
-/
 
 /**
  * Example 11.2: SUM - Sum attribute values
@@ -1666,7 +1592,6 @@ begin
   $TotalPrice = sum $ProductList by Price;
   return $TotalPrice;
 end;
-/
 
 /**
  * Example 11.3: AVERAGE - Calculate average
@@ -1681,7 +1606,6 @@ begin
   $AveragePrice = average $ProductList by Price;
   return $AveragePrice;
 end;
-/
 
 /**
  * Example 11.4: MINIMUM - Find minimum value
@@ -1696,7 +1620,6 @@ begin
   $MinPrice = minimum $ProductList by Price;
   return $MinPrice;
 end;
-/
 
 /**
  * Example 11.5: MAXIMUM - Find maximum value
@@ -1711,7 +1634,6 @@ begin
   $MaxPrice = maximum $ProductList by Price;
   return $MaxPrice;
 end;
-/
 
 /**
  * Example 11.6: Expression-based aggregates
@@ -1727,7 +1649,6 @@ begin
   $TotalTax = sum $ProductList of $currentObject/Price * 0.21;
   return $TotalTax;
 end;
-/
 
 /**
  * Example 11.7: Combined list operations
@@ -1753,7 +1674,6 @@ begin
 
   return $AverageActivePrice;
 end;
-/
 
 /**
  * Example 11.7: CREATE LIST - Create empty list
@@ -1766,7 +1686,6 @@ begin
   $EmptyList = create list of MfTest.Product;
   return $EmptyList;
 end;
-/
 
 /**
  * Example 11.8: List with ADD operation
@@ -1784,7 +1703,6 @@ begin
   add $NewProduct to $UpdatedList;
   return $UpdatedList;
 end;
-/
 
 /**
  * Example 11.9: List with REMOVE operation
@@ -1803,7 +1721,6 @@ begin
   remove $ProductToRemove from $UpdatedList;
   return $UpdatedList;
 end;
-/
 
 -- ============================================================================
 -- LEVEL 12: Validation
@@ -1837,7 +1754,6 @@ begin
 
   return $IsValid;
 end;
-/
 
 /**
  * Example 12.2: Validation with business rules
@@ -1863,7 +1779,6 @@ begin
 
   return $IsValid;
 end;
-/
 
 -- MARK: ERROR HANDLING
 
@@ -1894,7 +1809,7 @@ begin
   -- Try to find and process the product
   retrieve $Product from MfTest.Product
     where Code = $ProductCode
-    limit 1;
+    first;
 
   if $Product != empty then
     -- This call will continue even if the submicroflow fails
@@ -1905,7 +1820,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 /**
  * Example 13.2: Rollback on error
@@ -1928,7 +1842,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 /**
  * Example 13.3: Custom error handler without rollback
@@ -1944,7 +1857,7 @@ begin
   -- Try to find the product
   retrieve $Product from MfTest.Product
     where Code = $ProductCode
-    limit 1;
+    first;
 
   if $Product != empty then
     -- Call external service with custom error handling
@@ -1960,7 +1873,6 @@ begin
     return $Product;
   end if;
 end;
-/
 
 /**
  * Example 13.4: Error handling in loops
@@ -1985,7 +1897,6 @@ begin
   log info node 'BatchProcess' 'Processed: ' + toString($ProcessedCount) + ' products';
   return $ProcessedCount;
 end;
-/
 
 /**
  * Example 13.5: Nested error handling with logging
@@ -2016,7 +1927,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 /**
  * Example 13.6: Error handling with explicit RAISE ERROR
@@ -2041,7 +1951,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 -- MARK: REST CALLS
 
@@ -2094,7 +2003,6 @@ begin
 
   return $PageContent;
 end;
-/
 
 /**
  * Example 14.2: GET request with URL parameters
@@ -2118,7 +2026,6 @@ begin
 
   return $response;
 end;
-/
 
 /**
  * Example 14.3: POST request with JSON body
@@ -2145,7 +2052,6 @@ begin
 
   return $response;
 end;
-/
 
 -- TODO: Examples with import/export mappings (not yet supported)
 -- Example 14.4: POST with export mapping
@@ -2176,7 +2082,6 @@ begin
 
   return $response;
 end;
-/
 
 /**
  * Example 14.7: REST call with error handling
@@ -2203,7 +2108,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 /**
  * Example 14.8: PUT request to update resource
@@ -2230,7 +2134,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 /**
  * Example 14.9: DELETE request
@@ -2256,7 +2159,6 @@ begin
   set $Deleted = true;
   return $Deleted;
 end;
-/
 
 -- MARK: MOVE
 
@@ -2372,7 +2274,6 @@ begin
   log info node 'CrossModule' 'This microflow will be moved to MfTest2';
   return $success;
 end;
-/
 
 create microflow MfTest.M077_CrossModuleFolderDemo ()
 returns boolean as $Done
@@ -2381,7 +2282,6 @@ begin
   log info node 'CrossModule' 'This microflow will be moved to a folder in MfTest2';
   return $Done;
 end;
-/
 
 -- Move microflow to another module (root)
 move microflow MfTest.M076_CrossModuleDemo to MfTest2;
@@ -2414,7 +2314,6 @@ begin
   set $DefaultCountry = MfTest.Country.NL;
   return $DefaultCountry;
 end;
-/
 
 /**
  * Example 16.2: Microflow with enumeration parameter
@@ -2438,7 +2337,6 @@ begin
 
   return $label;
 end;
-/
 
 /**
  * Example 16.3: Enumeration parameter with alternative syntax
@@ -2456,7 +2354,6 @@ begin
   end if;
   return $IsEU;
 end;
-/
 
 /**
  * Example 16.4: CASE statement (enum split)
@@ -2491,7 +2388,6 @@ begin
   end case;
   return $Region;
 end;
-/
 
 -- MARK: ANNOTATIONS
 
@@ -2518,7 +2414,6 @@ begin
   log info node 'App' 'Hello from annotated microflow';
   return;
 end;
-/
 
 /**
  * M079: Multiple annotations on different activities.
@@ -2533,7 +2428,6 @@ begin
   declare $Result boolean = true;
   return $Result;
 end;
-/
 
 /**
  * M080: Free-floating annotation (not attached to any activity).
@@ -2544,7 +2438,6 @@ begin
   @annotation 'This is a free-floating note, not attached to any activity'
   return;
 end;
-/
 
 /**
  * M081: Annotation with special characters (escaped single quotes).
@@ -2555,14 +2448,12 @@ begin
   log info node 'App' 'Validated';
   return;
 end;
-/
 
 create microflow MfTest.M082_ShowMessage_2 ()
 begin
   show message 'Hello {1}' type Information with ({1} = 'World');
   show message 'Goodbye {1}' type error with ({1} = 'User');
 end;
-/
 
 /**
  * M082b: BLOCKING messages, and APPLY ENTITY ACCESS on the microflow itself.
@@ -2584,7 +2475,6 @@ begin
   show message 'Hello {1}' type Warning with ({1} = $Name) blocking;
   return;
 end;
-/
 
 /**
  * M083: Explicit canvas positions on activities.
@@ -2597,7 +2487,6 @@ begin
   @position(400, 200)
   commit $Obj;
 end;
-/
 
 /**
  * M084: Custom caption on an activity.
@@ -2610,7 +2499,6 @@ begin
   @caption 'Save to database'
   commit $Obj;
 end;
-/
 
 /**
  * M085: Background color on an activity.
@@ -2623,7 +2511,6 @@ begin
   @color Red
   log error node 'App' 'This activity has a red background';
 end;
-/
 
 /**
  * M086: Combined annotations on a single activity.
@@ -2639,7 +2526,6 @@ begin
   @position(500, 200)
   commit $Obj;
 end;
-/
 
 /**
  * M087: Annotations on CLOSE PAGE activity.
@@ -2651,7 +2537,6 @@ begin
   @color Green
   close page;
 end;
-/
 
 /**
  * M088: Annotations on SHOW HOME PAGE activity.
@@ -2664,7 +2549,6 @@ begin
   @annotation 'Navigate the user back to the home page'
   show home page;
 end;
-/
 
 /**
  * M089: Annotations on SHOW MESSAGE activity.
@@ -2679,7 +2563,6 @@ begin
   @color Red
   show message 'Operation failed: {1}' type error with ({1} = 'unknown error');
 end;
-/
 
 -- @version: 11.0+
 /**
@@ -2695,8 +2578,7 @@ create page MfTest.ProductDetail
 )
 {
   dynamictext text1 (content: 'Product Detail', rendermode: H4)
-}
-/
+};
 
 /**
  * M090: Annotations on SHOW PAGE activity.
@@ -2712,7 +2594,6 @@ begin
   @annotation 'Shows the product edit page'
   show page MfTest.ProductDetail(Product = $Product);
 end;
-/
 
 /**
  * M090b: SHOW PAGE using widget-style parameter syntax.
@@ -2724,7 +2605,6 @@ create microflow MfTest.M090b_ShowPageWidgetStyle (
 begin
   show page MfTest.ProductDetail(Product = $Product);
 end;
-/
 
 -- @version: any
 /**
@@ -2752,7 +2632,6 @@ begin
   end if;
   return $IsValid;
 end;
-/
 
 -- ============================================================================
 -- Summary

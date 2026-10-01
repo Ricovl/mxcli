@@ -40,7 +40,7 @@ CREATE PAGE MyModule.Home
   CONTAINER cMain {
     DYNAMICTEXT txtWelcome (Content: 'Welcome to the application')
   }
-}
+};
 ```
 
 ### Page with Parameters
@@ -63,7 +63,7 @@ CREATE PAGE MyModule.Customer_Edit
       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
-}
+};
 ```
 
 ## Page Properties

@@ -18,9 +18,9 @@ import (
 //
 // The grammar keeps parsing them, because the REPL reads its input with the
 // same parser. What changes is a script: under mdl 1 a session command in it
-// is refused, under mdl 0 it runs as before and warns. The REPL never
-// validates a program (ValidateProgram is `check` and `exec`), so it sees
-// neither the warning nor, for a line without a header, the error.
+// is refused, under mdl 0 it runs as before and warns. The REPL and `-c` parse
+// with BuildSession, which accepts them under every version — they start in
+// mdl 1 since the freeze.
 
 // sessionCommandInScript is the new rejection of a session command in a script.
 var sessionCommandInScript = langver.Change{
@@ -37,7 +37,9 @@ var sessionCommandInScript = langver.Change{
 // commands and are not reported.
 func (b *Builder) ExitUtilityStatement(ctx *parser.UtilityStatementContext) {
 	cmd := sessionCommand(ctx)
-	if cmd == "" {
+	if cmd == "" || b.session {
+		// Typed at the REPL or given with -c (BuildSession): the session is
+		// where a session command belongs, under every language version.
 		return
 	}
 	if b.gate(sessionCommandInScript, ctx) {

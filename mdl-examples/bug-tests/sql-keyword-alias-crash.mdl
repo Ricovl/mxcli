@@ -1,3 +1,4 @@
+mdl 1;
 -- `mxcli check` segfaulted on a one-line script — and the line came from
 -- mxcli's own documentation (`mxcli syntax sql` used `AS source`).
 --

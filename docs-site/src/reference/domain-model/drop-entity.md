@@ -28,6 +28,7 @@ DROP ENTITY Sales.CustomerFilter;
 ### Drop entity after checking impact
 
 ```sql
+mdl 1;
 -- Check what references this entity
 LIST IMPACT OF Sales.OldEntity;
 

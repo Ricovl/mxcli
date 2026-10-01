@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#415 — an ALTER WORKFLOW insert op must match the activity's kind.
 --
 -- An activity's outcome list is TYPED, and each inserting op writes exactly one
@@ -46,7 +47,7 @@ create page WF415.TaskPage
   )
   {
     CONTAINER c1 { }
-  }
+  };
 
 create workflow WF415.WF parameter $WorkflowContext: WF415.Ctx
 begin

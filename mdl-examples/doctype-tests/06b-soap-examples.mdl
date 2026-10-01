@@ -1,9 +1,9 @@
+mdl 1;
 create module SampleSOAP;
 
 create entity SampleSOAP.OrderResponse (
   Status : string(50)
 );
-/
 
 -- A call's REQUEST BODY is one of two things, never both: the operation's
 -- arguments, or an export mapping. Mendix stores one RequestBodyHandling, so
@@ -24,7 +24,6 @@ begin
 
   return $Root;
 end;
-/
 
 -- Form 2: the operation's arguments, in the same (Name = value) form every
 -- other call statement uses. Each one binds a named parameter of the operation;
@@ -45,7 +44,6 @@ begin
 
   return $Root;
 end;
-/
 
 create microflow SampleSOAP.ACT_FetchItemsDanglingRefs ()
 returns SampleSOAP.OrderResponse as $Root
@@ -58,7 +56,6 @@ begin
 
   return $Root;
 end;
-/
 
 create microflow SampleSOAP.ACT_FetchItemsRaw ()
 begin
@@ -68,4 +65,3 @@ begin
   -- IDs are binary UUIDs (MPR v2 format) as they would appear in real projects.
   call web service raw 'wgAAAAUkSUQAEAAAAACqqqqqqqqqqqqqqqqqqqqqAiRUeXBlACAAAABNaWNyb2Zsb3dzJENhbGxXZWJTZXJ2aWNlQWN0aW9uAAVJbXBvcnRlZFNlcnZpY2UAEAAAAAC7u7u7u7u7u7u7u7u7u7u7Ak9wZXJhdGlvbk5hbWUAEQAAAEZldGNoU2FtcGxlSXRlbXMAAlRpbWVPdXRFeHByZXNzaW9uAAMAAAAzMAAIVXNlUmVxdWVzdFRpbWVPdXQAAQA=';
 end;
-/

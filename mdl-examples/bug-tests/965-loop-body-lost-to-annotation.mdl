@@ -1,3 +1,4 @@
+mdl 1;
 -- Issue #965: describe emptied a whole loop body when the body carried an
 -- annotation.
 --
@@ -76,7 +77,6 @@ create module BugTest965;
 create entity BugTest965.Thing (
   Name : string(100)
 );
-/
 
 -- The reported shape: an annotated statement as the only thing in the loop.
 create microflow BugTest965.MF_LoopWithAnnotatedBody (
@@ -89,7 +89,6 @@ begin
     log info node 'BugTest965' 'processing a thing';
   end loop;
 end;
-/
 
 -- The annotation on a LATER statement must not displace the first one: body
 -- ORDER has to survive, not merely body content.
@@ -104,7 +103,6 @@ begin
     log info node 'BugTest965' 'second statement';
   end loop;
 end;
-/
 
 -- A while loop shares emitLoopBody, so it shares the defect.
 create microflow BugTest965.MF_WhileWithAnnotatedBody ()
@@ -113,10 +111,9 @@ begin
   while $Continue
   begin
     @annotation 'note inside a while body'
-    $Continue = false;
+    set $Continue = false;
   end while;
 end;
-/
 
 -- Control: an unannotated loop body, which was never affected. If this one ever
 -- breaks, the cause is not #965.
@@ -129,4 +126,3 @@ begin
     log info node 'BugTest965' 'no annotation here';
   end loop;
 end;
-/

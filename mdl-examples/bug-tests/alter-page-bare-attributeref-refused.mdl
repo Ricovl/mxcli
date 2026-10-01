@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- ALTER PAGE refuses to store a bare attribute reference
 -- ============================================================================
@@ -31,7 +32,6 @@ create entity MyFirstModule.AlterBareDraft (
   Subject: String(200),
   PictureUrl: String(400)
 );
-/
 
 @excluded
 create or modify page MyFirstModule.AlterBareDraft_Example
@@ -40,8 +40,7 @@ create or modify page MyFirstModule.AlterBareDraft_Example
   dataview dv (DataSource: nanoflow MyFirstModule.DS_MissingAlterBareDraft) {
     textbox txtSubject (Label: 'Subject', Attribute: MyFirstModule.AlterBareDraft.Subject)
   }
-}
-/
+};
 
 -- Inside the data view there is no resolvable entity: only a qualified
 -- reference can be stored.
@@ -54,4 +53,3 @@ alter page MyFirstModule.AlterBareDraft_Example {
     )
   }
 };
-/

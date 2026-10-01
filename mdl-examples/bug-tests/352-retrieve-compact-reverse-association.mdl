@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #352 (part): Compact reverse-association retrieve formatter
 -- ============================================================================
@@ -32,17 +33,14 @@ create module BugTest352a;
 create entity BugTest352a.Runtime (
   Name : string(100)
 );
-/
 
 create entity BugTest352a.Domain (
   Name : string(100)
 );
-/
 
 create association BugTest352a.Domain_Runtime
   from BugTest352a.Domain
   to BugTest352a.Runtime;
-/
 
 -- Compact reverse-association retrieve. Describe → exec → describe must
 -- preserve the `from $Runtime/BugTest352a.Domain_Runtime` shape.
@@ -53,4 +51,3 @@ returns list of BugTest352a.Domain as $Domains
 begin
   retrieve $Domains from $Runtime/BugTest352a.Domain_Runtime;
 end;
-/

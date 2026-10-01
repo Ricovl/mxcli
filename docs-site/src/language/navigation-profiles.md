@@ -39,7 +39,7 @@ no `;` between them. The old `MENU ( … )` block still parses and warns
 ### Full Example
 
 ```sql
-CREATE OR REPLACE NAVIGATION Responsive
+CREATE OR MODIFY NAVIGATION Responsive
   HOME PAGE MyModule.Home_Web
   HOME PAGE MyModule.AdminHome FOR Administrator
   LOGIN PAGE Administration.Login
@@ -59,7 +59,7 @@ CREATE OR REPLACE NAVIGATION Responsive
 A profile only requires a home page:
 
 ```sql
-CREATE OR REPLACE NAVIGATION Phone
+CREATE OR MODIFY NAVIGATION Phone
   HOME PAGE MyModule.Home_Phone;
 ```
 
@@ -71,7 +71,7 @@ an empty screen. This is the most common way an offline profile looks broken
 while every check passes.
 
 ```sql
-create or replace navigation PhoneOffline
+create or modify navigation PhoneOffline
   home page MyModule.Mobile_Dashboard
   sync (
     sync MyModule.Setting online;

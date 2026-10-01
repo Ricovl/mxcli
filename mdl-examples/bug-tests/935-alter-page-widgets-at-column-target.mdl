@@ -1,3 +1,4 @@
+mdl 1;
 -- upstream #935 (defect 1) — ALTER PAGE INSERT/REPLACE at a DOTTED DataGrid2
 -- column target, with a body that is NOT a `column …` block.
 --

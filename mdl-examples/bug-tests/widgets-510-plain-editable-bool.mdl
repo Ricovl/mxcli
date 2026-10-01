@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#510 — MDL-WIDGET20 falsely warned that `Editable` is dropped on a
 -- List View and on a grid column. mxcli writes both.
 --

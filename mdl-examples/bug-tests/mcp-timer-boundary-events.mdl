@@ -1,3 +1,4 @@
+mdl 1;
 -- Timer boundary events written over MCP were stored wrongly by Studio Pro 11.14.
 --
 -- Symptom (mxcli exec --mcp …, then ped_check_errors / ped_read_document):

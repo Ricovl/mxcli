@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue #603 — the click action on a CONTAINER could not be expressed in MDL.
 --
@@ -38,4 +39,4 @@ create page MyFirstModule.ClickableCard (
   container plain (Class: 'plain-card') {
     dynamictext plainText (Content: 'Not clickable')
   }
-}
+};

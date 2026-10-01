@@ -1,3 +1,4 @@
+mdl 1;
 -- WidgetDemo: seed data microflow + navigation
 -- This script is part of the WidgetDemo module bootstrap (run after 01, 02 and 03)
 
@@ -8,7 +9,7 @@
 create or modify microflow WidgetDemo.SeedAndShowShowcase ()
 begin
   @position(200, 200)
-  retrieve $Existing from WidgetDemo.DemoItem limit 1;
+  retrieve $Existing from WidgetDemo.DemoItem first;
 
   @position(400, 200)
   if $Existing != empty then
@@ -93,7 +94,6 @@ begin
   @position(800, 400)
   return;
 end;
-/
 
 grant execute on microflow WidgetDemo.SeedAndShowShowcase to WidgetDemo.user;
 

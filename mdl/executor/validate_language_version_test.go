@@ -27,16 +27,11 @@ func languageViolations(t *testing.T, src string) []linter.Violation {
 	return out
 }
 
-// Before beta, `mdl 1;` parses but warns that it may still change (ADR-0011).
-func TestValidateLanguageVersion_PreviewWarns(t *testing.T) {
-	vs := languageViolations(t, "mdl 1;\nshow entities;")
-	if len(vs) != 1 {
-		t.Fatalf("want one preview warning, got %v", vs)
-	}
-	v := vs[0]
-	if v.RuleID != "MDL-LANG01" || v.Severity != linter.SeverityWarning ||
-		!strings.Contains(v.Message, "preview: may still change") {
-		t.Fatalf("got %+v", v)
+// mdl 1 is frozen (ako/mxcli#714): its header is a contract and warns
+// nothing. Before the freeze it warned MDL-LANG01 "preview: may still change".
+func TestValidateLanguageVersion_FrozenHeaderDoesNotWarn(t *testing.T) {
+	if vs := languageViolations(t, "mdl 1;\nlist entities;"); len(vs) != 0 {
+		t.Fatalf("the frozen mdl 1 header warned: %v", vs)
 	}
 }
 

@@ -25,6 +25,7 @@ CREATE CONSUMED ODATA SERVICE MyModule.Service (
 
 ### 2. Relative path (with or without `./`)
 ```mdl
+mdl 1;
 -- Resolved relative to the .mpr file's directory, then normalized to absolute file://
 -- Example: './metadata/service.xml' → 'file:///absolute/path/to/project/metadata/service.xml'
 CREATE CONSUMED ODATA SERVICE MyModule.Service (

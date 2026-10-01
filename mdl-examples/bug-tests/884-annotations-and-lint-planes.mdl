@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test for upstream issue #884 (two of the four reported problems).
 --
 -- 1. UNKNOWN ANNOTATIONS WERE SILENTLY DROPPED.
@@ -21,9 +22,7 @@
 -- Verified on mxbuild 11.6.6.
 
 create module B884;
-/
 create non-persistent entity B884.Rec ( Nm: string(100) );
-/
 
 -- Cross-canvas: the outer node is at absolute (150,150); the loop child is at
 -- container-relative (141,130). Different planes — MPR008 must stay silent.
@@ -40,7 +39,6 @@ begin
   declare $Ok boolean = true;
   return $Ok;
 end;
-/
 
 -- Same canvas, 10px apart: MPR008 must STILL report this, or the scoping fix
 -- traded a false positive for a false negative.
@@ -53,7 +51,6 @@ begin
   declare $R string = $A;
   return $R;
 end;
-/
 
 -- Every annotation mxcli implements, so the new rejection cannot fire on valid
 -- input (checked against 405 real MDL blocks in the skills and docs corpora).
@@ -70,7 +67,6 @@ begin
   declare $R string = $A;
   return $R;
 end;
-/
 
 -- Rejected at check time (MDL059), so kept commented:
 --   @size(600, 300)      -- not implemented; container Size is still unauthorable
@@ -101,7 +97,6 @@ begin
   declare $R string = $A;
   return $R;
 end;
-/
 
 -- 4. THE IMPLICIT MERGE THAT CLOSES A SPLIT WAS UNADDRESSABLE.
 --    The statement's own @position belongs to the SPLIT, so the end-if join was
@@ -128,4 +123,3 @@ begin
   declare $R string = $P;
   return $R;
 end;
-/

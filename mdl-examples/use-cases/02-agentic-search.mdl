@@ -1,3 +1,4 @@
+mdl 1;
 -- =============================================================================
 -- Agentic Search Capabilities - Comprehensive Reference
 -- =============================================================================
@@ -399,7 +400,7 @@ create page TaskMgmt.Task_Detail
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
-}
+};
 
 /**
  * Project overview page
@@ -425,7 +426,7 @@ create page TaskMgmt.Project_Overview
       }
     }
   }
-}
+};
 
 /**
  * Task overview page
@@ -467,7 +468,7 @@ create page TaskMgmt.Task_Overview
       }
     }
   }
-}
+};
 
 
 -- #############################################################################

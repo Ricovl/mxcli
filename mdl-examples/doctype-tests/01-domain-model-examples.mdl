@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Domain Model Examples - Comprehensive Entity & Enumeration Showcase
 -- ============================================================================
@@ -54,7 +55,6 @@ create enumeration DmTest.OrderStatus (
   -- Order was cancelled
   CANCELLED 'Cancelled'
 );
-/
 
 /**
  * Priority levels for tasks.
@@ -69,7 +69,6 @@ create enumeration DmTest.Priority (
   -- Critical priority - immediate attention required
   critical 'Critical'
 );
-/
 
 -- ============================================================================
 -- Level 1.2: Enumeration with Captions
@@ -91,7 +90,6 @@ create enumeration DmTest.PaymentMethod (
   -- Cash on delivery
   COD 'Cash on Delivery'
 );
-/
 
 /**
  * Country codes with full names as captions.
@@ -112,7 +110,6 @@ create enumeration DmTest.Country (
   -- Australia
   AU 'Australia'
 );
-/
 
 /**
  * User roles with descriptive captions.
@@ -139,7 +136,6 @@ create or modify enumeration DmTest.UserRole (
   -- Service account for API access
   service 'API Service Account'
 );
-/
 
 -- MARK: Altering Enumerations
 
@@ -157,7 +153,6 @@ alter enumeration DmTest.ShipmentStage rename value Packed to Packaged;
 -- Change an existing value's caption in place (name unchanged). Unlike drop +
 -- recreate, this works even while the enumeration is referenced by an attribute.
 alter enumeration DmTest.ShipmentStage modify value Shipped caption 'Delivered to Customer';
-/
 
 -- ############################################################################
 -- PART 2: BASIC PERSISTENT ENTITIES
@@ -176,7 +171,6 @@ alter enumeration DmTest.ShipmentStage modify value Shipped caption 'Delivered t
 create persistent entity DmTest.SimpleTag (
   Name: string(50)
 );
-/
 
 /**
  * Simplest possible entity with just an identifier attribute.
@@ -185,7 +179,6 @@ create persistent entity DmTest.SimpleTag (
 create or modify persistent entity DmTest.SimpleTag (
   Name: string(50) not null
 );
-/
 
 /**
  * Entity with a few basic attributes.
@@ -199,7 +192,6 @@ create persistent entity DmTest.Category (
   /** Display order */
   SortOrder: integer default 0
 );
-/
 
 -- ============================================================================
 -- Level 2.2: Entity with All Basic Types
@@ -240,7 +232,6 @@ create persistent entity DmTest.Product (
   /** Product image (Binary data) */
   ProductImage: binary
 );
-/
 
 -- ============================================================================
 -- Level 2.3: Entity with String Length Variations
@@ -264,7 +255,6 @@ create persistent entity DmTest.Document (
   /** Short identifier code */
   ShortCode: string(10) unique error message 'Short code must be unique'
 );
-/
 
 -- ############################################################################
 -- PART 3: ENTITIES WITH CONSTRAINTS
@@ -299,7 +289,6 @@ create persistent entity DmTest.Customer (
   /** Country (enumeration) */
   Country: enumeration(DmTest.Country)
 );
-/
 
 -- ============================================================================
 -- Level 3.2: UNIQUE Constraints
@@ -328,7 +317,6 @@ create persistent entity DmTest.Employee (
   /** Whether employee is a manager */
   IsManager: boolean default false
 );
-/
 
 -- ============================================================================
 -- Level 3.3: DEFAULT Values
@@ -357,7 +345,6 @@ create persistent entity DmTest.settings (
   /** Multiplier factor */
   Multiplier: decimal default 1.0
 );
-/
 
 -- ============================================================================
 -- Level 3.4: Combined Constraints
@@ -396,7 +383,6 @@ create persistent entity DmTest.BankAccount (
   /** Date of last transaction */
   LastTransactionDate: datetime
 );
-/
 
 -- ############################################################################
 -- PART 4: ENTITIES WITH INDEXES
@@ -424,7 +410,6 @@ create persistent entity DmTest.Subscriber (
   IsVerified: boolean default false
 )
 index (Email);
-/
 
 -- ============================================================================
 -- Level 4.2: Multiple Indexes
@@ -468,7 +453,6 @@ index (OrderNumber),
 index (CustomerId asc),
 index (OrderDate desc),
 index (OrderStatus);
-/
 
 -- ============================================================================
 -- Level 4.3: Composite Index
@@ -501,7 +485,6 @@ create persistent entity DmTest.AuditLog (
 index (EntityType, EntityId),
 index (Timestamp),
 index (UserId);
-/
 
 -- ############################################################################
 -- PART 5: JAVADOC DOCUMENTATION
@@ -536,7 +519,6 @@ create persistent entity DmTest.user (
   /** Last login timestamp */
   LastLoginAt: datetime
 );
-/
 
 -- ============================================================================
 -- Level 5.2: Detailed Documentation with Parameters
@@ -577,7 +559,6 @@ create persistent entity DmTest.Invoice (
 index (InvoiceNumber),
 index (CustomerId),
 index (status);
-/
 
 /**
  * Line item for an invoice.
@@ -600,7 +581,6 @@ create persistent entity DmTest.InvoiceLine (
   /** Tax rate percentage */
   TaxRate: decimal default 0.00
 );
-/
 
 -- ############################################################################
 -- PART 6: ASSOCIATIONS
@@ -622,7 +602,6 @@ from DmTest.SalesOrder to DmTest.Customer
 type reference
 owner default
 on delete set null;
-/
 
 /**
  * Associates an invoice with a customer.
@@ -633,7 +612,6 @@ from DmTest.Invoice to DmTest.Customer
 type reference
 owner default
 on delete set null;
-/
 
 -- ============================================================================
 -- Level 6.2: Reference Association (One-to-Many via parent)
@@ -647,7 +625,6 @@ create association DmTest.Invoice_Lines
 from DmTest.InvoiceLine to DmTest.Invoice
 type reference
 owner both;
-/
 
 /**
  * Links employees to their department category.
@@ -656,7 +633,6 @@ create association DmTest.Employee_Department
 from DmTest.Employee to DmTest.Category
 type reference
 owner both;
-/
 
 /**
  * Self-referencing association for category hierarchy.
@@ -670,7 +646,6 @@ from DmTest.Category to DmTest.Category
 type reference
 owner default
 on delete set null;
-/
 
 -- ============================================================================
 -- Level 6.3: ReferenceSet Association (Many-to-Many)
@@ -695,7 +670,6 @@ create persistent entity DmTest.Project1 (
   /** Project status */
   status: string(50) default 'Planning'
 );
-/
 
 /**
  * Many-to-many: Projects can have many employees,
@@ -705,7 +679,6 @@ create association DmTest.Project_Employees
 from DmTest.Project1 to DmTest.Employee
 type ReferenceSet
 owner both;
-/
 
 /**
  * Many-to-many: Products can have many tags,
@@ -715,7 +688,6 @@ create association DmTest.Product_Tags
 from DmTest.Product to DmTest.SimpleTag
 type ReferenceSet
 owner both;
-/
 
 -- ============================================================================
 -- Level 6.4: CREATE OR MODIFY ASSOCIATION (idempotent upsert)
@@ -731,17 +703,14 @@ create association DmTest.Project_Tags
 from DmTest.Project1 to DmTest.SimpleTag
 type ReferenceSet
 owner both;
-/
 
 -- Re-run safely with OR MODIFY to change delete behavior:
 create or modify association DmTest.Project_Tags
 from DmTest.Project1 to DmTest.SimpleTag
 type ReferenceSet
 owner default;
-/
 
 drop association DmTest.Project_Tags;
-/
 
 -- @version: 10.18+
 -- ############################################################################
@@ -772,7 +741,6 @@ create view entity DmTest.ActiveProducts (
     p.Stock as Stock
   from DmTest.Product as p
   where p.IsActive = true;
-/
 
 -- ============================================================================
 -- Level 7.2: View with Aggregation
@@ -796,7 +764,6 @@ create view entity DmTest.CustomerOrderStats (
     avg(o.TotalAmount) as AvgOrderValue
   from DmTest.SalesOrder as o
   GROUP by o.CustomerId;
-/
 
 -- ============================================================================
 -- Level 7.3: View with JOIN
@@ -826,7 +793,6 @@ create view entity DmTest.InvoiceDetails (
     i.status as status
   from DmTest.Invoice as i
   inner join i/DmTest.Invoice_Customer/DmTest.Customer as c;
-/
 
 -- ============================================================================
 -- Level 7.3b: JOIN with ON expression (no association) - NOT YET SUPPORTED
@@ -870,7 +836,6 @@ create view entity DmTest.OverdueInvoices (
   where i.status != 'Paid'
     and i.status != 'Cancelled'
     and i.DueDate < '[%CurrentDateTime%]';
-/
 
 -- ============================================================================
 -- Level 7.5: View with Multiple Aggregations
@@ -901,7 +866,6 @@ create view entity DmTest.MonthlySalesSummary (
   from DmTest.SalesOrder as o
   where o.OrderStatus != 'CANCELLED'
   GROUP by DATEPART(YEAR, o.OrderDate), DATEPART(MONTH, o.OrderDate);
-/
 
 -- ============================================================================
 -- Level 7.6: Microflow Retrieving from View Entity
@@ -930,7 +894,7 @@ begin
 
   retrieve $Stats from DmTest.CustomerOrderStats
     where CustomerId = $CustomerId
-    limit 1;
+    first;
 
   if $Stats != empty then
     set $TotalSpent = $Stats/TotalSpent;
@@ -938,7 +902,6 @@ begin
 
   return $TotalSpent;
 end;
-/
 
 -- @version: any
 -- ############################################################################
@@ -972,7 +935,6 @@ create non-persistent entity DmTest.SearchParameters (
   /** Whether to include inactive records */
   IncludeInactive: boolean default false
 );
-/
 
 -- ============================================================================
 -- Level 8.2: Non-Persistent for API Response
@@ -999,7 +961,6 @@ create non-persistent entity DmTest.ApiResponse (
   /** Unique request identifier */
   RequestId: string(50)
 );
-/
 
 -- ============================================================================
 -- Level 8.3: Non-Persistent for Reports
@@ -1032,7 +993,6 @@ create non-persistent entity DmTest.DashboardMetrics (
   /** Revenue from top product */
   TopProductRevenue: decimal
 );
-/
 
 -- ############################################################################
 -- PART 9: CREATE OR MODIFY ENTITY (Idempotent Updates)
@@ -1072,7 +1032,6 @@ create or modify persistent entity DmTest.AppConfig (
   ModifiedAt: datetime
 )
 index (ConfigKey);
-/
 
 /**
  * Configuration settings with CREATE OR MODIFY.
@@ -1099,7 +1058,6 @@ create or modify persistent entity DmTest.AppConfig (
 )
 index (ConfigKey)
 , index (ModifiedAt);
-/
 
 -- ============================================================================
 -- Level 9.2: CREATE OR MODIFY with @RenamedFrom (Attribute Renaming)
@@ -1162,7 +1120,6 @@ create or modify persistent entity DmTest.Contact (
 index (FullName),
 index (PrimaryEmail),
 index (Company);
-/
 
 -- ============================================================================
 -- Level 9.3: CREATE OR MODIFY for Multiple Attribute Changes
@@ -1227,7 +1184,6 @@ index (TaskTitle),
 index (AssignedTo),
 index (DueDate),
 index (TaskStatus);
-/
 
 -- ============================================================================
 -- Level 9.4: CREATE OR MODIFY for Non-Persistent Entity
@@ -1277,7 +1233,6 @@ create or modify non-persistent entity DmTest.FilterParameters (
   /** Sort ascending - new field */
   SortAscending: boolean default false
 );
-/
 
 -- @version: 10.18+
 -- ============================================================================
@@ -1312,7 +1267,6 @@ create or modify view entity DmTest.TaskSummaryByAssignee (
   from DmTest.task as t
   where t.AssignedTo IS not null
   GROUP by t.AssignedTo;
-/
 
 /**
  * Active configuration view with CREATE OR MODIFY.
@@ -1333,7 +1287,6 @@ create or modify view entity DmTest.ActiveConfigs (
   where c.IsActive = true
     and 1=1
 ;
-/
 
 /**
  * Active configuration view with CREATE OR MODIFY.
@@ -1352,7 +1305,6 @@ create or modify view entity DmTest.ActiveConfigs (
     c.description as description
   from DmTest.AppConfig as c
   where c.IsActive = true;
-/
 
 -- @version: any
 -- ############################################################################
@@ -1510,14 +1462,12 @@ begin
   log info 'Validating bank account';
   return true;
 end;
-/
 
 create microflow DmTest.ACT_InitBankAccountDefaults ($BankAccount: DmTest.BankAccount)
 begin
   log info 'Initializing defaults';
   return empty;
 end;
-/
 
 -- Add event handlers via ALTER ENTITY (pass entity object to microflow)
 alter entity DmTest.BankAccount
@@ -1581,7 +1531,6 @@ create view entity DmTest.TaskPerformanceAnalysis (
   from DmTest.task as t
   where t.TaskPriority in ('HIGH', 'CRITICAL')
     and t.AssignedTo IS not null;
-/
 
 /**
  * Sales orders with customer statistics using correlated subquery.
@@ -1611,7 +1560,6 @@ create view entity DmTest.SalesOrderStats (
      where o3.CustomerId = o.CustomerId) as CustomerTotalSpend
   from DmTest.SalesOrder as o
   where o.OrderDate IS not null;
-/
 
 /**
  * Products above average price using subquery comparison.
@@ -1633,7 +1581,6 @@ create view entity DmTest.AboveAverageProducts (
   from DmTest.Product as p
   where p.Price > (select avg(p3.Price) from DmTest.Product as p3)
     and p.IsActive = true;
-/
 
 /**
  * Comprehensive dashboard view with multiple subqueries.
@@ -1668,7 +1615,6 @@ create view entity DmTest.ComprehensiveDashboard (
     where t2.TaskPriority = 'HIGH'
   )
   GROUP by t.AssignedTo;
-/
 
 list entities;
 list entities in DmTest;
@@ -1723,7 +1669,6 @@ create persistent entity DmTest.Attachment extends System.FileDocument (
   /** Whether this attachment is publicly accessible */
   IsPublic: boolean default false
 );
-/
 
 -- ============================================================================
 -- Level 12.2: EXTENDS System.Image
@@ -1744,7 +1689,6 @@ create persistent entity DmTest.ProductPhoto extends System.Image (
   /** Whether this is the primary product photo */
   IsPrimary: boolean default false
 );
-/
 
 -- ============================================================================
 -- Level 12.3: EXTENDS Application Entity
@@ -1768,7 +1712,6 @@ create persistent entity DmTest.Vehicle (
   /** Whether vehicle is currently active in the fleet */
   IsFleetActive: boolean default true
 );
-/
 
 /**
  * Truck entity that extends Vehicle with cargo-specific attributes.
@@ -1787,7 +1730,6 @@ create persistent entity DmTest.Truck extends DmTest.Vehicle (
   /** Whether truck has refrigeration unit */
   HasRefrigeration: boolean default false
 );
-/
 
 /**
  * Passenger car that extends Vehicle.
@@ -1803,7 +1745,6 @@ create persistent entity DmTest.PassengerCar extends DmTest.Vehicle (
   /** Trunk volume in liters */
   TrunkVolume: decimal
 );
-/
 
 -- ============================================================================
 -- Level 12.4: EXTENDS with No Additional Attributes
@@ -1817,7 +1758,6 @@ create persistent entity DmTest.PassengerCar extends DmTest.Vehicle (
  */
 @position(2300, 500)
 create persistent entity DmTest.InternalDocument extends System.FileDocument;
-/
 
 -- ============================================================================
 -- Level 12.5: GENERALIZATION Keyword (Legacy Syntax)
@@ -1832,7 +1772,6 @@ create persistent entity DmTest.ProfilePhoto generalization System.Image (
   /** Whether this photo has been approved by admin */
   IsApproved: boolean default false
 );
-/
 
 -- ============================================================================
 -- Level 12.6: CREATE OR MODIFY with EXTENDS
@@ -1855,7 +1794,6 @@ create or modify persistent entity DmTest.Attachment extends System.FileDocument
   /** Upload timestamp - new field added via CREATE OR MODIFY */
   UploadedAt: datetime
 );
-/
 
 -- ============================================================================
 -- Level 12.7: Association to Generalized Entity
@@ -1869,7 +1807,6 @@ create association DmTest.Product_Photos
 from DmTest.Product to DmTest.ProductPhoto
 type ReferenceSet
 owner both;
-/
 
 /**
  * Link invoices to their attachments.
@@ -1879,7 +1816,6 @@ create association DmTest.Invoice_Attachments
 from DmTest.Invoice to DmTest.Attachment
 type ReferenceSet
 owner both;
-/
 
 -- ############################################################################
 -- LEVEL 13: BULK ALTER — one statement for a whole module
@@ -1896,18 +1832,15 @@ alter entities in DmTest
   add attribute if not exists AuditCreated: AutoCreatedDate,
   add attribute if not exists AuditChanged: AutoChangedDate
   where persistent;
-/
 
 -- The non-persistent half of the module, addressed on its own.
 alter entities in DmTest
   add attribute if not exists ScratchNote: String(40)
   where non-persistent;
-/
 
 -- No filter: every entity in the module, view entities included.
 alter entities in DmTest
   add attribute if not exists BulkTouched: Boolean;
-/
 
 -- Verify generalized entities appear in listings
 list entities in DmTest;

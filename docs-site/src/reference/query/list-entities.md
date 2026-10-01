@@ -20,19 +20,19 @@ Lists entities in the project. Without the `IN` clause, lists all entities acros
 List all entities in the project:
 
 ```sql
-LIST ENTITIES
+LIST ENTITIES;
 ```
 
 List entities in a specific module:
 
 ```sql
-LIST ENTITIES IN Sales
+LIST ENTITIES IN Sales;
 ```
 
 Show the definition of a single entity:
 
 ```sql
-DESCRIBE ENTITY Sales.Customer
+DESCRIBE ENTITY Sales.Customer;
 ```
 
 ## See Also

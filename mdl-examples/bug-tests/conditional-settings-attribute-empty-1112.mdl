@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: a widget with a conditional visibility/editability setting failed to LOAD
 -- on Mendix 11.12 with a StorageLoadException — "Conditional editability settings
 -- ... has an invalid value '' for property Attribute. The text '   ' is not a valid
@@ -19,7 +20,7 @@ create entity MyFirstModule.Cust ( Name: string(50), Phone: string(20) );
 create microflow MyFirstModule.DS_GetCust ()
 returns MyFirstModule.Cust as $First
 begin
-  retrieve $First from MyFirstModule.Cust limit 1;
+  retrieve $First from MyFirstModule.Cust first;
   return $First;
 end;
 

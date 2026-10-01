@@ -33,7 +33,7 @@ excluded by default — they dominate the raw top-N but aren't actionable.
 Every section is a thin `SELECT` over a view, so it is reproducible directly:
 
 ```sql
-select * from CATALOG.graph_god_nodes order by Degree desc limit 20
+select * from CATALOG.graph_god_nodes order by Degree desc limit 20;
 ```
 
 ## Community detection, cycles, layers, centrality
@@ -137,9 +137,9 @@ graph survives a rebuild. To drop back, delete `.mxcli/catalog.db` and refresh.
 ### SHOW commands
 
 ```sql
-list communities                                   -- the community_summary listing
-list community of Sales.Order                      -- which community an asset is in
-list community members of Sales.Order              -- its co-clustered assets
+list communities;                                   -- the community_summary listing
+list community of Sales.Order;                      -- which community an asset is in
+list community members of Sales.Order;              -- its co-clustered assets
 ```
 
 ## Two refactoring journeys

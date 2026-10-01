@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- FINDINGS #55: ALTER PAGE INSERT/REPLACE drops the attribute binding when the
 -- target lives inside a list bound `from association`
@@ -30,7 +31,6 @@ create entity MyFirstModule.Week ( Label: String );
 create entity MyFirstModule.WeekRow ( RowTotal: Decimal );
 create association MyFirstModule.WeekRow_Week
   from MyFirstModule.WeekRow to MyFirstModule.Week;
-/
 
 create or modify page MyFirstModule.WeekTimesheet
 ( Title: 'Week', Layout: Atlas_Core.Atlas_Default, Params: ( $Week: MyFirstModule.Week ) )
@@ -42,8 +42,7 @@ create or modify page MyFirstModule.WeekTimesheet
       dynamictext wrTotal (Attribute: RowTotal)
     }
   }
-}
-/
+};
 
 -- INSERT a data-bound widget as a sibling of wrTotal. It must inherit the
 -- association destination (WeekRow) as its context, so RowTotal binds to
@@ -52,11 +51,9 @@ alter page MyFirstModule.WeekTimesheet {
   insert after wrTotal {
     dynamictext probe55 (Attribute: RowTotal, Class: 'vdh-probe')
   }
-}
-/
+};
 
 describe page MyFirstModule.WeekTimesheet;
-/
 
 -- ----------------------------------------------------------------------------
 -- Follow-up (retest): a MICROFLOW datasource is the same class of bug. A
@@ -71,22 +68,19 @@ begin
   retrieve $out from MyFirstModule.WeekRow;
   return $out;
 end;
-/
 
 create or modify page MyFirstModule.MfSourced ( Title: 'Mf', Layout: Atlas_Core.Atlas_Default )
 {
   listview lvMf (datasource: microflow MyFirstModule.DS_Rows) {
     dynamictext mfTotal (Attribute: RowTotal)
   }
-}
-/
+};
 
 -- probe must bind to WeekRow.RowTotal (the microflow's return entity).
 alter page MyFirstModule.MfSourced {
   insert after mfTotal {
     dynamictext probeMf (Attribute: RowTotal, Class: 'vdh-probe')
   }
-}
-/
+};
 
 describe page MyFirstModule.MfSourced;

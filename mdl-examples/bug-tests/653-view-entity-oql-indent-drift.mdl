@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- ako/mxcli#653: describe → exec of a view entity adds 2 spaces of indentation
 -- to the stored OQL on every cycle

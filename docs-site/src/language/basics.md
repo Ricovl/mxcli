@@ -21,6 +21,7 @@ INDEX (Name);
 Every statement ends with a semicolon (`;`):
 
 ```sql
+mdl 1;
 CREATE MODULE OrderManagement;
 
 CREATE PERSISTENT ENTITY Sales.Order (
@@ -30,7 +31,7 @@ CREATE PERSISTENT ENTITY Sales.Order (
 INDEX (OrderDate DESC);
 ```
 
-Under `mdl 1;` a missing `;` is an error, and so is the Oracle SQL*Plus-style `/` on its own line. A script without the header still accepts both, and `check` warns `MDL-V1-SEMI` / `MDL-V1-SLASH` for each one. At the REPL, where there is no header, a single command such as `LIST ENTITIES` still needs no terminator.
+A missing `;` is an error, and so is the Oracle SQL*Plus-style `/` on its own line. At the REPL and in `mxcli -c "…"` the end of the input ends the last statement, so a single command such as `list entities` needs no terminator there.
 
 ## Trailing Commas
 
@@ -42,51 +43,25 @@ Keywords are case-insensitive, and lowercase is canonical: `describe` writes the
 
 ## One Spelling per Keyword
 
-Each keyword has one spelling, and a page action uses the words a microflow uses. The older spellings still parse with the same meaning, warn with the code shown, and are rewritten by `mxcli fmt --upgrade`:
-
-| Canonical | Deprecated | Code |
-|---|---|---|
-| `show page`, `save changes`, `cancel changes`, `close page`, `create object`, `delete`, `open link`, `sign out`, `complete task`, `call microflow M.F`, `call nanoflow M.F` | `show_page`, `save_changes`, `cancel_changes`, `close_page`, `create_object`, `delete_object`, `open_link`, `sign_out`, `complete_task`, `microflow M.F`, `nanoflow M.F` | `MDL-DEPR020` |
-| `not null error message '…'` (also after `unique`, `required`), validation rule `error message '…'`, `on delete restrict error message '…'` | `not null error '…'`, `feedback '…'`, `error_message '…'`, `errormessage '…'` | `MDL-DEPR021` |
-| `on delete cascade` / `restrict` / `set null` | `delete_behavior cascade` / `prevent` / `delete_and_references` / `delete_if_no_references` / `delete_but_keep_references` | `MDL-DEPR022` |
-| `type ReferenceSet` | `type reference_set` | `MDL-DEPR023` |
-| `returns nothing` (REST call) | `returns none` | `MDL-DEPR024` |
+Each keyword has one spelling, and a page action uses the words a microflow uses: `show page`, `save changes`, `cancel changes`, `close page`, `create object`, `delete`, `open link`, `sign out`, `complete task`, `call microflow M.F`, `call nanoflow M.F`. A validation message is `error message '…'` (after `not null`, `unique`, `required`, in a validation rule and after `on delete restrict`); a delete behaviour is the SQL referential action, `on delete cascade` / `restrict` / `set null`; a reference set's type is `ReferenceSet`; a REST call that returns nothing says `returns nothing`.
 
 ## One Verb per Job
 
-`list` enumerates, `describe` shows one thing, and an `alter` adds and drops its children. The older verbs still parse with the same meaning and warn with the code shown; `mxcli fmt --upgrade` rewrites them, except where noted:
+`list` enumerates, `describe` shows one thing, and an `alter` adds and drops its children:
 
-| Canonical | Deprecated | Code |
-|---|---|---|
-| `describe page M.P`, `describe app security`, `describe security matrix [in M]`, `describe structure …`, `describe context of X` | `show` (or `list`) with the same words; `show project security` | `MDL-DEPR090` |
-| `list navigation`, `list navigation menu [profile]`, `list settings` | `show` with the same words. These print tables (the profiles, the menu items, the settings sections), so they are listings | `MDL-DEPR002` |
-| `alter user role R drop module roles (…)` | `… remove module roles (…)` | `MDL-DEPR091` |
-| `alter settings language drop '…'`, `alter settings workflows drop group '…'` | `remove` | `MDL-DEPR092` |
-| `alter entity E add\|rename\|modify\|drop attribute …` | `… column …` | `MDL-DEPR093` |
-| `call rest service get '…' …` | `rest call get '…' …` | `MDL-DEPR094` |
-| `describe widget type combobox` | `describe widget combobox` | `MDL-DEPR095` |
-| `create fragment F as { … }` | `define fragment F as { … }` | `MDL-DEPR096` |
+- `describe page M.P`, `describe app security`, `describe security matrix [in M]`, `describe structure …`, `describe context of X`;
+- `list navigation`, `list navigation menu [profile]`, `list settings` (they print tables, so they are listings);
+- `alter user role R drop module roles (…)`, `alter settings language drop '…'`, `alter settings workflows drop group '…'`;
+- `alter entity E add|rename|modify|drop attribute …`;
+- `call rest service get '…' …`, `describe widget type combobox`, `create fragment F as { … }`.
 
-Two `show` forms have no canonical spelling at all:
-
-- `show entity X` and `show association X` print a summary that no statement prints any more. `describe entity X` prints the definition as MDL, and `list entities in M` / `list associations in M` print the summary columns. Neither gives the same output, so they are not aliases. They keep working without a header and warn `MDL-V1-SHOWSUMMARY`; under `mdl 1;` they are an error. `fmt --upgrade --header` refuses the header over them, so you choose the replacement.
-- `show version`, `show status`, `show connections` and `show catalog status` report the session, not the model. They are session commands (R7): type them at the REPL. In a script they warn `MDL-V1-SESSION`, and under `mdl 1;` they are an error.
+`show entity X` and `show association X` are not `mdl 1`: `describe entity X` prints the definition as MDL, and `list entities in M` / `list associations in M` print the summary columns. `show version`, `show status`, `show connections` and `show catalog status` report the session, not the model: they are session commands (R7), typed at the REPL.
 
 ## Document Type Names
 
-Document types are named as Studio Pro names them. The old names still parse with the same meaning, warn with the code shown, and `mxcli fmt --upgrade` rewrites them:
+Document types are named as Studio Pro names them: `consumed rest service(s)`, `consumed odata service(s)`, `published odata service(s)`, `task queue(s)`, `alter app security …`, `alter settings runtime …`, `list image collections` / `list icon collections` / `list message definition collections`, `ai model(s)` (the agent editor's model document), and `create json structure M.J sample '…'`.
 
-| Canonical | Deprecated | Code |
-|---|---|---|
-| `consumed rest service(s)` | `rest client(s)` | `MDL-DEPR550` |
-| `consumed odata service(s)` | `odata client(s)` | `MDL-DEPR551` |
-| `published odata service(s)` | `odata service(s)` | `MDL-DEPR552` |
-| `task queue(s)` | `queue(s)` | `MDL-DEPR553` |
-| `alter app security …` | `alter project security …` | `MDL-DEPR554` |
-| `alter settings runtime …` | `alter settings model …` | `MDL-DEPR555` |
-| `list image collections`, `list icon collections`, `list message definition collections` | the singular after `list` | `MDL-DEPR130` |
-| `ai model` / `ai models` (the agent editor's model document) | `model` / `models` | `MDL-DEPR131` |
-| `create json structure M.J sample '…'` | `… snippet '…'` | `MDL-DEPR132` |
+The older spellings of all three sections still parse in a script file with the same meaning, warn with an `MDL-DEPR*` code, and `mxcli fmt --upgrade` rewrites them; [Language Versions and Migration](versions.md) lists every one.
 
 `consumed web service`, `published web service` and `xml schema` are reserved: MDL does not support these Studio Pro documents yet, and a statement that names one is refused with an error saying so.
 
@@ -94,7 +69,7 @@ Document types are named as Studio Pro names them. The old names still parse wit
 
 ## Language Version Header
 
-A script may start with a header that names the MDL language version it is written in:
+A script starts with a header that names the MDL language version it is written in:
 
 ```sql
 mdl 1;
@@ -104,59 +79,25 @@ create persistent entity Sales.Customer (
 );
 ```
 
-- **No header** means `mdl 0`, the current (alpha) language. When a construct means something different under `mdl 1`, a headerless script keeps the old meaning and `check`/`exec` warn about it. A script's meaning never depends on which mxcli release runs it.
-- **`mdl 1;`** selects the beta language. Until beta it is a **preview**: it parses, but warns `preview: may still change` (`MDL-LANG01`), and `describe` and `fmt` do not emit it.
-- The header must be the **first** statement. A version this mxcli does not know is refused.
+- **`mdl 1`** is the language this manual documents. It was frozen at beta: a script headed `mdl 1;` means the same under every later mxcli release.
+- The header is the **first** statement. It may be repeated later with the same version — descriptions concatenated into one file each start with it — but a header naming another version is an error, and so is a version this mxcli does not know.
+- `describe` writes `mdl 1;` at the top of every description, so a description runs as it is, and `mxcli fmt --upgrade` adds it to an older script.
+- At the REPL and in `mxcli -c "…"`, input without a header is read as `mdl 1`.
+- A script **file** without a header is the older language, `mdl 0`, and keeps its meaning (constructs that mean something else under `mdl 1` warn). How it differs, and how to upgrade it, is on [Language Versions and Migration](versions.md).
 - It is independent of the Mendix version your project targets.
 
-What `mdl 1` makes strict (each is a warning without the header, with the code shown):
+What `mdl 1` makes strict:
 
-| Under `mdl 1;` | Without the header |
-|---|---|
-| A statement without `;` is an error. | Accepted; `MDL-V1-SEMI`. |
-| A `/` terminator line is an error. | Accepted; `MDL-V1-SLASH`. |
-| `''` is the only string escape; a backslash is an ordinary character, so `'C:\temp'` is that path. | `\n`, `\r`, `\t`, `\\` and `\'` are escapes; `MDL-V1-ESCAPE` for each literal whose value would change. |
-| A text template (`log`, `show message`, `validation feedback`) written as one literal is the template text even when it spans lines, which is how a template holds a line break. | A template literal spanning lines with no `with ({n} = …)` parameters is an expression: the template is `{1}`, the literal its parameter; `MDL-V1-TEMPLATE`. |
-| In a REST client, published REST service, business event service, model, knowledge base, consumed MCP service or agent, an unknown property key is an error that names the key it most likely meant, and so is a value its key does not take (`Response: json from $X`). | The property is ignored, or read by its shape as before; `MDL-V1-PROP` / `MDL-V1-PROPVALUE`. |
-| A `while` loop is `while <condition> begin … end while;`; leaving out `begin`, or the `while` after `end`, is an error. | Accepted; `MDL-V1-WHILE`. |
-| `show entity X` / `show association X` is an error: `describe entity X` prints the definition, `list entities in M` the summary columns. | Prints the summary; `MDL-V1-SHOWSUMMARY`. |
-| A session command — `connect`, `disconnect`, `use`, `set format = …`, `status`, `show version`, `show status`, `show connections`, `show catalog status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help`, `introspect api` — is an error in a script. Type it at the REPL, or use the command-line flag (`mxcli exec script.mdl -p app.mpr --json`). The REPL keeps accepting them. | Runs as before; `MDL-V1-SESSION`. |
-| A quoted value of `DynamicClasses`, `DynamicCellClass` or an OData client's credential or header value is a Mendix string, so the pre-#750 spelling — the expression's text in quotes, `'if $currentObject/X then ''on'' else '''''`, `'''admin'''`, `'@Mod.C'` — is an error (MDL-WIDGET33, MDL-ODATA07). Write the expression bare. | The quoted text is the expression it holds; `MDL-V1-QUOTEDEXPR`. A quoted class name or plain credential is the string under both. |
+- Every statement ends with `;`, and a `/` terminator line is an error.
+- `''` is the only string escape; a backslash is an ordinary character, so `'C:\temp'` is that path.
+- A text template (`log`, `show message`, `validation feedback`) written as one literal is the template text even when it spans lines, which is how a template holds a line break.
+- In a REST client, published REST service, business event service, model, knowledge base, consumed MCP service or agent, an unknown property key is an error that names the key it most likely meant, and so is a value its key does not take (`Response: json from $X`).
+- A `while` loop is `while <condition> begin … end while;`; leaving out `begin`, or the `while` after `end`, is an error.
+- `show entity X` / `show association X` is an error: `describe entity X` prints the definition, `list entities in M` the summary columns.
+- A session command — `connect`, `disconnect`, `use`, `set format = …`, `status`, `show version`, `show status`, `show connections`, `show catalog status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help`, `introspect api` — is an error in a script. Type it at the REPL, or use the command-line flag (`mxcli exec script.mdl -p app.mpr --json`).
+- `DynamicClasses`, `DynamicCellClass` and an OData client's credential or header value take the expression bare; a quoted value is a Mendix string.
 
-### Upgrading a script: `mxcli fmt --upgrade`
-
-`mxcli fmt --upgrade` rewrites every deprecated spelling (the `MDL-DEPRnnn` warnings) to its canonical form — `create or replace` becomes `create or modify`, `list entities` becomes `list entities`, `on error { … }` becomes `on error begin … end error` — and changes nothing else: comments, layout and keyword case are kept. A deprecated use with no mechanical rewrite is reported and left in place.
-
-The manual, the skills, `mxcli syntax` and the example scripts are written in the canonical form, and CI holds them to it: `make check-conformance` parses every MDL block in them and fails on a deprecated spelling (`mxcli check --deprecations=error` does the same for a script of your own).
-
-```bash
-mxcli fmt --upgrade script.mdl            # print the upgraded script
-mxcli fmt --upgrade -w script.mdl         # upgrade in place
-mxcli fmt --upgrade --header -w script.mdl  # also add `mdl 1;`
-```
-
-`--header` adds `mdl 1;` after rewriting every construct whose meaning the header would change, so the script keeps doing what it did:
-
-| Code | Rewrite |
-|---|---|
-| `MDL-V1-SEMI` | adds the missing `;` |
-| `MDL-V1-SLASH` | deletes the `/` line |
-| `MDL-V1-ESCAPE` | writes the string's value with `''` as the only escape (`'it\'s\t'` becomes `'it''s` + a tab + `'`) |
-| `MDL-V1-LIMIT1` | `retrieve … limit 1` (one object) becomes `retrieve … first` |
-| `MDL-V1-SET` | `$x = …` becomes `set $x = …` |
-| `MDL-V1-LIST`, `MDL-DEPR003`, `MDL-DEPR004` | a list operation or aggregate call becomes its statement form (`$x = filter($L, …)` → `$x = filter $L where …`); `find`/`contains` on a declared String keeps the call and gains `set` |
-| `MDL-V1-REPLACE02` | `create or replace user role` / `demo user` becomes a plain `create` |
-| `MDL-V1-WHILE` | inserts the missing `begin` after a `while` condition and `while` after its `end` |
-| `MDL-V1-TEMPLATE` | a template literal spanning lines becomes the parameter it was: `log info 'a⏎b';` becomes `log info '{1}' with ({1} = 'a⏎b');` |
-| `MDL-V1-QUOTEDEXPR` | a quoted expression becomes the expression bare: `dynamicclasses: 'if $currentObject/X then ''on'' else '''''` becomes `dynamicclasses: if $currentObject/X then 'on' else ''`. The bare form means the same without the header, so `fmt --upgrade` applies this one without `--header` too |
-
-A construct with no mechanical rewrite is reported with the reason, and `fmt` refuses to add the header rather than change the script's meaning: an unknown or mis-shaped property (`MDL-V1-PROP`, `MDL-V1-PROPVALUE`), `create or replace view entity` (`MDL-V1-REPLACE01`), a session command in a script (`MDL-V1-SESSION`: move it to the command line or the REPL), a nested list operation such as `count(filter(…))`, `find`/`contains` on a variable whose type the script does not state (when the variable holds a microflow or nanoflow call's result, the called flow's return type decides: a flow the script creates earlier is read from the script, and any other from the project given with `-p app.mpr`, so `fmt --upgrade --header -p app.mpr` rewrites it), and an escaped line break (`\n`) inside an expression. An escaped line break in a text template's literal is rewritten: the break is written into the literal, which under `mdl 1` is still the template text. While `mdl 1` is a preview, the header is added only when asked. Running `fmt --upgrade` on its own output changes nothing.
-
-`-p app.mpr` also settles a bare `commit $X;` in a `create or modify microflow|nanoflow`, with or without `--header`. Since mendixlabs/mxcli#895 a bare commit means *with* events, Studio Pro's default; an older mxcli stored the same statement *without* events. Where the stored flow commits the variable without events, `fmt --upgrade -p app.mpr` writes `commit $X without events;`, so re-running the script keeps what is stored instead of turning the event handlers on (or, inside a loop under `mdl 1`, being refused). A new flow, a new commit, or a stored commit with events is left as written; where the stored flow commits the variable both ways, the statement is left and reported. Without `-p`, `fmt` prints a note (`MDL067`) for each flow with a bare commit.
-
-`-p app.mpr` also tells `--header` which statements `exec` would refuse once the header is there. Under `mdl 1` a `create or modify microflow|nanoflow` of a stored flow is applied as a patch, and a change the patch cannot make (inside a loop body or an error handler, a redrawn connector, a `return` added) is refused with nothing written; without the header the same statement rebuilds the whole flow (`MDL-V1-REBUILD`). No rewrite keeps that meaning, so `fmt` names each such statement and leaves the header off that file, applying the rest of the upgrade. Change those flows with `alter`, or drop and create them, and upgrade again; `--force-header` adds the header regardless. `mxcli check script.mdl -p app.mpr` reports the same statements (an `MDL-V1-REBUILD` error under `mdl 1`, the warning without the header), computed by the same code as `exec` and `diff`.
-
-The design is in [ADR-0011](https://github.com/mendixlabs/mxcli/blob/main/docs/13-decisions/0011-mdl-language-versioning.md); `mxcli syntax language-header` has the details.
+The manual, the skills, `mxcli syntax` and the example scripts are written in the canonical form, and CI holds them to it: `make check-conformance` parses every MDL block in them as `mdl 1` and fails on a deprecated spelling (`mxcli check --deprecations=error` does the same for a script of your own). The design is in [ADR-0011](https://github.com/mendixlabs/mxcli/blob/main/docs/13-decisions/0011-mdl-language-versioning.md); `mxcli syntax language-header` has the details.
 
 ## Re-runnable Creates: `or modify` and `if not exists`
 

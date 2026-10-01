@@ -1,3 +1,4 @@
+mdl 1;
 -- ledger #148 — MDL071 warned where OQL cannot reach.
 --
 -- The rule warns that a name will need quoting from OQL later. It fired on two

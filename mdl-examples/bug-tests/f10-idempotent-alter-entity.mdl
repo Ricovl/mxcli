@@ -1,3 +1,4 @@
+mdl 1;
 -- Findings #10: domain-delta scripts weren't re-runnable — a second run of
 -- `alter entity ... add attribute X` errored ("already exists") and, because
 -- exec halts on the first error, applied none of the remaining statements.

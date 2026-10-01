@@ -28,6 +28,7 @@ Sales.Order_Customer     -- association
 This example creates a small Sales domain model with related entities, an enumeration, and an association:
 
 ```sql
+mdl 1;
 -- Enumeration for order statuses
 CREATE ENUMERATION Sales.OrderStatus (
   Draft 'Draft',

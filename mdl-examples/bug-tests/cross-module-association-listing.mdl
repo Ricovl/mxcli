@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug — cross-module associations were invisible to SHOW/LIST ASSOCIATIONS,
 -- DESCRIBE ASSOCIATION, and DESCRIBE MODULE ... WITH ALL on the default
@@ -30,7 +31,6 @@
 create persistent entity MyFirstModule.BugOrder (
   OrderNo: string(50)
 );
-/
 
 -- Cross-module association: FROM a local entity TO an entity in another module.
 -- (Administration.Account ships with the Administration marketplace module.)
@@ -40,4 +40,3 @@ type reference
 owner default
 storage column
 on delete set null;
-/

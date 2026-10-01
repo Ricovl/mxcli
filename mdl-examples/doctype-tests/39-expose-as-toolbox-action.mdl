@@ -1,3 +1,4 @@
+mdl 1;
 -- =============================================================================
 -- EXPOSE AS TOOLBOX ACTION
 -- =============================================================================
@@ -47,7 +48,6 @@ create microflow Toolbox.MF_FormatCode ($Raw: String)
 begin
   return trim($Raw);
 end;
-/
 
 -- =============================================================================
 -- PART 2 — the same microflow in the workflow editor's toolbox
@@ -62,7 +62,6 @@ create or modify microflow Toolbox.MF_Notify ($Message: String)
 begin
   log 'notify: ' + $Message;
 end;
-/
 
 -- =============================================================================
 -- PART 3 — omitting the clause preserves the entry
@@ -81,7 +80,6 @@ create or modify microflow Toolbox.MF_FormatCode ($Raw: String)
 begin
   return toUpperCase(trim($Raw));
 end;
-/
 
 -- =============================================================================
 -- PART 4 — clearing: one bitmap, or the whole entry
@@ -96,7 +94,6 @@ create or modify microflow Toolbox.MF_FormatCode ($Raw: String)
 begin
   return toUpperCase(trim($Raw));
 end;
-/
 
 -- `not exposed as workflow action` removes that entry and leaves the microflow
 -- entry untouched.
@@ -106,7 +103,6 @@ create or modify microflow Toolbox.MF_Notify ($Message: String)
 begin
   log 'notify: ' + $Message;
 end;
-/
 
 -- =============================================================================
 -- PART 5 — Java and JavaScript actions

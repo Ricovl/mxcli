@@ -1,3 +1,4 @@
+mdl 1;
 -- =============================================================================
 -- View Entity Filtering Example
 --
@@ -113,7 +114,7 @@ begin
   -- parameter syntax is needed.
   retrieve $Summary from ViewPar.SalesTotalByCategory
     where CategoryName = $Category/CategoryName
-    limit 1;
+    first;
 
   -- If a matching row was found, extract the total
   if $Summary != empty then
@@ -122,4 +123,3 @@ begin
 
   return $TotalAmount;
 end;
-/

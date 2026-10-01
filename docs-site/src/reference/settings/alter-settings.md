@@ -113,6 +113,7 @@ ALTER SETTINGS LANGUAGE ( DefaultLanguageCode: 'en_US' );
 ### Enable, change and disable a language
 
 ```sql
+mdl 1;
 ALTER SETTINGS LANGUAGE ADD 'de_DE';
 ALTER SETTINGS LANGUAGE ADD 'ar_SD' (CheckCompleteness: true, CustomDateFormat: 'yyyy-MM-dd');
 ALTER SETTINGS LANGUAGE ADD OR MODIFY 'de_DE' (CheckCompleteness: true);
@@ -141,6 +142,7 @@ ALTER SETTINGS WORKFLOWS ( UserEntity: 'Administration.Account' );
 ### Manage workflow groups
 
 ```sql
+mdl 1;
 ALTER SETTINGS WORKFLOWS ADD GROUP 'Approvers' (Description: 'Primary approval group');
 ALTER SETTINGS WORKFLOWS ADD GROUP 'Reviewers';
 

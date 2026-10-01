@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test for upstream issue #1175: a `--` comment inside a view entity's
 -- select list was read as a select column.
 --

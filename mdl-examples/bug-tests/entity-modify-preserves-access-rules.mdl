@@ -1,3 +1,4 @@
+mdl 1;
 -- `create or modify persistent entity` on an EXISTING entity deleted every
 -- access rule on it. ako/mxcli-rest FINDINGS, "create or modify persistent
 -- entity silently deletes every access rule".
@@ -88,20 +89,16 @@
 --        defect was localised.
 
 create module AccP;
-/
 
 create or modify module role AccP.Reader;
-/
 
 create or modify persistent entity AccP.Order (
   Ref: String(20),
   Amount: Decimal default 0,
   Note: String(100)
 );
-/
 
 grant create, delete, read (Ref, Amount, Note), write (Ref, Amount) on entity AccP.Order to AccP.Reader;
-/
 
 -- THE REPORTED CASE. Restating the entity must leave the grant above untouched.
 -- Run this file twice: the second run is the byte-identical re-run that the
@@ -111,7 +108,6 @@ create or modify persistent entity AccP.Order (
   Amount: Decimal default 0,
   Note: String(100)
 );
-/
 
 -- THE CONTROL THAT COST A DAY. An entity's access rules also govern its
 -- INHERITED members, and those never appear in its own Attributes list. The
@@ -121,14 +117,11 @@ create or modify persistent entity AccP.Order (
 -- this fix did exactly that, and only an entity shaped like this one exposes it.
 create or modify persistent entity AccP.Export extends System.FileDocument (
 );
-/
 
 grant create, delete, read (Name, Contents), write (Name, Contents) on entity AccP.Export to AccP.Reader;
-/
 
 create or modify persistent entity AccP.Export extends System.FileDocument (
 );
-/
 
 -- CONTROL: the other half of the contract is unchanged. An attribute the
 -- statement omits IS removed, warned about, and its member entry goes with it —
@@ -137,7 +130,6 @@ create or modify persistent entity AccP.Order (
   Ref: String(20),
   Amount: Decimal default 0
 );
-/
 
 -- THE SECOND DEFECT, in its smallest form: a rewrite that drops EVERY attribute
 -- the rule covered and introduces a new one. The prune empties the member list,
@@ -148,16 +140,13 @@ create or modify persistent entity AccP.Wiped (
   Gone: String(20),
   AlsoGone: Integer
 );
-/
 
 -- `create, delete` is not decoration: without an entity-level right, a rule whose
 -- every member right is None grants nothing at all, and Mendix says so — CE0004
 -- "No access rights granted". That is Mendix being right about a rule that has
 -- become pointless, not a defect, but it would mask the one under test.
 grant create, delete, read (Gone, AlsoGone), write (Gone) on entity AccP.Wiped to AccP.Reader;
-/
 
 create or modify persistent entity AccP.Wiped (
   Kept: String(20)
 );
-/

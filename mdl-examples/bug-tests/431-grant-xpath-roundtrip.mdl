@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test: GRANT with XPath WHERE clause must preserve rights and emit re-parseable MDL.
 -- Issue #431: granting entity access with an XPath WHERE clause containing string literals
 -- (e.g., where '[Status = ''Open'']') was reported to produce empty access rules

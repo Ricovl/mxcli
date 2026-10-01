@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Upstream #868: SNIPPETCALL for a parameterised snippet had no valid spelling
 -- ============================================================================
@@ -34,7 +35,7 @@ create snippet S868.OrderActions ( params: ( $Order: S868.Order ) ) {
   dataview dvInner (datasource: $Order) {
     textbox tbCode (attribute: Code, label: 'Code')
   }
-}
+};
 
 -- A: Params omitted, call sits inside a DataView on the parameter's entity
 create page S868.PageOmitted (
@@ -45,7 +46,7 @@ create page S868.PageOmitted (
       snippetcall scActions (snippet: S868.OrderActions)
     }
   } } }
-}
+};
 
 -- B: $currentObject named explicitly — same meaning, same output
 create page S868.PageCurrentObject (
@@ -56,7 +57,7 @@ create page S868.PageCurrentObject (
       snippetcall scActions (snippet: S868.OrderActions, params: (Order = $currentObject))
     }
   } } }
-}
+};
 
 -- C: a real page parameter — the form that already worked
 create page S868.PageRealParam (
@@ -65,4 +66,4 @@ create page S868.PageRealParam (
   layoutgrid g { row { column (desktopwidth: 12) {
     snippetcall scActions (snippet: S868.OrderActions, params: (Order = $Order))
   } } }
-}
+};

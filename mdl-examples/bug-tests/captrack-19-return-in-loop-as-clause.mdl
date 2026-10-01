@@ -1,3 +1,4 @@
+mdl 1;
 -- CONTROL for CapTrackV2 FINDINGS §19 (see the .fail.mdl beside this file).
 --
 -- Un-exempting `returns T as $Var` from MDL062 must not turn the clause itself
@@ -12,11 +13,9 @@
 --   mx check -p app.mpr                                      -- 0 errors
 
 create module RetLoopOk;
-/
 create persistent entity RetLoopOk.Item (
   Code: string(50)
 );
-/
 
 -- The as-clause idiom: the loop assigns the variable, the header returns it.
 -- This is the shape MDL062's message points authors at.
@@ -30,7 +29,6 @@ begin
     set $Done = true;
   end loop;
 end;
-/
 
 -- `break` is the construct that replaces an in-loop return, with a single
 -- return after the loop.
@@ -48,4 +46,3 @@ begin
   end loop;
   return $Found;
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Menu Examples - MDL Syntax
 -- ============================================================================
@@ -31,7 +32,7 @@ create page MenuTest.Landing
 )
 {
   DYNAMICTEXT welcome (Content: 'Welcome', RenderMode: H2)
-}
+};
 
 create page MenuTest.Reports
 (
@@ -41,7 +42,7 @@ create page MenuTest.Reports
 )
 {
   DYNAMICTEXT heading (Content: 'Reports', RenderMode: H2)
-}
+};
 
 create microflow MenuTest.Rebuild ()
 begin

@@ -1,3 +1,4 @@
+mdl 1;
 -- File Uploader: every action slot the widget declares, authored by name.
 --
 -- This is the widget upstream #956 was actually about, and the one the earlier
@@ -55,20 +56,20 @@ create association FU.MyImage_UploadCtx from FU.MyImage to FU.UploadCtx;
 
 -- The widget's create* slots want a nanoflow: it runs in the client, makes the
 -- object and associates it to the context.
-create nanoflow FU.NF_CreateFile ( $Ctx: FU.UploadCtx ) begin end
-create nanoflow FU.NF_CreateImage ( $Ctx: FU.UploadCtx ) begin end
-create nanoflow FU.NF_UploadedImage ( $Ctx: FU.UploadCtx ) begin end
+create nanoflow FU.NF_CreateFile ( $Ctx: FU.UploadCtx ) begin end;
+create nanoflow FU.NF_CreateImage ( $Ctx: FU.UploadCtx ) begin end;
+create nanoflow FU.NF_UploadedImage ( $Ctx: FU.UploadCtx ) begin end;
 
 -- A microflow WITH AN ARGUMENT on a success slot, and plain ones elsewhere.
 create microflow FU.ACT_FileUploaded ( $Ctx: FU.UploadCtx ) begin
   show message 'uploaded ' + $Ctx/Label;
-end
+end;
 create microflow FU.ACT_FileFailed () begin
   show message 'file upload failed';
-end
+end;
 create microflow FU.ACT_ImageFailed ( $Ctx: FU.UploadCtx ) begin
   show message 'image upload failed for ' + $Ctx/Label;
-end
+end;
 
 -- Page 1 — uploadMode: files. Visible slots: createFileAction,
 -- onUploadSuccessFile, onUploadFailureFile.
@@ -84,7 +85,7 @@ create or modify page FU.P_Files (Title: 'Files', Layout: Atlas_Core.Atlas_Defau
       onUploadFailureFile: microflow FU.ACT_FileFailed
     )
   }
-}
+};
 
 -- Page 2 — uploadMode: images. The other half of the pairs.
 create or modify page FU.P_Images (Title: 'Images', Layout: Atlas_Core.Atlas_Default,
@@ -99,7 +100,7 @@ create or modify page FU.P_Images (Title: 'Images', Layout: Atlas_Core.Atlas_Def
       onUploadFailureImage: microflow FU.ACT_ImageFailed(Ctx = $Ctx)
     )
   }
-}
+};
 
 grant view on page FU.P_Files to FU.User;
 grant view on page FU.P_Images to FU.User;

@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug mendixlabs/mxcli#1118: CREATE OR MODIFY EXTERNAL ENTITIES FROM silently
 -- drops OData ComplexType properties.
 --

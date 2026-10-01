@@ -6,11 +6,13 @@ MDL statements can be saved in `.mdl` files and executed as scripts. This is the
 
 - **Extension:** `.mdl`
 - **Encoding:** UTF-8
-- **Statement termination:** Semicolons (`;`) or forward slash (`/`) on its own line
+- **Language header:** a script starts with `mdl 1;`, the MDL language version it is written in (`mxcli fmt --upgrade --header` adds it to an older script)
+- **Statement termination:** every statement ends with a semicolon (`;`)
 
 A typical script file:
 
 ```sql
+mdl 1;
 -- setup_domain_model.mdl
 -- Creates the Sales domain model
 

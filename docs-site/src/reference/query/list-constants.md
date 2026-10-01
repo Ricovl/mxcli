@@ -24,25 +24,25 @@ Constants are named values (strings, integers, booleans, etc.) that can be confi
 List all constants in the project:
 
 ```sql
-LIST CONSTANTS
+LIST CONSTANTS;
 ```
 
 List constants in a specific module:
 
 ```sql
-LIST CONSTANTS IN MyModule
+LIST CONSTANTS IN MyModule;
 ```
 
 Compare constant values across all configurations:
 
 ```sql
-LIST CONSTANT VALUES
+LIST CONSTANT VALUES;
 ```
 
 Compare constant values for a specific module:
 
 ```sql
-LIST CONSTANT VALUES IN MyModule
+LIST CONSTANT VALUES IN MyModule;
 ```
 
 ## See Also

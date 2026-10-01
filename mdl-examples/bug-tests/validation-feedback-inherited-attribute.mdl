@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#974 — a validation feedback aimed at an INHERITED attribute
 -- wrote a reference Mendix cannot resolve:
 --

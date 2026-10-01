@@ -168,6 +168,7 @@ Here is a typical conversation with Claude Code:
 
 **Claude** (reads skills, writes MDL, validates, and executes):
 ```sql
+mdl 1;
 /** Customer contact information */
 @Position(100, 100)
 CREATE PERSISTENT ENTITY Sales.Customer (
@@ -186,20 +187,20 @@ CREATE PAGE Sales.Customer_Overview
 )
 {
   LAYOUTGRID mainGrid {
-    ROW row1 {
-      COLUMN col1 (DesktopWidth: 12) {
+    ROW {
+      COLUMN (DesktopWidth: 12) {
         DATAGRID dgCustomers (
           DataSource: DATABASE FROM Sales.Customer SORT BY Name ASC
         ) {
-          COLUMN colName (Attribute: Name, Caption: 'Name')
-          COLUMN colEmail (Attribute: Email, Caption: 'Email')
-          COLUMN colPhone (Attribute: Phone, Caption: 'Phone')
-          COLUMN colActive (Attribute: IsActive, Caption: 'Active')
+          COLUMN (Attribute: Name, Caption: 'Name')
+          COLUMN (Attribute: Email, Caption: 'Email')
+          COLUMN (Attribute: Phone, Caption: 'Phone')
+          COLUMN (Attribute: IsActive, Caption: 'Active')
         }
       }
     }
   }
-}
+};
 ```
 
 Claude validates the script, executes it, and reports back. You can then open the project in Studio Pro to review the result.

@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#979 — a long XPath constraint is stored on one line.
 --
 -- Filed as "preserve the whitespace I typed". Preserving is the weaker half:

@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#514 — a list view template for the list view's OWN entity was
 -- accepted and written, and mxbuild then refused the project.
 --

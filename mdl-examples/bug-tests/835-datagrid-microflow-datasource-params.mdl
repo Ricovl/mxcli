@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #835: a parameterized microflow datasource silently dropped its argument
 -- binding, so the widget failed to build with CE1571.
 --

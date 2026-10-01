@@ -1,3 +1,4 @@
+mdl 1;
 -- mxcli-formula1 §39 (adjacent finding)
 --
 -- A SHOW_PAGE widget argument naming anything other than the enclosing widget's
@@ -22,7 +23,7 @@ create or modify page PgArg.Detail (
   dataview dvDetail (DataSource: $Car) {
     textbox tbName (Attribute: Name)
   }
-}
+};
 
 -- ACCEPTED: $currentObject in a database-backed list.
 create or modify page PgArg.Overview (
@@ -35,7 +36,7 @@ create or modify page PgArg.Overview (
       Action: SHOW PAGE PgArg.Detail(Car = $currentObject)
     )
   }
-}
+};
 
 -- ACCEPTED: the context variable by its own name — the enclosing data view is
 -- bound to $Car, so $Car and $currentObject denote the same object.
@@ -50,7 +51,7 @@ create or modify page PgArg.Caller (
       Action: SHOW PAGE PgArg.Detail(Car = $Car)
     )
   }
-}
+};
 
 -- REFUSED (MDL-PAGEARG01): $Other is not the context object, so Mendix would
 -- open Detail with $Car. Uncomment to see the guard fire; `mxcli check` flags it

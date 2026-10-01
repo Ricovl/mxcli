@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- ALTER PAGE INSERT/REPLACE where no entity is in scope: bindings qualified
 -- ============================================================================
@@ -29,12 +30,10 @@
 -- ============================================================================
 
 create module BugTestAlterScope;
-/
 
 create persistent entity BugTestAlterScope.Draft (
   Subject: String(200)
 );
-/
 
 @excluded
 create or modify page BugTestAlterScope.Draft_Example
@@ -56,8 +55,7 @@ create or modify page BugTestAlterScope.Draft_Example
       }
     }
   }
-}
-/
+};
 
 -- Inside the data view whose flow is missing: the binding must be qualified.
 alter page BugTestAlterScope.Draft_Example {
@@ -65,7 +63,6 @@ alter page BugTestAlterScope.Draft_Example {
     dynamictext txtEcho (Content: 'About: {1}', ContentParams: ({1} = BugTestAlterScope.Draft.Subject))
   }
 };
-/
 
 -- Inside a data view whose entity is known: a bare name is fine.
 alter page BugTestAlterScope.Draft_Example {
@@ -73,4 +70,3 @@ alter page BugTestAlterScope.Draft_Example {
     dynamictext txtEcho2 (Content: 'About: {1}', ContentParams: ({1} = Subject))
   }
 };
-/

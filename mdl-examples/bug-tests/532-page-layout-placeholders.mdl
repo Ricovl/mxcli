@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue #532 — assign widgets to multiple layout placeholders
 -- ============================================================================
@@ -25,4 +26,4 @@ create page Issue532.P (
   placeholder Topbar {
     dynamictext lblTop (Content: 'This widget is in the Topbar placeholder')
   }
-}
+};

@@ -1,3 +1,4 @@
+mdl 1;
 -- The `dynamicimage` sibling of the mendixlabs/mxcli#1057 static-image gap, and
 -- worse than it: TWO defects, only one of which is a round trip.
 --

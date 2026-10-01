@@ -11,7 +11,7 @@ CREATE [ OR MODIFY ] AI MODEL module.Name (
     [, Environment: 'environment' ]
 );
 
-DROP AI MODEL module.Name
+DROP AI MODEL module.Name;
 ```
 
 Requires Mendix 11.9+.
@@ -51,15 +51,15 @@ If `OR MODIFY` is specified and the model already exists, its properties are upd
 ### Minimal model
 
 ```sql
+mdl 1;
 CREATE CONSTANT MyModule."ModelKey"
     ( Type: String, DefaultValue: '' );
-/
 
 CREATE AI MODEL MyModule."GPT4Model" (
     Provider: MxCloudGenAI,
     key: @MyModule.ModelKey
 );
-/
+
 ```
 
 ### Model with Portal metadata (for round-trip scripts)
@@ -72,7 +72,7 @@ CREATE AI MODEL MyModule."ConfiguredModel" (
     KeyName: 'prod-gpt4-turbo',
     Environment: 'production'
 );
-/
+
 ```
 
 ### Idempotent upsert
@@ -83,14 +83,14 @@ CREATE OR MODIFY AI MODEL MyModule."GPT4Model" (
     key: @MyModule.ModelKey,
     DisplayName: 'GPT-4 Turbo (Updated)'
 );
-/
+
 ```
 
 ### Cleanup
 
 ```sql
 DROP AI MODEL MyModule.GPT4Model;
-/
+
 ```
 
 ## See Also

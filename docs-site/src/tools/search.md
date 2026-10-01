@@ -5,7 +5,7 @@ The `SEARCH` command performs full-text search across all strings and source cod
 ## Syntax
 
 ```sql
-SEARCH '<keyword>'
+SEARCH '<keyword>';
 ```
 
 ## Examples

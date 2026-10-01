@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#993 — @position on a flow parameter.
 --
 -- A MicroflowParameter is a stored node with real geometry (RelativeMiddlePoint

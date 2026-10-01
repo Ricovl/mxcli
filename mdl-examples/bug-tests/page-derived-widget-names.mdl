@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#978 — `describe page` emitted MDL that mxcli's own
 -- `check --references` rejected, on stock Administration pages:
 --

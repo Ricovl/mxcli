@@ -22,7 +22,7 @@ This is particularly useful before using `ALTER PAGE` or `ALTER SNIPPET`, as it 
 Describe a page:
 
 ```sql
-DESCRIBE PAGE Sales.Customer_Edit
+DESCRIBE PAGE Sales.Customer_Edit;
 ```
 
 Example output:
@@ -43,13 +43,13 @@ CREATE PAGE Sales.Customer_Edit
       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
-}
+};
 ```
 
 Describe a snippet:
 
 ```sql
-DESCRIBE SNIPPET Common.NavigationMenu
+DESCRIBE SNIPPET Common.NavigationMenu;
 ```
 
 ## See Also

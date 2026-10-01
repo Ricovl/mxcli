@@ -15,6 +15,7 @@ ALTER ENTITY Sales.Customer ADD ATTRIBUTE Phone: String(50);
 New attributes support the same [constraints](./constraints.md) as in `CREATE ENTITY`. Add several with one statement each:
 
 ```sql
+mdl 1;
 ALTER ENTITY Sales.Customer ADD ATTRIBUTE LoyaltyPoints: Integer DEFAULT 0;
 ALTER ENTITY Sales.Customer ADD ATTRIBUTE MemberSince: DateTime NOT NULL;
 ```
@@ -30,6 +31,7 @@ ALTER ENTITY Sales.Customer DROP ATTRIBUTE Notes;
 Drop several with one statement each:
 
 ```sql
+mdl 1;
 ALTER ENTITY Sales.Customer DROP ATTRIBUTE Notes;
 ALTER ENTITY Sales.Customer DROP ATTRIBUTE TempField;
 ALTER ENTITY Sales.Customer DROP ATTRIBUTE OldStatus;
@@ -48,6 +50,7 @@ type slot accepts a bare qualified name (an entity or enumeration reference), so
 a clause written where the type belongs is read *as* the type:
 
 ```mdl
+mdl 1;
 -- WRONG: `SET` is read as the type name, not as a keyword
 ALTER ENTITY Sales.Customer MODIFY ATTRIBUTE Discount: SET DEFAULT 0;
 
@@ -129,6 +132,7 @@ ALTER ENTITY Sales.Customer
 System attributes use the same `ADD ATTRIBUTE` / `DROP ATTRIBUTE` syntax as regular attributes:
 
 ```sql
+mdl 1;
 -- Add system attributes
 ALTER ENTITY Sales.Order ADD ATTRIBUTE Owner: AutoOwner;
 ALTER ENTITY Sales.Order ADD ATTRIBUTE ChangedBy: AutoChangedBy;
@@ -145,6 +149,7 @@ ALTER ENTITY Sales.Order DROP ATTRIBUTE ChangedDate;
 Register microflows to run before or after entity operations:
 
 ```sql
+mdl 1;
 -- Before commit: validates and can abort (RAISE ERROR)
 ALTER ENTITY Sales.Order
   ADD EVENT HANDLER ON BEFORE COMMIT CALL Sales.ValidateOrder($currentObject) RAISE ERROR;

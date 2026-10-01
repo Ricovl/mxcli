@@ -20,7 +20,7 @@ func runFmt(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	// cobra keeps flag values between runs in one process.
 	for _, f := range []string{"write", "upgrade", "header", "force-header"} {
-		_ = fmtCmd.Flags().Set(f, "false")
+		_ = fmtCmd.Flags().Set(f, fmtCmd.Flags().Lookup(f).DefValue)
 		fmtCmd.Flags().Lookup(f).Changed = false
 	}
 	_ = rootCmd.PersistentFlags().Set("project", "")
@@ -39,24 +39,25 @@ func TestFmtUpgrade_WritesOnlyTheRewrites(t *testing.T) {
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runFmt(t, "--upgrade", "-w", path); err != nil {
+	if _, err := runFmt(t, "--upgrade", "--header=false", "-w", path); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := os.ReadFile(path)
 	// Only the deprecated keywords change: no heuristic upper-casing (which
-	// would turn M.User into M.USER), no re-indentation, and no header while
-	// mdl 1 is a preview.
+	// would turn M.User into M.USER), no re-indentation, and no header when it
+	// is declined.
 	want := "-- keep me\nCREATE OR MODIFY entity M.User (Name: String);\n   list entities;\n"
 	if string(got) != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
 	}
 
-	if _, err := runFmt(t, "--upgrade", "--header", "-w", path); err != nil {
+	// mdl 1 is frozen (ako/mxcli#714): --upgrade adds the header by default.
+	if _, err := runFmt(t, "--upgrade", "-w", path); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = os.ReadFile(path)
 	if !strings.HasPrefix(string(got), "mdl 1;\n-- keep me\n") {
-		t.Fatalf("--header did not add the header:\n%s", got)
+		t.Fatalf("--upgrade did not add the header:\n%s", got)
 	}
 
 	// Idempotent: a second run leaves the file as it is.
@@ -93,6 +94,44 @@ func TestFmtUpgrade_ReportsWhatItCannotRewrite(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(path); string(got) != src {
 		t.Fatalf("the file was changed although the header was refused:\n%s", got)
+	}
+}
+
+// Since the freeze --upgrade adds the header by default (ako/mxcli#714), so a
+// construct that blocks it now fails a plain `fmt --upgrade`, which before the
+// freeze upgraded the spellings and succeeded. The refusal names the way back
+// to that, `--header=false`, and that way works: the spellings are upgraded,
+// the blocked construct is left, and no header is added.
+func TestFmtUpgrade_BlockedDefaultHeaderNamesTheOptOut(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.mdl")
+	src := "create microflow M.F ($L: List of M.E) begin\n  $n = count(filter($L, Name = 'x'));\nend\n/\n"
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := runFmt(t, "--upgrade", "-w", path)
+	if err == nil || !strings.Contains(err.Error(), "MDL-V1-LIST") {
+		t.Fatalf("want the default header refused over the nested list operation, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "--header=false") {
+		t.Errorf("the refusal of the default header does not name --header=false:\n%v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != src {
+		t.Fatalf("the file was changed although the header was refused:\n%s", got)
+	}
+
+	if _, err := runFmt(t, "--upgrade", "--header=false", "-w", path); err != nil {
+		t.Fatalf("--header=false: %v", err)
+	}
+	if got, _ := os.ReadFile(path); strings.HasPrefix(string(got), "mdl ") {
+		t.Fatalf("--header=false added a header:\n%s", got)
+	}
+
+	// Asked for explicitly, the header is the point: no hint to decline it.
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runFmt(t, "--upgrade", "--header", "-w", path); err == nil || strings.Contains(err.Error(), "--header=false") {
+		t.Fatalf("an explicit --header: want the refusal without the opt-out hint, got %v", err)
 	}
 }
 
@@ -212,8 +251,10 @@ func TestFmtUpgrade_BareCommitWithoutProjectIsANote(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := os.ReadFile(path); string(got) != src {
-		t.Fatalf("the file changed without a project:\n%s", got)
+	// The commit is left as written; only the header (the default since the
+	// freeze, ako/mxcli#714) is added.
+	if got, _ := os.ReadFile(path); string(got) != "mdl 1;\n"+src {
+		t.Fatalf("the commit changed without a project:\n%s", got)
 	}
 	for _, want := range []string{"s.mdl:3: note: M.F:", "MDL067", "-p app.mpr"} {
 		if !strings.Contains(out, want) {

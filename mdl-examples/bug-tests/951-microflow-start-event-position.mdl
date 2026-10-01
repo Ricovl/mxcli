@@ -1,3 +1,4 @@
+mdl 1;
 -- Repro: a full rewrite via CREATE OR MODIFY MICROFLOW stranded the StartEvent.
 -- Every activity moved to where the script asked; the start stayed where the
 -- PREVIOUS layout had put it, joined to its own first activity by a long

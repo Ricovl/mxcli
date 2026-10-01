@@ -230,7 +230,7 @@ func registerTranslationHandlers(r *Registry) {
 		return execCreateTranslations(ctx, stmt.(*ast.CreateTranslationsStmt))
 	})
 	r.Register(&ast.DescribeTranslationsStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
-		return execDescribeTranslations(ctx, stmt.(*ast.DescribeTranslationsStmt))
+		return withDescribeHeader(ctx, func() error { return execDescribeTranslations(ctx, stmt.(*ast.DescribeTranslationsStmt)) })
 	})
 }
 
@@ -245,7 +245,7 @@ func registerQueueHandlers(r *Registry) {
 		return execShowQueues(ctx, stmt.(*ast.ShowQueuesStmt))
 	})
 	r.Register(&ast.DescribeQueueStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
-		return execDescribeQueue(ctx, stmt.(*ast.DescribeQueueStmt))
+		return withDescribeHeader(ctx, func() error { return execDescribeQueue(ctx, stmt.(*ast.DescribeQueueStmt)) })
 	})
 }
 
@@ -260,7 +260,7 @@ func registerScheduledEventHandlers(r *Registry) {
 		return execShowScheduledEvents(ctx, stmt.(*ast.ShowScheduledEventsStmt))
 	})
 	r.Register(&ast.DescribeScheduledEventStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
-		return execDescribeScheduledEvent(ctx, stmt.(*ast.DescribeScheduledEventStmt))
+		return withDescribeHeader(ctx, func() error { return execDescribeScheduledEvent(ctx, stmt.(*ast.DescribeScheduledEventStmt)) })
 	})
 }
 
@@ -284,7 +284,7 @@ func registerRegularExpressionHandlers(r *Registry) {
 		return execShowRegularExpressions(ctx, stmt.(*ast.ShowRegularExpressionsStmt))
 	})
 	r.Register(&ast.DescribeRegularExpressionStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
-		return execDescribeRegularExpression(ctx, stmt.(*ast.DescribeRegularExpressionStmt))
+		return withDescribeHeader(ctx, func() error { return execDescribeRegularExpression(ctx, stmt.(*ast.DescribeRegularExpressionStmt)) })
 	})
 }
 
@@ -404,7 +404,7 @@ func registerRESTHandlers(r *Registry) {
 		return dropRestClient(ctx, stmt.(*ast.DropRestClientStmt))
 	})
 	r.Register(&ast.DescribeContractFromOpenAPIStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
-		return describeContractFromOpenAPI(ctx, stmt.(*ast.DescribeContractFromOpenAPIStmt))
+		return withDescribeHeader(ctx, func() error { return describeContractFromOpenAPI(ctx, stmt.(*ast.DescribeContractFromOpenAPIStmt)) })
 	})
 	r.Register(&ast.CreatePublishedRestServiceStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return execCreatePublishedRestService(ctx, stmt.(*ast.CreatePublishedRestServiceStmt))
@@ -538,7 +538,7 @@ func registerFragmentHandlers(r *Registry) {
 		return execDefineFragment(ctx, stmt.(*ast.DefineFragmentStmt))
 	})
 	r.Register(&ast.DescribeFragmentFromStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
-		return describeFragmentFrom(ctx, stmt.(*ast.DescribeFragmentFromStmt))
+		return withDescribeHeader(ctx, func() error { return describeFragmentFrom(ctx, stmt.(*ast.DescribeFragmentFromStmt)) })
 	})
 }
 

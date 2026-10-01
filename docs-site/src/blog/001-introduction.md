@@ -13,14 +13,16 @@ mxcli is our answer to that problem.
 mxcli is a command-line tool that lets you read, query, and modify Mendix projects without Studio Pro. It exposes your `.mpr` file through **MDL** (Mendix Definition Language) — a SQL-like syntax that maps directly onto Mendix concepts:
 
 ```mdl
+mdl 1;
 -- Explore your project
-LIST ENTITIES IN CustomerModule
-DESCRIBE CustomerModule.Customer
+LIST ENTITIES IN CustomerModule;
+DESCRIBE ENTITY CustomerModule.Customer;
 
 -- Make changes
-CREATE ENTITY CustomerModule.Order
-  WITH ATTRIBUTE TotalAmount Decimal
-  WITH ATTRIBUTE Status Enumeration CustomerModule.OrderStatus;
+CREATE PERSISTENT ENTITY CustomerModule.Order (
+  TotalAmount: Decimal,
+  Status: Enumeration(CustomerModule.OrderStatus)
+);
 
 CREATE ASSOCIATION CustomerModule.Order_Customer
   FROM CustomerModule.Order TO CustomerModule.Customer;

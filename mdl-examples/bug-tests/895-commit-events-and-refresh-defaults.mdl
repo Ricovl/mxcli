@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #895: COMMIT wrote "with events = No"; delete/create dropped "refresh"
 -- ============================================================================
@@ -43,7 +44,6 @@ create module BugTest895;
 create entity BugTest895.Item (
   Name : string(100)
 );
-/
 
 create microflow BugTest895.MF_CommitDefaults (
   $Item: BugTest895.Item
@@ -57,7 +57,6 @@ begin
   commit $Item without events;
   commit $Item without events refresh;
 end;
-/
 
 -- The #407 sibling: REFRESH on the two activities that never had it.
 create microflow BugTest895.MF_RefreshOnDeleteAndCreate ()
@@ -65,7 +64,6 @@ begin
   $New = create BugTest895.Item (Name = 'x') refresh;
   delete $New refresh;
 end;
-/
 
 -- Negative control: the two activities that already had REFRESH must still
 -- round-trip, and their bare forms must stay bare. If this microflow's describe
@@ -80,4 +78,3 @@ begin
   $Plain = create BugTest895.Item (Name = 'z');
   delete $Plain;
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- Findings #24: `create or modify entity` rebuilds the entity from the statement
 -- alone and REPLACES the stored one, so any existing attribute the statement
 -- omits is silently dropped (later surfacing as CE1613 on widgets still bound to

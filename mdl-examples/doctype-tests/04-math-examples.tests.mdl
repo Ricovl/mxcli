@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- MathTest.IsPrime Tests
 -- ============================================================================
@@ -30,7 +31,6 @@ begin
 
   return $TestResult;
 end;
-/
 
 /**
  * Unit test for MathTest.IsPrime
@@ -60,7 +60,6 @@ begin
 
   return $TestResult;
 end;
-/
 
 /**
  * Unit test for MathTest.IsPrime
@@ -90,7 +89,6 @@ begin
 
   return $TestResult;
 end;
-/
 
 /**
  * Unit test for MathTest.IsPrime
@@ -120,7 +118,6 @@ begin
 
   return $TestResult;
 end;
-/
 
 /**
  * Unit test for MathTest.IsPrime
@@ -150,7 +147,6 @@ begin
 
   return $TestResult;
 end;
-/
 
 /**
  * Unit test for MathTest.IsPrime
@@ -180,7 +176,6 @@ begin
 
   return $TestResult;
 end;
-/
 
 /**
  * Test Suite: All tests for MathTest.IsPrime
@@ -232,7 +227,6 @@ begin
 
   return $Summary;
 end;
-/
 
 -- ============================================================================
 -- MathTest.Fibonacci Tests
@@ -266,7 +260,6 @@ begin
 
   return $TestResult;
 end;
-/
 
 /**
  * Unit test for MathTest.Fibonacci
@@ -296,7 +289,6 @@ begin
 
   return $TestResult;
 end;
-/
 
 /**
  * Unit test for MathTest.Fibonacci
@@ -326,7 +318,6 @@ begin
 
   return $TestResult;
 end;
-/
 
 /**
  * Unit test for MathTest.Fibonacci
@@ -356,7 +347,6 @@ begin
 
   return $TestResult;
 end;
-/
 
 /**
  * Unit test for MathTest.Fibonacci
@@ -386,7 +376,6 @@ begin
 
   return $TestResult;
 end;
-/
 
 /**
  * Test Suite: All tests for MathTest.Fibonacci
@@ -433,7 +422,6 @@ begin
 
   return $Summary;
 end;
-/
 
 -- ============================================================================
 -- Master Test Suite
@@ -461,7 +449,6 @@ begin
 
   return $Summary;
 end;
-/
 
 -- ============================================================================
 -- Test Runner Page
@@ -536,4 +523,3 @@ create page MathTest.MathTestRunner folder 'Tests/Math'
     }
   }
 };
-/

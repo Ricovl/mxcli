@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Workflow and mapping actions drifted on a describe → rewrite round trip
 -- ============================================================================
@@ -34,7 +35,6 @@ begin
   open workflow $Workflow;
   return true;
 end;
-/
 
 create microflow BugWfPos.Mixed ( $Workflow: System.Workflow ) returns boolean as $Ok
 begin
@@ -43,4 +43,3 @@ begin
   workflow operation pause $Workflow;
   return true;
 end;
-/

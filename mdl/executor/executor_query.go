@@ -212,7 +212,7 @@ func execDescribe(ctx *ExecContext, s *ast.DescribeStmt) error {
 		fmt.Fprintf(ctx.Output, "-- %s definition (not executable)\n", report)
 	}
 
-	return writeDescribeJSONAs(ctx, name, objectType, !isReport, func() error {
+	describe := func() error {
 		switch s.ObjectType {
 		case ast.DescribeEnumeration:
 			return describeEnumeration(ctx, s.Name)
@@ -321,6 +321,12 @@ func execDescribe(ctx *ExecContext, s *ast.DescribeStmt) error {
 		default:
 			return mdlerrors.NewUnsupported("unknown describe object type")
 		}
+	}
+	return writeDescribeJSONAs(ctx, name, objectType, !isReport, func() error {
+		if isReport {
+			return describe()
+		}
+		return withDescribeHeader(ctx, describe)
 	})
 }
 

@@ -1,3 +1,4 @@
+mdl 1;
 -- Three things `mxcli check` accepted that exec or the build refused. All three
 -- are answerable from the STATEMENT alone, so they are reported with no project
 -- — a divergence that only `-p` catches is still a divergence.
@@ -70,24 +71,20 @@
 --      at CreateShape.ACT_Count
 
 create module CreateShape;
-/
 
 create or modify entity CreateShape.Thing (
   Code: String(20)
 );
-/
 
 create or modify entity CreateShape.Other (
   Label: String(20)
 );
-/
 
 -- CONTROL for MDL074: a qualified association is exactly what the rule wants,
 -- and a `create module` — which has nothing to be qualified BY — must never be
 -- reported. Both appear in this file.
 create or modify association CreateShape.Thing_Other
   from CreateShape.Thing to CreateShape.Other type reference;
-/
 
 -- CONTROL for MDL075: `RETURNS void` on its own is the spelling the report
 -- itself identified as round-tripping cleanly.
@@ -96,7 +93,6 @@ returns void
 begin
   COMMIT $Thing;
 end;
-/
 
 -- CONTROL for MDL075: a typed return WITH an alias is the ordinary shape. A rule
 -- that flagged the alias itself would break far more than it fixed.
@@ -106,7 +102,6 @@ begin
   DECLARE $out String = 'done';
   RETURN $out;
 end;
-/
 
 -- CONTROL for E014: the two correct ways to ask whether a list is empty.
 -- `empty` is a keyword, so it goes on the right of a comparison.
@@ -120,4 +115,3 @@ begin
     LOG INFO 'still none';
   END IF;
 end;
-/

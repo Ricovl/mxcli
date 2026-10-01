@@ -155,11 +155,20 @@ func TestUpgradeExecutesToTheSameModel(t *testing.T) {
 		len(keptVersion), strings.Join(keptVersion, "\n  "))
 	t.Logf("%d scripts do not parse (negative tests) and cannot be upgraded:\n  %s",
 		len(unparsed), strings.Join(unparsed, "\n  "))
-	if floor := 50 / sh.count; os.Getenv("MXCLI_UPGRADE_EXAMPLES") == "" && len(same) < floor {
-		// Hundreds execute today; a handful means the harness broke, and a
-		// property checked on nothing passes. A shard sees 1/n of them.
-		t.Errorf("only %d scripts executed cleanly (shard %s) — the harness is not exercising the property",
-			len(same), sh)
+	if os.Getenv("MXCLI_UPGRADE_EXAMPLES") == "" {
+		// A property checked on nothing passes, so guard both ends. Since the
+		// examples were migrated to mdl 1 (#901) the scripts with something to
+		// rewrite are mostly the deprecated-aliases corpus and alwaysExecuted:
+		// the corpus must not shrink away, and a shard must execute at least
+		// half of its share of it cleanly (the rest is out of scope on PedApp).
+		if executable < 40 {
+			t.Errorf("only %d scripts have something to upgrade — the corpus of old spellings has shrunk "+
+				"(mdl-examples/deprecated-aliases), so the property is barely exercised", executable)
+		}
+		if floor := executable / sh.count / 2; len(same) < floor {
+			t.Errorf("only %d scripts executed cleanly (shard %s, floor %d) — the harness is not exercising the property",
+				len(same), sh, floor)
+		}
 	}
 }
 

@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- ako/mxcli#524 — `grant write *` on an entity carrying an AUTONUMBER wrote
@@ -37,7 +38,7 @@ create microflow Issue524.CALC_Summary ($ServiceRequest: Issue524.ServiceRequest
 returns string
 begin
   return $ServiceRequest/Description;
-end
+end;
 
 -- The reported statement: blanket write, no REVOKE narrowing it.
 grant read *, write * on entity Issue524.ServiceRequest to Issue524.Coordinator;

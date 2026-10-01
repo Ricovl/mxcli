@@ -69,7 +69,7 @@ func TestSpliceRerun_GrowByGuard(t *testing.T) {
 	if got := countType(t, grown, "Microflows$EndEvent"); got != 2 {
 		t.Errorf("%d end events after the grow, want the stored one and the guard's", got)
 	}
-	described := h.mustDescribe(t, "microflow MyFirstModule.Grow_Guard")
+	described := h.mustDescribeMdl0(t, "microflow MyFirstModule.Grow_Guard")
 	for _, want := range []string{"if $N <= 0 then", "return true;", "'Grow' 'n > 0';", "return false;"} {
 		if !strings.Contains(described, want) {
 			t.Errorf("the grown flow does not state %q:\n%s", want, described)
@@ -110,7 +110,7 @@ func TestSpliceRerun_GrowByGuard(t *testing.T) {
 	if len(elementIDs(t, after)) != len(elementIDs(t, before)) {
 		t.Errorf("%d elements after, %d before: the condition edit added or removed one", len(elementIDs(t, after)), len(elementIDs(t, before)))
 	}
-	if got := h.mustDescribe(t, "microflow MyFirstModule.Grow_Guard"); !strings.Contains(got, "if $N < 1 then") {
+	if got := h.mustDescribeMdl0(t, "microflow MyFirstModule.Grow_Guard"); !strings.Contains(got, "if $N < 1 then") {
 		t.Errorf("describe does not show the new condition:\n%s", got)
 	}
 	settled = h.snapshot()
@@ -133,7 +133,7 @@ func TestSpliceRerun_GrowStudioProFlowByGuard(t *testing.T) {
 	// The script states no layout, as a hand-written one does: a stated
 	// @position is where the script puts a node, and the insert moves the
 	// stored nodes after it along to make room.
-	described := withoutLayout(h.mustDescribe(t, target))
+	described := withoutLayout(h.mustDescribeMdl0(t, target))
 	const first = "  $AccountPasswordData = create"
 	const guard = "  if $Account = empty then\n    return;\n  end if;\n"
 	edited := strings.Replace(described, first, guard+first, 1)
@@ -163,7 +163,7 @@ func TestSpliceRerun_GrowStudioProFlowByGuard(t *testing.T) {
 	if changed := settled.diff(h.snapshot()); len(changed) != 0 {
 		t.Errorf("the second run wrote: %s\n%s", strings.Join(changed, "; "), h.out.String())
 	}
-	again := h.mustDescribe(t, target)
+	again := h.mustDescribeMdl0(t, target)
 	if err := h.exec("mdl 1;\n" + again); err != nil {
 		t.Fatalf("re-exec of the description: %v\n%s", err, h.out.String())
 	}
@@ -238,7 +238,7 @@ func TestSpliceRerun_StudioProDecisionConditionSetInPlace(t *testing.T) {
 	defer h.close()
 
 	const target = "microflow Administration.ChangePassword"
-	described := h.mustDescribe(t, target)
+	described := h.mustDescribeMdl0(t, target)
 	const old = "if $AccountPasswordData/NewPassword = $AccountPasswordData/ConfirmPassword then"
 	const cond = "if $AccountPasswordData/NewPassword = $AccountPasswordData/ConfirmPassword and $AccountPasswordData/NewPassword != empty then"
 	edited := strings.Replace(described, old, cond, 1)
@@ -257,7 +257,7 @@ func TestSpliceRerun_StudioProDecisionConditionSetInPlace(t *testing.T) {
 	if len(elementIDs(t, after)) != len(elementIDs(t, before)) {
 		t.Errorf("%d elements after, %d before", len(elementIDs(t, after)), len(elementIDs(t, before)))
 	}
-	again := h.mustDescribe(t, target)
+	again := h.mustDescribeMdl0(t, target)
 	if !strings.Contains(again, cond) || !strings.Contains(again, "@caption 'Passwords equal?'") {
 		t.Errorf("want the new condition and the stored caption:\n%s", again)
 	}
@@ -346,7 +346,7 @@ func TestSpliceRerun_ReplaceEndingInGuard(t *testing.T) {
 	defer h.close()
 
 	const target = "microflow Administration.ShowPasswordForm"
-	described := withoutLayout(h.mustDescribe(t, target))
+	described := withoutLayout(h.mustDescribeMdl0(t, target))
 	const show = "  show page Administration.ChangePasswordForm(AccountPasswordData = $AccountPasswordData);\n"
 	const repl = "  log info node 'Pwd' 'no page';\n  if $AccountPasswordData = empty then\n    return;\n  end if;\n"
 	edited := strings.Replace(described, show, repl, 1)

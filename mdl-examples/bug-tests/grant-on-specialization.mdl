@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- mxcli-chat FINDINGS §25 — GRANT on a specialization produced CE0066
 --
@@ -30,20 +31,15 @@
 -- ============================================================================
 
 create module Spec25;
-/
 
 create persistent entity Spec25.Base ( Code: String );
 create persistent entity Spec25.Other ( Label: String );
 create persistent entity Spec25.Derived extends Spec25.Base ( Extra: String );
-/
 
 create association Spec25.Base_Other from Spec25.Base to Spec25.Other;
-/
 
 create module role Spec25.User;
-/
 
 grant read *, write * on entity Spec25.Base to Spec25.User;
 grant read *, write * on entity Spec25.Derived to Spec25.User;
 grant read *, write * on entity Spec25.Other to Spec25.User;
-/

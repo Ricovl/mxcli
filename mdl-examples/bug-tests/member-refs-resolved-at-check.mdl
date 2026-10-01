@@ -1,3 +1,4 @@
+mdl 1;
 -- `check --references` resolved the ENTITY a create/change names and stopped
 -- there, so a mistyped MEMBER passed check, passed exec, and surfaced at the far
 -- end of a build (mendixlabs/mxcli#1048):
@@ -34,27 +35,22 @@
 --     CE1613 "The selected attribute 'MemberRefs.Order.Statuss' no longer exists"
 
 create module MemberRefs;
-/
 
 create or modify entity MemberRefs.Base (
   Code: String(20)
 );
-/
 
 create or modify entity MemberRefs.Order extends MemberRefs.Base (
   OrderNo: String(50),
   Status: String(50)
 );
-/
 
 create or modify entity MemberRefs.Customer (
   Name: String(200)
 );
-/
 
 create or modify association MemberRefs.Order_Customer
   from MemberRefs.Order to MemberRefs.Customer type reference;
-/
 
 -- The entity of a CREATE is in the statement, so its members are always checked.
 -- This one is the non-vacuity anchor: perturb any name here and it is reported.
@@ -66,7 +62,6 @@ begin
   );
   COMMIT $O;
 end;
-/
 
 -- A CHANGE on a PARAMETER. Also covers the two shapes that would be false
 -- positives if the walk were naive:
@@ -87,7 +82,6 @@ begin
   );
   COMMIT $Order;
 end;
-/
 
 -- A LOOP over a database retrieve: the iterator inherits the element type, so
 -- the commonest bulk-update shape is checked rather than silently skipped.
@@ -100,7 +94,6 @@ begin
     COMMIT $O;
   END LOOP;
 end;
-/
 
 -- A LOOP over an ASSOCIATION retrieve, traversed from the TO end. Resolving
 -- this is what stops the check being silent on the shape real scripts use most.
@@ -114,14 +107,12 @@ begin
     CHANGE $O ("OrderNo" = 'X');
   END LOOP;
 end;
-/
 
 -- CONTROL: the migration shape. `Archived` does not exist in the stored project
 -- when this script starts — the statement above adds it — so a check that only
 -- consulted the project would report it and break the change most likely to
 -- name a new member.
 alter entity MemberRefs.Order add attribute "Archived": Boolean;
-/
 
 create or modify microflow MemberRefs.ACT_Archive (
   $Order: MemberRefs.Order
@@ -130,4 +121,3 @@ begin
   CHANGE $Order ("Archived" = true);
   COMMIT $Order;
 end;
-/

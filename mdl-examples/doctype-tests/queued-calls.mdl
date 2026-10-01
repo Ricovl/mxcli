@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Queued calls — IN QUEUE on CALL MICROFLOW and CALL JAVA ACTION
 -- ============================================================================
@@ -41,20 +42,16 @@
 -- ============================================================================
 
 create module Ops;
-/
 create task queue Ops.RefreshQueue (Parallelism: 2, ClusterWide: true);
-/
 create microflow Ops.ACT_Work ($Note: String)
 begin
   log info node 'Ops' 'working';
 end;
-/
 -- A queued Java action must return Nothing (CE7038 otherwise).
 create java action Ops.RefreshData(Url: string not null) returns void
 as $$
 return;
 $$;
-/
 create or modify microflow Ops.ACT_Enqueue ()
 begin
   -- Both call activities take the same clause, in the same position:
@@ -62,7 +59,6 @@ begin
   call microflow Ops.ACT_Work(Note = 'queued') in queue Ops.RefreshQueue;
   call java action Ops.RefreshData(Url = 'https://example.org') in queue Ops.RefreshQueue;
 end;
-/
 -- An unqueued call is unchanged: no QueueSettings is written at all, which is
 -- what Studio Pro stores and what every existing microflow round-trips as.
 create or modify microflow Ops.ACT_Direct ()

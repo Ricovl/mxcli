@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #840: DESCRIBE MICROFLOW invented an `on error rollback` clause.
 --
 -- An activity authored with no error-handling clause came back from describe

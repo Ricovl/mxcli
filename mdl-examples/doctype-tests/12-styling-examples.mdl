@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Styling Examples - Classes, Inline Styles, and Design Properties
 -- ============================================================================
@@ -90,7 +91,7 @@ create page StyleTest.P001_CSS_Classes
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes, class: 'btn-sm')
     }
   }
-}
+};
 
 -- MARK: Style
 
@@ -134,7 +135,7 @@ create page StyleTest.P002_Inline_Styles
       }
     }
   }
-}
+};
 
 -- MARK: DynamicClasses
 
@@ -179,7 +180,7 @@ create page StyleTest.P002b_Dynamic_Classes
       )
     }
   }
-}
+};
 
 describe page StyleTest.P002b_Dynamic_Classes;
 
@@ -245,7 +246,7 @@ create page StyleTest.P003_Design_Properties
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
-}
+};
 
 -- MARK: Combined
 
@@ -352,7 +353,7 @@ create page StyleTest.P004_Combined_Styling
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
-}
+};
 
 -- MARK: OFF toggle
 
@@ -385,7 +386,7 @@ create page StyleTest.P005_Toggle_OFF
   container ctnMixed (designproperties: ('Card style': on, 'Disable row wrap': on)) {
     dynamictext txtMixed (content: 'Mixed Toggle with option values')
   }
-}
+};
 
 -- MARK: Describe
 
@@ -415,7 +416,7 @@ create snippet StyleTest.MySnippet
   dataview dvSnippetEmployee (datasource: $Employee) {
     textbox txtSnippetName (label: 'Name', attribute: Name)
   }
-}
+};
 
 describe snippet StyleTest.MySnippet;
 
@@ -507,7 +508,7 @@ update widgets
 -- bulk update — set (or change) a single widget's runtime class expression in place.
 alter page StyleTest.P002b_Dynamic_Classes {
   set (DynamicClasses: if $currentObject/Department = 'HR' then 'card-hr' else '')  on dcCard;
-}
+};
 
 -- MARK: Roundtrip
 
@@ -547,7 +548,7 @@ create page StyleTest.P006_Roundtrip
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
-}
+};
 
 -- Step 2: Describe to see current state (shows Class, Style, DesignProperties)
 describe page StyleTest.P006_Roundtrip;
@@ -586,7 +587,7 @@ create or modify page StyleTest.P006_Roundtrip
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
-}
+};
 
 -- Step 5: Verify changes
 list widgets in StyleTest;
@@ -694,7 +695,7 @@ create or modify page StyleTest."P007_Compound" (
       }
     }
   }
-}
+};
 
 DESCRIBE STYLING ON PAGE StyleTest.P007_Compound WIDGET lgCompound;
 
@@ -741,7 +742,7 @@ create page StyleTest.P008_Grid_A
     column  (attribute: Name,  caption: 'Name')
     column (attribute: Email, caption: 'Email')
   }
-}
+};
 
 create page StyleTest.P009_Grid_B
 (
@@ -753,7 +754,7 @@ create page StyleTest.P009_Grid_B
     column (attribute: "title", caption: 'Title')
     column   (attribute: DueDate, caption: 'Due')
   }
-}
+};
 
 -- `dry run` first: it applies the assignments to a discardable copy of each
 -- document and reports what would happen, which matters on a statement that

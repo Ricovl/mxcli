@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue mendixlabs/mxcli#939 — a decision that calls a rule lost its Condition
 -- ============================================================================
@@ -54,8 +55,7 @@ begin
   else
     return;
   end if;
-end
-/
+end;
 
 -- ----------------------------------------------------------------------------
 -- Three further defects reported on the same issue, all fixed:

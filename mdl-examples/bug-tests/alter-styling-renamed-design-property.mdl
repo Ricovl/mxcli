@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- ALTER STYLING with a design-property key the theme RENAMED
 -- ============================================================================
@@ -27,8 +28,7 @@ create or modify page MyFirstModule.StylingRenamed_Test
   container cntBody {
     dynamictext txt (Content: 'Hello')
   }
-}
-/
+};
 
 -- The old name: warned, with the current form to use instead.
 -- alter styling on page MyFirstModule.StylingRenamed_Test widget cntBody set 'Spacing bottom' = 'Outer medium';
@@ -41,4 +41,3 @@ alter page MyFirstModule.StylingRenamed_Test {
     }
   }
 };
-/

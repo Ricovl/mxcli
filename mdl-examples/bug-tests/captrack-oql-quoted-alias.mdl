@@ -1,3 +1,4 @@
+mdl 1;
 -- The quoting that DOES work in OQL. The refused spelling is in
 -- captrack-oql-quoted-alias.fail.mdl (MDL072).
 --
@@ -11,10 +12,8 @@
 -- `Month` or `Year`: that one has to be renamed, not quoted.
 
 create persistent entity CapTrack.Sales ( Month: Integer, Amount: Integer );
-/
 
 create view entity CapTrack.SalesByMonth ( MonthNo: integer, Total: integer ) as
   select s."Month" as MonthNo, sum(s.Amount) as Total
   from CapTrack.Sales as s
   group by s."Month";
-/

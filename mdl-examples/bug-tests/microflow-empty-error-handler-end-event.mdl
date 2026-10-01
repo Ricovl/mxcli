@@ -1,3 +1,4 @@
+mdl 1;
 -- An empty `on error … begin end error` gave an end event two incoming flows (CE0709).
 --
 -- In Mendix an end event accepts exactly ONE incoming sequence flow — joining
@@ -30,7 +31,6 @@ create or modify microflow EhProbe.Helper () returns String
 begin
   return 'x';
 end;
-/
 
 -- THE CASE. Both branches return, and the THEN branch's call carries an empty
 -- error handler. Before the fix this built a project mxbuild refused.
@@ -43,7 +43,6 @@ begin
     return 'no';
   end if;
 end;
-/
 
 -- CONTROL 1: the same shape with a statement in the handler block. It routes
 -- its own path, never needed the merge, and must not gain one. Without this the
@@ -58,7 +57,6 @@ begin
     return 'no';
   end if;
 end;
-/
 
 -- CONTROL 2: no error handling at all. The post-pass must leave an ordinary
 -- if/else alone — the narrowest statement that it does not rewrite every graph.

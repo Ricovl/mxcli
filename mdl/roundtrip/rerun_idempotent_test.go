@@ -313,7 +313,7 @@ create or modify persistent entity MyFirstModule.RerunTx (
 	if changed := first.diff(h.snapshot()); len(changed) != 0 {
 		t.Errorf("the unchanged view entity wrote %d unit(s):\n  %s", len(changed), strings.Join(changed, "\n  "))
 	}
-	if got := h.mustDescribe(t, "entity MyFirstModule.RerunYear"); !strings.Contains(got, strings.TrimSpace(grant)) {
+	if got := h.mustDescribeMdl0(t, "entity MyFirstModule.RerunYear"); !strings.Contains(got, strings.TrimSpace(grant)) {
 		t.Errorf("the access rule is gone:\n%s", got)
 	}
 
@@ -325,7 +325,7 @@ create or modify persistent entity MyFirstModule.RerunTx (
 	if len(first.diff(h.snapshot())) == 0 {
 		t.Error("an edited view entity wrote nothing")
 	}
-	if got := h.mustDescribe(t, "entity MyFirstModule.RerunYear"); !strings.Contains(got, "count(t.Amount)") ||
+	if got := h.mustDescribeMdl0(t, "entity MyFirstModule.RerunYear"); !strings.Contains(got, "count(t.Amount)") ||
 		!strings.Contains(got, strings.TrimSpace(grant)) {
 		t.Errorf("an edited view entity: want the new query and the rule kept:\n%s", got)
 	}

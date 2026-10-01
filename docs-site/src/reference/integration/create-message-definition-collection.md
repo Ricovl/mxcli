@@ -74,6 +74,7 @@ guesses.
 ## Examples
 
 ```sql
+mdl 1;
 CREATE MESSAGE DEFINITION COLLECTION Sales.MD_Order
     FOLDER 'Messages'
 {
@@ -100,6 +101,7 @@ Definitions nest deeply, so a whole-document rewrite is a poor tool for "expose
 one more attribute".
 
 ```sql
+mdl 1;
 ALTER MESSAGE DEFINITION Sales.MD_Order.OrderMessage ADD MEMBER TotalAmount;
 ALTER MESSAGE DEFINITION Sales.MD_Order.OrderMessage ADD MEMBER LastName IN Customer;
 ALTER MESSAGE DEFINITION Sales.MD_Order.OrderMessage SET MEMBER TotalAmount AS 'GrandTotal';

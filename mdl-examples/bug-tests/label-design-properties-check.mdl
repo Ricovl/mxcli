@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- A `label`'s design properties were neither checked nor typed from the theme
 -- ============================================================================
@@ -31,7 +32,6 @@ create or modify page MyFirstModule.LabelDesignProps_Test
     label lblOpt (Content: 'Option', DesignProperties: ('Style': 'Brand Primary', 'Align self': 'Left'))
     label lblSpaced (Content: 'Spaced', DesignProperties: ('Spacing': ('margin-bottom': 'M'), 'Hide on': ('Phone': on)))
   }
-}
-/
+};
 
 describe page MyFirstModule.LabelDesignProps_Test;

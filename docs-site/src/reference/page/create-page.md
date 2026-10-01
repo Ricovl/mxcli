@@ -173,10 +173,10 @@ there, addressed by the widget's own name:
 
 ```sql
 DATAGRID dgOrders (DataSource: DATABASE FROM Sales.Order, Selection: Single) {
-  COLUMN colNr (Attribute: Number, Caption: 'Order #')
-  CONTROLBAR cb {
+  COLUMN (Attribute: Number, Caption: 'Order #')
+  CONTROLBAR {
     CONTAINER cShip (Class: 'command',
-      Action: NANOFLOW Sales.ACT_Ship(Order = $dgOrders)) {
+      Action: CALL NANOFLOW Sales.ACT_Ship(Order = $dgOrders)) {
       ACTIONBUTTON btnShip (Caption: 'Ship')
     }
   }
@@ -276,11 +276,11 @@ CREATE PAGE Sales.Order_Overview FOLDER 'Orders'
 )
 {
     DATAGRID dgOrders (DataSource: DATABASE Sales.Order, PageSize: 20) {
-        COLUMN colId (Attribute: OrderId, Caption: 'Order #')
-        COLUMN colDate (Attribute: OrderDate, Caption: 'Date')
-        COLUMN colStatus (Attribute: Status, Caption: 'Status')
-        COLUMN colAmount (Attribute: TotalAmount, Caption: 'Amount', Alignment: right)
-        CONTROLBAR cb1 {
+        COLUMN (Attribute: OrderId, Caption: 'Order #')
+        COLUMN (Attribute: OrderDate, Caption: 'Date')
+        COLUMN (Attribute: Status, Caption: 'Status')
+        COLUMN (Attribute: TotalAmount, Caption: 'Amount', Alignment: right)
+        CONTROLBAR {
             ACTIONBUTTON btnNew (Caption: 'New Order', Action: SHOW PAGE Sales.Order_Edit, ButtonStyle: Primary)
         }
     }
@@ -297,15 +297,15 @@ CREATE PAGE MyModule.Dashboard
 )
 {
     LAYOUTGRID lgMain {
-        ROW row1 {
-            COLUMN col1 (Class: 'col-md-8') {
+        ROW {
+            COLUMN (Class: 'col-md-8') {
                 CONTAINER cntRecent (Class: 'card') {
                     LISTVIEW lvRecent (DataSource: DATABASE MyModule.RecentActivity, PageSize: 5) {
                         DYNAMICTEXT txtDesc (Attribute: Description)
                     }
                 }
             }
-            COLUMN col2 (Class: 'col-md-4') {
+            COLUMN (Class: 'col-md-4') {
                 CONTAINER cntStats (Class: 'card') {
                     DYNAMICTEXT txtCount (Attribute: TotalCount)
                 }
@@ -343,14 +343,14 @@ CREATE PAGE Sales.Product_Gallery
 )
 {
     LAYOUTGRID lgMain {
-        ROW row1 {
-            COLUMN col1 (Class: 'col-md-6') {
+        ROW {
+            COLUMN (Class: 'col-md-6') {
                 GALLERY galProducts (DataSource: DATABASE Sales.Product, PageSize: 12) {
                     DYNAMICTEXT txtName (Attribute: Name)
                     DYNAMICTEXT txtPrice (Attribute: Price)
                 }
             }
-            COLUMN col2 (Class: 'col-md-6') {
+            COLUMN (Class: 'col-md-6') {
                 DATAVIEW dvDetail (DataSource: SELECTION galProducts) {
                     TEXTBOX txtName (Label: 'Product', Attribute: Name)
                     TEXTBOX txtDesc (Label: 'Description', Attribute: Description)

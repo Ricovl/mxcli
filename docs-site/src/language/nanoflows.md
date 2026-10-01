@@ -129,9 +129,9 @@ The following activities are server-only and cannot be used in nanoflows:
 ## SHOW and DESCRIBE
 
 ```sql
-LIST NANOFLOWS
-LIST NANOFLOWS IN MyModule
-DESCRIBE NANOFLOW MyModule.NAV_ShowDetails
+LIST NANOFLOWS;
+LIST NANOFLOWS IN MyModule;
+DESCRIBE NANOFLOW MyModule.NAV_ShowDetails;
 ```
 
 ## DROP

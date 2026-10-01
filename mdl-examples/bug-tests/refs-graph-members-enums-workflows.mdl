@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- refs / impact / context: gaps in the cross-reference graph
 -- ============================================================================
@@ -56,7 +57,6 @@ create enumeration RefsGraph.MachineStatus (
 create persistent entity RefsGraph.Line (
   Name: String(100)
 );
-/
 
 create persistent entity RefsGraph.Machine (
   Name: String(100),
@@ -64,12 +64,10 @@ create persistent entity RefsGraph.Machine (
   Incidents: Integer,
   Unused: String(20)
 );
-/
 
 create persistent entity RefsGraph.Incident (
   Title: String(200)
 );
-/
 
 create association RefsGraph.Machine_Line from RefsGraph.Machine to RefsGraph.Line;
 create association RefsGraph.Incident_Machine from RefsGraph.Incident to RefsGraph.Machine;
@@ -86,7 +84,6 @@ begin
     end if;
   end loop;
 end;
-/
 
 create page RefsGraph.Machine_Details
 (
@@ -99,7 +96,7 @@ create page RefsGraph.Machine_Details
     textbox tbName (Label: 'Name', Attribute: Name)
     textbox tbIncidents (Label: 'Incidents', Attribute: Incidents)
   }
-}
+};
 
 create workflow RefsGraph.WF_Repair
   parameter $Context: RefsGraph.Machine
@@ -114,4 +111,3 @@ create microflow RefsGraph.ACT_Machine_Repair ($Machine: RefsGraph.Machine)
 begin
   $Wf = call workflow RefsGraph.WF_Repair ($Machine);
 end;
-/

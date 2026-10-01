@@ -1,3 +1,4 @@
+mdl 1;
 -- Repro: DELETE_BEHAVIOR PREVENT reported success and wrote
 -- DeleteMeButKeepReferences, destroying a stored DELETE_AND_REFERENCES.
 -- Upstream #901.

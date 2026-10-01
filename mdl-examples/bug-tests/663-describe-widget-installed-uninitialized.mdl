@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#663: DESCRIBE WIDGET called an installed widget "unknown".
 --
 -- On a fresh clone (no .mxcli/ — it is gitignored) with Fieldset installed in

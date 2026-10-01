@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- ako/mxcli#529 — an input widget could not bind an attribute over an
@@ -74,7 +75,7 @@ create or modify page Issue529.RuleAction_NewEdit (
       }
     }
   }
-}
+};
 
 -- Round-trip: this must emit `RuleAction_BusinessRule/Name`, not a bare `Name`.
 describe page Issue529.RuleAction_NewEdit;

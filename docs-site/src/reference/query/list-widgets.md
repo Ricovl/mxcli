@@ -23,20 +23,20 @@ This is useful for auditing widget usage, finding pages that use a particular wi
 List all widgets (requires catalog):
 
 ```sql
-REFRESH CATALOG FULL
-LIST WIDGETS
+REFRESH CATALOG FULL;
+LIST WIDGETS;
 ```
 
 List widgets in a specific module:
 
 ```sql
-LIST WIDGETS IN Sales
+LIST WIDGETS IN Sales;
 ```
 
 Filter widgets by type:
 
 ```sql
-LIST WIDGETS WHERE WidgetType = 'DataGrid'
+LIST WIDGETS WHERE WidgetType = 'DataGrid';
 ```
 
 ## See Also

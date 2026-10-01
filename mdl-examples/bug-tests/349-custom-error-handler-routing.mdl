@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #349: Custom error-handler routing during microflow roundtrip
 -- ============================================================================
@@ -38,13 +39,11 @@ create microflow BugTest349.MF_RefreshData (
 begin
   log info node 'BugTest349' 'refreshed: ' + $Token;
 end;
-/
 
 create microflow BugTest349.MF_NextBatch ()
 begin
   log info node 'BugTest349' 'next batch';
 end;
-/
 
 -- Caller with non-terminal custom error handler. The handler body logs
 -- but does not return, so its tail must rejoin the continuation
@@ -61,4 +60,3 @@ begin
 
   call microflow BugTest349.MF_NextBatch ();
 end;
-/

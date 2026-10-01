@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #716 (gallery half): CE0463 on freshly authored Gallery widgets
 --
 -- Symptom: on a project with Data Widgets 3.10+ installed, every Gallery mxcli
@@ -72,4 +73,4 @@ create page W716.Overview
       }
     }
   }
-}
+};

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Quoted attribute names must be stripped in expression contexts
 -- ============================================================================
@@ -51,7 +52,7 @@ begin
     return true;
   end if;
   return false;
-end
+end;
 
 -- 1b/1c — quoted attributes in widget contentparams and visibility expressions.
 create or modify page MyFirstModule.P_Expense
@@ -61,7 +62,7 @@ create or modify page MyFirstModule.P_Expense
     dynamictext qAmount (content: '{1}', contentparams: ({1} = "Amount"))
     dynamictext qReview (content: 'Needs review', visible: $currentObject/Amount > 1000)
   }
-}
+};
 
 -- 1d — quoted attribute in an XPath database datasource WHERE constraint.
 create or modify page MyFirstModule.P_Queue
@@ -70,7 +71,7 @@ create or modify page MyFirstModule.P_Queue
   gallery galQueue (datasource: database from MyFirstModule.Expense where [ "Status" = 'Submitted' ]) {
     dynamictext qStatus (content: '{1}', contentparams: ({1} = "Status"))
   }
-}
+};
 
 -- All should round-trip to the unquoted form (1d WHERE → [Status = 'Submitted']).
 describe microflow MyFirstModule.ACT_Expense_Submit;

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #352 (part): Java action result variable type inference
 -- ============================================================================
@@ -30,7 +31,6 @@ create module BugTest352b;
 create persistent entity BugTest352b.LogEntry (
   Message : string(500)
 );
-/
 
 -- Java action returning an entity object — the result variable type must
 -- be inferred so downstream `change` / `commit` resolve.
@@ -40,7 +40,6 @@ create java action BugTest352b.CreateLogEntry (
 as $$
 return new com.mendix.systemwideinterfaces.core.IMendixObject();
 $$;
-/
 
 -- Caller microflow that depends on the inferred return type. The change
 -- statement on `$Entry/Message` would fail validation if the Java action
@@ -53,4 +52,3 @@ begin
   $Entry = call java action BugTest352b.CreateLogEntry (Msg = $Msg);
   change $Entry (Message = $Msg + ' (processed)');
 end;
-/

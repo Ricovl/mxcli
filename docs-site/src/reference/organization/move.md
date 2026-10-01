@@ -81,6 +81,7 @@ MOVE PAGE OldModule.CustomerPage TO FOLDER 'Screens' IN NewModule;
 ### Move a mapping or JSON structure
 
 ```sql
+mdl 1;
 MOVE IMPORT MAPPING MyModule.IMM_Order TO FOLDER 'Private/Import mappings';
 MOVE EXPORT MAPPING MyModule.EXM_Order TO FOLDER 'Private/Export mappings';
 MOVE JSON STRUCTURE MyModule.JSON_Order TO FOLDER 'Private/JSON structures';
@@ -95,6 +96,7 @@ follows the qualified name straight away. The `Folder: 'path'` property that pag
 snippets and REST/OData services also take is a deprecated alias (`MDL-DEPR105`):
 
 ```sql
+mdl 1;
 CREATE OR MODIFY JSON STRUCTURE MyModule.JSON_Order
   FOLDER 'Private/JSON structures'
   SAMPLE '{"id": 1}';
@@ -120,6 +122,7 @@ MOVE FOLDER MyModule.OldName TO FOLDER 'Archive';
 ### Check impact before a cross-module move
 
 ```sql
+mdl 1;
 LIST IMPACT OF OldModule.Customer;
 MOVE ENTITY OldModule.Customer TO NewModule;
 ```

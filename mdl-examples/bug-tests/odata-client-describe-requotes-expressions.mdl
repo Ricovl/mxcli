@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: DESCRIBE ODATA CLIENT lost a quote level on a literal credential.
 --
 -- Symptom: a client configured in Studio Pro with a literal user name stores the
@@ -27,7 +28,6 @@ create constant OdQuote.ApiLocation
 
 create constant OdQuote.ApiKey
 ( Type: string, DefaultValue: 'secret' );
-/
 
 create consumed odata service OdQuote.QuotedApi (
   ODataVersion: OData4,
@@ -42,4 +42,3 @@ headers (
   'X-Api-Key': 'Key ' + @OdQuote.ApiKey,
   'X-O''Key': 'it''s'
 );
-/

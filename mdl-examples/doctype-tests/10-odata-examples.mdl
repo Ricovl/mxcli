@@ -1,3 +1,4 @@
+mdl 1;
 -- ############################################################################
 -- ODATA EXAMPLES
 -- ############################################################################
@@ -49,14 +50,12 @@ owner default;
  * Output columns: Module, QualifiedName, Version, OData, MetadataUrl, Validated
  */
 list consumed odata services;
-/
 
 /**
  * Level 1.2: Show OData clients in a specific module
  * Lists only consumed OData services in the specified module.
  */
 list consumed odata services in OdTest;
-/
 
 -- ############################################################################
 -- MARK: - Describe OData Client
@@ -78,14 +77,12 @@ list consumed odata services in OdTest;
  * Output columns: Module, QualifiedName, Path, Version, OData, EntitySets, AuthTypes
  */
 list published odata services;
-/
 
 /**
  * Level 3.2: Show OData services in a specific module
  * Lists only published OData services in the specified module.
  */
 list published odata services in OdTest;
-/
 
 -- ############################################################################
 -- MARK: - Describe OData Service
@@ -109,14 +106,12 @@ list published odata services in OdTest;
  * Output columns: Module, QualifiedName, Service, EntitySet, RemoteName, Countable
  */
 list external entities;
-/
 
 /**
  * Level 5.2: Show external entities in a specific module
  * Lists only external entities in the specified module.
  */
 list external entities in OdTest;
-/
 
 -- ############################################################################
 -- MARK: - Describe External Entity
@@ -140,21 +135,18 @@ list external entities in OdTest;
  * The CATALOG.ODATA_CLIENTS table contains all consumed OData services.
  */
 select * from catalog.ODATA_CLIENTS;
-/
 
 /**
  * Level 7.2: Query OData services from the catalog
  * The CATALOG.ODATA_SERVICES table contains all published OData services.
  */
 select * from catalog.ODATA_SERVICES;
-/
 
 /**
  * Level 7.3: Find external entities via catalog
  * External entities have IsExternal = 1 in the CATALOG.ENTITIES table.
  */
 select * from catalog.entities where IsExternal = 1;
-/
 
 -- ############################################################################
 -- MARK: - Write Support (CREATE / ALTER / DROP)
@@ -185,7 +177,6 @@ create consumed odata service OdTest.TripPinAPI folder 'Integration/TripPin' (
   ServiceUrl: @OdTest.TripPinAPIServiceUrl,
   ProxyType: DefaultProxy
 );
-/
 
 /**
  * Level 8.2: Create a published OData service
@@ -236,7 +227,6 @@ authentication basic, session
     Order_Customer as 'Customer'
   );
 };
-/
 
 /**
  * Level 8.2a: Create a consumed OData service with full HTTP configuration
@@ -278,7 +268,6 @@ create constant OdTest.FullConfigAPIServiceUrl
 
 create constant OdTest.HeadersConfigAPIServiceUrl
 ( Type: string, DefaultValue: 'https://api.example.com/odata/v4' );
-/
 
 -- ConfigurationMicroflow is mutually exclusive with constant-based ServiceUrl
 -- and proxy settings (CE0783, CE1135). FullConfigAPI demonstrates the
@@ -308,7 +297,6 @@ headers (
   'X-Api-Key': 'Key ' + @OdTest.FullConfigAPIServiceUrl,
   'Accept': 'application/json'
 );
-/
 
 /**
  * Level 8.2b: Consumed OData service with a Headers microflow.
@@ -338,7 +326,6 @@ create consumed odata service OdTest.HeadersConfigAPI (
   HeadersMicroflow: microflow OdTest.SetHeaders,
   ErrorHandlingMicroflow: microflow OdTest.HandleError
 );
-/
 
 /**
  * Level 8.2c: Consumed OData service with a Configuration microflow.
@@ -364,7 +351,6 @@ create consumed odata service OdTest.MicroflowConfigAPI (
   ConfigurationMicroflow: microflow OdTest.ConfigureRequest,
   ErrorHandlingMicroflow: microflow OdTest.HandleError
 );
-/
 -- @version: any
 
 /**
@@ -376,21 +362,18 @@ create or modify consumed odata service OdTest.TripPinAPI (
   MetadataUrl: 'https://services.odata.org/TripPinRESTierService/$metadata',
   timeout: 600
 );
-/
 
 /**
  * Level 8.4: Alter an OData client property
  */
 alter consumed odata service OdTest.TripPinAPI
   set ( timeout: 600 );
-/
 
 /**
  * Level 8.5: Alter an OData service property
  */
 alter published odata service OdTest.CustomerAPI
   set ( version: '2.0.0' );
-/
 
 -- ############################################################################
 -- LEVEL 8.6: CREATE EXTERNAL ENTITY (singular form)
@@ -416,13 +399,11 @@ alter published odata service OdTest.CustomerAPI
 create module role OdTest.Admin;
 create module role OdTest.user;
 grant access on published odata service OdTest.CustomerAPI to OdTest.Admin, OdTest.user;
-/
 
 /**
  * Level 8.7b: Revoke access on a published OData service
  */
 revoke access on published odata service OdTest.CustomerAPI from OdTest.user;
-/
 
 /**
  * Level 8.6b: OData action — publish a microflow
@@ -444,7 +425,6 @@ BEGIN
   declare $Ok Boolean = true;
   RETURN $Ok;
 END;
-/
 
 create or modify published odata service OdTest.ActionApi (
   path: 'odata/actions/',
@@ -459,11 +439,9 @@ authentication basic
   publish microflow OdTest.RecordNote as 'RecordNote'
     expose ( Note as 'note', Amount as 'amount' (CanBeEmpty) );
 };
-/
 
 -- DESCRIBE round-trips the block, so this output is re-executable.
 describe published odata service OdTest.ActionApi;
-/
 
 /**
  * Level 8.7c: A modify must NOT revoke the grants made above.
@@ -521,11 +499,9 @@ authentication basic, session
     Order_Customer as 'Customer'
   );
 };
-/
 
 -- The grant made in 8.7a must still be there.
 describe published odata service OdTest.CustomerAPI;
-/
 
 -- ############################################################################
 -- LEVEL 9: EXTERNAL ACTION CALLS IN MICROFLOWS
@@ -543,9 +519,7 @@ describe published odata service OdTest.CustomerAPI;
  * Level 9.2: Show external actions discovered from microflow usage
  */
 list external actions;
-/
 list external actions in OdTest;
-/
 
 -- ############################################################################
 -- LEVEL 10: CREATE EXTERNAL ENTITIES (bulk from contract)
@@ -564,15 +538,12 @@ list external actions in OdTest;
  * Level 10.0: Set up the TripPin module, role, and constant.
  */
 create module TripPinClient;
-/
 
 create module role TripPinClient."user"
   description 'Role for TripPin API access';
-/
 
 create constant TripPinClient."TripPinServiceUrl"
   ( Type: string, DefaultValue: 'https://services.odata.org/TripPinRESTierService/' );
-/
 
 /**
  * Level 10.1: Register the TripPin RW service.
@@ -586,7 +557,6 @@ create consumed odata service TripPinClient."TripPinApiClient" (
   ServiceUrl: @TripPinClient.TripPinServiceUrl,
   UseAuthentication: No
 );
-/
 
 /**
  * Level 10.2: Bulk import all entity types from the TripPin contract.
@@ -595,21 +565,18 @@ create consumed odata service TripPinClient."TripPinApiClient" (
  * types (Flight, PlanItem, Trip, etc.) use the type name.
  */
 create external entities from TripPinClient."TripPinApiClient";
-/
 
 /**
  * Level 10.3: Import only specific entity types by name.
  */
 create or modify external entities from TripPinClient."TripPinApiClient"
   entities (Airline, Airport);
-/
 
 /**
  * Level 10.4: Import all entities into a different module.
  */
 create or modify external entities from TripPinClient."TripPinApiClient"
   into TripPinClient;
-/
 
 /**
  * Level 10.4.1: Demonstrate `call external action` against an unbound TripPin
@@ -629,7 +596,6 @@ begin
     call external action TripPinClient."TripPinApiClient".ResetDataSource();
     return true;
 end;
-/
 
 -- ############################################################################
 -- LEVEL 8.75: A microflow-backed resource declares its own contract
@@ -671,7 +637,6 @@ begin
   $Rows = create list of OdTest.LiveRow;
   return $Rows;
 end;
-/
 
 -- (b) Or declare an honest contract: no KEY to answer, no paging claimed.
 create microflow OdTest.Read_AllRows ()
@@ -680,7 +645,6 @@ begin
   $Rows = create list of OdTest.LiveRow;
   return $Rows;
 end;
-/
 
 create published odata service OdTest.LiveAPI (
   path: 'odata/live/',

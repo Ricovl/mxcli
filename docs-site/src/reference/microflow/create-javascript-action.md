@@ -9,7 +9,7 @@ CREATE [ OR MODIFY ] JAVASCRIPT ACTION module.Name [ FOLDER 'folder_path' ] ( pa
     [ PLATFORM Web | Native | Hybrid | All ]
     AS $$ javascript_code $$
 
-DROP JAVASCRIPT ACTION module.Name
+DROP JAVASCRIPT ACTION module.Name;
 ```
 
 ## Description

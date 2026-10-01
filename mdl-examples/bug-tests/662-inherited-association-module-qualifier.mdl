@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- ako/mxcli#662: an association inherited through a generalization was
 -- written into the page entity's module
@@ -29,7 +30,6 @@
 create entity MyFirstModule.Member extends System.User (
   FullName: String(200)
 );
-/
 
 create or modify page MyFirstModule.Member_Edit
 ( Title: 'Member', Layout: Atlas_Core.Atlas_Default, Params: ( $Member: MyFirstModule.Member ) )
@@ -52,8 +52,7 @@ create or modify page MyFirstModule.Member_Edit
     -- Association path whose hop is inherited.
     textbox txtLangCode (label: 'Language code', attribute: User_Language/Code)
   }
-}
-/
+};
 
 -- Expect `attribute: System.UserRoles` / `System.User_Language` on the comboboxes.
 describe page MyFirstModule.Member_Edit;

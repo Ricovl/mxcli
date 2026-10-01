@@ -1,3 +1,4 @@
+mdl 1;
 -- describe: a stored expression's trailing newline put `)` / `;` on its own line
 --
 -- Studio Pro stores an expression exactly as typed, and a newline left at the
@@ -40,9 +41,8 @@ begin
 );
   $List = create list of BugTestNewline.Ticket;
   add $Ticket to $List;
-  $Found = find($List, $currentObject/Title = 'First'
-and $currentObject/TicketState = BugTestNewline.TicketStatus.Open
-);
+  $Found = find $List where $currentObject/Title = 'First'
+and $currentObject/TicketState = BugTestNewline.TicketStatus.Open;
   log info node 'BugTest' 'Title {1}' with ({1} = $Ticket/Title
 );
   return;

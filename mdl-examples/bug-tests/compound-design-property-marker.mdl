@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 10.0+
 -- ============================================================================
 -- Compound design property's nested Properties list written with marker 3.
@@ -35,4 +36,4 @@ create page BugCompoundDPMarker.SpacingPage (
   container container1 (designproperties: ('Spacing': ('margin-bottom': 'None'))) {
     dynamictext text1 (content: 'Spaced')
   }
-}
+};

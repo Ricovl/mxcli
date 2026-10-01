@@ -52,6 +52,7 @@ Modifies an existing entity without full replacement.
 
 **Example:**
 ```sql
+mdl 1;
 ALTER ENTITY Sales.Customer ADD ATTRIBUTE Phone: String(50);
 ALTER ENTITY Sales.Customer ADD ATTRIBUTE Notes: String(unlimited);
 
@@ -71,6 +72,7 @@ ALTER ENTITY Sales.Customer ADD INDEX (Email);
 
 **Example:**
 ```sql
+mdl 1;
 CREATE CONSTANT MyModule.ApiBaseUrl ( Type: String, DefaultValue: 'https://api.example.com' );
 CREATE CONSTANT MyModule.MaxRetries ( Type: Integer, DefaultValue: 3 );
 CREATE CONSTANT MyModule.EnableLogging ( Type: Boolean, DefaultValue: true );
@@ -180,7 +182,7 @@ AUTHENTICATION Basic, Session
 | `TRY ... CATCH ... END TRY` | `ON ERROR BEGIN ... END ERROR` blocks | Use error handlers on specific activities |
 
 **Notes:**
-- `RETRIEVE ... FIRST` returns a single entity; `RETRIEVE ... LIMIT n [OFFSET n]` returns a list. A bare `LIMIT 1` is a list of one under `mdl 1;`, and without the header the single entity, with warning `MDL-V1-LIMIT1`.
+- `RETRIEVE ... FIRST` returns a single entity; `RETRIEVE ... LIMIT n [OFFSET n]` returns a list. A bare `LIMIT 1` is a list of one.
 - `ROLLBACK $Entity [REFRESH];` IS supported. Rolls back uncommitted changes to an object.
 
 ## Project Organization
@@ -282,7 +284,7 @@ END WORKFLOW;
 
 **Navigation Example:**
 ```sql
-CREATE OR REPLACE NAVIGATION Responsive
+CREATE OR MODIFY NAVIGATION Responsive
   HOME PAGE MyModule.Home_Web
   HOME PAGE MyModule.AdminHome FOR Administrator
   LOGIN PAGE Administration.Login
@@ -406,7 +408,7 @@ CREATE PAGE MyModule.Customer_Edit
       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
-}
+};
 ```
 
 **Supported Widgets:**
@@ -438,6 +440,7 @@ Modify an existing page or snippet's widget tree in-place without full `CREATE O
 
 **Example:**
 ```sql
+mdl 1;
 ALTER PAGE Module.EditPage {
   SET (Caption: 'Save & Close', ButtonStyle: Success) ON btnSave;
   DROP txtUnused;

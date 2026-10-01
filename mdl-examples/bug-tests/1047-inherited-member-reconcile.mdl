@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- CE0066 after adding an attribute to a GENERALIZATION, and `UPDATE SECURITY`
 -- reporting "up to date" over it  (mendixlabs/mxcli#1047)

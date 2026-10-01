@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- Workflow Examples — CREATE, ALTER, and microflow integration
@@ -35,43 +36,36 @@ create microflow WFTest.ACT_Validate ($OrderContext: WFTest.OrderContext)
 begin
   @position(200,200) return;
 end;
-/
 
 create microflow WFTest.ACT_Process ($OrderContext: WFTest.OrderContext)
 begin
   @position(200,200) return;
 end;
-/
 
 create microflow WFTest.ACT_Escalate ($OrderContext: WFTest.OrderContext)
 begin
   @position(200,200) return;
 end;
-/
 
 create microflow WFTest.ACT_Notify ($OrderContext: WFTest.OrderContext)
 begin
   @position(200,200) return;
 end;
-/
 
 create microflow WFTest.ACT_Review ($OrderContext: WFTest.OrderContext)
 begin
   @position(200,200) return;
 end;
-/
 
 create microflow WFTest.ACT_Finalize ($OrderContext: WFTest.OrderContext)
 begin
   @position(200,200) return;
 end;
-/
 
 create microflow WFTest.ACT_BoundaryHandler ($OrderContext: WFTest.OrderContext)
 begin
   @position(200,200) return;
 end;
-/
 
 -- Targeting microflow: (System.Workflow, context) -> List of System.User
 create microflow WFTest.ACT_TargetUsers (
@@ -84,7 +78,6 @@ begin
   retrieve $users from System.User;
   @position(400,200) return $users;
 end;
-/
 
 -- User task pages (System.WorkflowUserTask param)
 create page WFTest.TaskPage (
@@ -99,7 +92,7 @@ create page WFTest.TaskPage (
       }
     }
   }
-}
+};
 
 create page WFTest.AlternateTaskPage (
   title: 'Alternate Task',
@@ -113,7 +106,7 @@ create page WFTest.AlternateTaskPage (
       }
     }
   }
-}
+};
 
 -- Overview page (System.Workflow param)
 create page WFTest.OverviewPage (
@@ -128,7 +121,7 @@ create page WFTest.OverviewPage (
       }
     }
   }
-}
+};
 
 -- Sub-workflow for CALL WORKFLOW demo
 create workflow WFTest.SubProcess
@@ -137,7 +130,6 @@ create workflow WFTest.SubProcess
 begin
   call microflow WFTest.ACT_Finalize;
 end workflow;
-/
 
 -- Initial workflow — simple starting point, all richness added via ALTER
 
@@ -170,7 +162,6 @@ begin
     path 3 { }
   ;
 end workflow;
-/
 
 -- SET workflow-level properties
 
@@ -343,7 +334,6 @@ begin
   ;
 
 end workflow;
-/
 
 -- ############################################################################
 -- PART C: USER TARGETING — all targeting variants
@@ -373,7 +363,6 @@ begin
   retrieve $Users from System.User;
   @position(400,200) return $Users;
 end;
-/
 
 create microflow WFTarget.ACT_GetGroups (
   $Workflow: System.Workflow,
@@ -385,7 +374,6 @@ begin
   retrieve $Groups from System.WorkflowGroup;
   @position(400,200) return $Groups;
 end;
-/
 
 create page WFTarget.TaskPage (
   title: 'Task Page',
@@ -399,7 +387,7 @@ create page WFTarget.TaskPage (
       }
     }
   }
-}
+};
 
 create workflow WFTarget.TargetingDemo
   parameter $WorkflowContext: WFTarget.Request
@@ -447,7 +435,6 @@ begin
     outcomes 'Done' { };
 
 end workflow;
-/
 
 
 -- ############################################################################
@@ -463,7 +450,6 @@ create microflow TestModule.ACT_Stub ($DeliveryContext: TestModule.DeliveryConte
 begin
   @position(200,200) return;
 end;
-/
 
 create workflow TestModule.WF_DeliveryDelay
   parameter $WorkflowContext: TestModule.DeliveryContext
@@ -471,7 +457,6 @@ create workflow TestModule.WF_DeliveryDelay
 begin
   call microflow TestModule.ACT_Stub;
 end workflow;
-/
 
 create microflow TestModule.MF_WorkflowActions (
   $workflow: System.Workflow,
@@ -551,7 +536,6 @@ begin
   wait for timer timer1 addHours([%CurrentDateTime%], 1) ;
   wait for notification waitForNotification1;
 end workflow;
-/
 
 
 -- ############################################################################
@@ -589,7 +573,6 @@ begin
 
   wait for timer timer1 addHours([%CurrentDateTime%], 1) ;
 end workflow;
-/
 
 alter workflow WFTest.EndInBranches {
   insert into FinalCheck { outcomes 'Withdraw' {
@@ -616,7 +599,6 @@ create microflow WFTest.ACT_TaskCreated (
 )
 begin
 end;
-/
 
 create microflow WFTest.ACT_AuditWorkflowEvent (
   $WorkflowEvent: System.WorkflowEvent,
@@ -625,7 +607,6 @@ create microflow WFTest.ACT_AuditWorkflowEvent (
 )
 begin
 end;
-/
 
 create workflow WFTest.WithHandlers
   parameter $OrderContext: WFTest.OrderContext
@@ -642,7 +623,6 @@ begin
     on created microflow WFTest.ACT_TaskCreated
     outcomes 'Yes' { } 'No' { };
 end workflow;
-/
 
 -- @version: 11.9+
 -- ############################################################################
@@ -658,7 +638,6 @@ create microflow WFTest.ACT_SummariseOrder (
 )
 begin
 end;
-/
 
 create microflow WFTest.ACT_ClassifyOrder (
   $OrderContext: WFTest.OrderContext
@@ -667,7 +646,6 @@ returns boolean as $Urgent
 begin
   return false;
 end;
-/
 
 create workflow WFTest.WithAgentTasks
   parameter $OrderContext: WFTest.OrderContext
@@ -683,7 +661,6 @@ begin
       }
       false -> { };
 end workflow;
-/
 
 -- @version: any
 -- ############################################################################
@@ -702,7 +679,6 @@ returns string as $Outcome
 begin
   return 'Approve';
 end;
-/
 
 create workflow WFTest.CompletionRules
   parameter $OrderContext: WFTest.OrderContext
@@ -745,7 +721,6 @@ begin
     decide by microflow WFTest.ACT_DecideOrder
     outcomes 'Approve' { } 'Reject' { };
 end workflow;
-/
 
 -- @version: 11.11+
 -- ############################################################################
@@ -762,7 +737,6 @@ create microflow WFTest.ACT_LogCancel (
 )
 begin
 end;
-/
 
 create workflow WFTest.WithNotifications
   parameter $OrderContext: WFTest.OrderContext
@@ -788,7 +762,6 @@ begin
     on non interrupting notification AuditStart {
   };
 end workflow;
-/
 
 -- @version: 11.13+
 -- ############################################################################
@@ -813,7 +786,6 @@ begin
     call microflow WFTest.ACT_LogCancel(OrderContext = $WorkflowContext);
   };
 end workflow;
-/
 
 -- @version: 11.11+
 -- ############################################################################
@@ -835,4 +807,3 @@ begin
   $Withdrawn = notify workflow $Workflow target WFTest.WithNotifications.Withdrawn;
   return $Cancelled and $Audited and $Received and $Withdrawn;
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- `alter enumeration … add value` had no IF NOT EXISTS, so a script that adds
 -- an enumeration value was not re-runnable (ako/mxcli-rest FINDINGS #60).
 --
@@ -36,31 +37,25 @@
 -- and the ALTERs after it do not run.
 
 create module EnumGuard;
-/
 
 create or modify enumeration EnumGuard.Lane (
   Inbound 'Inbound',
   Outbound 'Outbound'
 );
-/
 
 -- The guard, on a value that is already there. Without `if not exists` this
 -- statement ends the run.
 alter enumeration EnumGuard.Lane add value if not exists Outbound caption 'Outbound';
-/
 
 -- The statement that proves the run was not truncated: it only lands if the one
 -- above did not stop the script. Re-declaring the enum above would drop it
 -- again, so this value exists only between here and the next CREATE.
 alter enumeration EnumGuard.Lane add value if not exists Internal caption 'Internal';
-/
 
 -- The DROP twin. A re-run finds the value already gone and skips rather than
 -- reporting "enumeration value not found" and halting.
 alter enumeration EnumGuard.Lane drop value if exists Retired;
-/
 
 -- CONTROL: an unguarded ALTER that is naturally idempotent still works
 -- unchanged — MODIFY re-captions the same value however many times it runs.
 alter enumeration EnumGuard.Lane modify value Inbound caption 'Inbound / Received';
-/

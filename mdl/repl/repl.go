@@ -21,6 +21,7 @@ import (
 	modelsdkbackend "github.com/mendixlabs/mxcli/mdl/backend/modelsdk"
 	"github.com/mendixlabs/mxcli/mdl/diaglog"
 	"github.com/mendixlabs/mxcli/mdl/executor"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
@@ -33,7 +34,25 @@ type REPL struct {
 	rl       *readline.Instance
 	logger   *diaglog.Logger
 	c        colorPalette
+	// lang is the session's MDL language: what input without a header is
+	// read as, and what describe writes. It starts in langver.Interactive
+	// (mdl 1, freeze decision 6); `--mdl 0` and an `mdl 0;` / `mdl 1;`
+	// statement switch it (SetLanguage).
+	lang langver.Version
 }
+
+// SetLanguage switches the session's MDL language: input without a header is
+// read in v from now on, and describe writes v (ako/mxcli#840). The REPL is the
+// one place a header may change the language part-way: each input is parsed
+// on its own, and the session is not a committed script whose meaning could
+// silently change (ADR-0011 governs scripts).
+func (r *REPL) SetLanguage(v langver.Version) {
+	r.lang = v
+	r.executor.SetDescribeLanguage(v)
+}
+
+// Language is the session's current MDL language.
+func (r *REPL) Language() langver.Version { return r.lang }
 
 // SetLogger sets the diagnostics logger for the REPL and its executor.
 func (r *REPL) SetLogger(l *diaglog.Logger) {
@@ -61,13 +80,15 @@ func New(input io.Reader, output io.Writer) *REPL {
 	exec := executor.New(output)
 	exec.SetBackendFactory(func() backend.FullBackend { return modelsdkbackend.New() })
 	c := newColorPalette()
-	return &REPL{
+	r := &REPL{
 		executor: exec,
 		input:    input,
 		output:   output,
 		prompt:   "mdl> ",
 		c:        c,
 	}
+	r.SetLanguage(langver.Interactive)
+	return r
 }
 
 // Run starts the REPL loop without readline support.
@@ -154,6 +175,7 @@ func (r *REPL) RunWithReadline() error {
 	fmt.Fprintln(r.output, r.c.Bold("MDL REPL")+" — Mendix Definition Language")
 	fmt.Fprintln(r.output, r.c.Gray("Type 'help' or '?' for commands, 'exit' or 'quit' to quit"))
 	fmt.Fprintln(r.output, r.c.Gray("Tab: autocomplete, ↑↓: history, Ctrl+R: search history"))
+	fmt.Fprintln(r.output, r.c.Gray(fmt.Sprintf("Language: %s ('mdl 0;' or 'mdl 1;' switches the session)", r.lang)))
 	fmt.Fprintln(r.output)
 
 	for {
@@ -261,8 +283,16 @@ func (r *REPL) execute(input string) error {
 		return r.executor.ExecuteProgram(prog)
 	}
 
+	// A header the input states switches the session's language (freeze
+	// decision 6): `mdl 0;` on its own line turns the alpha language on for
+	// what follows. Input without one is read in the session's language.
+	if v, written := langver.ScanWrittenHeader(input); written && v != r.lang {
+		r.SetLanguage(v)
+		fmt.Fprintln(r.output, r.c.Gray(fmt.Sprintf("Language: %s", v)))
+	}
+
 	// Parse the input
-	prog, errs := visitor.Build(input)
+	prog, errs := visitor.BuildSession(input, r.lang)
 	if len(errs) > 0 {
 		for _, err := range errs {
 			fmt.Fprintf(r.output, "%s\n", r.c.Red("Parse error: "+err.Error()))

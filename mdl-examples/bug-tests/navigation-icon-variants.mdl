@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Menu icons: all three of Mendix's icon elements round-trip
 -- ============================================================================
@@ -32,15 +33,15 @@ create module NavIconVariants;
 
 create page NavIconVariants.Home ( Title: 'Home', Layout: Atlas_Core.Atlas_Default ) {
   dynamictext t (Content: 'Home')
-}
+};
 
 create page NavIconVariants.Close ( Title: 'Close', Layout: Atlas_Core.Atlas_Default ) {
   dynamictext t (Content: 'Close')
-}
+};
 
 create page NavIconVariants.Logo ( Title: 'Logo', Layout: Atlas_Core.Atlas_Default ) {
   dynamictext t (Content: 'Logo')
-}
+};
 
 create or modify navigation Responsive
   home page NavIconVariants.Home

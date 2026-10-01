@@ -1,3 +1,4 @@
+mdl 1;
 -- An association datasource at PAGE level typed its rows as the entity it was
 -- navigating AWAY from (mendixlabs/mxcli#1045):
 --
@@ -27,23 +28,19 @@
 -- is `mx check` on the result rather than a report from `mxcli check`.
 
 create module AssocDS;
-/
 
 create or modify entity AssocDS.Customer (
   Name: String(200)
 );
-/
 
 create or modify entity AssocDS.Order (
   OrderNo: String(50)
 );
-/
 
 -- Order is the FROM end and Customer the TO end, so traversing FROM a Customer
 -- reaches Orders. That direction is the one that was wrong.
 create or modify association AssocDS.Order_Customer
   from AssocDS.Order to AssocDS.Customer type reference;
-/
 
 -- PAGE LEVEL: nothing encloses the grid, so the only thing that can say what the
 -- association is traversed from is `$Customer`. This is the reported case.
@@ -57,8 +54,7 @@ create or modify page AssocDS.P_PageLevel
   datagrid gridOrders (datasource: $Customer/AssocDS.Order_Customer) {
     column (attribute: OrderNo, caption: 'No')
   }
-}
-/
+};
 
 -- CONTROL: the same traversal INSIDE a data view. This was already correct, and
 -- must stay correct — the fix only adds a better answer where a variable is
@@ -75,8 +71,7 @@ create or modify page AssocDS.P_InDataView
       column (attribute: OrderNo, caption: 'No')
     }
   }
-}
-/
+};
 
 -- CONTROL: the REVERSE direction. Traversing from an Order reaches its Customer,
 -- so the widget here binds Name. Without this a fix that always returned the
@@ -98,5 +93,4 @@ create or modify page AssocDS.P_Reverse
   dataview dvCustomer (datasource: $Order/AssocDS.Order_Customer) {
     textbox tName (label: 'Customer', attribute: Name)
   }
-}
-/
+};

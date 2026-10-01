@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug ako/mxcli#266: value converter microflows parsed but were dropped
 -- ============================================================================
@@ -53,7 +54,6 @@ begin
   @position(400, 200)
   return 'https://example.com/' + $uuid;
 end;
-/
 
 create microflow BugTest266.ConvertPayload (
   $payload: String
@@ -64,7 +64,6 @@ begin
   @position(400, 200)
   return toUpperCase($payload);
 end;
-/
 
 -- Import: attribute = microflow(member)
 create or modify import mapping BugTest266.IMM_Response

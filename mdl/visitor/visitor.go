@@ -545,6 +545,13 @@ type Builder struct {
 	langVersion    langver.Version
 	langHeaderLine int
 	langNotes      []ast.LanguageNote
+	// session is set for input typed at the REPL or given with -c
+	// (BuildSession): session commands are what it is for, so the R7 gate
+	// that refuses them in an mdl 1 script does not apply.
+	session bool
+	// implicitHeader is set when the header was not written but supplied by
+	// BuildSession (implicitHeaderSource); langHeaderLine is then 0.
+	implicitHeader bool
 	// stringLits are the string literals of the parse tree, by token index,
 	// for the string-escape rewrite to find the expression each is in.
 	stringLits map[int]antlr.TerminalNode
@@ -590,29 +597,60 @@ func collectLeafTokens(tree antlr.Tree, tokens *[]string) {
 
 // Build parses the input and returns the AST program.
 func Build(input string) (*ast.Program, []error) {
-	return build(input, func(b *Builder) antlr.ParseTreeListener { return b })
+	return build(input, buildOptions{}, func(b *Builder) antlr.ParseTreeListener { return b })
+}
+
+// BuildSession parses input typed at the REPL or given as a `-c` one-liner:
+// input that states no `mdl <n>;` header is read as written in session, the
+// session's language (langver.Interactive unless switched), where a script
+// file without one is mdl 0 (ADR-0011; freeze decision 6). A header the input
+// does state is honoured — the REPL switches its session on it — and session
+// commands (`connect`, `set`, `help`, …) are accepted under every version,
+// since this IS the session they belong to (R7).
+func BuildSession(input string, session langver.Version) (*ast.Program, []error) {
+	opts := buildOptions{session: true}
+	if _, written := langver.ScanWrittenHeader(input); !written && session > langver.V0 {
+		opts.implicit = session
+	}
+	return build(input, opts, func(b *Builder) antlr.ParseTreeListener { return b })
+}
+
+// buildOptions are what a parse of something other than a script file needs.
+type buildOptions struct {
+	// implicit is the language headerless input is read in; V0 (the zero
+	// value) is a script's: no header at all.
+	implicit langver.Version
+	// session accepts session commands under every version (BuildSession).
+	session bool
 }
 
 // build is Build with the tree walked by listen(builder) instead of the
 // builder itself, so a test can observe the walk through a wrapper.
-func build(input string, listen func(*Builder) antlr.ParseTreeListener) (*ast.Program, []error) {
+func build(input string, opts buildOptions, listen func(*Builder) antlr.ParseTreeListener) (*ast.Program, []error) {
 	// Create custom error listener to capture syntax errors
 	errListener := newErrorListener()
 	errListener.source = strings.Split(input, "\n")
 
 	// Create lexer with custom error listener
-	lexer := parser.NewMDLLexer(newScriptStream(input))
+	lexer := parser.NewMDLLexer(newScriptStream(input, opts.implicit))
 	lexer.RemoveErrorListeners()
 	lexer.AddErrorListener(errListener)
 
-	// Create parser with custom error listener
-	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
+	// Create parser with custom error listener. An implicit header is
+	// injected as tokens rather than text, so every line and column the
+	// parser reports is still the input's own.
+	var source antlr.Lexer = lexer
+	if opts.implicit > langver.V0 {
+		source = newImplicitHeaderSource(lexer, opts.implicit)
+	}
+	stream := antlr.NewCommonTokenStream(source, antlr.TokenDefaultChannel)
 	p := parser.NewMDLParser(stream)
 	p.RemoveErrorListeners()
 	p.AddErrorListener(errListener)
 
 	// Create builder and walk the tree
 	builder := NewBuilder()
+	builder.session = opts.session
 	tree := p.Program()
 	antlr.ParseTreeWalkerDefault.Walk(listen(builder), tree)
 	builder.noteBackslashEscapes(stream.GetAllTokens())

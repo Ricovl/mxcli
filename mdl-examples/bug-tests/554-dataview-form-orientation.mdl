@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug test: issue #554 — DataView Form Orientation always Horizontal
 -- ============================================================================
@@ -44,7 +45,7 @@ CREATE OR MODIFY PAGE Bug554.PageVertical (
       }
     }
   }
-}
+};
 
 CREATE OR MODIFY PAGE Bug554.PageHorizontal (
   Title: 'Horizontal form',
@@ -60,7 +61,7 @@ CREATE OR MODIFY PAGE Bug554.PageHorizontal (
       }
     }
   }
-}
+};
 
 CREATE OR MODIFY PAGE Bug554.PageLabelWidth5 (
   Title: 'LabelWidth=5',
@@ -76,4 +77,4 @@ CREATE OR MODIFY PAGE Bug554.PageLabelWidth5 (
       }
     }
   }
-}
+};

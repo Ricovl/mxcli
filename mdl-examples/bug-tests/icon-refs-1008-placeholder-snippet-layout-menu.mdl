@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- mendixlabs/mxcli#1008: icon references that `check --references` never saw
 -- ============================================================================
@@ -54,7 +55,7 @@ create or modify page Icon1008.PlaceholderPage
       icon: 'Atlas_Core.Atlas_Filled.pencil'
     )
   }
-}
+};
 
 -- 2. A snippet.
 create or modify snippet Icon1008.ButtonSnippet
@@ -64,7 +65,7 @@ create or modify snippet Icon1008.ButtonSnippet
     action: nothing,
     icon: 'Atlas_Core.Atlas_Filled.pencil'
   )
-}
+};
 
 -- 3. A layout. The costliest of the four to get wrong: the topbar is shared, so
 --    one bad icon here is an error on every page using the layout.
@@ -83,7 +84,7 @@ create or modify layout Icon1008.AppFrame
       placeholder Main
     }
   }
-}
+};
 
 -- 4. A standalone menu document, sub-items included — the same NavMenuItemDef a
 --    navigation profile's menu uses, which is why it needs the same recursion.

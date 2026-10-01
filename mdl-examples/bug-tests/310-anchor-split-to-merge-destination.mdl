@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #310: Branch anchor `to:` side dropped on direct split-to-merge flows
 -- ============================================================================
@@ -44,7 +45,6 @@ begin
 
   log info node 'BugTest310' 'after';
 end;
-/
 
 -- IF with empty THEN body — true branch goes straight to merge with a
 -- non-default destination side.
@@ -60,4 +60,3 @@ begin
 
   log info node 'BugTest310' 'after';
 end;
-/

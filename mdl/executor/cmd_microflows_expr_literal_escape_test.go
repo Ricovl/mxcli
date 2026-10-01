@@ -48,7 +48,7 @@ func TestQuoteExpressionLiteral_IsWhatStudioProStores(t *testing.T) {
 // value wherever it holds a backslash escape, which is why describe cannot
 // simply write it.
 func TestStoredExpressionLiteral_ReadsBackInTheDescribeLanguage(t *testing.T) {
-	mdl0, mdl1 := &ExecContext{}, &ExecContext{LanguageVersion: langver.V1}
+	mdl0, mdl1 := mdl0Ctx(), &ExecContext{LanguageVersion: langver.V1}
 	for _, raw := range []string{
 		"multi\nline\twith 'quotes'",
 		"col\tcol",
@@ -76,7 +76,7 @@ func TestStoredExpressionLiteral_ReadsBackInTheDescribeLanguage(t *testing.T) {
 
 func TestDescribeExpr_Mdl0SpellsBackslashesInStringsOnly(t *testing.T) {
 	const stored = `replaceAll($s, '\n', '') + 'it''s C:\' + $p\q`
-	if got, want := describeExpr(&ExecContext{}, stored), `replaceAll($s, '\\n', '') + 'it''s C:\\' + $p\q`; got != want {
+	if got, want := describeExpr(mdl0Ctx(), stored), `replaceAll($s, '\\n', '') + 'it''s C:\\' + $p\q`; got != want {
 		t.Errorf("mdl 0:\n got  %s\n want %s", got, want)
 	}
 	if got := describeExpr(&ExecContext{LanguageVersion: langver.V1}, stored); got != stored {

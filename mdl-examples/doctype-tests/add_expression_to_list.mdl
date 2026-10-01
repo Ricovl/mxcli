@@ -1,9 +1,9 @@
+mdl 1;
 create module AddListExample;
 
 create persistent entity AddListExample.Item (
   Name: string
 );
-/
 
 create microflow AddListExample.AddChosenItem (
   $UseFirst: Boolean
@@ -16,4 +16,3 @@ begin
   add if $UseFirst then $First else $Second to $Items;
   return $Items;
 end;
-/

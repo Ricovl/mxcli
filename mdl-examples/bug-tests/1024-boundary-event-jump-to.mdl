@@ -1,3 +1,4 @@
+mdl 1;
 -- `jump to <activity>` inside a boundary-event body (mendixlabs/mxcli#1024).
 --
 -- Reported against v0.20.0 / Mendix 11.14.0: `check --references` clean, `exec`

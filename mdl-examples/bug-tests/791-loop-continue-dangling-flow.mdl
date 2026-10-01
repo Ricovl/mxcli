@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #791: a loop containing a split whose branch does `continue` produced a
 -- project Studio Pro could not open, while mxcli reported success:
 --

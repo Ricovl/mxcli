@@ -56,7 +56,7 @@ grant read *, write * on entity MyFirstModule.RerunTx to MyFirstModule.User;
 	if got := h.lastTransactionID(); got != tx {
 		t.Errorf("the identical second run moved the project's transaction id (%s -> %s): something was written", tx, got)
 	}
-	if got := h.mustDescribe(t, "entity MyFirstModule.RerunTx"); !strings.Contains(got,
+	if got := h.mustDescribeMdl0(t, "entity MyFirstModule.RerunTx"); !strings.Contains(got,
 		"grant read *, write * on entity MyFirstModule.RerunTx to MyFirstModule.User;") {
 		t.Errorf("the rule is not there after the second run:\n%s", got)
 	}
@@ -69,7 +69,7 @@ grant read *, write * on entity MyFirstModule.RerunTx to MyFirstModule.User;
 	if len(first.diff(h.snapshot())) == 0 {
 		t.Error("a reset to a narrower grant wrote nothing")
 	}
-	if got := h.mustDescribe(t, "entity MyFirstModule.RerunTx"); !strings.Contains(got,
+	if got := h.mustDescribeMdl0(t, "entity MyFirstModule.RerunTx"); !strings.Contains(got,
 		"grant read * on entity MyFirstModule.RerunTx to MyFirstModule.User;") {
 		t.Errorf("a reset to a narrower grant: want the narrower rule:\n%s", got)
 	}
@@ -77,7 +77,7 @@ grant read *, write * on entity MyFirstModule.RerunTx to MyFirstModule.User;
 	if err := h.exec("mdl 1;\nrevoke all on entity MyFirstModule.RerunTx from MyFirstModule.User;\n"); err != nil {
 		t.Fatalf("revoke alone: %v\n%s", err, h.out.String())
 	}
-	if got := h.mustDescribe(t, "entity MyFirstModule.RerunTx"); strings.Contains(got, "grant ") {
+	if got := h.mustDescribeMdl0(t, "entity MyFirstModule.RerunTx"); strings.Contains(got, "grant ") {
 		t.Errorf("a revoke alone left a rule:\n%s", got)
 	}
 }
@@ -130,7 +130,7 @@ grant read (FullName), write (FullName) on entity Administration.Account to Admi
 	if len(first.diff(h.snapshot())) == 0 {
 		t.Error("a reset that drops a rule wrote nothing")
 	}
-	if got := h.mustDescribe(t, "entity Administration.Account"); strings.Contains(got, "CurrentUser") {
+	if got := h.mustDescribeMdl0(t, "entity Administration.Account"); strings.Contains(got, "CurrentUser") {
 		t.Errorf("the constrained rule survived a reset that does not grant it:\n%s", got)
 	}
 }

@@ -1,3 +1,4 @@
+mdl 1;
 -- upstream #884 problem 1: a LoopedActivity's Size is a function of statement
 -- count alone -- child positions, including explicit @position, have no effect.
 --

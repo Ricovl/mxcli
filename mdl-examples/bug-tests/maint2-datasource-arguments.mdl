@@ -1,3 +1,4 @@
+mdl 1;
 -- A microflow page data source must be given an argument per parameter
 -- (ako/mxcli-maintenance-2).
 --

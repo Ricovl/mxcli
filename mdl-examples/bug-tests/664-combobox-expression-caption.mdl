@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- ako/mxcli#664: an association ComboBox's EXPRESSION caption was dropped
 -- ============================================================================
@@ -24,7 +25,6 @@
 create entity MyFirstModule.Region ( Code: String(10), Description: String(200) );
 create entity MyFirstModule.Office ( Name: String(200) );
 create association MyFirstModule.Office_Region from MyFirstModule.Office to MyFirstModule.Region;
-/
 
 create or modify page MyFirstModule.Office_Edit
 ( Title: 'Office', Layout: Atlas_Core.Atlas_Default, Params: ( $Office: MyFirstModule.Office ) )
@@ -38,7 +38,6 @@ create or modify page MyFirstModule.Office_Edit
       optionsSourceAssociationCaptionExpression: '$currentObject/Code + '' — '' + $currentObject/Description'
     )
   }
-}
-/
+};
 
 describe page MyFirstModule.Office_Edit;

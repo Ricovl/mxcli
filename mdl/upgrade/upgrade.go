@@ -56,9 +56,9 @@ import (
 // Options says what Upgrade may do beyond the alias rewrites.
 type Options struct {
 	// AddHeader adds the `mdl <Latest>;` header to a headerless script, after
-	// rewriting every construct whose meaning the header would change. While
-	// mdl 1 is a preview this is opt-in (`fmt --upgrade --header`); at beta it
-	// becomes the default (langver.Frozen is the single switch).
+	// rewriting every construct whose meaning the header would change. It is
+	// the default since mdl 1 was frozen (langver.Frozen is the single
+	// switch); `fmt --upgrade --header=false` upgrades the spellings alone.
 	AddHeader bool
 	// Flows answers what the project's microflows and nanoflows return, for
 	// the header-gated constructs whose meaning depends on it (`find(…)` over
@@ -248,7 +248,7 @@ type HeaderBlockedError struct {
 func (e *HeaderBlockedError) Error() string {
 	lines := make([]string, len(e.Constructs))
 	for i, c := range e.Constructs {
-		lines[i] = fmt.Sprintf("line %d: %s: %s", c.Line, c.Code, c.Reason)
+		lines[i] = fmt.Sprintf("line %d: %s: %s %s", c.Line, c.Code, c.Reason, langver.HelpHint(c.Code))
 	}
 	return fmt.Sprintf("cannot add the `%s;` header: %d construct(s) would change meaning under it "+
 		"and have no mechanical rewrite, so the script is left at %s:\n  %s",

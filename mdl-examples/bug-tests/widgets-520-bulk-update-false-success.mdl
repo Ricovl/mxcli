@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#520 — UPDATE WIDGETS reported success after every assignment failed.
 --
 -- It counted widgets it FOUND, not assignments that SUCCEEDED. Measured on a

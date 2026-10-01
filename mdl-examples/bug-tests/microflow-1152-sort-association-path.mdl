@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1152, second half — naming the association a sort navigates.
 --
 -- Inference alone cannot make the round trip faithful. Two associations reaching
@@ -70,4 +71,4 @@ create or modify page Sort1152.Orders_Overview (
       sort by Sort1152.Order_BillTo/City asc) {
     dynamictext txtNo (content: '{1}', contentparams: ({1} = OrderNo))
   }
-}
+};

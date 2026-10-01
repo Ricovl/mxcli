@@ -1,3 +1,4 @@
+mdl 1;
 -- POSITIVE CONTROL for wf-enum-decision-empty-outcome.fail.mdl.
 --
 -- The same two workflows WITH the empty outcome. `make check-mdl` requires this
@@ -22,7 +23,6 @@ begin
   declare $Result enumeration(WFEmptyOK.Kind) = WFEmptyOK.Kind.Standard;
   return $Result;
 end;
-/
 
 create workflow WFEmptyOK.EnumDecision
   parameter $WorkflowContext: WFEmptyOK.Order
@@ -34,7 +34,6 @@ begin
       '' -> { }
   ;
 end workflow;
-/
 
 create workflow WFEmptyOK.EnumCallMicroflow
   parameter $WorkflowContext: WFEmptyOK.Order
@@ -46,7 +45,6 @@ begin
       '' -> { }
   ;
 end workflow;
-/
 
 -- A boolean decision takes no empty outcome (0 errors on mxbuild as written).
 create workflow WFEmptyOK.BooleanDecision
@@ -58,7 +56,6 @@ begin
       false -> { }
   ;
 end workflow;
-/
 
 -- The ALTER control: the same insert carrying the empty outcome.
 alter workflow WFEmptyOK.EnumDecision { insert after decision1
