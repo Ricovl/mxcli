@@ -2818,6 +2818,76 @@ func setWidgetConditionalSettingMut(widget bson.D, field, typeName, expression s
 	return bsonnav.DSet(widget, field, doc)
 }
 
+// setWidgetEditableMut writes `set Editable = …`. Two widget families store two
+// different things under the same key, so the stored value's type decides what
+// the statement may say:
+//
+//   - a list view or data view stores a BOOLEAN — `true` / `false`;
+//   - an input widget stores the Always / Never / Conditional enum.
+//
+// Anything else is refused. Before mendixlabs/mxcli#1214 only a string was
+// written, so `set Editable = true on lvRows` — the boolean every list view
+// takes — returned nil and the command reported "Altered page" with nothing
+// stored, leaving the list's inputs read-only at runtime.
+func setWidgetEditableMut(widget bson.D, value any) error {
+	typ := bsonnav.DGetString(widget, "$Type")
+	switch bsonnav.DGet(widget, "Editable").(type) {
+	case bool:
+		b, ok := editableBool(value)
+		if !ok {
+			return fmt.Errorf("Editable on a %s is true or false, not %v", widgetTypeLabel(typ), value)
+		}
+		bsonnav.DSet(widget, "Editable", b)
+		return nil
+	case string:
+		s, isString := value.(string)
+		canon, ok := pages.CanonicalEditability(s)
+		if !isString || !ok {
+			return fmt.Errorf("Editable on a %s is Always or Never (or `Editable = [expression]` for a condition), not %v",
+				widgetTypeLabel(typ), value)
+		}
+		if canon == "Conditional" {
+			// The enum without its settings element is a condition with no
+			// expression; the bracketed form writes both.
+			return fmt.Errorf("`set Editable = Conditional` needs the condition itself: write `set Editable = [expression]`")
+		}
+		bsonnav.DSet(widget, "Editable", canon)
+		// A plain value replaces a stored condition rather than contradicting it.
+		bsonnav.DSet(widget, "ConditionalEditabilitySettings", nil)
+		return nil
+	default:
+		return fmt.Errorf("a %s has no Editable property", widgetTypeLabel(typ))
+	}
+}
+
+// editableBool reads a list/data view's boolean Editable from MDL, which hands
+// it over as a bool (or, quoted, as the string "true"/"false").
+func editableBool(value any) (bool, bool) {
+	switch v := value.(type) {
+	case bool:
+		return v, true
+	case string:
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "true":
+			return true, true
+		case "false":
+			return false, true
+		}
+	}
+	return false, false
+}
+
+// widgetTypeLabel is a stored $Type as an author reads it: "Forms$ListView" → "ListView".
+func widgetTypeLabel(typ string) string {
+	if i := strings.LastIndex(typ, "$"); i >= 0 {
+		typ = typ[i+1:]
+	}
+	if typ == "" {
+		return "widget"
+	}
+	return typ
+}
+
 func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 	// Property names arrive verbatim from MDL (any case) — `set class on …` is as
 	// valid as `set Class on …`, and `create page` reads them case-insensitively
@@ -2864,10 +2934,7 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		}
 		return nil
 	case "editable":
-		if s, ok := value.(string); ok {
-			bsonnav.DSet(widget, "Editable", s)
-		}
-		return nil
+		return setWidgetEditableMut(widget, value)
 	case "visible":
 		// A page widget has no plain boolean "Visible" field — visibility is modeled
 		// via ConditionalVisibilitySettings. Route static booleans and expression
@@ -2899,6 +2966,12 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		if !setWidgetConditionalSettingMut(widget, "ConditionalEditabilitySettings",
 			"Forms$ConditionalEditabilitySettings", expr, false) {
 			return fmt.Errorf("widget does not support conditional editability (only input widgets are editable)")
+		}
+		// The element only applies under the enum that says so — CREATE writes
+		// both (pages.WidgetEditability); writing the element alone left the
+		// stored enum saying Always or Never beside it.
+		if _, isEnum := bsonnav.DGet(widget, "Editable").(string); isEnum {
+			bsonnav.DSet(widget, "Editable", "Conditional")
 		}
 		return nil
 	case "name":
