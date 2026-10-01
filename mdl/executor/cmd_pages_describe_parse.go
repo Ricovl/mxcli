@@ -905,8 +905,10 @@ func parseDataViewChildren(ctx *ExecContext, w map[string]any, entityContext ...
 	// Get footer widgets
 	footerWidgets := getBsonArrayElements(w["FooterWidgets"])
 	if len(footerWidgets) > 0 {
-		// Create a special footer container with synthetic name
-		footer := rawWidget{Type: "Footer", Name: "footer1"}
+		// The footer is a region of the data view, stored without a name: it is
+		// printed unnamed and addressed as `<dataview>.footer` (ako/mxcli#528).
+		// The `footer1` printed here before named nothing ALTER could find.
+		footer := rawWidget{Type: "Footer"}
 		for _, child := range footerWidgets {
 			if childMap, ok := child.(map[string]any); ok {
 				footer.Children = append(footer.Children, parseRawWidget(ctx, childMap, entCtx)...)

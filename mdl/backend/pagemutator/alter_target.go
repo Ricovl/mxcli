@@ -28,6 +28,9 @@ func (m *Mutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTarget
 		if kind, ok, err := m.resolveScrollRegion(container, member); ok {
 			return backend.AlterTargetMatch{Kind: kind, Name: name}, err
 		}
+		if _, ok := m.findDataViewFooter(container, member); ok {
+			return backend.AlterTargetMatch{Kind: "region", Name: name}, nil
+		}
 		if _, err := findBsonColumn(m.rawData, container, member, m.widgetFinder); err != nil {
 			return backend.AlterTargetMatch{}, err
 		}

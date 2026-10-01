@@ -429,6 +429,9 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 		if handled, err := m.insertIntoScrollRegion(widgetRef, columnRef, position, widgets); handled {
 			return err
 		}
+		if handled, err := m.insertIntoDataViewFooter(widgetRef, columnRef, position, widgets); handled {
+			return err
+		}
 		// Resolve first, so a mistyped column still reports "not found" (with the
 		// available names) rather than the refusal below.
 		if _, err := findBsonColumn(m.rawData, widgetRef, columnRef, m.widgetFinder); err != nil {
@@ -558,6 +561,9 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 	for _, ref := range refs {
 		// Re-find widget each iteration because previous drops mutate the tree.
 		var result *bsonWidgetResult
+		if ref.IsColumn() && m.dropDataViewFooter(ref.Widget, ref.Column) {
+			continue
+		}
 		if ref.IsColumn() {
 			r, err := findBsonColumn(m.rawData, ref.Widget, ref.Column, m.widgetFinder)
 			if err != nil {
@@ -583,6 +589,9 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 
 func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pages.Widget) error {
 	if columnRef != "" {
+		if handled, err := m.replaceDataViewFooter(widgetRef, columnRef, widgets); handled {
+			return err
+		}
 		// Resolve first, so a mistyped column still reports "not found" (with the
 		// available names) rather than the refusal below.
 		if _, err := findBsonColumn(m.rawData, widgetRef, columnRef, m.widgetFinder); err != nil {
@@ -1902,7 +1911,7 @@ func (m *Mutator) widgetNotFoundError(name string) error {
 				"available columns: %s (run DESCRIBE PAGE to confirm)",
 			name, formatColumnNameList(cols))
 	}
-	return fmt.Errorf("widget %q not found", name)
+	return fmt.Errorf("widget %q not found%s", name, m.dataViewFooterHint())
 }
 
 // formatColumnNameList renders derived column names for an error message: each

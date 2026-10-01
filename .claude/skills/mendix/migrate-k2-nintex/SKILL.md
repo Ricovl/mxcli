@@ -198,7 +198,7 @@ create page CRM.Customer_Edit
     checkbox chkActive (label: 'Active', attribute: IsActive)
 
     -- Button bar (SmartForms action buttons)
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }

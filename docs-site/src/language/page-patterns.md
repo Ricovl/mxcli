@@ -63,7 +63,7 @@ CREATE PAGE MyModule.Customer_Edit FOLDER 'Customers'
     TEXTBOX txtPhone (Label: 'Phone', Attribute: Phone)
     COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
     CHECKBOX cbActive (Label: 'Active', Attribute: IsActive)
-    FOOTER footer1 {
+    FOOTER {
       ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
@@ -101,7 +101,7 @@ CREATE PAGE MyModule.Customer_Detail FOLDER 'Customers'
         }
       }
     }
-    FOOTER footer1 {
+    FOOTER {
       ACTIONBUTTON btnEdit (
         Caption: 'Edit',
         Action: SHOW PAGE MyModule.Customer_Edit,
@@ -148,7 +148,7 @@ CREATE PAGE MyModule.Product_MasterDetail FOLDER 'Products'
           TEXTBOX txtDescription (Label: 'Description', Attribute: Description)
           TEXTBOX txtPrice (Label: 'Price', Attribute: Price)
           COMBOBOX cbCategory (Label: 'Category', Attribute: Category)
-          FOOTER footer1 {
+          FOOTER {
             ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
           }
         }
@@ -191,7 +191,7 @@ CREATE PAGE MyModule.Order_MasterDetail FOLDER 'Orders'
             COLUMN (Attribute: LineTotal, Caption: 'Total', Alignment: right)
           }
 
-          FOOTER footer1 {
+          FOOTER {
             ACTIONBUTTON btnEdit (
               Caption: 'Edit Order',
               Action: SHOW PAGE MyModule.Order_Edit,
@@ -252,7 +252,7 @@ CREATE PAGE HR.Employee_Edit FOLDER 'Employees'
     TEXTBOX txtDept (Label: 'Department', Attribute: Department)
     DATEPICKER dpHireDate (Label: 'Hire Date', Attribute: HireDate)
     TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
-    FOOTER footer1 {
+    FOOTER {
       ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }

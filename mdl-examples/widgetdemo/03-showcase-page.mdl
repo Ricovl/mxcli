@@ -156,7 +156,7 @@ create or modify page WidgetDemo.WidgetDemo_Showcase (
               }
             }
           }
-          footer ftr1 {
+          footer {
             actionbutton btnSv (caption: 'Save', action: save changes, buttonstyle: primary)
             actionbutton btnCn (caption: 'Cancel', action: cancel changes)
           }

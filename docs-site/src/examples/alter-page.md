@@ -44,8 +44,8 @@ ALTER PAGE CRM.Customer_Edit {
 
 ```sql
 ALTER PAGE CRM.Customer_Edit {
-  REPLACE footer1 WITH {
-    FOOTER newFooter {
+  REPLACE dvMain.footer WITH {
+    FOOTER {
       ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Success)
       ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)

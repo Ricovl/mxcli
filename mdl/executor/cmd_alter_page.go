@@ -478,12 +478,18 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 		return err
 	}
 	expanded := *op
-	expanded.NewWidgets = newWidgets
+	expanded.NewWidgets = unwrapFooterReplacement(op.Target, newWidgets)
 	op = &expanded
+	footerRegion := isFooterRegionTarget(op.Target)
+
+	// The widgets the replace removes are not duplicates of what replaces them:
+	// restating a footer's or a container's own children under their names is
+	// the ordinary edit, and was refused as "duplicate widget name" (#293).
+	replaced := replacedWidgetNames(mutator, op.Target)
 
 	// Check for duplicate widget names (skip the widget being replaced)
 	for _, w := range op.NewWidgets {
-		if w.Name != "" && w.Name != op.Target.Widget && w.Name != columnRefOf(op.Target) && mutator.FindWidget(w.Name) {
+		if w.Name != "" && w.Name != op.Target.Widget && w.Name != columnRefOf(op.Target) && !replaced[w.Name] && mutator.FindWidget(w.Name) {
 			return mdlerrors.NewAlreadyExistsMsg("widget", w.Name, fmt.Sprintf("duplicate widget name '%s': a widget with this name already exists on the page", w.Name))
 		}
 	}
@@ -500,17 +506,60 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 		return mutator.ReplaceColumn(op.Target.Widget, columnRefOf(op.Target), specs)
 	}
 
-	// Find entity context from enclosing DataView/DataGrid/ListView for regular widget replace.
-	entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, false, moduleName, moduleID)
+	// Find entity context from enclosing DataView/DataGrid/ListView for regular
+	// widget replace. A data view footer's widgets sit INSIDE the data view, so
+	// they take its own context, as INSERT INTO does.
+	entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, footerRegion, moduleName, moduleID)
 
-	// Build new widgets from AST, excluding the target widget/column from the
-	// duplicate-name scope so a same-name replacement is allowed.
-	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, columnRefOf(op.Target))
+	// Build new widgets from AST, excluding the target widget/column — and what
+	// it contains — from the duplicate-name scope so a same-name replacement is
+	// allowed.
+	exclude := []string{op.Target.Widget, columnRefOf(op.Target)}
+	for n := range replaced {
+		exclude = append(exclude, n)
+	}
+	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, exclude...)
 	if err != nil {
 		return mdlerrors.NewBackend("build replacement widgets", err)
 	}
 
 	return mutator.ReplaceWidget(op.Target.Widget, columnRefOf(op.Target), widgets)
+}
+
+// isFooterRegionTarget reports whether an ALTER target is `<widget>.footer` —
+// a data view's footer region (ako/mxcli#528). Whether the owner IS a data view
+// is the mutator's call; on anything else the dotted form keeps its other
+// meanings (a scroll-container region, a grid column).
+func isFooterRegionTarget(t ast.WidgetRef) bool {
+	return t.Widget != "" && !t.IsColumnAddress() && strings.EqualFold(t.Column, "footer")
+}
+
+// unwrapFooterReplacement lets `replace dv.footer with { footer { … } }` — the
+// footer block as describe prints it — mean its content: a footer region holds
+// widgets, and a `footer` built outside a data view would be a container nested
+// inside the region rather than the region's content.
+func unwrapFooterReplacement(target ast.WidgetRef, widgets []*ast.WidgetV3) []*ast.WidgetV3 {
+	if !isFooterRegionTarget(target) || len(widgets) != 1 || !strings.EqualFold(widgets[0].Type, "footer") {
+		return widgets
+	}
+	return widgets[0].Children
+}
+
+// replacedWidgetNames lists the names a REPLACE removes along with its target:
+// everything inside it. Only mutators that can walk the stored tree answer; the
+// others keep the old, stricter scope.
+func replacedWidgetNames(mutator backend.PageMutator, target ast.WidgetRef) map[string]bool {
+	walker, ok := mutator.(interface {
+		ContainedWidgetNames(widgetRef, columnRef string) []string
+	})
+	if !ok {
+		return nil
+	}
+	names := map[string]bool{}
+	for _, n := range walker.ContainedWidgetNames(target.Widget, columnRefOf(target)) {
+		names[n] = true
+	}
+	return names
 }
 
 // allColumns returns true if all widgets in the slice have type "column".

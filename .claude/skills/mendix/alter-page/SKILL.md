@@ -314,15 +314,20 @@ Removes widgets and their entire subtree from the page.
 
 ```sql
 -- Replace a single widget with new content
-replace footer1 with {
-  footer newFooter {
+replace btnSave with {
+  actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+}
+
+-- A data view's footer has no name: address it by its data view
+replace dvMain.footer with {
+  footer {
     actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
     actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
 }
 ```
 
-Replaces the target widget with one or more new widgets. The new widgets use the same syntax as `create page`.
+Replaces the target widget with one or more new widgets. The new widgets use the same syntax as `create page`, and may reuse the names of the widgets the replace removes. `insert into dvMain.footer { … }` appends to a footer and `drop dvMain.footer` empties it.
 
 ### DataGrid Column Operations
 
@@ -428,8 +433,8 @@ alter page MyModule.Customer_Edit {
 ```sql
 mdl 1;
 alter page MyModule.Customer_Edit {
-  replace footer1 with {
-    footer newFooter {
+  replace dvMain.footer with {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
       actionbutton btnDelete (caption: 'Delete', action: delete, buttonstyle: danger)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
@@ -565,8 +570,8 @@ adds. Both still fail at exec if they are genuinely wrong.
 
 ## Limitations — prefer binding at page creation (ledger finding #45)
 
-`ALTER PAGE` is best for *content* edits (add/remove/retitle widgets). Three things
-it cannot do; when you hit them, define the referenced microflows **before** the
+`ALTER PAGE` is best for *content* edits (add/remove/retitle widgets). When you hit
+the limit below, define the referenced microflows **before** the
 page and bind the buttons at creation time instead of rewiring afterwards:
 
 1. **`SET` cannot rewire a button's action.** `set` accepts a fixed property list
@@ -574,17 +579,11 @@ page and bind the buttons at creation time instead of rewiring afterwards:
    `set Action = call microflow … on btnSave` is a parse error. Set the button's action
    when the button is created (or `REPLACE` the button subtree).
 
-2. **`REPLACE` cannot reuse a widget name that lives inside the subtree being
-   replaced.** The replacement is *built* (registering its widget names) before the
-   old subtree is removed, so reusing e.g. `btnSave` collides with the still-present
-   old `btnSave` ("duplicate widget name 'btnSave'"). Give the replacement widgets
-   fresh names, or rebuild the whole page with `create or modify page`.
-
-3. **A footer is not addressable by its author-given name.** A `footer myName { … }`
-   is a *marker*: its children are hoisted into the data view's footer and the
-   footer itself is serialized as `footer1`, so `drop myName` (and even
-   `drop footer1`) report "not found". To change footer contents, edit the
-   children by their own names, or `create or modify page`.
+**A data view's footer has no name.** Its widgets are stored in the data
+   view, and the footer itself is not, so a name written on it is never kept
+   (MDL-DEPR005) and `describe` prints `footer { … }`. Address it by its data
+   view: `replace dvMain.footer with { footer { … } }`, `insert into
+   dvMain.footer { … }`, `drop dvMain.footer`.
 
 **Recommended pattern**: put save/reset microflows in a file that runs *before* the
 page definition, and bind the popup/footer buttons to them at creation. The
