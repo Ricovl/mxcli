@@ -82,6 +82,7 @@ CREATE CONSTANT MyModule.DatabasePassword ( Type: String, DefaultValue: '' );
 ### Override constant per configuration
 
 ```sql
+mdl 1;
 -- Create the constant
 CREATE CONSTANT MyModule.ApiBaseUrl ( Type: String, DefaultValue: 'https://api.example.com' );
 

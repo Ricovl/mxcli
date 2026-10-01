@@ -11,7 +11,7 @@ func init() {
 			"action", "activity", "flow",
 		},
 		Syntax:  "CREATE [OR REPLACE | OR MODIFY] MICROFLOW Module.Name ($Param: Type) RETURNS Type AS $Result\nBEGIN\n  <statements>\nEND;",
-		Example: "CREATE MICROFLOW MyModule.ACT_CreateOrder ($Code: String)\nRETURNS MyModule.Order AS $NewOrder\nBEGIN\n  $NewOrder = CREATE MyModule.Order (OrderNumber = $Code);\n  COMMIT $NewOrder;\n  RETURN $NewOrder;\nEND;\n\n-- Re-runnable: replaces the microflow if it already exists\nCREATE OR REPLACE MICROFLOW MyModule.ACT_CreateOrder ($Code: String)\nRETURNS MyModule.Order AS $NewOrder\nBEGIN\n  $NewOrder = CREATE MyModule.Order (OrderNumber = $Code);\n  RETURN $NewOrder;\nEND;",
+		Example: "mdl 1;\nCREATE MICROFLOW MyModule.ACT_CreateOrder ($Code: String)\nRETURNS MyModule.Order AS $NewOrder\nBEGIN\n  $NewOrder = CREATE MyModule.Order (OrderNumber = $Code);\n  COMMIT $NewOrder;\n  RETURN $NewOrder;\nEND;\n\n-- Re-runnable: replaces the microflow if it already exists\nCREATE OR MODIFY MICROFLOW MyModule.ACT_CreateOrder ($Code: String)\nRETURNS MyModule.Order AS $NewOrder\nBEGIN\n  $NewOrder = CREATE MyModule.Order (OrderNumber = $Code);\n  RETURN $NewOrder;\nEND;",
 		SeeAlso: []string{"microflow.create", "microflow.variables", "microflow.control-flow", "create-modifiers"},
 	})
 
@@ -71,7 +71,7 @@ func init() {
 			"$Var = expression;                -- assign; SET is optional\n" +
 			"$Var/Attribute = expression;\n" +
 			"SET $Var = expression;            -- same statement, explicit form",
-		Example: "DECLARE $Count Integer = 0;\nDECLARE $Name String;\n$Count = $Count + 1;\n$Name = 'Hello';\nSET $Order/Status = 'Pending';",
+		Example: "DECLARE $Count Integer = 0;\nDECLARE $Name String;\nset $Count = $Count + 1;\nset $Name = 'Hello';\nSET $Order/Status = 'Pending';",
 		SeeAlso: []string{"microflow.object-operations"},
 	})
 
@@ -559,7 +559,8 @@ func init() {
 			"it in a microflow) — see microflow.synchronize.\n\n" +
 			"Security is the same shape as a microflow's:\n" +
 			"  GRANT EXECUTE ON NANOFLOW Module.Name TO Module.Role;",
-		Example: "CREATE NANOFLOW MyModule.NF_ValidateInput ($Input: String)\nRETURNS Boolean AS $IsValid\nBEGIN\n  IF $Input = empty THEN\n    VALIDATION FEEDBACK $Input MESSAGE 'Required';\n    RETURN false;\n  END IF;\n  RETURN true;\nEND;\n\n" +
+		Example: "mdl 1;\n" +
+			"CREATE NANOFLOW MyModule.NF_ValidateInput ($Input: String)\nRETURNS Boolean AS $IsValid\nBEGIN\n  IF $Input = empty THEN\n    VALIDATION FEEDBACK $Input MESSAGE 'Required';\n    RETURN false;\n  END IF;\n  RETURN true;\nEND;\n\n" +
 			"-- Server-side work belongs behind a microflow call, which IS allowed\n" +
 			"CREATE NANOFLOW MyModule.NF_Submit ($Order: Sales.Order)\nBEGIN\n" +
 			"  CALL MICROFLOW MyModule.ACT_SubmitOrder (Order = $Order);\n" +
@@ -586,11 +587,22 @@ func init() {
 			"(mxbuild: CE0009) — `mxcli check` refuses these before the build.\n\n" +
 			"There is no GRANT EXECUTE ON RULE: a rule is not independently callable,\n" +
 			"so its document carries no module-role security.",
-		Example: "create or modify rule Sales.Rule_IsSolvent ($pCustomer: Sales.Customer)\n" +
-			"returns Boolean\nfolder 'Rules'\nbegin\n  return $pCustomer/Balance >= 0;\nend\n/\n\n" +
-			"create or modify microflow Sales.MF_Screen ($pCustomer: Sales.Customer)\nbegin\n" +
-			"  if Sales.Rule_IsSolvent(pCustomer = $pCustomer) then\n    return;\n" +
-			"  else\n    return;\n  end if;\nend\n/",
+		Example: "mdl 1;\n" +
+			"create or modify rule Sales.Rule_IsSolvent ($pCustomer: Sales.Customer)\n" +
+			"returns Boolean\n" +
+			"folder 'Rules'\n" +
+			"begin\n" +
+			"  return $pCustomer/Balance >= 0;\n" +
+			"end;\n" +
+			"\n" +
+			"create or modify microflow Sales.MF_Screen ($pCustomer: Sales.Customer)\n" +
+			"begin\n" +
+			"  if Sales.Rule_IsSolvent(pCustomer = $pCustomer) then\n" +
+			"    return;\n" +
+			"  else\n" +
+			"    return;\n" +
+			"  end if;\n" +
+			"end;\n",
 		SeeAlso: []string{"microflow.create", "microflow.control-flow"},
 	})
 

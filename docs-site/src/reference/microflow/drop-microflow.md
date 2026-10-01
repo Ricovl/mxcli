@@ -3,9 +3,10 @@
 ## Synopsis
 
 ```sql
-DROP MICROFLOW module.Name
+mdl 1;
+DROP MICROFLOW module.Name;
 
-DROP NANOFLOW module.Name
+DROP NANOFLOW module.Name;
 ```
 
 ## Description
@@ -36,6 +37,7 @@ DROP NANOFLOW Sales.NAV_ValidateOrder;
 Check impact before dropping:
 
 ```sql
+mdl 1;
 -- See what references this microflow
 LIST IMPACT OF Sales.ACT_CreateOrder;
 

@@ -24,6 +24,7 @@ The keys are Studio Pro's property names. The clause form `PASSWORD '<password>'
 ### Examples
 
 ```sql
+mdl 1;
 -- Basic demo user
 CREATE DEMO USER 'demo_admin' ( Password: 'Admin123!', UserRoles: (Administrator) );
 
@@ -72,6 +73,7 @@ LIST DEMO USERS;
 ## Typical Setup
 
 ```sql
+mdl 1;
 -- Enable demo users and set prototype security
 ALTER APP SECURITY ( SecurityLevel: PROTOTYPE );
 ALTER APP SECURITY ( EnableDemoUsers: TRUE );

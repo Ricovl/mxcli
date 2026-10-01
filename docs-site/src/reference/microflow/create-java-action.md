@@ -8,7 +8,7 @@ CREATE [ OR MODIFY ] JAVA ACTION module.Name [ FOLDER 'folder_path' ] ( paramete
     [ EXPOSED AS 'caption' IN 'category' ]
     AS $$ java_code $$
 
-DROP JAVA ACTION module.Name
+DROP JAVA ACTION module.Name;
 ```
 
 ## Description
@@ -111,6 +111,7 @@ DROP JAVA ACTION MyModule.JA_FormatCurrency;
 ### Idempotent upsert with OR MODIFY
 
 ```sql
+mdl 1;
 -- Initial creation
 CREATE JAVA ACTION MyModule.JA_FormatCurrency (
     Amount: Decimal NOT NULL,

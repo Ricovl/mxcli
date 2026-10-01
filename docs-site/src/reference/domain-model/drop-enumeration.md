@@ -26,6 +26,7 @@ DROP ENUMERATION Sales.OrderStatus;
 ### Drop after checking references
 
 ```sql
+mdl 1;
 LIST IMPACT OF Sales.OldStatus;
 DROP ENUMERATION Sales.OldStatus;
 ```

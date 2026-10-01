@@ -20,7 +20,7 @@ Associations define relationships between entities. A `Reference` type is a one-
 Describe an association:
 
 ```sql
-DESCRIBE ASSOCIATION Sales.Order_Customer
+DESCRIBE ASSOCIATION Sales.Order_Customer;
 ```
 
 Example output:
@@ -38,7 +38,7 @@ CREATE ASSOCIATION Sales.Order_Customer
 Describe a many-to-many association:
 
 ```sql
-DESCRIBE ASSOCIATION Sales.Order_Product
+DESCRIBE ASSOCIATION Sales.Order_Product;
 ```
 
 ## See Also

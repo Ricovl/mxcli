@@ -20,13 +20,13 @@ Enumerations define a fixed set of named values that can be used as attribute ty
 List all enumerations in the project:
 
 ```sql
-LIST ENUMERATIONS
+LIST ENUMERATIONS;
 ```
 
 List enumerations in a specific module:
 
 ```sql
-LIST ENUMERATIONS IN Sales
+LIST ENUMERATIONS IN Sales;
 ```
 
 ## See Also

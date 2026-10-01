@@ -23,6 +23,7 @@ ALTER SNIPPET <Module>.<Name> {
 Change one or more properties on a widget identified by name:
 
 ```sql
+mdl 1;
 -- Single property
 ALTER PAGE Module.EditPage {
   SET (Caption: 'Save & Close') ON btnSave
@@ -82,6 +83,7 @@ ALTER PAGE Module.EditPage {
 Switch a page's layout without rebuilding the widget tree. All widget content is preserved -- only the layout reference and placeholder mappings are updated.
 
 ```sql
+mdl 1;
 -- Auto-map placeholders by name (common case)
 ALTER PAGE Module.EditPage {
   SET Layout = Atlas_Core.Atlas_Default
@@ -102,6 +104,7 @@ Not supported for snippets (snippets don't have layouts).
 Insert new widgets before or after an existing widget:
 
 ```sql
+mdl 1;
 -- Insert after a widget
 ALTER PAGE Module.EditPage {
   INSERT AFTER txtEmail {
@@ -134,6 +137,7 @@ The inserted widgets use the same syntax as in `CREATE PAGE`. Multiple widgets c
 Remove one or more widgets by name:
 
 ```sql
+mdl 1;
 ALTER PAGE Module.EditPage {
   DROP txtUnused
 };
@@ -163,6 +167,7 @@ ALTER PAGE Module.EditPage {
 Add or remove page-level variables:
 
 ```sql
+mdl 1;
 -- Add a variable
 ALTER PAGE Module.EditPage {
   ADD Variables $showAdvanced: Boolean = 'false'
@@ -212,6 +217,7 @@ ALTER PAGE Module.Customer_Edit {
 ### Add a Field to an Edit Page
 
 ```sql
+mdl 1;
 -- First, check what's on the page
 DESCRIBE PAGE MyModule.Customer_Edit;
 
@@ -240,6 +246,7 @@ column is addressed by what it shows: `grid column(Attr)` for the column bound t
 `grid column('Caption')` for the column with that caption.
 
 ```sql
+mdl 1;
 -- Add a column after an existing one
 ALTER PAGE MyModule.Customer_Overview {
   INSERT AFTER dgCustomers column(Email) {

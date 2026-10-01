@@ -5,7 +5,7 @@ The `SQL CONNECT` command establishes a named connection to an external database
 ## Syntax
 
 ```sql
-SQL CONNECT <driver> '<dsn>' AS <alias>
+SQL CONNECT <driver> '<dsn>' AS <alias>;
 ```
 
 **Parameters:**

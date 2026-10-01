@@ -104,9 +104,9 @@ CREATE PAGE Sales.Customer_Overview
   DATAGRID dgCustomers (
     DataSource: DATABASE FROM Sales.Customer SORT BY Name ASC
   ) {
-    COLUMN colName (Attribute: Name, Caption: 'Name')
+    COLUMN (Attribute: Name, Caption: 'Name')
   }
-}
+};
 ```
 
 ### 3. Common mistakes

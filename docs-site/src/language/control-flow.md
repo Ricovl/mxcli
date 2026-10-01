@@ -220,7 +220,7 @@ that closes it. A handler that rejoins somewhere else names that point with
 
 ```sql
 -- Continue despite retrieval failure
-RETRIEVE $Config FROM Admin.SystemConfig LIMIT 1 ON ERROR CONTINUE;
+RETRIEVE $Config FROM Admin.SystemConfig FIRST ON ERROR CONTINUE;
 
 -- Custom error handler for external call
 $Response = CALL MICROFLOW Integration.CallExternalAPI (

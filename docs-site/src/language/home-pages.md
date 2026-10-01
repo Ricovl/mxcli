@@ -9,7 +9,7 @@ Each navigation profile has a default home page, optional role-specific home pag
 Every profile requires a default home page. This is shown to users whose role has no specific home page assignment:
 
 ```sql
-CREATE OR REPLACE NAVIGATION Responsive
+CREATE OR MODIFY NAVIGATION Responsive
   HOME PAGE MyModule.Home_Web;
 ```
 
@@ -18,7 +18,7 @@ CREATE OR REPLACE NAVIGATION Responsive
 Use `HOME PAGE ... FOR` to direct users to different pages based on their **user role**:
 
 ```sql
-CREATE OR REPLACE NAVIGATION Responsive
+CREATE OR MODIFY NAVIGATION Responsive
   HOME PAGE MyModule.Home_Web
   HOME PAGE MyModule.AdminDashboard FOR Administrator
   HOME PAGE MyModule.ManagerDashboard FOR Manager;
@@ -41,7 +41,7 @@ When a user logs in, the runtime checks their roles and redirects to the most sp
 The login page is shown to unauthenticated users:
 
 ```sql
-CREATE OR REPLACE NAVIGATION Responsive
+CREATE OR MODIFY NAVIGATION Responsive
   HOME PAGE MyModule.Home_Web
   LOGIN PAGE Administration.Login;
 ```
@@ -51,7 +51,7 @@ CREATE OR REPLACE NAVIGATION Responsive
 An optional custom 404 page:
 
 ```sql
-CREATE OR REPLACE NAVIGATION Responsive
+CREATE OR MODIFY NAVIGATION Responsive
   HOME PAGE MyModule.Home_Web
   NOT FOUND PAGE MyModule.Custom404;
 ```
@@ -83,7 +83,7 @@ MENU '<label>' [( Icon: <icon> )] {
 ### Complete Example
 
 ```sql
-CREATE OR REPLACE NAVIGATION Responsive
+CREATE OR MODIFY NAVIGATION Responsive
   HOME PAGE Shop.Home
   LOGIN PAGE Administration.Login
   {

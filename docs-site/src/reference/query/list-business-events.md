@@ -20,13 +20,13 @@ Business event services enable asynchronous, event-driven communication between 
 List all business event services:
 
 ```sql
-LIST BUSINESS EVENTS
+LIST BUSINESS EVENTS;
 ```
 
 List business event services in a specific module:
 
 ```sql
-LIST BUSINESS EVENTS IN OrderModule
+LIST BUSINESS EVENTS IN OrderModule;
 ```
 
 ## See Also

@@ -31,6 +31,7 @@ DESCRIBE ENTITY MyFirstModule.Order;
 ```
 
 ```sql
+mdl 1;
 CREATE PERSISTENT ENTITY MyFirstModule.Order (
   OrderNumber: AutoNumber,
   OrderDate: DateTime,

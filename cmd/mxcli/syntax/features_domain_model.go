@@ -46,7 +46,8 @@ func init() {
 			"what sits below it, move those with ALTER ENTITY … SET POSITION (x, y).\n" +
 			"Likewise a \"coloured section box\" is this element in Studio Pro's own\n" +
 			"styling — the model has nowhere to keep a colour.",
-		Example: "CREATE ANNOTATION IN Sales (\n" +
+		Example: "mdl 1;\n" +
+			"CREATE ANNOTATION IN Sales (\n" +
 			"  Caption: $$Orders\nEverything about an order lives here.$$,\n" +
 			"  Position: (60, 40),\n" +
 			"  Width: 400\n" +
@@ -82,7 +83,7 @@ func init() {
 			"index", "event handler", "before commit", "after commit",
 		},
 		Syntax:  "CREATE PERSISTENT ENTITY Module.Name (\n  Attr: Type [NOT NULL [ERROR 'msg']] [UNIQUE [ERROR 'msg']] [DEFAULT val],\n  ...\n)\n[INDEX (attr1, attr2)]\n[ON BEFORE|AFTER CREATE|COMMIT|DELETE|ROLLBACK CALL Module.MF [RAISE ERROR]];\n\n-- Documentation: the /** … */ doc comment before the statement, or\n-- ALTER ENTITY Module.Name SET DOCUMENTATION 'text' on an existing entity.\n\nCREATE NON-PERSISTENT ENTITY Module.Name (...);\nCREATE PERSISTENT ENTITY Module.Name EXTENDS Module.Parent (...);\n\n-- INDEX goes AFTER the closing parenthesis, never inside the attribute list.\n-- On an existing entity, either spelling works:\nALTER ENTITY Module.Name ADD INDEX [IF NOT EXISTS] [name] [ON] (attr1 [ASC|DESC], ...);\nCREATE INDEX IdxName ON Module.Name (attr1 [ASC|DESC], ...);\n\n-- Re-runnable script: IF NOT EXISTS skips instead of erroring, and leaves an\n-- existing element untouched (unlike OR MODIFY, which rebuilds it from the\n-- statement and drops any attribute the statement omits).\nCREATE ENTITY IF NOT EXISTS Module.Name (...);\nALTER ENTITY Module.Name ADD ATTRIBUTE IF NOT EXISTS Attr: Type;\nALTER ENTITY Module.Name DROP INDEX IF EXISTS (attr1, ...);",
-		Example: "-- Persistent with constraints and index\nCREATE PERSISTENT ENTITY Shop.Order (\n  OrderNumber: String(20) NOT NULL,\n  Total: Decimal DEFAULT 0,\n  CreatedAt: DateTime\n)\nINDEX (OrderNumber)\nON BEFORE COMMIT CALL Shop.ValidateOrder($currentObject) RAISE ERROR;\n\n-- With generalization\nCREATE PERSISTENT ENTITY Shop.ProductImage EXTENDS System.Image (\n  Caption: String(200)\n);",
+		Example: "mdl 1;\n-- Persistent with constraints and index\nCREATE PERSISTENT ENTITY Shop.Order (\n  OrderNumber: String(20) NOT NULL,\n  Total: Decimal DEFAULT 0,\n  CreatedAt: DateTime\n)\nINDEX (OrderNumber)\nON BEFORE COMMIT CALL Shop.ValidateOrder($currentObject) RAISE ERROR;\n\n-- With generalization\nCREATE PERSISTENT ENTITY Shop.ProductImage EXTENDS System.Image (\n  Caption: String(200)\n);",
 		SeeAlso: []string{"domain-model.entity.alter", "domain-model.entity.attributes"},
 	})
 
@@ -97,7 +98,7 @@ func init() {
 			"alter entities", "bulk", "every entity", "all entities", "where persistent",
 		},
 		Syntax:  "ALTER ENTITY Module.Name ADD ATTRIBUTE [IF NOT EXISTS] AttrName: Type [constraints];\nALTER ENTITY Module.Name DROP ATTRIBUTE [IF EXISTS] AttrName;\nALTER ENTITY Module.Name RENAME ATTRIBUTE OldName TO NewName;\nALTER ENTITY Module.Name MODIFY ATTRIBUTE AttrName: Type [DEFAULT val];\nALTER ENTITY Module.Name DROP DEFAULT ON ATTRIBUTE AttrName;\nALTER ENTITY Module.Name ADD INDEX [name] [ON] (attr1, attr2);\nALTER ENTITY Module.Name SET DOCUMENTATION 'text';\nALTER ENTITY Module.Name SET POSITION (x, y);\nALTER ENTITY Module.Name SET (AllowCreateChangeLocally: true|false);  -- external entity\nALTER ENTITY Module.Name ADD EVENT HANDLER ON BEFORE COMMIT CALL Module.MF RAISE ERROR;\nALTER ENTITIES [IN Module] ADD ATTRIBUTE [IF NOT EXISTS] AttrName: Type [, ...]\n  [WHERE PERSISTENT | WHERE NON-PERSISTENT];\n\nALTER ENTITIES is the bulk form: one statement applied to every entity in a\nmodule instead of one statement per entity. Only ADD ATTRIBUTE is offered --\nDROP and RENAME aimed at a set are destructive by a typo, and SET POSITION on\nevery entity is meaningless. Pair it with IF NOT EXISTS so the script re-runs.\n\nWHERE filters by persistence, using the same words CREATE ENTITY uses. A VIEW\nentity matches NEITHER: its rows come from an OQL query, so it is not the\npersistent/non-persistent distinction this filter means.\n\nWITHOUT IN, the sweep covers the whole project but SKIPS System and every\nMarketplace module, reporting which -- an upgrade replaces those modules and\nwould take the attribute with it. Naming a module with IN is taken as meaning\nit, so a deliberate edit there is still possible.\n\nSET POSITION places the entity in the domain-model editor, and CREATE ENTITY\ntakes the same thing as an @Position(x, y) annotation. Both are the box's\nCENTRE, not its top-left corner. An entity created without one takes the next\nslot in a wrapping grid, which is a default rather than a layout: to arrange a\nwhole module from its association graph, run 'mxcli layout -p app.mpr'\n(--dry-run first; it replaces positions you set by hand).\n\nMODIFY ATTRIBUTE always takes a type — restate it even when you are only\nchanging the default. There is no 'MODIFY ATTRIBUTE X SET DEFAULT v' form:\nSET would be read as the type name. Use DROP DEFAULT to clear one.\n\nIF NOT EXISTS / IF EXISTS make the add/drop a no-op (skipped, not an error)\nwhen the attribute is already present / already gone — so a domain script\nre-runs cleanly. For a whole script, 'mxcli exec --continue-on-error' reports\neach failed statement and keeps going instead of halting at the first.\n\nRENAME ATTRIBUTE also rewrites every reference to the attribute: the stored\nqualified names (microflow create/change members, page widgets, the entity's own\nvalidation and access rules) AND the bare steps inside XPath constraints, which\nare resolved to their owning entity first so another entity's identically-named\nattribute is left alone. A constraint that cannot be resolved is reported and\nleft unchanged, never guessed at. Uses inside microflow expressions ($obj/Attr)\nare free text and are NOT rewritten; mxbuild reports those as CE0117.",
-		Example: "ALTER ENTITY Shop.Customer ADD ATTRIBUTE Phone: String(20);\nALTER ENTITY Shop.Customer ADD ATTRIBUTE IF NOT EXISTS Phone: String(20);  -- re-runnable\nALTER ENTITY Shop.Customer DROP ATTRIBUTE IF EXISTS OldField;              -- re-runnable\nALTER ENTITY Shop.Customer RENAME ATTRIBUTE Email TO EmailAddress;\nALTER ENTITY Shop.Customer MODIFY ATTRIBUTE Phone: String(30) DEFAULT '';  -- type restated\nALTER ENTITY Shop.Customer DROP DEFAULT ON ATTRIBUTE Phone;               -- clear a default\nALTER ENTITY Shop.Customer ADD INDEX ON (EmailAddress);\nALTER ENTITY Shop.Customer\n  ADD EVENT HANDLER ON BEFORE COMMIT CALL Shop.Validate($currentObject) RAISE ERROR;\n\n-- give every persistent entity in a module an audit trail, in one statement\nALTER ENTITIES IN Shop\n  ADD ATTRIBUTE IF NOT EXISTS CreatedDate: AutoCreatedDate,\n  ADD ATTRIBUTE IF NOT EXISTS ChangedDate: AutoChangedDate\n  WHERE PERSISTENT;",
+		Example: "mdl 1;\nALTER ENTITY Shop.Customer ADD ATTRIBUTE Phone: String(20);\nALTER ENTITY Shop.Customer ADD ATTRIBUTE IF NOT EXISTS Phone: String(20);  -- re-runnable\nALTER ENTITY Shop.Customer DROP ATTRIBUTE IF EXISTS OldField;              -- re-runnable\nALTER ENTITY Shop.Customer RENAME ATTRIBUTE Email TO EmailAddress;\nALTER ENTITY Shop.Customer MODIFY ATTRIBUTE Phone: String(30) DEFAULT '';  -- type restated\nALTER ENTITY Shop.Customer DROP DEFAULT ON ATTRIBUTE Phone;               -- clear a default\nALTER ENTITY Shop.Customer ADD INDEX ON (EmailAddress);\nALTER ENTITY Shop.Customer\n  ADD EVENT HANDLER ON BEFORE COMMIT CALL Shop.Validate($currentObject) RAISE ERROR;\n\n-- give every persistent entity in a module an audit trail, in one statement\nALTER ENTITIES IN Shop\n  ADD ATTRIBUTE IF NOT EXISTS CreatedDate: AutoCreatedDate,\n  ADD ATTRIBUTE IF NOT EXISTS ChangedDate: AutoChangedDate\n  WHERE PERSISTENT;",
 		SeeAlso: []string{"domain-model.entity.create", "domain-model.entity.attributes"},
 	})
 
@@ -203,7 +204,8 @@ func init() {
 			"   (Role, Status, Value) is a fine FROM / JOIN alias after `as`.\n\n" +
 			"UNION / UNION ALL are supported and round-trip; column count and types must\n" +
 			"line up across branches, and an ORDER BY applies to the whole result.",
-		Example: "-- A reserved word as a SOURCE: quote it. The alias is renamed instead.\n" +
+		Example: "mdl 1;\n" +
+			"-- A reserved word as a SOURCE: quote it. The alias is renamed instead.\n" +
 			"create view entity Sales.SalesByMonth (\n" +
 			"  MonthNo: Integer,\n" +
 			"  Total: Decimal\n" +
@@ -255,7 +257,8 @@ func init() {
 			"plain attribute. That is one SQL statement instead of two and materialises\n" +
 			"no objects in the client, and the id is still there to look the real object\n" +
 			"up with.",
-		Example: "-- One attribute declared, TWO select columns: the id column is the association\n" +
+		Example: "mdl 1;\n" +
+			"-- One attribute declared, TWO select columns: the id column is the association\n" +
 			"create view entity Trends.MeterTotals (\n" +
 			"  TotalKwh: Decimal\n" +
 			") as (\n" +
@@ -288,7 +291,7 @@ func init() {
 			"owner", "delete behavior",
 		},
 		Syntax:  "[@anchor(from: (x, y), to: (x, y))]\nCREATE [OR MODIFY] ASSOCIATION Module.Name\n  FROM Module.FromEntity TO Module.ToEntity\n  [TYPE Reference|ReferenceSet]\n  [OWNER Default|Both]\n  [STORAGE COLUMN|TABLE]\n  [ON DELETE CASCADE|RESTRICT|SET NULL [ERROR MESSAGE 'text']];\n-- Documentation: the /** … */ doc comment before the statement\n-- (COMMENT 'text' is its deprecated alias, MDL-DEPR100).\nALTER ASSOCIATION Module.Name SET ANCHOR FROM (x, y) TO (x, y);\nDROP ASSOCIATION Module.Name;\n\nOR MODIFY: updates type/owner/delete behavior in-place, preserves UUID.\n\n@anchor sets the LINE ANCHORS — where the connector attaches to each entity box\nin the domain model editor — as a PERCENTAGE of the box (0..100, whole numbers).\n`from` is the FROM entity's box, `to` the TO entity's: (0, 50) is the middle of\nthe left edge, (100, 50) the right, (50, 100) the bottom centre. Omitting an end\nPRESERVES what is stored, so a CREATE OR MODIFY about something else never\nflattens a hand-tuned line. Cross-module associations have no anchors.\n\nDROP reconciles the entity access rules that named the association, and is\nREFUSED while a message definition still exposes it (that one cannot be\nreconciled -- removing the member would change a published contract). The\nrefusal prints the `alter message definition ... drop member` statement for\neach definition, ready to run.",
-		Example: "-- Many-to-one\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE SET NULL;\n\n-- Many-to-many\nCREATE ASSOCIATION Shop.Product_Tag\n  FROM Shop.Product TO Shop.Tag\n  TYPE ReferenceSet\n  OWNER Both;\n\n-- Line leaving the bottom of Order and entering the top of Customer\n@anchor(from: (50, 100), to: (50, 0))\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer;\n\n-- Retune the line without restating the association\nALTER ASSOCIATION Shop.Order_Customer SET ANCHOR FROM (0, 54) TO (100, 54);",
+		Example: "mdl 1;\n-- Many-to-one\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE SET NULL;\n\n-- Many-to-many\nCREATE ASSOCIATION Shop.Product_Tag\n  FROM Shop.Product TO Shop.Tag\n  TYPE ReferenceSet\n  OWNER Both;\n\n-- Line leaving the bottom of Order and entering the top of Customer\n@anchor(from: (50, 100), to: (50, 0))\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer;\n\n-- Retune the line without restating the association\nALTER ASSOCIATION Shop.Order_Customer SET ANCHOR FROM (0, 54) TO (100, 54);",
 		SeeAlso: []string{"domain-model.association.create", "domain-model.association.anchor", "domain-model.association.delete-behavior"},
 	})
 
@@ -301,7 +304,7 @@ func init() {
 			"owner default", "owner both", "storage column", "storage table",
 		},
 		Syntax:  "CREATE [OR MODIFY] ASSOCIATION Module.AssociationName\n  FROM Module.FromEntity TO Module.ToEntity\n  [TYPE Reference|ReferenceSet]\n  [OWNER Default|Both]\n  [STORAGE COLUMN|TABLE]\n  [ON DELETE CASCADE|RESTRICT|SET NULL [ERROR MESSAGE 'text']];\n-- Documentation: the /** … */ doc comment before the statement\n-- (COMMENT 'text' is its deprecated alias, MDL-DEPR100).\n\nDefaults: TYPE Reference, OWNER Default, STORAGE COLUMN, ON DELETE SET NULL.\nDESCRIBE prints only the clauses that differ, so STORAGE TABLE always prints.\n\nDirection:\n  FROM = entity holding the FK (the \"many\" side)\n  TO   = entity being referenced (the \"one\" side)\n\nTypes:\n  Reference    = Many-to-one (FK column on FROM table)\n  ReferenceSet = Many-to-many (junction table)\n\nOR MODIFY: updates in-place, preserves UUID. Safe to re-run.",
-		Example: "-- Many-to-one with delete behavior\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE RESTRICT;\n\n-- Many-to-many\nCREATE ASSOCIATION Shop.Product_Tag\n  FROM Shop.Product TO Shop.Tag\n  TYPE ReferenceSet\n  OWNER Both;\n\n-- Idempotent update\nCREATE OR MODIFY ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE CASCADE;",
+		Example: "mdl 1;\n-- Many-to-one with delete behavior\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE RESTRICT;\n\n-- Many-to-many\nCREATE ASSOCIATION Shop.Product_Tag\n  FROM Shop.Product TO Shop.Tag\n  TYPE ReferenceSet\n  OWNER Both;\n\n-- Idempotent update\nCREATE OR MODIFY ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE CASCADE;",
 		SeeAlso: []string{"domain-model.association.delete-behavior", "domain-model.entity.create"},
 	})
 
@@ -327,7 +330,7 @@ func init() {
 			"A fractional coordinate is refused: Mendix stores two integers and its\n" +
 			"loader will not OPEN a project whose anchor is fractional.\n" +
 			"Cross-module associations have no anchors — Mendix stores none for them.",
-		Example: "-- Line leaving the bottom of Order, entering the top of Customer\n@anchor(from: (50, 100), to: (50, 0))\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference;\n\n-- Retune the line without restating the association\nALTER ASSOCIATION Shop.Order_Customer SET ANCHOR FROM (0, 54) TO (100, 54);\n\n-- Says nothing about anchors: whatever the line was dragged to survives\nCREATE OR MODIFY ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  ON DELETE CASCADE;",
+		Example: "mdl 1;\n-- Line leaving the bottom of Order, entering the top of Customer\n@anchor(from: (50, 100), to: (50, 0))\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference;\n\n-- Retune the line without restating the association\nALTER ASSOCIATION Shop.Order_Customer SET ANCHOR FROM (0, 54) TO (100, 54);\n\n-- Says nothing about anchors: whatever the line was dragged to survives\nCREATE OR MODIFY ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  ON DELETE CASCADE;",
 		SeeAlso: []string{"domain-model.association.create", "domain-model.entity"},
 	})
 
@@ -356,7 +359,8 @@ func init() {
 			"DELETE_IF_NO_REFERENCES | PREVENT, DELETE_BUT_KEEP_REFERENCES) still parses and\n" +
 			"means the same thing, but is deprecated (MDL-DEPR022); `mxcli fmt --upgrade`\n" +
 			"rewrites it. DESCRIBE emits the ON DELETE form, because it says which side is governed.",
-		Example: "CREATE ASSOCIATION Shop.Order_Customer\n" +
+		Example: "mdl 1;\n" +
+			"CREATE ASSOCIATION Shop.Order_Customer\n" +
 			"  FROM Shop.Order TO Shop.Customer\n" +
 			"  TYPE Reference\n" +
 			"  ON DELETE RESTRICT\n" +
@@ -392,7 +396,7 @@ func init() {
 			"drop enumeration",
 		},
 		Syntax:  "CREATE ENUMERATION Module.Name (\n  ValueName 'Display Caption',\n  ...\n);\n\nALTER ENUMERATION Module.Name ADD VALUE [IF NOT EXISTS] NewValue [CAPTION 'Display Caption'];\nALTER ENUMERATION Module.Name RENAME VALUE OldName TO NewName;\nALTER ENUMERATION Module.Name MODIFY VALUE ValueName CAPTION 'New Caption';\nALTER ENUMERATION Module.Name DROP VALUE [IF EXISTS] ValueName;\n\nIF NOT EXISTS / IF EXISTS make a script RE-RUNNABLE. Without them the second\nrun errors and exec STOPS THERE, so one already-present value leaves every\nlater statement unapplied. A defensive drop-then-add is not a substitute: the\ndrop fails when the value is absent and the add when it is present.\n\nLIST ENUMERATIONS;\nLIST ENUMERATIONS IN <module>;\nDESCRIBE ENUMERATION Module.Name;\nDROP ENUMERATION Module.Name;\n\nUsing in entity:\n  AttrName: Enumeration(Module.EnumName)\n\nThe System module's enumerations are platform built-ins with no stored\nunit. LIST ENUMERATIONS and DESCRIBE ENUMERATION report them anyway, so\ntheir values can be read instead of guessed at until the build rejects one\nwith CE1613. They are READ-ONLY: DESCRIBE prints them as -- comment lines,\nand CREATE / ALTER / DROP / MOVE naming System is refused.\n  mxcli -p app.mpr describe enumeration System.WorkflowActivityType",
-		Example: "CREATE ENUMERATION MyModule.OrderStatus (\n  Pending 'Pending Approval',\n  Processing 'Being Processed',\n  Shipped 'Shipped to Customer'\n);\n\n-- Using in an entity\nCREATE PERSISTENT ENTITY MyModule.Order (\n  OrderNumber: String(20) NOT NULL,\n  Status: Enumeration(MyModule.OrderStatus)\n);",
+		Example: "mdl 1;\nCREATE ENUMERATION MyModule.OrderStatus (\n  Pending 'Pending Approval',\n  Processing 'Being Processed',\n  Shipped 'Shipped to Customer'\n);\n\n-- Using in an entity\nCREATE PERSISTENT ENTITY MyModule.Order (\n  OrderNumber: String(20) NOT NULL,\n  Status: Enumeration(MyModule.OrderStatus)\n);",
 		SeeAlso: []string{"domain-model.enumeration", "domain-model.entity.attributes"},
 	})
 
@@ -406,7 +410,7 @@ func init() {
 			"create constant", "setting",
 		},
 		Syntax:  "[/** documentation */]\nCREATE CONSTANT Module.Name ( Type: DataType, DefaultValue: value );\nCREATE OR MODIFY CONSTANT Module.Name ( Type: DataType, DefaultValue: value );\n\nLIST CONSTANTS;\nDESCRIBE CONSTANT Module.Name;\nDROP CONSTANT Module.Name;",
-		Example: "CREATE CONSTANT MyModule.ApiBaseUrl (\n  Type: String,\n  DefaultValue: 'https://api.example.com/v1'\n);\n\n/** Maximum API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries ( Type: Integer, DefaultValue: 3 );",
+		Example: "mdl 1;\nCREATE CONSTANT MyModule.ApiBaseUrl (\n  Type: String,\n  DefaultValue: 'https://api.example.com/v1'\n);\n\n/** Maximum API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries ( Type: Integer, DefaultValue: 3 );",
 		SeeAlso: []string{"domain-model.constant.create"},
 	})
 
@@ -430,7 +434,7 @@ func init() {
 			"  LIST CONSTANT VALUES reports it as (private); DESCRIBE SETTINGS reports it\n" +
 			"  as a comment, not a re-executable statement. DROP CONSTANT still works.\n" +
 			"  Change a constant to a shared value in Studio Pro.",
-		Example: "CREATE CONSTANT MyModule.ApiBaseUrl (\n  Type: String,\n  DefaultValue: 'https://api.example.com/v1'\n);\n\n/** Maximum number of API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries ( Type: Integer, DefaultValue: 3 );\n\nCREATE CONSTANT MyModule.EnableDebug ( Type: Boolean, DefaultValue: false, ExposedToClient: true );\n\nCREATE OR MODIFY CONSTANT MyModule.ApiBaseUrl (\n  Type: String,\n  DefaultValue: 'https://api.staging.example.com/v2'\n);",
+		Example: "mdl 1;\nCREATE CONSTANT MyModule.ApiBaseUrl (\n  Type: String,\n  DefaultValue: 'https://api.example.com/v1'\n);\n\n/** Maximum number of API retry attempts */\nCREATE CONSTANT MyModule.MaxRetries ( Type: Integer, DefaultValue: 3 );\n\nCREATE CONSTANT MyModule.EnableDebug ( Type: Boolean, DefaultValue: false, ExposedToClient: true );\n\nCREATE OR MODIFY CONSTANT MyModule.ApiBaseUrl (\n  Type: String,\n  DefaultValue: 'https://api.staging.example.com/v2'\n);",
 		SeeAlso: []string{"domain-model.constant"},
 	})
 

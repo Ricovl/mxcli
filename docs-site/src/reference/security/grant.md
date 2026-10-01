@@ -136,6 +136,7 @@ Mendix inheritance is multi-table: a child adds attributes to its parent's, and
 GRANT exactly like one of the entity's own; `READ *` and `WRITE *` cover them too.
 
 ```sql
+mdl 1;
 CREATE PERSISTENT ENTITY Docs.DocumentBase (DocName: String(200));
 CREATE PERSISTENT ENTITY Docs.Contract EXTENDS Docs.DocumentBase (ContractNumber: String(50));
 
@@ -164,6 +165,7 @@ appear in the access rule — listing them is CE0066. Grant only the entity's ow
 members; mxcli excludes the platform ones automatically.
 
 ```sql
+mdl 1;
 CREATE PERSISTENT ENTITY Docs.Employee EXTENDS System.User (EmployeeNo: String(20));
 GRANT READ (EmployeeNo) ON ENTITY Docs.Employee TO Docs.Viewer;
 ```

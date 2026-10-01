@@ -38,7 +38,7 @@ CREATE PAGE MyModule.Customer_Edit
   DATAVIEW dvCustomer (DataSource: $Customer) {
     TEXTBOX txtName (Label: 'Name', Attribute: Name)
   }
-}
+};
 ```
 
 ### Database Source
@@ -47,8 +47,8 @@ Retrieves entities directly from the database. Works with list widgets (DataGrid
 
 ```sql
 DATAGRID dgCustomers (DataSource: DATABASE MyModule.Customer) {
-  COLUMN colName (Attribute: Name, Caption: 'Customer Name')
-  COLUMN colEmail (Attribute: Email, Caption: 'Email')
+  COLUMN (Attribute: Name, Caption: 'Customer Name')
+  COLUMN (Attribute: Email, Caption: 'Email')
 }
 ```
 
@@ -64,7 +64,7 @@ DATAVIEW dvStats (DataSource: MICROFLOW MyModule.DS_GetStatistics) {
 
 -- List for a DataGrid
 DATAGRID dgFiltered (DataSource: MICROFLOW MyModule.DS_GetFilteredOrders) {
-  COLUMN colId (Attribute: OrderId)
+  COLUMN (Attribute: OrderId)
 }
 ```
 
@@ -101,8 +101,8 @@ Binds to the currently selected item in another list widget. Enables master-deta
 ```sql
 -- Master: list of products
 DATAGRID dgProducts (DataSource: DATABASE MyModule.Product) {
-  COLUMN colName (Attribute: Name)
-  COLUMN colPrice (Attribute: Price)
+  COLUMN (Attribute: Name)
+  COLUMN (Attribute: Price)
 }
 
 -- Detail: shows the selected product

@@ -20,7 +20,7 @@ Enumerations define a fixed set of named values used as attribute types on entit
 Describe an enumeration:
 
 ```sql
-DESCRIBE ENUMERATION Sales.OrderStatus
+DESCRIBE ENUMERATION Sales.OrderStatus;
 ```
 
 Example output:

@@ -14,11 +14,11 @@ CREATE PAGE MyModule.Customer_Overview FOLDER 'Customers'
 )
 {
   DATAGRID dgCustomers (DataSource: DATABASE MyModule.Customer, PageSize: 20) {
-    COLUMN colName (Attribute: Name, Caption: 'Name')
-    COLUMN colEmail (Attribute: Email, Caption: 'Email')
-    COLUMN colStatus (Attribute: Status, Caption: 'Status')
-    COLUMN colCreated (Attribute: CreatedDate, Caption: 'Created')
-    CONTROLBAR bar1 {
+    COLUMN (Attribute: Name, Caption: 'Name')
+    COLUMN (Attribute: Email, Caption: 'Email')
+    COLUMN (Attribute: Status, Caption: 'Status')
+    COLUMN (Attribute: CreatedDate, Caption: 'Created')
+    CONTROLBAR {
       ACTIONBUTTON btnNew (
         Caption: 'New Customer',
         Action: CALL MICROFLOW MyModule.ACT_Customer_New,
@@ -28,7 +28,7 @@ CREATE PAGE MyModule.Customer_Overview FOLDER 'Customers'
       ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
     }
   }
-}
+};
 ```
 
 The "New Customer" button calls a microflow that creates a new Customer object and opens the edit page:
@@ -68,7 +68,7 @@ CREATE PAGE MyModule.Customer_Edit FOLDER 'Customers'
       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
-}
+};
 ```
 
 ## Detail Page (Full Page)
@@ -85,18 +85,18 @@ CREATE PAGE MyModule.Customer_Detail FOLDER 'Customers'
 {
   DATAVIEW dvCustomer (DataSource: $Customer) {
     LAYOUTGRID grid1 {
-      ROW rowBasic {
-        COLUMN col1 {
+      ROW {
+        COLUMN {
           TEXTBOX txtName (Label: 'Name', Attribute: Name)
           TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
         }
-        COLUMN col2 {
+        COLUMN {
           TEXTBOX txtPhone (Label: 'Phone', Attribute: Phone)
           COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
         }
       }
-      ROW rowNotes {
-        COLUMN colNotes {
+      ROW {
+        COLUMN {
           TEXTAREA txtNotes (Label: 'Notes', Attribute: Notes)
         }
       }
@@ -110,7 +110,7 @@ CREATE PAGE MyModule.Customer_Detail FOLDER 'Customers'
       ACTIONBUTTON btnBack (Caption: 'Back', Action: CLOSE PAGE)
     }
   }
-}
+};
 ```
 
 ## Master-Detail Pattern
@@ -127,13 +127,13 @@ CREATE PAGE MyModule.Product_MasterDetail FOLDER 'Products'
 )
 {
   LAYOUTGRID gridMain {
-    ROW rowContent {
-      COLUMN colList {
+    ROW {
+      COLUMN {
         DATAGRID dgProducts (DataSource: DATABASE MyModule.Product, PageSize: 15) {
-          COLUMN colName (Attribute: Name, Caption: 'Product')
-          COLUMN colPrice (Attribute: Price, Caption: 'Price', Alignment: right)
-          COLUMN colCategory (Attribute: Category, Caption: 'Category')
-          CONTROLBAR bar1 {
+          COLUMN (Attribute: Name, Caption: 'Product')
+          COLUMN (Attribute: Price, Caption: 'Price', Alignment: right)
+          COLUMN (Attribute: Category, Caption: 'Category')
+          CONTROLBAR {
             ACTIONBUTTON btnNew (
               Caption: 'New',
               Action: CALL MICROFLOW MyModule.ACT_Product_New,
@@ -142,7 +142,7 @@ CREATE PAGE MyModule.Product_MasterDetail FOLDER 'Products'
           }
         }
       }
-      COLUMN colDetail {
+      COLUMN {
         DATAVIEW dvDetail (DataSource: SELECTION dgProducts) {
           TEXTBOX txtName (Label: 'Name', Attribute: Name)
           TEXTBOX txtDescription (Label: 'Description', Attribute: Description)
@@ -155,7 +155,7 @@ CREATE PAGE MyModule.Product_MasterDetail FOLDER 'Products'
       }
     }
   }
-}
+};
 ```
 
 ### With Related Items
@@ -170,25 +170,25 @@ CREATE PAGE MyModule.Order_MasterDetail FOLDER 'Orders'
 )
 {
   LAYOUTGRID gridMain {
-    ROW rowContent {
-      COLUMN colOrders {
+    ROW {
+      COLUMN {
         DATAGRID dgOrders (DataSource: DATABASE MyModule.Order, PageSize: 10) {
-          COLUMN colOrderId (Attribute: OrderId, Caption: 'Order #')
-          COLUMN colDate (Attribute: OrderDate, Caption: 'Date')
-          COLUMN colStatus (Attribute: Status, Caption: 'Status')
-          COLUMN colTotal (Attribute: TotalAmount, Caption: 'Total', Alignment: right)
+          COLUMN (Attribute: OrderId, Caption: 'Order #')
+          COLUMN (Attribute: OrderDate, Caption: 'Date')
+          COLUMN (Attribute: Status, Caption: 'Status')
+          COLUMN (Attribute: TotalAmount, Caption: 'Total', Alignment: right)
         }
       }
-      COLUMN colDetail {
+      COLUMN {
         DATAVIEW dvOrder (DataSource: SELECTION dgOrders) {
           DYNAMICTEXT txtOrderInfo (Content: 'Order #{1}', Attribute: OrderId)
           TEXTBOX txtStatus (Label: 'Status', Attribute: Status)
 
           -- Order lines via association
           DATAGRID dgLines (DataSource: ASSOCIATION Order_OrderLine) {
-            COLUMN colProduct (Attribute: ProductName, Caption: 'Product')
-            COLUMN colQty (Attribute: Quantity, Caption: 'Qty', Alignment: right)
-            COLUMN colLineTotal (Attribute: LineTotal, Caption: 'Total', Alignment: right)
+            COLUMN (Attribute: ProductName, Caption: 'Product')
+            COLUMN (Attribute: Quantity, Caption: 'Qty', Alignment: right)
+            COLUMN (Attribute: LineTotal, Caption: 'Total', Alignment: right)
           }
 
           FOOTER footer1 {
@@ -202,7 +202,7 @@ CREATE PAGE MyModule.Order_MasterDetail FOLDER 'Orders'
       }
     }
   }
-}
+};
 ```
 
 ## CRUD Page Set
@@ -224,10 +224,10 @@ CREATE PAGE HR.Employee_Overview FOLDER 'Employees'
 )
 {
   DATAGRID dgEmployees (DataSource: DATABASE HR.Employee, PageSize: 20) {
-    COLUMN colName (Attribute: FullName, Caption: 'Name')
-    COLUMN colDept (Attribute: Department, Caption: 'Department')
-    COLUMN colHireDate (Attribute: HireDate, Caption: 'Hire Date')
-    CONTROLBAR bar1 {
+    COLUMN (Attribute: FullName, Caption: 'Name')
+    COLUMN (Attribute: Department, Caption: 'Department')
+    COLUMN (Attribute: HireDate, Caption: 'Hire Date')
+    CONTROLBAR {
       ACTIONBUTTON btnNew (
         Caption: 'New Employee',
         Action: CALL MICROFLOW HR.ACT_Employee_New,
@@ -237,7 +237,7 @@ CREATE PAGE HR.Employee_Overview FOLDER 'Employees'
       ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
     }
   }
-}
+};
 
 -- 2. Edit page (popup)
 CREATE PAGE HR.Employee_Edit FOLDER 'Employees'
@@ -257,7 +257,7 @@ CREATE PAGE HR.Employee_Edit FOLDER 'Employees'
       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
   }
-}
+};
 
 -- 3. New employee microflow
 CREATE MICROFLOW HR.ACT_Employee_New
@@ -283,18 +283,18 @@ CREATE PAGE MyModule.Dashboard FOLDER 'Dashboard'
 )
 {
   LAYOUTGRID gridDash {
-    ROW rowTop {
-      COLUMN colRecent {
+    ROW {
+      COLUMN {
         CONTAINER cRecent (Class: 'card') {
           DYNAMICTEXT txtRecentTitle (Content: 'Recent Orders')
           DATAGRID dgRecent (DataSource: MICROFLOW MyModule.DS_RecentOrders, PageSize: 5) {
-            COLUMN colOrderId (Attribute: OrderId, Caption: 'Order #')
-            COLUMN colDate (Attribute: OrderDate, Caption: 'Date')
-            COLUMN colStatus (Attribute: Status, Caption: 'Status')
+            COLUMN (Attribute: OrderId, Caption: 'Order #')
+            COLUMN (Attribute: OrderDate, Caption: 'Date')
+            COLUMN (Attribute: Status, Caption: 'Status')
           }
         }
       }
-      COLUMN colStats {
+      COLUMN {
         CONTAINER cStats (Class: 'card') {
           DATAVIEW dvStats (DataSource: MICROFLOW MyModule.DS_GetStatistics) {
             DYNAMICTEXT txtTotal (Content: 'Total Orders: {1}', Attribute: TotalOrders)
@@ -304,7 +304,7 @@ CREATE PAGE MyModule.Dashboard FOLDER 'Dashboard'
       }
     }
   }
-}
+};
 ```
 
 ## See Also

@@ -7,7 +7,7 @@ mxcli provides a suite of cross-reference navigation commands that let you explo
 Cross-reference navigation commands require a **full catalog refresh** before use:
 
 ```sql
-REFRESH CATALOG FULL
+REFRESH CATALOG FULL;
 ```
 
 This populates the reference data needed for callers, callees, references, impact, and context queries. A basic `REFRESH CATALOG` only builds metadata tables and is not sufficient for cross-reference navigation.

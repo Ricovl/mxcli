@@ -26,6 +26,7 @@ DROP ASSOCIATION Sales.Order_Customer;
 ### Drop after checking impact
 
 ```sql
+mdl 1;
 LIST IMPACT OF Sales.OldAssociation;
 DROP ASSOCIATION Sales.OldAssociation;
 ```

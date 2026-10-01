@@ -178,13 +178,15 @@ The rule keys on the operand not reducing to a variable, so it also covers a non
 
 **Solution:** Give the inner operation its own statement and pass the variable.
 
-```mdl
+```text
 -- WRONG
 $n = count(filter($Requests, $currentObject/Status = Module.ENUM_Status.Approved));
+```
 
+```mdl
 -- RIGHT
-$Approved = filter($Requests, $currentObject/Status = Module.ENUM_Status.Approved);
-$n        = count($Approved);
+$Approved = filter $Requests where $currentObject/Status = Module.ENUM_Status.Approved;
+$n        = count $Approved;
 ```
 
 The same applies to both operands of `union`/`intersect`/`subtract`.

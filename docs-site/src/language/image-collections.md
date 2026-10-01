@@ -43,6 +43,7 @@ The image format is detected automatically from the file extension. Relative pat
 ### Examples
 
 ```sql
+mdl 1;
 -- Minimal: empty collection
 CREATE IMAGE COLLECTION MyModule.AppIcons;
 

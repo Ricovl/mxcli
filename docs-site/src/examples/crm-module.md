@@ -5,6 +5,7 @@ A complete customer management feature: domain model, validation, CRUD pages, an
 ## Domain Model
 
 ```sql
+mdl 1;
 -- Enumerations first (referenced by entities)
 CREATE ENUMERATION CRM.CustomerStatus (
   Active 'Active',
@@ -41,7 +42,6 @@ CREATE PERSISTENT ENTITY CRM.Customer (
 )
 INDEX (Name)
 INDEX (Email);
-/
 
 /** Record of a customer interaction */
 @Position(400, 100)
@@ -55,13 +55,12 @@ CREATE PERSISTENT ENTITY CRM.ContactLog (
   /** Follow-up needed? */
   FollowUpRequired: Boolean DEFAULT FALSE
 );
-/
 
 -- Associations
 CREATE ASSOCIATION CRM.ContactLog_Customer
   FROM CRM.ContactLog TO CRM.Customer
   TYPE Reference OWNER Default;
-/
+
 ```
 
 ## Validation Microflow
@@ -111,23 +110,23 @@ END;
 ## Pages
 
 ```sql
+mdl 1;
 -- Overview page with data grid
 CREATE PAGE CRM.Customer_Overview (
   Title: 'Customers',
   Layout: Atlas_Core.Atlas_Default
 ) {
   DATAGRID dgCustomers (DataSource: DATABASE CRM.Customer, Selection: Single) {
-    COLUMN colName (Attribute: Name, Caption: 'Name') { TEXTFILTER fName }
-    COLUMN colEmail (Attribute: Email, Caption: 'Email') { TEXTFILTER fEmail }
-    COLUMN colPhone (Attribute: Phone, Caption: 'Phone')
-    COLUMN colStatus (Attribute: Status, Caption: 'Status')
-    COLUMN colActive (Attribute: IsActive, Caption: 'Active')
-    CONTROLBAR cb1 {
+    COLUMN (Attribute: Name, Caption: 'Name') { TEXTFILTER fName }
+    COLUMN (Attribute: Email, Caption: 'Email') { TEXTFILTER fEmail }
+    COLUMN (Attribute: Phone, Caption: 'Phone')
+    COLUMN (Attribute: Status, Caption: 'Status')
+    COLUMN (Attribute: IsActive, Caption: 'Active')
+    CONTROLBAR {
       ACTIONBUTTON btnNew (Caption: 'New', Action: SHOW PAGE CRM.Customer_NewEdit, ButtonStyle: Primary)
     }
   }
 };
-/
 
 -- NewEdit page with validation
 CREATE PAGE CRM.Customer_NewEdit (
@@ -136,8 +135,8 @@ CREATE PAGE CRM.Customer_NewEdit (
   Layout: Atlas_Core.PopupLayout
 ) {
   LAYOUTGRID mainGrid {
-    ROW row1 {
-      COLUMN col1 (DesktopWidth: AutoFill) {
+    ROW {
+      COLUMN (DesktopWidth: AutoFill) {
         DATAVIEW dataView1 (DataSource: $Customer) {
           TEXTBOX txtName (Label: 'Name', Attribute: Name)
           TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
@@ -156,12 +155,13 @@ CREATE PAGE CRM.Customer_NewEdit (
     }
   }
 };
-/
+
 ```
 
 ## Security
 
 ```sql
+mdl 1;
 -- Module roles
 CREATE MODULE ROLE CRM.User;
 CREATE MODULE ROLE CRM.Admin DESCRIPTION 'Full customer management access';

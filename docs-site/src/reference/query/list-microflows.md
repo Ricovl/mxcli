@@ -22,25 +22,25 @@ Microflows run on the server side and can perform database operations, call exte
 List all microflows in the project:
 
 ```sql
-LIST MICROFLOWS
+LIST MICROFLOWS;
 ```
 
 List microflows in a specific module:
 
 ```sql
-LIST MICROFLOWS IN Administration
+LIST MICROFLOWS IN Administration;
 ```
 
 List all nanoflows:
 
 ```sql
-LIST NANOFLOWS
+LIST NANOFLOWS;
 ```
 
 List nanoflows in a specific module:
 
 ```sql
-LIST NANOFLOWS IN MyFirstModule
+LIST NANOFLOWS IN MyFirstModule;
 ```
 
 ## See Also

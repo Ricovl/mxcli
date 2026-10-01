@@ -43,6 +43,7 @@ CREATE PAGE Module.CustomerOverview (
 Update `manage-security.md` with your standard role hierarchy:
 
 ```sql
+mdl 1;
 -- Your organization's standard roles
 CREATE MODULE ROLE Module.SystemAdmin DESCRIPTION 'Full system access';
 CREATE MODULE ROLE Module.PowerUser DESCRIPTION 'Extended user access';

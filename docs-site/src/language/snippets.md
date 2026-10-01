@@ -24,7 +24,7 @@ CREATE SNIPPET MyModule.Footer FOLDER 'Snippets'
   CONTAINER cFooter (Class: 'app-footer') {
     DYNAMICTEXT txtCopyright (Content: '2024 My Company. All rights reserved.')
   }
-}
+};
 ```
 
 ### Snippet with Parameters
@@ -48,7 +48,7 @@ CREATE SNIPPET MyModule.CustomerCard
       )
     }
   }
-}
+};
 ```
 
 ## Using Snippets in Pages
@@ -65,7 +65,7 @@ CREATE PAGE MyModule.Home
   CONTAINER cMain {
     SNIPPETCALL scFooter (Snippet: MyModule.Footer)
   }
-}
+};
 ```
 
 A snippet with parameters takes its arguments in `Params:`, one `Param = $variable`

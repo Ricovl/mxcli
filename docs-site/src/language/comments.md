@@ -8,7 +8,7 @@ Use `--` (SQL style) or `//` (C style) for single-line comments:
 
 ```sql
 -- This is a single-line comment
-LIST MODULES
+LIST MODULES;
 
 // This is also a single-line comment
 LIST ENTITIES IN Sales

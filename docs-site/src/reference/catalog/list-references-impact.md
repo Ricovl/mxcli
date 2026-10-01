@@ -80,6 +80,7 @@ DESCRIBE CONTEXT OF Sales.ACT_CreateOrder DEPTH 3;
 ### Check impact before moving an element
 
 ```sql
+mdl 1;
 LIST IMPACT OF Sales.CustomerEdit;
 MOVE PAGE Sales.CustomerEdit TO NewModule;
 ```
