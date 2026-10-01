@@ -92,6 +92,25 @@ type flowDecl struct {
 	build func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, map[string]string, error)
 }
 
+// buildOnce returns d.build memoised: the first call builds, later calls
+// return the same result.
+func (d *flowDecl) buildOnce(ctx *ExecContext) func() (any, []*microflows.MicroflowParameter, map[string]string, error) {
+	var (
+		done     bool
+		built    any
+		params   []*microflows.MicroflowParameter
+		varTypes map[string]string
+		err      error
+	)
+	return func() (any, []*microflows.MicroflowParameter, map[string]string, error) {
+		if !done {
+			built, params, varTypes, err = d.build(ctx)
+			done = true
+		}
+		return built, params, varTypes, err
+	}
+}
+
 func (d *flowDecl) kind() string {
 	if d.nanoflow {
 		return "nanoflow"
@@ -208,6 +227,10 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	decl, storedHeader := d.header(stored)
 	headerChanged := !declaredMatches(decl, storedHeader)
 	storedParams := a.mf.Parameters
+	// Building the declared flow is the expensive step of a modify, and the
+	// header diff, builtAsStored and the member spellings all need it: it is
+	// built at most once (ako/mxcli#870).
+	build := d.buildOnce(ctx)
 	var declared any
 	var varTypes map[string]string
 	if headerChanged {
@@ -215,7 +238,7 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 			return nil, asNotSpliceable(err)
 		}
 		var params []*microflows.MicroflowParameter
-		if declared, params, varTypes, err = d.build(ctx); err != nil {
+		if declared, params, varTypes, err = build(); err != nil {
 			return nil, err
 		}
 		// The fragments are built and scope-checked against the parameters
@@ -235,7 +258,13 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	var ops []*ast.AlterFlowOperation
 	var targets []mfmutator.Candidate
 	var moves []flowMove
-	if !builtAsStored(ctx, d, a, declared) {
+	// A body that states what describe prints for the stored one — the
+	// statement re-run unchanged, or a describe executed back — has nothing to
+	// patch, and needs no build to say so (ako/mxcli#870): every statement
+	// matches its stored one, so neither builtAsStored nor the statement diff
+	// could find a change.
+	sameBody := !headerChanged && declaredMatches(d.body, storedBody(stored))
+	if !sameBody && !builtAsStored(ctx, a, build) {
 		// Members are compared in the spelling describe prints them in, or a
 		// script naming one another way never matches its own stored activity.
 		// Which entity a variable holds is the builder's to say where the
@@ -243,7 +272,7 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 		// over an association). A body that does not build leaves the spellings
 		// to what the statements state; its errors are reported by the patch.
 		if varTypes == nil {
-			if _, _, vt, berr := d.build(ctx); berr == nil {
+			if _, _, vt, berr := build(); berr == nil {
 				varTypes = vt
 			}
 		}
@@ -276,17 +305,15 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 
 // builtAsStored reports whether the declared body builds the graph that is
 // stored (sameBuiltFlow), in which case there is nothing to patch in it,
-// whatever describe prints for it (ako/mxcli#859). built is the declared flow
-// when the header diff has built it already, else nil. A body that does not
+// whatever describe prints for it (ako/mxcli#859). build is the declared
+// flow's build, memoised by planFlowModify. A body that does not
 // build, or a backend that cannot say how a flow reads back — including a
 // flow the reader would not read back whole, where both sides would compare
 // equal in what it drops — leaves it to the statement diff.
-func builtAsStored(ctx *ExecContext, d *flowDecl, a *alterFlowContext, built any) bool {
-	if built == nil {
-		var err error
-		if built, _, _, err = d.build(ctx); err != nil {
-			return false
-		}
+func builtAsStored(ctx *ExecContext, a *alterFlowContext, build func() (any, []*microflows.MicroflowParameter, map[string]string, error)) bool {
+	built, _, _, err := build()
+	if err != nil {
+		return false
 	}
 	// Compared as it would read back once stored: what the writer defaults,
 	// or has no property for, reads back as it does from the project.
