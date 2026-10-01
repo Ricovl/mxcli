@@ -1577,9 +1577,20 @@ var execEnforcedMicroflowRules = map[string]bool{
 	// otherwise `check` catches the typo and the write that follows does not.
 	"MDL059": true,
 	"MDL060": true,
+	// MDL092: an @anchor parameter the visitor cannot use is dropped, the edge
+	// keeping its default sides — the same class as MDL060 (mendixlabs/mxcli#992).
+	"MDL092": true,
+	// MDL076: `on error continue` on an activity that rejects it is CE6035 at
+	// build time — every row of continueUnsupportedOn was measured on 11.14.0.
+	// check reported it; exec without the pre-check (-c, the REPL, --no-check)
+	// wrote it (mendixlabs/mxcli#175).
+	"MDL076": true,
 	// MDL-WF16: a notify workflow with no target is CE0166 at build time,
 	// measured on the 11.6, 11.10 and 11.13 mxbuilds.
 	"MDL-WF16": true,
+	// MDL-WF17: `lock workflow all` / `unlock workflow all` is CE1825, measured
+	// on 11.13.0 and 11.14.0 (mendixlabs/mxcli#870).
+	"MDL-WF17": true,
 }
 
 // validateMicroflowRules runs the MDL0xx microflow rule set (ValidateMicroflow)

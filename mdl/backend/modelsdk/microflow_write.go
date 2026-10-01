@@ -702,7 +702,7 @@ func microflowActionToGen(action microflows.MicroflowAction) element.Element {
 		// Storage $Type Microflows$CastAction; output bound to "VariableName".
 		g := genMf.NewCastAction()
 		g.SetID(element.ID(a.ID))
-		g.SetErrorHandlingType("Rollback")
+		g.SetErrorHandlingType(orDefault(string(a.ErrorHandlingType), "Rollback"))
 		g.SetOutputVariableName(a.OutputVariable)
 		return g
 	case *microflows.AggregateListAction:
@@ -711,7 +711,7 @@ func microflowActionToGen(action microflows.MicroflowAction) element.Element {
 		// by-name ref. Expression mode is mutually exclusive with Attribute.
 		g := genMf.NewAggregateListAction()
 		g.SetID(element.ID(a.ID))
-		g.SetErrorHandlingType("Rollback")
+		g.SetErrorHandlingType(orDefault(string(a.ErrorHandlingType), "Rollback"))
 		g.SetAggregateFunction(string(a.Function))
 		g.SetInputListVariableName(a.InputVariable)
 		if a.UseExpression {
@@ -735,7 +735,10 @@ func microflowActionToGen(action microflows.MicroflowAction) element.Element {
 		// Storage $Type Microflows$CreateListAction; output bound to "VariableName".
 		g := genMf.NewCreateListAction()
 		g.SetID(element.ID(a.ID))
-		g.SetErrorHandlingType("Rollback")
+		// The flow flavour's default, which the builder supplies: Rollback in a
+		// microflow, Abort in a nanoflow — "Rollback" there is CE6035
+		// (mendixlabs/mxcli#591). Same for the other list activities and cast.
+		g.SetErrorHandlingType(orDefault(string(a.ErrorHandlingType), "Rollback"))
 		if a.EntityQualifiedName != "" {
 			g.SetEntityQualifiedName(a.EntityQualifiedName)
 		}
@@ -747,7 +750,7 @@ func microflowActionToGen(action microflows.MicroflowAction) element.Element {
 		// when called, so guard it the same way.
 		g := genMf.NewChangeListAction()
 		g.SetID(element.ID(a.ID))
-		g.SetErrorHandlingType("Rollback")
+		g.SetErrorHandlingType(orDefault(string(a.ErrorHandlingType), "Rollback"))
 		g.SetChangeVariableName(a.ChangeVariable)
 		g.SetType(string(a.Type))
 		if a.Value != "" {
@@ -780,7 +783,7 @@ func microflowActionToGen(action microflows.MicroflowAction) element.Element {
 		// "VariableName"), so this action and its operation sub-elements are
 		// built directly with the verified legacy BSON keys.
 		e := newElem("Microflows$ListOperationsAction", string(a.ID))
-		addStr(e, "ErrorHandlingType", "Rollback")
+		addStr(e, "ErrorHandlingType", orDefault(string(a.ErrorHandlingType), "Rollback"))
 		if a.Operation != nil {
 			addPart(e, "NewOperation", listOperationToGen(a.Operation))
 		}

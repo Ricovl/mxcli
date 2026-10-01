@@ -185,7 +185,7 @@ end;
 create or modify nanoflow MyFirstModule.Rerun_RollbackNf ($E: MyFirstModule.RerunRbThing)
 begin
   change $E (Name = 'one');
-  commit $E on error rollback;
+  delete $E on error rollback;
 end;
 `
 	if err := h.exec(flows); err != nil {

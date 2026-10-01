@@ -23,12 +23,11 @@ mdl 1;
 --     and DESCRIBE re-quoted what it read: 'cancelled' became '''cancelled''',
 --     then seven quotes a side, doubling on every round trip.
 --
--- NOT covered here: `lock workflow all` / `unlock workflow all`. Those write an
--- activity mxbuild rejects with CE1825 "The 'Workflow' property is required" —
--- a lock always needs a specific workflow definition. Writing the selection
--- anyway does not help, because with `all` there is no workflow to name. That
--- is a separate, still-open defect; the variable form below is the one that
--- builds.
+-- `lock workflow all` / `unlock workflow all` are refused (MDL-WF17): they wrote
+-- an activity mxbuild rejects with CE1825 "The 'Workflow' property is
+-- required" — a lock always names its workflow definition. Studio Pro's "Pause
+-- instances" / "Unpause instances" options are `pause all` / `unpause all` after
+-- the workflow (mendixlabs/mxcli#870).
 --
 -- Verified on Mendix 11.13.0: 0 errors, and describe→exec→describe is stable.
 -- ============================================================================
@@ -67,7 +66,11 @@ begin
   $Records = get workflow activity records $Wf;
   open workflow $Wf;
   lock workflow $WfDef;
+  lock workflow $WfDef pause all;
   unlock workflow $WfDef;
+  unlock workflow $WfDef unpause all;
+  lock workflow W.ApproveOrder pause all;
+  unlock workflow W.ApproveOrder;
   workflow operation pause $Wf;
   workflow operation abort $Wf reason 'cancelled by user';
 end;

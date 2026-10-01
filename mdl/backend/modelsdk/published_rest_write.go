@@ -13,25 +13,27 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
 	"github.com/mendixlabs/mxcli/modelsdk/property"
+	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
 func init() {
-	// Resources / Operations / operation Parameters serialize with the typed-array
-	// marker 2 (populated keyed by child $Type; empty via MandatoryListMarkers). The
-	// service's AllowedRoles is a marker-1 reference-string list, AuthenticationTypes
-	// and Parameters are empty marker-2 lists, and CorsConfiguration is BSON null.
-	codec.RegisterListMarker("Rest$PublishedRestServiceResource", 2)
+	// List markers as Studio Pro 11 writes them (measured on ako/TestApp's
+	// Services.OrdersRestApi): Resources and operation Parameters use 3,
+	// Operations uses 2, and the service's empty Parameters list is [3]. The
+	// service's AllowedRoles and AuthenticationTypes are marker-1 string lists,
+	// and CorsConfiguration is BSON null.
+	codec.RegisterListMarker("Rest$PublishedRestServiceResource", 3)
 	codec.RegisterListMarker("Rest$PublishedRestServiceOperation", 2)
-	codec.RegisterListMarker("Rest$RestOperationParameter", 2)
+	codec.RegisterListMarker("Rest$RestOperationParameter", 3)
 	codec.RegisterTypeDefaults("Rest$PublishedRestService", codec.TypeDefaults{
-		MandatoryListMarkers: map[string]int32{"AllowedRoles": 1, "AuthenticationTypes": 2, "Parameters": 2},
+		MandatoryListMarkers: map[string]int32{"AllowedRoles": 1, "AuthenticationTypes": 1, "Parameters": 3},
 		NullFields:           []string{"CorsConfiguration"},
 	})
 	codec.RegisterTypeDefaults("Rest$PublishedRestServiceResource", codec.TypeDefaults{
 		MandatoryListMarkers: map[string]int32{"Operations": 2},
 	})
 	codec.RegisterTypeDefaults("Rest$PublishedRestServiceOperation", codec.TypeDefaults{
-		MandatoryListMarkers: map[string]int32{"Parameters": 2},
+		MandatoryListMarkers: map[string]int32{"Parameters": 3},
 	})
 }
 
@@ -70,6 +72,12 @@ func (b *Backend) UpdatePublishedRestService(svc *model.PublishedRestService) er
 	}
 	// publishedRestServiceToGen writes ExportLevel "Hidden" as a constant (#816).
 	contents, err = b.keepStoredExportLevel(string(svc.ID), contents)
+	if err != nil {
+		return fmt.Errorf("UpdatePublishedRestService: %w", err)
+	}
+	// ... and the service-level properties MDL has no spelling for as
+	// constants too: carry the stored ones (ako/mxcli#571).
+	contents, err = b.keepStoredTopLevel(string(svc.ID), contents, publishedRestServiceUnauthored)
 	if err != nil {
 		return fmt.Errorf("UpdatePublishedRestService: %w", err)
 	}
@@ -121,6 +129,20 @@ func (b *Backend) UpdatePublishedRestServiceRoles(unitID model.ID, roles []strin
 	return b.writer.UpdateRawUnit(string(unitID), out)
 }
 
+// publishedRestServiceUnauthored are the Rest$PublishedRestService keys a
+// create or modify / alter cannot state: the writer emits a constant for each,
+// so a rewrite carries the stored value instead. Without the carry, executing
+// the describe output of a Studio Pro service turned its Basic and Session
+// authentication off (ako/mxcli#571).
+var publishedRestServiceUnauthored = []string{
+	"AuthenticationMicroflow",
+	"AuthenticationTypes",
+	"CorsConfiguration",
+	"Documentation",
+	"Parameters",
+	"PublicDocumentation",
+}
+
 func publishedRestServiceToGen(svc *model.PublishedRestService) element.Element {
 	g := newElem("Rest$PublishedRestService", string(svc.ID))
 	addStr(g, "Name", svc.Name)
@@ -164,32 +186,85 @@ func publishedRestOperationToGen(op *model.PublishedRestOperation) element.Eleme
 	addStr(g, "Microflow", op.Microflow)
 	addStr(g, "Summary", op.Summary)
 	addBool(g, "Deprecated", op.Deprecated)
-	addStr(g, "Commit", "Yes")
-	addStr(g, "Documentation", "")
-	addStr(g, "ExportMapping", "")
-	addStr(g, "ImportMapping", "")
-	addStr(g, "ObjectHandlingBackup", "Create")
-	// Path parameters are auto-extracted from {name} placeholders and wired to the
-	// matching microflow parameter (Module.Microflow.name) — without that wiring
-	// mx check raises CE6538 / CE0350.
-	params := make([]element.Element, 0)
-	for _, name := range extractPathParams(op.Path) {
-		p := newElem("Rest$RestOperationParameter", "")
-		addStr(p, "Name", name)
-		addPart(p, "Type", newElem("DataTypes$StringType", ""))
-		addStr(p, "ParameterType", "Path")
-		mfParam := ""
-		if op.Microflow != "" {
-			mfParam = op.Microflow + "." + name
+	addStr(g, "Commit", orDefault(op.Commit, "Yes"))
+	addStr(g, "Documentation", op.Documentation)
+	addStr(g, "ExportMapping", op.ExportMapping)
+	addStr(g, "ImportMapping", op.ImportMapping)
+	addStr(g, "ObjectHandlingBackup", orDefault(op.ObjectHandlingBackup, "Create"))
+	// The executor derives the parameters from the microflow (path, query, body),
+	// as Studio Pro does. When it could not read the microflow only the path's
+	// {name} placeholders are known: those are written as String path
+	// parameters wired to the microflow parameter of that name, since without
+	// that wiring mx check raises CE6538 / CE0350.
+	opParams := op.OperationParameters
+	if len(opParams) == 0 {
+		for _, name := range op.PathParameterNames() {
+			mfParam := ""
+			if op.Microflow != "" {
+				mfParam = op.Microflow + "." + name
+			}
+			opParams = append(opParams, &model.PublishedRestOperationParameter{
+				Name: name, ParameterType: "Path", MicroflowParameter: mfParam, DataType: "String",
+			})
 		}
-		addStr(p, "MicroflowParameter", mfParam)
-		addStr(p, "Description", "")
+	}
+	params := make([]element.Element, 0, len(opParams))
+	for _, param := range opParams {
+		p := newElem("Rest$RestOperationParameter", "")
+		addStr(p, "Name", param.Name)
+		addPart(p, "Type", publishedRestParameterTypeToGen(param))
+		addStr(p, "ParameterType", param.ParameterType)
+		addStr(p, "MicroflowParameter", param.MicroflowParameter)
+		addStr(p, "Description", param.Description)
 		params = append(params, p)
 	}
 	if len(params) > 0 {
 		addPartList(g, "Parameters", params)
 	}
 	return g
+}
+
+// publishedRestParameterTypeToGen builds the DataTypes$* element of an
+// operation parameter. Long is not among an operation parameter's types
+// (Studio Pro 11.14's schema for Rest$RestOperationParameter.type): it is
+// written as Integer, as microflowDataTypeToGen writes it.
+func publishedRestParameterTypeToGen(p *model.PublishedRestOperationParameter) element.Element {
+	switch p.DataType {
+	case "Float":
+		return newElem("DataTypes$FloatType", "")
+	case "Empty":
+		return newElem("DataTypes$EmptyType", "")
+	case "Unknown":
+		return newElem("DataTypes$UnknownType", "")
+	}
+	return microflowDataTypeToGen(publishedRestParameterDataType(p))
+}
+
+// publishedRestParameterDataType is the microflow data type an operation
+// parameter carries.
+func publishedRestParameterDataType(p *model.PublishedRestOperationParameter) microflows.DataType {
+	switch p.DataType {
+	case "Boolean":
+		return &microflows.BooleanType{}
+	case "Integer", "Long":
+		return &microflows.IntegerType{}
+	case "Decimal":
+		return &microflows.DecimalType{}
+	case "DateTime", "Date":
+		return &microflows.DateTimeType{}
+	case "Binary":
+		return &microflows.BinaryType{}
+	case "Enumeration":
+		return &microflows.EnumerationType{EnumerationQualifiedName: p.QualifiedName}
+	case "Object":
+		return &microflows.ObjectType{EntityQualifiedName: p.QualifiedName}
+	case "List":
+		return &microflows.ListType{EntityQualifiedName: p.QualifiedName}
+	case "Void":
+		return nil
+	default:
+		return &microflows.StringType{}
+	}
 }
 
 // addByNameRefList adds a marker-1 reference-string list property (qualified
@@ -200,24 +275,6 @@ func addByNameRefList(b *element.Base, name, targetType string, qnames []string)
 	for _, qn := range qnames {
 		p.Append(qn)
 	}
-}
-
-// extractPathParams returns parameter names from {param} placeholders in a path.
-func extractPathParams(path string) []string {
-	var names []string
-	for {
-		start := strings.Index(path, "{")
-		if start < 0 {
-			break
-		}
-		end := strings.Index(path[start:], "}")
-		if end < 0 {
-			break
-		}
-		names = append(names, path[start+1:start+end])
-		path = path[start+end+1:]
-	}
-	return names
 }
 
 // httpMethodToMendix converts an HTTP method name to Mendix casing.

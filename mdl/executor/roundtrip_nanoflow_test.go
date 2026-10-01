@@ -239,12 +239,16 @@ end;`
 	nfName := testModule + ".RT_NF_ErrorHandling"
 	createMDL := `create nanoflow ` + nfName + ` () returns Boolean
 begin
-  $Result = call microflow ` + mfName + ` () on error continue;
+  $Result = call microflow ` + mfName + ` () on error without rollback begin
+    log error node 'RT' 'call failed';
+  end error;
   return $Result;
 end;`
 
+	// A call in a nanoflow takes only a handler without rollback; `on error
+	// continue` there is CE6035 and refused (mendixlabs/mxcli#591).
 	assertNanoflowContains(t, env, nfName, createMDL,
-		[]string{"nanoflow", "call microflow", "on error continue", "return"},
+		[]string{"nanoflow", "call microflow", "on error without rollback", "return"},
 		nil,
 	)
 }

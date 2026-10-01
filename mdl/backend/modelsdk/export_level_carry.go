@@ -4,6 +4,8 @@ package modelsdkbackend
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/x/bsonx/bsoncore"
 )
@@ -94,6 +96,72 @@ func withExportLevel(doc []byte, lvl string) ([]byte, error) {
 	out, err = bsoncore.AppendDocumentEnd(out, idx)
 	if err != nil {
 		return nil, fmt.Errorf("carry stored ExportLevel: %w", err)
+	}
+	return out, nil
+}
+
+// keepStoredTopLevel returns contents with each top-level key in keys set to
+// the value the stored unit holds, for a document kind whose statement cannot
+// state those properties and whose writer therefore emits constants for them.
+// A key the stored unit lacks is left as written; a key only the stored unit
+// has is inserted before the first written key that sorts after it, the order
+// Studio Pro writes.
+func (b *Backend) keepStoredTopLevel(unitID string, contents []byte, keys []string) ([]byte, error) {
+	if b.reader == nil || unitID == "" || len(contents) == 0 {
+		return contents, nil
+	}
+	stored, err := b.reader.GetRawUnitBytes(unitID)
+	if err != nil || len(stored) == 0 {
+		return contents, nil
+	}
+	return withStoredTopLevel(contents, stored, keys)
+}
+
+// withStoredTopLevel is keepStoredTopLevel on bytes.
+func withStoredTopLevel(doc, stored []byte, keys []string) ([]byte, error) {
+	carry := map[string]bsoncore.Value{}
+	for _, k := range keys {
+		if v, err := bsoncore.Document(stored).LookupErr(k); err == nil {
+			carry[k] = v
+		}
+	}
+	if len(carry) == 0 {
+		return doc, nil
+	}
+	elems, err := bsoncore.Document(doc).Elements()
+	if err != nil {
+		return nil, fmt.Errorf("carry stored properties: %w", err)
+	}
+	present := map[string]bool{}
+	for _, el := range elems {
+		present[el.Key()] = true
+	}
+	var missing []string
+	for k := range carry {
+		if !present[k] {
+			missing = append(missing, k)
+		}
+	}
+	sort.Strings(missing)
+	idx, out := bsoncore.AppendDocumentStart(nil)
+	for _, el := range elems {
+		key := el.Key()
+		for len(missing) > 0 && missing[0] < key && !strings.HasPrefix(key, "$") {
+			out = bsoncore.AppendValueElement(out, missing[0], carry[missing[0]])
+			missing = missing[1:]
+		}
+		if v, ok := carry[key]; ok {
+			out = bsoncore.AppendValueElement(out, key, v)
+			continue
+		}
+		out = append(out, el...)
+	}
+	for _, k := range missing {
+		out = bsoncore.AppendValueElement(out, k, carry[k])
+	}
+	out, err = bsoncore.AppendDocumentEnd(out, idx)
+	if err != nil {
+		return nil, fmt.Errorf("carry stored properties: %w", err)
 	}
 	return out, nil
 }

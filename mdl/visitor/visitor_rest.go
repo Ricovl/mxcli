@@ -450,7 +450,7 @@ func buildPublishedRestResourceDef(rc *parser.PublishedRestResourceContext) *ast
 
 		// Import/Export mapping (qualifiedName after IMPORT/EXPORT MAPPING)
 		if oc.IMPORT() != nil && len(allQN) >= 2 {
-			opDef.ImportMapping = allQN[1].GetText()
+			opDef.ImportMapping = buildQualifiedName(allQN[1]).String()
 		}
 		if oc.EXPORT() != nil {
 			idx := 1
@@ -458,7 +458,7 @@ func buildPublishedRestResourceDef(rc *parser.PublishedRestResourceContext) *ast
 				idx = 2
 			}
 			if len(allQN) > idx {
-				opDef.ExportMapping = allQN[idx].GetText()
+				opDef.ExportMapping = buildQualifiedName(allQN[idx]).String()
 			}
 		}
 

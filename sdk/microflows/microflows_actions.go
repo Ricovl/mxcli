@@ -206,6 +206,11 @@ type AggregateListAction struct {
 	AttributeQualifiedName string            `json:"attributeQualifiedName,omitempty"` // BY_NAME_REFERENCE: Module.Entity.Attribute
 	UseExpression          bool              `json:"useExpression,omitempty"`          // true when Expression is used instead of Attribute
 	Expression             string            `json:"expression,omitempty"`             // Mendix expression string (when UseExpression=true)
+	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
+	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
+	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
+	// historical "Rollback".
+	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 
 	// ReduceInitialValue and ReduceReturnType are what REDUCE folds from, and
 	// the type it folds to. Studio Pro writes both on *every* AggregateAction it
@@ -272,6 +277,11 @@ type ListOperationAction struct {
 	model.BaseElement
 	Operation      ListOperation `json:"operation,omitempty"`
 	OutputVariable string        `json:"outputVariable,omitempty"`
+	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
+	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
+	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
+	// historical "Rollback".
+	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
 func (ListOperationAction) isMicroflowAction() {}
@@ -409,6 +419,11 @@ type CreateListAction struct {
 	EntityID            model.ID `json:"entityId,omitempty"`
 	EntityQualifiedName string   `json:"entityQualifiedName,omitempty"`
 	OutputVariable      string   `json:"outputVariable"`
+	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
+	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
+	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
+	// historical "Rollback".
+	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
 func (CreateListAction) isMicroflowAction() {}
@@ -419,6 +434,11 @@ type ChangeListAction struct {
 	ChangeVariable string         `json:"changeVariable"`
 	Type           ChangeListType `json:"type"`
 	Value          string         `json:"value,omitempty"`
+	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
+	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
+	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
+	// historical "Rollback".
+	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
 func (ChangeListAction) isMicroflowAction() {}
@@ -461,6 +481,11 @@ type CastAction struct {
 	model.BaseElement
 	ObjectVariable string `json:"objectVariable"`
 	OutputVariable string `json:"outputVariable"`
+	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
+	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
+	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
+	// historical "Rollback".
+	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
 func (CastAction) isMicroflowAction() {}
