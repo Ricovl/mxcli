@@ -11,10 +11,9 @@ import (
 )
 
 // ako/mxcli#888: an end event in a fragment that no `return` drew is one the
-// builder added to end an error handler, and the splice refuses it. The
-// refusal must not tell the user to "end that path with a return": a handler
-// that does state one (`on error … { return false; }`) draws exactly this end
-// event, so that advice cannot be followed.
+// builder added to end an error handler, and the splice refuses it, naming the
+// handler. (A handler that states its own return draws an end event the cut
+// keeps since ako/mxcli#905: TestCutFragment_HandlerReturnIsANewEndEvent.)
 func TestCutFragment_HandlerEndRefusalDoesNotAskForAReturn(t *testing.T) {
 	start := &microflows.StartEvent{BaseMicroflowObject: microflows.BaseMicroflowObject{BaseElement: model.BaseElement{ID: "start"}}}
 	act := &microflows.ActionActivity{BaseActivity: microflows.BaseActivity{BaseMicroflowObject: microflows.BaseMicroflowObject{BaseElement: model.BaseElement{ID: "act"}}}}
@@ -30,7 +29,7 @@ func TestCutFragment_HandlerEndRefusalDoesNotAskForAReturn(t *testing.T) {
 	if !strings.Contains(err.Error(), "error handler") {
 		t.Errorf("the refusal does not name the error handler: %v", err)
 	}
-	if strings.Contains(err.Error(), "end that path with a return") || strings.Contains(err.Error(), "states no return") {
-		t.Errorf("the refusal asks for a return, which a handler that returns already states: %v", err)
+	if strings.Contains(err.Error(), "not spliced yet") {
+		t.Errorf("the refusal says a handler's return is not spliced, which it is: %v", err)
 	}
 }
