@@ -44,10 +44,10 @@ Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mod
   (or fresh `describe` output) and re-run `create or modify`.
 - **Authored in Studio Pro:** prefer `alter microflow X { insert/replace/drop … }`
   (targets from `describe microflow X with handles`). `create or modify` of `describe`
-  output patches too: unchanged writes nothing; a statement, `return` value, header clause,
-  parameter (added/retyped; removed only if unused) or stated `@position`/`@start` change is
+  output patches too: unchanged writes nothing; a statement, guard clause, `return` value, `if`
+  condition, header clause, parameter (added/retyped; removed only if unused) or stated `@position`/`@start` change is
   patched in place (a move keeps the node's flows). A redrawn `@anchor`/`@curve`, loop body,
-  error handler or `return` added/taken away rebuilds under mdl 0 (`MDL-V1-REBUILD`: IDs
+  error handler or other `return` added/taken away rebuilds under mdl 0 (`MDL-V1-REBUILD`: IDs
   renumbered, merges and curves lost) and is refused under `mdl 1;`.
 
 ## When to Use a Microflow vs a Nanoflow

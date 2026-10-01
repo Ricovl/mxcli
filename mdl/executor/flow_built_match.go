@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/mendixlabs/mxcli/mdl/mendixexpr"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 	"go.mongodb.org/mongo-driver/bson"
@@ -231,6 +232,12 @@ func (c *builtComparer) value(b, s reflect.Value, path string) bool {
 			if b.Type() == baseElementType && f.Name == "ID" {
 				continue
 			}
+			if expressionFields[b.Type()][f.Name] {
+				if !c.expression(b.Field(i), s.Field(i), path+"."+f.Name) {
+					return false
+				}
+				continue
+			}
 			if !c.value(b.Field(i), s.Field(i), path+"."+f.Name) {
 				return false
 			}
@@ -279,6 +286,63 @@ func (c *builtComparer) value(b, s reflect.Value, path string) bool {
 		}
 		return true
 	}
+}
+
+// expressionFields names, per model type, the fields that hold Mendix
+// expressions (a []string field holds one per element). They are compared by
+// their canonical tokens (mendixexpr.Canonical), not as written: the builder
+// stores an expression slot as the script spells it, so a member list laid out
+// over several lines kept the line break before `)` in its last value, and a
+// keyword's case where source text is kept — the same stored expression either
+// way, and a difference on every run when compared byte for byte
+// (ako/mxcli#886).
+var expressionFields = map[reflect.Type]map[string]bool{
+	reflect.TypeOf(microflows.EndEvent{}):                                {"ReturnValue": true},
+	reflect.TypeOf(microflows.ExpressionSplitCondition{}):                {"Expression": true},
+	reflect.TypeOf(microflows.ExpressionCase{}):                          {"Expression": true},
+	reflect.TypeOf(microflows.WhileLoopCondition{}):                      {"WhileExpression": true},
+	reflect.TypeOf(microflows.RuleCallParameterMapping{}):                {"Argument": true},
+	reflect.TypeOf(microflows.MemberChange{}):                            {"Value": true},
+	reflect.TypeOf(microflows.AggregateListAction{}):                     {"Expression": true, "ReduceInitialValue": true},
+	reflect.TypeOf(microflows.FindOperation{}):                           {"Expression": true},
+	reflect.TypeOf(microflows.FilterOperation{}):                         {"Expression": true},
+	reflect.TypeOf(microflows.FindByAttributeOperation{}):                {"Expression": true},
+	reflect.TypeOf(microflows.FilterByAttributeOperation{}):              {"Expression": true},
+	reflect.TypeOf(microflows.ListRangeOperation{}):                      {"LimitExpression": true, "OffsetExpression": true},
+	reflect.TypeOf(microflows.ChangeListAction{}):                        {"Value": true},
+	reflect.TypeOf(microflows.CreateVariableAction{}):                    {"InitialValue": true},
+	reflect.TypeOf(microflows.ChangeVariableAction{}):                    {"Value": true},
+	reflect.TypeOf(microflows.MicroflowCallParameterMapping{}):           {"Argument": true},
+	reflect.TypeOf(microflows.NanoflowCallParameterMapping{}):            {"Argument": true},
+	reflect.TypeOf(microflows.BasicCodeActionParameterValue{}):           {"Argument": true},
+	reflect.TypeOf(microflows.ExpressionBasedCodeActionParameterValue{}): {"Expression": true},
+	reflect.TypeOf(microflows.TypedTemplate{}):                           {"Arguments": true},
+	reflect.TypeOf(microflows.ShowMessageAction{}):                       {"TemplateParameters": true},
+	reflect.TypeOf(microflows.ValidationFeedbackAction{}):                {"TemplateParameters": true},
+	reflect.TypeOf(microflows.LogMessageAction{}):                        {"TemplateParameters": true},
+}
+
+// expression compares two expression fields — a string, or a list of them —
+// by their canonical tokens.
+func (c *builtComparer) expression(b, s reflect.Value, path string) bool {
+	switch {
+	case b.Kind() == reflect.String:
+		if mendixexpr.Canonical(b.String()) != mendixexpr.Canonical(s.String()) {
+			return c.fail("%s: %q built, %q stored", path, b.String(), s.String())
+		}
+		return true
+	case b.Kind() == reflect.Slice && b.Type().Elem().Kind() == reflect.String:
+		if b.Len() != s.Len() {
+			return c.fail("%s: %d built, %d stored", path, b.Len(), s.Len())
+		}
+		for i := 0; i < b.Len(); i++ {
+			if !c.expression(b.Index(i), s.Index(i), fmt.Sprintf("%s[%d]", path, i)) {
+				return false
+			}
+		}
+		return true
+	}
+	return c.value(b, s, path)
 }
 
 // sameRawModuloIDs compares two raw BSON documents — the one a call web

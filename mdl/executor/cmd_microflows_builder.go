@@ -32,9 +32,15 @@ type flowBuilder struct {
 	spacing            int
 	returnValue        string // Return value expression for RETURN statement (used by buildFlowGraph final EndEvent)
 	returnType         *ast.MicroflowReturnType
-	endsWithReturn     bool              // True if the flow already ends with EndEvent(s) from RETURN statements
-	lastReturnEndID    model.ID          // Last explicit RETURN EndEvent, used as a fallback error-handler target
-	varTypes           map[string]string // Variable name -> entity qualified name (for CHANGE statements)
+	endsWithReturn     bool     // True if the flow already ends with EndEvent(s) from RETURN statements
+	lastReturnEndID    model.ID // Last explicit RETURN EndEvent, used as a fallback error-handler target
+	// returnEndIDs are the end events RETURN statements drew, and
+	// fallThroughEndID the one the builder adds where the body falls through
+	// to its end. A spliced fragment keeps the first as new ends of the flow
+	// and cuts the second out (ako/mxcli#888).
+	returnEndIDs     map[model.ID]bool
+	fallThroughEndID model.ID
+	varTypes         map[string]string // Variable name -> entity qualified name (for CHANGE statements)
 	// generatedVars holds the output-variable names minted for an unassigned
 	// CREATE. Kept apart from varTypes so a generated name is never referenceable
 	// from the script, while still reserving the name against a second create of

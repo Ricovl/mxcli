@@ -218,6 +218,7 @@ func (fb *flowBuilder) buildFlowGraph(stmts []ast.MicroflowStatement, returns *a
 		}
 
 		fb.objects = append(fb.objects, endEvent)
+		fb.fallThroughEndID = endEvent.ID
 
 		// Connect last activity to end event
 		var endFlow *microflows.SequenceFlow

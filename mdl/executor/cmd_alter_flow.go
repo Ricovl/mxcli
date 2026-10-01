@@ -102,6 +102,18 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 			a.noteRemoved(target, nil)
 			continue
 		}
+		if op.SetCondition {
+			// An `if` whose condition changes is the stored decision with a
+			// new condition, set in place (ako/mxcli#888).
+			expr, caption, err := a.splitCondition(ctx, op, target)
+			if err == nil {
+				err = mut.SetCondition(target.ID, expr, caption)
+			}
+			if err != nil {
+				return fail(err)
+			}
+			continue
+		}
 		if ret, ok := returnValueEdit(op, target); ok {
 			// A return replacing an end event is a new value for it, set in
 			// place (ako/mxcli#805): the end event, its flows and its notes stay.
@@ -307,6 +319,45 @@ func (a *alterFlowContext) returnValue(ctx *ExecContext, ret *ast.ReturnStmt) (s
 	return value, nil
 }
 
+// splitCondition renders the condition of a SetCondition operation as the
+// expression a decision stores, and the caption the decision gets with it: a
+// caption that read as the old condition (the builder's default, which
+// describe leaves out) reads as the new one, and any other is kept — the
+// declared `if` states the same @caption as the stored one, or the operation
+// would not be a condition edit.
+func (a *alterFlowContext) splitCondition(ctx *ExecContext, op *ast.AlterFlowOperation, target mfmutator.Candidate) (expr, caption string, err error) {
+	split, ok := target.Object.(*microflows.ExclusiveSplit)
+	if !ok || len(op.Body) != 1 {
+		return "", "", fmt.Errorf("a condition can be set on a decision only")
+	}
+	ifs, ok := op.Body[0].(*ast.IfStmt)
+	if !ok {
+		return "", "", fmt.Errorf("a condition can be set from an if only")
+	}
+	old, ok := split.SplitCondition.(*microflows.ExpressionSplitCondition)
+	if !ok {
+		return "", "", fmt.Errorf("the decision calls a rule; the splice sets an expression's text only")
+	}
+	fb := a.fragmentBuilder(ctx)
+	if fb.tryBuildRuleSplitCondition(ifs.Condition) != nil {
+		return "", "", fmt.Errorf("the new condition calls a rule, which would replace the decision's expression; " +
+			"the splice sets an expression's text only")
+	}
+	expr = fb.exprToString(ifs.Condition)
+	fb.buildSplitCondition(ifs.Condition, expr) // reports a call that is not a rule
+	if errs := fb.GetErrors(); len(errs) > 0 {
+		return "", "", fmt.Errorf("the condition has errors:\n  - %s", strings.Join(errs, "\n  - "))
+	}
+	if missing := a.unscopedRefs(expr, target.ID); len(missing) > 0 {
+		return "", "", fmt.Errorf("the condition uses %s, which is not declared on the path to the decision", strings.Join(missing, ", "))
+	}
+	caption = split.Caption
+	if caption == old.Expression {
+		caption = expr
+	}
+	return expr, caption, nil
+}
+
 // fragmentBuilder is the builder `create microflow` uses, seeded with the
 // variables the stored flow declares.
 func (a *alterFlowContext) fragmentBuilder(ctx *ExecContext) *flowBuilder {
@@ -350,33 +401,44 @@ func (a *alterFlowContext) buildFragment(ctx *ExecContext, body []ast.MicroflowS
 		return nil, fmt.Errorf("the fragment has errors:\n  - %s", strings.Join(errs, "\n  - "))
 	}
 	if fb.endsWithReturn {
-		return nil, fmt.Errorf("the fragment ends the flow with a return, so nothing would lead on to the rest of it; " +
-			"a return inside an inserted fragment is not supported yet")
+		return nil, fmt.Errorf("every path through the fragment ends the flow with a return, so nothing would lead on " +
+			"to the rest of it; a return can be inserted only on a path that branches off the rest (a guard clause)")
 	}
-	return cutFragment(oc)
+	return cutFragment(oc, fb.fallThroughEndID, fb.returnEndIDs)
 }
 
-// cutFragment removes the builder's start event and final end event, and says
-// where the fragment is entered and left. Several paths reaching the end (an
-// if without a merge before it, an error handler that rejoins at the end) are
-// joined by a merge, which becomes the exit.
-func cutFragment(oc *microflows.MicroflowObjectCollection) (*backend.MicroflowFragment, error) {
+// cutFragment removes the builder's start event and the end event the body
+// falls through to (fallThrough), and says where the fragment is entered and
+// left. Several paths reaching that end (an if without a merge before it, an
+// error handler that rejoins at the end) are joined by a merge, which becomes
+// the exit.
+//
+// An end event a `return` in the fragment drew (returns) is part of the
+// fragment: a guard clause's return ends its own path, which branches off the
+// rest of the flow, and is written as a new end event of the flow where the
+// builder drew it relative to the fragment (ako/mxcli#888). Any other end event
+// is one the builder adds to end an error handler at the fragment's end —
+// with the handler's own return, or the flow's default value — and is refused.
+func cutFragment(oc *microflows.MicroflowObjectCollection, fallThrough model.ID, returns map[model.ID]bool) (*backend.MicroflowFragment, error) {
 	var start, end microflows.MicroflowObject
-	ends := 0
 	for _, obj := range oc.Objects {
 		switch obj.(type) {
 		case *microflows.StartEvent:
 			start = obj
 		case *microflows.EndEvent:
-			ends++
-			end = obj
+			switch {
+			case obj.GetID() == fallThrough:
+				end = obj
+			case !returns[obj.GetID()]:
+				// A handler's return draws this end event too, so the
+				// refusal must not ask for one.
+				return nil, fmt.Errorf("an error handler in the fragment ends at an end event of its own; an inserted " +
+					"error handler has to rejoin the rest of the flow (a return inside an error handler is not spliced yet)")
+			}
 		}
 	}
 	if start == nil || end == nil {
 		return nil, fmt.Errorf("the fragment does not continue: its last statement ends the flow, so nothing would lead on to the rest of it")
-	}
-	if ends > 1 {
-		return nil, fmt.Errorf("the fragment returns; a return inside an inserted fragment is not supported yet")
 	}
 	frag := &backend.MicroflowFragment{}
 	var intoEnd []*microflows.SequenceFlow
@@ -406,6 +468,13 @@ func cutFragment(oc *microflows.MicroflowObjectCollection) (*backend.MicroflowFr
 		return nil, fmt.Errorf("no path through the fragment leads on to the rest of the flow")
 	case len(intoEnd) == 1:
 		frag.Exit = intoEnd[0].OriginID
+		// The flow leaving a decision that ends the fragment is one of its
+		// paths, and carries its case on (ako/mxcli#888).
+		switch cv := intoEnd[0].CaseValue; cv.(type) {
+		case nil, microflows.NoCase, *microflows.NoCase:
+		default:
+			frag.ExitCase = cv
+		}
 	default:
 		p := end.GetPosition()
 		merge := &microflows.ExclusiveMerge{BaseMicroflowObject: microflows.BaseMicroflowObject{
@@ -606,6 +675,36 @@ func (a *alterFlowContext) checkFragmentScope(ctx *ExecContext, op *ast.AlterFlo
 		return fmt.Errorf("the fragment uses %s, which is not declared on the path %s", strings.Join(missing, ", "), where)
 	}
 	return nil
+}
+
+// unscopedRefs returns the variables expr reads that do not exist where the
+// stored node id runs: not a parameter, not the output of an activity before
+// it (or one an earlier operation took away), not declared by an earlier
+// operation, and not a system variable.
+func (a *alterFlowContext) unscopedRefs(expr string, id model.ID) []string {
+	inScope := map[string]bool{}
+	for _, p := range a.mf.Parameters {
+		inScope[p.Name] = true
+	}
+	for up := range a.upstreamOf(id, false) {
+		for _, c := range a.cands {
+			if c.ID == up && c.OutputVariable != "" {
+				inScope[c.OutputVariable] = true
+			}
+		}
+	}
+	var missing []string
+	seen := map[string]bool{}
+	for _, m := range variableRef.FindAllStringSubmatch(withoutStringLiterals(expr), -1) {
+		v := m[1]
+		if seen[v] || systemVariables[v] || a.declaredByOps[v] || (inScope[v] && !a.removedByOps[v]) {
+			continue
+		}
+		seen[v] = true
+		missing = append(missing, "$"+v)
+	}
+	sort.Strings(missing)
+	return missing
 }
 
 // upstreamOf returns every object from which id can be reached along the
