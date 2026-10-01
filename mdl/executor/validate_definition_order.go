@@ -23,6 +23,7 @@ package executor
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
@@ -36,6 +37,7 @@ const (
 	defMicroflow   = "microflow"
 	defNanoflow    = "nanoflow"
 	defPage        = "page"
+	defQueue       = "task queue"
 )
 
 // defKey identifies a document by kind and qualified name. Kind is part of the
@@ -156,6 +158,8 @@ func definedBy(stmt ast.Statement) (key defKey, plain bool) {
 		return qualifiedKey(defNanoflow, s.Name), !s.CreateOrModify
 	case *ast.CreatePageStmtV3:
 		return qualifiedKey(defPage, s.Name), !s.IsModify && !s.IsReplace
+	case *ast.CreateQueueStmt:
+		return qualifiedKey(defQueue, s.Name), !s.CreateOrModify
 	}
 	return defKey{}, false
 }
@@ -217,6 +221,16 @@ func eagerDefRefs(stmt ast.Statement) []defRef {
 		}
 		return out
 
+	case *ast.CreatePageStmtV3:
+		if s.Excluded {
+			// An excluded page may name a flow the project lacks; the builder
+			// writes it by name (danglingRefOK), so the order does not fail.
+			return nil
+		}
+		return widgetFlowDefRefs("page "+s.Name.String(), allPageWidgets(s))
+	case *ast.CreateSnippetStmtV3:
+		return widgetFlowDefRefs("snippet "+s.Name.String(), s.Widgets)
+
 	case *ast.GrantEntityAccessStmt:
 		return oneDefRef(s.Entity, defEntity, "grant on entity "+s.Entity.String())
 	case *ast.GrantMicroflowAccessStmt:
@@ -250,8 +264,45 @@ func flowDefRefs(site string, params []ast.MicroflowParam, ret *ast.MicroflowRet
 		switch c := stmt.(type) {
 		case *ast.CallMicroflowStmt:
 			out = append(out, oneDefRef(c.MicroflowName, defMicroflow, site)...)
+			out = append(out, queueDefRef(c.Queue, site)...)
 		case *ast.CallNanoflowStmt:
 			out = append(out, oneDefRef(c.NanoflowName, defNanoflow, site)...)
+		case *ast.CallJavaActionStmt:
+			// The action itself resolves lazily (measured, #955); its IN QUEUE
+			// does not — buildQueueSettings refuses a queue it cannot find.
+			out = append(out, queueDefRef(c.Queue, site)...)
+		}
+	}
+	return out
+}
+
+// queueDefRef is an `IN QUEUE` target, which the flow builder resolves when it
+// writes the call (buildQueueSettings) — so a queue created further down the
+// script fails the flow (mendixlabs/mxcli#1211).
+func queueDefRef(q *ast.QualifiedName, site string) []defRef {
+	if q == nil {
+		return nil
+	}
+	return oneDefRef(*q, defQueue, site+": in queue")
+}
+
+// widgetFlowDefRefs is the microflows and nanoflows a page or snippet's widgets
+// name — action targets and data sources. The page builder resolves each when
+// it writes the page, so one created further down the script stops exec at the
+// page, after everything before it was written (mendixlabs/mxcli#1212).
+func widgetFlowDefRefs(site string, widgets []*ast.WidgetV3) []defRef {
+	refs := &widgetRefCollector{}
+	refs.collectFromWidgets(widgets)
+	refs.dedupe()
+	var out []defRef
+	for _, mf := range refs.microflows {
+		if mf = unquoteQualifiedName(mf); strings.Contains(mf, ".") {
+			out = append(out, defRef{name: mf, kinds: []string{defMicroflow}, site: site})
+		}
+	}
+	for _, nf := range refs.nanoflows {
+		if nf = unquoteQualifiedName(nf); strings.Contains(nf, ".") {
+			out = append(out, defRef{name: nf, kinds: []string{defNanoflow}, site: site})
 		}
 	}
 	return out
@@ -325,4 +376,102 @@ func errorHandlerBody(stmt ast.MicroflowStatement) []ast.MicroflowStatement {
 		}
 	}
 	return nil
+}
+
+// validateForwardDefRefs is MDL-ORDER01's project-tier half. MDL-ORDER01 needs
+// no project because it only judges a reference whose later definition is a
+// PLAIN create — which asserts the document is not in the project yet. A later
+// `create or modify` asserts nothing, so whether the earlier reference resolves
+// depends on the project: when it has the document, exec resolves against it;
+// when it does not, exec fails at the referring statement with the statements
+// before it already written, while the whole-script reference pass, which
+// counts every name the script defines anywhere, reported it clean.
+//
+// The references are eagerDefRefs — the same index MDL-ORDER01 walks — so the
+// two tiers cannot disagree about what is resolved eagerly.
+func validateForwardDefRefs(ctx *ExecContext, prog *ast.Program) []error {
+	if prog == nil || !ctx.Connected() {
+		return nil
+	}
+	plain := plainCreateIndex(prog)
+	anyCreate := map[defKey]int{}
+	for i, stmt := range prog.Statements {
+		if key, _ := definedBy(stmt); key.name != "" {
+			if _, seen := anyCreate[key]; !seen {
+				anyCreate[key] = i
+			}
+		}
+	}
+	if len(anyCreate) == 0 {
+		return nil
+	}
+	stored := map[string]map[string]bool{}
+	storedOf := func(kind string) map[string]bool {
+		if m, ok := stored[kind]; ok {
+			return m
+		}
+		var m map[string]bool
+		switch kind {
+		case defEntity:
+			m = buildEntityQualifiedNames(ctx)
+		case defEnumeration:
+			m = buildEnumerationQualifiedNames(ctx)
+		case defMicroflow:
+			m = buildMicroflowQualifiedNames(ctx)
+		case defNanoflow:
+			m = buildNanoflowQualifiedNames(ctx)
+		case defPage:
+			m = buildPageQualifiedNames(ctx)
+		case defQueue:
+			m = buildQueueQualifiedNames(ctx)
+		}
+		stored[kind] = m
+		return m
+	}
+	inProject := func(kind, name string) bool {
+		m := storedOf(kind)
+		// An empty listing is a backend that could not answer, as often as a
+		// project without any — silence, not a finding (cf. checkAlterTarget).
+		// Queues are the exception: a project with none is ordinary.
+		if len(m) == 0 && kind != defQueue {
+			return true
+		}
+		if kind == defQueue {
+			return m[strings.ToLower(name)]
+		}
+		return m[name]
+	}
+
+	created := map[defKey]bool{}
+	var errs []error
+	for i, stmt := range prog.Statements {
+		for _, ref := range eagerDefRefs(stmt) {
+			resolved := false
+			for _, k := range ref.kinds {
+				if created[defKey{kind: k, name: ref.name}] || inProject(k, ref.name) {
+					resolved = true
+					break
+				}
+			}
+			if resolved {
+				continue
+			}
+			for _, k := range ref.kinds {
+				key := defKey{kind: k, name: ref.name}
+				at, later := anyCreate[key]
+				if !later || at <= i {
+					continue
+				}
+				if _, isPlain := plain[key]; isPlain {
+					break // MDL-ORDER01 reports it, without a project
+				}
+				errs = append(errs, fmt.Errorf(
+					"statement %d: %s references %s %s before it is created (statement %d), and the project does not have it — exec resolves this in statement order, so it fails here with the statements before it already written. Move the create statement for %s above this one",
+					i+1, ref.site, k, ref.name, at+1, ref.name))
+				break
+			}
+		}
+		markCreated(created, stmt)
+	}
+	return errs
 }
