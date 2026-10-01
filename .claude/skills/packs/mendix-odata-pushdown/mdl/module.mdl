@@ -1,3 +1,4 @@
+mdl 1;
 /*
  * {{MODULE}} — serve an OData resource from SQL you did not write.
  *
@@ -281,8 +282,4 @@ $$;
  */
 create or modify module role {{MODULE}}.User;
 
-grant {{MODULE}}.User on {{MODULE}}.Query (
-  create, delete,
-  read  *,
-  write *
-);
+grant create, delete, read *, write * on entity {{MODULE}}.Query to {{MODULE}}.User;

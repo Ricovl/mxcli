@@ -290,6 +290,7 @@ Security rules take the XPath in brackets, like every other XPath, so quotes
 inside it are written once:
 
 ```mdl
+mdl 1;
 grant read *, write * on entity Module.Entity to Module.Role
   where [System.owner = '[%CurrentUser%]'];
 ```
@@ -343,6 +344,7 @@ If a RETRIEVE returns empty unexpectedly when filtering by an enum attribute:
 ### Parameterized Search
 
 ```mdl
+mdl 1;
 create microflow Module.Search ($query: string, $ActiveOnly: boolean)
 returns boolean
 begin
