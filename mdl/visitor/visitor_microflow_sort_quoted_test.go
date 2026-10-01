@@ -55,3 +55,25 @@ end;`
 		t.Errorf(`second sort spec: expected {"Name" desc}, got %+v`, sortOp.SortSpecs[1])
 	}
 }
+
+// A keyword attribute needs no quotes in the call form either, as in the
+// statement form's listSortItem: `sort($L, Position, Status desc)` sorts by
+// the attributes Position and Status (ako/mxcli#889).
+func TestUnquotedKeywordSortAttribute(t *testing.T) {
+	prog, errs := Build(`create microflow M.MF_Sort ($L: list of M.Lap) returns list of M.Lap as $Sorted
+begin
+  $Sorted = sort($L, Position, Status desc);
+  return $Sorted;
+end;`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+	op, ok := prog.Statements[0].(*ast.CreateMicroflowStmt).Body[0].(*ast.ListOperationStmt)
+	if !ok {
+		t.Fatalf("expected a list operation, got %T", prog.Statements[0].(*ast.CreateMicroflowStmt).Body[0])
+	}
+	want := []ast.SortSpec{{Attribute: "Position", Ascending: true}, {Attribute: "Status", Ascending: false}}
+	if len(op.SortSpecs) != 2 || op.SortSpecs[0] != want[0] || op.SortSpecs[1] != want[1] {
+		t.Errorf("sort specs: got %+v, want %+v", op.SortSpecs, want)
+	}
+}
