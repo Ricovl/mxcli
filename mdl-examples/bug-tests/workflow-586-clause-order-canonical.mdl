@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#586 — the CONTROL for `workflow-586-clause-order.mdl`.
 --
 -- Same two workflows, every clause in the order the old sequence grammar
@@ -29,8 +30,7 @@ create page WF586.TaskPage (
       }
     }
   }
-}
-/
+};
 
 create page WF586.Overview (
   title: 'Overview',
@@ -43,8 +43,7 @@ create page WF586.Overview (
       }
     }
   }
-}
-/
+};
 
 -- Targeting microflow: (System.Workflow, context) -> List of System.User
 create microflow WF586.ACT_GetUsers (
@@ -57,7 +56,6 @@ begin
   retrieve $Users from System.User;
   @position(400,200) return $Users;
 end;
-/
 
 create microflow WF586.ACT_OnCreated (
   $WorkflowUserTask : System.WorkflowUserTask,
@@ -66,7 +64,6 @@ create microflow WF586.ACT_OnCreated (
 begin
   @position(200,200) declare $Message String = 'task created';
 end;
-/
 
 create microflow WF586.ACT_OnEvent (
   $WorkflowEvent            : System.WorkflowEvent,
@@ -76,7 +73,6 @@ create microflow WF586.ACT_OnEvent (
 begin
   @position(200,200) declare $Message String = 'workflow event';
 end;
-/
 
 create microflow WF586.ACT_Audit (
   $WorkflowContext : WF586.Request
@@ -84,7 +80,6 @@ create microflow WF586.ACT_Audit (
 begin
   @position(200,200) declare $Message String = 'audited';
 end;
-/
 
 create or modify workflow WF586.Review
   folder 'Flows'
@@ -118,4 +113,3 @@ begin
     outcomes
       'Confirmed' { };
 end workflow;
-/

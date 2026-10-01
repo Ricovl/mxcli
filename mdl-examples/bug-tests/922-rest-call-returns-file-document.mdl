@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #922: REST call storing its response in a file document
 -- ============================================================================
@@ -45,7 +46,6 @@ create module BugTest922;
 -- so a specialization is mandatory. FileDocument is one of the four System
 -- entities that may be specialized (CE1540: User, FileDocument, Image, Paging).
 create or modify persistent entity BugTest922.MyFile extends System.FileDocument ();
-/
 
 create or modify microflow BugTest922.ACT_DownloadFile (
   $Location: String
@@ -56,7 +56,6 @@ begin
     timeout 300
     returns BugTest922.MyFile;
 end;
-/
 
 -- Control: the HttpResponse form, unchanged by this fix and verified to
 -- round-trip losslessly both before and after it.
@@ -68,4 +67,3 @@ begin
     timeout 300
     returns response;
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#554 — an access rule on an entity carrying AutoOwner (or
 -- AutoChangedBy) was written with a MemberAccess for the implicit System.owner /
 -- System.changedBy association, and mxbuild reported the whole module as

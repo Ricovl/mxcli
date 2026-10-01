@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#515 — `alter page … set '<design property>' = <value> on <widget>`
 -- could not write a design property. The only spelling that worked was
 -- ALTER STYLING, and the two have identical scope.

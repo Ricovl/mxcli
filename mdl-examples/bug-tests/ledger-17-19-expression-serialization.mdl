@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger findings #17–19: microflow expression serialization corruption
 -- ============================================================================
@@ -34,4 +35,4 @@ begin
   set $Ratio = $Dec div $Dec2;             -- #17: MDL division is `div`, not `/`
   set $Half = $Dec div 2.0;                -- #18: 2.0 must stay 2.0 (not 2)
   set $Tiny = $Dec * $I * $I * 0.000001;   -- #19: no scientific notation (not 1e-06)
-end
+end;

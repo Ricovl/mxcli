@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #519: REST mapping result cardinality must be authored at the call site
 -- ============================================================================
@@ -45,7 +46,6 @@ create non-persistent entity BugTest519.PetResponse (
   Name : string,
   Status : string
 );
-/
 
 create import mapping BugTest519.IMM_Pet
   with json structure BugTest519.JSON_Pets
@@ -71,7 +71,6 @@ begin
     on error rollback;
   return $Pet;
 end;
-/
 
 -- List form: bind a list result. Mirrors the MendixSSO.RetrieveUserRoles
 -- pattern (ForceSingleOccurrence=false, Range.SingleObject=false).
@@ -86,4 +85,3 @@ begin
     on error rollback;
   return $Pets;
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test: published OData service EntitySet must carry EntityTypePointer.
 -- Issue #595: serializePublishedODataService keyed its entityTypeIDMap by
 -- ExposedName but looked it up by qualified entity name, so the resolved

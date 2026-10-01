@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Mapping constructs, proven at RUNTIME
 -- ============================================================================
@@ -66,7 +67,6 @@ returns list of RtMap.Item as $List
 begin
   $List = import from mapping RtMap.IMM_Items($Json);
 end;
-/
 
 -- ---- #268 array of primitives (Wrapper) ------------------------------------
 create persistent entity RtMap.Product ( Name: String(50) );
@@ -87,7 +87,6 @@ returns RtMap.Product as $P
 begin
   $P = import from mapping RtMap.IMM_Product($Json);
 end;
-/
 
 -- ---- #267 mapping rooted below the payload root ----------------------------
 create persistent entity RtMap.Msg ( Content: String(200) );
@@ -104,7 +103,6 @@ returns list of RtMap.Msg as $M
 begin
   $M = import from mapping RtMap.IMM_Chat($Json);
 end;
-/
 
 -- ---- #266 value converter microflow ----------------------------------------
 create microflow RtMap.CONV_Upper ( $In: string )
@@ -114,7 +112,6 @@ begin
   @position(400, 200)
   return toUpperCase($In);
 end;
-/
 
 create persistent entity RtMap.Conv ( Loud: String(50) );
 create json structure RtMap.JSON_Conv sample $${"word": "quiet"}$$;
@@ -127,7 +124,6 @@ returns RtMap.Conv as $C
 begin
   $C = import from mapping RtMap.IMM_Conv($Json);
 end;
-/
 
 -- Helpers the runtime tests assert on.
 create microflow RtMap.MF_First ( $Json: string )
@@ -136,7 +132,6 @@ begin
   $List = import from mapping RtMap.IMM_Items($Json);
   $Item = head $List;
 end;
-/
 
 create microflow RtMap.MF_Tags ( $Json: string )
 returns String
@@ -146,11 +141,10 @@ begin
   declare $Joined string = '';
   loop $t in $Tags
   begin
-    $Joined = $Joined + '|' + $t/Value;
+    set $Joined = $Joined + '|' + $t/Value;
   end loop;
   return $P/Name + $Joined;
 end;
-/
 
 -- ---- #261 what `find` does when the object is not found ---------------------
 create persistent entity RtMap.Person ( Code: String(20), Name: String(50) );
@@ -178,11 +172,10 @@ begin
   $N = count $All;
   declare $Who string = 'EMPTY';
   if $P != empty then
-    $Who = $P/Name;
+    set $Who = $P/Name;
   end if;
   return $Who + '/' + toString($N);
 end;
-/
 
 create microflow RtMap.MF_Backup_Ignore ( $Json: string )
 returns String
@@ -194,11 +187,10 @@ begin
   $N = count $All;
   declare $Who string = 'EMPTY';
   if $P != empty then
-    $Who = $P/Name;
+    set $Who = $P/Name;
   end if;
   return $Who + '/' + toString($N);
 end;
-/
 
 create microflow RtMap.MF_Backup_Error ( $Json: string )
 returns String
@@ -208,7 +200,6 @@ begin
   $P = import from mapping RtMap.IMM_FindOrError($Json);
   return $P/Name;
 end;
-/
 -- ---- #264 custom object handling -------------------------------------------
 create persistent entity RtMap.Box ( Label: String(50) );
 create persistent entity RtMap.Chunk ( Idx: Integer, Text: String(50) );
@@ -224,7 +215,6 @@ begin
   retrieve $Hits from RtMap.Chunk where Idx = $Index;
   $Found = head $Hits;
 end;
-/
 
 create import mapping RtMap.IMM_Box
   with json structure RtMap.JSON_Box
@@ -249,7 +239,6 @@ begin
   $C = head $One;
   return $C/Text + '/' + toString($N);
 end;
-/
 
 -- ---- #262 export direction --------------------------------------------------
 create persistent entity RtMap.Cart ( Holder: String(50) );
@@ -283,7 +272,6 @@ begin
   $Json = export to mapping RtMap.EXM_Cart($C);
   return $Json;
 end;
-/
 -- ---- #265 mapping input parameter ------------------------------------------
 create persistent entity RtMap.Coll ( Title: String(50) );
 create persistent entity RtMap.Piece ( Body: String(50) );
@@ -296,7 +284,6 @@ begin
   retrieve $Ps from $Collection/RtMap.Piece_Coll;
   $P = head $Ps;
 end;
-/
 
 create import mapping RtMap.IMM_Param
   with json structure RtMap.JSON_Pieces

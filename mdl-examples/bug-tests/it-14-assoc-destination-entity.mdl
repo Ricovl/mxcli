@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Issue-tracker finding #14: an association datasource wrote a null
 -- DestinationEntity, making the .mpr unloadable
@@ -48,4 +49,4 @@ create page IT14.TaskPage (
       }
     }
   } } }
-}
+};

@@ -1,3 +1,4 @@
+mdl 1;
 -- CapTrackV2 FINDINGS §21 — a data view's own `OnClick:` is dropped.
 --
 --   dataview dv (…, OnClick: SHOW_PAGE …)
@@ -29,18 +30,15 @@
 --   mx check -p app.mpr        -- 0 errors either way; this never was a build error
 
 create module Clicks;
-/
 create persistent entity Clicks.Thing (
   Name: string(100)
 );
-/
 create microflow Clicks.DS_OneThing ()
 returns Clicks.Thing as $T
 begin
   retrieve $L from Clicks.Thing;
-  set $T = head($L);
+  $T = head $L;
 end;
-/
 
 create or modify page Clicks.P_Clicks
   (Title: 'Clicks', Layout: Atlas_Core.Atlas_Default)
@@ -66,5 +64,4 @@ create or modify page Clicks.P_Clicks
   listview lvDropped (DataSource: database from Clicks.Thing, OnClick: show page Clicks.P_Clicks) {
     dynamictext tLv (Content: 'a row')
   }
-}
-/
+};

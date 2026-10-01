@@ -1,3 +1,4 @@
+mdl 1;
 -- Icon references were never resolved: a typo passed `mxcli check` and first
 -- surfaced as a build error.
 --

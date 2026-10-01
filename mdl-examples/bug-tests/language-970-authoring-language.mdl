@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#970 — a caption must land in the project's language.
 --
 -- Named with a topic prefix because two numbering namespaces meet in this
@@ -30,7 +31,7 @@ create or modify page MyFirstModule.Issue970
       ACTIONBUTTON btnSave (Caption: 'Opslaan', Action: SAVE CHANGES)
       DYNAMICTEXT txtWelcome (Content: 'Welkom')
     }
-  }
+  };
 
 -- Enumeration value captions go through a different builder and were broken the
 -- same way; they are the in-run control for the page sites above.
@@ -70,7 +71,7 @@ create or modify page MyFirstModule.Issue970Writers
     datagrid dgNamen (datasource: database from MyFirstModule.Issue970Ent) {
       column (caption: 'Kolomnaam', attribute: Naam)
     }
-  }
+  };
 
 -- navigation and menu-document captions are creations, not edits
 create or modify navigation Responsive

@@ -1,3 +1,4 @@
+mdl 1;
 -- Issue #779: the Commit flag on create/change activities.
 --
 -- Before this change MDL could not express the flag at all: the builder hardcoded
@@ -56,7 +57,6 @@ begin
 
   return true;
 end;
-/
 
 -- The modifier must not be confused with the standalone COMMIT activity. These are
 -- two different things on adjacent lines; mandatory statement semicolons are what
@@ -72,4 +72,3 @@ begin
 
   return true;
 end;
-/

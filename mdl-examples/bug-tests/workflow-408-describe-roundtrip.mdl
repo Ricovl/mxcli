@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#408 — `describe workflow` output was not re-executable.
 --
 -- Two defects, both reproduced below. Before the fix, 6 of the 14 workflows in
@@ -41,15 +42,13 @@ create page WF408.ReworkPage (
       }
     }
   }
-}
-/
+};
 
 create microflow WF408.ACT_Noop ()
 begin
   -- nothing to do; this workflow only needs a callable target
   log info 'noop';
 end;
-/
 
 -- Defect 1: the qualified form Studio Pro stores must be accepted.
 --
@@ -68,7 +67,6 @@ begin
       '' -> { }
   ;
 end workflow;
-/
 
 -- Defect 2: a jump resolves against an explicitly named decision and split.
 --
@@ -101,4 +99,3 @@ begin
   wait for timer timer1 addHours([%CurrentDateTime%], 1);
   wait for notification waitForNotification1;
 end workflow;
-/

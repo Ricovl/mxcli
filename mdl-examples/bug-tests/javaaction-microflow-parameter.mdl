@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- mxcli-chat FINDINGS §36 / §37 — java actions with a microflow parameter
 --
@@ -22,7 +23,6 @@
 -- ============================================================================
 
 create module Callbacks;
-/
 
 -- The parameter type is the bare word `Microflow`; that is also what DESCRIBE
 -- prints, so this file is what a describe/re-execute round-trip produces.
@@ -33,14 +33,12 @@ create java action Callbacks.RegisterTool(
 as $$
     return true;
 $$;
-/
 
 create microflow Callbacks.MF_Tool (Input: String)
 returns string
 begin
   return $Input;
 end;
-/
 
 -- §37: RegisterTool is two statements old and not in the project yet.
 -- §36: ExecutingMicroflow must serialize as MicroflowParameterValue.
@@ -52,4 +50,3 @@ begin
     ExecutingMicroflow = 'Callbacks.MF_Tool');
   return $Registered;
 end;
-/

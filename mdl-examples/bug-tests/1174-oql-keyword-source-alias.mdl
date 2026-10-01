@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test for upstream issue #1174: an OQL source alias that is an MDL
 -- keyword did not parse, so DESCRIBE output could not be fed back to exec.
 --

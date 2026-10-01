@@ -1,3 +1,4 @@
+mdl 1;
 -- A user task must be CLAIMED before SET TASK OUTCOME (ako/mxcli-maintenance-2).
 --
 -- Completing a task nobody has claimed fails at RUNTIME, and quietly: the button

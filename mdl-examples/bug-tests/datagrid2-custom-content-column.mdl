@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- DataGrid2 columns failed MxBuild CE0463 on the default (modelsdk) engine
 -- ============================================================================
@@ -47,6 +48,6 @@ create or modify page MyFirstModule.DGOverview
       actionbutton btnOpen (caption: 'Open', action: nothing)
     }
   }
-}
+};
 
 describe page MyFirstModule.DGOverview;

@@ -1,3 +1,4 @@
+mdl 1;
 -- What the MDL-WIDGET34 refusal must NOT touch: every binding below has an
 -- object to bind to. Executed on a copy of a Mendix 11.13.0 project, the pages
 -- build at 0 errors. This script must PASS check.

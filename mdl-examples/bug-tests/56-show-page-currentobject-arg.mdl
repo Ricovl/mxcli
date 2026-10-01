@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- FINDINGS #56: `describe page` omits a show_page action's `$currentObject`
 -- argument — investigated; the write is correct and the round-trip is
@@ -37,17 +38,14 @@
 -- ============================================================================
 
 create entity MyFirstModule.Entry ( Label: String );
-/
 create or modify page MyFirstModule.EditEntry
 ( Title: 'Edit', Layout: Atlas_Core.Atlas_Default, Params: ( $Entry: MyFirstModule.Entry ) )
 {
   dataview dv (datasource: $Entry) { dynamictext t (content: 'Edit') }
-}
-/
+};
 create or modify page MyFirstModule.EntryList ( Title: 'List', Layout: Atlas_Core.Atlas_Default )
 {
   listview lv (datasource: database MyFirstModule.Entry) {
     actionbutton weEdit (caption: 'Edit', action: show page MyFirstModule.EditEntry(Entry = $currentObject))
   }
-}
-/
+};

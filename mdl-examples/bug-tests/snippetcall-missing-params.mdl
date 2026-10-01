@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test: SNIPPETCALL on a parameterized snippet without Params should error.
 -- Issue #291: mxcli silently wrote a corrupt PageParameterMapping with null Variable.
 -- After the fix: mxcli returns a validation error when Params are omitted.

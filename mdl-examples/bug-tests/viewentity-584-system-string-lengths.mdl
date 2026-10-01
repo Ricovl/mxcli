@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#584 — the System module metadata declared a Length and populated it
 -- for none of its 115 String attributes, so every System string read as
 -- unlimited and mxcli's length checks disagreed with mxbuild's.

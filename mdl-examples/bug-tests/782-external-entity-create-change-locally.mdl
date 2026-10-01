@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #782: External Entities — allow_create_change_locally doesn't work
 --
 -- Symptom: after importing entities from a consumed OData service, enabling

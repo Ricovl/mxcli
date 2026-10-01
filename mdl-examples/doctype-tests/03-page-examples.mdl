@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Page Examples - MDL Syntax
 -- ============================================================================
@@ -40,7 +41,6 @@ create enumeration PgTest.Country (
   -- Australia
   AU 'Australia'
 );
-/
 
 /**
  * Simple status enumeration for order tracking.
@@ -58,7 +58,6 @@ create enumeration PgTest.OrderStatus (
   -- Order was cancelled
   CANCELLED 'Cancelled'
 );
-/
 
 @position(100,100)
 create persistent entity PgTest.Product (
@@ -123,7 +122,7 @@ create page PgTest.P001_Empty_Page folder 'Basic'
 )
 {
   -- Nothing yet
-}
+};
 
 /**
  * Dynamic text example
@@ -136,7 +135,7 @@ create page PgTest.P002_Dynamic_Text_Page folder 'Basic'
 )
 {
   dynamictext text1 (content: 'Domain model', rendermode: H4)
-}
+};
 
 /**
  * Create a new object for the PgTest.P006_DataForm page
@@ -146,7 +145,6 @@ folder 'Basic'
 begin
     show page PgTest.P002_Dynamic_Text_Page();
 end;
-/
 
 /**
  * Layout grid with dynamic text
@@ -197,7 +195,7 @@ create page PgTest.P003_1_Nested_LayoutGrid_Dynamic_Text_Page folder 'Basic'
       }
     }
   }
-}
+};
 
 /**
  * PgTest widget page
@@ -217,7 +215,7 @@ create page PgTest.P004_TestWidgetPage folder 'Basic'
       }
     }
   }
-}
+};
 
 /**
  * PgTest widget page with buttons
@@ -246,7 +244,7 @@ create page PgTest.P005_OrderEdit folder 'Basic'
       }
     }
   }
-}
+};
 
 -- @version: 11.0+
 -- MARK: DATA FORM — requires Mendix 11.0+ (page parameters)
@@ -296,7 +294,7 @@ create page PgTest.P006_DataForm folder 'Forms'
       }
     }
   }
-}
+};
 
 /**
  * Create a new object for the PgTest.P006_DataForm page
@@ -307,16 +305,14 @@ begin
     $NewCustomer = create PgTest.Customer (Email = 'weqw@example.com', City = 'yourcity');
     show page PgTest.P006_DataForm(Customer = $NewCustomer);
 end;
-/
 
 create microflow PgTest.P007_DataForm_Getter ()
 returns PgTest.Customer as $Customer
 folder 'Forms'
 begin
-  retrieve $Customer from PgTest.Customer limit 1;
+  retrieve $Customer from PgTest.Customer first;
   return $Customer;
 end;
-/
 
 -- TODO: offset limit implementation
 create microflow PgTest.P007_DataForm_Getter_2 ()
@@ -326,10 +322,9 @@ begin
   retrieve $CustomerList from PgTest.Customer
     where ( starts-with(Name, 'a') )
     limit 2 offset 3;
-  set $FirstCustomer = head($CustomerList);
+  $FirstCustomer = head $CustomerList;
   return $FirstCustomer;
 end;
-/
 
 create microflow PgTest.P007_DataForm_Getter_3 ()
 returns PgTest.Customer as $FirstCustomer
@@ -343,7 +338,6 @@ begin
   $FirstCustomer = head $CustomerList;
   return $FirstCustomer;
 end;
-/
 
 create microflow PgTest.P007_DataForm_Getter_4 ()
 returns PgTest.Customer as $FirstCustomer
@@ -359,7 +353,6 @@ begin
   $FirstCustomer = head $CustomerList;
   return $FirstCustomer;
 end;
-/
 
 /**
  * Process selected products from Gallery multi-select.
@@ -371,7 +364,6 @@ begin
   declare $success boolean = true;
   return $success;
 end;
-/
 
 create page PgTest.P007_DataForm_2 folder 'Forms'
 (
@@ -403,7 +395,7 @@ create page PgTest.P007_DataForm_2 folder 'Forms'
       }
     }
   }
-}
+};
 
 -- MARK: Data Grid
 
@@ -440,7 +432,7 @@ create page PgTest.P008_Product_Overview folder 'DataGrid'
       }
     }
   }
-}
+};
 
 /**
  * Basic product overview page with DataGrid columns.
@@ -464,7 +456,7 @@ create page PgTest.P008_Product_Overview_2 folder 'DataGrid' (title: 'Products',
       }
     }
   }
-}
+};
 
 /**
  * Product overview with default sorting by name.
@@ -483,7 +475,7 @@ create page PgTest.P010_Product_Sorted folder 'DataGrid'
     column (attribute: Stock, caption: 'Available')
     column (attribute: IsActive, caption: 'Active')
   }
-}
+};
 
 /**
  * Show only active products.
@@ -504,7 +496,7 @@ create page PgTest.P010_Product_Sorted_filtered folder 'DataGrid'
     column (attribute: Stock, caption: 'Available')
     column (attribute: IsActive, caption: 'Active')
   }
-}
+};
 
 /**
  * Show only active products with complex filter.
@@ -527,7 +519,7 @@ create page PgTest.P010_2_Product_Sorted_filtered folder 'DataGrid'
     column (attribute: Stock, caption: 'Available')
     column (attribute: IsActive, caption: 'Active')
   }
-}
+};
 
 /**
  * Show only active products with complex filter.
@@ -589,7 +581,6 @@ begin
   retrieve $Products from PgTest.Product;
   return $Products;
 end;
-/
 
 /**
  * Show only active products with complex filter.
@@ -612,7 +603,6 @@ create page PgTest.P010_Product_Microflow_DataSource folder 'DataGrid' (
     column (attribute: IsActive, caption: 'Active')
   }
 };
-/
 
 -- MARK: Control bar
 
@@ -642,7 +632,7 @@ create page PgTest.P011_DataGrid_ControlBar_Dummy folder 'DataGrid'
       }
     }
   }
-}
+};
 
 /**
  * Dummy edit page for control bar example.
@@ -668,7 +658,7 @@ create page PgTest.P011_DataGrid_ControlBar_Dummy_2 folder 'DataGrid'
       }
     }
   }
-}
+};
 
 /**
  * Product overview with ability to create new products.
@@ -702,7 +692,7 @@ create page PgTest.P011_DataGrid_ControlBar folder 'DataGrid'
       }
     }
   }
-}
+};
 
 /**
  * Basic product edit form with text inputs.
@@ -734,7 +724,7 @@ create page PgTest.P012_Product_Manage_Edit folder 'DataGrid'
       }
     }
   }
-}
+};
 
 
 
@@ -785,7 +775,7 @@ create page PgTest.P012_Product_Manage folder 'DataGrid'
       }
     }
   }
-}
+};
 
 /**
  * DataGrid with domain-specific filtering and sorting.
@@ -804,7 +794,7 @@ create page PgTest.P013_Product_Inventory folder 'DataGrid'
     column (attribute: Stock)
     column (attribute: Price)
   }
-}
+};
 
 
 -- MARK: Container
@@ -867,7 +857,7 @@ create page PgTest.P013b_Container_Basic folder 'Container'
       }
     }
   }
-}
+};
 
 /**
  * Empty container (no children).
@@ -880,7 +870,7 @@ create page PgTest.P013c_Container_Empty folder 'Container'
 )
 {
   container spacer1 (class: 'spacing-outer-bottom-large')
-}
+};
 
 /**
  * Clickable container (the Container "On click" event, Issue #603).
@@ -924,7 +914,7 @@ create page PgTest.P013d_Container_Clickable folder 'Container'
       }
     }
   }
-}
+};
 
 /**
  * A clickable container in a DATA GRID CONTROL BAR, calling a nanoflow that
@@ -992,7 +982,7 @@ create page PgTest.P013e_ControlBar_Container_Action folder 'Container'
       }
     }
   }
-}
+};
 
 -- MARK: DataView
 
@@ -1024,7 +1014,7 @@ create or modify page PgTest.P014_Product_Edit folder 'DataView' (
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
-}
+};
 
 /**
  * Product form with different input widget types.
@@ -1059,7 +1049,7 @@ create page PgTest.P015_Product_EditFull folder 'DataView'
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes, buttonstyle: default)
     }
   }
-}
+};
 
 -- ============================================================================
 -- LEVEL 3b: DataView Form Orientation (FormOrientation / LabelWidth)
@@ -1098,7 +1088,7 @@ create or modify page PgTest.P018_DataView_FormOrientation_Vertical folder 'Data
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
-}
+};
 
 /**
  * DataView with explicit Horizontal form orientation (labels beside inputs).
@@ -1118,7 +1108,7 @@ create or modify page PgTest.P018_DataView_FormOrientation_Horizontal folder 'Da
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
-}
+};
 
 /**
  * DataView with an explicit LabelWidth (Horizontal, label spans 5/12).
@@ -1138,7 +1128,7 @@ create or modify page PgTest.P018_DataView_LabelWidth folder 'DataView' (
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
-}
+};
 
 -- MARK: Snippet
 
@@ -1161,7 +1151,7 @@ create snippet PgTest.NavigationMenu folder 'Snippets'
       }
     }
   }
-}
+};
 
 /**
  * Navigation menu using NavigationList widget.
@@ -1177,7 +1167,7 @@ create snippet PgTest.NavigationMenuList folder 'Snippets'
       dynamictext text2 (content: 'Orders')
     }
   }
-}
+};
 
 /**
  * Customer information snippet with parameter.
@@ -1204,7 +1194,7 @@ create or modify snippet PgTest.CustomerInfo folder 'Snippets'
       }
     }
   }
-}
+};
 
 /**
  * Customer sidebar snippet showing quick actions.
@@ -1233,7 +1223,7 @@ create snippet PgTest.CustomerSidebar folder 'Snippets'
       }
     }
   }
-}
+};
 
 /**
  * Dashboard header snippet.
@@ -1248,7 +1238,7 @@ create snippet PgTest.DashboardHeader folder 'Snippets'
       }
     }
   }
-}
+};
 
 /**
  * Statistics panel snippet for dashboard.
@@ -1263,7 +1253,7 @@ create snippet PgTest.StatsPanel folder 'Snippets'
       }
     }
   }
-}
+};
 
 /**
  * Recent activity snippet for dashboard.
@@ -1278,7 +1268,7 @@ create snippet PgTest.RecentActivity folder 'Snippets'
       }
     }
   }
-}
+};
 
 /**
  * Quick actions snippet for dashboard.
@@ -1302,7 +1292,7 @@ create snippet PgTest.QuickActions folder 'Snippets'
       }
     }
   }
-}
+};
 
 /**
  * Dashboard footer snippet.
@@ -1316,7 +1306,7 @@ create snippet PgTest.DashboardFooter folder 'Snippets'
       }
     }
   }
-}
+};
 
 /**
  * Overview page using a navigation menu snippet.
@@ -1340,7 +1330,7 @@ create page PgTest.P016_Page_With_Snippet folder 'Snippets'
       }
     }
   }
-}
+};
 
 /**
  * Page that calls a parameterized snippet with Params: mapping.
@@ -1379,7 +1369,7 @@ create or modify page PgTest.P017_SnippetCall_With_Params folder 'Snippets'
       }
     }
   }
-}
+};
 
 -- MARK: Snippet call keyword param name
 -- Issue #291: param names that are grammar keywords (e.g. Agent, Customer) must
@@ -1441,7 +1431,7 @@ create page PgTest.P019_Gallery_Simple folder 'MasterDetail'
       }
     }
   }
-}
+};
 
 /**
  * Classic master-detail layout.
@@ -1495,7 +1485,7 @@ create page PgTest.P020_Master_Detail folder 'MasterDetail'
       }
     }
   }
-}
+};
 
 /**
  * Gallery with text filter for searching.
@@ -1528,7 +1518,7 @@ create page PgTest.P022_Gallery_With_Filter folder 'MasterDetail'
       }
     }
   }
-}
+};
 
 create page PgTest.P022_Gallery_With_Filter_2 folder 'MasterDetail' (
   title: 'Searchable Products', 
@@ -1556,7 +1546,7 @@ create page PgTest.P022_Gallery_With_Filter_2 folder 'MasterDetail' (
       }
     }
   }
-}
+};
 
 create page PgTest.P022_Gallery_With_Filter_3 folder 'MasterDetail' (
   title: 'Searchable Products', layout: Atlas_Core.Atlas_Default, url: 'p022_gallery_with_filter_3'
@@ -1594,7 +1584,7 @@ create page PgTest.P022_Gallery_With_Filter_3 folder 'MasterDetail' (
       }
     }
   }
-}
+};
 
 create page PgTest.P022_Gallery_With_Filter_4 folder 'MasterDetail' (
   title: 'Searchable Products', layout: Atlas_Core.Atlas_Default, url: 'p022_gallery_with_filter_4'
@@ -1633,7 +1623,7 @@ create page PgTest.P022_Gallery_With_Filter_4 folder 'MasterDetail' (
       }
     }
   }
-}
+};
 
 /**
  * Gallery with multiple selection mode.
@@ -1672,7 +1662,7 @@ create page PgTest.P023_Gallery_MultiSelect folder 'MasterDetail'
       }
     }
   }
-}
+};
 
 
 /**
@@ -1702,7 +1692,7 @@ create page PgTest.P024_Gallery_Columns
       }
     }
   }
-}
+};
 
 -- MARK: Microflow Actions with Parameters
 
@@ -1728,7 +1718,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 /**
  * Client-side nanoflow called from a widget button (Bug 2). A nanoflow widget
@@ -1743,7 +1732,6 @@ begin
   change $Product (ModifiedDate = [%CurrentDateTime%]) refresh;
   log info 'Refreshed product (client-side)';
 end;
-/
 
 /**
  * Delete a product with confirmation - called from button actions.
@@ -1758,7 +1746,6 @@ begin
   log info node 'ProductService' 'Deleting product: ' + $Product/Name;
   delete $Product;
 end;
-/
 
 /**
  * DataGrid with microflow action buttons using $currentObject.
@@ -1809,7 +1796,7 @@ create page PgTest.P023b_DataGrid_MicroflowActions folder 'MicroflowActions'
       }
     }
   }
-}
+};
 
 /**
  * Detail page with microflow action using page parameter.
@@ -1850,7 +1837,7 @@ create page PgTest.P023c_Detail_MicroflowAction folder 'MicroflowActions'
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }
   }
-}
+};
 
 -- MARK: String Templates
 
@@ -1923,7 +1910,7 @@ create page PgTest.P024_Template_Basic folder 'Templates'
       }
     }
   }
-}
+};
 
 
 
@@ -1961,7 +1948,7 @@ create page PgTest.StyledPage folder 'Styling'
       }
     }
   }
-}
+};
 
 -- MARK: Image Widgets
 -- ============================================================================
@@ -2020,7 +2007,7 @@ create page PgTest.P042_Image
     -- Image field — the two modes reach the picture by different routes.
     image imgFromUrl (ImageType: imageUrl, ImageUrl: 'img/logo.svg')
   }
-}
+};
 
 -- MARK: Custom Container
 
@@ -2077,7 +2064,7 @@ create page PgTest.P030_ProductDetail folder 'WidgetReferences'
   dataview dvProduct (datasource: $Product) {
     textbox txtName (label: 'Name', attribute: Name)
   }
-}
+};
 
 /**
  * Page exercising all widget reference types for --references validation.
@@ -2130,7 +2117,7 @@ create page PgTest.P030_WidgetReferences folder 'WidgetReferences'
       }
     }
   }
-}
+};
 
 /**
  * Page using CUSTOMCONTAINER for card-style layout.
@@ -2160,7 +2147,7 @@ create page PgTest.P029_CustomContainer folder 'Container'
       }
     }
   }
-}
+};
 
 -- MARK: DataGrid Paging
 
@@ -2178,7 +2165,7 @@ create page PgTest.P031_DataGrid_PagingBoth folder 'DataGrid'
     column (attribute: Name, caption: 'Name')
     column (attribute: Price, caption: 'Price')
   }
-}
+};
 
 /**
  * DataGrid with virtual scrolling instead of paging buttons.
@@ -2198,7 +2185,7 @@ create page PgTest.P032_DataGrid_VirtualScroll folder 'DataGrid'
     column (attribute: Name, caption: 'Name')
     column (attribute: Price, caption: 'Price')
   }
-}
+};
 
 /**
  * DataGrid with all paging properties customized.
@@ -2219,7 +2206,7 @@ create page PgTest.P033_DataGrid_PagingFull folder 'DataGrid'
     column (attribute: Name, caption: 'Name')
     column (attribute: Price, caption: 'Price')
   }
-}
+};
 
 -- MARK: DataGrid Column Properties
 
@@ -2273,7 +2260,7 @@ create page PgTest.P033b_DataGrid_ColumnProperties folder 'DataGrid'
       ColumnWidth: autoFit
     )
   }
-}
+};
 
 -- MARK: ComboBox Examples
 
@@ -2317,7 +2304,7 @@ create page PgTest.P034_ComboBox_Enum folder 'ComboBox'
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }
   }
-}
+};
 
 /**
  * Order edit form with a ComboBox for Status enumeration-like field,
@@ -2350,7 +2337,7 @@ create page PgTest.P035_Order_Edit folder 'ComboBox'
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }
   }
-}
+};
 
 /**
  * Order form showing an overview page that creates orders
@@ -2390,7 +2377,7 @@ create page PgTest.P035_Order_With_ComboBox folder 'ComboBox'
       }
     }
   }
-}
+};
 
 
 -- MARK: GroupBox Examples
@@ -2440,7 +2427,7 @@ create page PgTest.P037_GroupBox_Example folder 'GroupBox'
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }
   }
-}
+};
 
 /**
  * Order edit form with ComboBoxes in association mode.
@@ -2478,7 +2465,7 @@ create page PgTest.P036_ComboBox_Association folder 'ComboBox'
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }
   }
-}
+};
 
 -- ============================================================================================ --
 
@@ -2503,7 +2490,7 @@ create page PgTest.P041_Placeholders
   placeholder Topbar {
     dynamictext lblTop (content: 'This widget is in the Topbar placeholder')
   }
-}
+};
 
 -- ============================================================================================ --
 
@@ -2583,10 +2570,9 @@ create microflow PgTest.DS_GetFirstCustomer ()
   returns PgTest.Customer  
 folder 'DataSources'
 begin
-  retrieve $Customer from PgTest.Customer limit 1;
+  retrieve $Customer from PgTest.Customer first;
   return $Customer;
 end;
-/
 
 
 -- @version: 11.0+
@@ -2613,7 +2599,6 @@ create page PgTest.P040_ConditionalProps
     }
   }
 };
-/
 
 -- @version: any
 -- MARK: Move Examples
@@ -2725,7 +2710,7 @@ create page PgTest.UserTaskPage (
     action: complete task 'Reject',
     buttonstyle: danger
   )
-}
+};
 
 -- ============================================================================
 -- Association data source ("data from context") — to-one referenced object
@@ -2748,7 +2733,7 @@ create page PgTest.P_OrderWithCustomer (
       textbox tbCustEmail (Label: 'Email', Attribute: Email)
     }
   }
-}
+};
 
 -- ============================================================================
 -- MARK: An explicitly inert widget — `action: nothing`
@@ -2780,4 +2765,4 @@ create page PgTest.P014_InertControls (
   container cCard (OnClick: NOTHING, Class: 'card') {
     dynamictext txtCard (Content: 'A card that is not clickable')
   }
-}
+};

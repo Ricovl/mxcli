@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: a view entity could not be given an association to a persistent entity,
 -- and mxcli got it wrong in three different places at once.
 --

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger finding #67 (as originally reported): a CustomChart onClick action was
 -- silently dropped on write, and omitted by DESCRIBE
@@ -56,6 +57,6 @@ create or modify page CCm.Chart (
       onClick: call microflow CCm.OnPointClick(Data = $currentObject)
     )
   }
-}
+};
 
 grant view on page CCm.Chart to CCm.User;

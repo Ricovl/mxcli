@@ -1,3 +1,4 @@
+mdl 1;
 create module SampleModule;
 
 create persistent entity SampleModule.Item (
@@ -21,7 +22,6 @@ begin
   );
   return;
 end;
-/
 
 create microflow SampleModule.ACT_RecalculateForCompany (
   $CompanyId: String
@@ -35,4 +35,3 @@ begin
   );
   return;
 end;
-/

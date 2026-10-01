@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- TraceOps #27: a /** … */ doc comment between `alter entity … add attribute`
 -- clauses was a parse error
@@ -23,12 +24,10 @@
 -- ============================================================================
 
 create entity MyFirstModule.Requirement ( Name: String );
-/
 
 alter entity MyFirstModule.Requirement
   add attribute Zz1: string(10)
   /** Documentation for the second column, persisted into the Mendix model */
   add attribute Zz2: string(10);
-/
 
 describe entity MyFirstModule.Requirement;

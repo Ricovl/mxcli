@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- mendixlabs/mxcli#1076: ALTER PAGE REPLACE / INSERT resolves the new widget's
 -- attribute bindings against the wrong data context
@@ -42,21 +43,18 @@
 -- ============================================================================
 
 create module BugTest1076;
-/
 
 create persistent entity BugTest1076.Dashboard ( Name: String );
 create persistent entity BugTest1076.DashboardVersion ( PeriodLabel: String );
 create association BugTest1076.DashboardVersion_Dashboard
   from BugTest1076.DashboardVersion to BugTest1076.Dashboard;
 create persistent entity BugTest1076.Item ( Name: String );
-/
 
 create microflow BugTest1076.DS_Items () returns list of BugTest1076.Item as $out
 begin
   retrieve $out from BugTest1076.Item;
   return $out;
 end;
-/
 
 -- ---------------------------------------------------------------------------
 -- 1. Selection-driven data view nested inside a page-level data view.
@@ -74,23 +72,20 @@ create or modify page BugTest1076.Dashboard_View
       dynamictext txtPreviewPeriod (content: 'Period: {1}', ContentParams: ({1} = PeriodLabel))
     }
   }
-}
-/
+};
 
 alter page BugTest1076.Dashboard_View {
   replace txtPreviewPeriod with {
     dynamictext txtPreviewPeriod (content: 'Preview {1}', ContentParams: ({1} = PeriodLabel))
   }
-}
-/
+};
 
 -- INSERT INTO the selection data view takes the same scope as REPLACE.
 alter page BugTest1076.Dashboard_View {
   insert into dvSelected {
     dynamictext txtPreviewProbe (content: 'P {1}', ContentParams: ({1} = PeriodLabel))
   }
-}
-/
+};
 
 -- ---------------------------------------------------------------------------
 -- 2. Pluggable list sourced by a microflow: its entity is the flow's RETURN
@@ -106,8 +101,7 @@ create or modify page BugTest1076.Page_MfGallery
       }
     }
   }
-}
-/
+};
 
 alter page BugTest1076.Page_MfGallery {
   replace txtName with {
@@ -115,15 +109,13 @@ alter page BugTest1076.Page_MfGallery {
       dynamictext txtName2 (content: '{1}', ContentParams: ({1} = Name))
     }
   }
-}
-/
+};
 
 alter page BugTest1076.Page_MfGallery {
   insert after txtName2 {
     dynamictext txtNameProbe (content: 'Q {1}', ContentParams: ({1} = Name))
   }
-}
-/
+};
 
 -- ---------------------------------------------------------------------------
 -- 3. Both halves at once: a selection data view listening to a PLUGGABLE list.
@@ -140,15 +132,13 @@ create or modify page BugTest1076.Page_SelGallery
   dataview dvSel (datasource: selection galItems) {
     dynamictext txtSel (content: 'S {1}', ContentParams: ({1} = Name))
   }
-}
-/
+};
 
 alter page BugTest1076.Page_SelGallery {
   replace txtSel with {
     dynamictext txtSel (content: 'S2 {1}', ContentParams: ({1} = Name))
   }
-}
-/
+};
 
 describe page BugTest1076.Dashboard_View;
 describe page BugTest1076.Page_MfGallery;

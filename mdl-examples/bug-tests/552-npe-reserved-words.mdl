@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test: Non-persistent entities must reject Mendix-reserved attribute names.
 -- Issue #552: Creating an NPE with attributes named Owner, Type, Context, Id,
 -- CreatedDate, ChangedDate, ChangedBy succeeded silently in mxcli but produced

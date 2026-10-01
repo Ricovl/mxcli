@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test: `show structure depth 1` (CLI: `mxcli structure -d 1`) never
 -- listed microflow or nanoflow counts, on any project.
 --
@@ -21,17 +22,14 @@ create microflow StructFlowCounts.ACT_One ()
 begin
   log info 'one';
 end;
-/
 
 create microflow StructFlowCounts.ACT_Two ()
 begin
   log info 'two';
 end;
-/
 
 create nanoflow StructFlowCounts.NF_One ()
 begin
 end;
-/
 
 describe structure depth 1 in StructFlowCounts;

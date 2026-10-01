@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#574 — a session-authenticated OData READ needs X-Csrf-Token.
 --
 -- The mendix-vega-charts skill pack claimed that "same-origin requests carry

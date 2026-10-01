@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Scheduled events — all eight repeat variants
 -- ============================================================================
@@ -25,12 +26,10 @@
 -- ============================================================================
 
 create module Ops;
-/
 create microflow Ops.SE_Cleanup()
 begin
   return;
 end;
-/
 -- Daily: a fixed time of day, no multiplier (the variant has none).
 create scheduled event Ops.NightlyCleanup (
   Microflow: Ops.SE_Cleanup,
@@ -41,7 +40,6 @@ create scheduled event Ops.NightlyCleanup (
   Enabled: true,
   StartDateTime: '2026-01-01T04:00:00Z'
 );
-/
 -- Hourly: every N hours, at a fixed minute past the hour.
 create scheduled event Ops.HourlyPing (
   Microflow: Ops.SE_Cleanup,
@@ -49,14 +47,12 @@ create scheduled event Ops.HourlyPing (
   Multiplier: 2,
   MinuteOffset: 23
 );
-/
 -- Minutely: the only field is the multiplier.
 create scheduled event Ops.EveryFiveMinutes (
   Microflow: Ops.SE_Cleanup,
   Repeat: Minutely,
   Multiplier: 5
 );
-/
 -- Weekly: a day list plus a time. Weekday names are case-insensitive.
 create scheduled event Ops.WeeklyReport (
   Microflow: Ops.SE_Cleanup,
@@ -65,7 +61,6 @@ create scheduled event Ops.WeeklyReport (
   HourOfDay: 9,
   MinuteOfHour: 30
 );
-/
 -- MonthlyByDate: the Nth day of every M months.
 create scheduled event Ops.MidMonth (
   Microflow: Ops.SE_Cleanup,
@@ -75,7 +70,6 @@ create scheduled event Ops.MidMonth (
   HourOfDay: 2,
   MinuteOfHour: 0
 );
-/
 -- MonthlyByWeekday: "the last Friday of every third month". MonthOffset picks
 -- which month of the three-month cycle fires (0-based).
 create scheduled event Ops.QuarterEnd (
@@ -88,7 +82,6 @@ create scheduled event Ops.QuarterEnd (
   HourOfDay: 18,
   MinuteOfHour: 0
 );
-/
 -- YearlyByDate: a calendar date. Month is 1-12.
 create scheduled event Ops.YearOpen (
   Microflow: Ops.SE_Cleanup,
@@ -98,7 +91,6 @@ create scheduled event Ops.YearOpen (
   HourOfDay: 8,
   MinuteOfHour: 0
 );
-/
 -- YearlyByWeekday: "the first Monday of March".
 create scheduled event Ops.YearWeek (
   Microflow: Ops.SE_Cleanup,
@@ -109,7 +101,6 @@ create scheduled event Ops.YearWeek (
   HourOfDay: 7,
   MinuteOfHour: 15
 );
-/
 -- Re-running with OR MODIFY reuses the stored $ID and preserves the legacy
 -- Interval/IntervalType pair, which Studio Pro writes but does not keep in sync
 -- with Schedule and MDL cannot author.
@@ -122,12 +113,10 @@ create or modify scheduled event Ops.NightlyCleanup (
   Enabled: true,
   OnOverlap: SkipNext
 );
-/
 -- "scheduled" and "event" stay usable as ordinary names: both are in the
 -- grammar's `keyword` rule, so adding the tokens did not take them away.
 create entity Ops.Job (
   scheduled: Boolean,
   event: String(50)
 );
-/
 drop scheduled event Ops.EveryFiveMinutes;

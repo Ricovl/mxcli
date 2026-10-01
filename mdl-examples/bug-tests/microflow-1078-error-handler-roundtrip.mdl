@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- mendixlabs/mxcli#1078: DESCRIBE dropped an activity's error handler
 -- ============================================================================
@@ -118,7 +119,7 @@ begin
   declare $name String = 'NameValue' on error begin
     return 'declare failed';
   end error;
-  $name = 'changed' on error begin
+  set $name = 'changed' on error begin
     return 'set failed';
   end error;
   $Car = create MyFirstModule.Car (Brand = 'Ford') on error begin

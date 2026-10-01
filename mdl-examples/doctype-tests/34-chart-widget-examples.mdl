@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Chart widget examples — full chart authoring showcase (issue #679)
 -- ============================================================================
@@ -75,7 +76,6 @@ create view entity ChartExamples.SalesByRegion (
     sum(s.Amount) as Total
   from ChartExamples.Sales as s
   group by s.Region;
-/
 
 create view entity ChartExamples.SalesByQuarter (
   Period: string(20),
@@ -88,7 +88,6 @@ create view entity ChartExamples.SalesByQuarter (
     sum(s.Units) as Units
   from ChartExamples.Sales as s
   group by s.Period;
-/
 
 -- A time-series feed: one aggregated row per DATE. A TimeSeries chart requires
 -- its X axis to be a Date and time attribute, so the view exposes a datetime.
@@ -101,7 +100,6 @@ create view entity ChartExamples.SalesByDate (
     sum(s.Amount) as Total
   from ChartExamples.Sales as s
   group by s.SaleDate;
-/
 
 -- ============================================================================
 -- SERIES charts (container keyword SERIES — parses today)
@@ -123,7 +121,7 @@ create page ChartExamples.P_Bar folder 'Charts' (
       StaticName: 'Revenue'
     )
   }
-}
+};
 
 -- ColumnChart ----------------------------------------------------------------
 create page ChartExamples.P_Column folder 'Charts' (
@@ -145,7 +143,7 @@ create page ChartExamples.P_Column folder 'Charts' (
       StaticName: 'Units'
     )
   }
-}
+};
 
 -- AreaChart ------------------------------------------------------------------
 create page ChartExamples.P_Area folder 'Charts' (
@@ -161,7 +159,7 @@ create page ChartExamples.P_Area folder 'Charts' (
       Interpolation: 'linear'
     )
   }
-}
+};
 
 -- ============================================================================
 -- LINE charts (container keyword LINE)
@@ -183,7 +181,7 @@ create page ChartExamples.P_Line folder 'Charts' (
       Interpolation: 'spline'
     )
   }
-}
+};
 
 -- TimeSeries -----------------------------------------------------------------
 create page ChartExamples.P_TimeSeries folder 'Charts' (
@@ -198,7 +196,7 @@ create page ChartExamples.P_TimeSeries folder 'Charts' (
       StaticName: 'Revenue'
     )
   }
-}
+};
 
 -- BubbleChart ----------------------------------------------------------------
 create page ChartExamples.P_Bubble folder 'Charts' (
@@ -214,7 +212,7 @@ create page ChartExamples.P_Bubble folder 'Charts' (
       StaticName: 'Revenue'
     )
   }
-}
+};
 
 -- ============================================================================
 -- HEATMAP (container keyword SCALECOLOR)
@@ -231,7 +229,7 @@ create page ChartExamples.P_HeatMap folder 'Charts' (
     scalecolor scLow  (ValuePercentage: 0,   ColorValue: '#f7fbff')
     scalecolor scHigh (ValuePercentage: 100, ColorValue: '#08306b')
   }
-}
+};
 
 -- ============================================================================
 -- PIECHART (no object-list — widget-level datasource; option-B item 1b)
@@ -246,7 +244,7 @@ create page ChartExamples.P_Pie folder 'Charts' (
     ValueAttribute: Total,
     SeriesName: 'Sales by Region'
   )
-}
+};
 
 -- ============================================================================
 -- DASHBOARD — all chart types on a single page (the showcase page)
@@ -298,7 +296,7 @@ create page ChartExamples.P_Dashboard folder 'Charts' (
       }
     }
   }
-}
+};
 
 -- ============================================================================
 -- OPTION-B IMPLEMENTATION CHECKLIST (what must change to make this real)

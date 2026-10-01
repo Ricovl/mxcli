@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #368: Empty EndEvent termination paths dropped in void microflow describe
 -- ============================================================================
@@ -44,7 +45,6 @@ begin
 
   log info node 'BugTest368' 'continued path';
 end;
-/
 
 -- Value-returning microflow with the same shape — describer must NOT
 -- emit a bare `return;` for the implicit end EndEvent because that would
@@ -63,4 +63,3 @@ begin
   set $Done = true;
   return $Done;
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #631: ALTER STYLING cannot set design properties on widgets in pages
 --           and snippets
@@ -38,7 +39,7 @@ create page BugTest631.P_Styling
   container ctnTarget (class: 'old-class') {
     dynamictext txtHello (content: 'Hello')
   }
-}
+};
 
 -- Class + inline style
 ALTER STYLING ON PAGE BugTest631.P_Styling WIDGET ctnTarget

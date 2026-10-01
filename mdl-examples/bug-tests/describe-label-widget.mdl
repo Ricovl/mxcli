@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- DESCRIBE emitted a Forms$Label as a nameless `statictext`
 -- ============================================================================
@@ -28,7 +29,6 @@ create or modify page MyFirstModule.LabelWidget_Test
   label lblPlain (Content: 'Attachment')
   label lblStyled (Content: 'Provisioned elsewhere', Class: 'alert alert-warning', Style: 'width:100%;')
   label lblSpaced (Content: 'Spaced', Class: 'text-semibold', DesignProperties: ('Spacing': ('margin-bottom': 'None')))
-}
-/
+};
 
 describe page MyFirstModule.LabelWidget_Test;

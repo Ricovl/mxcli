@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- mendixlabs/mxcli#1001: HOME PAGE ... FOR takes a USER role, not a module role
 -- ============================================================================
@@ -56,14 +57,14 @@ create page Nav1001.Home ( title: 'Home', layout: Atlas_Core.Atlas_Default )
   container cHome {
     dynamictext txtHome (content: 'Home')
   }
-}
+};
 
 create page Nav1001.AdminHome ( title: 'Admin', layout: Atlas_Core.Atlas_Default )
 {
   container cAdmin {
     dynamictext txtAdmin (content: 'Admin')
   }
-}
+};
 
 -- 1. A bare user role: the correct form. `Administrator` is a project user
 --    role in every Mendix app.

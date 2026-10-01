@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #475: CE0079 on inheritance split when one branch continues
 -- ============================================================================
@@ -44,19 +45,16 @@ create module BugTest475;
 create persistent entity BugTest475.Vehicle (
   Plate : string
 );
-/
 
 create persistent entity BugTest475.Car
   extends BugTest475.Vehicle (
   Wheels : integer
 );
-/
 
 create persistent entity BugTest475.Boat
   extends BugTest475.Vehicle (
   HullLength : decimal
 );
-/
 
 -- One case continues into the post-split log activity; the other case
 -- terminates with a `return`. Before the fix this combination tripped
@@ -79,4 +77,3 @@ begin
   log info node 'BugTest475' 'Dispatched';
   return true;
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Java Action Examples - Comprehensive Reference
 -- ============================================================================
@@ -88,7 +89,6 @@ create java action JaTest.GetApplicationVersion() returns string
 as $$
 return "1.0.0-SNAPSHOT";
 $$;
-/
 
 -- MARK: Level 1 - Basic Calls
 
@@ -112,7 +112,6 @@ begin
 
   return $MF1_Timestamp;
 end;
-/
 
 /**
  * Example 1.2: Java action returning Boolean (validation/check)
@@ -127,7 +126,6 @@ begin
 
   return $MF2_InMaintenance;
 end;
-/
 
 /**
  * Example 1.3: Java action returning String (configuration/info)
@@ -142,7 +140,6 @@ begin
 
   return $MF3_Version;
 end;
-/
 
 
 -- ----------------------------------------------------------------------------
@@ -157,7 +154,6 @@ if (InputText == null) {
 }
 return InputText.toUpperCase();
 $$;
-/
 
 
 /** Concatenates two strings with an optional separator. */
@@ -237,7 +233,6 @@ begin
 
   return $MF10_Result;
 end;
-/
 
 /**
  * Example 2.2: Multiple string parameters
@@ -263,7 +258,6 @@ begin
 
   return $MF11_Result;
 end;
-/
 
 /**
  * Example 2.3: Integer parameters with calculation
@@ -287,7 +281,6 @@ begin
 
   return $MF12_Percentage;
 end;
-/
 
 /**
  * Example 2.4: Boolean parameter (conditional behavior)
@@ -311,7 +304,6 @@ begin
 
   return $MF13_Formatted;
 end;
-/
 
 /**
  * Example 2.5: Decimal parameter (financial calculation)
@@ -335,7 +327,6 @@ begin
 
   return $MF14_TaxAmount;
 end;
-/
 
 -- exit; -- Commented out to run full script
 
@@ -663,7 +654,6 @@ begin
 
   return $MF20_Success;
 end;
-/
 
 /**
  * Example 3.2: Entity as output (Java action creates/modifies object)
@@ -690,7 +680,6 @@ begin
 
   return $MF21_LogEntry;
 end;
-/
 
 /**
  * Example 3.3: Multiple entity parameters
@@ -714,7 +703,6 @@ begin
 
   return $MF22_Success;
 end;
-/
 
 -- MARK: Level 4 - List Parameters
 
@@ -744,7 +732,6 @@ begin
 
   return $MF30_Result;
 end;
-/
 
 /**
  * Example 4.2: List as return type
@@ -765,7 +752,6 @@ begin
 
   return $MF31_Results;
 end;
-/
 
 /**
  * Example 4.3: Filter list using Java action
@@ -790,7 +776,6 @@ begin
 
   return $MF32_ErrorLogs;
 end;
-/
 
 -- MARK: Level 5 - OQL/SQL Templates
 
@@ -817,7 +802,6 @@ begin
 
   return $MF40_RowsAffected;
 end;
-/
 
 /**
  * Example 5.2: Execute SQL cleanup
@@ -837,7 +821,6 @@ begin
 
   return $MF41_DeletedCount;
 end;
-/
 
 /**
  * Example 5.3: OQL query returning results
@@ -856,7 +839,6 @@ begin
 
   return $MF42_Errors;
 end;
-/
 
 -- MARK: Level 6 - Complex Patterns
 
@@ -910,7 +892,6 @@ begin
 
   return $MF50_Success;
 end;
-/
 
 /**
  * Example 6.2: Java action in a loop
@@ -958,7 +939,6 @@ begin
 
   return $MF51_Result;
 end;
-/
 
 /**
  * Example 6.3: Error handling with Java actions
@@ -994,7 +974,6 @@ begin
 
   return $MF52_Success;
 end;
-/
 
 /**
  * Example 6.4: Conditional Java action calls
@@ -1031,7 +1010,6 @@ begin
 
   return $MF53_Success;
 end;
-/
 
 -- MARK: Level 7 - Advanced Patterns
 
@@ -1064,7 +1042,6 @@ begin
   log info node 'Test' 'CallApi complete: {1} -> {2} -> {3}' with ({1} = $Endpoint, {2} = $MF60_ApiUrl, {3} = $MF60_Response);  
   return $MF60_Response;
 end;
-/
 
 /**
  * Example 7.2: Cryptographic operations
@@ -1089,7 +1066,6 @@ begin
 
   return $MF61_HashedText;
 end;
-/
 
 /**
  * Example 7.3: File operations
@@ -1110,7 +1086,6 @@ begin
 
   return $MF62_Contents;
 end;
-/
 
 /**
  * Example 7.4: Async/background processing trigger
@@ -1138,7 +1113,6 @@ begin
 
   return $MF63_TaskId;
 end;
-/
 
 -- MARK: Test Wrappers
 
@@ -1154,7 +1128,6 @@ begin
   log info node 'JaTest' 'M010 result: ' + $Result;
   return $Result;
 end;
-/
 
 /** Test wrapper: M011 - Concatenate strings */
 create microflow JaTest.Test_M011 ()
@@ -1164,7 +1137,6 @@ begin
   log info node 'JaTest' 'M011 result: ' + $Result;
   return $Result;
 end;
-/
 
 /** Test wrapper: M012 - Calculate percentage */
 create microflow JaTest.Test_M012 ()
@@ -1174,7 +1146,6 @@ begin
   log info node 'JaTest' 'M012 result: ' + toString($Result);
   return $Result;
 end;
-/
 
 /** Test wrapper: M013 - Format date */
 create microflow JaTest.Test_M013 ()
@@ -1184,7 +1155,6 @@ begin
   log info node 'JaTest' 'M013 result: ' + $Result;
   return $Result;
 end;
-/
 
 /** Test wrapper: M014 - Calculate tax */
 create microflow JaTest.Test_M014 ()
@@ -1194,7 +1164,6 @@ begin
   log info node 'JaTest' 'M014 result: ' + toString($Result);
   return $Result;
 end;
-/
 
 /** Test wrapper: M020 - Send email */
 create microflow JaTest.Test_M020 ()
@@ -1211,7 +1180,6 @@ begin
   log info node 'JaTest' 'M020 result: ' + toString($Result);
   return $Result;
 end;
-/
 
 /** Test wrapper: M021 - Log message (calls Java action directly to avoid Source keyword) */
 create microflow JaTest.Test_M021 ()
@@ -1227,7 +1195,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 /** Test wrapper: M022 - Attach file to email */
 create microflow JaTest.Test_M022 ()
@@ -1248,7 +1215,6 @@ begin
   log info node 'JaTest' 'M022 result: ' + toString($Result);
   return $Result;
 end;
-/
 
 /** Test wrapper: M030 - Batch send emails */
 create microflow JaTest.Test_M030 ()
@@ -1260,7 +1226,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 /** Test wrapper: M031 - Search logs */
 create microflow JaTest.Test_M031 ()
@@ -1272,7 +1237,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 /** Test wrapper: M032 - Filter error logs */
 create microflow JaTest.Test_M032 ()
@@ -1284,7 +1248,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 /** Test wrapper: M040 - Execute OQL update */
 create microflow JaTest.Test_M040 ()
@@ -1296,7 +1259,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 /** Test wrapper: M041 - Execute SQL cleanup */
 create microflow JaTest.Test_M041 ()
@@ -1308,7 +1270,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 /** Test wrapper: M042 - Query recent errors */
 create microflow JaTest.Test_M042 ()
@@ -1320,7 +1281,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 /** Test wrapper: M050 - Process and notify */
 create microflow JaTest.Test_M050 ()
@@ -1336,7 +1296,6 @@ begin
   log info node 'JaTest' 'M050 result: ' + toString($Result);
   return $Result;
 end;
-/
 
 /** Test wrapper: M051 - Process all pending */
 create microflow JaTest.Test_M051 ()
@@ -1348,7 +1307,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 /** Test wrapper: M052 - Safe file process */
 create microflow JaTest.Test_M052 ()
@@ -1363,7 +1321,6 @@ begin
   log info node 'JaTest' 'M052 result: ' + toString($Result);
   return $Result;
 end;
-/
 
 /** Test wrapper: M053 - Conditional process (HIGH priority) */
 create microflow JaTest.Test_M053 ()
@@ -1379,7 +1336,6 @@ begin
   log info node 'JaTest' 'M053 result: ' + toString($Result);
   return $Result;
 end;
-/
 
 /** Test wrapper: M060 - Call external API */
 create microflow JaTest.Test_M060 ()
@@ -1391,7 +1347,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 /** Test wrapper: M061 - Hash password */
 create microflow JaTest.Test_M061 ()
@@ -1403,7 +1358,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 /** Test wrapper: M062 - Read file as text */
 create microflow JaTest.Test_M062 ()
@@ -1420,7 +1374,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 /** Test wrapper: M063 - Queue background task */
 create microflow JaTest.Test_M063 ()
@@ -1432,7 +1385,6 @@ begin
   set $Result = true;
   return $Result;
 end;
-/
 
 -- MARK: Test Page
 
@@ -1591,8 +1543,7 @@ create page JaTest.JavaActionTestPage
       }
     }
   }
-}
-/
+};
 
 -- MARK: Level 8 - Type Parameters & Toolbox Exposure
 
@@ -1619,7 +1570,6 @@ if (InputObject == null) return false;
 return InputObject.getMembers().values().stream()
     .allMatch(m -> !m.isRequired() || m.getValue(getContext()) != null);
 $$;
-/
 
 -- ----------------------------------------------------------------------------
 -- 8.2: Type Parameter with Multiple Parameters
@@ -1645,7 +1595,6 @@ for (string attr : attrs) {
 }
 return true;
 $$;
-/
 
 -- ----------------------------------------------------------------------------
 -- 8.3: EXPOSED AS — Toolbox-visible action (no type params)
@@ -1662,7 +1611,6 @@ java.text.NumberFormat formatter = java.text.NumberFormat.getCurrencyInstance();
 formatter.setCurrency(java.util.currency.getInstance(CurrencyCode));
 return formatter.format(Amount);
 $$;
-/
 
 -- ----------------------------------------------------------------------------
 -- 8.4: Type Parameter + EXPOSED AS combined
@@ -1681,7 +1629,6 @@ com.mendix.core.Core.instantiate(getContext(),
     Original.getMembers());
 return true;
 $$;
-/
 
 -- ----------------------------------------------------------------------------
 -- 8.5: Microflow calling a type-parameter Java action
@@ -1701,7 +1648,6 @@ begin
 
   return $IsValid;
 end;
-/
 
 -- ----------------------------------------------------------------------------
 -- 8.6: Microflow calling type-parameter action with multiple params
@@ -1724,7 +1670,6 @@ begin
 
   return $Result;
 end;
-/
 
 -- ----------------------------------------------------------------------------
 -- 8.7: Microflow calling EXPOSED action
@@ -1740,7 +1685,6 @@ begin
 
   return $Formatted;
 end;
-/
 
 -- MARK: Summary
 
@@ -1879,7 +1823,6 @@ begin
 
   return $MF80_New;
 end;
-/
 
 -- ============================================================================
 -- Java Action Feature Summary

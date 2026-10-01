@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- MDL077: a navigation menu item with no icon is reported
 -- ============================================================================
@@ -20,15 +21,15 @@ create module NavIcons;
 
 create page NavIcons.Home ( Title: 'Home', Layout: Atlas_Core.Atlas_Default ) {
   dynamictext t (Content: 'Home')
-}
+};
 
 create page NavIcons.Orders ( Title: 'Orders', Layout: Atlas_Core.Atlas_Default ) {
   dynamictext t (Content: 'Orders')
-}
+};
 
 create page NavIcons.Users ( Title: 'Users', Layout: Atlas_Core.Atlas_Default ) {
   dynamictext t (Content: 'Users')
-}
+};
 
 -- Every item iconed, including the SUBMENU PARENT — it sits directly on the
 -- collapsed rail, so it needs one most of all.

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- FINDINGS #51: `create association` is not idempotent — re-running errors
 -- ============================================================================
@@ -16,12 +17,9 @@
 
 create entity TimeReg.ClientReport ( Name: String );
 create entity TimeReg.Period ( Name: String );
-/
 
 -- Idempotent: safe to run repeatedly (unlike plain `create association`).
 create or modify association TimeReg.ClientReport_Period
   from TimeReg.ClientReport to TimeReg.Period;
-/
 create or modify association TimeReg.ClientReport_Period
   from TimeReg.ClientReport to TimeReg.Period;
-/

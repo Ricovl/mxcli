@@ -1,3 +1,4 @@
+mdl 1;
 -- upstream #891 (3a/3b) — ALTER PAGE INSERT/REPLACE with a BARE DataGrid2
 -- column name corrupted the page.
 --

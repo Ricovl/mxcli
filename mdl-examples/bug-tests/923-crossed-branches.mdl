@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Mode 2: the DEFAULT describe of a graph whose branches cross
 -- ============================================================================
@@ -40,7 +41,6 @@
 -- description is a fixed point, and a re-exec of it is elided (Unchanged).
 
 CREATE MODULE Mode3;
-/
 CREATE OR MODIFY MICROFLOW Mode3.MF_Orig (A: Boolean, B: Boolean) RETURNS String
 BEGIN
   DECLARE $Result String = 'skipped';

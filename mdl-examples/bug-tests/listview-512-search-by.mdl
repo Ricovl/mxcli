@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#512 — a List View's "Search attributes" had no MDL spelling.
 --
 -- Before: `SearchAttributes: [Name]` on the widget was MDL-WIDGET07

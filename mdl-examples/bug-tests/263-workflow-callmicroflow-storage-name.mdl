@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- FINDINGS #39: workflow "call microflow" activity storage name (Mendix 11.9+)
 -- ============================================================================
@@ -40,7 +41,6 @@
 -- ============================================================================
 
 create or modify entity "MyFirstModule"."Ctx" (WeekNumber: integer);
-/
 
 -- Boolean-returning microflow with an entity parameter — exercises both CE6686
 -- (return-type-matched outcomes) and CE0117 (context-variable case).
@@ -49,11 +49,9 @@ returns boolean as $ok
 begin
   return true;
 end;
-/
 
 create or modify workflow "MyFirstModule"."WF_CallMicroflowStorageName"
   parameter $Context: MyFirstModule.Ctx
 begin
   call microflow "MyFirstModule"."ACT_ApproveStep"(Ctx = $workflowContext);
 end workflow;
-/

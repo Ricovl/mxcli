@@ -1,3 +1,4 @@
+mdl 1;
 -- Two expression defects that passed `check --references`, passed `exec`, and
 -- arrived as CE0117 "Error(s) in expression" at the far end of a build.
 --
@@ -53,19 +54,16 @@
 --     E009: this position requires String, but the expression has kind Integer
 
 create module ExprKinds;
-/
 
 create or modify entity ExprKinds.Customer (
   Name: String(200)
 );
-/
 
 create or modify entity ExprKinds.Order (
   OrderNo: String(50),
   Status: String(50),
   Qty: Integer
 );
-/
 
 -- Every value here IS a Mendix expression, which is the point: these are the
 -- shapes that must not be reported.
@@ -77,7 +75,6 @@ begin
   );
   COMMIT $Order;
 end;
-/
 
 create or modify microflow ExprKinds.ACT_Log ( $Order: ExprKinds.Order, $Customer: ExprKinds.Customer )
 begin
@@ -88,7 +85,6 @@ begin
   -- A string literal parameter, and the message itself.
   LOG WARNING 'for {1}' WITH ({1} = $Customer/Name);
 end;
-/
 
 -- CONTROL for the scope of E013. A bare name NESTED in a list-operation
 -- predicate is LEGAL — `Status` there resolves against the item under test — so
@@ -100,4 +96,3 @@ begin
   $Open = FILTER $All BY Status = 'Open';
   LOG INFO 'filtered';
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: no document-level DROP accepted IF EXISTS, so a script that dropped
 -- anything could not be re-run. ako/mxcli#531, from the ChipCoV3 test project
 -- (Mendix 11.14.0), where a stub page that broke a workflow/page cycle had to

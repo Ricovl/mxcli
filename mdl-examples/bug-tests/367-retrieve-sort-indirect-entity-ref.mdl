@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #367: Retrieve sort items lost indirect entity references
 -- ============================================================================
@@ -31,17 +32,14 @@ create module BugTest367;
 create entity BugTest367.ApplicationView (
   CreatedAt : datetime
 );
-/
 
 create entity BugTest367.DeploymentTarget (
   Name : string(100)
 );
-/
 
 create association BugTest367.DeploymentTarget_ApplicationView
   from BugTest367.DeploymentTarget
   to BugTest367.ApplicationView;
-/
 
 -- Sort uses an attribute on a related entity. The builder must emit the
 -- IndirectEntityRef step through DeploymentTarget_ApplicationView so the
@@ -52,4 +50,3 @@ begin
   retrieve $Targets from BugTest367.DeploymentTarget
     sort by BugTest367.ApplicationView.CreatedAt desc, Name asc;
 end;
-/

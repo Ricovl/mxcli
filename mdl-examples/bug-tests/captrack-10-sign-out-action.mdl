@@ -1,3 +1,4 @@
+mdl 1;
 -- CapTrackV2 FINDINGS §10 — `ACTIONBUTTON … (Action: SIGN_OUT)` was refused by
 -- the default engine:
 --
@@ -28,7 +29,6 @@
 --                                 build error, which is what made it dangerous)
 
 create module SignOut;
-/
 
 create or modify page SignOut.P_Account
   (Title: 'Account', Layout: Atlas_Core.Atlas_Default)
@@ -39,5 +39,4 @@ create or modify page SignOut.P_Account
     -- CONTROL: the actions that already worked are untouched by the new case.
     actionbutton btnClose (Caption: 'Close', Action: close page)
   }
-}
-/
+};

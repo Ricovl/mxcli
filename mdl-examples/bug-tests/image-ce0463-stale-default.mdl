@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Image widget CE0463 "widget definition changed" from a stale template default
 -- ============================================================================
@@ -52,4 +53,4 @@ create page MyFirstModule.ImgPage (
       }
     }
   }
-}
+};

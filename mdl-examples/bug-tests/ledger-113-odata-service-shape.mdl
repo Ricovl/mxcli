@@ -1,3 +1,4 @@
+mdl 1;
 -- ledger #113 — a published OData service failed to build with CE7375:
 --
 --   [error] [CE7375] "Attribute ID for entity 'Ledger.VMonthCategory' must be
@@ -51,5 +52,4 @@ create or modify published odata service MyFirstModule.Svc (
   publish entity MyFirstModule.Cat expose (
     Label (KEY, Filterable, Sortable)
   )
-}
-/
+};

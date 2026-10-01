@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #955, the rule's soundness carve-out: a later CREATE OR MODIFY.
 --
 -- POSITIVE TEST — this script is EXPECTED to PASS `mxcli check`.

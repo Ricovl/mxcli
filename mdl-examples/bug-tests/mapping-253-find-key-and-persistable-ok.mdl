@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#253 — the POSITIVE control for
 -- mapping-253-find-key-and-persistable.fail.mdl next door.
 --
@@ -15,10 +16,8 @@ create entity KeyGap.PetRecord (
   PetId : integer,
   Name  : string
 );
-/
 
 create entity KeyGap.Box ( Tag : string );
-/
 create association KeyGap.Box_Pet from KeyGap.Box to KeyGap.PetRecord;
 
 create json structure KeyGap.JSON_Pet sample '{"id": 1, "name": "Fido"}';
@@ -60,14 +59,12 @@ create import mapping KeyGap.IMM_Nest
 -- `find` elements are this shape, so a rule that missed the exemption would
 -- flag most real mappings.
 create non-persistent entity KeyGap.Holder ( PetId : integer );
-/
 create microflow KeyGap.GetSelf ()
 returns KeyGap.Holder as $Self
 begin
   $Self = create KeyGap.Holder (PetId = 0);
   return $Self;
 end;
-/
 
 create import mapping KeyGap.IMM_Self
   with json structure KeyGap.JSON_Pet

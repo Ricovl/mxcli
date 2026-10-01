@@ -1,3 +1,4 @@
+mdl 1;
 -- Translations: DESCRIBE / CREATE [OR MODIFY|REPLACE] TRANSLATIONS.
 -- Slices 2-4 of PROPOSAL_translations.md.
 --
@@ -22,7 +23,7 @@ create or modify page TrDoc.P_Things (Title: 'Things', Layout: Atlas_Core.Atlas_
   DATAGRID dg (DataSource: DATABASE TrDoc.Thing) {
     COLUMN (Attribute: Name, Caption: 'Name')
   }
-}
+};
 
 -- 1. A new language. Bare CREATE is the "add a language" statement and refuses
 --    if sv_SE already has translations anywhere in scope.

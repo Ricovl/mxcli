@@ -1,3 +1,4 @@
+mdl 1;
 -- Repro: DROP ATTRIBUTE left an orphaned validation rule behind (CE1613).
 --
 --   [error] [CE1613] "The selected attribute 'DropAttr.Account.AccountNumber'

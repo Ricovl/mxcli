@@ -1,3 +1,4 @@
+mdl 1;
 -- `end workflow` — ending a workflow from inside a branch.
 -- docs/11-proposals/PROPOSAL_workflow_end_activity.md
 --
@@ -21,7 +22,6 @@ create persistent entity WFEND.Request (
   Title: string(200),
   IsDuplicate: boolean
 );
-/
 
 create page WFEND.TaskPage (
   title: 'Task',
@@ -29,21 +29,18 @@ create page WFEND.TaskPage (
   params: ( $WorkflowUserTask: System.WorkflowUserTask )
 ) {
   layoutgrid g1 { row { column (desktopwidth: 12) { dynamictext t1 (content: 'Task') } } }
-}
-/
+};
 
 create microflow WFEND.ACT_Notify ($Request: WFEND.Request)
 begin
   @position(200,200) return;
 end;
-/
 
 create microflow WFEND.ACT_IsComplete ($Request: WFEND.Request)
 returns Boolean
 begin
   @position(200,200) return true;
 end;
-/
 
 create workflow WFEND.Approval
   parameter $Request: WFEND.Request
@@ -92,7 +89,6 @@ begin
       'Done' { }
       'Later' { };
 end workflow;
-/
 
 -- ALTER takes the same statement in any inserted block.
 alter workflow WFEND.Approval {

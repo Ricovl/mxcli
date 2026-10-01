@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: a widget written in a pluggable widget's body that the widget has
 -- nowhere to put was BUILT AND THROWN AWAY, with no diagnostic from `check`
 -- and no error from `exec`. `DESCRIBE PAGE` afterwards showing the widget gone
@@ -75,7 +76,7 @@ create page VFilterDrop.Meters (
       datefilter fSeen (attribute: LastSeen)
     }
   }
-}
+};
 
 -- Control: on a GALLERY the very same `filter { … }` block is correct — it is
 -- that widget's own keyword for the filters placeholder. A rule that simply
@@ -93,4 +94,4 @@ create page VFilterDrop.MeterGallery (
       dynamictext txtCode (content: '{1}', contentparams: ({1} = MeterCode))
     }
   }
-}
+};

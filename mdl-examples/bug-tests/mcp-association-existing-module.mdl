@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug — CREATE ASSOCIATION fails over --mcp when the from/to entities were
 -- created earlier in the SAME run, inside an EXISTING module.
@@ -30,13 +31,11 @@
 create persistent entity MyFirstModule.BugContact (
   Name: string(100) not null error message 'Name is required'
 );
-/
 
 create persistent entity MyFirstModule.BugAddress (
   Street: string(200),
   City: string(100)
 );
-/
 
 -- This statement failed before the fix because BugAddress (just created over MCP)
 -- was not visible to the association's entity resolution.
@@ -45,4 +44,3 @@ from MyFirstModule.BugContact to MyFirstModule.BugAddress
 type reference
 owner default
 on delete set null;
-/

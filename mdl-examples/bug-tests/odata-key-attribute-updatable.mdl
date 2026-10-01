@@ -1,3 +1,4 @@
+mdl 1;
 -- CREATE OR MODIFY EXTERNAL ENTITIES FROM marked an external entity's KEY
 -- attribute Updatable=true whenever the entity set's UpdateRestrictions said
 -- the set was updatable.

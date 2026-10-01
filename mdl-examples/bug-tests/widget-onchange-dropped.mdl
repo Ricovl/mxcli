@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- OnChange was silently dropped on every input widget except textbox
 -- ============================================================================
@@ -45,7 +46,6 @@
 -- ============================================================================
 
 create module Ctrl;
-/
 -- radiobuttons and combobox bind an ENUMERATION, not a String — CE2421 /
 -- CE7247 otherwise. Only the widget's binding is picky; the OnChange behaviour
 -- under test is the same either way.
@@ -53,19 +53,16 @@ create enumeration Ctrl.TopicKind (
   Income 'Income',
   Health 'Health'
 );
-/
 create non-persistent entity Ctrl.Filter (
   Enabled: Boolean,
   Topic: Ctrl.TopicKind,
   Notes: String,
   AsOf: DateTime
 );
-/
 create microflow Ctrl.ACT_Apply ($Filter: Ctrl.Filter)
 begin
   change $Filter (Notes = 'applied') refresh;
 end;
-/
 -- The data view's own source: parameterless, returns the object the controls
 -- bind to. ACT_Apply cannot serve here — it takes a parameter and returns
 -- nothing (CE1571 + CE0552).
@@ -74,7 +71,6 @@ begin
   $Filter = create Ctrl.Filter (Topic = Ctrl.TopicKind.Income, Enabled = false);
   return $Filter;
 end;
-/
 -- Each control below carries an OnChange. Before the fix only a `textbox` kept
 -- it; the other five wrote nothing and the page still built green.
 create or modify page Ctrl.ControlPanel (
@@ -114,4 +110,4 @@ create or modify page Ctrl.ControlPanel (
       }
     }
   }
-}
+};

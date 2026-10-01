@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger finding #63: string `find()` serialized as a LIST operation
 -- ============================================================================
@@ -57,6 +58,6 @@ create microflow L63.ListFind (
 )
 returns L63.Item
 begin
-  set $Found = find($Items, Key = $K);
+  $Found = find $Items by Key = $K;
   return $Found;
 end;

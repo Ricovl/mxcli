@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1109: a datasource-typed pluggable-widget property may be
 -- addressed by its own schema key, so a widget exposing several datasources can
 -- be given each of them.
@@ -45,6 +46,6 @@ create or modify page NamedDS.Order_Edit (
       CaptionAttribute: Name
     )
   }
-}
+};
 
 grant view on page NamedDS.Order_Edit to NamedDS.User;

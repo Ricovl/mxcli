@@ -1,3 +1,4 @@
+mdl 1;
 -- Nanoflow examples — representative real-world patterns.
 -- Patterns are distilled from the example projects:
 --   EnquiriesManagement, LatoProductInventory, Evora-FactoryManagement
@@ -155,7 +156,7 @@ create nanoflow NanoflowExamples.SUB_Notification_GetOrCreate ()
 begin
     retrieve $Existing from NanoflowExamples.Notification
         where Displayed = false()
-        limit 1;
+        first;
     if $Existing != empty then
         return $Existing;
     end if;
@@ -195,7 +196,7 @@ create nanoflow NanoflowExamples.DS_HasPendingNotification ()
 begin
     retrieve $Pending from NanoflowExamples.Notification
         where Displayed = false()
-        limit 1;
+        first;
     if $Pending != empty then
         return true;
     else

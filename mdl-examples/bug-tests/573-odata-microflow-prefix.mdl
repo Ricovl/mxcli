@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #573 — CREATE ODATA CLIENT didn't reach Studio Pro correctly.
 --

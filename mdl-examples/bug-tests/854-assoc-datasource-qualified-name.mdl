@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Upstream #854 (follow-on): an association DATASOURCE wrote the association
 -- name unqualified, making the .mpr unloadable
@@ -79,4 +80,4 @@ create page M854A.OrderDetail (
       }
     }
   } } }
-}
+};

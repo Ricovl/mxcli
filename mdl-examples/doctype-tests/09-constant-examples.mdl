@@ -1,3 +1,4 @@
+mdl 1;
 -- ############################################################################
 -- CONSTANT EXAMPLES
 -- ############################################################################
@@ -19,7 +20,6 @@ create module CoTest;
  */
 create constant CoTest.ServiceEndpoint
 ( Type: string, DefaultValue: 'https://api.example.com/v1' );
-/
 
 /*
  * Level 1.2: Create a string constant with a comment
@@ -28,7 +28,6 @@ create constant CoTest.ServiceEndpoint
 /** API key for external service. Configure per environment. */
 create constant CoTest.ApiKey
 ( Type: string, DefaultValue: '' );
-/
 
 /**
  * Level 1.3: Create an integer constant
@@ -36,7 +35,6 @@ create constant CoTest.ApiKey
  */
 create constant CoTest.MaxRetries
 ( Type: integer, DefaultValue: 3 );
-/
 
 /*
  * Level 1.4: Create a long constant
@@ -45,7 +43,6 @@ create constant CoTest.MaxRetries
 /** Maximum file upload size in bytes (default 10MB) */
 create constant CoTest.MaxFileSize
 ( Type: long, DefaultValue: 10485760 );
-/
 
 /*
  * Level 1.5: Create a decimal constant
@@ -54,7 +51,6 @@ create constant CoTest.MaxFileSize
 /** Default tax rate (21%) */
 create constant CoTest.TaxRate
 ( Type: decimal, DefaultValue: 0.21 );
-/
 
 /*
  * Level 1.6: Create a boolean constant
@@ -63,7 +59,6 @@ create constant CoTest.TaxRate
 /** Enable verbose debug logging */
 create constant CoTest.EnableDebugLogging
 ( Type: boolean, DefaultValue: false );
-/
 
 /**
  * Level 1.7: Create a DateTime constant
@@ -71,7 +66,6 @@ create constant CoTest.EnableDebugLogging
  */
 create constant CoTest.LaunchDate
 ( Type: datetime, DefaultValue: '[%BeginOfCurrentDay%]' );
-/
 
 -- MARK: - Show Constants
 
@@ -80,27 +74,23 @@ create constant CoTest.LaunchDate
  * Lists all constants across all modules with their types and default values.
  */
 list constants;
-/
 
 /**
  * Level 2.2: Show constants in a specific module
  * Lists only constants defined in the specified module.
  */
 list constants in CoTest;
-/
 
 /**
  * Level 2.3: Show constant values across all configurations
  * Displays one row per constant per configuration for easy comparison.
  */
 list constant values;
-/
 
 /**
  * Level 2.4: Show constant values for a specific module
  */
 list constant values in CoTest;
-/
 
 -- MARK: - Describe Constant
 
@@ -109,7 +99,6 @@ list constant values in CoTest;
  * Shows the full definition of a constant including its type and default value.
  */
 describe constant CoTest.ServiceEndpoint;
-/
 
 -- MARK: - Create Or Modify Constants
 
@@ -122,7 +111,6 @@ describe constant CoTest.ServiceEndpoint;
 /** Updated endpoint for staging environment */
 create or modify constant CoTest.ServiceEndpoint
 ( Type: string, DefaultValue: 'https://api.staging.example.com/v2' );
-/
 
 /**
  * Level 3.3: Create or modify a boolean constant
@@ -130,7 +118,6 @@ create or modify constant CoTest.ServiceEndpoint
  */
 create or modify constant CoTest.EnableDebugLogging
 ( Type: boolean, DefaultValue: true );
-/
 
 -- MARK: - Drop Constants
 
@@ -139,7 +126,6 @@ create or modify constant CoTest.EnableDebugLogging
  * Removes a constant from the module.
  */
 drop constant CoTest.LaunchDate;
-/
 
 -- MARK: - Constants in Microflow Expressions (regression: issue #178)
 
@@ -155,7 +141,6 @@ begin
   declare $Retries integer = @CoTest.MaxRetries;
   declare $IsTaxable boolean = @CoTest.EnableDebugLogging;
 end;
-/
 
 /**
  * Level 5.2: Mix @Module.Const with other expressions
@@ -167,7 +152,6 @@ begin
   declare $limit decimal = @CoTest.TaxRate + 0.05;
   declare $Msg string = 'Endpoint: ' + @CoTest.ServiceEndpoint;
 end;
-/
 
 -- ############################################################################
 -- END OF CONSTANT EXAMPLES

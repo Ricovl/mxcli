@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1187 — @caption on a while loop was dropped with no diagnostic.
 --
 -- A `while` builds the same Microflows$LoopedActivity as a for-each `loop`, and
@@ -15,7 +16,6 @@
 create or modify entity MyFirstModule.LoopCaptionProbe (
   Name: string(100)
 );
-/
 
 -- The reporter's repro: @caption on a while.
 create or modify microflow MyFirstModule.MF_1187_WhileCaption ()
@@ -29,7 +29,6 @@ begin
   end while;
   return $Months;
 end;
-/
 
 -- The case that was already reported, kept beside it so a regression in either
 -- direction shows up in the same run.
@@ -45,7 +44,6 @@ begin
   end loop;
   return $Count;
 end;
-/
 
 -- The supported spelling for both: @annotation is stored and comes back from
 -- describe, so neither of these may report MDL042.
@@ -60,7 +58,6 @@ begin
   end while;
   return $Months;
 end;
-/
 
 create or modify microflow MyFirstModule.MF_1187_LoopAnnotation ()
 returns integer as $Count
@@ -74,4 +71,3 @@ begin
   end loop;
   return $Count;
 end;
-/

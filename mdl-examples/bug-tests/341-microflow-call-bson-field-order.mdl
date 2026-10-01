@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #341: Microflow call BSON field order produced CE0117 in Studio Pro
 -- ============================================================================
@@ -37,7 +38,6 @@ create module BugTest341;
 create entity BugTest341.Item (
   Name : string(100)
 );
-/
 
 -- Callee with one parameter, exercising the parameter-mapping serialization.
 create microflow BugTest341.MF_RenameItem (
@@ -47,7 +47,6 @@ create microflow BugTest341.MF_RenameItem (
 begin
   change $Item (Name = $NewName);
 end;
-/
 
 -- Caller — produces a MicroflowCallAction whose nested MicroflowCall
 -- contains ParameterMappings. Field order in the serialized BSON must
@@ -58,4 +57,3 @@ create microflow BugTest341.MF_Caller (
 begin
   call microflow BugTest341.MF_RenameItem (Item = $Item, NewName = 'updated');
 end;
-/

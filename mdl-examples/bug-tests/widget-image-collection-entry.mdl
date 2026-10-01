@@ -1,3 +1,4 @@
+mdl 1;
 -- mxcli-formula1 FINDINGS §142 — MDL could not say WHICH image an image widget
 -- shows, so two things went wrong at once.
 --
@@ -43,7 +44,7 @@ create or modify page IMG.ImagePage (
   -- The two sources that take no collection entry, unchanged by this fix.
   image imgRemote (ImageType: imageUrl, ImageUrl: 'https://example.com/logo.svg')
   image imgIcon (ImageType: icon)
-}
+};
 
 -- Both new checks, as MDL that must FAIL `mxcli check`. Uncomment one at a time.
 --

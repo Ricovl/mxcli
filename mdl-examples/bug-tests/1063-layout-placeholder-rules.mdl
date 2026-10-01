@@ -1,3 +1,4 @@
+mdl 1;
 -- mendixlabs/mxcli#1063 — layout placeholder rules, and DROP LAYOUT
 --
 -- Three defects, all of which let a broken layout through to the builder:
@@ -33,7 +34,7 @@ CREATE OR MODIFY LAYOUT MyFirstModule.App_Probe1063 (
       PLACEHOLDER Side
     }
   }
-}
+};
 
 -- Layouts are now removable. Pages still bound to one are named in a warning
 -- and the drop proceeds; left dropped they fail CE1613, which names the PAGE.

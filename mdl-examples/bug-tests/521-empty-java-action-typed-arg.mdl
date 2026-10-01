@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #521: `empty` literal on a typed Java action parameter triggers CE0126
 -- ============================================================================
@@ -36,7 +37,6 @@ create module BugTest521;
 create non-persistent entity BugTest521.Item (
   Code : string
 );
-/
 
 -- Java action with a list parameter and a string parameter — both typed
 -- (BasicParameterType) so they exercise the resolved-basic-arg path.
@@ -44,7 +44,6 @@ create java action BugTest521.JA_ProcessBatch(Items: list of BugTest521.Item not
 as $$
 return true;
 $$;
-/
 
 -- Calling with `empty` for both typed slots must produce
 -- BasicCodeActionParameterValue.Argument = "empty" so Studio Pro
@@ -58,4 +57,3 @@ begin
     on error rollback;
   return $Result;
 end;
-/

@@ -1,3 +1,4 @@
+mdl 1;
 -- `UPDATE SECURITY` was inert on every MPR v2 project (mendixlabs/mxcli#1047).
 --
 -- It returned on the first module it could not reconcile, and one module always
@@ -55,13 +56,10 @@
 
 -- The project-wide run. This is the statement that used to fail.
 update security;
-/
 
 -- Scoped with IN.
 update security in Administration;
-/
 
 -- Scoped WITHOUT in — the same thing. This used to parse cleanly and then
 -- reconcile every module in the project.
 update security Administration;
-/

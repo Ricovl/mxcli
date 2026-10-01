@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli-ledger #131 — `check` must accept Mendix's own apostrophe escape.
 --
 -- '' is how the Mendix expression language escapes an apostrophe inside a string
@@ -32,4 +33,3 @@ begin
 
   return $Result;
 end;
-/

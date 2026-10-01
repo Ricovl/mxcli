@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #330: Annotations inside loop bodies disappeared after describe/exec
 -- ============================================================================
@@ -45,7 +46,6 @@ create module BugTest330;
 create entity BugTest330.Item (
   Name : string(100)
 );
-/
 
 -- LOOP body containing an annotated IF — the case that originally lost the
 -- annotation. The note on the IF must appear in the describe output.
@@ -61,4 +61,3 @@ begin
     end if;
   end loop;
 end;
-/

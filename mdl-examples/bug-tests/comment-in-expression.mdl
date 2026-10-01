@@ -1,3 +1,4 @@
+mdl 1;
 -- mxcli-formula1 suggested issue 11: an MDL comment between two operands was
 -- lifted into the Mendix expression along with the source text, and the build
 -- failed CE0117 "Error(s) in expression". Mendix expressions have no `--`.
@@ -25,6 +26,5 @@ begin
 
   return $Msg;
 end;
-/
 
 drop module CmtExpr;

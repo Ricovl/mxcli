@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #758 / #765: security reconciliation stripped inherited members, and GRANT
 -- could not put them back
 --

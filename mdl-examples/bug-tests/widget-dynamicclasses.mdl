@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- DynamicClasses expression silently dropped by the MDL page builder
 -- ============================================================================
@@ -52,13 +53,13 @@ create or modify page MyFirstModule.P_DynClass
     -- a plain container we make dynamically classed via ALTER below
     container ovLater { dynamictext tL (content: 'set via ALTER') }
   }
-}
+};
 
 -- ALTER PAGE ... SET DynamicClasses sets it after the fact (previously a
 -- hard error "widget has no pluggable Object" on core widgets).
 alter page MyFirstModule.P_DynClass {
   set (Class: 'ss-later') on ovLater;
   set (DynamicClasses: if $currentObject/Name != '' then 'ss-later--named' else '')  on ovLater;
-}
+};
 
 describe page MyFirstModule.P_DynClass;

@@ -1,3 +1,4 @@
+mdl 1;
 -- Every mxcli-authored image widget failed the build (mxcli-ledger §142).
 --
 -- On a project at 0 errors, one image widget on one new page:
@@ -46,7 +47,6 @@
 -- `mx check` reports the CE0463 above.
 
 create module ImgProbe;
-/
 
 -- The reported shape: an image with no dimensions given, so every dimension
 -- property is left to the writer.
@@ -59,8 +59,7 @@ create or modify page ImgProbe.P_Image
   container c1 {
     image imgProbe (Image: 'Atlas_Core.Layout.logo', Responsive: false)
   }
-}
-/
+};
 
 -- CONTROL: the dimensions MDL *can* name must survive. `maxHeightUnit` has no
 -- MDL keyword — there is no authorable configuration in which `maxHeight` is
@@ -84,5 +83,4 @@ create or modify page ImgProbe.P_ImageSized
       Height: 120
     )
   }
-}
-/
+};

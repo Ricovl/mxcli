@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Microflow error handling — the four shapes, and what each one BUILDS
 -- ============================================================================
@@ -30,7 +31,6 @@ begin
   @position(100, 100)
   return 'ok';
 end;
-/
 
 -- ############################################################################
 -- FORM 1 — `on error continue`
@@ -47,7 +47,6 @@ begin
   $r = call microflow EhDoc.SUB_Post(Payload = $Payload) on error continue;
   return $r;
 end;
-/
 
 -- ############################################################################
 -- FORM 2 — handler with its own path
@@ -67,7 +66,6 @@ begin
   end error;
   return $r;
 end;
-/
 
 -- ############################################################################
 -- FORM 3 — the EMPTY handler. NOT a no-op.
@@ -99,7 +97,6 @@ begin
     return 'empty';
   end if;
 end;
-/
 
 -- ############################################################################
 -- FORM 4 — rejoin a named merge with `join`
@@ -127,7 +124,6 @@ begin
   merge recovered;
   return $Status;
 end;
-/
 
 -- ############################################################################
 -- `merge` / `join` outside error handling
@@ -158,7 +154,6 @@ begin
   merge m2;
   return true;
 end;
-/
 
 -- ############################################################################
 -- Backward reference — a retry loop
@@ -176,4 +171,3 @@ begin
   end error;
   return $r;
 end;
-/

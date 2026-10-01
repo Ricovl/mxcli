@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger finding #53: string `contains()` serialized as a LIST operation
 -- ============================================================================
@@ -58,6 +59,6 @@ create microflow Ledger53.ListContains (
 )
 returns Boolean
 begin
-  set $Found = contains($Items, $One);
+  $Found = contains $One in $Items;
   return $Found;
 end;

@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #703: import/export mappings silently skipped inherited attributes
 --
 -- Mendix inheritance is multi-table: a child adds attributes to its parent's, and

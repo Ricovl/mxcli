@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- REST Client Examples - Consumed REST Service Showcase (requires Mendix 11.0+)
@@ -773,7 +774,6 @@ begin
   log info node 'RestTest' 'ACT_TestSimpleGet: passed';
   return $success;
 end;
-/
 
 -- ----------------------------------------------------------------------------
 -- 10A.2: GET with JSON response via REST client (RC008_HeaderAPI.GetData)
@@ -805,7 +805,6 @@ begin
 
   return $success;
 end;
-/
 
 -- ############################################################################
 -- PART 10B: REST CALL (Inline HTTP Calls)
@@ -842,7 +841,6 @@ begin
 
   return $success;
 end;
-/
 
 -- ----------------------------------------------------------------------------
 -- 10B.2: GET with path parameter
@@ -875,7 +873,6 @@ begin
 
   return $success;
 end;
-/
 
 -- ----------------------------------------------------------------------------
 -- 10B.3: POST with JSON body
@@ -906,7 +903,6 @@ begin
 
   return $success;
 end;
-/
 
 -- ----------------------------------------------------------------------------
 -- 10B.4: GET with query parameters
@@ -938,7 +934,6 @@ begin
 
   return $success;
 end;
-/
 
 -- ----------------------------------------------------------------------------
 -- 10B.5: PUT request
@@ -969,7 +964,6 @@ begin
 
   return $success;
 end;
-/
 
 -- ----------------------------------------------------------------------------
 -- 10B.6: DELETE request
@@ -993,7 +987,6 @@ begin
   log info node 'RestTest' 'ACT_TestDelete: DELETE succeeded';
   return $success;
 end;
-/
 
 -- ----------------------------------------------------------------------------
 -- 10B.7: Basic authentication
@@ -1023,7 +1016,6 @@ begin
 
   return $success;
 end;
-/
 
 -- ----------------------------------------------------------------------------
 -- 10B.8: Short timeout
@@ -1047,7 +1039,6 @@ begin
   log info node 'RestTest' 'ACT_TestTimeout: completed within timeout';
   return $success;
 end;
-/
 
 -- ############################################################################
 -- PART 10C: Run All Tests
@@ -1104,7 +1095,6 @@ begin
 
   return $AllPassed;
 end;
-/
 
 -- ############################################################################
 -- PART 11: TEST PAGE
@@ -1191,7 +1181,6 @@ create page RestTest.RESTClientTestPage
     }
   }
 };
-/
 
 -- ############################################################################
 -- PART 12: JSON STRUCTURES
@@ -1235,7 +1224,6 @@ create non-persistent entity RestTest.PetResponse (
   Name: string,
   status: string
 );
-/
 
 create import mapping RestTest.IMM_Pet
   with json structure RestTest.JSON_Pet
@@ -1256,30 +1244,25 @@ create import mapping RestTest.IMM_Pet
 create non-persistent entity RestTest.OrderResponse (
   OrderId: integer
 );
-/
 
 create non-persistent entity RestTest.CustomerInfo (
   Name: string,
   Email: string
 );
-/
 
 create non-persistent entity RestTest.OrderItem (
   Sku: string,
   Quantity: integer,
   Price: decimal
 );
-/
 
 create association RestTest.CustomerInfo_OrderResponse
   from RestTest.CustomerInfo
   to RestTest.OrderResponse;
-/
 
 create association RestTest.OrderItem_OrderResponse
   from RestTest.OrderItem
   to RestTest.OrderResponse;
-/
 
 create import mapping RestTest.IMM_Order
   with json structure RestTest.JSON_Order
@@ -1309,7 +1292,6 @@ create persistent entity RestTest.PetRecord (
   Name: String,
   Status: String
 );
-/
 
 create import mapping RestTest.IMM_UpsertPet
   with json structure RestTest.JSON_Pet
@@ -1371,39 +1353,32 @@ create export mapping RestTest.EMM_Pet
 create non-persistent entity RestTest.ExRoot (
   OrderId: integer
 );
-/
 
 create non-persistent entity RestTest.ExCustomer (
   Name: string,
   Email: string
 );
-/
 
 create non-persistent entity RestTest.ExItems;
-/
 
 create non-persistent entity RestTest.ExItemsItem (
   Sku: string,
   Quantity: integer,
   Price: decimal
 );
-/
 
 create association RestTest.ExCustomer_ExRoot
   from RestTest.ExCustomer
   to RestTest.ExRoot
   owner both;
-/
 
 create association RestTest.ExItems_ExRoot
   from RestTest.ExItems
   to RestTest.ExRoot;
-/
 
 create association RestTest.ExItemsItem_ExItems
   from RestTest.ExItemsItem
   to RestTest.ExItems;
-/
 
 create export mapping RestTest.EMM_Order
   with json structure RestTest.JSON_Order
@@ -1458,7 +1433,6 @@ begin
 
   return $success;
 end;
-/
 
 -- ============================================================================
 -- Level 15.2: GET single object via `as Module.Entity`
@@ -1479,7 +1453,6 @@ begin
 
   return $Pet;
 end;
-/
 
 -- The `as list of Module.Entity` form is exercised by the dedicated
 -- bug-test `mdl-examples/bug-tests/519-rest-mapping-as-list-of.mdl`,
@@ -1515,7 +1488,6 @@ begin
 
   return $success;
 end;
-/
 
 -- ============================================================================
 -- Level 16.2: Export to Mapping (entity to JSON string)
@@ -1530,7 +1502,6 @@ begin
   log info node 'RestTest' 'Exported JSON: ' + $JsonOutput;
   return $JsonOutput;
 end;
-/
 
 -- ============================================================================
 -- Level 16.3: Import → Process → Export pipeline
@@ -1545,7 +1516,6 @@ begin
   $PetResponseJson = export to mapping RestTest.EMM_Pet($PetResponse);
   log info node 'RestTest' 'Round-tripped: ' + $PetResponseJson;
 end;
-/
 
 -- ############################################################################
 -- PART 17: VERIFICATION COMMANDS

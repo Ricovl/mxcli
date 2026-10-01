@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Upstream #829: cross-module association navigation emitted an expression
 -- without the target entity's module qualifier

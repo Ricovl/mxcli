@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug test for upstream issue #1176: DESCRIBE printed `all` on an import
 -- activity that returns ONE object.
 --
@@ -22,7 +23,6 @@ create json structure MyFirstModule.JSON_1176
 sample '{"code": "NL", "name": "Netherlands"}';
 
 create non-persistent entity MyFirstModule.Country1176 ( Code: string, Name: string );
-/
 
 -- Object-rooted: the activity binds ONE Country1176.
 create import mapping MyFirstModule.IMM_1176
@@ -33,7 +33,6 @@ create import mapping MyFirstModule.IMM_1176
     Name = name
   }
 };
-/
 
 -- Written with `all`: still accepted, describes without it.
 create microflow MyFirstModule.MF1176_All ( $P: string )
@@ -42,7 +41,6 @@ begin
   $R = import from mapping MyFirstModule.IMM_1176($P) all;
   return $R;
 end;
-/
 
 -- The form DESCRIBE now emits for both.
 create microflow MyFirstModule.MF1176_Bare ( $P: string )
@@ -51,4 +49,3 @@ begin
   $R = import from mapping MyFirstModule.IMM_1176($P);
   return $R;
 end;
-/

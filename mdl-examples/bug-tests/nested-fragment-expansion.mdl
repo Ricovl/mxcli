@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: a USE FRAGMENT / USE BUILDING BLOCK nested inside a container (not at the
 -- page-body top level) was not expanded — exec failed with
 -- "unsupported widget type: USE_FRAGMENT". expandFragments only ran on the

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Ledger finding #54: empty datagrid column caption → CE0463
 -- ============================================================================
@@ -37,6 +38,6 @@ create or modify page L54.Overview (
     -- Empty caption: falls back to the attribute name ("Amount") as the header
     column colAmount (Attribute: Amount, Caption: '')
   }
-}
+};
 
 grant view on page L54.Overview to L54.User;

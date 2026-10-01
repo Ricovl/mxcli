@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Data view sourced from a NANOFLOW — CE2633 "No nanoflow configured"
 -- ============================================================================
@@ -51,7 +52,6 @@ begin
   $Item = create BugNF2633.Item (Name = 'from nanoflow');
   return $Item;
 end;
-/
 
 create page BugNF2633.Item_View (
   Title: 'Item',

@@ -1,3 +1,4 @@
+mdl 1;
 -- ako/mxcli#587 — the manage-security skill offered a microflow data source as
 -- the way past the System-module ceiling. It is not one: a microflow data
 -- source moves the ROWS, not the MEMBERS.
@@ -83,8 +84,7 @@ create or modify page Sec.Home (
       textbox tbRowName (Label: 'RowName', Attribute: DisplayName)
     }
   }
-}
-/
+};
 alter app security ( SecurityLevel: production );
 
 -- Sec.Viewer may read everything this MODULE owns and may run both microflows

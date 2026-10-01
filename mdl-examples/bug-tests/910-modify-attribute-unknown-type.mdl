@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug 910: MODIFY ATTRIBUTE with an unrecognised type corrupted the project
 -- ============================================================================
@@ -29,7 +30,6 @@ create persistent entity Bug910.OdooSession (
   UserID: integer default 7,
   Note: string(200)
 );
-/
 
 -- ----------------------------------------------------------------------------
 -- The regression. Both of these must now be REFUSED, leaving UserID an Integer.

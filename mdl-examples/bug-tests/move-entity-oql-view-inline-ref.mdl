@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug: MOVE ENTITY left a stale reference in a view entity's OQL on the modelsdk
 -- engine, so `mx check` on Mendix 10.x reported CE0174 "does not resolve to an
 -- entity" (the 10.24 nightly failed 01-domain-model-examples/modelsdk this way).

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- MCP-Only Domain Model Examples — what the MCP backend can author
 -- ============================================================================
@@ -58,7 +59,6 @@ create enumeration McpDm.OrderStatus (
   -- Order was cancelled
   CANCELLED 'Cancelled'
 );
-/
 
 /**
  * Payment methods with user-friendly captions.
@@ -73,7 +73,6 @@ create enumeration McpDm.PaymentMethod (
   -- Bank transfer payment
   BT 'Bank Transfer'
 );
-/
 
 -- ############################################################################
 -- PART 2: PERSISTENT ENTITIES (types + NOT NULL / UNIQUE validation rules)
@@ -97,7 +96,6 @@ create persistent entity McpDm.Customer (
   /** Whether the customer is active */
   IsActive: boolean
 );
-/
 
 /**
  * Product catalog entry — the common attribute types the MCP backend authors.
@@ -123,7 +121,6 @@ create persistent entity McpDm.Product (
   /** Creation timestamp */
   CreatedAt: datetime
 );
-/
 
 /**
  * Sales order header — enumeration-typed status and payment method.
@@ -141,7 +138,6 @@ create persistent entity McpDm.SalesOrder (
   /** Total amount */
   TotalAmount: decimal not null error message 'Total is required'
 );
-/
 
 -- ############################################################################
 -- PART 3: ASSOCIATIONS (within McpDm only)
@@ -155,7 +151,6 @@ from McpDm.SalesOrder to McpDm.Customer
 type reference
 owner default
 on delete set null;
-/
 
 /**
  * Many-to-many: products can appear on many orders and vice versa.
@@ -164,7 +159,6 @@ create association McpDm.SalesOrder_Products
 from McpDm.SalesOrder to McpDm.Product
 type ReferenceSet
 owner both;
-/
 
 -- ############################################################################
 -- PART 4: ENTITY GENERALIZATION (extends)
@@ -180,7 +174,6 @@ create persistent entity McpDm.Attachment extends System.FileDocument (
   /** Whether the attachment is publicly accessible */
   IsPublic: boolean
 );
-/
 
 /**
  * Application-level base/derived hierarchy.
@@ -194,7 +187,6 @@ create persistent entity McpDm.Vehicle (
   /** Current mileage */
   Mileage: long
 );
-/
 
 /**
  * Truck specializes Vehicle with cargo attributes.
@@ -206,7 +198,6 @@ create persistent entity McpDm.Truck extends McpDm.Vehicle (
   /** Number of axles */
   AxleCount: integer
 );
-/
 
 -- ############################################################################
 -- PART 5: ALTER ENTITY (add / rename attribute, documentation)

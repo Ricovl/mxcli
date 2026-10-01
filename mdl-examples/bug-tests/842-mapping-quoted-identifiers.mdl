@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #842: quoted identifiers inside a mapping body were not stripped (CE1613).
 --
 -- Quoting identifiers is the documented way to avoid MDL keyword collisions and

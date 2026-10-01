@@ -1,3 +1,4 @@
+mdl 1;
 -- Bug #812: Show Page actions got an empty TitleOverride instead of null,
 -- blanking every popup's caption.
 --
@@ -43,22 +44,19 @@ create page Issue812.PopupPage (
 )
 {
   container c1 { }
-}
-/
+};
 
 -- No override: TitleOverride must be null so the page keeps its own title.
 create microflow Issue812.OpenPlain ()
 begin
   show page Issue812.PopupPage;
 end;
-/
 
 -- Explicit override: the authored text must survive into the BSON.
 create microflow Issue812.OpenOverridden ()
 begin
   show page Issue812.PopupPage with title = 'Explicit Override';
 end;
-/
 
 -- The button path — the case the issue was actually reported against. There is no
 -- MDL syntax for overriding the title from a widget action, so it is always null.
@@ -67,5 +65,4 @@ create page Issue812.HostPage (title: 'Host', Layout: Atlas_Core.Atlas_Default)
   container c1 {
     actionbutton btnOpen (caption: 'Open popup', action: show page Issue812.PopupPage)
   }
-}
-/
+};

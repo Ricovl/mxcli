@@ -1,3 +1,4 @@
+mdl 1;
 -- Findings #5: multiple `add attribute` clauses in one `alter entity`, separated
 -- by commas, with a default on each. Previously only the first add could carry a
 -- default (misdiagnosed) — the real cause was no comma separator in the grammar

@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug 9a — Chart (Charts.mpk) `series` datasource/attribute config via MDL
 -- ============================================================================
@@ -46,7 +47,6 @@ create view entity Bug9.StatusDistribution (
     count(e.ID) as StatusCount
   from Bug9.Expense as e
   group by e.Status;
-/
 
 create page Bug9.Dashboard (
   Title: 'Status Dashboard', Layout: Atlas_Core.Atlas_Default
@@ -60,4 +60,4 @@ create page Bug9.Dashboard (
       staticName: 'Status counts'
     )
   }
-}
+};

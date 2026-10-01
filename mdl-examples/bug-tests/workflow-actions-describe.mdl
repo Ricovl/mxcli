@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- The eight workflow call actions were write-only on the default engine
 -- ============================================================================
@@ -42,7 +43,7 @@ create page W.ReviewPage (
   layoutgrid g { row { column (desktopwidth: 12) {
     dataview dv (datasource: $Task) { textbox tb (attribute: Name, label: 'Task') }
   } } }
-}
+};
 
 create workflow W.ApproveOrder
   parameter $Context: W.Order

@@ -1,3 +1,4 @@
+mdl 1;
 -- A translation for a language the project has not ENABLED is stored, passes
 -- every check, and is then discarded by the build.
 --
@@ -35,7 +36,7 @@ create or modify page LG.P_Things (Title: 'Zebra Widgets', Layout: Atlas_Core.At
   DATAGRID dg (DataSource: DATABASE LG.Thing) {
     COLUMN (Attribute: Name, Caption: 'Zebra Column')
   }
-}
+};
 
 grant view on page LG.P_Things to LG.User;
 

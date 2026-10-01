@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Default (modelsdk) engine could not create association page datasources
 -- ============================================================================
@@ -51,7 +52,7 @@ create or modify page MyFirstModule.MasterDetail
       dynamictext t (content: 'Expense')
     }
   }
-}
+};
 
 -- Should round-trip: lvExpenses (DataSource: $currentObject/MyFirstModule.Expense_Employee)
 describe page MyFirstModule.MasterDetail;

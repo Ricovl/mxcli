@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- FINDINGS #51: create/change member referencing a non-existent association
 -- ============================================================================
@@ -25,13 +26,10 @@
 -- ============================================================================
 
 create or modify entity "Demo"."Parent" (Code: string(20));
-/
 create or modify entity "Demo"."Child" (Code: string(20));
-/
 create or modify association "Demo"."Child_Parent"
 from "Demo"."Child" to "Demo"."Parent"
 type reference;
-/
 
 -- Correct: the association exists (created above), so the member resolves.
 create or modify microflow "Demo"."ACT_Good" ($P: Demo.Parent)
@@ -39,7 +37,6 @@ begin
   $c = create "Demo"."Child" (Code = 'x', "Demo"."Child_Parent" = $P);
   return;
 end;
-/
 
 -- Repro (rejected at exec — uncomment to verify):
 -- create or modify microflow "Demo"."ACT_Bad" ()

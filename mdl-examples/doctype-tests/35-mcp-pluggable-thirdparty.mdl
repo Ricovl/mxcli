@@ -1,3 +1,4 @@
+mdl 1;
 -- @version: 11.0+
 -- ============================================================================
 -- MCP Pluggable-Widget Authoring — registry acceptance + Phase 2 operations
@@ -38,7 +39,6 @@ create persistent entity MCPWidgetTest.Item (
 create microflow MCPWidgetTest.ACT_Item_OnClick ()
 begin
 end;
-/
 
 -- MARK: Registry-resolved widget (outside the old whitelist)
 
@@ -66,8 +66,7 @@ create page MCPWidgetTest.P_BarcodeScanner folder 'MCPWidgets'
       }
     }
   }
-}
-/
+};
 
 -- MARK: Phase 2 operations (texttemplate, placeholder params, action)
 
@@ -101,8 +100,7 @@ create page MCPWidgetTest.P_ImageActions folder 'MCPWidgets'
       }
     }
   }
-}
-/
+};
 
 -- Keep created objects for inspection in Studio Pro (no cleanup).
 exit;

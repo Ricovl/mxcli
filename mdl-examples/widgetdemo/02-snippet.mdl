@@ -1,6 +1,7 @@
+mdl 1;
 -- WidgetDemo: Button showcase snippet (referenced by 03-showcase-page)
 
 create snippet WidgetDemo.SNIPPET_ButtonShowcase {
   actionbutton btnInfo (caption: 'Info Button', action: close page, buttonstyle: info)
   actionbutton btnInverse (caption: 'Inverse Button', action: close page, buttonstyle: inverse)
-}
+};

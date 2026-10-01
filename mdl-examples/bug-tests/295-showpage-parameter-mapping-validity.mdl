@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- Bug #295: SHOW PAGE parameter mappings produced unopenable Studio Pro MPRs
 -- ============================================================================
@@ -32,7 +33,6 @@ create module BugTest295;
 create entity BugTest295.Product (
   Name : string(100)
 );
-/
 
 create page BugTest295.Product_Detail
 (
@@ -44,8 +44,7 @@ create page BugTest295.Product_Detail
 )
 {
   dynamictext txtName (content: 'Product detail', rendermode: H4)
-}
-/
+};
 
 create microflow BugTest295.ACT_OpenProductPage (
   $Product: BugTest295.Product
@@ -53,4 +52,3 @@ create microflow BugTest295.ACT_OpenProductPage (
 begin
   show page BugTest295.Product_Detail (Product = $Product);
 end;
-/

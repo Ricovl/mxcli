@@ -1,3 +1,4 @@
+mdl 1;
 -- ============================================================================
 -- CE0066 left behind by `mxcli marketplace update`  (mendixlabs/mxcli#1085)
 -- ============================================================================
@@ -69,9 +70,7 @@
 
 -- Project-wide: every module's rules against its own domain model.
 update security;
-/
 
 -- Scoped to one module, which is what the update runs for the module it just
 -- replaced.
 update security Administration;
-/
