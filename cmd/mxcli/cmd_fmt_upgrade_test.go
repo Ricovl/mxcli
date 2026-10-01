@@ -20,7 +20,7 @@ func runFmt(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 	// cobra keeps flag values between runs in one process.
 	for _, f := range []string{"write", "upgrade", "header", "force-header"} {
-		_ = fmtCmd.Flags().Set(f, "false")
+		_ = fmtCmd.Flags().Set(f, fmtCmd.Flags().Lookup(f).DefValue)
 		fmtCmd.Flags().Lookup(f).Changed = false
 	}
 	_ = rootCmd.PersistentFlags().Set("project", "")
@@ -39,24 +39,25 @@ func TestFmtUpgrade_WritesOnlyTheRewrites(t *testing.T) {
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runFmt(t, "--upgrade", "-w", path); err != nil {
+	if _, err := runFmt(t, "--upgrade", "--header=false", "-w", path); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := os.ReadFile(path)
 	// Only the deprecated keywords change: no heuristic upper-casing (which
-	// would turn M.User into M.USER), no re-indentation, and no header while
-	// mdl 1 is a preview.
+	// would turn M.User into M.USER), no re-indentation, and no header when it
+	// is declined.
 	want := "-- keep me\nCREATE OR MODIFY entity M.User (Name: String);\n   list entities;\n"
 	if string(got) != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
 	}
 
-	if _, err := runFmt(t, "--upgrade", "--header", "-w", path); err != nil {
+	// mdl 1 is frozen (ako/mxcli#714): --upgrade adds the header by default.
+	if _, err := runFmt(t, "--upgrade", "-w", path); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = os.ReadFile(path)
 	if !strings.HasPrefix(string(got), "mdl 1;\n-- keep me\n") {
-		t.Fatalf("--header did not add the header:\n%s", got)
+		t.Fatalf("--upgrade did not add the header:\n%s", got)
 	}
 
 	// Idempotent: a second run leaves the file as it is.
@@ -212,8 +213,10 @@ func TestFmtUpgrade_BareCommitWithoutProjectIsANote(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := os.ReadFile(path); string(got) != src {
-		t.Fatalf("the file changed without a project:\n%s", got)
+	// The commit is left as written; only the header (the default since the
+	// freeze, ako/mxcli#714) is added.
+	if got, _ := os.ReadFile(path); string(got) != "mdl 1;\n"+src {
+		t.Fatalf("the commit changed without a project:\n%s", got)
 	}
 	for _, want := range []string{"s.mdl:3: note: M.F:", "MDL067", "-p app.mpr"} {
 		if !strings.Contains(out, want) {

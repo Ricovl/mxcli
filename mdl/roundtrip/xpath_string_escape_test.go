@@ -145,7 +145,7 @@ func TestXPathKindsStringEscapes(t *testing.T) {
 				var out []string
 				for _, target := range targets {
 					if header == "" {
-						out = append(out, h.mustDescribe(t, target))
+						out = append(out, h.mustDescribeMdl0(t, target))
 					} else {
 						out = append(out, h.describeUnder(header, target))
 					}
@@ -191,7 +191,7 @@ func TestXPathKindsStringEscapes(t *testing.T) {
 			if header != "" {
 				other = ""
 			}
-			if err := h.exec(other + first); err == nil {
+			if err := h.exec(other + withoutHeader(first)); err == nil {
 				_, control := moduleStrings(t, h.snapshot().units)
 				same := true
 				for id, b := range before {

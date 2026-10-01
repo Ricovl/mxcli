@@ -43,7 +43,8 @@ var gatedRewriters = map[string]GatedRewriter{
 // under EVERY version: the rewritten spelling is read identically with and
 // without the header. `fmt --upgrade` applies these even when it adds no
 // header, the way it rewrites a deprecated alias, so a script moves off the
-// old spelling while mdl 1 is still a preview.
+// old spelling when the header is declined (`--header=false`, or a construct
+// that blocks it).
 //
 // MDL-V1-QUOTEDEXPR (ako/mxcli#836): the bare expression is the canonical
 // spelling since #750 under mdl 0 as well; only the quoted one is read

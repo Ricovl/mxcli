@@ -235,7 +235,7 @@ func extractObjectListItem(ctx *ExecContext, itemObj map[string]any, nestedMap m
 			if params := extractClientTemplateParameters(ctx, value, "TextTemplate"); len(params) > 0 {
 				item.Props = append(item.Props, rawExplicitProp{
 					Key:   objectListMDLKey(key) + "Params",
-					Value: "[" + strings.Join(formatParametersV3(params), ", ") + "]",
+					Value: "(" + strings.Join(formatParametersV3(params), ", ") + ")",
 					IsRef: true, // a param list is syntax, not a quoted literal
 				})
 			}

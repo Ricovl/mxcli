@@ -9,13 +9,14 @@ import (
 )
 
 // =============================================================================
-// formatListOperation
+// formatListOperation: the statement that mirrors the activity, in every
+// language version (#733, ako/mxcli#840) — never the deprecated call form.
 // =============================================================================
 
 func TestFormatListOperation_Head(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.HeadOperation{ListVariable: "Orders"}, "First")
-	if got != "$First = head($Orders);" {
+	if got != "$First = head $Orders;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -23,7 +24,7 @@ func TestFormatListOperation_Head(t *testing.T) {
 func TestFormatListOperation_Tail(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.TailOperation{ListVariable: "Orders"}, "Rest")
-	if got != "$Rest = tail($Orders);" {
+	if got != "$Rest = tail $Orders;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -31,7 +32,7 @@ func TestFormatListOperation_Tail(t *testing.T) {
 func TestFormatListOperation_Find(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.FindOperation{ListVariable: "Orders", Expression: "$Order/Status = 'Active'"}, "Found")
-	if got != "$Found = find($Orders, $Order/Status = 'Active');" {
+	if got != "$Found = find $Orders where $Order/Status = 'Active';" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -39,7 +40,7 @@ func TestFormatListOperation_Find(t *testing.T) {
 func TestFormatListOperation_Filter(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.FilterOperation{ListVariable: "Orders", Expression: "$Order/Amount > 100"}, "Filtered")
-	if got != "$Filtered = filter($Orders, $Order/Amount > 100);" {
+	if got != "$Filtered = filter $Orders where $Order/Amount > 100;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -53,7 +54,7 @@ func TestFormatListOperation_Sort(t *testing.T) {
 			{AttributeQualifiedName: "MyModule.Order.Date", Direction: microflows.SortDirectionDescending},
 		},
 	}, "Sorted")
-	if got != `$Sorted = sort($Orders, "Date" desc);` {
+	if got != `$Sorted = sort $Orders by "Date" desc;` {
 		t.Errorf("got %q", got)
 	}
 }
@@ -67,7 +68,7 @@ func TestFormatListOperation_SortNonReserved(t *testing.T) {
 			{AttributeQualifiedName: "MyModule.Order.Amount", Direction: microflows.SortDirectionAscending},
 		},
 	}, "Sorted")
-	if got != "$Sorted = sort($Orders, Amount asc);" {
+	if got != "$Sorted = sort $Orders by Amount asc;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -75,7 +76,7 @@ func TestFormatListOperation_SortNonReserved(t *testing.T) {
 func TestFormatListOperation_Union(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.UnionOperation{ListVariable1: "A", ListVariable2: "B"}, "Combined")
-	if got != "$Combined = union($A, $B);" {
+	if got != "$Combined = union $A with $B;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -83,7 +84,7 @@ func TestFormatListOperation_Union(t *testing.T) {
 func TestFormatListOperation_Intersect(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.IntersectOperation{ListVariable1: "A", ListVariable2: "B"}, "Common")
-	if got != "$Common = intersect($A, $B);" {
+	if got != "$Common = intersect $A with $B;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -91,7 +92,7 @@ func TestFormatListOperation_Intersect(t *testing.T) {
 func TestFormatListOperation_Subtract(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.SubtractOperation{ListVariable1: "A", ListVariable2: "B"}, "Diff")
-	if got != "$Diff = subtract($A, $B);" {
+	if got != "$Diff = subtract $B from $A;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -99,7 +100,7 @@ func TestFormatListOperation_Subtract(t *testing.T) {
 func TestFormatListOperation_Contains(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.ContainsOperation{ListVariable: "Orders", ObjectVariable: "Order"}, "HasIt")
-	if got != "$HasIt = contains($Orders, $Order);" {
+	if got != "$HasIt = contains $Order in $Orders;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -107,7 +108,7 @@ func TestFormatListOperation_Contains(t *testing.T) {
 func TestFormatListOperation_Equals(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.EqualsOperation{ListVariable1: "A", ListVariable2: "B"}, "Same")
-	if got != "$Same = equals($A, $B);" {
+	if got != "$Same = equals $A and $B;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -119,7 +120,7 @@ func TestFormatListOperation_FindByAttribute(t *testing.T) {
 		Attribute:    "MyModule.Order.Status",
 		Expression:   "'Active'",
 	}, "Found")
-	if got != "$Found = find($Orders, Status = 'Active');" {
+	if got != "$Found = find $Orders by Status = 'Active';" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -131,7 +132,7 @@ func TestFormatListOperation_FindByAssociation(t *testing.T) {
 		Association:  "MyModule.Order_Customer",
 		Expression:   "$Customer",
 	}, "Found")
-	if got != "$Found = find($Orders, Order_Customer = $Customer);" {
+	if got != "$Found = find $Orders by Order_Customer = $Customer;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -153,7 +154,7 @@ func TestFormatListOperation_FilterByAttribute(t *testing.T) {
 		Attribute:    "MyModule.Order.IsActive",
 		Expression:   "true",
 	}, "Filtered")
-	if got != "$Filtered = filter($Orders, IsActive = true);" {
+	if got != "$Filtered = filter $Orders by IsActive = true;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -161,7 +162,7 @@ func TestFormatListOperation_FilterByAttribute(t *testing.T) {
 func TestFormatListOperation_Range(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.ListRangeOperation{ListVariable: "Orders", OffsetExpression: "5", LimitExpression: "10"}, "Page")
-	if got != "$Page = range($Orders, 5, 10);" {
+	if got != "$Page = range $Orders offset 5 limit 10;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -169,7 +170,7 @@ func TestFormatListOperation_Range(t *testing.T) {
 func TestFormatListOperation_RangeOffsetOnly(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.ListRangeOperation{ListVariable: "Orders", OffsetExpression: "5"}, "Page")
-	if got != "$Page = range($Orders, 5);" {
+	if got != "$Page = range $Orders offset 5;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -177,7 +178,7 @@ func TestFormatListOperation_RangeOffsetOnly(t *testing.T) {
 func TestFormatListOperation_RangeLimitOnly(t *testing.T) {
 	e := newTestExecutor()
 	got := e.formatListOperation(&microflows.ListRangeOperation{ListVariable: "Orders", LimitExpression: "10"}, "Page")
-	if got != "$Page = range($Orders, 0, 10);" {
+	if got != "$Page = range $Orders limit 10;" {
 		t.Errorf("got %q", got)
 	}
 }

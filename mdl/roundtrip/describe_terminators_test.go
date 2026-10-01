@@ -13,6 +13,7 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
@@ -53,8 +54,14 @@ func TestPedAppDescribeIsValidMdl1(t *testing.T) {
 			for _, problem := range terminatorProblems(out) {
 				t.Errorf("%s\n--- describe output ---\n%s", problem, out)
 			}
+			// Since the freeze describe writes mdl 1, headed by `mdl 1;`
+			// (ako/mxcli#714), and the header may be repeated.
+			if prog.LanguageVersion != langver.V1 || len(prog.LanguageNotes) > 0 {
+				t.Errorf("describe output is not mdl 1 (%v) or warns %v\n--- describe output ---\n%s",
+					prog.LanguageVersion, prog.LanguageNotes, out)
+			}
 			if _, errs := visitor.Build("mdl 1;\n" + out); len(errs) > 0 {
-				t.Errorf("describe output is not valid under mdl 1: %v\n--- describe output ---\n%s", errs, out)
+				t.Errorf("describe output is not valid after a repeated header: %v\n--- describe output ---\n%s", errs, out)
 			}
 		})
 	}

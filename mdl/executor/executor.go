@@ -249,8 +249,9 @@ type Executor struct {
 	output         io.Writer
 	guard          *outputGuard // line-limit wrapper around output
 	mprPath        string
-	scriptDir      string          // directory of the .mdl file being executed (see SetScriptDir)
-	langVersion    langver.Version // `mdl <n>;` of the program being run (see enterLanguage)
+	scriptDir      string           // directory of the .mdl file being executed (see SetScriptDir)
+	langVersion    langver.Version  // `mdl <n>;` of the program being run (see enterLanguage)
+	describeLang   *langver.Version // the language DESCRIBE writes, when set (SetDescribeLanguage)
 	settings       map[string]any
 	cache          *executorCache
 	catalog        *catalog.Catalog
@@ -302,6 +303,14 @@ func (e *Executor) SetFormat(f OutputFormat) {
 // relative to; resolution then falls back to the working directory.
 func (e *Executor) SetScriptDir(dir string) {
 	e.scriptDir = dir
+}
+
+// SetDescribeLanguage sets the MDL language describe writes for the rest of
+// the session: `mxcli describe --mdl 0`, `--mdl` on the REPL and `-c`, and the
+// REPL's `mdl 0;` / `mdl 1;` (ako/mxcli#840). Unset, describe writes the
+// frozen language, mdl 1, headed by `mdl 1;` (describeLanguage).
+func (e *Executor) SetDescribeLanguage(v langver.Version) {
+	e.describeLang = &v
 }
 
 // SetLogger sets the diagnostics logger for session logging.

@@ -13,6 +13,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/diaglog"
 	"github.com/mendixlabs/mxcli/mdl/executor"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/repl"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/spf13/cobra"
@@ -106,10 +107,15 @@ Examples:
   mxcli exec script.mdl
 
   # Execute MDL commands directly
-  mxcli -c "CONNECT LOCAL 'app.mpr'; SHOW ENTITIES;"
+  mxcli -c "connect local 'app.mpr'; list entities;"
 
-  # Connect to project and show entities
-  mxcli -p app.mpr -c "SHOW ENTITIES"
+  # Connect to project and list entities
+  mxcli -p app.mpr -c "list entities"
+
+The REPL and -c read input without a language header as mdl 1, the frozen
+beta language; --mdl 0 starts them in the alpha language, and in the REPL an
+"mdl 0;" or "mdl 1;" statement switches the session. A script file run with
+"mxcli exec" is read by its own header, and without one as mdl 0.
 `,
 	Version: version,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
@@ -149,12 +155,26 @@ Examples:
 				exec.SetQuiet(true)
 			}
 
-			// Auto-connect if project specified
+			// The one-liner's language (freeze decision 6): mdl 1 unless
+			// --mdl 0, or a header the commands state themselves. It is what
+			// headerless input is read as and what describe writes.
+			lang := mdlFlag(cmd)
+			if v, written := langver.ScanWrittenHeader(commands); written {
+				lang = v
+			}
+			exec.SetDescribeLanguage(lang)
+
+			// Auto-connect if project specified. CONNECT runs on its own so
+			// that a header in the commands stays their first statement.
 			if projectPath != "" {
-				commands = fmt.Sprintf("CONNECT LOCAL '%s'; %s", visitor.QuoteString(projectPath), commands)
+				connectProg, _ := visitor.Build(fmt.Sprintf("CONNECT LOCAL '%s';", visitor.QuoteString(projectPath)))
+				if err := exec.ExecuteProgram(connectProg); err != nil {
+					fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+					os.Exit(1)
+				}
 			}
 
-			prog, errs := visitor.Build(commands)
+			prog, errs := visitor.BuildSession(commands, lang)
 			if len(errs) > 0 {
 				for _, err := range errs {
 					fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
@@ -175,6 +195,7 @@ Examples:
 			defer logger.Close()
 
 			r := repl.New(os.Stdin, os.Stdout)
+			r.SetLanguage(mdlFlag(cmd))
 			// Honor --mcp in interactive mode; the REPL ignored it and used its
 			// own local backend. The unified factory routes writes to the model
 			// engine or to a live Studio Pro as configured. Must precede the
@@ -283,10 +304,13 @@ func newLoggedExecutorTo(mode string, out io.Writer) (*executor.Executor, *diagl
 }
 
 // executeMDL is a helper to execute MDL commands with a project.
-func executeMDL(projectPath, mdlCmd string) {
+func executeMDL(projectPath, mdlCmd string, setup ...func(*executor.Executor)) {
 	exec, logger := newLoggedExecutor("subcommand")
 	defer logger.Close()
 	defer exec.Close()
+	for _, f := range setup {
+		f(exec)
+	}
 
 	fullCmd := fmt.Sprintf("CONNECT LOCAL '%s'; %s", visitor.QuoteString(projectPath), mdlCmd)
 	prog, errs := visitor.Build(fullCmd)

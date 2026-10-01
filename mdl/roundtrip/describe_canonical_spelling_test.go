@@ -8,14 +8,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mendixlabs/mxcli/mdl/deprecation"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
 // TestPedAppDescribeUsesCanonicalSpellings holds describe to R8 (#752) and
 // R12: it never emits a registered deprecated spelling (`show_page`,
-// `error_message`, `delete_behavior`, …), and every keyword it writes is
-// already lowercase — `mxcli fmt` over describe output changes no letter.
+// `error_message`, `delete_behavior`, `count($L)`, …) in either language — the
+// default mdl 1 and `describe --mdl 0` (ako/mxcli#840) — and every keyword it
+// writes is already lowercase: `mxcli fmt` over describe output changes no
+// letter.
 func TestPedAppDescribeUsesCanonicalSpellings(t *testing.T) {
 	describeUsesCanonicalSpellings(t, pedApp)
 }
@@ -33,56 +35,35 @@ func describeUsesCanonicalSpellings(t *testing.T, fx fixture) {
 	checked := 0
 	for _, target := range describeTargets(h) {
 		t.Run(target, func(t *testing.T) {
-			out, err := h.describe(target)
-			if err != nil || strings.TrimSpace(out) == "" {
-				t.Skipf("describe %s: err=%v (judged by TestPedAppRoundTrip)", target, err)
-			}
-			prog, errs := visitor.Build(out)
-			if len(errs) > 0 {
-				t.Skipf("does not parse (judged by TestPedAppDescribeIsValidMdl1): %v", errs[0])
-			}
-			checked++
-			for _, d := range prog.Deprecations {
-				if !r8Codes[d.Code] {
-					continue // the list-operation call forms are #737's (describe keeps them under mdl 0)
+			for _, v := range []langver.Version{langver.V1, langver.V0} {
+				out, err := h.describeAs(v, target)
+				if err != nil || strings.TrimSpace(out) == "" {
+					t.Skipf("describe %s: err=%v (judged by TestPedAppRoundTrip)", target, err)
 				}
-				t.Errorf("line %d: describe emits the deprecated spelling %s\n--- describe output ---\n%s", d.Line, d.Code, out)
-			}
-			spans, ok := visitor.FormatSpans(out)
-			if !ok {
-				t.Fatalf("FormatSpans refused output that parses")
-			}
-			if lower := visitor.LowercaseKeywords(out, spans.Keywords); lower != out {
-				t.Errorf("describe emits an upper-case keyword:\n%s", firstDifferentLine(out, lower))
+				prog, errs := visitor.Build(out)
+				if len(errs) > 0 {
+					t.Skipf("does not parse (judged by TestPedAppDescribeIsValidMdl1): %v", errs[0])
+				}
+				if got := prog.LanguageVersion; got != v {
+					t.Fatalf("describe in %v reads back as %v: its header is missing or wrong", v, got)
+				}
+				checked++
+				for _, d := range prog.Deprecations {
+					t.Errorf("%v, line %d: describe emits the deprecated spelling %s\n--- describe output ---\n%s", v, d.Line, d.Code, out)
+				}
+				spans, ok := visitor.FormatSpans(out)
+				if !ok {
+					t.Fatalf("FormatSpans refused output that parses")
+				}
+				if lower := visitor.LowercaseKeywords(out, spans.Keywords); lower != out {
+					t.Errorf("%v: describe emits an upper-case keyword:\n%s", v, firstDifferentLine(out, lower))
+				}
 			}
 		})
 	}
 	if checked == 0 {
 		t.Fatal("no describe output was checked — the test proves nothing")
 	}
-}
-
-// r8Codes are the registry codes R8 (#752) owns, and R9's (#755): describe
-// writes documentation as a doc comment, the folder as a clause and a workflow
-// activity's caption as `caption`.
-var r8Codes = map[string]bool{
-	deprecation.PageActionWord:         true,
-	deprecation.ErrorMessageKeyword:    true,
-	deprecation.DeleteBehaviorClause:   true,
-	deprecation.ReferenceSetUnderscore: true,
-	deprecation.ReturnsNone:            true,
-	deprecation.DocumentationClause:    true,
-	deprecation.WorkflowCommentCaption: true,
-	deprecation.FolderProperty:         true,
-	deprecation.DocumentationProperty:  true,
-	// R10's names finished in #755: `ai model`, a JSON structure's `sample`.
-	deprecation.AIModel:             true,
-	deprecation.JSONStructureSample: true,
-	// R9's folder position (#755): right after the name.
-	deprecation.FolderClausePosition: true,
-	// Phase 3.6 (#755): a constant's and a demo user's header is a property list.
-	deprecation.ConstantClauses: true,
-	deprecation.DemoUserClauses: true,
 }
 
 func firstDifferentLine(a, b string) string {

@@ -143,7 +143,10 @@ func TestEmitObjectAnnotations_EscapesMultilineText(t *testing.T) {
 		},
 	}
 
+	// Asked for mdl 0 (`describe --mdl 0`); under mdl 1, the default, the
+	// break is written into the literal (TestDescribersQuoteForTheDescribeLanguage).
 	annotationsByTarget := &annotationEmitter{
+		ctx: mdl0Ctx(),
 		byTarget: map[model.ID][]describedAnnotation{
 			mkID("act"): {{Caption: "Note\nLine\tTabbed", Position: mustDefaultAnnotationPos(model.Point{X: 100, Y: 200}, 0)}},
 		},

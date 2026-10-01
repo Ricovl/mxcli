@@ -87,8 +87,8 @@ func pluralKind(kind string) string {
 // session state, which a script does not ask for (R7).
 func (b *Builder) gateShowSession(ctx *parser.ShowOrListContext) {
 	stmt, ok := ctx.GetParent().(*parser.ShowStatementContext)
-	if !ok {
-		return
+	if !ok || b.session {
+		return // at the REPL or in -c it is where it belongs (BuildSession)
 	}
 	var words []string
 	for i := 1; i < stmt.GetChildCount(); i++ {
