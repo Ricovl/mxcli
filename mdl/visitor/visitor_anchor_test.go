@@ -240,3 +240,45 @@ end loop;`
 			loop.Annotations.BodyTailAnchor)
 	}
 }
+
+// mendixlabs/mxcli#992. `@anchor(true: (to: top))` — ONE side in the nested
+// pair, the form describe emits — parsed without error and set nothing: `(to:
+// top)` matched annotationValue's expression alternative first, as `to : top`
+// (`:` is Mendix's division operator), so the nested-anchor reader never saw
+// it and the true edge kept the builder's default sides.
+func TestAnchorAnnotation_SplitBranchWithOneSide(t *testing.T) {
+	for _, tc := range []struct {
+		src      string
+		from, to ast.AnchorSide
+	}{
+		{"@anchor(true: (to: top))", ast.AnchorSideUnset, ast.AnchorSideTop},
+		{"@anchor(true: (from: bottom))", ast.AnchorSideBottom, ast.AnchorSideUnset},
+	} {
+		stmt := firstStatement(t, tc.src+"\nif true then\n  log info node 'App' 'yes';\nend if;")
+		ifStmt := stmt.(*ast.IfStmt)
+		a := ifStmt.Annotations.TrueBranchAnchor
+		if a == nil {
+			t.Errorf("%s: TrueBranchAnchor not set", tc.src)
+			continue
+		}
+		if a.From != tc.from || a.To != tc.to {
+			t.Errorf("%s: got from=%v to=%v, want from=%v to=%v", tc.src, a.From, a.To, tc.from, tc.to)
+		}
+	}
+}
+
+// An @anchor parameter the reader cannot use is recorded, so validation can
+// refuse it rather than leave the edge on its default sides in silence.
+func TestAnchorAnnotation_RecordsWhatItCannotUse(t *testing.T) {
+	for _, src := range []string{
+		"@anchor(true: (to: middle))",
+		"@anchor(sideways: (to: top))",
+		"@anchor(from: up)",
+	} {
+		stmt := firstStatement(t, src+"\nif true then\n  log info node 'App' 'yes';\nend if;")
+		ann := stmt.(*ast.IfStmt).Annotations
+		if ann == nil || len(ann.InvalidAnchors) == 0 {
+			t.Errorf("%s: nothing recorded", src)
+		}
+	}
+}

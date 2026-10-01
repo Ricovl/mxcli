@@ -681,12 +681,14 @@ func TestRoundtripMicroflow_ErrorHandlingContinue(t *testing.T) {
 	createMDL := `create microflow ` + mfName + ` () returns Boolean
 begin
   $Obj = create RoundtripTest.MfCommitItem;
-  commit $Obj on error continue;
+  delete $Obj on error continue;
   return true;
 end;`
 
+	// delete, not commit: `commit … on error continue` is CE6035 (MDL076),
+	// which exec now refuses as check always did (mendixlabs/mxcli#175).
 	assertMicroflowContains(t, env, mfName, createMDL,
-		[]string{"commit", "on error continue", "return"},
+		[]string{"delete", "on error continue", "return"},
 		nil,
 	)
 }

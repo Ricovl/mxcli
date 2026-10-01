@@ -197,15 +197,17 @@ func actionFromGen(el element.Element) microflows.MicroflowAction {
 		out := &microflows.CreateListAction{
 			EntityQualifiedName: a.EntityQualifiedName(),
 			OutputVariable:      a.OutputVariableName(),
+			ErrorHandlingType:   microflows.ErrorHandlingType(a.ErrorHandlingType()),
 		}
 		out.ID = model.ID(a.ID())
 		return out
 
 	case *genMf.ChangeListAction:
 		out := &microflows.ChangeListAction{
-			ChangeVariable: a.ChangeVariableName(),
-			Type:           microflows.ChangeListType(a.Type()),
-			Value:          a.Value(),
+			ChangeVariable:    a.ChangeVariableName(),
+			Type:              microflows.ChangeListType(a.Type()),
+			Value:             a.Value(),
+			ErrorHandlingType: microflows.ErrorHandlingType(a.ErrorHandlingType()),
 		}
 		out.ID = model.ID(a.ID())
 		return out
@@ -223,6 +225,7 @@ func actionFromGen(el element.Element) microflows.MicroflowAction {
 			// them back silently deleted the fold (#1004).
 			ReduceInitialValue: a.ReduceInitialValueExpression(),
 			ReduceReturnType:   dataTypeFromGen(a.ReduceReturnDataType()),
+			ErrorHandlingType:  microflows.ErrorHandlingType(a.ErrorHandlingType()),
 		}
 		out.ID = model.ID(a.ID())
 		return out
@@ -230,7 +233,10 @@ func actionFromGen(el element.Element) microflows.MicroflowAction {
 	case *genMf.CastAction:
 		// ObjectVariable (the cast input) is not stored via a gen setter, so it is
 		// not reconstructable here; OutputVariable is.
-		out := &microflows.CastAction{OutputVariable: a.OutputVariableName()}
+		out := &microflows.CastAction{
+			OutputVariable:    a.OutputVariableName(),
+			ErrorHandlingType: microflows.ErrorHandlingType(a.ErrorHandlingType()),
+		}
 		out.ID = model.ID(a.ID())
 		return out
 
@@ -369,7 +375,10 @@ func actionFromGen(el element.Element) microflows.MicroflowAction {
 		// keys), so read both from the raw BSON — the inverse of the write's
 		// listOperationToGen.
 		raw := a.Raw()
-		out := &microflows.ListOperationAction{OutputVariable: rawStr(raw, "ResultVariableName")}
+		out := &microflows.ListOperationAction{
+			OutputVariable:    rawStr(raw, "ResultVariableName"),
+			ErrorHandlingType: microflows.ErrorHandlingType(rawStr(raw, "ErrorHandlingType")),
+		}
 		out.ID = model.ID(a.ID())
 		if opDoc, ok := raw.Lookup("NewOperation").DocumentOK(); ok {
 			out.Operation = listOperationFromRaw(opDoc)

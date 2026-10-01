@@ -407,6 +407,12 @@ type ActivityAnnotations struct {
 	// than silently straightening the edge.
 	InvalidCurves []string
 
+	// InvalidAnchors holds the raw text of any @anchor parameter the visitor
+	// could not use — an unknown key, or a side that is not top/right/bottom/
+	// left — so validation can refuse it rather than leave the edge on the
+	// builder's default sides in silence (mendixlabs/mxcli#992).
+	InvalidAnchors []string
+
 	// InvalidNotes holds the raw text of any `@annotation(...)` parameter
 	// the visitor could not use — an unknown key, or a malformed `position:`/`size:`
 	// pair — so validation can refuse it. Dropping it would lose the note
