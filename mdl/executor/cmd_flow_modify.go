@@ -254,6 +254,12 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	}
 	moves = append(moves, parameterMoves(d, storedParams)...)
 
+	// The fragments are built knowing what each variable holds in the declared
+	// flow, as the full build does: the stored flow does not type a variable
+	// bound by a retrieve over an association, a list operation or a loop, and
+	// a member of one was written bare (ako/mxcli#885).
+	a.declaredVarTypes = varTypes
+
 	p := &flowPlan{a: a, ops: ops, moves: moves, storedFolder: storedFolderOf(stored)}
 	if len(ops) > 0 || len(moves) > 0 || headerChanged {
 		if p.mut, err = patch(ctx, a, ops, targets, moves); err != nil {

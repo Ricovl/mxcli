@@ -47,3 +47,42 @@ func TestBareAttributeRefError(t *testing.T) {
 		t.Errorf("unreadable bytes must yield nothing, got %v", got)
 	}
 }
+
+// ako/mxcli#885: a change activity's member is the same kind of identifier. A
+// spliced change wrote `Name` for `System.User.Name`, and `mx check` (11.13.0)
+// could not load the project ("The text 'Name' is not a valid
+// AttributeIdentifier").
+func TestBareAttributeRefError_ChangeActionItem(t *testing.T) {
+	doc := func(attr, assoc string) []byte {
+		b, err := bson.Marshal(bson.D{
+			{Key: "$Type", Value: "Microflows$Microflow"},
+			{Key: "Name", Value: "Repro_ChangeState"},
+			{Key: "ObjectCollection", Value: bson.D{{Key: "Objects", Value: bson.A{int32(2), bson.D{
+				{Key: "$Type", Value: "Microflows$ActionActivity"},
+				{Key: "Action", Value: bson.D{
+					{Key: "$Type", Value: "Microflows$ChangeAction"},
+					{Key: "Items", Value: bson.A{int32(2), bson.D{
+						{Key: "$Type", Value: "Microflows$ChangeActionItem"},
+						{Key: "Attribute", Value: attr},
+						{Key: "Association", Value: assoc},
+					}}},
+				}},
+			}}}}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	err := BareAttributeRefError("microflow X", doc("Name", ""))
+	if err == nil || !strings.Contains(err.Error(), `"Name"`) || !strings.Contains(err.Error(), "Repro_ChangeState") {
+		t.Fatalf("a bare change member must be refused, naming it and its flow; got %v", err)
+	}
+	// Control: a qualified attribute, and an association member (whose
+	// Attribute is empty), are written.
+	for _, ok := range [][2]string{{"System.User.Name", ""}, {"", "System.UserRoles"}} {
+		if err := BareAttributeRefError("microflow X", doc(ok[0], ok[1])); err != nil {
+			t.Errorf("%v must be accepted: %v", ok, err)
+		}
+	}
+}

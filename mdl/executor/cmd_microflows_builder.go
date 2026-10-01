@@ -40,6 +40,13 @@ type flowBuilder struct {
 	// from the script, while still reserving the name against a second create of
 	// the same entity (see freshCreateVariable).
 	generatedVars map[string]bool
+	// qualifiedMembersOnly refuses an entity member the builder cannot
+	// qualify — for want of the entity its variable holds — instead of writing
+	// it bare. Set for a fragment spliced into a stored flow (ako/mxcli#885):
+	// a bare change member makes the project unloadable ("not a valid
+	// AttributeIdentifier"), a bare find member becomes a find by an invalid
+	// expression, a bare aggregate attribute is dropped.
+	qualifiedMembersOnly bool
 	// textLang is the language a bare message/caption string is stored under
 	// (mendixlabs/mxcli#970). Empty means en_US, which keeps a zero-value
 	// flowBuilder — validateFlowBody builds one — behaving as before.
