@@ -113,6 +113,8 @@ func Run(mprPath string, prog *ast.Program, opts Options) (*Report, error) {
 		x.Close()
 		return nil, fmt.Errorf("connect to the scratch copy: %w", err)
 	}
+	g := &outsideGuard{project: src, copyMpr: copyMpr}
+	x.SetStatementGuard(g.check)
 	if opts.Preflight != nil {
 		var pf bytes.Buffer
 		rep.Refused = opts.Preflight(x, &pf)
@@ -133,6 +135,9 @@ func Run(mprPath string, prog *ast.Program, opts Options) (*Report, error) {
 	_ = x.Execute(&ast.DisconnectStmt{})
 	x.Close()
 	rep.Output = out.String()
+	if g.refused != nil {
+		return nil, g.refused
+	}
 
 	after, err := TakeSnapshot(copyMpr)
 	if err != nil {
@@ -160,4 +165,53 @@ func newExecutor(w io.Writer, opts Options) *executor.Executor {
 		x.SetDescribeLanguage(*opts.DescribeLanguage)
 	}
 	return x
+}
+
+// outsideGuard keeps the script diff runs on the scratch copy from acting on
+// anything but the copy. exec follows a CONNECT (a headerless script may hold
+// one, and so may a script it executes) and runs SQL and IMPORT against real
+// databases; run for real by diff, the first would write to the project being
+// diffed — or another one — while the copy, and so the report, saw no write,
+// and the others would change a database. A connect to the project itself is
+// followed on the copy; anything else is refused, and Run reports it as an
+// error rather than as a verdict of exec's.
+type outsideGuard struct {
+	project, copyMpr string
+	refused          error
+}
+
+func (g *outsideGuard) check(stmt ast.Statement) (ast.Statement, error) {
+	var err error
+	switch s := stmt.(type) {
+	case *ast.ConnectStmt:
+		switch {
+		case sameFile(s.Path, g.copyMpr):
+			return stmt, nil
+		case sameFile(s.Path, g.project):
+			return &ast.ConnectStmt{Path: g.copyMpr}, nil
+		}
+		err = fmt.Errorf("the script connects to %s, outside the scratch copy of %s that diff runs it on; diff cannot show what exec would write there", s.Path, g.project)
+	case *ast.SQLQueryStmt:
+		err = fmt.Errorf("the script runs a SQL query on %q, a database outside the scratch copy diff runs it on; diff does not run it for real", s.Alias)
+	case *ast.ImportStmt:
+		err = fmt.Errorf("the script imports into %s's database, outside the scratch copy diff runs it on; diff does not run it for real", s.TargetEntity)
+	default:
+		return stmt, nil
+	}
+	if g.refused == nil {
+		g.refused = err
+	}
+	return nil, err
+}
+
+func sameFile(a, b string) bool {
+	fa, err := os.Stat(a)
+	if err != nil {
+		return false
+	}
+	fb, err := os.Stat(b)
+	if err != nil {
+		return false
+	}
+	return os.SameFile(fa, fb)
 }

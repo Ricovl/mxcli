@@ -90,6 +90,13 @@ Summary: 0 new, 0 modified, 0 removed — exec would write nothing
 under `--mcp`: the script is executed for real, and only the copy may receive
 it. `--exec-output` prints what exec reports while it runs.
 
+For the same reason a script may not reach past the copy. A `connect` to the
+`-p` project (a headerless script may hold one, and so may a script it runs
+with `execute script`) is followed on the copy; a `connect` to any other
+project, a `sql <alias> <query>` and an `import from` are refused with an error,
+because diff has no copy of that project or database and does not run them for
+real.
+
 ## mxcli diff-local
 
 Compares local changes against a git reference for MPR v2 projects. MPR v2 (Mendix >= 10.18) stores documents as individual files in an `mprcontents/` folder, making git diff feasible.

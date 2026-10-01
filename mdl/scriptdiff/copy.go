@@ -31,7 +31,15 @@ var skippedDirs = map[string]bool{
 // would carry such a write back into the project being diffed. A symlink in the
 // project is copied as a symlink, which is the one exception, and the same one
 // `cp -a` makes.
+//
+// The folder dst is created in is left out too: it is the scratch folder, and
+// it sits inside the project when TMPDIR does, where copying it would copy the
+// copy into itself until the path is too long.
 func copyProject(src, dst string) error {
+	dstParent, err := os.Stat(filepath.Dir(dst))
+	if err != nil {
+		return err
+	}
 	return filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -49,7 +57,7 @@ func copyProject(src, dst string) error {
 			}
 			return os.Symlink(link, target)
 		case info.IsDir():
-			if rel != "." && skippedDirs[info.Name()] {
+			if rel != "." && (skippedDirs[info.Name()] || os.SameFile(info, dstParent)) {
 				return filepath.SkipDir
 			}
 			return os.MkdirAll(target, 0o755)
