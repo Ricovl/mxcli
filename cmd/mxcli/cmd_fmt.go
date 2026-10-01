@@ -354,6 +354,7 @@ func reportUpgrade(w io.Writer, label string, res upgrade.Result) {
 		if d.NoFix != "" {
 			msg += ": " + d.NoFix
 		}
+		msg += " " + langver.HelpHint(d.Code)
 		fmt.Fprintf(w, "%s:%d:%d: not upgraded, no mechanical rewrite: %s\n", label, d.Line, d.Column+1, msg)
 	}
 }

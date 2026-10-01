@@ -4,6 +4,7 @@ package visitor
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
@@ -30,7 +31,8 @@ func (b *Builder) recordDeprecation(code string, tok antlr.Token, subject string
 	}
 	if e, ok := deprecation.Lookup(code); ok && int(b.langVersion) >= e.RemovedIn {
 		b.addError(fmt.Errorf("line %d: `%s` is refused under %s (%s): write `%s` instead. %s",
-			tok.GetLine(), e.Old, b.langVersion, e.Code, e.Canonical, e.Note))
+			tok.GetLine(), e.Old, b.langVersion, e.Code, e.Canonical,
+			strings.TrimSpace(e.Note+" "+langver.HelpHint(e.Code))))
 		return
 	}
 	b.deprecations = append(b.deprecations, ast.DeprecatedSpelling{
