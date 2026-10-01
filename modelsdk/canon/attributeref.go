@@ -29,12 +29,27 @@ import (
 // widget's template parameter inside a data container with no resolvable entity
 // reached disk bare that way. Any raw write can.
 //
+// A Microflows$ChangeActionItem — a change or create activity's member — holds
+// the same kind of identifier and fails the same way: a spliced change on a
+// variable whose entity the builder did not know wrote `Name` for
+// `System.User.Name`, and `mx check` (11.13.0) could not load the project
+// ("Change in  has an invalid value '' for property Attribute. The text 'Name'
+// is not a valid AttributeIdentifier", ako/mxcli#885).
+//
 // It refuses every bare reference in the unit, stored or new. A stored one
 // cannot have come from Studio Pro, which cannot load it either; writing it back
 // keeps the project unloadable, and the message names it so the statement that
 // rewrites the unit can drop or qualify it.
 
-// BareAttributeRefs names every DomainModels$AttributeRef in raw whose
+// attributeIdentifierHolders are the element types whose Attribute property
+// is an attribute identifier Mendix parses as it loads the unit.
+var attributeIdentifierHolders = map[string]bool{
+	"DomainModels$AttributeRef":   true,
+	"Microflows$ChangeActionItem": true,
+}
+
+// BareAttributeRefs names every DomainModels$AttributeRef (or
+// Microflows$ChangeActionItem) in raw whose
 // Attribute is non-empty and not Module.Entity.Attribute, with where it sits
 // (the nearest named element's Name, then the property path). An empty
 // Attribute is an unbound slot and is not reported. A document that cannot be
@@ -49,7 +64,7 @@ func BareAttributeRefs(raw []byte) []string {
 			if !ok {
 				return
 			}
-			if t, ok := doc.Lookup("$Type").StringValueOK(); ok && t == "DomainModels$AttributeRef" {
+			if t, ok := doc.Lookup("$Type").StringValueOK(); ok && attributeIdentifierHolders[t] {
 				if a, ok := doc.Lookup("Attribute").StringValueOK(); ok && a != "" && strings.Count(a, ".") < 2 {
 					bad = append(bad, fmt.Sprintf("%q at %s", a, path))
 				}
@@ -91,6 +106,7 @@ func BareAttributeRefError(unitLabel string, raw []byte) error {
 	return fmt.Errorf("refusing to write unit %s: attribute reference not qualified as "+
 		"Module.Entity.Attribute — Mendix cannot load a project holding one: %s. Qualify it in the "+
 		"script; inside a data container whose entity cannot be resolved (e.g. its data-source flow "+
-		"is missing) there is nothing to qualify a bare name against",
+		"is missing), or on a flow variable whose entity is not known, there is nothing to qualify a "+
+		"bare name against",
 		unitLabel, strings.Join(bad, "; "))
 }
