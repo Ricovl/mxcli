@@ -301,6 +301,11 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// parsed and did nothing (MDL059, the same rule statements already have).
 	violations = append(violations, ValidateDocumentAnnotations(prog)...)
 
+	// Flag a doc comment before a statement that cannot store documentation
+	// (a drop, grant, set, …): it parses and is silently lost (MDL089,
+	// ako/mxcli#877).
+	violations = append(violations, ValidateDetachedDocComments(prog)...)
+
 	// Warn on every deprecated spelling (MDL-DEPRnnn): an alias left over from
 	// consolidating MDL onto one canonical form (ADR-0010/0011). The registry
 	// is mdl/deprecation.

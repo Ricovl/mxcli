@@ -157,6 +157,14 @@ create the flow. A flow an earlier statement of the script touches is not
 predicted (exec sees that statement's result), and `fmt --upgrade --header -p`
 keeps the header off a file it would make refuse (ako/mxcli#876).
 
+### It reports a doc comment that is lost
+
+A `/** … */` doc comment documents the statement right after it, and only a
+`create` of something with documentation stores one. Above a `drop`, `grant`,
+`revoke`, `set`, `alter` or `create module` it is ignored, so **MDL089** warns
+and names the next statement that could have taken it. In drop-then-create, put
+the comment between the `drop` and the `create` (ako/mxcli#877).
+
 ### It resolves MEMBER names too, where it can establish the entity
 
 Resolution does not stop at the entity. An attribute named in a **create** or
