@@ -58,6 +58,8 @@ Both are optional and can be changed later with `alter page … { set (Class: '�
 - Default value: Mendix expression in single quotes
 - Referenced in expressions as `$varName`
 - Use for DataGrid2 column `visible:` (which hides/shows entire column, NOT per-row)
+- An input binds to one directly: `checkbox cbShowAll (Label: 'Show all', Attribute: $ShowAll)`
+  — no data view needed. `$name` must be declared in the page's `Variables:`
 
 ### Key Syntax Elements
 

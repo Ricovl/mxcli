@@ -56,6 +56,18 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 	// Resolve module name for building new widgets
 	modName := h.GetModuleName(containerID)
 
+	// The stored document as describe prints it, parsed back — read once, and
+	// only when a REPLACE needs a pluggable widget's baseline (#1247).
+	var described map[string]*ast.WidgetV3
+	describedOnce := false
+	storedWidgets := func() map[string]*ast.WidgetV3 {
+		if !describedOnce {
+			describedOnce = true
+			described = describedStoredWidgets(ctx, unitID, containerType, s.PageName)
+		}
+		return described
+	}
+
 	for _, op := range s.Operations {
 		// Every target resolves through the document type's resolver before the
 		// operation runs (ADR-0012): what an address means is answered once,
@@ -82,7 +94,7 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 				return mdlerrors.NewBackend("drop TEMPLATE", err)
 			}
 		case *ast.ReplaceWidgetOp:
-			if err := applyReplaceWidgetMutator(ctx, mutator, o, modName, containerID); err != nil {
+			if err := applyReplaceWidgetMutator(ctx, mutator, o, modName, containerID, storedWidgets); err != nil {
 				return mdlerrors.NewBackend("replace", err)
 			}
 		case *ast.AddVariableOp:
@@ -472,18 +484,24 @@ func applyDropWidgetMutator(mutator backend.PageMutator, op *ast.DropWidgetOp) e
 // REPLACE widget via mutator
 // ============================================================================
 
-func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp, moduleName string, moduleID model.ID) error {
+func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp, moduleName string, moduleID model.ID, storedWidgets func() map[string]*ast.WidgetV3) error {
 	newWidgets, err := expandAlterFragments(ctx, op.NewWidgets, moduleName, moduleID)
 	if err != nil {
 		return err
 	}
 	expanded := *op
-	expanded.NewWidgets = newWidgets
+	expanded.NewWidgets = unwrapFooterReplacement(op.Target, newWidgets)
 	op = &expanded
+	footerRegion := isFooterRegionTarget(op.Target)
+
+	// The widgets the replace removes are not duplicates of what replaces them:
+	// restating a footer's or a container's own children under their names is
+	// the ordinary edit, and was refused as "duplicate widget name" (#293).
+	replaced := replacedWidgetNames(mutator, op.Target)
 
 	// Check for duplicate widget names (skip the widget being replaced)
 	for _, w := range op.NewWidgets {
-		if w.Name != "" && w.Name != op.Target.Widget && w.Name != columnRefOf(op.Target) && mutator.FindWidget(w.Name) {
+		if w.Name != "" && w.Name != op.Target.Widget && w.Name != columnRefOf(op.Target) && !replaced[w.Name] && mutator.FindWidget(w.Name) {
 			return mdlerrors.NewAlreadyExistsMsg("widget", w.Name, fmt.Sprintf("duplicate widget name '%s': a widget with this name already exists on the page", w.Name))
 		}
 	}
@@ -500,17 +518,137 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 		return mutator.ReplaceColumn(op.Target.Widget, columnRefOf(op.Target), specs)
 	}
 
-	// Find entity context from enclosing DataView/DataGrid/ListView for regular widget replace.
-	entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, false, moduleName, moduleID)
+	// Find entity context from enclosing DataView/DataGrid/ListView for regular
+	// widget replace. A data view footer's widgets sit INSIDE the data view, so
+	// they take its own context, as INSERT INTO does.
+	entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, footerRegion, moduleName, moduleID)
 
-	// Build new widgets from AST, excluding the target widget/column from the
-	// duplicate-name scope so a same-name replacement is allowed.
-	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, columnRefOf(op.Target))
+	// Build new widgets from AST, excluding the target widget/column — and what
+	// it contains — from the duplicate-name scope so a same-name replacement is
+	// allowed.
+	exclude := []string{op.Target.Widget, columnRefOf(op.Target)}
+	for n := range replaced {
+		exclude = append(exclude, n)
+	}
+	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, exclude...)
 	if err != nil {
 		return mdlerrors.NewBackend("build replacement widgets", err)
 	}
 
+	// One pluggable widget replaced by one of the same package keeps what the
+	// statement does not state (mendixlabs/mxcli#1247): the stored widget, as
+	// describe prints it, is built beside the replacement, and the mutator keeps
+	// every stored property the two builds agree on.
+	if handled, err := replacePluggableKeepingUnstated(ctx, mutator, op, widgets, storedWidgets, moduleName, moduleID, entityCtx, exclude); handled || err != nil {
+		return err
+	}
+
 	return mutator.ReplaceWidget(op.Target.Widget, columnRefOf(op.Target), widgets)
+}
+
+// pluggableKeepingReplacer is the PageMutator half of
+// replacePluggableKeepingUnstated; mutators without it replace as before.
+type pluggableKeepingReplacer interface {
+	ReplacePluggableKeepingUnstated(widgetRef string, replacement, baseline pages.Widget) (bool, error)
+}
+
+// replacePluggableKeepingUnstated handles `replace <pluggable> with { <same
+// pluggable kind> }`. handled is false when it does not apply — not exactly one
+// widget for one, no description of the stored one, or a baseline that does
+// not build — and the caller replaces as before.
+func replacePluggableKeepingUnstated(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp,
+	widgets []pages.Widget, storedWidgets func() map[string]*ast.WidgetV3,
+	moduleName string, moduleID model.ID, entityCtx string, exclude []string) (bool, error) {
+	keeper, ok := mutator.(pluggableKeepingReplacer)
+	if !ok || storedWidgets == nil || op.Target.Column != "" || op.Target.IsColumnAddress() ||
+		len(widgets) != 1 || len(op.NewWidgets) != 1 {
+		return false, nil
+	}
+	if _, isPluggable := widgets[0].(*pages.CustomWidget); !isPluggable {
+		return false, nil
+	}
+	stored := storedWidgets()[op.Target.Widget]
+	if stored == nil || !strings.EqualFold(stored.Type, op.NewWidgets[0].Type) {
+		return false, nil
+	}
+	baseline, err := buildWidgetsFromAST(ctx, cloneWidgets([]*ast.WidgetV3{stored}), moduleName, moduleID, entityCtx, mutator, exclude...)
+	if err != nil || len(baseline) != 1 {
+		return false, nil
+	}
+	return keeper.ReplacePluggableKeepingUnstated(op.Target.Widget, widgets[0], baseline[0])
+}
+
+// describedStoredWidgets describes the document an ALTER edits, in the
+// script's language, and indexes its widgets by name; nil when it cannot.
+func describedStoredWidgets(ctx *ExecContext, unitID model.ID, containerType string, name ast.QualifiedName) map[string]*ast.WidgetV3 {
+	var describe func() error
+	switch containerType {
+	case "page":
+		describe = func() error { return describePage(ctx, name) }
+	case "snippet":
+		describe = func() error { return describeSnippet(ctx, name) }
+	default:
+		return nil
+	}
+	out, err := describedWidgets(ctx, func() error {
+		prev := ctx.describeID
+		ctx.describeID = unitID
+		defer func() { ctx.describeID = prev }()
+		return describe()
+	})
+	if err != nil {
+		return nil
+	}
+	return out
+}
+
+// storedPageVariables is the stored document's page variables, so a widget an
+// ALTER adds can bind to one (`Attribute: $ShowAll`, mendixlabs/mxcli#1235) and
+// a `$name` in a template resolves as it does in CREATE.
+func storedPageVariables(mutator backend.PageMutator) map[string]bool {
+	vars := map[string]bool{}
+	if lister, ok := mutator.(interface{ PageVariableNames() []string }); ok {
+		for _, n := range lister.PageVariableNames() {
+			vars[n] = true
+		}
+	}
+	return vars
+}
+
+// isFooterRegionTarget reports whether an ALTER target is `<widget>.footer` —
+// a data view's footer region (ako/mxcli#528). Whether the owner IS a data view
+// is the mutator's call; on anything else the dotted form keeps its other
+// meanings (a scroll-container region, a grid column).
+func isFooterRegionTarget(t ast.WidgetRef) bool {
+	return t.Widget != "" && !t.IsColumnAddress() && strings.EqualFold(t.Column, "footer")
+}
+
+// unwrapFooterReplacement lets `replace dv.footer with { footer { … } }` — the
+// footer block as describe prints it — mean its content: a footer region holds
+// widgets, and a `footer` built outside a data view would be a container nested
+// inside the region rather than the region's content.
+func unwrapFooterReplacement(target ast.WidgetRef, widgets []*ast.WidgetV3) []*ast.WidgetV3 {
+	if !isFooterRegionTarget(target) || len(widgets) != 1 || !strings.EqualFold(widgets[0].Type, "footer") {
+		return widgets
+	}
+	return widgets[0].Children
+}
+
+// replacedWidgetNames lists the names a REPLACE removes along with its target:
+// everything inside it. Only mutators that can walk the stored tree answer; the
+// others keep the old, stricter scope.
+func replacedWidgetNames(mutator backend.PageMutator, target ast.WidgetRef) map[string]bool {
+	walker, ok := mutator.(interface {
+		ContainedWidgetNames(widgetRef, columnRef string) []string
+	})
+	if !ok {
+		return nil
+	}
+	names := map[string]bool{}
+	for _, n := range walker.ContainedWidgetNames(target.Widget, columnRefOf(target)) {
+		names[n] = true
+	}
+	return names
 }
 
 // allColumns returns true if all widgets in the slice have type "column".
@@ -620,6 +758,7 @@ func buildColumnSpecsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleNa
 		fragments:        ctx.Fragments,
 		themeRegistry:    ctx.GetThemeRegistry(),
 		widgetBackend:    ctx.Backend,
+		localVariables:   storedPageVariables(mutator),
 	}
 
 	var result []*backend.DataGridColumnSpec
@@ -713,6 +852,7 @@ func buildWidgetsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleName s
 		fragments:        ctx.Fragments,
 		themeRegistry:    ctx.GetThemeRegistry(),
 		widgetBackend:    ctx.Backend,
+		localVariables:   storedPageVariables(mutator),
 	}
 
 	var result []pages.Widget

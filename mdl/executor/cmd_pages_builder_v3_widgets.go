@@ -465,6 +465,9 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 		}
 		tb.AttributePath, tb.AttributeRefSteps, tb.SourceVariable = path, steps, sv
 	}
+	if sv := pb.pageVariableInputBinding(w); sv != nil {
+		tb.SourceVariable = sv
+	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
 	}
@@ -532,6 +535,9 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 		}
 		ta.AttributePath, ta.AttributeRefSteps, ta.SourceVariable = path, steps, sv
 	}
+	if sv := pb.pageVariableInputBinding(w); sv != nil {
+		ta.SourceVariable = sv
+	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
 	}
@@ -583,6 +589,9 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 		}
 		dp.AttributePath, dp.AttributeRefSteps, dp.SourceVariable = path, steps, sv
 	}
+	if sv := pb.pageVariableInputBinding(w); sv != nil {
+		dp.SourceVariable = sv
+	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
 	}
@@ -623,6 +632,9 @@ func (pb *pageBuilder) buildDropdownV3(w *ast.WidgetV3) (*pages.DropDown, error)
 		}
 		dd.AttributePath, dd.AttributeRefSteps, dd.SourceVariable = path, steps, sv
 	}
+	if sv := pb.pageVariableInputBinding(w); sv != nil {
+		dd.SourceVariable = sv
+	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
 	}
@@ -662,6 +674,9 @@ func (pb *pageBuilder) buildCheckBoxV3(w *ast.WidgetV3) (*pages.CheckBox, error)
 			return nil, err
 		}
 		cb.AttributePath, cb.AttributeRefSteps, cb.SourceVariable = path, steps, sv
+	}
+	if sv := pb.pageVariableInputBinding(w); sv != nil {
+		cb.SourceVariable = sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
@@ -737,6 +752,9 @@ func (pb *pageBuilder) buildRadioButtonsV3(w *ast.WidgetV3) (*pages.RadioButtons
 			return nil, err
 		}
 		rb.AttributePath, rb.AttributeRefSteps, rb.SourceVariable = path, steps, sv
+	}
+	if sv := pb.pageVariableInputBinding(w); sv != nil {
+		rb.SourceVariable = sv
 	}
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
