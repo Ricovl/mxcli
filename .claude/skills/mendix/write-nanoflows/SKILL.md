@@ -184,6 +184,7 @@ EnquiriesManagement (79), Evora-FactoryManagement (93), LatoProductInventory (51
 Validate before calling a microflow to avoid a round-trip.
 
 ```mdl
+mdl 1;
 /**
  * Validates the enquiry form fields before submission.
  * @param $Enquiry The enquiry being created or edited
@@ -212,6 +213,7 @@ END;
 Validate then navigate — keeps pages dumb.
 
 ```mdl
+mdl 1;
 /**
  * Validates the product and opens the detail page if valid.
  * @param $Product Product to open
@@ -255,6 +257,7 @@ END;
 ### Pattern 4: Confirmation Dialog Before Destructive Action
 
 ```mdl
+mdl 1;
 /**
  * Asks the user to confirm before deleting an item.
  * @param $Item The inventory item to delete
@@ -337,6 +340,7 @@ END;
 Used in enquiry and field-service apps to tag records with GPS coordinates.
 
 ```mdl
+mdl 1;
 /**
  * Captures the current GPS position and stores it on the record.
  * @param $Record The record to tag with location
@@ -362,6 +366,7 @@ END;
 ### Pattern 8: Platform-Conditional Logic
 
 ```mdl
+mdl 1;
 /**
  * Opens a map or shows coordinates depending on platform.
  * @param $Latitude Latitude coordinate
@@ -390,6 +395,7 @@ END;
 Store a frequently accessed value locally to avoid a round-trip.
 
 ```mdl
+mdl 1;
 /**
  * Loads the last-used filter value from local storage.
  * @returns The cached filter string, or empty if never set
@@ -591,6 +597,7 @@ default is also why writing `Rollback` there is an error and not a no-op.
 ## Security (GRANT/REVOKE)
 
 ```mdl
+mdl 1;
 GRANT EXECUTE ON NANOFLOW Shop.NAV_Filter TO Shop.User, Shop.Admin;
 REVOKE EXECUTE ON NANOFLOW Shop.NAV_Filter FROM Shop.User;
 ```
@@ -598,9 +605,10 @@ REVOKE EXECUTE ON NANOFLOW Shop.NAV_Filter FROM Shop.User;
 ## Management Commands
 
 ```mdl
-LIST NANOFLOWS
-LIST NANOFLOWS IN MyModule
-DESCRIBE NANOFLOW MyModule.NAV_ShowDetails
+mdl 1;
+LIST NANOFLOWS;
+LIST NANOFLOWS IN MyModule;
+DESCRIBE NANOFLOW MyModule.NAV_ShowDetails;
 DROP NANOFLOW MyModule.NAV_ShowDetails;
 RENAME NANOFLOW MyModule.NAV_OldName TO NAV_NewName;
 MOVE NANOFLOW Sales.NAV_OpenCart TO FOLDER 'UI/Navigation';

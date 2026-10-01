@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/mendixlabs/mxcli/mdl/langver"
 )
 
 // listActivityRows is one statement per row of the §4 Microflows table of
@@ -80,22 +82,53 @@ func TestPedAppListActivitiesUnderMdl1(t *testing.T) {
 		t.Errorf("describe -> exec -> describe changed the microflow:\n%s", lineDiff(first, again))
 	}
 
-	// Control: outside an mdl 1 script describe keeps the call form while mdl 1
-	// is a preview, so the rows above are not what a plain describe prints.
+	// describe writes the statements in every language (ako/mxcli#840): the
+	// default, outside any script, and asked for mdl 0, where the call form it
+	// wrote before the freeze is a deprecated spelling.
 	plain, err := h.describe(listActivityTarget)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(plain, "= head $Feedbacks;") || !strings.Contains(plain, "= head($Feedbacks);") {
-		t.Errorf("a plain describe must keep the call form while mdl 1 is a preview:\n%s", plain)
+	mdl0, err := h.describeAs(langver.V0, listActivityTarget)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, out := range map[string]string{"the default describe": plain, "describe --mdl 0": mdl0} {
+		if !strings.Contains(out, "= head $Feedbacks;") || strings.Contains(out, "= head($Feedbacks);") {
+			t.Errorf("%s does not write the statement form:\n%s", name, out)
+		}
 	}
 }
 
-// describeUnder runs describe inside a script with the given header.
+// describeAs runs describe asked for language v, as `mxcli describe --mdl <v>`
+// does, and restores the default (mdl 1) after.
+func (h *harness) describeAs(v langver.Version, target string) (string, error) {
+	h.t.Helper()
+	h.exe.SetDescribeLanguage(v)
+	defer h.exe.SetDescribeLanguage(langver.Frozen)
+	return h.describe(target)
+}
+
+// describeUnder runs describe inside a script with the given header, in that
+// header's language: "" (a headerless script) describes in mdl 0, as
+// `describe --mdl 0` does, so an mdl 0 leg stays one now that a plain
+// describe writes mdl 1 (ako/mxcli#714).
 func (h *harness) describeUnder(header, target string) string {
 	h.t.Helper()
+	h.exe.SetDescribeLanguage(langver.ScanHeader(header))
+	defer h.exe.SetDescribeLanguage(langver.Frozen)
 	if err := h.exec(header + "\ndescribe " + target + ";"); err != nil {
 		h.t.Fatalf("describe %s under %q: %v", target, header, err)
 	}
 	return h.out.String()
+}
+
+// withoutHeader drops the `mdl 1;` line a description starts with since the
+// freeze (ako/mxcli#714), for a control that reads the description's text in
+// the other language.
+func withoutHeader(s string) string {
+	if first, rest, ok := strings.Cut(s, "\n"); ok && langver.IsHeaderLine(first) {
+		return rest
+	}
+	return s
 }

@@ -6,6 +6,7 @@ package roundtrip
 
 import (
 	"fmt"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"sort"
 	"strings"
 	"testing"
@@ -38,7 +39,7 @@ func TestPedAppRoundTrip_RetrieveRange(t *testing.T) {
 	}
 
 	// --- The object form -------------------------------------------------
-	described, err := h.describe(target)
+	described, err := h.describeAs(langver.V0, target)
 	if err != nil {
 		t.Fatalf("describe: %v", err)
 	}
@@ -56,7 +57,7 @@ func TestPedAppRoundTrip_RetrieveRange(t *testing.T) {
 		if got := h.retrieveRanges(t, "PopulateUserAttributes"); strings.Join(got, "; ") != objectRange {
 			t.Errorf("header %q: object form stored as %q, want %q", header, got, objectRange)
 		}
-		if again, _ := h.describe(target); again != described {
+		if again, _ := h.describeAs(langver.V0, target); again != described {
 			t.Errorf("header %q: PutGet — describe changed after exec:\n%s", header, lineDiff(described, again))
 		}
 	}
@@ -69,7 +70,7 @@ func TestPedAppRoundTrip_RetrieveRange(t *testing.T) {
 	if got := h.retrieveRanges(t, "PopulateUserAttributes"); strings.Join(got, "; ") != listOfOne {
 		t.Fatalf("`limit 1` under mdl 1 stored as %q, want a list of one %q", got, listOfOne)
 	}
-	listDescribed, err := h.describe(target)
+	listDescribed, err := h.describeAs(langver.V0, target)
 	if err != nil {
 		t.Fatalf("describe the list form: %v", err)
 	}
@@ -82,7 +83,7 @@ func TestPedAppRoundTrip_RetrieveRange(t *testing.T) {
 	if got := h.retrieveRanges(t, "PopulateUserAttributes"); strings.Join(got, "; ") != listOfOne {
 		t.Errorf("list form's describe output under mdl 1 stored %q, want %q", got, listOfOne)
 	}
-	if again, _ := h.describe(target); again != listDescribed {
+	if again, _ := h.describeAs(langver.V0, target); again != listDescribed {
 		t.Errorf("PutGet under mdl 1 — describe changed after exec:\n%s", lineDiff(listDescribed, again))
 	}
 

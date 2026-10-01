@@ -57,9 +57,11 @@ func TestExtractObjectListItem_EmitsTextTemplateParameters(t *testing.T) {
 	if params == "" {
 		t.Fatalf("template PARAMETERS missing — re-executing this description leaves {1} with no parameter (CE0720); props = %v", item.Props)
 	}
-	// paramListV3 is `[{N} = expr]`; a bare expression list does not parse.
-	if !strings.HasPrefix(params, "[{1} = ") {
-		t.Errorf("params = %q, want the [{N} = expr] form paramListV3 accepts", params)
+	// paramListV3 is `({N} = expr)`; a bare expression list does not parse,
+	// and the bracketed `[{N} = expr]` is the deprecated MDL-DEPR124 spelling
+	// describe must not write (ako/mxcli#840).
+	if !strings.HasPrefix(params, "({1} = ") {
+		t.Errorf("params = %q, want the ({N} = expr) form paramListV3 accepts", params)
 	}
 }
 

@@ -20,6 +20,11 @@ var describeCmd = &cobra.Command{
 	Short: "Describe a project element",
 	Long: `Describe an element from a Mendix project in MDL syntax.
 
+The description is written in mdl 1 and starts with the header "mdl 1;", so
+it can be executed back as it is; descriptions concatenated into one file
+repeat the header, which is allowed. --mdl 0 writes the alpha language
+instead, with no header (ako/mxcli#840).
+
 The <type> is optional for a qualified document name: 'describe MyModule.Customer'
 auto-detects the document type. Pass the type explicitly to disambiguate (a name
 can match both an entity and a document, for example) or for forms that have no
@@ -72,6 +77,7 @@ Example:
   mxcli describe -p app.mpr module MyModule
   mxcli describe -p app.mpr entity MyModule.Customer
   mxcli describe -p app.mpr microflow MyModule.ProcessOrder
+  mxcli describe -p app.mpr --mdl 0 microflow MyModule.ProcessOrder
   mxcli describe -p app.mpr nanoflow MyModule.ValidateInput
   mxcli describe -p app.mpr page MyModule.Customer_Overview
   mxcli describe -p app.mpr json structure MyModule.CustomerResponse
@@ -211,6 +217,7 @@ Example:
 		defer logger.Close()
 		defer exec.Close()
 		exec.SetQuiet(true) // suppress status messages for programmatic output
+		exec.SetDescribeLanguage(mdlFlag(cmd))
 
 		// Connect
 		connectProg, _ := visitor.Build(fmt.Sprintf("CONNECT LOCAL '%s'", visitor.QuoteString(projectPath)))

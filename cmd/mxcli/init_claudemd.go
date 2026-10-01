@@ -165,7 +165,14 @@ func generateClaudeMD(projectName, mprFile string) string {
 	w("./mxcli exec script.mdl -p " + mprPath + "        # a script\n")
 	w("./mxcli                                          # REPL\n")
 	w(bt3 + "\n\n")
-	w("Scripts live in " + bt + "mdlsource/" + bt + ", one file per concern, re-runnable.\n\n")
+	w("Scripts live in " + bt + "mdlsource/" + bt + ", one file per concern.\n")
+	// The language header (decision 4 on ako/mxcli#714): a script written now
+	// is mdl 1, and a headerless one is the older mdl 0, whose statements can
+	// mean something else. Mixing the two in one file is the failure to
+	// prevent, so the upgrade comes before the edit.
+	w("**Each starts with " + bt + "mdl 1;" + bt + ".** A headerless one is " + bt + "mdl 0" + bt + ": upgrade it first,\n")
+	w(bt + "./mxcli fmt --upgrade --header -p " + mprPath + " -w <file>" + bt + ", then " + bt + "check" + bt + " it; never mix the two\n")
+	w("in a file. Exec a change twice: the second run must write nothing (unchanged).\n\n")
 
 	// ── The gates ───────────────────────────────────────────────────
 	// Ordered cheapest-first on purpose: each one is only worth paying for
@@ -194,8 +201,7 @@ func generateClaudeMD(projectName, mprFile string) string {
 
 	// ── The reference is the tool ───────────────────────────────────
 	w("## Syntax, rules and skills — ask the tool, not this file\n\n")
-	w("These change every release. Nothing here restates them, because a copy that\n")
-	w("disagrees with the tool is worse than no copy.\n\n")
+	w("These change every release, and a copy that disagrees with the tool is worse than none.\n\n")
 	w("| To find out | Run |\n")
 	w("|---|---|\n")
 	w("| What MDL can say, and how | " + bt + "./mxcli syntax" + bt + " → " + bt + "./mxcli syntax <topic> [sub]" + bt + " (" + bt + "--json" + bt + " for bulk) |\n")
@@ -213,7 +219,7 @@ func generateClaudeMD(projectName, mprFile string) string {
 	// Short, and each one is here precisely because no command reports it.
 	w("## Conventions no command will tell you\n\n")
 	w("- **Quote every identifier** in MDL — " + bt + "Module.\"Customer\"" + bt + ", " + bt + "\"Status\": String(50)" + bt + ".\n")
-	w("  Quotes are stripped, so it is always safe, and it sidesteps every parser keyword.\n")
+	w("  Quotes are stripped, so it is safe and sidesteps every parser keyword.\n")
 	w("  It does **not** exempt names Mendix itself reserves (" + bt + "Type" + bt + ", " + bt + "ID" + bt + ", " + bt + "CreatedDate" + bt + ") —\n")
 	w("  those are rejected quoted or not.\n")
 	w("- **A business process with human steps is a " + bt + "WORKFLOW" + bt + "**, not a status attribute\n")
@@ -232,7 +238,7 @@ func generateClaudeMD(projectName, mprFile string) string {
 	// bootstrap procedure and the steady state disagree about what a finished
 	// change looks like.
 	w("## Finishing a change\n\n")
-	w("Bootstrap set these up. They are only worth having if every change maintains them.\n\n")
+	w("Bootstrap set these up; they are only worth having if every change keeps them.\n\n")
 	w("1. **Run the gates above, in order**, and say what each reported — not \"it builds\".\n")
 	w("2. **Capture requirements as they arrive** — " + bt + "./mxcli brain capture \"<requirement>\"\n")
 	w("   --slice <slice> -a @Mod.Thing" + bt + ". Never tick anything off: " + bt + "brain plan" + bt + " derives what\n")

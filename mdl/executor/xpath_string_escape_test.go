@@ -74,8 +74,9 @@ func TestDescribedXPathStoresTheStoredConstraint(t *testing.T) {
 		ctx    *ExecContext
 		header string
 	}{
-		{"mdl 0", &ExecContext{}, ""},
+		{"mdl 0", mdl0Ctx(), ""},
 		{"mdl 1", &ExecContext{LanguageVersion: langver.V1}, "mdl 1;\n"},
+		{"default (mdl 1)", nil, "mdl 1;\n"},
 	} {
 		for _, d := range xpathDescribers {
 			for _, stored := range storedXPaths {
@@ -118,7 +119,7 @@ func TestDynamicQueryDescribesPerLanguage(t *testing.T) {
 	for _, lang := range []struct {
 		ctx    *ExecContext
 		header string
-	}{{&ExecContext{}, ""}, {&ExecContext{LanguageVersion: langver.V1}, "mdl 1;\n"}} {
+	}{{mdl0Ctx(), ""}, {&ExecContext{LanguageVersion: langver.V1}, "mdl 1;\n"}, {nil, "mdl 1;\n"}} {
 		line := formatExecuteDatabaseQueryAction(lang.ctx, a)
 		src := lang.header + "create microflow M.F () begin\n  " + line + "\nend;"
 		prog, errs := visitor.Build(src)

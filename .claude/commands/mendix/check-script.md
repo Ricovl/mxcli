@@ -17,6 +17,9 @@ mxcli check script.mdl
 mxcli check script.mdl -p app.mpr --references
 ```
 
+A script starts with `mdl 1;`. A headerless script is checked as the older `mdl 0`;
+upgrade it with `mxcli fmt --upgrade --header -p app.mpr -w script.mdl` before editing it.
+
 ## What It Checks
 
 **Syntax check (always runs):**

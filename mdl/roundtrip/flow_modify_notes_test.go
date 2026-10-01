@@ -7,6 +7,8 @@ package roundtrip
 import (
 	"strings"
 	"testing"
+
+	"github.com/mendixlabs/mxcli/mdl/langver"
 )
 
 // ako/mxcli#859 (rehearsal M3): `create or modify` of a flow whose statement
@@ -129,7 +131,7 @@ func TestSpliceRerun_ReannotatedStudioProNanoflow(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
 	const target = "nanoflow FeedbackModule.ACT_Feedback_TriggerScreenshotMode"
-	mdl0 := h.mustDescribe(t, target)
+	mdl0 := h.mustDescribeMdl0(t, target)
 	if !strings.Contains(mdl0, `\r\n`) {
 		t.Fatalf("the fixture's note no longer holds a line break; the case is gone:\n%s", mdl0)
 	}
@@ -233,7 +235,7 @@ func TestSpliceRerun_PedAppNanoflowsUnderTheHeader(t *testing.T) {
 		n++
 		t.Run(d.key(), func(t *testing.T) {
 			defer h.restore()
-			mdl0, err := h.describe(d.target())
+			mdl0, err := h.describeAs(langver.V0, d.target())
 			if err != nil {
 				t.Fatalf("describe: %v", err)
 			}

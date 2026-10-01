@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -55,10 +56,12 @@ Upgrading (--upgrade):
   heuristic formatting above is not applied. A deprecated use that has no
   mechanical rewrite is reported on stderr and left in place.
 
-  --header also adds the language header (mdl 1;), after rewriting every
-  construct whose meaning the header would change. A construct without such a
-  rewrite blocks the header, and fmt fails rather than change the script's
-  meaning. While mdl 1 is a preview the header is added only when asked.
+  It also adds the language header (mdl 1;), after rewriting every construct
+  whose meaning the header would change. A construct without such a rewrite
+  blocks the header, and fmt fails rather than change the script's meaning.
+  --header=false upgrades the spellings alone and adds no header. Plain fmt
+  (without --upgrade) never adds a header: a headerless script is mdl 0, and
+  only the upgrade knows how to keep its meaning under mdl 1.
 
   With -p app.mpr, the project the script runs against answers what the
   script cannot: find(…) / contains(…) over the result of a microflow or
@@ -101,8 +104,8 @@ Upgrading (--upgrade):
 		if cmd.Flags().Changed("header") && !doUpgrade {
 			return fmt.Errorf("--header needs --upgrade")
 		}
-		if force, _ := cmd.Flags().GetBool("force-header"); force && !addHeader {
-			return fmt.Errorf("--force-header needs --upgrade --header")
+		if force, _ := cmd.Flags().GetBool("force-header"); force && (!doUpgrade || cmd.Flags().Changed("header") && !addHeader) {
+			return fmt.Errorf("--force-header needs --upgrade, with the header")
 		}
 
 		// Determine source: stdin when no arg or "-" is passed.
@@ -187,6 +190,13 @@ Upgrading (--upgrade):
 			defer closeProject()
 			res, err := upgrade.Upgrade(string(data), opts)
 			if err != nil {
+				// The header is the default since the freeze (ako/mxcli#714):
+				// name the way to upgrade the spellings without it, which a
+				// plain `fmt --upgrade` did before.
+				var blocked *upgrade.HeaderBlockedError
+				if errors.As(err, &blocked) && !cmd.Flags().Changed("header") {
+					return fmt.Errorf("%s: %w\n`mxcli fmt --upgrade --header=false` upgrades the spellings without the header", label, err)
+				}
 				return fmt.Errorf("%s: %w", label, err)
 			}
 			if res.HeaderAdded {
@@ -316,7 +326,7 @@ func writeFmtResult(cmd *cobra.Command, filePath string, writeInPlace bool, orig
 func init() {
 	fmtCmd.Flags().BoolP("write", "w", false, "Write result to source file instead of stdout")
 	fmtCmd.Flags().Bool("upgrade", false, "Rewrite deprecated spellings to their canonical form, changing nothing else")
-	fmtCmd.Flags().Bool("header", false, "With --upgrade: add the mdl 1 language header (opt-in while mdl 1 is a preview)")
+	fmtCmd.Flags().Bool("header", true, "With --upgrade: add the mdl 1 language header (the default; --header=false declines it)")
 	fmtCmd.Flags().Bool("force-header", false, "With --header -p: add the header even where exec would then refuse a statement")
 }
 

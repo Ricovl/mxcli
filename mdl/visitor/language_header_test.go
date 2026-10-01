@@ -145,7 +145,7 @@ func (p *gateProbe) ExitShowStatement(ctx *parser.ShowStatementContext) {
 func buildWithProbe(t *testing.T, src string) (*ast.Program, *gateProbe) {
 	t.Helper()
 	var probe *gateProbe
-	prog, errs := build(src, func(b *Builder) antlr.ParseTreeListener {
+	prog, errs := build(src, buildOptions{}, func(b *Builder) antlr.ParseTreeListener {
 		probe = &gateProbe{Builder: b}
 		return probe
 	})

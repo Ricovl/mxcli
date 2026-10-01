@@ -7,6 +7,7 @@ import (
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 )
 
 // Lowercase keywords are canonical (R8, ako/mxcli#752): describe writes them
@@ -64,7 +65,7 @@ type Spans struct {
 // parse; the caller must then leave it alone.
 func FormatSpans(src string) (spans Spans, ok bool) {
 	errs := newErrorListener()
-	lexer := parser.NewMDLLexer(newScriptStream(src))
+	lexer := parser.NewMDLLexer(newScriptStream(src, langver.V0))
 	lexer.RemoveErrorListeners()
 	lexer.AddErrorListener(errs)
 	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)

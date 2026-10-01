@@ -189,6 +189,8 @@ Supported element types:
   OData services service info, published entities
 
 Use --depth to control how deep to traverse call chains (default: 2).
+The MDL sources are written in mdl 1, each headed by "mdl 1;"; --mdl 0
+writes them in the alpha language instead.
 
 With --json the assembled context is wrapped in one JSON object,
 {"name", "type", "depth", "context"}, where "context" is the markdown text
@@ -215,7 +217,8 @@ Examples:
 		if depth > 0 {
 			mdlCmd += fmt.Sprintf(" DEPTH %d", depth)
 		}
-		executeMDL(projectPath, mdlCmd)
+		lang := mdlFlag(cmd)
+		executeMDL(projectPath, mdlCmd, func(e *executor.Executor) { e.SetDescribeLanguage(lang) })
 	},
 }
 

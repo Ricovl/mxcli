@@ -10,30 +10,41 @@ func TestHeaderlessIsMdl0(t *testing.T) {
 	}
 }
 
-// Before beta, mdl 1 is a preview and nothing emits a header.
-func TestPreviewState(t *testing.T) {
-	if !V1.IsPreview() {
-		t.Error("mdl 1 must be a preview until beta")
+// mdl 1 is frozen (ako/mxcli#714): describe and fmt write its header, and the
+// interactive surfaces start in it — while a headerless script stays mdl 0.
+func TestMdl1IsFrozen(t *testing.T) {
+	if Frozen != V1 {
+		t.Fatalf("Frozen = %v, want mdl 1", Frozen)
 	}
-	if V0.IsPreview() {
-		t.Error("mdl 0 is the alpha language, not a preview")
+	if got := HeaderLine(); got != "mdl 1;" {
+		t.Errorf("describe/fmt header = %q, want %q", got, "mdl 1;")
 	}
-	if got := HeaderLine(); got != "" {
-		t.Errorf("describe/fmt must not emit a header while mdl 1 is a preview, got %q", got)
+	if Interactive != V1 {
+		t.Errorf("the REPL and -c start in %v, want the frozen mdl 1", Interactive)
+	}
+	if Default != V0 {
+		t.Error("a headerless script must keep the alpha meaning (ADR-0011)")
 	}
 }
 
-// Flipping the switch to V1 is all beta takes: mdl 1 stops being a preview and
-// becomes the header describe/fmt write.
-func TestFrozenSwitch(t *testing.T) {
-	if isPreview(V1, V1) {
-		t.Error("mdl 1 is still a preview once frozen")
+func TestHeaderFor(t *testing.T) {
+	for v, want := range map[Version]string{V0: "", V1: "mdl 1;"} {
+		if got := HeaderFor(v); got != want {
+			t.Errorf("HeaderFor(%v) = %q, want %q", v, got, want)
+		}
 	}
-	if got := headerLine(V1); got != "mdl 1;" {
-		t.Errorf("frozen mdl 1: got header %q", got)
+}
+
+func TestParseFlag(t *testing.T) {
+	for in, want := range map[string]Version{"0": V0, "1": V1, " 1 ": V1, "mdl 1": V1, "MDL 0": V0} {
+		if got, err := ParseFlag(in); err != nil || got != want {
+			t.Errorf("ParseFlag(%q) = %v, %v; want %v", in, got, err, want)
+		}
 	}
-	if isPreview(Latest+1, V1) {
-		t.Error("an unknown version is not a preview, it is refused")
+	for _, in := range []string{"", "2", "-1", "one", "1.0"} {
+		if _, err := ParseFlag(in); err == nil {
+			t.Errorf("ParseFlag(%q) accepted a version this mxcli does not know", in)
+		}
 	}
 }
 
@@ -83,6 +94,25 @@ func TestScanHeader(t *testing.T) {
 	} {
 		if got := ScanHeader(src); got != want {
 			t.Errorf("ScanHeader(%q) = %v, want %v", src, got, want)
+		}
+	}
+}
+
+// An explicit `mdl 0;` is a header; no header is not. The REPL switches its
+// session on the first and keeps it on the second.
+func TestScanWrittenHeader(t *testing.T) {
+	for src, want := range map[string]struct {
+		v       Version
+		written bool
+	}{
+		"mdl 0;":         {V0, true},
+		"mdl 1; list x;": {V1, true},
+		"list entities;": {V0, false},
+		"mdl 99;":        {V0, false},
+		"":               {V0, false},
+	} {
+		if v, w := ScanWrittenHeader(src); v != want.v || w != want.written {
+			t.Errorf("ScanWrittenHeader(%q) = %v, %v; want %v, %v", src, v, w, want.v, want.written)
 		}
 	}
 }

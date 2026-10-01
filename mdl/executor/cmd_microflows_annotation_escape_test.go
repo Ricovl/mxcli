@@ -17,9 +17,12 @@ import (
 	"testing"
 )
 
+// Under mdl 0 (`describe --mdl 0`) a line break is an escape; under mdl 1,
+// the default since the freeze, it is written into the literal and a backslash
+// is an ordinary character (TestMdlQuote_FollowsTheDescribeLanguage).
 func TestMdlQuote_EscapesNewlinesAndBackslashes(t *testing.T) {
 	in := "SvdV (24/Mar/2021):\r\n\r\nThis microflow uses \\d in a regex."
-	out := mdlQuote(nil, in)
+	out := mdlQuote(mdl0Ctx(), in)
 
 	if strings.ContainsRune(out, '\n') {
 		t.Errorf("mdlQuote output must not contain a raw newline, got %q", out)

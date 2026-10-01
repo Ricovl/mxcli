@@ -56,9 +56,9 @@ import (
 // Options says what Upgrade may do beyond the alias rewrites.
 type Options struct {
 	// AddHeader adds the `mdl <Latest>;` header to a headerless script, after
-	// rewriting every construct whose meaning the header would change. While
-	// mdl 1 is a preview this is opt-in (`fmt --upgrade --header`); at beta it
-	// becomes the default (langver.Frozen is the single switch).
+	// rewriting every construct whose meaning the header would change. It is
+	// the default since mdl 1 was frozen (langver.Frozen is the single
+	// switch); `fmt --upgrade --header=false` upgrades the spellings alone.
 	AddHeader bool
 	// Flows answers what the project's microflows and nanoflows return, for
 	// the header-gated constructs whose meaning depends on it (`find(…)` over

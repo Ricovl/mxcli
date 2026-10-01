@@ -94,7 +94,7 @@ RETRIEVE $RecentOrders FROM Sales.Order
   LIMIT 50;
 ```
 
-With `FIRST` the result is a single entity object (Mendix's "First object" range). Otherwise the result is a list, including with `LIMIT`/`OFFSET`. A bare `LIMIT 1` depends on the language version: a list of one under `mdl 1;`, and without the header the object, with warning `MDL-V1-LIMIT1`. `describe` prints the object range as `FIRST`.
+With `FIRST` the result is a single entity object (Mendix's "First object" range). Otherwise the result is a list, including with `LIMIT`/`OFFSET`. A bare `LIMIT 1` is a list of one (a script file without the header reads it differently; see [Language Versions and Migration](versions.md)). `describe` prints the object range as `FIRST`.
 
 ### RETRIEVE by Association
 

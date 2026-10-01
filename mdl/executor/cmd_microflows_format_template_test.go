@@ -38,8 +38,12 @@ func TestDescribeTemplateLineBreak(t *testing.T) {
 		if got := formatAction(&ExecContext{LanguageVersion: langver.V1}, tc.action, nil, nil); got != tc.mdl1 {
 			t.Errorf("mdl 1 describe:\n got  %q\n want %q", got, tc.mdl1)
 		}
-		// Control: outside an mdl 1 script describe keeps the mdl 0 escapes.
-		if got := formatAction(nil, tc.action, nil, nil); got != tc.mdl0 {
+		// The default since the freeze is mdl 1, in a headerless script too.
+		if got := formatAction(nil, tc.action, nil, nil); got != tc.mdl1 {
+			t.Errorf("default describe:\n got  %q\n want %q", got, tc.mdl1)
+		}
+		// Control: asked for mdl 0, describe writes the mdl 0 escapes.
+		if got := formatAction(mdl0Ctx(), tc.action, nil, nil); got != tc.mdl0 {
 			t.Errorf("mdl 0 describe:\n got  %q\n want %q", got, tc.mdl0)
 		}
 

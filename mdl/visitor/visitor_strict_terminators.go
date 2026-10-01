@@ -47,7 +47,7 @@ func (b *Builder) ExitStatement(ctx *parser.StatementContext) {
 	if last[0].GetTokenType() == parser.MDLParserSLASH {
 		slash, last = last[0], last[1:]
 	}
-	if len(last) > 0 && last[0].GetTokenType() != parser.MDLParserSEMICOLON {
+	if len(last) > 0 && last[0].GetTokenType() != parser.MDLParserSEMICOLON && !(b.session && isLastStatement(ctx)) {
 		if b.gate(semicolonRequired, ctx) {
 			b.addError(fmt.Errorf("line %d: the statement ending at %q has no terminating `;`: "+
 				"under %s every statement ends with `;`", last[0].GetLine(), last[0].GetText(), b.langVersion))
@@ -63,6 +63,29 @@ func (b *Builder) ExitStatement(ctx *parser.StatementContext) {
 			b.fixLastNote(slashIsNotATerminator.Code, &ast.Fix{Edits: []ast.TextEdit{slashLineFix(slash)}}, "")
 		}
 	}
+}
+
+// isLastStatement reports whether ctx is the input's last statement: nothing
+// but the end of input follows it. At the REPL and in a -c one-liner the end of
+// the input terminates that statement (`list entities` typed and entered), so
+// BuildSession does not require its `;` under any version.
+func isLastStatement(ctx *parser.StatementContext) bool {
+	parent, ok := ctx.GetParent().(antlr.ParserRuleContext)
+	if !ok {
+		return false
+	}
+	children := parent.GetChildren()
+	for i, c := range children {
+		if c != ctx {
+			continue
+		}
+		for _, next := range children[i+1:] {
+			tn, ok := next.(antlr.TerminalNode)
+			return ok && tn.GetSymbol().GetTokenType() == antlr.TokenEOF
+		}
+		return true
+	}
+	return false
 }
 
 // lastTerminals returns up to n of the tree's last tokens, the last first.

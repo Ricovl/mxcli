@@ -137,7 +137,7 @@ func TestExpressionStringEscapesStoreWhatStudioProStores(t *testing.T) {
 			}
 			describe := func() string {
 				if header == "" {
-					return h.mustDescribe(t, target)
+					return h.mustDescribeMdl0(t, target)
 				}
 				return h.describeUnder(header, target)
 			}
@@ -174,7 +174,7 @@ func TestExpressionStringEscapesStoreWhatStudioProStores(t *testing.T) {
 			if header != "" {
 				other = ""
 			}
-			if err := h.exec(other + first); err == nil && bytes.Equal(h.flowUnit(t, "Esc"), before) {
+			if err := h.exec(other + withoutHeader(first)); err == nil && bytes.Equal(h.flowUnit(t, "Esc"), before) {
 				t.Error("the description read in the other language wrote nothing — the comparison cannot fail")
 			}
 		})
@@ -337,7 +337,7 @@ func TestRetrieveXPathStringEscapes(t *testing.T) {
 			}
 			describe := func() string {
 				if header == "" {
-					return h.mustDescribe(t, target)
+					return h.mustDescribeMdl0(t, target)
 				}
 				return h.describeUnder(header, target)
 			}

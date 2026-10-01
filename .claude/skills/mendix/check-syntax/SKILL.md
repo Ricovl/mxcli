@@ -258,6 +258,13 @@ add-the-column-then-populate-it shape stays valid.
 
 Before writing any MDL, verify these requirements:
 
+### 0. Start the script with `mdl 1;`
+
+A script without the header is checked and executed as `mdl 0`, the alpha language,
+where some statements mean something else. Write `mdl 1;` as the first line of every
+new script. To edit a headerless one, upgrade it first (`mxcli fmt --upgrade --header
+-p app.mpr -w script.mdl`) — never mix the two in one file; see `choose-edit-mode`.
+
 ### 1. Check Supported Syntax
 
 **Supported in Microflows:**
@@ -345,6 +352,7 @@ Before writing any MDL, verify these requirements:
 > problem, not the quotes.
 
 ```sql
+mdl 1;
 create persistent entity Module."Customer" (
   "Name": string(200),
   "status": string(50),
@@ -471,7 +479,7 @@ Statement 5: create page (never executed)
 
 **Recommendations:**
 1. Split scripts into phases when experimenting with uncertain syntax
-2. Use `create or replace` to make scripts idempotent
+2. Use `create or modify` to make scripts idempotent
 3. Re-run and check `git status` — a settled script changes nothing
 4. Test new syntax patterns with minimal scripts first
 5. Keep a backup of your project before running large scripts
@@ -481,9 +489,7 @@ Statement 5: create page (never executed)
 Organize scripts in dependency order:
 
 ```mdl
--- check-skip: illustrative ordering example; the PHASE 5 page block uses
--- shorthand pseudo-syntax (layout/title/parameter/widgets) for brevity, not
--- runnable MDL. See create-page for the real page syntax.
+mdl 1;
 -- ============================================
 -- PHASE 1: Enumerations (no dependencies)
 -- ============================================
@@ -491,7 +497,6 @@ create enumeration Module.Status (
   Active 'Active',
   Inactive 'Inactive'
 );
-/
 
 -- ============================================
 -- PHASE 2: Entities (depend on enumerations)
@@ -500,7 +505,10 @@ create persistent entity Module.Customer (
   Name: string(200),
   status: Module.Status
 );
-/
+
+create persistent entity Module.Order (
+  OrderNumber: string(20)
+);
 
 -- ============================================
 -- PHASE 3: Associations (depend on entities)
@@ -508,7 +516,6 @@ create persistent entity Module.Customer (
 create association Module.Order_Customer
 from Module.Order to Module.Customer
 type reference;
-/
 
 -- ============================================
 -- PHASE 4: Microflows (depend on entities)
@@ -521,20 +528,21 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 -- ============================================
 -- PHASE 5: Pages (depend on microflows)
 -- ============================================
-create page Module.Customer_Edit
-layout Atlas_Default
-title 'Edit Customer'
-parameter $Customer: Module.Customer
-widgets (
-  -- Can reference microflows created in Phase 4
-  button 'Save' call microflow Module.ACT_Save (Customer = $Customer)
-);
-/
+create page Module.Customer_Edit (
+  Title: 'Edit Customer',
+  Layout: Atlas_Core.PopupLayout,
+  Params: ( $Customer: Module.Customer )
+) {
+  dataview dvCustomer (DataSource: $Customer) {
+    textbox txtName (Label: 'Name', Attribute: Name)
+    -- Can reference the microflow created in Phase 4
+    actionbutton btnSave (Caption: 'Save', Action: call microflow Module.ACT_Save(Customer = $Customer))
+  }
+};
 ```
 
 ## Troubleshooting Parse Errors
