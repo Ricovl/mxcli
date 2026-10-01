@@ -100,7 +100,13 @@ func (*OpenWorkflowStmt) isMicroflowStatement() {}
 
 // LockWorkflowStmt represents: LOCK WORKFLOW ($WorkflowVar | ALL)
 type LockWorkflowStmt struct {
-	WorkflowVariable  string
+	WorkflowVariable string
+	// Workflow is the qualified name of the workflow definition, the other
+	// selection Studio Pro offers ("Input type: workflow document").
+	Workflow string
+	// PauseAllWorkflows is `pause all`, Studio Pro's "Pause instances". The bare
+	// `lock workflow all` also sets it, with no selection — the form check and
+	// exec refuse (mendixlabs/mxcli#870).
 	PauseAllWorkflows bool
 	ErrorHandling     *ErrorHandlingClause
 	Annotations       *ActivityAnnotations
@@ -110,7 +116,9 @@ func (*LockWorkflowStmt) isMicroflowStatement() {}
 
 // UnlockWorkflowStmt represents: UNLOCK WORKFLOW ($WorkflowVar | ALL)
 type UnlockWorkflowStmt struct {
-	WorkflowVariable         string
+	WorkflowVariable string
+	Workflow         string // qualified name; see LockWorkflowStmt
+	// ResumeAllPausedWorkflows is `unpause all`, "Unpause instances".
 	ResumeAllPausedWorkflows bool
 	ErrorHandling            *ErrorHandlingClause
 	Annotations              *ActivityAnnotations

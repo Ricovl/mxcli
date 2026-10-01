@@ -759,7 +759,14 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 	var lastErrID model.ID
 	var lastErrCase string
 	var lastErrAnchor *ast.FlowAnchors
+	// prevOwnAnchor is the @anchor of the handler statement before this one,
+	// whose `from:` is the side the edge between them leaves. The loop below
+	// built its edges with the default sides and never applied either end, so
+	// an @anchor inside a handler parsed, passed check and exec, and did
+	// nothing (mendixlabs/mxcli#991).
+	var prevOwnAnchor *ast.FlowAnchors
 	for _, stmt := range errorBody {
+		thisAnchor := stmtOwnAnchor(stmt)
 		actID := errBuilder.addStatement(stmt)
 		if errBuilder.pendingJoin != nil {
 			// A handler whose FIRST statement is a join has no activity of its
@@ -782,11 +789,18 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 		if actID != "" {
 			errBuilder.applyPendingAnnotations(actID)
 			if lastErrID == "" {
-				// Connect source activity to first error handler activity
-				fb.flows = append(fb.flows, newErrorHandlerFlow(sourceActivityID, actID))
+				// Connect source activity to first error handler activity. The
+				// statement's `to:` is the side its incoming edge — this one —
+				// enters; the side the edge leaves the source has no spelling.
+				flow := newErrorHandlerFlow(sourceActivityID, actID)
+				applyUserAnchors(flow, nil, thisAnchor)
+				fb.flows = append(fb.flows, flow)
 			} else {
-				errBuilder.flows = append(errBuilder.flows, newHorizontalFlow(lastErrID, actID))
+				flow := newHorizontalFlow(lastErrID, actID)
+				applyUserAnchors(flow, prevOwnAnchor, thisAnchor)
+				errBuilder.flows = append(errBuilder.flows, flow)
 			}
+			prevOwnAnchor = thisAnchor
 			if errBuilder.nextConnectionPoint != "" {
 				lastErrID = errBuilder.nextConnectionPoint
 				lastErrCase = errBuilder.nextFlowCase
@@ -794,10 +808,15 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 				errBuilder.nextConnectionPoint = ""
 				errBuilder.nextFlowCase = ""
 				errBuilder.nextFlowAnchor = nil
+				// A compound statement steers its own exits.
+				prevOwnAnchor = nil
 			} else {
 				lastErrID = actID
 				lastErrCase = ""
-				lastErrAnchor = nil
+				// The edge that rejoins the main flow leaves this statement, so
+				// it takes the statement's `from:` — and only that: its `to:`
+				// belongs to the edge coming in.
+				lastErrAnchor = originOnly(thisAnchor)
 			}
 		}
 	}
@@ -812,6 +831,16 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 	fb.flows = append(fb.flows, errBuilder.flows...)
 	fb.annotationFlows = append(fb.annotationFlows, errBuilder.annotationFlows...)
 	fb.errors = append(fb.errors, errBuilder.errors...)
+	// A @curve inside the handler is recorded on errBuilder, and applied by the
+	// builder that owns the flows once its graph is complete — this one, since
+	// the handler's flows (and the edge that rejoins the main flow) land here.
+	// Left on errBuilder it was never applied (mendixlabs/mxcli#991).
+	for id, c := range errBuilder.curveByOrigin {
+		if fb.curveByOrigin == nil {
+			fb.curveByOrigin = map[model.ID]*ast.FlowCurve{}
+		}
+		fb.curveByOrigin[id] = c
+	}
 	if fb.annotationsByLabel == nil {
 		fb.annotationsByLabel = errBuilder.annotationsByLabel
 	}
@@ -969,6 +998,15 @@ func applyUserAnchors(flow *microflows.SequenceFlow, origin *ast.FlowAnchors, de
 	if destination != nil && destination.To != ast.AnchorSideUnset {
 		flow.DestinationConnectionIndex = int(destination.To)
 	}
+}
+
+// originOnly is an anchor's `from:` alone, for an edge whose destination the
+// statement does not own.
+func originOnly(a *ast.FlowAnchors) *ast.FlowAnchors {
+	if a == nil || a.From == ast.AnchorSideUnset {
+		return nil
+	}
+	return &ast.FlowAnchors{From: a.From, To: ast.AnchorSideUnset}
 }
 
 func branchDestinationAnchor(branchAnchor, stmtAnchor *ast.FlowAnchors) *ast.FlowAnchors {

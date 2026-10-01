@@ -1060,9 +1060,10 @@ func qualifiedNameString(qn ast.QualifiedName) string {
 
 func (fb *flowBuilder) addCastAction(s *ast.CastObjectStmt) model.ID {
 	action := &microflows.CastAction{
-		BaseElement:    model.BaseElement{ID: model.ID(types.GenerateID())},
-		ObjectVariable: s.ObjectVariable,
-		OutputVariable: s.OutputVariable,
+		BaseElement:       model.BaseElement{ID: model.ID(types.GenerateID())},
+		ObjectVariable:    s.ObjectVariable,
+		OutputVariable:    s.OutputVariable,
+		ErrorHandlingType: fb.ehType(nil),
 	}
 
 	activity := &microflows.ActionActivity{
@@ -1774,9 +1775,10 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 	}
 
 	action := &microflows.ListOperationAction{
-		BaseElement:    model.BaseElement{ID: model.ID(types.GenerateID())},
-		Operation:      operation,
-		OutputVariable: s.OutputVariable,
+		BaseElement:       model.BaseElement{ID: model.ID(types.GenerateID())},
+		Operation:         operation,
+		OutputVariable:    s.OutputVariable,
+		ErrorHandlingType: fb.ehType(nil),
 	}
 
 	// Track output variable type for operations that preserve/produce list types
@@ -1902,10 +1904,11 @@ func (fb *flowBuilder) addAggregateListAction(s *ast.AggregateListStmt) model.ID
 	}
 
 	action := &microflows.AggregateListAction{
-		BaseElement:    model.BaseElement{ID: model.ID(types.GenerateID())},
-		InputVariable:  s.InputVariable,
-		OutputVariable: s.OutputVariable,
-		Function:       function,
+		BaseElement:       model.BaseElement{ID: model.ID(types.GenerateID())},
+		InputVariable:     s.InputVariable,
+		OutputVariable:    s.OutputVariable,
+		Function:          function,
+		ErrorHandlingType: fb.ehType(nil),
 	}
 
 	// The fold Mendix stores beside the expression. REDUCE names both in MDL;
@@ -1968,6 +1971,7 @@ func (fb *flowBuilder) addCreateListAction(s *ast.CreateListStmt) model.ID {
 		BaseElement:         model.BaseElement{ID: model.ID(types.GenerateID())},
 		OutputVariable:      s.Variable,
 		EntityQualifiedName: entityQN,
+		ErrorHandlingType:   fb.ehType(nil),
 	}
 
 	// Register variable type as list
@@ -1999,10 +2003,11 @@ func (fb *flowBuilder) addAddToListAction(s *ast.AddToListStmt) model.ID {
 		value = "$" + s.Item
 	}
 	action := &microflows.ChangeListAction{
-		BaseElement:    model.BaseElement{ID: model.ID(types.GenerateID())},
-		Type:           microflows.ChangeListTypeAdd,
-		ChangeVariable: s.List,
-		Value:          value,
+		BaseElement:       model.BaseElement{ID: model.ID(types.GenerateID())},
+		Type:              microflows.ChangeListTypeAdd,
+		ChangeVariable:    s.List,
+		Value:             value,
+		ErrorHandlingType: fb.ehType(nil),
 	}
 
 	activity := &microflows.ActionActivity{
@@ -2025,10 +2030,11 @@ func (fb *flowBuilder) addAddToListAction(s *ast.AddToListStmt) model.ID {
 // addRemoveFromListAction creates a REMOVE FROM list statement.
 func (fb *flowBuilder) addRemoveFromListAction(s *ast.RemoveFromListStmt) model.ID {
 	action := &microflows.ChangeListAction{
-		BaseElement:    model.BaseElement{ID: model.ID(types.GenerateID())},
-		Type:           microflows.ChangeListTypeRemove,
-		ChangeVariable: s.List,
-		Value:          "$" + s.Item,
+		BaseElement:       model.BaseElement{ID: model.ID(types.GenerateID())},
+		Type:              microflows.ChangeListTypeRemove,
+		ChangeVariable:    s.List,
+		Value:             "$" + s.Item,
+		ErrorHandlingType: fb.ehType(nil),
 	}
 
 	activity := &microflows.ActionActivity{

@@ -94,50 +94,12 @@ func checkDisallowedNanoflowAction(stmt ast.MicroflowStatement) string {
 	return ""
 }
 
-// getErrorHandling extracts the ErrorHandlingClause from statements that have one.
-//
-// Only statements reachable in nanoflows (i.e., NOT in the denylist) need coverage
-// here. Disallowed actions are rejected by checkDisallowedNanoflowAction before
-// this function is called. Statements like ListOperationStmt that have no
-// ErrorHandling field are also omitted (they return nil implicitly via default).
+// getErrorHandling extracts the ErrorHandlingClause from a statement that has
+// one. It is stmtErrorHandling: a second hand-kept list of the statements that
+// take a clause drifted from the first, which is how a handler body went
+// unwalked here.
 func getErrorHandling(stmt ast.MicroflowStatement) *ast.ErrorHandlingClause {
-	switch s := stmt.(type) {
-	case *ast.CreateObjectStmt:
-		return s.ErrorHandling
-	case *ast.MfCommitStmt:
-		return s.ErrorHandling
-	case *ast.DeleteObjectStmt:
-		return s.ErrorHandling
-	case *ast.RetrieveStmt:
-		return s.ErrorHandling
-	case *ast.CallMicroflowStmt:
-		return s.ErrorHandling
-	case *ast.CallNanoflowStmt:
-		return s.ErrorHandling
-	case *ast.CallJavaScriptActionStmt:
-		return s.ErrorHandling
-	// The eight statements mendixlabs/mxcli#1078 gave an onErrorClause. None is
-	// on the denylist above, so all eight are reachable in a nanoflow — and
-	// without them here their handler BODIES are never walked, so a Java action
-	// or REST call nested inside `declare … on error begin … end error` would go unreported.
-	case *ast.DeclareStmt:
-		return s.ErrorHandling
-	case *ast.MfSetStmt:
-		return s.ErrorHandling
-	case *ast.ChangeObjectStmt:
-		return s.ErrorHandling
-	case *ast.LogStmt:
-		return s.ErrorHandling
-	case *ast.ShowPageStmt:
-		return s.ErrorHandling
-	case *ast.ClosePageStmt:
-		return s.ErrorHandling
-	case *ast.ShowMessageStmt:
-		return s.ErrorHandling
-	case *ast.ValidationFeedbackStmt:
-		return s.ErrorHandling
-	}
-	return nil
+	return stmtErrorHandling(stmt)
 }
 
 // validateNanoflowReturnType checks that the return type is allowed for nanoflows.
@@ -241,15 +203,73 @@ func checkNanoflowErrorHandling(stmt ast.MicroflowStatement) string {
 		keyword = "show message"
 	case *ast.ValidationFeedbackStmt:
 		keyword = "validation feedback"
+	case *ast.CreateObjectStmt, *ast.MfCommitStmt, *ast.CallNanoflowStmt, *ast.CallMicroflowStmt:
+		return checkNanoflowWithoutRollbackOnly(stmt)
 	default:
 		// declare and set are deliberately absent: both variable activities accept
-		// every form in a nanoflow. So do the statements that could already carry
-		// the clause (commit, create, retrieve, the calls) — unmeasured here, and
-		// refusing them would reject nanoflows that build today.
+		// every form in a nanoflow, and so do retrieve and delete (measured,
+		// mendixlabs/mxcli#591). The remaining statements that carry the clause
+		// are unmeasured here, and refusing them would reject nanoflows that
+		// build today.
 		return ""
 	}
 	return "`" + keyword + " ... on error` is not supported in a nanoflow — Mendix rejects " +
 		"error handling on a " + nanoflowErrorHandlingUnsupported[keyword] +
 		" there with CE6035 \"Error handling type is not supported\". Drop the clause " +
 		"(a nanoflow activity aborts the flow on error by default)"
+}
+
+// nanoflowWithoutRollbackOnly names the nanoflow activities that accept exactly
+// one error-handling clause: a custom handler WITHOUT rollback.
+//
+// MEASURED on Mendix 11.14.0 (an ako/TestApp copy, one nanoflow per cell),
+// mendixlabs/mxcli#591:
+//
+//	activity (in a NANOFLOW)   continue   rollback   custom   without rollback
+//	Create object               CE6035     CE6035    CE6035        ok
+//	Commit                      CE6035     CE6035    CE6035        ok
+//	Call nanoflow               CE6035     CE6035    CE6035        ok
+//	Call microflow              CE6035     CE6035    CE6035        ok
+//	Retrieve                      ok         ok        ok          ok
+//	Delete                        ok         ok        ok          ok
+//
+// With no clause the activity stores the nanoflow default Abort, which builds;
+// a nanoflow has no transaction for "rollback" to undo, and Studio Pro's own
+// nanoflows in ako/TestApp store only Abort and CustomWithoutRollBack.
+var nanoflowWithoutRollbackOnly = map[string]string{
+	"create":         "Create object activity",
+	"commit":         "Commit object(s) activity",
+	"call nanoflow":  "Nanoflow call action activity",
+	"call microflow": "Call microflow activity",
+}
+
+func checkNanoflowWithoutRollbackOnly(stmt ast.MicroflowStatement) string {
+	eh := getErrorHandling(stmt)
+	if eh == nil || eh.Type == ast.ErrorHandlingCustomWithoutRollback {
+		return ""
+	}
+	var keyword string
+	switch stmt.(type) {
+	case *ast.CreateObjectStmt:
+		keyword = "create"
+	case *ast.MfCommitStmt:
+		keyword = "commit"
+	case *ast.CallNanoflowStmt:
+		keyword = "call nanoflow"
+	case *ast.CallMicroflowStmt:
+		keyword = "call microflow"
+	default:
+		return ""
+	}
+	form := "on error rollback"
+	switch eh.Type {
+	case ast.ErrorHandlingContinue:
+		form = "on error continue"
+	case ast.ErrorHandlingCustom:
+		form = "on error begin … end error"
+	}
+	return "`" + keyword + " ... " + form + "` is not supported in a nanoflow — Mendix rejects it on a " +
+		nanoflowWithoutRollbackOnly[keyword] + " there with CE6035 \"Error handling type is not supported\". " +
+		"A nanoflow has no transaction to roll back: drop the clause (the activity aborts the flow on error), " +
+		"or handle the error with `on error without rollback begin … end error`"
 }

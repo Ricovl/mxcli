@@ -684,14 +684,19 @@ openWorkflowStatement
     : OPEN WORKFLOW VARIABLE onErrorClause?
     ;
 
-// LOCK WORKFLOW $Wf; or LOCK WORKFLOW ALL;
+// LOCK WORKFLOW $WfDef [PAUSE ALL]; or LOCK WORKFLOW Module.Workflow [PAUSE ALL];
+// PAUSE ALL is Studio Pro's "Pause instances" (PauseAllWorkflows). A lock always
+// names its workflow: the bare `LOCK WORKFLOW ALL` still parses, and check and
+// exec refuse it — there is no model for it, it built as CE1825
+// (mendixlabs/mxcli#870). ALL is before qualifiedName so `all` stays that form.
 lockWorkflowStatement
-    : LOCK WORKFLOW (VARIABLE | ALL) onErrorClause?
+    : LOCK WORKFLOW (VARIABLE | ALL | qualifiedName) (PAUSE ALL)? onErrorClause?
     ;
 
-// UNLOCK WORKFLOW $Wf; or UNLOCK WORKFLOW ALL;
+// UNLOCK WORKFLOW $WfDef [UNPAUSE ALL]; — UNPAUSE ALL is "Unpause instances"
+// (ResumeAllPausedWorkflows). Same rule for the bare ALL.
 unlockWorkflowStatement
-    : UNLOCK WORKFLOW (VARIABLE | ALL) onErrorClause?
+    : UNLOCK WORKFLOW (VARIABLE | ALL | qualifiedName) (UNPAUSE ALL)? onErrorClause?
     ;
 
 callArgumentList
