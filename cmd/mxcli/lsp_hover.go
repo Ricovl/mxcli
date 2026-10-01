@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"regexp"
 	"strings"
 	"time"
@@ -25,7 +26,12 @@ func (s *mdlServer) Hover(ctx context.Context, params *protocol.HoverParams) (*p
 		return nil, nil
 	}
 
-	// First try: cursor is on a property key inside a pluggable widget's
+	// A migration diagnostic under the cursor: show `mxcli help <code>`.
+	if h := s.migrationHover(docURI, text, params.Position); h != nil {
+		return h, nil
+	}
+
+	// Next: cursor is on a property key inside a pluggable widget's
 	// (...) block. Surface the widget property's description, type, and
 	// default from the .def.json.
 	if h := s.widgetPropertyHover(text, params.Position); h != nil {
@@ -52,7 +58,7 @@ func (s *mdlServer) Hover(ctx context.Context, params *protocol.HoverParams) (*p
 	return &protocol.Hover{
 		Contents: protocol.MarkupContent{
 			Kind:  protocol.Markdown,
-			Value: "```mdl\n" + description + "\n```",
+			Value: "```mdl\n" + withoutLanguageHeader(description) + "\n```",
 		},
 		Range: &protocol.Range{
 			Start: protocol.Position{Line: params.Position.Line, Character: startCol},
@@ -335,4 +341,15 @@ func isIdentChar(c byte) bool {
 		(c >= 'A' && c <= 'Z') ||
 		(c >= '0' && c <= '9') ||
 		c == '_'
+}
+
+// withoutLanguageHeader drops the `mdl 1;` line describe output starts with
+// (ako/mxcli#714): a hover shows a definition, not a script to run, and the
+// header is the same line on every hover.
+func withoutLanguageHeader(description string) string {
+	first, rest, ok := strings.Cut(description, "\n")
+	if ok && langver.IsHeaderLine(first) {
+		return rest
+	}
+	return description
 }

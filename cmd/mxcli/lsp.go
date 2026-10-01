@@ -32,6 +32,10 @@ and provides the following features:
   - Semantic diagnostics on save (reference validation via mxcli check)
   - Context-aware code completion (keywords, snippets)
   - Hover information for qualified names (via mxcli describe)
+  - The document's language version, read from its mdl <n>; header:
+    deprecated spellings (MDL-DEPR*) and changes of meaning (MDL-V1-*)
+    reported where check reports them, hover showing mxcli help <code>,
+    and a quick fix running the fmt --upgrade rewrite where there is one
   - Go-to-definition for qualified names (opens virtual MDL document)
   - Document symbols (outline of CREATE/ALTER/DROP statements)
   - Folding ranges (BEGIN/END, IF/END IF, braces, parens, comments)
@@ -170,7 +174,10 @@ func (s *mdlServer) Initialize(ctx context.Context, params *protocol.InitializeP
 			DocumentSymbolProvider: true,
 			FoldingRangeProvider:   true,
 			HoverProvider:          true,
-			DefinitionProvider:     true,
+			CodeActionProvider: &protocol.CodeActionOptions{
+				CodeActionKinds: []protocol.CodeActionKind{protocol.QuickFix},
+			},
+			DefinitionProvider: true,
 		},
 		ServerInfo: &protocol.ServerInfo{
 			Name:    "mdl-language-server",

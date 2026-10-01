@@ -71,7 +71,7 @@ RETRIEVE $Var FROM Module.Entity [ WHERE condition ] [ FIRST | [ LIMIT n ] [ OFF
 RETRIEVE $List FROM $Parent/Module.AssocName;
 ```
 
-`RETRIEVE ... FIRST` returns a single entity. Without a range, or with `LIMIT`/`OFFSET`, it returns a list. A bare `LIMIT 1` is a list of one under `mdl 1;`; without the header it keeps its old meaning, a single entity, and warns `MDL-V1-LIMIT1`. Retrieve by association traverses an association from a known object.
+`RETRIEVE ... FIRST` returns a single entity. Without a range, or with `LIMIT`/`OFFSET`, it returns a list. A bare `LIMIT 1` is a list of one (for a script file without the header, see [Language Versions and Migration](../../language/versions.md)). Retrieve by association traverses an association from a known object.
 
 **Calls**
 

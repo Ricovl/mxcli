@@ -11,15 +11,15 @@ import (
 )
 
 // describe prints a List operation / Aggregate list activity as the statement
-// that mirrors it when it describes under mdl 1, and keeps the call form while
-// it describes under mdl 0 — which, while mdl 1 is a preview, is every describe
-// outside an `mdl 1;` script (#733).
+// that mirrors it (#733), under mdl 1 and mdl 0 alike: the call form is a
+// deprecated spelling (MDL-DEPR003/004), and describe emits none in either
+// language (ako/mxcli#840). The statement means the same under both.
 func TestDescribeListActivityUnderMdl1(t *testing.T) {
 	cases := []struct {
 		action   microflows.MicroflowAction
 		mdl1     string
-		mdl0     string
-		wantKind string // the statement type the mdl 1 output parses back to
+		call     string // the deprecated call form describe wrote under mdl 0 before #840
+		wantKind string // the statement type the output parses back to
 	}{
 		{listOp(&microflows.HeadOperation{ListVariable: "Orders"}, "First"),
 			"$First = head $Orders;", "$First = head($Orders);", "list"},
@@ -69,25 +69,31 @@ func TestDescribeListActivityUnderMdl1(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.mdl1, func(t *testing.T) {
-			if got := formatAction(&ExecContext{LanguageVersion: langver.V1}, tc.action, nil, nil); got != tc.mdl1 {
-				t.Errorf("mdl 1 describe:\n got  %s\n want %s", got, tc.mdl1)
-			}
-			// Control: outside an mdl 1 script describe keeps the call form.
-			for _, ctx := range []*ExecContext{nil, {LanguageVersion: langver.V0}} {
-				if got := formatAction(ctx, tc.action, nil, nil); got != tc.mdl0 {
-					t.Errorf("mdl 0 describe:\n got  %s\n want %s", got, tc.mdl0)
+			for _, ctx := range []*ExecContext{nil, {}, mdl1Ctx(), mdl0Ctx()} {
+				if got := formatAction(ctx, tc.action, nil, nil); got != tc.mdl1 {
+					t.Errorf("describe in %v:\n got  %s\n want %s", describeLanguage(ctx), got, tc.mdl1)
 				}
 			}
 
-			// The mdl 1 output parses back under the header, with nothing to warn about.
-			src := "mdl 1;\ncreate microflow M.A ($Orders: List of M.Order, $A: List of M.Order, $B: List of M.Order, " +
-				"$Order: M.Order, $Customer: M.Customer)\nbegin\n  " + tc.mdl1 + "\nend;"
-			prog, errs := visitor.Build(src)
-			if len(errs) > 0 {
-				t.Fatalf("the mdl 1 describe output does not parse: %v", errs)
+			// The output parses back under both versions, with nothing to warn
+			// about; the call form it replaced warns (the control).
+			body := func(stmt string) string {
+				return "create microflow M.A ($Orders: List of M.Order, $A: List of M.Order, $B: List of M.Order, " +
+					"$Order: M.Order, $Customer: M.Customer)\nbegin\n  " + stmt + "\nend;"
 			}
-			if len(prog.Deprecations) > 0 || len(prog.LanguageNotes) > 0 {
-				t.Errorf("the mdl 1 describe output warns: %v %v", prog.Deprecations, prog.LanguageNotes)
+			for _, header := range []string{"mdl 1;\n", ""} {
+				prog, errs := visitor.Build(header + body(tc.mdl1))
+				if len(errs) > 0 {
+					t.Fatalf("%q: the describe output does not parse: %v", header, errs)
+				}
+				if len(prog.Deprecations) > 0 || len(prog.LanguageNotes) > 0 {
+					t.Errorf("%q: the describe output warns: %v %v", header, prog.Deprecations, prog.LanguageNotes)
+				}
+			}
+			// (find and contains as calls are not deprecated but ambiguous: the
+			// string function under mdl 0, a gated change, MDL-V1-*.)
+			if prog, errs := visitor.Build(body(tc.call)); len(errs) > 0 || len(prog.Deprecations)+len(prog.LanguageNotes) == 0 {
+				t.Errorf("control: the call form %s parsed under mdl 0 without a warning: %v", tc.call, errs)
 			}
 		})
 	}
@@ -97,13 +103,17 @@ func listOp(op microflows.ListOperation, out string) *microflows.ListOperationAc
 	return &microflows.ListOperationAction{Operation: op, OutputVariable: out}
 }
 
-// The describe language is the newest frozen version unless the describe runs
-// inside a script whose header names a newer one.
+// The describe language is the newest frozen version, mdl 1, also in a
+// headerless (mdl 0) script, unless the session asks for another
+// (SetDescribeLanguage, `--mdl 0`) or an internal describe pins one.
 func TestDescribeLanguage(t *testing.T) {
-	if got := describeLanguage(nil); got != langver.Frozen {
-		t.Errorf("describeLanguage(nil) = %v, want the frozen %v", got, langver.Frozen)
+	if got := describeLanguage(nil); got != langver.V1 {
+		t.Errorf("describeLanguage(nil) = %v, want the frozen mdl 1", got)
 	}
-	if got := describeLanguage(&ExecContext{LanguageVersion: langver.V1}); got != langver.V1 {
-		t.Errorf("under mdl 1 = %v", got)
+	if got := describeLanguage(&ExecContext{LanguageVersion: langver.V0}); got != langver.V1 {
+		t.Errorf("in a headerless script = %v, want mdl 1", got)
+	}
+	if got := describeLanguage(mdl0Ctx()); got != langver.V0 {
+		t.Errorf("asked for mdl 0 = %v", got)
 	}
 }

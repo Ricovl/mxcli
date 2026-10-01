@@ -11,6 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 )
 
 // R4 (PROPOSAL_mdl_beta_syntax_freeze.md §3; ako/mxcli#751): every call site
@@ -110,7 +111,7 @@ func parsesFully(text string, rule func(*parser.MDLParser) antlr.ParserRuleConte
 
 func parseRule(text string, rule func(*parser.MDLParser) antlr.ParserRuleContext) (antlr.ParserRuleContext, bool) {
 	errs := newErrorListener()
-	lexer := parser.NewMDLLexer(newScriptStream(text))
+	lexer := parser.NewMDLLexer(newScriptStream(text, langver.V0))
 	lexer.RemoveErrorListeners()
 	lexer.AddErrorListener(errs)
 	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)

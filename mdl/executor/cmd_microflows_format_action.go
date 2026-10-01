@@ -509,30 +509,11 @@ func formatAction(
 				attrName = parts[len(parts)-1]
 			}
 		}
-		if describeLanguage(ctx) >= langver.V1 {
-			return formatAggregateActivity(ctx, a, fn, attrName, outputVar, entityNames)
-		}
-		// REDUCE carries the fold Mendix stores beside the expression. Both parts
-		// are required, so they are rendered even when empty rather than dropped —
-		// a reduce that describes without them cannot be executed back (#1004).
-		if a.Function == microflows.AggregateFunctionReduce {
-			initial := describeExpr(ctx, a.ReduceInitialValue)
-			if initial == "" {
-				initial = "empty"
-			}
-			return fmt.Sprintf("$%s = reduce($%s, %s, initial: %s, returns: %s);",
-				outputVar, a.InputVariable, describeExpr(ctx, a.Expression), initial,
-				formatMicroflowDataType(ctx, a.ReduceReturnType, entityNames))
-		}
-		// Expression-based aggregate: SUM($list, $currentObject/Attr + 1)
-		if a.UseExpression && a.Expression != "" {
-			return fmt.Sprintf("$%s = %s($%s, %s);", outputVar, fn, a.InputVariable, describeExpr(ctx, a.Expression))
-		}
-		// Attribute-based aggregate: SUM($list.Attr)
-		if attrName != "" && a.Function != microflows.AggregateFunctionCount {
-			return fmt.Sprintf("$%s = %s($%s.%s);", outputVar, fn, a.InputVariable, attrName)
-		}
-		return fmt.Sprintf("$%s = %s($%s);", outputVar, fn, a.InputVariable)
+		// The statement that mirrors the activity, in every language version:
+		// the call form `$n = count($L)` is deprecated (MDL-DEPR004), and
+		// describe never emits a deprecated spelling (ako/mxcli#840). The
+		// statement form reads the same under mdl 0 and mdl 1.
+		return formatAggregateActivity(ctx, a, fn, attrName, outputVar, entityNames)
 
 	case *microflows.RetrieveAction:
 		outputVar := a.OutputVariable
@@ -1238,10 +1219,13 @@ func formatListOperation(ctx *ExecContext, op microflows.ListOperation, outputVa
 	if op == nil {
 		return fmt.Sprintf("$%s = list operation ...;", outputVar)
 	}
-	if describeLanguage(ctx) >= langver.V1 {
-		if stmt, ok := formatListActivity(ctx, op, outputVar); ok {
-			return stmt
-		}
+	// The statement that mirrors the activity, in every language version: the
+	// call forms are deprecated (MDL-DEPR003) and, for find/filter, mean
+	// something else under mdl 1 — describe never emits a deprecated spelling
+	// (ako/mxcli#840). Only an activity the statement cannot express falls
+	// back to the call form below.
+	if stmt, ok := formatListActivity(ctx, op, outputVar); ok {
+		return stmt
 	}
 
 	switch o := op.(type) {

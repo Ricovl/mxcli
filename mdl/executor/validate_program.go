@@ -311,8 +311,8 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// is mdl/deprecation.
 	violations = append(violations, ValidateDeprecations(prog)...)
 
-	// The `mdl <n>;` header: a preview version warns that it may still change,
-	// and every construct kept at an older meaning warns (ADR-0011).
+	// The `mdl <n>;` header: every construct kept at an older meaning warns
+	// (ADR-0011).
 	violations = append(violations, ValidateLanguageVersion(prog)...)
 
 	return violations

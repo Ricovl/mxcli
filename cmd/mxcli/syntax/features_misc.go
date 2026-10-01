@@ -12,18 +12,25 @@ func init() {
 		Summary: "mdl <n>; — the MDL language version a script is written in",
 		Keywords: []string{
 			"mdl 1", "mdl 0", "language version", "header", "edition",
-			"preview", "beta", "version-gated", "meaning", "fmt --upgrade", "upgrade",
+			"beta", "frozen", "version-gated", "meaning", "fmt --upgrade", "upgrade",
+			"--mdl", "repl", "describe",
 		},
 		Syntax: "mdl <n>;\n\n" +
-			"-- Optional, and only as the FIRST statement of a script. It declares the\n" +
-			"-- language version the whole script is read under.\n" +
+			"-- The FIRST statement of a script. It declares the language version the\n" +
+			"-- whole script is read under. It may be repeated later (concatenated\n" +
+			"-- describe output) when it names the same version; a header naming\n" +
+			"-- another version is an error.\n" +
 			"--\n" +
-			"--   no header   mdl 0, the alpha meaning. A construct whose meaning is\n" +
-			"--               different under mdl 1 keeps its old meaning and warns.\n" +
-			"--   mdl 1;      the beta meaning. Until beta it is a PREVIEW: it parses\n" +
-			"--               but warns 'preview: may still change' (MDL-LANG01), and\n" +
-			"--               describe and fmt do not emit it.\n" +
+			"--   mdl 1;      the beta language, frozen: describe and fmt --upgrade\n" +
+			"--               write this header, and the REPL and -c start in it.\n" +
+			"--   no header   a script file is mdl 0, the alpha meaning: a construct\n" +
+			"--               whose meaning is different under mdl 1 keeps its old\n" +
+			"--               meaning and warns.\n" +
 			"--   mdl 2;      refused: this mxcli does not know that version.\n" +
+			"--\n" +
+			"-- At the REPL and in `mxcli -c`, input without a header is mdl 1;\n" +
+			"-- `--mdl 0` starts in mdl 0, and in the REPL `mdl 0;` / `mdl 1;` switches\n" +
+			"-- the session. `mxcli describe --mdl 0` writes the mdl 0 spelling.\n" +
 			"--\n" +
 			"-- Under mdl 1 parsing is strict (each is a warning without the header):\n" +
 			"-- every statement ends with ';' and '/' is not a terminator; '' is the\n" +
@@ -39,7 +46,7 @@ func init() {
 			"-- change of meaning applies only under the version that introduces it.\n" +
 			"-- The header is independent of the Mendix version the project targets.\n" +
 			"--\n" +
-			"-- `mxcli fmt --upgrade --header` adds it, after rewriting every construct\n" +
+			"-- `mxcli fmt --upgrade` adds it, after rewriting every construct\n" +
 			"-- whose meaning it would change: it adds each missing `;`, deletes `/`\n" +
 			"-- lines, writes backslash escapes as the characters they stood for,\n" +
 			"-- turns `retrieve … limit 1` into `first`, adds `set` to reassignments,\n" +
@@ -51,7 +58,8 @@ func init() {
 			"-- nested list operation, find/contains on a variable\n" +
 			"-- whose type the script does not state, and an escaped line break inside\n" +
 			"-- an expression.\n" +
-			"-- `mxcli fmt --upgrade` alone rewrites deprecated spellings (MDL-DEPRnnn).\n" +
+			"-- `mxcli fmt --upgrade --header=false` only rewrites deprecated spellings\n" +
+			"-- (MDL-DEPRnnn) and adds no header.\n" +
 			"--\n" +
 			"-- Every warning with an MDL-V1-* or MDL-DEPRnnn code ends with\n" +
 			"-- `(mxcli help <code>)`, which prints its entry: old form, new form,\n" +

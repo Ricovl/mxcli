@@ -11,8 +11,10 @@ Press Ctrl+Space or start typing to trigger context-aware completions:
 At the start of a statement, the extension suggests top-level MDL keywords:
 
 ```
-CREATE  SHOW  DESCRIBE  ALTER  DROP  GRANT  REVOKE  SEARCH  REFRESH  ...
+CREATE  LIST  DESCRIBE  ALTER  DROP  GRANT  REVOKE  SEARCH  REFRESH  ...
 ```
+
+Completion offers mdl 1 spellings only: no deprecated alias is suggested.
 
 After a keyword, context-appropriate follow-up keywords appear:
 
@@ -39,6 +41,10 @@ CREATE PERSISTENT ENTITY ${1:Module}.${2:EntityName} (
     ${3:Name}: ${4:String(200)}
 );
 ```
+
+The extension also contributes editor snippets that start a new script with the
+language header: `mdl` inserts `mdl 1;`, and `script` / `script microflow` insert a
+small mdl 1 script.
 
 ### Reference Completion
 

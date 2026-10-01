@@ -167,6 +167,12 @@ The mxcli tool is in the PROJECT ROOT, not in system PATH. Always use:
 
 ## MDL Syntax Quick Guide
 
+### Scripts
+- Every script starts with `+"`mdl 1;`"+` and every statement ends with `+"`;`"+`.
+- A script without the header is the older mdl 0. Before editing one, upgrade it:
+  `+"`./mxcli fmt --upgrade --header -p %s -w file.mdl`"+`, then check it. Never mix the two in one file.
+- Exec a change twice: the second run must write nothing (unchanged), so use create or modify.
+
 ### Microflows
 - Variable: `+"`DECLARE $var Type = value;`"+`
 - Entity: `+"`DECLARE $entity Module.Entity;`"+` (no AS, no = empty)
@@ -189,7 +195,7 @@ See AGENTS.md for complete documentation and .ai-context/skills/ for patterns.
 1. Read relevant skill file: .ai-context/skills/write-microflows/SKILL.md or create-page/SKILL.md
 2. Validate: ./mxcli check script.mdl -p %s --references
 3. Execute: ./mxcli exec script.mdl -p %s
-`, projectName, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile)
+`, projectName, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile)
 }
 
 func generateWindsurfRules(projectName, mprPath string) string {
@@ -472,6 +478,9 @@ MPR file: %s
 - The mxcli tool is in the project root. Always use ./mxcli, not mxcli.
 - Read AGENTS.md for full project documentation.
 - Read .ai-context/skills/ for MDL syntax patterns before writing scripts.
+- Every script starts with `+"`mdl 1;`"+`. Before editing a script without that header, upgrade it:
+  ./mxcli fmt --upgrade --header -p %s -w file.mdl, then check it. Never mix mdl 0 and mdl 1 in one file.
+- Execute a change twice: the second run must write nothing (unchanged), so use create or modify.
 - Always validate MDL scripts: ./mxcli check script.mdl -p %s --references
 - Microflow variables start with $. Entity declarations have no AS keyword.
 - Page widgets nest with curly braces { }. Properties use (Key: value).
@@ -483,7 +492,7 @@ MPR file: %s
 - Check: ./mxcli check script.mdl -p %s --references
 - Execute: ./mxcli exec script.mdl -p %s
 - Search: ./mxcli search -p %s "keyword"
-`, projectName, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile)
+`, projectName, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile)
 }
 
 // wrapSkillForVibe wraps a plain markdown skill file with Vibe SKILL.md frontmatter.
@@ -548,14 +557,16 @@ func generateCopilotInstructions(projectName, mprPath string) string {
 		"- **Page widgets:** nest with `{ }`, properties use `(Key: value, ...)`.\n"+
 		"- **Single quotes in expressions:** escape by doubling — `'it''s here'`.\n"+
 		"- **No `AS` keyword** in entity attribute declarations.\n"+
-		"- **Statements** end with `;` or `/` on a line by itself.\n\n"+
+		"- **Scripts** start with `mdl 1;`, and every statement ends with `;`. A script without the header is the\n"+
+		"  older mdl 0: upgrade it before editing (`./mxcli fmt --upgrade --header -p %s -w file.mdl`, then check it),\n"+
+		"  and never mix the two in one file.\n\n"+
 		"## Workflow\n\n"+
 		"1. Explore: read `AGENTS.md` and the relevant `.ai-context/skills/` file first.\n"+
-		"2. Write MDL in a `.mdl` file.\n"+
+		"2. Write MDL in a `.mdl` file that starts with `mdl 1;`.\n"+
 		"3. Validate: `./mxcli check <file>.mdl -p %s --references`.\n"+
 		"4. Execute: `./mxcli exec <file>.mdl -p %s`.\n"+
-		"5. Verify: `./mxcli -p %s -c \"DESCRIBE ENTITY Mod.Name\"`.\n",
-		projectName, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile)
+		"5. Verify: `./mxcli -p %s -c \"DESCRIBE ENTITY Mod.Name\"`. Execute the script again: the second run must write nothing (unchanged).\n",
+		projectName, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile, mprFile)
 }
 
 func generateOpenCodeConfig(projectName, mprPath string) string {

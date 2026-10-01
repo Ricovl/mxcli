@@ -19,9 +19,6 @@ func (s *mdlServer) LogTrace(ctx context.Context, params *protocol.LogTraceParam
 func (s *mdlServer) SetTrace(ctx context.Context, params *protocol.SetTraceParams) error {
 	return nil
 }
-func (s *mdlServer) CodeAction(ctx context.Context, params *protocol.CodeActionParams) ([]protocol.CodeAction, error) {
-	return nil, nil
-}
 func (s *mdlServer) CodeLens(ctx context.Context, params *protocol.CodeLensParams) ([]protocol.CodeLens, error) {
 	return nil, nil
 }

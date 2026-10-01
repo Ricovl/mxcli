@@ -6,7 +6,7 @@ For task-specific guidance, see the skill files listed in [CLAUDE.md](../CLAUDE.
 
 ## Language header — `mdl <n>;`
 
-An optional first statement naming the MDL language version the script is written in. No header is `mdl 0` (alpha meaning; constructs whose meaning differs under `mdl 1` keep the old meaning and warn). `mdl 1;` is a preview until beta: it warns `MDL-LANG01` and `describe`/`fmt` do not emit it. Unknown versions are refused. Independent of the Mendix target version ([ADR-0011](../13-decisions/0011-mdl-language-versioning.md)).
+The first statement, naming the MDL language version the script is written in. `mdl 1` is frozen: `describe` writes `mdl 1;` at the top of every description and `fmt --upgrade` adds it; a repeated header must name the same version. The REPL and `-c` read input without a header as `mdl 1` (`--mdl 0` switches); a script file without one is `mdl 0`, documented only on the [Language Versions and Migration](../../docs-site/src/language/versions.md) page. Unknown versions are refused. Independent of the Mendix target version ([ADR-0011](../13-decisions/0011-mdl-language-versioning.md)).
 
 ```sql
 mdl 1;

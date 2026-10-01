@@ -6,6 +6,7 @@ package roundtrip
 
 import (
 	"bytes"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"strings"
 	"testing"
 
@@ -38,7 +39,7 @@ func TestFlowModify_UnchangedIsByteIdentical(t *testing.T) {
 		{"", sendToServer, "SUB_Feedback_SendToServer"},
 		{"mdl 1;\n", sendToServer, "SUB_Feedback_SendToServer"},
 	} {
-		described := h.mustDescribe(t, c.target)
+		described := h.mustDescribeMdl0(t, c.target)
 		before := h.flowUnit(t, c.name)
 		if err := h.exec(c.header + described); err != nil {
 			t.Fatalf("%s, header %q: exec unchanged describe output: %v", c.name, c.header, err)
@@ -65,7 +66,7 @@ func TestFlowModify_MDL1ReadsStoredStringsAsStored(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
 
-	described := h.mustDescribe(t, valFeedback)
+	described := h.mustDescribeMdl0(t, valFeedback)
 	const mdl0 = "characters\\n';"
 	if !strings.Contains(described, mdl0) {
 		t.Fatalf("describe output has no %q — the fixture changed:\n%s", mdl0, described)
@@ -88,7 +89,7 @@ func TestFlowModify_MDL1ReadsStoredStringsAsStored(t *testing.T) {
 	if !strings.Contains(h.out.String(), "(spliced: 1 replaced)") {
 		t.Errorf("mdl 1: want the one statement replaced by a splice, got:\n%s", h.out.String())
 	}
-	if again := h.mustDescribe(t, valFeedback); !strings.Contains(again, "characters\\\\n';") {
+	if again := h.mustDescribeMdl0(t, valFeedback); !strings.Contains(again, "characters\\\\n';") {
 		t.Errorf("mdl 1: want the backslash stored as written:\n%s", again)
 	}
 }
@@ -101,7 +102,7 @@ func TestFlowModify_InsertIsSpliced(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
 
-	described := h.mustDescribe(t, valFeedback)
+	described := h.mustDescribeMdl0(t, valFeedback)
 	const anchor = "  declare $ValidFeedback Boolean = true;\n"
 	const inserted = "  log info node 'Feedback' 'validating feedback';\n"
 	edited := strings.Replace(described, anchor, anchor+inserted, 1)
@@ -126,7 +127,7 @@ func TestFlowModify_InsertIsSpliced(t *testing.T) {
 	if got, want := countType(t, after, "Microflows$ExclusiveMerge"), countType(t, before, "Microflows$ExclusiveMerge"); got != want {
 		t.Errorf("merges: %d after the insert, %d before — the rebuild ran", got, want)
 	}
-	again := h.mustDescribe(t, valFeedback)
+	again := h.mustDescribeMdl0(t, valFeedback)
 	if !strings.Contains(again, "log node 'Feedback' 'validating feedback';") {
 		t.Errorf("describe does not show the inserted statement:\n%s", again)
 	}
@@ -149,7 +150,7 @@ func TestFlowModify_ReplaceKeepsSharedNote(t *testing.T) {
 	defer h.close()
 
 	const target = "microflow FeedbackModule.PopulateUserAttributes"
-	described := h.mustDescribe(t, target)
+	described := h.mustDescribeMdl0(t, target)
 	const old = "SubmitterDisplayName = $CurrentUser/Name)"
 	edited := strings.Replace(described, old, "SubmitterDisplayName = 'anonymous')", 1)
 	if edited == described {
@@ -166,7 +167,7 @@ func TestFlowModify_ReplaceKeepsSharedNote(t *testing.T) {
 	if got := countType(t, after, "Microflows$Annotation"); got != 1 {
 		t.Errorf("%d annotation notes after the replace, want the 1 stored", got)
 	}
-	again := h.mustDescribe(t, target)
+	again := h.mustDescribeMdl0(t, target)
 	if !strings.Contains(again, "SubmitterDisplayName = 'anonymous'") || strings.Count(again, "@annotation(id: n1") != 2 {
 		t.Errorf("want the new statement with the shared note on both activities:\n%s", again)
 	}
@@ -182,7 +183,7 @@ func TestFlowModify_DropAndReplace(t *testing.T) {
 	defer h.close()
 
 	const target = "microflow FeedbackModule.SUB_Feedback_Sanitize"
-	described := h.mustDescribe(t, target)
+	described := h.mustDescribeMdl0(t, target)
 	edited := described
 	for _, cut := range []string{
 		"  @position(368, 200)\n  @curve(from: (30, 0), to: (-30, 0))\n  $SanitizedPageName = call java action FeedbackModule.XSS_Sanitizer(stringToSanitize = $Feedback/PageName);\n",
@@ -205,7 +206,7 @@ func TestFlowModify_DropAndReplace(t *testing.T) {
 	if got, want := countType(t, after, "Microflows$JavaActionCallAction"), countType(t, before, "Microflows$JavaActionCallAction")-1; got != want {
 		t.Errorf("%d java action calls after, want %d", got, want)
 	}
-	again := h.mustDescribe(t, target)
+	again := h.mustDescribeMdl0(t, target)
 	if strings.Contains(again, "SanitizedPageName") {
 		t.Errorf("the dropped statement or its use is still described:\n%s", again)
 	}
@@ -217,7 +218,7 @@ func TestFlowModify_BranchEditIsSpliced(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
 
-	described := h.mustDescribe(t, valFeedback)
+	described := h.mustDescribeMdl0(t, valFeedback)
 	const old = "message 'Subject is required';"
 	edited := strings.Replace(described, old, "message 'A subject is required';", 1)
 	if edited == described {
@@ -245,7 +246,7 @@ func TestFlowModify_BranchEditIsSpliced(t *testing.T) {
 	if got, want := countType(t, after, "Microflows$ExclusiveMerge"), countType(t, before, "Microflows$ExclusiveMerge"); got != want {
 		t.Errorf("merges: %d after, %d before — the rebuild ran", got, want)
 	}
-	if !strings.Contains(h.mustDescribe(t, valFeedback), "'A subject is required'") {
+	if !strings.Contains(h.mustDescribeMdl0(t, valFeedback), "'A subject is required'") {
 		t.Error("describe does not show the change")
 	}
 }
@@ -261,7 +262,7 @@ func TestFlowModify_UnspliceableChange(t *testing.T) {
 	// mdl 1: refused, nothing written. (On SUB_Feedback_SendToServer, whose
 	// description means under mdl 1 what it means under mdl 0; see
 	// UnchangedIsByteIdentical.)
-	described := h.mustDescribe(t, sendToServer)
+	described := h.mustDescribeMdl0(t, sendToServer)
 	const oldV1 = "@position(-730, -50)\n  @curve(from: (30, 0), to: (-15, 0))"
 	edited := strings.Replace(described, oldV1, "@position(-730, -50)\n  @curve(from: (30, 0), to: (-15, 10))", 1)
 	if edited == described {
@@ -276,7 +277,7 @@ func TestFlowModify_UnspliceableChange(t *testing.T) {
 	}
 
 	// mdl 0: rebuilt, with the warning.
-	described = h.mustDescribe(t, valFeedback)
+	described = h.mustDescribeMdl0(t, valFeedback)
 	const old = "@position(-390, 200)\n  @curve(from: (30, 0), to: (-15, 0))"
 	edited = strings.Replace(described, old, "@position(-390, 200)\n  @curve(from: (30, 0), to: (-15, 10))", 1)
 	if edited == described {
@@ -288,7 +289,7 @@ func TestFlowModify_UnspliceableChange(t *testing.T) {
 	if !strings.Contains(h.out.String(), "Warning [MDL-V1-REBUILD]") {
 		t.Errorf("under mdl 0 want the MDL-V1-REBUILD warning, got:\n%s", h.out.String())
 	}
-	if !strings.Contains(h.mustDescribe(t, valFeedback), "to: (-15, 10)") {
+	if !strings.Contains(h.mustDescribeMdl0(t, valFeedback), "to: (-15, 10)") {
 		t.Error("under mdl 0 the rebuild did not write the redrawn connector")
 	}
 }
@@ -323,7 +324,7 @@ end;`
 		t.Fatalf("create: %v", err)
 	}
 	const target = "microflow MyFirstModule.LoopFlow"
-	described := h.mustDescribe(t, target)
+	described := h.mustDescribeMdl0(t, target)
 	inLoop := strings.Replace(described, "'in loop'", "'in the loop'", 1)
 	if inLoop == described {
 		t.Fatalf("describe output has no 'in loop':\n%s", described)
@@ -344,12 +345,12 @@ end;`
 	if !strings.Contains(h.out.String(), "Warning [MDL-V1-REBUILD]") {
 		t.Errorf("under mdl 0 want the MDL-V1-REBUILD warning, got:\n%s", h.out.String())
 	}
-	if !strings.Contains(h.mustDescribe(t, target), "'in the loop'") {
+	if !strings.Contains(h.mustDescribeMdl0(t, target), "'in the loop'") {
 		t.Error("under mdl 0 the rebuild did not write the change")
 	}
 
 	// Control: after the loop, the same kind of change is spliced.
-	described = h.mustDescribe(t, target)
+	described = h.mustDescribeMdl0(t, target)
 	after := strings.Replace(described, "'after loop'", "'after the loop'", 1)
 	if err := h.exec("mdl 1;\n" + after); err != nil {
 		t.Fatalf("control under mdl 1: %v", err)
@@ -359,9 +360,14 @@ end;`
 	}
 }
 
-func (h *harness) mustDescribe(t *testing.T, target string) string {
+// mustDescribeMdl0 is the mdl 0 description (`describe --mdl 0`) the focused
+// flow tests below are written against: each runs it headerless (its mdl 0
+// leg) and under an explicit `mdl 1;` (the upgrade a user makes by adding the
+// header alone). The default-language round trip — mdl 1, headed by `mdl 1;`
+// since the freeze — is runRoundTrip's.
+func (h *harness) mustDescribeMdl0(t *testing.T, target string) string {
 	t.Helper()
-	out, err := h.describe(target)
+	out, err := h.describeAs(langver.V0, target)
 	if err != nil || strings.TrimSpace(out) == "" {
 		t.Fatalf("describe %s: %v (output %q)", target, err, out)
 	}

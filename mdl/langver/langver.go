@@ -11,9 +11,9 @@
 //     that introduces it. Under an older version the old meaning is kept and
 //     the construct warns, so a committed script never changes behaviour just
 //     because a newer mxcli runs it.
-//   - A version is a PREVIEW until it is frozen. A preview parses but warns
-//     "preview: may still change", and describe/fmt do not emit its header.
-//     Freezing is one edit to Frozen below.
+//   - A version is a contract once it is frozen (Frozen below). describe and
+//     fmt write the frozen version's header; mdl 1 was frozen at beta, so a
+//     later change of meaning needs mdl 2.
 //
 // The language version is independent of the Mendix target version (ADR-0011
 // decision 3); nothing here reads or writes a Mendix version.
@@ -43,50 +43,62 @@ const (
 // is exactly the silent change of meaning the header exists to prevent.
 const Latest = V1
 
-// Frozen is the newest FROZEN version. It is the single preview/frozen switch.
-//
-// Every version above Frozen and up to Latest is a preview: it parses, warns
-// that it may still change, and describe and fmt do not emit it. At beta this
-// becomes V1 and nothing else has to change: the preview warning stops, and
-// HeaderLine starts returning "mdl 1;" for describe and fmt to write.
-//
-// After that, a change of meaning needs a new version (V2), which starts life
-// as a preview by being above Frozen.
-const Frozen = V0
+// Frozen is the newest FROZEN version: the language describe writes by
+// default, and the one whose header (HeaderLine) heads its output. mdl 1 was
+// frozen at beta (ako/mxcli#714), so it is a contract: a later change of
+// meaning needs a new version, which this package must then learn about by
+// raising Latest. A version above Frozen would be unfinished, and nothing
+// may emit its header until it is frozen too.
+const Frozen = V1
 
-// Default is the version of a script that has no header.
+// Default is the version of a script that has no header. Headerless SCRIPTS
+// keep the alpha meaning forever (ADR-0011); only the interactive surfaces
+// (the REPL, `-c` one-liners) start in the frozen version, see Interactive.
 const Default = V0
+
+// Interactive is the version a REPL session or a `-c` one-liner starts in
+// (freeze decision 6, PROPOSAL_mdl_beta_syntax_freeze.md §7): the frozen
+// language, switched with `--mdl 0` or, in the REPL, an `mdl 0;` statement.
+// Nothing typed interactively is committed, so there is no older script whose
+// meaning the newer default could change.
+const Interactive = Frozen
 
 // Known reports whether this mxcli can run a script written in v.
 func (v Version) Known() bool { return v >= V0 && v <= Latest }
 
-// IsPreview reports whether v is a version that may still change.
-func (v Version) IsPreview() bool { return isPreview(v, Frozen) }
-
-func isPreview(v, frozen Version) bool { return v > frozen && v <= Latest }
-
 // String renders the header spelling of v without the terminator: "mdl 1".
 func (v Version) String() string { return fmt.Sprintf("mdl %d", int(v)) }
 
-// HeaderLine is the header describe and fmt write at the top of a script, or
-// "" when they write none.
-//
-// It is the newest frozen version, never a preview: output carrying a preview
-// header would pin the reader's script to rules that may still change under
-// it. While Frozen is V0 this is "", because mdl 0 is only ever implicit.
-func HeaderLine() string { return headerLine(Frozen) }
+// HeaderLine is the header describe and fmt write at the top of a script:
+// the newest frozen version's, "mdl 1;".
+func HeaderLine() string { return HeaderFor(Frozen) }
 
-func headerLine(frozen Version) string {
-	if frozen <= V0 {
+// HeaderFor is the header that makes a script mean what output written in v
+// means: "mdl 1;" for mdl 1, and "" for mdl 0, which is only ever implicit in
+// output (a headerless script is mdl 0 to every mxcli release).
+func HeaderFor(v Version) string {
+	if v <= V0 {
 		return ""
 	}
-	return frozen.String() + ";"
+	return v.String() + ";"
 }
 
-// PreviewWarning is the message for a header naming a preview version.
-func PreviewWarning(v Version) string {
-	return fmt.Sprintf("%s is a preview: may still change. It is not frozen until beta, "+
-		"so a script written against it can behave differently under a later mxcli release.", v)
+// ParseFlag reads a `--mdl <n>` value: a version this mxcli knows, written as
+// its number ("1") or as its header spelling without the terminator ("mdl 1").
+func ParseFlag(s string) (Version, error) {
+	t := strings.TrimSpace(s)
+	if len(t) > 3 && strings.EqualFold(t[:3], "mdl") {
+		t = strings.TrimSpace(t[3:])
+	}
+	n, err := strconv.Atoi(t)
+	if err != nil {
+		return V0, fmt.Errorf("--mdl %q: the language version is a whole number, e.g. --mdl 1", s)
+	}
+	v := Version(n)
+	if !v.Known() {
+		return V0, fmt.Errorf("--mdl %s: this mxcli understands mdl 0 through mdl %d", t, int(Latest))
+	}
+	return v, nil
 }
 
 // UnknownVersionError is the message for a header naming a version this mxcli
@@ -152,13 +164,21 @@ func HelpHint(code string) string { return "(mxcli help " + code + ")" }
 // tokens — and returns V0 when there is none. A header naming a version this
 // mxcli does not know also returns V0: the parser refuses the script anyway.
 func ScanHeader(src string) Version {
+	v, _ := ScanWrittenHeader(src)
+	return v
+}
+
+// ScanWrittenHeader is ScanHeader that also reports whether src states a
+// header at all, so that an explicit `mdl 0;` can be told from no header —
+// the REPL switches its session on the one and not on the other.
+func ScanWrittenHeader(src string) (Version, bool) {
 	i := skipTrivia(src, 0)
 	j := i
 	for j < len(src) && isIdentByte(src[j]) {
 		j++
 	}
 	if !strings.EqualFold(src[i:j], "mdl") {
-		return V0
+		return V0, false
 	}
 	i = skipTrivia(src, j)
 	j = i
@@ -166,19 +186,19 @@ func ScanHeader(src string) Version {
 		j++
 	}
 	if j == i || (j < len(src) && (isIdentByte(src[j]) || src[j] == '.')) {
-		return V0
+		return V0, false
 	}
 	n, err := strconv.Atoi(src[i:j])
 	if err != nil {
-		return V0
+		return V0, false
 	}
 	if k := skipTrivia(src, j); k >= len(src) || src[k] != ';' {
-		return V0
+		return V0, false
 	}
 	if v := Version(n); v.Known() {
-		return v
+		return v, true
 	}
-	return V0
+	return V0, false
 }
 
 // skipTrivia returns the index of the first byte at or after i that is not

@@ -73,7 +73,7 @@ func TestTemplateLineBreakRoundTripsUnderMdl1(t *testing.T) {
 func TestTemplateLineBreakRoundTripsUnderMdl1_Control(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
-	plain := h.mustDescribe(t, valFeedback)
+	plain := h.mustDescribeMdl0(t, valFeedback)
 	before := h.flowUnit(t, "VAL_Feedback")
 	if err := h.exec("mdl 1;\n" + plain); err != nil {
 		t.Fatal(err)

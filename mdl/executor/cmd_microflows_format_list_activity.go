@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/langver"
@@ -11,25 +12,68 @@ import (
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
-// describeLanguage is the MDL language version describe writes: the newest
-// frozen version (the one whose header describe emits, langver.HeaderLine),
-// or the version of the script the describe runs in when that is newer.
+// describeLanguage is the MDL language version describe writes. It is the one
+// place that decides it, and every spelling that differs between versions
+// (mdlQuote, expressions, templates) asks it:
 //
-// While mdl 1 is a preview, a plain `describe` therefore keeps writing the
-// mdl 0 forms, because its output carries no header that would make the newer
-// forms mean what they say (ADR-0011). Inside an `mdl 1;` script it writes the
-// mdl 1 forms, which the same script can execute back.
+//   - create or modify pins it to the script's own version while it describes
+//     the stored side of its diff (describeIn), so both sides read alike;
+//   - else the session's choice (SetDescribeLanguage: `--mdl 0`, the REPL's
+//     `mdl 0;`), ako/mxcli#840;
+//   - else the frozen language, mdl 1 — or the script's, if that is newer.
 //
-// create or modify pins it to the script's version instead (describeIn).
+// Output written in mdl 1 starts with `mdl 1;` (withDescribeHeader), so it
+// means what it says whatever runs it. A headerless script is still mdl 0
+// (ADR-0011); its describe output carries its own header.
 func describeLanguage(ctx *ExecContext) langver.Version {
 	if ctx != nil && ctx.describeIn != nil {
 		return *ctx.describeIn
+	}
+	if ctx != nil && ctx.describeLang != nil {
+		return *ctx.describeLang
 	}
 	v := langver.Frozen
 	if ctx != nil && ctx.LanguageVersion > v {
 		v = ctx.LanguageVersion
 	}
 	return v
+}
+
+// withDescribeHeader runs a describe whose output is MDL with that output
+// headed by the language it is written in (freeze decision 5,
+// ako/mxcli#714): `mdl 1;` for mdl 1, nothing for mdl 0, which a headerless
+// script already is. So a description runs as it is, and concatenated
+// descriptions repeat one header, which the parser accepts. A definition
+// report (not executable) gets none.
+//
+// The header is written before the first byte fn writes, not before fn runs:
+// a describe that fails writes nothing at all.
+func withDescribeHeader(ctx *ExecContext, fn func() error) error {
+	h := langver.HeaderFor(describeLanguage(ctx))
+	if h == "" || ctx.Output == nil {
+		return fn()
+	}
+	prev := ctx.Output
+	ctx.Output = &headedWriter{w: prev, header: h + "\n"}
+	defer func() { ctx.Output = prev }()
+	return fn()
+}
+
+// headedWriter writes header before the first write.
+type headedWriter struct {
+	w       io.Writer
+	header  string
+	written bool
+}
+
+func (h *headedWriter) Write(p []byte) (int, error) {
+	if !h.written && len(p) > 0 {
+		h.written = true
+		if _, err := io.WriteString(h.w, h.header); err != nil {
+			return 0, err
+		}
+	}
+	return h.w.Write(p)
 }
 
 // describedSource is a description ready to be parsed back: headed by the

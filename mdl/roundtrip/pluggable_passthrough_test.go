@@ -40,7 +40,7 @@ func TestPluggableWidgetUnchangedIsNotRewritten(t *testing.T) {
 		t.Run(c.fx.name+" "+c.target+" "+c.header, func(t *testing.T) {
 			h := newFixtureHarness(t, c.fx)
 			defer h.close()
-			script := h.mustDescribe(t, c.target)
+			script := h.mustDescribeMdl0(t, c.target)
 			if c.header != "" {
 				script = c.header + "\n" + h.describeUnder(c.header, c.target)
 				h.out.Reset()
@@ -62,7 +62,7 @@ func TestPluggableWidgetUnchangedIsNotRewritten(t *testing.T) {
 func TestPluggableWidgetKeptWhenASiblingChanges(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
-	first := h.mustDescribe(t, activeSessions)
+	first := h.mustDescribeMdl0(t, activeSessions)
 	storedType, storedObj := pluggableParts(t, h.pageUnit(t, "ActiveSessions"), "dataGrid21")
 
 	edit := func(from, to string) string {
@@ -96,7 +96,7 @@ func TestPluggableWidgetKeptWhenASiblingChanges(t *testing.T) {
 		if bytes.Equal(obj, storedObj) {
 			t.Fatalf("an edited grid kept its stored Object — the comparison above cannot fail")
 		}
-		if got := h.mustDescribe(t, activeSessions); !strings.Contains(got, "Caption: 'User'") {
+		if got := h.mustDescribeMdl0(t, activeSessions); !strings.Contains(got, "Caption: 'User'") {
 			t.Errorf("the edited caption was not written:\n%s", got)
 		}
 	})
