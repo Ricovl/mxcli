@@ -27,6 +27,10 @@ type MovedAssociation struct {
 	// NewQualifiedName is what it is called after it. Equal to OldQualifiedName
 	// when the association did not change module.
 	NewQualifiedName string
+	// SameModule reports that the move brought both endpoints into one module, so
+	// the association is now a plain (same-module) association rather than a
+	// cross-module one (ako/mxcli#628).
+	SameModule bool
 }
 
 // Moved reports whether the association's qualified name changed, i.e. whether
