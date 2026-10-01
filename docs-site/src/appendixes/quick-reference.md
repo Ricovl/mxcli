@@ -541,6 +541,7 @@ Cross-reference commands require `REFRESH CATALOG FULL` to populate reference da
 |---------|--------|-------|
 | Interactive REPL | `mxcli` | Interactive MDL shell |
 | Inline commands | `mxcli -p app.mpr -c "CMD1; CMD2; CMD3"` | Semicolons batch multiple commands |
+| Inline, keep going | `mxcli -p app.mpr -c "CMD1; CMD2" --continue-on-error` | Without it a batch stops at the first failing statement and says how many were not run; an empty `-c` is an error |
 | Execute script | `mxcli exec script.mdl -p app.mpr` | Script file |
 | Stdin piping | `echo "CMD" \| mxcli -p app.mpr` | Quiet mode, pipe-friendly |
 | Check syntax | `mxcli check script.mdl` | Parse-only validation |
