@@ -43,6 +43,10 @@ func TestTemplateAttrWarning_Mdl0NonStringAttribute(t *testing.T) {
 			!strings.Contains(out.String(), "toString($Task/"+attr+")") {
 			t.Errorf("%s under mdl 0: want an MDL-V1-TEMPLATEATTR warning naming toString($Task/%s), got %q", value, attr, out.String())
 		}
+		// Every coded warning points at its registry entry (ako/mxcli#714).
+		if !strings.HasSuffix(strings.TrimSpace(out.String()), "(mxcli help MDL-V1-TEMPLATEATTR)") {
+			t.Errorf("%s under mdl 0: the warning must end with (mxcli help MDL-V1-TEMPLATEATTR), got %q", value, out.String())
+		}
 	}
 }
 

@@ -35,7 +35,7 @@ GO_BUILD_FLAGS = -trimpath
 # Clean version for VS Code extension (must be valid semver: major.minor.patch)
 VSCE_VERSION = $(shell echo "$(VERSION)" | sed 's/^v//; s/-.*//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$$' || echo "0.0.0")
 
-.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-conformance conformance-shrink check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-parity test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
+.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-conformance conformance-shrink gen-migration-reference check-migration-reference check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-parity test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
 
 # Helper: copy file only if content differs (avoids mtime updates that invalidate go build cache)
 # Usage: $(call copy-if-changed,src,dst)
@@ -276,6 +276,15 @@ check-skill-mdl: build
 # `fmt --upgrade` is proven on (see its README).
 check-conformance:
 	@go test ./mdl/conformance -count=1
+
+# The "Language versions and migration" page's tables are generated from the
+# language-change and deprecation registries (mdl/migration). check- is the CI
+# staleness check: it writes nothing and fails when the page is behind.
+gen-migration-reference:
+	@go run ./cmd/gen-migration-reference
+
+check-migration-reference:
+	@go run ./cmd/gen-migration-reference -check
 
 conformance-shrink:
 	@MXCLI_CONFORMANCE_SHRINK=1 go test ./mdl/conformance -run 'TestConformanceGate$$' -count=1
