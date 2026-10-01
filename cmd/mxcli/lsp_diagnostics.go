@@ -99,14 +99,21 @@ func parseMDLDiagnostics(text string) []protocol.Diagnostic {
 	return diagnostics
 }
 
-// publishDiagnostics parses the document and sends diagnostics to the client.
-func (s *mdlServer) publishDiagnostics(ctx context.Context, docURI uri.URI, text string) {
+// documentDiagnostics is what the editor reports for a document as typed: parse
+// errors, and when it parses, the checks `mxcli check` runs without a project.
+func (s *mdlServer) documentDiagnostics(docURI uri.URI, text string) []protocol.Diagnostic {
 	text, diags := checkableDocument(docURI, text)
 	diags = append(diags, parseMDLDiagnostics(text)...)
 	// If no parse errors, run semantic validation inline
 	if len(diags) == 0 {
 		diags = append(diags, s.runSemanticValidation(text)...)
 	}
+	return diags
+}
+
+// publishDiagnostics parses the document and sends diagnostics to the client.
+func (s *mdlServer) publishDiagnostics(ctx context.Context, docURI uri.URI, text string) {
+	diags := s.documentDiagnostics(docURI, text)
 	if diags == nil {
 		diags = []protocol.Diagnostic{} // send empty array to clear diagnostics
 	}
@@ -378,7 +385,7 @@ func (s *mdlServer) runSemanticValidation(text string) []protocol.Diagnostic {
 			})
 		}
 	}
-	return diags
+	return append(diags, languageDiagnostics(text, prog)...)
 }
 
 // violationToLSPSeverity maps linter.Severity to protocol.DiagnosticSeverity.

@@ -25,7 +25,12 @@ func (s *mdlServer) Hover(ctx context.Context, params *protocol.HoverParams) (*p
 		return nil, nil
 	}
 
-	// First try: cursor is on a property key inside a pluggable widget's
+	// A migration diagnostic under the cursor: show `mxcli help <code>`.
+	if h := s.migrationHover(docURI, text, params.Position); h != nil {
+		return h, nil
+	}
+
+	// Next: cursor is on a property key inside a pluggable widget's
 	// (...) block. Surface the widget property's description, type, and
 	// default from the .def.json.
 	if h := s.widgetPropertyHover(text, params.Position); h != nil {
