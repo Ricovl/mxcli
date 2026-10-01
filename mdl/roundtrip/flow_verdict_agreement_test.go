@@ -98,26 +98,34 @@ func agree(t *testing.T, mdl1 bool, v verdicts) bool {
 	return v.execRebuilt
 }
 
-// The rehearsal's G1 shape (repros2/grow-flow-add-guard): adding a guard
-// clause to a stored flow is a return inside an inserted fragment, which the
-// splice cannot make. Before #876 check passed it under mdl 1 and exec refused.
-func TestFlowVerdictAgreement_GrowAGuard(t *testing.T) {
+// A statement added inside a stored loop's body: the splice does not edit inside
+// a loop, so exec refuses it under mdl 1 and rebuilds under mdl 0. Before #876
+// check passed it. (This test used the rehearsal's G1 guard-clause shape until
+// #888 made the splice grow a guard.)
+func TestFlowVerdictAgreement_ChangeInsideLoopBody(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
-	const stub = `create or modify microflow MyFirstModule.Verdict_Grow ($N: Integer)
-returns Boolean as $Done
+	const stub = `create or modify microflow MyFirstModule.Verdict_LoopBody ($Items: List of System.User)
+returns String as $Out
 begin
-  return false;
+  declare $Out String = '';
+  loop $U in $Items
+  begin
+    set $Out = $Out + ',';
+  end loop;
+  return $Out;
 end;
 `
-	const grown = `create or modify microflow MyFirstModule.Verdict_Grow ($N: Integer)
-returns Boolean as $Done
+	const grown = `create or modify microflow MyFirstModule.Verdict_LoopBody ($Items: List of System.User)
+returns String as $Out
 begin
-  if $N <= 0 then
-    return true;
-  end if;
-  log info node 'Verdict' 'n > 0';
-  return false;
+  declare $Out String = '';
+  loop $U in $Items
+  begin
+    set $Out = $Out + ',';
+    set $Out = $Out + $U/Name;
+  end loop;
+  return $Out;
 end;
 `
 	// Each verdict starts from the stored stub: exec of the grown flow under
@@ -134,11 +142,11 @@ end;
 	}
 	stored()
 	if v := h.verdictsOf("mdl 1;\n" + grown); !agree(t, true, v) || !v.checkError {
-		t.Errorf("mdl 1: growing a guard is not refused by all three: %+v", v)
+		t.Errorf("mdl 1: a change inside a loop body is not refused by all three: %+v", v)
 	}
 	stored()
 	if v := h.verdictsOf(grown); !agree(t, false, v) || !v.checkWarning {
-		t.Errorf("mdl 0: growing a guard is not a rebuild check warns about: %+v", v)
+		t.Errorf("mdl 0: a change inside a loop body is not a rebuild check warns about: %+v", v)
 	}
 }
 
@@ -147,19 +155,27 @@ end;
 func TestFlowVerdictAgreement_EarlierStatementIsNotPredicted(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
-	const stub = `create or modify microflow MyFirstModule.Verdict_Order ($N: Integer)
-returns Boolean as $Done
+	const stub = `create or modify microflow MyFirstModule.Verdict_Order ($Items: List of System.User)
+returns String as $Out
 begin
-  return false;
+  declare $Out String = '';
+  loop $U in $Items
+  begin
+    set $Out = $Out + ',';
+  end loop;
+  return $Out;
 end;
 `
-	const grown = `create or modify microflow MyFirstModule.Verdict_Order ($N: Integer)
-returns Boolean as $Done
+	const grown = `create or modify microflow MyFirstModule.Verdict_Order ($Items: List of System.User)
+returns String as $Out
 begin
-  if $N <= 0 then
-    return true;
-  end if;
-  return false;
+  declare $Out String = '';
+  loop $U in $Items
+  begin
+    set $Out = $Out + ',';
+    set $Out = $Out + $U/Name;
+  end loop;
+  return $Out;
 end;
 `
 	if err := h.exec(stub); err != nil {
