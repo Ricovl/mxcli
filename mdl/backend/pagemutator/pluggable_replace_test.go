@@ -118,3 +118,102 @@ func TestMergeUnstatedPluggable(t *testing.T) {
 		t.Error("merged a widget of another package")
 	}
 }
+
+// A value that carries a pluggable widget of its own — a DataGrid 2 column's
+// filter — is grafted with that widget's pointers left as built: they aim into
+// the nested widget's own Type, not the outer one. Re-aiming them failed, and
+// the whole REPLACE fell back to the template rebuild.
+func TestRemapTypePointersLeavesANestedPluggableWidget(t *testing.T) {
+	nested := bson.D{
+		{Key: "$ID", Value: bid("f")},
+		{Key: "$Type", Value: "CustomWidgets$CustomWidget"},
+		{Key: "Object", Value: bson.D{{Key: "Properties", Value: bson.A{int32(2),
+			bson.D{{Key: "TypePointer", Value: bid("f-pt")}}}}}},
+	}
+	value := bson.D{
+		{Key: "TypePointer", Value: bid("Nvt")},
+		{Key: "Widgets", Value: bson.A{int32(2), nested}},
+	}
+	newPaths := map[string]string{idKey(bid("Nvt")): "/vt"}
+	storedIDs := map[string]string{"/vt": idKey(bid("Svt"))}
+	got, ok := remapTypePointers(value, newPaths, storedIDs)
+	if !ok {
+		t.Fatal("a nested pluggable widget's own pointers made the graft fail")
+	}
+	d := got.(bson.D)
+	if idKey(bsonnav.DGet(d, "TypePointer")) != idKey(bid("Svt")) {
+		t.Error("the value's own pointer was not re-aimed at the stored Type")
+	}
+	w := bsonnav.DGetArrayElements(bsonnav.DGet(d, "Widgets"))[0].(bson.D)
+	p := bsonnav.DGetArrayElements(bsonnav.DGet(bsonnav.DGetDoc(w, "Object"), "Properties"))[0].(bson.D)
+	if idKey(bsonnav.DGet(p, "TypePointer")) != idKey(bid("f-pt")) {
+		t.Error("the nested widget's pointer into its own Type was changed")
+	}
+}
+
+// gridDoc is a pluggable widget with one object-list property, "columns",
+// whose objects have "header" and "hidden" properties.
+func gridDoc(prefix string, headers, hidden []string) bson.D {
+	colType := bson.D{{Key: "$ID", Value: bid(prefix + "cot")}, {Key: "PropertyTypes", Value: bson.A{int32(2),
+		bson.D{{Key: "$ID", Value: bid(prefix + "pt-header")}, {Key: "PropertyKey", Value: "header"}},
+		bson.D{{Key: "$ID", Value: bid(prefix + "pt-hidden")}, {Key: "PropertyKey", Value: "hidden"}},
+	}}}
+	objs := bson.A{int32(2)}
+	for i := range headers {
+		objs = append(objs, bson.D{
+			{Key: "$ID", Value: bid(prefix + "col" + headers[i])},
+			{Key: "Properties", Value: bson.A{int32(2),
+				bson.D{{Key: "TypePointer", Value: bid(prefix + "pt-header")},
+					{Key: "Value", Value: bson.D{{Key: "PrimitiveValue", Value: headers[i]}}}},
+				bson.D{{Key: "TypePointer", Value: bid(prefix + "pt-hidden")},
+					{Key: "Value", Value: bson.D{{Key: "PrimitiveValue", Value: hidden[i]}}}},
+			}},
+		})
+	}
+	return bson.D{
+		{Key: "$ID", Value: bid(prefix + "w")},
+		{Key: "$Type", Value: "CustomWidgets$CustomWidget"},
+		{Key: "Object", Value: bson.D{{Key: "Properties", Value: bson.A{int32(2),
+			bson.D{{Key: "TypePointer", Value: bid(prefix + "pt-columns")},
+				{Key: "Value", Value: bson.D{{Key: "Objects", Value: objs}, {Key: "PrimitiveValue", Value: ""}}}},
+		}}}},
+		{Key: "Type", Value: bson.D{
+			{Key: "ObjectType", Value: bson.D{{Key: "PropertyTypes", Value: bson.A{int32(2),
+				bson.D{{Key: "$ID", Value: bid(prefix + "pt-columns")}, {Key: "PropertyKey", Value: "columns"},
+					{Key: "ValueType", Value: bson.D{{Key: "ObjectType", Value: colType}}}},
+			}}}},
+			{Key: "WidgetId", Value: "com.mendix.widget.web.datagrid.Datagrid"},
+		}},
+	}
+}
+
+// Changing one column's header keeps every column's unstated properties: the
+// object list is merged object by object, not grafted whole.
+func TestMergeUnstatedPluggableMergesAnObjectList(t *testing.T) {
+	stored := gridDoc("S", []string{"Name", "Age"}, []string{"yes", "yes"})
+	baseline := gridDoc("B", []string{"Name", "Age"}, []string{"no", "no"})
+	replacement := gridDoc("N", []string{"Rule name", "Age"}, []string{"no", "no"})
+	got, ok := mergeUnstatedPluggable(stored, replacement, baseline)
+	if !ok {
+		t.Fatal("merge did not apply")
+	}
+	col := bsonnav.DGetArrayElements(bsonnav.DGet(bsonnav.DGetDoc(bsonnav.DGetArrayElements(
+		bsonnav.DGet(bsonnav.DGetDoc(got, "Object"), "Properties"))[0].(bson.D), "Value"), "Objects"))
+	if len(col) != 2 {
+		t.Fatalf("%d columns, want 2", len(col))
+	}
+	for i, want := range []string{"Rule name", "Age"} {
+		props := bsonnav.DGetArrayElements(bsonnav.DGet(col[i].(bson.D), "Properties"))
+		h := bsonnav.DGetString(bsonnav.DGetDoc(props[0].(bson.D), "Value"), "PrimitiveValue")
+		hid := bsonnav.DGetString(bsonnav.DGetDoc(props[1].(bson.D), "Value"), "PrimitiveValue")
+		if h != want {
+			t.Errorf("column %d header = %q, want %q", i, h, want)
+		}
+		if hid != "yes" {
+			t.Errorf("column %d hidden = %q, want the stored \"yes\"", i, hid)
+		}
+		if idKey(bsonnav.DGet(col[i].(bson.D), "$ID")) != idKey(bid("Scol"+[]string{"Name", "Age"}[i])) {
+			t.Errorf("column %d is not the stored column", i)
+		}
+	}
+}
