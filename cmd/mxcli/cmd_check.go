@@ -105,311 +105,317 @@ Examples:
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		filePath := args[0]
-		projectPath, _ := cmd.Flags().GetString("project")
-		// A project makes reference resolution possible, so it runs. It used to
-		// need --references as well, which meant `mxcli check script.mdl -p
-		// app.mpr` printed an unqualified "Check passed!" having resolved
-		// nothing — icons, entity and page references all silently unchecked.
-		// Someone who hands the command a project has said what they want; the
-		// flag stays accepted so existing invocations and scripts keep working.
-		checkRefs, _ := cmd.Flags().GetBool("references")
-		checkRefs = checkRefs || projectPath != ""
-		postMigration, _ := cmd.Flags().GetBool("post-migration")
-		depPolicy := deprecationPolicy(cmd)
-		format := resolveFormat(cmd, "text")
-		isStructured := format != "" && format != "text"
-
-		outputFormat := linter.OutputFormat(format)
-		formatter := linter.GetFormatter(outputFormat, !isStructured)
-
-		// In a structured format the payload is ONE document on stdout, emitted
-		// once at the end (or at the first failing phase). Each phase used to
-		// format its own violations to stderr, so `check --format json` put
-		// nothing parseable on stdout — only the executor's "Connected to:"
-		// chatter — and a run reaching several phases wrote several documents.
-		var structured []linter.Violation
-		finish := func(code int) {
-			if isStructured {
-				formatter.Format(structured, os.Stdout)
-			}
-			if code != 0 {
-				os.Exit(code)
-			}
-		}
-
-		// Read the script (a path, or "-" for stdin)
-		content, err := readMDLSource(filePath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Parse the script
-		if !isStructured {
-			fmt.Printf("Checking syntax: %s\n", mdlSourceLabel(filePath))
-		}
-
-		// A .test.mdl / .test.md file is not top-level MDL: each block is a
-		// microflow body. Render it as the microflows it becomes, on the source's
-		// own lines, so every rule below applies to what the author actually wrote
-		// (mendixlabs/mxcli#1103).
-		source := string(content)
-		var testProblems []linter.Violation
-		if testrunner.IsTestFile(filePath) {
-			checked, terr := testrunner.CheckSource(source, filePath)
-			if terr != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", terr)
-				os.Exit(1)
-			}
-			source = checked.MDL
-			// A rendering with nothing in it means the file declares no @test
-			// block. That is not #618's "the parser could not begin reading it"
-			// — the parser was handed an empty rendering, not the author's text
-			// — so it gets its own message rather than one quoting a line that
-			// was never parsed.
-			if strings.TrimSpace(source) == "" && strings.TrimSpace(string(content)) != "" {
-				fmt.Fprintln(os.Stderr, noTestsDeclaredError(mdlSourceLabel(filePath)))
-				os.Exit(1)
-			}
-			for _, p := range checked.Problems {
-				testProblems = append(testProblems, linter.Violation{
-					RuleID:   "MDL-TEST01",
-					Severity: linter.SeverityError,
-					Message:  fmt.Sprintf("test %q: %s", p.Test, p.Message),
-					Location: linter.Location{DocumentType: "test", DocumentName: p.Test},
-				})
-			}
-		}
-
-		prog, errs := visitor.Build(source)
-		if len(errs) > 0 {
-			if isStructured {
-				var parseViolations []linter.Violation
-				for _, parseErr := range errs {
-					parseViolations = append(parseViolations, linter.Violation{
-						RuleID:   "MDL-SYNTAX",
-						Severity: linter.SeverityError,
-						Message:  parseErr.Error(),
-					})
-				}
-				structured = append(structured, parseViolations...)
-				finish(1)
-			} else {
-				fmt.Fprintf(os.Stderr, "Syntax errors found:\n")
-				for _, err := range errs {
-					fmt.Fprintf(os.Stderr, "  - %v\n", err)
-				}
-				// Hint: if script contains IMPORT/QUERY with single $ but not $$, suggest dollar-quoting
-				src := source
-				if (strings.Contains(src, "IMPORT") || strings.Contains(src, "import")) &&
-					(strings.Contains(src, "QUERY") || strings.Contains(src, "query")) &&
-					strings.Contains(src, "$") && !strings.Contains(src, "$$") {
-					fmt.Fprintf(os.Stderr, "\nHint: SQL queries in IMPORT statements should use dollar-quoting ($$...$$) instead of single quotes.\n")
-					fmt.Fprintf(os.Stderr, "  Example: IMPORT FROM alias QUERY $$SELECT * FROM table$$ INTO Module.Entity MAP (...)\n")
-				}
-			}
-			os.Exit(1)
-		}
-		// Zero statements from non-empty input is not an empty script: the parser
-		// never got into the file. Both gates refuse it (ako/mxcli#618).
-		//
-		// `source`, not `content`: for a test file they differ, and the message
-		// names a line from whichever text the parser was actually given.
-		if line, bad := unparsableInput(source, len(prog.Statements)); bad {
-			fmt.Fprintln(os.Stderr, unparsableInputError(filePath, line))
-			os.Exit(1)
-		}
-		if !isStructured {
-			fmt.Printf("✓ Syntax OK (%d statements)\n", len(prog.Statements))
-		}
-
-		// Every semantic check lives in executor.ValidateProgram, so `mxcli exec`
-		// refuses exactly what `mxcli check` reports. Adding a check there gives
-		// both commands it at once.
-		violations := append(testProblems, executor.ValidateProgram(prog, projectPath)...)
-		violations = executor.ApplyDeprecationPolicy(violations, depPolicy)
-
-		if isStructured {
-			// Always emit structured output (even when clean)
-			structured = append(structured, violations...)
-		} else if len(violations) > 0 {
-			fmt.Fprintln(os.Stderr)
-			formatter.Format(violations, os.Stderr)
-		}
-
-		if len(violations) > 0 {
-			summary := linter.Summarize(violations)
-			if summary.Errors > 0 {
-				finish(1)
-			}
-		}
-
-		// If reference checking requested
-		if checkRefs {
-			if projectPath == "" {
-				fmt.Fprintln(os.Stderr, "Error: --project (-p) is required for reference checking")
-				os.Exit(1)
-			}
-
-			if !isStructured {
-				fmt.Printf("\nValidating references against: %s\n", projectPath)
-				fmt.Printf("(Note: References to objects created within the script are skipped)\n")
-			}
-			exec, logger := newLoggedExecutorTo("check", progressSink(format))
-			defer logger.Close()
-			defer exec.Close()
-
-			// Connect to project
-			connectProg, _ := visitor.Build(fmt.Sprintf("CONNECT LOCAL '%s'", visitor.QuoteString(projectPath)))
-			for _, stmt := range connectProg.Statements {
-				if err := exec.Execute(stmt); err != nil {
-					fmt.Fprintf(os.Stderr, "Error connecting: %v\n", err)
-					os.Exit(1)
-				}
-			}
-
-			// Validate the program (considers objects defined within the script)
-			validationErrors, refWarnings := exec.ValidateProgramWithWarnings(prog)
-
-			// Check for project conflicts: plain CREATE where the document already exists
-			validationErrors = append(validationErrors, exec.CheckProjectConflicts(prog)...)
-
-			// Unresolved references in EXCLUDED documents: reported, never
-			// failing the run — Mendix does not validate excluded documents.
-			// In structured mode they join the error list (one document, not two)
-			// or are emitted on their own when there is nothing else.
-			var warnViolations []linter.Violation
-			for _, w := range refWarnings {
-				warnViolations = append(warnViolations, linter.Violation{
-					RuleID:   "MDL-REF",
-					Severity: linter.SeverityWarning,
-					Message:  w,
-				})
-			}
-			if len(refWarnings) > 0 && !isStructured {
-				fmt.Fprintf(os.Stderr, "Reference warnings:\n")
-				for _, w := range refWarnings {
-					fmt.Fprintf(os.Stderr, "  %s\n", w)
-				}
-			} else if len(warnViolations) > 0 && len(validationErrors) == 0 {
-				structured = append(structured, warnViolations...)
-			}
-
-			if len(validationErrors) > 0 {
-				if isStructured {
-					refViolations := warnViolations
-					for _, err := range validationErrors {
-						refViolations = append(refViolations, linter.Violation{
-							RuleID:   "MDL-REF",
-							Severity: linter.SeverityError,
-							Message:  err.Error(),
-						})
-					}
-					structured = append(structured, refViolations...)
-				} else {
-					fmt.Fprintf(os.Stderr, "Reference errors:\n")
-					for _, err := range validationErrors {
-						fmt.Fprintf(os.Stderr, "  %v\n", err)
-					}
-					fmt.Fprintf(os.Stderr, "\n✗ %d reference error(s) found\n", len(validationErrors))
-				}
-				finish(1)
-			}
-			if !isStructured {
-				fmt.Printf("✓ All references valid\n")
-			}
-
-			// The catalog-backed tier: the checks whose answers only exist once a
-			// project is connected. It runs after the reference check because a
-			// script naming things that do not exist has a more basic problem
-			// than a mistyped operand — and because building the catalog for a
-			// run that already failed is wasted work.
-			//
-			// Like every other violation this command emits, only an error
-			// severity fails the run. Warnings and hints are advice, and a
-			// checker whose first outing turns advice into a broken build is a
-			// checker people turn off.
-			//
-			// MDL087 is what this script REMOVES from the project, which nothing
-			// reported until now (ako/mxcli#562). `create or modify entity`
-			// rebuilds the entity from the statement, so a member the script does
-			// not restate is deleted — and the loss only becomes visible slices
-			// later, as a CE1613 on whatever still binds it. exec prints the same
-			// list, but only as it applies the statement; by then it is gone.
-			//
-			// Expression type checking is the other half: the rules that need an
-			// attribute's type, an enumeration's cases or a microflow's return
-			// type. The scope-local tier already ran in the unconditional pass.
-			//
-			// The flow verdicts are what exec would refuse (ako/mxcli#876): a
-			// `create or modify` of a stored flow whose change the splice cannot
-			// make is refused under mdl 1 and rebuilt with MDL-V1-REBUILD under
-			// mdl 0, and an alter whose patch fails is refused under both. They
-			// run the verdict exec and diff run, so the three agree.
-			projectViolations := exec.CheckEntityMemberDrops(prog)
-			projectViolations = append(projectViolations, exec.TypeCheckProgram(prog)...)
-			projectViolations = append(projectViolations, exec.CheckFlowVerdicts(prog)...)
-			if len(projectViolations) > 0 {
-				if isStructured {
-					structured = append(structured, projectViolations...)
-				} else {
-					fmt.Fprintln(os.Stderr)
-					formatter.Format(projectViolations, os.Stderr)
-				}
-				if linter.Summarize(projectViolations).Errors > 0 {
-					finish(1)
-				}
-			} else if !isStructured {
-				fmt.Printf("✓ Expression types OK, no unstated member drops, no flow change exec would refuse\n")
-			}
-		}
-
-		// Post-migration scan: walk the project for native widgets that
-		// have pluggable replacements (Studio Pro does not auto-migrate
-		// these on a Mendix major-version upgrade).
-		if postMigration {
-			if projectPath == "" {
-				fmt.Fprintln(os.Stderr, "Error: --project (-p) is required for --post-migration")
-				os.Exit(1)
-			}
-			if !isStructured {
-				fmt.Printf("\nScanning project for legacy native widgets: %s\n", projectPath)
-			}
-			legacyViolations, err := scanLegacyWidgets(projectPath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error scanning project: %v\n", err)
-				os.Exit(1)
-			}
-			if isStructured {
-				structured = append(structured, legacyViolations...)
-			} else if len(legacyViolations) > 0 {
-				fmt.Fprintln(os.Stderr)
-				formatter.Format(legacyViolations, os.Stderr)
-				fmt.Fprintf(os.Stderr, "\n✗ %d legacy widget(s) found\n", len(legacyViolations))
-			} else {
-				fmt.Printf("✓ No legacy native widgets found\n")
-			}
-			if len(legacyViolations) > 0 {
-				summary := linter.Summarize(legacyViolations)
-				if summary.Errors > 0 {
-					finish(1)
-				}
-			}
-		}
-
-		finish(0)
-		if !isStructured {
-			fmt.Println("\nCheck passed!")
-			// Qualify the verdict when nothing was resolved against a model. A
-			// bare "Check passed!" reads as more than it is: without a project
-			// no icon, entity, page or microflow name in the script has been
-			// looked up, and those are exactly what this command gets reached
-			// for. Saying so beats leaving the reader to infer it.
-			if !checkRefs {
-				fmt.Println("  (no project given — icon, entity, page and microflow references were")
-				fmt.Println("   not resolved; re-run with -p <project.mpr> for full coverage)")
-			}
+		if code := runCheckFile(cmd, args[0]); code != 0 {
+			os.Exit(code)
 		}
 	},
 }
+
+// runCheckFile checks one script and returns the exit code: 0 when it passed.
+func runCheckFile(cmd *cobra.Command, filePath string) int {
+	projectPath, _ := cmd.Flags().GetString("project")
+	// A project makes reference resolution possible, so it runs. It used to
+	// need --references as well, which meant `mxcli check script.mdl -p
+	// app.mpr` printed an unqualified "Check passed!" having resolved
+	// nothing — icons, entity and page references all silently unchecked.
+	// Someone who hands the command a project has said what they want; the
+	// flag stays accepted so existing invocations and scripts keep working.
+	checkRefs, _ := cmd.Flags().GetBool("references")
+	checkRefs = checkRefs || projectPath != ""
+	postMigration, _ := cmd.Flags().GetBool("post-migration")
+	depPolicy := deprecationPolicy(cmd)
+	format := resolveFormat(cmd, "text")
+	isStructured := format != "" && format != "text"
+
+	outputFormat := linter.OutputFormat(format)
+	formatter := linter.GetFormatter(outputFormat, !isStructured)
+
+	// In a structured format the payload is ONE document on stdout, emitted
+	// once at the end (or at the first failing phase). Each phase used to
+	// format its own violations to stderr, so `check --format json` put
+	// nothing parseable on stdout — only the executor's "Connected to:"
+	// chatter — and a run reaching several phases wrote several documents.
+	var structured []linter.Violation
+	finish := func(code int) int {
+		if isStructured {
+			formatter.Format(structured, os.Stdout)
+		}
+		return code
+	}
+
+	// Read the script (a path, or "-" for stdin)
+	content, err := readMDLSource(filePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
+		return 1
+	}
+
+	// Parse the script
+	if !isStructured {
+		fmt.Printf("Checking syntax: %s\n", mdlSourceLabel(filePath))
+	}
+
+	// A .test.mdl / .test.md file is not top-level MDL: each block is a
+	// microflow body. Render it as the microflows it becomes, on the source's
+	// own lines, so every rule below applies to what the author actually wrote
+	// (mendixlabs/mxcli#1103).
+	source := string(content)
+	var testProblems []linter.Violation
+	if testrunner.IsTestFile(filePath) {
+		checked, terr := testrunner.CheckSource(source, filePath)
+		if terr != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", terr)
+			return 1
+		}
+		source = checked.MDL
+		// A rendering with nothing in it means the file declares no @test
+		// block. That is not #618's "the parser could not begin reading it"
+		// — the parser was handed an empty rendering, not the author's text
+		// — so it gets its own message rather than one quoting a line that
+		// was never parsed.
+		if strings.TrimSpace(source) == "" && strings.TrimSpace(string(content)) != "" {
+			fmt.Fprintln(os.Stderr, noTestsDeclaredError(mdlSourceLabel(filePath)))
+			return 1
+		}
+		for _, p := range checked.Problems {
+			testProblems = append(testProblems, linter.Violation{
+				RuleID:   "MDL-TEST01",
+				Severity: linter.SeverityError,
+				Message:  fmt.Sprintf("test %q: %s", p.Test, p.Message),
+				Location: linter.Location{DocumentType: "test", DocumentName: p.Test},
+			})
+		}
+	}
+
+	prog, errs := visitor.Build(source)
+	if len(errs) > 0 {
+		if isStructured {
+			var parseViolations []linter.Violation
+			for _, parseErr := range errs {
+				parseViolations = append(parseViolations, linter.Violation{
+					RuleID:   "MDL-SYNTAX",
+					Severity: linter.SeverityError,
+					Message:  parseErr.Error(),
+				})
+			}
+			structured = append(structured, parseViolations...)
+			return finish(1)
+		} else {
+			fmt.Fprintf(os.Stderr, "Syntax errors found:\n")
+			for _, err := range errs {
+				fmt.Fprintf(os.Stderr, "  - %v\n", err)
+			}
+			// Hint: if script contains IMPORT/QUERY with single $ but not $$, suggest dollar-quoting
+			src := source
+			if (strings.Contains(src, "IMPORT") || strings.Contains(src, "import")) &&
+				(strings.Contains(src, "QUERY") || strings.Contains(src, "query")) &&
+				strings.Contains(src, "$") && !strings.Contains(src, "$$") {
+				fmt.Fprintf(os.Stderr, "\nHint: SQL queries in IMPORT statements should use dollar-quoting ($$...$$) instead of single quotes.\n")
+				fmt.Fprintf(os.Stderr, "  Example: IMPORT FROM alias QUERY $$SELECT * FROM table$$ INTO Module.Entity MAP (...)\n")
+			}
+		}
+		return 1
+	}
+	// Zero statements from non-empty input is not an empty script: the parser
+	// never got into the file. Both gates refuse it (ako/mxcli#618).
+	//
+	// `source`, not `content`: for a test file they differ, and the message
+	// names a line from whichever text the parser was actually given.
+	if line, bad := unparsableInput(source, len(prog.Statements)); bad {
+		fmt.Fprintln(os.Stderr, unparsableInputError(filePath, line))
+		return 1
+	}
+	if !isStructured {
+		fmt.Printf("✓ Syntax OK (%d statements)\n", len(prog.Statements))
+	}
+
+	// Every semantic check lives in executor.ValidateProgram, so `mxcli exec`
+	// refuses exactly what `mxcli check` reports. Adding a check there gives
+	// both commands it at once.
+	violations := append(testProblems, executor.ValidateProgram(prog, projectPath)...)
+	violations = executor.ApplyDeprecationPolicy(violations, depPolicy)
+
+	if isStructured {
+		// Always emit structured output (even when clean)
+		structured = append(structured, violations...)
+	} else if len(violations) > 0 {
+		fmt.Fprintln(os.Stderr)
+		formatter.Format(violations, os.Stderr)
+	}
+
+	if len(violations) > 0 {
+		summary := linter.Summarize(violations)
+		if summary.Errors > 0 {
+			return finish(1)
+		}
+	}
+
+	// If reference checking requested
+	if checkRefs {
+		if projectPath == "" {
+			fmt.Fprintln(os.Stderr, "Error: --project (-p) is required for reference checking")
+			return 1
+		}
+
+		if !isStructured {
+			fmt.Printf("\nValidating references against: %s\n", projectPath)
+			fmt.Printf("(Note: References to objects created within the script are skipped)\n")
+		}
+		exec, logger := newLoggedExecutorTo("check", progressSink(format))
+		defer logger.Close()
+		defer exec.Close()
+
+		// Connect to project
+		connectProg, _ := visitor.Build(fmt.Sprintf("CONNECT LOCAL '%s'", visitor.QuoteString(projectPath)))
+		for _, stmt := range connectProg.Statements {
+			if err := exec.Execute(stmt); err != nil {
+				fmt.Fprintf(os.Stderr, "Error connecting: %v\n", err)
+				return 1
+			}
+		}
+
+		// Validate the program (considers objects defined within the script)
+		validationErrors, refWarnings := exec.ValidateProgramWithWarnings(prog)
+
+		// Check for project conflicts: plain CREATE where the document already exists
+		validationErrors = append(validationErrors, exec.CheckProjectConflicts(prog)...)
+
+		// Unresolved references in EXCLUDED documents: reported, never
+		// failing the run — Mendix does not validate excluded documents.
+		// In structured mode they join the error list (one document, not two)
+		// or are emitted on their own when there is nothing else.
+		var warnViolations []linter.Violation
+		for _, w := range refWarnings {
+			warnViolations = append(warnViolations, linter.Violation{
+				RuleID:   "MDL-REF",
+				Severity: linter.SeverityWarning,
+				Message:  w,
+			})
+		}
+		if len(refWarnings) > 0 && !isStructured {
+			fmt.Fprintf(os.Stderr, "Reference warnings:\n")
+			for _, w := range refWarnings {
+				fmt.Fprintf(os.Stderr, "  %s\n", w)
+			}
+		} else if len(warnViolations) > 0 && len(validationErrors) == 0 {
+			structured = append(structured, warnViolations...)
+		}
+
+		if len(validationErrors) > 0 {
+			if isStructured {
+				refViolations := warnViolations
+				for _, err := range validationErrors {
+					refViolations = append(refViolations, linter.Violation{
+						RuleID:   "MDL-REF",
+						Severity: linter.SeverityError,
+						Message:  err.Error(),
+					})
+				}
+				structured = append(structured, refViolations...)
+			} else {
+				fmt.Fprintf(os.Stderr, "Reference errors:\n")
+				for _, err := range validationErrors {
+					fmt.Fprintf(os.Stderr, "  %v\n", err)
+				}
+				fmt.Fprintf(os.Stderr, "\n✗ %d reference error(s) found\n", len(validationErrors))
+			}
+			return finish(1)
+		}
+		if !isStructured {
+			fmt.Printf("✓ All references valid\n")
+		}
+
+		// The catalog-backed tier: the checks whose answers only exist once a
+		// project is connected. It runs after the reference check because a
+		// script naming things that do not exist has a more basic problem
+		// than a mistyped operand — and because building the catalog for a
+		// run that already failed is wasted work.
+		//
+		// Like every other violation this command emits, only an error
+		// severity fails the run. Warnings and hints are advice, and a
+		// checker whose first outing turns advice into a broken build is a
+		// checker people turn off.
+		//
+		// MDL087 is what this script REMOVES from the project, which nothing
+		// reported until now (ako/mxcli#562). `create or modify entity`
+		// rebuilds the entity from the statement, so a member the script does
+		// not restate is deleted — and the loss only becomes visible slices
+		// later, as a CE1613 on whatever still binds it. exec prints the same
+		// list, but only as it applies the statement; by then it is gone.
+		//
+		// Expression type checking is the other half: the rules that need an
+		// attribute's type, an enumeration's cases or a microflow's return
+		// type. The scope-local tier already ran in the unconditional pass.
+		//
+		// The flow verdicts are what exec would refuse (ako/mxcli#876): a
+		// `create or modify` of a stored flow whose change the splice cannot
+		// make is refused under mdl 1 and rebuilt with MDL-V1-REBUILD under
+		// mdl 0, and an alter whose patch fails is refused under both. They
+		// run the verdict exec and diff run, so the three agree.
+		projectViolations := exec.CheckEntityMemberDrops(prog)
+		projectViolations = append(projectViolations, exec.TypeCheckProgram(prog)...)
+		projectViolations = append(projectViolations, exec.CheckFlowVerdicts(prog)...)
+		if len(projectViolations) > 0 {
+			if isStructured {
+				structured = append(structured, projectViolations...)
+			} else {
+				fmt.Fprintln(os.Stderr)
+				formatter.Format(projectViolations, os.Stderr)
+			}
+			if linter.Summarize(projectViolations).Errors > 0 {
+				return finish(1)
+			}
+		} else if !isStructured {
+			fmt.Printf("✓ Expression types OK, no unstated member drops, no flow change exec would refuse\n")
+		}
+	}
+
+	// Post-migration scan: walk the project for native widgets that
+	// have pluggable replacements (Studio Pro does not auto-migrate
+	// these on a Mendix major-version upgrade).
+	if postMigration {
+		if projectPath == "" {
+			fmt.Fprintln(os.Stderr, "Error: --project (-p) is required for --post-migration")
+			return 1
+		}
+		if !isStructured {
+			fmt.Printf("\nScanning project for legacy native widgets: %s\n", projectPath)
+		}
+		legacyViolations, err := scanLegacyWidgets(projectPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error scanning project: %v\n", err)
+			return 1
+		}
+		if isStructured {
+			structured = append(structured, legacyViolations...)
+		} else if len(legacyViolations) > 0 {
+			fmt.Fprintln(os.Stderr)
+			formatter.Format(legacyViolations, os.Stderr)
+			fmt.Fprintf(os.Stderr, "\n✗ %d legacy widget(s) found\n", len(legacyViolations))
+		} else {
+			fmt.Printf("✓ No legacy native widgets found\n")
+		}
+		if len(legacyViolations) > 0 {
+			summary := linter.Summarize(legacyViolations)
+			if summary.Errors > 0 {
+				return finish(1)
+			}
+		}
+	}
+
+	finish(0)
+	if !isStructured {
+		fmt.Println("\nCheck passed!")
+		// Qualify the verdict when nothing was resolved against a model. A
+		// bare "Check passed!" reads as more than it is: without a project
+		// no icon, entity, page or microflow name in the script has been
+		// looked up, and those are exactly what this command gets reached
+		// for. Saying so beats leaving the reader to infer it.
+		if !checkRefs {
+			fmt.Println("  (no project given — icon, entity, page and microflow references were")
+			fmt.Println("   not resolved; re-run with -p <project.mpr> for full coverage)")
+		}
+	}
+	return 0
+}
+
