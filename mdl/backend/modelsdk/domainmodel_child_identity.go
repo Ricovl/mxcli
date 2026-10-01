@@ -82,15 +82,7 @@ func carryAttributeIdentity(ge, orig *genDm.Entity, entity *domainmodel.Entity) 
 
 	claimed := make(map[string]bool, len(storedByID))
 	carry := func(ga, sa *genDm.Attribute) {
-		ga.SetID(sa.ID())
-		ga.SetRaw(sa.Raw())
-		// attributeToGen sets ExportLevel "Hidden", and a property the rebuild
-		// sets wins over the carried raw bytes — so without this an API attribute
-		// became Hidden on every rewrite of its entity (ako/mxcli#801). The
-		// semantic attribute has no export level to take it from.
-		if lvl := sa.ExportLevel(); lvl != "" {
-			ga.SetExportLevel(lvl)
-		}
+		carryStoredAttribute(ga, sa)
 		claimed[string(sa.ID())] = true
 	}
 
@@ -168,5 +160,24 @@ func carryIndexIdentity(ge, orig *genDm.Entity, entity *domainmodel.Entity) {
 		gi.SetID(si.ID())
 		gi.SetRaw(si.Raw())
 		claimed[string(si.ID())] = true
+	}
+}
+
+// carryStoredAttribute makes the rebuilt attribute ga the stored attribute sa as
+// far as identity goes: the stored $ID and raw bytes (so the GUID passes through
+// instead of being re-minted as $ID — #1119, ako/mxcli#627) and the stored export
+// level. Both rebuild sites use it: the entity rewrite (carryAttributeIdentity)
+// and the single-attribute rewrite (Backend.UpdateAttribute).
+func carryStoredAttribute(ga, sa *genDm.Attribute) {
+	ga.SetID(sa.ID())
+	if raw := sa.Raw(); raw != nil {
+		ga.SetRaw(raw)
+	}
+	// attributeToGen sets ExportLevel "Hidden", and a property the rebuild
+	// sets wins over the carried raw bytes — so without this an API attribute
+	// became Hidden on every rewrite of its entity (ako/mxcli#801). The
+	// semantic attribute has no export level to take it from.
+	if lvl := sa.ExportLevel(); lvl != "" {
+		ga.SetExportLevel(lvl)
 	}
 }
