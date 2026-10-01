@@ -11,6 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
 // listPublishedRestServices handles SHOW PUBLISHED REST SERVICES [IN module] command.
@@ -135,8 +136,11 @@ func describePublishedRestService(ctx *ExecContext, name ast.QualifiedName) erro
 					if op.Path != "" {
 						opPath = " " + mdlQuoted(op.Path)
 					}
-					fmt.Fprintf(ctx.Output, "    %s%s%s%s;%s\n",
-						strings.ToLower(op.HTTPMethod), opPath, mf, deprecated, summary)
+					fmt.Fprintf(ctx.Output, "    %s%s%s%s%s;%s\n",
+						strings.ToLower(op.HTTPMethod), opPath, mf, deprecated, publishedRestBindingClauses(op), summary)
+					for _, note := range publishedRestParameterNotes(op) {
+						fmt.Fprintf(ctx.Output, "    -- %s\n", note)
+					}
 				}
 				fmt.Fprintln(ctx.Output, "  }")
 			}
@@ -157,6 +161,55 @@ func describePublishedRestService(ctx *ExecContext, name ast.QualifiedName) erro
 	}
 
 	return mdlerrors.NewNotFound("published rest service", name.String())
+}
+
+// publishedRestBindingClauses prints an operation's mapping bindings and its
+// commit option, in the grammar's order. Commit is printed when it is not
+// "Yes", the value exec writes when the statement has no commit clause.
+func publishedRestBindingClauses(op *model.PublishedRestOperation) string {
+	var b strings.Builder
+	if op.ImportMapping != "" {
+		b.WriteString(" import mapping " + op.ImportMapping)
+	}
+	if op.ExportMapping != "" {
+		b.WriteString(" export mapping " + op.ExportMapping)
+	}
+	if op.Commit != "" && op.Commit != "Yes" {
+		b.WriteString(" commit " + op.Commit)
+	}
+	return b.String()
+}
+
+// publishedRestParameterNotes names the operation parameters MDL cannot state:
+// it derives every parameter from the microflow, so a header or form
+// parameter, a parameter renamed away from its microflow parameter, or one
+// with a description has no spelling. create or modify on the same project
+// keeps them; a fresh create derives the parameter again.
+func publishedRestParameterNotes(op *model.PublishedRestOperation) []string {
+	var notes []string
+	for _, p := range op.OperationParameters {
+		bound := p.MicroflowParameter
+		if i := strings.LastIndex(bound, "."); i >= 0 {
+			bound = bound[i+1:]
+		}
+		var why []string
+		switch p.ParameterType {
+		case "Path", "Query", "Body":
+		default:
+			why = append(why, strings.ToLower(p.ParameterType)+" parameter")
+		}
+		if bound != p.Name {
+			why = append(why, fmt.Sprintf("bound to $%s", bound))
+		}
+		if p.Description != "" {
+			why = append(why, "description "+mdlQuoted(strings.ReplaceAll(p.Description, "\n", " ")))
+		}
+		if len(why) > 0 {
+			notes = append(notes, fmt.Sprintf("parameter %s: %s (not expressible in MDL; kept by create or modify on this project)",
+				p.Name, strings.Join(why, ", ")))
+		}
+	}
+	return notes
 }
 
 // findPublishedRestService looks up a published REST service by module and name.
@@ -234,21 +287,16 @@ func execCreatePublishedRestService(ctx *ExecContext, s *ast.CreatePublishedRest
 	}
 
 	for _, resDef := range s.Resources {
-		resource := &model.PublishedRestResource{
-			Name: resDef.Name,
-		}
-		for _, opDef := range resDef.Operations {
-			op := &model.PublishedRestOperation{
-				HTTPMethod: opDef.HTTPMethod,
-				Path:       opDef.Path,
-				Microflow:  opDef.Microflow.String(),
-				Summary:    "",
-				Deprecated: opDef.Deprecated,
-			}
-			resource.Operations = append(resource.Operations, op)
+		resource, err := astResourceDefToModel(resDef)
+		if err != nil {
+			return err
 		}
 		svc.Resources = append(svc.Resources, resource)
 	}
+	if existing != nil {
+		carryStoredOperations(svc, existing)
+	}
+	deriveOperationParameters(ctx, svc)
 
 	if existing != nil {
 		if s.Folder == "" {
@@ -309,17 +357,212 @@ func execDropPublishedRestService(ctx *ExecContext, s *ast.DropPublishedRestServ
 
 // astResourceDefToModel converts an AST PublishedRestResourceDef to the
 // runtime model type used by the writer.
-func astResourceDefToModel(def *ast.PublishedRestResourceDef) *model.PublishedRestResource {
+func astResourceDefToModel(def *ast.PublishedRestResourceDef) (*model.PublishedRestResource, error) {
 	resource := &model.PublishedRestResource{Name: def.Name}
 	for _, opDef := range def.Operations {
+		commit, err := publishedRestCommit(opDef.Commit)
+		if err != nil {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf("resource '%s', operation %s %s: %v",
+				def.Name, opDef.HTTPMethod, opDef.Path, err))
+		}
 		resource.Operations = append(resource.Operations, &model.PublishedRestOperation{
-			HTTPMethod: opDef.HTTPMethod,
-			Path:       opDef.Path,
-			Microflow:  opDef.Microflow.String(),
-			Deprecated: opDef.Deprecated,
+			HTTPMethod:    opDef.HTTPMethod,
+			Path:          opDef.Path,
+			Microflow:     opDef.Microflow.String(),
+			Deprecated:    opDef.Deprecated,
+			ImportMapping: opDef.ImportMapping,
+			ExportMapping: opDef.ExportMapping,
+			Commit:        commit,
 		})
 	}
-	return resource
+	return resource, nil
+}
+
+// publishedRestCommitValues are the values of Rest$PublishedRestServiceOperation.Commit.
+var publishedRestCommitValues = []string{"Yes", "YesWithoutEvents", "No"}
+
+// publishedRestCommit returns the stored spelling of an operation's commit
+// clause ("" when the statement has none). Any other value used to parse and
+// be thrown away; it is refused, since there is nothing correct to write.
+func publishedRestCommit(v string) (string, error) {
+	if v == "" {
+		return "", nil
+	}
+	for _, c := range publishedRestCommitValues {
+		if strings.EqualFold(v, c) {
+			return c, nil
+		}
+	}
+	return "", fmt.Errorf("commit %s is not a commit option (allowed: %s)", v, strings.Join(publishedRestCommitValues, ", "))
+}
+
+// carryStoredOperations copies onto each operation a statement declares what
+// MDL cannot state about it — summary, documentation, the import mapping's
+// object handling, and the stored parameters (their names, kinds and
+// descriptions) — from the stored operation it restates. An operation is
+// matched by its resource's name, its method and its path, in order; one
+// without a match is new and gets the defaults.
+func carryStoredOperations(svc, stored *model.PublishedRestService) {
+	pool := map[string][]*model.PublishedRestOperation{}
+	key := func(res string, op *model.PublishedRestOperation) string {
+		return res + "\x00" + strings.ToUpper(op.HTTPMethod) + "\x00" + op.Path
+	}
+	for _, res := range stored.Resources {
+		for _, op := range res.Operations {
+			k := key(res.Name, op)
+			pool[k] = append(pool[k], op)
+		}
+	}
+	for _, res := range svc.Resources {
+		for _, op := range res.Operations {
+			k := key(res.Name, op)
+			if len(pool[k]) == 0 {
+				continue
+			}
+			old := pool[k][0]
+			pool[k] = pool[k][1:]
+			op.Summary = old.Summary
+			op.Documentation = old.Documentation
+			op.ObjectHandlingBackup = old.ObjectHandlingBackup
+			if old.Microflow == op.Microflow {
+				op.OperationParameters = old.OperationParameters
+			}
+		}
+	}
+}
+
+// deriveOperationParameters gives every operation the parameters Studio Pro
+// derives from its microflow (ako/mxcli#571, mendixlabs/mxcli#1206): a
+// parameter named in the path is a path parameter, an object or a list is the
+// body, System.HttpRequest and System.HttpResponse are the request and the
+// response themselves, and anything else is a query parameter — each with the
+// microflow parameter's type. Without the query and body parameters mx check
+// reports CE0350, and a String path parameter bound to an Integer is CE6539.
+//
+// The operation's stored parameters (op.OperationParameters on entry) win for
+// the microflow parameter they bind: Studio Pro lets a parameter be renamed,
+// described or turned into a header, and MDL has no spelling for that, so a
+// rewrite keeps it. Only the type follows the microflow, and a path parameter
+// follows the path.
+func deriveOperationParameters(ctx *ExecContext, svc *model.PublishedRestService) {
+	var microflowsByName map[string]*microflows.Microflow
+	for _, resource := range svc.Resources {
+		for _, op := range resource.Operations {
+			if op.Microflow == "" {
+				continue
+			}
+			if microflowsByName == nil {
+				microflowsByName = liveMicroflowsByQualifiedName(ctx)
+			}
+			mf := microflowsByName[op.Microflow]
+			if mf == nil {
+				if len(op.OperationParameters) == 0 && !ctx.Quiet {
+					fmt.Fprintf(ctx.Output, "Warning: microflow %s not found, so operation %s %s gets only its path parameters, as String -- "+
+						"create the microflow before the service, or its other parameters fail mx check with CE0350\n",
+						op.Microflow, strings.ToUpper(op.HTTPMethod), op.Path)
+				}
+				continue
+			}
+			op.OperationParameters = mergeOperationParameters(op.OperationParameters, operationParametersOf(op.Microflow, mf, op.PathParameterNames()))
+		}
+	}
+}
+
+// liveMicroflowsByQualifiedName indexes the project's live microflows (an
+// excluded twin never shadows the live one, #914).
+func liveMicroflowsByQualifiedName(ctx *ExecContext) map[string]*microflows.Microflow {
+	out := map[string]*microflows.Microflow{}
+	all, err := ctx.Backend.ListMicroflows()
+	if err != nil {
+		return out
+	}
+	h, err := getHierarchy(ctx)
+	if err != nil {
+		return out
+	}
+	for _, mf := range all {
+		qn := h.GetQualifiedName(mf.ContainerID, mf.Name)
+		if prev, ok := out[qn]; ok && !prev.Excluded {
+			continue
+		}
+		out[qn] = mf
+	}
+	return out
+}
+
+// operationParametersOf maps a microflow's parameters to operation parameters
+// by the rule Studio Pro applies.
+func operationParametersOf(mfName string, mf *microflows.Microflow, pathNames []string) []*model.PublishedRestOperationParameter {
+	inPath := make(map[string]bool, len(pathNames))
+	for _, name := range pathNames {
+		inPath[name] = true
+	}
+	var params []*model.PublishedRestOperationParameter
+	for _, p := range mf.Parameters {
+		param := &model.PublishedRestOperationParameter{
+			Name:               p.Name,
+			ParameterType:      "Query",
+			MicroflowParameter: mfName + "." + p.Name,
+		}
+		if p.Type != nil {
+			param.DataType = p.Type.GetTypeName()
+		}
+		switch t := p.Type.(type) {
+		case *microflows.ObjectType:
+			if t.EntityQualifiedName == "System.HttpRequest" || t.EntityQualifiedName == "System.HttpResponse" {
+				continue
+			}
+			param.ParameterType, param.DataType, param.QualifiedName = "Body", "Object", t.EntityQualifiedName
+		case *microflows.ListType:
+			param.ParameterType, param.DataType, param.QualifiedName = "Body", "List", t.EntityQualifiedName
+		case *microflows.EnumerationType:
+			param.DataType, param.QualifiedName = "Enumeration", t.EnumerationQualifiedName
+		}
+		if inPath[p.Name] {
+			param.ParameterType = "Path"
+		}
+		params = append(params, param)
+	}
+	return params
+}
+
+// mergeOperationParameters keeps each stored parameter whose microflow
+// parameter the microflow still has — in stored order, with the derived type,
+// and the derived kind where either side is a path parameter — drops the ones
+// it no longer has, keeps an unbound one as stored, and appends the derived
+// parameters no stored one binds.
+func mergeOperationParameters(stored, derived []*model.PublishedRestOperationParameter) []*model.PublishedRestOperationParameter {
+	byBinding := make(map[string]*model.PublishedRestOperationParameter, len(derived))
+	for _, d := range derived {
+		byBinding[d.MicroflowParameter] = d
+	}
+	used := map[string]bool{}
+	var out []*model.PublishedRestOperationParameter
+	for _, sp := range stored {
+		if sp.MicroflowParameter == "" {
+			out = append(out, sp)
+			continue
+		}
+		d, ok := byBinding[sp.MicroflowParameter]
+		if !ok || used[sp.MicroflowParameter] {
+			continue
+		}
+		used[sp.MicroflowParameter] = true
+		kept := *sp
+		if d.DataType != "" { // "" is a type the reader could not read: keep the stored one
+			kept.DataType, kept.QualifiedName = d.DataType, d.QualifiedName
+		}
+		if d.ParameterType == "Path" || sp.ParameterType == "Path" {
+			kept.Name, kept.ParameterType = d.Name, d.ParameterType
+		}
+		out = append(out, &kept)
+	}
+	for _, d := range derived {
+		if !used[d.MicroflowParameter] {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // execAlterPublishedRestService applies SET / ADD RESOURCE / DROP RESOURCE
@@ -363,7 +606,11 @@ func execAlterPublishedRestService(ctx *ExecContext, s *ast.AlterPublishedRestSe
 					return mdlerrors.NewAlreadyExistsMsg("resource", a.Resource.Name, fmt.Sprintf("resource '%s' already exists on %s.%s", a.Resource.Name, s.Name.Module, s.Name.Name))
 				}
 			}
-			svc.Resources = append(svc.Resources, astResourceDefToModel(a.Resource))
+			resource, err := astResourceDefToModel(a.Resource)
+			if err != nil {
+				return err
+			}
+			svc.Resources = append(svc.Resources, resource)
 
 		case *ast.PublishedRestDropResourceAction:
 			idx := -1
@@ -383,6 +630,7 @@ func execAlterPublishedRestService(ctx *ExecContext, s *ast.AlterPublishedRestSe
 		}
 	}
 
+	deriveOperationParameters(ctx, svc)
 	if err := ctx.Backend.UpdatePublishedRestService(svc); err != nil {
 		return mdlerrors.NewBackend("alter published rest service", err)
 	}
