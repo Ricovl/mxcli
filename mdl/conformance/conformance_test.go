@@ -102,6 +102,30 @@ func TestMarkdownUnits(t *testing.T) {
 	}
 }
 
+// A fence inside a blockquote (a "> **Note**" callout with an example) is
+// MDL like any other: skipping it let `limit 1` survive the mdl 1 pass of the
+// skills in xpath-constraints, where it no longer means the object.
+func TestMarkdownUnits_Blockquote(t *testing.T) {
+	doc := strings.Join([]string{
+		"> **Note.** Compute it first:", // 1
+		"> ```mdl",                      // 2
+		"> $N = 1;",                     // 3
+		">",                             // 4
+		"> retrieve $M from M.E first;", // 5
+		"> ```",                         // 6
+		"```bash",                       // 7
+		"> not a quote, a bash line",    // 8
+		"```",                           // 9
+	}, "\n")
+	units := MarkdownUnits("d.md", doc)
+	if len(units) != 1 {
+		t.Fatalf("got %d units, want 1: %+v", len(units), units)
+	}
+	if want := "$N = 1;\n\nretrieve $M from M.E first;"; units[0].Line != 3 || units[0].Text != want {
+		t.Errorf("quoted unit %+v, want %q on line 3", units[0], want)
+	}
+}
+
 func TestCompareAndShrink(t *testing.T) {
 	a := Key{"a.md", "MDL-DEPR002"}
 	b := Key{"b.md", ClassSyntax}
