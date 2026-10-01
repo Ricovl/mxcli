@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -189,6 +190,13 @@ Upgrading (--upgrade):
 			defer closeProject()
 			res, err := upgrade.Upgrade(string(data), opts)
 			if err != nil {
+				// The header is the default since the freeze (ako/mxcli#714):
+				// name the way to upgrade the spellings without it, which a
+				// plain `fmt --upgrade` did before.
+				var blocked *upgrade.HeaderBlockedError
+				if errors.As(err, &blocked) && !cmd.Flags().Changed("header") {
+					return fmt.Errorf("%s: %w\n`mxcli fmt --upgrade --header=false` upgrades the spellings without the header", label, err)
+				}
 				return fmt.Errorf("%s: %w", label, err)
 			}
 			if res.HeaderAdded {

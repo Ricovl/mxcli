@@ -97,6 +97,44 @@ func TestFmtUpgrade_ReportsWhatItCannotRewrite(t *testing.T) {
 	}
 }
 
+// Since the freeze --upgrade adds the header by default (ako/mxcli#714), so a
+// construct that blocks it now fails a plain `fmt --upgrade`, which before the
+// freeze upgraded the spellings and succeeded. The refusal names the way back
+// to that, `--header=false`, and that way works: the spellings are upgraded,
+// the blocked construct is left, and no header is added.
+func TestFmtUpgrade_BlockedDefaultHeaderNamesTheOptOut(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.mdl")
+	src := "create microflow M.F ($L: List of M.E) begin\n  $n = count(filter($L, Name = 'x'));\nend\n/\n"
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := runFmt(t, "--upgrade", "-w", path)
+	if err == nil || !strings.Contains(err.Error(), "MDL-V1-LIST") {
+		t.Fatalf("want the default header refused over the nested list operation, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "--header=false") {
+		t.Errorf("the refusal of the default header does not name --header=false:\n%v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != src {
+		t.Fatalf("the file was changed although the header was refused:\n%s", got)
+	}
+
+	if _, err := runFmt(t, "--upgrade", "--header=false", "-w", path); err != nil {
+		t.Fatalf("--header=false: %v", err)
+	}
+	if got, _ := os.ReadFile(path); strings.HasPrefix(string(got), "mdl ") {
+		t.Fatalf("--header=false added a header:\n%s", got)
+	}
+
+	// Asked for explicitly, the header is the point: no hint to decline it.
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runFmt(t, "--upgrade", "--header", "-w", path); err == nil || strings.Contains(err.Error(), "--header=false") {
+		t.Fatalf("an explicit --header: want the refusal without the opt-out hint, got %v", err)
+	}
+}
+
 // A .test.mdl that check accepts is one fmt --upgrade can read (ako/mxcli#837):
 // the bodies are upgraded, the @test / @expect doc comments are kept verbatim,
 // and --header adds no header to a test file, saying why.
