@@ -28,7 +28,8 @@ Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode
   output also works as a patch: an unchanged definition writes nothing, and an inserted,
   replaced or dropped statement (at the top level or in an `if` branch) is spliced in,
   leaving every other node, merge and curve as stored — a guard clause (`if … then return;
-  end if;`) too, its return a new end event; a changed `return` value or `if` condition is set on
+  end if;`) too, its return a new end event, and so is the `return` ending a new activity's
+  error handler; a changed `return` value or `if` condition is set on
   the stored end event or decision, and a body without a trailing `return` means the stored end. The
   header (documentation, return type, parameters added, retyped or — when unused —
   removed) is set on the stored document, and a stated `@position` or `@start` moves the
