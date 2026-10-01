@@ -80,6 +80,25 @@ type Program struct {
 	// (ako/mxcli#873). A bare `commit $X;` means WITH events since #895; a
 	// flow an older mxcli stored from the same script has it without.
 	FlowCommits []FlowCommit
+	// DetachedDocComments are the `/** … */` doc comments written before a
+	// statement that cannot store documentation (drop, grant, set, alter, …),
+	// in source order. The statement ignores it, so the text is lost; check
+	// warns (MDL089) and names the next statement that could have taken it
+	// (ako/mxcli#877).
+	DetachedDocComments []DetachedDocComment
+}
+
+// DetachedDocComment is a doc comment on a statement that does not store it.
+type DetachedDocComment struct {
+	// Line is the 1-based line the comment starts on.
+	Line int
+	// Statement is the start of the statement it precedes, as written
+	// ("drop microflow if exists Rest.GetOrders").
+	Statement string
+	// Next and NextLine are the start and line of the next statement that
+	// stores a doc comment; Next is "" when none follows.
+	Next     string
+	NextLine int
 }
 
 // FlowCommit is one `commit $X` in a `create or modify` flow.

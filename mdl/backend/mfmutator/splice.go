@@ -298,7 +298,7 @@ func (m *Mutator) spliceOnFlow(g *graph, f flowRef, frag *backend.MicroflowFragm
 		if entrySide, exitSide, err = placedSides(frag, x, y); err != nil {
 			return err
 		}
-	} else if entrySide, exitSide, err = m.makeRoom(g, fb, x, y); err != nil {
+	} else if entrySide, exitSide, err = m.makeRoom(g, fb, f, x, y); err != nil {
 		return err
 	}
 	destIdx, destVec := flowEnd(f.doc, "Destination")
@@ -318,13 +318,14 @@ func (m *Mutator) spliceOnFlow(g *graph, f flowRef, frag *backend.MicroflowFragm
 		DestinationConnectionIndex: destIdx,
 		OriginControlVector:        sideVector(exitSide),
 		DestinationControlVector:   destVec,
+		CaseValue:                  frag.ExitCase,
 	})
 }
 
 // makeRoom places the fragment in the gap between x and y, moving everything
 // past the gap along when it does not fit, and returns the sides its new ends
 // connect at.
-func (m *Mutator) makeRoom(g *graph, fb *fragmentBox, x, y *node) (entrySide, exitSide int, err error) {
+func (m *Mutator) makeRoom(g *graph, fb *fragmentBox, f flowRef, x, y *node) (entrySide, exitSide int, err error) {
 	ax, s, err := flowAxis(x, y)
 	if err != nil {
 		return 0, 0, err
@@ -347,7 +348,7 @@ func (m *Mutator) makeRoom(g *graph, fb *fragmentBox, x, y *node) (entrySide, ex
 	mid = mid.set(ax, (a+b)/2)
 	mid = mid.set(cross, (x.pos.get(cross)+y.pos.get(cross))/2)
 	fb.placeCentred(ax, mid)
-	if err := fb.checkRoom(g, ""); err != nil {
+	if err := fb.checkRoom(g, "", f.id); err != nil {
 		return 0, 0, err
 	}
 	return side(ax, -s), side(ax, s), nil
@@ -421,7 +422,7 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 		centre = centre.set(ax, near+s*fb.length(ax)/2)
 		centre = centre.set(ax.other(), x.pos.get(ax.other()))
 		fb.placeCentred(ax, centre)
-		if err := fb.checkRoom(g, x.id); err != nil {
+		if err := fb.checkRoom(g, x.id, ""); err != nil {
 			return err
 		}
 	}
@@ -433,6 +434,11 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 		setPointer(in.doc, "DestinationPointer", frag.Entry)
 	}
 	setPointer(out.doc, "OriginPointer", frag.Exit)
+	if frag.ExitCase != nil {
+		if err := m.setCase(out.doc, frag.ExitCase); err != nil {
+			return err
+		}
+	}
 	for _, af := range g.annotationFlows(x.id) {
 		key := "DestinationPointer"
 		if af.origin == x.id {
@@ -442,6 +448,35 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 	}
 	m.removeFlows(g.bodyFlows(x.id))
 	return m.removeObject(x)
+}
+
+// setCase gives a stored flow the case value cv, in the form the engine
+// writes it: the case properties of a flow serialized with cv replace the
+// stored ones, and the flow keeps its $ID and everything else. The stored
+// case element (a NoCase) is taken out with them.
+func (m *Mutator) setCase(d bson.D, cv microflows.CaseValue) error {
+	tmp, err := m.deps.SerializeSequenceFlow(&microflows.SequenceFlow{
+		BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
+		CaseValue:   cv,
+	})
+	if err != nil {
+		return fmt.Errorf("serialize case value: %w", err)
+	}
+	set := false
+	for _, key := range []string{"CaseValues", "NewCaseValue"} {
+		v := dGet(tmp, key)
+		if v == nil || dGet(d, key) == nil {
+			continue
+		}
+		m.markRemoved(dGet(d, key))
+		dSet(d, key, v)
+		set = true
+	}
+	if !set {
+		return fmt.Errorf("the flow leaving the fragment needs a case value, and the stored flow %s has nowhere to keep one",
+			binaryID(dGet(d, "$ID")))
+	}
+	return nil
 }
 
 // RemoveNotes takes out the annotations attached to target, with their
@@ -535,6 +570,33 @@ func (m *Mutator) SetReturnValue(target model.ID, value string) error {
 	}
 	if !dSet(x.doc, "ReturnValue", value) {
 		return fmt.Errorf("%s stores no ReturnValue", describeNode(x))
+	}
+	return nil
+}
+
+// SetCondition sets the expression a decision branches on, and its caption,
+// in place (ako/mxcli#888): the decision keeps its $ID, its flows and the case
+// values on them, so both of its paths stay as drawn. Only an expression
+// decision has an expression to set; one that calls a rule is refused, since
+// turning it into an expression (or back) replaces its condition element.
+func (m *Mutator) SetCondition(target model.ID, expression, caption string) error {
+	g := m.graph()
+	x, err := g.node(target)
+	if err != nil {
+		return err
+	}
+	if x.typ != "Microflows$ExclusiveSplit" {
+		return fmt.Errorf("cannot set the condition of %s: only a decision has one", describeNode(x))
+	}
+	cond := dDoc(x.doc, "SplitCondition")
+	if cond == nil || dString(cond, "$Type") != "Microflows$ExpressionSplitCondition" {
+		return fmt.Errorf("cannot set the condition of %s: it calls a rule, and the splice sets an expression's text only", describeNode(x))
+	}
+	if !dSet(cond, "Expression", expression) {
+		return fmt.Errorf("%s stores no Expression", describeNode(x))
+	}
+	if !dSet(x.doc, "Caption", caption) {
+		return fmt.Errorf("%s stores no Caption", describeNode(x))
 	}
 	return nil
 }
@@ -924,8 +986,9 @@ func (fb *fragmentBox) placeCentred(ax axis, c point) {
 // that stays where it is. The shift clears the space past the cut; an object
 // that already sat inside the gap (a branch drawn below the main line, say)
 // is not moved, and drawing over it would hide it in Studio Pro. skip is the
-// object a replace removes.
-func (fb *fragmentBox) checkRoom(g *graph, skip string) error {
+// object a replace removes; onFlow the flow an insert goes on, which runs to
+// the fragment's entry afterwards rather than across it.
+func (fb *fragmentBox) checkRoom(g *graph, skip, onFlow string) error {
 	for _, n := range g.order {
 		if n.loop != "" || n.id == skip {
 			continue
@@ -937,7 +1000,98 @@ func (fb *fragmentBox) checkRoom(g *graph, skip string) error {
 				"move that object aside in Studio Pro first", fb.min.X, fb.min.Y, fb.max.X, fb.max.Y, describeNode(n))
 		}
 	}
+	return fb.checkBranches(g, skip, onFlow)
+}
+
+// checkBranches refuses a placement whose return branches would be drawn
+// across a stored flow (ako/mxcli#888). A return in the fragment ends its own
+// path, off the line the fragment is spliced into: the builder draws its end
+// event beside that line, and the flow to it leaves its decision sideways. The
+// end event is checked with the rest of the fragment by checkRoom; what
+// checkRoom cannot see is a stored flow running through that space — a branch
+// below the line that rejoins past the gap, which the shift has just
+// stretched across it. Such a flow is approximated by the straight line
+// between the centres of its ends, which is how a flow between two aligned
+// nodes is drawn.
+func (fb *fragmentBox) checkBranches(g *graph, skip, onFlow string) error {
+	objs := map[model.ID]microflows.MicroflowObject{}
+	for _, obj := range fb.frag.Objects {
+		objs[obj.GetID()] = obj
+	}
+	for _, f := range fb.frag.Flows {
+		end, ok := objs[f.DestinationID].(*microflows.EndEvent)
+		if !ok || objs[f.OriginID] == nil {
+			continue
+		}
+		r := branchArea(objs[f.OriginID], end)
+		for _, sf := range g.flows {
+			if !sf.isSequence() || sf.id == onFlow || sf.origin == skip || sf.dest == skip {
+				continue
+			}
+			a, b := g.nodes[sf.origin], g.nodes[sf.dest]
+			if a == nil || b == nil || a.loop != "" || b.loop != "" {
+				continue
+			}
+			if segmentCrosses(a.pos, b.pos, r) {
+				p := end.GetPosition()
+				return fmt.Errorf("there is no free room for the return at (%d, %d): its branch would be drawn across the "+
+					"flow from %s to %s; move them aside in Studio Pro first", p.X, p.Y, describeNode(a), describeNode(b))
+			}
+		}
+	}
 	return nil
+}
+
+// branchArea is the space the path from a decision to one of its end events
+// takes: from the side of the decision that faces the end event to the far
+// side of the end event, across the full width between them.
+func branchArea(from microflows.MicroflowObject, end *microflows.EndEvent) [2]point {
+	o, e := from.GetPosition(), end.GetPosition()
+	os, es := objectSize(from), objectSize(end)
+	lo := point{min(o.X, e.X-es.X/2), min(o.Y, e.Y-es.Y/2)}
+	hi := point{max(o.X, e.X+es.X/2), max(o.Y, e.Y+es.Y/2)}
+	// Leave the decision's own box out: the flow that enters it comes in
+	// along the line the fragment is spliced into.
+	switch dx, dy := e.X-o.X, e.Y-o.Y; {
+	case abs(dy) >= abs(dx) && dy > 0:
+		lo.Y = o.Y + os.Y/2
+	case abs(dy) >= abs(dx):
+		hi.Y = o.Y - os.Y/2
+	case dx > 0:
+		lo.X = o.X + os.X/2
+	default:
+		hi.X = o.X - os.X/2
+	}
+	return [2]point{lo, hi}
+}
+
+// segmentCrosses reports whether the segment from a to b passes through the
+// inside of the rectangle r (Liang-Barsky clipping).
+func segmentCrosses(a, b point, r [2]point) bool {
+	t0, t1 := 0.0, 1.0
+	dx, dy := float64(b.X-a.X), float64(b.Y-a.Y)
+	clip := func(p, q float64) bool {
+		switch {
+		case p == 0:
+			return q > 0
+		case p < 0:
+			t := q / p
+			if t > t1 {
+				return false
+			}
+			t0 = max(t0, t)
+		default:
+			t := q / p
+			if t < t0 {
+				return false
+			}
+			t1 = min(t1, t)
+		}
+		return true
+	}
+	ax, ay := float64(a.X), float64(a.Y)
+	return clip(-dx, ax-float64(r[0].X)) && clip(dx, float64(r[1].X)-ax) &&
+		clip(-dy, ay-float64(r[0].Y)) && clip(dy, float64(r[1].Y)-ay) && t0 < t1
 }
 
 func objectSize(obj microflows.MicroflowObject) point {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/mendixexpr"
 )
 
 // declaredMatches reports whether a declared microflow AST value (from the
@@ -118,8 +119,16 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 		if d.IsNil() || s.IsNil() {
 			return d.IsNil() == s.IsNil()
 		}
+		if d.Type() == expressionType {
+			if same, ok := sameMendixExpression(d, s); ok {
+				return same
+			}
+		}
 		return matchValue(d.Elem(), s.Elem(), mode)
 	case reflect.Struct:
+		if d.Type() == dataTypeStructType {
+			d, s = storedFlowDataType(d), storedFlowDataType(s)
+		}
 		geo := geometryFields[d.Type()]
 		for i := 0; i < d.NumField(); i++ {
 			df := d.Field(i)
@@ -130,10 +139,10 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 				continue
 			}
 			if d.Type() == sourceExprStructType && name == "Source" {
-				// Whitespace around an expression is not part of it: the
-				// writer stores it as written, describe drops it
-				// (describeExpr), so the stored side never has it.
-				if strings.TrimSpace(df.String()) != strings.TrimSpace(s.Field(i).String()) {
+				// Whitespace around and between an expression's tokens is
+				// not part of it, nor is a keyword's case: the writer stores
+				// it as written, describe prints its own (ako/mxcli#886).
+				if mendixexpr.Canonical(df.String()) != mendixexpr.Canonical(s.Field(i).String()) {
 					return false
 				}
 				continue
@@ -179,6 +188,75 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 }
 
 var errorHandlingPtrType = reflect.TypeOf((*ast.ErrorHandlingClause)(nil))
+
+var dataTypeStructType = reflect.TypeOf(ast.DataType{})
+
+// storedFlowDataType returns v, an ast.DataType, as the type a flow stores
+// for it: a flow has one integer type, Integer/Long, which the writer stores
+// as DataTypes$IntegerType and describe prints `Integer` — so `Long` is the
+// same declaration (ako/mxcli#886).
+func storedFlowDataType(v reflect.Value) reflect.Value {
+	dt, ok := v.Interface().(ast.DataType)
+	if !ok || dt.Kind != ast.TypeLong {
+		return v
+	}
+	dt.Kind = ast.TypeInteger
+	return reflect.ValueOf(dt)
+}
+
+var expressionType = reflect.TypeOf((*ast.Expression)(nil)).Elem()
+
+// sameMendixExpression compares two Mendix expressions of a statement by
+// their canonical tokens (mendixexpr.Canonical), which is what they store
+// once the writer's own spelling is set aside (ako/mxcli#886). The same
+// expression has several trees: `Active = false` written before a line break
+// is source text kept with the break, `Active = false` on one line a literal;
+// `AND` where an operand forces the source to be kept is text, `and` where it
+// does not a binary node. ok is false when either side holds something the
+// renderer cannot spell (an XPath path outside its source), which is then
+// compared as a tree.
+func sameMendixExpression(d, s reflect.Value) (same, ok bool) {
+	de, _ := d.Interface().(ast.Expression)
+	se, _ := s.Interface().(ast.Expression)
+	if !renderable(de) || !renderable(se) {
+		return false, false
+	}
+	return mendixexpr.Canonical(mendixexpr.String(de)) == mendixexpr.Canonical(mendixexpr.String(se)), true
+}
+
+// renderable reports whether mendixexpr.String spells all of e: a source
+// expression is its source; any other node must be one the renderer knows, and
+// so must every node under it.
+func renderable(e ast.Expression) bool {
+	switch x := e.(type) {
+	case nil:
+		return false
+	case *ast.SourceExpr:
+		return x != nil && (x.Source != "" || renderable(x.Expression))
+	case *ast.LiteralExpr, *ast.VariableExpr, *ast.AttributePathExpr, *ast.TokenExpr,
+		*ast.IdentifierExpr, *ast.QualifiedNameExpr, *ast.ConstantRefExpr:
+		return !reflect.ValueOf(e).IsNil()
+	case *ast.BinaryExpr:
+		return x != nil && renderable(x.Left) && renderable(x.Right)
+	case *ast.UnaryExpr:
+		return x != nil && renderable(x.Operand)
+	case *ast.ParenExpr:
+		return x != nil && renderable(x.Inner)
+	case *ast.IfThenElseExpr:
+		return x != nil && renderable(x.Condition) && renderable(x.ThenExpr) && renderable(x.ElseExpr)
+	case *ast.FunctionCallExpr:
+		if x == nil {
+			return false
+		}
+		for _, a := range x.Arguments {
+			if !renderable(a) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
 
 // withoutDefaultErrorHandling returns v, an *ast.ErrorHandlingClause, as nil
 // when it is a bare `on error rollback`. In a microflow that is the stored

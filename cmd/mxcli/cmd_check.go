@@ -62,6 +62,17 @@ enumeration has, which is why they need -p. They report under exprcheck's own
 E0xx codes, and — like every other check here — only an error severity fails the
 run.
 
+Given a project it also predicts what exec would refuse. A "create or modify"
+of a microflow or nanoflow the project holds is applied as a patch of the stored
+flow; a change the patch cannot make (inside a loop body, a redrawn connector, a
+return in an inserted fragment, ...) is refused by exec under "mdl 1;", and
+check reports it as an MDL-V1-REBUILD error with exec's message. Under mdl 0
+exec rebuilds the whole flow instead, and check reports the MDL-V1-REBUILD
+warning exec prints. An "alter microflow|nanoflow" exec would refuse is MDL090.
+This is the verdict "mxcli diff" reports as "Refused:", computed by the same
+code. A statement on a flow an earlier statement of the script changes, or
+whose flow does not build until an earlier statement has run, is not predicted.
+
 Output includes structured rule IDs (MDL prefix for reference and script rules,
 E0xx for expression type rules) for each validation issue.
 
@@ -330,8 +341,15 @@ Examples:
 			// Expression type checking is the other half: the rules that need an
 			// attribute's type, an enumeration's cases or a microflow's return
 			// type. The scope-local tier already ran in the unconditional pass.
+			//
+			// The flow verdicts are what exec would refuse (ako/mxcli#876): a
+			// `create or modify` of a stored flow whose change the splice cannot
+			// make is refused under mdl 1 and rebuilt with MDL-V1-REBUILD under
+			// mdl 0, and an alter whose patch fails is refused under both. They
+			// run the verdict exec and diff run, so the three agree.
 			projectViolations := exec.CheckEntityMemberDrops(prog)
 			projectViolations = append(projectViolations, exec.TypeCheckProgram(prog)...)
+			projectViolations = append(projectViolations, exec.CheckFlowVerdicts(prog)...)
 			if len(projectViolations) > 0 {
 				if isStructured {
 					structured = append(structured, projectViolations...)
@@ -343,7 +361,7 @@ Examples:
 					finish(1)
 				}
 			} else if !isStructured {
-				fmt.Printf("✓ Expression types OK, no unstated member drops\n")
+				fmt.Printf("✓ Expression types OK, no unstated member drops, no flow change exec would refuse\n")
 			}
 		}
 

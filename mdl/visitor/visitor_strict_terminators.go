@@ -38,6 +38,7 @@ var slashIsNotATerminator = langver.Change{
 // `SEMICOLON? SLASH?` themselves, and `create java action … as $$…$$;` in
 // `SEMICOLON?`, so either can belong to the inner rule.
 func (b *Builder) ExitStatement(ctx *parser.StatementContext) {
+	b.exitStatementDocs(ctx)
 	last := lastTerminals(ctx, 2)
 	if len(last) == 0 {
 		return
