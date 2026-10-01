@@ -532,6 +532,29 @@ func TestFormatAction_ShowPage_WithParams(t *testing.T) {
 	}
 }
 
+// A page title override is described, so describe -> exec keeps it and taking
+// it out of a create or modify is a difference (ako/mxcli#869).
+func TestFormatAction_ShowPage_WithTitle(t *testing.T) {
+	e := newTestExecutor()
+	action := &microflows.ShowPageAction{
+		PageName: "MyModule.OrderDetail",
+		PageParameterMappings: []*microflows.PageParameterMapping{
+			{Parameter: "MyModule.OrderDetail.Order", Argument: "$Order"},
+		},
+		OverridePageTitle: &model.Text{Translations: map[string]string{"en_US": "Order's details"}},
+	}
+	got := e.formatAction(action, nil, nil)
+	want := "show page MyModule.OrderDetail(Order = $Order) with title = 'Order''s details';"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	// An override with no text states nothing the statement can carry.
+	action.OverridePageTitle = &model.Text{}
+	if got := e.formatAction(action, nil, nil); got != "show page MyModule.OrderDetail(Order = $Order);" {
+		t.Errorf("empty override: got %q", got)
+	}
+}
+
 func TestFormatAction_ClosePage(t *testing.T) {
 	e := newTestExecutor()
 	action := &microflows.ClosePageAction{NumberOfPages: 1}

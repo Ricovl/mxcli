@@ -79,6 +79,13 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		fail := func(err error) error {
 			return mdlerrors.NewValidation(fmt.Sprintf("alter %s %s: %s %s: %v", s.Kind(), s.Name, op.Op, op.Target, err))
 		}
+		if op.ReplaceNotes {
+			// The statement states the activity's notes, so the stored ones
+			// go with it rather than stay (ako/mxcli#859).
+			if err := mut.RemoveNotes(target.ID); err != nil {
+				return fail(err)
+			}
+		}
 		if op.Op == ast.AlterFlowDrop {
 			if err := a.checkOutputUnused(target, nil); err != nil {
 				return fail(err)
@@ -157,6 +164,14 @@ type alterFlowContext struct {
 	// removedIDs are the stored activities earlier operations took out; what
 	// they read no longer counts as a use.
 	removedIDs map[model.ID]bool
+
+	// declaredVarTypes is the entity each variable holds as a full build of
+	// the declared flow resolves it ("Module.Entity" or "List of
+	// Module.Entity"), when the statement is a `create or modify` whose
+	// declared body builds. A spliced fragment is built with it, so it writes
+	// the members a full build of the same statement writes (ako/mxcli#885):
+	// the stored flow alone does not say what every variable holds.
+	declaredVarTypes map[string]string
 }
 
 // noteRemoved records that target's output is gone, unless the fragment that
@@ -290,6 +305,10 @@ func (a *alterFlowContext) returnValue(ctx *ExecContext, ret *ast.ReturnStmt) (s
 // variables the stored flow declares.
 func (a *alterFlowContext) fragmentBuilder(ctx *ExecContext) *flowBuilder {
 	varTypes, declared := a.storedVariables(ctx)
+	for name, t := range a.declaredVarTypes {
+		varTypes[name] = t
+		delete(declared, name)
+	}
 	hierarchy, _ := getHierarchy(ctx)
 	restServices, _ := loadRestServices(ctx)
 	return &flowBuilder{
@@ -305,6 +324,10 @@ func (a *alterFlowContext) fragmentBuilder(ctx *ExecContext) *flowBuilder {
 		hierarchy:    hierarchy,
 		restServices: restServices,
 		isNanoflow:   a.stmt.Nanoflow,
+
+		// A fragment is spliced into a stored flow: a member it cannot
+		// qualify is refused, never written bare (ako/mxcli#885).
+		qualifiedMembersOnly: true,
 	}
 }
 
@@ -432,6 +455,37 @@ func (a *alterFlowContext) storedVariables(ctx *ExecContext) (varTypes, declared
 				varTypes[c.OutputVariable] = n
 			} else {
 				declared[c.OutputVariable] = "Object"
+			}
+		case *microflows.RetrieveAction:
+			// A database retrieve names its entity; one over an association
+			// depends on which side it starts from and stays untyped here.
+			src, ok := x.Source.(*microflows.DatabaseRetrieveSource)
+			entity := ""
+			if ok {
+				entity = src.EntityQualifiedName
+				if entity == "" {
+					entity = a.entityNames[src.EntityID]
+				}
+			}
+			switch {
+			case entity == "":
+				declared[c.OutputVariable] = "Unknown"
+			case src.Range != nil && src.Range.RangeType == microflows.RangeTypeFirst:
+				varTypes[c.OutputVariable] = entity
+			default:
+				varTypes[c.OutputVariable] = "List of " + entity
+			}
+		case *microflows.MicroflowCallAction:
+			// A call's result has the called microflow's return type.
+			var rt microflows.DataType
+			if x.MicroflowCall != nil {
+				rt = (&flowBuilder{backend: ctx.Backend}).lookupMicroflowReturnType(x.MicroflowCall.Microflow)
+			}
+			switch rt.(type) {
+			case *microflows.ObjectType, *microflows.ListType:
+				add(c.OutputVariable, rt)
+			default:
+				declared[c.OutputVariable] = "Unknown"
 			}
 		default:
 			declared[c.OutputVariable] = "Unknown"

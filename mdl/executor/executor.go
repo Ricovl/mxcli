@@ -366,7 +366,7 @@ func (e *Executor) Execute(stmt ast.Statement) error {
 }
 
 // ExecuteProgram runs all statements in a program.
-func (e *Executor) ExecuteProgram(prog *ast.Program) error {
+func (e *Executor) ExecuteProgram(prog *ast.Program) (err error) {
 	if e.beginTally() {
 		defer e.flushTally()
 	}
@@ -379,11 +379,29 @@ func (e *Executor) ExecuteProgram(prog *ast.Program) error {
 	// Track which names have been created so far.
 	created := newScriptContext()
 
+	// A run of access-rule statements is written once, at its end (#872). The
+	// deferred end also covers a statement that fails mid-run: what the run's
+	// earlier statements did still lands, as it did when each wrote itself. If
+	// it cannot land, that is returned with the statement's error — those
+	// statements already reported success.
+	var rules accessRuleRun
+	defer func() {
+		if ferr := rules.end(); ferr != nil {
+			err = errors.Join(err, ferr)
+		}
+	}()
+
 	for _, stmt := range prog.Statements {
+		if err := rules.step(e, stmt); err != nil {
+			return err
+		}
 		if err := e.Execute(stmt); err != nil {
 			return annotateForwardRef(err, stmt, created, allDefined)
 		}
 		created.collectSingle(stmt)
+	}
+	if err := rules.end(); err != nil {
+		return err
 	}
 	return e.finalizeProgramExecution()
 }
@@ -424,9 +442,15 @@ func (e *Executor) ExecuteProgramContinueOnError(prog *ast.Program, w io.Writer)
 	allDefined.collectDefinitions(prog)
 	created := newScriptContext()
 
+	var rules accessRuleRun // see ExecuteProgram
+	defer func() { _ = rules.end() }()
+
 	var res ExecuteProgramResult
 	for i, stmt := range prog.Statements {
 		res.Total++
+		if err := rules.step(e, stmt); err != nil {
+			return res, err
+		}
 		if err := e.Execute(stmt); err != nil {
 			if errors.Is(err, ErrExit) {
 				return res, err
@@ -437,6 +461,9 @@ func (e *Executor) ExecuteProgramContinueOnError(prog *ast.Program, w io.Writer)
 		}
 		res.Succeeded++
 		created.collectSingle(stmt)
+	}
+	if err := rules.end(); err != nil {
+		return res, err
 	}
 	if err := e.finalizeProgramExecution(); err != nil {
 		return res, err

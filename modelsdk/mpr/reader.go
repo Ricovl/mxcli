@@ -336,6 +336,15 @@ func (r *Reader) SetOverlay(unitID string, data []byte) {
 	r.overlay[unitID] = data
 }
 
+// overlaid returns the in-memory bytes registered for unitID, if any.
+func (r *Reader) overlaid(unitID string) ([]byte, bool) {
+	if len(r.overlay) == 0 {
+		return nil, false
+	}
+	data, ok := r.overlay[unitID]
+	return data, ok
+}
+
 // ClearOverlay removes a single unitID from the overlay.
 func (r *Reader) ClearOverlay(unitID string) {
 	delete(r.overlay, unitID)

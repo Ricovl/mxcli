@@ -523,8 +523,14 @@ func buildUserTask(n *ast.WorkflowUserTaskNode) *workflows.UserTask {
 			Microflow: n.Targeting.Microflow.Module + "." + n.Targeting.Microflow.Name,
 		}
 	case "xpath":
+		// Targeting XPath is evaluated on System.User, group targeting on
+		// System.WorkflowGroup (ako/mxcli#874). Only the names qualified with
+		// that entity (or a path step) are resolved: with no project here, any
+		// other three-part name — an enumeration value, or an attribute of the
+		// configured workflow user entity — is left as written, as it always
+		// was, rather than guessed into a string literal that fails silently.
 		task.UserSource = &workflows.XPathBasedUserSource{
-			XPath: n.Targeting.XPath,
+			XPath: resolveXPathMemberNames(n.Targeting.XPath, "System.User"),
 		}
 	case "group_microflow":
 		task.UserSource = &workflows.MicroflowGroupSource{
@@ -532,7 +538,7 @@ func buildUserTask(n *ast.WorkflowUserTaskNode) *workflows.UserTask {
 		}
 	case "group_xpath":
 		task.UserSource = &workflows.XPathGroupSource{
-			XPath: n.Targeting.XPath,
+			XPath: resolveXPathMemberNames(n.Targeting.XPath, "System.WorkflowGroup"),
 		}
 	}
 

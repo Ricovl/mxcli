@@ -3,12 +3,14 @@
 package executor
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"sort"
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // # The declared flow, built, against the stored one (ako/mxcli#859)
@@ -190,6 +192,7 @@ var (
 	idType          = reflect.TypeOf(model.ID(""))
 	baseElementType = reflect.TypeOf(model.BaseElement{})
 	collectionType  = reflect.TypeOf(microflows.MicroflowObjectCollection{})
+	rawBSONType     = reflect.TypeOf([]byte(nil))
 )
 
 // value compares two values of the model exactly, except that an element's own
@@ -234,6 +237,12 @@ func (c *builtComparer) value(b, s reflect.Value, path string) bool {
 		}
 		return true
 	case reflect.Slice, reflect.Array:
+		if b.Type() == rawBSONType {
+			if !sameRawModuloIDs(b.Bytes(), s.Bytes()) {
+				return c.fail("%s: the raw documents differ", path)
+			}
+			return true
+		}
 		if b.Len() != s.Len() {
 			return c.fail("%s: %d built, %d stored", path, b.Len(), s.Len())
 		}
@@ -269,5 +278,47 @@ func (c *builtComparer) value(b, s reflect.Value, path string) bool {
 			return c.fail("%s: %v built, %v stored", path, b.Interface(), s.Interface())
 		}
 		return true
+	}
+}
+
+// sameRawModuloIDs compares two raw BSON documents — the one a call web
+// service activity keeps when the structured form cannot reproduce it — with
+// every element's own $ID set aside, at any depth. Like the objects around it,
+// each build mints its own, so comparing the bytes made two builds of one
+// statement a difference on every run (ako/mxcli#861). Anything that is not a
+// BSON document is compared as bytes.
+func sameRawModuloIDs(b, s []byte) bool {
+	if bytes.Equal(b, s) {
+		return true
+	}
+	var bd, sd bson.D
+	if bson.Unmarshal(b, &bd) != nil || bson.Unmarshal(s, &sd) != nil {
+		return false
+	}
+	bn, berr := bson.Marshal(withoutIDs(bd))
+	sn, serr := bson.Marshal(withoutIDs(sd))
+	return berr == nil && serr == nil && bytes.Equal(bn, sn)
+}
+
+// withoutIDs is v with the $ID key dropped from every document in it.
+func withoutIDs(v any) any {
+	switch x := v.(type) {
+	case bson.D:
+		out := make(bson.D, 0, len(x))
+		for _, e := range x {
+			if e.Key == "$ID" {
+				continue
+			}
+			out = append(out, bson.E{Key: e.Key, Value: withoutIDs(e.Value)})
+		}
+		return out
+	case bson.A:
+		out := make(bson.A, len(x))
+		for i, e := range x {
+			out[i] = withoutIDs(e)
+		}
+		return out
+	default:
+		return v
 	}
 }

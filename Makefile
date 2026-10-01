@@ -354,8 +354,10 @@ INTEGRATION_PKGS = $(shell grep -rl --include='*_test.go' --exclude-dir='.?*' --
 INTEGRATION_SPLIT = ./mdl/executor ./mdl/roundtrip
 UPGRADE_PROPERTY = ^TestUpgradeExecutesToTheSameModel$$
 # The TestApp splice-parity property (#839) runs describe → exec on every
-# TestApp flow under both language versions (~7 min): its own CI suite.
-SPLICE_PARITY = ^TestTestAppFlowSpliceParity$$
+# TestApp flow under both language versions (~7 min): its own CI suite. The
+# TestSpliceRerun_ tests (#859) run there too, to keep the roundtrip suite
+# under its time limit (#870).
+SPLICE_PARITY = ^(TestTestAppFlowSpliceParity|TestSpliceRerun_.*)$$
 INTEGRATION_GO_TEST = CGO_ENABLED=0 go test -tags integration -count=1
 
 test-integration-executor:

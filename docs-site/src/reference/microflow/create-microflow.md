@@ -83,6 +83,8 @@ $Result = CALL JAVA ACTION Module.Name ( Param = value );
 
 Call another microflow, nanoflow, or Java action. Parameters are passed by name. The result can be assigned to a variable when the callee has a return type. If no return value is needed, omit the `$Result =` prefix.
 
+A flow may call itself: the target resolves to the flow the statement creates, with the return type it declares, so a recursive microflow or nanoflow is written in one statement — no stub created first.
+
 **UI Actions**
 
 ```sql

@@ -90,6 +90,13 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 	}
 	switch d.Kind() {
 	case reflect.Pointer:
+		if d.Type() == errorHandlingPtrType {
+			// `on error rollback` is what an activity with no clause stores,
+			// so describe never prints it (formatErrorHandlingSuffix): the
+			// stored side never has it, and a declared one that states it is
+			// the same activity (ako/mxcli#859).
+			d, s = withoutDefaultErrorHandling(d), withoutDefaultErrorHandling(s)
+		}
 		if d.IsNil() && s.IsNil() {
 			return true
 		}
@@ -132,7 +139,7 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 				continue
 			}
 			if d.Type() == retrieveStructType && name == "Where" {
-				if !sameStoredConstraint(df, s.Field(i)) {
+				if !sameStoredConstraint(df, s.Field(i), retrieveEntity(d), retrieveEntity(s)) {
 					return false
 				}
 				continue
@@ -171,6 +178,21 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 	}
 }
 
+var errorHandlingPtrType = reflect.TypeOf((*ast.ErrorHandlingClause)(nil))
+
+// withoutDefaultErrorHandling returns v, an *ast.ErrorHandlingClause, as nil
+// when it is a bare `on error rollback`. In a microflow that is the stored
+// default; in a nanoflow, whose default is Abort, describe prints neither
+// (both emit nothing), so no comparison with a described flow can tell them
+// apart either way.
+func withoutDefaultErrorHandling(v reflect.Value) reflect.Value {
+	if eh, ok := v.Interface().(*ast.ErrorHandlingClause); ok && eh != nil &&
+		eh.Type == ast.ErrorHandlingRollback && len(eh.Body) == 0 {
+		return reflect.Zero(v.Type())
+	}
+	return v
+}
+
 // reflectElem returns the struct a statement pointer points at, or the zero
 // Value when it is not a pointer to a struct.
 func reflectElem(v any) reflect.Value {
@@ -194,10 +216,22 @@ func reflectElem(v any) reflect.Value {
 // out over several lines itself (FormatXPathConstraint), and a line break
 // between two tokens states nothing. Whitespace inside a string literal is
 // data and is compared as written.
-func sameStoredConstraint(d, s reflect.Value) bool {
+//
+// Each side is resolved against its own retrieve's entity, as the writer does,
+// so `[M.Emp.Name = 'y']` is the `Name = 'y'` describe prints for what it
+// stored (ako/mxcli#874).
+func sameStoredConstraint(d, s reflect.Value, dEntity, sEntity string) bool {
 	de, _ := d.Interface().(ast.Expression)
 	se, _ := s.Interface().(ast.Expression)
-	return xpathTokens(retrieveXPathConstraint(de)) == xpathTokens(retrieveXPathConstraint(se))
+	return xpathTokens(retrieveXPathConstraint(de, dEntity)) == xpathTokens(retrieveXPathConstraint(se, sEntity))
+}
+
+// retrieveEntity is the entity a retrieve statement's struct value reads from.
+func retrieveEntity(retrieve reflect.Value) string {
+	if q, ok := retrieve.FieldByName("Source").Interface().(ast.QualifiedName); ok {
+		return q.String()
+	}
+	return ""
 }
 
 // xpathTokens is an XPath constraint with the whitespace between its tokens

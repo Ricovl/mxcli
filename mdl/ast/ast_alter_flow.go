@@ -51,4 +51,10 @@ type AlterFlowOperation struct {
 	Target string
 	// Body is the fragment, for insert and replace.
 	Body []MicroflowStatement
+	// ReplaceNotes, on a replace or drop, says the notes attached to the
+	// target go with it instead of being kept on the replacement (or left
+	// behind): Body carries the notes the statement states. Set only by
+	// `create or modify`, whose declared statements state every activity's
+	// notes (ako/mxcli#859); an `alter` replace keeps them.
+	ReplaceNotes bool
 }

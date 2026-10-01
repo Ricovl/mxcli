@@ -79,6 +79,10 @@ func (m *mcpFlowMutator) Drop(model.ID) error {
 	return fmt.Errorf("drop is not supported by the MCP backend yet: Studio Pro does not roll back a removal when an update fails; run without --mcp to alter %s in the .mpr", m.qn)
 }
 
+func (m *mcpFlowMutator) RemoveNotes(model.ID) error {
+	return fmt.Errorf("removing notes is not supported by the MCP backend yet: Studio Pro does not roll back a removal when an update fails; run without --mcp to alter %s in the .mpr", m.qn)
+}
+
 // SetReturnValue is refused like a replace: the patch Save sends carries
 // positions, pointers and added or removed elements only, so a changed value
 // would not reach Studio Pro and the edit would be lost without a word.

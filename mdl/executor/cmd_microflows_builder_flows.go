@@ -743,6 +743,7 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 		hierarchy:    fb.hierarchy,
 		restServices: fb.restServices,
 		isNanoflow:   fb.isNanoflow,
+		self:         fb.self,
 		// A handler's activities are merged into the PARENT's object collection
 		// below, so a note declared outside the handler and referenced inside it
 		// (or the reverse) lands in one collection — sharing the registry is

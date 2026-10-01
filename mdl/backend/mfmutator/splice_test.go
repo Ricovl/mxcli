@@ -435,3 +435,71 @@ func TestSplice_SetReturnValueEditsTheEndEventOnly(t *testing.T) {
 		t.Errorf("want a refusal for an activity, got %v", err)
 	}
 }
+
+func annotationFlow(name, from, to string) bson.D {
+	return bson.D{
+		{Key: "$ID", Value: bin(name)},
+		{Key: "$Type", Value: "Microflows$AnnotationFlow"},
+		{Key: "DestinationPointer", Value: bin(to)},
+		{Key: "OriginPointer", Value: bin(from)},
+	}
+}
+
+// ako/mxcli#859 (rehearsal M3): create or modify re-annotating an activity
+// takes the notes attached to it out before the replace (RemoveNotes), instead
+// of the replace moving them onto the fragment's entry, where the fragment's
+// own notes would make two of each. A note another activity shares is refused:
+// taking it out would take it from that activity too. Without RemoveNotes the
+// stored notes move onto the entry as before (the control).
+func TestSplice_RemoveNotesBeforeAReplace(t *testing.T) {
+	build := func(shared bool) bson.D {
+		objs := append(line(), obj("note", "Microflows$Annotation", 250, 330))
+		flows := append(lineFlows(), annotationFlow("af", "note", "a"))
+		if shared {
+			flows = append(flows, annotationFlow("af2", "note", "b"))
+		}
+		return unit(objs, flows)
+	}
+	t.Run("the notes go, the replacement has none of them", func(t *testing.T) {
+		m, deps := newMutator(t, build(false))
+		if err := m.RemoveNotes(model.ID(uid("a"))); err != nil {
+			t.Fatalf("remove notes: %v", err)
+		}
+		if err := m.Replace(model.ID(uid("a")), oneActivity()); err != nil {
+			t.Fatalf("replace: %v", err)
+		}
+		if err := m.Save(); err != nil {
+			t.Fatalf("save: %v", err)
+		}
+		for _, gone := range []string{"a", "note", "af"} {
+			if bytes.Contains(deps.saved, types.UUIDToBlob(uid(gone))) {
+				t.Errorf("%s is still in the unit", gone)
+			}
+		}
+	})
+	t.Run("control: without it they move onto the entry", func(t *testing.T) {
+		m, deps := newMutator(t, build(false))
+		frag := oneActivity()
+		if err := m.Replace(model.ID(uid("a")), frag); err != nil {
+			t.Fatalf("replace: %v", err)
+		}
+		if err := m.Save(); err != nil {
+			t.Fatalf("save: %v", err)
+		}
+		if !bytes.Contains(deps.saved, types.UUIDToBlob(uid("note"))) {
+			t.Error("the stored note was taken out")
+		}
+		for _, f := range m.graph().flows {
+			if f.id == uid("af") && f.dest != string(frag.Entry) {
+				t.Errorf("the note's line points at %s, want the fragment's entry", f.dest)
+			}
+		}
+	})
+	t.Run("a shared note is refused", func(t *testing.T) {
+		m, _ := newMutator(t, build(true))
+		err := m.RemoveNotes(model.ID(uid("a")))
+		if err == nil || !strings.Contains(err.Error(), "also attached to") {
+			t.Fatalf("replace of an activity whose note another shares: got %v, want a refusal", err)
+		}
+	})
+}

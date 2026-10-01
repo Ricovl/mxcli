@@ -4,6 +4,7 @@ package modelsdkbackend
 
 import (
 	"fmt"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genMf "github.com/mendixlabs/mxcli/modelsdk/gen/microflows"
+	"github.com/mendixlabs/mxcli/modelsdk/version"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
@@ -40,6 +42,31 @@ func (b *Backend) OpenMicroflowForMutation(unitID model.ID) (backend.MicroflowMu
 type codecMicroflowDeps struct{ b *Backend }
 
 var _ mfmutator.Deps = codecMicroflowDeps{}
+var _ mfmutator.PropertyDeclarer = codecMicroflowDeps{}
+
+// DeclaresProperty reports whether the project's Mendix version declares key
+// on a flow document of docType, from the metamodel's version data: the
+// property's own type first, then Microflows$MicroflowBase, which both flow
+// kinds extend (ReturnVariableName, introduced in 10.12, lives there). A
+// property with no version data is declared at every version. An unknown
+// project version declares nothing, so SetHeader keeps refusing (#843).
+func (d codecMicroflowDeps) DeclaresProperty(docType, key string) bool {
+	pv := d.b.ProjectVersion()
+	if pv == nil || pv.ProductVersion == "" {
+		return false
+	}
+	v := version.Parse(pv.ProductVersion)
+	if v.IsZero() {
+		return false
+	}
+	prop := strings.ToLower(key[:1]) + key[1:]
+	for _, typ := range []string{docType, "Microflows$MicroflowBase"} {
+		if info, ok := genMf.VersionInfos[typ].Properties[prop]; ok {
+			return info.IsAvailableIn(v)
+		}
+	}
+	return true
+}
 
 func (d codecMicroflowDeps) SerializeObject(obj microflows.MicroflowObject) (bson.D, error) {
 	el := microflowObjectToGen(obj)

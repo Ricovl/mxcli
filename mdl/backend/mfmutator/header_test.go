@@ -272,3 +272,103 @@ func TestSplice_PlacedFragmentStaysWhereStated(t *testing.T) {
 		}
 	}
 }
+
+// declaringDeps answers DeclaresProperty for the keys it lists.
+type declaringDeps struct {
+	fakeDeps
+	declared map[string]bool
+}
+
+func (d *declaringDeps) DeclaresProperty(docType, key string) bool {
+	return d.declared[docType+"."+key]
+}
+
+// asNanoflow turns a header fixture into a nanoflow, and optionally states a
+// return variable as the encoder writes it: after MicroflowReturnType.
+func asNanoflow(d bson.D, returnVar string) bson.D {
+	var out bson.D
+	for _, e := range d {
+		if e.Key == "$Type" {
+			e.Value = "Microflows$Nanoflow"
+		}
+		out = append(out, e)
+		if e.Key == "MicroflowReturnType" && returnVar != "" {
+			out = append(out, bson.E{Key: "ReturnVariableName", Value: returnVar})
+		}
+	}
+	return out
+}
+
+func mutatorWith(t *testing.T, doc bson.D, deps Deps) *Mutator {
+	t.Helper()
+	raw, _ := bson.Marshal(doc)
+	var d bson.D
+	if err := bson.Unmarshal(raw, &d); err != nil {
+		t.Fatal(err)
+	}
+	m, err := New(d, "unit", deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+// #843 (rehearsal M2): a nanoflow stored without ReturnVariableName — mxcli's
+// own writer omits it when the statement has no `as $Var` — takes the one a
+// later statement states, when the project's metamodel declares the property.
+// The refusal ("set it in Studio Pro") made the mdl 1 script un-re-runnable.
+func TestSetHeader_AddsAStatedPropertyTheProjectDeclares(t *testing.T) {
+	stored := asNanoflow(headerUnit(param("A", "DataTypes$BooleanType", 200)), "")
+	declared := asNanoflow(declaredDoc("Hidden", "DataTypes$VoidType", freshParam("A", "DataTypes$BooleanType", 200)), "Done")
+	deps := &declaringDeps{declared: map[string]bool{"Microflows$Nanoflow.ReturnVariableName": true}}
+	m := mutatorWith(t, stored, deps)
+
+	changed, err := m.SetHeader(declared)
+	if err != nil {
+		t.Fatalf("the stated return variable is refused: %v", err)
+	}
+	if got := strings.Join(changed, ","); got != "ReturnVariableName" {
+		t.Fatalf("changed %q, want ReturnVariableName only", got)
+	}
+	if v := dString(m.doc, "ReturnVariableName"); v != "Done" {
+		t.Fatalf("ReturnVariableName = %q", v)
+	}
+	if i, j := indexOf(m.doc, "MicroflowReturnType"), indexOf(m.doc, "ReturnVariableName"); j != i+1 {
+		t.Errorf("ReturnVariableName stored at %d, want after MicroflowReturnType (%d), where the writer puts it", j, i)
+	}
+	if v, _ := dGet(m.doc, "MarkAsUsed").(bool); !v {
+		t.Error("MarkAsUsed, which no statement states, was overwritten")
+	}
+	out, err := m.Bytes()
+	if err != nil {
+		t.Fatalf("integrity: %v", err)
+	}
+
+	// The second run finds it stored and writes nothing.
+	var again bson.D
+	if err := bson.Unmarshal(out, &again); err != nil {
+		t.Fatal(err)
+	}
+	m2 := mutatorWith(t, again, deps)
+	changed, err = m2.SetHeader(declared)
+	if err != nil || len(changed) != 0 {
+		t.Fatalf("second run: changed %v, err %v; want nothing", changed, err)
+	}
+}
+
+// The control: where the project's metamodel is not known to declare the
+// property, its absence is still refused — a key the version does not have
+// makes the document unopenable.
+func TestSetHeader_RefusesAPropertyTheProjectDoesNotDeclare(t *testing.T) {
+	stored := asNanoflow(headerUnit(param("A", "DataTypes$BooleanType", 200)), "")
+	declared := asNanoflow(declaredDoc("Hidden", "DataTypes$VoidType", freshParam("A", "DataTypes$BooleanType", 200)), "Done")
+	for name, deps := range map[string]Deps{
+		"no answer":    &fakeDeps{},
+		"not declared": &declaringDeps{declared: map[string]bool{}},
+	} {
+		m := mutatorWith(t, stored, deps)
+		if _, err := m.SetHeader(declared); err == nil || !strings.Contains(err.Error(), "has no ReturnVariableName") {
+			t.Errorf("%s: err = %v, want the refusal", name, err)
+		}
+	}
+}

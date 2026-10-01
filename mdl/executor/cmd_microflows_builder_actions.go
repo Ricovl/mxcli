@@ -1208,7 +1208,7 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 		// Convert WHERE expression if present
 		// XPath constraints are stored with square brackets in BSON: [expression]
 		if s.Where != nil {
-			dbSource.XPathConstraint = retrieveXPathConstraint(s.Where)
+			dbSource.XPathConstraint = retrieveXPathConstraint(s.Where, s.Source.String())
 		}
 
 		// Convert SORT BY columns if present
@@ -1364,8 +1364,11 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 	return activity.ID
 }
 
-func retrieveXPathConstraint(expr ast.Expression) string {
-	xpath := normalizeXPathEnumRefs(expressionToXPath(expr))
+// retrieveXPathConstraint is the constraint a database retrieve of entity stores
+// for its where clause. A qualified attribute of entity is stored bare and an
+// enumeration value as a string literal (storedXPathConstraint, #874).
+func retrieveXPathConstraint(expr ast.Expression, entity string) string {
+	xpath := storedXPathConstraint(expressionToXPathNames(expr), entity)
 	if strings.HasPrefix(strings.TrimSpace(xpath), "[") && strings.HasSuffix(strings.TrimSpace(xpath), "]") {
 		return visitor.FormatXPathConstraint(strings.TrimSpace(xpath))
 	}
@@ -1710,6 +1713,9 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 			if entityType != "" && !strings.Contains(spec.Attribute, ".") {
 				attrQN = entityType + "." + spec.Attribute
 			}
+			if fb.qualifiedMembersOnly {
+				fb.refuseUnqualifiedAttribute(attrQN, spec.Attribute, entityType)
+			}
 			sortItems = append(sortItems, &microflows.SortItem{
 				BaseElement:            model.BaseElement{ID: model.ID(types.GenerateID())},
 				AttributeQualifiedName: attrQN,
@@ -1929,6 +1935,9 @@ func (fb *flowBuilder) addAggregateListAction(s *ast.AggregateListStmt) model.ID
 				action.AttributeQualifiedName = entityType + "." + s.Attribute
 			}
 		}
+		if fb.qualifiedMembersOnly && action.AttributeQualifiedName == "" {
+			fb.refuseUnqualifiedAttribute(s.Attribute, s.Attribute, fb.listElementEntity(s.InputVariable))
+		}
 	}
 
 	activity := &microflows.ActionActivity{
@@ -2093,6 +2102,9 @@ func isValidMemberIdentifier(name string) bool {
 }
 
 func (fb *flowBuilder) resolveMemberChange(mc *microflows.MemberChange, memberName string, entityQN string) {
+	if fb.qualifiedMembersOnly {
+		defer func() { fb.refuseUnqualifiedAttribute(mc.AttributeQualifiedName, memberName, entityQN) }()
+	}
 	// Guard against a malformed member identifier reaching the writer, where it
 	// would serialize as an invalid Attribute/Association value that passes
 	// `mxcli check` but fails to load in MxBuild/Studio Pro (StorageLoadException:
@@ -2197,6 +2209,23 @@ func (fb *flowBuilder) resolveMemberChange(mc *microflows.MemberChange, memberNa
 	}
 
 	resolveMemberChangeFallback(mc, memberName, entityQN)
+}
+
+// refuseUnqualifiedAttribute records an error when attrQN — the attribute a
+// member resolved to — is not Module.Entity.Attribute, under
+// qualifiedMembersOnly. entityQN is the entity the member was resolved
+// against, "" when the variable's entity is not known.
+func (fb *flowBuilder) refuseUnqualifiedAttribute(attrQN, memberName, entityQN string) {
+	if attrQN == "" || strings.Count(attrQN, ".") >= 2 {
+		return
+	}
+	if entityQN == "" {
+		fb.addError("cannot qualify member %q: the entity its variable holds is not known here, and a bare "+
+			"attribute name would make the project unloadable (\"not a valid AttributeIdentifier\"); "+
+			"name it in full as Module.Entity.%s", memberName, memberName)
+		return
+	}
+	fb.addError("cannot qualify member %q on %s; name it in full as Module.Entity.Attribute", memberName, entityQN)
 }
 
 func (fb *flowBuilder) resolveAttributeInEntityHierarchy(entityQN, attrName string) (string, bool) {
