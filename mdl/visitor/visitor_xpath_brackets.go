@@ -35,13 +35,19 @@ import (
 // rule, a workflow targeting and a navigation sync constraint stored the
 // mdl 0 escape — a backslash too many, or the mdl 0 `\'` escape, which
 // Mendix does not have (ako/mxcli#825).
+//
+// A double-quoted name loses its quotes, as in every other XPath sink
+// (stripExpressionIdentifierQuotes); a double-quoted comparison value is
+// refused by ExitXpathConstraint before it gets here.
 func bracketedXPathText(groups []parser.IXpathConstraintContext) string {
 	if len(groups) == 0 {
 		return ""
 	}
 	strict := lexedWithStrictEscapes(groups[0])
 	src := storedExpressionSource(stripMDLComments(bracketedXPathSource(groups), strict), strict)
-	return normalizeXPathTokens(src)
+	// A double-quoted name is a name, as in a retrieve's XPath: kept, it is a
+	// string literal to Mendix (mendixlabs/mxcli#1243).
+	return stripExpressionIdentifierQuotes(normalizeXPathTokens(src))
 }
 
 // bracketedXPathSource is the raw source span of a run of xpathConstraint
@@ -194,6 +200,7 @@ func (b *Builder) recordQuotedTargetingXPath(lit antlr.TerminalNode) {
 		return
 	}
 	b.recordDeprecation(deprecation.QuotedTargetingXPath, lit.GetSymbol(), "")
+	b.refuseQuotedXPathStringValues(lit.GetSymbol()) // ako/mxcli#566
 	fix, why := fixOrReason(quotedXPathFix(lit))
 	b.fixLastDeprecation(deprecation.QuotedTargetingXPath, fix, why)
 }

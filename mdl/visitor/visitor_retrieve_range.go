@@ -37,6 +37,7 @@ var limitOneIsAList = langver.Change{
 // no range, so the keyword would be dropped on the way to the model, and
 // whether the result is an object or a list follows from the association.
 func (b *Builder) ExitRetrieveStatement(ctx *parser.RetrieveStatementContext) {
+	b.refuseRetrieveStringXPathValues(ctx)
 	if ctx.FIRST() != nil && isAssociationRetrieve(ctx) {
 		b.addError(fmt.Errorf("line %d: `first` does not apply to a retrieve over an association: Mendix gives "+
 			"that source no range, and whether it binds an object or a list follows from the association. "+
