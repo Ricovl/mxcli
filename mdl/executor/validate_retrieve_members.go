@@ -1,0 +1,101 @@
+// SPDX-License-Identifier: Apache-2.0
+
+package executor
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/ast"
+)
+
+// A retrieve constraint naming a member its entity does not have passed
+// `check --references` and `exec`, and mxbuild then reported CE0161 "Error(s)
+// in XPath constraint" (mendixlabs/mxcli#1213). The widget data source had this
+// check since #1049; the microflow retrieve did not, and neither looked at an
+// entity the same script declares — the ordinary shape, since the entity and
+// the microflow querying it are usually one script.
+//
+// Measured on mxbuild 11.13.0 (entity with `CreatedDate: AutoCreatedDate`):
+//
+//	[NoSuchAttr = 'x']                        CE0161
+//	[CreatedDate > '[%CurrentDateTime%]']     CE0161  (the spelling describe prints)
+//	[createdDate > '[%CurrentDateTime%]']     clean
+//
+// The resolution is unresolvableXPathSteps, the widget check's walk, over the
+// constraint exactly as the flow builder stores it (retrieveXPathConstraint), so
+// what is checked is what is written. Silence where the entity cannot be
+// established, as everywhere in that walk.
+
+// validateRetrieveMembers reports the members of each database retrieve's
+// constraint that resolve to nothing on the retrieved entity.
+func validateRetrieveMembers(ctx *ExecContext, retrieves []retrieveConstraintRef, sc *scriptContext) []string {
+	if len(retrieves) == 0 {
+		return nil
+	}
+	m := &execXPathModel{ctx: ctx}
+	var assocs map[string]string // unqualified association name -> qualified, loaded on demand
+	resolve := func(entityQN, member string) memberResolution {
+		decl := sc.entityDecls[entityQN]
+		if decl == nil || sc.alteredEntities[entityQN] {
+			return resolveMemberOnEntity(ctx, entityQN, member)
+		}
+		// Declared by the script: its attribute list is what exec writes. An
+		// inherited member cannot be judged from the declaration.
+		if decl.Generalization != nil {
+			return memberUnknown
+		}
+		for _, a := range decl.Attributes {
+			if a.Name == member && !isAutoSystemMemberType(a.Type.Kind) {
+				return memberFound
+			}
+		}
+		// A bare association is a different mistake, with its own rule and fix
+		// (MDL-XPATH01) — not "names nothing".
+		if sc.associations[member] != "" || sc.ambiguousAssc[member] {
+			return memberFound
+		}
+		if assocs == nil {
+			assocs = buildAssociationIndex(ctx)
+		}
+		if assocs[member] != "" {
+			return memberFound
+		}
+		return memberMissing
+	}
+
+	var errs []string
+	for _, r := range retrieves {
+		if r.entity == "" || r.stored == "" {
+			continue
+		}
+		for _, bad := range unresolvableXPathStepsWith(ctx, m, r.stored, r.entity, resolve) {
+			errs = append(errs, fmt.Sprintf(
+				"retrieve from %s: the constraint names %q, which is neither an attribute nor an association of it — mxbuild rejects the constraint (CE0161 \"Error(s) in XPath constraint\")%s",
+				r.entity, bad.name, systemMemberSpellingHint(bad.name)))
+		}
+	}
+	return errs
+}
+
+// isAutoSystemMemberType reports the attribute types that are not attributes in
+// the model: the entity stores a flag, and XPath names the member in lower
+// camel case (createdDate) whatever the declaration called it.
+func isAutoSystemMemberType(k ast.DataTypeKind) bool {
+	switch k {
+	case ast.TypeAutoCreatedDate, ast.TypeAutoChangedDate, ast.TypeAutoOwner, ast.TypeAutoChangedBy:
+		return true
+	}
+	return false
+}
+
+// systemMemberSpellingHint names the XPath spelling of a system member written
+// the way describe prints the attribute (`CreatedDate`).
+func systemMemberSpellingHint(name string) string {
+	for member := range xpathImplicitMembers {
+		if member != "id" && member != name && strings.EqualFold(member, name) {
+			return fmt.Sprintf(". In XPath the system member is spelled `%s`", member)
+		}
+	}
+	return ""
+}

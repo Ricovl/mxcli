@@ -373,6 +373,12 @@ func (fb *flowBuilder) addCallJavaActionAction(s *ast.CallJavaActionStmt) model.
 			// Regular parameter: expression-based value
 			valueExpr := fb.exprToString(arg.Value)
 			if microflowTypeParams[arg.Name] {
+				// A Microflow parameter takes a name, never an expression
+				// (mendixlabs/mxcli#1210); the same decision reference
+				// validation reports.
+				if msg := microflowParamArgRefusal(actionQN, arg.Name, arg.Value); msg != "" {
+					fb.addError("%s", msg)
+				}
 				value = &microflows.MicroflowParameterValue{
 					BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
 					Microflow:   strings.Trim(valueExpr, "'"),

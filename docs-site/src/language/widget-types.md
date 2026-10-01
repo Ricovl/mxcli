@@ -313,11 +313,11 @@ COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
 
 ### REFERENCESELECTOR
 
-Dropdown for selecting an associated object via a reference association:
-
-```sql
-REFERENCESELECTOR rsCategory (Label: 'Category', Attribute: Category)
-```
+The classic reference selector (`Forms$ReferenceSelector`) is a built-in Forms
+widget mxcli has no writer for. The keyword parses, and `check` refuses it as
+**MDL-WIDGET38** rather than letting `exec` stop at the page. Select an
+associated object with a `COMBOBOX` over the association instead; it needs its
+own `datasource:` (CE0642 without one) and a caption attribute.
 
 ## Display Widgets
 

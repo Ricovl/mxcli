@@ -480,6 +480,12 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 				}
 			}
 		}
+		// A built-in Forms widget mxcli has no writer for: say so, rather than
+		// send the reader to `widget init` (ako/mxcli#563). Same message as
+		// MDL-WIDGET38, which refuses it before anything is written.
+		if msg := unbuildableWidgetMessage(w.Type); msg != "" {
+			return nil, mdlerrors.NewUnsupported(msg)
+		}
 		if pb.pluggableEngineErr != nil {
 			return nil, mdlerrors.NewUnsupported(fmt.Sprintf("unsupported widget type: %s (%v)", w.Type, pb.pluggableEngineErr))
 		}

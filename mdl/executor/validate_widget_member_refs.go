@@ -215,6 +215,14 @@ type badStep struct {
 // the consequence is a corrupted constraint; here it is only a false error, but
 // a false error still blocks a script that builds.
 func unresolvableXPathSteps(ctx *ExecContext, m xpathrefs.Model, constraint, entityQN string) []badStep {
+	return unresolvableXPathStepsWith(ctx, m, constraint, entityQN, nil)
+}
+
+// unresolvableXPathStepsWith is unresolvableXPathSteps with the bare-member
+// lookup replaced — the microflow retrieve check passes one that also knows the
+// entities the script declares. nil is resolveMemberOnEntity.
+func unresolvableXPathStepsWith(ctx *ExecContext, m xpathrefs.Model, constraint, entityQN string,
+	resolveBare func(entityQN, member string) memberResolution) []badStep {
 	groups := visitor.SplitXPathPredicateGroups(constraint)
 	if len(groups) == 0 {
 		groups = []string{constraint}
@@ -225,7 +233,7 @@ func unresolvableXPathSteps(ctx *ExecContext, m xpathrefs.Model, constraint, ent
 		if !ok || expr == nil {
 			continue
 		}
-		v := &xpathMemberVisitor{ctx: ctx, model: m}
+		v := &xpathMemberVisitor{ctx: ctx, model: m, resolveBare: resolveBare}
 		v.walk(expr, entityQN)
 		out = append(out, v.bad...)
 	}
@@ -235,10 +243,11 @@ func unresolvableXPathSteps(ctx *ExecContext, m xpathrefs.Model, constraint, ent
 // xpathMemberVisitor walks a parsed constraint carrying the entity each step is
 // evaluated against, the same traversal xpathrefs' walker performs for renames.
 type xpathMemberVisitor struct {
-	ctx   *ExecContext
-	model xpathrefs.Model
-	bad   []badStep
-	seen  map[string]bool
+	ctx         *ExecContext
+	model       xpathrefs.Model
+	resolveBare func(entityQN, member string) memberResolution // nil: resolveMemberOnEntity
+	bad         []badStep
+	seen        map[string]bool
 }
 
 func (v *xpathMemberVisitor) add(s badStep) {
@@ -290,7 +299,18 @@ func (v *xpathMemberVisitor) noteBare(name, cur string) {
 	if cur == "" || name == "" {
 		return
 	}
-	if resolveMemberOnEntity(v.ctx, cur, name) == memberMissing {
+	// The members every entity has in XPath without declaring them. An entity
+	// stores createdDate as a flag, not an attribute, so the attribute lookup
+	// would call `[createdDate > …]` — which builds clean, measured on 11.13.0 —
+	// missing.
+	if xpathImplicitMembers[name] {
+		return
+	}
+	resolve := v.resolveBare
+	if resolve == nil {
+		resolve = func(e, m string) memberResolution { return resolveMemberOnEntity(v.ctx, e, m) }
+	}
+	if resolve(cur, name) == memberMissing {
 		v.add(badStep{name: name, kind: "attribute"})
 	}
 }
@@ -354,6 +374,12 @@ func (v *xpathMemberVisitor) walkPath(steps []ast.XPathStep, cur string) {
 		}
 		cur = next
 	}
+}
+
+// xpathImplicitMembers are the bare names XPath resolves on every entity
+// without the entity declaring an attribute of that name.
+var xpathImplicitMembers = map[string]bool{
+	"id": true, "createdDate": true, "changedDate": true, "owner": true, "changedBy": true,
 }
 
 // execXPathModel answers xpathrefs.Model from the connected project.
