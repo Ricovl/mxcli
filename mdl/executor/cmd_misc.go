@@ -12,6 +12,7 @@ import (
 	"github.com/mendixlabs/mxcli/cmd/mxcli/syntax"
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/mdl/srctext"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
@@ -402,7 +403,13 @@ func execExecuteScript(ctx *ExecContext, s *ast.ExecuteScriptStmt) error {
 	}
 
 	// Read the script file
-	content, readErr := os.ReadFile(scriptPath)
+	raw, readErr := os.ReadFile(scriptPath)
+	if readErr != nil {
+		return mdlerrors.NewBackend("read script file '"+s.Path+"'", readErr)
+	}
+	// A BOM or UTF-16 is decoded as for a script given to check/exec
+	// (mendixlabs/mxcli#1253).
+	content, readErr := srctext.Decode(raw)
 	if readErr != nil {
 		return mdlerrors.NewBackend("read script file '"+s.Path+"'", readErr)
 	}

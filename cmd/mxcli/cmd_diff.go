@@ -52,7 +52,7 @@ Examples:
 		}
 
 		// Read the script file
-		content, err := os.ReadFile(filePath)
+		content, err := readMDLSource(filePath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
 			os.Exit(1)
