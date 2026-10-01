@@ -825,6 +825,23 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 			}
 		}
 	}
+	// A stored `if` declared again with its condition but neither as the same
+	// shell nor with only its condition changed has its else or a branch's
+	// return added or taken away: where its paths end or meet changes, which
+	// a replace of the decision cannot express (it would take out both of its
+	// paths).
+	for _, st := range del {
+		si, ok := st.(*ast.IfStmt)
+		if !ok {
+			continue
+		}
+		for _, d := range ins {
+			if di, ok := d.(*ast.IfStmt); ok && declaredMatches(di.Condition, si.Condition) {
+				return cannotSplice("the %s changes where its paths end or meet — a branch's return, or its else, is "+
+					"added or taken away; that is the shape of the flow, and the splice changes a return's value only", describeAt(st))
+			}
+		}
+	}
 	cands := make([]mfmutator.Candidate, len(del))
 	for i, st := range del {
 		c, err := pd.loc.locate(st)
