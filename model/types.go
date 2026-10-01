@@ -5,6 +5,7 @@ package model
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -816,6 +817,62 @@ type PublishedRestOperation struct {
 	Microflow  string   `json:"microflow,omitempty"`
 	Deprecated bool     `json:"deprecated,omitempty"`
 	Parameters []string `json:"parameters,omitempty"` // path parameter names extracted from {param} in Path
+
+	// Documentation is the operation's documentation; MDL has no spelling for
+	// it, so a rewrite carries the stored value.
+	Documentation string `json:"documentation,omitempty"`
+	// ImportMapping / ExportMapping are the qualified names of the mappings bound
+	// to the request body and the response ("" when none).
+	ImportMapping string `json:"importMapping,omitempty"`
+	ExportMapping string `json:"exportMapping,omitempty"`
+	// Commit is "Yes", "YesWithoutEvents" or "No" ("" is written as "Yes").
+	Commit string `json:"commit,omitempty"`
+	// ObjectHandlingBackup is the import mapping's fallback object handling:
+	// "Create", "Ignore" or "Error" ("" is written as "Create"). MDL has no
+	// spelling for it, so a rewrite carries the stored value.
+	ObjectHandlingBackup string `json:"objectHandlingBackup,omitempty"`
+	// OperationParameters are the Rest$RestOperationParameter elements, in
+	// stored order. The executor derives them from the operation's microflow,
+	// as Studio Pro does. Empty means only the path is known: the writer then
+	// writes each {name} placeholder as a String path parameter.
+	OperationParameters []*PublishedRestOperationParameter `json:"operationParameters,omitempty"`
+}
+
+// PathParameterNames returns the names of the {name} placeholders in the
+// operation's path, in order.
+func (op *PublishedRestOperation) PathParameterNames() []string {
+	var names []string
+	path := op.Path
+	for {
+		start := strings.Index(path, "{")
+		if start < 0 {
+			break
+		}
+		end := strings.Index(path[start:], "}")
+		if end < 0 {
+			break
+		}
+		names = append(names, path[start+1:start+end])
+		path = path[start+end+1:]
+	}
+	return names
+}
+
+// PublishedRestOperationParameter is one Rest$RestOperationParameter of a
+// published REST operation.
+type PublishedRestOperationParameter struct {
+	Name string `json:"name"`
+	// ParameterType is "Path", "Query", "Body", "Header" or "Form".
+	ParameterType string `json:"parameterType"`
+	// MicroflowParameter is the bound microflow parameter, qualified as
+	// Module.Microflow.Parameter ("" when unbound).
+	MicroflowParameter string `json:"microflowParameter,omitempty"`
+	Description        string `json:"description,omitempty"`
+	// DataType is the parameter's type: "String", "Integer", "Long",
+	// "Decimal", "Boolean", "DateTime", "Binary", "Enumeration", "Object" or
+	// "List". QualifiedName is the enumeration or the entity.
+	DataType      string `json:"dataType"`
+	QualifiedName string `json:"qualifiedName,omitempty"`
 }
 
 // ============================================================================

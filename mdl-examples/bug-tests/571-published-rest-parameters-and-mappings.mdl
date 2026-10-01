@@ -1,0 +1,94 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#571, mendixlabs/mxcli#1206: published REST operation parameters
+-- and mapping bindings
+-- ============================================================================
+--
+-- Before the fix only the path's {name} placeholders were written, each as a
+-- String: the query and body parameters failed mx check with CE0350, an
+-- Integer {id} with CE6539. The import mapping, export mapping and commit
+-- clauses parsed and were thrown away, so a body that is not a file document
+-- failed with CE0350 and a microflow returning an object with CE0354.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/571-published-rest-parameters-and-mappings.mdl -p app.mpr
+--   mxcli docker check -p app.mpr                 -> 0 errors
+--   mxcli exec (the same script again)            -> writes nothing
+--
+-- The operation parameters are derived from each microflow, as Studio Pro
+-- derives them: a parameter named in the path is a path parameter, an object
+-- or a list is the body, System.HttpRequest / HttpResponse are left out, and
+-- anything else is a query parameter, each with the microflow parameter's type.
+
+create module RestQ;
+
+create persistent entity RestQ.Upload extends System.FileDocument (
+  Label: String(100)
+);
+
+create persistent entity RestQ.Item (
+  Code: String(20),
+  Quantity: Integer
+);
+
+create json structure RestQ.JSON_Item
+  sample '{"code": "A1", "quantity": 3}';
+
+create import mapping RestQ.IMM_Item
+  with json structure RestQ.JSON_Item
+{
+  create RestQ.Item {
+    Code = code,
+    Quantity = quantity
+  }
+};
+
+create export mapping RestQ.EMM_Item
+  with json structure RestQ.JSON_Item
+{
+  RestQ.Item {
+    code = Code,
+    quantity = Quantity
+  }
+};
+
+create microflow RestQ.GetStatus ($orderNumber: String, $count: Integer, $httpRequest: System.HttpRequest)
+returns String as $Result
+begin
+  declare $Result String = $orderNumber + ':' + toString($count);
+  return $Result;
+end;
+
+create microflow RestQ.GetById ($id: Integer, $verbose: Boolean)
+returns String as $Result
+begin
+  declare $Result String = toString($id);
+  return $Result;
+end;
+
+create microflow RestQ.PutFile ($file: RestQ.Upload)
+returns String as $Result
+begin
+  declare $Result String = 'ok';
+  return $Result;
+end;
+
+create microflow RestQ.PostItem ($item: RestQ.Item)
+returns RestQ.Item as $item
+begin
+  return $item;
+end;
+
+create published rest service RestQ.Orders (
+  Path: 'rest/orders/v1',
+  Version: '1.0.0',
+  ServiceName: 'Orders'
+)
+{
+  resource 'orders' {
+    get 'status' microflow RestQ.GetStatus;
+    get 'items/{id}' microflow RestQ.GetById;
+    post 'upload' microflow RestQ.PutFile;
+    post 'item' microflow RestQ.PostItem import mapping RestQ.IMM_Item export mapping RestQ.EMM_Item commit YesWithoutEvents;
+  }
+};
