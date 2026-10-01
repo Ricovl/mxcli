@@ -36,7 +36,8 @@ const alterFlowRefusedRule = "MDL090"
 // predicted where the stored project is what exec will see when it gets there:
 //
 //   - an earlier statement of the script that creates, alters, drops, renames
-//     or moves the same flow leaves it unpredicted;
+//     or moves the same flow leaves it unpredicted, and so does one that
+//     renames or drops its module or moves a folder out of or into it;
 //   - the declared flow (or each fragment of an alter) must build against the
 //     stored project. One that does not usually names something an earlier
 //     statement creates; exec builds it after that statement has run, so
@@ -59,7 +60,7 @@ func CheckFlowVerdicts(ctx *ExecContext, prog *ast.Program) []linter.Violation {
 		return nil
 	}
 	touched := map[string]bool{}        // "microflow:M.N" / "nanoflow:M.N", lower-cased
-	touchedModules := map[string]bool{} // modules renamed or created by the script
+	touchedModules := map[string]bool{} // modules renamed or dropped, or a folder moved out of or into
 	key := func(nanoflow bool, qn ast.QualifiedName) string {
 		k := "microflow:"
 		if nanoflow {
@@ -96,6 +97,21 @@ func CheckFlowVerdicts(ctx *ExecContext, prog *ast.Program) []linter.Violation {
 		case *ast.MoveStmt:
 			touched[key(false, s.Name)] = true
 			touched[key(true, s.Name)] = true
+			if s.TargetModule != "" {
+				moved := ast.QualifiedName{Module: s.TargetModule, Name: s.Name.Name}
+				touched[key(false, moved)] = true
+				touched[key(true, moved)] = true
+			}
+		case *ast.DropModuleStmt:
+			// The module's flows go with it: exec creates the flow afterwards.
+			touchedModules[strings.ToLower(s.Name)] = true
+		case *ast.MoveFolderStmt:
+			// The folder's flows go with it; which ones is the project's to
+			// say, so neither module is predicted from here on.
+			touchedModules[strings.ToLower(s.Name.Module)] = true
+			if s.TargetModule != "" {
+				touchedModules[strings.ToLower(s.TargetModule)] = true
+			}
 		case *ast.RenameStmt:
 			switch strings.ToLower(s.ObjectType) {
 			case "module":

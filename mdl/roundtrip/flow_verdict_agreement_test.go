@@ -180,6 +180,16 @@ end;
 	if check("mdl 1;\ndrop microflow MyFirstModule.Verdict_Order;\n" + grown) {
 		t.Error("a create after a drop was predicted as a refused modify")
 	}
+	// Dropping the flow's module drops the flow with it: exec then creates it
+	// (the create path makes the module), so a refusal would be a false error.
+	if check("mdl 1;\ndrop module MyFirstModule;\n" + grown) {
+		t.Error("a create after dropping its module was predicted as a refused modify")
+	}
+	// A folder moved to another module takes the flows in it along, so a
+	// later statement may no longer name the stored flow.
+	if check("mdl 1;\nmove folder MyFirstModule.Anything to OtherModule;\n" + grown) {
+		t.Error("a statement after a folder left its module was predicted as a refused modify")
+	}
 }
 
 // TestFlowVerdictAgreement_Corpus: over the Studio Pro-authored flows of PedApp
