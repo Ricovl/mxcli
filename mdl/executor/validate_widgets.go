@@ -112,7 +112,8 @@ func ValidateWidgetPropertiesForStatement(stmt ast.Statement, registry *WidgetRe
 		return nil
 	}
 	if label, widgets, ok := documentWidgets(stmt); ok {
-		return validateWidgetTree(widgets, registry, label)
+		out := validateWidgetTree(widgets, registry, label)
+		return append(out, validatePageVariableBindings(widgets, documentVariables(stmt), label)...)
 	}
 	switch s := stmt.(type) {
 	case *ast.AlterPageStmt:
@@ -184,6 +185,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// A keyword whose stored $Type Mendix no longer has. Unlike MDL-WIDGET25
 		// this needs no project: the type is unknown to every Mendix version.
 		out = append(out, validateRetiredWidgetKind(w, locationPrefix)...)
+		// A keyword the page builder has no writer for (ako/mxcli#563).
+		out = append(out, validateUnbuildableWidgetKind(w, registry, locationPrefix)...)
 		out = append(out, validatePluggableWidgetProperties(w, registry, locationPrefix)...)
 		// A repeatable property written as a property value — `attributes:
 		// [(…)]` — which used to check clean, exec, and vanish (#999). Runs for
@@ -279,14 +282,14 @@ func validateDatasourceXPathAssociationEmpty(w *ast.WidgetV3, locationPrefix str
 		return nil
 	}
 	var out []linter.Violation
-	for _, assoc := range xpathAssociationEmptyMatches(ds.Where) {
+	for _, h := range xpathAssociationEmptyMatches(ds.Where) {
 		out = append(out, linter.Violation{
 			RuleID:   "MDL047",
 			Severity: linter.SeverityError,
 			Message: fmt.Sprintf(
-				"%s: widget `%s` datasource constraint tests association `%s = empty`, which Mendix XPath does not support (CE0161 \"Error(s) in XPath constraint\") — `= empty` works on attributes, not associations",
-				locationPrefix, w.Name, assoc),
-			Suggestion: fmt.Sprintf("Test for the absence of the associated object with negation: `[not(%s/<Module.TargetEntity>)]`.", assoc),
+				"%s: widget `%s` datasource constraint tests association `%s`, which Mendix XPath does not support (CE0161 \"Error(s) in XPath constraint\") — `empty` compares attributes, not associations",
+				locationPrefix, w.Name, h.test()),
+			Suggestion: h.fix(),
 		})
 	}
 	return out

@@ -1003,22 +1003,10 @@ func formatAction(
 		return fmt.Sprintf("open workflow $%s;", a.WorkflowVariable)
 
 	case *microflows.LockWorkflowAction:
-		if a.PauseAllWorkflows {
-			return "lock workflow all;"
-		}
-		if a.Workflow != "" {
-			return fmt.Sprintf("lock workflow %s;", a.Workflow)
-		}
-		return fmt.Sprintf("lock workflow $%s;", a.WorkflowVariable)
+		return "lock workflow " + workflowSelectionMDL(a.Workflow, a.WorkflowVariable, a.PauseAllWorkflows, "pause all") + ";"
 
 	case *microflows.UnlockWorkflowAction:
-		if a.ResumeAllPausedWorkflows {
-			return "unlock workflow all;"
-		}
-		if a.Workflow != "" {
-			return fmt.Sprintf("unlock workflow %s;", a.Workflow)
-		}
-		return fmt.Sprintf("unlock workflow $%s;", a.WorkflowVariable)
+		return "unlock workflow " + workflowSelectionMDL(a.Workflow, a.WorkflowVariable, a.ResumeAllPausedWorkflows, "unpause all") + ";"
 
 	case *microflows.JavaScriptActionCallAction:
 		jsActionName := a.JavaScriptAction
@@ -2205,4 +2193,26 @@ func templateArgsClause(ctx *ExecContext, args []string) string {
 		parts[i] = fmt.Sprintf("{%d} = %s", i+1, describeExpr(ctx, a))
 	}
 	return " with (" + strings.Join(parts, ", ") + ")"
+}
+
+// workflowSelectionMDL spells a lock/unlock's workflow and its instances flag.
+// The flag is Studio Pro's "Pause instances" / "Unpause instances" on the
+// selected workflow, and was printed as a bare `all` in place of the workflow
+// — a statement that dropped the selection and rebuilt as CE1825
+// (mendixlabs/mxcli#870). A stored activity with the flag and no selection
+// still prints as `all`, which check and exec refuse: it has no buildable form.
+func workflowSelectionMDL(workflow, variable string, flag bool, flagWords string) string {
+	var sel string
+	switch {
+	case workflow != "":
+		sel = workflow
+	case variable != "":
+		sel = "$" + variable
+	default:
+		return "all"
+	}
+	if flag {
+		sel += " " + flagWords
+	}
+	return sel
 }

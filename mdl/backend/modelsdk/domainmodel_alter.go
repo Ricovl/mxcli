@@ -774,6 +774,14 @@ func (b *Backend) UpdateAttribute(domainModelID, entityID model.ID, attr *domain
 
 	next := attributeToGen(attr, entityIsExternal(ent))
 	next.SetID(items[idx].ID())
+	// attributeToGen returns raw == nil, which the codec reads as a NEW element
+	// and mints GUID = $ID for — the runtime keys mendixsystem$attribute.id on
+	// that GUID and would drop the column (ako/mxcli#627, the #1119 class).
+	// Attribute -> Attribute keeps the $Type, so carrying the stored raw bytes
+	// is enough; no raw transform is needed.
+	if stored, ok := items[idx].(*genDm.Attribute); ok {
+		carryStoredAttribute(next, stored)
+	}
 
 	// The generated list offers only Append and Remove, so an in-place replace
 	// means rebuilding it. Order is worth the rebuild: it is the order Studio

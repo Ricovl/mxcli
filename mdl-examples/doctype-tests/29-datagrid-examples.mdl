@@ -87,7 +87,7 @@ create page DgTest.Product_Edit folder 'DataGrid' (
   dataview dvProduct (datasource: $Product) {
     textbox txtName (label: 'Name', attribute: Name)
     textbox txtCode (label: 'Code', attribute: Code)
-    footer footer1 {
+    footer {
       actionbutton btnSave   (caption: 'Save',   action: save changes close page,   buttonstyle: primary)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
     }

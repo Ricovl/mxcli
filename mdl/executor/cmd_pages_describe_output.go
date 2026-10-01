@@ -1073,7 +1073,11 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		fmt.Fprintf(ctx.Output, "%s}\n", prefix)
 
 	case "Footer":
-		fmt.Fprintf(ctx.Output, "%sfooter %s {\n", prefix, mdlIdent(w.Name))
+		if w.Name == "" {
+			fmt.Fprintf(ctx.Output, "%sfooter {\n", prefix)
+		} else {
+			fmt.Fprintf(ctx.Output, "%sfooter %s {\n", prefix, mdlIdent(w.Name))
+		}
 		for _, child := range w.Children {
 			outputWidgetMDLV3(ctx, child, indent+1)
 		}

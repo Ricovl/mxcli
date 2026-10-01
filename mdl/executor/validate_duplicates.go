@@ -163,6 +163,12 @@ func stmtCreateKind(stmt ast.Statement) (docType, name string, idempotent bool) 
 		return "agent", s.Name.String(), s.CreateOrModify
 	case *ast.CreateImageCollectionStmt:
 		return "image-collection", s.Name.String(), s.CreateOrModify
+	case *ast.CreateDemoUserStmt:
+		// Not a document either, and like a module role it was missed by the
+		// document sweep: exec refuses a plain CREATE of a user that exists
+		// ("demo user already exists"), and check passed it (ako/mxcli#906).
+		// The name is the user name, which is not module-qualified.
+		return "demo-user", s.UserName, s.CreateOrModify
 	}
 	return "", "", false
 }
@@ -223,6 +229,8 @@ func stmtDropInfo(stmt ast.Statement) (docType, name string) {
 		return "agent", s.Name.String()
 	case *ast.DropImageCollectionStmt:
 		return "image-collection", s.Name.String()
+	case *ast.DropDemoUserStmt:
+		return "demo-user", s.UserName
 	}
 	return "", ""
 }
@@ -276,6 +284,8 @@ func friendlyDocType(docType string) string {
 		return "javascript action"
 	case "module-role":
 		return "module role"
+	case "demo-user":
+		return "demo user"
 	case "json-structure":
 		return "JSON structure"
 	case "knowledge-base":
@@ -392,6 +402,7 @@ type projectNameSets struct {
 	rules            map[string]bool
 	javaScriptActs   map[string]bool
 	moduleRoles      map[string]bool
+	demoUsers        map[string]bool
 }
 
 // projectSetFor returns the existence set for the given doc-type key, or nil
@@ -448,6 +459,8 @@ func (ps *projectNameSets) setFor(docType string) map[string]bool {
 		return ps.javaScriptActs
 	case "module-role":
 		return ps.moduleRoles
+	case "demo-user":
+		return ps.demoUsers
 	}
 	// "module" is deliberately absent: CREATE MODULE on an existing module is a
 	// no-op that prints "already exists" and exits 0, so `create module M;` is
@@ -590,6 +603,16 @@ func loadProjectNameSets(ctx *ExecContext) *projectNameSets {
 	// Module roles
 	ps.moduleRoles = buildModuleRoleQualifiedNames(ctx)
 
+	// Demo users: the same lookup execCreateDemoUser refuses on.
+	ps.demoUsers = make(map[string]bool)
+	if sec, err := ctx.Backend.GetProjectSecurity(); err == nil && sec != nil {
+		for _, du := range sec.DemoUsers {
+			if du != nil {
+				ps.demoUsers[du.UserName] = true
+			}
+		}
+	}
+
 	// Image collections
 	ps.imageCollections = make(map[string]bool)
 	if ics, err := ctx.Backend.ListImageCollections(); err == nil {
@@ -682,5 +705,8 @@ func CheckProjectConflicts(ctx *ExecContext, prog *ast.Program) []error {
 
 	// A create over a name another kind already has (ako/mxcli#793).
 	errs = append(errs, CheckProjectNameClashes(ctx, prog)...)
+	// The refusals exec decides from project state other than a document
+	// listing: jar dependencies, translations (ako/mxcli#906).
+	errs = append(errs, CheckExecRefusals(ctx, prog)...)
 	return errs
 }

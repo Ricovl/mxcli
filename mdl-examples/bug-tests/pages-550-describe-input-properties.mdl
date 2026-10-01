@@ -80,7 +80,7 @@ create or modify page Issue550.ChangePasswordForm (
             ValidationMessage: 'The password cannot be empty.'
           )
 
-          footer footerButtons {
+          footer {
             actionbutton okButton1 (caption: 'OK', action: call microflow Issue550.ACT_ChangePassword)
             actionbutton cancelButton1 (caption: 'Cancel', action: cancel changes close page)
           }

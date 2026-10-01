@@ -346,7 +346,7 @@ alterStylingAssignment
  *   set (Title: 'Edit order');                       -- the document itself
  *   insert after txtName { textbox txtNew (Label: 'New', Attribute: Attr) }
  *   insert into ctnMain { … }
- *   replace footer1 with { footer f1 { … } }
+ *   replace dvMain.footer with { footer { … } }
  *   drop txtOld, dgOrders.Total;
  * }
  * ```

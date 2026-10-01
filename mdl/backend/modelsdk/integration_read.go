@@ -10,6 +10,7 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genBe "github.com/mendixlabs/mxcli/modelsdk/gen/businessevents"
 	genDb "github.com/mendixlabs/mxcli/modelsdk/gen/databaseconnector"
+	genDT "github.com/mendixlabs/mxcli/modelsdk/gen/datatypes"
 	genExportMappings "github.com/mendixlabs/mxcli/modelsdk/gen/exportmappings"
 	genImportMappings "github.com/mendixlabs/mxcli/modelsdk/gen/importmappings"
 	genOp "github.com/mendixlabs/mxcli/modelsdk/gen/odatapublish"
@@ -427,11 +428,21 @@ func (b *Backend) ListPublishedRestServices() ([]*model.PublishedRestService, er
 					continue
 				}
 				operation := &model.PublishedRestOperation{
-					Path:       op.Path(),
-					HTTPMethod: op.HttpMethod(),
-					Summary:    op.Summary(),
-					Microflow:  op.MicroflowQualifiedName(),
-					Deprecated: op.Deprecated(),
+					Path:                 op.Path(),
+					HTTPMethod:           op.HttpMethod(),
+					Summary:              op.Summary(),
+					Microflow:            op.MicroflowQualifiedName(),
+					Deprecated:           op.Deprecated(),
+					Documentation:        op.Documentation(),
+					ImportMapping:        op.ImportMappingQualifiedName(),
+					ExportMapping:        op.ExportMappingQualifiedName(),
+					Commit:               op.Commit(),
+					ObjectHandlingBackup: op.ObjectHandlingBackup(),
+				}
+				for _, pEl := range op.ParametersItems() {
+					if p, ok := pEl.(*genRest.RestOperationParameter); ok {
+						operation.OperationParameters = append(operation.OperationParameters, publishedRestParameterFromGen(p))
+					}
 				}
 				operation.ID = model.ID(op.ID())
 				operation.TypeName = "Rest$PublishedRestServiceOperation"
@@ -711,4 +722,26 @@ func firstNonEmpty(vals ...string) string {
 func rawQueryTypeName(q *genDb.DatabaseQuery) string {
 	v, _ := q.Raw().Lookup(dbconnector.TypeKey).StringValueOK()
 	return v
+}
+
+// publishedRestParameterFromGen reads one Rest$RestOperationParameter.
+func publishedRestParameterFromGen(p *genRest.RestOperationParameter) *model.PublishedRestOperationParameter {
+	param := &model.PublishedRestOperationParameter{
+		Name:               p.Name(),
+		ParameterType:      p.ParameterType(),
+		MicroflowParameter: p.MicroflowParameterQualifiedName(),
+		Description:        p.Description(),
+	}
+	if t := p.Type(); t != nil {
+		param.DataType = strings.TrimSuffix(strings.TrimPrefix(t.TypeName(), "DataTypes$"), "Type")
+		switch g := t.(type) {
+		case *genDT.ObjectType:
+			param.QualifiedName = g.EntityQualifiedName()
+		case *genDT.ListType:
+			param.QualifiedName = g.EntityQualifiedName()
+		case *genDT.EnumerationType:
+			param.QualifiedName = g.EnumerationQualifiedName()
+		}
+	}
+	return param
 }

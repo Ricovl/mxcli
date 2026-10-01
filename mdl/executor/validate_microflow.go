@@ -215,7 +215,21 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 		v.checkErrorHandlingContinueSupported(s)
 		v.checkErrorHandlingSupported(s)
 		v.checkStmtExprFunctions(s)
+		// An annotation inside `on error begin … end error` is honoured like one
+		// outside it, so a malformed one there must be refused too — this walk
+		// never entered a handler body (mendixlabs/mxcli#991).
+		if eh := stmtErrorHandling(s); eh != nil {
+			v.walkAnnotations(eh.Body)
+		}
 		switch stmt := s.(type) {
+		case *ast.LockWorkflowStmt:
+			if stmt.WorkflowVariable == "" && stmt.Workflow == "" {
+				v.refuseWorkflowAll("lock", "pause", "a Lock")
+			}
+		case *ast.UnlockWorkflowStmt:
+			if stmt.WorkflowVariable == "" && stmt.Workflow == "" {
+				v.refuseWorkflowAll("unlock", "unpause", "an Unlock")
+			}
 		case *ast.NotifyWorkflowStmt:
 			// MDL-WF16. A notify reaches one named element of the workflow, and the
 			// build refuses one that names none: CE0166 "The 'Target' property is
@@ -361,6 +375,7 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 			if stmt.Where != nil {
 				xp := expressionToXPath(stmt.Where)
 				v.checkXPathAssociationEmpty(stmt.Variable, xp)
+				v.checkXPathFunctionNames(stmt.Variable, xp)
 				v.checkXPathIdConstraint(stmt.Variable, xp)
 				v.checkXPathVariableTraversal(stmt.Variable, xp)
 			}
@@ -674,36 +689,99 @@ func exprHasSlashDivision(expr ast.Expression) bool {
 }
 
 // xpathAssocEmptyRe matches a module-qualified association compared directly to
-// `empty` in an XPath constraint (`Ledger.Transaction_Category = empty`). The
-// leading boundary class excludes a `/` (so an attribute-over-association path
-// like `Assoc/Ledger.Category = empty` is NOT matched — that is a valid
-// attribute nullability test) and a `.`/word char (so it captures the whole
-// qualified name, not the tail of a 3-part enum literal).
-var xpathAssocEmptyRe = regexp.MustCompile(`(^|[^\w./])([A-Za-z_]\w*\.[A-Za-z_]\w*)\s*=\s*empty\b`)
+// `empty` in an XPath constraint (`Ledger.Transaction_Category = empty`, or
+// `!= empty`). The leading boundary class excludes a `/` (so an
+// attribute-over-association path like `Assoc/Ledger.Category = empty` is NOT
+// matched — that is a valid attribute nullability test) and a `.`/word char (so
+// it captures the whole qualified name, not the tail of a 3-part enum literal).
+var xpathAssocEmptyRe = regexp.MustCompile(`(^|[^\w./])([A-Za-z_]\w*\.[A-Za-z_]\w*)\s*(!=|=)\s*empty\b`)
 
-// xpathAssociationEmptyMatches returns the module-qualified association names an
-// XPath constraint compares directly to `empty` (`Ledger.Transaction_Category =
-// empty`). Shared by the microflow-retrieve check (MDL047) and the page/widget
-// datasource check. Empty result → nothing to flag.
-func xpathAssociationEmptyMatches(xpath string) []string {
-	var out []string
-	for _, m := range xpathAssocEmptyRe.FindAllStringSubmatch(xpath, -1) {
-		out = append(out, m[2])
+// xpathAssocEmptyHit is one association compared directly to `empty`.
+type xpathAssocEmptyHit struct {
+	Assoc string // Module.Association
+	Op    string // "=" or "!="
+}
+
+// test renders the comparison as written, for the message.
+func (h xpathAssocEmptyHit) test() string { return h.Assoc + " " + h.Op + " empty" }
+
+// fix is the spelling Mendix XPath accepts: a path to the associated object
+// tests its presence, `not(…)` around it its absence.
+func (h xpathAssocEmptyHit) fix() string {
+	if h.Op == "!=" {
+		return fmt.Sprintf("Test for the presence of the associated object with a path: `[%s/<Module.TargetEntity>]`.", h.Assoc)
+	}
+	return fmt.Sprintf("Test for the absence of the associated object with negation: `[not(%s/<Module.TargetEntity>)]`.", h.Assoc)
+}
+
+// xpathAssociationEmptyMatches returns the module-qualified associations an
+// XPath constraint compares directly to `empty`. Shared by the
+// microflow-retrieve check (MDL047) and the page/widget datasource check.
+// Empty result → nothing to flag.
+//
+// `!= empty` was missed: only `=` was matched, and measured on mxbuild 11.13.0
+// `[Mod.Order_Customer != empty]` is CE0161 as well — in a retrieve and in a
+// list view's database source — while `[Mod.Order_Customer/Mod.Customer]`
+// builds clean (mendixlabs/mxcli#1213).
+func xpathAssociationEmptyMatches(xpath string) []xpathAssocEmptyHit {
+	var out []xpathAssocEmptyHit
+	for _, m := range xpathAssocEmptyRe.FindAllStringSubmatch(blankXPathLiterals(xpath), -1) {
+		out = append(out, xpathAssocEmptyHit{Assoc: m[2], Op: m[3]})
 	}
 	return out
 }
 
-// checkXPathAssociationEmpty flags `[Module.Association = empty]` in a retrieve
-// constraint. Mendix XPath has no `= empty` test for an association — it fails
-// the build with CE0161; the nullability test is `not(Module.Association/Module.Target)`.
-// A bare attribute (`Name = empty`) is valid and is not module-qualified, so it
-// never matches. (ledger finding #25)
+// checkXPathAssociationEmpty flags `[Module.Association = empty]` (and `!=`) in a
+// retrieve constraint. Mendix XPath has no `empty` test for an association — it
+// fails the build with CE0161; the test is a path to the associated object,
+// negated with `not(…)` for absence. A bare attribute (`Name = empty`) is valid
+// and is not module-qualified, so it never matches. (ledger finding #25)
 func (v *microflowValidator) checkXPathAssociationEmpty(variable, xpath string) {
-	for _, assoc := range xpathAssociationEmptyMatches(xpath) {
+	for _, h := range xpathAssociationEmptyMatches(xpath) {
 		v.addViolation("MDL047", linter.SeverityError,
-			fmt.Sprintf("retrieve '$%s' constraint tests association `%s = empty`, which Mendix XPath does not support "+
-				"(CE0161 \"Error(s) in XPath constraint\") — `= empty` works on attributes, not associations", variable, assoc),
-			fmt.Sprintf("Test for the absence of the associated object with negation: `[not(%s/<Module.TargetEntity>)]`.", assoc))
+			fmt.Sprintf("retrieve '$%s' constraint tests association `%s`, which Mendix XPath does not support "+
+				"(CE0161 \"Error(s) in XPath constraint\") — `empty` compares attributes, not associations", variable, h.test()),
+			h.fix())
+	}
+}
+
+// xpathExpressionOnlyFunctions maps the Mendix EXPRESSION functions an XPath
+// constraint does not have to the XPath function that does the same thing. The
+// two languages sit side by side in a microflow and are easy to mix: measured on
+// mxbuild 11.13.0, `startsWith(Title, 'X')` and `endsWith(Title, 'X')` in a
+// retrieve constraint are CE0161 "Error(s) in XPath constraint" while
+// `starts-with(Title, 'X')` builds clean (mendixlabs/mxcli#1213). The list is
+// the measured pairs, not every function the two languages spell differently.
+var xpathExpressionOnlyFunctions = map[string]string{
+	"startsWith": "starts-with",
+	"endsWith":   "ends-with",
+}
+
+// xpathFunctionCallRe matches a function call and the character before it. A
+// `-` or word character before the name is part of another name.
+var xpathFunctionCallRe = regexp.MustCompile(`(^|[^\w.-])([A-Za-z_][\w-]*)\s*\(`)
+
+// xpathExpressionFunctionHits returns the expression-only functions an XPath
+// constraint calls, outside string literals.
+func xpathExpressionFunctionHits(xpath string) []string {
+	var out []string
+	for _, m := range xpathFunctionCallRe.FindAllStringSubmatch(blankXPathLiterals(xpath), -1) {
+		if _, ok := xpathExpressionOnlyFunctions[m[2]]; ok {
+			out = append(out, m[2])
+		}
+	}
+	return out
+}
+
+// checkXPathFunctionNames flags (MDL091) an expression-language function in a
+// retrieve constraint.
+func (v *microflowValidator) checkXPathFunctionNames(variable, xpath string) {
+	for _, fn := range xpathExpressionFunctionHits(xpath) {
+		xp := xpathExpressionOnlyFunctions[fn]
+		v.addViolation("MDL091", linter.SeverityError,
+			fmt.Sprintf("retrieve '$%s' constraint calls `%s()`, which is a Mendix expression function — XPath "+
+				"does not have it, and mxbuild reports CE0161 \"Error(s) in XPath constraint\"", variable, fn),
+			fmt.Sprintf("Use the XPath function `%s()` in a retrieve constraint.", xp))
 	}
 }
 
@@ -1486,6 +1564,9 @@ var knownActivityAnnotations = map[string]bool{
 	"start":      true,
 }
 
+// invalidAnchorRule refuses an @anchor parameter the visitor could not use.
+const invalidAnchorRule = "MDL092"
+
 // checkUnknownAnnotations rejects an @annotation name the visitor does not
 // implement.
 //
@@ -1508,6 +1589,15 @@ func (v *microflowValidator) checkUnknownAnnotations(s ast.MicroflowStatement) {
 			fmt.Sprintf("`@curve` parameter `%s` is not a whole-number (x, y) pair", bad),
 			"A sequence flow's shape is two bezier control vectors, each a pixel offset from its end "+
 				"of the line: `@curve(from: (40, -90), to: (-40, 90))`. Only `from:` and `to:` are accepted.")
+	}
+	for _, bad := range ann.InvalidAnchors {
+		v.addViolation(invalidAnchorRule, linter.SeverityError,
+			fmt.Sprintf("`@anchor` parameter `%s` is not one mxcli understands, so the edge it "+
+				"names keeps its default sides", bad),
+			"A side is top, right, bottom or left. The flow leaving a statement is "+
+				"`@anchor(from: right, to: left)`; an IF's branches are `@anchor(true: (from: …, to: …), "+
+				"false: (…))`, a loop's `@anchor(iterator: (…), tail: (…))` — either side of a pair may be "+
+				"left out (mendixlabs/mxcli#992).")
 	}
 	for _, name := range ann.UnknownNames {
 		v.addViolation("MDL059", linter.SeverityError,
@@ -1582,4 +1672,22 @@ func (v *microflowValidator) checkCaptionOnLoop(ann *ast.ActivityAnnotations, wh
 			"(the loop activity has no Caption property, so it is dropped). "+
 			"Use @annotation to attach a note to the loop instead.",
 		"Replace @caption with @annotation to label the loop")
+}
+
+// lockWorkflowAllRule refuses `lock workflow all` / `unlock workflow all`.
+const lockWorkflowAllRule = "MDL-WF17"
+
+// refuseWorkflowAll reports a lock or unlock that names no workflow. A Lock
+// workflow activity always targets one definition; PauseAllWorkflows is the
+// "Pause instances" option ON that definition, not "every workflow", and the
+// metamodel has no all-definitions selection. The bare form built as CE1825
+// "The 'Workflow' property is required" (mendixlabs/mxcli#870).
+func (v *microflowValidator) refuseWorkflowAll(verb, flag, activity string) {
+	label := strings.ToUpper(flag[:1]) + flag[1:]
+	v.addViolation(lockWorkflowAllRule, linter.SeverityError,
+		fmt.Sprintf("`%s workflow all` names no workflow — %s workflow activity always targets one "+
+			"workflow definition, and the build fails CE1825 \"The 'Workflow' property is required\"", verb, activity),
+		fmt.Sprintf("Name the workflow: `%s workflow $WorkflowDefinition;` or `%s workflow Module.Workflow;`. "+
+			"To %s the running instances of that workflow as well (Studio Pro's \"%s instances\"), add `%s all`: "+
+			"`%s workflow $WorkflowDefinition %s all;`.", verb, verb, flag, label, flag, verb, flag))
 }

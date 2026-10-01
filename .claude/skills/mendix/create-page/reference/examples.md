@@ -28,7 +28,7 @@ create or modify page CRM.CustomerEdit
           textbox txtPhone (label: 'Phone', attribute: Phone)
           checkbox cbActive (label: 'Active', attribute: IsActive)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
@@ -99,7 +99,7 @@ create page CRM.Customer_MasterDetail
           textbox txtEmail (label: 'Email', attribute: Email)
           textbox txtPhone (label: 'Phone', attribute: Phone)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }

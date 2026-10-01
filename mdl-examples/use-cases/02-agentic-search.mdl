@@ -395,7 +395,7 @@ create page TaskMgmt.Task_Detail
     datepicker dpDue (label: 'Due Date', attribute: DueDate)
     textbox txtHours (label: 'Estimated Hours', attribute: EstimatedHours)
 
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }

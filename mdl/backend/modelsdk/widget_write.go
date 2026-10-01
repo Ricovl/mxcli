@@ -490,7 +490,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if x.Label != "" {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
-		g.SetMaxLengthCode(-1)
+		g.SetMaxLengthCode(maxLengthCodeFor(x.SourceVariable))
 		onChange, err := clientActionToGen(x.OnChangeAction)
 		if err != nil {
 			return nil, err
@@ -584,7 +584,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if x.Label != "" {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
-		g.SetMaxLengthCode(-1)
+		g.SetMaxLengthCode(maxLengthCodeFor(x.SourceVariable))
 		lines := int32(x.Rows)
 		if lines == 0 {
 			lines = 5
@@ -1289,6 +1289,19 @@ func pageVariableToGen(widget, name, kind string) element.Element {
 		pv.SetWidgetQualifiedName(widget)
 	}
 	return pv
+}
+
+// maxLengthCodeFor is a text input's "Maximum length": -1, the attribute's
+// length, for an attribute binding; 0, unlimited, for one bound to a page
+// variable, which has no attribute length to take — Studio Pro's default for
+// variables, and the only valid one: mx check reports -1 there as CE6553 "Text
+// length cannot be the attribute length when configured with a variable"
+// (mendixlabs/mxcli#1235).
+func maxLengthCodeFor(sv *pages.WidgetVariable) int32 {
+	if sv != nil && sv.Kind == "local" && sv.Widget == "" && sv.Variable != "" {
+		return 0
+	}
+	return -1
 }
 
 // inputSourceVariableToGen writes an input widget's widget-scoped
