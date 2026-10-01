@@ -226,9 +226,9 @@ $ChatContext = call java action AgentCommons.ChatContext_Create_ForAgent(
 Retrieve the `AgentCommons.Agent` entity by qualified name before calling:
 
 ```sql
-retrieve $agent from database AgentCommons.Agent
-  where AgentCommons.Agent/QualifiedName = 'Module.MyAgent'
-  limit 1;
+retrieve $agent from AgentCommons.Agent
+  where [QualifiedName = 'Module.MyAgent']
+  first;
 ```
 
 The `AgentCommons.Agent` entity is populated at runtime by `ASU_AgentEditor` from the agent documents you create with `create agent`.

@@ -16,7 +16,6 @@
 # count or deletes a line; never add or raise one by hand — fix the doc, or
 # fence a counterexample as ```text.
 
-1	syntax	.claude/skills/mendix/agents/SKILL.md
 15	syntax	.claude/skills/mendix/alter-page/SKILL.md
 1	syntax	.claude/skills/mendix/analyze-runtime/SKILL.md
 1	syntax	.claude/skills/mendix/atlas-design/SKILL.md

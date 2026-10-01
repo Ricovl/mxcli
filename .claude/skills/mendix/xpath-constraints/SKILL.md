@@ -32,8 +32,8 @@ This skill provides reference for writing XPath constraint expressions in MDL RE
 > is a parse error (Mendix XPath has no arithmetic on the value side). Compute the
 > value first, then compare against the variable:
 > ```mdl
-> $Next = $Game/MoveSeq + 1;
-> retrieve $M from Mod.Move where [Seq = $Next] limit 1;
+> declare $Next integer = $Game/MoveSeq + 1;
+> retrieve $M from Mod.Move where [Seq = $Next] first;
 > ```
 > `mxcli check` explains this and shows the workaround when it sees `+`/`*`/`div`/
 > `mod` inside a constraint.
@@ -51,7 +51,7 @@ This skill provides reference for writing XPath constraint expressions in MDL RE
 > date tokens (`[%CurrentDateTime%]`, `[%BeginOfCurrentDay%]`, …), or compute the
 > cut-off in a variable first and compare against that:
 > ```mdl
-> $Cutoff = addDays([%CurrentDateTime%], -7);
+> declare $Cutoff datetime = addDays([%CurrentDateTime%], -7);
 > retrieve $L from Mod.T where [DueDate > $Cutoff];
 > ```
 

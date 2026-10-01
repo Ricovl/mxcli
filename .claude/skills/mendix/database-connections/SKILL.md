@@ -17,6 +17,7 @@ Create and manage external database connections in Mendix using the External Dat
 
 > **Tip:** Use `generate connector` to auto-create all constants, entities, and queries from a database schema:
 > ```
+> mdl 1;
 > SQL CONNECT postgres 'postgres://user:pass@host/db' AS source;
 > SQL source GENERATE CONNECTOR INTO MyModule;
 > -- Or generate for specific tables and execute immediately:
