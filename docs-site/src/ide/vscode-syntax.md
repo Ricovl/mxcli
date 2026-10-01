@@ -8,7 +8,8 @@ MDL files (`.mdl`) receive full syntax coloring based on a TextMate grammar:
 
 | Token Type | Examples | Color Theme Category |
 |-----------|---------|---------------------|
-| Keywords | `CREATE`, `SHOW`, `DESCRIBE`, `ALTER`, `GRANT` | `keyword` |
+| Language header | `mdl 1;` | `keyword.control.directive` |
+| Keywords | `CREATE`, `LIST`, `DESCRIBE`, `ALTER`, `GRANT` | `keyword` |
 | Types | `String`, `Integer`, `Boolean`, `DateTime` | `support.type` |
 | Strings | `'Hello World'` | `string` |
 | Numbers | `100`, `3.14` | `constant.numeric` |
@@ -40,6 +41,14 @@ Line 3, Col 42: mismatched input ')' expecting ','
 ```
 
 Parse diagnostics run **on every keystroke** (debounced) and do not require a Mendix project file.
+
+## Language Version Diagnostics
+
+The `mdl 1;` header a script starts with sets the language version it is checked
+against. Deprecated spellings (`MDL-DEPR*`) and, in a script without the header,
+constructs whose meaning `mdl 1` changes (`MDL-V1-*`) are underlined as warnings.
+Hover over one for `mxcli help <code>`, and use the quick fix (Ctrl+.) to apply the
+`fmt --upgrade` rewrite. See [LSP Capabilities](lsp-capabilities.md).
 
 ## Semantic Diagnostics (On Save)
 
