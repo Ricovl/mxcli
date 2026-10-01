@@ -67,3 +67,23 @@ func currentWriteStats(b backend.FullBackend) backend.WriteStats {
 	}
 	return reporter.WriteStats()
 }
+
+// reportWrite is ReportMutation for a statement whose report is a sentence
+// rather than "<Verb> <kind>: <name>" — "Granted access on …", "Set project
+// security level …", "Updated configuration …". It prints the sentence when the
+// statement's writes landed, and "Unchanged <unchanged>" when every write it
+// offered was elided, and reports which: a caller with follow-up lines (a grant's
+// "Result: …") prints them only for a write.
+//
+// A re-run of a settled script wrote nothing and still announced every security
+// and settings statement as a write, so its output could not be read as an
+// idempotency gate (ako/mxcli#890). The same evidence rule as ReportMutation
+// applies: Unchanged only when writes were offered and none landed.
+func (ctx *ExecContext) reportWrite(unchanged string, format string, args ...any) (wrote bool) {
+	if ctx.mutationWasElided() {
+		reportUnchanged(ctx, unchanged)
+		return false
+	}
+	fmt.Fprintf(ctx.Output, format+"\n", args...)
+	return true
+}

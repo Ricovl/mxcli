@@ -54,6 +54,18 @@ func execMove(ctx *ExecContext, s *ast.MoveStmt) error {
 		targetContainerID = targetModule.ID
 	}
 
+	// A document already where the statement puts it is not moved, and the
+	// statement says so: an organise step re-run on a settled project
+	// announced every document as moved although nothing was written
+	// (ako/mxcli#890).
+	if !isCrossModuleMove && alreadyPlaced(ctx, s, targetContainerID) {
+		return nil
+	}
+	// Every mover changes a container the cached hierarchy indexes by, so a
+	// later statement resolving the document through it would not find it
+	// ("microflow not found" on a second move of the same document).
+	defer invalidateHierarchy(ctx)
+
 	// Execute move based on document type
 	switch s.DocumentType {
 	case ast.DocumentTypePage:
@@ -113,6 +125,21 @@ func execMove(ctx *ExecContext, s *ast.MoveStmt) error {
 	}
 
 	return nil
+}
+
+// alreadyPlaced reports, as Unchanged, a move whose document already sits in
+// the target container. Anything it cannot establish — no such document, a
+// different doctype under that name — is left to the mover, which reports it.
+func alreadyPlaced(ctx *ExecContext, s *ast.MoveStmt, targetContainerID model.ID) bool {
+	doc, err := ctx.Backend.FindDocumentUnit(s.Name.Module, s.Name.Name)
+	if err != nil || doc == nil || doc.ContainerID != targetContainerID {
+		return false
+	}
+	if checkMovedDocumentType(s.DocumentType.CanonicalSpelling(), doc.Kind, s.Name) != nil {
+		return false
+	}
+	reportUnchanged(ctx, fmt.Sprintf("%s: %s", doc.Kind, s.Name))
+	return true
 }
 
 // updateQualifiedNameRefs updates all BY_NAME references to an element after a cross-module move.

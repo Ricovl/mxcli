@@ -329,7 +329,8 @@ func execAlterUserRole(ctx *ExecContext, s *ast.AlterUserRoleStmt) error {
 		action = "Removed"
 		prep = "from"
 	}
-	fmt.Fprintf(ctx.Output, "%s module roles %s %s user role %s\n", action, strings.Join(moduleRoleNames, ", "), prep, s.Name)
+	ctx.reportWrite(fmt.Sprintf("user role: %s (module roles %s)", s.Name, strings.Join(moduleRoleNames, ", ")),
+		"%s module roles %s %s user role %s", action, strings.Join(moduleRoleNames, ", "), prep, s.Name)
 	return nil
 }
 
@@ -611,17 +612,22 @@ func execGrantEntityAccess(ctx *ExecContext, s *ast.GrantEntityAccessStmt) error
 	}
 
 	// Reconcile MemberAccesses on pre-existing rules for this entity's domain model
+	var reconciled string
 	if count, err := ctx.Backend.ReconcileMemberAccesses(dm.ID, module.Name); err != nil {
 		return mdlerrors.NewBackend("reconcile member accesses", err)
 	} else if count > 0 && !ctx.Quiet {
-		fmt.Fprintf(ctx.Output, "Reconciled %d access rule(s) in module %s\n", count, module.Name)
+		reconciled = fmt.Sprintf("Reconciled %d access rule(s) in module %s\n", count, module.Name)
 	}
 
 	ctx.trackModifiedDomainModel(module.ID, module.Name)
-	fmt.Fprintf(ctx.Output, "Granted access on %s.%s to %s\n", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))
+	text := reconciled + fmt.Sprintf("Granted access on %s.%s to %s\n", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))
 	if !ctx.Quiet {
-		fmt.Fprint(ctx.Output, formatAccessRuleResult(ctx, s.Entity.Module, s.Entity.Name, roleNames, xpathConstraint, false))
+		text += formatAccessRuleResult(ctx, s.Entity.Module, s.Entity.Name, roleNames, xpathConstraint, false)
 	}
+	ctx.reportAccessRule(heldReport{
+		text:      text,
+		unchanged: fmt.Sprintf("entity access: %s.%s (%s)", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", ")),
+	})
 	return nil
 }
 
@@ -695,12 +701,14 @@ func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) err
 		}
 
 		if modified == 0 {
-			fmt.Fprintf(ctx.Output, "No access rules found matching %s on %s.%s\n", strings.Join(roleNames, ", "), s.Entity.Module, s.Entity.Name)
+			ctx.reportAccessRule(heldReport{notice: true, text: fmt.Sprintf("No access rules found matching %s on %s.%s\n", strings.Join(roleNames, ", "), s.Entity.Module, s.Entity.Name)})
 		} else {
-			fmt.Fprintf(ctx.Output, "Revoked partial access on %s.%s from %s\n", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))
+			text := fmt.Sprintf("Revoked partial access on %s.%s from %s\n", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))
 			if !ctx.Quiet {
-				fmt.Fprint(ctx.Output, formatAccessRuleResult(ctx, s.Entity.Module, s.Entity.Name, roleNames, "", true))
+				text += formatAccessRuleResult(ctx, s.Entity.Module, s.Entity.Name, roleNames, "", true)
 			}
+			ctx.reportAccessRule(heldReport{text: text,
+				unchanged: fmt.Sprintf("entity access: %s.%s (%s)", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))})
 		}
 	} else {
 		// Full revoke — remove entire access rule
@@ -710,12 +718,14 @@ func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) err
 		}
 
 		if modified == 0 {
-			fmt.Fprintf(ctx.Output, "No access rules found matching %s on %s.%s\n", strings.Join(roleNames, ", "), s.Entity.Module, s.Entity.Name)
+			ctx.reportAccessRule(heldReport{notice: true, text: fmt.Sprintf("No access rules found matching %s on %s.%s\n", strings.Join(roleNames, ", "), s.Entity.Module, s.Entity.Name)})
 		} else {
-			fmt.Fprintf(ctx.Output, "Revoked access on %s.%s from %s\n", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))
+			text := fmt.Sprintf("Revoked access on %s.%s from %s\n", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))
 			if !ctx.Quiet {
-				fmt.Fprint(ctx.Output, "  Result: (no access)\n")
+				text += "  Result: (no access)\n"
 			}
+			ctx.reportAccessRule(heldReport{text: text,
+				unchanged: fmt.Sprintf("entity access: %s.%s (%s)", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))})
 		}
 	}
 	ctx.trackModifiedDomainModel(module.ID, module.Name)
@@ -1173,7 +1183,7 @@ func execAlterProjectSecurity(ctx *ExecContext, s *ast.AlterProjectSecurityStmt)
 		if err := ctx.Backend.SetProjectSecurityLevel(ps.ID, bsonLevel); err != nil {
 			return mdlerrors.NewBackend("set security level", err)
 		}
-		fmt.Fprintf(ctx.Output, "Set project security level to %s\n", s.SecurityLevel)
+		ctx.reportWrite("project security level: "+s.SecurityLevel, "Set project security level to %s", s.SecurityLevel)
 	}
 
 	if s.DemoUsersEnabled != nil {
@@ -1184,7 +1194,7 @@ func execAlterProjectSecurity(ctx *ExecContext, s *ast.AlterProjectSecurityStmt)
 		if *s.DemoUsersEnabled {
 			state = "enabled"
 		}
-		fmt.Fprintf(ctx.Output, "Demo users %s\n", state)
+		ctx.reportWrite("demo users: "+state, "Demo users %s", state)
 	}
 
 	if s.GuestAccessEnabled != nil || s.GuestUserRole != "" {
@@ -1201,7 +1211,7 @@ func execAlterProjectSecurity(ctx *ExecContext, s *ast.AlterProjectSecurityStmt)
 		if *s.StrictModeEnabled {
 			state = "enabled"
 		}
-		fmt.Fprintf(ctx.Output, "Strict mode %s\n", state)
+		ctx.reportWrite("strict mode: "+state, "Strict mode %s", state)
 	}
 
 	return nil
@@ -1263,17 +1273,17 @@ func applyGuestAccess(ctx *ExecContext, ps *security.ProjectSecurity, s *ast.Alt
 		if enabled {
 			state = "on"
 		}
-		fmt.Fprintf(ctx.Output, "Guest user role set to %s (guest access stays %s)\n", role, state)
+		ctx.reportWrite("guest user role: "+role, "Guest user role set to %s (guest access stays %s)", role, state)
 		return nil
 	}
 	if !enabled {
-		fmt.Fprintf(ctx.Output, "Guest access disabled\n")
+		ctx.reportWrite("guest access: disabled", "Guest access disabled")
 		return nil
 	}
 	if role == "" {
 		role = ps.GuestUserRole
 	}
-	fmt.Fprintf(ctx.Output, "Guest access enabled for user role %s\n", role)
+	ctx.reportWrite("guest access: enabled for user role "+role, "Guest access enabled for user role %s", role)
 	return nil
 }
 

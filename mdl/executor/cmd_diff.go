@@ -501,7 +501,7 @@ func spliceVerdict(ctx *ExecContext, d *flowDecl, result *DiffResult) {
 			result.Refused = why.reason
 		}
 	case err != nil || p == nil:
-	case p.mut == nil && d.folder == p.storedFolder:
+	case p.mut == nil && !movesFolder(d.folder, p.storedFolder):
 		result.Proposed = result.Current
 		result.Changes = nil
 	case result.Current == result.Proposed:
@@ -509,11 +509,7 @@ func spliceVerdict(ctx *ExecContext, d *flowDecl, result *DiffResult) {
 		if s := patchSummary(p.ops, p.moves, p.set); s != "" {
 			what = append(what, s)
 		}
-		switch {
-		case d.folder == p.storedFolder:
-		case d.folder == "":
-			what = append(what, "moved to the module root")
-		default:
+		if movesFolder(d.folder, p.storedFolder) {
 			what = append(what, fmt.Sprintf("moved to folder '%s'", d.folder))
 		}
 		if len(what) == 0 {
