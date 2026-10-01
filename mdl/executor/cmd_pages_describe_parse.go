@@ -1205,10 +1205,18 @@ func extractSnippetCallParams(w map[string]any) string {
 // `$dataView1.FullName`, which the builder resolves back to the same pair;
 // describe used to print the bare attribute and exec dropped the variable
 // (ako/mxcli#826). Every other binding reads as before.
+//
+// An input bound directly to a page variable stores no AttributeRef and names
+// the variable in SourceVariable.LocalVariable; it prints as `$ShowAll`, the
+// spelling the builder takes. describe used to print it unbound, so a round
+// trip silently cut the binding (mendixlabs/mxcli#1235).
 func extractInputAttribute(ctx *ExecContext, w map[string]any) string {
 	sv, _ := w["SourceVariable"].(map[string]any)
 	widget := extractString(sv["Widget"])
 	attrRef, _ := w["AttributeRef"].(map[string]any)
+	if local := extractString(sv["LocalVariable"]); local != "" && widget == "" && attrRef == nil {
+		return "$" + local
+	}
 	if widget == "" || attrRef == nil {
 		return extractAttributeRef(ctx, w)
 	}

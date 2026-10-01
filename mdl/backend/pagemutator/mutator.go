@@ -3514,3 +3514,17 @@ func errExpressionNotAString(propName string, _ any) error {
 			"set %s = if $currentObject/Featured then 'a' else 'b'",
 		propName, propName)
 }
+
+// PageVariableNames lists the stored document's page variables (its
+// Forms$LocalVariable entries), by name.
+func (m *Mutator) PageVariableNames() []string {
+	var names []string
+	for _, el := range bsonnav.DGetArrayElements(bsonnav.DGet(m.rawData, "Variables")) {
+		if doc, ok := el.(bson.D); ok {
+			if n := bsonnav.DGetString(doc, "Name"); n != "" {
+				names = append(names, n)
+			}
+		}
+	}
+	return names
+}

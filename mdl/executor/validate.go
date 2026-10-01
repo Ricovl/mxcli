@@ -1674,6 +1674,17 @@ func documentWidgets(stmt ast.Statement) (label string, widgets []*ast.WidgetV3,
 	return "", nil, false
 }
 
+// documentVariables is a page's or snippet's `Variables:` declarations.
+func documentVariables(stmt ast.Statement) []ast.PageVariable {
+	switch s := stmt.(type) {
+	case *ast.CreatePageStmtV3:
+		return s.Variables
+	case *ast.CreateSnippetStmtV3:
+		return s.Variables
+	}
+	return nil
+}
+
 // validateViewEntityAttributeSet reports an ADD/DROP ATTRIBUTE whose target is a
 // view entity — one the script creates, or one already in the project. An entity
 // the script (re)creates as anything else is judged by that statement instead.

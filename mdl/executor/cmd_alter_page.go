@@ -56,6 +56,18 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 	// Resolve module name for building new widgets
 	modName := h.GetModuleName(containerID)
 
+	// The stored document as describe prints it, parsed back — read once, and
+	// only when a REPLACE needs a pluggable widget's baseline (#1247).
+	var described map[string]*ast.WidgetV3
+	describedOnce := false
+	storedWidgets := func() map[string]*ast.WidgetV3 {
+		if !describedOnce {
+			describedOnce = true
+			described = describedStoredWidgets(ctx, unitID, containerType, s.PageName)
+		}
+		return described
+	}
+
 	for _, op := range s.Operations {
 		// Every target resolves through the document type's resolver before the
 		// operation runs (ADR-0012): what an address means is answered once,
@@ -82,7 +94,7 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 				return mdlerrors.NewBackend("drop TEMPLATE", err)
 			}
 		case *ast.ReplaceWidgetOp:
-			if err := applyReplaceWidgetMutator(ctx, mutator, o, modName, containerID); err != nil {
+			if err := applyReplaceWidgetMutator(ctx, mutator, o, modName, containerID, storedWidgets); err != nil {
 				return mdlerrors.NewBackend("replace", err)
 			}
 		case *ast.AddVariableOp:
@@ -472,7 +484,7 @@ func applyDropWidgetMutator(mutator backend.PageMutator, op *ast.DropWidgetOp) e
 // REPLACE widget via mutator
 // ============================================================================
 
-func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp, moduleName string, moduleID model.ID) error {
+func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp, moduleName string, moduleID model.ID, storedWidgets func() map[string]*ast.WidgetV3) error {
 	newWidgets, err := expandAlterFragments(ctx, op.NewWidgets, moduleName, moduleID)
 	if err != nil {
 		return err
@@ -523,7 +535,84 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 		return mdlerrors.NewBackend("build replacement widgets", err)
 	}
 
+	// One pluggable widget replaced by one of the same package keeps what the
+	// statement does not state (mendixlabs/mxcli#1247): the stored widget, as
+	// describe prints it, is built beside the replacement, and the mutator keeps
+	// every stored property the two builds agree on.
+	if handled, err := replacePluggableKeepingUnstated(ctx, mutator, op, widgets, storedWidgets, moduleName, moduleID, entityCtx, exclude); handled || err != nil {
+		return err
+	}
+
 	return mutator.ReplaceWidget(op.Target.Widget, columnRefOf(op.Target), widgets)
+}
+
+// pluggableKeepingReplacer is the PageMutator half of
+// replacePluggableKeepingUnstated; mutators without it replace as before.
+type pluggableKeepingReplacer interface {
+	ReplacePluggableKeepingUnstated(widgetRef string, replacement, baseline pages.Widget) (bool, error)
+}
+
+// replacePluggableKeepingUnstated handles `replace <pluggable> with { <same
+// pluggable kind> }`. handled is false when it does not apply — not exactly one
+// widget for one, no description of the stored one, or a baseline that does
+// not build — and the caller replaces as before.
+func replacePluggableKeepingUnstated(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp,
+	widgets []pages.Widget, storedWidgets func() map[string]*ast.WidgetV3,
+	moduleName string, moduleID model.ID, entityCtx string, exclude []string) (bool, error) {
+	keeper, ok := mutator.(pluggableKeepingReplacer)
+	if !ok || storedWidgets == nil || op.Target.Column != "" || op.Target.IsColumnAddress() ||
+		len(widgets) != 1 || len(op.NewWidgets) != 1 {
+		return false, nil
+	}
+	if _, isPluggable := widgets[0].(*pages.CustomWidget); !isPluggable {
+		return false, nil
+	}
+	stored := storedWidgets()[op.Target.Widget]
+	if stored == nil || !strings.EqualFold(stored.Type, op.NewWidgets[0].Type) {
+		return false, nil
+	}
+	baseline, err := buildWidgetsFromAST(ctx, cloneWidgets([]*ast.WidgetV3{stored}), moduleName, moduleID, entityCtx, mutator, exclude...)
+	if err != nil || len(baseline) != 1 {
+		return false, nil
+	}
+	return keeper.ReplacePluggableKeepingUnstated(op.Target.Widget, widgets[0], baseline[0])
+}
+
+// describedStoredWidgets describes the document an ALTER edits, in the
+// script's language, and indexes its widgets by name; nil when it cannot.
+func describedStoredWidgets(ctx *ExecContext, unitID model.ID, containerType string, name ast.QualifiedName) map[string]*ast.WidgetV3 {
+	var describe func() error
+	switch containerType {
+	case "page":
+		describe = func() error { return describePage(ctx, name) }
+	case "snippet":
+		describe = func() error { return describeSnippet(ctx, name) }
+	default:
+		return nil
+	}
+	out, err := describedWidgets(ctx, func() error {
+		prev := ctx.describeID
+		ctx.describeID = unitID
+		defer func() { ctx.describeID = prev }()
+		return describe()
+	})
+	if err != nil {
+		return nil
+	}
+	return out
+}
+
+// storedPageVariables is the stored document's page variables, so a widget an
+// ALTER adds can bind to one (`Attribute: $ShowAll`, mendixlabs/mxcli#1235) and
+// a `$name` in a template resolves as it does in CREATE.
+func storedPageVariables(mutator backend.PageMutator) map[string]bool {
+	vars := map[string]bool{}
+	if lister, ok := mutator.(interface{ PageVariableNames() []string }); ok {
+		for _, n := range lister.PageVariableNames() {
+			vars[n] = true
+		}
+	}
+	return vars
 }
 
 // isFooterRegionTarget reports whether an ALTER target is `<widget>.footer` —
@@ -669,6 +758,7 @@ func buildColumnSpecsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleNa
 		fragments:        ctx.Fragments,
 		themeRegistry:    ctx.GetThemeRegistry(),
 		widgetBackend:    ctx.Backend,
+		localVariables:   storedPageVariables(mutator),
 	}
 
 	var result []*backend.DataGridColumnSpec
@@ -762,6 +852,7 @@ func buildWidgetsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleName s
 		fragments:        ctx.Fragments,
 		themeRegistry:    ctx.GetThemeRegistry(),
 		widgetBackend:    ctx.Backend,
+		localVariables:   storedPageVariables(mutator),
 	}
 
 	var result []pages.Widget

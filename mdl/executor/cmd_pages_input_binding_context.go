@@ -9,6 +9,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/linter"
+	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
 // An `Attribute:` binding is only storable when there is an object to bind to.
@@ -45,14 +46,30 @@ import (
 // c is the context the widget sits in. noEntity says that nothing could qualify
 // a bare name here — the builder knows that; the check-time walk has no project
 // to ask, passes false, and lets the context alone decide.
-func inputBindingProblem(w *ast.WidgetV3, c pageArgContext, noEntity bool) string {
+//
+// isPageVariable answers whether a bare `$name` is one of the document's page
+// variables, which an input binds to directly (mendixlabs/mxcli#1235); nil
+// means the caller cannot know (an ALTER fragment at check time), and the
+// builder, which can, decides.
+func inputBindingProblem(w *ast.WidgetV3, c pageArgContext, noEntity bool, isPageVariable func(string) bool) string {
 	raw, present := lookupPropCI(w, "Attribute")
 	if !present || raw == nil {
 		return ""
 	}
 	kind := strings.ToLower(w.Type)
+	if name, ok := bareVariableReference(raw); ok {
+		if isPageVariable == nil || isPageVariable(name) {
+			return ""
+		}
+	}
 	attr, isString := raw.(string)
 	if !isString {
+		if name, ok := bareVariableReference(raw); ok {
+			return fmt.Sprintf("%s `%s`: `Attribute: $%s` — `$%s` is not a page variable of this document, so the "+
+				"widget would be written with no binding at all. Declare it (`Variables: { $%s: Boolean = 'true' }`) to "+
+				"bind the input to it, or bind an attribute by name inside a data container",
+				kind, w.Name, name, name, name)
+		}
 		return fmt.Sprintf("%s `%s`: `Attribute: %s` is not an attribute binding MDL can store — the widget "+
 			"would be written with no binding at all, inside a data view or outside one. Bind the attribute by "+
 			"name inside a data container over that object: `dataview dv (DataSource: $Param) { %s %s "+
@@ -117,7 +134,7 @@ func nonStringAttributeText(v any) string {
 // checkInputBinding is the builder's refusal: the widget being built must not
 // reach the writer with a binding the writer will turn into nothing.
 func (pb *pageBuilder) checkInputBinding(w *ast.WidgetV3, entity string) error {
-	if msg := inputBindingProblem(w, pb.argCtx, entity == ""); msg != "" {
+	if msg := inputBindingProblem(w, pb.argCtx, entity == "", pb.isLocalVariable); msg != "" {
 		return mdlerrors.NewValidation(msg)
 	}
 	return nil
@@ -137,7 +154,9 @@ func validateInputBindingContext(w *ast.WidgetV3, c pageArgContext, locationPref
 	if own := argContextForOwnAction(w, c); own != c {
 		c = own
 	}
-	msg := inputBindingProblem(w, c, false)
+	// A bare `$name` is judged against the document's Variables by
+	// validatePageVariableBindings, which has them; this walk does not.
+	msg := inputBindingProblem(w, c, false, nil)
 	if msg == "" {
 		return nil
 	}
@@ -147,4 +166,70 @@ func validateInputBindingContext(w *ast.WidgetV3, c pageArgContext, locationPref
 		Message:    locationPrefix + ": " + msg,
 		Suggestion: "An input or dynamic text shows an attribute of the object a data view, list view, gallery or data grid supplies — wrap it in one.",
 	}}
+}
+
+// bareVariableReference reads `Attribute: $name` — a variable named with no
+// attribute after it — and returns the name without the "$". `$P/Name` is a
+// different shape (ContextVariable set) and is not one.
+func bareVariableReference(raw any) (string, bool) {
+	ds, ok := raw.(*ast.DataSourceV3)
+	if !ok || ds.ContextVariable != "" || len(ds.Args) > 0 || ds.Where != "" {
+		return "", false
+	}
+	name, ok := strings.CutPrefix(ds.Reference, "$")
+	if !ok || name == "" || strings.ContainsAny(name, "./ ") {
+		return "", false
+	}
+	return name, true
+}
+
+func (pb *pageBuilder) isLocalVariable(name string) bool {
+	return pb.localVariables[name]
+}
+
+// pageVariableInputBinding is the SourceVariable of an input bound directly to
+// a page variable — `checkbox cb (Attribute: $ShowAll)` — or nil. Studio Pro
+// stores that binding as a Forms$PageVariable naming the variable in its
+// LocalVariable slot, with no AttributeRef (mendixlabs/mxcli#1235).
+func (pb *pageBuilder) pageVariableInputBinding(w *ast.WidgetV3) *pages.WidgetVariable {
+	raw, _ := lookupPropCI(w, "Attribute")
+	name, ok := bareVariableReference(raw)
+	if !ok || !pb.localVariables[name] {
+		return nil
+	}
+	return &pages.WidgetVariable{Variable: name, Kind: "local"}
+}
+
+// validatePageVariableBindings is MDL-WIDGET34 for `Attribute: $name` on a
+// whole page or snippet, where the document's Variables are known: a name that
+// is not one of them is a binding the writer would drop.
+func validatePageVariableBindings(widgets []*ast.WidgetV3, variables []ast.PageVariable, locationPrefix string) []linter.Violation {
+	declared := make(map[string]bool, len(variables))
+	for _, v := range variables {
+		declared[strings.TrimPrefix(v.Name, "$")] = true
+	}
+	isDeclared := func(name string) bool { return declared[name] }
+	var out []linter.Violation
+	var walk func(ws []*ast.WidgetV3)
+	walk = func(ws []*ast.WidgetV3) {
+		for _, w := range ws {
+			if w == nil {
+				continue
+			}
+			raw, _ := lookupPropCI(w, "Attribute")
+			if _, ok := bareVariableReference(raw); ok {
+				if msg := inputBindingProblem(w, pageArgContext{}, false, isDeclared); msg != "" {
+					out = append(out, linter.Violation{
+						RuleID:     "MDL-WIDGET34",
+						Severity:   linter.SeverityError,
+						Message:    locationPrefix + ": " + msg,
+						Suggestion: "Bind an input to a page variable by declaring it: `Variables: { $name: Boolean = 'true' }`, then `Attribute: $name`.",
+					})
+				}
+			}
+			walk(w.Children)
+		}
+	}
+	walk(widgets)
+	return out
 }
