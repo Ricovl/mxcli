@@ -289,6 +289,10 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// operation, so the mapping would be dropped in silence (#843).
 	violations = append(violations, ValidateRestClientMappings(prog)...)
 
+	// Flag a published REST operation whose commit option is not one Mendix
+	// has; it used to parse and be thrown away (ako/mxcli#571).
+	violations = append(violations, ValidatePublishedRestCommit(prog)...)
+
 	// Flag a scheduled event whose Repeat and fields disagree (a Multiplier on
 	// a Daily repeat, an HourOfDay of 99). Decidable from the statement, so it
 	// runs here rather than at exec, where the script would already have
