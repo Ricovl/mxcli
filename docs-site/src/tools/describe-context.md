@@ -37,7 +37,12 @@ mxcli context -p app.mpr Module.MyMicroflow
 
 # With depth control
 mxcli context -p app.mpr Module.MyMicroflow --depth 3
+
+# MDL sources in the alpha language (mdl 0) instead of mdl 1
+mxcli context -p app.mpr Module.MyMicroflow --mdl 0
 ```
+
+The MDL sources are written in `mdl 1`, each headed by `mdl 1;`.
 
 The `--depth` flag controls how many levels of related elements are included in the context output. A higher depth gives a broader picture but produces more output.
 

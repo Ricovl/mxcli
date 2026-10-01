@@ -85,7 +85,7 @@ func TestDescribeTrimsStoredExpressionWhitespace(t *testing.T) {
 					Expression:   "$currentObject/IsEnabled\nand $currentObject/IsEdited = false\n",
 				},
 			},
-			want: "$Next = find($List, $currentObject/IsEnabled\nand $currentObject/IsEdited = false);",
+			want: "$Next = find $List where $currentObject/IsEnabled\nand $currentObject/IsEdited = false;",
 		},
 		{
 			name: "log template parameter",

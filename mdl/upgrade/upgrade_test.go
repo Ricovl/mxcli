@@ -116,11 +116,14 @@ func TestUpgrade_HeaderOnlyWhenAsked(t *testing.T) {
 	}
 }
 
-// While mdl 1 is a preview the header is opt-in; DefaultOptions turns it on by
-// itself once langver.Frozen reaches Latest, with no edit here.
+// mdl 1 is frozen (ako/mxcli#714), so `fmt --upgrade` adds its header by
+// default; DefaultOptions follows langver.Frozen, with no edit here.
 func TestDefaultOptions_FollowsFrozen(t *testing.T) {
 	if got, want := DefaultOptions().AddHeader, langver.Latest <= langver.Frozen; got != want {
 		t.Fatalf("DefaultOptions().AddHeader = %v, want %v", got, want)
+	}
+	if !DefaultOptions().AddHeader {
+		t.Fatal("mdl 1 is frozen: fmt --upgrade must add the header without --header")
 	}
 }
 

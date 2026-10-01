@@ -3,6 +3,7 @@
 package executor
 
 import (
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"strings"
 	"testing"
 
@@ -369,7 +370,7 @@ func TestFormatAction_AggregateList_Count(t *testing.T) {
 		Function:       microflows.AggregateFunctionCount,
 	}
 	got := e.formatAction(action, nil, nil)
-	if got != "$Total = count($Orders);" {
+	if got != "$Total = count $Orders;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -383,7 +384,7 @@ func TestFormatAction_AggregateList_Sum(t *testing.T) {
 		AttributeQualifiedName: "MyModule.Order.Amount",
 	}
 	got := e.formatAction(action, nil, nil)
-	if got != "$TotalAmount = sum($Orders.Amount);" {
+	if got != "$TotalAmount = sum $Orders by Amount;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -398,7 +399,7 @@ func TestFormatAction_AggregateList_SumExpression(t *testing.T) {
 		Expression:     "$currentObject/Amount * 0.21",
 	}
 	got := e.formatAction(action, nil, nil)
-	if got != "$TotalTax = sum($Orders, $currentObject/Amount * 0.21);" {
+	if got != "$TotalTax = sum $Orders of $currentObject/Amount * 0.21;" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -609,9 +610,14 @@ func TestFormatAction_ShowMessage_EscapesMultiline(t *testing.T) {
 			Translations: map[string]string{"en_US": "Line 1\nLine 2\tTabbed"},
 		},
 	}
-	got := e.formatAction(action, nil, nil)
-	if got != "show message 'Line 1\\nLine 2\\tTabbed' type Information;" {
-		t.Errorf("got %q", got)
+	// mdl 1, the default since the freeze: the break is in the literal.
+	if got := e.formatAction(action, nil, nil); got != "show message 'Line 1\nLine 2\tTabbed' type Information;" {
+		t.Errorf("mdl 1: got %q", got)
+	}
+	// Asked for mdl 0 (`describe --mdl 0`): the mdl 0 escapes.
+	e.SetDescribeLanguage(langver.V0)
+	if got := e.formatAction(action, nil, nil); got != "show message 'Line 1\\nLine 2\\tTabbed' type Information;" {
+		t.Errorf("mdl 0: got %q", got)
 	}
 }
 
@@ -731,10 +737,12 @@ func TestFormatAction_LogMessage_EscapesMultiline(t *testing.T) {
 			Translations: map[string]string{"en_US": "Line 1\nLine 2"},
 		},
 	}
-	got := e.formatAction(action, nil, nil)
-	want := "log node 'App' 'Line 1\\nLine 2';"
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
+	if got, want := e.formatAction(action, nil, nil), "log node 'App' 'Line 1\nLine 2';"; got != want {
+		t.Errorf("mdl 1: got %q, want %q", got, want)
+	}
+	e.SetDescribeLanguage(langver.V0)
+	if got, want := e.formatAction(action, nil, nil), "log node 'App' 'Line 1\\nLine 2';"; got != want {
+		t.Errorf("mdl 0: got %q, want %q", got, want)
 	}
 }
 

@@ -127,6 +127,11 @@ type ExecContext struct {
 	// by the same rules and a value compares as the same AST (ako/mxcli#804).
 	describeIn *langver.Version
 
+	// describeLang is the session's describe language (SetDescribeLanguage):
+	// `--mdl 0` and the REPL's `mdl 0;`. describeIn, a pin for one internal
+	// describe, takes precedence over it; nil means the frozen default.
+	describeLang *langver.Version
+
 	// describeID pins a describe to one stored document. A name is not a unique
 	// key — a module may hold an excluded twin (#914) — so the catalog's source
 	// build, which enumerates documents rather than names, sets it to describe

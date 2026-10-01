@@ -11,10 +11,9 @@ create persistent entity Shop.Customer (
 );
 ```
 
-A script with no header is **mdl 0**, the alpha language. Nobody writes
-`mdl 0;`: it is only ever implicit. The rest of this manual documents `mdl 1`;
-this page is the one place that documents what `mdl 0` means differently, and
-how to move a script from one to the other.
+A script file with no header is **mdl 0**, the alpha language. The rest of
+this manual documents `mdl 1`; this page is the one place that documents what
+`mdl 0` means differently, and how to move a script from one to the other.
 
 Two rules make the move safe ([ADR-0011](https://github.com/mendixlabs/mxcli/blob/main/docs/13-decisions/0011-mdl-language-versioning.md)):
 
@@ -32,9 +31,51 @@ form, the new form, whether `fmt --upgrade` rewrites it, and the version that
 refuses it. `mxcli syntax <topic> --deprecated` lists the old spellings of one
 topic.
 
-> `mdl 1` is a **preview** until the beta freeze: it parses, but warns
-> "preview: may still change" (`MDL-LANG01`), and `describe` and `fmt` do not
-> write the header yet.
+## mdl 1 is frozen
+
+`mdl 1` was frozen at beta. It is a contract: a later change of meaning needs a
+new version, `mdl 2`, and a script headed `mdl 1;` means the same under every
+later mxcli release. What that changes in practice:
+
+| Where | Since the freeze | To get `mdl 0` |
+|---|---|---|
+| `describe` (statement and `mxcli describe`), `mxcli context`, `mxcli diff-local` | Writes `mdl 1`, and every description starts with `mdl 1;`, so it runs as it is. Descriptions concatenated into one file repeat the header; a repeated header naming the same version is allowed. Describe never writes a deprecated spelling, in either version: a List operation or Aggregate list activity is its statement (`$n = count $L;`), never the call (`count($L)`). | `--mdl 0` on the command (no header is written) |
+| `mxcli fmt --upgrade` | Adds the `mdl 1;` header by default, after the rewrites below. | `--header=false` upgrades the spellings alone |
+| `mxcli fmt` (without `--upgrade`) | Keeps the script's header, or its lack of one: formatting never changes a script's language. | — |
+| The REPL and `mxcli -c "…"` | Input without a header is read as `mdl 1`. Session commands (`connect`, `set format`, `status`, …) and a missing `;` after the last statement stay allowed: this is the session they belong to. | `--mdl 0` on the command line; in the REPL an `mdl 0;` statement switches the session (and `mdl 1;` back). The REPL is the only place a header may change the language part-way |
+| A script file run with `exec`, `check` or `fmt` | Unchanged: read by its own header, and as `mdl 0` without one ([ADR-0011](https://github.com/mendixlabs/mxcli/blob/main/docs/13-decisions/0011-mdl-language-versioning.md)). | — |
+
+Before the freeze `mdl 1;` warned "preview: may still change" (`MDL-LANG01`);
+that warning is gone. A header after the first statement must name the same
+version as the first: `mdl 0;` after `mdl 1;` is an error, and so is `mdl 1;`
+part-way through a script that started without one.
+
+## What a script without the header means
+
+Each construct below is refused under `mdl 1;` and accepted without the header,
+where it keeps its old meaning and warns with the code shown.
+
+| Under `mdl 1;` | Without the header |
+|---|---|
+| A statement without `;` is an error. | Accepted; `MDL-V1-SEMI`. |
+| A `/` terminator line is an error. | Accepted; `MDL-V1-SLASH`. |
+| `''` is the only string escape; a backslash is an ordinary character, so `'C:\temp'` is that path. | `\n`, `\r`, `\t`, `\\` and `\'` are escapes; `MDL-V1-ESCAPE` for each literal whose value would change. |
+| A text template (`log`, `show message`, `validation feedback`) written as one literal is the template text even when it spans lines, which is how a template holds a line break. | A template literal spanning lines with no `with ({n} = …)` parameters is an expression: the template is `{1}`, the literal its parameter; `MDL-V1-TEMPLATE`. |
+| In a REST client, published REST service, business event service, model, knowledge base, consumed MCP service or agent, an unknown property key is an error that names the key it most likely meant, and so is a value its key does not take (`Response: json from $X`). | The property is ignored, or read by its shape as before; `MDL-V1-PROP` / `MDL-V1-PROPVALUE`. |
+| A `while` loop is `while <condition> begin … end while;`; leaving out `begin`, or the `while` after `end`, is an error. | Accepted; `MDL-V1-WHILE`. |
+| `show entity X` / `show association X` is an error: `describe entity X` prints the definition, `list entities in M` the summary columns. | Prints the summary; `MDL-V1-SHOWSUMMARY`. |
+| A session command — `connect`, `disconnect`, `use`, `set format = …`, `status`, `show version`, `show status`, `show connections`, `show catalog status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help`, `introspect api` — is an error in a script. Type it at the REPL, or use the command-line flag (`mxcli exec script.mdl -p app.mpr --json`). The REPL keeps accepting them. | Runs as before; `MDL-V1-SESSION`. |
+| A quoted value of `DynamicClasses`, `DynamicCellClass` or an OData client's credential or header value is a Mendix string, so the pre-#750 spelling — the expression's text in quotes, `'if $currentObject/X then ''on'' else '''''`, `'''admin'''`, `'@Mod.C'` — is an error (MDL-WIDGET33, MDL-ODATA07). Write the expression bare. | The quoted text is the expression it holds; `MDL-V1-QUOTEDEXPR`. A quoted class name or plain credential is the string under both. |
+
+### Strings without the header
+
+A script without the header (`mdl 0`) still reads a backslash before `n`, `r`, `t`, `\` or `'` as an escape — `'C:\temp'` holds a tab — and `check` warns `MDL-V1-ESCAPE` for each literal whose value changes under `mdl 1`. Write the backslash-free form (`'it''s'`) to mean the same under both.
+
+In a microflow or nanoflow expression, without the header `'C:\\temp'` stores `'C:\temp'` and `'it\'s'` stores `'it''s'`: the stored expression is the same value, spelled as Studio Pro spells it.
+
+`describe --mdl 0` keeps the `mdl 0` escapes (`\n`, `\\`): in a flow's expression and an XPath constraint it writes a stored backslash as `\\`, so the description reads back as the stored value under `mdl 0`. `mxcli fmt --upgrade` rewrites an `mdl 0` script's escaped strings to the `mdl 1` form. An expression whose string holds an escaped line break is written as the expression Mendix stores for it, since an expression that spans lines is stored exactly as written.
+
+Without the header a template literal that spans lines and has no parameters is an expression instead — the template is `{1}` and the literal its parameter — and `check` warns `MDL-V1-TEMPLATE`. With `with ({n} = …)` parameters it is the template text under both versions.
 
 ## How to migrate a script
 
@@ -46,8 +87,11 @@ topic.
    when one has no rewrite.
 
    ```bash
-   mxcli fmt --upgrade --header -w -p app.mpr script.mdl
+   mxcli fmt --upgrade -w -p app.mpr script.mdl
    ```
+
+   The header is the default since the freeze; `--header` still says so
+   explicitly, and `--header=false` upgrades the spellings alone.
 
    The project (`-p`) answers what the script alone cannot: whether
    `find(…)` over a flow's result is the string function or the list
@@ -95,25 +139,56 @@ layout and keyword case survive, and the result is re-parsed before it is
 written.
 
 1. **Deprecated spellings** become their new form (the `MDL-DEPR*` table).
-   This step runs with or without `--header`.
-2. **Bare commits are pinned** (with `-p`, with or without `--header`). A bare
+   This step runs with or without the header.
+2. **Bare commits are pinned** (with `-p`, with or without the header). A bare
    `commit $X;` means *with* events, Studio Pro's default; mxcli releases
    before that change stored it *without*. In a `create or modify` flow whose
    stored commit has no events, the upgrade writes `commit $X without events;`
    so that re-running the script keeps what is stored. Without `-p` the script
    is left as written and fmt prints a note (`MDL067`) per flow.
 3. **Header-gated constructs** are rewritten to the spelling that keeps their
-   `mdl 0` meaning under the header (`--header` only): the missing `;` is
+   `mdl 0` meaning under the header (not with `--header=false`): the missing `;` is
    added, `/` lines are deleted, a backslash escape becomes the character it
    stood for, `retrieve … limit 1` (an object under `mdl 0`) becomes
    `retrieve … first`, a reassignment gets `set`, and a list operation becomes
    one statement per activity. One change is version-neutral and is rewritten
-   without `--header` too (the table says which).
+   without the header too (the table says which).
 4. **The header is added** — unless a construct in step 3 has no rewrite, or,
    with `-p`, exec would refuse a statement under the header (a `create or
    modify` of a stored flow whose change cannot be spliced in, `MDL-V1-REBUILD`).
    The file then keeps its version and the rest of the upgrade still applies;
    `--force-header` adds the header anyway.
+
+### The rewrites and refusals in detail
+
+`mxcli fmt --upgrade` rewrites every deprecated spelling (the `MDL-DEPRnnn` warnings) to its canonical form — `create or replace` becomes `create or modify`, `list entities` becomes `list entities`, `on error { … }` becomes `on error begin … end error` — and changes nothing else: comments, layout and keyword case are kept. A deprecated use with no mechanical rewrite is reported and left in place.
+
+```bash
+mxcli fmt --upgrade script.mdl                  # print the upgraded script
+mxcli fmt --upgrade -w script.mdl               # upgrade in place, adding `mdl 1;`
+mxcli fmt --upgrade --header=false -w script.mdl  # the spellings alone, no header
+```
+
+The header is added after rewriting every construct whose meaning it would change, so the script keeps doing what it did:
+
+| Code | Rewrite |
+|---|---|
+| `MDL-V1-SEMI` | adds the missing `;` |
+| `MDL-V1-SLASH` | deletes the `/` line |
+| `MDL-V1-ESCAPE` | writes the string's value with `''` as the only escape (`'it\'s\t'` becomes `'it''s` + a tab + `'`) |
+| `MDL-V1-LIMIT1` | `retrieve … limit 1` (one object) becomes `retrieve … first` |
+| `MDL-V1-SET` | `$x = …` becomes `set $x = …` |
+| `MDL-V1-LIST`, `MDL-DEPR003`, `MDL-DEPR004` | a list operation or aggregate call becomes its statement form (`$x = filter($L, …)` → `$x = filter $L where …`); `find`/`contains` on a declared String keeps the call and gains `set` |
+| `MDL-V1-REPLACE02` | `create or replace user role` / `demo user` becomes a plain `create` |
+| `MDL-V1-WHILE` | inserts the missing `begin` after a `while` condition and `while` after its `end` |
+| `MDL-V1-TEMPLATE` | a template literal spanning lines becomes the parameter it was: `log info 'a⏎b';` becomes `log info '{1}' with ({1} = 'a⏎b');` |
+| `MDL-V1-QUOTEDEXPR` | a quoted expression becomes the expression bare: `dynamicclasses: 'if $currentObject/X then ''on'' else '''''` becomes `dynamicclasses: if $currentObject/X then 'on' else ''`. The bare form means the same without the header, so `fmt --upgrade` applies this one with `--header=false` too |
+
+A construct with no mechanical rewrite is reported with the reason, and `fmt` refuses to add the header rather than change the script's meaning: an unknown or mis-shaped property (`MDL-V1-PROP`, `MDL-V1-PROPVALUE`), `create or replace view entity` (`MDL-V1-REPLACE01`), a session command in a script (`MDL-V1-SESSION`: move it to the command line or the REPL), a nested list operation such as `count(filter(…))`, `find`/`contains` on a variable whose type the script does not state (when the variable holds a microflow or nanoflow call's result, the called flow's return type decides: a flow the script creates earlier is read from the script, and any other from the project given with `-p app.mpr`, so `fmt --upgrade -p app.mpr` rewrites it), and an escaped line break (`\n`) inside an expression. An escaped line break in a text template's literal is rewritten: the break is written into the literal, which under `mdl 1` is still the template text. Running `fmt --upgrade` on its own output changes nothing.
+
+`-p app.mpr` also settles a bare `commit $X;` in a `create or modify microflow|nanoflow`, with or without the header. Since mendixlabs/mxcli#895 a bare commit means *with* events, Studio Pro's default; an older mxcli stored the same statement *without* events. Where the stored flow commits the variable without events, `fmt --upgrade -p app.mpr` writes `commit $X without events;`, so re-running the script keeps what is stored instead of turning the event handlers on (or, inside a loop under `mdl 1`, being refused). A new flow, a new commit, or a stored commit with events is left as written; where the stored flow commits the variable both ways, the statement is left and reported. Without `-p`, `fmt` prints a note (`MDL067`) for each flow with a bare commit.
+
+`-p app.mpr` also tells the upgrade which statements `exec` would refuse once the header is there. Under `mdl 1` a `create or modify microflow|nanoflow` of a stored flow is applied as a patch, and a change the patch cannot make (inside a loop body or an error handler, a redrawn connector, a `return` added) is refused with nothing written; without the header the same statement rebuilds the whole flow (`MDL-V1-REBUILD`). No rewrite keeps that meaning, so `fmt` names each such statement and leaves the header off that file, applying the rest of the upgrade. Change those flows with `alter`, or drop and create them, and upgrade again; `--force-header` adds the header regardless. `mxcli check script.mdl -p app.mpr` reports the same statements (an `MDL-V1-REBUILD` error under `mdl 1`, the warning without the header), computed by the same code as `exec` and `diff`.
 
 ## Behaviour changes to know about
 

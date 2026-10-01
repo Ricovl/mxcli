@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/executor"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
@@ -238,7 +239,7 @@ func runFlowSpliceParity(t *testing.T, fx fixture) {
 				var described string
 				if header == "" {
 					var err error
-					if described, err = h.describe(d.target()); err != nil {
+					if described, err = h.describeAs(langver.V0, d.target()); err != nil {
 						t.Fatalf("describe %s: %v", d.target(), err)
 					}
 				} else {

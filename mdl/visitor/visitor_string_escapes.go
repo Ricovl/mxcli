@@ -28,9 +28,15 @@ var backslashIsLiteral = langver.Change{
 // newScriptStream is the character stream a script is lexed from. Whether a
 // backslash escapes decides where a string literal ends, so the rule is fixed
 // here, from the header, before the first token (see StrictEscapeStream).
-func newScriptStream(input string) antlr.CharStream {
+// implicit is the language of input without a header (BuildSession); a
+// script's is V0.
+func newScriptStream(input string, implicit langver.Version) antlr.CharStream {
 	var is antlr.CharStream = antlr.NewInputStream(input)
-	if backslashIsLiteral.Applies(langver.ScanHeader(input)) {
+	v, written := langver.ScanWrittenHeader(input)
+	if !written {
+		v = implicit
+	}
+	if backslashIsLiteral.Applies(v) {
 		is = &parser.StrictEscapeStream{CharStream: is}
 	}
 	return is

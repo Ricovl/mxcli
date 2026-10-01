@@ -20,6 +20,14 @@ const storedText = "It's in C:\\temp\\new\tnow.\r\n"
 
 func mdl1Ctx() *ExecContext { return &ExecContext{LanguageVersion: langver.V1} }
 
+// mdl0Ctx is a describe asked for in mdl 0 (`describe --mdl 0`, the REPL's
+// `mdl 0;`): since the freeze (ako/mxcli#714) that has to be said, the default
+// being mdl 1.
+func mdl0Ctx() *ExecContext {
+	v := langver.V0
+	return &ExecContext{describeLang: &v}
+}
+
 // enumCaption parses `create enumeration` with the literal as a caption and
 // returns the caption it reads back as.
 func enumCaption(t *testing.T, header, lit string) string {
@@ -32,25 +40,31 @@ func enumCaption(t *testing.T, header, lit string) string {
 }
 
 // Under mdl 1 describe writes a string with `”` as the only escape and the
-// line break in the literal itself; outside an mdl 1 script it keeps the mdl 0
-// escapes while mdl 1 is a preview (ako/mxcli#804). Each spelling reads back
-// as the stored text under the language it was written for — and, as the
-// control, not under the other one.
+// line break in the literal itself; asked for mdl 0 it writes the mdl 0
+// escapes (ako/mxcli#804, #840). Since the freeze mdl 1 is the default, in a
+// headerless script too. Each spelling reads back as the stored text under
+// the language it was written for — and, as the control, not under the other.
 func TestMdlQuote_FollowsTheDescribeLanguage(t *testing.T) {
 	mdl1 := mdlQuote(mdl1Ctx(), storedText)
 	if want := "'It''s in C:\\temp\\new\tnow.\r\n'"; mdl1 != want {
 		t.Errorf("mdl 1:\n got  %q\n want %q", mdl1, want)
 	}
-	mdl0 := mdlQuote(nil, storedText)
+	mdl0 := mdlQuote(mdl0Ctx(), storedText)
 	if want := `'It''s in C:\\temp\\new\tnow.\r\n'`; mdl0 != want {
 		t.Errorf("mdl 0:\n got  %q\n want %q", mdl0, want)
 	}
-	if got := mdlQuote(&ExecContext{}, storedText); got != mdl0 {
-		t.Errorf("a headerless script describes as mdl 0 while mdl 1 is a preview, got %q", got)
+	for name, ctx := range map[string]*ExecContext{"no context": nil, "a headerless script": {}} {
+		if got := mdlQuote(ctx, storedText); got != mdl1 {
+			t.Errorf("%s describes as the frozen mdl 1, got %q", name, got)
+		}
 	}
 	pinned := langver.V0
 	if got := mdlQuote(&ExecContext{LanguageVersion: langver.V1, describeIn: &pinned}, storedText); got != mdl0 {
 		t.Errorf("describeIn pins the language, got %q", got)
+	}
+	session := langver.V1
+	if got := mdlQuote(&ExecContext{describeLang: &session, describeIn: &pinned}, storedText); got != mdl0 {
+		t.Errorf("describeIn wins over the session's language, got %q", got)
 	}
 
 	if got := enumCaption(t, "mdl 1;\n", mdl1); got != storedText {
@@ -73,7 +87,7 @@ func TestMdlQuote_FollowsTheDescribeLanguage(t *testing.T) {
 func TestDescribersQuoteForTheDescribeLanguage(t *testing.T) {
 	note := &microflows.Annotation{BaseMicroflowObject: mkObj("note"), Caption: storedText}
 	oc := &microflows.MicroflowObjectCollection{Objects: []microflows.MicroflowObject{note}}
-	lit1, lit0 := mdlQuote(mdl1Ctx(), storedText), mdlQuote(nil, storedText)
+	lit1, lit0 := mdlQuote(mdl1Ctx(), storedText), mdlQuote(mdl0Ctx(), storedText)
 
 	for _, c := range []struct {
 		name       string
@@ -81,11 +95,11 @@ func TestDescribersQuoteForTheDescribeLanguage(t *testing.T) {
 	}{
 		{"free annotation",
 			strings.Join(prependFreeAnnotationLines(mdl1Ctx(), oc, []string{"return;"}), "\n"),
-			strings.Join(prependFreeAnnotationLines(nil, oc, []string{"return;"}), "\n")},
+			strings.Join(prependFreeAnnotationLines(mdl0Ctx(), oc, []string{"return;"}), "\n")},
 		{"pluggable widget property",
 			explicitPropValue(mdl1Ctx(), rawExplicitProp{Key: "k", Value: storedText, ValueType: "String"}),
-			explicitPropValue(nil, rawExplicitProp{Key: "k", Value: storedText, ValueType: "String"})},
-		{"activity caption", activityCaption(mdl1Ctx()), activityCaption(nil)},
+			explicitPropValue(mdl0Ctx(), rawExplicitProp{Key: "k", Value: storedText, ValueType: "String"})},
+		{"activity caption", activityCaption(mdl1Ctx()), activityCaption(mdl0Ctx())},
 	} {
 		if !strings.Contains(c.mdl1, lit1) {
 			t.Errorf("%s under mdl 1 does not write %q:\n%s", c.name, lit1, c.mdl1)
@@ -99,7 +113,7 @@ func TestDescribersQuoteForTheDescribeLanguage(t *testing.T) {
 	if got := escapeExpressionValue(mdl1Ctx(), expr); got != expr {
 		t.Errorf("an expression under mdl 1 is written as stored, got %q", got)
 	}
-	if got, want := escapeExpressionValue(nil, expr), `'{\n  "a": 1\r\n}' + $S`; got != want {
+	if got, want := escapeExpressionValue(mdl0Ctx(), expr), `'{\n  "a": 1\r\n}' + $S`; got != want {
 		t.Errorf("an expression under mdl 0:\n got  %q\n want %q", got, want)
 	}
 }
@@ -117,8 +131,11 @@ func activityCaption(ctx *ExecContext) string {
 // written in, so an internal re-parse (layout, create or modify's diff)
 // reads what describe wrote.
 func TestDescribedSourceCarriesTheDescribeLanguage(t *testing.T) {
-	if got := describedSource(nil, "x"); got != "x" {
+	if got := describedSource(mdl0Ctx(), "x"); got != "x" {
 		t.Errorf("mdl 0 needs no header, got %q", got)
+	}
+	if got := describedSource(nil, "x"); got != "mdl 1;\nx" {
+		t.Errorf("the default describe language is the frozen mdl 1, got %q", got)
 	}
 	if got := describedSource(mdl1Ctx(), "x"); got != "mdl 1;\nx" {
 		t.Errorf("mdl 1: got %q", got)

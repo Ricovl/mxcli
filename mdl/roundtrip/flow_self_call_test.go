@@ -89,7 +89,7 @@ end;`)
 		if len(diff) != 1 {
 			t.Fatalf("want exactly the added ReturnVariableName, got %v", diff)
 		}
-		if out := h.mustDescribe(t, "nanoflow MyFirstModule.Rt843_ReturnName"); !bytes.Contains([]byte(out), []byte("returns Boolean as $Done")) {
+		if out := h.mustDescribeMdl0(t, "nanoflow MyFirstModule.Rt843_ReturnName"); !bytes.Contains([]byte(out), []byte("returns Boolean as $Done")) {
 			t.Fatalf("describe does not state the return variable:\n%s", out)
 		}
 	})

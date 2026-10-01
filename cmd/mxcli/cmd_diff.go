@@ -72,6 +72,7 @@ Examples:
 		exec, logger := newLoggedExecutor("subcommand")
 		defer logger.Close()
 		defer exec.Close()
+		exec.SetDescribeLanguage(mdlFlag(cmd))
 
 		connectProg, _ := visitor.Build(fmt.Sprintf("CONNECT LOCAL '%s'", visitor.QuoteString(projectPath)))
 		for _, stmt := range connectProg.Statements {

@@ -170,7 +170,7 @@ END WHILE;
 
 > **Caution:** Ensure the condition will eventually become false to avoid infinite loops.
 
-`BEGIN` and `END WHILE` are required under the `mdl 1;` header, as they are for `LOOP`. A script without the header may still leave either out, and `check` warns `MDL-V1-WHILE`.
+`BEGIN` and `END WHILE` are required, as they are for `LOOP`.
 
 ## Error Handling
 

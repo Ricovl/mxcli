@@ -77,9 +77,13 @@ import
 // TOP-LEVEL RULES
 // =============================================================================
 
-/** Entry point: a program is an optional language header and a sequence of statements */
+/**
+ * Entry point: a program is an optional language header and a sequence of statements.
+ * A later header may only repeat the script's own (concatenated describe output);
+ * the visitor refuses one that names another version.
+ */
 program
-    : languageHeader? statement* EOF
+    : languageHeader? (statement | repeatedLanguageHeader)* EOF
     ;
 
 /**
@@ -97,6 +101,16 @@ languageHeader
     // The word is an IDENTIFIER, not a keyword, and the visitor requires it to
     // be `mdl`: reserving it would take the word away from every place that
     // accepts only an IDENTIFIER, such as `describe contract entity X format mdl`.
+    : IDENTIFIER NUMBER_LITERAL SEMICOLON
+    ;
+
+/**
+ * A language header after the first statement. Concatenating describe outputs,
+ * each of which starts with `mdl 1;`, repeats the header; that is accepted when it
+ * names the script's own version and refused when it names another (ADR-0011:
+ * a script is written in one language version).
+ */
+repeatedLanguageHeader
     : IDENTIFIER NUMBER_LITERAL SEMICOLON
     ;
 

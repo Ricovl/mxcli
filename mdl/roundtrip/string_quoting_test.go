@@ -13,6 +13,7 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/upgrade"
 )
 
@@ -57,7 +58,7 @@ func TestStringLiteralsRoundTripUnderMdl1(t *testing.T) {
 			defer h.close()
 			found := 0
 			for _, d := range h.documents() {
-				plain, err := h.describe(d.target())
+				plain, err := h.describeAs(langver.V0, d.target())
 				if err != nil || len(backslashLiterals(plain)) == 0 {
 					continue
 				}
@@ -71,7 +72,7 @@ func TestStringLiteralsRoundTripUnderMdl1(t *testing.T) {
 					// Both are upgraded: describe still writes a few deprecated
 					// spellings, which fmt rewrites alike in either.
 					up, err := upgrade.Upgrade(plain, upgrade.Options{AddHeader: true})
-					want, err1 := upgrade.Upgrade("mdl 1;\n"+first, upgrade.Options{AddHeader: true})
+					want, err1 := upgrade.Upgrade(first, upgrade.Options{AddHeader: true})
 					if err != nil || err1 != nil {
 						t.Errorf("fmt --upgrade --header: of the mdl 0 description: %v; of the mdl 1 one: %v", err, err1)
 					} else if up.Source != want.Source {
@@ -138,7 +139,7 @@ func TestAnnotationLineBreakUnderMdl1(t *testing.T) {
 		t.Fatalf("the mdl 1 description of an unchanged flow wrote it:\n%s", h.out.String())
 	}
 
-	plain := h.mustDescribe(t, target)
+	plain := h.mustDescribeMdl0(t, target)
 	if !strings.Contains(plain, `after startup flow.\r\n', position:`) {
 		t.Fatalf("the mdl 0 description does not escape the CR LF:\n%s", plain)
 	}
@@ -174,7 +175,7 @@ func TestBackslashInStudioProFlowUnderMdl1(t *testing.T) {
 	if !strings.Contains(again, `200 characters in C:\temp\new, it''s`+"\n';") {
 		t.Fatalf("describe under mdl 1 does not write the backslashes as themselves:\n%s", again)
 	}
-	if plain := h.mustDescribe(t, valFeedback); !strings.Contains(plain, `200 characters in C:\\temp\\new, it''s\n';`) {
+	if plain := h.mustDescribeMdl0(t, valFeedback); !strings.Contains(plain, `200 characters in C:\\temp\\new, it''s\n';`) {
 		t.Errorf("the mdl 0 description does not escape the backslashes:\n%s", plain)
 	}
 

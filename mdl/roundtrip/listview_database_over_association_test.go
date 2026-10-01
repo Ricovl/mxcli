@@ -42,7 +42,7 @@ func TestListViewDatabaseOverAssociationKeepsItsSource(t *testing.T) {
 	for _, c := range listViewDatabaseOverAssociationCases {
 		t.Run(c.target, func(t *testing.T) {
 			h.restore()
-			script := h.mustDescribe(t, c.target)
+			script := h.mustDescribeMdl0(t, c.target)
 			if !strings.Contains(script, "DataSource: database from "+c.from) {
 				t.Fatalf("describe does not print `database from %s`:\n%s", c.from, script)
 			}
@@ -65,7 +65,7 @@ func TestListViewDatabaseOverAssociationKeepsItsSource_Control(t *testing.T) {
 	h := newFixtureHarness(t, testApp)
 	defer h.close()
 	c := listViewDatabaseOverAssociationCases[2]
-	script := h.mustDescribe(t, c.target)
+	script := h.mustDescribeMdl0(t, c.target)
 	old := strings.Replace(script,
 		"DataSource: database from "+c.from,
 		"DataSource: $WorkflowUserTask/System.WorkflowUserTask_TargetGroups", 1)
