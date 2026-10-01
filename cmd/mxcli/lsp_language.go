@@ -26,8 +26,8 @@ import (
 // mdl 1 is a parse error and a construct kept at its mdl 0 meaning is recorded
 // on the program. What `mxcli check` reports from those records — MDL-DEPRnnn
 // for a deprecated spelling, MDL-V1-* for a construct whose meaning the header
-// would change, MDL-LANG01 for a preview header — the editor reports too, at
-// the token or line it is about. Hover on one shows `mxcli help <code>`, and
+// would change — the editor reports too, at the token or line it is about.
+// (mdl 1 is frozen, so a header is no longer a preview to warn about.) Hover on one shows `mxcli help <code>`, and
 // the quick fix is the `fmt --upgrade` rewrite where there is one.
 
 // checkLinePrefix is the "line N: " check puts before a message; the
@@ -44,12 +44,6 @@ func languageDiagnostics(text string, prog *ast.Program) []protocol.Diagnostic {
 	for _, d := range prog.Deprecations {
 		vs := executor.ValidateDeprecations(&ast.Program{Deprecations: []ast.DeprecatedSpelling{d}})
 		diags = append(diags, violationDiagnostics(vs, tokenRange(lines, d.Line, d.Column))...)
-	}
-	if prog.LanguageVersion.IsPreview() {
-		vs := executor.ValidateLanguageVersion(&ast.Program{
-			LanguageVersion: prog.LanguageVersion, LanguageHeaderLine: prog.LanguageHeaderLine,
-		})
-		diags = append(diags, violationDiagnostics(vs, lineRange(lines, prog.LanguageHeaderLine))...)
 	}
 	for _, n := range prog.LanguageNotes {
 		vs := executor.ValidateLanguageVersion(&ast.Program{LanguageNotes: []ast.LanguageNote{n}})
