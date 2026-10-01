@@ -142,6 +142,21 @@ iterator name exists, so mxbuild rejects this with CE0109 "Undefined variable
 
 The rule keys on **scope, not on the name**. `$item` is perfectly valid in a predicate when it is the enclosing loop's iterator, which is how the O(N) lookup idiom is written — inside `loop $item in $L`, `find($Others, Key = $item/Key)` navigates the loop's variable and is not flagged.
 
+### MDL-STUB01: One flow declared twice in a script set
+
+```
+MyFirstModule.Export is declared by 2 `create or modify` statements in this script
+set: 13-actions.mdl:40 (mdl 0), 30-export.mdl:12 (mdl 1). Run in order, the first
+replaces what the last one stored, on every run; ... A self-recursive flow no
+longer needs a placeholder (#843): drop the stub and keep the real statement [MDL-STUB01]
+```
+
+**Cause:** A script set — `mxcli check` or `mxcli fmt --upgrade` given several files, read as one run in the order given — declares one microflow or nanoflow with two `create or modify` statements: a placeholder ("stub") that earlier scripts can reference, followed by the real flow. Run in order, the stub replaces the stored real flow and the real statement restores it, on every run. Under different language headers it is worse: the mdl 0 stub rebuilds the real flow, the mdl 1 real statement can be refused (its change cannot be spliced into the stub), and the project keeps running the placeholder with `mx check` reporting nothing (ako/mxcli#905).
+
+**Solution:** Drop the stub. Since #843 a self-recursive flow is created in one statement, and a script that only references the flow does not need it to exist until it runs. If the stub has to stay, give both files the same header: `mxcli fmt --upgrade -w -p app.mpr` over **all** the files decides the header for the pair together — added to both or to neither — where upgrading the files one at a time could split it.
+
+It is a warning. One file checked alone is not read as a set.
+
 ### MDL-DEPRnnn: Deprecated spelling
 
 ```

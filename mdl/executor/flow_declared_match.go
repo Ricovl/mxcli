@@ -129,6 +129,9 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 		if d.Type() == dataTypeStructType {
 			d, s = storedFlowDataType(d), storedFlowDataType(s)
 		}
+		if messageStructTypes[d.Type()] {
+			d, s = messageAsTemplate(d), messageAsTemplate(s)
+		}
 		geo := geometryFields[d.Type()]
 		for i := 0; i < d.NumField(); i++ {
 			df := d.Field(i)
@@ -202,6 +205,54 @@ func storedFlowDataType(v reflect.Value) reflect.Value {
 	}
 	dt.Kind = ast.TypeInteger
 	return reflect.ValueOf(dt)
+}
+
+// messageStructTypes are the statements whose message the builder stores as
+// a template: a string literal as its text, any other expression as '{1}'
+// with the expression as the first parameter.
+var messageStructTypes = map[reflect.Type]bool{
+	reflect.TypeOf(ast.LogStmt{}):                true,
+	reflect.TypeOf(ast.ShowMessageStmt{}):        true,
+	reflect.TypeOf(ast.ValidationFeedbackStmt{}): true,
+}
+
+// messageAsTemplate returns v, a statement with a message, with its message
+// in the form the builder stores it (addLogMessageAction,
+// addShowMessageAction, addValidationFeedbackAction): `'failed for ' + $Name`
+// is the template '{1}' with ({1} = 'failed for ' + $Name), which describe
+// prints — so the two spellings are one activity (ako/mxcli#905). A log
+// that states its own parameters keeps its message as written, as the
+// builder does.
+func messageAsTemplate(v reflect.Value) reflect.Value {
+	templated := func(msg ast.Expression) bool {
+		if msg == nil {
+			return false
+		}
+		lit, ok := msg.(*ast.LiteralExpr)
+		return !ok || lit.Kind != ast.LiteralString
+	}
+	placeholder := &ast.LiteralExpr{Kind: ast.LiteralString, Value: "{1}"}
+	switch st := v.Interface().(type) {
+	case ast.LogStmt:
+		if len(st.Template) == 0 && templated(st.Message) {
+			st.Template = []ast.TemplateParam{{Index: 1, Value: st.Message}}
+			st.Message = placeholder
+		}
+		return reflect.ValueOf(st)
+	case ast.ShowMessageStmt:
+		if templated(st.Message) {
+			st.TemplateArgs = append([]ast.Expression{st.Message}, st.TemplateArgs...)
+			st.Message = placeholder
+		}
+		return reflect.ValueOf(st)
+	case ast.ValidationFeedbackStmt:
+		if templated(st.Message) {
+			st.TemplateArgs = append([]ast.Expression{st.Message}, st.TemplateArgs...)
+			st.Message = placeholder
+		}
+		return reflect.ValueOf(st)
+	}
+	return v
 }
 
 var expressionType = reflect.TypeOf((*ast.Expression)(nil)).Elem()
