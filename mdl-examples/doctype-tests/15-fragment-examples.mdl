@@ -236,7 +236,7 @@ create page FragTest.P005_Quick_View
   dataview dvCustomer (datasource: $Customer) {
     dynamictext txtHeader (content: 'Customer Details', rendermode: H3)
     use fragment CustomerFields
-    footer footer1 {
+    footer {
       actionbutton btnClose (caption: 'Close', action: close page)
     }
   }
@@ -319,8 +319,8 @@ create snippet FragTest.CustomerCard
 
 -- Replace a widget subtree
 -- ALTER PAGE FragTest.P001_Customer_Edit {
---   REPLACE footer1 WITH {
---     FOOTER newFooter {
+--   REPLACE dvMain.footer WITH {
+--     FOOTER {
 --       ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE_CHANGES, ButtonStyle: Primary)
 --       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL_CHANGES)
 --       ACTIONBUTTON btnDelete (Caption: 'Delete', Action: CANCEL_CHANGES, ButtonStyle: Danger)

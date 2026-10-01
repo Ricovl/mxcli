@@ -325,7 +325,37 @@ CREATE PUBLISHED REST SERVICE Module.OrderAPI (
 };
 ```
 
-**Operation paths:** Use empty string `''` for the root, `'{paramName}'` for path parameters. Do NOT start or end with `/`. Path parameters must match a microflow parameter name exactly (case-sensitive) — e.g., `'{id}'` requires the microflow to declare `$id: String`.
+**Operation paths:** Use empty string `''` for the root, `'{paramName}'` for path parameters. Do NOT start or end with `/`. Path parameters must match a microflow parameter name exactly (case-sensitive) — `'{id}'` binds the microflow's `$id`, whatever its type.
+
+**Operation parameters** come from the microflow, the way Studio Pro derives them. Create the microflow before the service:
+
+| Microflow parameter | Operation parameter |
+|---|---|
+| named in the path (`'{id}'`) | a path parameter |
+| an object or a list | the body |
+| `System.HttpRequest`, `System.HttpResponse` | none — they are the request and the response |
+| anything else | a query parameter |
+
+Each gets the microflow parameter's type. A header parameter, a renamed parameter or a description set in Studio Pro has no MDL spelling: `describe` notes it in a comment, and `CREATE OR MODIFY` / `ALTER` on that project keep it.
+
+**Mappings and commit:** a body that is not a file document needs an import mapping, and a microflow returning an object or a list needs an export mapping:
+
+```sql
+mdl 1;
+CREATE OR MODIFY PUBLISHED REST SERVICE Module.OrderAPI (
+  Path: 'rest/orders/v1',
+  Version: '1.0.0',
+  ServiceName: 'Order API'
+)
+{
+  RESOURCE 'orders' {
+    -- COMMIT: Yes (the default without the clause) | YesWithoutEvents | No
+    POST '' MICROFLOW Module.PRS_CreateOrder
+      IMPORT MAPPING Module.IMM_Order EXPORT MAPPING Module.EMM_Order
+      COMMIT YesWithoutEvents;
+  }
+};
+```
 
 ### Multiple Resources
 

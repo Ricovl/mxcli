@@ -86,7 +86,7 @@ create or modify page CustomModule.PANEL_BufferDefinition_Edit (
 ) {
   placeholder Main {
     dataview dvEdit (DataSource: $Dto, FormOrientation: Vertical) {
-      footer footer1 {
+      footer {
         actionbutton btnSave (
           Caption: 'Save',
           Action: call nanoflow CustomModule.ACT_BufferDefinition_SaveEdit_NF(

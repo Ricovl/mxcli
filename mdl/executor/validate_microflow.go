@@ -215,7 +215,21 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 		v.checkErrorHandlingContinueSupported(s)
 		v.checkErrorHandlingSupported(s)
 		v.checkStmtExprFunctions(s)
+		// An annotation inside `on error begin … end error` is honoured like one
+		// outside it, so a malformed one there must be refused too — this walk
+		// never entered a handler body (mendixlabs/mxcli#991).
+		if eh := stmtErrorHandling(s); eh != nil {
+			v.walkAnnotations(eh.Body)
+		}
 		switch stmt := s.(type) {
+		case *ast.LockWorkflowStmt:
+			if stmt.WorkflowVariable == "" && stmt.Workflow == "" {
+				v.refuseWorkflowAll("lock", "pause", "a Lock")
+			}
+		case *ast.UnlockWorkflowStmt:
+			if stmt.WorkflowVariable == "" && stmt.Workflow == "" {
+				v.refuseWorkflowAll("unlock", "unpause", "an Unlock")
+			}
 		case *ast.NotifyWorkflowStmt:
 			// MDL-WF16. A notify reaches one named element of the workflow, and the
 			// build refuses one that names none: CE0166 "The 'Target' property is
@@ -1550,6 +1564,9 @@ var knownActivityAnnotations = map[string]bool{
 	"start":      true,
 }
 
+// invalidAnchorRule refuses an @anchor parameter the visitor could not use.
+const invalidAnchorRule = "MDL092"
+
 // checkUnknownAnnotations rejects an @annotation name the visitor does not
 // implement.
 //
@@ -1572,6 +1589,15 @@ func (v *microflowValidator) checkUnknownAnnotations(s ast.MicroflowStatement) {
 			fmt.Sprintf("`@curve` parameter `%s` is not a whole-number (x, y) pair", bad),
 			"A sequence flow's shape is two bezier control vectors, each a pixel offset from its end "+
 				"of the line: `@curve(from: (40, -90), to: (-40, 90))`. Only `from:` and `to:` are accepted.")
+	}
+	for _, bad := range ann.InvalidAnchors {
+		v.addViolation(invalidAnchorRule, linter.SeverityError,
+			fmt.Sprintf("`@anchor` parameter `%s` is not one mxcli understands, so the edge it "+
+				"names keeps its default sides", bad),
+			"A side is top, right, bottom or left. The flow leaving a statement is "+
+				"`@anchor(from: right, to: left)`; an IF's branches are `@anchor(true: (from: …, to: …), "+
+				"false: (…))`, a loop's `@anchor(iterator: (…), tail: (…))` — either side of a pair may be "+
+				"left out (mendixlabs/mxcli#992).")
 	}
 	for _, name := range ann.UnknownNames {
 		v.addViolation("MDL059", linter.SeverityError,
@@ -1646,4 +1672,22 @@ func (v *microflowValidator) checkCaptionOnLoop(ann *ast.ActivityAnnotations, wh
 			"(the loop activity has no Caption property, so it is dropped). "+
 			"Use @annotation to attach a note to the loop instead.",
 		"Replace @caption with @annotation to label the loop")
+}
+
+// lockWorkflowAllRule refuses `lock workflow all` / `unlock workflow all`.
+const lockWorkflowAllRule = "MDL-WF17"
+
+// refuseWorkflowAll reports a lock or unlock that names no workflow. A Lock
+// workflow activity always targets one definition; PauseAllWorkflows is the
+// "Pause instances" option ON that definition, not "every workflow", and the
+// metamodel has no all-definitions selection. The bare form built as CE1825
+// "The 'Workflow' property is required" (mendixlabs/mxcli#870).
+func (v *microflowValidator) refuseWorkflowAll(verb, flag, activity string) {
+	label := strings.ToUpper(flag[:1]) + flag[1:]
+	v.addViolation(lockWorkflowAllRule, linter.SeverityError,
+		fmt.Sprintf("`%s workflow all` names no workflow — %s workflow activity always targets one "+
+			"workflow definition, and the build fails CE1825 \"The 'Workflow' property is required\"", verb, activity),
+		fmt.Sprintf("Name the workflow: `%s workflow $WorkflowDefinition;` or `%s workflow Module.Workflow;`. "+
+			"To %s the running instances of that workflow as well (Studio Pro's \"%s instances\"), add `%s all`: "+
+			"`%s workflow $WorkflowDefinition %s all;`.", verb, verb, flag, label, flag, verb, flag))
 }

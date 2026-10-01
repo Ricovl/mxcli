@@ -86,7 +86,7 @@ create page StyleTest.P001_CSS_Classes
     textbox txtName (label: 'Name', attribute: Name, class: 'form-control-lg')
     textbox txtEmail (label: 'Email', attribute: Email, class: 'text-muted')
 
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary, class: 'btn-lg')
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes, class: 'btn-sm')
     }
@@ -241,7 +241,7 @@ create page StyleTest.P003_Design_Properties
     datepicker dpDue (label: 'Due Date', attribute: DueDate)
     checkbox chkDone (label: 'Completed', attribute: IsCompleted)
 
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary, designproperties: ('Full width': on))
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
@@ -342,7 +342,7 @@ create page StyleTest.P004_Combined_Styling
       }
     }
 
-    footer footer1 {
+    footer {
       actionbutton btnSave (
         caption: 'Save Employee',
         action: save changes,
@@ -543,7 +543,7 @@ create page StyleTest.P006_Roundtrip
     textbox txtEmail (label: 'Email', attribute: Email)
     checkbox chkActive (label: 'Active', attribute: IsActive)
 
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
@@ -582,7 +582,7 @@ create or modify page StyleTest.P006_Roundtrip
     textbox txtEmail (label: 'Email', attribute: Email)
     checkbox chkActive (label: 'Active', attribute: IsActive)
 
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }

@@ -573,19 +573,24 @@ IF $Location = empty THEN
 END IF;
 ```
 
-For per-action error handling without CONTINUE:
+For per-action error handling on a call, use a handler WITHOUT rollback — the
+only form a nanoflow call takes:
 ```mdl
-$Result = CALL NANOFLOW Sales.NAV_Risky () ON ERROR ROLLBACK;
+$Result = CALL NANOFLOW Sales.NAV_Risky () ON ERROR WITHOUT ROLLBACK BEGIN
+  LOG WARNING NODE 'Sales' 'Could not load the data.';
+END ERROR;
 ```
 
-### Most activities take NO error handling in a nanoflow
+### Which activities take which clause in a nanoflow
 
-An `ON ERROR` clause of **any** form is rejected on these six, with
-**CE6035** "Error handling type is not supported" — measured on Mendix 11.14.0:
+Measured on Mendix 11.14.0; every other form is **CE6035** "Error handling type
+is not supported", and mxcli refuses it (MDL091):
 
-| Refused in a nanoflow | Accepted |
+| Activity in a nanoflow | Accepted clauses |
 |---|---|
-| `CHANGE`, `LOG`, `SHOW PAGE`, `CLOSE PAGE`, `SHOW MESSAGE`, `VALIDATION FEEDBACK` | `DECLARE`, `SET` (the two *variable* activities) |
+| `DECLARE`, `SET`, `RETRIEVE`, `DELETE` | every form |
+| `CREATE`, `COMMIT`, `CALL NANOFLOW`, `CALL MICROFLOW` | only `ON ERROR WITHOUT ROLLBACK BEGIN … END ERROR` |
+| `CHANGE`, `LOG`, `SHOW PAGE`, `CLOSE PAGE`, `SHOW MESSAGE`, `VALIDATION FEEDBACK` | none |
 
 mxcli refuses the clause rather than writing a nanoflow mxbuild rejects. The
 split is by activity, not by "client-side vs server-side" — `SHOW MESSAGE` is as

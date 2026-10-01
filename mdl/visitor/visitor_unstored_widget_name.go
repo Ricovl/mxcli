@@ -13,8 +13,9 @@ import (
 
 // A name on a page element Mendix stores no name for (R12, ako/mxcli#749).
 //
-// A layout grid's rows and columns, a data grid's columns and control bar, and
-// a gallery's template and filter have no Name in the model: the builder of
+// A layout grid's rows and columns, a data grid's columns and control bar, a
+// gallery's template and filter, and a data view's footer have no Name in the
+// model: the builder of
 // the parent builds them and never reads one. describe used to invent one
 // (`row1`, `col3`, a column named after its attribute) and scripts copied it,
 // so a name there is the old spelling of the same page — MDL-DEPR005. It is
@@ -45,6 +46,10 @@ var unstoredChildKinds = map[string]map[string]bool{
 	"row":      {"column": true},
 	"datagrid": {"column": true, "controlbar": true},
 	"gallery":  {"template": true, "filter": true},
+	// A data view's footer is a region: its widgets go to the data view's
+	// FooterWidgets and the footer itself is not stored, so its name could
+	// never be addressed (ako/mxcli#528). `dvMain.footer` addresses it.
+	"dataview": {"footer": true},
 }
 
 // rememberWidgetName records where a widget's name was written, for its parent.

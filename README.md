@@ -442,7 +442,7 @@ create page MyModule.Product_Edit
     textbox txtPrice (label: 'Price', attribute: Price)
     checkbox cbActive (label: 'Active', attribute: IsActive)
 
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
       actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
     }

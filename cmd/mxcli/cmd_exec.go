@@ -11,6 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/executor"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
+	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
 	"github.com/spf13/cobra"
 )
 
@@ -35,6 +36,13 @@ makes a partially-applied domain script re-runnable — the already-applied
 statements (e.g. "attribute already exists") error individually while the not-
 yet-applied ones still run — without a failure masking later work.
 
+A write is refused while Studio Pro has the project open (its <project>.mpr.lock
+is beside the .mpr): Studio Pro does not reload the model from disk, and its next
+save would silently discard the change. Close the project in Studio Pro, or route
+writes through it with --mcp. --force writes anyway (for a lock left behind by a
+crash); MXCLI_ALLOW_STUDIO_PRO_OPEN=1 does the same for every command. Reads, and
+re-running a script whose statements change nothing, are never refused.
+
 Pass "-" as the file to read the script from standard input, so MDL can be
 piped or written inline as a heredoc without a temporary file.
 
@@ -53,6 +61,13 @@ Example:
 		projectPath, _ := cmd.Flags().GetString("project")
 		continueOnError, _ := cmd.Flags().GetBool("continue-on-error")
 		skipCheck, _ := cmd.Flags().GetBool("no-check")
+		if force, _ := cmd.Flags().GetBool("force"); force {
+			mmpr.AllowWritesWhileStudioProOpen = true
+			if lock, _ := mmpr.StudioProLockFile(projectPath); lock != "" {
+				fmt.Fprintf(os.Stderr, "Warning: Studio Pro appears to have this project open (%s); writing anyway (--force). "+
+					"Studio Pro's next save will discard these changes unless the project is closed or reloaded first.\n", lock)
+			}
+		}
 		depPolicy := deprecationPolicy(cmd)
 
 		// Read the script (a path, or "-" for stdin)
@@ -222,6 +237,8 @@ Example:
 func init() {
 	execCmd.Flags().Bool("no-check", false,
 		"Skip the pre-flight semantic checks and apply the script even if mxcli check would report errors")
+	execCmd.Flags().Bool("force", false,
+		"Write even though Studio Pro appears to have the project open (its .mpr.lock is present) — e.g. a lock left behind by a crash")
 	execCmd.Flags().Bool("continue-on-error", false,
 		"Run every statement, reporting each failure instead of halting at the first (exits non-zero if any failed) — makes a partially-applied script re-runnable")
 }

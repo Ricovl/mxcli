@@ -54,3 +54,40 @@ func ValidateRestClientMappings(prog *ast.Program) []linter.Violation {
 	}
 	return out
 }
+
+// ValidatePublishedRestCommit reports (MDL-REST03) a published REST operation
+// whose commit clause names no commit option. exec refuses the same statement
+// (publishedRestCommit), so check predicts it.
+func ValidatePublishedRestCommit(prog *ast.Program) []linter.Violation {
+	var out []linter.Violation
+	visit := func(res *ast.PublishedRestResourceDef) {
+		if res == nil {
+			return
+		}
+		for _, op := range res.Operations {
+			if _, err := publishedRestCommit(op.Commit); err != nil {
+				out = append(out, linter.Violation{
+					RuleID:     "MDL-REST03",
+					Severity:   linter.SeverityError,
+					Message:    "resource '" + res.Name + "', operation " + op.HTTPMethod + " " + op.Path + ": " + err.Error(),
+					Suggestion: "Write commit Yes, commit YesWithoutEvents or commit No, or leave the clause out (Yes).",
+				})
+			}
+		}
+	}
+	for _, stmt := range prog.Statements {
+		switch s := stmt.(type) {
+		case *ast.CreatePublishedRestServiceStmt:
+			for _, res := range s.Resources {
+				visit(res)
+			}
+		case *ast.AlterPublishedRestServiceStmt:
+			for _, a := range s.Actions {
+				if add, ok := a.(*ast.PublishedRestAddResourceAction); ok {
+					visit(add.Resource)
+				}
+			}
+		}
+	}
+	return out
+}

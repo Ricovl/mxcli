@@ -258,7 +258,7 @@ CREATE PAGE MyModule.Customer_Edit
         TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
         COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
 
-        FOOTER footer1 {
+        FOOTER {
             ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
             ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
         }
@@ -378,7 +378,7 @@ CREATE PAGE MyModule.AdvancedForm
         CONTAINER cntAdvanced (Visible: '$showAdvanced') {
             TEXTAREA taNotes (Label: 'Notes', Attribute: Notes)
         }
-        FOOTER footer1 {
+        FOOTER {
             ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
             ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
         }

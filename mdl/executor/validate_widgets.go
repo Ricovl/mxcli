@@ -112,7 +112,8 @@ func ValidateWidgetPropertiesForStatement(stmt ast.Statement, registry *WidgetRe
 		return nil
 	}
 	if label, widgets, ok := documentWidgets(stmt); ok {
-		return validateWidgetTree(widgets, registry, label)
+		out := validateWidgetTree(widgets, registry, label)
+		return append(out, validatePageVariableBindings(widgets, documentVariables(stmt), label)...)
 	}
 	switch s := stmt.(type) {
 	case *ast.AlterPageStmt:

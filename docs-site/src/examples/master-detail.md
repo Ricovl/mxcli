@@ -35,7 +35,7 @@ CREATE PAGE CRM.Customer_MasterDetail (
           TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
           TEXTBOX txtPhone (Label: 'Phone', Attribute: Phone)
           TEXTAREA txtNotes (Label: 'Notes', Attribute: Notes)
-          FOOTER footer1 {
+          FOOTER {
             ACTIONBUTTON btnSave (
               Caption: 'Save',
               Action: SAVE CHANGES,

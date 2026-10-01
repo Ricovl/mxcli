@@ -87,7 +87,7 @@ DATAVIEW dvCustomer (DataSource: $Customer) {
   TEXTBOX txtName (Label: 'Name', Attribute: Name)
   TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
   COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
-  FOOTER footer1 {
+  FOOTER {
     ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
     ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
   }
@@ -433,16 +433,17 @@ DATAVIEW dvOrder (DataSource: $Order) {
     DYNAMICTEXT txtOrderTitle (Content: 'Order #{1}', Attribute: OrderId)
   }
   TEXTBOX txtStatus (Label: 'Status', Attribute: Status)
-  FOOTER ftr1 { ... }
+  FOOTER { ... }
 }
 ```
 
 ### FOOTER
 
-Footer section of a DataView. Typically contains save/cancel buttons:
+Footer section of a DataView. Typically contains save/cancel buttons. It
+stores no name of its own; `ALTER PAGE` addresses it as `<dataview>.footer`:
 
 ```sql
-FOOTER footer1 {
+FOOTER {
   ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
   ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
 }

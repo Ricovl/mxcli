@@ -180,17 +180,20 @@ func init() {
 			"-- Two limits, both enforced rather than silently ignored:\n" +
 			"--\n" +
 			"--   ON ERROR CONTINUE is rejected by Mendix (CE6035) on CREATE, CHANGE,\n" +
-			"--   COMMIT, LOG, SHOW PAGE, CLOSE PAGE, SHOW MESSAGE and VALIDATION\n" +
-			"--   FEEDBACK -> MDL076. A custom handler IS accepted on all of them, and\n" +
-			"--   CONTINUE is fine on DECLARE, SET, RETRIEVE, DELETE and CALL MICROFLOW.\n" +
+			"--   COMMIT, LOG, SHOW PAGE, CLOSE PAGE, SHOW MESSAGE, VALIDATION\n" +
+			"--   FEEDBACK and CALL WORKFLOW -> MDL076. A custom handler IS accepted on\n" +
+			"--   all of them, and CONTINUE is fine on DECLARE, SET, RETRIEVE, DELETE\n" +
+			"--   and CALL MICROFLOW.\n" +
 			"--\n" +
 			"--   List operations and aggregates ($x = head $l, $n = count $l) have\n" +
 			"--   no error handling in Mendix at all -> MDL077.\n" +
 			"--\n" +
-			"-- IN A NANOFLOW only DECLARE and SET take a clause at all. CHANGE, LOG,\n" +
-			"-- SHOW PAGE, CLOSE PAGE, SHOW MESSAGE and VALIDATION FEEDBACK are CE6035\n" +
-			"-- there in EVERY form, and are refused: a nanoflow activity aborts the\n" +
-			"-- flow on error by default and has no transaction to roll back.\n" +
+			"-- IN A NANOFLOW a statement with no clause aborts the flow on error, and\n" +
+			"-- there is no transaction to roll back. DECLARE, SET, RETRIEVE and DELETE\n" +
+			"-- take every clause. CREATE, COMMIT, CALL NANOFLOW and CALL MICROFLOW take\n" +
+			"-- only ON ERROR WITHOUT ROLLBACK BEGIN ... END ERROR. CHANGE, LOG, SHOW\n" +
+			"-- PAGE, CLOSE PAGE, SHOW MESSAGE and VALIDATION FEEDBACK take none. Every\n" +
+			"-- other form is CE6035 and is refused (MDL091).\n" +
 			"--\n" +
 			"-- A handler that does NOT end in RETURN/RAISE ERROR merges back into the main\n" +
 			"-- flow, so a variable created after the merge is out of scope on the error\n" +
@@ -633,10 +636,18 @@ func init() {
 			"@merge(x, y)                          -- the implicit merge that closes a split\n" +
 			"@anchor(from: bottom, to: top, true: (…), false: (…))  -- on an IF: to = its incoming flow,\n" +
 			"                                      -- from = the flow leaving its closing merge\n" +
+			"@anchor(true: (to: top))              -- one branch's edge; either side may be left out\n" +
 			"@caption 'text'\n@color Green\n@annotation 'a note'\n@excluded\n" +
 			"@applyentityaccess | @applyentityaccess(false)  -- DOCUMENT-level, before CREATE MICROFLOW/RULE\n" +
 			"@annotation(id: n1, text: 'a note', position: (x, y), size: (w, h))\n" +
 			"@annotation(id: n1)                   -- attaches THAT note to another activity\n\n" +
+			"Inside ON ERROR ... BEGIN ... END ERROR the annotations mean what they mean\n" +
+			"outside it: @anchor(to:) on the handler's first statement is the side the\n" +
+			"error edge enters, @anchor(from:) and @curve shape the edge leaving a\n" +
+			"statement — for the last one, the edge that rejoins the main flow.\n\n" +
+			"@curve has no per-branch form: on a split it curves every outgoing edge, and\n" +
+			"@curve(true: …) is refused (MDL060). An @anchor parameter that is not a\n" +
+			"side mxcli knows is refused too (MDL092) rather than left on the default.\n\n" +
 			"An unrecognised @name is an error (MDL059): it would parse and do nothing,\n" +
 			"so a typo of @position would silently discard the layout. That covers\n" +
 			"DOCUMENT annotations too — a typo, or one on a document kind that does not\n" +

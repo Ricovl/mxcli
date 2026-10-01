@@ -84,7 +84,7 @@ CREATE PAGE Sales.Order_Edit (
           DATEPICKER dpDelivery (Label: 'Delivery Date', Attribute: DeliveryDate)
           TEXTBOX txtQuantity (Label: 'Quantity', Attribute: Quantity)
           TEXTBOX txtDiscount (Label: 'Discount %', Attribute: DiscountPercent)
-          FOOTER footer1 {
+          FOOTER {
             ACTIONBUTTON btnSave (
               Caption: 'Save',
               Action: CALL MICROFLOW Sales.ACT_Order_Save,

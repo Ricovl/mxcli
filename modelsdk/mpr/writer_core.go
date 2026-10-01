@@ -230,6 +230,9 @@ func (wt *WriteTransaction) WriteUnit(unitID string, contents []byte) error {
 	if unchanged {
 		return nil
 	}
+	if err := wt.writer.guardWrite(); err != nil {
+		return err
+	}
 
 	unitIDBlob := uuidToBlob(unitID)
 
@@ -538,6 +541,9 @@ func (w *Writer) insertUnit(unitID, containerID, containmentName, unitType strin
 	if err := canon.BareAttributeRefError(unitID, contents); err != nil {
 		return err
 	}
+	if err := w.guardWrite(); err != nil {
+		return err
+	}
 
 	// Convert UUID strings to 16-byte blobs for database
 	unitIDBlob := uuidToBlob(unitID)
@@ -646,6 +652,9 @@ func (w *Writer) updateUnit(unitID string, contents []byte, opts ...canon.Option
 	}
 	if unchanged {
 		return nil
+	}
+	if err := w.guardWrite(); err != nil {
+		return err
 	}
 
 	// Convert UUID string to 16-byte blob
@@ -894,6 +903,9 @@ func (w *Writer) MoveUnit(unitID, newContainerID string) error {
 	if stored, err := w.containerOfUnit(unitID); err == nil && bytes.Equal(stored, target) {
 		return nil
 	}
+	if err := w.guardWrite(); err != nil {
+		return err
+	}
 	_, err := w.reader.db.Exec(`UPDATE Unit SET ContainerID = ? WHERE UnitID = ?`,
 		target, uuidToBlob(unitID))
 	if err == nil {
@@ -918,6 +930,9 @@ func (w *Writer) deleteUnit(unitID string) error {
 	unitIDBlob := uuidToBlob(unitID)
 	if unitIDBlob == nil {
 		return fmt.Errorf("invalid unit ID: %s", unitID)
+	}
+	if err := w.guardWrite(); err != nil {
+		return err
 	}
 	w.dropDeferred(unitID)
 	w.rememberRemovedUnit(unitID)
@@ -967,6 +982,9 @@ func (w *Writer) UpdateUnitContainer(unitID, newContainerID string) error {
 	containerIDBlob := uuidToBlob(newContainerID)
 	if containerIDBlob == nil {
 		return fmt.Errorf("invalid container ID: %s", newContainerID)
+	}
+	if err := w.guardWrite(); err != nil {
+		return err
 	}
 
 	result, err := w.reader.db.Exec(`UPDATE Unit SET ContainerID = ? WHERE UnitID = ?`, containerIDBlob, unitIDBlob)
