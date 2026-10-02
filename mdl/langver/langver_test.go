@@ -116,3 +116,32 @@ func TestScanWrittenHeader(t *testing.T) {
 		}
 	}
 }
+
+// HeaderSpan finds the header where ScanHeader does, and reports a number this
+// mxcli does not know instead of dropping it, so the test runner can refuse
+// `mdl 9;` by name (ako/mxcli#847).
+func TestHeaderSpan(t *testing.T) {
+	cases := []struct {
+		src     string
+		written string
+		header  string
+		ok      bool
+	}{
+		{"mdl 1;\ncreate module M;", "1", "mdl 1;", true},
+		{"-- note\n  MDL 1 ;\n/** @test x */", "1", "MDL 1 ;", true},
+		{"/* c */ mdl 9;", "9", "mdl 9;", true},
+		{"/** @test x */\nmdl 1;", "", "", false},
+		{"mdl 1.5;", "", "", false},
+		{"create module M;", "", "", false},
+	}
+	for _, c := range cases {
+		written, start, end, ok := HeaderSpan(c.src)
+		if ok != c.ok || written != c.written {
+			t.Errorf("HeaderSpan(%q) = %q, %v; want %q, %v", c.src, written, ok, c.written, c.ok)
+			continue
+		}
+		if ok && c.src[start:end] != c.header {
+			t.Errorf("HeaderSpan(%q) spans %q; want %q", c.src, c.src[start:end], c.header)
+		}
+	}
+}

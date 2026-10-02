@@ -6,12 +6,16 @@ package testrunner
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/srctext"
 )
 
@@ -45,6 +49,16 @@ type TestCase struct {
 	// body's own line, so a diagnostic can be reported where the author wrote the
 	// statement rather than where the annotation is — see check_source.go.
 	BodyLine int
+	// Version is the MDL language version the body is written in: the
+	// `mdl <n>;` header its file starts with (for a markdown file, its
+	// ```mdl-test block), and mdl 0 without one, as for any script
+	// (ADR-0011). It decides what the body means, so the generators and
+	// check write it at the head of the script they make (ako/mxcli#847).
+	Version langver.Version
+	// HeaderLine is the 1-based source line of that header, 0 when there is
+	// none. check renders the header there, keeping every other line where
+	// the author wrote it.
+	HeaderLine int
 }
 
 // expectsThrow reports whether the test expects its body to raise an error.
@@ -177,6 +191,10 @@ func isTestFile(name string) bool {
 // parseMDLTests parses test blocks from a .test.mdl file.
 // Each test block is a javadoc comment followed by MDL statements, separated by '/'.
 func parseMDLTests(content string, sourcePath string) ([]TestCase, error) {
+	version, headerLine, content, err := takeLanguageHeader(content, 1)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", sourcePath, err)
+	}
 	blocks := splitTestBlocks(content)
 	var tests []TestCase
 
@@ -226,6 +244,8 @@ func parseMDLTests(content string, sourcePath string) ([]TestCase, error) {
 			SourceFile:   sourcePath,
 			Line:         line,
 			BodyLine:     bodyLine,
+			Version:      version,
+			HeaderLine:   headerLine,
 		})
 	}
 
@@ -260,6 +280,12 @@ func parseMarkdownTests(content string, sourcePath string) ([]TestCase, error) {
 				// End of code block — parse it
 				inCodeBlock = false
 				blockContent := strings.Join(blockLines, "\n")
+				// Each block is a script of its own, so it carries its own
+				// header; check refuses a file whose blocks disagree.
+				version, headerLine, blockContent, err := takeLanguageHeader(blockContent, blockStart+1)
+				if err != nil {
+					return nil, fmt.Errorf("%s: test at line %d: %w", sourcePath, blockStart, err)
+				}
 
 				// Parse the block as a single test. Its text starts on the
 				// line after the fence, which is the line its lines count from.
@@ -295,6 +321,8 @@ func parseMarkdownTests(content string, sourcePath string) ([]TestCase, error) {
 					SourceFile:      sourcePath,
 					Line:            blockStart,
 					BodyLine:        bodyLine,
+					Version:         version,
+					HeaderLine:      headerLine,
 				})
 			} else {
 				blockLines = append(blockLines, line)
@@ -303,6 +331,40 @@ func parseMarkdownTests(content string, sourcePath string) ([]TestCase, error) {
 	}
 
 	return tests, nil
+}
+
+// takeLanguageHeader reads the `mdl <n>;` header a test file starts with and
+// returns the text with the header blanked out — every byte but a newline
+// becomes a space — so each line and column after it stays where it was.
+// firstLine is the source line text starts on; headerLine is 0 when there is
+// no header.
+//
+// The header is read exactly where a script's is (langver.HeaderSpan): the
+// first token after whitespace and `--` / `/* */` comments, so before the first
+// `/** … */`. Left in the text, it was the first chunk's body, which made that
+// chunk's doc comment no longer leading — and the first test was skipped with
+// no message (ako/mxcli#847).
+//
+// A version this mxcli does not know is refused: running the bodies under
+// older rules than they were written for is the silent change of meaning the
+// header exists to prevent.
+func takeLanguageHeader(text string, firstLine int) (v langver.Version, headerLine int, rest string, err error) {
+	written, start, end, ok := langver.HeaderSpan(text)
+	if !ok {
+		return langver.V0, 0, text, nil
+	}
+	n, convErr := strconv.Atoi(written)
+	if v = langver.Version(n); convErr != nil || !v.Known() {
+		return langver.V0, 0, text, errors.New(langver.UnknownVersionError(written))
+	}
+	blank := []byte(text[start:end])
+	for i, c := range blank {
+		if c != '\n' && c != '\r' {
+			blank[i] = ' '
+		}
+	}
+	headerLine = firstLine + strings.Count(text[:start], "\n")
+	return v, headerLine, text[:start] + string(blank) + text[end:], nil
 }
 
 // headerSetups returns the @setup microflows declared in the file's header
@@ -713,4 +775,47 @@ func checkVerifyCleanup(a *annotations) {
 				"state. Add @cleanup none to the test", v.Raw))
 	}
 	a.Verify = nil
+}
+
+// suiteLanguageVersion is the one language version every test in tests is
+// written in, and mdl 0 for none.
+//
+// A suite becomes ONE script — the after-startup runner, or the batch of test
+// flows the endpoint calls — and a script has one header, so the version a
+// test is run under is the suite's, not its own. Running an mdl 0 test inside
+// an mdl 1 script (or the reverse) would change what its body means without a
+// word, so a suite that mixes them is refused, naming the files on each side
+// (ako/mxcli#847). Grouping them into one script per version was the other
+// option; it doubles the injection and the cleanup for a state that `mxcli fmt
+// --upgrade` removes in one command.
+func suiteLanguageVersion(tests []TestCase) (langver.Version, error) {
+	if len(tests) == 0 {
+		return langver.V0, nil
+	}
+	files := map[langver.Version][]string{}
+	seen := map[string]bool{}
+	for _, tc := range tests {
+		key := fmt.Sprintf("%d\x00%s", tc.Version, tc.SourceFile)
+		if !seen[key] {
+			seen[key] = true
+			files[tc.Version] = append(files[tc.Version], filepath.Base(tc.SourceFile))
+		}
+	}
+	if len(files) == 1 {
+		return tests[0].Version, nil
+	}
+	versions := make([]int, 0, len(files))
+	for v := range files {
+		versions = append(versions, int(v))
+	}
+	sort.Ints(versions)
+	parts := make([]string, len(versions))
+	for i, v := range versions {
+		parts[i] = fmt.Sprintf("%s: %s", langver.Version(v), strings.Join(files[langver.Version(v)], ", "))
+	}
+	newest := langver.Version(versions[len(versions)-1])
+	return langver.V0, fmt.Errorf("the test files are written in different MDL language versions (%s), "+
+		"and a suite runs as one script with one version. Give every file the same header — "+
+		"`mxcli fmt --upgrade -w <file>` adds `%s;` — or run each version's files separately",
+		strings.Join(parts, "; "), newest)
 }
