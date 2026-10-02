@@ -632,6 +632,14 @@ func execGrantEntityAccess(ctx *ExecContext, s *ast.GrantEntityAccessStmt) error
 }
 
 // execRevokeEntityAccess handles REVOKE roles ON Module.Entity [(rights...)].
+// nothingToRevoke is a revoke's report when the roles already lack the rights:
+// the idempotent re-run of a script, worded as the state it found rather than
+// as a lookup that failed ("No access rules found matching …").
+func nothingToRevoke(entity ast.QualifiedName, roleNames []string) string {
+	return fmt.Sprintf("Unchanged entity access: %s.%s (%s) — nothing to revoke\n",
+		entity.Module, entity.Name, strings.Join(roleNames, ", "))
+}
+
 func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
@@ -701,7 +709,7 @@ func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) err
 		}
 
 		if modified == 0 {
-			ctx.reportAccessRule(heldReport{notice: true, text: fmt.Sprintf("No access rules found matching %s on %s.%s\n", strings.Join(roleNames, ", "), s.Entity.Module, s.Entity.Name)})
+			ctx.reportAccessRule(heldReport{notice: true, text: nothingToRevoke(s.Entity, roleNames)})
 		} else {
 			text := fmt.Sprintf("Revoked partial access on %s.%s from %s\n", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))
 			if !ctx.Quiet {
@@ -718,7 +726,7 @@ func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) err
 		}
 
 		if modified == 0 {
-			ctx.reportAccessRule(heldReport{notice: true, text: fmt.Sprintf("No access rules found matching %s on %s.%s\n", strings.Join(roleNames, ", "), s.Entity.Module, s.Entity.Name)})
+			ctx.reportAccessRule(heldReport{notice: true, text: nothingToRevoke(s.Entity, roleNames)})
 		} else {
 			text := fmt.Sprintf("Revoked access on %s.%s from %s\n", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))
 			if !ctx.Quiet {
