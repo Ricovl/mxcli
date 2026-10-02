@@ -351,7 +351,7 @@ conditional and assign in every branch:
 ```mdl
 -- WRONG: $GTotalText is created only in the `then` arm → not declared in `else`
 if $HasVariance then
-  $GTotalText = call microflow Module.FMT_Variance($v);   -- created here only
+  $GTotalText = call microflow Module.FMT_Variance(Value = $v);   -- created here only
 else
   set $GTotalText = 'n/a';                                 -- error: not declared
 end if;
@@ -359,7 +359,7 @@ end if;
 -- CORRECT: declare before, then set in each branch (call into a temp, then set)
 declare $GTotalText string = '';
 if $HasVariance then
-  $Tmp = call microflow Module.FMT_Variance($v);
+  $Tmp = call microflow Module.FMT_Variance(Value = $v);
   set $GTotalText = $Tmp;
 else
   set $GTotalText = 'n/a';
