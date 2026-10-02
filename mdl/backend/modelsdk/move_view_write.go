@@ -183,6 +183,12 @@ func (b *Backend) WriteViewEntitySourceDocument(moduleID model.ID, moduleName, d
 	if contents, err = b.keepStoredExportLevel(string(docID), contents); err != nil {
 		return "", fmt.Errorf("WriteViewEntitySourceDocument: %w", err)
 	}
+	// ...and Excluded false: exclusion is model state, not script state (#914),
+	// and MDL has no spelling for it here, so the stored value is kept
+	// (ako/mxcli#827).
+	if contents, err = b.keepStoredExcluded(string(docID), contents); err != nil {
+		return "", fmt.Errorf("WriteViewEntitySourceDocument: %w", err)
+	}
 	if err := b.writer.UpdateRawUnit(string(docID), contents); err != nil {
 		return "", fmt.Errorf("WriteViewEntitySourceDocument: update: %w", err)
 	}

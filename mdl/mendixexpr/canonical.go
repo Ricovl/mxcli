@@ -22,7 +22,10 @@ var mendixKeywords = map[string]bool{
 //     (`a and b`) or two operator characters (`< =` is not `<=`);
 //   - a keyword (and, or, not, div, mod, true, false, empty, if, then, else)
 //     reads the same in any case, so it is written lower case — unless it is
-//     a name: a word after `.`, `/`, `$` or `@`, or before `.`;
+//     a name: a word after `.`, `/`, `$` or `@`, or before `.`, or a word
+//     where its keyword cannot stand (keywordUse) — `Mod` in `find($L, Mod = 1)`
+//     is a bare member name, and `Mod` and `mod` are two members
+//     (ako/mxcli#898);
 //   - a string literal is data, copied as written, a doubled apostrophe included.
 //
 // A declared statement whose member list a script lays out over several lines
@@ -34,7 +37,8 @@ func Canonical(src string) string {
 	var b strings.Builder
 	b.Grow(len(src))
 	space := false
-	var last byte // the last byte written outside a string, 0 at the start
+	var last byte         // the last byte written outside a string, 0 at the start
+	afterOperand := false // the last token ends an operand
 	for i := 0; i < len(src); {
 		c := src[i]
 		switch c {
@@ -52,6 +56,7 @@ func Canonical(src string) string {
 			end := literalEnd(src, i)
 			b.WriteString(src[i:end])
 			last = '\''
+			afterOperand = true
 			i = end
 		case IsWordByte(c):
 			j := i
@@ -64,19 +69,58 @@ func Canonical(src string) string {
 				prev = src[i-1]
 			}
 			named := prev == '.' || prev == '/' || prev == '$' || prev == '@' || (j < len(src) && src[j] == '.')
-			if lw := strings.ToLower(word); !named && mendixKeywords[lw] {
+			lw := strings.ToLower(word)
+			keyword := !named && mendixKeywords[lw] && keywordUse(lw, afterOperand, src, j)
+			if keyword {
 				word = lw
 			}
+			afterOperand = !keyword || mendixLiterals[lw]
 			b.WriteString(word)
 			last = src[j-1]
 			i = j
 		default:
 			b.WriteByte(c)
 			last = c
+			afterOperand = c == ')' || c == ']'
 			i++
 		}
 	}
 	return b.String()
+}
+
+// mendixLiterals are the keywords that are operands themselves.
+var mendixLiterals = map[string]bool{"true": true, "false": true, "empty": true}
+
+// keywordUse reports whether the word lw, which ends at src[j], is used as
+// the keyword it is spelled like rather than as a bare member name, by where it
+// stands (ako/mxcli#898). A binary operator (and, or, div, mod) and then/else
+// follow an operand; not and if precede one and cannot follow one; anywhere
+// else the word is a name — `Mod` in `find($L, Mod = 1)`, `Not` in `f(Not)`.
+// afterOperand reports whether the token before the word ends an operand: a
+// name, a literal, `)` or `]`. A literal keyword (true, false, empty) is one
+// wherever it stands.
+func keywordUse(lw string, afterOperand bool, src string, j int) bool {
+	switch lw {
+	case "and", "or", "div", "mod", "then", "else":
+		return afterOperand
+	case "not", "if":
+		return !afterOperand && startsOperandAt(src, j)
+	}
+	return true
+}
+
+// startsOperandAt reports whether the first non-blank byte at or after j can
+// begin an operand.
+func startsOperandAt(src string, j int) bool {
+	for ; j < len(src); j++ {
+		switch c := src[j]; c {
+		case ' ', '\t', '\n', '\r', '\f', '\v':
+			continue
+		default:
+			return startsWord(c) || c == '(' || c == '\'' || c == '-' || c == '['
+		}
+	}
+	return false
 }
 
 // startsWord reports whether c begins a word or a name: a variable's `$` and a

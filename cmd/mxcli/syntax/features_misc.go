@@ -753,8 +753,10 @@ DROP TASK QUEUE Ops.Mail;`,
 		Syntax: `[/** <documentation> */]
 CREATE [OR MODIFY] REGULAR EXPRESSION Module.Name [FOLDER 'path'] (
   Expression: '<pattern>',
-  [ExportLevel: Hidden|Public,]
+  [ExportLevel: Hidden|API,]
 );
+
+-- ExportLevel: Public is the deprecated spelling of API (MDL-DEPR161).
 
 -- Documentation is the doc comment; the Documentation: '<text>' property is
 -- its deprecated alias (MDL-DEPR106).

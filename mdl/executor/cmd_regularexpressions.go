@@ -117,7 +117,10 @@ func validateRegularExpressionStmt(s *ast.CreateRegularExpressionStmt) error {
 		return mdlerrors.NewValidation(
 			"regular expression " + s.Name.String() + " has no Expression — add `Expression: '<pattern>'`")
 	}
-	if err := validateEnumProperty("ExportLevel", s.ExportLevel, []string{"Hidden", "Public"}); err != nil {
+	// The metamodel's values (Projects$ExportLevel). `Public`, which this
+	// once allowed and wrote verbatim, is the visitor's alias of API
+	// (MDL-DEPR161, ako/mxcli#827).
+	if err := validateEnumProperty("ExportLevel", s.ExportLevel, []string{"Hidden", "API"}); err != nil {
 		return err
 	}
 	return nil
@@ -200,8 +203,14 @@ func execDescribeRegularExpression(ctx *ExecContext, s *ast.DescribeRegularExpre
 	}
 	fmt.Fprintf(ctx.Output, "create or modify regular expression %s%s (\n", s.Name.String(), describeFolderClause(ctx, re.ContainerID))
 	fmt.Fprintf(ctx.Output, "  Expression: '%s',\n", strings.ReplaceAll(re.Expression, "'", "''"))
-	if re.ExportLevel != "" && re.ExportLevel != "Hidden" {
-		fmt.Fprintf(ctx.Output, "  ExportLevel: %s,\n", re.ExportLevel)
+	if lvl := re.ExportLevel; lvl != "" && lvl != "Hidden" {
+		// An earlier mxcli stored `Public` as written (ako/mxcli#827); it
+		// meant API, the metamodel's value, and describe says so — re-running
+		// the output repairs the document.
+		if strings.EqualFold(lvl, "Public") {
+			lvl = "API"
+		}
+		fmt.Fprintf(ctx.Output, "  ExportLevel: %s,\n", lvl)
 	}
 	fmt.Fprint(ctx.Output, ");\n")
 	// Mendix validates with .NET's regex engine, which accepts constructs Go's
