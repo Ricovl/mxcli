@@ -5,7 +5,10 @@ package visitor
 import (
 	"strings"
 
+	"github.com/antlr4-go/antlr/v4"
+
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
 
@@ -41,6 +44,10 @@ func (b *Builder) ExitCreateRegularExpressionStatement(ctx *parser.CreateRegular
 				stmt.Expression = regularExpressionPropertyText(pc)
 			case "exportlevel":
 				stmt.ExportLevel = regularExpressionPropertyText(pc)
+				if strings.EqualFold(stmt.ExportLevel, "Public") {
+					stmt.ExportLevel = "API"
+					b.recordRegexExportLevelPublic(pc, stmt.Name.String())
+				}
 			case "documentation":
 				// R9: an alias of the doc comment, which it overrides.
 				stmt.Documentation, stmt.DocumentationSet = regularExpressionPropertyText(pc), true
@@ -67,4 +74,31 @@ func regularExpressionPropertyText(pc *parser.RegularExpressionPropertyContext) 
 		return identifierOrKeywordText(v)
 	}
 	return ""
+}
+
+// recordRegexExportLevelPublic records `ExportLevel: Public` (MDL-DEPR161,
+// ako/mxcli#827). The metamodel's export levels are Hidden and API; Public was
+// accepted and written verbatim, a value Studio Pro does not have. It is a
+// respelling of API and builds API; fmt --upgrade writes API.
+func (b *Builder) recordRegexExportLevelPublic(pc *parser.RegularExpressionPropertyContext, subject string) {
+	var value antlr.ParserRuleContext
+	repl := "API"
+	if s := pc.STRING_LITERAL(); s != nil {
+		tok := s.GetSymbol()
+		b.recordDeprecation(deprecation.RegexExportLevelPublic, tok, subject)
+		b.fixLastDeprecation(deprecation.RegexExportLevelPublic, &ast.Fix{Edits: []ast.TextEdit{
+			{Start: tok.GetStart(), Stop: tok.GetStop() + 1, Text: "'" + repl + "'"},
+		}}, "")
+		return
+	}
+	if v := pc.IdentifierOrKeyword(1); v != nil {
+		value, _ = v.(antlr.ParserRuleContext)
+	}
+	if value == nil || value.GetStart() == nil || value.GetStop() == nil {
+		return
+	}
+	b.recordDeprecation(deprecation.RegexExportLevelPublic, value.GetStart(), subject)
+	b.fixLastDeprecation(deprecation.RegexExportLevelPublic, &ast.Fix{Edits: []ast.TextEdit{
+		{Start: value.GetStart().GetStart(), Stop: value.GetStop().GetStop() + 1, Text: repl},
+	}}, "")
 }

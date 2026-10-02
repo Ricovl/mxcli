@@ -165,3 +165,57 @@ func withStoredTopLevel(doc, stored []byte, keys []string) ([]byte, error) {
 	}
 	return out, nil
 }
+
+// keepStoredExcluded is keepStoredExportLevel for a document's top-level
+// Excluded flag, for a rewrite whose encoder writes it as a constant: the
+// stored value is kept, every other byte of contents is left as encoded.
+func (b *Backend) keepStoredExcluded(unitID string, contents []byte) ([]byte, error) {
+	if b.reader == nil || unitID == "" || len(contents) == 0 {
+		return contents, nil
+	}
+	stored, err := b.reader.GetRawUnitBytes(unitID)
+	if err != nil || len(stored) == 0 {
+		return contents, nil
+	}
+	v, ok := bsoncore.Document(stored).Lookup("Excluded").BooleanOK()
+	if !ok {
+		return contents, nil
+	}
+	return withTopLevelBoolean(contents, "Excluded", v)
+}
+
+// withTopLevelBoolean returns doc with the value of its top-level boolean
+// element key replaced by v, or doc itself when it has no such element or
+// already holds v.
+func withTopLevelBoolean(doc []byte, key string, v bool) ([]byte, error) {
+	elems, err := bsoncore.Document(doc).Elements()
+	if err != nil {
+		return nil, fmt.Errorf("carry stored %s: %w", key, err)
+	}
+	found := false
+	for _, el := range elems {
+		if el.Key() != key {
+			continue
+		}
+		if cur, ok := el.Value().BooleanOK(); ok && cur == v {
+			return doc, nil
+		}
+		found = true
+	}
+	if !found {
+		return doc, nil
+	}
+	idx, out := bsoncore.AppendDocumentStart(nil)
+	for _, el := range elems {
+		if el.Key() == key {
+			out = bsoncore.AppendBooleanElement(out, key, v)
+			continue
+		}
+		out = append(out, el...)
+	}
+	out, err = bsoncore.AppendDocumentEnd(out, idx)
+	if err != nil {
+		return nil, fmt.Errorf("carry stored %s: %w", key, err)
+	}
+	return out, nil
+}

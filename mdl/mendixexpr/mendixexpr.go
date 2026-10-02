@@ -227,7 +227,10 @@ func String(expr ast.Expression) string {
 		return "if " + cond + " then " + thenStr + " else " + elseStr
 	case *ast.SourceExpr:
 		if e.Source != "" {
-			return NormalizeOperatorCase(e.Source)
+			// The visitor keeps the whitespace after a slot's last token for
+			// describe's layout (`false\n  ` before a member list's `)`). It is
+			// layout, not expression, and is not stored (ako/mxcli#898).
+			return NormalizeOperatorCase(strings.TrimRight(e.Source, " \t\r\n\f\v"))
 		}
 		return String(e.Expression)
 	default:
@@ -258,12 +261,16 @@ var mendixLowercaseOperators = map[string]bool{
 // unsupported. It is the casing, not the operator. (mxcli-todo findings #14b)
 //
 // A word preceded by `.`, `/` or `$` is a member or variable name, never an
-// operator, so `Module.Enum.And` and `$Task/Mod` are left alone.
+// operator, so `Module.Enum.And` and `$Task/Mod` are left alone — and so is a
+// word where its operator cannot stand, the bare member name `Mod` in
+// `find($L, Mod = 1)` (keywordUse, ako/mxcli#898): Canonical keeps that case,
+// so the stored text must too, or the flow diff sees a change on every run.
 func NormalizeOperatorCase(src string) string {
 	var b strings.Builder
 	b.Grow(len(src))
 
 	inString := false
+	afterOperand := false // the last token ends an operand (see keywordUse)
 	for i := 0; i < len(src); {
 		c := src[i]
 		if inString {
@@ -276,6 +283,7 @@ func NormalizeOperatorCase(src string) string {
 					continue
 				}
 				inString = false
+				afterOperand = true
 			}
 			i++
 			continue
@@ -288,6 +296,11 @@ func NormalizeOperatorCase(src string) string {
 		}
 		if !IsWordByte(c) {
 			b.WriteByte(c)
+			switch c {
+			case ' ', '\t', '\n', '\r', '\f', '\v':
+			default:
+				afterOperand = c == ')' || c == ']'
+			}
 			i++
 			continue
 		}
@@ -300,11 +313,15 @@ func NormalizeOperatorCase(src string) string {
 		if i > 0 {
 			prev = src[i-1]
 		}
-		if prev != '.' && prev != '/' && prev != '$' && mendixLowercaseOperators[strings.ToLower(word)] {
-			b.WriteString(strings.ToLower(word))
+		lw := strings.ToLower(word)
+		named := prev == '.' || prev == '/' || prev == '$' || prev == '@'
+		keyword := !named && mendixKeywords[lw] && keywordUse(lw, afterOperand, src, j)
+		if keyword && mendixLowercaseOperators[lw] {
+			b.WriteString(lw)
 		} else {
 			b.WriteString(word)
 		}
+		afterOperand = !keyword || mendixLiterals[lw]
 		i = j
 	}
 	return b.String()
