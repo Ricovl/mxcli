@@ -109,7 +109,7 @@ A plain `create` fails when the element already exists. Two guards make a script
 | `create or modify page M.P …` | created | rewritten to match the statement (identity kept) |
 | `create page if not exists M.P …` | created | **left untouched**, reported as skipped |
 
-`if not exists` goes after the kind's keywords and before the name, on every `create` that names one element — `create microflow if not exists M.MF () …`, `create module if not exists M;`, `create user role if not exists Clerk (M.User);`, `create configuration if not exists 'Default' (…);`. It is not accepted on `annotation`, `index` (use `alter entity … add index if not exists`), `validation rule`, `navigation`, `translations` or `external entities`, which have no single named element to test. Writing `create or modify … if not exists` is refused as `MDL067`: the two guards contradict each other. `describe` never emits `if not exists`.
+`if not exists` goes after the kind's keywords and before the name, on every `create` that names one element — `create microflow if not exists M.MF () …`, `create module if not exists M;`, `create user role if not exists Clerk (M.User);`, `create configuration if not exists 'Default' (…);`. It is not accepted on `annotation`, `index` (use `alter entity … add index if not exists`), `validation rule`, `navigation`, `translations` or `external entities`, which have no single named element to test. Writing `create or modify … if not exists` is refused as `MDL085`: the two guards contradict each other. `describe` never emits `if not exists`.
 
 ## Case Insensitivity
 

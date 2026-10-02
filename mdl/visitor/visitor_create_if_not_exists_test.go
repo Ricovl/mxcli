@@ -108,7 +108,7 @@ func TestCreateIfNotExistsOnEveryDocumentKind(t *testing.T) {
 }
 
 // `create or modify … if not exists` is recorded as such on every kind, so
-// check can refuse it (MDL067) — the two guards contradict each other.
+// check can refuse it (MDL085) — the two guards contradict each other.
 func TestCreateOrModifyIfNotExistsIsRecorded(t *testing.T) {
 	for name, body := range createOrReplaceCases {
 		if _, exempt := createIfNotExistsExempt[name]; exempt {

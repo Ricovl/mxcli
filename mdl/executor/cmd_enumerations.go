@@ -731,7 +731,7 @@ func validateEntityAttribute(attr ast.Attribute, kind entityPersistence, entityN
 	return violations
 }
 
-// validateIdempotencyGuard (MDL067) rejects CREATE OR MODIFY … IF NOT EXISTS.
+// validateIdempotencyGuard (MDL085) rejects CREATE OR MODIFY … IF NOT EXISTS.
 //
 // Both spellings exist to make a script re-runnable and they mean opposite
 // things about an existing element: OR MODIFY rebuilds it from the statement,
@@ -744,7 +744,7 @@ func validateIdempotencyGuard(createOrModify, ifNotExists bool, kind, name strin
 		return nil
 	}
 	return []linter.Violation{{
-		RuleID:   "MDL067",
+		RuleID:   "MDL085",
 		Severity: linter.SeverityError,
 		Message: fmt.Sprintf("'create or modify %s ... if not exists' combines two contradictory guards — "+
 			"'or modify' replaces the stored definition, 'if not exists' leaves it untouched", kind),
