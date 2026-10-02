@@ -113,6 +113,18 @@ next input shape, it is making *unreadable* a reported outcome distinct from
 *nothing to report* — after which a third shape costs a diagnostic rather than a
 blind spot.
 
+**A routed key can still drop its value — by shape.** The key can be mapped and
+the value still never arrive, when the grammar gives it a shape the property's
+reader does not take. `dynamicBarColor: $currentObject/ColorHex` parses as a
+variable-led *data source*, and every scalar reader stringified a non-string to
+`""`, so a chart series' Expression property was written empty while `check`,
+`exec` and `mx check` were all clean. The visitor cannot settle it — only the
+widget's schema knows that key is Expression-typed — so the fix is to carry the
+source text to the layer that knows the kind, and to make every scalar reader
+answer "this shape does not fit" (MDL-WIDGET39, and an error at build) instead of
+falling to `default: continue`. When a grammar alternative is chosen by the
+*first token*, audit which other meanings that token starts.
+
 **Children drop the same way properties do.** A widget's body is distributed by
 several passes that each skip what they do not recognise, so a child matching no
 container, no slot and no catch-all is built and discarded exactly as an

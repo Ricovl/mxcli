@@ -238,6 +238,13 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// so gets past every other rule. Needs the parent's definition, and stays
 		// quiet without one for the same reason MDL-WIDGET26 does.
 		out = append(out, validateUnroutedChildren(w, def, locationPrefix)...)
+		// An expression on a generic key whose schema kind takes none — which
+		// used to be written as an empty value (MDL-WIDGET39).
+		if mapping != nil {
+			out = append(out, validateWidgetExpressionValues(w, nil, mapping, true, locationPrefix)...)
+		} else {
+			out = append(out, validateWidgetExpressionValues(w, def, nil, isObjectListItem, locationPrefix)...)
+		}
 		// A generic widget type that resolved to nothing is already reported as
 		// MDL-WIDGET25 (the kind is wrong). Validating its properties on top of
 		// that says the kind is fine and the property is not, which points at

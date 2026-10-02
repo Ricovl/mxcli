@@ -599,7 +599,22 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 		case float64:
 			strVal = fmt.Sprintf("%g", v)
 		default:
-			continue
+			// An expression — written as one, or a bare `$var/Attr` that
+			// parsed as a data source — is an Expression property's text and
+			// an error for every other scalar kind. Anything else is a shape
+			// this pass does not write (a data source, an action, a list).
+			op := operationForValueType(entry.ValueType)
+			if op == "" {
+				continue
+			}
+			text, err := scalarPropertyText(w, propName, propVal, op)
+			if err != nil {
+				return nil, err
+			}
+			if text == "" {
+				continue
+			}
+			strVal = text
 		}
 
 		// Route by ValueType when available
@@ -1293,7 +1308,11 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 		// schema default ("20"). Without this, user-set primitive properties
 		// silently fall back to defaults.
 		if astVal, ok := lookupProperty(w.Properties, mapping.PropertyKey); ok {
-			ctx.PrimitiveVal = stringifyAny(astVal)
+			val, err := scalarPropertyText(w, mapping.PropertyKey, astVal, mapping.Operation)
+			if err != nil {
+				return nil, err
+			}
+			ctx.PrimitiveVal = val
 		}
 		return ctx, nil
 	}
@@ -1497,7 +1516,11 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			// are invisible to GetStringProp; read them generically so numeric
 			// properties aren't silently dropped to the schema default.
 			if astVal, ok := lookupProperty(w.Properties, source); ok {
-				val = stringifyAny(astVal)
+				text, err := scalarPropertyText(w, source, astVal, mapping.Operation)
+				if err != nil {
+					return nil, err
+				}
+				val = text
 			}
 		}
 		if val == "" && mapping.Default != "" {
@@ -1797,7 +1820,10 @@ func (e *PluggableWidgetEngine) buildObjectListItem(mapping *ObjectListMapping, 
 			}
 			continue
 		}
-		strVal := stringifyAny(raw)
+		strVal, err := scalarPropertyText(child, matchedAlias, raw, ip.Operation)
+		if err != nil {
+			return spec, err
+		}
 		prop := backend.ObjectListItemProperty{
 			PropertyKey: ip.PropertyKey,
 			Operation:   ip.Operation,

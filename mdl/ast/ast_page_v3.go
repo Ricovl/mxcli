@@ -144,6 +144,44 @@ type WidgetV3 struct {
 	// known widget names — inferring it would reintroduce the list this
 	// proposal exists to remove.
 	TypeIsGeneric bool
+
+	// ValueSource keeps the source text of a generic property whose value
+	// parsed as a variable-led data source — `$currentObject/ColorHex`, `$Param`.
+	// The grammar cannot tell that spelling from a Mendix expression, and the
+	// visitor cannot know which one the widget wants; the executor can, from the
+	// widget's schema, and reads this text when the property is Expression-typed.
+	// Without it the value reached an Expression property as a *DataSourceV3,
+	// stringified to "", and was written as an empty expression with no
+	// diagnostic. Keyed by the property name as written; read it through
+	// ExpressionSource, which matches case-insensitively.
+	ValueSource map[string]string
+}
+
+// ExpressionSource returns the source text the visitor kept for key (see
+// ValueSource), matching the name case-insensitively.
+func (w *WidgetV3) ExpressionSource(key string) (string, bool) {
+	if w == nil || len(w.ValueSource) == 0 {
+		return "", false
+	}
+	if v, ok := w.ValueSource[key]; ok {
+		return v, true
+	}
+	for k, v := range w.ValueSource {
+		if strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+// WidgetExpressionV3 is a generic widget property written as a Mendix
+// expression that no other value form accepts — `dynamicBarColor: if
+// $currentObject/Hot then 'red' else 'blue'`. Only an Expression-typed property
+// of a pluggable widget can hold it; which property that is depends on the
+// widget's schema, so the executor (and the checker, MDL-WIDGET39) decide, and
+// refuse it everywhere else rather than write it as empty.
+type WidgetExpressionV3 struct {
+	Text string
 }
 
 // WidgetIcon is the value of a widget's `Icon:` property.
