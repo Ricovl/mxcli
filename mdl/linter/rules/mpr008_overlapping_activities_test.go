@@ -109,3 +109,41 @@ func TestOverlapPlanesFlatMicroflow(t *testing.T) {
 			"against each other, or the fix trades a false positive for a false negative", len(planes[0]))
 	}
 }
+
+// MPR008 compared every node as a 120x60 activity box, so two 40x40 merges
+// that auto-layout placed edge to edge — inner at (980,200), outer at
+// (1020,200), touching at x=1000 — were reported as overlapping, and
+// `mxcli layout flows` (which measures with the stored sizes) said the flow
+// was already laid out. Overlap is judged with each node's stored size.
+func TestOverlapUsesStoredSizes(t *testing.T) {
+	merge := func(x, y int) *microflows.ExclusiveMerge {
+		m := &microflows.ExclusiveMerge{}
+		m.Position = model.Point{X: x, Y: y}
+		m.Size = model.Size{Width: 40, Height: 40}
+		return m
+	}
+	act := func(x, y int) *microflows.ActionActivity {
+		a := &microflows.ActionActivity{}
+		a.Position = model.Point{X: x, Y: y}
+		a.Size = model.Size{Width: 120, Height: 60}
+		return a
+	}
+	for _, tc := range []struct {
+		name string
+		objs []microflows.MicroflowObject
+		want bool
+	}{
+		{"abutting merges (the report)", []microflows.MicroflowObject{merge(980, 200), merge(1020, 200)}, false},
+		{"overlapping merges", []microflows.MicroflowObject{merge(980, 200), merge(1000, 200)}, true},
+		{"activities 10px apart overlap (control)", []microflows.MicroflowObject{act(300, 200), act(310, 210)}, true},
+		{"activities side by side", []microflows.MicroflowObject{act(300, 200), act(490, 200)}, false},
+		{"merge inside an activity", []microflows.MicroflowObject{act(300, 200), merge(330, 200)}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := overlapPlanes(tc.objs)[0]
+			if got := boxesOverlap(p[0], p[1]); got != tc.want {
+				t.Errorf("overlap = %v, want %v (%+v, %+v)", got, tc.want, p[0], p[1])
+			}
+		})
+	}
+}
