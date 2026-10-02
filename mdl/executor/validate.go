@@ -14,6 +14,7 @@ import (
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/modelsdk/meta"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"github.com/mendixlabs/mxcli/sdk/javaactions"
 )
@@ -1290,7 +1291,8 @@ func validateRetrieveConstraints(ctx *ExecContext, retrieves []retrieveConstrain
 		}
 		for _, m := range baseSystemMemberRe.FindAllStringSubmatch(r.constraint, -1) {
 			member := m[2]
-			if entityStoresSystemMember(ent, systemMemberStore[member]) {
+			stores, known := systemMemberStoredOnChain(entities, r.entity, systemMemberStore[member])
+			if stores || !known {
 				continue
 			}
 			errors = append(errors, fmt.Sprintf(
@@ -1316,6 +1318,36 @@ func entityStoresSystemMember(e *domainmodel.Entity, member string) bool {
 		return e.HasCreatedDate
 	}
 	return true // unknown member → don't flag
+}
+
+// systemMemberStoredOnChain reports whether the entity stores the given system
+// member, reading the flags where Mendix keeps them: on the ROOT of the
+// generalization chain (its NoGeneralization). A specialization's own flags are
+// never set — an entity extending System.FileDocument stores owner, changedBy,
+// createdDate and changedDate because FileDocument does — so reading
+// entityStoresSystemMember off the entity itself refused `[System.owner = …]`
+// on every such specialization while mxbuild built it clean.
+//
+// known is false when a link of the chain cannot be resolved: an ancestor the
+// project does not have says nothing either way, and a check answers no only
+// from a chain it walked to the end.
+func systemMemberStoredOnChain(index map[string]*domainmodel.Entity, entityQN, member string) (stores, known bool) {
+	seen := map[string]bool{}
+	for qn := entityQN; qn != "" && !seen[qn]; {
+		seen[qn] = true
+		e := index[qn]
+		if e == nil {
+			if strings.HasPrefix(qn, "System.") {
+				return meta.SystemEntityStoresMember(qn, member)
+			}
+			return false, false
+		}
+		if e.GeneralizationRef == "" {
+			return entityStoresSystemMember(e, member), true
+		}
+		qn = e.GeneralizationRef
+	}
+	return false, false
 }
 
 // buildEntityIndex maps every entity's qualified name to its definition for

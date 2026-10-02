@@ -90,12 +90,26 @@ func isAutoSystemMemberType(k ast.DataTypeKind) bool {
 }
 
 // systemMemberSpellingHint names the XPath spelling of a system member written
-// the way describe prints the attribute (`CreatedDate`).
+// another way: the way describe prints the attribute (`CreatedDate`), a bare
+// association (`owner`, CE0161), or a mis-cased qualified one (`System.Owner`,
+// CE1613).
 func systemMemberSpellingHint(name string) string {
-	for member := range xpathImplicitMembers {
-		if member != "id" && member != name && strings.EqualFold(member, name) {
-			return fmt.Sprintf(". In XPath the system member is spelled `%s`", member)
+	bare := name
+	if len(bare) > len("System.") && strings.EqualFold(bare[:len("System.")], "System.") {
+		bare = bare[len("System."):]
+	}
+	for _, spelling := range xpathSystemMemberSpellings {
+		if spelling == name {
+			continue
+		}
+		if strings.EqualFold(strings.TrimPrefix(spelling, "System."), bare) {
+			return fmt.Sprintf(". In XPath the system member is spelled `%s`", spelling)
 		}
 	}
 	return ""
 }
+
+// xpathSystemMemberSpellings are the four system members as XPath accepts them.
+// The dates are attributes, written bare; owner and changedBy are associations
+// to System.User, written qualified.
+var xpathSystemMemberSpellings = []string{"createdDate", "changedDate", "System.owner", "System.changedBy"}
