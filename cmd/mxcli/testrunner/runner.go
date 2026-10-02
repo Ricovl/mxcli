@@ -534,6 +534,12 @@ func parseTestFiles(paths []string) (*TestSuite, error) {
 		combined.Tests[i].ID = fmt.Sprintf("test_%d", i+1)
 	}
 
+	// One suite is one generated script, so its tests share one language
+	// version (ako/mxcli#847).
+	if _, err := suiteLanguageVersion(combined.Tests); err != nil {
+		return nil, err
+	}
+
 	return combined, nil
 }
 

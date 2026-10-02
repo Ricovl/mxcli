@@ -136,8 +136,11 @@ func TestFmtUpgrade_BlockedDefaultHeaderNamesTheOptOut(t *testing.T) {
 }
 
 // A .test.mdl that check accepts is one fmt --upgrade can read (ako/mxcli#837):
-// the bodies are upgraded, the @test / @expect doc comments are kept verbatim,
-// and --header adds no header to a test file, saying why.
+// the bodies are upgraded and the @test / @expect doc comments are kept
+// verbatim. Since the runner and check read a test file's header
+// (ako/mxcli#847), the header is added by default, as for a script, with the
+// header-gated `limit 1` rewritten to keep its meaning; --header=false
+// declines it.
 func TestFmtUpgrade_TestFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "csv-import.test.mdl")
 	src := "-- tests\n\n/**\n * @test Head of the rows\n * @expect $first/Merchant = 'Albert Heijn'\n */\n" +
@@ -145,23 +148,26 @@ func TestFmtUpgrade_TestFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runFmt(t, "--upgrade", "-w", path); err != nil {
+	if _, err := runFmt(t, "--upgrade", "--header=false", "-w", path); err != nil {
 		t.Fatal(err)
 	}
 	want := strings.Replace(src, "head($rows)", "head $rows", 1)
 	if got, _ := os.ReadFile(path); string(got) != want {
-		t.Fatalf("got:\n%s\nwant:\n%s", got, want)
+		t.Fatalf("--header=false: got:\n%s\nwant:\n%s", got, want)
 	}
 
-	out, err := runFmt(t, "--upgrade", "--header", "-w", path)
-	if err != nil {
+	if _, err := runFmt(t, "--upgrade", "-w", path); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := os.ReadFile(path); string(got) != want {
-		t.Fatalf("--header changed the test file:\n%s", got)
+	got, _ := os.ReadFile(path)
+	if !strings.HasPrefix(string(got), "mdl 1;\n-- tests\n") {
+		t.Fatalf("the header was not added to the test file:\n%s", got)
 	}
-	if !strings.Contains(out, "no language header") {
-		t.Errorf("--header on a test file said nothing about the header:\n%s", out)
+	if strings.Contains(string(got), "limit 1;") {
+		t.Errorf("the header-gated `limit 1` was left in an mdl 1 file:\n%s", got)
+	}
+	if !strings.Contains(string(got), " * @test Head of the rows\n * @expect $first/Merchant = 'Albert Heijn'\n") {
+		t.Errorf("the doc comment was not kept:\n%s", got)
 	}
 
 	// Plain fmt does not format a test file: it says what does.

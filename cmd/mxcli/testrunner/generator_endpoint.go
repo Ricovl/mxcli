@@ -5,6 +5,8 @@ package testrunner
 import (
 	"fmt"
 	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/langver"
 )
 
 // Verdict protocol. A test microflow returns one string: either verdictPass, or
@@ -37,6 +39,8 @@ const (
 //     in test 2 is simply not required here.
 func GenerateTestFlows(suite *TestSuite) string {
 	var b strings.Builder
+	v := suiteVersion(suite)
+	writeScriptHeader(&b, v)
 	b.WriteString("CREATE MODULE " + mxTestModule + ";\n\n")
 	for _, tc := range suite.Tests {
 		// A test with an uncompilable @expect gets no microflow. The runner
@@ -45,16 +49,16 @@ func GenerateTestFlows(suite *TestSuite) string {
 		if len(tc.AssertionErrors) > 0 {
 			continue
 		}
-		writeTestFlow(&b, tc)
+		writeTestFlow(&b, tc, v)
 		b.WriteString("\n")
 	}
 	return b.String()
 }
 
 // writeTestFlow writes one test's microflow.
-func writeTestFlow(b *strings.Builder, tc TestCase) {
+func writeTestFlow(b *strings.Builder, tc TestCase, v langver.Version) {
 	fmt.Fprintf(b, "/** %s */\n", escapeMDLComment(tc.Name))
-	fmt.Fprintf(b, "CREATE OR REPLACE MICROFLOW %s ()\n", testFlowName(tc))
+	fmt.Fprintf(b, "%s %s ()\n", createFlow(v), testFlowName(tc))
 	b.WriteString("RETURNS String AS $Verdict\n")
 	b.WriteString("BEGIN\n")
 	fmt.Fprintf(b, "  DECLARE $Verdict String = '%s';\n", verdictPass)
@@ -70,8 +74,7 @@ func writeTestFlow(b *strings.Builder, tc TestCase) {
 	}
 
 	b.WriteString("  RETURN $Verdict;\n")
-	b.WriteString("END;\n")
-	b.WriteString("/\n")
+	writeFlowEnd(b, v)
 }
 
 // writeSetupCalls writes the @setup microflow calls that precede a test's body.
@@ -93,11 +96,7 @@ func writeSetupCalls(b *strings.Builder, tc TestCase) {
 // writeExpectFlowBody writes the body of a normal test: run the MDL, then check
 // each @expect. An error during the body short-circuits to a FAIL verdict.
 func writeExpectFlowBody(b *strings.Builder, tc TestCase) {
-	for _, line := range rewriteBodyForVerdict(strings.Split(tc.MDL, "\n"), tc) {
-		b.WriteString("  ")
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
+	writeBodyLines(b, rewriteBodyForVerdict(strings.Split(tc.MDL, "\n"), tc), tc.Version)
 	writeExpectAggregates(b, "  ", tc.Expects)
 	for _, exp := range tc.Expects {
 		writeExpectCheck(b, exp)
@@ -132,11 +131,7 @@ func writeExpectAggregates(b *strings.Builder, indent string, expects []Expect) 
 func writeThrowsFlowBody(b *strings.Builder, tc TestCase) {
 	fmt.Fprintf(b, "  SET $Verdict = '%s';\n",
 		escapeMDLString(verdictFailPrefix+"expected an exception but none was thrown"))
-	for _, line := range rewriteBodyForThrows(strings.Split(tc.MDL, "\n"), tc.Throws) {
-		b.WriteString("  ")
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
+	writeBodyLines(b, rewriteBodyForThrows(strings.Split(tc.MDL, "\n"), tc.Throws), tc.Version)
 }
 
 // writeExpectCheck writes one @expect assertion.
