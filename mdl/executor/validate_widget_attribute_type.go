@@ -29,6 +29,12 @@ import (
 // attribute-scope check, sharing its data-context walk. Without -p neither can
 // run.
 
+// The two rules' ids, named once so the rule-id registry tests see them.
+const (
+	widgetAttributeTypeRule = "MDL-WIDGET39" // CE2421 (and CE1613 for an association)
+	reactDropDownRule       = "MDL-WIDGET40" // CE0582
+)
+
 // inputAttributeRule is what one built-in input widget accepts.
 type inputAttributeRule struct {
 	label   string          // mxbuild's name for the widget, as its messages print it
@@ -321,7 +327,7 @@ func (v *attributeScopeValidator) checkInputBinding(w *ast.WidgetV3, enclosing d
 						"attribute, so the page would name the attribute `%s.%s`, which does not exist, and mxbuild "+
 						"reports CE1613 \"The selected attribute … no longer exists\" (which also stops it reporting "+
 						"anything else). Bind an attribute over it (`%s/<Attribute>`), or select the associated object "+
-						"with a `combobox` over the association [MDL-WIDGET39]",
+						"with a `combobox` over the association ["+widgetAttributeTypeRule+"]",
 					w.Name, strings.ToLower(w.Type), name, assocQN, entity, name, name))
 			}
 		}
@@ -337,7 +343,7 @@ func (v *attributeScopeValidator) checkInputBinding(w *ast.WidgetV3, enclosing d
 	if alt := widgetsAccepting(a.kind); alt != "" {
 		msg += " For " + a.kind + ", use " + alt + "."
 	}
-	v.errs = append(v.errs, msg+" [MDL-WIDGET39]")
+	v.errs = append(v.errs, msg+" ["+widgetAttributeTypeRule+"]")
 }
 
 func anPrefix(kind string) string {
@@ -395,5 +401,5 @@ func (v *attributeScopeValidator) checkReactUnsupported(w *ast.WidgetV3) {
 	v.errs = append(v.errs, fmt.Sprintf(
 		"widget `%s`: the classic drop-down (Forms$DropDown) is not supported by the React client this project "+
 			"uses (Web UI setting OptimizedClient: Yes) — mxbuild reports CE0582 \"Widget drop-down is not "+
-			"supported in React client.\" Use `combobox` over the same attribute [MDL-WIDGET40]", w.Name))
+			"supported in React client.\" Use `combobox` over the same attribute ["+reactDropDownRule+"]", w.Name))
 }
