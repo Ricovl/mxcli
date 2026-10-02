@@ -82,9 +82,9 @@ var plainEditableWidgetTypes = map[string]bool{
 // same "silently dropped on write" family, and the same reason (a hard reject on
 // a vocabulary that cannot be proven complete risks false positives).
 //
-// Pluggable widgets are excluded. Their property vocabulary comes from the
-// widget's own definition and is checked by MDL-WIDGET01; `editable` on one is
-// either a real property of that widget or already reported there.
+// Pluggable widgets are excluded. Whether one has editability is its package's
+// answer, not its MDL type's: MDL-WIDGET41 (pluggable_system_props.go) checks
+// the declared Editability system property instead.
 func validateWidgetEditability(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
 	if w == nil {
 		return nil
@@ -131,57 +131,4 @@ func widgetEditableKey(w *ast.WidgetV3) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-// validatePluggableEditability (MDL-WIDGET21) reports a plain `editable:` on a
-// PLUGGABLE widget, which mxcli parses, accepts, and does not write.
-//
-// This file used to state that pluggable widgets need no check because
-// `editable` on one is "either a real property of that widget or already
-// reported [by MDL-WIDGET01]". Measured on Mendix 11.13, neither holds:
-//
-//   - `combobox cmb (Editable: Never)` produces no diagnostic at all, while
-//     `Bogusprop` on the same widget is an MDL-WIDGET01 error. So `editable` is
-//     accepted — not because the widget defines it, but because the builtin
-//     property allow-list is widget-type-AGNOSTIC, the same weakness #928
-//     documented.
-//   - No `.def.json` maps `editable` to anything, and the stored
-//     CustomWidgets$CustomWidget carries no Editable key. The value reaches the
-//     document nowhere.
-//
-// The result was the reported failure: in one `create page`, `editable: Never`
-// persisted on the textboxes and vanished on the combobox beside them, with
-// `mxcli check`, `mxcli exec` and `mx check` all clean
-// (ako/mxcli-maintenance-2). Static input widgets now carry it; a pluggable one
-// still cannot, so it is reported rather than dropped in silence.
-//
-// A warning, not an error, for the same reason as MDL-WIDGET07 and #928's own
-// rule: the pluggable vocabulary cannot be proven complete, so a widget that
-// genuinely wires its own editability must not be blocked.
-func validatePluggableEditability(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
-	if w == nil {
-		return nil
-	}
-	key, ok := widgetEditableKey(w)
-	if !ok {
-		return nil
-	}
-	// The bracket form lowers to EditableIf and rides on
-	// ConditionalEditabilitySettings, which is a different path from the plain
-	// enum — do not claim it is dropped without having measured it.
-	if strings.EqualFold(key, "editableif") {
-		return nil
-	}
-	return []linter.Violation{{
-		RuleID:   "MDL-WIDGET21",
-		Severity: linter.SeverityWarning,
-		Message: fmt.Sprintf(
-			"%s: %s is a pluggable widget and its `%s` property is not written — "+
-				"the value is accepted here and reaches no stored property, so the widget stays editable",
-			locationPrefix, widgetLabel(w.Name, w.Type), key,
-		),
-		Suggestion: "Set the widget's own read-only property if it has one (`mxcli widget describe " +
-			"<id>` lists them), bind the attribute through a data view that is itself not editable, " +
-			"or use a static input widget where `editable:` is written.",
-	}}
 }
