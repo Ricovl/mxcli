@@ -532,6 +532,16 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if err := validateEntityGeneralization(ctx, s, sc); err != nil {
 			return err
 		}
+		// An Auto* system member on a specialization: the same verdict exec
+		// gives (checkSpecializationSystemMembers). A parent the script creates
+		// is not in the project yet, so its chain is left to exec.
+		if s.Generalization != nil {
+			warnings, err := checkSpecializationSystemMembers(ctx, s.Name.String(), s.Generalization.String(), s.Attributes, true)
+			sc.warnings = append(sc.warnings, warnings...)
+			if err != nil {
+				return err
+			}
+		}
 		// Validate enumeration references in attributes
 		attrTypes := make(map[string]ast.DataType)
 		for _, attr := range s.Attributes {
@@ -821,6 +831,21 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if s.Operation == ast.AlterEntityAddAttribute || s.Operation == ast.AlterEntityDropAttribute {
 			if err := validateViewEntityAttributeSet(ctx, s, sc); err != nil {
 				return err
+			}
+		}
+		// An Auto* system member added to a project specialization: exec's
+		// verdict (checkSpecializationSystemMembers), predicted here.
+		if s.Operation == ast.AlterEntityAddAttribute && s.Attribute != nil &&
+			systemMemberOfPseudoType(s.Attribute.Type.Kind) != "" && !sc.entities[s.Name.String()] {
+			if b, ok := ctx.Backend.(entityLookupBackend); ok {
+				if ent, found := findEntityByQN(b, s.Name.String()); found && ent.GeneralizationRef != "" {
+					warnings, err := checkSpecializationSystemMembers(ctx, s.Name.String(), ent.GeneralizationRef,
+						[]ast.Attribute{*s.Attribute}, true)
+					sc.warnings = append(sc.warnings, warnings...)
+					if err != nil {
+						return err
+					}
+				}
 			}
 		}
 		// Validate enumeration references in ADD ATTRIBUTE
@@ -1332,22 +1357,50 @@ func entityStoresSystemMember(e *domainmodel.Entity, member string) bool {
 // project does not have says nothing either way, and a check answers no only
 // from a chain it walked to the end.
 func systemMemberStoredOnChain(index map[string]*domainmodel.Entity, entityQN, member string) (stores, known bool) {
+	stores, _, known = systemMemberRoot(index, entityQN, member)
+	return stores, known
+}
+
+// systemMemberRoot is systemMemberStoredOnChain that also names the root entity
+// whose flags answered — the entity a user has to change to store the member.
+func systemMemberRoot(index map[string]*domainmodel.Entity, entityQN, member string) (stores bool, rootQN string, known bool) {
 	seen := map[string]bool{}
 	for qn := entityQN; qn != "" && !seen[qn]; {
 		seen[qn] = true
 		e := index[qn]
 		if e == nil {
 			if strings.HasPrefix(qn, "System.") {
-				return meta.SystemEntityStoresMember(qn, member)
+				stores, known = meta.SystemEntityStoresMember(qn, member)
+				return stores, systemChainRoot(qn), known
 			}
-			return false, false
+			return false, "", false
 		}
 		if e.GeneralizationRef == "" {
-			return entityStoresSystemMember(e, member), true
+			return entityStoresSystemMember(e, member), qn, true
 		}
 		qn = e.GeneralizationRef
 	}
-	return false, false
+	return false, "", false
+}
+
+// systemChainRoot names the root of a System entity's generalization chain.
+func systemChainRoot(qn string) string {
+	seen := map[string]bool{}
+	for !seen[qn] {
+		seen[qn] = true
+		var next string
+		for _, e := range meta.SystemEntities {
+			if "System."+e.Name == qn {
+				next = e.Generalization
+				break
+			}
+		}
+		if next == "" {
+			return qn
+		}
+		qn = next
+	}
+	return qn
 }
 
 // buildEntityIndex maps every entity's qualified name to its definition for
