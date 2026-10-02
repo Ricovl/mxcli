@@ -3,7 +3,9 @@
 package mcp
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
@@ -215,5 +217,53 @@ func TestCheckDocument_1115_UnrecognisedTextFails(t *testing.T) {
 
 	if err := b.checkDocumentNow("Workflows$Workflow", "M.WF"); err == nil {
 		t.Fatal("an unrecognised answer was treated as clean")
+	}
+}
+
+// surfaceFromFixture loads a captured tools/list (testdata/tools-<version>.json)
+// as the fake server's advertised surface.
+func surfaceFromFixture(t *testing.T, path string) map[string][]string {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Tools []struct {
+			Name        string `json:"name"`
+			InputSchema struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			} `json:"inputSchema"`
+		} `json:"tools"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	out := map[string][]string{}
+	for _, tl := range doc.Tools {
+		for p := range tl.InputSchema.Properties {
+			out[tl.Name] = append(out[tl.Name], p)
+		}
+	}
+	return out
+}
+
+// The shape is read off the captured surfaces of the real releases, not a
+// hand-written stand-in: 11.14 must get `documents`, 11.15 `filters`.
+func TestCheckDocument_ShapeFromCapturedSurfaces(t *testing.T) {
+	for _, tc := range []struct{ fixture, want string }{
+		{"testdata/tools-11.14.json", "documents"},
+		{"testdata/tools-11.15.json", "filters"},
+	} {
+		f := newFakePED(t, func(string, map[string]any) (string, bool) { return "No errors found.", false })
+		f.tools = surfaceFromFixture(t, tc.fixture)
+		b := &Backend{client: f.connectClient(t)}
+		if err := b.checkDocumentNow("Microflows$Microflow", "M.MF"); err != nil {
+			t.Fatal(err)
+		}
+		call, _ := f.callByName("ped_check_errors")
+		if _, ok := call.Args[tc.want]; !ok || len(call.Args) != 1 {
+			t.Errorf("%s: sent %v, want only %q", tc.fixture, call.Args, tc.want)
+		}
 	}
 }

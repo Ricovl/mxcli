@@ -71,7 +71,10 @@ writes partition by **module**, not by entity.
   agents' half-finished edits. Don't treat transient cross-agent errors as your
   failure.
 - Run the authoritative validation after a dependency layer completes (a
-  quiescent point), scoped to the documents that layer produced.
+  quiescent point), scoped to the documents that layer produced. Scope with the
+  argument the server advertises: `documents[]` up to Studio Pro 11.14,
+  `filters{documentType, documentNamePrefix}` from 11.15 — which accepts and
+  ignores `documents[]`, so an old-form call there is unscoped.
 
 ### 6. One human save at the end
 - There is **no flush/save tool**. All agents accumulate into one unsaved
