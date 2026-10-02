@@ -93,8 +93,8 @@ type LayoutPlaceholder struct {
 // ConditionalVisibilitySettings represents visibility conditions.
 type ConditionalVisibilitySettings struct {
 	model.BaseElement
-	Expression     string        `json:"expression,omitempty"`
-	ModuleRoles    []model.ID    `json:"moduleRoles,omitempty"`
+	Expression  string     `json:"expression,omitempty"`
+	ModuleRoles []model.ID `json:"moduleRoles,omitempty"`
 	// SourceVariable names the object Attribute is read from when that is not
 	// the enclosing data context: a page or snippet parameter, for a widget
 	// outside every data container (TestApp WorkflowCommons). nil is the null
