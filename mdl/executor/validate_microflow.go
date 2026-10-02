@@ -78,6 +78,7 @@ type microflowValidator struct {
 	returnType    *ast.MicroflowReturnType // nil = void
 	violations    []linter.Violation
 	loopDepth     int             // Track nesting depth inside loops
+	loopVars      []string        // iterators of the enclosing loops, outermost first
 	emptyListVars map[string]bool // List variables declared empty and never populated
 	// varKinds maps in-scope variable names (params + declared) to their kind,
 	// used to detect assigning a Decimal expression to an Integer/Long target.
@@ -412,7 +413,12 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 			// item). Intentional aggregation that must visit every element (group ×
 			// category × month totals) is O(N*M) by nature and correct as written, so
 			// the message flags the lookup case without asserting the loop is wrong.
-			if v.loopDepth > 0 {
+			//
+			// It fires only on the lookup's shape: a condition inside the inner loop
+			// that compares the inner iterator with an outer one. Every nested loop
+			// used to qualify, so an intentional region x plan iteration drew the
+			// hint on each pass of every script.
+			if v.loopDepth > 0 && matchesOuterIterator(stmt, v.loopVars) {
 				v.addViolation("MDL001", linter.SeverityWarning,
 					"nested loop detected (loop inside a loop). If the inner loop is a "+
 						"key LOOKUP (finding one matching item), replace it with "+
@@ -430,7 +436,9 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 					"Pass the list as a microflow parameter instead of creating an empty variable")
 			}
 			v.loopDepth++
+			v.loopVars = append(v.loopVars, stmt.LoopVariable)
 			v.walkBody(stmt.Body)
+			v.loopVars = v.loopVars[:len(v.loopVars)-1]
 			v.loopDepth--
 		case *ast.CreateListStmt:
 			v.checkQualifiedEntityRef("create list of", stmt.EntityType)
@@ -1690,4 +1698,31 @@ func (v *microflowValidator) refuseWorkflowAll(verb, flag, activity string) {
 		fmt.Sprintf("Name the workflow: `%s workflow $WorkflowDefinition;` or `%s workflow Module.Workflow;`. "+
 			"To %s the running instances of that workflow as well (Studio Pro's \"%s instances\"), add `%s all`: "+
 			"`%s workflow $WorkflowDefinition %s all;`.", verb, verb, flag, label, flag, verb, flag))
+}
+
+// matchesOuterIterator reports whether an inner loop's body holds an IF whose
+// condition reads both the inner iterator and one of the enclosing loops'
+// iterators — the key lookup MDL001 is about ($p/Key = $r/Key).
+func matchesOuterIterator(inner *ast.LoopStmt, outer []string) bool {
+	trim := func(n string) string { return strings.TrimPrefix(n, "$") }
+	isOuter := map[string]bool{}
+	for _, o := range outer {
+		isOuter[trim(o)] = true
+	}
+	innerVar := trim(inner.LoopVariable)
+	found := false
+	forEachMicroflowStatement(inner.Body, func(s ast.MicroflowStatement) {
+		ifs, ok := s.(*ast.IfStmt)
+		if !ok || found {
+			return
+		}
+		readsInner, readsOuter := false, false
+		for _, v := range predicatePathVariables(ifs.Condition) {
+			v = trim(v)
+			readsInner = readsInner || v == innerVar
+			readsOuter = readsOuter || isOuter[v]
+		}
+		found = readsInner && readsOuter
+	})
+	return found
 }
