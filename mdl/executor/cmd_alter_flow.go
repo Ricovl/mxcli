@@ -85,6 +85,14 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		fail := func(err error) error {
 			return mdlerrors.NewValidation(fmt.Sprintf("alter %s %s: %s %s: %v", s.Kind(), s.Name, op.Op, op.Target, err))
 		}
+		// An activity inside a loop body is refused by the splice whatever
+		// the operation. Say so first: the checks below see only the flow
+		// around the loop, so a fragment reading the iterator would otherwise
+		// be refused as reading an undeclared variable, which is not why.
+		if loop := a.enclosingLoop(target.ID); loop != nil {
+			return fail(fmt.Errorf("%s is inside the body of %s; alter does not splice inside a loop body. %s",
+				target.Statement, loop.Statement, replaceLoopAdvice(s.Kind(), s.Name.String(), loop.Statement)))
+		}
 		if op.ReplaceNotes {
 			// The statement states the activity's notes, so the stored ones
 			// go with it rather than stay (ako/mxcli#859).
@@ -190,6 +198,40 @@ type alterFlowContext struct {
 	// the members a full build of the same statement writes (ako/mxcli#885):
 	// the stored flow alone does not say what every variable holds.
 	declaredVarTypes map[string]string
+}
+
+// enclosingLoop returns the top-level loop whose body holds the stored
+// object id, at any depth, or nil when id is not inside a loop. The top-level
+// loop is the one to replace: the splice addresses nothing inside a loop,
+// a nested loop included.
+func (a *alterFlowContext) enclosingLoop(id model.ID) *mfmutator.Candidate {
+	for _, obj := range a.mf.ObjectCollection.Objects {
+		loop, ok := obj.(*microflows.LoopedActivity)
+		if !ok || !loopHolds(loop, id) {
+			continue
+		}
+		for i := range a.cands {
+			if a.cands[i].ID == loop.ID {
+				return &a.cands[i]
+			}
+		}
+	}
+	return nil
+}
+
+func loopHolds(loop *microflows.LoopedActivity, id model.ID) bool {
+	if loop.ObjectCollection == nil {
+		return false
+	}
+	for _, obj := range loop.ObjectCollection.Objects {
+		if obj.GetID() == id {
+			return true
+		}
+		if inner, ok := obj.(*microflows.LoopedActivity); ok && loopHolds(inner, id) {
+			return true
+		}
+	}
+	return false
 }
 
 // noteRemoved records that target's output is gone, unless the fragment that

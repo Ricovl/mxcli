@@ -38,6 +38,12 @@ Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode
   rebuilds the whole nanoflow under mdl 0
   (warning `MDL-V1-REBUILD`: element IDs renumbered, merges removed, curves reset) and
   is refused under `mdl 1;`.
+- **Changing something inside a loop body** (either owner): neither `create or modify`
+  (under `mdl 1;`) nor an `alter` aimed at an activity in the loop can make it — `alter`
+  does not splice inside a loop. Replace the **whole loop**, addressed by its handle, with
+  the body as it should be (`replace loop $Item in $Items with begin loop $Item in $Items
+  begin … end loop; end;`). Everything outside the loop keeps its `$ID`s, positions and
+  curves; the loop and its body are rebuilt. For a nested loop, replace the outer one.
 
 ## When to Use a Nanoflow vs a Microflow
 

@@ -315,6 +315,13 @@ func TestSplice_Refusals(t *testing.T) {
 			if !bytes.Equal(before, after) {
 				t.Error("a refused operation changed the document")
 			}
+			// create or modify does not edit inside a loop either, so the
+			// in-loop refusal advises the alter that does: replace the loop.
+			if tc.want == "inside a loop" {
+				if !strings.Contains(err.Error(), "replace loop") || strings.Contains(err.Error(), "create or modify") {
+					t.Errorf("want advice to replace the loop, not create or modify: %v", err)
+				}
+			}
 		})
 	}
 }
