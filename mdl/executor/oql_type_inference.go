@@ -1095,17 +1095,18 @@ func typesCompatible(declared, inferred ast.DataType) bool {
 		return true
 	}
 
-	// Integer and Long are compatible
-	if (declared.Kind == ast.TypeInteger && inferred.Kind == ast.TypeLong) ||
-		(declared.Kind == ast.TypeLong && inferred.Kind == ast.TypeInteger) {
-		return true
-	}
-
-	// Decimal is compatible with Integer/Long (widening)
-	if declared.Kind == ast.TypeDecimal && (inferred.Kind == ast.TypeInteger || inferred.Kind == ast.TypeLong) {
-		return true
-	}
-
+	// Numeric kinds are NOT interchangeable, in either direction. Integer and
+	// Long used to be accepted for each other, and Decimal over either as a
+	// "widening" — none of which mxbuild allows. Measured with mx check on
+	// 11.14.0, one view per pairing over Integer, Long and AutoNumber columns,
+	// both pass-through (`r.Col`) and aggregated (`sum`, `max`): every declared
+	// kind other than the column's own is CE6770 "View Entity is out of sync
+	// with the OQL Query" — Long over an Integer sum, Integer over a Long sum,
+	// Decimal over an Integer sum or column, Integer or Decimal over an
+	// AutoNumber. Only the same kind (and Long over AutoNumber, above) builds.
+	// The widening made `sum(Integer) declared Long` pass check and exec and
+	// fail the build (ako/mxcli#565), the very distinction typesStrictlyCompatible
+	// already drew for the static path.
 	return false
 }
 
