@@ -28,6 +28,13 @@ func buildSystemDomainModel() *domainmodel.DomainModel {
 			Name:              e.Name,
 			Persistable:       e.Persistable,
 			GeneralizationRef: e.Generalization,
+			// The stored system members, as Mendix keeps them: on the root's
+			// NoGeneralization only. A specialization reads its root's
+			// (systemMemberStoredOnChain in the executor).
+			HasOwner:       e.HasOwner,
+			HasChangedBy:   e.HasChangedBy,
+			HasCreatedDate: e.HasCreatedDate,
+			HasChangedDate: e.HasChangedDate,
 		}
 		ent.ID = model.ID("System." + e.Name)
 		for _, a := range e.Attributes {
