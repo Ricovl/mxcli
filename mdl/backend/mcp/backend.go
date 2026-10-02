@@ -69,6 +69,9 @@ type Backend struct {
 	// than a `parameter` element; nil until probed. See
 	// workflowConstructorTakesContext.
 	workflowCtorContext *bool
+	// workflowCtorTitle records, from the same probe, that the constructor names
+	// the workflow title `title` (11.15+) rather than `caption`.
+	workflowCtorTitle bool
 
 	// microflowCtorSkeleton caches whether the server's Microflows$Microflow
 	// constructor takes only the canvas (Studio Pro 11.14), with behaviour set by a
