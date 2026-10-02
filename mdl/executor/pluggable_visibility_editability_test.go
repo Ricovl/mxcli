@@ -115,9 +115,10 @@ func typeDeclaring(system ...string) bson.D {
 	}
 }
 
-// A package that does not declare the system property has no place for the
-// setting: Studio Pro shows no Visibility/Editability section for it. Writing
-// one anyway would store a setting the widget never evaluates, so it is refused.
+// A package that does not declare Editability has no place for the setting:
+// Studio Pro shows no Editability section for it, and writing one would store
+// a setting the widget never evaluates, so it is refused. Visibility is offered
+// on every pluggable widget, declared or not.
 func TestApplyPluggableSystemSettings_RefusesUndeclared(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -126,8 +127,11 @@ func TestApplyPluggableSystemSettings_RefusesUndeclared(t *testing.T) {
 		wantErr  string
 	}{
 		{"visibility declared", []string{"Visibility"}, map[string]any{"Visible": false}, ""},
-		{"visibility undeclared", []string{"Editability"}, map[string]any{"Visible": false}, "Visibility"},
-		{"visibility expr undeclared", nil, map[string]any{"VisibleIf": "true"}, "Visibility"},
+		// Visibility needs no declaration: Studio Pro stores it on a Datagrid
+		// that declares none (TestApp WorkflowCommons.UserTask_Assign), and
+		// mxbuild 11.14 accepts static and conditional visibility there.
+		{"visibility undeclared", []string{"Editability"}, map[string]any{"Visible": false}, ""},
+		{"visibility expr undeclared", nil, map[string]any{"VisibleIf": "true"}, ""},
 		{"editability declared", []string{"Editability"}, map[string]any{"Editable": "Never"}, ""},
 		{"editability undeclared", []string{"Visibility"}, map[string]any{"Editable": "Never"}, "Editability"},
 		{"editability expr undeclared", []string{"Visibility"}, map[string]any{"EditableIf": "true"}, "Editability"},
@@ -173,8 +177,9 @@ func TestValidatePluggableVisibilityEditability(t *testing.T) {
 		{"combobox editable expr", "combobox c (Attribute: Status, Editable: $currentObject/Title != empty)", "", ""},
 		{"image visible false", "image i (Visible: false)", "", ""},
 		{"image editable never", "image i (Editable: Never)", pluggableSystemPropRule, "Editability"},
-		{"dropdownsort visible false", "dropdownsort s (Visible: false)", pluggableSystemPropRule, "Visibility"},
-		{"dropdownsort visible expr", "dropdownsort s (Visible: $currentObject/Title != empty)", pluggableSystemPropRule, "Visibility"},
+		{"dropdownsort visible false", "dropdownsort s (Visible: false)", "", ""},
+		{"dropdownsort visible expr", "dropdownsort s (Visible: $currentObject/Title != empty)", "", ""},
+		{"dropdownsort editable never", "dropdownsort s (Editable: Never)", pluggableSystemPropRule, "Editability"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
