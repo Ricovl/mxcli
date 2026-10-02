@@ -6,7 +6,101 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/langver"
 )
+
+// suiteVersion is the language version a generated script is written in: the
+// suite's tests', which parseTestFiles has already made sure agree. The
+// generated wrapper is spelled to mean the same under every version; the test
+// bodies are not, so the script has to carry their header (ako/mxcli#847).
+func suiteVersion(suite *TestSuite) langver.Version {
+	if len(suite.Tests) == 0 {
+		return langver.V0
+	}
+	return suite.Tests[0].Version
+}
+
+// writeScriptHeader starts a generated script with the suite's language
+// header; mdl 0 has none.
+func writeScriptHeader(b *strings.Builder, v langver.Version) {
+	if h := langver.HeaderFor(v); h != "" {
+		b.WriteString(h + "\n")
+	}
+}
+
+// createFlow is the statement that (re)defines a generated microflow. Under
+// mdl 0 it stays `CREATE OR REPLACE`, the spelling the generators have always
+// written; mdl 1 spells the same thing `CREATE OR MODIFY` (`or replace` is
+// the deprecated alias MDL-DEPR001 there), and a generated script should not
+// warn about a spelling its author never wrote.
+func createFlow(v langver.Version) string {
+	if v >= langver.V1 {
+		return "CREATE OR MODIFY MICROFLOW"
+	}
+	return "CREATE OR REPLACE MICROFLOW"
+}
+
+// writeBodyLines writes a test body's lines into a generated flow, indented —
+// except a line that starts inside a string literal, whose leading whitespace
+// is part of the value. A literal may span lines, and under mdl 1 that is the
+// only way to put a line break in one (`fmt --upgrade` rewrites mdl 0's `\n`
+// to it); indenting its continuation changed the string the test ran with
+// (ako/mxcli#847).
+func writeBodyLines(b *strings.Builder, lines []string, v langver.Version) {
+	inString, inComment := false, false
+	for _, line := range lines {
+		if !inString && !inComment {
+			b.WriteString("  ")
+		}
+		b.WriteString(line)
+		b.WriteString("\n")
+		inString, inComment = scanLiteralState(line, inString, inComment, v)
+	}
+}
+
+// scanLiteralState reports whether the text after line is still inside a
+// single-quoted string literal or a `/* */` comment, given the state line
+// started in. A `--` comment ends with its line. A quote is escaped by
+// doubling it, which two toggles handle; under mdl 0 a backslash also escapes
+// the character after it (MDL-V1-ESCAPE).
+func scanLiteralState(line string, inString, inComment bool, v langver.Version) (bool, bool) {
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case inComment:
+			if c == '*' && i+1 < len(line) && line[i+1] == '/' {
+				inComment = false
+				i++
+			}
+		case inString:
+			switch {
+			case c == '\\' && v < langver.V1:
+				i++
+			case c == '\'':
+				inString = false
+			}
+		case c == '\'':
+			inString = true
+		case c == '-' && i+1 < len(line) && line[i+1] == '-':
+			return false, false
+		case c == '/' && i+1 < len(line) && line[i+1] == '*':
+			inComment = true
+			i++
+		}
+	}
+	return inString, inComment
+}
+
+// writeFlowEnd closes a generated microflow. Under mdl 0 that is `END;` and
+// the `/` line the generators have always written; mdl 1 refuses the `/`
+// (MDL-V1-SLASH), and `;` alone ends the statement.
+func writeFlowEnd(b *strings.Builder, v langver.Version) {
+	b.WriteString("END;\n")
+	if v < langver.V1 {
+		b.WriteString("/\n")
+	}
+}
 
 // GenerateTestRunner generates the MDL for a TestRunner microflow from parsed test cases.
 // The generated microflow:
@@ -15,11 +109,13 @@ import (
 // - Returns Boolean (required by Mendix for after-startup)
 func GenerateTestRunner(suite *TestSuite) string {
 	var b strings.Builder
+	v := suiteVersion(suite)
+	writeScriptHeader(&b, v)
 
 	// Module creation (idempotent — only if MxTest module doesn't exist)
 	b.WriteString("CREATE MODULE MxTest;\n\n")
 
-	b.WriteString("CREATE OR REPLACE MICROFLOW MxTest.TestRunner ()\n")
+	b.WriteString(createFlow(v) + " MxTest.TestRunner ()\n")
 	b.WriteString("RETURNS Boolean AS $AllPassed\n")
 	b.WriteString("BEGIN\n")
 	b.WriteString("  DECLARE $AllPassed Boolean = true;\n")
@@ -41,8 +137,7 @@ func GenerateTestRunner(suite *TestSuite) string {
 
 	b.WriteString(fmt.Sprintf("  LOG INFO NODE 'MXTEST' 'MXTEST:END:%s';\n", escapeMDLString(suite.Name)))
 	b.WriteString("  RETURN $AllPassed;\n")
-	b.WriteString("END;\n")
-	b.WriteString("/\n")
+	writeFlowEnd(&b, v)
 
 	return b.String()
 }
@@ -69,11 +164,7 @@ func writeTestBlock(b *strings.Builder, tc TestCase, index int) {
 	// Rewrite the MDL body: indent it and wrap CALL MICROFLOW with error handling
 	lines := strings.Split(renamedMDL, "\n")
 	rewritten := rewriteWithErrorHandling(lines, tc.ID)
-	for _, line := range rewritten {
-		b.WriteString("  ")
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
+	writeBodyLines(b, rewritten, tc.Version)
 
 	// Generate assertion checks for @expect (with renamed variables)
 	// Use flat IF blocks (no nesting) to avoid Mendix end-event issues
@@ -124,11 +215,7 @@ func writeThrowsTestBlock(b *strings.Builder, tc TestCase, suffix string) {
 
 	lines := strings.Split(renamedMDL, "\n")
 	rewritten := rewriteForThrowsTest(lines, didThrowVar, tc.Throws)
-	for _, line := range rewritten {
-		b.WriteString("  ")
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
+	writeBodyLines(b, rewritten, tc.Version)
 
 	// Check that it did throw
 	b.WriteString(fmt.Sprintf("  IF %s THEN\n", didThrowVar))

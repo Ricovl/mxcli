@@ -170,18 +170,26 @@ func fmtFile(cmd *cobra.Command, args []string, declineHeader string) error {
 			return fmt.Errorf("%s is a test file: fmt formats top-level MDL scripts, and would not keep a test "+
 				"file's doc comments and separators; use `mxcli fmt --upgrade` to upgrade its statements", label)
 		}
+		// The header is added as for a script (ako/mxcli#847): the runner
+		// and check read a test file's `mdl <n>;` line now.
 		opts := upgrade.DefaultOptions()
 		if cmd.Flags().Changed("header") {
 			opts.AddHeader = addHeader
 		}
-		res, headerSkipped, err := testrunner.UpgradeSource(string(data), filePath, opts)
+		if declineHeader != "" {
+			opts.AddHeader = false
+		}
+		res, err := testrunner.UpgradeSource(string(data), filePath, opts)
 		if err != nil {
+			var blocked *upgrade.HeaderBlockedError
+			if errors.As(err, &blocked) && !cmd.Flags().Changed("header") {
+				return fmt.Errorf("%s: %w\n`mxcli fmt --upgrade --header=false` upgrades the spellings without the header", label, err)
+			}
 			return fmt.Errorf("%s: %w", label, err)
 		}
 		reportUpgrade(cmd.ErrOrStderr(), label, res)
-		if headerSkipped {
-			fmt.Fprintf(cmd.ErrOrStderr(), "%s: no language header added: a test file takes no language header yet "+
-				"(check and the test runner read its blocks as mdl 0), so its header-gated constructs were left as they are\n", label)
+		if declineHeader != "" {
+			fmt.Fprintf(cmd.ErrOrStderr(), "%s: no language header added: %s\n", label, declineHeader)
 		}
 		return writeFmtResult(cmd, filePath, writeInPlace, string(data), res.Source, true)
 	}

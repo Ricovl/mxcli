@@ -44,6 +44,15 @@ silent:
 - **One `@test` per block.** Because the `/` is what ends a test, omitting it
   merges two tests into one. That is refused by name rather than resolved, since
   either resolution runs one of the two and drops the other.
+- **A file may start with the language header** `mdl 1;`, before any doc
+  comment, exactly as a script does ([Language Versions](../language/versions.md)).
+  Every test body in the file is then read as mdl 1 by `mxcli test`, `mxcli
+  check` and the editor; without it the bodies are mdl 0. The `/` lines stay:
+  they are the test format's separators, not MDL terminators. In a `.test.md`
+  file the header is the first line inside each `mdl-test` block, and the
+  blocks of one file must agree. A suite runs as one script, so `mxcli test`
+  refuses files on different versions — `mxcli fmt --upgrade -w` adds the
+  header to the rest.
 
 ## `.test.md`
 

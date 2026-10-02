@@ -56,11 +56,26 @@ begin
   return $R;
 end;
 
--- FIRST: the one form that also pins the variable to a single object.
+-- FIRST: the one form that also pins the variable to a single object. It
+-- narrows a LIST, so it needs a list-rooted mapping: on IMM_881 above it builds
+-- clean (mx check: 0 errors) and throws when it runs, which `mxcli check`
+-- refuses as MDL-MAP04 (ako/mxcli#570).
+create json structure MyFirstModule.JSON_881_List
+sample '[{"total": 5, "name": "a"}]';
+
+create import mapping MyFirstModule.IMM_881_List
+  with json structure MyFirstModule.JSON_881_List
+{
+  create MyFirstModule.Item881 {
+    Total = total,
+    Name = name
+  }
+};
+
 create microflow MyFirstModule.MF881_First ( $P: string )
-returns MyFirstModule.Root881 as $R
+returns MyFirstModule.Item881 as $R
 begin
-  $R = import from mapping MyFirstModule.IMM_881($P) first;
+  $R = import from mapping MyFirstModule.IMM_881_List($P) first;
   return $R;
 end;
 

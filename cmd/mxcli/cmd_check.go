@@ -303,11 +303,19 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 			}
 		}
 
+		// A test file's microflows live in the runner's MxTest module, which
+		// the runner creates first and the project does not have
+		// (ako/mxcli#677).
+		refProg := prog
+		if testrunner.IsTestFile(filePath) {
+			refProg = testrunner.WithRunnerModule(prog)
+		}
+
 		// Validate the program (considers objects defined within the script)
-		validationErrors, refWarnings := exec.ValidateProgramWithWarnings(prog)
+		validationErrors, refWarnings := exec.ValidateProgramWithWarnings(refProg)
 
 		// Check for project conflicts: plain CREATE where the document already exists
-		validationErrors = append(validationErrors, exec.CheckProjectConflicts(prog)...)
+		validationErrors = append(validationErrors, exec.CheckProjectConflicts(refProg)...)
 
 		// Unresolved references in EXCLUDED documents: reported, never
 		// failing the run — Mendix does not validate excluded documents.

@@ -80,3 +80,27 @@ func TestUpgrade_WorkflowStringArgumentWithoutBareForm(t *testing.T) {
 		t.Errorf("Unrewritten = %+v, want the one MDL-DEPR008 use", res.Unrewritten)
 	}
 }
+
+// ako/mxcli#533: `Param: e` on call microflow / nanoflow / java action is the
+// same MDL-DEPR007 alias as on show page, and fmt --upgrade rewrites it there too.
+func TestUpgrade_ColonArgumentOnCallStatements(t *testing.T) {
+	src := `create microflow M.F ($O: M.E) begin
+  call microflow M.G(Order: $O, Force:false);
+  $R = call nanoflow M.N(Page: $O);
+  $J = call java action M.J(Amount: 1 + 2);
+end;
+`
+	want := `create microflow M.F ($O: M.E) begin
+  call microflow M.G(Order = $O, Force = false);
+  $R = call nanoflow M.N(Page = $O);
+  $J = call java action M.J(Amount = 1 + 2);
+end;
+`
+	res := mustUpgrade(t, src, Options{})
+	if res.Source != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", res.Source, want)
+	}
+	if res.Rewritten[deprecation.ColonArgument] != 4 {
+		t.Errorf("Rewritten[%s] = %d, want 4 (all: %v)", deprecation.ColonArgument, res.Rewritten[deprecation.ColonArgument], res.Rewritten)
+	}
+}

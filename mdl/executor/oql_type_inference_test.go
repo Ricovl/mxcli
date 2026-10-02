@@ -235,7 +235,10 @@ func TestTypesCompatible_AutoNumberColumn(t *testing.T) {
 	}{
 		{ast.TypeLong, true},
 		{ast.TypeAutoNumber, true},
-		{ast.TypeDecimal, true},
+		// Measured CE6770 on 11.14.0 (ako/mxcli#565): an AutoNumber column is
+		// a Long, and Decimal/Integer over it are out of sync.
+		{ast.TypeDecimal, false},
+		{ast.TypeInteger, false},
 		{ast.TypeBoolean, false},
 		{ast.TypeString, false},
 	} {
@@ -245,5 +248,33 @@ func TestTypesCompatible_AutoNumberColumn(t *testing.T) {
 	}
 	if got := formatDataTypeForMDL(viewColumnType(auto)); got != "Long" {
 		t.Errorf("the suggested type for an AutoNumber column: %q, want Long", got)
+	}
+}
+
+// ako/mxcli#565: a view attribute's numeric kind must equal the OQL column's.
+// Every row is one probe view measured with mx check on 11.14.0 — `want` false
+// is CE6770 "View Entity is out of sync with the OQL Query", true is 0 errors.
+// The reported case is the first row: sum() over an Integer column declared
+// Long passed check --references and exec, then failed the build.
+func TestTypesCompatible_NumericKindsMustMatch(t *testing.T) {
+	for _, c := range []struct {
+		probe    string
+		declared ast.DataTypeKind
+		column   ast.DataTypeKind
+		want     bool
+	}{
+		{"sum(Integer) declared Long", ast.TypeLong, ast.TypeInteger, false},
+		{"sum(Integer) declared Integer", ast.TypeInteger, ast.TypeInteger, true},
+		{"sum(Long) declared Integer", ast.TypeInteger, ast.TypeLong, false},
+		{"sum(Long) declared Long", ast.TypeLong, ast.TypeLong, true},
+		{"sum(Integer) declared Decimal", ast.TypeDecimal, ast.TypeInteger, false},
+		{"Long column declared Decimal", ast.TypeDecimal, ast.TypeLong, false},
+		{"max(Integer) declared Long", ast.TypeLong, ast.TypeInteger, false},
+		{"Decimal column declared Decimal", ast.TypeDecimal, ast.TypeDecimal, true},
+	} {
+		got := typesCompatible(ast.DataType{Kind: c.declared}, ast.DataType{Kind: c.column})
+		if got != c.want {
+			t.Errorf("%s: compatible=%v, want %v (mx check 11.14.0)", c.probe, got, c.want)
+		}
 	}
 }

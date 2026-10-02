@@ -57,6 +57,10 @@ func TestValidateCreateIsQualified_Controls(t *testing.T) {
 		`create module MyModule;`,
 		`create entity A.Thing ( Code: String(10) );`,
 		`create association A.Order_Customer from A.Order to A.Customer type reference;`,
+		// Project-level names: classifying these for the project-conflict
+		// check (ako/mxcli#557) must not make them "unqualified documents".
+		`create user role Administrator ( ModuleRoles: (A.Admin) );`,
+		`create configuration 'Default';`,
 	} {
 		if ok, msg := ruleFired(src, "MDL074"); ok {
 			t.Errorf("reported a valid statement: %s -> %s", src, msg)

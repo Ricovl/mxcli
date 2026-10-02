@@ -175,6 +175,42 @@ level Production. This script creates it as a NEW microflow, ... [MDL-SEC21]
 
 It is an **error at security level Prototype or Production** (the stored level, or the one the script sets) and a warning at Off, where MxBuild does not check it. Only what the script changes is reported: a flow that already had the problem before the script, and that the script does not touch, is left to `mxcli docker check`.
 
+### MDL-DUPDEF: Element defined twice in one script
+
+```
+microflow already defined in this script: Sales.ACT_Submit (first defined at
+statement 4) [MDL-DUPDEF]
+```
+
+**Cause:** Two plain `create` statements in one script make the same element — same kind, same qualified name — and nothing between them drops or renames the first. `exec` would create the first and refuse the second as "already exists", after everything before it had been written.
+
+**Solution:** Keep one of the two. To change an element the script already made, use `create or modify` (it is never reported), or `drop` it before re-creating it. A `rename` frees the old name and takes the new one, so `create` after `rename … to New` is reported for `New` and not for the old name.
+
+`check --references` (`-p app.mpr`) adds the project side: a plain `create` of an element the project already has is reported as "already exists in project", for every create `exec` refuses that way — documents, module and user roles, demo users, configurations.
+
+### MDL-DUPNAME: Name already taken in the module
+
+```
+cannot create nanoflow Sales.ACT_Submit: microflow Sales.ACT_Submit already has
+that name — microflows, nanoflows and rules share one name space per module,
+whatever their folder, and names compare case-insensitively (Mendix CE0122)
+(statement 3) [MDL-DUPNAME]
+```
+
+**Cause:** The statement gives an element a name Mendix will not let it share. Measured with `mx check`, three groups of kinds each share one name space per module:
+
+| Kinds | Mendix error |
+|-------|--------------|
+| microflows, nanoflows, rules | CE0122 "Duplicate document name" |
+| pages, snippets, layouts | CE0122 "Duplicate document name" |
+| entities (incl. view and external), associations, enumerations | CE0065 "Entities, associations and enumerations cannot share names" |
+
+Every other kind is a name space of its own. A microflow may share its name with a page, constant, enumeration, java action or workflow. Folders do not separate names, and names compare **case-insensitively**: `Sales.act_submit` next to microflow `Sales.ACT_Submit` is a duplicate of the same kind (ako/mxcli#806).
+
+`check` reports the clash between two statements of one script. `check --references` and `exec`'s pre-flight also report a statement that clashes with what the project already holds — a `create`, a `rename … to` or a cross-module `move … to Module`. `exec` refuses it before writing anything. The model it would write does not build, so this holds under every language version, `create or modify` included. `create or modify` of the element that already has the name, spelled as it is stored, still modifies it.
+
+**Solution:** Pick another name, or rename the other element first. To change an existing element, spell its name as it is stored. A different folder does not help.
+
 ### MDL-DEPRnnn: Deprecated spelling
 
 ```

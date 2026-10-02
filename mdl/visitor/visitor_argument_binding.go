@@ -26,9 +26,18 @@ import (
 //   - MDL-DEPR008 a workflow call's `with (Param = '<expression>')`;
 //   - MDL-DEPR009 `objects [a, b]` / `parameters [a, b]`.
 
-// ExitCallArgument records `$Param = e` in call microflow/nanoflow/java
-// action/javascript action/external action/web service/execute database query.
+// ExitCallArgument records `$Param = e` and `Param: e` in call
+// microflow/nanoflow/java action/javascript action/external action/web
+// service/execute database query, and refuses an argument by position.
 func (b *Builder) ExitCallArgument(ctx *parser.CallArgumentContext) {
+	if ctx.EQUALS() == nil && ctx.COLON() == nil {
+		b.refusePositionalArgument(ctx.Expression(), "microflow.call")
+		return
+	}
+	if ctx.COLON() != nil {
+		b.recordColonArgument(ctx.ParameterName(), ctx.COLON(), ctx.Expression())
+		return
+	}
 	b.recordDollarArgument(ctx.VARIABLE())
 }
 
@@ -40,6 +49,10 @@ func (b *Builder) ExitSendRestRequestParam(ctx *parser.SendRestRequestParamConte
 // ExitShowPageArg records the two deprecated argument spellings of show page.
 func (b *Builder) ExitShowPageArg(ctx *parser.ShowPageArgContext) {
 	if ctx.ParameterName() != nil {
+		return
+	}
+	if ctx.EQUALS() == nil && ctx.COLON() == nil {
+		b.refusePositionalArgument(ctx.Expression(), "microflow.show-page")
 		return
 	}
 	if iok := ctx.IdentifierOrKeyword(); iok != nil {
@@ -55,6 +68,10 @@ func (b *Builder) ExitShowPageArg(ctx *parser.ShowPageArgContext) {
 // action or a microflow/nanoflow data source.
 func (b *Builder) ExitMicroflowArgV3(ctx *parser.MicroflowArgV3Context) {
 	if ctx.ParameterName() != nil {
+		return
+	}
+	if ctx.EQUALS() == nil && ctx.COLON() == nil {
+		b.refusePositionalArgument(ctx.Expression(), "page.datasource (or page.action)")
 		return
 	}
 	if iok := ctx.IdentifierOrKeyword(); iok != nil {
@@ -77,10 +94,28 @@ func (b *Builder) recordDollarArgument(v antlr.TerminalNode) {
 	b.fixLastDeprecation(deprecation.DollarArgumentName, &ast.Fix{Edits: []ast.TextEdit{edit}}, "")
 }
 
+// refusePositionalArgument refuses an argument written by position, `M.F($O)`
+// (ako/mxcli#533, #569). It is not an alias under any language version: which
+// parameter it binds depends on the callee's declaration order, which a script
+// cannot see. The grammar accepts it only so that the error lands on the
+// argument itself and names the form that works; left to ANTLR, a page data
+// source reported "no viable alternative" at the `DataSource` keyword.
+func (b *Builder) refusePositionalArgument(expr parser.IExpressionContext, topic string) {
+	if expr == nil || expr.GetStart() == nil {
+		return
+	}
+	tok := expr.GetStart()
+	text := expressionSourceText(expr)
+	b.addError(fmt.Errorf("line %d:%d an argument is bound by name, not by position: write `Param = %s`, "+
+		"where Param is the name of the parameter it is for (R4: `Param = expression` at every call site). "+
+		"See: mxcli syntax %s", tok.GetLine(), tok.GetColumn(), text, topic))
+}
+
 // recordColonArgument records MDL-DEPR007 for `Param: e`, with the rewrite
-// `Param = e`: the colon and the space around it become ` = `.
-func (b *Builder) recordColonArgument(name parser.IIdentifierOrKeywordContext, colon antlr.TerminalNode, expr parser.IExpressionContext) {
-	if colon == nil {
+// `Param = e`: the colon and the space around it become ` = `. name is the
+// identifierOrKeyword or parameterName before the colon.
+func (b *Builder) recordColonArgument(name antlr.ParserRuleContext, colon antlr.TerminalNode, expr parser.IExpressionContext) {
+	if colon == nil || name == nil {
 		return
 	}
 	b.recordDeprecation(deprecation.ColonArgument, colon.GetSymbol(), "argument")

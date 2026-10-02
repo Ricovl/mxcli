@@ -27,6 +27,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 )
 
 // CheckedSource is a test file rendered for checking.
@@ -66,6 +69,11 @@ func CheckSource(content, path string) (CheckedSource, error) {
 		return CheckedSource{}, err
 	}
 
+	version, err := fileLanguageVersion(tests, path)
+	if err != nil {
+		return CheckedSource{}, err
+	}
+
 	lines := strings.Split(content, "\n")
 	// One slot per source line, blank unless something is placed on it. A
 	// rendered line is only ever the body verbatim or a wrapper fragment, so
@@ -74,8 +82,20 @@ func CheckSource(content, path string) (CheckedSource, error) {
 	// shifts nothing.
 	out := make([]string, len(lines)+1)
 
+	// The header goes on the line the author wrote it on, ahead of the first
+	// wrapper: without it the bodies were checked as mdl 0 whatever the file
+	// said (ako/mxcli#847). A markdown file has one per block, all alike, and
+	// the first one stands for them.
+	if version > langver.V0 {
+		for _, tc := range tests {
+			if tc.HeaderLine > 0 && tc.HeaderLine <= len(lines) {
+				out[tc.HeaderLine-1] = langver.HeaderFor(version)
+				break
+			}
+		}
+	}
+
 	var problems []SourceProblem
-	declared := false
 	for i, tc := range tests {
 		for _, msg := range tc.AssertionErrors {
 			problems = append(problems, SourceProblem{Line: tc.Line, Test: tc.Name, Message: msg})
@@ -94,17 +114,12 @@ func CheckSource(content, path string) (CheckedSource, error) {
 			}
 		}
 		// A void microflow needs no RETURN, so the wrapper is two fragments and
-		// the body between them is exactly what the author typed.
-		head := fmt.Sprintf("CREATE OR MODIFY MICROFLOW %s.%s () BEGIN", mxTestModule, checkFlowName(tc, i))
-		if !declared {
-			// The wrappers live in MxTest, which only a run creates. Without
-			// the module, --references stopped at "module not found: MxTest"
-			// and never resolved anything inside a test body. Same line as
-			// the first wrapper, so no line moves.
-			head = "CREATE MODULE " + mxTestModule + "; " + head
-			declared = true
-		}
-		place(out, first-1, head)
+		// the body between them is exactly what the author typed. The closing
+		// fragment has no `/`: `;` ends the statement under every version, a
+		// `/` is refused under mdl 1, and under mdl 0 it drew an MDL-V1-SLASH
+		// warning for a separator that is the test format's, not a terminator
+		// the author wrote.
+		place(out, first-1, fmt.Sprintf("CREATE OR MODIFY MICROFLOW %s.%s () BEGIN", mxTestModule, checkFlowName(tc, i)))
 		place(out, first+len(body), "END;")
 	}
 
@@ -150,4 +165,51 @@ func place(out []string, idx int, fragment string) {
 		return
 	}
 	out[idx] += " " + fragment
+}
+
+// fileLanguageVersion is the language version a test file is checked under.
+// A .test.mdl file has one header for all its tests; a markdown file has one
+// per ```mdl-test block, and check renders the file as one script, so blocks
+// that disagree are refused rather than checked under a version some of them
+// were not written in.
+func fileLanguageVersion(tests []TestCase, path string) (langver.Version, error) {
+	if len(tests) == 0 {
+		return langver.V0, nil
+	}
+	first := tests[0]
+	for _, tc := range tests[1:] {
+		if tc.Version != first.Version {
+			return langver.V0, fmt.Errorf("%s: the test at line %d is written in %s and the one at line %d in %s; "+
+				"a test file is checked and run as one script, so give every block the same `mdl <n>;` header",
+				filepath.Base(path), first.Line, first.Version, tc.Line, tc.Version)
+		}
+	}
+	return first.Version, nil
+}
+
+// WithRunnerModule returns prog with the runner's own module declared, for the
+// reference pass of `check -p` on a test file (ako/mxcli#677).
+//
+// Every microflow CheckSource renders lives in MxTest, the module every script
+// the runner generates creates before anything else (GenerateTestRunner,
+// GenerateTestFlows) and removes again afterwards — so a project almost never
+// has it, and the reference pass reported "module not found: MxTest" once per
+// test: a test file could never pass check. Declaring it here is the runner's
+// own first statement, not an exemption: every reference inside a test body is
+// still resolved against the project.
+//
+// The declaration is appended rather than prepended, so the reference errors
+// keep numbering the tests from 1; definitions are collected from the whole
+// program, so its position does not matter to them. `if not exists` keeps a
+// project that does have an MxTest module of its own from reading as a
+// conflict.
+func WithRunnerModule(prog *ast.Program) *ast.Program {
+	if prog == nil {
+		return nil
+	}
+	seeded := *prog
+	mod := &ast.CreateModuleStmt{Name: mxTestModule}
+	mod.IfNotExists = true
+	seeded.Statements = append(append([]ast.Statement{}, prog.Statements...), mod)
+	return &seeded
 }
