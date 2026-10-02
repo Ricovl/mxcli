@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/langver"
 )
 
@@ -184,4 +185,31 @@ func fileLanguageVersion(tests []TestCase, path string) (langver.Version, error)
 		}
 	}
 	return first.Version, nil
+}
+
+// WithRunnerModule returns prog with the runner's own module declared, for the
+// reference pass of `check -p` on a test file (ako/mxcli#677).
+//
+// Every microflow CheckSource renders lives in MxTest, the module every script
+// the runner generates creates before anything else (GenerateTestRunner,
+// GenerateTestFlows) and removes again afterwards — so a project almost never
+// has it, and the reference pass reported "module not found: MxTest" once per
+// test: a test file could never pass check. Declaring it here is the runner's
+// own first statement, not an exemption: every reference inside a test body is
+// still resolved against the project.
+//
+// The declaration is appended rather than prepended, so the reference errors
+// keep numbering the tests from 1; definitions are collected from the whole
+// program, so its position does not matter to them. `if not exists` keeps a
+// project that does have an MxTest module of its own from reading as a
+// conflict.
+func WithRunnerModule(prog *ast.Program) *ast.Program {
+	if prog == nil {
+		return nil
+	}
+	seeded := *prog
+	mod := &ast.CreateModuleStmt{Name: mxTestModule}
+	mod.IfNotExists = true
+	seeded.Statements = append(append([]ast.Statement{}, prog.Statements...), mod)
+	return &seeded
 }
