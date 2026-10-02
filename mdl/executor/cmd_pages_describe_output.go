@@ -779,12 +779,16 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = appendAppearanceProps(ctx, props, w)
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		} else if (len(w.ExplicitProperties) > 0 || len(w.ObjectLists) > 0 || w.OnClick != "" ||
-			w.OnChange != "" || len(w.NamedActions) > 0 || len(w.ChildSlots) > 0 ||
-			len(w.OmittedContainers) > 0) && w.WidgetID != "" {
+			(w.OnChange != "" && !isKnownCustomWidgetType(widgetType)) || len(w.NamedActions) > 0 ||
+			len(w.ChildSlots) > 0 || len(w.OmittedContainers) > 0) && w.WidgetID != "" {
 			// Generic pluggable widget with explicit properties, object-list child
 			// blocks (chart series/lines/scaleColors), and/or an onClick action.
 			// The widget's own MDL name where that round-trips, else the
 			// explicit id form. See pluggableWidgetHeader.
+			//
+			// OnChange counts only for a widget without its own branch below: a
+			// combo box's branch emits OnChange itself, and routed here it lost
+			// its Attribute: and CaptionAttribute: on describe.
 			//
 			// Child slots and omitted containers count towards "has content"
 			// too: a widget whose only non-default content is a populated slot
