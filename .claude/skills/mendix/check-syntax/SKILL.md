@@ -640,7 +640,14 @@ Pro) instead of writing the file directly.
 After `./mxcli exec script.mdl -p app.mpr` succeeds:
 
 1. `refresh_project` (Studio Pro MCP) so the in-memory model reflects the new file.
-2. `ped_check_errors` on each created/modified document for CE errors.
+2. `ped_check_errors` on each created/modified document for CE errors. The argument
+   depends on the Studio Pro release — read the tool's input schema:
+   - up to 11.14: `{"documents": [{"documentType": "Microflows$Microflow", "documentName": "Mod.Name"}]}`
+   - 11.15+: `{"filters": {"documentType": "Microflows$Microflow", "documentNamePrefix": "Mod.Name"}}`.
+     11.15 **silently ignores** `documents` and checks the whole project. `documentNamePrefix`
+     is a prefix (`Mod.Order` also matches `Mod.OrderLine`), so read the `'Mod.Name' (Type):`
+     header above each problem. More than 100 problems come in pages: repeat the same
+     `filters` with `pagination: {checkId, offset, size}` using the `Check ID` from the first answer.
 
 > **Do not treat an empty `DESCRIBE` as proof of a dropped construct.** `DESCRIBE`
 > renders from the MDL emitter, which does not yet render every activity/widget type

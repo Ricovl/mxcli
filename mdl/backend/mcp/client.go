@@ -264,13 +264,18 @@ func (c *Client) ListTools() ([]string, error) {
 // SupportsToolArg reports whether the connected server advertises an input
 // property named arg on the given tool. It answers from a tools/list probe
 // (cached for the session), because the tool schemas vary by Studio Pro release
-// while serverInfo.version stays frozen at 1.0.0 and so cannot discriminate
-// them — see docs/03-development/PED_MCP_CAPABILITIES.md.
+// while serverInfo.version stayed frozen at 1.0.0 through 11.14 and so cannot
+// discriminate them (11.15 reports its own version, but the probe answers per
+// argument, which is what a caller needs) — see
+// docs/03-development/PED_MCP_CAPABILITIES.md.
 //
 // It reports false when the probe fails or the tool is absent. That is the safe
-// default: every argument this gates is one older servers reject outright
-// (their schemas are additionalProperties:false), so "unknown" must mean "do
-// not send". Callers must stay correct when it returns false.
+// default for an argument older servers reject outright (their schemas are
+// additionalProperties:false), so "unknown" must mean "do not send". From 11.15
+// the schemas are permissive and an argument a server no longer knows is
+// silently ignored instead — so probe for the argument the NEWER shape needs
+// (ped_check_errors' `filters`), and keep the fallback correct on its own.
+// Callers must stay correct when it returns false.
 func (c *Client) SupportsToolArg(tool, arg string) bool {
 	if c.toolArgs == nil {
 		if _, err := c.ListTools(); err != nil {

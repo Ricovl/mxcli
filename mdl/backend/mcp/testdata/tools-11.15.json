@@ -1,0 +1,1380 @@
+{
+  "tools": [
+    {
+      "description": "Executes a registered handler. Use this tool only after you have discovered and inspected the handler: 1. Call query_handlers with { operation: \"list\" } to find a handler. 2. Call query_handlers with { operation: \"getDetails\", names: [\"<handler-name>\"] } to retrieve its full description and input schema. 3. Call this tool with the exact handler name and a payload that conforms to the retrieved schema.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "definitions": {
+          "__schema0": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              },
+              {
+                "items": {
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/__schema0"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "additionalProperties": {
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/__schema0"
+                    }
+                  ]
+                },
+                "propertyNames": {
+                  "type": "string"
+                },
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "properties": {
+          "name": {
+            "description": "The handler name returned by query_handlers.",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {
+              "$ref": "#/definitions/__schema0"
+            },
+            "description": "The JSON object to pass to the handler.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "payload"
+        ],
+        "type": "object"
+      },
+      "name": "execute_handler"
+    },
+    {
+      "description": "List files matching a glob pattern. The pattern must start with one of the registered root paths.\n<file_domains>\n<file_domain>\n <root>/jsactions</root>\n <description>Access JavaScript action source files in the app. Paths are of the form \"&lt;module_name_lowercase&gt;/actions/&lt;action_name&gt;.js\"\n            (for example, \"myfirstmodule/actions/myaction.js\").</description>\n</file_domain>\n<file_domain>\n <root>/version-control</root>\n <description>Version control state for the current Mendix project. status.json — current VCS type, branch name, and last commit (SHA, author, message, date). commits.json — recent commit history with per-commit model changes (which Mendix entities, microflows, and pages were added, modified, or deleted) and file changes. changes.json — current uncommitted (pending) changes: documents added, modified, or deleted that have not yet been committed.</description>\n</file_domain>\n<file_domain>\n <root>/theme</root>\n <description>Access all Atlas UI theme files in the app. Two path trees are available under this root:\n                - /theme/web/ — app-specific overrides: custom-variables.scss, main.scss, settings.json\n                - /theme/themesource/&lt;module&gt;/web/ — module SCSS/CSS sources and design-properties.json\n                - /theme/themesource/&lt;module&gt;/settings.json — module-level settings\n                Examples: /theme/web/custom-variables.scss, /theme/themesource/atlas_core/web/main.scss</description>\n</file_domain>\n<file_domain>\n <root>/app-logs</root>\n <description>Runtime console logs for the running Mendix application. app.log — plain-text log output with level and message per line, cause on the next line when present.</description>\n</file_domain>\n<file_domain>\n <root>/themesource</root>\n <description>Atlas UI module sources. Contains SCSS/CSS files, design-properties.json, and settings.json for each module. Paths are relative to themesource/ (e.g. 'atlas_core/web/main.scss', 'my_module/web/design-properties.json').</description>\n</file_domain>\n<file_domain>\n <root>/skills</root>\n <description>Skills — instruction files with domain-specific knowledge. Every available skill and the path of its SKILL.md is listed in &lt;available_skills&gt; in the system prompt</description>\n</file_domain>\n<file_domain>\n <root>/pagegen/appearanceVFSPlugin</root>\n <description>Design property definitions for each element type, reflecting the merged and effective set across all active theme modules — matching what a user sees in Studio Pro. Load the 'appearance' skill for guidance on how to use these files.</description>\n</file_domain>\n<file_domain>\n <root>/edc-schemas</root>\n <description>Read-only access to live database schema metadata for all DatabaseConnection documents in this project. See the database-connector-common skill for usage details.</description>\n</file_domain>\n<file_domain>\n <root>/pagegen/customWidgetsVFS</root>\n <description>Provide information about available custom widgets to the pagegen skill along with the relevant schemas.\n            The file contents follow the same format as defined in the default schema tools and ped tools.\n            Each widget also exposes its widget package's documentation files (at \"&lt;widgetId&gt;/&lt;fileName&gt;\", e.g. any\n            skill file from the package's .maia folder) for additional widget-specific guidance.</description>\n</file_domain>\n</file_domains>",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "pattern": {
+            "description": "Glob pattern that MUST start with a registered root path (e.g., '/themes/*.scss', '/themes/**/*.css'). Supports glob patterns of arbitrary complexity.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "type": "object"
+      },
+      "name": "glob"
+    },
+    {
+      "description": "Lists all modules in the app, including whether each module is writable and whether it comes from the Marketplace. Writable modules are user-created; non-writable modules are system modules or Marketplace modules.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {},
+        "type": "object"
+      },
+      "name": "list_modules"
+    },
+    {
+      "description": "Check diagnostics after final create/update (mandatory).\n\n- filters: optionally narrow results by documentType and/or documentNamePrefix\n- documentNamePrefix will be match in the following way: named document against fully-qualified name; module-level singleton against module name; project-level singleton, it will be ignored\n- By default, returns only problems with severity 'error'. Set severities only when the user explicitly asks for warnings or another severity.\n- The first response lists at most 100 problems and includes a check ID. To request another page, provide pagination with that exact check ID, an offset, and a size.\n- Do not paginate using a check ID from an earlier response. If the error window is stale, fetch errors again without pagination.\n- Returns \"No errors found.\" when no matching errors are found; otherwise only units with matching diagnostics are listed.\n- You get detailed errors (including precise paths where errors occur) only when checking a single document. Thus, when you want to get errors after performing a series of updates, ask for errors only for specific document.\n- If no errors in affected documents: verification is done.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "filters": {
+            "additionalProperties": {},
+            "description": "Optional diagnostic filters. Use documentType and documentNamePrefix together to narrow down to one document for exact paths.",
+            "properties": {
+              "documentNamePrefix": {
+                "description": "A named document's fully-qualified name prefix (for example, 'MyModule.MyMicroflow'), or a module-level singleton's module name. For project-level documents, filter only using document types.",
+                "type": "string"
+              },
+              "documentType": {
+                "description": "Full document type name.",
+                "type": "string"
+              },
+              "severities": {
+                "default": [
+                  "error"
+                ],
+                "description": "Only set when the user explicitly asks to include warnings or another severity",
+                "items": {
+                  "enum": [
+                    "warning",
+                    "error",
+                    "deprecation"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "pagination": {
+            "additionalProperties": {},
+            "description": "Only use to retrieve another page from a previously returned check ID.",
+            "properties": {
+              "checkId": {
+                "description": "The check ID returned by the initial error listing.",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              "offset": {
+                "description": "Zero-based index of the first problem to return. This is the index in the complete list of problems, not only per unit.",
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "size": {
+                "description": "Number of problems to return.",
+                "exclusiveMinimum": 0,
+                "maximum": 100,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "checkId",
+              "offset",
+              "size"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "name": "ped_check_errors"
+    },
+    {
+      "description": "Create one or more supported, writable named documents in a single call. Never create module-level or project-level singleton documents, or read-only document types.\n\n- documents: array of {documentType, moduleName, documentName, documentContent, folderPath?} objects\n- documentName: the local name of a named document; the resulting document is addressed as \"moduleName.documentName\"\n- folderPath: optional folder within the module (e.g. \"FolderA/SubFolderB\"); folders are created if missing; omit for module root\n- Must call ped_find_document first for each; if a match exists, do NOT create\n- Get schemas before creating; read critical:true property descriptions\n- Include $Type for all $constructor/$element; NEVER include $ID\n- Use $id(/path) for by-id references: \"owner\": \"$id(/entities/0)\"\n- Prefer batching independent documents of the same type (e.g. multiple enumerations) to reduce round-trips",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "documents": {
+            "description": "Array of documents to create.",
+            "items": {
+              "additionalProperties": {},
+              "properties": {
+                "documentContent": {
+                  "description": "The content of the document. Must conform to the document type schema obtained from 'get_document_schema'."
+                },
+                "documentName": {
+                  "description": "The local name of the new named document to create (without module name prefix). Must start with a letter or underscore and can only contain letters, digits and underscores.",
+                  "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+                  "type": "string"
+                },
+                "documentType": {
+                  "description": "The full type name of a supported, writable named document to create. Project-level, module-level and read-only document types cannot be created.",
+                  "type": "string"
+                },
+                "folderPath": {
+                  "description": "Folder path within the module where the document will be created (e.g. \"FolderA/SubFolderB\"). Folders are created automatically if they do not exist. Omit to create at the module root.",
+                  "type": "string"
+                },
+                "moduleName": {
+                  "description": "The name of the module where to create the document",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "documentType",
+                "moduleName",
+                "documentName",
+                "documentContent"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "documents"
+        ],
+        "type": "object"
+      },
+      "name": "ped_create_document"
+    },
+    {
+      "description": "Creates a new module in the Mendix application.\nDo NOT create a module if one with the same name already exists.\nCreate a module only if the user explicitly requests it. If the user did not mention it, but you think it is a good idea, ask for confirmation first before creating.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "moduleName": {
+            "description": "The name of the new module to create.",
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "moduleName"
+        ],
+        "type": "object"
+      },
+      "name": "ped_create_module"
+    },
+    {
+      "description": "Find named documents by module name and type (mandatory before creating a named document to avoid duplicates).\n\n- Returns: { foundDocuments: [{ qualifiedName: \"Module.DocName\", folderPath: \"FolderA/SubFolderB\" }] }\n- folderPath is \"\" for documents directly in the module root\n- DO NOT USE 'DomainModels$DomainModel', 'Security$ModuleSecurity', or 'Projects$ModuleSettings' — they always exist as singleton documents in every module. Read them directly instead.\n- If returns matching results: MUST read each to verify → update if confirmed",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "documentType": {
+            "description": "The full type name of the document to find (e.g., 'Microflows$Microflow', 'Pages$Page', 'Workflows$Workflow'). DO NOT USE 'DomainModels$DomainModel', 'Security$ModuleSecurity', or 'Projects$ModuleSettings' — they always exist as singleton documents in every module. Read them directly.",
+            "type": "string"
+          },
+          "moduleName": {
+            "description": "The module where to look for the document",
+            "type": "string"
+          }
+        },
+        "required": [
+          "moduleName",
+          "documentType"
+        ],
+        "type": "object"
+      },
+      "name": "ped_find_document"
+    },
+    {
+      "description": "Get TypeScript-like schemas for one or more element types (mandatory before creating/adding/updating).\n\n- elementTypes: array of exact $Type values (e.g., [\"Microflows$Microflow\", \"DomainModels$Entity\"]).\n- kind:\n  - \"constructor\" (default): the shape to CREATE a document or ADD a new element. Use before any create/add.\n        Constructor requests never include method definitions, including when an element shape is used as the creation fallback.\n  - \"element\": the full shape you see when READING a document (i.e., a persisted form of the element). Use it to UPDATE properties not exposed by the constructor,\n        and list the available methods that can be invoked with ped_update_document.\n- IMPORTANT: If you request 'constructor' schema but the output provides 'element type' declarations, this means\n  that this particular type does not have constructor schema defined and its element shape is used for creation.\n- Nested concrete elements are referenced as Element<'...'> and printed as their own declaration in the same result.\n- Abstract elements are shown as ChooseAbstractType<{...}>: pick ONE concrete type and request its schema. You can only create concrete instances of abstract types.\n- Element schema requests include available methods as `method name(args: PlainObject<{...}>): output` signatures.\n- Validation constraints use intersections (`&`) and may include an error code as the second type argument:\n    - `MinLength<n>` / `MaxLength<n>`: inclusive string or list length bounds.\n    - `MinValue<n>` / `MaxValue<n>`: inclusive numeric or size bounds. Size bounds use `{ width?, height? }`.\n    - `Pattern<{ source: string, flags: string }>`: a regular-expression constraint.\n    List item constraints appear inside parentheses before `[]`, for example `(string & MinLength<1>)[]`.\n- Take all constraints into account when creating/updating elements, otherwise the operation will fail.\n- Request every schema you need in a single call to reduce round-trips.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "elementTypes": {
+            "description": "Array of full type names to get schemas for (e.g., ['Microflows$ShowMessageAction', 'DomainModels$Entity']). Fetch multiple schemas in one call to reduce round-trips.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "default": "constructor",
+            "description": "Which shape to return: 'constructor' for creating/adding elements without methods, or 'element' for the full read/update shape and available methods.",
+            "enum": [
+              "element",
+              "constructor"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "elementTypes"
+        ],
+        "type": "object"
+      },
+      "name": "ped_get_schema"
+    },
+    {
+      "description": "List the immediate contents of a module or a specific folder within it.\n\n- folderPath: optional path within the module (e.g. \"FolderA/SubFolderB\"); omit for module root\n- Returns: { module, folderPath, documents: [{name, type}], folders: [{name, path}] }\n- Only immediate children are returned — call again with a folder's path to explore deeper\n- Use to understand module structure, locate documents, or verify a folder exists before creating",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "folderPath": {
+            "description": "Path within the module to list (e.g. \"FolderA/SubFolderB\"). Omit to list the module root.",
+            "type": "string"
+          },
+          "moduleName": {
+            "description": "The name of the module to inspect",
+            "type": "string"
+          }
+        },
+        "required": [
+          "moduleName"
+        ],
+        "type": "object"
+      },
+      "name": "ped_list_folder"
+    },
+    {
+      "description": "Read a Mendix document or nested elements at specified paths.\n\n- documentName: module singletons (e.g. DomainModels$DomainModel, Security$ModuleSecurity, Projects$ModuleSettings) = module only (\"MyFirstModule\"); project-level documents (e.g. Navigation$NavigationDocument, Settings$ProjectSettings, Security$ProjectSecurity) = omit entirely; others = fully-qualified (\"MyFirstModule.MyMicroflow\")\n- paths: JSON Pointer array ([\"/\"], [\"/entities/0\", \"/associations\"]) - defaults to [\"/\"] if omitted\n- depth: number of element layers to expand (1 = the selected element plus stubs for its children). Start with low reading depths (1-4) and progressively increase if you need to read deeper.\n- Returns: { folderPath: \"FolderA/SubFolderB\", results: [...] } — folderPath is \"\" for module-root documents\n- Data can be absent from a result for two different reasons:\n  - If the property's value is equal to the element's schema default, it will be excluded. If you expect a property to be there, read the element's schema to see the property and its default before concluding anything about it.\n  - The element is a stub ({ \"$Type\": ..., \"$stub\": true }): it lies beyond the requested depth and was not read. Its properties are unknown, not empty. Re-read with a path pointing at it.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "depth": {
+            "default": 1,
+            "description": "Number of element layers to expand. Use values higher than 1 when you need to deeply explore elements.",
+            "maximum": 8,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "documentName": {
+            "description": "Module singletons (e.g. DomainModels$DomainModel, Security$ModuleSecurity, Projects$ModuleSettings) = module name only. Project-level documents (e.g. Navigation$NavigationDocument, Settings$ProjectSettings, Security$ProjectSecurity) = omit. All others = fully qualified.",
+            "type": "string"
+          },
+          "documentType": {
+            "description": "The full type name of the document (e.g., 'Microflows$Microflow', 'Pages$Page', 'DomainModels$DomainModel', 'Workflows$Workflow', 'Navigation$NavigationDocument', 'Settings$ProjectSettings', 'Security$ProjectSecurity', 'Security$ModuleSecurity', 'Projects$ModuleSettings')",
+            "type": "string"
+          },
+          "paths": {
+            "description": "Array of JSON pointer paths to read. Use [\"/\"] or omit for root. Example: [\"/entities/0\", \"/entities/1\", \"/associations\"]",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "documentType"
+        ],
+        "type": "object"
+      },
+      "name": "ped_read_document"
+    },
+    {
+      "description": "Update an existing document with multiple set/add/remove/call operations in a single call.\n\nOperations are applied independently in the specified order (except same-array index operations, which are reordered as described below). If an operation fails, no changes are saved.\nHowever, removing, overwriting, or renaming elements can have side effects that persist even when another operation fails. If an update fails after attempting to remove, overwrite, or rename\nan element, check for persisted side effects.\n\nREMINDER: After running ped_check_error, YOU GET TO UPDATE THE DOCUMENT EXACTLY ONCE. After that, if there are still errors, you need to report them and STOP.\n\nIMPORTANT: Set operations can be used for non-array properties, including to replace existing element-valued properties. Set operations can NEVER be used on arrays.\nConversely, add/remove operations can ONLY be used on arrays to add/remove new elements.\nCall operations invoke a method printed in the target element's schema. Their path points to the element itself (use \"/\" for the root document), not a property.\n\n- documentName: named document = fully-qualified; module-level singleton = module name only; project-level singleton = omit entirely\n- Read-only document types and all documents in non-user modules cannot be updated.\n- operations: array of {path, operation} objects. Each operation has:\n    - path: JSON pointer path to the target property, array, or element\n    - operation: set (a non-array property, including an element-valued property), add (to arrays), remove (from arrays by index), or call (a schema method on the element at path)\n- Before: read document and get schemas\n- CRITICAL FOR SUCESS WHEN CREATING ELEMENTS: Include $Type when adding; NEVER include $ID.\n  If you are adding new elements, you MUST first get their schema. Never assume you know the structure of the element from previous read operations.\n- CRITICAL: Omit every property whose value equals its schema default from set/add payloads and method arguments. Defaults are applied automatically.\n- Use $id(/path) for by-id references\n- Remove: path must point to an array property; specify the index of the element to remove\n- Call: path must point to an element; specify methodName and the schema-defined object arguments, if any\n- INDEX SHIFTING IS HANDLED FOR YOU — DO NOT COMPENSATE FOR IT. Every `index` you provide refers to the array as it exists BEFORE this call (the exact state you last read). Internally, all add/remove operations on the SAME path are reordered and applied in DESCENDING index order, so no operation ever shifts the position targeted by another. There is no \"+1/-1\" bookkeeping to do; never adjust an index to account for another operation in the same call.\n  - Removing multiple items: pass the indices exactly as you read them, in any order. To delete the items currently at index 1 and 3, use remove(1) and remove(3) — do NOT use remove(1) then remove(2).\n  - Adding at distinct positions: use the CURRENT index of the element the new one should sit before. On [A,B,C], add(X,1) + add(Y,2) yields [A,X,B,Y,C].\n  - Adding several NEW elements at the SAME index: give them all that same index and list them in the order you want them to appear. To turn [Start,End] into [Start,A,B,End], call add(1,A) and add(1,B) in that order.\n- CROSS-PATH ORDER STILL MATTERS: operations on DIFFERENT paths are applied in the order you list them, and are NOT reordered. When a new element references another element added in the same call via `$id(/path)`, add the referenced element (on its own path) before the element that references it.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "documentName": {
+            "description": "A named document's fully-qualified name, a module-level singleton's module name, or omitted for a project-level singleton.",
+            "type": "string"
+          },
+          "documentType": {
+            "description": "The full type name of the document to update.",
+            "type": "string"
+          },
+          "operations": {
+            "description": "Array of update operations to apply. Each operation has a path and an operation (set, add, or remove).",
+            "items": {
+              "additionalProperties": {},
+              "properties": {
+                "operation": {
+                  "oneOf": [
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "type": {
+                          "const": "set",
+                          "description": "Set a property to a new value. You can never set array properties; use 'add' or 'remove' for those. You can always set primitive values or references. You can set or replace element-valued properties; the replacement value MUST include $Type and conform to the $constructor schema if one is available, otherwise the full $element schema.",
+                          "type": "string"
+                        },
+                        "value": {}
+                      },
+                      "required": [
+                        "type",
+                        "value"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "index": {
+                          "description": "The index at which to add the element. If omitted, the element is added to the end of the array. Add the index ONLY if the schema of the document explicitly mandates that elements need to be at certain positions (e.g., a StartWorkflowActivity must be first in a workflow's flow). In all other cases, you can leave it unspecified. REMEMBER: Indices are zero-based!",
+                          "type": "number"
+                        },
+                        "type": {
+                          "const": "add",
+                          "description": "Add an element to an array property. Path must point to the array and NOT include an index (e.g., '/entities' or '/flows')",
+                          "type": "string"
+                        },
+                        "value": {
+                          "description": "The element to add (must be a complete element object)"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "value"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "index": {
+                          "description": "The path of this operation must point to an array. This argument specifies the index of the element to remove in the array.",
+                          "type": "number"
+                        },
+                        "type": {
+                          "const": "remove",
+                          "description": "Remove an element from an array property",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "index"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "arguments": {
+                          "additionalProperties": {},
+                          "description": "The object argument matching the method definition, if the method accepts one",
+                          "propertyNames": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "methodName": {
+                          "description": "The method name exactly as printed in the element schema",
+                          "type": "string"
+                        },
+                        "type": {
+                          "const": "call",
+                          "description": "Call a method on the element at path",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "methodName"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                },
+                "path": {
+                  "description": "JSON pointer path to the property to update",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "operation"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "documentType",
+          "operations"
+        ],
+        "type": "object"
+      },
+      "name": "ped_update_document"
+    },
+    {
+      "description": "Create a new page or patch an existing one using JSON Patch operations (RFC 6902).\n\n**IMPORTANT** ALWAYS read page-gen-common skill before using this tool.\n\n**Stick to the JSON Schema:** Strictly adhere to the pg_patch_page JSON schema when creating your input.\n\n**Creating a page:** supply a single { \"op\": \"replace\", \"path\": \"\", \"value\": { <full LightPage> } } operation. The page will be created if it does not exist yet.\n\n**Patching an existing page:** supply one or more targeted operations against the LightPage structure returned by pg_read_page. Prefer this over a root replace when only a small section needs to change.  IMPORTANT The path MUST always refer to and existing element.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "moduleName": {
+            "description": "Module name of the page. Example: 'MyFirstModule'. Note that this is not the fully qualified name, just the module part.",
+            "type": "string"
+          },
+          "pageName": {
+            "description": "Name of the page to patch. Example: 'MyFirstPage'.",
+            "type": "string"
+          },
+          "patches": {
+            "description": "Ordered list of JSON Patch operations (RFC 6902) to apply to the current page. Operations are applied sequentially. Paths are JSON Pointers into the LightPage structure returned by pg_read_page.\n\n**CRITICAL: This must be an ARRAY, not a JSON string. Do NOT stringify the patches array.**\n\n**CRITICAL: To add an item to an array, always use op:'add' with a path ending in '/-' — never use op:'replace' on the array itself.**\n\nExample — appending a tab to a TabContainer's tabPages:\n  CORRECT:   { \"op\": \"add\",     \"path\": \"/widgets/0/widgets/0/tabPages/-\", \"value\": { \"$Type\": \"Pages$TabPage\", ... } }\n  INCORRECT: { \"op\": \"replace\", \"path\": \"/widgets/0/widgets/0/tabPages\",   \"value\": [ /* full array */ ] }\n\nReplacing the entire array is rejected by schema validation. Use targeted add/remove/replace operations on individual items instead.\n\n**CRITICAL: When removing multiple items from the same array, always list the remove operations in descending index order (highest index first).** Removing an item shifts all subsequent indices down by one, so removing index 1 before index 2 means what was index 2 is now index 1 — your next operation will hit the wrong item. Highest-first avoids this entirely.\n\nExample — removing items at index 1 and 3 from the same array:\n  CORRECT:   remove /widgets/0/widgets/3, then remove /widgets/0/widgets/1\n  INCORRECT: remove /widgets/0/widgets/1, then remove /widgets/0/widgets/3  (index 3 is now stale)",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "op": {
+                  "description": "The patch operation to perform",
+                  "enum": [
+                    "add",
+                    "remove",
+                    "replace"
+                  ],
+                  "type": "string"
+                },
+                "path": {
+                  "description": "JSON Pointer path (RFC 6901) into the LightPage object. E.g., '/widgets/0/widgets/1' targets the second widget in the first content slot. Use '-' as the final segment to append to an array. IMPORTANT The path MAY ONLY refer to an existing element or be empty to target the page root.",
+                  "type": "string"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "layout": {
+                          "description": "The layout used by the page, if any",
+                          "type": "string"
+                        },
+                        "parameters": {
+                          "description": "Array of Pages$PageParameter objects defining input parameters for the page",
+                          "items": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "$Type": {
+                                "const": "Pages$PageParameter",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "$Type"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "title": {
+                          "description": "Title of the page",
+                          "type": "string"
+                        },
+                        "variables": {
+                          "description": "Array of Pages$LocalVariable objects defining local variables for storing temporary page state",
+                          "items": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "$Type": {
+                                "const": "Pages$LocalVariable",
+                                "type": "string"
+                              },
+                              "defaultValue": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Default value for the variable (null if none)"
+                              },
+                              "name": {
+                                "description": "Name of the local variable",
+                                "type": "string"
+                              },
+                              "variableType": {
+                                "additionalProperties": {},
+                                "description": "The type of data this variable holds",
+                                "properties": {
+                                  "$Type": {
+                                    "enum": [
+                                      "DataTypes$BooleanType",
+                                      "DataTypes$StringType",
+                                      "DataTypes$IntegerType",
+                                      "DataTypes$DecimalType",
+                                      "DataTypes$FloatType",
+                                      "DataTypes$DateTimeType",
+                                      "DataTypes$EnumerationType"
+                                    ],
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "$Type"
+                                ],
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "$Type",
+                              "name",
+                              "variableType",
+                              "defaultValue"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "widgets": {
+                          "description": "Array of Pages$Content objects",
+                          "items": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "$Type": {
+                                "enum": [
+                                  "Pages$Content",
+                                  "Pages$LayoutGrid",
+                                  "Pages$LayoutGridRow",
+                                  "Pages$LayoutGridColumn",
+                                  "Pages$DataView",
+                                  "Pages$ActionButton",
+                                  "Pages$TextBox",
+                                  "Pages$TextArea",
+                                  "Pages$DatePicker",
+                                  "Pages$CheckBox",
+                                  "Pages$RadioButtonGroup",
+                                  "Pages$DynamicText",
+                                  "Pages$DivContainer",
+                                  "Pages$TabContainer",
+                                  "Pages$TabPage",
+                                  "Pages$ListView",
+                                  "CustomWidgets$CustomWidget",
+                                  "CustomWidgets$WidgetObject"
+                                ],
+                                "type": "string"
+                              },
+                              "slot": {
+                                "description": "The slot name where the content widget is placed, e.g., 'Main'",
+                                "type": "string"
+                              },
+                              "widgets": {
+                                "description": "List of widgets on the page. Each widget MUST include $Type property and all required properties from documentation",
+                                "items": {
+                                  "additionalProperties": {},
+                                  "properties": {
+                                    "$Type": {
+                                      "enum": [
+                                        "Pages$Content",
+                                        "Pages$LayoutGrid",
+                                        "Pages$LayoutGridRow",
+                                        "Pages$LayoutGridColumn",
+                                        "Pages$DataView",
+                                        "Pages$ActionButton",
+                                        "Pages$TextBox",
+                                        "Pages$TextArea",
+                                        "Pages$DatePicker",
+                                        "Pages$CheckBox",
+                                        "Pages$RadioButtonGroup",
+                                        "Pages$DynamicText",
+                                        "Pages$DivContainer",
+                                        "Pages$TabContainer",
+                                        "Pages$TabPage",
+                                        "Pages$ListView",
+                                        "CustomWidgets$CustomWidget",
+                                        "CustomWidgets$WidgetObject"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "appearance": {
+                                      "additionalProperties": {},
+                                      "description": "Appearance settings for the widget, including CSS classes and styles",
+                                      "properties": {
+                                        "class": {
+                                          "description": "CSS classes to apply to the widget",
+                                          "type": "string"
+                                        },
+                                        "style": {
+                                          "description": "Inline CSS styles to apply to the widget",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "class",
+                                        "style"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  },
+                                  "required": [
+                                    "$Type",
+                                    "appearance"
+                                  ],
+                                  "type": "object"
+                                },
+                                "minItems": 1,
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "$Type",
+                              "slot",
+                              "widgets"
+                            ],
+                            "type": "object"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "layout",
+                        "parameters",
+                        "widgets"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "$Type": {
+                          "enum": [
+                            "Pages$Content",
+                            "Pages$LayoutGrid",
+                            "Pages$LayoutGridRow",
+                            "Pages$LayoutGridColumn",
+                            "Pages$DataView",
+                            "Pages$ActionButton",
+                            "Pages$TextBox",
+                            "Pages$TextArea",
+                            "Pages$DatePicker",
+                            "Pages$CheckBox",
+                            "Pages$RadioButtonGroup",
+                            "Pages$DynamicText",
+                            "Pages$DivContainer",
+                            "Pages$TabContainer",
+                            "Pages$TabPage",
+                            "Pages$ListView",
+                            "CustomWidgets$CustomWidget",
+                            "CustomWidgets$WidgetObject"
+                          ],
+                          "type": "string"
+                        },
+                        "slot": {
+                          "description": "The slot name where the content widget is placed, e.g., 'Main'",
+                          "type": "string"
+                        },
+                        "widgets": {
+                          "description": "List of widgets on the page. Each widget MUST include $Type property and all required properties from documentation",
+                          "items": {
+                            "additionalProperties": {},
+                            "properties": {
+                              "$Type": {
+                                "enum": [
+                                  "Pages$Content",
+                                  "Pages$LayoutGrid",
+                                  "Pages$LayoutGridRow",
+                                  "Pages$LayoutGridColumn",
+                                  "Pages$DataView",
+                                  "Pages$ActionButton",
+                                  "Pages$TextBox",
+                                  "Pages$TextArea",
+                                  "Pages$DatePicker",
+                                  "Pages$CheckBox",
+                                  "Pages$RadioButtonGroup",
+                                  "Pages$DynamicText",
+                                  "Pages$DivContainer",
+                                  "Pages$TabContainer",
+                                  "Pages$TabPage",
+                                  "Pages$ListView",
+                                  "CustomWidgets$CustomWidget",
+                                  "CustomWidgets$WidgetObject"
+                                ],
+                                "type": "string"
+                              },
+                              "appearance": {
+                                "additionalProperties": {},
+                                "description": "Appearance settings for the widget, including CSS classes and styles",
+                                "properties": {
+                                  "class": {
+                                    "description": "CSS classes to apply to the widget",
+                                    "type": "string"
+                                  },
+                                  "style": {
+                                    "description": "Inline CSS styles to apply to the widget",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "class",
+                                  "style"
+                                ],
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "$Type",
+                              "appearance"
+                            ],
+                            "type": "object"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "$Type",
+                        "slot",
+                        "widgets"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "$Type": {
+                          "enum": [
+                            "Pages$Content",
+                            "Pages$LayoutGrid",
+                            "Pages$LayoutGridRow",
+                            "Pages$LayoutGridColumn",
+                            "Pages$DataView",
+                            "Pages$ActionButton",
+                            "Pages$TextBox",
+                            "Pages$TextArea",
+                            "Pages$DatePicker",
+                            "Pages$CheckBox",
+                            "Pages$RadioButtonGroup",
+                            "Pages$DynamicText",
+                            "Pages$DivContainer",
+                            "Pages$TabContainer",
+                            "Pages$TabPage",
+                            "Pages$ListView",
+                            "CustomWidgets$CustomWidget",
+                            "CustomWidgets$WidgetObject"
+                          ],
+                          "type": "string"
+                        },
+                        "appearance": {
+                          "additionalProperties": {},
+                          "description": "Appearance settings for the widget, including CSS classes and styles",
+                          "properties": {
+                            "class": {
+                              "description": "CSS classes to apply to the widget",
+                              "type": "string"
+                            },
+                            "style": {
+                              "description": "Inline CSS styles to apply to the widget",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "class",
+                            "style"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "$Type",
+                        "appearance"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "class": {
+                          "description": "CSS classes to apply to the widget",
+                          "type": "string"
+                        },
+                        "style": {
+                          "description": "Inline CSS styles to apply to the widget",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "class",
+                        "style"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "$Type": {
+                          "const": "Pages$PageParameter",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "$Type"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "properties": {
+                        "$Type": {
+                          "const": "Pages$LocalVariable",
+                          "type": "string"
+                        },
+                        "defaultValue": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Default value for the variable (null if none)"
+                        },
+                        "name": {
+                          "description": "Name of the local variable",
+                          "type": "string"
+                        },
+                        "variableType": {
+                          "additionalProperties": {},
+                          "description": "The type of data this variable holds",
+                          "properties": {
+                            "$Type": {
+                              "enum": [
+                                "DataTypes$BooleanType",
+                                "DataTypes$StringType",
+                                "DataTypes$IntegerType",
+                                "DataTypes$DecimalType",
+                                "DataTypes$FloatType",
+                                "DataTypes$DateTimeType",
+                                "DataTypes$EnumerationType"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "$Type"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "$Type",
+                        "name",
+                        "variableType",
+                        "defaultValue"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "items": {
+                        "additionalProperties": {},
+                        "properties": {
+                          "$Type": {
+                            "enum": [
+                              "Pages$Content",
+                              "Pages$LayoutGrid",
+                              "Pages$LayoutGridRow",
+                              "Pages$LayoutGridColumn",
+                              "Pages$DataView",
+                              "Pages$ActionButton",
+                              "Pages$TextBox",
+                              "Pages$TextArea",
+                              "Pages$DatePicker",
+                              "Pages$CheckBox",
+                              "Pages$RadioButtonGroup",
+                              "Pages$DynamicText",
+                              "Pages$DivContainer",
+                              "Pages$TabContainer",
+                              "Pages$TabPage",
+                              "Pages$ListView",
+                              "CustomWidgets$CustomWidget",
+                              "CustomWidgets$WidgetObject"
+                            ],
+                            "type": "string"
+                          },
+                          "slot": {
+                            "description": "The slot name where the content widget is placed, e.g., 'Main'",
+                            "type": "string"
+                          },
+                          "widgets": {
+                            "description": "List of widgets on the page. Each widget MUST include $Type property and all required properties from documentation",
+                            "items": {
+                              "additionalProperties": {},
+                              "properties": {
+                                "$Type": {
+                                  "enum": [
+                                    "Pages$Content",
+                                    "Pages$LayoutGrid",
+                                    "Pages$LayoutGridRow",
+                                    "Pages$LayoutGridColumn",
+                                    "Pages$DataView",
+                                    "Pages$ActionButton",
+                                    "Pages$TextBox",
+                                    "Pages$TextArea",
+                                    "Pages$DatePicker",
+                                    "Pages$CheckBox",
+                                    "Pages$RadioButtonGroup",
+                                    "Pages$DynamicText",
+                                    "Pages$DivContainer",
+                                    "Pages$TabContainer",
+                                    "Pages$TabPage",
+                                    "Pages$ListView",
+                                    "CustomWidgets$CustomWidget",
+                                    "CustomWidgets$WidgetObject"
+                                  ],
+                                  "type": "string"
+                                },
+                                "appearance": {
+                                  "additionalProperties": {},
+                                  "description": "Appearance settings for the widget, including CSS classes and styles",
+                                  "properties": {
+                                    "class": {
+                                      "description": "CSS classes to apply to the widget",
+                                      "type": "string"
+                                    },
+                                    "style": {
+                                      "description": "Inline CSS styles to apply to the widget",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "class",
+                                    "style"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "$Type",
+                                "appearance"
+                              ],
+                              "type": "object"
+                            },
+                            "minItems": 1,
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "$Type",
+                          "slot",
+                          "widgets"
+                        ],
+                        "type": "object"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    {
+                      "items": {
+                        "additionalProperties": {},
+                        "properties": {
+                          "$Type": {
+                            "enum": [
+                              "Pages$Content",
+                              "Pages$LayoutGrid",
+                              "Pages$LayoutGridRow",
+                              "Pages$LayoutGridColumn",
+                              "Pages$DataView",
+                              "Pages$ActionButton",
+                              "Pages$TextBox",
+                              "Pages$TextArea",
+                              "Pages$DatePicker",
+                              "Pages$CheckBox",
+                              "Pages$RadioButtonGroup",
+                              "Pages$DynamicText",
+                              "Pages$DivContainer",
+                              "Pages$TabContainer",
+                              "Pages$TabPage",
+                              "Pages$ListView",
+                              "CustomWidgets$CustomWidget",
+                              "CustomWidgets$WidgetObject"
+                            ],
+                            "type": "string"
+                          },
+                          "appearance": {
+                            "additionalProperties": {},
+                            "description": "Appearance settings for the widget, including CSS classes and styles",
+                            "properties": {
+                              "class": {
+                                "description": "CSS classes to apply to the widget",
+                                "type": "string"
+                              },
+                              "style": {
+                                "description": "Inline CSS styles to apply to the widget",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "class",
+                              "style"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "$Type",
+                          "appearance"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "items": {
+                        "additionalProperties": {},
+                        "properties": {
+                          "$Type": {
+                            "const": "Pages$PageParameter",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "$Type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "items": {
+                        "additionalProperties": {},
+                        "properties": {
+                          "$Type": {
+                            "const": "Pages$LocalVariable",
+                            "type": "string"
+                          },
+                          "defaultValue": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Default value for the variable (null if none)"
+                          },
+                          "name": {
+                            "description": "Name of the local variable",
+                            "type": "string"
+                          },
+                          "variableType": {
+                            "additionalProperties": {},
+                            "description": "The type of data this variable holds",
+                            "properties": {
+                              "$Type": {
+                                "enum": [
+                                  "DataTypes$BooleanType",
+                                  "DataTypes$StringType",
+                                  "DataTypes$IntegerType",
+                                  "DataTypes$DecimalType",
+                                  "DataTypes$FloatType",
+                                  "DataTypes$DateTimeType",
+                                  "DataTypes$EnumerationType"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "$Type"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "$Type",
+                          "name",
+                          "variableType",
+                          "defaultValue"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "additionalProperties": {},
+                      "description": "Free-form object, e.g. designProperties: { 'toggle:Cards style': true }",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    }
+                  ],
+                  "description": "The value for 'add' or 'replace' operations. Omit for 'remove'."
+                }
+              },
+              "required": [
+                "op",
+                "path"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "moduleName",
+          "pageName",
+          "patches"
+        ],
+        "type": "object"
+      },
+      "name": "pg_patch_page"
+    },
+    {
+      "description": "Read a page or specific sub-sections of it.\n\n**IMPORTANT** ALWAYS read page-gen-common skill before using this tool.\n\nSupply an optional 'paths' list of JSON Pointers (RFC 6901) to return only those parts of the LightPage — e.g., ['/widgets/0', '/widgets/1'] returns the first two content slots. Results are returned as an array in the same order as the paths. Omit 'paths' to return the full page.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "depth": {
+            "description": "Maximum depth to return. Nodes deeper than this limit are replaced with '...'. Defaults to 4. Increase when you need to see deeper structure, or decrease for a high-level structural overview. IMPORTANT: when a node shows '...' and you need its contents, do NOT re-read from the root — instead use 'paths' pointing directly at that node with a higher depth.",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
+          "moduleName": {
+            "description": "Module name of the page. Example: 'MyFirstModule'. Note that this is not the fully qualified name, just the module part",
+            "type": "string"
+          },
+          "pageName": {
+            "description": "Name of the page to read. Example: 'MyFirstPage'",
+            "type": "string"
+          },
+          "paths": {
+            "description": "Optional list of JSON Pointers (RFC 6901) into the LightPage to return only specific sub-sections. E.g., ['/widgets/0', '/widgets/1/widgets/2'] returns the first content slot and the third widget inside the second slot. Omit to return the full page. When you need to drill into multiple areas, pass all paths in a single call rather than making multiple calls.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "moduleName",
+          "pageName"
+        ],
+        "type": "object"
+      },
+      "name": "pg_read_page"
+    },
+    {
+      "description": "Discovers handlers that extend the agent's capabilities, including MCP tools and tools that operate on Mendix applications and the environment. Before saying a requested action cannot be completed because directly available tools do not support it, use this tool to search for a relevant handler. Use {} or {operation: \"list\"} to list all handlers. Add keywords to filter the list - tools matching any of the given keywords will be returned. Try to use as short keywords as possible. Keywords are searched in handler names, descriptions, and schemas; a match may not be visible in a shortened description.Use {operation: \"getDetails\", names: [\"myHandler\"]} to get handlers' full descriptions and input schemas. Only execute a handler with execute_handler after retrieving its details.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "keyword": {
+            "description": "Only used by the `list` operation. Optional case-insensitive keywords to search handler names, descriptions, and schemas. A handler is listed when it matches any keyword, although a match may not be visible in a shortened description. If keywords are not provided, all the handlers are listed. Keywords are separated by spaces. Include no special characters.",
+            "type": "string"
+          },
+          "names": {
+            "description": "Required by the `getDetails` operation. Handler names returned by the list operation.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "operation": {
+            "default": "list",
+            "description": "`list` lists handlers, optionally filtered by keywords, showing only a prefix of each description. `getDetails` returns the full descriptions and input schemas of the handlers named by `names`.",
+            "enum": [
+              "list",
+              "getDetails"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "query_handlers"
+    },
+    {
+      "description": "Read the content of a file at the given virtual path.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "limit": {
+            "description": "Maximum number of lines to read. When omitted, reads to the end of the file.",
+            "type": "number"
+          },
+          "offset": {
+            "description": "1-based line number to start reading from. When omitted, reads from the beginning of the file.",
+            "type": "number"
+          },
+          "path": {
+            "description": "Full virtual path of the file to read (e.g., '/themes/mytheme/main.scss')",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "read_file"
+    },
+    {
+      "description": "Create or update a file at the given path. You can write only to file domains mentioned in the glob tool description.",
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": {},
+        "properties": {
+          "newString": {
+            "description": "New content to write. Replaces old_string when provided, or becomes the full file content when old_string is omitted.",
+            "type": "string"
+          },
+          "oldString": {
+            "description": "Existing content to replace. Must match the current file content exactly (whitespace-sensitive) and appear exactly once. Omit when replacing the entire content.",
+            "type": "string"
+          },
+          "path": {
+            "description": "Full path of the file to create or update. Must start with a valid file domain root path (e.g., '/themes/mytheme/main.scss')",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "newString"
+        ],
+        "type": "object"
+      },
+      "name": "write_file"
+    }
+  ]
+}

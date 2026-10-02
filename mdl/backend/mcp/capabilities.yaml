@@ -17,8 +17,9 @@
 #                          create path — never flip it for one without the other.
 #   available_since_mendix the PROJECT's Mendix version from which it is authorable
 #                          ("11.12"). Keyed on the project version because MCP
-#                          serverInfo.version is frozen at 1.0.0 across 11.11/11.12/
-#                          11.13 and cannot discriminate releases.
+#                          serverInfo.version is frozen at 1.0.0 across 11.11-11.14
+#                          and cannot discriminate releases (11.15 reports its own
+#                          version, but earlier ones never will).
 #   requires_tools         Studio Pro tools the feature needs. WHICH tools a feature
 #                          depends on is not observable, so it belongs here; WHETHER
 #                          they are present is answered only by the probe. A missing
