@@ -19,7 +19,6 @@ import (
 // fix where it applies; the hint still serves the slots that do not.
 const keywordSlot = "create workflow M.W\nbegin\n  user task %s 'Review'\n    page M.P;\nend workflow;"
 
-
 func hintFor(t *testing.T, name string) string {
 	t.Helper()
 	_, errs := Build(strings.Replace(keywordSlot, "%s", name, 1))
