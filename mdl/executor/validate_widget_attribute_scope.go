@@ -36,17 +36,22 @@ import (
 // Anything it cannot work out — an unresolved context, a flow created later, a
 // template that does not load — leaves the property unjudged rather than
 // guessed at, so the check can only be quieter than exec, never louder.
+//
+// The same walk judges the BUILT-IN input widgets on the page, which need the
+// same data context: an attribute of a type the widget does not take
+// (MDL-WIDGET39, CE2421) and the classic drop-down on a React-client project
+// (MDL-WIDGET40, CE0582). See validate_widget_attribute_type.go. Those need
+// neither the widget registry nor the templates, so they run without them.
 func validatePluggableAttributeScopes(ctx *ExecContext, params []ast.PageParameter, widgets []*ast.WidgetV3, sc *scriptContext) []string {
 	if ctx == nil || !ctx.Connected() || len(widgets) == 0 {
 		return nil
 	}
 	registry := pageContextWidgetRegistry(ctx)
-	if registry == nil {
-		return nil
-	}
-	wb, ok := ctx.Backend.(backend.WidgetBuilderBackend)
-	if !ok {
-		return nil
+	var templates func(string) map[string]pages.PropertyTypeIDEntry
+	if wb, ok := ctx.Backend.(backend.WidgetBuilderBackend); ok && registry != nil {
+		templates = templatePropertyTypes(wb, ctx.Backend.Path())
+	} else {
+		registry = nil
 	}
 	sigs := buildFlowSignatures(ctx)
 	if sc != nil {
@@ -61,11 +66,13 @@ func validatePluggableAttributeScopes(ctx *ExecContext, params []ast.PageParamet
 		}
 	}
 	v := &attributeScopeValidator{
-		registry:   registry,
-		templates:  templatePropertyTypes(wb, ctx.Backend.Path()),
-		sigs:       sigs,
-		pageParams: pageParams,
-		index:      checkAttributeIndex(ctx, sc),
+		registry:    registry,
+		templates:   templates,
+		sigs:        sigs,
+		pageParams:  pageParams,
+		index:       checkAttributeIndex(ctx, sc),
+		types:       checkMemberTypeIndex(ctx, sc),
+		reactClient: usesReactClient(ctx),
 	}
 	for _, w := range widgets {
 		v.walk(w, dataContext{})
@@ -80,6 +87,10 @@ type attributeScopeValidator struct {
 	pageParams map[string]string
 	index      attributeIndex
 	errs       []string
+
+	// The built-in input widget checks (validate_widget_attribute_type.go).
+	types       memberTypeIndex
+	reactClient bool
 }
 
 func (v *attributeScopeValidator) walk(w *ast.WidgetV3, enclosing dataContext) {
@@ -87,7 +98,16 @@ func (v *attributeScopeValidator) walk(w *ast.WidgetV3, enclosing dataContext) {
 		return
 	}
 	inner := childContext(enclosing, w.GetDataSource(), v.sigs, v.pageParams)
-	if def := lookupWidgetDef(w, v.registry); def != nil {
+	v.checkInputBinding(w, enclosing)
+	v.checkReactUnsupported(w)
+	if v.registry == nil {
+		// No registry: the pluggable half cannot run, and a pluggable widget's
+		// slots cannot be told apart, so nothing inside one is judged rather
+		// than judged against the wrong context.
+		if w.Type == "pluggablewidget" || w.Type == "customwidget" {
+			inner = enclosing.withUnresolved()
+		}
+	} else if def := lookupWidgetDef(w, v.registry); def != nil {
 		named := v.checkWidget(w, def, enclosing)
 		if named {
 			// A widget with datasources named by key gives each child slot the
