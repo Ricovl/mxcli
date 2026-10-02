@@ -597,7 +597,7 @@ func getAfterStartup(projectPath string) (string, error) {
 	}
 
 	for _, line := range strings.Split(string(output), "\n") {
-		if strings.Contains(line, "AfterStartupMicroflow") {
+		if strings.HasPrefix(strings.TrimSpace(line), "AfterStartupMicroflow") {
 			return parseSettingValue(line), nil
 		}
 	}
@@ -606,7 +606,11 @@ func getAfterStartup(projectPath string) (string, error) {
 
 // parseSettingValue extracts the value from one DESCRIBE SETTINGS line, e.g.
 //
-//	AfterStartupMicroflow = 'Module.Name',
+//	AfterStartupMicroflow: 'Module.Name',
+//
+// or the older `AfterStartupMicroflow = 'Module.Name',`. The value starts after
+// the first separator, whichever it is: splitting only on `=` kept the whole
+// colon-form line, and the restore wrote the key into the setting's value.
 //
 // DESCRIBE SETTINGS separates properties with commas and ends the statement with
 // a semicolon, so the trailing punctuation must come off *before* the quotes:
@@ -615,13 +619,14 @@ func getAfterStartup(projectPath string) (string, error) {
 // setting (mendixlabs/mxcli#803).
 func parseSettingValue(line string) string {
 	val := strings.TrimSpace(line)
-	if _, after, found := strings.Cut(val, "="); found {
-		val = after
+	if i := strings.IndexAny(val, ":="); i >= 0 {
+		val = val[i+1:]
 	}
 	val = strings.TrimSpace(val)
 	val = strings.TrimRight(val, ",;")
 	val = strings.TrimSpace(val)
-	return strings.Trim(val, "'\"")
+	val = strings.Trim(val, "'\"")
+	return strings.ReplaceAll(val, "''", "'")
 }
 
 // quoteMDLString renders a value as an MDL single-quoted literal. Mendix escapes
