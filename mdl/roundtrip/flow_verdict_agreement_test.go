@@ -218,6 +218,12 @@ end;
 // the splice cannot make: refused under mdl 1, rebuilt under mdl 0). The
 // second kind is the control: a corpus with no refusal in it would make the
 // agreement vacuous.
+//
+// PedApp has no flow with a loop, so a fixture scanned in full that has none
+// gets an mxcli-authored one (verdictLoopControl) to probe: without it the
+// control rested on TestApp alone, and a checkout without the submodule (the
+// nightly's, before it fetched it) failed the guard below while every
+// verdict agreed.
 func TestFlowVerdictAgreement_Corpus(t *testing.T) {
 	refusals := 0
 	for _, c := range []struct {
@@ -227,6 +233,28 @@ func TestFlowVerdictAgreement_Corpus(t *testing.T) {
 		t.Run(c.fx.name, func(t *testing.T) {
 			h := newFixtureHarness(t, c.fx)
 			defer h.close()
+			// verdictsOn compares the three verdicts on target's description and,
+			// when probe, on it with a statement added inside its first loop body.
+			verdictsOn := func(key, target string, probe bool) {
+				for _, header := range []string{"", "mdl 1;"} {
+					mdl1 := header != ""
+					described := h.describeUnder(header, target)
+					if mdl1 {
+						described = header + "\n" + described
+					}
+					t.Run(key+map[bool]string{false: "/mdl 0", true: "/mdl 1"}[mdl1], func(t *testing.T) {
+						agree(t, mdl1, h.verdictsOf(described))
+						if !probe {
+							return
+						}
+						i := strings.Index(described, "end loop;")
+						withProbe := described[:i] + "declare $VerdictProbe Integer = 0;\n" + described[i:]
+						if agree(t, mdl1, h.verdictsOf(withProbe)) {
+							refusals++
+						}
+					})
+				}
+			}
 			probed := 0
 			for _, d := range h.documents() {
 				if d.keyword != "microflow" && d.keyword != "nanoflow" {
@@ -241,32 +269,50 @@ func TestFlowVerdictAgreement_Corpus(t *testing.T) {
 				} else if c.max > 0 {
 					continue // the TestApp subset: flows with a loop only
 				}
-				for _, header := range []string{"", "mdl 1;"} {
-					mdl1 := header != ""
-					described := h.describeUnder(header, d.target())
-					if mdl1 {
-						described = header + "\n" + described
-					}
-					t.Run(d.key()+map[bool]string{false: "/mdl 0", true: "/mdl 1"}[mdl1], func(t *testing.T) {
-						agree(t, mdl1, h.verdictsOf(described))
-						if !probe {
-							return
-						}
-						i := strings.Index(described, "end loop;")
-						withProbe := described[:i] + "declare $VerdictProbe Integer = 0;\n" + described[i:]
-						if agree(t, mdl1, h.verdictsOf(withProbe)) {
-							refusals++
-						}
-					})
-				}
+				verdictsOn(d.key(), d.target(), probe)
 			}
 			t.Logf("%s: %d flows probed inside a loop", c.fx.name, probed)
+			if probed == 0 && c.max == 0 {
+				h.addToFixture(verdictLoopControl)
+				verdictsOn("control "+verdictLoopControlTarget, verdictLoopControlTarget, true)
+			}
 		})
 	}
 	if refusals == 0 {
 		t.Error("no probe was refused or rebuilt: the agreement was never tested on a refusal")
 	}
 	t.Logf("%d probes refused or rebuilt", refusals)
+}
+
+// verdictLoopControl is the corpus's control flow when a fixture has no loop of
+// its own to probe: mxcli-authored, so it proves the agreement on a refusal,
+// not on Studio Pro's spelling of one.
+const (
+	verdictLoopControlTarget = "microflow MyFirstModule.Verdict_CorpusControl"
+	verdictLoopControl       = `mdl 1;
+create or modify microflow MyFirstModule.Verdict_CorpusControl ($Items: List of System.User)
+returns String as $Out
+begin
+  declare $Out String = '';
+  loop $U in $Items
+  begin
+    set $Out = $Out + ',';
+  end loop;
+  return $Out;
+end;
+`
+)
+
+// addToFixture executes script and makes its result the fixture restore
+// returns to, so a verdict that writes and restores keeps what script made.
+func (h *harness) addToFixture(script string) {
+	h.t.Helper()
+	if err := h.exec(script); err != nil {
+		h.t.Fatalf("add to the fixture: %v", err)
+	}
+	h.close()
+	h.fixture = readFixture(h.t, h.dir, h.fx.mpr)
+	h.restore()
 }
 
 // An alter exec refuses — here a fragment that returns, inserted before the

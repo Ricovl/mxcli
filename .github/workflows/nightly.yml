@@ -29,6 +29,13 @@ jobs:
     name: test (Mendix ${{ matrix.mendix-version }})
     steps:
       - uses: actions/checkout@v7
+        with:
+          # testdata/testapp (ako/TestApp) is the Studio Pro-authored fixture
+          # the roundtrip suite and mdl/backend/modelsdk read (#743); without it
+          # those tests skip, as push-test.yml's roundtrip/parity jobs know.
+          # upgrade-full-corpus (PedApp only) and the release job do not read
+          # it and check out without it.
+          submodules: true
 
       - uses: actions/setup-go@v7
         with:
