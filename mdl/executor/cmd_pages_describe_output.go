@@ -185,7 +185,9 @@ func appendInputValidationProps(ctx *ExecContext, props []string, w rawWidget) [
 func appendAppearanceProps(ctx *ExecContext, props []string, w rawWidget) []string {
 	// Only when it deviates from Mendix's default, so unchanged widgets keep a
 	// quiet round-trip. Empty means the widget type has no editability at all.
-	if w.Editable != "" && w.Editable != "Always" {
+	// "Conditional" is not authorable: the `Editable: <expr>` printed below is
+	// what makes it conditional, and printing both gives the key twice.
+	if w.Editable != "" && w.Editable != "Always" && !(w.Editable == "Conditional" && w.EditableIf != "") {
 		props = append(props, fmt.Sprintf("Editable: %s", w.Editable))
 	}
 	if w.Class != "" {
