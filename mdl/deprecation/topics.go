@@ -27,7 +27,7 @@ var topics = map[string][]string{
 	QuotedTargetingXPath:        {"workflow.user-task"},
 	OnErrorBraces:               {"microflow.error-handling"},
 	DollarArgumentName:          {"microflow.call"},
-	ColonArgument:               {"microflow.show-page", "page.action"},
+	ColonArgument:               {"microflow.show-page", "page.action", "microflow.call"},
 	WorkflowStringArgument:      {"workflow.call-microflow"},
 	PositionalTemplateArguments: {"microflow.logging", "microflow.validation"},
 	PageActionWord:              {"page.action"},
