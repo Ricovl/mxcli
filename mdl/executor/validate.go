@@ -91,6 +91,11 @@ type scriptContext struct {
 	entityAttrs   map[string]map[string]bool // Module.Entity -> attribute names
 	ambiguousAssc map[string]bool            // names defined in more than one module
 
+	// assocEnds maps each script-declared association (Module.Association) to
+	// its FROM and TO entities, so a retrieve constraint hopping over one
+	// resolves against an entity the project already has.
+	assocEnds map[string][2]string
+
 	// warnings are findings that do not block: dangling references in an
 	// EXCLUDED document, which Mendix itself does not validate. Reported so
 	// that relaxing the check hides nothing.
@@ -123,6 +128,7 @@ func newScriptContext() *scriptContext {
 		associations:      map[string]string{},
 		entityAttrs:       map[string]map[string]bool{},
 		ambiguousAssc:     map[string]bool{},
+		assocEnds:         map[string][2]string{},
 		flowParams:        make(map[string]*flowSignature),
 
 		pageParams:            make(map[string][]string),
@@ -154,6 +160,10 @@ func (sc *scriptContext) recordAssociation(s *ast.CreateAssociationStmt) {
 	if s.Name.Module == "" || s.Name.Name == "" {
 		return
 	}
+	if sc.assocEnds == nil {
+		sc.assocEnds = map[string][2]string{}
+	}
+	sc.assocEnds[s.Name.String()] = [2]string{s.Parent.String(), s.Child.String()}
 	if prev, ok := sc.associations[s.Name.Name]; ok && prev != s.Name.String() {
 		sc.ambiguousAssc[s.Name.Name] = true
 		return

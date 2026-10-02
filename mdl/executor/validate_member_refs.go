@@ -472,6 +472,13 @@ func authoredMembers(prog *ast.Program) map[string]bool {
 			if s.Operation == ast.AlterEntityRenameAttribute {
 				add(s.Name.String(), s.NewName)
 			}
+		case *ast.CreateAssociationStmt:
+			// An association is a member of its ends, assigned by its bare
+			// name: `create M.Child (Child_Parent = $P)`. Without this, a script
+			// that adds an association to entities the project already has was
+			// told the entity "has no member" it had just created.
+			add(s.Parent.String(), s.Name.Name)
+			add(s.Child.String(), s.Name.Name)
 		}
 	}
 	return out
