@@ -282,7 +282,7 @@ func errorHandlerBody(stmt ast.MicroflowStatement) []ast.MicroflowStatement {
 // mapping is how a resolver drifts.
 func DataTypeKind(k ast.DataTypeKind) (exprcheck.TypeKind, bool) {
 	switch k {
-	case ast.TypeString, ast.TypeStringTemplate:
+	case ast.TypeString, ast.TypeStringTemplate, ast.TypeHashedString:
 		return exprcheck.KindString, true
 	case ast.TypeInteger, ast.TypeAutoNumber:
 		return exprcheck.KindInteger, true
