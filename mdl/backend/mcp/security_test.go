@@ -6,10 +6,12 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 )
 
 func TestBuildAccessRuleValue(t *testing.T) {
@@ -74,21 +76,28 @@ func TestRoleSetsEqual(t *testing.T) {
 }
 
 // TestLive_EntityAccessRuleReject exercises the live entity-access read + dedup
-// path WITHOUT writing: it grants a role that already exists on an entity, which
-// must hit the "already exists" rejection (PED is add-only for access rules, so a
-// real write here would not be removable). Skipped unless MXCLI_MCP_URL is set.
+// path: granting a role set that already has a rule on an entity must hit the
+// "already exists" rejection, with no second write (PED is add-only for access
+// rules, so a duplicate could never be removed). Skipped unless MXCLI_MCP_URL is
+// set.
 //
-//	MXCLI_MCP_URL=http://localhost/mcp MXCLI_MCP_DIAL=host.docker.internal:7784 \
-//	MXCLI_MCP_MODULE=ExpenseApproval MXCLI_MCP_ENTITY=Expense MXCLI_MCP_ROLE=ExpenseApproval.Manager \
+// It builds its own fixture in MXCLI_MCP_MODULE (#924): a fresh entity
+// Zz_R12_AccessFixture_<stamp>, plus one rule for MXCLI_MCP_ROLE (default
+// <module>.User). Module roles cannot be authored over MCP, so when that role does
+// not exist the test skips and says which role to set. The fixture is left in
+// place — PED cannot remove the rule, and keeping the entity makes a run
+// inspectable.
+//
+//	MXCLI_MCP_URL=http://localhost/mcp MXCLI_MCP_DIAL=host.docker.internal:7793 \
+//	MXCLI_MCP_MODULE=MyFirstModule MXCLI_MCP_ROLE=MyFirstModule.User \
 //	go test ./mdl/backend/mcp/ -run TestLive_EntityAccessRuleReject -v
 func TestLive_EntityAccessRuleReject(t *testing.T) {
 	url := os.Getenv("MXCLI_MCP_URL")
 	if url == "" {
 		t.Skip("set MXCLI_MCP_URL to run the live MCP integration test")
 	}
-	module := envOr("MXCLI_MCP_MODULE", "ExpenseApproval")
-	entity := envOr("MXCLI_MCP_ENTITY", "Expense")
-	role := envOr("MXCLI_MCP_ROLE", "ExpenseApproval.Manager")
+	module := envOr("MXCLI_MCP_MODULE", "MyFirstModule")
+	role := envOr("MXCLI_MCP_ROLE", module+".User")
 
 	c, err := NewClient(ClientOptions{URL: url, Dial: os.Getenv("MXCLI_MCP_DIAL")})
 	if err != nil {
@@ -98,6 +107,28 @@ func TestLive_EntityAccessRuleReject(t *testing.T) {
 		t.Fatalf("Initialize: %v", err)
 	}
 	b := &Backend{client: c}
+	unit := model.ID(sessionDMPrefix + module)
+
+	// Fixture: a fresh entity with one attribute, and one rule for the role.
+	entity := "Zz_R12_AccessFixture_" + time.Now().Format("0102150405")
+	if err := b.CreateEntity(unit, newPersistentEntity(entity,
+		attr("Title", &domainmodel.StringAttributeType{Length: 200}))); err != nil {
+		t.Fatalf("create fixture entity %s.%s: %v", module, entity, err)
+	}
+	grant := backend.EntityAccessRuleParams{
+		UnitID:              unit,
+		EntityName:          entity,
+		RoleNames:           []string{role},
+		DefaultMemberAccess: "ReadOnly",
+		MemberAccesses: []types.EntityMemberAccess{
+			{AttributeRef: module + "." + entity + ".Title", AccessRights: "ReadOnly"},
+		},
+	}
+	if err := b.AddEntityAccessRule(grant); err != nil {
+		t.Skipf("cannot grant %s on the fixture entity %s.%s (module roles cannot be created over MCP; "+
+			"set MXCLI_MCP_ROLE to an existing role of %s): %v", role, module, entity, module, err)
+	}
+	t.Logf("fixture %s.%s has a rule for %s (left in place)", module, entity, role)
 
 	idx, err := b.entityIndex(module, entity)
 	if err != nil {
@@ -107,20 +138,20 @@ func TestLive_EntityAccessRuleReject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("entityAccessRuleRoleSets: %v", err)
 	}
-	t.Logf("%s.%s has %d access rule(s)", module, entity, len(sets))
+	if len(sets) != 1 {
+		t.Fatalf("fixture has %d access rule(s), want 1", len(sets))
+	}
 
-	// Grant a role that already exists -> must be rejected, with no write.
-	err = b.AddEntityAccessRule(backend.EntityAccessRuleParams{
-		UnitID:              model.ID(sessionDMPrefix + module),
-		EntityName:          entity,
-		RoleNames:           []string{role},
-		DefaultMemberAccess: "ReadOnly",
-	})
+	// Grant the same role again -> must be rejected, with no write.
+	err = b.AddEntityAccessRule(grant)
 	if err == nil {
-		t.Fatal("expected AddEntityAccessRule to reject an existing role set, got nil (a rule may have been written and PED cannot remove it)")
+		t.Fatal("expected AddEntityAccessRule to reject an existing role set, got nil (a duplicate rule may have been written and PED cannot remove it)")
 	}
 	if !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("expected an 'already exists' rejection, got: %v", err)
+	}
+	if sets, err := b.entityAccessRuleRoleSets(module, idx); err != nil || len(sets) != 1 {
+		t.Fatalf("after the rejected grant: %d rule(s), err %v; want 1", len(sets), err)
 	}
 }
 
