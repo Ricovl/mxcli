@@ -672,6 +672,21 @@ func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) err
 	if len(s.Rights) > 0 {
 		// Partial revoke — downgrade specific rights
 		revocation := types.EntityAccessRevocation{}
+		// A member access is stored against the entity that DECLARES the
+		// member, so an inherited one is `System.FileDocument.HasContents`,
+		// not `Mod.Doc.HasContents`. Qualifying every name with this entity
+		// matched no stored entry for an inherited member, and the revoke
+		// answered "No access rules found" while the rule held ReadWrite.
+		memberRef := map[string]string{}
+		for _, mem := range EntityMembers(ctx, module.Name+"."+s.Entity.Name) {
+			memberRef[mem.Name] = mem.Ref
+		}
+		qualify := func(m string) string {
+			if ref, ok := memberRef[m]; ok {
+				return ref
+			}
+			return module.Name + "." + s.Entity.Name + "." + m
+		}
 		for _, right := range s.Rights {
 			switch right.Type {
 			case ast.EntityAccessCreate:
@@ -685,12 +700,12 @@ func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) err
 			case ast.EntityAccessReadMembers:
 				for _, m := range right.Members {
 					revocation.RevokeReadMembers = append(revocation.RevokeReadMembers,
-						module.Name+"."+s.Entity.Name+"."+m)
+						qualify(m))
 				}
 			case ast.EntityAccessWriteMembers:
 				for _, m := range right.Members {
 					revocation.RevokeWriteMembers = append(revocation.RevokeWriteMembers,
-						module.Name+"."+s.Entity.Name+"."+m)
+						qualify(m))
 				}
 			}
 		}

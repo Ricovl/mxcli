@@ -111,3 +111,39 @@ func TestSystemAttributeWriteForbidden(t *testing.T) {
 		t.Error("WriteRightsForbidden must honour the system read-only cause, and only it")
 	}
 }
+
+// `revoke write (Name)` on a FileDocument specialization — an INHERITED member
+// — answered "No access rules found matching …" and changed nothing while the
+// rule held ReadWrite: the member was qualified with the specialization
+// (ModG.Doc.Name) and the stored entry is qualified with the declaring entity
+// (System.FileDocument.Name). The entity's own Title is the control; it was
+// always found.
+func TestRevokeWriteMember_InheritedMemberIsFound(t *testing.T) {
+	exec, out, _ := openPedAppCopy(t)
+	const src = `mdl 1;
+create module ModG;
+create module role ModG.User;
+create persistent entity ModG.Doc extends System.FileDocument (Title: String(100));
+grant read *, write * on entity ModG.Doc to ModG.User;`
+	if err := agreeExec(t, exec, src); err != nil {
+		t.Fatalf("setup: %v\n%s", err, out.String())
+	}
+	if got := storedMemberRights(t, exec, "ModG", "Doc")["System.FileDocument.Name"]; got != "ReadWrite" {
+		t.Fatalf("setup: inherited Name = %q, want ReadWrite", got)
+	}
+
+	out.Reset()
+	if err := agreeExec(t, exec, "mdl 1;\nrevoke write (\"Name\", \"Title\") on entity ModG.Doc from ModG.User;"); err != nil {
+		t.Fatalf("revoke: %v\n%s", err, out.String())
+	}
+	if strings.Contains(out.String(), "No access rules found") {
+		t.Errorf("revoke reported nothing to revoke while the rule held ReadWrite:\n%s", out.String())
+	}
+	rights := storedMemberRights(t, exec, "ModG", "Doc")
+	if got := rights["System.FileDocument.Name"]; got != "ReadOnly" {
+		t.Errorf("inherited Name after revoke write = %q, want ReadOnly", got)
+	}
+	if got := rights["ModG.Doc.Title"]; got != "ReadOnly" {
+		t.Errorf("control: own Title after revoke write = %q, want ReadOnly", got)
+	}
+}
