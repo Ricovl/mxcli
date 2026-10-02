@@ -673,6 +673,18 @@ preserving the attribute's `$ID`/column data), and no structural change → in-p
 no-op'd; reliable detection depends on the enriched reconstruction carrying real
 types, so a documentation edit on a dirty module is never mistaken for a type change.
 
+**CREATE ENTITY's attributes are PlainObjects, and no constructor has a length**
+(#923, measured on 11.14 "1.0.0" and 11.15.0-rc.4). Nested in the
+`DomainModels$Entity` constructor, `attributes` is `PlainObject<{name, type,
+enumerationName}>[]` — **not** `DomainModels$Attribute` constructors. Sent with a
+`$Type`, an attribute is accepted, passes `ped_check_errors`, and is stored as
+**String(200) whatever its `type`**; the standalone `add` at
+`/entities/N/attributes` *is* a `DomainModels$Attribute` constructor and takes the
+`$Type`. Neither shape carries a String length, so `applyAttributeLengths` sets
+`/entities/N/attributes/M/type/length` after the create or add for every String not
+at the schema default 200 (0 is "unlimited"). `TestLive_CreateEntityAttributeTypes`
+reads each type and length back.
+
 `CREATE WORKFLOW` maps the executor's workflow onto `Workflows$Workflow`
 (parameter + a linear `Workflows$Flow` of activities Start … End, connected via
 condition outcomes that may nest sub-flows). Activity-type coverage: Start/End,

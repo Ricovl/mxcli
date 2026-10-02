@@ -13,8 +13,10 @@ import (
 
 // contactAlterPED scripts a live entity "Contact" (index 0) with two attributes,
 // FirstName and Email, so UpdateEntity's entityIndex + liveAttributeNames reads
-// resolve. Everything else succeeds.
+// resolve. Everything else succeeds. Once an attribute add has been written,
+// Status is live too, so the follow-up length set (#923) resolves its index.
 func contactAlterPED(t *testing.T) *fakePED {
+	added := false
 	return newFakePED(t, func(name string, args map[string]any) (string, bool) {
 		switch name {
 		case "ped_read_document":
@@ -26,12 +28,19 @@ func contactAlterPED(t *testing.T) *fakePED {
 			case "/entities":
 				return `{"results":[{"result":[{"name":"Contact"}]}]}`, false
 			case "/entities/0/attributes":
+				if added {
+					return `{"results":[{"result":[{"$QualifiedName":"M.Contact.FirstName"},{"$QualifiedName":"M.Contact.Email"},{"$QualifiedName":"M.Contact.Status"}]}]}`, false
+				}
 				return `{"results":[{"result":[{"$QualifiedName":"M.Contact.FirstName"},{"$QualifiedName":"M.Contact.Email"}]}]}`, false
 			}
 			return `{"results":[{"result":[]}]}`, false
 		case "ped_check_errors":
 			return "No errors found.", false
-		default: // ped_get_schema, ped_update_document
+		case "ped_update_document":
+			raw, _ := json.Marshal(args["operations"])
+			added = added || strings.Contains(string(raw), `"type":"add"`)
+			return "SUCCESS", false
+		default: // ped_get_schema
 			return "SUCCESS", false
 		}
 	})

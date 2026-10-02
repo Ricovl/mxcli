@@ -51,7 +51,9 @@ func TestBuildEntityValue_PlainEntity(t *testing.T) {
 	}
 	for i, w := range want {
 		got := v.Attributes[i]
-		if got.SType != "DomainModels$Attribute" || got.Name != w.name || got.Type != w.typ {
+		// Nested in the entity constructor an attribute is a PlainObject — no
+		// $Type, or PED stores it as String(200) (#923).
+		if got.SType != "" || got.Name != w.name || got.Type != w.typ {
 			t.Errorf("attr[%d] = %+v, want name=%s type=%s", i, got, w.name, w.typ)
 		}
 	}
@@ -345,7 +347,11 @@ func pedReadResponder(values map[string]string) func(string, map[string]any) (st
 		if name == "ped_check_errors" {
 			return "No errors found.", false
 		}
-		if name != "ped_read_document" {
+		switch name {
+		case "ped_check_errors":
+			return "No errors found.", false
+		case "ped_read_document":
+		default:
 			return "SUCCESS", false
 		}
 		paths, _ := args["paths"].([]any)
@@ -443,5 +449,85 @@ func TestApplyInPlace_NoChangeIsNoOp(t *testing.T) {
 	}
 	if _, sent := f.callByName("ped_update_document"); sent {
 		t.Error("an identical-state ALTER must not write")
+	}
+}
+
+// TestCreateEntity_AttributeTypesAndLengthsOnTheWire pins the payload shape #923
+// is about. The entity constructor's attributes are PlainObjects: with a `$Type`
+// on them both the 11.14 and 11.15 servers ignore `type` and store String(200).
+// And since no constructor carries a String length, a non-default length must be
+// set afterwards on the attribute's type/length leaf.
+func TestCreateEntity_AttributeTypesAndLengthsOnTheWire(t *testing.T) {
+	f := newFakePED(t, func(name string, args map[string]any) (string, bool) {
+		switch name {
+		case "ped_check_errors":
+			return "No errors found.", false
+		case "ped_read_document":
+		default:
+			return "SUCCESS", false
+		}
+		paths, _ := args["paths"].([]any)
+		if len(paths) == 1 && paths[0] == "/entities/0/attributes" {
+			return `{"results":[{"path":"/entities/0/attributes","result":[` +
+				`{"$QualifiedName":"M.Order.Code"},{"$QualifiedName":"M.Order.Title"},` +
+				`{"$QualifiedName":"M.Order.Notes"},{"$QualifiedName":"M.Order.Paid"}]}]}`, false
+		}
+		return `{"results":[{"path":"/entities","result":[{"name":"Order"}]}]}`, false
+	})
+	b := &Backend{client: f.connectClient(t)}
+
+	e := newPersistentEntity("Order",
+		attr("Code", &domainmodel.StringAttributeType{Length: 50}),
+		attr("Title", &domainmodel.StringAttributeType{Length: 200}),
+		attr("Notes", &domainmodel.StringAttributeType{Length: 0}),
+		attr("Paid", &domainmodel.BooleanAttributeType{}),
+	)
+	if err := b.CreateEntity(model.ID(sessionDMPrefix+"M"), e); err != nil {
+		t.Fatalf("CreateEntity: %v", err)
+	}
+
+	var updates []string
+	for _, c := range f.calls {
+		if c.Name == "ped_update_document" {
+			raw, _ := json.Marshal(c.Args["operations"])
+			updates = append(updates, string(raw))
+		}
+	}
+	if len(updates) != 2 {
+		t.Fatalf("got %d ped_update_document calls, want 2 (entity add, length sets): %v", len(updates), updates)
+	}
+
+	var ops []struct {
+		Operation struct {
+			Value struct {
+				Attributes []map[string]any `json:"attributes"`
+			} `json:"value"`
+		} `json:"operation"`
+	}
+	if err := json.Unmarshal([]byte(updates[0]), &ops); err != nil || len(ops) != 1 {
+		t.Fatalf("entity add: %v %s", err, updates[0])
+	}
+	attrs := ops[0].Operation.Value.Attributes
+	wantTypes := []string{"String", "String", "String", "Boolean"}
+	for i, a := range attrs {
+		if _, has := a["$Type"]; has {
+			t.Errorf("nested attribute %v carries $Type — PED then stores it as String(200)", a["name"])
+		}
+		if a["type"] != wantTypes[i] {
+			t.Errorf("attribute %v type = %v, want %s", a["name"], a["type"], wantTypes[i])
+		}
+	}
+
+	// Lengths: only the non-default ones (0 is "unlimited"), at the live index.
+	for _, want := range []string{
+		`{"operation":{"type":"set","value":50},"path":"/entities/0/attributes/0/type/length"}`,
+		`{"operation":{"type":"set","value":0},"path":"/entities/0/attributes/2/type/length"}`,
+	} {
+		if !strings.Contains(updates[1], want) {
+			t.Errorf("length ops missing %s: %s", want, updates[1])
+		}
+	}
+	if strings.Contains(updates[1], "/attributes/1/") || strings.Contains(updates[1], "/attributes/3/") {
+		t.Errorf("length set on a default-length or non-String attribute: %s", updates[1])
 	}
 }
