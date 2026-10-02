@@ -95,7 +95,7 @@ func CheckSource(content, path string) (CheckedSource, error) {
 		// A void microflow needs no RETURN, so the wrapper is two fragments and
 		// the body between them is exactly what the author typed.
 		place(out, first-1, fmt.Sprintf("CREATE OR MODIFY MICROFLOW %s.%s () BEGIN", mxTestModule, checkFlowName(tc, i)))
-		place(out, first+len(body), "END; /")
+		place(out, first+len(body), "END;")
 	}
 
 	return CheckedSource{MDL: strings.Join(out, "\n"), Problems: problems}, nil
