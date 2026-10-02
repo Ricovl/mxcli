@@ -103,6 +103,21 @@ func defaultDocumentAccessRoles(ctx *ExecContext, module *model.Module) []model.
 	return []model.ID{model.ID(module.Name + "." + autoDocumentRoleName)}
 }
 
+// reportAutoRoleGrant tells the user that a document exec just CREATED was
+// granted to the auto-created <Module>.User role. Without it the grant is
+// invisible, and because GRANT only adds roles, a later
+// `grant view on page M.P to M.Admin` leaves the page open to every user role
+// mapped to M.User — which surprised the people who hit it. roles is what
+// defaultDocumentAccessRoles returned: empty (the module manages its own roles)
+// prints nothing.
+func reportAutoRoleGrant(ctx *ExecContext, roles []model.ID) {
+	if ctx == nil || ctx.Quiet || len(roles) == 0 {
+		return
+	}
+	fmt.Fprintf(ctx.Output, "  access: granted to auto-created role %s (the module has no other roles; a later grant adds to it — revoke it to narrow access)\n",
+		roles[0])
+}
+
 func moduleUsesAutoDocumentRole(ms *security.ModuleSecurity) bool {
 	if ms == nil {
 		return false
