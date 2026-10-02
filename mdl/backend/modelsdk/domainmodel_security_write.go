@@ -11,6 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	genDm "github.com/mendixlabs/mxcli/modelsdk/gen/domainmodels"
+	"github.com/mendixlabs/mxcli/modelsdk/meta"
 	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 )
 
@@ -450,7 +451,7 @@ func (b *Backend) ReconcileMemberAccesses(unitID model.ID, moduleName string) (i
 				qn := moduleName + "." + ownerName + "." + a.Name()
 				_, isCalc := a.Value().(*genDm.CalculatedValue)
 				_, isAuto := a.Type().(*genDm.AutoNumberAttributeType)
-				noWrite := types.WriteRightsForbidden(isCalc, isAuto)
+				noWrite := types.WriteRightsForbidden(isCalc, isAuto, meta.SystemAttributeWriteForbidden(qn))
 				attrs = append(attrs, attrInfo{qn, noWrite})
 				attrSet[qn] = true
 				if noWrite {
@@ -595,6 +596,16 @@ func (b *Backend) ReconcileMemberAccesses(unitID model.ID, moduleName string) (i
 						// cannot be validated at this layer at all. Preserve what cannot
 						// be checked instead of dropping it.
 						covAttr[attrRef] = true
+						// A System attribute IS known without loading anything, and two
+						// refuse write rights (CE6592): a rule written before that was
+						// known carries HasContents ReadWrite, and `update security`
+						// is the repair, so it downgrades here.
+						if meta.SystemAttributeWriteForbidden(attrRef) {
+							if r := ma.AccessRights(); r == "ReadWrite" || r == "WriteOnly" {
+								ma.SetAccessRights("ReadOnly")
+								changed = true
+							}
+						}
 					default:
 						// Genuinely stale: the reference claims to be this entity's own
 						// attribute and the entity no longer has it.

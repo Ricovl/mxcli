@@ -760,9 +760,22 @@ func (v *microflowValidator) checkXPathAssociationEmpty(variable, xpath string) 
 // retrieve constraint are CE0161 "Error(s) in XPath constraint" while
 // `starts-with(Title, 'X')` builds clean (mendixlabs/mxcli#1213). The list is
 // the measured pairs, not every function the two languages spell differently.
+//
+// getKey has no XPath counterpart because XPath needs none: measured on mxbuild
+// 11.14.0, `[St = getKey($S)]` (St an enumeration attribute, $S an enumeration
+// variable) is CE0161 while `[St = $S]` builds clean. Its entry is therefore
+// empty, and the fix is in xpathExpressionOnlyFunctionFixes.
 var xpathExpressionOnlyFunctions = map[string]string{
 	"startsWith": "starts-with",
 	"endsWith":   "ends-with",
+	"getKey":     "",
+}
+
+// xpathExpressionOnlyFunctionFixes is the hint for an expression-only function
+// XPath has no counterpart for.
+var xpathExpressionOnlyFunctionFixes = map[string]string{
+	"getKey": "XPath compares an enumeration attribute with an enumeration value directly — " +
+		"drop the getKey(): `[Status = $EnumVariable]`, or a literal `[Status = 'Key']`.",
 }
 
 // xpathFunctionCallRe matches a function call and the character before it. A
@@ -785,11 +798,14 @@ func xpathExpressionFunctionHits(xpath string) []string {
 // retrieve constraint.
 func (v *microflowValidator) checkXPathFunctionNames(variable, xpath string) {
 	for _, fn := range xpathExpressionFunctionHits(xpath) {
-		xp := xpathExpressionOnlyFunctions[fn]
+		fix := xpathExpressionOnlyFunctionFixes[fn]
+		if xp := xpathExpressionOnlyFunctions[fn]; xp != "" {
+			fix = fmt.Sprintf("Use the XPath function `%s()` in a retrieve constraint.", xp)
+		}
 		v.addViolation("MDL091", linter.SeverityError,
 			fmt.Sprintf("retrieve '$%s' constraint calls `%s()`, which is a Mendix expression function — XPath "+
 				"does not have it, and mxbuild reports CE0161 \"Error(s) in XPath constraint\"", variable, fn),
-			fmt.Sprintf("Use the XPath function `%s()` in a retrieve constraint.", xp))
+			fix)
 	}
 }
 

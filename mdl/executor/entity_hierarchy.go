@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
+	"github.com/mendixlabs/mxcli/modelsdk/meta"
 
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 )
@@ -31,6 +32,10 @@ type EntityMember struct {
 	// not a caller's.
 	IsCalculated bool
 	IsAutoNumber bool
+	// IsSystemReadOnly is the third CE6592 cause: a System attribute the
+	// platform maintains (System.FileDocument.HasContents,
+	// System.Image.PublicThumbnailPath), measured in meta.SystemAttrDef.
+	IsSystemReadOnly bool
 }
 
 // EntityMembers returns every member of an entity's access surface: its own
@@ -100,11 +105,12 @@ func EntityMembersFor(b entityLookupBackend, entityQN string) []EntityMember {
 			}
 			claimed[attr.Name] = true
 			out = append(out, EntityMember{
-				Name:         attr.Name,
-				Ref:          currentQN + "." + attr.Name,
-				Inherited:    depth > 0,
-				IsCalculated: attr.Value != nil && attr.Value.Type == "CalculatedValue",
-				IsAutoNumber: isAutoNumberAttr(attr),
+				Name:             attr.Name,
+				Ref:              currentQN + "." + attr.Name,
+				Inherited:        depth > 0,
+				IsCalculated:     attr.Value != nil && attr.Value.Type == "CalculatedValue",
+				IsAutoNumber:     isAutoNumberAttr(attr),
+				IsSystemReadOnly: meta.SystemAttributeWriteForbidden(currentQN + "." + attr.Name),
 			})
 		}
 		currentQN = entity.GeneralizationRef

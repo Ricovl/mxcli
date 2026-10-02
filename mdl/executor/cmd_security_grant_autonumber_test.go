@@ -123,3 +123,79 @@ func TestGrantWriteAll_AutoNumberDowngradedToReadOnly(t *testing.T) {
 		t.Errorf("plain attribute rights = %q, want ReadWrite — the grant asked for write", got)
 	}
 }
+
+// TestGrantWriteAll_SystemReadOnlyAttributeAtTheWrite pins the GRANT's own
+// rule, before any reconcile runs: `grant write *` on a System.FileDocument
+// specialization must write HasContents ReadOnly (CE6592 otherwise, measured on
+// mxbuild 11.14.0), and keep the inherited Name — measured clean with write —
+// at ReadWrite. The PedApp test covers the stored result; this one the writer.
+func TestGrantWriteAll_SystemReadOnlyAttributeAtTheWrite(t *testing.T) {
+	mod := mkModule("Docs")
+	sys := mkModule("System")
+	doc := &domainmodel.Entity{
+		BaseElement:       model.BaseElement{ID: model.ID("e-doc")},
+		Name:              "Doc",
+		GeneralizationRef: "System.FileDocument",
+		Attributes:        []*domainmodel.Attribute{{Name: "Title", Type: &domainmodel.StringAttributeType{Length: 100}}},
+	}
+	fileDoc := &domainmodel.Entity{
+		BaseElement: model.BaseElement{ID: model.ID("System.FileDocument")},
+		Name:        "FileDocument",
+		Attributes: []*domainmodel.Attribute{
+			{Name: "Name", Type: &domainmodel.StringAttributeType{Length: 400}},
+			{Name: "HasContents", Type: &domainmodel.BooleanAttributeType{}},
+		},
+	}
+	dm := &domainmodel.DomainModel{BaseElement: model.BaseElement{ID: "dm-docs"}, ContainerID: mod.ID, Entities: []*domainmodel.Entity{doc}}
+	sysDm := &domainmodel.DomainModel{BaseElement: model.BaseElement{ID: "dm-sys"}, ContainerID: sys.ID, Entities: []*domainmodel.Entity{fileDoc}}
+
+	var captured *backend.EntityAccessRuleParams
+	mb := &mock.MockBackend{
+		IsConnectedFunc: func() bool { return true },
+		ListModulesFunc: func() ([]*model.Module, error) { return []*model.Module{mod, sys}, nil },
+		GetModuleByNameFunc: func(n string) (*model.Module, error) {
+			if n == "System" {
+				return sys, nil
+			}
+			return mod, nil
+		},
+		ListDomainModelsFunc: func() ([]*domainmodel.DomainModel, error) { return []*domainmodel.DomainModel{dm, sysDm}, nil },
+		GetDomainModelFunc: func(id model.ID) (*domainmodel.DomainModel, error) {
+			if id == sys.ID {
+				return sysDm, nil
+			}
+			return dm, nil
+		},
+		GetModuleSecurityFunc: func(model.ID) (*security.ModuleSecurity, error) {
+			return &security.ModuleSecurity{ModuleRoles: []*security.ModuleRole{{Name: "User"}}}, nil
+		},
+		AddEntityAccessRuleFunc: func(p backend.EntityAccessRuleParams) error {
+			cp := p
+			captured = &cp
+			return nil
+		},
+		ReconcileMemberAccessesFunc: func(model.ID, string) (int, error) { return 0, nil },
+	}
+	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(mkHierarchy(mod)))
+	stmt := &ast.GrantEntityAccessStmt{
+		Entity: ast.QualifiedName{Module: "Docs", Name: "Doc"},
+		Roles:  []ast.QualifiedName{{Module: "Docs", Name: "User"}},
+		Rights: []ast.EntityAccessRight{{Type: ast.EntityAccessReadAll}, {Type: ast.EntityAccessWriteAll}},
+	}
+	if err := execGrantEntityAccess(ctx, stmt); err != nil {
+		t.Fatalf("grant failed: %v", err)
+	}
+	if captured == nil {
+		t.Fatal("no access rule written")
+	}
+	rights := map[string]string{}
+	for _, ma := range captured.MemberAccesses {
+		rights[ma.AttributeRef] = ma.AccessRights
+	}
+	if got := rights["System.FileDocument.HasContents"]; got != "ReadOnly" {
+		t.Errorf("HasContents = %q, want ReadOnly (CE6592); all: %v", got, rights)
+	}
+	if got := rights["System.FileDocument.Name"]; got != "ReadWrite" {
+		t.Errorf("control: inherited Name = %q, want ReadWrite; all: %v", got, rights)
+	}
+}

@@ -327,6 +327,12 @@ func (v *xpathMemberVisitor) noteQualified(qn, cur string) {
 	if v.model.IsEntity(qn) {
 		return
 	}
+	// System.owner / System.changedBy are associations every entity is
+	// addressed through in XPath; whether the entity STORES the member is
+	// validateRetrieveConstraints' question, with its own message and fix.
+	if _, ok := xpathSystemAssociations[qn]; ok {
+		return
+	}
 	// Only report when the entity it would have hung off is itself KNOWN.
 	//
 	// Without this the check fires on a constraint whose base entity the project
@@ -363,6 +369,8 @@ func (v *xpathMemberVisitor) walkPath(steps []ast.XPathStep, cur string) {
 			qn := e.QualifiedName.String()
 			if t, ok := v.model.AssociationTarget(qn, cur); ok {
 				next = t
+			} else if t, ok := xpathSystemAssociations[qn]; ok {
+				next = t
 			} else if v.model.IsEntity(qn) {
 				next = qn
 			} else {
@@ -378,8 +386,26 @@ func (v *xpathMemberVisitor) walkPath(steps []ast.XPathStep, cur string) {
 
 // xpathImplicitMembers are the bare names XPath resolves on every entity
 // without the entity declaring an attribute of that name.
+//
+// owner and changedBy are NOT among them: they are ASSOCIATIONS to System.User,
+// addressed as System.owner / System.changedBy. Measured on mxbuild 11.14.0, on
+// a System.FileDocument specialization (which stores both):
+//
+//	[System.owner = '[%CurrentUser%]']   clean
+//	[owner = '[%CurrentUser%]']          CE0161
+//	[System.Owner = '[%CurrentUser%]']   CE1613
+//
+// Listing the bare names here accepted the CE0161 spelling, and the qualified
+// one — the only one that builds — was reported as naming nothing.
 var xpathImplicitMembers = map[string]bool{
-	"id": true, "createdDate": true, "changedDate": true, "owner": true, "changedBy": true,
+	"id": true, "createdDate": true, "changedDate": true,
+}
+
+// xpathSystemAssociations are the system members XPath addresses as an
+// association, mapped to the entity the hop lands on.
+var xpathSystemAssociations = map[string]string{
+	"System.owner":     "System.User",
+	"System.changedBy": "System.User",
 }
 
 // execXPathModel answers xpathrefs.Model from the connected project.

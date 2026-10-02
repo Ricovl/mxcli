@@ -104,6 +104,16 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		if err := checkGeneralizationQualified(s.Name, *s.Generalization); err != nil {
 			return err
 		}
+		// An Auto* system member on a specialization has nowhere to be stored:
+		// say it is inherited, or refuse it, rather than drop it silently.
+		// Before the module is auto-created, so a refusal leaves nothing behind.
+		warnings, err := checkSpecializationSystemMembers(ctx, s.Name.String(), s.Generalization.String(), s.Attributes, false)
+		for _, w := range warnings {
+			fmt.Fprintf(ctx.Output, "⚠ %s\n", w)
+		}
+		if err != nil {
+			return err
+		}
 	}
 
 	// Find or auto-create module
@@ -1153,6 +1163,16 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		}
 		if isViewEntity(entity) {
 			return viewEntityAttributeSetRefusal(s.Name.String(), "add", a.Name)
+		}
+		// A specialization cannot store a system member (see
+		// checkSpecializationSystemMembers): setting the flag here would be
+		// dropped by the writer, which stores none on a Generalization.
+		if entity.GeneralizationRef != "" && systemMemberOfPseudoType(a.Type.Kind) != "" {
+			warnings, err := checkSpecializationSystemMembers(ctx, s.Name.String(), entity.GeneralizationRef, []ast.Attribute{*a}, false)
+			for _, w := range warnings {
+				fmt.Fprintf(ctx.Output, "⚠ %s\n", w)
+			}
+			return err
 		}
 		// Pseudo-types: set entity flags instead of adding real attributes
 		switch a.Type.Kind {
