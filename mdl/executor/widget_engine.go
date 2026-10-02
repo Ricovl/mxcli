@@ -1432,8 +1432,11 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 
 	case "CaptionAttribute":
 		if captionAttr := w.GetStringProp("CaptionAttribute"); captionAttr != "" {
+			// Qualified with the entity that DECLARES the attribute, as every
+			// other attribute mapping is: an inherited caption qualified with
+			// the specialization is CE1613 at build time.
 			if entity := e.entityContextFor(mapping.PropertyKey); !strings.Contains(captionAttr, ".") && entity != "" {
-				captionAttr = entity + "." + captionAttr
+				captionAttr = e.pageBuilder.resolveAttributePathForEntity(captionAttr, entity)
 			}
 			ctx.AttributePath = captionAttr
 		}
