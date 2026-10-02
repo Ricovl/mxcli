@@ -52,6 +52,10 @@ Dockerfile text eol=lf
 *.cdx.json binary
 bun.lock binary
 
+# mxbuild's generated Java, kept byte for byte: its CRLF line endings are part
+# of what the generator is tested against.
+sdk/javaactions/testdata/mxbuild/* -text
+
 # Append-only knowledge files use git's union merge driver.
 #
 # Every bug fix appends one finding, so two concurrent fixes write to the same
