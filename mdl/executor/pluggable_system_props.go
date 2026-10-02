@@ -2,9 +2,12 @@
 
 // Visibility and editability on pluggable widgets.
 //
-// A pluggable widget opts into them per package: its widget XML declares
-// <systemProperty key="Visibility"/> and/or <systemProperty key="Editability"/>
-// (Combobox.xml has both; Switch.xml only Editability; Datagrid.xml neither).
+// Editability is opt-in per package: its widget XML declares
+// <systemProperty key="Editability"/> (Combobox.xml and Switch.xml do,
+// Datagrid.xml does not). Visibility is available on every pluggable widget —
+// a declared <systemProperty key="Visibility"/> only places it in the widget's
+// own tabs; Studio Pro stores conditional visibility on a Datagrid whose Type
+// declares none (TestApp WorkflowCommons.UserTask_Assign).
 // Studio Pro then stores the settings on the CustomWidgets$CustomWidget itself
 // — ConditionalVisibilitySettings, Editable, ConditionalEditabilitySettings,
 // the same Forms$ elements a text box carries — and NOT as a WidgetProperty in
@@ -85,9 +88,12 @@ func systemPropsOfType(rawType any) (map[string]bool, bool) {
 // the widget does not declare.
 func undeclaredSystemProps(w *ast.WidgetV3, declared map[string]bool) []string {
 	var missing []string
-	if widgetAsksVisibility(w) && !declared[sysPropVisibility] {
-		missing = append(missing, sysPropVisibility)
-	}
+	// Visibility is not gated: Studio Pro offers conditional visibility on
+	// every pluggable widget, declared or not — TestApp's Studio Pro-authored
+	// WorkflowCommons.UserTask_Assign stores ConditionalVisibilitySettings on
+	// a Datagrid whose Type declares no Visibility system property. Refusing
+	// it made describe → exec of that page fail. A declared Visibility only
+	// places the setting in the widget's own property tabs.
 	if widgetAsksEditability(w) && !declared[sysPropEditability] {
 		missing = append(missing, sysPropEditability)
 	}
