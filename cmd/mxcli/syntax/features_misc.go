@@ -167,7 +167,7 @@ func init() {
 			"-- plain CREATE.\n" +
 			"--\n" +
 			"-- It is not CREATE OR MODIFY, which makes the stored element match the\n" +
-			"-- statement. Writing both is refused as MDL067. DESCRIBE never emits it.\n" +
+			"-- statement. Writing both is refused as MDL085. DESCRIBE never emits it.\n" +
 			"--\n" +
 			"-- Every CREATE that names one element accepts it. Not accepted where\n" +
 			"-- there is no one named element to test: ANNOTATION, INDEX (use ALTER\n" +

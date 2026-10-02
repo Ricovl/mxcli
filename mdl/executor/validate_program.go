@@ -39,7 +39,7 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		if alterStmt, ok := stmt.(*ast.AlterEntityStmt); ok {
 			violations = append(violations, ValidateAlterEntity(alterStmt)...)
 		}
-		// An association carries the same pair of contradictory guards (MDL067),
+		// An association carries the same pair of contradictory guards (MDL085),
 		// and its FROM entity must live in the module it is declared in (MDL070) —
 		// the remote-parent form writes a project that cannot be opened.
 		if assocStmt, ok := stmt.(*ast.CreateAssociationStmt); ok {

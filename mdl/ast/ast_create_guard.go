@@ -17,7 +17,7 @@ type CreateGuard struct {
 	IfNotExists bool
 	// GuardWithOrModify records that the same statement also said
 	// `create or modify` (or its alias `or replace`). The two guards contradict
-	// each other, which check reports as MDL067.
+	// each other, which check reports as MDL085.
 	GuardWithOrModify bool
 }
 

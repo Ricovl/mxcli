@@ -10,11 +10,15 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
-// TestMDL067RejectsContradictoryGuards covers the one combination the grammar
+// TestMDL085RejectsContradictoryGuards covers the one combination the grammar
 // allows and nobody can mean: OR MODIFY rebuilds an existing element from the
 // statement, IF NOT EXISTS leaves it untouched. Written together one is
 // silently ignored, and which one is not readable from the statement.
-func TestMDL067RejectsContradictoryGuards(t *testing.T) {
+//
+// The rule was MDL067 until it was found sharing that id with the bare-commit
+// note (validate_commit_events.go): one id naming both an error and an
+// unrelated info note made the id useless for looking a diagnostic up.
+func TestMDL085RejectsContradictoryGuards(t *testing.T) {
 	for _, src := range []string{
 		`create or modify entity if not exists M."Game" ("Level": string(20));`,
 		`create or modify association if not exists M.Move_Game from M.Move to M.Game;`,
@@ -33,12 +37,15 @@ func TestMDL067RejectsContradictoryGuards(t *testing.T) {
 		}
 		var got []string
 		for _, v := range ValidateProgram(prog, "") {
-			if v.RuleID == "MDL067" {
+			switch v.RuleID {
+			case "MDL085":
 				got = append(got, v.Message+" / "+v.Suggestion)
+			case "MDL067":
+				t.Errorf("%s\n  reported as MDL067, the bare-commit note's id: %s", src, v.Message)
 			}
 		}
 		if len(got) != 1 {
-			t.Fatalf("%s\n  MDL067 fired %d times, want 1", src, len(got))
+			t.Fatalf("%s\n  MDL085 fired %d times, want 1", src, len(got))
 		}
 		if !strings.Contains(got[0], "if not exists") || !strings.Contains(got[0], "or modify") {
 			t.Errorf("the message should name both halves, got: %s", got[0])
@@ -46,10 +53,10 @@ func TestMDL067RejectsContradictoryGuards(t *testing.T) {
 	}
 }
 
-// TestMDL067LeavesEitherGuardAlone is the control. Each spelling on its own is
+// TestMDL085LeavesEitherGuardAlone is the control. Each spelling on its own is
 // the whole point of the feature, so a rule that fires on them would be worse
 // than no rule.
-func TestMDL067LeavesEitherGuardAlone(t *testing.T) {
+func TestMDL085LeavesEitherGuardAlone(t *testing.T) {
 	for _, src := range []string{
 		`create entity if not exists M."Game" ("Level": string(20));`,
 		`create or modify entity M."Game" ("Level": string(20));`,
@@ -66,8 +73,8 @@ func TestMDL067LeavesEitherGuardAlone(t *testing.T) {
 			t.Fatalf("%s\n  parse errors: %v", src, errs)
 		}
 		for _, v := range ValidateProgram(prog, "") {
-			if v.RuleID == "MDL067" {
-				t.Errorf("MDL067 fired on a valid statement:\n  %s\n  %s", src, v.Message)
+			if v.RuleID == "MDL085" {
+				t.Errorf("MDL085 fired on a valid statement:\n  %s\n  %s", src, v.Message)
 			}
 		}
 	}

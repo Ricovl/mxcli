@@ -289,7 +289,7 @@ func documentListed(ctx *ExecContext, items any, qn ast.QualifiedName) (bool, er
 }
 
 // validateCreateGuardContradiction reports `create or modify … if not exists`
-// (MDL067) on every guarded document kind. The two guards contradict each
+// (MDL085) on every guarded document kind. The two guards contradict each
 // other: `or modify` makes the stored element match the statement, `if not
 // exists` leaves it untouched, and which one wins is not readable from the
 // statement. Entities and associations report it from their own flags.
