@@ -36,9 +36,10 @@ var (
 // goroutine (page widget extraction runs in parallel). An empty or unset value
 // means DefaultTextLanguage, so nothing that forgets to set it regresses.
 //
-// This governs CREATION of a new text only. Editing an existing Texts$Text keeps
-// whatever LanguageCode is stored — that is where the language belongs once a
-// text exists, and no ambient default should override it.
+// It also names the translation ALTER PAGE edits in an existing Texts$Text
+// (pagemutator.setTextsTextTranslation): that entry is updated or added, and
+// the other languages' translations are kept — the language DESCRIBE shows is
+// the one a SET writes.
 func AuthoringLanguage() string {
 	textLangMu.RLock()
 	defer textLangMu.RUnlock()

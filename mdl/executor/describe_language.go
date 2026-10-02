@@ -131,8 +131,9 @@ func pickTextTranslation(t *model.Text, preferredLang string) string {
 // language CREATE wrote, or describe -> exec stops round-tripping on any project
 // whose default is not en_US.
 //
-// This governs CREATION only. Editing an existing text (ALTER PAGE … SET Caption)
-// updates the stored Texts$Translation in place and keeps whatever LanguageCode
-// is already there — measured, and the reason the writer-layer fallbacks are a
-// smaller problem than their count suggests.
+// Editing an existing text (ALTER PAGE … SET Caption/Title/Label/Content) writes
+// this language's translation too: it updates the entry in this language, or
+// adds one, and keeps every other language's. Editing "whatever LanguageCode is
+// already there" left a de_DE project's en_US-only tab caption empty in de_DE
+// (mxbuild CE4899) after the very statement meant to fill it.
 func authoringLanguage(ctx *ExecContext) string { return describeDefaultLanguage(ctx) }
