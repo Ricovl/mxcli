@@ -255,7 +255,7 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			// only three static widget kinds actually store.
 			out = append(out, validateWidgetOnClick(w, locationPrefix)...)
 		} else if def != nil {
-			out = append(out, validatePluggableEditability(w, locationPrefix)...)
+			out = append(out, validatePluggableSystemProps(w, def, registry, locationPrefix)...)
 		}
 		if mapping != nil {
 			out = append(out, validateObjectListItemEnums(w, mapping, locationPrefix)...)

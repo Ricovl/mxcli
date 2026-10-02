@@ -406,6 +406,10 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Content = extractCustomWidgetAttribute(ctx, w)
 		widget.RenderMode = extractCustomWidgetType(ctx, w) // Store widget type in RenderMode
 		widget.WidgetID = extractCustomWidgetID(ctx, w)
+		// A pluggable widget declaring the Editability system property stores
+		// it on the CustomWidget, like a text box. Unread, a combo box's
+		// `Editable: Never` described as nothing and re-exec widened it.
+		widget.Editable = extractEditable(ctx, w)
 		// For ComboBox, extract datasource and association attribute for association mode.
 		// In association mode the Attribute binding is stored as EntityRef (not AttributeRef),
 		// so we must use extractCustomWidgetPropertyAssociation instead of the generic scan.

@@ -521,9 +521,11 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 // handle. CustomWidget embeds BaseWidget and already serializes an Appearance
 // node, so this only fills in values the user set — no structural BSON change.
 //
-// Conditional visibility/editability is intentionally NOT applied here: the
-// CustomWidget serializer currently hardcodes those settings to nil, so wiring
-// them would have no effect (and is tracked separately).
+// Visibility and editability are applied too, when the widget's package
+// declares them (see pluggable_system_props.go). This function used to return
+// before the common tail of buildWidgetV3 that applies them for every other
+// widget, so `visible: false` and `editable: Never` on a combo box were parsed,
+// checked clean, and stored as nothing.
 func (pb *pageBuilder) buildPluggable(def *WidgetDefinition, w *ast.WidgetV3) (pages.Widget, error) {
 	widget, err := pb.pluggableEngine.Build(def, w)
 	if err != nil {
@@ -531,6 +533,12 @@ func (pb *pageBuilder) buildPluggable(def *WidgetDefinition, w *ast.WidgetV3) (p
 	}
 	pb.storedPluggables.passStoredThrough(def, w, widget)
 	if err := applyWidgetAppearance(widget, w, pb.themeRegistry); err != nil {
+		return nil, err
+	}
+	if err := applyPluggableSystemSettings(widget, w); err != nil {
+		return nil, err
+	}
+	if err := pb.applyVisibleWhen(widget, w); err != nil {
 		return nil, err
 	}
 	return widget, nil

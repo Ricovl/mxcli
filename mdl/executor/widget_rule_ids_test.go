@@ -27,9 +27,6 @@ import (
 // places stays one rule. So known pairs are listed, and anything new fails —
 // which is exactly the moment to check whether it is one rule or two.
 var widgetRuleIDsRaisedFromSeveralFiles = map[string][]string{
-	// One rule about a property that is hidden under the current configuration,
-	// raised from the content-params path and the editability path.
-	"MDL-WIDGET21": {"validate_widget_contentparams.go", "validate_widget_editability.go"},
 	// One rule about a design-property KEY the theme does not declare, asked of
 	// the widget trees a statement carries and of ALTER STYLING, which names a
 	// stored widget instead (ako/mxcli#509).

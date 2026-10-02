@@ -2269,6 +2269,10 @@ func isBuiltinPropName(name string) bool {
 	// and could not have their only action slot authored at all (#956).
 	case "DataSource", "Attribute", "Label", "Caption", "Action", "OnChange",
 		"Selection", "Class", "Style", "DynamicClasses", "Editable", "Visible",
+		// The expression and attribute forms of the two above, as the visitor
+		// lowers them. Stored on the CustomWidget itself, never in its Object;
+		// MDL-WIDGET41 refuses them where the package declares no such setting.
+		"EditableIf", "VisibleIf", "VisibleWhen",
 		"WidgetType", "DesignProperties", "Association", "CaptionAttribute",
 		"Content", "RenderMode", "ContentParams", "CaptionParams",
 		"ButtonStyle", "DesktopWidth", "DesktopColumns", "TabletColumns",
