@@ -468,7 +468,7 @@ func execGrantEntityAccess(ctx *ExecContext, s *ast.GrantEntityAccessStmt) error
 		// rights — both are CE6592. The autonumber half was missing, so
 		// `grant write *` on an entity with one wrote ReadWrite and failed the
 		// build (ako/mxcli#524).
-		if types.WriteRightsForbidden(mem.IsCalculated, mem.IsAutoNumber) &&
+		if types.WriteRightsForbidden(mem.IsCalculated, mem.IsAutoNumber, mem.IsSystemReadOnly) &&
 			(rights == "ReadWrite" || rights == "WriteOnly") {
 			rights = "ReadOnly"
 		}

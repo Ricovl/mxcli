@@ -29,6 +29,40 @@ type SystemAttrDef struct {
 	Length int
 
 	EnumQN string // for Enumeration type, qualified name
+
+	// WriteForbidden marks a system attribute an access rule may not grant
+	// write on: mxbuild reports CE6592 "Attribute 'X' cannot have write
+	// rights, because it is a system attribute". Measured on 11.14.0 with
+	// `grant read *, write *` on specializations of System.FileDocument and
+	// System.Image: HasContents and PublicThumbnailPath are refused; Name,
+	// DeleteAfterDownload, Contents, Size and EnableCaching are not (FileID is
+	// an autonumber, refused for that reason). System.User's attributes are not
+	// in an access rule at all — Mendix manages them (see EntityMembersFor).
+	WriteForbidden bool
+}
+
+// SystemAttributeWriteForbidden reports whether the System attribute named by
+// a member-access reference ("System.FileDocument.HasContents") is one Mendix
+// refuses write rights on (CE6592).
+func SystemAttributeWriteForbidden(ref string) bool {
+	rest, ok := strings.CutPrefix(ref, "System.")
+	if !ok {
+		return false
+	}
+	entity, attr, ok := strings.Cut(rest, ".")
+	if !ok {
+		return false
+	}
+	def, ok := systemEntityByName(entity)
+	if !ok {
+		return false
+	}
+	for _, a := range def.Attributes {
+		if a.Name == attr {
+			return a.WriteForbidden
+		}
+	}
+	return false
 }
 
 // SystemAssocDef defines an association between System entities.
@@ -208,11 +242,11 @@ var SystemEntities = []SystemEntityDef{
 		{Name: "Name", Type: "String", Length: 400},
 		{Name: "DeleteAfterDownload", Type: "Boolean"},
 		{Name: "Contents", Type: "Binary"},
-		{Name: "HasContents", Type: "Boolean"},
+		{Name: "HasContents", Type: "Boolean", WriteForbidden: true},
 		{Name: "Size", Type: "Long"},
 	}},
 	{Name: "Image", Persistable: true, Generalization: "System.FileDocument", Attributes: []SystemAttrDef{
-		{Name: "PublicThumbnailPath", Type: "String", Length: 500},
+		{Name: "PublicThumbnailPath", Type: "String", Length: 500, WriteForbidden: true},
 		{Name: "EnableCaching", Type: "Boolean"},
 	}},
 	{Name: "XASInstance", Persistable: true, HasCreatedDate: true, Attributes: []SystemAttrDef{
