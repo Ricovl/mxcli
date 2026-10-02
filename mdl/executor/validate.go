@@ -28,15 +28,22 @@ type scriptContext struct {
 	// without this, creating the view entity and the association in one script
 	// (the ordinary shape) walked straight past the rule.
 	viewEntities map[string]bool
-	enumerations map[string]bool // Enumerations created (Module.Enum)
-	microflows   map[string]bool // Microflows created (Module.Microflow)
-	nanoflows    map[string]bool // Nanoflows created (Module.Nanoflow)
-	pages        map[string]bool // Pages created (Module.Page)
-	snippets     map[string]bool // Snippets created (Module.Snippet)
-	layouts      map[string]bool // Layouts created (Module.Layout)
-	menus        map[string]bool // Menu documents created (Module.Menu)
-	constants    map[string]bool // Constants created (Module.Constant)
-	workflows    map[string]bool // Workflows created (Module.Workflow)
+	// indirectEntities are entity names the script produces without a CREATE —
+	// a RENAME or MOVE lands an entity there — and externalEntityModules the
+	// modules a bulk `create external entities` imports into, whose names come
+	// from the service contract rather than the statement. Both keep an
+	// association endpoint check from refusing what exec will find (#555).
+	indirectEntities      map[string]bool
+	externalEntityModules map[string]bool
+	enumerations          map[string]bool // Enumerations created (Module.Enum)
+	microflows            map[string]bool // Microflows created (Module.Microflow)
+	nanoflows             map[string]bool // Nanoflows created (Module.Nanoflow)
+	pages                 map[string]bool // Pages created (Module.Page)
+	snippets              map[string]bool // Snippets created (Module.Snippet)
+	layouts               map[string]bool // Layouts created (Module.Layout)
+	menus                 map[string]bool // Menu documents created (Module.Menu)
+	constants             map[string]bool // Constants created (Module.Constant)
+	workflows             map[string]bool // Workflows created (Module.Workflow)
 	// Task queues created (Module.Queue, lower-cased — a queue is resolved
 	// case-insensitively, like buildQueueQualifiedNames). Missing, a queue the
 	// script creates was "not found" for every `in queue` call to it
@@ -103,15 +110,18 @@ func newScriptContext() *scriptContext {
 		entities:     make(map[string]bool),
 		viewEntities: make(map[string]bool),
 		enumerations: make(map[string]bool),
-		microflows:   make(map[string]bool),
-		nanoflows:    make(map[string]bool),
-		pages:        make(map[string]bool),
-		workflows:    make(map[string]bool),
-		snippets:     make(map[string]bool),
-		layouts:      make(map[string]bool),
-		menus:        make(map[string]bool),
-		constants:    make(map[string]bool),
-		queues:       make(map[string]bool),
+
+		indirectEntities:      make(map[string]bool),
+		externalEntityModules: make(map[string]bool),
+		microflows:            make(map[string]bool),
+		nanoflows:             make(map[string]bool),
+		pages:                 make(map[string]bool),
+		workflows:             make(map[string]bool),
+		snippets:              make(map[string]bool),
+		layouts:               make(map[string]bool),
+		menus:                 make(map[string]bool),
+		constants:             make(map[string]bool),
+		queues:                make(map[string]bool),
 
 		javaActionFlowParams: make(map[string]map[string]bool),
 		entityDecls:          make(map[string]*ast.CreateEntityStmt),
@@ -209,6 +219,22 @@ func (sc *scriptContext) collectSingle(stmt ast.Statement) {
 	case *ast.CreateExternalEntityStmt:
 		if s.Name.Module != "" {
 			sc.entities[s.Name.String()] = true
+		}
+	case *ast.CreateExternalEntitiesStmt:
+		target := s.TargetModule
+		if target == "" {
+			target = s.ServiceRef.Module
+		}
+		if target != "" {
+			sc.externalEntityModules[target] = true
+		}
+	case *ast.RenameStmt:
+		if s.ObjectType == "entity" && s.Name.Module != "" && s.NewName != "" {
+			sc.indirectEntities[s.Name.Module+"."+s.NewName] = true
+		}
+	case *ast.MoveStmt:
+		if s.DocumentType == ast.DocumentTypeEntity && s.TargetModule != "" {
+			sc.indirectEntities[s.TargetModule+"."+s.Name.Name] = true
 		}
 	case *ast.CreateEnumerationStmt:
 		if s.Name.Module != "" {
@@ -599,6 +625,11 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			if ent, err := findEntity(ctx, ep.Module, ep.Name); err == nil && isViewEntity(ent) {
 				return viewEntityAssociationRefusal(s.Name.String(), ep.String())
 			}
+		}
+		// The endpoints themselves, not just their modules: exec resolves both and
+		// stops on one it cannot find, after everything before it is written.
+		if err := validateAssociationEndpoints(ctx, s, sc); err != nil {
+			return err
 		}
 	case *ast.CreateImageCollectionStmt:
 		if s.Name.Module != "" && !sc.modules[s.Name.Module] {
