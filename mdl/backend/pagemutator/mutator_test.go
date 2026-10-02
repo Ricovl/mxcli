@@ -266,19 +266,24 @@ func TestSetWidgetProperty_LowercaseFirstClassProps(t *testing.T) {
 		w := bson.D{
 			{Key: "$Type", Value: "Pages$ActionButton"},
 			{Key: "Name", Value: "btnKeys"},
+			// A Caption stored as a Texts$Text — the shape a tab page and the
+			// legacy widgets use. (This test used to build a `Translations` list
+			// no Mendix document has, and asserted nothing, so it passed while the
+			// setter wrote nothing for the real shape.)
 			{Key: "Caption", Value: bson.D{
-				{Key: "$Type", Value: "Forms$TextTemplate"},
-				{Key: "Text", Value: bson.D{
-					{Key: "$Type", Value: "Forms$Text"},
-					{Key: "Translations", Value: bson.A{int32(3)}},
-				}},
-				{Key: "Parameters", Value: bson.A{int32(3)}},
+				{Key: "$Type", Value: "Texts$Text"},
+				{Key: "Items", Value: bson.A{int32(3)}},
 			}},
 		}
 		rawData := makeRawPage(w)
 		m := &Mutator{rawData: rawData, widgetFinder: findBsonWidget}
 		if err := m.SetWidgetProperty("btnKeys", "caption", "Keys"); err != nil {
 			t.Fatalf("SetWidgetProperty(caption) failed: %v", err)
+		}
+		caption := bsonnav.DGetDoc(findBsonWidget(rawData, "btnKeys").widget, "Caption")
+		items := bsonnav.DGetArrayElements(bsonnav.DGet(caption, "Items"))
+		if len(items) != 1 || bsonnav.DGetString(items[0].(bson.D), "Text") != "Keys" {
+			t.Fatalf("Caption.Items = %v, want one translation reading Keys", items)
 		}
 	})
 }

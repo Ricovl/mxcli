@@ -53,6 +53,7 @@ document is the MCP column's deep-dive.
 | 11.12      | Yes                | `mendix-studio-pro` 1.0.0 | `2025-06-18` | 2026-06-23 |
 | 11.13      | Yes                | `mendix-studio-pro` 1.0.0 | `2025-06-18` | 2026-08-11 |
 | 11.14      | Yes                | `mendix-studio-pro` 1.0.0 | `2025-06-18` | 2026-08-25 |
+| 11.15      | Yes                | `mendix-studio-pro` 11.15.0-rc.4 | `2025-06-18` | 2026-10-02 |
 
 > **`serverInfo.version` is frozen at `1.0.0` across 11.11, 11.12, 11.13 **and 11.14**
 > even though the tool surface and behaviour changed in every one of them.** So the
@@ -65,11 +66,17 @@ document is the MCP column's deep-dive.
 > Until the table grows a Studio-Pro-version dimension, this per-version doc is the
 > source of truth for the 11.11→11.12, 11.12→11.13 and 11.13→11.14 deltas below.
 >
+> **11.15 broke the freeze** — it reports the Studio Pro version (`11.15.0-rc.4`). That
+> does not make it a gate: everything before it still says `1.0.0`, and an argument's
+> presence is answered more precisely by the probe below.
+>
 > **Gate a per-release *argument* on a live schema probe, not on any version.**
 > `Client.SupportsToolArg(tool, arg)` answers from a cached `tools/list` (which now
-> captures each tool's `inputSchema.properties`). Tool schemas are declared
+> captures each tool's `inputSchema.properties`). Up to 11.14 tool schemas are
 > `additionalProperties:false`, so sending an argument an older server does not know
-> fails the whole call — "unknown" must mean "do not send". This is what keeps
+> fails the whole call — "unknown" must mean "do not send". From 11.15 they are
+> permissive, so an argument a server no longer knows is silently **ignored** — the
+> `ped_check_errors` case below. Probe for the argument the newer shape needs. This is what keeps
 > `pg_read_page`'s 11.13-only `depth` off 11.11/11.12 servers.
 
 `serverInfo.version` is the MCP server's own version, distinct from the Studio
@@ -532,6 +539,38 @@ Captured against Studio Pro 11.14 with ako/TestApp open, via `cmd/mcpprobe`
   `ped_check_errors` clean on two successive calls, and read back with positions,
   actions, conditions, loop sources and return types intact. The while-loop source
   (`Microflows$WhileLoopCondition`) is mapped from its schema but was not exercised live.
+
+## 11.15 changes (delta vs 11.14)
+
+Captured live 2026-10-02 against **11.15.0-rc.4** (fixture
+`mdl/backend/mcp/testdata/tools-11.15.json`), compared tool by tool with a
+1.0.0 server (ako/TestApp, Mendix 11.14) running side by side. **This is the first
+release whose `serverInfo.version` is not `1.0.0`** — it reports the Studio Pro
+version. The backend still gates on the advertised `inputSchema`, never on that
+string: the probe answers per tool and per argument, and a version parse would
+have to be kept in step with every rc.
+
+**Every input schema went from `additionalProperties:false` to permissive
+(`additionalProperties:{}`).** That is the release's real hazard. Up to 11.14 an
+argument the server did not know failed the call loudly; from 11.15 a *removed*
+argument is accepted and **ignored**. A renamed argument is therefore a silent
+behaviour change, not an error.
+
+| Change | Tool | Effect on the backend |
+|--------|------|-----------------------|
+| **Changed** | `ped_check_errors` | `documents[]` (required) → `filters{documentType, documentNamePrefix, severities}` + `pagination{checkId, offset, size}`, nothing required. The old argument is **ignored, so the check runs project-wide**: measured, an empty enumeration elsewhere in the module failed an entity create, and a nonexistent document came back "No errors found.". The answer is now a listing — `Listing problems 1-2 (out of 2). Check ID: 6`, then `'Mod.Doc' (Type):` unit headers with `- [error] …` lines — at most 100 per response. **Fixed:** `checkDocumentNow` sends `filters` when the schema advertises it, scopes the listing by exact unit header (`documentNamePrefix` is a prefix: `Mod.Order` matches `Mod.OrderLine`), and pages the rest in. A page request must **repeat the filters** — without them it lists the whole project's errors — and a page whose window went stale says so ("Fetch errors again without pagination"), which re-runs the check. `severities` defaults to `["error"]`; the backend keeps that. |
+| **Changed** | `ped_read_document` | (1) New `depth` (default 1, max 8). The default reproduces 1.0.0's fixed expansion (one element layer, children as `{$Type, $QualifiedName}` stubs) — now marked `"$stub": true` — so no backend read needs a depth. (2) **A property equal to its schema default is left out of the result** (1.0.0 printed it). Absent no longer means zero: `StringAttributeType.length` (default 200; 0 is "unlimited"), `Association.type` (`Reference`), `.owner` (`Default`), `NoGeneralization.persistable` (true), and `BooleanConditionOutcome.value` (false) all disappear at their defaults. **Fixed:** `attributeTypeFromPED` and `reconstructAssociations` default the absent values. |
+| **Changed** | `ped_update_document` | Description: "Omit every property whose value equals its schema default from set/add payloads … Defaults are applied automatically." Sending them is still accepted (the backend's create/alter paths ran clean). |
+| **Changed** | Workflows constructor (`ped_get_schema`) | `Workflows$Workflow`'s constructor renamed `caption` to **`title`**; `eventSubProcesses` gained a default `[]`; the `EventSubProcess` constructor no longer lists `persistentId` (reads still return it, so the boundary-event lookup by `persistentId` is unaffected). **Neither release's constructor applies the title or `workflowName` it is given** — both store the document name — so DISPLAY was lost over MCP before 11.15 too. **Fixed:** the probe picks the key, and `workflowCreateLeafOps` sets `/title` and `/workflowName/text` after the create, which both releases accept. |
+| **Removed** | `read_skill` | Skills are files under `/skills` (`glob`/`read_file`). Unused by mxcli. |
+| **Removed** | `install_marketplace_module`, `search_mendix_knowledge_base` | Now **handlers**, reached through `query_handlers` / `execute_handler`. Unused by mxcli. |
+| **New** | `query_handlers`, `execute_handler` | A handler registry: `install_marketplace_module`, `search_mendix_knowledge_base`, `mendix_app` (run / stop / status of the runtime), `vc_commit`, `vc_push`, the translation tools (`batch_translate`, `check_translation_status`, `find_text_usages`, `list_text_containers`, `reset_translations`) and marketplace search. `mendix_app` and `vc_commit` overlap what Concord supplies today (`--mcp-run`; and a commit is a save point) — not wired yet. |
+| **Changed** | `read_file`, `write_file` | `startLine/endLine` → `offset/limit`; `newContent`+`span` → `oldString`/`newString`. Unused by mxcli (see the tool matrix). |
+| **Changed** | `glob` | New `/app-logs` file domain. |
+
+`pg_read_page` / `pg_patch_page` changed their descriptions only (both now say to
+read the `page-gen-common` skill first); page create and ALTER ran clean on both
+servers.
 
 ## Capability gaps (established 11.11, status re-checked each release)
 

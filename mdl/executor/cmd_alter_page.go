@@ -47,6 +47,11 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 		}
 	}
 
+	// Texts are written in the project's default language (the one DESCRIBE
+	// shows): resolve it before the first mutation, since the mutator reads it
+	// through model.AuthoringLanguage rather than as a parameter.
+	authoringLanguage(ctx)
+
 	// Open the page for mutation via the backend
 	mutator, err := ctx.Backend.OpenPageForMutation(unitID)
 	if err != nil {

@@ -1242,26 +1242,6 @@ func (b *Backend) pedCheckDocument(docType, docName string) error {
 	}
 }
 
-// checkDocumentNow asks for the current verdict without waiting for the error
-// list to settle — which is why only pedCheckDocument should call it.
-// ped_check_errors reports a clean document as "No errors found." (with
-// isError=false); any other text is the validation error(s).
-func (b *Backend) checkDocumentNow(docType, docName string) error {
-	res, err := b.client.CallTool("ped_check_errors", map[string]any{
-		"documents": []map[string]any{
-			{"documentType": docType, "documentName": docName},
-		},
-	})
-	if err != nil {
-		return err
-	}
-	text := pedStripReminder(res.Text)
-	if res.IsError || !strings.Contains(text, "No errors found") {
-		return fmt.Errorf("validation failed for %s: %s", docName, text)
-	}
-	return nil
-}
-
 // pedCreateDocument creates a standalone document (enumeration, microflow, …)
 // via ped_create_document. documentContent is the type's $constructor body.
 func (b *Backend) pedCreateDocument(moduleName, docType, docName string, content any, folderPath string) error {

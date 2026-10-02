@@ -234,7 +234,7 @@ func attributeTypeFromPED(raw json.RawMessage) domainmodel.AttributeType {
 	}
 	var t struct {
 		SType           string `json:"$Type"`
-		Length          int    `json:"length"`
+		Length          *int   `json:"length"`
 		Enumeration     string `json:"enumeration"`
 		EnumerationName string `json:"enumerationName"`
 	}
@@ -243,7 +243,14 @@ func attributeTypeFromPED(raw json.RawMessage) domainmodel.AttributeType {
 	}
 	switch t.SType {
 	case "DomainModels$StringAttributeType":
-		return &domainmodel.StringAttributeType{Length: t.Length}
+		// Studio Pro 11.15 omits a property equal to its schema default, and
+		// StringAttributeType.length defaults to 200; absent is 200, not 0
+		// (which is "unlimited").
+		length := 200
+		if t.Length != nil {
+			length = *t.Length
+		}
+		return &domainmodel.StringAttributeType{Length: length}
 	case "DomainModels$IntegerAttributeType":
 		return &domainmodel.IntegerAttributeType{}
 	case "DomainModels$LongAttributeType":
@@ -292,6 +299,14 @@ func (b *Backend) reconstructAssociations(moduleName string, raw json.RawMessage
 		id := synthAssocID(moduleName, pa.Name)
 		b.registerSynthetic(id, pa.Name)
 
+		// 11.15 omits a property equal to its schema default: an absent type is
+		// Reference and an absent owner Default.
+		if pa.Type == "" {
+			pa.Type = string(domainmodel.AssociationTypeReference)
+		}
+		if pa.Owner == "" {
+			pa.Owner = string(domainmodel.AssociationOwnerDefault)
+		}
 		a := &domainmodel.Association{
 			Name:     pa.Name,
 			Type:     domainmodel.AssociationType(pa.Type),
