@@ -3,6 +3,7 @@
 package testrunner
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -165,5 +166,30 @@ func TestCheckSourceMarkdownBodyLine(t *testing.T) {
 	}
 	if _, errs := visitor.Build(got.MDL); len(errs) > 0 {
 		t.Fatalf("a valid .test.md does not parse: %v\n--- rendered ---\n%s", errs, got.MDL)
+	}
+}
+
+// `check x.test.mdl -p app.mpr --references` reported "module not found:
+// MxTest" — the wrappers live in MxTest, which only the runner creates — and
+// the reference pass stopped there, so nothing inside a test body was ever
+// resolved. The rendering declares the module before the first wrapper, as
+// the runner's own generated script does.
+func TestCheckSourceDeclaresTheWrapperModule(t *testing.T) {
+	src := "/**\n * @test one\n */\nDECLARE $result Boolean = true;\n/\n\n/**\n * @test two\n */\nDECLARE $result Boolean = false;\n/\n"
+	got, err := CheckSource(src, "x.test.mdl")
+	if err != nil {
+		t.Fatalf("CheckSource: %v", err)
+	}
+	prog, errs := visitor.Build(got.MDL)
+	if len(errs) > 0 {
+		t.Fatalf("does not parse: %v\n%s", errs, got.MDL)
+	}
+	var kinds []string
+	for _, s := range prog.Statements {
+		kinds = append(kinds, fmt.Sprintf("%T", s))
+	}
+	want := []string{"*ast.CreateModuleStmt", "*ast.CreateMicroflowStmt", "*ast.CreateMicroflowStmt"}
+	if strings.Join(kinds, ",") != strings.Join(want, ",") {
+		t.Fatalf("statements %v, want %v:\n%s", kinds, want, got.MDL)
 	}
 }

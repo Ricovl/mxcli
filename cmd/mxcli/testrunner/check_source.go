@@ -75,6 +75,7 @@ func CheckSource(content, path string) (CheckedSource, error) {
 	out := make([]string, len(lines)+1)
 
 	var problems []SourceProblem
+	declared := false
 	for i, tc := range tests {
 		for _, msg := range tc.AssertionErrors {
 			problems = append(problems, SourceProblem{Line: tc.Line, Test: tc.Name, Message: msg})
@@ -94,7 +95,16 @@ func CheckSource(content, path string) (CheckedSource, error) {
 		}
 		// A void microflow needs no RETURN, so the wrapper is two fragments and
 		// the body between them is exactly what the author typed.
-		place(out, first-1, fmt.Sprintf("CREATE OR MODIFY MICROFLOW %s.%s () BEGIN", mxTestModule, checkFlowName(tc, i)))
+		head := fmt.Sprintf("CREATE OR MODIFY MICROFLOW %s.%s () BEGIN", mxTestModule, checkFlowName(tc, i))
+		if !declared {
+			// The wrappers live in MxTest, which only a run creates. Without
+			// the module, --references stopped at "module not found: MxTest"
+			// and never resolved anything inside a test body. Same line as
+			// the first wrapper, so no line moves.
+			head = "CREATE MODULE " + mxTestModule + "; " + head
+			declared = true
+		}
+		place(out, first-1, head)
 		place(out, first+len(body), "END;")
 	}
 
