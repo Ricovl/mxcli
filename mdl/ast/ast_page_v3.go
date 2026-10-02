@@ -178,7 +178,7 @@ func (w *WidgetV3) ExpressionSource(key string) (string, bool) {
 // expression that no other value form accepts — `dynamicBarColor: if
 // $currentObject/Hot then 'red' else 'blue'`. Only an Expression-typed property
 // of a pluggable widget can hold it; which property that is depends on the
-// widget's schema, so the executor (and the checker, MDL-WIDGET39) decide, and
+// widget's schema, so the executor (and the checker, MDL-WIDGET42) decide, and
 // refuse it everywhere else rather than write it as empty.
 type WidgetExpressionV3 struct {
 	Text string

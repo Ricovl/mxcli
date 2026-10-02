@@ -84,7 +84,7 @@ func scalarPropertyText(w *ast.WidgetV3, key string, raw any, op string) (string
 
 func expressionInScalarPropertyError(w *ast.WidgetV3, key, op, text string) error {
 	return fmt.Errorf("widget `%s` property `%s` is a %s property and cannot hold the expression %s — "+
-		"only an Expression-typed property takes one (MDL-WIDGET39)",
+		"only an Expression-typed property takes one (MDL-WIDGET42)",
 		widgetLabelForError(w), key, operationNoun(op), text)
 }
 

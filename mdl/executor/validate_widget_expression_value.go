@@ -11,7 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/linter"
 )
 
-// validateWidgetExpressionValues is MDL-WIDGET39: a generic property written as
+// validateWidgetExpressionValues is MDL-WIDGET42: a generic property written as
 // an expression whose schema kind does not take one.
 //
 // The visitor keeps every expression a generic key is given — as an
@@ -71,7 +71,7 @@ func validateWidgetExpressionValues(w *ast.WidgetV3, def *WidgetDefinition, item
 			kind = "a " + operationNoun(op) + " property"
 		}
 		out = append(out, linter.Violation{
-			RuleID:   "MDL-WIDGET39",
+			RuleID:   "MDL-WIDGET42",
 			Severity: linter.SeverityError,
 			Message: fmt.Sprintf(
 				"%s: widget `%s` property `%s` is %s and cannot hold the expression %s — "+

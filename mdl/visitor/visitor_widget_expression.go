@@ -24,7 +24,7 @@ import (
 // PROPOSAL_first_class_expressions.md §6.2 slice 2. Pluggable properties whose
 // schema kind is Expression take the same unquoted form through the generic
 // keys (genericWidgetExpression, keepExpressionSource below); the executor,
-// which knows the kind, reads the text and refuses it elsewhere (MDL-WIDGET39).
+// which knows the kind, reads the text and refuses it elsewhere (MDL-WIDGET42).
 var widgetExpressionProps = map[string]bool{
 	"dynamicclasses":   true, // any widget's Appearance.DynamicClasses
 	"dynamiccellclass": true, // a datagrid column's columnClass

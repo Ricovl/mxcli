@@ -929,7 +929,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		}
 		// Any other generic key: kept as an expression value. Whether the
 		// property takes one is the widget schema's question, answered by the
-		// checker (MDL-WIDGET39) and the builder, never by writing it empty.
+		// checker (MDL-WIDGET42) and the builder, never by writing it empty.
 		if expr := propCtx.Expression(); expr != nil {
 			widget.Properties[id.GetText()] = genericWidgetExpression(expr)
 			return
@@ -976,7 +976,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		}
 		// Any other generic key: kept as an expression value. Whether the
 		// property takes one is the widget schema's question, answered by the
-		// checker (MDL-WIDGET39) and the builder, never by writing it empty.
+		// checker (MDL-WIDGET42) and the builder, never by writing it empty.
 		if expr := propCtx.Expression(); expr != nil {
 			widget.Properties[kw.GetText()] = genericWidgetExpression(expr)
 			return

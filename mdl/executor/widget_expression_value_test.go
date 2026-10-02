@@ -111,7 +111,7 @@ func TestMDLWIDGET39_ExpressionOnANonExpressionProperty(t *testing.T) {
 			continue
 		}
 		for _, v := range got {
-			if v.RuleID != "MDL-WIDGET39" || !strings.Contains(v.Message, tc.prop) {
+			if v.RuleID != "MDL-WIDGET42" || !strings.Contains(v.Message, tc.prop) {
 				t.Errorf("%s: got %s %q", tc.name, v.RuleID, v.Message)
 			}
 		}
@@ -126,8 +126,8 @@ func TestMDLWIDGET39_ExpressionOnABuiltinWidget(t *testing.T) {
   container c1 (renderMode: 'a' + 'b') { }
 }`)
 	got := validateWidgetExpressionValues(ws["c1"], nil, nil, false, "page M.P")
-	if len(got) != 1 || got[0].RuleID != "MDL-WIDGET39" {
-		t.Fatalf("got %v, want one MDL-WIDGET39", got)
+	if len(got) != 1 || got[0].RuleID != "MDL-WIDGET42" {
+		t.Fatalf("got %v, want one MDL-WIDGET42", got)
 	}
 }
 

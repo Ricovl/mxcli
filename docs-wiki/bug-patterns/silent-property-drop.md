@@ -121,7 +121,7 @@ variable-led *data source*, and every scalar reader stringified a non-string to
 `exec` and `mx check` were all clean. The visitor cannot settle it — only the
 widget's schema knows that key is Expression-typed — so the fix is to carry the
 source text to the layer that knows the kind, and to make every scalar reader
-answer "this shape does not fit" (MDL-WIDGET39, and an error at build) instead of
+answer "this shape does not fit" (MDL-WIDGET42, and an error at build) instead of
 falling to `default: continue`. When a grammar alternative is chosen by the
 *first token*, audit which other meanings that token starts.
 

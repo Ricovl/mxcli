@@ -542,7 +542,7 @@ attribute a1 (attributeName: 'data-hot', attributeValueType: 'expression',
 ```
 
 The same unquoted expression on a property of any other type (a text template,
-a plain value) is refused by `check` as **MDL-WIDGET39** rather than written
+a plain value) is refused by `check` as **MDL-WIDGET42** rather than written
 empty.
 
 ### Finding the names
