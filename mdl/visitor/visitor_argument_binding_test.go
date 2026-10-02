@@ -3,6 +3,7 @@
 package visitor
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -36,6 +37,17 @@ func TestArgumentBindingAliases(t *testing.T) {
 			mf("$R = call java action M.J(Amount = 1);"), []string{deprecation.DollarArgumentName}},
 		{"keyword-named parameter is quoted only when it must be", mf("call microflow M.G($Page = $O);"),
 			mf("call microflow M.G(Page = $O);"), []string{deprecation.DollarArgumentName}},
+		// ako/mxcli#533: `Param: e` is the same alias at every call site, not only
+		// show page and page actions.
+		{"call microflow colon", mf("call microflow M.G(Order: $O, Force: false);"),
+			mf("call microflow M.G(Order = $O, Force = false);"),
+			[]string{deprecation.ColonArgument, deprecation.ColonArgument}},
+		{"call nanoflow colon", mf("$R = call nanoflow M.G(Order: $O);"),
+			mf("$R = call nanoflow M.G(Order = $O);"), []string{deprecation.ColonArgument}},
+		{"call java action colon", mf("$R = call java action M.J(Amount: 1);"),
+			mf("$R = call java action M.J(Amount = 1);"), []string{deprecation.ColonArgument}},
+		{"keyword-named parameter colon", mf("call microflow M.G(Page: $O);"),
+			mf("call microflow M.G(Page = $O);"), []string{deprecation.ColonArgument}},
 		{"send rest request", mf("$R = send rest request M.C.Get with ($id = $N);"),
 			mf("$R = send rest request M.C.Get with (id = $N);"), []string{deprecation.DollarArgumentName}},
 		{"show page dollar", mf("show page M.P($Order = $O);"),
@@ -174,5 +186,45 @@ func TestParameterNameSpelling(t *testing.T) {
 		if got := ParameterNameSpelling(name); got != want {
 			t.Errorf("ParameterNameSpelling(%q) = %q, want %q", name, got, want)
 		}
+	}
+}
+
+// ako/mxcli#533, #569: an argument written by position — `microflow M.DS($O)` —
+// is refused with an error that points at the argument, not at the property
+// keyword before it, and names the form that works: `Param = $O`. Positional
+// binding is not an alias under any language version, because the parameter it
+// means cannot be known from the script alone.
+func TestPositionalArgumentIsRefusedAtTheArgument(t *testing.T) {
+	const page = "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) { dataview dv (DataSource: $O) { %s } };"
+	pg := func(widget string) string { return strings.Replace(page, "%s", widget, 1) }
+	mf := func(body string) string {
+		return "create microflow M.F ($O: M.E) begin " + body + " end;"
+	}
+	for _, src := range []string{
+		pg("listview lv (DataSource: microflow M.DS($O)) { }"),
+		pg("listview lv (DataSource: nanoflow M.DS($O)) { }"),
+		pg("actionbutton b (Caption: 'Go', Action: call microflow M.G($O))"),
+		mf("call microflow M.G($O);"),
+		mf("$R = call nanoflow M.G($O);"),
+		mf("show page M.P($O);"),
+		"mdl 1;\n" + pg("listview lv (DataSource: microflow M.DS($O)) { }"),
+	} {
+		t.Run(src, func(t *testing.T) {
+			_, errs := Build(src)
+			if len(errs) == 0 {
+				t.Fatal("a positional argument was accepted")
+			}
+			lines := strings.Split(src, "\n")
+			line := len(lines)
+			col := strings.LastIndex(lines[line-1], "($O)") + 1
+			want := fmt.Sprintf("line %d:%d", line, col)
+			msg := errs[0].Error()
+			if !strings.Contains(msg, want) {
+				t.Errorf("error %q does not point at the argument (%s)", msg, want)
+			}
+			if !strings.Contains(msg, "Param = $O") {
+				t.Errorf("error %q does not name the named form `Param = $O`", msg)
+			}
+		})
 	}
 }

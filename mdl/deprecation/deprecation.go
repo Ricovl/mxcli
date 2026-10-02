@@ -147,9 +147,9 @@ const (
 	// DollarArgumentName is `$Param = expr` at a call site: the parameter
 	// named with the `$` of a variable (R4, ako/mxcli#751).
 	DollarArgumentName = "MDL-DEPR006"
-	// ColonArgument is `Param: expr` at a call site (`show page`, a page
-	// action or data source): `:` sets a model property, `=` binds a value
-	// (R3/R4, ako/mxcli#751).
+	// ColonArgument is `Param: expr` at a call site (`show page`, `call
+	// microflow`/nanoflow/java action/…, a page action or data source): `:` sets
+	// a model property, `=` binds a value (R3/R4, ako/mxcli#751, #533).
 	ColonArgument = "MDL-DEPR007"
 	// WorkflowStringArgument is a workflow call's `with (Param = '<expr>')`:
 	// the argument expression written inside a string (R4, ako/mxcli#751).
@@ -539,8 +539,8 @@ var entries = []Entry{
 		Rewrite:   Rewrite{Structural: "colon as `=`: `Param: expr` -> `Param = expr`"},
 		RemovedIn: 2,
 		Note: "`:` sets a model property and `=` binds a runtime value (R3). An argument binds a value, so " +
-			"it takes `=` wherever the call appears: show page, and page/button actions and data sources " +
-			"(`Action: microflow M.F(Param = expr)`).",
+			"it takes `=` wherever the call appears: show page, call microflow/nanoflow/java action and the " +
+			"other call statements, and page/button actions and data sources (`Action: microflow M.F(Param = expr)`).",
 		Example:          "create microflow M.F ($O: M.E) begin show page M.P(Order: $O); end;",
 		CanonicalExample: "create microflow M.F ($O: M.E) begin show page M.P(Order = $O); end;",
 	},

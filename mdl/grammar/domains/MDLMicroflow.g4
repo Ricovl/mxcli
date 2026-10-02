@@ -629,7 +629,7 @@ callWorkflowStatement
     // the context VARIABLE and not the parameter's name. Without this
     // alternative, describing a `call workflow` produced MDL that would not
     // parse on the way back in.
-    : (VARIABLE EQUALS)? CALL WORKFLOW qualifiedName LPAREN (callArgumentList | VARIABLE)? RPAREN onErrorClause?
+    : (VARIABLE EQUALS)? CALL WORKFLOW qualifiedName LPAREN (VARIABLE | callArgumentList)? RPAREN onErrorClause?
     ;
 
 // $Data = GET WORKFLOW DATA $WorkflowVar AS Module.WorkflowName;
@@ -704,10 +704,15 @@ callArgumentList
     ;
 
 // Named arguments: FirstName = 'Hello' or Level = 'INFO' or OqlStatement = '...'
-// (R4: `Param = expression`, no `$` on the parameter name). `$FirstName = …` is
-// the deprecated spelling of the same argument.
+// (R4: `Param = expression`, no `$` on the parameter name). `$FirstName = …` and
+// `FirstName: …` are deprecated spellings of the same argument (ako/mxcli#533).
+// A bare expression — an argument by position — is never accepted: it parses
+// only so the visitor can refuse it AT the argument, naming `Param = …`, rather
+// than leave ANTLR to report a token error somewhere before it (#569).
 callArgument
     : (VARIABLE /* @alias MDL-DEPR006 */ | parameterName) EQUALS expression
+    | parameterName COLON /* @alias MDL-DEPR007 */ expression
+    | expression                                  // positional: refused by the visitor
     ;
 
 showPageStatement
@@ -724,6 +729,7 @@ showPageArg
     : parameterName EQUALS expression                                  // Param = $value (canonical)
     | VARIABLE /* @alias MDL-DEPR006 */ EQUALS (VARIABLE | expression) // $Param = $value
     | identifierOrKeyword COLON /* @alias MDL-DEPR007 */ expression    // Param: $value
+    | expression                                                       // positional: refused by the visitor
     ;
 
 closePageStatement

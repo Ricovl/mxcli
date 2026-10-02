@@ -750,6 +750,7 @@ microflowArgV3
                                                       // works unquoted, matching callArgument)
     | identifierOrKeyword COLON /* @alias MDL-DEPR007 */ expression // Param: $value
     | VARIABLE /* @alias MDL-DEPR006 */ EQUALS expression           // $Param = $value
+    | expression                                                    // positional: refused by the visitor (#569)
     ;
 
 // A value in `Visible: Attr in (…)`: an enumeration value name, true/false,
