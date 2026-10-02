@@ -26,6 +26,12 @@ func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath strin
 	// model. Warnings are printed and do not stop the run.
 	if !skipCheck {
 		violations := executor.ApplyDeprecationPolicy(executor.ValidateProgram(prog, projectPath), depPolicy)
+		// The bare-commit note (MDL067) says a re-run flips what is stored;
+		// for a flow the project already holds that way it does not, and the
+		// note would repeat on every run of an idempotent script.
+		if b := exec.Backend(); b != nil {
+			violations = executor.DropSettledCommitNotes(violations, prog, executor.NewStoredCommitEvents(b))
+		}
 		if len(violations) > 0 {
 			formatter := linter.GetFormatter(linter.OutputFormatText, color)
 			formatter.Format(violations, w)
