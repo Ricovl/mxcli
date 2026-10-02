@@ -1977,6 +1977,36 @@ func (fb *flowBuilder) mappingRootIsList(im *model.ImportMapping) bool {
 	if im == nil {
 		return false
 	}
+	var lookup jsonStructureLookup
+	if fb.backend != nil {
+		lookup = fb.backend
+	}
+	if list, known := jsonMappingRootIsList(lookup, im); known {
+		return list
+	}
+	if len(im.Elements) > 0 && im.Elements[0] != nil {
+		root := im.Elements[0]
+		return root.MaxOccurs == -1 || root.MaxOccurs > 1
+	}
+	return false
+}
+
+// jsonStructureLookup is the one backend call deciding a JSON mapping's root
+// shape needs.
+type jsonStructureLookup interface {
+	GetJsonStructureByQualifiedName(moduleName, name string) (*types.JsonStructure, error)
+}
+
+// jsonMappingRootIsList answers mappingRootIsList's question from the two
+// sources that are DEFINITE — the root element's JSON path, and the JSON
+// structure the mapping is built on — and reports known=false when neither
+// answers. The builder then falls back to the root element's occurrence bound;
+// a check-time rule (MDL-MAP04) stays silent instead, since a guess there
+// would be a refusal of something that may build.
+func jsonMappingRootIsList(lookup jsonStructureLookup, im *model.ImportMapping) (list, known bool) {
+	if im == nil {
+		return false, false
+	}
 	// A mapping rooted BELOW an array yields one object per item, whatever the
 	// structure's own root is (#267). The structure check below answers from
 	// js.Elements[0], which for `root choices/message` is the document root —
@@ -1987,21 +2017,17 @@ func (fb *flowBuilder) mappingRootIsList(im *model.ImportMapping) bool {
 	// list-ness cannot be read off the root element either — only off its path.
 	if len(im.Elements) > 0 && im.Elements[0] != nil &&
 		mappingRootPathCrossesArray(im.Elements[0].JsonPath) {
-		return true
+		return true, true
 	}
-	if im.JsonStructure != "" && fb.backend != nil {
+	if im.JsonStructure != "" && lookup != nil {
 		parts := strings.SplitN(im.JsonStructure, ".", 2)
 		if len(parts) == 2 {
-			if js, err := fb.backend.GetJsonStructureByQualifiedName(parts[0], parts[1]); err == nil && len(js.Elements) > 0 {
-				return js.Elements[0].ElementType == "Array"
+			if js, err := lookup.GetJsonStructureByQualifiedName(parts[0], parts[1]); err == nil && js != nil && len(js.Elements) > 0 {
+				return js.Elements[0].ElementType == "Array", true
 			}
 		}
 	}
-	if len(im.Elements) > 0 && im.Elements[0] != nil {
-		root := im.Elements[0]
-		return root.MaxOccurs == -1 || root.MaxOccurs > 1
-	}
-	return false
+	return false, false
 }
 
 // addImportFromMappingAction adds an ImportXmlAction to the microflow.

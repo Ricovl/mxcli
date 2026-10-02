@@ -718,7 +718,9 @@ func init() {
 			"Omit it and the cardinality is inferred from the mapping's root shape.\n" +
 			"The range does not change WHAT the mapping returns: an object-rooted\n" +
 			"mapping binds an object under ALL too (Studio Pro's own default).\n" +
-			"Mendix rejects OFFSET on a non-list mapping with CE6100.",
+			"Mendix rejects OFFSET on a non-list mapping with CE6100, and FIRST on\n" +
+			"an object-rooted mapping builds clean and throws at runtime — mxcli\n" +
+			"check refuses both as MDL-MAP04. Drop the range on such a mapping.",
 		Example: "$Pets  = import from mapping Shop.IMM_Pets($Json) all;\n" +
 			"$Pet   = import from mapping Shop.IMM_Pets($Json) first;\n" +
 			"$Page  = import from mapping Shop.IMM_Pets($Json) limit 10 offset 5;\n" +
