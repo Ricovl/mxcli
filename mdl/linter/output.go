@@ -39,6 +39,11 @@ func GetFormatter(format OutputFormat, useColor bool) Formatter {
 // TextFormatter outputs violations in human-readable text format.
 type TextFormatter struct {
 	UseColor bool
+	// OmittedInfos counts info-level violations the caller left out of the
+	// list it passes (exec's preflight counts its notes instead of printing
+	// them). The summary line includes them, marked as not shown, so it does
+	// not claim "0 info" for a script that has some.
+	OmittedInfos int
 }
 
 // Format outputs violations grouped by module.
@@ -101,6 +106,11 @@ func (f *TextFormatter) Format(violations []Violation, w io.Writer) error {
 
 	// Summary
 	summary := Summarize(violations)
+	if f.OmittedInfos > 0 {
+		fmt.Fprintf(w, "%d issues: %d errors, %d warnings, %d info (not shown)\n",
+			summary.Total+f.OmittedInfos, summary.Errors, summary.Warnings, summary.Infos+f.OmittedInfos)
+		return nil
+	}
 	fmt.Fprintf(w, "%d issues: %d errors, %d warnings, %d info\n",
 		summary.Total, summary.Errors, summary.Warnings, summary.Infos)
 
