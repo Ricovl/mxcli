@@ -66,6 +66,7 @@ var topics = map[string][]string{
 	"MDL-DEPR148":               {"workflow.alter", "workflow.boundary-event"},
 	"MDL-DEPR149":               {"workflow.alter"},
 	"MDL-DEPR160":               {"domain-model.types"},
+	RegexExportLevelPublic:      {"regular-expression"},
 	"MDL-DEPR080":               {"workflow.decision", "workflow.boundary-event", "workflow.user-task"},
 	"MDL-DEPR081":               {"page.widgets"},
 	"MDL-DEPR082":               {"security.entity-access"},

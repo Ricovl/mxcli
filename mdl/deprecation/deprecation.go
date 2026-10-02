@@ -237,6 +237,10 @@ const (
 	// always stored it as a DateTime (ako/mxcli#706, rehearsal U1). Refused
 	// from mdl 1 rather than 2, because mdl 1 never had it.
 	DateType = "MDL-DEPR160"
+	// RegexExportLevelPublic is a regular expression's `ExportLevel: Public`:
+	// the metamodel's values are Hidden and API, and Public was written to the
+	// model verbatim (ako/mxcli#827). It builds API.
+	RegexExportLevelPublic = "MDL-DEPR161"
 
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
@@ -1280,6 +1284,17 @@ var r8Entries = []Entry{
 			"To show only the date, give the widget a date format.",
 		Example:          "create persistent entity M.Account ( LastImport: date );",
 		CanonicalExample: "create persistent entity M.Account ( LastImport: DateTime );",
+	},
+	{
+		Code:      RegexExportLevelPublic,
+		Old:       "create regular expression M.R ( …, ExportLevel: Public )",
+		Canonical: "create regular expression M.R ( …, ExportLevel: API )",
+		Rewrite:   Rewrite{Structural: "regular expression's export level value `Public` as `API`"},
+		RemovedIn: 2,
+		Note: "A regular expression's export level is Hidden or API, as Studio Pro names it and describe " +
+			"prints it. `Public` was stored as written, a value the metamodel does not have; it now stores API.",
+		Example:          "create regular expression M.R ( Expression: '^a$', ExportLevel: Public );",
+		CanonicalExample: "create regular expression M.R ( Expression: '^a$', ExportLevel: API );",
 	},
 }
 

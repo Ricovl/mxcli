@@ -251,7 +251,7 @@ refuse the spelling; until then it only warns.
 
 ### Deprecated spellings (`MDL-DEPR*`)
 
-84 old spellings mean exactly what their new form means. They warn with their code under every version before the one in the last column, which refuses them.
+85 old spellings mean exactly what their new form means. They warn with their code under every version before the one in the last column, which refuses them.
 
 | Code | Old form | New form | Rewritten by `fmt --upgrade` | Refused from |
 |---|---|---|---|---|
@@ -330,6 +330,7 @@ refuse the spelling; until then it only warns.
 | `MDL-DEPR148` | `alter workflow M.W insert boundary event on X <event>` | `alter workflow M.W { insert into X { boundary event <event> } }` | yes: `insert boundary event on X e` as `insert into X { boundary event e }` | mdl 2 |
 | `MDL-DEPR149` | `alter workflow M.W drop outcome 'N' on X / drop condition 'V' on X / drop path 'Path n' on X / drop boundary event on X` | `alter workflow M.W { drop X outcome 'N'; drop X outcome true; drop X path n; drop X boundary event; }` | yes: member after the activity it belongs to: `drop X outcome 'N'`, `drop X path n`, `drop X boundary event` | mdl 2 |
 | `MDL-DEPR160` | `date` | `DateTime` | yes: type `date` as the type it was stored as: `DateTime` | mdl 1 |
+| `MDL-DEPR161` | `create regular expression M.R ( …, ExportLevel: Public )` | `create regular expression M.R ( …, ExportLevel: API )` | yes: regular expression's export level value `Public` as `API` | mdl 2 |
 | `MDL-DEPR540` | `on error [without rollback] { … }` | `on error [without rollback] begin … end error` | yes: `{` becomes `begin` and the closing `}` becomes `end error` | mdl 2 |
 | `MDL-DEPR550` | `rest client / rest clients` | `consumed rest service / consumed rest services` | yes: document type name: `rest client` becomes `consumed rest service`, `rest clients` `consumed rest services` | mdl 2 |
 | `MDL-DEPR551` | `odata client / odata clients` | `consumed odata service / consumed odata services` | yes: document type name: `odata client` becomes `consumed odata service`, `odata clients` `consumed odata services` | mdl 2 |
