@@ -6,8 +6,11 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 
 	mdlast "github.com/mendixlabs/mxcli/mdl/ast"
@@ -192,5 +195,140 @@ func TestIfNotExistsCountsAsIdempotent(t *testing.T) {
 	}
 	if checked == 0 {
 		t.Fatal("no guarded create statement is classified by stmtCreateInfo — the guard would pass vacuously")
+	}
+}
+
+// createStmtsNotClassified lists the Create*Stmt types in mdl/ast that
+// stmtCreateKind deliberately does not classify, with the reason. An entry is
+// a decision; any other Create*Stmt it does not classify is the gap
+// TestEveryCreateStmtIsClassified exists to catch.
+var createStmtsNotClassified = map[string]string{
+	"CreateValidationRuleStmt": "a validation rule is anonymous: the statement names the attribute it constrains, and " +
+		"exec sets that attribute's rule rather than refusing an existing one",
+	"CreateTranslationsStmt": "not a named element: exec's refusals (a translation into the source language) are " +
+		"CheckExecRefusals' (ako/mxcli#906)",
+	"CreateExternalEntitiesStmt": "a bulk import with no name of its own: each entity it would create is looked up " +
+		"in the service contract, which a script-level name check cannot see",
+	"CreateAnnotationStmt": "KNOWN GAP (ako/mxcli#557 follow-up): an annotation has no name — exec refuses a plain " +
+		"CREATE whose caption's first line matches an existing note in the module, which a qualified-name set " +
+		"cannot express",
+}
+
+// createStmtTypesInAST returns the name of every type in mdl/ast that is a
+// top-level statement (it has an isStatement method) and is spelled Create*.
+//
+// This is the guard's own source for "every create statement", independent of
+// the switches it checks. Comparing stmtCreateKind against setFor alone could
+// not see a statement type absent from BOTH — which is how CREATE USER ROLE
+// went unchecked while the guard passed (ako/mxcli#557).
+func createStmtTypesInAST(t *testing.T) map[string]bool {
+	t.Helper()
+	dir := filepath.Join("..", "ast")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read mdl/ast: %v", err)
+	}
+	fset := token.NewFileSet()
+	out := map[string]bool{}
+	for _, e := range entries {
+		n := e.Name()
+		if e.IsDir() || !strings.HasSuffix(n, ".go") || strings.HasSuffix(n, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(dir, n), nil, 0)
+		if err != nil {
+			t.Fatalf("parse mdl/ast/%s: %v", n, err)
+		}
+		for _, d := range f.Decls {
+			fd, ok := d.(*ast.FuncDecl)
+			if !ok || fd.Name.Name != "isStatement" || fd.Recv == nil || len(fd.Recv.List) != 1 {
+				continue
+			}
+			typ := fd.Recv.List[0].Type
+			if star, ok := typ.(*ast.StarExpr); ok {
+				typ = star.X
+			}
+			if id, ok := typ.(*ast.Ident); ok && strings.HasPrefix(id.Name, "Create") {
+				out[id.Name] = true
+			}
+		}
+	}
+	if len(out) < 20 {
+		t.Fatalf("found only %d Create*Stmt statement types in mdl/ast — the scan is broken and the guard would pass vacuously", len(out))
+	}
+	return out
+}
+
+// stmtTypesInSwitch returns the type names of every `case *ast.X` clause of
+// the named function's type switch in validate_duplicates.go.
+func stmtTypesInSwitch(t *testing.T, funcName string) map[string]bool {
+	t.Helper()
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "validate_duplicates.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse validate_duplicates.go: %v", err)
+	}
+	out := map[string]bool{}
+	for _, d := range f.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || fd.Name.Name != funcName {
+			continue
+		}
+		ast.Inspect(fd, func(n ast.Node) bool {
+			c, ok := n.(*ast.CaseClause)
+			if !ok {
+				return true
+			}
+			for _, e := range c.List {
+				if star, ok := e.(*ast.StarExpr); ok {
+					if sel, ok := star.X.(*ast.SelectorExpr); ok {
+						out[sel.Sel.Name] = true
+					}
+				}
+			}
+			return true
+		})
+	}
+	if len(out) == 0 {
+		t.Fatalf("no `case *ast.X` clauses in %s — the guard would pass vacuously", funcName)
+	}
+	return out
+}
+
+// TestEveryCreateStmtIsClassified is the independent half of the guard
+// (ako/mxcli#557). TestEveryCreateDocTypeIsProjectChecked compares two
+// switches with each other, so a create statement neither of them names is
+// invisible to it: CREATE USER ROLE passed `check --references` and was then
+// refused by exec, part-way through the script, while that guard stayed green.
+// This one takes the list of create statements from mdl/ast itself.
+func TestEveryCreateStmtIsClassified(t *testing.T) {
+	all := createStmtTypesInAST(t)
+	classified := stmtTypesInSwitch(t, "stmtCreateKind")
+
+	var missing []string
+	for typ := range all {
+		if classified[typ] {
+			continue
+		}
+		if _, exempt := createStmtsNotClassified[typ]; exempt {
+			continue
+		}
+		missing = append(missing, typ)
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		t.Errorf("mdl/ast has create statements stmtCreateKind does not classify: %v\n"+
+			"If exec refuses a plain CREATE of one that already exists, `check --references` passes it "+
+			"and exec then fails part-way through the script. Classify it in stmtCreateKind (and give it a "+
+			"project set in setFor and a drop in stmtDropInfo), or record in createStmtsNotClassified why "+
+			"it has no name to collide on.", missing)
+	}
+	for typ := range createStmtsNotClassified {
+		if !all[typ] {
+			t.Errorf("createStmtsNotClassified has %s, which is not a create statement in mdl/ast — drop it", typ)
+		}
+		if classified[typ] {
+			t.Errorf("createStmtsNotClassified has %s, but stmtCreateKind now classifies it — drop the exemption", typ)
+		}
 	}
 }

@@ -111,3 +111,16 @@ func TestSyntaxDeprecated(t *testing.T) {
 		t.Errorf("syntax without --deprecated printed the deprecated list")
 	}
 }
+
+// `mxcli help MDL-DUPNAME` answered "Unknown help topic" (ako/mxcli#806).
+func TestHelpCode_CheckRules(t *testing.T) {
+	for code, want := range map[string]string{"MDL-DUPNAME": "CE0065", "mdl-dupdef": "create or modify"} {
+		out, err := runRoot(t, "help", code)
+		if err != nil {
+			t.Fatalf("mxcli help %s: %v\n%s", code, err, out)
+		}
+		if !strings.Contains(out, strings.ToUpper(code)) || !strings.Contains(out, want) {
+			t.Errorf("help %s lacks %q:\n%s", code, want, out)
+		}
+	}
+}
