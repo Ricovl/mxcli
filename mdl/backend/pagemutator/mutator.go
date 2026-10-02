@@ -420,6 +420,26 @@ func refuseWidgetsAtColumnTarget(gridRef, columnRef string) error {
 		gridRef, columnRef)
 }
 
+// tabPageType is a tab control's page. It is addressable by its Name, but it
+// lives in the control's TabPages list rather than a widget list.
+const tabPageType = "Forms$TabPage"
+
+// refuseTabPageSiblingEdit refuses an operation that would edit the TabPages
+// list itself: INSERT BEFORE/AFTER and REPLACE would put ordinary widgets into a
+// list that holds only tab pages, and DROP can remove the page the control's
+// DefaultPagePointer names, leaving a dangling pointer. What a tab page does
+// support — SET Caption / Visible / Name and INSERT INTO it — goes through the
+// ordinary widget paths.
+func refuseTabPageSiblingEdit(result *bsonWidgetResult, name, op string) error {
+	if result == nil || bsonnav.DGetString(result.widget, "$Type") != tabPageType {
+		return nil
+	}
+	return fmt.Errorf("%q is a tab page: %s would edit the tab container's list of pages, "+
+		"which ALTER PAGE does not do. Use `insert into %s { … }` to add widgets to it, "+
+		"`set Visible = false on %s` to hide it, or `describe page` and `create or modify page` "+
+		"to add, remove or reorder tab pages", name, op, name, name)
+}
+
 func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position backend.InsertPosition, widgets []pages.Widget) error {
 	if columnRef != "" {
 		// `layoutContainer.top` is a scroll-container region, not a grid column.
@@ -448,6 +468,11 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 	}
 	if n := m.columnMatchCount(widgetRef); n > 1 {
 		return columnAmbiguityError(widgetRef, n)
+	}
+	if !strings.EqualFold(string(position), "into") {
+		if err := refuseTabPageSiblingEdit(result, widgetRef, "insert "+strings.ToLower(string(position))); err != nil {
+			return err
+		}
 	}
 
 	// Serialize widgets
@@ -551,7 +576,8 @@ func containerAcceptsWidgets(container bson.D) bool {
 		"Forms$DataView",
 		"Forms$GroupBox",
 		"Forms$ScrollContainerRegion",
-		"Forms$Section":
+		"Forms$Section",
+		tabPageType:
 		return true
 	}
 	return false
@@ -577,6 +603,9 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 			}
 			if n := m.columnMatchCount(ref.Name()); n > 1 {
 				return columnAmbiguityError(ref.Name(), n)
+			}
+			if err := refuseTabPageSiblingEdit(result, ref.Name(), "drop"); err != nil {
+				return err
 			}
 		}
 		newArr := make([]any, 0, len(result.parentArr)-1)
@@ -608,6 +637,9 @@ func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pa
 	}
 	if n := m.columnMatchCount(widgetRef); n > 1 {
 		return columnAmbiguityError(widgetRef, n)
+	}
+	if err := refuseTabPageSiblingEdit(result, widgetRef, "replace"); err != nil {
+		return err
 	}
 
 	newBsonWidgets, err := m.serializeWidgets(widgets)
@@ -1469,16 +1501,10 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 		}
 	}
 
-	// TabContainer: TabPages[].Widgets[]
-	tabPages := bsonnav.DGetArrayElements(bsonnav.DGet(wDoc, "TabPages"))
-	for _, tp := range tabPages {
-		tpDoc, ok := tp.(bson.D)
-		if !ok {
-			continue
-		}
-		if result := findInWidgetArray(tpDoc, "Widgets", widgetName); result != nil {
-			return result
-		}
+	// TabContainer: TabPages[] are named elements themselves (`set Caption … on
+	// tabPage2`), and findInWidgetArray descends into each one's Widgets[].
+	if result := findInWidgetArray(wDoc, "TabPages", widgetName); result != nil {
+		return result
 	}
 
 	// ControlBar
@@ -2186,14 +2212,8 @@ func findNearestDSInChildren(wDoc bson.D, widgetName string, curDS bson.D) (bson
 			}
 		}
 	}
-	for _, tp := range bsonnav.DGetArrayElements(bsonnav.DGet(wDoc, "TabPages")) {
-		tpDoc, ok := tp.(bson.D)
-		if !ok {
-			continue
-		}
-		if ds, found := findNearestDSInWidgets(tpDoc, "Widgets", widgetName, curDS); found {
-			return ds, true
-		}
+	if ds, found := findNearestDSInWidgets(wDoc, "TabPages", widgetName, curDS); found {
+		return ds, true
 	}
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		if ds, found := findNearestDSInWidgets(controlBar, "Items", widgetName, curDS); found {
@@ -2391,14 +2411,7 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 			}
 		}
 	}
-	tabPages := bsonnav.DGetArrayElements(bsonnav.DGet(wDoc, "TabPages"))
-	for _, tp := range tabPages {
-		tpDoc, ok := tp.(bson.D)
-		if !ok {
-			continue
-		}
-		collectWidgetScope(tpDoc, "Widgets", scope)
-	}
+	collectWidgetScope(wDoc, "TabPages", scope)
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		collectWidgetScope(controlBar, "Items", scope)
 	}
