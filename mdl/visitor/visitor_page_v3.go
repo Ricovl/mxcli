@@ -927,10 +927,11 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 			}
 			return
 		}
+		// Any other generic key: kept as an expression value. Whether the
+		// property takes one is the widget schema's question, answered by the
+		// checker (MDL-WIDGET39) and the builder, never by writing it empty.
 		if expr := propCtx.Expression(); expr != nil {
-			if b != nil {
-				b.addError(widgetExpressionNotAllowed(id.GetText(), expr))
-			}
+			widget.Properties[id.GetText()] = genericWidgetExpression(expr)
 			return
 		}
 		// `<Name>Params: ({1} = Attr)` — the parameters of a text-template
@@ -947,6 +948,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		// *ast.DataSourceV3 into a widget datasource + entity context. Chart 9a.
 		if dsCtx := propCtx.DataSourceExprV3(); dsCtx != nil {
 			widget.Properties[id.GetText()] = buildDataSourceV3(dsCtx)
+			keepExpressionSource(widget, id.GetText(), dsCtx)
 			return
 		}
 		// Generic action-typed property — a named action slot (#956). Only the
@@ -972,10 +974,11 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 			}
 			return
 		}
+		// Any other generic key: kept as an expression value. Whether the
+		// property takes one is the widget schema's question, answered by the
+		// checker (MDL-WIDGET39) and the builder, never by writing it empty.
 		if expr := propCtx.Expression(); expr != nil {
-			if b != nil {
-				b.addError(widgetExpressionNotAllowed(kw.GetText(), expr))
-			}
+			widget.Properties[kw.GetText()] = genericWidgetExpression(expr)
 			return
 		}
 		if plCtx := propCtx.ParamListV3(); plCtx != nil {
@@ -984,6 +987,7 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		}
 		if dsCtx := propCtx.DataSourceExprV3(); dsCtx != nil {
 			widget.Properties[kw.GetText()] = buildDataSourceV3(dsCtx)
+			keepExpressionSource(widget, kw.GetText(), dsCtx)
 			return
 		}
 		// A named action slot whose key is an MDL keyword — Switch stores its

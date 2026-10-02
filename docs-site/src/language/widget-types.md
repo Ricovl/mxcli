@@ -532,6 +532,19 @@ list in mxcli:
 - **The body containers** `attribute` (an object list, one entry per repetition)
   and `tagcontentcontainer` (a child slot, holding widgets).
 
+A property whose type in the widget's definition is **Expression** — an HTML
+element attribute's `attributeValueExpression`, a chart series'
+`dynamicBarColor` — takes a Mendix expression written as-is:
+
+```sql
+attribute a1 (attributeName: 'data-hot', attributeValueType: 'expression',
+              attributeValueExpression: if $currentObject/Hot then 'hot' else 'cold')
+```
+
+The same unquoted expression on a property of any other type (a text template,
+a plain value) is refused by `check` as **MDL-WIDGET39** rather than written
+empty.
+
 ### Finding the names
 
 Ask the widget:
