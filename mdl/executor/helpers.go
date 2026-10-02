@@ -842,6 +842,8 @@ func convertDataType(dt ast.DataType) domainmodel.AttributeType {
 		return &domainmodel.AutoNumberAttributeType{}
 	case ast.TypeBinary:
 		return &domainmodel.BinaryAttributeType{}
+	case ast.TypeHashedString:
+		return &domainmodel.HashedStringAttributeType{}
 	case ast.TypeEnumeration:
 		enumRef := ""
 		if dt.EnumRef != nil {
@@ -879,6 +881,8 @@ func getAttributeTypeName(at domainmodel.AttributeType) string {
 		return "AutoNumber"
 	case *domainmodel.BinaryAttributeType:
 		return "Binary"
+	case *domainmodel.HashedStringAttributeType:
+		return "HashedString"
 	case *domainmodel.EnumerationAttributeType:
 		// Prefer EnumerationRef (qualified name), fall back to EnumerationID
 		if t.EnumerationRef != "" {

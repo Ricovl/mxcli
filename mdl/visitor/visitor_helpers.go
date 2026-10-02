@@ -430,6 +430,12 @@ func buildDataType(ctx parser.IDataTypeContext) ast.DataType {
 	if strings.HasPrefix(text, "BINARY") {
 		return ast.DataType{Kind: ast.TypeBinary}
 	}
+	// HashedString had no branch and fell through to the String below, so a
+	// password attribute was stored as an unlimited String. Outside an
+	// attribute definition EnterDataType refuses it before this runs.
+	if dtCtx.HASHEDSTRING_TYPE() != nil {
+		return ast.DataType{Kind: ast.TypeHashedString}
+	}
 
 	return ast.DataType{Kind: ast.TypeString}
 }
