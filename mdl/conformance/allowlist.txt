@@ -93,7 +93,7 @@
 6	syntax	docs-site/src/language/document-access.md
 1	syntax	docs-site/src/language/domain-model.md
 2	syntax	docs-site/src/language/entities.md
-4	syntax	docs-site/src/language/entity-access.md
+3	syntax	docs-site/src/language/entity-access.md
 3	syntax	docs-site/src/language/enumerations.md
 2	syntax	docs-site/src/language/event-services.md
 7	syntax	docs-site/src/language/expressions.md
