@@ -4,10 +4,12 @@ package executor
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
+	"github.com/mendixlabs/mxcli/model"
 )
 
 // nameRegistry tracks which document names are currently "alive" (created but
@@ -169,8 +171,43 @@ func stmtCreateKind(stmt ast.Statement) (docType, name string, idempotent bool) 
 		// ("demo user already exists"), and check passed it (ako/mxcli#906).
 		// The name is the user name, which is not module-qualified.
 		return "demo-user", s.UserName, s.CreateOrModify
+	case *ast.CreateUserRoleStmt:
+		// Not a document, and missed by both switches at once, which the
+		// switch-against-switch guard could not see (ako/mxcli#557): exec
+		// refuses a plain CREATE of a role the project has — and a blank app
+		// already ships `Administrator` — so check has to as well.
+		return "user-role", s.Name, s.CreateOrModify
+	case *ast.CreateConfigurationStmt:
+		return "configuration", s.Name, s.CreateOrModify
+	case *ast.CreateMenuStmt:
+		return "menu", s.Name.String(), s.CreateOrModify
+	case *ast.CreateQueueStmt:
+		return "queue", s.Name.String(), s.CreateOrModify
+	case *ast.CreateScheduledEventStmt:
+		return "scheduled-event", s.Name.String(), s.CreateOrModify
+	case *ast.CreateRegularExpressionStmt:
+		return "regular-expression", s.Name.String(), s.CreateOrModify
+	case *ast.CreateMessageDefinitionCollectionStmt:
+		return "message-definition-collection", s.Name.String(), s.CreateOrModify
+	case *ast.CreateDatabaseConnectionStmt:
+		return "database-connection", s.Name.String(), s.CreateOrModify
+	case *ast.CreateRestClientStmt:
+		return "rest-client", s.Name.String(), s.CreateOrModify
+	case *ast.CreateODataClientStmt:
+		return "odata-client", s.Name.String(), s.CreateOrModify
+	case *ast.CreateODataServiceStmt:
+		return "odata-service", s.Name.String(), s.CreateOrModify
 	}
 	return "", "", false
+}
+
+// unqualifiedCreateKinds are the kinds stmtCreateKind names without a module:
+// project-level elements, whose names are not Module.Name.
+var unqualifiedCreateKinds = map[string]bool{
+	"module":        true,
+	"demo-user":     true,
+	"user-role":     true,
+	"configuration": true,
 }
 
 // stmtDropInfo returns the doc-type key and qualified name for DROP statements.
@@ -231,6 +268,28 @@ func stmtDropInfo(stmt ast.Statement) (docType, name string) {
 		return "image-collection", s.Name.String()
 	case *ast.DropDemoUserStmt:
 		return "demo-user", s.UserName
+	case *ast.DropUserRoleStmt:
+		return "user-role", s.Name
+	case *ast.DropConfigurationStmt:
+		return "configuration", s.Name
+	case *ast.DropMenuStmt:
+		return "menu", s.Name.String()
+	case *ast.DropQueueStmt:
+		return "queue", s.Name.String()
+	case *ast.DropScheduledEventStmt:
+		return "scheduled-event", s.Name.String()
+	case *ast.DropRegularExpressionStmt:
+		return "regular-expression", s.Name.String()
+	case *ast.DropMessageDefinitionCollectionStmt:
+		return "message-definition-collection", s.Name.String()
+	case *ast.DropDatabaseConnectionStmt:
+		return "database-connection", s.Name.String()
+	case *ast.DropRestClientStmt:
+		return "rest-client", s.Name.String()
+	case *ast.DropODataClientStmt:
+		return "odata-client", s.Name.String()
+	case *ast.DropODataServiceStmt:
+		return "odata-service", s.Name.String()
 	}
 	return "", ""
 }
@@ -286,6 +345,22 @@ func friendlyDocType(docType string) string {
 		return "module role"
 	case "demo-user":
 		return "demo user"
+	case "user-role":
+		return "user role"
+	case "scheduled-event":
+		return "scheduled event"
+	case "regular-expression":
+		return "regular expression"
+	case "message-definition-collection":
+		return "message definition collection"
+	case "database-connection":
+		return "database connection"
+	case "rest-client":
+		return "REST client"
+	case "odata-client":
+		return "OData client"
+	case "odata-service":
+		return "OData service"
 	case "json-structure":
 		return "JSON structure"
 	case "knowledge-base":
@@ -403,6 +478,17 @@ type projectNameSets struct {
 	javaScriptActs   map[string]bool
 	moduleRoles      map[string]bool
 	demoUsers        map[string]bool
+	userRoles        map[string]bool
+	configurations   map[string]bool
+	menus            map[string]bool
+	queues           map[string]bool
+	scheduledEvents  map[string]bool
+	regexes          map[string]bool
+	messageColls     map[string]bool
+	dbConnections    map[string]bool
+	restClients      map[string]bool
+	odataClients     map[string]bool
+	odataServices    map[string]bool
 }
 
 // projectSetFor returns the existence set for the given doc-type key, or nil
@@ -461,6 +547,28 @@ func (ps *projectNameSets) setFor(docType string) map[string]bool {
 		return ps.moduleRoles
 	case "demo-user":
 		return ps.demoUsers
+	case "user-role":
+		return ps.userRoles
+	case "configuration":
+		return ps.configurations
+	case "menu":
+		return ps.menus
+	case "queue":
+		return ps.queues
+	case "scheduled-event":
+		return ps.scheduledEvents
+	case "regular-expression":
+		return ps.regexes
+	case "message-definition-collection":
+		return ps.messageColls
+	case "database-connection":
+		return ps.dbConnections
+	case "rest-client":
+		return ps.restClients
+	case "odata-client":
+		return ps.odataClients
+	case "odata-service":
+		return ps.odataServices
 	}
 	// "module" is deliberately absent: CREATE MODULE on an existing module is a
 	// no-op that prints "already exists" and exits 0, so `create module M;` is
@@ -468,6 +576,71 @@ func (ps *projectNameSets) setFor(docType string) map[string]bool {
 	// essentially every script. TestEveryCreateDocTypeIsProjectChecked carries
 	// this exemption explicitly so it stays a decision rather than an omission.
 	return nil
+}
+
+// execFoldsExistingName lists the kinds whose exec handler finds the stored
+// element case-insensitively, so a plain CREATE of `M.q` over `M.Q` is refused
+// as "already exists". The project check has to match the same way or it
+// passes what exec then refuses.
+var execFoldsExistingName = map[string]bool{
+	"constant":               true,
+	"business-event-service": true,
+	"configuration":          true,
+	"queue":                  true,
+	"scheduled-event":        true,
+	"regular-expression":     true,
+	"database-connection":    true,
+	"rest-client":            true,
+	"odata-client":           true,
+	"odata-service":          true,
+}
+
+// projectSetHas reports whether set holds name the way exec's handler for dt
+// looks it up.
+func projectSetHas(dt string, set map[string]bool, name string) bool {
+	if set == nil {
+		return false
+	}
+	if set[name] {
+		return true
+	}
+	if !execFoldsExistingName[dt] {
+		return false
+	}
+	for qn := range set {
+		if strings.EqualFold(qn, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// listedQualifiedNames is the set of qualified names of the documents list
+// returns — any Backend.List* whose elements carry a ContainerID and a Name.
+// A list that cannot be read yields no names, as every build*QualifiedNames
+// does: the handler reads the same list and reports the failure itself.
+func listedQualifiedNames[T any](h *ContainerHierarchy, list func() ([]*T, error)) map[string]bool {
+	out := map[string]bool{}
+	items, err := list()
+	if err != nil || h == nil {
+		return out
+	}
+	for _, it := range items {
+		if it == nil {
+			continue
+		}
+		v := reflect.ValueOf(it).Elem()
+		cid, name := v.FieldByName("ContainerID"), v.FieldByName("Name")
+		if !cid.IsValid() || !name.IsValid() || name.Kind() != reflect.String {
+			continue
+		}
+		id, ok := cid.Interface().(model.ID)
+		if !ok {
+			continue
+		}
+		out[h.GetQualifiedName(id, name.String())] = true
+	}
+	return out
 }
 
 // loadProjectNameSets queries the project for all existing document names.
@@ -603,15 +776,44 @@ func loadProjectNameSets(ctx *ExecContext) *projectNameSets {
 	// Module roles
 	ps.moduleRoles = buildModuleRoleQualifiedNames(ctx)
 
-	// Demo users: the same lookup execCreateDemoUser refuses on.
+	// Demo users and user roles: the same lookups execCreateDemoUser and
+	// execCreateUserRole refuse on.
 	ps.demoUsers = make(map[string]bool)
+	ps.userRoles = make(map[string]bool)
 	if sec, err := ctx.Backend.GetProjectSecurity(); err == nil && sec != nil {
 		for _, du := range sec.DemoUsers {
 			if du != nil {
 				ps.demoUsers[du.UserName] = true
 			}
 		}
+		for _, ur := range sec.UserRoles {
+			if ur != nil {
+				ps.userRoles[ur.Name] = true
+			}
+		}
 	}
+
+	// Configurations: project settings, not documents, so not module-qualified.
+	ps.configurations = make(map[string]bool)
+	if st, err := ctx.Backend.GetProjectSettings(); err == nil && st != nil && st.Configuration != nil {
+		for _, cfg := range st.Configuration.Configurations {
+			if cfg != nil {
+				ps.configurations[cfg.Name] = true
+			}
+		}
+	}
+
+	// The documents whose handlers refuse a plain CREATE of an existing one,
+	// read through the same Backend lists the handlers search (ako/mxcli#557).
+	ps.menus = listedQualifiedNames(h, ctx.Backend.ListMenuDocuments)
+	ps.queues = listedQualifiedNames(h, ctx.Backend.ListQueues)
+	ps.scheduledEvents = listedQualifiedNames(h, ctx.Backend.ListScheduledEvents)
+	ps.regexes = listedQualifiedNames(h, ctx.Backend.ListRegularExpressions)
+	ps.messageColls = listedQualifiedNames(h, ctx.Backend.ListMessageDefinitionCollections)
+	ps.dbConnections = listedQualifiedNames(h, ctx.Backend.ListDatabaseConnections)
+	ps.restClients = listedQualifiedNames(h, ctx.Backend.ListConsumedRestServices)
+	ps.odataClients = listedQualifiedNames(h, ctx.Backend.ListConsumedODataServices)
+	ps.odataServices = listedQualifiedNames(h, ctx.Backend.ListPublishedODataServices)
 
 	// Image collections
 	ps.imageCollections = make(map[string]bool)
@@ -661,8 +863,7 @@ func CheckProjectConflicts(ctx *ExecContext, prog *ast.Program) []error {
 		// record it so a subsequent CREATE is not flagged as a conflict.
 		if dt, name := stmtDropInfo(stmt); dt != "" {
 			reg.remove(dt, name)
-			projectSet := ps.setFor(dt)
-			if projectSet != nil && projectSet[name] {
+			if projectSetHas(dt, ps.setFor(dt), name) {
 				droppedFromProject.add(dt, name, stmtNum)
 			}
 			continue
@@ -676,8 +877,7 @@ func CheckProjectConflicts(ctx *ExecContext, prog *ast.Program) []error {
 		}
 
 		if !idempotent && !reg.isAlive(dt, name) && !droppedFromProject.isAlive(dt, name) {
-			projectSet := ps.setFor(dt)
-			if projectSet != nil && projectSet[name] {
+			if projectSetHas(dt, ps.setFor(dt), name) {
 				hint := "use CREATE OR MODIFY to update it"
 				if dt == "entity" {
 					// For a persistent entity, CREATE OR MODIFY rebuilds the whole

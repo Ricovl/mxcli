@@ -95,10 +95,22 @@ is never reported either — it is a no-op when the module exists, which is what
 lets it open every script.
 
 The types covered are the ones `exec` refuses: entity, enumeration, constant,
-association, microflow, nanoflow, rule, page, snippet, java action, javascript
-action, workflow, and the integration/agent document types. If you find one that
-`exec` refuses and `check` does not, that is a bug of exactly the shape
-`TestEveryCreateDocTypeIsProjectChecked` exists to prevent.
+association, microflow, nanoflow, rule, page, snippet, layout, java action,
+javascript action, workflow, menu, task queue, scheduled event, regular
+expression, database connection, REST client, OData client and service, message
+definition collection, the integration/agent document types, module roles,
+user roles, demo users and configurations. Annotations are the one known gap
+(they have no name to compare). If you find another that `exec` refuses and
+`check` does not, that is a bug of exactly the shape
+`TestEveryCreateStmtIsClassified` and `TestEveryCreateDocTypeIsProjectChecked`
+exist to prevent.
+
+Separately, `check` reports **MDL-DUPNAME** for a name Mendix will not let two
+elements share — a nanoflow named like a microflow, a page and a snippet, an
+enumeration and an entity, or the same kind spelled in another case
+(`M.act_login` next to `M.ACT_Login`, CE0122). It covers `rename … to` and
+`move … to Module` onto a taken name too. `mxcli help MDL-DUPNAME` has the
+table.
 
 ### It reports what the script REMOVES from the project
 
