@@ -27,6 +27,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/langver"
 )
 
 // CheckedSource is a test file rendered for checking.
@@ -66,6 +68,11 @@ func CheckSource(content, path string) (CheckedSource, error) {
 		return CheckedSource{}, err
 	}
 
+	version, err := fileLanguageVersion(tests, path)
+	if err != nil {
+		return CheckedSource{}, err
+	}
+
 	lines := strings.Split(content, "\n")
 	// One slot per source line, blank unless something is placed on it. A
 	// rendered line is only ever the body verbatim or a wrapper fragment, so
@@ -73,6 +80,19 @@ func CheckSource(content, path string) (CheckedSource, error) {
 	// whose last test runs to EOF with no '/' after it; appending past the end
 	// shifts nothing.
 	out := make([]string, len(lines)+1)
+
+	// The header goes on the line the author wrote it on, ahead of the first
+	// wrapper: without it the bodies were checked as mdl 0 whatever the file
+	// said (ako/mxcli#847). A markdown file has one per block, all alike, and
+	// the first one stands for them.
+	if version > langver.V0 {
+		for _, tc := range tests {
+			if tc.HeaderLine > 0 && tc.HeaderLine <= len(lines) {
+				out[tc.HeaderLine-1] = langver.HeaderFor(version)
+				break
+			}
+		}
+	}
 
 	var problems []SourceProblem
 	for i, tc := range tests {
@@ -93,9 +113,13 @@ func CheckSource(content, path string) (CheckedSource, error) {
 			}
 		}
 		// A void microflow needs no RETURN, so the wrapper is two fragments and
-		// the body between them is exactly what the author typed.
+		// the body between them is exactly what the author typed. The closing
+		// fragment has no `/`: `;` ends the statement under every version, a
+		// `/` is refused under mdl 1, and under mdl 0 it drew an MDL-V1-SLASH
+		// warning for a separator that is the test format's, not a terminator
+		// the author wrote.
 		place(out, first-1, fmt.Sprintf("CREATE OR MODIFY MICROFLOW %s.%s () BEGIN", mxTestModule, checkFlowName(tc, i)))
-		place(out, first+len(body), "END; /")
+		place(out, first+len(body), "END;")
 	}
 
 	return CheckedSource{MDL: strings.Join(out, "\n"), Problems: problems}, nil
@@ -140,4 +164,24 @@ func place(out []string, idx int, fragment string) {
 		return
 	}
 	out[idx] += " " + fragment
+}
+
+// fileLanguageVersion is the language version a test file is checked under.
+// A .test.mdl file has one header for all its tests; a markdown file has one
+// per ```mdl-test block, and check renders the file as one script, so blocks
+// that disagree are refused rather than checked under a version some of them
+// were not written in.
+func fileLanguageVersion(tests []TestCase, path string) (langver.Version, error) {
+	if len(tests) == 0 {
+		return langver.V0, nil
+	}
+	first := tests[0]
+	for _, tc := range tests[1:] {
+		if tc.Version != first.Version {
+			return langver.V0, fmt.Errorf("%s: the test at line %d is written in %s and the one at line %d in %s; "+
+				"a test file is checked and run as one script, so give every block the same `mdl <n>;` header",
+				filepath.Base(path), first.Line, first.Version, tc.Line, tc.Version)
+		}
+	}
+	return first.Version, nil
 }

@@ -126,8 +126,11 @@ Without the header a template literal that spans lines and has no parameters is 
 
 **Test files** (`.test.mdl`, `.test.md`) are upgraded the same way: the
 statements in their blocks are rewritten, and doc comments (`@test`,
-`@expect`, …), separators and prose are kept byte for byte. They take no
-language header yet, so `--header` adds none to them and says so.
+`@expect`, …), separators and prose are kept byte for byte. The header goes
+on the first line of a `.test.mdl` file and on the first line inside each
+`mdl-test` block of a `.test.md` file; `--header=false` declines it, as for a
+script. The runner and `check` read it, so a test body means under the header
+what it means in a script (see [Test Formats](../tools/test-formats.md)).
 
 **One dialect per file.** Upgrade a headerless file before editing it; do not
 add `mdl 1` statements to an `mdl 0` file.
