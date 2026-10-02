@@ -267,7 +267,13 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	}
 
 	invalidateHierarchy(ctx)
-	fmt.Fprintf(ctx.Output, "Created workflow: %s.%s\n", s.Name.Module, s.Name.Name)
+	// Through ReportMutation, like every other document: a rewrite whose unit
+	// write was elided says "Unchanged", not "Created", on every re-run.
+	verb := "Created"
+	if existingID != "" {
+		verb = "Modified"
+	}
+	ctx.ReportMutation(verb, "workflow: %s.%s", s.Name.Module, s.Name.Name)
 	return nil
 }
 
