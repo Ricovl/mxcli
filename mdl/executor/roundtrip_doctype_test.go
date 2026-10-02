@@ -18,6 +18,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	modelsdkbackend "github.com/mendixlabs/mxcli/mdl/backend/modelsdk"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
@@ -559,8 +560,9 @@ func filterByVersion(content string, pv *types.ProjectVersion) (string, int) {
 	// WFTest.OrderContext and WFTest.TaskPage (a page with parameters, 11.0+
 	// only -- mendixlabs/mxcli#294), and its PART H says `any` while using both.
 	// On the nightly's 10.24 leg that ran PART H against a project missing them:
-	// "entity 'WFTest.OrderContext' not found". Only that file has a line-1
-	// directive; the other six use `any` mid-file to close a gated section,
+	// "entity 'WFTest.OrderContext' not found". A language header above the
+	// directive does not move it off the top. Only that file has a top-of-file
+	// directive followed by a later `any`; the other six use `any` mid-file to close a gated section,
 	// where there is no baseline and nothing changes.
 	var baseline *versionConstraint
 	sawStatement := false
@@ -578,7 +580,9 @@ func filterByVersion(content string, pv *types.ProjectVersion) (string, int) {
 			result.WriteString("\n")
 			continue
 		}
-		if trimmed != "" && !strings.HasPrefix(trimmed, "--") {
+		// The language header (`mdl 1;`) is not a statement: since #901 it
+		// precedes the floor directive, and counting it lost the floor again.
+		if trimmed != "" && !strings.HasPrefix(trimmed, "--") && !langver.IsHeaderLine(trimmed) {
 			sawStatement = true
 		}
 		if (baseline == nil || baseline.matches(pv)) &&
