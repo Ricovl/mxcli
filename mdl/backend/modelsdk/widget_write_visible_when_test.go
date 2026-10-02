@@ -69,6 +69,24 @@ func TestConditionalVisibilityToGen_AttributeConditions(t *testing.T) {
 	}
 }
 
+// Editability's empty Conditions list carries marker [2], as visibility's does:
+// measured on both Studio Pro-authored settings in TestApp (the combo boxes of
+// WorkflowCommons.Snip_TaskDashboard_Header and Snip_WorkflowDashboard_TaskNumbers,
+// `Editable: $DashboardContext/… != empty`). mxcli wrote the default [3], so a
+// describe → exec of either rewrote the snippet.
+func TestConditionalEditabilityToGen_EmptyConditionsMarker(t *testing.T) {
+	d := encodeToD(t, conditionalEditabilityToGen(&pages.ConditionalEditabilitySettings{Expression: "$currentObject/Name != empty"}))
+	for _, e := range d {
+		if e.Key == "Conditions" {
+			if a, _ := e.Value.(bson.A); len(a) != 1 || a[0] != int32(2) {
+				t.Errorf("empty Conditions = %#v, want [2]", e.Value)
+			}
+			return
+		}
+	}
+	t.Fatalf("no Conditions key: %v", d)
+}
+
 // The expression form keeps its shape, with the corrected empty markers.
 func TestConditionalVisibilityToGen_ExpressionMarkers(t *testing.T) {
 	d := encodeToD(t, conditionalVisibilityToGen(&pages.ConditionalVisibilitySettings{Expression: "$currentObject/ImageB64 != empty"}))
