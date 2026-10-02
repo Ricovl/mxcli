@@ -100,7 +100,7 @@ func (m *scriptXPathModel) IsEntity(qn string) bool {
 
 func (m *scriptXPathModel) AssociationTarget(qn, from string) (string, bool) {
 	if m.sc != nil {
-		if ends, ok := m.sc.assocEnds[qn]; ok && from != "" {
+		if ends, ok := m.sc.associationEnds[strings.ToLower(qn)]; ok && from != "" {
 			// Either end may be traversed, through the start entity's
 			// generalization chain as for a stored association.
 			chain := []string{from}

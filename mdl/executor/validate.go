@@ -94,12 +94,9 @@ type scriptContext struct {
 	// associationEnds holds each script-declared association's {from, to}
 	// entities, keyed by its lower-cased qualified name, so a widget's
 	// association path can be followed to an entity the script also creates
-	// (MDL-WIDGET39).
+	// (MDL-WIDGET39), and a retrieve constraint hopping over one resolves
+	// against an entity the project already has.
 	associationEnds map[string][2]string
-	// assocEnds maps each script-declared association (Module.Association) to
-	// its FROM and TO entities, so a retrieve constraint hopping over one
-	// resolves against an entity the project already has.
-	assocEnds map[string][2]string
 
 	// warnings are findings that do not block: dangling references in an
 	// EXCLUDED document, which Mendix itself does not validate. Reported so
@@ -134,7 +131,6 @@ func newScriptContext() *scriptContext {
 		entityAttrs:       map[string]map[string]bool{},
 		ambiguousAssc:     map[string]bool{},
 		associationEnds:   map[string][2]string{},
-		assocEnds:         map[string][2]string{},
 		flowParams:        make(map[string]*flowSignature),
 
 		pageParams:            make(map[string][]string),
@@ -169,10 +165,6 @@ func (sc *scriptContext) recordAssociation(s *ast.CreateAssociationStmt) {
 	if from, to := s.Parent.String(), s.Child.String(); s.Parent.Module != "" && s.Child.Module != "" {
 		sc.associationEnds[strings.ToLower(s.Name.String())] = [2]string{from, to}
 	}
-	if sc.assocEnds == nil {
-		sc.assocEnds = map[string][2]string{}
-	}
-	sc.assocEnds[s.Name.String()] = [2]string{s.Parent.String(), s.Child.String()}
 	if prev, ok := sc.associations[s.Name.Name]; ok && prev != s.Name.String() {
 		sc.ambiguousAssc[s.Name.Name] = true
 		return
