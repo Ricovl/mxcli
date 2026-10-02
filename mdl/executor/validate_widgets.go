@@ -113,6 +113,7 @@ func ValidateWidgetPropertiesForStatement(stmt ast.Statement, registry *WidgetRe
 	}
 	if label, widgets, ok := documentWidgets(stmt); ok {
 		out := validateWidgetTree(widgets, registry, label)
+		out = append(out, validateNamedObjectBindings(widgets, documentEntityParameters(stmt), label)...)
 		return append(out, validatePageVariableBindings(widgets, documentVariables(stmt), label)...)
 	}
 	switch s := stmt.(type) {

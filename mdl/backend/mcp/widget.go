@@ -165,6 +165,16 @@ func (w *mcpWidgetBuilder) SetAttribute(propertyKey, attributePath string) {
 	}
 }
 
+// SetSourceVariable: the MCP widget payload has no slot for a property's
+// parameter source, so a `$Param.Attr` binding is reported unsupported rather
+// than sent as one read from the enclosing object.
+func (w *mcpWidgetBuilder) SetSourceVariable(propertyKey string, sv *pages.WidgetVariable) {
+	if sv == nil {
+		return
+	}
+	w.note("SetSourceVariable(" + propertyKey + ")")
+}
+
 func (w *mcpWidgetBuilder) SetAssociation(propertyKey, assocPath, entityName string) {
 	if assocPath == "" {
 		return

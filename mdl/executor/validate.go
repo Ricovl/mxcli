@@ -1860,6 +1860,25 @@ func documentWidgets(stmt ast.Statement) (label string, widgets []*ast.WidgetV3,
 	return "", nil, false
 }
 
+// documentEntityParameters is the names of a page's or snippet's entity-typed
+// parameters — the ones a `$Param.Attr` binding can read.
+func documentEntityParameters(stmt ast.Statement) []string {
+	var params []ast.PageParameter
+	switch s := stmt.(type) {
+	case *ast.CreatePageStmtV3:
+		params = s.Parameters
+	case *ast.CreateSnippetStmtV3:
+		params = s.Parameters
+	}
+	var out []string
+	for _, p := range params {
+		if p.EntityType.Name != "" {
+			out = append(out, p.Name)
+		}
+	}
+	return out
+}
+
 // documentVariables is a page's or snippet's `Variables:` declarations.
 func documentVariables(stmt ast.Statement) []ast.PageVariable {
 	switch s := stmt.(type) {

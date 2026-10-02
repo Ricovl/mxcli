@@ -234,7 +234,10 @@ type BuildContext struct {
 	// does not receive the AST, and a numeric placeholder written without its
 	// parameters is CE0720 (#928).
 	ClientParams []*pages.ClientTemplateParameter
-	pageBuilder  *pageBuilder
+	// SourceVariable names the parameter an attribute or association binding
+	// reads (`$Param.Attr`); nil for one read from the enclosing object.
+	SourceVariable *pages.WidgetVariable
+	pageBuilder    *pageBuilder
 }
 
 // =============================================================================
@@ -895,8 +898,14 @@ func (e *PluggableWidgetEngine) applyOperation(builder backend.WidgetObjectBuild
 	switch opName {
 	case "attribute":
 		builder.SetAttribute(propKey, ctx.AttributePath)
+		if ctx.SourceVariable != nil && ctx.AttributePath != "" {
+			builder.SetSourceVariable(propKey, ctx.SourceVariable)
+		}
 	case "association":
 		builder.SetAssociation(propKey, ctx.AssocPath, ctx.EntityName)
+		if ctx.SourceVariable != nil && ctx.AssocPath != "" {
+			builder.SetSourceVariable(propKey, ctx.SourceVariable)
+		}
 	case "primitive":
 		builder.SetPrimitive(propKey, ctx.PrimitiveVal)
 	case "selection":
@@ -1220,6 +1229,23 @@ func refuseAmbiguousGenericDataSource(def *WidgetDefinition, w *ast.WidgetV3, ds
 		w.Name, def.MDLName, len(dsKeys), strings.Join(dsKeys, ", "))
 }
 
+// parameterBinding resolves the `$name` of a `$name.Attr` binding on a pluggable
+// widget property to the page or snippet parameter it names: the SourceVariable
+// to store beside the reference, and the parameter's entity. A name that is no
+// parameter is refused — the data-view pair (#826) is measured on the built-in
+// inputs only, and anything else would be written as a binding that reads
+// nothing.
+func (e *PluggableWidgetEngine) parameterBinding(w *ast.WidgetV3, propertyKey, attr, name string) (pages.WidgetVariable, string, error) {
+	wv, entity, ok := e.pageBuilder.parameterVariable(name)
+	if !ok {
+		return pages.WidgetVariable{}, "", mdlerrors.NewValidationf(
+			"%s `%s` property `%s`: `%s` — `$%s` is not a parameter of this %s; `$Param.Attr` reads an attribute "+
+				"of a page or snippet parameter. Inside a data container, name the attribute bare",
+			strings.ToLower(w.Type), w.Name, propertyKey, attr, name, e.pageBuilder.documentKind())
+	}
+	return wv, entity, nil
+}
+
 // entityContextFor returns the entity that propertyKey's value binds against.
 // See bindingScopeFor.
 func (e *PluggableWidgetEngine) entityContextFor(propertyKey string) string {
@@ -1372,7 +1398,22 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 				}
 			}
 		}
-		if attr != "" {
+		if name, rest, named := namedObjectBinding(attr); named {
+			// `$Param.Attr`: read from a page or snippet parameter, whatever
+			// encloses the widget (see cmd_pages_parameter_binding.go).
+			wv, entity, err := e.parameterBinding(w, mapping.PropertyKey, attr, name)
+			if err != nil {
+				return nil, err
+			}
+			if err := e.pageBuilder.rejectAssociationAsAttribute(
+				rest, entity,
+				fmt.Sprintf("widget `%s` property `%s`", w.Name, mapping.PropertyKey),
+			); err != nil {
+				return nil, err
+			}
+			ctx.AttributePath = e.pageBuilder.resolveAttributePathForEntity(rest, entity)
+			ctx.SourceVariable = &wv
+		} else if attr != "" {
 			// Against THIS property's scope: its own datasource's entity when the
 			// template links it to one, the enclosing object when it links it to
 			// none (#647).
@@ -1470,7 +1511,16 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 		if attr == "" {
 			attr = w.GetAttribute()
 		}
-		if attr != "" {
+		if name, rest, named := namedObjectBinding(attr); named {
+			// `$Param.Assoc`: the association starts at a page or snippet
+			// parameter (Snip_TaskDashboard_Header's referenceSelector5).
+			wv, entity, err := e.parameterBinding(w, mapping.PropertyKey, attr, name)
+			if err != nil {
+				return nil, err
+			}
+			ctx.AssocPath = e.pageBuilder.resolveAssociationPathIn(rest, entity)
+			ctx.SourceVariable = &wv
+		} else if attr != "" {
 			// The association belongs to the CONTAINING entity, not to this
 			// widget's option list. A `DataSource:` mapping listed before this
 			// one has already moved entityContext to the option entity, so

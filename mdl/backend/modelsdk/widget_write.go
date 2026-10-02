@@ -1083,6 +1083,13 @@ func conditionalVisibilityToGen(cvs *pages.ConditionalVisibilitySettings) elemen
 			cg.SetEditableVisible(c.Visible)
 			g.AddConditions(cg)
 		}
+		// Read from a page or snippet parameter (`Visible: $Param.Attr in
+		// (…)`): Studio Pro names it here, as on TestApp's
+		// WorkflowCommons.Snip_UserTask_NameColumnWithIcon. Null otherwise —
+		// read from the enclosing object.
+		if sv := inputSourceVariableToGen(cvs.SourceVariable); sv != nil {
+			g.SetSourceVariable(sv)
+		}
 	}
 	return g
 }

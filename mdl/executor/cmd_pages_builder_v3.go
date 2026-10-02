@@ -2549,27 +2549,67 @@ func (pb *pageBuilder) widgetVariableFor(name string) (pages.WidgetVariable, boo
 
 // resolveInputBinding resolves an input widget's `Attribute:`. A bare or
 // association path binds against the enclosing data context, as before.
-// `$dataView1.Attr` reads through the named enclosing data view: Studio Pro's
-// widget-scoped SourceVariable {Widget: dataView1, PageParameter: …}, which
-// describe prints in that form (ako/mxcli#826). Any other `$name` — a
-// parameter, an unknown name, a data view the input is not inside (CE7001) —
-// is refused: nothing else is measured, and the writer would otherwise store a
-// binding that reads nothing.
+// `$name.Attr` names the object outright:
+//
+//   - a declared page or snippet parameter: Studio Pro's SourceVariable
+//     {SnippetParameter|PageParameter: name, Widget: ""}, which it stores on a
+//     widget placed outside every data container (TestApp WorkflowCommons'
+//     Snip_WorkflowUserTaskView_Details: a date picker, text areas, a radio
+//     button group). Parameters win over a widget of the same name, as
+//     everywhere else;
+//   - otherwise an enclosing data view: the widget-scoped {Widget: dataView1,
+//     PageParameter: …} pair (ako/mxcli#826).
+//
+// Any other `$name` — an unknown name, a data view the input is not inside
+// (CE7001) — is refused: the writer would otherwise store a binding that reads
+// nothing.
 func (pb *pageBuilder) resolveInputBinding(w *ast.WidgetV3, attr string) (string, []pages.AttributeRefStep, *pages.WidgetVariable, error) {
 	name, attrName, ok := strings.Cut(strings.TrimPrefix(attr, "$"), ".")
 	if !strings.HasPrefix(attr, "$") {
 		path, steps := pb.resolveInputAttribute(attr)
 		return path, steps, nil, nil
 	}
+	if ok && attrName != "" {
+		if wv, entity, isParam := pb.parameterVariable(name); isParam {
+			return pb.resolveAttributePathForEntity(attrName, entity), nil, &wv, nil
+		}
+	}
 	wv, known := pb.dataViewVariables[name]
 	if !ok || attrName == "" || !known || pb.isDeclaredParameter(name) {
 		return "", nil, nil, mdlerrors.NewValidationf(
-			"%s `%s`: `Attribute: %s` — `$name.Attr` on an input reads through a data view, and `$%s` is not a data view "+
-				"enclosing it. Bind the attribute by name inside the data view (`Attribute: %s`), or name an enclosing data view",
-			strings.ToLower(w.Type), w.Name, attr, name, attrName)
+			"%s `%s`: `Attribute: %s` — `$name.Attr` reads a parameter of this %s or an enclosing data view, and "+
+				"`$%s` is neither. Bind the attribute by name inside a data view (`Attribute: %s`), or name a "+
+				"parameter or an enclosing data view",
+			strings.ToLower(w.Type), w.Name, attr, pb.documentKind(), name, attrName)
 	}
 	path := pb.resolveAttributePathForEntity(attrName, pb.paramEntityNames[name])
 	return path, nil, &wv, nil
+}
+
+// parameterVariable answers whether name is one of the document's entity-typed
+// parameters and, if so, the SourceVariable a binding read from it stores — the
+// parameter in the slot parameterSlotKind picks, no Widget — and its entity.
+func (pb *pageBuilder) parameterVariable(name string) (pages.WidgetVariable, string, bool) {
+	name = strings.TrimPrefix(name, "$")
+	if name == "" || !pb.isDeclaredParameter(name) {
+		return pages.WidgetVariable{}, "", false
+	}
+	entity := pb.paramEntityNames[name]
+	if entity == "" {
+		entity = pb.paramEntityNames["$"+name]
+	}
+	if entity == "" {
+		return pages.WidgetVariable{}, "", false
+	}
+	return pages.WidgetVariable{Variable: name, Kind: pb.parameterSlotKind(name)}, entity, true
+}
+
+// documentKind names what is being built, for messages.
+func (pb *pageBuilder) documentKind() string {
+	if pb.isSnippet {
+		return "snippet"
+	}
+	return "page"
 }
 
 // parameterSlotKind names the Forms$PageVariable slot a `$name` reference (a

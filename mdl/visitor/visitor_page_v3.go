@@ -646,17 +646,26 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 		if pathCtx := propCtx.AttributePathV3(); pathCtx != nil {
 			widget.Properties["Attribute"] = buildAttributePathV3(pathCtx)
 		} else if refCtx := propCtx.WidgetAttributeRefV3(); refCtx != nil {
-			// `$dataView1.Name`: kept as written; the builder resolves the name
-			// to the data view it reads through (ako/mxcli#826). Only the input
-			// builders read it — any other widget resolved the `$…` string to no
-			// attribute and was written without one, so it stays refused there.
+			// `$dataView1.Name` / `$Param.Name`: kept as written; the builder
+			// resolves the name to the data view it reads through (ako/mxcli#826)
+			// or the page/snippet parameter it reads. Only the input builders
+			// and the combo box read it — any other widget resolved the `$…`
+			// string to no attribute and was written without one, so it stays
+			// refused there. `$Param.Module.Assoc` is a combo box's association.
 			ref := buildWidgetAttributeRefV3(refCtx)
-			if !widgetAttributeRefKinds[strings.ToLower(widget.Type)] {
-				_, attr, _ := strings.Cut(ref, ".")
-				b.addError(fmt.Errorf("%s `%s`: `Attribute: %s` — reading an attribute through a data view "+
-					"is supported on textbox, textarea, checkbox, datepicker, radiobuttons and dropdown; "+
-					"bind the attribute by name inside the data view instead (`Attribute: %s`)",
+			kind := strings.ToLower(widget.Type)
+			_, attr, _ := strings.Cut(ref, ".")
+			if !widgetAttributeRefKinds[kind] {
+				b.addError(fmt.Errorf("%s `%s`: `Attribute: %s` — reading an attribute from a named object "+
+					"is supported on textbox, textarea, checkbox, datepicker, radiobuttons, dropdown and combobox; "+
+					"bind the attribute by name inside a data view instead (`Attribute: %s`)",
 					widget.Type, widget.Name, refCtx.GetText(), attr))
+				return
+			}
+			if strings.Contains(attr, ".") && kind != "combobox" {
+				b.addError(fmt.Errorf("%s `%s`: `Attribute: %s` — name one attribute after the object (`$name.Attr`); "+
+					"a qualified `$name.Module.Association` is a combo box's association",
+					widget.Type, widget.Name, refCtx.GetText()))
 				return
 			}
 			widget.Properties["Attribute"] = ref
@@ -880,7 +889,13 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 	if propCtx.VISIBLE() != nil {
 		// `Visible: Attr in (v1, …)` — Studio Pro's "based on attribute value".
 		if propCtx.IN() != nil {
-			vw := &ast.VisibleWhenV3{Attribute: getQualifiedNameText(propCtx.QualifiedName())}
+			vw := &ast.VisibleWhenV3{}
+			if refCtx := propCtx.WidgetAttributeRefV3(); refCtx != nil {
+				// `$Param.Attr in (…)`: read from a page or snippet parameter.
+				vw.Attribute = buildWidgetAttributeRefV3(refCtx)
+			} else {
+				vw.Attribute = getQualifiedNameText(propCtx.QualifiedName())
+			}
 			for _, v := range propCtx.AllVisibleValueV3() {
 				vw.Values = append(vw.Values, unquoteIdentifier(v.GetText()))
 			}
@@ -1315,22 +1330,29 @@ func buildAssociationPathV3(ctx parser.IAssociationPathV3Context) string {
 }
 
 // widgetAttributeRefKinds are the widgets whose builder resolves `Attribute:
-// $dataView1.Name` (resolveInputBinding) — ako/mxcli#826.
+// $name.Attr`: the inputs (resolveInputBinding — an enclosing data view,
+// ako/mxcli#826, or a parameter) and the combo box (the pluggable engine — a
+// parameter only).
 var widgetAttributeRefKinds = map[string]bool{
 	"textbox": true, "textarea": true, "checkbox": true,
 	"datepicker": true, "radiobuttons": true, "dropdown": true,
+	"combobox": true,
 }
 
-// buildWidgetAttributeRefV3 renders `$name.Attr` with a quoted attribute name
-// unquoted, the form resolveInputAttribute reads.
+// buildWidgetAttributeRefV3 renders `$name.Attr` (or `$name.Module.Assoc`)
+// with quoted segments unquoted, the form the builders read.
 func buildWidgetAttributeRefV3(ctx parser.IWidgetAttributeRefV3Context) string {
 	c, ok := ctx.(*parser.WidgetAttributeRefV3Context)
 	if !ok || c.VARIABLE() == nil {
 		return ""
 	}
 	text := c.GetText()
-	_, attr, _ := strings.Cut(text, ".")
-	return c.VARIABLE().GetText() + "." + unquoteIdentifier(attr)
+	_, rest, _ := strings.Cut(text, ".")
+	segs := strings.Split(rest, ".")
+	for i, seg := range segs {
+		segs[i] = unquoteIdentifier(seg)
+	}
+	return c.VARIABLE().GetText() + "." + strings.Join(segs, ".")
 }
 
 // buildAttributePathV3 builds an attribute path string.
