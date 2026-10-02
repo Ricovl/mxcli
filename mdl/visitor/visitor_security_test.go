@@ -3,6 +3,7 @@
 package visitor
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -251,6 +252,28 @@ func TestGrantEntityAccess_QuotedMembers(t *testing.T) {
 	if stmt.Rights[1].Type != ast.EntityAccessWriteMembers ||
 		len(stmt.Rights[1].Members) != 1 || stmt.Rights[1].Members[0] != "Order" {
 		t.Errorf("expected WRITE members [Order] (unquoted), got %v", stmt.Rights[1].Members)
+	}
+}
+
+// A member list took only IDENTIFIER or a quoted name, so any attribute whose
+// name lexes as a keyword — Region, Status, Title, Value, Date — was a parse
+// error ("mismatched input 'Region'") although `create entity` accepts it
+// unquoted. Every other name rule in the grammar includes `keyword`.
+func TestGrantEntityAccess_KeywordMembers(t *testing.T) {
+	input := `GRANT MyModule.Admin ON MyModule.Engineer (READ (FullName, Region, Status, Title), WRITE (Value, Date));`
+	prog, errs := Build(input)
+	if len(errs) > 0 {
+		t.Fatalf("Parse error: %v", errs)
+	}
+	stmt := prog.Statements[0].(*ast.GrantEntityAccessStmt)
+	want := [][]string{{"FullName", "Region", "Status", "Title"}, {"Value", "Date"}}
+	if len(stmt.Rights) != 2 {
+		t.Fatalf("expected 2 rights, got %d", len(stmt.Rights))
+	}
+	for i, w := range want {
+		if strings.Join(stmt.Rights[i].Members, ",") != strings.Join(w, ",") {
+			t.Errorf("right %d members %v, want %v", i, stmt.Rights[i].Members, w)
+		}
 	}
 }
 
