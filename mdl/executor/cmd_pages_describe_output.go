@@ -130,20 +130,6 @@ func widgetConditionMDL(key, expr string) string {
 	return fmt.Sprintf("%s: [%s]", key, expr)
 }
 
-// appendConditionalProps appends VISIBLE IF and EDITABLE IF if present.
-func appendConditionalProps(props []string, w rawWidget) []string {
-	if w.VisibleIf != "" {
-		props = append(props, widgetConditionMDL("Visible", w.VisibleIf))
-	}
-	if prop := visibleWhenProp(w); prop != "" {
-		props = append(props, prop)
-	}
-	if w.EditableIf != "" {
-		props = append(props, widgetConditionMDL("Editable", w.EditableIf))
-	}
-	return props
-}
-
 // appendAppearanceProps appends Class, Style, DesignProperties, and conditional
 // settings if present — and editability, which every input widget carries.
 //
@@ -777,7 +763,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		} else if widgetType == "image" {
 			header := fmt.Sprintf("image %s", mdlIdent(w.Name))
 			props := describeImageWidgetProps(ctx, w)
-			props = appendConditionalProps(props, w)
+			// appendAppearanceProps prints the visibility and editability; the
+			// conditional settings appended a second time before it printed each
+			// twice (#721 C).
 			props = appendAppearanceProps(ctx, props, w)
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		} else if (len(w.ExplicitProperties) > 0 || len(w.ObjectLists) > 0 || w.OnClick != "" ||
