@@ -31,7 +31,7 @@ func runPreflight(t *testing.T, src string, showInfo bool) string {
 		t.Fatalf("parse: %v", errs)
 	}
 	var out bytes.Buffer
-	refusal := execPreflight(executor.New(io.Discard), prog, "", "s.mdl", false, showInfo,
+	refusal := execPreflight(executor.New(io.Discard), prog, "", "s.mdl", false, showInfo, false,
 		deprecation.Warn, &out, false)
 	if refusal != "" {
 		t.Fatalf("unexpected refusal: %s", refusal)

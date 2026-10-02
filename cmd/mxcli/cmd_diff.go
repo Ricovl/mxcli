@@ -99,7 +99,7 @@ Examples:
 			NewBackend:      func() backend.FullBackend { return modelsdkbackend.New() },
 			ContinueOnError: continueOnError,
 			Preflight: func(scratch *executor.Executor, w io.Writer) string {
-				return execPreflight(scratch, prog, projectPath, filePath, skipCheck, verbose, depPolicy, w, useColor)
+				return execPreflight(scratch, prog, projectPath, filePath, skipCheck, verbose, continueOnError, depPolicy, w, useColor)
 			},
 		}
 		if filePath != "-" {

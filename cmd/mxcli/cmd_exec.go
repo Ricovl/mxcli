@@ -118,7 +118,7 @@ Example:
 			os.Exit(1)
 		}
 
-		if refusal := execPreflight(exec, prog, projectPath, filePath, skipCheck, verbose, depPolicy, os.Stderr, true); refusal != "" {
+		if refusal := execPreflight(exec, prog, projectPath, filePath, skipCheck, verbose, continueOnError, depPolicy, os.Stderr, true); refusal != "" {
 			fmt.Fprint(os.Stderr, refusal)
 			os.Exit(1)
 		}

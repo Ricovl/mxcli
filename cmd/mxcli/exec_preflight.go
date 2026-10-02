@@ -21,7 +21,10 @@ import (
 // the script connects itself). script names the script for the hint that
 // points at `mxcli check` ("-" for stdin). showInfo prints info-level notes in
 // full; otherwise they are counted on one line (see printPreflightViolations).
-func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath, script string, skipCheck, showInfo bool, depPolicy deprecation.Policy, w io.Writer, color bool) string {
+// continueOnError is exec's --continue-on-error: a flow change exec would refuse
+// is then reported but does not refuse the script, since that mode asks for
+// every statement that can run to run.
+func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath, script string, skipCheck, showInfo, continueOnError bool, depPolicy deprecation.Policy, w io.Writer, color bool) string {
 	// Pre-flight: refuse a script whose semantic checks report an error,
 	// rather than writing part of it and leaving the model to mxbuild.
 	// exec is not transactional, so "run it and see" means a half-applied
@@ -115,6 +118,24 @@ func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath, scri
 					"  Rename, or re-run with --no-check to apply the script anyway (each clashing\n"+
 					"  create is still refused when it runs).\n",
 				len(clashes))
+		}
+
+		// Fourth pass: a flow change exec would refuse when it reaches it — a
+		// splice under mdl 1, an alter whose patch fails. `check -p` already
+		// runs this verdict; exec did not, so it wrote every statement before
+		// the refused one and none after, leaving the model half-applied.
+		verdicts := exec.CheckFlowVerdicts(prog)
+		if len(verdicts) > 0 {
+			(&linter.TextFormatter{UseColor: color}).Format(verdicts, w)
+			if n := linter.Summarize(verdicts).Errors; n > 0 && !continueOnError {
+				return fmt.Sprintf(
+					"\nRefusing to execute: %d flow change(s) above would be refused when reached. Nothing was written.\n"+
+						"  exec applies statements one at a time, so the statements before a refused\n"+
+						"  change would be written and the ones after it would not.\n"+
+						"  Make the change the refusal names, or re-run with --continue-on-error to\n"+
+						"  apply every other statement.\n",
+					n)
+			}
 		}
 	}
 	return ""
