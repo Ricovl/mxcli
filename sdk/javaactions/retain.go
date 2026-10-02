@@ -4,8 +4,8 @@ package javaactions
 
 import "strings"
 
-// generatedImports are the imports GenerateSource writes itself; they are not
-// part of what a regeneration has to retain.
+// generatedImports are the imports GenerateSource writes into every action;
+// RetainedSections leaves them out of what it reports.
 var generatedImports = map[string]bool{
 	"import com.mendix.systemwideinterfaces.core.IContext;":   true,
 	"import com.mendix.systemwideinterfaces.core.UserAction;": true,
@@ -20,13 +20,9 @@ var generatedImports = map[string]bool{
 // Imports are returned as their full lines, minus the two GenerateSource writes
 // itself. Marker matching is case-insensitive, as for JavaScript actions.
 func RetainedSections(source string) (imports []string, extraCode string) {
-	for line := range strings.SplitSeq(source, "\n") {
-		t := strings.TrimSpace(line)
-		if strings.HasPrefix(t, "public class ") {
-			break // the import list ends where the class begins
-		}
-		if strings.HasPrefix(t, "import ") && strings.HasSuffix(t, ";") && !generatedImports[t] {
-			imports = append(imports, t)
+	for _, imp := range importList(source) {
+		if !generatedImports[imp] {
+			imports = append(imports, imp)
 		}
 	}
 	if ec, ok := sliceBetweenFold(source, "// BEGIN EXTRA CODE", "// END EXTRA CODE"); ok {
@@ -35,23 +31,42 @@ func RetainedSections(source string) (imports []string, extraCode string) {
 	return imports, extraCode
 }
 
+// importList is a source's import list as it stands: every import line before
+// the class, in order.
+func importList(source string) []string {
+	var imports []string
+	for line := range strings.SplitSeq(source, "\n") {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "public class ") {
+			break // the import list ends where the class begins
+		}
+		if strings.HasPrefix(t, "import ") && strings.HasSuffix(t, ";") {
+			imports = append(imports, t)
+		}
+	}
+	return imports
+}
+
 // RetainSections merges what a statement supplies with what the existing source
-// retains, the way Studio Pro regenerates an action: the stored import list is
-// kept and the statement's imports are added to it, and the stored extra code is
-// kept unless the statement supplies its own. existing is "" when there is no
-// source file yet.
+// retains, the way mxbuild regenerates an action: the stored import list is kept
+// as it stands — order included, and the imports the generator needs wherever
+// they sit — with the statement's new imports added after it, and the stored
+// extra code is kept unless the statement supplies its own. existing is "" when
+// there is no source file yet. GenerateSource appends whatever the generated
+// code needs that the list still lacks.
 //
 // Before this, a rewrite kept only the user code, so an action whose user code
 // calls a helper in its EXTRA CODE section — FeedbackModule.XSS_Sanitizer in the
 // Blank template — was regenerated into Java that does not compile
 // (ako/mxcli#705).
 func RetainSections(existing string, imports []string, extraCode string) ([]string, string) {
-	kept, keptExtra := RetainedSections(existing)
+	kept := importList(existing)
+	_, keptExtra := RetainedSections(existing)
 	seen := make(map[string]bool, len(kept)+len(imports))
 	var out []string
 	for _, imp := range append(kept, imports...) {
 		imp = strings.TrimSpace(imp)
-		if imp == "" || seen[imp] || generatedImports[imp] {
+		if imp == "" || seen[imp] {
 			continue
 		}
 		seen[imp] = true

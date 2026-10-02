@@ -62,10 +62,14 @@ func TestRetainedSections_ReadsImportsAndExtraCode(t *testing.T) {
 func TestRetainSections_MergesWithWhatTheStatementSaid(t *testing.T) {
 	imports, extra := RetainSections(studioProSource,
 		[]string{"import java.util.regex.Pattern;", "import java.util.List;"}, "")
+	// The stored list as it stands — mxbuild neither reorders it nor moves the
+	// imports it generates itself to the top — plus the new one.
 	want := []string{
 		"import java.util.regex.Matcher;",
 		"import java.util.regex.Pattern;",
+		"import com.mendix.systemwideinterfaces.core.IContext;",
 		"import com.mendix.webui.CustomJavaAction;",
+		"import com.mendix.systemwideinterfaces.core.UserAction;",
 		"import java.util.List;",
 	}
 	if !reflect.DeepEqual(imports, want) {
