@@ -1010,6 +1010,10 @@ func (unimplemented) RenameReferences(_ string, _ string, _ bool) ([]types.Renam
 	return r0, errUnimplemented("RenameReferences")
 }
 
+func (unimplemented) RenameViewEntitySourceDocument(_ string, _ string, _ string) error {
+	return errUnimplemented("RenameViewEntitySourceDocument")
+}
+
 func (unimplemented) RevokeEntityMemberAccess(_ model.ID, _ string, _ []string, _ types.EntityAccessRevocation) (int, error) {
 	var r0 int
 	return r0, errUnimplemented("RevokeEntityMemberAccess")

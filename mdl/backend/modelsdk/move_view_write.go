@@ -13,6 +13,7 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/meta"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
 	"github.com/mendixlabs/mxcli/modelsdk/mprread"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // MoveEnumeration reparents an enumeration unit to its (already-updated) target
@@ -219,6 +220,39 @@ func (b *Backend) MoveViewEntitySourceDocument(sourceModuleName string, targetMo
 		return err // nil docID → nothing to move
 	}
 	return b.writer.MoveUnit(string(docID), string(targetModuleID))
+}
+
+// RenameViewEntitySourceDocument renames a view entity's OQL source document,
+// found by $Type as well as name — RenameDocumentByName matches any unit with
+// that name, and a microflow or page may share it. A view entity's document
+// must carry the entity's name (CE6784 otherwise).
+func (b *Backend) RenameViewEntitySourceDocument(moduleName, oldName, newName string) error {
+	if b.writer == nil {
+		return fmt.Errorf("RenameViewEntitySourceDocument: not connected for writing")
+	}
+	docID, err := b.FindViewEntitySourceDocumentID(moduleName, oldName)
+	if err != nil || docID == "" {
+		return err // nil docID → nothing to rename
+	}
+	raw, err := b.reader.GetRawUnitBytes(string(docID))
+	if err != nil {
+		return fmt.Errorf("RenameViewEntitySourceDocument: read: %w", err)
+	}
+	var doc bson.D
+	if err := bson.Unmarshal(raw, &doc); err != nil {
+		return fmt.Errorf("RenameViewEntitySourceDocument: decode: %w", err)
+	}
+	for i, elem := range doc {
+		if elem.Key == "Name" {
+			doc[i].Value = newName
+			contents, err := bson.Marshal(doc)
+			if err != nil {
+				return fmt.Errorf("RenameViewEntitySourceDocument: marshal: %w", err)
+			}
+			return b.writer.UpdateRawUnit(string(docID), contents)
+		}
+	}
+	return fmt.Errorf("RenameViewEntitySourceDocument: %s.%s has no Name", moduleName, oldName)
 }
 
 // FindAllViewEntitySourceDocumentIDs returns every ViewEntitySourceDocument unit
