@@ -157,6 +157,24 @@ longer needs a placeholder (#843): drop the stub and keep the real statement [MD
 
 It is a warning. One file checked alone is not read as a set.
 
+### MDL-SEC21: A used flow left without access (CE0106)
+
+```
+✗ microflow Shop.MF_Button has no allowed role but is used from page Shop.P_Main —
+MxBuild reports CE0106 "At least one allowed role must be selected if the microflow
+is used from navigation, a page, a nanoflow or a published service" at security
+level Production. This script creates it as a NEW microflow, ... [MDL-SEC21]
+  → add grant execute on microflow Shop.MF_Button to Shop.Admin; — or, to rebuild a
+    flow that already exists without losing its access, use `create or modify
+    microflow` instead of drop + create
+```
+
+**Cause:** With a project (`check -p`), the script leaves a microflow or nanoflow with no allowed module role while a page, snippet, layout, nanoflow, menu document or navigation profile names it. Measured on Mendix 11.14, MxBuild reports CE0106 for each of those uses (even from an unused snippet, menu document or nanoflow), but not for a published REST operation, a microflow called only from another microflow, or an excluded page. The usual way to get there is `drop microflow` in one run and `create microflow` in a later one: the later create is a *new* flow, and a new document in a module that has module roles of its own gets no access. Dropping and recreating in the same run, or using `create or modify`, keeps the stored roles.
+
+**Solution:** Add the `grant execute on microflow …` (or `… on nanoflow …`) the suggestion names, or rebuild the flow with `create or modify` instead of dropping it.
+
+It is an **error at security level Prototype or Production** (the stored level, or the one the script sets) and a warning at Off, where MxBuild does not check it. Only what the script changes is reported: a flow that already had the problem before the script, and that the script does not touch, is left to `mxcli docker check`.
+
 ### MDL-DEPRnnn: Deprecated spelling
 
 ```

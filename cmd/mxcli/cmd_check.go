@@ -368,6 +368,11 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 		projectViolations := exec.CheckEntityMemberDrops(prog)
 		projectViolations = append(projectViolations, exec.TypeCheckProgram(prog)...)
 		projectViolations = append(projectViolations, exec.CheckFlowVerdicts(prog)...)
+		// MDL-SEC21 (MxBuild CE0106): a flow this script leaves with no allowed
+		// role while a page, snippet, nanoflow, menu or navigation uses it. The
+		// reported shape was drop + create in separate runs, which loses the
+		// roles that `create or modify` keeps.
+		projectViolations = append(projectViolations, exec.CheckFlowAccess(prog)...)
 		if len(projectViolations) > 0 {
 			if isStructured {
 				structured = append(structured, projectViolations...)
@@ -379,7 +384,7 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 				return finish(1)
 			}
 		} else if !isStructured {
-			fmt.Printf("✓ Expression types OK, no unstated member drops, no flow change exec would refuse\n")
+			fmt.Printf("✓ Expression types OK, no unstated member drops, no flow change exec would refuse, no used flow left without access\n")
 		}
 	}
 
