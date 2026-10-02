@@ -90,6 +90,12 @@ type scriptContext struct {
 	entityAttrs   map[string]map[string]bool // Module.Entity -> attribute names
 	ambiguousAssc map[string]bool            // names defined in more than one module
 
+	// associationEnds holds each script-declared association's {from, to}
+	// entities, keyed by its lower-cased qualified name, so a widget's
+	// association path can be followed to an entity the script also creates
+	// (MDL-WIDGET39).
+	associationEnds map[string][2]string
+
 	// warnings are findings that do not block: dangling references in an
 	// EXCLUDED document, which Mendix itself does not validate. Reported so
 	// that relaxing the check hides nothing.
@@ -122,6 +128,7 @@ func newScriptContext() *scriptContext {
 		associations:      map[string]string{},
 		entityAttrs:       map[string]map[string]bool{},
 		ambiguousAssc:     map[string]bool{},
+		associationEnds:   map[string][2]string{},
 		flowParams:        make(map[string]*flowSignature),
 
 		pageParams:            make(map[string][]string),
@@ -152,6 +159,9 @@ func (sc *scriptContext) recordEntityAttrs(s *ast.CreateEntityStmt) {
 func (sc *scriptContext) recordAssociation(s *ast.CreateAssociationStmt) {
 	if s.Name.Module == "" || s.Name.Name == "" {
 		return
+	}
+	if from, to := s.Parent.String(), s.Child.String(); s.Parent.Module != "" && s.Child.Module != "" {
+		sc.associationEnds[strings.ToLower(s.Name.String())] = [2]string{from, to}
 	}
 	if prev, ok := sc.associations[s.Name.Name]; ok && prev != s.Name.String() {
 		sc.ambiguousAssc[s.Name.Name] = true
