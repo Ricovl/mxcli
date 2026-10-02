@@ -429,6 +429,9 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 		if handled, err := m.insertIntoScrollRegion(widgetRef, columnRef, position, widgets); handled {
 			return err
 		}
+		if handled, err := m.insertIntoDataViewFooter(widgetRef, columnRef, position, widgets); handled {
+			return err
+		}
 		// Resolve first, so a mistyped column still reports "not found" (with the
 		// available names) rather than the refusal below.
 		if _, err := findBsonColumn(m.rawData, widgetRef, columnRef, m.widgetFinder); err != nil {
@@ -558,6 +561,9 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 	for _, ref := range refs {
 		// Re-find widget each iteration because previous drops mutate the tree.
 		var result *bsonWidgetResult
+		if ref.IsColumn() && m.dropDataViewFooter(ref.Widget, ref.Column) {
+			continue
+		}
 		if ref.IsColumn() {
 			r, err := findBsonColumn(m.rawData, ref.Widget, ref.Column, m.widgetFinder)
 			if err != nil {
@@ -583,6 +589,9 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 
 func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pages.Widget) error {
 	if columnRef != "" {
+		if handled, err := m.replaceDataViewFooter(widgetRef, columnRef, widgets); handled {
+			return err
+		}
 		// Resolve first, so a mistyped column still reports "not found" (with the
 		// available names) rather than the refusal below.
 		if _, err := findBsonColumn(m.rawData, widgetRef, columnRef, m.widgetFinder); err != nil {
@@ -1902,7 +1911,7 @@ func (m *Mutator) widgetNotFoundError(name string) error {
 				"available columns: %s (run DESCRIBE PAGE to confirm)",
 			name, formatColumnNameList(cols))
 	}
-	return fmt.Errorf("widget %q not found", name)
+	return fmt.Errorf("widget %q not found%s", name, m.dataViewFooterHint())
 }
 
 // formatColumnNameList renders derived column names for an error message: each
@@ -2818,6 +2827,76 @@ func setWidgetConditionalSettingMut(widget bson.D, field, typeName, expression s
 	return bsonnav.DSet(widget, field, doc)
 }
 
+// setWidgetEditableMut writes `set Editable = …`. Two widget families store two
+// different things under the same key, so the stored value's type decides what
+// the statement may say:
+//
+//   - a list view or data view stores a BOOLEAN — `true` / `false`;
+//   - an input widget stores the Always / Never / Conditional enum.
+//
+// Anything else is refused. Before mendixlabs/mxcli#1214 only a string was
+// written, so `set Editable = true on lvRows` — the boolean every list view
+// takes — returned nil and the command reported "Altered page" with nothing
+// stored, leaving the list's inputs read-only at runtime.
+func setWidgetEditableMut(widget bson.D, value any) error {
+	typ := bsonnav.DGetString(widget, "$Type")
+	switch bsonnav.DGet(widget, "Editable").(type) {
+	case bool:
+		b, ok := editableBool(value)
+		if !ok {
+			return fmt.Errorf("Editable on a %s is true or false, not %v", widgetTypeLabel(typ), value)
+		}
+		bsonnav.DSet(widget, "Editable", b)
+		return nil
+	case string:
+		s, isString := value.(string)
+		canon, ok := pages.CanonicalEditability(s)
+		if !isString || !ok {
+			return fmt.Errorf("Editable on a %s is Always or Never (or `Editable = [expression]` for a condition), not %v",
+				widgetTypeLabel(typ), value)
+		}
+		if canon == "Conditional" {
+			// The enum without its settings element is a condition with no
+			// expression; the bracketed form writes both.
+			return fmt.Errorf("`set Editable = Conditional` needs the condition itself: write `set Editable = [expression]`")
+		}
+		bsonnav.DSet(widget, "Editable", canon)
+		// A plain value replaces a stored condition rather than contradicting it.
+		bsonnav.DSet(widget, "ConditionalEditabilitySettings", nil)
+		return nil
+	default:
+		return fmt.Errorf("a %s has no Editable property", widgetTypeLabel(typ))
+	}
+}
+
+// editableBool reads a list/data view's boolean Editable from MDL, which hands
+// it over as a bool (or, quoted, as the string "true"/"false").
+func editableBool(value any) (bool, bool) {
+	switch v := value.(type) {
+	case bool:
+		return v, true
+	case string:
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "true":
+			return true, true
+		case "false":
+			return false, true
+		}
+	}
+	return false, false
+}
+
+// widgetTypeLabel is a stored $Type as an author reads it: "Forms$ListView" → "ListView".
+func widgetTypeLabel(typ string) string {
+	if i := strings.LastIndex(typ, "$"); i >= 0 {
+		typ = typ[i+1:]
+	}
+	if typ == "" {
+		return "widget"
+	}
+	return typ
+}
+
 func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 	// Property names arrive verbatim from MDL (any case) — `set class on …` is as
 	// valid as `set Class on …`, and `create page` reads them case-insensitively
@@ -2864,10 +2943,7 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		}
 		return nil
 	case "editable":
-		if s, ok := value.(string); ok {
-			bsonnav.DSet(widget, "Editable", s)
-		}
-		return nil
+		return setWidgetEditableMut(widget, value)
 	case "visible":
 		// A page widget has no plain boolean "Visible" field — visibility is modeled
 		// via ConditionalVisibilitySettings. Route static booleans and expression
@@ -2899,6 +2975,12 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		if !setWidgetConditionalSettingMut(widget, "ConditionalEditabilitySettings",
 			"Forms$ConditionalEditabilitySettings", expr, false) {
 			return fmt.Errorf("widget does not support conditional editability (only input widgets are editable)")
+		}
+		// The element only applies under the enum that says so — CREATE writes
+		// both (pages.WidgetEditability); writing the element alone left the
+		// stored enum saying Always or Never beside it.
+		if _, isEnum := bsonnav.DGet(widget, "Editable").(string); isEnum {
+			bsonnav.DSet(widget, "Editable", "Conditional")
 		}
 		return nil
 	case "name":
@@ -3431,4 +3513,18 @@ func errExpressionNotAString(propName string, _ any) error {
 			"write the expression itself, without brackets: "+
 			"set %s = if $currentObject/Featured then 'a' else 'b'",
 		propName, propName)
+}
+
+// PageVariableNames lists the stored document's page variables (its
+// Forms$LocalVariable entries), by name.
+func (m *Mutator) PageVariableNames() []string {
+	var names []string
+	for _, el := range bsonnav.DGetArrayElements(bsonnav.DGet(m.rawData, "Variables")) {
+		if doc, ok := el.(bson.D); ok {
+			if n := bsonnav.DGetString(doc, "Name"); n != "" {
+				names = append(names, n)
+			}
+		}
+	}
+	return names
 }

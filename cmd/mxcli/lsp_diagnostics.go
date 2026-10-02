@@ -29,7 +29,7 @@ var errLineRegexp = regexp.MustCompile(`^line (\d+):(\d+) (.+)$`)
 // (mendixlabs/mxcli#1103). A test block is a microflow body; testrunner renders
 // it as one, on the same lines, so the positions below need no adjustment.
 func checkableDocument(docURI uri.URI, text string) (string, []protocol.Diagnostic) {
-	path := docURI.Filename()
+	path := documentPath(docURI)
 	if !testrunner.IsTestFile(path) {
 		return text, nil
 	}
@@ -196,7 +196,11 @@ func (s *mdlServer) runSemanticCheck(ctx context.Context, docURI uri.URI, text s
 		return
 	}
 
-	// Write to a temp file path based on the URI
+	// The check reads the document from disk; a virtual document
+	// (mendix-mdl:, mendixlabs/mxcli#1245) has no file to read.
+	if !isFileURI(docURI) {
+		return
+	}
 	filePath := uriToPath(string(docURI))
 	if filePath == "" {
 		return

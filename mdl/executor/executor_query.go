@@ -201,6 +201,15 @@ func execDescribe(ctx *ExecContext, s *ast.DescribeStmt) error {
 		s.ObjectType = resolved
 	}
 
+	// An entity or association is only ever found by its module. Without one
+	// the lookup failed with the create-path message "objects must be created
+	// within a module", which reads as if describe were creating something
+	// (mendixlabs/mxcli#1218).
+	if (s.ObjectType == ast.DescribeEntity || s.ObjectType == ast.DescribeAssociation) && s.Name.Module == "" {
+		label := describeObjectTypeLabel(s.ObjectType)
+		return mdlerrors.NewValidation(fmt.Sprintf("%q is not a qualified %s name: write Module.%s", s.Name.Name, label, s.Name.Name))
+	}
+
 	// Determine the object type label and name for JSON wrapping.
 	objectType := describeObjectTypeLabel(s.ObjectType)
 	name := s.Name.String()

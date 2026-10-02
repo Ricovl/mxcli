@@ -447,14 +447,16 @@ func describeEnumeration(ctx *ExecContext, name ast.QualifiedName) error {
 					comma = ""
 				}
 				caption := pickTextTranslation(v.Caption, lang)
-				fmt.Fprintf(ctx.Output, "  %s '%s'%s\n", v.Name, caption, comma)
+				// mdlQuote doubles an apostrophe (mendixlabs/mxcli#394): a
+				// caption like "Won't fix" must re-parse.
+				fmt.Fprintf(ctx.Output, "  %s %s%s\n", v.Name, mdlQuote(ctx, caption), comma)
 			}
 			// Emit the module folder so a moved enumeration round-trips (Bug 12b).
 			// BuildFolderPath returns the module name at the module root and the
 			// folder path when the enum lives in a folder.
 			folderClause := ""
 			if fp := h.BuildFolderPath(enum.ContainerID); fp != "" && fp != modName {
-				folderClause = fmt.Sprintf(" folder '%s'", fp)
+				folderClause = " folder " + mdlQuote(ctx, fp)
 			}
 			fmt.Fprintf(ctx.Output, ")%s;\n", folderClause)
 			return nil

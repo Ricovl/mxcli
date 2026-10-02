@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// The --deprecations flag decides what `check` and `exec` do with a deprecated
+// The --deprecations flag decides what `check`, `exec` and `diff` do with a deprecated
 // MDL spelling (an MDL-DEPRnnn warning, registry in mdl/deprecation). The
 // default warns; `error` fails the run, so CI over docs, skills and examples
 // can hold them to the canonical form.
@@ -20,6 +20,7 @@ const deprecationsFlagUsage = "What to do with a deprecated MDL spelling (MDL-DE
 func init() {
 	checkCmd.Flags().String("deprecations", "warn", deprecationsFlagUsage)
 	execCmd.Flags().String("deprecations", "warn", deprecationsFlagUsage)
+	diffCmd.Flags().String("deprecations", "warn", deprecationsFlagUsage)
 }
 
 // deprecationPolicy reads --deprecations, exiting with a usage error on a value

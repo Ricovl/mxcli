@@ -368,3 +368,44 @@ func containsSubstringAny(errs []string, want string) bool {
 	}
 	return false
 }
+
+// mendixlabs/mxcli#591: `call nanoflow … on error continue` in a nanoflow passed
+// check and exec, then failed the build with CE6035. MEASURED on 11.14.0 (an
+// ako/TestApp copy, one nanoflow per cell): create, commit, call nanoflow and
+// call microflow each accept only a handler WITHOUT rollback in a nanoflow —
+// `on error continue`, `on error rollback` and a custom handler with rollback
+// are all CE6035. Retrieve and delete accepted all four, and are the control.
+func TestNanoflow_RefusesAllButWithoutRollbackOnCreateCommitAndCalls(t *testing.T) {
+	stmts := map[string]string{
+		"create":         "$O = create M.Car (Brand = 'x')",
+		"commit":         "commit $Car",
+		"call nanoflow":  "call nanoflow M.NF_Sub()",
+		"call microflow": "call microflow M.MF_Sub()",
+	}
+	refused := map[string]string{
+		"continue": " on error continue;",
+		"rollback": " on error rollback;",
+		"custom":   " on error begin log info node 'B' 'e'; end error;",
+	}
+	for name, stmt := range stmts {
+		for form, clause := range refused {
+			if errs := nanoflowErrorsFor(t, stmt+clause); !containsSubstringAny(errs, "on error") {
+				t.Errorf("%s with %s was accepted in a nanoflow, but mxbuild reports CE6035: %v", name, form, errs)
+			}
+		}
+		// The one handler the four accept, and no clause at all.
+		for _, ok := range []string{" on error without rollback begin log info node 'B' 'e'; end error;", ";"} {
+			if errs := nanoflowErrorsFor(t, stmt+ok); containsSubstringAny(errs, "on error") {
+				t.Errorf("%s%s was refused, but it builds: %v", name, ok, errs)
+			}
+		}
+	}
+	// CONTROL: retrieve and delete accept every form in a nanoflow.
+	for _, stmt := range []string{"retrieve $L from M.Car", "delete $Car"} {
+		for _, clause := range refused {
+			if errs := nanoflowErrorsFor(t, stmt+clause); containsSubstringAny(errs, "on error") {
+				t.Errorf("%s%s was refused, but it builds: %v", stmt, clause, errs)
+			}
+		}
+	}
+}

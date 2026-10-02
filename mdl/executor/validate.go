@@ -15,6 +15,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
+	"github.com/mendixlabs/mxcli/sdk/javaactions"
 )
 
 // scriptContext holds objects defined within a script for reference validation.
@@ -36,6 +37,23 @@ type scriptContext struct {
 	menus        map[string]bool // Menu documents created (Module.Menu)
 	constants    map[string]bool // Constants created (Module.Constant)
 	workflows    map[string]bool // Workflows created (Module.Workflow)
+	// Task queues created (Module.Queue, lower-cased — a queue is resolved
+	// case-insensitively, like buildQueueQualifiedNames). Missing, a queue the
+	// script creates was "not found" for every `in queue` call to it
+	// (mendixlabs/mxcli#1211).
+	queues map[string]bool
+
+	// Microflow-typed parameters of the Java actions the script creates
+	// (Module.Action -> parameter name). Such a parameter takes a microflow
+	// NAME, never an expression (mendixlabs/mxcli#1210).
+	javaActionFlowParams map[string]map[string]bool
+
+	// Entities the script declares, and those it alters, for resolving the
+	// bare members of a retrieve constraint on an entity the project does not
+	// have yet (mendixlabs/mxcli#1213). An altered entity's member list is
+	// not the declaration's, so it is not judged from it.
+	entityDecls     map[string]*ast.CreateEntityStmt
+	alteredEntities map[string]bool
 
 	// Java/JavaScript actions created in the script, mapped to their declared
 	// parameter names. A bool would be enough to stop the false "not found",
@@ -93,6 +111,11 @@ func newScriptContext() *scriptContext {
 		layouts:      make(map[string]bool),
 		menus:        make(map[string]bool),
 		constants:    make(map[string]bool),
+		queues:       make(map[string]bool),
+
+		javaActionFlowParams: make(map[string]map[string]bool),
+		entityDecls:          make(map[string]*ast.CreateEntityStmt),
+		alteredEntities:      make(map[string]bool),
 
 		javaActions:       make(map[string][]string),
 		javaScriptActions: make(map[string][]string),
@@ -172,7 +195,10 @@ func (sc *scriptContext) collectSingle(stmt ast.Statement) {
 			sc.entities[s.Name.String()] = true
 			sc.recordEntityAttrs(s)
 			sc.recordEntityGeneralization(s)
+			sc.entityDecls[s.Name.String()] = s
 		}
+	case *ast.AlterEntityStmt:
+		sc.alteredEntities[s.Name.String()] = true
 	case *ast.CreateAssociationStmt:
 		sc.recordAssociation(s)
 	case *ast.CreateViewEntityStmt:
@@ -226,6 +252,11 @@ func (sc *scriptContext) collectSingle(stmt ast.Statement) {
 	case *ast.CreateJavaActionStmt:
 		if s.Name.Module != "" {
 			sc.javaActions[s.Name.String()] = codeActionParamNames(s.Parameters)
+			sc.javaActionFlowParams[s.Name.String()] = microflowTypedParams(s.Parameters)
+		}
+	case *ast.CreateQueueStmt:
+		if s.Name.Module != "" {
+			sc.queues[strings.ToLower(s.Name.String())] = true
 		}
 	case *ast.CreateJavaScriptActionStmt:
 		if s.Name.Module != "" {
@@ -333,6 +364,9 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 		}
 	}
 	errors = append(errors, validateForwardPageRefs(ctx, prog)...)
+	// The same for the other references exec resolves in statement order, where
+	// the later definition is a `create or modify` (mendixlabs/mxcli#1211, #1212).
+	errors = append(errors, validateForwardDefRefs(ctx, prog)...)
 	// Resolve icon-collection references. Needs the project (the collections
 	// are documents in it), so it belongs here rather than in the no-project
 	// pass — MxBuild otherwise reports the typo as CE1613.
@@ -1111,7 +1145,7 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 	if len(refs.queues) > 0 {
 		known := buildQueueQualifiedNames(ctx)
 		for _, ref := range refs.queues {
-			if !known[strings.ToLower(ref)] {
+			if !known[strings.ToLower(ref)] && !sc.queues[strings.ToLower(ref)] {
 				errors = append(errors, fmt.Sprintf("task queue not found: %s (referenced by in queue)", ref))
 			}
 		}
@@ -1159,6 +1193,7 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 			// output. mxcli-chat FINDINGS §37.
 			if declared, inScript := sc.javaActions[ref.name]; inScript {
 				errors = append(errors, validateCodeActionParams("java action", ref, declared)...)
+				errors = append(errors, microflowParamArgErrors(ref, sc.javaActionFlowParams[ref.name])...)
 				continue
 			}
 			if !known[ref.name] {
@@ -1167,10 +1202,15 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 			}
 			if ja, err := ctx.Backend.ReadJavaActionByName(ref.name); err == nil && ja != nil {
 				var declared []string
+				flowParams := map[string]bool{}
 				for _, p := range ja.Parameters {
 					declared = append(declared, p.Name)
+					if _, isFlow := p.ParameterType.(*javaactions.MicroflowType); isFlow {
+						flowParams[p.Name] = true
+					}
 				}
 				errors = append(errors, validateCodeActionParams("java action", ref, declared)...)
+				errors = append(errors, microflowParamArgErrors(ref, flowParams)...)
 			}
 		}
 	}
@@ -1211,6 +1251,7 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 	if len(refs.retrieves) > 0 {
 		errors = append(errors, validateRetrieveConstraints(ctx, refs.retrieves)...)
 		errors = append(errors, validateXPathAssociations(ctx, refs.retrieves, sc)...)
+		errors = append(errors, validateRetrieveMembers(ctx, refs.retrieves, sc)...)
 	}
 
 	return errors
@@ -1333,6 +1374,7 @@ type flowRefCollector struct {
 type codeActionCallRef struct {
 	name     string
 	argNames []string
+	args     []ast.CallArgument
 }
 
 // callArgNames extracts the written parameter names from a code-action call's
@@ -1397,6 +1439,7 @@ type entityRef struct {
 type retrieveConstraintRef struct {
 	entity     string // entity qualified name (database retrieve only)
 	constraint string // bracketed XPath constraint, e.g. "[System.owner = '[%CurrentUser%]']"
+	stored     string // the constraint as the flow builder writes it (retrieveXPathConstraint)
 }
 
 // addQueue records an `IN QUEUE Module.Name` target. A queue that does not exist
@@ -1434,7 +1477,7 @@ func (c *flowRefCollector) collectFromStatements(stmts []ast.MicroflowStatement)
 		case *ast.CallJavaActionStmt:
 			if s.ActionName.Module != "" {
 				c.javaActions = append(c.javaActions, codeActionCallRef{
-					name: s.ActionName.String(), argNames: callArgNames(s.Arguments),
+					name: s.ActionName.String(), argNames: callArgNames(s.Arguments), args: s.Arguments,
 				})
 			}
 			c.addQueue(s.Queue)
@@ -1460,6 +1503,7 @@ func (c *flowRefCollector) collectFromStatements(stmts []ast.MicroflowStatement)
 					c.retrieves = append(c.retrieves, retrieveConstraintRef{
 						entity:     s.Source.String(),
 						constraint: expressionToXPath(s.Where),
+						stored:     retrieveXPathConstraint(s.Where, s.Source.String()),
 					})
 				}
 			}
@@ -1560,6 +1604,10 @@ var execEnforcedMicroflowRules = map[string]bool{
 	"MDL047": true,
 	"MDL048": true,
 	"MDL055": true,
+	// MDL091: `startsWith()` / `endsWith()` in a retrieve constraint are
+	// CE0161, measured on mxbuild 11.13.0 against `starts-with()` as the
+	// control (mendixlabs/mxcli#1213).
+	"MDL091": true,
 	// MDL057: `synchronize` in a microflow is CE0009 at build time, verified on
 	// mxbuild 11.13.0 — the same class of "check caught it, exec did not" gap
 	// that #833 was about.
@@ -1577,9 +1625,20 @@ var execEnforcedMicroflowRules = map[string]bool{
 	// otherwise `check` catches the typo and the write that follows does not.
 	"MDL059": true,
 	"MDL060": true,
+	// MDL092: an @anchor parameter the visitor cannot use is dropped, the edge
+	// keeping its default sides — the same class as MDL060 (mendixlabs/mxcli#992).
+	"MDL092": true,
+	// MDL076: `on error continue` on an activity that rejects it is CE6035 at
+	// build time — every row of continueUnsupportedOn was measured on 11.14.0.
+	// check reported it; exec without the pre-check (-c, the REPL, --no-check)
+	// wrote it (mendixlabs/mxcli#175).
+	"MDL076": true,
 	// MDL-WF16: a notify workflow with no target is CE0166 at build time,
 	// measured on the 11.6, 11.10 and 11.13 mxbuilds.
 	"MDL-WF16": true,
+	// MDL-WF17: `lock workflow all` / `unlock workflow all` is CE1825, measured
+	// on 11.13.0 and 11.14.0 (mendixlabs/mxcli#870).
+	"MDL-WF17": true,
 }
 
 // validateMicroflowRules runs the MDL0xx microflow rule set (ValidateMicroflow)
@@ -1672,6 +1731,17 @@ func documentWidgets(stmt ast.Statement) (label string, widgets []*ast.WidgetV3,
 		return "snippet " + s.Name.String(), s.Widgets, true
 	}
 	return "", nil, false
+}
+
+// documentVariables is a page's or snippet's `Variables:` declarations.
+func documentVariables(stmt ast.Statement) []ast.PageVariable {
+	switch s := stmt.(type) {
+	case *ast.CreatePageStmtV3:
+		return s.Variables
+	case *ast.CreateSnippetStmtV3:
+		return s.Variables
+	}
+	return nil
 }
 
 // validateViewEntityAttributeSet reports an ADD/DROP ATTRIBUTE whose target is a

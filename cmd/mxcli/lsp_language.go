@@ -192,7 +192,7 @@ func (s *mdlServer) migrationHover(docURI uri.URI, text string, pos protocol.Pos
 // `fmt --upgrade` is offered too.
 func (s *mdlServer) CodeAction(ctx context.Context, params *protocol.CodeActionParams) ([]protocol.CodeAction, error) {
 	docURI := uri.URI(params.TextDocument.URI)
-	if testrunner.IsTestFile(docURI.Filename()) {
+	if testrunner.IsTestFile(documentPath(docURI)) {
 		return nil, nil // diagnosed as the MDL rendered from it, not as written
 	}
 	s.mu.Lock()

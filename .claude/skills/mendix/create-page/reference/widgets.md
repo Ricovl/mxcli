@@ -447,7 +447,7 @@ dataview dvName (datasource: $VariableName) {
   textbox txtName (label: 'Name', attribute: Name)
   textarea txtDescription (label: 'Description', attribute: description)
 
-  footer footer1 {
+  footer {
     actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
     actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
@@ -507,7 +507,7 @@ dataview dataView1 (datasource: $Customer) {
   checkbox cbActive (label: 'Active', attribute: IsActive)
   datepicker dpCreated (label: 'Created', attribute: CreateDate)
 
-  footer footer1 {
+  footer {
     actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
     actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
@@ -531,7 +531,7 @@ the property is only needed when the two would disagree:
 ```sql
 dataview dv (datasource: $Customer, showFooter: true)              -- empty footer, shown
 dataview dv (datasource: $Customer, showFooter: false) {           -- widgets declared, hidden
-  footer f { dynamictext t (content: 'hidden') }
+  footer { dynamictext t (content: 'hidden') }
 }
 ```
 
@@ -979,10 +979,12 @@ wrapper per value (`ACT_Set1`…`ACT_Set9`), each calling the shared implementat
 
 ### FOOTER Widget
 
-Container for form action buttons:
+Container for form action buttons. Inside a data view it is the data view's
+footer region, which stores no name — write `footer { … }` and address it as
+`dvName.footer` in `alter page`:
 
 ```sql
-footer footerName {
+footer {
   actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
   actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
 }

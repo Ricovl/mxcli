@@ -45,6 +45,10 @@ func ValidateCreateIsQualified(prog *ast.Program) []linter.Violation {
 			continue
 		}
 		docType, name, _ := stmtCreateInfo(stmt)
+		// A demo user is named by its user name, which has no module.
+		if docType == "demo-user" {
+			continue
+		}
 		if docType == "" || name == "" || strings.Contains(name, ".") {
 			continue
 		}

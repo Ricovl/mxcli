@@ -905,8 +905,10 @@ func parseDataViewChildren(ctx *ExecContext, w map[string]any, entityContext ...
 	// Get footer widgets
 	footerWidgets := getBsonArrayElements(w["FooterWidgets"])
 	if len(footerWidgets) > 0 {
-		// Create a special footer container with synthetic name
-		footer := rawWidget{Type: "Footer", Name: "footer1"}
+		// The footer is a region of the data view, stored without a name: it is
+		// printed unnamed and addressed as `<dataview>.footer` (ako/mxcli#528).
+		// The `footer1` printed here before named nothing ALTER could find.
+		footer := rawWidget{Type: "Footer"}
 		for _, child := range footerWidgets {
 			if childMap, ok := child.(map[string]any); ok {
 				footer.Children = append(footer.Children, parseRawWidget(ctx, childMap, entCtx)...)
@@ -1203,10 +1205,18 @@ func extractSnippetCallParams(w map[string]any) string {
 // `$dataView1.FullName`, which the builder resolves back to the same pair;
 // describe used to print the bare attribute and exec dropped the variable
 // (ako/mxcli#826). Every other binding reads as before.
+//
+// An input bound directly to a page variable stores no AttributeRef and names
+// the variable in SourceVariable.LocalVariable; it prints as `$ShowAll`, the
+// spelling the builder takes. describe used to print it unbound, so a round
+// trip silently cut the binding (mendixlabs/mxcli#1235).
 func extractInputAttribute(ctx *ExecContext, w map[string]any) string {
 	sv, _ := w["SourceVariable"].(map[string]any)
 	widget := extractString(sv["Widget"])
 	attrRef, _ := w["AttributeRef"].(map[string]any)
+	if local := extractString(sv["LocalVariable"]); local != "" && widget == "" && attrRef == nil {
+		return "$" + local
+	}
 	if widget == "" || attrRef == nil {
 		return extractAttributeRef(ctx, w)
 	}

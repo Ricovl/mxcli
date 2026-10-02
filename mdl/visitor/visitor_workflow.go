@@ -406,7 +406,7 @@ func buildActivitySetPropertyOp(ctx *parser.ActivitySetPropertyContext, ref stri
 		if groups := ctx.AllXpathConstraint(); len(groups) > 0 {
 			op.Value = bracketedXPathText(groups)
 		} else if lit := ctx.STRING_LITERAL(); lit != nil {
-			op.Value = unquoteStringLit(lit) // MDL-DEPR031, recorded by ExitActivitySetProperty
+			op.Value = stripExpressionIdentifierQuotes(unquoteStringLit(lit)) // MDL-DEPR031, recorded by ExitActivitySetProperty; quoted names as in brackets (mendixlabs/mxcli#1243)
 		}
 	} else if ctx.DUE() != nil {
 		op.Property = "due_date"
@@ -676,7 +676,11 @@ func applyWorkflowUserTaskClause(node *ast.WorkflowUserTaskNode, clause parser.I
 		if groups := c.AllXpathConstraint(); len(groups) > 0 {
 			node.Targeting.XPath = bracketedXPathText(groups)
 		} else if str := c.STRING_LITERAL(); str != nil {
-			node.Targeting.XPath = unquoteStringLit(str) // MDL-DEPR031, recorded by ExitWorkflowUserTaskClause
+			// MDL-DEPR031, recorded by ExitWorkflowUserTaskClause, which also
+			// refuses a quoted value. A quoted name loses its quotes, as in the
+			// bracketed form
+			// (mendixlabs/mxcli#1243, ako/mxcli#566).
+			node.Targeting.XPath = stripExpressionIdentifierQuotes(unquoteStringLit(str))
 		}
 	case c.ON() != nil && c.CREATED() != nil:
 		if qn := c.QualifiedName(); qn != nil {

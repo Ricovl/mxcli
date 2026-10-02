@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/srctext"
 )
 
 // TestCase represents a single test extracted from a test file.
@@ -97,7 +99,12 @@ type FileError struct {
 
 // ParseTestFile parses a test file (.test.mdl or .test.md) and extracts test cases.
 func ParseTestFile(path string) (*TestSuite, error) {
-	content, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading test file: %w", err)
+	}
+	// A BOM or UTF-16 is decoded as for every other script (mendixlabs/mxcli#1253).
+	content, err := srctext.Decode(raw)
 	if err != nil {
 		return nil, fmt.Errorf("reading test file: %w", err)
 	}

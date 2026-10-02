@@ -102,7 +102,7 @@ CREATE PAGE MyModule.Customer_Edit
 {
     DATAVIEW dvCustomer (DataSource: $Customer) {
         SNIPPETCALL snpAddress (Snippet: MyModule.AddressFields)
-        FOOTER footer1 {
+        FOOTER {
             ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
         }
     }

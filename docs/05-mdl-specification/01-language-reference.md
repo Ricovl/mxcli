@@ -796,7 +796,7 @@ create page MyModule.Customer_Edit
   dataview dvCustomer (datasource: $Customer) {
     textbox txtName (label: 'Name', attribute: Name)
     textbox txtEmail (label: 'Email', attribute: Email)
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
       actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
     }

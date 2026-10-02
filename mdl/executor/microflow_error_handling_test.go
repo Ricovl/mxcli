@@ -134,3 +134,43 @@ func TestMDL076_OnlyContinueIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// mendixlabs/mxcli#175. `call workflow … on error continue` passed check and
+// exec, then failed the build: CE6035 "Error handling type is not supported" at
+// Call workflow activity. MEASURED on 11.14.0 (ako/TestApp, one microflow per
+// clause): continue is CE6035; no clause, rollback, a custom handler and a
+// custom handler without rollback all build at 0 errors.
+func TestMDL076_ReportsContinueOnCallWorkflow(t *testing.T) {
+	v := &microflowValidator{mfName: "M.ACT_X"}
+	v.checkErrorHandlingContinueSupported(&ast.CallWorkflowStmt{
+		ErrorHandling: &ast.ErrorHandlingClause{Type: ast.ErrorHandlingContinue},
+	})
+	if len(v.violations) != 1 || v.violations[0].RuleID != continueUnsupportedRule {
+		t.Fatalf("`call workflow … on error continue` was accepted: %+v", v.violations)
+	}
+}
+
+// CONTROL for the above: every other form was measured to build, so refusing
+// one would reject a working script.
+func TestMDL076_CallWorkflowAcceptsTheOtherClauses(t *testing.T) {
+	for _, eh := range []*ast.ErrorHandlingClause{
+		nil,
+		{Type: ast.ErrorHandlingRollback},
+		{Type: ast.ErrorHandlingCustom},
+		{Type: ast.ErrorHandlingCustomWithoutRollback},
+	} {
+		v := &microflowValidator{mfName: "M.ACT_X"}
+		v.checkErrorHandlingContinueSupported(&ast.CallWorkflowStmt{ErrorHandling: eh})
+		if len(v.violations) != 0 {
+			t.Errorf("clause %+v was reported on a call workflow: %+v", eh, v.violations)
+		}
+	}
+}
+
+// MDL076 is a rule exec enforces, not only check: a script run with --no-check,
+// through -c or the REPL wrote the CE6035 activity before.
+func TestMDL076_IsExecEnforced(t *testing.T) {
+	if !execEnforcedMicroflowRules[continueUnsupportedRule] {
+		t.Fatalf("%s is reported by check but not refused by exec", continueUnsupportedRule)
+	}
+}

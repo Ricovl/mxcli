@@ -476,7 +476,7 @@ func parseScriptSet(files []string) []setScript {
 	var out []setScript
 	for _, f := range files {
 		sc := setScript{Path: f}
-		if data, err := os.ReadFile(f); err == nil && !testrunner.IsTestFile(f) {
+		if data, err := readMDLSource(f); err == nil && !testrunner.IsTestFile(f) {
 			sc.Source = string(data)
 			if prog, errs := visitor.Build(sc.Source); len(errs) == 0 {
 				sc.Prog = prog

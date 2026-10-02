@@ -367,7 +367,7 @@ func (b *Builder) buildActivitySet(key, prop string, v *parser.AlterWorkflowValu
 			if groups := v.AllXpathConstraint(); len(groups) > 0 {
 				op.Value = bracketedXPathText(groups)
 			} else if lit := v.STRING_LITERAL(); lit != nil {
-				op.Value = unquoteStringLit(lit) // MDL-DEPR031, recorded by ExitAlterWorkflowValue
+				op.Value = stripExpressionIdentifierQuotes(unquoteStringLit(lit)) // MDL-DEPR031, recorded by ExitAlterWorkflowValue; quoted names as in brackets (mendixlabs/mxcli#1243)
 			}
 		default:
 			b.alterWorkflowValueError(key, "`Targeting: microflow Module.Microflow` or `Targeting: xpath [ … ]`")

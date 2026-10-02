@@ -403,7 +403,7 @@ CREATE PAGE MyModule.Customer_Edit
     TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
     COMBOBOX cbStatus (Label: 'Status', Attribute: Status)
 
-    FOOTER footer1 {
+    FOOTER {
       ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }
@@ -541,6 +541,7 @@ Cross-reference commands require `REFRESH CATALOG FULL` to populate reference da
 |---------|--------|-------|
 | Interactive REPL | `mxcli` | Interactive MDL shell |
 | Inline commands | `mxcli -p app.mpr -c "CMD1; CMD2; CMD3"` | Semicolons batch multiple commands |
+| Inline, keep going | `mxcli -p app.mpr -c "CMD1; CMD2" --continue-on-error` | Without it a batch stops at the first failing statement and says how many were not run; an empty `-c` is an error |
 | Execute script | `mxcli exec script.mdl -p app.mpr` | Script file |
 | Stdin piping | `echo "CMD" \| mxcli -p app.mpr` | Quiet mode, pipe-friendly |
 | Check syntax | `mxcli check script.mdl` | Parse-only validation |
@@ -555,6 +556,7 @@ Cross-reference commands require `REFRESH CATALOG FULL` to populate reference da
 | External SQL | `mxcli sql --driver postgres --dsn '...' "SELECT 1"` | Direct database query |
 | Docker build | `mxcli docker build -p app.mpr` | Build with PAD patching |
 | Docker check | `mxcli docker check -p app.mpr` | Validate with `mx check` |
+| Version | `mxcli version` (or `--version`) | Build version and build time |
 | Diagnostics | `mxcli diag [--bundle]` | Session logs, version info |
 | Loop report | `mxcli diag loop-report [--json]` | Which mxcli commands a session actually ran, how often, how long |
 | New project | `mxcli new <name> --version X.Y.Z` | Create project from scratch with all tooling |

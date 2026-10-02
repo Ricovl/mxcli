@@ -4,6 +4,7 @@ package mcp
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -293,6 +294,12 @@ func (b *Backend) buildFlowDocContent(kind, name string, params []*microflows.Mi
 			if !ok1 || !ok2 {
 				return nil, fmt.Errorf("%s %q: a sequence flow references an object that is not supported yet", kind, name)
 			}
+			if f.IsErrorHandler {
+				// PED's SequenceFlow has no property marking an error-handler
+				// flow, so this edge would be written as an ordinary one — a
+				// second normal exit from the activity (mendixlabs/mxcli#698).
+				return nil, fmt.Errorf("%s %q: an error handler flow cannot be authored over MCP (Studio Pro's PED API has no error-handler flow) — run without --mcp", kind, name)
+			}
 			pf := map[string]any{
 				"originId":      fmt.Sprintf("$id(%s)", op),
 				"destinationId": fmt.Sprintf("$id(%s)", dp),
@@ -435,6 +442,9 @@ func (b *Backend) mapObjectTree(o microflows.MicroflowObject, path string, idPat
 	case *microflows.ActionActivity:
 		action, err := mapMicroflowAction(obj.Action)
 		if err != nil {
+			return nil, err
+		}
+		if err := carryErrorHandlingType(obj.Action, action); err != nil {
 			return nil, err
 		}
 		return map[string]any{
@@ -1114,4 +1124,47 @@ func mfEnumName(dt microflows.DataType) string {
 		return t.EnumerationQualifiedName
 	}
 	return ""
+}
+
+// carryErrorHandlingType writes an action's error-handling type onto its PED
+// map. mapMicroflowAction built each action without it, so `on error rollback`
+// or `on error continue` authored over --mcp landed with PED's default — the
+// clause silently gone (mendixlabs/mxcli#698). PED declares errorHandlingType on
+// every action element ('Rollback' | 'Custom' | 'CustomWithoutRollBack' |
+// 'Continue' | 'Abort', ped_get_schema on Studio Pro 11.14).
+//
+// The two custom forms are refused: they need an error-handler flow, which
+// PED's SequenceFlow cannot express.
+func carryErrorHandlingType(a microflows.MicroflowAction, m map[string]any) error {
+	eh := actionErrorHandlingType(a)
+	switch eh {
+	case "":
+		return nil
+	case microflows.ErrorHandlingTypeCustom, microflows.ErrorHandlingTypeCustomWithoutRollback:
+		return fmt.Errorf("a custom error handler (`on error … begin … end error`) cannot be authored over MCP: Studio Pro's PED API has no error-handler flow — run without --mcp")
+	}
+	m["errorHandlingType"] = string(eh)
+	return nil
+}
+
+var errorHandlingTypeType = reflect.TypeOf(microflows.ErrorHandlingType(""))
+
+// actionErrorHandlingType reads the ErrorHandlingType field every action that
+// has one carries; "" for one that has none.
+func actionErrorHandlingType(a microflows.MicroflowAction) microflows.ErrorHandlingType {
+	v := reflect.ValueOf(a)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return ""
+		}
+		v = v.Elem()
+	}
+	if v.Kind() != reflect.Struct {
+		return ""
+	}
+	f := v.FieldByName("ErrorHandlingType")
+	if !f.IsValid() || f.Type() != errorHandlingTypeType {
+		return ""
+	}
+	return microflows.ErrorHandlingType(f.String())
 }

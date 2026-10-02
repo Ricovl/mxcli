@@ -84,7 +84,7 @@ CREATE PAGE MyModule.Product_Edit
         TEXTBOX txtPrice (Label: 'Price', Attribute: Price)
         CHECKBOX cbActive (Label: 'Active', Attribute: IsActive)
 
-        FOOTER footer1 {
+        FOOTER {
             ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
             ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
         }

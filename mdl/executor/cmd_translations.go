@@ -107,31 +107,14 @@ func execCreateTranslations(ctx *ExecContext, s *ast.CreateTranslationsStmt) err
 		return err
 	}
 	src := sourceLanguage(ctx)
-	if strings.EqualFold(s.Language, src) {
-		return mdlerrors.NewValidationf(
-			"%s is the project's source language — writing translations into it would "+
-				"overwrite the strings the rest of the model is keyed on", s.Language)
+	if err := translationsRefusal(ctx, s, src, scope); err != nil {
+		return err
 	}
 
 	mode := translations.ModeMerge
 	switch s.Mode {
 	case ast.TranslationsReplace:
 		mode = translations.ModeReplace
-	case ast.TranslationsCreate:
-		// The language is the thing that exists, so bare CREATE refuses when it
-		// already has translations — the same contract every other CREATE has.
-		existing, err := translations.Languages(ctx.Backend, scope)
-		if err != nil {
-			return mdlerrors.NewBackend("read languages", err)
-		}
-		for _, l := range existing {
-			if strings.EqualFold(l, s.Language) {
-				return mdlerrors.NewValidationf(
-					"%s already has translations — use `create or modify translations` to "+
-						"merge these in, or `create or replace translations` to make this file "+
-						"authoritative (which REMOVES translations it does not name)", s.Language)
-			}
-		}
 	}
 
 	dict := make(translations.Dictionary, len(s.Entries))

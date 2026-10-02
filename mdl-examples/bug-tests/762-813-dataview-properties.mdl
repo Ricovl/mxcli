@@ -67,7 +67,7 @@ create or modify page Issue762.DVTest (
     -- wins over the `footer { … }` block, and hiding must not discard the widgets.
     dataview dvHidden (datasource: $Thing, showFooter: false) {
       textbox t5 (attribute: Name)
-      footer f1 {
+      footer {
         dynamictext ft1 (content: 'hidden footer')
       }
     }

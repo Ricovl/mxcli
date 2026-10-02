@@ -38,7 +38,7 @@ CREATE PAGE Sales.Customer_Edit
   DATAVIEW dvCustomer (DataSource: $Customer) {
     TEXTBOX txtName (Label: 'Name', Attribute: Name)
     TEXTBOX txtEmail (Label: 'Email', Attribute: Email)
-    FOOTER footer1 {
+    FOOTER {
       ACTIONBUTTON btnSave (Caption: 'Save', Action: SAVE CHANGES, ButtonStyle: Primary)
       ACTIONBUTTON btnCancel (Caption: 'Cancel', Action: CANCEL CHANGES)
     }

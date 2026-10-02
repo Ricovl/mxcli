@@ -59,6 +59,9 @@ func (m *Mutator) ResolvesTarget(widgetRef, columnRef string) bool {
 		return true // page-level SET addresses the document itself
 	}
 	if columnRef != "" {
+		if _, ok := m.findDataViewFooter(widgetRef, columnRef); ok {
+			return true
+		}
 		_, err := findBsonColumn(m.rawData, widgetRef, columnRef, m.widgetFinder)
 		return err == nil
 	}

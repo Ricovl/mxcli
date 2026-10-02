@@ -1056,7 +1056,9 @@ func TestCollectErrorHandlerStatements_Simple(t *testing.T) {
 		mkID("err_log"): {mkFlow("err_log", "err_end")},
 	}
 
-	stmts := e.collectErrorHandlerStatements(mkID("err_log"), activityMap, flowsByOrigin, nil, nil, nil)
+	// Annotation lines are left out: a handler-body statement now carries its
+	// @position/@anchor like any other (mendixlabs/mxcli#991).
+	stmts := statementLines(e.collectErrorHandlerStatements(mkID("err_log"), activityMap, flowsByOrigin, nil, nil, nil))
 	if len(stmts) != 2 {
 		t.Fatalf("expected 2 statements, got %d: %v", len(stmts), stmts)
 	}
@@ -1085,7 +1087,7 @@ func TestCollectErrorHandlerStatements_StopsAtMerge(t *testing.T) {
 		mkID("merge"):   {mkFlow("merge", "after")},
 	}
 
-	stmts := e.collectErrorHandlerStatements(mkID("err_log"), activityMap, flowsByOrigin, nil, nil, nil)
+	stmts := statementLines(e.collectErrorHandlerStatements(mkID("err_log"), activityMap, flowsByOrigin, nil, nil, nil))
 	// Should stop at merge, not include "after"
 	if len(stmts) != 1 {
 		t.Fatalf("expected 1 statement (stop at merge), got %d: %v", len(stmts), stmts)
@@ -1586,4 +1588,15 @@ func TestTraverseFlow_InheritanceSplitOmitsEmptyElse(t *testing.T) {
 	if out := run(false); !strings.Contains(out, "when (empty) then") {
 		t.Errorf("an (empty) branch WITH a body must still render:\n%s", out)
 	}
+}
+
+// statementLines drops the @annotation lines from described statements.
+func statementLines(lines []string) []string {
+	var out []string
+	for _, l := range lines {
+		if !strings.HasPrefix(strings.TrimSpace(l), "@") {
+			out = append(out, l)
+		}
+	}
+	return out
 }

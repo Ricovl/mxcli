@@ -408,8 +408,11 @@ workflow / its tasks. They are easy to miss — there is no `complete task`:
   required**: a notify without one fails the build (CE0166, MDL-WF16). Name the
   element as `Module.Workflow.ElementName`; mxcli works out which kind it is and
   refuses one a notification cannot reach (a timer start, a user task).
-- `open user task $Task`, `lock workflow $Wf`, and
+- `open user task $Task`, `lock workflow $WfDef`, and
   `workflow operation abort|pause|restart|retry|continue $Wf` are also statements.
+  A lock or unlock names its workflow definition (`$WfDef` or `Module.Workflow`);
+  `pause all` / `unpause all` after it is Studio Pro's "Pause / Unpause instances".
+  A bare `lock workflow all` is refused (MDL-WF17) — it built as CE1825.
 
 A common shape: the task page's buttons call a microflow that does the change and
 then `set task outcome $Task '<Outcome>'`, leaving the workflow's outcome branch

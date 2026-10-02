@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/mendixlabs/mxcli/mdl/srctext"
 )
 
 // stdinPath is the conventional spelling for "read from standard input".
@@ -18,15 +20,27 @@ const stdinPath = "-"
 // `-` is how every other Unix tool spells it — without this the dash was taken
 // literally and the command failed with "open -: no such file or directory",
 // forcing a temp file. (mxcli-todo findings #5)
+//
+// The bytes are decoded by srctext.Decode: a leading UTF-8 byte-order mark is
+// dropped and a UTF-16 file is decoded, so a script saved by Windows
+// PowerShell 5.1 or Notepad reads the same as one saved without a BOM
+// (mendixlabs/mxcli#1253).
 func readMDLSource(path string) ([]byte, error) {
+	var content []byte
+	var err error
 	if path == stdinPath {
-		content, err := io.ReadAll(os.Stdin)
+		content, err = io.ReadAll(os.Stdin)
 		if err != nil {
 			return nil, fmt.Errorf("reading MDL from stdin: %w", err)
 		}
-		return content, nil
+	} else if content, err = os.ReadFile(path); err != nil {
+		return nil, err
 	}
-	return os.ReadFile(path)
+	decoded, err := srctext.Decode(content)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", mdlSourceLabel(path), err)
+	}
+	return decoded, nil
 }
 
 // mdlSourceLabel names the source in messages: a real path, or "<stdin>".
