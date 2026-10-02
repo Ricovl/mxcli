@@ -417,11 +417,8 @@ func patchCrossAssociations(gdm *genDm.DomainModel, cas []*domainmodel.CrossModu
 		}
 		gca := stored[string(ca.ID)]
 		if gca == nil {
-			gca = crossAssocToGen(ca)
+			gca = crossAssocToGen(ca) // writes a restrict message itself (#803)
 			assignCrossAssocIDs(gca)
-			if db, ok := gca.DeleteBehavior().(*genDm.AssociationDeleteBehavior); ok {
-				patchCrossDeleteErrorMessage(db, ca.ChildDeleteBehavior)
-			}
 			gdm.AddCrossAssociations(gca)
 			ca.ID = model.ID(gca.ID())
 			continue

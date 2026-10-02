@@ -284,6 +284,12 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// (ako/mxcli#253).
 	violations = append(violations, ValidateImportMappingFind(prog, projectPath)...)
 
+	// Flag `first` or `offset` on an import whose mapping is object-rooted: the
+	// first throws at runtime past three green gates, the second is CE6100. The
+	// mapping's shape comes from the script, or the project when given
+	// (ako/mxcli#570).
+	violations = append(violations, ValidateImportMappingRange(prog, projectPath)...)
+
 	// Flag a REST client operation whose Body/Response mapping clause has no
 	// `{ ... }` body — Mendix cannot reference a mapping document from an
 	// operation, so the mapping would be dropped in silence (#843).

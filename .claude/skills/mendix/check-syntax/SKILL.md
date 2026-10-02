@@ -95,10 +95,22 @@ is never reported either — it is a no-op when the module exists, which is what
 lets it open every script.
 
 The types covered are the ones `exec` refuses: entity, enumeration, constant,
-association, microflow, nanoflow, rule, page, snippet, java action, javascript
-action, workflow, and the integration/agent document types. If you find one that
-`exec` refuses and `check` does not, that is a bug of exactly the shape
-`TestEveryCreateDocTypeIsProjectChecked` exists to prevent.
+association, microflow, nanoflow, rule, page, snippet, layout, java action,
+javascript action, workflow, menu, task queue, scheduled event, regular
+expression, database connection, REST client, OData client and service, message
+definition collection, the integration/agent document types, module roles,
+user roles, demo users and configurations. Annotations are the one known gap
+(they have no name to compare). If you find another that `exec` refuses and
+`check` does not, that is a bug of exactly the shape
+`TestEveryCreateStmtIsClassified` and `TestEveryCreateDocTypeIsProjectChecked`
+exist to prevent.
+
+Separately, `check` reports **MDL-DUPNAME** for a name Mendix will not let two
+elements share — a nanoflow named like a microflow, a page and a snippet, an
+enumeration and an entity, or the same kind spelled in another case
+(`M.act_login` next to `M.ACT_Login`, CE0122). It covers `rename … to` and
+`move … to Module` onto a taken name too. `mxcli help MDL-DUPNAME` has the
+table.
 
 ### It reports what the script REMOVES from the project
 
@@ -640,7 +652,14 @@ Pro) instead of writing the file directly.
 After `./mxcli exec script.mdl -p app.mpr` succeeds:
 
 1. `refresh_project` (Studio Pro MCP) so the in-memory model reflects the new file.
-2. `ped_check_errors` on each created/modified document for CE errors.
+2. `ped_check_errors` on each created/modified document for CE errors. The argument
+   depends on the Studio Pro release — read the tool's input schema:
+   - up to 11.14: `{"documents": [{"documentType": "Microflows$Microflow", "documentName": "Mod.Name"}]}`
+   - 11.15+: `{"filters": {"documentType": "Microflows$Microflow", "documentNamePrefix": "Mod.Name"}}`.
+     11.15 **silently ignores** `documents` and checks the whole project. `documentNamePrefix`
+     is a prefix (`Mod.Order` also matches `Mod.OrderLine`), so read the `'Mod.Name' (Type):`
+     header above each problem. More than 100 problems come in pages: repeat the same
+     `filters` with `pagination: {checkId, offset, size}` using the `Check ID` from the first answer.
 
 > **Do not treat an empty `DESCRIBE` as proof of a dropped construct.** `DESCRIBE`
 > renders from the MDL emitter, which does not yet render every activity/widget type

@@ -89,6 +89,15 @@ func execRenameEntity(ctx *ExecContext, s *ast.RenameStmt) error {
 		return nil
 	}
 
+	// Re-read the domain model: the sweep above rewrote the raw unit, and the
+	// semantic model read before it is stale wherever the sweep reached into this
+	// module — a same-module `extends Module.Old`, for one. Persisting the stale
+	// copy put every one of those names back (ako/mxcli#817).
+	dm, err = ctx.Backend.GetDomainModel(module.ID)
+	if err != nil {
+		return mdlerrors.NewBackend("re-read domain model", err)
+	}
+
 	// Update the entity name in the domain model
 	for _, ent := range dm.Entities {
 		if ent.Name == s.Name.Name {
@@ -122,6 +131,11 @@ func execRenameEntity(ctx *ExecContext, s *ast.RenameStmt) error {
 // CE1613s at "Access rule of entity" and "Validation rule of entity" for the entity
 // just renamed. Re-pointing here makes the persist agree with the sweep instead of
 // undoing it.
+//
+// Since ako/mxcli#817 the handler re-reads the domain model after the sweep, which
+// covers every name the sweep reaches in the unit (a same-module generalization was
+// the one this helper missed). The repoint stays: it is idempotent there, and it is
+// what keeps the rename correct against a backend whose sweep is a no-op.
 //
 // Leaving them stale is worse than a dangling string: entityToGen's
 // syncMemberAccesses matches existing entries BY qualified name, so a stale
@@ -403,12 +417,23 @@ func execRenameAssociation(ctx *ExecContext, s *ast.RenameStmt) error {
 		return mdlerrors.NewBackend("get domain model", err)
 	}
 
+	// A cross-module association is stored in the FROM module's CrossAssociations,
+	// not its Associations; looking only at the latter reported one as "not
+	// found" (ako/mxcli#803). Both lists share one namespace for the collision
+	// check.
 	found := false
 	collision := false
 	for _, assoc := range dm.Associations {
 		if assoc.Name == s.Name.Name {
 			found = true
 		} else if assoc.Name == s.NewName {
+			collision = true
+		}
+	}
+	for _, ca := range dm.CrossAssociations {
+		if ca.Name == s.Name.Name {
+			found = true
+		} else if ca.Name == s.NewName {
 			collision = true
 		}
 	}
@@ -429,11 +454,29 @@ func execRenameAssociation(ctx *ExecContext, s *ast.RenameStmt) error {
 		return nil
 	}
 
-	// Update association name in domain model
+	// Re-read after the sweep, for the same reason as execRenameEntity (#817).
+	dm, err = ctx.Backend.GetDomainModel(module.ID)
+	if err != nil {
+		return mdlerrors.NewBackend("re-read domain model", err)
+	}
+
+	// Update association name in domain model. The association keeps its $ID and,
+	// through UpdateDomainModel's carry (#1169) and the in-place cross-association
+	// patch (#792), its storage GUID.
+	renamed := false
 	for _, assoc := range dm.Associations {
 		if assoc.Name == s.Name.Name {
 			assoc.Name = s.NewName
+			renamed = true
 			break
+		}
+	}
+	if !renamed {
+		for _, ca := range dm.CrossAssociations {
+			if ca.Name == s.Name.Name {
+				ca.Name = s.NewName
+				break
+			}
 		}
 	}
 	repointAssociationMemberRefs(dm, oldQualifiedName, newQualifiedName)

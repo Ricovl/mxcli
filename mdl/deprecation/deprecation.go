@@ -147,9 +147,9 @@ const (
 	// DollarArgumentName is `$Param = expr` at a call site: the parameter
 	// named with the `$` of a variable (R4, ako/mxcli#751).
 	DollarArgumentName = "MDL-DEPR006"
-	// ColonArgument is `Param: expr` at a call site (`show page`, a page
-	// action or data source): `:` sets a model property, `=` binds a value
-	// (R3/R4, ako/mxcli#751).
+	// ColonArgument is `Param: expr` at a call site (`show page`, `call
+	// microflow`/nanoflow/java action/…, a page action or data source): `:` sets
+	// a model property, `=` binds a value (R3/R4, ako/mxcli#751, #533).
 	ColonArgument = "MDL-DEPR007"
 	// WorkflowStringArgument is a workflow call's `with (Param = '<expr>')`:
 	// the argument expression written inside a string (R4, ako/mxcli#751).
@@ -237,6 +237,10 @@ const (
 	// always stored it as a DateTime (ako/mxcli#706, rehearsal U1). Refused
 	// from mdl 1 rather than 2, because mdl 1 never had it.
 	DateType = "MDL-DEPR160"
+	// RegexExportLevelPublic is a regular expression's `ExportLevel: Public`:
+	// the metamodel's values are Hidden and API, and Public was written to the
+	// model verbatim (ako/mxcli#827). It builds API.
+	RegexExportLevelPublic = "MDL-DEPR161"
 
 	// Codes 080–089 are the rest of R5 (ako/mxcli#753): expressions bare, one
 	// constant reference, and the revoke that mirrors the grant.
@@ -539,8 +543,8 @@ var entries = []Entry{
 		Rewrite:   Rewrite{Structural: "colon as `=`: `Param: expr` -> `Param = expr`"},
 		RemovedIn: 2,
 		Note: "`:` sets a model property and `=` binds a runtime value (R3). An argument binds a value, so " +
-			"it takes `=` wherever the call appears: show page, and page/button actions and data sources " +
-			"(`Action: microflow M.F(Param = expr)`).",
+			"it takes `=` wherever the call appears: show page, call microflow/nanoflow/java action and the " +
+			"other call statements, and page/button actions and data sources (`Action: microflow M.F(Param = expr)`).",
 		Example:          "create microflow M.F ($O: M.E) begin show page M.P(Order: $O); end;",
 		CanonicalExample: "create microflow M.F ($O: M.E) begin show page M.P(Order = $O); end;",
 	},
@@ -1280,6 +1284,17 @@ var r8Entries = []Entry{
 			"To show only the date, give the widget a date format.",
 		Example:          "create persistent entity M.Account ( LastImport: date );",
 		CanonicalExample: "create persistent entity M.Account ( LastImport: DateTime );",
+	},
+	{
+		Code:      RegexExportLevelPublic,
+		Old:       "create regular expression M.R ( …, ExportLevel: Public )",
+		Canonical: "create regular expression M.R ( …, ExportLevel: API )",
+		Rewrite:   Rewrite{Structural: "regular expression's export level value `Public` as `API`"},
+		RemovedIn: 2,
+		Note: "A regular expression's export level is Hidden or API, as Studio Pro names it and describe " +
+			"prints it. `Public` was stored as written, a value the metamodel does not have; it now stores API.",
+		Example:          "create regular expression M.R ( Expression: '^a$', ExportLevel: Public );",
+		CanonicalExample: "create regular expression M.R ( Expression: '^a$', ExportLevel: API );",
 	},
 }
 

@@ -466,7 +466,9 @@ regularExpressionBody
 
 // `Documentation: '…'` is a registered alias of the `/** … */` doc comment
 // (R9) /* @alias MDL-DEPR106 */, here and in the task queue and scheduled
-// event property lists; the visitor reports it by key.
+// event property lists; the visitor reports it by key. `ExportLevel: Public`
+// is a registered alias of `ExportLevel: API` /* @alias MDL-DEPR161 */,
+// reported by value (ako/mxcli#827).
 regularExpressionProperty
     : identifierOrKeyword COLON (STRING_LITERAL | booleanLiteral | identifierOrKeyword)
     ;

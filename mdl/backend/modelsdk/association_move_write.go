@@ -65,7 +65,13 @@ func crossAssocToGen(ca *domainmodel.CrossModuleAssociation) *genDm.CrossAssocia
 		sf = "Column"
 	}
 	out.SetStorageFormat(sf)
-	out.SetDeleteBehavior(deleteBehaviorToGen(behaviorType(ca.ParentDeleteBehavior), behaviorType(ca.ChildDeleteBehavior)))
+	db := deleteBehaviorToGen(behaviorType(ca.ParentDeleteBehavior), behaviorType(ca.ChildDeleteBehavior))
+	// A restrict ("delete me if no references") child side needs its refusal
+	// message, exactly as assocToGen writes it: a null one stops the runtime
+	// starting (CapTrackV2 §1). Only the update path got it in #795; the create
+	// path — CreateCrossAssociation — wrote null (ako/mxcli#803).
+	patchCrossDeleteErrorMessage(db, ca.ChildDeleteBehavior)
+	out.SetDeleteBehavior(db)
 	if ca.Source == domainmodel.OqlViewAssociationSource {
 		out.SetSource(oqlViewAssociationSourceToGen(ca.ViewSourceReference))
 	}

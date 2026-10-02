@@ -505,6 +505,10 @@ Two things the range does **not** do:
 - **`offset` is not accepted everywhere.** Mendix rejects it with
   **CE6100** ("This entity does not support offset") unless the mapping's root
   is a list; `limit` alone is fine either way. Verified on mxbuild 11.6.6.
+- **`first` is not for an object-rooted mapping.** It narrows a list; on a
+  mapping that already returns one object it builds clean (`mx check`: 0
+  errors) and the activity **throws at runtime**. `mxcli check` refuses it,
+  and `offset` on such a mapping, as **MDL-MAP04** — drop the range.
 
 ### Export to Mapping (entity → JSON)
 

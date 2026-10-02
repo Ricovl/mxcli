@@ -73,16 +73,9 @@ begin
   return $out;
 end;
 
--- `first` keeps Studio Pro's First semantics — both flags true — and is
--- deliberately NOT changed by the fix.
-create microflow ImportSingle.ACT_ImportFirst ()
-returns string as $out
-begin
-  declare $out string = 'EMPTY';
-  declare $Json string = '{"title": "hello", "qty": "3"}';
-  $One = import from mapping ImportSingle.IMM_Item($Json) first;
-  set $out = 'ok';
-  return $out;
-end;
+-- No `first` here: IMM_Item is object-rooted, and `first` narrows a LIST. On
+-- this mapping it builds clean and throws at runtime (ako/mxcli#570), so
+-- `mxcli check` refuses it as MDL-MAP04 — the bare form and `all` are the
+-- ways to import one object.
 
 describe microflow ImportSingle.ACT_ImportFlat;

@@ -172,33 +172,52 @@ func ScanHeader(src string) Version {
 // header at all, so that an explicit `mdl 0;` can be told from no header —
 // the REPL switches its session on the one and not on the other.
 func ScanWrittenHeader(src string) (Version, bool) {
-	i := skipTrivia(src, 0)
-	j := i
-	for j < len(src) && isIdentByte(src[j]) {
-		j++
-	}
-	if !strings.EqualFold(src[i:j], "mdl") {
+	written, _, _, ok := HeaderSpan(src)
+	if !ok {
 		return V0, false
 	}
-	i = skipTrivia(src, j)
-	j = i
-	for j < len(src) && src[j] >= '0' && src[j] <= '9' {
-		j++
-	}
-	if j == i || (j < len(src) && (isIdentByte(src[j]) || src[j] == '.')) {
-		return V0, false
-	}
-	n, err := strconv.Atoi(src[i:j])
+	n, err := strconv.Atoi(written)
 	if err != nil {
-		return V0, false
-	}
-	if k := skipTrivia(src, j); k >= len(src) || src[k] != ';' {
 		return V0, false
 	}
 	if v := Version(n); v.Known() {
 		return v, true
 	}
 	return V0, false
+}
+
+// HeaderSpan locates the `mdl <n>;` header src starts with, read exactly as
+// ScanHeader reads it: the number as written, and the byte offsets [start,
+// end) of the header from `mdl` through its `;`. ok is false when src states
+// no header.
+//
+// Unlike ScanWrittenHeader it does not judge the number, so a caller that
+// takes the header out of the text before handing the rest on — the test
+// runner, whose files are not parsed as one script (ako/mxcli#847) — can
+// refuse a version this mxcli does not know by name rather than leave the
+// header behind as text.
+func HeaderSpan(src string) (written string, start, end int, ok bool) {
+	start = skipTrivia(src, 0)
+	j := start
+	for j < len(src) && isIdentByte(src[j]) {
+		j++
+	}
+	if !strings.EqualFold(src[start:j], "mdl") {
+		return "", 0, 0, false
+	}
+	i := skipTrivia(src, j)
+	j = i
+	for j < len(src) && src[j] >= '0' && src[j] <= '9' {
+		j++
+	}
+	if j == i || (j < len(src) && (isIdentByte(src[j]) || src[j] == '.')) {
+		return "", 0, 0, false
+	}
+	k := skipTrivia(src, j)
+	if k >= len(src) || src[k] != ';' {
+		return "", 0, 0, false
+	}
+	return src[i:j], start, k + 1, true
 }
 
 // skipTrivia returns the index of the first byte at or after i that is not

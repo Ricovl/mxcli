@@ -51,16 +51,7 @@ func (b *Backend) CreateWorkflow(wf *workflows.Workflow) error {
 		return err
 	}
 	if contextShape {
-		// The context-shaped constructor has no documentation or description;
-		// both are leaves of the created element.
-		var ops []pedOpEntry
-		if wf.Documentation != "" {
-			ops = append(ops, pedOpEntry{Path: "/documentation", Operation: pedOperation{Type: "set", Value: wf.Documentation}})
-		}
-		if wf.WorkflowDescription != "" {
-			ops = append(ops, pedOpEntry{Path: "/workflowDescription/text", Operation: pedOperation{Type: "set", Value: wf.WorkflowDescription}})
-		}
-		if len(ops) > 0 {
+		if ops := workflowCreateLeafOps(wf); len(ops) > 0 {
 			if err := b.pedUpdateDoc(workflowDocType, moduleName+"."+wf.Name, ops...); err != nil {
 				return err
 			}
@@ -254,6 +245,30 @@ func (b *Backend) workflowListCount(qn, path string) (int, error) {
 	return len(doc.Results[0].Result), nil
 }
 
+// workflowCreateLeafOps returns the set ops that complete a workflow made by the
+// context-shaped constructor. That constructor has no documentation or
+// description, and it does not APPLY the title or the workflow name it takes:
+// measured live, 11.14 ignores `caption`/`workflowName` and 11.15 ignores
+// `title`/`workflowName`, both storing the document name in each. All four are
+// leaves of the created element, which both releases accept as `set`.
+func workflowCreateLeafOps(wf *workflows.Workflow) []pedOpEntry {
+	var ops []pedOpEntry
+	set := func(path, value string) {
+		ops = append(ops, pedOpEntry{Path: path, Operation: pedOperation{Type: "set", Value: value}})
+	}
+	if wf.WorkflowName != "" && wf.WorkflowName != wf.Name {
+		set("/title", wf.WorkflowName)
+		set("/workflowName/text", wf.WorkflowName)
+	}
+	if wf.Documentation != "" {
+		set("/documentation", wf.Documentation)
+	}
+	if wf.WorkflowDescription != "" {
+		set("/workflowDescription/text", wf.WorkflowDescription)
+	}
+	return ops
+}
+
 // upsertSessionWorkflow records (or replaces) a workflow in the session list so
 // later reads/ALTERs in the same run see the new content rather than the stale .mpr.
 func (b *Backend) upsertSessionWorkflow(wf *workflows.Workflow) {
@@ -330,6 +345,10 @@ func (b *Backend) workflowConstructorTakesContext() bool {
 		res, err := b.client.CallTool("ped_get_schema", map[string]any{"elementTypes": []string{workflowDocType}})
 		if err == nil && res != nil && !res.IsError {
 			takes = strings.Contains(res.Text, "context: Reference<'DomainModels$Entity'")
+			// Studio Pro 11.15 renamed the constructor's `caption` to `title`.
+			// Its schemas are additionalProperties-permissive, so the old key
+			// would be accepted and dropped — the title lost without an error.
+			b.workflowCtorTitle = strings.Contains(res.Text, " title?: string") && !strings.Contains(res.Text, " caption?: string")
 			if b.schemaFetched == nil {
 				b.schemaFetched = map[string]bool{}
 			}
@@ -876,9 +895,13 @@ func (b *Backend) mapWorkflowContentShape(wf *workflows.Workflow, flow map[strin
 		if title == "" {
 			title = wf.Name
 		}
+		titleKey := "caption"
+		if b.workflowCtorTitle {
+			titleKey = "title"
+		}
 		content := map[string]any{
 			"name":         wf.Name,
-			"caption":      title,
+			titleKey:       title,
 			"workflowName": wf.WorkflowName,
 			"flow":         flow,
 		}

@@ -66,12 +66,12 @@ func TestUpgradeSource_RewritesBodiesAndKeepsDocComments(t *testing.T) {
 		"$n2 = count($rows2);", "$n2 = count $rows2;",
 	).Replace(ledgerLike)
 
-	res, skipped, err := UpgradeSource(ledgerLike, "tests/csv-import.test.mdl", upgrade.Options{})
+	res, err := UpgradeSource(ledgerLike, "tests/csv-import.test.mdl", upgrade.Options{})
 	if err != nil {
 		t.Fatalf("UpgradeSource: %v", err)
 	}
-	if skipped {
-		t.Error("header reported skipped although none was asked for")
+	if res.HeaderAdded {
+		t.Error("header added although none was asked for")
 	}
 	if res.Source != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", res.Source, want)
@@ -100,36 +100,52 @@ func TestUpgradeSource_RewritesBodiesAndKeepsDocComments(t *testing.T) {
 	}
 
 	// Idempotent: the upgraded file has nothing left to rewrite.
-	again, _, err := UpgradeSource(res.Source, "x.test.mdl", upgrade.Options{})
+	again, err := UpgradeSource(res.Source, "x.test.mdl", upgrade.Options{})
 	if err != nil || again.Source != res.Source || again.Changed() {
 		t.Errorf("not idempotent: %v\n%s", err, again.Source)
 	}
 }
 
-// A test file takes no language header: check and the runner read its blocks
-// as mdl 0, and a `mdl 1;` line in front of the first test makes the runner
-// drop that test. So the header is not added, the header-gated constructs
-// (`limit 1` here) are left as they are, and the caller is told.
-func TestUpgradeSource_AddsNoHeaderToATestFile(t *testing.T) {
-	res, skipped, err := UpgradeSource(ledgerLike, "x.test.mdl", upgrade.Options{AddHeader: true})
+// A test file takes the language header since the runner and check read it
+// (ako/mxcli#847, which reversed #837's "adds no header"). The header goes on
+// the file's first line, the header-gated `limit 1` is rewritten to keep its
+// mdl 0 meaning (the object, `first`), and the runner reads the same tests.
+func TestUpgradeSource_AddsTheHeaderToATestFile(t *testing.T) {
+	res, err := UpgradeSource(ledgerLike, "x.test.mdl", upgrade.Options{AddHeader: true})
 	if err != nil {
 		t.Fatalf("UpgradeSource: %v", err)
 	}
-	if !skipped || res.HeaderAdded {
-		t.Errorf("skipped=%v HeaderAdded=%v, want the header skipped", skipped, res.HeaderAdded)
+	if !res.HeaderAdded || !strings.HasPrefix(res.Source, "mdl 1;\n-- ====") {
+		t.Fatalf("HeaderAdded=%v, want the header on line 1:\n%s", res.HeaderAdded, res.Source)
 	}
-	if strings.Contains(res.Source, "mdl 1;") || !strings.Contains(res.Source, "limit 1;") || len(res.GatedRewritten) > 0 {
-		t.Errorf("a header-gated rewrite was applied to a test file:\n%s", res.Source)
+	if strings.Contains(res.Source, "limit 1;") || res.GatedRewritten["MDL-V1-LIMIT1"] != 1 {
+		t.Errorf("the header-gated `limit 1` was not rewritten (%v):\n%s", res.GatedRewritten, res.Source)
 	}
 	if !strings.Contains(res.Source, "$first = head $rows;") {
 		t.Errorf("the deprecated spellings were not rewritten:\n%s", res.Source)
+	}
+	before, err := parseMDLTests(ledgerLike, "x.test.mdl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := parseMDLTests(res.Source, "x.test.mdl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Fatalf("tests: %d before, %d after the header", len(before), len(after))
+	}
+	for i := range before {
+		if after[i].Name != before[i].Name || after[i].BodyLine != before[i].BodyLine+1 {
+			t.Errorf("test %d: %q at %d -> %q at %d", i, before[i].Name, before[i].BodyLine, after[i].Name, after[i].BodyLine)
+		}
 	}
 }
 
 // Line endings survive, and so does the markdown form's prose.
 func TestUpgradeSource_CRLFAndMarkdown(t *testing.T) {
 	crlf := strings.ReplaceAll(ledgerLike, "\n", "\r\n")
-	res, _, err := UpgradeSource(crlf, "x.test.mdl", upgrade.Options{})
+	res, err := UpgradeSource(crlf, "x.test.mdl", upgrade.Options{})
 	if err != nil {
 		t.Fatalf("CRLF: %v", err)
 	}
@@ -138,7 +154,7 @@ func TestUpgradeSource_CRLFAndMarkdown(t *testing.T) {
 	}
 
 	md := "# Tests\n\nProse with $x = head($L) in it.\n\n```mdl-test\n/** @test md */\n$h = head($L);\n```\n"
-	res, _, err = UpgradeSource(md, "x.test.md", upgrade.Options{})
+	res, err = UpgradeSource(md, "x.test.md", upgrade.Options{})
 	if err != nil {
 		t.Fatalf("markdown: %v", err)
 	}
@@ -150,7 +166,7 @@ func TestUpgradeSource_CRLFAndMarkdown(t *testing.T) {
 // A file the test parser refuses is reported as itself, as check reports it.
 func TestUpgradeSource_RefusesAMalformedTestFile(t *testing.T) {
 	src := "/** @test a */\n$x = head($L);\n/** @test b */\n$y = head($L);\n"
-	if _, _, err := UpgradeSource(src, "x.test.mdl", upgrade.Options{}); err == nil ||
+	if _, err := UpgradeSource(src, "x.test.mdl", upgrade.Options{}); err == nil ||
 		!strings.Contains(err.Error(), "separator") {
 		t.Fatalf("want the missing separator reported, got %v", err)
 	}
@@ -181,7 +197,7 @@ func TestUpgradeSource_RepositoryTestFiles(t *testing.T) {
 			if _, err := CheckSource(src, p); err != nil {
 				t.Skipf("check does not read it either: %v", err)
 			}
-			res, _, err := UpgradeSource(src, p, upgrade.Options{AddHeader: true})
+			res, err := UpgradeSource(src, p, upgrade.Options{AddHeader: true})
 			if err != nil {
 				t.Fatalf("UpgradeSource: %v", err)
 			}
@@ -195,7 +211,7 @@ func TestUpgradeSource_RepositoryTestFiles(t *testing.T) {
 					t.Errorf("test %q changed", before[i].Name)
 				}
 			}
-			again, _, err := UpgradeSource(res.Source, p, upgrade.Options{})
+			again, err := UpgradeSource(res.Source, p, upgrade.Options{})
 			if err != nil || again.Changed() {
 				t.Errorf("not idempotent: %v", err)
 			}

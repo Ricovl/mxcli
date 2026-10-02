@@ -181,3 +181,46 @@ func withDefault(a *domainmodel.Attribute, def string) *domainmodel.Attribute {
 	a.Value = &domainmodel.AttributeValue{DefaultValue: def}
 	return a
 }
+
+// TestLive_CheckErrorsIsScoped is the control for ped_check_errors' scoping. It
+// needs a document Studio Pro reports an error on, named by MXCLI_MCP_BROKEN as
+// "<documentType>:<qualifiedName>" (e.g. an enumeration without values on 11.15:
+// "Enumerations$Enumeration:MyFirstModule.Zz_Mcp115_BrokenEnum"), and a clean
+// MXCLI_MCP_MODULE domain model. The broken document must fail its own check, and
+// must NOT fail the domain model's: on 11.15 the pre-11.15 `documents` argument is
+// silently ignored and the check runs project-wide, which fails both.
+//
+//	MXCLI_MCP_URL=http://localhost/mcp MXCLI_MCP_DIAL=host.docker.internal:7793 \
+//	MXCLI_MCP_BROKEN='Enumerations$Enumeration:MyFirstModule.Zz_Mcp115_BrokenEnum' \
+//	go test ./mdl/backend/mcp/ -run TestLive_CheckErrorsIsScoped -v
+func TestLive_CheckErrorsIsScoped(t *testing.T) {
+	url := os.Getenv("MXCLI_MCP_URL")
+	broken := os.Getenv("MXCLI_MCP_BROKEN")
+	if url == "" || broken == "" {
+		t.Skip("set MXCLI_MCP_URL and MXCLI_MCP_BROKEN to run the live check-scoping control")
+	}
+	docType, docName, ok := strings.Cut(broken, ":")
+	if !ok {
+		t.Fatalf("MXCLI_MCP_BROKEN = %q, want <documentType>:<qualifiedName>", broken)
+	}
+	module := envOr("MXCLI_MCP_MODULE", "MyFirstModule")
+	c, err := NewClient(ClientOptions{URL: url, Dial: os.Getenv("MXCLI_MCP_DIAL")})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	si, err := c.Initialize()
+	if err != nil {
+		t.Fatalf("Initialize: %v", err)
+	}
+	t.Logf("connected to %s %s (check_errors filters advertised: %v)", si.Name, si.Version, c.SupportsToolArg("ped_check_errors", "filters"))
+	b := &Backend{client: c}
+
+	if err := b.checkDocumentNow(docType, docName); err == nil {
+		t.Errorf("%s %s: no error reported for the deliberately broken document", docType, docName)
+	} else {
+		t.Logf("broken document reported: %v", err)
+	}
+	if err := b.pedCheckErrors(module); err != nil {
+		t.Errorf("domain model of %s failed on another document's error: %v", module, err)
+	}
+}

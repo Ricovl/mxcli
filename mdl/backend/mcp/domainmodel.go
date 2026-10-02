@@ -27,8 +27,14 @@ type pedPoint struct {
 	Y int `json:"y"`
 }
 
+// pedAttribute is an attribute constructor. As an `add` on an entity's
+// attributes array it is a DomainModels$Attribute constructor and carries
+// `$Type`; nested in the entity constructor it is a PlainObject and must NOT —
+// with `$Type` present PED drops the declared type and stores String(200) (#923).
+// Neither shape carries a String length: that is set afterwards by
+// applyAttributeLengths.
 type pedAttribute struct {
-	SType           string `json:"$Type"`
+	SType           string `json:"$Type,omitempty"`
 	Name            string `json:"name"`
 	Type            string `json:"type"`
 	EnumerationName string `json:"enumerationName,omitempty"`
@@ -107,6 +113,11 @@ func (b *Backend) CreateEntity(domainModelID model.ID, entity *domainmodel.Entit
 	if err != nil {
 		return err
 	}
+	// Nor is a String length: the constructor's type is a bare name, so every
+	// String is created at PED's default 200 until its length leaf is set (#923).
+	if err := b.applyAttributeLengths(moduleName, entIdx, entity.Attributes); err != nil {
+		return err
+	}
 	if err := b.applyAttributeDefaults(moduleName, entIdx, entity.Attributes); err != nil {
 		return err
 	}
@@ -164,6 +175,9 @@ func (b *Backend) AddAttribute(domainModelID model.ID, entityID model.ID, attr *
 		Path:      fmt.Sprintf("/entities/%d/attributes", idx),
 		Operation: pedOperation{Type: "add", Value: value},
 	}); err != nil {
+		return err
+	}
+	if err := b.applyAttributeLengths(moduleName, idx, []*domainmodel.Attribute{attr}); err != nil {
 		return err
 	}
 	if err := b.applyAttributeDefaults(moduleName, idx, []*domainmodel.Attribute{attr}); err != nil {
@@ -270,7 +284,11 @@ func (b *Backend) UpdateEntity(domainModelID model.ID, entity *domainmodel.Entit
 		if err := b.pedUpdate(moduleName, ops...); err != nil {
 			return err
 		}
-		// Set defaults on the just-added attributes (constructor can't carry them).
+		// Set lengths and defaults on the just-added attributes (the constructor
+		// can carry neither).
+		if err := b.applyAttributeLengths(moduleName, entIdx, toAdd); err != nil {
+			return err
+		}
 		if err := b.applyAttributeDefaults(moduleName, entIdx, toAdd); err != nil {
 			return err
 		}
@@ -687,6 +705,11 @@ func (b *Backend) buildEntityValue(entity *domainmodel.Entity) (*pedEntity, erro
 			}
 			pa.Value = map[string]any{"$Type": "DomainModels$OqlViewValue", "reference": ref}
 		}
+		// The entity constructor's attributes are PlainObjects ({name, type,
+		// enumerationName}), not DomainModels$Attribute constructors: a `$Type`
+		// here makes PED ignore `type` and store every attribute as String(200)
+		// on both the 11.14 and 11.15 servers (#923).
+		pa.SType = ""
 		pe.Attributes = append(pe.Attributes, *pa)
 	}
 	return pe, nil
@@ -856,6 +879,49 @@ func (b *Backend) applyAttributeDefaults(moduleName string, entIdx int, attrs []
 	}
 	if len(ops) == 0 {
 		return nil
+	}
+	return b.pedUpdate(moduleName, ops...)
+}
+
+// pedStringDefaultLength is DomainModels$StringAttributeType.length's schema
+// default — what PED stores for a String attribute created without a length.
+const pedStringDefaultLength = 200
+
+// applyAttributeLengths sets DomainModels$StringAttributeType.length on each
+// String attribute whose declared length differs from PED's default. Neither
+// attribute constructor (entity-nested or a standalone add) has a length, so
+// without this every String lands as String(200) (#923). Like
+// applyAttributeDefaults it re-reads the live names to resolve indices, and
+// writes nothing when every String is already at the default. A length of 0 is
+// Mendix's "unlimited" and is set like any other.
+func (b *Backend) applyAttributeLengths(moduleName string, entIdx int, attrs []*domainmodel.Attribute) error {
+	want := make(map[string]int)
+	for _, a := range attrs {
+		if st, ok := a.Type.(*domainmodel.StringAttributeType); ok && st.Length != pedStringDefaultLength {
+			want[a.Name] = st.Length
+		}
+	}
+	if len(want) == 0 {
+		return nil
+	}
+	liveNames, err := b.liveAttributeNames(moduleName, entIdx)
+	if err != nil {
+		return err
+	}
+	ops := make([]pedOpEntry, 0, len(want))
+	for i, n := range liveNames {
+		l, ok := want[n]
+		if !ok {
+			continue
+		}
+		delete(want, n)
+		ops = append(ops, pedOpEntry{
+			Path:      fmt.Sprintf("/entities/%d/attributes/%d/type/length", entIdx, i),
+			Operation: pedOperation{Type: "set", Value: l},
+		})
+	}
+	for n := range want {
+		return fmt.Errorf("attribute %q not found in live model when setting its length", n)
 	}
 	return b.pedUpdate(moduleName, ops...)
 }
@@ -1240,26 +1306,6 @@ func (b *Backend) pedCheckDocument(docType, docName string) error {
 		}
 		time.Sleep(settleInterval)
 	}
-}
-
-// checkDocumentNow asks for the current verdict without waiting for the error
-// list to settle — which is why only pedCheckDocument should call it.
-// ped_check_errors reports a clean document as "No errors found." (with
-// isError=false); any other text is the validation error(s).
-func (b *Backend) checkDocumentNow(docType, docName string) error {
-	res, err := b.client.CallTool("ped_check_errors", map[string]any{
-		"documents": []map[string]any{
-			{"documentType": docType, "documentName": docName},
-		},
-	})
-	if err != nil {
-		return err
-	}
-	text := pedStripReminder(res.Text)
-	if res.IsError || !strings.Contains(text, "No errors found") {
-		return fmt.Errorf("validation failed for %s: %s", docName, text)
-	}
-	return nil
 }
 
 // pedCreateDocument creates a standalone document (enumeration, microflow, …)
