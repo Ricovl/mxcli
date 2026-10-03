@@ -62,7 +62,11 @@ var updateWidgetsCmd = func(mxPath, pathArg string, w, stderr io.Writer) error {
 //
 // This lives on the operation, not on a call site, because it was previously
 // implemented in `Check` only — `Build` carried its own bare invocation and kept
-// converting projects (mendixlabs/mxcli#763, then #808).
+// converting projects (mendixlabs/mxcli#763, then #808). `Check` no longer uses
+// it: it runs update-widgets on a temporary copy (copyProjectForCheck), because a
+// check must not modify the project at all — this restores only the v2 storage,
+// and an MPRv1 project was rewritten permanently (ako/mxcli#951). `Build` is
+// expected to write the project's deployment/, and still uses it.
 func runUpdateWidgets(mxPath, projectPath string, w, stderr io.Writer) (restore func()) {
 	restore = func() {}
 	if projectPath == "" {
