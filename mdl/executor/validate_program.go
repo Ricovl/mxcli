@@ -4,6 +4,7 @@ package executor
 
 import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 )
 
@@ -26,6 +27,19 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// Statement-level checks that need no project connection.
 	var violations []linter.Violation
 	securityEnabled := programEnablesSecurity(prog)
+	// Which Java/JavaScript action calls target a void action — such a call
+	// declares no variable (MDL063, #953). The script answers for the actions
+	// it creates; the project, opened only if a call needs it, for the rest.
+	var voidsProject backend.FullBackend
+	voids := newVoidCodeActions(prog, func() backend.FullBackend {
+		voidsProject = openProjectForValidation(projectPath)
+		return voidsProject
+	})
+	defer func() {
+		if voidsProject != nil {
+			_ = voidsProject.Disconnect()
+		}
+	}()
 	for _, stmt := range prog.Statements {
 		// Check enumeration values for reserved words
 		if enumStmt, ok := stmt.(*ast.CreateEnumerationStmt); ok {
@@ -85,7 +99,7 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		}
 		// Check microflow body for common issues
 		if mfStmt, ok := stmt.(*ast.CreateMicroflowStmt); ok {
-			violations = append(violations, ValidateMicroflow(mfStmt)...)
+			violations = append(violations, validateMicroflowWith(mfStmt, voids)...)
 			violations = append(violations,
 				ValidateFlowParameterAnnotations("microflow '"+mfStmt.Name.String()+"'", mfStmt.Parameters)...)
 		}
@@ -93,7 +107,7 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		// ValidateMicroflow but share the parameter grammar.
 		if nfStmt, ok := stmt.(*ast.CreateNanoflowStmt); ok {
 			// MDL044 over the body (mendixlabs/mxcli#1033).
-			violations = append(violations, ValidateNanoflow(nfStmt)...)
+			violations = append(violations, validateNanoflowWith(nfStmt, voids)...)
 			violations = append(violations,
 				ValidateFlowParameterAnnotations("nanoflow '"+nfStmt.Name.String()+"'", nfStmt.Parameters)...)
 		}

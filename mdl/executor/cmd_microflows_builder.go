@@ -16,6 +16,14 @@ import (
 
 // flowBuilder helps construct the flow graph from AST statements.
 type flowBuilder struct {
+	// duplicateNamesOwnedElsewhere stops the check-time body validation
+	// (validateFlowBody) from reporting a variable name created twice. For a
+	// microflow or nanoflow that is MDL063's job, which knows the namespace is
+	// flow-wide and that a void action call declares nothing (#953); this
+	// validator scoped names per branch and counted every call output, so it
+	// was wrong both ways. Rules keep it — MDL063 does not run on them.
+	duplicateNamesOwnedElsewhere bool
+
 	objects         []microflows.MicroflowObject
 	flows           []*microflows.SequenceFlow
 	annotationFlows []*microflows.AnnotationFlow

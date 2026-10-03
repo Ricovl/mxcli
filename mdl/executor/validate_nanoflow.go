@@ -12,8 +12,9 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/linter"
 )
 
-// ValidateNanoflow runs the MDL0xx rules that hold for a nanoflow body — today
-// only MDL044, an expression calling a name that is not a Mendix function.
+// ValidateNanoflow runs the MDL0xx rules that hold for a nanoflow body: MDL044,
+// an expression calling a name that is not a Mendix function, and MDL063, a
+// variable name created twice.
 //
 // MDL044 was wired to CREATE MICROFLOW alone (#828), so `currentDeviceType()`
 // in a nanoflow passed check and exec and failed the build with CE0117
@@ -21,14 +22,32 @@ import (
 // wholesale: several rules are microflow-specific and would be false positives
 // here — MDL057 refuses `synchronize`, which only a nanoflow may contain.
 func ValidateNanoflow(stmt *ast.CreateNanoflowStmt) []linter.Violation {
+	return validateNanoflowWith(stmt, nil)
+}
+
+// validateNanoflowWith is ValidateNanoflow with a resolver for the return types
+// of the Java/JavaScript actions the body calls (see validateMicroflowWith).
+func validateNanoflowWith(stmt *ast.CreateNanoflowStmt, voids *voidCodeActions) []linter.Violation {
 	v := &microflowValidator{
 		mfName:     stmt.Name.String(),
 		docType:    "nanoflow",
 		returnType: stmt.ReturnType,
 		varKinds:   map[string]exprcheck.TypeKind{},
+		params:     stmt.Parameters,
+		excluded:   stmt.Excluded,
+		voids:      voids,
 	}
 	v.walkExprFunctions(stmt.Body)
 	v.walkAnnotations(stmt.Body)
+	// MDL063 holds for a nanoflow too: its variable names are as flat as a
+	// microflow's. Measured on mxbuild 11.13.0, each is CE0111 in a nanoflow —
+	// a non-void call in each of two if/else branches, a parameter and a
+	// declare, a declare inside a loop body and another after it. The
+	// exec-side validator treated branches as scopes and passed the first
+	// (ako/mxcli#953). The kinds MDL063 reads to spare the String
+	// contains/find rewrite come from the parameters and the declares.
+	v.seedPrimitiveKinds(stmt.Parameters, stmt.Body)
+	v.checkDuplicateVariableNames(v.params, stmt.Body)
 	// The nanoflow restrictions exec's build refuses (validateNanoflow): an
 	// action a nanoflow cannot hold, an error-handling clause its activity
 	// rejects (CE6035), a Binary return. They ran only inside exec, so `check`
@@ -132,4 +151,23 @@ func validateNanoflowRules(stmt *ast.CreateNanoflowStmt) error {
 	}
 	return mdlerrors.NewValidationf("nanoflow '%s' has validation errors:\n  - %s",
 		stmt.Name.String(), strings.Join(msgs, "\n  - "))
+}
+
+// seedPrimitiveKinds records the primitive kind of every parameter and declare,
+// which a microflow's walkBody records as it goes. The nanoflow walk does not
+// run walkBody, and MDL063 reads these kinds to tell a String contains/find —
+// which the builder rewrites into a Change Variable — from a list operation.
+func (v *microflowValidator) seedPrimitiveKinds(params []ast.MicroflowParam, body []ast.MicroflowStatement) {
+	for _, p := range params {
+		if k, ok := astKindToExprKind(p.Type.Kind); ok {
+			v.varKinds[p.Name] = k
+		}
+	}
+	forEachMicroflowStatement(body, func(s ast.MicroflowStatement) {
+		if d, ok := s.(*ast.DeclareStmt); ok {
+			if k, ok := astKindToExprKind(d.Type.Kind); ok {
+				v.varKinds[d.Variable] = k
+			}
+		}
+	})
 }
