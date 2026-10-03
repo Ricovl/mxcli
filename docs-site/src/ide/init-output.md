@@ -8,8 +8,11 @@ These files are shared by all AI tools:
 
 ```
 your-mendix-project/
-├── AGENTS.md                          # Comprehensive AI assistant guide
+├── AGENTS.md                          # Comprehensive AI assistant guide (mxcli section between markers)
+├── mdlsource/                         # MDL scripts, one file per concern
+│   └── README.md
 ├── .ai-context/
+│   ├── mxcli-tooling.json             # Which mxcli wrote this tooling (version stamp)
 │   ├── skills/                        # MDL pattern guides
 │   │   ├── write-microflows.md        # Microflow syntax and patterns
 │   │   ├── create-page.md            # Page/widget syntax reference

@@ -64,6 +64,12 @@ All tools also receive the universal files (`AGENTS.md`, `.ai-context/`).
 4. **Set up dev container** -- `.devcontainer/` with Dockerfile and configuration
 5. **Copy mxcli binary** -- places the mxcli executable in the project root
 6. **Install VS Code extension** -- copies and installs the bundled `.vsix` file
+7. **Create `mdlsource/`** -- the directory the generated `CLAUDE.md` tells the assistant to keep MDL scripts in, with a short README (`mxcli new` creates it even with `--skip-init`)
+8. **Stamp the version** -- `.ai-context/mxcli-tooling.json` records which mxcli wrote the tooling; see [Syncing with Updates](./syncing.md#the-version-stamp)
+
+`CLAUDE.md` and `AGENTS.md` are written between `<!-- mxcli:begin … -->` and
+`<!-- mxcli:end -->` markers. Notes you add outside the markers survive a
+re-run of `mxcli init` and every `mxcli init --sync-skills`.
 
 ## Adding a Tool Later
 

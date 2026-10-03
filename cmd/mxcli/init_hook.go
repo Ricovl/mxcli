@@ -44,33 +44,121 @@ const bootstrapScriptTemplate = `#!/bin/sh
 # skipping when it is absent.
 #
 # Pin a specific mxcli with MXCLI_TAG=vX.Y.Z (default: nightly).
+#
+# Version guard: .ai-context/mxcli-tooling.json records the mxcli that wrote
+# this project's tooling (CLAUDE.md, skills, lint rules). A binary older than
+# that does not understand all of it, so an older ./mxcli is replaced and an
+# older mxcli on PATH is not linked in. Only a provable "older" counts: dev
+# builds and unknown versions are never second-guessed. Binaries that predate
+# the stamp cannot check it themselves — this script is where the check lives
+# for them.
 set -e
 
 MPR='%s'
 TAG="${MXCLI_TAG:-nightly}"
+STAMP=.ai-context/mxcli-tooling.json
 
-if [ ! -x ./mxcli ]; then
+# stamp_field KEY: a string field of the tooling stamp, or nothing.
+stamp_field() {
+  [ -f "$STAMP" ] || return 0
+  sed -n "s/.*\"$1\": *\"\([^\"]*\)\".*/\1/p" "$STAMP" | head -n 1
+}
+
+# ymd TIMESTAMP: 2026-10-01T12:00:00Z -> 20261001, anything else -> nothing.
+ymd() {
+  echo "$1" | sed -n 's/^\([0-9]\{4\}\)-\([0-9][0-9]\)-\([0-9][0-9]\)T.*/\1\2\3/p'
+}
+
+# bin_version BINARY / bin_built BINARY: what 'BINARY --version' reports.
+bin_version() {
+  MXCLI_QUIET=1 "$1" --version 2>/dev/null | sed -n 's/^mxcli version \([^ ]*\).*/\1/p' | head -n 1
+}
+bin_built() {
+  ymd "$(MXCLI_QUIET=1 "$1" --version 2>/dev/null | sed -n 's/^mxcli version [^ ]* (\(.*\))$/\1/p' | head -n 1)"
+}
+
+# vclass VERSION: "r MAJOR MINOR PATCH" for a release tag, "n YYYYMMDD" for a
+# nightly tag, "u" for anything else (dev builds: v0.24.0-888-g4ba1495f2).
+vclass() {
+  case "$1" in
+    nightly-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-*)
+      echo "n $(echo "$1" | cut -d- -f2)" ;;
+    *)
+      r=$(echo "$1" | sed -n 's/^v\{0,1\}\([0-9][0-9]*\)\.\([0-9][0-9]*\)\.\([0-9][0-9]*\)$/r \1 \2 \3/p')
+      if [ -n "$r" ]; then echo "$r"; else echo u; fi ;;
+  esac
+}
+
+# version_lt HAVE HAVE_BUILT WANT WANT_BUILT: succeeds when HAVE is provably
+# older than WANT. Releases compare by number, nightlies by tag date, and a
+# release against a nightly by build date (YYYYMMDD), when both are known.
+version_lt() {
+  hc=$(vclass "$1"); wc=$(vclass "$3"); hb=$2; wb=$4
+  [ "$hc" = u ] && return 1
+  [ "$wc" = u ] && return 1
+  hk=$(echo "$hc" | cut -d' ' -f1); wk=$(echo "$wc" | cut -d' ' -f1)
+  if [ "$hk" = r ] && [ "$wk" = r ]; then
+    set -- $(echo "$hc" | cut -d' ' -f2-) $(echo "$wc" | cut -d' ' -f2-)
+    [ "$1" -lt "$4" ] && return 0
+    [ "$1" -gt "$4" ] && return 1
+    [ "$2" -lt "$5" ] && return 0
+    [ "$2" -gt "$5" ] && return 1
+    [ "$3" -lt "$6" ]
+    return
+  fi
+  [ "$hk" = n ] && hb=$(echo "$hc" | cut -d' ' -f2)
+  [ "$wk" = n ] && wb=$(echo "$wc" | cut -d' ' -f2)
+  [ -n "$hb" ] && [ -n "$wb" ] && [ "$hb" -lt "$wb" ]
+}
+
+# older_than_stamp BINARY: succeeds when BINARY is provably older than the
+# mxcli that wrote this project's tooling.
+older_than_stamp() {
+  want=$(stamp_field version)
+  [ -n "$want" ] || return 1
+  have=$(bin_version "$1")
+  [ -n "$have" ] || return 1
+  version_lt "$have" "$(bin_built "$1")" "$want" "$(ymd "$(stamp_field built)")"
+}
+
+stale=
+if [ -x ./mxcli ] && older_than_stamp ./mxcli; then
+  echo "./mxcli is $(bin_version ./mxcli), older than the mxcli that wrote this project's tooling ($(stamp_field version)) — replacing it." >&2
+  stale=1
+fi
+
+if [ ! -x ./mxcli ] || [ -n "$stale" ]; then
   # Prefer a copy that is already on this machine. Some environments ship mxcli
   # pre-installed on PATH, and the bootstrap instructions have you delete the
   # hardlink 'mxcli new' left in the project — after which this guard could
   # never be satisfied by the PATH binary and re-downloaded ~85 MB on EVERY
   # fresh session, forever. (ako/ChipCoV1)
   #
+  # But never one older than the tooling: that is how a project written by a
+  # newer mxcli ended up served by v0.24.0, its CLAUDE.md asking for syntax the
+  # binary could not parse (ako/mxcli#952).
+  #
   # Hardlink first because that is what 'mxcli new' does and it costs nothing;
   # fall back to a symlink across filesystems, then to a copy. Any of the three
   # leaves ./mxcli working, which is what the rest of this script and the
   # project's own CLAUDE.md assume.
   onpath=$(command -v mxcli 2>/dev/null || true)
-  if [ -n "$onpath" ] && [ -x "$onpath" ]; then
-    echo "mxcli found on PATH (${onpath}) — linking it in rather than downloading."
-    ln -f "$onpath" ./mxcli 2>/dev/null ||
-      ln -sf "$onpath" ./mxcli 2>/dev/null ||
-      cp "$onpath" ./mxcli
-    chmod +x ./mxcli 2>/dev/null || true
+  if [ -n "$onpath" ] && [ -x "$onpath" ] && [ "$onpath" != "./mxcli" ] && [ "$onpath" != "$PWD/mxcli" ]; then
+    if older_than_stamp "$onpath"; then
+      echo "mxcli on PATH (${onpath}) is $(bin_version "$onpath"), older than this project's tooling ($(stamp_field version)) — not linking it; downloading ${TAG} instead." >&2
+    else
+      echo "mxcli found on PATH (${onpath}) — linking it in rather than downloading."
+      rm -f ./mxcli
+      ln -f "$onpath" ./mxcli 2>/dev/null ||
+        ln -sf "$onpath" ./mxcli 2>/dev/null ||
+        cp "$onpath" ./mxcli
+      chmod +x ./mxcli 2>/dev/null || true
+      stale=
+    fi
   fi
 fi
 
-if [ ! -x ./mxcli ]; then
+if [ ! -x ./mxcli ] || [ -n "$stale" ]; then
   os=$(uname -s | tr 'A-Z' 'a-z')
   case "$(uname -m)" in
     x86_64|amd64) arch=amd64 ;;
@@ -78,20 +166,36 @@ if [ ! -x ./mxcli ]; then
     *) arch=$(uname -m) ;;
   esac
   url="https://github.com/mendixlabs/mxcli/releases/download/${TAG}/mxcli-${os}-${arch}"
-  echo "mxcli not found — downloading ${TAG} for ${os}/${arch}..."
-  if ! curl -fsSL -o ./mxcli "$url"; then
+  echo "Downloading mxcli ${TAG} for ${os}/${arch}..."
+  # Into a temporary file, then renamed over ./mxcli: writing straight to
+  # ./mxcli would write THROUGH a symlink into the PATH binary it points at,
+  # and a failed download would leave no binary at all.
+  if curl -fsSL -o ./mxcli.download "$url"; then
+    chmod +x ./mxcli.download
+    mv -f ./mxcli.download ./mxcli
+  else
+    rm -f ./mxcli.download
     echo "Could not download mxcli from ${url}." >&2
-    echo "Fetch it manually, or set MXCLI_TAG to a released version." >&2
-    exit 1
+    if [ ! -x ./mxcli ]; then
+      echo "Fetch it manually, or set MXCLI_TAG to a released version." >&2
+      exit 1
+    fi
+    echo "Keeping the older ./mxcli; expect failures where the tooling uses newer features." >&2
   fi
-  chmod +x ./mxcli
 fi
 
-# Keep .ai-context/skills/ in step with this binary. The skills are embedded in
-# mxcli and written once by 'mxcli init', so upgrading the binary used to leave
-# yesterday's guidance in place with no warning — and an agent reads stale
-# guidance with the same confidence as current guidance. Quiet when already
-# current; never fatal, since a skills refresh must not block the session.
+if older_than_stamp ./mxcli; then
+  echo "WARNING: ./mxcli ($(bin_version ./mxcli)) is still older than this project's tooling ($(stamp_field version))." >&2
+  echo "  Set MXCLI_TAG to $(stamp_field version) or newer (or 'nightly') and re-run this script." >&2
+fi
+
+# Keep the project's tooling (skills, bundled lint rules, the mxcli section of
+# CLAUDE.md/AGENTS.md) in step with this binary. They are embedded in mxcli and
+# written by 'mxcli init', so upgrading the binary used to leave yesterday's
+# guidance in place with no warning — and an agent reads stale guidance with
+# the same confidence as current guidance. Quiet when already current; refuses
+# (rather than downgrades) when the binary is older than the tooling; never
+# fatal, since a refresh must not block the session.
 ./mxcli init --sync-skills . || true
 
 exec ./mxcli run --local --setup --ensure-db -p "$MPR"
