@@ -1013,7 +1013,9 @@ controlbar {
 **A control bar is not row-scoped.** It sits above the rows, so the grid's
 current object is not in scope there — an action calling a flow with a parameter
 gets **CE1571** unless you give it an argument, and `$currentObject` is unbound
-(`mxcli check` reports MDL-BUTTON01). The remedy is the grid's **selection**,
+(`mxcli check` reports MDL-BUTTON01). The exception is a grid nested inside a
+data view or list view item: there `$currentObject` is the *enclosing* object,
+not a grid row, and it builds clean. The remedy is the grid's **selection**,
 addressed by the widget's own name and available once `selection:` is set:
 
 ```sql
