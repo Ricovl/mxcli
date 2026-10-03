@@ -30,9 +30,15 @@ func (b *Builder) recordShowSingleThing(ctx *parser.ShowOrListContext) {
 	if !ok {
 		return
 	}
+	first := tokenTypeAt(stmt, 1)
+	if first == parser.MDLParserPROJECT && stmt.SECURITY() == nil {
+		// `show project version`: not a statement. The parser has already
+		// reported the syntax error; its recovered tree has no SECURITY token
+		// to rewrite up to, and there is nothing to deprecate.
+		return
+	}
 	verb := ctx.GetStart()
 	b.recordDeprecation(deprecation.ShowSingleThing, verb, "")
-	first := tokenTypeAt(stmt, 1)
 	edit := replaceSpan(verb, verb, keywordLike(verb.GetText(), "describe"))
 	if first == parser.MDLParserPROJECT {
 		// `show project security` -> `describe app security` (R10's name).

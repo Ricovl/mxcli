@@ -249,6 +249,14 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 			"  A Mendix index has no name; one written here is not stored (MDL-IDX01).", msg)
 	}
 
+	// `show project <word>`: `project` continues only with `security`, so a
+	// guess such as `show project version` would otherwise get the generic
+	// "quote the keyword" hint, which is no help at all here.
+	if showProjectRe.MatchString(offendingLine) && strings.Contains(msg, "expecting SECURITY") {
+		return fmt.Sprintf("%s\n\n  `show project` is only `show project security` (now `describe app security`).\n"+
+			"  For the project's Mendix and MPR version write `show version`.", msg)
+	}
+
 	// Check for a misplaced EXTENDS / GENERALIZATION clause. It must precede the
 	// attribute list — `create entity Mod.Child extends Mod.Parent ( ... )` — but
 	// users often append it after the closing parenthesis, where ANTLR reports a
@@ -359,6 +367,9 @@ var removedCreateCommentRe = regexp.MustCompile(
 // statement — which is valid and has the same leading token — is that the
 // parenthesis follows the optional ON directly, where the standalone form names
 // the entity in between (`index Idx on Mod.Cell (Row)`).
+// showProjectRe matches a line that starts `show project` / `list project`.
+var showProjectRe = regexp.MustCompile(`(?i)^\s*(show|list)\s+project\b`)
+
 var misplacedIndexRe = regexp.MustCompile(`(?i)^\s*index\s+("[^"]*"|[A-Za-z_]\w*)?\s*(on\s*)?\(`)
 
 // xpathArithmeticRe matches an arithmetic operator that ANTLR rejected inside a
