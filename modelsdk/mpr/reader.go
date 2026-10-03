@@ -45,7 +45,7 @@ type Reader struct {
 	// metadata. Building it reads each BSON header once but does not decode any
 	// nested document content. The immutable map is shared by direct lookups.
 	nameIndexMu    sync.RWMutex
-	nameIndex      map[string]nameIndexEntry
+	nameIndex      map[string][]nameIndexEntry // several when a name has an excluded twin (#914)
 	nameIndexBuilt bool
 
 	// Memoized decoded units, keyed by BSON $Type. The value is the

@@ -164,3 +164,74 @@ func insertV2NamedUnit(t *testing.T, db *sql.DB, contentsDir, id, containerID, u
 	}
 	return contents
 }
+
+// A name is not unique: a module may hold an excluded twin of a document
+// (#914). The lookup must return the live one whichever order the headers come
+// in, and still resolve when every match is excluded.
+func TestGetUnitByName_PrefersLiveTwin(t *testing.T) {
+	for _, excludedFirst := range []bool{true, false} {
+		db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "twins.mpr"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(`
+			CREATE TABLE Unit (
+				UnitID BLOB PRIMARY KEY NOT NULL,
+				ContainerID BLOB,
+				ContainmentName TEXT,
+				Contents BLOB
+			)
+		`); err != nil {
+			t.Fatal(err)
+		}
+		rootID := "00000000-0000-0000-0000-000000000021"
+		moduleID := "00000000-0000-0000-0000-000000000022"
+		liveID := "00000000-0000-0000-0000-000000000023"
+		excludedID := "00000000-0000-0000-0000-000000000024"
+		onlyExcludedID := "00000000-0000-0000-0000-000000000025"
+		insertNamedUnit(t, db, moduleID, rootID, "Projects$ModuleImpl", "Sales")
+		if excludedFirst {
+			insertExcludedUnit(t, db, excludedID, moduleID, "Microflows$Microflow", "Calc")
+			insertNamedUnit(t, db, liveID, moduleID, "Microflows$Microflow", "Calc")
+		} else {
+			insertNamedUnit(t, db, liveID, moduleID, "Microflows$Microflow", "Calc")
+			insertExcludedUnit(t, db, excludedID, moduleID, "Microflows$Microflow", "Calc")
+		}
+		insertExcludedUnit(t, db, onlyExcludedID, moduleID, "Microflows$Microflow", "Old")
+
+		r := &Reader{db: db, version: MPRVersionV1}
+		unit, err := r.GetUnitByName("microflow", "Sales.Calc")
+		if err != nil {
+			t.Fatalf("GetUnitByName: %v", err)
+		}
+		if unit == nil || unit.ID != liveID {
+			t.Fatalf("excludedFirst=%v: got %#v, want the live twin %s", excludedFirst, unit, liveID)
+		}
+		old, err := r.GetUnitByName("microflow", "Sales.Old")
+		if err != nil {
+			t.Fatalf("GetUnitByName: %v", err)
+		}
+		if old == nil || old.ID != onlyExcludedID {
+			t.Fatalf("an all-excluded name must still resolve; got %#v", old)
+		}
+		_ = db.Close()
+	}
+}
+
+func insertExcludedUnit(t *testing.T, db *sql.DB, id, containerID, unitType, name string) {
+	t.Helper()
+	contents, err := bson.Marshal(bson.D{
+		{Key: "$Type", Value: unitType},
+		{Key: "Name", Value: name},
+		{Key: "Excluded", Value: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(
+		`INSERT INTO Unit (UnitID, ContainerID, ContainmentName, Contents) VALUES (?, ?, '', ?)`,
+		uuidToBlob(id), uuidToBlob(containerID), contents,
+	); err != nil {
+		t.Fatal(err)
+	}
+}

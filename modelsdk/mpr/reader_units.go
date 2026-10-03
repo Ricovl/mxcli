@@ -330,7 +330,7 @@ func (r *Reader) buildUnitNameIndex() error {
 		}
 	}
 
-	index := make(map[string]nameIndexEntry, len(headers))
+	index := make(map[string][]nameIndexEntry, len(headers))
 	for _, h := range headers {
 		if h.Name == "" {
 			continue
@@ -340,11 +340,12 @@ func (r *Reader) buildUnitNameIndex() error {
 		if moduleName != "" {
 			qualifiedName = moduleName + "." + h.Name
 		}
-		index[h.Type+"\x00"+qualifiedName] = nameIndexEntry{
+		key := h.Type + "\x00" + qualifiedName
+		index[key] = append(index[key], nameIndexEntry{
 			ID:          h.ID,
 			ContainerID: h.ContainerID,
 			Type:        h.Type,
-		}
+		})
 	}
 	r.nameIndex = index
 	r.nameIndexBuilt = true
@@ -408,6 +409,11 @@ func (r *Reader) GetUnitByName(objectType, qualifiedName string) (*UnitRef, erro
 // name, reading only that unit's full BSON after the lightweight index has been
 // built. Returns (nil, nil) when no such document exists.
 //
+// A name is not a unique key: a module may hold an excluded twin of a document
+// (#914). The live one is returned when there is one, otherwise the first match,
+// so a name whose every match is excluded still resolves. Twins are rare, so
+// telling them apart reads only the few units that share the name.
+//
 // This is the type-name-keyed core of GetUnitByName: it takes the storage name
 // directly, so it needs no entry in the rawUnitBSONType alias table.
 func (r *Reader) GetUnitByTypeName(typeName, qualifiedName string) (*UnitRef, error) {
@@ -419,21 +425,40 @@ func (r *Reader) GetUnitByTypeName(typeName, qualifiedName string) (*UnitRef, er
 	}
 
 	r.nameIndexMu.RLock()
-	entry, ok := r.nameIndex[typeName+"\x00"+qualifiedName]
+	entries := r.nameIndex[typeName+"\x00"+qualifiedName]
 	r.nameIndexMu.RUnlock()
-	if !ok {
-		return nil, nil
+
+	var first *UnitRef
+	for _, entry := range entries {
+		contents, err := r.GetRawUnitBytes(entry.ID)
+		if err != nil {
+			return nil, err
+		}
+		unit := &UnitRef{
+			ID:          entry.ID,
+			ContainerID: entry.ContainerID,
+			Type:        entry.Type,
+			Contents:    contents,
+		}
+		if len(entries) == 1 || !isExcludedUnit(contents) {
+			return unit, nil
+		}
+		if first == nil {
+			first = unit
+		}
 	}
-	contents, err := r.GetRawUnitBytes(entry.ID)
+	return first, nil
+}
+
+// isExcludedUnit reports a unit's top-level Excluded flag without decoding the
+// rest of the document.
+func isExcludedUnit(contents []byte) bool {
+	val, err := bson.Raw(contents).LookupErr("Excluded")
 	if err != nil {
-		return nil, err
+		return false
 	}
-	return &UnitRef{
-		ID:          entry.ID,
-		ContainerID: entry.ContainerID,
-		Type:        entry.Type,
-		Contents:    contents,
-	}, nil
+	excluded, _ := val.BooleanOK()
+	return excluded
 }
 
 // RawUnitInfo contains information about a raw unit for BSON debugging.
