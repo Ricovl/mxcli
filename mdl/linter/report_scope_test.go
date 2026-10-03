@@ -59,3 +59,22 @@ func TestScopeToModules(t *testing.T) {
 		}
 	}
 }
+
+// A rule that could not run has no module, but it is about the tooling, not a
+// module the selection excludes: `report --modules` must still list it, and
+// BuildReport still keeps it out of the score (ako/mxcli#952 with #953).
+func TestScopeToModulesKeepsRuleFailures(t *testing.T) {
+	vs := []Violation{
+		{RuleID: "QUAL004", Severity: SeverityInfo, RuleFailure: true},
+		{RuleID: "CONV008", Severity: SeverityInfo, Location: Location{Module: ""}}, // control: dropped
+		{RuleID: "SEC001", Severity: SeverityWarning, Location: Location{Module: "MyFirstModule"}},
+	}
+	got := ScopeToModules(vs, []string{"MyFirstModule"})
+	if len(got) != 2 || !got[0].RuleFailure || got[1].Location.Module != "MyFirstModule" {
+		t.Fatalf("want the rule failure and the MyFirstModule finding, got %+v", got)
+	}
+	r := BuildReport("App", "d", got)
+	if len(r.RuleFailures) != 1 || len(r.Violations) != 1 {
+		t.Fatalf("rule failures %d, violations %d; want 1 and 1", len(r.RuleFailures), len(r.Violations))
+	}
+}
