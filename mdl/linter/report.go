@@ -15,6 +15,10 @@ type Report struct {
 	Categories   []CategoryScore `json:"categories"`
 	Violations   []Violation     `json:"-"`
 	Summary      Summary         `json:"summary"`
+	// RuleFailures are the rules that failed to run. They are about the
+	// tooling, not the project, so they are neither in Violations nor in any
+	// score or count — they are listed on their own (ako/mxcli#952).
+	RuleFailures []Violation `json:"-"`
 }
 
 // CategoryScore tracks the score for a lint category.
@@ -100,12 +104,26 @@ var categoryWeight = map[string]float64{
 }
 
 // BuildReport creates a Report from a list of violations.
-func BuildReport(projectName, date string, violations []Violation) *Report {
+//
+// A rule failure (Violation.RuleFailure) is split out into RuleFailures before
+// anything is counted: the score measures the project, and a rule that could
+// not run — usually one written for a newer mxcli — measured nothing. Counted,
+// three crashing rules cost a project 30 points of "errors" it did not have.
+func BuildReport(projectName, date string, all []Violation) *Report {
+	var violations, failures []Violation
+	for _, v := range all {
+		if v.RuleFailure {
+			failures = append(failures, v)
+		} else {
+			violations = append(violations, v)
+		}
+	}
 	report := &Report{
-		ProjectName: projectName,
-		Date:        date,
-		Violations:  violations,
-		Summary:     Summarize(violations),
+		ProjectName:  projectName,
+		Date:         date,
+		Violations:   violations,
+		Summary:      Summarize(violations),
+		RuleFailures: failures,
 	}
 
 	// Group violations by category

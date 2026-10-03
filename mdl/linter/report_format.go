@@ -5,6 +5,7 @@ package linter
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"strings"
 )
@@ -86,6 +87,17 @@ func (f *MarkdownReportFormatter) FormatReport(report *Report, w io.Writer) erro
 		fmt.Fprintln(w)
 	}
 
+	if len(report.RuleFailures) > 0 {
+		fmt.Fprintf(w, "## Rules That Could Not Run\n\n")
+		fmt.Fprintf(w, "Not counted in the score or the summary: these are problems with the lint tooling, not the project.\n\n")
+		fmt.Fprintf(w, "| Rule | Severity | Problem |\n")
+		fmt.Fprintf(w, "|------|----------|---------|\n")
+		for _, v := range report.RuleFailures {
+			fmt.Fprintf(w, "| %s | %s | %s |\n", v.RuleID, v.Severity, v.Message)
+		}
+		fmt.Fprintln(w)
+	}
+
 	return nil
 }
 
@@ -115,6 +127,9 @@ type JSONReport struct {
 	Summary      JSONSummary     `json:"summary"`
 	Categories   []CategoryScore `json:"categories"`
 	Violations   []JSONViolation `json:"violations"`
+	// RuleFailures are rules that could not run; excluded from the score and
+	// the summary (ako/mxcli#952).
+	RuleFailures []JSONViolation `json:"ruleFailures,omitempty"`
 }
 
 // JSONSummary is the summary in JSON format.
@@ -149,6 +164,15 @@ func (f *JSONReportFormatter) FormatReport(report *Report, w io.Writer) error {
 			DocumentType: v.Location.DocumentType,
 			DocumentID:   v.Location.DocumentID,
 			Suggestion:   v.Suggestion,
+		})
+	}
+
+	for _, v := range report.RuleFailures {
+		jr.RuleFailures = append(jr.RuleFailures, JSONViolation{
+			RuleID:     v.RuleID,
+			Severity:   v.Severity.String(),
+			Message:    v.Message,
+			Suggestion: v.Suggestion,
 		})
 	}
 
@@ -270,6 +294,17 @@ func (f *HTMLReportFormatter) FormatReport(report *Report, w io.Writer) error {
 			}
 			fmt.Fprintf(w, "<tr><td>%s</td><td class='%s'>%s</td><td>%s</td><td>%s</td></tr>\n",
 				v.RuleID, sevClass, v.Severity, loc, v.Message)
+		}
+		fmt.Fprintf(w, "</table>\n")
+	}
+
+	if len(report.RuleFailures) > 0 {
+		fmt.Fprintf(w, "<h2>Rules That Could Not Run</h2>\n")
+		fmt.Fprintf(w, "<p>Not counted in the score or the summary: these are problems with the lint tooling, not the project.</p>\n<table>\n")
+		fmt.Fprintf(w, "<tr><th>Rule</th><th>Severity</th><th>Problem</th></tr>\n")
+		for _, v := range report.RuleFailures {
+			fmt.Fprintf(w, "<tr><td>%s</td><td>%s</td><td>%s</td></tr>\n",
+				html.EscapeString(v.RuleID), v.Severity, html.EscapeString(v.Message))
 		}
 		fmt.Fprintf(w, "</table>\n")
 	}

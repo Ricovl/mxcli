@@ -154,7 +154,8 @@ You can create your own skills to teach the AI about your project's patterns and
 ```
 
 `mxcli init --sync-skills` only rewrites the skills mxcli itself ships, so your
-own directories survive every upgrade.
+own directories survive every upgrade. It also refreshes the bundled lint rules
+and the mxcli section of `CLAUDE.md` — see [Syncing with Updates](../ide/syncing.md).
 
 A custom skill is a markdown document with two lines of frontmatter. Write the
 body the way you would explain something to a new team member, and write the
