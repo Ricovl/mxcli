@@ -70,55 +70,19 @@ func (b *Builder) buildWorkflows() error {
 	return nil
 }
 
-// countWorkflowActivityTypes counts activity types in a workflow.
+// countWorkflowActivityTypes counts activity types in a workflow, over every
+// flow it holds (see walkWorkflowActivities).
 func countWorkflowActivityTypes(wf *workflows.Workflow) (total, userTasks, microflowCalls, decisions int) {
-	if wf.Flow == nil {
-		return
-	}
-	countFlowActivityTypes(wf.Flow, &total, &userTasks, &microflowCalls, &decisions)
-	return
-}
-
-// countFlowActivityTypes recursively counts activity types in a flow.
-func countFlowActivityTypes(flow *workflows.Flow, total, userTasks, microflowCalls, decisions *int) {
-	if flow == nil {
-		return
-	}
-	for _, act := range flow.Activities {
-		*total++
-		switch a := act.(type) {
+	walkWorkflowActivities(wf, func(act workflows.WorkflowActivity) {
+		total++
+		switch act.(type) {
 		case *workflows.UserTask:
-			*userTasks++
-			for _, outcome := range a.Outcomes {
-				countFlowActivityTypes(outcome.Flow, total, userTasks, microflowCalls, decisions)
-			}
-		case *workflows.CallMicroflowTask:
-			*microflowCalls++
-			for _, outcome := range a.Outcomes {
-				countOutcomeFlowActivities(outcome, total, userTasks, microflowCalls, decisions)
-			}
-		case *workflows.SystemTask:
-			*microflowCalls++
-			for _, outcome := range a.Outcomes {
-				countOutcomeFlowActivities(outcome, total, userTasks, microflowCalls, decisions)
-			}
+			userTasks++
+		case *workflows.CallMicroflowTask, *workflows.SystemTask:
+			microflowCalls++
 		case *workflows.ExclusiveSplitActivity:
-			*decisions++
-			for _, outcome := range a.Outcomes {
-				countOutcomeFlowActivities(outcome, total, userTasks, microflowCalls, decisions)
-			}
-		case *workflows.ParallelSplitActivity:
-			for _, outcome := range a.Outcomes {
-				countFlowActivityTypes(outcome.Flow, total, userTasks, microflowCalls, decisions)
-			}
+			decisions++
 		}
-	}
-}
-
-// countOutcomeFlowActivities counts activities in a condition outcome's flow.
-func countOutcomeFlowActivities(outcome workflows.ConditionOutcome, total, userTasks, microflowCalls, decisions *int) {
-	if outcome == nil {
-		return
-	}
-	countFlowActivityTypes(outcome.GetFlow(), total, userTasks, microflowCalls, decisions)
+	})
+	return
 }

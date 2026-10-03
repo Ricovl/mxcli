@@ -7,6 +7,14 @@ package catalog
 //
 // History:
 //
+//	17 (workflow and loop-variable refs): refs gains the workflow edges the
+//	    walk missed (event handlers, on-created / completion / group-targeting
+//	    microflows, boundary-event paths, event sub-processes) and the
+//	    change/delete edges of loop iterators and association-retrieve outputs;
+//	    workflows_data's activity counts include boundary-event and event
+//	    sub-process activities. Same reason as 11 and 13: refs are only written
+//	    by a FULL build, and an unforced REFRESH CATALOG FULL on a fresh cache
+//	    kept listing workflow.UserTaskEventHandle as dead (measured, TestApp).
 //	17 (page title language): pages_data.Title is the project's default
 //	    language (else en_US, else the lowest-sorted non-empty language) instead
 //	    of whichever translation a map range met first (mendixlabs/mxcli#1262).
