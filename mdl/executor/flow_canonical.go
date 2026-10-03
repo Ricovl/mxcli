@@ -23,6 +23,10 @@ import "github.com/mendixlabs/mxcli/mdl/ast"
 //     form: the else statements follow the if in the enclosing list, where
 //     each is still located by its @position and stays addressable.
 //
+//   - An `if` with an empty `else` and the same `if` with none. Both build a
+//     split whose false flow goes on to what follows; describe drops the
+//     empty else, so the canonical form has none (ako/mxcli#942).
+//
 //   - A `join L` directly followed by its own `merge L`, where nothing else
 //     joins L. Falling through into a merge and joining it are the same flow,
 //     and a merge only one path reaches is no join point at all: describe
@@ -75,6 +79,9 @@ func canonicalNested(st ast.MicroflowStatement, joins map[string]int) ast.Microf
 	case *ast.IfStmt:
 		c := *s
 		c.ThenBody, c.ElseBody = canonicalList(s.ThenBody, joins), canonicalList(s.ElseBody, joins)
+		if len(c.ElseBody) == 0 {
+			c.HasElse = false
+		}
 		return &c
 	case *ast.LoopStmt:
 		c := *s

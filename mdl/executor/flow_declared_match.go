@@ -82,6 +82,22 @@ var geometryFields = map[reflect.Type]map[string]bool{
 	paramStructType: {"Position": true},
 }
 
+// spellingFields names, per AST type, the fields that record how a statement
+// was SPELLED rather than what it stores. Describe prints one spelling, so the
+// stored side never carries the other, and comparing these would make a
+// declared statement fail to match its own stored activity (ako/mxcli#942):
+// re-spliced on every run, and next to a loop the run of "changes" swallowed
+// the loop and rebuilt it with new $IDs under mdl 1. They exist only for
+// diagnostics (MDL067, MDL065) and nothing downstream branches on them.
+var spellingFields = map[reflect.Type]map[string]bool{
+	// `commit $X with events` is a bare `commit $X`: both store events on.
+	// WithoutEvents, which IS stored, is still compared.
+	reflect.TypeOf(ast.MfCommitStmt{}): {"ExplicitWithEvents": true},
+	// `case X` / `else` are the legacy spellings of `when X then` /
+	// `when (empty) then`; both build the identical split.
+	reflect.TypeOf(ast.InheritanceSplitStmt{}): {"LegacyCaseKeyword": true, "LegacyElseKeyword": true},
+}
+
 func matchValue(d, s reflect.Value, mode matchMode) bool {
 	if !d.IsValid() || !s.IsValid() {
 		return d.IsValid() == s.IsValid()
@@ -133,9 +149,13 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 			d, s = messageAsTemplate(d), messageAsTemplate(s)
 		}
 		geo := geometryFields[d.Type()]
+		spelling := spellingFields[d.Type()]
 		for i := 0; i < d.NumField(); i++ {
 			df := d.Field(i)
 			name := d.Type().Field(i).Name
+			if spelling[name] {
+				continue
+			}
 			skip := mode == matchAnyLayout ||
 				(mode == matchAnyPosition && d.Type() == annotationsStructType && positionFields[name])
 			if geo[name] && df.Kind() == reflect.Pointer && (skip || df.IsNil()) {
