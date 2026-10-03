@@ -111,6 +111,38 @@ func ValidateWidgetPropertiesForStatement(stmt ast.Statement, registry *WidgetRe
 	if registry == nil {
 		return nil
 	}
+	return withDocumentLocation(validateWidgetPropertiesOf(stmt, registry), stmt)
+}
+
+// withDocumentLocation fills in the document a widget violation belongs to.
+// The widget rules name it only in the message, so a report grouped by
+// location printed them under "(no module)" with a blank "at" (ako/mxcli#943).
+// A violation that already carries a location keeps it.
+func withDocumentLocation(vs []linter.Violation, stmt ast.Statement) []linter.Violation {
+	var loc linter.Location
+	switch s := stmt.(type) {
+	case *ast.CreatePageStmtV3:
+		loc = linter.Location{Module: s.Name.Module, DocumentType: "page", DocumentName: s.Name.Name}
+	case *ast.CreateSnippetStmtV3:
+		loc = linter.Location{Module: s.Name.Module, DocumentType: "snippet", DocumentName: s.Name.Name}
+	case *ast.AlterPageStmt:
+		kind := "page"
+		if strings.EqualFold(s.ContainerType, "snippet") {
+			kind = "snippet"
+		}
+		loc = linter.Location{Module: s.PageName.Module, DocumentType: kind, DocumentName: s.PageName.Name}
+	default:
+		return vs
+	}
+	for i := range vs {
+		if vs[i].Location == (linter.Location{}) {
+			vs[i].Location = loc
+		}
+	}
+	return vs
+}
+
+func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []linter.Violation {
 	if label, widgets, ok := documentWidgets(stmt); ok {
 		out := validateWidgetTree(widgets, registry, label)
 		out = append(out, validateNamedObjectBindings(widgets, documentEntityParameters(stmt), label)...)
@@ -359,29 +391,42 @@ func inlineDynamicText(w *ast.WidgetV3) bool {
 	return !headingRenderModeRe.MatchString(w.GetRenderMode())
 }
 
+// styledDynamicText reports whether a dynamictext carries its own class or
+// style. The author has laid it out — a theme class that makes it a block, a
+// margin, a flex item — so the "no separator" advice does not apply to it.
+func styledDynamicText(w *ast.WidgetV3) bool {
+	return strings.TrimSpace(w.GetClass()) != "" || strings.TrimSpace(w.GetStyle()) != "" ||
+		strings.TrimSpace(w.GetDynamicClasses()) != ""
+}
+
 // validateConsecutiveDynamicText emits an advisory (MDL-WIDGET15) when two or
 // more INLINE dynamictext widgets are direct siblings: Mendix renders a Text- or
 // Paragraph-mode DynamicText inline (a `<span>`), so adjacent ones concatenate
 // with no separator (`€ 310` + `7/24/2026` → `€ 3107/24/2026`). Only a heading
 // render mode (H1–H6) is block-level and breaks the run. Info severity — it does
 // not fail the build, it warns the author about a layout surprise. (ledger #27/#29)
+//
+// A text with its own `class:` or `style:` is not counted and breaks the run:
+// its layout is the author's, not Atlas's default inline span. Report pages
+// that lay out label/value pairs with SCSS drew ~35 of these notes, none of
+// them about text that actually fused (ako/mxcli#943).
 func validateConsecutiveDynamicText(siblings []*ast.WidgetV3, locationPrefix string) []linter.Violation {
-	run := 0
+	var run []*ast.WidgetV3
 	for _, w := range siblings {
-		if inlineDynamicText(w) {
-			run++
+		if inlineDynamicText(w) && !styledDynamicText(w) {
+			run = append(run, w)
 		} else {
-			run = 0
+			run = nil
 		}
 		// Emit once, on the second inline dynamictext of a run, so a group of N
 		// only warns once.
-		if run == 2 {
+		if len(run) == 2 {
 			return []linter.Violation{{
 				RuleID:   "MDL-WIDGET15",
 				Severity: linter.SeverityInfo,
 				Message: fmt.Sprintf(
-					"%s: adjacent inline dynamictext widgets (RenderMode Text or Paragraph, both <span>) render with no separator, so their text concatenates. Merge them into one dynamictext with multiple content params, wrap each in its own container, or use a heading RenderMode (H1–H6, which is block-level). Note: Paragraph does NOT fix this — it also renders inline.",
-					locationPrefix),
+					"%s: adjacent inline dynamictext widgets — %s and %s — (RenderMode Text or Paragraph, both <span>) render with no separator, so their text concatenates. Merge them into one dynamictext with multiple content params, wrap each in its own container, give them a class or style that lays them out, or use a heading RenderMode (H1–H6, which is block-level). Note: Paragraph does NOT fix this — it also renders inline.",
+					locationPrefix, widgetLabel(run[0].Name, run[0].Type), widgetLabel(run[1].Name, run[1].Type)),
 			}}
 		}
 	}

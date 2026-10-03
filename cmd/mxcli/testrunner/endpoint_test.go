@@ -137,8 +137,8 @@ func TestGenerateEndpointMDLShape(t *testing.T) {
 	mdl := GenerateEndpointMDL("")
 	for _, want := range []string{
 		"CREATE MODULE " + mxTestModule + ";",
-		"CREATE OR REPLACE JAVA ACTION " + endpointRegisterAction + "() RETURNS Boolean",
-		"CREATE OR REPLACE MICROFLOW " + endpointStartupFlow + " ()",
+		"CREATE OR MODIFY JAVA ACTION " + endpointRegisterAction + "() RETURNS Boolean",
+		"CREATE OR MODIFY MICROFLOW " + endpointStartupFlow + " ()",
 		"RETURNS Boolean AS $Registered",
 	} {
 		if !strings.Contains(mdl, want) {

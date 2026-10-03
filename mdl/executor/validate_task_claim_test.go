@@ -95,3 +95,108 @@ func TestAssigneesSpellingsAreAllRecognised(t *testing.T) {
 		}
 	}
 }
+
+// ako/mxcli#943: the claim made in a called sub-microflow.
+
+func taskClaimWarningsIn(t *testing.T, src string, stored storedClaimSource) []string {
+	t.Helper()
+	prog, errs := visitor.Build(src)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	var msgs []string
+	for _, v := range validateTaskClaims(prog, stored) {
+		msgs = append(msgs, v.Message)
+	}
+	return msgs
+}
+
+const claimingSub = `create microflow M.SUB_Claim ( $T: System.WorkflowUserTask )
+begin
+  change $T (System.WorkflowUserTask_Assignees = [%CurrentUser%]);
+  commit $T;
+end;
+`
+
+const nonClaimingSub = `create microflow M.SUB_Claim ( $T: System.WorkflowUserTask )
+begin
+  log info 'nothing';
+end;
+`
+
+const callerOfSub = `create microflow M.ACT ( $Task: System.WorkflowUserTask )
+begin
+  call microflow M.SUB_Claim(T = $Task);
+  set task outcome $Task 'Plan';
+end;
+`
+
+func TestClaimInScriptCalleeCounts(t *testing.T) {
+	if got := taskClaimWarningsIn(t, claimingSub+callerOfSub, nil); len(got) != 0 {
+		t.Errorf("a claim in a called microflow was not counted: %v", got)
+	}
+}
+
+func TestScriptCalleeThatDoesNotClaimStillWarns(t *testing.T) {
+	// The control: the callee is read, not just assumed to claim.
+	if got := taskClaimWarningsIn(t, nonClaimingSub+callerOfSub, nil); len(got) != 1 {
+		t.Errorf("got %d warnings, want 1 for a callee that does not claim: %v", len(got), got)
+	}
+}
+
+func TestCalleeClaimingAnotherParameterStillWarns(t *testing.T) {
+	src := `create microflow M.SUB_Claim ( $T: System.WorkflowUserTask, $Other: System.WorkflowUserTask )
+begin
+  change $Other (System.WorkflowUserTask_Assignees = [%CurrentUser%]);
+end;
+` + callerOfSub
+	if got := taskClaimWarningsIn(t, src, nil); len(got) != 1 {
+		t.Errorf("a claim on a different callee parameter counted: %v", got)
+	}
+}
+
+func TestUnresolvableCalleeIsAPossibleClaim(t *testing.T) {
+	if got := taskClaimWarningsIn(t, callerOfSub, nil); len(got) != 0 {
+		t.Errorf("a call to an unknown microflow passing the task was warned: %v", got)
+	}
+}
+
+func TestNestedScriptCalleesAndRecursion(t *testing.T) {
+	src := `create microflow M.SUB_Inner ( $X: System.WorkflowUserTask )
+begin
+  change $X (System.WorkflowUserTask_Assignees = [%CurrentUser%]);
+end;
+create microflow M.SUB_Claim ( $T: System.WorkflowUserTask )
+begin
+  call microflow M.SUB_Claim(T = $T);
+  call microflow M.SUB_Inner(X = $T);
+end;
+` + callerOfSub
+	if got := taskClaimWarningsIn(t, src, nil); len(got) != 0 {
+		t.Errorf("a claim two calls deep was not counted: %v", got)
+	}
+	loop := `create microflow M.SUB_Claim ( $T: System.WorkflowUserTask )
+begin
+  call microflow M.SUB_Claim(T = $T);
+end;
+` + callerOfSub
+	if got := taskClaimWarningsIn(t, loop, nil); len(got) != 1 {
+		t.Errorf("a self-recursive callee that never claims: got %v, want 1 warning", got)
+	}
+}
+
+type fakeStoredClaims map[string]bool // "flow.param" -> claims
+
+func (f fakeStoredClaims) TaskParameterClaims(flow, param string) (bool, [][2]string, bool) {
+	c, ok := f[flow+"."+param]
+	return c, nil, ok
+}
+
+func TestStoredCalleeIsRead(t *testing.T) {
+	if got := taskClaimWarningsIn(t, callerOfSub, fakeStoredClaims{"M.SUB_Claim.T": true}); len(got) != 0 {
+		t.Errorf("a stored callee that claims was warned: %v", got)
+	}
+	if got := taskClaimWarningsIn(t, callerOfSub, fakeStoredClaims{"M.SUB_Claim.T": false}); len(got) != 1 {
+		t.Errorf("a stored callee that does not claim: got %v, want 1 warning", got)
+	}
+}
