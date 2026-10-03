@@ -52,6 +52,19 @@ Each category shows:
 - Number of findings in that category
 - Specific rule violations with affected elements
 
+## Rules That Could Not Run
+
+A lint rule that fails is a problem with the tooling, not the project, so it is
+**not counted** in the score, the summary or any category. The report lists it
+in its own section ("Rules That Could Not Run"; `ruleFailures` in JSON).
+
+The common case is a rule written for a newer mxcli — one that reads a field
+this binary's catalog does not expose. It is reported at info level as
+`rule QUAL004 needs a newer mxcli ("microflow" struct has no .document_noun_title attribute)`.
+Any other failure is reported as a `Starlark rule error`. If the project's
+tooling was written by a newer mxcli, `mxcli` warns about it on every command;
+see [Syncing with Updates](../ide/syncing.md#the-version-stamp).
+
 ## Writing Reports to Files
 
 ```bash

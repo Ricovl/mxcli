@@ -56,6 +56,11 @@ type Violation struct {
 	Message    string
 	Location   Location
 	Suggestion string
+	// RuleFailure marks a finding about the rule rather than the project: the
+	// rule itself failed to run. It says nothing about the model, so the
+	// report keeps it out of the score and lists it separately
+	// (ako/mxcli#952), and a configured severity override does not apply.
+	RuleFailure bool
 }
 
 // Location identifies where a violation occurred.
@@ -167,10 +172,14 @@ func (l *Linter) Run(ctx context.Context) ([]Violation, error) {
 		// Run the rule
 		violations := rule.Check(l.ctx)
 
-		// Apply configured severity if different from default
+		// Apply configured severity if different from default. A rule
+		// failure keeps its own: configuring QUAL004 as "warning" says how
+		// much its findings matter, not how much its crashing does.
 		if config, ok := l.configs[rule.ID()]; ok {
 			for i := range violations {
-				violations[i].Severity = config.Severity
+				if !violations[i].RuleFailure {
+					violations[i].Severity = config.Severity
+				}
 			}
 		}
 
