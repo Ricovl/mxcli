@@ -7,6 +7,14 @@ package catalog
 //
 // History:
 //
+//	17 (workflow and loop-variable refs): refs gains the workflow edges the
+//	    walk missed (event handlers, on-created / completion / group-targeting
+//	    microflows, boundary-event paths, event sub-processes) and the
+//	    change/delete edges of loop iterators and association-retrieve outputs;
+//	    workflows_data's activity counts include boundary-event and event
+//	    sub-process activities. Same reason as 11 and 13: refs are only written
+//	    by a FULL build, and an unforced REFRESH CATALOG FULL on a fresh cache
+//	    kept listing workflow.UserTaskEventHandle as dead (measured, TestApp).
 //	16 — permissions_data.DefaultMemberAccessRights, and the belated bump for
 //	    activities_data.UseRequestTimeout / TimeoutExpression. Both columns
 //	    were added without a bump. The activity pair happened to be rescued by
@@ -62,7 +70,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "15"
+const CatalogSchemaVersion = "17"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
