@@ -48,6 +48,7 @@ func validateNanoflowWith(stmt *ast.CreateNanoflowStmt, voids *voidCodeActions) 
 	// contains/find rewrite come from the parameters and the declares.
 	v.seedPrimitiveKinds(stmt.Parameters, stmt.Body)
 	v.checkDuplicateVariableNames(v.params, stmt.Body)
+	v.checkVoidCallOutputUse(v.params, stmt.Body)
 	// The nanoflow restrictions exec's build refuses (validateNanoflow): an
 	// action a nanoflow cannot hold, an error-handling clause its activity
 	// rejects (CE6035), a Binary return. They ran only inside exec, so `check`

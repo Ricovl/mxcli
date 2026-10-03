@@ -83,3 +83,61 @@ end;
 		t.Errorf("the unknown parameter (CE1613) is hidden behind the semantic error:\n%s", out)
 	}
 }
+
+// ako/mxcli#962 item 1, end to end on PedApp: reading the output name of a
+// call to a stored VOID JavaScript action is CE0109 in mxbuild 11.13.0
+// (measured on a PedApp copy), and `check -p` resolves the action through the
+// project to say so (MDL093). Controls: the same read of a Boolean action's
+// output, and of an action the project does not have.
+func TestCheck_ReadOfAStoredVoidCallOutput(t *testing.T) {
+	src := filepath.Join("..", "..", "testdata", "pedapp")
+	if _, err := os.Stat(filepath.Join(src, "PedApp.mpr")); err != nil {
+		t.Skipf("PedApp fixture not found: %v", err)
+	}
+	dir := t.TempDir()
+	if err := copyTree(src, dir); err != nil {
+		t.Fatal(err)
+	}
+	_ = checkCmd.InheritedFlags() // merges the persistent -p into checkCmd.Flags()
+	_ = rootCmd.PersistentFlags().Set("project", filepath.Join(dir, "PedApp.mpr"))
+	defer func() {
+		_ = rootCmd.PersistentFlags().Set("project", "")
+		rootCmd.PersistentFlags().Lookup("project").Changed = false
+	}()
+	check := func(script string) (int, string) {
+		file := writeScript(t, t.TempDir(), "s.mdl", "mdl 1;\n"+script)
+		var code int
+		out := captureStd(t, func() { code = runCheckFiles(checkCmd, []string{file}) })
+		return code, out
+	}
+
+	code, out := check(`create nanoflow MyFirstModule.NF_ReadVoid ()
+begin
+  $V = call javascript action FeedbackModule.JS_RevokeUploadedFileFromMemory(fileBlobURL = 'a');
+  $S = call javascript action FeedbackModule.JS_RevokeUploadedFileFromMemory(fileBlobURL = $V);
+end;
+`)
+	if code == 0 || !strings.Contains(out, "MDL093") || !strings.Contains(out, "CE0109") {
+		t.Errorf("reading a void call's output not reported (exit %d):\n%s", code, out)
+	}
+
+	code, out = check(`create nanoflow MyFirstModule.NF_ReadBoolean ()
+begin
+  $IsStrict = call javascript action FeedbackModule.JS_isStrictMode();
+  $S = call javascript action FeedbackModule.JS_RevokeUploadedFileFromMemory(fileBlobURL = toString($IsStrict));
+end;
+`)
+	if code != 0 || strings.Contains(out, "MDL093") {
+		t.Errorf("control: reading a Boolean action's output reported (exit %d):\n%s", code, out)
+	}
+
+	_, out = check(`create nanoflow MyFirstModule.NF_ReadUnknown ()
+begin
+  $U = call javascript action FeedbackModule.JS_NotThere();
+  $S = call javascript action FeedbackModule.JS_RevokeUploadedFileFromMemory(fileBlobURL = $U);
+end;
+`)
+	if strings.Contains(out, "MDL093") {
+		t.Errorf("control: an unresolvable action's output reported as void:\n%s", out)
+	}
+}

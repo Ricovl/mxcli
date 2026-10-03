@@ -71,6 +71,10 @@ type mdlServer struct {
 	// keeping design-property file I/O out of the per-keystroke path).
 	themeRegistryOnce sync.Once
 	themeRegistry     *executor.ThemeRegistry
+
+	// codeActions remembers the project's Java/JavaScript action return types
+	// between keystrokes, for the flow rules' void-call handling (#962).
+	codeActions *executor.CodeActionCache
 }
 
 // ensureThemeRegistry loads the project's design-property registry once per
@@ -83,9 +87,10 @@ func (s *mdlServer) ensureThemeRegistry() {
 
 func newMDLServer(client protocol.Client) *mdlServer {
 	return &mdlServer{
-		client: client,
-		docs:   make(map[uri.URI]string),
-		cache:  newLSPCache(),
+		client:      client,
+		docs:        make(map[uri.URI]string),
+		cache:       newLSPCache(),
+		codeActions: executor.NewCodeActionCache(),
 	}
 }
 

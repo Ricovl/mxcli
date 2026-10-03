@@ -2,7 +2,19 @@
 
 package rules
 
-import "testing"
+import (
+	"sort"
+	"strings"
+	"testing"
+
+	"github.com/mendixlabs/mxcli/mdl/catalog"
+	"github.com/mendixlabs/mxcli/mdl/linter"
+	"github.com/mendixlabs/mxcli/mdl/types"
+	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/microflows"
+	"github.com/mendixlabs/mxcli/sdk/pages"
+	"github.com/mendixlabs/mxcli/sdk/security"
+)
 
 func textbox(name string) map[string]any {
 	return map[string]any{"$Type": "Forms$TextBox", "Name": name}
@@ -111,5 +123,72 @@ func TestWalkForUngridedDataView_DisplayOnlyIgnored(t *testing.T) {
 	root := map[string]any{"$Type": "Forms$DivContainer", "Widgets": []any{dv}}
 	if got := collectReported(root); len(got) != 0 {
 		t.Fatalf("display-only DataView should not be flagged, got %v", got)
+	}
+}
+
+// rawUnitReader serves raw units by ID; everything else is empty.
+type rawUnitReader struct{ units map[model.ID]map[string]any }
+
+func (r rawUnitReader) GetMicroflow(model.ID) (*microflows.Microflow, error) { return nil, nil }
+func (r rawUnitReader) ListMicroflows() ([]*microflows.Microflow, error)     { return nil, nil }
+func (r rawUnitReader) GetProjectSecurity() (*security.ProjectSecurity, error) {
+	return nil, nil
+}
+func (r rawUnitReader) GetNavigation() (*types.NavigationDocument, error) { return nil, nil }
+func (r rawUnitReader) ListPages() ([]*pages.Page, error)                 { return nil, nil }
+func (r rawUnitReader) ListModules() ([]*model.Module, error)             { return nil, nil }
+func (r rawUnitReader) ListFolders() ([]*types.FolderInfo, error)         { return nil, nil }
+func (r rawUnitReader) GetRawUnit(id model.ID) (map[string]any, error)    { return r.units[id], nil }
+func (r rawUnitReader) ListScheduledEvents() ([]*model.ScheduledEvent, error) {
+	return nil, nil
+}
+
+// ako/mxcli#962 item 4: the layout-grid advice is web-only. Measured on mxbuild
+// 11.13.0 (PedApp copy): a form DataView directly on an
+// Atlas_Core.NativePhone_Default page, or in a snippet of Type Native, builds
+// clean, and wrapping it in a layoutgrid there is CE6858. The web page and the
+// web snippet are the controls.
+func TestDataViewLayoutGridRule_SkipsNativePagesAndSnippets(t *testing.T) {
+	cat, err := catalog.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cat.Close()
+	for _, stmt := range []string{
+		`INSERT INTO modules_data (Id, Name, QualifiedName, ModuleName, Source) VALUES
+			('m1', 'MyFirstModule', 'MyFirstModule', 'MyFirstModule', ''),
+			('m2', 'Atlas_Core', 'Atlas_Core', 'Atlas_Core', 'Atlas_Core.mpk')`,
+		`INSERT INTO layouts_data (Id, Name, QualifiedName, ModuleName, LayoutType, Platform) VALUES
+			('l1', 'Atlas_Default', 'Atlas_Core.Atlas_Default', 'Atlas_Core', 'Responsive', 'Web'),
+			('l2', 'NativePhone_Default', 'Atlas_Core.NativePhone_Default', 'Atlas_Core', 'Default', 'Native')`,
+		`INSERT INTO pages_data (Id, Name, QualifiedName, ModuleName, LayoutRef) VALUES
+			('p1', 'P_WebForm', 'MyFirstModule.P_WebForm', 'MyFirstModule', 'Atlas_Core.Atlas_Default'),
+			('p2', 'P_NativeForm', 'MyFirstModule.P_NativeForm', 'MyFirstModule', 'Atlas_Core.NativePhone_Default')`,
+		`INSERT INTO snippets_data (Id, Name, QualifiedName, ModuleName) VALUES
+			('s1', 'SN_Web', 'MyFirstModule.SN_Web', 'MyFirstModule'),
+			('s2', 'SN_Native', 'MyFirstModule.SN_Native', 'MyFirstModule')`,
+	} {
+		if _, err := cat.CatalogDB().Exec(stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	page := func(dv string) map[string]any {
+		return map[string]any{"FormCall": map[string]any{"Arguments": []any{
+			map[string]any{"Widgets": []any{dataView(dv, textbox("tb"))}}}}}
+	}
+	snippet := func(typ, dv string) map[string]any {
+		return map[string]any{"Type": typ, "Widgets": []any{dataView(dv, textbox("tb"))}}
+	}
+	reader := rawUnitReader{units: map[model.ID]map[string]any{
+		"p1": page("dvWeb"), "p2": page("dvNative"),
+		"s1": snippet("Web", "dvSnipWeb"), "s2": snippet("Native", "dvSnipNative"),
+	}}
+	var got []string
+	for _, v := range NewDataViewLayoutGridRule().Check(linter.NewLintContext(cat, reader)) {
+		got = append(got, v.Location.DocumentName)
+	}
+	sort.Strings(got)
+	if strings.Join(got, ",") != "P_WebForm,SN_Web" {
+		t.Fatalf("reported %v, want only the web page and the web snippet", got)
 	}
 }
