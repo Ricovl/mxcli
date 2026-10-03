@@ -274,3 +274,4 @@ The query name follows a three-part naming convention: `Module.ConnectionName.Qu
 | Log | `LOG INFO\|WARNING\|ERROR [NODE 'name'] 'msg';` | -- |
 | DB query | `$Var = EXECUTE DATABASE QUERY Module.Conn.Query;` | Result set |
 | Assignment | `SET $Var = expression;` | -- |
+| Change list | `ADD $Item TO $List;` / `REMOVE $Item FROM $List;` / `CLEAR $List;` / `SET $List = $Other;` | -- |
