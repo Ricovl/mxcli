@@ -68,3 +68,28 @@ func TestActionFromGen_WebServiceCall_MissingKeysRaw(t *testing.T) {
 		t.Errorf("RawBSON empty, want set (the structured form would write a different document)")
 	}
 }
+
+// The "Use a timeout" toggle is read into the struct for the catalog
+// (mendixlabs/mxcli#1267). A stored false keeps the raw fallback, so reading it
+// changes no write — asserted here too, since that is what makes the field safe.
+func TestActionFromGen_WebServiceCall_UseRequestTimeOut(t *testing.T) {
+	for _, use := range []bool{true, false} {
+		m := referenceSoapActionMap()
+		m["UseRequestTimeOut"] = use
+		raw, err := bson.Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc bson.D
+		if err := bson.Unmarshal(raw, &doc); err != nil {
+			t.Fatal(err)
+		}
+		ws := decodeAction(t, doc).(*microflows.WebServiceCallAction)
+		if ws.UseRequestTimeOut != use {
+			t.Errorf("stored UseRequestTimeOut=%v read as %v", use, ws.UseRequestTimeOut)
+		}
+		if !use && len(ws.RawBSON) == 0 {
+			t.Error("a call with the timeout off lost its raw fallback")
+		}
+	}
+}

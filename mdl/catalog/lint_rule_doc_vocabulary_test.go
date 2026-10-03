@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -140,7 +141,7 @@ func TestSkillDocumentsRealActivityTypes(t *testing.T) {
 	for _, obj := range []microflows.MicroflowObject{
 		&microflows.ActionActivity{}, &microflows.ExclusiveSplit{}, &microflows.ExclusiveMerge{},
 		&microflows.LoopedActivity{}, &microflows.InheritanceSplit{},
-		&microflows.StartEvent{}, &microflows.EndEvent{},
+		&microflows.StartEvent{}, &microflows.EndEvent{}, &microflows.Annotation{},
 	} {
 		real[getMicroflowObjectType(obj)] = true
 	}
@@ -303,4 +304,58 @@ func constantsWithPrefix(t *testing.T, file, prefix string) map[string]string {
 		}
 	}
 	return out
+}
+
+// The activity property columns of mendixlabs/mxcli#1267 store Mendix's own
+// spellings, and two of them are easy to get wrong from memory:
+// CustomWithoutRollBack has a capital B, and retrieve_source is lower-case
+// where every other activity vocabulary is PascalCase. A rule comparing to
+// "CustomWithoutRollback" or "Database" matches nothing and passes silently, so
+// each documented value is held to the set the builder writes.
+func TestSkillDocumentsRealActivityPropertyVocabulary(t *testing.T) {
+	doc := lintRuleSkillDoc(t)
+	set := func(vals ...string) map[string]bool {
+		m := map[string]bool{}
+		for _, v := range vals {
+			m[v] = true
+		}
+		return m
+	}
+
+	errorHandling := set(
+		string(microflows.ErrorHandlingTypeRollback), string(microflows.ErrorHandlingTypeCustom),
+		string(microflows.ErrorHandlingTypeCustomWithoutRollback), string(microflows.ErrorHandlingTypeContinue),
+		string(microflows.ErrorHandlingTypeAbort))
+	// CONTROL: the stored spelling, measured on TestApp. If the constant ever
+	// changes, every rule documented against it changes meaning.
+	if !errorHandling["CustomWithoutRollBack"] {
+		t.Fatal("ErrorHandlingTypeCustomWithoutRollback is no longer the stored \"CustomWithoutRollBack\"")
+	}
+	documented := docRowValues(t, doc, "error_handling_type")
+	assertDocumentedValuesExist(t, "error_handling_type", documented, errorHandling, "describeFlowObject")
+	if !slices.Contains(documented, "CustomWithoutRollBack") {
+		t.Error("error_handling_type row does not document CustomWithoutRollBack, the value a rule most often misspells")
+	}
+
+	assertDocumentedValuesExist(t, "log_level", docRowValues(t, doc, "log_level"), set(
+		string(microflows.LogLevelTrace), string(microflows.LogLevelDebug), string(microflows.LogLevelInfo),
+		string(microflows.LogLevelWarning), string(microflows.LogLevelError), string(microflows.LogLevelCritical)),
+		"describeFlowObject")
+	assertDocumentedValuesExist(t, "commit_type", docRowValues(t, doc, "commit_type"), set(
+		string(microflows.CommitTypeYes), string(microflows.CommitTypeYesWithoutEvents), string(microflows.CommitTypeNo)),
+		"describeFlowObject")
+	assertDocumentedValuesExist(t, "retrieve_source", docRowValues(t, doc, "retrieve_source"),
+		set(RetrieveSourceDatabase, RetrieveSourceAssociation), "describeFlowObject")
+
+	// CONTROL: the builder writes exactly these retrieve sources, so the set
+	// above is the writer's and not a copy of the documentation.
+	for src, want := range map[microflows.RetrieveSource]string{
+		&microflows.DatabaseRetrieveSource{}:    RetrieveSourceDatabase,
+		&microflows.AssociationRetrieveSource{}: RetrieveSourceAssociation,
+	} {
+		r := describeFlowObject(&microflows.ActionActivity{Action: &microflows.RetrieveAction{Source: src}})
+		if r.retrieveSource != want {
+			t.Errorf("builder writes retrieve_source %q for %T, want %q", r.retrieveSource, src, want)
+		}
+	}
 }

@@ -13,7 +13,7 @@ var errorHandlingTypeType = reflect.TypeOf(ErrorHandlingType(""))
 // (Microflows$JavaActionCallAction.ErrorHandlingType, …), not on the activity:
 // the model reader never fills BaseActivity.ErrorHandlingType. Code that reads
 // the activity field therefore sees "" for every action — which is how CONV013
-// reported "uses ” error handling" on handled calls and CONV014 never fired
+// reported an empty handling on handled calls and CONV014 never fired
 // (mendixlabs/mxcli#1202).
 //
 // Reflection rather than a case per action type: 38 action types carry the

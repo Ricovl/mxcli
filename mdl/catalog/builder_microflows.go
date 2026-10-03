@@ -5,8 +5,10 @@ package catalog
 import (
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
@@ -76,8 +78,11 @@ func (b *Builder) buildMicroflows() error {
 				ModuleName, Folder, EntityRef, ActionType, ServiceRef, ActionRef,
 				UseRequestTimeout, TimeoutExpression, Description,
 				ParentLoopId, LoopDepth,
+				AutoGenerateCaption, ConditionExpression, ConditionRule, ErrorHandlingType,
+				LogLevel, LogNodeExpression, LogMessage, CommitType, WithEvents, RetrieveSource,
 				ProjectId, SnapshotId)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
@@ -543,6 +548,16 @@ func insertFlowActivities(stmt *sql.Stmt, flowID, qualifiedName, moduleName stri
 				r.description,
 				parentLoopID,
 				depth,
+				boolInt(r.autoGenerateCaption),
+				r.conditionExpression,
+				r.conditionRule,
+				r.errorHandlingType,
+				r.logLevel,
+				r.logNodeExpression,
+				r.logMessage,
+				r.commitType,
+				boolInt(r.withEvents),
+				r.retrieveSource,
 				projectID, snapshotID,
 			); err != nil {
 				return err
@@ -561,28 +576,103 @@ func insertFlowActivities(stmt *sql.Stmt, flowID, qualifiedName, moduleName stri
 	return seq, nil
 }
 
+// Values of activities_data.RetrieveSource — where a retrieve reads from.
+// Lower-case, as mendixlabs/mxcli#1267 agreed. Named because a rule filters on
+// them: a literal that disagrees with the writer matches nothing, silently.
+const (
+	RetrieveSourceDatabase    = "database"
+	RetrieveSourceAssociation = "association"
+)
+
 // flowObjectRow is what one flow object contributes to its activities_data row.
+//
+// Every value is the stored one, in Mendix's own spelling: ErrorHandlingType
+// is Rollback / Custom / CustomWithoutRollBack (capital B) / Continue / Abort,
+// LogLevel Trace … Critical, CommitType Yes / YesWithoutEvents / No. A rule
+// compares against these, so translating them here would only add a second
+// vocabulary to keep in step.
 type flowObjectRow struct {
 	name, caption, activityType, actionType string
+	description                             string
+	autoGenerateCaption                     bool
 	entityRef, serviceRef, actionRef        string
 	useRequestTimeout                       bool
 	timeoutExpression                       string
-	description                             string
+	// conditionExpression is an exclusive split's expression; conditionRule
+	// the rule a rule-based split calls (its condition is a call, not text).
+	conditionExpression, conditionRule string
+	errorHandlingType                  string
+	logLevel, logNodeExpression        string
+	logMessage                         string
+	commitType                         string
+	withEvents                         bool
+	retrieveSource                     string
 }
 
 // describeFlowObject derives the catalog columns of one flow object.
+//
+// The caption is the stored one — a split's, an activity's, an annotation's
+// text. It was the placeholder "Activity" on every row (mendixlabs/mxcli#1267);
+// an object Mendix stores no caption for (events, merges, loops) now has none.
 func describeFlowObject(obj microflows.MicroflowObject) flowObjectRow {
-	r := flowObjectRow{activityType: getMicroflowObjectType(obj), caption: "Activity"}
+	r := flowObjectRow{activityType: getMicroflowObjectType(obj)}
 	r.name = r.activityType
-	act, ok := obj.(*microflows.ActionActivity)
-	if !ok || act.Action == nil {
-		return r
+	r.errorHandlingType = string(microflows.ObjectErrorHandlingType(obj))
+
+	switch o := obj.(type) {
+	case *microflows.Annotation:
+		r.caption = o.Caption
+	case *microflows.ExclusiveSplit:
+		r.caption = o.Caption
+		r.description = o.Documentation
+		switch c := o.SplitCondition.(type) {
+		case *microflows.ExpressionSplitCondition:
+			r.conditionExpression = c.Expression
+		case *microflows.RuleSplitCondition:
+			r.conditionRule = c.RuleQualifiedName
+		}
+	case *microflows.InheritanceSplit:
+		r.caption = o.Caption
+		r.description = o.Documentation
+	case *microflows.LoopedActivity:
+		r.description = o.Documentation
+	case *microflows.ActionActivity:
+		r.caption = o.Caption
+		r.autoGenerateCaption = o.AutoGenerateCaption
+		r.description = o.Documentation
+		if o.Action != nil {
+			r.actionType = getMicroflowActionType(o.Action)
+			r.name = r.actionType
+			describeAction(o.Action, &r)
+		}
 	}
-	r.actionType = getMicroflowActionType(act.Action)
-	r.name = r.actionType
-	switch a := act.Action.(type) {
+	return r
+}
+
+// describeAction fills the action-specific columns.
+func describeAction(action microflows.MicroflowAction, r *flowObjectRow) {
+	switch a := action.(type) {
 	case *microflows.CreateObjectAction:
 		r.entityRef = a.EntityQualifiedName
+		r.commitType = string(a.Commit)
+		r.withEvents = a.Commit == microflows.CommitTypeYes
+	case *microflows.ChangeObjectAction:
+		r.commitType = string(a.Commit)
+		r.withEvents = a.Commit == microflows.CommitTypeYes
+	case *microflows.CommitObjectsAction:
+		r.withEvents = a.WithEvents
+	case *microflows.RetrieveAction:
+		switch src := a.Source.(type) {
+		case *microflows.DatabaseRetrieveSource:
+			r.retrieveSource = RetrieveSourceDatabase
+			r.entityRef = src.EntityQualifiedName
+		case *microflows.AssociationRetrieveSource:
+			r.retrieveSource = RetrieveSourceAssociation
+		}
+	case *microflows.LogMessageAction:
+		r.logLevel = string(a.LogLevel)
+		r.logNodeExpression = a.LogNodeName
+		r.logMessage = textValue(a.MessageTemplate)
 	case *microflows.CallExternalAction:
 		r.serviceRef = a.ConsumedODataService
 		r.actionRef = a.Name
@@ -591,8 +681,31 @@ func describeFlowObject(obj microflows.MicroflowObject) flowObjectRow {
 		// expression string (e.g. "300").
 		r.useRequestTimeout = a.UseRequestTimeOut
 		r.timeoutExpression = a.TimeoutExpression
+	case *microflows.WebServiceCallAction:
+		// ServiceID holds the imported web service's qualified name (a
+		// by-name reference).
+		r.serviceRef = string(a.ServiceID)
+		r.actionRef = a.OperationName
+		r.useRequestTimeout = a.UseRequestTimeOut
+		r.timeoutExpression = a.TimeoutExpression
 	}
-	return r
+}
+
+// textValue returns a stored text's value: en_US when present, otherwise the
+// first language in sorted order, so the choice is deterministic.
+func textValue(t *model.Text) string {
+	if t == nil || len(t.Translations) == 0 {
+		return ""
+	}
+	if v, ok := t.Translations["en_US"]; ok {
+		return v
+	}
+	keys := make([]string, 0, len(t.Translations))
+	for k := range t.Translations {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return t.Translations[keys[0]]
 }
 
 func boolInt(b bool) int {
