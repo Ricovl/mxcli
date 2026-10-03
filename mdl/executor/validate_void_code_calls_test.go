@@ -21,7 +21,6 @@ import (
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
-
 func javaCall(out, action string) *ast.CallJavaActionStmt {
 	return &ast.CallJavaActionStmt{OutputVariable: out, ActionName: qn("M", action)}
 }
