@@ -56,12 +56,12 @@ func (b *Builder) buildPages() error {
 		qualifiedName := moduleName + "." + pg.Name
 		folder := b.hierarchy.buildFolderPath(pg.ContainerID)
 
+		// The title in the project's default language. Ranging over the
+		// translation map and taking the first entry made the column vary
+		// between builds of an unchanged project (mendixlabs/mxcli#1262).
 		title := ""
-		if pg.Title != nil && pg.Title.Translations != nil {
-			for _, t := range pg.Title.Translations {
-				title = t
-				break
-			}
+		if pg.Title != nil {
+			title = pickTranslation(pg.Title.Translations, b.defaultLanguage())
 		}
 
 		// Get layout ref and widgets from raw BSON data

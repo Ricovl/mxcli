@@ -7,7 +7,17 @@ package catalog
 //
 // History:
 //
-//	16 — permissions_data.DefaultMemberAccessRights, and the belated bump for
+//	17 (page title language): pages_data.Title is the project's default
+//	    language (else en_US, else the lowest-sorted non-empty language) instead
+//	    of whichever translation a map range met first (mendixlabs/mxcli#1262).
+//	    A cached catalog keeps the old, build-dependent title. Also carries the
+//	    "16" entry below, which never reached the constant.
+//	16 — never a real version. This change and the refs change listed as 15
+//	    below were each bumped 14 -> 15 on parallel branches (c449e1c2b,
+//	    11ff6f204); the merge relabelled this entry "16" but left the constant
+//	    at "15", so a cache built at "15" by either branch alone was never
+//	    rebuilt for the other's change. 17 carries both. The change itself:
+//	    permissions_data.DefaultMemberAccessRights, and the belated bump for
 //	    activities_data.UseRequestTimeout / TimeoutExpression. Both columns
 //	    were added without a bump. The activity pair happened to be rescued by
 //	    14, which landed after it for an unrelated reason; the permissions
@@ -62,7 +72,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "15"
+const CatalogSchemaVersion = "17"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.

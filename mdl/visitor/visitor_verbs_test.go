@@ -197,3 +197,37 @@ func TestR6CanonicalFormsRecordNothing(t *testing.T) {
 		})
 	}
 }
+
+// `show project version` is not a statement — `show project` continues only
+// with `security` (`show version` is the version statement). The parser
+// recovers by dropping the stray word, leaving a showStatement with PROJECT and
+// no SECURITY token, and the MDL-DEPR090 listener dereferenced the missing
+// token: `mxcli -c "show project version"` died with a nil-pointer panic
+// instead of a syntax error. Every recovered `show project …` form must come
+// back as an error.
+func TestShowProjectWithoutSecurityIsASyntaxErrorNotAPanic(t *testing.T) {
+	for _, src := range []string{
+		"show project version;",
+		"list project version;",
+		"show project;",
+		"show project roles;",
+		"show project security matrix;",
+	} {
+		t.Run(src, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("Build(%q) panicked: %v", src, r)
+				}
+			}()
+			_, errs := Build(src)
+			if len(errs) == 0 {
+				t.Fatalf("Build(%q) reported no error", src)
+			}
+			// The hint names the statement that does exist, not the generic
+			// "quote the keyword" advice `version` would otherwise attract.
+			if src == "show project version;" && !strings.Contains(errs[0].Error(), "`show version`") {
+				t.Errorf("Build(%q) error does not point at `show version`: %v", src, errs[0])
+			}
+		})
+	}
+}

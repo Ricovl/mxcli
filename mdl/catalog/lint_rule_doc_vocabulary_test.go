@@ -304,3 +304,38 @@ func constantsWithPrefix(t *testing.T, file, prefix string) map[string]string {
 	}
 	return out
 }
+
+// The skill documented widget.container_type as "page" / "snippet"; the
+// builder has only ever written "PAGE" / "SNIPPET", so a rule filtering on the
+// documented value matched no widget. The real values are read from the
+// ContainerType argument (the 6th) of every widgets_data insert.
+func TestSkillDocumentsRealWidgetContainerTypes(t *testing.T) {
+	parsed, err := parser.ParseFile(token.NewFileSet(), "builder_pages.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	real := map[string]bool{}
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || len(call.Args) < 6 {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Exec" {
+			return true
+		}
+		if id, ok := sel.X.(*ast.Ident); !ok || id.Name != "widgetStmt" {
+			return true
+		}
+		if lit, ok := call.Args[5].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+			real[strings.Trim(lit.Value, `"`)] = true
+		}
+		return true
+	})
+	// CONTROL: both a page and a snippet insert must have been found.
+	if len(real) < 2 {
+		t.Fatalf("found container types %v in builder_pages.go — the scan is broken", real)
+	}
+	assertDocumentedValuesExist(t, "container_type",
+		docRowValues(t, lintRuleSkillDoc(t), "container_type"), real, "buildPages / buildSnippets")
+}

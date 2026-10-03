@@ -98,14 +98,19 @@ Information about pages and their properties.
 |--------|-------------|
 | `Id` | Unique identifier |
 | `Name` | Page name |
-| `ModuleName` | Module containing the page |
 | `QualifiedName` | Full qualified name |
+| `ModuleName` | Module containing the page |
+| `Folder` | Folder path within the module |
+| `Title` | Page title in the project's default language (else en_US, else the lowest-sorted non-empty language). Every translation is in `CATALOG.STRINGS` (`StringContext = 'Forms$Page.Title'`) |
 | `URL` | Page URL if configured |
-| `DataSource` | Primary data source |
-| `WidgetTypes` | Types of widgets used |
+| `LayoutRef` | Qualified name of the layout (full build only) |
+| `Description` | Documentation text |
+| `ParameterCount` | Number of page parameters |
+| `WidgetCount` | Number of widgets (full build only; 0 otherwise) |
+| `Excluded` | 1 when the page is excluded from the project |
 
 ```sql
-SELECT Name, URL, DataSource
+SELECT Name, Title, URL
 FROM CATALOG.PAGES
 WHERE ModuleName = 'Sales'
 ORDER BY Name;

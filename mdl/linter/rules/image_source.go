@@ -24,6 +24,10 @@ func (r *ImageSourceRule) Name() string                     { return "Unconfigur
 func (r *ImageSourceRule) Category() string                 { return "correctness" }
 func (r *ImageSourceRule) DefaultSeverity() linter.Severity { return linter.SeverityWarning }
 
+// RequiredCatalogMode: ctx.Widgets() reads widgets_data, which only a full
+// catalog build fills; under the default fast build the rule found nothing.
+func (r *ImageSourceRule) RequiredCatalogMode() linter.CatalogMode { return linter.CatalogFull }
+
 func (r *ImageSourceRule) Description() string {
 	return "Checks for IMAGE widgets with no source configured (crashes at runtime)"
 }
