@@ -14,7 +14,7 @@ Every `.star` file must define metadata constants and a `check()` function:
 ```python
 RULE_ID = "CUSTOM001"          # unique identifier
 RULE_NAME = "MyRule"           # Short display name
-description = "What it checks" # One-line description
+DESCRIPTION = "What it checks" # One-line description
 CATEGORY = "security"          # Category: naming, quality, design, security, etc.
 SEVERITY = "warning"           # hint, info, warning, error
 
@@ -239,10 +239,10 @@ def check():
 |----------|------|---------|
 | `id` | string | Widget UUID |
 | `name` | string | Widget name |
-| `widget_type` | string | `"dataview"`, `"listview"`, etc. |
+| `widget_type` | string | The widget's storage type, e.g. `"Forms$DataView"`, `"Forms$DivContainer"`, `"Forms$ActionButton"`; a pluggable widget's id, e.g. `"com.mendix.widget.web.datagrid.Datagrid"` |
 | `container_id` | string | Container UUID |
 | `container_qualified_name` | string | `"Sales.Customer_Overview"` |
-| `container_type` | string | `"page"` or `"snippet"` |
+| `container_type` | string | `"PAGE"` or `"SNIPPET"` |
 | `module_name` | string | `"Sales"` |
 | `entity_ref` | string | Referenced entity qualified name |
 | `attribute_ref` | string | Referenced attribute path |
