@@ -2,6 +2,8 @@
 
 package meta
 
+import "strings"
+
 // System module constants — deterministic IDs for the virtual System module.
 const (
 	SystemModuleID      = "00000000-0000-0000-0000-000000000001"
@@ -27,6 +29,40 @@ type SystemAttrDef struct {
 	Length int
 
 	EnumQN string // for Enumeration type, qualified name
+
+	// WriteForbidden marks a system attribute an access rule may not grant
+	// write on: mxbuild reports CE6592 "Attribute 'X' cannot have write
+	// rights, because it is a system attribute". Measured on 11.14.0 with
+	// `grant read *, write *` on specializations of System.FileDocument and
+	// System.Image: HasContents and PublicThumbnailPath are refused; Name,
+	// DeleteAfterDownload, Contents, Size and EnableCaching are not (FileID is
+	// an autonumber, refused for that reason). System.User's attributes are not
+	// in an access rule at all — Mendix manages them (see EntityMembersFor).
+	WriteForbidden bool
+}
+
+// SystemAttributeWriteForbidden reports whether the System attribute named by
+// a member-access reference ("System.FileDocument.HasContents") is one Mendix
+// refuses write rights on (CE6592).
+func SystemAttributeWriteForbidden(ref string) bool {
+	rest, ok := strings.CutPrefix(ref, "System.")
+	if !ok {
+		return false
+	}
+	entity, attr, ok := strings.Cut(rest, ".")
+	if !ok {
+		return false
+	}
+	def, ok := systemEntityByName(entity)
+	if !ok {
+		return false
+	}
+	for _, a := range def.Attributes {
+		if a.Name == attr {
+			return a.WriteForbidden
+		}
+	}
+	return false
 }
 
 // SystemAssocDef defines an association between System entities.
@@ -61,6 +97,82 @@ type SystemEntityDef struct {
 	// resolves against the model. The full lists stay complete for a storage
 	// backend that speaks to the runtime metamodel instead.
 	RuntimeOnly bool
+
+	// The four system members an entity may store — System.owner,
+	// System.changedBy, createdDate, changedDate. On a user entity these are the
+	// AutoOwner / AutoChangedBy / AutoCreatedDate / AutoChangedDate pseudo-types;
+	// a System entity has them fixed by the platform.
+	//
+	// MEASURED, from the NoGeneralization of each System entity in the
+	// `deployment/model/model.mdp` mxbuild writes (11.14.0); see
+	// TestSystemMemberFlagsMatchTheDeployedModel. They are set only on a ROOT
+	// entity: Mendix keeps them on NoGeneralization, so a specialization
+	// (System.Image, every app entity extending System.FileDocument) inherits
+	// its root's — read them through SystemEntityStoresMember, which walks the
+	// chain. Reading a specialization's own flags is how `[System.owner = …]` on
+	// a FileDocument specialization was refused at check time while mxbuild
+	// built it clean.
+	HasOwner       bool
+	HasChangedBy   bool
+	HasCreatedDate bool
+	HasChangedDate bool
+}
+
+// System member names as XPath spells them. The spelling is significant: XPath
+// is case-sensitive, and `System.Owner` is CE1613 where `System.owner` is clean
+// (measured on 11.14.0).
+const (
+	SystemMemberOwner       = "owner"
+	SystemMemberChangedBy   = "changedBy"
+	SystemMemberCreatedDate = "createdDate"
+	SystemMemberChangedDate = "changedDate"
+)
+
+// Stores reports whether this entity's OWN flags record the given system
+// member (one of the SystemMember* names). It does not walk the generalization
+// chain; see SystemEntityStoresMember.
+func (e SystemEntityDef) Stores(member string) bool {
+	switch member {
+	case SystemMemberOwner:
+		return e.HasOwner
+	case SystemMemberChangedBy:
+		return e.HasChangedBy
+	case SystemMemberCreatedDate:
+		return e.HasCreatedDate
+	case SystemMemberChangedDate:
+		return e.HasChangedDate
+	}
+	return false
+}
+
+// SystemEntityStoresMember reports whether the System entity named by name
+// ("FileDocument" or "System.FileDocument") stores the given system member,
+// following its generalization chain to the root that carries the flags.
+// known is false when the entity is not a System entity mxcli knows.
+func SystemEntityStoresMember(name, member string) (stores, known bool) {
+	name = strings.TrimPrefix(name, "System.")
+	seen := map[string]bool{}
+	for name != "" && !seen[name] {
+		seen[name] = true
+		def, ok := systemEntityByName(name)
+		if !ok {
+			return false, false
+		}
+		if def.Generalization == "" {
+			return def.Stores(member), true
+		}
+		name = strings.TrimPrefix(def.Generalization, "System.")
+	}
+	return false, false
+}
+
+func systemEntityByName(name string) (SystemEntityDef, bool) {
+	for _, e := range SystemEntities {
+		if e.Name == name {
+			return e, true
+		}
+	}
+	return SystemEntityDef{}, false
 }
 
 // ModelerSystemEntities returns the System entities Studio Pro exposes — the
@@ -114,7 +226,7 @@ var SystemEntities = []SystemEntityDef{
 		{Name: "Name", Type: "String", Length: 100},
 		{Name: "Description", Type: "String", Length: 1000},
 	}},
-	{Name: "User", Persistable: true, Attributes: []SystemAttrDef{
+	{Name: "User", Persistable: true, HasOwner: true, HasChangedBy: true, HasCreatedDate: true, HasChangedDate: true, Attributes: []SystemAttrDef{
 		{Name: "Name", Type: "String", Length: 100},
 		{Name: "Password", Type: "HashedString"},
 		{Name: "LastLogin", Type: "DateTime"},
@@ -125,26 +237,26 @@ var SystemEntities = []SystemEntityDef{
 		{Name: "WebServiceUser", Type: "Boolean"},
 		{Name: "IsAnonymous", Type: "Boolean"},
 	}},
-	{Name: "FileDocument", Persistable: true, Attributes: []SystemAttrDef{
+	{Name: "FileDocument", Persistable: true, HasOwner: true, HasChangedBy: true, HasCreatedDate: true, HasChangedDate: true, Attributes: []SystemAttrDef{
 		{Name: "FileID", Type: "AutoNumber"},
 		{Name: "Name", Type: "String", Length: 400},
 		{Name: "DeleteAfterDownload", Type: "Boolean"},
 		{Name: "Contents", Type: "Binary"},
-		{Name: "HasContents", Type: "Boolean"},
+		{Name: "HasContents", Type: "Boolean", WriteForbidden: true},
 		{Name: "Size", Type: "Long"},
 	}},
 	{Name: "Image", Persistable: true, Generalization: "System.FileDocument", Attributes: []SystemAttrDef{
-		{Name: "PublicThumbnailPath", Type: "String", Length: 500},
+		{Name: "PublicThumbnailPath", Type: "String", Length: 500, WriteForbidden: true},
 		{Name: "EnableCaching", Type: "Boolean"},
 	}},
-	{Name: "XASInstance", Persistable: true, Attributes: []SystemAttrDef{
+	{Name: "XASInstance", Persistable: true, HasCreatedDate: true, Attributes: []SystemAttrDef{
 		{Name: "XASId", Type: "String", Length: 50},
 		{Name: "LastUpdate", Type: "DateTime"},
 		{Name: "AllowedNumberOfConcurrentUsers", Type: "Integer"},
 		{Name: "PartnerName", Type: "String", Length: 200},
 		{Name: "CustomerName", Type: "String", Length: 200},
 	}},
-	{Name: "Session", Persistable: true, Attributes: []SystemAttrDef{
+	{Name: "Session", Persistable: true, HasCreatedDate: true, Attributes: []SystemAttrDef{
 		{Name: "SessionId", Type: "String", Length: 50},
 		{Name: "CSRFToken", Type: "String", Length: 36},
 		{Name: "LastActive", Type: "DateTime"},
@@ -208,14 +320,14 @@ var SystemEntities = []SystemEntityDef{
 		{Name: "SortAscending", Type: "Boolean"},
 		{Name: "HasMoreData", Type: "Boolean"},
 	}},
-	{Name: "SynchronizationError", Persistable: true, Attributes: []SystemAttrDef{
+	{Name: "SynchronizationError", Persistable: true, HasOwner: true, HasCreatedDate: true, Attributes: []SystemAttrDef{
 		{Name: "Reason", Type: "String"},
 		{Name: "ObjectId", Type: "String", Length: 200},
 		{Name: "ObjectType", Type: "String", Length: 1000},
 		{Name: "ObjectContent", Type: "String"},
 	}},
 	{Name: "SynchronizationErrorFile", Persistable: true, Generalization: "System.FileDocument"},
-	{Name: "ProcessedQueueTask", Persistable: true, Attributes: []SystemAttrDef{
+	{Name: "ProcessedQueueTask", Persistable: true, HasOwner: true, Attributes: []SystemAttrDef{
 		{Name: "Sequence", Type: "Long"},
 		{Name: "Status", Type: "Enumeration", EnumQN: "System.QueueTaskStatus"},
 		{Name: "QueueId", Type: "String", Length: 36},
@@ -236,7 +348,7 @@ var SystemEntities = []SystemEntityDef{
 		{Name: "ErrorMessage", Type: "String"},
 		{Name: "ScheduledEventName", Type: "String", Length: 200},
 	}},
-	{Name: "QueuedTask", Persistable: true, Attributes: []SystemAttrDef{
+	{Name: "QueuedTask", Persistable: true, HasOwner: true, Attributes: []SystemAttrDef{
 		{Name: "Sequence", Type: "AutoNumber"},
 		{Name: "Status", Type: "Enumeration", EnumQN: "System.QueueTaskStatus"},
 		{Name: "QueueId", Type: "String", Length: 36},
@@ -265,7 +377,7 @@ var SystemEntities = []SystemEntityDef{
 		{Name: "Name", Type: "String", Length: 200},
 		{Name: "IsObsolete", Type: "Boolean"},
 	}},
-	{Name: "Workflow", Persistable: true, Attributes: []SystemAttrDef{
+	{Name: "Workflow", Persistable: true, HasOwner: true, Attributes: []SystemAttrDef{
 		{Name: "Name", Type: "String", Length: 200},
 		{Name: "Description", Type: "String"},
 		{Name: "StartTime", Type: "DateTime"},
@@ -404,22 +516,22 @@ var SystemEntities = []SystemEntityDef{
 		{Name: "Result", Type: "String"},
 		{Name: "Successful", Type: "Boolean"},
 	}},
-	{Name: "AutoCommitEntry", Persistable: true, RuntimeOnly: true, Attributes: []SystemAttrDef{
+	{Name: "AutoCommitEntry", Persistable: true, HasCreatedDate: true, RuntimeOnly: true, Attributes: []SystemAttrDef{
 		{Name: "SessionId", Type: "String", Length: 36},
 		{Name: "ObjectId", Type: "Long"},
 	}},
-	{Name: "UnreferencedFile", Persistable: true, RuntimeOnly: true, Attributes: []SystemAttrDef{
+	{Name: "UnreferencedFile", Persistable: true, HasCreatedDate: true, RuntimeOnly: true, Attributes: []SystemAttrDef{
 		{Name: "FileKey", Type: "String", Length: 36},
 		{Name: "State", Type: "Enumeration", EnumQN: "System.UnreferencedFileState"},
 		{Name: "TransactionId", Type: "String", Length: 36},
 	}},
-	{Name: "OfflineCreatedGuids", Persistable: true, RuntimeOnly: true, Attributes: []SystemAttrDef{
+	{Name: "OfflineCreatedGuids", Persistable: true, HasCreatedDate: true, RuntimeOnly: true, Attributes: []SystemAttrDef{
 		{Name: "Guid", Type: "String", Length: 200},
 	}},
-	{Name: "OfflineSynchronizationHistory", Persistable: true, RuntimeOnly: true, Attributes: []SystemAttrDef{
+	{Name: "OfflineSynchronizationHistory", Persistable: true, HasCreatedDate: true, RuntimeOnly: true, Attributes: []SystemAttrDef{
 		{Name: "SyncId", Type: "String", Length: 200},
 	}},
-	{Name: "ChangeHash", Persistable: true, RuntimeOnly: true, Attributes: []SystemAttrDef{
+	{Name: "ChangeHash", Persistable: true, HasCreatedDate: true, RuntimeOnly: true, Attributes: []SystemAttrDef{
 		{Name: "ObjectId", Type: "Long"},
 		{Name: "Attribute", Type: "String", Length: 200},
 		{Name: "Hash", Type: "String", Length: 200},

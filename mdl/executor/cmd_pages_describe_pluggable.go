@@ -88,6 +88,12 @@ func extractCustomWidgetAttribute(ctx *ExecContext, w map[string]any) string {
 	// Try association attribute first, then enumeration attribute
 	for _, key := range []string{"attributeAssociation", "attributeEnumeration"} {
 		if attr := extractCustomWidgetPropertyAttributeRef(ctx, w, key); attr != "" {
+			// Read from a page or snippet parameter — the combo box placed in a
+			// snippet with no data container (TestApp
+			// Snip_TaskDashboard_Header): `$Param.Attr`.
+			if param := customWidgetPropertyParameter(w, key); param != "" {
+				return parameterAttributeMDL(param, attr)
+			}
 			return attr
 		}
 	}

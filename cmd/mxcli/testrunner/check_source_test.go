@@ -135,6 +135,14 @@ func TestCheckSourceWrapperIsCanonical(t *testing.T) {
 		t.Fatalf("the rendering records %d deprecated spelling(s), first %s on line %d:\n%s",
 			len(prog.Deprecations), prog.Deprecations[0].Code, prog.Deprecations[0].Line, got.MDL)
 	}
+	// The rendering is parsed headerless, so any construct a later language
+	// version changes is reported against the author's file. The wrapper once
+	// closed each block with `END; /`, and every test in the file drew an
+	// MDL-V1-SLASH warning on a `/` the author never wrote.
+	if len(prog.LanguageNotes) != 0 {
+		t.Fatalf("the rendering records %d language note(s), first %s on line %d:\n%s",
+			len(prog.LanguageNotes), prog.LanguageNotes[0].Code, prog.LanguageNotes[0].Line, got.MDL)
+	}
 }
 
 // A .test.md block's body sits on the line after its doc comment, as in a

@@ -28,7 +28,7 @@
 6	syntax	.claude/skills/mendix/create-page/SKILL.md
 3	syntax	.claude/skills/mendix/create-page/reference/widgets.md
 1	syntax	.claude/skills/mendix/custom-widgets/SKILL.md
-8	syntax	.claude/skills/mendix/database-connections/SKILL.md
+7	syntax	.claude/skills/mendix/database-connections/SKILL.md
 19	syntax	.claude/skills/mendix/demo-data/SKILL.md
 9	syntax	.claude/skills/mendix/fragments/SKILL.md
 9	syntax	.claude/skills/mendix/generate-domain-model/SKILL.md
@@ -58,7 +58,7 @@
 1	syntax	.claude/skills/mendix/write-layouts/SKILL.md
 17	syntax	.claude/skills/mendix/write-microflows/SKILL.md
 1	syntax	.claude/skills/mendix/write-microflows/reference/integration.md
-12	syntax	.claude/skills/mendix/write-microflows/reference/pitfalls.md
+10	syntax	.claude/skills/mendix/write-microflows/reference/pitfalls.md
 7	syntax	.claude/skills/mendix/write-nanoflows/SKILL.md
 25	syntax	.claude/skills/mendix/write-oql-queries/SKILL.md
 3	syntax	.claude/skills/mendix/xpath-constraints/SKILL.md
@@ -93,7 +93,7 @@
 6	syntax	docs-site/src/language/document-access.md
 1	syntax	docs-site/src/language/domain-model.md
 2	syntax	docs-site/src/language/entities.md
-4	syntax	docs-site/src/language/entity-access.md
+3	syntax	docs-site/src/language/entity-access.md
 3	syntax	docs-site/src/language/enumerations.md
 2	syntax	docs-site/src/language/event-services.md
 7	syntax	docs-site/src/language/expressions.md

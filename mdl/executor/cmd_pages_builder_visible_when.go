@@ -51,14 +51,28 @@ func (pb *pageBuilder) applyVisibleWhen(widget pages.Widget, w *ast.WidgetV3) er
 	// The entity is the data container's, or — qualified, Module.Entity.Attr —
 	// named outright. DESCRIBE writes the qualified form under a container whose
 	// flow cannot be resolved, where there is no entity in scope at all.
+	//
+	// `$Param.Attr` reads a page or snippet parameter: Studio Pro stores the
+	// parameter in the setting's SourceVariable, as on TestApp's
+	// WorkflowCommons.Snip_UserTask_NameColumnWithIcon, where the image sits in
+	// the snippet with no data container around it.
 	entity, attrName := pb.entityContext, vw.Attribute
-	if parts := strings.Split(vw.Attribute, "."); len(parts) == 3 {
+	var source *pages.WidgetVariable
+	if name, rest, ok := namedObjectBinding(vw.Attribute); ok {
+		wv, paramEntity, isParam := pb.parameterVariable(name)
+		if !isParam || strings.Contains(rest, ".") {
+			return mdlerrors.NewValidationf("%s: `$%s` is not a parameter of this %s — `Visible: $Param.Attr in (…)` "+
+				"reads an attribute of a page or snippet parameter; inside a data container name the attribute bare",
+				where, name, pb.documentKind())
+		}
+		entity, attrName, source = paramEntity, rest, &wv
+	} else if parts := strings.Split(vw.Attribute, "."); len(parts) == 3 {
 		entity, attrName = parts[0]+"."+parts[1], parts[2]
 	} else if len(parts) != 1 {
-		return mdlerrors.NewValidationf("%s: name the attribute bare, or as Module.Entity.Attribute", where)
+		return mdlerrors.NewValidationf("%s: name the attribute bare, as $Param.Attribute, or as Module.Entity.Attribute", where)
 	}
 	if entity == "" {
-		return mdlerrors.NewValidationf("%s: the attribute is read from the enclosing data container's object — place the widget inside a data container, or qualify it (Module.Entity.%s)", where, attrName)
+		return mdlerrors.NewValidationf("%s: the attribute is read from the enclosing data container's object — place the widget inside a data container, or read it from a parameter ($Param.%s)", where, attrName)
 	}
 
 	declaring, ok := pb.declaringEntityFor(entity, attrName)
@@ -104,8 +118,9 @@ func (pb *pageBuilder) applyVisibleWhen(widget pages.Widget, w *ast.WidgetV3) er
 			ID:       model.ID(types.GenerateID()),
 			TypeName: "Forms$ConditionalVisibilitySettings",
 		},
-		Attribute:  attrQN,
-		Conditions: conds,
+		Attribute:      attrQN,
+		Conditions:     conds,
+		SourceVariable: source,
 	}
 	return nil
 }

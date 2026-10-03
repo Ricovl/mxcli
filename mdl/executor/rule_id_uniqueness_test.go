@@ -35,8 +35,6 @@ var ruleIDPattern = regexp.MustCompile(`RuleID:\s+"([A-Z][A-Z0-9-]*)"`)
 // user-visible change (it appears in output, in --format json and sarif, and in
 // suppressions), so an existing overlap is recorded rather than fixed here.
 var ruleIDsSharedDeliberately = map[string]string{
-	"MDL-WIDGET21": "validate_widget_contentparams.go and validate_widget_editability.go " +
-		"both report a property the widget does not honour; predates this test",
 	"MDL-WIDGET11": "one rule, two sites: a design-property KEY the project's theme does not " +
 		"declare. validate_design_properties.go asks it of the widget trees a statement CARRIES; " +
 		"validate_alter_styling.go asks it of ALTER STYLING, which names a stored widget instead. " +

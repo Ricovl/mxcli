@@ -262,6 +262,31 @@ All input widgets share common properties:
 | `Editable` | Editability mode | `Editable: ReadOnly` |
 | `Visible` | Visibility expression | `Visible: '$showField'` |
 
+Each input widget takes only some attribute types. Measured with mxbuild 11.14.0,
+every other pairing is CE2421 ("Only attributes of type … are allowed here."):
+
+| Widget | Attribute types |
+|--------|-----------------|
+| `TEXTBOX` | String, Integer, Long, Decimal, AutoNumber (and Hashed string) |
+| `TEXTAREA` | String |
+| `DATEPICKER` | DateTime |
+| `CHECKBOX` | Boolean |
+| `RADIOBUTTONS` | Boolean, Enumeration |
+| `DROPDOWN` | Enumeration |
+
+With `-p`, `check --references` reports a mismatch as **MDL-WIDGET39**, judging the
+attribute at the end of an association path and on the generalization that declares
+it. It also reports a bare association bound where an attribute belongs
+(`Attribute: Order_Customer`), which mxbuild answers with CE1613 and which stops
+`mx check` from reporting anything else. An enumeration takes `RADIOBUTTONS` or
+`COMBOBOX`.
+
+The classic drop-down (`DROPDOWN`, stored as `Forms$DropDown`) is not supported by
+the React client: on a project whose Web UI setting is `OptimizedClient: Yes`
+(`show settings`), mxbuild reports CE0582 and `check --references` reports
+**MDL-WIDGET40**. Use `COMBOBOX` over the same attribute. Under `No` and
+`MigrationMode` the drop-down builds, and nothing is reported.
+
 ### TEXTBOX
 
 Single-line text input. The most common input widget:
@@ -506,6 +531,19 @@ list in mxcli:
   spelling, exactly as `DESCRIBE WIDGET` reports them.
 - **The body containers** `attribute` (an object list, one entry per repetition)
   and `tagcontentcontainer` (a child slot, holding widgets).
+
+A property whose type in the widget's definition is **Expression** — an HTML
+element attribute's `attributeValueExpression`, a chart series'
+`dynamicBarColor` — takes a Mendix expression written as-is:
+
+```sql
+attribute a1 (attributeName: 'data-hot', attributeValueType: 'expression',
+              attributeValueExpression: if $currentObject/Hot then 'hot' else 'cold')
+```
+
+The same unquoted expression on a property of any other type (a text template,
+a plain value) is refused by `check` as **MDL-WIDGET42** rather than written
+empty.
 
 ### Finding the names
 

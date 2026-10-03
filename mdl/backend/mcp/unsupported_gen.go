@@ -1114,6 +1114,11 @@ func (unsupportedBackend) RenameReferences(_ string, _ string, _ bool) (r0 []typ
 	return
 }
 
+func (unsupportedBackend) RenameViewEntitySourceDocument(_ string, _ string, _ string) (err0 error) {
+	err0 = errUnsupported("RenameViewEntitySourceDocument")
+	return
+}
+
 func (unsupportedBackend) RevokeEntityMemberAccess(_ model.ID, _ string, _ []string, _ types.EntityAccessRevocation) (r0 int, err1 error) {
 	err1 = errUnsupported("RevokeEntityMemberAccess")
 	return

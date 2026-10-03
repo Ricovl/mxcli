@@ -12,10 +12,11 @@ mdl 1;
 -- wrote it correctly, so the value was representable and only the CREATE path
 -- lost it.
 --
--- Static input widgets now carry it. A PLUGGABLE widget still cannot -- no
--- .def.json maps `editable` and the stored CustomWidgets$CustomWidget has no
--- Editable key -- so `combobox ... (Editable: ...)` is reported as MDL-WIDGET21
--- rather than dropped in silence.
+-- Static input widgets now carry it. So do pluggable widgets whose package
+-- declares the Editability system property (the combo box does): the stored
+-- CustomWidgets$CustomWidget has its own Editable and
+-- ConditionalEditabilitySettings, like a text box. See
+-- pluggable-visible-editable.mdl.
 
 create enumeration MaintTwo.Status (Open 'Open', Closed 'Closed');
 

@@ -60,6 +60,9 @@ type DomainModelBackend interface {
 	FindViewEntitySourceDocumentID(moduleName, docName string) (model.ID, error)
 	FindAllViewEntitySourceDocumentIDs(moduleName, docName string) ([]model.ID, error)
 	MoveViewEntitySourceDocument(sourceModuleName string, targetModuleID model.ID, docName string) error
+	// RenameViewEntitySourceDocument renames the module's source document
+	// oldName to newName; no-op when there is none.
+	RenameViewEntitySourceDocument(moduleName, oldName, newName string) error
 	UpdateOqlQueriesForMovedEntity(oldQualifiedName, newQualifiedName string) (int, error)
 	UpdateEnumerationRefsInAllDomainModels(oldQualifiedName, newQualifiedName string) error
 }

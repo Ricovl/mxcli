@@ -213,7 +213,9 @@ func walkWidgetsWithContext(widgets []*ast.WidgetV3, paramNames map[string]bool,
 
 		// Validate attribute binding: needs entity context
 		if attr := w.GetAttribute(); attr != "" {
-			if !hasEntityContext {
+			// `$Param.Attr` names its object; validateNamedObjectBindings
+			// judges the name.
+			if _, _, named := namedObjectBinding(attr); !hasEntityContext && !named {
 				*errors = append(*errors,
 					fmt.Sprintf("widget '%s': Attribute '%s' is bound but there is no enclosing data container providing entity context", w.Name, attr))
 			}

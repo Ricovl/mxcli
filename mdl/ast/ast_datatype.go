@@ -49,6 +49,11 @@ const (
 	TypeVoid            // Void return type (for microflows)
 	TypeStringTemplate  // StringTemplate(Sql) etc. for Java actions
 	TypeEntityTypeParam // ENTITY <pEntity> type parameter declaration for Java actions
+	// TypeHashedString is DomainModels$HashedStringAttributeType: an entity
+	// attribute type only. No microflow, constant or Java action type exists
+	// for it, so the visitor refuses it everywhere but an attribute definition.
+	// Appended last so no existing kind's value moves.
+	TypeHashedString
 )
 
 func (k DataTypeKind) String() string {
@@ -91,6 +96,8 @@ func (k DataTypeKind) String() string {
 		return "StringTemplate"
 	case TypeEntityTypeParam:
 		return "EntityTypeParam"
+	case TypeHashedString:
+		return "HashedString"
 	default:
 		return "Unknown"
 	}

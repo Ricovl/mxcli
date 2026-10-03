@@ -99,15 +99,33 @@ func execRenameEntity(ctx *ExecContext, s *ast.RenameStmt) error {
 	}
 
 	// Update the entity name in the domain model
+	isView := false
 	for _, ent := range dm.Entities {
 		if ent.Name == s.Name.Name {
 			ent.Name = s.NewName
 			repointEntitySelfRefs(ent, oldQualifiedName, newQualifiedName)
+			// A view entity's OQL source document carries the entity's name,
+			// and the entity points at it by qualified name. The sweep above
+			// rewrites the pointer in the raw unit, but this persist would put
+			// the stale one back — the same clobber repointEntitySelfRefs undoes
+			// for member names — and the document itself kept the old name:
+			// CE6784 "View Entity name is out of sync with the OQL query name".
+			if ent.Source == "DomainModels$OqlViewEntitySource" {
+				isView = true
+				if ent.SourceDocumentRef == oldQualifiedName {
+					ent.SourceDocumentRef = newQualifiedName
+				}
+			}
 			break
 		}
 	}
 	if err := ctx.Backend.UpdateDomainModel(dm); err != nil {
 		return mdlerrors.NewBackend("update entity name", err)
+	}
+	if isView {
+		if err := ctx.Backend.RenameViewEntitySourceDocument(s.Name.Module, s.Name.Name, s.NewName); err != nil {
+			return mdlerrors.NewBackend("rename view entity source document", err)
+		}
 	}
 
 	invalidateHierarchy(ctx)

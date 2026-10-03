@@ -80,6 +80,7 @@ type MockBackend struct {
 	WriteViewEntitySourceDocumentFunc          func(moduleID model.ID, moduleName, docName, oqlQuery, documentation string) (model.ID, error)
 	DeleteViewEntitySourceDocumentFunc         func(id model.ID) error
 	DeleteViewEntitySourceDocumentByNameFunc   func(moduleName, docName string) error
+	RenameViewEntitySourceDocumentFunc         func(moduleName, oldName, newName string) error
 	FindViewEntitySourceDocumentIDFunc         func(moduleName, docName string) (model.ID, error)
 	FindAllViewEntitySourceDocumentIDsFunc     func(moduleName, docName string) ([]model.ID, error)
 	MoveViewEntitySourceDocumentFunc           func(sourceModuleName string, targetModuleID model.ID, docName string) error

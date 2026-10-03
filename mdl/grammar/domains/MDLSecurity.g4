@@ -218,8 +218,10 @@ entityAccessRight
 
 // Member (attribute / association) name in a READ/WRITE list. Accepts a quoted
 // identifier so members whose name is a reserved word can be escaped, e.g.
-// READ ("Order", Status).
+// READ ("Order", Status), and a keyword, as attributeName does — without it an
+// attribute named Region, Status or Title could be declared but not granted.
 entityMemberName
     : IDENTIFIER
     | QUOTED_IDENTIFIER
+    | keyword
     ;

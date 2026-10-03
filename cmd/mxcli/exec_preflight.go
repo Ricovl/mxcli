@@ -18,18 +18,28 @@ import (
 // checks, so it refuses exactly the scripts exec refuses (ako/mxcli#807).
 //
 // exec is the executor the script would run on, connected to projectPath ("" when
-// the script connects itself).
-func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath string, skipCheck bool, depPolicy deprecation.Policy, w io.Writer, color bool) string {
+// the script connects itself). script names the script for the hint that
+// points at `mxcli check` ("-" for stdin). showInfo prints info-level notes in
+// full; otherwise they are counted on one line (see printPreflightViolations).
+// continueOnError is exec's --continue-on-error: a flow change exec would refuse
+// is then reported but does not refuse the script, since that mode asks for
+// every statement that can run to run.
+func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath, script string, skipCheck, showInfo, continueOnError bool, depPolicy deprecation.Policy, w io.Writer, color bool) string {
 	// Pre-flight: refuse a script whose semantic checks report an error,
 	// rather than writing part of it and leaving the model to mxbuild.
 	// exec is not transactional, so "run it and see" means a half-applied
 	// model. Warnings are printed and do not stop the run.
 	if !skipCheck {
 		violations := executor.ApplyDeprecationPolicy(executor.ValidateProgram(prog, projectPath), depPolicy)
-		if len(violations) > 0 {
-			formatter := linter.GetFormatter(linter.OutputFormatText, color)
-			formatter.Format(violations, w)
+		// The bare-commit note (MDL067) says a re-run flips what is stored;
+		// for a flow the project already holds that way it does not, and the
+		// note would repeat on every run of an idempotent script.
+		if exec != nil {
+			if b := exec.Backend(); b != nil {
+				violations = executor.DropSettledCommitNotes(violations, prog, executor.NewStoredCommitEvents(b))
+			}
 		}
+		printPreflightViolations(violations, script, showInfo, w, color)
 		if summary := linter.Summarize(violations); summary.Errors > 0 {
 			return fmt.Sprintf(
 				"\nRefusing to execute: %d error(s) above. Nothing was written.\n"+
@@ -109,6 +119,64 @@ func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath strin
 					"  create is still refused when it runs).\n",
 				len(clashes))
 		}
+
+		// Fourth pass: a flow change exec would refuse when it reaches it — a
+		// splice under mdl 1, an alter whose patch fails. `check -p` already
+		// runs this verdict; exec did not, so it wrote every statement before
+		// the refused one and none after, leaving the model half-applied.
+		verdicts := exec.CheckFlowVerdicts(prog)
+		if len(verdicts) > 0 {
+			(&linter.TextFormatter{UseColor: color}).Format(verdicts, w)
+			if n := linter.Summarize(verdicts).Errors; n > 0 && !continueOnError {
+				return fmt.Sprintf(
+					"\nRefusing to execute: %d flow change(s) above would be refused when reached. Nothing was written.\n"+
+						"  exec applies statements one at a time, so the statements before a refused\n"+
+						"  change would be written and the ones after it would not.\n"+
+						"  Make the change the refusal names, or re-run with --continue-on-error to\n"+
+						"  apply every other statement.\n",
+					n)
+			}
+		}
 	}
 	return ""
+}
+
+// printPreflightViolations prints what exec's semantic pass found: errors and
+// warnings in full, info notes as one count line unless showInfo is set.
+//
+// An info note never stops exec and asks nothing of a script that is being
+// re-run; printed in full on every run they buried the warnings that do (on
+// report pages MDL-WIDGET15 alone was ~35 notes a run). `check` is where a
+// script is reviewed, and it still prints every note, so the count line
+// points there. Only this text report changes: exec has no structured
+// diagnostics output, and `check --format json|sarif` is untouched.
+func printPreflightViolations(violations []linter.Violation, script string, showInfo bool, w io.Writer, color bool) {
+	shown := violations
+	infos := 0
+	if !showInfo {
+		shown = nil
+		for _, v := range violations {
+			if v.Severity == linter.SeverityInfo {
+				infos++
+				continue
+			}
+			shown = append(shown, v)
+		}
+	}
+	if len(shown) > 0 {
+		// The summary line counts the omitted notes too, marked not shown.
+		f := &linter.TextFormatter{UseColor: color, OmittedInfos: infos}
+		f.Format(shown, w)
+	}
+	if infos > 0 {
+		noun := "info notes"
+		if infos == 1 {
+			noun = "info note"
+		}
+		if script == "" {
+			script = "<script>"
+		}
+		fmt.Fprintf(w, "%d %s not shown — run `mxcli check %s` to see them (or pass --verbose)\n",
+			infos, noun, script)
+	}
 }

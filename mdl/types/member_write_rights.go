@@ -22,6 +22,13 @@ package types
 // its own two booleans and asks this function what they mean. Two copies of the
 // predicate in two currencies is how a resolver drifts, which is the mistake
 // CLAUDE.md records against the layout placeholder check.
-func WriteRightsForbidden(isCalculated, isAutoNumber bool) bool {
-	return isCalculated || isAutoNumber
+//
+// The third cause is a SYSTEM attribute the platform maintains itself:
+// System.FileDocument.HasContents and System.Image.PublicThumbnailPath are
+// CE6592 "cannot have write rights, because it is a system attribute" on every
+// specialization (measured on mxbuild 11.14.0; meta.SystemAttrDef.WriteForbidden
+// holds the list). `grant write *` on a FileDocument specialization wrote
+// HasContents ReadWrite and failed the build.
+func WriteRightsForbidden(isCalculated, isAutoNumber, isSystemReadOnly bool) bool {
+	return isCalculated || isAutoNumber || isSystemReadOnly
 }

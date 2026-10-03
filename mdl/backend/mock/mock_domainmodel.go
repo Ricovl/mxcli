@@ -154,6 +154,13 @@ func (m *MockBackend) DeleteViewEntitySourceDocumentByName(moduleName, docName s
 	return nil
 }
 
+func (m *MockBackend) RenameViewEntitySourceDocument(moduleName, oldName, newName string) error {
+	if m.RenameViewEntitySourceDocumentFunc != nil {
+		return m.RenameViewEntitySourceDocumentFunc(moduleName, oldName, newName)
+	}
+	return nil
+}
+
 func (m *MockBackend) FindViewEntitySourceDocumentID(moduleName, docName string) (model.ID, error) {
 	if m.FindViewEntitySourceDocumentIDFunc != nil {
 		return m.FindViewEntitySourceDocumentIDFunc(moduleName, docName)

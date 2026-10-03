@@ -234,7 +234,10 @@ type BuildContext struct {
 	// does not receive the AST, and a numeric placeholder written without its
 	// parameters is CE0720 (#928).
 	ClientParams []*pages.ClientTemplateParameter
-	pageBuilder  *pageBuilder
+	// SourceVariable names the parameter an attribute or association binding
+	// reads (`$Param.Attr`); nil for one read from the enclosing object.
+	SourceVariable *pages.WidgetVariable
+	pageBuilder    *pageBuilder
 }
 
 // =============================================================================
@@ -599,7 +602,22 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 		case float64:
 			strVal = fmt.Sprintf("%g", v)
 		default:
-			continue
+			// An expression — written as one, or a bare `$var/Attr` that
+			// parsed as a data source — is an Expression property's text and
+			// an error for every other scalar kind. Anything else is a shape
+			// this pass does not write (a data source, an action, a list).
+			op := operationForValueType(entry.ValueType)
+			if op == "" {
+				continue
+			}
+			text, err := scalarPropertyText(w, propName, propVal, op)
+			if err != nil {
+				return nil, err
+			}
+			if text == "" {
+				continue
+			}
+			strVal = text
 		}
 
 		// Route by ValueType when available
@@ -880,8 +898,14 @@ func (e *PluggableWidgetEngine) applyOperation(builder backend.WidgetObjectBuild
 	switch opName {
 	case "attribute":
 		builder.SetAttribute(propKey, ctx.AttributePath)
+		if ctx.SourceVariable != nil && ctx.AttributePath != "" {
+			builder.SetSourceVariable(propKey, ctx.SourceVariable)
+		}
 	case "association":
 		builder.SetAssociation(propKey, ctx.AssocPath, ctx.EntityName)
+		if ctx.SourceVariable != nil && ctx.AssocPath != "" {
+			builder.SetSourceVariable(propKey, ctx.SourceVariable)
+		}
 	case "primitive":
 		builder.SetPrimitive(propKey, ctx.PrimitiveVal)
 	case "selection":
@@ -1205,6 +1229,23 @@ func refuseAmbiguousGenericDataSource(def *WidgetDefinition, w *ast.WidgetV3, ds
 		w.Name, def.MDLName, len(dsKeys), strings.Join(dsKeys, ", "))
 }
 
+// parameterBinding resolves the `$name` of a `$name.Attr` binding on a pluggable
+// widget property to the page or snippet parameter it names: the SourceVariable
+// to store beside the reference, and the parameter's entity. A name that is no
+// parameter is refused — the data-view pair (#826) is measured on the built-in
+// inputs only, and anything else would be written as a binding that reads
+// nothing.
+func (e *PluggableWidgetEngine) parameterBinding(w *ast.WidgetV3, propertyKey, attr, name string) (pages.WidgetVariable, string, error) {
+	wv, entity, ok := e.pageBuilder.parameterVariable(name)
+	if !ok {
+		return pages.WidgetVariable{}, "", mdlerrors.NewValidationf(
+			"%s `%s` property `%s`: `%s` — `$%s` is not a parameter of this %s; `$Param.Attr` reads an attribute "+
+				"of a page or snippet parameter. Inside a data container, name the attribute bare",
+			strings.ToLower(w.Type), w.Name, propertyKey, attr, name, e.pageBuilder.documentKind())
+	}
+	return wv, entity, nil
+}
+
 // entityContextFor returns the entity that propertyKey's value binds against.
 // See bindingScopeFor.
 func (e *PluggableWidgetEngine) entityContextFor(propertyKey string) string {
@@ -1293,7 +1334,11 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 		// schema default ("20"). Without this, user-set primitive properties
 		// silently fall back to defaults.
 		if astVal, ok := lookupProperty(w.Properties, mapping.PropertyKey); ok {
-			ctx.PrimitiveVal = stringifyAny(astVal)
+			val, err := scalarPropertyText(w, mapping.PropertyKey, astVal, mapping.Operation)
+			if err != nil {
+				return nil, err
+			}
+			ctx.PrimitiveVal = val
 		}
 		return ctx, nil
 	}
@@ -1353,7 +1398,22 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 				}
 			}
 		}
-		if attr != "" {
+		if name, rest, named := namedObjectBinding(attr); named {
+			// `$Param.Attr`: read from a page or snippet parameter, whatever
+			// encloses the widget (see cmd_pages_parameter_binding.go).
+			wv, entity, err := e.parameterBinding(w, mapping.PropertyKey, attr, name)
+			if err != nil {
+				return nil, err
+			}
+			if err := e.pageBuilder.rejectAssociationAsAttribute(
+				rest, entity,
+				fmt.Sprintf("widget `%s` property `%s`", w.Name, mapping.PropertyKey),
+			); err != nil {
+				return nil, err
+			}
+			ctx.AttributePath = e.pageBuilder.resolveAttributePathForEntity(rest, entity)
+			ctx.SourceVariable = &wv
+		} else if attr != "" {
 			// Against THIS property's scope: its own datasource's entity when the
 			// template links it to one, the enclosing object when it links it to
 			// none (#647).
@@ -1432,8 +1492,11 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 
 	case "CaptionAttribute":
 		if captionAttr := w.GetStringProp("CaptionAttribute"); captionAttr != "" {
+			// Qualified with the entity that DECLARES the attribute, as every
+			// other attribute mapping is: an inherited caption qualified with
+			// the specialization is CE1613 at build time.
 			if entity := e.entityContextFor(mapping.PropertyKey); !strings.Contains(captionAttr, ".") && entity != "" {
-				captionAttr = entity + "." + captionAttr
+				captionAttr = e.pageBuilder.resolveAttributePathForEntity(captionAttr, entity)
 			}
 			ctx.AttributePath = captionAttr
 		}
@@ -1448,7 +1511,16 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 		if attr == "" {
 			attr = w.GetAttribute()
 		}
-		if attr != "" {
+		if name, rest, named := namedObjectBinding(attr); named {
+			// `$Param.Assoc`: the association starts at a page or snippet
+			// parameter (Snip_TaskDashboard_Header's referenceSelector5).
+			wv, entity, err := e.parameterBinding(w, mapping.PropertyKey, attr, name)
+			if err != nil {
+				return nil, err
+			}
+			ctx.AssocPath = e.pageBuilder.resolveAssociationPathIn(rest, entity)
+			ctx.SourceVariable = &wv
+		} else if attr != "" {
 			// The association belongs to the CONTAINING entity, not to this
 			// widget's option list. A `DataSource:` mapping listed before this
 			// one has already moved entityContext to the option entity, so
@@ -1497,7 +1569,11 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			// are invisible to GetStringProp; read them generically so numeric
 			// properties aren't silently dropped to the schema default.
 			if astVal, ok := lookupProperty(w.Properties, source); ok {
-				val = stringifyAny(astVal)
+				text, err := scalarPropertyText(w, source, astVal, mapping.Operation)
+				if err != nil {
+					return nil, err
+				}
+				val = text
 			}
 		}
 		if val == "" && mapping.Default != "" {
@@ -1797,7 +1873,10 @@ func (e *PluggableWidgetEngine) buildObjectListItem(mapping *ObjectListMapping, 
 			}
 			continue
 		}
-		strVal := stringifyAny(raw)
+		strVal, err := scalarPropertyText(child, matchedAlias, raw, ip.Operation)
+		if err != nil {
+			return spec, err
+		}
 		prop := backend.ObjectListItemProperty{
 			PropertyKey: ip.PropertyKey,
 			Operation:   ip.Operation,
@@ -2269,6 +2348,10 @@ func isBuiltinPropName(name string) bool {
 	// and could not have their only action slot authored at all (#956).
 	case "DataSource", "Attribute", "Label", "Caption", "Action", "OnChange",
 		"Selection", "Class", "Style", "DynamicClasses", "Editable", "Visible",
+		// The expression and attribute forms of the two above, as the visitor
+		// lowers them. Stored on the CustomWidget itself, never in its Object;
+		// MDL-WIDGET41 refuses them where the package declares no such setting.
+		"EditableIf", "VisibleIf", "VisibleWhen",
 		"WidgetType", "DesignProperties", "Association", "CaptionAttribute",
 		"Content", "RenderMode", "ContentParams", "CaptionParams",
 		"ButtonStyle", "DesktopWidth", "DesktopColumns", "TabletColumns",

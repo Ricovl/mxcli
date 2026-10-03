@@ -47,6 +47,8 @@ This catches everything Level 1 catches, plus:
 
 This is the check you should run before executing a script. It's fast (reads the project but doesn't modify it) and catches most mistakes.
 
+`mxcli exec` runs the same semantic checks before it writes anything, and refuses a script with an error. It prints errors and warnings in full but only counts the info notes (`2 info notes not shown — run mxcli check script.mdl to see them`), so a re-run stays readable; `check` prints every note, and `exec --verbose` does too.
+
 References inside an **excluded** document (`@excluded`, or a page or snippet
 that stays excluded because its stored namesake is) are reported as
 `Reference warnings` rather than errors, because Mendix does not validate

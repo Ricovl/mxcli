@@ -474,6 +474,15 @@ bare-association spelling in each. Note what it is NOT: this shows a value from
 the associated object, it does not make it editable through the association —
 for editing the other object, nest a dataview over the association instead.
 
+**Match the input widget to the attribute type** — mxbuild refuses every other
+pairing with CE2421, and `check -p --references` reports it as MDL-WIDGET39:
+textbox → String / Integer / Long / Decimal / AutoNumber; textarea → String;
+datepicker → DateTime; checkbox → Boolean; radiobuttons → Boolean or
+Enumeration. An **enumeration** goes in `radiobuttons` or `combobox`, never a
+textbox. Do not write the classic `dropdown` on a React-client project
+(`show settings` → `OptimizedClient: Yes`, as a fresh 11.14 app has): it is CE0582
+(MDL-WIDGET40); use `combobox`.
+
 `Association:` names a reference on the containing entity, so
 `Association: Issue_Assignee` resolves against the dataview's entity, not the
 option list's module.

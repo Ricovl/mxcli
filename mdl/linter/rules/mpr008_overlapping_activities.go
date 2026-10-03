@@ -10,9 +10,8 @@ import (
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
-// activityBoxWidth and activityBoxHeight are the approximate pixel dimensions of a
-// Mendix microflow activity box on the canvas. Two activities overlap when their
-// top-left corner positions differ by less than these thresholds.
+// activityBoxWidth and activityBoxHeight are the pixel dimensions of a Mendix
+// microflow activity box, used for a node that stores no size of its own.
 const activityBoxWidth = 120
 const activityBoxHeight = 60
 
@@ -67,15 +66,7 @@ func (r *OverlappingActivitiesRule) Check(ctx *linter.LintContext) []linter.Viol
 					if (a.x == 0 && a.y == 0) || (b.x == 0 && b.y == 0) {
 						continue
 					}
-					dx := a.x - b.x
-					if dx < 0 {
-						dx = -dx
-					}
-					dy := a.y - b.y
-					if dy < 0 {
-						dy = -dy
-					}
-					if dx < activityBoxWidth && dy < activityBoxHeight {
+					if boxesOverlap(a, b) {
 						key := fmt.Sprintf("%d,%d|%d,%d", a.x, a.y, b.x, b.y)
 						if reported[key] {
 							continue
@@ -107,10 +98,38 @@ func (r *OverlappingActivitiesRule) Check(ctx *linter.LintContext) []linter.Viol
 	return violations
 }
 
-// actInfo is one positioned node on a canvas.
+// actInfo is one positioned node on a canvas: its middle point (Mendix stores
+// RelativeMiddlePoint) and its box size.
 type actInfo struct {
 	x, y    int
+	w, h    int
 	caption string
+}
+
+// boxesOverlap reports whether two nodes' boxes intersect. Each node is
+// measured with its own stored size: judging a 40x40 merge as a 120x60
+// activity reported merges that only touch, which auto-layout places that way
+// on purpose. A node with no stored size is taken to be an activity box.
+func boxesOverlap(a, b actInfo) bool {
+	abs := func(v int) int {
+		if v < 0 {
+			return -v
+		}
+		return v
+	}
+	return abs(a.x-b.x)*2 < a.w+b.w && abs(a.y-b.y)*2 < a.h+b.h
+}
+
+// newActInfo records a node's middle point and size.
+func newActInfo(obj microflows.MicroflowObject, caption string) actInfo {
+	p := obj.GetPosition()
+	w, h := activityBoxWidth, activityBoxHeight
+	if s, ok := obj.(interface{ GetSize() model.Size }); ok {
+		if sz := s.GetSize(); sz.Width > 0 && sz.Height > 0 {
+			w, h = sz.Width, sz.Height
+		}
+	}
+	return actInfo{x: p.X, y: p.Y, w: w, h: h, caption: caption}
 }
 
 // overlapPlanes splits a microflow's objects into one plane per CANVAS, rather
@@ -139,24 +158,20 @@ func overlapPlanes(objects []microflows.MicroflowObject) [][]actInfo {
 				if caption == "" {
 					caption = "(unnamed)"
 				}
-				p := act.GetPosition()
-				plane = append(plane, actInfo{p.X, p.Y, caption})
+				plane = append(plane, newActInfo(act, caption))
 			case *microflows.LoopedActivity:
 				caption := act.Caption
 				if caption == "" {
 					caption = "(loop)"
 				}
-				p := act.GetPosition()
-				plane = append(plane, actInfo{p.X, p.Y, caption})
+				plane = append(plane, newActInfo(act, caption))
 				if act.ObjectCollection != nil {
 					nested = append(nested, act.ObjectCollection.Objects)
 				}
 			case *microflows.ExclusiveSplit:
-				p := act.GetPosition()
-				plane = append(plane, actInfo{p.X, p.Y, act.Caption})
+				plane = append(plane, newActInfo(act, act.Caption))
 			case *microflows.ExclusiveMerge:
-				p := act.GetPosition()
-				plane = append(plane, actInfo{p.X, p.Y, "(merge)"})
+				plane = append(plane, newActInfo(act, "(merge)"))
 			}
 		}
 		planes = append(planes, plane)

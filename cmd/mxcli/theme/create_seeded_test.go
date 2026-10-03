@@ -274,3 +274,42 @@ func TestScaffoldedThemeShipsExactlyTheFontsItLoads(t *testing.T) {
 		})
 	}
 }
+
+// Dropping a family left its `@each` block's closing brace behind: the pattern
+// stopped at the first `}` after the family name, which is the one closing the
+// `#{$weight}` interpolation in `src:`, so the `@font-face` close was taken for
+// the `@each` close. `theme create --from … --base console` wrote a partial with
+// 27 `{` and 29 `}`. Every shipped base has the same shape; check each.
+func TestDropFontFacesKeepsBracesBalanced(t *testing.T) {
+	balanced := func(t *testing.T, label, s string) {
+		t.Helper()
+		if o, c := strings.Count(s, "{"), strings.Count(s, "}"); o != c {
+			t.Errorf("%s: %d `{` against %d `}`", label, o, c)
+		}
+	}
+	balanced(t, "probe, one family", dropFontFaces(probePartial, []string{"IBM Plex Sans"}))
+	balanced(t, "probe, all families", dropFontFaces(probePartial, []string{"IBM Plex Sans", "IBM Plex Mono"}))
+
+	partials, _ := filepath.Glob("assets/*/files/theme/web/_mxcli-*.scss")
+	checked := 0
+	for _, p := range partials {
+		body, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fams := vendoredFamilies(string(body))
+		if len(fams) == 0 {
+			continue
+		}
+		checked++
+		balanced(t, p+" (as shipped)", string(body))
+		got := dropFontFaces(string(body), fams)
+		balanced(t, p+" (all families dropped)", got)
+		if strings.Contains(got, "@font-face") {
+			t.Errorf("%s: @font-face survived dropping every family", p)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no shipped partial declares a vendored family — the glob no longer finds the assets")
+	}
+}
