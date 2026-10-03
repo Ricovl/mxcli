@@ -3,8 +3,12 @@
 package executor
 
 import (
+	"sync"
+	"time"
+
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend"
+	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
@@ -46,6 +50,8 @@ type voidCodeActions struct {
 	// unknownIsVoid makes callIsVoid answer true for an action it cannot
 	// resolve. Set by the editor (NewFlowRules); `check` leaves it false.
 	unknownIsVoid bool
+	// shared, when set, carries project resolutions across runs (the editor).
+	shared *CodeActionCache
 }
 
 // voidness is what the resolver knows about one action.
@@ -106,6 +112,10 @@ func (r *voidCodeActions) resolve(javaScript bool, qn string) voidness {
 	if v, ok := r.cache[key]; ok {
 		return v
 	}
+	if v, ok := r.shared.get(key); ok {
+		r.cache[key] = v
+		return v
+	}
 	var got voidness
 	if b := r.project(); b != nil {
 		if javaScript {
@@ -121,6 +131,7 @@ func (r *voidCodeActions) resolve(javaScript bool, qn string) voidness {
 		}
 	}
 	r.cache[key] = got
+	r.shared.put(key, got)
 	return got
 }
 
@@ -168,4 +179,112 @@ func (r *voidCodeActions) actionIsVoidCall(action any) bool {
 		return r.treatAsVoid(r.resolve(true, a.JavaScriptAction))
 	}
 	return false
+}
+
+// FlowRules runs the microflow and nanoflow rule sets (ValidateMicroflow,
+// ValidateNanoflow) for the editor, with the Java/JavaScript actions the flows
+// call resolved through the script and, when there is one, the project.
+//
+// The language server validated without a project, so every call to a stored
+// void action counted as declaring its output name, and two such calls — the
+// ordinary Studio Pro shape — were squiggled as MDL063 (ako/mxcli#962). Here an
+// action the script and the project cannot answer for is treated as POSSIBLY
+// void (unknownIsVoid): the editor should not refuse what it cannot see, and
+// `check`, which runs before exec writes anything, keeps the strict reading.
+// The project is opened only when a call needs it; Close releases it.
+type FlowRules struct {
+	voids *voidCodeActions
+	b     backend.FullBackend
+}
+
+// NewFlowRules prepares the flow rules for one program. projectPath may be
+// empty: then nothing is read from disk and only the script answers. cache,
+// which may be nil, keeps the project's answers between runs.
+func NewFlowRules(prog *ast.Program, projectPath string, cache *CodeActionCache) *FlowRules {
+	f := &FlowRules{}
+	f.voids = newVoidCodeActions(prog, func() backend.FullBackend {
+		f.b = openProjectForValidation(projectPath)
+		return f.b
+	})
+	f.voids.unknownIsVoid = true
+	if projectPath != "" && cache != nil {
+		cache.forProject(projectPath)
+		f.voids.shared = cache
+	}
+	return f
+}
+
+// CodeActionCache keeps what a project said about its Java/JavaScript actions
+// across FlowRules runs. The editor validates on every keystroke, and reading
+// one action from the project costs about 300ms on PedApp — paid again for
+// every change of a document that calls one. An entry lives codeActionCacheTTL,
+// so an action whose return type changes in Studio Pro is re-read soon after.
+type CodeActionCache struct {
+	mu      sync.Mutex
+	project string
+	entries map[string]voidness
+	stamp   map[string]time.Time
+	now     func() time.Time
+}
+
+const codeActionCacheTTL = 30 * time.Second
+
+// NewCodeActionCache returns an empty cache.
+func NewCodeActionCache() *CodeActionCache {
+	return &CodeActionCache{now: time.Now}
+}
+
+// forProject empties the cache when it last served another project.
+func (c *CodeActionCache) forProject(path string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.project != path || c.entries == nil {
+		c.project = path
+		c.entries = map[string]voidness{}
+		c.stamp = map[string]time.Time{}
+	}
+}
+
+func (c *CodeActionCache) get(key string) (voidness, bool) {
+	if c == nil {
+		return voidness{}, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	v, ok := c.entries[key]
+	if !ok || c.now().Sub(c.stamp[key]) > codeActionCacheTTL {
+		return voidness{}, false
+	}
+	return v, true
+}
+
+func (c *CodeActionCache) put(key string, v voidness) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.entries == nil {
+		return
+	}
+	c.entries[key] = v
+	c.stamp[key] = c.now()
+}
+
+// Microflow is ValidateMicroflow with this program's action resolution.
+func (f *FlowRules) Microflow(stmt *ast.CreateMicroflowStmt) []linter.Violation {
+	return validateMicroflowWith(stmt, f.voids)
+}
+
+// Nanoflow is ValidateNanoflow with this program's action resolution.
+func (f *FlowRules) Nanoflow(stmt *ast.CreateNanoflowStmt) []linter.Violation {
+	return validateNanoflowWith(stmt, f.voids)
+}
+
+// Close releases the project, if a call made the rules open it.
+func (f *FlowRules) Close() {
+	if f.b != nil {
+		_ = f.b.Disconnect()
+		f.b = nil
+	}
 }
