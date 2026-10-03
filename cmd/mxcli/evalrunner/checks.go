@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/mendixlabs/mxcli/cmd/mxcli/docker"
 )
 
 // CheckOptions configures how checks are executed.
@@ -246,13 +248,10 @@ func checkMxCheck(check Check, opts CheckOptions) CheckResult {
 		return CheckResult{Check: check, Passed: false, Detail: "mx binary not found"}
 	}
 
-	cmd := exec.Command(mxPath, "check", opts.ProjectPath)
+	// On a temporary copy: mx check writes theme-cache/ and deployment/sass/
+	// into the project it checks (ako/mxcli#961).
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err != nil {
+	if err := docker.MxCheckOnCopy(mxPath, opts.ProjectPath, nil, &stdout, &stderr); err != nil {
 		// Parse error output for error count
 		output := stdout.String() + stderr.String()
 		return CheckResult{Check: check, Passed: false, Detail: fmt.Sprintf("mx check failed: %s", firstLine(output))}

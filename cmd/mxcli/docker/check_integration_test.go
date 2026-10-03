@@ -135,3 +135,48 @@ func TestCheck_LeavesProjectUntouched(t *testing.T) {
 		}
 	}
 }
+
+// TestMxCheckOnCopy_LeavesProjectUntouched: the plain `mx check` the TUI
+// checker and the eval runner run (ako/mxcli#961) leaves an MPRv1 and an MPRv2
+// project byte-identical with the same mtimes, and still reports what mx found.
+// Measured before the fix with mx 11.14: theme-cache/web/ and deployment/sass/
+// were added to the project in both formats.
+func TestMxCheckOnCopy_LeavesProjectUntouched(t *testing.T) {
+	mxPath, err := ResolveMx("")
+	if err != nil {
+		t.Skipf("mx not resolvable: %v", err)
+	}
+	for _, format := range []string{"v2", "v1"} {
+		t.Run(format, func(t *testing.T) {
+			dir, err := os.MkdirTemp("", "mxc")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.RemoveAll(dir) })
+			cmd := exec.Command(mxPath, "create-project")
+			cmd.Dir = dir
+			PrepareMxCommand(cmd)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Skipf("mx create-project failed: %v\n%s", err, out)
+			}
+			mprPath := filepath.Join(dir, "App.mpr")
+			if format == "v1" {
+				if err := updateWidgetsCmd(mxPath, mprPath, io.Discard, io.Discard); err != nil {
+					t.Skipf("could not produce a v1 fixture: %v", err)
+				}
+			}
+			jsonPath := filepath.Join(t.TempDir(), "check.json")
+			before := treeState(t, dir)
+			var out bytes.Buffer
+			if err := MxCheckOnCopy(mxPath, mprPath, []string{"-j", jsonPath}, &out, &out); err != nil {
+				t.Fatalf("MxCheckOnCopy: %v\n%s", err, out.String())
+			}
+			if d := diffStates(before, treeState(t, dir)); len(d) > 0 {
+				t.Errorf("mx check modified the project:\n  %v", d)
+			}
+			if _, err := os.Stat(jsonPath); err != nil {
+				t.Errorf("mx check wrote no JSON result: %v", err)
+			}
+		})
+	}
+}

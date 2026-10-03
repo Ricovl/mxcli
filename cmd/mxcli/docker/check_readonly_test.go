@@ -114,7 +114,7 @@ func stubTools(t *testing.T) (seen *[]string) {
 		}
 		return os.RemoveAll(filepath.Join(dir, "mprcontents"))
 	}
-	mxCheckCmd = func(_, mprPath string, w, _ io.Writer) error {
+	mxCheckCmd = func(_, mprPath string, _ []string, w, _ io.Writer) error {
 		paths = append(paths, "check "+mprPath)
 		dir := filepath.Dir(mprPath)
 		// Compiles the theme and writes the sass entry point.
@@ -251,16 +251,16 @@ func TestCopyProjectForCheck_TempDirInsideProject(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("TMPDIR", tmp)
-	work, cleanup, err := copyProjectForCheck(mpr)
+	work, cleanup, err := copyProjectToTemp(mpr)
 	if err != nil {
-		t.Fatalf("copyProjectForCheck: %v", err)
+		t.Fatalf("copyProjectToTemp: %v", err)
 	}
 	defer cleanup()
 	if b, err := os.ReadFile(work); err != nil || string(b) != "model" {
 		t.Fatalf("copy of the model = %q, %v", b, err)
 	}
 	filepath.WalkDir(filepath.Dir(work), func(p string, d fs.DirEntry, err error) error {
-		if err == nil && strings.HasPrefix(d.Name(), "mxcli-check-") {
+		if err == nil && strings.HasPrefix(d.Name(), "mxcli-copy-") {
 			t.Errorf("the copy contains a copy of itself: %s", p)
 			return filepath.SkipDir
 		}
@@ -269,7 +269,7 @@ func TestCopyProjectForCheck_TempDirInsideProject(t *testing.T) {
 }
 
 func TestCopyProjectForCheck_MissingProject(t *testing.T) {
-	if _, _, err := copyProjectForCheck(filepath.Join(t.TempDir(), "nope.mpr")); err == nil {
+	if _, _, err := copyProjectToTemp(filepath.Join(t.TempDir(), "nope.mpr")); err == nil {
 		t.Error("want an error for a project file that does not exist")
 	}
 }
