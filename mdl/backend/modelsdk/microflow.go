@@ -75,28 +75,20 @@ func (b *Backend) GetMicroflowByName(qualifiedName string) (*microflows.Microflo
 // treated the rule call as a plain expression and emitted an invalid
 // ExpressionSplitCondition → mx check CE0117 "Error in expression" (issue #723
 // §A). Mirrors the legacy reader's IsRule.
+//
+// Resolved through the reader's header index rather than by listing every rule:
+// the flow builder asks once per rule-shaped condition, and DESCRIBE rebuilds
+// each flow to tell derived layout from authored, so a scan here made a describe
+// sweep cost seconds per microflow.
 func (b *Backend) IsRule(qualifiedName string) (bool, error) {
 	if qualifiedName == "" {
 		return false, nil
 	}
-	units, err := mprread.ListUnitsWithContainer[*genMf.Rule](b.reader)
+	unit, err := mprread.GetUnitByName[*genMf.Rule](b.reader, qualifiedName)
 	if err != nil {
 		return false, err
 	}
-	for _, u := range units {
-		name := u.Element.Name()
-		if name == "" {
-			continue
-		}
-		fullName := name
-		if mod := b.moduleNameFor(model.ID(u.Element.ID())); mod != "" {
-			fullName = mod + "." + name
-		}
-		if fullName == qualifiedName {
-			return true, nil
-		}
-	}
-	return false, nil
+	return unit != nil, nil
 }
 
 func (b *Backend) ListNanoflows() ([]*microflows.Nanoflow, error) {

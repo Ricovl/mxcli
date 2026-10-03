@@ -83,6 +83,33 @@ type builtNanoflow struct {
 // for one language drift, and the drift surfaces as a confident false report.
 // Adding the 25 missing cases would have fixed the symptom and left the
 // mechanism in place.
+// findExistingMicroflow returns the stored microflow a statement rewrites, or
+// nil for a create. A module may hold several microflows with this name as long
+// as all but one are excluded, so it targets the live one rather than whichever
+// comes first (#914).
+//
+// A build that writes nothing — DESCRIBE's derived-layout check, which rebuilds
+// every described flow, and `diff` — resolves the name through the backend's
+// index instead of decoding every microflow in the project; on a large app the
+// listing cost about a second per describe. Writes keep the listing, which also
+// sees what earlier statements of the same script created.
+func findExistingMicroflow(ctx *ExecContext, s *ast.CreateMicroflowStmt, moduleID model.ID, opts buildFlowOpts) (*microflows.Microflow, error) {
+	if !opts.AllowCreate {
+		return ctx.Backend.GetMicroflowByName(s.Name.Module + "." + s.Name.Name)
+	}
+	existingMicroflows, err := ctx.Backend.ListMicroflows()
+	if err != nil {
+		return nil, err
+	}
+	existing, _ := pickLive(existingMicroflows,
+		func(m *microflows.Microflow) bool {
+			return m.Name == s.Name.Name && getModuleID(ctx, m.ContainerID) == moduleID
+		},
+		func(m *microflows.Microflow) bool { return m.Excluded },
+	)
+	return existing, nil
+}
+
 func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts buildFlowOpts) (*builtFlow, error) {
 	// Validate name is not empty
 	if strings.TrimSpace(s.Name.Name) == "" {
@@ -169,19 +196,11 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 	var existingDocumentation string
 	preserveDocumentation := false
 	var existingActionInfo, existingWorkflowInfo *types.MicroflowActionInfo
-	existingMicroflows, err := ctx.Backend.ListMicroflows()
+	existing, err := findExistingMicroflow(ctx, s, moduleID, opts)
 	if err != nil {
 		return nil, mdlerrors.NewBackend("check existing microflows", err)
 	}
-	// A module may hold several microflows with this name as long as all but one
-	// are excluded, so target the live one rather than whichever comes first
-	// (#914).
-	if existing, ok := pickLive(existingMicroflows,
-		func(m *microflows.Microflow) bool {
-			return m.Name == s.Name.Name && getModuleID(ctx, m.ContainerID) == moduleID
-		},
-		func(m *microflows.Microflow) bool { return m.Excluded },
-	); ok {
+	if existing != nil {
 		if !s.CreateOrModify && opts.AllowCreate {
 			return nil, mdlerrors.NewAlreadyExistsMsg("microflow", s.Name.Module+"."+s.Name.Name, "microflow '"+s.Name.Module+"."+s.Name.Name+"' already exists (use create or modify to overwrite)")
 		}
