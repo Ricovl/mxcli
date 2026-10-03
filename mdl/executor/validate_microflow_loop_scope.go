@@ -330,6 +330,8 @@ func loopRefVars(stmt ast.MicroflowStatement) []string {
 		}
 	case *ast.RemoveFromListStmt:
 		add(s.Item, s.List)
+	case *ast.ClearListStmt:
+		add(s.List)
 	case *ast.ShowPageStmt:
 		add(s.ForObject)
 		for _, a := range s.Arguments {

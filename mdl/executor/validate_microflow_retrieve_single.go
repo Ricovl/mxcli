@@ -90,6 +90,10 @@ func listUseOf(s ast.MicroflowStatement) (string, string) {
 		if st.List != "" {
 			return st.List, "REMOVE … FROM"
 		}
+	case *ast.ClearListStmt:
+		if st.List != "" {
+			return st.List, "CLEAR"
+		}
 	}
 	return "", ""
 }

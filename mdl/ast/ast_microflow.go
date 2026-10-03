@@ -1031,6 +1031,15 @@ type RemoveFromListStmt struct {
 
 func (s *RemoveFromListStmt) isMicroflowStatement() {}
 
+// ClearListStmt represents: CLEAR $List — the Clear operation of a Change list
+// activity (Microflows$ChangeListAction, Type "Clear"), which stores no value.
+type ClearListStmt struct {
+	List        string               // List variable to empty
+	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+}
+
+func (s *ClearListStmt) isMicroflowStatement() {}
+
 // ============================================================================
 // Page Actions
 // ============================================================================

@@ -487,6 +487,38 @@ func init() {
 	})
 
 	Register(SyntaxFeature{
+		Path:    "workflow.set-task-outcome",
+		Summary: "Complete a user task from a microflow with a named outcome",
+		Keywords: []string{
+			"set task outcome", "task outcome", "complete task", "complete user task",
+			"outcome variable", "dynamic outcome", "claim and complete", "claim task",
+			"MDL-WORKFLOW10",
+		},
+		Syntax: "SET TASK OUTCOME $UserTask 'OutcomeName';\n\n" +
+			"-- A microflow statement (not a nanoflow one). $UserTask is a\n" +
+			"-- System.WorkflowUserTask; the outcome is one of that task's outcomes.\n" +
+			"-- The outcome is a quoted LITERAL, by design: Mendix stores it by name\n" +
+			"-- (SetTaskOutcomeAction.Outcome is a reference to the outcome, resolved\n" +
+			"-- when the app is built), so it cannot be a variable or an expression.\n" +
+			"-- `set task outcome $Task $Outcome;` is a parse error that says so.\n\n" +
+			"-- A shared claim-and-complete flow therefore takes the outcome as a\n" +
+			"-- parameter and branches once per outcome, each with its own literal.\n" +
+			"-- Claim the task first: completing an unclaimed task fails at runtime\n" +
+			"-- (\"it is not assigned to you\"); check warns MDL-WORKFLOW10.",
+		Example: "create microflow Approvals.ACT_CompleteTask (\n" +
+			"  $Task: System.WorkflowUserTask,\n  $Outcome: String\n)\nbegin\n" +
+			"  change $Task (System.WorkflowUserTask_Assignees = [%CurrentUser%]);\n" +
+			"  commit $Task;\n" +
+			"  if $Outcome = 'Approve' then\n" +
+			"    set task outcome $Task 'Approve';\n" +
+			"  else\n" +
+			"    set task outcome $Task 'Reject';\n" +
+			"  end if;\n" +
+			"end;",
+		SeeAlso: []string{"workflow.user-task", "workflow.notify"},
+	})
+
+	Register(SyntaxFeature{
 		Path:    "workflow.alter",
 		Summary: "Modify an existing workflow — change properties, add/remove activities",
 		Keywords: []string{

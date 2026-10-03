@@ -283,6 +283,7 @@ microflowStatement
     | annotation* aggregateListStatement SEMICOLON
     | annotation* addToListStatement SEMICOLON
     | annotation* removeFromListStatement SEMICOLON
+    | annotation* clearListStatement SEMICOLON
     | annotation* validationFeedbackStatement SEMICOLON
     | annotation* restCallStatement SEMICOLON
     | annotation* sendRestRequestStatement SEMICOLON
@@ -1061,6 +1062,15 @@ addToListStatement
  */
 removeFromListStatement
     : REMOVE VARIABLE FROM VARIABLE
+    ;
+
+/**
+ * Empty a list: the Clear operation of a Change list activity. Replace (stored
+ * "Set") is written `set $List = <list>`, which the builder routes to a Change
+ * list action when the target is a list variable.
+ */
+clearListStatement
+    : CLEAR VARIABLE
     ;
 
 // Member assignments for CREATE and CHANGE: Name = $Name, Code = $Code
