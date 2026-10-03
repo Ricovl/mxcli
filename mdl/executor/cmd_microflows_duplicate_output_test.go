@@ -109,7 +109,11 @@ func TestFormatMicroflowActivitiesWarnsAboutDuplicateModelOutputs(t *testing.T) 
 	}
 }
 
-func TestFormatMicroflowActivitiesDoesNotWarnForExclusiveBranchOutputs(t *testing.T) {
+// A flow's names are flow-wide: the same output name in each branch of an
+// if/else is CE0111 in mxbuild 11.13.0 (ako/mxcli#962, measured in a
+// microflow with a non-void Java call and with a retrieve). This test pinned the
+// opposite — branch scoping — until the measurement contradicted it.
+func TestFormatMicroflowActivitiesWarnsForExclusiveBranchOutputs(t *testing.T) {
 	oc := &microflows.MicroflowObjectCollection{
 		Objects: []microflows.MicroflowObject{
 			&microflows.StartEvent{
@@ -172,8 +176,8 @@ func TestFormatMicroflowActivitiesDoesNotWarnForExclusiveBranchOutputs(t *testin
 	lines := formatMicroflowActivities(&ExecContext{}, &microflows.Microflow{ObjectCollection: oc}, nil, nil)
 	got := strings.Join(lines, "\n")
 
-	if strings.Contains(got, "-- WARNING: duplicate output variable $Result") {
-		t.Fatalf("exclusive branch outputs must not be warned as linear duplicates:\n%s", got)
+	if !strings.Contains(got, "-- WARNING: duplicate output variable $Result") {
+		t.Fatalf("the same output name in both branches is CE0111 and must be warned:\n%s", got)
 	}
 }
 
@@ -257,4 +261,35 @@ func TestFormatMicroflowActivitiesHighComplexityCompletes(t *testing.T) {
 
 	// Just needs to complete; path enumeration would be 2^120.
 	_ = duplicateOutputVariableWarnings(oc, func(any) bool { return false })
+}
+
+// A loop body opens no scope either: a non-void Java call inside a loop and
+// another of the same name after it is CE0111 (mxbuild 11.13.0, ako/mxcli#962).
+// The old reachability walk missed it — the second call does not reach the
+// loop. Control: distinct names warn nothing.
+func TestFormatMicroflowActivitiesNamesAreFlowWide(t *testing.T) {
+	start := &microflows.StartEvent{}
+	start.ID = "start"
+	end := &microflows.EndEvent{}
+	end.ID = "end"
+	loop := &microflows.LoopedActivity{ObjectCollection: &microflows.MicroflowObjectCollection{
+		Objects: []microflows.MicroflowObject{act("in", "X", 10)},
+	}}
+	loop.ID = "loop"
+	oc := &microflows.MicroflowObjectCollection{
+		Objects: []microflows.MicroflowObject{start, loop, act("after", "X", 400), end},
+		Flows: []*microflows.SequenceFlow{
+			{OriginID: "start", DestinationID: "loop"},
+			{OriginID: "loop", DestinationID: "after"},
+			{OriginID: "after", DestinationID: "end"},
+		},
+	}
+	if !warnsDuplicate(t, oc, "X") {
+		t.Error("an output inside a loop and the same name after it not warned")
+	}
+
+	loop.ObjectCollection.Objects = []microflows.MicroflowObject{act("in", "Y", 10)}
+	if warnsDuplicate(t, oc, "X") || warnsDuplicate(t, oc, "Y") {
+		t.Error("control: distinct names warned")
+	}
 }

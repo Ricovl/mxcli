@@ -27,19 +27,25 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// Statement-level checks that need no project connection.
 	var violations []linter.Violation
 	securityEnabled := programEnablesSecurity(prog)
-	// Which Java/JavaScript action calls target a void action — such a call
-	// declares no variable (MDL063, #953). The script answers for the actions
-	// it creates; the project, opened only if a call needs it, for the rest.
-	var voidsProject backend.FullBackend
-	voids := newVoidCodeActions(prog, func() backend.FullBackend {
-		voidsProject = openProjectForValidation(projectPath)
-		return voidsProject
-	})
+	// The project, opened at most once and only if a check needs it.
+	var lazyProject backend.FullBackend
+	lazyOpened := false
+	project := func() backend.FullBackend {
+		if !lazyOpened {
+			lazyOpened = true
+			lazyProject = openProjectForValidation(projectPath)
+		}
+		return lazyProject
+	}
 	defer func() {
-		if voidsProject != nil {
-			_ = voidsProject.Disconnect()
+		if lazyProject != nil {
+			_ = lazyProject.Disconnect()
 		}
 	}()
+	// Which Java/JavaScript action calls target a void action — such a call
+	// declares no variable (MDL063, #953). The script answers for the actions
+	// it creates; the project for the rest.
+	voids := newVoidCodeActions(prog, project)
 	for _, stmt := range prog.Statements {
 		// Check enumeration values for reserved words
 		if enumStmt, ok := stmt.(*ast.CreateEnumerationStmt); ok {
@@ -182,7 +188,9 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// wrapped in a layout grid — its label/input widths only render correctly
 	// inside a layoutgrid. Same rule as the MPR010 lint rule, surfaced at
 	// authoring time on the AST.
-	violations = append(violations, ValidatePageLayoutGrid(prog)...)
+	// A page on a native layout is exempt (ako/mxcli#962); only the project
+	// can say which layouts are native.
+	violations = append(violations, ValidatePageLayoutGrid(prog, projectNativeLayouts(project))...)
 
 	// Warn (MDL-OFFLINE01) when a page binds an attribute across more than one
 	// association in a project that has an offline navigation profile. Mendix

@@ -238,7 +238,8 @@ either, whatever output name it carries — Studio Pro keeps one on such calls
 (a JavaScript action's is named after the action, e.g. `$RefreshEntity`), and
 two of them in one flow build clean. `describe` keeps printing the stored name
 so a round trip does not change the model. The name is not a variable: using
-`$RefreshEntity` afterwards is CE0109 "Undefined variable".
+`$RefreshEntity` afterwards is CE0109 "Undefined variable" (MDL093 — `check`
+reports it when the script or, with `-p`, the project says the action is void).
 
 ### 10. Calling a Rule or Microflow Inside an Expression
 

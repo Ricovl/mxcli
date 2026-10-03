@@ -100,7 +100,8 @@ func parseMDLDiagnostics(text string) []protocol.Diagnostic {
 }
 
 // documentDiagnostics is what the editor reports for a document as typed: parse
-// errors, and when it parses, the checks `mxcli check` runs without a project.
+// errors, and when it parses, the checks `mxcli check` runs inline (a flow's
+// Java/JavaScript action calls resolved through the workspace project, if any).
 func (s *mdlServer) documentDiagnostics(docURI uri.URI, text string) []protocol.Diagnostic {
 	text, diags := checkableDocument(docURI, text)
 	diags = append(diags, parseMDLDiagnostics(text)...)
@@ -318,6 +319,11 @@ func (s *mdlServer) runSemanticValidation(text string) []protocol.Diagnostic {
 	s.ensureWidgetRegistry()
 	s.ensureThemeRegistry()
 
+	// A call to a stored void Java/JavaScript action declares no variable; the
+	// flow rules can only know that through the project (ako/mxcli#962).
+	flows := executor.NewFlowRules(prog, s.findMprPath(), s.codeActions)
+	defer flows.Close()
+
 	var diags []protocol.Diagnostic
 	for i, stmt := range prog.Statements {
 		var violations []linter.Violation
@@ -331,14 +337,14 @@ func (s *mdlServer) runSemanticValidation(text string) []protocol.Diagnostic {
 			violations = append(violations, executor.ValidateAlterEntity(alterStmt)...)
 		}
 		if mfStmt, ok := stmt.(*ast.CreateMicroflowStmt); ok {
-			violations = append(violations, executor.ValidateMicroflow(mfStmt)...)
+			violations = append(violations, flows.Microflow(mfStmt)...)
 			violations = append(violations, executor.ValidateFlowParameterAnnotations(
 				"microflow '"+mfStmt.Name.String()+"'", mfStmt.Parameters)...)
 		}
 		// The editor reports an unusable parameter annotation for the same
 		// reason `check` does — a typo of @position parses and does nothing.
 		if nfStmt, ok := stmt.(*ast.CreateNanoflowStmt); ok {
-			violations = append(violations, executor.ValidateNanoflow(nfStmt)...)
+			violations = append(violations, flows.Nanoflow(nfStmt)...)
 			violations = append(violations, executor.ValidateFlowParameterAnnotations(
 				"nanoflow '"+nfStmt.Name.String()+"'", nfStmt.Parameters)...)
 		}
