@@ -71,14 +71,21 @@ func findUnhandledCalls(objects []microflows.MicroflowObject, mf linter.Microflo
 				continue
 			}
 
-			// Check if error handling is not custom
-			if act.ErrorHandlingType != microflows.ErrorHandlingTypeCustom &&
-				act.ErrorHandlingType != microflows.ErrorHandlingTypeCustomWithoutRollback {
+			// The handling is stored on the ACTION; the activity field is never
+			// filled by the reader, and reading it reported "uses ''" on every
+			// call, handled or not (mendixlabs/mxcli#1202).
+			eh := microflows.ObjectErrorHandlingType(act)
+			if !microflows.IsCustomErrorHandling(eh) {
+				shown := string(eh)
+				if shown == "" {
+					// No stored value: the flow's default, which is Rollback in a microflow.
+					shown = string(microflows.ErrorHandlingTypeRollback)
+				}
 				*violations = append(*violations, linter.Violation{
 					RuleID:   r.ID(),
 					Severity: r.DefaultSeverity(),
 					Message: fmt.Sprintf("%s in '%s.%s' uses '%s' error handling instead of Custom.",
-						actionName, mf.ModuleName, mf.Name, act.ErrorHandlingType),
+						actionName, mf.ModuleName, mf.Name, shown),
 					Location: linter.Location{
 						Module:       mf.ModuleName,
 						DocumentType: mf.DocumentNoun(),
@@ -144,7 +151,8 @@ func findContinueErrorHandling(objects []microflows.MicroflowObject, mf linter.M
 	for _, obj := range objects {
 		switch act := obj.(type) {
 		case *microflows.ActionActivity:
-			if act.ErrorHandlingType == microflows.ErrorHandlingTypeContinue {
+			// Read from the action, where Mendix stores it (mendixlabs/mxcli#1202).
+			if microflows.ObjectErrorHandlingType(act) == microflows.ErrorHandlingTypeContinue {
 				caption := act.Caption
 				if caption == "" {
 					caption = "(unnamed activity)"

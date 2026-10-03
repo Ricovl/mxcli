@@ -3,6 +3,7 @@
 package rules
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/linter"
@@ -227,5 +228,64 @@ func TestNoContinueErrorHandlingRule_Metadata(t *testing.T) {
 	r := NewNoContinueErrorHandlingRule()
 	if r.ID() != "CONV014" {
 		t.Errorf("ID = %q, want CONV014", r.ID())
+	}
+}
+
+// --- mendixlabs/mxcli#1202: the reader stores error handling on the ACTION ---
+//
+// Every test above sets BaseActivity.ErrorHandlingType, which the model reader
+// never fills: Mendix stores an action activity's handling on the action
+// (Microflows$JavaActionCallAction.ErrorHandlingType). The objects below are
+// shaped the way flowObjectFromGen builds them, which is what the rules see on
+// a real project. Reading the activity field, CONV013 reported "uses ''" on
+// every call, handled or not, and CONV014 never fired on an action.
+
+// readerShapedCall builds an action activity the way the reader does: the
+// activity field empty, the handling on the action.
+func readerShapedCall(eh microflows.ErrorHandlingType) *microflows.ActionActivity {
+	return &microflows.ActionActivity{
+		BaseActivity: microflows.BaseActivity{Caption: "Call echo"},
+		Action:       &microflows.JavaActionCallAction{ErrorHandlingType: eh},
+	}
+}
+
+func TestFindUnhandledCalls_ReadsTheActionsHandling(t *testing.T) {
+	cases := []struct {
+		eh   microflows.ErrorHandlingType
+		want int
+	}{
+		{microflows.ErrorHandlingTypeCustom, 0},
+		{microflows.ErrorHandlingTypeCustomWithoutRollback, 0},
+		{microflows.ErrorHandlingTypeRollback, 1},
+		{microflows.ErrorHandlingTypeContinue, 1},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.eh), func(t *testing.T) {
+			var violations []linter.Violation
+			findUnhandledCalls([]microflows.MicroflowObject{readerShapedCall(tc.eh)},
+				testMicroflow(), NewErrorHandlingOnCallsRule(), &violations)
+			if len(violations) != tc.want {
+				t.Fatalf("got %d CONV013 violations for a Java action call with %s handling, want %d",
+					len(violations), tc.eh, tc.want)
+			}
+			if tc.want == 1 && !strings.Contains(violations[0].Message, "'"+string(tc.eh)+"'") {
+				t.Errorf("message %q does not name the stored handling %q -- it reads an empty field",
+					violations[0].Message, tc.eh)
+			}
+		})
+	}
+}
+
+func TestFindContinueErrorHandling_ReadsTheActionsHandling(t *testing.T) {
+	var violations []linter.Violation
+	findContinueErrorHandling([]microflows.MicroflowObject{
+		readerShapedCall(microflows.ErrorHandlingTypeContinue),
+		readerShapedCall(microflows.ErrorHandlingTypeRollback),
+	}, testMicroflow(), NewNoContinueErrorHandlingRule(), &violations)
+	if len(violations) != 1 {
+		t.Fatalf("got %d CONV014 violations, want 1 -- `on error continue` on an action is stored on the action", len(violations))
+	}
+	if !strings.Contains(violations[0].Message, "Call echo") {
+		t.Errorf("message %q does not name the activity", violations[0].Message)
 	}
 }
