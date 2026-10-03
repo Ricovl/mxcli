@@ -758,6 +758,8 @@ mandatory and a misplaced clause failed with a token error
 
 **Notifying a workflow** (a microflow statement): `[$Notified =] notify workflow $Workflow target Module.Workflow.ElementName;` — the element is a notification-started event sub-process's start, a notification activity, a notification boundary event or a wait for notification, and mxcli resolves which. The target is required (CE0166, MDL-WF16).
 
+**Completing a user task** (a microflow statement): `set task outcome $Task 'Approve';` — the outcome is a quoted **literal**, by design: Mendix stores it by name, a reference to one of the task's outcomes resolved at build time, so a variable is a parse error. A shared claim-and-complete flow branches once per outcome (`if $Outcome = 'Approve' then set task outcome $Task 'Approve'; else …`). Claim the task first (MDL-WORKFLOW10).
+
 **Event sub-processes**, after the main body: `event subprocess <name> ['<caption>'] on [non] interrupting notification [<start>] ['<caption>'] { … };` (11.8+) or `… on [non] interrupting timer <first-execution-time> [as <start>] [caption '<caption>'] { … };` (11.13+). The body's End is implicit; a `jump to` stays in its own sub-process (CE6682, MDL-WF05); a timer needs its expression (CE0126, MDL-WF14).
 
 **Workflow event handlers.** `on workflow events (UserTaskStarted, UserTaskEnded)
