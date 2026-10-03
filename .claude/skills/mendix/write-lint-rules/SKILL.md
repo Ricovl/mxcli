@@ -201,7 +201,7 @@ def check():
 | `qualified_name` | string | `"Sales.Customer_Overview"` |
 | `module_name` | string | `"Sales"` |
 | `folder` | string | `"pages/Customer"` — folder path within module |
-| `title` | string | Page title |
+| `title` | string | Page title in the project's default language (else en_US, else the lowest-sorted non-empty language); `""` when the page has none |
 | `url` | string | Page URL |
 | `description` | string | Documentation text |
 | `widget_count` | int | Number of widgets |
