@@ -28,7 +28,7 @@ func sectionRowValues(t *testing.T, doc, section, field string) []string {
 	t.Helper()
 	start := strings.Index(doc, "\n### "+section+"\n")
 	if start < 0 {
-		t.Fatalf("no ### %s section in write-lint-rules/SKILL.md", section)
+		t.Fatalf("no ### %s section in the write-lint-rules skill", section)
 	}
 	body := doc[start+1:]
 	if end := strings.Index(body[4:], "\n#"); end >= 0 {

@@ -42,6 +42,19 @@ func lintRuleSkillDoc(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
 	}
+	// SKILL.md first, so a row it holds is the one docRowValues finds; then
+	// the supporting files a long skill moves its detail into.
+	extra, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "*.md"))
+	for _, p := range extra {
+		if filepath.Base(p) == "SKILL.md" {
+			continue
+		}
+		more, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("read %s: %v", p, err)
+		}
+		b = append(append(b, '\n'), more...)
+	}
 	return string(b)
 }
 
