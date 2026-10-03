@@ -45,13 +45,7 @@ Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mod
   clause, `return` value, `if` condition, header clause, parameter (added/retyped; removed only if unused) or stated `@position`/`@start` change is
   patched in place (a move keeps the node's flows). A redrawn `@anchor`/`@curve`, loop body,
   error handler or other `return` added/taken away rebuilds under mdl 0 (`MDL-V1-REBUILD`: IDs
-  renumbered, merges and curves lost) and is refused under `mdl 1;`. **To change a loop body, `alter … replace` the whole loop** — neither mode edits inside one ([pitfalls](reference/pitfalls.md#11-changing-something-inside-a-loop-body)).
-- **Rebuilding deliberately: `drop microflow X;` and `create microflow X …` in ONE script.**
-  The drop's module-role grants (and the unit's ID and folder) carry only to a create later in
-  the same script or REPL session. A drop in one run and a create in the next loses every
-  `grant execute` (CE0106 on the pages that call it); `drop` prints the roles it removed and
-  the `grant` to restore them. A `drop page` never carries its view grants.
-
+  renumbered, merges and curves lost) and is refused under `mdl 1;`. **To change a loop body, `alter … replace` the whole loop** — neither mode edits inside one ([pitfalls](reference/pitfalls.md#11-changing-something-inside-a-loop-body)). **To rebuild deliberately, `drop` and `create` in ONE script** — the grants carry only within it ([pitfalls](reference/pitfalls.md#drop--create-is-still-a-new-document)).
 
 ## When to Use a Microflow vs a Nanoflow
 
