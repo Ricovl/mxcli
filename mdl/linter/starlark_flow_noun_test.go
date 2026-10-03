@@ -127,11 +127,11 @@ func flowKindsFixtureDB(t *testing.T) catalog.CatalogDB {
 			Id TEXT, Name TEXT, Caption TEXT, ActivityType TEXT, ActionType TEXT,
 			MicroflowId TEXT, MicroflowQualifiedName TEXT, ModuleName TEXT, EntityRef TEXT,
 			ServiceRef TEXT, ActionRef TEXT, UseRequestTimeout INTEGER, TimeoutExpression TEXT,
-			Sequence INTEGER)`,
+			Sequence INTEGER, ParentLoopId TEXT, LoopDepth INTEGER)`,
 		`INSERT INTO activities VALUES
-			('a1','','','ActionActivity','ChangeObjectAction','f4','Sales.ACT_MF','Sales','','','',0,'',1),
-			('a2','','','ActionActivity','ChangeObjectAction','f5','Sales.ACT_NF','Sales','','','',0,'',1),
-			('a3','','','ActionActivity','ChangeObjectAction','f6','Sales.ACT_RU','Sales','','','',0,'',1)`,
+			('a1','','','ActionActivity','ChangeObjectAction','f4','Sales.ACT_MF','Sales','','','',0,'',1,'',0),
+			('a2','','','ActionActivity','ChangeObjectAction','f5','Sales.ACT_NF','Sales','','','',0,'',1,'',0),
+			('a3','','','ActionActivity','ChangeObjectAction','f6','Sales.ACT_RU','Sales','','','',0,'',1,'',0)`,
 		// One unrelated row, so the refs table reads as populated.
 		`CREATE TABLE refs (
 			SourceType TEXT, SourceId TEXT, SourceName TEXT, TargetType TEXT,

@@ -1396,6 +1396,7 @@ func (ctx *LintContext) ActivitiesFor(microflowQualifiedName string) iter.Seq[Ac
 			       COALESCE(UseRequestTimeout, 0), COALESCE(TimeoutExpression, '')
 			FROM activities
 			WHERE MicroflowQualifiedName = ?
+			  AND COALESCE(ParentLoopId, '') = ''
 			ORDER BY Sequence
 		`, microflowQualifiedName)
 		if err != nil {

@@ -7,6 +7,15 @@ package catalog
 //
 // History:
 //
+//	17 (activities in loops and their properties): activities_data gains the
+//	    rows inside loop bodies, with ParentLoopId / LoopDepth, and the
+//	    property columns lint rules asked for (real Caption, Description,
+//	    AutoGenerateCaption, ConditionExpression, ConditionRule,
+//	    ErrorHandlingType, LogLevel, LogNodeExpression, LogMessage, CommitType,
+//	    WithEvents, RetrieveSource); microflows_data gains TotalActivityCount
+//	    (mendixlabs/mxcli#1266, #1267). Without the bump a cached catalog
+//	    fails every activities_for() with "no such column", and a cached
+//	    activities table keeps silently omitting every loop body.
 //	16 — permissions_data.DefaultMemberAccessRights, and the belated bump for
 //	    activities_data.UseRequestTimeout / TimeoutExpression. Both columns
 //	    were added without a bump. The activity pair happened to be rescued by
@@ -62,7 +71,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "15"
+const CatalogSchemaVersion = "17"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
@@ -223,6 +232,7 @@ func (c *Catalog) createTables() error {
 			ReturnType TEXT,
 			ParameterCount INTEGER DEFAULT 0,
 			ActivityCount INTEGER DEFAULT 0,
+			TotalActivityCount INTEGER DEFAULT 0,
 			Complexity INTEGER DEFAULT 1,
 			Excluded BOOLEAN DEFAULT 0,
 			ProjectId TEXT,
@@ -574,6 +584,8 @@ func (c *Catalog) createTables() error {
 			UseRequestTimeout INTEGER DEFAULT 0,
 			TimeoutExpression TEXT,
 			Description TEXT,
+			ParentLoopId TEXT DEFAULT '',
+			LoopDepth INTEGER DEFAULT 0,
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
