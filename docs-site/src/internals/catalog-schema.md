@@ -7,10 +7,42 @@ The catalog uses an in-memory SQLite database with the following table definitio
 ### MODULES
 
 ```sql
-CREATE TABLE MODULES (
-    Name        TEXT PRIMARY KEY,
-    ModuleID    TEXT,
-    SortIndex   INTEGER
+CREATE TABLE modules_data (
+    Id                       TEXT PRIMARY KEY,
+    Name                     TEXT,
+    QualifiedName            TEXT,
+    ModuleName               TEXT,
+    Folder                   TEXT,
+    Description              TEXT,   -- always empty: a module has no documentation
+    Source                   TEXT,   -- '' or 'Marketplace v…'
+    AppStoreVersion          TEXT,
+    AppStoreGuid             TEXT,
+    DomainModelDocumentation TEXT,   -- the module's domain model's documentation
+    ProjectId                TEXT,
+    SnapshotId               TEXT
+);
+```
+
+### ASSOCIATIONS
+
+```text
+CREATE TABLE associations_data (
+    Id                     TEXT PRIMARY KEY,
+    Name                   TEXT,
+    QualifiedName          TEXT,
+    ModuleName             TEXT,
+    FromEntity             TEXT,   -- Mendix ParentPointer (owns the reference)
+    ToEntity               TEXT,   -- Mendix ChildPointer
+    AssociationType        TEXT,
+    Owner                  TEXT,
+    StorageFormat          TEXT,
+    Description            TEXT,
+    ToDeleteBehavior       TEXT,   -- Mendix DeleteBehavior.ChildDeleteBehavior
+    FromDeleteBehavior     TEXT,   -- Mendix DeleteBehavior.ParentDeleteBehavior
+    ToDeleteErrorMessage   TEXT,   -- ChildErrorMessage text
+    FromDeleteErrorMessage TEXT,   -- ParentErrorMessage text
+    ProjectId              TEXT,
+    SnapshotId             TEXT
 );
 ```
 

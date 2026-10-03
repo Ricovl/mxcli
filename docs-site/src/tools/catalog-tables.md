@@ -50,22 +50,55 @@ JOIN CATALOG.ENTITIES e ON a.EntityId = e.Id
 WHERE e.QualifiedName = 'Sales.Customer';
 ```
 
+### CATALOG.MODULES
+
+One row per module, including System and Marketplace modules.
+
+| Column | Description |
+|--------|-------------|
+| `Id` | Module UUID |
+| `Name` | Module name |
+| `Source` | `""` for your own modules and System; `"Marketplace v1.2.3"` for a downloaded module |
+| `AppStoreVersion` | Marketplace version, when downloaded |
+| `Description` | Always empty: a Mendix module has no documentation property |
+| `DomainModelDocumentation` | The module's domain model's documentation — the module-level text an author can write |
+
+```sql
+SELECT Name FROM CATALOG.MODULES
+WHERE Source = '' AND COALESCE(DomainModelDocumentation, '') = '';
+```
+
 ### CATALOG.ASSOCIATIONS
 
-Information about entity associations.
+Information about entity associations, same-module and cross-module.
 
 | Column | Description |
 |--------|-------------|
 | `Id` | Unique identifier |
 | `Name` | Association name |
-| `ParentEntity` | Parent (FROM) entity qualified name |
-| `ChildEntity` | Child (TO) entity qualified name |
-| `AssociationType` | Reference or ReferenceSet |
+| `QualifiedName` | `Module.Association` |
+| `ModuleName` | Module that owns the association |
+| `FromEntity` | FROM entity qualified name (the one that owns the reference) |
+| `ToEntity` | TO entity qualified name; for a cross-module association, the other module's entity |
+| `AssociationType` | `Reference` or `ReferenceSet` |
+| `Owner` | `Default` or `Both` |
+| `StorageFormat` | `Column` or `Table` |
+| `Description` | Documentation |
+| `ToDeleteBehavior` | Delete behaviour of the TO end — Mendix's `ChildDeleteBehavior`, the end MDL's `on delete` clause sets: `DeleteMeButKeepReferences` (default), `DeleteMeAndReferences`, `DeleteMeIfNoReferences` |
+| `FromDeleteBehavior` | Delete behaviour of the FROM end — Mendix's `ParentDeleteBehavior` (Studio Pro only) |
+| `ToDeleteErrorMessage` / `FromDeleteErrorMessage` | Message shown when a `DeleteMeIfNoReferences` delete on that end is refused |
+
+Mendix's `Parent`/`Child` pointer names are inverted relative to MDL's FROM/TO:
+`ParentPointer` is the FROM entity and `ChildPointer` the TO entity, so the
+`Child*` delete behaviour belongs to the TO end. Mendix always stores both ends,
+so an explicitly set behaviour is one that is not the default. System module
+associations have no stored delete behaviour and read as `''`.
 
 ```sql
-SELECT Name, ParentEntity, ChildEntity, AssociationType
+SELECT QualifiedName, ToDeleteBehavior, FromDeleteBehavior
 FROM CATALOG.ASSOCIATIONS
-WHERE ParentEntity LIKE '%Order%' OR ChildEntity LIKE '%Order%';
+WHERE ToDeleteBehavior <> 'DeleteMeButKeepReferences'
+   OR FromDeleteBehavior <> 'DeleteMeButKeepReferences';
 ```
 
 ### CATALOG.MICROFLOWS

@@ -2,7 +2,20 @@
 
 package catalog
 
-import "github.com/mendixlabs/mxcli/model"
+import (
+	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/domainmodel"
+)
+
+// deleteBehaviorColumns returns (behaviour, error message) for one end of an
+// association. A nil end -- an association whose DeleteBehavior element is
+// missing -- reads as "", not as the default: the catalog says what is stored.
+func deleteBehaviorColumns(db *domainmodel.DeleteBehavior) (string, string) {
+	if db == nil {
+		return "", ""
+	}
+	return string(db.Type), db.ErrorMessage
+}
 
 func (b *Builder) buildAssociations() error {
 	domainModels, err := b.cachedDomainModels()
@@ -25,8 +38,9 @@ func (b *Builder) buildAssociations() error {
 	stmt, err := b.tx.Prepare(`
 		INSERT INTO associations_data (Id, Name, QualifiedName, ModuleName,
 			FromEntity, ToEntity, AssociationType, Owner, StorageFormat, Description,
+			ToDeleteBehavior, ToDeleteErrorMessage, FromDeleteBehavior, FromDeleteErrorMessage,
 			ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -48,6 +62,10 @@ func (b *Builder) buildAssociations() error {
 			if to == "" {
 				to = string(assoc.ChildID)
 			}
+			// Mendix's pointer names are inverted relative to MDL (CLAUDE.md):
+			// the Child* delete behaviour belongs to the TO end, Parent* to FROM.
+			toDB, toMsg := deleteBehaviorColumns(assoc.ChildDeleteBehavior)
+			fromDB, fromMsg := deleteBehaviorColumns(assoc.ParentDeleteBehavior)
 			_, err := stmt.Exec(
 				string(assoc.ID),
 				assoc.Name,
@@ -59,6 +77,7 @@ func (b *Builder) buildAssociations() error {
 				string(assoc.Owner),
 				string(assoc.StorageFormat),
 				assoc.Documentation,
+				toDB, toMsg, fromDB, fromMsg,
 				projectID, snapshotID,
 			)
 			if err != nil {
@@ -72,6 +91,9 @@ func (b *Builder) buildAssociations() error {
 			if from == "" {
 				from = string(ca.ParentID)
 			}
+			// Same inversion as above; ChildRef is the TO end by qualified name.
+			toDB, toMsg := deleteBehaviorColumns(ca.ChildDeleteBehavior)
+			fromDB, fromMsg := deleteBehaviorColumns(ca.ParentDeleteBehavior)
 			_, err := stmt.Exec(
 				string(ca.ID),
 				ca.Name,
@@ -83,6 +105,7 @@ func (b *Builder) buildAssociations() error {
 				string(ca.Owner),
 				string(ca.StorageFormat),
 				ca.Documentation,
+				toDB, toMsg, fromDB, fromMsg,
 				projectID, snapshotID,
 			)
 			if err != nil {

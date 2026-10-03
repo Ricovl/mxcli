@@ -162,7 +162,7 @@ var communityBuiltins = []string{
 }
 
 // fullBuiltins read tables only REFRESH CATALOG FULL writes: refs, widgets,
-// xpath_expressions, activities and permissions. Under the default fast build
+// xpath_expressions, activities, permissions and strings. Under the default fast build
 // they answer [] with no warning, so a rule calling one checked nothing.
 // starlark_catalog_mode_guard_test.go builds a fixture both ways and fails on
 // any builtin whose answer differs and is not listed here.
@@ -170,6 +170,7 @@ var fullBuiltins = []string{
 	"refs_to", "refs_from",
 	"widgets", "xpath_expressions", "activities_for",
 	"permissions", "permissions_for",
+	"strings",
 }
 
 // fullFields are struct fields a fast build leaves at their zero value
@@ -348,6 +349,16 @@ func (r *StarlarkRule) buildPredeclared() starlark.StringDict {
 		"attributes_for":        starlark.NewBuiltin("attributes_for", r.builtinAttributesFor),
 		"scheduled_events":      starlark.NewBuiltin("scheduled_events", r.builtinScheduledEvents),
 		"queues":                starlark.NewBuiltin("queues", r.builtinQueues),
+
+		// Catalog tables with a typed projection (mendixlabs/mxcli#1265).
+		"associations":              starlark.NewBuiltin("associations", r.builtinAssociations),
+		"entity_event_handlers":     starlark.NewBuiltin("entity_event_handlers", r.builtinEntityEventHandlers),
+		"navigation_menu_items":     starlark.NewBuiltin("navigation_menu_items", r.builtinNavigationMenuItems),
+		"jar_dependencies":          starlark.NewBuiltin("jar_dependencies", r.builtinJarDependencies),
+		"strings":                   starlark.NewBuiltin("strings", r.builtinStrings),
+		"layouts":                   starlark.NewBuiltin("layouts", r.builtinLayouts),
+		"published_rest_operations": starlark.NewBuiltin("published_rest_operations", r.builtinPublishedRestOperations),
+		"modules":                   starlark.NewBuiltin("modules", r.builtinModules),
 
 		// Graph-analysis facts (populated by `refresh catalog communities`).
 		"community_of":         starlark.NewBuiltin("community_of", r.builtinCommunityOf),
@@ -854,7 +865,12 @@ func (r *StarlarkRule) builtinProjectSecurity(_ *starlark.Thread, _ *starlark.Bu
 		"check_security":      starlark.Bool(ps.CheckSecurity),
 		"strict_mode":         starlark.Bool(ps.StrictMode),
 		"anonymous_user_role": starlark.String(ps.GuestUserRole),
-		"password_policy":     starlarkstruct.FromStringDict(starlark.String("password_policy"), ppDict),
+		// The administrator account's name and user role. Its password is
+		// deliberately not exposed: a rule has no business reading it, and a
+		// violation message or debug print would put it in a report.
+		"admin_user_name": starlark.String(ps.AdminUserName),
+		"admin_user_role": starlark.String(ps.AdminUserRole),
+		"password_policy": starlarkstruct.FromStringDict(starlark.String("password_policy"), ppDict),
 	}), nil
 }
 

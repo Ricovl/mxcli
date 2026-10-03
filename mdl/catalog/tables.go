@@ -7,6 +7,13 @@ package catalog
 //
 // History:
 //
+//	17 (lint catalog builtins): modules_data.DomainModelDocumentation (the
+//	    domain model's own documentation, read nowhere before) and the delete
+//	    behaviour of both association ends on associations_data
+//	    (FromDeleteBehavior / ToDeleteBehavior and their error messages). A
+//	    CREATE TABLE IF NOT EXISTS does not add a column to a cached catalog,
+//	    so without the bump associations() and modules() fail with "no such
+//	    column" on every project that already has one.
 //	17 (workflow and loop-variable refs): refs gains the workflow edges the
 //	    walk missed (event handlers, on-created / completion / group-targeting
 //	    microflows, boundary-event paths, event sub-processes) and the
@@ -149,6 +156,11 @@ func (c *Catalog) createTables() error {
 			Source TEXT DEFAULT '',
 			AppStoreVersion TEXT,
 			AppStoreGuid TEXT,
+			-- The module's domain model's documentation. A Mendix module has
+			-- no documentation property (Description above is always empty);
+			-- its DomainModels$DomainModel unit does, so this is the only
+			-- module-level text a project author can write.
+			DomainModelDocumentation TEXT DEFAULT '',
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -200,6 +212,25 @@ func (c *Catalog) createTables() error {
 			Owner TEXT,
 			StorageFormat TEXT,
 			Description TEXT,
+			-- Delete behaviour, as the raw Mendix values (DeleteMeAndReferences /
+			-- DeleteMeButKeepReferences / DeleteMeIfNoReferences). Mendix stores
+			-- both ends on every association, default DeleteMeButKeepReferences,
+			-- so "set explicitly" can only be read as "not the default".
+			--
+			-- Named by the MDL ends, not by Mendix's pointer names, because those
+			-- are inverted (CLAUDE.md, "Association Parent/Child Pointer
+			-- Semantics"): ParentPointer is the FROM entity, ChildPointer the TO
+			-- entity. So:
+			--   ToDeleteBehavior   = DeleteBehavior.ChildDeleteBehavior  (the end
+			--                        MDL's ON DELETE CASCADE|RESTRICT|SET NULL sets)
+			--   FromDeleteBehavior = DeleteBehavior.ParentDeleteBehavior (Studio
+			--                        Pro only; MDL has no clause for it)
+			-- and each *ErrorMessage is the matching Child/ParentErrorMessage text,
+			-- shown when a DeleteMeIfNoReferences delete is refused.
+			ToDeleteBehavior TEXT DEFAULT '',
+			FromDeleteBehavior TEXT DEFAULT '',
+			ToDeleteErrorMessage TEXT DEFAULT '',
+			FromDeleteErrorMessage TEXT DEFAULT '',
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
