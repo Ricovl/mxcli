@@ -115,7 +115,7 @@ func (b *Backend) GetDomainModel(moduleID model.ID) (*domainmodel.DomainModel, e
 }
 
 func domainModelFromGen(dm *genDm.DomainModel, containerID model.ID) *domainmodel.DomainModel {
-	out := &domainmodel.DomainModel{ContainerID: containerID}
+	out := &domainmodel.DomainModel{ContainerID: containerID, Documentation: dm.Documentation()}
 	out.ID = model.ID(dm.ID())
 	for _, el := range dm.EntitiesItems() {
 		if e, ok := el.(*genDm.Entity); ok {
@@ -593,7 +593,14 @@ func assocFromGen(a *genDm.Association) *domainmodel.Association {
 	}
 	out.ID = model.ID(a.ID())
 	if db, ok := a.DeleteBehavior().(*genDm.AssociationDeleteBehavior); ok && db != nil {
-		out.ParentDeleteBehavior = &domainmodel.DeleteBehavior{Type: domainmodel.DeleteBehaviorType(db.ParentDeleteBehavior())}
+		out.ParentDeleteBehavior = &domainmodel.DeleteBehavior{
+			Type: domainmodel.DeleteBehaviorType(db.ParentDeleteBehavior()),
+			// The parent side's message, read for the catalog. No writer emits it
+			// (assocToGen writes only the child side's, the side MDL's `on delete`
+			// sets), so a statement that changes the parent behaviour drops it --
+			// exactly as before it was read.
+			ErrorMessage: deleteErrorMessageFromGen(db.ParentErrorMessage()),
+		}
 		out.ChildDeleteBehavior = &domainmodel.DeleteBehavior{
 			Type: domainmodel.DeleteBehaviorType(db.ChildDeleteBehavior()),
 			// Read the refusal message back too, or DESCRIBE cannot emit it and a
@@ -646,7 +653,14 @@ func crossAssocFromGen(ca *genDm.CrossAssociation) *domainmodel.CrossModuleAssoc
 	}
 	out.ID = model.ID(ca.ID())
 	if db, ok := ca.DeleteBehavior().(*genDm.AssociationDeleteBehavior); ok && db != nil {
-		out.ParentDeleteBehavior = &domainmodel.DeleteBehavior{Type: domainmodel.DeleteBehaviorType(db.ParentDeleteBehavior())}
+		out.ParentDeleteBehavior = &domainmodel.DeleteBehavior{
+			Type: domainmodel.DeleteBehaviorType(db.ParentDeleteBehavior()),
+			// The parent side's message, read for the catalog. No writer emits it
+			// (assocToGen writes only the child side's, the side MDL's `on delete`
+			// sets), so a statement that changes the parent behaviour drops it --
+			// exactly as before it was read.
+			ErrorMessage: deleteErrorMessageFromGen(db.ParentErrorMessage()),
+		}
 		out.ChildDeleteBehavior = &domainmodel.DeleteBehavior{
 			Type: domainmodel.DeleteBehaviorType(db.ChildDeleteBehavior()),
 			// Read the refusal message back too, or DESCRIBE cannot emit it and a

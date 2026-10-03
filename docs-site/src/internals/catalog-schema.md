@@ -7,10 +7,42 @@ The catalog uses an in-memory SQLite database with the following table definitio
 ### MODULES
 
 ```sql
-CREATE TABLE MODULES (
-    Name        TEXT PRIMARY KEY,
-    ModuleID    TEXT,
-    SortIndex   INTEGER
+CREATE TABLE modules_data (
+    Id                       TEXT PRIMARY KEY,
+    Name                     TEXT,
+    QualifiedName            TEXT,
+    ModuleName               TEXT,
+    Folder                   TEXT,
+    Description              TEXT,   -- always empty: a module has no documentation
+    Source                   TEXT,   -- '' or 'Marketplace v…'
+    AppStoreVersion          TEXT,
+    AppStoreGuid             TEXT,
+    DomainModelDocumentation TEXT,   -- the module's domain model's documentation
+    ProjectId                TEXT,
+    SnapshotId               TEXT
+);
+```
+
+### ASSOCIATIONS
+
+```text
+CREATE TABLE associations_data (
+    Id                     TEXT PRIMARY KEY,
+    Name                   TEXT,
+    QualifiedName          TEXT,
+    ModuleName             TEXT,
+    FromEntity             TEXT,   -- Mendix ParentPointer (owns the reference)
+    ToEntity               TEXT,   -- Mendix ChildPointer
+    AssociationType        TEXT,
+    Owner                  TEXT,
+    StorageFormat          TEXT,
+    Description            TEXT,
+    ToDeleteBehavior       TEXT,   -- Mendix DeleteBehavior.ChildDeleteBehavior
+    FromDeleteBehavior     TEXT,   -- Mendix DeleteBehavior.ParentDeleteBehavior
+    ToDeleteErrorMessage   TEXT,   -- ChildErrorMessage text
+    FromDeleteErrorMessage TEXT,   -- ParentErrorMessage text
+    ProjectId              TEXT,
+    SnapshotId             TEXT
 );
 ```
 
@@ -29,28 +61,26 @@ CREATE TABLE ENTITIES (
 
 ### MICROFLOWS
 
-```sql
-CREATE TABLE MICROFLOWS (
-    Name            TEXT PRIMARY KEY,   -- Qualified: Module.Microflow
-    ModuleName      TEXT,
-    MicroflowName   TEXT,
-    ActivityCount   INTEGER,
-    ParameterCount  INTEGER,
-    ReturnType      TEXT,
-    Folder          TEXT,
-    Documentation   TEXT
-);
-```
-
-### NANOFLOWS
+Microflows, nanoflows and rules share one table; `NANOFLOWS` is a view of the
+nanoflow rows.
 
 ```sql
-CREATE TABLE NANOFLOWS (
-    Name            TEXT PRIMARY KEY,
-    ModuleName      TEXT,
-    NanoflowName    TEXT,
-    ActivityCount   INTEGER,
-    Documentation   TEXT
+CREATE TABLE microflows_data (
+    Id                  TEXT PRIMARY KEY,
+    Name                TEXT,
+    QualifiedName       TEXT,       -- Module.Microflow
+    ModuleName          TEXT,
+    Folder              TEXT,
+    MicroflowType       TEXT,       -- MICROFLOW, NANOFLOW or RULE
+    Description         TEXT,
+    ReturnType          TEXT,
+    ParameterCount      INTEGER,
+    ActivityCount       INTEGER,    -- top level only; a loop counts as one
+    TotalActivityCount  INTEGER,    -- including loop bodies, at any depth
+    Complexity          INTEGER,    -- McCabe
+    Excluded            BOOLEAN,
+    ProjectId           TEXT,
+    SnapshotId          TEXT
 );
 ```
 
@@ -134,12 +164,41 @@ These tables are only populated by `REFRESH CATALOG FULL`.
 
 ### ACTIVITIES
 
+One row per object of a flow body, loop bodies included (`ParentLoopId` names
+the enclosing loop; filter on `ParentLoopId = ''` for the top level only).
+
 ```sql
-CREATE TABLE ACTIVITIES (
-    DocumentName    TEXT,       -- Parent microflow/nanoflow
-    ActivityType    TEXT,       -- e.g., "CreateObjectAction", "CallMicroflowAction"
-    Caption         TEXT,       -- Activity caption/description
-    SortOrder       INTEGER     -- Order within the flow
+CREATE TABLE activities_data (
+    Id                      TEXT PRIMARY KEY,
+    Name                    TEXT,       -- ActionType for an action, else ActivityType
+    Caption                 TEXT,       -- stored caption / annotation text
+    ActivityType            TEXT,       -- e.g. "ActionActivity", "ExclusiveSplit", "LoopedActivity"
+    Sequence                INTEGER,    -- pre-order position within the flow
+    MicroflowId             TEXT,
+    MicroflowQualifiedName  TEXT,
+    ModuleName              TEXT,
+    Folder                  TEXT,
+    EntityRef               TEXT,       -- create object / database retrieve entity
+    ActionType              TEXT,       -- e.g. "RetrieveAction", "MicroflowCallAction"
+    ServiceRef              TEXT,       -- called service (REST, web service, OData)
+    ActionRef               TEXT,       -- operation within it
+    UseRequestTimeout       INTEGER,
+    TimeoutExpression       TEXT,
+    Description             TEXT,       -- documentation
+    ParentLoopId            TEXT,       -- enclosing loop's Id; '' at the top level
+    LoopDepth               INTEGER,    -- 0 at the top level
+    AutoGenerateCaption     INTEGER,
+    ConditionExpression     TEXT,       -- exclusive split expression
+    ConditionRule           TEXT,       -- rule called by a rule-based split
+    ErrorHandlingType       TEXT,       -- Rollback / Custom / CustomWithoutRollBack / Continue / Abort
+    LogLevel                TEXT,
+    LogNodeExpression       TEXT,
+    LogMessage              TEXT,
+    CommitType              TEXT,       -- Yes / YesWithoutEvents / No
+    WithEvents              INTEGER,
+    RetrieveSource          TEXT,       -- database / association
+    ProjectId               TEXT,
+    SnapshotId              TEXT
 );
 ```
 

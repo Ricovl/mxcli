@@ -1364,9 +1364,16 @@ func (ctx *LintContext) RestOperations() iter.Seq[RestOperation] {
 
 // Activity represents an activity from the activities table (FULL catalog mode).
 type Activity struct {
-	ID                     string
+	ID string
+	// Name is the action type for an action activity and the activity type
+	// otherwise. Caption is the stored caption: an activity's, a split's, or an
+	// annotation's text; empty for objects Mendix stores none for (events,
+	// merges, loops). For an activity with AutoGenerateCaption it is Studio
+	// Pro's stored placeholder (often "Activity"), not the generated text.
 	Name                   string
 	Caption                string
+	AutoGenerateCaption    bool
+	Description            string
 	ActivityType           string
 	ActionType             string
 	MicroflowID            string
@@ -1378,26 +1385,65 @@ type Activity struct {
 	// by the catalog builder and are empty for activities that call neither.
 	ServiceRef string
 	ActionRef  string
-	// UseRequestTimeout mirrors "Use a timeout" on a Call REST service
-	// activity; TimeoutExpression is the number of seconds, which Studio Pro
-	// stores as an expression string (e.g. "300"). Both are zero for other
-	// action types.
+	// UseRequestTimeout mirrors "Use a timeout" on a Call REST service or
+	// Call web service activity; TimeoutExpression is the number of seconds,
+	// which Studio Pro stores as an expression string (e.g. "300"). Both are
+	// zero for other action types.
 	UseRequestTimeout bool
 	TimeoutExpression string
+	// ParentLoopID is the enclosing loop's activity ID ("" at the top level)
+	// and LoopDepth the number of enclosing loops (mendixlabs/mxcli#1266).
+	ParentLoopID string
+	LoopDepth    int
+	// ConditionExpression is an exclusive split's expression; ConditionRule
+	// the rule a rule-based split calls.
+	ConditionExpression string
+	ConditionRule       string
+	// The stored values, in Mendix's spelling (mendixlabs/mxcli#1267):
+	// ErrorHandlingType Rollback/Custom/CustomWithoutRollBack/Continue/Abort,
+	// LogLevel Trace..Critical, CommitType Yes/YesWithoutEvents/No,
+	// RetrieveSource database/association.
+	ErrorHandlingType string
+	LogLevel          string
+	LogNodeExpression string
+	LogMessage        string
+	CommitType        string
+	WithEvents        bool
+	RetrieveSource    string
 }
 
-// ActivitiesFor returns an iterator over all activities for a given microflow.
+// ActivitiesFor returns an iterator over the top-level activities of a flow —
+// the objects inside a loop are left out, as they were before the catalog had
+// them. ActivitiesIn(name, true) includes them.
 func (ctx *LintContext) ActivitiesFor(microflowQualifiedName string) iter.Seq[Activity] {
+	return ctx.ActivitiesIn(microflowQualifiedName, false)
+}
+
+// ActivitiesIn returns an iterator over the activities of a flow, in pre-order
+// (a loop, then its body). With nested=false only the top level is returned:
+// the default of activities_for(), so the bundled rules keep their counts.
+//
+// Every column the catalog added after the table's first version goes through
+// COALESCE, so a row written without it scans as the zero value rather than
+// failing the whole query.
+func (ctx *LintContext) ActivitiesIn(microflowQualifiedName string, nested bool) iter.Seq[Activity] {
 	return func(yield func(Activity) bool) {
 		rows, err := ctx.db.Query(`
 			SELECT Id, Name, Caption, ActivityType, ActionType,
 			       MicroflowId, MicroflowQualifiedName, ModuleName, EntityRef,
 			       ServiceRef, ActionRef,
-			       COALESCE(UseRequestTimeout, 0), COALESCE(TimeoutExpression, '')
+			       COALESCE(UseRequestTimeout, 0), COALESCE(TimeoutExpression, ''),
+			       COALESCE(Description, ''), COALESCE(AutoGenerateCaption, 0),
+			       COALESCE(ParentLoopId, ''), COALESCE(LoopDepth, 0),
+			       COALESCE(ConditionExpression, ''), COALESCE(ConditionRule, ''),
+			       COALESCE(ErrorHandlingType, ''),
+			       COALESCE(LogLevel, ''), COALESCE(LogNodeExpression, ''), COALESCE(LogMessage, ''),
+			       COALESCE(CommitType, ''), COALESCE(WithEvents, 0), COALESCE(RetrieveSource, '')
 			FROM activities
 			WHERE MicroflowQualifiedName = ?
+			  AND (? OR COALESCE(ParentLoopId, '') = '')
 			ORDER BY Sequence
-		`, microflowQualifiedName)
+		`, microflowQualifiedName, nested)
 		if err != nil {
 			ctx.recordQueryError("ActivitiesFor", err)
 			return
@@ -1408,11 +1454,17 @@ func (ctx *LintContext) ActivitiesFor(microflowQualifiedName string) iter.Seq[Ac
 			var a Activity
 			var name, caption, actionType, entityRef sql.NullString
 			var serviceRef, actionRef sql.NullString
-			var useRequestTimeout int
+			var useRequestTimeout, autoCaption, withEvents int
 			err := rows.Scan(&a.ID, &name, &caption, &a.ActivityType, &actionType,
 				&a.MicroflowID, &a.MicroflowQualifiedName, &a.ModuleName, &entityRef,
 				&serviceRef, &actionRef,
-				&useRequestTimeout, &a.TimeoutExpression)
+				&useRequestTimeout, &a.TimeoutExpression,
+				&a.Description, &autoCaption,
+				&a.ParentLoopID, &a.LoopDepth,
+				&a.ConditionExpression, &a.ConditionRule,
+				&a.ErrorHandlingType,
+				&a.LogLevel, &a.LogNodeExpression, &a.LogMessage,
+				&a.CommitType, &withEvents, &a.RetrieveSource)
 			if err != nil {
 				ctx.recordQueryError("ActivitiesFor (row scan)", err)
 				continue
@@ -1424,6 +1476,8 @@ func (ctx *LintContext) ActivitiesFor(microflowQualifiedName string) iter.Seq[Ac
 			a.ServiceRef = serviceRef.String
 			a.ActionRef = actionRef.String
 			a.UseRequestTimeout = useRequestTimeout != 0
+			a.AutoGenerateCaption = autoCaption != 0
+			a.WithEvents = withEvents != 0
 
 			if !yield(a) {
 				return

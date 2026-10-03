@@ -1,62 +1,93 @@
 # Writing Custom Rules
 
-You can extend the linting framework by writing custom rules in Starlark, a Python-like language. Custom rules are placed in the `.claude/lint-rules/` directory and are automatically picked up by `mxcli lint`.
+You can extend the linter with your own rules written in Starlark, a Python-like
+language. A rule is a `.star` file in the project's `.claude/lint-rules/`
+directory; `mxcli lint` (and the `lint` statement) load every file there next to
+the built-in rules.
 
-## Rule File Structure
+The complete rule API — every query builtin, every field of the structs they
+return and the values those fields take — is documented in the
+**`write-lint-rules` skill**, `.claude/skills/mendix/write-lint-rules/SKILL.md`,
+which `mxcli init` installs into the project. That file is the reference; this
+page shows the shape of a rule.
 
-Each Starlark rule file defines a rule with metadata and a check function. Place your rule files in `.claude/lint-rules/` with a `.star` extension.
+## Rule file structure
 
-## Getting Started
-
-1. Create a new `.star` file in `.claude/lint-rules/`
-2. Define the rule metadata (ID, name, description, severity)
-3. Implement the check function that inspects project elements
-4. Run `mxcli lint -p app.mpr` to test your rule
-
-## Example: Custom Naming Rule
+A rule file defines its metadata as module-level constants and a `check()`
+function that takes no arguments and returns a list of violations:
 
 ```python
 # .claude/lint-rules/custom001_entity_prefix.star
 
-rule_id = "CUSTOM001"
-rule_name = "Entity Prefix Convention"
-rule_description = "All entities should be prefixed with their module abbreviation"
-severity = "warning"
+RULE_ID = "CUSTOM001"
+RULE_NAME = "EntityPrefix"
+DESCRIPTION = "Entity names start with their module's abbreviation"
+CATEGORY = "naming"
+SEVERITY = "warning"            # error, warning, info or hint
 
-def check(context):
-    findings = []
-    for entity in context.entities:
-        # Check if entity name starts with module prefix
-        module_prefix = entity.module_name[:3]
-        if not entity.name.startswith(module_prefix):
-            findings.append({
-                "message": "Entity '%s' should start with module prefix '%s'" % (entity.name, module_prefix),
-                "element": entity.qualified_name,
-            })
-    return findings
+def check():
+    violations = []
+    for entity in entities():
+        prefix = entity.module_name[:3]
+        if not entity.name.startswith(prefix):
+            violations.append(violation(
+                message = "Entity '%s' should start with '%s'" % (entity.name, prefix),
+                location = location(
+                    module = entity.module_name,
+                    document_type = "entity",
+                    document_name = entity.name,
+                ),
+                suggestion = "Rename to %s%s" % (prefix, entity.name),
+            ))
+    return violations
 ```
 
-## Rule Severity Levels
+The project is read through builtins rather than a context argument:
+`entities()`, `microflows()`, `pages()`, `widgets()`, `attributes_for(name)`,
+`permissions_for(name)`, `refs_to(name)`, `xpath_expressions()` and more — the
+skill lists them all. `violation(...)` and `location(...)` build the result.
+
+## Catalog depth
+
+Some builtins read data that only a full catalog build produces (`widgets()`,
+`xpath_expressions()`, `activities_for()`, `permissions()`,
+`permissions_for()`, `refs_to()` / `refs_from()`, a page's `widget_count`), and
+the graph builtins (`cycles()`, `layer_of()`, …) need the communities build.
+`mxcli lint` detects them in the rule's source and builds the catalog deep
+enough. If the scan cannot see the call, declare it:
+
+```python
+REQUIRES = ["full"]             # or ["communities"]
+```
+
+## Severity levels
 
 | Severity | Description |
 |----------|-------------|
-| `error` | Must be fixed; blocks CI pipelines |
-| `warning` | Should be fixed; potential issue |
+| `error` | Must be fixed; fails CI pipelines |
+| `warning` | Should be fixed; potential issue (the default) |
 | `info` | Informational; suggestion for improvement |
+| `hint` | Lowest level; a nudge |
 
-## Testing Custom Rules
+## Testing custom rules
 
 ```bash
-# Run lint to test your custom rule
-mxcli lint -p app.mpr
-
-# List rules to verify your rule is detected
+# list the rules, including yours
 mxcli lint -p app.mpr --list-rules
+
+# run them
+mxcli lint -p app.mpr
 ```
 
-## Best Practices
+A rule file that fails to load is reported as skipped with the reason, and a
+rule that raises an error at run time is reported as an `error` violation
+carrying the Starlark message.
 
-- Use a unique rule ID prefix (e.g., `CUSTOM001`) to avoid conflicts with built-in rules
-- Include clear, actionable messages that explain what to fix
-- Test rules against a real project before deploying
-- Keep rules focused on a single concern
+## Best practices
+
+- Use a unique rule ID prefix (e.g. `CUSTOM001`) to avoid clashing with the
+  built-in rules.
+- Write messages that say what to fix, and set `suggestion` where there is one.
+- Compare fields against the values the skill documents — a comparison against a
+  value the API never returns matches nothing and reports a clean pass.
+- Try the rule on a real project before relying on it.

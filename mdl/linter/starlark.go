@@ -161,11 +161,26 @@ var communityBuiltins = []string{
 	"centrality", "god_nodes", "integration_surface",
 }
 
-// fullBuiltins need REFRESH CATALOG FULL (the refs cross-reference table).
-var fullBuiltins = []string{"refs_to", "refs_from"}
+// fullBuiltins read tables only REFRESH CATALOG FULL writes: refs, widgets,
+// xpath_expressions, activities, permissions and strings. Under the default fast build
+// they answer [] with no warning, so a rule calling one checked nothing.
+// starlark_catalog_mode_guard_test.go builds a fixture both ways and fails on
+// any builtin whose answer differs and is not listed here.
+var fullBuiltins = []string{
+	"refs_to", "refs_from",
+	"widgets", "xpath_expressions", "activities_for",
+	"permissions", "permissions_for",
+	"strings",
+}
+
+// fullFields are struct fields a fast build leaves at their zero value
+// (page.widget_count and snippet.widget_count count widgets only a full build
+// extracts). They are detected as an attribute access, `.name`.
+var fullFields = []string{"widget_count"}
 
 // detectRequiredCatalogMode infers the catalog depth a Starlark rule needs by
-// scanning its source for calls to the graph / refs builtins.
+// scanning its source for calls to the graph / full-only builtins and reads of
+// full-only fields.
 func detectRequiredCatalogMode(src string) CatalogMode {
 	for _, b := range communityBuiltins {
 		if strings.Contains(src, b+"(") {
@@ -174,6 +189,11 @@ func detectRequiredCatalogMode(src string) CatalogMode {
 	}
 	for _, b := range fullBuiltins {
 		if strings.Contains(src, b+"(") {
+			return CatalogFull
+		}
+	}
+	for _, f := range fullFields {
+		if strings.Contains(src, "."+f) {
 			return CatalogFull
 		}
 	}
@@ -329,6 +349,16 @@ func (r *StarlarkRule) buildPredeclared() starlark.StringDict {
 		"attributes_for":        starlark.NewBuiltin("attributes_for", r.builtinAttributesFor),
 		"scheduled_events":      starlark.NewBuiltin("scheduled_events", r.builtinScheduledEvents),
 		"queues":                starlark.NewBuiltin("queues", r.builtinQueues),
+
+		// Catalog tables with a typed projection (mendixlabs/mxcli#1265).
+		"associations":              starlark.NewBuiltin("associations", r.builtinAssociations),
+		"entity_event_handlers":     starlark.NewBuiltin("entity_event_handlers", r.builtinEntityEventHandlers),
+		"navigation_menu_items":     starlark.NewBuiltin("navigation_menu_items", r.builtinNavigationMenuItems),
+		"jar_dependencies":          starlark.NewBuiltin("jar_dependencies", r.builtinJarDependencies),
+		"strings":                   starlark.NewBuiltin("strings", r.builtinStrings),
+		"layouts":                   starlark.NewBuiltin("layouts", r.builtinLayouts),
+		"published_rest_operations": starlark.NewBuiltin("published_rest_operations", r.builtinPublishedRestOperations),
+		"modules":                   starlark.NewBuiltin("modules", r.builtinModules),
 
 		// Graph-analysis facts (populated by `refresh catalog communities`).
 		"community_of":         starlark.NewBuiltin("community_of", r.builtinCommunityOf),
@@ -740,15 +770,20 @@ func (r *StarlarkRule) builtinActivitiesFor(_ *starlark.Thread, _ *starlark.Buil
 		return starlark.NewList(nil), nil
 	}
 
+	// nested=False (the default) returns the top level only, as before the
+	// catalog had loop bodies, so existing rules keep their counts;
+	// nested=True adds the objects inside loops (mendixlabs/mxcli#1266).
 	var microflowQualifiedName starlark.String
+	var nested bool
 	if err := starlark.UnpackArgs("activities_for", args, kwargs,
 		"microflow_qualified_name", &microflowQualifiedName,
+		"nested?", &nested,
 	); err != nil {
 		return nil, err
 	}
 
 	var activities []starlark.Value
-	for a := range r.ctx.ActivitiesFor(string(microflowQualifiedName)) {
+	for a := range r.ctx.ActivitiesIn(string(microflowQualifiedName), nested) {
 		activities = append(activities, activityToStarlark(a))
 	}
 
@@ -835,7 +870,12 @@ func (r *StarlarkRule) builtinProjectSecurity(_ *starlark.Thread, _ *starlark.Bu
 		"check_security":      starlark.Bool(ps.CheckSecurity),
 		"strict_mode":         starlark.Bool(ps.StrictMode),
 		"anonymous_user_role": starlark.String(ps.GuestUserRole),
-		"password_policy":     starlarkstruct.FromStringDict(starlark.String("password_policy"), ppDict),
+		// The administrator account's name and user role. Its password is
+		// deliberately not exposed: a rule has no business reading it, and a
+		// violation message or debug print would put it in a report.
+		"admin_user_name": starlark.String(ps.AdminUserName),
+		"admin_user_role": starlark.String(ps.AdminUserRole),
+		"password_policy": starlarkstruct.FromStringDict(starlark.String("password_policy"), ppDict),
 	}), nil
 }
 
@@ -1098,6 +1138,19 @@ func activityToStarlark(a Activity) starlark.Value {
 		"action_ref":               starlark.String(a.ActionRef),
 		"use_request_timeout":      starlark.Bool(a.UseRequestTimeout),
 		"timeout_expression":       starlark.String(a.TimeoutExpression),
+		"auto_generate_caption":    starlark.Bool(a.AutoGenerateCaption),
+		"description":              starlark.String(a.Description),
+		"parent_loop_id":           starlark.String(a.ParentLoopID),
+		"loop_depth":               starlark.MakeInt(a.LoopDepth),
+		"condition_expression":     starlark.String(a.ConditionExpression),
+		"condition_rule":           starlark.String(a.ConditionRule),
+		"error_handling_type":      starlark.String(a.ErrorHandlingType),
+		"log_level":                starlark.String(a.LogLevel),
+		"log_node_expression":      starlark.String(a.LogNodeExpression),
+		"log_message":              starlark.String(a.LogMessage),
+		"commit_type":              starlark.String(a.CommitType),
+		"with_events":              starlark.Bool(a.WithEvents),
+		"retrieve_source":          starlark.String(a.RetrieveSource),
 	})
 }
 

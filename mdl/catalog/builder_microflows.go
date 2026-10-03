@@ -5,8 +5,10 @@ package catalog
 import (
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
@@ -49,9 +51,9 @@ func (b *Builder) buildMicroflows() error {
 
 	mfStmt, err := b.tx.Prepare(`
 		INSERT INTO microflows_data (Id, Name, QualifiedName, ModuleName, Folder, MicroflowType,
-			Description, ReturnType, ParameterCount, ActivityCount, Complexity, Excluded,
-			ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			Description, ReturnType, ParameterCount, ActivityCount, TotalActivityCount,
+			Complexity, Excluded, ProjectId, SnapshotId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -75,8 +77,12 @@ func (b *Builder) buildMicroflows() error {
 			INSERT INTO activities_data (Id, Name, Caption, ActivityType, Sequence, MicroflowId, MicroflowQualifiedName,
 				ModuleName, Folder, EntityRef, ActionType, ServiceRef, ActionRef,
 				UseRequestTimeout, TimeoutExpression, Description,
+				ParentLoopId, LoopDepth,
+				AutoGenerateCaption, ConditionExpression, ConditionRule, ErrorHandlingType,
+				LogLevel, LogNodeExpression, LogMessage, CommitType, WithEvents, RetrieveSource,
 				ProjectId, SnapshotId)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
@@ -136,7 +142,7 @@ func (b *Builder) buildMicroflows() error {
 		}
 
 		// Count activities (excluding structural elements like Start/End events)
-		activityCount := countMicroflowActivities(mf)
+		activityCount := countFlowActivities(mf.ObjectCollection, false)
 
 		// Calculate McCabe cyclomatic complexity
 		complexity := calculateMcCabeComplexity(mf)
@@ -152,6 +158,7 @@ func (b *Builder) buildMicroflows() error {
 			returnType,
 			len(mf.Parameters),
 			activityCount,
+			countFlowActivities(mf.ObjectCollection, true),
 			complexity,
 			mf.Excluded,
 			projectID, snapshotID,
@@ -165,64 +172,12 @@ func (b *Builder) buildMicroflows() error {
 		mfCount++
 
 		// Insert activities only in full mode
-		if b.fullMode && mf.ObjectCollection != nil {
-			for seq, obj := range mf.ObjectCollection.Objects {
-				activityType := getMicroflowObjectType(obj)
-				activityName := activityType
-				caption := "Activity"
-				entityRef := ""
-				actionType := ""
-				serviceRef := ""
-				actionRef := ""
-				useRequestTimeout := 0
-				timeoutExpression := ""
-
-				if act, ok := obj.(*microflows.ActionActivity); ok {
-					if act.Action != nil {
-						actionType = getMicroflowActionType(act.Action)
-						activityName = actionType
-
-						switch a := act.Action.(type) {
-						case *microflows.CreateObjectAction:
-							entityRef = a.EntityQualifiedName
-						case *microflows.CallExternalAction:
-							serviceRef = a.ConsumedODataService
-							actionRef = a.Name
-						case *microflows.RestCallAction:
-							// "Use a timeout" plus the seconds, which Studio Pro
-							// stores as an expression string (e.g. "300").
-							if a.UseRequestTimeOut {
-								useRequestTimeout = 1
-							}
-							timeoutExpression = a.TimeoutExpression
-						}
-					}
-				}
-
-				_, err = actStmt.Exec(
-					string(obj.GetID()),
-					activityName,
-					caption,
-					activityType,
-					seq+1, // 1-based sequence number
-					string(mf.ID),
-					qualifiedName,
-					moduleName,
-					moduleName,
-					entityRef,
-					actionType,
-					serviceRef,
-					actionRef,
-					useRequestTimeout,
-					timeoutExpression,
-					"",
-					projectID, snapshotID,
-				)
-				if err != nil {
-					return err
-				}
-				actCount++
+		if b.fullMode {
+			n, err := insertFlowActivities(actStmt, string(mf.ID), qualifiedName, moduleName, mf.ObjectCollection, projectID, snapshotID)
+			if err != nil {
+				return err
 			}
+			actCount += n
 		}
 	}
 
@@ -239,7 +194,7 @@ func (b *Builder) buildMicroflows() error {
 		}
 
 		// Count activities (excluding structural elements like Start/End events)
-		activityCount := countNanoflowActivities(nf)
+		activityCount := countFlowActivities(nf.ObjectCollection, false)
 
 		// Calculate McCabe cyclomatic complexity
 		complexity := calculateNanoflowComplexity(nf)
@@ -255,6 +210,7 @@ func (b *Builder) buildMicroflows() error {
 			returnType,
 			len(nf.Parameters),
 			activityCount,
+			countFlowActivities(nf.ObjectCollection, true),
 			complexity,
 			nf.Excluded,
 			projectID, snapshotID,
@@ -268,64 +224,12 @@ func (b *Builder) buildMicroflows() error {
 		nfCount++
 
 		// Insert activities only in full mode
-		if b.fullMode && nf.ObjectCollection != nil {
-			for seq, obj := range nf.ObjectCollection.Objects {
-				activityType := getMicroflowObjectType(obj)
-				activityName := activityType
-				caption := "Activity"
-				entityRef := ""
-				actionType := ""
-				serviceRef := ""
-				actionRef := ""
-				useRequestTimeout := 0
-				timeoutExpression := ""
-
-				if act, ok := obj.(*microflows.ActionActivity); ok {
-					if act.Action != nil {
-						actionType = getMicroflowActionType(act.Action)
-						activityName = actionType
-
-						switch a := act.Action.(type) {
-						case *microflows.CreateObjectAction:
-							entityRef = a.EntityQualifiedName
-						case *microflows.CallExternalAction:
-							serviceRef = a.ConsumedODataService
-							actionRef = a.Name
-						case *microflows.RestCallAction:
-							// "Use a timeout" plus the seconds, which Studio Pro
-							// stores as an expression string (e.g. "300").
-							if a.UseRequestTimeOut {
-								useRequestTimeout = 1
-							}
-							timeoutExpression = a.TimeoutExpression
-						}
-					}
-				}
-
-				_, err = actStmt.Exec(
-					string(obj.GetID()),
-					activityName,
-					caption,
-					activityType,
-					seq+1, // 1-based sequence number
-					string(nf.ID),
-					qualifiedName,
-					moduleName,
-					moduleName,
-					entityRef,
-					actionType,
-					serviceRef,
-					actionRef,
-					useRequestTimeout,
-					timeoutExpression,
-					"",
-					projectID, snapshotID,
-				)
-				if err != nil {
-					return err
-				}
-				actCount++
+		if b.fullMode {
+			n, err := insertFlowActivities(actStmt, string(nf.ID), qualifiedName, moduleName, nf.ObjectCollection, projectID, snapshotID)
+			if err != nil {
+				return err
 			}
+			actCount += n
 		}
 	}
 
@@ -354,7 +258,8 @@ func (b *Builder) buildMicroflows() error {
 			rule.Documentation,
 			returnType,
 			len(rule.Parameters),
-			countRuleActivities(rule),
+			countFlowActivities(rule.ObjectCollection, false),
+			countFlowActivities(rule.ObjectCollection, true),
 			calculateRuleComplexity(rule),
 			rule.Excluded,
 			projectID, snapshotID,
@@ -367,25 +272,12 @@ func (b *Builder) buildMicroflows() error {
 		}
 		ruleCount++
 
-		if b.fullMode && rule.ObjectCollection != nil {
-			for seq, obj := range rule.ObjectCollection.Objects {
-				activityType := getMicroflowObjectType(obj)
-				activityName := activityType
-				actionType := ""
-				if act, ok := obj.(*microflows.ActionActivity); ok && act.Action != nil {
-					actionType = getMicroflowActionType(act.Action)
-					activityName = actionType
-				}
-				if _, err := actStmt.Exec(
-					string(obj.GetID()), activityName, "Activity", activityType, seq+1,
-					string(rule.ID), qualifiedName, moduleName, moduleName,
-					"", actionType, "", "", 0, "", "",
-					projectID, snapshotID,
-				); err != nil {
-					return err
-				}
-				actCount++
+		if b.fullMode {
+			n, err := insertFlowActivities(actStmt, string(rule.ID), qualifiedName, moduleName, rule.ObjectCollection, projectID, snapshotID)
+			if err != nil {
+				return err
 			}
+			actCount += n
 		}
 	}
 
@@ -449,6 +341,14 @@ func getMicroflowActionType(action microflows.MicroflowAction) string {
 			return strings.TrimPrefix(a.TypeName, "Microflows$")
 		}
 		return "UnknownAction"
+	case *microflows.UnsupportedAction:
+		// A stored action the reader recognises but does not model (e.g.
+		// Microflows$GenerateJumpToOptionsAction): label it by its storage type,
+		// not by the placeholder Go type, which no rule could ever ask for.
+		if a.StorageType != "" {
+			return strings.TrimPrefix(a.StorageType, "Microflows$")
+		}
+		return "UnsupportedAction"
 	default:
 		return strings.TrimPrefix(fmt.Sprintf("%T", action), "*microflows.")
 	}
@@ -487,26 +387,10 @@ func getDataTypeName(dt microflows.DataType) string {
 	}
 }
 
-// countMicroflowActivities counts activities in a microflow, excluding structural elements.
-// This excludes Start/End events and Merge nodes which are structural, not business logic.
+// countMicroflowActivities counts the top-level activities of a microflow,
+// excluding structural elements — the ActivityCount column.
 func countMicroflowActivities(mf *microflows.Microflow) int {
-	if mf.ObjectCollection == nil {
-		return 0
-	}
-
-	count := 0
-	for _, obj := range mf.ObjectCollection.Objects {
-		switch obj.(type) {
-		case *microflows.StartEvent, *microflows.EndEvent:
-			// Don't count start/end events
-		case *microflows.ExclusiveMerge:
-			// Don't count merge nodes (they're structural)
-		default:
-			// Count all other activities (ActionActivity, ExclusiveSplit, LoopedActivity, etc.)
-			count++
-		}
-	}
-	return count
+	return countFlowActivities(mf.ObjectCollection, false)
 }
 
 // calculateMcCabeComplexity calculates the McCabe cyclomatic complexity of a microflow.
@@ -559,24 +443,9 @@ func countDecisionPoints(objects []microflows.MicroflowObject) int {
 	return count
 }
 
-// countNanoflowActivities counts activities in a nanoflow, excluding structural elements.
+// countNanoflowActivities counts the top-level activities of a nanoflow.
 func countNanoflowActivities(nf *microflows.Nanoflow) int {
-	if nf.ObjectCollection == nil {
-		return 0
-	}
-
-	count := 0
-	for _, obj := range nf.ObjectCollection.Objects {
-		switch obj.(type) {
-		case *microflows.StartEvent, *microflows.EndEvent:
-			// Don't count start/end events
-		case *microflows.ExclusiveMerge:
-			// Don't count merge nodes (they're structural)
-		default:
-			count++
-		}
-	}
-	return count
+	return countFlowActivities(nf.ObjectCollection, false)
 }
 
 // calculateNanoflowComplexity calculates the McCabe cyclomatic complexity of a nanoflow.
@@ -591,18 +460,28 @@ func calculateNanoflowComplexity(nf *microflows.Nanoflow) int {
 	return complexity
 }
 
-// countRuleActivities counts meaningful activities in a rule, excluding
-// structural elements — the nanoflow counterpart, kept beside it because the two
-// differ only in the type they take.
-func countRuleActivities(rule *microflows.Rule) int {
-	if rule.ObjectCollection == nil {
+// countFlowActivities counts the activities of a flow body, excluding the
+// structural elements: start and end events and merges. Microflows, nanoflows
+// and rules share it, so the three cannot drift apart.
+//
+// nested=false counts the top level only — ActivityCount, whose meaning is
+// unchanged since bundled rules (the microflow-size checks) are calibrated on
+// it; a loop counts as one activity. nested=true also counts every loop body,
+// at any depth — TotalActivityCount (mendixlabs/mxcli#1266).
+func countFlowActivities(oc *microflows.MicroflowObjectCollection, nested bool) int {
+	if oc == nil {
 		return 0
 	}
 	count := 0
-	for _, obj := range rule.ObjectCollection.Objects {
-		switch obj.(type) {
+	for _, obj := range oc.Objects {
+		switch o := obj.(type) {
 		case *microflows.StartEvent, *microflows.EndEvent, *microflows.ExclusiveMerge:
 			// Structural, not activities.
+		case *microflows.LoopedActivity:
+			count++
+			if nested {
+				count += countFlowActivities(o.ObjectCollection, true)
+			}
 		default:
 			count++
 		}
@@ -623,4 +502,215 @@ func calculateRuleComplexity(rule *microflows.Rule) int {
 		}
 	}
 	return complexity
+}
+
+// insertFlowActivities writes one activities_data row per object of a flow
+// body, loop bodies included, and returns how many it wrote. Microflows,
+// nanoflows and rules share it: the three near-copies it replaces each walked
+// the top level only, so nothing inside a loop — at any depth — was catalogued
+// (mendixlabs/mxcli#1266), although the reader loads the loop body.
+//
+// Sequence is one pre-order number across the whole flow: a loop, then its
+// body, then the loop's next sibling. ParentLoopId is the enclosing loop's Id
+// (empty at the top level) and LoopDepth how many loops enclose the object (0
+// at the top level), so filtering on an empty ParentLoopId gives the rows the
+// table held before #1266.
+func insertFlowActivities(stmt *sql.Stmt, flowID, qualifiedName, moduleName string,
+	oc *microflows.MicroflowObjectCollection, projectID, snapshotID string) (int, error) {
+	if stmt == nil || oc == nil {
+		return 0, nil
+	}
+	seq := 0
+	var walk func(objs []microflows.MicroflowObject, parentLoopID string, depth int) error
+	walk = func(objs []microflows.MicroflowObject, parentLoopID string, depth int) error {
+		for _, obj := range objs {
+			if obj == nil {
+				continue
+			}
+			seq++
+			r := describeFlowObject(obj)
+			if _, err := stmt.Exec(
+				string(obj.GetID()),
+				r.name,
+				r.caption,
+				r.activityType,
+				seq,
+				flowID,
+				qualifiedName,
+				moduleName,
+				moduleName,
+				r.entityRef,
+				r.actionType,
+				r.serviceRef,
+				r.actionRef,
+				boolInt(r.useRequestTimeout),
+				r.timeoutExpression,
+				r.description,
+				parentLoopID,
+				depth,
+				boolInt(r.autoGenerateCaption),
+				r.conditionExpression,
+				r.conditionRule,
+				r.errorHandlingType,
+				r.logLevel,
+				r.logNodeExpression,
+				r.logMessage,
+				r.commitType,
+				boolInt(r.withEvents),
+				r.retrieveSource,
+				projectID, snapshotID,
+			); err != nil {
+				return err
+			}
+			if loop, ok := obj.(*microflows.LoopedActivity); ok && loop.ObjectCollection != nil {
+				if err := walk(loop.ObjectCollection.Objects, string(loop.ID), depth+1); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	if err := walk(oc.Objects, "", 0); err != nil {
+		return seq, err
+	}
+	return seq, nil
+}
+
+// Values of activities_data.RetrieveSource — where a retrieve reads from.
+// Lower-case, as mendixlabs/mxcli#1267 agreed. Named because a rule filters on
+// them: a literal that disagrees with the writer matches nothing, silently.
+const (
+	RetrieveSourceDatabase    = "database"
+	RetrieveSourceAssociation = "association"
+)
+
+// flowObjectRow is what one flow object contributes to its activities_data row.
+//
+// Every value is the stored one, in Mendix's own spelling: ErrorHandlingType
+// is Rollback / Custom / CustomWithoutRollBack (capital B) / Continue / Abort,
+// LogLevel Trace … Critical, CommitType Yes / YesWithoutEvents / No. A rule
+// compares against these, so translating them here would only add a second
+// vocabulary to keep in step.
+type flowObjectRow struct {
+	name, caption, activityType, actionType string
+	description                             string
+	autoGenerateCaption                     bool
+	entityRef, serviceRef, actionRef        string
+	useRequestTimeout                       bool
+	timeoutExpression                       string
+	// conditionExpression is an exclusive split's expression; conditionRule
+	// the rule a rule-based split calls (its condition is a call, not text).
+	conditionExpression, conditionRule string
+	errorHandlingType                  string
+	logLevel, logNodeExpression        string
+	logMessage                         string
+	commitType                         string
+	withEvents                         bool
+	retrieveSource                     string
+}
+
+// describeFlowObject derives the catalog columns of one flow object.
+//
+// The caption is the stored one — a split's, an activity's, an annotation's
+// text. It was the placeholder "Activity" on every row (mendixlabs/mxcli#1267);
+// an object Mendix stores no caption for (events, merges, loops) now has none.
+func describeFlowObject(obj microflows.MicroflowObject) flowObjectRow {
+	r := flowObjectRow{activityType: getMicroflowObjectType(obj)}
+	r.name = r.activityType
+	r.errorHandlingType = string(microflows.ObjectErrorHandlingType(obj))
+
+	switch o := obj.(type) {
+	case *microflows.Annotation:
+		r.caption = o.Caption
+	case *microflows.ExclusiveSplit:
+		r.caption = o.Caption
+		r.description = o.Documentation
+		switch c := o.SplitCondition.(type) {
+		case *microflows.ExpressionSplitCondition:
+			r.conditionExpression = c.Expression
+		case *microflows.RuleSplitCondition:
+			r.conditionRule = c.RuleQualifiedName
+		}
+	case *microflows.InheritanceSplit:
+		r.caption = o.Caption
+		r.description = o.Documentation
+	case *microflows.LoopedActivity:
+		r.description = o.Documentation
+	case *microflows.ActionActivity:
+		r.caption = o.Caption
+		r.autoGenerateCaption = o.AutoGenerateCaption
+		r.description = o.Documentation
+		if o.Action != nil {
+			r.actionType = getMicroflowActionType(o.Action)
+			r.name = r.actionType
+			describeAction(o.Action, &r)
+		}
+	}
+	return r
+}
+
+// describeAction fills the action-specific columns.
+func describeAction(action microflows.MicroflowAction, r *flowObjectRow) {
+	switch a := action.(type) {
+	case *microflows.CreateObjectAction:
+		r.entityRef = a.EntityQualifiedName
+		r.commitType = string(a.Commit)
+		r.withEvents = a.Commit == microflows.CommitTypeYes
+	case *microflows.ChangeObjectAction:
+		r.commitType = string(a.Commit)
+		r.withEvents = a.Commit == microflows.CommitTypeYes
+	case *microflows.CommitObjectsAction:
+		r.withEvents = a.WithEvents
+	case *microflows.RetrieveAction:
+		switch src := a.Source.(type) {
+		case *microflows.DatabaseRetrieveSource:
+			r.retrieveSource = RetrieveSourceDatabase
+			r.entityRef = src.EntityQualifiedName
+		case *microflows.AssociationRetrieveSource:
+			r.retrieveSource = RetrieveSourceAssociation
+		}
+	case *microflows.LogMessageAction:
+		r.logLevel = string(a.LogLevel)
+		r.logNodeExpression = a.LogNodeName
+		r.logMessage = textValue(a.MessageTemplate)
+	case *microflows.CallExternalAction:
+		r.serviceRef = a.ConsumedODataService
+		r.actionRef = a.Name
+	case *microflows.RestCallAction:
+		// "Use a timeout" plus the seconds, which Studio Pro stores as an
+		// expression string (e.g. "300").
+		r.useRequestTimeout = a.UseRequestTimeOut
+		r.timeoutExpression = a.TimeoutExpression
+	case *microflows.WebServiceCallAction:
+		// ServiceID holds the imported web service's qualified name (a
+		// by-name reference).
+		r.serviceRef = string(a.ServiceID)
+		r.actionRef = a.OperationName
+		r.useRequestTimeout = a.UseRequestTimeOut
+		r.timeoutExpression = a.TimeoutExpression
+	}
+}
+
+// textValue returns a stored text's value: en_US when present, otherwise the
+// first language in sorted order, so the choice is deterministic.
+func textValue(t *model.Text) string {
+	if t == nil || len(t.Translations) == 0 {
+		return ""
+	}
+	if v, ok := t.Translations["en_US"]; ok {
+		return v
+	}
+	keys := make([]string, 0, len(t.Translations))
+	for k := range t.Translations {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return t.Translations[keys[0]]
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

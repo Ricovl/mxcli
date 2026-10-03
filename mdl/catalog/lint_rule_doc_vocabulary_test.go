@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -41,6 +42,19 @@ func lintRuleSkillDoc(t *testing.T) string {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
+	}
+	// SKILL.md first, so a row it holds is the one docRowValues finds; then
+	// the supporting files a long skill moves its detail into.
+	extra, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "*.md"))
+	for _, p := range extra {
+		if filepath.Base(p) == "SKILL.md" {
+			continue
+		}
+		more, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("read %s: %v", p, err)
+		}
+		b = append(append(b, '\n'), more...)
 	}
 	return string(b)
 }
@@ -140,7 +154,7 @@ func TestSkillDocumentsRealActivityTypes(t *testing.T) {
 	for _, obj := range []microflows.MicroflowObject{
 		&microflows.ActionActivity{}, &microflows.ExclusiveSplit{}, &microflows.ExclusiveMerge{},
 		&microflows.LoopedActivity{}, &microflows.InheritanceSplit{},
-		&microflows.StartEvent{}, &microflows.EndEvent{},
+		&microflows.StartEvent{}, &microflows.EndEvent{}, &microflows.Annotation{},
 	} {
 		real[getMicroflowObjectType(obj)] = true
 	}
@@ -303,4 +317,93 @@ func constantsWithPrefix(t *testing.T, file, prefix string) map[string]string {
 		}
 	}
 	return out
+}
+
+// The skill documented widget.container_type as "page" / "snippet"; the
+// builder has only ever written "PAGE" / "SNIPPET", so a rule filtering on the
+// documented value matched no widget. The real values are read from the
+// ContainerType argument (the 6th) of every widgets_data insert.
+func TestSkillDocumentsRealWidgetContainerTypes(t *testing.T) {
+	parsed, err := parser.ParseFile(token.NewFileSet(), "builder_pages.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	real := map[string]bool{}
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || len(call.Args) < 6 {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Exec" {
+			return true
+		}
+		if id, ok := sel.X.(*ast.Ident); !ok || id.Name != "widgetStmt" {
+			return true
+		}
+		if lit, ok := call.Args[5].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+			real[strings.Trim(lit.Value, `"`)] = true
+		}
+		return true
+	})
+	// CONTROL: both a page and a snippet insert must have been found.
+	if len(real) < 2 {
+		t.Fatalf("found container types %v in builder_pages.go — the scan is broken", real)
+	}
+	assertDocumentedValuesExist(t, "container_type",
+		docRowValues(t, lintRuleSkillDoc(t), "container_type"), real, "buildPages / buildSnippets")
+}
+
+// The activity property columns of mendixlabs/mxcli#1267 store Mendix's own
+// spellings, and two of them are easy to get wrong from memory:
+// CustomWithoutRollBack has a capital B, and retrieve_source is lower-case
+// where every other activity vocabulary is PascalCase. A rule comparing to
+// "CustomWithoutRollback" or "Database" matches nothing and passes silently, so
+// each documented value is held to the set the builder writes.
+func TestSkillDocumentsRealActivityPropertyVocabulary(t *testing.T) {
+	doc := lintRuleSkillDoc(t)
+	set := func(vals ...string) map[string]bool {
+		m := map[string]bool{}
+		for _, v := range vals {
+			m[v] = true
+		}
+		return m
+	}
+
+	errorHandling := set(
+		string(microflows.ErrorHandlingTypeRollback), string(microflows.ErrorHandlingTypeCustom),
+		string(microflows.ErrorHandlingTypeCustomWithoutRollback), string(microflows.ErrorHandlingTypeContinue),
+		string(microflows.ErrorHandlingTypeAbort))
+	// CONTROL: the stored spelling, measured on TestApp. If the constant ever
+	// changes, every rule documented against it changes meaning.
+	if !errorHandling["CustomWithoutRollBack"] {
+		t.Fatal("ErrorHandlingTypeCustomWithoutRollback is no longer the stored \"CustomWithoutRollBack\"")
+	}
+	documented := docRowValues(t, doc, "error_handling_type")
+	assertDocumentedValuesExist(t, "error_handling_type", documented, errorHandling, "describeFlowObject")
+	if !slices.Contains(documented, "CustomWithoutRollBack") {
+		t.Error("error_handling_type row does not document CustomWithoutRollBack, the value a rule most often misspells")
+	}
+
+	assertDocumentedValuesExist(t, "log_level", docRowValues(t, doc, "log_level"), set(
+		string(microflows.LogLevelTrace), string(microflows.LogLevelDebug), string(microflows.LogLevelInfo),
+		string(microflows.LogLevelWarning), string(microflows.LogLevelError), string(microflows.LogLevelCritical)),
+		"describeFlowObject")
+	assertDocumentedValuesExist(t, "commit_type", docRowValues(t, doc, "commit_type"), set(
+		string(microflows.CommitTypeYes), string(microflows.CommitTypeYesWithoutEvents), string(microflows.CommitTypeNo)),
+		"describeFlowObject")
+	assertDocumentedValuesExist(t, "retrieve_source", docRowValues(t, doc, "retrieve_source"),
+		set(RetrieveSourceDatabase, RetrieveSourceAssociation), "describeFlowObject")
+
+	// CONTROL: the builder writes exactly these retrieve sources, so the set
+	// above is the writer's and not a copy of the documentation.
+	for src, want := range map[microflows.RetrieveSource]string{
+		&microflows.DatabaseRetrieveSource{}:    RetrieveSourceDatabase,
+		&microflows.AssociationRetrieveSource{}: RetrieveSourceAssociation,
+	} {
+		r := describeFlowObject(&microflows.ActionActivity{Action: &microflows.RetrieveAction{Source: src}})
+		if r.retrieveSource != want {
+			t.Errorf("builder writes retrieve_source %q for %T, want %q", r.retrieveSource, src, want)
+		}
+	}
 }

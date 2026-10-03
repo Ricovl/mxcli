@@ -50,27 +50,61 @@ JOIN CATALOG.ENTITIES e ON a.EntityId = e.Id
 WHERE e.QualifiedName = 'Sales.Customer';
 ```
 
+### CATALOG.MODULES
+
+One row per module, including System and Marketplace modules.
+
+| Column | Description |
+|--------|-------------|
+| `Id` | Module UUID |
+| `Name` | Module name |
+| `Source` | `""` for your own modules and System; `"Marketplace v1.2.3"` for a downloaded module |
+| `AppStoreVersion` | Marketplace version, when downloaded |
+| `Description` | Always empty: a Mendix module has no documentation property |
+| `DomainModelDocumentation` | The module's domain model's documentation — the module-level text an author can write |
+
+```sql
+SELECT Name FROM CATALOG.MODULES
+WHERE Source = '' AND COALESCE(DomainModelDocumentation, '') = '';
+```
+
 ### CATALOG.ASSOCIATIONS
 
-Information about entity associations.
+Information about entity associations, same-module and cross-module.
 
 | Column | Description |
 |--------|-------------|
 | `Id` | Unique identifier |
 | `Name` | Association name |
-| `ParentEntity` | Parent (FROM) entity qualified name |
-| `ChildEntity` | Child (TO) entity qualified name |
-| `AssociationType` | Reference or ReferenceSet |
+| `QualifiedName` | `Module.Association` |
+| `ModuleName` | Module that owns the association |
+| `FromEntity` | FROM entity qualified name (the one that owns the reference) |
+| `ToEntity` | TO entity qualified name; for a cross-module association, the other module's entity |
+| `AssociationType` | `Reference` or `ReferenceSet` |
+| `Owner` | `Default` or `Both` |
+| `StorageFormat` | `Column` or `Table` |
+| `Description` | Documentation |
+| `ToDeleteBehavior` | Delete behaviour of the TO end — Mendix's `ChildDeleteBehavior`, the end MDL's `on delete` clause sets: `DeleteMeButKeepReferences` (default), `DeleteMeAndReferences`, `DeleteMeIfNoReferences` |
+| `FromDeleteBehavior` | Delete behaviour of the FROM end — Mendix's `ParentDeleteBehavior` (Studio Pro only) |
+| `ToDeleteErrorMessage` / `FromDeleteErrorMessage` | Message shown when a `DeleteMeIfNoReferences` delete on that end is refused |
+
+Mendix's `Parent`/`Child` pointer names are inverted relative to MDL's FROM/TO:
+`ParentPointer` is the FROM entity and `ChildPointer` the TO entity, so the
+`Child*` delete behaviour belongs to the TO end. Mendix always stores both ends,
+so an explicitly set behaviour is one that is not the default. System module
+associations have no stored delete behaviour and read as `''`.
 
 ```sql
-SELECT Name, ParentEntity, ChildEntity, AssociationType
+SELECT QualifiedName, ToDeleteBehavior, FromDeleteBehavior
 FROM CATALOG.ASSOCIATIONS
-WHERE ParentEntity LIKE '%Order%' OR ChildEntity LIKE '%Order%';
+WHERE ToDeleteBehavior <> 'DeleteMeButKeepReferences'
+   OR FromDeleteBehavior <> 'DeleteMeButKeepReferences';
 ```
 
 ### CATALOG.MICROFLOWS
 
-Information about microflows and nanoflows.
+Information about microflows, nanoflows and rules (`CATALOG.NANOFLOWS` is the
+nanoflow subset).
 
 | Column | Description |
 |--------|-------------|
@@ -78,16 +112,61 @@ Information about microflows and nanoflows.
 | `Name` | Microflow name |
 | `ModuleName` | Module containing the microflow |
 | `QualifiedName` | Full qualified name |
+| `Folder` | Folder path within the module |
+| `MicroflowType` | `MICROFLOW`, `NANOFLOW` or `RULE` |
 | `ReturnType` | Return type of the microflow |
 | `Description` | Documentation text |
-| `Parameters` | Parameter information |
-| `ObjectUsage` | Entities used in the microflow |
+| `ParameterCount` | Number of parameters |
+| `ActivityCount` | Activities at the top level of the flow, excluding start/end events and merges. A loop counts as one |
+| `TotalActivityCount` | `ActivityCount` plus every activity inside a loop, at any depth |
+| `Complexity` | McCabe cyclomatic complexity |
 
 ```sql
-SELECT Name, ReturnType, Description
+SELECT Name, ReturnType, ActivityCount, TotalActivityCount
 FROM CATALOG.MICROFLOWS
 WHERE ModuleName = 'Sales'
 ORDER BY Name;
+```
+
+### CATALOG.ACTIVITIES
+
+One row per object in a microflow, nanoflow or rule body — activities, splits,
+merges, events, loops and annotations. Populated by `REFRESH CATALOG FULL`.
+
+**Loop bodies are included.** The objects inside a loop, at any depth, are rows
+too, with `ParentLoopId` naming the loop. Earlier releases left them out; a
+query written then that should keep its old result filters on
+`ParentLoopId = ''`.
+
+| Column | Description |
+|--------|-------------|
+| `Id` | The object's ID |
+| `MicroflowId`, `MicroflowQualifiedName`, `ModuleName` | The flow it belongs to |
+| `Sequence` | Pre-order position in the flow: a loop, then its body, then the loop's next sibling |
+| `ParentLoopId` | `Id` of the enclosing loop; empty at the top level |
+| `LoopDepth` | Number of enclosing loops; 0 at the top level |
+| `ActivityType` | `ActionActivity`, `ExclusiveSplit`, `InheritanceSplit`, `ExclusiveMerge`, `LoopedActivity`, `Annotation`, `StartEvent`, `EndEvent`, … |
+| `ActionType` | The action of an `ActionActivity`, e.g. `RetrieveAction`, `JavaActionCallAction`, `WebServiceCallAction` |
+| `Name` | `ActionType` for an action activity, otherwise `ActivityType` |
+| `Caption` | The stored caption: an activity's, a split's, or an annotation's text. Empty for events, merges and loops. With `AutoGenerateCaption` it holds Studio Pro's stored placeholder (often `Activity`) |
+| `AutoGenerateCaption` | 1 when Studio Pro generates the activity's caption |
+| `Description` | Documentation of an action activity, split or loop |
+| `EntityRef` | Entity of a create object or a database retrieve |
+| `ServiceRef`, `ActionRef` | Called service and operation: REST, web service, OData action |
+| `UseRequestTimeout`, `TimeoutExpression` | "Use a timeout" and its seconds, for a REST or web service call |
+| `ConditionExpression` | An exclusive split's expression |
+| `ConditionRule` | The rule a rule-based split calls |
+| `ErrorHandlingType` | `Rollback`, `Custom`, `CustomWithoutRollBack` (capital B), `Continue` or `Abort` — read from the action for an action activity |
+| `LogLevel`, `LogNodeExpression`, `LogMessage` | A log message action's level, node expression (`'MyNode'` or `getKey(…)`) and template |
+| `CommitType` | Create/change object: `Yes`, `YesWithoutEvents` or `No` |
+| `WithEvents` | 1 for a commit with events, and a create/change with `CommitType` `Yes` |
+| `RetrieveSource` | `database` or `association` |
+
+```sql
+-- Database retrieves inside a loop (N+1 queries)
+SELECT MicroflowQualifiedName, EntityRef, LoopDepth
+FROM CATALOG.ACTIVITIES
+WHERE ActionType = 'RetrieveAction' AND RetrieveSource = 'database' AND ParentLoopId <> '';
 ```
 
 ### CATALOG.PAGES
@@ -98,14 +177,19 @@ Information about pages and their properties.
 |--------|-------------|
 | `Id` | Unique identifier |
 | `Name` | Page name |
-| `ModuleName` | Module containing the page |
 | `QualifiedName` | Full qualified name |
+| `ModuleName` | Module containing the page |
+| `Folder` | Folder path within the module |
+| `Title` | Page title in the project's default language (else en_US, else the lowest-sorted non-empty language). Every translation is in `CATALOG.STRINGS` (`StringContext = 'Forms$Page.Title'`) |
 | `URL` | Page URL if configured |
-| `DataSource` | Primary data source |
-| `WidgetTypes` | Types of widgets used |
+| `LayoutRef` | Qualified name of the layout (full build only) |
+| `Description` | Documentation text |
+| `ParameterCount` | Number of page parameters |
+| `WidgetCount` | Number of widgets (full build only; 0 otherwise) |
+| `Excluded` | 1 when the page is excluded from the project |
 
 ```sql
-SELECT Name, URL, DataSource
+SELECT Name, Title, URL
 FROM CATALOG.PAGES
 WHERE ModuleName = 'Sales'
 ORDER BY Name;

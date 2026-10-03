@@ -399,6 +399,12 @@ func actionFromGen(el element.Element) microflows.MicroflowAction {
 			TimeoutExpression: rawStr(raw, "TimeOutExpression"),
 		}
 		out.ID = model.ID(a.ID())
+		// Read for the catalog's UseRequestTimeout column. The writer still
+		// stores true, and a stored false keeps the raw-BSON fallback
+		// (webServiceFixedValueIsDefault), so reading it changes no write.
+		if b, ok := raw.Lookup("UseRequestTimeOut").BooleanOK(); ok {
+			out.UseRequestTimeOut = b
+		}
 		if rh, ok := raw.Lookup("NewResultHandling").DocumentOK(); ok {
 			out.OutputVariable = rawStr(rh, "ResultVariableName")
 			out.UseReturnVariable = out.OutputVariable != ""

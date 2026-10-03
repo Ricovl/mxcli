@@ -833,6 +833,10 @@ type WebServiceCallAction struct {
 	OutputVariable         string   `json:"outputVariable,omitempty"`
 	UseReturnVariable      bool     `json:"useReturnVariable"`
 	TimeoutExpression      string   `json:"timeoutExpression,omitempty"`
+	// UseRequestTimeOut is the stored "Use a timeout" toggle. Read-only: the
+	// writers always store true, and a call stored with false is carried as
+	// RawBSON, so this field is what the catalog reports, not what is written.
+	UseRequestTimeOut bool `json:"useRequestTimeOut,omitempty"`
 	// ResultEntity is the qualified entity the RECEIVE mapping produces, which
 	// Mendix stores as the call's result VariableType. Resolved from the mapping
 	// document by the executor; empty means it could not be established and the

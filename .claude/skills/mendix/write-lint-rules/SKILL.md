@@ -14,7 +14,7 @@ Every `.star` file must define metadata constants and a `check()` function:
 ```python
 RULE_ID = "CUSTOM001"          # unique identifier
 RULE_NAME = "MyRule"           # Short display name
-description = "What it checks" # One-line description
+DESCRIPTION = "What it checks" # One-line description
 CATEGORY = "security"          # Category: naming, quality, design, security, etc.
 SEVERITY = "warning"           # hint, info, warning, error
 
@@ -24,26 +24,31 @@ def check():
     return violations
 ```
 
-### Catalog data requirements (`refs_to`, `cycles`, …)
+### Catalog data requirements (`widgets`, `refs_to`, `cycles`, …)
 
 Some builtins need a deeper catalog than the default fast build:
 
-- `refs_to` / `refs_from` need **`REFRESH CATALOG FULL`** (the `refs` table).
+- `refs_to`, `refs_from`, `widgets`, `xpath_expressions`, `activities_for`,
+  `permissions`, `permissions_for`, `strings` and the `widget_count` field of a
+  page or snippet need **`REFRESH CATALOG FULL`** — the `refs`, `widgets`,
+  `xpath_expressions`, `activities`, `permissions` and `strings` tables and the
+  widget counts are only written by a full build.
 - The graph-analysis builtins (`cycles`, `module_dependencies`, `community_of`,
   `layer_of`, `centrality`, `god_nodes`, `integration_surface`) need
   **`REFRESH CATALOG COMMUNITIES`** (the `graph_*` tables).
 
 You don't have to do anything: `mxcli lint` (and the `LINT` statement)
-**auto-detect** these builtins in your rule's source and build the catalog at the
-required depth automatically. If a helper hides the call from the source scan, or
-you want to be explicit, declare it:
+**auto-detect** these builtins (a call `name(`) and `.widget_count` in your
+rule's source and build the catalog at the required depth automatically. If the
+scan cannot see it — e.g. `getattr(p, "widget_count")`, or a builtin passed
+around by name — or you want to be explicit, declare it:
 
 ```python
 REQUIRES = ["full"]          # or ["communities"] — raises the auto-detected depth
 ```
 
-Without this, a rule that queries `refs`/`graph_*` under a fast build would
-silently return empty results (issue #721).
+Without this, a rule that reads a full-only table under a fast build gets
+`[]` / `0` with no warning and reports a clean pass (issue #721).
 
 ## Available Query Functions
 
@@ -54,7 +59,7 @@ silently return empty results (issue #721).
 | `pages()` | list of page | All non-system pages |
 | `enumerations()` | list of enumeration | All non-system enumerations |
 | `constants()` | list of constant | All non-system constants |
-| `widgets()` | list of widget | All non-system widgets |
+| `widgets()` | list of widget | All non-system page and snippet widgets (full catalog — auto-detected) |
 | `snippets()` | list of snippet | All non-system snippets |
 | `scheduled_events()` | list of scheduled_event | All non-system scheduled events (requires MPR reader) |
 | `queues()` | list of queue | All non-system task queues |
@@ -66,16 +71,28 @@ silently return empty results (issue #721).
 | `rest_clients()` | list of rest_client | Consumed REST service documents (excluding platform modules) |
 | `rest_operations()` | list of rest_operation | Operations on consumed REST services, including their `timeout` |
 | `attributes_for(entity_qualified_name)` | list of attribute | Attributes for a specific entity |
-| `activities_for(microflow_qualified_name)` | list of activity | Activities for a microflow (requires FULL catalog) |
-| `permissions()` | list of permission | All permissions across all element types |
-| `permissions_for(entity_qualified_name)` | list of permission | Access rules for a specific entity |
-| `refs_to(target_name)` | list of reference | Cross-references *to* a target |
-| `refs_from(source_name)` | list of reference | Cross-references *from* a source (outbound) |
+| `activities_for(microflow_qualified_name, nested = False)` | list of activity | Activities of a microflow, nanoflow or rule, in flow order (full catalog — auto-detected). By default only the top level: a loop is one activity and its body is left out. `nested = True` adds every object inside a loop, at any depth, right after its loop, with `parent_loop_id` and `loop_depth` set |
+| `permissions()` | list of permission | All permissions across all element types (full catalog — auto-detected) |
+| `permissions_for(entity_qualified_name)` | list of permission | Access rules for a specific entity (full catalog — auto-detected) |
+| `refs_to(target_name)` | list of reference | Cross-references *to* a target (full catalog — auto-detected) |
+| `refs_from(source_name)` | list of reference | Cross-references *from* a source (outbound) (full catalog — auto-detected) |
 | `user_roles()` | list of user_role | User roles from project security |
 | `module_roles()` | list of module_role | All module roles (deduplicated from role mappings) |
 | `role_mappings()` | list of role_mapping | User role to module role assignments |
 | `project_security()` | project_security or None | Project-level security settings (requires MPR reader) |
-| `xpath_expressions()` | list of xpath_expression | All XPath constraint expressions in the catalog (access rules, retrieve actions, widgets) |
+| `xpath_expressions()` | list of xpath_expression | All XPath constraint expressions in the catalog (access rules, retrieve actions, widgets) (full catalog — auto-detected) |
+| `modules()` | list of module | The user's modules (not System, not Marketplace), with their domain model's documentation |
+| `associations()` | list of association | All non-system associations, same-module and cross-module, with the delete behaviour of both ends |
+| `entity_event_handlers()` | list of entity_event_handler | Every before/after event handler on a non-system entity: which moment, which event, which microflow |
+| `navigation_menu_items()` | list of navigation_menu_item | Every navigation menu item of every profile, at every depth. Navigation belongs to the project, so no module filter applies |
+| `jar_dependencies()` | list of jar_dependency | Maven dependencies declared by non-system, non-marketplace modules |
+| `strings(language = None)` | list of catalog_string | User-facing and documentary text, one row per text and language; pass `language` (`"nl_NL"`) to narrow. An untranslated language has **no row**. Needs a FULL catalog, which `mxcli lint` builds automatically for a rule that calls it |
+| `layouts()` | list of layout | All non-system layouts |
+| `published_rest_operations()` | list of published_rest_operation | Operations of published REST services, with the microflow behind each |
+
+The fields of `module`, `association`, `entity_event_handler`,
+`navigation_menu_item`, `jar_dependency`, `catalog_string`, `layout` and
+`published_rest_operation` are in [catalog-tables.md](catalog-tables.md).
 
 ### Graph-analysis functions (architecture rules)
 
@@ -201,10 +218,10 @@ def check():
 | `qualified_name` | string | `"Sales.Customer_Overview"` |
 | `module_name` | string | `"Sales"` |
 | `folder` | string | `"pages/Customer"` — folder path within module |
-| `title` | string | Page title |
+| `title` | string | Page title in the project's default language (else en_US, else the lowest-sorted non-empty language); `""` when the page has none |
 | `url` | string | Page URL |
 | `description` | string | Documentation text |
-| `widget_count` | int | Number of widgets |
+| `widget_count` | int | Number of widgets (full catalog — auto-detected) |
 
 ### enumeration
 | Property | Type | Example |
@@ -234,10 +251,10 @@ def check():
 |----------|------|---------|
 | `id` | string | Widget UUID |
 | `name` | string | Widget name |
-| `widget_type` | string | `"dataview"`, `"listview"`, etc. |
+| `widget_type` | string | The widget's storage type, e.g. `"Forms$DataView"`, `"Forms$DivContainer"`, `"Forms$ActionButton"`; a pluggable widget's id, e.g. `"com.mendix.widget.web.datagrid.Datagrid"` |
 | `container_id` | string | Container UUID |
 | `container_qualified_name` | string | `"Sales.Customer_Overview"` |
-| `container_type` | string | `"page"` or `"snippet"` |
+| `container_type` | string | `"PAGE"` or `"SNIPPET"` |
 | `module_name` | string | `"Sales"` |
 | `entity_ref` | string | Referenced entity qualified name |
 | `attribute_ref` | string | Referenced attribute path |
@@ -252,7 +269,7 @@ def check():
 | `qualified_name` | string | `"Sales.SNIPPET_CustomerCard"` |
 | `module_name` | string | `"Sales"` |
 | `folder` | string | `"snippets"` — folder path within module |
-| `widget_count` | int | Number of widgets |
+| `widget_count` | int | Number of widgets (full catalog — auto-detected) |
 
 ### scheduled_event
 | Property | Type | Example |
@@ -433,18 +450,31 @@ def count_not(node):
 | Property | Type | Example |
 |----------|------|---------|
 | `id` | string | Activity UUID |
-| `name` | string | Activity name |
-| `caption` | string | Activity caption |
-| `activity_type` | string | `"ActionActivity"`, `"ExclusiveSplit"`, `"ExclusiveMerge"`, `"LoopedActivity"`, `"InheritanceSplit"`, `"StartEvent"`, `"EndEvent"` |
-| `action_type` | string | The action inside an `ActionActivity`: `"CreateObjectAction"`, `"ChangeObjectAction"`, `"CommitObjectsAction"`, `"DeleteObjectAction"`, `"RetrieveAction"`, `"MicroflowCallAction"`, `"ShowPageAction"`, `"ClosePageAction"`, `"LogMessageAction"`, `"JavaActionCallAction"`. Empty for an activity that is not an action |
+| `name` | string | The `action_type` for an action activity, otherwise the `activity_type` |
+| `caption` | string | The stored caption: an activity's, a split's (`"Is amount big?"`), or an annotation's text. Empty for objects Mendix stores no caption for (start/end events, merges, loops). When `auto_generate_caption` is true this is Studio Pro's stored placeholder (typically `"Activity"`), not the caption Studio Pro shows |
+| `auto_generate_caption` | bool | Action activity: whether Studio Pro generates the caption. False for other objects |
+| `description` | string | The documentation of an action activity, split or loop |
+| `activity_type` | string | `"ActionActivity"`, `"ExclusiveSplit"`, `"ExclusiveMerge"`, `"LoopedActivity"`, `"InheritanceSplit"`, `"StartEvent"`, `"EndEvent"`, `"Annotation"` |
+| `action_type` | string | The action inside an `ActionActivity`: `"CreateObjectAction"`, `"ChangeObjectAction"`, `"CommitObjectsAction"`, `"DeleteObjectAction"`, `"RetrieveAction"`, `"MicroflowCallAction"`, `"ShowPageAction"`, `"ClosePageAction"`, `"LogMessageAction"`, `"JavaActionCallAction"`, `"RestCallAction"`, `"WebServiceCallAction"`. Empty for an activity that is not an action |
 | `microflow_id` | string | Parent microflow UUID |
 | `microflow_qualified_name` | string | `"Sales.ACT_Customer_Create"` |
 | `module_name` | string | `"Sales"` |
-| `entity_ref` | string | Referenced entity qualified name |
+| `entity_ref` | string | Entity qualified name, for a create object and a database retrieve |
 | `service_ref` | string | Called service document (REST / web service / OData client); empty when the activity calls none |
 | `action_ref` | string | Operation or action within that service; empty when the activity calls none |
-| `use_request_timeout` | bool | Call REST service: whether "Use a timeout" is enabled. False for other action types |
-| `timeout_expression` | string | Call REST service: the timeout in seconds, stored as an expression, e.g. `"300"` |
+| `use_request_timeout` | bool | Call REST service or Call web service: whether "Use a timeout" is enabled. False for other action types |
+| `timeout_expression` | string | Call REST service or Call web service: the timeout in seconds, stored as an expression, e.g. `"300"` |
+| `parent_loop_id` | string | `id` of the loop the activity is inside; empty at the top level. Only set with `activities_for(…, nested = True)` |
+| `loop_depth` | int | Number of loops around the activity: 0 at the top level, 1 directly inside a loop, 2 in a loop inside a loop |
+| `condition_expression` | string | Exclusive split: the condition expression, e.g. `"$Order/Amount > 10"`. Empty for a rule-based split |
+| `condition_rule` | string | Exclusive split calling a rule: the rule's qualified name, e.g. `"Sales.IsValidOrder"` |
+| `error_handling_type` | string | The stored error handling of an action, loop or split: exactly `"Rollback"`, `"Custom"`, `"CustomWithoutRollBack"` (capital **B**), `"Continue"` or `"Abort"`. Empty for objects without error handling |
+| `log_level` | string | Log message: exactly `"Trace"`, `"Debug"`, `"Info"`, `"Warning"`, `"Error"` or `"Critical"` |
+| `log_node_expression` | string | Log message: the log node as stored, an expression — `"'MyNode'"` (a quoted string literal) or `"getKey(Sales.LogNodes.Orders)"` |
+| `log_message` | string | Log message: the message template, e.g. `"Amount is {1}"` |
+| `commit_type` | string | Create or change object: exactly `"Yes"`, `"YesWithoutEvents"` or `"No"`. Empty for other actions |
+| `with_events` | bool | True for a commit action with events, and for a create or change object with `commit_type` `"Yes"` |
+| `retrieve_source` | string | Retrieve: exactly `"database"` or `"association"`. For `"database"`, `entity_ref` is the retrieved entity |
 
 ### rest_client
 | Property | Type | Example |
@@ -536,6 +566,8 @@ Returned by `project_security()`. Returns `none` if no MPR reader is available.
 | `check_security` | bool | Whether security checking is active |
 | `strict_mode` | bool | Strict security mode |
 | `anonymous_user_role` | string | Name of the project's guest user role, the role anonymous users get. Read `enable_guest_access` too: the role name can stay set while guest access is off |
+| `admin_user_name` | string | Name of the administrator account: `"MxAdmin"`. Its password is deliberately not exposed |
+| `admin_user_role` | string | The administrator account's user role: `"Administrator"` |
 | `password_policy` | struct | Nested password policy settings |
 
 #### password_policy (nested in project_security)

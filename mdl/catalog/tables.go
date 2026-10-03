@@ -7,7 +7,41 @@ package catalog
 //
 // History:
 //
-//	16 — permissions_data.DefaultMemberAccessRights, and the belated bump for
+//	17 (activities in loops and their properties): activities_data gains the
+//	    rows inside loop bodies, with ParentLoopId / LoopDepth, and the
+//	    property columns lint rules asked for (real Caption, Description,
+//	    AutoGenerateCaption, ConditionExpression, ConditionRule,
+//	    ErrorHandlingType, LogLevel, LogNodeExpression, LogMessage, CommitType,
+//	    WithEvents, RetrieveSource); microflows_data gains TotalActivityCount
+//	    (mendixlabs/mxcli#1266, #1267). Without the bump a cached catalog
+//	    fails every activities_for() with "no such column", and a cached
+//	    activities table keeps silently omitting every loop body.
+//	17 (lint catalog builtins): modules_data.DomainModelDocumentation (the
+//	    domain model's own documentation, read nowhere before) and the delete
+//	    behaviour of both association ends on associations_data
+//	    (FromDeleteBehavior / ToDeleteBehavior and their error messages). A
+//	    CREATE TABLE IF NOT EXISTS does not add a column to a cached catalog,
+//	    so without the bump associations() and modules() fail with "no such
+//	    column" on every project that already has one.
+//	17 (workflow and loop-variable refs): refs gains the workflow edges the
+//	    walk missed (event handlers, on-created / completion / group-targeting
+//	    microflows, boundary-event paths, event sub-processes) and the
+//	    change/delete edges of loop iterators and association-retrieve outputs;
+//	    workflows_data's activity counts include boundary-event and event
+//	    sub-process activities. Same reason as 11 and 13: refs are only written
+//	    by a FULL build, and an unforced REFRESH CATALOG FULL on a fresh cache
+//	    kept listing workflow.UserTaskEventHandle as dead (measured, TestApp).
+//	17 (page title language): pages_data.Title is the project's default
+//	    language (else en_US, else the lowest-sorted non-empty language) instead
+//	    of whichever translation a map range met first (mendixlabs/mxcli#1262).
+//	    A cached catalog keeps the old, build-dependent title. Also carries the
+//	    "16" entry below, which never reached the constant.
+//	16 — never a real version. This change and the refs change listed as 15
+//	    below were each bumped 14 -> 15 on parallel branches (c449e1c2b,
+//	    11ff6f204); the merge relabelled this entry "16" but left the constant
+//	    at "15", so a cache built at "15" by either branch alone was never
+//	    rebuilt for the other's change. 17 carries both. The change itself:
+//	    permissions_data.DefaultMemberAccessRights, and the belated bump for
 //	    activities_data.UseRequestTimeout / TimeoutExpression. Both columns
 //	    were added without a bump. The activity pair happened to be rescued by
 //	    14, which landed after it for an unrelated reason; the permissions
@@ -62,7 +96,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "15"
+const CatalogSchemaVersion = "17"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
@@ -131,6 +165,11 @@ func (c *Catalog) createTables() error {
 			Source TEXT DEFAULT '',
 			AppStoreVersion TEXT,
 			AppStoreGuid TEXT,
+			-- The module's domain model's documentation. A Mendix module has
+			-- no documentation property (Description above is always empty);
+			-- its DomainModels$DomainModel unit does, so this is the only
+			-- module-level text a project author can write.
+			DomainModelDocumentation TEXT DEFAULT '',
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -182,6 +221,25 @@ func (c *Catalog) createTables() error {
 			Owner TEXT,
 			StorageFormat TEXT,
 			Description TEXT,
+			-- Delete behaviour, as the raw Mendix values (DeleteMeAndReferences /
+			-- DeleteMeButKeepReferences / DeleteMeIfNoReferences). Mendix stores
+			-- both ends on every association, default DeleteMeButKeepReferences,
+			-- so "set explicitly" can only be read as "not the default".
+			--
+			-- Named by the MDL ends, not by Mendix's pointer names, because those
+			-- are inverted (CLAUDE.md, "Association Parent/Child Pointer
+			-- Semantics"): ParentPointer is the FROM entity, ChildPointer the TO
+			-- entity. So:
+			--   ToDeleteBehavior   = DeleteBehavior.ChildDeleteBehavior  (the end
+			--                        MDL's ON DELETE CASCADE|RESTRICT|SET NULL sets)
+			--   FromDeleteBehavior = DeleteBehavior.ParentDeleteBehavior (Studio
+			--                        Pro only; MDL has no clause for it)
+			-- and each *ErrorMessage is the matching Child/ParentErrorMessage text,
+			-- shown when a DeleteMeIfNoReferences delete is refused.
+			ToDeleteBehavior TEXT DEFAULT '',
+			FromDeleteBehavior TEXT DEFAULT '',
+			ToDeleteErrorMessage TEXT DEFAULT '',
+			FromDeleteErrorMessage TEXT DEFAULT '',
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -223,6 +281,7 @@ func (c *Catalog) createTables() error {
 			ReturnType TEXT,
 			ParameterCount INTEGER DEFAULT 0,
 			ActivityCount INTEGER DEFAULT 0,
+			TotalActivityCount INTEGER DEFAULT 0,
 			Complexity INTEGER DEFAULT 1,
 			Excluded BOOLEAN DEFAULT 0,
 			ProjectId TEXT,
@@ -574,6 +633,18 @@ func (c *Catalog) createTables() error {
 			UseRequestTimeout INTEGER DEFAULT 0,
 			TimeoutExpression TEXT,
 			Description TEXT,
+			ParentLoopId TEXT DEFAULT '',
+			LoopDepth INTEGER DEFAULT 0,
+			AutoGenerateCaption INTEGER DEFAULT 0,
+			ConditionExpression TEXT DEFAULT '',
+			ConditionRule TEXT DEFAULT '',
+			ErrorHandlingType TEXT DEFAULT '',
+			LogLevel TEXT DEFAULT '',
+			LogNodeExpression TEXT DEFAULT '',
+			LogMessage TEXT DEFAULT '',
+			CommitType TEXT DEFAULT '',
+			WithEvents INTEGER DEFAULT 0,
+			RetrieveSource TEXT DEFAULT '',
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
