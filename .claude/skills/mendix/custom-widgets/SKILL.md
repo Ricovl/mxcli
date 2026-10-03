@@ -304,12 +304,9 @@ MDL032).
 **CE0463 "update this widget" is EXPECTED after generating charts.** mxcli writes
 the WidgetType from an embedded 11.6 baseline; the installed Charts.mpk is a
 different version, so Studio Pro/mxbuild flags drift. Clear it with **`mxcli fix
-widgets`**, which normalizes the stored widgets and preserves your storage format.
-`mxcli docker check` normalizes only a temporary copy before checking, so it reports
-0 errors while the stored project still fails `run --local`; `docker check
---no-update-widgets` checks the project as stored. The whole
-`mdl-examples/doctype-tests/34-chart-widget-examples.mdl` builds **0 errors** after
-normalization.
+widgets`** (keeps your storage format); `docker check` only normalizes a temp copy,
+so check the stored project with `--no-update-widgets`. The whole
+`mdl-examples/doctype-tests/34-chart-widget-examples.mdl` builds **0 errors** after.
 **Do NOT run bare `mx update-widgets` on an MPRv2 project** (an `mprcontents/`-folder
 project — what `mxcli new` creates): it converts the project to single-file v1 and
 **deletes `mprcontents/`**, corrupting git, breaking a running `mxcli run --local`

@@ -237,3 +237,39 @@ func TestCopyProjectForCheck_SkipsOutputs(t *testing.T) {
 		}
 	}
 }
+
+// TestCopyProjectForCheck_TempDirInsideProject: with $TMPDIR inside the project
+// the walk meets its own copy; it must not copy the copy into itself.
+func TestCopyProjectForCheck_TempDirInsideProject(t *testing.T) {
+	proj := t.TempDir()
+	mpr := filepath.Join(proj, "App.mpr")
+	if err := os.WriteFile(mpr, []byte("model"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	tmp := filepath.Join(proj, "tmp")
+	if err := os.MkdirAll(tmp, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", tmp)
+	work, cleanup, err := copyProjectForCheck(mpr)
+	if err != nil {
+		t.Fatalf("copyProjectForCheck: %v", err)
+	}
+	defer cleanup()
+	if b, err := os.ReadFile(work); err != nil || string(b) != "model" {
+		t.Fatalf("copy of the model = %q, %v", b, err)
+	}
+	filepath.WalkDir(filepath.Dir(work), func(p string, d fs.DirEntry, err error) error {
+		if err == nil && strings.HasPrefix(d.Name(), "mxcli-check-") {
+			t.Errorf("the copy contains a copy of itself: %s", p)
+			return filepath.SkipDir
+		}
+		return nil
+	})
+}
+
+func TestCopyProjectForCheck_MissingProject(t *testing.T) {
+	if _, _, err := copyProjectForCheck(filepath.Join(t.TempDir(), "nope.mpr")); err == nil {
+		t.Error("want an error for a project file that does not exist")
+	}
+}

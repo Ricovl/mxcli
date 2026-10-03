@@ -4,6 +4,7 @@ package docker
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -30,6 +31,11 @@ func copyProjectForCheck(mprPath string) (workMpr string, cleanup func(), err er
 	abs, err := filepath.Abs(mprPath)
 	if err != nil {
 		return "", cleanup, err
+	}
+	if info, err := os.Stat(abs); err != nil {
+		return "", cleanup, err
+	} else if info.IsDir() {
+		return "", cleanup, fmt.Errorf("%s is a directory, not a project file", abs)
 	}
 	tmp, err := os.MkdirTemp("", "mxcli-check-*")
 	if err != nil {
@@ -79,6 +85,10 @@ func copyProjectTree(src, dst string) error {
 		}
 		target := filepath.Join(dst, rel)
 		if d.IsDir() {
+			if p == dst || p == filepath.Dir(dst) {
+				// $TMPDIR inside the project: do not copy the copy into itself.
+				return filepath.SkipDir
+			}
 			if rel != "." && (checkCopySkipAnywhere[d.Name()] || (!strings.ContainsRune(rel, filepath.Separator) && checkCopySkipRoot[rel])) {
 				return filepath.SkipDir
 			}
@@ -155,4 +165,3 @@ func (r *pathRewriter) rewrite(s string) string {
 	}
 	return s
 }
-
