@@ -386,6 +386,7 @@ func init() {
 			"list", "head", "tail", "find", "filter", "sort",
 			"union", "intersect", "subtract", "count", "sum",
 			"average", "aggregate", "add to list", "remove from list",
+			"clear list", "clear", "change list", "replace list", "CE7247",
 			"create list",
 			// RANGE was authorable but absent from this topic, so the paging
 			// form could not be discovered from the CLI at all (issue #966).
@@ -396,7 +397,11 @@ func init() {
 			"$currentObject", "predicate", "CE0117", "CE0109", "MDL-LISTOP01",
 			"contains", "equals", "by", "where", "MDL-DEPR003", "MDL-DEPR004", "MDL-V1-LIST",
 		},
-		Syntax: "$List = CREATE LIST OF Module.Entity;\nADD $Item TO $List;\nREMOVE $Item FROM $List;\n\n" +
+		Syntax: "$List = CREATE LIST OF Module.Entity;\n" +
+			"-- Change list: Add, Remove, Clear, Replace (stored Set).\n" +
+			"ADD $Item TO $List;\nREMOVE $Item FROM $List;\nCLEAR $List;\n" +
+			"SET $List = $Other;   -- on a LIST variable: Change list Replace, not\n" +
+			"                      -- Change variable (CE7247 on a list)\n\n" +
 			"-- One statement per Studio Pro activity. The keyword is the operation's\n" +
 			"-- name and the operand is always a variable, as in the activity's dialog.\n" +
 			"-- List operation:\n" +
@@ -439,7 +444,8 @@ func init() {
 			"and `SET $x = find($Text, 'a')` is always the string function\n" +
 			"(MDL-V1-LIST). Without the header a nested call is refused as\n" +
 			"MDL-LISTOP02.",
-		Example: "$AllOrders = CREATE LIST OF MyModule.Order;\nADD $NewOrder TO $AllOrders;\n$First = HEAD $AllOrders;\n\n" +
+		Example: "$AllOrders = CREATE LIST OF MyModule.Order;\nADD $NewOrder TO $AllOrders;\n$First = HEAD $AllOrders;\n" +
+			"CLEAR $AllOrders;\nSET $AllOrders = $Orders;   -- Change list: Replace\n\n" +
 			"-- Filter by member, and by expression over $currentObject\n" +
 			"$Pending = FILTER $AllOrders BY Status = MyModule.OrderStatus.Pending;\n" +
 			"$Large = FILTER $AllOrders WHERE $currentObject/Amount > 1000;\n" +

@@ -109,6 +109,8 @@ func buildMicroflowStatement(ctx parser.IMicroflowStatementContext) ast.Microflo
 		stmt = buildAddToListStatement(addTo)
 	} else if removeFrom := mfCtx.RemoveFromListStatement(); removeFrom != nil {
 		stmt = buildRemoveFromListStatement(removeFrom)
+	} else if clearList := mfCtx.ClearListStatement(); clearList != nil {
+		stmt = &ast.ClearListStmt{List: strings.TrimPrefix(clearList.VARIABLE().GetText(), "$")}
 	} else if showPage := mfCtx.ShowPageStatement(); showPage != nil {
 		stmt = buildShowPageStatement(showPage)
 	} else if closePage := mfCtx.ClosePageStatement(); closePage != nil {

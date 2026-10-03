@@ -118,6 +118,22 @@ add head($SourceItems) to $Items;
 
 Use expression-valued `add` only when the expression returns an object compatible with the target list element type.
 
+The **Change list** activity has four operations, one statement each:
+
+| Change list operation | MDL statement |
+|---|---|
+| Add | `add $Item to $Items;` |
+| Remove | `remove $Item from $Items;` |
+| Clear | `clear $Items;` |
+| Replace (stored `Set`) | `set $Items = $Other;` |
+
+`set` on a **list** variable is the Replace operation of a Change list activity,
+not a Change variable: Mendix's Change variable takes only primitive variables,
+and one on a list fails the build with CE7247 ("Variable '…' does not have a
+primitive type"). mxcli knows a variable is a list when it is a list parameter,
+a `create list`, a list retrieve or a list operation's result. Both work in
+microflows and nanoflows.
+
 ### One statement per activity
 
 Every list operation and aggregate is **one Studio Pro activity**, and it is
