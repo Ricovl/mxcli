@@ -6,9 +6,11 @@ package docker
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -104,4 +106,69 @@ func mprProductVersion(t *testing.T, mprPath string) *mxversion.ProjectVersion {
 	}
 	defer reader.Disconnect()
 	return reader.ProjectVersion()
+}
+
+// TestBuild_LeavesProjectUntouched is the end-to-end guard for ako/mxcli#961:
+// with real mx and MxBuild, a full `docker build` of an MPRv1 and an MPRv2
+// project leaves every file outside the output directory (.docker/)
+// byte-identical with the same mtime, and still produces the PAD package.
+// Before the fix, update-widgets rewrote the v1 .mpr (and every v2 .mxunit was
+// rewritten and restored with new mtimes), and mx check / MxBuild wrote
+// theme-cache/, deployment/, javasource/ proxies, the .launch file, .classpath
+// and .project into the project.
+func TestBuild_LeavesProjectUntouched(t *testing.T) {
+	mxPath, err := ResolveMx("")
+	if err != nil {
+		t.Skipf("mx not resolvable: %v", err)
+	}
+	for _, format := range []string{"v2", "v1"} {
+		t.Run(format, func(t *testing.T) {
+			// Not t.TempDir(): see TestCheck_LeavesProjectUntouched.
+			dir, err := os.MkdirTemp("", "bld")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.RemoveAll(dir) })
+			cmd := exec.Command(mxPath, "create-project")
+			cmd.Dir = dir
+			PrepareMxCommand(cmd)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Skipf("mx create-project failed: %v\n%s", err, out)
+			}
+			mprPath := filepath.Join(dir, "App.mpr")
+			if pv := mprProductVersion(t, mprPath); !pv.IsAtLeastFull(11, 6, 1) {
+				t.Skipf("Build requires Mendix >= 11.6.1; scaffolded project is %s", pv.ProductVersion)
+			}
+			major, _ := ProjectJavaMajor(mprPath)
+			if _, err := resolveJDK(major); err != nil {
+				t.Skipf("no JDK for Java %d: %v", javaMajorOrDefault(major), err)
+			}
+			if format == "v1" {
+				if err := updateWidgetsCmd(mxPath, mprPath, io.Discard, io.Discard); err != nil {
+					t.Skipf("could not produce a v1 fixture: %v", err)
+				}
+				if v := mprStorageVersion(t, mprPath); v != types.MPRVersionV1 {
+					t.Skipf("fixture is %v, not v1", v)
+				}
+			}
+
+			before := treeState(t, dir)
+			var stdout bytes.Buffer
+			if err := Build(BuildOptions{ProjectPath: mprPath, Stdout: &stdout}); err != nil {
+				t.Fatalf("Build: %v\n%s", err, stdout.String())
+			}
+			var changed []string
+			for _, d := range diffStates(before, treeState(t, dir)) {
+				if !strings.Contains(d, ".docker") {
+					changed = append(changed, d)
+				}
+			}
+			if len(changed) > 0 {
+				t.Errorf("docker build modified the project:\n  %s", strings.Join(changed, "\n  "))
+			}
+			if _, err := os.Stat(filepath.Join(dir, ".docker", "build", "Dockerfile")); err != nil {
+				t.Errorf("no PAD in the output directory: %v\n%s", err, stdout.String())
+			}
+		})
+	}
 }

@@ -13,20 +13,21 @@ import (
 	"sync"
 )
 
-// copyProjectForCheck copies the project that holds mprPath into a fresh
-// temporary directory, so `docker check` can run `mx update-widgets` and
-// `mx check` there instead of on the user's project (ako/mxcli#951).
+// copyProjectToTemp copies the project that holds mprPath into a fresh
+// temporary directory, so mx can be run there instead of on the user's project
+// (ako/mxcli#951, #961).
 //
-// Both tools write into the project they are given: update-widgets rewrites the
-// model (and converts MPRv2 to MPRv1), and mx check compiles the theme into
-// theme-cache/ and writes deployment/sass/. A snapshot/restore of the v2 storage
-// covered only the first half of that, and only on v2 — an MPRv1 project's .mpr
-// was rewritten permanently by a "check".
+// Every mx tool writes into the project it is given: update-widgets rewrites
+// the model (and converts MPRv2 to MPRv1), mx check compiles the theme into
+// theme-cache/ and writes deployment/sass/, and MxBuild regenerates javasource/
+// proxies, the .launch/.classpath/.project files and all of deployment/. A
+// snapshot/restore of the v2 storage covered only the model, and only on v2 — an
+// MPRv1 project's .mpr was rewritten permanently by a "check" or a "build".
 //
 // Only what mx reads is copied: build output, caches and VCS metadata are skipped
 // (copyProjectTree), so the cost is the model plus the widget, theme and source
 // folders. cleanup removes the copy; it is never nil and safe to defer.
-func copyProjectForCheck(mprPath string) (workMpr string, cleanup func(), err error) {
+func copyProjectToTemp(mprPath string) (workMpr string, cleanup func(), err error) {
 	cleanup = func() {}
 	abs, err := filepath.Abs(mprPath)
 	if err != nil {
@@ -37,7 +38,7 @@ func copyProjectForCheck(mprPath string) (workMpr string, cleanup func(), err er
 	} else if info.IsDir() {
 		return "", cleanup, fmt.Errorf("%s is a directory, not a project file", abs)
 	}
-	tmp, err := os.MkdirTemp("", "mxcli-check-*")
+	tmp, err := os.MkdirTemp("", "mxcli-copy-*")
 	if err != nil {
 		return "", cleanup, err
 	}
@@ -52,8 +53,9 @@ func copyProjectForCheck(mprPath string) (workMpr string, cleanup func(), err er
 	return filepath.Join(dst, filepath.Base(abs)), cleanup, nil
 }
 
-// checkCopySkipRoot are top-level project folders mx check neither needs nor
-// should see: build output and caches it regenerates.
+// checkCopySkipRoot are top-level project folders mx neither needs nor should
+// see: build output and caches it regenerates. .docker/ holds `docker build`'s
+// own output directory, which MxBuild writes to by absolute path.
 var checkCopySkipRoot = map[string]bool{
 	"deployment":    true, // MxBuild / mx check output
 	"releases":      true, // exported .mda packages

@@ -15,6 +15,22 @@ mxcli docker build -p app.mpr
 3. **PAD patching** -- Applies Platform-Agnostic Deployment patches (Phase 1) to the build output
 4. **Produces artifact** -- Generates a deployable Mendix deployment package (MDA file)
 
+## The Project Is Not Modified
+
+`mx update-widgets`, `mx check` and MxBuild all write into the project they are
+given: update-widgets rewrites the model (an MPRv1 `.mpr` in place, an MPRv2
+project into MPRv1), mx check compiles the theme into `theme-cache/` and
+`deployment/sass/`, and MxBuild regenerates the `javasource/` proxies, the
+`.launch`, `.classpath` and `.project` files and all of `deployment/`.
+
+So `docker build` copies the project to a temporary directory (in `$TMPDIR`)
+and runs all three there. Widget definitions are normalised on that copy, so the
+build uses the normalised model while the project keeps its own; run
+`mxcli fix widgets` to apply the normalisation to the project. The only thing
+written is the output directory (`.docker/build/` by default, or `-o`). Build
+output, caches and VCS folders (`deployment/`, `.docker/`, `.git/`,
+`node_modules/`, ...) are not copied.
+
 ## PAD Patching
 
 PAD (Platform-Agnostic Deployment) patching modifies the build output to be compatible with container-based deployment platforms. This is essential for deploying Mendix applications to Kubernetes, Cloud Foundry, or other container orchestrators.
