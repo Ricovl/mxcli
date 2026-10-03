@@ -267,10 +267,23 @@ func microflowVarActionRef(action microflows.MicroflowAction, varEntity map[stri
 	return "", "", "", false
 }
 
+// assocEnds are an association's endpoint entities: From owns the reference
+// (BSON ParentPointer), To is referenced (ChildPointer).
+type assocEnds struct{ From, To string }
+
 // buildVarEntityMap builds the variable→entity map for a single flow: seed with
-// object-typed parameters, then walk create/retrieve actions whose output
-// variable holds a known entity. Linear in the number of activities.
-func buildVarEntityMap(params []*microflows.MicroflowParameter, acts []*microflows.ActionActivity) map[string]string {
+// object-typed parameters, then walk the flow — loop bodies included — mapping
+// create/retrieve outputs whose entity is known and each loop iterator to the
+// entity of the list it iterates.
+//
+// The loop iterator is the commonest object variable in a batch flow, and
+// leaving it out made `delete $Order` inside `loop $Order in $Orders` emit no
+// edge while `delete $Orders` did (side note on mendixlabs/mxcli#1266).
+//
+// A variable can be defined after the object that uses it in collection order
+// (Objects is not flow order), so the walk repeats until nothing new is mapped;
+// each pass only adds entries, so it ends within one pass per variable.
+func buildVarEntityMap(params []*microflows.MicroflowParameter, oc *microflows.MicroflowObjectCollection, assocs map[string]assocEnds) map[string]string {
 	norm := func(v string) string { return strings.TrimPrefix(v, "$") }
 	varEntity := map[string]string{}
 	for _, p := range params {
@@ -278,22 +291,81 @@ func buildVarEntityMap(params []*microflows.MicroflowParameter, acts []*microflo
 			varEntity[norm(p.Name)] = qn
 		}
 	}
-	for _, act := range acts {
-		switch a := act.Action.(type) {
-		case *microflows.CreateObjectAction:
-			if a.OutputVariable != "" && a.EntityQualifiedName != "" {
-				varEntity[norm(a.OutputVariable)] = a.EntityQualifiedName
-			}
-		case *microflows.RetrieveAction:
-			if a.OutputVariable == "" || a.Source == nil {
-				continue
-			}
-			if db, ok := a.Source.(*microflows.DatabaseRetrieveSource); ok && db.EntityQualifiedName != "" {
-				varEntity[norm(a.OutputVariable)] = db.EntityQualifiedName
+	set := func(v, qn string) bool {
+		v = norm(v)
+		if v == "" || qn == "" || varEntity[v] != "" {
+			return false
+		}
+		varEntity[v] = qn
+		return true
+	}
+	var walk func(oc *microflows.MicroflowObjectCollection) bool
+	walk = func(oc *microflows.MicroflowObjectCollection) bool {
+		if oc == nil {
+			return false
+		}
+		added := false
+		for _, obj := range oc.Objects {
+			switch o := obj.(type) {
+			case *microflows.ActionActivity:
+				switch a := o.Action.(type) {
+				case *microflows.CreateObjectAction:
+					added = set(a.OutputVariable, a.EntityQualifiedName) || added
+				case *microflows.RetrieveAction:
+					switch src := a.Source.(type) {
+					case *microflows.DatabaseRetrieveSource:
+						added = set(a.OutputVariable, src.EntityQualifiedName) || added
+					case *microflows.AssociationRetrieveSource:
+						added = set(a.OutputVariable, associationTarget(assocs[src.AssociationQualifiedName], varEntity[norm(src.StartVariable)])) || added
+					}
+				}
+			case *microflows.LoopedActivity:
+				if it, ok := o.LoopSource.(*microflows.IterableList); ok {
+					added = set(it.VariableName, varEntity[norm(it.ListVariableName)]) || added
+				}
+				added = walk(o.ObjectCollection) || added
 			}
 		}
+		return added
+	}
+	for walk(oc) {
 	}
 	return varEntity
+}
+
+// associationTarget is the entity an association retrieve from an object of
+// entity start yields: the other end. It is "" when start is neither end — a
+// specialization, or an unknown start variable — rather than a guess.
+func associationTarget(ends assocEnds, start string) string {
+	switch {
+	case start == "" || ends.From == "" || ends.To == "":
+		return ""
+	case start == ends.From:
+		return ends.To
+	case start == ends.To:
+		return ends.From
+	}
+	return ""
+}
+
+// associationEnds maps every association's qualified name to its endpoint
+// entities, for resolving an association retrieve's output variable.
+func (b *Builder) associationEnds() map[string]assocEnds {
+	out := map[string]assocEnds{}
+	dms, err := b.cachedDomainModels()
+	if err != nil {
+		return out
+	}
+	for _, dm := range dms {
+		moduleName := b.hierarchy.getModuleName(b.hierarchy.findModuleID(dm.ContainerID))
+		for _, a := range dm.Associations {
+			out[moduleName+"."+a.Name] = assocEnds{From: b.resolveEntityID(a.ParentID), To: b.resolveEntityID(a.ChildID)}
+		}
+		for _, ca := range dm.CrossAssociations {
+			out[moduleName+"."+ca.Name] = assocEnds{From: b.resolveEntityID(ca.ParentID), To: ca.ChildRef}
+		}
+	}
+	return out
 }
 
 // buildReferences extracts cross-references from all documents.
@@ -315,6 +387,7 @@ func (b *Builder) buildReferences() error {
 	projectID := b.catalog.projectID
 	snapshotID := b.snapshot.ID
 	refCount := 0
+	assocs := b.associationEnds()
 
 	// emitActionRefs walks the action activities of a microflow or nanoflow and
 	// records the document reference each action makes. Nanoflows share the same
@@ -347,7 +420,7 @@ func (b *Builder) buildReferences() error {
 		acts := collectActionActivities(oc)
 		// Intra-flow variable→entity map so change/delete (which operate on a
 		// variable, not a named entity) can resolve their target.
-		varEntity := buildVarEntityMap(params, acts)
+		varEntity := buildVarEntityMap(params, oc, assocs)
 		for _, rule := range collectRuleCalls(oc) {
 			emit(RefObjectRule, rule, RefKindCall)
 		}

@@ -129,7 +129,7 @@ func TestBuildVarEntityMap_And_VarActionRef(t *testing.T) {
 			Source:         &microflows.DatabaseRetrieveSource{EntityQualifiedName: "M.Product"},
 		}),
 	}
-	varEntity := buildVarEntityMap(params, acts)
+	varEntity := buildVarEntityMap(params, &microflows.MicroflowObjectCollection{Objects: []microflows.MicroflowObject{acts[0], acts[1]}}, nil)
 	wantMap := map[string]string{"In": "M.Customer", "New": "M.Order", "List": "M.Product"}
 	for k, v := range wantMap {
 		if varEntity[k] != v {
