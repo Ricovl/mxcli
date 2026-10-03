@@ -48,6 +48,8 @@ func execDropMicroflow(ctx *ExecContext, s *ast.DropMicroflowStmt) error {
 			}
 			invalidateHierarchy(ctx)
 			fmt.Fprintf(ctx.Output, "Dropped microflow: %s.%s\n", s.Name.Module, s.Name.Name)
+			writeDroppedGrantsNote(ctx.Output, "microflow", "execute", qualifiedName, mf.AllowedModuleRoles, true)
+
 			return nil
 		}
 	}

@@ -31,6 +31,12 @@ func TestFlowRefusalNamesTheFlowAndTheReason(t *testing.T) {
 	if !strings.Contains(msg, "Change activities with `alter microflow M.F") {
 		t.Errorf("control: a change outside a loop keeps the generic alter advice: %q", msg)
 	}
+	// A drop in one run and a create in the next loses the grants (#944):
+	// the advice to rebuild says to do both in one script, and why.
+	if !strings.Contains(msg, "drop the microflow and create it in the same script") ||
+		!strings.Contains(msg, "not to one in a later run") {
+		t.Errorf("the rebuild advice must keep drop and create in one script: %q", msg)
+	}
 
 	// Inside a loop alter cannot splice either: the refusal names the alter
 	// that replaces the loop, closing a while with `end while;`.
