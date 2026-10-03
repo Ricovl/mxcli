@@ -29,6 +29,19 @@ works. Nothing about the output says so. mxcli's repair commands exist because o
 this: let the tool convert, read the units back, restore v2, and write only the
 changed ones through mxcli's own writer.
 
+**Every mx tool writes into the project it is given — a check and a build too.**
+The protection was added one call site at a time and each time covered only the
+files someone expected to change: a v2 snapshot around update-widgets in `docker
+check` (#763), then in `docker build` (#808), while a v1 `.mpr` was rewritten
+permanently and a plain `mx check` wrote `theme-cache/` and `deployment/sass/`
+from `docker check`, `docker build`, the TUI checker and the eval runner alike
+(#951, #961). What found them was a whole-tree hash+mtime diff before and after,
+not a check of the expected files. The fix that holds is a temporary copy for
+any mx run that is not *meant* to change the project (`docker.MxCheckOnCopy`,
+`copyProjectToTemp`); the build reads the widget-normalised model from the copy
+and produces the same package. A new `exec.Command(mx…, project)` needs that
+decision made explicitly: expected write, or copy.
+
 **Version numbers are not identity.** Matching an installed module against a
 marketplace release by version *number* is ambiguous — a blank project ships two
 different modules that both published a 4.1.0. The module's `AppStoreGuid` is the

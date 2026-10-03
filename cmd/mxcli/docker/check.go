@@ -61,8 +61,8 @@ func copyFile(src, dst string) error {
 // that behave like the real tools without needing mx.
 var resolveMxForCheck = ResolveMxForVersion
 
-var mxCheckCmd = func(mxPath, mprPath string, w, stderr io.Writer) error {
-	cmd := exec.Command(mxPath, "check", mprPath)
+var mxCheckCmd = func(mxPath, mprPath string, args []string, w, stderr io.Writer) error {
+	cmd := exec.Command(mxPath, append([]string{"check", mprPath}, args...)...)
 	cmd.Stdout = w
 	cmd.Stderr = stderr
 	PrepareMxCommand(cmd)
@@ -104,7 +104,7 @@ func Check(opts CheckOptions) error {
 	if abs, err := filepath.Abs(projectPath); err == nil {
 		projectPath = abs
 	}
-	workMpr, cleanup, err := copyProjectForCheck(projectPath)
+	workMpr, cleanup, err := copyProjectToTemp(projectPath)
 	if err != nil {
 		return fmt.Errorf("copy the project to a temporary directory for checking: %w\n"+
 			"  mx writes into the project it checks, so docker check never runs it on the original;\n"+
@@ -130,7 +130,7 @@ func Check(opts CheckOptions) error {
 
 	// Run mx check
 	fmt.Fprintf(w, "Checking project %s...\n", opts.ProjectPath)
-	checkErr := mxCheckCmd(mxPath, workMpr, out, errOut)
+	checkErr := mxCheckCmd(mxPath, workMpr, nil, out, errOut)
 	out.Flush()
 	errOut.Flush()
 
@@ -148,6 +148,37 @@ func Check(opts CheckOptions) error {
 
 	fmt.Fprintln(w, "Project check passed.")
 	return nil
+}
+
+// MxCheckOnCopy runs `mx check <project> args...` on a temporary copy of the
+// project, so the check cannot write into it, and returns mx's error (a non-zero
+// exit when the project has errors). Output naming the copy is rewritten to name
+// the project. It does not run update-widgets: it checks the project as stored.
+//
+// Every caller that runs a plain `mx check` should go through this: mx check
+// writes theme-cache/ and deployment/sass/ into the project it is given — the TUI
+// checker and the eval runner each did, on every run (ako/mxcli#961).
+func MxCheckOnCopy(mxPath, mprPath string, args []string, stdout, stderr io.Writer) error {
+	if stdout == nil {
+		stdout = io.Discard
+	}
+	if stderr == nil {
+		stderr = io.Discard
+	}
+	projectPath, err := filepath.Abs(mprPath)
+	if err != nil {
+		return err
+	}
+	workMpr, cleanup, err := copyProjectToTemp(projectPath)
+	if err != nil {
+		return fmt.Errorf("copy the project to a temporary directory for mx check: %w", err)
+	}
+	defer cleanup()
+	out := newPathRewriter(stdout, filepath.Dir(workMpr), filepath.Dir(projectPath))
+	errOut := newPathRewriter(stderr, filepath.Dir(workMpr), filepath.Dir(projectPath))
+	defer out.Flush()
+	defer errOut.Flush()
+	return mxCheckCmd(mxPath, workMpr, args, out, errOut)
 }
 
 // mxBinaryName returns the platform-specific mx binary name.
