@@ -98,6 +98,7 @@ func TestCheck_ReadOfAStoredVoidCallOutput(t *testing.T) {
 	if err := copyTree(src, dir); err != nil {
 		t.Fatal(err)
 	}
+	_ = checkCmd.InheritedFlags() // merges the persistent -p into checkCmd.Flags()
 	_ = rootCmd.PersistentFlags().Set("project", filepath.Join(dir, "PedApp.mpr"))
 	defer func() {
 		_ = rootCmd.PersistentFlags().Set("project", "")
