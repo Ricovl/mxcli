@@ -1050,6 +1050,16 @@ func widgetToStarlark(w Widget) starlark.Value {
 		// they were dropped from the Starlark projection (findings #35).
 		"microflow_ref": starlark.String(w.MicroflowRef),
 		"nanoflow_ref":  starlark.String(w.NanoflowRef),
+		"page_ref":      starlark.String(w.PageRef),
+		// Tree position, appearance and primary action (mendixlabs/mxcli#1268).
+		// `class` is a Starlark keyword, hence class_name.
+		"parent_widget_id": starlark.String(w.ParentWidgetID),
+		"depth":            starlark.MakeInt(w.Depth),
+		"class_name":       starlark.String(w.Class),
+		"style":            starlark.String(w.Style),
+		"dynamic_classes":  starlark.String(w.DynamicClasses),
+		"action_type":      starlark.String(w.ActionType),
+		"has_confirmation": starlark.Bool(w.HasConfirmation),
 	})
 }
 
