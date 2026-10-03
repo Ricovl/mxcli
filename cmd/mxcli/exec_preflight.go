@@ -37,6 +37,9 @@ func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath, scri
 		if exec != nil {
 			if b := exec.Backend(); b != nil {
 				violations = executor.DropSettledCommitNotes(violations, prog, executor.NewStoredCommitEvents(b))
+				// A called microflow the script does not create is read from the
+				// project for MDL-WORKFLOW10 (ako/mxcli#943).
+				violations = append(violations, executor.StoredTaskClaimViolations(prog, b)...)
 			}
 		}
 		printPreflightViolations(violations, script, showInfo, w, color)
