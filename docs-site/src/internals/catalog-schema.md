@@ -219,14 +219,44 @@ CREATE TABLE activities_data (
 
 ### WIDGETS
 
+One row per widget instance; written by `refresh catalog full` only.
+
 ```sql
 CREATE TABLE WIDGETS (
-    DocumentName    TEXT,       -- Parent page/snippet
-    WidgetName      TEXT,       -- Widget instance name
-    WidgetType      TEXT,       -- e.g., "Forms$TextBox", "CustomWidgets$ComboBox"
-    ModuleName      TEXT
+    Id                      TEXT PRIMARY KEY,
+    Name                    TEXT,
+    WidgetType              TEXT,    -- "Forms$TextBox", or a pluggable widget's id
+    ContainerId             TEXT,    -- the page or snippet
+    ContainerQualifiedName  TEXT,
+    ContainerType           TEXT,    -- "PAGE" or "SNIPPET"
+    ModuleName              TEXT,
+    Folder                  TEXT,
+    EntityRef               TEXT,
+    AttributeRef            TEXT,
+    MicroflowRef            TEXT,
+    NanoflowRef             TEXT,
+    PageRef                 TEXT,
+    Description             TEXT,
+    ParentWidgetId          TEXT,    -- nearest catalogued ancestor; '' at the root
+    Depth                   INTEGER, -- catalogued ancestors; 0 at the root
+    Class                   TEXT,    -- Appearance
+    Style                   TEXT,
+    DynamicClasses          TEXT,
+    ActionType              TEXT,    -- $Type of Action / OnClickAction / ClickAction
+    HasConfirmation         INTEGER, -- 1 when that action has a ConfirmationInfo
+    ProjectId               TEXT,
+    SnapshotId              TEXT
 );
 ```
+
+The tree columns (schema 19) skip what the walk does not index: the synthetic
+`conditionalVisibilityWidget…` container, layout grid rows and columns, tab
+pages, and a pluggable widget's properties and object-list items, so a widget in
+a data grid 2 column has the grid as its parent. A list view template is
+indexed (it carries its own entity) and so is a level of its own. The walk does
+not follow a snippet call; the snippet's widgets are rows of the snippet, depth
+0 at its root. `HasConfirmation` can only be 1 for a microflow, nanoflow or
+workflow call — `Forms$DeleteClientAction` has no confirmation property.
 
 ### REFS
 
