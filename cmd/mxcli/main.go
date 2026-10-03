@@ -370,6 +370,7 @@ func init() {
 	reportCmd.Flags().StringP("format", "f", "markdown", "Output format: markdown, json, html")
 	reportCmd.Flags().StringP("output", "o", "", "Output file path (default: stdout)")
 	reportCmd.Flags().StringSliceP("exclude", "e", nil, "Modules to exclude from report")
+	reportCmd.Flags().StringSliceP("modules", "m", nil, "Only score the specified modules (comma-separated or repeated)")
 
 	// Graph-report command flags
 	graphReportCmd.Flags().StringP("format", "f", "markdown", "Output format: markdown, json")

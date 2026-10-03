@@ -547,7 +547,7 @@ Cross-reference commands require `REFRESH CATALOG FULL` to populate reference da
 | Check syntax | `mxcli check script.mdl` | Parse-only validation |
 | Check references | `mxcli check script.mdl -p app.mpr --references` | With reference validation |
 | Lint project | `mxcli lint -p app.mpr [--format json\|sarif]` | 19 built-in + 31 Starlark rules |
-| Report | `mxcli report -p app.mpr [--format markdown\|json\|html]` | Best practices report |
+| Report | `mxcli report -p app.mpr [--format markdown\|json\|html] [--modules A,B]` | Best practices report (`--modules` scores only those modules) |
 | Test | `mxcli test tests/ -p app.mpr` | `.test.mdl` / `.test.md` files |
 | Diff script | `mxcli diff -p app.mpr changes.mdl` | Compare script vs project |
 | Diff local | `mxcli diff-local -p app.mpr --ref HEAD` | Git diff for MPR v2 |

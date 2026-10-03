@@ -15,6 +15,9 @@ type Report struct {
 	Categories   []CategoryScore `json:"categories"`
 	Violations   []Violation     `json:"-"`
 	Summary      Summary         `json:"summary"`
+	// Modules is the --modules selection the report was scored over; empty
+	// for a whole-project report.
+	Modules []string `json:"modules,omitempty"`
 }
 
 // CategoryScore tracks the score for a lint category.
@@ -97,6 +100,32 @@ var categoryWeight = map[string]float64{
 	"Naming":       0.10,
 	"Design":       0.10,
 	"Other":        0.05,
+}
+
+// ScopeToModules keeps the violations located in one of the given modules, so
+// a report scores only the selection (ako/mxcli#953). With no modules it
+// returns vs unchanged.
+//
+// A finding with no module — project security, a user role's mapping — is not
+// about any one module and is dropped: counting it would make every module's
+// score carry the project's settings. The LintContext module filter already
+// keeps most rules inside the selection; this is what makes the score exact
+// for the rest.
+func ScopeToModules(vs []Violation, modules []string) []Violation {
+	if len(modules) == 0 {
+		return vs
+	}
+	keep := make(map[string]bool, len(modules))
+	for _, m := range modules {
+		keep[m] = true
+	}
+	var out []Violation
+	for _, v := range vs {
+		if keep[v.Location.Module] {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // BuildReport creates a Report from a list of violations.
