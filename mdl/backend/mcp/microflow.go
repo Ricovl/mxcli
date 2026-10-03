@@ -4,7 +4,6 @@ package mcp
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -1147,24 +1146,8 @@ func carryErrorHandlingType(a microflows.MicroflowAction, m map[string]any) erro
 	return nil
 }
 
-var errorHandlingTypeType = reflect.TypeOf(microflows.ErrorHandlingType(""))
-
 // actionErrorHandlingType reads the ErrorHandlingType field every action that
 // has one carries; "" for one that has none.
 func actionErrorHandlingType(a microflows.MicroflowAction) microflows.ErrorHandlingType {
-	v := reflect.ValueOf(a)
-	if v.Kind() == reflect.Ptr {
-		if v.IsNil() {
-			return ""
-		}
-		v = v.Elem()
-	}
-	if v.Kind() != reflect.Struct {
-		return ""
-	}
-	f := v.FieldByName("ErrorHandlingType")
-	if !f.IsValid() || f.Type() != errorHandlingTypeType {
-		return ""
-	}
-	return microflows.ErrorHandlingType(f.String())
+	return microflows.ActionErrorHandlingType(a)
 }

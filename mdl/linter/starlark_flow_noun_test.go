@@ -127,11 +127,16 @@ func flowKindsFixtureDB(t *testing.T) catalog.CatalogDB {
 			Id TEXT, Name TEXT, Caption TEXT, ActivityType TEXT, ActionType TEXT,
 			MicroflowId TEXT, MicroflowQualifiedName TEXT, ModuleName TEXT, EntityRef TEXT,
 			ServiceRef TEXT, ActionRef TEXT, UseRequestTimeout INTEGER, TimeoutExpression TEXT,
-			Sequence INTEGER)`,
-		`INSERT INTO activities VALUES
-			('a1','','','ActionActivity','ChangeObjectAction','f4','Sales.ACT_MF','Sales','','','',0,'',1),
-			('a2','','','ActionActivity','ChangeObjectAction','f5','Sales.ACT_NF','Sales','','','',0,'',1),
-			('a3','','','ActionActivity','ChangeObjectAction','f6','Sales.ACT_RU','Sales','','','',0,'',1)`,
+			Sequence INTEGER, ParentLoopId TEXT, LoopDepth INTEGER,
+			Description TEXT, AutoGenerateCaption INTEGER, ConditionExpression TEXT,
+			ConditionRule TEXT, ErrorHandlingType TEXT, LogLevel TEXT, LogNodeExpression TEXT,
+			LogMessage TEXT, CommitType TEXT, WithEvents INTEGER, RetrieveSource TEXT)`,
+		`INSERT INTO activities (Id, Name, Caption, ActivityType, ActionType, MicroflowId,
+			MicroflowQualifiedName, ModuleName, EntityRef, ServiceRef, ActionRef,
+			UseRequestTimeout, TimeoutExpression, Sequence, ParentLoopId, LoopDepth) VALUES
+			('a1','','','ActionActivity','ChangeObjectAction','f4','Sales.ACT_MF','Sales','','','',0,'',1,'',0),
+			('a2','','','ActionActivity','ChangeObjectAction','f5','Sales.ACT_NF','Sales','','','',0,'',1,'',0),
+			('a3','','','ActionActivity','ChangeObjectAction','f6','Sales.ACT_RU','Sales','','','',0,'',1,'',0)`,
 		// One unrelated row, so the refs table reads as populated.
 		`CREATE TABLE refs (
 			SourceType TEXT, SourceId TEXT, SourceName TEXT, TargetType TEXT,

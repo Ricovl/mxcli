@@ -7,6 +7,15 @@ package catalog
 //
 // History:
 //
+//	17 (activities in loops and their properties): activities_data gains the
+//	    rows inside loop bodies, with ParentLoopId / LoopDepth, and the
+//	    property columns lint rules asked for (real Caption, Description,
+//	    AutoGenerateCaption, ConditionExpression, ConditionRule,
+//	    ErrorHandlingType, LogLevel, LogNodeExpression, LogMessage, CommitType,
+//	    WithEvents, RetrieveSource); microflows_data gains TotalActivityCount
+//	    (mendixlabs/mxcli#1266, #1267). Without the bump a cached catalog
+//	    fails every activities_for() with "no such column", and a cached
+//	    activities table keeps silently omitting every loop body.
 //	17 (lint catalog builtins): modules_data.DomainModelDocumentation (the
 //	    domain model's own documentation, read nowhere before) and the delete
 //	    behaviour of both association ends on associations_data
@@ -272,6 +281,7 @@ func (c *Catalog) createTables() error {
 			ReturnType TEXT,
 			ParameterCount INTEGER DEFAULT 0,
 			ActivityCount INTEGER DEFAULT 0,
+			TotalActivityCount INTEGER DEFAULT 0,
 			Complexity INTEGER DEFAULT 1,
 			Excluded BOOLEAN DEFAULT 0,
 			ProjectId TEXT,
@@ -623,6 +633,18 @@ func (c *Catalog) createTables() error {
 			UseRequestTimeout INTEGER DEFAULT 0,
 			TimeoutExpression TEXT,
 			Description TEXT,
+			ParentLoopId TEXT DEFAULT '',
+			LoopDepth INTEGER DEFAULT 0,
+			AutoGenerateCaption INTEGER DEFAULT 0,
+			ConditionExpression TEXT DEFAULT '',
+			ConditionRule TEXT DEFAULT '',
+			ErrorHandlingType TEXT DEFAULT '',
+			LogLevel TEXT DEFAULT '',
+			LogNodeExpression TEXT DEFAULT '',
+			LogMessage TEXT DEFAULT '',
+			CommitType TEXT DEFAULT '',
+			WithEvents INTEGER DEFAULT 0,
+			RetrieveSource TEXT DEFAULT '',
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
