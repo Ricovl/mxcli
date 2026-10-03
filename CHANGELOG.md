@@ -56,6 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **CONV006 reports once per entity** (ako/mxcli#953) — listing the roles per right (`grants CREATE (M.Admin, M.User); DELETE (M.Admin)`) instead of one finding per entity × role × right.
 - **MPR002 no longer calls a return-only flow empty** (ako/mxcli#953) — a microflow or nanoflow whose only content is `return <expr>;` computes its value in the end event; flows with a non-Void return type are not reported.
 - **MPR012 and MDL-WIDGET40 stay off native pages** (ako/mxcli#953) — CE0582 is the React client's error, and a page on a native layout builds a `staticimage` or a classic `dropdown` clean (measured, 11.13). The catalog's `layouts` table gains `Platform` (`Web` / `Native`), exposed to Starlark as `layout.platform`; catalog schema 18. MDL-WIDGET39 (CE2421) is not React-only and still applies to native pages.
 - **`check` no longer refuses a control-bar button of a grid nested in a data view or list view** (ako/mxcli#953) — **MDL-BUTTON01** fired when such a button passed `$currentObject`, which there is the enclosing object and builds clean (measured, mxbuild 11.13). A grid with no enclosing data container is still CE1571 and still reported.
