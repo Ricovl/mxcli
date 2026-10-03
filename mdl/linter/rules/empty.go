@@ -30,12 +30,21 @@ func (r *EmptyMicroflowRule) Description() string {
 	return "Checks for microflows, nanoflows and rules that have no activities"
 }
 
+// returnsValue reports whether a flow's end event returns a value. A flow whose
+// only content is `return <expr>;` has no activities — ActivityCount excludes
+// the start and end events — but it computes something and is not empty
+// (ako/mxcli#953). A non-Void return type is the witness: mxbuild requires
+// every end event of such a flow to return a value.
+func returnsValue(mf linter.Microflow) bool {
+	return mf.ReturnType != "" && mf.ReturnType != "Void"
+}
+
 // Check runs the empty microflow check.
 func (r *EmptyMicroflowRule) Check(ctx *linter.LintContext) []linter.Violation {
 	var violations []linter.Violation
 
 	for mf := range ctx.Microflows() {
-		if mf.ActivityCount == 0 {
+		if mf.ActivityCount == 0 && !returnsValue(mf) {
 			violations = append(violations, linter.Violation{
 				RuleID:   r.ID(),
 				Severity: r.DefaultSeverity(),

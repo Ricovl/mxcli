@@ -38,3 +38,23 @@ func TestLayoutTypeOf_ReadsTheContentWrapper(t *testing.T) {
 		t.Errorf("no content: got %q, want empty", got)
 	}
 }
+
+// ako/mxcli#953: the platform is the content wrapper's TYPE, and the lint rules
+// that predict React-client CE0582 need it — a native page builds a static
+// image or a classic drop-down clean (measured, 11.13.0). ListLayouts left
+// Native false for every layout, so nothing downstream could tell.
+func TestLayoutIsNative_ReadsTheContentWrapperType(t *testing.T) {
+	l := genPg.NewLayout()
+	l.SetContent(genPg.NewNativeLayoutContent())
+	if !layoutIsNative(l) {
+		t.Error("native content: want native")
+	}
+	w := genPg.NewLayout()
+	w.SetContent(genPg.NewWebLayoutContent())
+	if layoutIsNative(w) {
+		t.Error("web content: want not native")
+	}
+	if layoutIsNative(genPg.NewLayout()) {
+		t.Error("no content: want not native")
+	}
+}

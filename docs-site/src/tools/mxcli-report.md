@@ -9,6 +9,23 @@ The `mxcli report` command generates a scored best practices report for a Mendix
 mxcli report -p app.mpr
 ```
 
+## Scoring Selected Modules
+
+```bash
+# score only your own modules
+mxcli report -p app.mpr --modules Sales,Orders
+mxcli report -p app.mpr -m Sales -m Orders
+```
+
+`--modules` (`-m`, as on `mxcli lint`) scores the named modules and nothing else:
+the rules skip every other module, and only findings **located in a selected
+module** count toward the score. Findings that belong to no module — project
+security, user-role mappings — are left out, because they would weigh the same
+on every module's score. The report names the selection under the date, so a
+module score is not read as the project's. `--exclude` and `excludeModules` in
+`lint-config.yaml` still win over `--modules`; a module named by both is warned
+about and not scored.
+
 ## Output Formats
 
 ### Markdown

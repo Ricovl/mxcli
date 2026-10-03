@@ -36,6 +36,9 @@ func (f *MarkdownReportFormatter) FormatReport(report *Report, w io.Writer) erro
 	fmt.Fprintf(w, "# Mendix Best Practices Report\n\n")
 	fmt.Fprintf(w, "**Project:** %s  \n", report.ProjectName)
 	fmt.Fprintf(w, "**Date:** %s  \n", report.Date)
+	if len(report.Modules) > 0 {
+		fmt.Fprintf(w, "**Modules:** %s (findings outside these modules are not scored)  \n", strings.Join(report.Modules, ", "))
+	}
 	fmt.Fprintf(w, "**Overall Score:** %s %.0f/100\n\n", scoreBar(report.OverallScore), report.OverallScore)
 
 	// Summary
@@ -123,6 +126,7 @@ type JSONReportFormatter struct{}
 type JSONReport struct {
 	ProjectName  string          `json:"projectName"`
 	Date         string          `json:"date"`
+	Modules      []string        `json:"modules,omitempty"`
 	OverallScore float64         `json:"overallScore"`
 	Summary      JSONSummary     `json:"summary"`
 	Categories   []CategoryScore `json:"categories"`
@@ -144,6 +148,7 @@ func (f *JSONReportFormatter) FormatReport(report *Report, w io.Writer) error {
 	jr := JSONReport{
 		ProjectName:  report.ProjectName,
 		Date:         report.Date,
+		Modules:      report.Modules,
 		OverallScore: report.OverallScore,
 		Summary: JSONSummary{
 			Total:    report.Summary.Total,
@@ -220,6 +225,10 @@ func (f *HTMLReportFormatter) FormatReport(report *Report, w io.Writer) error {
 	fmt.Fprintf(w, "<h1>Mendix Best Practices Report</h1>\n")
 	fmt.Fprintf(w, "<p class='meta'><strong>Project:</strong> %s</p>\n", report.ProjectName)
 	fmt.Fprintf(w, "<p class='meta'><strong>Date:</strong> %s</p>\n", report.Date)
+	if len(report.Modules) > 0 {
+		fmt.Fprintf(w, "<p class='meta'><strong>Modules:</strong> %s (findings outside these modules are not scored)</p>\n",
+			html.EscapeString(strings.Join(report.Modules, ", ")))
+	}
 
 	// Overall score
 	scoreClass := "score-good"

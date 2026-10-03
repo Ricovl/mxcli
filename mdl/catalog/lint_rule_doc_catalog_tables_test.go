@@ -100,6 +100,7 @@ func TestSkillDocumentsRealCatalogTableVocabulary(t *testing.T) {
 			domainmodel.EventTypeDelete, domainmodel.EventTypeRollback)},
 		{"layout", "layout_type", stringSet(pages.LayoutTypeResponsive, pages.LayoutTypeDefault, pages.LayoutTypeTablet,
 			pages.LayoutTypePhone, pages.LayoutTypeModalPopup, pages.LayoutTypePopup, pages.LayoutTypeLegacy)},
+		{"layout", "platform", stringSet(LayoutPlatformWeb, LayoutPlatformNative)},
 		{"published_rest_operation", "http_method", stringSet(metamodel.RestHTTPMethodGet, metamodel.RestHTTPMethodPost,
 			metamodel.RestHTTPMethodPut, metamodel.RestHTTPMethodPatch, metamodel.RestHTTPMethodDelete,
 			metamodel.RestHTTPMethodHead, metamodel.RestHTTPMethodOptions)},

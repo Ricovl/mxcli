@@ -61,10 +61,10 @@ func catalogTablesFixture(t *testing.T) *catalog.Catalog {
 				IsIncluded, ProjectId, SnapshotId)
 			VALUES (?,?,?,?,?,?,?,?,?)`,
 			"j-"+mod, mod, "org.example", "lib", "org.example:lib", "1.2.3", 0, "p", "s")
-		exec(`INSERT INTO layouts_data (Id, Name, QualifiedName, ModuleName, Folder, LayoutType, Description,
-				ProjectId, SnapshotId)
-			VALUES (?,?,?,?,?,?,?,?,?)`,
-			"l-"+mod, "Atlas_Popup", mod+".Atlas_Popup", mod, "Layouts", "ModalPopup", "A popup", "p", "s")
+		exec(`INSERT INTO layouts_data (Id, Name, QualifiedName, ModuleName, Folder, LayoutType, Platform,
+				Description, ProjectId, SnapshotId)
+			VALUES (?,?,?,?,?,?,?,?,?,?)`,
+			"l-"+mod, "Atlas_Popup", mod+".Atlas_Popup", mod, "Layouts", "ModalPopup", "Web", "A popup", "p", "s")
 		exec(`INSERT INTO published_rest_operations_data (Id, ServiceId, ServiceQualifiedName, ResourceName,
 				HttpMethod, Path, Summary, Microflow, Deprecated, ModuleName, ProjectId, SnapshotId)
 			VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -166,7 +166,7 @@ func TestCatalogTableBuiltins(t *testing.T) {
 		{`strings("de_DE")`, nil},
 		{"layouts()", []string{
 			"description=A popup|folder=Layouts|layout_type=ModalPopup|module_name=Sales|name=Atlas_Popup|" +
-				"qualified_name=Sales.Atlas_Popup",
+				"platform=Web|qualified_name=Sales.Atlas_Popup",
 		}},
 		{"published_rest_operations()", []string{
 			"deprecated=True|http_method=Get|microflow=Sales.PRS_GetOrder|module_name=Sales|path=/{id}|" +

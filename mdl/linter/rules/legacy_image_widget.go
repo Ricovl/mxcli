@@ -41,6 +41,11 @@ import (
 // "this page still holds a widget your client cannot render" is exactly the
 // finding wanted, once.
 //
+// Native pages are out of scope too: the React client renders web pages only,
+// and mxbuild reports no CE0582 on a page whose layout is native (measured,
+// 11.13.0, ako/mxcli#953). Snippets are still reported — a snippet records no
+// layout, and whether a native snippet builds a legacy image clean is unmeasured.
+//
 // Marketplace modules are already out of scope: ctx.Widgets() filters them
 // (notPlatformModule excludes any module with a Source), which is what keeps the
 // rule off the Studio Pro-authored static images a blank app inherits from
@@ -94,6 +99,7 @@ func LegacyImageWidget(widgetType string) (LegacyImage, bool) {
 // Check reports one violation per legacy image widget found.
 func (r *LegacyImageWidgetRule) Check(ctx *linter.LintContext) []linter.Violation {
 	var violations []linter.Violation
+	native := ctx.NativePages()
 
 	for w := range ctx.Widgets() {
 		if ctx.IsExcluded(w.ModuleName) {
@@ -101,6 +107,11 @@ func (r *LegacyImageWidgetRule) Check(ctx *linter.LintContext) []linter.Violatio
 		}
 		legacy, ok := LegacyImageWidget(w.WidgetType)
 		if !ok {
+			continue
+		}
+		// A native page is not rendered by the React client; mxbuild 11.13.0
+		// builds a static image on a NativePhone_Default page clean (#953).
+		if w.ContainerType != "SNIPPET" && native[w.ContainerQualifiedName] {
 			continue
 		}
 
