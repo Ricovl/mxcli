@@ -116,6 +116,11 @@ func init() {
 		})
 	}
 	codec.RegisterListMarker("Forms$LayoutGrid", 2)
+	// A navigation-list item carries a null ConditionalVisibilitySettings: six of
+	// six in ako/TestApp at 11.14.0 (ako/mxcli#950).
+	codec.RegisterTypeDefaults("Forms$NavigationListItem", codec.TypeDefaults{
+		NullFields: []string{"ConditionalVisibilitySettings"},
+	})
 	codec.RegisterListMarker("Forms$LayoutGridRow", 2)
 	codec.RegisterListMarker("Forms$LayoutGridColumn", 2)
 	// ActionButton: null Icon/visibility/accessibility slots; marker 2 as a widget.
@@ -937,7 +942,14 @@ func navListItemToGen(item *pages.NavigationListItem) (element.Element, error) {
 	// more than one item). The gen NavigationListItem type has no typed Name
 	// setter, so write it as a raw property (like the legacy writer's Name key).
 	// (ledger finding #24)
-	addStr(&g.Base, "Name", item.Name)
+	//
+	// An unnamed item is how Studio Pro stores every one it creates: no Name key
+	// at all (all six in ako/TestApp at 11.14.0), and `mx check` accepts that.
+	// Writing `Name: ""` for it turned a describe → exec of such a list into a
+	// rewrite (ako/mxcli#950).
+	if item.Name != "" {
+		addStr(&g.Base, "Name", item.Name)
+	}
 	g.SetAppearance(newAppearance("", "", "", nil))
 	act, err := clientActionToGen(item.Action)
 	if err != nil {

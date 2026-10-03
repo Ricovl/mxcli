@@ -1512,3 +1512,36 @@ func TestFormatAction_Retrieve_NestedPredicateReparses(t *testing.T) {
 		}
 	}
 }
+
+// ako/mxcli#950 item 2: the `$` prefix is for a bare variable name a legacy
+// writer stored without one, and nothing else. It used to go on anything
+// without + ' " ( ), so `[%CurrentUser%]` became `$[%CurrentUser%]`, which does
+// not parse — and so did an `if … then … else …` or a bare `and` expression.
+// Each case below must describe as stored and parse back as a return value.
+func TestFormatActivity_ReturnExpressionIsNotPrefixed(t *testing.T) {
+	e := newTestExecutor()
+	for _, v := range []string{
+		"[%CurrentUser%]",
+		"[%CurrentDateTime%]",
+		"if $Ok then 1 else 2",
+		"$A and $B",
+		"empty",
+		"MyModule.Status.Open",
+	} {
+		got := e.formatActivity(&microflows.EndEvent{ReturnValue: v}, nil, nil)
+		if want := "return " + v + ";"; got != want {
+			t.Errorf("ReturnValue %q: got %q, want %q", v, got, want)
+		}
+		script := "create microflow M.F () returns String begin\n  " + got + "\nend;"
+		if _, errs := visitor.Build(script); len(errs) > 0 {
+			t.Errorf("%q does not parse: %v", got, errs[0])
+		}
+	}
+	// The control: a bare (legacy) variable name is still prefixed, and a
+	// bare one with an attribute path too.
+	for in, want := range map[string]string{"MyVar": "return $MyVar;", "Order/Total": "return $Order/Total;"} {
+		if got := e.formatActivity(&microflows.EndEvent{ReturnValue: in}, nil, nil); got != want {
+			t.Errorf("ReturnValue %q: got %q, want %q", in, got, want)
+		}
+	}
+}
