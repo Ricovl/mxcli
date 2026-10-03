@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/sdk/pages"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -764,6 +765,22 @@ func bytesToHex(data []byte) string {
 	return string(result)
 }
 
+// layoutPlatform is "Native" for a native-mobile layout and "Web" otherwise.
+// Pages inherit it from their layout; the React-client CE0582 rules apply to
+// web pages only (ako/mxcli#953).
+func layoutPlatform(l *pages.Layout) string {
+	if l.Native {
+		return LayoutPlatformNative
+	}
+	return LayoutPlatformWeb
+}
+
+// The values of layouts.Platform.
+const (
+	LayoutPlatformWeb    = "Web"
+	LayoutPlatformNative = "Native"
+)
+
 func (b *Builder) buildLayouts() error {
 	// Get all layouts
 	layoutList, err := b.reader.ListLayouts()
@@ -772,9 +789,9 @@ func (b *Builder) buildLayouts() error {
 	}
 
 	layoutStmt, err := b.tx.Prepare(`
-		INSERT INTO layouts_data (Id, Name, QualifiedName, ModuleName, Folder, LayoutType, Description,
-			ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO layouts_data (Id, Name, QualifiedName, ModuleName, Folder, LayoutType, Platform,
+			Description, ProjectId, SnapshotId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -798,6 +815,7 @@ func (b *Builder) buildLayouts() error {
 			moduleName,
 			folder,
 			string(l.LayoutType),
+			layoutPlatform(l),
 			l.Documentation,
 			projectID, snapshotID,
 		)

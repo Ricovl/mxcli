@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/mendixlabs/mxcli/mdl/linter"
@@ -34,12 +35,19 @@ Examples:
   mxcli report -p app.mpr --format json
   mxcli report -p app.mpr --format html --output report.html
   mxcli report -p app.mpr --format markdown --output report.md
+  mxcli report -p app.mpr --modules Sales,Orders
+
+--modules scores only the named modules — a project's own modules, without the
+Marketplace and platform modules beside them. Only findings located in a
+selected module count; project-wide findings (project security, user-role
+mappings) are left out, and the report names the selection.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		projectPath, _ := cmd.Flags().GetString("project")
 		format := resolveFormat(cmd, "markdown")
 		outputPath, _ := cmd.Flags().GetString("output")
 		excludeModules, _ := cmd.Flags().GetStringSlice("exclude")
+		moduleFilter, _ := cmd.Flags().GetStringSlice("modules")
 
 		if projectPath == "" {
 			fmt.Fprintln(os.Stderr, "Error: --project (-p) is required")
@@ -86,6 +94,9 @@ Examples:
 		// Create lint context
 		ctx := linter.NewLintContext(cat, exec.Backend())
 		ctx.SetExcludedModules(excludeModules)
+		if len(moduleFilter) > 0 {
+			ctx.SetIncludedModules(moduleFilter)
+		}
 
 		// The rule set and the config come from the same two helpers `mxcli
 		// lint` uses. This command used to build both itself: its inline copy of
@@ -100,8 +111,15 @@ Examples:
 		for _, rule := range projectLintRules(projectDir, os.Stderr) {
 			lint.AddRule(rule)
 		}
-		if cfg, _ := applyLintConfig(lint, projectDir, os.Stderr); cfg != nil && len(cfg.ExcludeModules) > 0 {
+		if cfg, configPath := applyLintConfig(lint, projectDir, os.Stderr); cfg != nil && len(cfg.ExcludeModules) > 0 {
 			ctx.SetExcludedModules(append(excludeModules, cfg.ExcludeModules...))
+			// The exclude wins, as in `lint`: say so rather than score an
+			// empty selection 100.
+			if shadowed := intersect(moduleFilter, cfg.ExcludeModules); len(shadowed) > 0 {
+				fmt.Fprintf(os.Stderr,
+					"Warning: --modules names %s, but %s excluded by %s — no findings will be scored for %s. Remove it from excludeModules to score it.\n",
+					strings.Join(shadowed, ", "), pluralIsAre(len(shadowed)), configPath, pluralItThem(len(shadowed)))
+			}
 		}
 
 		// Run all rules
@@ -116,11 +134,13 @@ Examples:
 		projectName = projectName[:len(projectName)-len(filepath.Ext(projectName))]
 
 		// Build report
+		// --modules: score the selection only (ako/mxcli#953).
 		report := linter.BuildReport(
 			projectName,
 			time.Now().Format("2006-01-02 15:04:05"),
-			violations,
+			linter.ScopeToModules(violations, moduleFilter),
 		)
+		report.Modules = moduleFilter
 
 		// Format and output
 		formatter := linter.GetReportFormatter(format)

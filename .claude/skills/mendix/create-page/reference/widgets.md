@@ -749,7 +749,9 @@ the React client — which Mendix added in **10.7** and which is the only client
 widget, which takes the same `Image:`; Studio Pro offers the conversion from the
 CE0582 error's context menu. mxcli still writes it, because round-tripping a
 model that already contains one is the point — and `mxcli lint` reports it as
-**MPR012** so a new page does not reach for it by accident.
+**MPR012** so a new page does not reach for it by accident. A page on a **native**
+layout (e.g. `Atlas_Core.NativePhone_Default`) is not rendered by the React client:
+mxbuild builds a `staticimage` there clean, and MPR012 stays silent on it.
 
 #### `DataSource:` — which object a DYNAMICIMAGE shows
 
@@ -1013,7 +1015,9 @@ controlbar {
 **A control bar is not row-scoped.** It sits above the rows, so the grid's
 current object is not in scope there — an action calling a flow with a parameter
 gets **CE1571** unless you give it an argument, and `$currentObject` is unbound
-(`mxcli check` reports MDL-BUTTON01). The remedy is the grid's **selection**,
+(`mxcli check` reports MDL-BUTTON01). The exception is a grid nested inside a
+data view or list view item: there `$currentObject` is the *enclosing* object,
+not a grid row, and it builds clean. The remedy is the grid's **selection**,
 addressed by the widget's own name and available once `selection:` is set:
 
 ```sql

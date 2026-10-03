@@ -97,6 +97,21 @@ CREATE TABLE PAGES (
 );
 ```
 
+### LAYOUTS
+
+```text
+CREATE TABLE LAYOUTS (
+    Id            TEXT PRIMARY KEY,
+    Name          TEXT,
+    QualifiedName TEXT,
+    ModuleName    TEXT,
+    Folder        TEXT,
+    LayoutType    TEXT,   -- Responsive / Phone / Tablet / ModalPopup / Default / Popup
+    Platform      TEXT,   -- 'Web' or 'Native' (the content wrapper's type)
+    Description   TEXT
+);
+```
+
 ### SNIPPETS
 
 ```sql

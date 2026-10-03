@@ -284,6 +284,7 @@ type Layout struct {
 	ModuleName    string
 	Folder        string
 	LayoutType    string // "Responsive", "Phone", "Tablet", "Popup", "ModalPopup", "Default", "Legacy"
+	Platform      string // "Web" or "Native" — LayoutType alone cannot tell ("Popup" is native)
 	Description   string
 }
 
@@ -292,7 +293,7 @@ func (ctx *LintContext) Layouts() iter.Seq[Layout] {
 	return func(yield func(Layout) bool) {
 		rows, err := ctx.db.Query(fmt.Sprintf(`
 			SELECT l.Name, l.QualifiedName, l.ModuleName, COALESCE(l.Folder, ''),
-			       COALESCE(l.LayoutType, ''), COALESCE(l.Description, '')
+			       COALESCE(l.LayoutType, ''), COALESCE(l.Platform, ''), COALESCE(l.Description, '')
 			FROM layouts l
 			LEFT JOIN modules m ON l.ModuleName = m.Name
 			WHERE %s AND %s
@@ -307,7 +308,7 @@ func (ctx *LintContext) Layouts() iter.Seq[Layout] {
 		for rows.Next() {
 			var l Layout
 			if err := rows.Scan(&l.Name, &l.QualifiedName, &l.ModuleName, &l.Folder,
-				&l.LayoutType, &l.Description); err != nil {
+				&l.LayoutType, &l.Platform, &l.Description); err != nil {
 				ctx.recordQueryError("Layouts (row scan)", err)
 				continue
 			}
@@ -319,6 +320,41 @@ func (ctx *LintContext) Layouts() iter.Seq[Layout] {
 			}
 		}
 	}
+}
+
+// NativePages returns the qualified names of the pages whose layout is a
+// native-mobile one. React-client rules (CE0582) do not apply to them: a native
+// page is not rendered by the React client, and mxbuild builds a legacy widget
+// there clean (ako/mxcli#953).
+//
+// Unlike Layouts() it does NOT filter Marketplace modules out of the layouts:
+// the native layouts almost every app uses live in Atlas_Core, and a page in a
+// user module on one of them is the case that matters. The page's layout is
+// recorded by a FULL catalog build only (pages.LayoutRef), so a rule calling
+// this needs CatalogFull; on a fast catalog it returns an empty set, and the
+// rule behaves as it did before.
+func (ctx *LintContext) NativePages() map[string]bool {
+	out := map[string]bool{}
+	rows, err := ctx.db.Query(`
+		SELECT p.QualifiedName
+		FROM pages p
+		JOIN layouts l ON l.QualifiedName = p.LayoutRef
+		WHERE l.Platform = 'Native'
+	`)
+	if err != nil {
+		ctx.recordQueryError("NativePages", err)
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var qn string
+		if err := rows.Scan(&qn); err != nil {
+			ctx.recordQueryError("NativePages (row scan)", err)
+			continue
+		}
+		out[qn] = true
+	}
+	return out
 }
 
 // PublishedRestOperation is one operation of a published REST service.

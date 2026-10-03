@@ -217,6 +217,29 @@ There is no `DESCRIBE PAGE TEMPLATE`, so a template is indexed but not
 describable — tools that walk a module report it as *unknown*, never as
 unchanged.
 
+### CATALOG.LAYOUTS
+
+Page layouts (`Forms$Layout`), including those in Marketplace modules such as
+Atlas_Core.
+
+| Column | Description |
+|--------|-------------|
+| `Id` | Unique identifier |
+| `Name` | Layout name |
+| `QualifiedName` | Full qualified name |
+| `ModuleName` | Module containing the layout |
+| `Folder` | Folder path within the module |
+| `LayoutType` | `Responsive`, `Phone`, `Tablet`, `ModalPopup` (web); `Default`, `Popup` (native) |
+| `Platform` | `Web` or `Native` — the platform every page on this layout renders on. React-client errors such as CE0582 apply to `Web` pages only |
+| `Description` | Documentation text |
+
+```sql
+-- pages on a native layout (needs a full build for LayoutRef)
+SELECT p.QualifiedName
+FROM CATALOG.PAGES p JOIN CATALOG.LAYOUTS l ON l.QualifiedName = p.LayoutRef
+WHERE l.Platform = 'Native';
+```
+
 ### CATALOG.ACCESS_RULES
 
 Information about entity access rules (available after full refresh).

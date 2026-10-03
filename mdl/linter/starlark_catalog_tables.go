@@ -187,6 +187,7 @@ func layoutToStarlark(l Layout) starlark.Value {
 		"module_name":    starlark.String(l.ModuleName),
 		"folder":         starlark.String(l.Folder),
 		"layout_type":    starlark.String(l.LayoutType),
+		"platform":       starlark.String(l.Platform),
 		"description":    starlark.String(l.Description),
 	})
 }

@@ -101,3 +101,37 @@ func TestValidatePageButtonContext_SuggestionNamesTheGridSelection(t *testing.T)
 		t.Errorf("message should name the widget carrying the action:\n%s", vs[0].Message)
 	}
 }
+
+// ako/mxcli#953 item 2: a grid nested inside a data view (or a list view item)
+// sits in that container's object context, so a control-bar button passing
+// $currentObject is bound to the ENCLOSING object — mxbuild 11.13 builds it with
+// 0 errors. Only a grid with no enclosing data container is CE1571.
+// Measured on the JTSBootLogboek app: btnOpen (nested) clean, btnOpen2 (top
+// level, same page) CE1571.
+func TestValidatePageButtonContext_NestedInDataContainerClean(t *testing.T) {
+	for _, container := range []string{
+		"dataview dv1 (DataSource: $Order)",
+		"listview lv1 (DataSource: database from P.Order)",
+	} {
+		src := `create page P.Detail ( Title: 'Order', Layout: Atlas_Core.Atlas_Default, Params: ( $Order: P.Order ) ) {
+  ` + container + ` {
+    datagrid dgInner ( DataSource: database from P.Line ) {
+      column Qty (Attribute: Qty) { }
+      controlbar cb1 {
+        actionbutton btnOpen (Caption: 'Open', Action: show_page P.Detail (Order: $currentObject))
+      }
+    }
+  }
+  datagrid dgTop ( DataSource: database from P.Line ) {
+    column Qty (Attribute: Qty) { }
+    controlbar cb2 {
+      actionbutton btnOpen2 (Caption: 'Open', Action: show_page P.Detail (Order: $currentObject))
+    }
+  }
+};`
+		msgs := buttonContextMessages(t, src)
+		if len(msgs) != 1 || !strings.Contains(msgs[0], "btnOpen2") {
+			t.Fatalf("%s: expected only the top-level btnOpen2 flagged (control), got %v", container, msgs)
+		}
+	}
+}
