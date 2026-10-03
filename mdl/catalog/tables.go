@@ -7,10 +7,12 @@ package catalog
 //
 // History:
 //
-//	19 (widget tree, class/style and actions): widgets_data gains
+//	20 (widget tree, class/style and actions): widgets_data gains
 //	    ParentWidgetId, Depth, Class, Style, DynamicClasses, ActionType and
 //	    HasConfirmation (mendixlabs/mxcli#1268). Without the bump a cached
-//	    catalog fails every widgets() with "no such column".
+//	    catalog fails every widgets() with "no such column". Its own number:
+//	    the commit-refs change below took 19 in parallel, and a cache built at
+//	    19 by either alone would never rebuild for the other (as 15/16 did).
 //	19 (commit refs): refs gains RefKind "commit" (FLOW -> ENTITY) for a
 //	    commit action and a create/change that commits (ako/mxcli#963). No
 //	    column changes, but a cached catalog would keep answering "no flow
@@ -109,7 +111,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "19"
+const CatalogSchemaVersion = "20"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
