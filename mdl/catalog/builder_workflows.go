@@ -3,6 +3,7 @@
 package catalog
 
 import (
+	"github.com/mendixlabs/mxcli/mdl/backend/wfnames"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
 
@@ -71,18 +72,8 @@ func (b *Builder) buildWorkflows() error {
 }
 
 // countWorkflowActivityTypes counts activity types in a workflow, over every
-// flow it holds (see walkWorkflowActivities).
+// flow it holds (see wfnames.WalkActivities).
 func countWorkflowActivityTypes(wf *workflows.Workflow) (total, userTasks, microflowCalls, decisions int) {
-	walkWorkflowActivities(wf, func(act workflows.WorkflowActivity) {
-		total++
-		switch act.(type) {
-		case *workflows.UserTask:
-			userTasks++
-		case *workflows.CallMicroflowTask, *workflows.SystemTask:
-			microflowCalls++
-		case *workflows.ExclusiveSplitActivity:
-			decisions++
-		}
-	})
-	return
+	c := wfnames.CountActivities(wf)
+	return c.Total, c.UserTasks, c.MicroflowCalls, c.Decisions
 }

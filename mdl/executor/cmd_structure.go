@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend/wfnames"
 	"github.com/mendixlabs/mxcli/mdl/catalog"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -1016,55 +1017,11 @@ func structureWorkflows(ctx *ExecContext, moduleName string, wfs []*workflows.Wo
 	}
 }
 
-// countStructureWorkflowActivities counts activity types in a workflow for structure output.
+// countStructureWorkflowActivities counts activity types in a workflow for
+// structure output, over every flow it holds — the catalog's walk (wfnames).
 func countStructureWorkflowActivities(wf *workflows.Workflow) (total, userTasks, microflowCalls, decisions int) {
-	if wf.Flow == nil {
-		return
-	}
-	countStructureFlowActivities(wf.Flow, &total, &userTasks, &microflowCalls, &decisions)
-	return
-}
-
-// countStructureFlowActivities recursively counts activity types in a flow.
-func countStructureFlowActivities(flow *workflows.Flow, total, userTasks, microflowCalls, decisions *int) {
-	if flow == nil {
-		return
-	}
-	for _, act := range flow.Activities {
-		*total++
-		switch a := act.(type) {
-		case *workflows.UserTask:
-			*userTasks++
-			for _, outcome := range a.Outcomes {
-				countStructureFlowActivities(outcome.Flow, total, userTasks, microflowCalls, decisions)
-			}
-		case *workflows.CallMicroflowTask:
-			*microflowCalls++
-			for _, outcome := range a.Outcomes {
-				if outcome != nil {
-					countStructureFlowActivities(outcome.GetFlow(), total, userTasks, microflowCalls, decisions)
-				}
-			}
-		case *workflows.SystemTask:
-			*microflowCalls++
-			for _, outcome := range a.Outcomes {
-				if outcome != nil {
-					countStructureFlowActivities(outcome.GetFlow(), total, userTasks, microflowCalls, decisions)
-				}
-			}
-		case *workflows.ExclusiveSplitActivity:
-			*decisions++
-			for _, outcome := range a.Outcomes {
-				if outcome != nil {
-					countStructureFlowActivities(outcome.GetFlow(), total, userTasks, microflowCalls, decisions)
-				}
-			}
-		case *workflows.ParallelSplitActivity:
-			for _, outcome := range a.Outcomes {
-				countStructureFlowActivities(outcome.Flow, total, userTasks, microflowCalls, decisions)
-			}
-		}
-	}
+	c := wfnames.CountActivities(wf)
+	return c.Total, c.UserTasks, c.MicroflowCalls, c.Decisions
 }
 
 // ============================================================================

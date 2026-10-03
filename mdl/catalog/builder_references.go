@@ -29,6 +29,7 @@ const (
 	RefKindMenuItem   = "menu_item"  // Navigation menu item page reference
 	RefKindChange     = "change"     // Microflow changes an entity object
 	RefKindDelete     = "delete"     // Microflow deletes an entity object
+	RefKindCommit     = "commit"     // Microflow commits an entity object (commit action, or create/change with commit)
 	RefKindCalculate  = "calculate"  // Calculated attribute uses a microflow
 	RefKindReturn     = "return"     // Microflow/nanoflow returns an entity type
 	RefKindSchedule   = "schedule"   // Scheduled event runs a microflow
@@ -267,6 +268,36 @@ func microflowVarActionRef(action microflows.MicroflowAction, varEntity map[stri
 	return "", "", "", false
 }
 
+// microflowCommitRef resolves the entity an action commits: a commit action's
+// variable, or the object of a create or change that commits (Yes or
+// YesWithoutEvents). It is a second edge beside the create/change one, so
+// "which flows commit entity X" is one refs query — the question a commit in a
+// loop or a commit without events starts from (mendixlabs/mxcli#1266, #1267).
+// A commit of a variable whose entity is not known in the flow emits nothing,
+// as for change and delete (ako/mxcli#963).
+func microflowCommitRef(action microflows.MicroflowAction, varEntity map[string]string) (entity string, ok bool) {
+	commits := func(c microflows.CommitType) bool {
+		return c == microflows.CommitTypeYes || c == microflows.CommitTypeYesWithoutEvents
+	}
+	resolve := func(v string) (string, bool) {
+		qn, found := varEntity[strings.TrimPrefix(v, "$")]
+		return qn, found && qn != ""
+	}
+	switch a := action.(type) {
+	case *microflows.CommitObjectsAction:
+		return resolve(a.CommitVariable)
+	case *microflows.CreateObjectAction:
+		if commits(a.Commit) && a.EntityQualifiedName != "" {
+			return a.EntityQualifiedName, true
+		}
+	case *microflows.ChangeObjectAction:
+		if commits(a.Commit) {
+			return resolve(a.ChangeVariable)
+		}
+	}
+	return "", false
+}
+
 // assocEnds are an association's endpoint entities: From owns the reference
 // (BSON ParentPointer), To is referenced (ChildPointer).
 type assocEnds struct{ From, To string }
@@ -430,6 +461,9 @@ func (b *Builder) buildReferences() error {
 			}
 			if tt, tn, rk, ok := microflowVarActionRef(act.Action, varEntity); ok {
 				emit(tt, tn, rk)
+			}
+			if qn, ok := microflowCommitRef(act.Action, varEntity); ok {
+				emit(RefObjectEntity, qn, RefKindCommit)
 			}
 		}
 	}

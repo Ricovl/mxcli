@@ -18,6 +18,11 @@ import (
 var graphRefKinds = []string{
 	"call", "retrieve", "create", "change", "delete", "associate", "generalize",
 	"parameter", "return",
+	// Not "commit": its variable is resolved from a parameter, a create or a
+	// retrieve, each of which already links the flow to the entity (directly,
+	// or through the association an association retrieve names). Adding it
+	// would mostly double existing edges' weight and shift communities and
+	// centrality on every project that commits (ako/mxcli#963).
 	// Entry points: something outside the call graph invokes these, so the
 	// microflow they run is reachable even though nothing in the model calls it. Leaving one out does
 	// not hide it from GRAPH_DEAD_ASSETS — that view asks only whether ANY refs

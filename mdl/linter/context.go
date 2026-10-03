@@ -599,8 +599,11 @@ type Microflow struct {
 	Description    string
 	ReturnType     string
 	ParameterCount int
-	ActivityCount  int
-	Complexity     int // McCabe cyclomatic complexity
+	ActivityCount  int // top level only; a loop counts as one
+	// TotalActivityCount is ActivityCount plus every activity inside a loop,
+	// at any depth (mendixlabs/mxcli#1266).
+	TotalActivityCount int
+	Complexity         int // McCabe cyclomatic complexity
 }
 
 // DocumentNoun is what to call this document in a lint message and in
@@ -636,7 +639,7 @@ func (ctx *LintContext) Microflows() iter.Seq[Microflow] {
 		rows, err := ctx.db.Query(fmt.Sprintf(`
 			SELECT mf.Id, mf.Name, mf.QualifiedName, mf.ModuleName, mf.Folder,
 			       mf.MicroflowType, mf.Description, mf.ReturnType,
-			       mf.ParameterCount, mf.ActivityCount, mf.Complexity
+			       mf.ParameterCount, mf.ActivityCount, mf.TotalActivityCount, mf.Complexity
 			FROM microflows mf
 			LEFT JOIN modules m ON mf.ModuleName = m.Name
 			WHERE %s AND %s
@@ -652,7 +655,7 @@ func (ctx *LintContext) Microflows() iter.Seq[Microflow] {
 			var mf Microflow
 			var desc, retType, folder sql.NullString
 			err := rows.Scan(&mf.ID, &mf.Name, &mf.QualifiedName, &mf.ModuleName, &folder,
-				&mf.MicroflowType, &desc, &retType, &mf.ParameterCount, &mf.ActivityCount, &mf.Complexity)
+				&mf.MicroflowType, &desc, &retType, &mf.ParameterCount, &mf.ActivityCount, &mf.TotalActivityCount, &mf.Complexity)
 			if err != nil {
 				ctx.recordQueryError("Microflows (row scan)", err)
 				continue

@@ -950,7 +950,9 @@ func microflowToStarlark(mf Microflow) starlark.Value {
 		"return_type":     starlark.String(mf.ReturnType),
 		"parameter_count": starlark.MakeInt(mf.ParameterCount),
 		"activity_count":  starlark.MakeInt(mf.ActivityCount),
-		"complexity":      starlark.MakeInt(mf.Complexity),
+		// Loop bodies included, at any depth; activity_count counts a loop as one.
+		"total_activity_count": starlark.MakeInt(mf.TotalActivityCount),
+		"complexity":           starlark.MakeInt(mf.Complexity),
 		// microflows() yields all three flow flavours, so a rule naming the
 		// document in a message or a location must not hardcode "Microflow".
 		// Title case matches the document_type spelling Starlark rules use.
