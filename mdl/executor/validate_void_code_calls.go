@@ -25,8 +25,15 @@ import (
 // The name is inert: it neither collides with a later variable nor defines one.
 //
 // An action the resolver cannot find (no project, a runtime-provided System
-// action) is NOT treated as void: the author wrote `$X =`, which normally asks
-// for a value, and guessing void would silence a real CE0111.
+// action) is NOT treated as void by `check`: the author wrote `$X =`, which
+// normally asks for a value, and guessing void would silence a real CE0111.
+// The editor makes the opposite trade (unknownIsVoid, ako/mxcli#962): a
+// squiggle on a call it merely cannot resolve is a false refusal while typing,
+// and `check` still runs before anything is written.
+//
+// Whatever that policy, only a call KNOWN to be void counts for the CE0109
+// rule (MDL093): "possibly void" must never turn a use of the output into an
+// error.
 type voidCodeActions struct {
 	// script holds the actions the script itself creates, keyed by
 	// codeActionKey, valued true when the action returns Void.
@@ -35,7 +42,16 @@ type voidCodeActions struct {
 	open   func() backend.FullBackend
 	opened bool
 	b      backend.FullBackend
-	cache  map[string]bool
+	cache  map[string]voidness
+	// unknownIsVoid makes callIsVoid answer true for an action it cannot
+	// resolve. Set by the editor (NewFlowRules); `check` leaves it false.
+	unknownIsVoid bool
+}
+
+// voidness is what the resolver knows about one action.
+type voidness struct {
+	void  bool // the action returns Void
+	known bool // the action was found, so void is an answer and not a default
 }
 
 func codeActionKey(javaScript bool, qn string) string {
@@ -48,7 +64,7 @@ func codeActionKey(javaScript bool, qn string) string {
 // newVoidCodeActions collects the script's own action declarations; open,
 // which may be nil, supplies the project for the rest.
 func newVoidCodeActions(prog *ast.Program, open func() backend.FullBackend) *voidCodeActions {
-	r := &voidCodeActions{script: map[string]bool{}, open: open, cache: map[string]bool{}}
+	r := &voidCodeActions{script: map[string]bool{}, open: open, cache: map[string]voidness{}}
 	if prog == nil {
 		return r
 	}
@@ -75,53 +91,81 @@ func (r *voidCodeActions) project() backend.FullBackend {
 
 // isVoid reports whether the named action is known to return Void.
 func (r *voidCodeActions) isVoid(javaScript bool, qn string) bool {
+	return r.resolve(javaScript, qn).void
+}
+
+// resolve looks the named action up: in the script first, then in the project.
+func (r *voidCodeActions) resolve(javaScript bool, qn string) voidness {
 	if r == nil || qn == "" {
-		return false
+		return voidness{}
 	}
 	key := codeActionKey(javaScript, qn)
 	if v, ok := r.script[key]; ok {
-		return v
+		return voidness{void: v, known: true}
 	}
 	if v, ok := r.cache[key]; ok {
 		return v
 	}
-	void := false
+	var got voidness
 	if b := r.project(); b != nil {
 		if javaScript {
 			if a, err := b.ReadJavaScriptActionByName(qn); err == nil && a != nil && a.ReturnType != nil {
-				void = a.ReturnType.TypeString() == "Void"
+				got = voidness{void: a.ReturnType.TypeString() == "Void", known: true}
 			}
 		} else {
 			// The Java action reader returns a nil ReturnType for Void
 			// (codeActionReturnTypeFromGen); the JavaScript one a VoidType.
 			if a, err := b.ReadJavaActionByName(qn); err == nil && a != nil {
-				void = a.ReturnType == nil || a.ReturnType.TypeString() == "Void"
+				got = voidness{void: a.ReturnType == nil || a.ReturnType.TypeString() == "Void", known: true}
 			}
 		}
 	}
-	r.cache[key] = void
-	return void
+	r.cache[key] = got
+	return got
+}
+
+// treatAsVoid applies the unknown-action policy to a resolution.
+func (r *voidCodeActions) treatAsVoid(v voidness) bool {
+	if v.known {
+		return v.void
+	}
+	return r != nil && r.unknownIsVoid
+}
+
+// callResolution resolves the action a statement calls; ok is false for a
+// statement that is not a Java or JavaScript action call.
+func (r *voidCodeActions) callResolution(s ast.MicroflowStatement) (v voidness, ok bool) {
+	switch st := s.(type) {
+	case *ast.CallJavaActionStmt:
+		return r.resolve(false, st.ActionName.String()), true
+	case *ast.CallJavaScriptActionStmt:
+		return r.resolve(true, st.ActionName.String()), true
+	}
+	return voidness{}, false
 }
 
 // callIsVoid reports whether a statement is a call to a void Java or
-// JavaScript action — one whose output name declares nothing.
+// JavaScript action — one whose output name declares nothing. An unresolvable
+// action counts as void only under unknownIsVoid.
 func (r *voidCodeActions) callIsVoid(s ast.MicroflowStatement) bool {
-	switch st := s.(type) {
-	case *ast.CallJavaActionStmt:
-		return r.isVoid(false, st.ActionName.String())
-	case *ast.CallJavaScriptActionStmt:
-		return r.isVoid(true, st.ActionName.String())
-	}
-	return false
+	v, ok := r.callResolution(s)
+	return ok && r.treatAsVoid(v)
+}
+
+// callIsKnownVoid is callIsVoid without the unknown-action policy: true only
+// for a call to an action the script or the project says returns Void.
+func (r *voidCodeActions) callIsKnownVoid(s ast.MicroflowStatement) bool {
+	v, ok := r.callResolution(s)
+	return ok && v.known && v.void
 }
 
 // actionIsVoidCall is callIsVoid for a stored action, used by describe.
 func (r *voidCodeActions) actionIsVoidCall(action any) bool {
 	switch a := action.(type) {
 	case *microflows.JavaActionCallAction:
-		return r.isVoid(false, a.JavaAction)
+		return r.treatAsVoid(r.resolve(false, a.JavaAction))
 	case *microflows.JavaScriptActionCallAction:
-		return r.isVoid(true, a.JavaScriptAction)
+		return r.treatAsVoid(r.resolve(true, a.JavaScriptAction))
 	}
 	return false
 }
