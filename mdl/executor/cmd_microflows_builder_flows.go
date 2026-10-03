@@ -674,6 +674,8 @@ func errorHandlerStatementVarRefs(stmt ast.MicroflowStatement) []string {
 		refs = append(refs, s.List)
 	case *ast.RemoveFromListStmt:
 		refs = append(refs, s.Item, s.List)
+	case *ast.ClearListStmt:
+		refs = append(refs, s.List)
 	}
 	return refs
 }

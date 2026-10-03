@@ -2029,12 +2029,43 @@ func (fb *flowBuilder) addAddToListAction(s *ast.AddToListStmt) model.ID {
 
 // addRemoveFromListAction creates a REMOVE FROM list statement.
 func (fb *flowBuilder) addRemoveFromListAction(s *ast.RemoveFromListStmt) model.ID {
+	return fb.addChangeListAction(microflows.ChangeListTypeRemove, s.List, "$"+s.Item, nil)
+}
+
+// addClearListAction creates a CLEAR $List statement: a Change list action of
+// type Clear, which stores no value (ako/mxcli#944).
+func (fb *flowBuilder) addClearListAction(s *ast.ClearListStmt) model.ID {
+	return fb.addChangeListAction(microflows.ChangeListTypeClear, s.List, "", nil)
+}
+
+// addReplaceListAction creates `set $List = <expr>` on a list variable: the
+// Replace operation of a Change list activity, stored as Type "Set". A Change
+// variable action cannot target a list — mxbuild answers CE7247 "Variable 'A'
+// does not have a primitive type" — and describe prints a stored Set as
+// `set $List = <expr>;`, so this is the only reading that round-trips.
+func (fb *flowBuilder) addReplaceListAction(s *ast.MfSetStmt) model.ID {
+	activityX := fb.posX
+	id := fb.addChangeListAction(microflows.ChangeListTypeSet, s.Target, fb.exprToString(s.Value), s.ErrorHandling)
+	fb.finishCustomErrorHandler(id, activityX, s.ErrorHandling, s.Target)
+	return id
+}
+
+// isListVariable reports whether name is a variable this flow knows to hold a
+// list (a parameter, a create list, a retrieve or a list operation's output).
+func (fb *flowBuilder) isListVariable(name string) bool {
+	return strings.HasPrefix(fb.varTypes[strings.TrimPrefix(name, "$")], "List of ")
+}
+
+// addChangeListAction appends a Change list activity of the given operation.
+// eh is the statement's `on error` clause, nil for the statements that take
+// none; the caller finishes a custom handler.
+func (fb *flowBuilder) addChangeListAction(op microflows.ChangeListType, list, value string, eh *ast.ErrorHandlingClause) model.ID {
 	action := &microflows.ChangeListAction{
 		BaseElement:       model.BaseElement{ID: model.ID(types.GenerateID())},
-		Type:              microflows.ChangeListTypeRemove,
-		ChangeVariable:    s.List,
-		Value:             "$" + s.Item,
-		ErrorHandlingType: fb.ehType(nil),
+		Type:              op,
+		ChangeVariable:    list,
+		Value:             value,
+		ErrorHandlingType: fb.ehType(eh),
 	}
 
 	activity := &microflows.ActionActivity{
@@ -2047,6 +2078,9 @@ func (fb *flowBuilder) addRemoveFromListAction(s *ast.RemoveFromListStmt) model.
 			AutoGenerateCaption: true,
 		},
 		Action: action,
+	}
+	if eh != nil {
+		activity.ErrorHandlingType = fb.ehType(eh)
 	}
 
 	fb.objects = append(fb.objects, activity)
