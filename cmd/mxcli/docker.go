@@ -169,9 +169,18 @@ This catches project errors (broken references, missing attributes, etc.)
 early, before the slower MxBuild step. The 'docker build' command runs
 this automatically unless --skip-check is used.
 
-By default, 'mx update-widgets' runs before 'mx check' to normalize
-pluggable widget definitions and prevent false CE0463 errors. Use
---no-update-widgets to skip this step.
+The check never modifies the project: both mx steps run on a temporary
+copy (in $TMPDIR), because mx writes into the project it checks — it
+compiles the theme into theme-cache/ and deployment/, and update-widgets
+rewrites the model. Build output, caches and VCS folders (deployment/,
+releases/, theme-cache/, .git/, node_modules/, ...) are not copied.
+
+By default, 'mx update-widgets' runs before 'mx check', on that copy, to
+normalize pluggable widget definitions and prevent false CE0463 errors.
+A CE0463 that normalisation clears is then not reported, although it still
+fails MxBuild and 'mxcli run --local' on the stored project. Use
+--no-update-widgets to check the project as stored, and 'mxcli fix widgets'
+to apply the normalisation to the project.
 
 The mx binary is located from the same directory as mxbuild.
 

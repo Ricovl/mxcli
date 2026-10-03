@@ -157,7 +157,7 @@ func TestCheck_UpdateWidgetsBeforeCheck(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	opts := CheckOptions{
-		ProjectPath: "/tmp/fake.mpr",
+		ProjectPath: fakeProject(t),
 		MxBuildPath: mxDir,
 		Stdout:      &stdout,
 		Stderr:      &stderr,
@@ -195,7 +195,7 @@ func TestCheck_SkipUpdateWidgetsFlag(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	opts := CheckOptions{
-		ProjectPath:       "/tmp/fake.mpr",
+		ProjectPath:       fakeProject(t),
 		MxBuildPath:       mxDir,
 		SkipUpdateWidgets: true,
 		Stdout:            &stdout,
@@ -251,6 +251,7 @@ func TestCheck_UpdateWidgetsReceivesAbsolutePath(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	// Bare filename — the crash trigger.
+	t.Chdir(filepath.Dir(fakeProject(t)))
 	Check(CheckOptions{ProjectPath: "fake.mpr", MxBuildPath: dir, Stdout: &stdout, Stderr: &stderr})
 
 	logBytes, err := os.ReadFile(logFile)
@@ -303,4 +304,16 @@ func TestResolveMxForVersion_PrefersExactCachedVersion(t *testing.T) {
 	if result != expected {
 		t.Errorf("expected exact cached mx %s, got %s", expected, result)
 	}
+}
+
+// fakeProject creates an (empty) project file in its own directory. Check copies
+// the project's directory before running mx (ako/mxcli#951), so the file has to
+// exist, and a directory such as /tmp would be copied whole.
+func fakeProject(t *testing.T) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "fake.mpr")
+	if err := os.WriteFile(p, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
 }
