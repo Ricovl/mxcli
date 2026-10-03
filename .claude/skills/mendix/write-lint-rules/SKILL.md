@@ -160,7 +160,9 @@ def check():
 >   `CreateChangeAction` and `CommitAction` that appear in `.mpr` documents never
 >   reach a rule. A rule that allow-lists the storage names flags every microflow
 >   that opens a page — the inversion measured at 49% false positives in
->   mendixlabs/mxcli#1027.
+>   mendixlabs/mxcli#1027. The one exception is **`widget.action_type`**, which
+>   is the raw stored type of a page action (`"Forms$DeleteClientAction"`) —
+>   page actions have no SDK-name mapping in the catalog.
 >
 > To check a value against your own project rather than trusting any list:
 >
@@ -205,7 +207,8 @@ def check():
 | `description` | string | Documentation text |
 | `return_type` | string | Return type |
 | `parameter_count` | int | Number of parameters |
-| `activity_count` | int | Number of activities |
+| `activity_count` | int | Number of activities at the top level of the flow, excluding start/end events and merges. A loop counts as one; its body is not counted |
+| `total_activity_count` | int | `activity_count` plus every activity inside a loop, at any depth — the size of the flow including loop bodies. Equal to `activity_count` for a flow without loops |
 | `complexity` | int | McCabe cyclomatic complexity |
 | `document_noun` | string | `"microflow"`, `"nanoflow"` or `"rule"` — for mid-sentence use in a message |
 | `document_noun_title` | string | `"Microflow"`, `"Nanoflow"` or `"Rule"` — for `document_type=` and a message that opens with it |
@@ -246,20 +249,10 @@ def check():
 | `default_value` | string | `"https://example.com"` |
 | `exposed_to_client` | bool | `true` if constant is exposed to client |
 
-### widget
-| Property | Type | Example |
-|----------|------|---------|
-| `id` | string | Widget UUID |
-| `name` | string | Widget name |
-| `widget_type` | string | The widget's storage type, e.g. `"Forms$DataView"`, `"Forms$DivContainer"`, `"Forms$ActionButton"`; a pluggable widget's id, e.g. `"com.mendix.widget.web.datagrid.Datagrid"` |
-| `container_id` | string | Container UUID |
-| `container_qualified_name` | string | `"Sales.Customer_Overview"` |
-| `container_type` | string | `"PAGE"` or `"SNIPPET"` |
-| `module_name` | string | `"Sales"` |
-| `entity_ref` | string | Referenced entity qualified name |
-| `attribute_ref` | string | Referenced attribute path |
-| `microflow_ref` | string | Action/datasource microflow qualified name (e.g. a microflow-datasource ListView), else `""` |
-| `nanoflow_ref` | string | Action/datasource nanoflow qualified name, else `""` |
+**widget** — the struct returned by `widgets()` — identity, references, tree
+position (`parent_widget_id`, `depth`), appearance (`class_name`, `style`) and
+primary action (`action_type`, `has_confirmation`) — is documented in
+[catalog-tables.md](catalog-tables.md#widget), with an example rule.
 
 ### snippet
 | Property | Type | Example |
@@ -551,7 +544,7 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 | `target_type` | string | What it points AT, upper-case: `"ENTITY"`, `"ASSOCIATION"`, `"MICROFLOW"`, `"NANOFLOW"`, `"RULE"`, `"PAGE"`, `"LAYOUT"`, `"WORKFLOW"`, `"WIDGET"`, `"JAVA_ACTION"`, `"REST_OPERATION"`, `"REGULAR_EXPRESSION"`, `"ATTRIBUTE"`, `"ENUMERATION"`, `"ENUMERATION_VALUE"`. `LAYOUT`, `WIDGET`, `ATTRIBUTE`, `ENUMERATION` and `ENUMERATION_VALUE` are only ever targets; `SCHEDULED_EVENT` and `PROJECT_SETTINGS` only ever sources |
 | `target_id` | string | Target UUID |
 | `target_name` | string | `"Sales.Customer"`; three-part for an attribute or an enumeration value: `"Sales.Order.Total"`, `"Sales.OrderStatus.Open"` |
-| `ref_kind` | string | How it references: `"call"`, `"create"`, `"retrieve"`, `"change"`, `"delete"`, `"show_page"`, `"datasource"`, `"action"`, `"layout"`, `"parameter"`, `"return"`, `"generalize"`, `"associate"`, `"home_page"`, `"login_page"`, `"menu_item"`, `"calculate"`, `"schedule"`, `"validate"`, `"settings"`, `"widget"`, `"sync"`, `"publish"`, `"event"`, `"member"` (binds/reads/writes an attribute or navigates an association), `"xpath"` (an XPath constraint names it), `"type"` (typed as an enumeration), `"value"` (an expression names an enumeration value), `"mapping"` (an import/export mapping maps the entity) — lower-case, unlike the types above. Attribute names used only through a variable in a free-text expression (`$Order/Total`) have no edge |
+| `ref_kind` | string | How it references: `"call"`, `"create"`, `"retrieve"`, `"change"`, `"delete"`, `"commit"` (a commit action, or a create/change that commits — beside its `"create"`/`"change"` edge; a commit of a variable whose entity the flow cannot tell has no edge), `"show_page"`, `"datasource"`, `"action"`, `"layout"`, `"parameter"`, `"return"`, `"generalize"`, `"associate"`, `"home_page"`, `"login_page"`, `"menu_item"`, `"calculate"`, `"schedule"`, `"validate"`, `"settings"`, `"widget"`, `"sync"`, `"publish"`, `"event"`, `"member"` (binds/reads/writes an attribute or navigates an association), `"xpath"` (an XPath constraint names it), `"type"` (typed as an enumeration), `"value"` (an expression names an enumeration value), `"mapping"` (an import/export mapping maps the entity) — lower-case, unlike the types above. Attribute names used only through a variable in a free-text expression (`$Order/Total`) have no edge |
 | `module_name` | string | Source module |
 
 ### project_security

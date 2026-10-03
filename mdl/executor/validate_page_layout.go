@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 )
 
@@ -20,14 +21,48 @@ import (
 // are laid out in grid columns (independent of the data source). Any layoutgrid
 // ancestor satisfies the rule (grid → column → container → dataview is fine); a
 // display-only / container DataView (no inputs) is not flagged.
-func ValidatePageLayoutGrid(prog *ast.Program) []linter.Violation {
+//
+// nativeLayout, which may be nil, tells a native layout; a page on one is
+// skipped. The advice is web-only (ako/mxcli#962). Label and input widths in
+// Bootstrap grid columns are the web client's; a native page is rendered by
+// React Native. Measured on mxbuild 11.13.0 (PedApp copy): a form DataView
+// placed directly on an Atlas_Core.NativePhone_Default page builds clean, and
+// FOLLOWING the advice there — wrapping it in a layoutgrid — is CE6858 "Please
+// update Atlas UI to version 2.4 or higher to use Layout Grid on Native pages".
+func ValidatePageLayoutGrid(prog *ast.Program, nativeLayout func(layout string) bool) []linter.Violation {
 	var out []linter.Violation
 	for _, stmt := range prog.Statements {
-		if label, widgets, ok := documentWidgets(stmt); ok {
-			out = append(out, checkLayoutGridTree(widgets, false, label)...)
+		label, widgets, ok := documentWidgets(stmt)
+		if !ok {
+			continue
 		}
+		found := checkLayoutGridTree(widgets, false, label)
+		// Asked only when there is something to report, so a script whose
+		// pages are fine never opens the project for this.
+		if page, isPage := stmt.(*ast.CreatePageStmtV3); isPage && len(found) > 0 &&
+			nativeLayout != nil && page.Layout != "" && nativeLayout(page.Layout) {
+			continue
+		}
+		out = append(out, found...)
 	}
 	return out
+}
+
+// projectNativeLayouts answers "is this layout native?" from the project that
+// project() opens — nil when there is none. A layout the project does not hold
+// (one the script creates) reads as web, which keeps a check as loud as it was.
+func projectNativeLayouts(project func() backend.FullBackend) func(string) bool {
+	var ctx *ExecContext
+	return func(layout string) bool {
+		if ctx == nil {
+			b := project()
+			if b == nil {
+				return false
+			}
+			ctx = &ExecContext{Backend: b}
+		}
+		return layoutIsNative(ctx, layout)
+	}
 }
 
 func checkLayoutGridTree(widgets []*ast.WidgetV3, underGrid bool, locationPrefix string) []linter.Violation {

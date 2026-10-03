@@ -10,6 +10,7 @@ package executor
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend"
@@ -244,5 +245,41 @@ func TestDescribeDuplicateWarning_SkipsVoidCalls(t *testing.T) {
 	}
 	if w := duplicateOutputVariableWarnings(oc, func(any) bool { return false }); len(w) != 1 {
 		t.Fatalf("control: non-void duplicate not warned: %v", w)
+	}
+}
+
+// The editor validates on every keystroke and reading an action from the
+// project costs ~300ms on PedApp, so FlowRules shares resolutions through a
+// CodeActionCache: a second run does not open the project, an entry older than
+// the TTL is read again, and a different project starts empty (ako/mxcli#962).
+func TestCodeActionCache_SharesProjectAnswersAcrossRuns(t *testing.T) {
+	opens := 0
+	b := &mock.MockBackend{
+		ReadJavaScriptActionByNameFunc: func(name string) (*types.JavaScriptAction, error) {
+			return &types.JavaScriptAction{ReturnType: &types.VoidType{}}, nil
+		},
+	}
+	open := func() backend.FullBackend { opens++; return b }
+	now := time.Unix(0, 0)
+	cache := NewCodeActionCache()
+	cache.now = func() time.Time { return now }
+	run := func(project string) bool {
+		cache.forProject(project)
+		r := newVoidCodeActions(nil, open)
+		r.shared = cache
+		return r.isVoid(true, "M.JsVoid")
+	}
+	if void := run("a.mpr"); !void || opens != 1 {
+		t.Fatalf("first run: void=%v opens=%d, want true/1", void, opens)
+	}
+	if !run("a.mpr") || opens != 1 {
+		t.Errorf("second run re-opened the project (opens=%d)", opens)
+	}
+	now = now.Add(codeActionCacheTTL + time.Second)
+	if run("a.mpr"); opens != 2 {
+		t.Errorf("an expired entry was served (opens=%d, want 2)", opens)
+	}
+	if run("b.mpr"); opens != 3 {
+		t.Errorf("another project was served a's answers (opens=%d, want 3)", opens)
 	}
 }

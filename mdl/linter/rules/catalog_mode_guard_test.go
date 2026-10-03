@@ -20,7 +20,7 @@ import (
 // mdl/linter/starlark_catalog_mode_guard_test.go; keep the two in step.
 var fullOnlyContext = []string{
 	"Widgets", "XPathExpressions", "ActivitiesFor", "Permissions", "PermissionsFor",
-	"FindReferences", "WidgetCount",
+	"FindReferences", "WidgetCount", "NativePages",
 }
 
 func TestRulesReadingFullOnlyDataDeclareFullCatalog(t *testing.T) {

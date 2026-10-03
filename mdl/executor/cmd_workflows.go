@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend/wfnames"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
@@ -70,65 +71,11 @@ func listWorkflows(ctx *ExecContext, moduleName string) error {
 	return writeResult(ctx, result)
 }
 
-// countWorkflowActivities counts total activities, user tasks, and decisions in a workflow.
+// countWorkflowActivities counts total activities, user tasks, and decisions in
+// a workflow, over every flow it holds — the catalog's walk (wfnames).
 func countWorkflowActivities(wf *workflows.Workflow) (total, userTasks, decisions int) {
-	if wf.Flow == nil {
-		return
-	}
-	countFlowActivities(wf.Flow, &total, &userTasks, &decisions)
-	return
-}
-
-// countFlowActivities recursively counts activities in a flow and its sub-flows.
-func countFlowActivities(flow *workflows.Flow, total, userTasks, decisions *int) {
-	if flow == nil {
-		return
-	}
-	for _, act := range flow.Activities {
-		*total++
-		switch a := act.(type) {
-		case *workflows.UserTask:
-			*userTasks++
-			for _, outcome := range a.Outcomes {
-				countFlowActivities(outcome.Flow, total, userTasks, decisions)
-			}
-		case *workflows.ExclusiveSplitActivity:
-			*decisions++
-			for _, outcome := range a.Outcomes {
-				if co, ok := outcome.(*workflows.BooleanConditionOutcome); ok {
-					countFlowActivities(co.Flow, total, userTasks, decisions)
-				} else if co, ok := outcome.(*workflows.EnumerationValueConditionOutcome); ok {
-					countFlowActivities(co.Flow, total, userTasks, decisions)
-				} else if co, ok := outcome.(*workflows.VoidConditionOutcome); ok {
-					countFlowActivities(co.Flow, total, userTasks, decisions)
-				}
-			}
-		case *workflows.ParallelSplitActivity:
-			for _, outcome := range a.Outcomes {
-				countFlowActivities(outcome.Flow, total, userTasks, decisions)
-			}
-		case *workflows.CallMicroflowTask:
-			for _, outcome := range a.Outcomes {
-				if co, ok := outcome.(*workflows.BooleanConditionOutcome); ok {
-					countFlowActivities(co.Flow, total, userTasks, decisions)
-				} else if co, ok := outcome.(*workflows.EnumerationValueConditionOutcome); ok {
-					countFlowActivities(co.Flow, total, userTasks, decisions)
-				} else if co, ok := outcome.(*workflows.VoidConditionOutcome); ok {
-					countFlowActivities(co.Flow, total, userTasks, decisions)
-				}
-			}
-		case *workflows.SystemTask:
-			for _, outcome := range a.Outcomes {
-				if co, ok := outcome.(*workflows.BooleanConditionOutcome); ok {
-					countFlowActivities(co.Flow, total, userTasks, decisions)
-				} else if co, ok := outcome.(*workflows.EnumerationValueConditionOutcome); ok {
-					countFlowActivities(co.Flow, total, userTasks, decisions)
-				} else if co, ok := outcome.(*workflows.VoidConditionOutcome); ok {
-					countFlowActivities(co.Flow, total, userTasks, decisions)
-				}
-			}
-		}
-	}
+	c := wfnames.CountActivities(wf)
+	return c.Total, c.UserTasks, c.Decisions
 }
 
 // describeWorkflow handles DESCRIBE WORKFLOW command.

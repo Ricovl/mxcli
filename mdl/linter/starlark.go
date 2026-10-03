@@ -950,7 +950,9 @@ func microflowToStarlark(mf Microflow) starlark.Value {
 		"return_type":     starlark.String(mf.ReturnType),
 		"parameter_count": starlark.MakeInt(mf.ParameterCount),
 		"activity_count":  starlark.MakeInt(mf.ActivityCount),
-		"complexity":      starlark.MakeInt(mf.Complexity),
+		// Loop bodies included, at any depth; activity_count counts a loop as one.
+		"total_activity_count": starlark.MakeInt(mf.TotalActivityCount),
+		"complexity":           starlark.MakeInt(mf.Complexity),
 		// microflows() yields all three flow flavours, so a rule naming the
 		// document in a message or a location must not hardcode "Microflow".
 		// Title case matches the document_type spelling Starlark rules use.
@@ -1050,6 +1052,16 @@ func widgetToStarlark(w Widget) starlark.Value {
 		// they were dropped from the Starlark projection (findings #35).
 		"microflow_ref": starlark.String(w.MicroflowRef),
 		"nanoflow_ref":  starlark.String(w.NanoflowRef),
+		"page_ref":      starlark.String(w.PageRef),
+		// Tree position, appearance and primary action (mendixlabs/mxcli#1268).
+		// `class` is a Starlark keyword, hence class_name.
+		"parent_widget_id": starlark.String(w.ParentWidgetID),
+		"depth":            starlark.MakeInt(w.Depth),
+		"class_name":       starlark.String(w.Class),
+		"style":            starlark.String(w.Style),
+		"dynamic_classes":  starlark.String(w.DynamicClasses),
+		"action_type":      starlark.String(w.ActionType),
+		"has_confirmation": starlark.Bool(w.HasConfirmation),
 	})
 }
 

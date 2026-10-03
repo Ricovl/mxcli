@@ -219,14 +219,44 @@ CREATE TABLE activities_data (
 
 ### WIDGETS
 
+One row per widget instance; written by `refresh catalog full` only.
+
 ```sql
 CREATE TABLE WIDGETS (
-    DocumentName    TEXT,       -- Parent page/snippet
-    WidgetName      TEXT,       -- Widget instance name
-    WidgetType      TEXT,       -- e.g., "Forms$TextBox", "CustomWidgets$ComboBox"
-    ModuleName      TEXT
+    Id                      TEXT PRIMARY KEY,
+    Name                    TEXT,
+    WidgetType              TEXT,    -- "Forms$TextBox", or a pluggable widget's id
+    ContainerId             TEXT,    -- the page or snippet
+    ContainerQualifiedName  TEXT,
+    ContainerType           TEXT,    -- "PAGE" or "SNIPPET"
+    ModuleName              TEXT,
+    Folder                  TEXT,
+    EntityRef               TEXT,
+    AttributeRef            TEXT,
+    MicroflowRef            TEXT,
+    NanoflowRef             TEXT,
+    PageRef                 TEXT,
+    Description             TEXT,
+    ParentWidgetId          TEXT,    -- nearest catalogued ancestor; '' at the root
+    Depth                   INTEGER, -- catalogued ancestors; 0 at the root
+    Class                   TEXT,    -- Appearance
+    Style                   TEXT,
+    DynamicClasses          TEXT,
+    ActionType              TEXT,    -- $Type of Action / OnClickAction / ClickAction
+    HasConfirmation         INTEGER, -- 1 when that action has a ConfirmationInfo
+    ProjectId               TEXT,
+    SnapshotId              TEXT
 );
 ```
+
+The tree columns (schema 19) skip what the walk does not index: the synthetic
+`conditionalVisibilityWidget…` container, layout grid rows and columns, tab
+pages, and a pluggable widget's properties and object-list items, so a widget in
+a data grid 2 column has the grid as its parent. A list view template is
+indexed (it carries its own entity) and so is a level of its own. The walk does
+not follow a snippet call; the snippet's widgets are rows of the snippet, depth
+0 at its root. `HasConfirmation` can only be 1 for a microflow, nanoflow or
+workflow call — `Forms$DeleteClientAction` has no confirmation property.
 
 ### REFS
 
@@ -260,6 +290,7 @@ rather than trusting a list here:
 |---------|------|
 | `call` | flow calls a microflow / nanoflow / rule / Java action / REST operation |
 | `create` / `change` / `delete` / `retrieve` | flow acts on an entity object |
+| `commit` | flow commits an entity object: a commit action, or a create / change that commits (`Yes` or `YesWithoutEvents`), beside its `create` / `change` edge |
 | `return` | flow returns an entity type |
 | `parameter` | page or flow parameter entity type |
 | `generalize` | entity extends entity |
@@ -277,6 +308,14 @@ rather than trusting a list here:
 | `sync` | offline navigation profile synchronizes an entity |
 | `validate` | attribute validation rule uses a regular expression |
 | `widget` | page or snippet uses a pluggable / custom widget |
+
+`change`, `delete` and `commit` act on a *variable*, so the entity is resolved
+within the flow — from a parameter, a create or retrieve output, or a loop
+iterator over one of those. A variable whose entity the flow cannot tell (a
+microflow call's result, for one) has no edge. `commit` is not in the analysis
+graph: the variable it commits comes from a parameter, create or retrieve that
+already links the flow to the entity (or to the association it was retrieved
+over), so it would mostly double existing edges.
 
 `schedule`, `publish`, `event` and `settings` are **entry points**: something
 outside the call graph runs the microflow, so nothing in the model calls it.

@@ -71,7 +71,7 @@ mxcli docker build -p app.mpr --skip-check
 
 ## Integration with the TUI
 
-When using mxcli in interactive REPL mode, the TUI can auto-check the project on file changes, giving immediate feedback on whether MDL modifications introduced errors.
+When using mxcli in interactive REPL mode, the TUI can auto-check the project on file changes, giving immediate feedback on whether MDL modifications introduced errors. Like `docker check`, it runs `mx check` on a temporary copy, so the project's `theme-cache/` and `deployment/` are not touched; it does not run update-widgets, so it checks the project as stored. `mxcli eval`'s `mx_check` check does the same.
 
 ## Related Pages
 

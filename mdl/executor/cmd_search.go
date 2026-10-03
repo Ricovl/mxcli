@@ -35,7 +35,8 @@ import (
 // list.
 //
 // Deliberately excluded: 'datasource', 'parameter', 'return', 'retrieve',
-// 'create', 'change', 'delete', 'associate', 'generalize', 'layout' and 'sync'.
+// 'create', 'change', 'delete', 'commit', 'associate', 'generalize', 'layout'
+// and 'sync'.
 // Those are uses of a TYPE or a LAYOUT, not invocations, and folding them in
 // would make `show callers of <entity>` a synonym for `show references to`.
 var callerRefKinds = []string{

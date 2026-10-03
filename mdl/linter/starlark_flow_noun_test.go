@@ -115,14 +115,14 @@ func flowKindsFixtureDB(t *testing.T) catalog.CatalogDB {
 		`CREATE TABLE microflows (
 			Id TEXT, Name TEXT, QualifiedName TEXT, ModuleName TEXT, Folder TEXT,
 			MicroflowType TEXT, Description TEXT, ReturnType TEXT,
-			ParameterCount INTEGER, ActivityCount INTEGER, Complexity INTEGER)`,
+			ParameterCount INTEGER, ActivityCount INTEGER, TotalActivityCount INTEGER DEFAULT 0, Complexity INTEGER)`,
 		`INSERT INTO microflows VALUES
-			('f1','Big_MF','Sales.Big_MF','Sales','','MICROFLOW','','',0,100,50),
-			('f2','Big_NF','Sales.Big_NF','Sales','','NANOFLOW','','',0,100,50),
-			('f3','Big_RU','Sales.Big_RU','Sales','','RULE','','',0,100,50),
-			('f4','ACT_MF','Sales.ACT_MF','Sales','','MICROFLOW','','',0,100,50),
-			('f5','ACT_NF','Sales.ACT_NF','Sales','','NANOFLOW','','',0,100,50),
-			('f6','ACT_RU','Sales.ACT_RU','Sales','','RULE','','',0,100,50)`,
+			('f1','Big_MF','Sales.Big_MF','Sales','','MICROFLOW','','',0,100,100,50),
+			('f2','Big_NF','Sales.Big_NF','Sales','','NANOFLOW','','',0,100,100,50),
+			('f3','Big_RU','Sales.Big_RU','Sales','','RULE','','',0,100,100,50),
+			('f4','ACT_MF','Sales.ACT_MF','Sales','','MICROFLOW','','',0,100,100,50),
+			('f5','ACT_NF','Sales.ACT_NF','Sales','','NANOFLOW','','',0,100,100,50),
+			('f6','ACT_RU','Sales.ACT_RU','Sales','','RULE','','',0,100,100,50)`,
 		`CREATE TABLE activities (
 			Id TEXT, Name TEXT, Caption TEXT, ActivityType TEXT, ActionType TEXT,
 			MicroflowId TEXT, MicroflowQualifiedName TEXT, ModuleName TEXT, EntityRef TEXT,

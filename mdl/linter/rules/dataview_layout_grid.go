@@ -24,6 +24,14 @@ import (
 // not flagged. "Inside a layout grid" means any layoutgrid ancestor — a DataView
 // under grid → column → container → dataview is fine; only a form DataView with no
 // layoutgrid ancestor at all is flagged.
+//
+// The advice is web-only (ako/mxcli#962): the grid columns are Bootstrap's, and a
+// native page or snippet is rendered by React Native. Measured on mxbuild 11.13.0
+// (PedApp copy): a form DataView placed directly on an
+// Atlas_Core.NativePhone_Default page builds clean, and wrapping it in a
+// layoutgrid as the rule advised is CE6858 "Please update Atlas UI to version
+// 2.4 or higher to use Layout Grid on Native pages". So a page whose layout is
+// native, and a snippet whose Type is Native, are skipped.
 type DataViewLayoutGridRule struct{}
 
 // NewDataViewLayoutGridRule creates a new dataview-layout-grid rule.
@@ -35,6 +43,10 @@ func (r *DataViewLayoutGridRule) ID() string                       { return "MPR
 func (r *DataViewLayoutGridRule) Name() string                     { return "DataViewLayoutGrid" }
 func (r *DataViewLayoutGridRule) Category() string                 { return "design" }
 func (r *DataViewLayoutGridRule) DefaultSeverity() linter.Severity { return linter.SeverityWarning }
+
+// RequiredCatalogMode: NativePages() joins pages.LayoutRef, which only a full
+// catalog build records; on a fast one every page would read as web.
+func (r *DataViewLayoutGridRule) RequiredCatalogMode() linter.CatalogMode { return linter.CatalogFull }
 
 func (r *DataViewLayoutGridRule) Description() string {
 	return "A DataView containing input widgets (a form) should be wrapped in a layout grid so label and input widths render correctly"
@@ -52,6 +64,10 @@ func (r *DataViewLayoutGridRule) Check(ctx *linter.LintContext) []linter.Violati
 	check := func(id, qualifiedName, moduleName, docType string) {
 		raw, err := reader.GetRawUnit(model.ID(id))
 		if err != nil || raw == nil {
+			return
+		}
+		// A native snippet says so itself (Forms$Snippet Type "Native").
+		if docType == "snippet" && extractStr(raw["Type"]) == "Native" {
 			return
 		}
 		for _, root := range rootWidgetNodes(raw) {
@@ -73,8 +89,9 @@ func (r *DataViewLayoutGridRule) Check(ctx *linter.LintContext) []linter.Violati
 		}
 	}
 
+	native := ctx.NativePages()
 	for p := range ctx.Pages() {
-		if ctx.IsExcluded(p.ModuleName) {
+		if ctx.IsExcluded(p.ModuleName) || native[p.QualifiedName] {
 			continue
 		}
 		check(p.ID, p.QualifiedName, p.ModuleName, "page")

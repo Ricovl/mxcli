@@ -599,8 +599,11 @@ type Microflow struct {
 	Description    string
 	ReturnType     string
 	ParameterCount int
-	ActivityCount  int
-	Complexity     int // McCabe cyclomatic complexity
+	ActivityCount  int // top level only; a loop counts as one
+	// TotalActivityCount is ActivityCount plus every activity inside a loop,
+	// at any depth (mendixlabs/mxcli#1266).
+	TotalActivityCount int
+	Complexity         int // McCabe cyclomatic complexity
 }
 
 // DocumentNoun is what to call this document in a lint message and in
@@ -636,7 +639,7 @@ func (ctx *LintContext) Microflows() iter.Seq[Microflow] {
 		rows, err := ctx.db.Query(fmt.Sprintf(`
 			SELECT mf.Id, mf.Name, mf.QualifiedName, mf.ModuleName, mf.Folder,
 			       mf.MicroflowType, mf.Description, mf.ReturnType,
-			       mf.ParameterCount, mf.ActivityCount, mf.Complexity
+			       mf.ParameterCount, mf.ActivityCount, mf.TotalActivityCount, mf.Complexity
 			FROM microflows mf
 			LEFT JOIN modules m ON mf.ModuleName = m.Name
 			WHERE %s AND %s
@@ -652,7 +655,7 @@ func (ctx *LintContext) Microflows() iter.Seq[Microflow] {
 			var mf Microflow
 			var desc, retType, folder sql.NullString
 			err := rows.Scan(&mf.ID, &mf.Name, &mf.QualifiedName, &mf.ModuleName, &folder,
-				&mf.MicroflowType, &desc, &retType, &mf.ParameterCount, &mf.ActivityCount, &mf.Complexity)
+				&mf.MicroflowType, &desc, &retType, &mf.ParameterCount, &mf.ActivityCount, &mf.TotalActivityCount, &mf.Complexity)
 			if err != nil {
 				ctx.recordQueryError("Microflows (row scan)", err)
 				continue
@@ -848,6 +851,17 @@ type Widget struct {
 	AttributeRef           string
 	MicroflowRef           string // Qualified name of an action/datasource microflow, if any
 	NanoflowRef            string // Qualified name of an action/datasource nanoflow, if any
+	PageRef                string // Qualified name of the page the widget's action opens, if any
+
+	// Tree position and appearance (mendixlabs/mxcli#1268); see
+	// catalog.rawWidgetInfo for the exact semantics.
+	ParentWidgetID  string // nearest catalogued ancestor; "" at the root
+	Depth           int    // 0 at the page or snippet root
+	Class           string
+	Style           string
+	DynamicClasses  string
+	ActionType      string // stored $Type of the primary action, e.g. "Forms$DeleteClientAction"
+	HasConfirmation bool   // only microflow / nanoflow / workflow calls can have one
 }
 
 // Widgets returns an iterator over all widgets (excluding system modules).
@@ -856,7 +870,9 @@ func (ctx *LintContext) Widgets() iter.Seq[Widget] {
 		rows, err := ctx.db.Query(fmt.Sprintf(`
 			SELECT w.Id, w.Name, w.WidgetType, w.ContainerId, w.ContainerQualifiedName,
 			       w.ContainerType, w.ModuleName, w.EntityRef, w.AttributeRef,
-			       w.MicroflowRef, w.NanoflowRef
+			       w.MicroflowRef, w.NanoflowRef, w.PageRef,
+			       w.ParentWidgetId, w.Depth, w.Class, w.Style, w.DynamicClasses,
+			       w.ActionType, w.HasConfirmation
 			FROM widgets w
 			LEFT JOIN modules m ON w.ModuleName = m.Name
 			WHERE %s AND %s
@@ -870,9 +886,12 @@ func (ctx *LintContext) Widgets() iter.Seq[Widget] {
 
 		for rows.Next() {
 			var w Widget
-			var containerID, containerQName, containerType, entityRef, attrRef, mfRef, nfRef sql.NullString
+			var containerID, containerQName, containerType, entityRef, attrRef, mfRef, nfRef, pageRef sql.NullString
+			var parentID, class, style, dynClasses, actionType sql.NullString
+			var depth, hasConfirmation sql.NullInt64
 			err := rows.Scan(&w.ID, &w.Name, &w.WidgetType, &containerID, &containerQName,
-				&containerType, &w.ModuleName, &entityRef, &attrRef, &mfRef, &nfRef)
+				&containerType, &w.ModuleName, &entityRef, &attrRef, &mfRef, &nfRef, &pageRef,
+				&parentID, &depth, &class, &style, &dynClasses, &actionType, &hasConfirmation)
 			if err != nil {
 				ctx.recordQueryError("Widgets (row scan)", err)
 				continue
@@ -884,6 +903,14 @@ func (ctx *LintContext) Widgets() iter.Seq[Widget] {
 			w.AttributeRef = attrRef.String
 			w.MicroflowRef = mfRef.String
 			w.NanoflowRef = nfRef.String
+			w.PageRef = pageRef.String
+			w.ParentWidgetID = parentID.String
+			w.Depth = int(depth.Int64)
+			w.Class = class.String
+			w.Style = style.String
+			w.DynamicClasses = dynClasses.String
+			w.ActionType = actionType.String
+			w.HasConfirmation = hasConfirmation.Int64 != 0
 
 			if ctx.IsExcluded(w.ModuleName) {
 				continue

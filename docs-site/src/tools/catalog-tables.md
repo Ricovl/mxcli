@@ -198,6 +198,38 @@ ORDER BY Name;
 Page **templates** are not pages and are not in this table — see
 `CATALOG.PAGE_TEMPLATES`.
 
+### CATALOG.WIDGETS
+
+One row per widget **instance** on a page or snippet. Full build only
+(`refresh catalog full`); a fast build leaves the table empty.
+
+| Column | Description |
+|--------|-------------|
+| `Id` | The widget's element ID |
+| `Name` | Widget name |
+| `WidgetType` | Storage type (`Forms$DataView`, `Forms$ActionButton`, …); a pluggable widget's id (`com.mendix.widget.web.datagrid.Datagrid`) |
+| `ContainerId`, `ContainerQualifiedName`, `ContainerType` | The page or snippet holding the widget; `ContainerType` is `PAGE` or `SNIPPET` |
+| `ModuleName`, `Folder` | The container's module and folder |
+| `EntityRef`, `AttributeRef`, `MicroflowRef`, `NanoflowRef`, `PageRef` | What the widget's own content references: datasource entity, bound attribute, action or datasource flow, the page its action opens |
+| `ParentWidgetId` | `Id` of the nearest widget **in this table** that encloses it; empty at the page or snippet root. What the catalog skips is transparent: the synthetic `conditionalVisibilityWidget…` container, layout grid rows and columns, tab pages, a pluggable widget's properties and object-list items. A widget in a layout grid column or a data grid 2 column has the grid as its parent |
+| `Depth` | Number of ancestors in this table: 0 at the root. A list view **template** is a row of its own, so its widgets are two below the list view. A snippet call is not entered: a snippet's widgets have their own rows, depth 0 at the snippet root |
+| `Class`, `Style`, `DynamicClasses` | The widget's Appearance |
+| `ActionType` | Stored type of the primary action — `Action` (buttons), else `OnClickAction` (containers), else `ClickAction` (list views, images): `Forms$DeleteClientAction`, `Forms$MicroflowAction`, `Forms$CallNanoflowClientAction`, `Forms$FormAction` (show page), `Forms$NoAction`, …; empty for a widget without one. A pluggable widget's actions are not read |
+| `HasConfirmation` | 1 when the primary action asks for confirmation. Only microflow, nanoflow and workflow calls have that setting; a delete action never does |
+
+```sql
+-- Widgets nested more than five deep, deepest first
+SELECT ContainerQualifiedName, Name, WidgetType, Depth
+FROM CATALOG.WIDGETS
+WHERE Depth > 5
+ORDER BY Depth DESC;
+
+-- Buttons that delete without going through a flow
+SELECT ContainerQualifiedName, Name
+FROM CATALOG.WIDGETS
+WHERE ActionType = 'Forms$DeleteClientAction';
+```
+
 ### CATALOG.PAGE_TEMPLATES
 
 The starting points Studio Pro's "new page" dialog offers (`Forms$PageTemplate`).
