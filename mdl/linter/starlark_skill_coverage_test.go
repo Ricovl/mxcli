@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -302,11 +303,25 @@ func assertFieldSet(t *testing.T, what string, doc, api []string) {
 	}
 }
 
+// readCoverageSkill returns SKILL.md followed by the skill's supporting .md
+// files: a skill past the size bound moves detail into them (TestLargeSkillsWereSplit),
+// and a field documented there is documented.
 func readCoverageSkill(t *testing.T) string {
 	t.Helper()
 	b, err := os.ReadFile(coverageSkillPath)
 	if err != nil {
 		t.Fatal(err)
+	}
+	extra, _ := filepath.Glob(filepath.Join(filepath.Dir(coverageSkillPath), "*.md"))
+	for _, p := range extra {
+		if filepath.Base(p) == "SKILL.md" {
+			continue
+		}
+		more, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b = append(append(b, '\n'), more...)
 	}
 	return string(b)
 }

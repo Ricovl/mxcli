@@ -10,7 +10,16 @@ import (
 // DomainModel represents a module's domain model containing entities and associations.
 type DomainModel struct {
 	model.BaseElement
-	ContainerID       model.ID                  `json:"containerId"`
+	ContainerID model.ID `json:"containerId"`
+	// Documentation is the domain model's own documentation — Studio Pro's
+	// "Documentation" pane with nothing selected on the canvas. It belongs to the
+	// DomainModels$DomainModel unit, not to the module: a Mendix module has no
+	// documentation property of its own (see linter.documentableSources).
+	//
+	// Read-only here. The write paths load the stored unit and mutate it in place,
+	// so the stored value is carried by construction; nothing writes this field
+	// back, and a semantic model that leaves it empty does not blank it.
+	Documentation     string                    `json:"documentation,omitempty"`
 	Entities          []*Entity                 `json:"entities,omitempty"`
 	Associations      []*Association            `json:"associations,omitempty"`
 	CrossAssociations []*CrossModuleAssociation `json:"crossAssociations,omitempty"`

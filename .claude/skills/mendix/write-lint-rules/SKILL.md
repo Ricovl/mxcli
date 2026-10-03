@@ -29,10 +29,10 @@ def check():
 Some builtins need a deeper catalog than the default fast build:
 
 - `refs_to`, `refs_from`, `widgets`, `xpath_expressions`, `activities_for`,
-  `permissions`, `permissions_for` and the `widget_count` field of a page or
-  snippet need **`REFRESH CATALOG FULL`** — the `refs`, `widgets`,
-  `xpath_expressions`, `activities` and `permissions` tables and the widget
-  counts are only written by a full build.
+  `permissions`, `permissions_for`, `strings` and the `widget_count` field of a
+  page or snippet need **`REFRESH CATALOG FULL`** — the `refs`, `widgets`,
+  `xpath_expressions`, `activities`, `permissions` and `strings` tables and the
+  widget counts are only written by a full build.
 - The graph-analysis builtins (`cycles`, `module_dependencies`, `community_of`,
   `layer_of`, `centrality`, `god_nodes`, `integration_surface`) need
   **`REFRESH CATALOG COMMUNITIES`** (the `graph_*` tables).
@@ -81,6 +81,18 @@ Without this, a rule that reads a full-only table under a fast build gets
 | `role_mappings()` | list of role_mapping | User role to module role assignments |
 | `project_security()` | project_security or None | Project-level security settings (requires MPR reader) |
 | `xpath_expressions()` | list of xpath_expression | All XPath constraint expressions in the catalog (access rules, retrieve actions, widgets) (full catalog — auto-detected) |
+| `modules()` | list of module | The user's modules (not System, not Marketplace), with their domain model's documentation |
+| `associations()` | list of association | All non-system associations, same-module and cross-module, with the delete behaviour of both ends |
+| `entity_event_handlers()` | list of entity_event_handler | Every before/after event handler on a non-system entity: which moment, which event, which microflow |
+| `navigation_menu_items()` | list of navigation_menu_item | Every navigation menu item of every profile, at every depth. Navigation belongs to the project, so no module filter applies |
+| `jar_dependencies()` | list of jar_dependency | Maven dependencies declared by non-system, non-marketplace modules |
+| `strings(language = None)` | list of catalog_string | User-facing and documentary text, one row per text and language; pass `language` (`"nl_NL"`) to narrow. An untranslated language has **no row**. Needs a FULL catalog, which `mxcli lint` builds automatically for a rule that calls it |
+| `layouts()` | list of layout | All non-system layouts |
+| `published_rest_operations()` | list of published_rest_operation | Operations of published REST services, with the microflow behind each |
+
+The fields of `module`, `association`, `entity_event_handler`,
+`navigation_menu_item`, `jar_dependency`, `catalog_string`, `layout` and
+`published_rest_operation` are in [catalog-tables.md](catalog-tables.md).
 
 ### Graph-analysis functions (architecture rules)
 
@@ -541,6 +553,8 @@ Returned by `project_security()`. Returns `none` if no MPR reader is available.
 | `check_security` | bool | Whether security checking is active |
 | `strict_mode` | bool | Strict security mode |
 | `anonymous_user_role` | string | Name of the project's guest user role, the role anonymous users get. Read `enable_guest_access` too: the role name can stay set while guest access is off |
+| `admin_user_name` | string | Name of the administrator account: `"MxAdmin"`. Its password is deliberately not exposed |
+| `admin_user_role` | string | The administrator account's user role: `"Administrator"` |
 | `password_policy` | struct | Nested password policy settings |
 
 #### password_policy (nested in project_security)

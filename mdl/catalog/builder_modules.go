@@ -16,11 +16,23 @@ func (b *Builder) buildModules() error {
 		return err
 	}
 
+	// The domain model's documentation, by module. A module has no
+	// documentation of its own; its domain model does, and nothing read it.
+	// A failed domain-model read costs the column, not the module list.
+	dmDocs := map[string]string{}
+	if dms, err := b.cachedDomainModels(); err == nil {
+		for _, dm := range dms {
+			if dm.Documentation != "" {
+				dmDocs[string(b.hierarchy.findModuleID(dm.ContainerID))] = dm.Documentation
+			}
+		}
+	}
+
 	stmt, err := b.tx.Prepare(`
 		INSERT INTO modules_data (Id, Name, QualifiedName, ModuleName, Folder, Description,
-			Source, AppStoreVersion, AppStoreGuid,
+			Source, AppStoreVersion, AppStoreGuid, DomainModelDocumentation,
 			ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -48,6 +60,7 @@ func (b *Builder) buildModules() error {
 			source,
 			m.AppStoreVersion,
 			m.AppStoreGuid,
+			dmDocs[string(m.ID)],
 			projectID, snapshotID,
 		)
 		if err != nil {
