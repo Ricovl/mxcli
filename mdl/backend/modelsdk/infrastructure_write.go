@@ -155,20 +155,13 @@ func (b *Backend) RenameDocumentByName(moduleName, oldName, newName string) erro
 
 // containerSetForModule returns the module ID plus every folder ID nested under it
 // (transitively), so a document-in-a-folder is recognised as belonging to the module.
+//
+// Answered from the reader's header index rather than by reading every folder
+// unit, which the by-name Java/JavaScript action lookups did on each call.
 func (b *Backend) containerSetForModule(moduleID string) map[string]bool {
-	set := map[string]bool{moduleID: true}
-	folders, err := b.reader.ListFolders()
+	set, err := b.reader.ContainersInModule(moduleID)
 	if err != nil {
-		return set
-	}
-	for changed := true; changed; {
-		changed = false
-		for _, f := range folders {
-			if set[f.ContainerID] && !set[f.ID] {
-				set[f.ID] = true
-				changed = true
-			}
-		}
+		return map[string]bool{moduleID: true}
 	}
 	return set
 }

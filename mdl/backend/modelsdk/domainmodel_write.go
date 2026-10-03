@@ -581,30 +581,18 @@ func textToGen(t *model.Text) *genTexts.Text {
 }
 
 // moduleNameFor returns the name of the module that contains the given unit.
+//
+// A document is not necessarily a direct child of its module — Studio Pro nests
+// documents in folders, and folders in folders, which is the norm in marketplace
+// modules — so this is the first enclosing module up the containment chain.
+// Answered from the reader's header index: it used to list every unit with its
+// contents on each call, and the by-name lookups call it once per candidate.
 func (b *Backend) moduleNameFor(unitID model.ID) string {
-	units, err := b.reader.ListUnits()
+	name, err := b.reader.ModuleNameOf(string(unitID))
 	if err != nil {
 		return ""
 	}
-	parentOf := make(map[string]string, len(units))
-	for _, u := range units {
-		parentOf[u.ID] = u.ContainerID
-	}
-
-	// A document is not necessarily a direct child of its module — Studio Pro
-	// nests documents in folders, and folders in folders, which is the norm in
-	// marketplace modules. So walk the containment chain up to the first
-	// enclosing module rather than reading only the immediate container.
-	// The project root is its own container, so stop on a self-reference as
-	// well as on a missing entry.
-	seen := make(map[string]bool, 8)
-	for id := parentOf[string(unitID)]; id != "" && !seen[id]; id = parentOf[id] {
-		seen[id] = true
-		if mi, _ := b.reader.GetModule(id); mi != nil {
-			return mi.Name
-		}
-	}
-	return ""
+	return name
 }
 
 // attributeToGen converts a domainmodel.Attribute to its gen form: name,

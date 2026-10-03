@@ -47,6 +47,11 @@ type Reader struct {
 	nameIndexMu    sync.RWMutex
 	nameIndex      map[string][]nameIndexEntry // several when a name has an excluded twin (#914)
 	nameIndexBuilt bool
+	// The container tree the name index is resolved against, kept for
+	// ModuleNameOf / ContainersInModule. Built and cleared with nameIndex.
+	moduleNameByID  map[string]string
+	containerParent map[string]string
+	folderIDs       []string
 
 	// Memoized decoded units, keyed by BSON $Type. The value is the
 	// []mprread.Unit[T] slice for that type, held as any because this package

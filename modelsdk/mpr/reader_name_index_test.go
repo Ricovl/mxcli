@@ -235,3 +235,104 @@ func insertExcludedUnit(t *testing.T, db *sql.DB, id, containerID, unitType, nam
 		t.Fatal(err)
 	}
 }
+
+// The container tree behind the name index answers "which module is this in"
+// and "which containers make up this module" without re-reading unit contents.
+func TestHeaderHierarchy_ModuleAndContainers(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "tree.mpr"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.Exec(`
+		CREATE TABLE Unit (
+			UnitID BLOB PRIMARY KEY NOT NULL,
+			ContainerID BLOB,
+			ContainmentName TEXT,
+			Contents BLOB
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	rootID := "00000000-0000-0000-0000-000000000031"
+	salesID := "00000000-0000-0000-0000-000000000032"
+	otherID := "00000000-0000-0000-0000-000000000033"
+	folderID := "00000000-0000-0000-0000-000000000034"
+	nestedID := "00000000-0000-0000-0000-000000000035"
+	otherFolderID := "00000000-0000-0000-0000-000000000036"
+	mappingID := "00000000-0000-0000-0000-000000000037"
+	insertNamedUnit(t, db, rootID, rootID, "Projects$Project", "")
+	insertNamedUnit(t, db, salesID, rootID, "Projects$ModuleImpl", "Sales")
+	insertNamedUnit(t, db, otherID, rootID, "Projects$ModuleImpl", "Other")
+	insertNamedUnit(t, db, folderID, salesID, "Projects$Folder", "Integration")
+	insertNamedUnit(t, db, nestedID, folderID, "Projects$Folder", "Import")
+	insertNamedUnit(t, db, otherFolderID, otherID, "Projects$Folder", "Misc")
+	insertNamedUnit(t, db, mappingID, nestedID, "ImportMappings$ImportMapping", "IMM_Order")
+
+	r := &Reader{db: db, version: MPRVersionV1}
+	for id, want := range map[string]string{mappingID: "Sales", nestedID: "Sales", otherFolderID: "Other", rootID: ""} {
+		got, err := r.ModuleNameOf(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("ModuleNameOf(%s) = %q, want %q", id, got, want)
+		}
+	}
+
+	set, err := r.ContainersInModule(salesID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(set) != 3 || !set[salesID] || !set[folderID] || !set[nestedID] {
+		t.Fatalf("ContainersInModule(Sales) = %v, want the module and its two nested folders", set)
+	}
+	set[otherID] = true // callers own the result; it must not leak into the next one
+	if again, _ := r.ContainersInModule(salesID); again[otherID] {
+		t.Fatal("ContainersInModule returned a shared map")
+	}
+}
+
+// Once the index is built, ModuleNameOf and ContainersInModule read no unit
+// contents: with mprcontents/ gone they still answer. The backend's by-name
+// lookups call them once per candidate document, and re-reading every unit on
+// each call is what made them cost seconds over a describe sweep.
+func TestHeaderHierarchy_ReadsNoContentsOnceBuilt(t *testing.T) {
+	root := t.TempDir()
+	db, err := sql.Open("sqlite", filepath.Join(root, "tree.mpr"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.Exec(`
+		CREATE TABLE Unit (
+			UnitID BLOB PRIMARY KEY NOT NULL,
+			ContainerID BLOB,
+			ContainmentName TEXT
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	contentsDir := filepath.Join(root, "mprcontents")
+	rootID := "00000000-0000-0000-0000-000000000041"
+	moduleID := "00000000-0000-0000-0000-000000000042"
+	folderID := "00000000-0000-0000-0000-000000000043"
+	docID := "00000000-0000-0000-0000-000000000044"
+	insertV2NamedUnit(t, db, contentsDir, moduleID, rootID, "Projects$ModuleImpl", "Sales")
+	insertV2NamedUnit(t, db, contentsDir, folderID, moduleID, "Projects$Folder", "Integration")
+	insertV2NamedUnit(t, db, contentsDir, docID, folderID, "ImportMappings$ImportMapping", "IMM_Order")
+
+	r := &Reader{db: db, version: MPRVersionV2, contentsDir: contentsDir}
+	if _, err := r.ModuleNameOf(docID); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(contentsDir); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := r.ModuleNameOf(docID); err != nil || got != "Sales" {
+		t.Fatalf("ModuleNameOf after removing contents = %q, %v; want Sales", got, err)
+	}
+	if set, err := r.ContainersInModule(moduleID); err != nil || !set[folderID] {
+		t.Fatalf("ContainersInModule after removing contents = %v, %v", set, err)
+	}
+}

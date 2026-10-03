@@ -205,6 +205,9 @@ func (r *Reader) InvalidateCache() {
 	r.nameIndexMu.Lock()
 	r.nameIndex = nil
 	r.nameIndexBuilt = false
+	r.moduleNameByID = nil
+	r.containerParent = nil
+	r.folderIDs = nil
 	r.nameIndexMu.Unlock()
 	r.decodedMu.Lock()
 	r.decoded = nil
@@ -323,10 +326,14 @@ func (r *Reader) buildUnitNameIndex() error {
 	}
 	moduleNames := make(map[string]string)
 	containerParent := make(map[string]string, len(headers))
+	var folderIDs []string
 	for _, h := range headers {
 		containerParent[h.ID] = h.ContainerID
-		if h.Type == "Projects$ModuleImpl" || h.Type == "Projects$Module" {
+		switch h.Type {
+		case "Projects$ModuleImpl", "Projects$Module":
 			moduleNames[h.ID] = h.Name
+		case "Projects$Folder":
+			folderIDs = append(folderIDs, h.ID)
 		}
 	}
 
@@ -348,8 +355,49 @@ func (r *Reader) buildUnitNameIndex() error {
 		})
 	}
 	r.nameIndex = index
+	r.moduleNameByID = moduleNames
+	r.containerParent = containerParent
+	r.folderIDs = folderIDs
 	r.nameIndexBuilt = true
 	return nil
+}
+
+// ModuleNameOf returns the name of the module enclosing unitID — through any
+// depth of folders — or "" when it is in none (the project root, a project-level
+// document). It answers from the header index, so it reads no unit contents.
+func (r *Reader) ModuleNameOf(unitID string) (string, error) {
+	if err := r.buildUnitNameIndex(); err != nil {
+		return "", err
+	}
+	r.nameIndexMu.RLock()
+	defer r.nameIndexMu.RUnlock()
+	parent, ok := r.containerParent[unitID]
+	if !ok || parent == unitID {
+		return "", nil
+	}
+	return ResolveModuleName(parent, r.moduleNameByID, r.containerParent), nil
+}
+
+// ContainersInModule returns moduleID together with every folder nested under
+// it, at any depth — the containers a document of that module can sit in. The
+// map is the caller's to keep or modify.
+func (r *Reader) ContainersInModule(moduleID string) (map[string]bool, error) {
+	if err := r.buildUnitNameIndex(); err != nil {
+		return nil, err
+	}
+	r.nameIndexMu.RLock()
+	defer r.nameIndexMu.RUnlock()
+	set := map[string]bool{moduleID: true}
+	for changed := true; changed; {
+		changed = false
+		for _, id := range r.folderIDs {
+			if !set[id] && set[r.containerParent[id]] {
+				set[id] = true
+				changed = true
+			}
+		}
+	}
+	return set, nil
 }
 
 func (r *Reader) loadUnitHeaders() ([]cachedUnit, error) {
