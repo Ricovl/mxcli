@@ -103,6 +103,18 @@ every run until the splice could replace an activity's notes. The header-only
 upgrade (a mdl 0 description under `mdl 1;`) is where both surface on Studio
 Pro content, because a backslash escape in a note is a real change under mdl 1.
 
+The same failure has a structural cousin: an AST field that records how a
+statement was **spelled**, kept for a deprecation or lint note, is compared like
+a stored property unless it is named as spelling (`spellingFields`; an empty
+`else` goes through `canonicalFlow` instead, because the `if` shell compare
+needs `HasElse`). `commit … with events` never matched its stored bare commit
+(#942). It is not cosmetic. The diff groups adjacent unmatched statements into
+one run, and the loop-body refusal was asked only of a run of one. So a
+spelling difference next to a loop turned a refused loop-body edit into a silent
+replace of the loop, with every `$ID` in it re-minted. When you add an AST flag,
+ask whether describe can print it. Refusals have to hold for any run that pairs
+a stored loop with a new body, whatever else changes next to it.
+
 **Some re-runs only reach a no-op across two statements.** `revoke all` followed
 by the grant that should hold ends with the rules it started with, but each
 statement is a real write of its own. The grant's write was compared with a unit
