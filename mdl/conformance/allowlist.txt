@@ -74,7 +74,7 @@
 1	syntax	docs-site/src/examples/rest-integration.md
 4	syntax	docs-site/src/ide/customizing-skills.md
 3	syntax	docs-site/src/ide/vscode-intellisense.md
-16	syntax	docs-site/src/internals/catalog-schema.md
+15	syntax	docs-site/src/internals/catalog-schema.md
 1	syntax	docs-site/src/internals/mpr-format.md
 1	syntax	docs-site/src/internals/reference-tracking.md
 1	syntax	docs-site/src/internals/widget-engine.md

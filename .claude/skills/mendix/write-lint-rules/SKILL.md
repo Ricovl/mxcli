@@ -71,7 +71,7 @@ Without this, a rule that reads a full-only table under a fast build gets
 | `rest_clients()` | list of rest_client | Consumed REST service documents (excluding platform modules) |
 | `rest_operations()` | list of rest_operation | Operations on consumed REST services, including their `timeout` |
 | `attributes_for(entity_qualified_name)` | list of attribute | Attributes for a specific entity |
-| `activities_for(microflow_qualified_name)` | list of activity | Activities for a microflow (full catalog — auto-detected) |
+| `activities_for(microflow_qualified_name, nested = False)` | list of activity | Activities of a microflow, nanoflow or rule, in flow order (full catalog — auto-detected). By default only the top level: a loop is one activity and its body is left out. `nested = True` adds every object inside a loop, at any depth, right after its loop, with `parent_loop_id` and `loop_depth` set |
 | `permissions()` | list of permission | All permissions across all element types (full catalog — auto-detected) |
 | `permissions_for(entity_qualified_name)` | list of permission | Access rules for a specific entity (full catalog — auto-detected) |
 | `refs_to(target_name)` | list of reference | Cross-references *to* a target (full catalog — auto-detected) |
@@ -450,18 +450,31 @@ def count_not(node):
 | Property | Type | Example |
 |----------|------|---------|
 | `id` | string | Activity UUID |
-| `name` | string | Activity name |
-| `caption` | string | Activity caption |
-| `activity_type` | string | `"ActionActivity"`, `"ExclusiveSplit"`, `"ExclusiveMerge"`, `"LoopedActivity"`, `"InheritanceSplit"`, `"StartEvent"`, `"EndEvent"` |
-| `action_type` | string | The action inside an `ActionActivity`: `"CreateObjectAction"`, `"ChangeObjectAction"`, `"CommitObjectsAction"`, `"DeleteObjectAction"`, `"RetrieveAction"`, `"MicroflowCallAction"`, `"ShowPageAction"`, `"ClosePageAction"`, `"LogMessageAction"`, `"JavaActionCallAction"`. Empty for an activity that is not an action |
+| `name` | string | The `action_type` for an action activity, otherwise the `activity_type` |
+| `caption` | string | The stored caption: an activity's, a split's (`"Is amount big?"`), or an annotation's text. Empty for objects Mendix stores no caption for (start/end events, merges, loops). When `auto_generate_caption` is true this is Studio Pro's stored placeholder (typically `"Activity"`), not the caption Studio Pro shows |
+| `auto_generate_caption` | bool | Action activity: whether Studio Pro generates the caption. False for other objects |
+| `description` | string | The documentation of an action activity, split or loop |
+| `activity_type` | string | `"ActionActivity"`, `"ExclusiveSplit"`, `"ExclusiveMerge"`, `"LoopedActivity"`, `"InheritanceSplit"`, `"StartEvent"`, `"EndEvent"`, `"Annotation"` |
+| `action_type` | string | The action inside an `ActionActivity`: `"CreateObjectAction"`, `"ChangeObjectAction"`, `"CommitObjectsAction"`, `"DeleteObjectAction"`, `"RetrieveAction"`, `"MicroflowCallAction"`, `"ShowPageAction"`, `"ClosePageAction"`, `"LogMessageAction"`, `"JavaActionCallAction"`, `"RestCallAction"`, `"WebServiceCallAction"`. Empty for an activity that is not an action |
 | `microflow_id` | string | Parent microflow UUID |
 | `microflow_qualified_name` | string | `"Sales.ACT_Customer_Create"` |
 | `module_name` | string | `"Sales"` |
-| `entity_ref` | string | Referenced entity qualified name |
+| `entity_ref` | string | Entity qualified name, for a create object and a database retrieve |
 | `service_ref` | string | Called service document (REST / web service / OData client); empty when the activity calls none |
 | `action_ref` | string | Operation or action within that service; empty when the activity calls none |
-| `use_request_timeout` | bool | Call REST service: whether "Use a timeout" is enabled. False for other action types |
-| `timeout_expression` | string | Call REST service: the timeout in seconds, stored as an expression, e.g. `"300"` |
+| `use_request_timeout` | bool | Call REST service or Call web service: whether "Use a timeout" is enabled. False for other action types |
+| `timeout_expression` | string | Call REST service or Call web service: the timeout in seconds, stored as an expression, e.g. `"300"` |
+| `parent_loop_id` | string | `id` of the loop the activity is inside; empty at the top level. Only set with `activities_for(…, nested = True)` |
+| `loop_depth` | int | Number of loops around the activity: 0 at the top level, 1 directly inside a loop, 2 in a loop inside a loop |
+| `condition_expression` | string | Exclusive split: the condition expression, e.g. `"$Order/Amount > 10"`. Empty for a rule-based split |
+| `condition_rule` | string | Exclusive split calling a rule: the rule's qualified name, e.g. `"Sales.IsValidOrder"` |
+| `error_handling_type` | string | The stored error handling of an action, loop or split: exactly `"Rollback"`, `"Custom"`, `"CustomWithoutRollBack"` (capital **B**), `"Continue"` or `"Abort"`. Empty for objects without error handling |
+| `log_level` | string | Log message: exactly `"Trace"`, `"Debug"`, `"Info"`, `"Warning"`, `"Error"` or `"Critical"` |
+| `log_node_expression` | string | Log message: the log node as stored, an expression — `"'MyNode'"` (a quoted string literal) or `"getKey(Sales.LogNodes.Orders)"` |
+| `log_message` | string | Log message: the message template, e.g. `"Amount is {1}"` |
+| `commit_type` | string | Create or change object: exactly `"Yes"`, `"YesWithoutEvents"` or `"No"`. Empty for other actions |
+| `with_events` | bool | True for a commit action with events, and for a create or change object with `commit_type` `"Yes"` |
+| `retrieve_source` | string | Retrieve: exactly `"database"` or `"association"`. For `"database"`, `entity_ref` is the retrieved entity |
 
 ### rest_client
 | Property | Type | Example |

@@ -770,15 +770,20 @@ func (r *StarlarkRule) builtinActivitiesFor(_ *starlark.Thread, _ *starlark.Buil
 		return starlark.NewList(nil), nil
 	}
 
+	// nested=False (the default) returns the top level only, as before the
+	// catalog had loop bodies, so existing rules keep their counts;
+	// nested=True adds the objects inside loops (mendixlabs/mxcli#1266).
 	var microflowQualifiedName starlark.String
+	var nested bool
 	if err := starlark.UnpackArgs("activities_for", args, kwargs,
 		"microflow_qualified_name", &microflowQualifiedName,
+		"nested?", &nested,
 	); err != nil {
 		return nil, err
 	}
 
 	var activities []starlark.Value
-	for a := range r.ctx.ActivitiesFor(string(microflowQualifiedName)) {
+	for a := range r.ctx.ActivitiesIn(string(microflowQualifiedName), nested) {
 		activities = append(activities, activityToStarlark(a))
 	}
 
@@ -1133,6 +1138,19 @@ func activityToStarlark(a Activity) starlark.Value {
 		"action_ref":               starlark.String(a.ActionRef),
 		"use_request_timeout":      starlark.Bool(a.UseRequestTimeout),
 		"timeout_expression":       starlark.String(a.TimeoutExpression),
+		"auto_generate_caption":    starlark.Bool(a.AutoGenerateCaption),
+		"description":              starlark.String(a.Description),
+		"parent_loop_id":           starlark.String(a.ParentLoopID),
+		"loop_depth":               starlark.MakeInt(a.LoopDepth),
+		"condition_expression":     starlark.String(a.ConditionExpression),
+		"condition_rule":           starlark.String(a.ConditionRule),
+		"error_handling_type":      starlark.String(a.ErrorHandlingType),
+		"log_level":                starlark.String(a.LogLevel),
+		"log_node_expression":      starlark.String(a.LogNodeExpression),
+		"log_message":              starlark.String(a.LogMessage),
+		"commit_type":              starlark.String(a.CommitType),
+		"with_events":              starlark.Bool(a.WithEvents),
+		"retrieve_source":          starlark.String(a.RetrieveSource),
 	})
 }
 
