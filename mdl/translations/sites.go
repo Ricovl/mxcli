@@ -30,6 +30,8 @@ type Site struct {
 	// an enumeration's twelve values into one and calls the set complete as soon
 	// as any one value is translated.
 	ElementID string
+	// OwnerName is the owner's Name ("tabPage2"), empty when it has none.
+	OwnerName string
 	// Targets is language code → text, exactly as stored. A language present
 	// with an empty string is a text that exists but is not translated yet.
 	Targets map[string]string
@@ -39,8 +41,8 @@ type Site struct {
 // order. Order is stable so a caller writing rows gets a deterministic result.
 func SitesIn(doc bson.D) []Site {
 	var out []Site
-	var walk func(v any, ownerType, ownerID, prop string)
-	walk = func(v any, ownerType, ownerID, prop string) {
+	var walk func(v any, ownerType, ownerID, ownerName, prop string)
+	walk = func(v any, ownerType, ownerID, ownerName, prop string) {
 		switch n := v.(type) {
 		case bson.D:
 			if ty, _ := lookup(n, "$Type").(string); ty == "Texts$Text" {
@@ -48,6 +50,7 @@ func SitesIn(doc bson.D) []Site {
 					OwnerType: ownerType,
 					Property:  prop,
 					ElementID: ownerID,
+					OwnerName: ownerName,
 					Targets:   translationsOf(n),
 				})
 				return
@@ -56,23 +59,24 @@ func SitesIn(doc bson.D) []Site {
 			// it. A node without one (an anonymous sub-document) leaves the
 			// owner as it was, so the text is still attributed to a real
 			// element rather than to nothing.
-			nt, nid := ownerType, ownerID
+			nt, nid, nname := ownerType, ownerID, ownerName
 			if ty, _ := lookup(n, "$Type").(string); ty != "" {
 				nt = ty
 				nid = elementIDOf(n)
+				nname, _ = lookup(n, "Name").(string)
 			}
 			for _, e := range n {
-				walk(e.Value, nt, nid, e.Key)
+				walk(e.Value, nt, nid, nname, e.Key)
 			}
 		case bson.A:
 			// An array element inherits the property its array hangs off, so a
 			// text inside `Widgets` is not reported as living at "Widgets".
 			for _, e := range n {
-				walk(e, ownerType, ownerID, prop)
+				walk(e, ownerType, ownerID, ownerName, prop)
 			}
 		}
 	}
-	walk(doc, "", "", "")
+	walk(doc, "", "", "", "")
 	return out
 }
 

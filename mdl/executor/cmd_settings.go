@@ -389,6 +389,9 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 	}
 
 	section := strings.ToLower(stmt.Section)
+	// Set when this statement changes DefaultLanguageCode; see
+	// defaultLanguageChanged.
+	newDefaultLanguage := ""
 
 	// Resolve the qualified names this statement would write BEFORE writing them.
 	// `mxcli check --references` runs the same functions, so exec refuses exactly
@@ -561,7 +564,11 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 				if err := validateLanguageCode(ps.Language, valStr); err != nil {
 					return err
 				}
+				if !strings.EqualFold(ps.Language.DefaultLanguageCode, valStr) {
+					newDefaultLanguage = valStr
+				}
 				ps.Language.DefaultLanguageCode = valStr
+
 			default:
 				return mdlerrors.NewUnsupported("unknown language setting: " + key)
 			}
@@ -609,7 +616,30 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 	}
 
 	ctx.reportWrite(section+" settings", "Updated %s settings", section)
+	if newDefaultLanguage != "" {
+		defaultLanguageChanged(ctx, newDefaultLanguage)
+	}
 	return nil
+}
+
+// defaultLanguageChanged runs after a write that changed DefaultLanguageCode
+// (ako/mxcli#944).
+//
+// The cached authoring language is dropped first: it was resolved once per
+// session, so a page created later in the SAME script was still written in the
+// old default — measured, its tab page caption then failed the build with
+// CE4899 in the new one. Then it reports the required captions the project now
+// has no text for, which is the moment they break.
+func defaultLanguageChanged(ctx *ExecContext, lang string) {
+	if ctx.Cache != nil {
+		ctx.Cache.defaultLangLoaded = false
+		describeDefaultLanguage(ctx) // republish the authoring language
+	}
+	missing, err := missingDefaultCaptions(ctx, lang)
+	if err != nil {
+		return
+	}
+	writeMissingDefaultCaptionsNote(ctx.Output, lang, missing)
 }
 
 // validateLanguageCode rejects a DefaultLanguageCode that is not one of the

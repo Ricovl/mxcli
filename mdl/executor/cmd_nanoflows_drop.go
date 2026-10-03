@@ -43,6 +43,8 @@ func execDropNanoflow(ctx *ExecContext, s *ast.DropNanoflowStmt) error {
 			}
 			invalidateHierarchy(ctx)
 			fmt.Fprintf(ctx.Output, "Dropped nanoflow: %s.%s\n", s.Name.Module, s.Name.Name)
+			writeDroppedGrantsNote(ctx.Output, "nanoflow", "execute", qualifiedName, nf.AllowedModuleRoles, true)
+
 			return nil
 		}
 	}

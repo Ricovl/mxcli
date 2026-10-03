@@ -419,6 +419,7 @@ func builtinLintRules() []linter.Rule {
 		rules.NewEmptyContainerRule(),
 		rules.NewGallerySelectionListenerRule(),
 		rules.NewDataViewLayoutGridRule(),
+		rules.NewRequiredCaptionDefaultLanguageRule(), // QUAL006 - CE4899, reads the stored units
 		rules.NewPageNavigationSecurityRule(),
 		rules.NewNoEntityAccessRulesRule(),
 		rules.NewWeakPasswordPolicyRule(),
