@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/langver"
 )
 
 const (
@@ -74,15 +76,22 @@ func testFlowName(tc TestCase) string { return testFlowPrefix + tc.ID }
 func GenerateEndpointMDL(chainAfterStartup string) string {
 	var b strings.Builder
 
+	// The canonical spelling under the current language version: `mdl 1;`,
+	// `create or modify` and `;` alone as the terminator. The runner execs this
+	// script itself, and the deprecated forms made every `mxcli test` print
+	// MDL-DEPR001 and MDL-V1-SLASH warnings about a script the user never wrote
+	// (ako/mxcli#943).
+	writeScriptHeader(&b, langver.V1)
+	b.WriteString("\n")
 	b.WriteString("CREATE MODULE " + mxTestModule + ";\n\n")
 	b.WriteString("/** Registers the mxcli test endpoint. Called once at startup. */\n")
-	b.WriteString("CREATE OR REPLACE JAVA ACTION " + endpointRegisterAction + "() RETURNS Boolean\n")
+	b.WriteString("CREATE OR MODIFY JAVA ACTION " + endpointRegisterAction + "() RETURNS Boolean\n")
 	b.WriteString("AS $$\n")
 	b.WriteString(endpointJava)
-	b.WriteString("\n$$;\n/\n\n")
+	b.WriteString("\n$$;\n\n")
 
 	b.WriteString("/** Registers the mxcli test endpoint at boot. Runs no tests. */\n")
-	b.WriteString("CREATE OR REPLACE MICROFLOW " + endpointStartupFlow + " ()\n")
+	b.WriteString(createFlow(langver.V1) + " " + endpointStartupFlow + " ()\n")
 	b.WriteString("RETURNS Boolean AS $Registered\n")
 	b.WriteString("BEGIN\n")
 	b.WriteString("  $Registered = CALL JAVA ACTION " + endpointRegisterAction + "();\n")
@@ -93,8 +102,7 @@ func GenerateEndpointMDL(chainAfterStartup string) string {
 		b.WriteString("  $Chained = CALL MICROFLOW " + chainAfterStartup + "();\n")
 	}
 	b.WriteString("  RETURN $Registered;\n")
-	b.WriteString("END;\n")
-	b.WriteString("/\n")
+	writeFlowEnd(&b, langver.V1)
 
 	return b.String()
 }
