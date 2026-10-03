@@ -6,6 +6,8 @@ package catalog
 
 import (
 	"database/sql"
+	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -28,9 +30,22 @@ func NewSqliteCatalogDB() (*SqliteCatalogDB, error) {
 	return &SqliteCatalogDB{db: db}, nil
 }
 
+// fileBusyTimeoutMs is how long a connection to an on-disk catalog waits for a
+// lock held by another process before failing with SQLITE_BUSY. Opening a cache
+// writes to it (schema upgrade, schema version), so parallel mxcli processes on
+// one project contend for the write lock for a moment (ako/mxcli#951).
+const fileBusyTimeoutMs = 10000
+
 // NewSqliteCatalogDBFromFile opens a file-based SQLite database.
 func NewSqliteCatalogDBFromFile(path string) (*SqliteCatalogDB, error) {
-	db, err := sql.Open("sqlite", path)
+	dsn := path
+	// The busy timeout goes in the DSN so it applies to every pooled connection,
+	// not only the one a PRAGMA statement happens to run on. A '?' in the path
+	// would be read as the start of the query string; keep the bare path then.
+	if !strings.Contains(path, "?") {
+		dsn = fmt.Sprintf("%s?_pragma=busy_timeout(%d)", path, fileBusyTimeoutMs)
+	}
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}

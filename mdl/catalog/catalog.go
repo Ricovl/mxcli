@@ -6,6 +6,8 @@ package catalog
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -348,6 +350,17 @@ func NewFromFile(path string) (*Catalog, error) {
 		return nil, fmt.Errorf("failed to migrate cached catalog: %w", err)
 	}
 
+	// A cache already at the current schema version was saved from a catalog
+	// that ran createTables, so it is complete — open it without writing. Opening
+	// must stay read-only: a parallel process may rename a fresh cache over this
+	// path at any moment (SaveToFile is atomic, ako/mxcli#951), and SQLite refuses
+	// a write to a file that has been moved ("attempt to write a readonly
+	// database"), while concurrent openers writing the version row contend for
+	// the lock.
+	if stored, err := c.GetMeta(MetaSchemaVersion); err == nil && stored == CatalogSchemaVersion {
+		return c, nil
+	}
+
 	// Idempotent schema upgrade — adds any tables/indexes the cached file
 	// doesn't have yet. Existing data is untouched (unless dropped above).
 	// createTables also records the current schema version in catalog_meta.
@@ -443,6 +456,15 @@ func (c *Catalog) migrateIfSchemaMismatch() error {
 // SaveToFile saves the catalog to a SQLite file.
 // This copies the in-memory database to a file for persistence.
 // Requires the underlying CatalogDB to be a *SqliteCatalogDB.
+//
+// The save is atomic: the database is written to a temporary file in the same
+// directory and renamed over path. Parallel mxcli processes on one project all
+// save the same cache (ako/mxcli#951: eight parallel `lint` runs), and writing in
+// place let them collide — VACUUM INTO refused the file another process had just
+// created, the manual fallback then failed with "table catalog_meta already
+// exists" or "database is locked", and a reader could open a half-written file.
+// With a rename every writer succeeds (the last one wins) and a reader sees the
+// old cache or a complete new one, never a partial file.
 func (c *Catalog) SaveToFile(path string) error {
 	sdb, ok := c.db.(*SqliteCatalogDB)
 	if !ok {
@@ -450,15 +472,38 @@ func (c *Catalog) SaveToFile(path string) error {
 	}
 	rawDB := sdb.RawDB()
 
+	// Same directory, so the rename cannot cross a filesystem boundary.
+	tmpFile, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmp := tmpFile.Name()
+	tmpFile.Close()
+	// VACUUM INTO requires the target to be absent or empty; it is empty.
+	committed := false
+	defer func() {
+		if !committed {
+			os.Remove(tmp)
+		}
+	}()
+
 	// Use SQLite backup API via VACUUM INTO (SQLite 3.27+)
 	// Fall back to manual copy if not available
-	safePath := strings.ReplaceAll(path, "'", "''")
-	_, err := rawDB.Exec(fmt.Sprintf("VACUUM INTO '%s'", safePath))
-	if err != nil {
-		// Fall back: export and import
-		return c.saveToFileManual(path, rawDB)
+	safePath := strings.ReplaceAll(tmp, "'", "''")
+	if _, err := rawDB.Exec(fmt.Sprintf("VACUUM INTO '%s'", safePath)); err != nil {
+		// Fall back: export and import, into a fresh empty temp file.
+		if err := os.Truncate(tmp, 0); err != nil {
+			return err
+		}
+		if err := c.saveToFileManual(tmp, rawDB); err != nil {
+			return err
+		}
 	}
 
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("replace catalog cache %s: %w", path, err)
+	}
+	committed = true
 	return nil
 }
 
