@@ -225,26 +225,31 @@ func TestSkillDocumentsRealAttributeDataTypes(t *testing.T) {
 		docRowValues(t, doc, "data_type"), real, "AttributeType.GetTypeName")
 }
 
-// TestSkillDocumentsRealRefKinds covers ref_kind, which documents no examples
-// today. Whatever it documents must be a kind buildReferences emits.
+// TestSkillDocumentsRealRefKinds pins the ref_kind row both ways: whatever it
+// documents must be a kind buildReferences emits, and every RefKind constant
+// must be documented — read from the declarations, so a new kind (commit,
+// ako/mxcli#963) cannot ship without a line a rule author can find.
 func TestSkillDocumentsRealRefKinds(t *testing.T) {
 	doc := lintRuleSkillDoc(t)
 
+	declared := constantsWithPrefix(t, "builder_references.go", "RefKind")
+	// CONTROL: a scan that collected nothing would pass whatever the row said.
+	if len(declared) < 20 {
+		t.Fatalf("found only %d RefKind* constants — the scan is broken", len(declared))
+	}
 	real := map[string]bool{}
-	for _, k := range []string{
-		RefKindCall, RefKindCreate, RefKindRetrieve, RefKindShowPage,
-		RefKindGeneralize, RefKindAssociate, RefKindLayout, RefKindDatasource,
-		RefKindParameter, RefKindAction, RefKindHomePage, RefKindLoginPage,
-		RefKindMenuItem, RefKindChange, RefKindDelete, RefKindCalculate,
-		RefKindReturn, RefKindSchedule, RefKindValidate, RefKindSettings,
-		RefKindWidget, RefKindSync, RefKindPublish, RefKindEvent,
-		RefKindMember, RefKindXPath, RefKindType, RefKindValue, RefKindMapping,
-	} {
-		real[k] = true
+	for _, v := range declared {
+		real[v] = true
 	}
 
-	assertDocumentedValuesExist(t, "ref_kind",
-		docRowValues(t, doc, "ref_kind"), real, "buildReferences")
+	documented := docRowValues(t, doc, "ref_kind")
+	assertDocumentedValuesExist(t, "ref_kind", documented, real, "buildReferences")
+
+	for name, v := range declared {
+		if !slices.Contains(documented, v) {
+			t.Errorf("%s = %q is emitted but the skill's ref_kind row does not document it", name, v)
+		}
+	}
 }
 
 // TestEveryObjectTypeConstantIsInAPublishedList is the other half of the pin.

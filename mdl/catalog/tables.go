@@ -7,6 +7,10 @@ package catalog
 //
 // History:
 //
+//	19 (commit refs): refs gains RefKind "commit" (FLOW -> ENTITY) for a
+//	    commit action and a create/change that commits (ako/mxcli#963). No
+//	    column changes, but a cached catalog would keep answering "no flow
+//	    commits X" for every entity until something else rebuilt it.
 //	18 — layouts_data.Platform ("Web" / "Native"), the content wrapper's
 //	    type. LayoutType cannot tell the platforms apart ("Popup" is native),
 //	    and MPR012 needs it to stay off native pages, where CE0582 does not
@@ -101,7 +105,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "18"
+const CatalogSchemaVersion = "19"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.

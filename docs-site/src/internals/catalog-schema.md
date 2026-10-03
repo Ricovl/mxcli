@@ -260,6 +260,7 @@ rather than trusting a list here:
 |---------|------|
 | `call` | flow calls a microflow / nanoflow / rule / Java action / REST operation |
 | `create` / `change` / `delete` / `retrieve` | flow acts on an entity object |
+| `commit` | flow commits an entity object: a commit action, or a create / change that commits (`Yes` or `YesWithoutEvents`), beside its `create` / `change` edge |
 | `return` | flow returns an entity type |
 | `parameter` | page or flow parameter entity type |
 | `generalize` | entity extends entity |
@@ -277,6 +278,14 @@ rather than trusting a list here:
 | `sync` | offline navigation profile synchronizes an entity |
 | `validate` | attribute validation rule uses a regular expression |
 | `widget` | page or snippet uses a pluggable / custom widget |
+
+`change`, `delete` and `commit` act on a *variable*, so the entity is resolved
+within the flow — from a parameter, a create or retrieve output, or a loop
+iterator over one of those. A variable whose entity the flow cannot tell (a
+microflow call's result, for one) has no edge. `commit` is not in the analysis
+graph: the variable it commits comes from a parameter, create or retrieve that
+already links the flow to the entity (or to the association it was retrieved
+over), so it would mostly double existing edges.
 
 `schedule`, `publish`, `event` and `settings` are **entry points**: something
 outside the call graph runs the microflow, so nothing in the model calls it.
