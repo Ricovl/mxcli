@@ -247,6 +247,16 @@ Examples:
 				res.Tokens.Count(), res.Tokens.Source,
 				len(res.Tokens.Base), len(res.Tokens.Dark), len(res.Tokens.Light))
 		}
+		// A seeded family mxcli does not vendor gets no @font-face and no file,
+		// so it renders only on machines that happen to have it (#944).
+		for _, fam := range res.UnvendoredFonts {
+			fmt.Printf("\nNote: font family %q is not vendored: the theme names it but ships no file "+
+				"and no @font-face, so it renders only where installed. To ship it, add its woff2 "+
+				"files under %s/files/theme/web/mxcli-fonts/ and an @font-face for them in "+
+				"%s/files/theme/web/_mxcli-%s.scss.\n",
+				fam, filepath.ToSlash(root), filepath.ToSlash(root), res.Name)
+		}
+
 		if !dryRun {
 			fmt.Printf("\nEdit the palette, then apply it:\n"+
 				"  mxcli theme apply %s -p <app.mpr>\n", res.Name)

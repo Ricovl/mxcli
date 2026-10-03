@@ -90,6 +90,7 @@ func Create(projectDir, name string, opts CreateOptions) (*CreateResult, error) 
 	if err := rewrite.planFonts(src, root, tokens); err != nil {
 		return nil, err
 	}
+	res.UnvendoredFonts = rewrite.unvendoredFonts
 
 	walkErr := fs.WalkDir(src.fsys, root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -234,6 +235,9 @@ type CreateResult struct {
 	Dir    string
 	Files  []FileResult
 	Tokens *Tokens
+	// UnvendoredFonts are the seeded font families the theme names but does
+	// not ship: no woff2, no @font-face. They render only where installed.
+	UnvendoredFonts []string
 }
 
 // rewriter carries the renames that turn a copy of one theme into another:
@@ -254,6 +258,10 @@ type rewriter struct {
 	// keptAnyFont records whether any @font-face survived, which decides
 	// whether the mxcli-fonts/ directory and its licence are still shipped.
 	keptAnyFont bool
+	// unvendoredFonts are the seeded primary families no @font-face in the
+	// base theme loads (#944): the theme names them, ships no file for them,
+	// and so renders them only where the font happens to be installed.
+	unvendoredFonts []string
 }
 
 func newRewriter(base *Theme, newName, newTitle string, tokens *Tokens) *rewriter {

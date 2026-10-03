@@ -620,12 +620,15 @@ ALTER SETTINGS LANGUAGE DROP 'de_DE';
 -- SET THE DEFAULT LANGUAGE BEFORE AUTHORING CONTENT. DefaultLanguageCode is not
 -- only the fallback — it is the language a new caption is STORED under, because
 -- Mendix has no language-neutral text. Creating a page and THEN switching the
--- default leaves that page's texts in the old language, and nothing reports it:
--- mx check is 0 errors either way and the symptom appears only in Studio Pro, as
--- the empty-caption placeholder plus a "no translation for this language"
--- warning. Recovery is to re-run the create statements; the texts are then
--- written under the new default. CREATE TRANSLATIONS FOR the default is refused —
--- it is the source language, not a translation target.
+-- default leaves that page's texts in the old language. Most captions then show
+-- in Studio Pro as the empty-caption placeholder with a "no translation for this
+-- language" warning, and build anyway; a TAB PAGE caption does not — mxbuild
+-- refuses it with CE4899 "Empty caption". Changing the default prints how many
+-- required captions lack it, check -p reports them for a script that changes it
+-- (MDL-I18N01), and mxcli lint lists them (QUAL006). Recovery is to re-run the
+-- create statements (the texts are then written under the new default) or
+-- ALTER PAGE P { SET (Caption: '…') ON tabPage1; };. CREATE TRANSLATIONS FOR the
+-- default is refused — it is the source language, not a translation target.
 
 -- A language is identified by its CODE alone: Studio Pro's "Arabic, Sudan" is
 -- derived from ar_SD for display and is not stored in the model.

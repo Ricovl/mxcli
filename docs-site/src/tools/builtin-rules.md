@@ -16,6 +16,12 @@ The **lint rules** below run with `mxcli lint`. There is also a separate group o
 | **MDL006** | Empty containers -- Detects container widgets with no children |
 | **MDL007** | Page navigation security -- Checks that pages called from microflows have appropriate access rules |
 
+## Quality Rules
+
+| Rule | Description |
+|------|-------------|
+| **QUAL006** | Required caption without the default language -- A tab page caption (page, snippet or layout) with no text in the project's `DefaultLanguageCode`. MxBuild refuses it with CE4899 "Empty caption. [German, Germany]". Typically left behind by changing the default language after the pages were written. Error. Measured on Mendix 11.14: of the caption kinds tried (page title, group box, buttons, column header, label, dynamic text, title, enumeration value, menu item, message) only the tab page caption is required; page templates and building blocks are not checked |
+
 ## Security Rules
 
 | Rule | Description |
@@ -63,6 +69,7 @@ These rules run with `mxcli check` (and the LSP, for real-time diagnostics) rath
 | **MDL-WIDGET01** | `mxcli check` + LSP | Unknown property key on a pluggable widget. The property is not in the widget's `.def.json`. Catches typos like `optionsSourcType` (missing `e`) before MxBuild does. Suggests the nearest known key. |
 | **MDL-WIDGET02** | `mxcli check --post-migration` | Legacy native widget found on a project that has a pluggable replacement available. Reports each occurrence with the qualified document name, widget instance name, and the recommended pluggable widget. |
 | **MDL-SET01** | `mxcli check` + LSP | Non-integer value for an Integer-typed project setting (`HttpPortNumber`, `ServerPortNumber`, `BcryptCost`, `DefaultTaskParallelism`, `WorkflowEngineParallelism`). These used to be skipped silently while the statement still reported success. |
+| **MDL-I18N01** | `mxcli check -p` | A script that changes `DefaultLanguageCode` leaves a tab page caption — stored in the project, or created by the script before the change — with no text in the new default. MxBuild reports CE4899 "Empty caption". See [Error Messages](../appendixes/error-messages.md#mdl-i18n01-a-tab-page-caption-without-the-default-language-ce4899). |
 | **MDL-SET02** | `mxcli check` + LSP | Value other than `true` / `false` for a Boolean-typed project setting (`AllowUserMultipleSessions`). Anything else was silently stored as `false`. |
 
 Run `mxcli check --help` for usage. See [Error Messages → MDL-WIDGET01 / MDL-WIDGET02](../appendixes/error-messages.md#mdl-widget01-unknown-pluggable-widget-property) for cause-and-solution detail.

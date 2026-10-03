@@ -410,6 +410,11 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 		// reported shape was drop + create in separate runs, which loses the
 		// roles that `create or modify` keeps.
 		projectViolations = append(projectViolations, exec.CheckFlowAccess(prog)...)
+		// MDL-I18N01 (MxBuild CE4899): a script that changes the default
+		// language leaves every required caption written in the old one empty
+		// in the new one (ako/mxcli#944).
+		projectViolations = append(projectViolations, exec.CheckDefaultLanguageCaptions(prog)...)
+
 		if len(projectViolations) > 0 {
 			if isStructured {
 				structured = append(structured, projectViolations...)
