@@ -116,7 +116,9 @@ func TestEmptyMicroflowRule_NamesTheDocumentType(t *testing.T) {
 	db := setupMicroflowsDB(t, [][]any{
 		{"id1", "ACT_Process", "MyModule.ACT_Process", "MyModule", "", "MICROFLOW", "", "Void", 0, 0, 0},
 		{"id2", "NF_Refresh", "MyModule.NF_Refresh", "MyModule", "", "NANOFLOW", "", "Void", 0, 0, 0},
-		{"id3", "Rule1", "MyModule.Rule1", "MyModule", "", "RULE", "", "Boolean", 1, 0, 0},
+		// No return type: a rule that returns a value is not empty (#953), so
+		// the noun is pinned on one that reads as returning nothing.
+		{"id3", "Rule1", "MyModule.Rule1", "MyModule", "", "RULE", "", "", 1, 0, 0},
 		// An unknown type must still be reported, under the generic noun: a
 		// finding with an imprecise label beats no finding at all.
 		{"id4", "Mystery", "MyModule.Mystery", "MyModule", "", "SOMETHING_NEW", "", "Void", 0, 0, 0},
@@ -169,5 +171,30 @@ func TestDocumentNounCoversEveryCatalogType(t *testing.T) {
 		if got := mf.DocumentNoun(); got != want {
 			t.Errorf("DocumentNoun(%q) = %q, want %q", stored, got, want)
 		}
+	}
+}
+
+// ako/mxcli#953 item 4: a flow whose only content is `return <expr>;` computes
+// a value in its end event and is not empty — ActivityCount excludes the start
+// and end events, so it reads 0. A non-Void return type is the catalog's
+// witness that the end event returns a value. The Void and unset rows are the
+// control: they stay reported.
+func TestEmptyMicroflowRule_SkipsReturnValueOnlyFlows(t *testing.T) {
+	db := setupMicroflowsDB(t, [][]any{
+		{"id1", "Logboek_Label", "M.Logboek_Label", "M", "", "MICROFLOW", "", "String", 1, 0, 1},
+		{"id2", "GetCurrentUser", "M.GetCurrentUser", "M", "", "NANOFLOW", "", "Object:System.User", 0, 0, 1},
+		{"id3", "IsValid", "M.IsValid", "M", "", "RULE", "", "Boolean", 1, 0, 1},
+		{"id4", "Empty", "M.Empty", "M", "", "MICROFLOW", "", "Void", 0, 0, 1},
+		{"id5", "EmptyUnset", "M.EmptyUnset", "M", "", "NANOFLOW", "", "", 0, 0, 1},
+	})
+	defer db.Close()
+
+	violations := NewEmptyMicroflowRule().Check(linter.NewLintContextFromDB(db))
+	got := map[string]bool{}
+	for _, v := range violations {
+		got[v.Location.DocumentName] = true
+	}
+	if len(violations) != 2 || !got["Empty"] || !got["EmptyUnset"] {
+		t.Fatalf("want only the Void/unset flows reported (Empty, EmptyUnset), got %v", got)
 	}
 }
