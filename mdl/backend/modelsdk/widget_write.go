@@ -152,10 +152,13 @@ func init() {
 		MandatoryListMarkers: map[string]int32{"Conditions": 2, "ModuleRoles": 1},
 	})
 	codec.RegisterListMarker("Enumerations$Condition", 2)
+	// Conditions is [2] here too, empty: measured on both Studio Pro-authored
+	// editability settings in TestApp (WorkflowCommons combo boxes); the default
+	// [3] rewrote them on every describe → exec.
 	codec.RegisterTypeDefaults("Forms$ConditionalEditabilitySettings", codec.TypeDefaults{
-		NullFields:        []string{"SourceVariable"},
-		EmptyStringFields: []string{"Attribute"},
-		MandatoryLists:    []string{"Conditions"},
+		NullFields:           []string{"SourceVariable"},
+		EmptyStringFields:    []string{"Attribute"},
+		MandatoryListMarkers: map[string]int32{"Conditions": 2},
 	})
 	// A caption parameter's AttributeRef/SourceVariable are null for the literal-
 	// expression form; populated Parameters lists use marker 2.
@@ -1079,6 +1082,13 @@ func conditionalVisibilityToGen(cvs *pages.ConditionalVisibilitySettings) elemen
 			cg.SetAttributeValue(c.Value)
 			cg.SetEditableVisible(c.Visible)
 			g.AddConditions(cg)
+		}
+		// Read from a page or snippet parameter (`Visible: $Param.Attr in
+		// (…)`): Studio Pro names it here, as on TestApp's
+		// WorkflowCommons.Snip_UserTask_NameColumnWithIcon. Null otherwise —
+		// read from the enclosing object.
+		if sv := inputSourceVariableToGen(cvs.SourceVariable); sv != nil {
+			g.SetSourceVariable(sv)
 		}
 	}
 	return g

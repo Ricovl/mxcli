@@ -424,6 +424,30 @@ are in.
 which is the usual shape — it matches the segment's leading name, not the whole
 segment.
 
+### A used flow left without access — `MDL-SEC21` (CE0106)
+
+With a project (`check -p`), `check` simulates the script's creates, drops,
+grants and revokes and reports a microflow or nanoflow the script leaves with
+**no allowed role** while something that needs one names it. MxBuild's error:
+
+> CE0106 "At least one allowed role must be selected if the microflow is used
+> from navigation, a page, a nanoflow or a published service."
+
+Measured on Mendix 11.14: a page button or data source, a snippet, a navigation
+or menu-document item, or a nanoflow call needs a role (even from an unused
+snippet, menu document or nanoflow). A **published REST operation does not**,
+nor a microflow called only from another microflow, nor an excluded page. It is
+an **error at security level Prototype or Production** and a warning at Off,
+where MxBuild does not check it.
+
+The usual cause is **drop + create in separate runs**: a create in a later run
+is a *new* flow, and a new flow in a module that has its own module roles gets no
+access. Within one run, and with `create or modify`, the stored roles are kept.
+Fix: `grant execute on microflow M.Flow to M.Role;` in the same script, or rebuild
+with `create or modify microflow` instead of dropping. Only what the script
+*changes* is reported — a project that already has CE0106 does not fail an
+unrelated script; `mxcli docker check` shows those.
+
 **`check` is still necessary, not sufficient.** Run `mx check` (or
 `mxcli docker check`) after every `exec`; these two rules narrow the gap, they do
 not close it.

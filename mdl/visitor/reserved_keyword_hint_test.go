@@ -13,11 +13,15 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/types"
 )
 
-const grantWith = `grant Administration.Administrator on M.Doc ( read (%s) );`
+// keywordSlot is a name position that still takes only an identifier, so a bare
+// keyword there is a parse error and draws the hint. The grant member list this
+// used to use now accepts keywords, as attribute names do, which is the better
+// fix where it applies; the hint still serves the slots that do not.
+const keywordSlot = "create workflow M.W\nbegin\n  user task %s 'Review'\n    page M.P;\nend workflow;"
 
 func hintFor(t *testing.T, name string) string {
 	t.Helper()
-	_, errs := Build(strings.Replace(grantWith, "%s", name, 1))
+	_, errs := Build(strings.Replace(keywordSlot, "%s", name, 1))
 	if len(errs) == 0 {
 		t.Fatalf("expected a parse error for %q used bare", name)
 	}
@@ -41,7 +45,7 @@ func TestQuotingActuallyParses(t *testing.T) {
 	// The control, and the one that makes the advice above honest: a hint that
 	// recommends quoting is only worth printing if the quoted form parses. Without
 	// this, the test above would pass against a suggestion that does not work.
-	if _, errs := Build(strings.Replace(grantWith, "%s", `"Title"`, 1)); len(errs) != 0 {
+	if _, errs := Build(strings.Replace(keywordSlot, "%s", `"Title"`, 1)); len(errs) != 0 {
 		t.Fatalf("the hint recommends quoting, but the quoted form does not parse: %v", errs)
 	}
 }

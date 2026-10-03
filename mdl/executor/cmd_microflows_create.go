@@ -69,6 +69,7 @@ func execCreateMicroflow(ctx *ExecContext, s *ast.CreateMicroflowStmt) error {
 			return mdlerrors.NewBackend("create microflow", err)
 		}
 		fmt.Fprintf(ctx.Output, "Created microflow: %s.%s\n", s.Name.Module, s.Name.Name)
+		reportAutoRoleGrant(ctx, built.AutoGranted)
 	}
 
 	// Track the created microflow so it can be resolved by subsequent page creations

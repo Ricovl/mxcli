@@ -520,3 +520,52 @@ func TestAlterPage_InsertCustomContentColumn(t *testing.T) {
 		t.Error("InsertWidget must NOT be called for column INSERT")
 	}
 }
+
+// ALTER PAGE writes a text into the project's default language
+// (pagemutator.setTextsTextTranslation reads model.AuthoringLanguage), so the
+// language must be resolved before the first mutation — not left at whatever
+// an earlier statement or the en_US default put there. A de_DE project whose
+// tab caption had only en_US got its `set Caption` written to en_US, leaving
+// the CE4899 it was meant to fix.
+func TestAlterPage_ResolvesAuthoringLanguageBeforeWriting(t *testing.T) {
+	prev := model.AuthoringLanguage()
+	model.SetAuthoringLanguage("en_US")
+	t.Cleanup(func() { model.SetAuthoringLanguage(prev) })
+
+	mod := mkModule("MyModule")
+	pg := mkPage(mod.ID, "TestPage")
+	var langAtWrite string
+	mb := &mock.MockBackend{
+		IsConnectedFunc: func() bool { return true },
+		ListModulesFunc: func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+		ListFoldersFunc: func() ([]*types.FolderInfo, error) { return nil, nil },
+		ListPagesFunc:   func() ([]*pages.Page, error) { return []*pages.Page{pg}, nil },
+		GetProjectSettingsFunc: func() (*model.ProjectSettings, error) {
+			return &model.ProjectSettings{Language: &model.LanguageSettings{DefaultLanguageCode: "de_DE"}}, nil
+		},
+		OpenPageForMutationFunc: func(unitID model.ID) (backend.PageMutator, error) {
+			return &mock.MockPageMutator{
+				SetWidgetPropertyFunc: func(string, string, any) error {
+					langAtWrite = model.AuthoringLanguage()
+					return nil
+				},
+				SaveFunc: func() error { return nil },
+			}, nil
+		},
+	}
+	h := mkHierarchy(mod)
+	withContainer(h, pg.ContainerID, mod.ID)
+	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	assertNoError(t, execAlterPage(ctx, &ast.AlterPageStmt{
+		PageName: ast.QualifiedName{Module: "MyModule", Name: "TestPage"},
+		Operations: []ast.AlterPageOperation{
+			&ast.SetPropertyOp{
+				Target:     ast.WidgetRef{Widget: "tabPage2"},
+				Properties: map[string]any{"Caption": "Benutzer"},
+			},
+		},
+	}))
+	if langAtWrite != "de_DE" {
+		t.Fatalf("authoring language during the write = %q, want the project's de_DE", langAtWrite)
+	}
+}

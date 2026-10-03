@@ -53,8 +53,8 @@ type heldReport struct {
 	// drops the text instead (a "Reconciled N rules" line about a rewrite that
 	// did not happen).
 	unchanged string
-	// notice is printed whatever the run wrote: it reports no write ("No access
-	// rules found …"), so there is nothing to downgrade.
+	// notice is printed whatever the run wrote: it reports no write ("…
+	// nothing to revoke"), so there is nothing to downgrade.
 	notice bool
 }
 

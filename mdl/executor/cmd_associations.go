@@ -391,8 +391,14 @@ func reconcileAfterAssociationAlter(ctx *ExecContext, s *ast.AlterAssociationStm
 
 // reconcileModuleAccess reconciles one module's entity access rules and tracks
 // its domain model as modified. A module that cannot be found (the TO end of a
-// cross-module association named by a stale reference) has nothing to fix.
+// cross-module association named by a stale reference) has nothing to fix, and
+// neither does System: its domain model is virtual, not a stored unit, so the
+// reconcile failed with "no such file" after an association to a System entity
+// had already been written — and its rules cannot be changed by a project.
 func reconcileModuleAccess(ctx *ExecContext, moduleName, why string) error {
+	if isBuiltinModuleEntity(moduleName) {
+		return nil
+	}
 	mod, err := findModule(ctx, moduleName)
 	if err != nil || mod == nil {
 		return nil

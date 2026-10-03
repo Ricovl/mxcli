@@ -86,6 +86,21 @@ func (ob *Builder) SetAssociation(propertyKey string, assocPath string, entityNa
 	})
 }
 
+// SetSourceVariable stores the Forms$PageVariable an attribute or association
+// property reads from — `$Param.Attr`, a page or snippet parameter — in the
+// property's WidgetValue, where Studio Pro keeps it (TestApp
+// WorkflowCommons.Snip_TaskDashboard_Header: SnippetParameter "DashboardContext"
+// beside the AttributeRef / IndirectEntityRef). Without one the value is read
+// from the enclosing object, as before.
+func (ob *Builder) SetSourceVariable(propertyKey string, sv *pages.WidgetVariable) {
+	if sv == nil || (sv.Widget == "" && sv.Variable == "") {
+		return
+	}
+	ob.object = updateWidgetPropertyValue(ob.object, ob.propertyTypeIDs, propertyKey, func(val bson.D) bson.D {
+		return setBSONField(val, "SourceVariable", PageVariableBSON(sv.Widget, sv.Variable, sv.Kind))
+	})
+}
+
 func (ob *Builder) SetPrimitive(propertyKey string, value string) {
 	if value == "" {
 		return
@@ -1710,44 +1725,7 @@ func SerializeColumnClientTemplateParameter(param *pages.ClientTemplateParameter
 
 	var sourceVariable any
 	if param.SourceVariable != "" || param.SourceWidget != "" {
-		// Studio Pro distinguishes between three Forms$PageVariable bindings:
-		//   - LocalVariable     → page-level Variables entry (Kind="local")
-		//   - SnippetParameter  → snippet parameter            (Kind="snippet")
-		//   - PageParameter     → page parameter               (Kind="" default)
-		// Emitting a $localVar reference as a literal Expression causes Studio
-		// Pro to interpret the value as an entity attribute path.
-		fields := bson.D{
-			{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
-			{Key: "$Type", Value: "Forms$PageVariable"},
-		}
-		switch param.SourceVariableKind {
-		case "local":
-			fields = append(fields,
-				bson.E{Key: "LocalVariable", Value: param.SourceVariable},
-				bson.E{Key: "PageParameter", Value: ""},
-				bson.E{Key: "SnippetParameter", Value: ""},
-			)
-		case "snippet":
-			fields = append(fields,
-				bson.E{Key: "LocalVariable", Value: ""},
-				bson.E{Key: "PageParameter", Value: ""},
-				bson.E{Key: "SnippetParameter", Value: param.SourceVariable},
-			)
-		default:
-			fields = append(fields,
-				bson.E{Key: "LocalVariable", Value: ""},
-				bson.E{Key: "PageParameter", Value: param.SourceVariable},
-				bson.E{Key: "SnippetParameter", Value: ""},
-			)
-		}
-		fields = append(fields,
-			bson.E{Key: "SubKey", Value: ""},
-			bson.E{Key: "UseAllPages", Value: false},
-			// `$dataView1.Attr`: the data view in Widget, its own variable in
-			// the slot above — Studio Pro's pair (ako/mxcli#826).
-			bson.E{Key: "Widget", Value: param.SourceWidget},
-		)
-		sourceVariable = fields
+		sourceVariable = PageVariableBSON(param.SourceWidget, param.SourceVariable, param.SourceVariableKind)
 	}
 
 	return bson.D{
@@ -1757,6 +1735,37 @@ func SerializeColumnClientTemplateParameter(param *pages.ClientTemplateParameter
 		{Key: "Expression", Value: param.Expression},
 		{Key: "FormattingInfo", Value: formattingInfo},
 		{Key: "SourceVariable", Value: sourceVariable},
+	}
+}
+
+// PageVariableBSON is a Forms$PageVariable. Studio Pro distinguishes three
+// bindings by the slot the name fills:
+//   - LocalVariable     → page-level Variables entry (kind "local")
+//   - SnippetParameter  → snippet parameter            (kind "snippet")
+//   - PageParameter     → page parameter               (kind "", the default)
+//
+// widget names a data view the binding reads through — `$dataView1.Attr`, the
+// data view in Widget and its own variable in the slot (ako/mxcli#826). A
+// binding read straight from a parameter has none.
+func PageVariableBSON(widget, name, kind string) bson.D {
+	local, page, snippet := "", "", ""
+	switch kind {
+	case "local":
+		local = name
+	case "snippet":
+		snippet = name
+	default:
+		page = name
+	}
+	return bson.D{
+		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+		{Key: "$Type", Value: "Forms$PageVariable"},
+		{Key: "LocalVariable", Value: local},
+		{Key: "PageParameter", Value: page},
+		{Key: "SnippetParameter", Value: snippet},
+		{Key: "SubKey", Value: ""},
+		{Key: "UseAllPages", Value: false},
+		{Key: "Widget", Value: widget},
 	}
 }
 

@@ -133,9 +133,7 @@ func unusedVendoredFamilies(scss string, tokens *Tokens) []string {
 // section comment when nothing is left to explain.
 func dropFontFaces(scss string, families []string) string {
 	for _, fam := range families {
-		re := regexp.MustCompile(`(?s)\n*@each\s+\$weight[^{]*\{\s*@font-face\s*\{[^}]*font-family:\s*"` +
-			regexp.QuoteMeta(fam) + `"[^}]*\}[^}]*\}`)
-		scss = re.ReplaceAllString(scss, "")
+		scss = dropFontFaceBlock(scss, fam)
 	}
 	if len(vendoredFamilies(scss)) == 0 {
 		// The banner explains vendored fonts; with none left it describes
@@ -144,6 +142,57 @@ func dropFontFaces(scss string, families []string) string {
 		scss = fontSectionCommentRe.ReplaceAllString(scss, "")
 	}
 	return strings.TrimRight(scss, "\n") + "\n"
+}
+
+// eachWeightRe finds the start of a per-family `@each $weight` block, with the
+// blank lines before it.
+var eachWeightRe = regexp.MustCompile(`\n*@each\s+\$weight[^{]*\{`)
+
+// dropFontFaceBlock removes every `@each $weight` block that declares family.
+//
+// The block's end is found by counting braces, not by a pattern: its `src:`
+// interpolates `#{$weight}`, whose `}` a `[^}]*\}` pattern took for the
+// @font-face close — so the @each's own `}` was left behind and the partial no
+// longer compiled. An interpolation's braces are balanced, so depth counting
+// steps over them.
+func dropFontFaceBlock(scss, family string) string {
+	familyRe := regexp.MustCompile(`font-family:\s*"` + regexp.QuoteMeta(family) + `"`)
+	var out strings.Builder
+	rest := scss
+	for {
+		loc := eachWeightRe.FindStringIndex(rest)
+		if loc == nil {
+			break
+		}
+		end := closingBrace(rest, loc[1]-1)
+		if end < 0 {
+			break // unbalanced: leave the rest as written rather than guess
+		}
+		out.WriteString(rest[:loc[0]])
+		if !familyRe.MatchString(rest[loc[1]:end]) {
+			out.WriteString(rest[loc[0] : end+1])
+		}
+		rest = rest[end+1:]
+	}
+	out.WriteString(rest)
+	return out.String()
+}
+
+// closingBrace returns the index of the `}` matching the `{` at open, or -1.
+func closingBrace(s string, open int) int {
+	depth := 0
+	for i := open; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 // fontSectionCommentRe matches the vendored-fonts banner comment.

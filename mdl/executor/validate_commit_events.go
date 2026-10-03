@@ -9,6 +9,9 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/linter"
 )
 
+// bareCommitNoteRule is the id of the note below.
+const bareCommitNoteRule = "MDL067"
+
 // MDL067 is a one-release migration note for #895.
 //
 // Before the fix, a bare `commit $X;` stored WithEvents=false. Studio Pro's
@@ -34,6 +37,10 @@ import (
 //
 // Only the author knows which they meant, so the note does not guess. It should
 // be dropped once the release that carries the change is old news.
+//
+// exec drops it for a flow the project already stores the way the script
+// writes it (DropSettledCommitNotes): re-running an idempotent script changes
+// nothing about events, so the note would only repeat itself on every run.
 func (v *microflowValidator) checkBareCommitEvents(body []ast.MicroflowStatement) {
 	bare := 0
 	var walk func([]ast.MicroflowStatement)
@@ -78,7 +85,7 @@ func (v *microflowValidator) checkBareCommitEvents(body []ast.MicroflowStatement
 	if bare == 1 {
 		subject = "1 commit activity uses"
 	}
-	v.addViolation("MDL067", linter.SeverityInfo,
+	v.addViolation(bareCommitNoteRule, linter.SeverityInfo,
 		fmt.Sprintf("%s the default, which is now WITH EVENTS to match Studio Pro (#895); "+
 			"before this release a bare `commit $X;` wrote events OFF", subject),
 		"Write `commit $X without events;` for any commit here that must NOT run its event "+

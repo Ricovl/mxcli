@@ -69,6 +69,66 @@ func TestConditionalVisibilityToGen_AttributeConditions(t *testing.T) {
 	}
 }
 
+// Read from a snippet parameter (TestApp
+// WorkflowCommons.Snip_UserTask_NameColumnWithIcon, an image outside every data
+// container): SourceVariable is a Forms$PageVariable naming the parameter in
+// SnippetParameter, no Widget. Null for a context-relative condition.
+func TestConditionalVisibilityToGen_ParameterSource(t *testing.T) {
+	encodeSV := func(sv *pages.WidgetVariable) any {
+		d := encodeToD(t, conditionalVisibilityToGen(&pages.ConditionalVisibilitySettings{
+			Attribute:      "System.WorkflowUserTask.CompletionType",
+			Conditions:     []pages.ValueCondition{{Value: "Single", Visible: true}},
+			SourceVariable: sv,
+		}))
+		for _, e := range d {
+			if e.Key == "SourceVariable" {
+				return e.Value
+			}
+		}
+		t.Fatalf("no SourceVariable key: %v", d)
+		return nil
+	}
+	sv, ok := encodeSV(&pages.WidgetVariable{Variable: "WorkflowUserTask", Kind: "snippet"}).(bson.D)
+	if !ok {
+		t.Fatal("SourceVariable not written")
+	}
+	want := map[string]any{"$Type": "Forms$PageVariable", "SnippetParameter": "WorkflowUserTask",
+		"PageParameter": "", "LocalVariable": "", "Widget": ""}
+	for _, e := range sv {
+		if w, ok := want[e.Key]; ok {
+			if e.Value != w {
+				t.Errorf("SourceVariable.%s = %#v, want %#v", e.Key, e.Value, w)
+			}
+			delete(want, e.Key)
+		}
+	}
+	for k := range want {
+		t.Errorf("SourceVariable lacks %s: %v", k, sv)
+	}
+	// Control: no source, null.
+	if got := encodeSV(nil); got != nil {
+		t.Errorf("context-relative SourceVariable = %#v, want null", got)
+	}
+}
+
+// Editability's empty Conditions list carries marker [2], as visibility's does:
+// measured on both Studio Pro-authored settings in TestApp (the combo boxes of
+// WorkflowCommons.Snip_TaskDashboard_Header and Snip_WorkflowDashboard_TaskNumbers,
+// `Editable: $DashboardContext/… != empty`). mxcli wrote the default [3], so a
+// describe → exec of either rewrote the snippet.
+func TestConditionalEditabilityToGen_EmptyConditionsMarker(t *testing.T) {
+	d := encodeToD(t, conditionalEditabilityToGen(&pages.ConditionalEditabilitySettings{Expression: "$currentObject/Name != empty"}))
+	for _, e := range d {
+		if e.Key == "Conditions" {
+			if a, _ := e.Value.(bson.A); len(a) != 1 || a[0] != int32(2) {
+				t.Errorf("empty Conditions = %#v, want [2]", e.Value)
+			}
+			return
+		}
+	}
+	t.Fatalf("no Conditions key: %v", d)
+}
+
 // The expression form keeps its shape, with the corrected empty markers.
 func TestConditionalVisibilityToGen_ExpressionMarkers(t *testing.T) {
 	d := encodeToD(t, conditionalVisibilityToGen(&pages.ConditionalVisibilitySettings{Expression: "$currentObject/ImageB64 != empty"}))

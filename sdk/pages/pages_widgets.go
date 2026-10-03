@@ -93,9 +93,13 @@ type LayoutPlaceholder struct {
 // ConditionalVisibilitySettings represents visibility conditions.
 type ConditionalVisibilitySettings struct {
 	model.BaseElement
-	Expression     string        `json:"expression,omitempty"`
-	ModuleRoles    []model.ID    `json:"moduleRoles,omitempty"`
-	SourceVariable *PageVariable `json:"sourceVariable,omitempty"`
+	Expression  string     `json:"expression,omitempty"`
+	ModuleRoles []model.ID `json:"moduleRoles,omitempty"`
+	// SourceVariable names the object Attribute is read from when that is not
+	// the enclosing data context: a page or snippet parameter, for a widget
+	// outside every data container (TestApp WorkflowCommons). nil is the null
+	// Studio Pro stores for a context-relative condition.
+	SourceVariable *WidgetVariable `json:"sourceVariable,omitempty"`
 	// Attribute is Studio Pro's "based on attribute value": the qualified
 	// Module.Entity.Attr (a BY_NAME reference), with one Conditions entry per
 	// value of it. Empty for the expression and module-role forms.

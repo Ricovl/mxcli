@@ -468,7 +468,7 @@ func execGrantEntityAccess(ctx *ExecContext, s *ast.GrantEntityAccessStmt) error
 		// rights — both are CE6592. The autonumber half was missing, so
 		// `grant write *` on an entity with one wrote ReadWrite and failed the
 		// build (ako/mxcli#524).
-		if types.WriteRightsForbidden(mem.IsCalculated, mem.IsAutoNumber) &&
+		if types.WriteRightsForbidden(mem.IsCalculated, mem.IsAutoNumber, mem.IsSystemReadOnly) &&
 			(rights == "ReadWrite" || rights == "WriteOnly") {
 			rights = "ReadOnly"
 		}
@@ -632,6 +632,14 @@ func execGrantEntityAccess(ctx *ExecContext, s *ast.GrantEntityAccessStmt) error
 }
 
 // execRevokeEntityAccess handles REVOKE roles ON Module.Entity [(rights...)].
+// nothingToRevoke is a revoke's report when the roles already lack the rights:
+// the idempotent re-run of a script, worded as the state it found rather than
+// as a lookup that failed ("No access rules found matching …").
+func nothingToRevoke(entity ast.QualifiedName, roleNames []string) string {
+	return fmt.Sprintf("Unchanged entity access: %s.%s (%s) — nothing to revoke\n",
+		entity.Module, entity.Name, strings.Join(roleNames, ", "))
+}
+
 func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
@@ -672,6 +680,21 @@ func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) err
 	if len(s.Rights) > 0 {
 		// Partial revoke — downgrade specific rights
 		revocation := types.EntityAccessRevocation{}
+		// A member access is stored against the entity that DECLARES the
+		// member, so an inherited one is `System.FileDocument.HasContents`,
+		// not `Mod.Doc.HasContents`. Qualifying every name with this entity
+		// matched no stored entry for an inherited member, and the revoke
+		// answered "No access rules found" while the rule held ReadWrite.
+		memberRef := map[string]string{}
+		for _, mem := range EntityMembers(ctx, module.Name+"."+s.Entity.Name) {
+			memberRef[mem.Name] = mem.Ref
+		}
+		qualify := func(m string) string {
+			if ref, ok := memberRef[m]; ok {
+				return ref
+			}
+			return module.Name + "." + s.Entity.Name + "." + m
+		}
 		for _, right := range s.Rights {
 			switch right.Type {
 			case ast.EntityAccessCreate:
@@ -685,12 +708,12 @@ func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) err
 			case ast.EntityAccessReadMembers:
 				for _, m := range right.Members {
 					revocation.RevokeReadMembers = append(revocation.RevokeReadMembers,
-						module.Name+"."+s.Entity.Name+"."+m)
+						qualify(m))
 				}
 			case ast.EntityAccessWriteMembers:
 				for _, m := range right.Members {
 					revocation.RevokeWriteMembers = append(revocation.RevokeWriteMembers,
-						module.Name+"."+s.Entity.Name+"."+m)
+						qualify(m))
 				}
 			}
 		}
@@ -701,7 +724,7 @@ func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) err
 		}
 
 		if modified == 0 {
-			ctx.reportAccessRule(heldReport{notice: true, text: fmt.Sprintf("No access rules found matching %s on %s.%s\n", strings.Join(roleNames, ", "), s.Entity.Module, s.Entity.Name)})
+			ctx.reportAccessRule(heldReport{notice: true, text: nothingToRevoke(s.Entity, roleNames)})
 		} else {
 			text := fmt.Sprintf("Revoked partial access on %s.%s from %s\n", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))
 			if !ctx.Quiet {
@@ -718,7 +741,7 @@ func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) err
 		}
 
 		if modified == 0 {
-			ctx.reportAccessRule(heldReport{notice: true, text: fmt.Sprintf("No access rules found matching %s on %s.%s\n", strings.Join(roleNames, ", "), s.Entity.Module, s.Entity.Name)})
+			ctx.reportAccessRule(heldReport{notice: true, text: nothingToRevoke(s.Entity, roleNames)})
 		} else {
 			text := fmt.Sprintf("Revoked access on %s.%s from %s\n", s.Entity.Module, s.Entity.Name, strings.Join(roleNames, ", "))
 			if !ctx.Quiet {

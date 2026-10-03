@@ -367,6 +367,7 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 				case s.Variable == "" || s.Source.Name == "":
 				case s.StartVariable == "":
 					vars[s.Variable] = s.Source.String()
+					out = append(out, checkSortSystemMemberSpelling(ctx, sc, authored, flowQN, s.Source.String(), s.SortColumns)...)
 				default:
 					if from, ok := vars[strings.TrimPrefix(s.StartVariable, "$")]; ok {
 						if to, ok := associationTargetFrom(ctx, s.Source.String(), from); ok {
@@ -445,6 +446,75 @@ func checkMembers(ctx *ExecContext, sc *scriptContext, authored map[string]bool,
 	return out
 }
 
+// checkSortSystemMemberSpelling reports a sort on createdDate / changedDate
+// spelled in another case. Measured on mxbuild 11.14.0 on a System.FileDocument
+// specialization (which stores both):
+//
+//	sort by createdDate          clean
+//	sort by M.E.createdDate      clean
+//	sort by CreatedDate          CE1613 "The selected attribute 'M.E.CreatedDate' no longer exists."
+//	sort by M.E.CreatedDate      CE1613
+//
+// The capitalised spelling is the one describe prints for an AutoCreatedDate
+// declaration, so it is the natural one to write. Reported only where the
+// entity provably has no attribute of that exact name — an entity may declare
+// an ordinary `CreatedDate: DateTime`, and sorting on that is fine.
+func checkSortSystemMemberSpelling(ctx *ExecContext, sc *scriptContext, authored map[string]bool,
+	flowQN, entityQN string, cols []ast.SortColumnDef) []string {
+	var out []string
+	for _, col := range cols {
+		if len(col.Associations) > 0 {
+			continue
+		}
+		name := col.Attribute
+		if i := strings.LastIndex(name, "."); i >= 0 {
+			name = name[i+1:]
+		}
+		var spelling string
+		for _, sys := range []string{"createdDate", "changedDate"} {
+			if name != sys && strings.EqualFold(name, sys) {
+				spelling = sys
+			}
+		}
+		if spelling == "" {
+			continue
+		}
+		// `CreatedDate: AutoCreatedDate` declares the member, not an attribute
+		// of that name — exactly the declaration that makes the capitalised
+		// sort tempting.
+		decl := sc.entityDecls[entityQN]
+		declaredPseudo := false
+		if decl != nil {
+			for _, a := range decl.Attributes {
+				if a.Name == name {
+					declaredPseudo = isAutoSystemMemberType(a.Type.Kind)
+				}
+			}
+		}
+		if !declaredPseudo {
+			if authored[strings.ToLower(entityQN+"."+name)] {
+				continue
+			}
+			res := resolveMemberOnEntity(ctx, entityQN, name)
+			if res == memberFound {
+				continue
+			}
+			if res != memberMissing && (decl == nil || decl.Generalization != nil) {
+				continue // the entity's members cannot be established
+			}
+		}
+		fix := spelling
+		if strings.Contains(col.Attribute, ".") {
+			fix = strings.TrimSuffix(col.Attribute, name) + spelling
+		}
+		out = append(out, fmt.Sprintf(
+			"%s: sort by %s on %s — the system member is spelled `%s` (XPath and sort names are case-sensitive); "+
+				"mxbuild reports CE1613 \"The selected attribute '%s.%s' no longer exists\". Write `sort by %s`",
+			flowQN, col.Attribute, entityQN, spelling, entityQN, name, fix))
+	}
+	return out
+}
+
 // authoredMembers collects every attribute the SCRIPT itself declares, so a
 // script that adds an attribute and then assigns it is not reported.
 //
@@ -472,6 +542,13 @@ func authoredMembers(prog *ast.Program) map[string]bool {
 			if s.Operation == ast.AlterEntityRenameAttribute {
 				add(s.Name.String(), s.NewName)
 			}
+		case *ast.CreateAssociationStmt:
+			// An association is a member of its ends, assigned by its bare
+			// name: `create M.Child (Child_Parent = $P)`. Without this, a script
+			// that adds an association to entities the project already has was
+			// told the entity "has no member" it had just created.
+			add(s.Parent.String(), s.Name.Name)
+			add(s.Child.String(), s.Name.Name)
 		}
 	}
 	return out

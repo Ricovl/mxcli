@@ -38,6 +38,11 @@ func extractConditionalSettings(ctx *ExecContext, widget *rawWidget, w map[strin
 		// visible (Administration.Account_Edit: 8 conditions → 0).
 		if attr, ok := cvs["Attribute"].(string); ok && attr != "" {
 			widget.VisibleAttr = describeAttr(ctx, attr)
+			// Read from a page or snippet parameter (TestApp
+			// Snip_UserTask_NameColumnWithIcon): `$Param.Attr in (…)`.
+			if param := parameterSourceName(cvs["SourceVariable"]); param != "" {
+				widget.VisibleAttr = parameterAttributeMDL(param, attr)
+			}
 			for _, c := range getBsonArrayElements(cvs["Conditions"]) {
 				cm, ok := c.(map[string]any)
 				if !ok {
@@ -406,6 +411,10 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Content = extractCustomWidgetAttribute(ctx, w)
 		widget.RenderMode = extractCustomWidgetType(ctx, w) // Store widget type in RenderMode
 		widget.WidgetID = extractCustomWidgetID(ctx, w)
+		// A pluggable widget declaring the Editability system property stores
+		// it on the CustomWidget, like a text box. Unread, a combo box's
+		// `Editable: Never` described as nothing and re-exec widened it.
+		widget.Editable = extractEditable(ctx, w)
 		// For ComboBox, extract datasource and association attribute for association mode.
 		// In association mode the Attribute binding is stored as EntityRef (not AttributeRef),
 		// so we must use extractCustomWidgetPropertyAssociation instead of the generic scan.
@@ -413,6 +422,12 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			widget.DataSource = extractComboBoxDataSource(ctx, w)
 			if widget.DataSource != nil {
 				widget.Content = associationRefForContext(extractCustomWidgetPropertyAssociationQN(ctx, w, "attributeAssociation"), inheritedCtx)
+				// The association starts at a page or snippet parameter:
+				// `$Param.Module.Assoc`, qualified, since no entity is in scope
+				// to shorten it against.
+				if param := customWidgetPropertyParameter(w, "attributeAssociation"); param != "" && widget.Content != "" {
+					widget.Content = "$" + param + "." + extractCustomWidgetPropertyAssociationQN(ctx, w, "attributeAssociation")
+				}
 				widget.CaptionAttribute = extractCustomWidgetPropertyAttributeRef(ctx, w, "optionsSourceAssociationCaptionAttribute")
 				// The caption can be an EXPRESSION instead (Studio Pro's "Caption
 				// type: Expression"). Reading only the attribute form dropped it,
@@ -1216,6 +1231,14 @@ func extractInputAttribute(ctx *ExecContext, w map[string]any) string {
 	attrRef, _ := w["AttributeRef"].(map[string]any)
 	if local := extractString(sv["LocalVariable"]); local != "" && widget == "" && attrRef == nil {
 		return "$" + local
+	}
+	// Read straight from a page or snippet parameter — a widget outside every
+	// data container (TestApp Snip_WorkflowUserTaskView_Details): `$Param.Attr`.
+	// Bare, it re-executed with no SourceVariable, or was refused at the root.
+	if param := parameterSourceName(w["SourceVariable"]); param != "" && attrRef != nil {
+		if attr := extractString(attrRef["Attribute"]); attr != "" && attrRef["EntityRef"] == nil {
+			return parameterAttributeMDL(param, attr)
+		}
 	}
 	if widget == "" || attrRef == nil {
 		return extractAttributeRef(ctx, w)

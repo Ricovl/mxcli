@@ -405,6 +405,9 @@ func attributeBsonToMDL(_ *ExecContext, raw map[string]any) string {
 	// Get type from $Type field - most common patterns
 	if attrType := extractString(raw["$Type"]); attrType != "" {
 		switch {
+		// Before String: "HashedStringAttributeType" contains "StringAttributeType".
+		case strings.Contains(attrType, "HashedStringAttributeType"):
+			typeStr = "HashedString"
 		case strings.Contains(attrType, "StringAttributeType"):
 			length := extractInt(raw["Length"])
 			if length > 0 {
@@ -448,6 +451,9 @@ func attributeBsonToMDL(_ *ExecContext, raw map[string]any) string {
 	if ok {
 		if typeType := extractString(typeObj["$Type"]); typeType != "" {
 			switch {
+			// Before String: "HashedStringAttributeType" contains "StringAttributeType".
+			case strings.Contains(typeType, "HashedStringAttributeType"):
+				typeStr = "HashedString"
 			case strings.Contains(typeType, "StringAttributeType"):
 				length := extractInt(typeObj["Length"])
 				if length > 0 {

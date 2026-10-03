@@ -95,6 +95,31 @@ func (b *Builder) EnterDataType(ctx *parser.DataTypeContext) {
 	word, repl := removedPrimitiveType(ctx.FLOAT_TYPE(), ctx.CURRENCY_TYPE())
 	b.rejectRemovedPrimitiveType(ctx, word, repl)
 	b.recordDateType(ctx.DATE_TYPE(), "")
+	if ctx.HASHEDSTRING_TYPE() != nil && !isAttributeTypeSlot(ctx) {
+		b.rejectHashedStringOutsideAttribute(ctx)
+	}
+}
+
+// isAttributeTypeSlot reports whether a dataType is an entity attribute's type:
+// an attribute definition (create entity, add attribute, view entity) or the
+// type of `alter entity … modify attribute`.
+func isAttributeTypeSlot(ctx antlr.ParserRuleContext) bool {
+	switch ctx.GetParent().(type) {
+	case *parser.AttributeDefinitionContext, *parser.AlterEntityActionContext:
+		return true
+	}
+	return false
+}
+
+// rejectHashedStringOutsideAttribute refuses `HashedString` where it is not an
+// entity attribute's type. Mendix has HashedString only as a DomainModels
+// attribute type — microflows, constants, Java actions and parameters have no
+// such type — and mxcli stored it as a String there (a microflow parameter as
+// Void), silently.
+func (b *Builder) rejectHashedStringOutsideAttribute(ctx antlr.ParserRuleContext) {
+	b.addError(fmt.Errorf("%s: type `HashedString` is only an entity attribute type — Mendix has no hashed "+
+		"string type for parameters, variables, constants or return values.\n"+
+		"  Write `String` instead (a hashed attribute's value is a String).", ctxPos(ctx)))
 }
 
 // EnterNonListDataType is the same check for the create-object type slot.
@@ -102,6 +127,9 @@ func (b *Builder) EnterNonListDataType(ctx *parser.NonListDataTypeContext) {
 	word, repl := removedPrimitiveType(ctx.FLOAT_TYPE(), ctx.CURRENCY_TYPE())
 	b.rejectRemovedPrimitiveType(ctx, word, repl)
 	b.recordDateType(ctx.DATE_TYPE(), "")
+	if ctx.HASHEDSTRING_TYPE() != nil {
+		b.rejectHashedStringOutsideAttribute(ctx)
+	}
 }
 
 // rejectParenthesisedAssociation refuses `association X (from … to …, opt, …)`.

@@ -47,6 +47,11 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 		}
 	}
 
+	// Texts are written in the project's default language (the one DESCRIBE
+	// shows): resolve it before the first mutation, since the mutator reads it
+	// through model.AuthoringLanguage rather than as a parameter.
+	authoringLanguage(ctx)
+
 	// Open the page for mutation via the backend
 	mutator, err := ctx.Backend.OpenPageForMutation(unitID)
 	if err != nil {
@@ -571,11 +576,35 @@ func replacePluggableKeepingUnstated(ctx *ExecContext, mutator backend.PageMutat
 	if stored == nil || !strings.EqualFold(stored.Type, op.NewWidgets[0].Type) {
 		return false, nil
 	}
-	baseline, err := buildWidgetsFromAST(ctx, cloneWidgets([]*ast.WidgetV3{stored}), moduleName, moduleID, entityCtx, mutator, exclude...)
+	baseline, err := buildWidgetsFromAST(ctx, []*ast.WidgetV3{replaceBaseline(stored, op.NewWidgets[0])}, moduleName, moduleID, entityCtx, mutator, exclude...)
 	if err != nil || len(baseline) != 1 {
 		return false, nil
 	}
 	return keeper.ReplacePluggableKeepingUnstated(op.Target.Widget, widgets[0], baseline[0])
+}
+
+// replaceBaselineSystemProps are the widget-level settings describe prints for
+// a pluggable widget (its visibility and editability). The merge reads "the
+// replacement differs from the baseline" as "the statement states it", so one
+// the statement leaves out must be left out of the baseline too, or the
+// replacement's default would overwrite the stored value.
+var replaceBaselineSystemProps = []string{"Editable", "EditableIf", "Visible", "VisibleIf", "VisibleWhen"}
+
+// replaceBaseline is the stored widget's description with the visibility and
+// editability properties the statement does not state removed.
+func replaceBaseline(stored, stmt *ast.WidgetV3) *ast.WidgetV3 {
+	c := cloneWidget(stored)
+	for _, k := range replaceBaselineSystemProps {
+		if _, stated := lookupPropCI(stmt, k); stated {
+			continue
+		}
+		for key := range c.Properties {
+			if strings.EqualFold(key, k) {
+				delete(c.Properties, key)
+			}
+		}
+	}
+	return c
 }
 
 // describedStoredWidgets describes the document an ALTER edits, in the

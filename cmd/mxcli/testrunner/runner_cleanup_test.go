@@ -55,6 +55,36 @@ func TestParseSettingValue(t *testing.T) {
 			line: "  SomeSetting = 'a=b',",
 			want: "a=b",
 		},
+		// DESCRIBE SETTINGS has written `Key: 'value'` since the describe
+		// rewrite; the `=` cases above are the older output, kept so a project
+		// described by an older binary still parses. Reading the colon form
+		// with the `=` parser kept the whole line, and the restore wrote
+		// `AfterStartupMicroflow: 'AfterStartupMicroflow: ''Mod.Flow'`.
+		{
+			name: "colon form, trailing comma (current describe output)",
+			line: "  AfterStartupMicroflow: 'BIA.ASU_SeedDemoData',",
+			want: "BIA.ASU_SeedDemoData",
+		},
+		{
+			name: "colon form, trailing semicolon",
+			line: "  AfterStartupMicroflow: 'BIA.ASU_SeedDemoData';",
+			want: "BIA.ASU_SeedDemoData",
+		},
+		{
+			name: "colon form, empty value",
+			line: "  AfterStartupMicroflow: '',",
+			want: "",
+		},
+		{
+			name: "colon form, value containing a colon is not truncated",
+			line: "  SomeSetting: 'a:b',",
+			want: "a:b",
+		},
+		{
+			name: "doubled quote is unescaped",
+			line: "  SomeSetting: 'it''s',",
+			want: "it's",
+		},
 		{
 			name: "no equals sign at all",
 			line: "  AfterStartupMicroflow",
@@ -77,6 +107,8 @@ func TestParseSettingValue_RoundTripsThroughQuoting(t *testing.T) {
 		"  AfterStartupMicroflow = 'MyFirstModule.ASU_Startup',",
 		"  AfterStartupMicroflow = 'MyFirstModule.ASU_Startup';",
 		"  AfterStartupMicroflow = 'Mod.Flow'",
+		"  AfterStartupMicroflow: 'MyFirstModule.ASU_Startup',",
+		"  AfterStartupMicroflow: 'Mod.Flow';",
 	} {
 		got := quoteMDLString(parseSettingValue(line))
 		if strings.Count(got, "'") != 2 {

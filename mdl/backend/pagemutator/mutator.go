@@ -420,6 +420,26 @@ func refuseWidgetsAtColumnTarget(gridRef, columnRef string) error {
 		gridRef, columnRef)
 }
 
+// tabPageType is a tab control's page. It is addressable by its Name, but it
+// lives in the control's TabPages list rather than a widget list.
+const tabPageType = "Forms$TabPage"
+
+// refuseTabPageSiblingEdit refuses an operation that would edit the TabPages
+// list itself: INSERT BEFORE/AFTER and REPLACE would put ordinary widgets into a
+// list that holds only tab pages, and DROP can remove the page the control's
+// DefaultPagePointer names, leaving a dangling pointer. What a tab page does
+// support — SET Caption / Visible / Name and INSERT INTO it — goes through the
+// ordinary widget paths.
+func refuseTabPageSiblingEdit(result *bsonWidgetResult, name, op string) error {
+	if result == nil || bsonnav.DGetString(result.widget, "$Type") != tabPageType {
+		return nil
+	}
+	return fmt.Errorf("%q is a tab page: %s would edit the tab container's list of pages, "+
+		"which ALTER PAGE does not do. Use `insert into %s { … }` to add widgets to it, "+
+		"`set Visible = false on %s` to hide it, or `describe page` and `create or modify page` "+
+		"to add, remove or reorder tab pages", name, op, name, name)
+}
+
 func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position backend.InsertPosition, widgets []pages.Widget) error {
 	if columnRef != "" {
 		// `layoutContainer.top` is a scroll-container region, not a grid column.
@@ -448,6 +468,11 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 	}
 	if n := m.columnMatchCount(widgetRef); n > 1 {
 		return columnAmbiguityError(widgetRef, n)
+	}
+	if !strings.EqualFold(string(position), "into") {
+		if err := refuseTabPageSiblingEdit(result, widgetRef, "insert "+strings.ToLower(string(position))); err != nil {
+			return err
+		}
 	}
 
 	// Serialize widgets
@@ -551,7 +576,8 @@ func containerAcceptsWidgets(container bson.D) bool {
 		"Forms$DataView",
 		"Forms$GroupBox",
 		"Forms$ScrollContainerRegion",
-		"Forms$Section":
+		"Forms$Section",
+		tabPageType:
 		return true
 	}
 	return false
@@ -577,6 +603,9 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 			}
 			if n := m.columnMatchCount(ref.Name()); n > 1 {
 				return columnAmbiguityError(ref.Name(), n)
+			}
+			if err := refuseTabPageSiblingEdit(result, ref.Name(), "drop"); err != nil {
+				return err
 			}
 		}
 		newArr := make([]any, 0, len(result.parentArr)-1)
@@ -608,6 +637,9 @@ func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pa
 	}
 	if n := m.columnMatchCount(widgetRef); n > 1 {
 		return columnAmbiguityError(widgetRef, n)
+	}
+	if err := refuseTabPageSiblingEdit(result, widgetRef, "replace"); err != nil {
+		return err
 	}
 
 	newBsonWidgets, err := m.serializeWidgets(widgets)
@@ -1469,16 +1501,10 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 		}
 	}
 
-	// TabContainer: TabPages[].Widgets[]
-	tabPages := bsonnav.DGetArrayElements(bsonnav.DGet(wDoc, "TabPages"))
-	for _, tp := range tabPages {
-		tpDoc, ok := tp.(bson.D)
-		if !ok {
-			continue
-		}
-		if result := findInWidgetArray(tpDoc, "Widgets", widgetName); result != nil {
-			return result
-		}
+	// TabContainer: TabPages[] are named elements themselves (`set Caption … on
+	// tabPage2`), and findInWidgetArray descends into each one's Widgets[].
+	if result := findInWidgetArray(wDoc, "TabPages", widgetName); result != nil {
+		return result
 	}
 
 	// ControlBar
@@ -2186,14 +2212,8 @@ func findNearestDSInChildren(wDoc bson.D, widgetName string, curDS bson.D) (bson
 			}
 		}
 	}
-	for _, tp := range bsonnav.DGetArrayElements(bsonnav.DGet(wDoc, "TabPages")) {
-		tpDoc, ok := tp.(bson.D)
-		if !ok {
-			continue
-		}
-		if ds, found := findNearestDSInWidgets(tpDoc, "Widgets", widgetName, curDS); found {
-			return ds, true
-		}
+	if ds, found := findNearestDSInWidgets(wDoc, "TabPages", widgetName, curDS); found {
+		return ds, true
 	}
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		if ds, found := findNearestDSInWidgets(controlBar, "Items", widgetName, curDS); found {
@@ -2391,14 +2411,7 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 			}
 		}
 	}
-	tabPages := bsonnav.DGetArrayElements(bsonnav.DGet(wDoc, "TabPages"))
-	for _, tp := range tabPages {
-		tpDoc, ok := tp.(bson.D)
-		if !ok {
-			continue
-		}
-		collectWidgetScope(tpDoc, "Widgets", scope)
-	}
+	collectWidgetScope(wDoc, "TabPages", scope)
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		collectWidgetScope(controlBar, "Items", scope)
 	}
@@ -2592,43 +2605,74 @@ func setColumnPropertyMut(colDoc bson.D, propKeyMap map[string]string, propKindM
 	return fmt.Errorf("column property %q not found on this column", propName)
 }
 
-// updateClientTemplateText replaces the Template.Items[*].Text of a
-// Forms$ClientTemplate. Returns true if a Translation entry was updated.
-// If no Translation exists, a new en_US one is appended.
+// updateClientTemplateText writes the literal text of a Forms$ClientTemplate's
+// Template in the authoring language (see setTextsTextTranslation). Returns false
+// when the template has no Texts$Text to write into.
 func updateClientTemplateText(clientTemplate bson.D, text string) bool {
 	template := bsonnav.DGetDoc(clientTemplate, "Template")
 	if template == nil {
 		return false
 	}
-	items := bsonnav.DGetArrayElements(bsonnav.DGet(template, "Items"))
-	updated := false
-	for _, item := range items {
+	return setTextsTextTranslation(template, text)
+}
+
+// setTextsTextTranslation writes text into a Texts$Text as the translation for
+// model.AuthoringLanguage() — the project's default language, the one DESCRIBE
+// shows — updating that entry in place, or appending one when the text has no
+// translation in that language yet. Every other language's translation is kept.
+//
+// This is the one rule for every text ALTER PAGE sets. Before it there were
+// four: a page Title and a column caption overwrote EVERY translation with the
+// same string (English text written into nl_NL); a button caption or content
+// overwrote whichever translation was listed first, whatever its language; and
+// a Caption/Label stored as a Texts$Text looked for a `Translations` key no
+// Mendix document has, then tried to set a stray `Text` field that DSet could
+// not add — reporting success with nothing written. The case that surfaced it:
+// a project switched to de_DE, a tab caption with only en_US → mxbuild CE4899
+// "Empty caption. [German, Germany]", and `set Caption` had to fill de_DE
+// without discarding the en_US text.
+//
+// Returns false when doc carries no Items list (not a Texts$Text).
+func setTextsTextTranslation(doc bson.D, text string) bool {
+	raw := bsonnav.ToBsonA(bsonnav.DGet(doc, "Items"))
+	if raw == nil && !hasKey(doc, "Items") {
+		return false
+	}
+	lang := model.AuthoringLanguage()
+	for _, item := range bsonnav.DGetArrayElements(raw) {
 		itemDoc, ok := item.(bson.D)
-		if !ok {
+		if !ok || bsonnav.DGetString(itemDoc, "LanguageCode") != lang {
 			continue
 		}
-		if bsonnav.DGetString(itemDoc, "$Type") == "Texts$Translation" {
-			bsonnav.DSet(itemDoc, "Text", text)
-			updated = true
+		if bsonnav.DSet(itemDoc, "Text", text) {
+			return true
 		}
 	}
-	if updated {
-		return true
-	}
-	// No existing Translation — append an en_US one.
 	newItem := bson.D{
 		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
 		{Key: "$Type", Value: "Texts$Translation"},
-		{Key: "LanguageCode", Value: model.AuthoringLanguage()},
+		{Key: "LanguageCode", Value: lang},
 		{Key: "Text", Value: text},
 	}
-	newArr := bson.A{int32(3)}
-	for _, item := range items {
-		newArr = append(newArr, item)
+	var newArr bson.A
+	if len(raw) > 0 && isListMarker(raw[0]) {
+		newArr = append(newArr, raw...)
+	} else {
+		// Texts$Text.Items is a marker-3 list in every document Studio Pro writes.
+		newArr = append(append(newArr, int32(3)), raw...)
 	}
 	newArr = append(newArr, newItem)
-	bsonnav.DSet(template, "Items", newArr)
-	return true
+	return bsonnav.DSet(doc, "Items", newArr)
+}
+
+// hasKey reports whether doc has the key at all, null value included.
+func hasKey(doc bson.D, key string) bool {
+	for _, e := range doc {
+		if e.Key == key {
+			return true
+		}
+	}
+	return false
 }
 
 // applyPageLevelSetMut applies a page-level SET (no widget target). It returns
@@ -2649,7 +2693,7 @@ func applyPageLevelSetMut(rawData bson.D, prop string, value any) (bson.D, error
 		if titleDoc == nil {
 			return rawData, fmt.Errorf("page has no Title field")
 		}
-		if !updateTextsTextValue(titleDoc, strVal) {
+		if !setTextsTextTranslation(titleDoc, strVal) {
 			return rawData, fmt.Errorf("could not update Title text")
 		}
 	case "Url":
@@ -2760,41 +2804,6 @@ func coercePopupDimension(prop string, value any) (int64, error) {
 		return 0, fmt.Errorf("%s value %d is out of range", prop, n)
 	}
 	return n, nil
-}
-
-// updateTextsTextValue updates the Text field of a Texts$Text doc's en_US
-// Translation in its Items[] array. If no Translation exists, an en_US one is
-// appended. Returns true on success.
-func updateTextsTextValue(textsTextDoc bson.D, text string) bool {
-	items := bsonnav.DGetArrayElements(bsonnav.DGet(textsTextDoc, "Items"))
-	updated := false
-	for _, item := range items {
-		itemDoc, ok := item.(bson.D)
-		if !ok {
-			continue
-		}
-		if bsonnav.DGetString(itemDoc, "$Type") == "Texts$Translation" {
-			bsonnav.DSet(itemDoc, "Text", text)
-			updated = true
-		}
-	}
-	if updated {
-		return true
-	}
-	// No existing Translation — append an en_US one.
-	newItem := bson.D{
-		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
-		{Key: "$Type", Value: "Texts$Translation"},
-		{Key: "LanguageCode", Value: model.AuthoringLanguage()},
-		{Key: "Text", Value: text},
-	}
-	newArr := bson.A{int32(3)}
-	for _, item := range items {
-		newArr = append(newArr, item)
-	}
-	newArr = append(newArr, newItem)
-	bsonnav.DSet(textsTextDoc, "Items", newArr)
-	return true
 }
 
 // setWidgetConditionalSettingMut replaces a widget's ConditionalVisibility/
@@ -3114,8 +3123,7 @@ func buildDesignPropertyValueDoc(valueType, option string) bson.D {
 
 func setWidgetCaptionMut(widget bson.D, value any) error {
 	if caption := bsonnav.DGetDoc(widget, "Caption"); caption != nil {
-		setTranslatableText(caption, "", value)
-		return nil
+		return setTranslatableText(caption, "Caption", value)
 	}
 	// An ActionButton has no `Caption` document: its caption is a
 	// Forms$ClientTemplate stored under `CaptionTemplate` (Template → Items[] →
@@ -3123,31 +3131,9 @@ func setWidgetCaptionMut(widget bson.D, value any) error {
 	// branch `alter page … set Caption = '…' on <button>` failed with "widget has
 	// no Caption property" for EVERY action button, nested or top-level.
 	if tmpl := bsonnav.DGetDoc(widget, "CaptionTemplate"); tmpl != nil {
-		return setClientTemplateText(tmpl, "CaptionTemplate", value)
+		return setTranslatableText(tmpl, "CaptionTemplate", value)
 	}
 	return mdlerrors.NewValidation("widget has no Caption property")
-}
-
-// setClientTemplateText writes the literal text of a Forms$ClientTemplate
-// (Template → Items[] → Translation.Text). Shared by the caption and content
-// setters, which store their text in the same structure under different keys.
-func setClientTemplateText(clientTemplate bson.D, label string, value any) error {
-	strVal, ok := value.(string)
-	if !ok {
-		return fmt.Errorf("%s value must be a string", label)
-	}
-	template := bsonnav.DGetDoc(clientTemplate, "Template")
-	if template == nil {
-		return fmt.Errorf("%s has no Template", label)
-	}
-	items := bsonnav.DGetArrayElements(bsonnav.DGet(template, "Items"))
-	if len(items) > 0 {
-		if itemDoc, ok := items[0].(bson.D); ok {
-			bsonnav.DSet(itemDoc, "Text", strVal)
-			return nil
-		}
-	}
-	return fmt.Errorf("%s.Template has no Items with Text", label)
 }
 
 func setWidgetContentMut(widget bson.D, value any) error {
@@ -3155,17 +3141,24 @@ func setWidgetContentMut(widget bson.D, value any) error {
 	if content == nil {
 		return fmt.Errorf("widget has no Content property")
 	}
-	return setClientTemplateText(content, "Content", value)
+	return setTranslatableText(content, "Content", value)
 }
 
-// setWidgetLabelMut sets the widget's Label caption. Returns nil without error
-// if the widget has no Label field — not all widget types support labels.
+// setWidgetLabelMut sets an input widget's label. Studio Pro 10+ stores it as a
+// Forms$ClientTemplate under LabelTemplate and writes no `Label` key at all;
+// the legacy shape is a Label document whose Caption is a Texts$Text. Looking
+// only for `Label` made `set Label = …` report success and store nothing on
+// every current input widget. A widget with neither (no label shown, or a type
+// that has none) still returns nil, as it always did.
 func setWidgetLabelMut(widget bson.D, value any) error {
-	label := bsonnav.DGetDoc(widget, "Label")
-	if label == nil {
-		return nil
+	if tmpl := bsonnav.DGetDoc(widget, "LabelTemplate"); tmpl != nil {
+		return setTranslatableText(tmpl, "LabelTemplate", value)
 	}
-	setTranslatableText(label, "Caption", value)
+	if label := bsonnav.DGetDoc(widget, "Label"); label != nil {
+		if caption := bsonnav.DGetDoc(label, "Caption"); caption != nil {
+			return setTranslatableText(caption, "Label caption", value)
+		}
+	}
 	return nil
 }
 
@@ -3333,31 +3326,32 @@ func noPluggableObjectError(widget bson.D, propName string) error {
 		propName)
 }
 
-// setTranslatableText sets a translatable text value in BSON.
-func setTranslatableText(parent bson.D, key string, value any) {
+// setTranslatableText writes a string into a stored text of either shape Mendix
+// uses for one: a Texts$Text (a tab page's or a legacy widget's Caption, a
+// Forms$Label's Caption) or a Forms$ClientTemplate (a button's CaptionTemplate,
+// a text's Content, an input's LabelTemplate). Either way the translation for
+// the authoring language is written and the others are kept — see
+// setTextsTextTranslation. Any other shape is refused: writing nothing and
+// returning nil is how `set Caption` on a tab page reported success unchanged.
+func setTranslatableText(text bson.D, label string, value any) error {
 	strVal, ok := value.(string)
 	if !ok {
-		return
+		return fmt.Errorf("%s value must be a string", label)
 	}
-
-	target := parent
-	if key != "" {
-		if nested := bsonnav.DGetDoc(parent, key); nested != nil {
-			target = nested
-		} else {
-			bsonnav.DSet(parent, key, strVal)
-			return
+	switch typ := bsonnav.DGetString(text, "$Type"); typ {
+	case "Texts$Text":
+		if setTextsTextTranslation(text, strVal) {
+			return nil
 		}
-	}
-
-	translations := bsonnav.DGetArrayElements(bsonnav.DGet(target, "Translations"))
-	if len(translations) > 0 {
-		if tDoc, ok := translations[0].(bson.D); ok {
-			bsonnav.DSet(tDoc, "Text", strVal)
-			return
+		return fmt.Errorf("%s is a Texts$Text without an Items list", label)
+	case "Forms$ClientTemplate":
+		if updateClientTemplateText(text, strVal) {
+			return nil
 		}
+		return fmt.Errorf("%s has no Template text", label)
+	default:
+		return fmt.Errorf("%s is stored as %q, which ALTER PAGE cannot write text into", label, typ)
 	}
-	bsonnav.DSet(target, "Text", strVal)
 }
 
 // ---------------------------------------------------------------------------

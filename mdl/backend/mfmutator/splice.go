@@ -229,8 +229,11 @@ func (g *graph) node(id model.ID) (*node, error) {
 		return nil, fmt.Errorf("activity %s is not in the stored flow (was it dropped by an earlier operation?)", id)
 	}
 	if n.loop != "" {
+		// create or modify does not edit inside a loop either, so the
+		// advice is the one operation that makes the change.
 		return nil, fmt.Errorf("%s is inside a loop body; alter does not splice inside a loop yet — "+
-			"address the loop itself, or rewrite the loop with create or modify", describeNode(n))
+			"replace the whole loop instead: `replace loop … with begin loop … begin … end loop; end;`, "+
+			"addressing the loop by its handle from `describe … with handles`", describeNode(n))
 	}
 	return n, nil
 }

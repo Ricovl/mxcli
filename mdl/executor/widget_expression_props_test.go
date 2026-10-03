@@ -82,19 +82,31 @@ func TestWidgetExpressionProps_AlterStoresTheExpression(t *testing.T) {
 }
 
 // Widening the value rule for two properties must not open a silent empty value
-// for every other one.
+// for every other one. ALTER … SET refuses in the visitor; a generic key in a
+// widget body is kept as an expression — an Expression-typed pluggable property
+// takes it (widget_expression_value_test.go) — and refused at check time
+// wherever the widget's schema says the property takes a plain value.
 func TestWidgetExpressionInAPlainProperty_IsAnError(t *testing.T) {
+	_, errs := visitor.Build(`alter page M.P { set Caption = 'Save' + ' now' on btn1 };`)
+	if len(errs) == 0 || !strings.Contains(errs[0].Error(), "expression") {
+		t.Errorf("alter set Caption accepted an expression: %v", errs)
+	}
 	for _, src := range []string{
 		`create page M.P (title: 'P', layout: Atlas_Core.Atlas_Default) { combobox cb (emptyOptionText: 'a' + 'b') }`,
-		`alter page M.P { set Caption = 'Save' + ' now' on btn1 };`,
+		`create page M.P (title: 'P', layout: Atlas_Core.Atlas_Default) { container c1 (renderMode: 'a' + 'b') { } }`,
 	} {
-		_, errs := visitor.Build(src)
-		if len(errs) == 0 {
-			t.Errorf("accepted an expression in a plain-value property: %s", src)
-			continue
+		prog, errs := visitor.Build(src)
+		if len(errs) > 0 {
+			t.Fatalf("parse: %v", errs)
 		}
-		if !strings.Contains(errs[0].Error(), "expression") {
-			t.Errorf("error %q should say the property does not take an expression", errs[0])
+		errorCount := 0
+		for _, v := range ValidateWidgetProperties(prog, "") {
+			if v.Severity == linter.SeverityError {
+				errorCount++
+			}
+		}
+		if errorCount == 0 {
+			t.Errorf("check accepted an expression in a plain-value property: %s", src)
 		}
 	}
 }

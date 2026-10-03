@@ -130,20 +130,6 @@ func widgetConditionMDL(key, expr string) string {
 	return fmt.Sprintf("%s: [%s]", key, expr)
 }
 
-// appendConditionalProps appends VISIBLE IF and EDITABLE IF if present.
-func appendConditionalProps(props []string, w rawWidget) []string {
-	if w.VisibleIf != "" {
-		props = append(props, widgetConditionMDL("Visible", w.VisibleIf))
-	}
-	if prop := visibleWhenProp(w); prop != "" {
-		props = append(props, prop)
-	}
-	if w.EditableIf != "" {
-		props = append(props, widgetConditionMDL("Editable", w.EditableIf))
-	}
-	return props
-}
-
 // appendAppearanceProps appends Class, Style, DesignProperties, and conditional
 // settings if present — and editability, which every input widget carries.
 //
@@ -185,7 +171,9 @@ func appendInputValidationProps(ctx *ExecContext, props []string, w rawWidget) [
 func appendAppearanceProps(ctx *ExecContext, props []string, w rawWidget) []string {
 	// Only when it deviates from Mendix's default, so unchanged widgets keep a
 	// quiet round-trip. Empty means the widget type has no editability at all.
-	if w.Editable != "" && w.Editable != "Always" {
+	// "Conditional" is not authorable: the `Editable: <expr>` printed below is
+	// what makes it conditional, and printing both gives the key twice.
+	if w.Editable != "" && w.Editable != "Always" && !(w.Editable == "Conditional" && w.EditableIf != "") {
 		props = append(props, fmt.Sprintf("Editable: %s", w.Editable))
 	}
 	if w.Class != "" {
@@ -775,16 +763,22 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		} else if widgetType == "image" {
 			header := fmt.Sprintf("image %s", mdlIdent(w.Name))
 			props := describeImageWidgetProps(ctx, w)
-			props = appendConditionalProps(props, w)
+			// appendAppearanceProps prints the visibility and editability; the
+			// conditional settings appended a second time before it printed each
+			// twice (#721 C).
 			props = appendAppearanceProps(ctx, props, w)
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		} else if (len(w.ExplicitProperties) > 0 || len(w.ObjectLists) > 0 || w.OnClick != "" ||
-			w.OnChange != "" || len(w.NamedActions) > 0 || len(w.ChildSlots) > 0 ||
-			len(w.OmittedContainers) > 0) && w.WidgetID != "" {
+			(w.OnChange != "" && !isKnownCustomWidgetType(widgetType)) || len(w.NamedActions) > 0 ||
+			len(w.ChildSlots) > 0 || len(w.OmittedContainers) > 0) && w.WidgetID != "" {
 			// Generic pluggable widget with explicit properties, object-list child
 			// blocks (chart series/lines/scaleColors), and/or an onClick action.
 			// The widget's own MDL name where that round-trips, else the
 			// explicit id form. See pluggableWidgetHeader.
+			//
+			// OnChange counts only for a widget without its own branch below: a
+			// combo box's branch emits OnChange itself, and routed here it lost
+			// its Attribute: and CaptionAttribute: on describe.
 			//
 			// Child slots and omitted containers count towards "has content"
 			// too: a widget whose only non-default content is a populated slot

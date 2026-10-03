@@ -338,6 +338,10 @@ type WidgetObjectBuilder interface {
 
 	SetAttribute(propertyKey string, attributePath string)
 	SetAssociation(propertyKey string, assocPath string, entityName string)
+	// SetSourceVariable names the object an attribute or association property
+	// reads, when that is not the enclosing data context: a page or snippet
+	// parameter, stored as the WidgetValue's Forms$PageVariable (`$Param.Attr`).
+	SetSourceVariable(propertyKey string, sv *pages.WidgetVariable)
 	SetPrimitive(propertyKey string, value string)
 	SetSelection(propertyKey string, value string)
 	// SetImage points an image-typed property (e.g. the Image widget's

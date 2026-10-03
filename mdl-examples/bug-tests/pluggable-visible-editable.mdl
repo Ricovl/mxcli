@@ -1,0 +1,52 @@
+mdl 1;
+-- Visibility and editability on a pluggable widget were never stored.
+--
+-- On a combo box, `visible: false` and `editable: Never` passed check and exec
+-- and were written as nothing (ConditionalVisibilitySettings null, Editable
+-- "Always"); the expression forms were refused as MDL-WIDGET01 "no property
+-- VisibleIf / EditableIf". buildPluggable returned before the code that applies
+-- them to every other widget.
+--
+-- Combobox.xml declares <systemProperty key="Visibility"/> and
+-- <systemProperty key="Editability"/>, and Studio Pro stores both on the
+-- CustomWidgets$CustomWidget itself, in the same Forms$Conditional*Settings
+-- elements a text box carries. A widget whose package declares neither (a
+-- switch has no Visibility) is refused as MDL-WIDGET41.
+--
+-- Verified on Mendix 11.14.0: `mxcli docker check` 0 errors, `docker build`
+-- clean, and `describe page` -> exec reproduces the same document.
+
+create module VisEd;
+
+create enumeration VisEd.Status (Open 'Open', Closed 'Closed');
+
+create persistent entity VisEd.Ticket (
+  Title: String(100),
+  Notes: String(500),
+  Status: VisEd.Status
+);
+
+create or modify page VisEd.Ticket_Edit (
+  Title: 'Ticket',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Ticket: VisEd.Ticket )
+) {
+  layoutgrid lg {
+    row {
+      column (DesktopWidth: AutoFill) {
+        dataview dv (Datasource: $Ticket) {
+          textbox txtTitle (Attribute: Title)
+          combobox cmbHidden (Label: 'Hidden', Attribute: Status, Visible: false)
+          combobox cmbCondVis (Label: 'Cond visible', Attribute: Status, Visible: $currentObject/Title != empty)
+          combobox cmbNever (Label: 'Never editable', Attribute: Status, Editable: Never)
+          combobox cmbCondEd (Label: 'Cond editable', Attribute: Status, Editable: $currentObject/Notes != empty)
+          combobox cmbWhen (Label: 'When', Attribute: Status, Visible: Status in (Open, empty))
+          combobox cmbPlain (Label: 'Plain', Attribute: Status)
+        }
+      }
+    }
+  }
+};
+
+-- Each combo box describes back with what it stores.
+describe page VisEd.Ticket_Edit;

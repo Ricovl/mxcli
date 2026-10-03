@@ -113,6 +113,7 @@ func ValidateWidgetPropertiesForStatement(stmt ast.Statement, registry *WidgetRe
 	}
 	if label, widgets, ok := documentWidgets(stmt); ok {
 		out := validateWidgetTree(widgets, registry, label)
+		out = append(out, validateNamedObjectBindings(widgets, documentEntityParameters(stmt), label)...)
 		return append(out, validatePageVariableBindings(widgets, documentVariables(stmt), label)...)
 	}
 	switch s := stmt.(type) {
@@ -221,7 +222,7 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateDatasourceXPathAssociationEmpty(w, locationPrefix)...)
 		out = append(out, validateComboBoxAssociation(w, locationPrefix)...)
 		// #631: inputs inside a list view that will be written read-only.
-		out = append(out, validateListViewEditableInputs(w, locationPrefix)...)
+		out = append(out, validateListViewEditableInputs(w, registry, locationPrefix)...)
 		// A show_page argument naming anything but the context object is dropped.
 		// The widget's OWN action is judged in the context IT establishes, not the
 		// one it sits in — a list widget's onClick is row-scoped (ako/mxcli#552).
@@ -238,6 +239,13 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// so gets past every other rule. Needs the parent's definition, and stays
 		// quiet without one for the same reason MDL-WIDGET26 does.
 		out = append(out, validateUnroutedChildren(w, def, locationPrefix)...)
+		// An expression on a generic key whose schema kind takes none — which
+		// used to be written as an empty value (MDL-WIDGET42).
+		if mapping != nil {
+			out = append(out, validateWidgetExpressionValues(w, nil, mapping, true, locationPrefix)...)
+		} else {
+			out = append(out, validateWidgetExpressionValues(w, def, nil, isObjectListItem, locationPrefix)...)
+		}
 		// A generic widget type that resolved to nothing is already reported as
 		// MDL-WIDGET25 (the kind is wrong). Validating its properties on top of
 		// that says the kind is fine and the property is not, which points at
@@ -255,7 +263,7 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			// only three static widget kinds actually store.
 			out = append(out, validateWidgetOnClick(w, locationPrefix)...)
 		} else if def != nil {
-			out = append(out, validatePluggableEditability(w, locationPrefix)...)
+			out = append(out, validatePluggableSystemProps(w, def, registry, locationPrefix)...)
 		}
 		if mapping != nil {
 			out = append(out, validateObjectListItemEnums(w, mapping, locationPrefix)...)

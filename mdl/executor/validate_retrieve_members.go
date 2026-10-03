@@ -33,7 +33,7 @@ func validateRetrieveMembers(ctx *ExecContext, retrieves []retrieveConstraintRef
 	if len(retrieves) == 0 {
 		return nil
 	}
-	m := &execXPathModel{ctx: ctx}
+	m := &scriptXPathModel{base: &execXPathModel{ctx: ctx}, ctx: ctx, sc: sc}
 	var assocs map[string]string // unqualified association name -> qualified, loaded on demand
 	resolve := func(entityQN, member string) memberResolution {
 		decl := sc.entityDecls[entityQN]
@@ -78,6 +78,48 @@ func validateRetrieveMembers(ctx *ExecContext, retrieves []retrieveConstraintRef
 	return errs
 }
 
+// scriptXPathModel answers xpathrefs.Model from the project AND the script.
+//
+// The project-only model reported an association the SCRIPT creates as naming
+// nothing whenever the retrieved entity was already in the project — the
+// ordinary shape of a script that adds an association to an existing domain
+// model and then queries over it: `retrieve … from M.Child where
+// [M.Child_Parent = $P]` failed check while mxbuild built it clean (11.14.0).
+type scriptXPathModel struct {
+	base *execXPathModel
+	ctx  *ExecContext
+	sc   *scriptContext
+}
+
+func (m *scriptXPathModel) IsEntity(qn string) bool {
+	if m.sc != nil && m.sc.entities[qn] {
+		return true
+	}
+	return m.base.IsEntity(qn)
+}
+
+func (m *scriptXPathModel) AssociationTarget(qn, from string) (string, bool) {
+	if m.sc != nil {
+		if ends, ok := m.sc.associationEnds[strings.ToLower(qn)]; ok && from != "" {
+			// Either end may be traversed, through the start entity's
+			// generalization chain as for a stored association.
+			chain := []string{from}
+			if c, _ := generalizationChain(m.ctx, from); len(c) > 0 {
+				chain = c
+			}
+			for _, e := range chain {
+				switch e {
+				case ends[0]:
+					return ends[1], true
+				case ends[1]:
+					return ends[0], true
+				}
+			}
+		}
+	}
+	return m.base.AssociationTarget(qn, from)
+}
+
 // isAutoSystemMemberType reports the attribute types that are not attributes in
 // the model: the entity stores a flag, and XPath names the member in lower
 // camel case (createdDate) whatever the declaration called it.
@@ -90,12 +132,26 @@ func isAutoSystemMemberType(k ast.DataTypeKind) bool {
 }
 
 // systemMemberSpellingHint names the XPath spelling of a system member written
-// the way describe prints the attribute (`CreatedDate`).
+// another way: the way describe prints the attribute (`CreatedDate`), a bare
+// association (`owner`, CE0161), or a mis-cased qualified one (`System.Owner`,
+// CE1613).
 func systemMemberSpellingHint(name string) string {
-	for member := range xpathImplicitMembers {
-		if member != "id" && member != name && strings.EqualFold(member, name) {
-			return fmt.Sprintf(". In XPath the system member is spelled `%s`", member)
+	bare := name
+	if len(bare) > len("System.") && strings.EqualFold(bare[:len("System.")], "System.") {
+		bare = bare[len("System."):]
+	}
+	for _, spelling := range xpathSystemMemberSpellings {
+		if spelling == name {
+			continue
+		}
+		if strings.EqualFold(strings.TrimPrefix(spelling, "System."), bare) {
+			return fmt.Sprintf(". In XPath the system member is spelled `%s`", spelling)
 		}
 	}
 	return ""
 }
+
+// xpathSystemMemberSpellings are the four system members as XPath accepts them.
+// The dates are attributes, written bare; owner and changedBy are associations
+// to System.User, written qualified.
+var xpathSystemMemberSpellings = []string{"createdDate", "changedDate", "System.owner", "System.changedBy"}

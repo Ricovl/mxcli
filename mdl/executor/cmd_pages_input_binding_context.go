@@ -79,6 +79,14 @@ func inputBindingProblem(w *ast.WidgetV3, c pageArgContext, noEntity bool, isPag
 	if attr == "" {
 		return ""
 	}
+	if _, _, ok := namedObjectBinding(attr); ok {
+		// `$name.Attr` names its object outright — a parameter, or an
+		// enclosing data view — so the context it sits in does not decide it.
+		// Whether the name is one is judged where the names are known:
+		// validateNamedObjectBindings at check time, resolveInputBinding and
+		// the engine at build time.
+		return ""
+	}
 	qualified := !strings.Contains(attr, "/") && strings.Count(attr, ".") >= 2
 	if c.known && !c.present {
 		if qualified {
@@ -231,5 +239,58 @@ func validatePageVariableBindings(widgets []*ast.WidgetV3, variables []ast.PageV
 		}
 	}
 	walk(widgets)
+	return out
+}
+
+// validateNamedObjectBindings is MDL-WIDGET34 for `$name.Attr` on a whole page
+// or snippet, where the parameters are known: a name that is neither one of
+// them nor — on a built-in input — an enclosing data view names nothing, and
+// exec refuses it. `Visible: $name.Attr in (…)` reads a parameter only.
+func validateNamedObjectBindings(widgets []*ast.WidgetV3, params []string, locationPrefix string) []linter.Violation {
+	declared := make(map[string]bool, len(params))
+	for _, p := range params {
+		declared[strings.TrimPrefix(p, "$")] = true
+	}
+	var out []linter.Violation
+	report := func(msg string) {
+		out = append(out, linter.Violation{
+			RuleID:     "MDL-WIDGET34",
+			Severity:   linter.SeverityError,
+			Message:    locationPrefix + ": " + msg,
+			Suggestion: "`$Name.Attr` reads an attribute of the page or snippet parameter $Name; declare it in Params, or bind the attribute by name inside a data container.",
+		})
+	}
+	var walk func(ws []*ast.WidgetV3, dataViews map[string]bool)
+	walk = func(ws []*ast.WidgetV3, dataViews map[string]bool) {
+		for _, w := range ws {
+			if w == nil {
+				continue
+			}
+			kind := strings.ToLower(w.Type)
+			if attr, ok := w.Properties["Attribute"].(string); ok {
+				if name, _, ok := namedObjectBinding(attr); ok && !declared[name] &&
+					!(namedObjectBindingKinds[kind] && dataViews[name]) {
+					report(fmt.Sprintf("%s `%s`: `Attribute: %s` — `$%s` is not a parameter of this document%s, "+
+						"so the binding would read nothing", kind, w.Name, attr, name, dataViewClause(kind)))
+				}
+			}
+			if vw, ok := w.Properties["VisibleWhen"].(*ast.VisibleWhenV3); ok && vw != nil {
+				if name, rest, ok := namedObjectBinding(vw.Attribute); ok && (!declared[name] || strings.Contains(rest, ".")) {
+					report(fmt.Sprintf("%s `%s`: `Visible: %s in (…)` — `$%s` is not a parameter of this document, "+
+						"so the condition would read nothing", kind, w.Name, vw.Attribute, name))
+				}
+			}
+			inner := dataViews
+			if kind == "dataview" && w.Name != "" {
+				inner = make(map[string]bool, len(dataViews)+1)
+				for k := range dataViews {
+					inner[k] = true
+				}
+				inner[w.Name] = true
+			}
+			walk(w.Children, inner)
+		}
+	}
+	walk(widgets, map[string]bool{})
 	return out
 }

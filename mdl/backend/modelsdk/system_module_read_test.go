@@ -79,3 +79,26 @@ func TestSystemDomainModel_StringLengthsReachTheModel(t *testing.T) {
 		}
 	}
 }
+
+// TestSystemDomainModel_SystemMemberFlagsReachTheModel: the measured
+// owner/changedBy/createdDate/changedDate flags must survive into the virtual
+// domain model, because that is what the executor's XPath checks read. Missing,
+// System.FileDocument read as storing no owner and `[System.owner = …]` on any
+// of its specializations was refused at check time while mxbuild built it.
+func TestSystemDomainModel_SystemMemberFlagsReachTheModel(t *testing.T) {
+	dm := buildSystemDomainModel()
+	byName := map[string]*domainmodel.Entity{}
+	for _, e := range dm.Entities {
+		byName[e.Name] = e
+	}
+	fd := byName["FileDocument"]
+	if fd == nil || !fd.HasOwner || !fd.HasChangedBy || !fd.HasCreatedDate || !fd.HasChangedDate {
+		t.Errorf("System.FileDocument should store all four system members, got %+v", fd)
+	}
+	if wf := byName["Workflow"]; wf == nil || !wf.HasOwner || wf.HasChangedBy {
+		t.Errorf("System.Workflow should store owner only, got %+v", wf)
+	}
+	if ur := byName["UserRole"]; ur == nil || ur.HasOwner || ur.HasCreatedDate {
+		t.Errorf("System.UserRole stores no system members, got %+v", ur)
+	}
+}

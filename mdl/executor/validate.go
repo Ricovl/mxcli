@@ -14,6 +14,7 @@ import (
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/modelsdk/meta"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"github.com/mendixlabs/mxcli/sdk/javaactions"
 )
@@ -97,6 +98,13 @@ type scriptContext struct {
 	entityAttrs   map[string]map[string]bool // Module.Entity -> attribute names
 	ambiguousAssc map[string]bool            // names defined in more than one module
 
+	// associationEnds holds each script-declared association's {from, to}
+	// entities, keyed by its lower-cased qualified name, so a widget's
+	// association path can be followed to an entity the script also creates
+	// (MDL-WIDGET39), and a retrieve constraint hopping over one resolves
+	// against an entity the project already has.
+	associationEnds map[string][2]string
+
 	// warnings are findings that do not block: dangling references in an
 	// EXCLUDED document, which Mendix itself does not validate. Reported so
 	// that relaxing the check hides nothing.
@@ -132,6 +140,7 @@ func newScriptContext() *scriptContext {
 		associations:      map[string]string{},
 		entityAttrs:       map[string]map[string]bool{},
 		ambiguousAssc:     map[string]bool{},
+		associationEnds:   map[string][2]string{},
 		flowParams:        make(map[string]*flowSignature),
 
 		pageParams:            make(map[string][]string),
@@ -162,6 +171,9 @@ func (sc *scriptContext) recordEntityAttrs(s *ast.CreateEntityStmt) {
 func (sc *scriptContext) recordAssociation(s *ast.CreateAssociationStmt) {
 	if s.Name.Module == "" || s.Name.Name == "" {
 		return
+	}
+	if from, to := s.Parent.String(), s.Child.String(); s.Parent.Module != "" && s.Child.Module != "" {
+		sc.associationEnds[strings.ToLower(s.Name.String())] = [2]string{from, to}
 	}
 	if prev, ok := sc.associations[s.Name.Name]; ok && prev != s.Name.String() {
 		sc.ambiguousAssc[s.Name.Name] = true
@@ -557,6 +569,16 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if err := validateEntityGeneralization(ctx, s, sc); err != nil {
 			return err
 		}
+		// An Auto* system member on a specialization: the same verdict exec
+		// gives (checkSpecializationSystemMembers). A parent the script creates
+		// is not in the project yet, so its chain is left to exec.
+		if s.Generalization != nil {
+			warnings, err := checkSpecializationSystemMembers(ctx, s.Name.String(), s.Generalization.String(), s.Attributes, true)
+			sc.warnings = append(sc.warnings, warnings...)
+			if err != nil {
+				return err
+			}
+		}
 		// Validate enumeration references in attributes
 		attrTypes := make(map[string]ast.DataType)
 		for _, attr := range s.Attributes {
@@ -851,6 +873,21 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if s.Operation == ast.AlterEntityAddAttribute || s.Operation == ast.AlterEntityDropAttribute {
 			if err := validateViewEntityAttributeSet(ctx, s, sc); err != nil {
 				return err
+			}
+		}
+		// An Auto* system member added to a project specialization: exec's
+		// verdict (checkSpecializationSystemMembers), predicted here.
+		if s.Operation == ast.AlterEntityAddAttribute && s.Attribute != nil &&
+			systemMemberOfPseudoType(s.Attribute.Type.Kind) != "" && !sc.entities[s.Name.String()] {
+			if b, ok := ctx.Backend.(entityLookupBackend); ok {
+				if ent, found := findEntityByQN(b, s.Name.String()); found && ent.GeneralizationRef != "" {
+					warnings, err := checkSpecializationSystemMembers(ctx, s.Name.String(), ent.GeneralizationRef,
+						[]ast.Attribute{*s.Attribute}, true)
+					sc.warnings = append(sc.warnings, warnings...)
+					if err != nil {
+						return err
+					}
+				}
 			}
 		}
 		// Validate enumeration references in ADD ATTRIBUTE
@@ -1321,7 +1358,8 @@ func validateRetrieveConstraints(ctx *ExecContext, retrieves []retrieveConstrain
 		}
 		for _, m := range baseSystemMemberRe.FindAllStringSubmatch(r.constraint, -1) {
 			member := m[2]
-			if entityStoresSystemMember(ent, systemMemberStore[member]) {
+			stores, known := systemMemberStoredOnChain(entities, r.entity, systemMemberStore[member])
+			if stores || !known {
 				continue
 			}
 			errors = append(errors, fmt.Sprintf(
@@ -1347,6 +1385,64 @@ func entityStoresSystemMember(e *domainmodel.Entity, member string) bool {
 		return e.HasCreatedDate
 	}
 	return true // unknown member → don't flag
+}
+
+// systemMemberStoredOnChain reports whether the entity stores the given system
+// member, reading the flags where Mendix keeps them: on the ROOT of the
+// generalization chain (its NoGeneralization). A specialization's own flags are
+// never set — an entity extending System.FileDocument stores owner, changedBy,
+// createdDate and changedDate because FileDocument does — so reading
+// entityStoresSystemMember off the entity itself refused `[System.owner = …]`
+// on every such specialization while mxbuild built it clean.
+//
+// known is false when a link of the chain cannot be resolved: an ancestor the
+// project does not have says nothing either way, and a check answers no only
+// from a chain it walked to the end.
+func systemMemberStoredOnChain(index map[string]*domainmodel.Entity, entityQN, member string) (stores, known bool) {
+	stores, _, known = systemMemberRoot(index, entityQN, member)
+	return stores, known
+}
+
+// systemMemberRoot is systemMemberStoredOnChain that also names the root entity
+// whose flags answered — the entity a user has to change to store the member.
+func systemMemberRoot(index map[string]*domainmodel.Entity, entityQN, member string) (stores bool, rootQN string, known bool) {
+	seen := map[string]bool{}
+	for qn := entityQN; qn != "" && !seen[qn]; {
+		seen[qn] = true
+		e := index[qn]
+		if e == nil {
+			if strings.HasPrefix(qn, "System.") {
+				stores, known = meta.SystemEntityStoresMember(qn, member)
+				return stores, systemChainRoot(qn), known
+			}
+			return false, "", false
+		}
+		if e.GeneralizationRef == "" {
+			return entityStoresSystemMember(e, member), qn, true
+		}
+		qn = e.GeneralizationRef
+	}
+	return false, "", false
+}
+
+// systemChainRoot names the root of a System entity's generalization chain.
+func systemChainRoot(qn string) string {
+	seen := map[string]bool{}
+	for !seen[qn] {
+		seen[qn] = true
+		var next string
+		for _, e := range meta.SystemEntities {
+			if "System."+e.Name == qn {
+				next = e.Generalization
+				break
+			}
+		}
+		if next == "" {
+			return qn
+		}
+		qn = next
+	}
+	return qn
 }
 
 // buildEntityIndex maps every entity's qualified name to its definition for
@@ -1762,6 +1858,25 @@ func documentWidgets(stmt ast.Statement) (label string, widgets []*ast.WidgetV3,
 		return "snippet " + s.Name.String(), s.Widgets, true
 	}
 	return "", nil, false
+}
+
+// documentEntityParameters is the names of a page's or snippet's entity-typed
+// parameters — the ones a `$Param.Attr` binding can read.
+func documentEntityParameters(stmt ast.Statement) []string {
+	var params []ast.PageParameter
+	switch s := stmt.(type) {
+	case *ast.CreatePageStmtV3:
+		params = s.Parameters
+	case *ast.CreateSnippetStmtV3:
+		params = s.Parameters
+	}
+	var out []string
+	for _, p := range params {
+		if p.EntityType.Name != "" {
+			out = append(out, p.Name)
+		}
+	}
+	return out
 }
 
 // documentVariables is a page's or snippet's `Variables:` declarations.

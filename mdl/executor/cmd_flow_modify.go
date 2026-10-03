@@ -119,7 +119,13 @@ func (d *flowDecl) kind() string {
 }
 
 // notSpliceable is the reason a declared change has to fall back.
-type notSpliceable struct{ reason string }
+type notSpliceable struct {
+	reason string
+	// loopHandle is the stored loop's handle (`loop $It in $Items`) when the
+	// change is inside that loop's body: the refusal then advises replacing
+	// the loop with alter, the one statement that can make the change.
+	loopHandle string
+}
 
 func (e *notSpliceable) Error() string { return e.reason }
 
@@ -836,9 +842,14 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 			// The splice does not edit inside a loop, and the engine would
 			// take this as a replace of the whole loop: every node in it
 			// rebuilt, renumbered and redrawn — the rebuild's loss, confined
-			// to the loop but no less silent.
-			return cannotSplice("the %s changes inside its body; the splice does not edit inside a loop, "+
-				"and replacing the whole loop would rebuild every node it holds", describeAt(del[0]))
+			// to the loop but no less silent. An explicit `alter … replace
+			// loop` states that loss, so the refusal names it.
+			why := &notSpliceable{reason: fmt.Sprintf("the %s changes inside its body; the splice does not edit inside a loop, "+
+				"and replacing the whole loop would rebuild every node it holds", describeAt(del[0]))}
+			if c, err := pd.loc.locate(del[0]); err == nil {
+				why.loopHandle = c.Statement
+			}
+			return why
 		}
 		if sameIgnoringLayout(ins[0], del[0]) {
 			return redrawn(del[0])

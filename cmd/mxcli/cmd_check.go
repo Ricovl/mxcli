@@ -142,6 +142,19 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 
 	outputFormat := linter.OutputFormat(format)
 	formatter := linter.GetFormatter(outputFormat, !isStructured)
+	// The text report runs in tiers (semantic checks, references, project
+	// verdicts, legacy widgets) and each printed its own "N issues" line, so
+	// a warning in one tier and an error in another read as two separate
+	// counts with a "✓" between them, and neither was the total. The tiers
+	// now print their violations and finish prints one summary over all.
+	var printed []linter.Violation
+	if tf, ok := formatter.(*linter.TextFormatter); ok {
+		tf.NoSummary = true
+	}
+	report := func(vs []linter.Violation) {
+		formatter.Format(vs, os.Stderr)
+		printed = append(printed, vs...)
+	}
 
 	// In a structured format the payload is ONE document on stdout, emitted
 	// once at the end (or at the first failing phase). Each phase used to
@@ -152,6 +165,9 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 	finish := func(code int) int {
 		if isStructured {
 			formatter.Format(structured, os.Stdout)
+		} else if len(printed) > 0 {
+			fmt.Fprintln(os.Stderr)
+			linter.WriteSummary(os.Stderr, printed, 0)
 		}
 		return code
 	}
@@ -253,7 +269,7 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 		structured = append(structured, violations...)
 	} else if len(violations) > 0 {
 		fmt.Fprintln(os.Stderr)
-		formatter.Format(violations, os.Stderr)
+		report(violations)
 	}
 
 	if len(violations) > 0 {
@@ -376,18 +392,23 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 		projectViolations := exec.CheckEntityMemberDrops(prog)
 		projectViolations = append(projectViolations, exec.TypeCheckProgram(prog)...)
 		projectViolations = append(projectViolations, exec.CheckFlowVerdicts(prog)...)
+		// MDL-SEC21 (MxBuild CE0106): a flow this script leaves with no allowed
+		// role while a page, snippet, nanoflow, menu or navigation uses it. The
+		// reported shape was drop + create in separate runs, which loses the
+		// roles that `create or modify` keeps.
+		projectViolations = append(projectViolations, exec.CheckFlowAccess(prog)...)
 		if len(projectViolations) > 0 {
 			if isStructured {
 				structured = append(structured, projectViolations...)
 			} else {
 				fmt.Fprintln(os.Stderr)
-				formatter.Format(projectViolations, os.Stderr)
+				report(projectViolations)
 			}
 			if linter.Summarize(projectViolations).Errors > 0 {
 				return finish(1)
 			}
 		} else if !isStructured {
-			fmt.Printf("✓ Expression types OK, no unstated member drops, no flow change exec would refuse\n")
+			fmt.Printf("✓ Expression types OK, no unstated member drops, no flow change exec would refuse, no used flow left without access\n")
 		}
 	}
 
@@ -411,7 +432,7 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 			structured = append(structured, legacyViolations...)
 		} else if len(legacyViolations) > 0 {
 			fmt.Fprintln(os.Stderr)
-			formatter.Format(legacyViolations, os.Stderr)
+			report(legacyViolations)
 			fmt.Fprintf(os.Stderr, "\n✗ %d legacy widget(s) found\n", len(legacyViolations))
 		} else {
 			fmt.Printf("✓ No legacy native widgets found\n")

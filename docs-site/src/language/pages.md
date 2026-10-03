@@ -126,6 +126,22 @@ TEXTBOX txtStatus (Label: 'Status', Attribute: Status, Editable: $currentObject/
 
 Static values: `Editable: Never`, `Editable: Always`.
 
+### Pluggable Widgets
+
+A pluggable widget takes `Visible:` in all the forms above, and `Editable:` when
+its widget package declares the Editability system property —
+`<systemProperty key="Editability"/>` in its widget XML. The combo box declares it:
+
+```sql
+COMBOBOX cmbStatus (Label: 'Status', Attribute: Status, Editable: Never, Visible: $currentObject/Title != empty)
+```
+
+Visibility is available on every pluggable widget, as in Studio Pro: a declared
+`<systemProperty key="Visibility"/>` only places the setting in the widget's own
+tabs, and a data grid, which declares none, still takes `Visible:`. A widget whose
+package does not declare Editability (a data grid, an image) has no such setting
+in Studio Pro either, so `mxcli check` refuses `Editable:` on it as `MDL-WIDGET41`.
+
 ## Layouts
 
 Layouts are referenced by their qualified name (`Module.LayoutName`). Common Atlas layouts include:

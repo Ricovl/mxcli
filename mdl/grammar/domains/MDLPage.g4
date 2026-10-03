@@ -542,6 +542,7 @@ widgetPropertyV3
     // Never` mean what they did.
     | VISIBLE COLON xpathConstraint /* @alias MDL-DEPR081 */  // Visible: [IsActive = true]
     | VISIBLE COLON qualifiedName IN LPAREN visibleValueV3 (COMMA visibleValueV3)* RPAREN  // Visible: Status in (Running, empty) | Mod.Entity.Attr in (…)
+    | VISIBLE COLON widgetAttributeRefV3 IN LPAREN visibleValueV3 (COMMA visibleValueV3)* RPAREN  // Visible: $Param.Status in (Running) — read from a page/snippet parameter
     | VISIBLE COLON propertyValueV3                   // Visible: false
     | VISIBLE COLON expression                        // Visible: $currentObject/Status = 'Open'
     | EDITABLE COLON xpathConstraint /* @alias MDL-DEPR081 */ // Editable: [Status != 'Closed']
@@ -764,11 +765,13 @@ attributePathV3
     : (IDENTIFIER | QUOTED_IDENTIFIER | keyword) (SLASH (IDENTIFIER | QUOTED_IDENTIFIER | keyword))*
     ;
 
-// An input widget's attribute read through a named data view: Studio Pro's
-// widget-scoped SourceVariable {Widget: dataView1, …} (ako/mxcli#826). The same
-// `$name.Attr` spelling a text template parameter uses.
+// An attribute read from a named object: an enclosing data view, Studio Pro's
+// widget-scoped SourceVariable {Widget: dataView1, …} (ako/mxcli#826), or a page
+// or snippet parameter, {SnippetParameter|PageParameter: Param}. The same
+// `$name.Attr` spelling a text template parameter uses. The optional second
+// segment is a module-qualified association: `$Param.Module.Assoc`.
 widgetAttributeRefV3
-    : VARIABLE DOT (IDENTIFIER | QUOTED_IDENTIFIER | keyword)
+    : VARIABLE DOT (IDENTIFIER | QUOTED_IDENTIFIER | keyword) (DOT (IDENTIFIER | QUOTED_IDENTIFIER | keyword))?
     ;
 
 // V3 String expression (may include template placeholders or attribute binding)

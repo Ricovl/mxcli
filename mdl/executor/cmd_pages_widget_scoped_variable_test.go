@@ -78,10 +78,11 @@ func TestInputAttributeThroughDataView(t *testing.T) {
 	}
 }
 
-// `$name.Attr` on an input names a data view. Anything else — a parameter, a
-// name no data view has — is refused rather than written with no binding.
+// `$name.Attr` on an input names a data view or a parameter (the parameter form
+// is TestInputAttributeThroughParameter). A name that is neither is refused
+// rather than written with no binding.
 func TestInputAttributeThroughUnknownName(t *testing.T) {
-	for _, attr := range []string{"$Task.Title", "$nope.Title"} {
+	for _, attr := range []string{"$nope.Title"} {
 		pb := scopedPB(false)
 		dv := &ast.WidgetV3{
 			Name: "dataView1", Type: "dataview",

@@ -1016,6 +1016,8 @@ func convertDomainModelTypeToAST(attrType domainmodel.AttributeType) ast.DataTyp
 		return ast.DataType{Kind: ast.TypeAutoNumber}
 	case *domainmodel.BinaryAttributeType:
 		return ast.DataType{Kind: ast.TypeBinary}
+	case *domainmodel.HashedStringAttributeType:
+		return ast.DataType{Kind: ast.TypeHashedString}
 	case *domainmodel.EnumerationAttributeType:
 		var enumRef *ast.QualifiedName
 		if t.EnumerationRef != "" {

@@ -489,7 +489,7 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 	tb.ValidationMessage = w.GetStringProp("ValidationMessage")
 
 	// Handle Label
-	if label := w.GetLabel(); label != "" {
+	if label := inputLabel(w); label != "" {
 		tb.Label = label
 	}
 
@@ -543,7 +543,7 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 	}
 
 	// Handle Label
-	if label := w.GetLabel(); label != "" {
+	if label := inputLabel(w); label != "" {
 		ta.Label = label
 	}
 
@@ -597,7 +597,7 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 	}
 
 	// Handle Label
-	if label := w.GetLabel(); label != "" {
+	if label := inputLabel(w); label != "" {
 		dp.Label = label
 	}
 
@@ -640,7 +640,7 @@ func (pb *pageBuilder) buildDropdownV3(w *ast.WidgetV3) (*pages.DropDown, error)
 	}
 
 	// Handle Label
-	if label := w.GetLabel(); label != "" {
+	if label := inputLabel(w); label != "" {
 		dd.Label = label
 	}
 
@@ -683,7 +683,7 @@ func (pb *pageBuilder) buildCheckBoxV3(w *ast.WidgetV3) (*pages.CheckBox, error)
 	}
 
 	// Handle Label
-	if label := w.GetLabel(); label != "" {
+	if label := inputLabel(w); label != "" {
 		cb.Label = label
 	}
 
@@ -742,7 +742,7 @@ func (pb *pageBuilder) buildRadioButtonsV3(w *ast.WidgetV3) (*pages.RadioButtons
 			},
 			Name: w.Name,
 		},
-		Label: w.GetLabel(),
+		Label: inputLabel(w),
 	}
 
 	// Get attribute path from Attribute property
@@ -1519,6 +1519,19 @@ func dataGridFilterWidgetID(widgetType string) string {
 // case-insensitively the way GetStringProp/GetBoolProp resolve values. Presence has
 // to be tested the same way the value is read, or `showFooter:` would be read as
 // absent while `ShowFooter:` was honoured.
+// inputLabel is an input widget's label, or "" when `ShowLabel` is false.
+// Mendix stores "Show label: No" as no LabelTemplate at all — what the writer
+// emits for an input with no label — and no builder read ShowLabel, so
+// `textbox (Label: 'x', ShowLabel: false)` still rendered its label.
+func inputLabel(w *ast.WidgetV3) string {
+	if raw, ok := lookupPropCI(w, "ShowLabel"); ok {
+		if show, err := propBool(raw); err == nil && !show {
+			return ""
+		}
+	}
+	return w.GetLabel()
+}
+
 func lookupPropCI(w *ast.WidgetV3, key string) (any, bool) {
 	if v, ok := w.Properties[key]; ok {
 		return v, true

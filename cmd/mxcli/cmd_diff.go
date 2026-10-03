@@ -63,6 +63,7 @@ Examples:
 		useColor, _ := cmd.Flags().GetBool("color")
 		width, _ := cmd.Flags().GetInt("width")
 		skipCheck, _ := cmd.Flags().GetBool("no-check")
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		continueOnError, _ := cmd.Flags().GetBool("continue-on-error")
 		showExecOutput, _ := cmd.Flags().GetBool("exec-output")
 		depPolicy := deprecationPolicy(cmd)
@@ -98,7 +99,7 @@ Examples:
 			NewBackend:      func() backend.FullBackend { return modelsdkbackend.New() },
 			ContinueOnError: continueOnError,
 			Preflight: func(scratch *executor.Executor, w io.Writer) string {
-				return execPreflight(scratch, prog, projectPath, skipCheck, depPolicy, w, useColor)
+				return execPreflight(scratch, prog, projectPath, filePath, skipCheck, verbose, continueOnError, depPolicy, w, useColor)
 			},
 		}
 		if filePath != "-" {

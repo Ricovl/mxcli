@@ -5,6 +5,7 @@ package executor
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 )
@@ -58,12 +59,43 @@ func decideFlowModify(ctx *ExecContext, d *flowDecl) flowVerdict {
 
 // flowRefusal is exec's refusal of a change the splice cannot make (mdl 1).
 func flowRefusal(d *flowDecl, why error) error {
+	var ns *notSpliceable
+	if errors.As(why, &ns) && ns.loopHandle != "" {
+		// alter cannot splice inside a loop either, so "change activities
+		// with alter" would only lead to alter's own refusal: name the one
+		// alter that makes the change.
+		return mdlerrors.NewValidation(fmt.Sprintf(
+			"create or modify %s %s: this change cannot be spliced into the stored flow: %v. "+
+				"Nothing was written: rebuilding the whole flow instead would reset what Studio Pro drew "+
+				"(curves, merges, element IDs). %s",
+			d.kind(), d.name, why, replaceLoopAdvice(d.kind(), d.name.String(), ns.loopHandle)))
+	}
 	return mdlerrors.NewValidation(fmt.Sprintf(
 		"create or modify %s %s: this change cannot be spliced into the stored flow: %v. "+
 			"Nothing was written: rebuilding the whole flow instead would reset what Studio Pro drew "+
 			"(curves, merges, element IDs). Change activities with `alter %s %s { … }`; "+
 			"to rebuild the flow deliberately, drop the %s and create it",
 		d.kind(), d.name, why, d.kind(), d.name, d.kind()))
+}
+
+// replaceLoopAdvice is what `create or modify` and `alter` both say about a
+// change inside a loop body: neither splices inside a loop, and each used to
+// send the reader to the other. What makes the change is an alter that
+// replaces the whole loop — the rest of the flow keeps its element IDs and
+// layout (measured on an 11.14 app: every object and flow outside the loop
+// kept its $ID and position), and the loop and its body are rebuilt, which
+// the statement states.
+// loopHandle is the stored loop's handle as `describe … with handles` prints
+// it (`loop $It in $Items`, `while $N < 10`).
+func replaceLoopAdvice(kind, name, loopHandle string) string {
+	end := "end loop;"
+	if strings.HasPrefix(loopHandle, "while ") {
+		end = "end while;"
+	}
+	return fmt.Sprintf("Replace the whole loop instead, stating its body as it should be "+
+		"(the rest of the flow keeps its element IDs and layout; the loop and its body are rebuilt): "+
+		"`alter %s %s { replace %s with begin %s begin … %s end; };`",
+		kind, name, loopHandle, loopHandle, end)
 }
 
 // flowRebuildWarning is exec's MDL-V1-REBUILD warning for the whole-flow

@@ -23,7 +23,8 @@ Before anything is written, the script is put through the same semantic checks
 as "mxcli check". If any of them reports an error, nothing is executed: exec
 applies statements one at a time and cannot roll back, so running a script with
 a known error leaves the model partly updated. Warnings are printed and do not
-stop the run. Use --no-check to apply a script anyway.
+stop the run; info notes are counted on one line (--verbose prints them, as
+"mxcli check" does). Use --no-check to apply a script anyway.
 
 A deprecated MDL spelling (MDL-DEPRnnn, e.g. "create or replace" for "create or
 modify") is a warning; --deprecations=error makes it an error.
@@ -60,6 +61,7 @@ Example:
 		projectPath, _ := cmd.Flags().GetString("project")
 		continueOnError, _ := cmd.Flags().GetBool("continue-on-error")
 		skipCheck, _ := cmd.Flags().GetBool("no-check")
+		verbose, _ := cmd.Flags().GetBool("verbose")
 		if force, _ := cmd.Flags().GetBool("force"); force {
 			mmpr.AllowWritesWhileStudioProOpen = true
 			if lock, _ := mmpr.StudioProLockFile(projectPath); lock != "" {
@@ -116,7 +118,7 @@ Example:
 			os.Exit(1)
 		}
 
-		if refusal := execPreflight(exec, prog, projectPath, skipCheck, depPolicy, os.Stderr, true); refusal != "" {
+		if refusal := execPreflight(exec, prog, projectPath, filePath, skipCheck, verbose, continueOnError, depPolicy, os.Stderr, true); refusal != "" {
 			fmt.Fprint(os.Stderr, refusal)
 			os.Exit(1)
 		}
@@ -147,6 +149,8 @@ Example:
 func init() {
 	execCmd.Flags().Bool("no-check", false,
 		"Skip the pre-flight semantic checks and apply the script even if mxcli check would report errors")
+	execCmd.Flags().Bool("verbose", false,
+		"Print the pre-flight checks' info notes in full instead of counting them (mxcli check always prints them)")
 	execCmd.Flags().Bool("force", false,
 		"Write even though Studio Pro appears to have the project open (its .mpr.lock is present) — e.g. a lock left behind by a crash")
 	execCmd.Flags().Bool("continue-on-error", false,

@@ -141,7 +141,7 @@ Modifies an existing entity without full replacement.
 > rebuilds the element from the statement and **drops any attribute the statement
 > omits**, so it is only safe when the statement is the element's complete
 > definition. Writing both (`create or modify … if not exists`) is refused as
-> **MDL067**.
+> **MDL085**.
 >
 > To re-run a whole script that is partly applied and not guarded, use
 > `mxcli exec script.mdl --continue-on-error`: every statement is attempted, each
