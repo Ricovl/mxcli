@@ -12,7 +12,11 @@ import (
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
-func TestValidateMicroflowBodyRejectsDuplicateImplicitOutputs(t *testing.T) {
+// Duplicate variable names in a flow are MDL063's (ValidateMicroflow), which
+// treats the namespace as flow-wide and skips void action calls. The check-time
+// body validator used to report them too, scoped per branch — which mxbuild
+// does not do (CE0111 across if/else branches) — so it no longer does (#953).
+func TestValidateMicroflowRejectsDuplicateImplicitOutputs(t *testing.T) {
 	entityRef := ast.QualifiedName{Module: "Synthetic", Name: "Item"}
 	stmt := &ast.CreateMicroflowStmt{
 		Body: []ast.MicroflowStatement{
@@ -28,16 +32,13 @@ func TestValidateMicroflowBodyRejectsDuplicateImplicitOutputs(t *testing.T) {
 		},
 	}
 
-	errs := ValidateMicroflowBody(stmt)
-	if len(errs) == 0 {
-		t.Fatalf("expected duplicate output variable validation error")
-	}
-	if !strings.Contains(errs[0], "duplicate variable name '$Item'") {
-		t.Fatalf("validation error = %#v, want duplicate $Item", errs)
+	got := mdl063(ValidateMicroflow(stmt))
+	if len(got) != 1 || !strings.Contains(got[0].Message, "'$Item' is created twice") {
+		t.Fatalf("MDL063 = %v, want one duplicate $Item", got)
 	}
 }
 
-func TestValidateMicroflowBodyRejectsDuplicateCallOutputs(t *testing.T) {
+func TestValidateMicroflowRejectsDuplicateCallOutputs(t *testing.T) {
 	stmt := &ast.CreateMicroflowStmt{
 		Body: []ast.MicroflowStatement{
 			&ast.CallMicroflowStmt{
@@ -51,74 +52,9 @@ func TestValidateMicroflowBodyRejectsDuplicateCallOutputs(t *testing.T) {
 		},
 	}
 
-	errs := ValidateMicroflowBody(stmt)
-	if len(errs) == 0 {
-		t.Fatalf("expected duplicate call output validation error")
-	}
-	if !strings.Contains(errs[0], "duplicate variable name '$Result'") {
-		t.Fatalf("validation error = %#v, want duplicate $Result", errs)
-	}
-}
-
-func TestValidateMicroflowBodyAllowsDuplicateOutputsInExclusiveBranches(t *testing.T) {
-	entityRef := ast.QualifiedName{Module: "Synthetic", Name: "Item"}
-	stmt := &ast.CreateMicroflowStmt{
-		Body: []ast.MicroflowStatement{
-			&ast.IfStmt{
-				Condition: &ast.VariableExpr{Name: "UsePrimaryPath"},
-				ThenBody: []ast.MicroflowStatement{
-					&ast.CreateObjectStmt{Variable: "Result", EntityType: entityRef},
-					&ast.ReturnStmt{},
-				},
-				ElseBody: []ast.MicroflowStatement{
-					&ast.RetrieveStmt{Variable: "Result", Source: entityRef, Limit: "1"},
-					&ast.ReturnStmt{},
-				},
-			},
-		},
-	}
-
-	errs := ValidateMicroflowBody(stmt)
-	for _, err := range errs {
-		if strings.Contains(err, "duplicate variable name '$Result'") {
-			t.Fatalf("exclusive branches must not share duplicate-output scope: %#v", errs)
-		}
-	}
-}
-
-func TestValidateMicroflowBodyAllowsDuplicateOutputsInEnumCases(t *testing.T) {
-	entityRef := ast.QualifiedName{Module: "Synthetic", Name: "Item"}
-	stmt := &ast.CreateMicroflowStmt{
-		Body: []ast.MicroflowStatement{
-			&ast.EnumSplitStmt{
-				Variable: "Route",
-				Cases: []ast.EnumSplitCase{
-					{
-						Value: "First",
-						Body: []ast.MicroflowStatement{
-							&ast.CallJavaActionStmt{OutputVariable: "GeneratedID", ActionName: ast.QualifiedName{Module: "Synthetic", Name: "Generate"}},
-							&ast.CreateObjectStmt{Variable: "Result", EntityType: entityRef},
-							&ast.ReturnStmt{},
-						},
-					},
-					{
-						Value: "Second",
-						Body: []ast.MicroflowStatement{
-							&ast.CallJavaActionStmt{OutputVariable: "GeneratedID", ActionName: ast.QualifiedName{Module: "Synthetic", Name: "Generate"}},
-							&ast.CreateObjectStmt{Variable: "Result", EntityType: entityRef},
-							&ast.ReturnStmt{},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	errs := strings.Join(ValidateMicroflowBody(stmt), "\n")
-	for _, name := range []string{"GeneratedID", "Result"} {
-		if strings.Contains(errs, "duplicate variable name '$"+name+"'") {
-			t.Fatalf("enum cases must not share duplicate-output scope: %s", errs)
-		}
+	got := mdl063(ValidateMicroflow(stmt))
+	if len(got) != 1 || !strings.Contains(got[0].Message, "'$Result' is created twice") {
+		t.Fatalf("MDL063 = %v, want one duplicate $Result", got)
 	}
 }
 
@@ -320,5 +256,5 @@ func TestFormatMicroflowActivitiesHighComplexityCompletes(t *testing.T) {
 	oc := &microflows.MicroflowObjectCollection{Objects: objs, Flows: flows}
 
 	// Just needs to complete; path enumeration would be 2^120.
-	_ = duplicateOutputVariableWarnings(oc)
+	_ = duplicateOutputVariableWarnings(oc, func(any) bool { return false })
 }
