@@ -23,6 +23,10 @@ func (r *EmptyContainerRule) Name() string                     { return "EmptyCo
 func (r *EmptyContainerRule) Category() string                 { return "correctness" }
 func (r *EmptyContainerRule) DefaultSeverity() linter.Severity { return linter.SeverityWarning }
 
+// RequiredCatalogMode: ctx.Widgets() reads widgets_data, which only a full
+// catalog build fills; under the default fast build the rule found nothing.
+func (r *EmptyContainerRule) RequiredCatalogMode() linter.CatalogMode { return linter.CatalogFull }
+
 func (r *EmptyContainerRule) Description() string {
 	return "Checks for CONTAINER widgets with no children (crashes at runtime)"
 }

@@ -57,6 +57,10 @@ func (r *LegacyImageWidgetRule) Name() string                     { return "Lega
 func (r *LegacyImageWidgetRule) Category() string                 { return "correctness" }
 func (r *LegacyImageWidgetRule) DefaultSeverity() linter.Severity { return linter.SeverityWarning }
 
+// RequiredCatalogMode: ctx.Widgets() reads widgets_data, which only a full
+// catalog build fills; under the default fast build the rule found nothing.
+func (r *LegacyImageWidgetRule) RequiredCatalogMode() linter.CatalogMode { return linter.CatalogFull }
+
 func (r *LegacyImageWidgetRule) Description() string {
 	return "Checks for the legacy static/dynamic image widgets, which the React client does not support (CE0582)"
 }

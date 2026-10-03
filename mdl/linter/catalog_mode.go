@@ -9,8 +9,10 @@ type CatalogMode int
 const (
 	// CatalogFast is metadata only (the default REFRESH CATALOG).
 	CatalogFast CatalogMode = iota
-	// CatalogFull adds the `refs` cross-reference table (REFRESH CATALOG FULL) —
-	// needed by rules using the refs_to / refs_from builtins.
+	// CatalogFull adds what REFRESH CATALOG FULL writes: refs, widgets,
+	// xpath_expressions, activities, permissions and the widget counts —
+	// needed by rules using refs_to / refs_from / widgets / xpath_expressions /
+	// activities_for / permissions / permissions_for / .widget_count.
 	CatalogFull
 	// CatalogCommunities adds the graph_* analysis tables (REFRESH CATALOG
 	// COMMUNITIES, which implies full) — needed by rules using cycles /

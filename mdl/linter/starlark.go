@@ -161,11 +161,25 @@ var communityBuiltins = []string{
 	"centrality", "god_nodes", "integration_surface",
 }
 
-// fullBuiltins need REFRESH CATALOG FULL (the refs cross-reference table).
-var fullBuiltins = []string{"refs_to", "refs_from"}
+// fullBuiltins read tables only REFRESH CATALOG FULL writes: refs, widgets,
+// xpath_expressions, activities and permissions. Under the default fast build
+// they answer [] with no warning, so a rule calling one checked nothing.
+// starlark_catalog_mode_guard_test.go builds a fixture both ways and fails on
+// any builtin whose answer differs and is not listed here.
+var fullBuiltins = []string{
+	"refs_to", "refs_from",
+	"widgets", "xpath_expressions", "activities_for",
+	"permissions", "permissions_for",
+}
+
+// fullFields are struct fields a fast build leaves at their zero value
+// (page.widget_count and snippet.widget_count count widgets only a full build
+// extracts). They are detected as an attribute access, `.name`.
+var fullFields = []string{"widget_count"}
 
 // detectRequiredCatalogMode infers the catalog depth a Starlark rule needs by
-// scanning its source for calls to the graph / refs builtins.
+// scanning its source for calls to the graph / full-only builtins and reads of
+// full-only fields.
 func detectRequiredCatalogMode(src string) CatalogMode {
 	for _, b := range communityBuiltins {
 		if strings.Contains(src, b+"(") {
@@ -174,6 +188,11 @@ func detectRequiredCatalogMode(src string) CatalogMode {
 	}
 	for _, b := range fullBuiltins {
 		if strings.Contains(src, b+"(") {
+			return CatalogFull
+		}
+	}
+	for _, f := range fullFields {
+		if strings.Contains(src, "."+f) {
 			return CatalogFull
 		}
 	}
