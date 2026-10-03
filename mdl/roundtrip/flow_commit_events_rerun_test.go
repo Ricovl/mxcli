@@ -114,3 +114,41 @@ func assertUnchangedRerun(t *testing.T, h *harness, script string) {
 	}
 }
 
+// The refusal must not depend on what changes NEXT to the loop. Once a
+// spelling no longer passes for a change (above), a genuine change beside a
+// loop-body change still made the diff run the two together, and a run of
+// more than one statement was replaced without asking whether a loop in it
+// was the stored loop with a new body: under mdl 1 the loop was rebuilt with
+// new $IDs. The control is the loop-body change alone, which was always
+// refused.
+func TestSpliceRerun_LoopBodyChangeBesideAnotherChangeIsRefused(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+	const flow = "Repro_LoopBeside"
+	for _, c := range []struct{ name, commit string }{
+		{"commit changed beside the loop", "commit $L without events"},
+		{"control: the loop-body change alone", "commit $L"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h.restore()
+			if err := h.exec("mdl 1;\n" + commitEventsFlow(flow, "commit $L", "a")); err != nil {
+				t.Fatalf("create: %v\n%s", err, h.out.String())
+			}
+			stored := drawnObjects(t, h.flowUnit(t, flow))
+			before := h.snapshot()
+			err := h.exec("mdl 1;\n" + commitEventsFlow(flow, c.commit, "z"))
+			if err == nil || !strings.Contains(err.Error(), "changes inside its body") {
+				t.Errorf("want the refusal naming the loop, got %v\n%s", err, h.out.String())
+			}
+			if changed := before.diff(h.snapshot()); len(changed) != 0 {
+				t.Errorf("the refused change wrote: %v", changed)
+			}
+			after := drawnObjects(t, h.flowUnit(t, flow))
+			for id := range stored {
+				if _, ok := after[id]; !ok {
+					t.Errorf("stored object %s was renumbered away", id)
+				}
+			}
+		})
+	}
+}
