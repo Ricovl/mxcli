@@ -160,7 +160,9 @@ def check():
 >   `CreateChangeAction` and `CommitAction` that appear in `.mpr` documents never
 >   reach a rule. A rule that allow-lists the storage names flags every microflow
 >   that opens a page — the inversion measured at 49% false positives in
->   mendixlabs/mxcli#1027.
+>   mendixlabs/mxcli#1027. The one exception is **`widget.action_type`**, which
+>   is the raw stored type of a page action (`"Forms$DeleteClientAction"`) —
+>   page actions have no SDK-name mapping in the catalog.
 >
 > To check a value against your own project rather than trusting any list:
 >
@@ -247,20 +249,10 @@ def check():
 | `default_value` | string | `"https://example.com"` |
 | `exposed_to_client` | bool | `true` if constant is exposed to client |
 
-### widget
-| Property | Type | Example |
-|----------|------|---------|
-| `id` | string | Widget UUID |
-| `name` | string | Widget name |
-| `widget_type` | string | The widget's storage type, e.g. `"Forms$DataView"`, `"Forms$DivContainer"`, `"Forms$ActionButton"`; a pluggable widget's id, e.g. `"com.mendix.widget.web.datagrid.Datagrid"` |
-| `container_id` | string | Container UUID |
-| `container_qualified_name` | string | `"Sales.Customer_Overview"` |
-| `container_type` | string | `"PAGE"` or `"SNIPPET"` |
-| `module_name` | string | `"Sales"` |
-| `entity_ref` | string | Referenced entity qualified name |
-| `attribute_ref` | string | Referenced attribute path |
-| `microflow_ref` | string | Action/datasource microflow qualified name (e.g. a microflow-datasource ListView), else `""` |
-| `nanoflow_ref` | string | Action/datasource nanoflow qualified name, else `""` |
+**widget** — the struct returned by `widgets()` — identity, references, tree
+position (`parent_widget_id`, `depth`), appearance (`class_name`, `style`) and
+primary action (`action_type`, `has_confirmation`) — is documented in
+[catalog-tables.md](catalog-tables.md#widget), with an example rule.
 
 ### snippet
 | Property | Type | Example |

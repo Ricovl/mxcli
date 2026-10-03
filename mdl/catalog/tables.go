@@ -7,6 +7,10 @@ package catalog
 //
 // History:
 //
+//	19 (widget tree, class/style and actions): widgets_data gains
+//	    ParentWidgetId, Depth, Class, Style, DynamicClasses, ActionType and
+//	    HasConfirmation (mendixlabs/mxcli#1268). Without the bump a cached
+//	    catalog fails every widgets() with "no such column".
 //	19 (commit refs): refs gains RefKind "commit" (FLOW -> ENTITY) for a
 //	    commit action and a create/change that commits (ako/mxcli#963). No
 //	    column changes, but a cached catalog would keep answering "no flow
@@ -713,6 +717,22 @@ func (c *Catalog) createTables() error {
 			-- (issue #773).
 			PageRef TEXT,
 			Description TEXT,
+			-- Tree position (mendixlabs/mxcli#1268): the nearest INDEXED
+			-- ancestor (skipped wrappers and grid rows/columns are
+			-- transparent; empty at the root) and the number of indexed
+			-- ancestors (0 at the page or snippet root; a list view template
+			-- is a level; a snippet call is not entered).
+			ParentWidgetId TEXT,
+			Depth INTEGER DEFAULT 0,
+			-- Forms$Appearance
+			Class TEXT,
+			Style TEXT,
+			DynamicClasses TEXT,
+			-- Stored $Type of the primary action (Action, else OnClickAction,
+			-- else ClickAction) and whether it carries a ConfirmationInfo —
+			-- only microflow, nanoflow and workflow calls can.
+			ActionType TEXT,
+			HasConfirmation INTEGER DEFAULT 0,
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -1424,6 +1444,7 @@ func (c *Catalog) createTables() error {
 		`CREATE INDEX IF NOT EXISTS idx_activities_type ON activities_data(ActivityType)`,
 		`CREATE INDEX IF NOT EXISTS idx_widgets_container ON widgets_data(ContainerId)`,
 		`CREATE INDEX IF NOT EXISTS idx_widgets_type ON widgets_data(WidgetType)`,
+		`CREATE INDEX IF NOT EXISTS idx_widgets_parent ON widgets_data(ParentWidgetId)`,
 		`CREATE INDEX IF NOT EXISTS idx_widget_defs_kind ON widget_definitions_data(WidgetKind)`,
 		`CREATE INDEX IF NOT EXISTS idx_widget_defs_mdlname ON widget_definitions_data(MdlName)`,
 		`CREATE INDEX IF NOT EXISTS idx_widget_def_props_widget ON widget_definition_properties_data(WidgetId)`,
