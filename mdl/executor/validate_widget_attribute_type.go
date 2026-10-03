@@ -386,6 +386,32 @@ func usesReactClient(ctx *ExecContext) bool {
 	return ps.WebUI.UseOptimizedClient == "Yes"
 }
 
+// layoutIsNative reports whether the named layout (Module.Name) is a native
+// one. A page on it is not rendered by the React client, so the React-only
+// CE0582 does not apply: measured on 11.13.0, a classic drop-down on a
+// NativePhone_Default page builds clean (ako/mxcli#953). An empty or
+// unresolvable name — a snippet, a layout this script creates — reads as web,
+// which keeps the check exactly as loud as it was.
+func layoutIsNative(ctx *ExecContext, layout string) bool {
+	if ctx == nil || ctx.Backend == nil || layout == "" {
+		return false
+	}
+	h, err := getHierarchy(ctx)
+	if err != nil || h == nil {
+		return false
+	}
+	layouts, err := ctx.Backend.ListLayouts()
+	if err != nil {
+		return false
+	}
+	for _, l := range layouts {
+		if strings.EqualFold(h.GetQualifiedName(l.ContainerID, l.Name), layout) {
+			return l.Native
+		}
+	}
+	return false
+}
+
 // checkReactUnsupported refuses the classic drop-down on a React-client project
 // (MDL-WIDGET40).
 //

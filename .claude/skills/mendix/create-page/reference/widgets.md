@@ -749,7 +749,9 @@ the React client — which Mendix added in **10.7** and which is the only client
 widget, which takes the same `Image:`; Studio Pro offers the conversion from the
 CE0582 error's context menu. mxcli still writes it, because round-tripping a
 model that already contains one is the point — and `mxcli lint` reports it as
-**MPR012** so a new page does not reach for it by accident.
+**MPR012** so a new page does not reach for it by accident. A page on a **native**
+layout (e.g. `Atlas_Core.NativePhone_Default`) is not rendered by the React client:
+mxbuild builds a `staticimage` there clean, and MPR012 stays silent on it.
 
 #### `DataSource:` — which object a DYNAMICIMAGE shows
 

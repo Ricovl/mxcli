@@ -7,6 +7,11 @@ package catalog
 //
 // History:
 //
+//	18 — layouts_data.Platform ("Web" / "Native"), the content wrapper's
+//	    type. LayoutType cannot tell the platforms apart ("Popup" is native),
+//	    and MPR012 needs it to stay off native pages, where CE0582 does not
+//	    apply (ako/mxcli#953). Without the bump a cached catalog fails every
+//	    layouts() with "no such column".
 //	17 (activities in loops and their properties): activities_data gains the
 //	    rows inside loop bodies, with ParentLoopId / LoopDepth, and the
 //	    property columns lint rules asked for (real Caption, Description,
@@ -96,7 +101,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "17"
+const CatalogSchemaVersion = "18"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
@@ -379,6 +384,7 @@ func (c *Catalog) createTables() error {
 			ModuleName TEXT,
 			Folder TEXT,
 			LayoutType TEXT,
+			Platform TEXT,
 			Description TEXT,
 			ProjectId TEXT,
 			SnapshotId TEXT

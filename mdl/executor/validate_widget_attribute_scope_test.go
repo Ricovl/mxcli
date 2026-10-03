@@ -78,7 +78,7 @@ func scopeCheckPage(t *testing.T, props string) *ast.CreatePageStmtV3 {
 func TestCheck_AttributeOfAnotherScopeIsRefused(t *testing.T) {
 	ctx := scopeCheckCtx(t)
 	s := scopeCheckPage(t, `staticAttribute: Name`)
-	errs := validatePluggableAttributeScopes(ctx, s.Parameters, allPageWidgets(s), newScriptContext())
+	errs := validatePluggableAttributeScopes(ctx, s.Layout, s.Parameters, allPageWidgets(s), newScriptContext())
 	if len(errs) != 1 {
 		t.Fatalf("want one binding error, got %q", errs)
 	}
@@ -109,7 +109,7 @@ func TestCheck_AttributesTheRulePlacesPass(t *testing.T) {
 		`optionsSourceDatabaseValueAttribute: Name`,
 	} {
 		s := scopeCheckPage(t, props)
-		if errs := validatePluggableAttributeScopes(ctx, s.Parameters, allPageWidgets(s), newScriptContext()); len(errs) > 0 {
+		if errs := validatePluggableAttributeScopes(ctx, s.Layout, s.Parameters, allPageWidgets(s), newScriptContext()); len(errs) > 0 {
 			t.Errorf("%s: unexpected refusal %q", props, errs)
 		}
 	}
@@ -120,7 +120,7 @@ func TestCheck_AttributesTheRulePlacesPass(t *testing.T) {
 func TestCheck_LinkedPropertyGivenTheEnclosingAttributeIsRefused(t *testing.T) {
 	ctx := scopeCheckCtx(t)
 	s := scopeCheckPage(t, `optionsSourceAssociationCaptionAttribute: Reference`)
-	errs := validatePluggableAttributeScopes(ctx, s.Parameters, allPageWidgets(s), newScriptContext())
+	errs := validatePluggableAttributeScopes(ctx, s.Layout, s.Parameters, allPageWidgets(s), newScriptContext())
 	if len(errs) != 1 || !strings.Contains(errs[0], "Sales.Order") ||
 		!strings.Contains(errs[0], "Sales.Invoice (the enclosing data container)") {
 		t.Fatalf("want one refusal naming Sales.Order and the enclosing Sales.Invoice, got %q", errs)

@@ -771,7 +771,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		}
 		// A pluggable widget attribute of another entity than the one its
 		// property binds to — the rule exec writes by (ako/mxcli#647).
-		if scopeErrors := validatePluggableAttributeScopes(ctx, s.Parameters, pageWidgets, sc); len(scopeErrors) > 0 {
+		if scopeErrors := validatePluggableAttributeScopes(ctx, s.Layout, s.Parameters, pageWidgets, sc); len(scopeErrors) > 0 {
 			return mdlerrors.NewValidationf("page '%s' has attribute binding errors:\n  - %s",
 				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
 		}
@@ -815,7 +815,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			return mdlerrors.NewValidationf("snippet '%s' has context errors:\n  - %s",
 				s.Name.String(), strings.Join(ctxErrors, "\n  - "))
 		}
-		if scopeErrors := validatePluggableAttributeScopes(ctx, s.Parameters, s.Widgets, sc); len(scopeErrors) > 0 {
+		if scopeErrors := validatePluggableAttributeScopes(ctx, "", s.Parameters, s.Widgets, sc); len(scopeErrors) > 0 {
 			return mdlerrors.NewValidationf("snippet '%s' has attribute binding errors:\n  - %s",
 				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
 		}
