@@ -33,14 +33,16 @@ func setupMicroflowsDB(t *testing.T, rows [][]any) catalog.CatalogDB {
 	_, err = db.Exec(`CREATE TABLE microflows (
 		Id TEXT, Name TEXT, QualifiedName TEXT, ModuleName TEXT, Folder TEXT,
 		MicroflowType TEXT, Description TEXT, ReturnType TEXT,
-		ParameterCount INTEGER, ActivityCount INTEGER, Complexity INTEGER
+		ParameterCount INTEGER, ActivityCount INTEGER, TotalActivityCount INTEGER DEFAULT 0, Complexity INTEGER
 	)`)
 	if err != nil {
 		t.Fatalf("failed to create microflows table: %v", err)
 	}
 
 	for _, row := range rows {
-		_, err := db.Exec(`INSERT INTO microflows VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		_, err := db.Exec(`INSERT INTO microflows (Id, Name, QualifiedName, ModuleName, Folder,
+			MicroflowType, Description, ReturnType, ParameterCount, ActivityCount, Complexity)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			row...)
 		if err != nil {
 			t.Fatalf("failed to insert row: %v", err)

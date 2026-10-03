@@ -205,7 +205,8 @@ def check():
 | `description` | string | Documentation text |
 | `return_type` | string | Return type |
 | `parameter_count` | int | Number of parameters |
-| `activity_count` | int | Number of activities |
+| `activity_count` | int | Number of activities at the top level of the flow, excluding start/end events and merges. A loop counts as one; its body is not counted |
+| `total_activity_count` | int | `activity_count` plus every activity inside a loop, at any depth — the size of the flow including loop bodies. Equal to `activity_count` for a flow without loops |
 | `complexity` | int | McCabe cyclomatic complexity |
 | `document_noun` | string | `"microflow"`, `"nanoflow"` or `"rule"` — for mid-sentence use in a message |
 | `document_noun_title` | string | `"Microflow"`, `"Nanoflow"` or `"Rule"` — for `document_type=` and a message that opens with it |
