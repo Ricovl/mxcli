@@ -296,11 +296,14 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 		report(violations)
 	}
 
-	if len(violations) > 0 {
-		summary := linter.Summarize(violations)
-		if summary.Errors > 0 {
-			return finish(1)
-		}
+	// A semantic error fails the run, but does not hide the reference tier:
+	// an unresolved name is a separate error mxbuild reports alongside it, and
+	// stopping here made `check --references` look as if it had accepted a
+	// call to a parameter the action does not have (CE1613, ako/mxcli#953).
+	// The catalog-backed tier after it still waits for a clean script.
+	semanticErrors := len(violations) > 0 && linter.Summarize(violations).Errors > 0
+	if semanticErrors && !checkRefs {
+		return finish(1)
 	}
 
 	// If reference checking requested
@@ -373,6 +376,9 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 		}
 		if !isStructured {
 			fmt.Printf("✓ All references valid\n")
+		}
+		if semanticErrors {
+			return finish(1)
 		}
 
 		// The catalog-backed tier: the checks whose answers only exist once a

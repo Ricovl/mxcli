@@ -27,7 +27,7 @@ begin
   return $Count;
 end;`
 
-	errors := validateMicroflowFromMDL(t, input)
+	errors := duplicateNameErrorsFromMDL(t, input)
 
 	found := false
 	for _, e := range errors {
@@ -50,7 +50,7 @@ begin
   declare $X String = 'hello';
 end;`
 
-	errors := validateMicroflowFromMDL(t, input)
+	errors := duplicateNameErrorsFromMDL(t, input)
 
 	found := false
 	for _, e := range errors {
@@ -72,7 +72,7 @@ begin
   retrieve $Items from Test.SomeEntity;
 end;`
 
-	errors := validateMicroflowFromMDL(t, input)
+	errors := duplicateNameErrorsFromMDL(t, input)
 
 	for _, e := range errors {
 		if strings.Contains(e, "duplicate") {
@@ -90,7 +90,7 @@ begin
   $NewTodo = create Test.Todo();
 end;`
 
-	errors := validateMicroflowFromMDL(t, input)
+	errors := duplicateNameErrorsFromMDL(t, input)
 
 	found := false
 	for _, e := range errors {
@@ -116,7 +116,7 @@ begin
   $Summary = call microflow Test.Inner(Tag = 'description');
   $Summary = call microflow Test.Inner(Tag = 'summary');
 end;`
-		errors := validateMicroflowFromMDL(t, input)
+		errors := duplicateNameErrorsFromMDL(t, input)
 		if !hasDupError(errors, "Summary") {
 			t.Errorf("Expected duplicate variable error for $Summary, got: %v", errors)
 		}
@@ -130,11 +130,35 @@ begin
     $Summary = call microflow Test.Inner(Tag = 'summary');
   end if;
 end;`
-		errors := validateMicroflowFromMDL(t, input)
+		errors := duplicateNameErrorsFromMDL(t, input)
 		if !hasDupError(errors, "Summary") {
 			t.Errorf("Expected duplicate variable error for $Summary (fallback in if), got: %v", errors)
 		}
 	})
+}
+
+// duplicateNameErrorsFromMDL returns the MDL063 messages for the script's
+// microflow, each prefixed "duplicate:". Duplicate names are MDL063's alone
+// since #953: the check-time body validator scoped them per branch and counted
+// void action calls, so it was wrong in both directions and no longer reports
+// them for a flow.
+func duplicateNameErrorsFromMDL(t *testing.T, input string) []string {
+	t.Helper()
+	prog, errs := visitor.Build(input)
+	if len(errs) > 0 {
+		t.Fatalf("Parse error: %v", errs[0])
+	}
+	stmt, ok := prog.Statements[0].(*ast.CreateMicroflowStmt)
+	if !ok {
+		t.Fatalf("Expected CreateMicroflowStmt, got %T", prog.Statements[0])
+	}
+	var out []string
+	for _, v := range ValidateMicroflow(stmt) {
+		if v.RuleID == "MDL063" {
+			out = append(out, "duplicate: "+v.Message)
+		}
+	}
+	return out
 }
 
 func hasDupError(errors []string, varName string) bool {
