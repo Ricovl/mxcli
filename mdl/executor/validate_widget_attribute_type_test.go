@@ -12,6 +12,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
+	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
 // MDL-WIDGET39 (CE2421) and MDL-WIDGET40 (CE0582): two page errors only mxbuild
@@ -95,7 +96,7 @@ func typeErrs(t *testing.T, ctx *ExecContext, body string, sc *scriptContext) []
 	if sc == nil {
 		sc = newScriptContext()
 	}
-	return validatePluggableAttributeScopes(ctx, s.Parameters, allPageWidgets(s), sc)
+	return validatePluggableAttributeScopes(ctx, s.Layout, s.Parameters, allPageWidgets(s), sc)
 }
 
 // The reported case: a text box on an enumeration attribute.
@@ -207,7 +208,7 @@ create page Sales.P2 (title: 'P', layout: Atlas_Core.Atlas_Default, params: ($Sh
 	sc := newScriptContext()
 	sc.collectDefinitions(prog)
 	s := prog.Statements[3].(*ast.CreatePageStmtV3)
-	errs := validatePluggableAttributeScopes(ctx, s.Parameters, allPageWidgets(s), sc)
+	errs := validatePluggableAttributeScopes(ctx, s.Layout, s.Parameters, allPageWidgets(s), sc)
 	if len(errs) != 2 || !strings.Contains(strings.Join(errs, "\n"), "tbSize") || !strings.Contains(strings.Join(errs, "\n"), "tbShade") {
 		t.Fatalf("want errors on tbSize and tbShade only, got %q", errs)
 	}
@@ -255,5 +256,40 @@ func TestCheck_AttributeTypeIsPartOfThePageReferencePass(t *testing.T) {
 	err := validateWithContext(ctx, typeCheckPage(t, `dataview dv (datasource: $Thing) { textbox tbColor (label: 'C', attribute: Color) }`), sc)
 	if err == nil || !strings.Contains(err.Error(), "MDL-WIDGET39") {
 		t.Fatalf("want the page refused for MDL-WIDGET39, got %v", err)
+	}
+}
+
+// ako/mxcli#953: CE0582 is the React client's, and a native page is not
+// rendered by it. Measured on mxbuild 11.13.0 (UseOptimizedClient Yes): a
+// classic drop-down on a NativePhone_Default page builds clean, the same
+// drop-down on an Atlas_Default page is CE0582 (the control). MDL-WIDGET39 is
+// NOT React-only — a textbox on an enumeration is CE2421 on the native page
+// too — so it must keep firing there.
+func TestCheck_ClassicDropDownOnNativePageIsClean(t *testing.T) {
+	ctx := typeCheckCtx(t, "Yes")
+	b := ctx.Backend.(*mock.MockBackend)
+	atlas := &model.Module{BaseElement: model.BaseElement{ID: model.ID("mod-atlas")}, Name: "Atlas_Core"}
+	sales := &model.Module{BaseElement: model.BaseElement{ID: model.ID("mod-sales")}, Name: "Sales"}
+	b.ListModulesFunc = func() ([]*model.Module, error) { return []*model.Module{sales, atlas}, nil }
+	layout := func(id, name string, native bool) *pages.Layout {
+		l := &pages.Layout{ContainerID: atlas.ID, Name: name, Native: native}
+		l.ID = model.ID(id)
+		return l
+	}
+	b.ListLayoutsFunc = func() ([]*pages.Layout, error) {
+		return []*pages.Layout{layout("l-web", "Atlas_Default", false), layout("l-nat", "NativePhone_Default", true)}, nil
+	}
+	body := `dataview dv (datasource: $Thing) { dropdown ddColor (label: 'C', attribute: Color) }`
+	s := typeCheckPage(t, body)
+
+	if errs := validatePluggableAttributeScopes(ctx, "Atlas_Core.Atlas_Default", s.Parameters, allPageWidgets(s), newScriptContext()); len(errs) != 1 || !strings.Contains(errs[0], "MDL-WIDGET40") {
+		t.Fatalf("control: web page should report MDL-WIDGET40, got %q", errs)
+	}
+	if errs := validatePluggableAttributeScopes(ctx, "Atlas_Core.NativePhone_Default", s.Parameters, allPageWidgets(s), newScriptContext()); len(errs) != 0 {
+		t.Fatalf("native page: want no error, got %q", errs)
+	}
+	enum := typeCheckPage(t, `dataview dv (datasource: $Thing) { textbox tbColor (label: 'C', attribute: Color) }`)
+	if errs := validatePluggableAttributeScopes(ctx, "Atlas_Core.NativePhone_Default", enum.Parameters, allPageWidgets(enum), newScriptContext()); len(errs) != 1 || !strings.Contains(errs[0], "MDL-WIDGET39") {
+		t.Fatalf("native page: MDL-WIDGET39 (CE2421) still applies, got %q", errs)
 	}
 }

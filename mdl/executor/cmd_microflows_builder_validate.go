@@ -12,17 +12,19 @@ import (
 // ValidateMicroflowBody validates the microflow body for semantic errors without building objects.
 // This is used by the check command to validate scripts without executing them.
 func ValidateMicroflowBody(s *ast.CreateMicroflowStmt) []string {
-	return validateFlowBody(s.Parameters, s.Body)
+	return validateFlowBody(s.Parameters, s.Body, true)
 }
 
 // ValidateNanoflowBody validates the nanoflow body for semantic errors without building objects.
 // This is used by the check command to validate scripts without executing them.
 func ValidateNanoflowBody(s *ast.CreateNanoflowStmt) []string {
-	return validateFlowBody(s.Parameters, s.Body)
+	return validateFlowBody(s.Parameters, s.Body, true)
 }
 
 // validateFlowBody validates parameters and body statements for semantic errors.
-func validateFlowBody(params []ast.MicroflowParam, body []ast.MicroflowStatement) []string {
+// duplicatesOwnedElsewhere leaves duplicate variable names to MDL063 — see
+// flowBuilder.duplicateNamesOwnedElsewhere.
+func validateFlowBody(params []ast.MicroflowParam, body []ast.MicroflowStatement, duplicatesOwnedElsewhere bool) []string {
 	varTypes := make(map[string]string)
 	declaredVars := make(map[string]string)
 
@@ -50,9 +52,10 @@ func validateFlowBody(params []ast.MicroflowParam, body []ast.MicroflowStatement
 	}
 
 	fb := &flowBuilder{
-		varTypes:     varTypes,
-		declaredVars: declaredVars,
-		errors:       []string{},
+		varTypes:                     varTypes,
+		declaredVars:                 declaredVars,
+		errors:                       []string{},
+		duplicateNamesOwnedElsewhere: duplicatesOwnedElsewhere,
 	}
 
 	fb.validateStatements(body)
@@ -80,7 +83,7 @@ func (fb *flowBuilder) validateStatement(stmt ast.MicroflowStatement) {
 	switch s := stmt.(type) {
 	case *ast.DeclareStmt:
 		// Check for duplicate variable declaration
-		if fb.isVariableDeclared(s.Variable) {
+		if !fb.duplicateNamesOwnedElsewhere && fb.isVariableDeclared(s.Variable) {
 			fb.addError("duplicate variable name '$%s' — variable is already declared (CE0111)", s.Variable)
 		}
 		// Register the variable as declared
@@ -376,7 +379,7 @@ func (fb *flowBuilder) validateStatement(stmt ast.MicroflowStatement) {
 }
 
 func (fb *flowBuilder) validateOutputVariable(varName, statement string) {
-	if varName == "" {
+	if varName == "" || fb.duplicateNamesOwnedElsewhere {
 		return
 	}
 	if fb.isVariableDeclared(varName) {
@@ -389,5 +392,5 @@ func (fb *flowBuilder) validateOutputVariable(varName, statement string) {
 // counterpart of ValidateMicroflowBody. What a rule may not *contain* is a
 // separate question, answered by validateRule.
 func ValidateRuleBody(s *ast.CreateRuleStmt) []string {
-	return validateFlowBody(s.Parameters, s.Body)
+	return validateFlowBody(s.Parameters, s.Body, false)
 }

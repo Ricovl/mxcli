@@ -96,6 +96,7 @@ Returned by `layouts()`.
 | `module_name` | string | `"Atlas_Core"` |
 | `folder` | string | Folder path within module |
 | `layout_type` | string | `"Responsive"`, `"Phone"`, `"Tablet"`, `"Popup"`, `"ModalPopup"`, `"Default"`, `"Legacy"` |
+| `platform` | string | `"Web"` or `"Native"` — the platform the layout (and every page on it) renders on. `layout_type` cannot tell: a native popup shares its value with a web one. React-client errors (CE0582) apply to `"Web"` only |
 | `description` | string | Documentation text |
 
 ### published_rest_operation

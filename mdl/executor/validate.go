@@ -678,18 +678,18 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			}
 		}
 		// Validate microflow body for semantic errors (e.g., undeclared variables)
-		if validationErrors := ValidateMicroflowBody(s); len(validationErrors) > 0 {
-			return mdlerrors.NewValidationf("microflow '%s' has validation errors:\n  - %s",
-				s.Name.String(), strings.Join(validationErrors, "\n  - "))
-		}
+		// Reported together with the reference errors below rather than
+		// instead of them: a body error used to hide a call's unknown
+		// parameter, which mxbuild reports as well (CE1613, #953).
+		validationErrors := ValidateMicroflowBody(s)
 		// Validate references inside microflow body (pages, microflows, java actions, entities)
-		if refErrors := validateFlowBodyReferences(ctx, s.Body, sc); len(refErrors) > 0 {
-			if s.Excluded {
-				sc.warnExcluded("microflow", s.Name.String(), refErrors)
-			} else {
-				return mdlerrors.NewValidationf("microflow '%s' has reference errors:\n  - %s",
-					s.Name.String(), strings.Join(refErrors, "\n  - "))
-			}
+		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
+		if len(refErrors) > 0 && s.Excluded {
+			sc.warnExcluded("microflow", s.Name.String(), refErrors)
+			refErrors = nil
+		}
+		if len(validationErrors) > 0 || len(refErrors) > 0 {
+			return flowValidationError("microflow", s.Name.String(), validationErrors, refErrors)
 		}
 	case *ast.CreateRuleStmt:
 		if s.Name.Module != "" && !sc.modules[s.Name.Module] {
@@ -721,18 +721,18 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			}
 		}
 		// Validate nanoflow body for semantic errors (e.g., undeclared variables)
-		if validationErrors := ValidateNanoflowBody(s); len(validationErrors) > 0 {
-			return mdlerrors.NewValidationf("nanoflow '%s' has validation errors:\n  - %s",
-				s.Name.String(), strings.Join(validationErrors, "\n  - "))
-		}
+		// Reported together with the reference errors below rather than
+		// instead of them: a body error used to hide a call's unknown
+		// parameter, which mxbuild reports as well (CE1613, #953).
+		validationErrors := ValidateNanoflowBody(s)
 		// Validate references inside nanoflow body (an excluded nanoflow's are warnings)
-		if refErrors := validateFlowBodyReferences(ctx, s.Body, sc); len(refErrors) > 0 {
-			if s.Excluded {
-				sc.warnExcluded("nanoflow", s.Name.String(), refErrors)
-			} else {
-				return mdlerrors.NewValidationf("nanoflow '%s' has reference errors:\n  - %s",
-					s.Name.String(), strings.Join(refErrors, "\n  - "))
-			}
+		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
+		if len(refErrors) > 0 && s.Excluded {
+			sc.warnExcluded("nanoflow", s.Name.String(), refErrors)
+			refErrors = nil
+		}
+		if len(validationErrors) > 0 || len(refErrors) > 0 {
+			return flowValidationError("nanoflow", s.Name.String(), validationErrors, refErrors)
 		}
 	case *ast.CreatePageStmtV3:
 		if s.Name.Module != "" && !sc.modules[s.Name.Module] {
@@ -771,7 +771,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		}
 		// A pluggable widget attribute of another entity than the one its
 		// property binds to — the rule exec writes by (ako/mxcli#647).
-		if scopeErrors := validatePluggableAttributeScopes(ctx, s.Parameters, pageWidgets, sc); len(scopeErrors) > 0 {
+		if scopeErrors := validatePluggableAttributeScopes(ctx, s.Layout, s.Parameters, pageWidgets, sc); len(scopeErrors) > 0 {
 			return mdlerrors.NewValidationf("page '%s' has attribute binding errors:\n  - %s",
 				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
 		}
@@ -815,7 +815,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			return mdlerrors.NewValidationf("snippet '%s' has context errors:\n  - %s",
 				s.Name.String(), strings.Join(ctxErrors, "\n  - "))
 		}
-		if scopeErrors := validatePluggableAttributeScopes(ctx, s.Parameters, s.Widgets, sc); len(scopeErrors) > 0 {
+		if scopeErrors := validatePluggableAttributeScopes(ctx, "", s.Parameters, s.Widgets, sc); len(scopeErrors) > 0 {
 			return mdlerrors.NewValidationf("snippet '%s' has attribute binding errors:\n  - %s",
 				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
 		}
@@ -1243,6 +1243,33 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 		}
 	}
 
+	// An argument naming no parameter of the called flow is CE1613 "The
+	// selected parameter 'M.F.X' no longer exists" (mxbuild 11.13.0, both
+	// call microflow and call nanoflow), and exec writes it as given. Java and
+	// JavaScript action calls were checked; flow calls were not (#953). A flow
+	// that does not resolve is the not-found check's to report.
+	if len(refs.flowCalls) > 0 {
+		var stored map[string]*flowSignature
+		for _, call := range refs.flowCalls {
+			if len(call.argNames) == 0 {
+				continue
+			}
+			key := strings.ToLower(call.name)
+			sig, ok := sc.flowParams[key]
+			if !ok {
+				if stored == nil {
+					stored = buildFlowSignatures(ctx)
+				}
+				sig, ok = stored[key]
+			}
+			if !ok || sig == nil {
+				continue
+			}
+			errors = append(errors, validateCodeActionParams(call.kind,
+				codeActionCallRef{name: call.name, argNames: call.argNames}, sig.paramNames())...)
+		}
+	}
+
 	if len(refs.javaActions) > 0 {
 		known := buildJavaActionQualifiedNames(ctx)
 		for _, ref := range refs.javaActions {
@@ -1269,7 +1296,7 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 				continue
 			}
 			if ja, err := ctx.Backend.ReadJavaActionByName(ref.name); err == nil && ja != nil {
-				var declared []string
+				declared := []string{} // read: an action with no parameters is known to have none
 				flowParams := map[string]bool{}
 				for _, p := range ja.Parameters {
 					declared = append(declared, p.Name)
@@ -1298,7 +1325,7 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 				continue
 			}
 			if jsa, err := ctx.Backend.ReadJavaScriptActionByName(ref.name); err == nil && jsa != nil {
-				var declared []string
+				declared := []string{} // read: an action with no parameters is known to have none
 				for _, p := range jsa.Parameters {
 					declared = append(declared, p.Name)
 				}
@@ -1484,14 +1511,25 @@ func qualifiedNameModule(qn string) string {
 
 // flowRefCollector collects qualified name references from flow body statements.
 type flowRefCollector struct {
-	pages             []string
-	microflows        []string
-	nanoflows         []string
+	pages      []string
+	microflows []string
+	nanoflows  []string
+	// flowCalls are the microflow and nanoflow calls with the parameter names
+	// written on them, for the CE1613 parameter-name check (#953).
+	flowCalls         []flowCallRef
 	javaActions       []codeActionCallRef
 	javaScriptActions []codeActionCallRef
 	entities          []entityRef
 	retrieves         []retrieveConstraintRef
 	queues            []string
+}
+
+// flowCallRef is a `call microflow` / `call nanoflow` and the parameter names
+// its arguments name.
+type flowCallRef struct {
+	kind     string // "microflow" or "nanoflow"
+	name     string
+	argNames []string
 }
 
 // codeActionCallRef is a Java / JavaScript action call: the action's qualified
@@ -1525,8 +1563,12 @@ func callArgNames(args []ast.CallArgument) []string {
 // that fails the build with CE1613). When the mismatch is only a casing
 // difference, the message suggests the correct spelling. `declared` empty means
 // the backend could not report parameters — skip (degrade gracefully).
+//
+// declared nil means the parameters are unknown, and nothing is reported; an
+// empty, non-nil list is an action or flow known to take none, where any named
+// argument is the CE1613.
 func validateCodeActionParams(kind string, ref codeActionCallRef, declared []string) []string {
-	if len(declared) == 0 {
+	if declared == nil {
 		return nil
 	}
 	declaredSet := make(map[string]bool, len(declared))
@@ -1548,8 +1590,18 @@ func validateCodeActionParams(kind string, ref codeActionCallRef, declared []str
 		}
 		sorted := append([]string(nil), declared...)
 		sort.Strings(sorted)
-		msg += fmt.Sprintf(" (declared parameters: %s). Mendix build fails CE1613 \"The selected %s parameter … no longer exists\".",
-			strings.Join(sorted, ", "), kind)
+		list := strings.Join(sorted, ", ")
+		if list == "" {
+			list = "none"
+		}
+		// mxbuild names the code action kind in the message, not the flow kind:
+		// "The selected parameter 'M.F.X' no longer exists" for a flow call.
+		selected := kind + " parameter"
+		if kind == "microflow" || kind == "nanoflow" {
+			selected = "parameter"
+		}
+		msg += fmt.Sprintf(" (declared parameters: %s). Mendix build fails CE1613 \"The selected %s … no longer exists\".",
+			list, selected)
 		errs = append(errs, msg)
 	}
 	return errs
@@ -1595,11 +1647,17 @@ func (c *flowRefCollector) collectFromStatements(stmts []ast.MicroflowStatement)
 		case *ast.CallMicroflowStmt:
 			if s.MicroflowName.Module != "" {
 				c.microflows = append(c.microflows, s.MicroflowName.String())
+				c.flowCalls = append(c.flowCalls, flowCallRef{
+					kind: "microflow", name: s.MicroflowName.String(), argNames: callArgNames(s.Arguments),
+				})
 			}
 			c.addQueue(s.Queue)
 		case *ast.CallNanoflowStmt:
 			if s.NanoflowName.Module != "" {
 				c.nanoflows = append(c.nanoflows, s.NanoflowName.String())
+				c.flowCalls = append(c.flowCalls, flowCallRef{
+					kind: "nanoflow", name: s.NanoflowName.String(), argNames: callArgNames(s.Arguments),
+				})
 			}
 		case *ast.CallJavaActionStmt:
 			if s.ActionName.Module != "" {
@@ -1912,4 +1970,19 @@ func validateViewEntityAttributeSet(ctx *ExecContext, s *ast.AlterEntityStmt, sc
 		return viewEntityAttributeSetRefusal(qn, "add", name)
 	}
 	return viewEntityAttributeSetRefusal(qn, "drop", s.AttributeName)
+}
+
+// flowValidationError joins a flow's body validation errors and its reference
+// errors into one error, keeping each list's own heading.
+func flowValidationError(kind, name string, validationErrors, refErrors []string) error {
+	var parts []string
+	if len(validationErrors) > 0 {
+		parts = append(parts, fmt.Sprintf("%s '%s' has validation errors:\n  - %s",
+			kind, name, strings.Join(validationErrors, "\n  - ")))
+	}
+	if len(refErrors) > 0 {
+		parts = append(parts, fmt.Sprintf("%s '%s' has reference errors:\n  - %s",
+			kind, name, strings.Join(refErrors, "\n  - ")))
+	}
+	return mdlerrors.NewValidationf("%s", strings.Join(parts, "\n  "))
 }

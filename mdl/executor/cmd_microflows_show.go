@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/microflowgraph"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -878,7 +879,10 @@ func formatMicroflowActivities(
 // high-complexity flows — 20 sequential if/end-if diamonds already took ~10s
 // (issue #710). Microflow control flow is a DAG (loops are nested inside
 // LoopedActivity nodes, not back-edges), so reachability is exact and cheap.
-func duplicateOutputVariableWarnings(oc *microflows.MicroflowObjectCollection) []string {
+//
+// isVoidCall, when it says so, marks an action whose output name declares no
+// variable — a call to a void Java/JavaScript action.
+func duplicateOutputVariableWarnings(oc *microflows.MicroflowObjectCollection, isVoidCall func(action any) bool) []string {
 	warningPositions := make(map[string]model.Point)
 	record := func(name string, pos model.Point) {
 		if _, ok := warningPositions[name]; !ok {
@@ -934,7 +938,7 @@ func duplicateOutputVariableWarnings(oc *microflows.MicroflowObjectCollection) [
 		for _, obj := range collection.Objects {
 			switch o := obj.(type) {
 			case *microflows.ActionActivity:
-				if name := actionOutputVariableName(o.Action); name != "" {
+				if name := actionOutputVariableName(o.Action); name != "" && !isVoidCall(o.Action) {
 					assignments[name] = append(assignments[name], assignment{id: o.GetID(), pos: o.GetPosition()})
 				}
 			case *microflows.LoopedActivity:
@@ -1747,7 +1751,13 @@ func microflowBodyWarnings(
 	declaredCrossed map[model.ID]bool,
 ) []string {
 	var out []string
-	out = append(out, duplicateOutputVariableWarnings(mf.ObjectCollection)...)
+	// A call to a void Java/JavaScript action declares nothing, so its output
+	// name is no duplicate however often it recurs (#953).
+	var voids *voidCodeActions
+	if ctx != nil && ctx.Backend != nil {
+		voids = newVoidCodeActions(nil, func() backend.FullBackend { return ctx.Backend })
+	}
+	out = append(out, duplicateOutputVariableWarnings(mf.ObjectCollection, voids.actionIsVoidCall)...)
 	out = append(out, irreducibleGraphWarnings(mf.ObjectCollection, declaredCrossed)...)
 	out = append(out, droppedMergeWarnings(ctx, mf.ObjectCollection, labels)...)
 	return out

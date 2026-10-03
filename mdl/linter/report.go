@@ -15,6 +15,13 @@ type Report struct {
 	Categories   []CategoryScore `json:"categories"`
 	Violations   []Violation     `json:"-"`
 	Summary      Summary         `json:"summary"`
+	// RuleFailures are the rules that failed to run. They are about the
+	// tooling, not the project, so they are neither in Violations nor in any
+	// score or count — they are listed on their own (ako/mxcli#952).
+	RuleFailures []Violation `json:"-"`
+	// Modules is the --modules selection the report was scored over; empty
+	// for a whole-project report.
+	Modules []string `json:"modules,omitempty"`
 }
 
 // CategoryScore tracks the score for a lint category.
@@ -99,13 +106,56 @@ var categoryWeight = map[string]float64{
 	"Other":        0.05,
 }
 
+// ScopeToModules keeps the violations located in one of the given modules, so
+// a report scores only the selection (ako/mxcli#953). With no modules it
+// returns vs unchanged.
+//
+// A finding with no module — project security, a user role's mapping — is not
+// about any one module and is dropped: counting it would make every module's
+// score carry the project's settings. The LintContext module filter already
+// keeps most rules inside the selection; this is what makes the score exact
+// for the rest.
+func ScopeToModules(vs []Violation, modules []string) []Violation {
+	if len(modules) == 0 {
+		return vs
+	}
+	keep := make(map[string]bool, len(modules))
+	for _, m := range modules {
+		keep[m] = true
+	}
+	var out []Violation
+	for _, v := range vs {
+		// A rule failure is about the tooling, not a module: keep it so the
+		// report still lists it (ako/mxcli#952); BuildReport leaves it out of
+		// the score.
+		if keep[v.Location.Module] || v.RuleFailure {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 // BuildReport creates a Report from a list of violations.
-func BuildReport(projectName, date string, violations []Violation) *Report {
+//
+// A rule failure (Violation.RuleFailure) is split out into RuleFailures before
+// anything is counted: the score measures the project, and a rule that could
+// not run — usually one written for a newer mxcli — measured nothing. Counted,
+// three crashing rules cost a project 30 points of "errors" it did not have.
+func BuildReport(projectName, date string, all []Violation) *Report {
+	var violations, failures []Violation
+	for _, v := range all {
+		if v.RuleFailure {
+			failures = append(failures, v)
+		} else {
+			violations = append(violations, v)
+		}
+	}
 	report := &Report{
-		ProjectName: projectName,
-		Date:        date,
-		Violations:  violations,
-		Summary:     Summarize(violations),
+		ProjectName:  projectName,
+		Date:         date,
+		Violations:   violations,
+		Summary:      Summarize(violations),
+		RuleFailures: failures,
 	}
 
 	// Group violations by category

@@ -23,6 +23,7 @@ var (
 	initListTools        bool
 	initContainerRuntime string
 	initSyncSkills       bool
+	initSync             bool
 )
 
 const mendixGitignore = `# Mendix project
@@ -140,14 +141,25 @@ Container Runtime:
 		// init is interactive-ish and writes tool configs; this is the part that
 		// must follow a binary upgrade, and the SessionStart bootstrap runs it
 		// unattended on every session (mxcli-formula1 §16).
-		if initSyncSkills {
-			res, err := syncAIContextSkills(absDir)
+		//
+		// It also refreshes the bundled lint rules and the mxcli section of
+		// CLAUDE.md / AGENTS.md, and stamps the version that did it — and
+		// refuses when this binary is older than that stamp (ako/mxcli#952).
+		if initSyncSkills || initSync {
+			res, err := syncProjectTooling(absDir)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error syncing skills: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Error syncing project tooling: %v\n", err)
 				os.Exit(1)
 			}
-			reportSkillSync(os.Stdout, res)
+			reportToolingSync(os.Stdout, os.Stderr, res)
 			return
+		}
+
+		// An explicit init from an older binary still runs — the user asked for
+		// it — but not silently: it rewrites the tooling a newer mxcli wrote.
+		if s := staleBinaryStamp(absDir); s != nil {
+			writeStaleBinaryWarning(os.Stderr, *s)
+			fmt.Fprintln(os.Stderr, "  Continuing: 'mxcli init' will rewrite that tooling with this older version.")
 		}
 
 		// Find .mpr file. With none here, look one level down: a solution repo
@@ -300,8 +312,14 @@ Container Runtime:
 				// Generate content
 				content := file.Content(projectName, mprFile)
 
-				// Write file
-				if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+				// Write file. CLAUDE.md goes through the mxcli markers so a
+				// later sync can refresh it without touching project notes.
+				if isOwnedDoc(file.Path) {
+					if _, err := writeOwnedDoc(filePath, content, true); err != nil {
+						fmt.Fprintf(os.Stderr, "  Error writing %s: %v\n", file.Path, err)
+						continue
+					}
+				} else if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 					fmt.Fprintf(os.Stderr, "  Error writing %s: %v\n", file.Path, err)
 					continue
 				}
@@ -444,7 +462,7 @@ Container Runtime:
 			filePath := filepath.Join(absDir, file.Path)
 			content := file.Content(projectName, mprFile)
 
-			if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			if _, err := writeOwnedDoc(filePath, content, true); err != nil {
 				fmt.Fprintf(os.Stderr, "  Error writing %s: %v\n", file.Path, err)
 				os.Exit(1)
 			}
@@ -540,6 +558,20 @@ Container Runtime:
 			if err := ExtractWidgetDefinitions(mprPath, false, false); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: widget definition extraction failed: %v\n", err)
 			}
+		}
+
+		// The directory the generated CLAUDE.md tells the agent to put scripts
+		// in; it used to be named and never created (ako/mxcli#952).
+		if created, err := ensureMdlsourceDir(absDir); err != nil {
+			fmt.Fprintf(os.Stderr, "  Warning: creating mdlsource/: %v\n", err)
+		} else if created {
+			fmt.Println("\nCreated mdlsource/ (MDL scripts)")
+		}
+
+		// Record which mxcli wrote all of the above, so an older binary
+		// opening the project later can say so (ako/mxcli#952).
+		if _, err := writeToolingStamp(absDir); err != nil {
+			fmt.Fprintf(os.Stderr, "  Warning: writing %s: %v\n", toolingStampRel, err)
 		}
 
 		fmt.Println("\n✓ Initialization complete!")
@@ -649,7 +681,8 @@ func init() {
 	initCmd.Flags().BoolVar(&initAllTools, "all-tools", false, "Initialize for all supported AI tools")
 	initCmd.Flags().BoolVar(&initListTools, "list-tools", false, "List supported AI tools and exit")
 	initCmd.Flags().StringVar(&initContainerRuntime, "container-runtime", "docker", "Container runtime for devcontainer (docker or podman)")
-	initCmd.Flags().BoolVar(&initSyncSkills, "sync-skills", false, "Refresh .ai-context/skills/ from this binary and exit (quiet when already current)")
+	initCmd.Flags().BoolVar(&initSyncSkills, "sync-skills", false, "Refresh the project's mxcli tooling from this binary and exit: skills, bundled lint rules, the mxcli section of CLAUDE.md/AGENTS.md, and the version stamp (quiet when already current; refuses when this binary is older than the stamp)")
+	initCmd.Flags().BoolVar(&initSync, "sync", false, "Same as --sync-skills")
 }
 
 // findMprFilesInSubdirs returns the .mpr files one level below dir, sorted, so
