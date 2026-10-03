@@ -70,7 +70,8 @@ WHERE ParentEntity LIKE '%Order%' OR ChildEntity LIKE '%Order%';
 
 ### CATALOG.MICROFLOWS
 
-Information about microflows and nanoflows.
+Information about microflows, nanoflows and rules (`CATALOG.NANOFLOWS` is the
+nanoflow subset).
 
 | Column | Description |
 |--------|-------------|
@@ -78,16 +79,61 @@ Information about microflows and nanoflows.
 | `Name` | Microflow name |
 | `ModuleName` | Module containing the microflow |
 | `QualifiedName` | Full qualified name |
+| `Folder` | Folder path within the module |
+| `MicroflowType` | `MICROFLOW`, `NANOFLOW` or `RULE` |
 | `ReturnType` | Return type of the microflow |
 | `Description` | Documentation text |
-| `Parameters` | Parameter information |
-| `ObjectUsage` | Entities used in the microflow |
+| `ParameterCount` | Number of parameters |
+| `ActivityCount` | Activities at the top level of the flow, excluding start/end events and merges. A loop counts as one |
+| `TotalActivityCount` | `ActivityCount` plus every activity inside a loop, at any depth |
+| `Complexity` | McCabe cyclomatic complexity |
 
 ```sql
-SELECT Name, ReturnType, Description
+SELECT Name, ReturnType, ActivityCount, TotalActivityCount
 FROM CATALOG.MICROFLOWS
 WHERE ModuleName = 'Sales'
 ORDER BY Name;
+```
+
+### CATALOG.ACTIVITIES
+
+One row per object in a microflow, nanoflow or rule body — activities, splits,
+merges, events, loops and annotations. Populated by `REFRESH CATALOG FULL`.
+
+**Loop bodies are included.** The objects inside a loop, at any depth, are rows
+too, with `ParentLoopId` naming the loop. Earlier releases left them out; a
+query written then that should keep its old result filters on
+`ParentLoopId = ''`.
+
+| Column | Description |
+|--------|-------------|
+| `Id` | The object's ID |
+| `MicroflowId`, `MicroflowQualifiedName`, `ModuleName` | The flow it belongs to |
+| `Sequence` | Pre-order position in the flow: a loop, then its body, then the loop's next sibling |
+| `ParentLoopId` | `Id` of the enclosing loop; empty at the top level |
+| `LoopDepth` | Number of enclosing loops; 0 at the top level |
+| `ActivityType` | `ActionActivity`, `ExclusiveSplit`, `InheritanceSplit`, `ExclusiveMerge`, `LoopedActivity`, `Annotation`, `StartEvent`, `EndEvent`, … |
+| `ActionType` | The action of an `ActionActivity`, e.g. `RetrieveAction`, `JavaActionCallAction`, `WebServiceCallAction` |
+| `Name` | `ActionType` for an action activity, otherwise `ActivityType` |
+| `Caption` | The stored caption: an activity's, a split's, or an annotation's text. Empty for events, merges and loops. With `AutoGenerateCaption` it holds Studio Pro's stored placeholder (often `Activity`) |
+| `AutoGenerateCaption` | 1 when Studio Pro generates the activity's caption |
+| `Description` | Documentation of an action activity, split or loop |
+| `EntityRef` | Entity of a create object or a database retrieve |
+| `ServiceRef`, `ActionRef` | Called service and operation: REST, web service, OData action |
+| `UseRequestTimeout`, `TimeoutExpression` | "Use a timeout" and its seconds, for a REST or web service call |
+| `ConditionExpression` | An exclusive split's expression |
+| `ConditionRule` | The rule a rule-based split calls |
+| `ErrorHandlingType` | `Rollback`, `Custom`, `CustomWithoutRollBack` (capital B), `Continue` or `Abort` — read from the action for an action activity |
+| `LogLevel`, `LogNodeExpression`, `LogMessage` | A log message action's level, node expression (`'MyNode'` or `getKey(…)`) and template |
+| `CommitType` | Create/change object: `Yes`, `YesWithoutEvents` or `No` |
+| `WithEvents` | 1 for a commit with events, and a create/change with `CommitType` `Yes` |
+| `RetrieveSource` | `database` or `association` |
+
+```sql
+-- Database retrieves inside a loop (N+1 queries)
+SELECT MicroflowQualifiedName, EntityRef, LoopDepth
+FROM CATALOG.ACTIVITIES
+WHERE ActionType = 'RetrieveAction' AND RetrieveSource = 'database' AND ParentLoopId <> '';
 ```
 
 ### CATALOG.PAGES
