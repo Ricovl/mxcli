@@ -656,6 +656,13 @@ it from MDL. Nothing is lost by that — it only suppresses an editor warning.
 
 ## `drop` + `create` is still a new document
 
+**Do the drop and the create in ONE script.** The drop's module-role grants (and
+the unit's ID and folder) carry only to a create later in the same script or REPL
+session. A drop in one run and a create in the next loses every `grant execute` —
+CE0106 on the pages that call the flow (`check -p` reports it as MDL-SEC21).
+`drop` prints the roles it removed and the `grant` that restores them. A `drop
+page` never carries its view grants.
+
 `drop microflow` followed by `create microflow` starts from nothing, so it keeps
 none of these unless the script restates them. Use `create or modify` to edit a
 microflow that carries any of them — and note that `describe` now emits all

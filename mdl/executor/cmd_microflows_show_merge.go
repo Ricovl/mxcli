@@ -264,8 +264,31 @@ func mergeDeclarationLines(indent int, label string, obj microflows.MicroflowObj
 //
 // Loop bodies are recursed into because a LoopedActivity owns its own object
 // collection and its own traversal; without that every in-loop if/else merge
-// would report as dropped.
+// would report as dropped. A loop's collection holds the body's OBJECTS but not
+// its flows: Mendix stores every flow of the microflow in the microflow's own
+// collection. So each body is judged against the flows of the whole microflow
+// — taken against its own collection alone, every merge in a loop body had
+// in-degree 0 and was reported dropped (ako/mxcli#942).
 func droppedMergeWarnings(ctx *ExecContext, oc *microflows.MicroflowObjectCollection, labels mergeLabels) []string {
+	return droppedMergeWarningsIn(ctx, oc, allFlows(oc), labels)
+}
+
+// allFlows is every sequence flow of a microflow: its own collection's and,
+// should a loop's collection hold any, those too.
+func allFlows(oc *microflows.MicroflowObjectCollection) []*microflows.SequenceFlow {
+	if oc == nil {
+		return nil
+	}
+	flows := append([]*microflows.SequenceFlow(nil), oc.Flows...)
+	for _, o := range oc.Objects {
+		if loop, ok := o.(*microflows.LoopedActivity); ok {
+			flows = append(flows, allFlows(loop.ObjectCollection)...)
+		}
+	}
+	return flows
+}
+
+func droppedMergeWarningsIn(ctx *ExecContext, oc *microflows.MicroflowObjectCollection, flows []*microflows.SequenceFlow, labels mergeLabels) []string {
 	if oc == nil {
 		return nil
 	}
@@ -279,7 +302,13 @@ func droppedMergeWarnings(ctx *ExecContext, oc *microflows.MicroflowObjectCollec
 
 	// Merges that a split joins on are spelled by `end if` / `end split`.
 	represented := map[model.ID]bool{}
-	for _, mergeID := range findSplitMergePoints(ctx, oc, activityMap) {
+	flowsByOrigin := make(map[model.ID][]*microflows.SequenceFlow)
+	for _, f := range flows {
+		if f != nil {
+			flowsByOrigin[f.OriginID] = append(flowsByOrigin[f.OriginID], f)
+		}
+	}
+	for _, mergeID := range findSplitMergePointsForGraph(ctx, activityMap, flowsByOrigin) {
 		represented[mergeID] = true
 	}
 
@@ -287,7 +316,7 @@ func droppedMergeWarnings(ctx *ExecContext, oc *microflows.MicroflowObjectCollec
 	// as the continuation of whatever construct closes there — including the
 	// split-with-a-returning-branch that findSplitMergePoints cannot pair up.
 	inDegree := map[model.ID]int{}
-	for _, f := range oc.Flows {
+	for _, f := range flows {
 		if f != nil {
 			inDegree[f.DestinationID]++
 		}
@@ -318,7 +347,7 @@ func droppedMergeWarnings(ctx *ExecContext, oc *microflows.MicroflowObjectCollec
 	// against its own collection.
 	for _, o := range oc.Objects {
 		if loop, ok := o.(*microflows.LoopedActivity); ok {
-			out = append(out, droppedMergeWarnings(ctx, loop.ObjectCollection, labels)...)
+			out = append(out, droppedMergeWarningsIn(ctx, loop.ObjectCollection, flows, labels)...)
 		}
 	}
 	return out

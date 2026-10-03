@@ -313,3 +313,54 @@ func TestDropFontFacesKeepsBracesBalanced(t *testing.T) {
 		t.Fatal("no shipped partial declares a vendored family — the glob no longer finds the assets")
 	}
 }
+
+// A seeded family mxcli does not vendor (Inter) got no @font-face and no file,
+// and `theme create --from` said nothing (#944), so the theme rendered in a
+// fallback font everywhere Inter was not installed. Create must name each such
+// family; the controls are a vendored family and a generic stack, which ship or
+// need nothing and must not be named.
+func TestCreate_NamesSeededFontsItDoesNotVendor(t *testing.T) {
+	tests := map[string]struct {
+		css  string
+		want []string
+	}{
+		"an unvendored body font is named": {
+			css:  `:root { --mxt-font: "Inter", system-ui, sans-serif; }`,
+			want: []string{"Inter"},
+		},
+		"each unvendored stack is named once": {
+			css: `:root {
+				--mxt-font: 'Inter', sans-serif;
+				--mxt-font-heading: Inter, sans-serif;
+				--mxt-font-mono: "JetBrains Mono", monospace;
+			}`,
+			want: []string{"Inter", "JetBrains Mono"},
+		},
+		"control: a vendored family is not named": {
+			css:  `:root { --mxt-font-mono: "IBM Plex Mono", ui-monospace, monospace; }`,
+			want: nil,
+		},
+		"control: a generic stack is not named": {
+			css:  `:root { --mxt-font: system-ui, -apple-system, sans-serif; }`,
+			want: nil,
+		},
+		"control: no fonts seeded": {
+			css:  `:root { --mxt-brand: #10069F; }`,
+			want: nil,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := newProject(t)
+			design := filepath.Join(dir, "design.css")
+			write(t, design, tc.css)
+			res, err := Create(dir, "probe", CreateOptions{From: design})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(res.UnvendoredFonts, ",") != strings.Join(tc.want, ",") {
+				t.Errorf("UnvendoredFonts = %v, want %v", res.UnvendoredFonts, tc.want)
+			}
+		})
+	}
+}

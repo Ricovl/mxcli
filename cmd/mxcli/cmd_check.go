@@ -262,6 +262,30 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 	// refuses exactly what `mxcli check` reports. Adding a check there gives
 	// both commands it at once.
 	violations := append(testProblems, executor.ValidateProgram(prog, projectPath)...)
+
+	// With a project, connect before reporting: two semantic rules read the
+	// stored model, so `check -p` reports what `exec -p` would (ako/mxcli#943).
+	//   - MDL067 is dropped for a flow already stored the way the script
+	//     commits — the filter exec's preflight applies.
+	//   - MDL-WORKFLOW10 reads a called microflow the script does not create.
+	var exec *executor.Executor
+	if projectPath != "" {
+		e, logger := newLoggedExecutorTo("check", progressSink(format))
+		defer logger.Close()
+		defer e.Close()
+		connectProg, _ := visitor.Build(fmt.Sprintf("CONNECT LOCAL '%s'", visitor.QuoteString(projectPath)))
+		for _, stmt := range connectProg.Statements {
+			if err := e.Execute(stmt); err != nil {
+				fmt.Fprintf(os.Stderr, "Error connecting: %v\n", err)
+				return 1
+			}
+		}
+		exec = e
+		if b := exec.Backend(); b != nil {
+			violations = executor.DropSettledCommitNotes(violations, prog, executor.NewStoredCommitEvents(b))
+			violations = append(violations, executor.StoredTaskClaimViolations(prog, b)...)
+		}
+	}
 	violations = executor.ApplyDeprecationPolicy(violations, depPolicy)
 
 	if isStructured {
@@ -290,18 +314,7 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 			fmt.Printf("\nValidating references against: %s\n", projectPath)
 			fmt.Printf("(Note: References to objects created within the script are skipped)\n")
 		}
-		exec, logger := newLoggedExecutorTo("check", progressSink(format))
-		defer logger.Close()
-		defer exec.Close()
-
-		// Connect to project
-		connectProg, _ := visitor.Build(fmt.Sprintf("CONNECT LOCAL '%s'", visitor.QuoteString(projectPath)))
-		for _, stmt := range connectProg.Statements {
-			if err := exec.Execute(stmt); err != nil {
-				fmt.Fprintf(os.Stderr, "Error connecting: %v\n", err)
-				return 1
-			}
-		}
+		// exec was connected above, before the semantic report.
 
 		// A test file's microflows live in the runner's MxTest module, which
 		// the runner creates first and the project does not have
@@ -397,6 +410,11 @@ func runCheckFile(cmd *cobra.Command, filePath string) int {
 		// reported shape was drop + create in separate runs, which loses the
 		// roles that `create or modify` keeps.
 		projectViolations = append(projectViolations, exec.CheckFlowAccess(prog)...)
+		// MDL-I18N01 (MxBuild CE4899): a script that changes the default
+		// language leaves every required caption written in the old one empty
+		// in the new one (ako/mxcli#944).
+		projectViolations = append(projectViolations, exec.CheckDefaultLanguageCaptions(prog)...)
+
 		if len(projectViolations) > 0 {
 			if isStructured {
 				structured = append(structured, projectViolations...)

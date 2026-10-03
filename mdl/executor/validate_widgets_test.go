@@ -9,6 +9,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/mdl/types"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
 // Issue #650 — MDL-WIDGET04 flags a dynamictext whose template references a {N}
@@ -300,6 +301,9 @@ func TestValidateConsecutiveDynamicText(t *testing.T) {
 	dtRM := func(name, rm string) *ast.WidgetV3 {
 		return &ast.WidgetV3{Type: "dynamictext", Name: name, Properties: map[string]any{"RenderMode": rm}}
 	}
+	dtProp := func(name, key, val string) *ast.WidgetV3 {
+		return &ast.WidgetV3{Type: "dynamictext", Name: name, Properties: map[string]any{key: val}}
+	}
 	tb := func(name string) *ast.WidgetV3 { return &ast.WidgetV3{Type: "textbox", Name: name} }
 	cases := []struct {
 		name     string
@@ -320,6 +324,12 @@ func TestValidateConsecutiveDynamicText(t *testing.T) {
 		{"heading then subtitle", []*ast.WidgetV3{dtRM("h", "H2"), dt("sub")}, false},
 		{"two headings", []*ast.WidgetV3{dtRM("h1", "H2"), dtRM("h2", "H3")}, false},
 		{"heading breaks a run of inlines", []*ast.WidgetV3{dt("a"), dtRM("h", "H2"), dt("b")}, false},
+		// ako/mxcli#943: a text with its own class or style is laid out by the
+		// author's SCSS, and BankV1's report pages drew ~35 notes for them.
+		{"each with its own class", []*ast.WidgetV3{dtProp("a", "Class", "lbl"), dtProp("b", "Class", "val")}, false},
+		{"each with its own style", []*ast.WidgetV3{dtProp("a", "Style", "display:block"), dtProp("b", "Style", "display:block")}, false},
+		{"a styled text breaks the run", []*ast.WidgetV3{dt("a"), dtProp("b", "Class", "val"), dt("c")}, false},
+		{"two classless after a styled one", []*ast.WidgetV3{dtProp("a", "Class", "lbl"), dt("b"), dt("c")}, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -328,6 +338,37 @@ func TestValidateConsecutiveDynamicText(t *testing.T) {
 				t.Errorf("MDL-WIDGET15 present = %v, want %v", got, c.want)
 			}
 		})
+	}
+}
+
+// TestConsecutiveDynamicTextHasALocation: MDL-WIDGET15 printed under
+// "(no module)" with a blank "at", so a report of 35 could not be traced to a
+// page without reading every message (ako/mxcli#943).
+func TestConsecutiveDynamicTextHasALocation(t *testing.T) {
+	prog, errs := visitor.Build(`create page Shop.Report (title: 'R', layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtA (content: 'a')
+  dynamictext txtB (content: 'b')
+}`)
+	if len(errs) > 0 {
+		t.Fatalf("parse: %v", errs)
+	}
+	registry := LoadWidgetRegistry("")
+	var found bool
+	for _, v := range ValidateWidgetPropertiesForStatement(prog.Statements[0], registry) {
+		if v.RuleID != "MDL-WIDGET15" {
+			continue
+		}
+		found = true
+		want := linter.Location{Module: "Shop", DocumentType: "page", DocumentName: "Report"}
+		if v.Location != want {
+			t.Errorf("location = %+v, want %+v", v.Location, want)
+		}
+		if !strings.Contains(v.Message, "txtA") || !strings.Contains(v.Message, "txtB") {
+			t.Errorf("the message does not name the widgets: %s", v.Message)
+		}
+	}
+	if !found {
+		t.Fatal("no MDL-WIDGET15 for two adjacent classless texts")
 	}
 }
 

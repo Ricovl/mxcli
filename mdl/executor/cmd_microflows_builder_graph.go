@@ -301,6 +301,10 @@ func collectListInputVariables(stmts []ast.MicroflowStatement) map[string]bool {
 				if s.List != "" {
 					inputs[s.List] = true
 				}
+			case *ast.ClearListStmt:
+				if s.List != "" {
+					inputs[s.List] = true
+				}
 			case *ast.WhileStmt:
 				walk(s.Body)
 			case *ast.IfStmt:
@@ -629,6 +633,9 @@ func (fb *flowBuilder) addStatement(stmt ast.MicroflowStatement) model.ID {
 				Annotations: s.Annotations,
 			})
 		}
+		if fb.isListVariable(s.Target) {
+			return fb.addReplaceListAction(s)
+		}
 		return fb.addChangeVariableAction(s)
 	case *ast.ReturnStmt:
 		return fb.addEndEventWithReturn(s)
@@ -672,6 +679,8 @@ func (fb *flowBuilder) addStatement(stmt ast.MicroflowStatement) model.ID {
 		return fb.addAddToListAction(s)
 	case *ast.RemoveFromListStmt:
 		return fb.addRemoveFromListAction(s)
+	case *ast.ClearListStmt:
+		return fb.addClearListAction(s)
 	case *ast.CallMicroflowStmt:
 		return fb.addCallMicroflowAction(s)
 	case *ast.CallNanoflowStmt:

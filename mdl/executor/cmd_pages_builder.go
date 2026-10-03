@@ -429,6 +429,8 @@ func execDropPage(ctx *ExecContext, s *ast.DropPageStmt) error {
 				return mdlerrors.NewBackend("delete page", err)
 			}
 			fmt.Fprintf(ctx.Output, "Dropped page %s\n", s.Name.String())
+			writeDroppedGrantsNote(ctx.Output, "page", "view", s.Name.String(), p.AllowedRoles, false)
+
 			return nil
 		}
 	}

@@ -554,6 +554,9 @@ it is for pages.
 | Retrieve (DB), sorted | `sort by Attr asc` / `sort by Module.Other.Attr asc` / `sort by Module.Assoc/Module.Other.Attr asc` | A bare name is qualified with the entity **declaring** it, which may be an ancestor. `describe` prints the bare name whenever it resolves back to the stored attribute, and the qualified name otherwise. A sort may also navigate associations — one `/` per hop, the last segment is the attribute — and mxcli stores the hops as the `EntityRef` Mendix needs; without them the build is **CE7247**. **Name the hop when more than one association reaches the same entity**: a bare `Module.Other.Attr` is resolved by inference, which walks the generalization chain across modules (`Administration.Account` reaches `System.Language.Code` through `System.User_Language`) but cannot tell `Order_ShipTo` from `Order_BillTo` — measured, a sort on the billing address round-tripped into one on the shipping address at 0 errors both sides (mendixlabs/mxcli#1152). The same spelling works in a page datasource's `sort by` |
 | Retrieve (Assoc) | `retrieve $list from $Parent/Module.AssocName;` | Retrieve by association |
 | Add to list | `add expression to $list;` | Also accepts existing `add $item to $list;` form |
+| Remove from list | `remove $item from $list;` | Change list: Remove |
+| Clear a list | `clear $list;` | Change list: Clear. Microflows and nanoflows |
+| Replace a list | `set $list = $other;` | Change list: Replace (stored `Set`). `set` on a **list** variable is a Change list action — a Change variable on a list is CE7247 |
 | Aggregate a list | `$Total = sum($list.Attr);` / `$Total = sum($list, expression);` | `count` (list only), `sum`, `average`, `minimum`, `maximum` — attribute or expression over `$currentObject` |
 | All / any | `$AllMatch = all($list, boolean-expression);` | And `any(...)`. No seed, always Boolean — Mendix stores a Boolean return type for both |
 | Reduce a list | `$Folded = reduce($list, expression, initial: value, returns: Type);` | `$currentResult` is the accumulator. `initial` and `returns` are **required** — Mendix stores both and neither is inferable, so MDL will not guess (#1004) |
@@ -754,6 +757,8 @@ mandatory and a misplaced clause failed with a token error
 - Boundary events, after `outcomes`: `boundary event [non] interrupting timer <expr> { … }` or `boundary event [non] interrupting notification <name> ['<caption>'] { … }` (11.11+). One interrupting event per activity (CE6697, MDL-WF15).
 
 **Notifying a workflow** (a microflow statement): `[$Notified =] notify workflow $Workflow target Module.Workflow.ElementName;` — the element is a notification-started event sub-process's start, a notification activity, a notification boundary event or a wait for notification, and mxcli resolves which. The target is required (CE0166, MDL-WF16).
+
+**Completing a user task** (a microflow statement): `set task outcome $Task 'Approve';` — the outcome is a quoted **literal**, by design: Mendix stores it by name, a reference to one of the task's outcomes resolved at build time, so a variable is a parse error. A shared claim-and-complete flow branches once per outcome (`if $Outcome = 'Approve' then set task outcome $Task 'Approve'; else …`). Claim the task first (MDL-WORKFLOW10).
 
 **Event sub-processes**, after the main body: `event subprocess <name> ['<caption>'] on [non] interrupting notification [<start>] ['<caption>'] { … };` (11.8+) or `… on [non] interrupting timer <first-execution-time> [as <start>] [caption '<caption>'] { … };` (11.13+). The body's End is implicit; a `jump to` stays in its own sub-process (CE6682, MDL-WF05); a timer needs its expression (CE0126, MDL-WF14).
 

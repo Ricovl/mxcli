@@ -129,7 +129,55 @@ func unusedVendoredFamilies(scss string, tokens *Tokens) []string {
 	return unused
 }
 
+// genericFontFamilies are the CSS generic families and system-font aliases: a
+// stack led by one of these asks for whatever the platform has, so there is no
+// file to ship and nothing to warn about.
+var genericFontFamilies = map[string]bool{
+	"serif": true, "sans-serif": true, "monospace": true, "cursive": true,
+	"fantasy": true, "math": true, "emoji": true, "fangsong": true,
+	"system-ui": true, "ui-serif": true, "ui-sans-serif": true,
+	"ui-monospace": true, "ui-rounded": true,
+	"-apple-system": true, "blinkmacsystemfont": true,
+	"inherit": true, "initial": true, "unset": true, "revert": true,
+}
+
+// unvendoredSeededFamilies returns the primary family of each seeded font stack
+// that the base partial does not load with @font-face (#944).
+//
+// Only the first family counts: it is the one the design chose, and the rest
+// of the stack is the fallback that by definition renders "where installed". A
+// stack led by a generic family or a var() reference names no font file to
+// ship. A family is vendored when the partial loads it, compared without case.
+func unvendoredSeededFamilies(scss string, tokens *Tokens) []string {
+	if tokens == nil {
+		return nil
+	}
+	vendored := map[string]bool{}
+	for _, fam := range vendoredFamilies(scss) {
+		vendored[strings.ToLower(fam)] = true
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, name := range []string{"--mxt-font", "--mxt-font-heading", "--mxt-font-mono"} {
+		v, ok := tokens.Base[name]
+		if !ok {
+			continue
+		}
+		first := strings.TrimSpace(strings.SplitN(v, ",", 2)[0])
+		first = strings.Trim(first, `"'`)
+		key := strings.ToLower(first)
+		if first == "" || strings.HasPrefix(key, "var(") || genericFontFamilies[key] ||
+			vendored[key] || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, first)
+	}
+	return out
+}
+
 // dropFontFaces removes the @font-face blocks for the named families, and the
+
 // section comment when nothing is left to explain.
 func dropFontFaces(scss string, families []string) string {
 	for _, fam := range families {
@@ -219,10 +267,13 @@ func (r *rewriter) planFonts(src source, root string, tokens *Tokens) error {
 	if err != nil {
 		// A base theme with no such partial simply has no vendored fonts to
 		// reason about. That is not an error — it is a theme that already
-		// relies on system fonts.
+		// relies on system fonts. Every seeded family is then unvendored.
+		r.unvendoredFonts = unvendoredSeededFamilies("", tokens)
 		return nil
 	}
 	scss := string(body)
+	r.unvendoredFonts = unvendoredSeededFamilies(scss, tokens)
+
 	r.droppedFonts = unusedVendoredFamilies(scss, tokens)
 	r.keptAnyFont = len(r.droppedFonts) < len(vendoredFamilies(scss))
 	return nil

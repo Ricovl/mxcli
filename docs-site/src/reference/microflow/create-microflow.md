@@ -73,6 +73,18 @@ RETRIEVE $List FROM $Parent/Module.AssocName;
 
 `RETRIEVE ... FIRST` returns a single entity. Without a range, or with `LIMIT`/`OFFSET`, it returns a list. A bare `LIMIT 1` is a list of one (for a script file without the header, see [Language Versions and Migration](../../language/versions.md)). Retrieve by association traverses an association from a known object.
 
+**List Changes**
+
+```sql
+$List = CREATE LIST OF Module.Entity;
+ADD $Item TO $List;
+REMOVE $Item FROM $List;
+CLEAR $List;
+SET $List = $Other;
+```
+
+These are the four operations of a Change list activity: Add, Remove, Clear and Replace. `SET` on a list variable is Replace (stored as `Set`), not a Change variable activity, which Mendix allows only on primitive variables (CE7247). All four work in nanoflows too.
+
 **Calls**
 
 ```sql

@@ -74,8 +74,10 @@ func flowRefusal(d *flowDecl, why error) error {
 		"create or modify %s %s: this change cannot be spliced into the stored flow: %v. "+
 			"Nothing was written: rebuilding the whole flow instead would reset what Studio Pro drew "+
 			"(curves, merges, element IDs). Change activities with `alter %s %s { … }`; "+
-			"to rebuild the flow deliberately, drop the %s and create it",
+			"to rebuild the flow deliberately, drop the %s and create it in the same script "+
+			"(the drop's module-role grants carry to a create in the same script or session, not to one in a later run)",
 		d.kind(), d.name, why, d.kind(), d.name, d.kind()))
+
 }
 
 // replaceLoopAdvice is what `create or modify` and `alter` both say about a

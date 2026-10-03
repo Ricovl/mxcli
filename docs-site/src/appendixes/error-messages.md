@@ -175,6 +175,20 @@ level Production. This script creates it as a NEW microflow, ... [MDL-SEC21]
 
 It is an **error at security level Prototype or Production** (the stored level, or the one the script sets) and a warning at Off, where MxBuild does not check it. Only what the script changes is reported: a flow that already had the problem before the script, and that the script does not touch, is left to `mxcli docker check`.
 
+### MDL-I18N01: A tab page caption without the default language (CE4899)
+
+```
+✗ Administration.Account_Overview: tab page caption tabPage2 ("Local Users") has no
+de_DE text once this script makes de_DE the default language — mxbuild reports
+CE4899 "Empty caption" [MDL-I18N01]
+  → change the default language before creating the document, or give it a de_DE
+    text after the change: `alter page Administration.Account_Overview { set (Caption: '…') on tabPage2; };`
+```
+
+**Cause:** With a project (`check -p`), the script changes `DefaultLanguageCode` while a tab page caption has no text in the new default: one stored in the project, or one a `create page` / `create snippet` earlier in the script wrote in the old default. Mendix has no language-neutral text — a caption is stored per language, and a new one under the default at the time. Measured on Mendix 11.14, a tab page caption is the one caption kind MxBuild refuses when the default has no text (CE4899 "Empty caption. [German, Germany]"); a page title, button, label or menu item caption builds and shows the placeholder in Studio Pro instead. A stock app's `Administration.Account_Overview` has an en_US-only `tabPage2`, so switching such an app to another default fails the build.
+
+**Solution:** Change the default language before the script creates its pages, or give each caption a text in the new default after the change — `alter page … { set (Caption: '…') on <tab>; };` (or `alter snippet`) writes the default language. `alter settings language (DefaultLanguageCode: …)` prints the list when it runs, and `mxcli lint` reports the project's existing ones as **QUAL006**. A page the script creates or rewrites *after* the change is written in the new default and is not reported.
+
 ### MDL-DUPDEF: Element defined twice in one script
 
 ```

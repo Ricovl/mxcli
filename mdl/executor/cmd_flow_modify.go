@@ -839,17 +839,7 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 			return pd.statements(d.ElseBody, s.ElseBody)
 		}
 		if sameLoopShell(ins[0], del[0]) {
-			// The splice does not edit inside a loop, and the engine would
-			// take this as a replace of the whole loop: every node in it
-			// rebuilt, renumbered and redrawn — the rebuild's loss, confined
-			// to the loop but no less silent. An explicit `alter … replace
-			// loop` states that loss, so the refusal names it.
-			why := &notSpliceable{reason: fmt.Sprintf("the %s changes inside its body; the splice does not edit inside a loop, "+
-				"and replacing the whole loop would rebuild every node it holds", describeAt(del[0]))}
-			if c, err := pd.loc.locate(del[0]); err == nil {
-				why.loopHandle = c.Statement
-			}
-			return why
+			return pd.loopBodyChanged(del[0])
 		}
 		if sameIgnoringLayout(ins[0], del[0]) {
 			return redrawn(del[0])
@@ -864,6 +854,18 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 		for _, st := range del {
 			if sameIgnoringLayout(d, st) {
 				return redrawn(st)
+			}
+		}
+	}
+	// A stored loop declared again with a new body, in a run with other
+	// changes: replacing the run would rebuild the loop just as replacing it
+	// alone would, so it is refused the same way. Asked only of the 1:1 run,
+	// the refusal depended on what happened to change NEXT to the loop
+	// (ako/mxcli#942).
+	for _, d := range ins {
+		for _, st := range del {
+			if sameLoopShell(d, st) {
+				return pd.loopBodyChanged(st)
 			}
 		}
 	}
@@ -1054,6 +1056,20 @@ func sameLoopShell(declared, stored ast.MicroflowStatement) bool {
 		return sameIgnoringLayout(&dShell, &sShell)
 	}
 	return false
+}
+
+// loopBodyChanged refuses a change inside the body of the stored loop. The
+// splice does not edit inside a loop, and the engine would take it as a replace
+// of the whole loop: every node in it rebuilt, renumbered and redrawn — the
+// rebuild's loss, confined to the loop but no less silent. An explicit
+// `alter … replace loop` states that loss, so the refusal names it.
+func (pd *patchDiff) loopBodyChanged(stored ast.MicroflowStatement) error {
+	why := &notSpliceable{reason: fmt.Sprintf("the %s changes inside its body; the splice does not edit inside a loop, "+
+		"and replacing the whole loop would rebuild every node it holds", describeAt(stored))}
+	if c, err := pd.loc.locate(stored); err == nil {
+		why.loopHandle = c.Statement
+	}
+	return why
 }
 
 // describeAt names a stored statement and where it is drawn, for a message.

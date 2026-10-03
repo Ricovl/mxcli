@@ -38,7 +38,12 @@ Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode
   rebuilds the whole nanoflow under mdl 0
   (warning `MDL-V1-REBUILD`: element IDs renumbered, merges removed, curves reset) and
   is refused under `mdl 1;`.
-- **Changing something inside a loop body** (either owner): neither `create or modify`
+- **Rebuilding deliberately: `drop nanoflow X;` and `create nanoflow X …` in ONE script.**
+  The drop's module-role grants (and the unit's ID and folder) carry only to a create later in
+  the same script or REPL session; a drop in one run and a create in the next loses every
+  `grant execute`. `drop` prints the roles it removed and the `grant` to restore them.
+- **Changing something inside a loop body** (either owner)
+: neither `create or modify`
   (under `mdl 1;`) nor an `alter` aimed at an activity in the loop can make it — `alter`
   does not splice inside a loop. Replace the **whole loop**, addressed by its handle, with
   the body as it should be (`replace loop $Item in $Items with begin loop $Item in $Items

@@ -133,6 +133,24 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 			"    grant execute on microflow Mod.ACT_StartApproval to Mod.Manager;   (correct)\n"+
 			"    grant execute on workflow Mod.Approval to Mod.Manager;             (removed)", msg)
 	}
+	// `set task outcome $Task $Var`: the outcome is a literal by design, under
+	// every language version (ako/mxcli#944).
+	if taskOutcomeNonLiteralRe.MatchString(offendingLine) {
+		return fmt.Sprintf("%s\n\n  `set task outcome` takes the outcome as a quoted literal, not a variable or\n"+
+			"  an expression. Mendix stores it by name — a reference to one outcome of the\n"+
+			"  user task, resolved when the app is built — so there is nothing to hold a\n"+
+			"  value computed at runtime:\n"+
+			"    set task outcome $Task 'Approve';     (correct)\n"+
+			"    set task outcome $Task $Outcome;      (not possible)\n"+
+			"  A shared claim-and-complete flow takes the outcome as a parameter and has\n"+
+			"  one branch per outcome, each with its own literal:\n"+
+			"    if $Outcome = 'Approve' then\n"+
+			"      set task outcome $Task 'Approve';\n"+
+			"    else\n"+
+			"      set task outcome $Task 'Reject';\n"+
+			"    end if;\n"+
+			"  See `mxcli syntax workflow set-task-outcome`.", msg)
+	}
 	if strings.Contains(msg, "'else' expecting {WHEN, END}") {
 		return fmt.Sprintf("%s\n\n  An enumeration split (`case`) has no default branch: Mendix gives it one\n"+
 			"  outgoing flow per value plus one for (empty), and no `else` flow. Write a\n"+
@@ -342,6 +360,10 @@ var addMissingAttributeRe = regexp.MustCompile(`(?i)\badd\s+([A-Za-z_]\w*)\s*:`)
 // bareNotRe matches a bare `not $…` (not followed by `(`) on a source line — the
 // exact shape of the unparenthesized-negation mistake. Scoped to `not $var` to
 // stay false-positive-free (it won't fire on `not(...)`, `is not null`, etc.).
+// taskOutcomeNonLiteralRe matches a `set task outcome $Task` followed by
+// anything but a string literal.
+var taskOutcomeNonLiteralRe = regexp.MustCompile(`(?i)\bset\s+task\s+outcome\s+\$[\w.]+\s+[^'\s;]`)
+
 var bareNotRe = regexp.MustCompile(`(?i)\bnot\s+\$`)
 
 // removedCreateCommentRe matches a `comment '…'` option on one of the CREATE
