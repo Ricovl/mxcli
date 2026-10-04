@@ -14,7 +14,7 @@ import (
 
 // validateQuotedTemplateParams emits an info hint (MDL-PARAMQUOTE01) for a
 // template parameter whose value is a quoted string that reads like an
-// expression: `{1} = 'formatDateTime($Log/Date, ''d MMM'')'`.
+// expression, such as a quoted formatDateTime($Log/Date, …) call.
 //
 // The quotes make it a String literal, which is exactly what is stored — the
 // page then shows the expression's TEXT. That is valid, builds clean and is
@@ -65,7 +65,7 @@ func validateQuotedTemplateParams(w *ast.WidgetV3, locationPrefix string) []lint
 }
 
 // singleStringLiteral reports whether s is exactly one Mendix string literal
-// ('…' with '' as the escaped quote) and returns its raw body.
+// (quoted, with a doubled quote as the escape) and returns its raw body.
 func singleStringLiteral(s string) (string, bool) {
 	s = strings.TrimSpace(s)
 	if len(s) < 2 || s[0] != '\'' || s[len(s)-1] != '\'' {
