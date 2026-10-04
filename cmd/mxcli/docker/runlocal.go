@@ -825,8 +825,11 @@ func RunLocal(opts LocalRunOptions) error {
 	// The local runtime boots with the live-preview dev flags (see
 	// LocalRuntimeOptions.jvmArgs), so `mxcli oql` can query it directly — and it
 	// now defaults to the local admin password, so no M2EE_ADMIN_PASS is needed
-	// (findings #36).
+	// (findings #36). Neither hint names the admin port: both commands read it,
+	// and the password, from the .mxcli/run-local.json that OnReady just
+	// published, so a non-default --admin-port needs no flag (ako/mxcli#982).
 	fmt.Fprintf(w, "Query data:  mxcli oql -p %s \"SELECT ...\"\n", opts.ProjectPath)
+	fmt.Fprintf(w, "Log levels:  mxcli log list -p %s\n", opts.ProjectPath)
 	if runtimeLog != "" {
 		fmt.Fprintf(w, "Runtime log: %s\n", runtimeLog)
 	}

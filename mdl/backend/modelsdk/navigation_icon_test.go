@@ -48,7 +48,7 @@ func TestNavMenuIconBson_EmptyNameStaysNull(t *testing.T) {
 
 // The Icon must survive navMenuItemBson, not just the helper.
 func TestNavMenuItemBson_CarriesTheIconThrough(t *testing.T) {
-	item := navMenuItemBson(types.NavMenuItemSpec{
+	item := mustNavMenuItemBson(t, types.NavMenuItemSpec{
 		Caption: "Dashboard", Page: "M.Dash", Icon: "Atlas_Core.Atlas.align-center",
 	})
 	icon, present := navIconEntry(item, "Icon")

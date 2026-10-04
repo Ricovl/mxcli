@@ -682,6 +682,13 @@ func (h *harness) documents() []document {
 			for _, n := range childNames(doc, "ModuleRoles") {
 				docs = append(docs, document{"module role", mod + "." + n})
 			}
+		case "Navigation$NavigationDocument":
+			// One document per profile: `describe navigation <profile>` is a
+			// `create or modify navigation` that rebuilds the profile's menu, so
+			// every menu item action has to survive it (ako/mxcli#980).
+			for _, n := range childNames(doc, "Profiles") {
+				docs = append(docs, document{"navigation", n})
+			}
 		case "Security$ProjectSecurity":
 			for _, n := range childNames(doc, "UserRoles") {
 				docs = append(docs, document{"user role", "'" + n + "'"})

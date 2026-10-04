@@ -44,9 +44,12 @@ type NavSyncDef struct {
 
 // NavHomePageDef represents a HOME PAGE or HOME MICROFLOW clause.
 type NavHomePageDef struct {
-	IsPage  bool           // true = PAGE, false = MICROFLOW
-	Target  QualifiedName  // the page or microflow qualified name
-	ForRole *QualifiedName // nil for default home, set for role-based
+	IsPage bool // true = PAGE, false = MICROFLOW or NANOFLOW
+	// IsNanoflow is `home nanoflow` — a native profile's flow home. A web
+	// profile's flow home is a microflow, a native one's a nanoflow.
+	IsNanoflow bool
+	Target     QualifiedName  // the page or microflow qualified name
+	ForRole    *QualifiedName // nil for default home, set for role-based
 }
 
 // NavMenuItemDef represents a MENU ITEM or MENU sub-menu definition.
@@ -55,7 +58,14 @@ type NavMenuItemDef struct {
 	Page      *QualifiedName // PAGE target
 	Microflow *QualifiedName // MICROFLOW target
 	SignOut   bool           // SIGN_OUT — the third action a menu item can carry
-	Icon      string         // the qualified name, for the collection and image kinds
+	// Action is the item's OnClick as the widget action expression it is
+	// (ako/mxcli#980): every kind a menu item stores — show page, call
+	// microflow / nanoflow, open link, create object, sign out, nothing — with
+	// its `with ( … )` settings. Set for every action the script states,
+	// including the old clause spelling; Page / Microflow / SignOut still name
+	// the simple targets for the checks that read them. nil: no action stated.
+	Action *ActionV3
+	Icon   string // the qualified name, for the collection and image kinds
 	// IconKind says WHICH of Mendix's three icon elements was written. They are
 	// not variants of one value — a glyph carries a numeric code and no name —
 	// so a single Icon string could express only one of the three, and the other

@@ -226,7 +226,7 @@ refuse the spelling; until then it only warns.
 
 ### Changes of meaning (`MDL-V1-*`)
 
-21 constructs mean something different under the `mdl 1;` header. Without the header each keeps the meaning in the second column and warns with its code.
+22 constructs mean something different under the `mdl 1;` header. Without the header each keeps the meaning in the second column and warns with its code.
 
 | Code | Without the header (mdl 0) | Under `mdl 1;` | Decided at | Rewritten by `fmt --upgrade` |
 |---|---|---|---|---|
@@ -250,6 +250,7 @@ refuse the spelling; until then it only warns.
 | `MDL-V1-SLASH` | a `/` after a statement is accepted as a terminator (SQL*Plus style) | an error: `;` is the only statement terminator | parse | yes: `fmt --upgrade --header` |
 | `MDL-V1-TEMPLATE` | a message template written as one string literal that spans lines is an expression: the template is `{1}` and the literal its parameter | the template text, as a literal on one line is; a line break in a template is written into the literal | parse | yes: `fmt --upgrade --header` |
 | `MDL-V1-TEMPLATEATTR` | a text-template parameter bound to a non-String attribute (`{1} = $Order.Total`) was stored as `toString($Order/Total)` by earlier mxcli releases | an attribute reference, rendered with the attribute's formatting, as Studio Pro stores it | exec | no: decided by exec against the project; `check -p` reports it |
+| `MDL-V1-VIEWAUTONUMBER` | a view entity attribute declared `autonumber` over an AutoNumber column passes check, and mxbuild reports CE6770 "View Entity is out of sync with the OQL Query" | a check error that names the attribute and suggests `long`, the type the view gives the column | exec | no: decided by exec against the project; `check -p` reports it |
 | `MDL-V1-WHILE` | `while <condition>` accepts a body without `begin` and an `end` without `while` | an error: a while loop is `while <condition> begin … end while;`, like `loop … begin … end loop;` | parse | yes: `fmt --upgrade --header` |
 
 ### Deprecated spellings (`MDL-DEPR*`)

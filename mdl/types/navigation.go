@@ -70,8 +70,20 @@ type NavMenuItem struct {
 	// identifies a glyph icon, since it carries no qualified name. Without it a
 	// reader knows a glyph was there but not which one, so it can neither be
 	// re-emitted by DESCRIBE nor carried through a rewrite.
-	IconCode int            `json:"iconCode,omitempty"`
-	Items    []*NavMenuItem `json:"items,omitempty"`
+	IconCode int `json:"iconCode,omitempty"`
+	// StoredAction is the item's client action exactly as stored (its raw
+	// BSON document), so an action MDL cannot spell is carried through a
+	// rewrite instead of being replaced by Forms$NoAction (ako/mxcli#980).
+	StoredAction []byte `json:"-"`
+	// ActionDoc is StoredAction decoded into the map shape the page describer's
+	// client-action renderer reads, so a menu item's action is printed by the
+	// same code as a button's.
+	ActionDoc map[string]any `json:"-"`
+	// Action is the action to write, built from MDL — a pages.ClientAction,
+	// typed any because sdk/pages imports this package. Set on items the menu
+	// document writer builds from a script; nil on items read from storage.
+	Action any            `json:"-"`
+	Items  []*NavMenuItem `json:"items,omitempty"`
 }
 
 // HasIcon reports whether the item carries an icon of ANY of the three kinds.
@@ -251,5 +263,21 @@ type NavMenuItemSpec struct {
 	IconKind MenuIconKind
 	// IconCode is the glyph's numeric Code, meaningful only for MenuIconGlyph.
 	IconCode int
-	Items    []NavMenuItemSpec
+	// KeepAction is a stored client action (raw BSON) the writer puts back
+	// verbatim instead of building one from Page/Microflow/SignOut. The executor
+	// sets it when the script's item states no action and the stored one is an
+	// action MDL cannot express — writing Forms$NoAction there would silently
+	// delete it (ako/mxcli#980).
+	KeepAction []byte
+	// Action is the item's action built from the script's OnClick — a
+	// pages.ClientAction, typed any because sdk/pages imports this package. The
+	// writer serializes it with the widget client-action serializer, so a menu
+	// item's action is stored in the shape a button's is (ako/mxcli#980).
+	Action any
+	// StoredAction is the stored action of the item this one replaces (paired by
+	// caption path). When Action builds the same action except for properties
+	// MDL cannot spell, the writer keeps StoredAction, so those properties — a
+	// page title override, a link type — survive a rewrite.
+	StoredAction []byte
+	Items        []NavMenuItemSpec
 }

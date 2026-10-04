@@ -568,8 +568,12 @@ alterPageDropVariable
     : DROP VARIABLES_KW VARIABLE              // DROP Variables $show
     ;
 
+// A native profile's home is a page or a NANOFLOW (Navigation$NativeHomePage
+// HomePagePage / HomePageNanoflow); `home nanoflow` names the second. Before it
+// existed describe printed a native nanoflow home as `home microflow`
+// (ako/mxcli#980). Additive: `home microflow` still parses.
 navigationClause
-    : HOME (PAGE | MICROFLOW) qualifiedName (FOR qualifiedName)?
+    : HOME (PAGE | MICROFLOW | NANOFLOW) qualifiedName (FOR qualifiedName)?
     | LOGIN PAGE qualifiedName
     | NOT FOUND PAGE qualifiedName
     // The profile's menu items are its declarative children, in { } like a
@@ -664,17 +668,28 @@ navMenuItemProps
     : LPAREN (navMenuItemProp (COMMA navMenuItemProp)* COMMA?)? RPAREN
     ;
 
-// OnClick takes the three actions a menu item can carry, in the page-action
-// words (R8); Icon the three icon elements, as navMenuIcon.
+// OnClick takes a page action, in the page-action words (R8); Icon the three
+// icon elements, as navMenuIcon.
 navMenuItemProp
     : ONCLICK COLON navMenuAction
     | ICON COLON navMenuIconValue
     ;
 
+// A menu item stores the same client action a button does (Forms$FormAction,
+// Forms$MicroflowAction, Forms$CallNanoflowClientAction, Forms$OpenLinkClientAction,
+// Forms$CreateObjectClientAction, Forms$SignOutClientAction, Forms$NoAction —
+// measured on ako/TestApp), so OnClick takes the widget action expression,
+// settings included:
+//   menu item 'Reports' ( OnClick: call nanoflow M.ShowReports with (ProgressBar: Blocking) )
+//   menu item 'Docs' ( OnClick: open link 'https://docs.mendix.com' )
+//   menu item 'New order' ( OnClick: create object M.Order then show page M.Order_New )
+// It used to take only show page, call microflow and sign out, so describe
+// printed every other action as nothing and a re-run stored Forms$NoAction
+// (ako/mxcli#980). The three old forms are actionExprV3 alternatives, so every
+// script that parsed still parses. The kinds a menu item cannot carry (save,
+// delete, close page, …) are refused by the visitor.
 navMenuAction
-    : SHOW PAGE qualifiedName
-    | CALL MICROFLOW qualifiedName
-    | SIGN_OUT
+    : actionExprV3
     ;
 
 // Mendix stores three DIFFERENT icon elements, and they are not variants of one

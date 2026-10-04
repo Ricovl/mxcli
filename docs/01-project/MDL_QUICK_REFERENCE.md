@@ -904,6 +904,7 @@ alter workflow Module.OrderApproval {
 | Show menu tree | `list navigation menu [Profile];` | Menu tree for profile or all |
 | Show home pages | `list navigation homes;` | Home page assignments across profiles |
 | Describe navigation | `describe navigation [Profile];` | Full MDL output (round-trippable) |
+| Native home | `home nanoflow Mod.Flow` | A native profile's flow home; mxcli writes a native profile's home pages and sync only |
 | Create/replace navigation | `create or replace navigation Profile ...;` | Full replacement — and **creates** the profile if the project does not have it |
 | Offline sync | `sync ( sync Mod.Entity all; ... )` | A clause of CREATE NAVIGATION. Modes: `online`, `all`, `where '<xpath>'`, `never`, `none`, `none preserve data`. **Not** Studio Pro's captions — its "All Objects" is `all`, its "By XPath" is `where`. An offline profile downloads nothing without this |
 | Profile kinds | `Responsive` · `Phone` · `Tablet` · `ResponsiveOffline` · `PhoneOffline` · `TabletOffline` | A closed set. An invented name (`Mobile`) is an error, not a new profile: the runtime routes on User-Agent to Mendix's own kinds. Native profiles are a different document type and are not creatable |
@@ -911,7 +912,9 @@ alter workflow Module.OrderApproval {
 
 Menu items are the profile's children, in `{ }` after its clauses, with no `;`
 between them: `menu item 'Caption' ( OnClick: show page M.P, Icon: … )`, where
-`OnClick` is `show page M.P`, `call microflow M.F` or `sign out`, and a sub-menu
+`OnClick` is a button's action expression with its `with ( … )` settings —
+`show page M.P`, `call microflow M.F`, `call nanoflow M.N`, `open link '…'`,
+`create object M.E [then show page M.P]`, `sign out` or `nothing` — and a sub-menu
 is `menu 'Caption' [( Icon: … )] { … }`. The old `menu ( menu item 'X' page M.P; )`
 spelling still parses and warns (MDL-DEPR121, MDL-DEPR122).
 

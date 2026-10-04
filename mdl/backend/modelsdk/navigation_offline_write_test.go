@@ -107,3 +107,27 @@ func TestOfflineWriteEmitsExactlyThePropertiesStudioProWrites(t *testing.T) {
 		t.Errorf("wrote %d properties (%v); Studio Pro writes four plus $ID and $Type", len(got), got)
 	}
 }
+
+// ako/mxcli#980 (found adding navigation to the round-trip harness): Studio Pro
+// lays a sync constraint out over several lines — TestApp's TabletOffline
+// stores "[\n  (\n    contains(ActionValue, ”'abc”')\n  )\n]" — describe
+// folds it onto one, and the rewrite stored the folded text, so every
+// describe -> exec of an offline profile rewrote it. The same constraint with
+// other whitespace keeps the stored layout.
+func TestOfflineWriteKeepsTheStoredLayoutOfAnUnchangedConstraint(t *testing.T) {
+	stored := "[\n  (\n    contains(ActionValue, '''a  b''')\n  )\n]"
+	out := navOfflineConfigs(bson.A{navMarkerItems, offlineCfg("Rules.RuleAction", "Constrained", stored, false)},
+		[]types.NavOfflineEntitySpec{{Entity: "Rules.RuleAction", SyncMode: "Constrained",
+			Constraint: "[( contains(ActionValue, '''a  b''') )]"}})
+	if got := cfgMap(t, out[1])["Constraint"]; got != stored {
+		t.Errorf("Constraint = %q, want the stored layout kept", got)
+	}
+	// CONTROL: whitespace inside a literal is part of the value, so a changed
+	// literal is a changed constraint and is written.
+	changed := "[( contains(ActionValue, '''a b''') )]"
+	out = navOfflineConfigs(bson.A{navMarkerItems, offlineCfg("Rules.RuleAction", "Constrained", stored, false)},
+		[]types.NavOfflineEntitySpec{{Entity: "Rules.RuleAction", SyncMode: "Constrained", Constraint: changed}})
+	if got := cfgMap(t, out[1])["Constraint"]; got != changed {
+		t.Errorf("Constraint = %q, want the changed one %q", got, changed)
+	}
+}
