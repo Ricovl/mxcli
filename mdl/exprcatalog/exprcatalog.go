@@ -202,6 +202,38 @@ func (r *Reader) loadAssociations(db Querier) error {
 	return rows.Err()
 }
 
+// DeclareEnumeration records an enumeration a script creates, replacing what
+// the catalog held under that name (a CREATE OR MODIFY redefines the cases).
+//
+// The catalog is built from the stored project, so without this an attribute
+// or enumeration created earlier in the same script resolved to nothing, the
+// kind came out Unknown, and every rule keyed on it stayed silent — a genuine
+// `change $X (EnumAttr = 'NW')` passed check whenever the enum was new
+// (ako/mxcli#969).
+func (r *Reader) DeclareEnumeration(enumQN string, cases []string) {
+	if enumQN == "" {
+		return
+	}
+	r.enumCase[enumQN] = append([]string(nil), cases...)
+}
+
+// DeclareAttribute records an attribute a script creates or retypes. An
+// unknown kind removes any stored entry rather than keeping a stale type.
+func (r *Reader) DeclareAttribute(entityQN, attrName string, kind exprcheck.TypeKind, enumQN string) {
+	if entityQN == "" || attrName == "" {
+		return
+	}
+	key := entityQN + "." + attrName
+	delete(r.attrKind, key)
+	delete(r.attrEnum, key)
+	if kind != exprcheck.KindUnknown {
+		r.attrKind[key] = kind
+	}
+	if kind == exprcheck.KindEnumeration && enumQN != "" {
+		r.attrEnum[key] = enumQN
+	}
+}
+
 // AssociationTarget returns the entity at the other end of an association.
 //
 // Both directions resolve: a Mendix expression follows an association from its

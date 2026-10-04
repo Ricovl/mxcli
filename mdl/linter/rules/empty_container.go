@@ -10,7 +10,13 @@ import (
 )
 
 // EmptyContainerRule checks for CONTAINER widgets with no children.
-// Empty containers crash the runtime with "Did not expect an argument to be undefined".
+//
+// It used to say an empty container "crashes at runtime" with "Did not expect
+// an argument to be undefined", a claim dating from the initial commit with no
+// measurement behind it. Measured for ako/mxcli#969 on Mendix 11.13.0: a page
+// with an empty container passes `mx check`, builds, and renders under
+// `run --local` with the widgets after it present and no console errors. So it
+// is an info note about a probably-unintended leftover, not a defect.
 type EmptyContainerRule struct{}
 
 // NewEmptyContainerRule creates a new empty container rule.
@@ -20,15 +26,15 @@ func NewEmptyContainerRule() *EmptyContainerRule {
 
 func (r *EmptyContainerRule) ID() string                       { return "MPR006" }
 func (r *EmptyContainerRule) Name() string                     { return "EmptyContainer" }
-func (r *EmptyContainerRule) Category() string                 { return "correctness" }
-func (r *EmptyContainerRule) DefaultSeverity() linter.Severity { return linter.SeverityWarning }
+func (r *EmptyContainerRule) Category() string                 { return "quality" }
+func (r *EmptyContainerRule) DefaultSeverity() linter.Severity { return linter.SeverityInfo }
 
 // RequiredCatalogMode: ctx.Widgets() reads widgets_data, which only a full
 // catalog build fills; under the default fast build the rule found nothing.
 func (r *EmptyContainerRule) RequiredCatalogMode() linter.CatalogMode { return linter.CatalogFull }
 
 func (r *EmptyContainerRule) Description() string {
-	return "Checks for CONTAINER widgets with no children (crashes at runtime)"
+	return "Checks for CONTAINER widgets with no children (valid and renders, but usually a leftover)"
 }
 
 // emptyContainerInfo holds information about a found empty container widget.
@@ -88,7 +94,7 @@ func (r *EmptyContainerRule) Check(ctx *linter.LintContext) []linter.Violation {
 			violations = append(violations, linter.Violation{
 				RuleID:   r.ID(),
 				Severity: r.DefaultSeverity(),
-				Message: fmt.Sprintf("CONTAINER '%s' in %s has no children and will crash at runtime",
+				Message: fmt.Sprintf("CONTAINER '%s' in %s is empty — valid and it renders, but probably unintended",
 					e.Name, c.QualifiedName),
 				Location: linter.Location{
 					Module:       c.ModuleName,
@@ -96,7 +102,7 @@ func (r *EmptyContainerRule) Check(ctx *linter.LintContext) []linter.Violation {
 					DocumentName: docNameFromQualified(c.QualifiedName),
 					DocumentID:   c.ID,
 				},
-				Suggestion: "Add a child widget (e.g., DYNAMICTEXT with Content: ' ') or remove the empty container",
+				Suggestion: "Remove the container, or give it the content it was meant to hold",
 			})
 		}
 	}
