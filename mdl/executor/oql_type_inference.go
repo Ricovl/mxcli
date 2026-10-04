@@ -9,6 +9,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 )
@@ -259,6 +260,20 @@ func inferTypeStatic(expr string) ast.DataType {
 		}
 	}
 
+	// String concatenation: a top-level `+` with a string operand is a derived
+	// string, String(200) in mxbuild whatever the operands' lengths —
+	// `r.Name + ' x'` over a String(100) Name builds only when the view
+	// declares String(200); `string` and `string(100)` are CE6770 (measured,
+	// 11.13.0, ako/mxcli#981). Checked before the prefix rules below, which
+	// would otherwise read `cast(…) + ' x'` as the cast alone.
+	if parts := splitTopLevelPlus(expr); len(parts) > 1 {
+		for _, p := range parts {
+			if p != "" && inferTypeStatic(p).Kind == ast.TypeString {
+				return ast.DataType{Kind: ast.TypeString, Length: derivedStringLength}
+			}
+		}
+	}
+
 	// count(...) → Integer (Mendix OQL COUNT returns Integer)
 	if strings.HasPrefix(upper, "COUNT(") {
 		return ast.DataType{Kind: ast.TypeInteger}
@@ -461,9 +476,23 @@ func passthroughLengthError(attrName string, declared, inferred ast.DataType, ex
 		sourceEntity, sourceAttr, attrName, formatDataTypeForMDL(inferred))
 }
 
-// validateViewEntityTypes validates that declared attribute types match inferred OQL types.
-func validateViewEntityTypes(ctx *ExecContext, stmt *ast.CreateViewEntityStmt) []string {
-	var errors []string
+// viewAutoNumberRefused is the language change for ako/mxcli#981 item 4: a view
+// attribute declared AutoNumber over an AutoNumber column. Mendix reports
+// CE6770 "View Entity is out of sync with the OQL Query" for it (measured, mx
+// check 11.13.0); the column is a Long in the view. check accepted it on
+// purpose until a header could carry the rejection (ADR-0011).
+var viewAutoNumberRefused = langver.Change{
+	Code:  "MDL-V1-VIEWAUTONUMBER",
+	Since: langver.V1,
+	Old: "a view entity attribute declared `autonumber` over an AutoNumber column passes check, " +
+		"and mxbuild reports CE6770 \"View Entity is out of sync with the OQL Query\"",
+	New: "a check error that names the attribute and suggests `long`, the type the view gives the column",
+}
+
+// validateViewEntityTypes validates that declared attribute types match
+// inferred OQL types. The warnings are the findings a headerless script keeps
+// at their old meaning (viewAutoNumberRefused).
+func validateViewEntityTypes(ctx *ExecContext, stmt *ast.CreateViewEntityStmt) (errors, warnings []string) {
 
 	// First validate OQL syntax for common mistakes
 	syntaxViolations := ValidateOQLSyntax(stmt.Query.RawQuery)
@@ -507,6 +536,21 @@ func validateViewEntityTypes(ctx *ExecContext, stmt *ast.CreateViewEntityStmt) [
 			continue
 		}
 
+		if attr.Type.Kind == ast.TypeAutoNumber && col.InferredType.Kind == ast.TypeAutoNumber {
+			msg := fmt.Sprintf(
+				"attribute '%s': declared as AutoNumber over the AutoNumber column '%s' — a view reads the "+
+					"column as a Long, and mxbuild reports CE6770 \"View Entity is out of sync with the OQL Query\". "+
+					"Fix: change to '%s: Long'", attr.Name, col.Expression, attr.Name)
+			if viewAutoNumberRefused.Applies(ctx.LanguageVersion) {
+				errors = append(errors, msg)
+			} else {
+				warnings = append(warnings, fmt.Sprintf("[%s] view entity %s: %s. %s",
+					viewAutoNumberRefused.Code, stmt.Name.String(), msg,
+					viewAutoNumberRefused.Warning(ctx.LanguageVersion)))
+			}
+			continue
+		}
+
 		// Compare types
 		if !typesCompatible(attr.Type, col.InferredType) {
 			errors = append(errors, fmt.Sprintf(
@@ -520,7 +564,7 @@ func validateViewEntityTypes(ctx *ExecContext, stmt *ast.CreateViewEntityStmt) [
 		}
 	}
 
-	return errors
+	return errors, warnings
 }
 
 // Mendix OQL has TWO clause orders and the MDL grammar accepts both
@@ -770,6 +814,17 @@ func parseSelectColumns(selectClause string) []string {
 // inferTypeFromExpression infers the data type from an OQL expression.
 func inferTypeFromExpression(ctx *ExecContext, expr string, col *OQLColumnInfo, aliasMap map[string]string) ast.DataType {
 	expr = strings.TrimSpace(expr)
+
+	// String concatenation is a derived String(200), whatever its operands —
+	// see inferTypeStatic. Here an operand can also be a string attribute.
+	if parts := splitTopLevelPlus(expr); len(parts) > 1 {
+		for _, p := range parts {
+			var scratch OQLColumnInfo
+			if p != "" && inferTypeFromExpression(ctx, p, &scratch, aliasMap).Kind == ast.TypeString {
+				return ast.DataType{Kind: ast.TypeString, Length: derivedStringLength}
+			}
+		}
+	}
 
 	// Check for aggregate functions
 	if aggType := inferAggregateType(ctx, expr, col, aliasMap); aggType.Kind != ast.TypeUnknown {
@@ -1076,8 +1131,10 @@ func typesCompatible(declared, inferred ast.DataType) bool {
 	// OQL Query" for one declared AutoNumber (measured, mx check 11.13). Long
 	// used to be refused here once the source entity existed — accepted on the
 	// run that created it, refused on every run after (ako/mxcli#859,
-	// rehearsal V1). A declared AutoNumber stays accepted as before: refusing
-	// it is a new rejection, which ADR-0011 reserves for the mdl 1 header.
+	// rehearsal V1). A declared AutoNumber is accepted here: validateViewEntityTypes
+	// refuses it under `mdl 1;` and warns without the header, because refusing
+	// it is a new rejection, which ADR-0011 reserves for the header
+	// (viewAutoNumberRefused, ako/mxcli#981).
 	if inferred.Kind == ast.TypeAutoNumber {
 		if declared.Kind == ast.TypeAutoNumber {
 			return true
@@ -1380,6 +1437,10 @@ func ValidateOQLSyntax(oql string) []linter.Violation {
 			Suggestion: fmt.Sprintf("In a source position, quote it: `s.%q`, `from Module.%q as s` — OQL takes double-quoted identifiers like SQL. For an ALIAS / view column name this is not available (MDL cannot express `as %q`), so rename that one, e.g. %qValue. MDL071 reports the collision at CREATE time, before the name spreads", word, word, word, word),
 		})
 	}
+
+	// A comparison as a column, and the GROUP BY rules (MDL033–MDL036,
+	// ako/mxcli#981): select lists that are well typed and still fail.
+	violations = append(violations, validateOQLSelectExpressions(oql)...)
 
 	return violations
 }
