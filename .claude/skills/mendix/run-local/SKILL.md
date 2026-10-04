@@ -220,6 +220,7 @@ Launch `run --local` as the **sole** command in its invocation (don't chain a tr
 | `--hub-secret` | — | Shared auth (`user:pass`) matching an **open** hub's `--secret` |
 | *(hub API key)* | — | For an **authenticated** hub: get one from `https://<hub>/cli`, set `MXCLI_HUB_KEY` (see below) |
 | `--watch` | off | Rebuild + hot-apply on each change |
+| `--web-client-timeout` | `$MXCLI_WEB_CLIENT_TIMEOUT`, else `5m` | Limit for one web client bundle build; on timeout the tail of `deployment/log/web-client-build.log` is printed |
 | `--ensure-db` | off | Provision local Postgres + app database if missing |
 | `--setup` | off | Cache MxBuild+runtime + ensure DB, then exit (SessionStart bring-up) |
 | `--screenshot` | off | Playwright PNG after boot + each change |
@@ -301,6 +302,15 @@ Playwright + the devcontainer's Chromium).
   `mxbuild --serve`): a page/widget edit re-bundles in ~3–4 s; a microflow/entity edit
   skips the bundle and just hot-reloads. It uses `CHOKIDAR_USEPOLLING` because inotify
   is silent on container filesystems.
+  The bundler is supervised: one that **exits** is restarted on the next change
+  (`web client bundler exited unexpectedly; restarting it...`, with backoff when it
+  cannot start), and an incremental rebuild that **fails** is retried once with a
+  fresh bundler before the change is reported as failed. A recovery re-bundle
+  (missing page, dangling chunk, `/dist/index.js` gone after a restart) replaces the
+  bundler — two rollups never write `web/dist` at once.
+- **A structural change restarts the runtime and drops every browser session.** The
+  loop prints `runtime restarted for this change — browser sessions were dropped;
+  log in again`; a browser test that sees it must log in before the next step.
 - Without `--watch`, a single one-shot bundle (~7 s) runs before boot.
 - **The bundle is re-checked after the boot**, because bundling before it is not
   enough: the runtime's boot runs Gradle `clean-custom-classes compile package`,
