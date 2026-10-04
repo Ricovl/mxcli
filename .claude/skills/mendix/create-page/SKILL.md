@@ -364,16 +364,13 @@ The following features are NOT implemented in mxcli and require manual configura
 
 ### Runtime Pitfalls
 
-> **Empty CONTAINER crashes at runtime.** A CONTAINER with no child widgets compiles and builds successfully but crashes when the page loads with "Did not expect an argument to be undefined". Always include at least one child widget:
-> ```sql
-> -- Wrong: crashes at runtime
-> CONTAINER spacer1 (Style: 'height: 6px;')
->
-> -- Correct: include a child (even a space)
-> CONTAINER spacer1 (Style: 'height: 6px;') {
->   DYNAMICTEXT spacerText (Content: ' ', RenderMode: Paragraph)
-> }
-> ```
+> **An empty CONTAINER is valid.** It passes `mx check`, builds, and renders:
+> measured on Mendix 11.13.0 (React client) under `run --local`, both a bare
+> `container c1` and a styled spacer `container spacer1 (Style: 'height: 6px;')`
+> rendered with the widgets after them present and no console errors
+> (ako/mxcli#969). An older note here said it crashed with "Did not expect an
+> argument to be undefined"; that was never measured. `mxcli lint` still reports
+> one as MPR006 at info level, since an empty container is usually a leftover.
 
 > **`content: ''` (empty string) fails MxBuild.** An empty Content on DYNAMICTEXT causes a misleading error: "Place holder index 1 is greater than 0, the number of parameter(s)." Use a single space instead:
 > ```sql
