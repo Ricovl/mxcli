@@ -7,7 +7,7 @@
 //	MDL034  an aggregate over a grouped column       mxbuild CE0174
 //	MDL035  a plain column that is not grouped       mxbuild CE0174
 //	MDL036  an expression that is not grouped        runtime (PostgreSQL 42803, HSQLDB 42574)
-//	MDL037  a literal as an aggregate argument       runtime on HSQLDB (42567)
+//	MDL037  a literal as an aggregate argument       runtime on HSQLDB (42567), decimals included
 //	MDL038  a bare integer/string literal column     wrong data for consumers on HSQLDB
 //
 // MDL033–036 are errors and run inside ValidateOQLSyntax, so exec refuses them
@@ -420,6 +420,8 @@ func firstGroupedRef(args []string, gbRefs map[string]bool) string {
 var (
 	oqlIntLiteralRe  = regexp.MustCompile(`^-?\d+$`)
 	oqlBoolLiteralRe = regexp.MustCompile(`^(?i:true|false)$`)
+	// oqlDecimalLiteralRe is a decimal literal; only MDL037 judges it.
+	oqlDecimalLiteralRe = regexp.MustCompile(`^-?\d+\.\d+$`)
 )
 
 // oqlUntypedLiteral reports whether expr is a literal Mendix sends to the
@@ -450,17 +452,25 @@ func ValidateOQLPortability(oql string) []linter.Violation {
 	var out []linter.Violation
 	oql = stripOQLComments(oql)
 
-	// MDL037: sum(1), count(1), max(0), count('x'), count(true) give HSQLDB
+	// MDL037: sum(1), count(1), max(0), count('x'), count(true), sum(0.0) give HSQLDB
 	// 42567 "data type cast needed" when the view is read. Anywhere in the
 	// query, every branch.
 	seen := map[string]bool{}
 	for _, loc := range oqlRawAggregateCallRe.FindAllStringSubmatchIndex(oql, -1) {
 		arg := strings.TrimSpace(callArgument(oql, loc[1]-1))
+		fn := strings.ToLower(oql[loc[4]:loc[5]])
 		kind, ok := oqlUntypedLiteral(arg)
-		if !ok {
+		if !ok && oqlDecimalLiteralRe.MatchString(strings.Trim(arg, "() ")) {
+			// Mendix casts a decimal literal as a select COLUMN, but directly
+			// inside an aggregate it is untyped too: sum(0.0) and sum(1.5) are
+			// 42567 on HSQLDB (measured).
+			kind, ok = "Decimal", true
+		}
+		// avg is exempt: avg(1) runs on HSQLDB (measured). Mendix's avg
+		// returns a Decimal, so its argument reaches the database typed.
+		if !ok || fn == "avg" {
 			continue
 		}
-		fn := strings.ToLower(oql[loc[4]:loc[5]])
 		call := fn + "(" + arg + ")"
 		if seen[call] {
 			continue

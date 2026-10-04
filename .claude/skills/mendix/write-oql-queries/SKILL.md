@@ -163,12 +163,12 @@ Measured on mxbuild 11.13.0 and `run --local` against HSQLDB and PostgreSQL
 | `count(r.Name)` next to `group by r.Season` | `count(r.Season)` next to `group by r.Season` | aggregating a grouped column (also through `datepart(…)` or `r.Season + 1`) is CE0174 (MDL034) |
 | every plain column in the GROUP BY, or aggregated | `r.Name` next to `group by r.Season` (or `group by r.ID`) | CE0174 (MDL035) |
 | the select expression equal to a GROUP BY expression (`group by datepart(YEAR, r.D)` → select `datepart(YEAR, r.D)`) | `datepart(MONTH, r.D)` next to `group by datepart(YEAR, r.D)` | builds, then the database refuses it when the view is read — PostgreSQL 42803, HSQLDB 42574 (MDL036) |
-| `count(r.Name)`, `sum(cast(1 as Integer))`, `sum(case when … then 1 else 0 end)` | `sum(1)`, `count(1)`, `max(0)`, `count('x')`, `count(true)` | Mendix sends the literal as an untyped parameter; HSQLDB refuses with 42567 "data type cast needed" (MDL037 warning) |
+| `count(r.Name)`, `sum(cast(1 as Integer))`, `sum(case when … then 1 else 0 end)` | `sum(1)`, `count(1)`, `max(0)`, `count('x')`, `count(true)`, `sum(0.0)`, `sum(1.5)` | Mendix sends the literal as an untyped parameter; HSQLDB refuses with 42567 "data type cast needed" (MDL037 warning) |
 | `cast(1 as Integer) as One`, `cast('Label' as String) as Kind` | `1 as One` | the view reads fine, but on HSQLDB `v.One + 1` returns **11** (string concatenation; PostgreSQL returns 2) and aggregating the column fails (MDL038 note) |
 | `r.Name + ' x' as S` declared `string(200)` | declared `string` or `string(100)` | string concatenation is a derived String(200) whatever its operands; anything else is CE6770 (MDL031) |
 | a view attribute over an AutoNumber column declared `long` | declared `autonumber` | CE6770; refused under `mdl 1;`, a warning without the header (MDL-V1-VIEWAUTONUMBER) |
 
-Decimal literals (`0.0 as Amount`) are sent with a cast and are fine. A bare
+A decimal literal as a *column* (`0.0 as Amount`) is sent with a cast and is fine; inside an aggregate (`sum(0.0)`) it fails like the others. `avg(1)` runs. A bare
 string label such as `'TOTAL' as Label` only draws the MDL038 note — it reads
 fine as long as nothing aggregates it.
 

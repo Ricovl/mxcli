@@ -159,7 +159,11 @@ func TestMDL037_LiteralAggregateArgument(t *testing.T) {
 		{"count(a column)", `select count(r.Name) as N from MyFirstModule.Race as r`, false},
 		{"sum(cast(1 as Integer))", `select sum(cast(1 as Integer)) as N from MyFirstModule.Race as r`, false},
 		{"sum(case … then 1 else 0 end)", `select sum(case when r.Season > 0 then 1 else 0 end) as N from MyFirstModule.Race as r`, false},
-		{"a decimal literal, which Mendix casts", `select sum(1.5) as N from MyFirstModule.Race as r`, false},
+		{"sum(0.0) (42567: decimals are untyped inside an aggregate)", `select sum(0.0) as N from MyFirstModule.Race as r`, true},
+		{"sum(1.5)", `select sum(1.5) as N from MyFirstModule.Race as r`, true},
+		{"max(0.0)", `select max(0.0) as N from MyFirstModule.Race as r`, true},
+		{"avg(1), which runs on HSQLDB (avg's argument reaches the database typed)", `select avg(1) as N from MyFirstModule.Race as r`, false},
+		{"a decimal column next to an aggregate", `select 0.0 as D, count(r.Name) as N from MyFirstModule.Race as r`, false},
 	})
 	for _, v := range selectRuleViolations(`select count(1) as N from MyFirstModule.Race as r`, "MDL037") {
 		if v.Severity != linter.SeverityWarning {
