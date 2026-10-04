@@ -1381,6 +1381,10 @@ func ValidateOQLSyntax(oql string) []linter.Violation {
 		})
 	}
 
+	// A comparison as a column, and the GROUP BY rules (MDL033–MDL036,
+	// ako/mxcli#981): select lists that are well typed and still fail.
+	violations = append(violations, validateOQLSelectExpressions(oql)...)
+
 	return violations
 }
 
