@@ -76,9 +76,13 @@ type DatePicker struct {
 	AttributeRefSteps []AttributeRefStep `json:"attributeRefSteps,omitempty"` // association hops when the attribute is reached over associations (AttributeRef.EntityRef)
 	SourceVariable    *WidgetVariable    `json:"sourceVariable,omitempty"`    // widget-scoped variable the attribute is read from (#826)
 	Placeholder       *model.Text        `json:"placeholder,omitempty"`
-	DateFormat        string             `json:"dateFormat,omitempty"`
-	ReadOnly          bool               `json:"readOnly,omitempty"`
-	OnChangeAction    ClientAction       `json:"onChangeAction,omitempty"`
+	// FormattingInfo is the picker's Forms$FormattingInfo: DateFormat (Date,
+	// Time, DateTime, Custom) and the CustomDateFormat pattern. nil writes the
+	// defaults (Date). It replaced a DateFormat string nothing read, so every
+	// picker was written as date-only (ako/mxcli#968).
+	FormattingInfo *FormattingInfo `json:"formattingInfo,omitempty"`
+	ReadOnly       bool            `json:"readOnly,omitempty"`
+	OnChangeAction ClientAction    `json:"onChangeAction,omitempty"`
 }
 
 // DropDown represents a drop-down selection widget.
