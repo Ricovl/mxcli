@@ -185,7 +185,7 @@ func TestMenuItemsFromAST_Nested(t *testing.T) {
 			{Caption: "Mf", Microflow: &mf},
 			{Caption: "Plain"},
 		},
-	}})
+	}}, nil, "", map[string]string{})
 
 	if len(items) != 1 || len(items[0].Items) != 3 {
 		t.Fatalf("expected 1 top item with 3 children, got %+v", items)

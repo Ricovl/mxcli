@@ -83,8 +83,13 @@ func execCreateMenu(ctx *ExecContext, s *ast.CreateMenuStmt) error {
 		Name:          s.Name.Name,
 		ContainerID:   containerID,
 		Documentation: s.Documentation,
-		Items:         menuItemsFromAST(s.Items),
 	}
+	var storedItems []*types.NavMenuItem
+	if existing != nil {
+		storedItems = existing.Items
+	}
+	kept := map[string]string{}
+	md.Items = menuItemsFromAST(s.Items, storedItems, "", kept)
 	// A rewrite that carried no doc comment keeps the stored one (#1018).
 	if existing != nil {
 		md.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existing.Documentation)
@@ -106,6 +111,7 @@ func execCreateMenu(ctx *ExecContext, s *ast.CreateMenuStmt) error {
 			return err
 		}
 		ctx.ReportMutation("Modified", "menu %s", s.Name.String())
+		reportKeptMenuActions(ctx, kept)
 		return nil
 	}
 
@@ -135,9 +141,23 @@ func execDropMenu(ctx *ExecContext, s *ast.DropMenuStmt) error {
 // menuItemsFromAST converts parsed menu items to the semantic model. The AST and
 // semantic shapes differ only in how the target is held (pointer vs string), so
 // this stays a direct mapping rather than acquiring behaviour.
-func menuItemsFromAST(defs []ast.NavMenuItemDef) []*types.NavMenuItem {
+//
+// stored is the document's current items at the same place in the tree: an
+// item the script gives no action whose stored counterpart (same caption) holds
+// one MDL cannot express keeps that action verbatim rather than becoming
+// Forms$NoAction (ako/mxcli#980), as convertMenuItemDefs does for navigation.
+func menuItemsFromAST(defs []ast.NavMenuItemDef, stored []*types.NavMenuItem, path string, kept map[string]string) []*types.NavMenuItem {
 	var out []*types.NavMenuItem
+	used := make([]bool, len(stored))
 	for _, d := range defs {
+		var match *types.NavMenuItem
+		for i, st := range stored {
+			if !used[i] && st.Caption == d.Caption {
+				used[i], match = true, st
+				break
+			}
+		}
+		itemPath := path + "'" + d.Caption + "'"
 		item := &types.NavMenuItem{Caption: d.Caption, Icon: d.Icon}
 		if d.Icon != "" {
 			item.IconType = "Forms$IconCollectionIcon"
@@ -156,7 +176,16 @@ func menuItemsFromAST(defs []ast.NavMenuItemDef) []*types.NavMenuItem {
 		} else {
 			item.ActionType = "NoAction"
 		}
-		item.Items = menuItemsFromAST(d.Items)
+		var storedSubs []*types.NavMenuItem
+		if match != nil {
+			storedSubs = match.Items
+			if !menuItemStatesAction(d) && !menuActionExpressible(match) {
+				item.ActionType = match.ActionType
+				item.StoredAction = match.StoredAction
+				kept[itemPath] = match.ActionType
+			}
+		}
+		item.Items = menuItemsFromAST(d.Items, storedSubs, itemPath+" > ", kept)
 		out = append(out, item)
 	}
 	return out

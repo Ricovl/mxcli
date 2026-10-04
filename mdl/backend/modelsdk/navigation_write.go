@@ -356,6 +356,15 @@ func navCaptionBson(text string) bson.D {
 }
 
 func navMenuAction(mi types.NavMenuItemSpec) bson.D {
+	// An action the script could not state, carried from storage verbatim
+	// (ako/mxcli#980). Falling through to Forms$NoAction below is what deleted a
+	// nanoflow menu item's action on every describe -> exec.
+	if len(mi.KeepAction) > 0 {
+		var kept bson.D
+		if err := bson.Unmarshal(mi.KeepAction, &kept); err == nil {
+			return kept
+		}
+	}
 	if mi.Page != "" {
 		return bson.D{
 			{Key: "$ID", Value: navID()},

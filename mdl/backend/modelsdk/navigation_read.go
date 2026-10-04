@@ -297,6 +297,11 @@ func resolveMenuAction(item *types.NavMenuItem, action element.Element) {
 	if action == nil {
 		return
 	}
+	// The stored document itself, whatever its $Type: what describe renders
+	// and what a rewrite carries when MDL cannot express it (ako/mxcli#980).
+	if raw := action.Raw(); len(raw) > 0 {
+		item.StoredAction = append([]byte(nil), raw...)
+	}
 	switch a := action.(type) {
 	case *genPages.PageClientAction:
 		item.ActionType = "PageAction"

@@ -69,7 +69,7 @@ func TestMenuItemsFromAST_SignOutBecomesAnActionType(t *testing.T) {
 	items := menuItemsFromAST([]ast.NavMenuItemDef{
 		{Caption: "Sign out", SignOut: true},
 		{Caption: "Plain"},
-	})
+	}, nil, "", map[string]string{})
 	if items[0].ActionType != "SignOutAction" {
 		t.Errorf("ActionType = %q, want SignOutAction", items[0].ActionType)
 	}

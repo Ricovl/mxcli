@@ -5,6 +5,7 @@ package executor
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -92,9 +93,15 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 		spec.NotFoundPage = s.NotFoundPage.String()
 	}
 
-	for _, mi := range s.MenuItems {
-		spec.MenuItems = append(spec.MenuItems, convertMenuItemDef(mi))
+	var stored []*types.NavMenuItem
+	for _, p := range nav.Profiles {
+		if strings.EqualFold(p.Name, s.ProfileName) {
+			stored = p.MenuItems
+			break
+		}
 	}
+	kept := map[string]string{}
+	spec.MenuItems = convertMenuItemDefs(s.MenuItems, stored, "", kept)
 
 	spec.ThrowSyncError = s.ThrowSyncError
 	spec.HasSync = s.HasSyncBlock
@@ -121,7 +128,81 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 	} else {
 		fmt.Fprintf(ctx.Output, "Navigation profile '%s' updated.\n", s.ProfileName)
 	}
+	reportKeptMenuActions(ctx, kept)
 	return nil
+}
+
+// reportKeptMenuActions says which stored actions a rewrite carried because the
+// script could not state them, so a kept action is never a surprise.
+func reportKeptMenuActions(ctx *ExecContext, kept map[string]string) {
+	paths := make([]string, 0, len(kept))
+	for p := range kept {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	for _, p := range paths {
+		fmt.Fprintf(ctx.Output, "  kept the stored action of menu item %s (%s): MDL cannot express it, and the item states none\n", p, kept[p])
+	}
+}
+
+// convertMenuItemDefs converts a list of sibling menu items, pairing each with
+// the stored item of the same caption at the same place in the tree.
+//
+// The pairing is what keeps a rewrite from deleting an action MDL cannot spell:
+// when the script's item states no action and its stored counterpart holds one
+// describe cannot print, the stored action is carried verbatim (KeepAction)
+// instead of being replaced by Forms$NoAction. That replacement used to be
+// silent — a renamed menu lost its nanoflow item's action at exit 0
+// (ako/mxcli#980). kept collects the carried items by caption path.
+func convertMenuItemDefs(defs []ast.NavMenuItemDef, stored []*types.NavMenuItem, path string, kept map[string]string) []types.NavMenuItemSpec {
+	used := make([]bool, len(stored))
+	var out []types.NavMenuItemSpec
+	for _, def := range defs {
+		var match *types.NavMenuItem
+		for i, st := range stored {
+			if !used[i] && st.Caption == def.Caption {
+				used[i], match = true, st
+				break
+			}
+		}
+		itemPath := path + "'" + def.Caption + "'"
+		spec := convertMenuItemDef(def)
+		var storedSubs []*types.NavMenuItem
+		if match != nil {
+			storedSubs = match.Items
+			if !menuItemStatesAction(def) && !menuActionExpressible(match) {
+				spec.KeepAction = match.StoredAction
+				kept[itemPath] = match.ActionType
+			}
+		}
+		spec.Items = convertMenuItemDefs(def.Items, storedSubs, itemPath+" > ", kept)
+		out = append(out, spec)
+	}
+	return out
+}
+
+// menuItemStatesAction reports whether the script gave the item an action.
+func menuItemStatesAction(def ast.NavMenuItemDef) bool {
+	return def.Page != nil || def.Microflow != nil || def.SignOut
+}
+
+// menuActionExpressible reports whether describe prints the stored item's
+// action as an OnClick that rebuilds it — false for an action it cannot spell,
+// which a rewrite must carry rather than replace. No action at all, and
+// Forms$NoAction, need no carrying.
+func menuActionExpressible(item *types.NavMenuItem) bool {
+	if len(item.StoredAction) == 0 {
+		return true
+	}
+	switch item.ActionType {
+	case "", "NoAction", "SignOutAction":
+		return true
+	case "PageAction":
+		return item.Page != ""
+	case "MicroflowAction":
+		return item.Microflow != ""
+	}
+	return false
 }
 
 // convertMenuItemDef converts an AST NavMenuItemDef to a writer NavMenuItemSpec.
@@ -457,6 +538,13 @@ func printMenuMDL(w io.Writer, items []*types.NavMenuItem, depth int, reproducer
 		}
 		if note := menuItemIconNote(item, reproducer); note != "" {
 			fmt.Fprintf(w, "%s%s\n", indent, note)
+		}
+		if !menuActionExpressible(item) {
+			// Said, not dropped: the item line above states no action, so
+			// re-running it keeps the stored one (convertMenuItemDefs).
+			fmt.Fprintf(w, "%s-- menu item '%s': its action (%s) has no MDL form; "+
+				"%s keeps the stored action while the item states none\n",
+				indent, item.Caption, item.ActionType, reproducer)
 		}
 	}
 }

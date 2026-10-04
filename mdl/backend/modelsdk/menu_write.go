@@ -176,6 +176,13 @@ func menuIconToGen(item *types.NavMenuItem) element.Element {
 // names; their storage names are what Mendix writes — PageClientAction is
 // Forms$FormAction, NoClientAction is Forms$NoAction.
 func menuActionToGen(item *types.NavMenuItem) element.Element {
+	// An action the script could not state, carried from storage verbatim
+	// (ako/mxcli#980); the executor sets StoredAction only for that case.
+	if len(item.StoredAction) > 0 {
+		if el, err := codec.NewDecoder(codec.DefaultRegistry).Decode(item.StoredAction); err == nil {
+			return el
+		}
+	}
 	switch {
 	case item.Page != "":
 		a := genPages.NewPageClientAction()

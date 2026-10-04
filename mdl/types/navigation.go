@@ -70,8 +70,12 @@ type NavMenuItem struct {
 	// identifies a glyph icon, since it carries no qualified name. Without it a
 	// reader knows a glyph was there but not which one, so it can neither be
 	// re-emitted by DESCRIBE nor carried through a rewrite.
-	IconCode int            `json:"iconCode,omitempty"`
-	Items    []*NavMenuItem `json:"items,omitempty"`
+	IconCode int `json:"iconCode,omitempty"`
+	// StoredAction is the item's client action exactly as stored (its raw
+	// BSON document), so an action MDL cannot spell is carried through a
+	// rewrite instead of being replaced by Forms$NoAction (ako/mxcli#980).
+	StoredAction []byte         `json:"-"`
+	Items        []*NavMenuItem `json:"items,omitempty"`
 }
 
 // HasIcon reports whether the item carries an icon of ANY of the three kinds.
@@ -251,5 +255,11 @@ type NavMenuItemSpec struct {
 	IconKind MenuIconKind
 	// IconCode is the glyph's numeric Code, meaningful only for MenuIconGlyph.
 	IconCode int
-	Items    []NavMenuItemSpec
+	// KeepAction is a stored client action (raw BSON) the writer puts back
+	// verbatim instead of building one from Page/Microflow/SignOut. The executor
+	// sets it when the script's item states no action and the stored one is an
+	// action MDL cannot express — writing Forms$NoAction there would silently
+	// delete it (ako/mxcli#980).
+	KeepAction []byte
+	Items      []NavMenuItemSpec
 }
