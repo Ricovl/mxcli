@@ -556,6 +556,9 @@ func (v *microflowValidator) checkStmtExprFunctions(s ast.MicroflowStatement) {
 // check but fail the build with CE0117. label describes where the expression
 // appears (e.g. "declare '$r'"). (findings #1)
 func (v *microflowValidator) checkExprFunctions(label string, expr ast.Expression) {
+	// The one per-expression hook shared by microflows and nanoflows, so the
+	// JSON-number check rides along rather than keeping a third list of sites.
+	v.checkLocaleNumberInJSON(label, expr)
 	src := microflowExprSource(expr)
 	if src == "" {
 		return

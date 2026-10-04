@@ -276,6 +276,27 @@ $n        = count $Approved;
 
 The same applies to both operands of `union`/`intersect`/`subtract`.
 
+### MDL-JSONNUM01: A locale-dependent number in hand-built JSON
+
+```
+set '$Json' builds JSON with formatDecimal(…) and no locale: it formats in the user's
+language, so a Dutch user gets '12,50' and the JSON is invalid for them only [MDL-JSONNUM01]
+```
+
+**Cause:** `formatDecimal(x, '0.00')` without a locale argument formats in the *current user's* language. The microflow writes `12.50` for an English user and `12,50` for a Dutch one, so JSON built by concatenation (a chart's data, an API payload) is invalid only for some users — typically not the author. An underscore locale tag (`'nl_NL'`, `'en_US'`) is silently ignored and falls back to the user's language; only the hyphenated form applies. Measured on Mendix 11.13.
+
+The rule is info and heuristic: it fires when the same `+` concatenation has a string literal containing `{` or `":`. A display string such as `'Total: ' + formatDecimal(…)` is not flagged.
+
+**Solution:** Use `toString(round(x, 2))`, which always writes a `.` and never an exponent, or pass a hyphenated locale.
+
+```text
+-- WRONG
+set $Json = $Json + ',"v":' + formatDecimal($R/Total, '0.00') + '}';
+-- RIGHT
+set $Json = $Json + ',"v":' + toString(round($R/Total, 2)) + '}';
+set $Json = $Json + ',"v":' + formatDecimal($R/Total, '0.00', 'en-US') + '}';
+```
+
 ### Mismatched input
 
 ```
