@@ -66,3 +66,15 @@ func TestNavMenuItem_RefusesAnActionAMenuItemCannotCarry(t *testing.T) {
 		t.Errorf("control refused: %v", errs[0])
 	}
 }
+
+// ako/mxcli#980: a native profile's flow home is a nanoflow.
+func TestNavigation_HomeNanoflowParses(t *testing.T) {
+	prog, errs := Build("create or modify navigation NativePhone home nanoflow M.Home home page M.P for User;")
+	if len(errs) > 0 {
+		t.Fatal(errs[0])
+	}
+	hp := prog.Statements[0].(*ast.AlterNavigationStmt).HomePages
+	if len(hp) != 2 || !hp[0].IsNanoflow || hp[0].IsPage || hp[1].IsNanoflow {
+		t.Errorf("home pages = %+v", hp)
+	}
+}

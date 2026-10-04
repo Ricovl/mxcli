@@ -568,8 +568,12 @@ alterPageDropVariable
     : DROP VARIABLES_KW VARIABLE              // DROP Variables $show
     ;
 
+// A native profile's home is a page or a NANOFLOW (Navigation$NativeHomePage
+// HomePagePage / HomePageNanoflow); `home nanoflow` names the second. Before it
+// existed describe printed a native nanoflow home as `home microflow`
+// (ako/mxcli#980). Additive: `home microflow` still parses.
 navigationClause
-    : HOME (PAGE | MICROFLOW) qualifiedName (FOR qualifiedName)?
+    : HOME (PAGE | MICROFLOW | NANOFLOW) qualifiedName (FOR qualifiedName)?
     | LOGIN PAGE qualifiedName
     | NOT FOUND PAGE qualifiedName
     // The profile's menu items are its declarative children, in { } like a

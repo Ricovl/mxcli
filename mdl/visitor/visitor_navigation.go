@@ -56,8 +56,9 @@ func (b *Builder) processNavigationClause(stmt *ast.AlterNavigationStmt, ctx *pa
 			return
 		}
 		hp := ast.NavHomePageDef{
-			IsPage: ctx.PAGE() != nil,
-			Target: buildQualifiedName(names[0]),
+			IsPage:     ctx.PAGE() != nil,
+			IsNanoflow: ctx.NANOFLOW() != nil,
+			Target:     buildQualifiedName(names[0]),
 		}
 		if ctx.FOR() != nil && len(names) >= 2 {
 			forRole := buildQualifiedName(names[1])

@@ -110,7 +110,7 @@ func TestOfflineWriteEmitsExactlyThePropertiesStudioProWrites(t *testing.T) {
 
 // ako/mxcli#980 (found adding navigation to the round-trip harness): Studio Pro
 // lays a sync constraint out over several lines — TestApp's TabletOffline
-// stores "[\n  (\n    contains(ActionValue, '''abc''')\n  )\n]" — describe
+// stores "[\n  (\n    contains(ActionValue, ”'abc”')\n  )\n]" — describe
 // folds it onto one, and the rewrite stored the folded text, so every
 // describe -> exec of an offline profile rewrote it. The same constraint with
 // other whitespace keeps the stored layout.

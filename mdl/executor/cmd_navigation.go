@@ -38,11 +38,15 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 	// included — so an action the builder refuses leaves the project as it was.
 	// Each item is paired with the stored item it replaces (ako/mxcli#980).
 	var stored []*types.NavMenuItem
+	isNative := false
 	for _, p := range nav.Profiles {
 		if strings.EqualFold(p.Name, s.ProfileName) {
-			stored = p.MenuItems
+			stored, isNative = p.MenuItems, p.IsNative
 			break
 		}
+	}
+	if err := checkProfileClauses(ctx, s, isNative); err != nil {
+		return err
 	}
 	kept := map[string]string{}
 	menuItems, err := convertMenuItemDefs(newMenuActionBuilder(ctx), s.MenuItems, stored, "", kept)
@@ -137,6 +141,48 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 		fmt.Fprintf(ctx.Output, "Navigation profile '%s' updated.\n", s.ProfileName)
 	}
 	reportKeptMenuActions(ctx, kept)
+	return nil
+}
+
+// checkProfileClauses refuses what the statement says that the profile cannot
+// take, before anything is written (ako/mxcli#980).
+//
+// A native profile's writer sets its home pages and offline sync and nothing
+// else, so a menu block, login or not-found page or on-sync-error clause on one
+// was dropped in silence: the statement reported "updated" and the bottom bar
+// stayed as it was. Its flow home is a nanoflow — `home microflow` there is
+// what describe used to print, so it is read as the nanoflow and warned about —
+// while a web profile's is a microflow, so `home nanoflow` there is refused.
+func checkProfileClauses(ctx *ExecContext, s *ast.AlterNavigationStmt, isNative bool) error {
+	if !isNative {
+		for _, hp := range s.HomePages {
+			if hp.IsNanoflow {
+				return mdlerrors.NewValidationf("navigation %s: home nanoflow %s — a web profile's home is a page or a microflow; "+
+					"a nanoflow home belongs to a native profile", s.ProfileName, hp.Target.String())
+			}
+		}
+		return nil
+	}
+	refuse := func(what string) error {
+		return mdlerrors.NewValidationf("navigation %s is a native profile: %s is not written by mxcli for a native profile, "+
+			"and leaving it out is how it used to be dropped without a word — remove it from the statement and set it in Studio Pro", s.ProfileName, what)
+	}
+	switch {
+	case s.HasMenuBlock:
+		return refuse("its bottom bar (the { } block)")
+	case s.LoginPage != nil:
+		return refuse("login page")
+	case s.NotFoundPage != nil:
+		return refuse("not found page")
+	case s.ThrowSyncError != nil:
+		return refuse("on sync error")
+	}
+	for _, hp := range s.HomePages {
+		if !hp.IsPage && !hp.IsNanoflow {
+			fmt.Fprintf(ctx.Output, "  warning: navigation %s is a native profile, whose home is a page or a nanoflow — "+
+				"home microflow %s is written as the nanoflow %s; write home nanoflow\n", s.ProfileName, hp.Target.String(), hp.Target.String())
+		}
+	}
 	return nil
 }
 
@@ -506,7 +552,7 @@ func listNavigationHomes(ctx *ExecContext) error {
 			if p.HomePage.Page != "" {
 				fmt.Fprintf(ctx.Output, "  Default Home: page %s\n", p.HomePage.Page)
 			} else if p.HomePage.Microflow != "" {
-				fmt.Fprintf(ctx.Output, "  Default Home: microflow %s\n", p.HomePage.Microflow)
+				fmt.Fprintf(ctx.Output, "  Default Home: %s %s\n", flowHomeWord(p), p.HomePage.Microflow)
 			}
 		} else {
 			fmt.Fprintln(ctx.Output, "  Default Home: (none)")
@@ -520,7 +566,7 @@ func listNavigationHomes(ctx *ExecContext) error {
 				if rh.Page != "" {
 					target = "page " + rh.Page
 				} else if rh.Microflow != "" {
-					target = "microflow " + rh.Microflow
+					target = flowHomeWord(p) + " " + rh.Microflow
 				}
 				fmt.Fprintf(ctx.Output, "    %s -> %s\n", rh.UserRole, target)
 			}
@@ -530,6 +576,14 @@ func listNavigationHomes(ctx *ExecContext) error {
 	}
 
 	return nil
+}
+
+// flowHomeWord names the kind of flow a profile's home can be.
+func flowHomeWord(p *types.NavigationProfile) string {
+	if p.IsNative {
+		return "nanoflow"
+	}
+	return "microflow"
 }
 
 // describeNavigation handles DESCRIBE NAVIGATION [profile] command.
@@ -569,12 +623,18 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 
 	fmt.Fprintf(ctx.Output, "create or modify navigation %s\n", p.Name)
 
-	// Home page
+	// Home page. A native profile's flow home is a nanoflow; the reader keeps
+	// it in Microflow, and printing it as `home microflow` named the wrong kind
+	// of flow (ako/mxcli#980).
+	flowHome := "microflow"
+	if p.IsNative {
+		flowHome = "nanoflow"
+	}
 	if p.HomePage != nil {
 		if p.HomePage.Page != "" {
 			fmt.Fprintf(ctx.Output, "  home page %s\n", p.HomePage.Page)
 		} else if p.HomePage.Microflow != "" {
-			fmt.Fprintf(ctx.Output, "  home microflow %s\n", p.HomePage.Microflow)
+			fmt.Fprintf(ctx.Output, "  home %s %s\n", flowHome, p.HomePage.Microflow)
 		}
 	}
 
@@ -583,7 +643,7 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 		if rh.Page != "" {
 			fmt.Fprintf(ctx.Output, "  home page %s for %s\n", rh.Page, rh.UserRole)
 		} else if rh.Microflow != "" {
-			fmt.Fprintf(ctx.Output, "  home microflow %s for %s\n", rh.Microflow, rh.UserRole)
+			fmt.Fprintf(ctx.Output, "  home %s %s for %s\n", flowHome, rh.Microflow, rh.UserRole)
 		}
 	}
 
@@ -601,7 +661,9 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 	// appears exactly when it carries information. Describing every profile
 	// with `on sync error throw` would add a line to every navigation script
 	// that says what would happen anyway.
-	if !p.ThrowPartialSyncError {
+	// Web profiles only: the reader does not read it for a native profile
+	// (unmeasured there), and exec refuses the clause on one.
+	if !p.ThrowPartialSyncError && !p.IsNative {
 		fmt.Fprintln(ctx.Output, "  on sync error continue")
 	}
 
@@ -623,6 +685,21 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 					"  -- %s has compatibility mode on; mxcli preserves it but cannot author it\n", oe.Entity)
 			}
 		}
+	}
+
+	// A native profile's bottom bar is not written by mxcli, so it is not a
+	// { } block exec would have to refuse: it is listed as comments, each item
+	// as it would read (ako/mxcli#980).
+	if p.IsNative && len(p.MenuItems) > 0 {
+		fmt.Fprintln(ctx.Output, "  -- bottom bar (not written by mxcli; set it in Studio Pro):")
+		var bar strings.Builder
+		printMenuMDL(ctx, &bar, p.MenuItems, 0, "CREATE NAVIGATION")
+		for _, line := range strings.Split(strings.TrimRight(bar.String(), "\n"), "\n") {
+			fmt.Fprintf(ctx.Output, "  --   %s\n", strings.TrimPrefix(line, "-- "))
+		}
+		fmt.Fprintln(ctx.Output, ";")
+		fmt.Fprintln(ctx.Output)
+		return
 	}
 
 	// Menu items: the profile's children, in { } after its clauses (R2).

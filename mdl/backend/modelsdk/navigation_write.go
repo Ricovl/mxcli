@@ -255,6 +255,15 @@ func navPatchNativeProfile(doc bson.D, spec types.NavigationProfileSpec) bson.D 
 		})
 	}
 	doc = navSetField(doc, "RoleBasedNativeHomePages", roleItems)
+
+	// A native profile stores its offline configs as a web profile does. The
+	// executor refuses the clauses this writer cannot apply to a native
+	// profile (its bottom bar, login and not-found pages, on sync error), so
+	// none is ignored in silence (ako/mxcli#980).
+	if spec.HasSync {
+		doc = navSetField(doc, "OfflineEntityConfigs",
+			navOfflineConfigs(navGetArray(doc, "OfflineEntityConfigs"), spec.OfflineEntities))
+	}
 	return doc
 }
 

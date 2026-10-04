@@ -44,9 +44,12 @@ type NavSyncDef struct {
 
 // NavHomePageDef represents a HOME PAGE or HOME MICROFLOW clause.
 type NavHomePageDef struct {
-	IsPage  bool           // true = PAGE, false = MICROFLOW
-	Target  QualifiedName  // the page or microflow qualified name
-	ForRole *QualifiedName // nil for default home, set for role-based
+	IsPage bool // true = PAGE, false = MICROFLOW or NANOFLOW
+	// IsNanoflow is `home nanoflow` — a native profile's flow home. A web
+	// profile's flow home is a microflow, a native one's a nanoflow.
+	IsNanoflow bool
+	Target     QualifiedName  // the page or microflow qualified name
+	ForRole    *QualifiedName // nil for default home, set for role-based
 }
 
 // NavMenuItemDef represents a MENU ITEM or MENU sub-menu definition.

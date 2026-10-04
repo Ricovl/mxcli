@@ -200,9 +200,16 @@ func nativeNavProfileFromGen(p *genNav.NativeNavigationProfile) *types.Navigatio
 		if bar, ok := barEl.(*genNative.BottomBarItem); ok {
 			mi := &types.NavMenuItem{
 				Caption: textOf(bar.Caption()),
-				Page:    bar.PageQualifiedName(),
 			}
-			if mi.Caption != "" || mi.Page != "" {
+			// A bottom bar item carries a client action and an icon like a menu
+			// item; reading only its legacy Page left describe without either
+			// (ako/mxcli#980).
+			mi.IconType, mi.Icon, mi.IconCode = menuIconOf(bar.Icon())
+			resolveMenuAction(mi, bar.Action())
+			if mi.Page == "" {
+				mi.Page = bar.PageQualifiedName()
+			}
+			if mi.Caption != "" || mi.Page != "" || mi.StoredAction != nil {
 				profile.MenuItems = append(profile.MenuItems, mi)
 			}
 		}
