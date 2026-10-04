@@ -100,6 +100,9 @@ Example:
 					os.Exit(1)
 				}
 			}
+			// A stale MPR v2 ContentsHash index (units restored with git)
+			// is invisible to mx check; say so before writing (#972).
+			fmt.Fprint(os.Stderr, contentsHashDriftWarning(projectPath))
 		}
 
 		// Parse and execute the file

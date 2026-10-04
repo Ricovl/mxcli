@@ -215,6 +215,9 @@ Examples:
 			Stderr:            os.Stderr,
 		}
 
+		// A stale ContentsHash index is not something mx check reports (#972).
+		fmt.Fprint(os.Stderr, contentsHashDriftWarning(projectPath))
+
 		if err := docker.Check(opts); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
