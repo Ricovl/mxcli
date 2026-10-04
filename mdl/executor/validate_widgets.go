@@ -251,6 +251,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateImageSource(w, locationPrefix)...)
 		out = append(out, validateStaticWidget(w, locationPrefix)...)
 		out = append(out, validateDynamicTextFormatting(w, locationPrefix)...)
+		// A quoted template parameter that reads like an expression is stored
+		// as its text (ako/mxcli#969).
+		out = append(out, validateQuotedTemplateParams(w, locationPrefix)...)
 		out = append(out, validateDatasourceXPathAssociationEmpty(w, locationPrefix)...)
 		out = append(out, validateComboBoxAssociation(w, locationPrefix)...)
 		// #631: inputs inside a list view that will be written read-only.
