@@ -23,11 +23,11 @@ a few hundred distinct source strings, so one file per language stays practical.
 ## Statements
 
 ```sql
-DESCRIBE TRANSLATIONS [IN <Module>] FOR <lang>;
+DESCRIBE TRANSLATIONS [IN <Module> | WITHOUT MARKETPLACE] FOR <lang>;
 
-CREATE            TRANSLATIONS [IN <Module>] FOR <lang> ( '<source>' AS '<target>', ... );
-CREATE OR MODIFY  TRANSLATIONS [IN <Module>] FOR <lang> ( ... );
-CREATE OR REPLACE TRANSLATIONS [IN <Module>] FOR <lang> ( ... );
+CREATE            TRANSLATIONS [IN <Module> | WITHOUT MARKETPLACE] FOR <lang> ( '<source>' AS '<target>', ... );
+CREATE OR MODIFY  TRANSLATIONS [IN <Module> | WITHOUT MARKETPLACE] FOR <lang> ( ... );
+CREATE OR REPLACE TRANSLATIONS [IN <Module> | WITHOUT MARKETPLACE] FOR <lang> ( ... );
 ```
 
 Entries use `AS`, not a colon: a translation maps a user-provided name to another
@@ -41,6 +41,35 @@ name.
 
 `IN <Module>` scopes both directions, and under `OR REPLACE` it **bounds the
 deletion** — without it, per-module files would wipe each other on every run.
+
+### Marketplace modules
+
+Without `IN`, a run reaches the **whole project**, Marketplace modules included —
+and with them the Atlas page templates and building blocks. On a stock app,
+`'Cancel' AS 'Annuleren'` set 50 translations in 38 documents, 35 of them in
+Marketplace modules. A module update replaces a Marketplace module's contents, so
+those translations are lost at the next update and show up as unexpected diffs
+until then. The run warns, with a count per module:
+
+```text
+Warning: 47 of these translation change(s) landed in 35 document(s) of Marketplace
+modules (Atlas_Web_Content 13, FeedbackModule 2, WorkflowCommons 20; 14 of the documents are page templates or building blocks).
+```
+
+`WITHOUT MARKETPLACE` keeps the run in your own modules, and names the file's
+entries that also occur in the modules it skipped. Under `OR REPLACE` it also
+keeps the deletion out of them. `DESCRIBE` accepts it too, and emits it, so the
+described file round-trips:
+
+```sql
+mdl 1;
+describe translations without marketplace for nl_NL;
+create or modify translations without marketplace for nl_NL ( 'Cancel' as 'Annuleren' );
+```
+
+Naming a Marketplace module with `IN <Module>` is taken as meaning it, and does
+not warn. The default stays the whole project: what an existing script writes
+does not change underneath it.
 
 ## A translation is only built if its language is enabled
 

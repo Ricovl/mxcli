@@ -69,9 +69,13 @@ func (t *Tokens) scoped(v Variant) TokenSet {
 	return t.Dark
 }
 
+// declares reports whether the artifact had a block for this variant.
+func (t *Tokens) declares(v Variant) bool { return len(t.scoped(v)) > 0 }
+
 // forVariant returns the token set that seeds a theme's given variant: the
 // base declarations, overlaid with anything the artifact scoped to that
-// variant. A design that declares only a base palette seeds both.
+// variant. Callers seeding the ALTERNATE variant check declares() first: a
+// design with only a base palette describes one variant, not both (#970).
 func (t *Tokens) forVariant(v Variant) TokenSet {
 	out := TokenSet{}
 	for k, val := range t.Base {
@@ -236,7 +240,10 @@ func applyTokens(scss string, tokens TokenSet) (string, []string) {
 	out := scss
 	var unplaced []string
 	for _, name := range tokens.Names() {
-		re := regexp.MustCompile(`(?m)^(\s*)` + regexp.QuoteMeta(name) + `\s*:[^;]*;`)
+		// [ \t]*, not \s*: under (?m) a \s* at ^ also swallows the newline
+		// (and any blank line) before the declaration, so the first token of
+		// a block landed on the `{` line, unindented (ako/mxcli#970).
+		re := regexp.MustCompile(`(?m)^([ \t]*)` + regexp.QuoteMeta(name) + `\s*:[^;]*;`)
 		if !re.MatchString(out) {
 			unplaced = append(unplaced, name)
 			continue

@@ -38,21 +38,26 @@ func (m TranslationMode) String() string {
 	return "create"
 }
 
-// CreateTranslationsStmt is CREATE [OR MODIFY|REPLACE] TRANSLATIONS [IN Module]
-// FOR <lang> ( 'src' AS 'target', … ).
+// CreateTranslationsStmt is CREATE [OR MODIFY|REPLACE] TRANSLATIONS
+// [IN Module | WITHOUT MARKETPLACE] FOR <lang> ( 'src' AS 'target', … ).
 type CreateTranslationsStmt struct {
 	Language string
 	Module   string // optional scope; empty means the whole project
-	Mode     TranslationMode
-	Entries  []TranslationEntry
+	// WithoutMarketplace (`without marketplace`) leaves Marketplace modules out
+	// of an unscoped run: the next module update replaces what is written
+	// there (ako/mxcli#970). Mutually exclusive with Module in the grammar.
+	WithoutMarketplace bool
+	Mode               TranslationMode
+	Entries            []TranslationEntry
 }
 
 func (s *CreateTranslationsStmt) isStatement() {}
 
-// DescribeTranslationsStmt is DESCRIBE TRANSLATIONS [IN Module] FOR <lang>.
+// DescribeTranslationsStmt is DESCRIBE TRANSLATIONS [IN Module | WITHOUT MARKETPLACE] FOR <lang>.
 type DescribeTranslationsStmt struct {
-	Language string
-	Module   string
+	Language           string
+	Module             string
+	WithoutMarketplace bool
 }
 
 func (s *DescribeTranslationsStmt) isStatement() {}

@@ -506,6 +506,7 @@ var mdlGeneratedKeywords = []protocol.CompletionItem{
 	{Label: "SLOT", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
 	{Label: "LANGUAGES", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
 	{Label: "TRANSLATIONS", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
+	{Label: "MARKETPLACE", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
 	{Label: "INSERT", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
 	{Label: "BEFORE", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
 	{Label: "AFTER", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},

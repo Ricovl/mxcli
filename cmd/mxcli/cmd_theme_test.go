@@ -286,3 +286,32 @@ func TestThemeCreate_SeedsFromADesignFileAndReportsWhatItRead(t *testing.T) {
 		t.Errorf("the design's brand colour did not reach the palette:\n%s", body)
 	}
 }
+
+// ako/mxcli#970: a base-only design leaves the alternate variant's mixin as
+// the base ships it, and create must say so — silently keeping the base's
+// dark palette would read as "the design did not take".
+func TestThemeCreate_NotesTheVariantABaseOnlyDesignDidNotSeed(t *testing.T) {
+	for _, tc := range []struct {
+		css      string
+		wantNote bool
+	}{
+		{":root{--mxt-brand:#10069f;--mxt-ground:#f7f9fb;}", true},
+		{":root{--mxt-brand:#10069f;}\n@media (prefers-color-scheme: dark){:root{--mxt-brand:#a78bfa;}}", false},
+	} {
+		dir := themeProject(t)
+		design := filepath.Join(dir, "design.css")
+		if err := os.WriteFile(design, []byte(tc.css), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		out, err := captureStdout(t, func() error {
+			_, e := runTheme(t, "create", "acme", "-p", dir, "--from", design, "--base", "signal")
+			return e
+		})
+		if err != nil {
+			t.Fatalf("create --from design: %v\n%s", err, out)
+		}
+		if got := strings.Contains(out, "declares no dark block, so the dark variant keeps signal's palette"); got != tc.wantNote {
+			t.Errorf("note present = %v, want %v for %q:\n%s", got, tc.wantNote, tc.css, out)
+		}
+	}
+}
