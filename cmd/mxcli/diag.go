@@ -30,6 +30,7 @@ Examples:
   mxcli diag --log-path   # Print log directory path
   mxcli diag --tail 20    # Show last 20 log entries
   mxcli diag --bundle     # Create tar.gz with logs for bug reports
+  mxcli diag -p app.mpr   # Also check the project: ContentsHash index, git state
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		logPath, _ := cmd.Flags().GetBool("log-path")
@@ -66,6 +67,9 @@ Examples:
 		}
 
 		runDiagInfo(logDir)
+		if projectPath, _ := cmd.Flags().GetString("project"); projectPath != "" {
+			runDiagProject(os.Stdout, projectPath)
+		}
 	},
 }
 
@@ -101,6 +105,25 @@ func runDiagInfo(logDir string) {
 		for _, e := range recentErrors {
 			fmt.Printf("  %s\n", e)
 		}
+	}
+}
+
+// runDiagProject reports the project problems no mx check sees (#972): a
+// stale MPR v2 ContentsHash index, and git states that crash Studio Pro.
+func runDiagProject(w io.Writer, projectPath string) {
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "Project: %s\n", projectPath)
+	n := 0
+	if msg := contentsHashDriftWarning(projectPath); msg != "" {
+		fmt.Fprint(w, "  "+msg)
+		n++
+	}
+	for _, msg := range gitStateWarnings(projectPath) {
+		fmt.Fprintln(w, "  "+msg)
+		n++
+	}
+	if n == 0 {
+		fmt.Fprintln(w, "  No ContentsHash drift; no git state known to crash Studio Pro.")
 	}
 }
 
