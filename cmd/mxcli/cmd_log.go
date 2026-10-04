@@ -44,7 +44,10 @@ Levels, most to least severe:
   NONE  CRITICAL  ERROR  WARNING  INFO  DEBUG  TRACE
 
 This talks to the M2EE admin API, so it needs a running app whose admin port is
-reachable — typically one started by 'mxcli run --local'.
+reachable — typically one started by 'mxcli run --local'. With -p, the admin port
+and password that loop recorded in .mxcli/run-local.json are used for any of
+--admin-host/--admin-port/--admin-pass not given, so 'run --local --admin-port'
+needs no matching flag here.
 
 Examples:
   # What nodes exist, and at what level
@@ -177,11 +180,20 @@ func parseLogSetArgs(args []string) ([]docker.LogNodeLevel, error) {
 	return out, nil
 }
 
+// logAdminOptions builds the admin connection from the flags, taking the port
+// and password of a `mxcli run --local` serving -p for any flag not given
+// (ako/mxcli#982) — the flag defaults are only right for a loop on 8090.
 func logAdminOptions(cmd *cobra.Command) docker.M2EEOptions {
 	host, _ := cmd.Flags().GetString("admin-host")
 	port, _ := cmd.Flags().GetInt("admin-port")
 	pass, _ := cmd.Flags().GetString("admin-pass")
-	return docker.M2EEOptions{Host: host, Port: port, Token: pass, Direct: true}
+	projectPath, _ := cmd.Flags().GetString("project")
+	opts := docker.M2EEOptions{Host: host, Port: port, Token: pass, Direct: true}
+	return devLoopAdminOptions(projectPath, opts, adminFlagsSet{
+		host:  cmd.Flags().Changed("admin-host"),
+		port:  cmd.Flags().Changed("admin-port"),
+		token: cmd.Flags().Changed("admin-pass") || os.Getenv("MXCLI_ADMIN_PASS") != "",
+	})
 }
 
 // logConnectionHint names the most likely cause when nothing is listening — but
@@ -192,11 +204,10 @@ func logConnectionHint(cmd *cobra.Command, err error) string {
 	if !errors.Is(err, docker.ErrAdminUnreachable) {
 		return ""
 	}
-	host, _ := cmd.Flags().GetString("admin-host")
-	port, _ := cmd.Flags().GetInt("admin-port")
+	opts := logAdminOptions(cmd)
 	return fmt.Sprintf("  Log levels come from a RUNNING app's admin API (%s:%d).\n"+
-		"  Start one with 'mxcli run --local -p <app.mpr>', or point at another with --admin-host/--admin-port/--admin-pass.\n",
-		host, port)
+		"  Start one with 'mxcli run --local -p <app.mpr>' (and pass the same -p here), or point at another with --admin-host/--admin-port/--admin-pass.\n",
+		opts.Host, opts.Port)
 }
 
 func init() {
