@@ -59,6 +59,7 @@ func (p *parserImpl) Parse(src string, ctx Context) (RobustExpr, []Hint) {
 				"Also check for glued keywords such as 'emptyor' (should be 'empty or').",
 		})
 	}
+	hs = append(hs, checkValueLiterals(expr, ctx)...)
 	hs = append(hs, checkSlotKind(expr, ctx)...)
 	hs = append(hs, checkBareIdentifierValue(expr, ctx)...)
 	return expr, hs
@@ -365,26 +366,10 @@ func parsePrimary(s *Stream, ctx Context) (RobustExpr, []Hint) {
 		if len(v) >= 2 && v[0] == '\'' && v[len(v)-1] == '\'' {
 			v = v[1 : len(v)-1]
 		}
-		node := &StringLit{baseNode: baseNode{P: t.Pos}, Value: v}
-		var hs []Hint
-		if v == "true" || v == "false" || v == "True" || v == "False" {
-			if sc, ok := slotKind(ctx); ok && sc.Kind == KindBoolean {
-				hs = append(hs, Hint{
-					Code: "E002", Slug: "bool-string-mismatch", Severity: hints.SeverityError,
-					Where: hints.Location{
-						Microflow: ctx.Microflow,
-						Context:   SlotToContext(ctx.SlotPath),
-						Line:      t.Pos.Line,
-						Column:    t.Pos.Column,
-					},
-					YouWrote: "'" + v + "'",
-					Problem:  "Mendix Boolean expressions use the unquoted literals true and false; a quoted string is never equal to a Boolean.",
-					Fix:      strings.ToLower(v),
-				})
-			}
-		}
-		hs = append(hs, checkStringLitVsSlot(node, ctx, t)...)
-		return node, hs
+		// Slot checks (E001/E002) are not run here: a literal is only the
+		// slot's value in value position, which the parse cannot know yet.
+		// checkValueLiterals runs them over the finished tree.
+		return &StringLit{baseNode: baseNode{P: t.Pos}, Value: v}, nil
 	case TokNumber:
 		s.Consume()
 		kind := KindInteger
@@ -610,7 +595,61 @@ func matchKeyword(s *Stream, kw string) bool {
 	return false
 }
 
-func checkStringLitVsSlot(node *StringLit, ctx Context, tok Token) []Hint {
+// checkValueLiterals runs the slot-literal checks (E002 quoted Boolean, E001
+// quoted enumeration value) on the string literals that ARE the slot's value:
+// the whole expression, a parenthesised one, or a then/else result —
+// recursively, since a result can itself be an if.
+//
+// They used to run on every string literal the parser met, so in
+// `change $Log (Windrichting = if $Dir = 'NW' then E.NW else E.N)` the 'NW'
+// compared with a String variable was reported as assigning a string to the
+// enumeration, and every literal argument of find(...) as well — an error, so
+// exec refused a valid microflow (ako/mxcli#969). A literal in a comparison, a
+// function argument or a condition is an operand, not the value; the
+// comparison form of the enum mistake has its own check
+// (checkEnumComparedToString), which resolves the other operand instead.
+func checkValueLiterals(expr RobustExpr, ctx Context) []Hint {
+	switch n := expr.(type) {
+	case *StringLit:
+		return checkValueStringLit(n, ctx)
+	case *ParenExpr:
+		return checkValueLiterals(n.Inner, ctx)
+	case *IfThenElseExpr:
+		var hs []Hint
+		if n.Then != nil {
+			hs = append(hs, checkValueLiterals(n.Then, ctx)...)
+		}
+		if n.Else != nil {
+			hs = append(hs, checkValueLiterals(n.Else, ctx)...)
+		}
+		return hs
+	}
+	return nil
+}
+
+func checkValueStringLit(node *StringLit, ctx Context) []Hint {
+	var hs []Hint
+	v := node.Value
+	if v == "true" || v == "false" || v == "True" || v == "False" {
+		if sc, ok := slotKind(ctx); ok && sc.Kind == KindBoolean {
+			hs = append(hs, Hint{
+				Code: "E002", Slug: "bool-string-mismatch", Severity: hints.SeverityError,
+				Where: hints.Location{
+					Microflow: ctx.Microflow,
+					Context:   SlotToContext(ctx.SlotPath),
+					Line:      node.P.Line,
+					Column:    node.P.Column,
+				},
+				YouWrote: "'" + v + "'",
+				Problem:  "Mendix Boolean expressions use the unquoted literals true and false; a quoted string is never equal to a Boolean.",
+				Fix:      strings.ToLower(v),
+			})
+		}
+	}
+	return append(hs, checkStringLitVsSlot(node, ctx)...)
+}
+
+func checkStringLitVsSlot(node *StringLit, ctx Context) []Hint {
 	if ctx.Catalog == nil || ctx.SlotPath == "" {
 		return nil
 	}
@@ -629,7 +668,7 @@ func checkStringLitVsSlot(node *StringLit, ctx Context, tok Token) []Hint {
 		Code:     "E001",
 		Slug:     "enum-string-mismatch",
 		Severity: hints.SeverityError,
-		Where:    hintsLocation(ctx, tok.Pos),
+		Where:    hintsLocation(ctx, node.P),
 		YouWrote: "'" + node.Value + "'",
 		Problem: "Comparing or assigning an Enumeration attribute against " +
 			"a string literal. In Mendix expressions, enumeration values " +

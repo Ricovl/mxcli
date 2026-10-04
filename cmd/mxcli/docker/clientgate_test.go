@@ -73,7 +73,7 @@ func TestEnsureClientServed_NoRecoveryWhenServed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if err := ensureClientServed(dir, srv.URL+"/", "/nonexistent/mxbuild", io.Discard); err != nil {
+	if err := ensureClientServed(dir, srv.URL+"/", bogusOneShot(dir), io.Discard); err != nil {
 		t.Fatalf("a present+served bundle should need no recovery, got: %v", err)
 	}
 }
@@ -93,7 +93,7 @@ func TestEnsureClientServed_RecoversWhenNotServed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	err := ensureClientServed(dir, srv.URL+"/", "/nonexistent/mxbuild", io.Discard)
+	err := ensureClientServed(dir, srv.URL+"/", bogusOneShot(dir), io.Discard)
 	if err == nil {
 		t.Fatal("expected recovery to run and fail (no rollup.config.mjs)")
 	}

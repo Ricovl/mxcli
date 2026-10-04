@@ -749,6 +749,7 @@ FRAGMENTS: F R A G M E N T S;
 SLOT: S L O T;
 LANGUAGES: L A N G U A G E S;
 TRANSLATIONS: T R A N S L A T I O N S;   // create/describe translations for <lang>
+MARKETPLACE: M A R K E T P L A C E;      // translations without marketplace (ako/mxcli#970)
 
 // ALTER PAGE keywords
 INSERT: I N S E R T;

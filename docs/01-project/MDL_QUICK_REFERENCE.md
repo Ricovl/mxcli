@@ -1675,6 +1675,14 @@ dynamictext due (content: '{1}', contentparams: ({1} = DueOn  format (dateFormat
 ```
 Keys: `decimalPrecision` (int), `groupDigits` (bool), `dateFormat` (`Date`|`DateTime`|`Time`|`Custom`), `customDateFormat` (pattern, with `dateFormat: Custom`), `enumFormat` (`Text`|`Image`).
 
+**Input widget formatting** — the same fields as widget properties on the widgets that store a FormattingInfo:
+```sql
+datepicker dpStart (label: 'Start', attribute: StartTime, DateFormat: DateTime)          -- Date | Time | DateTime | Custom
+datepicker dpAt (label: 'At', attribute: StartTime, DateFormat: Custom, CustomDateFormat: 'dd-MM-yyyy HH:mm')
+textbox tbAmount (label: 'Amount', attribute: Amount, DecimalPrecision: 2, GroupDigits: true)
+```
+A date picker's `DateFormat` is its mode (time / date-time picker). `CustomDateFormat` requires an explicit `DateFormat` (and `Custom` requires a pattern — mxbuild CE0493); both are checked as MDL-WIDGET18. `alter page … { set (DateFormat: Time) on dp; }` changes them in place.
+
 ## ALTER PAGE / ALTER SNIPPET
 
 Modify an existing page or snippet's widget tree in-place without full `create or replace`. Works directly on the raw BSON tree, preserving unsupported widget types.
@@ -1839,8 +1847,8 @@ Bulk translation of every user-visible string, one file per language. Entries us
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| Describe | `describe translations [in Module] for <lang>;` | Emits the CREATE form; an untranslated string comes back with an **empty** target, which is what makes the output an LLM prompt |
-| Create | `create translations [in Module] for <lang> ( 'src' as 'target', ... );` | The language is the thing that exists — **errors** if it already has translations |
+| Describe | `describe translations [in Module \| without marketplace] for <lang>;` | Emits the CREATE form; an untranslated string comes back with an **empty** target, which is what makes the output an LLM prompt |
+| Create | `create translations [in Module \| without marketplace] for <lang> ( 'src' as 'target', ... );` | The language is the thing that exists — **errors** if it already has translations. Without `in`, the run reaches Marketplace modules too and **warns** with a per-module count (an update replaces them); `without marketplace` keeps it to the app's own modules |
 | Merge | `create or modify translations ...` | A source the file does not name is left alone |
 | Replace | `create or replace translations ...` | The file is authoritative: a translation whose source it does not name is **REMOVED**, and the run says which. `in Module` **bounds** the deletion |
 | Remove a language's translations | `create or replace translations [in Module] for <lang> ( );` | An empty file is authoritative over nothing, so everything in scope goes — the only way to take a language's translations out of the model |

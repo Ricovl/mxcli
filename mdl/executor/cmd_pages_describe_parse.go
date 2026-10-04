@@ -369,6 +369,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.IsPassword, _ = w["IsPasswordBox"].(bool)
 		widget.ValidationExpression, widget.ValidationMessage = extractWidgetValidation(ctx, w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.Formatting = describeInputFormatting(ctx, "textbox", w)
 		return []rawWidget{widget}
 
 	case "Forms$TextArea", "Pages$TextArea":
@@ -386,6 +387,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Content = extractInputAttribute(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.Formatting = describeInputFormatting(ctx, "datepicker", w)
 		return []rawWidget{widget}
 
 	case "Forms$RadioButtons", "Pages$RadioButtons", "Forms$RadioButtonGroup", "Pages$RadioButtonGroup":

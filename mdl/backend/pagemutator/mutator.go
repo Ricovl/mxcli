@@ -2999,10 +2999,100 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		return nil
 	case "attribute":
 		return setWidgetAttributeRefMut(widget, value)
+	case "dateformat", "customdateformat", "decimalprecision", "groupdigits":
+		return setWidgetFormattingMut(widget, propName, value)
 	default:
 		// Try as pluggable widget property
 		return setPluggableWidgetPropertyMut(widget, propName, value)
 	}
+}
+
+// setWidgetFormattingMut sets one field of an input widget's
+// Forms$FormattingInfo — a date picker's DateFormat / CustomDateFormat, a text
+// box's DecimalPrecision / GroupDigits (ako/mxcli#968). Which widget carries
+// which is pages.FormattingProperties, the list CREATE PAGE reads too; any
+// other widget refuses the key instead of falling through to the pluggable
+// setter's "no Object" error, which named the wrong problem.
+func setWidgetFormattingMut(widget bson.D, propName string, value any) error {
+	typ := bsonnav.DGetString(widget, "$Type")
+	field := ""
+	for _, p := range pages.FormattingProperties(typ) {
+		if strings.EqualFold(p, propName) {
+			field = p
+		}
+	}
+	if field == "" {
+		return fmt.Errorf("a %s has no %s property — DateFormat and CustomDateFormat are a date picker's, "+
+			"DecimalPrecision and GroupDigits a text box's", widgetTypeLabel(typ), propName)
+	}
+	fi := bsonnav.DGetDoc(widget, "FormattingInfo")
+	if fi == nil {
+		return fmt.Errorf("this %s stores no FormattingInfo to set %s on", widgetTypeLabel(typ), field)
+	}
+	switch field {
+	case "DateFormat":
+		s, isString := value.(string)
+		canon, ok := pages.CanonicalDateFormat(s)
+		if !isString || !ok {
+			return fmt.Errorf("DateFormat is one of Date, Time, DateTime, Custom, not %v", value)
+		}
+		// mxbuild: CE0493 "Date format is custom but no format string is
+		// specified." Set the pattern in the same statement — properties are
+		// applied in name order, so CustomDateFormat lands first.
+		if canon == "Custom" && strings.TrimSpace(bsonnav.DGetString(fi, "CustomDateFormat")) == "" {
+			return fmt.Errorf("`DateFormat: Custom` needs a pattern: set CustomDateFormat in the same statement, " +
+				"e.g. `set (DateFormat: Custom, CustomDateFormat: 'dd-MM-yyyy HH:mm') on …` (mxbuild CE0493)")
+		}
+		bsonnav.DSet(fi, "DateFormat", canon)
+	case "CustomDateFormat":
+		s, isString := value.(string)
+		if !isString {
+			return fmt.Errorf("CustomDateFormat is a quoted pattern such as 'dd-MM-yyyy HH:mm', not %v", value)
+		}
+		bsonnav.DSet(fi, "CustomDateFormat", s)
+	case "DecimalPrecision":
+		n, ok := formattingInt(value)
+		if !ok || n < 0 {
+			return fmt.Errorf("DecimalPrecision is a non-negative integer, not %v", value)
+		}
+		// Keep the stored width: Studio Pro writes an int64, mxcli's codec an
+		// int32, and replacing one with the other is a change of its own.
+		if _, isInt32 := bsonnav.DGet(fi, "DecimalPrecision").(int32); isInt32 {
+			bsonnav.DSet(fi, "DecimalPrecision", int32(n))
+		} else {
+			bsonnav.DSet(fi, "DecimalPrecision", int64(n))
+		}
+	case "GroupDigits":
+		b, ok := editableBool(value)
+		if !ok {
+			return fmt.Errorf("GroupDigits is true or false, not %v", value)
+		}
+		bsonnav.DSet(fi, "GroupDigits", b)
+	}
+	return nil
+}
+
+// formattingInt reads an integer property value in any of the forms the
+// visitor produces.
+func formattingInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int32:
+		return int(n), true
+	case int64:
+		return int(n), true
+	case float64:
+		if n == math.Trunc(n) {
+			return int(n), true
+		}
+	case string:
+		var i int
+		if _, err := fmt.Sscanf(n, "%d", &i); err == nil && fmt.Sprint(i) == n {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // ---------------------------------------------------------------------------

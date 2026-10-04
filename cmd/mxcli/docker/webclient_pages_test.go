@@ -163,7 +163,7 @@ func TestEnsureClientServed_RecoversWhenAPageIsMissing(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	err := ensureClientServed(deploy, srv.URL+"/", "/nonexistent/mxbuild", io.Discard)
+	err := ensureClientServed(deploy, srv.URL+"/", bogusOneShot(deploy), io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "re-bundle") {
 		t.Fatalf("expected the re-bundle branch to run for a missing page chunk, got: %v", err)
 	}

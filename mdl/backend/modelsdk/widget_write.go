@@ -491,7 +491,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			g.SetSourceVariable(sv)
 		}
 		g.SetEditable(pages.WidgetEditability(&x.BaseWidget))
-		g.SetFormattingInfo(newFormattingInfo())
+		g.SetFormattingInfo(formattingInfoToGen(x.FormattingInfo))
 		g.SetInputMask("")
 		g.SetIsPasswordBox(x.IsPassword)
 		g.SetKeyboardType("Default")
@@ -627,7 +627,10 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			g.SetSourceVariable(sv)
 		}
 		g.SetEditable(pages.WidgetEditability(&x.BaseWidget))
-		g.SetFormattingInfo(newFormattingInfo())
+		// The picker's format IS its mode: DateFormat Time or DateTime is what
+		// makes it a time / date-time picker. The defaults were hard-coded here,
+		// so every picker was written date-only (ako/mxcli#968).
+		g.SetFormattingInfo(formattingInfoToGen(x.FormattingInfo))
 		if x.Label != "" {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
@@ -1334,12 +1337,6 @@ func inputSourceVariableToGen(sv *pages.WidgetVariable) element.Element {
 		return nil
 	}
 	return pageVariableToGen(sv.Widget, sv.Variable, sv.Kind)
-}
-
-// newFormattingInfo builds the default Forms$FormattingInfo (matches the legacy
-// serializer; TimeFormat is intentionally omitted — it triggers CE0463).
-func newFormattingInfo() element.Element {
-	return formattingInfoToGen(nil)
 }
 
 // formattingInfoToGen builds a Forms$FormattingInfo, using the parameter's
