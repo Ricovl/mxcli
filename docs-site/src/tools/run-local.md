@@ -63,6 +63,10 @@ so structural changes need a restart; behavioural changes do not.
     createdb -h 127.0.0.1 -U mendix app1112
     ```
 
+At start, `run --local` warns (without stopping) when the project's git state
+would make Studio Pro 11.13 fail to open it — a branch with no upstream, or
+"dubious ownership". See [Working Outside Studio Pro](outside-studio-pro.md).
+
 ## Flags
 
 | Flag | Default | Purpose |
