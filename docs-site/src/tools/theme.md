@@ -222,6 +222,13 @@ Declarations inside a dark block (`prefers-color-scheme: dark`, `.theme-dark`,
 one. Tokens the design does not name keep the base theme's value, so a
 three-colour design still yields a complete, working palette.
 
+A design with **no block for the base theme's other variant** — only a base
+palette — leaves that variant exactly as the base theme ships it, and `create`
+prints a note naming the mixin. The base palette describes one variant: copying
+its light ground and ink into the dark palette, whose other surfaces stay dark,
+gave an unreadable mix. Add a `prefers-color-scheme: dark` (or `light`, for a
+dark-first base such as console) block to seed it.
+
 `mxcli theme show signal` prints the vocabulary. A `--mxt-*` name the base theme
 does not declare is **an error**, not an extra: nothing would read it, so the
 theme would apply cleanly and render unchanged — the one failure mode this path
