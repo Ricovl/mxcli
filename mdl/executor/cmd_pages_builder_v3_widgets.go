@@ -488,6 +488,15 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 	tb.ValidationExpression = w.GetStringProp("Validation")
 	tb.ValidationMessage = w.GetStringProp("ValidationMessage")
 
+	// Forms$FormattingInfo: date format and numeric precision/grouping. The
+	// writer hard-coded the defaults, so a Studio Pro text box with a decimal
+	// precision lost it on describe → exec (ako/mxcli#968).
+	fi, err := inputFormattingInfo(w)
+	if err != nil {
+		return nil, err
+	}
+	tb.FormattingInfo = fi
+
 	// Handle Label
 	if label := inputLabel(w); label != "" {
 		tb.Label = label
@@ -600,6 +609,13 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 	if label := inputLabel(w); label != "" {
 		dp.Label = label
 	}
+
+	// DateFormat / CustomDateFormat — the picker's mode (ako/mxcli#968).
+	fi, err := inputFormattingInfo(w)
+	if err != nil {
+		return nil, err
+	}
+	dp.FormattingInfo = fi
 
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &dp.OnChangeAction); err != nil {

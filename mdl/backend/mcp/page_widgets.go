@@ -236,11 +236,11 @@ func (b *Backend) mapPageWidgetBody(w pages.Widget) (map[string]any, error) {
 	case *pages.DataGrid:
 		return nil, fmt.Errorf("legacy DataGrid is not supported by the MCP backend — pg_patch_page has no Pages$DataGrid type (use a ListView, or DataGrid 2 which is a pluggable widget)")
 	case *pages.TextBox:
-		return inputWidget("Pages$TextBox", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
+		return withFormattingInfo(inputWidget("Pages$TextBox", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), wd.FormattingInfo), nil
 	case *pages.CheckBox:
 		return inputWidget("Pages$CheckBox", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
 	case *pages.DatePicker:
-		return inputWidget("Pages$DatePicker", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
+		return withFormattingInfo(inputWidget("Pages$DatePicker", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), wd.FormattingInfo), nil
 	case *pages.TextArea:
 		return inputWidget("Pages$TextArea", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
 	case *pages.RadioButtons:
@@ -269,6 +269,26 @@ func inputWidget(typ, name, label, attribute, class, style string, sv *pages.Wid
 	}
 	if sv != nil && sv.Widget != "" {
 		w["sourceVariable"] = pageVariable(sv.Widget, sv.Variable, sv.Kind)
+	}
+	return w
+}
+
+// withFormattingInfo adds an input widget's authored FormattingInfo — a date
+// picker's DateFormat, a text box's precision — in the same Pages$FormattingInfo
+// shape the template parameters send. nil leaves the slot to Studio Pro's
+// defaults, as before; dropping an authored one silently turned a date-time
+// picker into a date picker (ako/mxcli#968).
+func withFormattingInfo(w map[string]any, fi *pages.FormattingInfo) map[string]any {
+	if fi == nil {
+		return w
+	}
+	w["formattingInfo"] = map[string]any{
+		"$Type":            "Pages$FormattingInfo",
+		"decimalPrecision": fi.DecimalPrecision,
+		"groupDigits":      fi.GroupDigits,
+		"enumFormat":       fi.EnumFormat,
+		"dateFormat":       fi.DateFormat,
+		"customDateFormat": fi.CustomDateFormat,
 	}
 	return w
 }
