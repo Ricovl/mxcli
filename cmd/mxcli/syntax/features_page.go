@@ -149,7 +149,12 @@ LIST IMPACT OF htmlelement;
 			"--   A FILTER block written on a DATAGRID is not a column filter and not a\n" +
 			"--   container the grid declares — it used to be dropped on write with no\n" +
 			"--   diagnostic, and is now refused (MDL-WIDGET30).\n\n" +
-			"-- Inputs\nTEXTBOX name (Label: 'L', Attribute: Attr)\nTEXTAREA | DATEPICKER | COMBOBOX | CHECKBOX | RADIOBUTTONS\n\n" +
+			"-- Inputs\nTEXTBOX name (Label: 'L', Attribute: Attr)\nTEXTAREA | DATEPICKER | COMBOBOX | CHECKBOX | RADIOBUTTONS\n" +
+			"-- A date picker's DateFormat is its mode: Date (default) | Time | DateTime | Custom.\n" +
+			"DATEPICKER name (Attribute: Start, DateFormat: DateTime)\n" +
+			"DATEPICKER name (Attribute: Start, DateFormat: Custom, CustomDateFormat: 'dd-MM-yyyy HH:mm')\n" +
+			"-- A text box's numeric formatting:\n" +
+			"TEXTBOX name (Attribute: Amount, DecimalPrecision: 2, GroupDigits: true)\n\n" +
 			"-- Conditional visibility / editability: a bare client expression, stored as\n" +
 			"-- written (name attributes as $currentObject/Attr). A plain value is static.\n" +
 			"TEXTBOX name (Attribute: Attr, Visible: $currentObject/IsActive, Editable: $currentObject/Status != 'Closed')\n" +

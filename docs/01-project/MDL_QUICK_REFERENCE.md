@@ -1675,6 +1675,14 @@ dynamictext due (content: '{1}', contentparams: ({1} = DueOn  format (dateFormat
 ```
 Keys: `decimalPrecision` (int), `groupDigits` (bool), `dateFormat` (`Date`|`DateTime`|`Time`|`Custom`), `customDateFormat` (pattern, with `dateFormat: Custom`), `enumFormat` (`Text`|`Image`).
 
+**Input widget formatting** — the same fields as widget properties on the widgets that store a FormattingInfo:
+```sql
+datepicker dpStart (label: 'Start', attribute: StartTime, DateFormat: DateTime)          -- Date | Time | DateTime | Custom
+datepicker dpAt (label: 'At', attribute: StartTime, DateFormat: Custom, CustomDateFormat: 'dd-MM-yyyy HH:mm')
+textbox tbAmount (label: 'Amount', attribute: Amount, DecimalPrecision: 2, GroupDigits: true)
+```
+A date picker's `DateFormat` is its mode (time / date-time picker). `CustomDateFormat` requires an explicit `DateFormat` (and `Custom` requires a pattern — mxbuild CE0493); both are checked as MDL-WIDGET18. `alter page … { set (DateFormat: Time) on dp; }` changes them in place.
+
 ## ALTER PAGE / ALTER SNIPPET
 
 Modify an existing page or snippet's widget tree in-place without full `create or replace`. Works directly on the raw BSON tree, preserving unsupported widget types.

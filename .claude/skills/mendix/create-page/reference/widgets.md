@@ -481,7 +481,23 @@ radiobuttons rbStatus (label: 'Status', attribute: status)
 **DATEPICKER** - Date/time selection:
 ```sql
 datepicker dpCreated (label: 'Created Date', attribute: CreatedDate)
+-- DateFormat is the picker's MODE: Date (default), Time, DateTime, or Custom.
+-- A time-of-day or date-and-time field needs Time / DateTime, or it renders date-only.
+datepicker dpStart (label: 'Start', attribute: StartTime, DateFormat: DateTime)
+datepicker dpAt (label: 'At', attribute: StartTime, DateFormat: Custom, CustomDateFormat: 'dd-MM-yyyy HH:mm')
 ```
+`CustomDateFormat` needs `DateFormat: Custom` (written alone it is refused — it would
+never apply), and `DateFormat: Custom` needs a non-empty pattern (mxbuild CE0493).
+A pattern beside another explicit DateFormat is accepted: Studio Pro keeps it when the
+format is switched away from Custom, and `describe` prints it. Change an existing
+picker with `alter page … { set (DateFormat: DateTime) on dpStart; }`.
+
+**TEXTBOX numeric formatting** — on a Decimal/Integer/Long attribute:
+```sql
+textbox tbAmount (label: 'Amount', attribute: Amount, DecimalPrecision: 2, GroupDigits: true)
+```
+A text box binds no dates (CE2421), so `DateFormat` on it is dropped and warned about
+(MDL-WIDGET07), as on any widget other than a date picker.
 
 **COMBOBOX** - Combo box (pluggable widget):
 ```sql
