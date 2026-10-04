@@ -37,6 +37,12 @@ package roundtrip
 // as the legacy `show_page 'M.P'`, and unnamed items refused by exec) and two
 // WorkflowCommons microflows whose `return if … then … else …` was described
 // with a `$` in front.
+// ako/mxcli#980 struck Atlas_Core.Phone_Menu and Tablet_Menu: the menu document
+// writer left out each item's null AlternativeText and empty Items list, which
+// Studio Pro stores on every menu item. Navigation profiles joined the harness
+// with it, and round-trip from the start. It also struck
+// WorkflowCommons.ConflictedWorkflowDefinitionView_ActionConfirmation, whose only
+// loss was the empty OutputMappings Studio Pro stores on every nanoflow call.
 var testAppKnownFailures = map[string]knownFailure{
 	"association ViewAssociations.persistent_order":                                   {laws: []law{lawExec}, issue: "#721", why: "association: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"association WorkflowCommons.ConflictedWorkflowDefinitionView_WorkflowDefinition": {laws: []law{lawExec}, issue: "#721", why: "association: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -137,8 +143,6 @@ var testAppKnownFailures = map[string]knownFailure{
 	"javascript action NanoflowCommons.ShowProgress":                                  {laws: []law{lawParse}, issue: "#721", why: "javascript action: breaks parse on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"javascript action NanoflowCommons.SignIn":                                        {laws: []law{lawParse}, issue: "#721", why: "javascript action: breaks parse on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"javascript action WebActions.TakePicture":                                        {laws: []law{lawParse}, issue: "#721", why: "javascript action: breaks parse on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"menu Atlas_Core.Phone_Menu":                                                      {laws: []law{lawGetPut}, issue: "#721", why: "menu: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"menu Atlas_Core.Tablet_Menu":                                                     {laws: []law{lawGetPut}, issue: "#721", why: "menu: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Administration.Account_Edit":                                                {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Administration.Account_New":                                                 {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Administration.Account_Overview":                                            {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -151,7 +155,6 @@ var testAppKnownFailures = map[string]knownFailure{
 	"page WorkflowCommons.ConflictResolution":                                         {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp (putget struck by #721 L4), measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.ConflictedActivitiesHelper_JumpTo_Options":                  {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.ConflictedWorkflowDefinitionView":                           {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp (putget struck by #721 L4), measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"page WorkflowCommons.ConflictedWorkflowDefinitionView_ActionConfirmation":        {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.DefaultWorkflowAdmin":                                       {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.ManageTaskAssignments":                                      {laws: []law{lawExec}, issue: "#721", why: "page: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.MyInitiatedWorkflowView_WithdrawConfirmation":               {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},

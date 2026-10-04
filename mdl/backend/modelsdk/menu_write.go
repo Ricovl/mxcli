@@ -18,6 +18,18 @@ import (
 // menuDocumentType is the BSON storage name of a standalone menu document.
 const menuDocumentType = "Menus$MenuDocument"
 
+// A menu item carries a null AlternativeText and an Items list, empty with
+// marker 3, whether or not it has sub-items: every one of the items of
+// Atlas_Core's Phone_Menu and Tablet_Menu in ako/TestApp and PedApp (11.14.0),
+// and every navigation menu item. Without them a describe -> exec of either
+// Atlas menu rewrote it (the round-trip allowlist's #721 entries).
+func init() {
+	codec.RegisterTypeDefaults("Menus$MenuItem", codec.TypeDefaults{
+		NullFields:     []string{"AlternativeText"},
+		MandatoryLists: []string{"Items"},
+	})
+}
+
 // CreateMenuDocument writes a new Menus$MenuDocument unit.
 //
 // This goes through gen + codec rather than hand-built BSON, which is what makes
@@ -85,7 +97,11 @@ func encodeMenuDocument(md *types.MenuDocument) ([]byte, error) {
 	coll := genMenus.NewMenuItemCollection()
 	coll.SetID(element.ID(mmpr.GenerateID()))
 	for _, item := range md.Items {
-		coll.AddItems(menuItemToGen(item))
+		g, err := menuItemToGen(item)
+		if err != nil {
+			return nil, err
+		}
+		coll.AddItems(g)
 	}
 	g.SetItemCollection(coll)
 
@@ -95,16 +111,24 @@ func encodeMenuDocument(md *types.MenuDocument) ([]byte, error) {
 // menuItemToGen converts one semantic menu item (and its sub-items) to gen. It is
 // the inverse of navMenuItemFromGen, and deliberately mirrors the same three
 // concerns: caption, icon, action.
-func menuItemToGen(item *types.NavMenuItem) element.Element {
+func menuItemToGen(item *types.NavMenuItem) (element.Element, error) {
 	g := genMenus.NewMenuItem()
 	g.SetID(element.ID(mmpr.GenerateID()))
 	g.SetCaption(menuCaptionToGen(item.Caption))
 	g.SetIcon(menuIconToGen(item))
-	g.SetAction(menuActionToGen(item))
-	for _, sub := range item.Items {
-		g.AddItems(menuItemToGen(sub))
+	action, err := menuActionToGen(item)
+	if err != nil {
+		return nil, fmt.Errorf("menu item '%s': %w", item.Caption, err)
 	}
-	return g
+	g.SetAction(action)
+	for _, sub := range item.Items {
+		subEl, err := menuItemToGen(sub)
+		if err != nil {
+			return nil, err
+		}
+		g.AddItems(subEl)
+	}
+	return g, nil
 }
 
 // menuCaptionToGen builds the Texts$Text / Texts$Translation pair a caption is
@@ -175,14 +199,25 @@ func menuIconToGen(item *types.NavMenuItem) element.Element {
 // menuActionToGen builds the item's client action. The gen type names are the SDK
 // names; their storage names are what Mendix writes — PageClientAction is
 // Forms$FormAction, NoClientAction is Forms$NoAction.
-func menuActionToGen(item *types.NavMenuItem) element.Element {
-	// An action the script could not state, carried from storage verbatim
-	// (ako/mxcli#980); the executor sets StoredAction only for that case.
-	if len(item.StoredAction) > 0 {
-		if el, err := codec.NewDecoder(codec.DefaultRegistry).Decode(item.StoredAction); err == nil {
-			return el
+func menuActionToGen(item *types.NavMenuItem) (element.Element, error) {
+	raw := item.StoredAction // an action the script could not state, kept verbatim
+	if item.Action != nil {
+		// The script's action, through the widget client-action serializer;
+		// StoredAction is then only what it replaces (menuActionBSON).
+		var err error
+		if raw, err = menuActionBSON(item.Action, item.StoredAction); err != nil {
+			return nil, err
 		}
 	}
+	if len(raw) > 0 {
+		return codec.NewDecoder(codec.DefaultRegistry).Decode(raw)
+	}
+	return menuActionFromTargets(item), nil
+}
+
+// menuActionFromTargets builds the action of an item that carries only the
+// simple targets (no built Action and nothing stored).
+func menuActionFromTargets(item *types.NavMenuItem) element.Element {
 	switch {
 	case item.Page != "":
 		a := genPages.NewPageClientAction()
@@ -211,8 +246,8 @@ func menuActionToGen(item *types.NavMenuItem) element.Element {
 		a.SetDisabledDuringExecution(true)
 		return a
 	default:
-		a := genPages.NewNoClientAction()
-		a.SetID(element.ID(mmpr.GenerateID()))
-		return a
+		// The widget serializer's Forms$NoAction, DisabledDuringExecution true
+		// as Studio Pro stores it on a menu item.
+		return noActionGen()
 	}
 }

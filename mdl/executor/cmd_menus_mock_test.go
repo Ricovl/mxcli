@@ -178,7 +178,7 @@ func TestCreateMenu_OrModifyPreservesIdentity(t *testing.T) {
 func TestMenuItemsFromAST_Nested(t *testing.T) {
 	page := ast.QualifiedName{Module: "M", Name: "P"}
 	mf := ast.QualifiedName{Module: "M", Name: "F"}
-	items := menuItemsFromAST([]ast.NavMenuItemDef{{
+	items, _ := menuItemsFromAST(nil, []ast.NavMenuItemDef{{
 		Caption: "Top",
 		Items: []ast.NavMenuItemDef{
 			{Caption: "Pg", Page: &page, Icon: "M.C.i"},

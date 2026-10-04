@@ -186,15 +186,18 @@ func (b *Builder) buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.Nav
 		case c.PAGE() != nil:
 			built := buildQualifiedName(qn)
 			item.Page = &built
+			item.Action = &ast.ActionV3{Type: "showPage", Target: built.String()}
 		case c.MICROFLOW() != nil:
 			built := buildQualifiedName(qn)
 			item.Microflow = &built
+			item.Action = &ast.ActionV3{Type: "microflow", Target: built.String()}
 		}
 	}
 	// SIGN_OUT names no target, which is why it is read separately rather than
 	// as a third switch arm.
 	if c.SIGN_OUT() != nil {
 		item.SignOut = true
+		item.Action = &ast.ActionV3{Type: "signOut"}
 	}
 	if ic, ok := c.NavMenuIcon().(*parser.NavMenuIconContext); ok && ic != nil {
 		applyNavMenuIcon(&item, ic.NavMenuIconValue())
@@ -223,7 +226,7 @@ func (b *Builder) buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.Nav
 						"give the action to one of them", line, caption))
 					continue
 				}
-				applyNavMenuAction(&item, prop.NavMenuAction())
+				b.applyNavMenuAction(&item, prop.NavMenuAction(), line)
 			case prop.ICON() != nil:
 				applyNavMenuIcon(&item, prop.NavMenuIconValue())
 			}
@@ -242,23 +245,66 @@ func (b *Builder) buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.Nav
 	return item
 }
 
-// applyNavMenuAction reads a menu item's `OnClick:` action: `show page M.P`,
-// `call microflow M.F` or `sign out`.
-func applyNavMenuAction(item *ast.NavMenuItemDef, ctx parser.INavMenuActionContext) {
+// menuItemActionKinds are the actions Studio Pro offers on a menu item: show
+// page, call microflow, call nanoflow, open link, create object, sign out, and
+// nothing. Save, cancel, delete, close page and complete task act on a page's
+// object, which a menu item has none of.
+var menuItemActionKinds = map[string]bool{
+	"showPage": true, "microflow": true, "nanoflow": true, "openLink": true,
+	"create": true, "signOut": true, "none": true,
+}
+
+// applyNavMenuAction reads a menu item's `OnClick:` action — the widget action
+// expression (ako/mxcli#980). The simple targets are also recorded on Page /
+// Microflow / SignOut, which the reference checks read.
+func (b *Builder) applyNavMenuAction(item *ast.NavMenuItemDef, ctx parser.INavMenuActionContext, line int) {
 	a, ok := ctx.(*parser.NavMenuActionContext)
-	if !ok || a == nil {
+	if !ok || a == nil || a.ActionExprV3() == nil {
 		return
 	}
-	switch {
-	case a.SIGN_OUT() != nil:
-		item.SignOut = true
-	case a.PAGE() != nil && a.QualifiedName() != nil:
-		built := buildQualifiedName(a.QualifiedName())
-		item.Page = &built
-	case a.MICROFLOW() != nil && a.QualifiedName() != nil:
-		built := buildQualifiedName(a.QualifiedName())
-		item.Microflow = &built
+	act := buildActionV3(a.ActionExprV3())
+	if act == nil {
+		return
 	}
+	if !menuItemActionKinds[act.Type] {
+		b.addError(fmt.Errorf("line %d: menu item '%s': a menu item cannot %s — its OnClick is show page, "+
+			"call microflow, call nanoflow, open link, create object, sign out or nothing", line, item.Caption, menuActionWords(act)))
+		return
+	}
+	if act.Type == "openLink" && act.LinkVariable != "" {
+		b.addError(fmt.Errorf("line %d: menu item '%s': open link %s/%s reads its address from an object, and a menu item has none — "+
+			"write the address as a string", line, item.Caption, act.LinkVariable, act.LinkAttribute))
+		return
+	}
+	item.Action = act
+	qn := buildQualifiedName(a.ActionExprV3().(*parser.ActionExprV3Context).QualifiedName())
+	switch act.Type {
+	case "signOut":
+		item.SignOut = true
+	case "showPage":
+		item.Page = &qn
+	case "microflow":
+		item.Microflow = &qn
+	}
+}
+
+// menuActionWords names a refused action in the words the script used.
+func menuActionWords(a *ast.ActionV3) string {
+	switch a.Type {
+	case "save":
+		return "save changes"
+	case "cancel":
+		return "cancel changes"
+	case "close":
+		return "close a page"
+	case "delete":
+		return "delete"
+	case "completeTask":
+		return "complete a task"
+	case "param":
+		return "take a fragment action parameter ($" + a.Target + ")"
+	}
+	return a.Type
 }
 
 // applyNavMenuIcon reads the ICON clause onto the item.

@@ -9,6 +9,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
 // navigationDocType is the PED type of the project-level navigation document.
@@ -85,6 +86,11 @@ func (b *Backend) UpdateNavigationProfile(_ model.ID, profileName string, spec t
 	for _, hp := range spec.HomePages {
 		if hp.ForRole != "" {
 			return fmt.Errorf("role-based home pages (home ... for %s) are not yet authored over the MCP backend; set them against a local .mpr", hp.ForRole)
+		}
+	}
+	if spec.HasMenu {
+		if err := navMenuItemsWritableOverPED(spec.MenuItems); err != nil {
+			return err
 		}
 	}
 
@@ -248,6 +254,45 @@ func (b *Backend) navProfileState(name string) (*navProfileState, error) {
 	}
 	st.menuItemCount = len(items)
 	return st, nil
+}
+
+// navMenuItemsWritableOverPED refuses a menu this path would write wrong:
+// navMenuAction below builds a show page or call microflow by name and nothing
+// else, so any other action — a nanoflow call, open link, create object, sign
+// out, a flow call's settings, or a stored action carried through the rewrite —
+// would be stored as no action at all (ako/mxcli#980). Refusing names the item.
+func navMenuItemsWritableOverPED(items []types.NavMenuItemSpec) error {
+	for _, mi := range items {
+		if len(mi.KeepAction) > 0 {
+			return fmt.Errorf("menu item '%s': its stored action has no MDL form, and the MCP backend cannot carry it through a menu rewrite — edit this menu against a local .mpr", mi.Caption)
+		}
+		if mi.Action != nil {
+			switch a := mi.Action.(type) {
+			case *pages.PageClientAction:
+				if len(a.ParameterMappings) == 0 && pages.ExecutionOf(a).DisabledDuringExecution == nil {
+					break
+				}
+				return navMenuActionRefusal(mi.Caption, "a show page with arguments or settings")
+			case *pages.MicroflowClientAction:
+				if len(a.ParameterMappings) == 0 && a.FlowCallSettings == (pages.FlowCallSettings{}) &&
+					pages.ExecutionOf(a).DisabledDuringExecution == nil {
+					break
+				}
+				return navMenuActionRefusal(mi.Caption, "a call microflow with arguments or settings")
+			case *pages.NoClientAction:
+			default:
+				return navMenuActionRefusal(mi.Caption, fmt.Sprintf("a %T", mi.Action))
+			}
+		}
+		if err := navMenuItemsWritableOverPED(mi.Items); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func navMenuActionRefusal(caption, what string) error {
+	return fmt.Errorf("menu item '%s': %s is not authored over the MCP backend yet (it writes show page and call microflow by name only) — edit this menu against a local .mpr", caption, what)
 }
 
 // navMenuItemValue builds a Menus$MenuItem constructor for ped_update_document.

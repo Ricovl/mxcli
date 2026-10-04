@@ -95,9 +95,8 @@ var knownFailures = map[string]knownFailure{
 	"javascript action NanoflowCommons.SignIn":                            {laws: []law{lawParse}, issue: "#721", why: "a parameter comma is printed after its -- comment (#721 G)"},
 	"javascript action WebActions.TakePicture":                            {laws: []law{lawParse}, issue: "#721", why: "a parameter comma is printed after its -- comment (#721 G)"},
 
-	// #721 E: menus.
-	"menu Atlas_Core.Phone_Menu":  {laws: []law{lawGetPut}, issue: "#721", why: "nested menu items dropped (#721 E)"},
-	"menu Atlas_Core.Tablet_Menu": {laws: []law{lawGetPut}, issue: "#721", why: "nested menu items dropped (#721 E)"},
+	// #721 E: menus — struck by ako/mxcli#980 (the menu item writer's missing
+	// AlternativeText and Items).
 
 	// Pages: #705 item 1 plus #721 C.
 	"page Administration.Account_Edit":       {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},

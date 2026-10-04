@@ -21,6 +21,7 @@ import (
 // now carried when the script's item states none, and describe says so.
 func TestNavigationRewrite_KeepsAnActionMDLCannotExpress(t *testing.T) {
 	stored := []byte("stored-action-bytes")
+	unknown := map[string]any{"$Type": "Forms$UnknownFutureClientAction"}
 	var got types.NavigationProfileSpec
 	mb := &mock.MockBackend{
 		IsConnectedFunc: func() bool { return true },
@@ -28,11 +29,11 @@ func TestNavigationRewrite_KeepsAnActionMDLCannotExpress(t *testing.T) {
 			return &types.NavigationDocument{Profiles: []*types.NavigationProfile{{
 				Name: "Responsive", Kind: "Responsive",
 				MenuItems: []*types.NavMenuItem{
-					{Caption: "Reports", ActionType: "Forms$UnknownFutureClientAction", StoredAction: stored},
+					{Caption: "Reports", ActionType: "Forms$UnknownFutureClientAction", StoredAction: stored, ActionDoc: unknown},
 					{Caption: "Admin", ActionType: "NoAction", Items: []*types.NavMenuItem{
-						{Caption: "Logs", ActionType: "Forms$UnknownFutureClientAction", StoredAction: stored},
+						{Caption: "Logs", ActionType: "Forms$UnknownFutureClientAction", StoredAction: stored, ActionDoc: unknown},
 					}},
-					{Caption: "Home", ActionType: "Forms$UnknownFutureClientAction", StoredAction: stored},
+					{Caption: "Home", ActionType: "Forms$UnknownFutureClientAction", StoredAction: stored, ActionDoc: unknown},
 				},
 			}}}, nil
 		},
@@ -75,9 +76,12 @@ func TestNavigationRewrite_KeepsAnActionMDLCannotExpress(t *testing.T) {
 // the item as if it had none.
 func TestDescribeNavigation_FlagsAnActionMDLCannotExpress(t *testing.T) {
 	var buf bytes.Buffer
-	printMenuMDL(&buf, []*types.NavMenuItem{
-		{Caption: "Reports", ActionType: "Forms$UnknownFutureClientAction", StoredAction: []byte("x")},
-		{Caption: "Plain", ActionType: "NoAction", StoredAction: []byte("x")},
+	ctx, _ := newMockCtx(t, withBackend(&mock.MockBackend{IsConnectedFunc: func() bool { return true }}))
+	printMenuMDL(ctx, &buf, []*types.NavMenuItem{
+		{Caption: "Reports", ActionType: "Forms$UnknownFutureClientAction", StoredAction: []byte("x"),
+			ActionDoc: map[string]any{"$Type": "Forms$UnknownFutureClientAction"}},
+		{Caption: "Plain", ActionType: "NoAction", StoredAction: []byte("x"),
+			ActionDoc: map[string]any{"$Type": "Forms$NoAction", "DisabledDuringExecution": true}},
 	}, 1, "CREATE NAVIGATION")
 	out := buf.String()
 	if !strings.Contains(out, "menu item 'Reports': its action (Forms$UnknownFutureClientAction) has no MDL form") {

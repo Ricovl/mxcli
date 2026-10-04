@@ -23,13 +23,40 @@ func TestNavMenuAction_WritesAKeptActionVerbatim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := navMenuAction(types.NavMenuItemSpec{Caption: "Item 4", KeepAction: stored})
+	got := mustNavMenuAction(t, types.NavMenuItemSpec{Caption: "Item 4", KeepAction: stored})
 	if navGetString(got, "$Type") != "Forms$CallNanoflowClientAction" || navGetString(got, "Nanoflow") != "MyFirstModule.Nanoflow" {
 		t.Fatalf("kept action not written verbatim: %v", got)
 	}
 	// CONTROL: the same item without a kept action is the writer's NoAction —
 	// the loss this guards against, so the case above is not passing by default.
-	if got := navMenuAction(types.NavMenuItemSpec{Caption: "Item 4"}); navGetString(got, "$Type") != "Forms$NoAction" {
+	if got := mustNavMenuAction(t, types.NavMenuItemSpec{Caption: "Item 4"}); navGetString(got, "$Type") != "Forms$NoAction" {
 		t.Fatalf("control: an item with no action wrote %v", got)
 	}
+}
+
+func mustNavMenuAction(t *testing.T, mi types.NavMenuItemSpec) bson.D {
+	t.Helper()
+	d, err := navMenuAction(mi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func mustNavMenuItemBson(t *testing.T, mi types.NavMenuItemSpec) bson.D {
+	t.Helper()
+	d, err := navMenuItemBson(mi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+func mustNavPatchWebProfile(t *testing.T, doc bson.D, spec types.NavigationProfileSpec) bson.D {
+	t.Helper()
+	d, err := navPatchWebProfile(doc, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
 }

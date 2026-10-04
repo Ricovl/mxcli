@@ -13,6 +13,7 @@ import (
 	genNav "github.com/mendixlabs/mxcli/modelsdk/gen/navigation"
 	genPages "github.com/mendixlabs/mxcli/modelsdk/gen/pages"
 	genTexts "github.com/mendixlabs/mxcli/modelsdk/gen/texts"
+	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
 	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -301,6 +302,9 @@ func resolveMenuAction(item *types.NavMenuItem, action element.Element) {
 	// and what a rewrite carries when MDL cannot express it (ako/mxcli#980).
 	if raw := action.Raw(); len(raw) > 0 {
 		item.StoredAction = append([]byte(nil), raw...)
+		if doc, err := mmpr.RawDocumentMap(raw); err == nil {
+			item.ActionDoc = doc
+		}
 	}
 	switch a := action.(type) {
 	case *genPages.PageClientAction:

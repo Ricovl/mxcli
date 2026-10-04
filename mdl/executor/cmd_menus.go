@@ -44,7 +44,7 @@ func describeMenu(ctx *ExecContext, name ast.QualifiedName) error {
 	// Output is re-executable: the item syntax is the same one CREATE MENU
 	// accepts, so describe → exec → describe is a fixed point.
 	fmt.Fprintf(ctx.Output, "create or modify menu %s.%s%s {\n", name.Module, md.Name, describeFolderClause(ctx, md.ContainerID))
-	printMenuMDL(ctx.Output, md.Items, 1, "CREATE MENU")
+	printMenuMDL(ctx, ctx.Output, md.Items, 1, "CREATE MENU")
 	fmt.Fprintln(ctx.Output, "};")
 	return nil
 }
@@ -89,7 +89,9 @@ func execCreateMenu(ctx *ExecContext, s *ast.CreateMenuStmt) error {
 		storedItems = existing.Items
 	}
 	kept := map[string]string{}
-	md.Items = menuItemsFromAST(s.Items, storedItems, "", kept)
+	if md.Items, err = menuItemsFromAST(newMenuActionBuilder(ctx), s.Items, storedItems, "", kept); err != nil {
+		return err
+	}
 	// A rewrite that carried no doc comment keeps the stored one (#1018).
 	if existing != nil {
 		md.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existing.Documentation)
@@ -138,30 +140,29 @@ func execDropMenu(ctx *ExecContext, s *ast.DropMenuStmt) error {
 	return nil
 }
 
-// menuItemsFromAST converts parsed menu items to the semantic model. The AST and
-// semantic shapes differ only in how the target is held (pointer vs string), so
-// this stays a direct mapping rather than acquiring behaviour.
+// menuItemsFromAST converts parsed menu items to the semantic model the menu
+// document writer reads.
 //
-// stored is the document's current items at the same place in the tree: an
-// item the script gives no action whose stored counterpart (same caption) holds
-// one MDL cannot express keeps that action verbatim rather than becoming
-// Forms$NoAction (ako/mxcli#980), as convertMenuItemDefs does for navigation.
-func menuItemsFromAST(defs []ast.NavMenuItemDef, stored []*types.NavMenuItem, path string, kept map[string]string) []*types.NavMenuItem {
+// stored is the document's current items at the same place in the tree, paired
+// by caption as convertMenuItemDefs pairs a navigation menu's (ako/mxcli#980):
+// an item that states no action keeps a stored action MDL cannot express, and a
+// stated action is built by the page builder and carries the stored one, so the
+// writer can keep what the script cannot say about an unchanged action.
+func menuItemsFromAST(mb *menuActionBuilder, defs []ast.NavMenuItemDef, stored []*types.NavMenuItem, path string, kept map[string]string) ([]*types.NavMenuItem, error) {
 	var out []*types.NavMenuItem
 	used := make([]bool, len(stored))
 	for _, d := range defs {
-		var match *types.NavMenuItem
-		for i, st := range stored {
-			if !used[i] && st.Caption == d.Caption {
-				used[i], match = true, st
-				break
-			}
-		}
+		match := pairStoredMenuItem(d.Caption, stored, used)
 		itemPath := path + "'" + d.Caption + "'"
-		item := &types.NavMenuItem{Caption: d.Caption, Icon: d.Icon}
-		if d.Icon != "" {
-			item.IconType = "Forms$IconCollectionIcon"
+		item := &types.NavMenuItem{Caption: d.Caption, Icon: d.Icon, IconCode: d.IconCode}
+		// The icon kind the script wrote: a glyph carries a code and no name,
+		// an image points into an image collection. Reading only the name made
+		// every icon a collection icon, and a glyph nothing at all.
+		kind := d.IconKind
+		if kind == types.MenuIconNone && d.Icon != "" {
+			kind = types.MenuIconCollection
 		}
+		item.IconType = types.MenuIconStorageType(kind)
 		if d.Page != nil {
 			item.Page = d.Page.String()
 			item.ActionType = "PageAction"
@@ -176,17 +177,26 @@ func menuItemsFromAST(defs []ast.NavMenuItemDef, stored []*types.NavMenuItem, pa
 		} else {
 			item.ActionType = "NoAction"
 		}
+		action, err := mb.build(d, itemPath)
+		if err != nil {
+			return nil, err
+		}
+		item.Action = action
 		var storedSubs []*types.NavMenuItem
 		if match != nil {
 			storedSubs = match.Items
-			if !menuItemStatesAction(d) && !menuActionExpressible(match) {
+			if action != nil {
+				item.StoredAction = match.StoredAction
+			} else if keep, kind := keepStoredMenuAction(mb.execCtx(), d, match); keep {
 				item.ActionType = match.ActionType
 				item.StoredAction = match.StoredAction
-				kept[itemPath] = match.ActionType
+				kept[itemPath] = kind
 			}
 		}
-		item.Items = menuItemsFromAST(d.Items, storedSubs, itemPath+" > ", kept)
+		if item.Items, err = menuItemsFromAST(mb, d.Items, storedSubs, itemPath+" > ", kept); err != nil {
+			return nil, err
+		}
 		out = append(out, item)
 	}
-	return out
+	return out, nil
 }

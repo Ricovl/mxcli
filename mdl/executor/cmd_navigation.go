@@ -11,6 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/types"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
 // execAlterNavigation handles CREATE [OR REPLACE] NAVIGATION <profile> command.
@@ -31,6 +32,22 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 	nav, err := ctx.Backend.GetNavigation()
 	if err != nil {
 		return mdlerrors.NewBackend("get navigation", err)
+	}
+
+	// The menu is converted before anything is written — adding a profile
+	// included — so an action the builder refuses leaves the project as it was.
+	// Each item is paired with the stored item it replaces (ako/mxcli#980).
+	var stored []*types.NavMenuItem
+	for _, p := range nav.Profiles {
+		if strings.EqualFold(p.Name, s.ProfileName) {
+			stored = p.MenuItems
+			break
+		}
+	}
+	kept := map[string]string{}
+	menuItems, err := convertMenuItemDefs(newMenuActionBuilder(ctx), s.MenuItems, stored, "", kept)
+	if err != nil {
+		return err
 	}
 
 	// Verify the profile exists
@@ -72,7 +89,8 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 
 	// Convert AST types to writer spec
 	spec := types.NavigationProfileSpec{
-		HasMenu: s.HasMenuBlock,
+		HasMenu:   s.HasMenuBlock,
+		MenuItems: menuItems,
 	}
 
 	for _, hp := range s.HomePages {
@@ -92,16 +110,6 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 	if s.NotFoundPage != nil {
 		spec.NotFoundPage = s.NotFoundPage.String()
 	}
-
-	var stored []*types.NavMenuItem
-	for _, p := range nav.Profiles {
-		if strings.EqualFold(p.Name, s.ProfileName) {
-			stored = p.MenuItems
-			break
-		}
-	}
-	kept := map[string]string{}
-	spec.MenuItems = convertMenuItemDefs(s.MenuItems, stored, "", kept)
 
 	spec.ThrowSyncError = s.ThrowSyncError
 	spec.HasSync = s.HasSyncBlock
@@ -148,61 +156,225 @@ func reportKeptMenuActions(ctx *ExecContext, kept map[string]string) {
 // convertMenuItemDefs converts a list of sibling menu items, pairing each with
 // the stored item of the same caption at the same place in the tree.
 //
-// The pairing is what keeps a rewrite from deleting an action MDL cannot spell:
-// when the script's item states no action and its stored counterpart holds one
-// describe cannot print, the stored action is carried verbatim (KeepAction)
-// instead of being replaced by Forms$NoAction. That replacement used to be
-// silent — a renamed menu lost its nanoflow item's action at exit 0
-// (ako/mxcli#980). kept collects the carried items by caption path.
-func convertMenuItemDefs(defs []ast.NavMenuItemDef, stored []*types.NavMenuItem, path string, kept map[string]string) []types.NavMenuItemSpec {
+// The pairing is what keeps a rewrite from deleting what MDL cannot spell
+// (ako/mxcli#980):
+//   - an item that states no action keeps a stored action describe cannot
+//     print (KeepAction) instead of being given Forms$NoAction — that
+//     replacement used to be silent, and a renamed menu lost its nanoflow item;
+//   - an item that states an action carries the stored one alongside
+//     (StoredAction), so the writer can keep what the script cannot say about
+//     the same action, such as a page title override.
+//
+// Each stated action is built by the page builder, as a button's is, so it is
+// resolved and validated the same way. kept collects the carried items.
+func convertMenuItemDefs(pb *menuActionBuilder, defs []ast.NavMenuItemDef, stored []*types.NavMenuItem, path string, kept map[string]string) ([]types.NavMenuItemSpec, error) {
 	used := make([]bool, len(stored))
 	var out []types.NavMenuItemSpec
 	for _, def := range defs {
-		var match *types.NavMenuItem
-		for i, st := range stored {
-			if !used[i] && st.Caption == def.Caption {
-				used[i], match = true, st
-				break
-			}
-		}
+		match := pairStoredMenuItem(def.Caption, stored, used)
 		itemPath := path + "'" + def.Caption + "'"
 		spec := convertMenuItemDef(def)
+		action, err := pb.build(def, itemPath)
+		if err != nil {
+			return nil, err
+		}
+		spec.Action = action
 		var storedSubs []*types.NavMenuItem
 		if match != nil {
 			storedSubs = match.Items
-			if !menuItemStatesAction(def) && !menuActionExpressible(match) {
+			spec.StoredAction = match.StoredAction
+			if keep, kind := keepStoredMenuAction(pb.ctx, def, match); keep {
 				spec.KeepAction = match.StoredAction
-				kept[itemPath] = match.ActionType
+				kept[itemPath] = kind
 			}
 		}
-		spec.Items = convertMenuItemDefs(def.Items, storedSubs, itemPath+" > ", kept)
+		spec.Items, err = convertMenuItemDefs(pb, def.Items, storedSubs, itemPath+" > ", kept)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, spec)
 	}
-	return out
+	return out, nil
+}
+
+// pairStoredMenuItem finds the first stored sibling with the caption that no
+// earlier item of the script has claimed.
+func pairStoredMenuItem(caption string, stored []*types.NavMenuItem, used []bool) *types.NavMenuItem {
+	for i, st := range stored {
+		if !used[i] && st.Caption == caption {
+			used[i] = true
+			return st
+		}
+	}
+	return nil
+}
+
+// keepStoredMenuAction reports whether the stored item's action is carried
+// verbatim: the script states none, and describe cannot print the stored one.
+func keepStoredMenuAction(ctx *ExecContext, def ast.NavMenuItemDef, match *types.NavMenuItem) (bool, string) {
+	if menuItemStatesAction(def) || len(match.StoredAction) == 0 {
+		return false, ""
+	}
+	// A sub-menu takes no OnClick, so a stored action on one is never stated.
+	if len(def.Items) > 0 {
+		if t := menuActionTypeName(match); !isNoMenuAction(t) && t != "NoAction" {
+			return true, t
+		}
+		return false, ""
+	}
+	if _, note := menuItemActionMDL(ctx, match); note != "" {
+		return true, menuActionTypeName(match)
+	}
+	return false, ""
 }
 
 // menuItemStatesAction reports whether the script gave the item an action.
 func menuItemStatesAction(def ast.NavMenuItemDef) bool {
-	return def.Page != nil || def.Microflow != nil || def.SignOut
+	return def.Action != nil || def.Page != nil || def.Microflow != nil || def.SignOut
 }
 
-// menuActionExpressible reports whether describe prints the stored item's
-// action as an OnClick that rebuilds it — false for an action it cannot spell,
-// which a rewrite must carry rather than replace. No action at all, and
-// Forms$NoAction, need no carrying.
-func menuActionExpressible(item *types.NavMenuItem) bool {
-	if len(item.StoredAction) == 0 {
-		return true
+// menuActionTypeName is the stored action's $Type, for a message.
+func menuActionTypeName(item *types.NavMenuItem) string {
+	if t, _ := item.ActionDoc["$Type"].(string); t != "" {
+		return t
 	}
-	switch item.ActionType {
-	case "", "NoAction", "SignOutAction":
+	return item.ActionType
+}
+
+// menuItemActionMDL renders a stored menu item's action with the client-action
+// renderer a button's goes through (ako/mxcli#980): onClick is the `OnClick:`
+// value ("" for no action or Forms$NoAction), note a comment for what MDL
+// cannot express — an action with no MDL form at all, or one whose page title
+// override or link type a rewrite can only keep while the action is unchanged.
+func menuItemActionMDL(ctx *ExecContext, item *types.NavMenuItem) (onClick, note string) {
+	doc := item.ActionDoc
+	if doc == nil {
+		if len(item.StoredAction) > 0 {
+			return "", fmt.Sprintf("-- menu item '%s': its action (%s) could not be read; "+
+				"a rewrite keeps the stored action while the item states none", item.Caption, item.ActionType)
+		}
+		return "", ""
+	}
+	typeName, _ := doc["$Type"].(string)
+	rendered := renderClientActionMDL(ctx, doc)
+	switch {
+	case strings.HasPrefix(rendered, "--"):
+		return "", fmt.Sprintf("-- menu item '%s': %s; a rewrite keeps the stored action while the item states none",
+			item.Caption, strings.TrimSpace(strings.TrimPrefix(rendered, "--")))
+	case rendered == "" && !isNoMenuAction(typeName):
+		return "", fmt.Sprintf("-- menu item '%s': its action (%s) has no MDL form; "+
+			"a rewrite keeps the stored action while the item states none", item.Caption, typeName)
+	}
+	if rendered != "" && !menuOnClickParses(rendered) {
+		// A stored action with its target unset renders as a bare `show page`
+		// or `create object`, which is not MDL: say so and keep it.
+		return "", fmt.Sprintf("-- menu item '%s': its action (%s, %s) has no target MDL can name; "+
+			"a rewrite keeps the stored action while the item states none", item.Caption, typeName, rendered)
+	}
+	if extras := menuActionExtras(ctx, doc); len(extras) > 0 {
+		note = fmt.Sprintf("-- menu item '%s': %s has no MDL form; a rewrite keeps it while the item's action is unchanged",
+			item.Caption, strings.Join(extras, " and "))
+	}
+	return rendered, note
+}
+
+// menuOnClickParses reports whether an OnClick value reads back as a menu
+// item's action.
+func menuOnClickParses(onClick string) bool {
+	_, errs := visitor.Build("create or modify navigation P {\n  menu item 'x' ( OnClick: " + onClick + " )\n};")
+	return len(errs) == 0
+}
+
+// isNoMenuAction reports Studio Pro's "Do nothing" ($Type Forms$NoAction).
+func isNoMenuAction(typeName string) bool {
+	switch typeName {
+	case "", "Forms$NoAction", "Forms$NoClientAction", "Pages$NoClientAction":
 		return true
-	case "PageAction":
-		return item.Page != ""
-	case "MicroflowAction":
-		return item.Microflow != ""
 	}
 	return false
+}
+
+// menuActionExtras names what a stored action carries that the action
+// expression cannot spell. The writer keeps those through a rewrite when the
+// rest of the action is unchanged (menuActionBSON's maskedMenuActionKeys).
+func menuActionExtras(ctx *ExecContext, doc map[string]any) []string {
+	var out []string
+	for _, key := range []string{"FormSettings", "PageSettings"} {
+		if fs := actionMapForKey(doc, key); fs != nil {
+			if to := actionMapForKey(fs, "TitleOverride"); to != nil {
+				title := settingText(ctx, actionMapForKey(to, "Text"))
+				if title == "" {
+					title = settingText(ctx, to)
+				}
+				out = append(out, fmt.Sprintf("a page title override (%s)", mdlQuote(ctx, title)))
+			}
+		}
+	}
+	if n, _ := doc["NumberOfPagesToClose2"].(string); n != "" {
+		out = append(out, fmt.Sprintf("closing %s page(s)", n))
+	}
+	if lt, _ := doc["LinkType"].(string); lt != "" && lt != "Web" {
+		out = append(out, fmt.Sprintf("link type %s", lt))
+	}
+	return out
+}
+
+// menuActionBuilder builds a menu item's stated action with the page builder,
+// the way a button's action is built: resolved, validated, settings applied.
+type menuActionBuilder struct {
+	ctx *ExecContext
+	pb  *pageBuilder
+}
+
+func newMenuActionBuilder(ctx *ExecContext) *menuActionBuilder {
+	return &menuActionBuilder{ctx: ctx, pb: &pageBuilder{
+		ctx:       ctx,
+		backend:   ctx.Backend,
+		execCache: ctx.Cache,
+		// A menu has no context object, so a page argument is refused
+		// (MDL-PAGEARG01) rather than stored as one nothing can bind.
+		argCtx: atDocumentRoot(),
+		// Pages, microflows and nanoflows are stored by name, as the menu
+		// writer always has: a target the script creates later still resolves.
+		tolerateDanglingRefs: true,
+	}}
+}
+
+// execCtx is the builder's context, nil for a nil builder.
+func (m *menuActionBuilder) execCtx() *ExecContext {
+	if m == nil {
+		return nil
+	}
+	return m.ctx
+}
+
+// build returns the item's action as a pages.ClientAction, or nil when the
+// script states none.
+func (m *menuActionBuilder) build(def ast.NavMenuItemDef, itemPath string) (any, error) {
+	if m == nil {
+		return nil, nil // a conversion with no project to resolve against
+	}
+	act := def.Action
+	if act == nil {
+		// An AST built by hand (or by an older visitor) carries only the
+		// simple targets.
+		switch {
+		case def.Page != nil:
+			act = &ast.ActionV3{Type: "showPage", Target: def.Page.String()}
+		case def.Microflow != nil:
+			act = &ast.ActionV3{Type: "microflow", Target: def.Microflow.String()}
+		case def.SignOut:
+			act = &ast.ActionV3{Type: "signOut"}
+		default:
+			return nil, nil
+		}
+	}
+	m.pb.currentWidget = "menu item " + itemPath
+	a, err := m.pb.buildClientActionV3(act)
+	if err != nil {
+		return nil, fmt.Errorf("menu item %s: %w", itemPath, err)
+	}
+	return a, nil
 }
 
 // convertMenuItemDef converts an AST NavMenuItemDef to a writer NavMenuItemSpec.
@@ -456,7 +628,7 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 	// Menu items: the profile's children, in { } after its clauses (R2).
 	if len(p.MenuItems) > 0 {
 		fmt.Fprintln(ctx.Output, "{")
-		printMenuMDL(ctx.Output, p.MenuItems, 1, "CREATE NAVIGATION")
+		printMenuMDL(ctx, ctx.Output, p.MenuItems, 1, "CREATE NAVIGATION")
 		fmt.Fprintln(ctx.Output, "};")
 	} else {
 		fmt.Fprintln(ctx.Output, ";")
@@ -507,19 +679,26 @@ func menuItemTarget(item *types.NavMenuItem) string {
 // `menu item 'X' ( OnClick: show page M.P, Icon: I )`, and a sub-menu
 // `menu 'X' ( Icon: I ) { … }`. A child ends in `)` or `}`, or in its caption
 // when it has no properties, so no separator is written.
-func printMenuMDL(w io.Writer, items []*types.NavMenuItem, depth int, reproducer string) {
+//
+// The action is rendered by the client-action renderer a button's goes through
+// (renderClientActionMDL), so every kind a menu item stores — a nanoflow call,
+// open link, create object — and every `with ( … )` setting prints, and what
+// MDL cannot express is said in a comment rather than left out (ako/mxcli#980).
+func printMenuMDL(ctx *ExecContext, w io.Writer, items []*types.NavMenuItem, depth int, reproducer string) {
 	indent := strings.Repeat("  ", depth)
 	for _, item := range items {
 		var props []string
-		if len(item.Items) == 0 {
-			switch {
-			case item.Page != "":
-				props = append(props, "OnClick: show page "+item.Page)
-			case item.Microflow != "":
-				props = append(props, "OnClick: call microflow "+item.Microflow)
-			case item.ActionType == "SignOutAction":
-				props = append(props, "OnClick: sign out")
-			}
+		onClick, actionNote := menuItemActionMDL(ctx, item)
+		if onClick == "" && item.ActionDoc == nil && len(item.StoredAction) == 0 {
+			// An item built without a stored document (a hand-built model).
+			onClick = legacyMenuItemOnClick(item)
+		}
+		if onClick != "" && len(item.Items) == 0 {
+			props = append(props, "OnClick: "+onClick)
+		} else if onClick != "" {
+			// Studio Pro lets a sub-menu keep an action it no longer runs; MDL
+			// has no OnClick on one, so the rewrite keeps it only as stored.
+			actionNote = fmt.Sprintf("-- menu '%s': its action (%s) belongs to a sub-menu and has no MDL form there", item.Caption, onClick)
 		}
 		if icon := menuItemIconMDL(item); icon != "" {
 			props = append(props, "Icon: "+icon)
@@ -531,7 +710,7 @@ func printMenuMDL(w io.Writer, items []*types.NavMenuItem, depth int, reproducer
 		if len(item.Items) > 0 {
 			// Sub-menu container
 			fmt.Fprintf(w, "%smenu '%s'%s {\n", indent, item.Caption, propList)
-			printMenuMDL(w, item.Items, depth+1, reproducer)
+			printMenuMDL(ctx, w, item.Items, depth+1, reproducer)
 			fmt.Fprintf(w, "%s}\n", indent)
 		} else {
 			fmt.Fprintf(w, "%smenu item '%s'%s\n", indent, item.Caption, propList)
@@ -539,14 +718,26 @@ func printMenuMDL(w io.Writer, items []*types.NavMenuItem, depth int, reproducer
 		if note := menuItemIconNote(item, reproducer); note != "" {
 			fmt.Fprintf(w, "%s%s\n", indent, note)
 		}
-		if !menuActionExpressible(item) {
-			// Said, not dropped: the item line above states no action, so
-			// re-running it keeps the stored one (convertMenuItemDefs).
-			fmt.Fprintf(w, "%s-- menu item '%s': its action (%s) has no MDL form; "+
-				"%s keeps the stored action while the item states none\n",
-				indent, item.Caption, item.ActionType, reproducer)
+		if actionNote != "" {
+			// Said, not dropped: what the item line above cannot state is kept
+			// by a rewrite of it (convertMenuItemDefs).
+			fmt.Fprintf(w, "%s%s\n", indent, actionNote)
 		}
 	}
+}
+
+// legacyMenuItemOnClick is the OnClick of an item that carries only the
+// simple targets — one not read from storage.
+func legacyMenuItemOnClick(item *types.NavMenuItem) string {
+	switch {
+	case item.Page != "":
+		return "show page " + item.Page
+	case item.Microflow != "":
+		return "call microflow " + item.Microflow
+	case item.ActionType == "SignOutAction":
+		return "sign out"
+	}
+	return ""
 }
 
 // menuItemIconMDL renders a menu item's `Icon:` value, or "" when there is
