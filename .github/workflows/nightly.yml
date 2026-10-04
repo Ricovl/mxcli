@@ -25,6 +25,7 @@ jobs:
           - '11.12.2'
           - '11.13.0'
           - '11.14.0'
+          - '11.15.0'
       fail-fast: false
     name: test (Mendix ${{ matrix.mendix-version }})
     steps:
