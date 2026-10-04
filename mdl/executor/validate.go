@@ -518,6 +518,7 @@ func pageDefinedAfter(prog *ast.Program, ref string, fromIdx int) bool {
 // ValidateProgram validates all statements in a program, skipping references
 // to objects that are defined within the script itself.
 func (e *Executor) ValidateProgram(prog *ast.Program) []error {
+	defer e.enterLanguage(prog.LanguageVersion)()
 	return validateProgram(e.newExecContext(context.Background()), prog)
 }
 
@@ -525,6 +526,9 @@ func (e *Executor) ValidateProgram(prog *ast.Program) []error {
 // block: unresolved references inside EXCLUDED documents, which Mendix does
 // not validate. Callers print them so that nothing the check relaxed is hidden.
 func (e *Executor) ValidateProgramWithWarnings(prog *ast.Program) ([]error, []string) {
+	// The script's header decides the gated rejections check predicts
+	// (viewAutoNumberRefused), as it does for exec.
+	defer e.enterLanguage(prog.LanguageVersion)()
 	return validateProgramWithWarnings(e.newExecContext(context.Background()), prog)
 }
 
@@ -867,7 +871,9 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 				s.Name.String(), strings.Join(objErrors, "\n  - "))
 		}
 		// Validate OQL types match declared attribute types
-		if typeErrors := validateViewEntityTypes(ctx, s); len(typeErrors) > 0 {
+		typeErrors, typeWarnings := validateViewEntityTypes(ctx, s)
+		sc.warnings = append(sc.warnings, typeWarnings...)
+		if len(typeErrors) > 0 {
 			return mdlerrors.NewValidationf("view entity '%s' has type mismatches:\n  - %s",
 				s.Name.String(), strings.Join(typeErrors, "\n  - "))
 		}
