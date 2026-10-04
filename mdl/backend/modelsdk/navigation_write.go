@@ -421,6 +421,7 @@ func navOfflineConfigs(stored bson.A, specs []types.NavOfflineEntitySpec) bson.A
 	// unauthorable properties. An entity the spec adds has no stored config and
 	// takes the default every reference config carries.
 	compat := map[string]bool{}
+	constraint := map[string]string{}
 	for _, item := range stored {
 		cfg, ok := item.(bson.D)
 		if !ok {
@@ -428,11 +429,20 @@ func navOfflineConfigs(stored bson.A, specs []types.NavOfflineEntitySpec) bson.A
 		}
 		if e := navGetString(cfg, "Entity"); e != "" {
 			compat[e] = navGetBool(cfg, "CompatibilityMode")
+			constraint[e] = navGetString(cfg, "Constraint")
 		}
 	}
 
 	out := bson.A{navMarkerItems}
 	for _, s := range specs {
+		// Studio Pro lays a constraint out over several lines; describe folds it
+		// onto one, and the rewrite stored the folded text — a change to every
+		// constrained entity on each describe -> exec. The same constraint
+		// written with other whitespace keeps the stored layout.
+		if st, ok := constraint[s.Entity]; ok && st != s.Constraint &&
+			xpathWithoutLayout(st) == xpathWithoutLayout(s.Constraint) {
+			s.Constraint = st
+		}
 		out = append(out, bson.D{
 			{Key: "$ID", Value: navID()},
 			{Key: "$Type", Value: "Navigation$OfflineEntityConfig"},
@@ -456,4 +466,23 @@ func navGetBool(doc bson.D, key string) bool {
 		}
 	}
 	return false
+}
+
+// xpathWithoutLayout is an XPath constraint with the whitespace outside its
+// string literals removed, so two layouts of the same constraint compare equal.
+// A doubled quote inside a literal toggles twice and stays inside it.
+func xpathWithoutLayout(x string) string {
+	var b strings.Builder
+	inLiteral := false
+	for _, r := range x {
+		switch {
+		case r == '\'':
+			inLiteral = !inLiteral
+			b.WriteRune(r)
+		case !inLiteral && (r == ' ' || r == '\t' || r == '\n' || r == '\r'):
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
