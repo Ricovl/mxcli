@@ -1420,9 +1420,13 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 			}
 			fmt.Fprintf(w, "  build #%d applied via %s in %s%s -> %s\n", gen, action, time.Since(start).Round(time.Millisecond), client, rt.AppURL())
 			maybeScreenshot(opts, rt)
-			// Refresh the baseline AFTER the apply so an edit made mid-build is
-			// still caught on the next tick.
-			last = sourceMTime(opts.ProjectPath)
+			// The baseline stays at the mtime this build settled on. Moving it to
+			// "now" here — as this loop used to, under a comment claiming the
+			// opposite — swallowed any edit made while the build was applying: the
+			// next tick saw nothing newer than the refreshed baseline, so the edit
+			// was never built (measured: an exec during a restart-apply on 11.13,
+			// no rebuild in 45s). The build writes nothing under the watched model
+			// and theme source, so keeping the settled baseline cannot loop.
 		}
 	}
 }
