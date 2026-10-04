@@ -73,6 +73,7 @@ func validatePluggableAttributeScopes(ctx *ExecContext, layout string, params []
 		index:       checkAttributeIndex(ctx, sc),
 		types:       checkMemberTypeIndex(ctx, sc),
 		reactClient: usesReactClient(ctx) && !layoutIsNative(ctx, layout),
+		assocs:      checkAssociationShapes(ctx, sc),
 	}
 	for _, w := range widgets {
 		v.walk(w, dataContext{})
@@ -91,6 +92,9 @@ type attributeScopeValidator struct {
 	// The built-in input widget checks (validate_widget_attribute_type.go).
 	types       memberTypeIndex
 	reactClient bool
+
+	// assocs feeds MDL-ASSOCDS01 (validate_assoc_list_source.go).
+	assocs map[string]assocShape
 }
 
 func (v *attributeScopeValidator) walk(w *ast.WidgetV3, enclosing dataContext) {
@@ -99,6 +103,7 @@ func (v *attributeScopeValidator) walk(w *ast.WidgetV3, enclosing dataContext) {
 	}
 	inner := childContext(enclosing, w.GetDataSource(), v.sigs, v.pageParams)
 	v.checkInputBinding(w, enclosing)
+	v.checkAssocListSource(w, enclosing)
 	v.checkReactUnsupported(w)
 	if v.registry == nil {
 		// No registry: the pluggable half cannot run, and a pluggable widget's

@@ -104,6 +104,9 @@ type scriptContext struct {
 	// (MDL-WIDGET39), and a retrieve constraint hopping over one resolves
 	// against an entity the project already has.
 	associationEnds map[string][2]string
+	// associationShapes holds the same associations' multiplicity, so a list
+	// widget over one can be judged before it is built (MDL-ASSOCDS01).
+	associationShapes map[string]assocShape
 
 	// warnings are findings that do not block: dangling references in an
 	// EXCLUDED document, which Mendix itself does not validate. Reported so
@@ -141,6 +144,7 @@ func newScriptContext() *scriptContext {
 		entityAttrs:       map[string]map[string]bool{},
 		ambiguousAssc:     map[string]bool{},
 		associationEnds:   map[string][2]string{},
+		associationShapes: map[string]assocShape{},
 		flowParams:        make(map[string]*flowSignature),
 
 		pageParams:            make(map[string][]string),
@@ -174,6 +178,11 @@ func (sc *scriptContext) recordAssociation(s *ast.CreateAssociationStmt) {
 	}
 	if from, to := s.Parent.String(), s.Child.String(); s.Parent.Module != "" && s.Child.Module != "" {
 		sc.associationEnds[strings.ToLower(s.Name.String())] = [2]string{from, to}
+		sc.associationShapes[strings.ToLower(s.Name.String())] = assocShape{
+			qn: s.Name.String(), from: from, to: to,
+			refSet: s.Type == ast.AssocReferenceSet,
+			owner:  astOwnerName(s.Owner),
+		}
 	}
 	if prev, ok := sc.associations[s.Name.Name]; ok && prev != s.Name.String() {
 		sc.ambiguousAssc[s.Name.Name] = true
