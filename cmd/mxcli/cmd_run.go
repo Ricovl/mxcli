@@ -143,6 +143,7 @@ Examples:
 		}
 
 		watch, _ := cmd.Flags().GetBool("watch")
+		webClientTimeout, _ := cmd.Flags().GetDuration("web-client-timeout")
 		testEndpoint, _ := cmd.Flags().GetBool("test-endpoint")
 		ensureDB, _ := cmd.Flags().GetBool("ensure-db")
 		setupOnly, _ := cmd.Flags().GetBool("setup")
@@ -208,6 +209,7 @@ Examples:
 			ServePort:          servePort,
 			MxBuildPath:        mxbuildPath,
 			Watch:              watch,
+			WebClientTimeout:   webClientTimeout,
 			EnsureDB:           ensureDB,
 			SetupOnly:          setupOnly,
 			Screenshot:         screenshot,
@@ -313,6 +315,7 @@ func init() {
 	runCmd.Flags().String("hub-worktree", "", "Worktree label to distinguish multiple worktrees of one branch")
 	runCmd.Flags().String("hub-session", "", "Session id to group this preview under in the hub overview (default: CLAUDE_CODE_REMOTE_SESSION_ID / MXCLI_HUB_SESSION)")
 	runCmd.Flags().Bool("watch", false, "Rebuild and hot-apply on every project change")
+	runCmd.Flags().Duration("web-client-timeout", 0, "Limit for one web client bundle build, e.g. 10m (default $MXCLI_WEB_CLIENT_TIMEOUT, else 5m); on timeout the tail of deployment/log/web-client-build.log is printed")
 	runCmd.Flags().Bool("test-endpoint", false, "Host mxcli's token-guarded test endpoint so 'mxcli test --attach' can run tests against this app without booting its own runtime (removed on exit)")
 	runCmd.Flags().Bool("ensure-db", false, "Provision the local Postgres + app database if missing (fresh-session bootstrap)")
 	runCmd.Flags().Bool("setup", false, "Prepare prerequisites (cache MxBuild+runtime, ensure DB) and exit without booting — for a SessionStart hook")

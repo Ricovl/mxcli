@@ -80,6 +80,12 @@ type WebClientWatcher struct {
 	lastErr  string        // message of the most recent failed bundle
 	exited   bool          // the runner process has exited
 	updated  chan struct{} // closed+replaced on every state change (broadcast)
+
+	// done is closed once the process has been reaped. Stop waits on it rather
+	// than calling cmd.Wait a second time beside the reaper goroutine; a restart
+	// relies on Stop returning only after the old bundler is gone, so two never
+	// write web/dist at once (#971).
+	done chan struct{}
 }
 
 // applyStatus folds a status line into the watcher state and broadcasts.
@@ -182,7 +188,29 @@ func StartWebClientWatch(opts WebClientOptions) (*WebClientWatcher, error) {
 	}
 	cmd.Stderr = log
 
-	wc := &WebClientWatcher{cmd: cmd, log: log, updated: make(chan struct{})}
+	wc, err := launchWatcher(cmd, log, stdout)
+	if err != nil {
+		return nil, err
+	}
+
+	timeout := webClientTimeout(opts.Timeout)
+	if err := wc.waitForFirstBuild(timeout); err != nil {
+		_ = wc.Stop()
+		return nil, fmt.Errorf("%w%s", err, webClientBuildLogTail(opts.DeployDir))
+	}
+	dist := filepath.Join(webDir, "dist", "index.js")
+	if _, err := os.Stat(dist); err != nil {
+		_ = wc.Stop()
+		return nil, fmt.Errorf("web client watcher reported success but %s is missing:\n%s", dist, wc.log.String())
+	}
+	return wc, nil
+}
+
+// launchWatcher starts cmd and wires the status reader and the reaper. Split from
+// StartWebClientWatch so the process lifecycle (Stop, Exited) is testable with
+// an ordinary shell process instead of mxbuild's node tooling.
+func launchWatcher(cmd *exec.Cmd, log *syncBuffer, stdout io.Reader) (*WebClientWatcher, error) {
+	wc := &WebClientWatcher{cmd: cmd, log: log, updated: make(chan struct{}), done: make(chan struct{})}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("launching web client watcher: %w", err)
 	}
@@ -193,22 +221,20 @@ func StartWebClientWatch(opts WebClientOptions) (*WebClientWatcher, error) {
 		wc.exited = true
 		wc.broadcastLocked()
 		wc.mu.Unlock()
+		close(wc.done)
 	}()
-
-	timeout := opts.Timeout
-	if timeout == 0 {
-		timeout = 5 * time.Minute
-	}
-	if err := wc.waitForFirstBuild(timeout); err != nil {
-		_ = wc.Stop()
-		return nil, err
-	}
-	dist := filepath.Join(webDir, "dist", "index.js")
-	if _, err := os.Stat(dist); err != nil {
-		_ = wc.Stop()
-		return nil, fmt.Errorf("web client watcher reported success but %s is missing:\n%s", dist, wc.log.String())
-	}
 	return wc, nil
+}
+
+// Exited reports whether the bundler process has exited. A nil watcher (no
+// incremental bundler for this deployment) has nothing to exit.
+func (wc *WebClientWatcher) Exited() bool {
+	if wc == nil {
+		return false
+	}
+	wc.mu.Lock()
+	defer wc.mu.Unlock()
+	return wc.exited
 }
 
 // readLoop parses the runner's stdout and folds each status into state. It also
@@ -306,19 +332,27 @@ func (wc *WebClientWatcher) Log() string {
 	return wc.log.String()
 }
 
-// Stop terminates the watcher process.
+// Stop terminates the watcher process and returns only once it has been reaped,
+// so a caller that starts another bundler next never runs two at once.
 func (wc *WebClientWatcher) Stop() error {
-	if wc == nil || wc.cmd == nil || wc.cmd.Process == nil {
+	if wc == nil || wc.cmd == nil || wc.cmd.Process == nil || wc.done == nil {
 		return nil
 	}
-	_ = signalProcessGroup(wc.cmd.Process, syscall.SIGTERM)
-	done := make(chan error, 1)
-	go func() { done <- wc.cmd.Wait() }()
 	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
+	case <-wc.done:
+		return nil // already gone
+	default:
+	}
+	_ = signalProcessGroup(wc.cmd.Process, syscall.SIGTERM)
+	select {
+	case <-wc.done:
+	case <-time.After(watcherStopGrace):
 		_ = killProcessGroup(wc.cmd.Process)
-		<-done
+		<-wc.done
 	}
 	return nil
 }
+
+// watcherStopGrace is how long Stop lets the bundler exit on SIGTERM before it
+// kills the process group. A var so a test can shorten it.
+var watcherStopGrace = 5 * time.Second

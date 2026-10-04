@@ -99,6 +99,9 @@ type LocalRunOptions struct {
 	SetupOnly bool
 	// PollInterval is how often Watch checks for changes (default 1s).
 	PollInterval time.Duration
+	// WebClientTimeout bounds one web client bundle build. Zero falls back to
+	// $MXCLI_WEB_CLIENT_TIMEOUT, then 5m (see webClientTimeout).
+	WebClientTimeout time.Duration
 	// Screenshot, when set, captures a PNG of the app after boot and after each
 	// applied change (requires the Playwright CLI + a browser).
 	Screenshot bool
@@ -685,22 +688,26 @@ func RunLocal(opts LocalRunOptions) error {
 	// /dist/index.js and renders blank. In --watch we keep an incremental bundler
 	// hot (warm rollup graph + polling file detection -> ~3-4s re-bundles);
 	// otherwise a single one-shot build (~7s cold) suffices.
-	var watcher *WebClientWatcher
+	var bundler *bundlerSupervisor
 	if opts.Watch {
 		fmt.Fprintln(w, "Starting incremental web client bundler...")
 		// A nil watcher is not a failure: on Mendix 11.14+ mxbuild's serve build
-		// writes web/dist itself, so there is no bundler to keep hot. Every
-		// watcher method is nil-safe, so the watch loop needs no branch.
-		watcher, err = StartWebClientWatch(WebClientOptions{DeployDir: opts.DeployDir, MxBuildPath: mxbuildPath, Stdout: w})
+		// writes web/dist itself, so there is no bundler to keep hot. The
+		// supervisor is a no-op then, so the watch loop needs no branch.
+		watcher, err := StartWebClientWatch(WebClientOptions{DeployDir: opts.DeployDir, MxBuildPath: mxbuildPath, Timeout: opts.WebClientTimeout, Stdout: w})
 		if err != nil {
 			return fmt.Errorf("starting web client bundler: %w", err)
 		}
-		// Stop whichever watcher is current at exit: watchAndApply replaces it
-		// when a newly added page needs a fresh bundler (see missingPageChunks).
-		defer func() { _ = watcher.Stop() }()
+		// From here on the supervisor owns the bundler: it restarts one that
+		// exits and replaces it for a recovery re-bundle (#971), so stop
+		// whichever one is current at exit.
+		bundler = newBundlerSupervisor(watcher, func() (*WebClientWatcher, error) {
+			return StartWebClientWatch(WebClientOptions{DeployDir: opts.DeployDir, MxBuildPath: mxbuildPath, Timeout: opts.WebClientTimeout, Stdout: io.Discard})
+		}, w)
+		defer bundler.Stop()
 	} else {
 		fmt.Fprintln(w, "Bundling web client...")
-		if err := BuildWebClient(WebClientOptions{DeployDir: opts.DeployDir, MxBuildPath: mxbuildPath, Stdout: w}); err != nil {
+		if err := BuildWebClient(WebClientOptions{DeployDir: opts.DeployDir, MxBuildPath: mxbuildPath, Timeout: opts.WebClientTimeout, Stdout: w}); err != nil {
 			return fmt.Errorf("bundling web client: %w", err)
 		}
 	}
@@ -797,7 +804,7 @@ func RunLocal(opts LocalRunOptions) error {
 	// wrote seconds ago. Verify after the boot, because before it proves nothing
 	// (mxcli-formula1 §35). Costs a stat when the bundle survived.
 	if _, err := EnsureWebClientBundle(WebClientOptions{
-		DeployDir: opts.DeployDir, MxBuildPath: mxbuildPath, Stdout: w,
+		DeployDir: opts.DeployDir, MxBuildPath: mxbuildPath, Timeout: opts.WebClientTimeout, Stdout: w,
 	}); err != nil {
 		// The app is up and its services answer; only the browser is broken. Say so
 		// and keep running rather than tearing down a working runtime.
@@ -927,7 +934,7 @@ func RunLocal(opts LocalRunOptions) error {
 	// 7. Stay up until interrupted. With --watch, rebuild + hot-apply on every
 	// project change; otherwise just keep the runtime serving.
 	if opts.Watch {
-		return watchAndApply(opts, serve, rt, &watcher, mxbuildPath)
+		return watchAndApply(opts, serve, rt, bundler, mxbuildPath)
 	}
 	fmt.Fprintln(w, "(run with --watch to rebuild and hot-apply on changes; Ctrl-C to stop)")
 	if waitForInterruptOrExit(rt.Exited()) {
@@ -1170,7 +1177,11 @@ func clientBundleServedWithin(appURL string, window time.Duration) bool {
 // present+served, fall back to the reliable synchronous one-shot bundle (the same
 // path the non-watch boot uses) and re-probe. A no-op when the bundle is already
 // served (a pure model reload never touches web/dist).
-func ensureClientServed(deployDir, appURL, mxbuildPath string, out io.Writer) error {
+//
+// rebundle performs the recovery bundle. Under --watch it must be the bundler
+// supervisor's (see clientRebundler): a one-shot here ran a second rollup on
+// web/dist alongside the incremental watcher (#971).
+func ensureClientServed(deployDir, appURL string, rebundle func() error, out io.Writer) error {
 	// Nothing below applies to the classic (Dojo) client: it has no bundle, no
 	// chunks, and never serves /dist/index.js. Fixing only the boot path would
 	// have moved this failure to every applied change under --watch rather than
@@ -1185,7 +1196,7 @@ func ensureClientServed(deployDir, appURL, mxbuildPath string, out io.Writer) er
 	if dangling := danglingClientChunks(deployDir); len(dangling) > 0 {
 		fmt.Fprintf(out, "  client bundle inconsistent — index.js imports %d chunk(s) that are not on disk (%s); re-bundling web client...\n",
 			len(dangling), strings.Join(dangling, ", "))
-		if err := BuildWebClient(WebClientOptions{DeployDir: deployDir, MxBuildPath: mxbuildPath, Stdout: out}); err != nil {
+		if err := rebundle(); err != nil {
 			return fmt.Errorf("web client re-bundle: %w", err)
 		}
 		if still := danglingClientChunks(deployDir); len(still) > 0 {
@@ -1196,16 +1207,14 @@ func ensureClientServed(deployDir, appURL, mxbuildPath string, out io.Writer) er
 	// A page module with no bundled chunk is likewise invisible to the index.js
 	// probe: pages are loaded by dynamic import. A one-shot bundle re-globs
 	// web/pages and emits it. See missingPageChunks.
-	if _, err := recoverMissingPages(deployDir, func() error {
-		return BuildWebClient(WebClientOptions{DeployDir: deployDir, MxBuildPath: mxbuildPath, Stdout: out})
-	}, out); err != nil {
+	if _, err := recoverMissingPages(deployDir, rebundle, out); err != nil {
 		return fmt.Errorf("web client re-bundle: %w", err)
 	}
 	if clientBundlePresent(deployDir) && clientBundleServedWithin(appURL, clientProbeWindow) {
 		return nil
 	}
 	fmt.Fprintln(out, "  /dist/index.js not served after apply; re-bundling web client...")
-	if err := BuildWebClient(WebClientOptions{DeployDir: deployDir, MxBuildPath: mxbuildPath, Stdout: out}); err != nil {
+	if err := rebundle(); err != nil {
 		return fmt.Errorf("web client re-bundle: %w", err)
 	}
 	if !clientBundleServedWithin(appURL, clientProbeWindow) {
@@ -1263,19 +1272,13 @@ func settleSourceWith(projectPath string, seen time.Time, sigCh <-chan os.Signal
 // watchAndApply polls the project for changes and applies each rebuild until the
 // user interrupts (Ctrl-C). StartLocalRuntime already resolved the JVM; here we
 // only rebuild via serve and let the RuntimeController decide reload vs restart.
-func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, watcherRef **WebClientWatcher, mxbuildPath string) error {
+func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, bundler *bundlerSupervisor, mxbuildPath string) error {
 	w := opts.Stdout
-	watcher := *watcherRef
-	// restartWatcher replaces the incremental bundler with a fresh one, whose
-	// first build re-globs web/pages. The caller's reference is updated so it
-	// stops the live watcher, not the one replaced here.
-	restartWatcher := func() error {
-		_ = watcher.Stop()
-		next, err := StartWebClientWatch(WebClientOptions{DeployDir: opts.DeployDir, MxBuildPath: mxbuildPath, Stdout: io.Discard})
-		watcher = next
-		*watcherRef = next
-		return err
-	}
+	// Every recovery re-bundle goes through the supervisor under --watch, so a
+	// one-shot never runs alongside the incremental bundler (#971).
+	rebundle := clientRebundler(bundler, WebClientOptions{
+		DeployDir: opts.DeployDir, MxBuildPath: mxbuildPath, Timeout: opts.WebClientTimeout, Stdout: opts.Stdout,
+	})
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -1328,10 +1331,20 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, w
 			fmt.Fprintf(w, "Change detected, rebuilding (build #%d)...\n", gen)
 			start := time.Now()
 
+			// A bundler that exited since the last change is restarted here
+			// rather than waited on: waiting on a dead one failed every later
+			// change with "watcher exited" until `run --local` was restarted
+			// (#971). Its first build bundles the current source, so whatever it
+			// missed while down is in it.
+			bundled, err := bundler.EnsureAlive()
+			if err != nil {
+				fmt.Fprintf(opts.Stderr, "  %v\n", err)
+			}
+
 			// Capture the client-bundle generation and the web-source mtime before
 			// the serve build, so we can tell whether the change plausibly touched
 			// client source and, if so, wait for the incremental re-bundle.
-			genBefore := watcher.Generation()
+			genBefore := bundler.Generation()
 			webBefore := webClientSourceMTime(opts.DeployDir)
 
 			build, err := serve.Build(BuildRequest{Target: TargetDeploy, ProjectFilePath: opts.ProjectPath})
@@ -1360,24 +1373,24 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, w
 			// no rebuild materializes (the touched file isn't a rollup input — e.g. a
 			// microflow edit that rewrites a web metadata file but no page/widget), so
 			// this never hangs. A pure model change skips the wait entirely.
-			bundled := false
 			if webClientSourceMTime(opts.DeployDir).After(webBefore) {
 				// Detection is a reliable ~1s with polling, so a 2.5s settle is ample
 				// margin to catch a rebuild that's going to start, while keeping the
 				// no-rebuild case (a model edit that only grazed web/) snappy.
-				bundled, err = watcher.WaitForRebuild(genBefore, 2500*time.Millisecond, 90*time.Second)
+				rebuilt, err := bundler.AwaitRebuild(genBefore, 2500*time.Millisecond, 90*time.Second, opts.Stderr)
 				if err != nil {
 					fmt.Fprintf(opts.Stderr, "  web client rebuild failed: %v\n", err)
 					continue
 				}
+				bundled = bundled || rebuilt
 			}
 			// The incremental bundler never picks up a page added after it
 			// started (mxbuild's pages plugin globs once), so a new page would
 			// 404 in the browser while everything above reports success. A fresh
 			// bundler re-globs. Only meaningful with a live watcher; without one,
 			// ensureClientServed's one-shot covers the same check.
-			if watcher != nil {
-				restarted, err := recoverMissingPages(opts.DeployDir, restartWatcher, w)
+			if bundler.Wanted() {
+				restarted, err := recoverMissingPages(opts.DeployDir, bundler.Restart, w)
 				if err != nil {
 					fmt.Fprintf(opts.Stderr, "  %v\n", err)
 					continue
@@ -1390,17 +1403,20 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, w
 				fmt.Fprintf(opts.Stderr, "  apply (%s) failed: %v\n", action, err)
 				continue
 			}
+			if note := sessionNotice(action); note != "" {
+				fmt.Fprintln(w, note)
+			}
 			// Gate the "applied" report on the browser bundle actually being served:
 			// a structural change can leave the restarted runtime 404ing
 			// /dist/index.js (see ensureClientServed). This recovers before we tell
 			// the user the build is live.
-			if err := ensureClientServed(opts.DeployDir, rt.AppURL(), mxbuildPath, opts.Stdout); err != nil {
+			if err := ensureClientServed(opts.DeployDir, rt.AppURL(), rebundle, opts.Stdout); err != nil {
 				fmt.Fprintf(opts.Stderr, "  client bundle not served after apply: %v\n", err)
 				continue
 			}
 			client := ""
 			if bundled {
-				client = fmt.Sprintf(", client re-bundled (gen %d)", watcher.Generation())
+				client = fmt.Sprintf(", client re-bundled (gen %d)", bundler.Generation())
 			}
 			fmt.Fprintf(w, "  build #%d applied via %s in %s%s -> %s\n", gen, action, time.Since(start).Round(time.Millisecond), client, rt.AppURL())
 			maybeScreenshot(opts, rt)
@@ -1409,6 +1425,16 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, w
 			last = sourceMTime(opts.ProjectPath)
 		}
 	}
+}
+
+// sessionNotice is the line printed after an apply that restarted the runtime:
+// a restart drops every browser session, which a reload does not, and a browser
+// test that is not told so fails on a login page it did not expect (#971).
+func sessionNotice(action ApplyAction) string {
+	if action != ActionRestart {
+		return ""
+	}
+	return "  runtime restarted for this change — browser sessions were dropped; log in again"
 }
 
 // declaredJarDependencies collects the managed Java dependency coordinates the
