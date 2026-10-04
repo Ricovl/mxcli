@@ -349,6 +349,14 @@ func (idx *iconIndex) check(ref iconRef) error {
 	collection, member := ref.value[:dot], ref.value[dot+1:]
 
 	members, known := listing[collection]
+	if !known && isSystemCollection(collection) {
+		// The System module is not stored in the project — its image
+		// collection (Studio Pro's System.Images: Save, Close, …) is part of
+		// the platform — so a listing of the project cannot contain it, and
+		// refusing a reference into it refused describe's own navigation
+		// output (ako/mxcli#980). mxbuild resolves it.
+		return nil
+	}
 	if !known {
 		msg := fmt.Sprintf("%s: unknown %s %q in icon reference %q.\n  %ss in this project: %s",
 			ref.where, what, collection, ref.value, strings.Title(what), strings.Join(order, ", "))
@@ -371,6 +379,13 @@ func (idx *iconIndex) check(ref iconRef) error {
 	}
 	msg += fmt.Sprintf(".\n  List it with: %s %s", lister, collection)
 	return mdlerrors.NewValidation(msg)
+}
+
+// isSystemCollection reports a collection of the platform's System module,
+// which no project stores.
+func isSystemCollection(collection string) bool {
+	mod, _, ok := strings.Cut(collection, ".")
+	return ok && mod == "System"
 }
 
 // otherKindHint names the fix when a reference resolves under the OTHER kind:

@@ -1,0 +1,36 @@
+mdl 1;
+-- ako/mxcli#980: describe navigation printed a menu item whose action was a
+-- nanoflow call, open link or create object with no action, and lost a flow
+-- call's settings; re-running the description stored Forms$NoAction and the
+-- default settings. A menu item's OnClick now takes a button's action
+-- expression, settings included, and describe prints every stored action.
+--
+-- Written against ako/TestApp (Mendix 11.14), measured: mx check 0 errors, and
+-- describe -> exec of the result writes nothing.
+--
+-- Verify:
+--   mxcli exec 980-navigation-menu-actions.mdl -p TestApp.mpr
+--   mxcli -p TestApp.mpr -c "describe navigation Responsive"   -- every OnClick back
+--   mxcli docker check -p TestApp.mpr                           -- 0 errors
+
+create or modify navigation Responsive
+  home page MyFirstModule.Home_Web
+{
+  menu item 'Home' ( OnClick: show page MyFirstModule.Home_Web with (DisabledDuringExecution: false), Icon: glyph 57377 )
+  menu 'Group' {
+    menu item 'Sub nanoflow' ( OnClick: call nanoflow MyFirstModule.Nanoflow )
+  }
+  menu item 'Nanoflow' ( OnClick: call nanoflow MyFirstModule.Nanoflow with (ProgressBar: Blocking, ProgressMessage: 'Working', Confirmation: 'Run it?', ProceedCaption: 'Run', CancelCaption: 'Not now') )
+  menu item 'Microflow' ( OnClick: call microflow MyFirstModule.MyFirstLogic with (ProgressBar: NonBlocking, ProgressMessage: 'Please wait', Asynchronous: true, FormValidations: None) )
+  menu item 'Docs' ( OnClick: open link 'https://docs.mendix.com' )
+  menu item 'New category' ( OnClick: create object Rules.RuleCategory then show page Rules.RuleCategory_NewEdit )
+  menu item 'Sign out' ( OnClick: sign out, Icon: image System.Images.Save )
+  menu item 'Nothing' ( OnClick: nothing )
+};
+
+-- A standalone menu document takes the same items.
+create or modify menu Atlas_Core.Phone_Menu {
+  menu item 'Home' ( OnClick: call nanoflow MyFirstModule.Nanoflow with (ProgressBar: Blocking), Icon: Atlas_Core.Atlas_Filled.home )
+  menu item 'Docs' ( OnClick: open link 'https://docs.mendix.com', Icon: glyph 57377 )
+  menu item 'New' ( OnClick: create object Rules.RuleCategory then show page Rules.RuleCategory_NewEdit )
+};

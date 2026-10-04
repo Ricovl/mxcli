@@ -66,10 +66,10 @@ func TestMenuItem_SignOutWithAnIcon(t *testing.T) {
 
 // The menu-document path: AST -> semantic model.
 func TestMenuItemsFromAST_SignOutBecomesAnActionType(t *testing.T) {
-	items := menuItemsFromAST([]ast.NavMenuItemDef{
+	items, _ := menuItemsFromAST(nil, []ast.NavMenuItemDef{
 		{Caption: "Sign out", SignOut: true},
 		{Caption: "Plain"},
-	})
+	}, nil, "", map[string]string{})
 	if items[0].ActionType != "SignOutAction" {
 		t.Errorf("ActionType = %q, want SignOutAction", items[0].ActionType)
 	}
@@ -97,7 +97,7 @@ func TestConvertMenuItemDef_CarriesSignOut(t *testing.T) {
 // close — which is the half that lost TestApp's item.
 func TestPrintMenuMDL_RendersSignOut(t *testing.T) {
 	var b bytes.Buffer
-	printMenuMDL(&b, []*types.NavMenuItem{
+	printMenuMDL(nil, &b, []*types.NavMenuItem{
 		{Caption: "Sign out", ActionType: "SignOutAction"},
 		{Caption: "Plain", ActionType: "NoAction"},
 	}, 0, "CREATE NAVIGATION")
@@ -117,7 +117,7 @@ func TestPrintMenuMDL_RendersSignOut(t *testing.T) {
 // still not agree.
 func TestMenuItem_SignOutRoundTripsThroughDescribe(t *testing.T) {
 	var b bytes.Buffer
-	printMenuMDL(&b, []*types.NavMenuItem{{Caption: "Sign out", ActionType: "SignOutAction"}},
+	printMenuMDL(nil, &b, []*types.NavMenuItem{{Caption: "Sign out", ActionType: "SignOutAction"}},
 		0, "CREATE NAVIGATION")
 
 	stmt := signOutMenuStmt(t, "create or modify menu M.Main {\n"+b.String()+"};")

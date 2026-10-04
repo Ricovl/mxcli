@@ -349,7 +349,7 @@ DISCONNECT;`,
 			"throw error", "sync error", "partial sync", "server rejects",
 		},
 		Syntax: `CREATE OR REPLACE NAVIGATION <profile>
-  HOME PAGE Module.Page
+  HOME PAGE Module.Page | HOME MICROFLOW Module.Flow | HOME NANOFLOW Module.Flow
   [HOME PAGE Module.Page FOR UserRole]
   [LOGIN PAGE Module.LoginPage]
   [NOT FOUND PAGE Module.Custom404]
@@ -363,7 +363,11 @@ DISCONNECT;`,
     SYNC Module.Entity NONE PRESERVE DATA;
   )]
   [{
-    MENU ITEM 'Label' [( OnClick: SHOW PAGE Module.Page | CALL MICROFLOW Module.Flow | SIGN OUT
+    MENU ITEM 'Label' [( OnClick: SHOW PAGE Module.Page | CALL MICROFLOW Module.Flow
+                                | CALL NANOFLOW Module.Flow | OPEN LINK 'url'
+                                | CREATE OBJECT Module.Entity [THEN SHOW PAGE Module.Page]
+                                | SIGN OUT | NOTHING
+                                [WITH (ProgressBar: Blocking, Confirmation: '…', …)]
                         [, Icon: Module.IconCollection.Name] )]
     MENU 'Group' [( Icon: Module.IconCollection.Name )] { ... }
   }];
@@ -373,6 +377,17 @@ DISCONNECT;`,
 -- action is OnClick: in the words a page action uses. The old spelling,
 -- MENU ( MENU ITEM 'Label' PAGE M.P ICON I; ... ), still parses and warns
 -- (MDL-DEPR121, MDL-DEPR122); mxcli fmt --upgrade rewrites it.
+--
+-- OnClick: takes a button's action expression with its WITH ( … ) settings,
+-- limited to what a menu item can do (save, delete, close page and complete
+-- task are refused). DESCRIBE prints every stored action, so its output
+-- re-runs without writing anything; a page title override or a link type
+-- other than Web has no spelling, is flagged with a comment, and is kept
+-- while the item's caption and action are unchanged.
+--
+-- A NATIVE profile's flow home is HOME NANOFLOW; mxcli writes its home pages
+-- and SYNC block only and refuses a { } block (the bottom bar), LOGIN PAGE,
+-- NOT FOUND PAGE and ON SYNC ERROR on it.
 
 -- FOR takes a USER role, written BARE (FOR Administrator). User roles are
 -- project-level and have no module part; a module role is a different thing

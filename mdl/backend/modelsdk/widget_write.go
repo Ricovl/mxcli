@@ -198,7 +198,13 @@ func init() {
 	})
 	// A nanoflow client action carries its (possibly empty) parameter-mapping
 	// list directly and nulls its progress/confirmation slots. Bug 2.
+	//
+	// OutputMappings, marker 3 and empty, is on every one Studio Pro stores:
+	// 60 of 60 in ako/TestApp and 18 of 18 in PedApp at 11.14.0 — buttons and
+	// the navigation menu item alike. Its absence made a describe -> exec of a
+	// nanoflow menu item a rewrite (ako/mxcli#980).
 	codec.RegisterTypeDefaults("Forms$CallNanoflowClientAction", codec.TypeDefaults{
+		MandatoryLists:       []string{"OutputMappings"},
 		MandatoryListMarkers: map[string]int32{"ParameterMappings": 2},
 		NullFields:           []string{"ProgressMessage", "ConfirmationInfo"},
 	})

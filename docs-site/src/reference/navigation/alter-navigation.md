@@ -4,8 +4,8 @@
 
 ```sql
 CREATE OR REPLACE NAVIGATION profile
-    HOME PAGE module.PageName
-    [ HOME PAGE module.PageName FOR UserRole ]
+    HOME { PAGE module.PageName | MICROFLOW module.Flow | NANOFLOW module.Flow }
+    [ HOME { PAGE | MICROFLOW | NANOFLOW } module.Name FOR UserRole ]
     [ LOGIN PAGE module.PageName ]
     [ NOT FOUND PAGE module.PageName ]
     [ ON SYNC ERROR { THROW | CONTINUE } ]
@@ -60,6 +60,12 @@ The old spelling — `MENU ( MENU ITEM 'Home' PAGE M.Home; … )` — still pars
 `HOME PAGE module.PageName`
 :   The default home page for the profile. Required. The page must already exist.
 
+`HOME MICROFLOW module.Flow` / `HOME NANOFLOW module.Flow`
+:   A flow run as the home instead of a page: a microflow on a web profile, a
+    nanoflow on a native one. Each is refused on the other kind of profile
+    (`HOME MICROFLOW` on a native profile, which DESCRIBE used to print for its
+    nanoflow home, still runs with a warning).
+
 `HOME PAGE module.PageName FOR UserRole`
 :   Optional role-specific home page. Users with this role see a different home page than the default. Multiple role-specific home pages can be specified.
 
@@ -75,7 +81,7 @@ The old spelling — `MENU ( MENU ITEM 'Home' PAGE M.Home; … )` — still pars
 :   Optional menu structure. Contains `MENU ITEM` and nested `MENU` entries. An empty `{ }` clears the menu; omitting the block leaves it alone.
 
 `MENU ITEM 'label' ( OnClick: action, Icon: icon )`
-:   A leaf menu item. `OnClick` is `SHOW PAGE module.PageName`, `CALL MICROFLOW module.Microflow` or `SIGN OUT`; `Icon` is `Module.Collection.icon`, `GLYPH n` or `IMAGE Module.Images.name`. Both are optional.
+:   A leaf menu item. `OnClick` is `SHOW PAGE module.PageName`, `CALL MICROFLOW module.Microflow`, `CALL NANOFLOW module.Nanoflow`, `OPEN LINK 'url'`, `CREATE OBJECT module.Entity [THEN SHOW PAGE module.PageName]`, `SIGN OUT` or `NOTHING`, with a button action's `WITH ( … )` settings; `Icon` is `Module.Collection.icon`, `GLYPH n` or `IMAGE Module.Images.name`. Both are optional. DESCRIBE prints every stored action this way, and flags what it cannot spell (a page title override, a link type other than Web), which a rewrite keeps while the item is unchanged.
 
 `MENU 'label' [( Icon: icon )] { ... }`
 :   A submenu containing nested menu items and/or further submenus.
@@ -156,16 +162,15 @@ CREATE OR MODIFY NAVIGATION Responsive
     };
 ```
 
-Native mobile navigation:
+Native mobile navigation. A native profile's home is a page or a nanoflow
+(`HOME NANOFLOW`); mxcli writes its home pages and `SYNC` block only, and refuses a
+`{ }` menu block (the bottom bar), `LOGIN PAGE`, `NOT FOUND PAGE` and `ON SYNC ERROR`
+on one — set those in Studio Pro. DESCRIBE lists the bottom bar as comments:
 
 ```sql
 CREATE OR MODIFY NAVIGATION NativePhone
-    HOME PAGE Mobile.Dashboard
-    {
-        MENU ITEM 'Home' ( OnClick: SHOW PAGE Mobile.Dashboard )
-        MENU ITEM 'Tasks' ( OnClick: SHOW PAGE Mobile.TaskList )
-        MENU ITEM 'Profile' ( OnClick: SHOW PAGE Mobile.UserProfile )
-    };
+    HOME NANOFLOW Mobile.NAV_Home
+    HOME PAGE Mobile.Dashboard FOR User;
 ```
 
 ## See Also

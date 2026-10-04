@@ -19,7 +19,10 @@ import (
 // DisabledDuringExecution true and nothing else.
 
 func TestMenuActionToGen_SignOut(t *testing.T) {
-	el := menuActionToGen(&types.NavMenuItem{Caption: "Sign out", ActionType: "SignOutAction"})
+	el, err := menuActionToGen(&types.NavMenuItem{Caption: "Sign out", ActionType: "SignOutAction"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	g, ok := el.(*genPages.SignOutClientAction)
 	if !ok {
 		t.Fatalf("got %T, want *pages.SignOutClientAction — a menu item's sign-out fell to NoAction", el)
@@ -44,7 +47,11 @@ func TestMenuActionToGen_OtherItemsUnchanged(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := menuActionToGen(c.item).TypeName(); got != c.want {
+			el, err := menuActionToGen(c.item)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := el.TypeName(); got != c.want {
 				t.Errorf("$Type = %q, want %q", got, c.want)
 			}
 		})
@@ -53,7 +60,7 @@ func TestMenuActionToGen_OtherItemsUnchanged(t *testing.T) {
 
 // The navigation-profile writer is the other half, and it builds raw BSON.
 func TestNavMenuAction_SignOut(t *testing.T) {
-	doc := navMenuAction(types.NavMenuItemSpec{Caption: "Sign out", SignOut: true})
+	doc := mustNavMenuAction(t, types.NavMenuItemSpec{Caption: "Sign out", SignOut: true})
 	got := map[string]any{}
 	for _, e := range doc {
 		got[e.Key] = e.Value
@@ -73,7 +80,7 @@ func TestNavMenuAction_SignOut(t *testing.T) {
 // above proves something about SIGN_OUT rather than about the default going
 // away.
 func TestNavMenuAction_PlainItemStillNoAction(t *testing.T) {
-	doc := navMenuAction(types.NavMenuItemSpec{Caption: "Plain"})
+	doc := mustNavMenuAction(t, types.NavMenuItemSpec{Caption: "Plain"})
 	for _, e := range doc {
 		if e.Key == "$Type" && e.Value != "Forms$NoAction" {
 			t.Errorf("$Type = %v, want Forms$NoAction", e.Value)
