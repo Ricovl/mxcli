@@ -251,6 +251,7 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateImageSource(w, locationPrefix)...)
 		out = append(out, validateStaticWidget(w, locationPrefix)...)
 		out = append(out, validateDynamicTextFormatting(w, locationPrefix)...)
+		out = append(out, validateInputFormatting(w, locationPrefix)...)
 		out = append(out, validateDatasourceXPathAssociationEmpty(w, locationPrefix)...)
 		out = append(out, validateComboBoxAssociation(w, locationPrefix)...)
 		// #631: inputs inside a list view that will be written read-only.
@@ -831,7 +832,15 @@ func validateStaticWidgetUnknownProps(w *ast.WidgetV3, locationPrefix string) []
 		// Dynamic-text format keys placed at the widget level are reported by
 		// MDL-WIDGET18 (with actionable move-into-format-block guidance); don't
 		// also warn about them here.
-		if paramFormatKeys[strings.ToLower(key)] {
+		if paramFormatKeys[strings.ToLower(key)] && strings.EqualFold(w.Type, "dynamictext") {
+			continue
+		}
+		// A date picker's or text box's own FormattingInfo (ako/mxcli#968). The
+		// exemption above used to cover every widget type, so `DateFormat:` on
+		// any widget passed silently — on a date picker, too, where nothing
+		// read it. It is per type: on a widget with no FormattingInfo the key
+		// is still dropped, and still warned about.
+		if _, ok := inputFormatProp(w.Type, key); ok {
 			continue
 		}
 		hint := ""
@@ -929,13 +938,34 @@ func validateDynamicTextFormatting(w *ast.WidgetV3, locationPrefix string) []lin
 				}
 			}
 		}
-		// customDateFormat is only meaningful with dateFormat: Custom.
+		// customDateFormat is only meaningful with dateFormat: Custom. A pattern
+		// with NO dateFormat is a mistake — it never applies. One beside an
+		// explicit other dateFormat is what Studio Pro stores after the format
+		// is switched away from Custom (TestApp's
+		// WorkflowCommons.Snip_Workflow_CommentsAndAttachments: DateTime +
+		// 'MM/dd/yyyy . hh:mma'), and describe prints both, so refusing it
+		// failed check on describe's own output (ako/mxcli#968).
 		if _, hasCustom := p.Format.Get("customdateformat"); hasCustom {
-			if df, _ := p.Format.Get("dateformat"); !strings.EqualFold(df, "Custom") {
+			if _, hasDF := p.Format.Get("dateformat"); !hasDF {
 				out = append(out, violation18(locationPrefix, w,
 					"customDateFormat requires `dateFormat: Custom`"))
 			}
 		}
+	}
+	return out
+}
+
+// validateInputFormatting (MDL-WIDGET18) checks the formatting properties of a
+// date picker or text box — DateFormat, CustomDateFormat, DecimalPrecision,
+// GroupDigits — with the same function the builder refuses them with, so check
+// and exec cannot disagree (ako/mxcli#968).
+func validateInputFormatting(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
+	if w == nil {
+		return nil
+	}
+	var out []linter.Violation
+	for _, msg := range inputFormattingProblems(w) {
+		out = append(out, violation18(locationPrefix, w, msg))
 	}
 	return out
 }

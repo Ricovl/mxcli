@@ -73,6 +73,12 @@ func TestValidateDynamicTextFormatting(t *testing.T) {
 			ast.ParamFormatProp{Key: "enumformat", Value: "Nope"}), nil), "enumFormat must be"},
 		{"custom without Custom", dtWidget(fmtBlock(
 			ast.ParamFormatProp{Key: "customdateformat", Value: "yyyy"}), nil), "requires `dateFormat: Custom`"},
+		// Studio Pro keeps the pattern when the format is switched away from
+		// Custom, and describe prints both: refusing it failed check on
+		// describe's own output for TestApp's WorkflowCommons snippets (#968).
+		{"pattern beside explicit DateTime", dtWidget(fmtBlock(
+			ast.ParamFormatProp{Key: "dateformat", Value: "DateTime"},
+			ast.ParamFormatProp{Key: "customdateformat", Value: "MM/dd/yyyy . hh:mma"}), nil), ""},
 		{"widget-level format key", dtWidget(nil, map[string]any{"decimalPrecision": 2}), "per-parameter format"},
 	}
 	for _, tt := range tests {
