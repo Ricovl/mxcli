@@ -11,7 +11,7 @@ DROP MENU module.name
 Where each `menu_item` is one of:
 
 ```sql
-MENU ITEM 'caption' [ ( [ OnClick: SHOW PAGE module.page | CALL MICROFLOW module.microflow | SIGN OUT ] [, Icon: module.collection.icon ] ) ]
+MENU ITEM 'caption' [ ( [ OnClick: action ] [, Icon: module.collection.icon ] ) ]
 MENU 'caption' [ ( Icon: module.collection.icon ) ] { nested_items }
 ```
 
@@ -56,9 +56,16 @@ a fixed point.
 
 `OnClick:`
 :   Optional action run when the item is clicked, in the words a page action uses:
-    `show page M.P`, `call microflow M.F` or `sign out`. An item without one is
-    inert (stored as `Forms$NoAction`), which is normal for an item that only
-    groups sub-items.
+    `show page M.P`, `call microflow M.F`, `call nanoflow M.N`,
+    `open link 'https://…'`, `create object M.E [then show page M.P]`, `sign out`
+    or `nothing` — the action expression a button's `Action:` takes, with its
+    `with ( … )` settings (progress bar and message, confirmation, asynchronous,
+    form validations, disabled during action). Save, delete, close page and
+    complete task are refused: a menu item has no object to act on. An item
+    without one is inert (stored as `Forms$NoAction`), which is normal for an
+    item that only groups sub-items. A page title override or a link type other
+    than Web has no spelling; describe flags it, and a rewrite keeps it while the
+    item's caption and action are unchanged.
 
 `Icon:`
 :   Optional icon, given as a qualified name into an icon collection — not a string.

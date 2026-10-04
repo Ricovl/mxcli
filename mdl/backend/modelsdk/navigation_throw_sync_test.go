@@ -39,7 +39,7 @@ func TestThrowSyncErrorIsLeftAloneWhenTheStatementIsSilent(t *testing.T) {
 			{Key: "Name", Value: "TabletOffline"},
 			{Key: "ThrowPartialSyncError", Value: storedValue},
 		}
-		out := navPatchWebProfile(stored, types.NavigationProfileSpec{})
+		out := mustNavPatchWebProfile(t, stored, types.NavigationProfileSpec{})
 		if got := throwOf(t, out); got != storedValue {
 			t.Errorf("a rewrite that never mentioned the clause changed a stored %v to %v",
 				storedValue, got)
@@ -54,11 +54,11 @@ func TestThrowSyncErrorIsLeftAloneWhenTheStatementIsSilent(t *testing.T) {
 	// Control in the other direction: when the statement DOES say something,
 	// it must actually be written — otherwise the first assertion passes for
 	// a writer that ignores the field entirely.
-	out := navPatchWebProfile(stored, types.NavigationProfileSpec{ThrowSyncError: boolPtr(true)})
+	out := mustNavPatchWebProfile(t, stored, types.NavigationProfileSpec{ThrowSyncError: boolPtr(true)})
 	if got := throwOf(t, out); got != true {
 		t.Errorf("`on sync error throw` did not write: %v", got)
 	}
-	out = navPatchWebProfile(stored, types.NavigationProfileSpec{ThrowSyncError: boolPtr(false)})
+	out = mustNavPatchWebProfile(t, stored, types.NavigationProfileSpec{ThrowSyncError: boolPtr(false)})
 	if got := throwOf(t, out); got != false {
 		t.Errorf("`on sync error continue` did not write: %v", got)
 	}

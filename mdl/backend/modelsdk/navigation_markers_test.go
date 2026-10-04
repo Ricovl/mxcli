@@ -58,12 +58,12 @@ func TestNavWriters_TypedArrayMarkersMatchStudioPro(t *testing.T) {
 		t.Errorf("Forms$FormSettings.ParameterMappings marker = %d, want 2 (1122 documents)", got)
 	}
 
-	action := navMenuAction(types.NavMenuItemSpec{Page: "M.Page"})
+	action := mustNavMenuAction(t, types.NavMenuItemSpec{Page: "M.Page"})
 	if got := markerOf(t, action, "PagesForSpecializations"); got != 2 {
 		t.Errorf("Forms$FormAction.PagesForSpecializations marker = %d, want 2 (357 documents)", got)
 	}
 
-	item := navMenuItemBson(types.NavMenuItemSpec{Caption: "Home", Page: "M.Page"})
+	item := mustNavMenuItemBson(t, types.NavMenuItemSpec{Caption: "Home", Page: "M.Page"})
 	if got := markerOf(t, item, "Items"); got != 3 {
 		t.Errorf("Menus$MenuItem.Items marker = %d, want 3 (459 documents)", got)
 	}

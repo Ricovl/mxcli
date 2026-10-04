@@ -7,6 +7,9 @@ package catalog
 //
 // History:
 //
+//	21 (native bottom bar actions): a native profile's navigation_menu_items
+//	    rows take ActionType / Page / Microflow from the bottom bar item's
+//	    client action, not only its legacy Page (ako/mxcli#980).
 //	20 (widget tree, class/style and actions): widgets_data gains
 //	    ParentWidgetId, Depth, Class, Style, DynamicClasses, ActionType and
 //	    HasConfirmation (mendixlabs/mxcli#1268). Without the bump a cached
@@ -111,7 +114,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "20"
+const CatalogSchemaVersion = "21"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.

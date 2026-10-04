@@ -13,6 +13,7 @@ import (
 	genNav "github.com/mendixlabs/mxcli/modelsdk/gen/navigation"
 	genPages "github.com/mendixlabs/mxcli/modelsdk/gen/pages"
 	genTexts "github.com/mendixlabs/mxcli/modelsdk/gen/texts"
+	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
 	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -199,9 +200,16 @@ func nativeNavProfileFromGen(p *genNav.NativeNavigationProfile) *types.Navigatio
 		if bar, ok := barEl.(*genNative.BottomBarItem); ok {
 			mi := &types.NavMenuItem{
 				Caption: textOf(bar.Caption()),
-				Page:    bar.PageQualifiedName(),
 			}
-			if mi.Caption != "" || mi.Page != "" {
+			// A bottom bar item carries a client action and an icon like a menu
+			// item; reading only its legacy Page left describe without either
+			// (ako/mxcli#980).
+			mi.IconType, mi.Icon, mi.IconCode = menuIconOf(bar.Icon())
+			resolveMenuAction(mi, bar.Action())
+			if mi.Page == "" {
+				mi.Page = bar.PageQualifiedName()
+			}
+			if mi.Caption != "" || mi.Page != "" || mi.StoredAction != nil {
 				profile.MenuItems = append(profile.MenuItems, mi)
 			}
 		}
@@ -296,6 +304,14 @@ func menuIconOf(icon element.Element) (typeName, image string, code int) {
 func resolveMenuAction(item *types.NavMenuItem, action element.Element) {
 	if action == nil {
 		return
+	}
+	// The stored document itself, whatever its $Type: what describe renders
+	// and what a rewrite carries when MDL cannot express it (ako/mxcli#980).
+	if raw := action.Raw(); len(raw) > 0 {
+		item.StoredAction = append([]byte(nil), raw...)
+		if doc, err := mmpr.RawDocumentMap(raw); err == nil {
+			item.ActionDoc = doc
+		}
 	}
 	switch a := action.(type) {
 	case *genPages.PageClientAction:

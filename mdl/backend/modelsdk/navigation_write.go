@@ -83,7 +83,11 @@ func (b *Backend) UpdateNavigationProfile(navDocID model.ID, profileName string,
 		if navGetString(profDoc, "$Type") == "Navigation$NativeNavigationProfile" {
 			profiles[i] = navPatchNativeProfile(profDoc, spec)
 		} else {
-			profiles[i] = navPatchWebProfile(profDoc, spec)
+			patched, err := navPatchWebProfile(profDoc, spec)
+			if err != nil {
+				return fmt.Errorf("UpdateNavigationProfile: %w", err)
+			}
+			profiles[i] = patched
 		}
 		break
 	}
@@ -136,7 +140,7 @@ func navID() any { return bsonutil.NewIDBsonBinary() }
 
 // --- profile patchers ---
 
-func navPatchWebProfile(doc bson.D, spec types.NavigationProfileSpec) bson.D {
+func navPatchWebProfile(doc bson.D, spec types.NavigationProfileSpec) (bson.D, error) {
 	var defaultHome *types.NavHomePageSpec
 	var roleHomes []types.NavHomePageSpec
 	for _, hp := range spec.HomePages {
@@ -189,7 +193,11 @@ func navPatchWebProfile(doc bson.D, spec types.NavigationProfileSpec) bson.D {
 	if spec.HasMenu {
 		menuItems := bson.A{navMarkerItems}
 		for _, mi := range spec.MenuItems {
-			menuItems = append(menuItems, navMenuItemBson(mi))
+			item, err := navMenuItemBson(mi)
+			if err != nil {
+				return nil, err
+			}
+			menuItems = append(menuItems, item)
 		}
 		doc = navSetField(doc, "Menu", bson.D{
 			{Key: "$ID", Value: navID()},
@@ -210,7 +218,7 @@ func navPatchWebProfile(doc bson.D, spec types.NavigationProfileSpec) bson.D {
 	if spec.ThrowSyncError != nil {
 		doc = navSetField(doc, "ThrowPartialSyncError", *spec.ThrowSyncError)
 	}
-	return doc
+	return doc, nil
 }
 
 func navPatchNativeProfile(doc bson.D, spec types.NavigationProfileSpec) bson.D {
@@ -247,6 +255,15 @@ func navPatchNativeProfile(doc bson.D, spec types.NavigationProfileSpec) bson.D 
 		})
 	}
 	doc = navSetField(doc, "RoleBasedNativeHomePages", roleItems)
+
+	// A native profile stores its offline configs as a web profile does. The
+	// executor refuses the clauses this writer cannot apply to a native
+	// profile (its bottom bar, login and not-found pages, on sync error), so
+	// none is ignored in silence (ako/mxcli#980).
+	if spec.HasSync {
+		doc = navSetField(doc, "OfflineEntityConfigs",
+			navOfflineConfigs(navGetArray(doc, "OfflineEntityConfigs"), spec.OfflineEntities))
+	}
 	return doc
 }
 
@@ -284,21 +301,29 @@ func navFormSettingsBson(formName string) bson.D {
 	}
 }
 
-func navMenuItemBson(mi types.NavMenuItemSpec) bson.D {
+func navMenuItemBson(mi types.NavMenuItemSpec) (bson.D, error) {
+	action, err := navMenuAction(mi)
+	if err != nil {
+		return nil, fmt.Errorf("menu item '%s': %w", mi.Caption, err)
+	}
 	item := bson.D{
 		{Key: "$ID", Value: navID()},
 		{Key: "$Type", Value: "Menus$MenuItem"},
-		{Key: "Action", Value: navMenuAction(mi)},
+		{Key: "Action", Value: action},
 		{Key: "AlternativeText", Value: nil},
 		{Key: "Caption", Value: navCaptionBson(mi.Caption)},
 		{Key: "Icon", Value: navMenuIconBson(mi)},
 	}
 	subItems := bson.A{navMarkerItems}
 	for _, sub := range mi.Items {
-		subItems = append(subItems, navMenuItemBson(sub))
+		subDoc, err := navMenuItemBson(sub)
+		if err != nil {
+			return nil, err
+		}
+		subItems = append(subItems, subDoc)
 	}
 	item = append(item, bson.E{Key: "Items", Value: subItems})
-	return item
+	return item, nil
 }
 
 // navMenuIconBson mirrors sdk/mpr's buildMenuIconBson. The storage names are
@@ -355,7 +380,35 @@ func navCaptionBson(text string) bson.D {
 	}
 }
 
-func navMenuAction(mi types.NavMenuItemSpec) bson.D {
+func navMenuAction(mi types.NavMenuItemSpec) (bson.D, error) {
+	// An action the script could not state, carried from storage verbatim
+	// (ako/mxcli#980). Falling through to Forms$NoAction below is what deleted a
+	// nanoflow menu item's action on every describe -> exec.
+	if len(mi.KeepAction) > 0 {
+		var kept bson.D
+		if err := bson.Unmarshal(mi.KeepAction, &kept); err != nil {
+			return nil, fmt.Errorf("kept action: %w", err)
+		}
+		return kept, nil
+	}
+	// The script's action, written by the widget client-action serializer.
+	if mi.Action != nil {
+		raw, err := menuActionBSON(mi.Action, mi.StoredAction)
+		if err != nil {
+			return nil, err
+		}
+		var d bson.D
+		if err := bson.Unmarshal(raw, &d); err != nil {
+			return nil, err
+		}
+		return d, nil
+	}
+	return navMenuActionFromTargets(mi), nil
+}
+
+// navMenuActionFromTargets builds the action of a spec that carries only the
+// simple targets (no built Action) — a caller other than the executor.
+func navMenuActionFromTargets(mi types.NavMenuItemSpec) bson.D {
 	if mi.Page != "" {
 		return bson.D{
 			{Key: "$ID", Value: navID()},
@@ -387,9 +440,14 @@ func navMenuAction(mi types.NavMenuItemSpec) bson.D {
 			{Key: "DisabledDuringExecution", Value: true},
 		}
 	}
+	// DisabledDuringExecution true is on every Forms$NoAction Studio Pro stores
+	// on a menu item (3 of 3 in ako/TestApp's navigation, 3 of 3 in
+	// testapp-views) and is what the widget serializer writes; leaving it out
+	// made a describe -> exec of any item without an action a rewrite.
 	return bson.D{
 		{Key: "$ID", Value: navID()},
 		{Key: "$Type", Value: "Forms$NoAction"},
+		{Key: "DisabledDuringExecution", Value: true},
 	}
 }
 
@@ -412,6 +470,7 @@ func navOfflineConfigs(stored bson.A, specs []types.NavOfflineEntitySpec) bson.A
 	// unauthorable properties. An entity the spec adds has no stored config and
 	// takes the default every reference config carries.
 	compat := map[string]bool{}
+	constraint := map[string]string{}
 	for _, item := range stored {
 		cfg, ok := item.(bson.D)
 		if !ok {
@@ -419,11 +478,20 @@ func navOfflineConfigs(stored bson.A, specs []types.NavOfflineEntitySpec) bson.A
 		}
 		if e := navGetString(cfg, "Entity"); e != "" {
 			compat[e] = navGetBool(cfg, "CompatibilityMode")
+			constraint[e] = navGetString(cfg, "Constraint")
 		}
 	}
 
 	out := bson.A{navMarkerItems}
 	for _, s := range specs {
+		// Studio Pro lays a constraint out over several lines; describe folds it
+		// onto one, and the rewrite stored the folded text — a change to every
+		// constrained entity on each describe -> exec. The same constraint
+		// written with other whitespace keeps the stored layout.
+		if st, ok := constraint[s.Entity]; ok && st != s.Constraint &&
+			xpathWithoutLayout(st) == xpathWithoutLayout(s.Constraint) {
+			s.Constraint = st
+		}
 		out = append(out, bson.D{
 			{Key: "$ID", Value: navID()},
 			{Key: "$Type", Value: "Navigation$OfflineEntityConfig"},
@@ -447,4 +515,23 @@ func navGetBool(doc bson.D, key string) bool {
 		}
 	}
 	return false
+}
+
+// xpathWithoutLayout is an XPath constraint with the whitespace outside its
+// string literals removed, so two layouts of the same constraint compare equal.
+// A doubled quote inside a literal toggles twice and stays inside it.
+func xpathWithoutLayout(x string) string {
+	var b strings.Builder
+	inLiteral := false
+	for _, r := range x {
+		switch {
+		case r == '\'':
+			inLiteral = !inLiteral
+			b.WriteRune(r)
+		case !inLiteral && (r == ' ' || r == '\t' || r == '\n' || r == '\r'):
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
