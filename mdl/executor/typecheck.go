@@ -7,6 +7,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/exprcatalog"
+	"github.com/mendixlabs/mxcli/mdl/exprcheck"
 	"github.com/mendixlabs/mxcli/mdl/exprcheck/adapters"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 )
@@ -53,6 +54,8 @@ func (e *Executor) TypeCheckProgram(prog *ast.Program) []linter.Violation {
 		return nil
 	}
 
+	declareScriptTypes(reader, prog)
+
 	// microflowExprSource falls back to rendering the AST when the visitor did
 	// not attach source text, which it does for some slots and not others. The
 	// adapter's own default reads SourceExpr only, and would silently skip
@@ -68,4 +71,65 @@ func (e *Executor) TypeCheckProgram(prog *ast.Program) []linter.Violation {
 		}
 	}
 	return out
+}
+
+// declareScriptTypes overlays the enumerations and attributes the script itself
+// creates onto the catalog-backed reader. The catalog only knows the stored
+// project, so a microflow assigning a quoted string to an enumeration attribute
+// created a few statements earlier checked clean and failed at build time
+// (ako/mxcli#969). Statements are applied in order, so a later redefinition
+// wins, as it does when the script runs.
+func declareScriptTypes(reader *exprcatalog.Reader, prog *ast.Program) {
+	for _, stmt := range prog.Statements {
+		switch s := stmt.(type) {
+		case *ast.CreateEnumerationStmt:
+			cases := make([]string, 0, len(s.Values))
+			for _, v := range s.Values {
+				cases = append(cases, v.Name)
+			}
+			reader.DeclareEnumeration(s.Name.String(), cases)
+		case *ast.CreateEntityStmt:
+			for i := range s.Attributes {
+				declareScriptAttribute(reader, s.Name.String(), s.Attributes[i].Name, s.Attributes[i].Type)
+			}
+		case *ast.AlterEntityStmt:
+			switch {
+			case s.Operation == ast.AlterEntityAddAttribute && s.Attribute != nil:
+				declareScriptAttribute(reader, s.Name.String(), s.Attribute.Name, s.Attribute.Type)
+			case s.Operation == ast.AlterEntityModifyAttribute:
+				declareScriptAttribute(reader, s.Name.String(), s.AttributeName, s.DataType)
+			}
+		}
+	}
+}
+
+func declareScriptAttribute(reader *exprcatalog.Reader, entityQN, attr string, dt ast.DataType) {
+	enumQN := ""
+	if dt.EnumRef != nil {
+		enumQN = dt.EnumRef.String()
+	}
+	reader.DeclareAttribute(entityQN, attr, scriptAttributeKind(dt.Kind), enumQN)
+}
+
+// scriptAttributeKind mirrors exprcatalog's mapping of stored type names.
+func scriptAttributeKind(k ast.DataTypeKind) exprcheck.TypeKind {
+	switch k {
+	case ast.TypeString, ast.TypeHashedString:
+		return exprcheck.KindString
+	case ast.TypeInteger:
+		return exprcheck.KindInteger
+	case ast.TypeLong, ast.TypeAutoNumber:
+		return exprcheck.KindLong
+	case ast.TypeDecimal:
+		return exprcheck.KindDecimal
+	case ast.TypeBoolean:
+		return exprcheck.KindBoolean
+	case ast.TypeDateTime, ast.TypeDate, ast.TypeAutoCreatedDate, ast.TypeAutoChangedDate:
+		return exprcheck.KindDateTime
+	case ast.TypeBinary:
+		return exprcheck.KindBinary
+	case ast.TypeEnumeration:
+		return exprcheck.KindEnumeration
+	}
+	return exprcheck.KindUnknown
 }

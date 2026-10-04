@@ -524,3 +524,54 @@ END;
 		t.Errorf("Mendix's string find() produced %+v, want none", stringFind)
 	}
 }
+
+// TestTypeCheckProgramSeesScriptCreatedEnum covers the side finding of
+// ako/mxcli#969 item 1: the enumeration and the attribute are created in the
+// same script as the microflow, so the catalog (built from the stored project)
+// knows neither, and the genuine E001 used to vanish.
+func TestTypeCheckProgramSeesScriptCreatedEnum(t *testing.T) {
+	exec := typeCheckFixture(t)
+
+	got := typeCheck(t, exec, `
+CREATE ENUMERATION MyFirstModule.WindEnum (N 'North', NW 'North west');
+CREATE PERSISTENT ENTITY MyFirstModule.Log (Dir: String(10), Wind: Enumeration(MyFirstModule.WindEnum));
+CREATE OR REPLACE MICROFLOW MyFirstModule.ACT_Wind ($Log: MyFirstModule.Log)
+BEGIN
+  CHANGE $Log (Wind = 'NW');
+END;
+`)
+	if len(got) != 1 || got[0].RuleID != "E001" {
+		t.Fatalf("got %+v, want one E001 for the quoted value", got)
+	}
+	if !strings.Contains(got[0].Suggestion, "MyFirstModule.WindEnum.NW") {
+		t.Errorf("suggestion is %q, want the script-declared enum value", got[0].Suggestion)
+	}
+}
+
+// TestTypeCheckProgramEnumSlotOperandsAreNotValues is item 1 itself: literals
+// compared with a String, passed to find(), or used in an if-condition are not
+// the value assigned to the enumeration attribute.
+func TestTypeCheckProgramEnumSlotOperandsAreNotValues(t *testing.T) {
+	exec := typeCheckFixture(t)
+
+	got := typeCheck(t, exec, `
+CREATE OR REPLACE MICROFLOW MyFirstModule.ACT_Status ($T: MyFirstModule.Ticket, $Dir: String)
+BEGIN
+  CHANGE $T (Status = if $Dir = 'NW' then MyFirstModule.OrderStatus.Open else MyFirstModule.OrderStatus.Closed);
+  CHANGE $T (Status = if find('|NW|NORTHWEST|', '|' + $Dir + '|') >= 0 then MyFirstModule.OrderStatus.Open else MyFirstModule.OrderStatus.Closed);
+END;
+`)
+	if len(got) != 0 {
+		t.Errorf("operands outside value position were flagged: %+v", got)
+	}
+	// Control: a quoted value in a then-branch is still the value.
+	got = typeCheck(t, exec, `
+CREATE OR REPLACE MICROFLOW MyFirstModule.ACT_Status2 ($T: MyFirstModule.Ticket, $Dir: String)
+BEGIN
+  CHANGE $T (Status = if $Dir = 'NW' then 'Open' else MyFirstModule.OrderStatus.Closed);
+END;
+`)
+	if len(got) != 1 || got[0].RuleID != "E001" {
+		t.Errorf("then-branch 'Open' must be E001, got %+v", got)
+	}
+}
