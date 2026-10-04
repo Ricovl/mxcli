@@ -339,3 +339,19 @@ func TestIconIndexCheck_EmptyListingResolvesNothing(t *testing.T) {
 		t.Errorf("an unresolvable image listing reported an error: %v", err)
 	}
 }
+
+// ako/mxcli#980: describe navigation prints TestApp's 'Item 5' as
+// `Icon: image System.Images.Save`, and `check --references` refused it as
+// "unknown image collection System.Images" — the System module's collections
+// are the platform's and no project stores them. A reference into one is not
+// judged against a listing that cannot contain it.
+func TestIconIndexCheck_SystemCollectionIsNotRefused(t *testing.T) {
+	idx := testIconIndex()
+	if err := idx.check(iconRef{value: "System.Images.Save", kind: types.MenuIconImage, where: "menu item 'Item 5'"}); err != nil {
+		t.Errorf("a System image was refused: %v", err)
+	}
+	// CONTROL: an unknown collection of a project module is still refused.
+	if err := idx.check(iconRef{value: "Systems.Images.Save", kind: types.MenuIconImage, where: "menu item 'Item 5'"}); err == nil {
+		t.Error("an unknown project collection was accepted")
+	}
+}
