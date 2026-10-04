@@ -169,6 +169,7 @@
   - [OQL Queries](tools/oql.md)
   - [Dev Container Setup](tools/devcontainer.md)
 - [Live Studio Pro Sync (MCP)](tools/mcp-connect.md)
+- [Working Outside Studio Pro](tools/outside-studio-pro.md)
 
 ---
 

@@ -141,6 +141,8 @@ Examples:
 		if abs, err := filepath.Abs(projectPath); err == nil {
 			projectPath = abs
 		}
+		// Git states that crash Studio Pro on open (#972): advice only.
+		printGitStateWarnings(projectPath, os.Stderr)
 
 		watch, _ := cmd.Flags().GetBool("watch")
 		webClientTimeout, _ := cmd.Flags().GetDuration("web-client-timeout")

@@ -16,6 +16,11 @@ mxcli docker check -p app.mpr
 
 If the project has errors, the command exits with a non-zero status code.
 
+Before `mx check` it also warns, without failing, about two problems `mx check`
+cannot see: an MPR v2 `ContentsHash` index that disagrees with the `.mxunit`
+files (`mxcli fix hashes`), and git states that make Studio Pro 11.13 fail to
+open the project. See [Working Outside Studio Pro](outside-studio-pro.md).
+
 ## Auto-Download
 
 If mxbuild is not installed locally, you can download it first:
