@@ -815,6 +815,7 @@ func (b *Builder) ExitDescribeStatement(ctx *parser.DescribeStatementContext) {
 		if len(ids) > 1 {
 			stmt.Module = identifierOrKeywordText(ids[0])
 		}
+		stmt.WithoutMarketplace = ctx.MARKETPLACE() != nil
 		b.statements = append(b.statements, stmt)
 		return
 	}

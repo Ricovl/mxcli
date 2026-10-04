@@ -1839,8 +1839,8 @@ Bulk translation of every user-visible string, one file per language. Entries us
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| Describe | `describe translations [in Module] for <lang>;` | Emits the CREATE form; an untranslated string comes back with an **empty** target, which is what makes the output an LLM prompt |
-| Create | `create translations [in Module] for <lang> ( 'src' as 'target', ... );` | The language is the thing that exists — **errors** if it already has translations |
+| Describe | `describe translations [in Module \| without marketplace] for <lang>;` | Emits the CREATE form; an untranslated string comes back with an **empty** target, which is what makes the output an LLM prompt |
+| Create | `create translations [in Module \| without marketplace] for <lang> ( 'src' as 'target', ... );` | The language is the thing that exists — **errors** if it already has translations. Without `in`, the run reaches Marketplace modules too and **warns** with a per-module count (an update replaces them); `without marketplace` keeps it to the app's own modules |
 | Merge | `create or modify translations ...` | A source the file does not name is left alone |
 | Replace | `create or replace translations ...` | The file is authoritative: a translation whose source it does not name is **REMOVED**, and the run says which. `in Module` **bounds** the deletion |
 | Remove a language's translations | `create or replace translations [in Module] for <lang> ( );` | An empty file is authoritative over nothing, so everything in scope goes — the only way to take a language's translations out of the model |

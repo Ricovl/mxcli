@@ -485,8 +485,8 @@ CREATE OR MODIFY NAVIGATION TabletOffline
 			"translations", "translate", "language", "languages", "i18n",
 			"localisation", "localization", "multilingual", "nl_NL", "de_DE",
 		},
-		Syntax: `DESCRIBE TRANSLATIONS [IN <Module>] FOR <lang>;
-CREATE [OR MODIFY|REPLACE] TRANSLATIONS [IN <Module>] FOR <lang> (
+		Syntax: `DESCRIBE TRANSLATIONS [IN <Module> | WITHOUT MARKETPLACE] FOR <lang>;
+CREATE [OR MODIFY|REPLACE] TRANSLATIONS [IN <Module> | WITHOUT MARKETPLACE] FOR <lang> (
     '<source>' AS '<translation>',
     ...
 );
@@ -509,6 +509,13 @@ scoped run leaves the menu in the source language while the pages switch,
 which reads as a half-applied translation rather than a scoping decision.
 A scoped run now names the file's own entries it did not reach; re-run the
 same file without IN <Module> to land those too.
+
+Without IN, the run reaches the WHOLE project — Marketplace modules
+included, Atlas page templates and building blocks among them. A module
+update replaces a Marketplace module's contents, so what lands there is
+lost at the next update. The run warns with a count per module; add
+WITHOUT MARKETPLACE to keep it to your own modules (it reports the file's
+entries it left alone), or name one module with IN <Module>.
 
 Keyed on the source string, so one entry translates every occurrence.
 DESCRIBE emits the CREATE form, and an untranslated string comes back with

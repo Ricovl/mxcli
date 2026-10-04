@@ -14,16 +14,32 @@ import (
 	"github.com/mendixlabs/mxcli/model"
 )
 
-// translationScope restricts the walk to one module's units, or nil for the
-// whole project. Resolved through the container hierarchy, which is what knows
-// that a document nested in folders still belongs to its module.
-func translationScope(ctx *ExecContext, moduleName string) (translations.Scope, error) {
-	if moduleName == "" {
+// translationScope restricts the walk to one module's units, to every unit
+// outside a Marketplace module (`without marketplace`), or nil for the whole
+// project. Resolved through the container hierarchy, which is what knows that a
+// document nested in folders still belongs to its module.
+func translationScope(ctx *ExecContext, moduleName string, withoutMarketplace bool) (translations.Scope, error) {
+	if moduleName == "" && !withoutMarketplace {
 		return nil, nil
 	}
 	modules, err := ctx.Backend.ListModules()
 	if err != nil {
 		return nil, mdlerrors.NewBackend("list modules", err)
+	}
+	if moduleName == "" {
+		marketplace := map[model.ID]bool{}
+		for _, m := range modules {
+			if isMarketplaceModule(ctx, m) {
+				marketplace[m.ID] = true
+			}
+		}
+		h, err := getHierarchy(ctx)
+		if err != nil {
+			return nil, mdlerrors.NewBackend("resolve module hierarchy", err)
+		}
+		return func(unitID model.ID) bool {
+			return !marketplace[unitID] && !marketplace[h.FindModuleID(unitID)]
+		}, nil
 	}
 	var moduleID model.ID
 	for _, m := range modules {
@@ -54,7 +70,7 @@ func execDescribeTranslations(ctx *ExecContext, s *ast.DescribeTranslationsStmt)
 	if ctx.Backend == nil {
 		return mdlerrors.NewValidation("no project connected")
 	}
-	scope, err := translationScope(ctx, s.Module)
+	scope, err := translationScope(ctx, s.Module, s.WithoutMarketplace)
 	if err != nil {
 		return err
 	}
@@ -72,8 +88,11 @@ func execDescribeTranslations(ctx *ExecContext, s *ast.DescribeTranslationsStmt)
 	}
 
 	in := ""
-	if s.Module != "" {
+	switch {
+	case s.Module != "":
 		in = " in " + s.Module
+	case s.WithoutMarketplace:
+		in = " without marketplace"
 	}
 	fmt.Fprintf(ctx.Output, "create or modify translations%s for %s (\n", in, s.Language)
 	translated := 0
@@ -102,7 +121,7 @@ func execCreateTranslations(ctx *ExecContext, s *ast.CreateTranslationsStmt) err
 	if ctx.Backend == nil {
 		return mdlerrors.NewValidation("no project connected")
 	}
-	scope, err := translationScope(ctx, s.Module)
+	scope, err := translationScope(ctx, s.Module, s.WithoutMarketplace)
 	if err != nil {
 		return err
 	}
@@ -138,6 +157,7 @@ func execCreateTranslations(ctx *ExecContext, s *ast.CreateTranslationsStmt) err
 
 	reportTranslationStats(ctx, s, stats, src, scope, outOfScope)
 	reportOutOfScopeEntries(ctx, s, outOfScope)
+	reportMarketplaceWrites(ctx, s, stats)
 
 	// A translation for a language the project has not enabled is stored, passes
 	// every check, and is then discarded by the build. Say so AFTER the stats, so
@@ -235,7 +255,19 @@ func excludeStrings(ss, drop []string) []string {
 // true of every scoped run and would warn forever, which is exactly the
 // per-module workflow the scoping exists to support.
 func reportOutOfScopeEntries(ctx *ExecContext, s *ast.CreateTranslationsStmt, missed []string) {
-	if s.Module == "" || len(missed) == 0 {
+	if len(missed) == 0 {
+		return
+	}
+	if s.Module == "" && s.WithoutMarketplace {
+		fmt.Fprintf(ctx.Output,
+			"\nLeft alone: %d of this file's source string(s) also occur in Marketplace modules,\n"+
+				"which `without marketplace` skipped:\n\n", len(missed))
+		for _, srcStr := range quoteAll(ctx, missed) {
+			fmt.Fprintf(ctx.Output, "  %s\n", srcStr)
+		}
+		return
+	}
+	if s.Module == "" {
 		return
 	}
 	fmt.Fprintf(ctx.Output,
@@ -248,6 +280,86 @@ func reportOutOfScopeEntries(ctx *ExecContext, s *ast.CreateTranslationsStmt, mi
 	}
 	fmt.Fprintf(ctx.Output,
 		"\nRe-run the same file without `in %s` to land these as well.\n", s.Module)
+}
+
+// reportMarketplaceWrites warns when an unscoped run wrote into Marketplace
+// modules (ako/mxcli#970).
+//
+// An unscoped statement reaches the whole project — documented, and kept: under
+// ADR-0011 what a committed script writes does not change without a new
+// language version, and a translated Administration page is something a user
+// translating their app may well want. But a Marketplace module's contents are
+// replaced by its next update, Atlas page templates and building blocks
+// included, so those translations are lost then and show up as unexpected
+// diffs until they are. 'Cancel' alone landed in 38 documents of TestApp, most
+// of them in modules the author never opened. So it is said, with the count
+// per module and the additive clause that keeps the run out of them.
+//
+// Not said for `in <Module>`: naming a module is taken as meaning it, the same
+// division ALTER ENTITIES and `mxcli layout` make.
+func reportMarketplaceWrites(ctx *ExecContext, s *ast.CreateTranslationsStmt, stats translations.Stats) {
+	if s.Module != "" || s.WithoutMarketplace || len(stats.Written) == 0 {
+		return
+	}
+	modules, err := ctx.Backend.ListModules()
+	if err != nil {
+		return
+	}
+	marketplace := map[model.ID]string{}
+	for _, m := range modules {
+		if isMarketplaceModule(ctx, m) {
+			marketplace[m.ID] = m.Name
+		}
+	}
+	if len(marketplace) == 0 {
+		return
+	}
+	h, err := getHierarchy(ctx)
+	if err != nil {
+		return
+	}
+	perModule := map[string]int{}
+	docs, changes, templates := 0, 0, 0
+	for _, w := range stats.Written {
+		name, ok := marketplace[w.ID]
+		if !ok {
+			name, ok = marketplace[h.FindModuleID(w.ID)]
+		}
+		if !ok {
+			continue
+		}
+		perModule[name]++
+		docs++
+		changes += w.Set + w.Removed
+		if w.Type == "Forms$PageTemplate" || w.Type == "Forms$BuildingBlock" {
+			templates++
+		}
+	}
+	if docs == 0 {
+		return
+	}
+	names := make([]string, 0, len(perModule))
+	for n := range perModule {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	parts := make([]string, 0, len(names))
+	for _, n := range names {
+		parts = append(parts, fmt.Sprintf("%s %d", n, perModule[n]))
+	}
+	tmpl := ""
+	if templates > 0 {
+		tmpl = fmt.Sprintf("; %d of the documents are page templates or building blocks", templates)
+	}
+	fmt.Fprintf(ctx.Output,
+		"\nWarning: %d of these translation change(s) landed in %d document(s) of Marketplace\n"+
+			"modules (%s%s).\n"+
+			"A module update replaces a Marketplace module's contents, so these are lost at the\n"+
+			"next update and show up as unexpected diffs until then. To keep the run in your own\n"+
+			"modules, add `without marketplace`:\n\n"+
+			"  %s translations without marketplace for %s ( … );\n\n"+
+			"or scope it to one module with `in <Module>`.\n",
+		changes, docs, strings.Join(parts, ", "), tmpl, s.Mode.String(), s.Language)
 }
 
 func quoteAll(ctx *ExecContext, ss []string) []string {
