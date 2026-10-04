@@ -48,8 +48,8 @@ func TestE001_StillFiresInValuePositions(t *testing.T) {
 	for src, want := range map[string]int{
 		`'NW'`:   1,
 		`('NW')`: 1,
-		`if $Dir = 'x' then 'NW' else JTS.WindrichtingEnum.N`: 1,
-		`if $Dir = 'x' then 'NW' else 'N'`:                    2,
+		`if $Dir = 'x' then 'NW' else JTS.WindrichtingEnum.N`:               1,
+		`if $Dir = 'x' then 'NW' else 'N'`:                                  2,
 		`if $A then JTS.WindrichtingEnum.N else if $B then 'NW' else empty`: 1,
 	} {
 		_, hs := NewParser().Parse(src, enumSlotCtx())
