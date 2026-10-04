@@ -135,7 +135,7 @@ func checkTranslationTargets(ctx *ExecContext, prog *ast.Program) []error {
 				continue
 			}
 			written[lang] = true
-			scope, err := translationScope(ctx, s.Module)
+			scope, err := translationScope(ctx, s.Module, s.WithoutMarketplace)
 			if err != nil {
 				continue // a missing module is reported by exec as itself
 			}

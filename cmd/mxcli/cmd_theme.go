@@ -189,7 +189,10 @@ Seeding reads plain CSS custom properties, wherever they appear in the file:
   @media (prefers-color-scheme: dark) { :root { --mxt-ground: #16161a; } }
 
 Declarations inside a dark block seed the dark palette; everything else seeds
-the light one. A token the base theme does not declare is an error, not a
+the light one. A design with no block for the base theme's other variant
+leaves that variant as the base ships it (and says so): its base palette
+describes one variant, and copying a light ground into a dark palette whose
+other surfaces stay dark is unreadable. A token the base theme does not declare is an error, not a
 silent no-op — run 'mxcli theme show signal' for the vocabulary.
 
 Nothing is applied. Edit the scaffold, then:
@@ -246,6 +249,16 @@ Examples:
 			fmt.Printf("\nSeeded %d token(s) from %s: %d base, %d dark, %d light.\n",
 				res.Tokens.Count(), res.Tokens.Source,
 				len(res.Tokens.Base), len(res.Tokens.Dark), len(res.Tokens.Light))
+		}
+		// A base-only design describes one variant. The other keeps the base
+		// theme's palette rather than a light/dark mix (#970) — say so, and
+		// say how to seed it.
+		if v := res.UnseededVariant; v != "" {
+			fmt.Printf("\nNote: %s declares no %s block, so the %s variant keeps %s's palette "+
+				"(mixin mxcli-%s-%s in %s/files/theme/web/_mxcli-%s.scss). To seed it, add "+
+				"`@media (prefers-color-scheme: %s) { :root { --mxt-…: …; } }` to the design and re-run "+
+				"with --force, or edit the mixin.\n",
+				res.Tokens.Source, v, v, res.Base, res.Name, v, filepath.ToSlash(root), res.Name, v)
 		}
 		// A seeded family mxcli does not vendor gets no @font-face and no file,
 		// so it renders only on machines that happen to have it (#944).

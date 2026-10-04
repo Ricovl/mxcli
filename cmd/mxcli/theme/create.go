@@ -65,6 +65,9 @@ func Create(projectDir, name string, opts CreateOptions) (*CreateResult, error) 
 	res := &CreateResult{Name: name, Base: base, Dir: dest}
 	if tokens != nil {
 		res.Tokens = tokens
+		if alt := baseTheme.AltVariant(); !tokens.declares(alt) {
+			res.UnseededVariant = alt
+		}
 	}
 
 	rewrite := newRewriter(baseTheme, name, opts.Title, tokens)
@@ -238,6 +241,12 @@ type CreateResult struct {
 	// UnvendoredFonts are the seeded font families the theme names but does
 	// not ship: no woff2, no @font-face. They render only where installed.
 	UnvendoredFonts []string
+	// UnseededVariant is the base theme's alternate variant when the design
+	// declared no block for it. Its mixin is left exactly as the base ships
+	// it: the design's base palette describes the OTHER variant, and copying
+	// a light ground into a dark mixin whose remaining surfaces stay dark gives
+	// an unreadable mix (ako/mxcli#970). Empty when there was nothing to skip.
+	UnseededVariant Variant
 }
 
 // rewriter carries the renames that turn a copy of one theme into another:
@@ -396,6 +405,14 @@ func seedTokens(rel, text string, base *Theme, newName string, tokens *Tokens) (
 			return "", fmt.Errorf("%s: no alt-palette mixin to seed", rel)
 		}
 		alt := base.AltVariant()
+		// A design with no block for the alternate variant says nothing about
+		// it. Its base palette is the DEFAULT variant's, and writing that
+		// into this mixin repainted the dark ground and ink light while the
+		// surfaces the design did not name stayed dark (ako/mxcli#970). The
+		// mixin is left as the base theme ships it; Create reports that.
+		if !tokens.declares(alt) {
+			return text, nil
+		}
 		set := tokens.forVariant(alt)
 		body := text[m[4]:m[5]]
 		seeded, unplaced := applyTokens(body, set)

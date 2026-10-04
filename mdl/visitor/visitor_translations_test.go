@@ -66,3 +66,32 @@ func TestCreateTranslations_EntriesStillParse(t *testing.T) {
 		t.Errorf("first entry = %+v", stmt.Entries[0])
 	}
 }
+
+// ako/mxcli#970: `without marketplace` is the additive clause that keeps an
+// unscoped run out of Marketplace modules; describe takes it too, so a
+// described file round-trips. `marketplace` stays usable as a name.
+func TestTranslations_WithoutMarketplaceParses(t *testing.T) {
+	prog, errs := Build("create or modify translations without marketplace for nl_NL ('Cancel' as 'Annuleren');\n" +
+		"describe translations without marketplace for nl_NL;\n" +
+		"create or modify translations for nl_NL ('Cancel' as 'Annuleren');\n" +
+		"create or modify translations in Marketplace for nl_NL ('Cancel' as 'Annuleren');")
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	if len(prog.Statements) != 4 {
+		t.Fatalf("statements = %d, want 4", len(prog.Statements))
+	}
+	if c := prog.Statements[0].(*ast.CreateTranslationsStmt); !c.WithoutMarketplace || c.Module != "" || len(c.Entries) != 1 {
+		t.Errorf("create without marketplace = %+v", c)
+	}
+	if d := prog.Statements[1].(*ast.DescribeTranslationsStmt); !d.WithoutMarketplace || d.Language != "nl_NL" {
+		t.Errorf("describe without marketplace = %+v", d)
+	}
+	// Control: the unscoped form is unchanged.
+	if c := prog.Statements[2].(*ast.CreateTranslationsStmt); c.WithoutMarketplace {
+		t.Errorf("unscoped create read as without marketplace")
+	}
+	if c := prog.Statements[3].(*ast.CreateTranslationsStmt); c.WithoutMarketplace || c.Module != "Marketplace" {
+		t.Errorf("a module named Marketplace = %+v", c)
+	}
+}

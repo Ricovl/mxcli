@@ -27,6 +27,7 @@ func (b *Builder) ExitCreateTranslationsStatement(ctx *parser.CreateTranslations
 	if len(ids) > 1 {
 		stmt.Module = identifierOrKeywordText(ids[0])
 	}
+	stmt.WithoutMarketplace = ctx.MARKETPLACE() != nil
 
 	if p, ok := ctx.GetParent().(*parser.CreateStatementContext); ok {
 		switch {
