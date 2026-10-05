@@ -673,7 +673,11 @@ func RunLocal(opts LocalRunOptions) error {
 	}
 	defer serve.Stop()
 
-	// 5. First build (cold — loads the model).
+	// 5. First build (cold — loads the model). The source mtime is taken BEFORE
+	// the build: it is what this generation covers, and the watch loop starts
+	// from it, so an edit made while the app boots is built on the first tick
+	// instead of being folded silently into a baseline taken after the boot.
+	bootSource := sourceMTime(opts.ProjectPath)
 	fmt.Fprintln(w, "Building (first build is cold, ~10-15s)...")
 	build, err := serve.Build(BuildRequest{Target: TargetDeploy, ProjectFilePath: opts.ProjectPath})
 	if err != nil {
@@ -937,7 +941,7 @@ func RunLocal(opts LocalRunOptions) error {
 	// 7. Stay up until interrupted. With --watch, rebuild + hot-apply on every
 	// project change; otherwise just keep the runtime serving.
 	if opts.Watch {
-		return watchAndApply(opts, serve, rt, bundler, mxbuildPath)
+		return watchAndApply(opts, serve, rt, bundler, mxbuildPath, bootSource)
 	}
 	fmt.Fprintln(w, "(run with --watch to rebuild and hot-apply on changes; Ctrl-C to stop)")
 	if waitForInterruptOrExit(rt.Exited()) {
@@ -1275,7 +1279,10 @@ func settleSourceWith(projectPath string, seen time.Time, sigCh <-chan os.Signal
 // watchAndApply polls the project for changes and applies each rebuild until the
 // user interrupts (Ctrl-C). StartLocalRuntime already resolved the JVM; here we
 // only rebuild via serve and let the RuntimeController decide reload vs restart.
-func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, bundler *bundlerSupervisor, mxbuildPath string) error {
+//
+// bootSource is the source mtime the boot build was made from; the loop starts
+// from it so a change made during the boot is not lost (see RunLocal).
+func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, bundler *bundlerSupervisor, mxbuildPath string, bootSource time.Time) error {
 	w := opts.Stdout
 	// Every recovery re-bundle goes through the supervisor under --watch, so a
 	// one-shot never runs alongside the incremental bundler (#971).
@@ -1288,7 +1295,7 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 	defer signal.Stop(sigCh)
 
 	fmt.Fprintln(w, "Watching model + theme source for changes (serving build #1; Ctrl-C to stop)...")
-	last := sourceMTime(opts.ProjectPath)
+	last := bootSource
 	// gen is the served build generation — a monotonic counter surfaced on every
 	// apply so "did my change take?" is answerable from the log without guessing.
 	// The initial boot build is generation 1.
