@@ -11,6 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/versions"
 )
 
 // Mappings over a MESSAGE DEFINITION (#263).
@@ -359,4 +360,73 @@ func setMappingConverter(dst *string, converter, moduleName string, b backend.Fu
 		}
 	}
 	return fmt.Errorf("converter microflow %q not found", converter)
+}
+
+// mappingMessageDefinitionKeys decides a mapping's two message-definition keys,
+// MessageDefinition and MessageDefinition2. Both are version-dependent, and a
+// nil result means the key is ABSENT from the written document:
+//
+//   - MessageDefinition2 was added in 11.10.
+//   - MessageDefinition was removed in 11.15, when the source moved to
+//     MessageDefinition2 as Module.MessageName (ako/mxcli#987). A converted or
+//     new 11.15 mapping has no MessageDefinition key at all.
+//
+// Neither key is invented: adding one a stored document does not have is the
+// overlay-rule mistake (mxbuild tolerates it, Studio Pro refuses the
+// document). So an update carries the stored document's key set, and only a
+// create — where there is nothing to read it off — applies the version gates.
+//
+// The VALUES come from the statement: the source a script names is the
+// mapping's whole source, so a rebuild clears whatever the stored keys held.
+// isMessageDef/ref give that source; it goes into MessageDefinition when the
+// written document has that key, and into MessageDefinition2 otherwise.
+func mappingMessageDefinitionKeys(pv *types.ProjectVersion, isUpdate bool, storedMD, storedMD2 *string,
+	isMessageDef bool, ref string) (md, md2 *string) {
+	empty := func() *string { s := ""; return &s }
+	documents := messageDefinitionsAreDocuments(pv)
+	if isUpdate {
+		if storedMD != nil {
+			md = empty()
+		}
+		if storedMD2 != nil {
+			md2 = empty()
+		}
+	} else {
+		if !documents {
+			md = empty()
+		}
+		if pv != nil && pv.IsAtLeast(11, 10) {
+			md2 = empty()
+		}
+	}
+	if isMessageDef {
+		// The source key follows the document's own shape: a stored document
+		// that still has the MessageDefinition key is the pre-11.15 shape and
+		// keeps its source there, one without it takes the 11.15 key. Only a
+		// create, with no stored shape, goes by the project version.
+		if md != nil {
+			md = &ref
+		} else {
+			md2 = &ref
+		}
+	}
+	return md, md2
+}
+
+// messageDefinitionsAreDocuments reports whether the project stores message
+// definitions as MessageDefinitions$MessageDefinition2 documents (11.15+)
+// rather than as entries of a MessageDefinitionCollection (ako/mxcli#987).
+// The bound is the version registry's `integration.message_definition_document`
+// entry. An unknown version is treated as the older shape, the one mxcli has
+// always written.
+func messageDefinitionsAreDocuments(pv *types.ProjectVersion) bool {
+	if pv == nil {
+		return false
+	}
+	reg, err := versions.Load()
+	if err != nil {
+		return pv.IsAtLeast(11, 15)
+	}
+	return reg.IsAvailable("integration", "message_definition_document",
+		versions.SemVer{Major: pv.MajorVersion, Minor: pv.MinorVersion, Patch: pv.PatchVersion})
 }

@@ -7,6 +7,9 @@ package catalog
 //
 // History:
 //
+//	22 (11.15 message-definition source): an import/export mapping's schema
+//	    source on Mendix 11.15+ comes from MessageDefinition2 (Module.Message),
+//	    which replaced the MessageDefinition key (ako/mxcli#987).
 //	21 (native bottom bar actions): a native profile's navigation_menu_items
 //	    rows take ActionType / Page / Microflow from the bottom bar item's
 //	    client action, not only its legacy Page (ako/mxcli#980).
@@ -114,7 +117,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "21"
+const CatalogSchemaVersion = "22"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.

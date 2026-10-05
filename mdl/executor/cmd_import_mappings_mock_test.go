@@ -173,3 +173,29 @@ func TestCreateImportMapping_AlreadyExists_NoOrModify(t *testing.T) {
 	})
 	assertError(t, err)
 }
+
+// On Mendix 11.15 a mapping's message-definition source is in
+// MessageDefinition2 (Module.MessageName) and the MessageDefinition key is gone
+// (ako/mxcli#987). DESCRIBE read only MessageDefinition, so it printed no
+// source and describe -> exec rebuilt the mapping bound to nothing.
+func TestDescribeImportMapping_MessageDefinition2Source(t *testing.T) {
+	mod := mkModule("MsgTest")
+	src := "MsgTest.OrderMessage"
+	im := &model.ImportMapping{
+		BaseElement:        model.BaseElement{ID: nextID("im")},
+		ContainerID:        mod.ID,
+		Name:               "IMM_Order",
+		MessageDefinition2: &src,
+	}
+	h := mkHierarchy(mod)
+	withContainer(h, im.ContainerID, mod.ID)
+	mb := &mock.MockBackend{
+		IsConnectedFunc: func() bool { return true },
+		GetImportMappingByQualifiedNameFunc: func(string, string) (*model.ImportMapping, error) {
+			return im, nil
+		},
+	}
+	ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	assertNoError(t, describeImportMapping(ctx, ast.QualifiedName{Module: "MsgTest", Name: "IMM_Order"}))
+	assertContainsStr(t, buf.String(), "with message definition MsgTest.OrderMessage")
+}

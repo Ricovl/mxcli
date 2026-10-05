@@ -157,6 +157,21 @@ features:
       # real guard rather than a nicety.
       min_version: "10.14.0"
       mdl: "CREATE ODATA SERVICE Module.Name (SupportsGraphQL: Yes) ..."
+    message_definition_collection:
+      # Message definitions as entries of a MessageDefinitionCollection. Mendix
+      # 11.15 removed the collection: `mx convert` turns one into a folder of the
+      # same name holding one MessageDefinition2 document per entry, and a
+      # mapping's source moves from MessageDefinition (Module.Collection.Name)
+      # to MessageDefinition2 (Module.Name). Measured with mxbuild 11.15.0
+      # (ako/mxcli#987).
+      min_version: "10.0.0"
+      max_version: "11.14.99"
+      mdl: "CREATE MESSAGE DEFINITION COLLECTION Module.Name { DEFINITION ... }"
+    message_definition_document:
+      # One MessageDefinitions$MessageDefinition2 document per message
+      # definition, the 11.15 replacement for the collection (ako/mxcli#987).
+      min_version: "11.15.0"
+      mdl: "CREATE IMPORT MAPPING Module.Name WITH MESSAGE DEFINITION Module.MessageName ..."
 
   agent_documents:
     # Agent Editor documents (Model, Knowledge Base, Consumed MCP Service,

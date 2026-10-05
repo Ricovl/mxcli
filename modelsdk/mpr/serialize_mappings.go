@@ -46,7 +46,6 @@ func SerializeImportMapping(im *model.ImportMapping) ([]byte, error) {
 		{Key: "ExportLevel", Value: exportLevel},
 		{Key: "JsonStructure", Value: im.JsonStructure},
 		{Key: "XmlSchema", Value: im.XmlSchema},
-		{Key: "MessageDefinition", Value: im.MessageDefinition},
 		{Key: "Elements", Value: elements},
 		// Required fields with defaults — verified against Studio Pro-created BSON
 		{Key: "UseSubtransactionsForMicroflows", Value: false},
@@ -57,6 +56,11 @@ func SerializeImportMapping(im *model.ImportMapping) ([]byte, error) {
 		{Key: "OperationName", Value: ""},
 		{Key: "ServiceName", Value: ""},
 		{Key: "WsdlFile", Value: ""},
+	}
+	// MessageDefinition's presence is carried: Mendix 11.15 removed the key
+	// (ako/mxcli#987), so it is written only when the model has it.
+	if im.MessageDefinition != nil {
+		doc = insertAfterKey(doc, "XmlSchema", bson.E{Key: "MessageDefinition", Value: *im.MessageDefinition})
 	}
 	return bson.Marshal(doc)
 }
@@ -184,7 +188,6 @@ func SerializeExportMapping(em *model.ExportMapping) ([]byte, error) {
 		{Key: "ExportLevel", Value: exportLevel},
 		{Key: "JsonStructure", Value: em.JsonStructure},
 		{Key: "XmlSchema", Value: em.XmlSchema},
-		{Key: "MessageDefinition", Value: em.MessageDefinition},
 		{Key: "NullValueOption", Value: nullValueOption},
 		{Key: "Elements", Value: elements},
 		// Required fields with defaults — verified against Studio Pro-created BSON
@@ -196,6 +199,11 @@ func SerializeExportMapping(em *model.ExportMapping) ([]byte, error) {
 		{Key: "ServiceName", Value: ""},
 		{Key: "WsdlFile", Value: ""},
 		{Key: "MappingSourceReference", Value: nil},
+	}
+	// MessageDefinition's presence is carried: Mendix 11.15 removed the key
+	// (ako/mxcli#987), so it is written only when the model has it.
+	if em.MessageDefinition != nil {
+		doc = insertAfterKey(doc, "XmlSchema", bson.E{Key: "MessageDefinition", Value: *em.MessageDefinition})
 	}
 	return bson.Marshal(doc)
 }
@@ -372,4 +380,18 @@ func isMappingObjectKind(kind string) bool {
 	default:
 		return false
 	}
+}
+
+// insertAfterKey inserts e directly after the element named key, or appends it
+// when the key is absent.
+func insertAfterKey(doc bson.D, key string, e bson.E) bson.D {
+	for i, el := range doc {
+		if el.Key == key {
+			out := make(bson.D, 0, len(doc)+1)
+			out = append(out, doc[:i+1]...)
+			out = append(out, e)
+			return append(out, doc[i+1:]...)
+		}
+	}
+	return append(doc, e)
 }
