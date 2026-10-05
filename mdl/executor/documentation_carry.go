@@ -36,14 +36,21 @@ func carriedDocumentation(set bool, stated, stored string) string {
 }
 
 // docCommentNormalForm is what a `/** … */` comment can carry of text: the
-// visitor keeps only its trimmed, non-empty lines (extractDocComment), so blank
-// lines, trailing whitespace and CRLF line ends have no spelling.
+// visitor trims every line and drops the blank lines at the edges
+// (extractDocComment), so trailing whitespace, CRLF line ends and leading or
+// trailing blank lines have no spelling. An interior blank line does — it is a
+// paragraph break (mendixlabs/mxcli#1300) — so it is kept here too; dropping it
+// would make describe output of two-paragraph prose compare unequal to itself.
 func docCommentNormalForm(s string) string {
 	var kept []string
 	for line := range strings.SplitSeq(strings.ReplaceAll(s, "\r\n", "\n"), "\n") {
-		if t := strings.TrimSpace(line); t != "" {
-			kept = append(kept, t)
-		}
+		kept = append(kept, strings.TrimSpace(line))
+	}
+	for len(kept) > 0 && kept[0] == "" {
+		kept = kept[1:]
+	}
+	for len(kept) > 0 && kept[len(kept)-1] == "" {
+		kept = kept[:len(kept)-1]
 	}
 	return strings.Join(kept, "\n")
 }

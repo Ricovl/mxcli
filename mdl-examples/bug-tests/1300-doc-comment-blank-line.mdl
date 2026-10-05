@@ -1,0 +1,37 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1300 — a blank line inside a /** */ block is a paragraph break
+-- ============================================================================
+--
+-- Reported: "A blank line inside a /** */ documentation block is dropped for
+-- entities, attributes and microflows" — the stored documentation collapsed to
+-- "First paragraph.\nSecond paragraph.", and Studio Pro's "\n\n" came back as
+-- "\n" on every describe → exec. `mx check` is clean either way, so the check
+-- is: after exec, `describe` must show the empty line between the paragraphs.
+-- Unit tests: mdl/visitor/doc_comment_blank_line_1300_test.go
+-- ============================================================================
+
+CREATE MODULE Bug1300;
+
+/**
+ * First paragraph.
+ *
+ * Second paragraph.
+ */
+CREATE OR MODIFY PERSISTENT ENTITY Bug1300.Document (
+  /**
+   * First paragraph.
+   *
+   * Second paragraph.
+   */
+  Title: String(100)
+);
+
+/**
+ * First paragraph.
+ *
+ * Second paragraph.
+ */
+CREATE OR MODIFY MICROFLOW Bug1300.ACT_Noop ()
+BEGIN
+END;

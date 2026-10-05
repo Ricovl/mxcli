@@ -4,8 +4,9 @@ package executor
 
 import "testing"
 
-// A doc comment cannot spell a blank line, trailing whitespace or a CRLF: the
-// visitor keeps only the trimmed, non-empty lines. So describe output of
+// A doc comment cannot spell trailing whitespace, a CRLF or a blank line at its
+// edges: the visitor trims each line and the framing blank lines. (An interior
+// blank line it does keep — mendixlabs/mxcli#1300.) So describe output of
 // Studio Pro prose ("line\r\n\r\nline \r\n") re-executed as `create or modify`
 // states the same text in that normal form, and overwriting the stored value
 // with it rewrote the document with nothing changed (#731: 7 JavaScript actions
@@ -21,8 +22,12 @@ func TestCarriedDocumentation_KeepsStoredWhenOnlyTheSpellingDiffers(t *testing.T
 	}{
 		{"no comment keeps stored", false, "", stored},
 		{"normal form keeps stored bytes", true,
-			"What does this JavaScript action do?\nWhen you upload a screenshot manually.\nReturn Type:\nWill return base 64 image string",
+			"What does this JavaScript action do?\n\nWhen you upload a screenshot manually.\n\nReturn Type:\nWill return base 64 image string",
 			stored},
+		// The paragraph breaks are text: dropping them is an edit (#1300).
+		{"collapsed paragraphs are an edit", true,
+			"What does this JavaScript action do?\nWhen you upload a screenshot manually.\nReturn Type:\nWill return base 64 image string",
+			"What does this JavaScript action do?\nWhen you upload a screenshot manually.\nReturn Type:\nWill return base 64 image string"},
 		// Controls: a real change is written, and an empty comment still clears.
 		{"edited text wins", true, "What does this JavaScript action do?\nSomething else.", "What does this JavaScript action do?\nSomething else."},
 		{"empty comment clears", true, "", ""},
