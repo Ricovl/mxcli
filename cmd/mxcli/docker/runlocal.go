@@ -920,7 +920,9 @@ func RunLocal(opts LocalRunOptions) error {
 
 	// 6b. If screenshot auth was requested, log in once and reuse the session for
 	// every screenshot (pages behind login render authenticated).
-	if opts.Screenshot && opts.ScreenshotUser != "" {
+	// --page-check needs the session as much as --screenshot does: without it
+	// a secured app answers every page with the sign-in form.
+	if (opts.Screenshot || opts.PageCheck) && opts.ScreenshotUser != "" {
 		storage := filepath.Join(filepath.Dir(opts.ScreenshotPath), "run-local-storage.json")
 		fmt.Fprintf(w, "Logging in as %q for authenticated screenshots...\n", opts.ScreenshotUser)
 		if err := LoginAndSaveStorage(LoginOptions{
@@ -1471,12 +1473,17 @@ func reportPageChecks(opts LocalRunOptions, rt *LocalRuntime) {
 	if len(targets) == 0 {
 		targets = []string{""}
 	}
-	for _, t := range targets {
-		sig, err := CheckPage(resolveScreenshotURL(rt.AppURL(), t), opts.screenshotStorage, 4000, 0)
-		if err != nil {
-			fmt.Fprintf(opts.Stderr, "  page check skipped (%s): %v\n", pageLabel(t), err)
-			continue
-		}
-		fmt.Fprint(opts.Stdout, "  "+formatPageVerdict(pageLabel(t), sig))
+	// One browser for the whole set; the same probe `mxcli playwright check` uses.
+	pages := make([]PageTarget, len(targets))
+	for i, t := range targets {
+		pages[i] = PageTarget{URL: resolveScreenshotURL(rt.AppURL(), t)}
+	}
+	sigs, err := ProbePages(ProbeOptions{Pages: pages, Storage: opts.screenshotStorage, WaitMs: 4000})
+	if err != nil {
+		fmt.Fprintf(opts.Stderr, "  page check skipped: %v\n", err)
+		return
+	}
+	for i, sig := range sigs {
+		fmt.Fprint(opts.Stdout, "  "+formatPageVerdict(pageLabel(targets[i]), sig))
 	}
 }
