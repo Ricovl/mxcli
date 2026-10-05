@@ -399,6 +399,6 @@ Only the routing that reading the filename does not give you:
 | write or debug widget BSON | `docs/03-development/PAGE_BSON_SERIALIZATION.md`, `WIDGET_BSON_VERSION_COMPATIBILITY.md` |
 | act on a CE0463 report | `.claude/skills/diagnose-ce0463.md` — **read first**, it has the two controls that separate a user's widget upgrade from an mxcli defect |
 | debug any other BSON issue | `.claude/skills/debug-bson.md` |
-| prove a fix in the running app | `.claude/skills/verify-in-runtime.md` — for symptoms where valid BSON and a clean `mx check` prove nothing (#812) |
+| prove a fix in the running app, or check a page renders | `.claude/skills/verify-in-runtime.md` — for symptoms where valid BSON and a clean `mx check` prove nothing (#812); `mxcli playwright check` first, a screenshot only for a visual question |
 | add a pluggable widget template | `sdk/widgets/templates/README.md` — a template needs **both** `type` and `object` |
 | rely on a System-module attribute's length | `modelsdk/meta/system_module.go` — the lengths are **measured** from a built `model.mdp`, not taken from the Model SDK, which does not contain them; `Length` 0 is Mendix's "unlimited", never "unmeasured" |

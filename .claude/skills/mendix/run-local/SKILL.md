@@ -1,6 +1,6 @@
 ---
 name: run-local
-description: "The warm Docker-free dev loop, `mxcli run --local` — model changes live in about a second, with watch, screenshots, metrics, tracing and external preview. Use for the fastest edit-to-running-app cycle, especially when driving the model programmatically with MDL."
+description: "The warm Docker-free dev loop, `mxcli run --local` — model changes live in about a second, with watch, screenshots, metrics, tracing and external preview, run as a background service (`--detach`, `run status|wait|stop|restart`). Use for the fastest edit-to-running-app cycle, especially when driving the model programmatically with MDL, and whenever you would reach for nohup, a sleep/grep poll loop or pkill to manage the app."
 ---
 
 # Warm Local Dev Loop — `mxcli run --local`
@@ -29,12 +29,58 @@ Prefer `mxcli docker run` when:
 ## Usage
 
 ```bash
-# boot once and keep serving (Ctrl-C to stop)
-mxcli run --local -p app.mpr
+# an agent / a tool call: start in the background, return once it serves
+mxcli run --local --watch --detach -p app.mpr
+#   running: http://127.0.0.1:8080/ (pid 4711, watch, log .mxcli/run.log)
 
-# boot and hot-apply on every project change
-mxcli run --local -p app.mpr --watch
+mxcli exec change.mdl -p app.mpr && mxcli run wait -p app.mpr
+#   applied: build #2 via reload in 4.9s
+
+mxcli run status -p app.mpr     # one line: url, uptime, last build, pending change
+mxcli run stop -p app.mpr       # runtime + mxbuild + bundler, nothing left behind
+mxcli run restart -p app.mpr    # stop, then detach again with the same arguments
+
+# a human at a terminal: foreground, Ctrl-C to stop
+mxcli run --local --watch -p app.mpr
 ```
+
+### Never hand-roll the lifecycle
+
+These were a quarter of all tool calls in measured agent sessions, and each one
+re-reads the whole context. Every one has a command that answers in one call:
+
+| Don't | Do |
+|---|---|
+| `nohup mxcli run --local … > log 2>&1 &` | `mxcli run --local --watch --detach -p app.mpr` |
+| `until grep -q 'App is running' log; do sleep 2; done`, `curl` loops on 8080 | nothing — `--detach` returns when the app serves (or `run wait --ready`) |
+| `sleep 45; tail log`, `grep -c applied` counting loops after an edit | `mxcli run wait -p app.mpr` |
+| `pkill -f 'mxcli run'`, `pgrep` loops, `kill <runtimelauncher pid>` | `mxcli run stop -p app.mpr` |
+| `ps`/`tail` to learn whether it is up | `mxcli run status -p app.mpr` |
+| a supervisor script that restarts it | `mxcli run restart -p app.mpr` |
+
+**Exit codes** are the same across them, so a `&&` chain is honest: 0 running /
+applied / stopped, 1 failed (the change or the boot — the errors are printed),
+2 timeout, 3 not running, 4 (`status` only) still starting.
+
+What each one does, precisely:
+
+- **`--detach`** writes `.mxcli/run-state.json` (pid, ports, URL, log, args) and sends
+  the loop's own output to `.mxcli/run.log`. On a failed boot it prints the reason and
+  the last log lines and exits 1. A second `--detach` for the same project is refused
+  and points at `status`/`stop` — so is a foreground run while a detached one is up.
+- **`run wait`** is race-free: it reads the model's source time when it starts and
+  returns the first build made from that source or newer. A change the loop applied
+  **before** you called `wait` is reported at once — it never waits for a "next"
+  change that already happened. With nothing changed it reports the last build.
+  A failure prints the CE codes / SCSS error lines; on 11.14 the second-build defect
+  is reported as a failure with its explanation, never as a hang. A run started
+  without `--watch` never applies a change: `wait` says so and exits 1.
+- **`run stop`** asks the run to shut down (it removes `--test-endpoint`, turns the
+  debugger off), waits until it is gone, then sweeps the run's process session, so an
+  orphaned `runtimelauncher` or mxbuild JVM is stopped too — including the leftovers of
+  a run that was killed with `-9`. Stopping when nothing runs is a no-op (exit 0).
+- **`run restart`** reuses the arguments recorded in the state file; to change a flag,
+  `run stop` and `--detach` again.
 
 ## How apply is chosen
 
@@ -118,11 +164,11 @@ mxbuild from the Mendix CDN is a Linux binary and cannot run natively on darwin
 ## The intended loop
 
 ```bash
-# terminal 1: keep the app hot
-mxcli run --local -p app.mpr --watch
+# once: keep the app hot, in the background
+mxcli run --local --watch --detach -p app.mpr
 
-# terminal 2 (or an agent): edit the model — the change hot-applies automatically
-mxcli exec add-page.mdl -p app.mpr
+# per change: edit the model, then wait for that change to be live
+mxcli exec add-page.mdl -p app.mpr && mxcli run wait -p app.mpr
 ```
 
 `--watch` observes two source trees and rebuilds when either changes: the **model
@@ -209,11 +255,10 @@ previous run is safe to kill, while a **foreign** listener (someone else's serve
 Note that a *graceful* stop already reaps everything: `run --local` puts each child
 (mxbuild's JVM, the runtime, the rollup bundler) in its own process group and kills the
 group on Ctrl-C/SIGTERM. Reaching this error means the previous run was killed with
-`kill -9`, crashed, or had its container reaped — none of which run any handler. Do
-**not** `pkill -f 'mxcli run'`: that pattern also matches the shell you type it in.
-
-Launch `run --local` as the **sole** command in its invocation (don't chain a trailing
-`sleep`/`curl` whose non-zero exit can kill the backgrounded run); poll separately.
+`kill -9`, crashed, or had its container reaped — none of which run any handler. For a
+`--detach` run, `mxcli run stop -p app.mpr` reaps those leftovers (they stay in the
+run's process session), and `run status` reports them. Do **not**
+`pkill -f 'mxcli run'`: that pattern also matches the shell you type it in.
 
 ## Flags
 

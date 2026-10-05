@@ -80,24 +80,36 @@ var projectGates = []projectGate{
 	{"report -p %s", "scored quality report", "mxcli report", "report"},
 	{"docker check -p %s", "mxbuild, the slow one (~25s)", "mxcli docker check", "docker check"},
 	{"test tests/ -p %s --local", "microflow tests (~30s cold, ~2s warm)", "mxcli test", "test"},
-	{"run --local --watch -p %s", "the app, hot-reloading", "mxcli run --local", "run"},
+	// --detach because an agent's tool call must return: without it the run was
+	// started with nohup and then managed by sleep/grep/pkill loops, a quarter
+	// of all tool calls in measured sessions. `run wait` is what follows an exec.
+	{"run --local --watch --detach -p %s", "the app, backgrounded; then `run wait`/`status`/`stop`", "mxcli run --local", "run"},
 }
 
 // renderProjectGates writes the gate list as aligned shell lines, comments in
 // one column.
+//
+// The single longest command (the detached run) overhangs the column instead of
+// setting it: every byte of padding is paid on every gate line in every
+// session, and aligning to that one line pushed all seven comments right.
 func renderProjectGates(mprPath string) string {
 	lines := make([]string, len(projectGates))
-	width := 0
+	longest, width := 0, 0
 	for i, g := range projectGates {
 		lines[i] = "./mxcli " + fmt.Sprintf(g.Cmd, mprPath)
-		if len(lines[i]) > width {
-			width = len(lines[i])
+		switch n := len(lines[i]); {
+		case n > longest:
+			width, longest = longest, n
+		case n > width:
+			width = n
 		}
 	}
 	var sb strings.Builder
 	for i, g := range projectGates {
 		sb.WriteString(lines[i])
-		sb.WriteString(strings.Repeat(" ", width-len(lines[i])))
+		if pad := width - len(lines[i]); pad > 0 {
+			sb.WriteString(strings.Repeat(" ", pad))
+		}
 		sb.WriteString("   # " + g.Note + "\n")
 	}
 	return sb.String()
@@ -163,7 +175,6 @@ func generateClaudeMD(projectName, mprFile string) string {
 	w(bt3 + "bash\n")
 	w("./mxcli -p " + mprPath + " -c \"DESCRIBE STRUCTURE\"   # one command\n")
 	w("./mxcli exec script.mdl -p " + mprPath + "        # a script\n")
-	w("./mxcli                                          # REPL\n")
 	w(bt3 + "\n\n")
 	w("Scripts live in " + bt + "mdlsource/" + bt + ", one file per concern.\n")
 	// The language header (decision 4 on ako/mxcli#714): a script written now
