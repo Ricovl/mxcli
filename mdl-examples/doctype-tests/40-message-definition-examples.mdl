@@ -1,6 +1,6 @@
 mdl 1;
 -- ############################################################################
--- MESSAGE DEFINITION COLLECTIONS
+-- MESSAGE DEFINITIONS
 -- ############################################################################
 --
 -- A message definition is one of the four sources a mapping can be bound to,
@@ -14,8 +14,16 @@ mdl 1;
 -- attribute or an association. That is what makes it authorable at all.
 --
 -- Almost every stored property is derived, so a statement says only what a
--- person chooses: the collection's name, each definition's name, its root
--- entity, the members, and the occasional rename.
+-- person chooses: the definition's name, its root entity, the members, and the
+-- occasional rename.
+--
+-- The storage depends on the Mendix version (ako/mxcli#987). Below 11.15 a
+-- definition is an entry of a MESSAGE DEFINITION COLLECTION, and a mapping names
+-- it in three parts (Module.Collection.Definition). Mendix 11.15 removed the
+-- collection: each definition is its own document, named Module.Name. Studio
+-- Pro's converter turns a collection into a folder of the collection's name
+-- holding one document per definition. The sections below are gated by version;
+-- each form is refused, with a hint, on the version that does not have it.
 
 create module MsgTest;
 
@@ -39,6 +47,7 @@ create persistent entity MsgTest.OrderLine (
 create association MsgTest.Order_Customer from MsgTest.Order to MsgTest.Customer;
 create association MsgTest.OrderLine_Order from MsgTest.OrderLine to MsgTest.Order;
 
+-- @version: ..11.14
 -- ============================================================================
 -- Level 1: a collection with one definition
 -- ============================================================================
@@ -132,6 +141,69 @@ create import mapping MsgTest.IMM_Order
   create MsgTest.Order { OrderId = OrderId }
 };
 
+-- @version: 11.15+
+-- ============================================================================
+-- Mendix 11.15+: one document per message definition
+-- ============================================================================
+--
+-- The collection's `definition` entry is promoted to a statement of its own,
+-- with the same member tree. A folder clause places it; this one mirrors what
+-- Studio Pro's converter makes of the collection above.
+
+create message definition MsgTest.OrderMessage
+  folder 'Messages/MD_Order'
+  for MsgTest.Order as 'Orders' {
+    OrderId,
+    OrderDate,
+    TotalAmount as 'Total',
+    MsgTest.OrderLine_Order/MsgTest.OrderLine as 'Lines' {
+      Sku,
+      Quantity
+    },
+    MsgTest.Order_Customer/MsgTest.Customer {
+      FirstName,
+      LastName,
+      Address example 'Kerstraat 5, Leiden, Netherlands'
+    }
+  };
+
+-- The same association from the other side is a list (see Level 2 above).
+create or modify message definition MsgTest.CustomerOrders
+  folder 'Messages/MD_Order'
+  for MsgTest.Customer as 'Customers' {
+    FirstName,
+    MsgTest.Order_Customer/MsgTest.Order as 'Orders' { OrderId, OrderDate }
+  };
+
+-- Targeted edits address the document by its two-part name.
+alter message definition MsgTest.OrderMessage set member TotalAmount as 'GrandTotal';
+alter message definition MsgTest.OrderMessage drop member LastName in Customer;
+alter message definition MsgTest.OrderMessage add member LastName in Customer;
+
+create message definition MsgTest.LineMessage for MsgTest.OrderLine { Sku, Quantity };
+drop message definition MsgTest.LineMessage;
+
+-- A mapping names the document as Module.Name; it is stored in the mapping's
+-- MessageDefinition2.
+create import mapping MsgTest.IMM_OrderMessage
+  with message definition MsgTest.OrderMessage
+{
+  create MsgTest.Order { OrderId = OrderId }
+};
+
+create export mapping MsgTest.EXM_Customer
+  with message definition MsgTest.CustomerOrders
+{
+  MsgTest.Customer {
+    FirstName = FirstName
+  }
+};
+
+list message definitions;
+list message definitions in MsgTest;
+describe message definition MsgTest.OrderMessage;
+
+-- @version: ..11.14
 -- MARK: Browse
 
 list message definition collections;

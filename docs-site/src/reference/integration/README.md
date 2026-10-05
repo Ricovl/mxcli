@@ -10,6 +10,7 @@ These document types support moving data between Mendix entities and external da
 |-----------|-------------|
 | [CREATE JSON STRUCTURE](create-json-structure.md) | Define the shape of a JSON document from a sample snippet |
 | [CREATE MESSAGE DEFINITION COLLECTION](create-message-definition-collection.md) | Define a mapping source as a selection over the domain model |
+| [CREATE MESSAGE DEFINITION](create-message-definition.md) | One message definition as its own document (Mendix 11.15+) |
 | [CREATE IMPORT MAPPING](create-import-mapping.md) | Map incoming JSON/XML to Mendix entities |
 | [CREATE EXPORT MAPPING](create-export-mapping.md) | Map Mendix entities to outgoing JSON/XML |
 | [CREATE DATA TRANSFORMER](create-data-transformer.md) | Transform raw JSON or XML with JSLT/XSLT steps |

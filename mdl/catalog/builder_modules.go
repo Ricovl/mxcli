@@ -931,7 +931,7 @@ func (b *Builder) buildImportMappings() error {
 			src = im.XmlSchema
 		}
 		if src == "" {
-			src = im.MessageDefinition
+			src = im.MessageDefinitionSource()
 		}
 
 		_, err := stmt.Exec(
@@ -985,7 +985,7 @@ func (b *Builder) buildExportMappings() error {
 			src = em.XmlSchema
 		}
 		if src == "" {
-			src = em.MessageDefinition
+			src = em.MessageDefinitionSource()
 		}
 
 		_, err := stmt.Exec(

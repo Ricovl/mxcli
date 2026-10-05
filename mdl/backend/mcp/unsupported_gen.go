@@ -204,6 +204,11 @@ func (unsupportedBackend) CreateMessageDefinitionCollection(_ *model.MessageDefi
 	return
 }
 
+func (unsupportedBackend) CreateMessageDefinitionDocument(_ *model.MessageDefinitionDocument) (err0 error) {
+	err0 = errUnsupported("CreateMessageDefinitionDocument")
+	return
+}
+
 func (unsupportedBackend) CreateMicroflow(_ *microflows.Microflow) (err0 error) {
 	err0 = errUnsupported("CreateMicroflow")
 	return
@@ -401,6 +406,11 @@ func (unsupportedBackend) DeleteMenuDocument(_ model.ID) (err0 error) {
 
 func (unsupportedBackend) DeleteMessageDefinitionCollection(_ string) (err0 error) {
 	err0 = errUnsupported("DeleteMessageDefinitionCollection")
+	return
+}
+
+func (unsupportedBackend) DeleteMessageDefinitionDocument(_ string) (err0 error) {
+	err0 = errUnsupported("DeleteMessageDefinitionDocument")
 	return
 }
 
@@ -804,6 +814,11 @@ func (unsupportedBackend) ListMenuDocuments() (r0 []*types.MenuDocument, err1 er
 
 func (unsupportedBackend) ListMessageDefinitionCollections() (r0 []*model.MessageDefinitionCollection, err1 error) {
 	err1 = errUnsupported("ListMessageDefinitionCollections")
+	return
+}
+
+func (unsupportedBackend) ListMessageDefinitionDocuments() (r0 []*model.MessageDefinitionDocument, err1 error) {
+	err1 = errUnsupported("ListMessageDefinitionDocuments")
 	return
 }
 
@@ -1284,6 +1299,11 @@ func (unsupportedBackend) UpdateMenuDocument(_ *types.MenuDocument) (err0 error)
 
 func (unsupportedBackend) UpdateMessageDefinitionCollection(_ *model.MessageDefinitionCollection) (err0 error) {
 	err0 = errUnsupported("UpdateMessageDefinitionCollection")
+	return
+}
+
+func (unsupportedBackend) UpdateMessageDefinitionDocument(_ *model.MessageDefinitionDocument) (err0 error) {
+	err0 = errUnsupported("UpdateMessageDefinitionDocument")
 	return
 }
 

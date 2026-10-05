@@ -100,6 +100,7 @@ var createOrReplaceCases = map[string]string{
 	"regularexpression":           "regular expression M.Email (Expression: '.+@.+');",
 	"jsonstructure":               "json structure M.JSON_Pet sample '{\"id\": 1}';",
 	"messagedefinitioncollection": "message definition collection M.MD_Order {definition OrderMessage for M.Order as 'Orders' {OrderId}};",
+	"messagedefinition":           "message definition M.OrderMessage for M.Order as 'Orders' {OrderId};",
 	"importmapping":               "import mapping M.IMM_Order with json structure M.JSON_Order { create M.Order { Id = id } };",
 	"exportmapping":               "export mapping M.EMM_Order with json structure M.JSON_Order { M.Order { orderId = OrderId } };",
 	"configuration":               "configuration 'Default';",

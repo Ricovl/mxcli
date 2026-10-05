@@ -11,6 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/versions"
 )
 
 // Mappings over a MESSAGE DEFINITION (#263).
@@ -60,12 +61,73 @@ func parseMessageDefRef(ref string) (messageDefRef, bool) {
 	return messageDefRef{Module: parts[0], Collection: parts[1], Definition: parts[2]}, true
 }
 
-// findMessageDefinition resolves a Module.Collection.Definition reference.
+// findMessageDefinition resolves a mapping's message-definition source and
+// returns it with the reference the mapping stores.
+//
+// Two storages, by project version (ako/mxcli#987):
+//
+//   - below 11.15 a definition is an entry of a collection, referenced in three
+//     parts, Module.Collection.Definition, and stored as written;
+//   - from 11.15 it is its own MessageDefinition2 document, referenced as
+//     Module.Name. A three-part reference resolves to the document `mx convert`
+//     made of that entry — the folder keeps the collection's name — and the
+//     reference stored is the document's two-part one.
 //
 // An unresolvable reference is REFUSED and the available definitions listed, the
 // shape #882 established for members: a reference written through unchecked
 // reaches mxbuild as CE1613 and leaves the mapping bound to nothing (#259).
-func findMessageDefinition(b backend.FullBackend, ref string) (*model.MessageDefinition, error) {
+func findMessageDefinition(ctx *ExecContext, ref string) (*model.MessageDefinition, string, error) {
+	if projectStoresMessageDocuments(ctx) {
+		parts := strings.Split(ref, ".")
+		var d *model.MessageDefinitionDocument
+		switch len(parts) {
+		case 2:
+			d = findMessageDefinitionDocument(ctx, parts[0], parts[1])
+		case 3:
+			d = findConvertedMessageDefinitionDocument(ctx, parts[0], parts[1], parts[2])
+		}
+		if d != nil {
+			return d.Definition(), messageDocumentQN(ctx, d), nil
+		}
+		// A collection in an 11.15 project is not a shape Studio Pro writes, but
+		// a transplanted pre-11.15 document is; fall through to it for three
+		// parts, and refuse a two-part reference naming the documents there are.
+		if len(parts) != 3 {
+			return nil, "", messageDocumentNotFound(ctx, ref)
+		}
+		if def, err := findMessageDefinitionInCollections(ctx.Backend, ref); err == nil {
+			return def, ref, nil
+		}
+		return nil, "", messageDocumentNotFound(ctx, ref)
+	}
+	def, err := findMessageDefinitionInCollections(ctx.Backend, ref)
+	if err != nil {
+		return nil, "", err
+	}
+	return def, ref, nil
+}
+
+// messageDocumentNotFound refuses an 11.15 reference, listing the documents.
+func messageDocumentNotFound(ctx *ExecContext, ref string) error {
+	var known []string
+	if docs, err := ctx.Backend.ListMessageDefinitionDocuments(); err == nil {
+		for _, d := range docs {
+			if d != nil {
+				known = append(known, messageDocumentQN(ctx, d))
+			}
+		}
+	}
+	sort.Strings(known)
+	if len(known) == 0 {
+		return fmt.Errorf("message definition %q not found — this project has no "+
+			"message definitions (Mendix 11.15: create message definition Module.Name for Module.Entity { … })", ref)
+	}
+	return fmt.Errorf("message definition %q not found; available: %s", ref, strings.Join(known, ", "))
+}
+
+// findMessageDefinitionInCollections resolves a Module.Collection.Definition
+// reference against the pre-11.15 collections.
+func findMessageDefinitionInCollections(b backend.FullBackend, ref string) (*model.MessageDefinition, error) {
 	parsed, ok := parseMessageDefRef(ref)
 	if !ok {
 		return nil, fmt.Errorf("%q is not a message definition reference — it names a "+
@@ -359,4 +421,73 @@ func setMappingConverter(dst *string, converter, moduleName string, b backend.Fu
 		}
 	}
 	return fmt.Errorf("converter microflow %q not found", converter)
+}
+
+// mappingMessageDefinitionKeys decides a mapping's two message-definition keys,
+// MessageDefinition and MessageDefinition2. Both are version-dependent, and a
+// nil result means the key is ABSENT from the written document:
+//
+//   - MessageDefinition2 was added in 11.10.
+//   - MessageDefinition was removed in 11.15, when the source moved to
+//     MessageDefinition2 as Module.MessageName (ako/mxcli#987). A converted or
+//     new 11.15 mapping has no MessageDefinition key at all.
+//
+// Neither key is invented: adding one a stored document does not have is the
+// overlay-rule mistake (mxbuild tolerates it, Studio Pro refuses the
+// document). So an update carries the stored document's key set, and only a
+// create — where there is nothing to read it off — applies the version gates.
+//
+// The VALUES come from the statement: the source a script names is the
+// mapping's whole source, so a rebuild clears whatever the stored keys held.
+// isMessageDef/ref give that source; it goes into MessageDefinition when the
+// written document has that key, and into MessageDefinition2 otherwise.
+func mappingMessageDefinitionKeys(pv *types.ProjectVersion, isUpdate bool, storedMD, storedMD2 *string,
+	isMessageDef bool, ref string) (md, md2 *string) {
+	empty := func() *string { s := ""; return &s }
+	documents := messageDefinitionsAreDocuments(pv)
+	if isUpdate {
+		if storedMD != nil {
+			md = empty()
+		}
+		if storedMD2 != nil {
+			md2 = empty()
+		}
+	} else {
+		if !documents {
+			md = empty()
+		}
+		if pv != nil && pv.IsAtLeast(11, 10) {
+			md2 = empty()
+		}
+	}
+	if isMessageDef {
+		// The source key follows the document's own shape: a stored document
+		// that still has the MessageDefinition key is the pre-11.15 shape and
+		// keeps its source there, one without it takes the 11.15 key. Only a
+		// create, with no stored shape, goes by the project version.
+		if md != nil {
+			md = &ref
+		} else {
+			md2 = &ref
+		}
+	}
+	return md, md2
+}
+
+// messageDefinitionsAreDocuments reports whether the project stores message
+// definitions as MessageDefinitions$MessageDefinition2 documents (11.15+)
+// rather than as entries of a MessageDefinitionCollection (ako/mxcli#987).
+// The bound is the version registry's `integration.message_definition_document`
+// entry. An unknown version is treated as the older shape, the one mxcli has
+// always written.
+func messageDefinitionsAreDocuments(pv *types.ProjectVersion) bool {
+	if pv == nil {
+		return false
+	}
+	reg, err := versions.Load()
+	if err != nil {
+		return pv.IsAtLeast(11, 15)
+	}
+	return reg.IsAvailable("integration", "message_definition_document",
+		versions.SemVer{Major: pv.MajorVersion, Minor: pv.MinorVersion, Patch: pv.PatchVersion})
 }

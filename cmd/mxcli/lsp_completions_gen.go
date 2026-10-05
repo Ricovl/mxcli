@@ -521,6 +521,7 @@ var mdlGeneratedKeywords = []protocol.CompletionItem{
 	{Label: "TEXT", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
 	{Label: "SARIF", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
 	{Label: "DEFINITION", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
+	{Label: "DEFINITIONS", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
 	{Label: "ROOT", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
 	{Label: "MESSAGE", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},
 	{Label: "MESSAGES", Kind: protocol.CompletionItemKindKeyword, Detail: "Utility keyword"},

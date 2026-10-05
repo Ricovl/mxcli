@@ -59,6 +59,7 @@ showStatement
     | showOrList CONSUMED MCP SERVICES (IN (qualifiedName | IDENTIFIER))?
     | showOrList JSON STRUCTURES (IN (qualifiedName | IDENTIFIER))?
     | showOrList MESSAGE DEFINITION COLLECTION (IN (qualifiedName | IDENTIFIER))?
+    | showOrList MESSAGE DEFINITIONS (IN (qualifiedName | IDENTIFIER))?
     | showOrList IMPORT MAPPINGS (IN (qualifiedName | IDENTIFIER))?
     | showOrList EXPORT MAPPINGS (IN (qualifiedName | IDENTIFIER))?
     // R6: a single thing is described, not shown. `show page X` is a
@@ -211,6 +212,7 @@ describeStatement
     | DESCRIBE CONSUMED MCP SERVICE qualifiedName       // DESCRIBE CONSUMED MCP SERVICE Module.Name
     | DESCRIBE JSON STRUCTURE qualifiedName              // DESCRIBE JSON STRUCTURE Module.Name
     | DESCRIBE MESSAGE DEFINITION COLLECTION qualifiedName
+    | DESCRIBE MESSAGE DEFINITION qualifiedName
     | DESCRIBE IMPORT MAPPING qualifiedName             // DESCRIBE IMPORT MAPPING Module.Name
     | DESCRIBE EXPORT MAPPING qualifiedName             // DESCRIBE EXPORT MAPPING Module.Name
     | DESCRIBE consumedRestServiceKw qualifiedName      // DESCRIBE CONSUMED REST SERVICE Module.Name

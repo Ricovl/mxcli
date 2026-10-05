@@ -36,6 +36,36 @@ func (b *Builder) ExitCreateMessageDefinitionCollectionStatement(ctx *parser.Cre
 	b.statements = append(b.statements, stmt)
 }
 
+// ExitCreateMessageDefinitionStatement builds the 11.15 per-document form
+// (ako/mxcli#987):
+//
+//	CREATE [OR MODIFY] MESSAGE DEFINITION Module.Name [FOLDER 'path']
+//	  FOR Module.Entity [AS 'Exposed'] { members };
+func (b *Builder) ExitCreateMessageDefinitionStatement(ctx *parser.CreateMessageDefinitionStatementContext) {
+	qns := ctx.AllQualifiedName()
+	if len(qns) < 2 {
+		return
+	}
+	stmt := &ast.CreateMessageDefinitionStmt{Name: buildQualifiedName(qns[0])}
+	if ctx.FOLDER() != nil {
+		if lit := ctx.STRING_LITERAL(); lit != nil {
+			stmt.Folder = unquoteStringLit(lit)
+		}
+	}
+	stmt.Definition = &ast.MessageDefinitionDef{
+		Name:        stmt.Name.Name,
+		Entity:      buildQualifiedName(qns[1]),
+		ExposedName: exposedNameOf(ctx.MessageExposedName()),
+		Members:     b.buildMessageMemberTree(ctx.MessageMemberTree()),
+	}
+	if createStmt := findParentCreateStatement(ctx); createStmt != nil {
+		if createStmt.OR() != nil && (createStmt.REPLACE() != nil || createStmt.MODIFY() != nil) {
+			stmt.CreateOrModify = true
+		}
+	}
+	b.statements = append(b.statements, stmt)
+}
+
 // buildMessageDefinitionDef builds one `definition <Name> for <Entity>` block.
 func (b *Builder) buildMessageDefinitionDef(c parser.IMessageDefinitionDefContext) *ast.MessageDefinitionDef {
 	ctx, ok := c.(*parser.MessageDefinitionDefContext)
@@ -162,15 +192,20 @@ func (b *Builder) ExitAlterMessageDefinitionCollectionStatement(ctx *parser.Alte
 // split off here rather than being a separate clause.
 func (b *Builder) ExitAlterMessageDefinitionStatement(ctx *parser.AlterMessageDefinitionStatementContext) {
 	full := buildQualifiedName(ctx.QualifiedName())
-	collection, definition, ok := splitDefinitionRef(full)
-	if !ok {
+	var stmt *ast.AlterMessageDefinitionStmt
+	if collection, definition, ok := splitDefinitionRef(full); ok {
+		stmt = &ast.AlterMessageDefinitionStmt{Collection: collection, Definition: definition}
+	} else if full.Module != "" && full.Name != "" {
+		// Two parts: an 11.15 MessageDefinition2 document (ako/mxcli#987).
+		stmt = &ast.AlterMessageDefinitionStmt{Document: full}
+	} else {
 		b.addErrorWithExample(
-			"ALTER MESSAGE DEFINITION takes a three-part name — Module.Collection.Definition, "+
-				"the same reference WITH MESSAGE DEFINITION uses",
+			"ALTER MESSAGE DEFINITION takes Module.Collection.Definition (a definition in a "+
+				"collection) or Module.Name (a Mendix 11.15 message definition document) — the "+
+				"same reference WITH MESSAGE DEFINITION uses",
 			"alter message definition Sales.MD_Order.Order add member Total;")
 		return
 	}
-	stmt := &ast.AlterMessageDefinitionStmt{Collection: collection, Definition: definition}
 
 	op, opOK := ctx.AlterMessageDefinitionOperation().(*parser.AlterMessageDefinitionOperationContext)
 	if !opOK || op == nil {
