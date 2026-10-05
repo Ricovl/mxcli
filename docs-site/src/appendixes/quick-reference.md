@@ -559,6 +559,7 @@ Cross-reference commands require `REFRESH CATALOG FULL` to populate reference da
 | Version | `mxcli version` (or `--version`) | Build version and build time |
 | Diagnostics | `mxcli diag [--bundle]` | Session logs, version info |
 | Loop report | `mxcli diag loop-report [--json]` | Which mxcli commands a session actually ran, how often, how long |
+| Session report | `mxcli diag session-report <transcript.jsonl>... [--top N] [--json]` | Where an agent session's tool calls and tokens went, from its Claude Code transcript |
 | New project | `mxcli new <name> --version X.Y.Z` | Create project from scratch with all tooling |
 | Init project | `mxcli init /path/to/project` | Add AI tooling to existing project |
 | Setup mxcli | `mxcli setup mxcli [--os linux]` | Download platform-specific mxcli binary |
