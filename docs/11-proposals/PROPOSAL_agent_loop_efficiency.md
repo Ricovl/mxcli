@@ -597,13 +597,61 @@ and tokens. Without it, every claim here is an argument; with it, each lever
 lands or does not. It also guards the result: the gate list drifted in three
 places once already, and a loop regression is exactly as invisible.
 
+### The second instrument: `diag session-report`
+
+`loop-report` sees mxcli processes and nothing else — not the agent's
+Read/Edit/Grep/Skill calls, not how large any result was, not why a call
+happened. **`mxcli diag session-report <transcript.jsonl>...`** reads the agent's
+own Claude Code transcript instead, which records all of it, and reports per
+session: model calls (distinct API responses, not records), tool calls by tool,
+cache-read / cache-write / output tokens, wall and active time; Bash calls split
+into mxcli verbs, playwright, build, git and other; every call in one category
+(orientation, write, validate, apply, verify, diagnosis, retry, delegate,
+other); the costliest results ranked by **re-read cost = size × the model calls
+after it**; error → retry chains aggregated by normalised error; and repeated
+file reads and syntax/help/skill lookups. The rules are deliberately simple and
+stated in the docs ("Measuring Agent Sessions") so a number can be argued with.
+
+First run, over the 20 transcripts on the development machine (+76 subagents —
+mxcli *contributor* sessions, not app builds, so the shape is not an app loop's):
+
+| | |
+|---|---:|
+| model calls | 19,438 |
+| tool calls | 22,084 (Bash 94%) |
+| cache read | 6.2 G |
+| tool results, all together | 7.4 M tokens |
+| their re-read cost (Σ size × later calls) | 1.3 G — **20% of cache read** |
+| mxcli invocations | 2,909: `exec` 904, `check` 512, `-c describe` 333, `syntax` 221 |
+| categories | orientation 52%, write 11%, verify 10%, validate 9%, retry 3% |
+
+**The 20% is the figure that matters for ordering the levers.** Tool results
+explain about a fifth of the re-read bill; the other four fifths are the
+model's own turns, prompts and system context being re-read by every call.
+Lever 2 (shrink what each result adds) can only ever act on that fifth, and a
+large output is cheap when it arrives late — so a byte trimmed matters less than
+a call removed, which takes its whole turn's context growth with it. That is the
+quadratic argument from §"Why this is a square", now with a measured split
+rather than an assumed one. It needs re-measuring on app-build sessions before
+it is quoted as the shape of one.
+
+**The benchmark harness exists; the baseline does not yet.** `mxcli eval run
+docs/14-eval/eval-bench-001.md --version 11.15.0` creates a fresh project with
+`mxcli new` (CLAUDE.md and skills as a user gets them), runs `claude -p` on the
+fixed `BENCH-001` brief — four entities, three associations, overview and edit
+pages, a validated submit microflow, two module roles, navigation and a
+microflow test — copies the transcript, runs the checks and writes the session
+report. The first attempt to record a baseline stopped at authentication: the
+headless `claude` on the development container had no usable credentials. The
+baseline is the first thing to record wherever it does.
+
 ---
 
 ## Sequencing
 
 | | Lever | Effort | Expected effect |
 |---|---|---|---|
-| 1 | `diag loop-report` + benchmark harness (lever 6) | S | none directly — makes the rest falsifiable |
+| 1 | `diag loop-report`, `diag session-report` + benchmark harness (`eval run`, `BENCH-001`) (lever 6) — shipped; baseline still to record | S | none directly — makes the rest falsifiable |
 | 1b | Measure the check↔build gap rate: how many builds in a real session caught something `check` did not | S | sizes the batching prize, and feeds the parity programme's queue |
 | 2 | Fix `projectGates` to teach `exec`, not `check`+`exec` (lever 1) | XS | ~1 call per change, every project, immediately |
 | 2b | Measure `test --attach` on 11.14; pin the bootstrap default off 11.14 | XS | removes a forced 35 s/change from new projects |
