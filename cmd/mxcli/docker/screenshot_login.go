@@ -48,7 +48,10 @@ func resolveNodeForScript(mxbuildPath string) string {
 		return p
 	}
 	if mxbuildPath != "" {
-		if nodeBin, _, err := resolveNodeTooling(mxbuildPath); err == nil {
+		// The node binary alone, not resolveNodeTooling: that also requires
+		// rollup-runner.mjs, which mxbuild 11.15 no longer ships (rspack only),
+		// so on a machine whose newest cached mxbuild is 11.15 no node was found.
+		if nodeBin := findNodeBinary(filepath.Join(filepath.Dir(mxbuildPath), "tools", "node")); nodeBin != "" {
 			return nodeBin
 		}
 	}
