@@ -657,6 +657,7 @@ baseline is the first thing to record wherever it does.
 | 2b | Measure `test --attach` on 11.14; pin the bootstrap default off 11.14 | XS | removes a forced 35 s/change from new projects |
 | 2c | **Make `--watch` the default invocation** in the skills and the generated gate list, wherever the version supports it | XS | the largest measured wall-time item: ~30 boots on a 11.13 project that had the warm loop and never used it |
 | 2d | Count a killed `run` in `diag loop-report` rather than dropping it | S | the restart bill is invisible today — `run`'s reported wall time is a floor built from 4 of 30 invocations |
+| 2e | **App lifecycle as commands** — `run --local --detach`, `run status`, `run wait`, `run stop`, `run restart`, taught in the run-local/run-app skills and the generated gate list — **shipped** | M | ~25–28% of all tool calls in measured sessions were hand-rolled `nohup`/poll/`pkill` loops; each becomes one call, and `exec … && run wait` is the per-change chain |
 | 3 | Publish the canonical `&&` chain in `projectGates` + skills (lever 1) | XS | the 5–8 → 1–2 collapse, with nothing built |
 | 4 | Terse/delta output for `exec` and the noisy listings (lever 2) | M | the token half of the chain win; helps every call |
 | 5 | Tiered verification rule in the skills (lever 3) | S | stops the default path at the cheapest sufficient gate |

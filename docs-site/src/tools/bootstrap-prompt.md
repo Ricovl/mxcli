@@ -196,7 +196,7 @@ time, and was the dominant cost in a measured agent session.
 ./mxcli report -p <AppName>.mpr                          # scored quality report
 ./mxcli docker check -p <AppName>.mpr                    # mxbuild, the slow one (~25s)
 ./mxcli test tests/ -p <AppName>.mpr --local             # microflow tests (~30s cold, ~2s warm)
-./mxcli run --local --watch -p <AppName>.mpr             # the app, hot-reloading
+./mxcli run --local --watch --detach -p <AppName>.mpr    # the app, in the background; then `run wait`
 ```
 
 Each buys something the one above it cannot: [`lint`](mxcli-lint.md) and
