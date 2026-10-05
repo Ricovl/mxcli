@@ -1356,6 +1356,28 @@ type MessageDefinitionCollection struct {
 	Definitions   []*MessageDefinition `json:"definitions,omitempty"`
 }
 
+// MessageDefinitionDocument represents a MessageDefinitions$MessageDefinition2
+// document — one message definition as its own unit, which is how Mendix 11.15
+// stores them (ako/mxcli#987). `mx convert` turns a collection into a folder of
+// the collection's name holding one of these per entry; the ExposedEntity tree
+// is unchanged. A mapping references one as Module.Name (MessageDefinition2).
+type MessageDefinitionDocument struct {
+	BaseElement
+	ContainerID   ID     `json:"containerId"`
+	Name          string `json:"name"`
+	Documentation string `json:"documentation,omitempty"`
+	Excluded      bool   `json:"excluded,omitempty"`
+	ExportLevel   string `json:"exportLevel,omitempty"`
+	// Root is the exposed entity the definition is built on.
+	Root *MessageDefinitionElement `json:"root,omitempty"`
+}
+
+// Definition views the document as a MessageDefinition, sharing its Root, so
+// the code that builds a mapping or edits members works on either storage.
+func (d *MessageDefinitionDocument) Definition() *MessageDefinition {
+	return &MessageDefinition{Name: d.Name, Root: d.Root}
+}
+
 // MessageDefinition is one EntityMessageDefinition inside a collection.
 type MessageDefinition struct {
 	Name string `json:"name"`
