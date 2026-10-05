@@ -1,3 +1,8 @@
+---
+name: verify-in-runtime
+description: "Prove a fix, or check that a page renders, in the RUNNING Mendix app: does the page render, is there an error banner or console error, did the grid get rows. Text verdict first (`mxcli playwright check`), screenshot only for a visual question. Use when asked to verify in the browser, check a page, or confirm a change works in the real app."
+---
+
 # Verify a Fix in the Running App
 
 A contributor workflow for proving a fix in a **real Mendix app in a real browser**,
@@ -16,7 +21,8 @@ Use the layer where the symptom actually lives:
 | the parser / grammar | unit test |
 | the BSON we write | unit test on the encoded document |
 | files on disk after `mx` runs | integration test (`-tags integration`) |
-| **the rendered app's behaviour or appearance** | **this skill** |
+| **the rendered app's behaviour** — renders, rows, banners, console errors, text present | **this skill, in text**: `mxcli playwright check` |
+| **the rendered app's appearance** — layout, spacing, colour | **this skill, one screenshot**: `playwright check … --screenshot out.png`, read once |
 
 **The rule: if the symptom is a property of the *running app* rather than of the file
 we write, no unit or BSON test can prove the fix.** A page can serialize to perfectly
@@ -38,15 +44,21 @@ cause of a page that renders blank — a console error — **does not appear in 
 picture at all**.
 
 ```bash
-./mxcli run --local --page-check -p app.mpr        # verdict, no PNG
-./mxcli run --local --screenshot -p app.mpr        # PNG *and* verdict
-./mxcli playwright verify tests/ -p app.mpr        # assertions; shoots only on failure
+# the app is already running: one call, several pages, login handled, exit 1 on failure
+./mxcli playwright check /p/customers /p/orders -p app.mpr
+./mxcli playwright check /p/customers -p app.mpr --role User \
+    --assert-text 'Customer overview' --assert-count '.mx-name-dgCustomers [role=row]>=2'
+
+./mxcli run --local --page-check -p app.mpr        # same verdict, at boot and after each change
+./mxcli playwright verify tests/ -p app.mpr        # scripted flows; shoots only on failure
 ```
 
 ```
 page /p/customers  title="Customers"  h="Customer overview"  rows=12  text=812  console-errors=0
 page /p/customers  title="Customers"  NO VISIBLE TEXT  console-errors=1
   ERR    Cannot read properties of undefined (reading 'items')
+  FAIL   1 console error(s)
+FAIL 1 of 1 page(s)
 ```
 
 The second line is the blank-page symptom **with its cause named**. That class of bug
@@ -55,10 +67,24 @@ at pixels that could not show it.
 
 So:
 
-- **Default to `--page-check` or `playwright verify`.** They answer the question and
-  leave the PNG unread.
+- **Default to `mxcli playwright check`** (app already running) **or `run --page-check`**
+  (while booting it). They answer the question and leave the PNG unread. The exit
+  status is the verdict: 0 every page passed; 1 a page showed an error banner or
+  dialog, a console error, a failed request, an HTTP error, the sign-in form, or a
+  failed `--assert-*`; 2 the check could not run.
+- **Never hand-roll a playwright-cli login/goto/sleep sequence** to look at a page
+  (`playwright-cli open …/login.html; fill …; click …; goto …; sleep 6; eval …;
+  screenshot`). `playwright check` does all of it in one call: it signs in with
+  `--user/--password`, `--role R` (the project's demo user for that role) or, with
+  only `-p`, a demo user; it saves the session under `.mxcli/playwright-check/` and
+  reuses it, renewing it when the runtime restarted; it waits for the page to
+  settle instead of sleeping. Hand-written `playwright-cli` is for **interaction**
+  (click, fill, submit) — and then put it in a `playwright verify` script.
 - **Take a screenshot when the question is genuinely about appearance** — layout,
-  spacing, colour, "does this look right" — and then take it **once**, at the end.
+  spacing, colour, "does this look right" — and then take it **once**, at the end:
+  `playwright check /p/x --screenshot out.png` prints the path, never the image.
+  Read that PNG once; do not re-read it to compare, a later model call pays for
+  every image already in the conversation.
 - **Never screenshot to confirm something a verdict already reported.** If
   `console-errors=0`, `rows=12` and the heading is right, the page rendered; a picture
   adds cost and no information.
@@ -183,7 +209,14 @@ are fast.
 
 ### 5. Assert in the browser
 
-Chromium is pre-installed at `/opt/pw-browsers/chromium`; install the Playwright
+Start with the text check — it is usually the whole answer:
+
+```bash
+mxcli playwright check / -p /root/pd/PopupDemo.mpr --assert-text 'Open popup'
+```
+
+Only when the assertion needs an **interaction** (open the popup, then read its
+caption, as #812 did) drop to a Playwright script. Chromium is pre-installed at `/opt/pw-browsers/chromium`; install the Playwright
 package only (never `playwright install`):
 
 ```bash
