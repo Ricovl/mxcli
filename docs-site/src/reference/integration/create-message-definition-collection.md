@@ -15,6 +15,11 @@ CREATE [ OR MODIFY ] MESSAGE DEFINITION COLLECTION module.Name
 );
 ```
 
+**Mendix 10 to 11.14.** Mendix 11.15 removed collections: each definition is
+its own document, created with
+[CREATE MESSAGE DEFINITION](create-message-definition.md). On an 11.15 project
+the collection statements are refused with a hint to use that form.
+
 ## Description
 
 Creates a message definition collection — one of the four sources an import or

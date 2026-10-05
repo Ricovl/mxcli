@@ -183,6 +183,22 @@ target entity** — the stored cardinality follows the direction of traversal an
 the association's type, so a `Reference` gives a single object one way and a list
 the other, while a `ReferenceSet` is a list both ways.
 
+**Mendix 11.15 removed collections.** Each definition is its own document, and
+a mapping names it in two parts. The collection form is refused on 11.15, and
+the document form below 11.15:
+
+```sql
+mdl 1;
+create message definition Sales.OrderMessage for Sales.Order as 'Orders' {
+  OrderId,
+  Sales.Order_Customer/Sales.Customer { FirstName }
+};
+create import mapping Sales.IMM_Order with message definition Sales.OrderMessage
+{
+  create Sales.Order { OrderId = OrderId }
+};
+```
+
 The full vocabulary, the ALTER statements, inherited attributes and what mxcli
 deliberately does not guess:
 [reference/message-definitions.md](reference/message-definitions.md).
