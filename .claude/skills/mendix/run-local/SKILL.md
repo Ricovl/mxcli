@@ -74,6 +74,10 @@ association catalog only at startup; behavioural changes are hot-reloaded.
     ```bash
     createdb -h 127.0.0.1 -U mendix "$(basename app.mpr .mpr | tr '[:upper:]' '[:lower:]')"
     ```
+- **No PostgreSQL available?** `--db-type hsqldb` boots on the runtime's built-in
+  file database instead — no server, no `--ensure-db`. Reach for it when
+  `--ensure-db` stops with *no local PostgreSQL superuser available to create the
+  role/database*. Data: `<project>/deployment/data/database/hsqldb/`.
 
 ### Which mxbuild the loop uses
 
@@ -222,6 +226,9 @@ Launch `run --local` as the **sole** command in its invocation (don't chain a tr
 | `--watch` | off | Rebuild + hot-apply on each change |
 | `--web-client-timeout` | `$MXCLI_WEB_CLIENT_TIMEOUT`, else `5m` | Limit for one web client bundle build; on timeout the tail of `deployment/log/web-client-build.log` is printed |
 | `--ensure-db` | off | Provision local Postgres + app database if missing |
+| `--app-port` / `--admin-port` / `--serve-port` | 8080 / 8090 / 6543 | Ports |
+| `--db-host` / `--db-name` / `--db-user` / `--db-password` | 127.0.0.1:5432 / derived / mendix / mendix | Database; bracket IPv6 endpoints (`[::1]:5432`) |
+| `--db-type` | `postgresql` | `hsqldb` runs on the runtime's built-in file database: no database server, no `--ensure-db`, works offline. Data lives in `<project>/deployment/data/database/hsqldb/`. Refused together with `--db-host`/`--db-user`/`--db-password`/`--ensure-db`. Local development only |
 | `--setup` | off | Cache MxBuild+runtime + ensure DB, then exit (SessionStart bring-up) |
 | `--screenshot` | off | Playwright PNG after boot + each change |
 | `--screenshot-path` / `--screenshot-url` | `.mxcli/run-local.png` / app root | Screenshot output / page (URL or `/path`) |
@@ -289,8 +296,6 @@ You can still set the `OTEL_*` env yourself for full control — `--trace` /
 export OTEL_TRACES_EXPORTER=otlp OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 mxcli run --local -p app.mpr --trace
 ```
-| `--app-port` / `--admin-port` / `--serve-port` | 8080 / 8090 / 6543 | Ports |
-| `--db-host` / `--db-name` / `--db-user` / `--db-password` | 127.0.0.1:5432 / derived / mendix / mendix | Database; bracket IPv6 endpoints (`[::1]:5432`) |
 
 ## Pages render in the browser
 

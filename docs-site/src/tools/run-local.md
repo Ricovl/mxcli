@@ -65,6 +65,11 @@ again` when it happens, so a browser test knows to sign in before its next step.
     createdb -h 127.0.0.1 -U mendix app1112
     ```
 
+- **Or no database server at all**: `--db-type hsqldb` runs on the runtime's
+  built-in file database. Use it where PostgreSQL is not installed or cannot be
+  provisioned — e.g. `--ensure-db` failing with *no local PostgreSQL superuser
+  available to create the role/database*. See the `--db-type` row below.
+
 At start, `run --local` warns (without stopping) when the project's git state
 would make Studio Pro 11.13 fail to open it — a branch with no upstream, or
 "dubious ownership". See [Working Outside Studio Pro](outside-studio-pro.md).
@@ -88,6 +93,7 @@ would make Studio Pro 11.13 fail to open it — a branch with no upstream, or
 | `--db-host` | 127.0.0.1:5432 | Database `host:port`; bracket IPv6 endpoints (`[::1]:5432`) |
 | `--db-name` | derived from project | Database name |
 | `--db-user` / `--db-password` | mendix / mendix | Database credentials |
+| `--db-type` | `postgresql` | `postgresql` or `hsqldb`. `hsqldb` boots on the runtime's built-in file database: no database server, no provisioning, works offline. Its data lives in `<project>/deployment/data/database/hsqldb/`. Cannot be combined with `--db-host`, `--db-user`, `--db-password` or `--ensure-db` (refused, not ignored). For local development only |
 | `--screenshot` | off | Capture a Playwright PNG after boot and each applied change |
 | `--screenshot-path` | `<projectDir>/.mxcli/run-local.png` | Screenshot output PNG |
 | `--screenshot-url` | app root | Page to shoot: full URL, or a path relative to the app root (e.g. `/p/customers`). Repeat for a multi-page set. |
