@@ -75,6 +75,7 @@ For browser-based testing that verifies widgets render correctly in the DOM, see
 mxcli test tests/ -p app.mpr
 
 # Browser-based UI verification
+mxcli playwright check /p/Customer_Overview -p app.mpr   # does it render? one call, text verdict
 mxcli playwright verify tests/ -p app.mpr
 ```
 
