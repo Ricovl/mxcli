@@ -118,3 +118,32 @@ The report prints counts and short command, path and error snippets — never
 prompt, thinking or tool-result text. Absolute paths are cut to their last two
 elements and long token-like strings are dropped, so the output can be shared
 without sharing the conversation. `--json` carries the same fields.
+
+## Running the benchmark
+
+`mxcli eval run` runs Claude Code headless on an eval test and reports the
+session:
+
+```bash
+mxcli eval run docs/14-eval/eval-bench-001.md --version 11.15.0 -o ~/bench
+```
+
+It creates a fresh project with `mxcli new` (which runs `mxcli init`, so the
+agent gets the CLAUDE.md and skills a user gets, and copies this mxcli into
+it), runs `claude -p <prompt> --dangerously-skip-permissions` in it with a known
+session id, copies the transcript into the run directory, writes
+`session-report.txt` / `.json`, and runs the test's checks. `BENCH-001` is the
+fixed brief: an order desk with four entities, three associations, overview and
+edit pages, a validated microflow, two module roles, navigation and a microflow
+test. Keep it unchanged, so runs before and after a change compare.
+
+The agent needs its own credentials (a logged-in `claude`, or
+`ANTHROPIC_API_KEY`). Variables a hosting Claude Code session sets for its
+children (`CLAUDECODE`, `CLAUDE_CODE_*`) are removed, so a run started from
+inside an agent session behaves like one started from a terminal.
+
+To report on a run afterwards, or on several:
+
+```bash
+mxcli diag session-report ~/bench/BENCH-001-*/transcript.jsonl
+```
