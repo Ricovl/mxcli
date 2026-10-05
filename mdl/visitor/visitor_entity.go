@@ -1051,6 +1051,10 @@ func (b *Builder) ExitDropStatement(ctx *parser.DropStatementContext) {
 		b.statements = append(b.statements, &ast.DropMessageDefinitionCollectionStmt{
 			Name: buildQualifiedName(names[0]),
 		})
+	} else if ctx.MESSAGE() != nil && ctx.DEFINITION() != nil {
+		b.statements = append(b.statements, &ast.DropMessageDefinitionStmt{
+			Name: buildQualifiedName(names[0]),
+		})
 	} else if ctx.IMPORT() != nil && ctx.MAPPING() != nil {
 		b.statements = append(b.statements, &ast.DropImportMappingStmt{
 			Name: buildQualifiedName(names[0]),

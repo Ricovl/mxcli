@@ -61,12 +61,73 @@ func parseMessageDefRef(ref string) (messageDefRef, bool) {
 	return messageDefRef{Module: parts[0], Collection: parts[1], Definition: parts[2]}, true
 }
 
-// findMessageDefinition resolves a Module.Collection.Definition reference.
+// findMessageDefinition resolves a mapping's message-definition source and
+// returns it with the reference the mapping stores.
+//
+// Two storages, by project version (ako/mxcli#987):
+//
+//   - below 11.15 a definition is an entry of a collection, referenced in three
+//     parts, Module.Collection.Definition, and stored as written;
+//   - from 11.15 it is its own MessageDefinition2 document, referenced as
+//     Module.Name. A three-part reference resolves to the document `mx convert`
+//     made of that entry — the folder keeps the collection's name — and the
+//     reference stored is the document's two-part one.
 //
 // An unresolvable reference is REFUSED and the available definitions listed, the
 // shape #882 established for members: a reference written through unchecked
 // reaches mxbuild as CE1613 and leaves the mapping bound to nothing (#259).
-func findMessageDefinition(b backend.FullBackend, ref string) (*model.MessageDefinition, error) {
+func findMessageDefinition(ctx *ExecContext, ref string) (*model.MessageDefinition, string, error) {
+	if projectStoresMessageDocuments(ctx) {
+		parts := strings.Split(ref, ".")
+		var d *model.MessageDefinitionDocument
+		switch len(parts) {
+		case 2:
+			d = findMessageDefinitionDocument(ctx, parts[0], parts[1])
+		case 3:
+			d = findConvertedMessageDefinitionDocument(ctx, parts[0], parts[1], parts[2])
+		}
+		if d != nil {
+			return d.Definition(), messageDocumentQN(ctx, d), nil
+		}
+		// A collection in an 11.15 project is not a shape Studio Pro writes, but
+		// a transplanted pre-11.15 document is; fall through to it for three
+		// parts, and refuse a two-part reference naming the documents there are.
+		if len(parts) != 3 {
+			return nil, "", messageDocumentNotFound(ctx, ref)
+		}
+		if def, err := findMessageDefinitionInCollections(ctx.Backend, ref); err == nil {
+			return def, ref, nil
+		}
+		return nil, "", messageDocumentNotFound(ctx, ref)
+	}
+	def, err := findMessageDefinitionInCollections(ctx.Backend, ref)
+	if err != nil {
+		return nil, "", err
+	}
+	return def, ref, nil
+}
+
+// messageDocumentNotFound refuses an 11.15 reference, listing the documents.
+func messageDocumentNotFound(ctx *ExecContext, ref string) error {
+	var known []string
+	if docs, err := ctx.Backend.ListMessageDefinitionDocuments(); err == nil {
+		for _, d := range docs {
+			if d != nil {
+				known = append(known, messageDocumentQN(ctx, d))
+			}
+		}
+	}
+	sort.Strings(known)
+	if len(known) == 0 {
+		return fmt.Errorf("message definition %q not found — this project has no "+
+			"message definitions (Mendix 11.15: create message definition Module.Name for Module.Entity { … })", ref)
+	}
+	return fmt.Errorf("message definition %q not found; available: %s", ref, strings.Join(known, ", "))
+}
+
+// findMessageDefinitionInCollections resolves a Module.Collection.Definition
+// reference against the pre-11.15 collections.
+func findMessageDefinitionInCollections(b backend.FullBackend, ref string) (*model.MessageDefinition, error) {
 	parsed, ok := parseMessageDefRef(ref)
 	if !ok {
 		return nil, fmt.Errorf("%q is not a message definition reference — it names a "+

@@ -55,6 +55,7 @@ var createGuardCases = map[string]createGuardCase{
 	"regularexpression":           {src: "create regular expression if not exists M.X (Expression: '.+');", lister: "ListRegularExpressionsFunc"},
 	"jsonstructure":               {src: "create json structure if not exists M.X snippet '{\"id\": 1}';", lister: "ListJsonStructuresFunc"},
 	"messagedefinitioncollection": {src: "create message definition collection if not exists M.X {definition D for M.C as 'Cs' {Id}};", lister: "ListMessageDefinitionCollectionsFunc"},
+	"messagedefinition":           {src: "create message definition if not exists M.X for M.C as 'Cs' {Id};", lister: "ListMessageDefinitionDocumentsFunc"},
 	"importmapping":               {src: "create import mapping if not exists M.X with json structure M.J { create M.C { Id = id } };", lister: "ListImportMappingsFunc"},
 	"exportmapping":               {src: "create export mapping if not exists M.X with json structure M.J { M.C { id = Id } };", lister: "ListExportMappingsFunc"},
 	"datatransformer":             {src: "create data transformer if not exists M.X source json '{\"id\": 1}' { jslt '{\"id\": .id}'; };", lister: "ListDataTransformersFunc"},

@@ -33,6 +33,9 @@ func execCreateMessageDefinitionCollection(ctx *ExecContext, s *ast.CreateMessag
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	if projectStoresMessageDocuments(ctx) {
+		return messageCollectionsRemovedError(ctx, "create message definition collection")
+	}
 	existing := findMessageCollection(ctx, s.Name.Module, s.Name.Name)
 	if existing != nil && !s.CreateOrModify {
 		return mdlerrors.NewAlreadyExists("message definition collection", s.Name.String())
@@ -179,11 +182,19 @@ func entityQNByID(ctx *ExecContext, id model.ID) string {
 
 // buildMessageDefinition resolves one `definition <Name> for <Entity>` block.
 func buildMessageDefinition(ctx *ExecContext, def *ast.MessageDefinitionDef, collection string) (*model.MessageDefinition, error) {
+	return buildMessageDefinitionAs(ctx, def, collection,
+		fmt.Sprintf("message definition collection %s: definition %s", collection, def.Name))
+}
+
+// buildMessageDefinitionAs is buildMessageDefinition for either storage: owner
+// qualifies the definition in member errors (the collection, or the module of
+// an 11.15 document) and label opens the entity error.
+func buildMessageDefinitionAs(ctx *ExecContext, def *ast.MessageDefinitionDef, owner, label string) (*model.MessageDefinition, error) {
+	collection := owner
 	entityQN := def.Entity.String()
 	if _, ok := lookupEntity(ctx, entityQN); !ok {
 		return nil, mdlerrors.NewValidation(fmt.Sprintf(
-			"message definition collection %s: definition %s names the entity %s, which does not exist",
-			collection, def.Name, entityQN))
+			"%s names the entity %s, which does not exist", label, entityQN))
 	}
 
 	root := &model.MessageDefinitionElement{
@@ -427,6 +438,9 @@ func execDropMessageDefinitionCollection(ctx *ExecContext, s *ast.DropMessageDef
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	if projectStoresMessageDocuments(ctx) {
+		return messageCollectionsRemovedError(ctx, "drop message definition collection")
+	}
 	c := findMessageCollection(ctx, s.Name.Module, s.Name.Name)
 	if c == nil {
 		return mdlerrors.NewNotFound("message definition collection", s.Name.String())
@@ -466,7 +480,7 @@ func execDropMessageDefinitionCollection(ctx *ExecContext, s *ast.DropMessageDef
 func messageDefinitionsUsingAssociation(ctx *ExecContext, assocQN string) []string {
 	colls, err := ctx.Backend.ListMessageDefinitionCollections()
 	if err != nil {
-		return nil
+		colls = nil // the 11.15 documents below are still checked
 	}
 	h, herr := getHierarchy(ctx)
 
@@ -488,6 +502,22 @@ func messageDefinitionsUsingAssociation(ctx *ExecContext, assocQN string) []stri
 			for _, hit := range findAssociationMembers(def.Root, assocQN, nil) {
 				stmt := fmt.Sprintf("alter message definition %s.%s drop member %s",
 					collName, def.Name, hit.member)
+				if len(hit.path) > 0 {
+					stmt += " in " + strings.Join(hit.path, "/")
+				}
+				out = append(out, stmt)
+			}
+		}
+	}
+	// 11.15 documents (ako/mxcli#987): addressed by their two-part name.
+	if docs, derr := ctx.Backend.ListMessageDefinitionDocuments(); derr == nil {
+		for _, d := range docs {
+			if d == nil {
+				continue
+			}
+			for _, hit := range findAssociationMembers(d.Root, assocQN, nil) {
+				stmt := fmt.Sprintf("alter message definition %s drop member %s",
+					messageDocumentQN(ctx, d), hit.member)
 				if len(hit.path) > 0 {
 					stmt += " in " + strings.Join(hit.path, "/")
 				}
@@ -552,6 +582,9 @@ func mappingsUsingCollection(ctx *ExecContext, collectionQN string) []string {
 // execDescribeMessageDefinitionCollection prints re-executable MDL.
 func execDescribeMessageDefinitionCollection(ctx *ExecContext, name ast.QualifiedName) error {
 	c := findMessageCollection(ctx, name.Module, name.Name)
+	if c == nil && projectStoresMessageDocuments(ctx) {
+		return messageCollectionsRemovedError(ctx, "describe message definition collection")
+	}
 	if c == nil {
 		return mdlerrors.NewNotFound("message definition collection", name.String())
 	}
@@ -633,6 +666,9 @@ func execAlterMessageDefinitionCollection(ctx *ExecContext, s *ast.AlterMessageD
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	if projectStoresMessageDocuments(ctx) {
+		return messageCollectionsRemovedError(ctx, "alter message definition collection")
+	}
 	c := findMessageCollection(ctx, s.Name.Module, s.Name.Name)
 	if c == nil {
 		return mdlerrors.NewNotFound("message definition collection", s.Name.String())
@@ -703,17 +739,15 @@ func execAlterMessageDefinition(ctx *ExecContext, s *ast.AlterMessageDefinitionS
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
-	c := findMessageCollection(ctx, s.Collection.Module, s.Collection.Name)
-	if c == nil {
-		return mdlerrors.NewNotFound("message definition collection", s.Collection.String())
+	target, err := resolveAlterMessageDefinitionTarget(ctx, s)
+	if err != nil {
+		return err
 	}
-	idx := indexOfDefinition(c, s.Definition)
-	if idx < 0 {
-		return mdlerrors.NewNotFound("message definition", s.Collection.String()+"."+s.Definition)
-	}
-	def := c.Definitions[idx]
+	def := target.def
+	label := target.label
+	owner, defName := target.owner, target.name
 
-	holder, err := resolveMemberPath(def.Root, s.Path, s.Collection.String()+"."+s.Definition)
+	holder, err := resolveMemberPath(def.Root, s.Path, label)
 	if err != nil {
 		return err
 	}
@@ -723,13 +757,13 @@ func execAlterMessageDefinition(ctx *ExecContext, s *ast.AlterMessageDefinitionS
 		name := memberName(s.Member)
 		if findChildByName(holder, name) != nil {
 			if s.IfNotExist {
-				ctx.ReportMutation("Unchanged", "message definition: %s.%s (member %s already exists)",
-					s.Collection.String(), s.Definition, name)
+				ctx.ReportMutation("Unchanged", "message definition: %s (member %s already exists)",
+					label, name)
 				return nil
 			}
 			return mdlerrors.NewAlreadyExists("message definition member", name)
 		}
-		built, berr := buildMessageMember(ctx, s.Member, holder.Entity, s.Collection.String(), s.Definition)
+		built, berr := buildMessageMember(ctx, s.Member, holder.Entity, owner, defName)
 		if berr != nil {
 			return berr
 		}
@@ -738,8 +772,8 @@ func execAlterMessageDefinition(ctx *ExecContext, s *ast.AlterMessageDefinitionS
 		child := findChildByName(holder, s.Target)
 		if child == nil {
 			if s.IfExists {
-				ctx.ReportMutation("Unchanged", "message definition: %s.%s (no member %s)",
-					s.Collection.String(), s.Definition, s.Target)
+				ctx.ReportMutation("Unchanged", "message definition: %s (no member %s)",
+					label, s.Target)
 				return nil
 			}
 			return mdlerrors.NewNotFound("message definition member", s.Target)
@@ -758,11 +792,77 @@ func execAlterMessageDefinition(ctx *ExecContext, s *ast.AlterMessageDefinitionS
 		return mdlerrors.NewValidation("unsupported ALTER MESSAGE DEFINITION operation")
 	}
 
-	if err := ctx.Backend.UpdateMessageDefinitionCollection(c); err != nil {
-		return mdlerrors.NewBackend("update message definition collection", err)
+	if err := target.save(); err != nil {
+		return err
 	}
-	ctx.ReportMutation("Modified", "message definition: %s.%s", s.Collection.String(), s.Definition)
+	ctx.ReportMutation("Modified", "message definition: %s", label)
 	return nil
+}
+
+// alterMessageDefinitionTarget is the definition an ALTER MESSAGE DEFINITION
+// edits, wherever it is stored, and how to write it back.
+type alterMessageDefinitionTarget struct {
+	def         *model.MessageDefinition
+	label       string // the reference as written back in messages
+	owner, name string // buildMessageMember's qualifiers
+	save        func() error
+}
+
+// resolveAlterMessageDefinitionTarget finds the definition an ALTER names:
+// Module.Name is an 11.15 document; Module.Collection.Definition is an entry of
+// a collection, or — on an 11.15 project — the document `mx convert` made of
+// that entry (ako/mxcli#987).
+func resolveAlterMessageDefinitionTarget(ctx *ExecContext, s *ast.AlterMessageDefinitionStmt) (*alterMessageDefinitionTarget, error) {
+	docTarget := func(d *model.MessageDefinitionDocument) *alterMessageDefinitionTarget {
+		qn := messageDocumentQN(ctx, d)
+		module := qn
+		if i := strings.Index(qn, "."); i >= 0 {
+			module = qn[:i]
+		}
+		return &alterMessageDefinitionTarget{
+			def: d.Definition(), label: qn, owner: module, name: d.Name,
+			save: func() error {
+				if err := ctx.Backend.UpdateMessageDefinitionDocument(d); err != nil {
+					return mdlerrors.NewBackend("update message definition", err)
+				}
+				return nil
+			},
+		}
+	}
+	if s.Document.Name != "" {
+		d := findMessageDefinitionDocument(ctx, s.Document.Module, s.Document.Name)
+		if d == nil {
+			if err := requireMessageDefinitionDocuments(ctx, "alter message definition "+s.Document.String()); err != nil {
+				return nil, err
+			}
+			return nil, mdlerrors.NewNotFound("message definition", s.Document.String())
+		}
+		return docTarget(d), nil
+	}
+
+	label := s.Collection.String() + "." + s.Definition
+	c := findMessageCollection(ctx, s.Collection.Module, s.Collection.Name)
+	if c == nil {
+		if projectStoresMessageDocuments(ctx) {
+			if d := findConvertedMessageDefinitionDocument(ctx, s.Collection.Module, s.Collection.Name, s.Definition); d != nil {
+				return docTarget(d), nil
+			}
+		}
+		return nil, mdlerrors.NewNotFound("message definition collection", s.Collection.String())
+	}
+	idx := indexOfDefinition(c, s.Definition)
+	if idx < 0 {
+		return nil, mdlerrors.NewNotFound("message definition", label)
+	}
+	return &alterMessageDefinitionTarget{
+		def: c.Definitions[idx], label: label, owner: s.Collection.String(), name: s.Definition,
+		save: func() error {
+			if err := ctx.Backend.UpdateMessageDefinitionCollection(c); err != nil {
+				return mdlerrors.NewBackend("update message definition collection", err)
+			}
+			return nil
+		},
+	}, nil
 }
 
 // resolveMemberPath walks `in a/b` down the definition's tree, in exposed names.
@@ -911,6 +1011,13 @@ func listMessageDefinitionCollections(ctx *ExecContext, inModule string) error {
 	})
 
 	if len(rows) == 0 {
+		if projectStoresMessageDocuments(ctx) {
+			// Mendix 11.15 has no collections (ako/mxcli#987): say where the
+			// definitions went instead of reporting an empty project.
+			fmt.Fprintln(ctx.Output, "No message definition collections found (Mendix 11.15 stores "+
+				"each message definition as a document: list message definitions)")
+			return nil
+		}
 		fmt.Fprintln(ctx.Output, "No message definition collections found")
 		return nil
 	}

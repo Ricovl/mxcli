@@ -449,17 +449,25 @@ func execCreateImportMapping(ctx *ExecContext, s *ast.CreateImportMappingStmt) e
 	if existing != nil {
 		existingMD, existingMD2 = existing.MessageDefinition, existing.MessageDefinition2
 	}
+	// A message definition is resolved first: the reference stored is the
+	// resolved one, which on 11.15 is the document's Module.Name even when the
+	// script wrote the pre-11.15 three-part form (ako/mxcli#987).
+	var md *model.MessageDefinition
+	mdRef := s.SchemaRef.String()
+	if s.SchemaKind == "MESSAGE_DEFINITION" {
+		var mdErr error
+		md, mdRef, mdErr = findMessageDefinition(ctx, mdRef)
+		if mdErr != nil {
+			return mdlerrors.NewValidation(fmt.Sprintf("import mapping %s: %v", s.Name.String(), mdErr))
+		}
+	}
 	im.MessageDefinition, im.MessageDefinition2 = mappingMessageDefinitionKeys(
 		ctx.Backend.ProjectVersion(), existing != nil, existingMD, existingMD2,
-		s.SchemaKind == "MESSAGE_DEFINITION", s.SchemaRef.String())
+		s.SchemaKind == "MESSAGE_DEFINITION", mdRef)
 
 	// A message definition resolves against the domain model, not a payload
 	// sample, and the mapping stores both path families — its own builder (#263).
 	if s.SchemaKind == "MESSAGE_DEFINITION" {
-		md, err := findMessageDefinition(ctx.Backend, s.SchemaRef.String())
-		if err != nil {
-			return mdlerrors.NewValidation(fmt.Sprintf("import mapping %s: %v", s.Name.String(), err))
-		}
 		if s.RootElement != nil {
 			root, err := buildImportMappingFromMessageDefinition(s.Name.Module, s.RootElement,
 				md.Root, "", "", true, ctx.Backend)

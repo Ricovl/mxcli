@@ -129,10 +129,21 @@ func TestAlterMessageDefinitionSplitsTheThreePartName(t *testing.T) {
 	}
 }
 
-func TestAlterMessageDefinitionRejectsATwoPartName(t *testing.T) {
-	_, errs := Build(`alter message definition Sales.MD_Order add member Total;`)
+// A two-part name is a Mendix 11.15 MessageDefinition2 document
+// (ako/mxcli#987), not a collection: it is addressed as Document, never split
+// into a collection and a definition.
+func TestAlterMessageDefinitionTwoPartNameIsADocument(t *testing.T) {
+	s := buildOne[*ast.AlterMessageDefinitionStmt](t,
+		`alter message definition Sales.OrderMessage add member Total;`)
+	if s.Document.String() != "Sales.OrderMessage" || s.Collection.Name != "" || s.Definition != "" {
+		t.Fatalf("document=%q collection=%q definition=%q", s.Document.String(), s.Collection.String(), s.Definition)
+	}
+}
+
+func TestAlterMessageDefinitionRejectsAOnePartName(t *testing.T) {
+	_, errs := Build(`alter message definition OrderMessage add member Total;`)
 	if len(errs) == 0 {
-		t.Fatal("accepted a two-part name — the collection and definition would be indistinguishable")
+		t.Fatal("accepted a one-part name")
 	}
 }
 
