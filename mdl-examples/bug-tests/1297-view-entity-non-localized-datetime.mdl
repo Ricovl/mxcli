@@ -1,0 +1,44 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1297: view entity over a NON-localized DateTime column
+-- ============================================================================
+--
+-- Symptom (before fix): a view attribute selecting a DateTime whose source has
+-- "Localize" unticked was always written LocalizeDate = true. `mxcli check
+-- --references` passed and exec printed "Created view entity:
+-- MyFirstModule.SalePerDay", then `mx check` reported
+--   [CE6770] "View Entity is out of sync with the OQL Query." at Entity
+--   'MyFirstModule.SalePerDay'
+-- and MDL has no spelling for the flag, so every re-run broke it again.
+--
+-- After fix: the view attribute takes LocalizeDate from the source attribute
+-- its column reads — pass-through, `s/Attr`, MIN, MAX and CASE alike (each
+-- measured on mxbuild 11.12.5: CE6770 localized, 0 errors non-localized). No
+-- syntax is needed: the query is the declaration, so describe -> exec
+-- round-trips as `Unchanged`.
+--
+-- To reproduce, untick "Localize" on Sale.SaleDate in Studio Pro between the
+-- two statements (mxcli cannot write it on a persistent entity); with the
+-- default (localized) source both forms already built before the fix.
+-- ============================================================================
+
+create persistent entity MyFirstModule.Sale (
+  SaleDate: DateTime,
+  Amount: Integer
+);
+
+create view entity MyFirstModule.SalePerDay (
+  SaleDate: DateTime,
+  Total: Integer
+) as (
+  SELECT s.SaleDate AS SaleDate, SUM(s.Amount) AS Total
+  FROM MyFirstModule.Sale AS s
+  GROUP BY s.SaleDate
+);
+
+create view entity MyFirstModule.LastSale (
+  LastSaleDate: DateTime
+) as (
+  SELECT MAX(s.SaleDate) AS LastSaleDate
+  FROM MyFirstModule.Sale AS s
+);
