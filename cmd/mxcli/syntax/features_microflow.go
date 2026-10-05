@@ -355,9 +355,13 @@ func init() {
 			"create object", "change object", "commit", "rollback",
 			"delete", "save", "persist", "modify object",
 			"with events", "refresh", "commit flag", "without events",
+			"reference set", "referenceset", "many-to-many", "add to association",
+			"remove from association", "CE0033",
 		},
 		Syntax: "$Obj = CREATE Module.Entity (Attr = value) [COMMIT [WITHOUT EVENTS]] [REFRESH];\n" +
 			"CHANGE $Obj (Attr = value) [COMMIT [WITHOUT EVENTS]] [REFRESH];\n" +
+			"ADD $X TO $Obj/Module.Assoc [COMMIT [WITHOUT EVENTS]] [REFRESH];      -- reference set\n" +
+			"REMOVE $X FROM $Obj/Module.Assoc [COMMIT [WITHOUT EVENTS]] [REFRESH];\n" +
 			"COMMIT $Obj [WITHOUT EVENTS] [REFRESH];\n" +
 			"DELETE $Obj [REFRESH];\n" +
 			"ROLLBACK $Obj [REFRESH];\n\n" +
@@ -374,8 +378,13 @@ func init() {
 			"-- COMMIT is the one whose default is ON, so WITHOUT EVENTS is the form\n" +
 			"-- that changes anything; WITH EVENTS parses and means the default. The\n" +
 			"-- COMMIT modifier on CREATE/CHANGE is the activity's Commit setting\n" +
-			"-- (omitted = No), not the standalone COMMIT $Obj activity.",
-		Example: "$NewOrder = CREATE MyModule.Order (\n  OrderNumber = 'ORD-001',\n  Quantity = $Quantity,\n  CreateDate = [%CurrentDateTime%]\n) COMMIT;\n\nCHANGE $NewOrder (MyModule.Order_Customer = $Customer) COMMIT REFRESH;\nCHANGE $Draft (Status = 'Imported') COMMIT WITHOUT EVENTS;\n\nCOMMIT $NewOrder;                  -- runs the commit event handlers\nCOMMIT $Staging WITHOUT EVENTS;    -- bulk import: skip them deliberately\nCOMMIT $NewOrder REFRESH;          -- and repaint it on the open page\n\nDELETE $OldOrder REFRESH;\nROLLBACK $DraftOrder;",
+			"-- (omitted = No), not the standalone COMMIT $Obj activity.\n\n" +
+			"-- On a reference set, CHANGE $Obj (Module.Assoc = $X) ASSIGNS the whole\n" +
+			"-- set: what was in it is dropped. ADD/REMOVE with a $Obj/Module.Assoc\n" +
+			"-- target is the Change object activity's Add / Remove member instead; $X\n" +
+			"-- may be an object or a list. Reference sets only: on an attribute or a\n" +
+			"-- plain Reference mxbuild rejects it (CE0033), and mxcli refuses it first.",
+		Example: "$NewOrder = CREATE MyModule.Order (\n  OrderNumber = 'ORD-001',\n  Quantity = $Quantity,\n  CreateDate = [%CurrentDateTime%]\n) COMMIT;\n\nCHANGE $NewOrder (MyModule.Order_Customer = $Customer) COMMIT REFRESH;\nADD $Line TO $NewOrder/MyModule.Order_Lines;     -- append to a reference set\nCHANGE $Draft (Status = 'Imported') COMMIT WITHOUT EVENTS;\n\nCOMMIT $NewOrder;                  -- runs the commit event handlers\nCOMMIT $Staging WITHOUT EVENTS;    -- bulk import: skip them deliberately\nCOMMIT $NewOrder REFRESH;          -- and repaint it on the open page\n\nDELETE $OldOrder REFRESH;\nROLLBACK $DraftOrder;",
 		SeeAlso: []string{"microflow.retrieve", "microflow.variables"},
 	})
 
@@ -400,6 +409,8 @@ func init() {
 		Syntax: "$List = CREATE LIST OF Module.Entity;\n" +
 			"-- Change list: Add, Remove, Clear, Replace (stored Set).\n" +
 			"ADD $Item TO $List;\nREMOVE $Item FROM $List;\nCLEAR $List;\n" +
+			"-- ($Obj/Module.Assoc as the target is a Change object Add/Remove on a\n" +
+			"--  reference set: see microflow.object-operations.)\n" +
 			"SET $List = $Other;   -- on a LIST variable: Change list Replace, not\n" +
 			"                      -- Change variable (CE7247 on a list)\n\n" +
 			"-- One statement per Studio Pro activity. The keyword is the operation's\n" +

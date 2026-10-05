@@ -1,0 +1,44 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1288 — ADD/REMOVE on a many-to-many association
+-- ============================================================================
+--
+-- Reported: `add $Row to $Material/MyFirstModule.SkuRowsOfMaterial;` was
+--   Parse error: line 9:23 mismatched input '/' expecting ';'
+-- so the only way to append to a reference set was
+--   change $Material (Assoc = $Row);
+-- which ASSIGNS the whole set: in a loop of three, two rows end up orphaned,
+-- with no error from check, mx check, the runtime log or a boolean test.
+--
+-- `add … to $Obj/Assoc` / `remove … from $Obj/Assoc` build a Change object
+-- activity with one Add / Remove member — Studio Pro's Add and Remove buttons.
+-- DESCRIBE prints such an activity back in this form; it used to print
+-- `Assoc = $Row`, turning a stored append into a set assignment on re-exec.
+-- ============================================================================
+
+create module Bug1288;
+
+create or modify persistent entity Bug1288.Material ( Code: String(50) );
+create or modify persistent entity Bug1288.SkuRow ( Sku: String(50) );
+
+create or modify association Bug1288.SkuRowsOfMaterial
+  from Bug1288.Material to Bug1288.SkuRow type ReferenceSet storage table;
+
+create or modify microflow Bug1288.ACT_AppendRows ($Material: Bug1288.Material)
+returns Boolean
+begin
+  $Row1 = create Bug1288.SkuRow (Sku = 'A');
+  add $Row1 to $Material/Bug1288.SkuRowsOfMaterial;
+  $Row2 = create Bug1288.SkuRow (Sku = 'B');
+  add $Row2 to $Material/Bug1288.SkuRowsOfMaterial commit;
+
+  -- a whole list in one append
+  $More = create list of Bug1288.SkuRow;
+  $Row3 = create Bug1288.SkuRow (Sku = 'C');
+  add $Row3 to $More;
+  add $More to $Material/Bug1288.SkuRowsOfMaterial refresh;
+
+  remove $Row1 from $Material/Bug1288.SkuRowsOfMaterial;
+  commit $Material;
+  return true;
+end;
