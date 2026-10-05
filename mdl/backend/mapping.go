@@ -33,6 +33,14 @@ type MappingBackend interface {
 	UpdateMessageDefinitionCollection(c *model.MessageDefinitionCollection) error
 	DeleteMessageDefinitionCollection(id string) error
 
+	// ListMessageDefinitionDocuments reads the MessageDefinition2 documents,
+	// the per-definition storage that replaced collections in Mendix 11.15
+	// (ako/mxcli#987). Create / Update / Delete author one.
+	ListMessageDefinitionDocuments() ([]*model.MessageDefinitionDocument, error)
+	CreateMessageDefinitionDocument(d *model.MessageDefinitionDocument) error
+	UpdateMessageDefinitionDocument(d *model.MessageDefinitionDocument) error
+	DeleteMessageDefinitionDocument(id string) error
+
 	// ListXmlSchemas reads the project's XML schema documents. Read-only —
 	// there is no CREATE for one — and used to resolve a mapping's
 	// `with xml schema` reference before mxbuild reports it as CE1613.

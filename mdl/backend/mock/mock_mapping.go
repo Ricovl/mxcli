@@ -167,3 +167,33 @@ func (m *MockBackend) ListMessageDefinitionCollections() ([]*model.MessageDefini
 	}
 	return nil, fmt.Errorf("MockBackend.ListMessageDefinitionCollections not configured")
 }
+
+// ListMessageDefinitionDocuments returns the configured MessageDefinition2
+// documents; none when unconfigured.
+func (m *MockBackend) ListMessageDefinitionDocuments() ([]*model.MessageDefinitionDocument, error) {
+	if m.ListMessageDefinitionDocumentsFunc != nil {
+		return m.ListMessageDefinitionDocumentsFunc()
+	}
+	return nil, nil
+}
+
+func (m *MockBackend) CreateMessageDefinitionDocument(d *model.MessageDefinitionDocument) error {
+	if m.CreateMessageDefinitionDocumentFunc != nil {
+		return m.CreateMessageDefinitionDocumentFunc(d)
+	}
+	return fmt.Errorf("MockBackend.CreateMessageDefinitionDocument not configured")
+}
+
+func (m *MockBackend) UpdateMessageDefinitionDocument(d *model.MessageDefinitionDocument) error {
+	if m.UpdateMessageDefinitionDocumentFunc != nil {
+		return m.UpdateMessageDefinitionDocumentFunc(d)
+	}
+	return fmt.Errorf("MockBackend.UpdateMessageDefinitionDocument not configured")
+}
+
+func (m *MockBackend) DeleteMessageDefinitionDocument(id string) error {
+	if m.DeleteMessageDefinitionDocumentFunc != nil {
+		return m.DeleteMessageDefinitionDocumentFunc(id)
+	}
+	return fmt.Errorf("MockBackend.DeleteMessageDefinitionDocument not configured")
+}

@@ -99,6 +99,7 @@ const (
 	ShowWorkflowGroups               // SHOW WORKFLOW GROUPS (project settings, not a module listing)
 	ShowJsonStructures               // SHOW JSON STRUCTURES [IN module]
 	ShowMessageDefinitionCollections // SHOW MESSAGE DEFINITION COLLECTIONS [IN module]
+	ShowMessageDefinitions           // SHOW MESSAGE DEFINITIONS [IN module] (11.15 documents)
 	ShowImportMappings               // SHOW IMPORT MAPPINGS [IN module]
 	ShowExportMappings               // SHOW EXPORT MAPPINGS [IN module]
 	ShowModels                       // SHOW MODELS [IN module] (agent-editor Model documents)
@@ -247,6 +248,8 @@ func (t ShowObjectType) String() string {
 		return "JSON STRUCTURES"
 	case ShowMessageDefinitionCollections:
 		return "MESSAGE DEFINITION COLLECTIONS"
+	case ShowMessageDefinitions:
+		return "MESSAGE DEFINITIONS"
 	case ShowImportMappings:
 		return "IMPORT MAPPINGS"
 	case ShowExportMappings:
@@ -359,6 +362,7 @@ const (
 	DescribeContractMessage             // DESCRIBE CONTRACT MESSAGE Service.MessageName
 	DescribeJsonStructure               // DESCRIBE JSON STRUCTURE Module.Name
 	DescribeMessageDefinitionCollection // DESCRIBE MESSAGE DEFINITION COLLECTION Module.Name
+	DescribeMessageDefinition           // DESCRIBE MESSAGE DEFINITION Module.Name (11.15 document)
 	DescribeNanoflow                    // DESCRIBE NANOFLOW Module.Name
 	DescribeRule                        // DESCRIBE RULE Module.Name
 	DescribeImportMapping               // DESCRIBE IMPORT MAPPING Module.Name
@@ -448,6 +452,8 @@ func (t DescribeObjectType) String() string {
 		return "CONTRACT MESSAGE"
 	case DescribeMessageDefinitionCollection:
 		return "MESSAGE DEFINITION COLLECTION"
+	case DescribeMessageDefinition:
+		return "MESSAGE DEFINITION"
 	case DescribeJsonStructure:
 		return "JSON STRUCTURE"
 	case DescribeNanoflow:

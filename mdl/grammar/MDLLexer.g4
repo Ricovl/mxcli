@@ -767,6 +767,7 @@ RULES: R U L E S;
 TEXT: T E X T;
 SARIF: S A R I F;
 DEFINITION: D E F I N I T I O N;
+DEFINITIONS: D E F I N I T I O N S;   // `list message definitions` (11.15 documents, ako/mxcli#987)
 ROOT: R O O T;
 MESSAGE: M E S S A G E;
 MESSAGES: M E S S A G E S;

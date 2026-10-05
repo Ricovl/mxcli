@@ -376,6 +376,12 @@ func registerMessageDefinitionHandlers(r *Registry) {
 	r.Register(&ast.AlterMessageDefinitionCollectionStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return execAlterMessageDefinitionCollection(ctx, stmt.(*ast.AlterMessageDefinitionCollectionStmt))
 	})
+	r.Register(&ast.CreateMessageDefinitionStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
+		return execCreateMessageDefinition(ctx, stmt.(*ast.CreateMessageDefinitionStmt))
+	})
+	r.Register(&ast.DropMessageDefinitionStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
+		return execDropMessageDefinition(ctx, stmt.(*ast.DropMessageDefinitionStmt))
+	})
 	r.Register(&ast.AlterMessageDefinitionStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return execAlterMessageDefinition(ctx, stmt.(*ast.AlterMessageDefinitionStmt))
 	})

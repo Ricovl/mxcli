@@ -171,7 +171,7 @@ features:
       # One MessageDefinitions$MessageDefinition2 document per message
       # definition, the 11.15 replacement for the collection (ako/mxcli#987).
       min_version: "11.15.0"
-      mdl: "CREATE IMPORT MAPPING Module.Name WITH MESSAGE DEFINITION Module.MessageName ..."
+      mdl: "CREATE MESSAGE DEFINITION Module.Name FOR Module.Entity { ... }"
 
   agent_documents:
     # Agent Editor documents (Model, Knowledge Base, Consumed MCP Service,

@@ -812,7 +812,7 @@ keyword
 
     // General-purpose words (only tokens not already listed above)
     | ACTION | BLOCKING | BOTH | CONTEXT | DATA | FORMAT | ITEM | LIST
-    | DEFINITION | IGNORE | MESSAGE | MOD | DIV | MULTIPLE | NONE | OBJECT | OBJECTS
+    | DEFINITION | DEFINITIONS | IGNORE | MESSAGE | MOD | DIV | MULTIPLE | NONE | OBJECT | OBJECTS
     | OVERRIDABLE | ROOT
     | SINGLE | SQL | TEMPLATE | TEXT | TYPE | VALUE
 

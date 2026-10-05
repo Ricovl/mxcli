@@ -641,6 +641,23 @@ createMessageDefinitionCollectionStatement
     ;
 
 /**
+ * CREATE [OR MODIFY] MESSAGE DEFINITION Module.Name
+ *   [FOLDER 'path']
+ *   FOR Module.Entity [AS 'Exposed'] { members };
+ *
+ * One message definition as its own document — a
+ * MessageDefinitions$MessageDefinition2, which is how Mendix 11.15 stores them
+ * (ako/mxcli#987). It is the collection's `definition` entry promoted to a
+ * statement, with the same member tree; a mapping references it as
+ * Module.Name. Below 11.15 the executor refuses it in favour of the collection.
+ */
+createMessageDefinitionStatement
+    : MESSAGE DEFINITION ifNotExists? qualifiedName
+      (FOLDER STRING_LITERAL)?
+      FOR qualifiedName messageExposedName? messageMemberTree
+    ;
+
+/**
  * `definition <Name> for <Module.Entity> [as '<ExposedName>'] { members }`
  *
  * The definition's Name and its root element's exposed name are independent —
@@ -706,6 +723,7 @@ alterMessageCollectionOperation
 
 /**
  * ALTER MESSAGE DEFINITION Module.Collection.Definition <op>;
+ * ALTER MESSAGE DEFINITION Module.Name <op>;      -- an 11.15 document
  *
  * Members within one definition, addressed by the SAME three-part reference
  * `WITH MESSAGE DEFINITION` takes, so the two cannot drift apart.

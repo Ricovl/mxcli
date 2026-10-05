@@ -189,6 +189,8 @@ func stmtCreateKind(stmt ast.Statement) (docType, name string, idempotent bool) 
 		return "regular-expression", s.Name.String(), s.CreateOrModify
 	case *ast.CreateMessageDefinitionCollectionStmt:
 		return "message-definition-collection", s.Name.String(), s.CreateOrModify
+	case *ast.CreateMessageDefinitionStmt:
+		return "message-definition", s.Name.String(), s.CreateOrModify
 	case *ast.CreateDatabaseConnectionStmt:
 		return "database-connection", s.Name.String(), s.CreateOrModify
 	case *ast.CreateRestClientStmt:
@@ -282,6 +284,8 @@ func stmtDropInfo(stmt ast.Statement) (docType, name string) {
 		return "regular-expression", s.Name.String()
 	case *ast.DropMessageDefinitionCollectionStmt:
 		return "message-definition-collection", s.Name.String()
+	case *ast.DropMessageDefinitionStmt:
+		return "message-definition", s.Name.String()
 	case *ast.DropDatabaseConnectionStmt:
 		return "database-connection", s.Name.String()
 	case *ast.DropRestClientStmt:
@@ -353,6 +357,8 @@ func friendlyDocType(docType string) string {
 		return "regular expression"
 	case "message-definition-collection":
 		return "message definition collection"
+	case "message-definition":
+		return "message definition"
 	case "database-connection":
 		return "database connection"
 	case "rest-client":
@@ -485,6 +491,7 @@ type projectNameSets struct {
 	scheduledEvents  map[string]bool
 	regexes          map[string]bool
 	messageColls     map[string]bool
+	messageDocs      map[string]bool
 	dbConnections    map[string]bool
 	restClients      map[string]bool
 	odataClients     map[string]bool
@@ -561,6 +568,8 @@ func (ps *projectNameSets) setFor(docType string) map[string]bool {
 		return ps.regexes
 	case "message-definition-collection":
 		return ps.messageColls
+	case "message-definition":
+		return ps.messageDocs
 	case "database-connection":
 		return ps.dbConnections
 	case "rest-client":
@@ -810,6 +819,7 @@ func loadProjectNameSets(ctx *ExecContext) *projectNameSets {
 	ps.scheduledEvents = listedQualifiedNames(h, ctx.Backend.ListScheduledEvents)
 	ps.regexes = listedQualifiedNames(h, ctx.Backend.ListRegularExpressions)
 	ps.messageColls = listedQualifiedNames(h, ctx.Backend.ListMessageDefinitionCollections)
+	ps.messageDocs = listedQualifiedNames(h, ctx.Backend.ListMessageDefinitionDocuments)
 	ps.dbConnections = listedQualifiedNames(h, ctx.Backend.ListDatabaseConnections)
 	ps.restClients = listedQualifiedNames(h, ctx.Backend.ListConsumedRestServices)
 	ps.odataClients = listedQualifiedNames(h, ctx.Backend.ListConsumedODataServices)

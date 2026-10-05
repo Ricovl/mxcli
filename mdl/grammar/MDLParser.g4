@@ -221,6 +221,7 @@ createStatement
       | createRegularExpressionStatement
       | createJsonStructureStatement
       | createMessageDefinitionCollectionStatement
+      | createMessageDefinitionStatement
       | createImportMappingStatement
       | createExportMappingStatement
       | createConfigurationStatement
@@ -764,6 +765,7 @@ dropStatement
     | DROP ANNOTATION AT_KW LPAREN NUMBER_LITERAL COMMA NUMBER_LITERAL RPAREN IN identifierOrKeyword
     | DROP JSON STRUCTURE ifExists? qualifiedName
     | DROP MESSAGE DEFINITION COLLECTION ifExists? qualifiedName
+    | DROP MESSAGE DEFINITION ifExists? qualifiedName
     | DROP IMPORT MAPPING ifExists? qualifiedName
     | DROP EXPORT MAPPING ifExists? qualifiedName
     | DROP consumedRestServiceKw ifExists? qualifiedName

@@ -25,6 +25,34 @@ type CreateMessageDefinitionCollectionStmt struct {
 
 func (s *CreateMessageDefinitionCollectionStmt) isStatement() {}
 
+// CreateMessageDefinitionStmt represents one message definition as its own
+// document — a MessageDefinitions$MessageDefinition2, Mendix 11.15's storage
+// (ako/mxcli#987):
+//
+//	CREATE [OR MODIFY] MESSAGE DEFINITION Module.Name [FOLDER 'path']
+//	  FOR Module.Entity [AS 'Exposed'] { members };
+//
+// Definition carries the collection entry's shape, so the two forms share the
+// builder; its Name is Name.Name.
+type CreateMessageDefinitionStmt struct {
+	CreateGuard
+	Name           QualifiedName
+	Folder         string
+	CreateOrModify bool
+	Definition     *MessageDefinitionDef
+}
+
+func (s *CreateMessageDefinitionStmt) isStatement() {}
+
+// DropMessageDefinitionStmt represents DROP MESSAGE DEFINITION Module.Name, the
+// 11.15 document.
+type DropMessageDefinitionStmt struct {
+	DropGuard
+	Name QualifiedName
+}
+
+func (s *DropMessageDefinitionStmt) isStatement() {}
+
 // MessageDefinitionDef is one `definition <Name> for <Entity>` inside a
 // collection.
 //
@@ -99,6 +127,9 @@ type AlterMessageDefinitionStmt struct {
 	// Collection and Definition come from the three-part name.
 	Collection QualifiedName
 	Definition string
+	// Document is set instead for a two-part name, Module.Name: an 11.15
+	// MessageDefinition2 document (ako/mxcli#987).
+	Document QualifiedName
 	// Op is "ADD", "DROP" or "SET".
 	Op string
 	// Member is the member being added (ADD).

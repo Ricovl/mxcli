@@ -352,16 +352,24 @@ func execCreateExportMapping(ctx *ExecContext, s *ast.CreateExportMappingStmt) e
 	if existing != nil {
 		existingMD, existingMD2 = existing.MessageDefinition, existing.MessageDefinition2
 	}
+	// A message definition is resolved first: the reference stored is the
+	// resolved one, which on 11.15 is the document's Module.Name even when the
+	// script wrote the pre-11.15 three-part form (ako/mxcli#987).
+	var md *model.MessageDefinition
+	mdRef := s.SchemaRef.String()
+	if s.SchemaKind == "MESSAGE_DEFINITION" {
+		var mdErr error
+		md, mdRef, mdErr = findMessageDefinition(ctx, mdRef)
+		if mdErr != nil {
+			return mdlerrors.NewValidation(fmt.Sprintf("export mapping %s: %v", s.Name.String(), mdErr))
+		}
+	}
 	em.MessageDefinition, em.MessageDefinition2 = mappingMessageDefinitionKeys(
 		ctx.Backend.ProjectVersion(), existing != nil, existingMD, existingMD2,
-		s.SchemaKind == "MESSAGE_DEFINITION", s.SchemaRef.String())
+		s.SchemaKind == "MESSAGE_DEFINITION", mdRef)
 
 	// See the import twin: a message definition has its own builder (#263).
 	if s.SchemaKind == "MESSAGE_DEFINITION" {
-		md, err := findMessageDefinition(ctx.Backend, s.SchemaRef.String())
-		if err != nil {
-			return mdlerrors.NewValidation(fmt.Sprintf("export mapping %s: %v", s.Name.String(), err))
-		}
 		if s.RootElement != nil {
 			root, err := buildExportMappingFromMessageDefinition(s.Name.Module, s.RootElement,
 				md.Root, "", "", true, ctx.Backend)

@@ -233,6 +233,10 @@ type MockBackend struct {
 	CreateMessageDefinitionCollectionFunc func(c *model.MessageDefinitionCollection) error
 	UpdateMessageDefinitionCollectionFunc func(c *model.MessageDefinitionCollection) error
 	DeleteMessageDefinitionCollectionFunc func(id string) error
+	ListMessageDefinitionDocumentsFunc    func() ([]*model.MessageDefinitionDocument, error)
+	CreateMessageDefinitionDocumentFunc   func(d *model.MessageDefinitionDocument) error
+	UpdateMessageDefinitionDocumentFunc   func(d *model.MessageDefinitionDocument) error
+	DeleteMessageDefinitionDocumentFunc   func(id string) error
 	GetJsonStructureByQualifiedNameFunc   func(moduleName, name string) (*types.JsonStructure, error)
 	CreateJsonStructureFunc               func(js *types.JsonStructure) error
 	UpdateJsonStructureFunc               func(js *types.JsonStructure) error
