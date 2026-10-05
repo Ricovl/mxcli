@@ -164,8 +164,12 @@ type LocalRunOptions struct {
 	// 'Metrics.Registries=[{"type":"otlp"}]' or
 	// 'OpenTelemetry._RuntimeSpanFilters=["Loop","Gateway"]'.
 	RuntimeSettings []string
-	Stdout          io.Writer
-	Stderr          io.Writer
+	// State, when set, is told about every phase of the run — boot, each build
+	// generation and its outcome, the exit — and publishes it to
+	// .mxcli/run-state.json for `mxcli run status/wait/stop`. Nil-safe.
+	State  *RunStateRecorder
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
 // defaultLocalAdminPass is the admin password for a local dev runtime. The admin
@@ -580,6 +584,14 @@ func RunLocal(opts LocalRunOptions) error {
 		return err
 	}
 	w, stderr := opts.Stdout, opts.Stderr
+	runStart := time.Now()
+	{
+		rl := opts.RuntimeLogPath
+		if rl == "-" {
+			rl = ""
+		}
+		opts.State.Ports(opts.AppPort, opts.AdminPort, opts.ServePort, rl)
+	}
 
 	// 0. Refuse fast if the loop's ports are already taken (a stale run/serve/
 	// runtime). Skipped for SetupOnly, which never boots a server. This is the
@@ -678,6 +690,7 @@ func RunLocal(opts LocalRunOptions) error {
 	// from it, so an edit made while the app boots is built on the first tick
 	// instead of being folded silently into a baseline taken after the boot.
 	bootSource := sourceMTime(opts.ProjectPath)
+	opts.State.BuildStarted(1, bootSource)
 	fmt.Fprintln(w, "Building (first build is cold, ~10-15s)...")
 	build, err := serve.Build(BuildRequest{Target: TargetDeploy, ProjectFilePath: opts.ProjectPath})
 	if err != nil {
@@ -824,6 +837,10 @@ func RunLocal(opts LocalRunOptions) error {
 			BootConfig: rt.BootConfig(),
 		})
 	}
+	opts.State.Ready(rt.AppURL(), BuildOutcome{
+		Gen: 1, OK: true, Action: "boot", Source: bootSource,
+		DurationMs: time.Since(runStart).Milliseconds(),
+	})
 
 	fmt.Fprintf(w, "\nApp is running at %s\n", rt.AppURL())
 	// The local runtime boots with the live-preview dev flags (see
@@ -1340,6 +1357,16 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 			gen++
 			fmt.Fprintf(w, "Change detected, rebuilding (build #%d)...\n", gen)
 			start := time.Now()
+			opts.State.BuildStarted(gen, now)
+			// fail records this generation's failure for `mxcli run wait`. Every
+			// path below that gives up on the change must call it: a waiter is
+			// released only by an outcome, so a silent `continue` is a hang.
+			fail := func(stage, msg string, errs []string) {
+				opts.State.BuildFinished(BuildOutcome{
+					Gen: gen, OK: false, Action: stage, Message: msg, Errors: errs,
+					Source: now, DurationMs: time.Since(start).Milliseconds(),
+				})
+			}
 
 			// A bundler that exited since the last change is restarted here
 			// rather than waited on: waiting on a dead one failed every later
@@ -1360,6 +1387,7 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 			build, err := serve.Build(BuildRequest{Target: TargetDeploy, ProjectFilePath: opts.ProjectPath})
 			if err != nil {
 				fmt.Fprintf(opts.Stderr, "  build error: %v\n", err)
+				fail("build", err.Error(), nil)
 				continue
 			}
 			if !build.OK() {
@@ -1375,7 +1403,9 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 				// first build in a serve process does not leave the deployment in a
 				// state its own incremental build can continue from, so every rebuild
 				// fails on paths inside deployment/ and reads as a corrupt deployment.
-				fmt.Fprint(opts.Stderr, legacyClientBuildHint(opts.DeployDir, build.Message, string(build.Raw)))
+				hint := legacyClientBuildHint(opts.DeployDir, build.Message, string(build.Raw))
+				fmt.Fprint(opts.Stderr, hint)
+				fail("build", build.Message, buildErrorLines(build, hint))
 				continue
 			}
 			// If the serve build touched web/ source, wait (briefly) for the
@@ -1390,6 +1420,7 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 				rebuilt, err := bundler.AwaitRebuild(genBefore, 2500*time.Millisecond, 90*time.Second, opts.Stderr)
 				if err != nil {
 					fmt.Fprintf(opts.Stderr, "  web client rebuild failed: %v\n", err)
+					fail("client", "web client rebuild failed: "+err.Error(), nil)
 					continue
 				}
 				bundled = bundled || rebuilt
@@ -1403,6 +1434,7 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 				restarted, err := recoverMissingPages(opts.DeployDir, bundler.Restart, w)
 				if err != nil {
 					fmt.Fprintf(opts.Stderr, "  %v\n", err)
+					fail("client", err.Error(), nil)
 					continue
 				}
 				bundled = bundled || restarted
@@ -1411,6 +1443,7 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 			action, err := rt.Controller().ApplyBuild(build, rt.Restart)
 			if err != nil {
 				fmt.Fprintf(opts.Stderr, "  apply (%s) failed: %v\n", action, err)
+				fail(action.String(), err.Error(), nil)
 				continue
 			}
 			if note := sessionNotice(action); note != "" {
@@ -1422,6 +1455,7 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 			// the user the build is live.
 			if err := ensureClientServed(opts.DeployDir, rt.AppURL(), rebundle, opts.Stdout); err != nil {
 				fmt.Fprintf(opts.Stderr, "  client bundle not served after apply: %v\n", err)
+				fail("client", "client bundle not served after apply: "+err.Error(), nil)
 				continue
 			}
 			client := ""
@@ -1429,6 +1463,10 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 				client = fmt.Sprintf(", client re-bundled (gen %d)", bundler.Generation())
 			}
 			fmt.Fprintf(w, "  build #%d applied via %s in %s%s -> %s\n", gen, action, time.Since(start).Round(time.Millisecond), client, rt.AppURL())
+			opts.State.BuildFinished(BuildOutcome{
+				Gen: gen, OK: true, Action: action.String(), Source: now,
+				DurationMs: time.Since(start).Milliseconds(),
+			})
 			maybeScreenshot(opts, rt)
 			// The baseline stays at the mtime this build settled on. Moving it to
 			// "now" here — as this loop used to, under a comment claiming the
