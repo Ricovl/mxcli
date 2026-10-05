@@ -2,7 +2,12 @@
 
 package rules
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/mendixlabs/mxcli/mdl/linter"
+)
 
 func TestFindEmptyContainers_PageWithEmpty(t *testing.T) {
 	rawData := map[string]any{
@@ -231,10 +236,19 @@ func TestEmptyContainerRule_Metadata(t *testing.T) {
 	if r.ID() != "MPR006" {
 		t.Errorf("ID = %q, want MPR006", r.ID())
 	}
-	if r.Category() != "correctness" {
-		t.Errorf("Category = %q, want correctness", r.Category())
+	if r.Category() != "quality" {
+		t.Errorf("Category = %q, want quality", r.Category())
 	}
 	if r.Name() != "EmptyContainer" {
 		t.Errorf("Name = %q, want EmptyContainer", r.Name())
+	}
+	// ako/mxcli#969: an empty container was measured to build and render
+	// (11.13.0, run --local, no console errors); the old "crashes at runtime"
+	// warning had no evidence behind it.
+	if r.DefaultSeverity() != linter.SeverityInfo {
+		t.Errorf("DefaultSeverity = %v, want info", r.DefaultSeverity())
+	}
+	if strings.Contains(strings.ToLower(r.Description()), "crash") {
+		t.Errorf("Description %q still claims a crash", r.Description())
 	}
 }

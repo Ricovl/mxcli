@@ -169,6 +169,7 @@
   - [OQL Queries](tools/oql.md)
   - [Dev Container Setup](tools/devcontainer.md)
 - [Live Studio Pro Sync (MCP)](tools/mcp-connect.md)
+- [Working Outside Studio Pro](tools/outside-studio-pro.md)
 
 ---
 
@@ -271,6 +272,8 @@
 - [OData and Integration Statements](reference/odata/README.md)
 - [Integration Statements](reference/integration/README.md)
   - [CREATE JSON STRUCTURE](reference/integration/create-json-structure.md)
+  - [CREATE MESSAGE DEFINITION COLLECTION](reference/integration/create-message-definition-collection.md)
+  - [CREATE MESSAGE DEFINITION](reference/integration/create-message-definition.md)
   - [CREATE IMPORT MAPPING](reference/integration/create-import-mapping.md)
   - [CREATE EXPORT MAPPING](reference/integration/create-export-mapping.md)
   - [CREATE DATA TRANSFORMER](reference/integration/create-data-transformer.md)

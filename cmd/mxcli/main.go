@@ -125,6 +125,16 @@ beta language; --mdl 0 starts them in the alpha language, and in the REPL an
 				fmt.Fprintf(os.Stderr, "Using project: %s\n", discovered)
 			}
 		}
+		// A binary older than the mxcli that wrote this project's tooling is
+		// the cause of failures that otherwise read as project defects: a
+		// CLAUDE.md asking for statements this parser lacks, lint rules
+		// reading fields this binary does not expose (ako/mxcli#952). Once,
+		// on stderr, so it cannot corrupt --json or piped output. `init`
+		// reports the same skew itself, in the terms of what it will do.
+		if cmd != initCmd {
+			projectPath, _ = cmd.Flags().GetString("project")
+			warnIfToolingNewer(os.Stderr, projectPath)
+		}
 		globalJSONFlag, _ = cmd.Flags().GetBool("json")
 		globalMCPURL, _ = cmd.Flags().GetString("mcp")
 		globalMCPDial, _ = cmd.Flags().GetString("mcp-dial")
@@ -370,6 +380,7 @@ func init() {
 	reportCmd.Flags().StringP("format", "f", "markdown", "Output format: markdown, json, html")
 	reportCmd.Flags().StringP("output", "o", "", "Output file path (default: stdout)")
 	reportCmd.Flags().StringSliceP("exclude", "e", nil, "Modules to exclude from report")
+	reportCmd.Flags().StringSliceP("modules", "m", nil, "Only score the specified modules (comma-separated or repeated)")
 
 	// Graph-report command flags
 	graphReportCmd.Flags().StringP("format", "f", "markdown", "Output format: markdown, json")

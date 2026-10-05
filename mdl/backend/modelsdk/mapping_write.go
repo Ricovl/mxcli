@@ -138,7 +138,12 @@ func importMappingToGen(im *model.ImportMapping) element.Element {
 	addStr(g, "ExportLevel", orDefault(im.ExportLevel, "Hidden"))
 	addStr(g, "JsonStructure", im.JsonStructure)
 	addStr(g, "XmlSchema", im.XmlSchema)
-	addStr(g, "MessageDefinition", im.MessageDefinition)
+	// MessageDefinition is carried the same way: Mendix 11.15 removed the key
+	// (the source moved to MessageDefinition2), so an 11.15 document must not
+	// get it back (ako/mxcli#987). nil means absent.
+	if im.MessageDefinition != nil {
+		addStr(g, "MessageDefinition", *im.MessageDefinition)
+	}
 	// MessageDefinition2 is CARRIED, never invented: gen records it as Introduced
 	// 11.10.0, so a document written before then does not have it and adding one
 	// is the shape CLAUDE.md's overlay rule warns about (mxbuild tolerates an
@@ -350,7 +355,12 @@ func exportMappingToGen(em *model.ExportMapping) element.Element {
 	addStr(g, "ExportLevel", orDefault(em.ExportLevel, "Hidden"))
 	addStr(g, "JsonStructure", em.JsonStructure)
 	addStr(g, "XmlSchema", em.XmlSchema)
-	addStr(g, "MessageDefinition", em.MessageDefinition)
+	// MessageDefinition is carried the same way: Mendix 11.15 removed the key
+	// (the source moved to MessageDefinition2), so an 11.15 document must not
+	// get it back (ako/mxcli#987). nil means absent.
+	if em.MessageDefinition != nil {
+		addStr(g, "MessageDefinition", *em.MessageDefinition)
+	}
 	// MessageDefinition2 is CARRIED, never invented: gen records it as Introduced
 	// 11.10.0, so a document written before then does not have it and adding one
 	// is the shape CLAUDE.md's overlay rule warns about (mxbuild tolerates an

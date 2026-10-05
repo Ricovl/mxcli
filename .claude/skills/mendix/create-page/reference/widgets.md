@@ -385,6 +385,8 @@ column (caption: 'Actions') {
 | `datasource: $currentObject/Module.Assoc` | Sugar for `association` — same semantics, reads more naturally |
 | `datasource: database from $Ctx/Module.Assoc/Module.Entity [where …] [sort by …] [search by …]` | **List view only.** A *database* retrieve of what the association reaches — keeps XPath, sort and search, which the association source above does not have. Name the entity after each association (it may be a specialization of the association's end) |
 
+> **A list widget needs an association that yields a list.** A list view, data grid or gallery over `$currentObject/M.Assoc` is CE8812 ("A grid association path must result in a list") when the association is a Reference followed from its FROM entity, or a Reference with owner Both from either end (one-to-one). Use a data view for the single object, or a ReferenceSet. `check` reports it as MDL-ASSOCDS01. The reverse of a default Reference (from the TO entity) is a list and fine.
+
 **With WHERE and SORT BY (inline in DataSource):**
 ```sql
 datagrid dgActive (
@@ -481,7 +483,23 @@ radiobuttons rbStatus (label: 'Status', attribute: status)
 **DATEPICKER** - Date/time selection:
 ```sql
 datepicker dpCreated (label: 'Created Date', attribute: CreatedDate)
+-- DateFormat is the picker's MODE: Date (default), Time, DateTime, or Custom.
+-- A time-of-day or date-and-time field needs Time / DateTime, or it renders date-only.
+datepicker dpStart (label: 'Start', attribute: StartTime, DateFormat: DateTime)
+datepicker dpAt (label: 'At', attribute: StartTime, DateFormat: Custom, CustomDateFormat: 'dd-MM-yyyy HH:mm')
 ```
+`CustomDateFormat` needs `DateFormat: Custom` (written alone it is refused — it would
+never apply), and `DateFormat: Custom` needs a non-empty pattern (mxbuild CE0493).
+A pattern beside another explicit DateFormat is accepted: Studio Pro keeps it when the
+format is switched away from Custom, and `describe` prints it. Change an existing
+picker with `alter page … { set (DateFormat: DateTime) on dpStart; }`.
+
+**TEXTBOX numeric formatting** — on a Decimal/Integer/Long attribute:
+```sql
+textbox tbAmount (label: 'Amount', attribute: Amount, DecimalPrecision: 2, GroupDigits: true)
+```
+A text box binds no dates (CE2421), so `DateFormat` on it is dropped and warned about
+(MDL-WIDGET07), as on any widget other than a date picker.
 
 **COMBOBOX** - Combo box (pluggable widget):
 ```sql
@@ -749,7 +767,9 @@ the React client — which Mendix added in **10.7** and which is the only client
 widget, which takes the same `Image:`; Studio Pro offers the conversion from the
 CE0582 error's context menu. mxcli still writes it, because round-tripping a
 model that already contains one is the point — and `mxcli lint` reports it as
-**MPR012** so a new page does not reach for it by accident.
+**MPR012** so a new page does not reach for it by accident. A page on a **native**
+layout (e.g. `Atlas_Core.NativePhone_Default`) is not rendered by the React client:
+mxbuild builds a `staticimage` there clean, and MPR012 stays silent on it.
 
 #### `DataSource:` — which object a DYNAMICIMAGE shows
 
@@ -1013,7 +1033,9 @@ controlbar {
 **A control bar is not row-scoped.** It sits above the rows, so the grid's
 current object is not in scope there — an action calling a flow with a parameter
 gets **CE1571** unless you give it an argument, and `$currentObject` is unbound
-(`mxcli check` reports MDL-BUTTON01). The remedy is the grid's **selection**,
+(`mxcli check` reports MDL-BUTTON01). The exception is a grid nested inside a
+data view or list view item: there `$currentObject` is the *enclosing* object,
+not a grid row, and it builds clean. The remedy is the grid's **selection**,
 addressed by the widget's own name and available once `selection:` is set:
 
 ```sql

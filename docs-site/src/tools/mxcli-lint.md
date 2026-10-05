@@ -89,6 +89,18 @@ mxcli lint -p app.mpr --format json | jq 'group_by(.severity) | map({severity: .
 mxcli lint -p app.mpr --format json | jq '[.[] | select(.severity == "error")]'
 ```
 
+## Rules That Fail
+
+A Starlark rule that reads a struct field this mxcli does not expose — usually a
+rule written for a newer mxcli — is reported at **info** level as
+`rule <ID> needs a newer mxcli (<detail>)`, not as an error. Any other rule
+failure is an error (`Starlark rule error: …`). A rule's configured severity in
+`lint-config.yaml` applies to its findings, never to its failure. `mxcli report`
+keeps all rule failures out of the score.
+
+A rule file that does not load at all (for example, one calling a builtin this
+mxcli lacks) is skipped with a warning on stderr.
+
 ## Exit Codes
 
 | Code | Meaning |

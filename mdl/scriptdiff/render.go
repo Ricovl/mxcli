@@ -47,6 +47,7 @@ var describeKinds = map[string]ast.DescribeObjectType{
 	"DatabaseConnector$DatabaseConnection":           ast.DescribeDatabaseConnection,
 	"DataTransformers$DataTransformer":               ast.DescribeDataTransformer,
 	"MessageDefinitions$MessageDefinitionCollection": ast.DescribeMessageDefinitionCollection,
+	"MessageDefinitions$MessageDefinition2":          ast.DescribeMessageDefinition,
 	"Navigation$NavigationDocument":                  ast.DescribeNavigation,
 	"Settings$ProjectSettings":                       ast.DescribeSettings,
 	"Projects$ModuleImpl":                            ast.DescribeModule,

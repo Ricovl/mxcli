@@ -44,6 +44,22 @@ func (r *Reader) GetRawUnit(id model.ID) (map[string]any, error) {
 	return raw, nil
 }
 
+// RawDocumentMap decodes one BSON document into the legacy map shape GetRawUnit
+// returns (nested map[string]any / []any, binaries as v1 primitive.Binary), for
+// a raw-BSON consumer handed an element rather than a whole unit — a navigation
+// menu item's client action, which describe renders with the same code a
+// button's goes through (ako/mxcli#980).
+func RawDocumentMap(contents []byte) (map[string]any, error) {
+	var raw map[string]any
+	if err := bson.Unmarshal(contents, &raw); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal BSON: %w", err)
+	}
+	for k, v := range raw {
+		raw[k] = normalizeBSONValue(v)
+	}
+	return raw, nil
+}
+
 // normalizeBSONValue recursively converts bson.D → map[string]any and bson.A →
 // []any so raw-BSON consumers written against the legacy (bson v1) shape work
 // unchanged against the modelsdk (bson v2) reader.

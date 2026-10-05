@@ -48,6 +48,19 @@ type Stats struct {
 	// The signal that a source string was edited after the file was written —
 	// see SuggestDrift.
 	Unmatched []string
+	// Written lists every unit Apply wrote, with what it changed there, in
+	// walk order. A caller that has to say WHERE the writes landed — an
+	// unscoped run reaching into Marketplace modules (ako/mxcli#970) — needs
+	// the unit, not just the total.
+	Written []UnitWrite
+}
+
+// UnitWrite is one unit Apply wrote.
+type UnitWrite struct {
+	ID      model.ID
+	Type    string // the unit's stored $Type, e.g. "Forms$PageTemplate"
+	Set     int
+	Removed int
 }
 
 // Collect returns every translatable text in scope, deduplicated by source
@@ -158,6 +171,7 @@ func Apply(p Project, sourceLang, lang string, dict Dictionary, mode Mode, scope
 		stats.Set += us.Set
 		stats.Removed += us.Removed
 		stats.Units++
+		stats.Written = append(stats.Written, UnitWrite{ID: u.ID, Type: u.Type, Set: us.Set, Removed: us.Removed})
 		for _, s := range us.RemovedSources {
 			removed[s] = true
 		}

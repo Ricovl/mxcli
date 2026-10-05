@@ -167,7 +167,7 @@ func TestEnsureWebClientBundleSkipsClassic(t *testing.T) {
 // rather than removed it. appURL is deliberately unreachable: reaching the probe
 // at all is the defect.
 func TestEnsureClientServedSkipsClassic(t *testing.T) {
-	if err := ensureClientServed(classicDeployment(t), "http://127.0.0.1:1", "", io.Discard); err != nil {
+	if err := ensureClientServed(classicDeployment(t), "http://127.0.0.1:1", bogusOneShot(""), io.Discard); err != nil {
 		t.Fatalf("classic deployment must not be probed for a bundle it has no concept of: %v", err)
 	}
 }

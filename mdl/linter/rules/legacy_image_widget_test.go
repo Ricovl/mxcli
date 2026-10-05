@@ -2,7 +2,13 @@
 
 package rules
 
-import "testing"
+import (
+	"database/sql"
+	"testing"
+
+	"github.com/mendixlabs/mxcli/mdl/catalog"
+	"github.com/mendixlabs/mxcli/mdl/linter"
+)
 
 // The two legacy image widgets are not supported by the React client, which
 // Mendix added in 10.7 and which is the only client on 11. mxbuild reports
@@ -74,5 +80,54 @@ func TestLegacyImageWidgetRule_Identity(t *testing.T) {
 	}
 	if r.Name() == "" || r.Description() == "" {
 		t.Error("a rule with no name or description cannot be configured or explained")
+	}
+}
+
+// ako/mxcli#953 item 3: CE0582 is the REACT client's error, and a native page
+// is not rendered by it. Measured on mxbuild 11.13.0 (JTSBootLogboek): a
+// staticimage on a page with layout Atlas_Core.NativePhone_Default builds
+// clean, the same widget on an Atlas_Default page is CE0582. The layout's
+// platform is what tells them apart — note that the native layout lives in a
+// Marketplace module (Atlas_Core), so the lookup must not apply the
+// platform-module filter the iterators use. The web page is the control.
+func TestLegacyImageWidgetRule_SkipsNativePages(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for _, stmt := range []string{
+		`CREATE TABLE modules (Id TEXT, Name TEXT PRIMARY KEY, Source TEXT)`,
+		`INSERT INTO modules VALUES ('m1', 'MyFirstModule', ''), ('m2', 'Atlas_Core', 'Atlas_Core.mpk')`,
+		`CREATE TABLE layouts (Id TEXT, Name TEXT, QualifiedName TEXT, ModuleName TEXT, Folder TEXT,
+			LayoutType TEXT, Platform TEXT, Description TEXT)`,
+		`INSERT INTO layouts VALUES
+			('l1', 'Atlas_Default', 'Atlas_Core.Atlas_Default', 'Atlas_Core', '', 'Responsive', 'Web', ''),
+			('l2', 'NativePhone_Default', 'Atlas_Core.NativePhone_Default', 'Atlas_Core', '', 'Default', 'Native', '')`,
+		`CREATE TABLE pages (Id TEXT, Name TEXT, QualifiedName TEXT, ModuleName TEXT, Folder TEXT,
+			Title TEXT, URL TEXT, LayoutRef TEXT, Description TEXT, WidgetCount INTEGER)`,
+		`INSERT INTO pages VALUES
+			('p1', 'Logboek_Images', 'MyFirstModule.Logboek_Images', 'MyFirstModule', '', '', '', 'Atlas_Core.Atlas_Default', '', 1),
+			('p2', 'Login_Native', 'MyFirstModule.Login_Native', 'MyFirstModule', '', '', '', 'Atlas_Core.NativePhone_Default', '', 1)`,
+		`CREATE TABLE widgets (Id TEXT, Name TEXT, WidgetType TEXT, ContainerId TEXT, ContainerQualifiedName TEXT,
+			ContainerType TEXT, ModuleName TEXT, EntityRef TEXT, AttributeRef TEXT, MicroflowRef TEXT, NanoflowRef TEXT,
+			PageRef TEXT, ParentWidgetId TEXT, Depth INTEGER, Class TEXT, Style TEXT, DynamicClasses TEXT,
+			ActionType TEXT, HasConfirmation INTEGER)`,
+		`INSERT INTO widgets (Id, Name, WidgetType, ContainerId, ContainerQualifiedName, ContainerType,
+			ModuleName, EntityRef, AttributeRef, MicroflowRef, NanoflowRef) VALUES
+			('w1', 'imgWith', 'Forms$StaticImageViewer', 'p1', 'MyFirstModule.Logboek_Images', 'PAGE', 'MyFirstModule', '', '', '', ''),
+			('w2', 'imgNative', 'Forms$StaticImageViewer', 'p2', 'MyFirstModule.Login_Native', 'PAGE', 'MyFirstModule', '', '', '', '')`,
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	violations := NewLegacyImageWidgetRule().Check(linter.NewLintContextFromDB(catalog.WrapSqlDB(db)))
+	if len(violations) != 1 || violations[0].Location.DocumentName != "Logboek_Images" {
+		var got []string
+		for _, v := range violations {
+			got = append(got, v.Location.DocumentName)
+		}
+		t.Fatalf("want only the web page Logboek_Images reported, got %v", got)
 	}
 }

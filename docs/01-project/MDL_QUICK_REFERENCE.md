@@ -904,6 +904,7 @@ alter workflow Module.OrderApproval {
 | Show menu tree | `list navigation menu [Profile];` | Menu tree for profile or all |
 | Show home pages | `list navigation homes;` | Home page assignments across profiles |
 | Describe navigation | `describe navigation [Profile];` | Full MDL output (round-trippable) |
+| Native home | `home nanoflow Mod.Flow` | A native profile's flow home; mxcli writes a native profile's home pages and sync only |
 | Create/replace navigation | `create or replace navigation Profile ...;` | Full replacement — and **creates** the profile if the project does not have it |
 | Offline sync | `sync ( sync Mod.Entity all; ... )` | A clause of CREATE NAVIGATION. Modes: `online`, `all`, `where '<xpath>'`, `never`, `none`, `none preserve data`. **Not** Studio Pro's captions — its "All Objects" is `all`, its "By XPath" is `where`. An offline profile downloads nothing without this |
 | Profile kinds | `Responsive` · `Phone` · `Tablet` · `ResponsiveOffline` · `PhoneOffline` · `TabletOffline` | A closed set. An invented name (`Mobile`) is an error, not a new profile: the runtime routes on User-Agent to Mendix's own kinds. Native profiles are a different document type and are not creatable |
@@ -911,7 +912,9 @@ alter workflow Module.OrderApproval {
 
 Menu items are the profile's children, in `{ }` after its clauses, with no `;`
 between them: `menu item 'Caption' ( OnClick: show page M.P, Icon: … )`, where
-`OnClick` is `show page M.P`, `call microflow M.F` or `sign out`, and a sub-menu
+`OnClick` is a button's action expression with its `with ( … )` settings —
+`show page M.P`, `call microflow M.F`, `call nanoflow M.N`, `open link '…'`,
+`create object M.E [then show page M.P]`, `sign out` or `nothing` — and a sub-menu
 is `menu 'Caption' [( Icon: … )] { … }`. The old `menu ( menu item 'X' page M.P; )`
 spelling still parses and warns (MDL-DEPR121, MDL-DEPR122).
 
@@ -1675,6 +1678,14 @@ dynamictext due (content: '{1}', contentparams: ({1} = DueOn  format (dateFormat
 ```
 Keys: `decimalPrecision` (int), `groupDigits` (bool), `dateFormat` (`Date`|`DateTime`|`Time`|`Custom`), `customDateFormat` (pattern, with `dateFormat: Custom`), `enumFormat` (`Text`|`Image`).
 
+**Input widget formatting** — the same fields as widget properties on the widgets that store a FormattingInfo:
+```sql
+datepicker dpStart (label: 'Start', attribute: StartTime, DateFormat: DateTime)          -- Date | Time | DateTime | Custom
+datepicker dpAt (label: 'At', attribute: StartTime, DateFormat: Custom, CustomDateFormat: 'dd-MM-yyyy HH:mm')
+textbox tbAmount (label: 'Amount', attribute: Amount, DecimalPrecision: 2, GroupDigits: true)
+```
+A date picker's `DateFormat` is its mode (time / date-time picker). `CustomDateFormat` requires an explicit `DateFormat` (and `Custom` requires a pattern — mxbuild CE0493); both are checked as MDL-WIDGET18. `alter page … { set (DateFormat: Time) on dp; }` changes them in place.
+
 ## ALTER PAGE / ALTER SNIPPET
 
 Modify an existing page or snippet's widget tree in-place without full `create or replace`. Works directly on the raw BSON tree, preserving unsupported widget types.
@@ -1839,8 +1850,8 @@ Bulk translation of every user-visible string, one file per language. Entries us
 
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
-| Describe | `describe translations [in Module] for <lang>;` | Emits the CREATE form; an untranslated string comes back with an **empty** target, which is what makes the output an LLM prompt |
-| Create | `create translations [in Module] for <lang> ( 'src' as 'target', ... );` | The language is the thing that exists — **errors** if it already has translations |
+| Describe | `describe translations [in Module \| without marketplace] for <lang>;` | Emits the CREATE form; an untranslated string comes back with an **empty** target, which is what makes the output an LLM prompt |
+| Create | `create translations [in Module \| without marketplace] for <lang> ( 'src' as 'target', ... );` | The language is the thing that exists — **errors** if it already has translations. Without `in`, the run reaches Marketplace modules too and **warns** with a per-module count (an update replaces them); `without marketplace` keeps it to the app's own modules |
 | Merge | `create or modify translations ...` | A source the file does not name is left alone |
 | Replace | `create or replace translations ...` | The file is authoritative: a translation whose source it does not name is **REMOVED**, and the run says which. `in Module` **bounds** the deletion |
 | Remove a language's translations | `create or replace translations [in Module] for <lang> ( );` | An empty file is authoritative over nothing, so everything in scope goes — the only way to take a language's translations out of the model |

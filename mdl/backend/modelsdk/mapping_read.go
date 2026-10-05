@@ -39,7 +39,7 @@ func (b *Backend) ListImportMappings() ([]*model.ImportMapping, error) {
 			ExportLevel:        g.ExportLevel(),
 			JsonStructure:      g.JsonStructureQualifiedName(),
 			XmlSchema:          g.XmlSchemaQualifiedName(),
-			MessageDefinition:  g.MessageDefinitionQualifiedName(),
+			MessageDefinition:  optionalStringFromRaw(g.Raw(), "MessageDefinition"),
 			ParameterEntity:    parameterEntityFromRaw(g.Raw()),
 			MessageDefinition2: messageDefinition2FromRaw(g.Raw()),
 			WebServiceSource: model.WebServiceMappingSource{
@@ -80,7 +80,7 @@ func (b *Backend) ListExportMappings() ([]*model.ExportMapping, error) {
 			ExportLevel:        g.ExportLevel(),
 			JsonStructure:      g.JsonStructureQualifiedName(),
 			XmlSchema:          g.XmlSchemaQualifiedName(),
-			MessageDefinition:  g.MessageDefinitionQualifiedName(),
+			MessageDefinition:  optionalStringFromRaw(g.Raw(), "MessageDefinition"),
 			NullValueOption:    g.NullValueOption(),
 			MessageDefinition2: messageDefinition2FromRaw(g.Raw()),
 			// ParameterName and IsHeader are export-only: which SOAP message
@@ -457,10 +457,18 @@ func parameterEntityFromRaw(raw bson.Raw) string {
 // mistake (Studio Pro then refuses to open it). Present-and-empty — which is
 // what a blank 11.13 app's own mappings store — returns a pointer to "".
 func messageDefinition2FromRaw(raw bson.Raw) *string {
+	return optionalStringFromRaw(raw, "MessageDefinition2")
+}
+
+// optionalStringFromRaw reads a string key whose PRESENCE is version-dependent:
+// nil when the stored document does not have the key. MessageDefinition is the
+// other one — Mendix 11.15 removed it from every mapping (ako/mxcli#987), so a
+// rebuild has to know whether the stored document had it.
+func optionalStringFromRaw(raw bson.Raw, key string) *string {
 	if raw == nil {
 		return nil
 	}
-	v, err := raw.LookupErr("MessageDefinition2")
+	v, err := raw.LookupErr(key)
 	if err != nil {
 		return nil
 	}

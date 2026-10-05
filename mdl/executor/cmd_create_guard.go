@@ -193,6 +193,8 @@ func createGuardTargetOf(stmt ast.Statement) (createGuardTarget, bool) {
 		return doc("json structure", s.Name, func(ctx *ExecContext) (any, error) { return ctx.Backend.ListJsonStructures() })
 	case *ast.CreateMessageDefinitionCollectionStmt:
 		return doc("message definition collection", s.Name, func(ctx *ExecContext) (any, error) { return ctx.Backend.ListMessageDefinitionCollections() })
+	case *ast.CreateMessageDefinitionStmt:
+		return doc("message definition", s.Name, func(ctx *ExecContext) (any, error) { return ctx.Backend.ListMessageDefinitionDocuments() })
 	case *ast.CreateImportMappingStmt:
 		return doc("import mapping", s.Name, func(ctx *ExecContext) (any, error) { return ctx.Backend.ListImportMappings() })
 	case *ast.CreateExportMappingStmt:

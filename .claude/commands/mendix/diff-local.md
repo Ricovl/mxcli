@@ -122,6 +122,9 @@ Summary: 2 new, 3 modified, 1 deleted
 - Use `--format side` when comparing large objects with subtle differences
 - Use `--ref HEAD~5` to see what changed in the last 5 commits
 - Use `--ref feature-branch` to compare against a different branch
+- After restoring a `.mxunit` with `git checkout`/`git restore`, run
+  `mxcli fix hashes -p app.mpr --repair`: git does not update the `.mpr`'s
+  ContentsHash index, and `mx check` does not notice the stale entry
 
 ## Requirements
 

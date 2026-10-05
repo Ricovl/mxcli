@@ -8,11 +8,14 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/mendixlabs/mxcli/modelsdk/codec"
+	"github.com/mendixlabs/mxcli/modelsdk/gen/pages"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
@@ -82,6 +85,23 @@ func docRowValues(t *testing.T, doc, field string) []string {
 	return out
 }
 
+// docSectionRowValues is docRowValues restricted to one "### <section>" of the
+// doc, for a field name two structs share: widget.action_type and
+// activity.action_type hold different vocabularies, and the first row in the
+// file would otherwise answer for both.
+func docSectionRowValues(t *testing.T, doc, section, field string) []string {
+	t.Helper()
+	start := strings.Index(doc, "\n### "+section+"\n")
+	if start < 0 {
+		t.Fatalf("no \"### %s\" section in write-lint-rules — renamed or removed, which silently disables this check", section)
+	}
+	body := doc[start+1:]
+	if end := strings.Index(body[4:], "\n### "); end >= 0 {
+		body = body[:end+4]
+	}
+	return docRowValues(t, body, field)
+}
+
 func assertDocumentedValuesExist(t *testing.T, field string, documented []string, real map[string]bool, produced string) {
 	t.Helper()
 	for _, v := range documented {
@@ -141,7 +161,7 @@ func microflowActionLabels(t *testing.T) map[string]bool {
 func TestSkillDocumentsRealActionTypes(t *testing.T) {
 	doc := lintRuleSkillDoc(t)
 	assertDocumentedValuesExist(t, "action_type",
-		docRowValues(t, doc, "action_type"),
+		docSectionRowValues(t, doc, "activity", "action_type"),
 		microflowActionLabels(t),
 		"getMicroflowActionType")
 }
@@ -225,26 +245,31 @@ func TestSkillDocumentsRealAttributeDataTypes(t *testing.T) {
 		docRowValues(t, doc, "data_type"), real, "AttributeType.GetTypeName")
 }
 
-// TestSkillDocumentsRealRefKinds covers ref_kind, which documents no examples
-// today. Whatever it documents must be a kind buildReferences emits.
+// TestSkillDocumentsRealRefKinds pins the ref_kind row both ways: whatever it
+// documents must be a kind buildReferences emits, and every RefKind constant
+// must be documented — read from the declarations, so a new kind (commit,
+// ako/mxcli#963) cannot ship without a line a rule author can find.
 func TestSkillDocumentsRealRefKinds(t *testing.T) {
 	doc := lintRuleSkillDoc(t)
 
+	declared := constantsWithPrefix(t, "builder_references.go", "RefKind")
+	// CONTROL: a scan that collected nothing would pass whatever the row said.
+	if len(declared) < 20 {
+		t.Fatalf("found only %d RefKind* constants — the scan is broken", len(declared))
+	}
 	real := map[string]bool{}
-	for _, k := range []string{
-		RefKindCall, RefKindCreate, RefKindRetrieve, RefKindShowPage,
-		RefKindGeneralize, RefKindAssociate, RefKindLayout, RefKindDatasource,
-		RefKindParameter, RefKindAction, RefKindHomePage, RefKindLoginPage,
-		RefKindMenuItem, RefKindChange, RefKindDelete, RefKindCalculate,
-		RefKindReturn, RefKindSchedule, RefKindValidate, RefKindSettings,
-		RefKindWidget, RefKindSync, RefKindPublish, RefKindEvent,
-		RefKindMember, RefKindXPath, RefKindType, RefKindValue, RefKindMapping,
-	} {
-		real[k] = true
+	for _, v := range declared {
+		real[v] = true
 	}
 
-	assertDocumentedValuesExist(t, "ref_kind",
-		docRowValues(t, doc, "ref_kind"), real, "buildReferences")
+	documented := docRowValues(t, doc, "ref_kind")
+	assertDocumentedValuesExist(t, "ref_kind", documented, real, "buildReferences")
+
+	for name, v := range declared {
+		if !slices.Contains(documented, v) {
+			t.Errorf("%s = %q is emitted but the skill's ref_kind row does not document it", name, v)
+		}
+	}
 }
 
 // TestEveryObjectTypeConstantIsInAPublishedList is the other half of the pin.
@@ -404,6 +429,58 @@ func TestSkillDocumentsRealActivityPropertyVocabulary(t *testing.T) {
 		r := describeFlowObject(&microflows.ActionActivity{Action: &microflows.RetrieveAction{Source: src}})
 		if r.retrieveSource != want {
 			t.Errorf("builder writes retrieve_source %q for %T, want %q", r.retrieveSource, src, want)
+		}
+	}
+}
+
+// widget.action_type is the RAW stored $Type of a widget's primary action
+// (mendixlabs/mxcli#1268). The issue's own example compared it to
+// "DeleteAction", which no widget stores — the storage name is
+// "Forms$DeleteClientAction" — so a rule written from memory matched nothing
+// and passed. Every documented value must be a client-action storage name the
+// codec knows.
+func TestSkillDocumentsRealWidgetActionTypes(t *testing.T) {
+	documented := docSectionRowValues(t, lintRuleSkillDoc(t), "widget", "action_type")
+	real := map[string]bool{"": true} // a widget with no action property
+	for _, v := range documented {
+		if _, ok := codec.DefaultRegistry.Lookup(v); ok && strings.HasPrefix(v, "Forms$") && strings.HasSuffix(v, "Action") {
+			real[v] = true
+		}
+	}
+	// CONTROL: the lookup must accept the stored name and refuse the
+	// qualified-looking one, or the set above proves nothing.
+	if _, ok := codec.DefaultRegistry.Lookup("Forms$DeleteClientAction"); !ok {
+		t.Fatal("codec registry does not know Forms$DeleteClientAction — the lookup is broken")
+	}
+	if _, ok := codec.DefaultRegistry.Lookup("DeleteAction"); ok {
+		t.Fatal("codec registry accepts the bare \"DeleteAction\" — the lookup is not a vocabulary")
+	}
+	assertDocumentedValuesExist(t, "widget.action_type", documented, real, "widgetPrimaryAction")
+	if !slices.Contains(documented, "Forms$DeleteClientAction") {
+		t.Error("widget.action_type does not document Forms$DeleteClientAction, the value the delete-button rule needs")
+	}
+}
+
+// The skill tells rule authors that a delete action has no confirmation, so
+// has_confirmation is always false for one, and that only microflow, nanoflow
+// and workflow calls carry one. That is a fact about the metamodel, pinned here
+// so that a Mendix version adding one to the delete action fails this test
+// instead of leaving the documented rule quietly wrong.
+func TestWidgetConfirmationOnlyOnFlowCalls(t *testing.T) {
+	has := func(v any) bool {
+		_, ok := reflect.TypeOf(v).MethodByName("ConfirmationInfo")
+		return ok
+	}
+	if has(&pages.DeleteClientAction{}) {
+		t.Error("Forms$DeleteClientAction now has a ConfirmationInfo — widgetPrimaryAction and the skill's delete rule need revisiting")
+	}
+	for name, v := range map[string]any{
+		"MicroflowSettings":        &pages.MicroflowSettings{},
+		"CallNanoflowClientAction": &pages.CallNanoflowClientAction{},
+		"CallWorkflowClientAction": &pages.CallWorkflowClientAction{},
+	} {
+		if !has(v) {
+			t.Errorf("%s has no ConfirmationInfo — widgetPrimaryAction reads it there", name)
 		}
 	}
 }

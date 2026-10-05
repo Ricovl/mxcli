@@ -207,8 +207,9 @@ return $Found;
 
 **Error**: CE0111 - "Duplicate variable name 'X'." (MDL063)
 
-A microflow's variable names are unique **flow-wide**. Branches and loop bodies
-do not open a scope, and parameters and loop iterators share the same namespace.
+A microflow's (and a nanoflow's) variable names are unique **flow-wide**.
+Branches and loop bodies do not open a scope, and parameters and loop iterators
+share the same namespace.
 The trap is that every activity with an output **creates** its variable — there
 is no form in which a call, a retrieve, an aggregate or an import mapping writes
 into one that already exists.
@@ -231,6 +232,14 @@ activity and creates nothing:
 declare $Session string = '';
 set $Session = 'anonymous';   -- valid, any number of times
 ```
+
+A call to a Java or JavaScript action that returns **Void** creates nothing
+either, whatever output name it carries — Studio Pro keeps one on such calls
+(a JavaScript action's is named after the action, e.g. `$RefreshEntity`), and
+two of them in one flow build clean. `describe` keeps printing the stored name
+so a round trip does not change the model. The name is not a variable: using
+`$RefreshEntity` afterwards is CE0109 "Undefined variable" (MDL093 — `check`
+reports it when the script or, with `-p`, the project says the action is void).
 
 ### 10. Calling a Rule or Microflow Inside an Expression
 

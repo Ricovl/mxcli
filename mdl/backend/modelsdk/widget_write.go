@@ -116,6 +116,11 @@ func init() {
 		})
 	}
 	codec.RegisterListMarker("Forms$LayoutGrid", 2)
+	// A navigation-list item carries a null ConditionalVisibilitySettings: six of
+	// six in ako/TestApp at 11.14.0 (ako/mxcli#950).
+	codec.RegisterTypeDefaults("Forms$NavigationListItem", codec.TypeDefaults{
+		NullFields: []string{"ConditionalVisibilitySettings"},
+	})
 	codec.RegisterListMarker("Forms$LayoutGridRow", 2)
 	codec.RegisterListMarker("Forms$LayoutGridColumn", 2)
 	// ActionButton: null Icon/visibility/accessibility slots; marker 2 as a widget.
@@ -193,7 +198,13 @@ func init() {
 	})
 	// A nanoflow client action carries its (possibly empty) parameter-mapping
 	// list directly and nulls its progress/confirmation slots. Bug 2.
+	//
+	// OutputMappings, marker 3 and empty, is on every one Studio Pro stores:
+	// 60 of 60 in ako/TestApp and 18 of 18 in PedApp at 11.14.0 — buttons and
+	// the navigation menu item alike. Its absence made a describe -> exec of a
+	// nanoflow menu item a rewrite (ako/mxcli#980).
 	codec.RegisterTypeDefaults("Forms$CallNanoflowClientAction", codec.TypeDefaults{
+		MandatoryLists:       []string{"OutputMappings"},
 		MandatoryListMarkers: map[string]int32{"ParameterMappings": 2},
 		NullFields:           []string{"ProgressMessage", "ConfirmationInfo"},
 	})
@@ -486,7 +497,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			g.SetSourceVariable(sv)
 		}
 		g.SetEditable(pages.WidgetEditability(&x.BaseWidget))
-		g.SetFormattingInfo(newFormattingInfo())
+		g.SetFormattingInfo(formattingInfoToGen(x.FormattingInfo))
 		g.SetInputMask("")
 		g.SetIsPasswordBox(x.IsPassword)
 		g.SetKeyboardType("Default")
@@ -622,7 +633,10 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			g.SetSourceVariable(sv)
 		}
 		g.SetEditable(pages.WidgetEditability(&x.BaseWidget))
-		g.SetFormattingInfo(newFormattingInfo())
+		// The picker's format IS its mode: DateFormat Time or DateTime is what
+		// makes it a time / date-time picker. The defaults were hard-coded here,
+		// so every picker was written date-only (ako/mxcli#968).
+		g.SetFormattingInfo(formattingInfoToGen(x.FormattingInfo))
 		if x.Label != "" {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
@@ -937,7 +951,14 @@ func navListItemToGen(item *pages.NavigationListItem) (element.Element, error) {
 	// more than one item). The gen NavigationListItem type has no typed Name
 	// setter, so write it as a raw property (like the legacy writer's Name key).
 	// (ledger finding #24)
-	addStr(&g.Base, "Name", item.Name)
+	//
+	// An unnamed item is how Studio Pro stores every one it creates: no Name key
+	// at all (all six in ako/TestApp at 11.14.0), and `mx check` accepts that.
+	// Writing `Name: ""` for it turned a describe → exec of such a list into a
+	// rewrite (ako/mxcli#950).
+	if item.Name != "" {
+		addStr(&g.Base, "Name", item.Name)
+	}
 	g.SetAppearance(newAppearance("", "", "", nil))
 	act, err := clientActionToGen(item.Action)
 	if err != nil {
@@ -1322,12 +1343,6 @@ func inputSourceVariableToGen(sv *pages.WidgetVariable) element.Element {
 		return nil
 	}
 	return pageVariableToGen(sv.Widget, sv.Variable, sv.Kind)
-}
-
-// newFormattingInfo builds the default Forms$FormattingInfo (matches the legacy
-// serializer; TimeFormat is intentionally omitted — it triggers CE0463).
-func newFormattingInfo() element.Element {
-	return formattingInfoToGen(nil)
 }
 
 // formattingInfoToGen builds a Forms$FormattingInfo, using the parameter's

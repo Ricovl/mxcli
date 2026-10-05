@@ -106,7 +106,7 @@ func TestQUAL004EntryKindsAreRealRefKinds(t *testing.T) {
 		RefKindParameter, RefKindAction, RefKindHomePage, RefKindLoginPage,
 		RefKindMenuItem, RefKindChange, RefKindDelete, RefKindCalculate,
 		RefKindReturn, RefKindSchedule, RefKindValidate, RefKindSettings,
-		RefKindWidget, RefKindSync, RefKindPublish, RefKindEvent,
+		RefKindWidget, RefKindSync, RefKindPublish, RefKindEvent, RefKindCommit,
 	} {
 		known[k] = true
 	}

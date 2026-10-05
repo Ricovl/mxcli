@@ -256,6 +256,11 @@ Examples:
 		} else {
 			fmt.Printf("\nStep 5/7: Skipped (--skip-init)\n")
 		}
+		// mdlsource/ is where scripts go whatever tooling was chosen — init
+		// creates it too, this covers --skip-init (ako/mxcli#952).
+		if _, err := ensureMdlsourceDir(absDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: creating mdlsource/: %v\n", err)
+		}
 
 		// Align the project's Java version with what mxcli can build and run
 		// BEFORE the first build, or that build is the thing that fails: Mendix

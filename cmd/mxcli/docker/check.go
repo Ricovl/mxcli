@@ -21,8 +21,9 @@ type CheckOptions struct {
 	MxBuildPath string
 
 	// SkipUpdateWidgets skips the 'mx update-widgets' step before checking.
-	// By default, update-widgets runs first to normalize pluggable widget
-	// definitions and prevent false CE0463 errors.
+	// By default, update-widgets runs first, on the temporary copy the check
+	// uses, to normalize pluggable widget definitions and prevent false CE0463
+	// errors.
 	SkipUpdateWidgets bool
 
 	// Stdout for output messages.
@@ -56,7 +57,24 @@ func copyFile(src, dst string) error {
 	return out.Close()
 }
 
+// resolveMxForCheck and mxCheckCmd are seams for tests, which substitute stubs
+// that behave like the real tools without needing mx.
+var resolveMxForCheck = ResolveMxForVersion
+
+var mxCheckCmd = func(mxPath, mprPath string, args []string, w, stderr io.Writer) error {
+	cmd := exec.Command(mxPath, append([]string{"check", mprPath}, args...)...)
+	cmd.Stdout = w
+	cmd.Stderr = stderr
+	PrepareMxCommand(cmd)
+	return cmd.Run()
+}
+
 // Check runs 'mx check' on the project to validate it before building.
+//
+// It never modifies the project. `mx update-widgets` rewrites the model (and
+// turns an MPRv2 project into MPRv1), and `mx check` itself writes theme-cache/
+// and deployment/sass/ — so both run on a temporary copy, and what mx prints is
+// reported against the project's own paths (ako/mxcli#951).
 func Check(opts CheckOptions) error {
 	w := opts.Stdout
 	if w == nil {
@@ -76,34 +94,91 @@ func Check(opts CheckOptions) error {
 		}
 	}
 
-	mxPath, err := ResolveMxForVersion(opts.MxBuildPath, projectVersion)
+	mxPath, err := resolveMxForCheck(opts.MxBuildPath, projectVersion)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(w, "Using mx: %s\n", mxPath)
 
-	// Normalize pluggable widget definitions so `mx check` does not report false
-	// CE0463 ("widget definition changed") errors. runUpdateWidgets preserves the
-	// project's on-disk storage format; restore is deferred so the check below still
-	// runs against the widget-normalized model.
+	projectPath := opts.ProjectPath
+	if abs, err := filepath.Abs(projectPath); err == nil {
+		projectPath = abs
+	}
+	workMpr, cleanup, err := copyProjectToTemp(projectPath)
+	if err != nil {
+		return fmt.Errorf("copy the project to a temporary directory for checking: %w\n"+
+			"  mx writes into the project it checks, so docker check never runs it on the original;\n"+
+			"  set TMPDIR to a disk with room for the project", err)
+	}
+	defer cleanup()
+	out := newPathRewriter(w, filepath.Dir(workMpr), filepath.Dir(projectPath))
+	errOut := newPathRewriter(stderr, filepath.Dir(workMpr), filepath.Dir(projectPath))
+	defer out.Flush()
+	defer errOut.Flush()
+	fmt.Fprintln(w, "Checking a temporary copy (mx writes into the project it checks; the project on disk is not changed).")
+
+	// Normalize pluggable widget definitions so `mx check` does not report
+	// CE0463 ("widget definition changed") for definitions that only need a
+	// resync. On the copy, so neither the model nor its storage format changes.
 	if !opts.SkipUpdateWidgets {
-		restore := runUpdateWidgets(mxPath, opts.ProjectPath, w, stderr)
-		defer restore()
+		fmt.Fprintln(w, "Normalising widget definitions on the temporary copy...")
+		if err := updateWidgetsCmd(mxPath, workMpr, out, errOut); err != nil {
+			out.Flush()
+			fmt.Fprintf(w, "Warning: update-widgets failed (continuing): %v\n", err)
+		}
 	}
 
 	// Run mx check
 	fmt.Fprintf(w, "Checking project %s...\n", opts.ProjectPath)
-	cmd := exec.Command(mxPath, "check", opts.ProjectPath)
-	cmd.Stdout = w
-	cmd.Stderr = stderr
-	PrepareMxCommand(cmd)
+	checkErr := mxCheckCmd(mxPath, workMpr, nil, out, errOut)
+	out.Flush()
+	errOut.Flush()
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("project check failed: %w", err)
+	if !opts.SkipUpdateWidgets {
+		// #568 / #646: the normalisation can hide a CE0463 the stored project
+		// still has, which then fails `run --local` and MxBuild.
+		fmt.Fprintln(w, "Note: widget definitions were normalised on a temporary copy before checking, so a")
+		fmt.Fprintln(w, "  CE0463 the stored project still has is not reported here; it fails MxBuild and")
+		fmt.Fprintln(w, "  `mxcli run --local`. Use --no-update-widgets to check the project as stored, and")
+		fmt.Fprintln(w, "  `mxcli fix widgets` to apply the normalisation to the project.")
+	}
+	if checkErr != nil {
+		return fmt.Errorf("project check failed: %w", checkErr)
 	}
 
 	fmt.Fprintln(w, "Project check passed.")
 	return nil
+}
+
+// MxCheckOnCopy runs `mx check <project> args...` on a temporary copy of the
+// project, so the check cannot write into it, and returns mx's error (a non-zero
+// exit when the project has errors). Output naming the copy is rewritten to name
+// the project. It does not run update-widgets: it checks the project as stored.
+//
+// Every caller that runs a plain `mx check` should go through this: mx check
+// writes theme-cache/ and deployment/sass/ into the project it is given — the TUI
+// checker and the eval runner each did, on every run (ako/mxcli#961).
+func MxCheckOnCopy(mxPath, mprPath string, args []string, stdout, stderr io.Writer) error {
+	if stdout == nil {
+		stdout = io.Discard
+	}
+	if stderr == nil {
+		stderr = io.Discard
+	}
+	projectPath, err := filepath.Abs(mprPath)
+	if err != nil {
+		return err
+	}
+	workMpr, cleanup, err := copyProjectToTemp(projectPath)
+	if err != nil {
+		return fmt.Errorf("copy the project to a temporary directory for mx check: %w", err)
+	}
+	defer cleanup()
+	out := newPathRewriter(stdout, filepath.Dir(workMpr), filepath.Dir(projectPath))
+	errOut := newPathRewriter(stderr, filepath.Dir(workMpr), filepath.Dir(projectPath))
+	defer out.Flush()
+	defer errOut.Flush()
+	return mxCheckCmd(mxPath, workMpr, args, out, errOut)
 }
 
 // mxBinaryName returns the platform-specific mx binary name.

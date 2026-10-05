@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/microflowgraph"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -831,131 +832,56 @@ func formatMicroflowActivities(
 	return append(microflowBodyWarnings(ctx, mf, labels, declaredCrossed), lines...)
 }
 
-// duplicateOutputVariableWarnings flags output-variable names that are assigned by
-// two activities which can BOTH run on a single execution path — i.e. one activity
-// reaches the other. Assignments in mutually-exclusive branches (then/else, enum
-// cases) are legal and not flagged.
+// duplicateOutputVariableWarnings flags output-variable names that two
+// activities of one flow both create.
 //
-// This uses reachability, which is O(V*E). The previous implementation enumerated
-// every execution path (cloning the visited set at each branch), which is O(2^b)
-// in the number of branch points and made `describe microflow` time out on
-// high-complexity flows — 20 sequential if/end-if diamonds already took ~10s
-// (issue #710). Microflow control flow is a DAG (loops are nested inside
-// LoopedActivity nodes, not back-edges), so reachability is exact and cheap.
-func duplicateOutputVariableWarnings(oc *microflows.MicroflowObjectCollection) []string {
-	warningPositions := make(map[string]model.Point)
-	record := func(name string, pos model.Point) {
-		if _, ok := warningPositions[name]; !ok {
-			warningPositions[name] = pos
-		}
-	}
-
-	type assignment struct {
-		id  model.ID
-		pos model.Point
-	}
-
-	var walk func(collection *microflows.MicroflowObjectCollection, inherited map[string]model.Point)
-	walk = func(collection *microflows.MicroflowObjectCollection, inherited map[string]model.Point) {
+// A flow's variable names are unique FLOW-WIDE: neither an if/else branch nor a
+// loop body opens a scope. Measured on mxbuild 11.13.0 (ako/mxcli#962, PedApp
+// copy), a non-void Java call — and a retrieve — of the same name in each
+// branch of an if/else is CE0111 "Duplicate variable name" in a microflow, as
+// #953 measured for a nanoflow. This used to warn only when one assignment
+// could reach the other, which called the exclusive-branch case legal.
+//
+// That reachability walk is also gone, and with it the cost #710 was about: a
+// count per name is linear in the number of activities.
+//
+// isVoidCall, when it says so, marks an action whose output name declares no
+// variable — a call to a void Java/JavaScript action.
+func duplicateOutputVariableWarnings(oc *microflows.MicroflowObjectCollection, isVoidCall func(action any) bool) []string {
+	count := map[string]int{}
+	first := map[string]model.Point{}
+	var walk func(collection *microflows.MicroflowObjectCollection)
+	walk = func(collection *microflows.MicroflowObjectCollection) {
 		if collection == nil {
 			return
 		}
-		flowsByOrigin := make(map[model.ID][]*microflows.SequenceFlow)
-		for _, flow := range collection.Flows {
-			flowsByOrigin[flow.OriginID] = append(flowsByOrigin[flow.OriginID], flow)
-		}
-
-		// reachableFrom(id) = node IDs reachable from id via normal flows (excluding
-		// id). Memoized; the in-progress guard tolerates any stray cycle.
-		cache := make(map[model.ID]map[model.ID]bool)
-		inProgress := make(map[model.ID]bool)
-		var reachableFrom func(id model.ID) map[model.ID]bool
-		reachableFrom = func(id model.ID) map[model.ID]bool {
-			if r, ok := cache[id]; ok {
-				return r
-			}
-			if inProgress[id] {
-				return nil
-			}
-			inProgress[id] = true
-			r := make(map[model.ID]bool)
-			for _, flow := range findNormalFlows(flowsByOrigin[id]) {
-				if flow.DestinationID == "" {
-					continue
-				}
-				r[flow.DestinationID] = true
-				for k := range reachableFrom(flow.DestinationID) {
-					r[k] = true
-				}
-			}
-			delete(inProgress, id)
-			cache[id] = r
-			return r
-		}
-
-		assignments := make(map[string][]assignment)
-		var loops []*microflows.LoopedActivity
 		for _, obj := range collection.Objects {
 			switch o := obj.(type) {
 			case *microflows.ActionActivity:
-				if name := actionOutputVariableName(o.Action); name != "" {
-					assignments[name] = append(assignments[name], assignment{id: o.GetID(), pos: o.GetPosition()})
+				if name := actionOutputVariableName(o.Action); name != "" && !isVoidCall(o.Action) {
+					if count[name] == 0 {
+						first[name] = o.GetPosition()
+					}
+					count[name]++
 				}
 			case *microflows.LoopedActivity:
-				loops = append(loops, o)
+				walk(o.ObjectCollection)
 			}
-		}
-
-		for name, list := range assignments {
-			// An outer assignment on the entry path collides with any assignment here.
-			if pos, ok := inherited[name]; ok {
-				record(name, pos)
-				continue
-			}
-			// Within this collection: a duplicate iff one assignment reaches another.
-			for i := range list {
-				reach := reachableFrom(list[i].id)
-				for j := range list {
-					if i != j && reach[list[j].id] {
-						record(name, list[i].pos)
-					}
-				}
-			}
-		}
-
-		// Recurse into loop bodies. Names visible on entry to a loop body are the
-		// inherited names plus names assigned in this collection by an activity that
-		// reaches the loop node.
-		for _, loop := range loops {
-			childInherited := make(map[string]model.Point, len(inherited))
-			for n, p := range inherited {
-				childInherited[n] = p
-			}
-			for name, list := range assignments {
-				if _, ok := childInherited[name]; ok {
-					continue
-				}
-				for _, a := range list {
-					if a.id != loop.GetID() && reachableFrom(a.id)[loop.GetID()] {
-						childInherited[name] = a.pos
-						break
-					}
-				}
-			}
-			walk(loop.ObjectCollection, childInherited)
 		}
 	}
-	walk(oc, nil)
+	walk(oc)
 
 	var names []string
-	for name := range warningPositions {
-		names = append(names, name)
+	for name, n := range count {
+		if n > 1 {
+			names = append(names, name)
+		}
 	}
 	sort.Strings(names)
 
 	warnings := make([]string, 0, len(names))
 	for _, name := range names {
-		pos := warningPositions[name]
+		pos := first[name]
 		warnings = append(warnings, fmt.Sprintf("-- WARNING: duplicate output variable $%s at position (%d, %d) - model is invalid; open in Studio Pro to fix", name, pos.X, pos.Y))
 	}
 	return warnings
@@ -1711,7 +1637,13 @@ func microflowBodyWarnings(
 	declaredCrossed map[model.ID]bool,
 ) []string {
 	var out []string
-	out = append(out, duplicateOutputVariableWarnings(mf.ObjectCollection)...)
+	// A call to a void Java/JavaScript action declares nothing, so its output
+	// name is no duplicate however often it recurs (#953).
+	var voids *voidCodeActions
+	if ctx != nil && ctx.Backend != nil {
+		voids = newVoidCodeActions(nil, func() backend.FullBackend { return ctx.Backend })
+	}
+	out = append(out, duplicateOutputVariableWarnings(mf.ObjectCollection, voids.actionIsVoidCall)...)
 	out = append(out, irreducibleGraphWarnings(mf.ObjectCollection, declaredCrossed)...)
 	out = append(out, droppedMergeWarnings(ctx, mf.ObjectCollection, labels)...)
 	return out

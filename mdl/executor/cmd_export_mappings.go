@@ -49,7 +49,7 @@ func listExportMappings(ctx *ExecContext, inModule string) error {
 			src = em.XmlSchema
 		}
 		if src == "" {
-			src = em.MessageDefinition
+			src = em.MessageDefinitionSource()
 		}
 		if src == "" {
 			src = "(none)"
@@ -126,10 +126,11 @@ func describeExportMapping(ctx *ExecContext, name ast.QualifiedName) error {
 		fmt.Fprintf(ctx.Output, "  with json structure %s%s\n", em.JsonStructure, rootClause)
 	} else if em.XmlSchema != "" {
 		fmt.Fprintf(ctx.Output, "  with xml schema %s\n", em.XmlSchema)
-	} else if em.MessageDefinition != "" {
+	} else if src := em.MessageDefinitionSource(); src != "" {
 		// Dropped entirely before #263 — and the output still PARSED, so
-		// re-executing a DESCRIBE rebuilt the mapping bound to nothing.
-		fmt.Fprintf(ctx.Output, "  with message definition %s\n", em.MessageDefinition)
+		// re-executing a DESCRIBE rebuilt the mapping bound to nothing. On 11.15
+		// the source is in MessageDefinition2 (ako/mxcli#987).
+		fmt.Fprintf(ctx.Output, "  with message definition %s\n", src)
 	} else if em.WebServiceSource.IsSet() {
 		// MDL has no `with web service` clause, so this cannot round-trip.
 		// Emitting NOTHING would be worse than saying so: the output parses, and
@@ -332,15 +333,6 @@ func execCreateExportMapping(ctx *ExecContext, s *ast.CreateExportMappingStmt) e
 		// Excluded is model state, not script state: an absent @excluded must
 		// not clear a stored exclusion (#914).
 		em.Excluded = s.Excluded || existing.Excluded
-		// MessageDefinition2 is version-introduced (11.10+) and CARRIED, never
-		// invented: a document written before then does not have the key, and
-		// adding one is the overlay-rule mistake — mxbuild tolerates it, Studio
-		// Pro refuses to open the document. On a CREATE there is nothing to read
-		// it off, so the version gate below decides instead.
-		em.MessageDefinition2 = existing.MessageDefinition2
-	} else if pv := ctx.Backend.ProjectVersion(); pv != nil && pv.IsAtLeast(11, 10) {
-		empty := ""
-		em.MessageDefinition2 = &empty
 	}
 	if em.NullValueOption == "" {
 		em.NullValueOption = "LeaveOutElement"
@@ -352,16 +344,32 @@ func execCreateExportMapping(ctx *ExecContext, s *ast.CreateExportMappingStmt) e
 		em.JsonStructure = s.SchemaRef.String()
 	case "XML_SCHEMA":
 		em.XmlSchema = s.SchemaRef.String()
-	case "MESSAGE_DEFINITION":
-		em.MessageDefinition = s.SchemaRef.String()
 	}
+	// The message-definition keys are version-dependent and CARRIED: 11.10 added
+	// MessageDefinition2, 11.15 removed MessageDefinition and moved the source
+	// into MessageDefinition2 (ako/mxcli#987).
+	var existingMD, existingMD2 *string
+	if existing != nil {
+		existingMD, existingMD2 = existing.MessageDefinition, existing.MessageDefinition2
+	}
+	// A message definition is resolved first: the reference stored is the
+	// resolved one, which on 11.15 is the document's Module.Name even when the
+	// script wrote the pre-11.15 three-part form (ako/mxcli#987).
+	var md *model.MessageDefinition
+	mdRef := s.SchemaRef.String()
+	if s.SchemaKind == "MESSAGE_DEFINITION" {
+		var mdErr error
+		md, mdRef, mdErr = findMessageDefinition(ctx, mdRef)
+		if mdErr != nil {
+			return mdlerrors.NewValidation(fmt.Sprintf("export mapping %s: %v", s.Name.String(), mdErr))
+		}
+	}
+	em.MessageDefinition, em.MessageDefinition2 = mappingMessageDefinitionKeys(
+		ctx.Backend.ProjectVersion(), existing != nil, existingMD, existingMD2,
+		s.SchemaKind == "MESSAGE_DEFINITION", mdRef)
 
 	// See the import twin: a message definition has its own builder (#263).
 	if s.SchemaKind == "MESSAGE_DEFINITION" {
-		md, err := findMessageDefinition(ctx.Backend, em.MessageDefinition)
-		if err != nil {
-			return mdlerrors.NewValidation(fmt.Sprintf("export mapping %s: %v", s.Name.String(), err))
-		}
 		if s.RootElement != nil {
 			root, err := buildExportMappingFromMessageDefinition(s.Name.Module, s.RootElement,
 				md.Root, "", "", true, ctx.Backend)

@@ -162,12 +162,12 @@ begin
   set $Json = $Json + $Sep
     + '{"cat":"' + $R/CategoryName + '"'
     + ',"m":"' + $Month + '"'
-    + ',"v":' + formatDecimal($R/Total, '0.00') + '}';
+    + ',"v":' + toString(round($R/Total, 2)) + '}';
   set $Sep = ',';
 end loop;
 ```
 
-`formatDecimal(x, '0.00')` is the right way to write a number into JSON — it emits a plain decimal with no grouping separators. Never write a value that could be empty into an unquoted position; emit `null` instead, and never emit `0` for "no data" (a zero against a full budget reads as maximally under budget, which is a lie the chart tells convincingly).
+`toString(round(x, 2))` is the right way to write a number into JSON: it always uses a `.` decimal point, whatever the user's language, and never switches to an exponent (measured on 11.13: `12.35`, and `0.0000001` stays a plain decimal). **Do not use `formatDecimal(x, '0.00')`** — without a locale argument it formats in the *current user's* language, so a Dutch user gets `12,50` and the chart reports "Data is not valid JSON" while it renders fine for you. If you need `formatDecimal` (fixed trailing zeros), pass an explicit locale with a **hyphenated** tag: `formatDecimal(x, '0.00', 'en-US')`. The underscore form `'nl_NL'`/`'en_US'` is not an error — it is silently ignored and falls back to the user's language, so the bug comes back. Never write a value that could be empty into an unquoted position; emit `null` instead, and never emit `0` for "no data" (a zero against a full budget reads as maximally under budget, which is a lie the chart tells convincingly).
 
 ## Verifying without running the app
 

@@ -3,6 +3,7 @@
 package executor
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -108,7 +109,7 @@ func validateAlterSetProperties(ctx *ExecContext, prog *ast.Program, sc *scriptC
 			if grows[s.PageName.String()] && !probe.ResolvesTarget(set.Target.Widget, columnRefOf(set.Target)) {
 				continue
 			}
-			errs = append(errs, checkSetOp(ctx, probe, label, set, modName, containerID)...)
+			errs = append(errs, checkSetOp(ctx, probe, label, set, modName, containerID, sc)...)
 		}
 	}
 	return errs
@@ -135,7 +136,7 @@ func openPageProbe(ctx *ExecContext, unitID model.ID) pageProbe {
 // Per property rather than per op, on its own copy each time, so a statement
 // setting four properties reports all four mistakes instead of stopping at the
 // first — the difference between one round of correction and four.
-func checkSetOp(ctx *ExecContext, p pageProbe, label string, op *ast.SetPropertyOp, modName string, modID model.ID) []error {
+func checkSetOp(ctx *ExecContext, p pageProbe, label string, op *ast.SetPropertyOp, modName string, modID model.ID, sc *scriptContext) []error {
 	names := make([]string, 0, len(op.Properties))
 	for name := range op.Properties {
 		names = append(names, name)
@@ -153,11 +154,53 @@ func checkSetOp(ctx *ExecContext, p pageProbe, label string, op *ast.SetProperty
 			Properties: map[string]any{name: op.Properties[name]},
 		}
 		if err := applySetPropertyMutator(ctx, probe, one, modName, modID); err != nil {
+			if scriptDeclaresMissing(sc, err, modName) {
+				continue
+			}
 			errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf(
 				"%s: %v%s", label, err, declaredPropertyHint(p, op.Target, name))))
 		}
 	}
 	return errs
+}
+
+// scriptDeclaresMissing reports whether a dry-run failed only because the SET
+// names a microflow, nanoflow or page the script itself creates.
+//
+// The dry run resolves against the stored project, and the session cache that
+// lets exec find a document created a few statements earlier is filled only by
+// executing — which check never does. So `set Action = microflow M.X on btn`
+// after `create microflow M.X` was "microflow not found" in check while exec
+// ran it fine, and since exec runs check first, the script could not run at all
+// (ako/mxcli#969). What the setter would do with the resolved document is
+// beyond a dry run without it; reference validation already covers a name the
+// script does NOT declare, which still fails here.
+func scriptDeclaresMissing(sc *scriptContext, err error, modName string) bool {
+	if sc == nil {
+		return false
+	}
+	var nf *mdlerrors.NotFoundError
+	if !errors.As(err, &nf) {
+		return false
+	}
+	var declared map[string]bool
+	switch nf.Kind {
+	case "microflow":
+		declared = sc.microflows
+	case "nanoflow":
+		declared = sc.nanoflows
+	case "page":
+		declared = sc.pages
+	case "snippet":
+		declared = sc.snippets
+	default:
+		return false
+	}
+	name := unquoteQualifiedName(nf.Name)
+	if !strings.Contains(name, ".") {
+		name = modName + "." + name
+	}
+	return declared[name]
 }
 
 // declaredPropertyHint names what the widget does have, when the widget resolves

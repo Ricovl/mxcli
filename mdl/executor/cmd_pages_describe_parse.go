@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/visitor"
-	"github.com/mendixlabs/mxcli/model"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -370,6 +369,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.IsPassword, _ = w["IsPasswordBox"].(bool)
 		widget.ValidationExpression, widget.ValidationMessage = extractWidgetValidation(ctx, w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.Formatting = describeInputFormatting(ctx, "textbox", w)
 		return []rawWidget{widget}
 
 	case "Forms$TextArea", "Pages$TextArea":
@@ -387,6 +387,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Content = extractInputAttribute(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.Formatting = describeInputFormatting(ctx, "datepicker", w)
 		return []rawWidget{widget}
 
 	case "Forms$RadioButtons", "Pages$RadioButtons", "Forms$RadioButtonGroup", "Pages$RadioButtonGroup":
@@ -863,41 +864,13 @@ func parseNavigationListItems(ctx *ExecContext, w map[string]any) []rawWidget {
 	return result
 }
 
-// extractNavigationListItemAction extracts action from a NavigationListItem.
-// NavigationListItem uses Forms$FormAction with FormSettings.Form for page references,
-// which differs from ActionButton's action format.
+// extractNavigationListItemAction renders a NavigationListItem's action. It is
+// the same client action a button stores (a page action is a Forms$FormAction
+// whose page sits in FormSettings or PageSettings), so it goes through the
+// shared renderer. A private copy here printed the legacy `show_page 'M.P'`,
+// which does not parse (ako/mxcli#950).
 func extractNavigationListItemAction(ctx *ExecContext, w map[string]any) string {
-	action, ok := w["Action"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	typeName, _ := action["$Type"].(string)
-	switch typeName {
-	case "Forms$FormAction", "Pages$FormAction":
-		// Extract page reference from FormSettings (Studio Pro format)
-		if formSettings, ok := action["FormSettings"].(map[string]any); ok {
-			if formName, ok := formSettings["Form"].(string); ok && formName != "" {
-				return "show_page '" + formName + "'"
-			}
-		}
-		// Fall back to PageSettings.Form (string name)
-		if pageSettings, ok := action["PageSettings"].(map[string]any); ok {
-			if pageName, ok := pageSettings["Form"].(string); ok && pageName != "" {
-				return "show_page '" + pageName + "'"
-			}
-		}
-		// Fall back to Page field (binary ID from mxcli serialization)
-		if pageID := extractBinaryID(action["Page"]); pageID != "" {
-			pageName := getPageQualifiedName(ctx, model.ID(pageID))
-			if pageName != "" {
-				return "show_page '" + pageName + "'"
-			}
-		}
-		return "show_page"
-	default:
-		// Delegate to the standard action extractor
-		return extractButtonAction(ctx, w)
-	}
+	return extractButtonAction(ctx, w)
 }
 
 // parseDataViewChildren extracts child widgets from a DataView.

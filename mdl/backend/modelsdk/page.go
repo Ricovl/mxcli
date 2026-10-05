@@ -240,6 +240,7 @@ func (b *Backend) ListLayouts() ([]*pages.Layout, error) {
 			Name:          u.Element.Name(),
 			Documentation: u.Element.Documentation(),
 			LayoutType:    layoutTypeOf(u.Element),
+			Native:        layoutIsNative(u.Element),
 			Class:         appearanceClassOf(u.Element),
 		}
 		l.ID = model.ID(u.Element.ID())
@@ -282,6 +283,13 @@ func layoutTypeOf(l *genPg.Layout) pages.LayoutType {
 		return pages.LayoutType(c.LayoutType())
 	}
 	return ""
+}
+
+// layoutIsNative reports whether a layout is a native-mobile one, which is the
+// TYPE of its content wrapper (Forms$NativeLayoutContent), not a property.
+func layoutIsNative(l *genPg.Layout) bool {
+	_, ok := l.Content().(*genPg.NativeLayoutContent)
+	return ok
 }
 
 // GetLayout returns a single layout by ID (shallow).

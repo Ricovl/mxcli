@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -191,9 +192,12 @@ func formatActivity(
 	case *microflows.EndEvent:
 		if activity.ReturnValue != "" {
 			returnVal := describeExpr(ctx, activity.ReturnValue)
-			// Only add $ prefix for bare identifiers (no operators, quotes, or parens)
-			if !strings.HasPrefix(returnVal, "$") && !isMendixKeyword(returnVal) && !isQualifiedEnumLiteral(returnVal) &&
-				!strings.ContainsAny(returnVal, "+'\"()") && !isNumericLiteral(returnVal) {
+			// A legacy writer stored a returned variable without its `$`; add it
+			// back for exactly that shape — a bare name, optionally with an
+			// attribute path — and leave every other expression as stored. A
+			// blacklist of characters here turned `[%CurrentUser%]` into
+			// `$[%CurrentUser%]`, which does not parse (ako/mxcli#950).
+			if isBareReturnVariable(returnVal) {
 				returnVal = "$" + returnVal
 			}
 			return fmt.Sprintf("return %s;", returnVal)
@@ -1606,6 +1610,16 @@ func isMendixKeyword(s string) bool {
 		return true
 	}
 	return false
+}
+
+// bareReturnVariable is a variable name without its `$`, optionally followed
+// by an attribute path (`Order/Total`, `Order/Module.Assoc/Name`).
+var bareReturnVariable = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(/[A-Za-z_][A-Za-z0-9_.]*)*$`)
+
+// isBareReturnVariable reports whether a stored return value is a variable
+// reference missing its `$` — the only shape describe may prefix.
+func isBareReturnVariable(s string) bool {
+	return bareReturnVariable.MatchString(s) && !isMendixKeyword(s)
 }
 
 // isQualifiedEnumLiteral returns true for qualified enum literals (e.g., "Module.Enum.Value")

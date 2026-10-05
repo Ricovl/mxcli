@@ -79,11 +79,6 @@ func (b *Builder) ExitNavMenuItemDef(ctx *parser.NavMenuItemDefContext) {
 	b.recordSnakeWord(ctx.SIGN_OUT())
 }
 
-// ExitNavMenuAction reports `OnClick: sign_out` on a menu item.
-func (b *Builder) ExitNavMenuAction(ctx *parser.NavMenuActionContext) {
-	b.recordSnakeWord(ctx.SIGN_OUT())
-}
-
 // errorMessageWord is the canonical spelling of the message keyword, in the
 // letter case of the spelling it replaces.
 func errorMessageWord(like string) string { return keywordLike(like, "error message") }

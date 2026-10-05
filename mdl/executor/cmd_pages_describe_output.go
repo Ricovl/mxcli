@@ -585,6 +585,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = append(props, w.Formatting...)
 		props = appendInputValidationProps(ctx, props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
@@ -616,6 +617,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		// The picker's mode — without it a date-time picker described as a
+		// date-only one, and describe → exec wrote it that way (ako/mxcli#968).
+		props = append(props, w.Formatting...)
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
@@ -920,7 +924,10 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 	case "Forms$NavigationList", "Pages$NavigationList":
 		fmt.Fprintf(ctx.Output, "%snavigationlist %s {\n", prefix, mdlIdent(w.Name))
 		for _, child := range w.Children {
-			itemHeader := fmt.Sprintf("item %s", mdlIdent(child.Name))
+			itemHeader := "item" // Studio Pro leaves an item unnamed
+			if child.Name != "" {
+				itemHeader += " " + mdlIdent(child.Name)
+			}
 			props := []string{}
 			if child.Action != "" {
 				props = append(props, actionProp("Action", child.Action))

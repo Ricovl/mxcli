@@ -151,6 +151,11 @@ func TestMessageDefinitionRefusals(t *testing.T) {
 			want: "exposes AgentCore.Email in the message definition",
 		},
 	}
+	// On 11.15 a two-part reference is the document form (ako/mxcli#987); this
+	// fixture has no documents, so it is refused as not found, listing none.
+	if pv := env.executor.Backend().ProjectVersion(); pv != nil && pv.IsAtLeast(11, 15) {
+		cases[1].want = "not found"
+	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := env.executeMDL(tc.mdl)

@@ -113,8 +113,16 @@ This command:
 1. Detects the Mendix project version (requires >= 11.6.1)
 2. Locates MxBuild and a JDK matching the project's JavaVersion (auto-downloads
    MxBuild from CDN if not found)
-3. Runs MxBuild with --target=portable-app-package
+3. Copies the project to a temporary directory and runs 'mx update-widgets',
+   'mx check' and MxBuild (--target=portable-app-package) on that copy
 4. Applies version-aware patches to fix known PAD issues
+
+The project itself is not modified; only the output directory is written.
+Each of the mx tools writes into the project it is given (update-widgets
+rewrites the model, mx check and MxBuild write theme-cache/, deployment/
+and javasource/ proxies), so they never run on the original. Widget
+definitions are normalised on the copy only; 'mxcli fix widgets' applies
+that to the project.
 
 MxBuild is cached at ~/.mxcli/mxbuild/{version}/ and reused across builds.
 You can also pre-download with: mxcli setup mxbuild -p app.mpr
@@ -169,9 +177,18 @@ This catches project errors (broken references, missing attributes, etc.)
 early, before the slower MxBuild step. The 'docker build' command runs
 this automatically unless --skip-check is used.
 
-By default, 'mx update-widgets' runs before 'mx check' to normalize
-pluggable widget definitions and prevent false CE0463 errors. Use
---no-update-widgets to skip this step.
+The check never modifies the project: both mx steps run on a temporary
+copy (in $TMPDIR), because mx writes into the project it checks — it
+compiles the theme into theme-cache/ and deployment/, and update-widgets
+rewrites the model. Build output, caches and VCS folders (deployment/,
+releases/, theme-cache/, .git/, node_modules/, ...) are not copied.
+
+By default, 'mx update-widgets' runs before 'mx check', on that copy, to
+normalize pluggable widget definitions and prevent false CE0463 errors.
+A CE0463 that normalisation clears is then not reported, although it still
+fails MxBuild and 'mxcli run --local' on the stored project. Use
+--no-update-widgets to check the project as stored, and 'mxcli fix widgets'
+to apply the normalisation to the project.
 
 The mx binary is located from the same directory as mxbuild.
 
@@ -197,6 +214,10 @@ Examples:
 			Stdout:            os.Stdout,
 			Stderr:            os.Stderr,
 		}
+
+		// Neither of these is something mx check reports (#972).
+		fmt.Fprint(os.Stderr, contentsHashDriftWarning(projectPath))
+		printGitStateWarnings(projectPath, os.Stderr)
 
 		if err := docker.Check(opts); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -498,7 +519,7 @@ func init() {
 	dockerBuildCmd.Flags().StringP("output", "o", "", "Output directory for PAD package")
 	dockerBuildCmd.Flags().Bool("dry-run", false, "Detect tools and show patch plan without building")
 	dockerBuildCmd.Flags().Bool("skip-check", false, "Skip 'mx check' pre-build validation")
-	dockerBuildCmd.Flags().Bool("no-update-widgets", false, "Skip 'mx update-widgets' before check")
+	dockerBuildCmd.Flags().Bool("no-update-widgets", false, "Skip 'mx update-widgets' (run on the temporary copy) before check and build")
 
 	// Check command flags
 	dockerCheckCmd.Flags().String("mxbuild-path", "", "Path to MxBuild/Mendix installation (used to find mx)")

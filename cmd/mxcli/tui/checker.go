@@ -3,8 +3,8 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
-	"os/exec"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -149,9 +149,11 @@ func runMxCheck(projectPath string) tea.Cmd {
 			jsonFile.Close()
 			defer os.Remove(jsonPath)
 
-			Trace("checker: running %s check %s -j %s -w -d", mxPath, projectPath, jsonPath)
-			cmd := exec.Command(mxPath, "check", projectPath, "-j", jsonPath, "-w", "-d")
-			_, runErr := cmd.CombinedOutput()
+			// On a temporary copy: mx check writes theme-cache/ and
+			// deployment/sass/ into the project it checks, and this runs after
+			// every change (ako/mxcli#961).
+			Trace("checker: running %s check (on a copy of) %s -j %s -w -d", mxPath, projectPath, jsonPath)
+			runErr := docker.MxCheckOnCopy(mxPath, projectPath, []string{"-j", jsonPath, "-w", "-d"}, io.Discard, io.Discard)
 
 			checkErrors, parseErr := parseCheckJSON(jsonPath)
 			if parseErr != nil {

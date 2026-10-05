@@ -41,5 +41,7 @@ out any one and the columns drift apart while every panel insists it is correct.
 ## Emitting the rows
 
 One JSON array of flat objects, built by a microflow over an OQL view entity. Numbers via
-`formatDecimal(x, '0.00')`; `null` — never `0` — for "no value"; a discriminator column
+`toString(round(x, 2))` — locale-independent, unlike `formatDecimal(x, '0.00')`, which
+writes `12,50` for a Dutch user (if you need it, pass a hyphenated locale:
+`formatDecimal(x, '0.00', 'en-US')`; `'en_US'` is silently ignored); `null` — never `0` — for "no value"; a discriminator column
 (`k` above) when one payload feeds several panels.

@@ -252,10 +252,10 @@ func (v *microflowValidator) checkDuplicateVariableNames(params []ast.MicroflowP
 			return // MDL052
 		}
 		v.addViolation("MDL063", linter.SeverityError,
-			fmt.Sprintf("'$%s' is created twice in this microflow — first by %s, then by %s. "+
-				"A microflow's variable names are unique flow-wide (branches and loop bodies do "+
+			fmt.Sprintf("'$%s' is created twice in this %s — first by %s, then by %s. "+
+				"A %s's variable names are unique flow-wide (branches and loop bodies do "+
 				"not open a scope), so mxbuild rejects this with CE0111 \"Duplicate variable name\".",
-				p.name, prev.label, p.label),
+				p.name, v.docType, prev.label, p.label, v.docType),
 			fmt.Sprintf("Rename one of them, or — if you meant to reuse the first — drop the "+
 				"redundant definition: %s already creates '$%s', and an activity always creates "+
 				"its own output variable rather than writing into an existing one",
@@ -264,14 +264,17 @@ func (v *microflowValidator) checkDuplicateVariableNames(params []ast.MicroflowP
 
 	for _, p := range params {
 		if p.Name != "" {
-			report(producedVar{name: p.Name, label: "the microflow parameter"})
+			report(producedVar{name: p.Name, label: "the " + v.docType + " parameter"})
 		}
 	}
 
 	var walk func(stmts []ast.MicroflowStatement)
 	walk = func(stmts []ast.MicroflowStatement) {
 		for _, s := range stmts {
-			if v.buildsAsAProducer(s) {
+			// A call to a void Java/JavaScript action keeps an output name in
+			// the model and declares nothing: two of them build clean, and so
+			// does a later declare of the same name (#953, mxbuild 11.13.0).
+			if v.buildsAsAProducer(s) && !v.voids.callIsVoid(s) {
 				for _, p := range statementProducedVars(s) {
 					report(p)
 				}
@@ -294,6 +297,10 @@ func (v *microflowValidator) checkDuplicateVariableNames(params []ast.MicroflowP
 					walk(c.Body)
 				}
 				walk(st.ElseBody)
+			}
+			// A custom error handler's activities share the flow's namespace.
+			if eh := stmtErrorHandling(s); eh != nil {
+				walk(eh.Body)
 			}
 		}
 	}

@@ -42,7 +42,7 @@ import (
 // (MDL-WIDGET39, CE2421) and the classic drop-down on a React-client project
 // (MDL-WIDGET40, CE0582). See validate_widget_attribute_type.go. Those need
 // neither the widget registry nor the templates, so they run without them.
-func validatePluggableAttributeScopes(ctx *ExecContext, params []ast.PageParameter, widgets []*ast.WidgetV3, sc *scriptContext) []string {
+func validatePluggableAttributeScopes(ctx *ExecContext, layout string, params []ast.PageParameter, widgets []*ast.WidgetV3, sc *scriptContext) []string {
 	if ctx == nil || !ctx.Connected() || len(widgets) == 0 {
 		return nil
 	}
@@ -72,7 +72,8 @@ func validatePluggableAttributeScopes(ctx *ExecContext, params []ast.PageParamet
 		pageParams:  pageParams,
 		index:       checkAttributeIndex(ctx, sc),
 		types:       checkMemberTypeIndex(ctx, sc),
-		reactClient: usesReactClient(ctx),
+		reactClient: usesReactClient(ctx) && !layoutIsNative(ctx, layout),
+		assocs:      checkAssociationShapes(ctx, sc),
 	}
 	for _, w := range widgets {
 		v.walk(w, dataContext{})
@@ -91,6 +92,9 @@ type attributeScopeValidator struct {
 	// The built-in input widget checks (validate_widget_attribute_type.go).
 	types       memberTypeIndex
 	reactClient bool
+
+	// assocs feeds MDL-ASSOCDS01 (validate_assoc_list_source.go).
+	assocs map[string]assocShape
 }
 
 func (v *attributeScopeValidator) walk(w *ast.WidgetV3, enclosing dataContext) {
@@ -99,6 +103,7 @@ func (v *attributeScopeValidator) walk(w *ast.WidgetV3, enclosing dataContext) {
 	}
 	inner := childContext(enclosing, w.GetDataSource(), v.sigs, v.pageParams)
 	v.checkInputBinding(w, enclosing)
+	v.checkAssocListSource(w, enclosing)
 	v.checkReactUnsupported(w)
 	if v.registry == nil {
 		// No registry: the pluggable half cannot run, and a pluggable widget's

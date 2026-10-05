@@ -578,8 +578,9 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 		}
 		cacheDir := filepath.Dir(cachePath)
 		if err := os.MkdirAll(cacheDir, 0755); err == nil {
-			// Remove existing cache file first
-			os.Remove(cachePath)
+			// SaveToFile replaces the cache atomically. Do not remove it first:
+			// that opened a window in which a parallel process found no cache,
+			// and the in-place write that followed raced it (ako/mxcli#951).
 			if err := cat.SaveToFile(cachePath); err != nil {
 				fmt.Fprintf(ctx.progress(), "Warning: failed to save catalog cache: %v\n", err)
 			} else {
@@ -655,7 +656,6 @@ func execRefreshCatalogStmt(ctx *ExecContext, stmt *ast.RefreshCatalogStmt) erro
 			return mdlerrors.NewBackend("graph analysis", err)
 		}
 		if !loadedFromCache && cachePath != "" {
-			os.Remove(cachePath)
 			if err := ctx.Catalog.SaveToFile(cachePath); err != nil {
 				fmt.Fprintf(ctx.Output, "Warning: failed to save catalog cache: %v\n", err)
 			}

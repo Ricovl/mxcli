@@ -1,8 +1,8 @@
 # Catalog-table builtins: object properties
 
 The structs returned by `modules()`, `associations()`, `entity_event_handlers()`,
-`navigation_menu_items()`, `jar_dependencies()`, `strings()`, `layouts()` and
-`published_rest_operations()`. The functions themselves are listed in
+`navigation_menu_items()`, `jar_dependencies()`, `strings()`, `layouts()`,
+`published_rest_operations()` and `widgets()`. The functions themselves are listed in
 [SKILL.md](SKILL.md) under "Available Query Functions". Every builtin leaves out
 System and Marketplace modules, except `navigation_menu_items()`, whose rows
 belong to the project rather than to a module.
@@ -96,6 +96,7 @@ Returned by `layouts()`.
 | `module_name` | string | `"Atlas_Core"` |
 | `folder` | string | Folder path within module |
 | `layout_type` | string | `"Responsive"`, `"Phone"`, `"Tablet"`, `"Popup"`, `"ModalPopup"`, `"Default"`, `"Legacy"` |
+| `platform` | string | `"Web"` or `"Native"` — the platform the layout (and every page on it) renders on. `layout_type` cannot tell: a native popup shares its value with a web one. React-client errors (CE0582) apply to `"Web"` only |
 | `description` | string | Documentation text |
 
 ### published_rest_operation
@@ -111,3 +112,48 @@ Returned by `published_rest_operations()`.
 | `microflow` | string | Qualified name of the microflow that implements the operation |
 | `deprecated` | bool | Marked deprecated |
 | `module_name` | string | `"Sales"` |
+
+### widget
+Returned by `widgets()` (full catalog — auto-detected).
+
+| Property | Type | Example |
+|----------|------|---------|
+| `id` | string | Widget UUID |
+| `name` | string | Widget name |
+| `widget_type` | string | The widget's storage type, e.g. `"Forms$DataView"`, `"Forms$DivContainer"`, `"Forms$ActionButton"`; a pluggable widget's id, e.g. `"com.mendix.widget.web.datagrid.Datagrid"` |
+| `container_id` | string | Container UUID |
+| `container_qualified_name` | string | `"Sales.Customer_Overview"` |
+| `container_type` | string | `"PAGE"` or `"SNIPPET"` |
+| `module_name` | string | `"Sales"` |
+| `entity_ref` | string | Referenced entity qualified name |
+| `attribute_ref` | string | Referenced attribute path |
+| `microflow_ref` | string | Action/datasource microflow qualified name (e.g. a microflow-datasource ListView), else `""` |
+| `nanoflow_ref` | string | Action/datasource nanoflow qualified name, else `""` |
+| `page_ref` | string | The page the widget's action opens (show page, create object then open page), else `""` |
+| `parent_widget_id` | string | `id` of the nearest catalogued ancestor widget; `""` at the page or snippet root. Wrappers the catalog skips (the synthetic `conditionalVisibilityWidget…` container) and non-widget holders (layout grid rows and columns, tab pages, a pluggable widget's properties and object-list items) are transparent: a widget in a layout grid column or a data grid 2 column has the grid as its parent |
+| `depth` | int | Number of catalogued ancestors: `0` at the page or snippet root. A list view **template** is a catalogued row of its own, so a widget inside one is two below the list view. Depth does **not** cross a snippet call: a snippet's widgets start at `0` in the snippet, whichever page calls it |
+| `class_name` | string | The widget's `Class` (Appearance), e.g. `"card mx-2"`, else `""`. Named `class_name` because `class` is a Starlark keyword |
+| `style` | string | The inline `Style` (Appearance), e.g. `"width:100%;"`, else `""` |
+| `dynamic_classes` | string | The `Dynamic classes` expression (Appearance), else `""` |
+| `action_type` | string | Stored type of the widget's primary action — the button's action, else a container's on-click action, else a list view's or image's click action: `"Forms$DeleteClientAction"`, `"Forms$MicroflowAction"`, `"Forms$CallNanoflowClientAction"`, `"Forms$FormAction"` (show page), `"Forms$SaveChangesClientAction"`, `"Forms$CancelChangesClientAction"`, `"Forms$ClosePageClientAction"`, `"Forms$CreateObjectClientAction"`, `"Forms$OpenLinkClientAction"`, `"Forms$NoAction"`; `""` for a widget with no action property. Pluggable widgets' actions (inside their property bag) are not read |
+| `has_confirmation` | bool | The primary action asks for confirmation. Only a microflow, nanoflow or workflow call can; a delete action (`"Forms$DeleteClientAction"`) has no confirmation setting at all, so "a delete must confirm" is enforced as "no button uses the delete action directly — call a microflow or nanoflow with a confirmation" |
+
+```python
+# Inline styles, classes outside an allow-list, and direct delete buttons.
+ALLOWED = ["btn-primary", "card", "mx-2"]
+def check():
+    out = []
+    for w in widgets():
+        loc = location(module=w.module_name, document_type=w.container_type.lower(),
+                       document_name=w.container_qualified_name.split(".")[-1],
+                       document_id=w.container_id)
+        if w.style != "":
+            out.append(violation(message="inline style on " + w.name, location=loc))
+        for c in w.class_name.split(" "):
+            if c != "" and c not in ALLOWED:
+                out.append(violation(message="class '" + c + "' not allowed", location=loc))
+        if w.action_type == "Forms$DeleteClientAction":
+            out.append(violation(message=w.name + " deletes directly; call a microflow with a confirmation",
+                                 location=loc))
+    return out
+```

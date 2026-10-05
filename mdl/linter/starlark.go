@@ -3,6 +3,7 @@
 package linter
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -69,15 +70,49 @@ func (r *StarlarkRule) Check(ctx *LintContext) []Violation {
 	// Call the check function
 	result, err := starlark.Call(thread, r.checkFn, nil, nil)
 	if err != nil {
-		return []Violation{{
-			RuleID:   r.id,
-			Severity: SeverityError,
-			Message:  fmt.Sprintf("Starlark rule error: %v", err),
-		}}
+		return []Violation{ruleFailureViolation(r.id, err)}
 	}
 
 	// Convert result to violations
 	return r.convertViolations(result)
+}
+
+// missingStructAttrRe matches the evaluator's message for reading a field a
+// struct does not have — "entity struct has no .document_noun attribute",
+// optionally followed by a "(did you mean .x?)" hint. The evaluator flattens
+// starlark.NoSuchAttrError into a plain error, so the message is all there is.
+var missingStructAttrRe = regexp.MustCompile(`(?:\S+ )?struct has no \.[A-Za-z_][A-Za-z0-9_]* attribute.*`)
+
+// ruleFailureViolation reports a rule that failed to run.
+//
+// A rule that reads a struct field this binary does not expose is almost
+// always a rule written for a newer mxcli: the shipped rules gain fields with
+// the catalog (document_noun arrived after v0.24.0, and QUAL004, CONV010 and
+// CUSTOM002 all crashed on it). That is reported as what it is — an info line
+// naming the cause — rather than as a project error. Any other failure is a
+// broken rule and stays an error. Both are RuleFailure: neither says anything
+// about the project, so neither may move its score (ako/mxcli#952).
+func ruleFailureViolation(ruleID string, err error) Violation {
+	msg := err.Error()
+	var evalErr *starlark.EvalError
+	if errors.As(err, &evalErr) {
+		msg = evalErr.Msg // without the backtrace
+	}
+	if detail := missingStructAttrRe.FindString(msg); detail != "" {
+		return Violation{
+			RuleID:      ruleID,
+			Severity:    SeverityInfo,
+			Message:     fmt.Sprintf("rule %s needs a newer mxcli (%s)", ruleID, detail),
+			Suggestion:  "Update mxcli to the version that wrote this project's lint rules; if the rule is your own, check the field name against the write-lint-rules skill.",
+			RuleFailure: true,
+		}
+	}
+	return Violation{
+		RuleID:      ruleID,
+		Severity:    SeverityError,
+		Message:     fmt.Sprintf("Starlark rule error: %v", err),
+		RuleFailure: true,
+	}
 }
 
 // convertViolations converts a Starlark list to Go violations.
@@ -915,7 +950,9 @@ func microflowToStarlark(mf Microflow) starlark.Value {
 		"return_type":     starlark.String(mf.ReturnType),
 		"parameter_count": starlark.MakeInt(mf.ParameterCount),
 		"activity_count":  starlark.MakeInt(mf.ActivityCount),
-		"complexity":      starlark.MakeInt(mf.Complexity),
+		// Loop bodies included, at any depth; activity_count counts a loop as one.
+		"total_activity_count": starlark.MakeInt(mf.TotalActivityCount),
+		"complexity":           starlark.MakeInt(mf.Complexity),
 		// microflows() yields all three flow flavours, so a rule naming the
 		// document in a message or a location must not hardcode "Microflow".
 		// Title case matches the document_type spelling Starlark rules use.
@@ -1015,6 +1052,16 @@ func widgetToStarlark(w Widget) starlark.Value {
 		// they were dropped from the Starlark projection (findings #35).
 		"microflow_ref": starlark.String(w.MicroflowRef),
 		"nanoflow_ref":  starlark.String(w.NanoflowRef),
+		"page_ref":      starlark.String(w.PageRef),
+		// Tree position, appearance and primary action (mendixlabs/mxcli#1268).
+		// `class` is a Starlark keyword, hence class_name.
+		"parent_widget_id": starlark.String(w.ParentWidgetID),
+		"depth":            starlark.MakeInt(w.Depth),
+		"class_name":       starlark.String(w.Class),
+		"style":            starlark.String(w.Style),
+		"dynamic_classes":  starlark.String(w.DynamicClasses),
+		"action_type":      starlark.String(w.ActionType),
+		"has_confirmation": starlark.Bool(w.HasConfirmation),
 	})
 }
 
@@ -1422,7 +1469,14 @@ func LoadStarlarkRulesFromDir(dir string) ([]*StarlarkRule, []RuleLoadFailure, e
 		path := filepath.Join(dir, entry.Name())
 		rule, err := LoadStarlarkRule(path)
 		if err != nil {
-			failures = append(failures, RuleLoadFailure{Path: path, Reason: err.Error()})
+			reason := err.Error()
+			// A name the resolver does not know is, in a rule that used to
+			// load, a builtin from a newer mxcli — say so, as the run-time
+			// counterpart in ruleFailureViolation does (ako/mxcli#952).
+			if strings.Contains(reason, ": undefined: ") {
+				reason += " (a builtin this mxcli does not have — the rule may need a newer mxcli)"
+			}
+			failures = append(failures, RuleLoadFailure{Path: path, Reason: reason})
 			continue
 		}
 

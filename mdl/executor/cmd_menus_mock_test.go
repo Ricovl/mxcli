@@ -178,14 +178,14 @@ func TestCreateMenu_OrModifyPreservesIdentity(t *testing.T) {
 func TestMenuItemsFromAST_Nested(t *testing.T) {
 	page := ast.QualifiedName{Module: "M", Name: "P"}
 	mf := ast.QualifiedName{Module: "M", Name: "F"}
-	items := menuItemsFromAST([]ast.NavMenuItemDef{{
+	items, _ := menuItemsFromAST(nil, []ast.NavMenuItemDef{{
 		Caption: "Top",
 		Items: []ast.NavMenuItemDef{
 			{Caption: "Pg", Page: &page, Icon: "M.C.i"},
 			{Caption: "Mf", Microflow: &mf},
 			{Caption: "Plain"},
 		},
-	}})
+	}}, nil, "", map[string]string{})
 
 	if len(items) != 1 || len(items[0].Items) != 3 {
 		t.Fatalf("expected 1 top item with 3 children, got %+v", items)

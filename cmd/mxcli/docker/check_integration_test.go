@@ -6,6 +6,8 @@ package docker
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -78,4 +80,103 @@ func mprStorageVersion(t *testing.T, mprPath string) types.MPRVersion {
 	}
 	defer reader.Disconnect()
 	return reader.Version()
+}
+
+// TestCheck_LeavesProjectUntouched is the end-to-end guard for ako/mxcli#951:
+// with real mx, a default `docker check` and a --no-update-widgets one leave
+// every file of an MPRv1 and an MPRv2 project byte-identical with the same
+// mtime. Before the fix, update-widgets rewrote a v1 .mpr permanently, and mx
+// check wrote theme-cache/ and deployment/sass/ in both formats.
+func TestCheck_LeavesProjectUntouched(t *testing.T) {
+	mxPath, err := ResolveMx("")
+	if err != nil {
+		t.Skipf("mx not resolvable: %v", err)
+	}
+	scaffold := func(t *testing.T) string {
+		// Not t.TempDir(): the subtest names make it long enough for
+		// create-project's template extraction to hit PathTooLongException.
+		dir, err := os.MkdirTemp("", "chk")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { os.RemoveAll(dir) })
+		cmd := exec.Command(mxPath, "create-project")
+		cmd.Dir = dir
+		PrepareMxCommand(cmd)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Skipf("mx create-project failed: %v\n%s", err, out)
+		}
+		return filepath.Join(dir, "App.mpr")
+	}
+
+	for _, format := range []string{"v2", "v1"} {
+		for _, skip := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/no-update-widgets=%v", format, skip), func(t *testing.T) {
+				mprPath := scaffold(t)
+				if format == "v1" {
+					// update-widgets converts a v2 project to v1 — the fixture we want.
+					if err := updateWidgetsCmd(mxPath, mprPath, io.Discard, io.Discard); err != nil {
+						t.Skipf("could not produce a v1 fixture: %v", err)
+					}
+					if v := mprStorageVersion(t, mprPath); v != types.MPRVersionV1 {
+						t.Skipf("fixture is %v, not v1", v)
+					}
+				}
+				dir := filepath.Dir(mprPath)
+				before := treeState(t, dir)
+				var stdout bytes.Buffer
+				if err := Check(CheckOptions{ProjectPath: mprPath, SkipUpdateWidgets: skip, Stdout: &stdout, Stderr: &stdout}); err != nil {
+					t.Fatalf("Check: %v\n%s", err, stdout.String())
+				}
+				if d := diffStates(before, treeState(t, dir)); len(d) > 0 {
+					t.Errorf("docker check modified the project:\n  %v", d)
+				}
+			})
+		}
+	}
+}
+
+// TestMxCheckOnCopy_LeavesProjectUntouched: the plain `mx check` the TUI
+// checker and the eval runner run (ako/mxcli#961) leaves an MPRv1 and an MPRv2
+// project byte-identical with the same mtimes, and still reports what mx found.
+// Measured before the fix with mx 11.14: theme-cache/web/ and deployment/sass/
+// were added to the project in both formats.
+func TestMxCheckOnCopy_LeavesProjectUntouched(t *testing.T) {
+	mxPath, err := ResolveMx("")
+	if err != nil {
+		t.Skipf("mx not resolvable: %v", err)
+	}
+	for _, format := range []string{"v2", "v1"} {
+		t.Run(format, func(t *testing.T) {
+			dir, err := os.MkdirTemp("", "mxc")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { os.RemoveAll(dir) })
+			cmd := exec.Command(mxPath, "create-project")
+			cmd.Dir = dir
+			PrepareMxCommand(cmd)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Skipf("mx create-project failed: %v\n%s", err, out)
+			}
+			mprPath := filepath.Join(dir, "App.mpr")
+			if format == "v1" {
+				if err := updateWidgetsCmd(mxPath, mprPath, io.Discard, io.Discard); err != nil {
+					t.Skipf("could not produce a v1 fixture: %v", err)
+				}
+			}
+			jsonPath := filepath.Join(t.TempDir(), "check.json")
+			before := treeState(t, dir)
+			var out bytes.Buffer
+			if err := MxCheckOnCopy(mxPath, mprPath, []string{"-j", jsonPath}, &out, &out); err != nil {
+				t.Fatalf("MxCheckOnCopy: %v\n%s", err, out.String())
+			}
+			if d := diffStates(before, treeState(t, dir)); len(d) > 0 {
+				t.Errorf("mx check modified the project:\n  %v", d)
+			}
+			if _, err := os.Stat(jsonPath); err != nil {
+				t.Errorf("mx check wrote no JSON result: %v", err)
+			}
+		})
+	}
 }

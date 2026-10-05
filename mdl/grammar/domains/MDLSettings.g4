@@ -515,7 +515,7 @@ booleanLiteral
     ;
 
 /**
- * CREATE [OR MODIFY|REPLACE] TRANSLATIONS [IN Module] FOR <lang> ( 'src' AS 'target', ... );
+ * CREATE [OR MODIFY|REPLACE] TRANSLATIONS [IN Module | WITHOUT MARKETPLACE] FOR <lang> ( 'src' AS 'target', ... );
  *
  * A translation maps a user-provided name to another name, so entries use AS
  * rather than COLON — the same rule CUSTOM NAME map follows
@@ -529,10 +529,16 @@ booleanLiteral
  * scope is removed — and it is the only way to take a language's translations
  * out of the model, which `alter settings LANGUAGE remove` points at. It parsed
  * as an error before, so the documented way to do it did not exist.
+ * WITHOUT MARKETPLACE keeps an unscoped run out of Marketplace modules, whose
+ * contents — Atlas page templates and building blocks included — the next
+ * module update replaces (ako/mxcli#970). Additive: without it the statement
+ * still reaches the whole project, as it always has, and warns when it wrote
+ * into a Marketplace module. `IN <Module>` already names one module, so the two
+ * are alternatives rather than combinable.
  * See docs/11-proposals/PROPOSAL_translations.md.
  */
 createTranslationsStatement
-    : TRANSLATIONS (IN identifierOrKeyword)? FOR identifierOrKeyword
+    : TRANSLATIONS (IN identifierOrKeyword | WITHOUT MARKETPLACE)? FOR identifierOrKeyword
       LPAREN (translationEntry (COMMA translationEntry)* COMMA?)? RPAREN
     ;
 
@@ -795,7 +801,7 @@ keyword
     // CLI commands
     | BUILD | CATALOG | CHECK | CLEAR | COMMENT | CUSTOM_NAME_MAP
     | DESIGN | DRY | EXEC | FEATURES | ADDED | SINCE | FORCE
-    | LANGUAGES | LINT | PROPERTIES | READ | RULES | RUN | SARIF | SCRIPT | TRANSLATIONS
+    | LANGUAGES | LINT | MARKETPLACE | PROPERTIES | READ | RULES | RUN | SARIF | SCRIPT | TRANSLATIONS
     | SHOW | USE | STATUS | WRITE | VIA | VIEWS | TABLES
 
     // Sequence flow anchors (for @anchor annotation)
@@ -806,7 +812,7 @@ keyword
 
     // General-purpose words (only tokens not already listed above)
     | ACTION | BLOCKING | BOTH | CONTEXT | DATA | FORMAT | ITEM | LIST
-    | DEFINITION | IGNORE | MESSAGE | MOD | DIV | MULTIPLE | NONE | OBJECT | OBJECTS
+    | DEFINITION | DEFINITIONS | IGNORE | MESSAGE | MOD | DIV | MULTIPLE | NONE | OBJECT | OBJECTS
     | OVERRIDABLE | ROOT
     | SINGLE | SQL | TEMPLATE | TEXT | TYPE | VALUE
 

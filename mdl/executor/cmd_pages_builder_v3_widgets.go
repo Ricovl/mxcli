@@ -488,6 +488,15 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 	tb.ValidationExpression = w.GetStringProp("Validation")
 	tb.ValidationMessage = w.GetStringProp("ValidationMessage")
 
+	// Forms$FormattingInfo: date format and numeric precision/grouping. The
+	// writer hard-coded the defaults, so a Studio Pro text box with a decimal
+	// precision lost it on describe → exec (ako/mxcli#968).
+	fi, err := inputFormattingInfo(w)
+	if err != nil {
+		return nil, err
+	}
+	tb.FormattingInfo = fi
+
 	// Handle Label
 	if label := inputLabel(w); label != "" {
 		tb.Label = label
@@ -600,6 +609,13 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 	if label := inputLabel(w); label != "" {
 		dp.Label = label
 	}
+
+	// DateFormat / CustomDateFormat — the picker's mode (ako/mxcli#968).
+	fi, err := inputFormattingInfo(w)
+	if err != nil {
+		return nil, err
+	}
+	dp.FormattingInfo = fi
 
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &dp.OnChangeAction); err != nil {
@@ -1152,10 +1168,10 @@ func (pb *pageBuilder) buildNavigationListV3(w *ast.WidgetV3) (*pages.Navigation
 
 // buildNavigationListItemV3 creates a NavigationListItem from V3 syntax.
 func (pb *pageBuilder) buildNavigationListItemV3(w *ast.WidgetV3) (*pages.NavigationListItem, error) {
-	if w.Name == "" {
-		return nil, mdlerrors.NewValidation("item inside navigationlist requires a name")
-	}
-
+	// An item may be unnamed: Studio Pro stores Name "" on the items it
+	// creates (all three of TestApp's Rules.Entity_Menu), and describe prints
+	// them as `item (…)`. Refusing that made the describe of every such
+	// navigation list fail exec (ako/mxcli#950).
 	item := &pages.NavigationListItem{
 		BaseElement: model.BaseElement{
 			ID:       model.ID(types.GenerateID()),
@@ -1164,8 +1180,10 @@ func (pb *pageBuilder) buildNavigationListItemV3(w *ast.WidgetV3) (*pages.Naviga
 		Name: w.Name,
 	}
 
-	if err := pb.registerWidgetName(w.Name, item.ID); err != nil {
-		return nil, err
+	if w.Name != "" {
+		if err := pb.registerWidgetName(w.Name, item.ID); err != nil {
+			return nil, err
+		}
 	}
 
 	// Set caption from Caption property

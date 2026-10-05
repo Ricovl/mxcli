@@ -4,6 +4,7 @@ package executor
 
 import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 )
 
@@ -26,6 +27,25 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// Statement-level checks that need no project connection.
 	var violations []linter.Violation
 	securityEnabled := programEnablesSecurity(prog)
+	// The project, opened at most once and only if a check needs it.
+	var lazyProject backend.FullBackend
+	lazyOpened := false
+	project := func() backend.FullBackend {
+		if !lazyOpened {
+			lazyOpened = true
+			lazyProject = openProjectForValidation(projectPath)
+		}
+		return lazyProject
+	}
+	defer func() {
+		if lazyProject != nil {
+			_ = lazyProject.Disconnect()
+		}
+	}()
+	// Which Java/JavaScript action calls target a void action — such a call
+	// declares no variable (MDL063, #953). The script answers for the actions
+	// it creates; the project for the rest.
+	voids := newVoidCodeActions(prog, project)
 	for _, stmt := range prog.Statements {
 		// Check enumeration values for reserved words
 		if enumStmt, ok := stmt.(*ast.CreateEnumerationStmt); ok {
@@ -85,7 +105,7 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		}
 		// Check microflow body for common issues
 		if mfStmt, ok := stmt.(*ast.CreateMicroflowStmt); ok {
-			violations = append(violations, ValidateMicroflow(mfStmt)...)
+			violations = append(violations, validateMicroflowWith(mfStmt, voids)...)
 			violations = append(violations,
 				ValidateFlowParameterAnnotations("microflow '"+mfStmt.Name.String()+"'", mfStmt.Parameters)...)
 		}
@@ -93,7 +113,7 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		// ValidateMicroflow but share the parameter grammar.
 		if nfStmt, ok := stmt.(*ast.CreateNanoflowStmt); ok {
 			// MDL044 over the body (mendixlabs/mxcli#1033).
-			violations = append(violations, ValidateNanoflow(nfStmt)...)
+			violations = append(violations, validateNanoflowWith(nfStmt, voids)...)
 			violations = append(violations,
 				ValidateFlowParameterAnnotations("nanoflow '"+nfStmt.Name.String()+"'", nfStmt.Parameters)...)
 		}
@@ -137,6 +157,7 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 			if viewStmt.Query.RawQuery != "" {
 				violations = append(violations, ValidateOQLSyntax(viewStmt.Query.RawQuery)...)
 				violations = append(violations, ValidateOQLTypes(viewStmt.Query.RawQuery, viewStmt.Attributes)...)
+				violations = append(violations, ValidateOQLPortability(viewStmt.Query.RawQuery)...)
 				violations = append(violations, ValidateViewAttributeDeclarations(viewStmt.Query.RawQuery, viewStmt.Attributes)...)
 			}
 		}
@@ -168,7 +189,9 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// wrapped in a layout grid — its label/input widths only render correctly
 	// inside a layoutgrid. Same rule as the MPR010 lint rule, surfaced at
 	// authoring time on the AST.
-	violations = append(violations, ValidatePageLayoutGrid(prog)...)
+	// A page on a native layout is exempt (ako/mxcli#962); only the project
+	// can say which layouts are native.
+	violations = append(violations, ValidatePageLayoutGrid(prog, projectNativeLayouts(project))...)
 
 	// Warn (MDL-OFFLINE01) when a page binds an attribute across more than one
 	// association in a project that has an offline navigation profile. Mendix

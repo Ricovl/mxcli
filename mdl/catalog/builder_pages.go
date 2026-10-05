@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/sdk/pages"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -35,8 +36,9 @@ func (b *Builder) buildPages() error {
 		widgetStmt, err = b.tx.Prepare(`
 			INSERT INTO widgets_data (Id, Name, WidgetType, ContainerId, ContainerQualifiedName, ContainerType,
 				ModuleName, Folder, EntityRef, AttributeRef, MicroflowRef, NanoflowRef, PageRef, Description,
+				ParentWidgetId, Depth, Class, Style, DynamicClasses, ActionType, HasConfirmation,
 				ProjectId, SnapshotId)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
@@ -116,6 +118,8 @@ func (b *Builder) buildPages() error {
 					w.NanoflowRef,
 					w.PageRef,
 					"",
+					w.ParentID, w.Depth, w.Class, w.Style, w.DynamicClasses,
+					w.ActionType, w.HasConfirmation,
 					projectID, snapshotID,
 				); err != nil {
 					return fmt.Errorf("insert widget %s for page %s: %w", w.Name, qualifiedName, err)
@@ -158,8 +162,9 @@ func (b *Builder) buildSnippets() error {
 		widgetStmt, err = b.tx.Prepare(`
 			INSERT INTO widgets_data (Id, Name, WidgetType, ContainerId, ContainerQualifiedName, ContainerType,
 				ModuleName, Folder, EntityRef, AttributeRef, MicroflowRef, NanoflowRef, PageRef, Description,
+				ParentWidgetId, Depth, Class, Style, DynamicClasses, ActionType, HasConfirmation,
 				ProjectId, SnapshotId)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
@@ -207,6 +212,8 @@ func (b *Builder) buildSnippets() error {
 					string(sn.ID), qualifiedName, "SNIPPET",
 					moduleName, folder,
 					w.EntityRef, w.AttributeRef, w.MicroflowRef, w.NanoflowRef, w.PageRef, "",
+					w.ParentID, w.Depth, w.Class, w.Style, w.DynamicClasses,
+					w.ActionType, w.HasConfirmation,
 					projectID, snapshotID,
 				); err != nil {
 					return fmt.Errorf("insert widget %s for snippet %s: %w", w.Name, qualifiedName, err)
@@ -294,6 +301,73 @@ type rawWidgetInfo struct {
 	MicroflowRef string // action/datasource microflow (Forms$MicroflowSettings.Microflow, …)
 	NanoflowRef  string // action/datasource nanoflow
 	PageRef      string // action page (Forms$PageSettings.Form) — see scanWidgetOwnRefs
+
+	// Tree position (mendixlabs/mxcli#1268). ParentID is the nearest INDEXED
+	// ancestor, so a wrapper the walk skips (the synthetic
+	// conditionalVisibilityWidget DivContainer) and the non-widget holders in
+	// between (a layout grid's rows and columns, a tab page, a pluggable
+	// widget's property or object-list item) are transparent: a widget in a
+	// layout grid column or a data grid 2 column is parented to the grid.
+	// Depth is the number of indexed ancestors — 0 at the page or snippet root.
+	// A list view template IS indexed (issue #940), so it is a level of its
+	// own: list view d, template d+1, the template's widgets d+2. The walk
+	// does not enter a snippet call, so depth restarts at 0 inside the snippet.
+	ParentID string
+	Depth    int
+
+	// Appearance (Forms$Appearance — the only home of these since Mendix 8,
+	// pluggable widgets included).
+	Class          string
+	Style          string
+	DynamicClasses string
+
+	// ActionType is the stored $Type of the widget's primary action: Action
+	// (action button, link button), else OnClickAction (containers, layout
+	// grids), else ClickAction (list views, images). Raw, e.g.
+	// "Forms$DeleteClientAction", "Forms$MicroflowAction", "Forms$NoAction".
+	// HasConfirmation reports a ConfirmationInfo on that action; only
+	// microflow, nanoflow and workflow calls can carry one — a delete action
+	// has no confirmation setting in the model at all.
+	ActionType      string
+	HasConfirmation bool
+}
+
+// widgetActionKeys are, in priority order, the keys under which a widget stores
+// its primary client action.
+var widgetActionKeys = []string{"Action", "OnClickAction", "ClickAction"}
+
+// widgetPrimaryAction returns the $Type of a widget's primary action and whether
+// that action asks for confirmation. A microflow call keeps its confirmation in
+// MicroflowSettings.ConfirmationInfo; nanoflow and workflow calls hold
+// ConfirmationInfo directly. Unset, the property is stored as null.
+func widgetPrimaryAction(w map[string]any) (actionType string, hasConfirmation bool) {
+	for _, key := range widgetActionKeys {
+		action, ok := w[key].(map[string]any)
+		if !ok {
+			continue
+		}
+		actionType = extractString(action["$Type"])
+		if actionType == "" {
+			continue
+		}
+		if _, ok := action["ConfirmationInfo"].(map[string]any); ok {
+			hasConfirmation = true
+		} else if settings, ok := action["MicroflowSettings"].(map[string]any); ok {
+			_, hasConfirmation = settings["ConfirmationInfo"].(map[string]any)
+		}
+		return actionType, hasConfirmation
+	}
+	return "", false
+}
+
+// widgetAppearance reads a widget's Class, Style and DynamicClasses.
+func widgetAppearance(w map[string]any) (class, style, dynamicClasses string) {
+	appearance, ok := w["Appearance"].(map[string]any)
+	if !ok {
+		return "", "", ""
+	}
+	return extractString(appearance["Class"]), extractString(appearance["Style"]),
+		extractString(appearance["DynamicClasses"])
 }
 
 // widgetChildKeys are the keys under which a widget nests *other* widgets. The
@@ -452,8 +526,17 @@ func isTransparentDivWrapper(w map[string]any, widgetType string) bool {
 	return len(getBsonArrayElements(appearance["DesignProperties"])) == 0
 }
 
-// extractWidgetsRecursive recursively extracts widgets from a widget map.
+// extractWidgetsRecursive recursively extracts widgets from a widget map that
+// sits at the root of its page or snippet.
 func extractWidgetsRecursive(w map[string]any) []rawWidgetInfo {
+	return walkWidget(w, "", 0)
+}
+
+// walkWidget extracts w and every widget nested in it. parentID and depth are
+// those w gets if it is indexed — the nearest indexed ancestor and the number
+// of indexed ancestors — and are passed through unchanged to its children when
+// it is not.
+func walkWidget(w map[string]any, parentID string, depth int) []rawWidgetInfo {
 	var result []rawWidgetInfo
 
 	// Extract this widget's info
@@ -480,6 +563,9 @@ func extractWidgetsRecursive(w map[string]any) []rawWidgetInfo {
 	// Extract datasource entity + action microflow/nanoflow references from this
 	// widget's own content (not its child widgets).
 	widget.EntityRef, widget.MicroflowRef, widget.NanoflowRef, widget.PageRef = scanWidgetOwnRefs(w)
+	widget.Class, widget.Style, widget.DynamicClasses = widgetAppearance(w)
+	widget.ActionType, widget.HasConfirmation = widgetPrimaryAction(w)
+	widget.ParentID, widget.Depth = parentID, depth
 
 	// Index user-authored containers, but skip the synthetic
 	// "conditionalVisibilityWidget*" wrapper that mxcli / Studio Pro insert as a
@@ -487,15 +573,17 @@ func extractWidgetsRecursive(w map[string]any) []rawWidgetInfo {
 	// Previously ALL DivContainers were dropped, so real `container` widgets —
 	// which carry Class/Style/DynamicClasses/DesignProperties and OnClick — were
 	// invisible to `show widgets` and untargetable by `update widgets`.
+	childParent, childDepth := parentID, depth
 	if !isTransparentDivWrapper(w, widget.WidgetType) {
 		result = append(result, widget)
+		childParent, childDepth = widget.ID, depth+1
 	}
 
 	// Recurse into child widgets
 	childWidgets := getBsonArrayElements(w["Widgets"])
 	for _, child := range childWidgets {
 		if childMap, ok := child.(map[string]any); ok {
-			result = append(result, extractWidgetsRecursive(childMap)...)
+			result = append(result, walkWidget(childMap, childParent, childDepth)...)
 		}
 	}
 
@@ -509,7 +597,7 @@ func extractWidgetsRecursive(w map[string]any) []rawWidgetInfo {
 					colWidgets := getBsonArrayElements(colMap["Widgets"])
 					for _, cw := range colWidgets {
 						if cwMap, ok := cw.(map[string]any); ok {
-							result = append(result, extractWidgetsRecursive(cwMap)...)
+							result = append(result, walkWidget(cwMap, childParent, childDepth)...)
 						}
 					}
 				}
@@ -529,7 +617,7 @@ func extractWidgetsRecursive(w map[string]any) []rawWidgetInfo {
 	// in active use. Issue #940.
 	for _, tpl := range getBsonArrayElements(w["Templates"]) {
 		if tplMap, ok := tpl.(map[string]any); ok {
-			result = append(result, extractWidgetsRecursive(tplMap)...)
+			result = append(result, walkWidget(tplMap, childParent, childDepth)...)
 		}
 	}
 
@@ -537,7 +625,7 @@ func extractWidgetsRecursive(w map[string]any) []rawWidgetInfo {
 	footerWidgets := getBsonArrayElements(w["FooterWidgets"])
 	for _, fw := range footerWidgets {
 		if fwMap, ok := fw.(map[string]any); ok {
-			result = append(result, extractWidgetsRecursive(fwMap)...)
+			result = append(result, walkWidget(fwMap, childParent, childDepth)...)
 		}
 	}
 
@@ -548,7 +636,7 @@ func extractWidgetsRecursive(w map[string]any) []rawWidgetInfo {
 			tpWidgets := getBsonArrayElements(tpMap["Widgets"])
 			for _, tw := range tpWidgets {
 				if twMap, ok := tw.(map[string]any); ok {
-					result = append(result, extractWidgetsRecursive(twMap)...)
+					result = append(result, walkWidget(twMap, childParent, childDepth)...)
 				}
 			}
 		}
@@ -556,7 +644,7 @@ func extractWidgetsRecursive(w map[string]any) []rawWidgetInfo {
 
 	// Handle CustomWidget nested widgets in properties — both kinds of container.
 	if obj, ok := w["Object"].(map[string]any); ok {
-		result = append(result, widgetsInPropertyBag(obj)...)
+		result = append(result, widgetsInPropertyBag(obj, childParent, childDepth)...)
 	}
 
 	// Handle NavigationList items
@@ -566,7 +654,7 @@ func extractWidgetsRecursive(w map[string]any) []rawWidgetInfo {
 			itemWidgets := getBsonArrayElements(itemMap["Widgets"])
 			for _, iw := range itemWidgets {
 				if iwMap, ok := iw.(map[string]any); ok {
-					result = append(result, extractWidgetsRecursive(iwMap)...)
+					result = append(result, walkWidget(iwMap, childParent, childDepth)...)
 				}
 			}
 		}
@@ -595,7 +683,11 @@ func extractWidgetsRecursive(w map[string]any) []rawWidgetInfo {
 // An object-list item is itself a property bag, so the walk recurses: a column
 // holding a nested widget that has its own object list is covered without a
 // second case.
-func widgetsInPropertyBag(bag map[string]any) []rawWidgetInfo {
+//
+// parentID and depth belong to the pluggable widget's children: a property and
+// an object-list item are not widgets, so a widget in a column is parented to
+// the grid.
+func widgetsInPropertyBag(bag map[string]any, parentID string, depth int) []rawWidgetInfo {
 	var result []rawWidgetInfo
 	for _, prop := range getBsonArrayElements(bag["Properties"]) {
 		propMap, ok := prop.(map[string]any)
@@ -608,12 +700,12 @@ func widgetsInPropertyBag(bag map[string]any) []rawWidgetInfo {
 		}
 		for _, pw := range getBsonArrayElements(value["Widgets"]) {
 			if pwMap, ok := pw.(map[string]any); ok {
-				result = append(result, extractWidgetsRecursive(pwMap)...)
+				result = append(result, walkWidget(pwMap, parentID, depth)...)
 			}
 		}
 		for _, obj := range getBsonArrayElements(value["Objects"]) {
 			if objMap, ok := obj.(map[string]any); ok {
-				result = append(result, widgetsInPropertyBag(objMap)...)
+				result = append(result, widgetsInPropertyBag(objMap, parentID, depth)...)
 			}
 		}
 	}
@@ -764,6 +856,22 @@ func bytesToHex(data []byte) string {
 	return string(result)
 }
 
+// layoutPlatform is "Native" for a native-mobile layout and "Web" otherwise.
+// Pages inherit it from their layout; the React-client CE0582 rules apply to
+// web pages only (ako/mxcli#953).
+func layoutPlatform(l *pages.Layout) string {
+	if l.Native {
+		return LayoutPlatformNative
+	}
+	return LayoutPlatformWeb
+}
+
+// The values of layouts.Platform.
+const (
+	LayoutPlatformWeb    = "Web"
+	LayoutPlatformNative = "Native"
+)
+
 func (b *Builder) buildLayouts() error {
 	// Get all layouts
 	layoutList, err := b.reader.ListLayouts()
@@ -772,9 +880,9 @@ func (b *Builder) buildLayouts() error {
 	}
 
 	layoutStmt, err := b.tx.Prepare(`
-		INSERT INTO layouts_data (Id, Name, QualifiedName, ModuleName, Folder, LayoutType, Description,
-			ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO layouts_data (Id, Name, QualifiedName, ModuleName, Folder, LayoutType, Platform,
+			Description, ProjectId, SnapshotId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -798,6 +906,7 @@ func (b *Builder) buildLayouts() error {
 			moduleName,
 			folder,
 			string(l.LayoutType),
+			layoutPlatform(l),
 			l.Documentation,
 			projectID, snapshotID,
 		)

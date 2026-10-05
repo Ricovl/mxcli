@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -32,7 +33,8 @@ type WebClientOptions struct {
 	// MxBuildPath is <cache>/modeler/mxbuild; the node tooling is resolved from
 	// its sibling tools/node directory.
 	MxBuildPath string
-	// Timeout bounds the bundle build (default 5m).
+	// Timeout bounds the bundle build. Zero means webClientTimeout's default:
+	// $MXCLI_WEB_CLIENT_TIMEOUT when set, else 5m.
 	Timeout time.Duration
 	// Stdout receives a short progress line (default discarded).
 	Stdout io.Writer
@@ -123,10 +125,7 @@ func BuildWebClient(opts WebClientOptions) error {
 	if err != nil {
 		return err
 	}
-	timeout := opts.Timeout
-	if timeout == 0 {
-		timeout = 5 * time.Minute
-	}
+	timeout := webClientTimeout(opts.Timeout)
 
 	start := time.Now()
 	cmd := exec.Command(nodeBin, runner)
@@ -152,7 +151,10 @@ func BuildWebClient(opts WebClientOptions) error {
 	case <-time.After(timeout):
 		_ = cmd.Process.Kill()
 		<-done
-		return fmt.Errorf("web client build timed out after %s", timeout)
+		// A bare "timed out" left the user nothing to act on (#971): say how to
+		// raise the limit and show what the bundler was doing when it was cut off.
+		return fmt.Errorf("web client build timed out after %s (raise it with --web-client-timeout or %s)%s",
+			timeout, webClientTimeoutEnv, webClientBuildLogTail(opts.DeployDir))
 	}
 
 	if !WebClientBundled(opts.DeployDir) {
@@ -161,6 +163,52 @@ func BuildWebClient(opts WebClientOptions) error {
 	}
 	fmt.Fprintf(w, "  Web client bundled in %s\n", time.Since(start).Round(time.Millisecond))
 	return nil
+}
+
+// defaultWebClientTimeout bounds one bundle build when nothing overrides it.
+const defaultWebClientTimeout = 5 * time.Minute
+
+// webClientTimeoutEnv overrides defaultWebClientTimeout (a Go duration, e.g.
+// "10m"). The --web-client-timeout flag of `run --local` wins over it.
+const webClientTimeoutEnv = "MXCLI_WEB_CLIENT_TIMEOUT"
+
+// webClientTimeout resolves the bundle-build limit: an explicit value first,
+// then $MXCLI_WEB_CLIENT_TIMEOUT, then 5m. An unparsable or non-positive
+// environment value is ignored rather than fatal — it bounds a build, and the
+// default is a working bound.
+func webClientTimeout(explicit time.Duration) time.Duration {
+	if explicit > 0 {
+		return explicit
+	}
+	if v := strings.TrimSpace(os.Getenv(webClientTimeoutEnv)); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return defaultWebClientTimeout
+}
+
+// webClientLogTailLines is how much of web-client-build.log a timeout shows.
+const webClientLogTailLines = 30
+
+// webClientBuildLogTail returns the last lines of the bundler's own log
+// (deployment/log/web-client-build.log), formatted to append to an error, or ""
+// when there is no log. The runner writes its progress there, not to stdout, so
+// it is where a stalled bundle shows which phase it stalled in.
+func webClientBuildLogTail(deployDir string) string {
+	path := filepath.Join(deployDir, "log", "web-client-build.log")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return ""
+	}
+	if len(lines) > webClientLogTailLines {
+		lines = lines[len(lines)-webClientLogTailLines:]
+	}
+	return fmt.Sprintf("\n  last %d line(s) of %s:\n    %s", len(lines), path, strings.Join(lines, "\n    "))
 }
 
 // webClientBundlePath is the one file whose absence is the black screen: the

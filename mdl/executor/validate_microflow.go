@@ -16,11 +16,20 @@ import (
 // ValidateMicroflow checks a microflow for common issues that don't require a project connection.
 // Returns a list of structured violations with rule IDs.
 func ValidateMicroflow(stmt *ast.CreateMicroflowStmt) []linter.Violation {
+	return validateMicroflowWith(stmt, nil)
+}
+
+// validateMicroflowWith is ValidateMicroflow with a resolver for the return
+// types of the Java/JavaScript actions the body calls, so a call to a void
+// action is not counted as declaring its output name (MDL063, #953). A nil
+// resolver knows no action, and every named call output counts.
+func validateMicroflowWith(stmt *ast.CreateMicroflowStmt, voids *voidCodeActions) []linter.Violation {
 	v := &microflowValidator{
 		mfName:     stmt.Name.String(),
 		docType:    "microflow",
 		returnType: stmt.ReturnType,
 		varKinds:   map[string]exprcheck.TypeKind{},
+		voids:      voids,
 	}
 	// Seed the variable→kind scope with the microflow's parameters so numeric
 	// assignment checks can resolve operands like $count.
@@ -89,6 +98,9 @@ type microflowValidator struct {
 	// excluded marks an @excluded document. mxbuild does not check one, so the
 	// #893 rules stand down for it — see skipCEGapRules.
 	excluded bool
+	// voids resolves which Java/JavaScript action calls target a void action;
+	// such a call declares no variable (MDL063, #953). May be nil.
+	voids *voidCodeActions
 }
 
 func (v *microflowValidator) addViolation(ruleID string, severity linter.Severity, message, suggestion string) {
@@ -150,6 +162,9 @@ func (v *microflowValidator) validate(body []ast.MicroflowStatement) {
 	// by the build. See validate_microflow_ce_gaps.go for the measurements.
 	v.checkReturnInLoop(body)
 	v.checkDuplicateVariableNames(v.params, body)
+	// ako/mxcli#962: the other half of #953's void-call finding — the name is
+	// inert both ways, so reading it is CE0109. See validate_void_call_output.go.
+	v.checkVoidCallOutputUse(v.params, body)
 
 	// mendixlabs/mxcli#1030: an error event is legal only on an error-handling
 	// flow. See validate_microflow_raise_error.go.
@@ -541,6 +556,9 @@ func (v *microflowValidator) checkStmtExprFunctions(s ast.MicroflowStatement) {
 // check but fail the build with CE0117. label describes where the expression
 // appears (e.g. "declare '$r'"). (findings #1)
 func (v *microflowValidator) checkExprFunctions(label string, expr ast.Expression) {
+	// The one per-expression hook shared by microflows and nanoflows, so the
+	// JSON-number check rides along rather than keeping a third list of sites.
+	v.checkLocaleNumberInJSON(label, expr)
 	src := microflowExprSource(expr)
 	if src == "" {
 		return

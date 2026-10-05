@@ -25,7 +25,9 @@ the container on every change (~30–60 s). `run --local` instead:
 | entity / view entity / association | runtime restart + DDL | ~9 s |
 
 The metamodel catalog (entities/associations) is reconciled only at runtime startup,
-so structural changes need a restart; behavioural changes do not.
+so structural changes need a restart; behavioural changes do not. A restart drops
+every browser session — `--watch` prints `browser sessions were dropped; log in
+again` when it happens, so a browser test knows to sign in before its next step.
 
 ## What it does
 
@@ -63,6 +65,10 @@ so structural changes need a restart; behavioural changes do not.
     createdb -h 127.0.0.1 -U mendix app1112
     ```
 
+At start, `run --local` warns (without stopping) when the project's git state
+would make Studio Pro 11.13 fail to open it — a branch with no upstream, or
+"dubious ownership". See [Working Outside Studio Pro](outside-studio-pro.md).
+
 ## Flags
 
 | Flag | Default | Purpose |
@@ -72,6 +78,7 @@ so structural changes need a restart; behavioural changes do not.
 | `--hub-secret` | — | Shared auth (`user:pass`) matching an **open** hub's `--secret` |
 | *(hub API key)* | — | For a **GitHub-authenticated** hub: get one from `https://<hub>/cli`, set `MXCLI_HUB_KEY` (see below) |
 | `--watch` | off | Rebuild + hot-apply on every project change |
+| `--web-client-timeout` | `$MXCLI_WEB_CLIENT_TIMEOUT`, else `5m` | Limit for one web client bundle build (e.g. `10m`); on timeout the tail of `deployment/log/web-client-build.log` is printed |
 | `--ensure-db` | off | Provision local Postgres + the app database if missing (fresh-session bootstrap) |
 | `--setup` | off | Prepare prerequisites (cache MxBuild+runtime, ensure DB) and exit without booting — for a SessionStart hook |
 | `--app-port` | 8080 | App HTTP port |
