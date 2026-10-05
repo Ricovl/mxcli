@@ -49,7 +49,7 @@ func listImportMappings(ctx *ExecContext, inModule string) error {
 			src = im.XmlSchema
 		}
 		if src == "" {
-			src = im.MessageDefinition
+			src = im.MessageDefinitionSource()
 		}
 		if src == "" {
 			src = "(none)"
@@ -126,10 +126,11 @@ func describeImportMapping(ctx *ExecContext, name ast.QualifiedName) error {
 		fmt.Fprintf(ctx.Output, "  with json structure %s%s\n", im.JsonStructure, rootClause)
 	} else if im.XmlSchema != "" {
 		fmt.Fprintf(ctx.Output, "  with xml schema %s\n", im.XmlSchema)
-	} else if im.MessageDefinition != "" {
+	} else if src := im.MessageDefinitionSource(); src != "" {
 		// Dropped entirely before #263 — and the output still PARSED, so
-		// re-executing a DESCRIBE rebuilt the mapping bound to nothing.
-		fmt.Fprintf(ctx.Output, "  with message definition %s\n", im.MessageDefinition)
+		// re-executing a DESCRIBE rebuilt the mapping bound to nothing. On 11.15
+		// the source is in MessageDefinition2 (ako/mxcli#987).
+		fmt.Fprintf(ctx.Output, "  with message definition %s\n", src)
 	} else if im.WebServiceSource.IsSet() {
 		// MDL has no `with web service` clause, so this cannot round-trip.
 		// Emitting NOTHING would be worse than saying so: the output parses, and
@@ -425,15 +426,6 @@ func execCreateImportMapping(ctx *ExecContext, s *ast.CreateImportMappingStmt) e
 		// Excluded is model state, not script state: an absent @excluded must
 		// not clear a stored exclusion (#914).
 		im.Excluded = s.Excluded || existing.Excluded
-		// MessageDefinition2 is version-introduced (11.10+) and CARRIED, never
-		// invented: a document written before then does not have the key, and
-		// adding one is the overlay-rule mistake — mxbuild tolerates it, Studio
-		// Pro refuses to open the document. On a CREATE there is nothing to read
-		// it off, so the version gate below decides instead.
-		im.MessageDefinition2 = existing.MessageDefinition2
-	} else if pv := ctx.Backend.ProjectVersion(); pv != nil && pv.IsAtLeast(11, 10) {
-		empty := ""
-		im.MessageDefinition2 = &empty
 	}
 
 	// The mapping's input object (#265), which `Param: parameter` binds.
@@ -449,14 +441,22 @@ func execCreateImportMapping(ctx *ExecContext, s *ast.CreateImportMappingStmt) e
 		im.JsonStructure = s.SchemaRef.String()
 	case "XML_SCHEMA":
 		im.XmlSchema = s.SchemaRef.String()
-	case "MESSAGE_DEFINITION":
-		im.MessageDefinition = s.SchemaRef.String()
 	}
+	// The message-definition keys are version-dependent and CARRIED: 11.10 added
+	// MessageDefinition2, 11.15 removed MessageDefinition and moved the source
+	// into MessageDefinition2 (ako/mxcli#987).
+	var existingMD, existingMD2 *string
+	if existing != nil {
+		existingMD, existingMD2 = existing.MessageDefinition, existing.MessageDefinition2
+	}
+	im.MessageDefinition, im.MessageDefinition2 = mappingMessageDefinitionKeys(
+		ctx.Backend.ProjectVersion(), existing != nil, existingMD, existingMD2,
+		s.SchemaKind == "MESSAGE_DEFINITION", s.SchemaRef.String())
 
 	// A message definition resolves against the domain model, not a payload
 	// sample, and the mapping stores both path families — its own builder (#263).
 	if s.SchemaKind == "MESSAGE_DEFINITION" {
-		md, err := findMessageDefinition(ctx.Backend, im.MessageDefinition)
+		md, err := findMessageDefinition(ctx.Backend, s.SchemaRef.String())
 		if err != nil {
 			return mdlerrors.NewValidation(fmt.Sprintf("import mapping %s: %v", s.Name.String(), err))
 		}

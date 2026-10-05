@@ -172,3 +172,27 @@ func TestCreateExportMapping_AlreadyExists_NoOrModify(t *testing.T) {
 	})
 	assertError(t, err)
 }
+
+// The export twin of TestDescribeImportMapping_MessageDefinition2Source
+// (ako/mxcli#987).
+func TestDescribeExportMapping_MessageDefinition2Source(t *testing.T) {
+	mod := mkModule("MsgTest")
+	src := "MsgTest.OrderMessage"
+	em := &model.ExportMapping{
+		BaseElement:        model.BaseElement{ID: nextID("em")},
+		ContainerID:        mod.ID,
+		Name:               "EXM_Order",
+		MessageDefinition2: &src,
+	}
+	h := mkHierarchy(mod)
+	withContainer(h, em.ContainerID, mod.ID)
+	mb := &mock.MockBackend{
+		IsConnectedFunc: func() bool { return true },
+		GetExportMappingByQualifiedNameFunc: func(string, string) (*model.ExportMapping, error) {
+			return em, nil
+		},
+	}
+	ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	assertNoError(t, describeExportMapping(ctx, ast.QualifiedName{Module: "MsgTest", Name: "EXM_Order"}))
+	assertContainsStr(t, buf.String(), "with message definition MsgTest.OrderMessage")
+}

@@ -533,14 +533,14 @@ func mappingsUsingCollection(ctx *ExecContext, collectionQN string) []string {
 	var out []string
 	if ims, err := ctx.Backend.ListImportMappings(); err == nil {
 		for _, im := range ims {
-			if im != nil && strings.HasPrefix(im.MessageDefinition, prefix) {
+			if im != nil && strings.HasPrefix(im.MessageDefinitionSource(), prefix) {
 				out = append(out, "import mapping "+im.Name)
 			}
 		}
 	}
 	if ems, err := ctx.Backend.ListExportMappings(); err == nil {
 		for _, em := range ems {
-			if em != nil && strings.HasPrefix(em.MessageDefinition, prefix) {
+			if em != nil && strings.HasPrefix(em.MessageDefinitionSource(), prefix) {
 				out = append(out, "export mapping "+em.Name)
 			}
 		}
@@ -855,14 +855,14 @@ func mappingsUsingDefinition(ctx *ExecContext, definitionQN string) []string {
 	var out []string
 	if ims, err := ctx.Backend.ListImportMappings(); err == nil {
 		for _, im := range ims {
-			if im != nil && im.MessageDefinition == definitionQN {
+			if im != nil && im.MessageDefinitionSource() == definitionQN {
 				out = append(out, "import mapping "+im.Name)
 			}
 		}
 	}
 	if ems, err := ctx.Backend.ListExportMappings(); err == nil {
 		for _, em := range ems {
-			if em != nil && em.MessageDefinition == definitionQN {
+			if em != nil && em.MessageDefinitionSource() == definitionQN {
 				out = append(out, "export mapping "+em.Name)
 			}
 		}

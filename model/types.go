@@ -1188,12 +1188,20 @@ type ImportMapping struct {
 	Excluded      bool   `json:"excluded,omitempty"`
 	ExportLevel   string `json:"exportLevel,omitempty"`
 	// Schema source (at most one is set)
-	JsonStructure     string `json:"jsonStructure,omitempty"`     // qualified name
-	XmlSchema         string `json:"xmlSchema,omitempty"`         // qualified name
-	MessageDefinition string `json:"messageDefinition,omitempty"` // qualified name
+	JsonStructure string `json:"jsonStructure,omitempty"` // qualified name
+	XmlSchema     string `json:"xmlSchema,omitempty"`     // qualified name
+	// MessageDefinition is the pre-11.15 source: a definition inside a
+	// collection, Module.Collection.Definition. It is CARRIED like
+	// MessageDefinition2: nil means the stored document does not have the key.
+	// Mendix 11.15 removed it — a converted or newly made 11.15 mapping has no
+	// MessageDefinition key at all, and writing one is the overlay-rule
+	// mistake (ako/mxcli#987).
+	MessageDefinition *string `json:"messageDefinition,omitempty"`
 	// MessageDefinition2 is a version-introduced sibling (11.10+) that mxcli
 	// CARRIES rather than derives: nil means the stored document does not have
 	// the key, which is not the same as present-and-empty (ako/mxcli#279).
+	// From 11.15 it is the message-definition source, Module.MessageName — a
+	// MessageDefinitions$MessageDefinition2 document (ako/mxcli#987).
 	MessageDefinition2 *string `json:"messageDefinition2,omitempty"`
 	// WebServiceSource is the imported web service (SOAP) a mapping can be
 	// sourced from — a FOURTH source kind beside JSON structure, XML schema and
@@ -1306,6 +1314,31 @@ type MappingMicroflowParameter struct {
 // Message Definitions
 // ============================================================================
 
+// messageDefinitionSource is the mapping's message-definition source,
+// whichever key holds it: the pre-11.15 three-part collection reference or the
+// 11.15 two-part document reference. Empty when the mapping has neither.
+func messageDefinitionSource(md, md2 *string) string {
+	if md != nil && *md != "" {
+		return *md
+	}
+	if md2 != nil {
+		return *md2
+	}
+	return ""
+}
+
+// MessageDefinitionSource returns the mapping's message-definition source,
+// from whichever key holds it (see messageDefinitionSource).
+func (im *ImportMapping) MessageDefinitionSource() string {
+	return messageDefinitionSource(im.MessageDefinition, im.MessageDefinition2)
+}
+
+// MessageDefinitionSource returns the mapping's message-definition source,
+// from whichever key holds it (see messageDefinitionSource).
+func (em *ExportMapping) MessageDefinitionSource() string {
+	return messageDefinitionSource(em.MessageDefinition, em.MessageDefinition2)
+}
+
 // MessageDefinitionCollection represents a
 // MessageDefinitions$MessageDefinitionCollection document — the unit. The
 // individual definitions live inside it, which is why a mapping's
@@ -1389,12 +1422,20 @@ type ExportMapping struct {
 	Excluded      bool   `json:"excluded,omitempty"`
 	ExportLevel   string `json:"exportLevel,omitempty"`
 	// Schema source (at most one is set)
-	JsonStructure     string `json:"jsonStructure,omitempty"`     // qualified name
-	XmlSchema         string `json:"xmlSchema,omitempty"`         // qualified name
-	MessageDefinition string `json:"messageDefinition,omitempty"` // qualified name
+	JsonStructure string `json:"jsonStructure,omitempty"` // qualified name
+	XmlSchema     string `json:"xmlSchema,omitempty"`     // qualified name
+	// MessageDefinition is the pre-11.15 source: a definition inside a
+	// collection, Module.Collection.Definition. It is CARRIED like
+	// MessageDefinition2: nil means the stored document does not have the key.
+	// Mendix 11.15 removed it — a converted or newly made 11.15 mapping has no
+	// MessageDefinition key at all, and writing one is the overlay-rule
+	// mistake (ako/mxcli#987).
+	MessageDefinition *string `json:"messageDefinition,omitempty"`
 	// MessageDefinition2 is a version-introduced sibling (11.10+) that mxcli
 	// CARRIES rather than derives: nil means the stored document does not have
 	// the key, which is not the same as present-and-empty (ako/mxcli#279).
+	// From 11.15 it is the message-definition source, Module.MessageName — a
+	// MessageDefinitions$MessageDefinition2 document (ako/mxcli#987).
 	MessageDefinition2 *string `json:"messageDefinition2,omitempty"`
 	// NullValueOption controls how null values are serialized: "LeaveOutElement" or "SendAsNil"
 	NullValueOption string `json:"nullValueOption,omitempty"`
