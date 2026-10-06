@@ -114,6 +114,10 @@ type ExecContext struct {
 	// all.
 	describeLayout *flowLayoutKeep
 
+	// flowAnalysis memoises a stored flow's graph analysis across the rounds
+	// of one derivedFlowLayout; nil everywhere else.
+	flowAnalysis *flowAnalysisMemo
+
 	// describeFullLayout makes DESCRIBE of a flow keep every stored layout
 	// annotation instead of the canonical subset (#748). Set by callers that
 	// read the description back as an address map of the stored flow, such as
