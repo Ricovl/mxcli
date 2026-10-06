@@ -48,7 +48,10 @@ func resolveNodeForScript(mxbuildPath string) string {
 		return p
 	}
 	if mxbuildPath != "" {
-		if nodeBin, _, err := resolveNodeTooling(mxbuildPath); err == nil {
+		// The node binary alone, not resolveNodeTooling: that also requires
+		// rollup-runner.mjs, which mxbuild 11.15 no longer ships (rspack only),
+		// so on a machine whose newest cached mxbuild is 11.15 no node was found.
+		if nodeBin := findNodeBinary(filepath.Join(filepath.Dir(mxbuildPath), "tools", "node")); nodeBin != "" {
 			return nodeBin
 		}
 	}
@@ -61,9 +64,17 @@ func resolveNodeForScript(mxbuildPath string) string {
 const loginScript = `
 const pkgDir = process.argv[2];
 const [appURL, username, password, storagePath] = process.argv.slice(3);
-const { chromium } = require(require.resolve("playwright-core", { paths: [pkgDir] }));
+// The playwright package beside the CLI on PATH when there is one; otherwise
+// whatever NODE_PATH resolves (the devcontainer installs only @playwright/cli,
+// whose bundled playwright-core is on the NODE_PATH mxcli builds).
+const pw = (() => {
+  if (pkgDir) { try { return require(require.resolve("playwright-core", { paths: [pkgDir] })); } catch (e) {} }
+  try { return require("playwright"); } catch (e) { return require("playwright-core"); }
+})();
+const { chromium } = pw;
 (async () => {
-  const b = await chromium.launch();
+  const exe = process.env.MXCLI_CHROMIUM_EXE;
+  const b = await chromium.launch(exe ? { executablePath: exe } : {});
   // Tell the runtime the request really is http when it is. On Mendix 10.24+
   // X-Forwarded-Proto takes precedence over ApplicationRootUrl, so this drops
   // the Secure attribute and the __Host- prefix from the session cookies. It
@@ -82,6 +93,12 @@ const { chromium } = require(require.resolve("playwright-core", { paths: [pkgDir
   await p.goto(appURL, { waitUntil: "load", timeout: 30000 });
   let sawForm = false;
   let failure = "";
+  // An app that lets anonymous users in renders its home page at the root,
+  // not the sign-in form; the form is still at /login.html.
+  const hasForm = await p.waitForSelector("#usernameInput", { timeout: 8000 }).then(() => true, () => false);
+  if (!hasForm) {
+    await p.goto(new URL("/login.html", appURL).href, { waitUntil: "load", timeout: 30000 }).catch(() => {});
+  }
   try {
     await p.waitForSelector("#usernameInput", { timeout: 8000 });
     sawForm = true;
@@ -180,10 +197,9 @@ func LoginAndSaveStorage(opts LoginOptions) error {
 	if opts.StoragePath == "" {
 		return fmt.Errorf("storage path is required")
 	}
+	// Empty pkgDir is fine: the script then resolves Playwright through the
+	// NODE_PATH set below, as the page check does.
 	pkgDir := resolvePlaywrightPkgDir()
-	if pkgDir == "" {
-		return fmt.Errorf("playwright package not found (install with: npm i -g playwright)")
-	}
 	node := resolveNodeForScript(opts.MxBuildPath)
 	if node == "" {
 		return fmt.Errorf("node not found to run the login script")
@@ -204,7 +220,11 @@ func LoginAndSaveStorage(opts LoginOptions) error {
 		timeout = 60 * time.Second
 	}
 	cmd := exec.Command(node, scriptPath, pkgDir, opts.AppURL, opts.Username, opts.Password, opts.StoragePath)
-	cmd.Env = os.Environ() // PLAYWRIGHT_BROWSERS_PATH resolves Chromium
+	// PLAYWRIGHT_BROWSERS_PATH resolves Chromium; NODE_PATH resolves Playwright.
+	cmd.Env = append(os.Environ(), "NODE_PATH="+playwrightNodePath(node))
+	if exe := headlessShellPath(); exe != "" {
+		cmd.Env = append(cmd.Env, "MXCLI_CHROMIUM_EXE="+exe)
+	}
 	out := &syncBuffer{}
 	cmd.Stdout = out
 	cmd.Stderr = out
