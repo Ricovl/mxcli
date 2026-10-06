@@ -546,7 +546,8 @@ it is for pages.
 | List declaration | `declare $list list of Module.Entity = empty;` | |
 | Assignment | `set $Var = expression;` | Variable must be declared first |
 | Create object | `$Var = create Module.Entity (attr = value) [commit [without events]] [refresh];` | `commit` = Commit Yes, `commit without events` = YesWithoutEvents; omitted = No (the default) |
-| Change object | `change $entity (attr = value) [commit [without events]] [refresh];` | `commit` as above, before `refresh`; `refresh` updates the changed object in the client |
+| Change object | `change $entity (attr = value) [commit [without events]] [refresh];` | `commit` as above, before `refresh`; `refresh` updates the changed object in the client. On a reference set, `(Module.Assoc = $x)` **assigns the whole set** — the rows already in it are dropped |
+| Add to / remove from a reference set | `add $x to $entity/Module.Assoc [commit …] [refresh];` / `remove $x from $entity/Module.Assoc …;` | A Change object activity with one **Add** / **Remove** member (Studio Pro's Add/Remove buttons); `$x` may be an object or a list. Reference sets only — on an attribute or a plain Reference mxbuild answers CE0033, and mxcli refuses it (mendixlabs/mxcli#1288) |
 | Commit | `commit $entity [without events] [refresh];` | **Omitted = with events**, matching Studio Pro's default. `without events` is the deviation and the only form that changes the stored value; `with events` still parses and means the default |
 | Delete | `delete $entity [refresh];` | |
 | Rollback | `rollback $entity [refresh];` | Reverts uncommitted changes |
