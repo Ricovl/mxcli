@@ -38,6 +38,46 @@ func commitModifier(c microflows.CommitType) string {
 	}
 }
 
+// associationMemberChangeStatement renders a Change object activity whose only
+// member is an Add or Remove on an association as `add $X to $Obj/Assoc` or
+// `remove $X from $Obj/Assoc` — the statements that build it. ok is false when
+// the activity has another shape, or a Remove whose value is not a bare
+// variable (the remove form takes a variable, as the list form does).
+func associationMemberChangeStatement(ctx *ExecContext, varName string, a *microflows.ChangeObjectAction) (string, bool) {
+	if len(a.Changes) != 1 {
+		return "", false
+	}
+	m := a.Changes[0]
+	if m.AssociationQualifiedName == "" {
+		return "", false
+	}
+	value := escapeExpressionValue(ctx, describeExpr(ctx, m.Value))
+	modifiers := commitModifier(a.Commit) + refreshModifier(a.RefreshInClient)
+	switch m.Type {
+	case microflows.MemberChangeTypeAdd:
+		return fmt.Sprintf("add %s to $%s/%s%s;", value, varName, m.AssociationQualifiedName, modifiers), true
+	case microflows.MemberChangeTypeRemove:
+		if !isBareVariable(value) {
+			return "", false
+		}
+		return fmt.Sprintf("remove %s from $%s/%s%s;", value, varName, m.AssociationQualifiedName, modifiers), true
+	}
+	return "", false
+}
+
+// isBareVariable reports whether s is a single `$Name` reference.
+func isBareVariable(s string) bool {
+	if len(s) < 2 || s[0] != '$' {
+		return false
+	}
+	for _, r := range s[1:] {
+		if !(r == '_' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') {
+			return false
+		}
+	}
+	return true
+}
+
 // refreshModifier renders the REFRESH modifier shared by create, change,
 // commit, delete and rollback. Absent means Refresh in client = No, which is
 // Mendix's default on every one of them.
@@ -413,9 +453,16 @@ func formatAction(
 		if varName == "" {
 			varName = "Object"
 		}
+		if stmt, ok := associationMemberChangeStatement(ctx, varName, a); ok {
+			return stmt
+		}
 		if len(a.Changes) > 0 {
 			var members []string
+			var unspelled []string
 			for _, m := range a.Changes {
+				if m.Type == microflows.MemberChangeTypeAdd || m.Type == microflows.MemberChangeTypeRemove {
+					unspelled = append(unspelled, fmt.Sprintf("%s (%s)", m.AssociationQualifiedName, m.Type))
+				}
 				var memberName string
 				// Check if this is an association change or an attribute change
 				if m.AssociationQualifiedName != "" {
@@ -434,7 +481,17 @@ func formatAction(
 				}
 				members = append(members, fmt.Sprintf("%s = %s", memberName, escapeExpressionValue(ctx, describeExpr(ctx, m.Value))))
 			}
-			return fmt.Sprintf("change $%s (%s)%s%s;", varName, strings.Join(members, ", "), commitModifier(a.Commit), refreshModifier(a.RefreshInClient))
+			stmt := fmt.Sprintf("change $%s (%s)%s%s;", varName, strings.Join(members, ", "), commitModifier(a.Commit), refreshModifier(a.RefreshInClient))
+			if len(unspelled) > 0 {
+				// An Add/Remove has a spelling only as the activity's sole
+				// member (add/remove … $Obj/Assoc). Written as `=` it would
+				// re-execute as a set assignment, so say so rather than look
+				// like a faithful round trip (mendixlabs/mxcli#1288).
+				stmt += fmt.Sprintf(" -- WARNING: %s stored as Add/Remove, not a set assignment; "+
+					"re-executing this line replaces the set — split it into `add`/`remove … $%s/<Assoc>` statements",
+					strings.Join(unspelled, ", "), varName)
+			}
+			return stmt
 		}
 		return fmt.Sprintf("change $%s%s%s;", varName, commitModifier(a.Commit), refreshModifier(a.RefreshInClient))
 

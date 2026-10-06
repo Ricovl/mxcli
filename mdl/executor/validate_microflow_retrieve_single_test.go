@@ -128,6 +128,16 @@ func TestRetrieveLimitOneControls(t *testing.T) {
 			retrieveFirst("req"),
 			&ast.MfCommitStmt{Variable: "req"},
 		),
+		// mendixlabs/mxcli#1288: `add … to $req/Assoc` changes the object
+		// $req, which is exactly what a `first` retrieve gives.
+		"add to an association of the object": mfWith(
+			retrieveFirst("req"),
+			&ast.AddToListStmt{Item: "line", List: "req", Association: "Probe.Request_Line"},
+		),
+		"remove from an association of the object": mfWith(
+			retrieveFirst("req"),
+			&ast.RemoveFromListStmt{Item: "line", List: "req", Association: "Probe.Request_Line"},
+		),
 		// Rebound to a real list before the list use.
 		"rebound to a list": mfWith(
 			retrieveFirst("reqs"),

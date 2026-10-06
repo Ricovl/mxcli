@@ -1012,21 +1012,32 @@ type CreateListStmt struct {
 
 func (s *CreateListStmt) isMicroflowStatement() {}
 
-// AddToListStmt represents: ADD expr TO $List
+// AddToListStmt represents: ADD expr TO $List, or ADD expr TO $Obj/Module.Assoc.
+//
+// With Association set, List is the object variable and the statement is the
+// Add member change of a Change object activity on that association
+// (mendixlabs/mxcli#1288); Commit and RefreshInClient are that activity's.
 type AddToListStmt struct {
-	Item        string               // Item variable to add, kept for simple $Var compatibility
-	Value       Expression           // Item expression to add
-	List        string               // Target list variable
-	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	Item            string               // Item variable to add, kept for simple $Var compatibility
+	Value           Expression           // Item expression to add
+	List            string               // Target list variable, or the object variable when Association is set
+	Association     string               // Association member to add to ("" for a list target)
+	Commit          CommitFlag           // Association target only
+	RefreshInClient bool                 // Association target only
+	Annotations     *ActivityAnnotations // Optional @position, @caption, @color, @annotation
 }
 
 func (s *AddToListStmt) isMicroflowStatement() {}
 
-// RemoveFromListStmt represents: REMOVE $Item FROM $List
+// RemoveFromListStmt represents: REMOVE $Item FROM $List, or
+// REMOVE $Item FROM $Obj/Module.Assoc (see AddToListStmt).
 type RemoveFromListStmt struct {
-	Item        string               // Item variable to remove
-	List        string               // Source list variable
-	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	Item            string               // Item variable to remove
+	List            string               // Source list variable, or the object variable when Association is set
+	Association     string               // Association member to remove from ("" for a list target)
+	Commit          CommitFlag           // Association target only
+	RefreshInClient bool                 // Association target only
+	Annotations     *ActivityAnnotations // Optional @position, @caption, @color, @annotation
 }
 
 func (s *RemoveFromListStmt) isMicroflowStatement() {}
