@@ -41,8 +41,99 @@ If you provision outside `mxcli init` or debug a browser-launch failure:
   }
   ```
 
+## mxcli playwright check
+
+The first question about a page is usually textual — does it render, is there an
+error, did the list get rows — and `mxcli playwright check` answers it in one call
+against an app that is already running, with no screenshot to read:
+
+```bash
+mxcli playwright check /p/Customer_Overview /p/Order_Overview -p app.mpr
+```
+
+```
+page /p/Customer_Overview  title="Customers"  h="Customer overview"  rows=12  text=812  console-errors=0
+page /p/Order_Overview  title="Orders"  text=254  console-errors=1
+  ALERT  An error occurred, please contact your system administrator.
+  ERR    [Client] An error occurred while executing microflow data source for widget …
+  HTTP   560 POST /xas/
+  FAIL   1 error banner(s)
+  FAIL   1 console error(s)
+  FAIL   1 failed request(s)
+FAIL 1 of 2 page(s)
+```
+
+The verdict line is the same one `mxcli run --local --page-check` prints; both use
+one probe, and every page of a call is loaded in one headless browser.
+
+| Exit status | Meaning |
+|---|---|
+| 0 | every page passed |
+| 1 | a page failed: HTTP error, sign-in form instead of the page (or a 401 from the runtime), error banner or error dialog, console error, failed same-origin request, or a failed `--assert-*` |
+| 2 | the check could not run (no Node/Playwright, sign-in rejected, bad flag) |
+
+A warning banner or validation message is shown but does not fail the page.
+
+### Signing in
+
+| Flags | Signs in as |
+|---|---|
+| `--user U --password P` | that user |
+| `--role R -p app.mpr` | the project's demo user holding user role `R` |
+| `-p app.mpr` only | a demo user of the project (an administrator first), when demo users are enabled |
+| none | nobody; a secured page fails with "the sign-in form is showing" |
+
+The session is saved as a Playwright storage state under
+`<project>/.mxcli/playwright-check/<host>-<user>.json` (or `~/.mxcli/playwright-check/`
+without `-p`) and reused by the next check, so repeated checks do not sign in again —
+on the unlicensed runtime every sign-in takes one of a handful of session slots. When
+the runtime no longer knows the session (it restarted), the check signs in once more
+and reloads only the affected pages. `--fresh-login` ignores the saved session.
+
+The sign-in types into the Mendix login form, so the "setting `.value` leaves the
+field empty" problem of hand-written `eval` logins does not arise. When the app root
+lets anonymous users in, it signs in at `/login.html`.
+
+### Assertions and screenshots
+
+```bash
+mxcli playwright check /p/Customer_Overview -p app.mpr \
+  --assert-text 'Customer overview' \
+  --assert-count '.mx-name-dgCustomers [role=row]:has([role=gridcell])>=1'
+```
+
+- `--assert-text T` — the page's visible text contains `T`.
+- `--assert-count 'SELECTOR OP N'` — `OP` is one of `>= <= == != > <` (`=` means
+  `==`); the operator is read from the right, so a selector can use `>` as a child
+  combinator. A bare selector means "at least one".
+- Both are repeatable and apply to every page in the call.
+- `--screenshot out.png` also writes a full-page PNG (with several pages, one per
+  page: `out-p-Customer_Overview.png`, …) and prints only its path. Take one when
+  the question is about appearance, not to find out whether the page works.
+
+### Options
+
+| Flag | Default | Description |
+|---|---|---|
+| `--base-url` | `http://localhost:8080` | App root; with `-p`, the port of a live `mxcli run --local` for the project, else `APP_PORT` from `.docker/.env` |
+| `--user`, `--password` | | Sign in as this user |
+| `--role` | | Sign in as the project's demo user with this user role (needs `-p`) |
+| `--assert-text` | | Text the page must contain (repeatable) |
+| `--assert-count` | | `SELECTOR OP N` that must hold (repeatable) |
+| `--screenshot` | | Also write a PNG here; the path is printed |
+| `--wait` | `4s` | Longest a page may keep changing after it mounts before it is measured |
+| `--fresh-login` | `false` | Ignore the saved session |
+| `--allow-console-errors` | `false` | Report console errors without failing on them |
+
+The check needs Node and the Playwright package (`require('playwright')` or the
+`playwright-core` bundled with `@playwright/cli`, both resolved from the global
+`node_modules`). Without a `node` on `PATH`, the one bundled with a cached MxBuild is
+used. The browser is `/usr/local/bin/mx-headless-shell` when present (the
+devcontainer), `$MXCLI_CHROMIUM` when set, otherwise Playwright's own.
+
 ## mxcli playwright verify
 
+Use `verify` when the test needs an **interaction** — clicking, filling, submitting.
 The `mxcli playwright verify` command runs `.test.sh` scripts against a running Mendix application and collects results.
 
 ```bash

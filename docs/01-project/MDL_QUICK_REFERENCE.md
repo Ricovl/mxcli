@@ -546,7 +546,8 @@ it is for pages.
 | List declaration | `declare $list list of Module.Entity = empty;` | |
 | Assignment | `set $Var = expression;` | Variable must be declared first |
 | Create object | `$Var = create Module.Entity (attr = value) [commit [without events]] [refresh];` | `commit` = Commit Yes, `commit without events` = YesWithoutEvents; omitted = No (the default) |
-| Change object | `change $entity (attr = value) [commit [without events]] [refresh];` | `commit` as above, before `refresh`; `refresh` updates the changed object in the client |
+| Change object | `change $entity (attr = value) [commit [without events]] [refresh];` | `commit` as above, before `refresh`; `refresh` updates the changed object in the client. On a reference set, `(Module.Assoc = $x)` **assigns the whole set** — the rows already in it are dropped |
+| Add to / remove from a reference set | `add $x to $entity/Module.Assoc [commit …] [refresh];` / `remove $x from $entity/Module.Assoc …;` | A Change object activity with one **Add** / **Remove** member (Studio Pro's Add/Remove buttons); `$x` may be an object or a list. Reference sets only — on an attribute or a plain Reference mxbuild answers CE0033, and mxcli refuses it (mendixlabs/mxcli#1288) |
 | Commit | `commit $entity [without events] [refresh];` | **Omitted = with events**, matching Studio Pro's default. `without events` is the deviation and the only form that changes the stored value; `with events` still parses and means the default |
 | Delete | `delete $entity [refresh];` | |
 | Rollback | `rollback $entity [refresh];` | Reverts uncommitted changes |
@@ -577,9 +578,10 @@ it is for pages.
 > refused as **MDL-SOAP01** by `mxcli check` and by `exec`, which call the same
 > function.
 | REST call (string) | `$Var = call rest service get '<url>' returns string;` | Body as string |
+| REST call (settings) | `$Var = call rest service post '<url>' (Headers: ('Accept': 'application/json'), Authentication: basic (Username: $U, Password: $P), Body: template '{"q": "{1}"}' with ({1} = $Q), Timeout: 30) returns string;` | The dialog's settings are ONE property list after the URL (ADR-0013). Every key is optional; `Body:` is `template '…' [with (…)]`, `mapping M.EMM from $Var`, `binary <expr>` or an expression. The clauses `header 'N' = v`, `auth basic $u password $p`, `body …`, `timeout n` are deprecated (MDL-DEPR720) |
 | REST call (response) | `$Var = call rest service get '<url>' returns response;` | `System.HttpResponse` object. There is no specialization form — Mendix does not allow HttpResponse to be specialized (CE1540) |
 | REST call (file document) | `$Var = call rest service get '<url>' returns Module.MyFile;` | Stores the body in a file document. Must be a **specialization** of `System.FileDocument` — the base type is rejected as a return type (CE0362 / MDL064) |
-| REST call (binary body) | `call rest service post '<url>' header 'ContentType' = 'application/pdf' body binary $Doc/Contents returns response;` | Uploads raw bytes (`Microflows$BinaryRequestHandling`). The expression is the FileDocument's **Contents member**, not the document. A consumed REST **client document** has no binary body — `Body: FILE FROM $Doc` there is refused as MDL-REST02 |
+| REST call (binary body) | `call rest service post '<url>' (Headers: ('ContentType': 'application/pdf'), Body: binary $Doc/Contents) returns response;` | Uploads raw bytes (`Microflows$BinaryRequestHandling`). The expression is the FileDocument's **Contents member**, not the document. A consumed REST **client document** has no binary body — `Body: FILE FROM $Doc` there is refused as MDL-REST02 |
 | REST call (mapping single) | `$Var = call rest service get '<url>' returns mapping Module.IMM as Module.Entity;` | Single object — Studio Pro emits `ForceSingleOccurrence=true` |
 | REST call (mapping list) | `$Var = call rest service get '<url>' returns mapping Module.IMM as list of Module.Entity;` | List result |
 | REST call (none) | `call rest service get '<url>' returns nothing;` | Discard response |

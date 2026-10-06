@@ -790,7 +790,7 @@ func formatMicroflowActivities(
 		flowsByDest[flow.DestinationID] = append(flowsByDest[flow.DestinationID], flow)
 	}
 
-	labels := mergeAllLabels(labelRejoinMerges(mf.ObjectCollection), labelCrossedMerges(mf.ObjectCollection))
+	labels := flowAnalysisOf(ctx).mergeLabels(mf.ObjectCollection)
 
 	// The body is built first and the warnings prepended afterwards, because
 	// MDL-FLOW01 is retired per decision on the strength of what the description
@@ -976,7 +976,7 @@ func formatMicroflowBodyWithSourceMap(
 		flowsByDest[flow.DestinationID] = append(flowsByDest[flow.DestinationID], flow)
 	}
 
-	labels := mergeAllLabels(labelRejoinMerges(mf.ObjectCollection), labelCrossedMerges(mf.ObjectCollection))
+	labels := flowAnalysisOf(ctx).mergeLabels(mf.ObjectCollection)
 
 	// The body is built first and the warnings prepended afterwards, because
 	// MDL-FLOW01 is retired per decision on the strength of what the description
@@ -1016,13 +1016,14 @@ func findSplitMergePoints(
 	oc *microflows.MicroflowObjectCollection,
 	activityMap map[model.ID]microflows.MicroflowObject,
 ) map[model.ID]model.ID {
-	// Build flow graph for forward traversal
-	flowsByOrigin := make(map[model.ID][]*microflows.SequenceFlow)
-	for _, flow := range oc.Flows {
-		flowsByOrigin[flow.OriginID] = append(flowsByOrigin[flow.OriginID], flow)
-	}
-
-	return findSplitMergePointsForGraph(ctx, activityMap, flowsByOrigin)
+	return flowAnalysisOf(ctx).splitMergePoints(oc, func() map[model.ID]model.ID {
+		// Build flow graph for forward traversal
+		flowsByOrigin := make(map[model.ID][]*microflows.SequenceFlow)
+		for _, flow := range oc.Flows {
+			flowsByOrigin[flow.OriginID] = append(flowsByOrigin[flow.OriginID], flow)
+		}
+		return findSplitMergePointsForGraph(ctx, activityMap, flowsByOrigin)
+	})
 }
 
 // findSplitMergePointsForGraph finds the corresponding merge point for each
@@ -1033,6 +1034,7 @@ func findSplitMergePointsForGraph(
 	activityMap map[model.ID]microflows.MicroflowObject,
 	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
 ) map[model.ID]model.ID {
+	splitMergeAnalyses.Add(1)
 	result := make(map[model.ID]model.ID)
 	for _, obj := range activityMap {
 		switch obj.(type) {
@@ -1636,6 +1638,9 @@ func microflowBodyWarnings(
 	labels mergeLabels,
 	declaredCrossed map[model.ID]bool,
 ) []string {
+	if m := flowAnalysisOf(ctx); m != nil && m.rebuildOnly {
+		return nil // a derivation round's text is only rebuilt; see flowAnalysisMemo
+	}
 	var out []string
 	// A call to a void Java/JavaScript action declares nothing, so its output
 	// name is no duplicate however often it recurs (#953).

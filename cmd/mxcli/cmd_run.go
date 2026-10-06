@@ -30,6 +30,18 @@ rebuilds incrementally (~1s) and is applied without a full restart:
 The serve build reports which is needed, so the right action is chosen
 automatically. With --watch, mxcli rebuilds and hot-applies on every change.
 
+As a background service (what an agent should use — a tool call must return):
+
+  mxcli run --local --watch --detach -p app.mpr   # returns once the app serves
+  mxcli exec x.mdl -p app.mpr && mxcli run wait -p app.mpr   # applied / failed
+  mxcli run status -p app.mpr                     # one line
+  mxcli run stop -p app.mpr                       # nothing left behind
+  mxcli run restart -p app.mpr                    # same arguments, detached
+
+--detach writes <projectDir>/.mxcli/run-state.json and sends the loop's output to
+<projectDir>/.mxcli/run.log. Never manage the app with nohup, sleep/grep/curl
+polling loops or pkill: each of those questions has a command above.
+
 Requirements:
   - A JDK matching the project's Settings > Model > JavaVersion (21 up to Mendix
     11.13, 25 from 11.14)
@@ -141,14 +153,37 @@ Examples:
 		if abs, err := filepath.Abs(projectPath); err == nil {
 			projectPath = abs
 		}
+
+		watch, _ := cmd.Flags().GetBool("watch")
+		setupOnly, _ := cmd.Flags().GetBool("setup")
+
+		// --detach: start this same command as a background service and return
+		// once its app is serving, or its boot failed. The child is told it is
+		// the child, so it runs the loop rather than detaching again.
+		detachedChild := os.Getenv(envDetachedChild) == "1"
+		if detachedChild {
+			os.Unsetenv(envDetachedChild) // not inherited by the runtime or mxbuild
+		}
+		if detach, _ := cmd.Flags().GetBool("detach"); detach && !detachedChild {
+			if setupOnly {
+				fmt.Fprintln(os.Stderr, "Error: --detach has nothing to do with --setup (which never boots the app)")
+				os.Exit(1)
+			}
+			os.Exit(runDetach(projectPath, detachArgs(os.Args[1:], projectPath), os.Stdout))
+		}
+		if !setupOnly {
+			if err := refuseIfRunning(projectPath); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+		}
+
 		// Git states that crash Studio Pro on open (#972): advice only.
 		printGitStateWarnings(projectPath, os.Stderr)
 
-		watch, _ := cmd.Flags().GetBool("watch")
 		webClientTimeout, _ := cmd.Flags().GetDuration("web-client-timeout")
 		testEndpoint, _ := cmd.Flags().GetBool("test-endpoint")
 		ensureDB, _ := cmd.Flags().GetBool("ensure-db")
-		setupOnly, _ := cmd.Flags().GetBool("setup")
 		appPort, _ := cmd.Flags().GetInt("app-port")
 		adminPort, _ := cmd.Flags().GetInt("admin-port")
 		servePort, _ := cmd.Flags().GetInt("serve-port")
@@ -292,7 +327,27 @@ Examples:
 		}
 		defer removeDevLoopHandshake(projectPath)
 
-		if err := docker.RunLocal(opts); err != nil {
+		// Publish the run's state for `mxcli run status/wait/stop` — for a
+		// foreground run too, so another terminal (or an agent) can manage it.
+		// One run per project: a second one would overwrite the state of the
+		// first and leave it unmanageable.
+		var state *docker.RunStateRecorder
+		if !setupOnly {
+			logPath := ""
+			if detachedChild {
+				logPath = docker.RunLogPath(projectPath)
+			}
+			state = docker.NewRunStateRecorder(projectPath, os.Getpid(), detachedChild, watch,
+				detachArgs(os.Args[1:], projectPath), logPath)
+			state.Warn = func(err error) {
+				fmt.Fprintf(os.Stderr, "Warning: could not publish the run state: %v\n", err)
+			}
+			opts.State = state
+		}
+
+		err = docker.RunLocal(opts)
+		state.Exit(err)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			// os.Exit skips deferred calls, so remove explicitly here.
 			hosted.Remove()
@@ -317,6 +372,7 @@ func init() {
 	runCmd.Flags().String("hub-worktree", "", "Worktree label to distinguish multiple worktrees of one branch")
 	runCmd.Flags().String("hub-session", "", "Session id to group this preview under in the hub overview (default: CLAUDE_CODE_REMOTE_SESSION_ID / MXCLI_HUB_SESSION)")
 	runCmd.Flags().Bool("watch", false, "Rebuild and hot-apply on every project change")
+	runCmd.Flags().Bool("detach", false, "Run in the background and return once the app is serving (or failed to boot); manage it with 'mxcli run status|wait|stop|restart'. Output goes to <projectDir>/.mxcli/run.log")
 	runCmd.Flags().Duration("web-client-timeout", 0, "Limit for one web client bundle build, e.g. 10m (default $MXCLI_WEB_CLIENT_TIMEOUT, else 5m); on timeout the tail of deployment/log/web-client-build.log is printed")
 	runCmd.Flags().Bool("test-endpoint", false, "Host mxcli's token-guarded test endpoint so 'mxcli test --attach' can run tests against this app without booting its own runtime (removed on exit)")
 	runCmd.Flags().Bool("ensure-db", false, "Provision the local Postgres + app database if missing (fresh-session bootstrap)")

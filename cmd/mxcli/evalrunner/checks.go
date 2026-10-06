@@ -25,6 +25,9 @@ type CheckOptions struct {
 
 	// SkipMxCheck skips the mx check validation (expensive).
 	SkipMxCheck bool
+
+	// SkipTests skips tests_pass checks (they boot the app).
+	SkipTests bool
 }
 
 // RunChecks executes all checks for a test phase and returns results.
@@ -35,7 +38,8 @@ func RunChecks(checks []Check, opts CheckOptions) []CheckResult {
 	microflowList := runMxCli(opts, "SHOW MICROFLOWS")
 	navMenu := runMxCli(opts, "LIST NAVIGATION MENU")
 
-	// Cache for DESCRIBE results (avoid re-describing the same entity/page)
+	// Cache for DESCRIBE results (avoid re-describing the same entity/page),
+	// and for listings only some checks need.
 	describeCache := make(map[string]string)
 
 	var results []CheckResult
@@ -68,6 +72,17 @@ func runCheck(check Check, opts CheckOptions, entityList, pageList, microflowLis
 		return checkMxCheck(check, opts)
 	case "lint_passes":
 		return checkLint(check, opts)
+	case "association_exists":
+		return checkListed(check, cachedList(opts, describeCache, "list associations"), "association")
+	case "module_role_exists":
+		return checkListed(check, cachedList(opts, describeCache, "list module roles"), "module role")
+	case "file_exists":
+		return checkFileExists(check, opts)
+	case "tests_pass":
+		if opts.SkipTests {
+			return CheckResult{Check: check, Passed: true, Detail: "skipped"}
+		}
+		return checkTestsPass(check, opts)
 	default:
 		return CheckResult{Check: check, Passed: false, Detail: fmt.Sprintf("unknown check type: %s", check.Type)}
 	}
@@ -452,4 +467,64 @@ func firstLine(s string) string {
 		}
 	}
 	return s
+}
+
+// cachedList runs an MDL listing once per check run.
+func cachedList(opts CheckOptions, cache map[string]string, mdl string) string {
+	key := "list:" + mdl
+	if out, ok := cache[key]; ok {
+		return out
+	}
+	out := runMxCli(opts, mdl)
+	cache[key] = out
+	return out
+}
+
+// checkListed verifies that a listing names an element matching the pattern.
+func checkListed(check Check, list, what string) CheckResult {
+	if match := findMatch(list, check.Args); match != "" {
+		return CheckResult{Check: check, Passed: true, Detail: "found: " + match}
+	}
+	return CheckResult{Check: check, Passed: false, Detail: what + " not found"}
+}
+
+// checkFileExists verifies that a glob, relative to the project directory,
+// matches at least one file — e.g. "tests/*.test.mdl".
+func checkFileExists(check Check, opts CheckOptions) CheckResult {
+	pattern := filepath.Join(filepath.Dir(opts.ProjectPath), check.Args)
+	matches, _ := filepath.Glob(pattern)
+	if len(matches) == 0 {
+		return CheckResult{Check: check, Passed: false, Detail: "no file matches " + check.Args}
+	}
+	return CheckResult{Check: check, Passed: true, Detail: fmt.Sprintf("%d file(s), e.g. %s", len(matches), filepath.Base(matches[0]))}
+}
+
+// checkTestsPass runs `mxcli test <path> [flags] -p <project>`. Args are the
+// test path, relative to the project directory, then any flags: "tests --local".
+func checkTestsPass(check Check, opts CheckOptions) CheckResult {
+	fields := strings.Fields(check.Args)
+	if len(fields) == 0 {
+		return CheckResult{Check: check, Passed: false, Detail: "invalid args: expected '<test path> [flags]'"}
+	}
+	cliPath := opts.MxCliPath
+	if cliPath == "" {
+		cliPath = "mxcli"
+	}
+	args := append([]string{"test", fields[0]}, fields[1:]...)
+	args = append(args, "-p", opts.ProjectPath)
+	cmd := exec.Command(cliPath, args...)
+	cmd.Dir = filepath.Dir(opts.ProjectPath)
+	cmd.Env = append(cmd.Environ(), "MXCLI_QUIET=1")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Run(); err != nil {
+		return CheckResult{Check: check, Passed: false, Detail: "tests failed: " + lastLine(out.String())}
+	}
+	return CheckResult{Check: check, Passed: true, Detail: lastLine(out.String())}
+}
+
+func lastLine(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
 }

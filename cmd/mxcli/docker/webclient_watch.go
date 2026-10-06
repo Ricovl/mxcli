@@ -42,28 +42,65 @@ type bundlerStatus struct {
 	message string // populated for kind == "error"
 }
 
-// parseBundlerStatus extracts a status from one runner stdout line. ok is false
-// for non-protocol lines (plain logging), which are ignored.
+// legacyBundlerKinds maps the status codes of the runner that predates the
+// modern-web-bundler protocol (Mendix 10.24, 11.6) onto the protocol's kinds.
+// That runner writes {"code":"START"|"SUCCESS"|"ERROR","payload":…}, where an
+// ERROR payload is {"message":…} or, when its config fails to load, a string.
+var legacyBundlerKinds = map[string]string{"START": "start", "SUCCESS": "success", "ERROR": "error"}
+
+// parseBundlerStatus extracts a status from one runner stdout line, in either
+// the modern-web-bundler protocol or the legacy one. ok is false for
+// non-protocol lines (plain logging), which are ignored.
 func parseBundlerStatus(line string) (bundlerStatus, bool) {
 	var m struct {
-		Protocol string `json:"protocol"`
-		Type     string `json:"type"`
-		Payload  struct {
-			Kind  string `json:"kind"`
-			Error *struct {
-				Message string `json:"message"`
-			} `json:"error"`
-		} `json:"payload"`
+		Protocol string          `json:"protocol"`
+		Type     string          `json:"type"`
+		Code     string          `json:"code"`
+		Payload  json.RawMessage `json:"payload"`
 	}
 	if err := json.Unmarshal([]byte(line), &m); err != nil {
 		return bundlerStatus{}, false
 	}
-	if m.Protocol != bundlerProtocolName || m.Type != "status" || m.Payload.Kind == "" {
+	if m.Protocol == "" {
+		return parseLegacyBundlerStatus(m.Code, m.Payload)
+	}
+	var p struct {
+		Kind  string `json:"kind"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if len(m.Payload) > 0 {
+		if err := json.Unmarshal(m.Payload, &p); err != nil {
+			return bundlerStatus{}, false
+		}
+	}
+	if m.Protocol != bundlerProtocolName || m.Type != "status" || p.Kind == "" {
 		return bundlerStatus{}, false
 	}
-	s := bundlerStatus{kind: m.Payload.Kind}
-	if m.Payload.Error != nil {
-		s.message = m.Payload.Error.Message
+	s := bundlerStatus{kind: p.Kind}
+	if p.Error != nil {
+		s.message = p.Error.Message
+	}
+	return s, true
+}
+
+// parseLegacyBundlerStatus reads a status line of the pre-protocol runner.
+func parseLegacyBundlerStatus(code string, payload json.RawMessage) (bundlerStatus, bool) {
+	kind, ok := legacyBundlerKinds[code]
+	if !ok {
+		return bundlerStatus{}, false
+	}
+	s := bundlerStatus{kind: kind}
+	if kind == "error" && len(payload) > 0 {
+		var obj struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(payload, &obj) == nil {
+			s.message = obj.Message
+		} else {
+			_ = json.Unmarshal(payload, &s.message)
+		}
 	}
 	return s, true
 }

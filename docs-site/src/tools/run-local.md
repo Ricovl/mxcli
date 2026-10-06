@@ -8,7 +8,49 @@ full rebuild-image-and-restart cycle.
 ```bash
 mxcli run --local -p app.mpr
 mxcli run --local -p app.mpr --watch
+mxcli run --local -p app.mpr --watch --detach   # in the background
 ```
+
+## Running it as a background service
+
+A coding agent's tool call has to return, so the loop can run detached and be
+managed in one call per question — no `nohup`, no `sleep`/`grep`/`curl` polling
+loops, no `pkill`:
+
+```console
+$ mxcli run --local --watch --detach -p app.mpr
+running: http://127.0.0.1:8080/ (pid 30133, watch, log .mxcli/run.log)
+
+$ mxcli exec add-page.mdl -p app.mpr && mxcli run wait -p app.mpr
+applied: build #2 via reload in 4.9s
+
+$ mxcli run status -p app.mpr
+running: http://127.0.0.1:8080/ (pid 30133, up 22s, watch, build #2 applied via reload 0s ago)
+
+$ mxcli run stop -p app.mpr
+stopped: pid 30133 in 300ms
+```
+
+| Command | Does | Exit |
+|---|---|---|
+| `run --local … --detach` | starts the loop in its own session (it survives the calling shell), writes `.mxcli/run-state.json` and `.mxcli/run.log`, returns once the app serves. A failed boot prints the reason and the last log lines. A second run for the same project is refused. | 0 / 1 |
+| `run status` | one line: URL, pid, uptime, last build and how it was applied, a build in progress, a change still pending. A state file whose process is gone is reported as stopped, with any leftover processes. | 0 running, 3 stopped, 4 starting |
+| `run wait [--timeout 5m]` | blocks until the watch loop has applied the model as it is now, or failed to; prints `applied: build #N via reload\|restart in …` or `failed:` with the CE codes / SCSS error lines. `--ready` waits for the boot instead; `--since N` for any build newer than N. | 0 applied, 1 failed, 2 timeout, 3 not running |
+| `run stop` | asks the run to shut down, waits until it is gone, then stops anything left in its process session — so no orphaned `runtimelauncher` or mxbuild JVM, even from a run killed with `-9`. Nothing running is a no-op. | 0 |
+| `run restart` | `run stop`, then `--detach` again with the arguments recorded in the state file. | as `--detach` |
+
+**`run wait` is race-free.** It reads the model's source time when it starts and
+returns the first build made from that source or newer — so a change the loop
+applied *before* `wait` was called is reported at once rather than waited for, and
+`mxcli exec x.mdl && mxcli run wait` is a correct one-call chain. With nothing
+changed it reports the last build. On Mendix 11.14, where every serve build after
+the first fails ([below](#--watch-on-mendix-1114)), `wait` reports that failure with
+its explanation; it never hangs on it. A run started without `--watch` never applies
+a change, and `wait` says so (exit 1).
+
+`run status|wait|stop` also work on a foreground `run --local` started in another
+terminal — every run publishes its state. On Windows, `run stop` ends the process
+tree without a graceful shutdown.
 
 ## Why
 
@@ -65,6 +107,11 @@ again` when it happens, so a browser test knows to sign in before its next step.
     createdb -h 127.0.0.1 -U mendix app1112
     ```
 
+- **Or no database server at all**: `--db-type hsqldb` runs on the runtime's
+  built-in file database. Use it where PostgreSQL is not installed or cannot be
+  provisioned — e.g. `--ensure-db` failing with *no local PostgreSQL superuser
+  available to create the role/database*. See the `--db-type` row below.
+
 At start, `run --local` warns (without stopping) when the project's git state
 would make Studio Pro 11.13 fail to open it — a branch with no upstream, or
 "dubious ownership". See [Working Outside Studio Pro](outside-studio-pro.md).
@@ -88,6 +135,7 @@ would make Studio Pro 11.13 fail to open it — a branch with no upstream, or
 | `--db-host` | 127.0.0.1:5432 | Database `host:port`; bracket IPv6 endpoints (`[::1]:5432`) |
 | `--db-name` | derived from project | Database name |
 | `--db-user` / `--db-password` | mendix / mendix | Database credentials |
+| `--db-type` | `postgresql` | `postgresql` or `hsqldb`. `hsqldb` boots on the runtime's built-in file database: no database server, no provisioning, works offline. Its data lives in `<project>/deployment/data/database/hsqldb/`. Cannot be combined with `--db-host`, `--db-user`, `--db-password` or `--ensure-db` (refused, not ignored). For local development only |
 | `--screenshot` | off | Capture a Playwright PNG after boot and each applied change |
 | `--screenshot-path` | `<projectDir>/.mxcli/run-local.png` | Screenshot output PNG |
 | `--screenshot-url` | app root | Page to shoot: full URL, or a path relative to the app root (e.g. `/p/customers`). Repeat for a multi-page set. |

@@ -1545,3 +1545,61 @@ func TestFormatActivity_ReturnExpressionIsNotPrefixed(t *testing.T) {
 		}
 	}
 }
+
+// mendixlabs/mxcli#1288: a stored Add/Remove member change (Studio Pro's Add
+// and Remove buttons on a reference set) used to describe as `Assoc = $X`,
+// which re-executes as a set assignment and drops the rest of the set.
+func TestFormatAction_ChangeObject_AssociationAddRemove(t *testing.T) {
+	e := newTestExecutor()
+	cases := []struct {
+		name   string
+		action *microflows.ChangeObjectAction
+		want   string
+	}{
+		{"add", &microflows.ChangeObjectAction{
+			ChangeVariable: "Order",
+			Changes: []*microflows.MemberChange{
+				{AssociationQualifiedName: "Sales.Order_Line", Type: microflows.MemberChangeTypeAdd, Value: "$Line"},
+			},
+		}, "add $Line to $Order/Sales.Order_Line;"},
+		{"remove with modifiers", &microflows.ChangeObjectAction{
+			ChangeVariable:  "Order",
+			Commit:          microflows.CommitTypeYesWithoutEvents,
+			RefreshInClient: true,
+			Changes: []*microflows.MemberChange{
+				{AssociationQualifiedName: "Sales.Order_Line", Type: microflows.MemberChangeTypeRemove, Value: "$Line"},
+			},
+		}, "remove $Line from $Order/Sales.Order_Line commit without events refresh;"},
+		{"set stays a change", &microflows.ChangeObjectAction{
+			ChangeVariable: "Order",
+			Changes: []*microflows.MemberChange{
+				{AssociationQualifiedName: "Sales.Order_Line", Type: microflows.MemberChangeTypeSet, Value: "$Line"},
+			},
+		}, "change $Order (Sales.Order_Line = $Line);"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := e.formatAction(tc.action, nil, nil); got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// An activity mixing Add/Remove with other members has no single-statement
+// spelling. Describing the Add as `=` would be read back as a set assignment,
+// so the output must say so rather than look like a faithful round trip.
+func TestFormatAction_ChangeObject_MixedAddIsFlagged(t *testing.T) {
+	e := newTestExecutor()
+	action := &microflows.ChangeObjectAction{
+		ChangeVariable: "Order",
+		Changes: []*microflows.MemberChange{
+			{AttributeQualifiedName: "Sales.Order.Number", Type: microflows.MemberChangeTypeSet, Value: "1"},
+			{AssociationQualifiedName: "Sales.Order_Line", Type: microflows.MemberChangeTypeAdd, Value: "$Line"},
+		},
+	}
+	got := e.formatAction(action, nil, nil)
+	if !strings.Contains(got, "Sales.Order_Line") || !strings.Contains(got, "-- WARNING") {
+		t.Errorf("mixed Add not flagged: %q", got)
+	}
+}

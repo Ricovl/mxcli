@@ -12,6 +12,21 @@ Verify the running Mendix application using playwright-cli.
 - App must be running: `mxcli docker run -p app.mpr --wait`
 - playwright-cli installed (included in devcontainer)
 
+## First: does the page work? One call, text, no screenshot
+
+```bash
+mxcli playwright check /p/Customer_Overview /p/Order_Overview -p app.mpr
+mxcli playwright check /p/Customer_Overview -p app.mpr --role User \
+    --assert-text 'Customers' --assert-count '.mx-name-dgCustomers [role=row]>=1'
+```
+
+One verdict line per page (title, heading, rows, text, console errors, banners);
+exit 0 pass, 1 fail, 2 could not check. It signs in itself (`--user/--password`,
+`--role`, or a demo user from `-p`) and reuses the saved session. Do not hand-roll
+playwright-cli login/goto/sleep/screenshot sequences for this, and screenshot only
+for a visual question (`--screenshot out.png`, read once). The playwright-cli
+commands below are for **interaction** tests.
+
 ## Session lifecycle
 
 Manage the browser session across commands (attach/reuse, check, tear down):
@@ -43,10 +58,13 @@ playwright-cli close
 
 ## Login (Security Enabled)
 
+Only needed for playwright-cli interaction sessions (`playwright check` signs in
+itself). Dispatch an `input` event after setting `.value`, or Mendix sees an empty field:
+
 ```bash
 playwright-cli open http://localhost:8080
-playwright-cli eval "() => { document.querySelector('#usernameInput').value = 'MxAdmin' }"
-playwright-cli eval "() => { document.querySelector('#passwordInput').value = 'AdminPassword1!' }"
+playwright-cli eval "() => { const el = document.querySelector('#usernameInput'); el.value = 'MxAdmin'; el.dispatchEvent(new Event('input', {bubbles: true})) }"
+playwright-cli eval "() => { const el = document.querySelector('#passwordInput'); el.value = 'AdminPassword1!'; el.dispatchEvent(new Event('input', {bubbles: true})) }"
 playwright-cli eval "() => document.querySelector('#loginButton').click()"
 playwright-cli eval "() => new Promise(r => setTimeout(r, 3000))"
 playwright-cli state-save mendix-auth
@@ -61,9 +79,11 @@ mxcli exec changes.mdl -p app.mpr
 # 2. Build, start, and wait for runtime
 mxcli docker run -p app.mpr --fresh --wait
 
-# 3. Open browser and verify
+# 3. Check the pages render (exit 1 on any failure)
+mxcli playwright check /p/Customer_Overview -p app.mpr
+
+# 3b. Interactions only: drive playwright-cli
 playwright-cli open http://localhost:8080
-playwright-cli snapshot
 # ... interact and verify ...
 
 # 4. Verify data persistence

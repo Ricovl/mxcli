@@ -1110,7 +1110,7 @@ func buildCreateListStatement(ctx parser.ICreateListStatementContext) *ast.Creat
 }
 
 // buildAddToListStatement converts add to list statement context to AddToListStmt.
-// Grammar: ADD expression TO VARIABLE
+// Grammar: ADD expression TO (VARIABLE | associationMemberTarget)
 func buildAddToListStatement(ctx parser.IAddToListStatementContext) *ast.AddToListStmt {
 	if ctx == nil {
 		return nil
@@ -1128,12 +1128,17 @@ func buildAddToListStatement(ctx parser.IAddToListStatementContext) *ast.AddToLi
 	if v := addCtx.VARIABLE(); v != nil {
 		stmt.List = strings.TrimPrefix(v.GetText(), "$")
 	}
+	if target := addCtx.AssociationMemberTarget(); target != nil {
+		stmt.List, stmt.Association = associationMemberTargetParts(target)
+		stmt.Commit = buildCommitClause(addCtx.CommitClause())
+		stmt.RefreshInClient = addCtx.REFRESH() != nil
+	}
 
 	return stmt
 }
 
 // buildRemoveFromListStatement converts remove from list statement context to RemoveFromListStmt.
-// Grammar: REMOVE VARIABLE FROM VARIABLE
+// Grammar: REMOVE VARIABLE FROM (VARIABLE | associationMemberTarget)
 func buildRemoveFromListStatement(ctx parser.IRemoveFromListStatementContext) *ast.RemoveFromListStmt {
 	if ctx == nil {
 		return nil
@@ -1150,8 +1155,20 @@ func buildRemoveFromListStatement(ctx parser.IRemoveFromListStatementContext) *a
 	if len(vars) >= 2 {
 		stmt.List = strings.TrimPrefix(vars[1].GetText(), "$")
 	}
+	if target := removeCtx.AssociationMemberTarget(); target != nil {
+		stmt.List, stmt.Association = associationMemberTargetParts(target)
+		stmt.Commit = buildCommitClause(removeCtx.CommitClause())
+		stmt.RefreshInClient = removeCtx.REFRESH() != nil
+	}
 
 	return stmt
+}
+
+// associationMemberTargetParts splits `$Obj/Module.Assoc` into the object
+// variable and the association name, unquoted like a CHANGE member.
+func associationMemberTargetParts(ctx parser.IAssociationMemberTargetContext) (string, string) {
+	t := ctx.(*parser.AssociationMemberTargetContext)
+	return strings.TrimPrefix(t.VARIABLE().GetText(), "$"), getQualifiedNameText(t.QualifiedName())
 }
 
 // ============================================================================
@@ -1485,11 +1502,12 @@ func buildAttributePathFromContext(ctx parser.IAttributePathContext) *ast.Attrib
 // REST Call Statements
 // ============================================================================
 
-// buildRestCallStatement converts REST CALL statement context to RestCallStmt.
-// Grammar: (VARIABLE EQUALS)? REST CALL httpMethod restCallUrl restCallUrlParams?
+// buildRestCallStatement converts a call rest service statement to RestCallStmt.
+// Grammar: (VARIABLE EQUALS)? restCallKw httpMethod restCallUrl restCallUrlParams?
 //
-//	restCallHeaderClause* restCallAuthClause? restCallBodyClause?
-//	restCallTimeoutClause? restCallReturnsClause onErrorClause?
+//	( restCallSettings
+//	| restCallHeaderClause* restCallAuthClause? restCallBodyClause? restCallTimeoutClause? )
+//	restCallReturnsClause onErrorClause?
 func buildRestCallStatement(ctx parser.IRestCallStatementContext) *ast.RestCallStmt {
 	if ctx == nil {
 		return nil
@@ -1538,6 +1556,12 @@ func buildRestCallStatement(ctx parser.IRestCallStatementContext) *ast.RestCallS
 		if tplParams := paramsCtx.TemplateParams(); tplParams != nil {
 			stmt.URLParams = buildTemplateParams(tplParams)
 		}
+	}
+
+	// The settings: one property list (ADR-0013), or the old clauses
+	// (MDL-DEPR720), which build the same statement.
+	if settings, ok := restCtx.RestCallSettings().(*parser.RestCallSettingsContext); ok && settings != nil {
+		restCallSettingsInto(stmt, settings)
 	}
 
 	// Get headers

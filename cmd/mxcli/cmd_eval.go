@@ -27,6 +27,7 @@ Eval test files use Markdown with YAML frontmatter to define:
 Subcommands:
   check    Validate a project against eval criteria
   list     List all eval tests in a directory
+  run      Run Claude Code headless on a test, then check it and report the session
 
 Examples:
   # Validate a project against eval criteria
@@ -52,6 +53,10 @@ Checks include:
   - page_has_widget: Verify page contains expected widget type
   - microflow_exists: Verify microflow with matching name exists
   - navigation_has_item: Verify navigation menu has items
+  - association_exists: Verify an association with matching name exists
+  - module_role_exists: Verify a module role with matching name exists
+  - file_exists: Verify a glob relative to the project directory matches a file
+  - tests_pass: Run 'mxcli test <path> [flags]' (e.g. "tests --local")
   - mx_check_passes: Run mx check validation
   - lint_passes: Run mxcli lint
 
