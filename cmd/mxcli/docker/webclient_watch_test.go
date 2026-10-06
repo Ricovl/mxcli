@@ -33,6 +33,34 @@ func TestParseBundlerStatus(t *testing.T) {
 	}
 }
 
+// TestParseBundlerStatus_Legacy covers the runner shipped before the
+// modern-web-bundler protocol (10.24, 11.6): `out(code, payload)` writes
+// {"code":"START"|"SUCCESS"|"ERROR","payload":…}, the payload an object with a
+// message or, when the config fails to load, a bare string. Not recognising it
+// left --watch waiting the full web-client timeout for a bundle that had
+// finished in 9s (nightly 2026-10-06, Mendix 10.24.24 and 11.6.8).
+func TestParseBundlerStatus_Legacy(t *testing.T) {
+	cases := []struct {
+		line, wantKind, wantMsg string
+	}{
+		{`{"code":"START"}`, "start", ""},
+		{`{"code":"SUCCESS"}`, "success", ""},
+		{`{"code":"ERROR","payload":{"type":"GENERIC","message":"boom","fileName":null}}`, "error", "boom"},
+		{`{"code":"ERROR","payload":"Error: Cannot find module rollup.config.mjs"}`, "error", "Error: Cannot find module rollup.config.mjs"},
+	}
+	for _, tc := range cases {
+		s, ok := parseBundlerStatus(tc.line)
+		if !ok || s.kind != tc.wantKind || s.message != tc.wantMsg {
+			t.Errorf("parseBundlerStatus(%q) = (%q,%q,%v), want (%q,%q,true)", tc.line, s.kind, s.message, ok, tc.wantKind, tc.wantMsg)
+		}
+	}
+	for _, line := range []string{`{"code":"OTHER"}`, `{"code":""}`, `{"payload":{}}`} {
+		if s, ok := parseBundlerStatus(line); ok {
+			t.Errorf("parseBundlerStatus(%q) = (%q,true), want not a status", line, s.kind)
+		}
+	}
+}
+
 // newTestWatcher returns a watcher with no process, drivable via applyStatus.
 func newTestWatcher() *WebClientWatcher {
 	return &WebClientWatcher{log: &syncBuffer{}, updated: make(chan struct{})}
