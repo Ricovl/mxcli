@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"sync/atomic"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
@@ -102,10 +103,16 @@ func describeLayoutOf(ctx *ExecContext) *flowLayoutKeep {
 // is "microflow" or "nanoflow"; mf is the flow (a nanoflow wrapped as one).
 func useDerivedFlowLayout(ctx *ExecContext, flowType string, mf *microflows.Microflow, name ast.QualifiedName,
 	entityNames, microflowNames map[model.ID]string) func() {
+	// The body rendered next is the flow the derivation analysed, so it reuses
+	// that analysis too.
+	prevAnalysis := ctx.flowAnalysis
+	if ctx.flowAnalysis == nil {
+		ctx.flowAnalysis = newFlowAnalysisMemo()
+	}
 	keep := derivedFlowLayout(ctx, flowType, mf, name, entityNames, microflowNames)
 	prev := ctx.describeLayout
 	ctx.describeLayout = keep
-	return func() { ctx.describeLayout = prev }
+	return func() { ctx.describeLayout, ctx.flowAnalysis = prev, prevAnalysis }
 }
 
 // gatedLayoutRounds bounds the rounds that pin only the FIRST node of each run
@@ -126,10 +133,15 @@ func derivedFlowLayout(ctx *ExecContext, flowType string, mf *microflows.Microfl
 	// nobody ran.
 	// The builds go through a read cache: they rebuild the same flow over an
 	// unchanged project, and write nothing.
-	prevOut, prevLayout, prevBackend := ctx.Output, ctx.describeLayout, ctx.Backend
+	// The rounds render the same stored flow again and again, so its graph
+	// analysis is done once for all of them (mendixlabs/mxcli#1301).
+	prevOut, prevLayout, prevBackend, prevAnalysis := ctx.Output, ctx.describeLayout, ctx.Backend, ctx.flowAnalysis
 	ctx.Output = io.Discard
 	ctx.Backend = newLayoutCheckBackend(ctx.Backend)
-	defer func() { ctx.Output, ctx.describeLayout, ctx.Backend = prevOut, prevLayout, prevBackend }()
+	ctx.flowAnalysis = flowAnalysisOf(ctx).forRebuild()
+	defer func() {
+		ctx.Output, ctx.describeLayout, ctx.Backend, ctx.flowAnalysis = prevOut, prevLayout, prevBackend, prevAnalysis
+	}()
 
 	stored := indexFlowGraph(mf.ObjectCollection)
 	successors := layoutSuccessors(stored)
@@ -148,6 +160,7 @@ func derivedFlowLayout(ctx *ExecContext, flowType string, mf *microflows.Microfl
 	// there are at most three per object plus @start.
 	maxRounds := 3*len(stored.object) + 2
 	for round := 0; round < maxRounds; round++ {
+		derivedLayoutRounds.Add(1)
 		ctx.describeLayout = keep
 		src := renderMicroflowMDL(ctx, flowType, mf, name, entityNames, microflowNames, nil)
 		rebuilt, err := rebuildDescribedFlow(ctx, flowType, src)
@@ -183,6 +196,83 @@ func derivedFlowLayout(ctx *ExecContext, flowType string, mf *microflows.Microfl
 		}
 	}
 	return nil
+}
+
+// derivedLayoutRounds counts the derivation's rounds, and splitMergeAnalyses
+// how often a flow's split/merge structure is worked out — the per-round cost
+// mendixlabs/mxcli#1301 was about. Only tests read them.
+var derivedLayoutRounds, splitMergeAnalyses atomic.Int64
+
+// flowAnalysisMemo holds what a description's rendering works out from the
+// stored flow alone, for the rounds of one derivation. None of it depends on
+// which layout annotations a round keeps, and the analysis grows faster than
+// the flow: re-done per round it was most of describe's cost on a hand-laid
+// flow, which takes up to gatedLayoutRounds+2 rounds (#1301).
+//
+// It is keyed on the stored collection, and lives for one canonical describe —
+// the derivation and the body printed after it — over a flow nothing modifies
+// meanwhile. A nil memo — every other render — computes afresh.
+type flowAnalysisMemo struct {
+	splitMerge map[*microflows.MicroflowObjectCollection]map[model.ID]model.ID
+	labels     map[*microflows.MicroflowObjectCollection]mergeLabels
+
+	// rebuildOnly marks a derivation round's render, whose text is rebuilt and
+	// never shown. It leaves out the body warnings: they are comments, which
+	// the rebuild does not read, and working them out repeats the analysis.
+	rebuildOnly bool
+}
+
+// forRebuild is the memo a derivation round renders with: the same analyses,
+// without the warnings.
+func (m *flowAnalysisMemo) forRebuild() *flowAnalysisMemo {
+	if m == nil {
+		m = newFlowAnalysisMemo()
+	}
+	view := *m
+	view.rebuildOnly = true
+	return &view
+}
+
+func newFlowAnalysisMemo() *flowAnalysisMemo {
+	return &flowAnalysisMemo{
+		splitMerge: map[*microflows.MicroflowObjectCollection]map[model.ID]model.ID{},
+		labels:     map[*microflows.MicroflowObjectCollection]mergeLabels{},
+	}
+}
+
+func flowAnalysisOf(ctx *ExecContext) *flowAnalysisMemo {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.flowAnalysis
+}
+
+// splitMergePoints is findSplitMergePoints through the memo. Callers only read
+// the map.
+func (m *flowAnalysisMemo) splitMergePoints(oc *microflows.MicroflowObjectCollection, compute func() map[model.ID]model.ID) map[model.ID]model.ID {
+	if m == nil {
+		return compute()
+	}
+	if r, ok := m.splitMerge[oc]; ok {
+		return r
+	}
+	r := compute()
+	m.splitMerge[oc] = r
+	return r
+}
+
+// mergeLabels is the labelling of a flow's merges through the memo.
+func (m *flowAnalysisMemo) mergeLabels(oc *microflows.MicroflowObjectCollection) mergeLabels {
+	compute := func() mergeLabels { return mergeAllLabels(labelRejoinMerges(oc), labelCrossedMerges(oc)) }
+	if m == nil {
+		return compute()
+	}
+	if r, ok := m.labels[oc]; ok {
+		return r
+	}
+	r := compute()
+	m.labels[oc] = r
+	return r
 }
 
 // rebuildDescribedFlow builds the flow a description defines, the way `create

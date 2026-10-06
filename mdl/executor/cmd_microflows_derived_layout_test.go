@@ -239,3 +239,49 @@ func TestCatalogSource_SkipsDerivedLayout(t *testing.T) {
 		t.Errorf("the catalog source ran the derived-layout check:\n%s", src)
 	}
 }
+
+// handLaidIfChain is a flow of n if/else blocks with every node placed by hand,
+// none where the layout engine would put it — the shape of mendixlabs/mxcli#1301.
+func handLaidIfChain(name string, n int) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "create or modify microflow %s ($X: integer)\nbegin\n", name)
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(&b, "  @position(%d, %d)\n  if $X > %d then\n", 200+i*137, 100+(i%3)*53, i)
+		fmt.Fprintf(&b, "    @position(%d, %d)\n    log info node 'T' 'a%d';\n  else\n", 260+i*137, 300+(i%5)*31, i)
+		fmt.Fprintf(&b, "    @position(%d, %d)\n    log info node 'T' 'b%d';\n  end if;\n", 250+i*137, 500+(i%4)*29, i)
+	}
+	b.WriteString("  return;\nend;")
+	return b.String()
+}
+
+// The derivation re-renders the description once per round, and a hand-laid
+// flow takes several rounds. The stored flow's graph analysis — which merge
+// closes which split, the body warnings — does not depend on which layout
+// annotations a round keeps, and it grows faster than the flow, so running it
+// per round made describe of a 60-block hand-laid flow 7.6x slower than v0.24
+// (mendixlabs/mxcli#1301). It runs once, shared by the derivation and the
+// description that is printed.
+//
+// The rounds are the control: a flow that settles in one round would pass
+// without the memo too, so the test first requires several.
+func TestDescribe_DerivedLayoutAnalysesTheFlowOnce(t *testing.T) {
+	exec, out := describeExecutor(t)
+	const name = "MyFirstModule.HandLaidChain"
+	run(t, exec, handLaidIfChain(name, 12))
+
+	rounds, analyses := derivedLayoutRounds.Load(), splitMergeAnalyses.Load()
+	mdl := describeText(t, exec, out, "describe microflow "+name+";")
+	rounds, analyses = derivedLayoutRounds.Load()-rounds, splitMergeAnalyses.Load()-analyses
+
+	if rounds < 3 {
+		t.Fatalf("control: the derivation took %d round(s), so this flow cannot show a per-round cost", rounds)
+	}
+	if len(layoutLines(mdl)) == 0 {
+		t.Fatalf("a hand-laid flow was described with no layout:\n%s", mdl)
+	}
+	// One shared by every render, and one for the printed description's
+	// dropped-merge warning, which walks the graph its own way.
+	if analyses > 2 {
+		t.Errorf("the flow's split/merge structure was analysed %d times over %d rounds; want at most 2", analyses, rounds)
+	}
+}

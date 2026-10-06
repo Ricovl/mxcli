@@ -1,0 +1,122 @@
+mdl 1;
+-- ============================================================================
+-- describe microflow was 4-8x slower on a hand-laid flow (mendixlabs/mxcli#1301)
+-- ============================================================================
+--
+-- Reported: "In v0.25.0, `describe microflow` became much slower for flows
+-- whose activities are not positioned where mxcli's layout algorithm would place
+-- them" — 60 if/else blocks went from 4.7 s to 35.6 s.
+--
+-- The canonical describe (#748) re-renders the description once per round of
+-- its layout derivation, and a hand-laid flow takes up to eight rounds. Each
+-- render re-ran the stored flow's split/merge analysis and body warnings, which
+-- do not depend on the round and grow faster than the flow. They now run once
+-- per describe. Every node below is placed by hand, so the derivation takes
+-- its maximum number of rounds; the printed description is unchanged.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/1301-describe-hand-laid-flow-cost.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe microflow BugTest1301.HandLaidChain"
+
+create module BugTest1301;
+
+create or modify microflow BugTest1301.HandLaidChain ($X: integer)
+begin
+  @position(200, 100)
+  if $X > 0 then
+    @position(260, 300)
+    log info node 'BugTest1301' 'above 0';
+  else
+    @position(250, 500)
+    log info node 'BugTest1301' 'at most 0';
+  end if;
+  @position(337, 153)
+  if $X > 1 then
+    @position(397, 331)
+    log info node 'BugTest1301' 'above 1';
+  else
+    @position(387, 529)
+    log info node 'BugTest1301' 'at most 1';
+  end if;
+  @position(474, 206)
+  if $X > 2 then
+    @position(534, 362)
+    log info node 'BugTest1301' 'above 2';
+  else
+    @position(524, 558)
+    log info node 'BugTest1301' 'at most 2';
+  end if;
+  @position(611, 100)
+  if $X > 3 then
+    @position(671, 393)
+    log info node 'BugTest1301' 'above 3';
+  else
+    @position(661, 587)
+    log info node 'BugTest1301' 'at most 3';
+  end if;
+  @position(748, 153)
+  if $X > 4 then
+    @position(808, 424)
+    log info node 'BugTest1301' 'above 4';
+  else
+    @position(798, 500)
+    log info node 'BugTest1301' 'at most 4';
+  end if;
+  @position(885, 206)
+  if $X > 5 then
+    @position(945, 300)
+    log info node 'BugTest1301' 'above 5';
+  else
+    @position(935, 529)
+    log info node 'BugTest1301' 'at most 5';
+  end if;
+  @position(1022, 100)
+  if $X > 6 then
+    @position(1082, 331)
+    log info node 'BugTest1301' 'above 6';
+  else
+    @position(1072, 558)
+    log info node 'BugTest1301' 'at most 6';
+  end if;
+  @position(1159, 153)
+  if $X > 7 then
+    @position(1219, 362)
+    log info node 'BugTest1301' 'above 7';
+  else
+    @position(1209, 587)
+    log info node 'BugTest1301' 'at most 7';
+  end if;
+  @position(1296, 206)
+  if $X > 8 then
+    @position(1356, 393)
+    log info node 'BugTest1301' 'above 8';
+  else
+    @position(1346, 500)
+    log info node 'BugTest1301' 'at most 8';
+  end if;
+  @position(1433, 100)
+  if $X > 9 then
+    @position(1493, 424)
+    log info node 'BugTest1301' 'above 9';
+  else
+    @position(1483, 529)
+    log info node 'BugTest1301' 'at most 9';
+  end if;
+  @position(1570, 153)
+  if $X > 10 then
+    @position(1630, 300)
+    log info node 'BugTest1301' 'above 10';
+  else
+    @position(1620, 558)
+    log info node 'BugTest1301' 'at most 10';
+  end if;
+  @position(1707, 206)
+  if $X > 11 then
+    @position(1767, 331)
+    log info node 'BugTest1301' 'above 11';
+  else
+    @position(1757, 587)
+    log info node 'BugTest1301' 'at most 11';
+  end if;
+  return;
+end;
