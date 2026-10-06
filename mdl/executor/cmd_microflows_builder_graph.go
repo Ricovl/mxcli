@@ -294,11 +294,12 @@ func collectListInputVariables(stmts []ast.MicroflowStatement) map[string]bool {
 				}
 				walk(s.Body)
 			case *ast.AddToListStmt:
-				if s.List != "" {
+				// With an association target, List names an object (#1288).
+				if s.List != "" && s.Association == "" {
 					inputs[s.List] = true
 				}
 			case *ast.RemoveFromListStmt:
-				if s.List != "" {
+				if s.List != "" && s.Association == "" {
 					inputs[s.List] = true
 				}
 			case *ast.ClearListStmt:
@@ -429,12 +430,20 @@ func collectObjectInputVariables(stmts []ast.MicroflowStatement) map[string]bool
 			case *ast.AggregateListStmt:
 				walkExpr(s.Expression)
 			case *ast.AddToListStmt:
-				if s.Value != nil {
+				if s.Association != "" {
+					// `add $X to $Obj/Assoc` changes $Obj; $X may be an
+					// object or a list, so it says nothing either way (#1288).
+					inputs[s.List] = true
+				} else if s.Value != nil {
 					for _, ref := range exprVarRefs(s.Value) {
 						inputs[ref] = true
 					}
 				} else if s.Item != "" {
 					inputs[s.Item] = true
+				}
+			case *ast.RemoveFromListStmt:
+				if s.Association != "" {
+					inputs[s.List] = true
 				}
 			case *ast.CallMicroflowStmt:
 				for _, arg := range s.Arguments {

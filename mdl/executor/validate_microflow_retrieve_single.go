@@ -83,11 +83,12 @@ func listUseOf(s ast.MicroflowStatement) (string, string) {
 			return st.ListVariable, "a loop"
 		}
 	case *ast.AddToListStmt:
-		if st.List != "" {
+		// An association target (`$Obj/Assoc`) takes the object (#1288).
+		if st.List != "" && st.Association == "" {
 			return st.List, "ADD … TO"
 		}
 	case *ast.RemoveFromListStmt:
-		if st.List != "" {
+		if st.List != "" && st.Association == "" {
 			return st.List, "REMOVE … FROM"
 		}
 	case *ast.ClearListStmt:

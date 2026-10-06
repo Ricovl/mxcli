@@ -1055,6 +1055,7 @@ createListStatement
  */
 addToListStatement
     : ADD expression TO VARIABLE
+    | ADD expression TO associationMemberTarget commitClause? REFRESH?
     ;
 
 /**
@@ -1062,6 +1063,18 @@ addToListStatement
  */
 removeFromListStatement
     : REMOVE VARIABLE FROM VARIABLE
+    | REMOVE VARIABLE FROM associationMemberTarget commitClause? REFRESH?
+    ;
+
+/**
+ * $Obj/Module.Assoc as the target of ADD/REMOVE: the Add and Remove member
+ * changes a Change object activity offers for a reference set
+ * (mendixlabs/mxcli#1288). `change $Obj (Assoc = $X)` assigns the whole set;
+ * this appends to or removes from it. The commit/refresh modifiers are the
+ * Change object activity's own, which is why the list form has none.
+ */
+associationMemberTarget
+    : VARIABLE SLASH qualifiedName
     ;
 
 /**

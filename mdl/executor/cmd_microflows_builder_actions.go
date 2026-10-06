@@ -379,6 +379,55 @@ func (fb *flowBuilder) addChangeObjectAction(s *ast.ChangeObjectStmt) model.ID {
 	return activity.ID
 }
 
+// addAssociationMemberChange builds `add|remove <value> to|from $Obj/Assoc`: a
+// Change object activity with one Add or Remove member, which is what Studio
+// Pro's Add/Remove buttons store for a reference set (mendixlabs/mxcli#1288).
+// It goes through addChangeObjectAction so the member resolves exactly as a
+// CHANGE member does, then sets the member's operation.
+func (fb *flowBuilder) addAssociationMemberChange(op microflows.MemberChangeType, variable, association string, value ast.Expression, commit ast.CommitFlag, refresh bool) model.ID {
+	errorsBefore := len(fb.errors)
+	id := fb.addChangeObjectAction(&ast.ChangeObjectStmt{
+		Variable:        variable,
+		Changes:         []ast.ChangeItem{{Attribute: association, Value: value}},
+		Commit:          commit,
+		RefreshInClient: refresh,
+	})
+	activity, ok := fb.objects[len(fb.objects)-1].(*microflows.ActionActivity)
+	if !ok {
+		return id
+	}
+	action, ok := activity.Action.(*microflows.ChangeObjectAction)
+	if !ok || len(action.Changes) != 1 {
+		return id
+	}
+	mc := action.Changes[0]
+	mc.Type = op
+	if len(fb.errors) != errorsBefore {
+		return id
+	}
+	// Add and Remove exist for reference sets only. Measured on 11.12.2: an
+	// Add member on an attribute or on a plain Reference fails `mx check` with
+	// CE0033 "The 'Type' property of this member cannot be 'Add'."
+	verb := "add … to"
+	if op == microflows.MemberChangeTypeRemove {
+		verb = "remove … from"
+	}
+	if mc.AssociationQualifiedName == "" {
+		fb.addError("%s $%s/%s: %s is not an association — Add and Remove apply to reference-set members only "+
+			"(mxbuild: CE0033); set an attribute with `change $%s (%s = …)`", verb, variable, association, association, variable, association)
+		return id
+	}
+	if dot := strings.Index(mc.AssociationQualifiedName, "."); dot > 0 {
+		info := fb.lookupAssociation(mc.AssociationQualifiedName[:dot], mc.AssociationQualifiedName[dot+1:])
+		if info != nil && info.Type != domainmodel.AssociationTypeReferenceSet {
+			fb.addError("%s $%s/%s: %s is a Reference, not a ReferenceSet — Add and Remove apply to reference sets only "+
+				"(mxbuild: CE0033); set a reference with `change $%s (%s = …)`",
+				verb, variable, association, mc.AssociationQualifiedName, variable, mc.AssociationQualifiedName)
+		}
+	}
+	return id
+}
+
 func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 	if count := enumSplitBranchCount(s); count > maxEnumSplitBranches {
 		fb.addError("enum split has %d branches; at most %d branches are supported", count, maxEnumSplitBranches)
@@ -1996,8 +2045,16 @@ func (fb *flowBuilder) addCreateListAction(s *ast.CreateListStmt) model.ID {
 	return activity.ID
 }
 
-// addAddToListAction creates an ADD TO list statement.
+// addAddToListAction creates an ADD TO list statement, or the Add member
+// change of a Change object activity when the target is $Obj/Module.Assoc.
 func (fb *flowBuilder) addAddToListAction(s *ast.AddToListStmt) model.ID {
+	if s.Association != "" {
+		value := s.Value
+		if value == nil {
+			value = &ast.VariableExpr{Name: s.Item}
+		}
+		return fb.addAssociationMemberChange(microflows.MemberChangeTypeAdd, s.List, s.Association, value, s.Commit, s.RefreshInClient)
+	}
 	value := fb.exprToString(s.Value)
 	if value == "" && s.Item != "" {
 		value = "$" + s.Item
@@ -2027,8 +2084,12 @@ func (fb *flowBuilder) addAddToListAction(s *ast.AddToListStmt) model.ID {
 	return activity.ID
 }
 
-// addRemoveFromListAction creates a REMOVE FROM list statement.
+// addRemoveFromListAction creates a REMOVE FROM list statement, or the Remove
+// member change of a Change object activity when the target is $Obj/Module.Assoc.
 func (fb *flowBuilder) addRemoveFromListAction(s *ast.RemoveFromListStmt) model.ID {
+	if s.Association != "" {
+		return fb.addAssociationMemberChange(microflows.MemberChangeTypeRemove, s.List, s.Association, &ast.VariableExpr{Name: s.Item}, s.Commit, s.RefreshInClient)
+	}
 	return fb.addChangeListAction(microflows.ChangeListTypeRemove, s.List, "$"+s.Item, nil)
 }
 
