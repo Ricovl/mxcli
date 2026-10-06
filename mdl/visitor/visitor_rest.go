@@ -340,23 +340,7 @@ func extractDocCommentText(ctx parser.IDocCommentContext) string {
 	if ctx == nil {
 		return ""
 	}
-	text := ctx.GetText()
-	// Remove /** and */ markers
-	text = strings.TrimPrefix(text, "/**")
-	text = strings.TrimSuffix(text, "*/")
-
-	// Process lines: trim whitespace and leading *
-	var lines []string
-	for _, line := range strings.Split(text, "\n") {
-		line = strings.TrimSpace(line)
-		line = strings.TrimPrefix(line, "* ")
-		line = strings.TrimPrefix(line, "*")
-		line = strings.TrimSpace(line)
-		if line != "" {
-			lines = append(lines, line)
-		}
-	}
-	return strings.Join(lines, "\n")
+	return extractDocComment(ctx.GetText())
 }
 
 // ExitCreatePublishedRestServiceStatement handles CREATE PUBLISHED REST SERVICE.

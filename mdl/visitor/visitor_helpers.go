@@ -568,14 +568,22 @@ func extractDocComment(s string) string {
 
 	// Remove leading * from each line
 	lines := strings.Split(s, "\n")
-	var cleaned []string
+	cleaned := make([]string, 0, len(lines))
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		line = strings.TrimPrefix(line, "*")
 		line = strings.TrimSpace(line)
-		if line != "" {
-			cleaned = append(cleaned, line)
-		}
+		cleaned = append(cleaned, line)
+	}
+	// Only the blank lines at the edges are framing (the `/**` and ` */`
+	// lines). An interior blank line is a paragraph break and is part of the
+	// text: dropping it turned Studio Pro's "\n\n" into "\n" on every
+	// describe → exec round trip (mendixlabs/mxcli#1300).
+	for len(cleaned) > 0 && cleaned[0] == "" {
+		cleaned = cleaned[1:]
+	}
+	for len(cleaned) > 0 && cleaned[len(cleaned)-1] == "" {
+		cleaned = cleaned[:len(cleaned)-1]
 	}
 	return strings.Join(cleaned, "\n")
 }
