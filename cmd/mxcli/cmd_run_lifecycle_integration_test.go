@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/mendixlabs/mxcli/cmd/mxcli/docker"
+	modelsdkbackend "github.com/mendixlabs/mxcli/mdl/backend/modelsdk"
 )
 
 // TestRunLifecycle_DetachStatusExecWaitStop drives the background-service
@@ -32,8 +33,16 @@ import (
 //
 //	MXCLI_RUNLIFE_VERSION=11.13.0 go test -tags integration ./cmd/mxcli -run RunLifecycle -v
 //
-// Uses the built-in HSQLDB database, so it needs no PostgreSQL. Skips when the
-// mxbuild for the version is not cached.
+// Uses the built-in HSQLDB database, so it needs no PostgreSQL. Skips when no
+// mxbuild is cached. ResolveMxForVersion falls back to any cached version, so the
+// nightly runs this against each matrix leg's own version — which is how it
+// found that --watch could not start on 10.24 / 11.6.
+//
+// On Mendix 11.14+ every build after the first in one mxbuild --serve process
+// fails (an mxbuild regression, measured without mxcli: webclient_legacy_paths.go).
+// There the steps that wait for build #2 assert that documented failure — the
+// build fails and the run log explains why — instead of an applied build. When an
+// mxbuild fixes it, those assertions fail and this branch should go.
 func TestRunLifecycle_DetachStatusExecWaitStop(t *testing.T) {
 	version := os.Getenv("MXCLI_RUNLIFE_VERSION")
 	if version == "" {
@@ -62,6 +71,7 @@ func TestRunLifecycle_DetachStatusExecWaitStop(t *testing.T) {
 		t.Skipf("mx create-project: %v\n%s", err, out)
 	}
 	mpr := filepath.Join(work, "App.mpr")
+	serveRebuildsBroken := projectAtLeast(t, mpr, 11, 14)
 
 	const appPort, adminPort, servePort = 8287, 8297, 6743
 	for _, p := range []int{appPort, adminPort, servePort} {
@@ -99,6 +109,24 @@ func TestRunLifecycle_DetachStatusExecWaitStop(t *testing.T) {
 		return f
 	}
 
+	// wantBuild2 checks a `run wait` that should report build #2: applied, or on
+	// 11.14+ failed with mxcli's explanation of the mxbuild regression in the log.
+	// orApplied also accepts an applied build #2 on 11.14+, for a step whose
+	// claim is only that build #2 ran.
+	wantBuild2 := func(step, out string, code int, orApplied bool) {
+		t.Helper()
+		if serveRebuildsBroken && !(orApplied && code == 0 && strings.HasPrefix(out, "applied: build #2")) {
+			log, _ := os.ReadFile(docker.RunLogPath(mpr))
+			if code != 1 || !strings.HasPrefix(out, "failed: build #2") || !strings.Contains(string(log), "first build does not") {
+				t.Fatalf("%s (Mendix 11.14+): want build #2 to fail with the serve-rebuild hint; exit %d, %q\n%s", step, code, out, tailOf(docker.RunLogPath(mpr)))
+			}
+			return
+		}
+		if code != 0 || !strings.HasPrefix(out, "applied: build #2") {
+			t.Fatalf("%s: exit %d, %q\n%s", step, code, out, tailOf(docker.RunLogPath(mpr)))
+		}
+	}
+
 	// 1. detach: one line, exit 0, and the app answers.
 	out, code := mxcli(runArgs...)
 	if code != 0 || !strings.HasPrefix(out, "running: http://127.0.0.1:8287/ (pid ") || strings.Count(out, "\n") != 1 {
@@ -126,14 +154,13 @@ func TestRunLifecycle_DetachStatusExecWaitStop(t *testing.T) {
 		t.Fatalf("exec: exit %d, %s", code, out)
 	}
 	out, code = mxcli("run", "wait", "-p", mpr, "--timeout", "3m")
-	if code != 0 || !strings.HasPrefix(out, "applied: build #2 via reload") {
-		t.Fatalf("wait: exit %d, %q\n%s", code, out, tailOf(docker.RunLogPath(mpr)))
+	wantBuild2("wait", out, code, false)
+	if !serveRebuildsBroken && !strings.HasPrefix(out, "applied: build #2 via reload") {
+		t.Fatalf("wait: applied, but not via reload: %q", out)
 	}
 	// Waiting again with nothing changed reports the same build at once.
 	out, code = mxcli("run", "wait", "-p", mpr, "--timeout", "5s")
-	if code != 0 || !strings.HasPrefix(out, "applied: build #2") {
-		t.Fatalf("second wait: exit %d, %q", code, out)
-	}
+	wantBuild2("second wait", out, code, false)
 
 	// 5. stop: every process of the run is gone, and the ports are free.
 	out, code = mxcli("run", "stop", "-p", mpr)
@@ -178,13 +205,31 @@ func TestRunLifecycle_DetachStatusExecWaitStop(t *testing.T) {
 	if err := bg.Wait(); err != nil {
 		t.Fatalf("detach (boot race): %v\n%s", err, tailOf(docker.RunLogPath(mpr)))
 	}
+	// What this step claims is that the change is not lost: build #2 runs. On
+	// 11.14+ this build was measured applying (via restart) where step 4's failed;
+	// the likely difference is how much of the change the boot build had already
+	// read, which the test does not control. So either outcome passes there;
+	// "nothing to apply" never does.
 	out, code = mxcli("run", "wait", "-p", mpr, "--timeout", "2m")
-	if code != 0 || !strings.HasPrefix(out, "applied: build #2") {
-		t.Fatalf("a change made during the boot was not applied: exit %d, %q\n%s", code, out, tailOf(docker.RunLogPath(mpr)))
-	}
+	wantBuild2("a change made during the boot", out, code, true)
 	if out, code := mxcli("run", "stop", "-p", mpr); code != 0 {
 		t.Fatalf("final stop: exit %d, %q", code, out)
 	}
+}
+
+// projectAtLeast reports whether the project at mpr is Mendix major.minor or newer.
+func projectAtLeast(t *testing.T, mpr string, major, minor int) bool {
+	t.Helper()
+	b := modelsdkbackend.New()
+	if err := b.ConnectReadOnly(mpr); err != nil {
+		t.Fatalf("reading project version: %v", err)
+	}
+	defer b.Disconnect()
+	pv := b.ProjectVersion()
+	if pv == nil {
+		t.Fatal("project has no version")
+	}
+	return pv.IsAtLeast(major, minor)
 }
 
 func portAnswers(port int) bool {
