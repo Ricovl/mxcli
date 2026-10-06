@@ -1023,6 +1023,9 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 			existingAttrsByName[ea.Name] = ea
 		}
 	}
+	// A DateTime column's LocalizeDate is the source attribute's, not Mendix's
+	// default: a mismatch is CE6770 (#1297).
+	localize := viewDateTimeLocalize(ctx, s.Query.RawQuery, s.Attributes)
 	var attrs []*domainmodel.Attribute
 	for _, a := range s.Attributes {
 		attr := &domainmodel.Attribute{
@@ -1031,6 +1034,11 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 			Value: &domainmodel.AttributeValue{
 				ViewReference: a.Name, // OQL column alias matches attribute name
 			},
+		}
+		if dt, ok := attr.Type.(*domainmodel.DateTimeAttributeType); ok {
+			if l, ok := localize[a.Name]; ok {
+				dt.LocalizeDate = l
+			}
 		}
 		// Preserve IDs from existing attribute with same name
 		if ea, ok := existingAttrsByName[a.Name]; ok {
