@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`mxcli test tests` finds test files in subfolders** (mendixlabs/mxcli#1363) — `mxcli test tests --list` printed `Found 0 test(s)` when the suites live in `tests/<Module>/*.test.mdl`, while `mxcli test tests/Sales --list` found them: a directory argument only read the files directly inside it. It now reads `*.test.mdl` and `*.test.md` at any depth, in path order, skipping hidden folders (`.git`, `.mxcli`). A file that cannot be parsed is still reported on its own and does not stop the others, and the "no tests found" hint now also names misnamed `.mdl` / `.md` files in subfolders.
+
 ## [0.27.0] - 2026-10-15
 
 Headline: **`exec` is all or nothing: when a statement fails at write time, the whole run is rolled back, so a script never leaves a project half-changed.** Alongside it: a wave of `describe` → `check` → `exec` fixes from round-trip runs over real apps (the Siemens FSM template, the GenAI showcase, Marketplace modules), Mendix 9 projects can take microflows, nanoflows and pluggable widgets again, `check -p` resolves many more of the references `exec` and the build would refuse, the classic `filemanager` widget and role-based `Visible: roles (…)` are in MDL, and the companion draws a module's domain model. The MongoDB driver is upgraded for the October 2026 BSON advisories.
