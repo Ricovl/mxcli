@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { TreeNode } from '../types'
-import { changesModel, nodeId, pageOf, parseDescribe, parseTree, pickMpr, touchesProjectFile, visibleRows } from '../hooks/tree'
+import { assumeDescribable, changesModel, nodeId, pageOf, parseDescribe, parseTree, pickMpr, touchesProjectFile, visibleRows } from '../hooks/tree'
 
 const TREE: TreeNode[] = [
   {
@@ -109,5 +109,30 @@ describe('pageOf', () => {
   })
   test('a short list is one page', () => {
     expect(pageOf(3, 2, 10)).toEqual({ first: 0, end: 3, above: 0, below: 0 })
+  })
+})
+
+describe('assumeDescribable (an mxcli older than the describable field)', () => {
+  test('a tree with no describable field anywhere offers MDL for named leaves', () => {
+    const old: TreeNode[] = [
+      {
+        label: 'Sales',
+        type: 'module',
+        qualifiedName: 'Sales',
+        children: [
+          { label: 'Orders', type: 'folder', children: [{ label: 'ACT_Process', type: 'microflow', qualifiedName: 'Sales.ACT_Process' }] },
+        ],
+      },
+    ]
+    const tree = assumeDescribable(old)
+    expect(tree[0]!.describable).toBeFalsy() // a module is a container: describing it prints the whole module
+    expect(tree[0]!.children![0]!.describable).toBeFalsy() // a folder has no name to describe
+    expect(tree[0]!.children![0]!.children![0]!.describable).toBe(true)
+  })
+
+  test('a tree from a current mxcli is left as it is', () => {
+    expect(assumeDescribable(TREE)).toEqual(TREE)
+    const settings = assumeDescribable([{ label: 'Tmpl', type: 'pagetemplate', qualifiedName: 'M.Tmpl', describable: false }, ...TREE])
+    expect(settings[0]!.describable).toBe(false)
   })
 })
