@@ -247,7 +247,7 @@ func syncProjectTooling(projectDir string) (toolingSyncResult, error) {
 	// The docs embed the .mpr path, so without one there is nothing correct to
 	// render; init would write a placeholder, a refresh must not.
 	if mprFile := findMprFile(projectDir); mprFile != "" {
-		projectName := filepath.Base(projectDir)
+		projectName := projectDisplayName(projectDir, mprFile)
 		for _, doc := range ownedDocs() {
 			r, err := writeOwnedDoc(filepath.Join(projectDir, doc.Path), doc.Content(projectName, mprFile), false)
 			if err != nil {

@@ -97,7 +97,7 @@ Supported Tools:
 		if mprFile == "" {
 			mprFile = "project.mpr" // Default if not found
 		}
-		projectName := filepath.Base(absDir)
+		projectName := projectDisplayName(absDir, findMprFile(absDir))
 
 		fmt.Printf("Adding %s support to: %s\n", toolConfig.Name, absDir)
 

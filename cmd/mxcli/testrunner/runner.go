@@ -90,6 +90,14 @@ type RunOptions struct {
 	// bundled mxbuild on macOS/Windows, the cached CDN download on Linux.
 	MxBuildPath string
 
+	// AppPort, AdminPort and ServePort move the ports a --local run boots on —
+	// the app, the M2EE admin API and mxbuild --serve. Zero means the default
+	// (8081, 8091, 6544), chosen to sit beside `run --local`'s 8080/8090/6543.
+	// --attach and the Docker path refuse them (see validatePorts).
+	AppPort   int
+	AdminPort int
+	ServePort int
+
 	// Timeout for runtime startup and test execution.
 	Timeout time.Duration
 
@@ -144,6 +152,14 @@ func Run(opts RunOptions) (*SuiteResult, error) {
 
 	if err := validateOptions(opts); err != nil {
 		return nil, err
+	}
+	// Probe the ports before the project is touched: a taken port found after
+	// injection costs a build and a cleanup, and StartLocalApp's own guard cannot
+	// name the flag that moves it.
+	if opts.Local && !opts.Attach {
+		if err := checkTestPortsFree(opts); err != nil {
+			return nil, err
+		}
 	}
 
 	timeout := opts.Timeout
@@ -224,6 +240,9 @@ func rejectVerifyOnLegacyRunner(suite *TestSuite) error {
 // says what to do instead. Watching depends on re-invoking tests without a
 // restart, which only the test endpoint can do.
 func validateOptions(opts RunOptions) error {
+	if err := validatePorts(opts); err != nil {
+		return err
+	}
 	if opts.Attach {
 		if opts.LegacyRunner {
 			return fmt.Errorf("--attach cannot be combined with --legacy-runner: the after-startup runner can only run tests by restarting, which is what attaching avoids")
