@@ -22,12 +22,13 @@ var widgetsListOwners = []string{
 	"Forms$ScrollContainerRegion",
 	"Forms$Snippet",
 	"Forms$TabPage",
+	"Forms$TemplateGridContents",
 	"Forms$WebLayoutContent",
 }
 
 // Every `Widgets` list is typed-array marker 2, keyed on the property rather
 // than on the first child. Measured across ako/TestApp and PedApp: 22,000+
-// Widgets lists on the fifteen owners above, empty and populated, with no
+// Widgets lists on every owner above but TemplateGridContents, empty and populated, with no
 // exception — including 14 whose first child is a Forms$TabControl, whose own
 // TabPages list is 3 (32 of 32) and stays on the child-type default.
 //
@@ -37,9 +38,23 @@ var widgetsListOwners = []string{
 // also never reach two other paths, which the property registration does: an
 // emptied list (the encoder's empty default is 3) and a selectively rebuilt one
 // (a stored list with one dirty child, written with 3 unless the property is
-// registered). The owner list is the evidenced one; Mendix 7-era owners
-// (TableCell, VerticalFlow, TemplateGridContents) and native layouts have no
-// reference document here and are left on the child-type path.
+// registered).
+//
+// Forms$TemplateGridContents has no reference document; it was measured with
+// mx convert (Mendix 11.15.0), which re-serializes every unit. Injected with
+// its Widgets written as [3] — empty, and with a TabControl first child — it
+// came back [2] both times, and a bare grid gained an empty Widgets [2]. The
+// same run's control, a DivContainer written as [3], also came back [2].
+//
+// The other gen Widgets owners cannot occur in a Mendix 11 project, so no
+// marker is registered for them: convert refuses Forms$TableCell,
+// Forms$VerticalFlow, NativePages$NativeLayoutCallArgument and
+// NativePages$NativePage with "the type cache does not contain a type". A
+// Mendix 11 table cell is Forms$DbTableCell (Widgets [2] on convert, empty or
+// with a TabControl first), which gen does not model: the decoder keeps it as
+// opaque raw bytes, so the encoder never writes its list. Forms$Layout and
+// Forms$LayoutCall hold no Widgets list themselves — their widgets sit in
+// WebLayoutContent / NativeLayoutContent and FormCallArgument, all above.
 //
 // The list is also mandatory: no owner above is ever stored without its Widgets
 // key (TestApp + PedApp: TabPage 89/89 with 20 empty, LayoutGridColumn 732/732

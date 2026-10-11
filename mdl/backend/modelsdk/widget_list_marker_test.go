@@ -220,3 +220,59 @@ func TestWidgetsListMarker_NoWidgetsKeyOnNonOwners(t *testing.T) {
 		}
 	}
 }
+
+// Forms$TemplateGridContents holds a Widgets list too, but neither TestApp nor
+// PedApp has a template grid, so #1104 left it on the child-type path. Measured
+// with mx convert (Mendix 11.15.0), which re-serializes every unit: a template
+// grid injected with its contents' Widgets written as [3] — empty, and with a
+// Forms$TabControl first child — came back [2] both times, and a bare grid was
+// given an empty Widgets [2] it did not have. Before the registration the
+// encoder wrote 3 for the tab-control case and the emptied list, and no key at
+// all for a new empty one.
+func TestWidgetsListMarker_TemplateGridContents(t *testing.T) {
+	const owner = "Forms$TemplateGridContents"
+
+	empty := genPg.NewTemplateGridContents()
+	if m, n := arrayMarker(t, encodeElement(t, empty), "Widgets"); m != 2 || n != 0 {
+		t.Errorf("new empty %s.Widgets = marker %d len %d, want [2]", owner, m, n)
+	}
+
+	withTabs := genPg.NewTemplateGridContents()
+	tabs := genPg.NewTabContainer()
+	tabs.SetName("tabs")
+	withTabs.AddWidgets(tabs)
+	if m, n := arrayMarker(t, encodeElement(t, withTabs), "Widgets"); m != 2 || n != 1 {
+		t.Errorf("%s.Widgets (first child Forms$TabControl) = marker %d len %d, want 2", owner, m, n)
+	}
+
+	stored := bsonv1.D{
+		{Key: "$ID", Value: idBinaryForTest(t)},
+		{Key: "$Type", Value: owner},
+		{Key: "Widgets", Value: bsonv1.A{int32(2),
+			bsonv1.D{{Key: "$ID", Value: idBinaryForTest(t)}, {Key: "$Type", Value: "Forms$DivContainer"}, {Key: "Name", Value: "a"}, {Key: "Widgets", Value: bsonv1.A{int32(2)}}},
+			bsonv1.D{{Key: "$ID", Value: idBinaryForTest(t)}, {Key: "$Type", Value: "Forms$DivContainer"}, {Key: "Name", Value: "b"}, {Key: "Widgets", Value: bsonv1.A{int32(2)}}},
+		}},
+	}
+	raw, err := bsonv1.Marshal(stored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decode := func() *genPg.TemplateGridContents {
+		el, err := codec.NewDecoder(codec.DefaultRegistry).Decode(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return el.(*genPg.TemplateGridContents)
+	}
+	edited := decode()
+	edited.WidgetsItems()[1].(*genPg.DivContainer).SetName("renamed")
+	if m, n := arrayMarker(t, encodeElement(t, edited), "Widgets"); m != 2 || n != 2 {
+		t.Errorf("selectively rebuilt %s.Widgets = marker %d len %d, want 2", owner, m, n)
+	}
+	emptied := decode()
+	emptied.RemoveWidgets(1)
+	emptied.RemoveWidgets(0)
+	if m, n := arrayMarker(t, encodeElement(t, emptied), "Widgets"); m != 2 || n != 0 {
+		t.Errorf("emptied %s.Widgets = marker %d len %d, want [2]", owner, m, n)
+	}
+}
