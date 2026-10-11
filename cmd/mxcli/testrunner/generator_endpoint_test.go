@@ -102,6 +102,23 @@ func TestGenerateTestFlowsWrapsCallsWithErrorHandling(t *testing.T) {
 	}
 }
 
+// TestGenerateTestFlowsFailVerdictCarriesErrorMessage pins that a CALL which
+// throws reports what was raised. The handler used to set the fixed text
+// "FAIL:exception during execution" and discard the error, so a test failing on
+// e.g. an unresolvable [%CurrentUser%] token (tests run in a system context)
+// gave no hint of the cause.
+func TestGenerateTestFlowsFailVerdictCarriesErrorMessage(t *testing.T) {
+	suite := &TestSuite{Tests: []TestCase{{
+		ID: "test_1", Name: "throwing", MDL: "$r = CALL MICROFLOW Mod.A();",
+	}}}
+	mdl := GenerateTestFlows(suite)
+
+	want := "SET $Verdict = '" + verdictFailPrefix + "exception during execution: ' + " + latestErrorMessage + ";"
+	if !strings.Contains(mdl, want) {
+		t.Errorf("the error handler does not carry $latestError/Message into the verdict; want %q in:\n%s", want, mdl)
+	}
+}
+
 // TestGenerateTestFlowsThrowsTestStartsFailed pins that an @throws test whose
 // body completes normally fails: the verdict is pre-set to a failure and only
 // the error handler clears it.
