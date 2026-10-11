@@ -20,11 +20,12 @@ import (
 
 const (
 	// DefaultMxBuildTimeout caps a whole build. A cold first build of a large
-	// project downloads Gradle dependencies, so this is generous.
-	DefaultMxBuildTimeout = 15 * time.Minute
+	// project downloads Gradle dependencies, so this is generous: a false kill of
+	// a slow healthy build costs more than a late one of a hung build.
+	DefaultMxBuildTimeout = 30 * time.Minute
 	// DefaultMxBuildStall is how long a build may go without printing a line
-	// before it is presumed hung.
-	DefaultMxBuildStall = 5 * time.Minute
+	// before it is presumed hung. Gradle steps can be quiet for minutes.
+	DefaultMxBuildStall = 10 * time.Minute
 
 	mxbuildTimeoutEnv = "MXCLI_MXBUILD_TIMEOUT"
 	mxbuildStallEnv   = "MXCLI_MXBUILD_STALL_TIMEOUT"
