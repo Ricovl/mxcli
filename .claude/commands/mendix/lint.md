@@ -44,6 +44,7 @@ mxcli lint -p app.mpr --exclude System --exclude Administration
 | SEC001 | security | NoEntityAccessRules - Persistent entities need access rules |
 | SEC002 | security | WeakPasswordPolicy - Password minimum length should be 8+ |
 | SEC003 | security | DemoUsersActive - Demo users should be off at Production security |
+| SEC010 | security | PageEntityNotReadable - A page data widget lists an entity the user roles that open the page cannot read; at Production it renders empty, silently (info when only row-scoped) |
 | CONV011 | performance | NoCommitInLoop - Commits inside loops (commit actions, or create/change with commit) cause N+1 issues |
 | CONV012 | quality | ExclusiveSplitCaption - Exclusive splits need meaningful captions |
 | CONV013 | quality | ErrorHandlingOnCalls - External calls (REST/WS/Java) need custom error handling |
