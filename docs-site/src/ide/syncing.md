@@ -84,7 +84,9 @@ open a project stamped by a newer mxcli **without any warning**. For them the
 guard is the bootstrap script, `.claude/bootstrap-mxcli.sh`, which a newer
 `mxcli init` regenerates: before it links the `mxcli` on `PATH` into the
 project it compares that binary's version with the stamp, and it does not link
-an older one — it downloads `MXCLI_TAG` (default `nightly`) instead. A
+an older one — it downloads `MXCLI_TAG` instead. `MXCLI_TAG` defaults to the
+release of the mxcli that generated the script (`vX.Y.Z`), or `nightly` when that
+was a nightly or development build. A
 `./mxcli` older than the stamp is replaced the same way, through a temporary
 file, so a `./mxcli` that is a symlink to the `PATH` binary never has the
 download written through it. If the download fails, the older `./mxcli` is

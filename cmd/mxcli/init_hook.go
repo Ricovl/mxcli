@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -24,8 +25,8 @@ import (
 // relative to the project root.
 const bootstrapScriptName = ".claude/bootstrap-mxcli.sh"
 
-// bootstrapScriptTemplate is written to bootstrapScriptName. %s is the .mpr file
-// name. It is POSIX sh (no bashisms) and safe to re-run: every step is a no-op
+// bootstrapScriptTemplate is written to bootstrapScriptName. The first %s is
+// the .mpr file name, the second the default mxcli tag (bootstrapDefaultTag). It is POSIX sh (no bashisms) and safe to re-run: every step is a no-op
 // once satisfied.
 //
 // It is COMMITTED on purpose — the opposite of the mxcli binary, which
@@ -43,7 +44,9 @@ const bootstrapScriptTemplate = `#!/bin/sh
 # the fresh clone — which is exactly why this script fetches it rather than
 # skipping when it is absent.
 #
-# Pin a specific mxcli with MXCLI_TAG=vX.Y.Z (default: nightly).
+# Pin a specific mxcli with MXCLI_TAG=vX.Y.Z or MXCLI_TAG=nightly. The default
+# is the release that generated this script, or nightly when that was not a
+# release build.
 #
 # Version guard: .ai-context/mxcli-tooling.json records the mxcli that wrote
 # this project's tooling (CLAUDE.md, skills, lint rules). A binary older than
@@ -55,7 +58,7 @@ const bootstrapScriptTemplate = `#!/bin/sh
 set -e
 
 MPR='%s'
-TAG="${MXCLI_TAG:-nightly}"
+TAG="${MXCLI_TAG:-%s}"
 STAMP=.ai-context/mxcli-tooling.json
 
 # stamp_field KEY: a string field of the tooling stamp, or nothing.
@@ -201,6 +204,28 @@ fi
 exec ./mxcli run --local --setup --ensure-db -p "$MPR"
 `
 
+// releaseTagRe matches a plain release version: what a tagged release
+// build carries in main.Version, and a tag that exists on GitHub.
+var releaseTagRe = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+$`)
+
+// bootstrapDefaultTag is the mxcli tag the bootstrap script fetches when
+// MXCLI_TAG is unset: the release that generated it, so a re-fetch after an
+// idle reap brings back the mxcli the project's tooling was written by rather
+// than whatever nightly is current. A dev build (v0.24.0-888-g4ba1495f2), a
+// nightly or an unversioned build has no fixed download, so it keeps nightly.
+func bootstrapDefaultTag(version string) string {
+	if releaseTagRe.MatchString(version) {
+		return version
+	}
+	return "nightly"
+}
+
+// renderBootstrapScript is the bootstrap script for a project's .mpr, with the
+// default tag taken from this binary's version.
+func renderBootstrapScript(mprFile string) string {
+	return fmt.Sprintf(bootstrapScriptTemplate, mprFile, bootstrapDefaultTag(Version))
+}
+
 // sessionStartHookMarkers identify OUR hook command — so re-running init updates
 // it instead of duplicating it, and a user's own SessionStart hooks are never
 // touched. The first is the current form; the rest are older spellings kept so
@@ -278,7 +303,7 @@ func writeBootstrapScript(claudeDir, mprFile string) (changed bool, err error) {
 	// claudeDir is <project>/.claude and bootstrapScriptName is project-relative,
 	// so take the base name to land beside settings.json.
 	path := filepath.Join(claudeDir, filepath.Base(bootstrapScriptName))
-	want := []byte(fmt.Sprintf(bootstrapScriptTemplate, mprFile))
+	want := []byte(renderBootstrapScript(mprFile))
 	if existing, readErr := os.ReadFile(path); readErr == nil && bytes.Equal(existing, want) {
 		return false, nil
 	}
