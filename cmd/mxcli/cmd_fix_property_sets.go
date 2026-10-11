@@ -1,0 +1,176 @@
+// SPDX-License-Identifier: Apache-2.0
+
+package main
+
+import (
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"sort"
+
+	mpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
+	"github.com/spf13/cobra"
+)
+
+// cmd_fix_property_sets.go completes the property sets of units already stored
+// (ako/mxcli#1097). Like `fix hashes` it needs no mx: the normalization is
+// mxcli's own, the same one every write applies.
+
+var fixPropertySetsCmd = &cobra.Command{
+	Use:   "property-sets",
+	Short: "Give every stored unit the property names Studio Pro writes (unblocks mx diff / merge)",
+	Long: `Normalize the property names of every unit already in the project.
+
+Mendix's merge and diff engine compares two revisions of an element by its
+property NAMES and throws when they differ:
+
+  Objects with ID … of type Microflows$RestOperationCallAction do not have
+  the same properties.
+
+The model is valid — mx check passes and Studio Pro opens it — but every diff,
+merge and the Version Control panel fail once Studio Pro has saved the
+document with its full property set.
+
+Every mxcli write already gives a unit that set for the project's Mendix
+version: missing keys are added with the value Mendix gives an absent one, and
+empty keys the version does not declare yet are dropped. A unit written by an
+older mxcli and never rewritten since keeps its gaps. This command applies the
+same normalization to every stored unit, and writes the units whose property
+names change. It adds and removes keys only: no element $ID and no GUID is
+added or changed. A second run writes nothing.
+
+A unit holding a value in a key the project's version does not declare is
+reported and left alone — dropping the value would change the model. Like every
+mxcli write, the repair is refused while Studio Pro has the project open.
+
+Exits 1 when a unit could not be repaired, or, with --dry-run, when one needs it.`,
+	Example: `  mxcli fix property-sets -p app.mpr --dry-run
+  mxcli fix property-sets -p app.mpr`,
+	Args:          cobra.NoArgs,
+	RunE:          runFixPropertySets,
+	SilenceUsage:  true,
+	SilenceErrors: true,
+}
+
+func init() {
+	fixPropertySetsCmd.Flags().StringP("project", "p", "", "path to the Mendix project (.mpr)")
+	_ = fixPropertySetsCmd.MarkFlagRequired("project")
+	fixPropertySetsCmd.Flags().Bool("dry-run", false, "report the units that would change, write nothing")
+	fixCmd.AddCommand(fixPropertySetsCmd)
+}
+
+// errPropertySetsRemain makes the command exit 1 after it printed the report.
+var errPropertySetsRemain = errors.New("property-set gaps remain")
+
+func runFixPropertySets(cmd *cobra.Command, _ []string) error {
+	mprPath, _ := cmd.Flags().GetString("project")
+	dryRun, _ := cmd.Flags().GetBool("dry-run")
+	if _, err := os.Stat(mprPath); err != nil {
+		return fmt.Errorf("project not found: %s", mprPath)
+	}
+	err := fixPropertySets(mprPath, dryRun, cmd.OutOrStdout())
+	if errors.Is(err, errPropertySetsRemain) {
+		os.Exit(1)
+	}
+	return err
+}
+
+// fixPropertySets is the command without its exit: it prints the report and
+// returns errPropertySetsRemain when a unit still differs afterwards.
+func fixPropertySets(mprPath string, dryRun bool, out io.Writer) error {
+	var (
+		r *mpr.Reader
+		w *mpr.Writer
+	)
+	if dryRun {
+		var err error
+		if r, err = mpr.Open(mprPath); err != nil {
+			return fmt.Errorf("open project: %w", err)
+		}
+		defer r.Close()
+	} else {
+		var err error
+		if w, err = mpr.NewWriter(mprPath); err != nil {
+			return fmt.Errorf("open project: %w", err)
+		}
+		defer w.Close()
+		r = w.ConcreteReader()
+	}
+
+	pv := r.ProjectVersion()
+	if pv == nil || pv.MajorVersion == 0 {
+		fmt.Fprintf(out, "%s has no readable Mendix version; nothing is normalized without one.\n", filepath.Base(mprPath))
+		return nil
+	}
+	ids, err := r.ListAllUnitIDs()
+	if err != nil {
+		return fmt.Errorf("list units: %w", err)
+	}
+	sort.Strings(ids)
+
+	var (
+		changed        []mpr.PropertySetRepair
+		failed         []string
+		added, removed int
+	)
+	for _, id := range ids {
+		var rep mpr.PropertySetRepair
+		if dryRun {
+			rep, err = r.StoredPropertySetGaps(id)
+		} else {
+			rep, err = w.CompleteStoredPropertySets(id)
+		}
+		if err != nil {
+			failed = append(failed, fmt.Sprintf("  FAILED    %s%s: %v", id, repairLabel(rep), err))
+			continue
+		}
+		if rep.Changed() {
+			changed = append(changed, rep)
+			added += rep.Added
+			removed += rep.Stripped
+		}
+	}
+
+	verb := "Completed"
+	if dryRun {
+		verb = "Would complete"
+	}
+	fmt.Fprintf(out, "Checked %d unit(s) in %s against the Mendix %d.%d.%d property sets.\n",
+		len(ids), filepath.Base(mprPath), pv.MajorVersion, pv.MinorVersion, pv.PatchVersion)
+	for _, rep := range changed {
+		fmt.Fprintf(out, "  %-9s %s%s: +%d key(s), -%d key(s)\n", map[bool]string{true: "NEEDS", false: "FIXED"}[dryRun],
+			rep.UnitID, repairLabel(rep), rep.Added, rep.Stripped)
+	}
+	for _, f := range failed {
+		fmt.Fprintln(out, f)
+	}
+	switch {
+	case len(changed) == 0 && len(failed) == 0:
+		fmt.Fprintln(out, "Every unit already has the property names Studio Pro writes.")
+	case len(changed) > 0:
+		fmt.Fprintf(out, "\n%s %d unit(s): %d key(s) added, %d stripped.\n", verb, len(changed), added, removed)
+	}
+	if dryRun && len(changed) > 0 {
+		fmt.Fprintf(out, "Run 'mxcli fix property-sets -p %s' to write them.\n", mprPath)
+	}
+	if len(failed) > 0 {
+		fmt.Fprintf(out, "%d unit(s) could not be normalized and were left as they are.\n", len(failed))
+	}
+	if len(failed) > 0 || (dryRun && len(changed) > 0) {
+		return errPropertySetsRemain
+	}
+	return nil
+}
+
+// repairLabel names the unit (" [Microflows$Microflow Name]"), or "".
+func repairLabel(rep mpr.PropertySetRepair) string {
+	switch {
+	case rep.Type == "":
+		return ""
+	case rep.Name == "":
+		return " [" + rep.Type + "]"
+	}
+	return " [" + rep.Type + " " + rep.Name + "]"
+}

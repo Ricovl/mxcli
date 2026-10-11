@@ -1,8 +1,8 @@
 # Working Outside Studio Pro
 
 A project edited with mxcli, git and an editor is sometimes opened in Studio Pro
-afterwards. Two kinds of state that Studio Pro depends on are invisible to
-`mx check`, and mxcli checks both.
+afterwards. Several kinds of state that Studio Pro depends on are invisible to
+`mx check`, and mxcli checks them.
 
 ## The ContentsHash index: `mxcli fix hashes`
 
@@ -34,6 +34,34 @@ and the command says so.
 `mxcli exec` and `mxcli docker check` run the verify too and print a one-line
 warning when it finds a mismatch or a missing file. It never fails them;
 measured on a 900-unit project, the whole verify takes about 0.2 s.
+
+## Property names Studio Pro's merge compares: `mxcli fix property-sets`
+
+Mendix's diff and merge engine compares two revisions of an element by its
+property **names** before any value, and throws when they differ:
+
+```
+Objects with ID … of type Microflows$RestOperationCallAction do not have the same properties.
+```
+
+The model is valid — `mx check`, the build and the runtime fill an absent
+property with its default — but `mx diff`, merging and Studio Pro's Version
+Control panel fail on it once Studio Pro has saved the document with its full
+property set. Every mxcli write gives a unit the property set Studio Pro writes
+for the project's Mendix version. A unit written by an older mxcli and not
+rewritten since keeps its gaps; this command reaches those.
+
+```bash
+mxcli fix property-sets -p app.mpr --dry-run   # list the units that would change; exits 1 when one would
+mxcli fix property-sets -p app.mpr             # write them
+```
+
+Each unit's report counts the keys added (with the value Mendix gives an absent
+one) and the empty keys stripped (properties the project's version does not
+declare yet). Nothing else changes: no element `$ID` moves, and no existing
+`GUID` is touched. A second run writes nothing. A unit holding a *value* in a
+key its version does not declare is reported and left alone, and, like every
+mxcli write, the command is refused while Studio Pro has the project open.
 
 ## Git states that crash Studio Pro
 
