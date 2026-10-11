@@ -10,7 +10,7 @@ func init() {
 			"microflow", "nanoflow", "logic", "automation",
 			"action", "activity", "flow",
 		},
-		Syntax:  "CREATE [OR REPLACE | OR MODIFY] MICROFLOW Module.Name ($Param: Type) RETURNS Type AS $Result\nBEGIN\n  <statements>\nEND;",
+		Syntax:  "CREATE [OR MODIFY] MICROFLOW Module.Name ($Param: Type) RETURNS Type AS $Result\nBEGIN\n  <statements>\nEND;",
 		Example: "mdl 1;\nCREATE MICROFLOW MyModule.ACT_CreateOrder ($Code: String)\nRETURNS MyModule.Order AS $NewOrder\nBEGIN\n  $NewOrder = CREATE MyModule.Order (OrderNumber = $Code);\n  COMMIT $NewOrder;\n  RETURN $NewOrder;\nEND;\n\n-- Re-runnable: replaces the microflow if it already exists\nCREATE OR MODIFY MICROFLOW MyModule.ACT_CreateOrder ($Code: String)\nRETURNS MyModule.Order AS $NewOrder\nBEGIN\n  $NewOrder = CREATE MyModule.Order (OrderNumber = $Code);\n  RETURN $NewOrder;\nEND;",
 		SeeAlso: []string{"microflow.create", "microflow.variables", "microflow.control-flow", "create-modifiers", "rename"},
 	})
@@ -616,7 +616,67 @@ func init() {
 		},
 		Syntax:  "$Result = CALL MICROFLOW Module.Name (Param = value) [IN QUEUE Module.Queue];\n$Result = CALL JAVA ACTION Module.Name (Param = value) [IN QUEUE Module.Queue];",
 		Example: "$IsValid = CALL MICROFLOW MyModule.ValidateOrder (\n  Order = $NewOrder\n);\n\n$Token = CALL JAVA ACTION MyModule.GenerateToken (\n  UserId = $User/Id\n);\n\n-- Run the call on a task queue (background execution). The queue must\n-- exist; a queued CALL JAVA ACTION must return Nothing, or the build fails\n-- with CE7038.\nCALL MICROFLOW MyModule.ACT_Refresh () IN QUEUE MyModule.RefreshQueue;\nCALL JAVA ACTION MyModule.RefreshData (Url = $Url) IN QUEUE MyModule.RefreshQueue;\n\n-- A blank argument: the mapping is kept, its expression left empty, as\n-- Studio Pro stores an argument field left blank. Not the same as `empty`\n-- (a Mendix value); only CALL MICROFLOW and CALL NANOFLOW take it. Mendix\n-- reports it as CE0127 \"Missing argument\": it exists so DESCRIBE round-trips.\nCALL MICROFLOW MyModule.ACT_Log (Message = 'x', TraceId = nothing);",
-		SeeAlso: []string{"java-action", "microflow.create", "queue"},
+		SeeAlso: []string{"java-action", "microflow.create", "queue", "microflow.workflow-actions"},
+	})
+
+	Register(SyntaxFeature{
+		Path:    "microflow.workflow-actions",
+		Summary: "Start and manage workflows from a microflow: call workflow, get workflow data, workflow operation, lock/unlock",
+		Keywords: []string{
+			"call workflow", "start workflow", "trigger workflow", "workflow from microflow",
+			"get workflow data", "get workflows for", "get workflow activity records",
+			"workflow operation", "abort workflow", "pause workflow", "unpause workflow",
+			"retry workflow", "restart workflow", "continue workflow",
+			"open workflow", "open user task", "lock workflow", "unlock workflow",
+			"pause all", "unpause all", "workflow actions",
+		},
+		Syntax: "-- Microflow statements (not nanoflow ones). Each takes an optional ON ERROR clause.\n" +
+			"$Wf = CALL WORKFLOW Module.Workflow ($ContextObj);      -- start an instance\n" +
+			"$Data = GET WORKFLOW DATA $Wf AS Module.Workflow;       -- the instance's context object\n" +
+			"$Wfs = GET WORKFLOWS FOR $ContextObj;                   -- instances running on an object\n" +
+			"$Records = GET WORKFLOW ACTIVITY RECORDS $Wf;           -- the instance's activity history\n" +
+			"WORKFLOW OPERATION ABORT $Wf [REASON <expression>];\n" +
+			"WORKFLOW OPERATION PAUSE | UNPAUSE | RETRY | RESTART | CONTINUE $Wf;\n" +
+			"OPEN WORKFLOW $Wf;                                      -- show the instance's admin page\n" +
+			"OPEN USER TASK $Task;                                   -- show the task's page\n" +
+			"LOCK WORKFLOW $WfDef | Module.Workflow [PAUSE ALL];\n" +
+			"UNLOCK WORKFLOW $WfDef | Module.Workflow [UNPAUSE ALL];\n\n" +
+			"-- CALL WORKFLOW: a workflow has exactly one context parameter, so the argument\n" +
+			"-- is positional — the context object, not a `Param = value` list. That is the\n" +
+			"-- form DESCRIBE emits; the variable is a System.Workflow.\n" +
+			"-- $Wf is a System.Workflow, $Task a System.WorkflowUserTask, $WfDef a\n" +
+			"-- System.WorkflowDefinition. A lock always names its workflow: a bare\n" +
+			"-- `LOCK WORKFLOW ALL` is refused (MDL-WF17) — it built as CE1825. PAUSE ALL /\n" +
+			"-- UNPAUSE ALL are Studio Pro's \"Pause / Unpause instances\".\n" +
+			"-- Completing a user task and notifying a running workflow are their own\n" +
+			"-- topics: workflow.set-task-outcome and workflow.notify.",
+		Example: "mdl 1;\n" +
+			"create microflow HR.ACT_StartApproval ($Request: HR.Request)\n" +
+			"returns System.Workflow as $Workflow\n" +
+			"begin\n" +
+			"  $Workflow = call workflow HR.WF_Approval ($Request);\n" +
+			"  return $Workflow;\n" +
+			"end;\n\n" +
+			"create microflow HR.ACT_Inspect ($Request: HR.Request)\n" +
+			"begin\n" +
+			"  $Workflows = get workflows for $Request;\n" +
+			"  $Workflow = head $Workflows;\n" +
+			"  $Data = get workflow data $Workflow as HR.WF_Approval;\n" +
+			"  $Records = get workflow activity records $Workflow;\n" +
+			"  open workflow $Workflow;\n" +
+			"end;\n\n" +
+			"create microflow HR.ACT_Withdraw ($Workflow: System.Workflow, $Task: System.WorkflowUserTask)\n" +
+			"begin\n" +
+			"  workflow operation abort $Workflow reason 'Request withdrawn';\n" +
+			"  open user task $Task;\n" +
+			"end;\n\n" +
+			"-- Hold every instance of a definition during a migration, then release them\n" +
+			"create microflow HR.ACT_Maintenance ()\n" +
+			"begin\n" +
+			"  lock workflow HR.WF_Approval pause all;\n" +
+			"  unlock workflow HR.WF_Approval unpause all;\n" +
+			"end;",
+		SeeAlso: []string{"microflow.call", "workflow.call-workflow", "workflow.set-task-outcome", "workflow.notify", "workflow"},
 	})
 
 	Register(SyntaxFeature{
@@ -626,7 +686,7 @@ func init() {
 			"nanoflow", "create nanoflow", "client-side", "runs in the browser",
 			"offline", "client logic", "disallowed in nanoflow", "nanoflow restrictions",
 		},
-		Syntax: "CREATE [OR REPLACE] NANOFLOW Module.Name ($Param: Type)\n" +
+		Syntax: "CREATE [OR MODIFY] NANOFLOW Module.Name ($Param: Type)\n" +
 			"RETURNS Type AS $Result\nBEGIN\n  <statements>\nEND;\n\n" +
 			"The body is microflow syntax — every topic under `microflow` applies —\n" +
 			"MINUS what cannot run in the browser. `mxcli check` refuses each of these\n" +
