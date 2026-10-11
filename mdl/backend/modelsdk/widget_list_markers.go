@@ -40,8 +40,15 @@ var widgetsListOwners = []string{
 // registered). The owner list is the evidenced one; Mendix 7-era owners
 // (TableCell, VerticalFlow, TemplateGridContents) and native layouts have no
 // reference document here and are left on the child-type path.
+//
+// The list is also mandatory: no owner above is ever stored without its Widgets
+// key (TestApp + PedApp: TabPage 89/89 with 20 empty, LayoutGridColumn 732/732
+// with 13 empty, DivContainer 838/838 with 8 empty, WidgetValue 20,775/20,775,
+// every other owner likewise). A freshly built TabPage, DivContainer, GroupBox,
+// LayoutGridColumn, ScrollContainerRegion or NavigationListItem with no children
+// wrote no key at all; RegisterMandatoryPropertyList writes it as [2].
 func init() {
 	for _, owner := range widgetsListOwners {
-		codec.RegisterPropertyListMarker(owner, "Widgets", 2)
+		codec.RegisterMandatoryPropertyList(owner, "Widgets", 2)
 	}
 }

@@ -139,3 +139,84 @@ func idBinaryForTest(t *testing.T) any {
 	t.Helper()
 	return mpr.IDToBsonBinary(mpr.GenerateID())
 }
+
+// findDoc returns the first sub-document of $Type typeName, depth-first.
+func findDoc(doc bsonv1.D, typeName string) bsonv1.D {
+	for _, e := range doc {
+		if e.Key == "$Type" && e.Value == typeName {
+			return doc
+		}
+	}
+	for _, e := range doc {
+		switch v := e.Value.(type) {
+		case bsonv1.D:
+			if d := findDoc(v, typeName); d != nil {
+				return d
+			}
+		case bsonv1.A:
+			for _, x := range v {
+				if d, ok := x.(bsonv1.D); ok {
+					if found := findDoc(d, typeName); found != nil {
+						return found
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// Studio Pro never omits a `Widgets` list: every owner in ako/TestApp and
+// PedApp carries the key, empty or not (TabPage 89 of 89, 20 of them empty;
+// LayoutGridColumn 732 of 732, 13 empty; DivContainer 838 of 838, 8 empty;
+// CustomWidgets$WidgetValue 20,775 of 20,775). A freshly built container with
+// no children wrote no Widgets key at all, so an empty tab page differed from
+// the same page saved by Studio Pro.
+func TestWidgetsListMarker_EmptyNewOwnerWritesTwo(t *testing.T) {
+	cases := []struct {
+		owner  string
+		widget pages.Widget
+	}{
+		{"Forms$TabPage", &pages.TabContainer{BaseWidget: pages.BaseWidget{Name: "tabs"}, TabPages: []*pages.TabPage{{Name: "tp"}}}},
+		{"Forms$DivContainer", &pages.Container{BaseWidget: pages.BaseWidget{Name: "c"}}},
+		{"Forms$GroupBox", &pages.GroupBox{BaseWidget: pages.BaseWidget{Name: "g"}}},
+		{"Forms$LayoutGridColumn", &pages.LayoutGrid{BaseWidget: pages.BaseWidget{Name: "lg"}, Rows: []*pages.LayoutGridRow{{Columns: []*pages.LayoutGridColumn{{}}}}}},
+		{"Forms$ScrollContainerRegion", &pages.ScrollContainer{BaseWidget: pages.BaseWidget{Name: "sc"}, Regions: []*pages.ScrollContainerRegion{{Slot: pages.ScrollSlotTop}}}},
+		{"Forms$NavigationListItem", &pages.NavigationList{BaseWidget: pages.BaseWidget{Name: "nl"}, Items: []*pages.NavigationListItem{{}}}},
+		{"Forms$DataView", &pages.DataView{BaseWidget: pages.BaseWidget{Name: "dv"}}},
+	}
+	for _, c := range cases {
+		t.Run(c.owner, func(t *testing.T) {
+			el, err := widgetToGen(c.widget)
+			if err != nil {
+				t.Fatal(err)
+			}
+			owner := findDoc(encodeElement(t, el), c.owner)
+			if owner == nil {
+				t.Fatalf("no %s in the encoded widget", c.owner)
+			}
+			if m, n := arrayMarker(t, owner, "Widgets"); m != 2 || n != 0 {
+				t.Errorf("empty %s.Widgets = marker %d len %d, want [2]", c.owner, m, n)
+			}
+		})
+	}
+}
+
+// The control: the mandatory list is keyed on the owner, so a type Studio Pro
+// stores without a Widgets key does not gain one. Neither Forms$TabControl nor
+// Forms$ScrollContainer carries Widgets in any TestApp or PedApp document.
+func TestWidgetsListMarker_NoWidgetsKeyOnNonOwners(t *testing.T) {
+	for _, w := range []pages.Widget{
+		&pages.TabContainer{BaseWidget: pages.BaseWidget{Name: "tabs"}, TabPages: []*pages.TabPage{{Name: "tp"}}},
+		&pages.ScrollContainer{BaseWidget: pages.BaseWidget{Name: "sc"}, Regions: []*pages.ScrollContainerRegion{{Slot: pages.ScrollSlotTop}}},
+	} {
+		el, err := widgetToGen(w)
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc := encodeElement(t, el)
+		if hasKey(doc, "Widgets") {
+			t.Errorf("%T wrote a Widgets key Studio Pro never stores on it", w)
+		}
+	}
+}
