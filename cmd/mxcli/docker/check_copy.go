@@ -167,3 +167,25 @@ func (r *pathRewriter) rewrite(s string) string {
 	}
 	return s
 }
+
+// WithProjectCopy runs fn with the path of a temporary copy of the project that
+// holds mprPath, and removes the copy afterwards. It is for callers that run an
+// mx command which writes into the project it is given (theme-cache/,
+// deployment/sass/, a module's themesource/ folder) but must leave the user's
+// project alone — the same copy Check and MxCheckOnCopy use.
+//
+// Output naming the copy should be reported against the project: replace
+// filepath.Dir(workMpr) with the project's directory.
+func WithProjectCopy(mprPath string, fn func(workMpr string) error) error {
+	abs, err := filepath.Abs(mprPath)
+	if err != nil {
+		return err
+	}
+	workMpr, cleanup, err := copyProjectToTemp(abs)
+	if err != nil {
+		return fmt.Errorf("copy the project to a temporary directory: %w\n"+
+			"  set TMPDIR to a disk with room for the project", err)
+	}
+	defer cleanup()
+	return fn(workMpr)
+}

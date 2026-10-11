@@ -104,6 +104,56 @@ Agent Commons 4.2.0 requires Mendix 11.12.2, and the project is 11.12.1
 
 `install` installs exactly the content you name. Its dependencies are neither fetched nor named — read the check errors after each install, which identify what is missing by qualified name. The error count is **not monotonic**, because each new module brings its own unmet dependencies: installing the agent-editor stack into a vanilla 11.12.1 app went 0 → 15 → 0 → 18 → 1 → 22 → 1 → 1. Dependencies include widget content as well as modules (`CE0462 "Could not find widget ..."`).
 
+## Exporting a module (`marketplace package`)
+
+The reverse of `install --file`: write a module of a project out as a `.mpk`, for a company-standard
+module, a CI artifact, or to move a module to another app.
+
+```bash
+mxcli marketplace package MyModule -p app.mpr                 # ./MyModule.mpk
+mxcli marketplace package MyModule -p app.mpr -o ./dist --json
+```
+
+It wraps Mendix's own `mx create-module-package` at the project's Mendix version, so the package is
+the one Studio Pro's *Export module package* makes. The module name is checked against the project
+first (a typo lists the modules instead of failing with `mx` exit code 3), and `mx`'s exit codes 1–4
+are reported with what they mean and what `mx` printed.
+
+| Flag | Purpose |
+|---|---|
+| `-p, --project` | The project holding the module (required). |
+| `-o, --output-dir` | Where `<Module>.mpk` goes (default: the current directory; created if missing). |
+| `--all-libs` | Bundle every `userlib/` JAR. By default only the module's own required libs go in (`mx -l`): 12 KB against 24 MB on an app with Business Events installed. |
+| `--exclude <regex>` | Leave out files whose path inside the package matches. `mx` takes **one** expression, so join alternatives with `\|`; write the folder separator as `.`. |
+| `--exclude-managed-dependencies` | Leave out managed dependencies (`mx -m`). |
+| `--json` | Print `{path, sizeBytes, files, foreignEntries}`. |
+
+**Files of other modules.** `-l` filters only `userlib/` JARs. The app's whole `resources/` folder is
+still exported (measured on 11.12.5: another module's `resources/EventLog/` came along; its `javasource/` and
+`themesource/` did not). After the export mxcli opens the package and warns on stderr about every `resources/<X>/…`, `javasource/<x>/…` or
+`themesource/<x>/…` entry where `X` is not the exported module (the last two are a defensive check),
+and prints the pattern that drops them:
+
+```text
+warning: the package holds 1 file(s) that belong to other modules, not to MyModule:
+  resources/EventLog/x.txt
+To leave them out, export again with:
+  --exclude '^resources.EventLog.'
+```
+
+The pattern uses `.` for the separator because a character class or a backslash (`[/\]`) makes `mx`
+print its usage and write nothing. `.` matches any character, so a pattern that would also match a file
+of the module itself is not suggested.
+
+**The project is not changed.** `mx create-module-package` writes into the project it is given:
+measured on a blank 11.12.5 app, one run rewrote `theme-cache/web/theme.compiled.css` and its map,
+added `deployment/sass/main.scss`, and created the module's `themesource/<module>/` folder; the model
+files were untouched. mxcli therefore runs it on a temporary copy, as `docker check` does, and a
+before/after listing of the project (sizes and modification times) was identical.
+
+The package installs back with `marketplace install --file`; the round trip into a fresh 11.12.5 app
+checks with 0 errors.
+
 ## Why installs do not use `mx module-import`
 
 `mx module-import` rewrites an MPR v2 project as v1. Measured on a blank Mendix 11.12.1 app, a single import turned a 69 KB `.mpr` plus 341 `.mxunit` files into one 14 MB SQLite blob with no `mprcontents/` — and the same was observed independently on 11.13.0, so it is not version-specific:

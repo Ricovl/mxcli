@@ -273,3 +273,33 @@ func TestCopyProjectForCheck_MissingProject(t *testing.T) {
 		t.Error("want an error for a project file that does not exist")
 	}
 }
+
+// TestWithProjectCopy_WritesStayOnTheCopy: fn gets a copy it may write into, the
+// original is untouched, and the copy is gone once fn returns.
+func TestWithProjectCopy_WritesStayOnTheCopy(t *testing.T) {
+	proj := t.TempDir()
+	mpr := filepath.Join(proj, "App.mpr")
+	if err := os.WriteFile(mpr, []byte("model"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var seen string
+	err := WithProjectCopy(mpr, func(work string) error {
+		seen = work
+		if work == mpr {
+			t.Error("fn was handed the original project")
+		}
+		return os.WriteFile(filepath.Join(filepath.Dir(work), "theme-cache.txt"), []byte("mx wrote this"), 0o644)
+	})
+	if err != nil {
+		t.Fatalf("WithProjectCopy: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(proj, "theme-cache.txt")); err == nil {
+		t.Error("a write into the copy reached the original project")
+	}
+	if _, err := os.Stat(seen); err == nil {
+		t.Errorf("the copy %s was not removed", seen)
+	}
+	if err := WithProjectCopy(filepath.Join(proj, "nope.mpr"), func(string) error { return nil }); err == nil {
+		t.Error("want an error for a project file that does not exist")
+	}
+}
