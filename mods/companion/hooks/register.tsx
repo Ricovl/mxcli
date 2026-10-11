@@ -13,6 +13,7 @@ import {
   changesModel,
   firstLine,
   nodeId,
+  pageOf,
   parseDescribe,
   parseTree,
   pickMpr,
@@ -27,10 +28,18 @@ const project = atom({ plugin: 'mxcli-companion', key: 'project' } as const, { s
 const expanded = atom({ plugin: 'mxcli-companion', key: 'expanded' } as const, [] as string[])
 const selected = atom({ plugin: 'mxcli-companion', key: 'selected' } as const, '')
 const source = atom({ plugin: 'mxcli-companion', key: 'source' } as const, { state: 'none' } as Source)
+// The first visible row of each column: they page on their own.
+const treeTop = atom({ plugin: 'mxcli-companion', key: 'treeTop' } as const, 0)
+const sourceTop = atom({ plugin: 'mxcli-companion', key: 'sourceTop' } as const, 0)
 
 // project-tree reads the whole model; on a large app that is the slow call.
 const TREE_TIMEOUT_MS = 120_000
 const DESCRIBE_TIMEOUT_MS = 60_000
+// Below this many columns the tree and the source stack instead of sitting
+// side by side.
+const SIDE_BY_SIDE_MIN_COLUMNS = 90
+// Rows the pane's own chrome takes (header, the gap, a pager line per column).
+const CHROME_ROWS = 4
 // A burst of agent writes reloads once, this long after the last one.
 const RELOAD_DEBOUNCE_MS = 1_500
 
@@ -160,6 +169,7 @@ const press = async ($: Engine, id: string) => {
   if (node.children && node.children.length > 0) {
     await update($, expanded, list => (list.includes(id) ? list.filter(x => x !== id) : [...list, id]))
   }
+  if ((await read($, selected)) !== id) await update($, sourceTop, () => 0)
   await update($, selected, () => id)
   if (node.describable) {
     await describeSelected($, node)
@@ -229,6 +239,14 @@ export const register: Register = (on, options) => {
     const open = new Set(await read($, expanded))
     const sel = await read($, selected)
     const src = await read($, source)
+    const sideBySide = e.props.bodyColumns >= SIDE_BY_SIDE_MIN_COLUMNS
+    // Side by side, each column is one screen tall and pages on its own; stacked,
+    // the pane scrolls as usual and the columns draw whole.
+    const pageRows = sideBySide ? Math.max(8, e.props.scroll.bodyRows - CHROME_ROWS) : Number.MAX_SAFE_INTEGER
+
+    const pager = (key: string, label: string, onPress: () => void) => (
+      <Button key={key} plain dimColor label={label} onPress={onPress} />
+    )
 
     const header = (
       <Box key="header" flexDirection="row" gap={1}>
@@ -236,18 +254,22 @@ export const register: Register = (on, options) => {
         {'mpr' in proj && <Text dimColor>{basename(proj.mpr)}</Text>}
         {proj.state === 'loaded' && <Text dimColor>({(proj.tookMs / 1000).toFixed(1)}s)</Text>}
         <Button key="refresh" label="Refresh" onPress={() => void load($, 'mpr' in proj ? proj.mpr : undefined)} />
-        <Button key="collapse" label="Collapse" onPress={() => void update($, expanded, () => [])} />
+        <Button
+          key="collapse"
+          label="Collapse"
+          onPress={() => void update($, expanded, () => []).then(() => update($, treeTop, () => 0))}
+        />
       </Box>
     )
 
-    let body
+    let tree
     switch (proj.state) {
       case 'unlocated':
       case 'loading':
-        body = <Text dimColor>Reading the project…</Text>
+        tree = <Text dimColor>Reading the project…</Text>
         break
       case 'none':
-        body = (
+        tree = (
           <Text>
             No .mpr found here or one level down. Set the mprPath option of {PLUGIN}, or run this from the app's
             folder.
@@ -255,7 +277,7 @@ export const register: Register = (on, options) => {
         )
         break
       case 'choose':
-        body = (
+        tree = (
           <Box flexDirection="column">
             <Text>Several apps found; pick one:</Text>
             {proj.candidates.map(c => (
@@ -265,23 +287,26 @@ export const register: Register = (on, options) => {
         )
         break
       case 'failed':
-        body = <Text color="error">mxcli project-tree failed: {proj.error}</Text>
+        tree = <Text color="error">mxcli project-tree failed: {proj.error}</Text>
         break
       case 'loaded': {
-        const { rows, more } = visibleRows(proj.tree, open)
-        body = (
+        const { rows, more } = visibleRows(proj.tree, open, sideBySide ? 100_000 : 400)
+        const pg = pageOf(rows.length, await read($, treeTop), pageRows)
+        tree = (
           <Box flexDirection="column">
-            {rows.map(({ id, node, depth }) => {
+            {pg.above > 0 && pager('tree-up', `▲ ${pg.above} more`, () => void update($, treeTop, () => Math.max(0, pg.first - pageRows + 1)))}
+            {rows.slice(pg.first, pg.end).map(({ id, node, depth }) => {
               const hasChildren = (node.children?.length ?? 0) > 0
               const glyph = hasChildren ? (open.has(id) ? '▾' : '▸') : node.describable ? '·' : ' '
               return (
-                <Box key={`row:${id}`} flexDirection="row">
+                <Box key={`row:${id}`} flexDirection="row" overflow="hidden">
                   <Text>{sel === id ? '›' : ' '}{'  '.repeat(depth)}</Text>
                   <Button key={id} plain label={`${glyph} ${node.label}`} onPress={() => void press($, id)} />
-                  <Text dimColor> {node.type}</Text>
+                  <Text dimColor wrap="truncate"> {node.type}</Text>
                 </Box>
               )
             })}
+            {pg.below > 0 && pager('tree-down', `▼ ${pg.below} more`, () => void update($, treeTop, () => pg.end - 1))}
             {more > 0 && <Text dimColor>… {more} more rows; collapse a module to see them</Text>}
           </Box>
         )
@@ -310,22 +335,41 @@ export const register: Register = (on, options) => {
           </Box>
         )
         break
-      case 'shown':
+      case 'shown': {
+        const lines = src.mdl.replace(/\n$/, '').split('\n')
+        const pg = pageOf(lines.length, await read($, sourceTop), pageRows - 1)
         detail = (
           <Box flexDirection="column">
             <Text bold>{src.qn}</Text>
-            <Code source={src.mdl} language="sql" startLine={1} />
+            {pg.above > 0 && pager('src-up', `▲ ${pg.above} lines`, () => void update($, sourceTop, () => Math.max(0, pg.first - pageRows + 2)))}
+            <Code source={lines.slice(pg.first, pg.end).join('\n')} language="sql" startLine={pg.first + 1} />
+            {pg.below > 0 && pager('src-down', `▼ ${pg.below} lines`, () => void update($, sourceTop, () => pg.end - 1))}
           </Box>
         )
         break
+      }
     }
 
+    if (!sideBySide) {
+      return (
+        <Box flexDirection="column" gap={1}>
+          {header}
+          <Box key="tree" flexDirection="column">{tree}</Box>
+          <Box key="source" flexDirection="column">{detail}</Box>
+        </Box>
+      )
+    }
+    const treeColumns = Math.min(56, Math.max(28, Math.floor(e.props.bodyColumns * 0.38)))
     return (
       <Box flexDirection="column" gap={1}>
         {header}
-        {body}
-        <Box key="source" flexDirection="column">
-          {detail}
+        <Box key="columns" flexDirection="row" gap={2}>
+          <Box key="tree" flexDirection="column" width={treeColumns} flexShrink={0} overflow="hidden">
+            {tree}
+          </Box>
+          <Box key="source" flexDirection="column" flexGrow={1} overflow="hidden">
+            {detail}
+          </Box>
         </Box>
       </Box>
     )

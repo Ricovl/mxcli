@@ -32,6 +32,8 @@ declare module 'claude-code' {
       expanded: string[]
       selected: string
       source: Source
+      treeTop: number
+      sourceTop: number
     }
   }
 }

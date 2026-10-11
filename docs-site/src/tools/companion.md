@@ -16,6 +16,10 @@ agent builds it.
 - **MDL source** — select a document to see its MDL, as `mxcli describe` prints
   it. Folders and other containers list what they hold instead.
 
+In a wide pane (90 columns or more) the tree sits on the left and the source on
+the right, like a file explorer; each column pages on its own with its ▲ / ▼
+rows. A narrower pane stacks them.
+
 The tree reloads by itself when the agent changes the model (`mxcli exec`, a
 writing `-c` one-liner, `new`, `rename`, `marketplace`). Press **Refresh** after
 changing the app elsewhere, for example in Studio Pro.
@@ -47,4 +51,7 @@ Both are set in Claude Code's plugin configuration for `mxcli-companion`:
 - Every click runs mxcli, which reads the model. On a large app a document takes a
   few seconds the first time; going back to it is instant until the model changes.
 - The companion only reads. It never changes the project.
+- The pane draws on the surface that runs the session. A session started in a
+  terminal and continued from the desktop app over remote control shows the pane
+  in the terminal only.
 - It is for Claude Code only; other tools get what `mxcli init` gives them today.

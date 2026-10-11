@@ -39,6 +39,16 @@ export const visibleRows = (
   return { rows, more }
 }
 
+// pageOf clamps a column's first row to what `total` rows allow at `size` rows
+// a page, and says what lies above and below the page. The pane scrolls as one
+// body, so each column pages on its own to scroll independently.
+export const pageOf = (total: number, top: number, size: number) => {
+  const page = Math.max(1, size)
+  const first = Math.max(0, Math.min(top, total - page))
+  const end = Math.min(total, first + page)
+  return { first, end, above: first, below: total - end }
+}
+
 // parseTree reads `mxcli project-tree` output.
 export const parseTree = (stdout: string): TreeNode[] => {
   const start = stdout.indexOf('[')
