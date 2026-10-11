@@ -46,6 +46,8 @@ package roundtrip
 // The static open-link address's null AttributeRef (ako/mxcli-ledger FINDINGS
 // #170) struck WorkflowCommons.ConflictedWorkflowDefinitionView and
 // WorkflowCommons.Readme, whose only loss it was.
+// Keying every Widgets list's marker 2 on the property struck
+// WorkflowCommons.Snip_TaskDashboard_Numbers, whose only loss it was.
 var testAppKnownFailures = map[string]knownFailure{
 	"association ViewAssociations.persistent_order":                                   {laws: []law{lawExec}, issue: "#721", why: "association: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"association WorkflowCommons.ConflictedWorkflowDefinitionView_WorkflowDefinition": {laws: []law{lawExec}, issue: "#721", why: "association: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -192,7 +194,6 @@ var testAppKnownFailures = map[string]knownFailure{
 	"snippet WorkflowCommons.Snip_TaskAssignment_UserTask_Assignees":                  {laws: []law{lawGetPut, lawPutGet}, issue: "#721", why: "snippet: breaks getput and putget on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet WorkflowCommons.Snip_TaskAssignment_UserTask_TargetUsers":                {laws: []law{lawGetPut, lawPutGet}, issue: "#721", why: "snippet: breaks getput and putget on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet WorkflowCommons.Snip_TaskCount_RefreshBTN":                               {laws: []law{lawGetPut}, issue: "#721", why: "snippet: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"snippet WorkflowCommons.Snip_TaskDashboard_Numbers":                              {laws: []law{lawGetPut}, issue: "#721", why: "snippet: breaks getput on TestApp (putget struck by #721 L4), measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet WorkflowCommons.Snip_TimelineViewer_Timeline_Full":                       {laws: []law{lawExec}, issue: "#721", why: "snippet: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet WorkflowCommons.Snip_TimelineViewer_Timeline_Tasks":                      {laws: []law{lawExec}, issue: "#721", why: "snippet: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet WorkflowCommons.Snip_UserTask_Detail":                                    {laws: []law{lawExec}, issue: "#721", why: "snippet: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
