@@ -205,6 +205,7 @@ func syncBundledLintRules(lintRulesDir string) ([]string, error) {
 // toolingSyncResult reports a full tooling refresh.
 type toolingSyncResult struct {
 	Skills       skillSyncResult
+	Companion    []string // companion mod files written or retired
 	LintRules    []string // bundled rule files rewritten
 	Docs         []string // owned docs whose mxcli section was rewritten
 	NoMarkers    []string // owned docs left alone: no markers to refresh between
@@ -234,6 +235,10 @@ func syncProjectTooling(projectDir string) (toolingSyncResult, error) {
 		return res, fmt.Errorf("syncing skills: %w", err)
 	}
 	res.Skills = skills
+
+	if res.Companion, err = syncCompanion(projectDir); err != nil {
+		return res, fmt.Errorf("syncing the companion mod: %w", err)
+	}
 
 	if res.LintRules, err = syncBundledLintRules(filepath.Join(projectDir, ".claude", "lint-rules")); err != nil {
 		return res, fmt.Errorf("syncing lint rules: %w", err)
@@ -277,6 +282,10 @@ func reportToolingSync(w, errw io.Writer, res toolingSyncResult) {
 		return
 	}
 	reportSkillSync(w, res.Skills)
+	if len(res.Companion) > 0 {
+		fmt.Fprintf(w, "Refreshed %d file(s) of the mxcli companion in .claude/skills/%s/: %s\n",
+			len(res.Companion), companionFolder, abridge(res.Companion))
+	}
 	if len(res.LintRules) > 0 {
 		fmt.Fprintf(w, "Refreshed %d bundled lint rule(s) in .claude/lint-rules/ to match this mxcli: %s\n",
 			len(res.LintRules), abridge(res.LintRules))

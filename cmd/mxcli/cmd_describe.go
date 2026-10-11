@@ -45,6 +45,7 @@ Types:
   buildingblock    Describe a building block (read-only, also: "building block")
   layout           Describe a layout
   javaaction       Describe a java action
+  javascriptaction Describe a JavaScript action (also: "javascript action")
   jsonstructure    Describe a JSON structure (also: "json structure")
   importmapping    Describe an import mapping (also: "import mapping")
   exportmapping    Describe an export mapping (also: "export mapping")
@@ -128,7 +129,7 @@ Example:
 		mdlCmd, ok := describeMDLCommand(objectType, name)
 		if !ok {
 			fmt.Fprintf(os.Stderr, "Unknown type: %s\n", strings.Join(args[:len(args)-1], " "))
-			fmt.Fprintln(os.Stderr, "Valid types: module, entity, association, enumeration, constant, microflow, nanoflow, workflow, page, snippet, layout, javaaction, jsonstructure, importmapping, exportmapping, restclient, odataclient, odataservice, publishedrestservice, imagecollection, menu, queue, scheduledevent, businesseventservice, databaseconnection, agent, aimodel, knowledgebase, consumedmcpservice, datatransformer, modulerole, userrole, projectsecurity, settings, demouser, navigation, systemoverview")
+			fmt.Fprintln(os.Stderr, "Valid types: module, entity, association, enumeration, constant, microflow, nanoflow, workflow, page, snippet, layout, javaaction, javascriptaction, jsonstructure, importmapping, exportmapping, restclient, odataclient, odataservice, publishedrestservice, imagecollection, menu, queue, scheduledevent, businesseventservice, databaseconnection, agent, aimodel, knowledgebase, consumedmcpservice, datatransformer, modulerole, userrole, projectsecurity, settings, demouser, navigation, systemoverview")
 			fmt.Fprintln(os.Stderr, "Multi-word types also accepted: json structure, import mapping, export mapping, rest client, published rest service, image collection, scheduled event, regular expression, business event service, agent, model, knowledge base, consumed mcp service, data transformer, etc.")
 			os.Exit(1)
 		}
@@ -263,6 +264,8 @@ func describeMDLCommand(objectType, name string) (mdlCmd string, ok bool) {
 		return fmt.Sprintf("DESCRIBE DEMO USER '%s'", name), true
 	case "JAVAACTION", "JAVA ACTION":
 		return fmt.Sprintf("DESCRIBE JAVA ACTION %s", name), true
+	case "JAVASCRIPTACTION", "JAVASCRIPT ACTION":
+		return fmt.Sprintf("DESCRIBE JAVASCRIPT ACTION %s", name), true
 	case "CONSTANT":
 		return fmt.Sprintf("DESCRIBE CONSTANT %s", name), true
 	case "JSONSTRUCTURE", "JSON STRUCTURE":
@@ -296,6 +299,12 @@ func describeMDLCommand(objectType, name string) (mdlCmd string, ok bool) {
 	case "EXTERNALENTITY", "EXTERNAL ENTITY":
 		return fmt.Sprintf("DESCRIBE ENTITY %s", name), true
 	case "NAVIGATION":
+		// "Navigation" is project-tree's name for the navigation document
+		// itself, not a profile (profiles are named by kind: Responsive,
+		// Phone, ...), so it describes every profile.
+		if strings.EqualFold(name, "Navigation") {
+			return "DESCRIBE NAVIGATION", true
+		}
 		return fmt.Sprintf("DESCRIBE NAVIGATION %s", name), true
 	case "NAVPROFILE":
 		return fmt.Sprintf("DESCRIBE NAVIGATION %s", name), true
@@ -347,8 +356,7 @@ var objectTypeToDescribe = map[string]string{
 	"AI_MODEL":               "model",
 	"KNOWLEDGE_BASE":         "knowledgebase",
 	"CONSUMED_MCP_SERVICE":   "consumedmcpservice",
-	// JAVASCRIPT_ACTION is cataloged but has no `describe` CLI form, so it is
-	// intentionally omitted from auto-detect.
+	"JAVASCRIPT_ACTION":      "javascriptaction",
 }
 
 // unitTypeToDescribe maps a top-level unit's BSON $Type to the `describe`
@@ -366,6 +374,7 @@ var unitTypeToDescribe = map[string]string{
 	"Enumerations$Enumeration":             "enumeration",
 	"Constants$Constant":                   "constant",
 	"JavaActions$JavaAction":               "javaaction",
+	"JavaScriptActions$JavaScriptAction":   "javascriptaction",
 	"JsonStructures$JsonStructure":         "jsonstructure",
 	"ImportMappings$ImportMapping":         "importmapping",
 	"ExportMappings$ExportMapping":         "exportmapping",
