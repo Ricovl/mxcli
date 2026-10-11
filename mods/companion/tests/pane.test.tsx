@@ -44,7 +44,7 @@ const world = (on: On, opts: { describeFails?: boolean; notPlaced?: string; tree
       return { exitCode: 0, stdout: opts.tree ?? TREE, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     }
     if (argv[1] === 'describe' && argv.includes('svg')) {
-      return { exitCode: 0, stdout: SVG, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
+      return { exitCode: 0, stdout: opts.svg ?? SVG, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     }
     if (argv[1] === 'describe') {
       return opts.describeFails
@@ -272,5 +272,30 @@ test('terminal: the domain model node lists its entities and draws nothing', asy
   await ui.press({ key: rowKey('module:Sales', 'domainmodel:Domain Model') })
   expect(calls.some(c => c.includes('svg'))).toBe(false)
   expect(await ui.find({ text: /Contains: Order/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('desktop: a wide diagram opens at actual size, pans, and can take the whole pane', async ($, on) => {
+  const wide = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3000 800" width="3000" height="800"><rect/></svg>'
+  world(on, { tree: WITH_DOMAIN_MODEL, svg: wide })
+  await $.command.run(RUN)
+  const ui = await $.ui.mount({ plugin: 'mxcli-companion', surface: 'desktop', component: 'Pane', requestId: 'mxcli-project', props: WIDE })
+  await ui.press({ key: rowKey('module:Sales') })
+  await ui.press({ key: rowKey('module:Sales', 'domainmodel:Domain Model') })
+  const viewBox = async () => /viewBox=\\"([^\\]*)\\"/.exec(JSON.stringify(await ui.find({ type: 'Svg' })))?.[1]
+
+  // 140 columns, the tree takes 53 and a gap of 2: 85 columns of 8 px.
+  expect(await viewBox()).toBe('0 0 680 800')
+  expect(await ui.find({ key: 'diagram-left' })).toBeUndefined()
+  await ui.press({ key: 'diagram-right' })
+  expect(await viewBox()).toBe('680 0 680 800')
+
+  await ui.press({ key: 'diagram-tree' })
+  expect(await ui.find({ key: 'columns' })).toBeUndefined()
+  // The whole 140 columns now: 1120 px a window, still one window from the left.
+  expect(await viewBox()).toBe('1120 0 1120 800')
+
+  await ui.press({ key: 'diagram-zoom' })
+  expect(await viewBox()).toBe('0 0 3000 800')
   await ui.unmount()
 })

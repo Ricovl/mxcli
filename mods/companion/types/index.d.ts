@@ -38,6 +38,8 @@ declare module 'claude-code' {
       treeTop: number
       sourceTop: number
       welcome: boolean
+      diagram: { zoom: 'fit' | 'actual'; x: number }
+      treeHidden: boolean
     }
   }
 }
