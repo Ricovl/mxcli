@@ -131,6 +131,11 @@ by `brain check`, not discovered by a reader.
 file says so. No status column, no checkbox, no figure in prose. This is the
 brain proposal's A6, applied to the whole companion.
 
+*The one stated exception:* a **task's or issue's status** (open, done) cannot
+be computed from the model, so it is written — on the record itself, and nowhere
+else (§6.1). Requirements keep their derived status; a requirement never gains a
+status field because tasks have one.
+
 **P5 — It works on every surface, degrading where it must.** The terminal has no
 `Svg`, mobile no `Select`. Each view has a text form that works everywhere; a
 picture is added where the surface can draw one.
@@ -299,8 +304,8 @@ Against the brain:
 | REQ | requirement entry | exists |
 | Open question (implied: "should a defect create a work order?") | open question | exists |
 | TEST | **test intent**: a planned test naming a requirement; satisfied when a real test carries `@requirement` for it (§5.4) | new |
-| TASK / TODO | **task**: work that is not a requirement (check an integration, sketch a form) | new — or GitHub issues; open question |
-| ISSUE | **issue**: a known defect or risk, anchored to what it affects | new |
+| TASK / TODO | **task**: work that is not a requirement (check an integration, sketch a form) | new — a brain record, synced out (§6.1) |
+| ISSUE | **issue**: a known defect or risk, anchored to what it affects | new — a brain record, synced out (§6.1) |
 
 A test intent is the useful new kind: it is a TEST card before any test file
 exists, and §5.4's coverage check turns it into "tested" once a test names the
@@ -356,6 +361,85 @@ stable to point at.
 `promote` (human promotion was deliberate for entries; a 3-page spec written in a
 workflow may need a different gate), how a review links to the spec and change
 it reviews, and whether a PRD and an intent are one kind or two.
+
+### 6.1 Tasks, issues and test intents: one JSON file per record
+
+**The brain is the source of truth for tasks and issues, not a tracker.** Not
+every user has GitHub; some use Jira, Azure DevOps, Linear, or nothing. So the
+record lives in the repo, and a sync adapter mirrors it to whatever the user
+uses — the reverse of making one tracker the home and the brain a cache.
+
+**Format — decided: option (a).** The three new kinds are stored as **one JSON
+file per record**; the existing kinds stay as they are.
+
+| Kind | Stored as | Why |
+|---|---|---|
+| decision, requirement, open question | Markdown shards, unchanged | always loaded, capped, reviewed as prose in a PR |
+| task, issue, test intent | `docs/brain/{tasks,issues,tests}/<id>.json`, one file each | queryable across repos, conflict-free on parallel branches |
+| documents (§6) | `docs/brain/<kind>/<id>.md` with frontmatter | pages of prose |
+
+One file per record, not one shared `.jsonl`, because this repo has measured
+the alternative: the bug findings began as a single appended file, parallel fix
+branches conflicted on it constantly, and `merge=union` let 256 duplicates through
+unnoticed. They were split into one file per record
+(`.claude/skills/fix-issue/findings/<area>/<date>-<slug>.json`) and are queried
+with DuckDB. Each branch now adds its own files and nothing conflicts. The
+same holds for a project where the agent captures tasks on several branches.
+
+Whether decisions and requirements should later move to the same format — with
+`mxcli brain show` rendering the Markdown view — is left until the document tier
+settles its format. Moving them costs the prose review the brain proposal values;
+not moving them leaves those kinds out of cross-repo queries.
+
+**The record** (fields, not final):
+
+```json
+{
+  "schema_version": 1,
+  "id": "T-20261011-check-sap-assets",
+  "kind": "task",
+  "title": "Check SAP asset integration",
+  "body": "The asset list lives in SAP; confirm the consumed service covers it.",
+  "slice": "02-sap-integration",
+  "status": "open",
+  "anchors": ["@SapIntegration.RC_Assets"],
+  "source": { "session": "…", "message": "…" },
+  "external": { "system": "jira", "id": "QE-142", "url": "https://…" },
+  "created": "2026-10-11"
+}
+```
+
+`status` is the P4 exception, written here only. `source` is the provenance from
+§5.7. `external` is set by sync and never by hand. The schema is a contract
+checked by `brain check` (and a `make`-style check in mxcli's own CI), with
+`schema_version` so a cross-repo query survives projects on different mxcli
+versions.
+
+**Sync.** `mxcli brain sync --to <system>` with one adapter per system
+(GitHub, GitLab, Jira, Azure DevOps, Linear to start; the adapter interface is
+for the slice proposal). `external` makes re-sync update the same ticket instead
+of creating a duplicate. **Ownership, to avoid two-way conflicts:** the brain
+owns content (title, body, anchors, slice); the external system owns workflow
+state (status, assignee) once a record is synced, and sync pulls it back into
+`status`. A record with no `external` is owned entirely by the brain. Sync is
+opt-in and never runs without being asked.
+
+**Overview across projects.** Because the records are plain files in each repo,
+an overview of every open task is a DuckDB query over local checkouts — no
+server, no tracker:
+
+```sql
+select regexp_extract(filename, 'repos/([^/]+)/', 1) as project,
+       kind, title, status, slice
+from read_json_auto('~/repos/*/docs/brain/{tasks,issues}/*.json', filename = true)
+where status <> 'done'
+order by project, slice;
+```
+
+Caveat: it reads checkouts, so it is as fresh as each repo's last pull. A thin
+`mxcli brain overview <dirs…>` can `git fetch` first and read the default branch
+with `git show`, giving the same result without touching working trees; it can
+also feed a cross-project view in the companion later.
 
 ## 7. Slice 1 — project tree and MDL source
 
@@ -505,3 +589,7 @@ measurement that settles it.
    `promote`?
 7. **Multiple apps in one repo** (`PROPOSAL_multi_project_tree.md`): slice 1 picks
    one `.mpr`; does the Project view need a switcher from the start?
+8. **Decisions and requirements as JSON too** (§6.1): revisit once the document
+   tier's format is settled.
+9. **Sync adapters** (§6.1): which systems first, how credentials are held, and
+   whether sync pulls new tickets created outside the brain back in as records.
