@@ -121,6 +121,9 @@ Examples:
   # ...on the built-in file database, with no PostgreSQL on the machine
   mxcli test tests/ -p app.mpr --local --db-type hsqldb
 
+  # ...on other ports, when 8081/8091/6544 are taken (e.g. by an editor helper)
+  mxcli test tests/ -p app.mpr --local --app-port 9081 --admin-port 9091 --serve-port 7544
+
   # Keep the runtime warm and re-run on every change
   mxcli test tests/ -p app.mpr --local --watch
 
@@ -206,6 +209,7 @@ Examples:
 			Stdout:            os.Stdout,
 			Stderr:            os.Stderr,
 		}
+		applyTestPortFlags(cmd, &opts)
 
 		// Only a --local run boots an app of its own, so only it decides which
 		// constants that app runs with. --attach inherits the constants of the app
@@ -294,4 +298,19 @@ func resolveTestPaths(paths []string, projectPath string) []string {
 		out = append(out, p)
 	}
 	return out
+}
+
+// registerTestPortFlags adds the port flags `run --local` has, with the test
+// boot's own defaults: a test run sits beside a dev loop on 8080/8090/6543.
+func registerTestPortFlags(cmd *cobra.Command) {
+	cmd.Flags().Int("app-port", 0, "With --local, HTTP port for the test app (default 8081)")
+	cmd.Flags().Int("admin-port", 0, "With --local, M2EE admin API port for the test app (default 8091)")
+	cmd.Flags().Int("serve-port", 0, "With --local, mxbuild --serve port for the test build (default 6544)")
+}
+
+// applyTestPortFlags copies the port flags onto opts; zero leaves the default.
+func applyTestPortFlags(cmd *cobra.Command, opts *testrunner.RunOptions) {
+	opts.AppPort, _ = cmd.Flags().GetInt("app-port")
+	opts.AdminPort, _ = cmd.Flags().GetInt("admin-port")
+	opts.ServePort, _ = cmd.Flags().GetInt("serve-port")
 }
