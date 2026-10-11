@@ -77,7 +77,7 @@ it is building.
    `ledger` (light, dense, data-heavy), `console` (dark), or `none` for stock Atlas.
    Default `signal`.
 7. **Mendix version.** Default to whatever the session environment already provides —
-   see below — and otherwise the newest version on the CDN (today `11.14.0`).
+   see below — and otherwise the newest version on the CDN.
 8. **Do you have requirements to work from?** A specification document, a
    prototype, a wireframe, a long description — anything that is the source of
    truth but is not in this repo. **Default: yes, record them.** If they say yes,
@@ -109,12 +109,12 @@ the CDN as below and accept the download.
 
 **Otherwise take the newest version on the CDN.** Everything mxcli does starts with
 downloading MxBuild, so "supported" means "on the CDN", and `run --local` needs the
-runtime tarball as well. At the time of writing the newest is **11.14.0** (11.15.0 is
-not published). Do not trust that number — it ages. Confirm the one you land on, and
-walk backwards a minor if it 404s:
+runtime tarball as well. A remembered version number ages, so confirm it. Probe the CDN: start from the newest version you know of, try the
+next minor up until one 404s, and take the highest that answers. If the one you
+start from 404s, walk backwards a minor:
 
 ```bash
-V=11.14.0
+V=11.N.0   # the candidate
 curl -sI -o /dev/null -w '%{http_code}\n' https://cdn.mendix.com/runtime/mxbuild-$V.tar.gz
 curl -sI -o /dev/null -w '%{http_code}\n' https://cdn.mendix.com/runtime/mendix-$V.tar.gz
 ```
