@@ -255,6 +255,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateStaticWidget(w, locationPrefix)...)
 		out = append(out, validateDynamicTextFormatting(w, locationPrefix)...)
 		out = append(out, validateInputFormatting(w, locationPrefix)...)
+		// A text input's SubmitBehaviour and a layout grid's Width (ako/mxcli-ledger FINDINGS #170).
+		out = append(out, validateInputSubmitAndGridWidth(w, locationPrefix)...)
 		// A quoted template parameter that reads like an expression is stored
 		// as its text (ako/mxcli#969).
 		out = append(out, validateQuotedTemplateParams(w, locationPrefix)...)
@@ -862,6 +864,11 @@ func validateStaticWidgetUnknownProps(w *ast.WidgetV3, locationPrefix string) []
 		// read it. It is per type: on a widget with no FormattingInfo the key
 		// is still dropped, and still warned about.
 		if _, ok := inputFormatProp(w.Type, key); ok {
+			continue
+		}
+		// A text box's or text area's SubmitBehaviour / SubmitOnInputDelay,
+		// per type for the same reason (ako/mxcli-ledger FINDINGS #170).
+		if isInputSubmitProp(w.Type, key) {
 			continue
 		}
 		hint := ""

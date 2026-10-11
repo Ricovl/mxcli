@@ -427,7 +427,9 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 	case *pages.LayoutGrid:
 		g := genPg.NewLayoutGrid()
 		applyWidgetBase(g, &x.BaseWidget)
-		g.SetWidth("FullWidth")
+		// FixedWidth was rewritten to the default on every describe → exec
+		// (ako/mxcli-ledger FINDINGS #170). Empty is the default.
+		g.SetWidth(orDefaultStr(x.Width, pages.DefaultLayoutGridWidth))
 		for _, row := range x.Rows {
 			rg, err := layoutGridRowToGen(row)
 			if err != nil {
@@ -535,8 +537,8 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle("Inherit")
-		g.SetSubmitBehaviour("OnEndEditing")
-		g.SetSubmitOnInputDelay(300)
+		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
+		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		g.SetValidation(widgetValidationToGenWith(x.ValidationExpression, x.ValidationMessage))
 		return g, nil
 
@@ -629,8 +631,8 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle("Inherit")
-		g.SetSubmitBehaviour("OnEndEditing")
-		g.SetSubmitOnInputDelay(300)
+		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
+		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		// Studio Pro stores one on every textarea; without the key a rewrite
 		// had nowhere to carry the stored translations and deleted the message
 		// (ako/mxcli#705). Empty, like CounterMessage above.

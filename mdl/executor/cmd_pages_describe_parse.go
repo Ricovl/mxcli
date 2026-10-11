@@ -281,6 +281,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 
 	switch typeName {
 	case "Forms$LayoutGrid", "Pages$LayoutGrid":
+		widget.LayoutGridWidth = extractString(w["Width"])
 		widget.Rows = parseLayoutGridRows(ctx, w, inheritedCtx)
 		return []rawWidget{widget}
 
@@ -358,6 +359,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Editable = extractEditable(ctx, w)
 		widget.IsPassword, _ = w["IsPasswordBox"].(bool)
 		widget.ValidationExpression, widget.ValidationMessage = extractWidgetValidation(ctx, w)
+		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
 		widget.Formatting = describeInputFormatting(ctx, "textbox", w)
 		return []rawWidget{widget}
@@ -369,6 +371,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		// textarea's placeholder with all its translations (ako/mxcli#705).
 		widget.Placeholder = extractPlaceholderText(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
+		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
 		return []rawWidget{widget}
 
