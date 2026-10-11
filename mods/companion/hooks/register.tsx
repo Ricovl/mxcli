@@ -438,7 +438,13 @@ export const register: Register = (on, options) => {
                   />
                 )}
               </Box>
-              <table.Svg source={shown.svg} alt={`Domain model of ${src.qn}: ${src.children.join(', ')}`} isInteractive />
+              <table.Svg
+                key="diagram"
+                source={shown.svg}
+                alt={`Domain model of ${src.qn}: ${src.children.join(', ')}`}
+                isInteractive
+                {...(shown.width !== undefined ? { width: shown.width, height: shown.height } : {})}
+              />
             </Box>
           ) : (
             <Text dimColor>

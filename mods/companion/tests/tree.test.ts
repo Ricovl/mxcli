@@ -144,6 +144,8 @@ describe('diagramView', () => {
     const v = diagramView(svg, { zoom: 'fit', x: 0 }, 400)
     expect(v.svg).toContain('viewBox="40 10 1200 800"')
     expect(v.canPan).toBe(false)
+    // drawn at the column's width, the height in proportion
+    expect([v.width, v.height]).toEqual([400, 267])
   })
 
   test('100% crops to the column at actual size, from the left', () => {
@@ -152,6 +154,8 @@ describe('diagramView', () => {
     expect(v.svg).toContain('width="400"')
     expect(v.canPan).toBe(true)
     expect(v.atStart).toBe(true)
+    // drawn at actual size: as wide as the window, as tall as the drawing
+    expect([v.width, v.height]).toEqual([400, 800])
   })
 
   test('panning moves the window and stops at the right edge', () => {

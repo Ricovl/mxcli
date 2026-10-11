@@ -79,9 +79,15 @@ const VIEWBOX = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/
 // scales an Svg to its slot, so a wide drawing shown whole is too small to read.
 export const diagramView = (svg: string, view: DiagramZoom, columnPx: number) => {
   const m = VIEWBOX.exec(svg)
-  if (!m) return { svg, canPan: false, atStart: true, atEnd: true }
+  if (!m) return { svg, canPan: false, atStart: true, atEnd: true, width: undefined, height: undefined }
   const [x0, y0, w, h] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])]
-  if (view.zoom === 'fit' || w <= columnPx) return { svg, canPan: false, atStart: true, atEnd: true }
+  // The size to draw it at, in CSS pixels, given to the Svg element: an
+  // interactive Svg draws in a frame, and a frame does not size itself to its
+  // content the way an image does — without these it is a thumbnail.
+  if (view.zoom === 'fit' || w <= columnPx) {
+    const width = Math.round(Math.min(w, columnPx))
+    return { svg, canPan: false, atStart: true, atEnd: true, width, height: Math.round((h * width) / w) }
+  }
   const vw = Math.round(columnPx)
   const maxX = w - vw
   const x = Math.max(0, Math.min(view.x * vw, maxX))
@@ -91,7 +97,7 @@ export const diagramView = (svg: string, view: DiagramZoom, columnPx: number) =>
     .replace(VIEWBOX, `viewBox="${x0 + x} ${y0} ${vw} ${h}"`)
     .replace(/ width="[\d.]+"/, ` width="${vw}"`)
     .replace(/ height="[\d.]+"/, ` height="${h}"`)
-  return { svg: newHead + rest, canPan: true, atStart: x <= 0, atEnd: x >= maxX }
+  return { svg: newHead + rest, canPan: true, atStart: x <= 0, atEnd: x >= maxX, width: vw, height: Math.round(h) }
 }
 
 // parseTree reads `mxcli project-tree` output.

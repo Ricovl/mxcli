@@ -28,7 +28,7 @@ const PANE_PROPS = {
 
 // The world beneath the mod: one app here, and an mxcli that answers
 // project-tree and describe. `calls` records every argv it was run with.
-const world = (on: On, opts: { describeFails?: boolean; notPlaced?: string; tree?: string } = {}) => {
+const world = (on: On, opts: { describeFails?: boolean; notPlaced?: string; tree?: string; svg?: string } = {}) => {
   const calls: string[][] = []
   const clock = mock.clock(on)
   on('fs.exists', () => ({ value: false }))
@@ -286,6 +286,9 @@ test('desktop: a wide diagram opens at actual size, pans, and can take the whole
 
   // 140 columns, the tree takes 53 and a gap of 2: 85 columns of 8 px.
   expect(await viewBox()).toBe('0 0 680 800')
+  // and the element is told its size: an interactive Svg draws in a frame that
+  // does not size itself (left out, it was a thumbnail in the desktop app)
+  expect((await ui.find({ type: 'Svg' }))?.props).toMatchObject({ width: 680, height: 800 })
   expect(await ui.find({ key: 'diagram-left' })).toBeUndefined()
   await ui.press({ key: 'diagram-right' })
   expect(await viewBox()).toBe('680 0 680 800')
