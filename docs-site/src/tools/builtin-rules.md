@@ -29,6 +29,7 @@ The **lint rules** below run with `mxcli lint`. There is also a separate group o
 | **SEC001** | Entity access rules -- Ensures persistent entities have access rules defined |
 | **SEC002** | Password policy -- Checks for secure password configuration |
 | **SEC003** | Demo users -- Warns about demo users in production security level |
+| **SEC010** | Unreadable page data -- A data grid, gallery, list view or combo box lists an entity that a user role allowed on the page cannot read (including its generalizations and specializations). At Production security it renders empty for that role and nothing else reports it. Info when the role reads only through an XPath-constrained rule; System entities use access measured from a deployed model, so a combo box over System.User gets its own message (it lists only the current user) |
 
 ## Convention Rules
 
