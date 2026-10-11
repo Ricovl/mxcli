@@ -220,7 +220,29 @@ func TestPageNavigationSecurity_MicroflowHomePage(t *testing.T) {
 	r.nav.Profiles[0].HomePage = &types.NavHomePage{Microflow: "App.ACT_Home"}
 	r.mfs = []*microflows.Microflow{{ContainerID: "mod", Name: "ACT_Home", AllowedModuleRoles: []model.ID{"App.User"}}}
 	vs := homePageViolations(t, r)
-	if len(vs) != 1 || !strings.Contains(vs[0].Message, "cannot run default home microflow 'App.ACT_Home'") || !strings.Contains(vs[0].Message, "'Leftover'") {
+	if len(vs) != 1 || !strings.Contains(vs[0].Message, "not allowed to run its default home microflow 'App.ACT_Home'") || !strings.Contains(vs[0].Message, "'Leftover'") {
 		t.Fatalf("want 1 microflow violation for Leftover, got %+v", vs)
+	}
+}
+
+// At Prototype security mxbuild does not check entity access, so there is no
+// CE2729, and the page still renders for the role (ako/mxcli-rest #68: 200, no
+// banner, data and actions withheld). The message must state the model fact and
+// not a build error or failure that does not happen at that level.
+func TestPageNavigationSecurity_PrototypeLevelClaimsNoCE2729(t *testing.T) {
+	r := homePageFixture()
+	r.sec.SecurityLevel = security.SecurityLevelPrototype
+	vs := homePageViolations(t, r)
+	if len(vs) != 1 {
+		t.Fatalf("want 1 violation for Leftover, got %+v", vs)
+	}
+	msg := vs[0].Message
+	if strings.Contains(msg, "CE2729") || strings.Contains(msg, "cannot open") {
+		t.Errorf("Prototype-level message %q claims a consequence that does not occur", msg)
+	}
+	for _, want := range []string{"'Leftover'", "'App.Home'", "not allowed"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("message %q lacks %s", msg, want)
+		}
 	}
 }

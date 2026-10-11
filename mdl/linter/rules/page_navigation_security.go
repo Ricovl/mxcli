@@ -18,7 +18,7 @@ import (
 // It also checks, per navigation profile, that every user role can open the
 // home page it lands on: its role-based home page if it has one, otherwise the
 // profile's default. A user role none of whose module roles is allowed on that
-// page passes `check --references` and reaches mxbuild, which then reports
+// page passes `check --references`; at Production security mxbuild then reports
 // CE2729 for every widget on the page ("No read access to attribute … for user
 // role 'X' (with no roles defined in module …)") — ten of them for one leftover
 // template role in ChipCoV6, and nothing that names the actual cause.
@@ -35,7 +35,7 @@ func (r *PageNavigationSecurityRule) Category() string                 { return 
 func (r *PageNavigationSecurityRule) DefaultSeverity() linter.Severity { return linter.SeverityWarning }
 
 func (r *PageNavigationSecurityRule) Description() string {
-	return "Checks that pages used in navigation have at least one allowed role (CE0557), and that every user role can open its home page (else CE2729 per widget)"
+	return "Checks that pages used in navigation have at least one allowed role (CE0557), and that every user role can open its home page (at Production security, else CE2729 per widget)"
 }
 
 // navUsage describes how a page is used in navigation.
@@ -168,7 +168,7 @@ func (r *PageNavigationSecurityRule) checkHomePagePerUserRole(ctx *linter.LintCo
 			if sharesRole(ur.ModuleRoles, allowed) {
 				continue
 			}
-			violations = append(violations, homePageViolation(r, ur, pName, target, isMicroflow, viaRole))
+			violations = append(violations, homePageViolation(r, ur, pName, target, isMicroflow, viaRole, ps.SecurityLevel))
 		}
 	}
 	return violations
@@ -197,7 +197,7 @@ func effectiveHomePage(profile *types.NavigationProfile, userRole string) (targe
 	return profile.HomePage.Microflow, profile.HomePage.Microflow != "", false
 }
 
-func homePageViolation(r *PageNavigationSecurityRule, ur *security.UserRole, profile, target string, isMicroflow, viaRole bool) linter.Violation {
+func homePageViolation(r *PageNavigationSecurityRule, ur *security.UserRole, profile, target string, isMicroflow, viaRole bool, level string) linter.Violation {
 	kind, docType, verb, grant := "page", "page", "open", "GRANT VIEW ON PAGE"
 	if isMicroflow {
 		kind, docType, verb, grant = "microflow", "microflow", "run", "GRANT EXECUTE ON MICROFLOW"
@@ -214,14 +214,30 @@ func homePageViolation(r *PageNavigationSecurityRule, ur *security.UserRole, pro
 	return linter.Violation{
 		RuleID:   r.ID(),
 		Severity: r.DefaultSeverity(),
-		Message: fmt.Sprintf("User role '%s' cannot %s %s '%s' in %s navigation: none of its module roles is allowed (mxbuild reports CE2729 for each widget on it)",
-			ur.Name, verb, which, target, profile),
+		Message: fmt.Sprintf("User role '%s' is not allowed to %s its %s '%s' in %s navigation: none of its module roles is granted it%s",
+			ur.Name, verb, which, target, profile, homePageConsequence(level, isMicroflow)),
 		Location: linter.Location{
 			Module:       moduleName,
 			DocumentType: docType,
 			DocumentName: docNameFromQualified(target),
 		},
 		Suggestion: suggestion,
+	}
+}
+
+// homePageConsequence names what the gap costs at the project's security
+// level. Only Production checks entity access, so only there does mxbuild
+// report CE2729 per widget (ChipCoV6); at Prototype the page still renders for
+// the role, with the data and actions its module roles do not reach withheld
+// (ako/mxcli-rest #68: HTTP 200, no error banner, empty grids).
+func homePageConsequence(level string, isMicroflow bool) string {
+	switch {
+	case level == security.SecurityLevelProduction && !isMicroflow:
+		return " (mxbuild reports CE2729 for each widget on it)"
+	case isMicroflow:
+		return ""
+	default:
+		return " (at Prototype security the page still opens, but without the data and actions those module roles would reach)"
 	}
 }
 
