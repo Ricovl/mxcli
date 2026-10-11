@@ -43,6 +43,9 @@ package roundtrip
 // with it, and round-trip from the start. It also struck
 // WorkflowCommons.ConflictedWorkflowDefinitionView_ActionConfirmation, whose only
 // loss was the empty OutputMappings Studio Pro stores on every nanoflow call.
+// The static open-link address's null AttributeRef (ako/mxcli-ledger FINDINGS
+// #170) struck WorkflowCommons.ConflictedWorkflowDefinitionView and
+// WorkflowCommons.Readme, whose only loss it was.
 var testAppKnownFailures = map[string]knownFailure{
 	"association ViewAssociations.persistent_order":                                   {laws: []law{lawExec}, issue: "#721", why: "association: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"association WorkflowCommons.ConflictedWorkflowDefinitionView_WorkflowDefinition": {laws: []law{lawExec}, issue: "#721", why: "association: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -146,7 +149,6 @@ var testAppKnownFailures = map[string]knownFailure{
 	"page FeedbackModule.ShareFeedback_Logo":                                          {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page MyFirstModule.Home_Web":                                                     {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Pages.EditableLIstView":                                                     {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"page WorkflowCommons.ConflictedWorkflowDefinitionView":                           {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp (putget struck by #721 L4), measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.DefaultWorkflowAdmin":                                       {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.ManageTaskAssignments":                                      {laws: []law{lawExec}, issue: "#721", why: "page: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.MyInitiatedWorkflowView_WithdrawConfirmation":               {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -181,7 +183,6 @@ var testAppKnownFailures = map[string]knownFailure{
 	"scheduled event WorkflowCommons.SE_WorkflowAuditTrailRecord_CleanUp":             {laws: []law{lawGetPut}, issue: "#721", why: "scheduled event: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet Administration.ReadMe":                                                   {laws: []law{lawGetPut}, issue: "#721", why: "snippet: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet Atlas_Core.FeedbackWidget":                                               {laws: []law{lawGetPut}, issue: "#721", why: "snippet: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"snippet WorkflowCommons.Readme":                                                  {laws: []law{lawGetPut}, issue: "#721", why: "snippet: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet WorkflowCommons.Snip_Assignee_Search":                                    {laws: []law{lawGetPut}, issue: "#721", why: "snippet: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes; executes since a widget bound to a snippet parameter is described as $Param.Attr — getput not yet triaged"},
 	"snippet WorkflowCommons.Snip_AuditTrailViewer_Toolbar":                           {laws: []law{lawGetPut, lawPutGet}, issue: "#721", why: "snippet: breaks getput and putget on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet WorkflowCommons.Snip_MyInitiatedWorkflowView_NotificationArea":           {laws: []law{lawGetPut, lawPutGet}, issue: "#721", why: "snippet: breaks getput and putget on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
