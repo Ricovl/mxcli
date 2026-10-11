@@ -163,3 +163,47 @@ func TestValidateInputBindingWithoutDataContext(t *testing.T) {
 		t.Errorf("`Attribute: $P/…` inside a data view: MDL-WIDGET34 = %d, want 1", n)
 	}
 }
+
+// ChipCoV8 #10: a value the visitor could not read as an attribute path — the
+// module-qualified `Module.Assoc/Attr` before the grammar took it, or any real
+// expression — reached MDL-WIDGET34 as a WidgetExpressionV3 and was printed
+// with %v as `&{…}`, naming an unnamed column by an empty name, with advice
+// to wrap it in a data view although it already sat in a data grid. The message
+// must quote the source text, say which column it is, and — for a value with a
+// `/` — say how to write an association path.
+func TestValidateInputBindingNonPathValueMessage(t *testing.T) {
+	registry := LoadWidgetRegistry("")
+	if registry == nil {
+		t.Fatal("LoadWidgetRegistry returned nil")
+	}
+	const src = "FieldService.ServiceRequest_LithoSystem / SerialNumber"
+	col := &ast.WidgetV3{Type: "column", Properties: map[string]any{
+		"Attribute": &ast.WidgetExpressionV3{Text: src},
+		"Caption":   "Serial",
+	}}
+	grid := []*ast.WidgetV3{{
+		Type: "datagrid", Name: "dg",
+		Properties: map[string]any{"DataSource": &ast.DataSourceV3{Type: "database", Reference: "FieldService.ServiceRequest"}},
+		Children:   []*ast.WidgetV3{col},
+	}}
+	var msgs []string
+	for _, v := range validateWidgetTree(grid, registry, "page FieldService.P") {
+		if v.RuleID == "MDL-WIDGET34" {
+			msgs = append(msgs, v.Message+" | "+v.Suggestion)
+		}
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("MDL-WIDGET34 = %d, want 1: %v", len(msgs), msgs)
+	}
+	msg := msgs[0]
+	for _, want := range []string{src, "'Serial'", "Assoc/Attr", "Module.Assoc/Attr"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("message does not mention %q: %s", want, msg)
+		}
+	}
+	for _, bad := range []string{"&{", "column ``", "dataview dv", "wrap it in"} {
+		if strings.Contains(msg, bad) {
+			t.Errorf("message contains %q: %s", bad, msg)
+		}
+	}
+}

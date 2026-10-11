@@ -764,9 +764,22 @@ visibleValueV3
     : IDENTIFIER | QUOTED_IDENTIFIER | keyword
     ;
 
-// V3 Attribute path: Name, Product/Category, "Order" (quoted to escape reserved words)
+// V3 Attribute path: Name, Product/Category, "Order" (quoted to escape reserved words).
+// An association hop — every segment before the last — may be module-qualified,
+// `Module.Assoc/Attr`, the way XPath and data view sources name it. Without that
+// the qualified form missed `Attribute: attributePathV3`, parsed as the division
+// `Module.Assoc / Attr` and was refused as an expression (ChipCoV8 #10). The final
+// segment stays a bare name: a dotted name with no slash is not a path.
 attributePathV3
-    : (IDENTIFIER | QUOTED_IDENTIFIER | keyword) (SLASH (IDENTIFIER | QUOTED_IDENTIFIER | keyword))*
+    : (attributePathHopV3 SLASH)* attributePathSegmentV3
+    ;
+
+attributePathHopV3
+    : attributePathSegmentV3 (DOT attributePathSegmentV3)?
+    ;
+
+attributePathSegmentV3
+    : IDENTIFIER | QUOTED_IDENTIFIER | keyword
     ;
 
 // An attribute read from a named object: an enclosing data view, Studio Pro's
