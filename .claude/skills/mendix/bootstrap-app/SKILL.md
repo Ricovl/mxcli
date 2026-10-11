@@ -253,7 +253,7 @@ drop the `./` if it came pre-installed on `PATH`.
       | Option | What it leads to |
       |---|---|
       | Propose the domain model *(recommended)* | the next section |
-      | Import requirements from a document (a PRD, notes) | read it, record the requirements as slices with `./mxcli brain capture --slice`, then propose the model from them |
+      | Import requirements from a document (a PRD, notes) | read it, record each requirement with `./mxcli brain capture "<requirement>" --slice <slice>`, then propose the model from them |
       | Open the project explorer | repeat the two commands above and stop |
       | Something else | ask what |
 
