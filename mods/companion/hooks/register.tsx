@@ -167,7 +167,39 @@ const scheduleReload = async ($: Engine) => {
   if (mine === reloadGeneration) await load($, current.mpr)
 }
 
-const press = async ($: Engine, id: string) => {
+// Surfaces whose element table has Svg; the terminal draws no pictures.
+const DRAWS_SVG = new Set(['desktop', 'vscode', 'mobile'])
+// The most an Svg element takes (its `source` cap).
+const SVG_MAX_CHARS = 131_072
+
+// drawDomainModel asks mxcli for the module's domain model as an SVG and shows
+// it; the tree's own list of the entities stays beside it.
+const drawDomainModel = async ($: Engine, node: TreeNode) => {
+  const current = await read($, project)
+  if (current.state !== 'loaded' || !node.qualifiedName) return
+  const qn = node.qualifiedName
+  const children = (node.children ?? []).map(c => c.label)
+  const key = `svg:${qn}`
+  const cached = described.get(key)
+  if (cached !== undefined) {
+    await update($, source, (): Source => ({ state: 'diagram', label: node.label, qn, svg: cached, children }))
+    return
+  }
+  await update($, source, (): Source => ({ state: 'drawing', label: node.label, qn }))
+  const out = await run($, ['describe', '-p', current.mpr, '--format', 'svg', 'domainmodel', qn], DESCRIBE_TIMEOUT_MS)
+  let next: Source
+  if (out.exitCode !== 0) {
+    next = { state: 'failed', label: node.label, qn, error: firstLine(out.stderr || out.stdout) }
+  } else if (out.stdout.length > SVG_MAX_CHARS) {
+    next = { state: 'failed', label: node.label, qn, error: `the diagram is too large to draw here (${out.stdout.length} characters)` }
+  } else {
+    described.set(key, out.stdout)
+    next = { state: 'diagram', label: node.label, qn, svg: out.stdout, children }
+  }
+  await update($, source, (s): Source => (s.state === 'drawing' && s.qn === qn ? next : s))
+}
+
+const press = async ($: Engine, id: string, surface: string) => {
   const current = await read($, project)
   if (current.state !== 'loaded') return
   const node = findNode(current.tree, id)
@@ -179,6 +211,8 @@ const press = async ($: Engine, id: string) => {
   await update($, selected, () => id)
   if (node.describable) {
     await describeSelected($, node)
+  } else if (node.type === 'domainmodel' && DRAWS_SVG.has(surface)) {
+    await drawDomainModel($, node)
   } else {
     await update($, source, (): Source => ({
       state: 'container',
@@ -338,7 +372,7 @@ export const register: Register = (on, options) => {
               return (
                 <Box key={`row:${id}`} flexDirection="row" overflow="hidden">
                   <Text>{sel === id ? '›' : ' '}{'  '.repeat(depth)}</Text>
-                  <Button key={id} plain label={`${glyph} ${node.label}`} onPress={() => void press($, id)} />
+                  <Button key={id} plain label={`${glyph} ${node.label}`} onPress={p => void press($, id, p.surface)} />
                   <Text dimColor wrap="truncate"> {node.type}</Text>
                 </Box>
               )
@@ -362,6 +396,24 @@ export const register: Register = (on, options) => {
       case 'failed':
         detail = <Text color="error">describe {src.qn} failed: {src.error}</Text>
         break
+      case 'drawing':
+        detail = <Text dimColor>Drawing {src.qn}…</Text>
+        break
+      case 'diagram': {
+        const table = $.ui.resolve(e)
+        detail =
+          'Svg' in table ? (
+            <Box flexDirection="column">
+              <Text bold>{src.qn} domain model</Text>
+              <table.Svg source={src.svg} alt={`Domain model of ${src.qn}: ${src.children.join(', ')}`} isInteractive />
+            </Box>
+          ) : (
+            <Text dimColor>
+              {src.label} has a diagram this surface cannot draw. Contains: {src.children.slice(0, 40).join(', ')}
+            </Text>
+          )
+        break
+      }
       case 'container':
         detail = (
           <Box flexDirection="column">

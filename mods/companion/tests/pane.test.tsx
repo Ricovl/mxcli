@@ -13,6 +13,8 @@ const TREE = JSON.stringify([
   },
 ])
 
+const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>'
+
 const MDL = 'mdl 1;\ncreate microflow Sales.ACT_Process ()\nbegin\nend;\n'
 
 const PANE_PROPS = {
@@ -40,6 +42,9 @@ const world = (on: On, opts: { describeFails?: boolean; notPlaced?: string; tree
     calls.push(argv)
     if (argv[1] === 'project-tree') {
       return { exitCode: 0, stdout: opts.tree ?? TREE, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
+    }
+    if (argv[1] === 'describe' && argv.includes('svg')) {
+      return { exitCode: 0, stdout: SVG, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     }
     if (argv[1] === 'describe') {
       return opts.describeFails
@@ -227,5 +232,45 @@ test('an mxcli older than the describable field still gets documents described',
   await ui.press({ key: rowKey('module:Sales', 'microflow:ACT_Process') })
   expect(calls.some(c => c[1] === 'describe')).toBe(true)
   expect(await ui.find({ type: 'Code' })).toBeDefined()
+  await ui.unmount()
+})
+
+const WITH_DOMAIN_MODEL = JSON.stringify([
+  {
+    label: 'Sales',
+    type: 'module',
+    qualifiedName: 'Sales',
+    children: [
+      {
+        label: 'Domain Model',
+        type: 'domainmodel',
+        qualifiedName: 'Sales',
+        children: [{ label: 'Order', type: 'entity', qualifiedName: 'Sales.Order', describable: true }],
+      },
+    ],
+  },
+])
+
+test('desktop: the domain model node shows the diagram mxcli draws', async ($, on) => {
+  const { calls } = world(on, { tree: WITH_DOMAIN_MODEL })
+  await $.command.run(RUN)
+  const ui = await $.ui.mount({ plugin: 'mxcli-companion', surface: 'desktop', component: 'Pane', requestId: 'mxcli-project', props: PANE_PROPS })
+  await ui.press({ key: rowKey('module:Sales') })
+  await ui.press({ key: rowKey('module:Sales', 'domainmodel:Domain Model') })
+  expect(calls.at(-1)).toEqual(['mxcli', 'describe', '-p', 'App.mpr', '--format', 'svg', 'domainmodel', 'Sales'])
+  const svg = await ui.find({ type: 'Svg' })
+  expect(svg).toBeDefined()
+  expect(JSON.stringify(svg)).toContain('viewBox')
+  await ui.unmount()
+})
+
+test('terminal: the domain model node lists its entities and draws nothing', async ($, on) => {
+  const { calls } = world(on, { tree: WITH_DOMAIN_MODEL })
+  await $.command.run(RUN)
+  const ui = await $.ui.mount({ plugin: 'mxcli-companion', surface: 'terminal', component: 'Pane', requestId: 'mxcli-project', props: PANE_PROPS })
+  await ui.press({ key: rowKey('module:Sales') })
+  await ui.press({ key: rowKey('module:Sales', 'domainmodel:Domain Model') })
+  expect(calls.some(c => c.includes('svg'))).toBe(false)
+  expect(await ui.find({ text: /Contains: Order/ })).toBeDefined()
   await ui.unmount()
 })
