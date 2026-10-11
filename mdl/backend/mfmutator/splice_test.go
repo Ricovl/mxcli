@@ -510,3 +510,84 @@ func TestSplice_RemoveNotesBeforeAReplace(t *testing.T) {
 		}
 	})
 }
+
+// An activity inside a loop body is replaced by one activity in place
+// (ako/mxcli#1106): the new one takes the stored one's slot in the loop's
+// collection, its position and its size (a Studio Pro activity may have been
+// resized), and the body flow through it now runs through the new one. The
+// last body activity has no flow out. Nothing else in the unit changes.
+func TestSplice_ReplaceInsideALoopIsInPlace(t *testing.T) {
+	build := func() ([]bson.D, []bson.D) {
+		inner := obj("inner", "Microflows$ActionActivity", 100, 60)
+		dSet(inner, "Size", "200;60")
+		loop := obj("loop", "Microflows$LoopedActivity", 420, 200)
+		loop = append(loop, bson.E{Key: "ObjectCollection", Value: bson.D{
+			{Key: "$ID", Value: bin("loopoc")},
+			{Key: "$Type", Value: "Microflows$MicroflowObjectCollection"},
+			{Key: "Objects", Value: bson.A{int32(3), inner, obj("inner2", "Microflows$ActionActivity", 260, 60)}},
+		}})
+		return []bson.D{obj("start", "Microflows$StartEvent", 100, 200), obj("a", "Microflows$ActionActivity", 250, 200), loop},
+			[]bson.D{flow("f1", "start", "a", 1, 3, false), flow("f2", "a", "loop", 1, 3, false), flow("fi", "inner", "inner2", 1, 3, false)}
+	}
+	for _, tc := range []struct{ target, pos, size string }{
+		{"inner", "100;60", "200;60"},
+		{"inner2", "260;60", "120;60"},
+	} {
+		t.Run(tc.target, func(t *testing.T) {
+			objs, flows := build()
+			m, deps := newMutator(t, unit(objs, flows))
+			frag := oneActivity()
+			if err := m.Replace(model.ID(uid(tc.target)), frag); err != nil {
+				t.Fatal(err)
+			}
+			if err := m.Save(); err != nil {
+				t.Fatalf("save: %v", err)
+			}
+			if bytes.Contains(deps.saved, types.UUIDToBlob(uid(tc.target))) {
+				t.Errorf("%s is still in the unit", tc.target)
+			}
+			// What the replace should leave: the stored unit with the
+			// target's document swapped, and the body flow repointed.
+			newID := primitive.Binary{Data: types.UUIDToBlob(string(frag.Entry))}
+			wantObjs, wantFlows := build()
+			oc := dDoc(wantObjs[2], "ObjectCollection")
+			body := arrayElements(dGet(oc, "Objects"))
+			for i, el := range body {
+				if d := el.(bson.D); binaryID(dGet(d, "$ID")) == uid(tc.target) {
+					body[i] = bson.D{
+						{Key: "$ID", Value: newID},
+						{Key: "$Type", Value: "Microflows$ActionActivity"},
+						{Key: "RelativeMiddlePoint", Value: tc.pos},
+						{Key: "Size", Value: tc.size},
+					}
+				}
+			}
+			setArray(oc, "Objects", body)
+			key := "OriginPointer"
+			if tc.target == "inner2" {
+				key = "DestinationPointer"
+			}
+			dSet(wantFlows[2], key, newID)
+			raw, _ := bson.Marshal(unit(wantObjs, wantFlows))
+			if !bytes.Equal(deps.saved, raw) {
+				var got bson.D
+				_ = bson.Unmarshal(deps.saved, &got)
+				t.Errorf("the replace changed more than the activity's document and the flow through it:\n got %v\nwant %v", got, unit(wantObjs, wantFlows))
+			}
+		})
+	}
+
+	// Two activities for one would change the body's shape: refused.
+	t.Run("two for one refused", func(t *testing.T) {
+		objs, flows := build()
+		m, _ := newMutator(t, unit(objs, flows))
+		frag := oneActivity()
+		second := oneActivity()
+		frag.Objects = append(frag.Objects, second.Objects...)
+		frag.Exit = second.Exit
+		err := m.Replace(model.ID(uid("inner")), frag)
+		if err == nil || !strings.Contains(err.Error(), "replace the whole loop") {
+			t.Fatalf("want the in-loop refusal, got %v", err)
+		}
+	})
+}

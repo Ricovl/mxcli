@@ -150,7 +150,13 @@ func TestPedAppSpliceParity_AuthoredSpellings(t *testing.T) {
 
 	// Control: a change exec refuses under mdl 1 is a refusal in diff too.
 	t.Run("diff reports the refusal exec makes", func(t *testing.T) {
-		inLoop := strings.Replace(spliceParityFlow, "$Total + $R/MonthKey", "$Total + $R/MonthKey + 1", 1)
+		// A statement added inside the loop body: a change of its shape (a
+		// value edit there is spliced in place, ako/mxcli#1106).
+		inLoop := strings.Replace(spliceParityFlow, "set $Total = $Total + $R/MonthKey;",
+			"set $Total = $Total + $R/MonthKey;\n    set $Total = $Total + 1;", 1)
+		if inLoop == spliceParityFlow {
+			t.Fatal("the flow has no loop-body set")
+		}
 		before := h.snapshot()
 		out := h.diff("mdl 1;\n" + inLoop)
 		if !strings.Contains(out, "Refused: exec would stop at this error, having written nothing") || !strings.Contains(out, "cannot be spliced") {

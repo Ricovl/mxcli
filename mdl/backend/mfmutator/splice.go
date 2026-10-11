@@ -25,8 +25,9 @@ package mfmutator
 // What the splice cannot do safely it refuses, with the reason: an insert
 // after a decision (which branch?), before an activity several flows enter
 // (which path?), a drop or replace of an activity with an error handler (the
-// handler would be orphaned), and — for now — anything inside a loop body,
-// whose coordinates are relative to the loop box.
+// handler would be orphaned), and — for now — anything inside a loop body
+// but an activity replaced by one of the same kind, in place, since a body
+// node's coordinates are relative to the loop box (ako/mxcli#1106).
 
 import (
 	"bytes"
@@ -393,6 +394,9 @@ func fragmentNode(frag *backend.MicroflowFragment, id model.ID) *node {
 // annotations attached to target are attached to the fragment's entry.
 func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) error {
 	g := m.graph()
+	if n, ok := g.nodes[string(target)]; ok && n.loop != "" {
+		return m.replaceInLoop(g, n, frag)
+	}
 	x, err := g.node(target)
 	if err != nil {
 		return err
@@ -451,6 +455,81 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 	}
 	m.removeFlows(g.bodyFlows(x.id))
 	return m.removeObject(x)
+}
+
+// replaceInLoop replaces an activity inside a loop body by one activity of
+// the same kind, in place (ako/mxcli#1106): the new activity takes the stored
+// one's place in the loop's collection, is drawn where it was at the size it
+// was, and the flows that entered and left it now enter and leave the new one.
+// Nothing else in the loop moves, so no layout is needed — which is why this
+// is the one edit inside a loop body the splice makes. A body node's
+// coordinates are relative to the loop box, so anything that adds, removes or
+// redraws a node there would have to re-lay the body out; that is refused.
+func (m *Mutator) replaceInLoop(g *graph, x *node, frag *backend.MicroflowFragment) error {
+	if frag == nil || len(frag.Objects) != 1 || len(frag.Flows) > 0 || len(frag.AnnotationFlows) > 0 ||
+		frag.ExitCase != nil || frag.Entry != frag.Objects[0].GetID() || frag.Exit != frag.Entry {
+		return fmt.Errorf("%s is inside a loop body, where the splice replaces an activity by one activity "+
+			"only (nothing in the body is added, removed or redrawn); replace the whole loop instead", describeNode(x))
+	}
+	if x.typ != "Microflows$ActionActivity" {
+		return fmt.Errorf("cannot replace %s in place: only an activity can be", describeNode(x))
+	}
+	// The body's last activity ends it, with no flow out.
+	normal, errs := g.outgoing(x.id)
+	if len(errs) > 0 {
+		return fmt.Errorf("cannot replace %s: it has an error handler, which would be left with no activity; "+
+			"replace the whole loop instead", describeNode(x))
+	}
+	if len(normal) > 1 {
+		return fmt.Errorf("cannot replace %s: it has %d outgoing flows, not one", describeNode(x), len(normal))
+	}
+	loop := g.nodes[x.loop]
+	if loop == nil {
+		return fmt.Errorf("%s is in a loop that is not in the flow", describeNode(x))
+	}
+	oc := dDoc(loop.doc, "ObjectCollection")
+	obj := frag.Objects[0]
+	obj.SetPosition(model.Point{X: x.pos.X, Y: x.pos.Y})
+	d, err := m.deps.SerializeObject(obj)
+	if err != nil {
+		return fmt.Errorf("serialize %T: %w", obj, err)
+	}
+	if d == nil {
+		return fmt.Errorf("cannot write a %T into a flow", obj)
+	}
+	if t := dString(d, "$Type"); t != x.typ {
+		return fmt.Errorf("%s is inside a loop body, where the splice replaces an activity by one of the same "+
+			"kind only, not by a %s; replace the whole loop instead", describeNode(x), t)
+	}
+	// Drawn as the stored one is: a Studio Pro activity may have been resized.
+	dSet(d, "RelativeMiddlePoint", x.pos.String())
+	dSet(d, "Size", x.size.String())
+	objs := arrayElements(dGet(oc, "Objects"))
+	found := false
+	for i, el := range objs {
+		if od, ok := el.(bson.D); ok && binaryID(dGet(od, "$ID")) == x.id {
+			objs[i], found = d, true
+			break
+		}
+	}
+	if !found || !setArray(oc, "Objects", objs) {
+		return fmt.Errorf("%s is not in its loop's collection", describeNode(x))
+	}
+	m.markRemoved(x.doc)
+	for _, in := range g.incoming(x.id) {
+		setPointer(in.doc, "DestinationPointer", frag.Entry)
+	}
+	for _, out := range normal {
+		setPointer(out.doc, "OriginPointer", frag.Exit)
+	}
+	for _, af := range g.annotationFlows(x.id) {
+		key := "DestinationPointer"
+		if af.origin == x.id {
+			key = "OriginPointer"
+		}
+		setPointer(af.doc, key, frag.Entry)
+	}
+	return nil
 }
 
 // setCase gives a stored flow the case value cv, in the form the engine
