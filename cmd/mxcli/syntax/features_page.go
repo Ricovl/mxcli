@@ -154,7 +154,12 @@ LIST IMPACT OF htmlelement;
 			"DATEPICKER name (Attribute: Start, DateFormat: DateTime)\n" +
 			"DATEPICKER name (Attribute: Start, DateFormat: Custom, CustomDateFormat: 'dd-MM-yyyy HH:mm')\n" +
 			"-- A text box's numeric formatting:\n" +
-			"TEXTBOX name (Attribute: Amount, DecimalPrecision: 2, GroupDigits: true)\n\n" +
+			"TEXTBOX name (Attribute: Amount, DecimalPrecision: 2, GroupDigits: true)\n" +
+			"-- Submit while typing (TEXTBOX, TEXTAREA): OnEndEditing (default) | WhileEditing,\n" +
+			"-- with the delay in milliseconds (default 300):\n" +
+			"TEXTBOX name (Attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)\n" +
+			"-- A layout grid's width: FullWidth (default) | FixedWidth:\n" +
+			"LAYOUTGRID name (Width: FixedWidth) { ROW { COLUMN (DesktopWidth: 12) { ... } } }\n\n" +
 			"-- Conditional visibility / editability: a bare client expression, stored as\n" +
 			"-- written (name attributes as $currentObject/Attr). A plain value is static.\n" +
 			"TEXTBOX name (Attribute: Attr, Visible: $currentObject/IsActive, Editable: $currentObject/Status != 'Closed')\n" +
