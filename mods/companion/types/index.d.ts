@@ -34,6 +34,7 @@ declare module 'claude-code' {
       source: Source
       treeTop: number
       sourceTop: number
+      welcome: boolean
     }
   }
 }

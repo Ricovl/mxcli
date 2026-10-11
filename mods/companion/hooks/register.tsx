@@ -31,6 +31,9 @@ const source = atom({ plugin: 'mxcli-companion', key: 'source' } as const, { sta
 // The first visible row of each column: they page on their own.
 const treeTop = atom({ plugin: 'mxcli-companion', key: 'treeTop' } as const, 0)
 const sourceTop = atom({ plugin: 'mxcli-companion', key: 'sourceTop' } as const, 0)
+// Whether the band above the prompt offers the Project pane: once per project,
+// until the person opens the pane or says not now.
+const welcome = atom({ plugin: 'mxcli-companion', key: 'welcome' } as const, false)
 
 // project-tree reads the whole model; on a large app that is the slow call.
 const TREE_TIMEOUT_MS = 120_000
@@ -48,6 +51,8 @@ const basename = (path: string) => path.split('/').pop() ?? path
 let mprOption = ''
 let mxcliOption = ''
 let reloadGeneration = 0
+// The store key that remembers a project was welcomed; set at session start.
+let welcomedKey = ''
 // MDL already described since the tree last loaded, by qualified name. A
 // describe re-reads the whole model, seconds on a large app, so going back to a
 // document should not pay it again; a reload (the model changed) clears it.
@@ -190,11 +195,24 @@ const background = (work: Promise<unknown>) => {
   work.catch(() => undefined)
 }
 
+// The store outlives sessions and spans projects, so the key names the project.
+const startWelcome = async ($: Engine, cwd: string) => {
+  welcomedKey = `welcomed:${cwd}`
+  if ((await $.store.get(welcomedKey)) !== true) await update($, welcome, () => true)
+}
+
+const retireWelcome = async ($: Engine) => {
+  if (!(await read($, welcome))) return
+  await update($, welcome, () => false)
+  if (welcomedKey !== '') await $.store.set(welcomedKey, true)
+}
+
 // open seats the pane and starts loading; it answers what the person should
 // read, which is not always "opened": a session whose attached surfaces place
 // no panes (an older desktop, some remote surfaces) keeps it waiting undrawn.
 const open = async ($: Engine): Promise<string> => {
   const opened = await $.ui.open({ id: PANE, title: 'Project' })
+  await retireWelcome($)
   const current = await read($, project)
   if (current.state === 'unlocated' || current.state === 'none' || current.state === 'failed') {
     background(load($, current.state === 'failed' ? current.mpr : undefined))
@@ -210,7 +228,25 @@ export const register: Register = (on, options) => {
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'mxcli-project', description: 'Show the Mendix project structure and MDL source in a pane' })
+    background(startWelcome($, e.cwd))
     return next(e)
+  })
+
+  // The first session after `mxcli init` installed the companion: say it is
+  // here and offer the pane. A band, not a pane, because a band needs no room
+  // and shows unasked at any width.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey || !(await read($, welcome))) return next(e)
+    const { Box, Text, Button } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="row" gap={1} flexWrap="wrap">
+        <Text>
+          <Text bold>mxcli companion</Text> is installed: the Project pane shows this app's structure and MDL.
+        </Text>
+        <Button key="welcome-open" variant="primary" label="Open Project pane" onPress={() => void open($)} />
+        <Button key="welcome-dismiss" role="dismiss" label="Not now" onPress={() => void retireWelcome($)} />
+      </Box>
+    )
   })
 
   on('command.run', { command: 'mxcli-project' }, async $ => ({ text: await open($) }))
