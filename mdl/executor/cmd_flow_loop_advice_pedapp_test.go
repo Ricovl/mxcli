@@ -11,7 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
-// A change inside a loop body is refused by both editing modes: `create or
+// A change of a loop body's shape is refused by both editing modes: `create or
 // modify` under mdl 1 (the splice does not edit inside a loop) and `alter`
 // (the mutator does not splice inside a loop). Each refusal used to send the
 // reader to the other — create or modify said "change activities with alter",
@@ -86,7 +86,9 @@ func TestFlowLoopRefusals_PointAtReplaceLoop(t *testing.T) {
 
 	t.Run("create or modify names alter replace loop", func(t *testing.T) {
 		src := strings.Replace(loopAdviceFlow, "create microflow", "create or modify microflow", 1)
-		src = strings.Replace(src, "commit $It;", "commit $It without events;", 1)
+		// An insert inside the body: a change of the body's shape, which
+		// needs a layout (an in-place edit is spliced, ako/mxcli#1106).
+		src = strings.Replace(src, "commit $It;", "commit $It;\n    log info node 'X' 'committed';", 1)
 		// check predicts exec's refusal, with the same advice.
 		checkSays(t, exec, src, loopAdviceReplace)
 		err := agreeExec(t, exec, src)
@@ -109,7 +111,8 @@ func TestFlowLoopRefusals_PointAtReplaceLoop(t *testing.T) {
 
 	t.Run("alter of an activity in the loop names replace loop, not scope", func(t *testing.T) {
 		for _, op := range []string{
-			"replace commit $It with begin commit $It without events; end;",
+			// Replaced by two activities: the body changes shape.
+			"replace commit $It with begin commit $It; log info node 'X' 'committed'; end;",
 			"insert after commit $It begin log info node 'X' 'committed'; end;",
 			"drop commit $It;",
 		} {
@@ -165,6 +168,25 @@ end;`); err != nil {
 			"  insert after log node 'X' 'start' begin commit $Nope; end;\n};")
 		if err == nil || !strings.Contains(err.Error(), "not declared on the path") {
 			t.Fatalf("want the scope refusal, got %v", err)
+		}
+	})
+
+	// One activity replaced by one of the same kind is made in place, with
+	// the loop's iterator in scope (ako/mxcli#1106); run last but one, as it
+	// writes.
+	t.Run("alter replaces one activity in the loop in place", func(t *testing.T) {
+		err := agreeExec(t, exec, "mdl 1;\nalter microflow MyFirstModule.LoopAdvice {\n"+
+			"  replace commit $It with begin commit $It without events; end;\n};")
+		if err != nil {
+			t.Fatalf("an in-place replace inside the loop: %v", err)
+		}
+		var buf bytes.Buffer
+		exec.output = &buf
+		if err := afRun(t, exec, "describe microflow MyFirstModule.LoopAdvice;"); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(buf.String(), "commit $It without events;") {
+			t.Errorf("the alter did not write the change:\n%s", buf.String())
 		}
 	})
 

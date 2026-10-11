@@ -11,21 +11,21 @@ description: "Nanoflow syntax in MDL — shared with microflows, but client-side
 | lines | section |
 |---|---|
 | 35-44 | When to Use This Skill |
-| 45-77 | Changing an Existing Nanoflow |
-| 78-96 | When to Use a Nanoflow vs a Microflow |
-| 97-111 | Key Differences from Microflows |
-| 112-135 | Nanoflow Structure |
-| 136-144 | Naming Convention |
-| 145-213 | Supported Activities |
-| 214-480 | Real-World Patterns |
-| 481-551 | NanoflowCommons JavaScript Actions Reference |
-| 552-590 | Disallowed Activities |
-| 591-594 | Return Type Restrictions |
-| 595-638 | Error Handling in Nanoflows |
-| 639-646 | Security (GRANT/REVOKE) |
-| 647-659 | Management Commands |
-| 660-670 | Common Mistakes |
-| 671-685 | Validation Checklist |
+| 45-78 | Changing an Existing Nanoflow |
+| 79-97 | When to Use a Nanoflow vs a Microflow |
+| 98-112 | Key Differences from Microflows |
+| 113-136 | Nanoflow Structure |
+| 137-145 | Naming Convention |
+| 146-214 | Supported Activities |
+| 215-481 | Real-World Patterns |
+| 482-552 | NanoflowCommons JavaScript Actions Reference |
+| 553-591 | Disallowed Activities |
+| 592-595 | Return Type Restrictions |
+| 596-639 | Error Handling in Nanoflows |
+| 640-647 | Security (GRANT/REVOKE) |
+| 648-660 | Management Commands |
+| 661-671 | Common Mistakes |
+| 672-686 | Validation Checklist |
 
 <!-- /skill-index -->
 # Mendix Nanoflow Skill
@@ -68,12 +68,13 @@ Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode
   the same script or REPL session; a drop in one run and a create in the next loses every
   `grant execute`. `drop` prints the roles it removed and the `grant` to restore them.
 - **Changing something inside a loop body** (either owner)
-: neither `create or modify`
-  (under `mdl 1;`) nor an `alter` aimed at an activity in the loop can make it — `alter`
-  does not splice inside a loop. Replace the **whole loop**, addressed by its handle, with
-  the body as it should be (`replace loop $Item in $Items with begin loop $Item in $Items
-  begin … end loop; end;`). Everything outside the loop keeps its `$ID`s, positions and
-  curves; the loop and its body are rebuilt. For a nested loop, replace the outer one.
+: an activity replaced by one of the same kind (new values, same statements in the same
+  order) is spliced in place by both `create or modify` and `alter`. Anything else — a
+  statement added, removed, reordered or moved — neither can make: replace the **whole
+  loop**, addressed by its handle, with the body as it should be (`replace loop $Item in
+  $Items with begin loop $Item in $Items begin … end loop; end;`). Everything outside the
+  loop keeps its `$ID`s, positions and curves; the loop and its body are rebuilt. For a
+  nested loop, replace the outer one.
 
 ## When to Use a Nanoflow vs a Microflow
 

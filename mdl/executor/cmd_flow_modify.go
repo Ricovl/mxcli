@@ -842,7 +842,7 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 			return pd.statements(d.ElseBody, s.ElseBody)
 		}
 		if sameLoopShell(ins[0], del[0]) {
-			return pd.loopBodyChanged(del[0])
+			return pd.loopBody(ins[0], del[0])
 		}
 		if sameIgnoringLayout(ins[0], del[0]) {
 			return redrawn(del[0])
@@ -1021,9 +1021,9 @@ func (pd *patchDiff) conditionEdit(declared, stored *ast.IfStmt) error {
 // diffed branch by branch, rather than left to merge with the changes around
 // it into one run: a change before a guard and one inside its then-branch were
 // one replace whose fragment held the guard's return, which the splice cannot
-// insert (#859). Loops are not paired this way: a change inside a loop is
-// refused either way, and pairing one would turn a replace that spans it into
-// that refusal.
+// insert (#859). A loop is paired this way only when its body can be edited in
+// place (editableLoopBody, ako/mxcli#1106); any other change inside a loop is
+// refused either way.
 //
 // An `if` whose condition changes is paired the same way (ako/mxcli#888): the
 // condition is set on the stored decision, and a change around it must not
@@ -1059,6 +1059,151 @@ func sameLoopShell(declared, stored ast.MicroflowStatement) bool {
 		return sameIgnoringLayout(&dShell, &sShell)
 	}
 	return false
+}
+
+// loopBody diffs a stored loop declared again with a change inside its body
+// (ako/mxcli#1106). A body of the same shape — the same statements in the same
+// order, each as stored or the same kind of activity with new values, drawn
+// and annotated as stored — is spliced: each changed activity is replaced in
+// place, inside the loop, and needs no layout. Anything else would add,
+// remove, move or redraw a node whose coordinates are relative to the loop
+// box, and is refused (loopBodyChanged), naming the top-level loop.
+func (pd *patchDiff) loopBody(declared, stored ast.MicroflowStatement) error {
+	if !editableLoopBody(declared, stored) {
+		return pd.loopBodyChanged(stored)
+	}
+	c, err := pd.loc.locate(stored)
+	if err != nil {
+		return err
+	}
+	loop, ok := c.Object.(*microflows.LoopedActivity)
+	if !ok {
+		return cannotSplice("the stored %s is not drawn as a loop", describeAt(stored))
+	}
+	if err := pd.movedNode(declared, stored); err != nil {
+		return err
+	}
+	return pd.inLoopBody(loop, loopStatements(declared), loopStatements(stored))
+}
+
+// inLoopBody adds the in-place replaces of one loop body, already shown to be
+// of the same shape (editableLoopBody), recursing into a nested loop.
+func (pd *patchDiff) inLoopBody(loop *microflows.LoopedActivity, declared, stored []ast.MicroflowStatement) error {
+	loc := pd.loc.within(loop)
+	for i := range declared {
+		d, s := declared[i], stored[i]
+		if declaredMatches(d, s) {
+			continue
+		}
+		if sameLoopShell(d, s) {
+			c, err := loc.locate(s)
+			if err != nil {
+				return err
+			}
+			inner, ok := c.Object.(*microflows.LoopedActivity)
+			if !ok {
+				return cannotSplice("the stored %s is not drawn as a loop", describeAt(s))
+			}
+			if err := pd.inLoopBody(inner, loopStatements(d), loopStatements(s)); err != nil {
+				return err
+			}
+			continue
+		}
+		c, err := loc.locate(s)
+		if err != nil {
+			return err
+		}
+		// The stored notes stay on the replacement (editableLoopBody showed
+		// the declared ones are the same), so the builder does not draw them.
+		body, _, err := keepStoredNotes(s, []ast.MicroflowStatement{d})
+		if err != nil {
+			return err
+		}
+		pd.add(ast.AlterFlowReplace, c, body)
+	}
+	return nil
+}
+
+// editableLoopBody reports whether the declared loop differs from the stored
+// one only by activities that can be replaced in place: the same number of
+// statements, each matching its stored one, or a nested loop of which the
+// same holds, or the same kind of plain activity — not a decision, a return,
+// a break or continue, nor one with a custom error handler — whose
+// annotations (where it is drawn, its connectors, caption, colour and notes)
+// state nothing the stored one does not have.
+func editableLoopBody(declared, stored ast.MicroflowStatement) bool {
+	if !sameLoopShell(declared, stored) {
+		return false
+	}
+	dBody, sBody := loopStatements(declared), loopStatements(stored)
+	if len(dBody) != len(sBody) {
+		return false
+	}
+	for i := range dBody {
+		d, s := dBody[i], sBody[i]
+		if declaredMatches(d, s) {
+			continue
+		}
+		if sameLoopShell(d, s) {
+			if !editableLoopBody(d, s) {
+				return false
+			}
+			continue
+		}
+		if !replaceableInPlace(d, s) {
+			return false
+		}
+	}
+	return true
+}
+
+func replaceableInPlace(declared, stored ast.MicroflowStatement) bool {
+	if statementKind(declared) != statementKind(stored) || sameExceptPositions(declared, stored) {
+		return false
+	}
+	switch declared.(type) {
+	case *ast.IfStmt, *ast.ReturnStmt, *ast.LoopStmt, *ast.WhileStmt, *ast.BreakStmt, *ast.ContinueStmt:
+		return false
+	}
+	if customErrorHandler(declared) || customErrorHandler(stored) {
+		return false
+	}
+	if da := statementAnnotations(declared); da != nil {
+		sa := statementAnnotations(stored)
+		if sa == nil {
+			sa = &ast.ActivityAnnotations{}
+		}
+		if !declaredMatches(da, sa) {
+			return false
+		}
+	}
+	return true
+}
+
+// customErrorHandler reports whether a statement has an `on error` with a
+// body: a handler path of its own, drawn in the body beside it.
+func customErrorHandler(st ast.MicroflowStatement) bool {
+	v := reflectElem(st)
+	if !v.IsValid() {
+		return false
+	}
+	f := v.FieldByName("ErrorHandling")
+	if !f.IsValid() {
+		return false
+	}
+	eh, _ := f.Interface().(*ast.ErrorHandlingClause)
+	return eh != nil && len(eh.Body) > 0
+}
+
+// loopStatements is the body of a loop or while statement.
+func loopStatements(st ast.MicroflowStatement) []ast.MicroflowStatement {
+	switch l := st.(type) {
+	case *ast.LoopStmt:
+		return l.Body
+	case *ast.WhileStmt:
+		return l.Body
+	}
+	return nil
 }
 
 // loopBodyChanged refuses a change inside the body of the stored loop. The
@@ -1212,6 +1357,10 @@ func lcsStatements(declared, stored []ast.MicroflowStatement) [][2]int {
 				w[i][j] = 1
 			case sameBlockShell(declared[i], stored[j]):
 				w[i][j] = 1
+			case editableLoopBody(declared[i], stored[j]):
+				// A loop edited in place inside is that loop: a change beside
+				// it must not merge with it into a replace (ako/mxcli#1106).
+				w[i][j] = 1
 			}
 		}
 	}
@@ -1251,15 +1400,29 @@ func lcsStatements(declared, stored []ast.MicroflowStatement) [][2]int {
 // flow drawn so that nodes do not sit on top of each other.
 type storedLocator struct {
 	byPos map[model.Point][]mfmutator.Candidate
+	cands []mfmutator.Candidate
 }
 
 func newStoredLocator(a *alterFlowContext) *storedLocator {
+	return locatorOver(a.cands, a.mf.ObjectCollection)
+}
+
+// within is the locator of a stored loop's body: describe prints a body
+// statement's @position relative to the loop box, unique among the body's
+// own objects but not across the flow.
+func (l *storedLocator) within(loop *microflows.LoopedActivity) *storedLocator {
+	return locatorOver(l.cands, loop.ObjectCollection)
+}
+
+func locatorOver(cands []mfmutator.Candidate, oc *microflows.MicroflowObjectCollection) *storedLocator {
 	top := map[model.ID]bool{}
-	for _, obj := range a.mf.ObjectCollection.Objects {
-		top[obj.GetID()] = true
+	if oc != nil {
+		for _, obj := range oc.Objects {
+			top[obj.GetID()] = true
+		}
 	}
-	loc := &storedLocator{byPos: map[model.Point][]mfmutator.Candidate{}}
-	for _, c := range a.cands {
+	loc := &storedLocator{byPos: map[model.Point][]mfmutator.Candidate{}, cands: cands}
+	for _, c := range cands {
 		if top[c.ID] && c.Object != nil {
 			p := c.Object.GetPosition()
 			loc.byPos[p] = append(loc.byPos[p], c)
