@@ -294,11 +294,13 @@ func TestFlowModify_UnspliceableChange(t *testing.T) {
 	}
 }
 
-// A change inside a loop body is not a splice: the engine does not edit
-// inside a loop, and replacing the whole loop would renumber and redraw every
-// node it holds — the rebuild's loss, confined to the loop but just as silent.
-// So under mdl 1 it is refused, and under mdl 0 it takes the warned rebuild.
-// Control: a change after the loop in the same flow is spliced.
+// A change of a loop body's shape is not a splice: a body node's coordinates
+// are relative to the loop box, and replacing the whole loop would renumber and
+// redraw every node it holds — the rebuild's loss, confined to the loop but
+// just as silent. So under mdl 1 it is refused, and under mdl 0 it takes the
+// warned rebuild. A value edit of a body activity is spliced in place
+// (ako/mxcli#1106), here beside an `if` in the body. Control: a change after
+// the loop in the same flow is spliced.
 func TestFlowModify_LoopBodyChangeIsNotSpliced(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
@@ -325,9 +327,21 @@ end;`
 	}
 	const target = "microflow MyFirstModule.LoopFlow"
 	described := h.mustDescribeMdl0(t, target)
-	inLoop := strings.Replace(described, "'in loop'", "'in the loop'", 1)
-	if inLoop == described {
+	edited := strings.Replace(described, "'in loop'", "'in the loop'", 1)
+	if edited == described {
 		t.Fatalf("describe output has no 'in loop':\n%s", described)
+	}
+	if err := h.exec("mdl 1;\n" + edited); err != nil {
+		t.Fatalf("a value edit in the loop body under mdl 1: %v", err)
+	}
+	if !strings.Contains(h.out.String(), "(spliced: 1 replaced)") {
+		t.Errorf("a value edit in the loop body: want a splice, got:\n%s", h.out.String())
+	}
+	described = h.mustDescribeMdl0(t, target)
+	inLoop := strings.Replace(described, "log node 'X' 'in the loop';",
+		"log node 'X' 'in the loop';\n    log node 'X' 'grown';", 1)
+	if inLoop == described {
+		t.Fatalf("describe output has no 'in the loop':\n%s", described)
 	}
 	before := h.flowUnit(t, "LoopFlow")
 
@@ -345,7 +359,7 @@ end;`
 	if !strings.Contains(h.out.String(), "Warning [MDL-V1-REBUILD]") {
 		t.Errorf("under mdl 0 want the MDL-V1-REBUILD warning, got:\n%s", h.out.String())
 	}
-	if !strings.Contains(h.mustDescribeMdl0(t, target), "'in the loop'") {
+	if !strings.Contains(h.mustDescribeMdl0(t, target), "'grown'") {
 		t.Error("under mdl 0 the rebuild did not write the change")
 	}
 
