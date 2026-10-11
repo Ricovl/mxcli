@@ -173,12 +173,25 @@ const press = async ($: Engine, id: string) => {
   }
 }
 
-const open = async ($: Engine) => {
-  await $.ui.open({ id: PANE, title: 'Project' })
+// background runs work nobody awaits. Its failures have nowhere to go (the
+// pane shows load errors itself), and one landing after an unload must not
+// surface as an unhandled rejection.
+const background = (work: Promise<unknown>) => {
+  work.catch(() => undefined)
+}
+
+// open seats the pane and starts loading; it answers what the person should
+// read, which is not always "opened": a session whose attached surfaces place
+// no panes (an older desktop, some remote surfaces) keeps it waiting undrawn.
+const open = async ($: Engine): Promise<string> => {
+  const opened = await $.ui.open({ id: PANE, title: 'Project' })
   const current = await read($, project)
   if (current.state === 'unlocated' || current.state === 'none' || current.state === 'failed') {
-    void load($, current.state === 'failed' ? current.mpr : undefined)
+    background(load($, current.state === 'failed' ? current.mpr : undefined))
   }
+  return opened.isPlaced
+    ? 'Project pane opened.'
+    : `The Project pane is open but not shown here: ${opened.reason}`
 }
 
 export const register: Register = (on, options) => {
@@ -190,26 +203,23 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('command.run', { command: 'mxcli-project' }, async $ => {
-    await open($)
-    return { text: 'Project pane opened.' }
-  })
+  on('command.run', { command: 'mxcli-project' }, async $ => ({ text: await open($) }))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const ran = await next(e)
-    if (changesModel(e.command)) void scheduleReload($)
+    if (changesModel(e.command)) background(scheduleReload($))
     return ran
   }).catch(($, e, next) => next(e)) // an observer: its failure must never cost the call
 
   on('tool.call', { tool: 'Edit' }, async ($, e, next) => {
     const ran = await next(e)
-    if (touchesProjectFile(e.file_path)) void scheduleReload($)
+    if (touchesProjectFile(e.file_path)) background(scheduleReload($))
     return ran
   }).catch(($, e, next) => next(e)) // an observer: its failure must never cost the call
 
   on('tool.call', { tool: 'Write' }, async ($, e, next) => {
     const ran = await next(e)
-    if (touchesProjectFile(e.file_path)) void scheduleReload($)
+    if (touchesProjectFile(e.file_path)) background(scheduleReload($))
     return ran
   }).catch(($, e, next) => next(e)) // an observer: its failure must never cost the call
 

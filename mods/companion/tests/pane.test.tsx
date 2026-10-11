@@ -26,12 +26,14 @@ const PANE_PROPS = {
 
 // The world beneath the mod: one app here, and an mxcli that answers
 // project-tree and describe. `calls` records every argv it was run with.
-const world = (on: On, opts: { describeFails?: boolean } = {}) => {
+const world = (on: On, opts: { describeFails?: boolean; notPlaced?: string } = {}) => {
   const calls: string[][] = []
   const clock = mock.clock(on)
   on('fs.exists', () => ({ value: false }))
   on('fs.list', () => ({ value: [{ name: 'App.mpr', kind: 'file', size: 1, mtimeMs: 0, isLink: false }] }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', () => ({
+    value: opts.notPlaced === undefined ? { isPlaced: true } : { isPlaced: false, reason: opts.notPlaced },
+  }))
   on('command.register', () => ({ value: { command: 'mxcli-project' } }))
   on('process.run', (_$, e) => ({ value: answer([...e.argv]) }))
   const answer = (argv: string[]) => {
@@ -143,4 +145,11 @@ test('going back to a document reuses its MDL until the model changes', async ($
   await clock.advance(5_000)
   expect(describes()).toBe(2)
   await ui.unmount()
+})
+
+test('says why when the surface does not show the pane', async ($, on) => {
+  const { clock } = world(on, { notPlaced: 'the attached desktop places no panes' })
+  const answer = await $.command.run(RUN)
+  await clock.settle()
+  expect(JSON.stringify(answer)).toContain('not shown here: the attached desktop places no panes')
 })
