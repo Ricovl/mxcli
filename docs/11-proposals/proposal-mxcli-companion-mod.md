@@ -97,11 +97,11 @@ views, which the slices in §5 build one at a time:
    which are tested but not built.
 5. **Inbox** — records an extractor proposed from the conversation
    (requirements, test intents, tasks, issues, open questions), waiting for the
-   user to accept, edit or drop them (§5.7).
+   user to accept, edit or drop them (§5.8).
 6. **Journeys** — user journeys held in the brain, drawn as journey maps
    (persona → screens → logic → data → external per step) whose cards link to
    the documents they name. They serve as a map of the app. The same data can be
-   exported as a sketch-deck for documentation (§5.6).
+   exported as a sketch-deck for documentation (§5.7).
 
 ## 4. Principles
 
@@ -148,17 +148,27 @@ proves.
 | # | Slice | New mxcli capability | Depends on |
 |---|---|---|---|
 | 1 | Project tree + MDL source, shipped by `init` | none (one small fix: describe keywords) | — |
-| 2 | Start band + workflow launcher | workflow frontmatter on skills, `mxcli workflow list --json`, new user workflow skills | 1 (delivery) |
-| 3 | Brain as the documentation store + Brain view | new brain document kinds and links (§6) | 1 |
-| 4 | Test ↔ spec traceability + Verification view | `@requirement` on tests, JSON results file, coverage in `brain check` | 3 |
-| 5 | Diagrams in the Project view | `describe --format svg` for microflows, nanoflows, domain models | 1 |
-| 6 | Journeys + sketch-deck export | journey documents in the brain, `mxcli journey …` | 3, 5 (renderer) |
-| 7 | Conversation → structure: an extractor that turns the conversation into staged brain records | provenance on `brain capture`, new record kinds (test intent, task, issue) | 3, 4 |
+| 2 | A long-lived mxcli the mod talks to: requests over a Unix socket, change events on stdout | `mxcli serve --socket`, a shared file watcher | 1 |
+| 3 | Start band + workflow launcher | workflow frontmatter on skills, `mxcli workflow list --json`, new user workflow skills | 1 (delivery) |
+| 4 | Brain as the documentation store + Brain view | new brain document kinds and links (§6) | 1 |
+| 5 | Test ↔ spec traceability + Verification view | `@requirement` on tests, JSON results file, coverage in `brain check` | 4 |
+| 6 | Diagrams in the Project view | `describe --format svg` for microflows, nanoflows, domain models | 1 |
+| 7 | Journeys + sketch-deck export | journey documents in the brain, `mxcli journey …` | 4, 6 (renderer) |
+| 8 | Conversation → structure: an extractor that turns the conversation into staged brain records | provenance on `brain capture`, new record kinds (test intent, task, issue) | 4, 5 |
 
 Slice 1 is specified in §7. The rest are sketched below with what is known and
 what each needs to decide.
 
-### 5.2 Start band and workflows
+### 5.2 A long-lived mxcli
+
+Specified in its own proposal: [proposal-mxcli-companion-serve.md](proposal-mxcli-companion-serve.md).
+Measured on Evora, a click costs about a second as its own process and under
+0.2 s inside a warm one, and slice 1 can only guess at changes from tool calls.
+The mod cannot write to a spawned child's stdin after the first text, so the
+server answers HTTP on a Unix socket (`$.http.fetch` takes a `socketPath`) and
+reports changes on stdout. It answers umbrella open questions 3 and 4.
+
+### 5.3 Start band and workflows
 
 **Where workflows live:** as skills in `.claude/skills/mendix/`, shipped by
 `init` like every other skill, so one file is both the agent's procedure and the
@@ -185,14 +195,14 @@ and are not shipped. Writing those skills is the bulk of this slice.
 **Greeting:** a fresh project (no `docs/brain/`, or an empty model) shows the
 Start band on `session.start`. It replaces pasting the empty-repo seed prompt.
 
-### 5.3 Brain as the documentation store
+### 5.4 Brain as the documentation store
 
 Specified in §6, because it amends an existing proposal. The Brain view is a
 per-slice board across stages (intent → spec → plan → built → tested →
 reviewed), read from `brain plan --json` / `brain show --json`, with each
 anchor linking into the Project view.
 
-### 5.4 Test ↔ spec traceability
+### 5.5 Test ↔ spec traceability
 
 - **Link:** a `@requirement <id>` annotation in the `.test.mdl` javadoc block
   (`testrunner/parser.go`), and the same in a header comment of
@@ -212,7 +222,7 @@ anchor linking into the Project view.
 - **Refresh:** a `tool.call` hook that sees the agent run `mxcli test` or
   `playwright verify` reloads the view when the call returns.
 
-### 5.5 Diagrams (`describe --format svg`)
+### 5.6 Diagrams (`describe --format svg`)
 
 The mod cannot run elkjs or mermaid (no DOM), so the SVG must come finished from
 mxcli. For **microflows, nanoflows and domain models** the model stores canvas
@@ -223,7 +233,7 @@ work. The 131,072-character cap means compact output (no per-element styles, sho
 paths). VS Code, the TUI and `mxcli serve` could use the same renderer and drop
 their CDN dependency, which is why this is its own slice and not mod code.
 
-### 5.6 Journeys and sketch-deck export
+### 5.7 Journeys and sketch-deck export
 
 **Journeys are brain documents** (P2): a persona (a user role), steps, and per
 step the cards in each layer, each card carrying a label, a note, a status
@@ -253,7 +263,7 @@ Whether export is an mxcli command or the sketch-deck skill reading
 `mxcli journey show --json` is for the slice proposal; P1 says either way the
 data comes from mxcli.
 
-### 5.7 Conversation → structure
+### 5.8 Conversation → structure
 
 Requirements, tests, tasks and issues are mostly *said* before they are written
 down: "inspectors log a defect on a tablet", "from severity 2 up, after
@@ -300,15 +310,15 @@ Against the brain:
 | Picture | Brain | Status |
 |---|---|---|
 | Phase | slice | exists |
-| Feature | spec (a document, §6) | slice 3 |
+| Feature | spec (a document, §6) | slice 4 |
 | REQ | requirement entry | exists |
 | Open question (implied: "should a defect create a work order?") | open question | exists |
-| TEST | **test intent**: a planned test naming a requirement; satisfied when a real test carries `@requirement` for it (§5.4) | new |
+| TEST | **test intent**: a planned test naming a requirement; satisfied when a real test carries `@requirement` for it (§5.5) | new |
 | TASK / TODO | **task**: work that is not a requirement (check an integration, sketch a form) | new — a brain record, synced out (§6.1) |
 | ISSUE | **issue**: a known defect or risk, anchored to what it affects | new — a brain record, synced out (§6.1) |
 
 A test intent is the useful new kind: it is a TEST card before any test file
-exists, and §5.4's coverage check turns it into "tested" once a test names the
+exists, and §5.5's coverage check turns it into "tested" once a test names the
 requirement — derived, not ticked (P4).
 
 **Risks the slice proposal must answer:** cost per turn (measure fork cost on a
@@ -319,7 +329,7 @@ checkable against its source turn, and the eval framework can score extraction
 against a scripted conversation); and whether extraction also runs on a
 **pasted** source — a PRD, meeting notes — which is the same extraction over a
 document instead of the transcript, and the natural first step of the *New app
-from a PRD* workflow (§5.2).
+from a PRD* workflow (§5.3).
 
 ## 6. Amendment to the project brain
 
@@ -353,11 +363,11 @@ existing **entries**:
 
 Requirements stay entries, and a spec **contains** them: the spec document is the
 prose and reasoning, its requirements are the checkable, anchored lines that
-`brain plan` counts and that tests name (§5.4). That keeps the existing
+`brain plan` counts and that tests name (§5.5). That keeps the existing
 "built = anchors resolve" mechanism intact and gives tests something small and
 stable to point at.
 
-**Open for the slice-3 proposal:** whether documents go through `capture` /
+**Open for the slice-4 proposal:** whether documents go through `capture` /
 `promote` (human promotion was deliberate for entries; a 3-page spec written in a
 workflow may need a different gate), how a review links to the spec and change
 it reviews, and whether a PRD and an intent are one kind or two.
@@ -410,7 +420,7 @@ not moving them leaves those kinds out of cross-repo queries.
 ```
 
 `status` is the P4 exception, written here only. `source` is the provenance from
-§5.7. `external` is set by sync and never by hand. The schema is a contract
+§5.8. `external` is set by sync and never by hand. The schema is a contract
 checked by `brain check` (and a `make`-style check in mxcli's own CI), with
 `schema_version` so a cross-repo query survives projects on different mxcli
 versions.
@@ -576,11 +586,11 @@ measurement that settles it.
 2. **MDL highlighting.** Contribute an MDL grammar to the `Code` element (the API
    allows plugin-contributed grammars), or draw as SQL? The VS Code extension has
    a TextMate grammar that may be reusable.
-3. **When does a long-lived mxcli process become necessary** — slice 2, or only if
+3. **When does a long-lived mxcli process become necessary** *(answered: slice 2, §5.2)* — slice 2, or only if
    hypothesis 2 fails? Candidates: a `serve --stdio` JSON-RPC mode, custom requests
    on `mxcli lsp`, or a headless TUI agent socket. Any of them would serve VS Code
    too.
-4. **Changes from outside the session** (Studio Pro open alongside): add a watcher
+4. **Changes from outside the session** *(answered: slice 2's watcher, §5.2)* (Studio Pro open alongside): add a watcher
    (a streaming `mxcli watch` the mod spawns) or keep the Refresh button?
 5. **Settings merge in `init`.** `init` overwrites `.claude/settings.json`. If any
    slice needs a setting (e.g. `enabledPlugins` to let users turn the companion
