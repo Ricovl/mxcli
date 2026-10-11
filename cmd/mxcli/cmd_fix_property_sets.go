@@ -38,8 +38,11 @@ version: missing keys are added with the value Mendix gives an absent one, and
 empty keys the version does not declare yet are dropped. A unit written by an
 older mxcli and never rewritten since keeps its gaps. This command applies the
 same normalization to every stored unit, and writes the units whose property
-names change. It adds and removes keys only: no element $ID and no GUID is
-added or changed. A second run writes nothing.
+names change. It adds and removes keys only: no element $ID moves and no
+existing GUID changes. The one GUID it adds is on a project user role that has
+none (older mxcli wrote them without): the role's own $ID, the value a role
+mxcli creates gets — without it the build invents a random GUID each time and
+the runtime can only find the role's row by name. A second run writes nothing.
 
 A unit holding a value in a key the project's version does not declare is
 reported and left alone — dropping the value would change the model. Like every

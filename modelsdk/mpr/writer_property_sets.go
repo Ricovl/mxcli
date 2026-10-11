@@ -146,7 +146,9 @@ func normalizePropertySetsFor(pv *version.ProjectVersion, unitID string, content
 	if err != nil {
 		return nil, fmt.Errorf("unit %s: %w", unitID, err)
 	}
-	return canon.CompletePropertySets(stripped, &v), nil
+	// A GUID-less user role gets its $ID as GUID — absent only, never changed
+	// (canon.FillMissingUserRoleGUIDs). Not a table row: the value is per role.
+	return canon.FillMissingUserRoleGUIDs(canon.CompletePropertySets(stripped, &v)), nil
 }
 
 // elementKeySets maps every document node in raw, by its containment path, to

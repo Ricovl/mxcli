@@ -58,8 +58,18 @@ mxcli fix property-sets -p app.mpr             # write them
 
 Each unit's report counts the keys added (with the value Mendix gives an absent
 one) and the empty keys stripped (properties the project's version does not
-declare yet). Nothing else changes: no element `$ID` moves, and no existing
-`GUID` is touched. A second run writes nothing. A unit holding a *value* in a
+declare yet). A project user role with no `GUID` — older mxcli wrote them
+without one — gets its own `$ID` as its GUID, the value a role mxcli creates
+now gets; every mxcli write of the security settings does the same. Without
+it the build invents a random GUID each time, so the runtime can only match
+the role's database row by name. A role that already has a GUID keeps it.
+Nothing else changes: no element `$ID` moves, and no existing `GUID` is
+touched. A second run writes nothing.
+
+The filled GUID protects a later **rename** of the role only in a database
+first synchronised after the fill. A database synchronised before it keeps
+the old random GUID and still finds the role by name, so renaming the role
+there still deletes its row and the user assignments that are not demo users. A unit holding a *value* in a
 key its version does not declare is reported and left alone, and, like every
 mxcli write, the command is refused while Studio Pro has the project open.
 
