@@ -160,6 +160,16 @@ func (e *Encoder) buildDoc(elem element.Element) (bson.D, error) {
 		for _, prop := range elem.Properties() {
 			idx := findRebuild(bytesOf(prop.Name()))
 			if idx < 0 {
+				// An untouched PartList is empty on a new element. One Studio
+				// Pro always writes is emitted as its bare marker, in place.
+				if clp, isList := prop.(element.ChildListProperty); isList &&
+					len(clp.ChildElements()) == 0 &&
+					isMandatoryPropertyList(elem.TypeName(), prop.Name()) &&
+					!e.omits(elem.TypeName(), prop.Name()) {
+					m, _ := lookupPropertyListMarker(elem.TypeName(), prop.Name())
+					doc = append(doc, bson.E{Key: prop.Name(), Value: bson.A{m}})
+					emitted[prop.Name()] = true
+				}
 				continue
 			}
 			val, err := e.encodeEntry(elem.TypeName(), rebuild[idx])
