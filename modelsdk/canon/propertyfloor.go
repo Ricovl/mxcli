@@ -109,6 +109,18 @@ func (s *stripper) doc(d *bson.D) bool {
 	}
 	out := (*d)[:0]
 	for _, e := range *d {
+		// A key Mendix removed at or before this version: Studio Pro discards
+		// it on load whatever it holds, so dropping it loses nothing and
+		// removes a name the merge engine does not have (#1097: an older
+		// writer's CloseFormAction.NumberOfPages, removed in 8.11). Measured
+		// rows only: the generated data's Deleted versions are wrong for keys
+		// Studio Pro still writes (it marks LayoutGridRow.Columns deleted in
+		// 8.0), and trusting it stripped ~297k live keys from a Studio
+		// Pro-authored 11.13 project.
+		if gone, ok := measuredRemoved()[typeName+"."+e.Key]; ok && s.pv.Compare(gone) >= 0 {
+			changed = true
+			continue
+		}
 		since, ok := propertyFloor(typeName, e.Key)
 		if !ok || s.pv.Compare(since) >= 0 {
 			out = append(out, e)
@@ -234,6 +246,51 @@ func parsePropertyFloors(data []byte) (map[string]version.Version, error) {
 		}
 		if a := version.Parse(e.Absent); !a.IsZero() && a.Compare(v) >= 0 {
 			return nil, fmt.Errorf("property floors: %s.%s absent on %s, not before its floor %s", e.Type, e.Key, e.Absent, e.Since)
+		}
+		m[e.Type+"."+e.Key] = v
+	}
+	return m, nil
+}
+
+//go:embed studiopro_property_removed.json
+var propertyRemovedJSON []byte
+
+var (
+	propertyRemovedOnce sync.Once
+	propertyRemovedMap  map[string]version.Version
+)
+
+// propertyRemovedEntry is one measured removal: a key Mendix declared once and
+// removed in Since, which `mx convert` on Seen (or later) strips.
+type propertyRemovedEntry struct {
+	Type  string `json:"type"`
+	Key   string `json:"key"`
+	Since string `json:"since"`
+	// Seen is the version the stripping was measured on — evidence, not read.
+	Seen string `json:"seen"`
+}
+
+func measuredRemoved() map[string]version.Version {
+	propertyRemovedOnce.Do(func() {
+		m, err := parsePropertyRemoved(propertyRemovedJSON)
+		if err != nil {
+			m = nil
+		}
+		propertyRemovedMap = m
+	})
+	return propertyRemovedMap
+}
+
+func parsePropertyRemoved(data []byte) (map[string]version.Version, error) {
+	var entries []propertyRemovedEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil, fmt.Errorf("removed properties: %w", err)
+	}
+	m := make(map[string]version.Version, len(entries))
+	for _, e := range entries {
+		v := version.Parse(e.Since)
+		if v.IsZero() || e.Type == "" || e.Key == "" || version.Parse(e.Seen).IsZero() {
+			return nil, fmt.Errorf("removed properties: incomplete entry %+v", e)
 		}
 		m[e.Type+"."+e.Key] = v
 	}

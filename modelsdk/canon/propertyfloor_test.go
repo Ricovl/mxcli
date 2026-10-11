@@ -139,3 +139,50 @@ func TestPropertyIntroduced_FromGeneratedData(t *testing.T) {
 		t.Error("a property with no Introduced reported a floor")
 	}
 }
+
+// closeForm is a microflow close-page action as an older mxcli stored it: the
+// string NumberOfPagesToClose plus the int NumberOfPages, which Mendix deleted
+// in 8.11. Studio Pro drops the stale key on load (`mx convert`), so the name
+// sets differ and `mx diff` / merge fails on the document (ako/mxcli#1097,
+// measured: 4 CloseFormAction elements on an 11.15 project after every other
+// key was completed).
+func closeForm(t *testing.T) []byte {
+	t.Helper()
+	b, err := bson.Marshal(bson.D{
+		{Key: "$ID", Value: id(1)},
+		{Key: "$Type", Value: "Microflows$CloseFormAction"},
+		{Key: "ErrorHandlingType", Value: "Rollback"},
+		{Key: "NumberOfPages", Value: int32(1)},
+		{Key: "NumberOfPagesToClose", Value: ""},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// A key the project's version no longer declares is dropped whatever it holds:
+// Mendix discards it on load, so its value reaches nothing.
+func TestStripUndeclared_KeyDeletedBeforeItsVersionIsDropped(t *testing.T) {
+	out, err := canon.StripUndeclaredProperties(closeForm(t), ver("11.15.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasKeyAnywhere(t, out, "NumberOfPages") {
+		t.Error("NumberOfPages (deleted in 8.11) survived on an 11.15 project")
+	}
+	if !hasKeyAnywhere(t, out, "NumberOfPagesToClose") {
+		t.Error("NumberOfPagesToClose, which 11.15 declares, was dropped")
+	}
+}
+
+// Control: before its deletion the key is the model's own, and stays.
+func TestStripUndeclared_KeyBeforeItsDeletionStays(t *testing.T) {
+	out, err := canon.StripUndeclaredProperties(closeForm(t), ver("8.10.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasKeyAnywhere(t, out, "NumberOfPages") {
+		t.Error("NumberOfPages was dropped on an 8.10 project, which declares it")
+	}
+}
