@@ -9,8 +9,18 @@ and **Docker is only needed for the first**:
 
 - **Docker** — the container path. Requires a running Docker daemon.
 - **`--local`** — mxcli's own runtime, no daemon involved. It uses its own ports
-  (8081/8091) and its own `<project>_test` database, so a `mxcli run --local`
-  dev loop can keep serving the same project while tests run.
+  (app 8081, admin 8091, mxbuild serve 6544) and its own `<project>_test`
+  database, so a `mxcli run --local` dev loop can keep serving the same project
+  while tests run.
+
+Each port is probed before the project is touched. If one is taken — an editor
+helper on 8081 is the usual suspect — the run stops with the port, what it was
+for, the flag that moves it, and on Linux the process holding it. Move it with
+the same flags `run --local` has (refused with `--attach` and on the Docker path):
+
+```bash
+mxcli test tests/ -p app.mpr --local --app-port 9081 --admin-port 9091 --serve-port 7544
+```
 
 `--local` provisions that scratch database on PostgreSQL by default. On a machine
 without PostgreSQL — where it would stop with *no local PostgreSQL superuser

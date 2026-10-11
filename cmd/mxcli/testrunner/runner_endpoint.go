@@ -35,12 +35,18 @@ func bootForTests(opts RunOptions, token string, timeout time.Duration, w io.Wri
 		return nil, fmt.Errorf("local runtime: %w", err)
 	}
 
-	client := newEndpointClient(localTestAppPort, token)
+	client := testEndpointClient(opts, token)
 	if err := client.waitReady(endpointReadyTimeout(timeout)); err != nil {
 		app.Stop()
 		return nil, fmt.Errorf("%w\n  hint: check %s for a registration failure", err, logPath)
 	}
 	return &testAppSession{app: app, client: client, logPath: logPath}, nil
+}
+
+// testEndpointClient is the client for the test endpoint of the app a --local
+// run boots, on the app port the options select.
+func testEndpointClient(opts RunOptions, token string) *endpointClient {
+	return newEndpointClient(opts.appPort(), token)
 }
 
 func (s *testAppSession) stop() {

@@ -5,6 +5,7 @@ package docker
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // portCulpritAdvice renders the "how do I get out of this" half of a
@@ -57,4 +58,20 @@ func portCulpritAdvice(port int, host string, appPort int) string {
 	b.WriteString("  That is not a process mxcli started, so it is not a leftover run — " +
 		"pick another port rather than killing it.\n")
 	return b.String()
+}
+
+// CheckPortFree reports whether something already answers on 127.0.0.1:port,
+// and if so returns an error that names the port, what it was for, and the flag
+// that moves it — plus the holding process when it can be resolved.
+//
+// It is the fail-fast form of the guard StartLocalApp applies: a caller that
+// has work to do before booting (`mxcli test --local` injects into the project
+// first) runs it up front, so a taken port is reported before anything is
+// touched and with the flag the user can actually reach for.
+func CheckPortFree(port int, role, flag string) error {
+	if err := pingTCP(fmt.Sprintf("127.0.0.1:%d", port), 300*time.Millisecond); err != nil {
+		return nil
+	}
+	return fmt.Errorf("port %d (%s) is already in use — pass %s <port> to use another.\n%s",
+		port, role, flag, portCulpritAdvice(port, "127.0.0.1", port))
 }
