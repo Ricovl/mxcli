@@ -37,6 +37,14 @@ Start Claude Code from the project folder, then type:
 /mxcli-project
 ```
 
+The first time the companion loads in a project, a band above the prompt says it
+is installed and offers **Open Project pane**. It does not come back once you
+open the pane or press **Not now**.
+
+A companion written during the current session — as the bootstrap prompt does —
+loads after `/reload-plugins` or in the next session; Claude Code reads plugins
+at session start.
+
 ## Options
 
 Both are set in Claude Code's plugin configuration for `mxcli-companion`:
