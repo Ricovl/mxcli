@@ -250,3 +250,10 @@ func skipTrivia(src string, i int) int {
 func isIdentByte(c byte) bool {
 	return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c >= 0x80
 }
+
+// IsV1Code reports whether a violation rule ID is an mdl 1 change code
+// (MDL-V1-*): a construct a headerless script keeps at its mdl 0 meaning, or
+// that mdl 1 refuses. `check --v1=error` fails the run on one.
+func IsV1Code(ruleID string) bool {
+	return strings.HasPrefix(ruleID, "MDL-V1-")
+}
