@@ -2766,3 +2766,31 @@ create page PgTest.P014_InertControls (
     dynamictext txtCard (Content: 'A card that is not clickable')
   }
 };
+
+-- ============================================================================
+-- MARK: Submit while typing, and a fixed-width layout grid
+-- ============================================================================
+-- SubmitBehaviour (OnEndEditing default | WhileEditing) and SubmitOnInputDelay
+-- (milliseconds, default 300) are a text box's and a text area's; Width
+-- (FullWidth default | FixedWidth) is a layout grid's. describe prints each only
+-- when it is not the default. Before ako/mxcli-ledger FINDINGS #170 the writer
+-- hard-coded the defaults, so describe -> exec reset a Studio Pro page's
+-- WhileEditing and FixedWidth, and check accepted the property and dropped it.
+create page PgTest.P043_SubmitWhileTyping (
+  Title: 'Search customers',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Customer: PgTest.Customer )
+)
+{
+  layoutgrid gridFixed (Width: FixedWidth) {
+    row {
+      column (DesktopWidth: 12) {
+        dataview dvCustomer (DataSource: $Customer) {
+          textbox tbName (Label: 'Name', Attribute: Name, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)
+          textarea taAddress (Label: 'Address', Attribute: Address, SubmitBehaviour: WhileEditing)
+          textbox tbEmail (Label: 'Email', Attribute: Email)
+        }
+      }
+    }
+  }
+};

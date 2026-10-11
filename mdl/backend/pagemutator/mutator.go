@@ -3010,6 +3010,21 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		return setWidgetAttributeRefMut(widget, value)
 	case "dateformat", "customdateformat", "decimalprecision", "groupdigits":
 		return setWidgetFormattingMut(widget, propName, value)
+	case "submitbehaviour", "submitoninputdelay":
+		return setWidgetSubmitMut(widget, propName, value)
+	case "width":
+		// A layout grid's Width is its ContainerWidth enum. On any other
+		// widget the key keeps its old route, the pluggable setter.
+		if typ := bsonnav.DGetString(widget, "$Type"); typ == "Forms$LayoutGrid" || typ == "Pages$LayoutGrid" {
+			s, isString := value.(string)
+			width, ok := pages.CanonicalLayoutGridWidth(s)
+			if !isString || !ok {
+				return fmt.Errorf("a layout grid's Width is FullWidth or FixedWidth, not %v", value)
+			}
+			bsonnav.DSet(widget, "Width", width)
+			return nil
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	default:
 		// Try as pluggable widget property
 		return setPluggableWidgetPropertyMut(widget, propName, value)
@@ -3077,6 +3092,37 @@ func setWidgetFormattingMut(widget bson.D, propName string, value any) error {
 			return fmt.Errorf("GroupDigits is true or false, not %v", value)
 		}
 		bsonnav.DSet(fi, "GroupDigits", b)
+	}
+	return nil
+}
+
+// setWidgetSubmitMut sets a text box's or text area's SubmitBehaviour or
+// SubmitOnInputDelay (ako/mxcli-ledger FINDINGS #170) with the members CREATE
+// PAGE accepts. Any other widget refuses the key.
+func setWidgetSubmitMut(widget bson.D, propName string, value any) error {
+	typ := bsonnav.DGetString(widget, "$Type")
+	if !pages.HasSubmitBehaviour(typ) {
+		return fmt.Errorf("a %s has no %s property — SubmitBehaviour and SubmitOnInputDelay are a text box's and a text area's",
+			widgetTypeLabel(typ), propName)
+	}
+	if strings.EqualFold(propName, "SubmitBehaviour") {
+		s, isString := value.(string)
+		canon, ok := pages.CanonicalSubmitBehaviour(s)
+		if !isString || !ok {
+			return fmt.Errorf("SubmitBehaviour is OnEndEditing or WhileEditing, not %v", value)
+		}
+		bsonnav.DSet(widget, "SubmitBehaviour", canon)
+		return nil
+	}
+	n, ok := formattingInt(value)
+	if !ok || n < 0 || n > math.MaxInt32 {
+		return fmt.Errorf("SubmitOnInputDelay is a non-negative number of milliseconds, not %v", value)
+	}
+	// Keep the stored integer width, as for DecimalPrecision.
+	if _, isInt64 := bsonnav.DGet(widget, "SubmitOnInputDelay").(int64); isInt64 {
+		bsonnav.DSet(widget, "SubmitOnInputDelay", int64(n))
+	} else {
+		bsonnav.DSet(widget, "SubmitOnInputDelay", int32(n))
 	}
 	return nil
 }

@@ -73,6 +73,9 @@ Each widget type requires specific default properties to be serialized. Studio P
 }
 ```
 
+`Width` is a `ContainerWidth`: `FullWidth` (default) or `FixedWidth`, written from
+MDL `Width:` on the `layoutgrid`.
+
 ### LayoutGridRow
 
 ```json
@@ -240,6 +243,10 @@ Input widgets require several non-null properties for proper serialization:
 - `FormattingInfo` - Required for TextBox and DatePicker
 - `PlaceholderTemplate` - Required `Forms$ClientTemplate` object
 - `validation` - Required `Forms$WidgetValidation` object
+
+`SubmitBehaviour` (`OnEndEditing` default, `WhileEditing`) and `SubmitOnInputDelay`
+(ms, default 300) are on TextBox and TextArea, written from the MDL properties of
+the same names.
 
 ### Attribute Path Resolution
 

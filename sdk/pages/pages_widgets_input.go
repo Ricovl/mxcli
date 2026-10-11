@@ -40,6 +40,14 @@ type TextBox struct {
 	ReadOnly             bool         `json:"readOnly,omitempty"`
 	OnChangeAction       ClientAction `json:"onChangeAction,omitempty"`
 	OnEnterAction        ClientAction `json:"onEnterAction,omitempty"`
+	// SubmitBehaviour is Forms$TextBox/TextArea.SubmitBehaviour: "OnEndEditing"
+	// (Studio Pro's default) or "WhileEditing", which submits as the user types.
+	// SubmitOnInputDelay is the debounce in milliseconds that goes with it; nil
+	// keeps the default 300. Empty / nil write the defaults. Both were hard-coded
+	// in the writer, so describe → exec rewrote a stored WhileEditing to the
+	// default (ako/mxcli-ledger FINDINGS #170).
+	SubmitBehaviour    string `json:"submitBehaviour,omitempty"`
+	SubmitOnInputDelay *int   `json:"submitOnInputDelay,omitempty"`
 }
 
 // TextArea represents a multi-line text input widget.
@@ -55,6 +63,9 @@ type TextArea struct {
 	Rows              int                `json:"rows,omitempty"`
 	ReadOnly          bool               `json:"readOnly,omitempty"`
 	OnChangeAction    ClientAction       `json:"onChangeAction,omitempty"`
+	// SubmitBehaviour / SubmitOnInputDelay: as on TextBox.
+	SubmitBehaviour    string `json:"submitBehaviour,omitempty"`
+	SubmitOnInputDelay *int   `json:"submitOnInputDelay,omitempty"`
 }
 
 // FormattingInfo represents formatting configuration.

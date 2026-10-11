@@ -520,14 +520,18 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 	tb.ValidationExpression = w.GetStringProp("Validation")
 	tb.ValidationMessage = w.GetStringProp("ValidationMessage")
 
+	// SubmitBehaviour / SubmitOnInputDelay (ako/mxcli-ledger FINDINGS #170).
+	var err error
+	if tb.SubmitBehaviour, tb.SubmitOnInputDelay, err = inputSubmitSettings(w); err != nil {
+		return nil, mdlerrors.NewValidation(err.Error())
+	}
+
 	// Forms$FormattingInfo: date format and numeric precision/grouping. The
 	// writer hard-coded the defaults, so a Studio Pro text box with a decimal
 	// precision lost it on describe → exec (ako/mxcli#968).
-	fi, err := inputFormattingInfo(w)
-	if err != nil {
+	if tb.FormattingInfo, err = inputFormattingInfo(w); err != nil {
 		return nil, err
 	}
-	tb.FormattingInfo = fi
 
 	// Handle Label
 	if label := inputLabel(w); label != "" {
@@ -586,6 +590,12 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 	// Handle Label
 	if label := inputLabel(w); label != "" {
 		ta.Label = label
+	}
+
+	// SubmitBehaviour / SubmitOnInputDelay, as for a textbox.
+	var err error
+	if ta.SubmitBehaviour, ta.SubmitOnInputDelay, err = inputSubmitSettings(w); err != nil {
+		return nil, mdlerrors.NewValidation(err.Error())
 	}
 
 	// Placeholder, as for a textbox (ako/mxcli#705).

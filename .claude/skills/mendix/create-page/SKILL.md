@@ -90,6 +90,8 @@ Both are optional and can be changed later with `alter page … { set (Class: '�
 | Attribute binding | `attribute: AttrName` | `textbox txt (label: 'Name', attribute: Name)` |
 | Attribute over an association | `attribute: Assoc/Attr` (bare association name, multi-hop OK) | `textbox txt (label: 'Rule', attribute: RuleAction_BusinessRule/Name)` |
 | Password field | `Password: true` | `textbox tbPw (attribute: Secret, Password: true)` |
+| Submit while typing | `SubmitBehaviour: WhileEditing` (+ `SubmitOnInputDelay: <ms>`) on textbox / textarea | `textbox tbSearch (attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)` — default `OnEndEditing` / `300` |
+| Layout grid width | `Width: FullWidth \| FixedWidth` on layoutgrid | `layoutgrid lg (Width: FixedWidth) { ... }` — default `FullWidth` |
 | Widget validation | `Validation: '<expr>'` + `ValidationMessage: '<text>'` | `Validation: 'length(toString($value)) > 0'` — quoted, not `[bracketed]` |
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |
 | Action binding | `action: type` | `actionbutton btn (caption: 'Save', action: save changes)` |
@@ -482,6 +484,14 @@ A text box that holds a secret needs `Password: true`. It is not cosmetic: witho
 it the field renders the value in plaintext, and before ako/mxcli#550 a
 `describe page` → `exec` round trip silently turned every stored password field
 into an ordinary one — so copying a login or change-password page lost it.
+
+`SubmitBehaviour: WhileEditing` makes a text box or text area submit as the
+user types (after `SubmitOnInputDelay` milliseconds, default 300) instead of on
+leaving the field — the setting behind live search boxes and "on change while
+typing" handlers. `Width: FixedWidth` on a layout grid is Studio Pro's "Fixed
+width" container. Both are printed by `describe page` only when not the default,
+and before ako/mxcli-ledger FINDINGS #170 a describe → exec round trip reset
+them to the defaults. An unknown value is refused (MDL-WIDGET18).
 
 An input widget can also *traverse* an association to show a value from the
 other side: `attribute: Assoc/Attr` binds the far attribute and stores the hops,
