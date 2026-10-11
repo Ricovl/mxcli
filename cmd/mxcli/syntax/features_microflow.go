@@ -10,7 +10,7 @@ func init() {
 			"microflow", "nanoflow", "logic", "automation",
 			"action", "activity", "flow",
 		},
-		Syntax:  "CREATE [OR REPLACE | OR MODIFY] MICROFLOW Module.Name ($Param: Type) RETURNS Type AS $Result\nBEGIN\n  <statements>\nEND;",
+		Syntax:  "CREATE [OR MODIFY] MICROFLOW Module.Name ($Param: Type) RETURNS Type AS $Result\nBEGIN\n  <statements>\nEND;",
 		Example: "mdl 1;\nCREATE MICROFLOW MyModule.ACT_CreateOrder ($Code: String)\nRETURNS MyModule.Order AS $NewOrder\nBEGIN\n  $NewOrder = CREATE MyModule.Order (OrderNumber = $Code);\n  COMMIT $NewOrder;\n  RETURN $NewOrder;\nEND;\n\n-- Re-runnable: replaces the microflow if it already exists\nCREATE OR MODIFY MICROFLOW MyModule.ACT_CreateOrder ($Code: String)\nRETURNS MyModule.Order AS $NewOrder\nBEGIN\n  $NewOrder = CREATE MyModule.Order (OrderNumber = $Code);\n  RETURN $NewOrder;\nEND;",
 		SeeAlso: []string{"microflow.create", "microflow.variables", "microflow.control-flow", "create-modifiers", "rename"},
 	})
@@ -626,7 +626,7 @@ func init() {
 			"nanoflow", "create nanoflow", "client-side", "runs in the browser",
 			"offline", "client logic", "disallowed in nanoflow", "nanoflow restrictions",
 		},
-		Syntax: "CREATE [OR REPLACE] NANOFLOW Module.Name ($Param: Type)\n" +
+		Syntax: "CREATE [OR MODIFY] NANOFLOW Module.Name ($Param: Type)\n" +
 			"RETURNS Type AS $Result\nBEGIN\n  <statements>\nEND;\n\n" +
 			"The body is microflow syntax — every topic under `microflow` applies —\n" +
 			"MINUS what cannot run in the browser. `mxcli check` refuses each of these\n" +
