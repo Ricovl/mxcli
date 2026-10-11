@@ -2131,6 +2131,22 @@ func applyColumnHeaderFallback(spec *backend.ObjectListItemSpec, columnName stri
 		fallback = columnName
 	}
 	if fallback == "" {
+		// An unnamed column with no caption and no attribute has nothing to
+		// derive a header from. It must still not serialize as TextTemplate:
+		// null — `mx update-widgets` writes an empty Forms$ClientTemplate for
+		// the header, so null is CE0463 (ChipCoV8 #11). Flag the header
+		// EmptyTemplate; scoped by the hasHeaderSlot gate above to datagrid
+		// columns, never to other texttemplates.
+		if headerIdx >= 0 {
+			spec.Properties[headerIdx].Operation = "texttemplate"
+			spec.Properties[headerIdx].EmptyTemplate = true
+			return
+		}
+		spec.Properties = append(spec.Properties, backend.ObjectListItemProperty{
+			PropertyKey:   "header",
+			Operation:     "texttemplate",
+			EmptyTemplate: true,
+		})
 		return
 	}
 	if headerIdx >= 0 {

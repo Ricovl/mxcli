@@ -322,6 +322,13 @@ func buildObjectListItemBSON(widgetID, listPropertyKey string, parentEntry pages
 	}
 
 	itemKind := detectObjectListItemKind(specByKey, item.ChildWidgets)
+	if itemKind == itemKindDefault && effectiveShowContentAs(specByKey, parentEntry) == "attribute" {
+		// No attribute bound, no content widgets — but showContentAs (set, or
+		// its widget default) still makes it an attribute column, and
+		// `mx update-widgets` gives it the attribute column's conventions
+		// (an empty tooltip ClientTemplate, not null — CE0463, ChipCoV8 #11).
+		itemKind = itemKindAttribute
+	}
 
 	propsArr := bson.A{int32(2)}
 	// Use template PropertyTypes order when available — Studio Pro expects
@@ -403,6 +410,18 @@ func detectObjectListItemKind(specByKey map[string]backend.ObjectListItemPropert
 		return itemKindAttribute
 	}
 	return itemKindDefault
+}
+
+// effectiveShowContentAs returns an item's showContentAs value: the authored
+// one, else the widget's default for it. "" when the item has no such property.
+func effectiveShowContentAs(specByKey map[string]backend.ObjectListItemProperty, parentEntry pages.PropertyTypeIDEntry) string {
+	if sca, ok := specByKey["showContentAs"]; ok && sca.PrimitiveVal != "" {
+		return strings.ToLower(sca.PrimitiveVal)
+	}
+	if e, ok := parentEntry.NestedPropertyIDs["showContentAs"]; ok {
+		return strings.ToLower(e.DefaultValue)
+	}
+	return ""
 }
 
 // emptyClientTemplateRules maps (widgetID, listPropertyKey, itemKind,
