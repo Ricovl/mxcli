@@ -47,6 +47,13 @@ type ExecContext struct {
 	// name rather than the bare one exec could not qualify. See describeAttr.
 	describeQualifyAttrs bool
 
+	// scriptFlows are the flows earlier statements of a script declare,
+	// keyed by scriptFlowKey, set only while check predicts a script's flow
+	// verdicts (CheckFlowVerdicts): exec builds a flow after those statements
+	// have run, so a call to one of them resolves against the declaration,
+	// not the stored project, which does not hold it yet. Nil otherwise.
+	scriptFlows map[string]*selfFlow
+
 	// Format controls output formatting (table, json, etc.).
 	Format OutputFormat
 

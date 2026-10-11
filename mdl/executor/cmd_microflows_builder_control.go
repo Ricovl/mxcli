@@ -660,6 +660,7 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 		restServices: fb.restServices, // Share REST services for parameter classification
 		isNanoflow:   fb.isNanoflow,
 		self:         fb.self,
+		scriptFlows:  fb.scriptFlows,
 		// Share the note registry, so a note declared outside the loop and
 		// referenced on a body activity attaches to the SAME Annotation rather
 		// than being refused. The describer emits exactly that (its label state
@@ -1020,6 +1021,7 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 		restServices: fb.restServices,
 		isNanoflow:   fb.isNanoflow,
 		self:         fb.self,
+		scriptFlows:  fb.scriptFlows,
 		// Share the note registry, so a note declared outside the loop and
 		// referenced on a body activity attaches to the SAME Annotation rather
 		// than being refused. The describer emits exactly that (its label state
