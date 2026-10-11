@@ -12,10 +12,10 @@ description: "Provision a Mendix project in a repo that has none — interview, 
 |---|---|
 | 23-43 | When to Use This Skill |
 | 44-130 | Step 0 — interview, and WAIT for the answers |
-| 131-240 | Provision |
-| 241-310 | If this is a solution (several apps in one repo) |
-| 311-368 | Then propose the model — do not build it yet |
-| 369-432 | After bootstrap — the inner loop |
+| 131-263 | Provision |
+| 264-333 | If this is a solution (several apps in one repo) |
+| 334-391 | Then propose the model — do not build it yet |
+| 392-455 | After bootstrap — the inner loop |
 
 <!-- /skill-index -->
 # Bootstrap a Mendix App in an Empty Repo
@@ -235,6 +235,29 @@ drop the `./` if it came pre-installed on `PATH`.
     normal local run. `--hub` ships in the **Linux** build only (a cloud session is a
     Linux container, so it works there); on a native Windows/macOS mxcli it fails with
     an explanatory message — continue as a normal local run.
+11. **Hand over, and offer the next step.** Report what is ready in a few lines (the
+    app, the boot URL, the baseline), then two things:
+
+    - **The project explorer.** `mxcli init` installed the *mxcli companion* in
+      `.claude/skills/mxcli-companion/`: a Claude Code pane that shows the app's
+      structure and the MDL of any document. It was written during this session, and
+      Claude Code only loads plugins it finds at session start, so tell the user to
+      run **`/reload-plugins`** and then **`/mxcli-project`** (or to start a new
+      session). Only the user can run those; do not try. The pane draws in the
+      terminal or the desktop app that runs the session; over remote control, on the
+      web or on a phone it may not show — say so rather than promise it. A non-Claude
+      tool has no companion: skip this point there.
+    - **A choice of what next.** Ask one question with your harness's question tool
+      (`AskUserQuestion` in Claude Code), and wait for the answer:
+
+      | Option | What it leads to |
+      |---|---|
+      | Propose the domain model *(recommended)* | the next section |
+      | Import requirements from a document (a PRD, notes) | read it, record each requirement with `./mxcli brain capture "<requirement>" --slice <slice>`, then propose the model from them |
+      | Open the project explorer | repeat the two commands above and stop |
+      | Something else | ask what |
+
+      With no question tool, ask the same as a numbered list.
 
 ---
 

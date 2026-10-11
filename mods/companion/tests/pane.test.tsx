@@ -26,12 +26,14 @@ const PANE_PROPS = {
 
 // The world beneath the mod: one app here, and an mxcli that answers
 // project-tree and describe. `calls` records every argv it was run with.
-const world = (on: On, opts: { describeFails?: boolean } = {}) => {
+const world = (on: On, opts: { describeFails?: boolean; notPlaced?: string } = {}) => {
   const calls: string[][] = []
   const clock = mock.clock(on)
   on('fs.exists', () => ({ value: false }))
   on('fs.list', () => ({ value: [{ name: 'App.mpr', kind: 'file', size: 1, mtimeMs: 0, isLink: false }] }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', () => ({
+    value: opts.notPlaced === undefined ? { isPlaced: true } : { isPlaced: false, reason: opts.notPlaced },
+  }))
   on('command.register', () => ({ value: { command: 'mxcli-project' } }))
   on('process.run', (_$, e) => ({ value: answer([...e.argv]) }))
   const answer = (argv: string[]) => {
@@ -142,5 +144,73 @@ test('going back to a document reuses its MDL until the model changes', async ($
   await $.tool.call({ tool: 'Bash', command: './mxcli exec a.mdl -p App.mpr' })
   await clock.advance(5_000)
   expect(describes()).toBe(2)
+  await ui.unmount()
+})
+
+test('says why when the surface does not show the pane', async ($, on) => {
+  const { clock } = world(on, { notPlaced: 'the attached desktop places no panes' })
+  const answer = await $.command.run(RUN)
+  await clock.settle()
+  expect(JSON.stringify(answer)).toContain('not shown here: the attached desktop places no panes')
+})
+
+// A docked pane wide enough for two columns, and short: 8 rows a page.
+const WIDE = { ...PANE_PROPS, bodyColumns: 140, scroll: { offset: 0, bodyRows: 12 } } as const
+
+test('a wide pane puts the tree and the source side by side, each paging on its own', async ($, on) => {
+  const many = Array.from({ length: 30 }, (_, i) => ({
+    label: `ACT_${String(i).padStart(2, '0')}`,
+    type: 'microflow',
+    qualifiedName: `Sales.ACT_${String(i).padStart(2, '0')}`,
+    describable: true,
+  }))
+  const longMdl = Array.from({ length: 50 }, (_, i) => `-- line ${i + 1}`).join('\n')
+  mock.clock(on)
+  on('fs.exists', () => ({ value: false }))
+  on('fs.list', () => ({ value: [{ name: 'App.mpr', kind: 'file', size: 1, mtimeMs: 0, isLink: false }] }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('process.run', (_$, e) => ({
+    value: {
+      exitCode: 0,
+      stdout:
+        e.argv[1] === 'project-tree'
+          ? JSON.stringify([{ label: 'Sales', type: 'module', qualifiedName: 'Sales', children: many }])
+          : JSON.stringify({ name: 'x', type: 'microflow', mdl: longMdl, executable: true }),
+      stderr: '',
+      isStdoutTruncated: false,
+      isStderrTruncated: false,
+    },
+  }))
+  await $.command.run(RUN)
+  const ui = await $.ui.mount({ plugin: 'mxcli-companion', surface: 'terminal', component: 'Pane', requestId: 'mxcli-project', props: WIDE })
+
+  expect(await ui.find({ key: 'columns' })).toBeDefined()
+  await ui.press({ key: rowKey('module:Sales') })
+  // 31 rows, 8 a page: the tree shows a page and says what is below.
+  const row = (n: string) => ui.find({ key: rowKey('module:Sales', `microflow:ACT_${n}`) })
+  expect(await row('06')).toBeDefined()
+  expect(await row('20')).toBeUndefined()
+  await ui.press({ key: 'tree-down' })
+  expect(await row('10')).toBeDefined()
+  expect(await row('00')).toBeUndefined()
+  expect(await ui.find({ key: 'tree-up' })).toBeDefined()
+
+  // The source pages without moving the tree.
+  await ui.press({ key: rowKey('module:Sales', 'microflow:ACT_10') })
+  expect(JSON.stringify(await ui.find({ type: 'Code' }))).toContain('line 1')
+  await ui.press({ key: 'src-down' })
+  const code = JSON.stringify(await ui.find({ type: 'Code' }))
+  expect(code).not.toContain('-- line 1\\n')
+  expect(code).toContain('line 10')
+  expect(await row('10')).toBeDefined()
+  await ui.unmount()
+})
+
+test('a narrow pane stacks the tree above the source', async ($, on) => {
+  world(on)
+  await $.command.run(RUN)
+  const ui = await $.ui.mount({ plugin: 'mxcli-companion', surface: 'terminal', component: 'Pane', requestId: 'mxcli-project', props: PANE_PROPS })
+  expect(await ui.find({ key: 'columns' })).toBeUndefined()
+  expect(await ui.find({ key: 'tree' })).toBeDefined()
   await ui.unmount()
 })

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { TreeNode } from '../types'
-import { changesModel, nodeId, parseDescribe, parseTree, pickMpr, touchesProjectFile, visibleRows } from '../hooks/tree'
+import { changesModel, nodeId, pageOf, parseDescribe, parseTree, pickMpr, touchesProjectFile, visibleRows } from '../hooks/tree'
 
 const TREE: TreeNode[] = [
   {
@@ -97,5 +97,17 @@ describe('pickMpr', () => {
     expect(pickMpr('', [], ['x/Y.mpr'])).toEqual({ mpr: 'x/Y.mpr' })
     expect(pickMpr('', [], ['a/A.mpr', 'b/B.mpr'])).toEqual({ candidates: ['a/A.mpr', 'b/B.mpr'] })
     expect(pickMpr('', [], [])).toEqual({ none: true })
+  })
+})
+
+describe('pageOf', () => {
+  test('a page from the top, with what lies below', () => {
+    expect(pageOf(100, 0, 10)).toEqual({ first: 0, end: 10, above: 0, below: 90 })
+  })
+  test('clamps a top past the end to the last full page', () => {
+    expect(pageOf(100, 95, 10)).toEqual({ first: 90, end: 100, above: 90, below: 0 })
+  })
+  test('a short list is one page', () => {
+    expect(pageOf(3, 2, 10)).toEqual({ first: 0, end: 3, above: 0, below: 0 })
   })
 })
