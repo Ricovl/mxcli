@@ -26,7 +26,7 @@ const PANE_PROPS = {
 
 // The world beneath the mod: one app here, and an mxcli that answers
 // project-tree and describe. `calls` records every argv it was run with.
-const world = (on: On, opts: { describeFails?: boolean; notPlaced?: string } = {}) => {
+const world = (on: On, opts: { describeFails?: boolean; notPlaced?: string; tree?: string } = {}) => {
   const calls: string[][] = []
   const clock = mock.clock(on)
   on('fs.exists', () => ({ value: false }))
@@ -39,7 +39,7 @@ const world = (on: On, opts: { describeFails?: boolean; notPlaced?: string } = {
   const answer = (argv: string[]) => {
     calls.push(argv)
     if (argv[1] === 'project-tree') {
-      return { exitCode: 0, stdout: TREE, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
+      return { exitCode: 0, stdout: opts.tree ?? TREE, stderr: '', isStdoutTruncated: false, isStderrTruncated: false }
     }
     if (argv[1] === 'describe') {
       return opts.describeFails
@@ -212,5 +212,20 @@ test('a narrow pane stacks the tree above the source', async ($, on) => {
   const ui = await $.ui.mount({ plugin: 'mxcli-companion', surface: 'terminal', component: 'Pane', requestId: 'mxcli-project', props: PANE_PROPS })
   expect(await ui.find({ key: 'columns' })).toBeUndefined()
   expect(await ui.find({ key: 'tree' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('an mxcli older than the describable field still gets documents described', async ($, on) => {
+  // project-tree as it printed before `describable` existed.
+  const old = JSON.stringify([
+    { label: 'Sales', type: 'module', qualifiedName: 'Sales', children: [{ label: 'ACT_Process', type: 'microflow', qualifiedName: 'Sales.ACT_Process' }] },
+  ])
+  const { calls } = world(on, { tree: old })
+  await $.command.run(RUN)
+  const ui = await $.ui.mount({ plugin: 'mxcli-companion', surface: 'terminal', component: 'Pane', requestId: 'mxcli-project', props: PANE_PROPS })
+  await ui.press({ key: rowKey('module:Sales') })
+  await ui.press({ key: rowKey('module:Sales', 'microflow:ACT_Process') })
+  expect(calls.some(c => c[1] === 'describe')).toBe(true)
+  expect(await ui.find({ type: 'Code' })).toBeDefined()
   await ui.unmount()
 })

@@ -10,6 +10,7 @@ import type { EngineInterface as Engine, FsEntry, Register } from 'claude-code'
 
 import type { Project, Source, TreeNode } from '../types'
 import {
+  assumeDescribable,
   changesModel,
   firstLine,
   nodeId,
@@ -145,7 +146,7 @@ const load = async ($: Engine, mpr?: string) => {
       await update($, project, (): Project => ({ state: 'failed', mpr: target.mpr, error: firstLine(out.stderr || out.stdout) }))
       return
     }
-    const tree = parseTree(out.stdout)
+    const tree = assumeDescribable(parseTree(out.stdout))
     described.clear()
     const loadedMs = await $.clock.now()
     await update($, project, (): Project => ({ state: 'loaded', mpr: target.mpr, tree, loadedMs, tookMs: loadedMs - startedMs }))

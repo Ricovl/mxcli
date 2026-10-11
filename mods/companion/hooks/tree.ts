@@ -49,6 +49,24 @@ export const pageOf = (total: number, top: number, size: number) => {
   return { first, end, above: first, below: total - end }
 }
 
+// assumeDescribable copes with an mxcli older than project-tree's `describable`
+// field: a project can commit a newer companion than the mxcli its session hook
+// downloads. With no node carrying the field at all, offer MDL for every named
+// leaf and let describe answer, as clients did before the field existed.
+// Containers stay out: describing a module prints the whole module.
+export const assumeDescribable = (tree: TreeNode[]): TreeNode[] => {
+  const hasField = (nodes: readonly TreeNode[]): boolean =>
+    nodes.some(n => 'describable' in n || hasField(n.children ?? []))
+  if (hasField(tree)) return tree
+  const mark = (nodes: readonly TreeNode[]): TreeNode[] =>
+    nodes.map(n => ({
+      ...n,
+      describable: n.qualifiedName !== undefined && (n.children?.length ?? 0) === 0,
+      ...(n.children ? { children: mark(n.children) } : {}),
+    }))
+  return mark(tree)
+}
+
 // parseTree reads `mxcli project-tree` output.
 export const parseTree = (stdout: string): TreeNode[] => {
   const start = stdout.indexOf('[')
