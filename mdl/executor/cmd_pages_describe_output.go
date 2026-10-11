@@ -447,7 +447,8 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Name != "" {
 			header += " " + mdlIdent(w.Name)
 		}
-		props := appendAppearanceProps(ctx, nil, w)
+		props := describeLayoutGridWidth(nil, w)
+		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 		for _, row := range w.Rows {
 			// Mendix stores no name on a row or a column (R12, #749), so
@@ -606,6 +607,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		}
 		props = append(props, w.Formatting...)
 		props = appendInputValidationProps(ctx, props, w)
+		props = describeSubmitBehaviour(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -624,6 +626,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = describeSubmitBehaviour(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 

@@ -35,7 +35,7 @@ GO_BUILD_FLAGS = -trimpath
 # Clean version for VS Code extension (must be valid semver: major.minor.patch)
 VSCE_VERSION = $(shell echo "$(VERSION)" | sed 's/^v//; s/-.*//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$$' || echo "0.0.0")
 
-.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-conformance conformance-shrink gen-migration-reference check-migration-reference check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-test-timeouts check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-parity test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
+.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-conformance conformance-shrink gen-migration-reference check-migration-reference check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-test-timeouts check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-parity test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-mods sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet skill-index check-skill-index
 
 # Helper: copy file only if content differs (avoids mtime updates that invalidate go build cache)
 # Usage: $(call copy-if-changed,src,dst)
@@ -47,7 +47,18 @@ endef
 # Skills are directory-shaped (<name>/SKILL.md, Agent Skills standard), so this
 # mirrors a tree rather than copying a flat list. --delete matters: a renamed or
 # removed skill must not linger in the embed dir, or the binary keeps shipping it.
-sync-skills:
+# Refresh the generated line-numbered section index at the top of each SKILL.md.
+# Measured on BENCH-001 (2026-10-10): reading the skills was ~68% of a session's
+# re-read cost, and the agent had no cheap way to read one section.
+skill-index:
+	@python3 -I scripts/skill-index.py
+
+# Fails when a SKILL.md moved on without its index. A hand-kept table of
+# contents is the drift this repo has already paid for twice.
+check-skill-index:
+	@python3 -I scripts/skill-index.py --check
+
+sync-skills: skill-index
 	@mkdir -p cmd/mxcli/skills
 	@rsync -a --delete --exclude='.DS_Store' .claude/skills/mendix/ cmd/mxcli/skills/ 2>/dev/null \
 		|| { rm -rf cmd/mxcli/skills && mkdir -p cmd/mxcli/skills && cp -R .claude/skills/mendix/. cmd/mxcli/skills/; }
@@ -59,6 +70,14 @@ sync-skill-packs:
 	@mkdir -p cmd/mxcli/skillpacks
 	@rsync -a --delete --exclude='.DS_Store' .claude/skills/packs/ cmd/mxcli/skillpacks/ 2>/dev/null \
 		|| { rm -rf cmd/mxcli/skillpacks && mkdir -p cmd/mxcli/skillpacks && cp -R .claude/skills/packs/. cmd/mxcli/skillpacks/; }
+
+# Sync Claude Code mods from mods/ to cmd/mxcli/mods for embedding. Only what a
+# project runs is shipped: a mod's tests and the types the engine lays beside a
+# loaded mod stay behind.
+sync-mods:
+	@mkdir -p cmd/mxcli/mods
+	@rsync -a --delete --exclude='.DS_Store' --exclude='tests/' --exclude='*.test.ts' --exclude='*.test.tsx' \
+		--exclude='.claude-plugin/types/' --exclude='tsconfig.json' mods/ cmd/mxcli/mods/
 
 # Sync commands from .claude/commands/mendix to cmd/mxcli/commands for embedding
 sync-commands:
@@ -100,7 +119,7 @@ sync-changelog:
 	$(call copy-if-changed,CHANGELOG.md,cmd/mxcli/changelog.md)
 
 # Sync skills, commands, lint rules, and changelog
-sync-all: sync-skills sync-skill-packs sync-commands sync-lint-rules sync-vsix sync-changelog
+sync-all: sync-skills sync-skill-packs sync-mods sync-commands sync-lint-rules sync-vsix sync-changelog
 
 # Generate LSP completion items from grammar (only rewrites file if content changed)
 completions:

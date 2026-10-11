@@ -79,6 +79,7 @@ func (b *Backend) UpdatePage(page *pages.Page) error {
 	contents, err := encodePage(page, pv, func(g *genPg.Page) {
 		b.carryStoredPageHeader(page.ID, g, pv)
 		b.carryNoActionExecution(page.ID, g)
+		b.carryLayoutGridPreviewWidth(page.ID, g)
 	})
 	if err != nil {
 		return fmt.Errorf("UpdatePage: encode: %w", err)

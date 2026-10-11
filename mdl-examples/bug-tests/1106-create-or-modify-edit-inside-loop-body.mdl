@@ -1,0 +1,44 @@
+-- ============================================================================
+-- ako/mxcli#1106 — create or modify cannot change anything inside a loop body
+-- ============================================================================
+--
+-- Under `mdl 1;`, re-running a `create or modify microflow` whose only change
+-- was one expression inside a loop body was refused:
+--
+--   the Loop at (1295, 200) changes inside its body; the splice does not edit
+--   inside a loop, and replacing the whole loop would rebuild every node it
+--   holds. Nothing was written.                            [MDL-V1-REBUILD]
+--
+-- so no single script could both provision and update a flow that loops.
+--
+-- To reproduce: exec this file against a project, then change
+-- `formatDecimal($It/Amount, '0.#')` to `toString(round($It/Amount, 1))` and
+-- exec it again. The second run now reports
+--   Modified microflow: BugTest1106.BuildJson (spliced: 1 replaced)
+-- and a third run writes nothing. The loop and the other activities keep their
+-- $IDs and positions; only the edited `set` is replaced, in place.
+--
+-- Still refused (needs the body laid out again): a statement added, removed,
+-- reordered or moved inside the body, or one kind of statement swapped for
+-- another. For those, `alter … replace loop $It in $Items with begin … end;`.
+
+mdl 1;
+
+create module BugTest1106;
+
+create or modify entity BugTest1106.Item (
+  Amount: Decimal
+);
+
+create or modify microflow BugTest1106.BuildJson ($Items: List of BugTest1106.Item)
+returns String as $Json
+begin
+  declare $Json string = '[';
+  loop $It in $Items
+  begin
+    set $Json = $Json + formatDecimal($It/Amount, '0.#') + ',';
+    log info node 'BugTest1106' 'step';
+  end loop;
+  set $Json = $Json + ']';
+  return $Json;
+end;

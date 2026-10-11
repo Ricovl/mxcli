@@ -427,7 +427,9 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 	case *pages.LayoutGrid:
 		g := genPg.NewLayoutGrid()
 		applyWidgetBase(g, &x.BaseWidget)
-		g.SetWidth("FullWidth")
+		// FixedWidth was rewritten to the default on every describe → exec
+		// (ako/mxcli-ledger FINDINGS #170). Empty is the default.
+		g.SetWidth(orDefaultStr(x.Width, pages.DefaultLayoutGridWidth))
 		for _, row := range x.Rows {
 			rg, err := layoutGridRowToGen(row)
 			if err != nil {
@@ -535,8 +537,8 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle("Inherit")
-		g.SetSubmitBehaviour("OnEndEditing")
-		g.SetSubmitOnInputDelay(300)
+		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
+		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		g.SetValidation(widgetValidationToGenWith(x.ValidationExpression, x.ValidationMessage))
 		return g, nil
 
@@ -629,8 +631,8 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle("Inherit")
-		g.SetSubmitBehaviour("OnEndEditing")
-		g.SetSubmitOnInputDelay(300)
+		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
+		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		// Studio Pro stores one on every textarea; without the key a rewrite
 		// had nowhere to carry the stored translations and deleted the message
 		// (ako/mxcli#705). Empty, like CounterMessage above.
@@ -1021,7 +1023,8 @@ func layoutGridRowToGen(row *pages.LayoutGridRow) (element.Element, error) {
 }
 
 // layoutGridColumnToGen converts a LayoutGridColumn. Weights default to -1 (auto,
-// via columnWeight); PreviewWidth is always -1 — matching the legacy serializer.
+// via columnWeight); PreviewWidth is -1, Studio Pro's value for a new column —
+// a rewrite carries the stored one (carryLayoutGridPreviewWidth).
 func layoutGridColumnToGen(col *pages.LayoutGridColumn) (element.Element, error) {
 	g := genPg.NewLayoutGridColumn()
 	if col.ID != "" {
@@ -1890,19 +1893,18 @@ func formSettingsToGen(pageName string) element.Element {
 	return ps
 }
 
-// staticAddressToGen builds the Forms$StaticOrDynamicString an open-link action
-// nests as its Address.
-//
-// Only the STATIC form is authored: MDL spells `OPEN_LINK 'https://…'` and has
-// no syntax for the dynamic one. 6 of the 31 Studio Pro references are dynamic
-// (IsDynamic true, an AttributeRef, an empty Value) — DESCRIBE flags those
-// rather than rendering them as a literal, because a dynamic address printed as
-// a static one round-trips into a different link.
-//
-// AttributeRef is deliberately left unset. gen declares a fourth property here,
-// `Attribute`, that not one of the 31 documents carries; writing a key Mendix
-// does not store is what makes a document mxbuild accepts and Studio Pro cannot
-// open (CLAUDE.md, "Overlay Writes: Never Invent a Key").
+// A static address stores AttributeRef as null: 21 of 21 static
+// Forms$StaticOrDynamicString across ako/TestApp and PedApp carry the key.
+// staticAddressToGen never sets it, so without this default the key was
+// dropped and every describe → exec of a page with a link button rewrote the
+// address (ako/mxcli-ledger FINDINGS #170). dynamicAddressToGen sets a real
+// ref, which the default (applied only to an unset key) does not touch.
+func init() {
+	codec.RegisterTypeDefaults("Forms$StaticOrDynamicString", codec.TypeDefaults{
+		NullFields: []string{"AttributeRef"},
+	})
+}
+
 // dynamicAddressToGen builds a link address read from an attribute at runtime.
 // Pinned against FeedbackModule.PopupSuccess (Feedback v4.0.2): IsDynamic true,
 // Value "", and an AttributeRef with a null EntityRef naming the attribute.
@@ -1915,6 +1917,22 @@ func dynamicAddressToGen(attrQN string) element.Element {
 	return s
 }
 
+// staticAddressToGen builds the Forms$StaticOrDynamicString an open-link action
+// nests as its Address.
+//
+// Only the STATIC form is authored: MDL spells `OPEN_LINK 'https://…'` and has
+// no syntax for the dynamic one. 6 of the 31 Studio Pro references are dynamic
+// (IsDynamic true, an AttributeRef, an empty Value) — DESCRIBE flags those
+// rather than rendering them as a literal, because a dynamic address printed as
+// a static one round-trips into a different link.
+//
+// gen declares a fourth property here, `Attribute` (deleted in 7.11.0), that not
+// one of the 31 documents carries; it is never set, because writing a key Mendix
+// does not store is what makes a document mxbuild accepts and Studio Pro cannot
+// open. AttributeRef is a different key and IS stored on a static address — as
+// null, on 21 of 21 static addresses across ako/TestApp and PedApp. The init
+// above registers that null; dynamicAddressToGen sets a real ref, which the
+// default does not touch.
 func staticAddressToGen(address string) element.Element {
 	s := genPg.NewStaticOrDynamicString()
 	assignID(s)

@@ -62,8 +62,10 @@ end;`
 		t.Fatalf("setup: %v", err)
 	}
 
+	// A statement added inside the loop body: a change of the body's shape,
+	// which the splice refuses (an in-place edit is spliced, ako/mxcli#1106).
 	changed := strings.Replace(strings.Replace(flow, "create microflow", "create or modify microflow", 1),
-		"commit $It;", "commit $It without events;", 1)
+		"commit $It;", "commit $It;\n    log info node 'X' 'committed';", 1)
 	script := "mdl 1;\ncreate microflow MyFirstModule.Before () begin end;\n" +
 		strings.TrimPrefix(changed, "mdl 1;\n") + "\ncreate microflow MyFirstModule.After () begin end;\n"
 	prog, errs := visitor.Build(script)

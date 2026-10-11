@@ -290,6 +290,15 @@ Container Runtime:
 			fmt.Printf("  Created %d skills in %s/\n", skillRes.Total, filepath.ToSlash(rel))
 		}
 
+		// The companion mod (a Claude Code pane), beside the skills. Same
+		// code path as the SessionStart refresh, and only for Claude projects.
+		if written, err := syncCompanion(absDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing the companion mod: %v\n", err)
+			os.Exit(1)
+		} else if len(written) > 0 {
+			fmt.Printf("  Created the mxcli companion in .claude/skills/%s/ (/mxcli-project opens the Project pane)\n", companionFolder)
+		}
+
 		// Write tool-specific configurations
 		for _, toolName := range tools {
 			toolConfig, ok := SupportedTools[toolName]

@@ -107,6 +107,5 @@ var knownFailures = map[string]knownFailure{
 	"page MyFirstModule.Home_Web":            {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
 
 	// Snippets: #705 item 4 plus #721 D.
-	"snippet Administration.ReadMe":     {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
-	"snippet Atlas_Core.FeedbackWidget": {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
+	"snippet Administration.ReadMe": {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
 }

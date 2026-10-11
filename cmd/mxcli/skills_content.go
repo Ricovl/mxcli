@@ -38,6 +38,14 @@ var skillsFS embed.FS
 //go:embed all:skillpacks
 var skillPacksFS embed.FS
 
+// Embed the Claude Code mods from the synced directory (mods/ in the repo):
+// plugin folders written into a project's .claude/skills/ by init_companion.go.
+// `all:` because a plugin's manifest lives in `.claude-plugin/`, which a plain
+// go:embed of a directory skips.
+//
+//go:embed all:mods
+var modsFS embed.FS
+
 // Embed all command files from the synced directory
 //
 //go:embed commands/*.md

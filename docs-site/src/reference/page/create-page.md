@@ -46,7 +46,7 @@ The widget tree inside `{ ... }` defines the page content. Widgets are nested hi
 
 | Widget | Description | Key Properties |
 |--------|-------------|----------------|
-| `LAYOUTGRID` | Responsive grid container | `Class`, `Style` |
+| `LAYOUTGRID` | Responsive grid container | `Class`, `Style`, `Width` (`FullWidth` default, `FixedWidth`) |
 | `ROW` | Grid row | `Class` |
 | `COLUMN` | Grid column | `Class` |
 | `CONTAINER` | Generic div container | `Class`, `Style`, `DesignProperties` |
@@ -65,8 +65,8 @@ The widget tree inside `{ ... }` defines the page content. Widgets are nested hi
 
 | Widget | Description | Key Properties |
 |--------|-------------|----------------|
-| `TEXTBOX` | Single-line text input | `Label`, `Attribute` |
-| `TEXTAREA` | Multi-line text input | `Label`, `Attribute` |
+| `TEXTBOX` | Single-line text input | `Label`, `Attribute`, `Password`, `SubmitBehaviour` (`OnEndEditing` default, `WhileEditing`), `SubmitOnInputDelay` (ms, default 300) |
+| `TEXTAREA` | Multi-line text input | `Label`, `Attribute`, `SubmitBehaviour`, `SubmitOnInputDelay` |
 | `CHECKBOX` | Boolean toggle | `Label`, `Attribute` |
 | `RADIOBUTTONS` | Radio button group | `Label`, `Attribute` |
 | `DATEPICKER` | Date/time selector | `Label`, `Attribute` |

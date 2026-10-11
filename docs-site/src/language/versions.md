@@ -114,6 +114,11 @@ Without the header a template literal that spans lines and has no parameters is 
    by the same code exec uses, so a refusal shows up here and not halfway
    through a run.
 
+   To gate a script that is meant to be ready for the header — in CI, say —
+   pass `--deprecations=error --v1=error`: the first fails on a deprecated
+   spelling (`MDL-DEPRnnn`), the second on an `MDL-V1-*` warning, which only a
+   headerless script reports. Either alone lets the other through.
+
 5. **Run it twice.** The first `exec` applies the script; the second must write
    nothing, and report every document unchanged. A second run that writes is a
    script that does not say what the project holds — the upgrade's job is to
@@ -191,7 +196,7 @@ A construct with no mechanical rewrite is reported with the reason, and `fmt` re
 
 `-p app.mpr` also settles a bare `commit $X;` in a `create or modify microflow|nanoflow`, with or without the header. Since mendixlabs/mxcli#895 a bare commit means *with* events, Studio Pro's default; an older mxcli stored the same statement *without* events. Where the stored flow commits the variable without events, `fmt --upgrade -p app.mpr` writes `commit $X without events;`, so re-running the script keeps what is stored instead of turning the event handlers on (or, inside a loop under `mdl 1`, being refused). A new flow, a new commit, or a stored commit with events is left as written; where the stored flow commits the variable both ways, the statement is left and reported. Without `-p`, `fmt` prints a note (`MDL067`) for each flow with a bare commit.
 
-`-p app.mpr` also tells the upgrade which statements `exec` would refuse once the header is there. Under `mdl 1` a `create or modify microflow|nanoflow` of a stored flow is applied as a patch, and a change the patch cannot make (inside a loop body or an error handler, a redrawn connector, a `return` added) is refused with nothing written; without the header the same statement rebuilds the whole flow (`MDL-V1-REBUILD`). No rewrite keeps that meaning, so `fmt` names each such statement and leaves the header off that file, applying the rest of the upgrade. Change those flows with `alter`, or drop and create them, and upgrade again; `--force-header` adds the header regardless. `mxcli check script.mdl -p app.mpr` reports the same statements (an `MDL-V1-REBUILD` error under `mdl 1`, the warning without the header), computed by the same code as `exec` and `diff`.
+`-p app.mpr` also tells the upgrade which statements `exec` would refuse once the header is there. Under `mdl 1` a `create or modify microflow|nanoflow` of a stored flow is applied as a patch, and a change the patch cannot make (inside a loop body anything but an activity replaced by one of the same kind, an error handler, a redrawn connector, a `return` added) is refused with nothing written; without the header the same statement rebuilds the whole flow (`MDL-V1-REBUILD`). No rewrite keeps that meaning, so `fmt` names each such statement and leaves the header off that file, applying the rest of the upgrade. Change those flows with `alter`, or drop and create them, and upgrade again; `--force-header` adds the header regardless. `mxcli check script.mdl -p app.mpr` reports the same statements (an `MDL-V1-REBUILD` error under `mdl 1`, the warning without the header), computed by the same code as `exec` and `diff`.
 
 ## Behaviour changes to know about
 

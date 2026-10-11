@@ -99,6 +99,15 @@ canonical form, such as "create or replace" for "create or modify" or "show" for
 "list" — is reported as an MDL-DEPRnnn warning naming the canonical form. Pass
 --deprecations=error to fail the run on one instead, e.g. in CI over docs.
 
+A headerless script is mdl 0, and every construct in it that means something
+else, or is refused, under "mdl 1;" is reported as an MDL-V1-* warning
+(MDL-V1-SLASH, MDL-V1-SEMI, MDL-V1-LIMIT1, MDL-V1-QUOTEDEXPR, the MDL-V1-REBUILD
+warning form, ...). Pass --v1=error to fail the run on one. The two flags gate
+different things: a script can pass --deprecations=error and still not parse
+under mdl 1, so --deprecations=error --v1=error together is the full mdl 1
+readiness gate. "mxcli fmt --upgrade --header" is the fix for both. A script
+already headed "mdl 1;" reports no MDL-V1-* warning.
+
 Use --post-migration to scan an existing project (independent of the script)
 for legacy native widgets that have pluggable replacements — Studio Pro does
 not auto-migrate these on a Mendix major-version upgrade.
@@ -117,6 +126,9 @@ Examples:
   # (progress goes to stderr); the exit code still says whether it passed
   mxcli check script.mdl --format json
   mxcli check script.mdl -p app.mpr --format sarif > results.sarif
+
+  # Gate a headerless script on being ready for "mdl 1;"
+  mxcli check script.mdl -p app.mpr --deprecations=error --v1=error
 
   # Check a script set, run in this order
   mxcli check 10-domain.mdl 20-flows.mdl 30-pages.mdl -p app.mpr
@@ -157,6 +169,7 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 	checkRefs = checkRefs || projectPath != ""
 	postMigration, _ := cmd.Flags().GetBool("post-migration")
 	depPolicy := deprecationPolicy(cmd)
+	v1 := v1Policy(cmd)
 	format := resolveFormat(cmd, "text")
 	isStructured := format != "" && format != "text"
 
@@ -310,6 +323,7 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 		}
 	}
 	violations = executor.ApplyDeprecationPolicy(violations, depPolicy)
+	violations = executor.ApplyV1Policy(violations, v1)
 
 	if isStructured {
 		// Always emit structured output (even when clean)
@@ -443,6 +457,9 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 		// language leaves every required caption written in the old one empty
 		// in the new one (ako/mxcli#944).
 		projectViolations = append(projectViolations, exec.CheckDefaultLanguageCaptions(prog)...)
+		// --v1=error: the MDL-V1-REBUILD warning form (a headerless script's
+		// flow change exec rebuilds) fails the run like any other MDL-V1-*.
+		projectViolations = executor.ApplyV1Policy(projectViolations, v1)
 
 		if len(projectViolations) > 0 {
 			if isStructured {
