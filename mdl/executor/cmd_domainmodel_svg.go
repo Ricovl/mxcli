@@ -30,12 +30,44 @@ var svgEntityHeader = map[string]string{
 
 const (
 	svgPad        = 24.0
-	svgHeaderH    = 26.0
-	svgExtendsH   = 14.0
-	svgLineH      = 18.0
-	svgFont       = `font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace"`
-	svgMaxNameLen = 40
+	svgHeaderH    = 24.0
+	svgExtendsH   = 12.0
+	svgLineH      = 16.0
+	svgTextPad    = 16.0
+	svgMinW       = 90.0
+	svgMinGap     = 8.0
+	svgFont       = `font-family="Segoe UI,Helvetica Neue,Arial,sans-serif"`
+	svgMaxNameLen = 60
+	// svgMaxSpread caps how far the stored layout is pulled apart to fit full
+	// names, so one outlier cannot blow a diagram up to several screens.
+	svgMaxSpread = 2.5
 )
+
+// textPx estimates a string's width in a proportional sans-serif at `size` px.
+// Studio Pro draws entities in such a font and places them for its own box
+// widths; sizing for a monospace (as the ELK graph does) made boxes wider than
+// the room Studio Pro left, and they overlapped.
+func textPx(s string, size float64, bold bool) float64 {
+	em := 0.0
+	for _, r := range s {
+		switch {
+		case strings.ContainsRune("il.,:;'|!tfjrI ()[]", r):
+			em += 0.32
+		case strings.ContainsRune("mwMW", r):
+			em += 0.86
+		case r >= 'A' && r <= 'Z':
+			em += 0.66
+		case r >= '0' && r <= '9':
+			em += 0.56
+		default:
+			em += 0.54
+		}
+	}
+	if bold {
+		em *= 1.06
+	}
+	return em * size
+}
 
 type svgBox struct {
 	x, y, w, h float64
@@ -107,17 +139,62 @@ func renderDomainModelSVG(moduleName string, entities []*domainmodel.Entity, ass
 
 	boxes := map[model.ID]svgBox{}
 	byName := map[string]model.ID{}
-	minX, minY := math.Inf(1), math.Inf(1)
-	maxX, maxY := math.Inf(-1), math.Inf(-1)
 	for _, e := range entities {
-		size := buildELKEntity(e)
-		h := size.Height
+		w := textPx(e.Name, 12, true)
+		if e.GeneralizationRef != "" {
+			w = math.Max(w, textPx("extends "+e.GeneralizationRef, 10, false))
+		}
+		for _, at := range e.Attributes {
+			w = math.Max(w, textPx(at.Name+": "+at.Type.GetTypeName(), 11, false))
+		}
+		h := svgHeaderH + svgLineH*math.Max(1, float64(len(e.Attributes))) + 4
 		if e.GeneralizationRef != "" {
 			h += svgExtendsH
 		}
-		b := svgBox{x: float64(e.Location.X), y: float64(e.Location.Y), w: size.Width, h: h}
-		boxes[e.ID] = b
+		boxes[e.ID] = svgBox{x: float64(e.Location.X), y: float64(e.Location.Y), w: math.Max(svgMinW, w+svgTextPad), h: h}
 		byName[moduleName+"."+e.Name] = e.ID
+	}
+	// Studio Pro draws entities at a fixed width and cuts long names off, a
+	// common complaint. Keep its arrangement, but pull it apart (x first, then
+	// y at the new x) just enough that every box fits its longest line, up to
+	// svgMaxSpread; past that the clamp below takes over.
+	spread(entities, boxes, true)
+	spread(entities, boxes, false)
+
+	// A box never runs into the entity to its right, nor into the one below:
+	// widths first (against neighbours sharing its rows), then heights (against
+	// neighbours sharing its columns, at the clamped width). The text is
+	// clipped to the box; the tooltip keeps all of it.
+	clamped := map[model.ID]bool{}
+	for _, e := range entities {
+		a := boxes[e.ID]
+		for _, o := range entities {
+			b := boxes[o.ID]
+			if o.ID == e.ID || b.x <= a.x || a.y >= b.y+b.h || b.y >= a.y+a.h {
+				continue
+			}
+			if room := b.x - a.x - svgMinGap; room < a.w {
+				a.w, clamped[e.ID] = math.Max(60, room), true
+			}
+		}
+		boxes[e.ID] = a
+	}
+	for _, e := range entities {
+		a := boxes[e.ID]
+		for _, o := range entities {
+			b := boxes[o.ID]
+			if o.ID == e.ID || b.y <= a.y || a.x >= b.x+b.w || b.x >= a.x+a.w {
+				continue
+			}
+			if room := b.y - a.y - svgMinGap; room < a.h {
+				a.h, clamped[e.ID] = math.Max(svgHeaderH, room), true
+			}
+		}
+		boxes[e.ID] = a
+	}
+	minX, minY := math.Inf(1), math.Inf(1)
+	maxX, maxY := math.Inf(-1), math.Inf(-1)
+	for _, b := range boxes {
 		minX, minY = math.Min(minX, b.x), math.Min(minY, b.y)
 		maxX, maxY = math.Max(maxX, b.x+b.w), math.Max(maxY, b.y+b.h)
 	}
@@ -125,7 +202,7 @@ func renderDomainModelSVG(moduleName string, entities []*domainmodel.Entity, ass
 	w, h := maxX-minX, maxY-minY
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s %s %s %s" width="%s" height="%s" %s font-size="12">`,
+	fmt.Fprintf(&sb, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="%s %s %s %s" width="%s" height="%s" %s font-size="11">`,
 		svgNum(minX), svgNum(minY), svgNum(w), svgNum(h), svgNum(w), svgNum(h), svgFont)
 	fmt.Fprintf(&sb, `<rect x="%s" y="%s" width="%s" height="%s" rx="8" fill="#F7F8FA"/>`, svgNum(minX), svgNum(minY), svgNum(w), svgNum(h))
 
@@ -190,11 +267,14 @@ func renderDomainModelSVG(moduleName string, entities []*domainmodel.Entity, ass
 		sb.WriteString(`</g>`)
 	}
 
-	for _, e := range entities {
+	for i, e := range entities {
 		b := boxes[e.ID]
 		kind := classifyEntity(e)
 		var tip strings.Builder
 		tip.WriteString(e.Name)
+		if e.GeneralizationRef != "" {
+			fmt.Fprintf(&tip, " (extends %s)", e.GeneralizationRef)
+		}
 		for _, at := range e.Attributes {
 			fmt.Fprintf(&tip, "\n%s: %s", at.Name, at.Type.GetTypeName())
 		}
@@ -203,21 +283,78 @@ func renderDomainModelSVG(moduleName string, entities []*domainmodel.Entity, ass
 		if e.GeneralizationRef != "" {
 			headerH += svgExtendsH
 		}
+		headerH = math.Min(headerH, b.h)
 		fmt.Fprintf(&sb, `<rect width="%s" height="%s" rx="4" fill="#FFFFFF" stroke="#B8C0CC"/>`, svgNum(b.w), svgNum(b.h))
 		fmt.Fprintf(&sb, `<path d="M4 0H%sA4 4 0 0 1 %s 4V%sH0V4A4 4 0 0 1 4 0Z" fill="%s"/>`,
 			svgNum(b.w-4), svgNum(b.w), svgNum(headerH), svgEntityHeader[kind])
-		fmt.Fprintf(&sb, `<text x="8" y="18" fill="#FFFFFF" font-weight="600">%s</text>`, svgText(e.Name))
+		textOpen := "<g>"
+		if clamped[e.ID] {
+			fmt.Fprintf(&sb, `<clipPath id="clip%d"><rect width="%s" height="%s"/></clipPath>`, i, svgNum(b.w-4), svgNum(b.h))
+			textOpen = fmt.Sprintf(`<g clip-path="url(#clip%d)">`, i)
+		}
+		sb.WriteString(textOpen)
+		fmt.Fprintf(&sb, `<text x="8" y="16" fill="#FFFFFF" font-size="12" font-weight="600">%s</text>`, svgText(e.Name))
 		if e.GeneralizationRef != "" {
-			fmt.Fprintf(&sb, `<text x="8" y="33" fill="#FFFFFF" font-size="10" font-style="italic">extends %s</text>`, svgText(e.GeneralizationRef))
+			fmt.Fprintf(&sb, `<text x="8" y="30" fill="#FFFFFF" font-size="10" font-style="italic">extends %s</text>`, svgText(e.GeneralizationRef))
 		}
-		for i, at := range e.Attributes {
+		for j, at := range e.Attributes {
 			fmt.Fprintf(&sb, `<text x="8" y="%s" fill="#1F2933">%s</text>`,
-				svgNum(headerH+svgLineH*float64(i)+13), svgText(at.Name+": "+at.Type.GetTypeName()))
+				svgNum(headerH+svgLineH*float64(j)+13), svgText(at.Name+": "+at.Type.GetTypeName()))
 		}
-		sb.WriteString(`</g>`)
+		sb.WriteString(`</g></g>`)
 	}
 	sb.WriteString(`</svg>`)
 	return sb.String()
+}
+
+// spread scales the boxes' positions along one axis, from the smallest
+// coordinate, by the least factor (1 to svgMaxSpread) that leaves every box
+// clear of the next one along that axis among those it shares the other axis
+// with.
+func spread(entities []*domainmodel.Entity, boxes map[model.ID]svgBox, horizontal bool) {
+	k := 1.0
+	origin := math.Inf(1)
+	for _, e := range entities {
+		a := boxes[e.ID]
+		if horizontal {
+			origin = math.Min(origin, a.x)
+		} else {
+			origin = math.Min(origin, a.y)
+		}
+		for _, o := range entities {
+			b := boxes[o.ID]
+			if o.ID == e.ID {
+				continue
+			}
+			var gap, need float64
+			if horizontal {
+				if b.x <= a.x || a.y >= b.y+b.h || b.y >= a.y+a.h {
+					continue
+				}
+				gap, need = b.x-a.x, a.w+svgMinGap
+			} else {
+				if b.y <= a.y || a.x >= b.x+b.w || b.x >= a.x+a.w {
+					continue
+				}
+				gap, need = b.y-a.y, a.h+svgMinGap
+			}
+			if need > gap {
+				k = math.Max(k, need/gap)
+			}
+		}
+	}
+	k = math.Min(k, svgMaxSpread)
+	if k == 1 {
+		return
+	}
+	for id, b := range boxes {
+		if horizontal {
+			b.x = origin + (b.x-origin)*k
+		} else {
+			b.y = origin + (b.y-origin)*k
+		}
+		boxes[id] = b
+	}
 }
 
 // writeEndLabel puts a multiplicity just inside the line's end at (x, y), set
