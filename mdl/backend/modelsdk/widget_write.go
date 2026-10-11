@@ -1021,7 +1021,8 @@ func layoutGridRowToGen(row *pages.LayoutGridRow) (element.Element, error) {
 }
 
 // layoutGridColumnToGen converts a LayoutGridColumn. Weights default to -1 (auto,
-// via columnWeight); PreviewWidth is always -1 — matching the legacy serializer.
+// via columnWeight); PreviewWidth is -1, Studio Pro's value for a new column —
+// a rewrite carries the stored one (carryLayoutGridPreviewWidth).
 func layoutGridColumnToGen(col *pages.LayoutGridColumn) (element.Element, error) {
 	g := genPg.NewLayoutGridColumn()
 	if col.ID != "" {
