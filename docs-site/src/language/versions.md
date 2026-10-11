@@ -114,6 +114,11 @@ Without the header a template literal that spans lines and has no parameters is 
    by the same code exec uses, so a refusal shows up here and not halfway
    through a run.
 
+   To gate a script that is meant to be ready for the header — in CI, say —
+   pass `--deprecations=error --v1=error`: the first fails on a deprecated
+   spelling (`MDL-DEPRnnn`), the second on an `MDL-V1-*` warning, which only a
+   headerless script reports. Either alone lets the other through.
+
 5. **Run it twice.** The first `exec` applies the script; the second must write
    nothing, and report every document unchanged. A second run that writes is a
    script that does not say what the project holds — the upgrade's job is to

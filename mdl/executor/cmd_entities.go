@@ -433,6 +433,9 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		// own defect report; access rules would have been the third, and the
 		// external-source and OData fields the next. Starting from what is stored
 		// and overwriting only what the statement declares has no such tail.
+		// Recorded before the merge, which may reuse the stored attributes:
+		// the views over a changed attribute are resynced after the write.
+		storedSignatures := attributeSignatures(existingEntity)
 		entity = mergeDeclaredOntoStoredEntity(existingEntity, entity, s)
 		if droppedIdx := reconcileDroppedIndexes(entity, existingEntity); droppedIdx > 0 {
 			fmt.Fprintf(ctx.Output,
@@ -451,6 +454,7 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		invalidateHierarchy(ctx)
 		invalidateDomainModelsCache(ctx)
 		ctx.ReportMutation("Modified", "entity: %s", s.Name)
+		resyncViewsOverSource(ctx, s.Name.String(), changedAttributes(storedSignatures, entity))
 	} else {
 		// Create new entity
 		if err := ctx.Backend.CreateEntity(dm.ID, entity); err != nil {
@@ -1435,6 +1439,7 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 			return err
 		}
 		found := false
+		storedSignatures := attributeSignatures(entity)
 		for _, attr := range entity.Attributes {
 			if attr.Name == s.AttributeName {
 				storedType := attr.Type
@@ -1483,6 +1488,7 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		invalidateHierarchy(ctx)
 		invalidateDomainModelsCache(ctx)
 		ctx.ReportMutation("Modified", "attribute '%s' on entity %s", s.AttributeName, s.Name)
+		resyncViewsOverSource(ctx, s.Name.String(), changedAttributes(storedSignatures, entity))
 
 	case ast.AlterEntityDropAttribute:
 		if isViewEntity(entity) {

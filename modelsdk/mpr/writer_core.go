@@ -19,7 +19,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/modelsdk/canon"
-	"github.com/mendixlabs/mxcli/modelsdk/version"
 )
 
 // idToBsonBinary converts a UUID string to BSON Binary format.
@@ -1026,14 +1025,5 @@ func (w *Writer) UpdateUnitContainer(unitID, newContainerID string) error {
 // unopenable or unmergeable (mendixlabs/mxcli#1373), and a fix per writer is
 // the list that never ends.
 func (w *Writer) normalizePropertySets(unitID string, contents []byte) ([]byte, error) {
-	pv := w.reader.ProjectVersion()
-	if pv == nil || pv.MajorVersion == 0 {
-		return contents, nil
-	}
-	v := version.Version{Major: pv.MajorVersion, Minor: pv.MinorVersion, Patch: pv.PatchVersion}
-	stripped, err := canon.StripUndeclaredProperties(contents, &v)
-	if err != nil {
-		return nil, fmt.Errorf("unit %s: %w", unitID, err)
-	}
-	return canon.CompletePropertySets(stripped, &v), nil
+	return normalizePropertySetsFor(w.reader.ProjectVersion(), unitID, contents)
 }

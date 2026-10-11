@@ -182,8 +182,9 @@ func generateClaudeMD(projectName, mprFile string) string {
 	// mean something else. Mixing the two in one file is the failure to
 	// prevent, so the upgrade comes before the edit.
 	w("**Each starts with " + bt + "mdl 1;" + bt + ".** A headerless one is " + bt + "mdl 0" + bt + ": upgrade it first,\n")
-	w(bt + "./mxcli fmt --upgrade --header -p " + mprPath + " -w <file>" + bt + ", then " + bt + "check" + bt + " it; never mix the two\n")
-	w("in a file. Exec a change twice: the second run must write nothing (unchanged).\n\n")
+	w(bt + "./mxcli fmt --upgrade --header -p " + mprPath + " -w <file>" + bt + ", then\n")
+	w(bt + "check --deprecations=error --v1=error" + bt + " it; never mix them in a file.\n")
+	w("Exec a change twice: the second run must write nothing (unchanged).\n\n")
 
 	// ── The gates ───────────────────────────────────────────────────
 	// Ordered cheapest-first on purpose: each one is only worth paying for
