@@ -12,15 +12,15 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 |---|---|
 | 28-43 | Reference files |
 | 44-46 | Overview |
-| 47-193 | Syntax |
-| 194-264 | Basic Examples |
-| 265-286 | Modifying Existing Pages |
-| 287-374 | Conditional Visibility and Editability |
-| 375-516 | Known Limitations |
-| 517-525 | Tips |
-| 526-552 | Related Commands |
-| 553-577 | PLUGGABLEWIDGET Escape Hatch |
-| 578-581 | See Also |
+| 47-195 | Syntax |
+| 196-266 | Basic Examples |
+| 267-288 | Modifying Existing Pages |
+| 289-376 | Conditional Visibility and Editability |
+| 377-526 | Known Limitations |
+| 527-535 | Tips |
+| 536-562 | Related Commands |
+| 563-587 | PLUGGABLEWIDGET Escape Hatch |
+| 588-591 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
