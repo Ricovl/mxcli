@@ -369,7 +369,8 @@ func restInlineMappingElementToGen(entity, association, exposedName, jsonPath st
 		addInt32(v, "MinOccurs", 0)
 		addInt32(v, "MaxOccurs", 1)
 		addBool(v, "Nillable", true)
-		addBool(v, "IsDefaultType", false)
+		// No IsDefaultType: Mendix declares it on the object mapping element
+		// only, and mx diff/merge throws on it here (#1097; see #882).
 		addStr(v, "ElementType", "Value")
 		addStr(v, "Documentation", "")
 		addStr(v, "Converter", "")
