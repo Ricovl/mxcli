@@ -1,0 +1,42 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli-ledger FINDINGS #170 — `describe page` → `exec` reset two stored
+-- values MDL could not express, `mx check` clean on both sides:
+--
+--   Forms$TextBox / Forms$TextArea .SubmitBehaviour   WhileEditing → OnEndEditing
+--   Forms$TextBox / Forms$TextArea .SubmitOnInputDelay <n>         → 300
+--   Forms$LayoutGrid.Width                            FixedWidth  → FullWidth
+--
+-- And `check` accepted `SubmitBehaviour: WhileEditing` (MDL-WIDGET07 only
+-- warns) while exec dropped it; `Width: FixedWidth` on a layout grid did not
+-- even warn.
+--
+-- EXPECTED: exec stores WhileEditing / 500 / FixedWidth, `describe page` prints
+-- them back, and re-executing the description writes nothing.
+--
+-- As with the #550 bug-test, this file is a reproduction scaffold: mxcli
+-- round-tripping its own output agrees with itself. The detector is
+-- TestSubmitBehaviourAndGridWidth_StudioProPageRoundTrips over PedApp's Studio
+-- Pro-authored FeedbackModule.ShareFeedback and MyFirstModule.Home_Web.
+-- ============================================================================
+
+create module Ledger170;
+
+create non-persistent entity Ledger170.Search (Query: string(200), Notes: string(2000));
+
+create page Ledger170.Search_Live (
+  title: 'Search',
+  layout: Atlas_Core.Atlas_Default,
+  params: ( $Search: Ledger170.Search )
+) {
+  layoutgrid gridFixed (Width: FixedWidth) {
+    row {
+      column (DesktopWidth: 12) {
+        dataview dvSearch (DataSource: $Search) {
+          textbox tbQuery (Label: 'Query', Attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)
+          textarea taNotes (Label: 'Notes', Attribute: Notes, SubmitBehaviour: WhileEditing)
+        }
+      }
+    }
+  }
+};

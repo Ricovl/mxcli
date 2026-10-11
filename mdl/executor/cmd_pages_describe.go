@@ -697,6 +697,13 @@ type rawWidget struct {
 	// input widgets.
 	ValidationExpression string
 	ValidationMessage    string
+	// SubmitBehaviour / SubmitOnInputDelay are a text box's or text area's
+	// stored submit settings; empty / nil when absent. LayoutGridWidth is a
+	// layout grid's Width. Printed only when not Studio Pro's default
+	// (ako/mxcli-ledger FINDINGS #170).
+	SubmitBehaviour    string
+	SubmitOnInputDelay *int
+	LayoutGridWidth    string
 	// Formatting is the widget's Forms$FormattingInfo as MDL properties
 	// (DateFormat, CustomDateFormat, DecimalPrecision, GroupDigits), only the
 	// non-default ones (ako/mxcli#968).

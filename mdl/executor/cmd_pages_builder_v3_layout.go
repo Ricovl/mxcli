@@ -23,6 +23,12 @@ func (pb *pageBuilder) buildLayoutGridV3(w *ast.WidgetV3) (*pages.LayoutGrid, er
 			Name: w.Name,
 		},
 	}
+	// Width: FullWidth | FixedWidth (ako/mxcli-ledger FINDINGS #170).
+	width, err := layoutGridWidth(w)
+	if err != nil {
+		return nil, mdlerrors.NewValidation(err.Error())
+	}
+	lg.Width = width
 
 	// Build rows from children
 	for _, child := range w.Children {

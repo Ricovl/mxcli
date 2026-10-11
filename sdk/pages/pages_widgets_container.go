@@ -12,6 +12,11 @@ import (
 type LayoutGrid struct {
 	BaseWidget
 	Rows []*LayoutGridRow `json:"rows,omitempty"`
+	// Width is Forms$LayoutGrid.Width, a pages ContainerWidth: "FullWidth"
+	// (Studio Pro's default) or "FixedWidth". Empty writes the default. It was
+	// hard-coded, so describe → exec turned a fixed-width grid into a full-width
+	// one (ako/mxcli-ledger FINDINGS #170).
+	Width string `json:"width,omitempty"`
 }
 
 // LayoutGridRow represents a row in a layout grid.
