@@ -201,7 +201,34 @@ fi
 # fatal, since a refresh must not block the session.
 ./mxcli init --sync-skills . || true
 
-exec ./mxcli run --local --setup --ensure-db -p "$MPR"
+# Cache MxBuild + the runtime and provision the database. Not exec'd: the
+# hook runs this script under '|| true' so a failure never blocks the session,
+# which also made a failed provisioning invisible. Its output is teed to a log
+# so a failure can be named in a banner, and its status is kept in a file
+# because a pipeline's status is its last command's in POSIX sh.
+log=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/mxcli-bootstrap.$$.log")
+st="$log.status"
+rm -f "$st"
+{ ./mxcli run --local --setup --ensure-db -p "$MPR" 2>&1 || echo "$?" >"$st"; } | tee "$log"
+status=0
+[ -f "$st" ] && status=$(cat "$st")
+if [ "$status" -ne 0 ]; then
+  reason=$(grep -i 'error' "$log" | tail -n 1)
+  [ -n "$reason" ] || reason=$(grep -v '^[[:space:]]*$' "$log" | tail -n 1)
+  reason=$(echo "$reason" | sed 's/^[Ee][Rr][Rr][Oo][Rr]:[[:space:]]*//')
+  {
+    echo ""
+    echo "======================================================================"
+    echo "ERROR: the app database was not provisioned: ${reason:-./mxcli run exited $status}"
+    echo "  The session started, but the app cannot run until this is fixed."
+    echo "  Retry:   ./mxcli run --local --setup --ensure-db -p $MPR"
+    echo "  Or boot on the built-in database (no PostgreSQL needed):"
+    echo "           ./mxcli run --local --db-type hsqldb -p $MPR"
+    echo "======================================================================"
+  } >&2
+fi
+rm -f "$log" "$st"
+exit "$status"
 `
 
 // releaseTagRe matches a plain release version: what a tagged release
