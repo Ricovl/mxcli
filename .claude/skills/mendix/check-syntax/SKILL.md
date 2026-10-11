@@ -295,6 +295,9 @@ A script without the header is checked and executed as `mdl 0`, the alpha langua
 where some statements mean something else. Write `mdl 1;` as the first line of every
 new script. To edit a headerless one, upgrade it first (`mxcli fmt --upgrade --header
 -p app.mpr -w script.mdl`) — never mix the two in one file; see `choose-edit-mode`.
+To prove a script is ready for the header, `mxcli check --deprecations=error --v1=error`
+fails on both a deprecated spelling (MDL-DEPRnnn) and an `MDL-V1-*` warning; either
+flag alone lets the other through.
 
 ### 1. Check Supported Syntax
 
