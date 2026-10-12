@@ -55,11 +55,13 @@ var (
 // slice has NO access rule: nobody reads it directly, only through a
 // specialization of their own (System.FileDocument, System.Image).
 var systemReadAccess = map[string][]SystemReadGrant{
-	// [id = '[%CurrentUser%]'] — for EVERY role, Administrator included. An
-	// Administrator sees other users only through a specialization's rules
-	// (Administration.Account), which is how the manage-security skill's
-	// measurement (11.14.0) came out: a combo box over System.User lists all
-	// users for Administrator and the current user alone for a plain role.
+	// [id = '[%CurrentUser%]'] — for EVERY role, Administrator included. Other
+	// users' ROWS come through a specialization's rules (Administration.Account);
+	// their System.User MEMBERS only where that rule grants them, or for users
+	// whose roles the user role may manage. Measured on 11.15.0 (ChipCoV9): a
+	// list over System.User showed a ServiceManager every row with Name blank
+	// but their own, and an Administrator (Manage All Roles) every name — the
+	// Account rules of both grant no System.User member. SEC010 applies this.
 	"System.User": everyRoleScoped,
 	// [System.UserRoles = '[%CurrentUser%]' or System.grantableRoles[reversed()]/…/System.UserRoles = '[%CurrentUser%]']
 	"System.UserRole": everyRoleScoped,
