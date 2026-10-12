@@ -31,7 +31,7 @@ can match both an entity and a document, for example) or for forms that have no
 single qualified name (module, settings, navigation, module role).
 
 Types:
-  module           Describe a module (all contents)
+  module           Describe a module and its module roles (--all: everything in it)
   entity           Describe an entity
   externalentity   Describe an external entity (alias for entity)
   association      Describe an association
@@ -78,6 +78,7 @@ Example:
   mxcli describe -p app.mpr MyModule.Customer          # type auto-detected
   mxcli describe -p app.mpr MyModule.ProcessOrder      # type auto-detected
   mxcli describe -p app.mpr module MyModule
+  mxcli describe -p app.mpr --all module MyModule    # DESCRIBE MODULE ... WITH ALL
   mxcli describe -p app.mpr entity MyModule.Customer
   mxcli describe -p app.mpr microflow MyModule.ProcessOrder
   mxcli describe -p app.mpr --mdl 0 microflow MyModule.ProcessOrder
@@ -135,6 +136,12 @@ Example:
 			fmt.Fprintf(os.Stderr, "Unknown type: %s\n", strings.Join(args[:len(args)-1], " "))
 			fmt.Fprintln(os.Stderr, "Valid types: module, entity, association, enumeration, constant, microflow, nanoflow, workflow, page, snippet, layout, javaaction, javascriptaction, jsonstructure, importmapping, exportmapping, consumedrestservice, consumedodataservice, publishedodataservice, publishedrestservice, imagecollection, menu, taskqueue, scheduledevent, businesseventservice, databaseconnection, agent, aimodel, knowledgebase, consumedmcpservice, datatransformer, modulerole, userrole, appsecurity, settings, demouser, navigation, systemoverview")
 			fmt.Fprintln(os.Stderr, "Multi-word types also accepted: json structure, import mapping, export mapping, consumed rest service, consumed odata service, published odata service, published rest service, task queue, app security, image collection, scheduled event, regular expression, business event service, ai model, knowledge base, consumed mcp service, data transformer, etc.")
+			os.Exit(1)
+		}
+		all, _ := cmd.Flags().GetBool("all")
+		mdlCmd, err := applyDescribeAll(objectType, mdlCmd, all)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 
@@ -337,6 +344,20 @@ func describeMDLCommand(objectType, name string) (mdlCmd string, ok bool) {
 		return "", true // diagrams only: handled by the --format elk / svg paths
 	}
 	return "", false
+}
+
+// applyDescribeAll applies the --all flag: for a module it describes everything
+// in it (DESCRIBE MODULE ... WITH ALL), where a plain describe module prints the
+// module and its roles only (mendixlabs/mxcli#1435). --all on any other type is
+// an error rather than a flag silently ignored.
+func applyDescribeAll(objectType, mdlCmd string, all bool) (string, error) {
+	if !all {
+		return mdlCmd, nil
+	}
+	if objectType != "MODULE" {
+		return "", fmt.Errorf("--all applies to describe module only")
+	}
+	return mdlCmd + " WITH ALL", nil
 }
 
 // objectTypeToDescribe maps a catalog `objects` view ObjectType to the `describe`

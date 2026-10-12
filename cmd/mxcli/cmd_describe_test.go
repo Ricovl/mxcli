@@ -187,3 +187,42 @@ func TestDescribeHelp_StudioProDocumentNames(t *testing.T) {
 		t.Errorf("unitTypeToDescribe[Queues$Queue] = %q, want taskqueue", got)
 	}
 }
+
+// TestDescribeModule_HelpMatchesOutput is mendixlabs/mxcli#1435: the help said
+// "module  Describe a module (all contents)" while the subcommand ran a plain
+// DESCRIBE MODULE, which prints only the module and its roles. The contents are
+// opt-in with --all (DESCRIBE MODULE ... WITH ALL), and the help says so.
+func TestDescribeModule_HelpMatchesOutput(t *testing.T) {
+	if strings.Contains(describeCmd.Long, "Describe a module (all contents)") {
+		t.Error(`describe --help promises "all contents" for a plain describe module`)
+	}
+	if describeCmd.Flags().Lookup("all") == nil {
+		t.Fatal("describe has no --all flag")
+	}
+
+	plain, _ := describeMDLCommand("MODULE", "M")
+	for _, tc := range []struct {
+		all  bool
+		want string
+	}{
+		{false, "DESCRIBE MODULE M"},
+		{true, "DESCRIBE MODULE M WITH ALL"},
+	} {
+		got, err := applyDescribeAll("MODULE", plain, tc.all)
+		if err != nil || got != tc.want {
+			t.Errorf("describe module M (all=%v) = %q, %v; want %q", tc.all, got, err, tc.want)
+		}
+		if _, errs := visitor.Build(got); len(errs) > 0 {
+			t.Errorf("%q does not parse: %v", got, errs)
+		}
+	}
+
+	// --all on any other type is refused rather than silently ignored.
+	entity, _ := describeMDLCommand("ENTITY", "M.E")
+	if _, err := applyDescribeAll("ENTITY", entity, true); err == nil {
+		t.Error("describe --all entity M.E: want an error, got none")
+	}
+	if got, err := applyDescribeAll("ENTITY", entity, false); err != nil || got != entity {
+		t.Errorf("describe entity M.E without --all = %q, %v; want %q", got, err, entity)
+	}
+}
