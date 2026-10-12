@@ -187,3 +187,30 @@ func TestDescribeHelp_StudioProDocumentNames(t *testing.T) {
 		t.Errorf("unitTypeToDescribe[Queues$Queue] = %q, want taskqueue", got)
 	}
 }
+
+// TestDescribeMDLCommand_Rule is mendixlabs/mxcli#1402: `describe rule M.R`
+// answered "Unknown type: rule" although `-c "describe rule M.R"` works, and a
+// bare `describe M.R` found "no describable document" because neither
+// auto-detect map knew rules.
+func TestDescribeMDLCommand_Rule(t *testing.T) {
+	const want = "DESCRIBE RULE M.R"
+	got, ok := describeMDLCommand("RULE", "M.R")
+	if !ok {
+		t.Fatal("describe rule M.R: Unknown type: rule")
+	}
+	if got != want {
+		t.Errorf("describe rule M.R = %q, want %q", got, want)
+	}
+	if _, errs := visitor.Build(want); len(errs) > 0 {
+		t.Fatalf("%q does not parse: %v", want, errs)
+	}
+	if got := objectTypeToDescribe["RULE"]; got != "rule" {
+		t.Errorf("catalog ObjectType RULE auto-detects as %q, want rule", got)
+	}
+	if got := unitTypeToDescribe["Microflows$Rule"]; got != "rule" {
+		t.Errorf("unit type Microflows$Rule auto-detects as %q, want rule", got)
+	}
+	if !strings.Contains(describeCmd.Long, "\n  rule ") {
+		t.Error("describe --help lists no rule type line")
+	}
+}
