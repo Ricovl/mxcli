@@ -60,6 +60,23 @@ type DiffResult struct {
 	// to another folder, a property describe does not print), or why they
 	// could not be made; "" otherwise.
 	Writes string
+	// FromLabel / ToLabel name the two sides in the headers. "" keeps the
+	// script diff's "current" / "script"; diff-local sets the git revisions,
+	// since neither side of `--ref a..b` is a script (#1393).
+	FromLabel string
+	ToLabel   string
+}
+
+// sideLabels returns the header labels for the two sides of a diff.
+func (r DiffResult) sideLabels() (from, to string) {
+	from, to = r.FromLabel, r.ToLabel
+	if from == "" {
+		from = "current"
+	}
+	if to == "" {
+		to = "script"
+	}
+	return from, to
 }
 
 // ANSI color codes

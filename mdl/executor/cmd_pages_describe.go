@@ -416,7 +416,11 @@ func getSnippetWidgetsFromRaw(ctx *ExecContext, snippetID model.ID) []rawWidget 
 	if err != nil {
 		return nil
 	}
+	return snippetWidgetsFromRawData(ctx, rawData)
+}
 
+// snippetWidgetsFromRawData is getSnippetWidgetsFromRaw over a document already in hand.
+func snippetWidgetsFromRawData(ctx *ExecContext, rawData map[string]any) []rawWidget {
 	// Handle both snippet formats:
 	// - Studio Pro uses "Widgets" (plural): a top-level array of widgets
 	// - mxcli uses "Widget" (singular): a single container whose "Widgets" field holds children
@@ -976,6 +980,13 @@ func getPageWidgetGroupsFromRaw(ctx *ExecContext, pageID model.ID) []pageWidgetG
 	if err != nil {
 		return nil
 	}
+	return pageWidgetGroupsFromRawData(ctx, rawData)
+}
+
+// pageWidgetGroupsFromRawData is getPageWidgetGroupsFromRaw over a document
+// already in hand — diff-local's, read from a git revision rather than the
+// opened project.
+func pageWidgetGroupsFromRawData(ctx *ExecContext, rawData map[string]any) []pageWidgetGroup {
 	formCall, ok := rawData["FormCall"].(map[string]any)
 	if !ok {
 		return nil

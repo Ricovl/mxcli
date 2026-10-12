@@ -84,6 +84,11 @@ func (h *ContainerHierarchy) FindModuleID(containerID model.ID) model.ID {
 	return containerID
 }
 
+// ContainerOf returns the container a unit or folder sits in, "" if unknown.
+func (h *ContainerHierarchy) ContainerOf(id model.ID) model.ID {
+	return h.containerParent[id]
+}
+
 // GetModuleName returns the module name for a module ID.
 func (h *ContainerHierarchy) GetModuleName(moduleID model.ID) string {
 	return h.moduleNames[moduleID]
