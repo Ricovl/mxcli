@@ -1,0 +1,49 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1379 — Data grid 2 column bound two associations away
+-- ============================================================================
+--
+-- Reported (mxcli 0.25.0, Mendix 11.12.4):
+--   MDL-WIDGET34: Attribute: &{"MyModule"."AssocA_2"/"MyModule"."AssocB_2"/"Attr"}
+--     is not an attribute binding MDL can store
+--   MDL-WIDGET42: widget column property Attribute is an attribute property and
+--     cannot hold the expression
+--
+-- The module-qualified hops fell out of attributePathV3 and parsed as a division.
+-- Fixed by the qualified-hop grammar change (05a05aad); the column stores
+-- Attribute MyModule.AssocB.NId with an IndirectEntityRef of two steps
+-- (AssocA_2 -> AssocA, AssocB_2 -> AssocB), and mx check reports 0 errors.
+-- ============================================================================
+
+create module Bug1379;
+
+create persistent entity Bug1379.Parent ( Name: String(100) );
+create persistent entity Bug1379.ParentChildAssociation ( Note: String(100) );
+create persistent entity Bug1379.AssocA ( Code: String(100) );
+create persistent entity Bug1379.AssocB ( NId: String(100) );
+create association Bug1379.Parent_2 from Bug1379.ParentChildAssociation to Bug1379.Parent;
+create association Bug1379.AssocA_2 from Bug1379.ParentChildAssociation to Bug1379.AssocA;
+create association Bug1379.AssocB_2 from Bug1379.AssocA to Bug1379.AssocB;
+
+create or modify snippet "Bug1379"."SN_Parent_Children"
+folder 'Parent/Details'
+( Params: ( $Parent: "Bug1379"."Parent" ) )
+{
+  dataview "dvParent" ( DataSource: $Parent ) {
+    datagrid "dgChildren" (
+      DataSource: DATABASE "Bug1379"."ParentChildAssociation"
+        WHERE ["Bug1379"."Parent_2" = $currentObject],
+      Selection: Single
+    ) {
+      -- the reported spelling: every hop module-qualified, every part quoted
+      column (
+        Attribute: "Bug1379"."AssocA_2"/"Bug1379"."AssocB_2"/"NId",
+        Caption: 'ID'
+      ) {
+        textfilter textFilter_1
+      }
+      -- the bare spelling binds the same attribute
+      column (Attribute: AssocA_2/AssocB_2/NId, Caption: 'ID (bare)')
+    }
+  }
+};

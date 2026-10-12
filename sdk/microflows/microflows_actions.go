@@ -4,6 +4,8 @@
 package microflows
 
 import (
+	"strings"
+
 	"github.com/mendixlabs/mxcli/model"
 )
 
@@ -75,6 +77,9 @@ type RollbackObjectAction struct {
 	model.BaseElement
 	RollbackVariable string `json:"rollbackVariable"`
 	RefreshInClient  bool   `json:"refreshInClient"`
+	// ErrorHandlingType is empty unless the author wrote an `on error` clause:
+	// the writer has never stored one on a rollback (mendixlabs/mxcli#1252).
+	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
 func (RollbackObjectAction) isMicroflowAction() {}
@@ -206,10 +211,10 @@ type AggregateListAction struct {
 	AttributeQualifiedName string            `json:"attributeQualifiedName,omitempty"` // BY_NAME_REFERENCE: Module.Entity.Attribute
 	UseExpression          bool              `json:"useExpression,omitempty"`          // true when Expression is used instead of Attribute
 	Expression             string            `json:"expression,omitempty"`             // Mendix expression string (when UseExpression=true)
-	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
-	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
-	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
-	// historical "Rollback".
+	// ErrorHandlingType is the `on error` clause (mendixlabs/mxcli#1252), else
+	// the flow flavour's default: Rollback in a microflow, Abort in a nanoflow,
+	// where "Rollback" is CE6035 (mendixlabs/mxcli#591). Empty means the
+	// writer's historical "Rollback".
 	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 
 	// ReduceInitialValue and ReduceReturnType are what REDUCE folds from, and
@@ -277,10 +282,10 @@ type ListOperationAction struct {
 	model.BaseElement
 	Operation      ListOperation `json:"operation,omitempty"`
 	OutputVariable string        `json:"outputVariable,omitempty"`
-	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
-	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
-	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
-	// historical "Rollback".
+	// ErrorHandlingType is the `on error` clause (mendixlabs/mxcli#1252), else
+	// the flow flavour's default: Rollback in a microflow, Abort in a nanoflow,
+	// where "Rollback" is CE6035 (mendixlabs/mxcli#591). Empty means the
+	// writer's historical "Rollback".
 	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
@@ -419,10 +424,10 @@ type CreateListAction struct {
 	EntityID            model.ID `json:"entityId,omitempty"`
 	EntityQualifiedName string   `json:"entityQualifiedName,omitempty"`
 	OutputVariable      string   `json:"outputVariable"`
-	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
-	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
-	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
-	// historical "Rollback".
+	// ErrorHandlingType is the `on error` clause (mendixlabs/mxcli#1252), else
+	// the flow flavour's default: Rollback in a microflow, Abort in a nanoflow,
+	// where "Rollback" is CE6035 (mendixlabs/mxcli#591). Empty means the
+	// writer's historical "Rollback".
 	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
@@ -434,10 +439,10 @@ type ChangeListAction struct {
 	ChangeVariable string         `json:"changeVariable"`
 	Type           ChangeListType `json:"type"`
 	Value          string         `json:"value,omitempty"`
-	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
-	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
-	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
-	// historical "Rollback".
+	// ErrorHandlingType is the `on error` clause (mendixlabs/mxcli#1252), else
+	// the flow flavour's default: Rollback in a microflow, Abort in a nanoflow,
+	// where "Rollback" is CE6035 (mendixlabs/mxcli#591). Empty means the
+	// writer's historical "Rollback".
 	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
@@ -481,10 +486,10 @@ type CastAction struct {
 	model.BaseElement
 	ObjectVariable string `json:"objectVariable"`
 	OutputVariable string `json:"outputVariable"`
-	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
-	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
-	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
-	// historical "Rollback".
+	// ErrorHandlingType is the `on error` clause (mendixlabs/mxcli#1252), else
+	// the flow flavour's default: Rollback in a microflow, Abort in a nanoflow,
+	// where "Rollback" is CE6035 (mendixlabs/mxcli#591). Empty means the
+	// writer's historical "Rollback".
 	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
@@ -533,6 +538,9 @@ const (
 // ShowHomePageAction shows the home page.
 type ShowHomePageAction struct {
 	model.BaseElement
+	// ErrorHandlingType is empty unless the author wrote an `on error` clause:
+	// the writer has never stored one here (mendixlabs/mxcli#1252).
+	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
 func (ShowHomePageAction) isMicroflowAction() {}
@@ -566,6 +574,22 @@ const (
 	MessageTypeWarning     MessageType = "Warning"
 	MessageTypeError       MessageType = "Error"
 )
+
+// MessageTypes lists the values of Microflows$ShowMessageType, in Studio Pro's order.
+var MessageTypes = []MessageType{MessageTypeInformation, MessageTypeWarning, MessageTypeError}
+
+// CanonicalMessageType matches s case-insensitively against the
+// ShowMessageType values and returns the enumeration's own spelling.
+// The stored value is case-sensitive: the runtime does not recognise "error"
+// and shows an Information dialog instead (mendixlabs/mxcli#1280).
+func CanonicalMessageType(s string) (MessageType, bool) {
+	for _, t := range MessageTypes {
+		if strings.EqualFold(s, string(t)) {
+			return t, true
+		}
+	}
+	return MessageType(s), false
+}
 
 // ValidationFeedbackAction shows validation feedback.
 type ValidationFeedbackAction struct {

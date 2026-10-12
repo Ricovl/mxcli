@@ -516,6 +516,11 @@ func microflowActionToGen(action microflows.MicroflowAction) element.Element {
 		g.SetID(element.ID(a.ID))
 		g.SetRollbackVariableName(a.RollbackVariable)
 		g.SetRefreshInClient(a.RefreshInClient)
+		// Like delete: set only when the author wrote an `on error` clause, so a
+		// rollback without one is written exactly as it always was (#1252).
+		if a.ErrorHandlingType != "" {
+			g.SetErrorHandlingType(string(a.ErrorHandlingType))
+		}
 		return g
 	case *microflows.RetrieveAction:
 		g := genMf.NewRetrieveAction()
@@ -819,11 +824,12 @@ func microflowActionToGen(action microflows.MicroflowAction) element.Element {
 		g.SetNumberOfPagesToClose(numberOfPagesToClose(a.NumberOfPages))
 		return g
 	case *microflows.ShowHomePageAction:
-		// Storage $Type Microflows$ShowHomePageAction. Legacy emits only
-		// ErrorHandlingType (always "Rollback").
+		// Storage $Type Microflows$ShowHomePageAction. Its only property is
+		// ErrorHandlingType: the authored clause, else the literal "Rollback" the
+		// writer has always stored (#1252).
 		g := genMf.NewShowHomePageAction()
 		g.SetID(element.ID(a.ID))
-		g.SetErrorHandlingType("Rollback")
+		g.SetErrorHandlingType(orDefault(string(a.ErrorHandlingType), "Rollback"))
 		return g
 	case *microflows.ShowMessageAction:
 		// Storage $Type Microflows$ShowMessageAction. Template is a

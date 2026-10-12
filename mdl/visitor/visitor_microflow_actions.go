@@ -9,6 +9,7 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
 // buildLogStatement converts LOG statement context to LogStmt.
@@ -1110,6 +1111,10 @@ func buildCreateListStatement(ctx parser.ICreateListStatementContext) *ast.Creat
 		stmt.EntityType = buildQualifiedName(qn)
 	}
 
+	if errClause := createCtx.OnErrorClause(); errClause != nil {
+		stmt.ErrorHandling = buildOnErrorClause(errClause)
+	}
+
 	return stmt
 }
 
@@ -1137,6 +1142,9 @@ func buildAddToListStatement(ctx parser.IAddToListStatementContext) *ast.AddToLi
 		stmt.Commit = buildCommitClause(addCtx.CommitClause())
 		stmt.RefreshInClient = addCtx.REFRESH() != nil
 	}
+	if errClause := addCtx.OnErrorClause(); errClause != nil {
+		stmt.ErrorHandling = buildOnErrorClause(errClause)
+	}
 
 	return stmt
 }
@@ -1163,6 +1171,9 @@ func buildRemoveFromListStatement(ctx parser.IRemoveFromListStatementContext) *a
 		stmt.List, stmt.Association = associationMemberTargetParts(target)
 		stmt.Commit = buildCommitClause(removeCtx.CommitClause())
 		stmt.RefreshInClient = removeCtx.REFRESH() != nil
+	}
+	if errClause := removeCtx.OnErrorClause(); errClause != nil {
+		stmt.ErrorHandling = buildOnErrorClause(errClause)
 	}
 
 	return stmt
@@ -1309,7 +1320,11 @@ func buildShowMessageStatement(ctx parser.IShowMessageStatementContext) *ast.Sho
 	}
 
 	if id := smCtx.IdentifierOrKeyword(); id != nil {
-		stmt.Type = id.GetText()
+		// Stored in the enumeration's spelling: `type error` stored as "error"
+		// showed an Information dialog (mendixlabs/mxcli#1280). A word that is
+		// no ShowMessageType is kept as written for check to name.
+		t, _ := microflows.CanonicalMessageType(unquoteIdentifier(id.GetText()))
+		stmt.Type = string(t)
 	}
 
 	// Build template arguments (optional): `with ({1} = e)`, or the deprecated

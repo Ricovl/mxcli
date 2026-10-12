@@ -1194,8 +1194,11 @@ func (fb *flowBuilder) addShowPageAction(s *ast.ShowPageStmt) model.ID {
 
 // addShowHomePageAction creates a SHOW HOME PAGE statement.
 func (fb *flowBuilder) addShowHomePageAction(s *ast.ShowHomePageStmt) model.ID {
+	activityX := fb.posX
 	action := &microflows.ShowHomePageAction{
 		BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
+		// Explicit only: no clause keeps the writer's literal "Rollback".
+		ErrorHandlingType: explicitErrorHandling(fb, s.ErrorHandling),
 	}
 
 	activity := &microflows.ActionActivity{
@@ -1212,6 +1215,7 @@ func (fb *flowBuilder) addShowHomePageAction(s *ast.ShowHomePageStmt) model.ID {
 
 	fb.objects = append(fb.objects, activity)
 	fb.posX += fb.spacing
+	fb.finishCustomErrorHandler(activity.ID, activityX, s.ErrorHandling, "")
 	return activity.ID
 }
 
@@ -1240,7 +1244,8 @@ func (fb *flowBuilder) addShowMessageAction(s *ast.ShowMessageStmt) model.ID {
 		Translations: map[string]string{fb.textLangOrDefault(): templateText},
 	}
 
-	msgType := microflows.MessageType(s.Type)
+	// The stored value is case-sensitive (mendixlabs/mxcli#1280).
+	msgType, _ := microflows.CanonicalMessageType(s.Type)
 	if msgType == "" {
 		msgType = microflows.MessageTypeInformation
 	}
