@@ -471,6 +471,7 @@ func (a *alterFlowContext) fragmentBuilder(ctx *ExecContext) *flowBuilder {
 		hierarchy:    hierarchy,
 		restServices: restServices,
 		isNanoflow:   a.stmt.Nanoflow,
+		scriptFlows:  ctx.scriptFlows,
 
 		// A fragment is spliced into a stored flow: a member it cannot
 		// qualify is refused, never written bare (ako/mxcli#885).

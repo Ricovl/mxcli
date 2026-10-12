@@ -67,6 +67,39 @@ export const assumeDescribable = (tree: TreeNode[]): TreeNode[] => {
   return mark(tree)
 }
 
+// How a diagram is shown: the whole drawing scaled to the column ('fit'), or
+// at actual size ('actual'), cropped to the column and panned by whole
+// column widths (`x` counts them from the left).
+export type DiagramZoom = { zoom: 'fit' | 'actual'; x: number }
+
+const VIEWBOX = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/
+
+// diagramView rewrites the root's viewBox (and width/height, to keep the
+// aspect) so the surface draws the chosen window of the drawing. A surface
+// scales an Svg to its slot, so a wide drawing shown whole is too small to read.
+export const diagramView = (svg: string, view: DiagramZoom, columnPx: number) => {
+  const m = VIEWBOX.exec(svg)
+  if (!m) return { svg, canPan: false, atStart: true, atEnd: true, width: undefined, height: undefined }
+  const [x0, y0, w, h] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])]
+  // The size to draw it at, in CSS pixels, given to the Svg element: an
+  // interactive Svg draws in a frame, and a frame does not size itself to its
+  // content the way an image does — without these it is a thumbnail.
+  if (view.zoom === 'fit' || w <= columnPx) {
+    const width = Math.round(Math.min(w, columnPx))
+    return { svg, canPan: false, atStart: true, atEnd: true, width, height: Math.round((h * width) / w) }
+  }
+  const vw = Math.round(columnPx)
+  const maxX = w - vw
+  const x = Math.max(0, Math.min(view.x * vw, maxX))
+  const head = svg.slice(0, svg.indexOf('>') + 1)
+  const rest = svg.slice(head.length)
+  const newHead = head
+    .replace(VIEWBOX, `viewBox="${x0 + x} ${y0} ${vw} ${h}"`)
+    .replace(/ width="[\d.]+"/, ` width="${vw}"`)
+    .replace(/ height="[\d.]+"/, ` height="${h}"`)
+  return { svg: newHead + rest, canPan: true, atStart: x <= 0, atEnd: x >= maxX, width: vw, height: Math.round(h) }
+}
+
 // parseTree reads `mxcli project-tree` output.
 export const parseTree = (stdout: string): TreeNode[] => {
   const start = stdout.indexOf('[')

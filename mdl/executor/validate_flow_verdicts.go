@@ -5,11 +5,13 @@ package executor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/linter"
+	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
 // FlowRebuildRule is the rule check reports a `create or modify` of a stored
@@ -32,112 +34,223 @@ const alterFlowRefusedRule = "MDL090"
 //     mdl 0, where exec rebuilds the flow instead;
 //   - an alter exec would refuse is an MDL090 error, under every version.
 //
-// The prediction is made against the project as stored, so a statement is only
-// predicted where the stored project is what exec will see when it gets there:
+// The prediction is made against the project as stored, overlaid with the
+// flows earlier statements of the script declare, so a statement is only
+// predicted where that is what exec will see when it gets there:
 //
-//   - an earlier statement of the script that creates, alters, drops, renames
-//     or moves the same flow leaves it unpredicted, and so does one that
-//     renames or drops its module or moves a folder out of or into it;
-//   - the declared flow (or each fragment of an alter) must build against the
-//     stored project. One that does not usually names something an earlier
-//     statement creates; exec builds it after that statement has run, so
-//     nothing can be said here, and reference validation has already reported
-//     whatever is really missing.
+//   - an earlier statement of the script that creates, alters, renames or
+//     moves the same flow leaves it unpredicted, and so does one that renames
+//     its module or moves a folder out of or into it;
+//   - the declared flow (or each fragment of an alter) must build. A call to a
+//     flow an earlier `create [or modify] microflow|nanoflow` declares resolves
+//     to that declaration (the stored project does not hold it yet); one that
+//     still does not build names something else an earlier statement creates,
+//     which exec builds after that statement has run.
+//
+// Neither is silent: each unpredicted change is in the report's Unpredicted,
+// with what it depends on, so check does not claim more than it looked at.
 //
 // It writes nothing: the patch is applied in memory and discarded.
 func (e *Executor) CheckFlowVerdicts(prog *ast.Program) []linter.Violation {
+	return e.CheckFlowVerdictsReport(prog).Violations
+}
+
+// FlowVerdictReport is CheckFlowVerdicts' answer: what exec would refuse, and
+// which flow changes could not be predicted.
+type FlowVerdictReport struct {
+	Violations  []linter.Violation
+	Unpredicted []UnpredictedFlow
+}
+
+// UnpredictedFlow is a `create or modify` or `alter` of a stored flow whose
+// verdict check cannot work out before the script runs; exec decides it when
+// it gets there.
+type UnpredictedFlow struct {
+	Kind   string // "microflow" or "nanoflow"
+	Name   string // Module.Name
+	Reason string // what it depends on
+}
+
+// CheckFlowVerdictsReport is CheckFlowVerdicts with the unpredicted changes.
+func (e *Executor) CheckFlowVerdictsReport(prog *ast.Program) FlowVerdictReport {
 	if e == nil || prog == nil {
-		return nil
+		return FlowVerdictReport{}
 	}
 	defer e.enterLanguage(prog.LanguageVersion)()
 	defer e.CacheUnitReads()()
-	return CheckFlowVerdicts(e.newExecContext(context.Background()), prog)
+	return checkFlowVerdicts(e.newExecContext(context.Background()), prog)
 }
 
 // CheckFlowVerdicts is the ExecContext-level entry point. A disconnected
 // context returns nothing: the verdict is about what the project holds.
 func CheckFlowVerdicts(ctx *ExecContext, prog *ast.Program) []linter.Violation {
+	return checkFlowVerdicts(ctx, prog).Violations
+}
+
+func checkFlowVerdicts(ctx *ExecContext, prog *ast.Program) FlowVerdictReport {
+	var r FlowVerdictReport
 	if ctx == nil || prog == nil || !ctx.Connected() {
-		return nil
+		return r
 	}
-	touched := map[string]bool{}        // "microflow:M.N" / "nanoflow:M.N", lower-cased
-	touchedModules := map[string]bool{} // modules renamed or dropped, or a folder moved out of or into
-	key := func(nanoflow bool, qn ast.QualifiedName) string {
-		k := "microflow:"
-		if nanoflow {
-			k = "nanoflow:"
+	// The flows the statements so far declare, which the ones after them
+	// call: exec runs those first (see ExecContext.scriptFlows).
+	saved := ctx.scriptFlows
+	ctx.scriptFlows = map[string]*selfFlow{}
+	defer func() { ctx.scriptFlows = saved }()
+	declare := func(nanoflow bool, qn ast.QualifiedName, rt *ast.MicroflowReturnType) {
+		var t microflows.DataType = &microflows.VoidType{}
+		if rt != nil {
+			t = convertASTToMicroflowDataType(rt.Type, nil)
 		}
-		return strings.ToLower(k + qn.String())
+		ctx.scriptFlows[scriptFlowKey(nanoflow, qn.String())] = &selfFlow{qualifiedName: qn.String(), nanoflow: nanoflow, returnType: t}
 	}
-	fresh := func(nanoflow bool, qn ast.QualifiedName) bool {
-		return !touched[key(nanoflow, qn)] && !touchedModules[strings.ToLower(qn.Module)]
+	undeclare := func(qn ast.QualifiedName) {
+		delete(ctx.scriptFlows, scriptFlowKey(false, qn.String()))
+		delete(ctx.scriptFlows, scriptFlowKey(true, qn.String()))
 	}
 
-	var out []linter.Violation
+	// What an earlier statement did to a flow ("microflow:M.N" /
+	// "nanoflow:M.N", lower-cased) or to a module (lower-cased).
+	touched := map[string]string{}
+	touchedModules := map[string]string{}
+	key := func(nanoflow bool, qn ast.QualifiedName) string {
+		return strings.ToLower(scriptFlowKey(nanoflow, qn.String()))
+	}
+	// stale says why the stored flow is not what exec will see, "" when it is.
+	// A flow dropped (on its own or with its module) is created afresh, which
+	// has no verdict to predict.
+	stale := func(nanoflow bool, qn ast.QualifiedName) (why string, skip bool) {
+		if w := touchedModules[strings.ToLower(qn.Module)]; w != "" {
+			return w, w == touchDropped
+		}
+		if w := touched[key(nanoflow, qn)]; w != "" {
+			return w, w == touchDropped
+		}
+		return "", false
+	}
+	unpredicted := func(nanoflow bool, qn ast.QualifiedName, reason string) {
+		kind := "microflow"
+		if nanoflow {
+			kind = "nanoflow"
+		}
+		r.Unpredicted = append(r.Unpredicted, UnpredictedFlow{Kind: kind, Name: qn.String(), Reason: reason})
+	}
+	modify := func(d *flowDecl, ruled bool) {
+		why, skip := stale(d.nanoflow, d.name)
+		switch {
+		case skip:
+		case why != "":
+			if flowStored(ctx, d.nanoflow, d.name) {
+				unpredicted(d.nanoflow, d.name, "an earlier statement of the script "+why)
+			}
+		case ruled:
+			vs, dep := flowModifyViolations(ctx, d)
+			r.Violations = append(r.Violations, vs...)
+			if dep != "" {
+				unpredicted(d.nanoflow, d.name, dep)
+			}
+		}
+	}
+
 	for _, stmt := range prog.Statements {
 		switch s := stmt.(type) {
 		case *ast.CreateMicroflowStmt:
-			if s.CreateOrModify && fresh(false, s.Name) && validateMicroflowRules(s) == nil {
-				out = append(out, flowModifyViolations(ctx, microflowDecl(s))...)
+			if s.CreateOrModify {
+				modify(microflowDecl(s), validateMicroflowRules(s) == nil)
 			}
-			touched[key(false, s.Name)] = true
+			touched[key(false, s.Name)] = "creates or changes it"
+			declare(false, s.Name, s.ReturnType)
 		case *ast.CreateNanoflowStmt:
-			if s.CreateOrModify && fresh(true, s.Name) {
-				out = append(out, flowModifyViolations(ctx, nanoflowDecl(s))...)
+			if s.CreateOrModify {
+				modify(nanoflowDecl(s), true)
 			}
-			touched[key(true, s.Name)] = true
+			touched[key(true, s.Name)] = "creates or changes it"
+			declare(true, s.Name, s.ReturnType)
 		case *ast.AlterFlowStmt:
-			if fresh(s.Nanoflow, s.Name) {
-				out = append(out, alterFlowViolations(ctx, s)...)
+			if why, skip := stale(s.Nanoflow, s.Name); skip {
+			} else if why != "" {
+				if flowStored(ctx, s.Nanoflow, s.Name) {
+					unpredicted(s.Nanoflow, s.Name, "an earlier statement of the script "+why)
+				}
+			} else {
+				vs, dep := alterFlowViolations(ctx, s)
+				r.Violations = append(r.Violations, vs...)
+				if dep != "" {
+					unpredicted(s.Nanoflow, s.Name, dep)
+				}
 			}
-			touched[key(s.Nanoflow, s.Name)] = true
+			touched[key(s.Nanoflow, s.Name)] = "alters it"
 		case *ast.DropMicroflowStmt:
-			touched[key(false, s.Name)] = true
+			touched[key(false, s.Name)] = touchDropped
+			undeclare(s.Name)
 		case *ast.DropNanoflowStmt:
-			touched[key(true, s.Name)] = true
+			touched[key(true, s.Name)] = touchDropped
+			undeclare(s.Name)
 		case *ast.MoveStmt:
-			touched[key(false, s.Name)] = true
-			touched[key(true, s.Name)] = true
+			touched[key(false, s.Name)] = "moves it"
+			touched[key(true, s.Name)] = "moves it"
 			if s.TargetModule != "" {
 				moved := ast.QualifiedName{Module: s.TargetModule, Name: s.Name.Name}
-				touched[key(false, moved)] = true
-				touched[key(true, moved)] = true
+				touched[key(false, moved)] = "moves it"
+				touched[key(true, moved)] = "moves it"
 			}
 		case *ast.DropModuleStmt:
 			// The module's flows go with it: exec creates the flow afterwards.
-			touchedModules[strings.ToLower(s.Name)] = true
+			touchedModules[strings.ToLower(s.Name)] = touchDropped
 		case *ast.MoveFolderStmt:
 			// The folder's flows go with it; which ones is the project's to
 			// say, so neither module is predicted from here on.
-			touchedModules[strings.ToLower(s.Name.Module)] = true
+			touchedModules[strings.ToLower(s.Name.Module)] = "moves a folder out of or into its module"
 			if s.TargetModule != "" {
-				touchedModules[strings.ToLower(s.TargetModule)] = true
+				touchedModules[strings.ToLower(s.TargetModule)] = "moves a folder out of or into its module"
 			}
 		case *ast.RenameStmt:
 			switch strings.ToLower(s.ObjectType) {
 			case "module":
-				touchedModules[strings.ToLower(s.Name.Module)] = true
-				touchedModules[strings.ToLower(s.NewName)] = true
+				touchedModules[strings.ToLower(s.Name.Module)] = "renames its module"
+				touchedModules[strings.ToLower(s.NewName)] = "renames its module"
 			default:
 				renamed := ast.QualifiedName{Module: s.Name.Module, Name: s.NewName}
 				for _, nf := range []bool{false, true} {
-					touched[key(nf, s.Name)] = true
-					touched[key(nf, renamed)] = true
+					touched[key(nf, s.Name)] = "renames it"
+					touched[key(nf, renamed)] = "renames it"
 				}
 			}
 		}
 	}
-	return out
+	return r
 }
 
-// flowModifyViolations is the check-time report of decideFlowModify.
-func flowModifyViolations(ctx *ExecContext, d *flowDecl) []linter.Violation {
+// touchDropped is what CheckFlowVerdicts records for a flow or module an
+// earlier statement drops: a later `create or modify` of it is a create.
+const touchDropped = "drops it"
+
+// flowStored reports whether the project holds the flow, so that a statement
+// about it is a modify (with a verdict) rather than a create.
+func flowStored(ctx *ExecContext, nanoflow bool, qn ast.QualifiedName) bool {
+	if _, err := findModule(ctx, qn.Module); err != nil {
+		return false
+	}
+	_, err := loadAlterFlow(ctx, &ast.AlterFlowStmt{Nanoflow: nanoflow, Name: qn})
+	var nf *mdlerrors.NotFoundError
+	return !errors.As(err, &nf)
+}
+
+// flowModifyViolations is the check-time report of decideFlowModify. dep is
+// non-empty when the stored flow's verdict cannot be predicted because the
+// declared one does not build: it says what the body depends on.
+func flowModifyViolations(ctx *ExecContext, d *flowDecl) (_ []linter.Violation, dep string) {
 	if _, _, _, err := d.build(ctx); err != nil {
-		return nil // not predictable against the stored project (see CheckFlowVerdicts)
+		// Not predictable against the stored project (see CheckFlowVerdicts);
+		// a flow that is not stored is a create, with no verdict to predict.
+		if flowStored(ctx, d.nanoflow, d.name) {
+			return nil, buildDependency(err.Error())
+		}
+		return nil, ""
 	}
 	v := decideFlowModify(ctx, d)
 	if v.why == nil {
-		return nil
+		return nil, ""
 	}
 	loc := linter.Location{Module: d.name.Module, DocumentType: d.kind(), DocumentName: d.name.Name}
 	if v.refused {
@@ -146,21 +259,35 @@ func flowModifyViolations(ctx *ExecContext, d *flowDecl) []linter.Violation {
 			Severity: linter.SeverityError,
 			Message:  "exec would refuse this statement: " + flowRefusal(d, v.why).Error(),
 			Location: loc,
-		}}
+		}}, ""
 	}
 	return []linter.Violation{{
 		RuleID:   FlowRebuildRule,
 		Severity: linter.SeverityWarning,
 		Message:  flowRebuildWarning(ctx, d, v.why),
 		Location: loc,
-	}}
+	}}, ""
+}
+
+// buildDependency condenses a build error ("microflow 'M.N' has validation
+// errors:\n  - …") to the errors themselves, on one line.
+func buildDependency(msg string) string {
+	var parts []string
+	for _, line := range strings.Split(msg, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasSuffix(line, "has validation errors:") {
+			continue
+		}
+		parts = append(parts, strings.TrimPrefix(line, "- "))
+	}
+	return strings.Join(parts, "; ")
 }
 
 // alterFlowViolations is the check-time report of an alter exec would refuse.
-func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) []linter.Violation {
+func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) (_ []linter.Violation, dep string) {
 	a, err := loadAlterFlow(ctx, s)
 	if err != nil {
-		return nil // no such flow: reference validation reports it
+		return nil, "" // no such flow: reference validation reports it
 	}
 	// A fragment that does not build against the stored project is not
 	// predictable (see CheckFlowVerdicts). Only the builder's own errors say
@@ -171,22 +298,41 @@ func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) []linter.Violat
 		}
 		fb := a.fragmentBuilder(ctx)
 		fb.buildFlowGraph(op.Body, nil)
-		if len(fb.GetErrors()) > 0 {
-			return nil
+		if errs := fb.GetErrors(); len(errs) > 0 {
+			return nil, buildDependency(strings.Join(errs, "\n"))
 		}
 	}
 	_, err = a.plan(ctx)
 	if err == nil {
-		return nil
+		return nil, ""
 	}
 	var nf *mdlerrors.NotFoundError
 	if errors.As(err, &nf) {
-		return nil
+		return nil, ""
 	}
 	return []linter.Violation{{
 		RuleID:   alterFlowRefusedRule,
 		Severity: linter.SeverityError,
 		Message:  "exec would refuse this statement and write nothing: " + err.Error(),
 		Location: linter.Location{Module: s.Name.Module, DocumentType: s.Kind(), DocumentName: s.Name.Name},
-	}}
+	}}, ""
+}
+
+// FormatUnpredictedFlows is the note check and exec's preflight print for
+// flow changes whose verdict could not be predicted, one per line:
+//
+//	N flow change(s) not predicted — exec decides when it reaches them:
+//	  microflow M.N — depends on: <what the body needs that is not stored yet>
+//
+// "" when there are none.
+func FormatUnpredictedFlows(us []UnpredictedFlow) string {
+	if len(us) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Note: %d flow change(s) not predicted — exec decides when it reaches them, after the statements before have been written:\n", len(us))
+	for _, u := range us {
+		fmt.Fprintf(&b, "  %s %s — depends on: %s\n", u.Kind, u.Name, u.Reason)
+	}
+	return b.String()
 }

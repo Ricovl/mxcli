@@ -15,6 +15,11 @@ agent builds it.
   reports it.
 - **MDL source** — select a document to see its MDL, as `mxcli describe` prints
   it. Folders and other containers list what they hold instead.
+- **Domain model diagrams** — select a module's *Domain Model* node in the desktop
+  app or VS Code to see its entities, attributes, associations and
+  generalizations, drawn where Studio Pro places them (`mxcli describe --format
+  svg domainmodel <Module>`). Hover a box for its attributes. The terminal draws
+  no pictures and lists the entities instead.
 
 In a wide pane (90 columns or more) the tree sits on the left and the source on
 the right, like a file explorer; each column pages on its own with its ▲ / ▼

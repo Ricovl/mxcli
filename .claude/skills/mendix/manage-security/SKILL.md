@@ -12,12 +12,12 @@ description: "Configure Mendix security in MDL — module and user roles, access
 |---|---|
 | 27-35 | When to Use This Skill |
 | 36-43 | Security Concepts |
-| 44-110 | The System-module ceiling — decide the role model around this FIRST |
-| 111-540 | Syntax Reference |
-| 541-555 | Starlark Lint Rule APIs |
-| 556-608 | Common Workflow: Setting Up Module Security |
-| 609-618 | Common Mistakes |
-| 619-628 | Validation |
+| 44-120 | The System-module ceiling — decide the role model around this FIRST |
+| 121-550 | Syntax Reference |
+| 551-565 | Starlark Lint Rule APIs |
+| 566-618 | Common Workflow: Setting Up Module Security |
+| 619-628 | Common Mistakes |
+| 629-638 | Validation |
 
 <!-- /skill-index -->
 # Security Management Skill
@@ -55,7 +55,7 @@ Every consequence is **silent** — the page renders, the data is simply missing
 
 | What you build | What a non-Administrator sees |
 |---|---|
-| A combo box over `System.User` (e.g. "pick a technician") | **The current user only** |
+| A combo box or grid over `System.User` (e.g. "pick a technician") | **Every user, name blank** — except their own, and those whose roles their user role may manage |
 | A grid over `System.Workflow` / `System.WorkflowUserTask` | **Empty** |
 | Either of those, re-sourced from a **microflow** | **Every row present, every field blank** |
 
@@ -79,8 +79,18 @@ the *same* `System.User` retrieve, opened by two users:
 
 Both lists hold two rows for both users, so the microflow really did carry the rows
 past entity access. Only A loses the values, and it loses them **per object**:
-`System.User`'s own rule grants read where `[id = '[%CurrentUser%]']`, which is why
-a user picker shows you yourself and nobody else rather than showing nothing.
+`System.User`'s own rule grants read where `[id = '[%CurrentUser%]']` — or where the
+user's roles are ones your user role may manage — which is why a user picker shows
+your own name and blanks rather than nothing.
+
+The same happens **without** a microflow. A database list over `System.User` gets its
+rows from `Administration.Account`'s rule (unconstrained for `Administration.User`),
+but that rule grants only Account's own members (`FullName`, `Email`), not
+`System.User.Name`. Measured on 11.15 (ChipCoV9): a ServiceManager saw
+`["", "", "demo_manager", ""]`; given `ManageableRoles: (FieldEngineer)` it also
+saw `demo_engineer`; an Administrator (Manage All Roles) saw every name.
+`mxcli lint` reports this as SEC010. Bind the list to `Administration.Account` and
+show `FullName` instead.
 
 `System.WorkflowUserTask` has no such escape hatch for an ordinary role, so a
 workflow inbox built this way comes out *entirely* blank — the reported case

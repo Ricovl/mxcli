@@ -128,9 +128,9 @@ LIST IMPACT OF htmlelement;
 			"statictext", "staticimage", "dynamicimage", "dropdown", "referenceselector",
 			"legacydatagrid", "visible", "editable", "conditional visibility",
 		},
-		Syntax: "-- Containers\nLAYOUTGRID name { ROW r { COLUMN c (DesktopWidth: 6) { ... } } }\nCONTAINER name (Class: 'cls') { ... }\nCONTAINER name (OnClick: CALL MICROFLOW Module.MF) { ... }   -- clickable container\nCUSTOMCONTAINER name (Class: 'cls') { ... }\nGROUPBOX name (Caption: 'C') { ... }\nTABCONTAINER name { TABPAGE tp (Caption: 'One') { ... } TABPAGE tp2 (Caption: 'Two') { ... } }\n\n" +
-			"-- Data widgets\nDATAVIEW name (DataSource: $Param) { ... FOOTER { ... } }\nDATAGRID name (DataSource: DATABASE Module.Entity) { COLUMN c (Attribute: A) }\nGALLERY name (DataSource: DATABASE Module.Entity, DesktopColumns: 3) { ... }\nLISTVIEW name (DataSource: DATABASE Module.Entity) { ... }\nLISTVIEW name (...) { ... TEMPLATE FOR Module.Specialization { ... } }\n\n" +
-			"-- Data grid 2 column filters go INSIDE the column's own braces\nDATAGRID dg (...) { COLUMN c (Attribute: A) { TEXTFILTER tf (Attribute: A) } }\nTEXTFILTER | NUMBERFILTER | DATEFILTER | DROPDOWNFILTER | DROPDOWNSORT\n" +
+		Syntax: "-- Containers\nLAYOUTGRID name { ROW { COLUMN (DesktopWidth: 6) { ... } } }\nCONTAINER name (Class: 'cls') { ... }\nCONTAINER name (OnClick: CALL MICROFLOW Module.MF) { ... }   -- clickable container\nCUSTOMCONTAINER name (Class: 'cls') { ... }\nGROUPBOX name (Caption: 'C') { ... }\nTABCONTAINER name { TABPAGE tp (Caption: 'One') { ... } TABPAGE tp2 (Caption: 'Two') { ... } }\n\n" +
+			"-- Data widgets\nDATAVIEW name (DataSource: $Param) { ... FOOTER { ... } }\nDATAGRID name (DataSource: DATABASE Module.Entity) { COLUMN (Attribute: A) }\nGALLERY name (DataSource: DATABASE Module.Entity, DesktopColumns: 3) { ... }\nLISTVIEW name (DataSource: DATABASE Module.Entity) { ... }\nLISTVIEW name (...) { ... TEMPLATE FOR Module.Specialization { ... } }\n\n" +
+			"-- Data grid 2 column filters go INSIDE the column's own braces\nDATAGRID dg (...) { COLUMN (Attribute: A) { TEXTFILTER tf (Attribute: A) } }\nTEXTFILTER | NUMBERFILTER | DATEFILTER | DROPDOWNFILTER | DROPDOWNSORT\n" +
 			"--   Match the filter to the column's type, or MxBuild refuses it: String ->\n" +
 			"--   TEXTFILTER, Integer/Long/Decimal -> NUMBERFILTER, Date and time -> DATEFILTER,\n" +
 			"--   Enumeration AND Boolean -> DROPDOWNFILTER (the drop-down filter's own\n" +
@@ -138,7 +138,7 @@ LIST IMPACT OF htmlelement;
 			"--   A column may carry BOTH a custom-content widget and a filter — `content`\n" +
 			"--   and `filter` are separate slots, so a read-only CHECKBOX cell and a\n" +
 			"--   DROPDOWNFILTER live in the same braces:\n" +
-			"DATAGRID dg (...) { COLUMN Active (Attribute: IsActive) {\n" +
+			"DATAGRID dg (...) { COLUMN (Attribute: IsActive) {\n" +
 			"  CHECKBOX cb (Attribute: IsActive, Editable: Never, ReadOnlyStyle: Control)\n" +
 			"  DROPDOWNFILTER ddf } }\n" +
 			"--   ReadOnlyStyle (Inherit | Control | Text) is what makes a read-only check\n" +
@@ -339,7 +339,7 @@ LIST IMPACT OF htmlelement;
 			"the names.\n\n" +
 			"A bare `Class:` REPLACES the widget's classes rather than adding to them.\n" +
 			"Read the current value first if you meant to append.\n\n" +
-			"Reach for ALTER STYLING rather than CREATE OR REPLACE PAGE whenever only\n" +
+			"Reach for ALTER STYLING rather than CREATE OR MODIFY PAGE whenever only\n" +
 			"the look changes: replacing the page rewrites every widget in it, so the\n" +
 			"diff is the whole document and anything MDL cannot yet spell is lost.\n\n" +
 			"`SET Class = 'x', 'P' = ON` (no parentheses, `=`) still runs and warns\n" +
@@ -408,8 +408,8 @@ LIST IMPACT OF htmlelement;
 			"column width", "alignment", "wrap text", "visible",
 			"dynamic cell class", "tooltip", "associated attribute", "association column",
 		},
-		Syntax:  "COLUMN name (\n  Attribute: AttrName,          -- own attribute\n  -- or an attribute over an association (bare association name):\n  -- Attribute: Assoc/Attr     e.g. Order_Customer/Name\n  Caption: 'Header'\n  [, Sortable: true|false]\n  [, Resizable: true|false]\n  [, Draggable: true|false]\n  [, Hidable: yes|hidden|no]\n  [, ColumnWidth: autoFill|autoFit|manual]\n  [, Size: integer]\n  [, Alignment: left|center|right]\n  [, WrapText: true|false]\n  [, Visible: <expression>]       -- once for the grid: a page variable or parameter, never $currentObject (MDL-WIDGET43)\n  [, DynamicCellClass: <expression>]  -- per row: $currentObject is the row\n  [, Tooltip: 'text']\n)",
-		Example: "COLUMN colPrice (\n  Attribute: Price, Caption: 'Price',\n  Alignment: right, Sortable: false,\n  ColumnWidth: manual, Size: 150,\n  Tooltip: 'Price in USD'\n)\n\n-- Associated attribute (attribute over a reference association):\nCOLUMN colCustomer (Attribute: Order_Customer/Name, Caption: 'Customer')",
+		Syntax:  "COLUMN (   -- no name: Mendix stores none for a data grid column (MDL-DEPR005)\n  Attribute: AttrName,          -- own attribute\n  -- or an attribute over an association (bare association name):\n  -- Attribute: Assoc/Attr     e.g. Order_Customer/Name\n  Caption: 'Header'\n  [, Sortable: true|false]\n  [, Resizable: true|false]\n  [, Draggable: true|false]\n  [, Hidable: yes|hidden|no]\n  [, ColumnWidth: autoFill|autoFit|manual]\n  [, Size: integer]\n  [, Alignment: left|center|right]\n  [, WrapText: true|false]\n  [, Visible: <expression>]       -- once for the grid: a page variable or parameter, never $currentObject (MDL-WIDGET43)\n  [, DynamicCellClass: <expression>]  -- per row: $currentObject is the row\n  [, Tooltip: 'text']\n)",
+		Example: "COLUMN (\n  Attribute: Price, Caption: 'Price',\n  Alignment: right, Sortable: false,\n  ColumnWidth: manual, Size: 150,\n  Tooltip: 'Price in USD'\n)\n\n-- Associated attribute (attribute over a reference association):\nCOLUMN (Attribute: Order_Customer/Name, Caption: 'Customer')",
 		SeeAlso: []string{"page.widgets"},
 	})
 
@@ -477,7 +477,7 @@ LIST IMPACT OF htmlelement;
 			"placeholder", "navigationtree", "topbar", "sidebar", "frame",
 			"menubar", "simplemenubar", "bottom bar", "phone layout", "menu document",
 		},
-		Syntax: "CREATE [OR REPLACE] LAYOUT Module.Name (\n" +
+		Syntax: "CREATE [OR MODIFY] LAYOUT Module.Name (\n" +
 			"  layouttype: 'Responsive' | 'Phone' | 'Tablet' | 'ModalPopup'   -- web\n" +
 			"           -- | 'Default' | 'Popup'                              -- native\n" +
 			"  [, class: 'layout-atlas layout-atlas-responsive-topbar']\n" +
@@ -577,7 +577,7 @@ LIST IMPACT OF htmlelement;
 			"DROP LAYOUT MyModule.App_Old;\n\n" +
 			"-- Or correct a layout in place by re-creating it under the same name:\n" +
 			"-- the pages stay bound by qualified name and rebind to the new document.\n" +
-			"-- (CREATE OR REPLACE LAYOUT does this in one statement.)",
+			"-- (CREATE OR MODIFY LAYOUT does this in one statement.)",
 		SeeAlso: []string{"layout", "layout.alter", "layout.show"},
 	})
 
@@ -615,7 +615,7 @@ LIST IMPACT OF htmlelement;
 			"-- addressed as <scrollContainer>.<slot>. Only INSERT INTO takes a region;\n" +
 			"-- BEFORE/AFTER position a widget among siblings, so name the widget.\n" +
 			"-- Pages in Marketplace modules are skipped and named; ALTER LAYOUT refuses\n" +
-			"-- a Marketplace target outright. Prefer ALTER over CREATE OR REPLACE for a\n" +
+			"-- a Marketplace target outright. Prefer ALTER over CREATE OR MODIFY for a\n" +
 			"-- layout you did not author: a rewrite is only as complete as its describe.",
 		SeeAlso: []string{"layout", "layout.show", "page.alter"},
 	})

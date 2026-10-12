@@ -130,7 +130,11 @@ func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath, scri
 		// splice under mdl 1, an alter whose patch fails. `check -p` already
 		// runs this verdict; exec did not, so it wrote every statement before
 		// the refused one and none after, leaving the model half-applied.
-		verdicts := exec.CheckFlowVerdicts(prog)
+		flowReport := exec.CheckFlowVerdictsReport(prog)
+		verdicts := flowReport.Violations
+		if len(flowReport.Unpredicted) > 0 {
+			fmt.Fprint(w, executor.FormatUnpredictedFlows(flowReport.Unpredicted))
+		}
 		if len(verdicts) > 0 {
 			(&linter.TextFormatter{UseColor: color}).Format(verdicts, w)
 			if n := linter.Summarize(verdicts).Errors; n > 0 && !continueOnError {

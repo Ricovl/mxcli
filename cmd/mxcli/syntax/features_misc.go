@@ -84,14 +84,15 @@ func init() {
 			"or replace", "or modify", "create or replace", "create or modify",
 			"idempotent", "upsert", "re-run", "already exists", "overwrite",
 		},
-		Syntax: "CREATE [OR REPLACE | OR MODIFY] <anything>;\n\n" +
+		Syntax: "CREATE [OR MODIFY] <anything>;\n\n" +
 			"-- Applies to every CREATE statement — entity, microflow, page, workflow,\n" +
 			"-- REST client, security role, and the rest. Without a modifier, creating\n" +
 			"-- something that already exists is an error.\n" +
-			"--   OR REPLACE  discard the existing document and write a fresh one\n" +
-			"--   OR MODIFY   update the existing document in place\n" +
-			"-- Both reuse the existing element's ID, so references from other\n" +
-			"-- documents survive.\n" +
+			"--   OR MODIFY   rewrite the existing document from the statement, reusing\n" +
+			"--               its ID, so references from other documents survive.\n" +
+			"-- OR REPLACE is a deprecated alias of OR MODIFY — same meaning (MDL-DEPR001;\n" +
+			"-- `mxcli fmt --upgrade` rewrites it). The one exception is\n" +
+			"-- CREATE OR REPLACE TRANSLATIONS, which replaces the whole set (see translations).\n" +
 			"--\n" +
 			"-- A rewrite rebuilds the document from the statement, so properties MDL\n" +
 			"-- cannot express are CARRIED OVER rather than reset — a microflow's URL\n" +
@@ -348,7 +349,7 @@ DISCONNECT;`,
 			"offline sync", "offline entity", "pwa", "download mode",
 			"throw error", "sync error", "partial sync", "server rejects",
 		},
-		Syntax: `CREATE OR REPLACE NAVIGATION <profile>
+		Syntax: `CREATE OR MODIFY NAVIGATION <profile>
   HOME PAGE Module.Page | HOME MICROFLOW Module.Flow | HOME NANOFLOW Module.Flow
   [HOME PAGE Module.Page FOR UserRole]
   [LOGIN PAGE Module.LoginPage]
@@ -469,13 +470,13 @@ CREATE OR MODIFY NAVIGATION TabletOffline
 
 	Register(SyntaxFeature{
 		Path:    "navigation.alter",
-		Summary: "Modify navigation via round-trip: DESCRIBE, edit, CREATE OR REPLACE",
+		Summary: "Modify navigation via round-trip: DESCRIBE, edit, CREATE OR MODIFY",
 		Keywords: []string{
 			"alter navigation", "modify navigation", "update navigation",
 			"round-trip", "edit menu",
 		},
-		Syntax:  "-- Round-trip workflow:\n-- 1. DESCRIBE NAVIGATION <profile>;\n-- 2. Copy output, modify\n-- 3. Paste as CREATE OR REPLACE NAVIGATION ...",
-		Example: "-- Inspect current state\nDESCRIBE NAVIGATION Responsive;\n-- Copy output, modify, paste back as CREATE OR REPLACE",
+		Syntax:  "-- Round-trip workflow:\n-- 1. DESCRIBE NAVIGATION <profile>;\n-- 2. Copy output, modify\n-- 3. Paste as CREATE OR MODIFY NAVIGATION ...",
+		Example: "-- Inspect current state\nDESCRIBE NAVIGATION Responsive;\n-- Copy output, modify, paste back as CREATE OR MODIFY",
 		SeeAlso: []string{"navigation.create", "navigation.show"},
 	})
 
@@ -687,7 +688,7 @@ LIST WORKFLOW GROUPS;
 --   Db2, Hsqldb, MySql, Oracle, PostgreSql, SapHana, SqlServer
 -- (matched case-insensitively and stored in the spelling above).
 
--- MODEL accepts these keys (an unknown one is refused and lists them):
+-- RUNTIME accepts these keys (an unknown one is refused and lists them):
 --   AfterStartupMicroflow, BeforeShutdownMicroflow, HealthCheckMicroflow,
 --   HashAlgorithm, BcryptCost, JavaVersion, RoundingMode,
 --   AllowUserMultipleSessions, ScheduledEventTimeZoneCode, DefaultTimeZoneCode,
@@ -1012,14 +1013,15 @@ DESCRIBE STRUCTURE DEPTH 1 ALL;`,
 		Syntax: `MOVE <doctype> Module.Name TO FOLDER 'Path';
 -- doctype: every top-level document, spelled as DESCRIBE spells it —
 --   PAGE | SNIPPET | BUILDING BLOCK | LAYOUT | MENU
---   MICROFLOW | NANOFLOW | WORKFLOW | QUEUE | SCHEDULED EVENT
+--   MICROFLOW | NANOFLOW | WORKFLOW | TASK QUEUE | SCHEDULED EVENT
 --   ENUMERATION | CONSTANT | REGULAR EXPRESSION
 --   JSON STRUCTURE | IMPORT MAPPING | EXPORT MAPPING
 --   JAVA ACTION | JAVASCRIPT ACTION | DATABASE CONNECTION | DATA TRANSFORMER
 --   IMAGE COLLECTION | ICON COLLECTION
---   REST CLIENT | PUBLISHED REST SERVICE | ODATA CLIENT | ODATA SERVICE
+--   CONSUMED REST SERVICE | PUBLISHED REST SERVICE
+--   CONSUMED ODATA SERVICE | PUBLISHED ODATA SERVICE
 --   BUSINESS EVENT SERVICE
---   MODEL | AGENT | KNOWLEDGE BASE | CONSUMED MCP SERVICE
+--   AI MODEL | AGENT | KNOWLEDGE BASE | CONSUMED MCP SERVICE
 -- plus ENTITY (moves between domain models) and FOLDER (moves a folder).
 MOVE <doctype> Module.Name TO TargetModule;
 MOVE <doctype> OldModule.Name TO FOLDER 'Path' IN NewModule;

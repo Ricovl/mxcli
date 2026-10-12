@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
 import type { TreeNode } from '../types'
-import { assumeDescribable, changesModel, nodeId, pageOf, parseDescribe, parseTree, pickMpr, touchesProjectFile, visibleRows } from '../hooks/tree'
+import { assumeDescribable, changesModel, diagramView, nodeId, pageOf, parseDescribe, parseTree, pickMpr, touchesProjectFile, visibleRows } from '../hooks/tree'
 
 const TREE: TreeNode[] = [
   {
@@ -134,5 +134,44 @@ describe('assumeDescribable (an mxcli older than the describable field)', () => 
     expect(assumeDescribable(TREE)).toEqual(TREE)
     const settings = assumeDescribable([{ label: 'Tmpl', type: 'pagetemplate', qualifiedName: 'M.Tmpl', describable: false }, ...TREE])
     expect(settings[0]!.describable).toBe(false)
+  })
+})
+
+describe('diagramView', () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 10 1200 800" width="1200" height="800"><rect/></svg>'
+
+  test('fit shows the whole drawing', () => {
+    const v = diagramView(svg, { zoom: 'fit', x: 0 }, 400)
+    expect(v.svg).toContain('viewBox="40 10 1200 800"')
+    expect(v.canPan).toBe(false)
+    // drawn at the column's width, the height in proportion
+    expect([v.width, v.height]).toEqual([400, 267])
+  })
+
+  test('100% crops to the column at actual size, from the left', () => {
+    const v = diagramView(svg, { zoom: 'actual', x: 0 }, 400)
+    expect(v.svg).toContain('viewBox="40 10 400 800"')
+    expect(v.svg).toContain('width="400"')
+    expect(v.canPan).toBe(true)
+    expect(v.atStart).toBe(true)
+    // drawn at actual size: as wide as the window, as tall as the drawing
+    expect([v.width, v.height]).toEqual([400, 800])
+  })
+
+  test('panning moves the window and stops at the right edge', () => {
+    expect(diagramView(svg, { zoom: 'actual', x: 1 }, 400).svg).toContain('viewBox="440 10 400 800"')
+    const end = diagramView(svg, { zoom: 'actual', x: 9 }, 400)
+    expect(end.svg).toContain('viewBox="840 10 400 800"')
+    expect(end.atEnd).toBe(true)
+  })
+
+  test('a drawing narrower than the column is shown whole at 100%', () => {
+    const v = diagramView(svg, { zoom: 'actual', x: 0 }, 2000)
+    expect(v.svg).toContain('viewBox="40 10 1200 800"')
+    expect(v.canPan).toBe(false)
+  })
+
+  test('a drawing with no viewBox is passed through', () => {
+    expect(diagramView('<svg><rect/></svg>', { zoom: 'actual', x: 0 }, 400).svg).toBe('<svg><rect/></svg>')
   })
 })

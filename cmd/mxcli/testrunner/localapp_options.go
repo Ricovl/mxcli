@@ -24,9 +24,9 @@ func localAppOptions(opts RunOptions, logPath string, env []string, w io.Writer)
 	db := dbConfig(opts)
 	return docker.LocalAppOptions{
 		ProjectPath: opts.ProjectPath,
-		AppPort:     localTestAppPort,
-		AdminPort:   localTestAdminPort,
-		ServePort:   localTestServePort,
+		AppPort:     opts.appPort(),
+		AdminPort:   opts.adminPort(),
+		ServePort:   opts.servePort(),
 		// DeployDir is deliberately left at its default, <project dir>/deployment.
 		// It is shared with a concurrent `mxcli run --local` — unlike the ports and
 		// the database — because mxbuild writes the deployment there and has no

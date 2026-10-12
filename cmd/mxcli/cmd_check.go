@@ -447,7 +447,8 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 		// run the verdict exec and diff run, so the three agree.
 		projectViolations := exec.CheckEntityMemberDrops(prog)
 		projectViolations = append(projectViolations, exec.TypeCheckProgram(prog)...)
-		projectViolations = append(projectViolations, exec.CheckFlowVerdicts(prog)...)
+		flowReport := exec.CheckFlowVerdictsReport(prog)
+		projectViolations = append(projectViolations, flowReport.Violations...)
 		// MDL-SEC21 (MxBuild CE0106): a flow this script leaves with no allowed
 		// role while a page, snippet, nanoflow, menu or navigation uses it. The
 		// reported shape was drop + create in separate runs, which loses the
@@ -472,7 +473,17 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 				return finish(1)
 			}
 		} else if !isStructured {
-			fmt.Printf("✓ Expression types OK, no unstated member drops, no flow change exec would refuse, no used flow left without access\n")
+			flows := "no flow change exec would refuse"
+			if len(flowReport.Unpredicted) > 0 {
+				flows = "no predicted flow change exec would refuse"
+			}
+			fmt.Printf("✓ Expression types OK, no unstated member drops, %s, no used flow left without access\n", flows)
+		}
+		// A flow change whose verdict depends on what earlier statements
+		// create is not predicted; say so rather than let the line above
+		// read as covering it.
+		if !isStructured && len(flowReport.Unpredicted) > 0 {
+			fmt.Fprint(os.Stderr, executor.FormatUnpredictedFlows(flowReport.Unpredicted))
 		}
 	}
 

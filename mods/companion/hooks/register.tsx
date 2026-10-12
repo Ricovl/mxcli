@@ -12,6 +12,7 @@ import type { Project, Source, TreeNode } from '../types'
 import {
   assumeDescribable,
   changesModel,
+  diagramView,
   firstLine,
   nodeId,
   pageOf,
@@ -35,6 +36,9 @@ const sourceTop = atom({ plugin: 'mxcli-companion', key: 'sourceTop' } as const,
 // Whether the band above the prompt offers the Project pane: once per project,
 // until the person opens the pane or says not now.
 const welcome = atom({ plugin: 'mxcli-companion', key: 'welcome' } as const, false)
+// How a diagram is shown, and whether the tree gives up its column to it.
+const diagram = atom({ plugin: 'mxcli-companion', key: 'diagram' } as const, { zoom: 'actual', x: 0 } as { zoom: 'fit' | 'actual'; x: number })
+const treeHidden = atom({ plugin: 'mxcli-companion', key: 'treeHidden' } as const, false)
 
 // project-tree reads the whole model; on a large app that is the slow call.
 const TREE_TIMEOUT_MS = 120_000
@@ -44,6 +48,9 @@ const DESCRIBE_TIMEOUT_MS = 60_000
 const SIDE_BY_SIDE_MIN_COLUMNS = 90
 // Rows the pane's own chrome takes (header, the gap, a pager line per column).
 const CHROME_ROWS = 4
+// CSS pixels per cell on the surfaces that draw Svg (a monospace cell at the
+// desktop's font size); used to crop a diagram to the column at actual size.
+const CELL_PX = 8
 // A burst of agent writes reloads once, this long after the last one.
 const RELOAD_DEBOUNCE_MS = 1_500
 
@@ -167,7 +174,40 @@ const scheduleReload = async ($: Engine) => {
   if (mine === reloadGeneration) await load($, current.mpr)
 }
 
-const press = async ($: Engine, id: string) => {
+// Surfaces whose element table has Svg; the terminal draws no pictures.
+const DRAWS_SVG = new Set(['desktop', 'vscode', 'mobile'])
+// The most an Svg element takes (its `source` cap).
+const SVG_MAX_CHARS = 131_072
+
+// drawDomainModel asks mxcli for the module's domain model as an SVG and shows
+// it; the tree's own list of the entities stays beside it.
+const drawDomainModel = async ($: Engine, node: TreeNode) => {
+  const current = await read($, project)
+  if (current.state !== 'loaded' || !node.qualifiedName) return
+  const qn = node.qualifiedName
+  const children = (node.children ?? []).map(c => c.label)
+  const key = `svg:${qn}`
+  const cached = described.get(key)
+  if (cached !== undefined) {
+    await update($, source, (): Source => ({ state: 'diagram', label: node.label, qn, svg: cached, children }))
+    return
+  }
+  await update($, diagram, d => ({ ...d, x: 0 }))
+  await update($, source, (): Source => ({ state: 'drawing', label: node.label, qn }))
+  const out = await run($, ['describe', '-p', current.mpr, '--format', 'svg', 'domainmodel', qn], DESCRIBE_TIMEOUT_MS)
+  let next: Source
+  if (out.exitCode !== 0) {
+    next = { state: 'failed', label: node.label, qn, error: firstLine(out.stderr || out.stdout) }
+  } else if (out.stdout.length > SVG_MAX_CHARS) {
+    next = { state: 'failed', label: node.label, qn, error: `the diagram is too large to draw here (${out.stdout.length} characters)` }
+  } else {
+    described.set(key, out.stdout)
+    next = { state: 'diagram', label: node.label, qn, svg: out.stdout, children }
+  }
+  await update($, source, (s): Source => (s.state === 'drawing' && s.qn === qn ? next : s))
+}
+
+const press = async ($: Engine, id: string, surface: string) => {
   const current = await read($, project)
   if (current.state !== 'loaded') return
   const node = findNode(current.tree, id)
@@ -179,6 +219,8 @@ const press = async ($: Engine, id: string) => {
   await update($, selected, () => id)
   if (node.describable) {
     await describeSelected($, node)
+  } else if (node.type === 'domainmodel' && DRAWS_SVG.has(surface)) {
+    await drawDomainModel($, node)
   } else {
     await update($, source, (): Source => ({
       state: 'container',
@@ -277,6 +319,9 @@ export const register: Register = (on, options) => {
     const sel = await read($, selected)
     const src = await read($, source)
     const sideBySide = e.props.bodyColumns >= SIDE_BY_SIDE_MIN_COLUMNS
+    const hideTree = sideBySide && src.state === 'diagram' && (await read($, treeHidden))
+    const treeColumns = Math.min(56, Math.max(28, Math.floor(e.props.bodyColumns * 0.38)))
+    const sourceColumns = sideBySide && !hideTree ? e.props.bodyColumns - treeColumns - 2 : e.props.bodyColumns
     // Side by side, each column is one screen tall and pages on its own; stacked,
     // the pane scrolls as usual and the columns draw whole.
     const pageRows = sideBySide ? Math.max(8, e.props.scroll.bodyRows - CHROME_ROWS) : Number.MAX_SAFE_INTEGER
@@ -338,7 +383,7 @@ export const register: Register = (on, options) => {
               return (
                 <Box key={`row:${id}`} flexDirection="row" overflow="hidden">
                   <Text>{sel === id ? '›' : ' '}{'  '.repeat(depth)}</Text>
-                  <Button key={id} plain label={`${glyph} ${node.label}`} onPress={() => void press($, id)} />
+                  <Button key={id} plain label={`${glyph} ${node.label}`} onPress={p => void press($, id, p.surface)} />
                   <Text dimColor wrap="truncate"> {node.type}</Text>
                 </Box>
               )
@@ -362,6 +407,52 @@ export const register: Register = (on, options) => {
       case 'failed':
         detail = <Text color="error">describe {src.qn} failed: {src.error}</Text>
         break
+      case 'drawing':
+        detail = <Text dimColor>Drawing {src.qn}…</Text>
+        break
+      case 'diagram': {
+        const table = $.ui.resolve(e)
+        const view = await read($, diagram)
+        const shown = diagramView(src.svg, view, sourceColumns * CELL_PX)
+        detail =
+          'Svg' in table ? (
+            <Box flexDirection="column">
+              <Box key="diagram-bar" flexDirection="row" gap={1} flexWrap="wrap">
+                <Text bold>{src.qn} domain model</Text>
+                <Button
+                  key="diagram-zoom"
+                  label={view.zoom === 'actual' ? 'Fit' : '100%'}
+                  onPress={() => void update($, diagram, d => ({ zoom: d.zoom === 'actual' ? ('fit' as const) : ('actual' as const), x: 0 }))}
+                />
+                {shown.canPan && !shown.atStart && (
+                  <Button key="diagram-left" label="◀" onPress={() => void update($, diagram, d => ({ ...d, x: Math.max(0, d.x - 1) }))} />
+                )}
+                {shown.canPan && !shown.atEnd && (
+                  <Button key="diagram-right" label="▶" onPress={() => void update($, diagram, d => ({ ...d, x: d.x + 1 }))} />
+                )}
+                {sideBySide && (
+                  <Button
+                    key="diagram-tree"
+                    label={hideTree ? 'Show tree' : 'Hide tree'}
+                    onPress={() => void update($, treeHidden, h => !h)}
+                  />
+                )}
+              </Box>
+              <table.Svg
+                key="diagram"
+                source={shown.svg}
+                alt={`Domain model of ${src.qn}: ${src.children.join(', ')}`}
+                isInteractive
+                {...(shown.width !== undefined ? { width: shown.width, height: shown.height } : {})}
+              />
+            </Box>
+          ) : (
+            <Text dimColor>
+              {src.label} has a diagram this surface cannot draw. Contains: {src.children.slice(0, 40).join(', ')}
+            </Text>
+          )
+        break
+      }
       case 'container':
         detail = (
           <Box flexDirection="column">
@@ -396,7 +487,14 @@ export const register: Register = (on, options) => {
         </Box>
       )
     }
-    const treeColumns = Math.min(56, Math.max(28, Math.floor(e.props.bodyColumns * 0.38)))
+    if (hideTree) {
+      return (
+        <Box flexDirection="column" gap={1}>
+          {header}
+          <Box key="source" flexDirection="column">{detail}</Box>
+        </Box>
+      )
+    }
     return (
       <Box flexDirection="column" gap={1}>
         {header}

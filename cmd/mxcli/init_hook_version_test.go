@@ -30,7 +30,7 @@ func requireSh(t *testing.T) {
 // before the first statement that acts.
 func bootstrapFunctions(t *testing.T) string {
 	t.Helper()
-	script := fmt.Sprintf(bootstrapScriptTemplate, "App.mpr")
+	script := renderBootstrapScript("App.mpr")
 	i := strings.Index(script, "\nstale=\n")
 	if i < 0 {
 		t.Fatal("bootstrap script has no 'stale=' line to cut the prelude at")

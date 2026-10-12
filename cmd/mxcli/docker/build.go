@@ -65,7 +65,7 @@ var mxbuildCmd = func(mxbuildPath, javaHome, outputDir, mprPath string, w, stder
 	cmd.Stdout = w
 	cmd.Stderr = stderr
 	PrepareMxCommand(cmd)
-	return cmd.Run()
+	return runWithWatchdog(cmd, mxbuildWatchdogLimits(), javaHome)
 }
 
 // buildOnCopy runs the steps of a build that read the model — mx update-widgets,

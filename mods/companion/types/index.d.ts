@@ -15,6 +15,9 @@ export type Source =
   | { state: 'shown'; label: string; qn: string; mdl: string }
   | { state: 'failed'; label: string; qn: string; error: string }
   | { state: 'container'; label: string; type: string; children: string[] }
+  // A domain model drawn by `mxcli describe --format svg domainmodel <Module>`.
+  | { state: 'diagram'; label: string; qn: string; svg: string; children: string[] }
+  | { state: 'drawing'; label: string; qn: string }
 
 // Where the tree came from and how loading it went.
 export type Project =
@@ -35,6 +38,8 @@ declare module 'claude-code' {
       treeTop: number
       sourceTop: number
       welcome: boolean
+      diagram: { zoom: 'fit' | 'actual'; x: number }
+      treeHidden: boolean
     }
   }
 }

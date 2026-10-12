@@ -1368,9 +1368,11 @@ func buildAttributePathV3(ctx parser.IAttributePathV3Context) string {
 	text := ctx.GetText()
 	// Strip double quotes or backticks from each path segment
 	if strings.ContainsAny(text, "\"`") {
+		// A hop may be module-qualified (`"Mod"."Assoc"/Attr`), so each
+		// segment is unquoted per dotted part, not as one identifier.
 		parts := strings.Split(text, "/")
 		for i, p := range parts {
-			parts[i] = unquoteIdentifier(p)
+			parts[i] = unquoteQualifiedName(p)
 		}
 		return strings.Join(parts, "/")
 	}

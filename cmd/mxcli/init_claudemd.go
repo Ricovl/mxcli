@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -113,6 +114,17 @@ func renderProjectGates(mprPath string) string {
 		sb.WriteString("   # " + g.Note + "\n")
 	}
 	return sb.String()
+}
+
+// projectDisplayName is the name generated docs give the project: the app's,
+// taken from the .mpr file name, falling back to the folder name when there is
+// no .mpr. The folder is the repository's name in a cloud session ("seed",
+// "init-bootstrap"), which says nothing about the app.
+func projectDisplayName(dir, mprFile string) string {
+	if name := strings.TrimSuffix(filepath.Base(mprFile), ".mpr"); mprFile != "" && name != "" {
+		return name
+	}
+	return filepath.Base(dir)
 }
 
 func generateClaudeMD(projectName, mprFile string) string {

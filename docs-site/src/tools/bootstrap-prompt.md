@@ -164,6 +164,11 @@ keep straight.
   file-driven and deterministic. After that, every new session runs the hook
   automatically; you never re-paste the prompt. Miss the script and the hook has
   nothing to run after a reap.
+- **A failed hook does not block the session — so it says so.** The hook runs the
+  script under `|| true`. When `./mxcli run --local --setup --ensure-db` fails (for
+  example "no local PostgreSQL superuser available"), the script prints an
+  `ERROR: the app database was not provisioned: …` banner to stderr with the retry
+  command and the `--db-type hsqldb` alternative, and exits with the failure's status.
 - **mxcli delivery is an environment concern, not the prompt's.** The download in
   step 1 is the fragile part in a gated web session (a GitHub release `curl` may be
   blocked), and it is the one thing that cannot move into the skill — the skill is

@@ -822,6 +822,52 @@ func TestApplyColumnHeaderFallback(t *testing.T) {
 	if h := spec8.Properties[1]; h.PropertyKey != "header" || h.TextTemplate != "colActions" {
 		t.Errorf("Case 8: appended header = %+v, want TextTemplate=colActions", spec8.Properties[1])
 	}
+
+	// Case 9 (ChipCoV8 #11): an UNNAMED column with no caption and no attribute
+	// (`column (Caption: '') { … }`, or bare `column { … }`) has nothing to fall
+	// back to. Its header must still serialize as an empty Forms$ClientTemplate
+	// — the shape update-widgets writes — not TextTemplate: null, which is
+	// CE0463. Flagged EmptyTemplate, filled in place.
+	spec9 := &backend.ObjectListItemSpec{
+		Properties: []backend.ObjectListItemProperty{
+			{PropertyKey: "header", Operation: "texttemplate", TextTemplate: ""},
+			{PropertyKey: "showContentAs", Operation: "primitive", PrimitiveVal: "customContent"},
+		},
+	}
+	applyColumnHeaderFallback(spec9, "", true)
+	if len(spec9.Properties) != 2 {
+		t.Fatalf("Case 9 (unnamed, empty caption): expected 2 properties (no duplicate), got %d", len(spec9.Properties))
+	}
+	if h := spec9.Properties[0]; h.PropertyKey != "header" || h.Operation != "texttemplate" || h.TextTemplate != "" || !h.EmptyTemplate {
+		t.Errorf("Case 9: header = %+v, want an empty texttemplate with EmptyTemplate=true", h)
+	}
+
+	// Case 10: unnamed column with NO header prop at all — append an
+	// EmptyTemplate header.
+	spec10 := &backend.ObjectListItemSpec{
+		Properties: []backend.ObjectListItemProperty{
+			{PropertyKey: "showContentAs", Operation: "primitive", PrimitiveVal: "customContent"},
+		},
+	}
+	applyColumnHeaderFallback(spec10, "", true)
+	if len(spec10.Properties) != 2 {
+		t.Fatalf("Case 10 (unnamed, absent header): expected 2 properties, got %d", len(spec10.Properties))
+	}
+	if h := spec10.Properties[1]; h.PropertyKey != "header" || h.Operation != "texttemplate" || !h.EmptyTemplate {
+		t.Errorf("Case 10: appended header = %+v, want an empty texttemplate with EmptyTemplate=true", h)
+	}
+
+	// Case 11: no header slot, unnamed — still untouched (the EmptyTemplate
+	// header is scoped to datagrid columns, never to header-less items).
+	spec11 := &backend.ObjectListItemSpec{
+		Properties: []backend.ObjectListItemProperty{
+			{PropertyKey: "staticName", Operation: "texttemplate", TextTemplate: ""},
+		},
+	}
+	applyColumnHeaderFallback(spec11, "", false)
+	if len(spec11.Properties) != 1 || spec11.Properties[0].EmptyTemplate {
+		t.Errorf("Case 11 (no header slot): must be untouched, got %+v", spec11.Properties)
+	}
 }
 
 // TestObjectListItemPropertyParamsConvention documents the alias→params

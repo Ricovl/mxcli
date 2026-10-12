@@ -7,6 +7,9 @@ import (
 	"testing"
 
 	"github.com/mendixlabs/mxcli/cmd/mxcli/syntax"
+	"github.com/mendixlabs/mxcli/mdl/deprecation"
+	"github.com/mendixlabs/mxcli/mdl/executor"
+	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
@@ -19,7 +22,12 @@ import (
 // the first place an agent looks, so a gap here becomes a wrong workaround in a
 // generated app rather than a puzzled user.
 //
-// Only Example is checked. Syntax fields carry metasyntax (`GET|POST`,
+// Each Example block is also held to `check --deprecations=error` in every
+// context it parses in: the reference an agent copies from must not teach a
+// spelling `check` warns on (MDL-DEPRnnn). Syntax fields are held to the same
+// registry by TestSyntaxShowsNoDeprecatedSpelling.
+//
+// Only Example is parsed. Syntax fields carry metasyntax (`GET|POST`,
 // `[OR MODIFY]`, `<statements>`) and are not meant to parse.
 //
 // Examples come in several legitimate shapes, so each block is tried in turn as
@@ -47,8 +55,14 @@ func TestExamplesParse(t *testing.T) {
 				t.Fatalf("Example contains no MDL to check:\n%s", f.Example)
 			}
 			for _, block := range blocks {
-				if ctx, ok := parsesInSomeContext(block); ok {
-					t.Logf("block parses as %s", ctx)
+				if hosts := parsingHosts(block); len(hosts) > 0 {
+					t.Logf("block parses as %s", hosts[0].context)
+					for _, h := range hosts {
+						for _, v := range deprecationErrors(h.source) {
+							t.Errorf("example block uses a deprecated spelling (as %s): %s: %s\n--- block ---\n%s",
+								h.context, v.RuleID, v.Message, block)
+						}
+					}
 					continue
 				}
 				_, errs := visitor.Build(block)
@@ -62,6 +76,25 @@ func TestExamplesParse(t *testing.T) {
 			}
 		})
 	}
+}
+
+// deprecationErrors is what `mxcli check --deprecations=error` refuses in src:
+// every MDL-DEPRnnn the validator reports, promoted to an error. Other
+// violations are left alone — the probe wrappers declare nothing, so a
+// reference or variable check would fail on the wrapper rather than on the
+// documented spelling.
+func deprecationErrors(src string) []linter.Violation {
+	prog, errs := visitor.Build(src)
+	if len(errs) > 0 || prog == nil {
+		return nil
+	}
+	var out []linter.Violation
+	for _, v := range executor.ApplyDeprecationPolicy(executor.ValidateProgram(prog, ""), deprecation.Error) {
+		if deprecation.IsDeprecationCode(v.RuleID) && v.Severity == linter.SeverityError {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // nonStatementTopics are the entries whose Example is legitimately not made of
@@ -93,51 +126,93 @@ func mdlBlocks(example string) []string {
 	return blocks
 }
 
+// exampleContext is one host an Example block may be written for: the block is
+// wrapped into a complete statement and parsed.
+type exampleContext struct {
+	name string
+	wrap func(string) string
+}
+
+// pageWidget hosts a widget fragment on a probe page.
+func pageWidget(s string) string {
+	return "CREATE PAGE SyntaxDoc.Probe (Title: 'Probe', Layout: 'Atlas_Core.Atlas_Default') {\n" + s + "\n};"
+}
+
+var exampleContexts = []exampleContext{
+	{"statement", func(s string) string { return s }},
+	{"microflow activity", func(s string) string {
+		return "CREATE MICROFLOW SyntaxDoc.Probe ()\nBEGIN\n" + s + "\nEND;"
+	}},
+	{"page widget", pageWidget},
+	// Some page rules fire only inside their container — a data grid column's
+	// name, for one, is recorded as unstored (MDL-DEPR005) because the column
+	// sits in a grid. A fragment documented on its own is therefore also hosted
+	// in the containers it is written for, so those rules see it.
+	{"data grid column", func(s string) string {
+		return pageWidget("DATAGRID dgProbe (DataSource: DATABASE SyntaxDoc.Entity) {\n" + s + "\n}")
+	}},
+	{"data view widget", func(s string) string {
+		return pageWidget("DATAVIEW dvProbe (DataSource: DATABASE SyntaxDoc.Entity) {\n" + s + "\n}")
+	}},
+	{"workflow activity", func(s string) string {
+		return "CREATE WORKFLOW SyntaxDoc.Probe PARAMETER $Ctx: SyntaxDoc.Ctx\nBEGIN\n" + s + "\nEND WORKFLOW;"
+	}},
+	// XPath topics illustrate a constraint on its own (`WHERE [...]`), which
+	// is a clause rather than a statement. Hanging it off a RETRIEVE checks
+	// the constraint itself without forcing the docs to repeat a full
+	// statement around every example.
+	{"retrieve clause", func(s string) string {
+		return "CREATE MICROFLOW SyntaxDoc.Probe ()\nBEGIN\n" +
+			"RETRIEVE $Probe FROM SyntaxDoc.Entity\n" + s + ";\nEND;"
+	}},
+}
+
 // parsesInSomeContext reports the first context the example parses in.
 func parsesInSomeContext(example string) (string, bool) {
-	for _, c := range []struct {
-		name string
-		wrap func(string) string
-	}{
-		{"statement", func(s string) string { return s }},
-		{"microflow activity", func(s string) string {
-			return "CREATE MICROFLOW SyntaxDoc.Probe ()\nBEGIN\n" + s + "\nEND;"
-		}},
-		{"page widget", func(s string) string {
-			return "CREATE PAGE SyntaxDoc.Probe (Title: 'Probe', Layout: 'Atlas_Core.Atlas_Default') {\n" + s + "\n};"
-		}},
-		{"workflow activity", func(s string) string {
-			return "CREATE WORKFLOW SyntaxDoc.Probe PARAMETER $Ctx: SyntaxDoc.Ctx\nBEGIN\n" + s + "\nEND WORKFLOW;"
-		}},
-		// XPath topics illustrate a constraint on its own (`WHERE [...]`), which
-		// is a clause rather than a statement. Hanging it off a RETRIEVE checks
-		// the constraint itself without forcing the docs to repeat a full
-		// statement around every example.
-		{"retrieve clause", func(s string) string {
-			return "CREATE MICROFLOW SyntaxDoc.Probe ()\nBEGIN\n" +
-				"RETRIEVE $Probe FROM SyntaxDoc.Entity\n" + s + ";\nEND;"
-		}},
-	} {
-		if _, errs := visitor.Build(c.wrap(example)); len(errs) == 0 {
-			return c.name, true
+	hosts := parsingHosts(example)
+	if len(hosts) == 0 {
+		return "", false
+	}
+	return hosts[0].context, true
+}
+
+// parsedHost is an example block wrapped in a context it parses in.
+type parsedHost struct {
+	context string
+	source  string
+}
+
+// parsingHosts returns every context the example parses in, with the wrapped
+// source. Several can apply — a widget parses at page level and inside a data
+// view — and each is a place a reader may paste it, so each is validated.
+func parsingHosts(example string) []parsedHost {
+	var out []parsedHost
+	for _, c := range exampleContexts {
+		src := c.wrap(example)
+		if _, errs := visitor.Build(src); len(errs) == 0 {
+			out = append(out, parsedHost{c.name, src})
 		}
+	}
+	if len(out) > 0 {
+		return out
 	}
 	// A block may list several alternative clauses one per line (the xpath
 	// function reference does this). Accept it when every line is a valid clause
 	// on its own — the block is a menu, not one statement.
 	if lines := nonEmptyLines(example); len(lines) > 1 {
-		all := true
+		var perLine []parsedHost
 		for _, line := range lines {
-			if _, ok := parsesInSomeContext(line); !ok {
-				all = false
-				break
+			hosts := parsingHosts(line)
+			if len(hosts) == 0 {
+				return nil
+			}
+			for _, h := range hosts {
+				perLine = append(perLine, parsedHost{"per-line clauses: " + h.context, h.source})
 			}
 		}
-		if all {
-			return "per-line clauses", true
-		}
+		return perLine
 	}
-	return "", false
+	return nil
 }
 
 // stripTestAnnotations removes `/** … @test … */` blocks.

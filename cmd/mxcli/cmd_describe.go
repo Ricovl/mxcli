@@ -72,6 +72,7 @@ Types:
   demouser         Describe a demo user
   navigation       Describe a navigation profile
   systemoverview   Module dependency graph (requires --format elk)
+  domainmodel      A module's domain model as a diagram (--format svg or elk; the name is the module)
 
 Example:
   mxcli describe -p app.mpr MyModule.Customer          # type auto-detected
@@ -89,6 +90,7 @@ Example:
   mxcli describe -p app.mpr settings Settings
   mxcli describe -p app.mpr navigation Responsive
   mxcli describe -p app.mpr --format elk systemoverview SystemOverview
+  mxcli describe -p app.mpr --format svg domainmodel MyModule
   mxcli describe -p app.mpr agent MyModule.MyAgent
   mxcli describe -p app.mpr model MyModule.GPT4
   mxcli describe -p app.mpr knowledge base MyModule.ProductDocs
@@ -161,6 +163,17 @@ Example:
 				os.Exit(1)
 			}
 			return
+		} else if format == "svg" {
+			upper := objectType
+			if upper == "DOMAINMODEL" || upper == "DOMAIN MODEL" || (upper == "ENTITY" && !strings.Contains(name, ".")) {
+				if err := exec.DomainModelSVG(name); err != nil {
+					fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+					os.Exit(1)
+				}
+				return
+			}
+			fmt.Fprintf(os.Stderr, "SVG format not supported for type: %s (supported: domainmodel <Module>)\n", typeArg)
+			os.Exit(1)
 		} else if format == "elk" {
 			upper := objectType
 			if upper == "SYSTEMOVERVIEW" {
@@ -200,9 +213,9 @@ Example:
 			return
 		}
 
-		// SYSTEMOVERVIEW requires elk format
+		// SYSTEMOVERVIEW and DOMAINMODEL are diagrams with no MDL form
 		if mdlCmd == "" {
-			fmt.Fprintf(os.Stderr, "Type %s requires --format elk\n", args[0])
+			fmt.Fprintf(os.Stderr, "Type %s is a diagram: use --format elk (or --format svg for a domain model)\n", args[0])
 			os.Exit(1)
 		}
 
@@ -318,8 +331,8 @@ func describeMDLCommand(objectType, name string) (mdlCmd string, ok bool) {
 		return fmt.Sprintf("DESCRIBE CONSUMED MCP SERVICE %s", name), true
 	case "DATATRANSFORMER", "DATA TRANSFORMER":
 		return fmt.Sprintf("DESCRIBE DATA TRANSFORMER %s", name), true
-	case "SYSTEMOVERVIEW":
-		return "", true // handled directly by format-specific path
+	case "SYSTEMOVERVIEW", "DOMAINMODEL", "DOMAIN MODEL":
+		return "", true // diagrams only: handled by the --format elk / svg paths
 	}
 	return "", false
 }
