@@ -49,25 +49,25 @@ Types:
   jsonstructure    Describe a JSON structure (also: "json structure")
   importmapping    Describe an import mapping (also: "import mapping")
   exportmapping    Describe an export mapping (also: "export mapping")
-  restclient       Describe a consumed REST service (also: "rest client")
-  odataclient      Describe a consumed OData service
-  odataservice     Describe a published OData service
+  consumedrestservice   Describe a consumed REST service (also: "consumed rest service"; old: restclient)
+  consumedodataservice  Describe a consumed OData service (also: "consumed odata service"; old: odataclient)
+  publishedodataservice Describe a published OData service (also: "published odata service"; old: odataservice)
   publishedrestservice  Describe a published REST service (also: "published rest service", "rest service")
   imagecollection  Describe an image collection (also: "image collection")
   menu             Describe a standalone menu document
-  queue            Describe a task queue
+  taskqueue        Describe a task queue (also: "task queue"; old: queue)
   scheduledevent   Describe a scheduled event (also: "scheduled event")
   regularexpression  Describe a regular expression (also: "regular expression")
   businesseventservice  Describe a business event service (also: "business event service")
   databaseconnection    Describe a database connection (also: "database connection")
   agent            Describe an AI agent (also: "agent")
-  aimodel          Describe an AI model (also: "model", "ai model")
+  aimodel          Describe an AI model (also: "ai model"; old: model)
   knowledgebase    Describe a knowledge base (also: "knowledge base")
   consumedmcpservice  Describe a consumed MCP service (also: "consumed mcp service")
   datatransformer  Describe a data transformer (also: "data transformer")
   modulerole       Describe a module role
   userrole         Describe a user role
-  projectsecurity  Show project security settings
+  appsecurity      Describe app security settings (also: "app security"; old: projectsecurity)
   settings         Describe project settings
   demouser         Describe a demo user
   navigation       Describe a navigation profile
@@ -86,13 +86,15 @@ Example:
   mxcli describe -p app.mpr json structure MyModule.CustomerResponse
   mxcli describe -p app.mpr import mapping MyModule.IMM_Customer
   mxcli describe -p app.mpr export mapping MyModule.EMM_Customer
-  mxcli describe -p app.mpr rest client MyModule.PetStoreAPI
+  mxcli describe -p app.mpr consumed rest service MyModule.PetStoreAPI
+  mxcli describe -p app.mpr consumed odata service MyModule.CrmApi
+  mxcli describe -p app.mpr task queue MyModule.EmailQueue
   mxcli describe -p app.mpr settings Settings
   mxcli describe -p app.mpr navigation Responsive
   mxcli describe -p app.mpr --format elk systemoverview SystemOverview
   mxcli describe -p app.mpr --format svg domainmodel MyModule
   mxcli describe -p app.mpr agent MyModule.MyAgent
-  mxcli describe -p app.mpr model MyModule.GPT4
+  mxcli describe -p app.mpr ai model MyModule.GPT4
   mxcli describe -p app.mpr knowledge base MyModule.ProductDocs
   mxcli describe -p app.mpr consumed mcp service MyModule.FilesystemMCP
   mxcli describe -p app.mpr data transformer MyModule.TransformCustomer
@@ -131,8 +133,8 @@ Example:
 		mdlCmd, ok := describeMDLCommand(objectType, name)
 		if !ok {
 			fmt.Fprintf(os.Stderr, "Unknown type: %s\n", strings.Join(args[:len(args)-1], " "))
-			fmt.Fprintln(os.Stderr, "Valid types: module, entity, association, enumeration, constant, microflow, nanoflow, workflow, page, snippet, layout, javaaction, javascriptaction, jsonstructure, importmapping, exportmapping, restclient, odataclient, odataservice, publishedrestservice, imagecollection, menu, queue, scheduledevent, businesseventservice, databaseconnection, agent, aimodel, knowledgebase, consumedmcpservice, datatransformer, modulerole, userrole, projectsecurity, settings, demouser, navigation, systemoverview")
-			fmt.Fprintln(os.Stderr, "Multi-word types also accepted: json structure, import mapping, export mapping, rest client, published rest service, image collection, scheduled event, regular expression, business event service, agent, model, knowledge base, consumed mcp service, data transformer, etc.")
+			fmt.Fprintln(os.Stderr, "Valid types: module, entity, association, enumeration, constant, microflow, nanoflow, workflow, page, snippet, layout, javaaction, javascriptaction, jsonstructure, importmapping, exportmapping, consumedrestservice, consumedodataservice, publishedodataservice, publishedrestservice, imagecollection, menu, taskqueue, scheduledevent, businesseventservice, databaseconnection, agent, aimodel, knowledgebase, consumedmcpservice, datatransformer, modulerole, userrole, appsecurity, settings, demouser, navigation, systemoverview")
+			fmt.Fprintln(os.Stderr, "Multi-word types also accepted: json structure, import mapping, export mapping, consumed rest service, consumed odata service, published odata service, published rest service, task queue, app security, image collection, scheduled event, regular expression, business event service, ai model, knowledge base, consumed mcp service, data transformer, etc.")
 			os.Exit(1)
 		}
 
@@ -269,7 +271,7 @@ func describeMDLCommand(objectType, name string) (mdlCmd string, ok bool) {
 		return fmt.Sprintf("DESCRIBE MODULE ROLE %s", name), true
 	case "USERROLE", "USER ROLE":
 		return fmt.Sprintf("DESCRIBE USER ROLE '%s'", name), true
-	case "PROJECTSECURITY", "PROJECT SECURITY":
+	case "APPSECURITY", "APP SECURITY", "PROJECTSECURITY", "PROJECT SECURITY":
 		return "DESCRIBE APP SECURITY", true
 	case "SETTINGS":
 		return "DESCRIBE SETTINGS", true
@@ -287,11 +289,11 @@ func describeMDLCommand(objectType, name string) (mdlCmd string, ok bool) {
 		return fmt.Sprintf("DESCRIBE IMPORT MAPPING %s", name), true
 	case "EXPORTMAPPING", "EXPORT MAPPING":
 		return fmt.Sprintf("DESCRIBE EXPORT MAPPING %s", name), true
-	case "RESTCLIENT", "REST CLIENT":
+	case "CONSUMEDRESTSERVICE", "CONSUMED REST SERVICE", "RESTCLIENT", "REST CLIENT":
 		return fmt.Sprintf("DESCRIBE CONSUMED REST SERVICE %s", name), true
-	case "ODATACLIENT", "ODATA CLIENT":
+	case "CONSUMEDODATASERVICE", "CONSUMED ODATA SERVICE", "ODATACLIENT", "ODATA CLIENT":
 		return fmt.Sprintf("DESCRIBE CONSUMED ODATA SERVICE %s", name), true
-	case "ODATASERVICE", "ODATA SERVICE":
+	case "PUBLISHEDODATASERVICE", "PUBLISHED ODATA SERVICE", "ODATASERVICE", "ODATA SERVICE":
 		return fmt.Sprintf("DESCRIBE PUBLISHED ODATA SERVICE %s", name), true
 	case "PUBLISHEDRESTSERVICE", "PUBLISHED REST SERVICE", "RESTSERVICE", "REST SERVICE":
 		return fmt.Sprintf("DESCRIBE PUBLISHED REST SERVICE %s", name), true
@@ -299,7 +301,7 @@ func describeMDLCommand(objectType, name string) (mdlCmd string, ok bool) {
 		return fmt.Sprintf("DESCRIBE IMAGE COLLECTION %s", name), true
 	case "MENU":
 		return fmt.Sprintf("DESCRIBE MENU %s", name), true
-	case "QUEUE":
+	case "TASKQUEUE", "TASK QUEUE", "QUEUE":
 		return fmt.Sprintf("DESCRIBE TASK QUEUE %s", name), true
 	case "SCHEDULEDEVENT", "SCHEDULED EVENT":
 		return fmt.Sprintf("DESCRIBE SCHEDULED EVENT %s", name), true
@@ -324,7 +326,7 @@ func describeMDLCommand(objectType, name string) (mdlCmd string, ok bool) {
 	case "AGENT":
 		return fmt.Sprintf("DESCRIBE AGENT %s", name), true
 	case "AIMODEL", "AI MODEL", "MODEL":
-		return fmt.Sprintf("DESCRIBE MODEL %s", name), true
+		return fmt.Sprintf("DESCRIBE AI MODEL %s", name), true
 	case "KNOWLEDGEBASE", "KNOWLEDGE BASE":
 		return fmt.Sprintf("DESCRIBE KNOWLEDGE BASE %s", name), true
 	case "CONSUMEDMCPSERVICE", "CONSUMED MCP SERVICE", "MCP SERVICE":
@@ -340,25 +342,31 @@ func describeMDLCommand(objectType, name string) (mdlCmd string, ok bool) {
 // objectTypeToDescribe maps a catalog `objects` view ObjectType to the `describe`
 // keyword. Only directly describable types with a `Module.Name` shape are listed.
 var objectTypeToDescribe = map[string]string{
-	"MODULE":                 "module",
-	"ENTITY":                 "entity",
-	"EXTERNAL_ENTITY":        "entity",
-	"ASSOCIATION":            "association",
-	"MICROFLOW":              "microflow",
-	"NANOFLOW":               "nanoflow",
-	"PAGE":                   "page",
-	"SNIPPET":                "snippet",
-	"LAYOUT":                 "layout",
-	"ENUMERATION":            "enumeration",
-	"CONSTANT":               "constant",
-	"JAVA_ACTION":            "javaaction",
-	"WORKFLOW":               "workflow",
-	"JSON_STRUCTURE":         "jsonstructure",
-	"IMPORT_MAPPING":         "importmapping",
-	"EXPORT_MAPPING":         "exportmapping",
-	"ODATA_CLIENT":           "odataclient",
-	"ODATA_SERVICE":          "odataservice",
-	"REST_CLIENT":            "restclient",
+	"MODULE":                  "module",
+	"ENTITY":                  "entity",
+	"EXTERNAL_ENTITY":         "entity",
+	"ASSOCIATION":             "association",
+	"MICROFLOW":               "microflow",
+	"NANOFLOW":                "nanoflow",
+	"PAGE":                    "page",
+	"SNIPPET":                 "snippet",
+	"LAYOUT":                  "layout",
+	"ENUMERATION":             "enumeration",
+	"CONSTANT":                "constant",
+	"JAVA_ACTION":             "javaaction",
+	"WORKFLOW":                "workflow",
+	"JSON_STRUCTURE":          "jsonstructure",
+	"IMPORT_MAPPING":          "importmapping",
+	"EXPORT_MAPPING":          "exportmapping",
+	"CONSUMED_ODATA_SERVICE":  "consumedodataservice",
+	"PUBLISHED_ODATA_SERVICE": "publishedodataservice",
+	"CONSUMED_REST_SERVICE":   "consumedrestservice",
+	"TASK_QUEUE":              "taskqueue",
+	// Pre-#1395 ObjectType values, for a catalog cached by an older build.
+	"ODATA_CLIENT":           "consumedodataservice",
+	"ODATA_SERVICE":          "publishedodataservice",
+	"REST_CLIENT":            "consumedrestservice",
+	"QUEUE":                  "taskqueue",
 	"PUBLISHED_REST_SERVICE": "publishedrestservice",
 	"BUSINESS_EVENT_SERVICE": "businesseventservice",
 	"DATABASE_CONNECTION":    "databaseconnection",
@@ -366,7 +374,7 @@ var objectTypeToDescribe = map[string]string{
 	"MENU":                   "menu",
 	"DATA_TRANSFORMER":       "datatransformer",
 	"AGENT":                  "agent",
-	"AI_MODEL":               "model",
+	"AI_MODEL":               "aimodel",
 	"KNOWLEDGE_BASE":         "knowledgebase",
 	"CONSUMED_MCP_SERVICE":   "consumedmcpservice",
 	"JAVASCRIPT_ACTION":      "javascriptaction",
@@ -394,7 +402,7 @@ var unitTypeToDescribe = map[string]string{
 	"Images$ImageCollection":               "imagecollection",
 	"Menus$MenuDocument":                   "menu",
 	"Workflows$Workflow":                   "workflow",
-	"Queues$Queue":                         "queue",
+	"Queues$Queue":                         "taskqueue",
 	"ScheduledEvents$ScheduledEvent":       "scheduledevent",
 	"RegularExpressions$RegularExpression": "regularexpression",
 	"Rest$PublishedRestService":            "publishedrestservice",
