@@ -934,6 +934,11 @@ func (unimplemented) ParseMicroflowFromRaw(_ map[string]interface{}, _ model.ID,
 	return r0
 }
 
+func (unimplemented) ParseNanoflowFromRaw(_ map[string]interface{}, _ model.ID, _ model.ID) *microflows.Nanoflow {
+	var r0 *microflows.Nanoflow
+	return r0
+}
+
 func (unimplemented) Path() string {
 	var r0 string
 	return r0

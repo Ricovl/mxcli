@@ -141,3 +141,39 @@ func TestSyntaxRenameTopic(t *testing.T) {
 		}
 	}
 }
+
+// mendixlabs/mxcli#1389, the reported commands verbatim. `mxcli syntax grant`
+// answered "Unknown topic: grant" although `grant` is a listed keyword of
+// security.entity-access: a verb is how a statement is looked up, and no topic
+// path starts with one.
+func TestSyntaxVerbTopicsFromIssue1389(t *testing.T) {
+	for _, tt := range []struct{ verb, want string }{
+		{"grant", "security.entity-access"},
+		{"revoke", "security.entity-access"},
+		{"refresh", "microflow.object-operations"},
+	} {
+		t.Run(tt.verb, func(t *testing.T) {
+			out := runSyntax(t, tt.verb)
+			if strings.Contains(out, "Unknown topic") {
+				t.Fatalf("mxcli syntax %s reported an unknown topic:\n%s", tt.verb, firstLines(out, 3))
+			}
+			if !strings.Contains(out, tt.want) {
+				t.Errorf("mxcli syntax %s does not show %q:\n%s", tt.verb, tt.want, firstLines(out, 6))
+			}
+		})
+	}
+}
+
+// mendixlabs/mxcli#1389: `mxcli syntax integration message-definition` printed
+// `No topic "integration.message-definition"` and recovered only through the
+// fallback. The leading word is a category qualifier the help's own topic list
+// invites; the remainder names a topic exactly.
+func TestSyntaxQualifiedTopicFromIssue1389(t *testing.T) {
+	out := runSyntax(t, "integration", "message-definition")
+	if strings.Contains(out, "No topic") || strings.Contains(out, "Unknown topic") {
+		t.Fatalf("mxcli syntax integration message-definition did not match exactly:\n%s", firstLines(out, 3))
+	}
+	if !strings.Contains(out, "MESSAGE DEFINITION COLLECTION") {
+		t.Errorf("mxcli syntax integration message-definition does not show the page:\n%s", firstLines(out, 6))
+	}
+}

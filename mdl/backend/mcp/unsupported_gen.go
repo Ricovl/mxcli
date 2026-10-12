@@ -1036,6 +1036,10 @@ func (unsupportedBackend) ParseMicroflowFromRaw(_ map[string]any, _ model.ID, _ 
 	return
 }
 
+func (unsupportedBackend) ParseNanoflowFromRaw(_ map[string]any, _ model.ID, _ model.ID) (r0 *microflows.Nanoflow) {
+	return
+}
+
 func (unsupportedBackend) Path() (r0 string) {
 	return
 }
