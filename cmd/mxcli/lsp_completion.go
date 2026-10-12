@@ -429,14 +429,14 @@ func objectTypeToCompletionKind(objectType string) (protocol.CompletionItemKind,
 		return protocol.CompletionItemKindFile, "import mapping"
 	case "EXPORT_MAPPING":
 		return protocol.CompletionItemKindFile, "export mapping"
-	case "REST_CLIENT":
-		return protocol.CompletionItemKindInterface, "rest client"
+	case "CONSUMED_REST_SERVICE", "REST_CLIENT":
+		return protocol.CompletionItemKindInterface, "consumed rest service"
 	case "PUBLISHED_REST_SERVICE":
 		return protocol.CompletionItemKindInterface, "published rest service"
-	case "ODATA_CLIENT":
-		return protocol.CompletionItemKindInterface, "odata client"
-	case "ODATA_SERVICE":
-		return protocol.CompletionItemKindInterface, "odata service"
+	case "CONSUMED_ODATA_SERVICE", "ODATA_CLIENT":
+		return protocol.CompletionItemKindInterface, "consumed odata service"
+	case "PUBLISHED_ODATA_SERVICE", "ODATA_SERVICE":
+		return protocol.CompletionItemKindInterface, "published odata service"
 	case "DATABASE_CONNECTION":
 		return protocol.CompletionItemKindInterface, "database connection"
 	case "BUSINESS_EVENT_SERVICE":

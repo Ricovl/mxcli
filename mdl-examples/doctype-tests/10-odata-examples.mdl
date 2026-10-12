@@ -132,15 +132,15 @@ list external entities in OdTest;
 
 /**
  * Level 7.1: Query OData clients from the catalog
- * The CATALOG.ODATA_CLIENTS table contains all consumed OData services.
+ * The CATALOG.CONSUMED_ODATA_SERVICES table contains all consumed OData services.
  */
-select * from catalog.ODATA_CLIENTS;
+select * from catalog.CONSUMED_ODATA_SERVICES;
 
 /**
  * Level 7.2: Query OData services from the catalog
- * The CATALOG.ODATA_SERVICES table contains all published OData services.
+ * The CATALOG.PUBLISHED_ODATA_SERVICES table contains all published OData services.
  */
-select * from catalog.ODATA_SERVICES;
+select * from catalog.PUBLISHED_ODATA_SERVICES;
 
 /**
  * Level 7.3: Find external entities via catalog

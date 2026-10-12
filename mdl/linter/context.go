@@ -1202,7 +1202,7 @@ func (ctx *LintContext) Queues() iter.Seq[Queue] {
 	return func(yield func(Queue) bool) {
 		rows, err := ctx.db.Query(fmt.Sprintf(`
 			SELECT q.Name, q.QualifiedName, q.ModuleName, q.Parallelism, q.ClusterWide
-			FROM queues q
+			FROM task_queues q
 			LEFT JOIN modules m ON q.ModuleName = m.Name
 			WHERE %s
 			ORDER BY q.ModuleName, q.Name
@@ -1292,7 +1292,7 @@ func (ctx *LintContext) RestClients() iter.Seq[RestClient] {
 		rows, err := ctx.db.Query(fmt.Sprintf(`
 			SELECT rc.Id, rc.Name, rc.QualifiedName, rc.ModuleName, rc.Folder,
 			       rc.BaseUrl, rc.AuthScheme, rc.OperationCount, rc.Documentation
-			FROM rest_clients rc
+			FROM consumed_rest_services rc
 			LEFT JOIN modules m ON rc.ModuleName = m.Name
 			WHERE %s
 			ORDER BY rc.ModuleName, rc.Name
@@ -1352,7 +1352,7 @@ func (ctx *LintContext) RestOperations() iter.Seq[RestOperation] {
 			SELECT ro.Id, ro.ServiceId, ro.ServiceQualifiedName, ro.Name,
 			       ro.HttpMethod, ro.Path, ro.ParameterCount, ro.HasBody,
 			       ro.ResponseType, ro.Timeout, ro.ModuleName
-			FROM rest_operations ro
+			FROM consumed_rest_operations ro
 			LEFT JOIN modules m ON ro.ModuleName = m.Name
 			WHERE %s
 			ORDER BY ro.ServiceQualifiedName, ro.Name

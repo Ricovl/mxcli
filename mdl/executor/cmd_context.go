@@ -475,7 +475,7 @@ func assembleJavaActionContext(ctx *ExecContext, out *strings.Builder, name stri
 func assembleODataClientContext(ctx *ExecContext, out *strings.Builder, name string) {
 	out.WriteString("### Consumed OData Service\n\n")
 	result, err := ctx.Catalog.Query(fmt.Sprintf(
-		"select Name, Version, ODataVersion, MetadataUrl from odata_clients where QualifiedName = '%s'", name))
+		"select Name, Version, ODataVersion, MetadataUrl from consumed_odata_services where QualifiedName = '%s'", name))
 	if err == nil && result.Count > 0 {
 		row := result.Rows[0]
 		out.WriteString(fmt.Sprintf("- **Name**: %v\n", row[0]))
@@ -606,7 +606,7 @@ func assembleWorkflowContext(ctx *ExecContext, out *strings.Builder, name string
 func assembleODataServiceContext(ctx *ExecContext, out *strings.Builder, name string) {
 	out.WriteString("### Published OData Service\n\n")
 	result, err := ctx.Catalog.Query(fmt.Sprintf(
-		"select Name, Path, Version, ODataVersion, EntitySetCount from odata_services where QualifiedName = '%s'", name))
+		"select Name, Path, Version, ODataVersion, EntitySetCount from published_odata_services where QualifiedName = '%s'", name))
 	if err == nil && result.Count > 0 {
 		row := result.Rows[0]
 		out.WriteString(fmt.Sprintf("- **Name**: %v\n", row[0]))
