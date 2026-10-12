@@ -2012,6 +2012,26 @@ func (fb *flowBuilder) addAggregateListAction(s *ast.AggregateListStmt) model.ID
 		}
 	}
 
+	// Declare the result so a later SET on it is accepted, as the validate path
+	// already does (mendixlabs/mxcli#1413). SUM/MIN/MAX follow the attribute's
+	// type, which is not resolved here, so they stay Unknown.
+	if fb.declaredVars != nil && s.OutputVariable != "" {
+		resultType := "Unknown"
+		switch s.Operation {
+		case ast.AggregateCount:
+			resultType = "Integer"
+		case ast.AggregateAverage:
+			resultType = "Decimal"
+		case ast.AggregateAll, ast.AggregateAny:
+			resultType = "Boolean"
+		case ast.AggregateReduce:
+			if s.ReturnType != nil {
+				resultType = s.ReturnType.Kind.String()
+			}
+		}
+		fb.declaredVars[s.OutputVariable] = resultType
+	}
+
 	activity := &microflows.ActionActivity{
 		BaseActivity: microflows.BaseActivity{
 			BaseMicroflowObject: microflows.BaseMicroflowObject{
