@@ -1,0 +1,27 @@
+-- Bug mendixlabs/mxcli#1418: exec writes an import-mapping microflow with a
+-- null entity and the .mpr can no longer be loaded.
+--
+-- NEGATIVE TEST (.fail.mdl) — EXPECTED to fail `mxcli check` (MDL-ORDER01).
+--
+-- Symptom: `check --references` and `exec` both succeeded; the microflow was
+-- stored with VariableType.Entity = "" because the mapping did not exist yet
+-- when the flow was built, and `mx check` then died loading the project:
+--   ArgumentNullException: Value cannot be null. (Parameter 'value')
+--     at Mendix.Modeler.DataTypes.EntityType.set_EntityId
+--
+-- Fix: MDL-ORDER01 reports the forward reference; exec refuses an
+-- `import from mapping` whose mapping does not resolve; the writer refuses an
+-- import activity without a result entity.
+--
+-- Correct form: move `create import mapping` above the microflow.
+
+create json structure MyFirstModule.JSON_D sample '{"code": "NL", "name": "Netherlands"}';
+create persistent entity MyFirstModule.CountryD ( Code: string, Name: string );
+
+create microflow MyFirstModule.MF_D ( $P: string )
+begin
+  $R = import from mapping MyFirstModule.IMM_D($P);
+end;
+
+create import mapping MyFirstModule.IMM_D with json structure MyFirstModule.JSON_D
+{ create MyFirstModule.CountryD { Code = code, Name = name } };

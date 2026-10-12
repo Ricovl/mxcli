@@ -69,6 +69,9 @@ func (d codecMicroflowDeps) DeclaresProperty(docType, key string) bool {
 }
 
 func (d codecMicroflowDeps) SerializeObject(obj microflows.MicroflowObject) (bson.D, error) {
+	if err := importMappingEntityError(obj); err != nil {
+		return nil, err
+	}
 	el := microflowObjectToGen(obj)
 	if el == nil {
 		return nil, nil
