@@ -13,7 +13,7 @@ mdl 1;
 create module Bug1423;
 
 create persistent entity Bug1423.EntA (
-  Name: string(200),
+  Name: string(200) unique error message 'Name must be unique',
   Description: string(200)
 );
 
