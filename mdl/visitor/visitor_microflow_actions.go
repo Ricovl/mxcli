@@ -9,6 +9,7 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
+	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
 // buildLogStatement converts LOG statement context to LogStmt.
@@ -1309,7 +1310,11 @@ func buildShowMessageStatement(ctx parser.IShowMessageStatementContext) *ast.Sho
 	}
 
 	if id := smCtx.IdentifierOrKeyword(); id != nil {
-		stmt.Type = id.GetText()
+		// Stored in the enumeration's spelling: `type error` stored as "error"
+		// showed an Information dialog (mendixlabs/mxcli#1280). A word that is
+		// no ShowMessageType is kept as written for check to name.
+		t, _ := microflows.CanonicalMessageType(unquoteIdentifier(id.GetText()))
+		stmt.Type = string(t)
 	}
 
 	// Build template arguments (optional): `with ({1} = e)`, or the deprecated
