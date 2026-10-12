@@ -118,9 +118,6 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	for i, param := range jsa.Parameters {
-		if i > 0 {
-			sb.WriteString(", ")
-		}
 		if hasParamDescriptions {
 			sb.WriteString("\n    ")
 		}
@@ -133,6 +130,14 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 		}
 		if param.IsRequired {
 			sb.WriteString(" not null")
+		}
+		// The separator precedes any `--` doc comment: written after it, the
+		// comment swallows the comma and the next parameter fails to parse (#1412).
+		if i < len(jsa.Parameters)-1 {
+			sb.WriteString(",")
+			if !hasParamDescriptions {
+				sb.WriteString(" ")
+			}
 		}
 		if param.Description != "" {
 			paramDoc := strings.ReplaceAll(param.Description, "\r\n", "\n")
