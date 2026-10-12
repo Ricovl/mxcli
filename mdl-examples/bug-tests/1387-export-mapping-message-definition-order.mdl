@@ -1,0 +1,54 @@
+mdl 1;
+-- An export mapping over a message definition kept its members in SCRIPT order
+-- (mendixlabs/mxcli#1387). mx check (11.12.1) refuses any order but the
+-- definition's:
+--
+--   [error] [CE5015] "The mapping does not align with the underlying schema
+--     anymore. ... Details: The order of the schema elements under
+--     'Orders/Order' does not match the schema." at Object mapping element 'Order'
+--
+-- mxcli now writes the members in the definition's order, whatever order the
+-- script lists them in. `describe` prints them in that order.
+--
+-- Verify:
+--   mxcli exec 1387-export-mapping-message-definition-order.mdl -p app.mpr
+--   mx check -p app.mpr    -- 0 errors; before the fix, 2 x CE5015
+--
+-- The second mapping is the issue's aggravating case: `add member` appends
+-- TotalAmount AFTER the nested Lines object, so the schema order is not
+-- "values first" and the author has no obvious order to copy.
+--
+-- CONTROL: the import twin over the same definition, in the same reversed
+-- order, checks clean before and after — the order rule is export-only.
+
+create module Shop1387;
+create entity Shop1387.Order ( Number: Integer, Total: Decimal, TotalAmount: Decimal );
+create entity Shop1387.Line ( Sku: String(50), Qty: Integer );
+create association Shop1387.Line_Order from Shop1387.Line to Shop1387.Order;
+
+create message definition collection Shop1387.MD_Order {
+  definition OrderMsg for Shop1387.Order as 'Orders' { Number, Total }
+  definition OrderWithLines for Shop1387.Order as 'Orders' {
+    Number,
+    Shop1387.Line_Order/Shop1387.Line as 'Lines' { Sku, Qty }
+  }
+};
+alter message definition Shop1387.MD_Order.OrderWithLines add member TotalAmount;
+
+-- Reported shape: schema order is Number, Total.
+create export mapping Shop1387.EXM_Order with message definition Shop1387.MD_Order.OrderMsg {
+  Shop1387.Order { Total = Total, Number = Number }
+};
+
+-- Schema order is Number, Lines { Sku, Qty }, TotalAmount.
+create export mapping Shop1387.EXM_OrderWithLines with message definition Shop1387.MD_Order.OrderWithLines {
+  Shop1387.Order {
+    TotalAmount = TotalAmount,
+    Shop1387.Line_Order/Shop1387.Line as Lines { Qty = Qty, Sku = Sku },
+    Number = Number
+  }
+};
+
+create import mapping Shop1387.IMM_Order with message definition Shop1387.MD_Order.OrderMsg {
+  create Shop1387.Order { Total = Total, Number = Number }
+};
