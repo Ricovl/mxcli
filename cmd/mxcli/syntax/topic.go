@@ -2,7 +2,10 @@
 
 package syntax
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // Match is the outcome of looking a topic up in the registry.
 type Match struct {
@@ -17,6 +20,24 @@ type Match struct {
 	// Fallback is the word the segment match ran on, set only when Exact is
 	// false and Features is non-empty.
 	Fallback string
+	// Via says what Fallback was matched against: "" for a path segment,
+	// "keyword" for a topic's keyword list.
+	Via string
+}
+
+// Heading is the line printed above a fallback answer, so the reader knows the
+// topic they typed does not exist and what the shown topics were matched on.
+// Empty for an exact match.
+func (m Match) Heading() string {
+	if m.Exact || len(m.Features) == 0 {
+		return ""
+	}
+	if m.Via == "keyword" {
+		return fmt.Sprintf("No topic %q. Showing %d topic(s) with keyword %q:\n\n",
+			m.Path, len(m.Features), m.Fallback)
+	}
+	return fmt.Sprintf("No topic %q. Showing %d topic(s) matching %q:\n\n",
+		m.Path, len(m.Features), m.Fallback)
 }
 
 // Lookup resolves the words a caller typed to a set of topics.
@@ -41,6 +62,13 @@ func Lookup(args []string) Match {
 		return Match{Path: path, Features: ByPrefix(path), Exact: true}
 	}
 
+	// A leading category word in front of a topic that lives elsewhere:
+	// `integration message-definition` names message-definition exactly, and
+	// the help's own topic list invites the qualifier (#1389).
+	if q, ok := qualifiedPath(words); ok {
+		return Match{Path: q, Features: ByPrefix(q), Exact: true}
+	}
+
 	// Not a path from the left. Before giving up, match against any SEGMENT of
 	// a path: `rule` names a real topic (two, in fact), it just is not the
 	// first segment of either (#955).
@@ -53,7 +81,40 @@ func Lookup(args []string) Match {
 	if features := BySegmentMatch(last); len(features) > 0 {
 		return Match{Path: path, Features: features, Fallback: last}
 	}
+
+	// Still nothing: a verb. `grant`, `revoke`, `refresh` are how a statement
+	// is looked up, and no path starts with one — but the topics list them as
+	// keywords, so `grant` was "Unknown topic" while security.entity-access
+	// named it (#1389). Keywords rather than per-verb aliases: the lists exist
+	// already and stay in step with the topics that own them.
+	if features := ByKeyword(last); len(features) > 0 {
+		return Match{Path: path, Features: features, Fallback: last, Via: "keyword"}
+	}
 	return Match{Path: path}
+}
+
+// qualifiedPath resolves words whose head names a topic and whose tail names a
+// different topic exactly — `integration message-definition` — to the tail.
+//
+// It declines when any topic under the head has a segment matching the last
+// word: there the qualifier points at its own subtopic (`workflow microflow`
+// means workflow.call-microflow), and the segment match is the better answer.
+func qualifiedPath(words []string) (string, bool) {
+	last := words[len(words)-1]
+	for k := 1; k < len(words); k++ {
+		head := ResolveAlias(resolvePath(words[:k]))
+		tail := resolvePath(words[k:])
+		if !HasPrefix(head) || ByPath(tail) == nil {
+			continue
+		}
+		for _, f := range BySegmentMatch(last) {
+			if f.Path == head || strings.HasPrefix(f.Path, head+".") {
+				return "", false
+			}
+		}
+		return tail, true
+	}
+	return "", false
 }
 
 // topicWords flattens the arguments into lower-case words, splitting on

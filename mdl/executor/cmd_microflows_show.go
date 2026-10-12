@@ -601,19 +601,23 @@ func describeNanoflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	}
 
 	// Wrap nanoflow as a Microflow so renderMicroflowMDL can handle it
-	wrapperMf := &microflows.Microflow{
-		Documentation:      targetNf.Documentation,
-		Excluded:           targetNf.Excluded,
-		Parameters:         targetNf.Parameters,
-		ReturnType:         targetNf.ReturnType,
-		ReturnVariableName: targetNf.ReturnVariableName,
-		ObjectCollection:   targetNf.ObjectCollection,
-		AllowedModuleRoles: targetNf.AllowedModuleRoles,
-	}
-
 	sourceMap := make(map[string]elkSourceRange)
-	mdl := renderMicroflowMDL(ctx, "nanoflow", wrapperMf, name, entityNames, microflowNames, sourceMap)
+	mdl := renderMicroflowMDL(ctx, "nanoflow", nanoflowAsMicroflow(targetNf), name, entityNames, microflowNames, sourceMap)
 	return mdl, sourceMap, nil
+}
+
+// nanoflowAsMicroflow wraps a nanoflow as a Microflow so renderMicroflowMDL
+// can render it; shared by DESCRIBE NANOFLOW and diff-local.
+func nanoflowAsMicroflow(nf *microflows.Nanoflow) *microflows.Microflow {
+	return &microflows.Microflow{
+		Documentation:      nf.Documentation,
+		Excluded:           nf.Excluded,
+		Parameters:         nf.Parameters,
+		ReturnType:         nf.ReturnType,
+		ReturnVariableName: nf.ReturnVariableName,
+		ObjectCollection:   nf.ObjectCollection,
+		AllowedModuleRoles: nf.AllowedModuleRoles,
+	}
 }
 
 // renderMicroflowMDL formats a parsed Microflow as MDL text.
