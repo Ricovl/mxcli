@@ -276,6 +276,49 @@ func TestAlterSettingsModel_RefusesPropertyThisVersionDoesNotStore(t *testing.T)
 	}
 }
 
+// TestAlterSettingsModel_JavaVersionRefusedWhenNotStored is mendixlabs/mxcli#1438:
+// a Mendix 9.x document stores neither JavaVersion nor JavaMajorVersion, so the
+// overlay has no key to write and `alter settings runtime (JavaVersion: '17')`
+// reported "Unchanged model settings". It must refuse instead.
+func TestAlterSettingsModel_JavaVersionRefusedWhenNotStored(t *testing.T) {
+	var written *model.ProjectSettings
+	// A Mendix 9.24-shaped document: no Java version key at all.
+	ctx, _ := newMockCtx(t, withBackend(modelSettingsBackend(&written, "HashAlgorithm", "BcryptCost")))
+
+	err := alterSettings(ctx, &ast.AlterSettingsStmt{
+		Section:    "model",
+		Properties: map[string]any{"JavaVersion": "17"},
+	})
+	if err == nil {
+		t.Fatal("expected a refusal: this project stores no JavaVersion setting, got nil (silent no-op)")
+	}
+	if !strings.Contains(err.Error(), "JavaVersion") {
+		t.Errorf("error should name the property, got: %v", err)
+	}
+	if written != nil {
+		t.Error("a refused statement must not write")
+	}
+}
+
+// The JavaVersion exemption still applies when either storage key is present.
+func TestAlterSettingsModel_JavaVersionAllowedUnderEitherKey(t *testing.T) {
+	for _, key := range []string{"JavaVersion", "JavaMajorVersion"} {
+		t.Run(key, func(t *testing.T) {
+			var written *model.ProjectSettings
+			ctx, _ := newMockCtx(t, withBackend(modelSettingsBackend(&written, key)))
+			if err := alterSettings(ctx, &ast.AlterSettingsStmt{
+				Section:    "model",
+				Properties: map[string]any{"JavaVersion": "21"},
+			}); err != nil {
+				t.Fatalf("alterSettings: %v", err)
+			}
+			if written == nil {
+				t.Fatal("no settings written")
+			}
+		})
+	}
+}
+
 // The gate must not block a property the document does carry.
 func TestAlterSettingsModel_AllowsStoredProperty(t *testing.T) {
 	var written *model.ProjectSettings

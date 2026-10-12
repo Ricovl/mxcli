@@ -39,6 +39,7 @@ Types:
   constant         Describe a constant
   microflow        Describe a microflow
   nanoflow         Describe a nanoflow
+  rule             Describe a rule
   workflow         Describe a workflow
   page             Describe a page
   snippet          Describe a snippet
@@ -134,7 +135,7 @@ Example:
 		mdlCmd, ok := describeMDLCommand(objectType, name)
 		if !ok {
 			fmt.Fprintf(os.Stderr, "Unknown type: %s\n", strings.Join(args[:len(args)-1], " "))
-			fmt.Fprintln(os.Stderr, "Valid types: module, entity, association, enumeration, constant, microflow, nanoflow, workflow, page, snippet, layout, javaaction, javascriptaction, jsonstructure, importmapping, exportmapping, consumedrestservice, consumedodataservice, publishedodataservice, publishedrestservice, imagecollection, menu, taskqueue, scheduledevent, businesseventservice, databaseconnection, agent, aimodel, knowledgebase, consumedmcpservice, datatransformer, modulerole, userrole, appsecurity, settings, demouser, navigation, systemoverview")
+			fmt.Fprintln(os.Stderr, "Valid types: module, entity, association, enumeration, constant, microflow, nanoflow, rule, workflow, page, snippet, layout, javaaction, javascriptaction, jsonstructure, importmapping, exportmapping, consumedrestservice, consumedodataservice, publishedodataservice, publishedrestservice, imagecollection, menu, taskqueue, scheduledevent, businesseventservice, databaseconnection, agent, aimodel, knowledgebase, consumedmcpservice, datatransformer, modulerole, userrole, appsecurity, settings, demouser, navigation, systemoverview")
 			fmt.Fprintln(os.Stderr, "Multi-word types also accepted: json structure, import mapping, export mapping, consumed rest service, consumed odata service, published odata service, published rest service, task queue, app security, image collection, scheduled event, regular expression, business event service, ai model, knowledge base, consumed mcp service, data transformer, etc.")
 			os.Exit(1)
 		}
@@ -264,6 +265,8 @@ func describeMDLCommand(objectType, name string) (mdlCmd string, ok bool) {
 		return fmt.Sprintf("DESCRIBE MICROFLOW %s", name), true
 	case "NANOFLOW":
 		return fmt.Sprintf("DESCRIBE NANOFLOW %s", name), true
+	case "RULE":
+		return fmt.Sprintf("DESCRIBE RULE %s", name), true
 	case "WORKFLOW":
 		return fmt.Sprintf("DESCRIBE WORKFLOW %s", name), true
 	case "PAGE":
@@ -369,6 +372,7 @@ var objectTypeToDescribe = map[string]string{
 	"ASSOCIATION":             "association",
 	"MICROFLOW":               "microflow",
 	"NANOFLOW":                "nanoflow",
+	"RULE":                    "rule",
 	"PAGE":                    "page",
 	"SNIPPET":                 "snippet",
 	"LAYOUT":                  "layout",
@@ -403,11 +407,11 @@ var objectTypeToDescribe = map[string]string{
 
 // unitTypeToDescribe maps a top-level unit's BSON $Type to the `describe`
 // keyword. Used by the live-reader fallback. Only directly describable document
-// types are listed (page templates, building blocks, rules, etc. are absent so
-// they don't resolve).
+// types are listed (page templates etc. are absent so they don't resolve).
 var unitTypeToDescribe = map[string]string{
 	"Microflows$Microflow":                 "microflow",
 	"Microflows$Nanoflow":                  "nanoflow",
+	"Microflows$Rule":                      "rule",
 	"Forms$Page":                           "page",
 	"Forms$Snippet":                        "snippet",
 	"Pages$BuildingBlock":                  "buildingblock",

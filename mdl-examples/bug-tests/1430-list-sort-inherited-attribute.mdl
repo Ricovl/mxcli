@@ -1,0 +1,27 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1430: list-operation sort on an inherited attribute
+-- ============================================================================
+--
+-- `$L = sort $BookChunkList by Similarity desc;` where Similarity is declared on
+-- the generalization was written as `Module.BookChunk.Similarity` and mxbuild
+-- rejected it:
+--
+--   CE1613 "The selected attribute '...BookChunk.Similarity' no longer exists."
+--
+-- The sort must be qualified with the DECLARING entity (Bug1430.Chunk), as the
+-- retrieve `sort by` already is. Expected after exec: describe shows the sort,
+-- and `mx check` reports no CE1613.
+-- ============================================================================
+
+create module Bug1430;
+
+create persistent entity Bug1430.Chunk ( Similarity: Decimal );
+
+create persistent entity Bug1430.BookChunk extends Bug1430.Chunk ( Title: String(100) );
+
+create microflow Bug1430.MF_SortInherited ($BookChunkList: list of Bug1430.BookChunk) returns list of Bug1430.BookChunk
+begin
+  $L = sort $BookChunkList by Similarity desc;
+  return $L;
+end;

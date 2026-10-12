@@ -417,6 +417,13 @@ func (e *Executor) Execute(stmt ast.Statement) error {
 		}
 	}
 
+	// A handler that ignored the guard's Write error still "succeeded" with its
+	// output cut off at the limit; that must fail the statement, not exit 0
+	// (mendixlabs/mxcli#1425).
+	if err == nil && e.guard != nil {
+		err = e.guard.exceededError()
+	}
+
 	if e.logger != nil {
 		e.logger.Command(stmtTypeName(stmt), stmtSummary(stmt), time.Since(start), err)
 	}

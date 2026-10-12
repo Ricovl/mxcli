@@ -145,3 +145,54 @@ func TestExtractChildSlots_NoContainers(t *testing.T) {
 		t.Errorf("got %+v, want none", got)
 	}
 }
+
+// A child slot is described under the keyword its widget definition declares
+// for it, or exec cannot read the describe back. A native Repeater's (and
+// SafeAreaView's) `content` slot is `template` on the definition side
+// (mdlContainerForWidgetSlot); describe derived `content` from the bare key,
+// and check refused it: "`content` is not a container of `repeater` — it
+// declares: template [MDL-WIDGET26]" (mendixlabs/mxcli#1400). The
+// tagContentContainer slot is the control: a key without an override is
+// described as itself, as before.
+func TestExtractChildSlots_KeywordMatchesDefinition(t *testing.T) {
+	w := map[string]any{
+		"Type": map[string]any{
+			"WidgetId": "com.mendix.widget.native.repeater.Repeater",
+			"ObjectType": map[string]any{
+				"PropertyTypes": []any{
+					int32(3),
+					map[string]any{"$ID": "t1", "PropertyKey": "content"},
+					map[string]any{"$ID": "t2", "PropertyKey": "tagContentContainer"},
+				},
+			},
+		},
+		"Object": map[string]any{
+			"Properties": []any{
+				int32(3),
+				map[string]any{
+					"TypePointer": "t1",
+					"Value": map[string]any{"Widgets": []any{int32(3),
+						map[string]any{"$Type": "Forms$DynamicText", "Name": "a"}}},
+				},
+				map[string]any{
+					"TypePointer": "t2",
+					"Value": map[string]any{"Widgets": []any{int32(3),
+						map[string]any{"$Type": "Forms$DynamicText", "Name": "b"}}},
+				},
+			},
+		},
+	}
+
+	got := map[string]string{}
+	for _, s := range extractChildSlots(&ExecContext{}, w, "") {
+		got[s.PropertyKey] = s.Keyword
+	}
+	for key, want := range map[string]string{
+		"content":             "template",
+		"tagContentContainer": "tagcontentcontainer",
+	} {
+		if got[key] != want {
+			t.Errorf("slot %q described as %q, want %q (the keyword the definition declares)", key, got[key], want)
+		}
+	}
+}

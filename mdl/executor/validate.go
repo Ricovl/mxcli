@@ -51,6 +51,14 @@ type scriptContext struct {
 	// (mendixlabs/mxcli#1211).
 	queues map[string]bool
 
+	// Image collections created (Module.Collection) and the images they declare
+	// (Module.Collection.Image), both lower-cased like buildImageQualifiedNames.
+	// Missing, an image widget naming a collection the same script creates was
+	// "image collection not found" and exec refused the script
+	// (mendixlabs/mxcli#1419).
+	imageCollections map[string]bool
+	images           map[string]bool
+
 	// Microflow-typed parameters of the Java actions the script creates
 	// (Module.Action -> parameter name). Such a parameter takes a microflow
 	// NAME, never an expression (mendixlabs/mxcli#1210).
@@ -133,6 +141,8 @@ func newScriptContext() *scriptContext {
 		menus:                 make(map[string]bool),
 		constants:             make(map[string]bool),
 		queues:                make(map[string]bool),
+		imageCollections:      make(map[string]bool),
+		images:                make(map[string]bool),
 
 		javaActionFlowParams: make(map[string]map[string]bool),
 		entityDecls:          make(map[string]*ast.CreateEntityStmt),
@@ -291,6 +301,14 @@ func (sc *scriptContext) collectSingle(stmt ast.Statement) {
 	case *ast.CreateMenuStmt:
 		if s.Name.Module != "" {
 			sc.menus[s.Name.String()] = true
+		}
+	case *ast.CreateImageCollectionStmt:
+		if s.Name.Module != "" {
+			qn := strings.ToLower(s.Name.String())
+			sc.imageCollections[qn] = true
+			for _, img := range s.Images {
+				sc.images[qn+"."+strings.ToLower(img.Name)] = true
+			}
 		}
 	case *ast.CreateWorkflowStmt:
 		if s.Name.Module != "" {

@@ -1775,10 +1775,16 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 			if !spec.Ascending {
 				direction = microflows.SortDirectionDescending
 			}
-			// Build fully qualified attribute name: Entity.Attribute
+			// Qualify with the entity that DECLARES the attribute, as the
+			// retrieve sort does: an inherited name qualified with the list's
+			// own entity is CE1613 (mendixlabs/mxcli#1430).
 			attrQN := spec.Attribute
 			if entityType != "" && !strings.Contains(spec.Attribute, ".") {
-				attrQN = entityType + "." + spec.Attribute
+				if declared, ok := fb.resolveAttributeInEntityHierarchy(entityType, spec.Attribute); ok {
+					attrQN = declared
+				} else {
+					attrQN = entityType + "." + spec.Attribute
+				}
 			}
 			if fb.qualifiedMembersOnly {
 				fb.refuseUnqualifiedAttribute(attrQN, spec.Attribute, entityType)
@@ -2010,6 +2016,26 @@ func (fb *flowBuilder) addAggregateListAction(s *ast.AggregateListStmt) model.ID
 		if fb.qualifiedMembersOnly && action.AttributeQualifiedName == "" {
 			fb.refuseUnqualifiedAttribute(s.Attribute, s.Attribute, fb.listElementEntity(s.InputVariable))
 		}
+	}
+
+	// Declare the result so a later SET on it is accepted, as the validate path
+	// already does (mendixlabs/mxcli#1413). SUM/MIN/MAX follow the attribute's
+	// type, which is not resolved here, so they stay Unknown.
+	if fb.declaredVars != nil && s.OutputVariable != "" {
+		resultType := "Unknown"
+		switch s.Operation {
+		case ast.AggregateCount:
+			resultType = "Integer"
+		case ast.AggregateAverage:
+			resultType = "Decimal"
+		case ast.AggregateAll, ast.AggregateAny:
+			resultType = "Boolean"
+		case ast.AggregateReduce:
+			if s.ReturnType != nil {
+				resultType = s.ReturnType.Kind.String()
+			}
+		}
+		fb.declaredVars[s.OutputVariable] = resultType
 	}
 
 	activity := &microflows.ActionActivity{
