@@ -1,0 +1,31 @@
+-- A navigation list item's Class, Style and DynamicClasses (found while adding
+-- item addresses for mendixlabs/mxcli#1388). Describe printed an item's class as
+-- `ButtonStyle: nav-orders` — not an item property, and unparseable unquoted —
+-- and CREATE wrote an empty appearance, so a styled item lost its class.
+--
+-- Expected: `describe snippet BugTest1388c.Menu` prints
+--   item (Action: …, Class: 'nav-home', Style: 'font-weight: bold;', DynamicClasses: 'is-current')
+-- and re-executing that description changes nothing ("Unchanged snippet").
+-- `mxcli docker check` reports 0 errors.
+mdl 1;
+create module BugTest1388c;
+
+create page BugTest1388c.Home (Title: 'Home', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtHome (Content: 'Home')
+};
+
+create snippet BugTest1388c.Menu {
+  navigationlist navList1 {
+    item (Action: show page BugTest1388c.Home, Class: 'nav-home', Style: 'font-weight: bold;', DynamicClasses: 'is-current') {
+      dynamictext t1 (Content: 'Home')
+    }
+    item (Action: show page BugTest1388c.Home) {
+      dynamictext t2 (Content: 'Plain')
+    }
+  }
+};
+
+-- set on an existing item, by address
+alter snippet BugTest1388c.Menu {
+  set (Class: 'nav-plain') on navList1 item(t2);
+};

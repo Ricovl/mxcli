@@ -133,6 +133,11 @@ type NavigationListItem struct {
 	Caption *model.Text  `json:"caption,omitempty"`
 	Action  ClientAction `json:"action,omitempty"`
 	Widgets []Widget     `json:"widgets,omitempty"` // Nested widgets beyond the caption
+	// Class, Style and DynamicClasses are the item's Forms$Appearance — the
+	// same three fields a widget's appearance carries.
+	Class          string `json:"class,omitempty"`
+	Style          string `json:"style,omitempty"`
+	DynamicClasses string `json:"dynamicClasses,omitempty"`
 }
 
 // LinkButton represents a link-style button.

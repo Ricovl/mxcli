@@ -954,8 +954,14 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			if child.Action != "" {
 				props = append(props, actionProp("Action", child.Action))
 			}
-			if child.ButtonStyle != "" && child.ButtonStyle != "Default" {
-				props = append(props, fmt.Sprintf("ButtonStyle: %s", child.ButtonStyle))
+			if child.Class != "" {
+				props = append(props, fmt.Sprintf("Class: %s", mdlQuote(ctx, child.Class)))
+			}
+			if child.Style != "" {
+				props = append(props, fmt.Sprintf("Style: %s", mdlQuote(ctx, child.Style)))
+			}
+			if child.DynamicClasses != "" {
+				props = append(props, fmt.Sprintf("DynamicClasses: %s", child.DynamicClasses)) // an expression, printed as-is
 			}
 			formatWidgetProps(ctx.Output, prefix+"  ", itemHeader, props, " {\n")
 			for _, cw := range child.Children {

@@ -1,0 +1,57 @@
+-- mendixlabs/mxcli#1388 (follow-up): a navigation list item has no name, so it
+-- is addressed like a DataGrid 2 column — by a widget it holds `item(t1)`, a
+-- text it shows `item('Home')`, or its position `item@n`.
+--
+-- Expected `describe snippet BugTest1388b.Menu` afterwards:
+--   item (Action: show page BugTest1388b.Orders) { t0 'Orders', t0b 'All orders' }
+--   item (Action: show page BugTest1388b.Home)   { t1 'Home' }
+--   item (Action: show page BugTest1388b.Home)   { t2 'Second, renamed' }
+-- and `mxcli docker check` reports 0 errors.
+mdl 1;
+create module BugTest1388b;
+
+create page BugTest1388b.Home (Title: 'Home', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtHome (Content: 'Home')
+};
+create page BugTest1388b.Orders (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtOrders (Content: 'Orders')
+};
+
+create snippet BugTest1388b.Menu {
+  navigationlist navList1 {
+    item (Action: show page BugTest1388b.Home) { dynamictext t1 (Content: 'Home') }
+    item (Action: show page BugTest1388b.Home) { dynamictext t2 (Content: 'Second') }
+  }
+};
+
+-- by position
+alter snippet BugTest1388b.Menu {
+  insert before navList1 item@1 {
+    item (Action: show page BugTest1388b.Orders) { dynamictext t0 (Content: 'Orders') }
+  };
+};
+
+-- by a widget the item holds
+alter snippet BugTest1388b.Menu {
+  insert after navList1 item(t1) {
+    item (Action: show page BugTest1388b.Home) { dynamictext t5 (Content: 'Home') }
+  };
+};
+
+-- by text; two items show 'Home', so @2 picks the second
+alter snippet BugTest1388b.Menu {
+  set (Action: show page BugTest1388b.Orders) on navList1 item('Home')@2;
+};
+
+-- widgets into an item
+alter snippet BugTest1388b.Menu {
+  insert into navList1 item('Orders') { dynamictext t0b (Content: 'All orders') };
+};
+
+-- replace one item, drop another
+alter snippet BugTest1388b.Menu {
+  replace navList1 item(t2) with {
+    item (Action: show page BugTest1388b.Home) { dynamictext t2 (Content: 'Second, renamed') }
+  };
+  drop navList1 item@3;
+};

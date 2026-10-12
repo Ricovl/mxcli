@@ -148,7 +148,7 @@ const contractEntityUsageSQL = `
 		SET UsedByExternalEntity = (
 			SELECT ee.QualifiedName
 			FROM external_entities ee
-			JOIN odata_clients oc
+			JOIN consumed_odata_services oc
 				ON oc.QualifiedName = ee.ServiceName
 			WHERE oc.Id = contract_entities_data.ServiceId
 			  AND ee.RemoteName = contract_entities_data.EntityName

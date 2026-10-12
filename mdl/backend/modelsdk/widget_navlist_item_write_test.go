@@ -53,3 +53,29 @@ func TestNavListItemToGen_StudioProShape(t *testing.T) {
 		}
 	}
 }
+
+// An item's Class, Style and DynamicClasses go in its Forms$Appearance, the
+// same place Studio Pro keeps them (and `set Class … on nav item@1` writes).
+func TestNavListItemToGen_WritesAppearance(t *testing.T) {
+	el, err := navListItemToGen(&pages.NavigationListItem{
+		BaseElement:    model.BaseElement{ID: "item-1"},
+		Class:          "nav-orders",
+		Style:          "color: red;",
+		DynamicClasses: "'x'",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := (&codec.Encoder{}).Encode(el)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc bson.M
+	if err := bson.Unmarshal(out, &doc); err != nil {
+		t.Fatal(err)
+	}
+	app, _ := doc["Appearance"].(bson.M)
+	if app["Class"] != "nav-orders" || app["Style"] != "color: red;" || app["DynamicClasses"] != "'x'" {
+		t.Errorf("Appearance = %v, want the item's class, style and dynamic classes", app)
+	}
+}

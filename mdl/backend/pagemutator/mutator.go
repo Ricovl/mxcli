@@ -91,7 +91,7 @@ func New(rawData bson.D, unitID model.ID, deps Deps) *Mutator {
 		containerType: containerType,
 		unitID:        unitID,
 		deps:          deps,
-		widgetFinder:  finder,
+		widgetFinder:  withNavItemAddresses(finder),
 	}
 }
 
@@ -480,6 +480,9 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 		if err := refuseTabPageSiblingEdit(result, widgetRef, "insert "+strings.ToLower(string(position))); err != nil {
 			return err
 		}
+		if err := refuseNavItemWidgetEdit(result, widgetRef, "insert "+strings.ToLower(string(position))); err != nil {
+			return err
+		}
 	}
 
 	// Serialize widgets
@@ -584,6 +587,7 @@ func containerAcceptsWidgets(container bson.D) bool {
 		"Forms$GroupBox",
 		"Forms$ScrollContainerRegion",
 		"Forms$Section",
+		navListItemType,
 		tabPageType:
 		return true
 	}
@@ -646,6 +650,9 @@ func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pa
 		return columnAmbiguityError(widgetRef, n)
 	}
 	if err := refuseTabPageSiblingEdit(result, widgetRef, "replace"); err != nil {
+		return err
+	}
+	if err := refuseNavItemWidgetEdit(result, widgetRef, "replace"); err != nil {
 		return err
 	}
 
@@ -1514,6 +1521,14 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 		return result
 	}
 
+	// NavigationList: Items[] hold no Name, but the widgets inside each one do
+	// (mendixlabs/mxcli#1388); findInWidgetArray descends into Items[].Widgets[].
+	if isNavigationList(wDoc) {
+		if result := findInWidgetArray(wDoc, "Items", widgetName); result != nil {
+			return result
+		}
+	}
+
 	// ControlBar
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		if result := findInWidgetArray(controlBar, "Items", widgetName); result != nil {
@@ -1935,6 +1950,9 @@ func gridColumnNames(wDoc bson.D) []string {
 // column names — columns are keyed by a derived name (attribute or caption), not
 // the authored MDL name, which is the usual cause of the miss (ledger #78).
 func (m *Mutator) widgetNotFoundError(name string) error {
+	if err := m.navItemAddressError(name); err != nil {
+		return err
+	}
 	var cols []string
 	collectColumnNamesBson(m.rawData, &cols)
 	if len(cols) > 0 {
@@ -2152,6 +2170,11 @@ func sanitizeColumnName(caption string) string {
 // carries the nearest enclosing DataSource seen so far, so a nearer non-flow
 // source correctly shadows an outer flow.
 func findNearestDataSourceDoc(rawData bson.D, widgetName string) (bson.D, bool) {
+	// A navigation list item is not a data container, so it sees what its list
+	// sees (`nav item@2` → nav).
+	if sel, ok := backend.ParseNavItemSelector(widgetName); ok {
+		widgetName = sel.List
+	}
 	if formCall := bsonnav.DGetDoc(rawData, "FormCall"); formCall != nil {
 		for _, arg := range bsonnav.DGetArrayElements(bsonnav.DGet(formCall, "Arguments")) {
 			argDoc, ok := arg.(bson.D)
@@ -2221,6 +2244,11 @@ func findNearestDSInChildren(wDoc bson.D, widgetName string, curDS bson.D) (bson
 	}
 	if ds, found := findNearestDSInWidgets(wDoc, "TabPages", widgetName, curDS); found {
 		return ds, true
+	}
+	if isNavigationList(wDoc) {
+		if ds, found := findNearestDSInWidgets(wDoc, "Items", widgetName, curDS); found {
+			return ds, true
+		}
 	}
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		if ds, found := findNearestDSInWidgets(controlBar, "Items", widgetName, curDS); found {
@@ -2419,6 +2447,9 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 		}
 	}
 	collectWidgetScope(wDoc, "TabPages", scope)
+	if isNavigationList(wDoc) {
+		collectWidgetScope(wDoc, "Items", scope)
+	}
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		collectWidgetScope(controlBar, "Items", scope)
 	}

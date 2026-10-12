@@ -7,6 +7,14 @@ package catalog
 //
 // History:
 //
+//	24 (Studio Pro document names): the views rest_clients, rest_operations,
+//	    odata_clients, odata_services and queues are now consumed_rest_services,
+//	    consumed_rest_operations, consumed_odata_services,
+//	    published_odata_services and task_queues, with the old names kept as
+//	    alias views; objects.ObjectType says CONSUMED_REST_SERVICE,
+//	    CONSUMED_ODATA_SERVICE, PUBLISHED_ODATA_SERVICE and TASK_QUEUE
+//	    (mendixlabs/mxcli#1395). Views are CREATE VIEW IF NOT EXISTS, so a
+//	    cached catalog has neither the new names nor the new ObjectType values.
 //	23 (call and delete targets): activities_data gains QueueRef, the task
 //	    queue a call runs in, and its ActionRef / EntityRef now name a call's
 //	    target (microflow, nanoflow, Java or JavaScript action) and a delete's
@@ -123,7 +131,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "23"
+const CatalogSchemaVersion = "24"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
@@ -605,7 +613,8 @@ func (c *Catalog) createTables() error {
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
-		viewWithFullSnapshot("queues"),
+		viewWithFullSnapshotOver("task_queues", "queues_data"),
+		legacyAliasView("queues", "task_queues"),
 
 		// data_transformers
 		`CREATE TABLE IF NOT EXISTS data_transformers_data (
@@ -789,7 +798,8 @@ func (c *Catalog) createTables() error {
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
-		viewWithFullSnapshot("odata_clients"),
+		viewWithFullSnapshotOver("consumed_odata_services", "odata_clients_data"),
+		legacyAliasView("odata_clients", "consumed_odata_services"),
 
 		// odata_services
 		`CREATE TABLE IF NOT EXISTS odata_services_data (
@@ -805,7 +815,8 @@ func (c *Catalog) createTables() error {
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
-		viewWithFullSnapshot("odata_services"),
+		viewWithFullSnapshotOver("published_odata_services", "odata_services_data"),
+		legacyAliasView("odata_services", "published_odata_services"),
 
 		// workflows
 		`CREATE TABLE IF NOT EXISTS workflows_data (
@@ -952,7 +963,8 @@ func (c *Catalog) createTables() error {
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
-		viewWithFullSnapshot("rest_clients"),
+		viewWithFullSnapshotOver("consumed_rest_services", "rest_clients_data"),
+		legacyAliasView("rest_clients", "consumed_rest_services"),
 
 		// rest_operations — partial denormalization (ProjectId, SnapshotId, SnapshotDate, SnapshotSource)
 		`CREATE TABLE IF NOT EXISTS rest_operations_data (
@@ -970,7 +982,8 @@ func (c *Catalog) createTables() error {
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
-		viewWithSnapshotDateSource("rest_operations"),
+		viewWithSnapshotDateSourceOver("consumed_rest_operations", "rest_operations_data"),
+		legacyAliasView("rest_operations", "consumed_rest_operations"),
 
 		// published_rest_services
 		`CREATE TABLE IF NOT EXISTS published_rest_services_data (
@@ -1330,9 +1343,9 @@ func (c *Catalog) createTables() error {
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
 			FROM scheduled_events
 			UNION ALL
-			SELECT Id, 'QUEUE' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
+			SELECT Id, 'TASK_QUEUE' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
-			FROM queues
+			FROM task_queues
 			UNION ALL
 			SELECT Id, 'REGULAR_EXPRESSION' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
@@ -1358,13 +1371,13 @@ func (c *Catalog) createTables() error {
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
 			FROM consumed_mcp_services
 			UNION ALL
-			SELECT Id, 'ODATA_CLIENT' as ObjectType, Name, QualifiedName, ModuleName, '' as Folder, '' as Description,
+			SELECT Id, 'CONSUMED_ODATA_SERVICE' as ObjectType, Name, QualifiedName, ModuleName, '' as Folder, '' as Description,
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
-			FROM odata_clients
+			FROM consumed_odata_services
 			UNION ALL
-			SELECT Id, 'ODATA_SERVICE' as ObjectType, Name, QualifiedName, ModuleName, '' as Folder, '' as Description,
+			SELECT Id, 'PUBLISHED_ODATA_SERVICE' as ObjectType, Name, QualifiedName, ModuleName, '' as Folder, '' as Description,
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
-			FROM odata_services
+			FROM published_odata_services
 			UNION ALL
 			SELECT Id, 'WORKFLOW' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
@@ -1378,9 +1391,9 @@ func (c *Catalog) createTables() error {
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
 			FROM database_connections
 			UNION ALL
-			SELECT Id, 'REST_CLIENT' as ObjectType, Name, QualifiedName, ModuleName, Folder, Documentation as Description,
+			SELECT Id, 'CONSUMED_REST_SERVICE' as ObjectType, Name, QualifiedName, ModuleName, Folder, Documentation as Description,
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
-			FROM rest_clients
+			FROM consumed_rest_services
 			UNION ALL
 			SELECT Id, 'PUBLISHED_REST_SERVICE' as ObjectType, Name, QualifiedName, ModuleName, Folder, Documentation as Description,
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
@@ -1740,6 +1753,14 @@ func (c *Catalog) createTables() error {
 // SourceRevision on top of the underlying _data table. Used for tables whose
 // pre-refactor schema had all six denormalized columns.
 func viewWithFullSnapshot(name string) string {
+	return viewWithFullSnapshotOver(name, name+"_data")
+}
+
+// viewWithFullSnapshotOver is viewWithFullSnapshot for a view whose name is
+// not its storage table's: the document types renamed to Studio Pro's names
+// (mendixlabs/mxcli#1395) kept their `_data` tables, which nothing outside the
+// builders reads.
+func viewWithFullSnapshotOver(name, data string) string {
 	return `CREATE VIEW IF NOT EXISTS ` + name + ` AS
 		SELECT t.*,
 			s.ProjectName,
@@ -1748,7 +1769,7 @@ func viewWithFullSnapshot(name string) string {
 			s.SourceId,
 			s.SourceBranch,
 			s.SourceRevision
-		FROM ` + name + `_data t
+		FROM ` + data + ` t
 		LEFT JOIN snapshots s ON s.SnapshotId = t.SnapshotId`
 }
 
@@ -1769,10 +1790,33 @@ func viewWithProjectNameAndSnapshotDateSource(name string) string {
 // Used for tables whose pre-refactor schema had only those two denormalized
 // columns (no ProjectName, no Source*).
 func viewWithSnapshotDateSource(name string) string {
+	return viewWithSnapshotDateSourceOver(name, name+"_data")
+}
+
+// viewWithSnapshotDateSourceOver is viewWithSnapshotDateSource over a storage
+// table of another name; see viewWithFullSnapshotOver.
+func viewWithSnapshotDateSourceOver(name, data string) string {
 	return `CREATE VIEW IF NOT EXISTS ` + name + ` AS
 		SELECT t.*,
 			s.SnapshotDate,
 			s.SnapshotSource
-		FROM ` + name + `_data t
+		FROM ` + data + ` t
 		LEFT JOIN snapshots s ON s.SnapshotId = t.SnapshotId`
+}
+
+// LegacyTableAliases maps each catalog view name retired by the Studio Pro
+// document names (mendixlabs/mxcli#1395) to its canonical view. The old names
+// stay queryable so saved queries and user lint rules keep answering, but
+// Tables() lists only the canonical ones.
+var LegacyTableAliases = map[string]string{
+	"rest_clients":    "consumed_rest_services",
+	"rest_operations": "consumed_rest_operations",
+	"odata_clients":   "consumed_odata_services",
+	"odata_services":  "published_odata_services",
+	"queues":          "task_queues",
+}
+
+// legacyAliasView keeps a retired view name answering as its canonical view.
+func legacyAliasView(old, canonical string) string {
+	return `CREATE VIEW IF NOT EXISTS ` + old + ` AS SELECT * FROM ` + canonical
 }

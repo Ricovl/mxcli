@@ -369,7 +369,6 @@ func rawWidgetToWireframe(w rawWidget, counter *wireframeCounter) wireframeNode 
 	case "NavigationListItem":
 		node.Widget = "navigationlistitem"
 		node.Action = w.Action
-		node.ButtonStyle = w.ButtonStyle
 		for _, child := range w.Children {
 			node.Children = append(node.Children, rawWidgetToWireframe(child, counter))
 		}

@@ -3,6 +3,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -58,7 +59,11 @@ func SyncJavaDependencies(projectPath, mxPath, version string, w io.Writer) erro
 	out := &syncBuffer{}
 	cmd.Stdout = out
 	cmd.Stderr = out
-	if err := cmd.Run(); err != nil {
+	// mx runs Gradle; a daemon it starts keeps the pipe open after mx exits
+	// (#1396). mx's own exit status is the result — ErrWaitDelay only says the
+	// daemon outlived it.
+	cmd.WaitDelay = orphanPipeWaitDelay
+	if err := cmd.Run(); err != nil && !errors.Is(err, exec.ErrWaitDelay) {
 		return fmt.Errorf("mx sync-java-dependencies failed: %w\n%s", err, lastLines(out.String(), 20))
 	}
 	if w != nil {

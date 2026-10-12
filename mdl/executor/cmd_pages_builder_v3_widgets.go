@@ -1241,6 +1241,11 @@ func (pb *pageBuilder) buildNavigationListItemV3(w *ast.WidgetV3) (*pages.Naviga
 		}
 	}
 
+	// The item's Forms$Appearance — what describe prints for it.
+	item.Class = w.GetClass()
+	item.Style = w.GetStyle()
+	item.DynamicClasses = w.GetDynamicClasses()
+
 	// Set caption from Caption property
 	if caption := w.GetCaption(); caption != "" {
 		item.Caption = &model.Text{

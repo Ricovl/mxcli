@@ -41,6 +41,9 @@ func (m *Mutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTarget
 	if result == nil {
 		return backend.AlterTargetMatch{}, m.widgetNotFoundError(name)
 	}
+	if widgetTypeName(result.widget) == navListItemType {
+		return backend.AlterTargetMatch{Kind: "item", Name: name}, nil
+	}
 	if bsonnav.DGetString(result.widget, "$Type") != objectListItemType && len(result.colPropKeys) == 0 {
 		// A real widget. Whether a same-named column elsewhere on the page makes
 		// the address ambiguous is each operation's call, as it was before the
