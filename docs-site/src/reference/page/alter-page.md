@@ -15,7 +15,8 @@ ALTER SNIPPET module.Name {
 `ALTER LAYOUT module.Name { … }` takes the same operations. This is the
 generic ALTER — `set` / `insert` / `replace` / `drop` against a target — which
 every document type shares; a page's targets are widget names, DataGrid 2
-columns `grid column(Attr)` / `grid column('Caption')`, or a layout region
+columns `grid column(Attr)` / `grid column('Caption')`, navigation list items
+`nav item(widget)` / `nav item('Text')` / `nav item@n`, or a layout region
 `container.top`.
 
 The older spellings still run and warn with a deprecation code:
@@ -112,9 +113,8 @@ one `INSERT` cannot mix tab pages with widgets. Dropping, replacing or reorderin
 tab pages still needs `CREATE OR MODIFY PAGE`.
 
 A navigation list holds items, and only items. `INSERT INTO` the list appends
-one and leaves the existing items as they are. An item has no name — Studio Pro
-stores none — so it cannot be the target of `INSERT BEFORE` / `AFTER`, `DROP`
-or `SET`; the widgets inside an item can, by their own names.
+one and leaves the existing items as they are. The widgets inside an item are
+targets by their own names.
 
 ```sql
 mdl 1;
@@ -126,8 +126,36 @@ alter snippet Shop.Menu {
 };
 ```
 
-Removing or reordering items still needs `REPLACE` of the list, or
-`CREATE OR MODIFY`.
+### Navigation List Item Operations
+
+A navigation list item has no stored name either, so — like a DataGrid 2
+column — it is addressed by what it holds or where it is:
+
+| Address | Means |
+|---------|-------|
+| `nav item(t1)` | the item holding the widget named `t1` |
+| `nav item('Home')` | the item showing the text `Home` (any language) |
+| `nav item@2` | the second item |
+| `nav item('Home')@2` | the second of several items showing `Home` |
+
+An address that matches several items is refused unless `@n` picks one, and a
+miss lists every item's addresses. Prefer the content forms: a position moves
+when an item is inserted before it.
+
+```sql
+mdl 1;
+alter snippet Shop.Menu {
+  insert before navList1 item@1 { item (Action: show page Shop.Orders) { dynamictext t0 (Content: 'Orders') } }
+  insert after navList1 item(t1) { item (Action: show page Shop.Home) { dynamictext t5 (Content: 'Home') } }
+  set (Action: show page Shop.Orders) on navList1 item('Home')@2;
+  insert into navList1 item('Orders') { dynamictext t0b (Content: 'All orders') }
+  replace navList1 item(t2) with { item (Action: show page Shop.Home) { dynamictext t2 (Content: 'Second') } }
+  drop navList1 item@3;
+};
+```
+
+Only items go next to an item or in its place: `INSERT BEFORE` / `AFTER` an item
+and `REPLACE` of one take `item` blocks, and widgets go `INTO` an item.
 
 ### DROP
 

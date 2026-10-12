@@ -691,6 +691,22 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 	for n := range replaced {
 		exclude = append(exclude, n)
 	}
+
+	// Special path: replacing one navigation list item with items (#1388). An
+	// item lives in the list's Items, so it is not a widget REPLACE; the mutator
+	// checks the target is an item.
+	if allNavigationListItems(op.NewWidgets) {
+		items, err := buildNavigationListItemsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, exclude...)
+		if err != nil {
+			return mdlerrors.NewBackend("build replacement navigation list items", err)
+		}
+		return mutator.ReplaceNavigationListItem(op.Target.Widget, items)
+	}
+	if hasNavigationListItem(op.NewWidgets) {
+		return mdlerrors.NewValidation(
+			"mixing `item` blocks with ordinary widgets in one REPLACE is not supported: " +
+				"items go in a navigation list's list of items, widgets inside an item")
+	}
 	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, exclude...)
 	if err != nil {
 		return mdlerrors.NewBackend("build replacement widgets", err)
@@ -1052,8 +1068,8 @@ func buildTabPagesFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName st
 
 // buildNavigationListItemsFromAST builds the items an INSERT adds to a
 // navigation list, with the same builder CREATE uses for a list's children.
-func buildNavigationListItemsFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator) ([]*pages.NavigationListItem, error) {
-	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator)
+func buildNavigationListItemsFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator, excludeFromScope ...string) ([]*pages.NavigationListItem, error) {
+	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator, excludeFromScope...)
 	out := make([]*pages.NavigationListItem, 0, len(nodes))
 	for _, node := range nodes {
 		item, err := pb.buildNavigationListItemV3(node)

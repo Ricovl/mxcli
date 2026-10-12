@@ -8,6 +8,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -68,7 +69,7 @@ func newNavItem(textName string) *pages.NavigationListItem {
 }
 
 // navItemTexts lists, per stored item, the name of its first widget.
-func navItemTexts(t *testing.T, raw bson.D) []string {
+func storedItemTexts(t *testing.T, raw bson.D) []string {
 	t.Helper()
 	nl := findBsonWidget(raw, "navList1")
 	if nl == nil {
@@ -119,7 +120,7 @@ func TestInsertNavigationListItems_IntoAppends(t *testing.T) {
 	if err := m.InsertNavigationListItems("navList1", toPos("into"), []*pages.NavigationListItem{newNavItem("t2")}); err != nil {
 		t.Fatalf("insert into navList1 { item }: %v", err)
 	}
-	if got := strings.Join(navItemTexts(t, m.rawData), ","); got != "t1,t2" {
+	if got := strings.Join(storedItemTexts(t, m.rawData), ","); got != "t1,t2" {
 		t.Errorf("items = %s, want t1,t2", got)
 	}
 	firstAfter := bsonnav.DGet(bsonnav.ToBsonA(bsonnav.DGet(findBsonWidget(m.rawData, "navList1").widget, "Items"))[1].(bson.D), "$ID")
@@ -135,7 +136,7 @@ func TestInsertNavigationListItems_IntoEmptyList(t *testing.T) {
 	if err := m.InsertNavigationListItems("navList1", toPos("into"), []*pages.NavigationListItem{newNavItem("t2")}); err != nil {
 		t.Fatalf("insert into empty navList1: %v", err)
 	}
-	if got := strings.Join(navItemTexts(t, m.rawData), ","); got != "t2" {
+	if got := strings.Join(storedItemTexts(t, m.rawData), ","); got != "t2" {
 		t.Errorf("items = %s, want t2", got)
 	}
 }
@@ -145,7 +146,7 @@ func TestInsertNavigationListItems_IntoEmptyList(t *testing.T) {
 // list, and say which form works.
 func TestInsertNavigationListItems_RefusesWrongTargets(t *testing.T) {
 	for _, tc := range []struct{ target, pos, want string }{
-		{"t1", "after", "insert into navList1"},
+		{"t1", "after", "insert after navList1 item(t1) { item … }"},
 		{"t1", "into", "only be added to a navigation list"},
 	} {
 		m := New(makeNavListPage(), model.ID("page-1"), &navStubDeps{})
@@ -153,8 +154,187 @@ func TestInsertNavigationListItems_RefusesWrongTargets(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("insert %s %s { item }: err = %v, want one naming %q", tc.pos, tc.target, err, tc.want)
 		}
-		if got := strings.Join(navItemTexts(t, m.rawData), ","); got != "t1" {
+		if got := strings.Join(storedItemTexts(t, m.rawData), ","); got != "t1" {
 			t.Errorf("a refused insert changed the items: %s", got)
 		}
+	}
+}
+
+// navItemWithText is a stored item holding one dynamic text, its name and its
+// shown text given, and the Action every item carries.
+func navItemWithText(textName, text string) bson.D {
+	return bson.D{
+		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+		{Key: "$Type", Value: "Forms$NavigationListItem"},
+		{Key: "Action", Value: bson.D{{Key: "$Type", Value: "Forms$NoAction"}}},
+		{Key: "Widgets", Value: bson.A{int32(2), bson.D{
+			{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+			{Key: "$Type", Value: "Forms$DynamicText"},
+			{Key: "Name", Value: textName},
+			{Key: "Content", Value: bson.D{
+				{Key: "$Type", Value: "Forms$ClientTemplate"},
+				{Key: "Template", Value: textsText(translation("en_US", text))},
+			}},
+		}}},
+	}
+}
+
+// Three items: t1 'Home', t2 'Orders', t3 'Home' — two share a text.
+func makeThreeItemNavList() *Mutator {
+	raw := makeRawPage(bson.D{
+		{Key: "$Type", Value: "Forms$NavigationList"},
+		{Key: "Name", Value: "navList1"},
+		{Key: "Items", Value: bson.A{int32(2),
+			navItemWithText("t1", "Home"), navItemWithText("t2", "Orders"), navItemWithText("t3", "Home")}},
+	})
+	return New(raw, model.ID("page-1"), &navStubDeps{})
+}
+
+func navItemIndex(t *testing.T, m *Mutator, ref string) int {
+	t.Helper()
+	r := m.widgetFinder(m.rawData, ref)
+	if r == nil {
+		t.Fatalf("%s did not resolve: %v", ref, m.widgetNotFoundError(ref))
+	}
+	if typ := widgetTypeName(r.widget); typ != navListItemType {
+		t.Fatalf("%s resolved to %s, want an item", ref, typ)
+	}
+	return r.index
+}
+
+// mendixlabs/mxcli#1388: an item has no name, so it is addressed by a widget it
+// holds, a text it shows, or its position — as a DataGrid 2 column is.
+func TestNavItemAddress_Resolves(t *testing.T) {
+	m := makeThreeItemNavList()
+	for ref, want := range map[string]int{
+		"navList1 item(t2)":       1,
+		"navList1 item('Orders')": 1,
+		"navList1 item@3":         2,
+		"navList1 item('Home')@2": 2,
+		"navList1 item(t1)@1":     0,
+	} {
+		if got := navItemIndex(t, m, ref); got != want {
+			t.Errorf("%s = item %d, want %d", ref, got+1, want+1)
+		}
+	}
+	if match, err := m.ResolveAlterTarget(backend.AlterTarget{Path: []string{"navList1 item@2"}}); err != nil || match.Kind != "item" {
+		t.Errorf("ResolveAlterTarget(navList1 item@2) = %+v, %v; want kind item", match, err)
+	}
+}
+
+// An address that matches several items, none, or a widget that is not a
+// navigation list is refused with what would work — never a guess.
+func TestNavItemAddress_RefusesMissesAndAmbiguity(t *testing.T) {
+	m := makeThreeItemNavList()
+	for ref, want := range map[string]string{
+		"navList1 item('Home')":   "is ambiguous: 2 items match — add @n",
+		"navList1 item('Nope')":   "no item matches",
+		"navList1 item@4":         "the list has 3 items, so there is no @4",
+		"navList1 item('Home')@3": "2 items match, so there is no @3",
+		"navList1 item(zz)":       "item@2 = item(t2) = item('Orders')",
+		"t1 item@1":               "is a Forms$DynamicText, not a navigation list",
+		"nope item@1":             `navigation list "nope" not found`,
+	} {
+		if m.widgetFinder(m.rawData, ref) != nil {
+			t.Errorf("%s resolved; want a refusal", ref)
+			continue
+		}
+		if err := m.widgetNotFoundError(ref); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: err = %v, want one containing %q", ref, err, want)
+		}
+	}
+}
+
+func itemTexts(t *testing.T, m *Mutator) string {
+	t.Helper()
+	return strings.Join(storedItemTexts(t, m.rawData), ",")
+}
+
+// Every operation reaches an item through its address.
+func TestNavItemAddress_Operations(t *testing.T) {
+	t.Run("drop", func(t *testing.T) {
+		m := makeThreeItemNavList()
+		if err := m.DropWidget([]backend.WidgetRef{{Widget: "navList1 item('Orders')"}}); err != nil {
+			t.Fatal(err)
+		}
+		if got := itemTexts(t, m); got != "t1,t3" {
+			t.Errorf("items = %s, want t1,t3", got)
+		}
+	})
+	t.Run("insert item after", func(t *testing.T) {
+		m := makeThreeItemNavList()
+		if err := m.InsertNavigationListItems("navList1 item(t1)", toPos("after"), []*pages.NavigationListItem{newNavItem("tNew")}); err != nil {
+			t.Fatal(err)
+		}
+		if got := itemTexts(t, m); got != "t1,tNew,t2,t3" {
+			t.Errorf("items = %s, want t1,tNew,t2,t3", got)
+		}
+	})
+	t.Run("insert item before", func(t *testing.T) {
+		m := makeThreeItemNavList()
+		if err := m.InsertNavigationListItems("navList1 item@1", toPos("before"), []*pages.NavigationListItem{newNavItem("tNew")}); err != nil {
+			t.Fatal(err)
+		}
+		if got := itemTexts(t, m); got != "tNew,t1,t2,t3" {
+			t.Errorf("items = %s, want tNew,t1,t2,t3", got)
+		}
+	})
+	t.Run("replace item", func(t *testing.T) {
+		m := makeThreeItemNavList()
+		if err := m.ReplaceNavigationListItem("navList1 item@2", []*pages.NavigationListItem{newNavItem("tNew")}); err != nil {
+			t.Fatal(err)
+		}
+		if got := itemTexts(t, m); got != "t1,tNew,t3" {
+			t.Errorf("items = %s, want t1,tNew,t3", got)
+		}
+	})
+	t.Run("insert widgets into item", func(t *testing.T) {
+		m := makeThreeItemNavList()
+		if err := m.InsertWidget("navList1 item@2", "", toPos("into"), []pages.Widget{&pages.DynamicText{BaseWidget: pages.BaseWidget{Name: "t2b"}}}); err != nil {
+			t.Fatal(err)
+		}
+		ws := bsonnav.DGetArrayElements(bsonnav.DGet(m.widgetFinder(m.rawData, "navList1 item@2").widget, "Widgets"))
+		if len(ws) != 2 || bsonnav.DGetString(ws[1].(bson.D), "Name") != "t2b" {
+			t.Errorf("item 2 widgets = %v, want t2, t2b", ws)
+		}
+	})
+	t.Run("set action", func(t *testing.T) {
+		m := makeThreeItemNavList()
+		var called bool
+		m.deps = &actionStubDeps{navStubDeps: navStubDeps{}, onAction: func() { called = true }}
+		if err := m.SetWidgetAction("navList1 item@3", &pages.NoClientAction{}); err != nil {
+			t.Fatal(err)
+		}
+		if !called {
+			t.Error("the action was not serialized")
+		}
+		if typ := bsonnav.DGetString(bsonnav.DGetDoc(m.widgetFinder(m.rawData, "navList1 item@3").widget, "Action"), "$Type"); typ != "Forms$ShowPageAction" {
+			t.Errorf("item 3 action = %s, want the new one", typ)
+		}
+	})
+}
+
+type actionStubDeps struct {
+	navStubDeps
+	onAction func()
+}
+
+func (d *actionStubDeps) SerializeClientAction(pages.ClientAction) bson.D {
+	d.onAction()
+	return bson.D{{Key: "$Type", Value: "Forms$ShowPageAction"}}
+}
+
+// Widgets next to an item, or in its place, would land in the list's Items.
+func TestNavItemAddress_RefusesWidgetsAmongItems(t *testing.T) {
+	w := []pages.Widget{&pages.DynamicText{BaseWidget: pages.BaseWidget{Name: "x"}}}
+	m := makeThreeItemNavList()
+	if err := m.InsertWidget("navList1 item@1", "", toPos("after"), w); err == nil || !strings.Contains(err.Error(), "only items belong") {
+		t.Errorf("insert after an item {widget}: err = %v", err)
+	}
+	if err := m.ReplaceWidget("navList1 item@1", "", w); err == nil || !strings.Contains(err.Error(), "only items belong") {
+		t.Errorf("replace an item with a widget: err = %v", err)
+	}
+	if got := itemTexts(t, m); got != "t1,t2,t3" {
+		t.Errorf("a refused edit changed the items: %s", got)
 	}
 }

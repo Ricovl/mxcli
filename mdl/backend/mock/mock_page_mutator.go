@@ -34,6 +34,7 @@ type MockPageMutator struct {
 	InsertListViewTemplatesFunc    func(listViewRef string, templates []*pages.ListViewTemplate) error
 	InsertTabPagesFunc             func(targetRef string, position backend.InsertPosition, tabPages []*pages.TabPage) error
 	InsertNavigationListItemsFunc  func(targetRef string, position backend.InsertPosition, items []*pages.NavigationListItem) error
+	ReplaceNavigationListItemFunc  func(targetRef string, items []*pages.NavigationListItem) error
 	DropListViewTemplateFunc       func(listViewRef, specialization string) error
 	ReplaceColumnFunc              func(gridRef, columnRef string, columns []*backend.DataGridColumnSpec) error
 	FindWidgetFunc                 func(name string) bool
@@ -162,6 +163,13 @@ func (m *MockPageMutator) InsertNavigationListItems(targetRef string, position b
 		return m.InsertNavigationListItemsFunc(targetRef, position, items)
 	}
 	return fmt.Errorf("MockBackend.InsertNavigationListItems not configured")
+}
+
+func (m *MockPageMutator) ReplaceNavigationListItem(targetRef string, items []*pages.NavigationListItem) error {
+	if m.ReplaceNavigationListItemFunc != nil {
+		return m.ReplaceNavigationListItemFunc(targetRef, items)
+	}
+	return fmt.Errorf("MockBackend.ReplaceNavigationListItem not configured")
 }
 
 func (m *MockPageMutator) DropListViewTemplate(listViewRef, specialization string) error {

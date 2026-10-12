@@ -510,6 +510,10 @@ func (m *mcpPageMutator) InsertNavigationListItems(targetRef string, _ backend.I
 	return fmt.Errorf("adding navigation list items at %s is not yet supported by the MCP backend", targetRef)
 }
 
+func (m *mcpPageMutator) ReplaceNavigationListItem(targetRef string, _ []*pages.NavigationListItem) error {
+	return fmt.Errorf("replacing navigation list item %s is not yet supported by the MCP backend", targetRef)
+}
+
 func (m *mcpPageMutator) DropListViewTemplate(listViewRef, specialization string) error {
 	return fmt.Errorf("dropping the %s template from %s is not yet supported by the MCP backend",
 		specialization, listViewRef)

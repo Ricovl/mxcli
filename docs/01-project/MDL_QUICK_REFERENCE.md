@@ -1720,6 +1720,8 @@ This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <t
 | Set column prop | `set (caption: 'New') on dgGrid column(Attr)` | A DataGrid 2 column by its attribute, or `column('Caption')`; `@n` when two columns match. The older `dgGrid.colName` (a derived name) still works |
 | Drop attribute | `drop dgGrid column(Attr)` | Remove a DataGrid column |
 | Insert column | `insert after dgGrid column(Attr) { column (…) }` | Add attribute to DataGrid; a column takes no name |
+| Address a nav item | `drop navList1 item@2` | A navigation list item by a widget it holds `item(t1)`, a text it shows `item('Home')`, or position `item@n`; `@n` also picks among content matches |
+| Insert nav item | `insert after navList1 item(t1) { item (…) { … } }` | `insert into navList1 { item … }` appends; `replace navList1 item@1 with { item … }` swaps one |
 | Add variable | `add variables $name: type = <expr>` | Add a page variable |
 | Drop variable | `drop variables $name` | Remove a page variable |
 | Add parameter | `add parameters $name: type` | Add a page/snippet parameter (entity or primitive; snippet: entity only). A page with a `Url` needs a `{name}` segment — `set (Url: …)` in the same statement |

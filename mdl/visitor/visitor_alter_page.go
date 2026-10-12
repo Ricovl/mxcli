@@ -276,6 +276,22 @@ func (b *Builder) buildAlterTarget(ctx parser.IAlterTargetContext) ast.WidgetRef
 				tc.GetText(), n.GetText()))
 		}
 	}
+	if tc.ITEM() != nil {
+		// `nav item(t1)` / `nav item('Home')` / `nav item@2` (#1388). The @n is
+		// the item's, so it moves off the target, where it would mean a choice
+		// among widgets.
+		ids := tc.AllIdentifierOrKeyword()
+		item := &ast.NavItemRef{List: identifierOrKeywordText(ids[0]), Ordinal: ref.Ordinal}
+		if sl := tc.STRING_LITERAL(); sl != nil {
+			item.Text = unquoteStringLit(sl)
+		} else if len(ids) == 2 {
+			item.Widget = identifierOrKeywordText(ids[1])
+		}
+		ref.Ordinal = 0
+		ref.Item = item
+		ref.Widget = item.Spell()
+		return ref
+	}
 	if tc.COLUMN() != nil {
 		// `grid column(Attr)` / `grid column('Caption')` (#749).
 		ref.Widget = identifierOrKeywordText(tc.IdentifierOrKeyword(0))

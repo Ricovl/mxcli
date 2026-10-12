@@ -425,8 +425,16 @@ alterFragment
 // columns over one attribute share the address and need `@n`. FIRST, so the
 // COLUMN keyword after the grid name is not left to the plain-name form.
 // `dg.Name`, the older address by a name mxcli derived, keeps working.
+//
+// A navigation list item has no name either (Studio Pro stores none), so it is
+// addressed the same way (mendixlabs/mxcli#1388): `nav item(t1)` for the item
+// holding the widget named t1, `nav item('Home')` for the one whose text is
+// Home, and `nav item@2` for the second item. With a selector, @n chooses among
+// the items that match it.
 alterTarget
     : identifierOrKeyword COLUMN LPAREN (attributePathV3 | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)?
+    | identifierOrKeyword ITEM LPAREN (identifierOrKeyword | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)?
+    | identifierOrKeyword ITEM AT NUMBER_LITERAL
     | identifierOrKeyword (DOT identifierOrKeyword)? (AT NUMBER_LITERAL)?
     | STRING_LITERAL (AT NUMBER_LITERAL)?
     ;

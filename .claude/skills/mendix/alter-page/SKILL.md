@@ -12,15 +12,15 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 |---|---|
 | 28-31 | Overview |
 | 32-56 | When to Use |
-| 57-106 | Syntax |
-| 107-452 | Operations |
-| 453-531 | Examples |
-| 532-622 | DataGrid 2 columns: how to address them, and what you can set |
-| 623-634 | Common Mistakes |
-| 635-656 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 657-664 | Validation Checklist |
-| 665-674 | Related Commands |
-| 675-679 | Related Skills |
+| 57-107 | Syntax |
+| 108-458 | Operations |
+| 459-537 | Examples |
+| 538-628 | DataGrid 2 columns: how to address them, and what you can set |
+| 629-640 | Common Mistakes |
+| 641-662 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 663-670 | Validation Checklist |
+| 671-680 | Related Commands |
+| 681-685 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -83,7 +83,8 @@ alter page Module.PageName {
 ```
 
 A `<target>` on a page is a widget name, a DataGrid 2 column `grid column(Attr)`
-(or `grid column('Caption')`), or a layout region `layoutContainer.top`. Properties go in parentheses with `:`, exactly as in
+(or `grid column('Caption')`), a navigation list item `nav item(t1)` /
+`nav item('Text')` / `nav item@n`, or a layout region `layoutContainer.top`. Properties go in parentheses with `:`, exactly as in
 `create page`. The older spellings `set Key = value on w`, `set Key: value`
 (no parentheses) and `drop widget w` still run, and warn with MDL-DEPR101,
 MDL-DEPR102 and MDL-DEPR103 — write the form above.
@@ -321,11 +322,16 @@ page cannot go next to an ordinary widget or inside another tab page, and one in
 cannot mix tab pages and widgets. Dropping or reordering tab pages still needs
 `create or modify page`.
 
-**Adding a navigation list item:** `insert into <navigationlist> { item … }` appends
-an item and leaves the others untouched. Items are unnamed (Studio Pro stores no
-Name), so `insert after|before`, `drop` and `set` cannot target an item — but they
-can target the widgets inside one by their own names. Removing or reordering items
-still needs `replace <navigationlist>` or `create or modify`.
+**Navigation list items:** `insert into <navigationlist> { item … }` appends an item
+and leaves the others untouched. An item has no name (Studio Pro stores none), so it
+is addressed like a DataGrid 2 column — by what it holds or where it is:
+`nav item(t1)` (the item holding widget `t1`), `nav item('Home')` (the item showing
+that text), `nav item@2` (the second). `@n` also picks one of several content
+matches; an ambiguous address is refused and a miss lists every item's addresses.
+Prefer the content forms — a position shifts when an item is inserted before it.
+`insert before|after <item> { item … }`, `replace <item> with { item … }`,
+`drop <item>`, `set (Action: …) on <item>` and `insert into <item> { widgets }` all
+work; widgets never go next to an item.
 
 **The context comes from the nearest enclosing data source, whatever kind it is**
 — a database or association source, a microflow/nanoflow source (the entity is
