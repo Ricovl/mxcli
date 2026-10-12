@@ -160,6 +160,17 @@ type PageMutator interface {
 	// cannot go through InsertWidget (#1215).
 	InsertTabPages(targetRef string, position InsertPosition, tabPages []*pages.TabPage) error
 
+	// InsertNavigationListItems adds items to a navigation list: INTO the list
+	// appends, BEFORE/AFTER an item places them next to it. An item lives in the
+	// list's Items and is not a widget, so it cannot go through InsertWidget. It
+	// has no Name either, so it is addressed as backend.NavItemSelector spells
+	// it — `nav item(t1)`, `nav item('Home')`, `nav item@2` (mendixlabs/mxcli#1388).
+	InsertNavigationListItems(targetRef string, position InsertPosition, items []*pages.NavigationListItem) error
+
+	// ReplaceNavigationListItem replaces the item targetRef addresses with the
+	// given items, in its place (mendixlabs/mxcli#1388).
+	ReplaceNavigationListItem(targetRef string, items []*pages.NavigationListItem) error
+
 	// DropListViewTemplate removes the template rendering the given
 	// specialization from a List View. A template has no name, so it is addressed
 	// by entity. Returns an error naming the templates that ARE present when the
