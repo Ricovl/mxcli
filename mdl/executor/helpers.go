@@ -288,9 +288,19 @@ func validateWidgetReferences(ctx *ExecContext, widgets []*ast.WidgetV3, sc *scr
 	}
 
 	if len(refs.images) > 0 {
-		// No same-script exemption: MDL cannot create an image collection entry,
-		// so an image reference can only ever resolve against the project.
+		// The project's images plus the ones this script creates
+		// (mendixlabs/mxcli#1419). A nil set means the project could not be read,
+		// and stays nil: imageRefErrors then reports nothing rather than calling
+		// every other collection missing.
 		known, collections := buildImageQualifiedNames(ctx)
+		if known != nil && collections != nil {
+			for qn := range sc.imageCollections {
+				collections[qn] = true
+			}
+			for qn := range sc.images {
+				known[qn] = true
+			}
+		}
 		errors = append(errors, imageRefErrors(refs.images, known, collections)...)
 	}
 
