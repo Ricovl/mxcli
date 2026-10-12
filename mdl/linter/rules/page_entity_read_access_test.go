@@ -54,6 +54,14 @@ func (f *readAccessFixture) read(entity, moduleRole, xpath string) {
 		moduleRole, "ENTITY", entity, "READ", xpath, moduleFromQualified(entity))
 }
 
+// memberRead records a MEMBER_READ row as the catalog writes it: the member
+// qualified by the entity that DECLARES it (System.User.Name on an
+// Administration.Account rule).
+func (f *readAccessFixture) memberRead(entity, moduleRole, xpath, member string) {
+	f.exec(`INSERT INTO permissions (ModuleRoleName, ElementType, ElementName, MemberName, AccessType, XPathConstraint, ModuleName) VALUES (?,?,?,?,?,?,?)`,
+		moduleRole, "ENTITY", entity, member, "MEMBER_READ", xpath, moduleFromQualified(entity))
+}
+
 func (f *readAccessFixture) page(page string, moduleRoles ...string) {
 	for _, r := range moduleRoles {
 		f.exec(`INSERT INTO permissions (ModuleRoleName, ElementType, ElementName, AccessType, ModuleName) VALUES (?,?,?,?,?)`,
@@ -194,6 +202,73 @@ func TestPageEntityReadAccess_SystemUserForAdministrator(t *testing.T) {
 	f.entity("Administration.Account", "System.User")
 	f.read("Administration.Account", "Administration.Administrator", "")
 	f.page("App.Assign", "App.Admin")
+	f.widget("App.Assign", "cbEngineer", comboBox, "System.User")
+
+	if vs := f.check(); len(vs) != 0 {
+		t.Errorf("want nothing, got %+v", vs)
+	}
+}
+
+// ChipCoV9, re-checked: the real Mendix 11.15 Administration module grants
+// Administration.User `read (FullName, Email)` on Account UNCONSTRAINED. The
+// rows of a list over System.User come through, but System.User's own members
+// (Name) are not in that rule, so every caption is blank except the current
+// user's (System.User's own [id = '[%CurrentUser%]'] rule). Measured in the
+// browser: ["", "", "demo_manager", ""]. The unconstrained entity-level read
+// on the specialization made SEC010 call System.User readable and stay silent.
+func TestPageEntityReadAccess_SystemUserMembersNotGrantedBySpecialization(t *testing.T) {
+	f := newReadAccessFixture(t, security.SecurityLevelProduction, plainUser(), administrator())
+	f.entity("Administration.Account", "System.User")
+	f.read("Administration.Account", "Administration.User", "")
+	f.memberRead("Administration.Account", "Administration.User", "", "Administration.Account.FullName")
+	f.memberRead("Administration.Account", "Administration.User", "", "Administration.Account.Email")
+	f.page("App.Assign", "App.User")
+	f.widget("App.Assign", "cbEngineer", comboBox, "System.User")
+
+	v := oneViolation(t, f.check())
+	if v.Severity != linter.SeverityWarning {
+		t.Errorf("severity = %v, want warning", v.Severity)
+	}
+	for _, want := range []string{
+		"Combo box 'cbEngineer' on page App.Assign lists System.User",
+		"user role 'Member' may read through Administration.Account",
+		"Administration.Account",
+		"blank",
+	} {
+		if !strings.Contains(v.Message, want) {
+			t.Errorf("message %q\nlacks %q", v.Message, want)
+		}
+	}
+}
+
+// An Administrator's Account rule grants no System.User member either, yet
+// every name shows: System.User's own rule also lets a user role read the users
+// whose roles it may manage. Measured on 11.15 (ChipCoV9 scratch): with Manage
+// All Roles every name shows; a ServiceManager given ManageableRoles
+// (FieldEngineer) saw demo_engineer's name and no other but their own.
+func TestPageEntityReadAccess_SystemUserManageAllRolesReadsMembers(t *testing.T) {
+	admin := administrator()
+	admin.ManageAllRoles = true
+	f := newReadAccessFixture(t, security.SecurityLevelProduction, plainUser(), admin)
+	f.entity("Administration.Account", "System.User")
+	f.read("Administration.Account", "Administration.Administrator", "")
+	f.memberRead("Administration.Account", "Administration.Administrator", "", "Administration.Account.FullName")
+	f.page("App.Assign", "App.Admin")
+	f.widget("App.Assign", "cbEngineer", comboBox, "System.User")
+
+	if vs := f.check(); len(vs) != 0 {
+		t.Errorf("want nothing, got %+v", vs)
+	}
+}
+
+// The control: the same rule, now also granting System.User.Name.
+func TestPageEntityReadAccess_SpecializationGrantingInheritedMemberIsSilent(t *testing.T) {
+	f := newReadAccessFixture(t, security.SecurityLevelProduction, plainUser(), administrator())
+	f.entity("Administration.Account", "System.User")
+	f.read("Administration.Account", "Administration.User", "")
+	f.memberRead("Administration.Account", "Administration.User", "", "Administration.Account.FullName")
+	f.memberRead("Administration.Account", "Administration.User", "", "System.User.Name")
+	f.page("App.Assign", "App.User")
 	f.widget("App.Assign", "cbEngineer", comboBox, "System.User")
 
 	if vs := f.check(); len(vs) != 0 {
