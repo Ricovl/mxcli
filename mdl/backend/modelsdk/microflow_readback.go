@@ -35,10 +35,11 @@ func (b *Backend) ReadBackMicroflow(mf *microflows.Microflow) (*microflows.Micro
 		return nil, fmt.Errorf("ReadBackMicroflow: nil microflow")
 	}
 	encode := func(m *microflows.Microflow) ([]byte, error) {
-		gm := microflowToGen(m, b.majorVersion())
+		fv := b.flowVersion()
+		gm := microflowToGen(m, fv)
 		gm.SetID(element.ID(readBackID(m.ID)))
 		assignMicroflowIDs(gm)
-		raw, err := (&codec.Encoder{}).Encode(gm)
+		raw, err := microflowEncoder(fv).Encode(gm)
 		return b.completeAsStored(raw), err
 	}
 	written, err := encode(mf)
@@ -70,7 +71,7 @@ func (b *Backend) ReadBackNanoflow(nf *microflows.Nanoflow) (*microflows.Nanoflo
 		return nil, fmt.Errorf("ReadBackNanoflow: nil nanoflow")
 	}
 	encode := func(n *microflows.Nanoflow) ([]byte, error) {
-		g := nanoflowToGen(n, b.majorVersion())
+		g := nanoflowToGen(n, b.flowVersion())
 		g.SetID(element.ID(readBackID(n.ID)))
 		assignNanoflowIDs(g)
 		raw, err := (&codec.Encoder{}).Encode(g)

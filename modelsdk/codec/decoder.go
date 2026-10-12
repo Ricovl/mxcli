@@ -99,6 +99,9 @@ var fieldAliases = map[string]string{
 	"Type":         "NewType",
 	"NewType":      "Type",
 	"CaseValue":    "NewCaseValue",
+	// gen now binds the case under its storage name (mendixlabs/mxcli#1410);
+	// a document holding the SDK name still reads.
+	"NewCaseValue": "CaseValue",
 }
 
 // DecodeChild decodes a single embedded document child from raw BSON by key.

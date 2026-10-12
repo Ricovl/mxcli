@@ -88,7 +88,7 @@ func countFlowType(t *testing.T, raw []byte, typeName string) int {
 
 func TestNanoflowToGen_WritesAnnotationFlows(t *testing.T) {
 	nf := &microflows.Nanoflow{Name: "NF", ObjectCollection: annotatedCollection()}
-	g := nanoflowToGen(nf, 11)
+	g := nanoflowToGen(nf, newestFlowVersion)
 	assignNanoflowIDs(g)
 	raw, err := (&codec.Encoder{}).Encode(g)
 	if err != nil {
@@ -105,7 +105,7 @@ func TestNanoflowToGen_WritesAnnotationFlows(t *testing.T) {
 
 func TestRuleToGen_WritesAnnotationFlows(t *testing.T) {
 	r := &microflows.Rule{Name: "R", ReturnType: &microflows.BooleanType{}, ObjectCollection: annotatedCollection()}
-	g := ruleToGen(r, 11)
+	g := ruleToGen(r, newestFlowVersion)
 	raw, err := (&codec.Encoder{}).Encode(g)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
