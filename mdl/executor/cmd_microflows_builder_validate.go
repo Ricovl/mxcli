@@ -13,13 +13,13 @@ import (
 // ValidateMicroflowBody validates the microflow body for semantic errors without building objects.
 // This is used by the check command to validate scripts without executing them.
 func ValidateMicroflowBody(s *ast.CreateMicroflowStmt) []string {
-	return validateFlowBody(s.Parameters, s.Body, true, nil)
+	return validateFlowBody(s.Parameters, s.ReturnType, s.Body, true, nil)
 }
 
 // ValidateNanoflowBody validates the nanoflow body for semantic errors without building objects.
 // This is used by the check command to validate scripts without executing them.
 func ValidateNanoflowBody(s *ast.CreateNanoflowStmt) []string {
-	return validateFlowBody(s.Parameters, s.Body, true, nil)
+	return validateFlowBody(s.Parameters, s.ReturnType, s.Body, true, nil)
 }
 
 // validateFlowBody validates parameters and body statements for semantic errors.
@@ -27,7 +27,7 @@ func ValidateNanoflowBody(s *ast.CreateNanoflowStmt) []string {
 // flowBuilder.duplicateNamesOwnedElsewhere. assocs, when check --references has
 // a project, types an association retrieve as the object or list it yields;
 // nil leaves every association retrieve a list, as without a project.
-func validateFlowBody(params []ast.MicroflowParam, body []ast.MicroflowStatement, duplicatesOwnedElsewhere bool, assocs map[string]assocShape) []string {
+func validateFlowBody(params []ast.MicroflowParam, returns *ast.MicroflowReturnType, body []ast.MicroflowStatement, duplicatesOwnedElsewhere bool, assocs map[string]assocShape) []string {
 	varTypes := make(map[string]string)
 	declaredVars := make(map[string]string)
 
@@ -57,6 +57,7 @@ func validateFlowBody(params []ast.MicroflowParam, body []ast.MicroflowStatement
 	fb := &flowBuilder{
 		varTypes:                     varTypes,
 		declaredVars:                 declaredVars,
+		returnType:                   returns, // only for messages (addUndeclaredSetError)
 		errors:                       []string{},
 		duplicateNamesOwnedElsewhere: duplicatesOwnedElsewhere,
 		checkAssocShapes:             assocs,
@@ -104,9 +105,7 @@ func (fb *flowBuilder) validateStatement(stmt ast.MicroflowStatement) {
 	case *ast.MfSetStmt:
 		// Validate that the variable has been declared
 		if !fb.isVariableDeclared(s.Target) {
-			fb.addErrorWithExample(
-				fmt.Sprintf("variable '%s' is not declared", s.Target),
-				errorExampleDeclareVariable(s.Target))
+			fb.addUndeclaredSetError(s.Target)
 		} else if fb.assocObjectVars[strings.TrimPrefix(s.Target, "$")] {
 			// Only the association-retrieved object: every other object
 			// producer is visible without a project, and MDL-SET01 reports
@@ -466,7 +465,7 @@ func (fb *flowBuilder) validateOutputVariable(varName, statement string) {
 // counterpart of ValidateMicroflowBody. What a rule may not *contain* is a
 // separate question, answered by validateRule.
 func ValidateRuleBody(s *ast.CreateRuleStmt) []string {
-	return validateFlowBody(s.Parameters, s.Body, false, nil)
+	return validateFlowBody(s.Parameters, nil, s.Body, false, nil)
 }
 
 // forwardReferenceTarget reports the entity a retrieve over association yields

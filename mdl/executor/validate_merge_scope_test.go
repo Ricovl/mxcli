@@ -45,6 +45,33 @@ func createMicroflowStmtOf(t *testing.T, src string) *ast.CreateMicroflowStmt {
 	return nil
 }
 
+// mendixlabs/mxcli#1436: `returns Boolean as $Closed` names the result for
+// callers and declares nothing, so `set $Closed = true` is correctly refused —
+// but "variable 'Closed' is not declared" read as contradicting the very
+// clause that names it. The message must say what `as $Closed` does.
+func TestValidateFlowBody_SetOnReturnsAsNameExplainsTheClause(t *testing.T) {
+	stmt := createMicroflowStmtOf(t, "create microflow M.F () returns Boolean as $Closed\nbegin\n  set $Closed = true;\n  return $Closed;\nend;")
+	errs := ValidateMicroflowBody(stmt)
+	if len(errs) != 1 {
+		t.Fatalf("want exactly one error (semantics unchanged), got %v", errs)
+	}
+	for _, want := range []string{"is not declared", "returns … as $Closed", "declare $Closed Boolean"} {
+		if !strings.Contains(errs[0], want) {
+			t.Errorf("error should contain %q, got: %s", want, errs[0])
+		}
+	}
+}
+
+// Control: another undeclared variable keeps the generic message, with no
+// mention of the `as` clause.
+func TestValidateFlowBody_SetOnOtherUndeclaredNameKeepsGenericMessage(t *testing.T) {
+	stmt := createMicroflowStmtOf(t, "create microflow M.F () returns Boolean as $Closed\nbegin\n  set $Other = true;\n  return true;\nend;")
+	errs := ValidateMicroflowBody(stmt)
+	if len(errs) != 1 || strings.Contains(errs[0], "returns …") {
+		t.Fatalf("want the generic not-declared error, got %v", errs)
+	}
+}
+
 func TestValidateFlowBody_MergeSeesItsJoinsVariables(t *testing.T) {
 	stmt := createMicroflowStmtOf(t, mergeSectionScopeMDL)
 	if errs := ValidateMicroflowBody(stmt); len(errs) > 0 {

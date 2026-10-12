@@ -729,7 +729,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		// Reported together with the reference errors below rather than
 		// instead of them: a body error used to hide a call's unknown
 		// parameter, which mxbuild reports as well (CE1613, #953).
-		validationErrors := validateFlowBody(s.Parameters, s.Body, true, checkAssociationShapes(ctx, sc))
+		validationErrors := validateFlowBody(s.Parameters, s.ReturnType, s.Body, true, checkAssociationShapes(ctx, sc))
 		// Validate references inside microflow body (pages, microflows, java actions, entities)
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
 		if ctx.Connected() {
@@ -782,7 +782,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		// Reported together with the reference errors below rather than
 		// instead of them: a body error used to hide a call's unknown
 		// parameter, which mxbuild reports as well (CE1613, #953).
-		validationErrors := validateFlowBody(s.Parameters, s.Body, true, checkAssociationShapes(ctx, sc))
+		validationErrors := validateFlowBody(s.Parameters, s.ReturnType, s.Body, true, checkAssociationShapes(ctx, sc))
 		// Validate references inside nanoflow body (an excluded nanoflow's are warnings)
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
 		if ctx.Connected() {

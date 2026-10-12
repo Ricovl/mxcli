@@ -67,9 +67,7 @@ func (fb *flowBuilder) addCreateVariableAction(s *ast.DeclareStmt) model.ID {
 func (fb *flowBuilder) addChangeVariableAction(s *ast.MfSetStmt) model.ID {
 	// Validate that the variable has been declared
 	if !fb.isVariableDeclared(s.Target) {
-		fb.addErrorWithExample(
-			fmt.Sprintf("variable '%s' is not declared", s.Target),
-			errorExampleDeclareVariable(s.Target))
+		fb.addUndeclaredSetError(s.Target)
 	}
 
 	activityX := fb.posX
