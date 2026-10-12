@@ -144,7 +144,7 @@ Everything mxcli can do, organized by use case.
 | REST query parameters | Requires Mendix 11.0+ | Build query string manually on 10.x |
 | Concurrent editing | Not supported — a file-based write is refused while Studio Pro has the project open (`<project>.mpr.lock` present) | Close Studio Pro before mxcli writes, or write through it with `--mcp`; `exec --force` overrides |
 | Widget template drift | CE0463 on version mismatch | MPK augmentation handles most cases |
-| Marketplace module update | Existing modules are reported, not updated in place | Update via Studio Pro (preserves local edits and entity IDs) |
+| Marketplace module update | `install` reports an existing module and does not update it | `mxcli marketplace diff` / `update <id> -p app.mpr --to <version>` (preserves entity identity and role grants; local edits are refused or saved with `--save-edits`) |
 | 47 of 52 metamodel domains | Not yet implemented | REST, OData write, etc. pending |
 
 ## Version Compatibility

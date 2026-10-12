@@ -131,23 +131,25 @@ If you take that route the command states plainly that the project is now v1.
 
 ## Updating an existing module
 
-Updating a module that is **already in the project is not done automatically**. `install` detects it, reports the installed and target versions, and stops:
+Updating a module that is **already in the project is not done by `install`**. `install` detects it, reports the installed and target versions, names the command that does the update, and stops:
 
 ```text
 Module "DatabaseConnector" is already installed (version 7.0.1).
-Target version: 7.0.3.
-In-place module updates are not applied automatically (they can discard local
-edits and change persistent-entity IDs, which loses data). Update via Studio Pro.
+Target: version 7.0.3.
+It is not updated by install (an update can discard local edits). To update it,
+review what would change, then apply it with entity identity and role grants preserved:
+  mxcli marketplace diff 2888 -p app.mpr --to 7.0.3
+  mxcli marketplace update 2888 -p app.mpr --to 7.0.3
 ```
 
-Before you update in Studio Pro, the question worth answering is **whether anyone has edited the module since it was installed** — because the update will not ask. That is what `marketplace diff` is for; see below.
+Before you update, the question worth answering is **whether anyone has edited the module since it was installed** — because the update will not ask. That is what `marketplace diff` is for; see below.
 
 Two reasons make automatic in-place module updates unsafe:
 
 1. **Local edits.** Teams sometimes modify a marketplace module after importing it; a blind re-import would discard those changes.
 2. **Persistent-entity IDs.** A fresh import assigns new entity `$ID`s. The runtime database keys data by entity ID, so re-importing a module with persistent entities would make the runtime treat them as *different* entities — **losing data**.
 
-Studio Pro's Marketplace **Update** performs an ID-preserving merge that the `mx` CLI does not expose, so module updates are left to Studio Pro for now.
+Studio Pro's Marketplace **Update** performs an ID-preserving merge that the `mx` CLI does not expose; `marketplace update` (below) is mxcli's equivalent, as a separate command so that `install` never updates implicitly.
 
 ## Updating a module (`marketplace update`)
 
