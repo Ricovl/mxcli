@@ -1240,7 +1240,8 @@ func (fb *flowBuilder) addShowMessageAction(s *ast.ShowMessageStmt) model.ID {
 		Translations: map[string]string{fb.textLangOrDefault(): templateText},
 	}
 
-	msgType := microflows.MessageType(s.Type)
+	// The stored value is case-sensitive (mendixlabs/mxcli#1280).
+	msgType, _ := microflows.CanonicalMessageType(s.Type)
 	if msgType == "" {
 		msgType = microflows.MessageTypeInformation
 	}

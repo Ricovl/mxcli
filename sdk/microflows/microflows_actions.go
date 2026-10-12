@@ -4,6 +4,8 @@
 package microflows
 
 import (
+	"strings"
+
 	"github.com/mendixlabs/mxcli/model"
 )
 
@@ -566,6 +568,22 @@ const (
 	MessageTypeWarning     MessageType = "Warning"
 	MessageTypeError       MessageType = "Error"
 )
+
+// MessageTypes lists the values of Microflows$ShowMessageType, in Studio Pro's order.
+var MessageTypes = []MessageType{MessageTypeInformation, MessageTypeWarning, MessageTypeError}
+
+// CanonicalMessageType matches s case-insensitively against the
+// ShowMessageType values and returns the enumeration's own spelling.
+// The stored value is case-sensitive: the runtime does not recognise "error"
+// and shows an Information dialog instead (mendixlabs/mxcli#1280).
+func CanonicalMessageType(s string) (MessageType, bool) {
+	for _, t := range MessageTypes {
+		if strings.EqualFold(s, string(t)) {
+			return t, true
+		}
+	}
+	return MessageType(s), false
+}
 
 // ValidationFeedbackAction shows validation feedback.
 type ValidationFeedbackAction struct {

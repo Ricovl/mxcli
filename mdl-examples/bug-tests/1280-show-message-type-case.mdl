@@ -1,0 +1,24 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1280 — show message type is stored in the enumeration's case
+-- ============================================================================
+--
+-- Reported: `show message … type error` was stored as Type "error". The runtime
+-- does not recognise it and shows an Information dialog; `mx check` reports 0
+-- errors. Microflows$ShowMessageType is "Information" | "Warning" | "Error".
+--
+-- Every spelling below must store the capitalised value. `describe microflow
+-- Bug1280.ACT_Messages` prints `type Error` / `type Warning` / `type Information`.
+-- The negative case (`type ok`, no such value) is 1280-show-message-unknown-type.fail.mdl.
+-- ============================================================================
+
+create module Bug1280;
+
+create or modify microflow Bug1280.ACT_Messages ()
+begin
+  show message 'Rejected' type error blocking;
+  show message 'Careful' type warning;
+  show message 'FYI' type information;
+  show message 'Loud' type ERROR;
+  show message 'Already canonical' type Error blocking;
+end;
