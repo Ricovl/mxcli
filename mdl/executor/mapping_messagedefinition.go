@@ -390,7 +390,26 @@ func buildExportMappingFromMessageDefinition(moduleName string, def *ast.ExportM
 		}
 		elem.Children = append(elem.Children, c)
 	}
+	// An export mapping's members must follow the definition's order, whatever
+	// order the script wrote them in: mxbuild refuses any other with CE5015
+	// "The order of the schema elements ... does not match the schema" (#1387).
+	// The import twin and the JSON-structure mappings accept either order.
+	sortByMessageDefOrder(node, elem.Children)
 	return elem, nil
+}
+
+// sortByMessageDefOrder orders built export elements by the position of the
+// definition node each one maps, which is matched on ExposedName.
+func sortByMessageDefOrder(node *model.MessageDefinitionElement, elems []*model.ExportMappingElement) {
+	pos := make(map[string]int, len(node.Children))
+	for i, c := range node.Children {
+		if _, seen := pos[c.ExposedName]; !seen {
+			pos[c.ExposedName] = i
+		}
+	}
+	sort.SliceStable(elems, func(i, j int) bool {
+		return pos[elems[i].ExposedName] < pos[elems[j].ExposedName]
+	})
 }
 
 // setMappingConverter resolves a value element's converter microflow (#266).

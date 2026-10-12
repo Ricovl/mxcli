@@ -1,0 +1,40 @@
+-- ============================================================================
+-- mendixlabs/mxcli#1361 — check passes a flow change exec refuses when the new
+-- body calls a microflow the same script creates
+-- ============================================================================
+--
+-- `mxcli check --references` reported "no flow change exec would refuse" and
+-- exited 0 for a `create or modify microflow` that exec then refused —
+--
+--   replace $Equal: the fragment declares $Different, which the microflow
+--   already has ... Nothing was written.                 [MDL-V1-REBUILD]
+--
+-- — after it had already written the new callee. The same change with no call
+-- to a new flow was predicted. Check now builds the body against the flows the
+-- script declares, so it predicts the refusal in both cases.
+--
+-- To reproduce: exec this file against a project, then run
+-- `mxcli check update.mdl -p app.mpr --references` on this script:
+--
+--   mdl 1;
+--   create microflow BugTest1361.NewSub () begin log info node 'X' 'sub'; end;
+--   create or modify microflow BugTest1361.Act ()
+--   begin
+--     call microflow BugTest1361.NewSub ();
+--     declare $Different boolean = true;
+--     log info node 'BugTest1361' 'done';
+--   end;
+--
+-- Check must fail with the MDL-V1-REBUILD error above, and exec must refuse
+-- the script before writing NewSub.
+
+mdl 1;
+
+create module BugTest1361;
+
+create or modify microflow BugTest1361.Act ()
+begin
+  declare $Equal boolean = true;
+  declare $Different boolean = false;
+  log info node 'BugTest1361' 'done';
+end;
