@@ -132,7 +132,8 @@ func TestTables_CoversAllViews(t *testing.T) {
 		if err := rows.Scan(&name); err != nil {
 			t.Fatalf("Scan failed: %v", err)
 		}
-		if !listed[name] {
+		// A retired name kept as an alias is deliberately unlisted (#1395).
+		if !listed[name] && LegacyTableAliases[name] == "" {
 			t.Errorf("catalog view %q is not listed in Tables() — add CATALOG.%s "+
 				"so SHOW CATALOG TABLES includes it", name, strings.ToUpper(name))
 		}

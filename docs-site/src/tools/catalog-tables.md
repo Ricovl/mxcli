@@ -336,9 +336,9 @@ A scheduled event also produces a `schedule` row in `CATALOG.REFS`, so
 `list callers of <microflow>` and the dead-asset analysis both see it. Without
 that edge a microflow run only by a scheduled event looked unreferenced.
 
-### CATALOG.QUEUES
+### CATALOG.TASK_QUEUES
 
-Task queues.
+Task queues. (`CATALOG.QUEUES` is the old name, still accepted.)
 
 | Column | Description |
 |--------|-------------|
@@ -350,7 +350,7 @@ Task queues.
 not assume it parses as an integer.
 
 ```sql
-select QualifiedName, Parallelism, ClusterWide from CATALOG.QUEUES;
+select QualifiedName, Parallelism, ClusterWide from CATALOG.TASK_QUEUES;
 ```
 
 ### Offline synchronization
@@ -465,3 +465,20 @@ LIST CATALOG TABLES;
 ```bash
 mxcli -p app.mpr -c "LIST CATALOG TABLES"
 ```
+
+### Renamed tables
+
+The integration and queue tables follow Studio Pro's document names. The old
+names still answer as aliases, but `LIST CATALOG TABLES` shows only the new ones,
+and `CATALOG.OBJECTS` reports the new `ObjectType` values:
+
+| Table | Old name | `ObjectType` (old) |
+|-------|----------|--------------------|
+| `CATALOG.CONSUMED_REST_SERVICES` | `REST_CLIENTS` | `CONSUMED_REST_SERVICE` (`REST_CLIENT`) |
+| `CATALOG.CONSUMED_REST_OPERATIONS` | `REST_OPERATIONS` | — |
+| `CATALOG.CONSUMED_ODATA_SERVICES` | `ODATA_CLIENTS` | `CONSUMED_ODATA_SERVICE` (`ODATA_CLIENT`) |
+| `CATALOG.PUBLISHED_ODATA_SERVICES` | `ODATA_SERVICES` | `PUBLISHED_ODATA_SERVICE` (`ODATA_SERVICE`) |
+| `CATALOG.TASK_QUEUES` | `QUEUES` | `TASK_QUEUE` (`QUEUE`) |
+
+A query that filters `OBJECTS` on an old `ObjectType` value returns no rows;
+change it to the new value.

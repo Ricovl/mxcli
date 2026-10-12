@@ -113,8 +113,8 @@ After `REFRESH CATALOG`, the following tables are available for SQL queries:
 
 | Table | Contents |
 |-------|----------|
-| `CATALOG.ODATA_CLIENTS` | Consumed OData services |
-| `CATALOG.ODATA_SERVICES` | Published OData services |
+| `CATALOG.CONSUMED_ODATA_SERVICES` | Consumed OData services (old name: `ODATA_CLIENTS`) |
+| `CATALOG.PUBLISHED_ODATA_SERVICES` | Published OData services (old name: `ODATA_SERVICES`) |
 | `CATALOG.EXTERNAL_ENTITIES` | Imported external entities |
 | `CATALOG.EXTERNAL_ACTIONS` | External actions used in microflows |
 | `CATALOG.CONTRACT_ENTITIES` | Entity types from cached $metadata |

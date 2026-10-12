@@ -124,3 +124,66 @@ func TestDescribeMDLCommand_PublishedRestService(t *testing.T) {
 		t.Error("unit type Rest$PublishedRestService has no auto-detect keyword")
 	}
 }
+
+// TestDescribeHelp_StudioProDocumentNames is mendixlabs/mxcli#1395: "mxcli
+// describe --help and the catalog.db still use the old names" after ako/mxcli#755
+// renamed the document types to Studio Pro's (R10). The help, the auto-detected
+// keyword and the ambiguity hint must lead with the canonical name; the old
+// spelling stays accepted as an alias.
+func TestDescribeHelp_StudioProDocumentNames(t *testing.T) {
+	renamed := []struct {
+		canonical, keyword, oldKeyword, mdl string
+	}{
+		{"consumed rest service", "consumedrestservice", "restclient", "DESCRIBE CONSUMED REST SERVICE M.X"},
+		{"consumed odata service", "consumedodataservice", "odataclient", "DESCRIBE CONSUMED ODATA SERVICE M.X"},
+		{"published odata service", "publishedodataservice", "odataservice", "DESCRIBE PUBLISHED ODATA SERVICE M.X"},
+		{"task queue", "taskqueue", "queue", "DESCRIBE TASK QUEUE M.X"},
+		{"ai model", "aimodel", "model", "DESCRIBE AI MODEL M.X"},
+	}
+	help := describeCmd.Long
+	for _, r := range renamed {
+		for _, typ := range []string{r.keyword, r.canonical, r.oldKeyword} {
+			got, ok := describeMDLCommand(strings.ToUpper(typ), "M.X")
+			if !ok {
+				t.Errorf("describe %s M.X: Unknown type", typ)
+				continue
+			}
+			if got != r.mdl {
+				t.Errorf("describe %s M.X = %q, want %q", typ, got, r.mdl)
+			}
+		}
+		if !strings.Contains(help, "\n  "+r.keyword+" ") {
+			t.Errorf("describe --help lists no %q type line", r.keyword)
+		}
+		if strings.Contains(help, "\n  "+r.oldKeyword+" ") {
+			t.Errorf("describe --help still lists the old name %q as a type", r.oldKeyword)
+		}
+		if strings.Contains(help, "app.mpr "+r.oldKeyword+" ") || strings.Contains(help, "app.mpr "+strings.ReplaceAll(r.oldKeyword, "client", " client")+" ") {
+			t.Errorf("describe --help example still uses the old name %q", r.oldKeyword)
+		}
+	}
+	for _, typ := range []string{"APPSECURITY", "APP SECURITY", "PROJECTSECURITY", "PROJECT SECURITY"} {
+		if got, ok := describeMDLCommand(typ, "x"); !ok || got != "DESCRIBE APP SECURITY" {
+			t.Errorf("describe %s = %q, %v; want DESCRIBE APP SECURITY", strings.ToLower(typ), got, ok)
+		}
+	}
+	if !strings.Contains(help, "\n  appsecurity ") || strings.Contains(help, "\n  projectsecurity ") {
+		t.Error("describe --help must list appsecurity, not projectsecurity")
+	}
+
+	// Auto-detect and the ambiguity hint print these keywords back to the user.
+	for k, want := range map[string]string{
+		"REST_CLIENT": "consumedrestservice", "CONSUMED_REST_SERVICE": "consumedrestservice",
+		"ODATA_CLIENT": "consumedodataservice", "CONSUMED_ODATA_SERVICE": "consumedodataservice",
+		"ODATA_SERVICE": "publishedodataservice", "PUBLISHED_ODATA_SERVICE": "publishedodataservice",
+		"QUEUE": "taskqueue", "TASK_QUEUE": "taskqueue",
+		"AI_MODEL": "aimodel",
+	} {
+		if got := objectTypeToDescribe[k]; got != want {
+			t.Errorf("objectTypeToDescribe[%q] = %q, want %q", k, got, want)
+		}
+	}
+	if got := unitTypeToDescribe["Queues$Queue"]; got != "taskqueue" {
+		t.Errorf("unitTypeToDescribe[Queues$Queue] = %q, want taskqueue", got)
+	}
+}

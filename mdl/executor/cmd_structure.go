@@ -976,7 +976,7 @@ func formatJATypeDisplay(typeStr string) string {
 // structureODataClients outputs OData clients for a module.
 func structureODataClients(ctx *ExecContext, moduleName string) error {
 	result, err := structureQuery(ctx, fmt.Sprintf(
-		"select Name, ODataVersion from odata_clients where ModuleName = '%s' ORDER by Name",
+		"select Name, ODataVersion from consumed_odata_services where ModuleName = '%s' ORDER by Name",
 		escapeSQLString(moduleName)))
 	if err != nil {
 		return err
@@ -998,7 +998,7 @@ func structureODataClients(ctx *ExecContext, moduleName string) error {
 // structureODataServices outputs OData services for a module.
 func structureODataServices(ctx *ExecContext, moduleName string) error {
 	result, err := structureQuery(ctx, fmt.Sprintf(
-		"select Name, Path, EntitySetCount from odata_services where ModuleName = '%s' ORDER by Name",
+		"select Name, Path, EntitySetCount from published_odata_services where ModuleName = '%s' ORDER by Name",
 		escapeSQLString(moduleName)))
 	if err != nil {
 		return err
