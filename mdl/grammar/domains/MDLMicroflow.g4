@@ -360,8 +360,8 @@ inheritanceSplitElse
     ;
 
 castObjectStatement
-    : CAST VARIABLE
-    | VARIABLE EQUALS CAST VARIABLE
+    : CAST VARIABLE onErrorClause?
+    | VARIABLE EQUALS CAST VARIABLE onErrorClause?
     ;
 
 // SET is optional: `$Total = 5;` is what everyone writes, and every other
@@ -422,7 +422,7 @@ deleteObjectStatement
 
 // ROLLBACK $Product; or ROLLBACK $Product REFRESH;
 rollbackStatement
-    : ROLLBACK VARIABLE REFRESH?
+    : ROLLBACK VARIABLE REFRESH? onErrorClause?
     ;
 
 // RETRIEVE $Product FROM MfTest.Product WHERE Code = $SearchCode SORT BY Name ASC FIRST;
@@ -749,7 +749,7 @@ closePageStatement
     ;
 
 showHomePageStatement
-    : SHOW HOME PAGE
+    : SHOW HOME PAGE onErrorClause?
     ;
 
 // SHOW MESSAGE 'Hello {1}' TYPE Information WITH ({1} = $Name);
@@ -1030,11 +1030,11 @@ transformJsonStatement
  * dialog, so one activity cannot be nested inside another.
  */
 listOperationStatement
-    : VARIABLE EQUALS listOperationActivity
+    : VARIABLE EQUALS listOperationActivity onErrorClause?
     // The call form. A respelling for every operation but find and contains,
     // whose call form is also the string function: the visitor version-gates
     // those instead (MDL-V1-LIST), since no rewrite can know which was meant.
-    | VARIABLE EQUALS listOperation /* @alias MDL-DEPR003 */
+    | VARIABLE EQUALS listOperation /* @alias MDL-DEPR003 */ onErrorClause?
     ;
 
 listOperationActivity
@@ -1094,8 +1094,8 @@ sortSpec
  * Aggregate operations on lists.
  */
 aggregateListStatement
-    : VARIABLE EQUALS aggregateListActivity
-    | VARIABLE EQUALS listAggregateOperation /* @alias MDL-DEPR004 */
+    : VARIABLE EQUALS aggregateListActivity onErrorClause?
+    | VARIABLE EQUALS listAggregateOperation /* @alias MDL-DEPR004 */ onErrorClause?
     ;
 
 /**
@@ -1139,23 +1139,23 @@ reduceFoldOptions
  * Create an empty list of a specific entity type.
  */
 createListStatement
-    : VARIABLE EQUALS CREATE LIST_OF qualifiedName
+    : VARIABLE EQUALS CREATE LIST_OF qualifiedName onErrorClause?
     ;
 
 /**
  * Add an item to a list.
  */
 addToListStatement
-    : ADD expression TO VARIABLE
-    | ADD expression TO associationMemberTarget commitClause? REFRESH?
+    : ADD expression TO VARIABLE onErrorClause?
+    | ADD expression TO associationMemberTarget commitClause? REFRESH? onErrorClause?
     ;
 
 /**
  * Remove an item from a list.
  */
 removeFromListStatement
-    : REMOVE VARIABLE FROM VARIABLE
-    | REMOVE VARIABLE FROM associationMemberTarget commitClause? REFRESH?
+    : REMOVE VARIABLE FROM VARIABLE onErrorClause?
+    | REMOVE VARIABLE FROM associationMemberTarget commitClause? REFRESH? onErrorClause?
     ;
 
 /**

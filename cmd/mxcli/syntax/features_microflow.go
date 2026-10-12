@@ -257,13 +257,15 @@ func init() {
 			"--   all of them, and CONTINUE is fine on DECLARE, SET, RETRIEVE, DELETE\n" +
 			"--   and CALL MICROFLOW.\n" +
 			"--\n" +
-			"--   List operations and aggregates ($x = head $l, $n = count $l) have\n" +
-			"--   no error handling in Mendix at all -> MDL077.\n" +
+			"--   List operations, aggregates, CREATE LIST OF, ADD, REMOVE, CAST and\n" +
+			"--   SHOW HOME PAGE take a custom handler but not CONTINUE -> MDL076.\n" +
+			"--   ROLLBACK takes every form.\n" +
 			"--\n" +
 			"-- IN A NANOFLOW a statement with no clause aborts the flow on error, and\n" +
 			"-- there is no transaction to roll back. DECLARE, SET, RETRIEVE and DELETE\n" +
-			"-- take every clause. CREATE, COMMIT, CALL NANOFLOW and CALL MICROFLOW take\n" +
-			"-- only ON ERROR WITHOUT ROLLBACK BEGIN ... END ERROR. CHANGE, LOG, SHOW\n" +
+			"-- take every clause, and so does ROLLBACK. CREATE, COMMIT, CALL NANOFLOW,\n" +
+			"-- CALL MICROFLOW, list operations, aggregates, CREATE LIST OF, ADD, REMOVE\n" +
+			"-- and CAST take only ON ERROR WITHOUT ROLLBACK BEGIN ... END ERROR. CHANGE, LOG, SHOW\n" +
 			"-- PAGE, CLOSE PAGE, SHOW MESSAGE and VALIDATION FEEDBACK take none. Every\n" +
 			"-- other form is CE6035 and is refused (MDL091).\n" +
 			"--\n" +

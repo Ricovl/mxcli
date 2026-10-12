@@ -297,10 +297,14 @@ func (fb *flowBuilder) addDeleteAction(s *ast.DeleteObjectStmt) model.ID {
 
 // addRollbackAction creates a ROLLBACK statement.
 func (fb *flowBuilder) addRollbackAction(s *ast.RollbackStmt) model.ID {
+	activityX := fb.posX
 	action := &microflows.RollbackObjectAction{
 		BaseElement:      model.BaseElement{ID: model.ID(types.GenerateID())},
 		RollbackVariable: s.Variable,
 		RefreshInClient:  s.RefreshInClient,
+		// Explicit only: the writer has never stored a type on a rollback, so
+		// no clause must keep writing none (mendixlabs/mxcli#1252).
+		ErrorHandlingType: explicitErrorHandling(fb, s.ErrorHandling),
 	}
 
 	activity := &microflows.ActionActivity{
@@ -317,6 +321,8 @@ func (fb *flowBuilder) addRollbackAction(s *ast.RollbackStmt) model.ID {
 
 	fb.objects = append(fb.objects, activity)
 	fb.posX += fb.spacing
+
+	fb.finishCustomErrorHandler(activity.ID, activityX, s.ErrorHandling, "")
 
 	return activity.ID
 }
@@ -384,15 +390,22 @@ func (fb *flowBuilder) addChangeObjectAction(s *ast.ChangeObjectStmt) model.ID {
 // Pro's Add/Remove buttons store for a reference set (mendixlabs/mxcli#1288).
 // It goes through addChangeObjectAction so the member resolves exactly as a
 // CHANGE member does, then sets the member's operation.
-func (fb *flowBuilder) addAssociationMemberChange(op microflows.MemberChangeType, variable, association string, value ast.Expression, commit ast.CommitFlag, refresh bool) model.ID {
+func (fb *flowBuilder) addAssociationMemberChange(op microflows.MemberChangeType, variable, association string, value ast.Expression, commit ast.CommitFlag, refresh bool, eh *ast.ErrorHandlingClause) model.ID {
 	errorsBefore := len(fb.errors)
+	objectsBefore := len(fb.objects)
 	id := fb.addChangeObjectAction(&ast.ChangeObjectStmt{
 		Variable:        variable,
 		Changes:         []ast.ChangeItem{{Attribute: association, Value: value}},
 		Commit:          commit,
 		RefreshInClient: refresh,
+		ErrorHandling:   eh,
 	})
-	activity, ok := fb.objects[len(fb.objects)-1].(*microflows.ActionActivity)
+	// The change activity is the first object added: a custom handler appends
+	// its own activities after it.
+	if len(fb.objects) <= objectsBefore {
+		return id
+	}
+	activity, ok := fb.objects[objectsBefore].(*microflows.ActionActivity)
 	if !ok {
 		return id
 	}
@@ -1108,11 +1121,12 @@ func qualifiedNameString(qn ast.QualifiedName) string {
 }
 
 func (fb *flowBuilder) addCastAction(s *ast.CastObjectStmt) model.ID {
+	activityX := fb.posX
 	action := &microflows.CastAction{
 		BaseElement:       model.BaseElement{ID: model.ID(types.GenerateID())},
 		ObjectVariable:    s.ObjectVariable,
 		OutputVariable:    s.OutputVariable,
-		ErrorHandlingType: fb.ehType(nil),
+		ErrorHandlingType: fb.ehType(s.ErrorHandling),
 	}
 
 	activity := &microflows.ActionActivity{
@@ -1129,6 +1143,7 @@ func (fb *flowBuilder) addCastAction(s *ast.CastObjectStmt) model.ID {
 
 	fb.objects = append(fb.objects, activity)
 	fb.posX += fb.spacing
+	fb.finishCustomErrorHandler(activity.ID, activityX, s.ErrorHandling, s.OutputVariable)
 	return activity.ID
 }
 
@@ -1690,6 +1705,7 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 						&ast.VariableExpr{Name: s.SecondVariable},
 					},
 				},
+				ErrorHandling: s.ErrorHandling,
 			})
 		case ast.ListOpFind:
 			// The string find's second argument is carried as Condition (the
@@ -1704,6 +1720,7 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 					Name:      "find",
 					Arguments: []ast.Expression{&ast.VariableExpr{Name: s.InputVariable}, second},
 				},
+				ErrorHandling: s.ErrorHandling,
 			})
 		}
 	}
@@ -1823,11 +1840,12 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 		return ""
 	}
 
+	activityX := fb.posX
 	action := &microflows.ListOperationAction{
 		BaseElement:       model.BaseElement{ID: model.ID(types.GenerateID())},
 		Operation:         operation,
 		OutputVariable:    s.OutputVariable,
-		ErrorHandlingType: fb.ehType(nil),
+		ErrorHandlingType: fb.ehType(s.ErrorHandling),
 	}
 
 	// Track output variable type for operations that preserve/produce list types
@@ -1862,6 +1880,7 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 
 	fb.objects = append(fb.objects, activity)
 	fb.posX += fb.spacing
+	fb.finishCustomErrorHandler(activity.ID, activityX, s.ErrorHandling, s.OutputVariable)
 	return activity.ID
 }
 
@@ -1952,12 +1971,13 @@ func (fb *flowBuilder) addAggregateListAction(s *ast.AggregateListStmt) model.ID
 		return ""
 	}
 
+	activityX := fb.posX
 	action := &microflows.AggregateListAction{
 		BaseElement:       model.BaseElement{ID: model.ID(types.GenerateID())},
 		InputVariable:     s.InputVariable,
 		OutputVariable:    s.OutputVariable,
 		Function:          function,
-		ErrorHandlingType: fb.ehType(nil),
+		ErrorHandlingType: fb.ehType(s.ErrorHandling),
 	}
 
 	// The fold Mendix stores beside the expression. REDUCE names both in MDL;
@@ -2006,6 +2026,7 @@ func (fb *flowBuilder) addAggregateListAction(s *ast.AggregateListStmt) model.ID
 
 	fb.objects = append(fb.objects, activity)
 	fb.posX += fb.spacing
+	fb.finishCustomErrorHandler(activity.ID, activityX, s.ErrorHandling, s.OutputVariable)
 	return activity.ID
 }
 
@@ -2016,11 +2037,12 @@ func (fb *flowBuilder) addCreateListAction(s *ast.CreateListStmt) model.ID {
 		entityQN = s.EntityType.Module + "." + s.EntityType.Name
 	}
 
+	activityX := fb.posX
 	action := &microflows.CreateListAction{
 		BaseElement:         model.BaseElement{ID: model.ID(types.GenerateID())},
 		OutputVariable:      s.Variable,
 		EntityQualifiedName: entityQN,
-		ErrorHandlingType:   fb.ehType(nil),
+		ErrorHandlingType:   fb.ehType(s.ErrorHandling),
 	}
 
 	// Register variable type as list
@@ -2042,6 +2064,7 @@ func (fb *flowBuilder) addCreateListAction(s *ast.CreateListStmt) model.ID {
 
 	fb.objects = append(fb.objects, activity)
 	fb.posX += fb.spacing
+	fb.finishCustomErrorHandler(activity.ID, activityX, s.ErrorHandling, s.Variable)
 	return activity.ID
 }
 
@@ -2053,44 +2076,28 @@ func (fb *flowBuilder) addAddToListAction(s *ast.AddToListStmt) model.ID {
 		if value == nil {
 			value = &ast.VariableExpr{Name: s.Item}
 		}
-		return fb.addAssociationMemberChange(microflows.MemberChangeTypeAdd, s.List, s.Association, value, s.Commit, s.RefreshInClient)
+		return fb.addAssociationMemberChange(microflows.MemberChangeTypeAdd, s.List, s.Association, value, s.Commit, s.RefreshInClient, s.ErrorHandling)
 	}
 	value := fb.exprToString(s.Value)
 	if value == "" && s.Item != "" {
 		value = "$" + s.Item
 	}
-	action := &microflows.ChangeListAction{
-		BaseElement:       model.BaseElement{ID: model.ID(types.GenerateID())},
-		Type:              microflows.ChangeListTypeAdd,
-		ChangeVariable:    s.List,
-		Value:             value,
-		ErrorHandlingType: fb.ehType(nil),
-	}
-
-	activity := &microflows.ActionActivity{
-		BaseActivity: microflows.BaseActivity{
-			BaseMicroflowObject: microflows.BaseMicroflowObject{
-				BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-				Position:    model.Point{X: fb.posX, Y: fb.posY},
-				Size:        model.Size{Width: ActivityWidth, Height: ActivityHeight},
-			},
-			AutoGenerateCaption: true,
-		},
-		Action: action,
-	}
-
-	fb.objects = append(fb.objects, activity)
-	fb.posX += fb.spacing
-	return activity.ID
+	activityX := fb.posX
+	id := fb.addChangeListAction(microflows.ChangeListTypeAdd, s.List, value, s.ErrorHandling)
+	fb.finishCustomErrorHandler(id, activityX, s.ErrorHandling, "")
+	return id
 }
 
 // addRemoveFromListAction creates a REMOVE FROM list statement, or the Remove
 // member change of a Change object activity when the target is $Obj/Module.Assoc.
 func (fb *flowBuilder) addRemoveFromListAction(s *ast.RemoveFromListStmt) model.ID {
 	if s.Association != "" {
-		return fb.addAssociationMemberChange(microflows.MemberChangeTypeRemove, s.List, s.Association, &ast.VariableExpr{Name: s.Item}, s.Commit, s.RefreshInClient)
+		return fb.addAssociationMemberChange(microflows.MemberChangeTypeRemove, s.List, s.Association, &ast.VariableExpr{Name: s.Item}, s.Commit, s.RefreshInClient, s.ErrorHandling)
 	}
-	return fb.addChangeListAction(microflows.ChangeListTypeRemove, s.List, "$"+s.Item, nil)
+	activityX := fb.posX
+	id := fb.addChangeListAction(microflows.ChangeListTypeRemove, s.List, "$"+s.Item, s.ErrorHandling)
+	fb.finishCustomErrorHandler(id, activityX, s.ErrorHandling, "")
+	return id
 }
 
 // addClearListAction creates a CLEAR $List statement: a Change list action of

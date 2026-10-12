@@ -102,9 +102,17 @@ func buildMicroflowStatement(ctx parser.IMicroflowStatementContext) ast.Microflo
 	} else if join := mfCtx.JoinStatement(); join != nil {
 		stmt = &ast.JoinStmt{Label: mergeJoinLabel(join.IDENTIFIER(), join.QUOTED_IDENTIFIER())}
 	} else if listOp := mfCtx.ListOperationStatement(); listOp != nil {
-		stmt = buildListOperationStatement(listOp)
+		lo := buildListOperationStatement(listOp)
+		if errClause := listOp.OnErrorClause(); errClause != nil && lo != nil {
+			lo.ErrorHandling = buildOnErrorClause(errClause)
+		}
+		stmt = lo
 	} else if aggr := mfCtx.AggregateListStatement(); aggr != nil {
-		stmt = buildAggregateListStatement(aggr)
+		ag := buildAggregateListStatement(aggr)
+		if errClause := aggr.OnErrorClause(); errClause != nil && ag != nil {
+			ag.ErrorHandling = buildOnErrorClause(errClause)
+		}
+		stmt = ag
 	} else if addTo := mfCtx.AddToListStatement(); addTo != nil {
 		stmt = buildAddToListStatement(addTo)
 	} else if removeFrom := mfCtx.RemoveFromListStatement(); removeFrom != nil {
@@ -126,8 +134,12 @@ func buildMicroflowStatement(ctx parser.IMicroflowStatementContext) ast.Microflo
 			close.ErrorHandling = buildOnErrorClause(errClause)
 		}
 		stmt = close
-	} else if mfCtx.ShowHomePageStatement() != nil {
-		stmt = &ast.ShowHomePageStmt{}
+	} else if homePage := mfCtx.ShowHomePageStatement(); homePage != nil {
+		home := &ast.ShowHomePageStmt{}
+		if errClause := homePage.OnErrorClause(); errClause != nil {
+			home.ErrorHandling = buildOnErrorClause(errClause)
+		}
+		stmt = home
 	} else if showMsg := mfCtx.ShowMessageStatement(); showMsg != nil {
 		stmt = buildShowMessageStatement(showMsg)
 	} else if download := mfCtx.DownloadFileStatement(); download != nil {
@@ -767,6 +779,9 @@ func buildCastObjectStatement(ctx parser.ICastObjectStatementContext) *ast.CastO
 	}
 	castCtx := ctx.(*parser.CastObjectStatementContext)
 	stmt := &ast.CastObjectStmt{}
+	if errClause := castCtx.OnErrorClause(); errClause != nil {
+		stmt.ErrorHandling = buildOnErrorClause(errClause)
+	}
 	vars := castCtx.AllVARIABLE()
 	if len(vars) == 1 {
 		stmt.OutputVariable = strings.TrimPrefix(vars[0].GetText(), "$")
@@ -786,10 +801,9 @@ func buildCastObjectStatement(ctx parser.ICastObjectStatementContext) *ast.CastO
 // this returns the specialized statement type instead of MfSetStmt.
 //
 // The ON ERROR clause is attached here rather than at each of the dozen return
-// points below. Only the plain MfSetStmt form can honour it — Mendix gives
-// ChangeVariableAction an ErrorHandlingType but gives ListOperationsAction and
-// AggregateAction none — so the specialized nodes carry it only to be refused by
-// MDL077, never to be executed.
+// points below. Every activity this can produce — Change variable, List
+// operation, Aggregate list — is a Microflows$MicroflowAction and carries an
+// ErrorHandlingType, so each node takes the clause (mendixlabs/mxcli#1252).
 func buildSetStatement(ctx parser.ISetStatementContext) ast.MicroflowStatement {
 	stmt := buildSetStatementNode(ctx)
 	if stmt == nil || ctx == nil {
@@ -1341,6 +1355,10 @@ func buildRollbackStatement(ctx parser.IRollbackStatementContext) *ast.RollbackS
 
 	// Check for REFRESH keyword
 	stmt.RefreshInClient = rollCtx.REFRESH() != nil
+
+	if errClause := rollCtx.OnErrorClause(); errClause != nil {
+		stmt.ErrorHandling = buildOnErrorClause(errClause)
+	}
 
 	return stmt
 }

@@ -231,7 +231,6 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 	for _, s := range body {
 		v.checkUnknownAnnotations(s)
 		v.checkErrorHandlingContinueSupported(s)
-		v.checkErrorHandlingSupported(s)
 		v.checkStmtExprFunctions(s)
 		// An annotation inside `on error begin … end error` is honoured like one
 		// outside it, so a malformed one there must be refused too — this walk

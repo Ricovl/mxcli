@@ -288,6 +288,7 @@ type CastObjectStmt struct {
 	OutputVariable string               // Output variable name without $ prefix
 	ObjectVariable string               // Source object variable name without $ prefix
 	Annotations    *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling  *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *CastObjectStmt) isMicroflowStatement() {}
@@ -566,6 +567,7 @@ type RollbackStmt struct {
 	Variable        string               // Variable to rollback
 	RefreshInClient bool                 // Whether to refresh in client
 	Annotations     *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling   *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *RollbackStmt) isMicroflowStatement() {}
@@ -894,15 +896,12 @@ type ListOperationStmt struct {
 	// falls back to the expression operation, which is what the function form
 	// has always done. The statement form sets it from the linking word: `where`
 	// sets it, `by` does not.
-	ByExpression bool
-	SortSpecs    []SortSpec           // Sort specifications for SORT
-	OffsetExpr   Expression           // Offset expression for RANGE
-	LimitExpr    Expression           // Limit expression for RANGE
-	Annotations  *ActivityAnnotations // Optional @position, @caption, @color, @annotation
-	// ErrorHandling is recorded only so the clause can be REFUSED. Mendix's
-	// ListOperationsAction has no ErrorHandlingType, so an ON ERROR here has
-	// nowhere to go; parsing it and reporting it beats dropping it silently.
-	ErrorHandling *ErrorHandlingClause
+	ByExpression  bool
+	SortSpecs     []SortSpec           // Sort specifications for SORT
+	OffsetExpr    Expression           // Offset expression for RANGE
+	LimitExpr     Expression           // Limit expression for RANGE
+	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause (mendixlabs/mxcli#1252)
 	// UnresolvedOperands holds the list operands that did not reduce to a
 	// variable name — see UnresolvedOperand. Empty on every well-formed statement.
 	UnresolvedOperands []UnresolvedOperand
@@ -1002,10 +1001,8 @@ type AggregateListStmt struct {
 	InitialValue Expression
 	ReturnType   *DataType
 
-	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
-	// ErrorHandling is recorded only so the clause can be REFUSED — Mendix's
-	// AggregateAction has no ErrorHandlingType. See ListOperationStmt.
-	ErrorHandling *ErrorHandlingClause
+	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause (mendixlabs/mxcli#1252)
 	// UnresolvedOperands holds the list operand that did not reduce to a variable
 	// name — see UnresolvedOperand. Empty on every well-formed statement.
 	UnresolvedOperands []UnresolvedOperand
@@ -1015,9 +1012,10 @@ func (s *AggregateListStmt) isMicroflowStatement() {}
 
 // CreateListStmt represents: $Var = CREATE LIST OF Entity
 type CreateListStmt struct {
-	Variable    string               // Output variable name
-	EntityType  QualifiedName        // Entity type for the list
-	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	Variable      string               // Output variable name
+	EntityType    QualifiedName        // Entity type for the list
+	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *CreateListStmt) isMicroflowStatement() {}
@@ -1035,6 +1033,7 @@ type AddToListStmt struct {
 	Commit          CommitFlag           // Association target only
 	RefreshInClient bool                 // Association target only
 	Annotations     *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling   *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *AddToListStmt) isMicroflowStatement() {}
@@ -1048,6 +1047,7 @@ type RemoveFromListStmt struct {
 	Commit          CommitFlag           // Association target only
 	RefreshInClient bool                 // Association target only
 	Annotations     *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling   *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *RemoveFromListStmt) isMicroflowStatement() {}
@@ -1096,7 +1096,8 @@ func (s *ClosePageStmt) isMicroflowStatement() {}
 
 // ShowHomePageStmt represents: SHOW HOME PAGE
 type ShowHomePageStmt struct {
-	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *ShowHomePageStmt) isMicroflowStatement() {}

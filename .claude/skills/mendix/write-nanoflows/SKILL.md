@@ -21,11 +21,11 @@ description: "Nanoflow syntax in MDL — shared with microflows, but client-side
 | 482-552 | NanoflowCommons JavaScript Actions Reference |
 | 553-591 | Disallowed Activities |
 | 592-595 | Return Type Restrictions |
-| 596-639 | Error Handling in Nanoflows |
-| 640-647 | Security (GRANT/REVOKE) |
-| 648-660 | Management Commands |
-| 661-671 | Common Mistakes |
-| 672-686 | Validation Checklist |
+| 596-640 | Error Handling in Nanoflows |
+| 641-648 | Security (GRANT/REVOKE) |
+| 649-661 | Management Commands |
+| 662-672 | Common Mistakes |
+| 673-687 | Validation Checklist |
 
 <!-- /skill-index -->
 # Mendix Nanoflow Skill
@@ -620,13 +620,14 @@ END ERROR;
 
 ### Which activities take which clause in a nanoflow
 
-Measured on Mendix 11.14.0; every other form is **CE6035** "Error handling type
-is not supported", and mxcli refuses it (MDL091):
+Measured on Mendix 11.14.0 (the list activities, cast and rollback on 11.12.3,
+mendixlabs/mxcli#1252); every other form is **CE6035** "Error handling type is
+not supported", and mxcli refuses it (MDL091):
 
 | Activity in a nanoflow | Accepted clauses |
 |---|---|
-| `DECLARE`, `SET`, `RETRIEVE`, `DELETE` | every form |
-| `CREATE`, `COMMIT`, `CALL NANOFLOW`, `CALL MICROFLOW` | only `ON ERROR WITHOUT ROLLBACK BEGIN … END ERROR` |
+| `DECLARE`, `SET`, `RETRIEVE`, `DELETE`, `ROLLBACK` | every form |
+| `CREATE`, `COMMIT`, `CALL NANOFLOW`, `CALL MICROFLOW`, list operations (`head`, `filter`, …), aggregates (`count`, `sum`, …), `CREATE LIST OF`, `ADD … TO $List`, `REMOVE … FROM $List`, `CAST` | only `ON ERROR WITHOUT ROLLBACK BEGIN … END ERROR` |
 | `CHANGE`, `LOG`, `SHOW PAGE`, `CLOSE PAGE`, `SHOW MESSAGE`, `VALIDATION FEEDBACK` | none |
 
 mxcli refuses the clause rather than writing a nanoflow mxbuild rejects. The

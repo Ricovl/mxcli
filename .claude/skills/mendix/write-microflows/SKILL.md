@@ -712,8 +712,8 @@ close page on error begin return; end error;
   of them; `continue` is fine on `declare`, `set`, `retrieve`, `delete` and
   `call microflow`. Measured on 11.14.0 — note that create-*variable* and
   change-*variable* accept `continue` while change-*object* does not.
-- **List operations and aggregates** (`$x = head $l;`, `$n = count $l;`)
-  have no error handling in Mendix at all — **MDL077**.
+- **List/aggregate activities, `create list`, `add`/`remove`, `cast`, `show home
+  page`**: no `continue` (MDL076, 11.12.3, #1252); `rollback` takes every form.
 
 **In a nanoflow, almost none of them take a clause at all.** `change`, `log`,
 `show page`, `close page`, `show message` and `validation feedback` are CE6035
