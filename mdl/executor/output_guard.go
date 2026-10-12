@@ -48,8 +48,27 @@ func (g *outputGuard) Write(p []byte) (int, error) {
 		g.exceeded = true
 		// Write the current chunk first so output isn't abruptly cut mid-line.
 		_, _ = g.w.Write(p)
-		return len(p), mdlerrors.NewValidationf("output line limit exceeded (%d lines); statement aborted", g.maxLines)
+		return len(p), g.limitError()
 	}
 
 	return g.w.Write(p)
+}
+
+// exceededError returns the limit error if the current statement went past the
+// line limit, or nil. Execute checks it after the statement returns: most
+// handlers (every describer) ignore Fprintf's error, so the one Write returned
+// never reaches the caller, and without this check the statement succeeded
+// with its output silently cut off (mendixlabs/mxcli#1425).
+func (g *outputGuard) exceededError() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.exceeded {
+		return nil
+	}
+	return g.limitError()
+}
+
+func (g *outputGuard) limitError() error {
+	return mdlerrors.NewValidationf("output line limit exceeded (%d lines); output truncated and statement aborted. "+
+		"Describe a large module per document (e.g. describe entity / microflow / page ...) instead of all at once", g.maxLines)
 }
