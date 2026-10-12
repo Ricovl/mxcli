@@ -111,8 +111,9 @@ func actionFromGen(el element.Element) microflows.MicroflowAction {
 
 	case *genMf.RollbackAction:
 		out := &microflows.RollbackObjectAction{
-			RollbackVariable: a.RollbackVariableName(),
-			RefreshInClient:  a.RefreshInClient(),
+			RollbackVariable:  a.RollbackVariableName(),
+			RefreshInClient:   a.RefreshInClient(),
+			ErrorHandlingType: microflows.ErrorHandlingType(a.ErrorHandlingType()),
 		}
 		out.ID = model.ID(a.ID())
 		return out
@@ -261,7 +262,9 @@ func actionFromGen(el element.Element) microflows.MicroflowAction {
 		return out
 
 	case *genMf.ShowHomePageAction:
-		out := &microflows.ShowHomePageAction{}
+		out := &microflows.ShowHomePageAction{
+			ErrorHandlingType: microflows.ErrorHandlingType(a.ErrorHandlingType()),
+		}
 		out.ID = model.ID(a.ID())
 		return out
 

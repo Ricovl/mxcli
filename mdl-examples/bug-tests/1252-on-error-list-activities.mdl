@@ -1,0 +1,91 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1252: on error on list activities, cast, rollback, home page
+-- ============================================================================
+--
+-- An Aggregate list activity with a custom error handler, authored in Studio Pro
+-- 11.12.3, came back from DESCRIBE as a bare `$count = count($TEYAs);`, and
+-- `on error` could not be written on it at all — nor on a list operation,
+-- create list, add/remove, cast, rollback or show home page:
+--
+--   mismatched input 'on' expecting ';'
+--
+-- Every one of those is a Microflows$MicroflowAction, which declares
+-- errorHandlingType in the Mendix Model SDK. MDL077 refused the clause on list
+-- operations and aggregates on the premise that it did not; it was removed.
+--
+-- MEASURED on mxbuild 11.12.3, one document per cell: in a microflow each of
+-- these takes both custom handlers and `on error rollback`, and all but
+-- `rollback` reject `on error continue` (CE6035, refused as MDL076). In a
+-- nanoflow the list activities and cast take only the handler without
+-- rollback; `rollback` takes every form.
+--
+-- To verify: run this script, then `mx check` — 0 errors. DESCRIBE of each
+-- document shows its handler, and re-executing that output changes nothing.
+-- ============================================================================
+
+create module Bug1252;
+
+create persistent entity Bug1252.Car ( Brand: String(50), Paid: Boolean, Price: Decimal );
+
+create persistent entity Bug1252.Sport extends Bug1252.Car ( Speed: Integer );
+
+-- The reporter's shape: three aggregates, no handler / with rollback / without.
+create microflow Bug1252.Aggregates ($TEYAs: list of Bug1252.Car)
+returns Integer
+begin
+  $count = count $TEYAs;
+  $count2 = count $TEYAs on error begin
+    return 0;
+  end error;
+  $count3 = count $TEYAs on error without rollback begin
+    return 0;
+  end error;
+  return $count + $count2 + $count3;
+end;
+
+create microflow Bug1252.ListActivities ($list: list of Bug1252.Car, $Car: Bug1252.Car)
+begin
+  $h = head $list on error begin
+    return;
+  end error;
+  $s = sum $list by Price on error rollback;
+  $l = create list of Bug1252.Car on error without rollback begin
+    return;
+  end error;
+  add $Car to $list on error begin
+    return;
+  end error;
+  remove $Car from $list on error begin
+    return;
+  end error;
+  rollback $Car on error continue;
+  show home page on error without rollback begin
+    return;
+  end error;
+  return;
+end;
+
+create microflow Bug1252.Cast ($Car: Bug1252.Car)
+begin
+  split type $Car
+    when Bug1252.Sport then
+      cast $sp on error begin
+        return;
+      end error;
+    when Bug1252.Car then
+  end split;
+  return;
+end;
+
+create nanoflow Bug1252.NanoListActivities ($list: list of Bug1252.Car, $Car: Bug1252.Car)
+begin
+  $n = count $list on error without rollback begin
+    return;
+  end error;
+  add $Car to $list on error without rollback begin
+    return;
+  end error;
+  rollback $Car on error continue;
+  return;
+end;

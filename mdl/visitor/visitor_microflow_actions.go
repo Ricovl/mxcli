@@ -1111,6 +1111,10 @@ func buildCreateListStatement(ctx parser.ICreateListStatementContext) *ast.Creat
 		stmt.EntityType = buildQualifiedName(qn)
 	}
 
+	if errClause := createCtx.OnErrorClause(); errClause != nil {
+		stmt.ErrorHandling = buildOnErrorClause(errClause)
+	}
+
 	return stmt
 }
 
@@ -1138,6 +1142,9 @@ func buildAddToListStatement(ctx parser.IAddToListStatementContext) *ast.AddToLi
 		stmt.Commit = buildCommitClause(addCtx.CommitClause())
 		stmt.RefreshInClient = addCtx.REFRESH() != nil
 	}
+	if errClause := addCtx.OnErrorClause(); errClause != nil {
+		stmt.ErrorHandling = buildOnErrorClause(errClause)
+	}
 
 	return stmt
 }
@@ -1164,6 +1171,9 @@ func buildRemoveFromListStatement(ctx parser.IRemoveFromListStatementContext) *a
 		stmt.List, stmt.Association = associationMemberTargetParts(target)
 		stmt.Commit = buildCommitClause(removeCtx.CommitClause())
 		stmt.RefreshInClient = removeCtx.REFRESH() != nil
+	}
+	if errClause := removeCtx.OnErrorClause(); errClause != nil {
+		stmt.ErrorHandling = buildOnErrorClause(errClause)
 	}
 
 	return stmt
