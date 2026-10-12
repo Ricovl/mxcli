@@ -48,7 +48,10 @@ func userRoleCtx(t *testing.T, roles ...*security.UserRole) (*ExecContext, *byte
 		IsConnectedFunc:        func() bool { return true },
 		GetProjectSecurityFunc: func() (*security.ProjectSecurity, error) { return ps, nil },
 		AddUserRoleFunc: func(_ model.ID, name string, mrs []string, manageAll bool) error {
-			ps.UserRoles = append(ps.UserRoles, &security.UserRole{Name: name, ModuleRoles: mrs, ManageAllRoles: manageAll})
+			// CheckSecurity: true is what the real writer gives a new role
+			// (Security$UserRole.CheckSecurity defaults to true), so a replay
+			// that does not state it gets true, as on disk (#1427).
+			ps.UserRoles = append(ps.UserRoles, &security.UserRole{Name: name, ModuleRoles: mrs, ManageAllRoles: manageAll, CheckSecurity: true})
 			return nil
 		},
 		AlterUserRoleModuleRolesFunc: func(_ model.ID, name string, add bool, mrs []string) error {
@@ -134,8 +137,35 @@ func TestIssue707_UserRoleWithoutModuleRolesReparses(t *testing.T) {
 	assertNoError(t, describeUserRole(ctx, ast.QualifiedName{Name: "Empty"}))
 	out := buf.String()
 	stmt := findStmt[*ast.CreateUserRoleStmt](t, reparse(t, out), out)
-	if stmt.Name != "Empty" || len(stmt.ModuleRoles) != 0 || stmt.Description != nil || stmt.CheckSecurity != nil {
+	if stmt.Name != "Empty" || len(stmt.ModuleRoles) != 0 || stmt.Description != nil ||
+		stmt.CheckSecurity == nil || *stmt.CheckSecurity { // stated even at false (#1427)
 		t.Errorf("empty role re-parses as %+v\n%s", stmt, out)
+	}
+}
+
+// mendixlabs/mxcli#1427: describe printed `CheckSecurity` only when true, but a
+// new role is written with true, so a role with security checking off came back
+// from describe → drop → replay with it silently re-enabled. Replayed onto an
+// existing role with it on, the unstated property kept true as well.
+func TestIssue1427_UserRoleCheckSecurityFalseSurvivesReplay(t *testing.T) {
+	stored := &security.UserRole{Name: "UserA", ModuleRoles: []string{"ModA.RoleA"}, CheckSecurity: false}
+	src, srcBuf, _ := userRoleCtx(t, stored)
+	assertNoError(t, describeUserRole(src, ast.QualifiedName{Name: "UserA"}))
+	out := srcBuf.String()
+	stmt := findStmt[*ast.CreateUserRoleStmt](t, reparse(t, out), out)
+
+	// Replay onto a project without the role (describe, drop, recreate).
+	dst, _, ps := userRoleCtx(t)
+	assertNoError(t, execCreateUserRole(dst, stmt))
+	if len(ps.UserRoles) != 1 || ps.UserRoles[0].CheckSecurity {
+		t.Errorf("recreated role has CheckSecurity %v, want false\n%s", ps.UserRoles[0].CheckSecurity, out)
+	}
+
+	// Replay onto an existing role that has it on.
+	mod, _, mps := userRoleCtx(t, &security.UserRole{Name: "UserA", ModuleRoles: []string{"ModA.RoleA"}, CheckSecurity: true})
+	assertNoError(t, execCreateUserRole(mod, stmt))
+	if mps.UserRoles[0].CheckSecurity {
+		t.Errorf("modified role kept CheckSecurity true, want false\n%s", out)
 	}
 }
 
