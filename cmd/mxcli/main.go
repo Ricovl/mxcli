@@ -365,7 +365,7 @@ func init() {
 	diffLocalCmd.Flags().IntP("width", "w", 120, "Terminal width for side-by-side format")
 
 	// Describe command flags
-	describeCmd.Flags().StringP("format", "f", "mdl", "Output format: mdl, json, mermaid, elk")
+	describeCmd.Flags().StringP("format", "f", "mdl", "Output format: mdl, json, mermaid, elk, svg")
 
 	// Search command flags
 	searchCmd.Flags().StringP("format", "f", "table", "Output format: table, names (for JSON use --json; \"json\" is accepted as a deprecated alias)")
