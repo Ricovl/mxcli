@@ -470,7 +470,7 @@ func parsePublishMicroflowBlock(ctx parser.IPublishMicroflowBlockContext) *ast.P
 			if member.IdentifierOrKeyword() == nil {
 				continue
 			}
-			p := &ast.PublishedParamDef{Name: member.IdentifierOrKeyword().GetText()}
+			p := &ast.PublishedParamDef{Name: identifierOrKeywordText(member.IdentifierOrKeyword())}
 			if sl := member.STRING_LITERAL(); sl != nil {
 				p.ExposedName = unquoteStringLit(sl)
 			}
@@ -511,7 +511,7 @@ func parseExposeMembers(ctx parser.IExposeClauseContext) []*ast.PublishedMemberD
 		}
 
 		m := &ast.PublishedMemberDef{
-			Name: member.IdentifierOrKeyword().GetText(),
+			Name: identifierOrKeywordText(member.IdentifierOrKeyword()),
 		}
 
 		// Optional AS 'ExposedName'
