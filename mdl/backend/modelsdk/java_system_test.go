@@ -100,3 +100,30 @@ func TestListJavaActions_StillReturnsStoredActions(t *testing.T) {
 			"the stored ones were dropped", len(got))
 	}
 }
+
+// mendixlabs/mxcli#1445: `list java actions` showed System.VerifyPassword, but
+// `describe java action System.VerifyPassword` and the microflow builder's lookup
+// both said "java action not found" — the by-name read only scanned stored units.
+func TestReadJavaActionByName_ResolvesSystemBuiltIns(t *testing.T) {
+	b := New()
+	if err := b.Connect(copyFixture(t)); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	t.Cleanup(func() { _ = b.Disconnect() })
+
+	for _, def := range meta.SystemJavaActions {
+		ja, err := b.ReadJavaActionByName("System." + def.Name)
+		if err != nil {
+			t.Errorf("ReadJavaActionByName(System.%s): %v", def.Name, err)
+			continue
+		}
+		if ja.Name != def.Name || len(ja.Parameters) != len(def.Parameters) {
+			t.Errorf("System.%s: got name %q with %d parameters, want %d",
+				def.Name, ja.Name, len(ja.Parameters), len(def.Parameters))
+		}
+	}
+	// Control: an unknown System name must still be "not found".
+	if _, err := b.ReadJavaActionByName("System.NoSuchAction"); err == nil {
+		t.Error("System.NoSuchAction resolved; want not found")
+	}
+}
