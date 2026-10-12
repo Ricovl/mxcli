@@ -49,6 +49,16 @@ func TestParseDataSourceCoversEveryStoredType(t *testing.T) {
 			wantTyp: "parameter", wantRef: "Bucket",
 		},
 		{
+			// A data view inside a snippet, sourced from a snippet parameter:
+			// stored in the SnippetParameter slot with PageParameter empty.
+			// Reading PageParameter alone described it with no DataSource at
+			// all, so re-executing the output lost the binding.
+			name: "snippet parameter",
+			ds: dsBSON(dsTypeDataView, "SourceVariable", map[string]any{
+				"$Type": "Forms$PageVariable", "LocalVariable": "", "PageParameter": "", "SnippetParameter": "Parent"}),
+			wantTyp: "parameter", wantRef: "Parent",
+		},
+		{
 			name:    "database via EntityRef",
 			ds:      dsBSON(dsTypeDatabase, "EntityRef", map[string]any{"Entity": "Mod.Item"}),
 			wantTyp: "database", wantRef: "Mod.Item",

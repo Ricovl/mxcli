@@ -216,13 +216,19 @@ func entityPathExpr(ds *rawDataSource) string {
 }
 
 // parseContextSource reads the "data from context" forms: over an association,
-// or straight from a page parameter.
+// or straight from a page or snippet parameter.
 func parseContextSource(ds map[string]any) *rawDataSource {
 	if path, ctxVar := associationSourcePath(ds); path != "" {
 		return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar}
 	}
 	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
 		if param := extractString(sv["PageParameter"]); param != "" {
+			return &rawDataSource{Type: "parameter", Reference: param}
+		}
+		// Inside a snippet the parameter has its own slot, PageParameter left
+		// empty; reading PageParameter alone described the data view with no
+		// DataSource, and re-executing that dropped the binding.
+		if param := extractString(sv["SnippetParameter"]); param != "" {
 			return &rawDataSource{Type: "parameter", Reference: param}
 		}
 	}
