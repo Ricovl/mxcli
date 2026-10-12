@@ -598,6 +598,24 @@ func buildQueueQualifiedNames(ctx *ExecContext) map[string]bool {
 	return result
 }
 
+// buildImportMappingQualifiedNames returns the set of import mapping qualified
+// names in the project, matched exactly as GetImportMappingByQualifiedName does.
+func buildImportMappingQualifiedNames(ctx *ExecContext) map[string]bool {
+	result := make(map[string]bool)
+	h, err := getHierarchy(ctx)
+	if err != nil {
+		return result
+	}
+	ims, err := ctx.Backend.ListImportMappings()
+	if err != nil {
+		return result
+	}
+	for _, im := range ims {
+		result[h.GetQualifiedName(im.ContainerID, im.Name)] = true
+	}
+	return result
+}
+
 // buildNanoflowQualifiedNames returns a set of all nanoflow qualified names in the project.
 func buildNanoflowQualifiedNames(ctx *ExecContext) map[string]bool {
 	result := make(map[string]bool)
