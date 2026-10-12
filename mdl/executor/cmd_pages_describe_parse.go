@@ -875,11 +875,13 @@ func parseNavigationListItems(ctx *ExecContext, w map[string]any) []rawWidget {
 		// Extract action
 		rw.Action = extractNavigationListItemAction(ctx, itemMap)
 
-		// Extract style from Appearance class
+		// The item's own Forms$Appearance: Class, Style, DynamicClasses. It was
+		// read into ButtonStyle, a property an item does not have, so describe
+		// printed `ButtonStyle: <class>` and exec dropped the class.
 		if appearance, ok := itemMap["Appearance"].(map[string]any); ok {
-			if class, ok := appearance["Class"].(string); ok && class != "" {
-				rw.ButtonStyle = class
-			}
+			rw.Class, _ = appearance["Class"].(string)
+			rw.Style, _ = appearance["Style"].(string)
+			rw.DynamicClasses, _ = appearance["DynamicClasses"].(string)
 		}
 
 		result = append(result, rw)

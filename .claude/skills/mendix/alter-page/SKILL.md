@@ -13,14 +13,14 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | 28-31 | Overview |
 | 32-56 | When to Use |
 | 57-107 | Syntax |
-| 108-458 | Operations |
-| 459-537 | Examples |
-| 538-628 | DataGrid 2 columns: how to address them, and what you can set |
-| 629-640 | Common Mistakes |
-| 641-662 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 663-670 | Validation Checklist |
-| 671-680 | Related Commands |
-| 681-685 | Related Skills |
+| 108-460 | Operations |
+| 461-539 | Examples |
+| 540-630 | DataGrid 2 columns: how to address them, and what you can set |
+| 631-642 | Common Mistakes |
+| 643-664 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 665-672 | Validation Checklist |
+| 673-682 | Related Commands |
+| 683-687 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -331,7 +331,9 @@ matches; an ambiguous address is refused and a miss lists every item's addresses
 Prefer the content forms — a position shifts when an item is inserted before it.
 `insert before|after <item> { item … }`, `replace <item> with { item … }`,
 `drop <item>`, `set (Action: …) on <item>` and `insert into <item> { widgets }` all
-work; widgets never go next to an item.
+work; widgets never go next to an item. An item takes `Class`, `Style` and
+`DynamicClasses` like a widget: `item (Action: …, Class: 'nav-home') { … }`, or
+`set (Class: 'nav-home') on navList1 item@1`.
 
 **The context comes from the nearest enclosing data source, whatever kind it is**
 — a database or association source, a microflow/nanoflow source (the entity is

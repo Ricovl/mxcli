@@ -971,7 +971,7 @@ func navListItemToGen(item *pages.NavigationListItem) (element.Element, error) {
 	// document (mendixlabs/mxcli#1373). `mx check` is clean without it (measured
 	// on 11.14.0 with two named items) — the CE7247 / CE0495 an older note
 	// blamed on its absence is not reproduced.
-	g.SetAppearance(newAppearance("", "", "", nil))
+	g.SetAppearance(newAppearance(item.Class, item.Style, item.DynamicClasses, nil))
 	act, err := clientActionToGen(item.Action)
 	if err != nil {
 		return nil, err
