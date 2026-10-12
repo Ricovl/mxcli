@@ -20,6 +20,11 @@ mdl 1;
 --     --- Microflow.MyFirstModule.ACT_NoteFieldRun (HEAD~1)
 --     +++ Microflow.MyFirstModule.ACT_NoteFieldRun (HEAD)
 -- and the page shows a one-line hunk for `container box1 (Visible: false)`.
+--
+-- Nanoflows and layouts had the same fixed-stub body, so the second half below
+-- (change 'before' to 'after' and give layout box1 `Visible: false`) diffed to
+-- nothing too; nanoflows additionally went to the microflow parser first,
+-- because "Microflows$Nanoflow" contains "Microflow".
 
 create or modify microflow MyFirstModule.ACT_NoteFieldRun ()
 begin
@@ -42,3 +47,16 @@ create or modify page MyFirstModule.Note_Overview (
 --   container box1 (Visible: false) {
 --   }
 -- };
+
+create or modify nanoflow MyFirstModule.NAV_OpenNote ()
+begin
+  log info 'before';
+end;
+
+create or modify layout MyFirstModule.Notes_Layout (
+  layouttype: 'Responsive'
+) {
+  container box1 {
+    placeholder Main
+  }
+};

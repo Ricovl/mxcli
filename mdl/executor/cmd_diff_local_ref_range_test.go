@@ -86,10 +86,22 @@ func rr1393Context() (*ExecContext, *bytes.Buffer) {
 		ListUnitsFunc: func() ([]*types.UnitInfo, error) {
 			return []*types.UnitInfo{{ID: rr1393Unit, ContainerID: rr1393Folder}}, nil
 		},
+		// Like the real backend: each parser accepts only its own $Type.
 		ParseMicroflowFromRawFunc: func(raw map[string]any, unitID, containerID model.ID) *microflows.Microflow {
+			if raw["$Type"] != "Microflows$Microflow" {
+				return nil
+			}
 			mf := &microflows.Microflow{Name: extractString(raw["Name"]), Documentation: extractString(raw["Documentation"])}
 			mf.ID = unitID
 			return mf
+		},
+		ParseNanoflowFromRawFunc: func(raw map[string]any, unitID, containerID model.ID) *microflows.Nanoflow {
+			if raw["$Type"] != "Microflows$Nanoflow" {
+				return nil
+			}
+			nf := &microflows.Nanoflow{Name: extractString(raw["Name"]), Documentation: extractString(raw["Documentation"])}
+			nf.ID = unitID
+			return nf
 		},
 	}
 	out := &bytes.Buffer{}
@@ -167,6 +179,87 @@ func TestDiffLocal_RefRange_PageWidgetChangeShowsHunk(t *testing.T) {
 	}
 	if !strings.Contains(got, "@@") {
 		t.Fatalf("page counted as modified but no hunk printed:\n%s", got)
+	}
+	var added []string
+	for line := range strings.SplitSeq(got, "\n") {
+		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+			added = append(added, line)
+		}
+	}
+	if len(added) != 1 || !strings.Contains(added[0], "box1") || !strings.Contains(added[0], "Visible") {
+		t.Errorf("want one added line for box1 gaining Visible, got %q in:\n%s", added, got)
+	}
+}
+
+// Nanoflows and layouts had the same placeholder-body defect as pages: a fixed
+// "-- (nanoflow body)" / "-- (layout structure)" stub, so a change inside one
+// diffed to nothing. Nanoflows were worse: "Microflows$Nanoflow" contains
+// "Microflow", so the dispatch sent them to the microflow parser first.
+func TestDiffLocal_RefRange_NanoflowChangeShowsHunk(t *testing.T) {
+	unitPath := "mprcontents/56/59/" + rr1393Unit + ".mxunit"
+	stubGitRevisions(t, unitPath, map[string]map[string]any{
+		"HEAD~1": {"$Type": "Microflows$Nanoflow", "Name": "NAV_OpenNote", "Documentation": "before"},
+		"HEAD":   {"$Type": "Microflows$Nanoflow", "Name": "NAV_OpenNote", "Documentation": "after"},
+	})
+	ctx, out := rr1393Context()
+
+	if err := diffLocal(ctx, "HEAD~1..HEAD", DiffOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+
+	for _, want := range []string{
+		"--- Nanoflow.MyFirstModule.NAV_OpenNote (HEAD~1)",
+		"nanoflow MyFirstModule.NAV_OpenNote",
+		"- * before",
+		"+ * after",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "parse failed") {
+		t.Errorf("nanoflow went to a parser that rejected it:\n%s", got)
+	}
+}
+
+func rr1393Layout(box map[string]any) map[string]any {
+	return map[string]any{
+		"$Type": "Forms$Layout",
+		"Name":  "Notes_Layout",
+		"Content": map[string]any{
+			"$Type":      "Forms$WebLayoutContent",
+			"LayoutType": "Responsive",
+			"Widgets":    []any{int32(3), box},
+		},
+	}
+}
+
+func TestDiffLocal_RefRange_LayoutWidgetChangeShowsHunk(t *testing.T) {
+	unitPath := "mprcontents/56/59/" + rr1393Unit + ".mxunit"
+	before := map[string]any{"$Type": "Forms$DivContainer", "Name": "box1", "Widgets": []any{int32(3)}}
+	after := map[string]any{"$Type": "Forms$DivContainer", "Name": "box1", "Widgets": []any{int32(3)},
+		"ConditionalVisibilitySettings": map[string]any{
+			"$Type":      "Forms$ConditionalVisibilitySettings",
+			"Expression": "false",
+		}}
+	stubGitRevisions(t, unitPath, map[string]map[string]any{
+		"HEAD~1": rr1393Layout(before),
+		"HEAD":   rr1393Layout(after),
+	})
+	ctx, out := rr1393Context()
+
+	if err := diffLocal(ctx, "HEAD~1..HEAD", DiffOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+
+	if !strings.Contains(got, "@@") {
+		t.Fatalf("layout counted as modified but no hunk printed:\n%s", got)
+	}
+	if !strings.Contains(got, "create or modify layout MyFirstModule.Notes_Layout") ||
+		!strings.Contains(got, "layouttype: 'Responsive'") {
+		t.Errorf("layout header not rendered as DESCRIBE LAYOUT does:\n%s", got)
 	}
 	var added []string
 	for line := range strings.SplitSeq(got, "\n") {

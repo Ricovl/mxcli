@@ -39,3 +39,27 @@ func (b *Backend) ParseMicroflowFromRaw(raw map[string]any, unitID, containerID 
 	}
 	return out
 }
+
+// ParseNanoflowFromRaw is ParseMicroflowFromRaw for a nanoflow, under the same
+// read-only reasoning. Without it diff-local rendered every nanoflow as a fixed
+// header stub, so a change to its body counted as modified and diffed to
+// nothing (mendixlabs/mxcli#1393).
+func (b *Backend) ParseNanoflowFromRaw(raw map[string]any, unitID, containerID model.ID) *microflows.Nanoflow {
+	data, err := bsonv1.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	elem, err := codec.NewDecoder(codec.DefaultRegistry).Decode(bsonv2.Raw(data))
+	if err != nil {
+		return nil
+	}
+	nf, ok := elem.(*genMf.Nanoflow)
+	if !ok {
+		return nil
+	}
+	out := nanoflowFromGen(nf, containerID)
+	if out != nil && unitID != "" {
+		out.ID = unitID
+	}
+	return out
+}

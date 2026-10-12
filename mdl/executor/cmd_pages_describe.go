@@ -386,6 +386,11 @@ func getLayoutWidgetsFromRaw(ctx *ExecContext, layoutID model.ID) []rawWidget {
 	if err != nil {
 		return nil
 	}
+	return layoutWidgetsFromRawData(ctx, rawData)
+}
+
+// layoutWidgetsFromRawData is getLayoutWidgetsFromRaw over a document already in hand.
+func layoutWidgetsFromRawData(ctx *ExecContext, rawData map[string]any) []rawWidget {
 
 	// A Forms$Layout has no Widget key. Its tree hangs off Content — a
 	// Forms$WebLayoutContent (or Forms$NativeLayoutContent for the native

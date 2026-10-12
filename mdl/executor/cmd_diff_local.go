@@ -356,10 +356,13 @@ func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualif
 		return domainModelBsonToMDL(ctx, raw, qualifiedName)
 	case strings.Contains(unitType, "Entity"):
 		return entityBsonToMDL(ctx, raw, qualifiedName)
-	case strings.Contains(unitType, "Microflow"):
-		return microflowBsonToMDL(ctx, raw, qualifiedName)
+	// Nanoflow before Microflow: the storage type is "Microflows$Nanoflow",
+	// which contains "Microflow", so the other order sent every nanoflow to
+	// the microflow parser, which rejected it.
 	case strings.Contains(unitType, "Nanoflow"):
 		return nanoflowBsonToMDL(ctx, raw, qualifiedName)
+	case strings.Contains(unitType, "Microflow"):
+		return microflowBsonToMDL(ctx, raw, qualifiedName)
 	case strings.Contains(unitType, "Enumeration"):
 		return enumerationBsonToMDL(ctx, raw, qualifiedName)
 	case strings.Contains(unitType, "Page"):
@@ -616,32 +619,28 @@ func buildNameLookups(ctx *ExecContext) (map[model.ID]string, map[model.ID]strin
 			microflowNames[mf.ID] = h.GetQualifiedName(mf.ContainerID, mf.Name)
 		}
 	}
+	if nanoflows, err := ctx.Backend.ListNanoflows(); err == nil {
+		for _, nf := range nanoflows {
+			microflowNames[nf.ID] = h.GetQualifiedName(nf.ContainerID, nf.Name)
+		}
+	}
 	return entityNames, microflowNames
 }
 
-// nanoflowBsonToMDL converts a nanoflow BSON to MDL
-func nanoflowBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName string) string {
-	var lines []string
-
-	if doc := extractString(raw["Documentation"]); doc != "" {
-		lines = append(lines, "/**")
-		lines = append(lines, " * "+doc)
-		lines = append(lines, " */")
+// nanoflowBsonToMDL converts a nanoflow BSON to MDL with the renderer
+// DESCRIBE NANOFLOW uses, so diffs include activity bodies. It was a fixed
+// "-- (nanoflow body)" stub, so any change inside a nanoflow counted as
+// modified and diffed to nothing (#1393). Falls back to a header-only stub
+// if parsing fails.
+func nanoflowBsonToMDL(ctx *ExecContext, raw map[string]any, qualifiedName string) string {
+	qn := splitQualifiedName(qualifiedName)
+	nf := ctx.Backend.ParseNanoflowFromRaw(raw, model.ID(qn.Name), "")
+	if nf == nil {
+		return fmt.Sprintf("nanoflow %s\n  -- parse failed --\nend nanoflow\n", qualifiedName)
 	}
 
-	lines = append(lines, fmt.Sprintf("create nanoflow %s ()", qualifiedName))
-
-	returnType := "Void"
-	if rt := extractString(raw["ReturnType"]); rt != "" {
-		returnType = rt
-	}
-	lines = append(lines, fmt.Sprintf("returns %s", returnType))
-
-	lines = append(lines, "begin")
-	lines = append(lines, "  -- (nanoflow body)")
-	lines = append(lines, "end;")
-
-	return strings.Join(lines, "\n")
+	entityNames, microflowNames := buildNameLookups(ctx)
+	return renderMicroflowMDL(ctx, "nanoflow", nanoflowAsMicroflow(nf), qn, entityNames, microflowNames, nil)
 }
 
 // enumerationBsonToMDL converts an enumeration BSON to MDL
@@ -781,20 +780,39 @@ func docCommentLines(doc string) []string {
 	return append(lines, " */")
 }
 
-// layoutBsonToMDL converts a layout BSON to MDL
-func layoutBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName string) string {
+// layoutBsonToMDL converts a layout BSON to MDL, widgets included, the way
+// DESCRIBE LAYOUT prints it. The body was a fixed "-- (layout structure)"
+// stub, so a change to a layout's widgets diffed to nothing (#1393).
+func layoutBsonToMDL(ctx *ExecContext, raw map[string]any, qualifiedName string) string {
 	var lines []string
+	lines = append(lines, docCommentLines(extractString(raw["Documentation"]))...)
 
-	if doc := extractString(raw["Documentation"]); doc != "" {
-		lines = append(lines, "/**")
-		lines = append(lines, " * "+doc)
-		lines = append(lines, " */")
+	// LayoutType lives on the Content wrapper, the class on Appearance — see
+	// layout_write.go for the measured document shape.
+	layoutType := "(not read)"
+	if content, ok := raw["Content"].(map[string]any); ok {
+		if lt := extractString(content["LayoutType"]); lt != "" {
+			layoutType = lt
+		}
 	}
+	header := fmt.Sprintf("  layouttype: %s", mdlQuote(ctx, layoutType))
+	if ap, ok := raw["Appearance"].(map[string]any); ok {
+		if cls := extractString(ap["Class"]); cls != "" {
+			header += fmt.Sprintf(",\n  class: %s", mdlQuote(ctx, cls))
+		}
+	}
+	lines = append(lines, fmt.Sprintf("create or modify layout %s (\n%s\n) {", qualifiedName, header))
 
-	lines = append(lines, fmt.Sprintf("create layout %s ()", qualifiedName))
-	lines = append(lines, "begin")
-	lines = append(lines, "  -- (layout structure)")
-	lines = append(lines, "end;")
+	widgets := layoutWidgetsFromRawData(ctx, raw)
+	body := renderToString(ctx, func() {
+		for _, w := range widgets {
+			outputWidgetMDLV3(ctx, w, 1)
+		}
+	})
+	if body = strings.TrimRight(body, "\n"); body != "" {
+		lines = append(lines, body)
+	}
+	lines = append(lines, "};")
 
 	return strings.Join(lines, "\n")
 }
