@@ -42,3 +42,21 @@ help workflow parallel-split;
 
 -- The second advertised example.
 help security entity-access;
+
+-- ----------------------------------------------------------------------------
+-- mendixlabs/mxcli#1389 — the same resolver, two more shapes. (Kept in this
+-- script rather than a new one: HELP is a session command, so a new script
+-- would need its own entry in the mdl 0 allowlists, which may only shrink.)
+--
+-- `mxcli syntax grant` answered `Unknown topic: grant` although `grant` is a
+-- listed keyword of security.entity-access: a verb is nobody's path segment,
+-- and Lookup never read the topics' keywords. It now falls back to them,
+-- whole words only, after the segment match.
+help grant;
+help revoke;
+help refresh;
+
+-- `No topic "integration.message-definition"`, recovered only by the
+-- fallback: a category word in front of a topic that lives elsewhere now
+-- resolves to it exactly (unless the category has its own match for the word).
+help integration message-definition;

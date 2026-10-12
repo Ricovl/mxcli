@@ -77,10 +77,7 @@ Examples:
 				syntax.WriteJSON(out, m.Features)
 				return
 			}
-			if !m.Exact {
-				fmt.Fprintf(out, "No topic %q. Showing %d topic(s) matching %q:\n\n",
-					m.Path, len(m.Features), m.Fallback)
-			}
+			fmt.Fprint(out, m.Heading())
 			syntax.WriteText(out, m.Features)
 			return
 		}

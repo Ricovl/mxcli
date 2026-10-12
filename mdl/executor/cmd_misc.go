@@ -71,10 +71,7 @@ func execHelp(ctx *ExecContext, s *ast.HelpStmt) error {
 		if ctx.Format == FormatJSON {
 			return syntax.WriteJSON(ctx.Output, m.Features)
 		}
-		if !m.Exact {
-			fmt.Fprintf(ctx.Output, "No topic %q. Showing %d topic(s) matching %q:\n\n",
-				m.Path, len(m.Features), m.Fallback)
-		}
+		fmt.Fprint(ctx.Output, m.Heading())
 		syntax.WriteText(ctx.Output, m.Features)
 		return nil
 	}
