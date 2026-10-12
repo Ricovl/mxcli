@@ -94,3 +94,46 @@ func TestParseMicroflowFromRawDecodesRealUnit(t *testing.T) {
 			"diffs to nothing, which is the same silent miss wearing a different hat")
 	}
 }
+
+// TestParseNanoflowFromRawDecodesRealUnit is the nanoflow twin of the test
+// above (mendixlabs/mxcli#1393): diff-local rendered nanoflows as a fixed stub,
+// so any change inside one diffed to nothing. Each parser must also refuse the
+// other's document, since the caller dispatches on that.
+func TestParseNanoflowFromRawDecodesRealUnit(t *testing.T) {
+	b := New()
+	if err := b.Connect(fixture); err != nil {
+		t.Fatalf("Connect(%s): %v", fixture, err)
+	}
+	t.Cleanup(func() { _ = b.Disconnect() })
+
+	refs, err := b.reader.ListUnitsByType("Microflows$Nanoflow")
+	if err != nil {
+		t.Fatalf("ListUnitsByType: %v", err)
+	}
+	var picked map[string]any
+	for _, ref := range refs {
+		var raw map[string]any
+		if err := bson.Unmarshal(ref.Contents, &raw); err != nil {
+			continue
+		}
+		if nf := b.ParseNanoflowFromRaw(raw, "", ""); nf != nil &&
+			nf.ObjectCollection != nil && len(nf.ObjectCollection.Objects) > 0 {
+			picked = raw
+			break
+		}
+	}
+	if picked == nil {
+		t.Fatalf("no nanoflow in the fixture (%d units) decoded with flow objects", len(refs))
+	}
+
+	nf := b.ParseNanoflowFromRaw(picked, "some-unit-id", "some-container")
+	if nf.Name != picked["Name"] {
+		t.Errorf("Name = %q, want %q", nf.Name, picked["Name"])
+	}
+	if nf.ID != "some-unit-id" {
+		t.Errorf("ID = %q, want the unit ID passed in", nf.ID)
+	}
+	if mf := b.ParseMicroflowFromRaw(picked, "", ""); mf != nil {
+		t.Error("ParseMicroflowFromRaw accepted a nanoflow document")
+	}
+}
