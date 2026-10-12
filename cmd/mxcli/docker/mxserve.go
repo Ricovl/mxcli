@@ -289,18 +289,7 @@ func StartServe(opts ServeOptions) (*ServeServer, error) {
 		port = 6543
 	}
 
-	cmd := exec.Command(mxbuildPath, "--serve",
-		fmt.Sprintf("--host=%s", host),
-		fmt.Sprintf("--port=%d", port),
-		fmt.Sprintf("--java-home=%s", javaHome),
-		fmt.Sprintf("--java-exe-path=%s", javaExe),
-	)
-	PrepareMxCommand(cmd) // FreeType LD_PRELOAD workaround
-	setProcessGroup(cmd)  // reap the JVM grandchild on Stop (mxbuild is a wrapper)
-	log := &syncBuffer{}
-	cmd.Stdout = log
-	cmd.Stderr = log
-
+	cmd, log := newServeCmd(mxbuildPath, host, port, javaHome, javaExe)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("starting mxbuild --serve: %w", err)
 	}
@@ -316,6 +305,25 @@ func StartServe(opts ServeOptions) (*ServeServer, error) {
 		return nil, fmt.Errorf("mxbuild --serve did not become ready: %w\n--- mxbuild output ---\n%s", err, s.log.String())
 	}
 	return s, nil
+}
+
+// newServeCmd builds the `mxbuild --serve` command and the buffer its output
+// goes to. Split out of StartServe so the process settings — which decide
+// whether Stop can return at all — are tested on the command that ships.
+func newServeCmd(mxbuildPath, host string, port int, javaHome, javaExe string) (*exec.Cmd, *syncBuffer) {
+	cmd := exec.Command(mxbuildPath, "--serve",
+		fmt.Sprintf("--host=%s", host),
+		fmt.Sprintf("--port=%d", port),
+		fmt.Sprintf("--java-home=%s", javaHome),
+		fmt.Sprintf("--java-exe-path=%s", javaExe),
+	)
+	PrepareMxCommand(cmd) // FreeType LD_PRELOAD workaround
+	setProcessGroup(cmd)  // reap the JVM grandchild on Stop (mxbuild is a wrapper)
+	log := &syncBuffer{}
+	cmd.Stdout = log
+	cmd.Stderr = log
+	cmd.WaitDelay = orphanPipeWaitDelay // a Gradle daemon may hold the pipe (#1396)
+	return cmd, log
 }
 
 func (s *ServeServer) baseURL() string { return fmt.Sprintf("http://%s:%d", s.Host, s.Port) }
@@ -481,3 +489,18 @@ func (e *BuildFailedError) BuildErrors() []BuildProblem {
 	}
 	return e.Result.Errors()
 }
+
+// orphanPipeWaitDelay bounds how long Wait waits, after mx/mxbuild has exited,
+// for its output pipe to close.
+//
+// A writer that is not an *os.File makes exec.Cmd create a pipe, and Wait does
+// not return until every holder of its write end has closed it. When mxbuild or
+// mx starts a NEW Gradle daemon, the daemon inherits that write end and outlives
+// its parent — on Windows it is out of taskkill /T's reach once the parent is
+// gone — so Wait blocked forever and `test --local` never printed its results or
+// wrote its JUnit file (#1396). A reused daemon was started by an earlier run and
+// never held this pipe, which is why only a cold Gradle home hung.
+//
+// The delay runs only once the process has exited, so it never cuts a live build
+// short; Wait then closes the pipe and returns exec.ErrWaitDelay.
+var orphanPipeWaitDelay = 10 * time.Second
