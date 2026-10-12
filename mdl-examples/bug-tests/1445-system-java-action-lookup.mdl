@@ -1,0 +1,13 @@
+mdl 1;
+-- mendixlabs/mxcli#1445: System Java actions are platform built-ins with no
+-- stored unit. `list java actions` showed them, but describe and the microflow
+-- builder's lookup said "java action not found", and exec warned
+-- "could not look up Java action System.VerifyPassword ... (entity type params
+-- will be empty)". Expected: exec creates the microflow with no lookup warning,
+-- and `describe java action System.VerifyPassword` prints its signature.
+create or modify microflow MyFirstModule.MF_Bug1445_VerifyPassword ()
+returns Boolean as $Ok
+begin
+  $Ok = call java action System.VerifyPassword(userName = 'a', password = 'b');
+  return $Ok;
+end;
