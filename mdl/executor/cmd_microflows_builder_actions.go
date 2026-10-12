@@ -1775,10 +1775,16 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 			if !spec.Ascending {
 				direction = microflows.SortDirectionDescending
 			}
-			// Build fully qualified attribute name: Entity.Attribute
+			// Qualify with the entity that DECLARES the attribute, as the
+			// retrieve sort does: an inherited name qualified with the list's
+			// own entity is CE1613 (mendixlabs/mxcli#1430).
 			attrQN := spec.Attribute
 			if entityType != "" && !strings.Contains(spec.Attribute, ".") {
-				attrQN = entityType + "." + spec.Attribute
+				if declared, ok := fb.resolveAttributeInEntityHierarchy(entityType, spec.Attribute); ok {
+					attrQN = declared
+				} else {
+					attrQN = entityType + "." + spec.Attribute
+				}
 			}
 			if fb.qualifiedMembersOnly {
 				fb.refuseUnqualifiedAttribute(attrQN, spec.Attribute, entityType)
