@@ -111,6 +111,24 @@ A tab page cannot go next to an ordinary widget or inside another tab page, and
 one `INSERT` cannot mix tab pages with widgets. Dropping, replacing or reordering
 tab pages still needs `CREATE OR MODIFY PAGE`.
 
+A navigation list holds items, and only items. `INSERT INTO` the list appends
+one and leaves the existing items as they are. An item has no name — Studio Pro
+stores none — so it cannot be the target of `INSERT BEFORE` / `AFTER`, `DROP`
+or `SET`; the widgets inside an item can, by their own names.
+
+```sql
+mdl 1;
+alter snippet Shop.Menu {
+  insert into navList1 { item (Action: show page Shop.Home) { dynamictext t2 (Content: 'Second') } }
+};
+alter snippet Shop.Menu {
+  insert after t2 { dynamictext t3 (Content: 'Third') }
+};
+```
+
+Removing or reordering items still needs `REPLACE` of the list, or
+`CREATE OR MODIFY`.
+
 ### DROP
 
 Removes one or more widgets by name. The widget and all its children are removed from the tree.

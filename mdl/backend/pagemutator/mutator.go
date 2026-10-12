@@ -1514,6 +1514,14 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 		return result
 	}
 
+	// NavigationList: Items[] hold no Name, but the widgets inside each one do
+	// (mendixlabs/mxcli#1388); findInWidgetArray descends into Items[].Widgets[].
+	if isNavigationList(wDoc) {
+		if result := findInWidgetArray(wDoc, "Items", widgetName); result != nil {
+			return result
+		}
+	}
+
 	// ControlBar
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		if result := findInWidgetArray(controlBar, "Items", widgetName); result != nil {
@@ -2222,6 +2230,11 @@ func findNearestDSInChildren(wDoc bson.D, widgetName string, curDS bson.D) (bson
 	if ds, found := findNearestDSInWidgets(wDoc, "TabPages", widgetName, curDS); found {
 		return ds, true
 	}
+	if isNavigationList(wDoc) {
+		if ds, found := findNearestDSInWidgets(wDoc, "Items", widgetName, curDS); found {
+			return ds, true
+		}
+	}
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		if ds, found := findNearestDSInWidgets(controlBar, "Items", widgetName, curDS); found {
 			return ds, true
@@ -2419,6 +2432,9 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 		}
 	}
 	collectWidgetScope(wDoc, "TabPages", scope)
+	if isNavigationList(wDoc) {
+		collectWidgetScope(wDoc, "Items", scope)
+	}
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		collectWidgetScope(controlBar, "Items", scope)
 	}

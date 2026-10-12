@@ -13,14 +13,14 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | 28-31 | Overview |
 | 32-56 | When to Use |
 | 57-106 | Syntax |
-| 107-446 | Operations |
-| 447-525 | Examples |
-| 526-616 | DataGrid 2 columns: how to address them, and what you can set |
-| 617-628 | Common Mistakes |
-| 629-650 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 651-658 | Validation Checklist |
-| 659-668 | Related Commands |
-| 669-673 | Related Skills |
+| 107-452 | Operations |
+| 453-531 | Examples |
+| 532-622 | DataGrid 2 columns: how to address them, and what you can set |
+| 623-634 | Common Mistakes |
+| 635-656 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 657-664 | Validation Checklist |
+| 665-674 | Related Commands |
+| 675-679 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -320,6 +320,12 @@ relative to a widget inside the target column instead.
 page cannot go next to an ordinary widget or inside another tab page, and one insert
 cannot mix tab pages and widgets. Dropping or reordering tab pages still needs
 `create or modify page`.
+
+**Adding a navigation list item:** `insert into <navigationlist> { item … }` appends
+an item and leaves the others untouched. Items are unnamed (Studio Pro stores no
+Name), so `insert after|before`, `drop` and `set` cannot target an item — but they
+can target the widgets inside one by their own names. Removing or reordering items
+still needs `replace <navigationlist>` or `create or modify`.
 
 **The context comes from the nearest enclosing data source, whatever kind it is**
 — a database or association source, a microflow/nanoflow source (the entity is

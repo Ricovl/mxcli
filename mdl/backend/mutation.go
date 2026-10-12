@@ -160,6 +160,13 @@ type PageMutator interface {
 	// cannot go through InsertWidget (#1215).
 	InsertTabPages(targetRef string, position InsertPosition, tabPages []*pages.TabPage) error
 
+	// InsertNavigationListItems appends items to a navigation list: INTO the
+	// list. An item lives in the list's Items and is not a widget, so it cannot
+	// go through InsertWidget; and Studio Pro stores no Name on an item, so
+	// BEFORE/AFTER has a sibling to name only for an item an older mxcli wrote
+	// with one (mendixlabs/mxcli#1388).
+	InsertNavigationListItems(targetRef string, position InsertPosition, items []*pages.NavigationListItem) error
+
 	// DropListViewTemplate removes the template rendering the given
 	// specialization from a List View. A template has no name, so it is addressed
 	// by entity. Returns an error naming the templates that ARE present when the

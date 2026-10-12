@@ -584,6 +584,24 @@ func applyInsertWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op 
 				"Use one INSERT for the tab pages and another for the widgets")
 	}
 
+	// Special path: adding items to a navigation list (#1388). An item lives in
+	// the list's Items and is not a widget, so the builder refuses one on its own
+	// ("item must be a direct child of navigationlist") and InsertWidget would
+	// put it in a widget list. The mutator checks what the target is.
+	if allNavigationListItems(op.Widgets) {
+		items, err := buildNavigationListItemsFromAST(ctx, op.Widgets, moduleName, moduleID, entityCtx, mutator)
+		if err != nil {
+			return mdlerrors.NewBackend("build navigation list items", err)
+		}
+		return mutator.InsertNavigationListItems(op.Target.Widget, backend.InsertPosition(op.Position), items)
+	}
+	if hasNavigationListItem(op.Widgets) {
+		return mdlerrors.NewValidation(
+			"mixing `item` blocks with ordinary widgets in one INSERT is not supported: " +
+				"items go in a navigation list's list of items, widgets inside an item. " +
+				"Use one INSERT for the items and another for the widgets")
+	}
+
 	// Build new widgets from AST
 	widgets, err := buildWidgetsFromAST(ctx, op.Widgets, moduleName, moduleID, entityCtx, mutator)
 	if err != nil {
@@ -1030,6 +1048,46 @@ func buildTabPagesFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName st
 		out = append(out, tp)
 	}
 	return out, nil
+}
+
+// buildNavigationListItemsFromAST builds the items an INSERT adds to a
+// navigation list, with the same builder CREATE uses for a list's children.
+func buildNavigationListItemsFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator) ([]*pages.NavigationListItem, error) {
+	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator)
+	out := make([]*pages.NavigationListItem, 0, len(nodes))
+	for _, node := range nodes {
+		item, err := pb.buildNavigationListItemV3(node)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+// allNavigationListItems reports whether every inserted node is a navigation
+// list item.
+func allNavigationListItems(widgets []*ast.WidgetV3) bool {
+	if len(widgets) == 0 {
+		return false
+	}
+	for _, w := range widgets {
+		if !strings.EqualFold(w.Type, "item") {
+			return false
+		}
+	}
+	return true
+}
+
+// hasNavigationListItem reports whether ANY inserted node is a navigation list
+// item, so a mixed insert is refused rather than half-applied.
+func hasNavigationListItem(widgets []*ast.WidgetV3) bool {
+	for _, w := range widgets {
+		if strings.EqualFold(w.Type, "item") {
+			return true
+		}
+	}
+	return false
 }
 
 // allTabPages reports whether every inserted node is a tab page.

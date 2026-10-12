@@ -506,6 +506,10 @@ func (m *mcpPageMutator) InsertTabPages(targetRef string, _ backend.InsertPositi
 	return fmt.Errorf("adding tab pages at %s is not yet supported by the MCP backend", targetRef)
 }
 
+func (m *mcpPageMutator) InsertNavigationListItems(targetRef string, _ backend.InsertPosition, _ []*pages.NavigationListItem) error {
+	return fmt.Errorf("adding navigation list items at %s is not yet supported by the MCP backend", targetRef)
+}
+
 func (m *mcpPageMutator) DropListViewTemplate(listViewRef, specialization string) error {
 	return fmt.Errorf("dropping the %s template from %s is not yet supported by the MCP backend",
 		specialization, listViewRef)
