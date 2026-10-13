@@ -472,9 +472,13 @@ func formatAction(
 		if len(a.Changes) > 0 {
 			var members []string
 			var unspelled []string
+			var listQualified []string
 			for _, m := range a.Changes {
 				if m.Type == microflows.MemberChangeTypeAdd || m.Type == microflows.MemberChangeTypeRemove {
 					unspelled = append(unspelled, fmt.Sprintf("%s (%s)", m.AssociationQualifiedName, m.Type))
+				}
+				if isListQualifiedMember(m) {
+					listQualified = append(listQualified, m.AttributeQualifiedName+m.AssociationQualifiedName)
 				}
 				var memberName string
 				// Check if this is an association change or an attribute change
@@ -503,6 +507,13 @@ func formatAction(
 				stmt += fmt.Sprintf(" -- WARNING: %s stored as Add/Remove, not a set assignment; "+
 					"re-executing this line replaces the set — split it into `add`/`remove … $%s/<Assoc>` statements",
 					strings.Join(unspelled, ", "), varName)
+			}
+			if len(listQualified) > 0 {
+				// Written over a list before mendixlabs/mxcli#1422: the bare
+				// name above is not what is stored, and mxbuild reports CE1613.
+				stmt += fmt.Sprintf(" -- WARNING: stored member %s is qualified through a list type (CE1613); "+
+					"re-create this flow with $%s retrieved as an object (`first`)",
+					strings.Join(listQualified, ", "), varName)
 			}
 			return stmt
 		}

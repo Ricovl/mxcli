@@ -166,7 +166,8 @@ func init() {
 			"-- Notes:\n" +
 			"--   * FIRST is the one form that binds an object, in every language version.\n" +
 			"--     HEAD() or COUNT() over it is CE0097 at build time and a LOOP CE0100;\n" +
-			"--     mxcli reports both as MDL-RETRIEVE01 at check time.\n" +
+			"--     mxcli reports both as MDL-RETRIEVE01 at check time. The reverse,\n" +
+			"--     CHANGE over a list retrieve, is CE1613 and MDL-RETRIEVE03.\n" +
 			"--   * $Obj/System.owner and $Obj/System.changedBy are not associations a\n" +
 			"--     retrieve can follow (CE0136, MDL-RETRIEVE02). Use\n" +
 			"--     RETRIEVE $U FROM System.User WHERE [id = $Obj/System.owner] FIRST;\n" +

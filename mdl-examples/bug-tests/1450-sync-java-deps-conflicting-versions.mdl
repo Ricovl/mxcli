@@ -1,0 +1,37 @@
+mdl 1;
+-- mendixlabs/mxcli#1450 — two modules declare the same artifact at different
+-- versions, and `sync-java-deps` reported the older one missing forever.
+-- @version: 10.0+
+--
+-- `mx sync-java-dependencies` runs Gradle over every module's declarations at
+-- once; conflict resolution keeps the newest version, so vendorlib/ ends up with
+-- commons-lang3-3.20.0.jar only. The gate used to check each declaration on its
+-- own, so 3.18.0 was "missing" after every sync, the sync exited with "still
+-- missing", and `run --local` re-synced on every start.
+--
+-- Run this, then:
+--
+--   mxcli sync-java-deps -p app.mpr            -- vendors 3.20.0
+--   mxcli sync-java-deps -p app.mpr --check    -- exit 0; lists
+--       superseded  org.apache.commons:commons-lang3:3.18.0 (resolved to 3.20.0)
+
+create module Bug1450A;
+create module Bug1450B;
+
+alter module Bug1450A
+  add jar dependency (
+    group    = 'org.apache.commons',
+    artifact = 'commons-lang3',
+    version  = '3.18.0',
+    included = true,
+  );
+
+alter module Bug1450B
+  add jar dependency (
+    group    = 'org.apache.commons',
+    artifact = 'commons-lang3',
+    version  = '3.20.0',
+    included = true,
+  );
+
+list jar dependencies;

@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
@@ -61,6 +62,106 @@ func (v *microflowValidator) checkRetrieveLimitOneAsList(body []ast.MicroflowSta
 			single[r.Variable] = true
 		}
 	})
+}
+
+// retrieveListAsObjectRule is the rule ID for "a list retrieve used as an object".
+const retrieveListAsObjectRule = "MDL-RETRIEVE03"
+
+// checkRetrieveListAsObject is MDL-RETRIEVE01 the other way round: a variable a
+// database retrieve bound to a LIST — no range, `limit n [offset n]`, and under
+// `mdl 1;` a bare `limit 1`, a list of one (ako/mxcli#734) — that a later
+// `change` takes as the object. mxcli used to write the member qualified
+// through the list type, and mxbuild answered CE1613 "The selected attribute
+// 'List of Module.Entity.Attr' no longer exists" (mendixlabs/mxcli#1422).
+//
+// Only a database retrieve is judged: a retrieve over an association binds an
+// object or a list depending on the association, which this AST walk does not
+// know. A member path `$E/Attr` in any expression of a later statement is the
+// same mistake (CE0117 "Error(s) in expression.", measured on 11.6.6). `set $E
+// = empty` over the list is a Change list Replace and builds (measured), so it
+// is not flagged.
+func (v *microflowValidator) checkRetrieveListAsObject(body []ast.MicroflowStatement) {
+	list := map[string]bool{}
+	forEachMicroflowStatement(body, func(s ast.MicroflowStatement) {
+		if c, ok := s.(*ast.ChangeObjectStmt); ok && list[c.Variable] {
+			v.addViolation(retrieveListAsObjectRule, linter.SeverityError,
+				fmt.Sprintf("$%s was retrieved as a list (under `mdl 1;` `limit 1` is a list of one), "+
+					"not a single object, so `change $%s` cannot take it — mxbuild rejects the stored member "+
+					"with CE1613 \"The selected attribute 'List of …' no longer exists\".", c.Variable, c.Variable),
+				fmt.Sprintf("Retrieve the object with `retrieve $%s from … first;`, or keep the list and "+
+					"change its items inside a `loop`.", c.Variable))
+		}
+		reported := map[string]bool{}
+		for _, e := range statementOwnExpressions(s) {
+			for _, name := range predicatePathVariables(e) {
+				if !list[name] || reported[name] {
+					continue
+				}
+				reported[name] = true
+				v.addViolation(retrieveListAsObjectRule, linter.SeverityError,
+					fmt.Sprintf("$%s was retrieved as a list (under `mdl 1;` `limit 1` is a list of one), "+
+						"not a single object, so a member path `$%s/…` has nothing to navigate — mxbuild "+
+						"rejects the expression with CE0117 \"Error(s) in expression.\".", name, name),
+					fmt.Sprintf("Retrieve the object with `retrieve $%s from … first;`, or take one item "+
+						"of the list first (`$item = head($%s);`).", name, name))
+			}
+		}
+		for _, p := range statementProducedVars(s) {
+			delete(list, p.name)
+		}
+		if r, ok := s.(*ast.RetrieveStmt); ok && !r.First && r.StartVariable == "" && r.Variable != "" {
+			list[r.Variable] = true
+		}
+	})
+}
+
+// statementOwnExpressions returns the expressions a statement holds itself, in
+// any field or slice of structs, but not those of the statements nested in its
+// bodies (forEachMicroflowStatement visits those on their own).
+func statementOwnExpressions(s ast.MicroflowStatement) []ast.Expression {
+	exprType := reflect.TypeOf((*ast.Expression)(nil)).Elem()
+	stmtType := reflect.TypeOf((*ast.MicroflowStatement)(nil)).Elem()
+	var out []ast.Expression
+	var walk func(rv reflect.Value, top bool)
+	walk = func(rv reflect.Value, top bool) {
+		switch rv.Kind() {
+		case reflect.Interface:
+			if rv.IsNil() {
+				return
+			}
+			if rv.Type() == stmtType && !top {
+				return
+			}
+			if rv.Type() == exprType {
+				out = append(out, rv.Interface().(ast.Expression))
+				return
+			}
+			walk(rv.Elem(), top)
+		case reflect.Pointer:
+			if rv.IsNil() {
+				return
+			}
+			if !top && rv.Type().Implements(stmtType) {
+				return
+			}
+			walk(rv.Elem(), false)
+		case reflect.Struct:
+			for i := 0; i < rv.NumField(); i++ {
+				if rv.Type().Field(i).IsExported() {
+					walk(rv.Field(i), false)
+				}
+			}
+		case reflect.Slice:
+			if rv.Type().Elem() == stmtType {
+				return
+			}
+			for i := 0; i < rv.Len(); i++ {
+				walk(rv.Index(i), false)
+			}
+		}
+	}
+	walk(reflect.ValueOf(s), true)
+	return out
 }
 
 // listUseOf reports the list variable a statement consumes, and a phrase naming

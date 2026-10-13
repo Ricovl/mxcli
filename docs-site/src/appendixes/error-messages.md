@@ -334,6 +334,34 @@ retrieve $u from System.User where [id = $task/System.owner] first;
 retrieve $u from System.User where [id = $task/System.changedBy] first;
 ```
 
+### MDL-RETRIEVE03: `change` over a list retrieve
+
+```
+$E was retrieved as a list (under `mdl 1;` `limit 1` is a list of one), not a single
+object, so `change $E` cannot take it — mxbuild rejects the stored member with CE1613
+"The selected attribute 'List of …' no longer exists". [MDL-RETRIEVE03]
+```
+
+**Cause:** The reverse of MDL-RETRIEVE01. A database retrieve with no range, with
+`limit n [offset n]`, or — under the `mdl 1;` header — with a bare `limit 1` binds a
+**list**; a Change object activity takes one object. Before mendixlabs/mxcli#1422, `exec`
+wrote such a change with the member qualified through the list type, which `mx check`
+reported as CE1613 (measured on 11.6.6). A member path `$E/Attr` in any later expression is
+the same mistake and is CE0117 "Error(s) in expression.". `check` and `exec` both refuse
+both. `set $E = empty` over the list is a Change list Replace and builds, so it is not
+reported.
+
+**Solution:** Retrieve the object with `first`, or change the items inside a `loop`:
+
+```mdl
+retrieve $E from Mod.Ent first;
+change $E (Attr = 'x');
+```
+
+A flow already stored with such a member describes with a `-- WARNING` on the change
+line. `create or modify` will not splice over it: without the header it rebuilds the flow
+(which repairs it), and under `mdl 1;` it refuses with the drop-and-create advice.
+
 ### MDL-EMAIL02 / 03: A `send email` setting Studio Pro would not allow
 
 ```

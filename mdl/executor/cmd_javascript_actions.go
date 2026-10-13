@@ -12,6 +12,8 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/mdl/types"
+	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/javaactions"
 )
 
@@ -92,19 +94,11 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 		sb.WriteString(" */\n")
 	}
 
-	// Type parameters
+	// Type parameters have no clause of their own: as for Java actions, each is
+	// declared by an `entity <T>` parameter. The `Name<T>` this used to print
+	// after the action name does not parse.
 	sb.WriteString("create or modify javascript action ")
 	sb.WriteString(qualifiedName)
-	if len(jsa.TypeParameters) > 0 {
-		sb.WriteString("<")
-		for i, tp := range jsa.TypeParameters {
-			if i > 0 {
-				sb.WriteString(", ")
-			}
-			sb.WriteString(tp.Name)
-		}
-		sb.WriteString(">")
-	}
 	sb.WriteString(describeFolderClause(ctx, jsa.ContainerID))
 	sb.WriteString("(")
 
@@ -190,7 +184,17 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 	sb.WriteString("\n$$;")
 
-	fmt.Fprintln(ctx.Output, sb.String())
+	stmt := sb.String()
+	if gap := jsTypeParameterGap(jsa); gap != "" {
+		// A statement that parses into something else is worse than none:
+		// `EntityObject: T` with no `entity <T>` re-executes as the entity `.T`
+		// (mendixlabs/mxcli#1404). Commented out, the script still parses and
+		// re-running it leaves the stored action as it is.
+		fmt.Fprintf(ctx.Output, "-- NOT re-executable: %s; MDL has no form for this (mendixlabs/mxcli#1404), "+
+			"so the statement is commented out and re-running this script leaves the action unchanged\n", gap)
+		stmt = "-- " + strings.ReplaceAll(stmt, "\n", "\n-- ")
+	}
+	fmt.Fprintln(ctx.Output, stmt)
 
 	// Additional info as comments.
 	if jsa.ActionDefaultReturnName != "" {
@@ -213,6 +217,62 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	return nil
+}
+
+// jsTypeParameterGap reports why the action's type parameters have no MDL form,
+// or "" when they have one. MDL declares a type parameter only through an
+// `entity <T>` parameter (the visitor collects them in parameter order), so the
+// stored list must be exactly the declared names in that order, and every
+// reference to a type parameter must name one of them.
+func jsTypeParameterGap(jsa *types.JavaScriptAction) string {
+	var declared []string
+	seen := map[string]bool{}
+	for _, p := range jsa.Parameters {
+		e, ok := p.ParameterType.(*types.EntityTypeParameterType)
+		if !ok {
+			continue
+		}
+		if e.TypeParameterName == "" {
+			return fmt.Sprintf("parameter %s is an entity selector bound to no type parameter", p.Name)
+		}
+		if !seen[e.TypeParameterName] {
+			seen[e.TypeParameterName] = true
+			declared = append(declared, e.TypeParameterName)
+		}
+	}
+	refGap := func(what string, t any) string {
+		name, id := "", model.ID("")
+		switch v := t.(type) {
+		case *types.TypeParameter:
+			name, id = v.TypeParameter, v.TypeParameterID
+		case *types.ListType:
+			name, id = v.TypeParameter, v.TypeParameterID
+		}
+		switch {
+		case name == "" && id != "":
+			return what + " points at a type parameter that does not exist"
+		case name != "" && !seen[name]:
+			return fmt.Sprintf("%s is typed by type parameter %s, which no `entity <%s>` parameter declares", what, name, name)
+		}
+		return ""
+	}
+	for _, p := range jsa.Parameters {
+		if gap := refGap("parameter "+p.Name, p.ParameterType); gap != "" {
+			return gap
+		}
+	}
+	if gap := refGap("the return type", jsa.ReturnType); gap != "" {
+		return gap
+	}
+	stored := make([]string, 0, len(jsa.TypeParameters))
+	for _, tp := range jsa.TypeParameters {
+		stored = append(stored, tp.Name)
+	}
+	if strings.Join(stored, ",") != strings.Join(declared, ",") {
+		return fmt.Sprintf("type parameters [%s] are not the ones its `entity <T>` parameters declare, in that order ([%s])",
+			strings.Join(stored, ", "), strings.Join(declared, ", "))
+	}
+	return ""
 }
 
 // readJavaScriptActionSource reads the JavaScript source file and extracts user code and extra code.

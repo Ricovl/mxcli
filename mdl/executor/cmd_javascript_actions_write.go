@@ -163,7 +163,12 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 				TypeParameter:   tpName,
 			}
 		default:
-			p.ParameterType = astDataTypeToJavaActionParamType(param.Type)
+			// `list of T` for a declared type parameter T, as for Java (#1183).
+			if l := listOfTypeParameter(param.Type, typeParamNameToID); l != nil {
+				p.ParameterType = l
+			} else {
+				p.ParameterType = astDataTypeToJavaActionParamType(param.Type)
+			}
 		}
 		if sp := storedParams[param.Name]; sp != nil {
 			p.Description = sp.Description
@@ -179,6 +184,10 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 			TypeParameterID: typeParamNameToID[tpName],
 			TypeParameter:   tpName,
 		}
+	} else if l := listOfTypeParameter(s.ReturnType, typeParamNameToID); l != nil {
+		// `returns list of T` — without this it became a list of the entity `.T`,
+		// the JavaScript twin of the Java action's #1183.
+		jsa.ReturnType = l
 	} else {
 		jsa.ReturnType = astDataTypeToJavaActionReturnType(s.ReturnType)
 	}
@@ -208,10 +217,10 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	// code, so the file is left alone (#731; the Java twin is #637).
 	//
 	// Likewise when the statement restates the stored user code with the stored
-	// parameters, as unchanged describe output does: regenerating the file from
-	// it drops the import list, the EXTRA CODE section and Studio Pro's
-	// signature, none of which MDL can print, so user code that calls an EXTRA
-	// CODE helper stops working (#731).
+	// parameters, as unchanged describe output does: regenerating the file
+	// re-spells Studio Pro's signature, which MDL cannot print (#731). Any write
+	// that does happen keeps the file's import list and EXTRA CODE section —
+	// WriteJavaScriptSourceFile retains them (mendixlabs/mxcli#1429).
 	keep := strings.TrimSpace(s.JavaScriptCode) == jsSourceOmittedBody ||
 		(existingID != "" && jsSourceUnchanged(ctx, s, storedParamNames))
 	if !keep {
