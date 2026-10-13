@@ -358,7 +358,10 @@ func appendSourceExpressionSuffix(
 	suffix string,
 ) ast.Expression {
 	prc := exprCtx.(antlr.ParserRuleContext)
-	source := storedExpressionSource(strings.TrimSpace(extractExpressionText(prc)), lexedWithStrictEscapes(prc))
+	// Strip identifier quotes as buildSourceExpression does: this raw text is
+	// what gets stored, so $Other/"C" kept its quotes — CE0117, only on a slot
+	// with whitespace before its delimiter (mendixlabs/mxcli#1481).
+	source := stripExpressionIdentifierQuotes(storedExpressionSource(strings.TrimSpace(extractExpressionText(prc)), lexedWithStrictEscapes(prc)))
 	innerExpr := expr
 	if sourceExpr, ok := expr.(*ast.SourceExpr); ok {
 		source = sourceExpr.Source
