@@ -13,12 +13,12 @@ description: "Create and call custom Java actions — extending Mendix with serv
 | 28-39 | Reference files |
 | 40-48 | When to Use This Skill |
 | 49-55 | Overview |
-| 56-330 | Part 2.5: Creating Java Actions in MDL |
-| 331-524 | Part 3: Calling Java Actions from MDL |
-| 525-538 | Validation Checklist |
-| 539-549 | Common Errors |
-| 550-557 | Related Documentation |
-| 558-639 | Quick Reference |
+| 56-332 | Part 2.5: Creating Java Actions in MDL |
+| 333-526 | Part 3: Calling Java Actions from MDL |
+| 527-540 | Validation Checklist |
+| 541-551 | Common Errors |
+| 552-559 | Related Documentation |
+| 560-641 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Java Actions Skill
