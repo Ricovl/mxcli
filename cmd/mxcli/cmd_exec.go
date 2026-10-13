@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/executor"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
@@ -20,9 +21,8 @@ var execCmd = &cobra.Command{
 	Long: `Execute an MDL script file containing MDL commands.
 
 Before anything is written, the script is put through the same semantic checks
-as "mxcli check". If any of them reports an error, nothing is executed: exec
-applies statements one at a time and cannot roll back, so running a script with
-a known error leaves the model partly updated. Warnings are printed and do not
+as "mxcli check". If any of them reports an error, nothing is executed.
+Warnings are printed and do not
 stop the run; info notes are counted on one line (--verbose prints them, as
 "mxcli check" does). Use --no-check to apply a script anyway.
 
@@ -42,6 +42,12 @@ save would silently discard the change. Close the project in Studio Pro, or rout
 writes through it with --mcp. --force writes anyway (for a lock left behind by a
 crash); MXCLI_ALLOW_STUDIO_PRO_OPEN=1 does the same for every command. Reads, and
 re-running a script whose statements change nothing, are never refused.
+
+A script is applied all or nothing: if a statement still fails while it is
+written (after the checks passed), the writes of the statements before it are
+rolled back and the project is left as it was. Only the model (.mpr and
+mprcontents/) is restored; generated .java/.js source is not. With
+--continue-on-error each statement stands on its own and nothing is rolled back.
 
 Pass "-" as the file to read the script from standard input, so MDL can be
 piped or written inline as a heredoc without a temporary file.
@@ -139,14 +145,57 @@ Example:
 			return
 		}
 
-		if err := exec.ExecuteProgram(prog); err != nil {
-			if errors.Is(err, executor.ErrExit) {
-				return
-			}
+		if err := runScriptAtomically(exec, prog); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 	},
+}
+
+// runScriptAtomically executes prog so that it lands whole or not at all: when
+// a statement fails, every write the earlier ones made is undone and the
+// project is left as it was (mendixlabs/mxcli#1408). The pre-check refuses a
+// script with a known error, but a statement can still fail at write time — a
+// property the project's Mendix version cannot store, a widget that does not
+// build — and before this the statements ahead of it stayed written.
+//
+// The executor is closed here, success or not: a deferred write lands at
+// Close, so the run is not over until then, and the .mpr can only be put back
+// once nothing holds it open. An `exit` statement is a successful stop.
+func runScriptAtomically(exec *executor.Executor, prog *ast.Program) error {
+	journal, jerr := mmpr.BeginJournal()
+	if jerr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: %v; a failing statement will leave the earlier ones written\n", jerr)
+		if err := exec.ExecuteProgram(prog); err != nil && !errors.Is(err, executor.ErrExit) {
+			return err
+		}
+		return nil
+	}
+	stoppedAt, err := exec.ExecuteProgramReportingStop(prog)
+	if errors.Is(err, executor.ErrExit) {
+		err = nil
+	}
+	if closeErr := exec.Close(); closeErr != nil && err == nil {
+		err = closeErr
+	}
+	if err == nil || !journal.Touched() {
+		journal.Commit()
+		return err
+	}
+	if rerr := journal.Rollback(); rerr != nil {
+		return errors.Join(err, fmt.Errorf("could not roll back the statements that ran before it, "+
+			"so the project may be partly updated: %w", rerr))
+	}
+	ran := "the script's statements"
+	switch {
+	case stoppedAt == 0:
+		ran = "the failing statement's partial writes"
+	case stoppedAt == 1:
+		ran = "statement 1"
+	case stoppedAt > 1:
+		ran = fmt.Sprintf("statements 1-%d", stoppedAt)
+	}
+	return fmt.Errorf("%w\nNothing was written: %s were rolled back, and the project is as it was before exec", err, ran)
 }
 
 func init() {
