@@ -460,9 +460,9 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  -- Find the order (the retrieve establishes $Order — objects are never declared)
+  -- Find the order: `first` binds one object (without it $Order is a list — MDL-RETRIEVE03)
   retrieve $Order from Shop.Order
-    where OrderNumber = $OrderNumber;
+    where OrderNumber = $OrderNumber first;
 
   -- Validate order exists
   if $Order = empty then

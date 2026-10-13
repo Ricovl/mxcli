@@ -350,6 +350,15 @@ func (fb *flowBuilder) addChangeObjectAction(s *ast.ChangeObjectStmt) model.ID {
 	if fb.varTypes != nil {
 		entityQN = fb.varTypes[s.Variable]
 	}
+	// A Change object activity takes one object. Over a list the member was
+	// qualified through the list type — Attribute "List of M.E.Attr", CE1613
+	// at build time (mendixlabs/mxcli#1422) — so refuse it rather than write it.
+	if fb.isListVariable(s.Variable) && len(s.Changes) > 0 {
+		fb.addError("$%s is a list (%s), not an object: `change $%s` would store the member as %q, which mxbuild rejects "+
+			"with CE1613 — retrieve the object with `retrieve $%s from … first;` (under `mdl 1;` `limit 1` is a list of one), "+
+			"or change the list's items inside a loop",
+			s.Variable, entityQN, s.Variable, entityQN+"."+s.Changes[0].Attribute, s.Variable)
+	}
 
 	// Build MemberChange items for each SET assignment
 	for _, change := range s.Changes {
