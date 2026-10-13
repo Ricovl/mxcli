@@ -849,6 +849,7 @@ propertyValueV3
     : STRING_LITERAL
     | QUOTED_IDENTIFIER              // "AttrName" — quoted attribute value for pluggable sub-props (chart series staticXAttribute)
     | NUMBER_LITERAL
+    | MINUS NUMBER_LITERAL           // DecimalPrecision: -1 — Studio Pro's "no fixed precision" (mendixlabs/mxcli#1407)
     | booleanLiteral
     | qualifiedName
     | IDENTIFIER

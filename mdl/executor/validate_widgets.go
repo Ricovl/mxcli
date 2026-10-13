@@ -951,9 +951,9 @@ func validateDynamicTextFormatting(w *ast.WidgetV3, locationPrefix string) []lin
 			}
 			switch fp.Key {
 			case "decimalprecision":
-				if n, err := strconv.Atoi(fp.Value); err != nil || n < 0 {
+				if n, err := strconv.Atoi(fp.Value); err != nil || n < -1 {
 					out = append(out, violation18(locationPrefix, w,
-						fmt.Sprintf("decimalPrecision must be a non-negative integer, got `%s`", fp.Value)))
+						fmt.Sprintf("decimalPrecision must be a non-negative integer, or -1 for no fixed precision, got `%s`", fp.Value)))
 				}
 			case "groupdigits":
 				if !strings.EqualFold(fp.Value, "true") && !strings.EqualFold(fp.Value, "false") {
