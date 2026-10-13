@@ -1,6 +1,7 @@
 mdl 1;
+-- @version: 10.1+
 -- ============================================================================
--- Consumed REST clients that every supported Mendix version can hold
+-- Consumed REST clients that every Mendix version with them (10.1+) can hold
 -- ============================================================================
 --
 -- 06-rest-client-examples.mdl is gated to 11.0+ as a whole (it uses query
@@ -8,8 +9,9 @@ mdl 1;
 -- consumed REST client to a Mendix 10 project in the doctype gate — and every
 -- POST/PUT/PATCH there was written with Rest$JsonBody, a type Mendix 10 does not
 -- have: `mx check` passed, but `mx convert` (and Studio Pro) could not load the
--- project at all. This script is NOT version-gated, so the gate's
--- `mx convert -p` property-set check runs it on 10.24 as well.
+-- project at all. This script is gated only to 10.1+ -- the version that
+-- introduced the consumed REST client, which mxcli correctly refuses below it --
+-- so the gate's `mx convert -p` property-set check runs it on 10.24 as well.
 --
 -- On Mendix 10 a JSON body is written as the string body Mendix 10 has
 -- (Rest$StringBody); `describe` reads it back as `body: template`.
