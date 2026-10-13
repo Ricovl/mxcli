@@ -103,6 +103,12 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		if pageStmt, ok := stmt.(*ast.CreatePageStmtV3); ok {
 			violations = append(violations, ValidatePageURLParameters(pageStmt)...)
 		}
+		// A Java action parameter typed by an unqualified name that is no
+		// declared type parameter is written as the entity `.Name` — CE1613
+		// at build time (MDL-JA01, mendixlabs/mxcli#1404).
+		if jaStmt, ok := stmt.(*ast.CreateJavaActionStmt); ok {
+			violations = append(violations, validateJavaActionTypeNames(jaStmt)...)
+		}
 		// Check microflow body for common issues
 		if mfStmt, ok := stmt.(*ast.CreateMicroflowStmt); ok {
 			violations = append(violations, validateMicroflowWith(mfStmt, voids)...)

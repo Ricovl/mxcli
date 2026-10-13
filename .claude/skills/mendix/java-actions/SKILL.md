@@ -111,6 +111,8 @@ $$;
 
 A list of type-parameter instances is `list of pEntity` (Studio Pro's "List of <type parameter>").
 
+**A type parameter with no entity selector** — the object the caller passes binds it — is declared in a header after the action name: `create java action Module.JA_Describe<pEntity>(InputObject: pEntity not null) returns String as $$ … $$;`. Without the header, a bare `pEntity` is neither an entity nor a type parameter, and check refuses it (MDL-JA01); before, exec wrote it as the entity `.pEntity` (CE1613, mendixlabs/mxcli#1404).
+
 **A type parameter named after a primitive** (`String`, `Integer`, … — Studio Pro allows it): declare it with `entity <String>`, and refer to it **quoted** — `"String"`, `list of "String"`. Unquoted `String` is always the primitive. DESCRIBE quotes such names for you, so its output re-creates the action.
 
 Type parameter names can be mixed with regular parameter types:
