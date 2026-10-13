@@ -496,6 +496,7 @@ func indexFromGen(idx *genDm.Index) *domainmodel.Index {
 			seg := &domainmodel.IndexAttribute{
 				AttributeID: model.ID(ia.AttributeRefID()),
 				Ascending:   ia.Ascending(),
+				Type:        ia.Type(),
 			}
 			seg.ID = model.ID(ia.ID())
 			out.Attributes = append(out.Attributes, seg)
