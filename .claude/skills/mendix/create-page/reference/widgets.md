@@ -49,7 +49,7 @@ dynamictext day  (content: '{1}', contentparams: ({1} = DueOn format (dateFormat
 
 | Format key | Applies to | Values |
 |------------|-----------|--------|
-| `decimalPrecision` | Decimal / Float | a non-negative integer |
+| `decimalPrecision` | Decimal / Float | a non-negative integer, or `-1` for no fixed precision (what Studio Pro stores for it) |
 | `groupDigits` | Decimal / Float | `true` \| `false` |
 | `dateFormat` | DateTime | `Date` \| `DateTime` \| `Time` \| `Custom` |
 | `customDateFormat` | DateTime | a pattern string, requires `dateFormat: Custom` |

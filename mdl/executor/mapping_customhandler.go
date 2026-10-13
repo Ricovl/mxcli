@@ -333,6 +333,9 @@ func resolveSchemaRoot(idx *jsonSchemaIndex, path string) (*types.JsonElement, e
 //
 // Derived from the stored path rather than remembered: the "(Object)" markers an
 // array contributes are dropped, which is the inverse of how the clause resolves.
+// So is the "(Wrapper)" item of an array of primitives: the writer steps into it
+// from the array itself (arrayItemOf), and as a member name it does not parse —
+// `root (Wrapper)` for a root primitive array (mendixlabs/mxcli#1407).
 func schemaRootClause(rootPath string) string {
 	if rootPath == "" || rootPath == "(Object)" || rootPath == "(Array)" ||
 		rootPath == "(Array)|(Object)" {
@@ -341,7 +344,7 @@ func schemaRootClause(rootPath string) string {
 	segs := strings.Split(rootPath, "|")
 	var out []string
 	for i, seg := range segs {
-		if i == 0 || seg == "(Object)" || seg == "(Array)" {
+		if i == 0 || seg == "(Object)" || seg == "(Array)" || seg == "(Wrapper)" {
 			continue
 		}
 		out = append(out, seg)

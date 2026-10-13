@@ -1685,7 +1685,7 @@ A column cannot bind the association itself: `column c (attribute: Order_Custome
 dynamictext amt (content: '{1}', contentparams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true)))
 dynamictext due (content: '{1}', contentparams: ({1} = DueOn  format (dateFormat: DateTime)))
 ```
-Keys: `decimalPrecision` (int), `groupDigits` (bool), `dateFormat` (`Date`|`DateTime`|`Time`|`Custom`), `customDateFormat` (pattern, with `dateFormat: Custom`), `enumFormat` (`Text`|`Image`).
+Keys: `decimalPrecision` (int ≥ 0, or -1 for no fixed precision), `groupDigits` (bool), `dateFormat` (`Date`|`DateTime`|`Time`|`Custom`), `customDateFormat` (pattern, with `dateFormat: Custom`), `enumFormat` (`Text`|`Image`).
 
 **Input widget formatting** — the same fields as widget properties on the widgets that store a FormattingInfo:
 ```sql
