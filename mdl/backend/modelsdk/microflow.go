@@ -334,6 +334,11 @@ func flowsFromGen(items []element.Element) []*microflows.SequenceFlow {
 		if line, ok := g.Line().(*genMf.BezierCurve); ok && line != nil {
 			f.OriginControlVector = line.OriginControlVector()
 			f.DestinationControlVector = line.DestinationControlVector()
+		} else {
+			// Before 10.16 the same two vectors are the flow's own
+			// Origin/DestinationBezierVector (mendixlabs/mxcli#1410).
+			f.OriginControlVector = g.OriginBezierVector()
+			f.DestinationControlVector = g.DestinationBezierVector()
 		}
 		f.ID = model.ID(g.ID())
 		flows = append(flows, f)

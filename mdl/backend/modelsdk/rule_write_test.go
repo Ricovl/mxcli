@@ -31,7 +31,7 @@ func TestAuthoredRuleMatchesStudioProKeySet(t *testing.T) {
 		ReturnVariableName: "Variable",
 	}
 
-	encoded, err := (&codec.Encoder{}).Encode(ruleToGen(rule, 11))
+	encoded, err := (&codec.Encoder{}).Encode(ruleToGen(rule, newestFlowVersion))
 	if err != nil {
 		t.Fatalf("encode rule: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestAuthoredRuleSetsExportLevel(t *testing.T) {
 	encoded, err := (&codec.Encoder{}).Encode(ruleToGen(&microflows.Rule{
 		Name:       "R",
 		ReturnType: &microflows.BooleanType{},
-	}, 11))
+	}, newestFlowVersion))
 	if err != nil {
 		t.Fatalf("encode rule: %v", err)
 	}

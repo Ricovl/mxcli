@@ -89,7 +89,7 @@ func TestMicroflowRoundTrip_RuleSplitCondition(t *testing.T) {
 // agree. Written as "Rule" the reference is invisible to Mendix and the decision is
 // CE0080 again, for a different reason. Assert the storage key on the raw document.
 func TestRuleSplitConditionUsesMicroflowStorageKey(t *testing.T) {
-	raw, err := (&codec.Encoder{}).Encode(microflowToGen(ruleSplitMicroflow(), 11))
+	raw, err := (&codec.Encoder{}).Encode(microflowToGen(ruleSplitMicroflow(), newestFlowVersion))
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}

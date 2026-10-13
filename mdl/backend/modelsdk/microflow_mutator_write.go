@@ -81,19 +81,16 @@ func (d codecMicroflowDeps) SerializeObject(obj microflows.MicroflowObject) (bso
 }
 
 func (d codecMicroflowDeps) SerializeSequenceFlow(f *microflows.SequenceFlow) (bson.D, error) {
-	el := sequenceFlowToGen(f, d.b.majorVersion())
+	el := sequenceFlowToGen(f, d.b.flowVersion())
 	assignID(el)
 	if sf, ok := el.(*genMf.SequenceFlow); ok {
-		for _, cv := range sf.CaseValuesItems() {
-			assignID(cv)
-		}
-		assignID(sf.Line())
+		assignSequenceFlowIDs(sf)
 	}
 	return encodeFlowElementToD(el)
 }
 
 func (d codecMicroflowDeps) SerializeAnnotationFlow(f *microflows.AnnotationFlow) (bson.D, error) {
-	el := annotationFlowToGen(f, d.b.majorVersion())
+	el := annotationFlowToGen(f, d.b.flowVersion())
 	assignID(el)
 	if af, ok := el.(*genMf.AnnotationFlow); ok {
 		assignID(af.Line())
@@ -108,10 +105,11 @@ func (d codecMicroflowDeps) SerializeDocument(declared any) (bson.D, error) {
 	var el element.Element
 	switch doc := declared.(type) {
 	case *microflows.Microflow:
-		gm := microflowToGen(doc, d.b.majorVersion())
+		fv := d.b.flowVersion()
+		gm := microflowToGen(doc, fv)
 		gm.SetID(element.ID(doc.ID))
 		assignMicroflowIDs(gm)
-		contents, err := (&codec.Encoder{}).Encode(gm)
+		contents, err := microflowEncoder(fv).Encode(gm)
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +122,7 @@ func (d codecMicroflowDeps) SerializeDocument(declared any) (bson.D, error) {
 		}
 		return out, nil
 	case *microflows.Nanoflow:
-		g := nanoflowToGen(doc, d.b.majorVersion())
+		g := nanoflowToGen(doc, d.b.flowVersion())
 		g.SetID(element.ID(doc.ID))
 		assignNanoflowIDs(g)
 		d.b.carryStoredNanoflowHeader(doc, g)

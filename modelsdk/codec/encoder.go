@@ -14,7 +14,9 @@ import (
 
 // Encoder serializes Element trees back to BSON bytes.
 type Encoder struct {
-	// OmitKeys suppresses BSON keys, per $Type, for this encoder only.
+	// OmitKeys suppresses BSON keys, per $Type, for this encoder only — a key a
+	// gen property would emit and a key a registered Studio Pro default would add
+	// alike (a Microflow's StableId is the latter: mendixlabs/mxcli#1410).
 	//
 	// It exists for **version-floored properties**. Mendix introduces properties
 	// over time, and a key introduced after the project's own version is one that
@@ -210,27 +212,27 @@ func (e *Encoder) buildDoc(elem element.Element) (bson.D, error) {
 				}
 			}
 			for _, name := range d.NullFields {
-				if !emitted[name] {
+				if !emitted[name] && !e.omits(elem.TypeName(), name) {
 					doc = append(doc, bson.E{Key: name, Value: nil})
 				}
 			}
 			for _, name := range d.EmptyStringFields {
-				if !emitted[name] {
+				if !emitted[name] && !e.omits(elem.TypeName(), name) {
 					doc = append(doc, bson.E{Key: name, Value: ""})
 				}
 			}
 			for _, name := range d.FalseFields {
-				if !emitted[name] {
+				if !emitted[name] && !e.omits(elem.TypeName(), name) {
 					doc = append(doc, bson.E{Key: name, Value: false})
 				}
 			}
 			for _, name := range d.ZeroGUIDFields {
-				if !emitted[name] {
+				if !emitted[name] && !e.omits(elem.TypeName(), name) {
 					doc = append(doc, bson.E{Key: name, Value: zeroGUIDBinary()})
 				}
 			}
 			for _, name := range d.FreshGUIDFields {
-				if !emitted[name] {
+				if !emitted[name] && !e.omits(elem.TypeName(), name) {
 					doc = append(doc, bson.E{Key: name, Value: idToBinarySubtype0("")})
 				}
 			}

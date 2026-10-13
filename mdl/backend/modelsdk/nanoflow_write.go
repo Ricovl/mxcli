@@ -29,7 +29,7 @@ func (b *Backend) CreateNanoflow(nf *microflows.Nanoflow) error {
 	if nf.ID == "" {
 		nf.ID = model.ID(mmpr.GenerateID())
 	}
-	g := nanoflowToGen(nf, b.majorVersion())
+	g := nanoflowToGen(nf, b.flowVersion())
 	g.SetID(element.ID(nf.ID))
 	assignNanoflowIDs(g)
 	contents, err := (&codec.Encoder{}).Encode(g)
@@ -50,7 +50,7 @@ func (b *Backend) UpdateNanoflow(nf *microflows.Nanoflow) error {
 	if b.writer == nil {
 		return fmt.Errorf("UpdateNanoflow: not connected for writing")
 	}
-	g := nanoflowToGen(nf, b.majorVersion())
+	g := nanoflowToGen(nf, b.flowVersion())
 	g.SetID(element.ID(nf.ID))
 	assignNanoflowIDs(g)
 	b.carryStoredNanoflowHeader(nf, g)
@@ -76,7 +76,7 @@ func (b *Backend) DeleteNanoflow(id model.ID) error {
 // serializeNanoflow field set (AllowedModuleRoles, Documentation, Excluded,
 // Flows, MarkAsUsed, MicroflowReturnType [only when non-void], Name,
 // ObjectCollection with parameters merged in first).
-func nanoflowToGen(nf *microflows.Nanoflow, major int) *genMf.Nanoflow {
+func nanoflowToGen(nf *microflows.Nanoflow, v flowVersion) *genMf.Nanoflow {
 	out := genMf.NewNanoflow()
 	out.SetName(nf.Name)
 	out.SetDocumentation(nf.Documentation)
@@ -86,14 +86,16 @@ func nanoflowToGen(nf *microflows.Nanoflow, major int) *genMf.Nanoflow {
 	if nf.ReturnType != nil {
 		out.SetMicroflowReturnType(microflowDataTypeToGen(nf.ReturnType))
 	}
-	// Only when authored; UpdateNanoflow carries a stored one otherwise.
-	if nf.ReturnVariableName != "" {
+	// Only when authored, and only where the version declares it (10.12.0,
+	// MicroflowBase.returnVariableName); UpdateNanoflow carries a stored one
+	// otherwise.
+	if nf.ReturnVariableName != "" && v.hasReturnVariableName() {
 		out.SetReturnVariableName(nf.ReturnVariableName)
 	}
 
 	oc := genMf.NewMicroflowObjectCollection()
 	for i, p := range nf.Parameters {
-		oc.AddObjects(microflowParameterToGen(p, i, major))
+		oc.AddObjects(microflowParameterToGen(p, i, v))
 	}
 	if nf.ObjectCollection != nil {
 		for _, obj := range nf.ObjectCollection.Objects {
@@ -110,10 +112,10 @@ func nanoflowToGen(nf *microflows.Nanoflow, major int) *genMf.Nanoflow {
 	// (ako/mxcli#705).
 	if nf.ObjectCollection != nil {
 		for _, f := range nf.ObjectCollection.Flows {
-			out.AddFlows(sequenceFlowToGen(f, major))
+			out.AddFlows(sequenceFlowToGen(f, v))
 		}
 		for _, af := range nf.ObjectCollection.AnnotationFlows {
-			out.AddFlows(annotationFlowToGen(af, major))
+			out.AddFlows(annotationFlowToGen(af, v))
 		}
 	}
 	return out
@@ -172,10 +174,7 @@ func assignNanoflowIDs(n *genMf.Nanoflow) {
 	for _, el := range n.FlowsItems() {
 		assignID(el)
 		if sf, ok := el.(*genMf.SequenceFlow); ok {
-			for _, cv := range sf.CaseValuesItems() {
-				assignID(cv)
-			}
-			assignID(sf.Line())
+			assignSequenceFlowIDs(sf)
 		}
 	}
 }
