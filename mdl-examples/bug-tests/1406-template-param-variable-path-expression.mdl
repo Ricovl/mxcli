@@ -1,0 +1,27 @@
+mdl 1;
+-- mendixlabs/mxcli#1406: Studio Pro stores a text-template parameter written in
+-- its expression editor as an Expression (`$currentObject/Name`,
+-- `$EntA/Name`), and describe prints it back as written. check refused that
+-- describe output with MDL-WIDGET24, and exec bound it as an attribute named
+-- `$currentObject/Name` (CE1613). It is now stored as the expression it is.
+--
+-- Verify (measured on 11.6.6):
+--   mxcli check 1406-template-param-variable-path-expression.mdl   -- passes
+--   mxcli exec  1406-template-param-variable-path-expression.mdl -p app.mpr
+--   mx check -p app.mpr                                             -- 0 errors
+--   mxcli -p app.mpr -c "describe page ModA1406.Pg_A"  -> exec it -> "Unchanged page"
+
+create module ModA1406;
+create persistent entity ModA1406.EntA (Name: String(50));
+
+create or modify page ModA1406.Pg_A (
+  Title: 'A',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $EntA: ModA1406.EntA )
+) {
+  dataview dv1 (DataSource: $EntA) {
+    dynamictext t1 (Content: '{1}', ContentParams: ({1} = $currentObject/Name))
+    dynamictext t2 (Content: '{1}', ContentParams: ({1} = $EntA/Name))
+    actionbutton b1 (Caption: '{1}', CaptionParams: ({1} = $EntA/Name), Action: close page)
+  }
+};

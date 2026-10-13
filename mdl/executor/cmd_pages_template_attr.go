@@ -77,5 +77,29 @@ var templateAttributeRefRe = regexp.MustCompile(`^\$?[A-Za-z_][A-Za-z0-9_]*(?:[.
 // path and stored as a bogus attribute name.
 func isTemplateExpression(v string) bool {
 	v = strings.TrimSpace(v)
-	return strings.HasPrefix(v, "'") || strings.HasPrefix(v, "\"") || !templateAttributeRefRe.MatchString(v)
+	return strings.HasPrefix(v, "'") || strings.HasPrefix(v, "\"") || !templateAttributeRefRe.MatchString(v) ||
+		isVariableRootedTemplatePath(v)
+}
+
+// isVariableRootedTemplatePath reports a `$var/…` member path, which is Mendix
+// expression syntax rather than one of MDL's binding spellings: `$Customer/Name`,
+// `$currentObject/Name`. Studio Pro stores such a parameter as an Expression, and
+// describe prints it back as written (mendixlabs/mxcli#1406), so it is stored as
+// the expression it is. Bound instead, the writer kept the whole string as the
+// attribute name — CE1613 "The selected attribute 'M.E.$Customer/Name' no longer
+// exists" (#1046).
+//
+// `$currentObject/Assoc/Attr` is the one exception, and stays a binding: the
+// association resolver strips that prefix (resolveAssociationAttributePath), and
+// #1046 measured it building clean as an attribute over the association.
+func isVariableRootedTemplatePath(v string) bool {
+	if !strings.HasPrefix(v, "$") {
+		return false
+	}
+	slash := strings.Index(v, "/")
+	if slash < 0 || slash == len(v)-1 {
+		return false
+	}
+	variable, rest := v[1:slash], v[slash+1:]
+	return variable != "currentObject" || !strings.Contains(rest, "/")
 }
