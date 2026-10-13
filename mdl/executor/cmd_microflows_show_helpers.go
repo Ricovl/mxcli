@@ -1148,7 +1148,7 @@ func traverseFlow(
 		// declaration lands whichever way the merge is reached.
 		if label, ok := labels.of(currentID); ok && !visited[currentID] {
 			visited[currentID] = true
-			*lines = append(*lines, mergeDeclarationLines(indent, label, obj, annotationsByTarget.layoutKeep())...)
+			*lines = append(*lines, mergeDeclarationLines(indent, label, obj, annotationsByTarget.layoutKeep(), flowsByOrigin)...)
 			for _, flow := range findNormalFlows(flowsByOrigin[currentID]) {
 				traverseFlow(ctx, flow.DestinationID, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels)
 			}
@@ -1199,9 +1199,9 @@ func traverseFlow(
 		startLine := len(*lines) + headerLineCount
 		flows := flowsByOrigin[currentID]
 		mergeID := splitMergeMap[currentID]
-		if variable, ok := enumSplitVariable(split); ok && hasEnumCaseFlows(flows) {
+		if source, ok := enumSplitSource(ctx, split); ok && hasEnumCaseFlows(flows) {
 			emitObjectAnnotations(obj, lines, indentStr, annotationsByTarget, flowsByOrigin, flowsByDest, activityMap)
-			emitEnumSplitStatement(ctx, currentID, mergeID, variable, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels)
+			emitEnumSplitStatement(ctx, currentID, mergeID, source, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels)
 			recordSourceMap(sourceMap, currentID, startLine, len(*lines)+headerLineCount-1)
 			continueAfterSplitJoin(ctx, mergeID, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels)
 			return
@@ -1368,7 +1368,7 @@ func traverseFlowUntilMerge(
 		}
 		if label, ok := labels.of(currentID); ok && !visited[currentID] {
 			visited[currentID] = true
-			*lines = append(*lines, mergeDeclarationLines(indent, label, obj, annotationsByTarget.layoutKeep())...)
+			*lines = append(*lines, mergeDeclarationLines(indent, label, obj, annotationsByTarget.layoutKeep(), flowsByOrigin)...)
 		}
 		// A manual loop's header reached inside a branch: the same `while true`
 		// traverseFlow writes at the top level, for the same reason. Walked
@@ -1423,9 +1423,9 @@ func traverseFlowUntilMerge(
 		startLine := len(*lines) + headerLineCount
 		flows := flowsByOrigin[currentID]
 		nestedMergeID := splitMergeMap[currentID]
-		if variable, ok := enumSplitVariable(split); ok && hasEnumCaseFlows(flows) {
+		if source, ok := enumSplitSource(ctx, split); ok && hasEnumCaseFlows(flows) {
 			emitObjectAnnotations(obj, lines, indentStr, annotationsByTarget, flowsByOrigin, flowsByDest, activityMap)
-			emitEnumSplitStatement(ctx, currentID, nestedMergeID, variable, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels)
+			emitEnumSplitStatement(ctx, currentID, nestedMergeID, source, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels)
 			recordSourceMap(sourceMap, currentID, startLine, len(*lines)+headerLineCount-1)
 			continueAfterNestedSplitJoin(ctx, nestedMergeID, mergeID, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels)
 			return
@@ -1622,7 +1622,7 @@ func continueAfterSplitJoin(
 			}
 		}
 		if label, ok := labels.of(joinID); ok && !visited[joinID] {
-			*lines = append(*lines, mergeDeclarationLines(indent, label, activityMap[joinID], annotationsByTarget.layoutKeep())...)
+			*lines = append(*lines, mergeDeclarationLines(indent, label, activityMap[joinID], annotationsByTarget.layoutKeep(), flowsByOrigin)...)
 		}
 		if emitJoinAsLoopHeader(ctx, joinID, "", activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels) {
 			return
@@ -1667,7 +1667,7 @@ func continueAfterNestedSplitJoin(
 			return
 		}
 		if label, ok := labels.of(joinID); ok && !visited[joinID] {
-			*lines = append(*lines, mergeDeclarationLines(indent, label, activityMap[joinID], annotationsByTarget.layoutKeep())...)
+			*lines = append(*lines, mergeDeclarationLines(indent, label, activityMap[joinID], annotationsByTarget.layoutKeep(), flowsByOrigin)...)
 		}
 		if emitJoinAsLoopHeader(ctx, joinID, parentMergeID, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels) {
 			return
@@ -2086,7 +2086,7 @@ func emitEnumSplitStatement(
 	ctx *ExecContext,
 	currentID model.ID,
 	mergeID model.ID,
-	variable string,
+	source string,
 	activityMap map[model.ID]microflows.MicroflowObject,
 	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
 	flowsByDest map[model.ID][]*microflows.SequenceFlow,
@@ -2102,7 +2102,7 @@ func emitEnumSplitStatement(
 	labels mergeLabels,
 ) {
 	indentStr := strings.Repeat("  ", indent)
-	*lines = append(*lines, indentStr+"case $"+variable)
+	*lines = append(*lines, indentStr+"case "+source)
 
 	type enumBranch struct {
 		values []string
@@ -2201,6 +2201,34 @@ func emitInheritanceSplitStatement(
 		}
 	}
 	*lines = append(*lines, indentStr+"end split;")
+}
+
+// enumSplitSource is the MDL subject of an enumeration split: `$Var` /
+// `$Obj/Attr` for an expression split, or the rule call for a rule split that
+// returns an enumeration — `Mod.Rule(Param = $x)`, spelled as an `if` on a rule
+// spells it. A rule split used to fall through to the boolean `if` path, which
+// found no true/false flows and printed empty branches and an orphan merge
+// (mendixlabs/mxcli#1414).
+func enumSplitSource(ctx *ExecContext, split *microflows.ExclusiveSplit) (string, bool) {
+	if variable, ok := enumSplitVariable(split); ok {
+		return "$" + variable, true
+	}
+	if split == nil {
+		return "", false
+	}
+	if rule, ok := split.SplitCondition.(*microflows.RuleSplitCondition); ok && rule.RuleQualifiedName != "" {
+		return formatSplitCondition(ctx, rule), true
+	}
+	return "", false
+}
+
+// hasEnumSplitSource is enumSplitSource without the rendering.
+func hasEnumSplitSource(split *microflows.ExclusiveSplit) bool {
+	if _, ok := enumSplitVariable(split); ok {
+		return true
+	}
+	rule, ok := split.SplitCondition.(*microflows.RuleSplitCondition)
+	return ok && rule.RuleQualifiedName != ""
 }
 
 func enumSplitVariable(split *microflows.ExclusiveSplit) (string, bool) {

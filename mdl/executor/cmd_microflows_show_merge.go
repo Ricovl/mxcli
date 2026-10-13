@@ -239,16 +239,31 @@ func incomingCounts(flowsByOrigin map[model.ID][]*microflows.SequenceFlow) map[m
 // A canonical DESCRIBE leaves the position out when the layout engine would put
 // the merge there anyway (layout, see derivedFlowLayout): the rebuild then lands
 // it on the same spot without being told.
-func mergeDeclarationLines(indent int, label string, obj microflows.MicroflowObject, layout *flowLayoutKeep) []string {
+func mergeDeclarationLines(indent int, label string, obj microflows.MicroflowObject, layout *flowLayoutKeep, flowsByOrigin map[model.ID][]*microflows.SequenceFlow) []string {
 	pad := strings.Repeat("  ", indent)
-	if obj == nil || !layout.keepsPosition(obj.GetID()) {
-		return []string{pad + "merge " + label + ";"}
+	var out []string
+	if obj != nil && layout.keepsPosition(obj.GetID()) {
+		p := obj.GetPosition()
+		out = append(out, fmt.Sprintf("%s@position(%d, %d)", pad, p.X, p.Y))
 	}
-	p := obj.GetPosition()
-	return []string{
-		fmt.Sprintf("%s@position(%d, %d)", pad, p.X, p.Y),
-		pad + "merge " + label + ";",
+	// The side the flow LEAVES the merge on, when it is not the default right.
+	// An if whose closing merge is this one prints that side as its own
+	// `@anchor(from: …)` (mergeExitAnchor, #767), but once the merge is declared
+	// on its own the rebuilt if has no closing merge to apply it to, and the
+	// exit came back from the right (mendixlabs/mxcli#1414). The declaration is
+	// the statement that owns the edge, so it carries the side.
+	if obj != nil {
+		for _, flow := range flowsByOrigin[obj.GetID()] {
+			if flow == nil || flow.IsErrorHandler {
+				continue
+			}
+			if flow.OriginConnectionIndex != AnchorRight {
+				out = append(out, fmt.Sprintf("%s@anchor(from: %s)", pad, anchorSideKeyword(flow.OriginConnectionIndex)))
+			}
+			break
+		}
 	}
+	return append(out, pad+"merge "+label+";")
 }
 
 // droppedMergeWarnings flags every ExclusiveMerge the description does not

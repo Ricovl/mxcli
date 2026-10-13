@@ -205,6 +205,9 @@ func buildCaseStatement(ctx parser.ICaseStatementContext) *ast.EnumSplitStmt {
 			stmt.Variable = strings.TrimPrefix(attr.GetText(), "$")
 		} else if variable := sourceCtx.VARIABLE(); variable != nil {
 			stmt.Variable = strings.TrimPrefix(variable.GetText(), "$")
+		} else if call := sourceCtx.FunctionCall(); call != nil {
+			// `case Mod.Rule(Param = $x)` — the rule call an `if` takes (#1414).
+			stmt.Condition = buildFunctionCall(call)
 		}
 	}
 
