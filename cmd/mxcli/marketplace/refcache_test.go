@@ -334,7 +334,7 @@ func TestModelOnlyCopyKeepsWhatIsRead(t *testing.T) {
 // and javasource/ were kept is complete by its own marker, so only the key can
 // stop it being served — and serving it is mendixlabs/mxcli#1441 all over again.
 func TestLegacyModelOnlyEntryIsNotServed(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Setenv("MXCLI_NO_REF_CACHE", "")
 	const versionID, mx = "2059615c-c6f1-4103-aedb-14820c077a1c", "11.12.1"
 

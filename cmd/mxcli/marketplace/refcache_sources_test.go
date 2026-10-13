@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	modelsdk "github.com/mendixlabs/mxcli"
+	"github.com/mendixlabs/mxcli/internal/testutil"
 )
 
 // TestCachedReferenceDescribesActionSourcesLikeAFreshOne is mendixlabs/mxcli#1441.
@@ -26,7 +27,7 @@ import (
 // matters: the gate treats the placeholder as inconclusive, which would turn the
 // hit's false "Modified" into an equally blocking "Unknown".
 func TestCachedReferenceDescribesActionSourcesLikeAFreshOne(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	t.Setenv("MXCLI_NO_REF_CACHE", "")
 	t.Setenv("MXCLI_REF_CACHE_MAX", "0")
 
