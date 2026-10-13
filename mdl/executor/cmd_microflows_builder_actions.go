@@ -460,25 +460,33 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 
 	splitX := fb.posX
 	centerY := fb.posY
+	caption := "$" + s.Variable
+	var condition microflows.SplitCondition = &microflows.ExpressionSplitCondition{
+		BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
+		Expression:  "$" + s.Variable,
+	}
+	if s.Condition != nil {
+		// `case Mod.Rule(…)`: the decision is a rule returning an enumeration.
+		// Same condition an `if` on a rule builds (mendixlabs/mxcli#1414).
+		caption = fb.exprToString(s.Condition)
+		condition = fb.buildSplitCondition(s.Condition, caption)
+		fb.checkRuleCaseCoverage(s)
+	}
 	split := &microflows.ExclusiveSplit{
 		BaseMicroflowObject: microflows.BaseMicroflowObject{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
 			Position:    model.Point{X: splitX, Y: centerY},
 			Size:        model.Size{Width: SplitWidth, Height: SplitHeight},
 		},
-		Caption: "$" + s.Variable,
-		SplitCondition: &microflows.ExpressionSplitCondition{
-			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-			Expression:  "$" + s.Variable,
-		},
+		Caption:           caption,
+		SplitCondition:    condition,
 		ErrorHandlingType: fb.ehType(nil),
 	}
 	fb.objects = append(fb.objects, split)
 	splitID := split.ID
-	if fb.pendingAnnotations != nil {
-		fb.applyAnnotations(splitID, fb.pendingAnnotations)
-		fb.pendingAnnotations = nil
-	}
+	// applyPendingAnnotations, not applyAnnotations: only it records the
+	// statement's @curve for applyFlowCurves (mendixlabs/mxcli#1414).
+	fb.applyPendingAnnotations(splitID)
 
 	type branch struct {
 		values []string
@@ -585,10 +593,9 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 			if actID == "" {
 				continue
 			}
-			if fb.pendingAnnotations != nil {
-				fb.applyAnnotations(actID, fb.pendingAnnotations)
-				fb.pendingAnnotations = nil
-			}
+			// applyPendingAnnotations, not applyAnnotations: only it records the
+			// statement's @curve for applyFlowCurves (mendixlabs/mxcli#1414).
+			fb.applyPendingAnnotations(actID)
 			if lastID == "" {
 				fb.addGroupedEnumSplitFlows(splitID, actID, br.values, slot(i), splitX+SplitWidth+HorizontalSpacing/4, branchY)
 				// The first statement in a case can carry @anchor(from:…,
@@ -694,10 +701,9 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 	}
 	fb.objects = append(fb.objects, split)
 	splitID := split.ID
-	if fb.pendingAnnotations != nil {
-		fb.applyAnnotations(splitID, fb.pendingAnnotations)
-		fb.pendingAnnotations = nil
-	}
+	// applyPendingAnnotations, not applyAnnotations: only it records the
+	// statement's @curve for applyFlowCurves (mendixlabs/mxcli#1414).
+	fb.applyPendingAnnotations(splitID)
 
 	// The branches are laid out one BELOW another, all starting at branchStartX,
 	// so the room they need is the WIDEST branch — not the total. This used to
@@ -763,10 +769,9 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 			if cast, ok := stmt.(*ast.CastObjectStmt); ok && cast.OutputVariable != "" && caseValue != "" && fb.varTypes != nil {
 				fb.varTypes[cast.OutputVariable] = caseValue
 			}
-			if fb.pendingAnnotations != nil {
-				fb.applyAnnotations(actID, fb.pendingAnnotations)
-				fb.pendingAnnotations = nil
-			}
+			// applyPendingAnnotations, not applyAnnotations: only it records the
+			// statement's @curve for applyFlowCurves (mendixlabs/mxcli#1414).
+			fb.applyPendingAnnotations(actID)
 			if lastID == "" {
 				var flow *microflows.SequenceFlow
 				if branchNumber == 0 {

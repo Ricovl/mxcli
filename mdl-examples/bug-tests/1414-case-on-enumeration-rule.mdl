@@ -1,0 +1,52 @@
+mdl 1;
+-- ============================================================================
+-- #1414 — `case` on a rule that returns an enumeration
+-- ============================================================================
+--
+-- POSITIVE TEST: `mxcli check` (with and without -p) and `exec` MUST accept it.
+--
+-- A decision can call a RULE that returns an enumeration and branch on its
+-- value (OpenAIConnector.EmbeddingsRequestMapping_POST: "api key type?" calls
+-- Rule_Configuration_KeyTypeToUse → Bearer_Token / API_key / (empty)). DESCRIBE
+-- printed it as a boolean `if` with empty branches and an orphan
+-- `merge shared1;`, which check refuses (MDL-FLOW02). MDL had no way to say it:
+-- `case` took only a variable or an attribute path.
+--
+-- `case` now takes the rule call, written exactly as an `if` on a rule writes
+-- it, and builds a Microflows$RuleSplitCondition. With a project, every value
+-- of the rule's return enumeration must have a branch (CE0079), and a branch
+-- naming a value the enumeration lacks is refused.
+--
+-- Measured on mxbuild 11.12.5, blank app: this script execs and the app checks
+-- at 0 errors.
+
+CREATE MODULE Bug1414;
+
+CREATE OR MODIFY ENUMERATION Bug1414.KeyType (
+  Bearer_Token 'Bearer token',
+  API_key 'API key'
+);
+
+CREATE OR MODIFY PERSISTENT ENTITY Bug1414.Configuration (
+  "KeyType": Enumeration(Bug1414.KeyType)
+);
+
+CREATE OR MODIFY RULE Bug1414.Rule_KeyTypeToUse ($Configuration: Bug1414.Configuration)
+RETURNS enum Bug1414.KeyType
+BEGIN
+  RETURN $Configuration/KeyType;
+END;
+
+CREATE OR MODIFY MICROFLOW Bug1414.Authorization ($Configuration: Bug1414.Configuration)
+RETURNS String
+BEGIN
+  @caption 'api key type?'
+  case Bug1414.Rule_KeyTypeToUse(Configuration = $Configuration)
+    when Bearer_Token then
+      return 'Authorization';
+    when API_key then
+      return 'api-key';
+    when (empty) then
+      return empty;
+  end case;
+END;

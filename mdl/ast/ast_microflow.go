@@ -248,7 +248,12 @@ type EnumSplitCase struct {
 
 // EnumSplitStmt represents: CASE $Var WHEN value THEN body ... END CASE
 type EnumSplitStmt struct {
-	Variable    string // Variable or attribute path without $ prefix (e.g. EventType or Event/EventType)
+	Variable string // Variable or attribute path without $ prefix (e.g. EventType or Event/EventType)
+	// Condition is set instead of Variable when the split decides on a RULE
+	// call that returns an enumeration: `case Mod.Rule(Param = $x)`. It is the
+	// same FunctionCallExpr an `if Mod.Rule(...)` holds, and builds as a
+	// Microflows$RuleSplitCondition (mendixlabs/mxcli#1414).
+	Condition   Expression
 	Cases       []EnumSplitCase
 	ElseBody    []MicroflowStatement
 	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation

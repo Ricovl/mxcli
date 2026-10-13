@@ -202,7 +202,7 @@ func init() {
 		Path:    "microflow.splits",
 		Summary: "CASE (enum split) and SPLIT TYPE (object type split)",
 		Keywords: []string{
-			"case", "when", "then", "end case", "enum split", "enumeration split",
+			"case", "when", "then", "end case", "enum split", "enumeration split", "rule split",
 			"split type", "end split", "type split", "inheritance split",
 			"specialization", "cast", "empty", "switch", "decision",
 		},
@@ -212,6 +212,10 @@ func init() {
 			"  WHEN (empty) THEN                  -- required (MDL056 / CE0079)\n" +
 			"    ...\n" +
 			"END CASE;                            -- no ELSE (MDL008)\n\n" +
+			"CASE Module.Rule(Param = $Value)     -- a RULE returning an enumeration\n" +
+			"  WHEN Value1 THEN ...               -- same call syntax as IF on a rule;\n" +
+			"  WHEN (empty) THEN ...              -- with -p every value needs a branch\n" +
+			"END CASE;\n\n" +
 			"SPLIT TYPE $ObjectVar                -- branches on the RUNTIME TYPE\n" +
 			"  WHEN Module.Specialization THEN\n" +
 			"    CAST $Specific;\n" +
@@ -735,7 +739,8 @@ func init() {
 			"LIST RULES [IN Module];\nDESCRIBE RULE Module.Name;\n" +
 			"DROP RULE Module.Name;\nMOVE RULE Module.Name TO FOLDER 'path';\n\n" +
 			"A rule is called from a decision and nowhere else:\n" +
-			"  IF Module.Rule_Name(Param = $Value) THEN ... END IF;\n\n" +
+			"  IF Module.Rule_Name(Param = $Value) THEN ... END IF;     -- Boolean rule\n" +
+			"  CASE Module.Rule_Name(Param = $Value) WHEN V THEN ... END CASE;  -- enumeration rule\n\n" +
 			"The return type is mandatory and must be Boolean or an enumeration\n" +
 			"(mxbuild: CE0103/CE0139). A rule may not create, change, delete, commit\n" +
 			"or roll back objects, talk to the client, or call a web service\n" +

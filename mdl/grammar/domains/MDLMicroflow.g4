@@ -337,6 +337,10 @@ caseStatement
 enumSplitSource
     : attributePath
     | VARIABLE
+    // A rule that returns an enumeration, called exactly as in `if Mod.Rule(…)`:
+    // `case Mod.Rule(Param = $x)`. Stored as a Microflows$RuleSplitCondition
+    // (mendixlabs/mxcli#1414).
+    | functionCall
     ;
 
 enumSplitCaseValue

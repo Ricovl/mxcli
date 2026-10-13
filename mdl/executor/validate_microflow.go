@@ -1544,7 +1544,11 @@ func referencedVars(stmt ast.MicroflowStatement) []string {
 		refs = append(refs, exprVarRefs(s.Node)...)
 		refs = append(refs, exprVarRefs(s.Message)...)
 	case *ast.EnumSplitStmt:
-		refs = append(refs, extractVarName(s.Variable))
+		if s.Condition != nil {
+			refs = append(refs, exprVarRefs(s.Condition)...)
+		} else {
+			refs = append(refs, extractVarName(s.Variable))
+		}
 	case *ast.CastObjectStmt:
 		if s.ObjectVariable != "" {
 			refs = append(refs, s.ObjectVariable)
@@ -1664,6 +1668,15 @@ func isEmptyMessage(expr ast.Expression) bool {
 // which means resolving the split variable's type against the script or the
 // project. ValidateMicroflow sees only one statement. Worth adding where that
 // context exists; guessing it here would trade one false positive for another.
+// enumSplitSubject names what a case statement decides on, for messages:
+// `$Var` / `$Obj/Attr`, or the rule it calls (mendixlabs/mxcli#1414).
+func enumSplitSubject(stmt *ast.EnumSplitStmt) string {
+	if call := unwrapParenCall(stmt.Condition); call != nil {
+		return call.Name + "(…)"
+	}
+	return "$" + stmt.Variable
+}
+
 func (v *microflowValidator) checkEnumSplitEmptyBranch(stmt *ast.EnumSplitStmt) {
 	for _, c := range stmt.Cases {
 		for _, val := range c.Values {
@@ -1673,9 +1686,9 @@ func (v *microflowValidator) checkEnumSplitEmptyBranch(stmt *ast.EnumSplitStmt) 
 		}
 	}
 	v.addViolation("MDL056", linter.SeverityError,
-		fmt.Sprintf("case statement on '$%s' has no `(empty)` branch; a Mendix enumeration split needs an "+
+		fmt.Sprintf("case statement on '%s' has no `(empty)` branch; a Mendix enumeration split needs an "+
 			"outgoing flow for the unset value too, so this builds as CE0079 \"The '(empty)' condition value "+
-			"should be configured in properties for an outgoing flow\"", stmt.Variable),
+			"should be configured in properties for an outgoing flow\"", enumSplitSubject(stmt)),
 		"Add a `when (empty) then …` branch. It is required even when the attribute is `not null`. "+
 			"A branch may list several values (`when Open, (empty) then …`) if they share a path.")
 }
