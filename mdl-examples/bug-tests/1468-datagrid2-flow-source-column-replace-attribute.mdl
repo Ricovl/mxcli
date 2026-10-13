@@ -1,0 +1,67 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1468 — a Data grid 2 column added or replaced by ALTER PAGE
+-- on a grid whose data source is a MICROFLOW or NANOFLOW kept no Attribute.
+--
+-- Reported symptom (mxbuild): "An attribute is required when column sorting is
+-- enabled" — on the flow-sourced grids only; the database-sourced grid built.
+-- `check` and `exec` were both clean.
+--
+-- A flow data source names no entity in the page BSON (the entity is the
+-- flow's return type). The column INSERT/REPLACE paths read only the BSON, so
+-- `Attribute: Balance` stayed unqualified and was not written. They now resolve
+-- the flow's return entity, as every other ALTER PAGE insert already did.
+-- ============================================================================
+
+create module Bug1468;
+create persistent entity Bug1468.Account (Code: String(20), Balance: Decimal);
+
+create microflow Bug1468.DS_Accounts () returns list of Bug1468.Account as $List
+begin
+  retrieve $List from Bug1468.Account;
+  return $List;
+end;
+
+create nanoflow Bug1468.NDS_Accounts () returns list of Bug1468.Account as $List
+begin
+  retrieve $List from Bug1468.Account;
+  return $List;
+end;
+
+create page Bug1468.Accounts (Title: 'Accounts', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgDatabase (DataSource: database from Bug1468.Account) {
+    column (Attribute: Code, Caption: 'Code')
+    column (Attribute: Balance, Caption: 'Balance')
+  }
+  datagrid dgMicroflow (DataSource: microflow Bug1468.DS_Accounts) {
+    column (Attribute: Code, Caption: 'Code')
+    column (Attribute: Balance, Caption: 'Balance')
+  }
+  datagrid dgNanoflow (DataSource: nanoflow Bug1468.NDS_Accounts) {
+    column (Attribute: Code, Caption: 'Code')
+    column (Attribute: Balance, Caption: 'Balance')
+  }
+};
+
+alter page Bug1468.Accounts {
+  replace dgDatabase column(Balance) with {
+    column (Attribute: Balance, Caption: 'Amount', ShowContentAs: customContent, Alignment: right) {
+      dynamictext txtAmountA (Content: '{1}', ContentParams: ({1} = Balance))
+    }
+  };
+  replace dgMicroflow column(Balance) with {
+    column (Attribute: Balance, Caption: 'Amount', ShowContentAs: customContent, Alignment: right) {
+      dynamictext txtAmountB (Content: '{1}', ContentParams: ({1} = Balance))
+    }
+  };
+  replace dgNanoflow column(Balance) with {
+    column (Attribute: Balance, Caption: 'Amount', ShowContentAs: customContent, Alignment: right) {
+      dynamictext txtAmountC (Content: '{1}', ContentParams: ({1} = Balance))
+    }
+  };
+  insert after dgMicroflow column(Code) {
+    column (Attribute: Code, Caption: 'Code again', ShowContentAs: customContent) {
+      dynamictext txtCodeB (Content: '{1}', ContentParams: ({1} = Code))
+    }
+  };
+};
