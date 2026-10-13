@@ -120,9 +120,6 @@ func (fb *flowBuilder) validateStatement(stmt ast.MicroflowStatement) {
 		}
 
 	case *ast.EnumSplitStmt:
-		if count := enumSplitBranchCount(s); count > maxEnumSplitBranches {
-			fb.addError("enum split has %d branches; at most %d branches are supported", count, maxEnumSplitBranches)
-		}
 		for _, c := range s.Cases {
 			fb.validateScopedStatements(c.Body)
 		}
