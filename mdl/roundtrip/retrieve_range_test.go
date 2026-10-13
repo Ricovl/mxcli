@@ -64,6 +64,26 @@ func TestPedAppRoundTrip_RetrieveRange(t *testing.T) {
 
 	// --- The list form, under mdl 1 ----------------------------------------
 	listScript := "mdl 1;\n" + strings.Replace(described, "\n    first;", "\n    limit 1;", 1)
+	// The microflow reads `$CurrentUser/Name`, which over a list is CE0117:
+	// the bare swap is an invalid model, and MDL-RETRIEVE03 refuses it
+	// (mendixlabs/mxcli#1422). Assert that, then make the list form valid by
+	// reading the name from the session's `$currentUser` instead, leaving the
+	// retrieve — the element this test judges — as it is.
+	const listPath = "SubmitterDisplayName = $CurrentUser/Name"
+	if !strings.Contains(listScript, listPath) {
+		t.Fatalf("fixture changed: the microflow no longer reads %q:\n%s", listPath, listScript)
+	}
+	if err := h.exec(listScript); err == nil || !strings.Contains(err.Error(), "MDL-RETRIEVE03") {
+		t.Fatalf("exec of `limit 1` + `$CurrentUser/Name` under mdl 1: err = %v, want MDL-RETRIEVE03 (a member path over a list)", err)
+	}
+	if got := h.retrieveRanges(t, "PopulateUserAttributes"); strings.Join(got, "; ") != objectRange {
+		t.Fatalf("the refused list form was written anyway: range %q", got)
+	}
+	// The change activity shares Studio Pro's annotation n1 with the retrieve,
+	// so the splice refuses to replace it; drop and create in one script, which
+	// is the documented way to rebuild (the grant carries to the create).
+	listScript = strings.Replace(listScript, listPath, "SubmitterDisplayName = $currentUser/Name", 1)
+	listScript = strings.Replace(listScript, "mdl 1;\n", "mdl 1;\ndrop microflow FeedbackModule.PopulateUserAttributes;\n", 1)
 	if err := h.exec(listScript); err != nil {
 		t.Fatalf("exec the list form under mdl 1: %v", err)
 	}
