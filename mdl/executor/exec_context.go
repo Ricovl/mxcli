@@ -47,6 +47,12 @@ type ExecContext struct {
 	// name rather than the bare one exec could not qualify. See describeAttr.
 	describeQualifyAttrs bool
 
+	// describeBody is set by describeWidgetBody while DESCRIBE renders a page's
+	// or snippet's widgets: which widgets come out only as a comment, so a data
+	// view selecting from one can be commented out with it (#1415). Nil
+	// outside a describe body.
+	describeBody *describeBodyState
+
 	// scriptFlows are the flows earlier statements of a script declare,
 	// keyed by scriptFlowKey, set only while check predicts a script's flow
 	// verdicts (CheckFlowVerdicts): exec builds a flow after those statements
