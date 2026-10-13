@@ -413,6 +413,7 @@ widgetTypeV3
     | COMBOBOX
     | CHECKBOX
     | RADIOBUTTONS
+    | FILEMANAGER                                     // Forms$FileManager — upload/download a System.FileDocument (#151)
     | REFERENCESELECTOR
     | ACTIONBUTTON
     | LINKBUTTON

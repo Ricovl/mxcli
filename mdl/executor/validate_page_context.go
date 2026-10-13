@@ -232,7 +232,7 @@ func walkWidgetsWithContext(widgets []*ast.WidgetV3, paramNames map[string]bool,
 // the parent's widget definition is known.
 var alwaysNamedKinds = map[string]bool{
 	"textbox": true, "textarea": true, "datepicker": true, "dropdown": true, "combobox": true,
-	"checkbox": true, "radiobuttons": true, "referenceselector": true, "actionbutton": true,
+	"checkbox": true, "radiobuttons": true, "referenceselector": true, "filemanager": true, "actionbutton": true,
 	"linkbutton": true, "title": true, "label": true, "dynamictext": true, "statictext": true,
 	"snippetcall": true, "dataview": true, "listview": true, "datagrid": true, "gallery": true,
 	"container": true, "customcontainer": true, "groupbox": true, "tabcontainer": true,

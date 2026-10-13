@@ -401,6 +401,8 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 		widget, err = pb.buildDropdownV3(w)
 	case "checkbox":
 		widget, err = pb.buildCheckBoxV3(w)
+	case "filemanager":
+		widget, err = pb.buildFileManagerV3(w)
 	case "text", "statictext":
 		widget, err = pb.buildTextWidgetV3(w)
 	case "dynamictext":

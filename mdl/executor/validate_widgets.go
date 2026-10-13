@@ -795,6 +795,9 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// a layout-grid row's and column's alignment, read by
 		// buildLayoutGridRowV3 / buildLayoutGridColumnV3 and emitted by describe.
 		"VerticalAlignment", "HorizontalAlignment", "SpacingBetweenColumns",
+		// a file manager's own four, read by buildFileManagerV3 and emitted by
+		// describe (mendixlabs/mxcli#151).
+		"Type", "MaxFileSize", "AllowedExtensions", "ShowFileInBrowser",
 		// fragment / building-block sentinel-internal keys (USE_FRAGMENT /
 		// USE_BUILDING_BLOCK), consumed by the expander, never serialized
 		"Args", "DataSourceOverride", "ActionOverride",

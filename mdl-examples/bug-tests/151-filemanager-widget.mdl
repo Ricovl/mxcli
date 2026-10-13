@@ -1,0 +1,43 @@
+-- ============================================================================
+-- mendixlabs/mxcli#151 — the classic file manager (Forms$FileManager)
+-- ============================================================================
+--
+-- Reported: "MDL can't create a `Forms$FileManager` widget, which is needed
+-- for file upload in pages." `pluggablewidget 'Forms$FileManager'` failed with
+-- "no definition for widget Forms$FileManager"; after #1036 the bare
+-- `filemanager fileManager1 (…)` parsed but was refused as MDL-WIDGET25
+-- "`filemanager` is not a widget in this project", and `describe page` printed
+-- a stored one as a NOT re-executable comment, so describe -> exec dropped it.
+--
+-- Expected: exec creates the page; `mxcli docker check` reports 0 errors
+-- (measured on Mendix 11.14.0); `describe page Docs151.UploadPage` prints the
+-- filemanager line below, and replaying it reports "Unchanged page".
+--
+-- The data view's object must be a System.FileDocument specialization: the
+-- widget binds no attribute. Anywhere else mxbuild reports CE6810.
+-- ============================================================================
+mdl 1;
+
+create module Docs151;
+
+create entity Docs151.Upload extends System.FileDocument ();
+
+create page Docs151.UploadPage
+(
+  Params: ( $Upload: Docs151.Upload ),
+  Title: 'Upload',
+  Layout: Atlas_Core.Atlas_Default
+)
+{
+  layoutgrid lg {
+    row {
+      column (DesktopWidth: AutoFill) {
+        dataview dv (DataSource: $Upload) {
+          filemanager fileManager1 (Label: 'Excel file', Type: Upload, MaxFileSize: 10, AllowedExtensions: '.xlsx', ShowFileInBrowser: false)
+          -- Omitted properties take Studio Pro's defaults: Both, 5 MB, any file.
+          filemanager fileManager2 (Label: 'Attachment')
+        }
+      }
+    }
+  }
+};

@@ -190,13 +190,16 @@ const (
 	RenderDirectionVertical   RenderDirection = "Vertical"
 )
 
-// FileManager represents a file manager widget.
+// FileManager represents the classic file manager (Forms$FileManager). It has
+// no attribute: it uploads into / downloads from the enclosing data view's
+// object, which must be a System.FileDocument (mendixlabs/mxcli#151).
 type FileManager struct {
 	BaseWidget
+	Label             string          `json:"label,omitempty"`
 	Type              FileManagerType `json:"type"`
 	AllowedExtensions string          `json:"allowedExtensions,omitempty"`
-	MaxFileSize       int             `json:"maxFileSize,omitempty"`
-	ShowButton        bool            `json:"showButton,omitempty"`
+	MaxFileSize       int             `json:"maxFileSize,omitempty"` // megabytes
+	ShowFileInBrowser bool            `json:"showFileInBrowser,omitempty"`
 }
 
 // FileManagerType represents the type of file manager.

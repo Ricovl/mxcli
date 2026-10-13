@@ -118,7 +118,7 @@ LIST IMPACT OF htmlelement;
 		Keywords: []string{
 			"widget", "layoutgrid", "container", "customcontainer", "dataview", "datagrid",
 			"gallery", "listview", "textbox", "textarea", "datepicker",
-			"combobox", "checkbox", "radiobuttons", "actionbutton", "linkbutton",
+			"combobox", "checkbox", "radiobuttons", "filemanager", "file upload", "actionbutton", "linkbutton",
 			"dynamictext", "title", "snippetcall", "navigationlist", "item",
 			"column", "row", "footer", "header", "controlbar",
 			"template", "specialization", "list view template",
@@ -152,6 +152,8 @@ LIST IMPACT OF htmlelement;
 			"-- Inputs\nTEXTBOX name (Label: 'L', Attribute: Attr)\nTEXTAREA | DATEPICKER | COMBOBOX | CHECKBOX | RADIOBUTTONS\n" +
 			"-- A date picker's DateFormat is its mode: Date (default) | Time | DateTime | Custom.\n" +
 			"DATEPICKER name (Attribute: Start, DateFormat: DateTime)\n" +
+			"-- File upload/download: inside a data view on a System.FileDocument specialization (CE6810 otherwise).\n" +
+			"FILEMANAGER name (Label: 'File', Type: Upload, MaxFileSize: 10, AllowedExtensions: '.xlsx', ShowFileInBrowser: false)\n" +
 			"DATEPICKER name (Attribute: Start, DateFormat: Custom, CustomDateFormat: 'dd-MM-yyyy HH:mm')\n" +
 			"-- A text box's numeric formatting:\n" +
 			"TEXTBOX name (Attribute: Amount, DecimalPrecision: 2, GroupDigits: true)\n" +

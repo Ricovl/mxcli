@@ -279,6 +279,18 @@ func init() {
 		},
 	})
 	codec.RegisterListMarker("Forms$CheckBox", 2)
+	// FileManager (mendixlabs/mxcli#151): the InputWidget null slots it has on
+	// Mendix 10/11 — no AttributeRef, SourceVariable or native accessibility,
+	// since it binds no attribute and has no native counterpart. Property set
+	// from the Model SDK (mendixmodelsdk 4.116.0) and the version table; no
+	// Studio Pro-authored file manager was available to diff against.
+	codec.RegisterTypeDefaults("Forms$FileManager", codec.TypeDefaults{
+		NullFields: []string{
+			"ScreenReaderLabel", "LabelTemplate",
+			"ConditionalVisibilitySettings", "ConditionalEditabilitySettings",
+		},
+	})
+	codec.RegisterListMarker("Forms$FileManager", 2)
 	// NavigationList: null visibility; items + the widget itself use marker 2.
 	codec.RegisterTypeDefaults("Forms$NavigationList", codec.TypeDefaults{
 		NullFields: []string{"ConditionalVisibilitySettings"},
@@ -598,6 +610,19 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		// text (ako/mxcli#490). The value is canonicalised at build time.
 		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit"))
 		g.SetValidation(widgetValidationToGen())
+		return g, nil
+
+	case *pages.FileManager:
+		g := genPg.NewFileManager()
+		applyWidgetBase(g, &x.BaseWidget)
+		g.SetEditable(pages.WidgetEditability(&x.BaseWidget))
+		if x.Label != "" {
+			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
+		}
+		g.SetType(string(orDefaultFileManagerType(x.Type)))
+		g.SetMaxFileSize(int32(x.MaxFileSize))
+		g.SetAllowedExtensions(x.AllowedExtensions)
+		g.SetShowFileInBrowser(x.ShowFileInBrowser)
 		return g, nil
 
 	case *pages.TextArea:
@@ -2190,4 +2215,13 @@ func menuSourceToGen(widget, menu, profile string) (element.Element, error) {
 	assignID(src)
 	src.SetNavigationProfileQualifiedName(orDefaultStr(profile, "Responsive"))
 	return src, nil
+}
+
+// orDefaultFileManagerType is the Model SDK's default, Both, for an unset Type:
+// an empty enum is a value Studio Pro cannot load.
+func orDefaultFileManagerType(t pages.FileManagerType) pages.FileManagerType {
+	if t == "" {
+		return pages.FileManagerTypeBoth
+	}
+	return t
 }

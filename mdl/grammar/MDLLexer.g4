@@ -419,6 +419,7 @@ CHECKBOX: C H E C K B O X;
 REFERENCESELECTOR: R E F E R E N C E S E L E C T O R;
 INPUTREFERENCESETSELECTOR: I N P U T R E F E R E N C E S E T S E L E C T O R;
 FILEINPUT: F I L E I N P U T;
+FILEMANAGER: F I L E M A N A G E R;  // Forms$FileManager (mendixlabs/mxcli#151)
 IMAGEINPUT: I M A G E I N P U T;
 
 // Custom/Filter/Pluggable widgets
