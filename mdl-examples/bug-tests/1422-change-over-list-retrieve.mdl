@@ -1,0 +1,14 @@
+mdl 1;
+-- mendixlabs/mxcli#1422: under `mdl 1;` `retrieve … limit 1` binds a LIST of one.
+-- `change $E (Name = 'x')` over it passed check, and exec stored the member as
+-- "List of MyFirstModule.Bug1422Ent.Name" — mx check: CE1613 "The selected
+-- attribute 'List of …' no longer exists". Now check/exec refuse that form as
+-- MDL-RETRIEVE03. This script is the working spelling: `first` binds the object.
+-- Expected: check passes, exec creates the microflow, mx check reports 0 errors.
+create persistent entity MyFirstModule.Bug1422Ent ( Name: String(100) );
+
+create or modify microflow MyFirstModule.MF_Bug1422_ChangeFirst ()
+begin
+  retrieve $E from MyFirstModule.Bug1422Ent first;
+  change $E ( Name = 'x' );
+end;

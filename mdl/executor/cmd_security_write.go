@@ -507,16 +507,8 @@ func execGrantEntityAccess(ctx *ExecContext, s *ast.GrantEntityAccessStmt) error
 		}
 	}
 
-	// Create entries for associations this entity owns. ParentID = FROM entity
-	// (FK owner), and for a Default-owner association MemberAccess belongs only
-	// on that side — adding it to the TO side triggers CE0066.
-	//
-	// `OWNER Both` is the exception: both ends own the association and Mendix
-	// expects a MemberAccess entry on each. Emitting it only on the FROM side
-	// left the TO entity's rule incomplete, which is CE0066 "Entity access is
-	// out of date" — the reported symptom (issuetracker #20). Verified against
-	// mxbuild 11.12.1: the same script with `OWNER Default` checks clean, so the
-	// owner mode is the trigger, not the reference set.
+	// Create entries for the associations this entity's rule carries — which
+	// side owns one, and how it is referenced, is accessRuleAssociations'.
 	addAssociationAccess := func(name, ref string) {
 		rights := defaultMemberAccess
 		if writeMemberSet[name] {
@@ -530,44 +522,13 @@ func execGrantEntityAccess(ctx *ExecContext, s *ast.GrantEntityAccessStmt) error
 			AccessRights:   rights,
 		})
 	}
-	for _, assoc := range dm.Associations {
-		ownedHere := assoc.ParentID == entity.ID ||
-			(assoc.Owner == domainmodel.AssociationOwnerBoth && assoc.ChildID == entity.ID)
-		if ownedHere {
-			addAssociationAccess(assoc.Name, module.Name+"."+assoc.Name)
-		}
-	}
-	for _, ca := range dm.CrossAssociations {
-		if ca.ParentID == entity.ID {
-			addAssociationAccess(ca.Name, module.Name+"."+ca.Name)
-		}
-	}
-	// A cross-module association owned by both ends is stored in the FROM
-	// entity's module, so this entity — the TO end — has to look for it there.
-	for _, other := range otherModuleBothOwnerAssociations(ctx, module.Name, entityQN) {
-		addAssociationAccess(other.Name, other.Ref)
-	}
-	// Associations declared on an ancestor. Mendix inheritance is multi-table:
-	// a specialization has ALL of its generalization's members, associations
-	// included, and its access rule needs an entry for each — exactly as it does
-	// for inherited attributes (#758).
-	//
-	// Leaving them out was CE0066 "Entity access is out of date" on the
-	// specialization's own module, and it made the rule OpenAIConnector ships
-	// impossible to express in MDL: `OpenAIDeployedModel extends
-	// GenAICommons.DeployedModel`, and `DeployedModel_InputModality` is declared
-	// on the parent, so the grant naming it was refused as "no such member"
-	// (mxcli-chat FINDINGS §26). Reproduced on a two-entity fixture with no
-	// marketplace module in sight: `GRANT … ON Derived (READ *, WRITE *)` gave
-	// CE0066 while the same rule on the base entity checked clean.
-	//
-	// The reference is qualified against the module that DECLARES the
-	// association, not this entity's — the same rule the attribute walk follows.
-	for _, inh := range inheritedAssociations(ctx, entityQN) {
-		if grantedMembers[inh.Name] {
+	// The enumeration lives in accessRuleAssociations so REVOKE resolves member
+	// names against exactly the set GRANT writes (mendixlabs/mxcli#1225).
+	for _, a := range accessRuleAssociations(ctx, module.Name, dm, entity, entityQN) {
+		if a.inherited && grantedMembers[a.Name] {
 			continue // an association of this entity's own shadows it
 		}
-		addAssociationAccess(inh.Name, inh.Ref)
+		addAssociationAccess(a.Name, a.Ref)
 	}
 
 	// A member named in the GRANT that matched nothing used to be dropped in
@@ -685,16 +646,49 @@ func execRevokeEntityAccess(ctx *ExecContext, s *ast.RevokeEntityAccessStmt) err
 		// not `Mod.Doc.HasContents`. Qualifying every name with this entity
 		// matched no stored entry for an inherited member, and the revoke
 		// answered "No access rules found" while the rule held ReadWrite.
+		//
+		// An association is stored by its module-qualified name and only on the
+		// rule of the entity that owns it, so it resolves through the same
+		// enumeration GRANT writes from (mendixlabs/mxcli#1225).
+		entityQN := module.Name + "." + s.Entity.Name
 		memberRef := map[string]string{}
-		for _, mem := range EntityMembers(ctx, module.Name+"."+s.Entity.Name) {
+		for _, mem := range EntityMembers(ctx, entityQN) {
 			memberRef[mem.Name] = mem.Ref
 		}
-		qualify := func(m string) string {
-			if ref, ok := memberRef[m]; ok {
-				return ref
+		for _, a := range accessRuleAssociations(ctx, module.Name, dm, entity, entityQN) {
+			if _, shadowed := memberRef[a.Name]; !shadowed {
+				memberRef[a.Name] = a.Ref
 			}
-			return module.Name + "." + s.Entity.Name + "." + m
 		}
+		// An audit member is a real member with no MemberAccess of its own —
+		// naming one is accepted, and there is simply nothing to narrow.
+		known := map[string]bool{}
+		for name := range memberRef {
+			known[name] = true
+		}
+		for _, sys := range storedAuditMembers(entity) {
+			known[sys] = true
+		}
+		// A member the rule cannot carry is a mistake in the script, not an
+		// already-revoked right: answering "nothing to revoke" for it, exit 0,
+		// was the silent no-op of #1225. Refuse it as GRANT does (#758); a known
+		// member whose right is already gone stays the idempotent notice.
+		var readNamed, writeNamed []string
+		for _, right := range s.Rights {
+			switch right.Type {
+			case ast.EntityAccessReadMembers:
+				readNamed = append(readNamed, right.Members...)
+			case ast.EntityAccessWriteMembers:
+				writeNamed = append(writeNamed, right.Members...)
+			}
+		}
+		if unknown := unmatchedGrantMembers(readNamed, writeNamed, known); len(unknown) > 0 {
+			return mdlerrors.NewValidationf(
+				"entity %s has no member(s) %s; revoke only names members of the entity or of an entity it inherits from "+
+					"(an association is a member of the entity it goes FROM, unless it is owned by both)",
+				entityQN, strings.Join(unknown, ", "))
+		}
+		qualify := func(m string) string { return memberRef[m] }
 		for _, right := range s.Rights {
 			switch right.Type {
 			case ast.EntityAccessCreate:
@@ -1465,6 +1459,66 @@ func storedAuditMembers(e *domainmodel.Entity) []string {
 // namedAssociation is an association reachable from an entity, with the
 // qualified reference to store in a MemberAccess.
 type namedAssociation struct{ Name, Ref string }
+
+// ruleAssociation is one association an entity's access rule carries a
+// MemberAccess for, with the reference Mendix stores in AssociationQualifiedName.
+type ruleAssociation struct {
+	namedAssociation
+	inherited bool
+}
+
+// accessRuleAssociations lists the associations whose MemberAccess belongs on
+// entity's access rule, in the order GRANT writes them. GRANT builds the rule
+// from it and REVOKE resolves member names against it, so the two agree on
+// which side carries an association and on its stored reference.
+//
+// ParentID = FROM entity (FK owner), and for a Default-owner association the
+// MemberAccess belongs only on that side — adding it to the TO side triggers
+// CE0066. `OWNER Both` is the exception: both ends own the association and
+// Mendix expects an entry on each; emitting it only on the FROM side left the
+// TO entity's rule incomplete, CE0066 (issuetracker #20, verified against
+// mxbuild 11.12.1 — the same script with `OWNER Default` checks clean).
+//
+// The reference is qualified by the module that DECLARES the association
+// ("ModA.Tag_GuestGroup"), never by the entity as an attribute's is. REVOKE
+// qualifying an association like an attribute matched no stored entry and
+// reported "nothing to revoke" while the rule held ReadWrite (mendixlabs/mxcli#1225).
+//
+// Associations declared on an ancestor come last, marked inherited. Mendix
+// inheritance is multi-table: a specialization has ALL of its generalization's
+// members, associations included, and its rule needs an entry for each, as for
+// inherited attributes (#758). Leaving them out was CE0066 on the
+// specialization's module and made OpenAIConnector's rule inexpressible
+// (`OpenAIDeployedModel extends GenAICommons.DeployedModel`, whose
+// `DeployedModel_InputModality` is declared on the parent — mxcli-chat FINDINGS
+// §26). A caller lets one of the entity's own members shadow an inherited one.
+func accessRuleAssociations(ctx *ExecContext, moduleName string, dm *domainmodel.DomainModel, entity *domainmodel.Entity, entityQN string) []ruleAssociation {
+	var out []ruleAssociation
+	own := func(name, ref string) {
+		out = append(out, ruleAssociation{namedAssociation: namedAssociation{Name: name, Ref: ref}})
+	}
+	for _, assoc := range dm.Associations {
+		ownedHere := assoc.ParentID == entity.ID ||
+			(assoc.Owner == domainmodel.AssociationOwnerBoth && assoc.ChildID == entity.ID)
+		if ownedHere {
+			own(assoc.Name, moduleName+"."+assoc.Name)
+		}
+	}
+	for _, ca := range dm.CrossAssociations {
+		if ca.ParentID == entity.ID {
+			own(ca.Name, moduleName+"."+ca.Name)
+		}
+	}
+	// A cross-module association owned by both ends is stored in the FROM
+	// entity's module, so this entity — the TO end — has to look for it there.
+	for _, other := range otherModuleBothOwnerAssociations(ctx, moduleName, entityQN) {
+		own(other.Name, other.Ref)
+	}
+	for _, inh := range inheritedAssociations(ctx, entityQN) {
+		out = append(out, ruleAssociation{namedAssociation: inh, inherited: true})
+	}
+	return out
+}
 
 // otherModuleBothOwnerAssociations finds cross-module associations owned by BOTH
 // ends whose TO end is entityQN. They are stored in the FROM entity's module, so

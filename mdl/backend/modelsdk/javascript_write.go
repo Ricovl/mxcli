@@ -171,8 +171,15 @@ func (b *Backend) WriteJavaScriptSourceFile(moduleName, actionName string, jsCod
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("WriteJavaScriptSourceFile: create dir: %w", err)
 	}
-	source := javaactions.GenerateJavaScriptSource(actionName, jsCode, params, returnType)
-	changed, err := javaactions.WriteSourceIfChanged(filepath.Join(dir, actionName+".js"), source)
+	path := filepath.Join(dir, actionName+".js")
+	// Regenerate the way Studio Pro does: the existing file's import list and
+	// EXTRA CODE section are retained, since MDL cannot express either.
+	// Keeping only the user code deleted hand-restored helpers the user code
+	// calls (mendixlabs/mxcli#1429; the Java twin is ako/mxcli#705).
+	existing, _ := os.ReadFile(path)
+	imports, extraCode := javaactions.JavaScriptRetainedSections(string(existing))
+	source := javaactions.GenerateJavaScriptSource(actionName, jsCode, params, returnType, imports, extraCode)
+	changed, err := javaactions.WriteSourceIfChanged(path, source)
 	b.noteFileWrite(changed)
 	if err != nil {
 		return fmt.Errorf("WriteJavaScriptSourceFile: write: %w", err)

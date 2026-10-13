@@ -1,0 +1,47 @@
+mdl 1;
+-- ============================================================================
+-- Bug #1225 — `revoke … (write (<association>))` said "No access rules found"
+-- (later "nothing to revoke") for a rule that exists, exited 0, and left the
+-- association ReadWrite.
+--
+-- The revoke qualified every named member like an attribute,
+-- `Issue1225.Tag.Tag_GuestGroup`, but an association's MemberAccess is stored
+-- by its module-qualified name, `Issue1225.Tag_GuestGroup`, and only on the
+-- rule of the FROM entity (ParentPointer). Nothing matched, so nothing changed.
+-- A member the rule cannot carry (a typo, or the TO end of a Default-owner
+-- association) is now refused, as GRANT refuses it, instead of answering
+-- "nothing to revoke".
+--
+--   mxcli exec this-file -p app.mpr
+--     before: "Unchanged entity access: Issue1225.Tag (Issue1225.User) — nothing to revoke"
+--             and `describe entity Issue1225.Tag` still shows Tag_GuestGroup ReadWrite
+--     after:  "Revoked partial access on Issue1225.Tag from Issue1225.User",
+--             Label and Tag_GuestGroup both ReadOnly; `mx check` clean
+-- ============================================================================
+
+create module Issue1225;
+create module role Issue1225.User;
+
+@position(100, 100)
+create persistent entity Issue1225.Tag (
+  Label: string(200)
+);
+
+@position(400, 100)
+create persistent entity Issue1225.GuestGroup (
+  Name: string(200)
+);
+
+create association Issue1225.Tag_GuestGroup
+  from Issue1225.Tag
+  to Issue1225.GuestGroup
+  type Reference;
+
+grant read *, write * on entity Issue1225.Tag to Issue1225.User;
+
+-- The attribute half always worked; the association half is the bug.
+-- (The issue used the older `revoke R on M.E (write (…))` spelling — same statement.)
+revoke write (Label) on entity Issue1225.Tag from Issue1225.User;
+revoke write (Tag_GuestGroup) on entity Issue1225.Tag from Issue1225.User;
+
+describe entity Issue1225.Tag;

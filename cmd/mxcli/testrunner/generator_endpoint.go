@@ -234,7 +234,7 @@ func attachOnError(lines, handler []string) []string {
 	var out []string
 	for i := 0; i < len(lines); i++ {
 		trimmed := strings.TrimSpace(lines[i])
-		if !containsCallMicroflow(trimmed) {
+		if !startsErrorRaisingCall(trimmed) {
 			out = append(out, lines[i])
 			continue
 		}

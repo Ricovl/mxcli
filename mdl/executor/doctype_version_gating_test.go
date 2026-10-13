@@ -19,10 +19,14 @@ import (
 // nightly failure on the others, reported hours later against whatever landed in
 // between — which is how the DecimalScale gating below was found.
 var nightlyMatrix = []*mxversion.ProjectVersion{
+	// 9.24 runs in its own non-gating job (test-mendix-9), not the matrix.
+	{MajorVersion: 9, MinorVersion: 24, ProductVersion: "9.24.30.51827"},
 	{MajorVersion: 10, MinorVersion: 24, ProductVersion: "10.24.24.119349"},
 	{MajorVersion: 11, MinorVersion: 6, ProductVersion: "11.6.8"},
 	{MajorVersion: 11, MinorVersion: 12, ProductVersion: "11.12.2"},
 	{MajorVersion: 11, MinorVersion: 13, ProductVersion: "11.13.0"},
+	{MajorVersion: 11, MinorVersion: 14, ProductVersion: "11.14.0"},
+	{MajorVersion: 11, MinorVersion: 15, ProductVersion: "11.15.0"},
 }
 
 // TestDoctypeScriptsParseAfterVersionFiltering guards the whole doctype corpus

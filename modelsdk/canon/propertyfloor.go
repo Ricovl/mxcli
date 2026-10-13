@@ -192,6 +192,23 @@ func isEmptyValue(v any) bool {
 	return false
 }
 
+// PropertyDeclared reports whether a project of version pv declares the BSON
+// key on the storage $Type typeName, by the same version data
+// StripUndeclaredProperties drops and refuses on. A key with no version data is
+// declared, as it is to the floor.
+//
+// It exists for writers that copy a schema authored for a newer Mendix — a
+// pluggable widget's Type from an embedded 11.6 template — and must write it in
+// the project's shape before the floor sees it, where a value it holds is not
+// something the statement said and refusing it would refuse the widget.
+func PropertyDeclared(typeName, key string, pv version.Version) bool {
+	if gone, ok := measuredRemoved()[typeName+"."+key]; ok && pv.Compare(gone) >= 0 {
+		return false
+	}
+	since, ok := propertyFloor(typeName, key)
+	return !ok || pv.Compare(since) >= 0
+}
+
 // propertyFloor returns the first Mendix version that declares a type's key:
 // the measured table first (it exists for keys the generated data lacks), then
 // the generated metamodel's data.

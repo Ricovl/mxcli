@@ -1,4 +1,7 @@
 mdl 1;
+-- Projects$ModuleSettings.JarDependencies exists from Mendix 10.0; mxcli refuses
+-- it on 9.x, and every statement below is about it.
+-- @version: 10.0+
 -- ============================================================================
 -- Module JAR Dependency Examples
 -- ============================================================================

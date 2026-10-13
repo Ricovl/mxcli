@@ -241,12 +241,15 @@ func (wt *WriteTransaction) WriteUnit(unitID string, contents []byte) error {
 
 		// Create directory if needed
 		dir := filepath.Join(wt.writer.reader.contentsDir, swappedUUID[0:2], swappedUUID[2:4])
+		finalPath := filepath.Join(dir, swappedUUID+".mxunit")
+		if err := journalFile(finalPath); err != nil {
+			return err
+		}
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory: %w", err)
 		}
 
 		// Write to temp file first
-		finalPath := filepath.Join(dir, swappedUUID+".mxunit")
 		tempPath := finalPath + ".tmp"
 
 		if err := os.WriteFile(tempPath, contents, 0644); err != nil {
@@ -569,12 +572,15 @@ func (w *Writer) insertUnit(unitID, containerID, containmentName, unitType strin
 
 		// Create directory structure: mprcontents/XX/YY/
 		dir := filepath.Join(w.reader.contentsDir, swappedUUID[0:2], swappedUUID[2:4])
+		filePath := filepath.Join(dir, swappedUUID+".mxunit")
+		if err := journalFile(filePath); err != nil {
+			return err
+		}
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 
 		// Write content file
-		filePath := filepath.Join(dir, swappedUUID+".mxunit")
 		if err := os.WriteFile(filePath, contents, 0644); err != nil {
 			return fmt.Errorf("failed to write unit file: %w", err)
 		}
@@ -680,6 +686,9 @@ func (w *Writer) updateUnit(unitID string, contents []byte, opts ...canon.Option
 		// Direct WriteFile would overwrite the shared inode when the target
 		// is a hard link (e.g. in test fixtures), corrupting the source file.
 		// Rename replaces the directory entry, leaving the linked inode intact.
+		if err := journalFile(filePath); err != nil {
+			return err
+		}
 		tmpPath := filePath + ".tmp"
 		if err := os.WriteFile(tmpPath, contents, 0644); err != nil {
 			return fmt.Errorf("failed to write unit temp file: %w", err)
@@ -955,6 +964,9 @@ func (w *Writer) deleteUnit(unitID string) error {
 		subDir1 := swappedUUID[0:2]
 		subDir2 := swappedUUID[2:4]
 		filePath := filepath.Join(w.reader.contentsDir, subDir1, subDir2, swappedUUID+".mxunit")
+		if err := journalFile(filePath); err != nil {
+			return err
+		}
 		os.Remove(filePath) // Ignore error if file doesn't exist
 
 		// Clean up empty parent directories (YY/, then XX/)

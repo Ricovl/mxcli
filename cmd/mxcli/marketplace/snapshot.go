@@ -83,7 +83,21 @@ func (e Element) Conclusive() (bool, string) {
 	if emptyBody(e.MDL) {
 		return false, "DESCRIBE produced no body, so a difference here is not evidence of an edit"
 	}
+	if sourceOmitted(e.MDL) {
+		return false, "the action's source file was not on disk, so its body could not be compared"
+	}
 	return true, ""
+}
+
+// sourceOmitted spots the placeholder DESCRIBE prints for a JavaScript or Java
+// action whose source file it could not read (jsSourceOmittedBody /
+// javaSourceOmittedBody in mdl/executor). That body says nothing about the
+// code, so a difference against it is a missing file, not an edit — the shape
+// of mendixlabs/mxcli#1441, where a cached reference without sources made every
+// action of an untouched module read as "changed locally". Matching the
+// handlers' own shared wording keeps the two in step.
+func sourceOmitted(mdl string) bool {
+	return strings.Contains(mdl, "source not available from this project; body omitted by DESCRIBE.")
 }
 
 // declaredReadOnly spots the comment a describe handler emits when its output

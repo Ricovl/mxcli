@@ -248,6 +248,13 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	if mapping := storedImportWithoutEntity(a.mf.ObjectCollection); mapping != "" {
 		return nil, cannotSplice("its stored `import from mapping %s` activity has no result entity, which Mendix cannot load (mendixlabs/mxcli#1418)", mapping)
 	}
+	// The same shape for a change activity mxcli wrote over a list before
+	// mendixlabs/mxcli#1422: the member is qualified through the list type
+	// ("List of M.E.Attr", CE1613), describe prints it as the bare attribute,
+	// and a splice that replaced only the retrieve kept it.
+	if member := storedListQualifiedMember(a.mf.ObjectCollection); member != "" {
+		return nil, cannotSplice("its stored change activity names the member %q, qualified through a list type, which mxbuild rejects with CE1613 (mendixlabs/mxcli#1422)", member)
+	}
 
 	stored, err := describedFlowStmt(ctx, d, a)
 	if err != nil {
@@ -413,6 +420,37 @@ func storedImportWithoutEntity(oc *microflows.MicroflowObjectCollection) string 
 		}
 	}
 	return ""
+}
+
+// storedListQualifiedMember returns the first change-object member in oc (loop
+// bodies included) qualified through a list type ("List of M.E.Attr"), or "".
+func storedListQualifiedMember(oc *microflows.MicroflowObjectCollection) string {
+	if oc == nil {
+		return ""
+	}
+	for _, obj := range oc.Objects {
+		switch o := obj.(type) {
+		case *microflows.ActionActivity:
+			if ch, ok := o.Action.(*microflows.ChangeObjectAction); ok {
+				for _, m := range ch.Changes {
+					if isListQualifiedMember(m) {
+						return m.AttributeQualifiedName + m.AssociationQualifiedName
+					}
+				}
+			}
+		case *microflows.LoopedActivity:
+			if m := storedListQualifiedMember(o.ObjectCollection); m != "" {
+				return m
+			}
+		}
+	}
+	return ""
+}
+
+// isListQualifiedMember reports a member change whose name was qualified
+// through a variable's list type, which no domain model member can have.
+func isListQualifiedMember(m *microflows.MemberChange) bool {
+	return m != nil && (strings.HasPrefix(m.AttributeQualifiedName, "List of ") || strings.HasPrefix(m.AssociationQualifiedName, "List of "))
 }
 
 // reportUnchanged reports a statement that wrote nothing, collapsing into the
