@@ -223,124 +223,130 @@ func execDescribe(ctx *ExecContext, s *ast.DescribeStmt) error {
 		fmt.Fprintf(ctx.Output, "-- %s definition (not executable)\n", report)
 	}
 
-	describe := func() error {
-		switch s.ObjectType {
-		case ast.DescribeEnumeration:
-			return describeEnumeration(ctx, s.Name)
-		case ast.DescribeEntity:
-			return describeEntity(ctx, s.Name)
-		case ast.DescribeAssociation:
-			return describeAssociation(ctx, s.Name)
-		case ast.DescribeMicroflow:
-			return describeMicroflowMode(ctx, s.Name, describeMicroflowOptions{Normalized: s.Normalized, Handles: s.WithHandles})
-		case ast.DescribeNanoflow:
-			return describeNanoflow(ctx, s.Name)
-		case ast.DescribeRule:
-			return describeRule(ctx, s.Name)
-		case ast.DescribeModule:
-			return describeModule(ctx, s.Name.Module, s.WithAll)
-		case ast.DescribePage:
-			return describePage(ctx, s.Name)
-		case ast.DescribeSnippet:
-			return describeSnippet(ctx, s.Name)
-		case ast.DescribeBuildingBlock:
-			return describeBuildingBlock(ctx, s.Name)
-		case ast.DescribeQueue:
-			// Queues and scheduled events carry their own statement types rather
-			// than a DescribeStmt kind, so bare `DESCRIBE Module.Name` reaches them
-			// by synthesizing one. Without this they are indexed in the catalog's
-			// objects view but unreachable without naming the type — the state
-			// BUILDING_BLOCK and ICON_COLLECTION were in when 43 of 251 documents
-			// in a marketplace project could not be described (see describe_auto.go).
-			return execDescribeQueue(ctx, &ast.DescribeQueueStmt{Name: s.Name})
-		case ast.DescribeScheduledEvent:
-			return execDescribeScheduledEvent(ctx, &ast.DescribeScheduledEventStmt{Name: s.Name})
-		case ast.DescribeRegularExpression:
-			return execDescribeRegularExpression(ctx, &ast.DescribeRegularExpressionStmt{Name: s.Name})
-		case ast.DescribeLayout:
-			return describeLayout(ctx, s.Name)
-		case ast.DescribeConstant:
-			return describeConstant(ctx, s.Name)
-		case ast.DescribeJavaAction:
-			return describeJavaAction(ctx, s.Name)
-		case ast.DescribeJavaScriptAction:
-			return describeJavaScriptAction(ctx, s.Name)
-		case ast.DescribeModuleRole:
-			return describeModuleRole(ctx, s.Name)
-		case ast.DescribeUserRole:
-			return describeUserRole(ctx, s.Name)
-		case ast.DescribeDemoUser:
-			return describeDemoUser(ctx, s.Name.Name)
-		case ast.DescribeODataClient:
-			return describeODataClient(ctx, s.Name)
-		case ast.DescribeODataService:
-			return describeODataService(ctx, s.Name)
-		case ast.DescribeExternalEntity:
-			return describeExternalEntity(ctx, s.Name)
-		case ast.DescribeNavigation:
-			return describeNavigation(ctx, s.Name)
-		case ast.DescribeWidget:
-			return describeWidgetStmt(ctx, s.Name.Name)
-		case ast.DescribeWorkflow:
-			return describeWorkflow(ctx, s.Name)
-		case ast.DescribeBusinessEventService:
-			return describeBusinessEventService(ctx, s.Name)
-		case ast.DescribeDatabaseConnection:
-			return describeDatabaseConnection(ctx, s.Name)
-		case ast.DescribeSettings:
-			return describeSettings(ctx, s.Qualifier)
-		case ast.DescribeFragment:
-			return describeFragment(ctx, s.Name)
-		case ast.DescribeImageCollection:
-			return describeImageCollection(ctx, s.Name)
-		case ast.DescribeIconCollection:
-			return describeIconCollection(ctx, s.Name)
-		case ast.DescribeGlyph:
-			return describeGlyph(ctx, s.Qualifier)
-		case ast.DescribeModel:
-			return describeAgentEditorModel(ctx, s.Name)
-		case ast.DescribeAgent:
-			return describeAgentEditorAgent(ctx, s.Name)
-		case ast.DescribeKnowledgeBase:
-			return describeAgentEditorKnowledgeBase(ctx, s.Name)
-		case ast.DescribeConsumedMCPService:
-			return describeAgentEditorConsumedMCPService(ctx, s.Name)
-		case ast.DescribeRestClient:
-			return describeRestClient(ctx, s.Name)
-		case ast.DescribePublishedRestService:
-			return describePublishedRestService(ctx, s.Name)
-		case ast.DescribeDataTransformer:
-			return describeDataTransformer(ctx, s.Name)
-		case ast.DescribeContractEntity:
-			return describeContractEntity(ctx, s.Name, s.Format)
-		case ast.DescribeContractAction:
-			return describeContractAction(ctx, s.Name, s.Format)
-		case ast.DescribeContractMessage:
-			return describeContractMessage(ctx, s.Name)
-		case ast.DescribeJsonStructure:
-			return describeJsonStructure(ctx, s.Name)
-		case ast.DescribeMessageDefinitionCollection:
-			return execDescribeMessageDefinitionCollection(ctx, s.Name)
-		case ast.DescribeMessageDefinition:
-			return execDescribeMessageDefinition(ctx, s.Name)
-		case ast.DescribeImportMapping:
-			return describeImportMapping(ctx, s.Name)
-		case ast.DescribeExportMapping:
-			return describeExportMapping(ctx, s.Name)
-		case ast.DescribeMenu:
-			return describeMenu(ctx, s.Name)
-		case ast.DescribeJarDependency:
-			return execDescribeJarDependency(ctx, s.Name.String(), s.Qualifier)
-		default:
-			return mdlerrors.NewUnsupported("unknown describe object type")
-		}
-	}
+	describe := func() error { return describeByKind(ctx, s) }
 	return writeDescribeJSONAs(ctx, name, objectType, !isReport, func() error {
 		if isReport {
 			return describe()
 		}
 		return withDescribeHeader(ctx, describe)
 	})
+}
+
+// describeByKind runs the describe handler for one typed DESCRIBE statement:
+// the dispatch execDescribe wraps in its header and JSON envelope, and that
+// `describe module ... with all` reuses per document, so a module dump is the
+// concatenation of exactly what each document's own describe prints.
+func describeByKind(ctx *ExecContext, s *ast.DescribeStmt) error {
+	switch s.ObjectType {
+	case ast.DescribeEnumeration:
+		return describeEnumeration(ctx, s.Name)
+	case ast.DescribeEntity:
+		return describeEntity(ctx, s.Name)
+	case ast.DescribeAssociation:
+		return describeAssociation(ctx, s.Name)
+	case ast.DescribeMicroflow:
+		return describeMicroflowMode(ctx, s.Name, describeMicroflowOptions{Normalized: s.Normalized, Handles: s.WithHandles})
+	case ast.DescribeNanoflow:
+		return describeNanoflow(ctx, s.Name)
+	case ast.DescribeRule:
+		return describeRule(ctx, s.Name)
+	case ast.DescribeModule:
+		return describeModule(ctx, s.Name.Module, s.WithAll)
+	case ast.DescribePage:
+		return describePage(ctx, s.Name)
+	case ast.DescribeSnippet:
+		return describeSnippet(ctx, s.Name)
+	case ast.DescribeBuildingBlock:
+		return describeBuildingBlock(ctx, s.Name)
+	case ast.DescribeQueue:
+		// Queues and scheduled events carry their own statement types rather
+		// than a DescribeStmt kind, so bare `DESCRIBE Module.Name` reaches them
+		// by synthesizing one. Without this they are indexed in the catalog's
+		// objects view but unreachable without naming the type — the state
+		// BUILDING_BLOCK and ICON_COLLECTION were in when 43 of 251 documents
+		// in a marketplace project could not be described (see describe_auto.go).
+		return execDescribeQueue(ctx, &ast.DescribeQueueStmt{Name: s.Name})
+	case ast.DescribeScheduledEvent:
+		return execDescribeScheduledEvent(ctx, &ast.DescribeScheduledEventStmt{Name: s.Name})
+	case ast.DescribeRegularExpression:
+		return execDescribeRegularExpression(ctx, &ast.DescribeRegularExpressionStmt{Name: s.Name})
+	case ast.DescribeLayout:
+		return describeLayout(ctx, s.Name)
+	case ast.DescribeConstant:
+		return describeConstant(ctx, s.Name)
+	case ast.DescribeJavaAction:
+		return describeJavaAction(ctx, s.Name)
+	case ast.DescribeJavaScriptAction:
+		return describeJavaScriptAction(ctx, s.Name)
+	case ast.DescribeModuleRole:
+		return describeModuleRole(ctx, s.Name)
+	case ast.DescribeUserRole:
+		return describeUserRole(ctx, s.Name)
+	case ast.DescribeDemoUser:
+		return describeDemoUser(ctx, s.Name.Name)
+	case ast.DescribeODataClient:
+		return describeODataClient(ctx, s.Name)
+	case ast.DescribeODataService:
+		return describeODataService(ctx, s.Name)
+	case ast.DescribeExternalEntity:
+		return describeExternalEntity(ctx, s.Name)
+	case ast.DescribeNavigation:
+		return describeNavigation(ctx, s.Name)
+	case ast.DescribeWidget:
+		return describeWidgetStmt(ctx, s.Name.Name)
+	case ast.DescribeWorkflow:
+		return describeWorkflow(ctx, s.Name)
+	case ast.DescribeBusinessEventService:
+		return describeBusinessEventService(ctx, s.Name)
+	case ast.DescribeDatabaseConnection:
+		return describeDatabaseConnection(ctx, s.Name)
+	case ast.DescribeSettings:
+		return describeSettings(ctx, s.Qualifier)
+	case ast.DescribeFragment:
+		return describeFragment(ctx, s.Name)
+	case ast.DescribeImageCollection:
+		return describeImageCollection(ctx, s.Name)
+	case ast.DescribeIconCollection:
+		return describeIconCollection(ctx, s.Name)
+	case ast.DescribeGlyph:
+		return describeGlyph(ctx, s.Qualifier)
+	case ast.DescribeModel:
+		return describeAgentEditorModel(ctx, s.Name)
+	case ast.DescribeAgent:
+		return describeAgentEditorAgent(ctx, s.Name)
+	case ast.DescribeKnowledgeBase:
+		return describeAgentEditorKnowledgeBase(ctx, s.Name)
+	case ast.DescribeConsumedMCPService:
+		return describeAgentEditorConsumedMCPService(ctx, s.Name)
+	case ast.DescribeRestClient:
+		return describeRestClient(ctx, s.Name)
+	case ast.DescribePublishedRestService:
+		return describePublishedRestService(ctx, s.Name)
+	case ast.DescribeDataTransformer:
+		return describeDataTransformer(ctx, s.Name)
+	case ast.DescribeContractEntity:
+		return describeContractEntity(ctx, s.Name, s.Format)
+	case ast.DescribeContractAction:
+		return describeContractAction(ctx, s.Name, s.Format)
+	case ast.DescribeContractMessage:
+		return describeContractMessage(ctx, s.Name)
+	case ast.DescribeJsonStructure:
+		return describeJsonStructure(ctx, s.Name)
+	case ast.DescribeMessageDefinitionCollection:
+		return execDescribeMessageDefinitionCollection(ctx, s.Name)
+	case ast.DescribeMessageDefinition:
+		return execDescribeMessageDefinition(ctx, s.Name)
+	case ast.DescribeImportMapping:
+		return describeImportMapping(ctx, s.Name)
+	case ast.DescribeExportMapping:
+		return describeExportMapping(ctx, s.Name)
+	case ast.DescribeMenu:
+		return describeMenu(ctx, s.Name)
+	case ast.DescribeJarDependency:
+		return execDescribeJarDependency(ctx, s.Name.String(), s.Qualifier)
+	default:
+		return mdlerrors.NewUnsupported("unknown describe object type")
+	}
 }
 
 // definitionReportKind names the kind of definition a describe reports on, when
