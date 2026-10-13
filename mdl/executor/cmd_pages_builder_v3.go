@@ -1721,7 +1721,16 @@ func (pb *pageBuilder) buildClientActionV3Base(action *ast.ActionV3) (pages.Clie
 			// the inferred mapping. Outside any data widget there is no context
 			// object to infer at all, so every argument is dropped and the build
 			// fails CE1571 (#1029). Refuse instead of re-pointing the argument.
+			//
+			// The one argument that needs no context object is a page or snippet
+			// parameter of the document being built: Studio Pro binds it by name,
+			// as an explicit mapping whose Variable is a Forms$PageVariable — which
+			// is what DESCRIBE prints back as `Param = $Param` (mendixlabs/mxcli#1403).
+			explicitVar, explicitKind := "", ""
 			if strVal, ok := arg.Value.(string); ok && !pb.argCtx.binds(strVal) {
+				explicitVar, explicitKind = pb.namedParameterArgument(strVal)
+			}
+			if strVal, ok := arg.Value.(string); ok && explicitKind == "" && !pb.argCtx.binds(strVal) {
 				return nil, mdlerrors.NewValidation(
 					refuseShowPageArgument(pb.currentWidget, action.Target, arg.Name, strVal, pb.argCtx) +
 						" [MDL-PAGEARG01]")
@@ -1736,7 +1745,10 @@ func (pb *pageBuilder) buildClientActionV3Base(action *ast.ActionV3) (pages.Clie
 			}
 
 			// Determine if value is a variable reference or expression
-			if strVal, ok := arg.Value.(string); ok {
+			if explicitKind != "" {
+				mapping.Variable = explicitVar
+				mapping.VariableKind = explicitKind
+			} else if strVal, ok := arg.Value.(string); ok {
 				if strings.HasPrefix(strVal, "$") {
 					// Variable reference (including $currentObject)
 					mapping.Variable = strVal

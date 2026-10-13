@@ -142,15 +142,18 @@ describe icon collection Atlas_Core.Atlas_Filled;   -- every icon + its referenc
   that widget is bound to (`datasource: $Customer` → `(Customer = $Customer)` is
   fine). Naming any other variable is refused as **MDL-PAGEARG01** — it used to be
   accepted and silently opened the page with the context object anyway.
-- **Outside a data widget the same rule leaves nothing at all**, so a button sitting
-  on the page itself (or in a plain `container`/`layoutgrid`) may pass **no**
-  argument — not a page parameter, not `$currentObject`, not a literal. There is no
-  context object there for Mendix to infer, and the page opens with nothing:
-  mxbuild reports **CE1571** per parameter of the target page, and a page whose
-  parameters are optional would simply show the wrong data. MDL-PAGEARG01 refuses
-  that too (mendixlabs/mxcli#1029). To open a parameterised page from such a
-  button, call a microflow that does `show page Module.Page(Param = $value)` —
-  that path wires the arguments properly.
+- **The exception is a parameter of the page or snippet itself.** `(Item = $Item)`
+  where `$Item` is the document's own entity parameter is bound BY NAME — Studio
+  Pro stores an explicit mapping for it — so it works anywhere, including on a
+  button outside every data widget (mendixlabs/mxcli#1403).
+- **Outside a data widget nothing else is left**, so a button sitting on the page
+  itself (or in a plain `container`/`layoutgrid`) may pass no other argument — not
+  `$currentObject`, not a literal, not a variable that is no parameter of the
+  document. There is no context object there for Mendix to infer, and the page
+  opens with nothing: mxbuild reports **CE1571** per parameter of the target page.
+  MDL-PAGEARG01 refuses that too (mendixlabs/mxcli#1029). To open a parameterised
+  page with anything else from such a button, call a microflow that does
+  `show page Module.Page(Param = $value)`.
 - **The list above is the whole vocabulary, and a keyword without its argument is
   not in it.** `action: open link` with no URL, `action: show page` with no page,
   `action: call microflow` with no name — each is **MDL-WIDGET28**. Until

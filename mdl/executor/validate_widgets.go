@@ -144,7 +144,7 @@ func withDocumentLocation(vs []linter.Violation, stmt ast.Statement) []linter.Vi
 
 func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []linter.Violation {
 	if label, widgets, ok := documentWidgets(stmt); ok {
-		out := validateWidgetTree(widgets, registry, label)
+		out := validateDocumentWidgetTree(widgets, registry, label, documentEntityParameters(stmt))
 		out = append(out, validateNamedObjectBindings(widgets, documentEntityParameters(stmt), label)...)
 		return append(out, validatePageVariableBindings(widgets, documentVariables(stmt), label)...)
 	}
@@ -175,7 +175,13 @@ func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []
 // $currentObject is unbound there. That is a fact this pass can state, unlike
 // validateWidgetSubtree below, and MDL-PAGEARG01 needs it (#1029).
 func validateWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string) []linter.Violation {
-	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot())
+	return validateDocumentWidgetTree(widgets, registry, locationPrefix, nil)
+}
+
+// validateDocumentWidgetTree is validateWidgetTree for a document whose
+// entity-typed parameters are known (a CREATE PAGE / SNIPPET's `Params:`).
+func validateDocumentWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string, params []string) []linter.Violation {
+	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot().withDocumentParameters(params))
 	// Only a whole document: an ALTER fragment's parent is out of sight, and
 	// whether a row or column stores a name depends on it (#749).
 	for _, msg := range checkMissingWidgetNames(widgets) {
