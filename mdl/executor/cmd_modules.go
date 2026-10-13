@@ -666,208 +666,48 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 	// Output separator
 	fmt.Fprintln(ctx.Output)
 
-	// Output enumerations in this module (no dependencies between enums)
-	if enums, err := ctx.Backend.ListEnumerations(); err == nil {
-		for _, enum := range enums {
-			if moduleContainers[enum.ContainerID] {
-				if err := describeEnumeration(ctx, ast.QualifiedName{Module: moduleName, Name: enum.Name}); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
+	// Every document of the module, in the registry's dependency order, with
+	// the domain model's entities and associations after enumerations and
+	// constants (mendixlabs/mxcli#1421).
+	run := &moduleDescribeRun{ctx: ctx, module: moduleName, containers: moduleContainers, emitted: map[model.ID]bool{}}
+	run.emitKinds(moduleDocKindsBeforeDomainModel)
 
-	// Output constants (may reference enumerations)
-	if constants, err := ctx.Backend.ListConstants(); err == nil {
-		for _, c := range constants {
-			if moduleContainers[c.ContainerID] {
-				if err := outputConstantMDL(ctx, c, moduleName); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
+	// Entities in dependency order (base entities before derived entities),
+	// then associations once every entity is defined.
+	dm, err := ctx.Backend.GetDomainModel(targetModule.ID)
+	if err != nil {
+		run.fail("domain model "+moduleName, err)
+	} else if dm != nil {
+		for _, entity := range sortEntitiesByGeneralization(dm.Entities, moduleName) {
+			qn := ast.QualifiedName{Module: moduleName, Name: entity.Name}
+			if err := describeEntity(ctx, qn); err != nil {
+				run.fail("entity "+qn.String(), err)
+				continue
 			}
-		}
-	}
-
-	// Output entities in dependency order (base entities before derived entities)
-	// and associations after all entities
-	if dm, err := ctx.Backend.GetDomainModel(targetModule.ID); err == nil {
-		// Topologically sort entities by generalization (inheritance)
-		sortedEntities := sortEntitiesByGeneralization(dm.Entities, moduleName)
-
-		// Output entities in sorted order
-		for _, entity := range sortedEntities {
-			if err := describeEntity(ctx, ast.QualifiedName{Module: moduleName, Name: entity.Name}); err == nil {
-				fmt.Fprintln(ctx.Output)
-			}
-		}
-
-		// Output associations (after all entities are defined)
-		for _, assoc := range dm.Associations {
-			if err := describeAssociation(ctx, ast.QualifiedName{Module: moduleName, Name: assoc.Name}); err == nil {
-				fmt.Fprintln(ctx.Output)
-			}
+			fmt.Fprintln(ctx.Output)
 		}
 		// Cross-module associations are stored in a separate collection but are
 		// owned by this module (the FROM entity lives here); emit them too.
+		var assocNames []string
+		for _, a := range dm.Associations {
+			assocNames = append(assocNames, a.Name)
+		}
 		for _, ca := range dm.CrossAssociations {
-			if err := describeAssociation(ctx, ast.QualifiedName{Module: moduleName, Name: ca.Name}); err == nil {
-				fmt.Fprintln(ctx.Output)
+			assocNames = append(assocNames, ca.Name)
+		}
+		for _, name := range assocNames {
+			qn := ast.QualifiedName{Module: moduleName, Name: name}
+			if err := describeAssociation(ctx, qn); err != nil {
+				run.fail("association "+qn.String(), err)
+				continue
 			}
+			fmt.Fprintln(ctx.Output)
 		}
 	}
 
-	// Output microflows
-	if mfs, err := ctx.Backend.ListMicroflows(); err == nil {
-		for _, mf := range mfs {
-			if moduleContainers[mf.ContainerID] {
-				if err := describeMicroflow(ctx, ast.QualifiedName{Module: moduleName, Name: mf.Name}); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-
-	// Output java actions
-	if jaList, err := ctx.Backend.ListJavaActions(); err == nil {
-		for _, ja := range jaList {
-			if moduleContainers[ja.ContainerID] {
-				if err := describeJavaAction(ctx, ast.QualifiedName{Module: moduleName, Name: ja.Name}); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-
-	// Output pages
-	if pageList, err := ctx.Backend.ListPages(); err == nil {
-		for _, p := range pageList {
-			if moduleContainers[p.ContainerID] {
-				if err := describePage(ctx, ast.QualifiedName{Module: moduleName, Name: p.Name}); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-
-	// Output snippets
-	if snippets, err := ctx.Backend.ListSnippets(); err == nil {
-		for _, s := range snippets {
-			if moduleContainers[s.ContainerID] {
-				if err := describeSnippet(ctx, ast.QualifiedName{Module: moduleName, Name: s.Name}); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-
-	// Output layouts
-	if layouts, err := ctx.Backend.ListLayouts(); err == nil {
-		for _, l := range layouts {
-			if moduleContainers[l.ContainerID] {
-				if err := describeLayout(ctx, ast.QualifiedName{Module: moduleName, Name: l.Name}); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-
-	// Output database connections
-	if conns, err := ctx.Backend.ListDatabaseConnections(); err == nil {
-		for _, conn := range conns {
-			if moduleContainers[conn.ContainerID] {
-				if err := outputDatabaseConnectionMDL(ctx, conn, moduleName); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-
-	// Output business event services
-	if services, err := ctx.Backend.ListBusinessEventServices(); err == nil {
-		for _, svc := range services {
-			if moduleContainers[svc.ContainerID] {
-				if err := describeBusinessEventService(ctx, ast.QualifiedName{Module: moduleName, Name: svc.Name}); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-
-	// Get hierarchy for folder path resolution (used by OData sections below)
-	h, _ := getHierarchy(ctx)
-
-	// Output consumed OData services (clients)
-	if services, err := ctx.Backend.ListConsumedODataServices(); err == nil {
-		for _, svc := range services {
-			if moduleContainers[svc.ContainerID] {
-				folderPath := ""
-				if h != nil {
-					folderPath = h.BuildFolderPath(svc.ContainerID)
-				}
-				if err := outputConsumedODataServiceMDL(ctx, svc, moduleName, folderPath); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-
-	// Output published OData services
-	if services, err := ctx.Backend.ListPublishedODataServices(); err == nil {
-		for _, svc := range services {
-			if moduleContainers[svc.ContainerID] {
-				folderPath := ""
-				if h != nil {
-					folderPath = h.BuildFolderPath(svc.ContainerID)
-				}
-				if err := outputPublishedODataServiceMDL(ctx, svc, moduleName, folderPath); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-
-	// Output agent-editor documents. Order matches referential dependencies:
-	// Model / KnowledgeBase / ConsumedMCPService first (leaves), Agent last
-	// (may reference the others via its TOOL / KNOWLEDGE BASE / MCP SERVICE
-	// blocks).
-	if models, err := ctx.Backend.ListAgentEditorModels(); err == nil {
-		for _, m := range models {
-			if moduleContainers[m.ContainerID] {
-				if err := describeAgentEditorModel(ctx, ast.QualifiedName{Module: moduleName, Name: m.Name}); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-	if kbs, err := ctx.Backend.ListAgentEditorKnowledgeBases(); err == nil {
-		for _, kb := range kbs {
-			if moduleContainers[kb.ContainerID] {
-				if err := describeAgentEditorKnowledgeBase(ctx, ast.QualifiedName{Module: moduleName, Name: kb.Name}); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-	if svcs, err := ctx.Backend.ListAgentEditorConsumedMCPServices(); err == nil {
-		for _, svc := range svcs {
-			if moduleContainers[svc.ContainerID] {
-				if err := describeAgentEditorConsumedMCPService(ctx, ast.QualifiedName{Module: moduleName, Name: svc.Name}); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-	if agents, err := ctx.Backend.ListAgentEditorAgents(); err == nil {
-		for _, a := range agents {
-			if moduleContainers[a.ContainerID] {
-				if err := describeAgentEditorAgent(ctx, ast.QualifiedName{Module: moduleName, Name: a.Name}); err == nil {
-					fmt.Fprintln(ctx.Output)
-				}
-			}
-		}
-	}
-
-	return nil
+	run.emitKinds(moduleDocKindsAfterDomainModel)
+	run.reportUnemitted()
+	return run.err()
 }
 
 // sortEntitiesByGeneralization returns entities sorted so base entities come before derived entities.
