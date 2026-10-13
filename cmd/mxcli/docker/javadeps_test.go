@@ -30,25 +30,107 @@ func TestUnvendoredJarDependencies(t *testing.T) {
 	deps := []JarDependencyRef{
 		{Group: "org.apache.commons", Artifact: "commons-lang3", Version: "3.14.0"}, // present
 		{Group: "org.duckdb", Artifact: "duckdb_jdbc", Version: "1.5.5.1"},          // missing
-		// A different version of a vendored artifact is still missing: the file
-		// name carries the version, and the wrong jar is not the right jar.
-		{Group: "org.apache.commons", Artifact: "commons-lang3", Version: "3.12.0"},
 	}
 
 	got := UnvendoredJarDependencies(dir, deps)
-	if len(got) != 2 {
-		t.Fatalf("got %d missing, want 2: %v", len(got), got)
+	if len(got) != 1 || got[0] != "org.duckdb:duckdb_jdbc:1.5.5.1" {
+		t.Fatalf("got %v, want only org.duckdb:duckdb_jdbc:1.5.5.1", got)
 	}
-	for _, want := range []string{"org.duckdb:duckdb_jdbc:1.5.5.1", "org.apache.commons:commons-lang3:3.12.0"} {
-		found := false
-		for _, g := range got {
-			if g == want {
-				found = true
-			}
+}
+
+// A different version of a vendored artifact is still missing: the file name
+// carries the version, and the wrong jar is not the right jar.
+func TestUnvendoredJarDependencies_WrongVersionVendored(t *testing.T) {
+	dir := t.TempDir()
+	writeVendoredJar(t, dir, "commons-lang3-3.14.0.jar")
+	deps := []JarDependencyRef{{Group: "org.apache.commons", Artifact: "commons-lang3", Version: "3.12.0"}}
+	got := UnvendoredJarDependencies(dir, deps)
+	if len(got) != 1 || got[0] != "org.apache.commons:commons-lang3:3.12.0" {
+		t.Errorf("got %v, want the declared 3.12.0", got)
+	}
+}
+
+// mendixlabs/mxcli#1450: two modules declare the same artifact at different
+// versions (ExcelImporter commons-lang3 3.18.0, CommunityCommons 3.20.0).
+// `mx sync-java-dependencies` runs Gradle, whose conflict resolution keeps the
+// newest, so vendorlib/ holds 3.20.0 only. Checking each declaration on its own
+// reported "missing  org.apache.commons:commons-lang3:3.18.0" forever: the gate
+// failed, sync deleted the jar and then errored "still missing", and
+// `run --local` re-synced on every start.
+func TestUnvendoredJarDependencies_ConflictResolvesToNewest(t *testing.T) {
+	dir := t.TempDir()
+	writeVendoredJar(t, dir, "commons-lang3-3.20.0.jar")
+	deps := []JarDependencyRef{
+		{Group: "org.apache.commons", Artifact: "commons-lang3", Version: "3.18.0"},
+		{Group: "org.apache.commons", Artifact: "commons-lang3", Version: "3.20.0"},
+	}
+	if got := UnvendoredJarDependencies(dir, deps); len(got) != 0 {
+		t.Errorf("superseded declaration reported as missing: %v", got)
+	}
+
+	// The winner itself is still required: with nothing vendored, the newest
+	// version is the one missing — never the superseded one.
+	empty := t.TempDir()
+	got := UnvendoredJarDependencies(empty, deps)
+	if len(got) != 1 || got[0] != "org.apache.commons:commons-lang3:3.20.0" {
+		t.Errorf("got %v, want only the resolved 3.20.0", got)
+	}
+}
+
+func TestSupersededJarDependencies(t *testing.T) {
+	deps := []JarDependencyRef{
+		{Group: "org.apache.commons", Artifact: "commons-lang3", Version: "3.20.0"},
+		{Group: "org.apache.commons", Artifact: "commons-lang3", Version: "3.18.0"},
+		{Group: "org.duckdb", Artifact: "duckdb_jdbc", Version: "1.5.5.1"},
+		// Same version declared twice is one requirement, not a conflict.
+		{Group: "org.duckdb", Artifact: "duckdb_jdbc", Version: "1.5.5.1"},
+	}
+	got := SupersededJarDependencies(deps)
+	want := "org.apache.commons:commons-lang3:3.18.0 (resolved to 3.20.0)"
+	if len(got) != 1 || got[0] != want {
+		t.Errorf("got %v, want [%s]", got, want)
+	}
+}
+
+// Gradle's version ordering, which decides the conflict winner. A plain string
+// comparison gets the first case wrong ("3.9.0" > "3.20.0").
+func TestCompareJarVersions(t *testing.T) {
+	cases := []struct{ a, b string }{ // a < b
+		{"3.9.0", "3.20.0"},
+		{"3.18.0", "3.20.0"},
+		{"1.0", "1.0.1"},
+		{"1.0-beta", "1.0"},
+		{"1.0-rc1", "1.0"},
+		{"1.0-alpha", "1.0-beta"},
+		{"1.0-dev", "1.0-alpha"},
+		{"1.0-SNAPSHOT", "1.0"},
+		{"1.0-rc", "1.0-SNAPSHOT"},
+		{"1.0.a", "1.0.1"},
+		{"1.5.5", "1.5.5.1"},
+	}
+	for _, c := range cases {
+		if compareJarVersions(c.a, c.b) >= 0 {
+			t.Errorf("want %s < %s", c.a, c.b)
 		}
-		if !found {
-			t.Errorf("expected %q among the missing, got: %v", want, got)
+		if compareJarVersions(c.b, c.a) <= 0 {
+			t.Errorf("want %s > %s", c.b, c.a)
 		}
+	}
+	for _, v := range []string{"1.0", "3.20.0", "1.0-beta"} {
+		if compareJarVersions(v, v) != 0 {
+			t.Errorf("want %s == %s", v, v)
+		}
+	}
+}
+
+func writeVendoredJar(t *testing.T, dir, name string) {
+	t.Helper()
+	vendorlib := filepath.Join(dir, "vendorlib")
+	if err := os.MkdirAll(vendorlib, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(vendorlib, name), []byte("jar"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
