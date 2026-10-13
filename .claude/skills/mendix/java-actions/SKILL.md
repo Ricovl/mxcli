@@ -61,7 +61,7 @@ MDL supports defining Java actions with inline Java code using `create java acti
 
 ```mdl
 mdl 1;
-create java action Module.ActionName(param1: type, param2: type) returns ReturnType
+create java action Module.ActionName(param1: string, param2: integer) returns boolean
 as $$
 // java code here
 return result;
