@@ -20,13 +20,13 @@ description: "Microflow syntax reference in MDL — every activity type, control
 | 345-402 | Operators |
 | 403-419 | Logging |
 | 420-445 | Special Values |
-| 446-495 | Complete Example |
-| 496-552 | Calling Microflows |
-| 553-579 | Page Navigation |
-| 580-596 | Validation Checklist |
-| 597-608 | Tips for Success |
-| 609-615 | Related Documentation |
-| 616-730 | Quick Reference |
+| 446-492 | Complete Example |
+| 493-549 | Calling Microflows |
+| 550-576 | Page Navigation |
+| 577-593 | Validation Checklist |
+| 594-605 | Tips for Success |
+| 606-612 | Related Documentation |
+| 613-727 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Microflow Skill
@@ -460,12 +460,9 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  -- Find the order (the retrieve establishes $Order — objects are never declared).
-  -- `first` binds one object; without it $Order is a list, and `$Order/…` or
-  -- `change $Order` over a list fails the build (MDL-RETRIEVE03).
+  -- Find the order: `first` binds one object (without it $Order is a list — MDL-RETRIEVE03)
   retrieve $Order from Shop.Order
-    where OrderNumber = $OrderNumber
-    first;
+    where OrderNumber = $OrderNumber first;
 
   -- Validate order exists
   if $Order = empty then
