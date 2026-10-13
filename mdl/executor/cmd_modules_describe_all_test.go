@@ -46,14 +46,13 @@ var catalogProgress = regexp.MustCompile(`\A(?:(?:Loading cached catalog|Buildin
 func TestDescribeModuleWithAll_AccountsForEveryDocument(t *testing.T) {
 	for _, tc := range []struct {
 		fixture, mpr, module string
-		// parses is false where a document's own describe does not parse
-		// today — a JavaScript action with a type parameter prints
-		// `Name<T>` / `entity <>`, which the grammar rejects. That is the
-		// JavaScript action describer's defect, not the module dump's; the
-		// module is still checked for completeness.
+		// parses is false where a document's own describe does not parse;
+		// the module is then still checked for completeness. FeedbackModule
+		// needed it until JavaScript actions with type parameters described
+		// as parseable MDL (#1170).
 		parses bool
 	}{
-		{"pedapp", "PedApp.mpr", "FeedbackModule", false},
+		{"pedapp", "PedApp.mpr", "FeedbackModule", true},
 		{"pedapp", "PedApp.mpr", "Atlas_Core", true},        // icon collections: read-only reports
 		{"pedapp", "PedApp.mpr", "Atlas_Web_Content", true}, // building blocks, page templates
 		{"pedapp", "PedApp.mpr", "Administration", true},
