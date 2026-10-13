@@ -85,8 +85,18 @@ func refCacheDir(versionID, mendixVersion string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(root, "ref", safeKey(mendixVersion)+"_"+safeKey(versionID)), nil
+	return filepath.Join(root, "ref", refEntryFormat+"_"+safeKey(mendixVersion)+"_"+safeKey(versionID)), nil
 }
+
+// refEntryFormat versions what an entry holds. Change it whenever isModelFile
+// keeps something it did not before: an entry written under the old filter is
+// complete by its own marker and would otherwise be served for ever, missing
+// exactly what the new filter was extended for.
+//
+// "f2" added javascriptsource/ and javasource/ (mendixlabs/mxcli#1441). Entries
+// with no prefix were model-only; they sit beside the new ones under ref/, are
+// never looked up again, and age out through pruneRefCache.
+const refEntryFormat = "f2"
 
 // safeKey makes a path component out of a version string or UUID. Anything that
 // is not plainly alphanumeric becomes '-', so a malformed version from the API
@@ -117,8 +127,9 @@ func safeKey(s string) string {
 
 // defaultRefCacheEntries bounds the finished-reference cache.
 //
-// An entry is the model alone (see isModelFile) — 14 MB measured for
-// Administration at 11.12.1, against 34 MB for the whole reference project.
+// An entry is the model plus action sources (see isModelFile) — for
+// Administration at 11.12.1, the 14 MB model and 1.6 MB of javascriptsource/
+// measured, against 34 MB for the whole reference project.
 // Twelve is what a six-module update sweep builds, base and target each, so the
 // default holds a whole sweep at ~170 MB and the `update` that follows a `diff`
 // still hits.
@@ -257,8 +268,9 @@ func publishToCache(buildDir, cacheDir string) error {
 	return nil
 }
 
-// isModelFile reports whether a path inside a reference project is part of the
-// MODEL, which is the only thing a cached reference is ever read for.
+// isModelFile reports whether a path inside a reference project is something a
+// cached reference is read for: the model, and the action sources DESCRIBE
+// reads beside it.
 //
 // A reference project is a whole blank Mendix app, and most of it is bulk that
 // nothing here touches. Measured on Administration at 11.12.1, a 34 MB entry:
@@ -267,25 +279,34 @@ func publishToCache(buildDir, cacheDir string) error {
 //	widgets/           9.6 MB   never read
 //	themesource/       6.4 MB   never read
 //	theme-cache/       2.1 MB   never read (compiled CSS)
-//	javascriptsource/  1.6 MB   never read
+//	javascriptsource/  1.6 MB   READ — kept
 //
-// Both consumers take the .mpr and nothing beside it: SnapshotModule opens it,
-// and PerformUpdate takes the reference's model from it while taking the
-// module's bundled widgets from the .mpk — deliberately, because the reference
-// project's widgets/ also holds the blank template's copies.
+// The .mpr is opened by SnapshotModule and PerformUpdate; PerformUpdate takes
+// the module's bundled widgets from the .mpk rather than from the reference,
+// deliberately, because the reference project's widgets/ also holds the blank
+// template's copies.
 //
-// THIS IS A CONSTRAINT ON FUTURE CHANGES. A cached reference is model-only, so
-// anything that starts reading a sibling directory of the reference .mpr will
-// see it on a cache miss and not on a hit — a difference that shows up as
-// findings that come and go. Extend this filter in the same commit, or store
-// the whole tree again.
+// javascriptsource/ and javasource/ were once dropped here as "never read", and
+// that was wrong: DESCRIBE JAVASCRIPT ACTION and DESCRIBE JAVA ACTION read
+// <dir>/<Module>/actions/<Name>.{js,java} next to the .mpr, and print a
+// "source not available" placeholder when it is missing. A cache miss compared
+// the real source against the project's; a hit compared the placeholder, and
+// every action in an untouched module came out "changed locally" — 44 of them
+// on NanoflowCommons, enough to make `update --to` refuse (mendixlabs/mxcli#1441).
+//
+// THIS IS A CONSTRAINT ON FUTURE CHANGES. Anything that starts reading a sibling
+// directory of the reference .mpr will see it on a cache miss and not on a hit
+// — a difference that shows up as findings that come and go. Extend this filter
+// in the same commit and bump refEntryFormat, or store the whole tree again.
 //
 // mprcontents/ is kept even though `mx module-import` always collapses the
 // reference to MPR v1: the cost is nothing when it is absent, and the failure if
 // that ever changes is an unreadable model rather than a slower run.
 func isModelFile(rel string) bool {
-	if rel == "mprcontents" || strings.HasPrefix(rel, "mprcontents"+string(filepath.Separator)) {
-		return true
+	for _, dir := range []string{"mprcontents", "javascriptsource", "javasource"} {
+		if rel == dir || strings.HasPrefix(rel, dir+string(filepath.Separator)) {
+			return true
+		}
 	}
 	return !strings.ContainsRune(rel, filepath.Separator) && strings.HasSuffix(rel, ".mpr")
 }
@@ -299,7 +320,8 @@ func copyTree(src, dst string) error {
 	return copyTreeFiltered(src, dst, nil)
 }
 
-// copyTreeModelOnly copies just the model, for the finished-reference cache.
+// copyTreeModelOnly copies the model and the action sources DESCRIBE reads (see
+// isModelFile), for the finished-reference cache.
 // The blank-project cache deliberately does NOT use this: a blank app is the
 // input to `mx module-import`, which reads the whole tree.
 func copyTreeModelOnly(src, dst string) error {
