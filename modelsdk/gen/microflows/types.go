@@ -10619,7 +10619,8 @@ func (o *SequenceFlow) InitFromRaw(raw bson.Raw) {
 	if child, err := codec.DecodeChild(raw, "Line"); err == nil {
 		o.line.SetFromDecode(child)
 	}
-	if child, err := codec.DecodeChild(raw, "CaseValue"); err == nil {
+	// STORAGE-NAME OVERRIDE, decode half — see initSequenceFlow.
+	if child, err := codec.DecodeChild(raw, "NewCaseValue"); err == nil {
 		o.caseValue.SetFromDecode(child)
 	}
 	if children, err := codec.DecodeChildren(raw, "CaseValues"); err == nil {
@@ -16217,7 +16218,12 @@ func initSequenceFlow() *SequenceFlow {
 	o.lineType.Bind(&o.Base, 6)
 	o.line = property.NewPart[element.Element]("Line")
 	o.line.Bind(&o.Base, 7)
-	o.caseValue = property.NewPart[element.Element]("CaseValue")
+	// STORAGE-NAME OVERRIDE: the single case (Model SDK caseValue, deleted in
+	// 10.15.0 for the caseValues list) is stored under "NewCaseValue" — measured
+	// on every sequence flow of a Studio Pro 9.24.30 document (mendixlabs/mxcli#1410).
+	// Bound as "CaseValue" it could be read only through the decoder's alias and
+	// written under a key no Mendix version declares.
+	o.caseValue = property.NewPart[element.Element]("NewCaseValue")
 	o.caseValue.Bind(&o.Base, 8)
 	o.caseValues = property.NewPartList[element.Element]("CaseValues")
 	o.caseValues.Bind(&o.Base, 9)

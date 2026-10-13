@@ -143,10 +143,69 @@ func (b *Backend) majorVersion() int {
 	return 11
 }
 
+// flowVersion is the Mendix version a flow document — microflow, nanoflow or
+// rule — is written for. Flow properties changed shape within Mendix 10, so
+// the major alone cannot gate them (mendixlabs/mxcli#1410: every flow write on
+// a Mendix 9 project was refused for a StableId and a CaseValues list it
+// cannot store, and 10.0–10.14 for the CaseValues list).
+//
+// The floors are the Model SDK's StructureVersionInfo (mendixmodelsdk
+// 4.116.0), and the shapes are measured: a Studio Pro 9.24.30 document, and
+// the same document after `mx convert` to 10.12.19.
+type flowVersion struct{ major, minor int }
+
+// newestFlowVersion is what an unreadable project version is written as —
+// the newest shape, as majorVersion() has always defaulted to 11.
+var newestFlowVersion = flowVersion{major: 11}
+
+func (v flowVersion) atLeast(major, minor int) bool {
+	return v.major > major || v.major == major && v.minor >= minor
+}
+
+// Microflow.stableId, introduced in 10.2.0.
+func (v flowVersion) hasStableID() bool { return v.atLeast(10, 2) }
+
+// SequenceFlow.caseValues, introduced in 10.15.0 when the single caseValue
+// (stored as NewCaseValue) was deleted.
+func (v flowVersion) hasCaseValueList() bool { return v.atLeast(10, 15) }
+
+// Flow.line, introduced in 10.16.0 when Origin/DestinationBezierVector were
+// deleted. Flow.lineType lived between 10.8.0 and 10.16.0.
+func (v flowVersion) hasLine() bool     { return v.atLeast(10, 16) }
+func (v flowVersion) hasLineType() bool { return v.atLeast(10, 8) && !v.hasLine() }
+
+// MicroflowBase.returnVariableName, introduced in 10.12.0.
+func (v flowVersion) hasReturnVariableName() bool { return v.atLeast(10, 12) }
+
+// MicroflowParameterObject.isRequired / defaultValue, introduced in 10.17.0.
+func (v flowVersion) hasParameterDefaults() bool { return v.atLeast(10, 17) }
+
+// flowVersion returns the version this project's flow documents are written for.
+func (b *Backend) flowVersion() flowVersion {
+	pv := b.ProjectVersion()
+	if pv == nil || pv.MajorVersion == 0 {
+		return newestFlowVersion
+	}
+	return flowVersion{major: pv.MajorVersion, minor: pv.MinorVersion}
+}
+
+// microflowEncoder encodes a Microflows$Microflow for v. StableId comes from a
+// registered Studio Pro default (a fresh GUID), not a gen property, so leaving
+// it out below its floor is the encoder's job.
+func microflowEncoder(v flowVersion) *codec.Encoder {
+	if v.hasStableID() {
+		return &codec.Encoder{}
+	}
+	return &codec.Encoder{OmitKeys: map[string]map[string]bool{"Microflows$Microflow": {"StableId": true}}}
+}
+
 // CreateMicroflow adds a new microflow document (a top-level unit).
 func (b *Backend) CreateMicroflow(mf *microflows.Microflow) error {
 	if mf == nil {
 		return fmt.Errorf("CreateMicroflow: nil microflow")
+	}
+	if err := flowImportMappingEntityError(mf.ObjectCollection); err != nil {
+		return fmt.Errorf("CreateMicroflow %s: %w", mf.Name, err)
 	}
 	if b.writer == nil {
 		return fmt.Errorf("CreateMicroflow: not connected for writing")
@@ -154,10 +213,11 @@ func (b *Backend) CreateMicroflow(mf *microflows.Microflow) error {
 	if mf.ID == "" {
 		mf.ID = model.ID(mmpr.GenerateID())
 	}
-	gm := microflowToGen(mf, b.majorVersion())
+	fv := b.flowVersion()
+	gm := microflowToGen(mf, fv)
 	gm.SetID(element.ID(mf.ID))
 	assignMicroflowIDs(gm)
-	contents, err := (&codec.Encoder{}).Encode(gm)
+	contents, err := microflowEncoder(fv).Encode(gm)
 	if err != nil {
 		return fmt.Errorf("CreateMicroflow: encode: %w", err)
 	}
@@ -172,13 +232,17 @@ func (b *Backend) UpdateMicroflow(mf *microflows.Microflow) error {
 	if mf == nil {
 		return fmt.Errorf("UpdateMicroflow: nil microflow")
 	}
+	if err := flowImportMappingEntityError(mf.ObjectCollection); err != nil {
+		return fmt.Errorf("UpdateMicroflow %s: %w", mf.Name, err)
+	}
 	if b.writer == nil {
 		return fmt.Errorf("UpdateMicroflow: not connected for writing")
 	}
-	gm := microflowToGen(mf, b.majorVersion())
+	fv := b.flowVersion()
+	gm := microflowToGen(mf, fv)
 	gm.SetID(element.ID(mf.ID))
 	assignMicroflowIDs(gm)
-	contents, err := (&codec.Encoder{}).Encode(gm)
+	contents, err := microflowEncoder(fv).Encode(gm)
 	if err != nil {
 		return fmt.Errorf("UpdateMicroflow: encode: %w", err)
 	}
@@ -197,9 +261,10 @@ func (b *Backend) DeleteMicroflow(id model.ID) error {
 }
 
 // microflowToGen builds a gen Microflow wrapper from the model. Mirrors the legacy
-// serializer (writer_microflow.go). v10+ adds ReturnVariableName/StableId/Url/
-// UrlSearchParameters.
-func microflowToGen(mf *microflows.Microflow, major int) *genMf.Microflow {
+// serializer (writer_microflow.go). v10+ adds Url/UrlSearchParameters (the
+// property floor drops them empty below 10.1/10.9), 10.12+ ReturnVariableName,
+// and 10.2+ StableId (via microflowEncoder).
+func microflowToGen(mf *microflows.Microflow, v flowVersion) *genMf.Microflow {
 	out := genMf.NewMicroflow()
 	out.SetName(mf.Name)
 	out.SetDocumentation(mf.Documentation)
@@ -239,7 +304,7 @@ func microflowToGen(mf *microflows.Microflow, major int) *genMf.Microflow {
 	// Object collection (parameters merged first, then objects).
 	oc := genMf.NewMicroflowObjectCollection()
 	for i, p := range mf.Parameters {
-		oc.AddObjects(microflowParameterToGen(p, i, major))
+		oc.AddObjects(microflowParameterToGen(p, i, v))
 	}
 	if mf.ObjectCollection != nil {
 		for _, obj := range mf.ObjectCollection.Objects {
@@ -254,22 +319,25 @@ func microflowToGen(mf *microflows.Microflow, major int) *genMf.Microflow {
 	// and annotation flows share the same Flows list.
 	if mf.ObjectCollection != nil {
 		for _, f := range mf.ObjectCollection.Flows {
-			out.AddFlows(sequenceFlowToGen(f, major))
+			out.AddFlows(sequenceFlowToGen(f, v))
 		}
 		for _, af := range mf.ObjectCollection.AnnotationFlows {
-			out.AddFlows(annotationFlowToGen(af, major))
+			out.AddFlows(annotationFlowToGen(af, v))
 		}
 	}
 
-	if major >= 10 {
+	if v.hasReturnVariableName() {
 		out.SetReturnVariableName(mf.ReturnVariableName)
+	}
+	if v.major >= 10 {
 		// Carried, not hardcoded. These two were `""` and `nil` unconditionally,
 		// so every rewrite deleted the microflow's deep link (#1120). A fresh
 		// microflow has neither, so the empty values still come out empty —
 		// SetUrlSearchParametersQualifiedNames(nil) is the empty marker-1 list.
 		out.SetUrl(mf.URL)
 		// StableId is emitted as a fresh GUID binary via the registered default
-		// (the gen mistypes it as a string), not set here.
+		// (the gen mistypes it as a string), not set here; microflowEncoder
+		// leaves it out below 10.2.
 		out.SetUrlSearchParametersQualifiedNames(mf.URLSearchParameters)
 	}
 	return out
@@ -421,7 +489,7 @@ func microflowObjectToGen(obj microflows.MicroflowObject) element.Element {
 // annotationFlowToGen builds a Microflows$AnnotationFlow connecting an Annotation
 // (origin) to the activity it documents (destination). The line shape is
 // version-specific, mirroring the legacy serializeAnnotationFlow.
-func annotationFlowToGen(af *microflows.AnnotationFlow, major int) element.Element {
+func annotationFlowToGen(af *microflows.AnnotationFlow, v flowVersion) element.Element {
 	g := genMf.NewAnnotationFlow()
 	g.SetID(element.ID(af.ID))
 	g.SetOriginID(element.ID(af.OriginID))
@@ -431,14 +499,19 @@ func annotationFlowToGen(af *microflows.AnnotationFlow, major int) element.Eleme
 	// drew the line out of the top of the note and back down around it.
 	g.SetOriginConnectionIndex(2)
 	g.SetDestinationConnectionIndex(0)
-	if major <= 9 {
-		g.SetOriginBezierVector("0;0")
-		g.SetDestinationBezierVector("0;0")
-	} else {
+	// An annotation flow is a Flow like a sequence flow, with the same floors:
+	// the Line was written from 10.0 on, six minors before it existed.
+	if v.hasLine() {
 		line := genMf.NewBezierCurve()
 		line.SetOriginControlVector("0;0")
 		line.SetDestinationControlVector("0;0")
 		g.SetLine(line)
+	} else {
+		g.SetOriginBezierVector("0;0")
+		g.SetDestinationBezierVector("0;0")
+		if v.hasLineType() {
+			g.SetLineType("BezierCurve")
+		}
 	}
 	return g
 }
@@ -1444,7 +1517,7 @@ func memberChangeToGen(m *microflows.MemberChange) element.Element {
 // microflowParameterToGen builds a gen MicroflowParameter. An authored position
 // is written as given; without one the position derives from the index, matching
 // the legacy serializer.
-func microflowParameterToGen(p *microflows.MicroflowParameter, idx, major int) element.Element {
+func microflowParameterToGen(p *microflows.MicroflowParameter, idx int, v flowVersion) element.Element {
 	g := genMf.NewMicroflowParameter()
 	g.SetID(element.ID(p.ID))
 	g.SetDocumentation(p.Documentation)
@@ -1456,7 +1529,7 @@ func microflowParameterToGen(p *microflows.MicroflowParameter, idx, major int) e
 	}
 	g.SetRelativeMiddlePoint(fmt.Sprintf("%d;%d", pos.X, pos.Y))
 	g.SetSize("30;30")
-	if major >= 10 {
+	if v.hasParameterDefaults() {
 		g.SetDefaultValue("")
 		g.SetIsRequired(true)
 	}
@@ -1464,9 +1537,13 @@ func microflowParameterToGen(p *microflows.MicroflowParameter, idx, major int) e
 	return g
 }
 
-// sequenceFlowToGen builds a gen SequenceFlow. v10+ uses CaseValues + a BezierCurve
-// Line; the case defaults to NoCase.
-func sequenceFlowToGen(f *microflows.SequenceFlow, major int) element.Element {
+// sequenceFlowToGen builds a gen SequenceFlow in the shape v stores; the case
+// defaults to NoCase. Measured shapes (mendixlabs/mxcli#1410):
+//
+//	< 10.15   the case as one NewCaseValue document; 10.15+ a CaseValues list
+//	< 10.16   Origin/DestinationBezierVector strings (with LineType "BezierCurve"
+//	          from 10.8); 10.16+ a BezierCurve Line holding the control vectors
+func sequenceFlowToGen(f *microflows.SequenceFlow, v flowVersion) element.Element {
 	g := genMf.NewSequenceFlow()
 	g.SetID(element.ID(f.ID))
 	g.SetOriginID(element.ID(f.OriginID))
@@ -1474,14 +1551,26 @@ func sequenceFlowToGen(f *microflows.SequenceFlow, major int) element.Element {
 	g.SetOriginConnectionIndex(int32(f.OriginConnectionIndex))
 	g.SetDestinationConnectionIndex(int32(f.DestinationConnectionIndex))
 	g.SetIsErrorHandler(f.IsErrorHandler)
-	g.AddCaseValues(caseValueToGen(f.CaseValue))
+	if v.hasCaseValueList() {
+		g.AddCaseValues(caseValueToGen(f.CaseValue))
+	} else {
+		g.SetCaseValue(caseValueToGen(f.CaseValue))
+	}
 
 	originCV := orDefault(f.OriginControlVector, "0;0")
 	destCV := orDefault(f.DestinationControlVector, "0;0")
-	line := genMf.NewBezierCurve()
-	line.SetOriginControlVector(originCV)
-	line.SetDestinationControlVector(destCV)
-	g.SetLine(line)
+	if v.hasLine() {
+		line := genMf.NewBezierCurve()
+		line.SetOriginControlVector(originCV)
+		line.SetDestinationControlVector(destCV)
+		g.SetLine(line)
+	} else {
+		g.SetOriginBezierVector(originCV)
+		g.SetDestinationBezierVector(destCV)
+		if v.hasLineType() {
+			g.SetLineType("BezierCurve")
+		}
+	}
 	return g
 }
 
@@ -1847,12 +1936,19 @@ func assignMicroflowIDs(m *genMf.Microflow) {
 	for _, el := range m.FlowsItems() {
 		assignID(el)
 		if sf, ok := el.(*genMf.SequenceFlow); ok {
-			for _, cv := range sf.CaseValuesItems() {
-				assignID(cv)
-			}
-			assignID(sf.Line())
+			assignSequenceFlowIDs(sf)
 		}
 	}
+}
+
+// assignSequenceFlowIDs assigns IDs to a sequence flow's case and line, in
+// whichever shape the flow was built (sequenceFlowToGen).
+func assignSequenceFlowIDs(sf *genMf.SequenceFlow) {
+	assignID(sf.CaseValue())
+	for _, cv := range sf.CaseValuesItems() {
+		assignID(cv)
+	}
+	assignID(sf.Line())
 }
 
 // assignObjectCollectionIDs assigns IDs to a collection's objects and their

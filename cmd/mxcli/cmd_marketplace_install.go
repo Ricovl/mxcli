@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	modelsdk "github.com/mendixlabs/mxcli"
@@ -32,9 +33,12 @@ Install is type-aware:
   - Module      copied in with mxcli's own writer (new modules only)
   - other types downloaded to disk with import instructions
 
-Updating a module that is already present is NOT done automatically: it could
+Updating a module that is already present is NOT done by install: it could
 discard local edits and, for modules with persistent entities, change entity
-IDs (which loses data). Such updates are reported and left to Studio Pro.
+IDs (which loses data). Install reports the module and names the command that
+updates it — 'marketplace diff' to see what an update would touch, then
+'marketplace update <content-id> -p <project.mpr> --to <version>', which carries
+the entity identity and role grants across.
 
 A module is installed by copying its units with mxcli's own writer rather than
 by running 'mx module-import'. That preserves the project's storage format —
@@ -142,7 +146,7 @@ func runMarketplaceInstall(cmd *cobra.Command, args []string) error {
 				return err
 			}
 		}
-		return installModule(cmd.Context(), client, version, mprPath, allowFormatChange, out)
+		return installModule(cmd.Context(), client, contentID, version, mprPath, allowFormatChange, out)
 	default:
 		// Theme / Starter App / Sample / unknown: download + instruct rather
 		// than guess a placement we can't verify.
@@ -170,7 +174,7 @@ func installFromFile(ctx context.Context, mpkPath, mprPath string, allowFormatCh
 	}
 	switch {
 	case pkg.ModelerProject.Module.Name != "":
-		return installModuleFromFile(ctx, mpkPath, mprPath, allowFormatChange, "", "",
+		return installModuleFromFile(ctx, mpkPath, mprPath, allowFormatChange, 0, "", "",
 			"from "+filepath.Base(mpkPath), out)
 	case pkg.ClientModule.Name != "":
 		return placeWidgetFile(mpkPath, filepath.Dir(mprPath), out)
@@ -221,7 +225,7 @@ func printWidgetNext(out io.Writer) {
 
 // installModule imports a module .mpk into the project, but only when the module
 // is not already present. An existing module is reported, not modified.
-func installModule(ctx context.Context, client *marketplace.Client, v *marketplace.Version, mprPath string, allowFormatChange bool, out io.Writer) error {
+func installModule(ctx context.Context, client *marketplace.Client, contentID int, v *marketplace.Version, mprPath string, allowFormatChange bool, out io.Writer) error {
 	// Download to a temp .mpk so we can inspect it and hand it to mx.
 	tmpDir, err := os.MkdirTemp("", "mxcli-install-")
 	if err != nil {
@@ -232,7 +236,7 @@ func installModule(ctx context.Context, client *marketplace.Client, v *marketpla
 	if err != nil {
 		return err
 	}
-	return installModuleFromFile(ctx, mpkPath, mprPath, allowFormatChange, v.VersionNumber, v.VersionID,
+	return installModuleFromFile(ctx, mpkPath, mprPath, allowFormatChange, contentID, v.VersionNumber, v.VersionID,
 		"version "+v.VersionNumber, out)
 }
 
@@ -240,9 +244,10 @@ func installModule(ctx context.Context, client *marketplace.Client, v *marketpla
 // package is on disk — shared by the online path (after its download) and by
 // --file (which has no download). versionNumber and versionID are the
 // marketplace identity to record on the module; both are empty for a package
-// from disk, which has none. label is how the package is named in output.
+// from disk, which has none, and so is contentID (0). label is how the package
+// is named in output.
 func installModuleFromFile(ctx context.Context, mpkPath, mprPath string, allowFormatChange bool,
-	versionNumber, versionID, label string, out io.Writer) error {
+	contentID int, versionNumber, versionID, label string, out io.Writer) error {
 
 	moduleName, err := moduleNameFromMpk(mpkPath)
 	if err != nil {
@@ -259,11 +264,8 @@ func installModuleFromFile(ctx context.Context, mpkPath, mprPath string, allowFo
 	_ = reader.Disconnect()
 
 	if existing {
-		// Postponed: do NOT auto-update modules — see the module-update memory.
-		fmt.Fprintf(out, "Module %q is already installed (version %s).\n", moduleName, displayVer(installedVer))
-		fmt.Fprintf(out, "Target: %s.\n", label)
-		fmt.Fprintln(out, "In-place module updates are not applied automatically (they can discard local")
-		fmt.Fprintln(out, "edits and change persistent-entity IDs, which loses data). Update via Studio Pro.")
+		// Install never updates implicitly: an update is its own command.
+		reportModuleAlreadyInstalled(out, moduleName, installedVer, label, contentID, versionNumber, mprPath)
 		return nil
 	}
 
@@ -491,4 +493,26 @@ func moduleNameFromMpk(mpkPath string) (string, error) {
 		return pkg.ClientModule.Name, nil
 	}
 	return "", fmt.Errorf("package.xml has no module name")
+}
+
+// reportModuleAlreadyInstalled says why install left a present module alone and
+// names the command that updates it (mendixlabs/mxcli#1442). It used to send
+// the user to Studio Pro, although 'marketplace update' does the update
+// headlessly and carries the GUIDs and role grants a plain replace would lose.
+// contentID and versionNumber are 0/"" for a --file install, which has neither;
+// the command is then named with placeholders.
+func reportModuleAlreadyInstalled(out io.Writer, moduleName, installedVer, label string, contentID int, versionNumber, mprPath string) {
+	id, to := "<content-id>", "<version>"
+	if contentID > 0 {
+		id = strconv.Itoa(contentID)
+	}
+	if versionNumber != "" {
+		to = versionNumber
+	}
+	fmt.Fprintf(out, "Module %q is already installed (version %s).\n", moduleName, displayVer(installedVer))
+	fmt.Fprintf(out, "Target: %s.\n", label)
+	fmt.Fprintln(out, "It is not updated by install (an update can discard local edits). To update it,")
+	fmt.Fprintln(out, "review what would change, then apply it with entity identity and role grants preserved:")
+	fmt.Fprintf(out, "  mxcli marketplace diff %s -p %s --to %s\n", id, mprPath, to)
+	fmt.Fprintf(out, "  mxcli marketplace update %s -p %s --to %s\n", id, mprPath, to)
 }

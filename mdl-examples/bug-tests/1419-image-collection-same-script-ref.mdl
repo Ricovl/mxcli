@@ -1,0 +1,26 @@
+mdl 1;
+
+/**
+ * mendixlabs/mxcli#1419: exec's reference pre-check did not see an image
+ * collection created earlier in the same script. check reported
+ *   image collection not found: ModA.Icons (referenced as ModA.Icons.pix)
+ * and exec refused: "Refusing to execute: 1 unresolved reference(s) above.
+ * Nothing was written." Split into two scripts, the same statements passed.
+ *
+ * The image file path is resolved from the current working directory, as in
+ * doctype-tests/19-image-collection-examples.mdl.
+ */
+
+create module Bug1419;
+
+create image collection Bug1419.Icons {
+  image pix ( File: '../../docs/images/mxcli-cli.png' )
+};
+
+create page Bug1419.IconPage (
+  Title: 'Icon page', Layout: Atlas_Core.Atlas_Default
+) {
+  placeholder Main {
+    image img1 (Image: 'Bug1419.Icons.pix')
+  }
+};

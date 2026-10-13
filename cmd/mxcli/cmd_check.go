@@ -577,7 +577,7 @@ func runCheckFiles(cmd *cobra.Command, files []string) int {
 		scratch = sc
 	}
 	worst := 0
-	var notApplied []string
+	var notApplied, failed []string
 	for i, f := range files {
 		if i > 0 {
 			fmt.Println()
@@ -596,11 +596,23 @@ func runCheckFiles(cmd *cobra.Command, files []string) int {
 		if code > worst {
 			worst = code
 		}
+		if code != 0 {
+			failed = append(failed, f)
+		}
 		if scratch != nil && i < len(files)-1 {
 			if why := applyToScratch(scratch, f, code); why != "" {
 				notApplied = append(notApplied, why)
 			}
 		}
+	}
+	// Each file ends on its own verdict, so without this the run's last line
+	// was the last file's "Check passed!" even after an earlier file failed
+	// (mendixlabs/mxcli#1431). Close on the verdict for the whole set.
+	fmt.Println()
+	if len(failed) > 0 {
+		fmt.Printf("%d of %d files failed: %s\n", len(failed), len(files), strings.Join(failed, ", "))
+	} else {
+		fmt.Printf("All %d files passed\n", len(files))
 	}
 	return worst
 }

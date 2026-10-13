@@ -1,0 +1,21 @@
+mdl 1;
+-- mendixlabs/mxcli#1427: `describe user role` omitted `CheckSecurity` when it
+-- was false. A new user role is written with CheckSecurity true, so describe ->
+-- drop -> replay silently re-enabled security checking.
+--
+-- Verify:
+--
+--   mxcli exec 1427-user-role-check-security-false.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe user role Bug1427_User"
+--     -> output contains `CheckSecurity: false`
+--   save that output, `drop user role Bug1427_User;`, exec the saved output
+--   mxcli -p app.mpr -c "show user roles"
+--     -> Bug1427_User still shows Check Security: No
+
+create module Bug1427;
+create module role Bug1427.RoleA;
+
+create or modify user role Bug1427_User (
+  ModuleRoles: (Bug1427.RoleA),
+  CheckSecurity: false
+);

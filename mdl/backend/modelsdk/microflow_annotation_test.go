@@ -48,7 +48,7 @@ func TestAnnotationFlowToGen(t *testing.T) {
 		OriginID:      model.ID("ann-1"),
 		DestinationID: model.ID("act-1"),
 	}
-	raw, err := (&codec.Encoder{}).Encode(annotationFlowToGen(af, 11))
+	raw, err := (&codec.Encoder{}).Encode(annotationFlowToGen(af, newestFlowVersion))
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}

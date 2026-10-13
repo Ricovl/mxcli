@@ -1,0 +1,53 @@
+mdl 1;
+-- mendixlabs/mxcli#1410 — microflows and nanoflows could not be created or
+-- altered in a Mendix 9 project (and 10.0–10.14 for any flow):
+--
+--   this Mendix 9.24.2 project cannot store Microflows$Microflow.StableId
+--   (Mendix 10.2.0+); Microflows$SequenceFlow.CaseValues (Mendix 10.15.0+)
+--
+-- The flow writers now emit the shape the project's version stores: no
+-- StableId below 10.2, the decision case as a single NewCaseValue below 10.15,
+-- Origin/DestinationBezierVector instead of a BezierCurve Line below 10.16.
+-- Measured: this script on a Studio Pro 9.24.30 app and on the same app after
+-- `mx convert` to 10.12.19 checks at 0 errors; the old shape forced onto 9.24
+-- is 8 errors (CE0079 / CE0773 — the decision's cases are not read).
+--
+-- Verify (on a copy of a Mendix 9.x or 10.0–10.14 project):
+--   mxcli exec 1410-flows-on-mendix-9.mdl -p app.mpr
+--   mxcli docker check -p app.mpr
+
+create module R1410;
+
+create entity R1410.Item (
+  "Count": integer
+);
+
+create microflow R1410.MF_Empty ()
+begin
+  return;
+end;
+
+create microflow R1410.MF_Decide ($Item: R1410.Item) returns boolean
+begin
+  declare $Result boolean = false;
+  if $Item/"Count" > 10 then
+    set $Result = true;
+    log info node 'R1410' 'big';
+  else
+    log info node 'R1410' 'small';
+  end if;
+  return $Result;
+end;
+
+create nanoflow R1410.NF_Decide ($Item: R1410.Item) returns boolean
+begin
+  if $Item/"Count" > 10 then
+    return true;
+  else
+    return false;
+  end if;
+end;
+
+alter microflow R1410.MF_Decide {
+  insert after $Result begin log info node 'R1410' 'declared'; end;
+};

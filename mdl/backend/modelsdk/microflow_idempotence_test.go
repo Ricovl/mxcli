@@ -141,7 +141,7 @@ func rebuildMicroflow(t *testing.T, proj string, mf *microflows.Microflow) []byt
 	}
 	defer b.Disconnect()
 
-	gm := microflowToGen(mf, b.majorVersion())
+	gm := microflowToGen(mf, b.flowVersion())
 	gm.SetID(element.ID(mf.ID))
 	assignMicroflowIDs(gm)
 	contents, err := (&codec.Encoder{}).Encode(gm)

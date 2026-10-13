@@ -18,18 +18,18 @@ func TestMicroflowParameterToGenKeepsAuthoredPosition(t *testing.T) {
 		Name:     "Feedback",
 		Position: &model.Point{X: -77, Y: 0},
 	}
-	g := microflowParameterToGen(authored, 0, 11).(*genMf.MicroflowParameter)
+	g := microflowParameterToGen(authored, 0, newestFlowVersion).(*genMf.MicroflowParameter)
 	if got := g.RelativeMiddlePoint(); got != "-77;0" {
 		t.Errorf("authored position = %q, want -77;0", got)
 	}
 
 	// Control: unannotated parameters still derive from the index.
 	derived := &microflows.MicroflowParameter{Name: "Feedback"}
-	g = microflowParameterToGen(derived, 0, 11).(*genMf.MicroflowParameter)
+	g = microflowParameterToGen(derived, 0, newestFlowVersion).(*genMf.MicroflowParameter)
 	if got := g.RelativeMiddlePoint(); got != "200;53" {
 		t.Errorf("derived position at index 0 = %q, want 200;53", got)
 	}
-	g = microflowParameterToGen(derived, 1, 11).(*genMf.MicroflowParameter)
+	g = microflowParameterToGen(derived, 1, newestFlowVersion).(*genMf.MicroflowParameter)
 	if got := g.RelativeMiddlePoint(); got != "300;53" {
 		t.Errorf("derived position at index 1 = %q, want 300;53", got)
 	}

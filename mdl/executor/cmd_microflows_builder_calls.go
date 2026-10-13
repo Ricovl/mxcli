@@ -2096,15 +2096,29 @@ func (fb *flowBuilder) addImportFromMappingAction(s *ast.ImportFromMappingStmt) 
 	// JSON structure check covers JSON-backed mappings; for XML schema or
 	// message-definition mappings JsonStructure is empty and the root
 	// element kind on the mapping itself indicates Array vs Object.
+	//
+	// A mapping that does not resolve is refused, not written around. The
+	// result entity is stored as the activity's VariableType.Entity, and an
+	// empty one makes the whole project unloadable — `mx check` dies with
+	// ArgumentNullException in EntityType.set_EntityId before validating
+	// anything (mendixlabs/mxcli#1418). The usual cause is a script that calls
+	// the mapping above its `create import mapping`; MDL-ORDER01 reports that
+	// at check time, this is the exec-time half.
 	resultEntityQN := ""
 	if fb.backend != nil {
-		if im, err := fb.backend.GetImportMappingByQualifiedName(s.Mapping.Module, s.Mapping.Name); err == nil {
+		im, err := fb.backend.GetImportMappingByQualifiedName(s.Mapping.Module, s.Mapping.Name)
+		switch {
+		case err != nil || im == nil:
+			fb.addError("import from mapping %s: import mapping not found in the project (create it above this microflow; an activity without its result entity makes the project unloadable)", s.Mapping.String())
+		default:
 			if !rangeAuthored && fb.mappingRootIsList(im) {
 				resultHandling.SingleObject = false
 			}
 			if len(im.Elements) > 0 && im.Elements[0] != nil && im.Elements[0].Entity != "" {
 				resultEntityQN = im.Elements[0].Entity
 				resultHandling.ResultEntityID = model.ID(resultEntityQN)
+			} else {
+				fb.addError("import from mapping %s: the import mapping has no root entity, so the activity's result type cannot be written (an empty one makes the project unloadable)", s.Mapping.String())
 			}
 		}
 	}

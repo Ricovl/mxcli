@@ -237,6 +237,17 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 		}
 		return nil, cannotSplice("the stored %s cannot be read for splicing: %v", d.kind(), err)
 	}
+	// A stored import activity without its result entity (what mxcli wrote
+	// before mendixlabs/mxcli#1418 for a mapping created further down the
+	// script) makes the project unloadable, and describe prints it exactly as
+	// the statement that would repair it, so the statement diff finds nothing
+	// and reported "Unchanged" over a broken project. Treat it as a change the
+	// splice cannot make: mdl 0 rebuilds the flow — resolving the mapping
+	// afresh — and mdl 1 refuses with the drop-and-create advice, rather than
+	// keeping it silently.
+	if mapping := storedImportWithoutEntity(a.mf.ObjectCollection); mapping != "" {
+		return nil, cannotSplice("its stored `import from mapping %s` activity has no result entity, which Mendix cannot load (mendixlabs/mxcli#1418)", mapping)
+	}
 
 	stored, err := describedFlowStmt(ctx, d, a)
 	if err != nil {
@@ -376,6 +387,32 @@ func fallBack(ctx *ExecContext, d *flowDecl, v flowVerdict) (bool, error) {
 	}
 	fmt.Fprintf(ctx.progress(), "Warning [%s]: %s\n", flowRebuildRefused.Code, flowRebuildWarning(ctx, d, v.why))
 	return false, nil
+}
+
+// storedImportWithoutEntity returns the mapping of the first import-from-mapping
+// activity in oc (loop bodies included) whose result entity is empty, or "".
+func storedImportWithoutEntity(oc *microflows.MicroflowObjectCollection) string {
+	if oc == nil {
+		return ""
+	}
+	for _, obj := range oc.Objects {
+		switch o := obj.(type) {
+		case *microflows.ActionActivity:
+			if ix, ok := o.Action.(*microflows.ImportXmlAction); ok {
+				if ix.ResultHandling == nil {
+					return "(none)"
+				}
+				if ix.ResultHandling.ResultEntityID == "" {
+					return string(ix.ResultHandling.MappingID)
+				}
+			}
+		case *microflows.LoopedActivity:
+			if m := storedImportWithoutEntity(o.ObjectCollection); m != "" {
+				return m
+			}
+		}
+	}
+	return ""
 }
 
 // reportUnchanged reports a statement that wrote nothing, collapsing into the
