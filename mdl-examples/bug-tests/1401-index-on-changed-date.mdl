@@ -1,0 +1,20 @@
+mdl 1;
+-- mendixlabs/mxcli#1401 — an index on a system date member.
+--
+-- Studio Pro lets an entity that stores changedDate (or createdDate) index it,
+-- and stores the segment as IndexedAttribute.Type = ChangedDate with no
+-- attribute behind it. describe used to print such an index as `index ( desc);`,
+-- which check refuses ("index on unknown attribute 'desc'"). It now names the
+-- member as the entity declares it, and that spelling writes the same index:
+--
+--   mxcli exec mdl-examples/bug-tests/1401-index-on-changed-date.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe entity BugTest1401.Event"   -- prints the same indexes
+create module BugTest1401;
+
+create persistent entity BugTest1401.Event (
+  Name: String(200),
+  CreatedDate: AutoCreatedDate,
+  ChangedDate: AutoChangedDate
+)
+index (ChangedDate desc)
+index (Name, CreatedDate);

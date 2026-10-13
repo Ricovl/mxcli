@@ -420,7 +420,14 @@ func indexToGen(idx *domainmodel.Index) *genDm.Index {
 	segs := idx.Attributes
 	for _, ia := range segs {
 		seg := genDm.NewIndexedAttribute()
-		seg.SetType("Normal")
+		// A system-member segment (CreatedDate / ChangedDate) indexes no
+		// attribute; writing it as "Normal" leaves an attribute segment pointing
+		// at nothing (mendixlabs/mxcli#1401).
+		segType := ia.Type
+		if segType == "" {
+			segType = genDm.IndexedAttributeTypeNormal
+		}
+		seg.SetType(segType)
 		seg.SetAscending(ia.Ascending)
 		seg.SetAttributeID(element.ID(ia.AttributeID))
 		out.AddAttributes(seg)

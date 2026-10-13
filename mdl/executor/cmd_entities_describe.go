@@ -382,12 +382,24 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 			// Output indexes
 			for _, idx := range entity.Indexes {
 				var cols []string
+				unresolved := false
 				for _, ia := range idx.Attributes {
-					colName := attrNames[ia.AttributeID]
+					colName := indexSegmentName(ia, attrNames)
+					if colName == "" {
+						unresolved = true
+						break
+					}
 					if !ia.Ascending {
 						colName += " desc"
 					}
 					cols = append(cols, colName)
+				}
+				// A segment naming no attribute and no system member has no MDL
+				// spelling; `index ( desc)` is refused by check (#1401), so say
+				// it in a comment rather than print a statement that cannot run.
+				if unresolved {
+					fmt.Fprint(ctx.Output, "\n-- index skipped: a column points at no attribute of this entity\n")
+					continue
 				}
 				if len(cols) > 0 {
 					fmt.Fprintf(ctx.Output, "\nindex (%s)", strings.Join(cols, ", "))
