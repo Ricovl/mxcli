@@ -84,7 +84,7 @@ func describeAgentEditorModel(ctx *ExecContext, name ast.QualifiedName) error {
 	qualifiedName := fmt.Sprintf("%s.%s", modName, m.Name)
 
 	if m.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", m.Documentation)
+		outputJavadocIndented(ctx.Output, m.Documentation, "")
 	}
 
 	fmt.Fprintf(ctx.Output, "create or modify ai model %s%s (\n", qualifiedName, describeFolderClause(ctx, m.ContainerID))

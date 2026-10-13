@@ -80,7 +80,7 @@ func describeAgentEditorKnowledgeBase(ctx *ExecContext, name ast.QualifiedName) 
 	qualifiedName := fmt.Sprintf("%s.%s", modName, k.Name)
 
 	if k.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", k.Documentation)
+		outputJavadocIndented(ctx.Output, k.Documentation, "")
 	}
 
 	fmt.Fprintf(ctx.Output, "create or modify knowledge base %s%s (\n", qualifiedName, describeFolderClause(ctx, k.ContainerID))

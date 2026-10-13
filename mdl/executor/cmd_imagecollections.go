@@ -142,7 +142,7 @@ func describeImageCollection(ctx *ExecContext, name ast.QualifiedName) error {
 	modName := h.GetModuleName(modID)
 
 	if ic.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", ic.Documentation)
+		outputJavadocIndented(ctx.Output, ic.Documentation, "")
 	}
 
 	exportLevel := ic.ExportLevel
