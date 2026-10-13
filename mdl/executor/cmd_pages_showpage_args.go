@@ -50,6 +50,11 @@ type pageArgContext struct {
 	varName string
 	// entity is the qualified entity of that context object, for the message.
 	entity string
+	// docParams are the document's entity-typed parameters (lower case), known
+	// only to the check-time walk of a whole CREATE PAGE / SNIPPET. A show page
+	// argument naming one is bound by name and needs no context object
+	// (mendixlabs/mxcli#1403); the executor asks classifyFlowArgValue instead.
+	docParams *documentParams
 }
 
 // enteringDataWidget is the context below a data-bound widget bound to ds and
@@ -101,7 +106,9 @@ func argContextForChildren(w *ast.WidgetV3, parent pageArgContext) pageArgContex
 	if ds := w.GetDataSource(); ds != nil {
 		// The entity is only used to word the refusal; the executor's builder
 		// overwrites this with one that carries it.
-		return enteringDataWidget(ds, "")
+		c := enteringDataWidget(ds, "")
+		c.docParams = parent.docParams
+		return c
 	}
 	if parent.known && !parent.present && !contextFreeContainers[strings.ToLower(w.Type)] {
 		return pageArgContext{}
@@ -128,7 +135,9 @@ func argContextForOwnAction(w *ast.WidgetV3, parent pageArgContext) pageArgConte
 	if ds := w.GetDataSource(); ds != nil {
 		// The entity is only used to word a refusal; the executor's builder
 		// overwrites this with one that carries it.
-		return enteringDataWidget(ds, "")
+		c := enteringDataWidget(ds, "")
+		c.docParams = parent.docParams
+		return c
 	}
 	if bindsDataInAnUnreadableShape(w) {
 		// The widget plainly binds data, so a context object EXISTS — but this
@@ -239,8 +248,8 @@ func refuseShowPageArgument(widgetName, target, argName, argValue string, c page
 			"show page %s: argument %s: %s cannot be stored — %s is not inside a data view, list view or grid row, "+
 				"so there is no context object at all, and a widget's page argument is always that object. "+
 				"The page would be opened with no argument, which mxbuild reports as CE1571 \"No argument has been "+
-				"selected for parameter '%s'\". Put the button inside a data widget bound to the object, or call a "+
-				"microflow that shows the page with it",
+				"selected for parameter '%s'\". Put the button inside a data widget bound to the object, pass a "+
+				"parameter of this page or snippet (bound by name), or call a microflow that shows the page with it",
 			target, argName, argValue, where, argName)
 	}
 	return fmt.Sprintf(
@@ -249,6 +258,56 @@ func refuseShowPageArgument(widgetName, target, argName, argValue string, c page
 			"Writing %s here would silently open the page with %s instead. Use $currentObject%s, or call a microflow "+
 			"that shows the page with the object you want",
 		target, argName, argValue, argValue, c.describeContextObject(), c.contextVarAlternative())
+}
+
+// namedParameterArgument reports whether a show page argument is a page or
+// snippet parameter of the document being built, which Mendix binds by name
+// rather than from a context object (mendixlabs/mxcli#1403). It returns the
+// variable and its PageVariable kind, or "" when the argument is anything else
+// — including a page variable, which is never an object and so never a page
+// argument, and any project older than 9.7, whose page settings have no
+// ParameterMappings to hold the binding.
+func (pb *pageBuilder) namedParameterArgument(value string) (variable, kind string) {
+	variable, kind = pb.classifyFlowArgValue(value)
+	if kind != "parameter" && kind != "snippet" {
+		return "", ""
+	}
+	if pb.backend != nil {
+		if pv := pb.backend.ProjectVersion(); pv != nil && pv.MajorVersion > 0 && !pv.IsAtLeast(9, 7) {
+			return "", ""
+		}
+	}
+	return variable, kind
+}
+
+// documentParams is held by pointer so pageArgContext stays comparable: the
+// walks compare contexts to tell whether a widget changed it.
+type documentParams struct {
+	names map[string]bool
+}
+
+// withDocumentParameters is the context at a document root that also knows the
+// document's entity-typed parameters, which a show page argument may name
+// wherever it sits (mendixlabs/mxcli#1403).
+func (c pageArgContext) withDocumentParameters(params []string) pageArgContext {
+	if len(params) == 0 {
+		return c
+	}
+	c.docParams = &documentParams{names: make(map[string]bool, len(params))}
+	for _, p := range params {
+		c.docParams.names[strings.ToLower(strings.TrimPrefix(p, "$"))] = true
+	}
+	return c
+}
+
+// namesDocumentParameter reports whether value is a bare `$Param` naming one of
+// the document's entity-typed parameters.
+func (c pageArgContext) namesDocumentParameter(value string) bool {
+	name, ok := strings.CutPrefix(value, "$")
+	if !ok || name == "" || strings.ContainsAny(name, "/.") {
+		return false
+	}
+	return c.docParams != nil && c.docParams.names[strings.ToLower(name)]
 }
 
 // validateShowPageArguments is the check-time mirror of the executor guard, so
@@ -265,7 +324,7 @@ func validateShowPageArguments(w *ast.WidgetV3, c pageArgContext, locationPrefix
 	var out []linter.Violation
 	for _, arg := range action.Args {
 		strVal, ok := arg.Value.(string)
-		if !ok || c.binds(strVal) {
+		if !ok || c.binds(strVal) || c.namesDocumentParameter(strVal) {
 			continue
 		}
 		out = append(out, linter.Violation{

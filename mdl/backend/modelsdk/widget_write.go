@@ -1893,6 +1893,40 @@ func formSettingsToGen(pageName string) element.Element {
 	return ps
 }
 
+// pageSettingsWithMappings is formSettingsToGen for a show page action, adding
+// the mappings whose argument is a page or snippet parameter bound by name.
+//
+// Studio Pro stores such an argument as an explicit Forms$PageParameterMapping:
+// Argument "" and a Forms$PageVariable naming the parameter (ako/TestApp
+// WorkflowCommons TaskAssignmentHelper_UserTask_Reassign, PageParameter;
+// Snip_UserTask_Detail, SnippetParameter). It is how a button outside every data
+// container passes the page's own parameter, which an empty array cannot say —
+// there is no context object to infer it from (#1029: CE1571). A mapping with
+// no VariableKind is the context object and stays inferred (#296: CE0115), so a
+// page that passes only that is written exactly as before (mendixlabs/mxcli#1403).
+func pageSettingsWithMappings(pageName string, mappings []*pages.PageClientParameterMapping) element.Element {
+	ps := genPg.NewPageSettings()
+	assignID(ps)
+	ps.SetPageQualifiedName(pageName)
+	for _, pm := range mappings {
+		if pm == nil || pm.VariableKind == "" || pm.Variable == "" {
+			continue
+		}
+		m := genPg.NewPageParameterMapping()
+		// gen stamps this type "Forms$FormCallArgument", which is Mendix's
+		// LayoutCallArgument: mxbuild then refuses to load the page ("Type
+		// …LayoutCallArgument does not contain a constructor with a parameter of
+		// type …PageSettings"). Studio Pro stores Forms$PageParameterMapping.
+		m.SetTypeName("Forms$PageParameterMapping")
+		assignID(m)
+		m.SetParameterQualifiedName(pageName + "." + pm.ParameterName)
+		m.SetArgument("")
+		m.SetVariable(sourceVariableToGen(strings.TrimPrefix(pm.Variable, "$"), pm.VariableKind))
+		ps.AddParameterMappings(m)
+	}
+	return ps
+}
+
 // A static address stores AttributeRef as null: 21 of 21 static
 // Forms$StaticOrDynamicString across ako/TestApp and PedApp carry the key.
 // staticAddressToGen never sets it, so without this default the key was
@@ -1995,7 +2029,7 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 		assignID(g)
 		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		g.SetNumberOfPagesToClose2("")
-		g.SetPageSettings(formSettingsToGen(x.PageName))
+		g.SetPageSettings(pageSettingsWithMappings(x.PageName, x.ParameterMappings))
 		return g, nil
 	case *pages.LinkClientAction:
 		// open_link → Forms$OpenLinkClientAction. Note the storage name: the

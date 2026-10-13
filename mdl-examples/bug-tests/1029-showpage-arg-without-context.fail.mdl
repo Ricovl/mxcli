@@ -17,6 +17,11 @@
 -- a variable, a literal and an association path alike.
 --
 -- MDL-PAGEARG01 now refuses it at check time. This script must FAIL check.
+--
+-- The argument here is $currentObject, which nothing at the page root binds.
+-- It used to be $SomeRef, the page's own parameter: that one is bound BY NAME
+-- (an explicit Forms$PageVariable mapping, as Studio Pro stores it) and is
+-- accepted since mendixlabs/mxcli#1403 — see 1403-showpage-passes-page-parameter.mdl.
 create module Probe1029;
 
 create persistent entity Probe1029.Item (
@@ -40,6 +45,6 @@ create page Probe1029.List (
 ) {
   actionbutton btnOpen (
     caption: 'Open',
-    action: show_page Probe1029.Detail(Item: $SomeRef)
+    action: show_page Probe1029.Detail(Item: $currentObject)
   )
 };
