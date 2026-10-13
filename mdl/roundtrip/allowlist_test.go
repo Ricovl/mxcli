@@ -70,16 +70,6 @@ var knownFailures = map[string]knownFailure{
 	"building block Atlas_Web_Content.Wizard_Circle":                {laws: []law{lawParse}, issue: "#721", why: "read-only, but describe prints a widget body that does not parse (#721 G)"},
 	"building block Atlas_Web_Content.Wizard_Circle_Step":           {laws: []law{lawParse}, issue: "#721", why: "read-only, but describe prints a widget body that does not parse (#721 G)"},
 	"building block FeedbackModule.FeedbackWidget":                  {laws: []law{lawParse}, issue: "#721", why: "read-only, but describe prints a widget body that does not parse (#721 G)"},
-	"javascript action FeedbackModule.JS_GetFeedbackStorageObject":  {laws: []law{lawParse}, issue: "#721", why: "a parameter comma is printed after its -- comment (#721 G)"},
-	"javascript action NanoflowCommons.FindObjectWithGUID":          {laws: []law{lawParse}, issue: "#721", why: "the type parameter <T> does not parse (#721 G)"},
-	"javascript action NanoflowCommons.GetGuid":                     {laws: []law{lawParse}, issue: "#721", why: "the type parameter <T> does not parse (#721 G)"},
-	"javascript action NanoflowCommons.GetObjectByGuid":             {laws: []law{lawParse}, issue: "#721", why: "the type parameter <T> does not parse (#721 G)"},
-	"javascript action NanoflowCommons.GetStorageItemObject":        {laws: []law{lawParse}, issue: "#721", why: "the type parameter <T> does not parse (#721 G)"},
-	"javascript action NanoflowCommons.GetStorageItemObjectList":    {laws: []law{lawParse}, issue: "#721", why: "the type parameter <T> does not parse (#721 G)"},
-	"javascript action NanoflowCommons.RefreshEntity":               {laws: []law{lawParse}, issue: "#721", why: "a parameter comma is printed after its -- comment (#721 G)"},
-	"javascript action NanoflowCommons.RefreshObject":               {laws: []law{lawParse}, issue: "#721", why: "the type parameter <T> does not parse (#721 G)"},
-	"javascript action NanoflowCommons.SetStorageItemObject":        {laws: []law{lawParse}, issue: "#721", why: "the type parameter <T> does not parse (#721 G)"},
-	"javascript action NanoflowCommons.SetStorageItemObjectList":    {laws: []law{lawParse}, issue: "#721", why: "the type parameter <T> does not parse (#721 G)"},
 
 	// #721 E: menus — struck by ako/mxcli#980 (the menu item writer's missing
 	// AlternativeText and Items).

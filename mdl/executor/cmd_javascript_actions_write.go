@@ -163,7 +163,12 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 				TypeParameter:   tpName,
 			}
 		default:
-			p.ParameterType = astDataTypeToJavaActionParamType(param.Type)
+			// `list of T` for a declared type parameter T, as for Java (#1183).
+			if l := listOfTypeParameter(param.Type, typeParamNameToID); l != nil {
+				p.ParameterType = l
+			} else {
+				p.ParameterType = astDataTypeToJavaActionParamType(param.Type)
+			}
 		}
 		if sp := storedParams[param.Name]; sp != nil {
 			p.Description = sp.Description
@@ -179,6 +184,10 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 			TypeParameterID: typeParamNameToID[tpName],
 			TypeParameter:   tpName,
 		}
+	} else if l := listOfTypeParameter(s.ReturnType, typeParamNameToID); l != nil {
+		// `returns list of T` — without this it became a list of the entity `.T`,
+		// the JavaScript twin of the Java action's #1183.
+		jsa.ReturnType = l
 	} else {
 		jsa.ReturnType = astDataTypeToJavaActionReturnType(s.ReturnType)
 	}
