@@ -231,7 +231,7 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 		if entity.Name == name.Name {
 			// Output JavaDoc documentation if present
 			if entity.Documentation != "" {
-				fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", entity.Documentation)
+				outputJavadocIndented(ctx.Output, entity.Documentation, "")
 			}
 
 			// Output position annotation
@@ -278,7 +278,15 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 
 				// Attribute documentation
 				if attr.Documentation != "" {
-					line.WriteString(fmt.Sprintf("  /** %s */\n", attr.Documentation))
+					// The inline form only holds one line that does not itself
+					// start with `*`: the parser strips one leading `*` per line
+					// as the gutter, so anything else needs the guttered block
+					// or a markdown bullet is eaten (mendixlabs/mxcli#1428).
+					if !strings.Contains(attr.Documentation, "\n") && !strings.HasPrefix(attr.Documentation, "*") {
+						line.WriteString(fmt.Sprintf("  /** %s */\n", attr.Documentation))
+					} else {
+						outputJavadocIndented(&line, attr.Documentation, "  ")
+					}
 				}
 
 				typeStr := formatAttributeType(attr.Type)
