@@ -17,6 +17,7 @@ mdl 1;
 -- Setup
 -- ============================================================
 create module NanoflowExamples;
+create module role NanoflowExamples.User;
 
 create entity NanoflowExamples.Product (
     Name : String(200),

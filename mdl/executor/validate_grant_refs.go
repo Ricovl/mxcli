@@ -71,9 +71,6 @@ type grantResolver struct {
 	scriptModuleRoles, laterModuleRoles map[string]bool
 	scriptUserRoles, laterUserRoles     map[string]bool // lower-cased
 	scriptServices, laterServices       map[string]bool // "odata:M.S" / "rest:M.S"
-	// namesRoles: some statement names a module role, so the auto-created
-	// document role is worth tracking (it costs a module-security read).
-	namesRoles bool
 	// Roles a DROP above the statement removed, stored or not.
 	droppedModuleRoles, droppedUserRoles map[string]bool
 
@@ -85,13 +82,6 @@ type grantResolver struct {
 }
 
 func (g *grantResolver) recordLater(stmt ast.Statement) {
-	switch stmt.(type) {
-	case *ast.GrantEntityAccessStmt, *ast.RevokeEntityAccessStmt,
-		*ast.GrantMicroflowAccessStmt, *ast.GrantNanoflowAccessStmt, *ast.GrantPageAccessStmt,
-		*ast.GrantODataServiceAccessStmt, *ast.GrantPublishedRestServiceAccessStmt,
-		*ast.CreateUserRoleStmt, *ast.AlterUserRoleStmt:
-		g.namesRoles = true
-	}
 	switch s := stmt.(type) {
 	case *ast.CreateModuleRoleStmt:
 		g.laterModuleRoles[s.Name.String()] = true
@@ -125,45 +115,7 @@ func (g *grantResolver) record(stmt ast.Statement) {
 		g.scriptServices["odata:"+s.Name.String()] = true
 	case *ast.CreatePublishedRestServiceStmt:
 		g.scriptServices["rest:"+s.Name.String()] = true
-	case *ast.CreateMicroflowStmt:
-		g.recordAutoDocumentRole(s.Name.Module)
-	case *ast.CreateNanoflowStmt:
-		g.recordAutoDocumentRole(s.Name.Module)
-	case *ast.CreatePageStmtV3:
-		g.recordAutoDocumentRole(s.Name.Module)
 	}
-}
-
-// recordAutoDocumentRole mirrors defaultDocumentAccessRoles: creating a
-// microflow, nanoflow or page in a module with no module roles at all creates
-// <Module>.User and grants the document to it. A script that creates a module,
-// its flows and then grants them to <Module>.User relies on exactly that
-// (doctype-tests/02b), so the role exists from that statement on.
-func (g *grantResolver) recordAutoDocumentRole(module string) {
-	if module == "" || !g.namesRoles {
-		return
-	}
-	auto := module + "." + autoDocumentRoleName
-	if g.scriptModuleRoles[auto] {
-		return
-	}
-	prefix := module + "."
-	for name := range g.scriptModuleRoles {
-		if strings.HasPrefix(name, prefix) {
-			return // the script gave the module a role of its own
-		}
-	}
-	stored, answered := g.rolesOfModule(module)
-	if !answered {
-		return
-	}
-	for name := range stored {
-		if !g.droppedModuleRoles[prefix+name] {
-			return
-		}
-	}
-	g.scriptModuleRoles[auto] = true
-	delete(g.droppedModuleRoles, auto)
 }
 
 // check returns the unresolved references of one statement, in the order the
@@ -450,9 +402,9 @@ func (g *grantResolver) moduleRoleProblem(r ast.QualifiedName) string {
 	return msg
 }
 
-// rolesOfModule reads one module's roles — including the auto-created document
-// role buildModuleRoleQualifiedNames leaves out, which a grant may name like
-// any other. Read per module and only for the modules a statement names:
+// rolesOfModule reads one module's roles — including a role an earlier mxcli
+// auto-created, which buildModuleRoleQualifiedNames leaves out and a grant may
+// name like any other. Read per module and only for the modules a statement names:
 // reading every module's security costs seconds on a large project.
 //
 // answered is false when the backend could not say (security unreadable), which

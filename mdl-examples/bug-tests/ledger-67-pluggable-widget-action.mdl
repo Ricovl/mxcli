@@ -27,6 +27,7 @@ mdl 1;
 -- this is exercised via exec/mx-check, not just syntax check.
 
 create module L67;
+create module role L67.User;
 
 create entity L67.Thing (
   Name: string(100)
