@@ -83,8 +83,8 @@ func TestDecimalPrecisionAuto_IsWrittenAsMinusOne(t *testing.T) {
 // marker as a member path.
 func TestSchemaRootClause_DropsTheWrapperMarker(t *testing.T) {
 	for path, want := range map[string]string{
-		"(Array)|(Wrapper)":               "",
-		"(Object)|tags|(Wrapper)":         " root tags",
+		"(Array)|(Wrapper)":                 "",
+		"(Object)|tags|(Wrapper)":           " root tags",
 		"(Object)|choices|(Object)|message": " root choices/message",
 	} {
 		if got := schemaRootClause(path); got != want {
