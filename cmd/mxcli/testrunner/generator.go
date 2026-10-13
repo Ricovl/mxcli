@@ -337,7 +337,7 @@ func renameExpect(exp Expect, names map[string]bool, suffix string) Expect {
 	return renamed
 }
 
-// rewriteWithErrorHandling adds ON ERROR clauses to CALL MICROFLOW statements.
+// rewriteWithErrorHandling adds ON ERROR clauses to the calls in the body.
 // The error handler ends with RETURN $AllPassed to properly terminate the flow path
 // with a return value (required when the microflow returns a type).
 func rewriteWithErrorHandling(lines []string, testID string) []string {
@@ -347,7 +347,7 @@ func rewriteWithErrorHandling(lines []string, testID string) []string {
 		line := lines[i]
 		trimmed := strings.TrimSpace(line)
 
-		if containsCallMicroflow(trimmed) && strings.HasSuffix(trimmed, ";") {
+		if startsErrorRaisingCall(trimmed) && strings.HasSuffix(trimmed, ";") {
 			withoutSemicolon := strings.TrimSuffix(trimmed, ";")
 			result = append(result, withoutSemicolon+" ON ERROR BEGIN")
 			result = append(result, fmt.Sprintf(
@@ -357,7 +357,7 @@ func rewriteWithErrorHandling(lines []string, testID string) []string {
 			result = append(result, "  SET $AllPassed = false;")
 			result = append(result, "  RETURN $AllPassed;")
 			result = append(result, "END ERROR;")
-		} else if containsCallMicroflow(trimmed) && !strings.HasSuffix(trimmed, ";") {
+		} else if startsErrorRaisingCall(trimmed) && !strings.HasSuffix(trimmed, ";") {
 			var callLines []string
 			callLines = append(callLines, line)
 			for i+1 < len(lines) {
@@ -387,7 +387,7 @@ func rewriteWithErrorHandling(lines []string, testID string) []string {
 	return result
 }
 
-// rewriteForThrowsTest wraps CALL MICROFLOW with ON ERROR that sets the throw flag.
+// rewriteForThrowsTest wraps each call in the body with ON ERROR that sets the throw flag.
 //
 // The flag is set only when the raised message matches the annotation's, so this
 // runner reports a wrong expectation the same way the endpoint runner does — as
@@ -400,12 +400,12 @@ func rewriteForThrowsTest(lines []string, didThrowVar string, want string) []str
 		line := lines[i]
 		trimmed := strings.TrimSpace(line)
 
-		if containsCallMicroflow(trimmed) && strings.HasSuffix(trimmed, ";") {
+		if startsErrorRaisingCall(trimmed) && strings.HasSuffix(trimmed, ";") {
 			withoutSemicolon := strings.TrimSuffix(trimmed, ";")
 			result = append(result, withoutSemicolon+" ON ERROR BEGIN")
 			result = append(result, throwsFlagHandler(didThrowVar, want)...)
 			result = append(result, "END ERROR;")
-		} else if containsCallMicroflow(trimmed) && !strings.HasSuffix(trimmed, ";") {
+		} else if startsErrorRaisingCall(trimmed) && !strings.HasSuffix(trimmed, ";") {
 			var callLines []string
 			callLines = append(callLines, line)
 			for i+1 < len(lines) {
@@ -444,12 +444,21 @@ func throwsFlagHandler(didThrowVar, want string) []string {
 	}
 }
 
-// containsCallMicroflow checks if a line starts a CALL MICROFLOW statement.
-func containsCallMicroflow(s string) bool {
-	upper := strings.ToUpper(s)
-	return strings.Contains(upper, "CALL MICROFLOW") ||
-		strings.Contains(upper, "CALL NANOFLOW")
+// startsErrorRaisingCall reports whether a line starts a call-shaped activity
+// the runner must catch an error from: one that takes an ON ERROR clause in a
+// microflow (onErrorClause on its rule in MDLMicroflow.g4).
+//
+// It used to match CALL MICROFLOW and CALL NANOFLOW only, so an error raised by
+// CALL JAVA ACTION escaped the test microflow — @throws could not catch it and
+// a test without one was reported as ERROR instead of FAIL (ako/mxcli#1164).
+// Anchored at the statement start so a string that mentions a call is not one.
+func startsErrorRaisingCall(s string) bool {
+	return errorRaisingCall.MatchString(s)
 }
+
+var errorRaisingCall = regexp.MustCompile(`(?i)^\s*(\$\w+\s*=\s*)?(` +
+	`call\s+(microflow|nanoflow|java\s+action|external\s+action|web\s+service|rest\s+service|workflow)` +
+	`|rest\s+call|send\s+rest\s+request|execute\s+database\s+query)\b`)
 
 // escapeMDLString escapes single quotes for MDL string literals.
 func escapeMDLString(s string) string {
