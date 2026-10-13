@@ -353,7 +353,10 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 	if err := checkSearchByIsOnAListView(w); err != nil {
 		return nil, err
 	}
-	if err := checkDatabaseOverAssociationIsOnAListView(w); err != nil {
+	// On a 9.x project a pluggable widget stores this form too, as a
+	// CustomWidgetDatabaseSource (mendixlabs/mxcli#1399); a widget with its
+	// own builder still refuses it there, in buildDataSourceV3.
+	if err := checkDatabaseOverAssociationIsOnAListView(w); err != nil && !pb.customWidgetDatabaseSourceSupported() {
 		return nil, err
 	}
 	if err := checkWidgetHasName(w); err != nil {
