@@ -179,7 +179,10 @@ func TestPublishedRestService_AuthenticationMicroflowSignature(t *testing.T) {
 		{"RestQ.AuthenticateBoth", ""},
 		{"RestQ.AuthenticateNoParams", ""},
 		{"RestQ.AuthenticateBool", "CE0334"},
-		{"RestQ.AuthenticateToken", "CE0336"},
+		// A String parameter is a service parameter (mendixlabs/mxcli#1417);
+		// an object other than the request and the response is not.
+		{"RestQ.AuthenticateToken", ""},
+		{"RestQ.AuthenticateObject", "CE0336"},
 		{"RestQ.NoSuchMicroflow", "not found"},
 	}
 	for _, c := range cases {
@@ -220,7 +223,7 @@ func TestReferences_PublishedRestAuthenticationMicroflow(t *testing.T) {
 		{`create published rest service RestQ.Orders (Path: 'p', Authentication: (microflow RestQ.Authenticate)) { resource 'r' { get '' microflow RestQ.GetStatus; } };`, ""},
 		{`create published rest service RestQ.Orders (Path: 'p', Authentication: (microflow RestQ.Nope)) { resource 'r' { get '' microflow RestQ.GetStatus; } };`, "not found"},
 		{`create published rest service RestQ.Orders (Path: 'p', Authentication: (microflow RestQ.AuthenticateBool)) { resource 'r' { get '' microflow RestQ.GetStatus; } };`, "CE0334"},
-		{`alter published rest service RestQ.Orders set (Authentication: (microflow RestQ.AuthenticateToken));`, "CE0336"},
+		{`alter published rest service RestQ.Orders set (Authentication: (microflow RestQ.AuthenticateObject));`, "CE0336"},
 		{`create microflow RestQ.Later () returns System.User begin return empty; end;
 create published rest service RestQ.Orders (Path: 'p', Authentication: (microflow RestQ.Later)) { resource 'r' { get '' microflow RestQ.GetStatus; } };`, ""},
 	}

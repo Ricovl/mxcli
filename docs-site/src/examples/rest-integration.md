@@ -394,13 +394,75 @@ ALTER PUBLISHED REST SERVICE Module.OrderAPI SET (Authentication: none);
   setting. A new service without it requires no authentication. `describe`
   does not print `none`.
 - The **authentication microflow** returns `System.User` — empty means "not
-  authenticated" — and its parameters can only be a `System.HttpRequest` and a
-  `System.HttpResponse`, matched by type (none at all is fine). `exec` and
+  authenticated". An object parameter can only be a `System.HttpRequest` or a
+  `System.HttpResponse`, matched by type; any other parameter is an
+  **authentication parameter** of the service (below). `exec` and
   `check --references` refuse anything else as **MDL-REST04** (Mendix: CE0334,
   CE0336).
 - With authentication on, the service needs at least one allowed module role
   (`GRANT ACCESS …`), or `mx check` reports CE0338. Custom authentication also
   needs app security on (CE6600). Roles without authentication are accepted.
+
+#### Authentication parameters
+
+A custom-authentication microflow can read values of the request as its own
+parameters — a token in a header, a tenant in the query string. Each one is
+bound in an optional list after the microflow (Studio Pro: the service's
+**Parameters**, Mendix 7.17+):
+
+```sql
+mdl 1;
+CREATE OR MODIFY MICROFLOW Module.PRS_Authenticate (
+  $HttpRequest: System.HttpRequest, $Token: String, $Tenant: Integer, $Lang: String
+)
+RETURNS System.User AS $User
+BEGIN
+  RETRIEVE $User FROM System.User WHERE [Name = $Token] FIRST;
+  RETURN $User;
+END;
+
+CREATE OR MODIFY PUBLISHED REST SERVICE Module.OrderAPI (
+  Path: 'rest/orders/v1',
+  Version: '1.0.0',
+  ServiceName: 'Order API',
+  Authentication: (
+    basic,
+    microflow Module.PRS_Authenticate (
+      $Token: header 'X-Api-Token',
+      $Tenant: query,
+      $Lang: query 'lang' description 'UI language, defaults to en'
+    )
+  )
+)
+{
+  RESOURCE 'orders' {
+    GET '' MICROFLOW Module.PRS_GetAllOrders;
+  }
+};
+```
+
+| Entry part | Meaning |
+|---|---|
+| `$Token` | The authentication microflow's parameter the value is passed to |
+| `query` \| `header` | Where the value comes from; nothing else is accepted |
+| `'X-Api-Token'` | The HTTP name, when it is not the parameter's own name |
+| `description '…'` | Optional |
+
+- The **data type** is never written: it is the microflow parameter's.
+- A parameter **not listed** is a `query` parameter under its own name, so a
+  microflow with `$Token: String` works with `microflow Module.PRS_Authenticate`
+  alone. `System.HttpRequest` / `System.HttpResponse` are never listed. Without
+  the service parameter Mendix reports CE0336 ("The microflow parameter
+  ('Token') is not present in the custom authentication parameter list").
+- **MDL-REST04** refuses an entry naming a parameter the microflow does not
+  have, a request or response parameter, a kind other than `query` / `header`,
+  and a parameter listed twice.
+- The list follows the microflow: listed entries in the order written, then the
+  unlisted ones in the microflow's order. Methods without `microflow` clear it.
+  Left out with the rest of `Authentication`, the stored parameters are kept.
+- `describe` prints the list only when the stored parameters are not what
+  `microflow M.F` alone would write — a header, a renamed or described
+  parameter, or another order.
 
 ### Multiple Resources
 

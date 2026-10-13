@@ -63,6 +63,14 @@ func newPublishedRestFixture(t *testing.T, stored ...*model.PublishedRestService
 		authMf("AuthenticateNoParams", user),
 		authMf("AuthenticateBool", &microflows.BooleanType{}, param("HttpRequest", &microflows.ObjectType{EntityQualifiedName: "System.HttpRequest"})),
 		authMf("AuthenticateToken", user, param("Token", &microflows.StringType{})),
+		// Service-level authentication parameters (mendixlabs/mxcli#1417): a
+		// non-request parameter is a query or header parameter of the service.
+		authMf("AuthenticateTenant", user,
+			param("Token", &microflows.StringType{}),
+			param("HttpRequest", &microflows.ObjectType{EntityQualifiedName: "System.HttpRequest"}),
+			param("Tenant", &microflows.IntegerType{}),
+			param("Lang", &microflows.StringType{})),
+		authMf("AuthenticateObject", user, param("Thing", &microflows.ObjectType{EntityQualifiedName: "RestQ.Upload"})),
 	)
 	mb := &mock.MockBackend{
 		IsConnectedFunc: func() bool { return true },
