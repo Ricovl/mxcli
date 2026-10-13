@@ -62,6 +62,11 @@ create persistent entity ChartExamples.Sales (
   Units:   integer
 );
 
+-- View entities exist from Mendix 10.18, and mxcli refuses them below it. Every
+-- chart page that follows binds one as its data source, so the section runs from
+-- here to the end of the file; only the module and the persistent entity above
+-- run on older versions.
+-- @version: 10.18+
 -- ----------------------------------------------------------------------------
 -- OQL VIEW ENTITIES — the chart data sources (these DO build today)
 -- ----------------------------------------------------------------------------

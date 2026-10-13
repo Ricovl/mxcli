@@ -51,6 +51,12 @@ begin
   return $Result;
 end;
 
+-- mxcli writes published REST services from Mendix 10.0 (the
+-- published_rest_service floor in sdk/versions/mendix-10.yaml) and refuses them
+-- below it. Everything from here on creates, alters or grants on one, so the
+-- section runs to the end of the file; the backing microflows above run on
+-- every version.
+-- @version: 10.0+
 -- ############################################################################
 -- PART 2: SIMPLE PUBLISHED REST SERVICE
 -- ############################################################################
