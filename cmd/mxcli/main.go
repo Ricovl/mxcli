@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
@@ -84,12 +85,18 @@ func shouldSuppressWarning() bool {
 	return false
 }
 
-// discoverProjectPath looks for a single .mpr file in the current directory.
-// Returns the filename if exactly one is found, otherwise returns "".
-func discoverProjectPath() string {
-	entries, err := os.ReadDir(".")
+// discoverProject looks for .mpr files in dir, for a command run without -p.
+// With exactly one it returns its file name (the value -p is set to) and a
+// notice naming its absolute path. With several it picks none and returns a
+// note listing them and asking for -p. With none it returns ("", "").
+//
+// The notice is the only sign that the project was guessed rather than given,
+// so it has to name where the file is: "Using project: App.mpr" read the same
+// for the intended project and a stray copy (mendixlabs/mxcli#1444).
+func discoverProject(dir string) (path, note string) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	var mprFiles []string
 	for _, e := range entries {
@@ -97,10 +104,19 @@ func discoverProjectPath() string {
 			mprFiles = append(mprFiles, e.Name())
 		}
 	}
-	if len(mprFiles) == 1 {
-		return mprFiles[0]
+	switch len(mprFiles) {
+	case 0:
+		return "", ""
+	case 1:
+		abs := filepath.Join(dir, mprFiles[0])
+		if a, err := filepath.Abs(abs); err == nil {
+			abs = a
+		}
+		return mprFiles[0], fmt.Sprintf("Using project: %s (auto-detected in the current directory; pass -p to use another)", abs)
+	default:
+		return "", fmt.Sprintf("No project auto-detected: the current directory has %d .mpr files (%s); pass -p to choose one",
+			len(mprFiles), strings.Join(mprFiles, ", "))
 	}
-	return ""
 }
 
 var rootCmd = &cobra.Command{
@@ -136,9 +152,12 @@ beta language; --mdl 0 starts them in the alpha language, and in the REPL an
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		projectPath, _ := cmd.Flags().GetString("project")
 		if projectPath == "" {
-			if discovered := discoverProjectPath(); discovered != "" {
+			discovered, note := discoverProject(".")
+			if discovered != "" {
 				_ = cmd.Flags().Set("project", discovered)
-				fmt.Fprintf(os.Stderr, "Using project: %s\n", discovered)
+				fmt.Fprintln(os.Stderr, note)
+			} else if note != "" && !shouldSuppressWarning() {
+				fmt.Fprintln(os.Stderr, note)
 			}
 		}
 		// A binary older than the mxcli that wrote this project's tooling is
