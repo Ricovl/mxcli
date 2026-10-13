@@ -47,9 +47,25 @@ type DatabaseSource struct {
 	// (without $); empty means the enclosing container's object.
 	ContextVariable    string `json:"contextVariable,omitempty"`
 	IsSnippetParameter bool   `json:"isSnippetParameter,omitempty"`
+	// UseConstraints selects Studio Pro 9's "Database" source on a pluggable
+	// widget, CustomWidgets$CustomWidgetDatabaseSource: Constraints in place of
+	// XPathConstraint, which is then empty. Mendix 10 merged it into the XPath
+	// source, so it is only written to a 9.x project (mendixlabs/mxcli#1399).
+	UseConstraints bool                 `json:"useConstraints,omitempty"`
+	Constraints    []DatabaseConstraint `json:"constraints,omitempty"`
 }
 
 func (DatabaseSource) isDataSource() {}
+
+// DatabaseConstraint is one Forms$DatabaseConstraint row of a 9.x database
+// source: an attribute of the source entity (qualified), an operator
+// (Equals, NotEquals, LessThan, LessThanOrEquals, GreaterThan,
+// GreaterThanOrEquals, Contains, NotContains) and the value as untyped text.
+type DatabaseConstraint struct {
+	Attribute string `json:"attribute"`
+	Operator  string `json:"operator"`
+	Value     string `json:"value"`
+}
 
 // GridSort represents sorting configuration.
 type GridSort struct {
