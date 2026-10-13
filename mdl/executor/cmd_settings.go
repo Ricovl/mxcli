@@ -359,11 +359,23 @@ func storedModelSettings(ps *model.ProjectSettings) map[string]any {
 // property the type may not define), so without this check the statement would
 // report success and change nothing — the silent no-op shape of #805.
 //
-// JavaVersion is exempt: it is stored under either JavaVersion or
-// JavaMajorVersion, and settingsoverlay.JavaVersionKey resolves which.
+// JavaVersion is stored under either JavaVersion or JavaMajorVersion, and
+// settingsoverlay.JavaVersionKey resolves which. A document carrying neither
+// (Mendix 9.x) has no Java version setting at all, and the overlay would write
+// nothing — mendixlabs/mxcli#1438 reported "Unchanged model settings" there.
 func refuseIfNotStored(raw map[string]any, key string) error {
-	if raw == nil || key == "JavaVersion" {
+	if raw == nil {
 		return nil
+	}
+	if key == "JavaVersion" {
+		if settingsoverlay.JavaVersionKey(raw) != "" {
+			return nil
+		}
+		return mdlerrors.NewUnsupported(
+			"this project does not store the model setting JavaVersion\n" +
+				"  The JavaVersion setting does not exist on this project's Mendix version " +
+				"(Mendix 9.x has none); the JDK is chosen by the platform.\n" +
+				"  hint: upgrade the project to choose a Java version in the model")
 	}
 	if settingsoverlay.Has(raw, key) {
 		return nil

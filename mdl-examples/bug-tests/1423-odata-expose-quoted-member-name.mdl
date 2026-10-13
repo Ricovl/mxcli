@@ -1,0 +1,29 @@
+mdl 1;
+
+/**
+ * mendixlabs/mxcli#1423: published OData `expose ("Description")` stored the
+ * double quotes in the attribute name. check and exec were clean; mx check said
+ *   [CE1613] "The selected attribute 'ModA.EntA."Description"' no longer exists."
+ * and describe printed `"Description" as '"Description"'`.
+ *
+ * The quotes are identifier quoting, as in `create persistent entity`. After the
+ * fix describe prints `Description as 'Description'`.
+ */
+
+create module Bug1423;
+
+create persistent entity Bug1423.EntA (
+  Name: string(200) unique error message 'Name must be unique',
+  Description: string(200)
+);
+
+create published odata service Bug1423.Pub (
+  path: 'odata/bug1423/',
+  version: '1.0.0',
+  ODataVersion: OData4,
+  namespace: 'Bug1423.Ns'
+)
+{
+  publish entity Bug1423.EntA as 'EntAs' (ReadMode: source)
+  expose (Name as 'Name' (KEY), "Description");
+};

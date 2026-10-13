@@ -354,9 +354,10 @@ func (b *Builder) ExitSetStatement(ctx *parser.SetStatementContext) {
 	}
 	if ctx.SET() == nil {
 		if b.gate(setIsMandatory, ctx) {
-			b.addError(fmt.Errorf("line %d: a reassignment says `set` under mdl 1: write `set %s = %s;`. "+
+			b.addError(fmt.Errorf("line %d: a reassignment says `set` under mdl 1: write `set %s = %s;`, "+
+				"or `declare %s <Type> = %s;` if %s is a new variable. "+
 				"A List operation or Aggregate list activity is written without it, as its own statement "+
-				"(`%s = filter $List where …;`)", line, target, valueText, target))
+				"(`%s = filter $List where …;`)", line, target, valueText, target, valueText, target, target))
 			return
 		}
 		b.fixLastNote(setIsMandatory.Code, &ast.Fix{Edits: []ast.TextEdit{insertAt(ctx.GetStart().GetStart(), "set ")}}, "")

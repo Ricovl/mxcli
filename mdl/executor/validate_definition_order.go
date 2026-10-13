@@ -38,6 +38,10 @@ const (
 	defNanoflow    = "nanoflow"
 	defPage        = "page"
 	defQueue       = "task queue"
+	// defImportMapping is the target of `import from mapping`, which the flow
+	// builder resolves when it writes the activity — it needs the mapping's
+	// root entity for the result type (mendixlabs/mxcli#1418).
+	defImportMapping = "import mapping"
 )
 
 // defKey identifies a document by kind and qualified name. Kind is part of the
@@ -160,6 +164,8 @@ func definedBy(stmt ast.Statement) (key defKey, plain bool) {
 		return qualifiedKey(defPage, s.Name), !s.IsModify && !s.IsReplace
 	case *ast.CreateQueueStmt:
 		return qualifiedKey(defQueue, s.Name), !s.CreateOrModify
+	case *ast.CreateImportMappingStmt:
+		return qualifiedKey(defImportMapping, s.Name), !s.CreateOrModify
 	}
 	return defKey{}, false
 }
@@ -271,6 +277,10 @@ func flowDefRefs(site string, params []ast.MicroflowParam, ret *ast.MicroflowRet
 			// The action itself resolves lazily (measured, #955); its IN QUEUE
 			// does not — buildQueueSettings refuses a queue it cannot find.
 			out = append(out, queueDefRef(c.Queue, site)...)
+		case *ast.ImportFromMappingStmt:
+			// Resolved for its root entity, which the activity stores as its
+			// result type; exec refuses one it cannot find (#1418).
+			out = append(out, oneDefRef(c.Mapping, defImportMapping, site+": import from mapping")...)
 		}
 	}
 	return out
@@ -424,6 +434,8 @@ func validateForwardDefRefs(ctx *ExecContext, prog *ast.Program) []error {
 			m = buildPageQualifiedNames(ctx)
 		case defQueue:
 			m = buildQueueQualifiedNames(ctx)
+		case defImportMapping:
+			m = buildImportMappingQualifiedNames(ctx)
 		}
 		stored[kind] = m
 		return m
@@ -432,8 +444,9 @@ func validateForwardDefRefs(ctx *ExecContext, prog *ast.Program) []error {
 		m := storedOf(kind)
 		// An empty listing is a backend that could not answer, as often as a
 		// project without any — silence, not a finding (cf. checkAlterTarget).
-		// Queues are the exception: a project with none is ordinary.
-		if len(m) == 0 && kind != defQueue {
+		// Queues and import mappings are the exception: a project with none
+		// is ordinary.
+		if len(m) == 0 && kind != defQueue && kind != defImportMapping {
 			return true
 		}
 		if kind == defQueue {

@@ -13,7 +13,8 @@ import (
 // items.
 type rawChildSlot struct {
 	// Keyword is the MDL container keyword, derived from the property key the
-	// same way an object list's is (tagContentContainer -> tagcontentcontainer).
+	// same way the widget definition derives it (mdlContainerForWidgetSlot:
+	// tagContentContainer -> tagcontentcontainer, content -> template).
 	Keyword string
 	// PropertyKey is the stored key, kept so the emitted MDL can be matched back
 	// to the document when debugging.
@@ -56,6 +57,8 @@ func extractChildSlots(ctx *ExecContext, w map[string]any, entityContext string)
 		return nil
 	}
 
+	widgetID := extractCustomWidgetID(ctx, w)
+
 	var out []rawChildSlot
 	for _, prop := range getBsonArrayElements(obj["Properties"]) {
 		propMap, ok := prop.(map[string]any)
@@ -87,7 +90,11 @@ func extractChildSlots(ctx *ExecContext, w map[string]any, entityContext string)
 			continue
 		}
 
-		kw := strings.ToLower(deriveObjectListKeyword(key))
+		// The keyword the widget definition declares for this slot, so exec
+		// reads the describe back: a `content` slot is `template` there
+		// (mendixlabs/mxcli#1400). deriveObjectListKeyword is the OBJECT-LIST
+		// convention and named it `content`.
+		kw := strings.ToLower(mdlContainerForWidgetSlot(widgetID, key))
 		if kw == "" {
 			kw = strings.ToLower(key)
 		}

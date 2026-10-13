@@ -366,6 +366,7 @@ func init() {
 
 	// Describe command flags
 	describeCmd.Flags().StringP("format", "f", "mdl", "Output format: mdl, json, mermaid, elk, svg")
+	describeCmd.Flags().Bool("all", false, "With module: describe everything in the module (DESCRIBE MODULE ... WITH ALL), not only the module and its roles")
 
 	// Search command flags
 	searchCmd.Flags().StringP("format", "f", "table", "Output format: table, names (for JSON use --json; \"json\" is accepted as a deprecated alias)")

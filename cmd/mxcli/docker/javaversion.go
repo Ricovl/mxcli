@@ -8,10 +8,25 @@ import (
 	"strings"
 )
 
-// DefaultJavaMajor is the Java release assumed when a project does not say which
-// one it wants, or cannot be read. Every Mendix 9/10/11 project up to 11.13 uses
-// it, so it is also the answer for the overwhelming majority of projects.
+// DefaultJavaMajor is the Java release assumed when a project cannot be read, or
+// when a Mendix 10/11 project does not say which one it wants. Every Mendix 10/11
+// project up to 11.13 uses it. Mendix 9 is the exception: see mendix9JavaMajor.
 const DefaultJavaMajor = 21
+
+// mendix9JavaMajor is the JDK for a Mendix 9 project. 9.x supports Java 11 and
+// 17 only (9.24 LTS: 17) and its model has no JavaVersion setting, so the
+// release cannot be read and 21 is wrong: mxbuild 9.24's Gradle 7.6 rejects it
+// with "Unsupported class file major version 65" (mendixlabs/mxcli#1437).
+const mendix9JavaMajor = 17
+
+// defaultJavaMajorForMendix is the JDK assumed for a project of the given Mendix
+// major version that stores no JavaVersion. Zero (unknown) keeps DefaultJavaMajor.
+func defaultJavaMajorForMendix(mendixMajor int) int {
+	if mendixMajor == 9 {
+		return mendix9JavaMajor
+	}
+	return DefaultJavaMajor
+}
 
 // ProjectJavaMajor reads the Java release a project is built for.
 //
@@ -26,8 +41,9 @@ const DefaultJavaMajor = 21
 // JavaMajorVersion "21" from 11.12 — which settingsoverlay already normalises,
 // so both spellings arrive here as a bare number.
 //
-// A project that cannot be read, or whose value is not a number, reports
-// DefaultJavaMajor and false. The caller then behaves exactly as mxcli did
+// A project that stores no numeric value reports the default for its Mendix
+// version (defaultJavaMajorForMendix) and false; one that cannot be read
+// reports DefaultJavaMajor and false. The caller then behaves exactly as mxcli did
 // before: guessing a different JDK from an unreadable model would trade a clear
 // failure for a confusing one.
 func ProjectJavaMajor(projectPath string) (int, bool) {
@@ -43,7 +59,11 @@ func ProjectJavaMajor(projectPath string) (int, bool) {
 	}
 	n, ok := ParseJavaMajor(ps.Model.JavaVersion)
 	if !ok {
-		return DefaultJavaMajor, false
+		mendixMajor := 0
+		if pv := reader.ProjectVersion(); pv != nil {
+			mendixMajor = pv.MajorVersion
+		}
+		return defaultJavaMajorForMendix(mendixMajor), false
 	}
 	return n, true
 }

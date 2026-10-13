@@ -870,8 +870,7 @@ func describeUserRole(ctx *ExecContext, name ast.QualifiedName) error {
 // replaces had no slot for the description or the check-security flag, which
 // describe printed as `--` comments that a replay dropped, and it could not
 // write a role with no module roles at all. A property at Mendix's default for
-// a new role is left out (R12), so an empty role is `create or modify user
-// role R;`.
+// a new role is left out (R12), except CheckSecurity, which is always stated.
 func formatUserRoleMDL(ur *security.UserRole) string {
 	var props []string
 	if len(ur.ModuleRoles) > 0 {
@@ -889,9 +888,10 @@ func formatUserRoleMDL(ur *security.UserRole) string {
 	if ur.ManageUsersWithoutRoles {
 		props = append(props, "ManageUsersWithoutRoles: true")
 	}
-	if ur.CheckSecurity {
-		props = append(props, "CheckSecurity: true")
-	}
+	// Always stated: a new role is written with CheckSecurity true, so leaving
+	// out a false value re-enabled security checking on replay, and `create or
+	// modify` keeps an unstated stored value either way (#1427).
+	props = append(props, fmt.Sprintf("CheckSecurity: %t", ur.CheckSecurity))
 	head := "create or modify user role " + ur.Name
 	switch len(props) {
 	case 0:

@@ -225,6 +225,29 @@ func (fb *flowBuilder) hasDeclaredReturnValue() bool {
 	return fb.returnType != nil && fb.returnType.Type.Kind != ast.TypeVoid
 }
 
+// addUndeclaredSetError reports `set $X = …` on a variable that is not
+// declared. When $X is the flow's `returns … as $X` name the generic message
+// reads as contradicting that clause, so it says what the clause does: it names
+// the result for callers and declares nothing (mendixlabs/mxcli#1436).
+func (fb *flowBuilder) addUndeclaredSetError(target string) {
+	name := strings.TrimPrefix(target, "$")
+	if fb.returnType != nil && fb.returnType.Variable != "" &&
+		strings.TrimPrefix(fb.returnType.Variable, "$") == name {
+		typ := fb.returnType.Type.Kind.String()
+		if ref := fb.returnType.Type.EntityRef; ref != nil {
+			typ = ref.Module + "." + ref.Name
+		}
+		fb.addErrorWithExample(
+			fmt.Sprintf("variable '%s' is not declared: `returns … as $%s` names the result for callers "+
+				"and does not declare $%s — declare it before the first `set`", name, name, name),
+			fmt.Sprintf("    declare $%s %s = …;\n    ...\n    set $%s = …;", name, typ, name))
+		return
+	}
+	fb.addErrorWithExample(
+		fmt.Sprintf("variable '%s' is not declared", target),
+		errorExampleDeclareVariable(target))
+}
+
 // errorExampleDeclareVariable returns an example for declaring a variable.
 func errorExampleDeclareVariable(varName string) string {
 	// Remove $ prefix if present for cleaner display

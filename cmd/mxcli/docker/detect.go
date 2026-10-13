@@ -406,10 +406,11 @@ func resolveJDKWith(e jdkEnv, major int) (string, error) {
 	}
 	// Which Java a project needs is a MODEL setting, so a user staring at this
 	// has a second way out that a bare "install a JDK" hides: build for a release
-	// they already have. Only say so when the requirement is not the default,
-	// because below 11.14 that is the only supported value and the advice would
-	// be noise.
-	if major != DefaultJavaMajor {
+	// they already have. Only say so when the requirement is above the default:
+	// below 11.14 the default is the only supported value, and a Mendix 9
+	// project (JDK 17) has no JavaVersion setting at all, so the statement would
+	// change nothing (mendixlabs/mxcli#1437).
+	if major > DefaultJavaMajor {
 		msg += fmt.Sprintf("\n  This is the project's own Settings > Model > JavaVersion. To build for a"+
 			"\n  release you already have instead: mxcli -p <project>.mpr -c \"alter settings runtime ( JavaVersion: '%d' )\"", DefaultJavaMajor)
 	}

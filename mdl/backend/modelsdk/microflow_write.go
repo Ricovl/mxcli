@@ -204,6 +204,9 @@ func (b *Backend) CreateMicroflow(mf *microflows.Microflow) error {
 	if mf == nil {
 		return fmt.Errorf("CreateMicroflow: nil microflow")
 	}
+	if err := flowImportMappingEntityError(mf.ObjectCollection); err != nil {
+		return fmt.Errorf("CreateMicroflow %s: %w", mf.Name, err)
+	}
 	if b.writer == nil {
 		return fmt.Errorf("CreateMicroflow: not connected for writing")
 	}
@@ -228,6 +231,9 @@ func (b *Backend) CreateMicroflow(mf *microflows.Microflow) error {
 func (b *Backend) UpdateMicroflow(mf *microflows.Microflow) error {
 	if mf == nil {
 		return fmt.Errorf("UpdateMicroflow: nil microflow")
+	}
+	if err := flowImportMappingEntityError(mf.ObjectCollection); err != nil {
+		return fmt.Errorf("UpdateMicroflow %s: %w", mf.Name, err)
 	}
 	if b.writer == nil {
 		return fmt.Errorf("UpdateMicroflow: not connected for writing")
