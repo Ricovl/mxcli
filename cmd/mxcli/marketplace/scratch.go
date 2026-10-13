@@ -16,6 +16,7 @@ import (
 
 	modelsdk "github.com/mendixlabs/mxcli"
 	"github.com/mendixlabs/mxcli/cmd/mxcli/docker"
+	"github.com/mendixlabs/mxcli/internal/zipentry"
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/executor"
@@ -442,7 +443,7 @@ func ModuleNameInPackage(mpkPath string) (string, error) {
 		if f.Name != "package.xml" {
 			continue
 		}
-		rc, err := f.Open()
+		rc, err := zipentry.Open(f)
 		if err != nil {
 			return "", err
 		}
