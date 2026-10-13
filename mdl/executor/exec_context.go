@@ -54,6 +54,10 @@ type ExecContext struct {
 	// not the stored project, which does not hold it yet. Nil otherwise.
 	scriptFlows map[string]*selfFlow
 
+	// forwardFlowCalls mirrors Executor.forwardFlowCalls: whether a call to a
+	// flow the script creates further down is accepted (mendixlabs/mxcli#1405).
+	forwardFlowCalls bool
+
 	// Format controls output formatting (table, json, etc.).
 	Format OutputFormat
 

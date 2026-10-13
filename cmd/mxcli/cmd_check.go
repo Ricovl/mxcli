@@ -306,6 +306,10 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 		e, logger := newLoggedExecutorTo("check", progressSink(format))
 		defer logger.Close()
 		defer e.Close()
+		// check cannot know how the script will run, so it accepts a call to
+		// a flow created further down, as plain `exec` (which rolls back)
+		// does; exec refuses it in the modes that cannot (#1405).
+		e.SetForwardFlowCalls(true)
 		connectProg, _ := visitor.Build(fmt.Sprintf("CONNECT LOCAL '%s'", visitor.QuoteString(projectPath)))
 		for _, stmt := range connectProg.Statements {
 			if err := e.Execute(stmt); err != nil {

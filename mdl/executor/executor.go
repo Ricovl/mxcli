@@ -257,24 +257,28 @@ type Executor struct {
 	scriptDir      string           // directory of the .mdl file being executed (see SetScriptDir)
 	langVersion    langver.Version  // `mdl <n>;` of the program being run (see enterLanguage)
 	describeLang   *langver.Version // the language DESCRIBE writes, when set (SetDescribeLanguage)
-	settings       map[string]any
-	cache          *executorCache
-	catalog        *catalog.Catalog
-	quiet          bool            // suppress connection and status messages
-	tally          *mutationTally  // collapses a program run's "Unchanged" reports into one line
-	accessRun      *accessRuleRun  // the open run of access-rule statements, if any (#872, #890)
-	format         OutputFormat    // output format (table, json)
-	logger         *diaglog.Logger // session diagnostics logger (nil = no logging)
-	tracer         *backend.Tracer // MCP tool-call tracer (--mcp-trace; nil = off)
-	stmtGuard      func(ast.Statement) (ast.Statement, error)
-	fragments      map[string]*ast.DefineFragmentStmt // script-scoped fragment definitions
-	sqlMgr         *sqllib.Manager                    // external SQL connection manager (lazy init)
-	themeRegistry  *ThemeRegistry                     // cached theme design property definitions (lazy init)
-	registry       *Registry                          // statement dispatch registry
-	catalogMu      sync.RWMutex                       // protects catalog field from background goroutine writes
-	untimedMu      sync.Mutex                         // protects untimed
-	untimed        *untimedWork                       // the running statement's untimed-work tracker (see untimed_work.go)
-	catalogGen     uint64                             // monotonic generation counter for catalog swaps
+	// forwardFlowCalls is set when the run is all-or-nothing (SetForwardFlowCalls);
+	// scriptFlows then holds every flow the program being run declares.
+	forwardFlowCalls bool
+	scriptFlows      map[string]*selfFlow
+	settings         map[string]any
+	cache            *executorCache
+	catalog          *catalog.Catalog
+	quiet            bool            // suppress connection and status messages
+	tally            *mutationTally  // collapses a program run's "Unchanged" reports into one line
+	accessRun        *accessRuleRun  // the open run of access-rule statements, if any (#872, #890)
+	format           OutputFormat    // output format (table, json)
+	logger           *diaglog.Logger // session diagnostics logger (nil = no logging)
+	tracer           *backend.Tracer // MCP tool-call tracer (--mcp-trace; nil = off)
+	stmtGuard        func(ast.Statement) (ast.Statement, error)
+	fragments        map[string]*ast.DefineFragmentStmt // script-scoped fragment definitions
+	sqlMgr           *sqllib.Manager                    // external SQL connection manager (lazy init)
+	themeRegistry    *ThemeRegistry                     // cached theme design property definitions (lazy init)
+	registry         *Registry                          // statement dispatch registry
+	catalogMu        sync.RWMutex                       // protects catalog field from background goroutine writes
+	untimedMu        sync.Mutex                         // protects untimed
+	untimed          *untimedWork                       // the running statement's untimed-work tracker (see untimed_work.go)
+	catalogGen       uint64                             // monotonic generation counter for catalog swaps
 }
 
 // New creates a new executor with the given output writer.
@@ -481,6 +485,7 @@ func (e *Executor) ExecuteProgramReportingStop(prog *ast.Program) (stoppedAt int
 		defer e.flushTally()
 	}
 	defer e.enterLanguage(prog.LanguageVersion)()
+	defer e.enterScriptFlows(prog)()
 
 	// Collect all names defined in the script for forward-reference hints.
 	allDefined := newScriptContext()
@@ -514,6 +519,41 @@ func (e *Executor) ExecuteProgramReportingStop(prog *ast.Program) (stoppedAt int
 		return -1, err
 	}
 	return -1, e.finalizeProgramExecution()
+}
+
+// SetForwardFlowCalls says whether a call may name a microflow or nanoflow a
+// LATER statement of the script creates (mendixlabs/mxcli#1405). A call is
+// stored by name, so it can be written before its callee; what makes it unsafe
+// is a later statement failing and leaving the call dangling. Only a run that
+// rolls back on failure — plain `mxcli exec` under the #1408 journal — may
+// allow it, and `mxcli check`, which cannot know how the script will run.
+// Off by default: --continue-on-error, the REPL and -c refuse it.
+func (e *Executor) SetForwardFlowCalls(on bool) { e.forwardFlowCalls = on }
+
+// enterScriptFlows makes every flow the program declares resolvable by a call
+// in it, wherever the declaration stands, and returns the function that
+// restores the previous set. Only a run that can roll back does this
+// (SetForwardFlowCalls); otherwise a call still resolves in statement order.
+// A nested EXECUTE SCRIPT sees its caller's flows as well as its own.
+func (e *Executor) enterScriptFlows(prog *ast.Program) func() {
+	if !e.forwardFlowCalls {
+		return func() {}
+	}
+	prev := e.scriptFlows
+	flows := make(map[string]*selfFlow, len(prev))
+	for k, v := range prev {
+		flows[k] = v
+	}
+	for _, stmt := range prog.Statements {
+		switch s := stmt.(type) {
+		case *ast.CreateMicroflowStmt:
+			declareScriptFlow(flows, false, s.Name, s.ReturnType)
+		case *ast.CreateNanoflowStmt:
+			declareScriptFlow(flows, true, s.Name, s.ReturnType)
+		}
+	}
+	e.scriptFlows = flows
+	return func() { e.scriptFlows = prev }
 }
 
 // enterLanguage runs the following statements under a program's language

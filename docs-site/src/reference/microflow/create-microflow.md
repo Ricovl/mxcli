@@ -97,6 +97,8 @@ Call another microflow, nanoflow, or Java action. Parameters are passed by name.
 
 A flow may call itself: the target resolves to the flow the statement creates, with the return type it declares, so a recursive microflow or nanoflow is written in one statement — no stub created first.
 
+A call may also name a flow the script creates further down, so mutually recursive flows can be written in either order. The call is stored by name; plain `mxcli exec` resolves it against every flow the script declares, because it rolls the whole run back if a statement fails. `exec --continue-on-error`, the REPL and `-c` cannot roll back and refuse such a call: there, create the callee first, or create a stub of it first and `create or modify` it after the caller.
+
 **UI Actions**
 
 ```sql

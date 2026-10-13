@@ -501,6 +501,17 @@ type IndexAttribute struct {
 	model.BaseElement
 	AttributeID model.ID `json:"attributeId"`
 	Ascending   bool     `json:"ascending"`
+	// Type is the segment kind Studio Pro stores (DomainModels$IndexedAttribute
+	// Type): "" or "Normal" for an attribute, "CreatedDate" / "ChangedDate" for
+	// the system member of that name, which is not an attribute of the entity
+	// and so has nothing behind AttributeID (mendixlabs/mxcli#1401).
+	Type string `json:"type,omitempty"`
+}
+
+// IsSystemMember reports whether the segment indexes a system date member
+// (createdDate / changedDate) rather than an attribute.
+func (ia *IndexAttribute) IsSystemMember() bool {
+	return ia.Type == "CreatedDate" || ia.Type == "ChangedDate"
 }
 
 // AccessRule represents an access rule for an entity.
