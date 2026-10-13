@@ -49,8 +49,7 @@ func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath, scri
 		if summary := linter.Summarize(violations); summary.Errors > 0 {
 			return fmt.Sprintf(
 				"\nRefusing to execute: %d error(s) above. Nothing was written.\n"+
-					"  exec applies statements one at a time and cannot roll back, so a script\n"+
-					"  with a known error would leave the model partly updated.\n"+
+					"  A script with a known error would fail part-way and be rolled back.\n"+
 					"  Fix them, or re-run with --no-check to apply the script anyway.\n",
 				summary.Errors)
 		}

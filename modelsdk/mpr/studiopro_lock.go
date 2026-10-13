@@ -93,7 +93,12 @@ func studioProOpenGuard(mprPath string) error {
 	return &StudioProOpenError{MprPath: mprPath, LockPath: lock, LockTime: mod}
 }
 
-// guardWrite applies the guard to this writer's project.
+// guardWrite applies the guard to this writer's project. Every write passes
+// here before it changes anything, which is also what lets an open Journal copy
+// the .mpr before the first change (journal.go).
 func (w *Writer) guardWrite() error {
-	return studioProOpenGuard(w.reader.path)
+	if err := studioProOpenGuard(w.reader.path); err != nil {
+		return err
+	}
+	return journalDB(w.reader.path)
 }
