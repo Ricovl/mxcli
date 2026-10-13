@@ -1127,13 +1127,16 @@ Respond in {{Language}}.$$,
 | Create or modify | `create or modify image collection Module.Name [...];` | Preserves UUID — preferred for AI agents |
 | Drop collection | `drop image collection [if exists] Module.Name;` | Removes collection and all embedded images |
 | Show an image on a page | `image imgLogo (Image: 'Module.Collection.ImageName');` | Three-part name, like an icon reference. `describe image collection` lists the names |
+| Show an uploaded image | `image imgPhoto (Image: $currentObject, DefaultImage: 'Module.Collection.ImageName');` | Inside a data view over an entity that extends `System.Image`. `DefaultImage:` is shown when the object holds no image, and only with `$currentObject` (CE0463 otherwise) |
 
 An `image` widget's default source **is** an image collection entry, so a bare
 `image imgLogo (...)` with no `Image:` builds into a model mxbuild refuses ("No
 image selected."); `mxcli check` reports it as MDL-WIDGET22. A name that does not
 resolve is reported by `mxcli check --references` rather than by the build
 (CE1613). The other two sources are `ImageType: imageUrl, ImageUrl: '…'` and
-`ImageType: icon`.
+`ImageType: icon`; any other `ImageType` is a MDL-WIDGET22 warning, because mx
+check accepts it. An uploaded image is not a separate `ImageType` — it is the
+default source bound to the object: `Image: $currentObject`.
 
 ### Binding a pluggable widget's text-template property
 

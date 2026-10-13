@@ -102,13 +102,18 @@ func TestImageWidget_OtherWidgetsAreNotTouched(t *testing.T) {
 	}
 }
 
-// CONTROL 4: an ImageType nobody recognises is left alone rather than guessed
-// at. Reporting on an unknown source would fire on a widget version this build
-// does not know about.
-func TestImageWidget_UnknownImageTypeIsLeftAlone(t *testing.T) {
+// CONTROL 4: an ImageType nobody recognises is never an ERROR — a widget
+// version this build does not know may add a source. It is a warning, because
+// silence let `ImageType: dynamicImage` through check, exec and mx check alike
+// (mendixlabs/mxcli#1476).
+func TestImageWidget_UnknownImageTypeIsOnlyAWarning(t *testing.T) {
 	w := imageWidget(map[string]any{"ImageType": "somethingNew"})
-	if got := imageViolations(validateImageSource(w, "page X")); len(got) != 0 {
-		t.Errorf("an unrecognised ImageType was reported: %+v", got)
+	got := imageViolations(validateImageSource(w, "page X"))
+	if len(got) != 1 {
+		t.Fatalf("got %d violations, want 1 warning: %+v", len(got), got)
+	}
+	if got[0].Severity != linter.SeverityWarning {
+		t.Errorf("severity = %v, want a warning — an unknown source may be a newer widget's", got[0].Severity)
 	}
 }
 

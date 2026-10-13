@@ -825,6 +825,10 @@ type rawWidget struct {
 	// is not an image collection, or when none is selected. Without it a
 	// describe -> exec copy loses the image (mxcli-formula1 FINDINGS §142).
 	ImageObject string
+	// ImageFromObject is set when the Image widget's `imageObject` is bound to
+	// the object in context rather than a collection entry — an EntityRef on
+	// the value — and is described as `Image: $currentObject` (#1476).
+	ImageFromObject bool
 	// DefaultImage is a DYNAMIC image's fallback, shown when the bound object
 	// carries none — Forms$ImageViewer.DefaultImage, a by-name reference to
 	// Images$Image, so the same three-part Module.Collection.Image name as

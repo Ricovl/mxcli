@@ -127,6 +127,19 @@ func (ob *Builder) SetImage(propertyKey string, imageQN string) {
 	})
 }
 
+// SetImageEntity binds an image-typed property to the object in context — an
+// entity that specializes System.Image — instead of an image collection entry
+// (mendixlabs/mxcli#1476). Stored as the WidgetValue's EntityRef, with its
+// Image key cleared; see setImageEntityValue for how that shape was settled.
+func (ob *Builder) SetImageEntity(propertyKey string, entityName string) {
+	if entityName == "" {
+		return
+	}
+	ob.object = updateWidgetPropertyValue(ob.object, ob.propertyTypeIDs, propertyKey, func(val bson.D) bson.D {
+		return setImageEntityValue(val, entityName)
+	})
+}
+
 func (ob *Builder) SetSelection(propertyKey string, value string) {
 	if value == "" {
 		return
@@ -1194,6 +1207,37 @@ func setImageValue(val bson.D, imageQN string) bson.D {
 		if elem.Key == "Image" {
 			result = append(result, bson.E{Key: "Image", Value: imageQN})
 		} else {
+			result = append(result, elem)
+		}
+	}
+	return result
+}
+
+// setImageEntityValue points an image value at the context object: EntityRef
+// becomes a DirectEntityRef to entityName and the collection entry is cleared.
+//
+// No project in this repo holds a Studio Pro-authored dynamic image, so the
+// shape is the one mxbuild 11.12.1 accepts, with two controls showing it reads
+// the key: the wrong entity is CE7247 "Entity should be the same as the
+// enclosing …", a non-image entity CE7247 "Widget expects entity of type
+// System.Image." The key set is never extended — a value node without either
+// key is left as it is (an invented key is CE0463).
+func setImageEntityValue(val bson.D, entityName string) bson.D {
+	if entityName == "" {
+		return val
+	}
+	result := make(bson.D, 0, len(val))
+	for _, elem := range val {
+		switch elem.Key {
+		case "EntityRef":
+			result = append(result, bson.E{Key: "EntityRef", Value: bson.D{
+				{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+				{Key: "$Type", Value: "DomainModels$DirectEntityRef"},
+				{Key: "Entity", Value: entityName},
+			}})
+		case "Image":
+			result = append(result, bson.E{Key: "Image", Value: ""})
+		default:
 			result = append(result, elem)
 		}
 	}

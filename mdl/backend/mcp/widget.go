@@ -200,6 +200,15 @@ func (w *mcpWidgetBuilder) SetImage(propertyKey, imageQN string) {
 	w.object[propertyKey] = imageQN
 }
 
+// SetImageEntity has no PED spelling this backend knows of; it is recorded
+// rather than sent as a collection entry it is not.
+func (w *mcpWidgetBuilder) SetImageEntity(propertyKey, entityName string) {
+	if entityName == "" {
+		return
+	}
+	w.note("SetImageEntity(" + propertyKey + ")")
+}
+
 func (w *mcpWidgetBuilder) SetDataSource(propertyKey string, ds pages.DataSource) {
 	if src := customWidgetXPathSource(ds); src != nil {
 		w.object[propertyKey] = src

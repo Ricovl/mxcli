@@ -55,6 +55,9 @@ func validateWidgetExpressionValues(w *ast.WidgetV3, def *WidgetDefinition, item
 		switch {
 		case op == "expression":
 			continue
+		case op == "image" && isImageObjectVariable(text):
+			// `Image: $currentObject` binds the object in context (#1476).
+			continue
 		case isExpr && !known && (def != nil || item != nil):
 			// A key the definition does not map: MDL-WIDGET01 (unknown) or
 			// MDL-WIDGET06 (known, unmapped) already speaks for it, and the

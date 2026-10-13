@@ -16,11 +16,11 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 | 196-266 | Basic Examples |
 | 267-288 | Modifying Existing Pages |
 | 289-376 | Conditional Visibility and Editability |
-| 377-526 | Known Limitations |
-| 527-535 | Tips |
-| 536-562 | Related Commands |
-| 563-587 | PLUGGABLEWIDGET Escape Hatch |
-| 588-591 | See Also |
+| 377-540 | Known Limitations |
+| 541-549 | Tips |
+| 550-576 | Related Commands |
+| 577-601 | PLUGGABLEWIDGET Escape Hatch |
+| 602-605 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -427,6 +427,20 @@ The two other sources take no collection entry:
 image imgRemote (ImageType: imageUrl, ImageUrl: 'https://example.com/logo.svg')
 image imgIcon   (ImageType: icon)
 ```
+
+**An uploaded image** — an object of an entity that extends `System.Image` — is
+shown by binding the widget to the data view's object. It is not an `ImageType`
+(`ImageType: dynamicImage` is not a source; check warns), and not `dynamicimage`,
+which is CE0582 in a React app:
+
+```sql
+dataview dvPhoto (DataSource: $Photo) {
+  image imgPhoto (Image: $currentObject, DefaultImage: 'Atlas_Web_Content.Content.user')
+}
+```
+
+`DefaultImage:` is shown while the object holds no image. It is only valid with
+`$currentObject` — Studio Pro hides it otherwise, and a stored value is CE0463.
 
 ### A button's icon is one of three elements
 

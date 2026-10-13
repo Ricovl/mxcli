@@ -241,7 +241,10 @@ type BuildContext struct {
 	// SourceVariable names the parameter an attribute or association binding
 	// reads (`$Param.Attr`); nil for one read from the enclosing object.
 	SourceVariable *pages.WidgetVariable
-	pageBuilder    *pageBuilder
+	// ImageEntity is the entity an image-typed property binds to when it was
+	// written `$currentObject` rather than as a collection entry (#1476).
+	ImageEntity string
+	pageBuilder *pageBuilder
 }
 
 // =============================================================================
@@ -918,7 +921,11 @@ func (e *PluggableWidgetEngine) applyOperation(builder backend.WidgetObjectBuild
 		// An image collection entry, by its three-part qualified name. The
 		// value arrives through the generic source branch, so it is in
 		// PrimitiveVal like any other scalar — only the key it lands on differs.
-		builder.SetImage(propKey, ctx.PrimitiveVal)
+		if ctx.ImageEntity != "" {
+			builder.SetImageEntity(propKey, ctx.ImageEntity)
+		} else {
+			builder.SetImage(propKey, ctx.PrimitiveVal)
+		}
 	case "expression":
 		builder.SetExpression(propKey, ctx.PrimitiveVal)
 	case "datasource":
@@ -1573,6 +1580,18 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			// are invisible to GetStringProp; read them generically so numeric
 			// properties aren't silently dropped to the schema default.
 			if astVal, ok := lookupProperty(w.Properties, source); ok {
+				// `Image: $currentObject` binds the object in context; it is the
+				// one variable an image-typed property takes (#1476).
+				if mapping.Operation == "image" {
+					if ref, isRef := imageObjectReference(w, source, astVal); isRef {
+						entity, err := e.resolveImageObject(w, mapping.PropertyKey, source, ref)
+						if err != nil {
+							return nil, err
+						}
+						ctx.ImageEntity = entity
+						return ctx, nil
+					}
+				}
 				text, err := scalarPropertyText(w, source, astVal, mapping.Operation)
 				if err != nil {
 					return nil, err
