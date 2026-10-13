@@ -15,6 +15,10 @@
 --
 -- The data view's object must be a System.FileDocument specialization: the
 -- widget binds no attribute. Anywhere else mxbuild reports CE6810.
+--
+-- In the running app: 151-filemanager-upload/ holds an app model and a
+-- `mxcli playwright verify` script that uploads files and checks that
+-- MaxFileSize and AllowedExtensions are enforced and the content is stored.
 -- ============================================================================
 mdl 1;
 
