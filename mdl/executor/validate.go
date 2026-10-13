@@ -2067,8 +2067,16 @@ func validatePublishedRestAuthMicroflow(ctx *ExecContext, auth *ast.PublishedRes
 	if auth == nil || auth.Microflow == "" {
 		return nil
 	}
+	if problem := publishedRestAuthListProblem(auth.Parameters); problem != "" {
+		return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
+	}
 	if mf, ok := liveMicroflowsByQualifiedName(ctx)[auth.Microflow]; ok {
 		if problem := publishedRestAuthMicroflowProblem(mf); problem != "" {
+			return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
+		}
+		// The parameter list names parameters the microflow has
+		// (mendixlabs/mxcli#1417).
+		if _, problem := resolvePublishedRestAuthParameters(auth.Microflow, mf, auth.Parameters); problem != "" {
 			return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
 		}
 		return nil

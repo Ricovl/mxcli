@@ -1,0 +1,74 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1417: service-level authentication parameters of a
+-- published REST service
+-- ============================================================================
+--
+-- A custom-authentication microflow may take parameters besides the request
+-- and the response: Rest$PublishedRestService.Parameters binds each to a query
+-- or header value (the Siemens FSM template's NativeRestAPI.DocumentShare binds
+-- $Token to the query parameter `jwt`). Before the fix describe dropped the
+-- list and MDL-REST04 refused the microflow outright ("its parameters can only
+-- be a System.HttpRequest and a System.HttpResponse").
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/1417-published-rest-auth-parameters.mdl -p app.mpr
+--   mxcli docker check -p app.mpr                 -> 0 errors
+--   mxcli exec (the same script again)            -> writes nothing
+--
+-- An unlisted parameter is a query parameter under its own name, so the
+-- second service needs no list at all.
+
+create module RestAuth;
+
+-- Custom authentication needs app security on (CE6600).
+alter app security (SecurityLevel: PROTOTYPE);
+
+create or modify microflow RestAuth.Authenticate ($HttpRequest: System.HttpRequest, $Token: String, $Tenant: Integer, $Lang: String)
+returns System.User as $User
+begin
+  retrieve $User from System.User where [Name = $Token] first;
+  return $User;
+end;
+
+create or modify microflow RestAuth.AuthenticateToken ($Token: String)
+returns System.User as $User
+begin
+  retrieve $User from System.User where [Name = $Token] first;
+  return $User;
+end;
+
+create or modify microflow RestAuth.GetStatus ()
+returns String as $Result
+begin
+  declare $Result String = 'ok';
+  return $Result;
+end;
+
+create or modify published rest service RestAuth.Listed (
+  Path: 'rest/auth-listed/v1',
+  Version: '1.0.0',
+  ServiceName: 'AuthListed',
+  Authentication: (
+    basic,
+    microflow RestAuth.Authenticate (
+      $Token: header 'X-Api-Token',
+      $Tenant: query,
+      $Lang: query 'lang' description 'UI language, defaults to en'
+    )
+  )
+) {
+  resource 'status' { get '' microflow RestAuth.GetStatus; }
+};
+
+create or modify published rest service RestAuth.Defaulted (
+  Path: 'rest/auth-defaulted/v1',
+  Version: '1.0.0',
+  ServiceName: 'AuthDefaulted',
+  Authentication: (microflow RestAuth.AuthenticateToken)
+) {
+  resource 'status' { get '' microflow RestAuth.GetStatus; }
+};
+
+grant access on published rest service RestAuth.Listed to RestAuth.User;
+grant access on published rest service RestAuth.Defaulted to RestAuth.User;
