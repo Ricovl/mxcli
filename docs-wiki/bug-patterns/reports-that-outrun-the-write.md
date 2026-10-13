@@ -92,12 +92,15 @@ Unchanged vocabulary is that a reader can tell a settled script from a broken
 one at a glance.
 
 **Silence about a default the tool applied is the same defect inverted.** A new
-page in a module with no module roles is granted to an auto-created `<Module>.User`
+page in a module with no module roles was granted to an auto-created `<Module>.User`
 role, and document grants are additive — so a later admin-only grant *adds*
 rather than restricts, and the user's reasonable conclusion is that `grant`
 misbehaved. Nothing was written wrongly; the defect was that the default was
 applied without being said. **A default applied on the user's behalf has to be
 visible at the moment it is applied**, or the next correct operation looks broken.
+Visibility was not the end of it for *that* default: a security role the user
+never chose is wrong even when announced, and it was removed (#1474) — a
+default that writes security should not exist, not just be reported.
 
 **Bound the severity before writing it up.** "Claims success after failing"
 reads as corruption, and for the widget case it was not: the rebuilt document

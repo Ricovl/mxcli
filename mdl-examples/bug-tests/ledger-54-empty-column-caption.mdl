@@ -21,6 +21,7 @@ mdl 1;
 -- omitted-caption behaviour. Verified: `mx check` → 0 errors on Mendix 11.12.1.
 
 create module L54;
+create module role L54.User;
 
 create entity L54.Thing (
   Name: string(100),

@@ -105,10 +105,14 @@ func TestCheckGrantReferences_UnknownNameIsRefused(t *testing.T) {
 		{"grant to a role the script creates BELOW it",
 			"grant read * on entity Administration.Account to Administration.Later;\ncreate module role Administration.Later;",
 			[]string{"module role Administration.Later does not exist yet — it is created later in this script"}},
-		{"grant to <Module>.User where the module has a role of its own, so none is auto-created",
+		{"grant to <Module>.User where the module has a role of its own and the script never creates User",
 			"create module AutoRoleNo;\ncreate module role AutoRoleNo.Editor;\ncreate microflow AutoRoleNo.F () begin end;\n" +
 				"grant execute on microflow AutoRoleNo.F to AutoRoleNo.User;",
 			[]string{"module role AutoRoleNo.User does not exist", "module AutoRoleNo has: Editor"}},
+		{"grant to <Module>.User in a role-less module: creating a flow creates no role (#1474)",
+			"create module AutoRoleYes;\ncreate nanoflow AutoRoleYes.N () begin end;\n" +
+				"grant execute on nanoflow AutoRoleYes.N to AutoRoleYes.User;",
+			[]string{"module role AutoRoleYes.User does not exist"}},
 		{"grant to a role the script dropped above it",
 			"drop module role Administration.User;\ngrant read * on entity Administration.Account to Administration.User;",
 			[]string{"module role Administration.User does not exist"}},
@@ -169,8 +173,8 @@ func TestCheckGrantReferences_ResolvableNamesPass(t *testing.T) {
 				"grant read (FullName, Account_Thing) on entity Administration.Account to Administration.User;"},
 		{"grant on a microflow the script creates above it",
 			"create microflow MyFirstModule.Later () begin end;\ngrant execute on microflow MyFirstModule.Later to MyFirstModule.User;"},
-		{"grant to the <Module>.User role creating a flow in a role-less module auto-creates (doctype-tests/02b)",
-			"create module AutoRoleYes;\ncreate nanoflow AutoRoleYes.N () begin end;\n" +
+		{"grant to a <Module>.User role the script creates with the module (doctype-tests/02b)",
+			"create module AutoRoleYes;\ncreate module role AutoRoleYes.User;\ncreate nanoflow AutoRoleYes.N () begin end;\n" +
 				"grant execute on nanoflow AutoRoleYes.N to AutoRoleYes.User;"},
 		{"user role and demo user the script creates above",
 			"create module role MyFirstModule.Auditor;\ncreate user role Auditor ( ModuleRoles: (MyFirstModule.Auditor, System.User) );\n" +
@@ -196,7 +200,7 @@ func TestCheckGrantReferences_AgreesWithExec(t *testing.T) {
 		{"unknown member", "grant read (NopeAttr) on entity Administration.Account to Administration.User;", "NopeAttr"},
 		{"System entity", "grant read * on entity System.User to Administration.User;", "cannot grant access on System.User"},
 		{"control: stored entity and role", "grant read * on entity Administration.Account to Administration.User;", ""},
-		{"control: auto-created document role", "create module AutoRoleYes;\ncreate microflow AutoRoleYes.F () begin end;\ngrant execute on microflow AutoRoleYes.F to AutoRoleYes.User;", ""},
+		{"no auto-created document role (#1474)", "create module AutoRoleYes;\ncreate microflow AutoRoleYes.F () begin end;\ngrant execute on microflow AutoRoleYes.F to AutoRoleYes.User;", "AutoRoleYes.User"},
 		{"control: script-created role", "create module role Administration.Auditor;\ngrant read * on entity Administration.Account to Administration.Auditor;", ""},
 	}
 	for _, c := range cases {
