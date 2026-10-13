@@ -99,6 +99,8 @@ Examples:
 			NewBackend:      func() backend.FullBackend { return modelsdkbackend.New() },
 			ContinueOnError: continueOnError,
 			Preflight: func(scratch *executor.Executor, w io.Writer) string {
+				// Predict exec: a forward flow call only without --continue-on-error (#1405).
+				scratch.SetForwardFlowCalls(!continueOnError)
 				return execPreflight(scratch, prog, projectPath, filePath, skipCheck, verbose, continueOnError, depPolicy, w, useColor)
 			},
 		}

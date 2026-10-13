@@ -47,14 +47,8 @@ create persistent entity Repro.Tagged (
 -- 4. An association endpoint.
 create association Repro.Tagged_Thing from Repro.Tagged to Repro.Thing;
 
--- 5. A CALL to a flow created later.
-create microflow Repro.Caller ()
-returns Boolean as $Out
-begin
-  $R = call microflow Repro.Callee ();
-  declare $Out Boolean = true;
-  return $Out;
-end;
+-- 5. (Was: a CALL to a flow created later. Since mendixlabs/mxcli#1405 a run
+-- that rolls back resolves it; see 1405-forward-flow-calls.mdl.)
 
 -- 6. A GRANT naming a document created later.
 create module role Repro.User;

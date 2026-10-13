@@ -379,6 +379,12 @@ func annotateForwardRef(err error, stmt ast.Statement, created, allDefined *scri
 		if created.has(name) || self.has(name) {
 			continue // already created before this statement, or defined by it
 		}
+		if (allDefined.microflows[name] || allDefined.nanoflows[name]) &&
+			(strings.Contains(msg, "CALL MICROFLOW '"+name+"'") || strings.Contains(msg, "CALL NANOFLOW '"+name+"'")) {
+			// Reached only in a run that cannot roll back: one that can
+			// resolves the call against the whole script (#1405).
+			return fmt.Errorf("%w\n  hint: %s is defined later in this script; %s", err, name, forwardFlowCallRefusal)
+		}
 		if strings.Contains(msg, name) {
 			return fmt.Errorf("%w\n  hint: %s is defined later in this script — move its create statement before this one", err, name)
 		}
