@@ -448,12 +448,12 @@ func (fb *flowBuilder) addAssociationMemberChange(op microflows.MemberChangeType
 	return id
 }
 
+// There is no branch limit. The 16 that used to be enforced here was the size of
+// splitCaseOrderAnchors, which once stored every case's order; a split of four or
+// more cases now stores it as origin side + canvas depth (enumSplitOriginAnchors,
+// orderedEnumSplitFlows), so the table is only consulted for three cases or fewer.
+// Studio Pro writes splits far wider than 16 (mendixlabs/mxcli#1416).
 func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
-	if count := enumSplitBranchCount(s); count > maxEnumSplitBranches {
-		fb.addError("enum split has %d branches; at most %d branches are supported", count, maxEnumSplitBranches)
-		return ""
-	}
-
 	if fb.measurer == nil {
 		fb.measurer = &layoutMeasurer{varTypes: fb.varTypes}
 	}
@@ -1032,8 +1032,6 @@ var splitCaseOrderAnchors = []splitCaseOrderAnchor{
 	{AnchorLeft, AnchorBottom},
 }
 
-var maxEnumSplitBranches = len(splitCaseOrderAnchors)
-
 func applySplitCaseOrder(flow *microflows.SequenceFlow, order int) {
 	if flow == nil || order < 0 || order >= len(splitCaseOrderAnchors) {
 		return
@@ -1051,17 +1049,6 @@ func enumSplitCaseValues(c ast.EnumSplitCase) []string {
 		return []string{c.Value}
 	}
 	return nil
-}
-
-func enumSplitBranchCount(s *ast.EnumSplitStmt) int {
-	if s == nil {
-		return 0
-	}
-	count := len(s.Cases)
-	if len(s.ElseBody) > 0 {
-		count++
-	}
-	return count
 }
 
 func appendEnumBodies(s *ast.EnumSplitStmt) []ast.MicroflowStatement {
