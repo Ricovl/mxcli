@@ -16,6 +16,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/internal/pathutil"
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/dmlayout"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -947,14 +948,10 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 		return mdlerrors.NewValidation("EntitySet property is required when creating an external entity")
 	}
 
-	// Auto-position based on existing entities
-	location := model.Point{X: 100 + len(dm.Entities)*150, Y: 100}
-
 	newEntity := &domainmodel.Entity{
 		Name:                s.Name.Name,
 		Documentation:       s.Documentation,
 		Persistable:         false, // External entities are not persistable
-		Location:            location,
 		Attributes:          attrs,
 		Source:              "Rest$ODataRemoteEntitySource",
 		RemoteServiceName:   serviceRef,
@@ -967,6 +964,10 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 		CreateChangeLocally: derefBool(s.AllowCreateChangeLocally),
 	}
 	newEntity.ID = model.ID(types.GenerateID())
+	// The next grid slot whose box clears everything already in the module.
+	// This used to be the single-row `100 + len(dm.Entities)*150` that CREATE
+	// ENTITY dropped long before (#1479).
+	newEntity.Location = dmlayout.Place(dm, newEntity)
 
 	if err := ctx.Backend.CreateEntity(dm.ID, newEntity); err != nil {
 		return mdlerrors.NewBackend("create external entity", err)

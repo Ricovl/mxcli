@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/dmlayout"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -530,6 +531,12 @@ func createExternalEntities(ctx *ExecContext, s *ast.CreateExternalEntitiesStmt)
 	for _, ent := range dm.Entities {
 		existing[ent.Name] = ent
 	}
+	// What new entities are placed against: the module as read, plus every
+	// entity this import creates, so they clear each other as well.
+	placed := &domainmodel.DomainModel{
+		Entities:    append([]*domainmodel.Entity(nil), dm.Entities...),
+		Annotations: dm.Annotations,
+	}
 
 	// Build a global type lookup so we can resolve BaseType references across schemas.
 	typeByQualified := make(map[string]*types.EdmEntityType)
@@ -817,18 +824,20 @@ func createExternalEntities(ctx *ExecContext, s *ast.CreateExternalEntitiesStmt)
 				continue
 			}
 
-			location := model.Point{X: 100 + (created+updated)*150, Y: 100}
-			newEntity := &domainmodel.Entity{
-				Name:     mendixName,
-				Location: location,
-			}
+			newEntity := &domainmodel.Entity{Name: mendixName}
 			newEntity.ID = model.ID(types.GenerateID())
 			applyExternalEntityFields(newEntity, et, isTopLevel, serviceRef, entitySet, keyParts, attrs)
+			// Placed against everything already in the module, including the
+			// entities this import has just created. The old formula counted only
+			// this run's entities, so an import into a populated module stacked
+			// its first entity on whatever sat at (100, 100) (#1479).
+			newEntity.Location = dmlayout.Place(placed, newEntity)
 			if err := ctx.Backend.CreateEntity(dm.ID, newEntity); err != nil {
 				fmt.Fprintf(ctx.Output, "  FAILED: %s.%s — %v\n", targetModule, mendixName, err)
 				failed++
 				continue
 			}
+			placed.Entities = append(placed.Entities, newEntity)
 			created++
 		}
 	}
@@ -924,6 +933,12 @@ func createPrimitiveCollectionNPEs(
 		}
 	}
 
+	// Placement obstacles: the module as re-read, plus each NPE created here.
+	placed := &domainmodel.DomainModel{
+		Entities:    append([]*domainmodel.Entity(nil), dm.Entities...),
+		Annotations: dm.Annotations,
+	}
+
 	count := 0
 	for _, schema := range doc.Schemas {
 		for _, et := range schema.EntityTypes {
@@ -983,17 +998,22 @@ func createPrimitiveCollectionNPEs(
 				npe := &domainmodel.Entity{
 					Name:              npeName,
 					Persistable:       false,
-					Location:          model.Point{X: parentEnt.Location.X + 200, Y: parentEnt.Location.Y + 100},
 					Attributes:        []*domainmodel.Attribute{attr},
 					Source:            "Rest$ODataPrimitiveCollectionEntitySource",
 					RemoteServiceName: serviceRef,
 				}
 				npe.ID = model.ID(types.GenerateID())
+				// Beside its parent, but clear of it: the fixed +200/+100 offset
+				// this replaces drew the helper on top of any parent wider than
+				// 200px or taller than 100px, which is most of them (#1479).
+				npe.Location = dmlayout.PlaceNear(placed, npe,
+					model.Point{X: parentEnt.Location.X + 200, Y: parentEnt.Location.Y + 100})
 
 				if err := ctx.Backend.CreateEntity(dm.ID, npe); err != nil {
 					fmt.Fprintf(ctx.Output, "  NPE FAILED: %s — %v\n", npeName, err)
 					continue
 				}
+				placed.Entities = append(placed.Entities, npe)
 				count++
 
 				// Create the association from the parent entity to the NPE.
