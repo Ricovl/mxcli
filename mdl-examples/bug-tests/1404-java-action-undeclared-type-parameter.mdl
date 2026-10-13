@@ -1,0 +1,16 @@
+mdl 1;
+-- mendixlabs/mxcli#1404: a Java action parameter typed by a type parameter that
+-- no `entity <T>` parameter declares (GenAICommons'
+-- ChunkCollection_AddKnowledgeBaseChunk, `MxObject: "Entity"`). describe printed
+-- the reference with no declaration, and exec wrote it as the entity `.Entity`:
+-- mx check CE1613 "The selected entity '.Entity' no longer exists."
+-- Expected: the `<"Entity">` header declares it, exec writes MxObject as that
+-- type parameter, and `describe java action MyFirstModule.JA_Bug1404` prints the
+-- header back. Without the header, check refuses the statement (MDL-JA01).
+create or modify java action MyFirstModule.JA_Bug1404<"Entity">(
+    HumanReadableID: String not null,
+    MxObject: "Entity"
+) returns Boolean
+as $$
+return true;
+$$;

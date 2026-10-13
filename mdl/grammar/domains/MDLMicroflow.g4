@@ -52,7 +52,7 @@ createRuleStatement
  * Java Action creation with inline Java source code.
  */
 createJavaActionStatement
-    : JAVA ACTION ifNotExists? qualifiedName
+    : JAVA ACTION ifNotExists? qualifiedName javaActionTypeParameters?
       (FOLDER STRING_LITERAL)?
       LPAREN javaActionParameterList? RPAREN
       javaActionReturnType?
@@ -62,6 +62,15 @@ createJavaActionStatement
 
 javaActionParameterList
     : javaActionParameter (COMMA javaActionParameter)*
+    ;
+
+// `Module.Name<T, U>` declares the action's type parameters, in their stored
+// order. An `entity <T>` parameter declares T as well, so the header is needed
+// only for a type parameter no entity selector names — a parameter typed `T`
+// with nothing else declaring it (mendixlabs/mxcli#1404) — or to keep an order
+// the selectors would not give.
+javaActionTypeParameters
+    : LESS_THAN identifierOrKeyword (COMMA identifierOrKeyword)* GREATER_THAN
     ;
 
 javaActionParameter
