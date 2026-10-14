@@ -1417,7 +1417,9 @@ func buildRetrieveStatement(ctx parser.IRetrieveStatementContext) *ast.RetrieveS
 					if prc, ok := xpathExpr.(antlr.ParserRuleContext); ok {
 						if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
 							source = storedExpressionSource(source, lexedWithStrictEscapes(prc))
-							predicateSources = append(predicateSources, normalizeXPathTokens("["+source+"]"))
+							// Strip quoted names as the single-predicate path does: kept,
+							// "A" is a string literal to Mendix (mendixlabs/mxcli#1243).
+							predicateSources = append(predicateSources, stripExpressionIdentifierQuotes(normalizeXPathTokens("["+source+"]")))
 						}
 					}
 				}

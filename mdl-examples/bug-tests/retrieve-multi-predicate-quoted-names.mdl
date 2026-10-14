@@ -1,0 +1,32 @@
+mdl 1;
+-- ============================================================================
+-- Retrieve with two or more XPath predicates and double-quoted names
+-- ============================================================================
+--
+-- `retrieve … where ["A" = 'x']["B" = 'y']` stored the names with their double
+-- quotes; the single-predicate form was stripped. Kept, "A" is a string literal
+-- to Mendix (mendixlabs/mxcli#1243), so the constraint is always false: check,
+-- mx check and the build all pass and the retrieve returns no rows.
+--
+-- Measured on 11.12.1 with `mxcli test --local --db-type hsqldb`: CountMatches
+-- below returned 0 on the unfixed build and 1 on the fixed one. The stored
+-- source is asserted in mdl/visitor/visitor_expr_quoting_test.go
+-- (TestRetrieveMultiplePredicatesStripsQuotes).
+-- ============================================================================
+
+CREATE MODULE BugRetrieveMultiPred;
+
+CREATE OR MODIFY PERSISTENT ENTITY BugRetrieveMultiPred."Item" (
+  "A": String(100),
+  "B": String(100)
+);
+
+CREATE OR MODIFY MICROFLOW BugRetrieveMultiPred.CountMatches ()
+RETURNS Integer AS $N
+BEGIN
+  $New = create BugRetrieveMultiPred."Item" ("A" = 'x', "B" = 'y');
+  commit $New with events;
+  retrieve $L from BugRetrieveMultiPred."Item" where ["A" = 'x']["B" = 'y'];
+  $N = count $L;
+  return $N;
+END;
