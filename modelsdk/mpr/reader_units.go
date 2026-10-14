@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -138,7 +139,8 @@ func (r *Reader) listUnitsByTypeV2(typeName string) ([]rawUnit, error) {
 	return units, nil
 }
 
-// buildUnitCache reads all unit metadata once and caches it.
+// buildUnitCache builds the unit metadata cache, reading only units whose
+// file changed since the unit index stamped it.
 func (r *Reader) buildUnitCache() error {
 	rows, err := r.db.Query(`
 		SELECT UnitID, ContainerID, ContainmentName
@@ -148,6 +150,11 @@ func (r *Reader) buildUnitCache() error {
 		return fmt.Errorf("failed to query units: %w", err)
 	}
 	defer rows.Close()
+
+	prev := r.loadUnitIndex()
+	next := make(map[string]unitIndexEntry, len(prev))
+	racyAfter := time.Now().Add(-racyMargin).UnixNano()
+	changed := false
 
 	r.unitCache = nil
 	for rows.Next() {
@@ -159,24 +166,58 @@ func (r *Reader) buildUnitCache() error {
 		}
 
 		unitUUID := blobToUUID(unitID)
-		// Index construction must not populate the optional raw-content cache:
-		// only the unit selected after lookup should be retained there.
-		contents, err := r.readMprContentsUncached(unitUUID)
+		fi, err := os.Stat(r.unitFilePath(unitUUID))
 		if err != nil {
 			continue
 		}
+		size, mtime := fi.Size(), fi.ModTime().UnixNano()
+		e, known := prev[unitUUID]
+		if !known || e.Size != size || e.MtimeNs != mtime || e.Racy {
+			// Uncached: index construction must not fill the content cache.
+			contents, err := r.readMprContentsUncached(unitUUID)
+			if err != nil {
+				continue
+			}
+			r.headerReads.Add(1)
+			e = unitIndexEntry{
+				Type:     getTypeFromContents(contents),
+				Name:     getNameFromContents(contents),
+				Excluded: isExcludedUnit(contents),
+				Size:     size,
+				MtimeNs:  mtime,
+			}
+			changed = true
+		}
+		e.Racy = mtime > racyAfter
+		next[unitUUID] = e
 
-		typeName := getTypeFromContents(contents)
-		r.unitCache = append(r.unitCache, cachedUnit{
-			ID:              blobToUUID(unitID),
+		cu := cachedUnit{
+			ID:              unitUUID,
 			ContainerID:     blobToUUID(containerID),
 			ContainmentName: containmentName,
-			Type:            typeName,
-			Name:            getNameFromContents(contents),
-			Excluded:        isExcludedUnit(contents),
-		})
+			Type:            e.Type,
+			Name:            e.Name,
+			Excluded:        e.Excluded,
+		}
+		// A held write (writer_deferred.go) wins; the index stays disk-true.
+		if held, ok := r.overlaid(unitUUID); ok {
+			cu.Type = getTypeFromContents(held)
+			cu.Name = getNameFromContents(held)
+			cu.Excluded = isExcludedUnit(held)
+		}
+		r.unitCache = append(r.unitCache, cu)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("failed to read unit rows: %w", err)
 	}
 
+	if len(next) != len(prev) {
+		changed = true // units removed (or the first build)
+	}
+	r.unitIndex = next
+	if changed {
+		r.saveUnitIndex()
+	}
 	r.unitCacheValid = true
 	return nil
 }

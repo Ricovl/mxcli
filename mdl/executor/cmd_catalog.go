@@ -391,6 +391,47 @@ func getMprModTime(ctx *ExecContext) time.Time {
 	return info.ModTime()
 }
 
+// unitStateBackend is a backend that can fingerprint MPR v2 unit files.
+type unitStateBackend interface {
+	UnitStateFingerprint() (string, []string, bool, error)
+	UnitContentDigest(ids []string) string
+}
+
+// unitState is the project's MPR v2 unit-file state as stored with a catalog:
+// the stat fingerprint, the racily-clean unit IDs and their content digest.
+// supported is false for MPR v1 or a backend without one.
+func unitState(ctx *ExecContext) (state string, supported bool) {
+	b, ok := ctx.Backend.(unitStateBackend)
+	if !ok {
+		return "", false
+	}
+	fp, racy, supported, err := b.UnitStateFingerprint()
+	if !supported || err != nil {
+		return "", supported
+	}
+	return fp + ";" + strings.Join(racy, ",") + ";" + b.UnitContentDigest(racy), true
+}
+
+// unitStateCurrent reports whether stored still describes the unit files: the
+// same stat fingerprint, and unchanged contents for the units that were racily
+// clean when it was taken.
+func unitStateCurrent(ctx *ExecContext, stored string) bool {
+	b, ok := ctx.Backend.(unitStateBackend)
+	parts := strings.Split(stored, ";")
+	if !ok || len(parts) != 3 {
+		return false
+	}
+	fp, _, _, err := b.UnitStateFingerprint()
+	if err != nil || fp != parts[0] {
+		return false
+	}
+	var racy []string
+	if parts[1] != "" {
+		racy = strings.Split(parts[1], ",")
+	}
+	return b.UnitContentDigest(racy) == parts[2]
+}
+
 // isCacheValid checks if the cached catalog is still valid.
 func isCacheValid(ctx *ExecContext, cachePath string, requiredMode string) (bool, string) {
 	// Check if cache file exists
@@ -415,9 +456,15 @@ func isCacheValid(ctx *ExecContext, cachePath string, requiredMode string) (bool
 		return false, "MPR path changed"
 	}
 
-	// Check MPR modification time (compare Unix seconds to handle timezone/precision issues)
-	currentModTime := getMprModTime(ctx)
-	if info.MprModTime.Unix() != currentModTime.Unix() {
+	// On MPR v2 a document can change without the .mpr changing (git pull,
+	// branch switch), so the unit files decide; v1 keeps the .mpr mtime.
+	if _, ok := ctx.Backend.(unitStateBackend); ok && info.UnitFingerprint != "" {
+		if !unitStateCurrent(ctx, info.UnitFingerprint) {
+			return false, "project files modified"
+		}
+	} else if _, ok := unitState(ctx); ok {
+		return false, "catalog predates unit-file tracking"
+	} else if info.MprModTime.Unix() != getMprModTime(ctx).Unix() {
 		return false, "project file modified"
 	}
 
@@ -512,6 +559,8 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 		}
 	}
 	start := time.Now()
+	// Taken before building, so a change during the build invalidates it.
+	fingerprint, _ := unitState(ctx)
 
 	// Create new catalog
 	cat, err := catalog.New()
@@ -568,6 +617,7 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 		buildMode = "full"
 	}
 	cat.SetCacheInfo(ctx.MprPath, getMprModTime(ctx), version, buildMode, elapsed)
+	_ = cat.SetMeta(catalog.MetaUnitFingerprint, fingerprint)
 
 	cat.SetBuilt(true)
 	ctx.Catalog = cat

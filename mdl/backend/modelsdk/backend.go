@@ -200,6 +200,21 @@ func (b *Backend) CacheUnitReads() (release func()) {
 	return b.reader.CacheUnitReads()
 }
 
+// UnitStateFingerprint and UnitContentDigest forward to the reader.
+func (b *Backend) UnitStateFingerprint() (string, []string, bool, error) {
+	if b.reader == nil {
+		return "", nil, false, nil
+	}
+	return b.reader.UnitStateFingerprint()
+}
+
+func (b *Backend) UnitContentDigest(ids []string) string {
+	if b.reader == nil {
+		return ""
+	}
+	return b.reader.UnitContentDigest(ids)
+}
+
 // UnitFileReads is how many unit files this backend's reader has read from
 // mprcontents/ — what CacheUnitReads saves. For tests.
 func (b *Backend) UnitFileReads() int64 {

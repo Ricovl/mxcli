@@ -41,6 +41,11 @@ type Reader struct {
 	// Cache for unit metadata to avoid repeated file reads
 	unitCache      []cachedUnit
 	unitCacheValid bool
+	// unitIndex outlives InvalidateCache, so a rebuild re-reads only changed
+	// units (reader_unit_index.go). MPR v2 only.
+	unitIndex       map[string]unitIndexEntry
+	unitIndexLoaded bool
+	headerReads     atomic.Int64
 
 	// Lazily-built lightweight index of "$Type\x00QualifiedName" to unit
 	// metadata. Building it reads each BSON header once but does not decode any

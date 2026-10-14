@@ -82,15 +82,26 @@ func cachedRowCount(t *testing.T, cachePath, table string) int {
 	return n
 }
 
-// touchProject moves the project file's mtime forward, which is what makes the
-// cache invalid — the everyday trigger being a save in Studio Pro, an `mxcli
-// exec`, or a branch switch between two mxcli commands.
+// touchProject moves the project file's mtime forward, and on MPR v2 one unit
+// file's, which is what makes the cache invalid — the everyday trigger being a
+// save in Studio Pro, an `mxcli exec`, or a branch switch between two mxcli
+// commands.
 func touchProject(t *testing.T, exec *Executor) {
 	t.Helper()
 	ctx := exec.newExecContext(context.Background())
 	future := time.Now().Add(2 * time.Second)
 	if err := os.Chtimes(ctx.MprPath, future, future); err != nil {
 		t.Fatalf("touch project: %v", err)
+	}
+	units, _ := filepath.Glob(filepath.Join(filepath.Dir(ctx.MprPath), "mprcontents", "*", "*", "*.mxunit"))
+	if len(units) > 0 {
+		fi, err := os.Stat(units[0])
+		if err == nil {
+			err = os.Chtimes(units[0], fi.ModTime().Add(time.Second), fi.ModTime().Add(time.Second))
+		}
+		if err != nil {
+			t.Fatalf("touch unit file: %v", err)
+		}
 	}
 }
 
