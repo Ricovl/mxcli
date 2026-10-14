@@ -39,7 +39,7 @@ func (b *Backend) ListMicroflows() ([]*microflows.Microflow, error) {
 // name, in every module: a lookup by name decodes only those
 // (mendixlabs/mxcli#1272).
 func (b *Backend) ListMicroflowsNamed(name string) ([]*microflows.Microflow, error) {
-	units, err := mprread.ListUnitsWithContainerWhere[*genMf.Microflow](b.reader, mprread.HasName(name))
+	units, err := mprread.ListUnitsNamed[*genMf.Microflow](b.reader, name)
 	if err != nil {
 		return nil, err
 	}
@@ -64,17 +64,13 @@ func (b *Backend) ListMicroflowHeaders() ([]types.DocumentHeader, error) {
 	return out, nil
 }
 
+// GetMicroflow reads and decodes only the unit with that ID.
 func (b *Backend) GetMicroflow(id model.ID) (*microflows.Microflow, error) {
-	units, err := mprread.ListUnitsWithContainerWhere[*genMf.Microflow](b.reader, mprread.HasID(id))
-	if err != nil {
+	unit, err := mprread.GetUnitByID[*genMf.Microflow](b.reader, id)
+	if err != nil || unit == nil {
 		return nil, err
 	}
-	for _, u := range units {
-		if model.ID(u.Element.ID()) == id {
-			return microflowFromGen(u.Element, u.ContainerID), nil
-		}
-	}
-	return nil, nil
+	return microflowFromGen(unit.Element, unit.ContainerID), nil
 }
 
 // GetMicroflowByName uses the reader's lightweight BSON-header index, then

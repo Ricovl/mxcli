@@ -70,12 +70,15 @@ func TestCheckPasses_ReadEachUnitFileOnce(t *testing.T) {
 		t.Fatalf("parse: %v", errs[0])
 	}
 
-	// Control: the verdict pass without the cache reads the project's
-	// microflows over and over — more files than the project has.
+	// Even without the cache, the verdict pass reads fewer files than the
+	// project has: its lookups by name and ID answer from the reader's header
+	// index and read only the units they return. It read 2,928 files of 381
+	// when each lookup filtered every microflow on disk; restoring that scan in
+	// ListMicroflowsNamed alone fails this.
 	before := unitFileReads(t, exec)
 	CheckFlowVerdicts(exec.newExecContext(context.Background()), prog)
-	if reads := unitFileReads(t, exec) - before; reads <= int64(units) {
-		t.Fatalf("control: the uncached verdict pass read %d files of %d; the bound below would prove nothing", reads, units)
+	if reads := unitFileReads(t, exec) - before; reads > int64(units) {
+		t.Errorf("the uncached verdict pass read %d unit files; the project has %d", reads, units)
 	}
 
 	passes := []struct {

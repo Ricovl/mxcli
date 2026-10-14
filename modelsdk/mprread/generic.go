@@ -188,42 +188,68 @@ type UnitHeader struct {
 // ListUnitHeaders lists the ID, container, Name and Excluded of every unit of
 // type T without decoding any of them: for callers that build a name set or an
 // ID-to-name map and would otherwise decode the whole flow of every document.
+// Answered from the reader's header index, so no unit is read either.
 func ListUnitHeaders[T element.Element](r *mmpr.Reader) ([]UnitHeader, error) {
-	typeName := bsonTypeName[T]()
-	refs, err := r.ListUnitsByType(typeName)
+	hs, err := r.UnitHeadersOfType(bsonTypeName[T]())
 	if err != nil {
 		return nil, err
 	}
-	out := make([]UnitHeader, 0, len(refs))
-	for _, ref := range refs {
-		if ref.Type != typeName {
-			continue
+	out := make([]UnitHeader, len(hs))
+	for i, h := range hs {
+		out[i] = UnitHeader{
+			ID:          model.ID(h.ID),
+			ContainerID: model.ID(h.ContainerID),
+			Name:        h.Name,
+			Excluded:    h.Excluded,
 		}
-		raw := bson.Raw(ref.Contents)
-		if err := raw.Validate(); err != nil {
-			return nil, fmt.Errorf("decode unit %s: %w", ref.ID, err)
-		}
-		name, _ := raw.Lookup("Name").StringValueOK()
-		excluded, _ := raw.Lookup("Excluded").BooleanOK()
-		out = append(out, UnitHeader{
-			ID:          model.ID(codec.PeekID(raw)),
-			ContainerID: model.ID(ref.ContainerID),
-			Name:        name,
-			Excluded:    excluded,
-		})
 	}
 	return out, nil
 }
 
-// HasName keeps a document whose top-level Name is name.
-func HasName(name string) func(bson.Raw) bool {
-	return func(raw bson.Raw) bool {
-		n, ok := raw.Lookup("Name").StringValueOK()
-		return ok && n == name
+// ListUnitsNamed decodes the units of type T whose local Name is name, in every
+// module. The header index picks them, so only those units are read — where a
+// name filter over ListUnitsWithContainerWhere reads every unit of the type.
+func ListUnitsNamed[T element.Element](r *mmpr.Reader, name string) ([]Unit[T], error) {
+	hs, err := r.UnitHeadersOfType(bsonTypeName[T]())
+	if err != nil {
+		return nil, err
 	}
+	var out []Unit[T]
+	for _, h := range hs {
+		if h.Name != name {
+			continue
+		}
+		u, err := decodeUnit[T](r, h)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *u)
+	}
+	return out, nil
 }
 
-// HasID keeps the document whose $ID is id.
-func HasID(id model.ID) func(bson.Raw) bool {
-	return func(raw bson.Raw) bool { return model.ID(codec.PeekID(raw)) == id }
+// GetUnitByID decodes the unit of type T with that ID, reading only that unit.
+// Returns (nil, nil) when there is no such unit, or it is not a T.
+func GetUnitByID[T element.Element](r *mmpr.Reader, id model.ID) (*Unit[T], error) {
+	h, ok, err := r.UnitHeaderByID(string(id))
+	if err != nil || !ok || h.Type != bsonTypeName[T]() {
+		return nil, err
+	}
+	return decodeUnit[T](r, h)
+}
+
+func decodeUnit[T element.Element](r *mmpr.Reader, h mmpr.UnitHeaderInfo) (*Unit[T], error) {
+	contents, err := r.GetRawUnitBytes(h.ID)
+	if err != nil {
+		return nil, err
+	}
+	elem, err := codec.NewDecoder(codec.DefaultRegistry).Decode(bson.Raw(contents))
+	if err != nil {
+		return nil, fmt.Errorf("decode unit %s: %w", h.ID, err)
+	}
+	typed, ok := elem.(T)
+	if !ok {
+		return nil, fmt.Errorf("unit %s decoded as %T, want %T", h.ID, elem, *new(T))
+	}
+	return &Unit[T]{Element: typed, ContainerID: model.ID(h.ContainerID)}, nil
 }

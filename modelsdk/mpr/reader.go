@@ -53,6 +53,11 @@ type Reader struct {
 	moduleNameByID  map[string]string
 	containerParent map[string]string
 	folderIDs       []string
+	// Every unit's header grouped by $Type, and by ID, for the lookups that
+	// need one unit by ID or by local name, or only names
+	// (UnitHeadersOfType, UnitHeaderByID). Built and cleared with nameIndex.
+	headersByType map[string][]UnitHeaderInfo
+	headerByID    map[string]UnitHeaderInfo
 
 	// Memoized decoded units, keyed by BSON $Type. The value is the
 	// []mprread.Unit[T] slice for that type, held as any because this package
@@ -103,6 +108,7 @@ type cachedUnit struct {
 	ContainmentName string
 	Type            string
 	Name            string
+	Excluded        bool
 }
 
 type nameIndexEntry struct {

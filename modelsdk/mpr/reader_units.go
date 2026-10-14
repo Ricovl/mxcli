@@ -173,6 +173,7 @@ func (r *Reader) buildUnitCache() error {
 			ContainmentName: containmentName,
 			Type:            typeName,
 			Name:            getNameFromContents(contents),
+			Excluded:        isExcludedUnit(contents),
 		})
 	}
 
@@ -190,6 +191,8 @@ func (r *Reader) InvalidateCache() {
 	r.moduleNameByID = nil
 	r.containerParent = nil
 	r.folderIDs = nil
+	r.headersByType = nil
+	r.headerByID = nil
 	r.nameIndexMu.Unlock()
 	r.decodedMu.Lock()
 	r.decoded = nil
@@ -369,6 +372,14 @@ func (r *Reader) buildUnitNameIndex() error {
 		}
 	}
 
+	headersByType := make(map[string][]UnitHeaderInfo)
+	headerByID := make(map[string]UnitHeaderInfo, len(headers))
+	for _, h := range headers {
+		info := UnitHeaderInfo{ID: h.ID, ContainerID: h.ContainerID, Type: h.Type, Name: h.Name, Excluded: h.Excluded}
+		headersByType[h.Type] = append(headersByType[h.Type], info)
+		headerByID[h.ID] = info
+	}
+
 	index := make(map[string][]nameIndexEntry, len(headers))
 	for _, h := range headers {
 		if h.Name == "" {
@@ -390,6 +401,8 @@ func (r *Reader) buildUnitNameIndex() error {
 	r.moduleNameByID = moduleNames
 	r.containerParent = containerParent
 	r.folderIDs = folderIDs
+	r.headersByType = headersByType
+	r.headerByID = headerByID
 	r.nameIndexBuilt = true
 	return nil
 }
@@ -464,6 +477,7 @@ func (r *Reader) loadUnitHeaders() ([]cachedUnit, error) {
 			ContainmentName: containmentName,
 			Type:            getTypeFromContents(contents),
 			Name:            getNameFromContents(contents),
+			Excluded:        isExcludedUnit(contents),
 		})
 	}
 	return headers, rows.Err()
@@ -539,6 +553,39 @@ func isExcludedUnit(contents []byte) bool {
 	}
 	excluded, _ := val.BooleanOK()
 	return excluded
+}
+
+// UnitHeaderInfo is a unit's header as the index holds it: no contents.
+type UnitHeaderInfo struct {
+	ID          string
+	ContainerID string
+	Type        string
+	Name        string
+	Excluded    bool
+}
+
+// UnitHeadersOfType returns the header of every unit whose $Type is typeName,
+// from the index: no unit is read. The slice is shared; callers must not
+// modify it.
+func (r *Reader) UnitHeadersOfType(typeName string) ([]UnitHeaderInfo, error) {
+	if err := r.buildUnitNameIndex(); err != nil {
+		return nil, err
+	}
+	r.nameIndexMu.RLock()
+	defer r.nameIndexMu.RUnlock()
+	return r.headersByType[typeName], nil
+}
+
+// UnitHeaderByID returns the header of the unit with that ID, from the index;
+// ok is false when the project has no such unit.
+func (r *Reader) UnitHeaderByID(unitID string) (UnitHeaderInfo, bool, error) {
+	if err := r.buildUnitNameIndex(); err != nil {
+		return UnitHeaderInfo{}, false, err
+	}
+	r.nameIndexMu.RLock()
+	defer r.nameIndexMu.RUnlock()
+	h, ok := r.headerByID[unitID]
+	return h, ok, nil
 }
 
 // RawUnitInfo contains information about a raw unit for BSON debugging.
