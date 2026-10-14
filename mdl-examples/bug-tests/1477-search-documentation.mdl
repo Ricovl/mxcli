@@ -1,0 +1,46 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1477: SEARCH finds words that appear only in documentation
+-- ============================================================================
+--
+-- Before: the strings index held captions, messages and URLs, but not the
+-- documentation of a constant, an entity or an attribute, and only the name of
+-- a microflow's log node, not its message. A word present only in one of those
+-- fields answered "No matches found.", although the catalog table that holds
+-- the documentation found it:
+--
+--   select QualifiedName from catalog.constants where Description like '%legacy rate%'
+--
+-- Documentation and the text of a log message are plain strings, not
+-- Texts$Text, so the walk that finds every translatable text never saw them.
+--
+-- After: each of the words below is a SEARCH hit. The hit names the element
+-- (ObjectType CONSTANT, ENTITY, ATTRIBUTE, MICROFLOW) and the field
+-- (StringContext documentation, log_message).
+--
+-- Verify (needs a project; `check` only proves the script is valid MDL):
+--
+--   mxcli exec 1477-search-documentation.mdl -p app.mpr
+--   mxcli search -p app.mpr "legacy rate"      -- BugTest1477.RateUrl, documentation
+--   mxcli search -p app.mpr "settled invoices" -- BugTest1477.Invoice, documentation
+--   mxcli search -p app.mpr "gross amount"     -- BugTest1477.Invoice.Amount, documentation
+--   mxcli search -p app.mpr "rate lookup"      -- BugTest1477.ACT_Lookup, log_message
+--
+-- Then perturb: search for a word that is in none of them and see
+-- "No matches found.".
+
+create module BugTest1477;
+
+/** legacy rate source */
+create constant BugTest1477.RateUrl (Type: String, DefaultValue: 'https://rates.example.com');
+
+/** Settled invoices only */
+create persistent entity BugTest1477.Invoice (
+  /** The gross amount before discount */
+  Amount: Decimal
+);
+
+create microflow BugTest1477.ACT_Lookup ()
+begin
+  log info node 'Rates' 'Starting rate lookup';
+end;
