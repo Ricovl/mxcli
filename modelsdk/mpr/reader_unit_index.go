@@ -183,5 +183,84 @@ func (r *Reader) UnitStamps() ([]types.UnitStamp, error) {
 	return out, nil
 }
 
+// InvalidateUnit is InvalidateCache for a write to one unit: on MPR v2 it
+// re-reads that unit's row and file into the unit cache instead of dropping
+// it, so the next lookup does not re-stat every unit. Derived caches that a
+// changed unit can affect are dropped.
+func (r *Reader) InvalidateUnit(unitID string) {
+	blob := uuidToBlob(unitID)
+	if r.version != MPRVersionV2 || !r.unitCacheValid || blob == nil {
+		r.InvalidateCache()
+		return
+	}
+	id := blobToUUID(blob)
+	var containerID []byte
+	var containment string
+	err := r.db.QueryRow(`SELECT ContainerID, ContainmentName FROM Unit WHERE UnitID = ?`, blob).Scan(&containerID, &containment)
+
+	idx := -1
+	for i := range r.unitCache {
+		if r.unitCache[i].ID == id {
+			idx = i
+			break
+		}
+	}
+	oldType := ""
+	if idx >= 0 {
+		oldType = r.unitCache[idx].Type
+	}
+
+	var cu cachedUnit
+	present := err == nil
+	if present {
+		fi, serr := os.Stat(r.unitFilePath(id))
+		contents, rerr := r.readMprContentsUncached(id)
+		if serr != nil || rerr != nil {
+			r.InvalidateCache()
+			return
+		}
+		r.headerReads.Add(1)
+		e := unitIndexEntry{
+			Type:     getTypeFromContents(contents),
+			Name:     getNameFromContents(contents),
+			Excluded: isExcludedUnit(contents),
+			Size:     fi.Size(),
+			MtimeNs:  fi.ModTime().UnixNano(),
+			Racy:     fi.ModTime().After(time.Now().Add(-racyMargin)),
+		}
+		if r.unitIndex == nil {
+			r.unitIndex = map[string]unitIndexEntry{}
+		}
+		r.unitIndex[id] = e
+		cu = cachedUnit{ID: id, ContainerID: blobToUUID(containerID), ContainmentName: containment, Type: e.Type, Name: e.Name, Excluded: e.Excluded}
+		if held, ok := r.overlaid(id); ok {
+			cu.Type, cu.Name, cu.Excluded = getTypeFromContents(held), getNameFromContents(held), isExcludedUnit(held)
+		}
+	} else {
+		delete(r.unitIndex, id)
+	}
+	switch {
+	case present && idx >= 0:
+		r.unitCache[idx] = cu
+	case present:
+		r.unitCache = append(r.unitCache, cu)
+	case idx >= 0:
+		r.unitCache = append(r.unitCache[:idx], r.unitCache[idx+1:]...)
+	}
+
+	r.nameIndexMu.Lock()
+	r.nameIndex, r.nameIndexBuilt = nil, false
+	r.moduleNameByID, r.containerParent, r.folderIDs = nil, nil, nil
+	r.headersByType, r.headerByID = nil, nil
+	r.nameIndexMu.Unlock()
+	r.decodedMu.Lock()
+	delete(r.decoded, oldType)
+	delete(r.decoded, cu.Type)
+	r.decodedMu.Unlock()
+	r.contentMu.Lock()
+	delete(r.contentCache, id)
+	r.contentMu.Unlock()
+}
+
 // UnitHeaderReads counts unit files read to build the header index (tests).
 func (r *Reader) UnitHeaderReads() int64 { return r.headerReads.Load() }

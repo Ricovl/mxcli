@@ -599,7 +599,7 @@ func (w *Writer) insertUnit(unitID, containerID, containmentName, unitType strin
 			os.Remove(filePath)
 			return err
 		}
-		w.reader.InvalidateCache()
+		w.reader.InvalidateUnit(unitID)
 		w.updateTransactionID()
 		w.restoreTransactionID(restoreTransactionID)
 		return nil
@@ -619,7 +619,7 @@ func (w *Writer) insertUnit(unitID, containerID, containmentName, unitType strin
 		`, unitIDBlob, containerIDBlob, containmentName, unitType, contents)
 	}
 	if err == nil {
-		w.reader.InvalidateCache()
+		w.reader.InvalidateUnit(unitID)
 	}
 	return err
 }
@@ -705,7 +705,7 @@ func (w *Writer) updateUnit(unitID string, contents []byte, opts ...canon.Option
 			UPDATE Unit SET ContentsHash = ? WHERE UnitID = ?
 		`, contentsHash, unitIDBlob)
 		if err == nil {
-			w.reader.InvalidateCache()
+			w.reader.InvalidateUnit(unitID)
 			w.updateTransactionID()
 		}
 		return err
@@ -929,7 +929,7 @@ func (w *Writer) MoveUnit(unitID, newContainerID string) error {
 		target, uuidToBlob(unitID))
 	if err == nil {
 		w.writesLanded++
-		w.reader.InvalidateCache()
+		w.reader.InvalidateUnit(unitID)
 	}
 	return err
 }
@@ -990,7 +990,7 @@ func (w *Writer) deleteUnit(unitID string) error {
 		return fmt.Errorf("unit not found in database: %s", unitID)
 	}
 
-	w.reader.InvalidateCache()
+	w.reader.InvalidateUnit(unitID)
 	w.updateTransactionID()
 	return nil
 }
@@ -1022,7 +1022,7 @@ func (w *Writer) UpdateUnitContainer(unitID, newContainerID string) error {
 		return fmt.Errorf("unit not found: %s", unitID)
 	}
 
-	w.reader.InvalidateCache()
+	w.reader.InvalidateUnit(unitID)
 	w.updateTransactionID()
 	return nil
 }
