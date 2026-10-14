@@ -362,23 +362,14 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 		return mdlerrors.NewBackend("build hierarchy", err)
 	}
 
-	// Build entity name lookup
-	entityNames := make(map[model.ID]string)
-	domainModels, err := ctx.Backend.ListDomainModels()
-	if err != nil {
-		return mdlerrors.NewBackend("list domain models", err)
-	}
-	for _, dm := range domainModels {
-		modName := h.GetModuleName(dm.ContainerID)
-		for _, entity := range dm.Entities {
-			entityNames[entity.ID] = modName + "." + entity.Name
-		}
-	}
+	// Cached for the run; read-only here.
+	entityNames := getEntityNames(ctx, h)
 
 	var microflowNames map[model.ID]string
 
 	// Find the nanoflow
-	allNanoflows, err := ctx.Backend.ListNanoflows()
+	// Only the nanoflows of this name are decoded, not every nanoflow.
+	allNanoflows, err := nanoflowsNamedIn(ctx.Backend, name.Name)
 	if err != nil {
 		return mdlerrors.NewBackend("list nanoflows", err)
 	}
@@ -509,14 +500,8 @@ func describeMicroflowToString(ctx *ExecContext, name ast.QualifiedName) (string
 		return "", nil, mdlerrors.NewBackend("build hierarchy", err)
 	}
 
-	entityNames := make(map[model.ID]string)
-	domainModels, _ := ctx.Backend.ListDomainModels()
-	for _, dm := range domainModels {
-		modName := h.GetModuleName(dm.ContainerID)
-		for _, entity := range dm.Entities {
-			entityNames[entity.ID] = modName + "." + entity.Name
-		}
-	}
+	// Cached for the run; read-only here.
+	entityNames := getEntityNames(ctx, h)
 
 	// The backend's by-name lookup prefers the live twin (#914).
 	targetMf, err := ctx.Backend.GetMicroflowByName(name.String())
@@ -541,19 +526,11 @@ func describeNanoflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 		return "", nil, mdlerrors.NewBackend("build hierarchy", err)
 	}
 
-	entityNames := make(map[model.ID]string)
-	domainModels, err := ctx.Backend.ListDomainModels()
-	if err != nil {
-		return "", nil, mdlerrors.NewBackend("list domain models", err)
-	}
-	for _, dm := range domainModels {
-		modName := h.GetModuleName(dm.ContainerID)
-		for _, entity := range dm.Entities {
-			entityNames[entity.ID] = modName + "." + entity.Name
-		}
-	}
+	// Cached for the run; read-only here.
+	entityNames := getEntityNames(ctx, h)
 
-	allNanoflows, err := ctx.Backend.ListNanoflows()
+	// Only the nanoflows of this name are decoded, not every nanoflow.
+	allNanoflows, err := nanoflowsNamedIn(ctx.Backend, name.Name)
 	if err != nil {
 		return "", nil, mdlerrors.NewBackend("list nanoflows", err)
 	}
@@ -1489,22 +1466,14 @@ func describeRule(ctx *ExecContext, name ast.QualifiedName) error {
 		return mdlerrors.NewBackend("build hierarchy", err)
 	}
 
-	entityNames := make(map[model.ID]string)
-	domainModels, err := ctx.Backend.ListDomainModels()
-	if err != nil {
-		return mdlerrors.NewBackend("list domain models", err)
-	}
-	for _, dm := range domainModels {
-		modName := h.GetModuleName(dm.ContainerID)
-		for _, entity := range dm.Entities {
-			entityNames[entity.ID] = modName + "." + entity.Name
-		}
-	}
+	// Cached for the run; read-only here.
+	entityNames := getEntityNames(ctx, h)
 
 	// A rule's body can call microflows, so the call-target lookup is the same
 	// one the microflow describer builds.
+	// Names only, so headers: no microflow is decoded.
 	microflowNames := make(map[model.ID]string)
-	allMicroflows, err := ctx.Backend.ListMicroflows()
+	allMicroflows, err := microflowHeaders(ctx)
 	if err != nil {
 		return mdlerrors.NewBackend("list microflows", err)
 	}

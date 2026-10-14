@@ -129,17 +129,27 @@ func (b *Backend) ListNanoflows() ([]*microflows.Nanoflow, error) {
 	return out, nil
 }
 
+// GetNanoflow reads and decodes only the unit with that ID.
 func (b *Backend) GetNanoflow(id model.ID) (*microflows.Nanoflow, error) {
-	units, err := mprread.ListUnitsWithContainer[*genMf.Nanoflow](b.reader)
+	unit, err := mprread.GetUnitByID[*genMf.Nanoflow](b.reader, id)
+	if err != nil || unit == nil {
+		return nil, err
+	}
+	return nanoflowFromGen(unit.Element, unit.ContainerID), nil
+}
+
+// ListNanoflowsNamed is ListNanoflows for the nanoflows whose local name is
+// name, in every module: only those are read and decoded.
+func (b *Backend) ListNanoflowsNamed(name string) ([]*microflows.Nanoflow, error) {
+	units, err := mprread.ListUnitsNamed[*genMf.Nanoflow](b.reader, name)
 	if err != nil {
 		return nil, err
 	}
+	out := make([]*microflows.Nanoflow, 0, len(units))
 	for _, u := range units {
-		if model.ID(u.Element.ID()) == id {
-			return nanoflowFromGen(u.Element, u.ContainerID), nil
-		}
+		out = append(out, nanoflowFromGen(u.Element, u.ContainerID))
 	}
-	return nil, nil
+	return out, nil
 }
 
 // nanoflowFromGen mirrors microflowFromGen — nanoflows share the same parameter,

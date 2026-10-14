@@ -558,6 +558,27 @@ func microflowsNamedIn(b backend.FullBackend, name string) ([]*microflows.Microf
 	return out, nil
 }
 
+// nanoflowsNamedIn is the project's nanoflows whose local name is name, in
+// every module: the counterpart of microflowsNamedIn.
+func nanoflowsNamedIn(b backend.FullBackend, name string) ([]*microflows.Nanoflow, error) {
+	if l, ok := b.(interface {
+		ListNanoflowsNamed(name string) ([]*microflows.Nanoflow, error)
+	}); ok {
+		return l.ListNanoflowsNamed(name)
+	}
+	all, err := b.ListNanoflows()
+	if err != nil {
+		return nil, err
+	}
+	var out []*microflows.Nanoflow
+	for _, nf := range all {
+		if nf.Name == name {
+			out = append(out, nf)
+		}
+	}
+	return out, nil
+}
+
 // microflowHeaders is every microflow's ID, container, name and Excluded flag,
 // for a name set or an ID-to-name map: no flow is decoded where the backend
 // can avoid it.

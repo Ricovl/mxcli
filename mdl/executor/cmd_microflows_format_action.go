@@ -913,15 +913,8 @@ func formatAction(
 		pageName := a.PageName
 		if pageName == "" && a.PageID != "" && ctx.Connected() {
 			// Fall back to looking up by ID (legacy format)
-			pages, _ := ctx.Backend.ListPages()
-			for _, p := range pages {
-				if p.ID == a.PageID {
-					h, _ := getHierarchy(ctx)
-					if h != nil {
-						pageName = h.GetQualifiedName(p.ContainerID, p.Name)
-					}
-					break
-				}
+			if h, _ := getHierarchy(ctx); h != nil {
+				pageName = getPageNames(ctx, h)[a.PageID]
 			}
 		}
 		if pageName == "" {

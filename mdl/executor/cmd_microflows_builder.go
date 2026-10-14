@@ -119,8 +119,6 @@ type flowBuilder struct {
 	// be overridden by the user. Cleared after each flow is created.
 	previousStmtAnchor *ast.FlowAnchors
 	// Cached flow lists to avoid repeated backend calls during lookups.
-	nanoflowsCache       []*microflows.Nanoflow
-	nanoflowsCacheLoaded bool
 	manualLoopBackTarget model.ID
 	isNanoflow           bool // true when building a nanoflow — default error handling is "" not "Rollback"
 	// self is the flow the statement creates. A call to it resolves to the
@@ -424,16 +422,12 @@ func (fb *flowBuilder) lookupNanoflowReturnType(qualifiedName string) microflows
 	if err != nil || module == nil {
 		return nil
 	}
-	if !fb.nanoflowsCacheLoaded {
-		nanoflowList, err := fb.backend.ListNanoflows()
-		if err != nil {
-			return nil
-		}
-		fb.nanoflowsCache = nanoflowList
-		fb.nanoflowsCacheLoaded = true
+	candidates, err := nanoflowsNamedIn(fb.backend, nanoflowName)
+	if err != nil {
+		return nil
 	}
 
-	for _, nf := range fb.nanoflowsCache {
+	for _, nf := range candidates {
 		if nf == nil {
 			continue
 		}
@@ -507,15 +501,12 @@ func (fb *flowBuilder) nanoflowExists(qualifiedName string) bool {
 	if err != nil || module == nil {
 		return true
 	}
-	if !fb.nanoflowsCacheLoaded {
-		list, err := fb.backend.ListNanoflows()
-		if err != nil {
-			return true
-		}
-		fb.nanoflowsCache = list
-		fb.nanoflowsCacheLoaded = true
+	// Only the nanoflows of this name are decoded, as for microflows.
+	candidates, err := nanoflowsNamedIn(fb.backend, nfName)
+	if err != nil {
+		return true
 	}
-	for _, nf := range fb.nanoflowsCache {
+	for _, nf := range candidates {
 		if nf == nil {
 			continue
 		}

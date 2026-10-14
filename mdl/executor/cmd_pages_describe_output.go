@@ -1601,21 +1601,13 @@ func getPageQualifiedName(ctx *ExecContext, pageID model.ID) string {
 	if pageID == "" {
 		return ""
 	}
-	allPages, err := ctx.Backend.ListPages()
-	if err != nil {
-		return ""
-	}
 	h, err := getHierarchy(ctx)
-	if err != nil {
+	if err != nil || h == nil {
 		return ""
 	}
-	for _, p := range allPages {
-		if p.ID == pageID {
-			modName := h.GetModuleName(h.FindModuleID(p.ContainerID))
-			return modName + "." + p.Name
-		}
-	}
-	return ""
+	// The run's cached ID → name map: this is asked once per page action, and
+	// listing every page each time multiplied inside one page describe.
+	return getPageNames(ctx, h)[pageID]
 }
 
 // pageActionParameters renders a SHOW_PAGE action's argument list, recovering the

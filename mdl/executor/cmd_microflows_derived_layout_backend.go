@@ -26,6 +26,7 @@ type layoutCheckBackend struct {
 	modules      *memoResult[[]*model.Module]
 	microflows   *memoResult[[]*microflows.Microflow]
 	mfNamed      map[string]memoResult[[]*microflows.Microflow]
+	nfNamed      map[string]memoResult[[]*microflows.Nanoflow]
 	nanoflows    *memoResult[[]*microflows.Nanoflow]
 	domainModels *memoResult[[]*domainmodel.DomainModel]
 
@@ -52,6 +53,7 @@ func newLayoutCheckBackend(b backend.FullBackend) *layoutCheckBackend {
 		jsAction:     map[string]memoResult[*types.JavaScriptAction]{},
 		isRule:       map[string]memoResult[bool]{},
 		mfNamed:      map[string]memoResult[[]*microflows.Microflow]{},
+		nfNamed:      map[string]memoResult[[]*microflows.Nanoflow]{},
 	}
 }
 
@@ -87,6 +89,13 @@ func (b *layoutCheckBackend) ListMicroflows() ([]*microflows.Microflow, error) {
 func (b *layoutCheckBackend) ListMicroflowsNamed(name string) ([]*microflows.Microflow, error) {
 	return memoKeyed(b.mfNamed, name, func() ([]*microflows.Microflow, error) {
 		return microflowsNamedIn(b.FullBackend, name)
+	})
+}
+
+// ListNanoflowsNamed is ListMicroflowsNamed for nanoflows.
+func (b *layoutCheckBackend) ListNanoflowsNamed(name string) ([]*microflows.Nanoflow, error) {
+	return memoKeyed(b.nfNamed, name, func() ([]*microflows.Nanoflow, error) {
+		return nanoflowsNamedIn(b.FullBackend, name)
 	})
 }
 
