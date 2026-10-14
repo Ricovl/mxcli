@@ -30,10 +30,15 @@ MAX_BODY = 60000
 COMMENT_CHARS = 1500
 LAST_COMMENTS = 5
 DRY = False
+UPSTREAM = None
 
 
 def api(path, method="GET", data=None, ok_codes=()):
     """Call the REST API via gh. Writes are skipped (and printed) in dry-run mode."""
+    # The routine's session holds credentials for upstream too, so "upstream is
+    # read-only" has to be enforced here, not left to the prompt.
+    if method != "GET" and UPSTREAM and path.lower().startswith(f"/repos/{UPSTREAM.lower()}/"):
+        raise RuntimeError(f"refusing {method} {path}: upstream is read-only")
     if DRY and method != "GET":
         print(f"DRY-RUN {method} {path} {json.dumps(data)[:160] if data else ''}", file=sys.stderr)
         return {}
@@ -115,11 +120,12 @@ def build_body(up, issue, comments):
 
 
 def title_for(issue):
-    return f"[#{issue['number']}] {issue['title']}"[:250]
+    # Not "[#123]": in the fork, #123 is a different issue or PR.
+    return f"[up#{issue['number']}] {issue['title']}"[:250]
 
 
 def main():
-    global DRY
+    global DRY, UPSTREAM
     ap = argparse.ArgumentParser()
     ap.add_argument("--upstream", required=True)
     ap.add_argument("--fork", required=True)
@@ -127,6 +133,9 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
     up, fork, DRY = a.upstream, a.fork, a.dry_run
+    UPSTREAM = up
+    if up.lower() == fork.lower():
+        sys.exit("--upstream and --fork must differ")
     summary = {"upstream_open": 0, "created": [], "refreshed": [], "closed": [], "flagged_closed": [],
                "pending_create": 0, "dry_run": DRY}
 
@@ -165,7 +174,9 @@ def main():
                     {"title": title_for(i), "body": build_body(up, i, last_comments(up, i))})
                 summary["refreshed"].append(n)
             continue
-        if m["state"] != "open":
+        labels = {l["name"] for l in m.get("labels") or []}
+        # Already flagged and kept open for the maintainer: don't comment again every run.
+        if m["state"] != "open" or "upstream-closed" in labels:
             continue
         st = api(f"/repos/{up}/issues/{n}", ok_codes=("404", "410")) or {}
         if st.get("state") != "closed" and st:
@@ -173,7 +184,6 @@ def main():
         if open_prs is None:
             open_prs = [p.get("body") or "" for p in paged(f"/repos/{fork}/pulls?state=open", 500)]
         ref = re.compile(rf"#{m['number']}\b")
-        labels = {l["name"] for l in m.get("labels") or []}
         busy = "agent:working" in labels or any(ref.search(b) for b in open_prs)
         reason = (st.get("state_reason") or "deleted or transferred").replace("_", " ")
         api(f"/repos/{fork}/issues/{m['number']}/labels", "POST", {"labels": ["upstream-closed"]})
