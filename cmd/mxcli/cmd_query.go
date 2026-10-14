@@ -231,18 +231,11 @@ Searches across string literals (captions, labels, messages), the documentation
 of project elements, and MDL source definitions. Requires at least a FULL
 catalog build (done automatically).
 
-What is searched, besides captions, labels and messages, is the documentation of:
-  entities; attributes; associations; enumerations; constants; pages, snippets,
-  layouts, building blocks and page templates; microflows, nanoflows, rules and
-  workflows; Java and JavaScript actions; microflow and Java action parameters;
-  consumed and published REST services and business event services; import and
-  export mappings, JSON structures and data transformers; scheduled events, task
-  queues, regular expressions, image and icon collections and menus; agents, AI
-  models, knowledge bases and consumed MCP services; and a module's domain model
-  documentation. That is every document type whose catalog table carries a
-  documentation text.
-  Not searched: documentation of an enumeration value (Mendix has no such
-  field) and the summary text of a remote service's contract.
+Besides captions, labels and messages, it searches the documentation of every
+element the catalog records (entities, attributes, constants, pages, microflows,
+Java actions, REST services, ... and a module's domain model documentation).
+Not searched: the documentation of an enumeration value (Mendix has no such
+field) and the summary text of a remote service's contract.
 A hit names the element (qualified name, type) and the field: the context
 column says "documentation" for a documentation hit.
 
