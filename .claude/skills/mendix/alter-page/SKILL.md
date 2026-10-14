@@ -13,14 +13,14 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | 28-31 | Overview |
 | 32-56 | When to Use |
 | 57-107 | Syntax |
-| 108-460 | Operations |
-| 461-539 | Examples |
-| 540-630 | DataGrid 2 columns: how to address them, and what you can set |
-| 631-642 | Common Mistakes |
-| 643-664 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 665-672 | Validation Checklist |
-| 673-682 | Related Commands |
-| 683-687 | Related Skills |
+| 108-472 | Operations |
+| 473-551 | Examples |
+| 552-642 | DataGrid 2 columns: how to address them, and what you can set |
+| 643-654 | Common Mistakes |
+| 655-676 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 677-684 | Validation Checklist |
+| 685-694 | Related Commands |
+| 695-699 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
