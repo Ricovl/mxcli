@@ -2055,8 +2055,16 @@ func describeImageWidgetProps(ctx *ExecContext, w rawWidget) []string {
 	if w.ImageType != "" && w.ImageType != "image" {
 		props = append(props, fmt.Sprintf("ImageType: %s", w.ImageType))
 	}
-	if w.ImageObject != "" {
+	switch {
+	case w.ImageFromObject:
+		// Bound to the object in context, unquoted: a quoted value is a
+		// collection entry's name (#1476).
+		props = append(props, "Image: "+imageObjectVariable)
+	case w.ImageObject != "":
 		props = append(props, fmt.Sprintf("Image: %s", mdlQuote(ctx, w.ImageObject)))
+	}
+	if w.DefaultImage != "" {
+		props = append(props, fmt.Sprintf("DefaultImage: %s", mdlQuote(ctx, w.DefaultImage)))
 	}
 	if w.ImageUrl != "" {
 		props = append(props, fmt.Sprintf("ImageUrl: %s", mdlQuote(ctx, w.ImageUrl)))

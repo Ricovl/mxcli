@@ -774,6 +774,22 @@ model that already contains one is the point — and `mxcli lint` reports it as
 layout (e.g. `Atlas_Core.NativePhone_Default`) is not rendered by the React client:
 mxbuild builds a `staticimage` there clean, and MPR012 stays silent on it.
 
+#### `Image: $currentObject` — an uploaded image on the pluggable IMAGE
+
+The pluggable `image` widget shows an uploaded image (an entity that extends
+`System.Image`) by binding to the enclosing data container's object. Prefer it
+to `dynamicimage`, which is CE0582 under the React client (mendixlabs/mxcli#1476):
+
+```sql
+dataview dvPhoto (DataSource: $Photo) {
+  image imgPhoto (Image: $currentObject, DefaultImage: 'MyModule.Images.placeholder')
+}
+```
+
+Outside a data container, or over an entity that is not an image, it is refused
+(mxbuild: CE7247 "Widget expects entity of type System.Image."). `DefaultImage:`
+is only valid together with `$currentObject`.
+
 #### `DataSource:` — which object a DYNAMICIMAGE shows
 
 A dynamic image shows the image held by an **object**, so it needs the entity
