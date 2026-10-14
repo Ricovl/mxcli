@@ -159,9 +159,11 @@ var moduleDocKindsAfterDomainModel = []moduleDocKind{
 		l, err := ctx.Backend.ListRules()
 		return docs(l, err, func(x *microflows.Rule) moduleDoc { return moduleDoc{x.ID, x.ContainerID, x.Name} })
 	}},
+	// Headers only: listing the module's microflows decoded every microflow in
+	// the project, ~1.7 s of a module describe on a 23k-unit app.
 	{ast.DescribeMicroflow, func(ctx *ExecContext) ([]moduleDoc, error) {
-		l, err := ctx.Backend.ListMicroflows()
-		return docs(l, err, func(x *microflows.Microflow) moduleDoc { return moduleDoc{x.ID, x.ContainerID, x.Name} })
+		l, err := microflowHeaders(ctx)
+		return docs(l, err, func(x types.DocumentHeader) moduleDoc { return moduleDoc{x.ID, x.ContainerID, x.Name} })
 	}},
 	{ast.DescribeNanoflow, func(ctx *ExecContext) ([]moduleDoc, error) {
 		l, err := ctx.Backend.ListNanoflows()
