@@ -36,6 +36,10 @@ type LayoutGridRow struct {
 	VerticalAlignment       string                `json:"verticalAlignment,omitempty"`   // "None" (default), "Start", "Center", "End"
 	HorizontalAlignment     string                `json:"horizontalAlignment,omitempty"` // "None" (default), "Start", "Center", "End"
 	NoSpacingBetweenColumns bool                  `json:"noSpacingBetweenColumns,omitempty"`
+	// ConditionalVisibility is the row's own visibility condition
+	// (Forms$LayoutGridRow.ConditionalVisibilitySettings); nil writes Studio
+	// Pro's null (mendixlabs/mxcli#1461). A column has no such slot.
+	ConditionalVisibility *ConditionalVisibilitySettings `json:"conditionalVisibility,omitempty"`
 }
 
 // LayoutGridColumn represents a column in a layout grid. Like a row it has an

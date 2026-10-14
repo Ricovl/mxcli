@@ -250,6 +250,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateLegacyExpressionText(w, locationPrefix)...)
 		// A column's Visible has no row object (MDL-WIDGET43, CE0117).
 		out = append(out, validateColumnVisibleScope(w, locationPrefix)...)
+		// …and a layout-grid column's Visible has nowhere to be stored (#1461).
+		out = append(out, validateLayoutGridColumnVisible(w, locationPrefix)...)
 		// #1062: an action slot holding something that is not an action, which
 		// used to check clean, exec clean, build clean and render dead. Runs for
 		// every widget kind and needs no definition, for the same reason as the

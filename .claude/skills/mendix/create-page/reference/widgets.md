@@ -264,6 +264,25 @@ layoutgrid gridName {
 column (desktopwidth: 8, tabletwidth: 6, phonewidth: 12) { ... }
 ```
 
+**Row visibility:** a `row` takes `Visible:` in the same forms as a widget
+(an expression, `false`, or `Attr in (…)`) and DESCRIBE prints it. A layout-grid
+**column has no visibility** in Mendix (`Forms$LayoutGridColumn` stores none), so
+`Visible:` on a column inside a row is dropped — check warns (MDL-WIDGET07). Put
+the condition on the row, or wrap the column's content in a `container (Visible: …)`.
+
+```sql
+mdl 1;
+create page MyMod.Order_Detail (Title: 'Order', Layout: Atlas_Core.Atlas_Default, Params: ( $Order: MyMod.Order )) {
+  layoutgrid lg {
+    row (Visible: $Order/Outcome != empty) {
+      column (desktopwidth: autofill) {
+        dynamictext outcome (content: 'Outcome', rendermode: H3)
+      }
+    }
+  }
+};
+```
+
 Example:
 ```sql
 layoutgrid mainGrid {
