@@ -458,12 +458,12 @@ func isCacheValid(ctx *ExecContext, cachePath string, requiredMode string) (bool
 
 	// On MPR v2 a document can change without the .mpr changing (git pull,
 	// branch switch), so the unit files decide; v1 keeps the .mpr mtime.
+	// A catalog from before unit-file tracking falls back to the mtime until
+	// its next rebuild stores a fingerprint.
 	if _, ok := ctx.Backend.(unitStateBackend); ok && info.UnitFingerprint != "" {
 		if !unitStateCurrent(ctx, info.UnitFingerprint) {
 			return false, "project files modified"
 		}
-	} else if _, ok := unitState(ctx); ok {
-		return false, "catalog predates unit-file tracking"
 	} else if info.MprModTime.Unix() != getMprModTime(ctx).Unix() {
 		return false, "project file modified"
 	}
