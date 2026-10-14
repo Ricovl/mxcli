@@ -1408,6 +1408,53 @@ func TestSetWidgetProperty_VisibleIf(t *testing.T) {
 	}
 }
 
+// mendixlabs/mxcli#1460: Studio Pro stores "Visible for module roles" on the
+// same node as the condition, so SET Visible rebuilt the node and dropped the
+// role restriction. The roles are a separate setting and must survive a SET of
+// the condition — including `Visible = true`, which clears only the condition.
+func TestSetWidgetProperty_VisibleKeepsModuleRoles(t *testing.T) {
+	for _, tc := range []struct {
+		prop     string
+		value    any
+		wantExpr string
+	}{
+		{"VisibleIf", "$currentObject/Name != ''", "$currentObject/Name != ''"},
+		{"Visible", false, "false"},
+		{"Visible", true, ""},
+	} {
+		w := bson.D{
+			{Key: "$Type", Value: "Forms$DivContainer"},
+			{Key: "Name", Value: "ctn"},
+			{Key: "ConditionalVisibilitySettings", Value: bson.D{
+				{Key: "$ID", Value: "x"},
+				{Key: "$Type", Value: "Forms$ConditionalVisibilitySettings"},
+				{Key: "Attribute", Value: ""},
+				{Key: "Conditions", Value: bson.A{int32(2)}},
+				{Key: "Expression", Value: "old"},
+				{Key: "IgnoreSecurity", Value: false},
+				{Key: "ModuleRoles", Value: bson.A{int32(1), "M.Admin"}},
+				{Key: "SourceVariable", Value: nil},
+			}},
+		}
+		rawData := makeRawPage(w)
+		m := &Mutator{rawData: rawData, widgetFinder: findBsonWidget}
+		if err := m.SetWidgetProperty("ctn", tc.prop, tc.value); err != nil {
+			t.Fatalf("%s = %v: %v", tc.prop, tc.value, err)
+		}
+		cvs, ok := bsonnav.DGet(findBsonWidget(rawData, "ctn").widget, "ConditionalVisibilitySettings").(bson.D)
+		if !ok {
+			t.Fatalf("%s = %v: settings node removed — the role restriction was dropped", tc.prop, tc.value)
+		}
+		if got := bsonnav.DGetString(cvs, "Expression"); got != tc.wantExpr {
+			t.Errorf("%s = %v: Expression = %q, want %q", tc.prop, tc.value, got, tc.wantExpr)
+		}
+		roles, _ := bsonnav.DGet(cvs, "ModuleRoles").(bson.A)
+		if len(roles) != 2 || roles[1] != "M.Admin" {
+			t.Errorf("%s = %v: ModuleRoles = %v, want [1 M.Admin]", tc.prop, tc.value, roles)
+		}
+	}
+}
+
 func TestSetWidgetProperty_EditableIf_Unsupported(t *testing.T) {
 	// A container has no ConditionalEditabilitySettings slot → reject.
 	w := bson.D{

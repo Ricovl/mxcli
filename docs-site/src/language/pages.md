@@ -116,6 +116,26 @@ mxcli writes one condition per value of the attribute, as Studio Pro does, so a
 value not listed hides the widget. `describe page` emits this form for widgets
 set up that way in Studio Pro.
 
+Studio Pro's **"Visible for module roles"** restricts a widget to users holding
+one of the named module roles. It is a separate setting, so it combines with an
+expression or attribute condition — the widget then carries two `Visible:` lines:
+
+```sql
+mdl 1;
+create page MyModule.Request_Review (Title: 'Review', Layout: Atlas_Core.Atlas_Default) {
+  container cntAdmin (Visible: roles (MyModule.Administrator)) {
+    dynamictext txtAdmin (Content: 'Administrators only')
+  }
+  actionbutton btnClose (Caption: 'Close', Action: close page,
+    Visible: false, Visible: roles (MyModule.Administrator, MyModule.Editor))
+};
+```
+
+It is accepted on widgets, tab pages and navigation-list items. `mxcli check
+--references` refuses a role the project (or the script, above the statement)
+does not define. `alter page … set Visible` changes only the condition and keeps
+the stored roles.
+
 ### Conditional Editability
 
 Input widgets can be conditionally editable:

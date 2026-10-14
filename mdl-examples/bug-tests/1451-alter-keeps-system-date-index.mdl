@@ -1,0 +1,24 @@
+mdl 1;
+-- mendixlabs/mxcli#1451 — `alter entity … add attribute` on an entity indexed
+-- on its createdDate / changedDate system members.
+--
+-- Studio Pro stores such a segment as IndexedAttribute.Type = CreatedDate /
+-- ChangedDate with no attribute pointer. The writer used to hard-code Type
+-- Normal, so any rewrite of the entity turned it into an attribute segment
+-- pointing at nothing, and mx check crashed:
+--   ArgumentOutOfRangeException … at IndexedAttribute.get_Attribute
+--
+--   mxcli exec mdl-examples/bug-tests/1451-alter-keeps-system-date-index.mdl -p app.mpr
+--   mxcli docker check -p app.mpr                -- 0 errors, no crash
+--   mxcli -p app.mpr -c "describe entity BugTest1451.Item"
+--     -- still prints: index (CreatedDate, ChangedDate);
+create module BugTest1451;
+
+create persistent entity BugTest1451.Item (
+  "Name": String(50),
+  "CreatedDate": AutoCreatedDate,
+  "ChangedDate": AutoChangedDate
+)
+index ("CreatedDate", "ChangedDate");
+
+alter entity BugTest1451.Item add attribute "X": String(50);

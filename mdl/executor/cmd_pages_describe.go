@@ -753,8 +753,11 @@ type rawWidget struct {
 	Children       []rawWidget
 	FilterWidgets  []rawWidget // For Gallery filter widgets
 	ControlBar     []rawWidget // For DataGrid2 CONTROLBAR widgets
-	Rows           []rawWidgetRow
-	DataSource     *rawDataSource
+	// LegacyGrid holds a legacy Forms$DataGrid's named columns, search fields
+	// and control-bar buttons, printed as comments (mendixlabs/mxcli#1459).
+	LegacyGrid *rawLegacyGrid
+	Rows       []rawWidgetRow
+	DataSource *rawDataSource
 	// NamedDataSources holds a pluggable widget's datasources keyed by the
 	// schema property each was stored under, and is set INSTEAD of DataSource
 	// when the widget has more than one configured. Collapsing them to the one
@@ -842,7 +845,10 @@ type rawWidget struct {
 	// values that SHOW the widget, as MDL spells them (`empty` for "(empty)").
 	VisibleAttr   string
 	VisibleValues []string
-	EditableIf    string // Expression from ConditionalEditabilitySettings
+	// "Visible for module roles": qualified role names, independent of the
+	// expression/attribute condition (mendixlabs/mxcli#1460).
+	VisibleRoles []string
+	EditableIf   string // Expression from ConditionalEditabilitySettings
 	// Design properties from Appearance
 	DesignProperties []rawDesignProp
 	// Explicit widget properties (for generic PLUGGABLEWIDGET output)

@@ -520,11 +520,15 @@ func (pb *pageBuilder) buildControlBarV3(w *ast.WidgetV3) (*pages.Container, err
 
 // childVisibility is the ConditionalVisibilitySettings for `Visible:` on an
 // element its parent builds outside buildWidgetV3 — a tab page (#1465) or a
-// layout-grid row (#1461) — in either form: an expression, or `Attr in (…)`.
-// nil when there is none.
+// layout-grid row (#1461) — in either form: an expression, or `Attr in (…)` —
+// plus any `Visible: roles (…)` (#1460). nil when there is none.
 func (pb *pageBuilder) childVisibility(w *ast.WidgetV3) (*pages.ConditionalVisibilitySettings, error) {
 	if vw, ok := w.Properties["VisibleWhen"].(*ast.VisibleWhenV3); ok && vw != nil {
-		return pb.visibleWhenSettings(w, vw)
+		cvs, err := pb.visibleWhenSettings(w, vw)
+		if err != nil {
+			return nil, err
+		}
+		return withVisibleRoles(cvs, w), nil
 	}
-	return expressionVisibility(w), nil
+	return withVisibleRoles(expressionVisibility(w), w), nil
 }

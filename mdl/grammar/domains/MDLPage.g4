@@ -548,6 +548,12 @@ widgetPropertyV3
     | VISIBLE COLON xpathConstraint /* @alias MDL-DEPR081 */  // Visible: [IsActive = true]
     | VISIBLE COLON qualifiedName IN LPAREN visibleValueV3 (COMMA visibleValueV3)* RPAREN  // Visible: Status in (Running, empty) | Mod.Entity.Attr in (…)
     | VISIBLE COLON widgetAttributeRefV3 IN LPAREN visibleValueV3 (COMMA visibleValueV3)* RPAREN  // Visible: $Param.Status in (Running) — read from a page/snippet parameter
+    // Studio Pro's "Visible for module roles" (ConditionalVisibilitySettings.
+    // ModuleRoles, by-name references). Independent of — and combinable with —
+    // the expression or attribute condition: a widget may carry both `Visible:`
+    // lines (mendixlabs/mxcli#1460). Ahead of the expression alternative, which
+    // would otherwise read `roles (…)` as a function call.
+    | VISIBLE COLON ROLES LPAREN visibleRoleListV3 RPAREN  // Visible: roles (Mod.Admin, Mod.User)
     | VISIBLE COLON propertyValueV3                   // Visible: false
     | VISIBLE COLON expression                        // Visible: $currentObject/Status = 'Open'
     | EDITABLE COLON xpathConstraint /* @alias MDL-DEPR081 */ // Editable: [Status != 'Closed']
@@ -846,6 +852,12 @@ selectionModeV3
     ;
 
 // V3 Generic property value
+// The module roles of `Visible: roles (…)`, a rule of its own so the
+// widgetPropertyV3 context keeps its single qualifiedName accessor.
+visibleRoleListV3
+    : qualifiedName (COMMA qualifiedName)*
+    ;
+
 propertyValueV3
     : STRING_LITERAL
     | QUOTED_IDENTIFIER              // "AttrName" — quoted attribute value for pluggable sub-props (chart series staticXAttribute)
