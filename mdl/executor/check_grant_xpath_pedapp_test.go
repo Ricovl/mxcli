@@ -53,6 +53,12 @@ func TestCheckGrantXPath_ResolvableMembersPass(t *testing.T) {
 			"create persistent entity MyFirstModule.Thing (Name: String(10));\n" +
 				"create association Administration.Account_Thing from Administration.Account to MyFirstModule.Thing;\n" +
 				"grant read * on entity Administration.Account to Administration.User where [Administration.Account_Thing/MyFirstModule.Thing/Name = 'x'];"},
+		// Measured on 11.13.0: builds clean (doctype-tests/08 writes this).
+		{"member spelled in another case",
+			"create persistent entity MyFirstModule.Thing (status: String(10));\n" +
+				"grant read * on entity MyFirstModule.Thing to MyFirstModule.User where [Status = 'Open'];"},
+		{"stored member spelled in another case",
+			"grant read * on entity Administration.Account to Administration.User where [fullname = 'x'];"},
 		{"entity the script creates",
 			"create persistent entity MyFirstModule.Thing (Name: String(10));\n" +
 				"grant read * on entity MyFirstModule.Thing to MyFirstModule.User where [Name = 'x'];"},

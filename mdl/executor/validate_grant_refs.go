@@ -491,7 +491,20 @@ func (g *grantResolver) xpathProblem(qn ast.QualifiedName, xpath string) string 
 	}
 	if g.xpath == nil {
 		m, resolve := scriptXPathResolver(g.ctx, g.whole)
-		g.xpath = &grantXPathResolver{model: m, resolve: resolve}
+		// Case-insensitive, as mxbuild is here: measured on 11.13.0, an
+		// attribute `status` constrained as [Status = 'Open'] builds clean
+		// (doctype-tests/08 does exactly that).
+		ix := checkAttributeIndex(g.ctx, g.whole)
+		folded := func(entityQN, member string) memberResolution {
+			r := resolve(entityQN, member)
+			if r == memberMissing {
+				if found, _ := ix.declares(entityQN, member); found {
+					return memberFound
+				}
+			}
+			return r
+		}
+		g.xpath = &grantXPathResolver{model: m, resolve: folded}
 	}
 	stored := accessRuleXPathConstraint(g.ctx, xpath, name)
 	var bad []string
