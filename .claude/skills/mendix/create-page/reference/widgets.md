@@ -271,7 +271,16 @@ column (desktopwidth: 8, tabletwidth: 6, phonewidth: 12) { ... }
 the condition on the row, or wrap the column's content in a `container (Visible: …)`.
 
 ```sql
-row (Visible: $currentObject/Outcome != empty) { column (desktopwidth: autofill) { ... } }
+mdl 1;
+create page MyMod.Order_Detail (Title: 'Order', Layout: Atlas_Core.Atlas_Default, Params: ( $Order: MyMod.Order )) {
+  layoutgrid lg {
+    row (Visible: $Order/Outcome != empty) {
+      column (desktopwidth: autofill) {
+        dynamictext outcome (content: 'Outcome', rendermode: H3)
+      }
+    }
+  }
+};
 ```
 
 Example:
