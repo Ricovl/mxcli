@@ -263,12 +263,18 @@ Gating on a word:
                     index cannot run, or any other error, exits 2 so that 1
                     always means "something matched".
 
+Marketplace modules:
+  --exclude-marketplace
+                    leave out hits inside modules downloaded from the
+                    Marketplace. Off by default: every module is searched.
+
 Examples:
   mxcli search -p app.mpr "validation"
   mxcli search -p app.mpr "Customer" --json | jq '.[].qualifiedName'
   mxcli search -p app.mpr "Customer" --format names
   mxcli search -p app.mpr "error" -q --format names | xargs -I {} mxcli describe -p app.mpr microflow {}
   mxcli search -p app.mpr "TODO" --fail-on-match
+  mxcli search -p app.mpr "TODO" --exclude-marketplace
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -276,6 +282,7 @@ Examples:
 		format := resolveFormat(cmd, "table")
 		quiet, _ := cmd.Flags().GetBool("quiet")
 		failOnMatch, _ := cmd.Flags().GetBool("fail-on-match")
+		excludeMarketplace, _ := cmd.Flags().GetBool("exclude-marketplace")
 
 		// Under --fail-on-match, exit status 1 means "something matched", so a
 		// search that could not run says so with 2 rather than with 1.
@@ -315,6 +322,7 @@ Examples:
 		// Execute search with format option
 		query := strings.ReplaceAll(args[0], "'", "''")
 		hits, err := exec.SearchWith(query, format, executor.SearchOptions{
+			ExcludeMarketplace: excludeMarketplace,
 			// A gate must not read "the index refused the query" as "no match".
 			Strict: failOnMatch,
 		})
