@@ -482,6 +482,7 @@ LIST IMPACT OF htmlelement;
 			"           -- | 'Default' | 'Popup'                              -- native\n" +
 			"  [, class: 'layout-atlas layout-atlas-responsive-topbar']\n" +
 			"  [, style: '...']\n" +
+			"  [, Layout: Module.Outer]   -- built on another layout: see layout.nested\n" +
 			") {\n" +
 			"  SCROLLCONTAINER name {\n" +
 			"    REGION top | right | bottom | left | center\n" +
@@ -557,8 +558,53 @@ LIST IMPACT OF htmlelement;
 			"--\n" +
 			"-- A placeholder is DECLARED with no body. `PLACEHOLDER Main { … }` is the\n" +
 			"-- page-side spelling that FILLS a slot; in a layout it declares nothing\n" +
-			"-- and is reported as MDL083.",
-		SeeAlso: []string{"layout.show", "layout.drop", "page.create", "snippet"},
+			"-- and is reported as MDL083 — unless the layout is built on another\n" +
+			"-- one (`Layout:` in the header, see layout.nested).",
+		SeeAlso: []string{"layout.nested", "layout.show", "layout.drop", "page.create", "snippet"},
+	})
+
+	Register(SyntaxFeature{
+		Path:    "layout.nested",
+		Summary: "A layout built on another layout — fills the outer layout's placeholders the way a page does",
+		Keywords: []string{
+			"nested layout", "layout on layout", "master layout", "base layout",
+			"layout call", "wrap layout", "inherit layout", "layout: header",
+		},
+		Syntax: "CREATE [OR MODIFY] LAYOUT Module.Name (\n" +
+			"  layouttype: 'Responsive' | 'Phone' | 'Tablet' | 'ModalPopup',   -- web only\n" +
+			"  Layout: Module.Outer\n" +
+			") {\n" +
+			"  PLACEHOLDER <OuterPlaceholder> {   -- fills Module.Outer.<OuterPlaceholder>\n" +
+			"    -- widgets, and the placeholders THIS layout declares:\n" +
+			"    PLACEHOLDER Main\n" +
+			"  }\n" +
+			"}",
+		Example: "mdl 1;\n" +
+			"-- The body is a page body: `placeholder X { … }` fills the outer\n" +
+			"-- layout's placeholder X, and bare widgets fill its Main. Inside the\n" +
+			"-- blocks, a bodiless `placeholder Main` declares the slot this layout's\n" +
+			"-- own pages bind to — it still needs exactly one named Main (CE0848).\n" +
+			"CREATE OR MODIFY LAYOUT MyModule.Layout_Framed (\n" +
+			"  layouttype: 'Responsive',\n" +
+			"  Layout: Atlas_Core.Atlas_Default\n" +
+			") {\n" +
+			"  PLACEHOLDER Main {\n" +
+			"    CONTAINER banner (Class: 'card') {\n" +
+			"      DYNAMICTEXT heading (Content: 'Framed area', RenderMode: H3)\n" +
+			"    }\n" +
+			"    PLACEHOLDER Main\n" +
+			"  }\n" +
+			"};\n" +
+			"\n" +
+			"-- Pages use it like any layout:\n" +
+			"CREATE PAGE MyModule.Home (Title: 'Home', Layout: MyModule.Layout_Framed) {\n" +
+			"  TITLE t (Content: 'Welcome')\n" +
+			"};\n" +
+			"\n" +
+			"-- A block naming a placeholder the outer layout does not declare is\n" +
+			"-- refused (mxbuild: CE1613). Native layouts cannot be built on another\n" +
+			"-- layout. DESCRIBE LAYOUT prints this form, one block per argument.",
+		SeeAlso: []string{"layout", "page.create"},
 	})
 
 	Register(SyntaxFeature{

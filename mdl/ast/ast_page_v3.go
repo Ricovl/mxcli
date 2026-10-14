@@ -109,9 +109,43 @@ type CreateLayoutStmt struct {
 	// placeholder" — which contradicts what the author wrote
 	// (mendixlabs/mxcli#1063).
 	BracedPlaceholders []string
+
+	// Placeholders are the top-level `placeholder X { … }` blocks. They mean
+	// something only when the header names an outer layout (`Layout:`): then
+	// each block is an argument filling that layout's placeholder X, exactly
+	// as on a page, and bare body widgets fill Main (mendixlabs/mxcli#1411).
+	// Without an outer layout they are the MDL083 mistake above.
+	Placeholders []*PagePlaceholderV3
 }
 
 func (s *CreateLayoutStmt) isStatement() {}
+
+// OuterLayout returns the qualified name of the layout this one is built on —
+// the header's `Layout:` — or "" for a layout with a content tree of its own.
+func (s *CreateLayoutStmt) OuterLayout() string {
+	return (&WidgetV3{Properties: s.Properties}).GetStringProp("Layout")
+}
+
+// ArgumentPlaceholders returns the placeholder blocks that are arguments to the
+// outer layout: all of them when there is one, none otherwise.
+func (s *CreateLayoutStmt) ArgumentPlaceholders() []*PagePlaceholderV3 {
+	if s.OuterLayout() == "" {
+		return nil
+	}
+	return s.Placeholders
+}
+
+// AllWidgets returns every widget the statement writes: the bare body and the
+// content of each argument block. Validators walk this rather than Widgets, so
+// a widget inside an argument is checked like any other (the walk #1149 had to
+// add for pages).
+func (s *CreateLayoutStmt) AllWidgets() []*WidgetV3 {
+	out := append([]*WidgetV3(nil), s.Widgets...)
+	for _, ph := range s.ArgumentPlaceholders() {
+		out = append(out, ph.Widgets...)
+	}
+	return out
+}
 
 // WidgetV3 represents a V3 widget with explicit properties.
 // Pattern: WIDGET name (Props) { children }

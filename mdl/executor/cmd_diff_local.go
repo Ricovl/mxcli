@@ -795,19 +795,15 @@ func layoutBsonToMDL(ctx *ExecContext, raw map[string]any, qualifiedName string)
 			layoutType = lt
 		}
 	}
-	header := fmt.Sprintf("  layouttype: %s", mdlQuote(ctx, layoutType))
+	class := ""
 	if ap, ok := raw["Appearance"].(map[string]any); ok {
-		if cls := extractString(ap["Class"]); cls != "" {
-			header += fmt.Sprintf(",\n  class: %s", mdlQuote(ctx, cls))
-		}
+		class = extractString(ap["Class"])
 	}
+	header := layoutHeaderMDL(ctx, layoutType, class, layoutOuterName(raw))
 	lines = append(lines, fmt.Sprintf("create or modify layout %s (\n%s\n) {", qualifiedName, header))
 
-	widgets := layoutWidgetsFromRawData(ctx, raw)
 	body := renderToString(ctx, func() {
-		for _, w := range widgets {
-			outputWidgetMDLV3(ctx, w, 1)
-		}
+		outputLayoutBodyMDL(ctx, raw)
 	})
 	if body = strings.TrimRight(body, "\n"); body != "" {
 		lines = append(lines, body)

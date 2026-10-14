@@ -859,9 +859,15 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		// ako/mxcli#573 no layout was reference-checked at all, so
 		// `simplemenubar b (Menu: M.Typo)` passed --references and mxbuild
 		// answered CE1613 "The selected menu 'M.Typo' no longer exists."
-		if refErrors := validateWidgetReferences(ctx, s.Widgets, sc); len(refErrors) > 0 {
+		if refErrors := validateWidgetReferences(ctx, s.AllWidgets(), sc); len(refErrors) > 0 {
 			return mdlerrors.NewValidationf("layout '%s' has reference errors:\n  - %s",
 				s.Name.String(), strings.Join(refErrors, "\n  - "))
+		}
+		// The layout it is built on (mendixlabs/mxcli#1411), from this script
+		// or the project.
+		if outer := s.OuterLayout(); outer != "" && !sc.layouts[outer] && !buildLayoutQualifiedNames(ctx)[outer] {
+			return mdlerrors.NewValidationf("layout '%s' is built on %s, which was not found",
+				s.Name.String(), outer)
 		}
 	case *ast.CreateSnippetStmtV3:
 		if s.Name.Module != "" && !sc.modules[s.Name.Module] {

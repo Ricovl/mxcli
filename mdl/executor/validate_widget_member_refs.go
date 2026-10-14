@@ -314,7 +314,7 @@ func forEachWidget(stmt ast.Statement, fn func(w *ast.WidgetV3, where string)) {
 		roots = append(roots, s.Widgets...)
 	case *ast.CreateLayoutStmt:
 		doc = "layout " + s.Name.String()
-		roots = append(roots, s.Widgets...)
+		roots = append(roots, s.AllWidgets()...)
 	case *ast.AlterPageStmt:
 		doc = strings.ToLower(s.ContainerType) + " " + s.PageName.String()
 		for _, op := range s.Operations {

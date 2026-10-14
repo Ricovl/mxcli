@@ -95,14 +95,48 @@ re-run would drop (`Atlas_Core.Atlas_SideBar`, for instance, loses both of its
 `style`
 :   Inline CSS on the layout element.
 
-`layouttype`, `class` and `style` are the **only** header properties. Anything
-else is an error rather than an ignored key:
+`Layout`
+:   The layout this one is built on — see
+    [A layout built on another layout](#a-layout-built-on-another-layout).
+
+`layouttype`, `class`, `style` and `Layout` are the **only** header properties.
+Anything else is an error rather than an ignored key:
 
 ```
 Error: layout MyModule.T1: unknown property "bogus" (a layout header takes
-layouttype, class and style; which placeholder is "main" is set by naming one
-Main, not by a property)
+layouttype, class, style and layout; which placeholder is "main" is set by
+naming one Main, not by a property)
 ```
+
+### A layout built on another layout
+
+Studio Pro lets a layout wrap another one rather than have a tree of its own
+(ConversationalUI's `Layout_MasterBase` wraps `Atlas_Core.Atlas_Default`). Name
+the outer layout with `Layout:` and write the body exactly as a page body:
+`PLACEHOLDER X { … }` fills the outer layout's placeholder `X`, and bare widgets
+fill its `Main`. The placeholders the new layout declares for its own pages go
+inside those blocks, bodiless as anywhere else in a layout:
+
+```sql
+CREATE OR MODIFY LAYOUT MyModule.Layout_Framed (
+  layouttype: 'Responsive',
+  Layout: Atlas_Core.Atlas_Default
+) {
+  PLACEHOLDER Main {
+    CONTAINER banner (Class: 'card') {
+      DYNAMICTEXT heading (Content: 'Framed area', RenderMode: H3)
+    }
+    PLACEHOLDER Main
+  }
+};
+```
+
+- The layout still needs exactly one declared `Main` (CE0848), counted inside
+  the blocks.
+- A block naming a placeholder the outer layout does not declare is refused;
+  mxbuild would report it as CE1613.
+- Only web layouts can be built on another layout.
+- `DESCRIBE LAYOUT` prints this form, with one block per stored argument.
 
 ### Region properties
 

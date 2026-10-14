@@ -24,9 +24,10 @@ func (pb *pageBuilder) buildLayoutV3(s *ast.CreateLayoutStmt) (*pages.Layout, er
 	// gen property — read as accepted while nothing was written; the metamodel
 	// does not declare it and no Studio Pro layout carries it.
 	for k := range s.Properties {
-		if !strings.EqualFold(k, "LayoutType") && !strings.EqualFold(k, "Class") && !strings.EqualFold(k, "Style") {
+		if !strings.EqualFold(k, "LayoutType") && !strings.EqualFold(k, "Class") &&
+			!strings.EqualFold(k, "Style") && !strings.EqualFold(k, "Layout") {
 			return nil, mdlerrors.NewValidation(fmt.Sprintf(
-				"layout %s: unknown property %q (a layout header takes layouttype, class and style; "+
+				"layout %s: unknown property %q (a layout header takes layouttype, class, style and layout; "+
 					"which placeholder is \"main\" is set by naming one Main, not by a property)",
 				s.Name.String(), k))
 		}
@@ -59,6 +60,42 @@ func (pb *pageBuilder) buildLayoutV3(s *ast.CreateLayoutStmt) (*pages.Layout, er
 		Native:        native,
 		Class:         props.GetStringProp("Class"),
 		Style:         props.GetStringProp("Style"),
+	}
+
+	// Built on another layout (mendixlabs/mxcli#1411): the body fills that
+	// layout's placeholders exactly as a page body does — bare widgets into
+	// Main, `placeholder X { … }` into X — and the layout has no content tree
+	// of its own. Studio Pro stores Content.Widgets empty for such a layout.
+	if outer := s.OuterLayout(); outer != "" {
+		if native {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"layout %s: a native layout cannot be built on another layout "+
+					"(only web layouts carry a layout call)", s.Name.String()))
+		}
+		if strings.EqualFold(outer, s.Name.String()) {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"layout %s cannot be built on itself", s.Name.String()))
+		}
+		outerID, err := pb.resolveLayout(outer)
+		if err != nil {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"layout %s is built on %s, which was not found (list layouts with `show layouts`)",
+				s.Name.String(), outer))
+		}
+		args, err := pb.buildLayoutCallArguments(outer, s.Widgets, s.Placeholders)
+		if err != nil {
+			return nil, err
+		}
+		layout.LayoutCall = &pages.LayoutCall{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$LayoutCall",
+			},
+			LayoutID:   outerID,
+			LayoutName: outer,
+			Arguments:  args,
+		}
+		return layout, nil
 	}
 
 	expanded, err := pb.expandFragments(s.Widgets)
@@ -155,6 +192,10 @@ func execCreateLayout(ctx *ExecContext, s *ast.CreateLayoutStmt) error {
 		return err
 	}
 
+	if err := checkLayoutCallArguments(ctx, layout); err != nil {
+		return err
+	}
+
 	// A rewrite that carried no doc comment keeps the stored one (#1018).
 	if stored != nil {
 		layout.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, stored.Documentation)
@@ -217,4 +258,42 @@ func isMarketplaceModule(ctx *ExecContext, module *model.Module) bool {
 		return false
 	}
 	return module.FromAppStore || strings.TrimSpace(module.AppStoreGuid) != ""
+}
+
+// checkLayoutCallArguments refuses an argument naming a placeholder the outer
+// layout does not declare. It fills nothing: mxbuild reports it as CE1613 ("The
+// selected placeholder … no longer exists") a whole build later, naming the
+// layout rather than the statement. The same rule ALTER PAGE … SET LAYOUT
+// applies to a page's bindings.
+func checkLayoutCallArguments(ctx *ExecContext, layout *pages.Layout) error {
+	lc := layout.LayoutCall
+	if lc == nil || lc.LayoutID == "" {
+		return nil
+	}
+	declared, err := ctx.Backend.LayoutPlaceholders(lc.LayoutID)
+	if err != nil {
+		return mdlerrors.NewBackend("read placeholders of "+lc.LayoutName, err)
+	}
+	// A layout that reports none is one the backend could not read, not one
+	// that has none (see checkRepointPlaceholdersAgainst).
+	if len(declared) == 0 {
+		return nil
+	}
+	have := make(map[string]bool, len(declared))
+	for _, d := range declared {
+		have[d] = true
+	}
+	var missing []string
+	for _, arg := range lc.Arguments {
+		name := strings.TrimPrefix(string(arg.ParameterID), lc.LayoutName+".")
+		if !have[name] {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return mdlerrors.NewValidation(fmt.Sprintf(
+		"layout %s is built on %s, which does not declare the placeholder %s; it has %s",
+		layout.Name, lc.LayoutName, strings.Join(missing, ", "), strings.Join(declared, ", ")))
 }
