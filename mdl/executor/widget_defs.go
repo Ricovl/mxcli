@@ -222,10 +222,24 @@ func RefreshStaleWidgetDefinitions(projectPath string) (bool, error) {
 
 // DeriveMDLName derives the uppercase MDL keyword name from a widget ID
 // (e.g. "com.mendix.widget.web.accordion.Accordion" → "ACCORDION").
+//
+// A native mobile widget is prefixed with NATIVE
+// ("com.mendix.widget.native.image.Image" → "NATIVEIMAGE"): Mendix ships most
+// of them under the same last segment as a web widget or a built-in keyword
+// (image, radiobuttons, badge, …), and the bare name let the native package
+// take over the web keyword (mendixlabs/mxcli#1463).
 func DeriveMDLName(widgetID string) string {
 	parts := strings.Split(widgetID, ".")
-	name := parts[len(parts)-1]
-	return strings.ToUpper(name)
+	name := strings.ToUpper(parts[len(parts)-1])
+	for _, seg := range parts[:len(parts)-1] {
+		if strings.EqualFold(seg, "native") {
+			if !strings.HasPrefix(name, "NATIVE") {
+				name = "NATIVE" + name
+			}
+			break
+		}
+	}
+	return name
 }
 
 // GenerateDefJSON creates a skeleton WidgetDefinition from an mpk.WidgetDefinition.

@@ -1579,7 +1579,10 @@ func lookupWidgetDef(w *ast.WidgetV3, registry *WidgetRegistry) *WidgetDefinitio
 			return def
 		}
 	}
-	if w.Type == "" {
+	// A keyword the page builder builds itself never reaches the registry
+	// there, so check must not resolve it through the registry either
+	// (mendixlabs/mxcli#1463: `radiobuttons`).
+	if w.Type == "" || isBuilderOwnedWidgetKeyword(w.Type) {
 		return nil
 	}
 	if def, ok := registry.Get(strings.ToUpper(w.Type)); ok {
