@@ -11,15 +11,15 @@ description: "Validate MDL with `mxcli check` before presenting or executing it,
 | lines | section |
 |---|---|
 | 29-35 | When to Use This Skill |
-| 36-286 | `exec` refuses what `check` rejects |
-| 287-422 | Pre-Flight Validation Checklist |
-| 423-473 | Two rules that only real validation used to catch |
-| 474-520 | Validation Workflow |
-| 521-542 | Script Execution Behavior |
-| 543-603 | Script Organization |
-| 604-656 | Troubleshooting Parse Errors |
-| 657-714 | Studio Pro MCP — Verification Only |
-| 715-720 | Related Skills |
+| 36-296 | `exec` refuses what `check` rejects |
+| 297-432 | Pre-Flight Validation Checklist |
+| 433-483 | Two rules that only real validation used to catch |
+| 484-530 | Validation Workflow |
+| 531-552 | Script Execution Behavior |
+| 553-613 | Script Organization |
+| 614-666 | Troubleshooting Parse Errors |
+| 667-724 | Studio Pro MCP — Verification Only |
+| 725-730 | Related Skills |
 
 <!-- /skill-index -->
 # MDL Syntax Validation Skill
@@ -62,7 +62,17 @@ pages, microflows and icons — against that project. It reaches inside stored
 documents where a name can only be answered there: an `ALTER PAGE … SET` is
 dry-run against the page it edits, so a widget the page does not have, or a
 property the stored widget does not declare, is reported here rather than
-stopping the script partway through `exec`.
+stopping the script partway through `exec`. The same holds for an `INSERT` /
+`REPLACE` / `DROP` target, and for the flows, pages and snippets the inserted
+widgets name. Also resolved: a DataGrid 2 column's `Attribute:` on a `database`
+grid, an access rule's `where […]` members, an entity event handler's
+microflow, `Module.Enum.Key` in an expression, and a view entity's FROM/JOIN
+entities (mendixlabs/mxcli#1472).
+
+**Not yet resolved** — a pass does not prove these: a built-in input widget's
+`Attribute:` (`textbox (Attribute: Typo)`), any attribute inside an `ALTER
+PAGE` insert, and an enumeration key inside a page widget's expression.
+`mxcli docker check` is still the gate for those.
 
 ```bash
 mxcli check script.mdl                 # syntax + model-free rules
