@@ -32,6 +32,10 @@ type DiffResult struct {
 	OnlyPackage    []string            `json:"onlyPackage,omitempty"`
 	Unknown        []UnreadableElement `json:"unknown,omitempty"`
 	UnchangedCount int                 `json:"unchangedCount"`
+	// Dependents are associations other modules own that reach into this one.
+	// Not local edits to the module — LocallyModified ignores them — but an
+	// update removes them (mendixlabs/mxcli#1502).
+	Dependents []string `json:"dependents,omitempty"`
 
 	// Upgrade is populated when --to was given: what changes between the
 	// installed version and the target, and which of those the user has edited.
@@ -79,6 +83,7 @@ func NewDiffResult(module, installedVersion, mendixVersion string, rep *Report) 
 			out.Unknown = append(out.Unknown, UnreadableElement{Element: f.Key.String(), Reason: f.Reason})
 		}
 	}
+	out.Dependents = rep.DependentNames()
 	sort.Strings(out.Modified)
 	sort.Strings(out.OnlyInstalled)
 	sort.Strings(out.OnlyPackage)
@@ -132,6 +137,14 @@ func (d *DiffResult) WriteText(w io.Writer) error {
 		fmt.Fprintf(w, "\n  Not comparable (%d) — reported as unknown, never as unchanged:\n", len(d.Unknown))
 		for _, u := range d.Unknown {
 			fmt.Fprintf(w, "    unknown   %s (%s)\n", u.Element, u.Reason)
+		}
+	}
+
+	if len(d.Dependents) > 0 {
+		fmt.Fprintf(w, "\n  Reaching in from other modules (%d) — an update removes these; --save-edits keeps them:\n",
+			len(d.Dependents))
+		for _, e := range d.Dependents {
+			fmt.Fprintf(w, "    dependent %s\n", e)
 		}
 	}
 

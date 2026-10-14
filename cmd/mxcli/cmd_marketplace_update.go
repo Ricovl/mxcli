@@ -34,6 +34,11 @@ any. Use --save-edits to write them out as re-executable MDL first, and --force
 to proceed. Studio Pro discards them without asking; this at least tells you what
 they were.
 
+Associations that OTHER modules own and that point into this module are removed
+with it, because they reach entities the update deletes. They count as local work
+here too: the update refuses over them, and --save-edits writes each one as
+association-<Module>_<Name>.mdl to replay afterwards.
+
 This does not roll back. Work on a copy or have the project in version control:
 if a step fails partway, the module has already been removed.`,
 	Example: `  # What would this update touch, and have I edited any of it?
@@ -117,6 +122,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 	// impossible when that version has been unpublished. A blank 11.13 app ships
 	// NanoflowCommons 6.0.0 and the 6.x line now starts at 6.1.1, so the module
 	// that most needs updating is the one whose baseline cannot be built.
+	var drift *marketplace.Report
 	if noBaseline {
 		fmt.Fprintf(out, "\n--no-baseline: skipping the local-edit check for %s.\n", moduleName)
 		fmt.Fprintln(out, "  Any local edits to this module will be discarded without being named.")
@@ -140,7 +146,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 		if perr != nil {
 			return fmt.Errorf("read %s from its published package: %w", basePkgModule, perr)
 		}
-		drift := marketplace.Compare(installed, published)
+		drift = marketplace.Compare(installed, published)
 
 		if saveEdits != "" {
 			written, unsaved, serr := marketplace.SaveEdits(saveEdits, drift)
@@ -176,6 +182,9 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("%w\n\nThe project may be mid-update — %s could be missing. Restore from version control",
 			err, moduleName)
 	}
+	if drift != nil {
+		res.DependentsRemoved = drift.DependentNames()
+	}
 	reportUpdate(out, res)
 	return nil
 }
@@ -186,6 +195,9 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 func gateOnLocalEdits(out io.Writer, drift *marketplace.Report, force bool, saveEdits string) error {
 	result := marketplace.NewDiffResult("", "", "", drift)
 	edited := append(append([]string{}, result.Modified...), result.OnlyInstalled...)
+	// Associations other modules own that reach into this one. Not edits to the
+	// module, but the update deletes them just the same (mendixlabs/mxcli#1502).
+	edited = append(edited, result.Dependents...)
 
 	if len(edited) == 0 {
 		if !result.Verified {
@@ -202,6 +214,11 @@ func gateOnLocalEdits(out io.Writer, drift *marketplace.Report, force bool, save
 
 	if !force {
 		msg := fmt.Sprintf("refusing to update: %d element(s) have been changed locally and the update would discard them:\n", len(edited))
+		if len(result.Dependents) > 0 {
+			msg = fmt.Sprintf("refusing to update: the update would discard %d local element(s) "+
+				"(%d association(s) in other modules reach into %s and are removed with it):\n",
+				len(edited), len(result.Dependents), drift.Module)
+		}
 		for _, e := range edited {
 			msg += "    " + e + "\n"
 		}
@@ -282,6 +299,13 @@ func reportUpdate(out io.Writer, r *marketplace.UpdateResult) {
 			len(r.GrantsDropped))
 		for _, g := range r.GrantsDropped {
 			fmt.Fprintf(out, "    %s\n", g)
+		}
+	}
+	if len(r.DependentsRemoved) > 0 {
+		fmt.Fprintf(out, "\n  Removed from other modules (%d) — they reached into %s; replay them from --save-edits:\n",
+			len(r.DependentsRemoved), r.Module)
+		for _, d := range r.DependentsRemoved {
+			fmt.Fprintf(out, "    %s\n", d)
 		}
 	}
 	reportSecurityReconcile(out, r)
