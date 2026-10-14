@@ -761,7 +761,7 @@ func execGrantMicroflowAccess(ctx *ExecContext, s *ast.GrantMicroflowAccessStmt)
 	}
 
 	// Find the microflow
-	mfs, err := ctx.Backend.ListMicroflows()
+	mfs, err := microflowsNamed(ctx, s.Microflow.Name)
 	if err != nil {
 		return mdlerrors.NewBackend("list microflows", err)
 	}
@@ -828,7 +828,7 @@ func execRevokeMicroflowAccess(ctx *ExecContext, s *ast.RevokeMicroflowAccessStm
 	}
 
 	// Find the microflow
-	mfs, err := ctx.Backend.ListMicroflows()
+	mfs, err := microflowsNamed(ctx, s.Microflow.Name)
 	if err != nil {
 		return mdlerrors.NewBackend("list microflows", err)
 	}
@@ -883,7 +883,7 @@ func execGrantNanoflowAccess(ctx *ExecContext, s *ast.GrantNanoflowAccessStmt) e
 		return mdlerrors.NewBackend("build hierarchy", err)
 	}
 
-	nfs, err := ctx.Backend.ListNanoflows()
+	nfs, err := nanoflowsNamedIn(ctx.Backend, s.Nanoflow.Name)
 	if err != nil {
 		return mdlerrors.NewBackend("list nanoflows", err)
 	}
@@ -947,7 +947,7 @@ func execRevokeNanoflowAccess(ctx *ExecContext, s *ast.RevokeNanoflowAccessStmt)
 		return mdlerrors.NewBackend("build hierarchy", err)
 	}
 
-	nfs, err := ctx.Backend.ListNanoflows()
+	nfs, err := nanoflowsNamedIn(ctx.Backend, s.Nanoflow.Name)
 	if err != nil {
 		return mdlerrors.NewBackend("list nanoflows", err)
 	}
