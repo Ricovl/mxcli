@@ -171,54 +171,69 @@ func (pb *pageBuilder) buildPageV3(s *ast.CreatePageStmtV3) (*pages.Page, error)
 			s.Name.String(), s.Layout)
 	}
 
-	// Build one FormCallArgument per layout placeholder (issue #532). Bare body
-	// widgets bind to Main; a `placeholder <Name> { … }` block binds to that
-	// named placeholder. The Main argument is always emitted (possibly empty) to
-	// match Studio Pro. Placeholder refs are BY_NAME: "<Layout>.<Placeholder>".
 	if page.LayoutCall != nil {
-		order := []string{"Main"}
-		byName := map[string][]*ast.WidgetV3{"Main": append([]*ast.WidgetV3(nil), s.Widgets...)}
-		for _, ph := range s.Placeholders {
-			name := ph.Name
-			if name == "" {
-				name = "Main"
-			}
-			if _, seen := byName[name]; !seen {
-				order = append(order, name)
-			}
-			byName[name] = append(byName[name], ph.Widgets...)
+		args, err := pb.buildLayoutCallArguments(s.Layout, s.Widgets, s.Placeholders)
+		if err != nil {
+			return nil, err
 		}
-
-		for _, name := range order {
-			arg := &pages.LayoutCallArgument{
-				BaseElement: model.BaseElement{
-					ID:       model.ID(types.GenerateID()),
-					TypeName: "Forms$FormCallArgument",
-				},
-				ParameterID: model.ID(s.Layout + "." + name),
-			}
-			// The placeholder's widgets go in directly. Forms$FormCallArgument carries a
-			// Widgets array and Studio Pro fills it with the page's top-level widgets;
-			// wrapping them in a synthetic DivContainer added a phantom container to
-			// every mxcli-authored page (#760).
-			if widgets := byName[name]; len(widgets) > 0 {
-				expanded, err := pb.expandFragments(widgets)
-				if err != nil {
-					return nil, err
-				}
-				for _, astWidget := range expanded {
-					w, err := pb.buildWidgetV3(astWidget)
-					if err != nil {
-						return nil, mdlerrors.NewBackend("build widget", err)
-					}
-					arg.Widgets = append(arg.Widgets, w)
-				}
-			}
-			page.LayoutCall.Arguments = append(page.LayoutCall.Arguments, arg)
-		}
+		page.LayoutCall.Arguments = args
 	}
 
 	return page, nil
+}
+
+// buildLayoutCallArguments builds one FormCallArgument per layout placeholder
+// (issue #532). Bare body widgets bind to Main; a `placeholder <Name> { … }`
+// block binds to that named placeholder. The Main argument is always emitted
+// (possibly empty) to match Studio Pro. Placeholder refs are BY_NAME:
+// "<Layout>.<Placeholder>".
+//
+// Shared by pages and by layouts built on another layout (mendixlabs/mxcli#1411):
+// both fill a layout's placeholders through the same Forms$LayoutCall, so the
+// MDL that fills them is the same too.
+func (pb *pageBuilder) buildLayoutCallArguments(layoutQN string, bare []*ast.WidgetV3, blocks []*ast.PagePlaceholderV3) ([]*pages.LayoutCallArgument, error) {
+	order := []string{"Main"}
+	byName := map[string][]*ast.WidgetV3{"Main": append([]*ast.WidgetV3(nil), bare...)}
+	for _, ph := range blocks {
+		name := ph.Name
+		if name == "" {
+			name = "Main"
+		}
+		if _, seen := byName[name]; !seen {
+			order = append(order, name)
+		}
+		byName[name] = append(byName[name], ph.Widgets...)
+	}
+
+	var out []*pages.LayoutCallArgument
+	for _, name := range order {
+		arg := &pages.LayoutCallArgument{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$FormCallArgument",
+			},
+			ParameterID: model.ID(layoutQN + "." + name),
+		}
+		// The placeholder's widgets go in directly. Forms$FormCallArgument carries a
+		// Widgets array and Studio Pro fills it with the page's top-level widgets;
+		// wrapping them in a synthetic DivContainer added a phantom container to
+		// every mxcli-authored page (#760).
+		if widgets := byName[name]; len(widgets) > 0 {
+			expanded, err := pb.expandFragments(widgets)
+			if err != nil {
+				return nil, err
+			}
+			for _, astWidget := range expanded {
+				w, err := pb.buildWidgetV3(astWidget)
+				if err != nil {
+					return nil, mdlerrors.NewBackend("build widget", err)
+				}
+				arg.Widgets = append(arg.Widgets, w)
+			}
+		}
+		out = append(out, arg)
+	}
+	return out, nil
 }
 
 // buildSnippetV3 creates a Snippet from a CreateSnippetStmtV3.

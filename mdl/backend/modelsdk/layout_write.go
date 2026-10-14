@@ -98,6 +98,12 @@ func layoutContentToGen(l *pages.Layout) (element.Element, error) {
 	}
 
 	if l.Native {
+		// Forms$NativeLayoutContent declares no LayoutCall: a native layout
+		// cannot be built on another one.
+		if l.LayoutCall != nil {
+			return nil, fmt.Errorf("layout %q: a native layout cannot be built on another layout "+
+				"(Forms$NativeLayoutContent has no layout call)", l.Name)
+		}
 		c := genPg.NewNativeLayoutContent()
 		assignID(c)
 		c.SetLayoutType(string(l.LayoutType))
@@ -112,15 +118,37 @@ func layoutContentToGen(l *pages.Layout) (element.Element, error) {
 	for _, w := range widgets {
 		c.AddWidgets(w)
 	}
+	// A layout built on another layout (mendixlabs/mxcli#1411): the tree hangs
+	// off the call's arguments and Content.Widgets stays empty — the shape of
+	// every Studio Pro-authored one measured. The call is built by the page
+	// code's own converter, because it is the same Forms$LayoutCall a page
+	// carries; only the key it hangs under differs (LayoutCall, not FormCall).
+	if l.LayoutCall != nil {
+		if len(l.Widgets) > 0 {
+			return nil, fmt.Errorf("layout %q is built on %s, so its widgets go in that layout's "+
+				"placeholders, not in a content tree of its own", l.Name, l.LayoutCall.LayoutName)
+		}
+		lc, err := layoutCallToGen(l.LayoutCall)
+		if err != nil {
+			return nil, err
+		}
+		c.SetLayoutCall(lc)
+	}
 	return c, nil
 }
 
-// hasAnyPlaceholder walks the tree for a Forms$Placeholder.
 // checkLayoutPlaceholders applies the rule mxbuild enforces, citing the CE
 // number the author would otherwise meet a whole build later — and, until
 // DROP LAYOUT existed, with no way to undo the document mxcli had just written.
 func checkLayoutPlaceholders(l *pages.Layout) error {
 	names := layoutPlaceholderNames(l.Widgets, nil)
+	// A layout built on another one declares its placeholders inside the
+	// arguments it passes (mendixlabs/mxcli#1411).
+	if l.LayoutCall != nil {
+		for _, arg := range l.LayoutCall.Arguments {
+			names = layoutPlaceholderNames(arg.Widgets, names)
+		}
+	}
 	issue, mains, dups := types.CheckLayoutPlaceholderNames(names)
 	switch issue {
 	case types.LayoutPlaceholderNoMain:

@@ -2089,6 +2089,7 @@ func (b *Builder) buildLayoutV3(ctx *parser.CreateLayoutStatementContext) *ast.C
 		prevIn, prevBraced := b.inLayout, b.layoutBracedPlaceholders
 		b.inLayout, b.layoutBracedPlaceholders = true, nil
 		stmt.Widgets = buildPageBodyV3(bodyCtx, b)
+		stmt.Placeholders = buildPagePlaceholdersV3(bodyCtx, b)
 		stmt.BracedPlaceholders = b.layoutBracedPlaceholders
 		b.inLayout, b.layoutBracedPlaceholders = prevIn, prevBraced
 	}
