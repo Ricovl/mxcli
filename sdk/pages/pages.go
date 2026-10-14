@@ -74,6 +74,12 @@ type Layout struct {
 	Style string `json:"style,omitempty"`
 	// Widgets is the content tree, normally a single ScrollContainer.
 	Widgets []Widget `json:"widgets,omitempty"`
+	// LayoutCall is set on a layout built on another layout (web only). The
+	// outer layout's placeholders are filled by the call's arguments, the way a
+	// page fills its layout's, and Widgets stays empty — measured on
+	// ConversationalUI.Layout_MasterBase, which Studio Pro stores under
+	// Content.LayoutCall with Content.Widgets [] (mendixlabs/mxcli#1411).
+	LayoutCall *LayoutCall `json:"layoutCall,omitempty"`
 
 	// MainPlaceholderID and Widget are the shallow forms older readers filled.
 	MainPlaceholderID model.ID `json:"mainPlaceholderId,omitempty"`

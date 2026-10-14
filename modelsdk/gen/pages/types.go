@@ -27388,7 +27388,8 @@ func (o *WebLayoutContent) InitFromRaw(raw bson.Raw) {
 			o.layoutType.SetFromDecode(s)
 		}
 	}
-	if child, err := codec.DecodeChild(raw, "FormCall"); err == nil {
+	// STORAGE-NAME OVERRIDE (#1411), see initWebLayoutContent.
+	if child, err := codec.DecodeChild(raw, "LayoutCall"); err == nil {
 		o.layoutCall.SetFromDecode(child)
 	}
 	if children, err := codec.DecodeChildren(raw, "Widgets"); err == nil {
@@ -33880,7 +33881,12 @@ func initWebLayoutContent() *WebLayoutContent {
 	o.SetTypeName("Forms$WebLayoutContent")
 	o.layoutType = property.NewEnum[string]("LayoutType")
 	o.layoutType.Bind(&o.Base, 0)
-	o.layoutCall = property.NewPart[element.Element]("FormCall")
+	// STORAGE-NAME OVERRIDE: a layout built on another layout keeps its call
+	// under "LayoutCall" — measured on ConversationalUI.Layout_MasterBase
+	// (Studio Pro, 11.12.4), and the key generated/metamodel declares. "FormCall"
+	// is a Forms$Page's key; bound here it never decoded a stored call and wrote
+	// one where no Mendix version reads it (mendixlabs/mxcli#1411).
+	o.layoutCall = property.NewPart[element.Element]("LayoutCall")
 	o.layoutCall.Bind(&o.Base, 1)
 	o.widgets = property.NewPartList[element.Element]("Widgets")
 	o.widgets.Bind(&o.Base, 2)

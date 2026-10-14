@@ -386,6 +386,7 @@ column (caption: 'Actions') {
 | `datasource: selection widgetName` | Listen to selection from another widget |
 | `datasource: association path` | Retrieve by association from context (ByAssociation) |
 | `datasource: $currentObject/Module.Assoc` | Sugar for `association` — same semantics, reads more naturally |
+| `datasource: $Param/Module.A1/Module.E1/Module.A2/Module.E2` | Over several associations: one hop each, its destination entity optional (`$Param/Module.A1/Module.A2` derives it). `describe` prints every destination for more than one hop, since Studio Pro may store a specialization of an end |
 | `datasource: database from $Ctx/Module.Assoc/Module.Entity [where …] [sort by …] [search by …]` | **List view only.** A *database* retrieve of what the association reaches — keeps XPath, sort and search, which the association source above does not have. Name the entity after each association (it may be a specialization of the association's end) |
 
 > **A list widget needs an association that yields a list.** A list view, data grid or gallery over `$currentObject/M.Assoc` is CE8812 ("A grid association path must result in a list") when the association is a Reference followed from its FROM entity, or a Reference with owner Both from either end (one-to-one). Use a data view for the single object, or a ReferenceSet. `check` reports it as MDL-ASSOCDS01. The reverse of a default Reference (from the TO entity) is a list and fine.
@@ -775,6 +776,17 @@ say it at all, so `describe page` marked every stored static image
 staticimage imgAllSelected (Image: 'MyFirstModule.Images.gallery')
 ```
 
+To repoint a stored one, `set` it in place — no REPLACE, so the widget keeps its
+id. `DefaultImage:` on a `dynamicimage` works the same way, and `check
+--references` resolves the name as it does for CREATE:
+
+```sql
+mdl 1;
+alter page MyFirstModule.Portal {
+  set (Image: 'MyFirstModule.Images.gear') on imgAllSelected;
+};
+```
+
 `WidthUnit:`, `HeightUnit:` (`pixels` | `percentage` | `auto`) and
 `Responsive: false` are written too. Leave them out for Studio Pro's defaults —
 auto units and a responsive image — which `describe page` also omits, so a
@@ -789,6 +801,22 @@ model that already contains one is the point — and `mxcli lint` reports it as
 **MPR012** so a new page does not reach for it by accident. A page on a **native**
 layout (e.g. `Atlas_Core.NativePhone_Default`) is not rendered by the React client:
 mxbuild builds a `staticimage` there clean, and MPR012 stays silent on it.
+
+#### `Image: $currentObject` — an uploaded image on the pluggable IMAGE
+
+The pluggable `image` widget shows an uploaded image (an entity that extends
+`System.Image`) by binding to the enclosing data container's object. Prefer it
+to `dynamicimage`, which is CE0582 under the React client (mendixlabs/mxcli#1476):
+
+```sql
+dataview dvPhoto (DataSource: $Photo) {
+  image imgPhoto (Image: $currentObject, DefaultImage: 'MyModule.Images.placeholder')
+}
+```
+
+Outside a data container, or over an entity that is not an image, it is refused
+(mxbuild: CE7247 "Widget expects entity of type System.Image."). `DefaultImage:`
+is only valid together with `$currentObject`.
 
 #### `DataSource:` — which object a DYNAMICIMAGE shows
 

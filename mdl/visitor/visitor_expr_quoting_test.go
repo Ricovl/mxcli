@@ -179,3 +179,25 @@ func TestDatasourceWhere_KeepsThreePartNamesForTheWriter(t *testing.T) {
 		t.Errorf("datasource Where = %q, want %q", ds.Where, want)
 	}
 }
+
+// A retrieve with two or more predicates kept its double-quoted names: the
+// joined source skipped the stripping the single-predicate path does. Stored,
+// `"A"` is a string literal to Mendix, so `['A' = 'x']` is always false and the
+// retrieve silently returns nothing (mendixlabs/mxcli#1243); mx check passes.
+func TestRetrieveMultiplePredicatesStripsQuotes(t *testing.T) {
+	prog, errs := Build(`create microflow M.Mf () begin
+  retrieve $L from M."Item" where ["A" = 'x']["B" = 'say "hi"'];
+  return;
+end;`)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %v", errs)
+	}
+	retrieve := prog.Statements[0].(*ast.CreateMicroflowStmt).Body[0].(*ast.RetrieveStmt)
+	se, ok := retrieve.Where.(*ast.SourceExpr)
+	if !ok {
+		t.Fatalf("expected *ast.SourceExpr, got %T", retrieve.Where)
+	}
+	if want := `[A = 'x'][B = 'say "hi"']`; se.Source != want {
+		t.Errorf("retrieve Where = %q, want %q", se.Source, want)
+	}
+}

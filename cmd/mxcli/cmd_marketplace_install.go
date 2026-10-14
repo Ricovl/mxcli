@@ -18,6 +18,7 @@ import (
 	"github.com/mendixlabs/mxcli/cmd/mxcli/docker"
 	mp "github.com/mendixlabs/mxcli/cmd/mxcli/marketplace"
 	"github.com/mendixlabs/mxcli/internal/marketplace"
+	"github.com/mendixlabs/mxcli/internal/zipentry"
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/spf13/cobra"
 )
@@ -462,7 +463,7 @@ func readPackageXML(mpkPath string) (mpkPackageXML, error) {
 		if f.Name != "package.xml" {
 			continue
 		}
-		rc, err := f.Open()
+		rc, err := zipentry.Open(f)
 		if err != nil {
 			return pkg, err
 		}

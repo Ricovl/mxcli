@@ -1073,6 +1073,33 @@ func extractCustomWidgetPropertyImage(ctx *ExecContext, w map[string]any, proper
 	return ""
 }
 
+// extractCustomWidgetPropertyImageBound reports whether an image-typed
+// property is bound to the object in context: its WidgetValue carries an
+// EntityRef rather than a collection entry (mendixlabs/mxcli#1476).
+func extractCustomWidgetPropertyImageBound(ctx *ExecContext, w map[string]any, propertyKey string) bool {
+	obj, ok := w["Object"].(map[string]any)
+	if !ok {
+		return false
+	}
+	propTypeKeyMap := buildPropertyTypeKeyMap(w, false)
+	for _, prop := range getBsonArrayElements(obj["Properties"]) {
+		propMap, ok := prop.(map[string]any)
+		if !ok {
+			continue
+		}
+		if propTypeKeyMap[extractBinaryID(propMap["TypePointer"])] != propertyKey {
+			continue
+		}
+		value, ok := propMap["Value"].(map[string]any)
+		if !ok {
+			continue
+		}
+		ref, ok := value["EntityRef"].(map[string]any)
+		return ok && ref != nil
+	}
+	return false
+}
+
 // extractCustomWidgetPropertyExpression reads an expression-typed property's
 // stored Expression, or "" when it is unset.
 func extractCustomWidgetPropertyExpression(w map[string]any, propertyKey string) string {
@@ -1291,6 +1318,8 @@ func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicit
 func extractImageProperties(ctx *ExecContext, w map[string]any, widget *rawWidget) {
 	widget.ImageType = extractCustomWidgetPropertyString(ctx, w, "datasource")
 	widget.ImageObject = extractCustomWidgetPropertyImage(ctx, w, "imageObject")
+	widget.ImageFromObject = extractCustomWidgetPropertyImageBound(ctx, w, "imageObject")
+	widget.DefaultImage = extractCustomWidgetPropertyImage(ctx, w, "defaultImageDynamic")
 	widget.ImageUrl, widget.ImageUrlParams = extractCustomWidgetPropertyTextTemplate(ctx, w, "imageUrl")
 	widget.AlternativeText, widget.AlternativeTextParams = extractCustomWidgetPropertyTextTemplate(ctx, w, "alternativeText")
 	widget.ImageWidth = extractCustomWidgetPropertyString(ctx, w, "width")

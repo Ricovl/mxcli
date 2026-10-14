@@ -171,54 +171,69 @@ func (pb *pageBuilder) buildPageV3(s *ast.CreatePageStmtV3) (*pages.Page, error)
 			s.Name.String(), s.Layout)
 	}
 
-	// Build one FormCallArgument per layout placeholder (issue #532). Bare body
-	// widgets bind to Main; a `placeholder <Name> { … }` block binds to that
-	// named placeholder. The Main argument is always emitted (possibly empty) to
-	// match Studio Pro. Placeholder refs are BY_NAME: "<Layout>.<Placeholder>".
 	if page.LayoutCall != nil {
-		order := []string{"Main"}
-		byName := map[string][]*ast.WidgetV3{"Main": append([]*ast.WidgetV3(nil), s.Widgets...)}
-		for _, ph := range s.Placeholders {
-			name := ph.Name
-			if name == "" {
-				name = "Main"
-			}
-			if _, seen := byName[name]; !seen {
-				order = append(order, name)
-			}
-			byName[name] = append(byName[name], ph.Widgets...)
+		args, err := pb.buildLayoutCallArguments(s.Layout, s.Widgets, s.Placeholders)
+		if err != nil {
+			return nil, err
 		}
-
-		for _, name := range order {
-			arg := &pages.LayoutCallArgument{
-				BaseElement: model.BaseElement{
-					ID:       model.ID(types.GenerateID()),
-					TypeName: "Forms$FormCallArgument",
-				},
-				ParameterID: model.ID(s.Layout + "." + name),
-			}
-			// The placeholder's widgets go in directly. Forms$FormCallArgument carries a
-			// Widgets array and Studio Pro fills it with the page's top-level widgets;
-			// wrapping them in a synthetic DivContainer added a phantom container to
-			// every mxcli-authored page (#760).
-			if widgets := byName[name]; len(widgets) > 0 {
-				expanded, err := pb.expandFragments(widgets)
-				if err != nil {
-					return nil, err
-				}
-				for _, astWidget := range expanded {
-					w, err := pb.buildWidgetV3(astWidget)
-					if err != nil {
-						return nil, mdlerrors.NewBackend("build widget", err)
-					}
-					arg.Widgets = append(arg.Widgets, w)
-				}
-			}
-			page.LayoutCall.Arguments = append(page.LayoutCall.Arguments, arg)
-		}
+		page.LayoutCall.Arguments = args
 	}
 
 	return page, nil
+}
+
+// buildLayoutCallArguments builds one FormCallArgument per layout placeholder
+// (issue #532). Bare body widgets bind to Main; a `placeholder <Name> { … }`
+// block binds to that named placeholder. The Main argument is always emitted
+// (possibly empty) to match Studio Pro. Placeholder refs are BY_NAME:
+// "<Layout>.<Placeholder>".
+//
+// Shared by pages and by layouts built on another layout (mendixlabs/mxcli#1411):
+// both fill a layout's placeholders through the same Forms$LayoutCall, so the
+// MDL that fills them is the same too.
+func (pb *pageBuilder) buildLayoutCallArguments(layoutQN string, bare []*ast.WidgetV3, blocks []*ast.PagePlaceholderV3) ([]*pages.LayoutCallArgument, error) {
+	order := []string{"Main"}
+	byName := map[string][]*ast.WidgetV3{"Main": append([]*ast.WidgetV3(nil), bare...)}
+	for _, ph := range blocks {
+		name := ph.Name
+		if name == "" {
+			name = "Main"
+		}
+		if _, seen := byName[name]; !seen {
+			order = append(order, name)
+		}
+		byName[name] = append(byName[name], ph.Widgets...)
+	}
+
+	var out []*pages.LayoutCallArgument
+	for _, name := range order {
+		arg := &pages.LayoutCallArgument{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$FormCallArgument",
+			},
+			ParameterID: model.ID(layoutQN + "." + name),
+		}
+		// The placeholder's widgets go in directly. Forms$FormCallArgument carries a
+		// Widgets array and Studio Pro fills it with the page's top-level widgets;
+		// wrapping them in a synthetic DivContainer added a phantom container to
+		// every mxcli-authored page (#760).
+		if widgets := byName[name]; len(widgets) > 0 {
+			expanded, err := pb.expandFragments(widgets)
+			if err != nil {
+				return nil, err
+			}
+			for _, astWidget := range expanded {
+				w, err := pb.buildWidgetV3(astWidget)
+				if err != nil {
+					return nil, mdlerrors.NewBackend("build widget", err)
+				}
+				arg.Widgets = append(arg.Widgets, w)
+			}
+		}
+		out = append(out, arg)
+	}
+	return out, nil
 }
 
 // buildSnippetV3 creates a Snippet from a CreateSnippetStmtV3.
@@ -563,26 +578,8 @@ func applyConditionalSettings(widget pages.Widget, w *ast.WidgetV3) {
 	}
 	bw := bwg.GetBaseWidget()
 
-	if visibleIf := w.GetStringProp("VisibleIf"); visibleIf != "" {
-		// `Visible: [expr]` — bracket form, expression already rooted by the visitor.
-		bw.ConditionalVisibility = &pages.ConditionalVisibilitySettings{
-			BaseElement: model.BaseElement{
-				ID:       model.ID(types.GenerateID()),
-				TypeName: "Forms$ConditionalVisibilitySettings",
-			},
-			Expression: visibleIf,
-		}
-	} else if expr, ok := pages.StaticVisibleExpression(w.Properties["Visible"]); ok {
-		// `Visible: false` or `Visible: '<expr>'` — a page widget has no plain
-		// boolean Visible field, so route it through ConditionalVisibilitySettings
-		// (previously this value was parsed but never consumed → silently dropped).
-		bw.ConditionalVisibility = &pages.ConditionalVisibilitySettings{
-			BaseElement: model.BaseElement{
-				ID:       model.ID(types.GenerateID()),
-				TypeName: "Forms$ConditionalVisibilitySettings",
-			},
-			Expression: expr,
-		}
+	if cvs := expressionVisibility(w); cvs != nil {
+		bw.ConditionalVisibility = cvs
 	}
 
 	if editableIf := w.GetStringProp("EditableIf"); editableIf != "" {
@@ -602,6 +599,29 @@ func applyConditionalSettings(widget pages.Widget, w *ast.WidgetV3) {
 		// what makes the enum "Conditional", so honouring a plain `Editable` too
 		// would write an enum contradicting the element beside it.
 		bw.Editable = editable
+	}
+}
+
+// expressionVisibility is the ConditionalVisibilitySettings for an
+// expression-valued `Visible:`, or nil when there is none. The attribute form
+// (`Visible: Attr in (…)`) is visibleWhenSettings.
+func expressionVisibility(w *ast.WidgetV3) *pages.ConditionalVisibilitySettings {
+	expr := w.GetStringProp("VisibleIf") // `Visible: [expr]` — bracket form, expression already rooted by the visitor.
+	if expr == "" {
+		// `Visible: false` or `Visible: '<expr>'` — a page widget has no plain
+		// boolean Visible field, so route it through ConditionalVisibilitySettings
+		// (previously this value was parsed but never consumed → silently dropped).
+		var ok bool
+		if expr, ok = pages.StaticVisibleExpression(w.Properties["Visible"]); !ok {
+			return nil
+		}
+	}
+	return &pages.ConditionalVisibilitySettings{
+		BaseElement: model.BaseElement{
+			ID:       model.ID(types.GenerateID()),
+			TypeName: "Forms$ConditionalVisibilitySettings",
+		},
+		Expression: expr,
 	}
 }
 
@@ -975,10 +995,10 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 
 	case "association":
 		// Association path source — emits Forms$AssociationSource BSON.
-		// ds.Reference is either "Module.Assoc" (single-segment) or
-		// "Module.Assoc/Module.DestEntity" (multi-segment, dest explicit).
-		// For single-segment, resolve DestinationEntity from the association
-		// definition (the side opposite to the parent context entity).
+		// ds.Reference is one or more hops, each "Module.Assoc" or
+		// "Module.Assoc/Module.DestEntity"; a hop without a destination resolves
+		// it from the association definition (the side opposite to the entity
+		// the hop starts from). See resolveAssociationSourceHops.
 		ctxVar := ds.ContextVariable
 		if ctxVar == "currentObject" {
 			ctxVar = "" // implicit context — no SourceVariable in BSON
@@ -1016,50 +1036,9 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 			}
 		}
 
-		path := ds.Reference
-		destEntity := ""
-		if idx := strings.Index(path, "/"); idx >= 0 {
-			destEntity = path[idx+1:]
-			path = path[:idx]
-		}
-
-		// Both halves of an EntityRefStep are BY_NAME references, and Mendix
-		// resolves either one it cannot find to null — so the association half
-		// needs the same care as the destination. A bare name (the spelling
-		// attribute paths accept, and the one the guard below suggests) reached
-		// BSON unqualified and the loader threw ArgumentNullException at
-		// `EntityRefStep.set_AssociationId`: same unopenable project as an empty
-		// DestinationEntity, a different property. Qualify with the context
-		// entity's module, exactly as attribute-path hops do (upstream #854).
-		path = pb.resolveAssociationPathIn(path, fromEntity)
-
-		if destEntity == "" {
-			destEntity = pb.resolveAssociationDestination(path, fromEntity)
-		} else if _, _, ok := pb.associationEndpoints(path); !ok {
-			// An author-supplied destination satisfies the guard below, so it is
-			// the one path where a misspelled — or wrongly-moduled — association
-			// would sail through and be written qualified-but-nonexistent, which
-			// Mendix resolves to null just the same. Verify it exists.
-			return nil, "", mdlerrors.NewValidationf(
-				"association %q for datasource %q does not exist — "+
-					"writing it would produce a project Mendix cannot open; "+
-					"a bare name is qualified with the module of the context entity (%s), "+
-					"so an association declared elsewhere must be named in full",
-				path, ds.Reference, fromEntity)
-		}
-
-		// An empty DestinationEntity is a by-name reference Mendix resolves to
-		// null: the loader throws ArgumentNullException setting DestinationEntityId
-		// and the whole project becomes unopenable — Studio Pro refuses it and
-		// `mx check` dies before validating anything. Refuse instead of writing a
-		// structurally invalid unit; the author can name the destination explicitly
-		// as `Assoc/Module.Entity`. (issuetracker #14)
-		if destEntity == "" {
-			return nil, "", mdlerrors.NewValidationf(
-				"cannot resolve the destination entity of association %q for datasource %q — "+
-					"writing it unresolved would produce a project Mendix cannot open; "+
-					"name the destination explicitly, e.g. `%s/Module.Entity`",
-				path, ds.Reference, path)
+		entityPath, destEntity, err := pb.resolveAssociationSourceHops(ds.Reference, fromEntity)
+		if err != nil {
+			return nil, "", err
 		}
 
 		// Return destEntity as the child context so column bindings inside the
@@ -1069,7 +1048,7 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "Forms$AssociationSource",
 			},
-			EntityPath:         path + "/" + destEntity,
+			EntityPath:         entityPath,
 			ContextVariable:    ctxVar,
 			IsSnippetParameter: ctxVar != "" && pb.parameterSlotKind(strings.TrimPrefix(ctxVar, "$")) == "snippet",
 		}, destEntity, nil
@@ -1161,6 +1140,102 @@ func (pb *pageBuilder) applyDatabaseClausesV3(dbSource *pages.DatabaseSource, ds
 	}
 
 	return nil
+}
+
+// resolveAssociationSourceHops resolves an association datasource path into the
+// stored EntityPath — one `Assoc/DestinationEntity` pair per hop, joined by `/`
+// — and the entity the last hop arrives at.
+//
+// The path is traversed from fromEntity and accepts both spellings of a hop:
+// the association alone (its destination is the end opposite the entity the
+// hop starts from) and the association followed by its destination entity.
+// Each segment after an association is the NEXT association when it names one,
+// otherwise that hop's destination. So `A1/A2`, `A1/E1/A2/E2` and mixtures all
+// resolve to the same steps.
+//
+// Splitting at the first `/` instead (mendixlabs/mxcli#1467) stored the second
+// association of `A1/A2` as an entity (CE1613 "The selected entity … no longer
+// exists"), and `A1/E1/A2/E2` as one step whose DestinationEntity was the
+// literal "E1/A2/E2" — the project would not load.
+func (pb *pageBuilder) resolveAssociationSourceHops(reference, fromEntity string) (entityPath, destEntity string, err error) {
+	segs := strings.Split(reference, "/")
+	at := fromEntity
+	var pairs []string
+	for i := 0; i < len(segs); {
+		// Both halves of an EntityRefStep are BY_NAME references, and Mendix
+		// resolves either one it cannot find to null — so the association half
+		// needs the same care as the destination. A bare name (the spelling
+		// attribute paths accept, and the one the guard below suggests) reached
+		// BSON unqualified and the loader threw ArgumentNullException at
+		// `EntityRefStep.set_AssociationId`: same unopenable project as an empty
+		// DestinationEntity, a different property. Qualify with the context
+		// entity's module, exactly as attribute-path hops do (upstream #854).
+		assoc := pb.resolveAssociationPathIn(segs[i], at)
+		i++
+		derived := pb.resolveAssociationDestination(assoc, at)
+
+		dest := ""
+		if i < len(segs) && !pb.isAssociationSegment(segs[i], derived, at) {
+			dest = segs[i]
+			i++
+			from, to, ok := pb.associationEndpoints(assoc)
+			if !ok {
+				// An author-supplied destination satisfies the guard below, so it
+				// is the one path where a misspelled — or wrongly-moduled —
+				// association would sail through and be written
+				// qualified-but-nonexistent, which Mendix resolves to null just
+				// the same. Verify it exists.
+				return "", "", mdlerrors.NewValidationf(
+					"association %q for datasource %q does not exist — "+
+						"writing it would produce a project Mendix cannot open; "+
+						"a bare name is qualified with the module of the context entity (%s), "+
+						"so an association declared elsewhere must be named in full",
+					assoc, reference, at)
+			}
+			// Neither the next association nor an end of this one: a misspelled
+			// association read as an entity, or an entity off the path. Either
+			// way the step would name an entity the hop does not arrive at.
+			// Studio Pro may store a specialization of an end, so accept that.
+			if dest != from && dest != to && !pb.isSpecializationOf(dest, from) && !pb.isSpecializationOf(dest, to) {
+				return "", "", mdlerrors.NewValidationf(
+					"%q in datasource %q is neither an association nor an end of association %q (%s, %s) — "+
+						"each hop is `Module.Assoc` or `Module.Assoc/Module.DestinationEntity`",
+					dest, reference, assoc, from, to)
+			}
+		} else {
+			dest = derived
+		}
+
+		// An empty DestinationEntity is a by-name reference Mendix resolves to
+		// null: the loader throws ArgumentNullException setting
+		// DestinationEntityId and the whole project becomes unopenable — Studio
+		// Pro refuses it and `mx check` dies before validating anything. Refuse
+		// instead of writing a structurally invalid unit; the author can name the
+		// destination explicitly as `Assoc/Module.Entity`. (issuetracker #14)
+		if dest == "" {
+			return "", "", mdlerrors.NewValidationf(
+				"cannot resolve the destination entity of association %q for datasource %q — "+
+					"writing it unresolved would produce a project Mendix cannot open; "+
+					"name the destination explicitly, e.g. `%s/Module.Entity`",
+				assoc, reference, assoc)
+		}
+		pairs = append(pairs, assoc, dest)
+		at = dest
+	}
+	return strings.Join(pairs, "/"), at, nil
+}
+
+// isAssociationSegment reports whether a path segment following an association
+// names the next association rather than that association's destination. A
+// bare name is qualified as the next hop would qualify it: from the entity this
+// hop arrives at, falling back to the one it starts from.
+func (pb *pageBuilder) isAssociationSegment(seg, arrivesAt, startsAt string) bool {
+	ctx := arrivesAt
+	if ctx == "" {
+		ctx = startsAt
+	}
+	_, _, ok := pb.associationEndpoints(pb.resolveAssociationPathIn(seg, ctx))
+	return ok
 }
 
 // buildListViewDataSourceV3 builds a List View's DataSource: everything
