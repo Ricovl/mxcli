@@ -401,6 +401,18 @@ drop dgProducts column(Name)@2
 
 The older dotted form `gridName.columnName` still works; it matches a name mxcli derives (the short attribute name, else the sanitized caption, else `colN`).
 
+A **legacy (Dojo) data grid** (`Forms$DataGrid`, from an upgraded app) cannot be created in MDL, so `describe page` prints it as comments — but it lists every column, search field and control-bar button by its *stored* name. Those are addressed by that bare name, like any widget:
+
+```sql
+mdl 1;
+alter page MyMod.Order_Overview {
+  drop column14, searchField3;                 -- one column and its search field
+  set (caption: 'Note') on column2
+};
+```
+
+Only that item is removed or changed; the rest of the grid is left as stored. To restructure the grid itself, replace it with a DataGrid 2.
+
 ### ADD Variables - Add a Page Variable
 
 ```sql
