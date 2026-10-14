@@ -713,14 +713,12 @@ func build(input string, opts buildOptions, listen func(*Builder) antlr.ParseTre
 	}
 	stream := antlr.NewCommonTokenStream(source, antlr.TokenDefaultChannel)
 	p := parser.NewMDLParser(stream)
-	p.RemoveErrorListeners()
-	p.AddErrorListener(errListener)
 
 	// Create builder and walk the tree
 	builder := NewBuilder()
 	builder.session = opts.session
 	builder.syntaxErrorLines = errListener.lines
-	tree := p.Program()
+	tree := parseProgram(p, stream, errListener)
 	antlr.ParseTreeWalkerDefault.Walk(listen(builder), tree)
 	builder.noteBackslashEscapes(stream.GetAllTokens())
 
@@ -736,6 +734,30 @@ func build(input string, opts buildOptions, listen func(*Builder) antlr.ParseTre
 		FlowCommits:         builder.flowCommits,
 		DetachedDocComments: builder.detachedDocComments(),
 	}, allErrors
+}
+
+// parseProgram parses with fast SLL prediction first and falls back to full LL,
+// with errListener attached, only when that pass reports an error or stops
+// short of EOF. The generated rules clear the parser's error state as they
+// return, so the error count, not HasError, is what decides. (Not the bail
+// strategy: in antlr4-go 4.13.1 reporting its cancellation panics.)
+func parseProgram(p *parser.MDLParser, stream *antlr.CommonTokenStream, errListener antlr.ErrorListener) parser.IProgramContext {
+	errs := &countingErrorListener{}
+	p.RemoveErrorListeners()
+	p.AddErrorListener(errs)
+	p.Interpreter.SetPredictionMode(antlr.PredictionModeSLL)
+	tree := p.Program()
+	if errs.n == 0 && stream.LA(1) == antlr.TokenEOF {
+		return tree
+	}
+	stream.Seek(0)
+	p.SetTokenStream(stream)
+	p.SetError(nil)
+
+	p.RemoveErrorListeners()
+	p.AddErrorListener(errListener)
+	p.Interpreter.SetPredictionMode(antlr.PredictionModeLL)
+	return p.Program()
 }
 
 // Errors returns any errors encountered during building.
