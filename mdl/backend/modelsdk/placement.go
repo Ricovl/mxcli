@@ -79,8 +79,7 @@ func (b *Backend) ListDocumentUnits() ([]*types.DocumentUnit, error) {
 	return out, nil
 }
 
-// eachDocumentUnit walks every "Documents" unit, decoding just enough of each
-// to name it, and stops early when visit returns false.
+// eachDocumentUnit walks every "Documents" unit, reading only the name of each, and stops early when visit returns false.
 //
 // A unit whose contents will not decode is skipped rather than failing the
 // walk: a listing missing one unreadable document is more useful than no
@@ -98,11 +97,14 @@ func (b *Backend) eachDocumentUnit(visit func(*types.DocumentUnit) bool) error {
 		if err != nil || len(raw) == 0 {
 			continue
 		}
-		var doc bson.D
-		if err := bson.Unmarshal(raw, &doc); err != nil {
+		// Only the top-level Name is needed: unmarshalling the whole document
+		// to read it was most of a module-wide describe's time on a large
+		// project. An invalid document is skipped, as the decode skipped it.
+		doc := bson.Raw(raw)
+		if doc.Validate() != nil {
 			continue
 		}
-		name := docNameOf(doc)
+		name, _ := doc.Lookup("Name").StringValueOK()
 		if name == "" {
 			continue
 		}
