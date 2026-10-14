@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	modelsdk "github.com/mendixlabs/mxcli"
+	"github.com/mendixlabs/mxcli/internal/zipentry"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -154,7 +155,7 @@ func extractZipEntry(zipPath, entry, dst string) error {
 		if f.Name != entry {
 			continue
 		}
-		rc, err := f.Open()
+		rc, err := zipentry.Open(f)
 		if err != nil {
 			return err
 		}
@@ -201,7 +202,7 @@ func replaceZipEntry(srcZip, entry, replacement, dst string) error {
 		if f.Name == entry {
 			src, err = os.Open(replacement)
 		} else {
-			src, err = f.Open()
+			src, err = zipentry.Open(f)
 		}
 		if err != nil {
 			return err

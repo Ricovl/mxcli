@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	modelsdk "github.com/mendixlabs/mxcli"
+	"github.com/mendixlabs/mxcli/internal/zipentry"
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -374,7 +375,7 @@ func InstallPackageFiles(mpkPath, projectDir string) (written []string, skipped 
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return written, skipped, fmt.Errorf("create %s: %w", filepath.Dir(dst), err)
 		}
-		rc, oerr := f.Open()
+		rc, oerr := zipentry.Open(f)
 		if oerr != nil {
 			return written, skipped, fmt.Errorf("read %s from the package: %w", f.Name, oerr)
 		}

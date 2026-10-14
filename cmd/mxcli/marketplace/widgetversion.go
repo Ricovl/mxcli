@@ -11,6 +11,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	"github.com/mendixlabs/mxcli/internal/zipentry"
 )
 
 // A module package is not only its model: it bundles copies of every widget its
@@ -66,7 +68,7 @@ func widgetVersionInMpk(mpk []byte) string {
 		if f.Name != "package.xml" {
 			continue
 		}
-		rc, oerr := f.Open()
+		rc, oerr := zipentry.Open(f)
 		if oerr != nil {
 			return ""
 		}

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mendixlabs/mxcli/internal/zipentry"
 	mxversion "github.com/mendixlabs/mxcli/mdl/types"
 )
 
@@ -712,7 +713,7 @@ func extractZip(zipPath, targetDir string) error {
 		}
 
 		// Extract file
-		rc, err := f.Open()
+		rc, err := zipentry.Open(f)
 		if err != nil {
 			return fmt.Errorf("opening %s in zip: %w", name, err)
 		}
