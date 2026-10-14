@@ -210,12 +210,13 @@ func (s *flowAccessSim) loadStoredFlows(h *ContainerHierarchy) {
 		}
 		s.flows[key] = st
 	}
-	if mfs, err := s.ctx.Backend.ListMicroflows(); err == nil {
+	// Name, flags and roles are all this reads, so no flow body is decoded.
+	if mfs, err := microflowSignatures(s.ctx.Backend); err == nil {
 		for _, mf := range mfs {
 			put("microflow", h.GetQualifiedName(mf.ContainerID, mf.Name), mf.Excluded, mf.AllowedModuleRoles)
 		}
 	}
-	if nfs, err := s.ctx.Backend.ListNanoflows(); err == nil {
+	if nfs, err := nanoflowSignatures(s.ctx.Backend); err == nil {
 		for _, nf := range nfs {
 			put("nanoflow", h.GetQualifiedName(nf.ContainerID, nf.Name), nf.Excluded, nf.AllowedModuleRoles)
 		}

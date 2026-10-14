@@ -579,6 +579,31 @@ func nanoflowsNamedIn(b backend.FullBackend, name string) ([]*microflows.Nanoflo
 	return out, nil
 }
 
+// flowSignatureLister is a backend that can list flows without decoding their
+// bodies (the modelsdk backend).
+type flowSignatureLister interface {
+	ListMicroflowSignatures() ([]*microflows.Microflow, error)
+	ListNanoflowSignatures() ([]*microflows.Nanoflow, error)
+}
+
+// microflowSignatures lists every microflow with its name, container, flags,
+// roles, parameters and return type, but not necessarily its body: callers
+// must not read ObjectCollection or flows. ListMicroflows for other backends.
+func microflowSignatures(b backend.FullBackend) ([]*microflows.Microflow, error) {
+	if l, ok := b.(flowSignatureLister); ok {
+		return l.ListMicroflowSignatures()
+	}
+	return b.ListMicroflows()
+}
+
+// nanoflowSignatures is microflowSignatures for nanoflows.
+func nanoflowSignatures(b backend.FullBackend) ([]*microflows.Nanoflow, error) {
+	if l, ok := b.(flowSignatureLister); ok {
+		return l.ListNanoflowSignatures()
+	}
+	return b.ListNanoflows()
+}
+
 // microflowHeaders is every microflow's ID, container, name and Excluded flag,
 // for a name set or an ID-to-name map: no flow is decoded where the backend
 // can avoid it.
